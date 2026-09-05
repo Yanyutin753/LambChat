@@ -18,6 +18,7 @@ class SandboxConfig:
     server_url: str = "http://127.0.0.1:8000"
     data_root: Path = Path.home() / ".lambchat" / "workspaces"
     confirm_policy: str = "all"  # all | commands | none
+    embedded_python: bool = True  # 内嵌 PBS 运行时（false 走系统 PATH）
 
 
 def config_path() -> Path:
@@ -37,10 +38,15 @@ def load_config(path: Path | None = None) -> SandboxConfig:
     if not isinstance(raw, dict):
         raise ConfigError(f"config root must be a JSON object: {p}")
 
+    raw_embedded = raw.get("embedded_python", SandboxConfig.embedded_python)
+    if not isinstance(raw_embedded, bool):  # 旧配置缺字段走默认；非布尔值拒绝
+        raise ConfigError(f"embedded_python must be a boolean, got {raw_embedded!r} ({p})")
+
     cfg = SandboxConfig(
         server_url=str(raw.get("server_url", SandboxConfig.server_url)),
         data_root=Path(str(raw.get("data_root", SandboxConfig.data_root))),
         confirm_policy=str(raw.get("confirm_policy", SandboxConfig.confirm_policy)),
+        embedded_python=raw_embedded,
     )
     _validate(cfg, p)
     return cfg
@@ -54,6 +60,7 @@ def save_config(cfg: SandboxConfig, path: Path | None = None) -> None:
         "server_url": cfg.server_url,
         "data_root": str(cfg.data_root),
         "confirm_policy": cfg.confirm_policy,
+        "embedded_python": cfg.embedded_python,
     }
     p.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 

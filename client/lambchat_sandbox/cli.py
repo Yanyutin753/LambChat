@@ -41,6 +41,7 @@ def cmd_login(args: argparse.Namespace) -> int:
             server_url=args.server,
             data_root=cfg.data_root,
             confirm_policy=cfg.confirm_policy,
+            embedded_python=cfg.embedded_python,
         )
         save_config(cfg)
         print(f"已保存 server_url: {args.server}")

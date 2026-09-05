@@ -54,3 +54,31 @@ def test_makefile_exposes_client_build_daemon_target() -> None:
 
     assert "\nclient-build-daemon:" in makefile
     assert "client/scripts/build-daemon.sh" in makefile
+
+
+# ---------------------------------------------------------------------------
+# 内嵌 PBS 运行时（M4 T4）：fetch 脚本 / Tauri resources / 忽略产物
+# ---------------------------------------------------------------------------
+
+
+def test_tauri_bundle_resources_include_python_runtime() -> None:
+    import json
+
+    conf = json.loads(_source("frontend/src-tauri/tauri.conf.json"))
+    resources = conf.get("bundle", {}).get("resources", [])
+    # fetch-pbs.py 产出的 resources/python/<platform>/python.tar.gz 随包分发
+    assert any("resources/python" in str(r) for r in resources), resources
+
+
+def test_makefile_exposes_client_fetch_pbs_target() -> None:
+    makefile = _source("Makefile")
+
+    assert "\nclient-fetch-pbs:" in makefile
+    assert "client/scripts/fetch-pbs.py" in makefile
+
+
+def test_gitignore_excludes_pbs_resource_artifacts() -> None:
+    gi = _source(".gitignore")
+
+    # tar.gz 产物不入库（构建期 fetch-pbs.py 现场下载，tag 锁定保可复现）
+    assert "frontend/src-tauri/resources/python/" in gi

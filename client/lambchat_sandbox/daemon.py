@@ -37,6 +37,7 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 
+from lambchat_sandbox import pbs
 from lambchat_sandbox.audit import Auditor
 from lambchat_sandbox.config import SandboxConfig
 from lambchat_sandbox.confirm import needs_confirm, terminal_confirm
@@ -72,7 +73,14 @@ async def run_daemon(
     factory = (
         client_factory if client_factory is not None else lambda: ChannelClient(cfg.server_url, pat)
     )
-    executor_ = executor if executor is not None else Executor(cfg.data_root)
+    # 启动即装配内嵌 Python 运行时（embedded_python=true 且归档在位时）：
+    # shim bin 目录前置进 executor 子进程 PATH，python3 命中内嵌解释器。
+    # 注入 executor（测试替身）不经此路径——PATH 注入在 Executor 构造期完成。
+    executor_ = (
+        executor
+        if executor is not None
+        else Executor(cfg.data_root, extra_path=_ensure_runtime_bin(cfg))
+    )
     auditor_ = auditor if auditor is not None else Auditor(DEFAULT_AUDIT_ROOT)
     installed = _install_sigterm_cancel()
 
@@ -323,6 +331,21 @@ async def _process_fs_call(
         session_id,
         {"event": "executed", "call_id": call.call_id, "op": call.op, "path": path, "status": "ok"},
     )
+
+
+def _ensure_runtime_bin(cfg: SandboxConfig) -> Path | None:
+    """daemon 启动时装配内嵌 PBS 运行时，返回 shim bin 目录（None = 系统 PATH）。
+
+    任何装配失败（归档损坏/磁盘异常）都只告警回退，绝不阻断启动——沙箱的
+    存在价值首先是不掉线。回退语义详见 :mod:`lambchat_sandbox.pbs`。
+    """
+    if not cfg.embedded_python:
+        return None
+    try:
+        return pbs.ensure_runtime(None, None)
+    except Exception as exc:  # noqa: BLE001 - 装配异常回退系统 PATH，不阻断启动
+        print(f"[sandbox] 内嵌 Python 装配异常，回退系统 PATH: {exc}", file=sys.stderr, flush=True)
+        return None
 
 
 def _session_id_from_cwd(virtual_cwd: str) -> str:

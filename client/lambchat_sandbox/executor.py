@@ -223,10 +223,27 @@ def map_workspace(virtual_cwd: str, data_root: Path) -> Path:
 
 
 class Executor:
-    """在 data_root 会话目录里执行 shell 命令的受控执行器。"""
+    """在 data_root 会话目录里执行 shell 命令的受控执行器。
 
-    def __init__(self, data_root: Path) -> None:
+    ``extra_path``（M4 T4）：内嵌 Python 的 shim bin 目录——前置进全部子进程
+    PATH，使命令里的 ``python3`` 命中内嵌解释器而非用户系统安装。``None``
+    （embedded_python=false / 装配回退）时 Popen 不传 env，完全继承父环境。
+    """
+
+    def __init__(self, data_root: Path, extra_path: Path | None = None) -> None:
         self._data_root = Path(data_root)
+        self._extra_path = Path(extra_path) if extra_path is not None else None
+
+    def _spawn_env(self) -> dict[str, str] | None:
+        """extra_path 前置进子进程 PATH；无 extra_path 返回 None（= 继承父环境）。"""
+        if self._extra_path is None:
+            return None
+        env = dict(os.environ)
+        path = env.get("PATH", "")
+        env["PATH"] = (
+            os.pathsep.join([str(self._extra_path), path]) if path else str(self._extra_path)
+        )
+        return env
 
     def execute(self, command: str, virtual_cwd: str, timeout: float) -> dict:
         """执行 command，返回 {status, stdout, stderr, exit_code, error}。"""
@@ -241,6 +258,7 @@ class Executor:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             start_new_session=True,  # 子进程自成会话：pgid == pid，超时可整组击杀
+            env=self._spawn_env(),
         )
         try:
             stdout_b, stderr_b = proc.communicate(timeout=timeout)
@@ -293,6 +311,7 @@ class Executor:
                 cwd=workspace,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                env=self._spawn_env(),
             )
             try:
                 process = winapi.open_process(PROCESS_SET_QUOTA | PROCESS_TERMINATE, proc.pid)

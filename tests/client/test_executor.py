@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import os
 import shlex
 import sys
 import time
@@ -190,3 +191,52 @@ def test_execute_output_at_limit_is_not_truncated(tmp_path):
     cmd = _python_stdout_cmd(f"'a' * {MAX_OUTPUT_BYTES}")
     res = Executor(tmp_path).execute(cmd, "/workspace/s1", timeout=30)
     assert res["stdout"] == "a" * MAX_OUTPUT_BYTES  # 恰好 256KB：不加截断标记
+
+
+# ---------------------------------------------------------------------------
+# extra_path（M4 T4：内嵌 Python bin 目录前置进子进程 PATH）
+# ---------------------------------------------------------------------------
+
+
+def test_execute_prepends_extra_path_to_subprocess_path(tmp_path):
+    """extra_path 目录成为子进程 PATH 首段（内嵌 Python 经此命中）。"""
+    bin_dir = tmp_path / "embedded-bin"
+    bin_dir.mkdir()
+    res = Executor(tmp_path, extra_path=bin_dir).execute("echo $PATH", "/workspace/s1", timeout=15)
+    assert res["status"] == "ok"
+    assert res["stdout"].strip().split(os.pathsep)[0] == str(bin_dir)
+
+
+def test_execute_without_extra_path_keeps_inherited_path(tmp_path):
+    """不传 extra_path：子进程 PATH 保持继承（首段绝不是随意注入的目录）。"""
+    injected = tmp_path / "not-in-path"
+    res = Executor(tmp_path).execute("echo $PATH", "/workspace/s1", timeout=15)
+    assert res["status"] == "ok"
+    assert str(injected) not in res["stdout"]
+
+
+def test_execute_extra_path_shim_wins_over_system_python3(tmp_path):
+    """PATH 前置后 shell 解析 python3 命中 shim：假解释器输出哨兵串。"""
+    bin_dir = tmp_path / "embedded-bin"
+    bin_dir.mkdir()
+    shim = bin_dir / "python3"
+    shim.write_text('#!/bin/sh\necho EMBEDDED-HIT "$0"\n', encoding="utf-8")
+    shim.chmod(0o755)
+    res = Executor(tmp_path, extra_path=bin_dir).execute(
+        "python3 -c 'x'", "/workspace/s1", timeout=15
+    )
+    assert res["status"] == "ok"
+    assert res["stdout"].startswith("EMBEDDED-HIT")
+
+
+def test_spawn_env_is_none_without_extra_path(tmp_path):
+    """env=None → Popen 继承父环境（embedded_python=false 的零开销路径）。"""
+    assert Executor(tmp_path)._spawn_env() is None
+
+
+def test_spawn_env_prepends_extra_path(tmp_path):
+    env = Executor(tmp_path, extra_path=tmp_path / "b")._spawn_env()
+    assert env is not None
+    assert env["PATH"].split(os.pathsep)[0] == str(tmp_path / "b")
+    # 其余环境变量原样保留
+    assert env.get("HOME") == os.environ.get("HOME")

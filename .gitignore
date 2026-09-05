@@ -65,6 +65,8 @@ frontend/**/*.tsbuildinfo
 
 # Local sandbox daemon build artifacts (PyInstaller onefile + Tauri sidecar binaries)
 frontend/src-tauri/binaries/
+# Embedded python-build-standalone tarballs (build-time fetch-pbs.py download, ~100MB each)
+frontend/src-tauri/resources/python/
 # Tauri Rust 构建产物与锁文件（遵循 uv.lock 不入库的既有约定）
 frontend/src-tauri/target/
 frontend/src-tauri/gen/

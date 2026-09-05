@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -878,3 +879,124 @@ async def test_fs_op_invalid_cwd_converges_to_error_done(tmp_path):
     assert "workspace" in body["error"]
     # 非法 cwd 的 session_id 回落 unknown
     assert [e["event"] for e in auditor.records["unknown"]] == ["received", "allowed", "executed"]
+
+
+# ---------- 内嵌 Python 运行时装配（M4 T4：ensure_runtime + PATH 前置） ----------
+
+
+async def _run_with_real_executor(cfg, monkeypatch, *, ensure_result, data_root):
+    """不注入 executor（走 daemon 自建路径），monkeypatch pbs.ensure_runtime。
+
+    返回 (client, ensure_calls)：client 收到一条 `echo $PATH` 的 exec 调用。
+    """
+    from lambchat_sandbox import daemon as daemon_module
+    from lambchat_sandbox.executor import Executor
+
+    ensure_calls: list[tuple] = []
+
+    def fake_ensure(resources_dir, install_root):
+        ensure_calls.append((resources_dir, install_root))
+        return ensure_result
+
+    monkeypatch.setattr(daemon_module.pbs, "ensure_runtime", fake_ensure)
+    assert daemon_module.Executor is Executor  # 同一对象：monkeypatch ensure 即全链生效
+
+    client = FakeClient(calls=[_call(payload={"command": "echo $PATH", "cwd": "/workspace/s1"})])
+    auditor = MemoryAuditor()
+    with pytest.raises(TransportAuthError):
+        await run_daemon(
+            cfg,
+            pat=PAT,
+            confirm_fn=_boom_confirm,
+            client_factory=FakeFactory([client, _terminator()]),
+            auditor=auditor,
+            sleep_fn=SleepRecorder(),
+        )
+    return client, ensure_calls
+
+
+async def test_daemon_prepends_ensure_runtime_bin_dir_to_executor_path(tmp_path, monkeypatch):
+    """embedded_python=true（默认）：daemon 启动装配内嵌运行时，executor 子进程
+    PATH 首段是 ensure_runtime 返回的 bin 目录。"""
+    fake_bin = tmp_path / "embedded-bin"
+    cfg = _cfg("none", data_root=tmp_path)
+    client, ensure_calls = await _run_with_real_executor(
+        cfg, monkeypatch, ensure_result=fake_bin, data_root=tmp_path
+    )
+
+    assert ensure_calls == [(None, None)]  # 默认 resources/install 路径交给 pbs 模块
+    done = client.posted[1][1]
+    assert done["status"] == "ok"
+    assert done["stdout"].strip().split(":")[0] == str(fake_bin)
+
+
+async def test_daemon_skips_ensure_runtime_when_embedded_python_false(tmp_path, monkeypatch):
+    """embedded_python=false：不装配、不前置（走系统 PATH）。"""
+    from lambchat_sandbox import daemon as daemon_module
+
+    def boom_ensure(resources_dir, install_root):  # pragma: no cover - 调用即失败
+        raise AssertionError("embedded_python=false 不应调用 ensure_runtime")
+
+    monkeypatch.setattr(daemon_module.pbs, "ensure_runtime", boom_ensure)
+    cfg = SandboxConfig(
+        server_url="https://lc.example",
+        data_root=tmp_path,
+        confirm_policy="none",
+        embedded_python=False,
+    )
+    client = FakeClient(calls=[_call(payload={"command": "echo $PATH", "cwd": "/workspace/s1"})])
+    with pytest.raises(TransportAuthError):
+        await run_daemon(
+            cfg,
+            pat=PAT,
+            confirm_fn=_boom_confirm,
+            client_factory=FakeFactory([client, _terminator()]),
+            auditor=MemoryAuditor(),
+            sleep_fn=SleepRecorder(),
+        )
+
+    done = client.posted[1][1]
+    assert done["status"] == "ok"
+    # PATH 首段是系统 PATH 首段（未被注入任何目录）
+    assert done["stdout"].strip().split(":")[0] == os.environ["PATH"].split(":")[0]
+
+
+async def test_daemon_falls_back_to_system_path_when_no_tarball(tmp_path, monkeypatch):
+    """ensure_runtime 返回 None（无归档回退）：daemon 照常启动执行（仅告警）。"""
+    cfg = _cfg("none", data_root=tmp_path)
+    client, ensure_calls = await _run_with_real_executor(
+        cfg, monkeypatch, ensure_result=None, data_root=tmp_path
+    )
+    assert ensure_calls  # 装配尝试发生过
+    assert client.posted[1][1]["status"] == "ok"
+    assert client.posted[1][1]["exit_code"] == 0
+
+
+async def test_daemon_falls_back_when_ensure_runtime_raises(tmp_path, monkeypatch):
+    """ensure_runtime 崩溃不阻断启动：回退系统 PATH 继续执行任务。"""
+    from lambchat_sandbox import daemon as daemon_module
+
+    def explode(resources_dir, install_root):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(daemon_module.pbs, "ensure_runtime", explode)
+    cfg = _cfg("none", data_root=tmp_path)
+    client = FakeClient(calls=[_call(payload={"command": "echo ok", "cwd": "/workspace/s1"})])
+    with pytest.raises(TransportAuthError):
+        await run_daemon(
+            cfg,
+            pat=PAT,
+            confirm_fn=_boom_confirm,
+            client_factory=FakeFactory([client, _terminator()]),
+            auditor=MemoryAuditor(),
+            sleep_fn=SleepRecorder(),
+        )
+
+    assert client.posted[1][1] == {
+        "stage": "done",
+        "status": "ok",
+        "stdout": "ok\n",
+        "stderr": "",
+        "exit_code": 0,
+        "error": None,
+    }
