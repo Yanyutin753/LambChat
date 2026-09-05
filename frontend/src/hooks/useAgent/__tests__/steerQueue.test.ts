@@ -129,6 +129,62 @@ describe("promoteSteerFollowUps", () => {
     expect(sent).toEqual(["保留"]);
   });
 
+  test("holds promotion while the session still has an active run", async () => {
+    // 重进/断连恢复时插话可能仍在原 run 的队列里等注入：
+    // 会话还在运行就补发会造出同会话并发 run，历史交错不可读
+    const calls: string[] = [];
+    const result = await promoteSteerFollowUps([item("s1", "要多点中国的")], {
+      sessionId: "session-1",
+      cancelSteer: async () => {
+        calls.push("cancel");
+      },
+      sendMessage: async () => {
+        calls.push("send");
+      },
+      clearSteer: () => {
+        calls.push("clear");
+      },
+      isSessionActive: async () => true,
+    });
+
+    expect(calls).toEqual([]);
+    expect(result).toEqual({ promoted: 0, skippedActive: 1 });
+  });
+
+  test("status probe failure is treated as active (never double-send blind)", async () => {
+    const sent: string[] = [];
+    const result = await promoteSteerFollowUps([item("s1", "插话")], {
+      sessionId: "session-1",
+      cancelSteer: async () => {},
+      sendMessage: async (content) => {
+        sent.push(content);
+      },
+      isSessionActive: async () => {
+        throw new Error("probe failed");
+      },
+    });
+
+    expect(sent).toEqual([]);
+    expect(result.skippedActive).toBe(1);
+  });
+
+  test("promotes as before when the session is idle", async () => {
+    const calls: string[] = [];
+    const result = await promoteSteerFollowUps([item("s1", "插话")], {
+      sessionId: "session-1",
+      cancelSteer: async () => {
+        calls.push("cancel");
+      },
+      sendMessage: async () => {
+        calls.push("send");
+      },
+      isSessionActive: async () => false,
+    });
+
+    expect(calls).toEqual(["cancel", "send"]);
+    expect(result).toEqual({ promoted: 1, skippedActive: 0 });
+  });
+
   test("clears local state first so the promotion effect does not retrigger", async () => {
     const cleared: Array<[string, string]> = [];
     const calls: string[] = [];
