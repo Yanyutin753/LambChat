@@ -17,6 +17,7 @@ from src.infra.session.storage import SessionStorage
 from src.infra.utils.datetime import utc_now_iso
 from src.infra.writer.presenter_events import derive_user_message_run_modes
 from src.kernel.config import settings
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.session import SessionCreate, SessionUpdate
 
 from .cancellation import TaskCancellation
@@ -43,6 +44,24 @@ def _run_stall_timeout_seconds() -> float:
 def should_schedule_recommend_questions() -> bool:
     """Return whether this run should generate follow-up question suggestions."""
     return bool(getattr(settings, "ENABLE_RECOMMEND_QUESTIONS", True))
+
+
+def _is_main_agent_text_event(event: Any) -> bool:
+    """主代理（depth=0）的非空 message:chunk —— run 有用户可见正文的判据。
+
+    子代理 chunk 带 data.depth>0，纯空白不算正文；图片/文件类结果没有独立
+    事件类型（随 tool:result 与最终文本一起出），因此只认 message:chunk。
+    """
+    if not isinstance(event, dict) or event.get("event") != "message:chunk":
+        return False
+    data = event.get("data")
+    if not isinstance(data, dict):
+        return False
+    depth = data.get("depth", 0)
+    if isinstance(depth, int) and depth > 0:
+        return False
+    content = data.get("content")
+    return isinstance(content, str) and bool(content.strip())
 
 
 class TaskExecutor:
@@ -221,6 +240,7 @@ class TaskExecutor:
             # 3. Redis Stream 有 TTL 自动过期
 
             # 执行 agent，统一保存所有事件；watchdog 保证事件流停滞时迁移 error 终态
+            produced_main_text = False
             async for event in aiter_with_stall_timeout(
                 executor(
                     session_id,
@@ -244,6 +264,8 @@ class TaskExecutor:
                 timeout=_run_stall_timeout_seconds(),
             ):
                 await presenter.save_event(event)
+                if not produced_main_text and _is_main_agent_text_event(event):
+                    produced_main_text = True
 
             # interrupt 模式挂起（issue #218）：保留 checkpoint，标记 WAITING_HUMAN
             if presenter is not None and getattr(presenter, "hitl_suspended", False):
@@ -262,6 +284,12 @@ class TaskExecutor:
                     session_id, run_id, TaskStatus.WAITING_HUMAN, user_id
                 )
                 return True
+
+            # 兜底守卫：run 正常走到终点却没有任何主代理正文（中间件空正文静默
+            # 放行的漏网路径）→ 按 error 终结，绝不假装 completed 让用户对着
+            # 空气泡（2026-09-05 生产事故：续跑后 done(completed) 无答案）。
+            if not produced_main_text:
+                raise AppError(ErrorCode.MODEL_EMPTY_RESPONSE)
 
             # 完成 trace（更新 MongoDB trace 状态为 completed）
             await presenter.complete("completed")

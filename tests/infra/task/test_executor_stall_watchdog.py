@@ -170,7 +170,7 @@ async def test_progressing_stream_completes_without_watchdog_interference(
     async def _steady_agent_stream(*_args, **_kwargs):
         for i in range(3):
             await asyncio.sleep(0.01)
-            yield {"event": "text", "data": {"content": f"chunk-{i}"}}
+            yield {"event": "message:chunk", "data": {"content": f"chunk-{i}"}}
 
     result = await executor.run_task(
         session_id="session-1",
@@ -196,7 +196,7 @@ async def test_watchdog_disabled_when_timeout_zero(
 
     async def _slow_then_done(*_args, **_kwargs):
         await asyncio.sleep(0.1)
-        yield {"event": "text", "data": {"content": "slow"}}
+        yield {"event": "message:chunk", "data": {"content": "slow"}}
 
     result = await executor.run_task(
         session_id="session-1",
