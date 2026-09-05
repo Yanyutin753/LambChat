@@ -826,6 +826,15 @@ async def cancel_session(
     task_manager = get_task_manager()
     result = await task_manager.cancel(session_id, user_id=user.sub)
 
+    # 取消 × ask_human 挂起竞态调和：挂起 run 的协程已返回，cancel 只覆写
+    # task_status、不关挂起审批也不写终态事件——审批会因会话已离开
+    # WAITING_HUMAN 永远无法恢复，前端审批卡 + 隐藏输入框死锁会话。
+    from src.api.routes.hitl_interrupt_cleanup import reconcile_cancelled_hitl_approvals
+
+    await reconcile_cancelled_hitl_approvals(
+        session_id, user_id=user.sub, task_manager=task_manager
+    )
+
     # 如果本地没有取消到，尝试从排队队列中移除
     if not result.get("cancelled_locally"):
         try:
