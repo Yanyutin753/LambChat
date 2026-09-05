@@ -150,6 +150,9 @@ class Settings(BaseSettings):
     TASK_STARTUP_CLEANUP_CONCURRENCY: int = 16
     # 周期孤儿接管间隔：缩短实例死亡后对话自动恢复的停顿（心跳按龄判死 + 扫描间隔）
     TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS: int = 15
+    # 僵尸 trace 全局兜底扫描间隔（秒）：updated_at 超过 10 分钟仍 running 的
+    # trace 终结为 error（直连 SSE run / 挂死 run 的唯一回收路径）。<=0 禁用。
+    STALE_TRACE_RECOVERY_INTERVAL_SECONDS: int = 300
     # 心跳按龄判死阈值（秒）：实例死亡后允许接管的前置等待。恢复入口与 arq
     # worker 侧均有同款活性复核兜底，20s（2 个心跳周期）不会误接管活任务。
     # <=0 时回退到内置公式 max(30, 3×心跳间隔)。
