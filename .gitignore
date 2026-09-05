@@ -65,6 +65,10 @@ frontend/**/*.tsbuildinfo
 
 # Local sandbox daemon build artifacts (PyInstaller onefile + Tauri sidecar binaries)
 frontend/src-tauri/binaries/
+# Tauri Rust 构建产物与锁文件（遵循 uv.lock 不入库的既有约定）
+frontend/src-tauri/target/
+frontend/src-tauri/gen/
+frontend/src-tauri/Cargo.lock
 client/dist/
 client/build/
 mcp.json

@@ -3,5 +3,11 @@
   "identifier": "default",
   "description": "Default desktop capability",
   "windows": ["main"],
-  "permissions": ["core:default", "notification:default", "updater:default"]
+  "permissions": [
+    "core:default",
+    "notification:default",
+    "updater:default",
+    "shell:default",
+    "shell:allow-execute"
+  ]
 }

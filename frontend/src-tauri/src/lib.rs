@@ -1,6 +1,8 @@
 use std::fs;
 use tauri::Manager;
 
+mod daemon;
+
 /// On version upgrade, clean webview data so the user starts fresh.
 fn clean_on_version_upgrade(app_handle: &tauri::AppHandle) {
     let app_dir = app_handle
@@ -44,10 +46,25 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             clean_on_version_upgrade(app.handle());
+            app.manage(daemon::DaemonManager::default());
+            // daemon 托管启动：失败仅告警，不阻塞壳（前端展示"未运行"引导）。
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = daemon::start(&handle) {
+                    eprintln!("[lambchat-daemon] failed to start daemon: {e}");
+                }
+            });
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running LambChat desktop app");
+        .build(tauri::generate_context!())
+        .expect("error while building LambChat desktop app")
+        .run(|app_handle, event| {
+            // 退出路径：托管 kill daemon（窗口关闭 / 托盘退出 / app.exit 均会走到）。
+            if let tauri::RunEvent::Exit = event {
+                daemon::stop(app_handle);
+            }
+        });
 }
