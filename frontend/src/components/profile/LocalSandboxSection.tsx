@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
 import { Monitor, FolderOpen, Link2Off, RotateCw } from "lucide-react";
 import { sandboxApi } from "../../services/api/sandbox";
+import { getAccessToken } from "../../services/api/token";
 import { API_BASE } from "../../services/api/config";
 import {
   SANDBOX_STATUS_REFRESH_EVENT,
@@ -81,22 +82,6 @@ export function LocalSandboxSection() {
     };
   }, [shell, refreshProcessStatus]);
 
-  if (!shell) {
-    return (
-      <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
-        <div className="flex items-center gap-2 mb-2">
-          <Monitor size={15} className="text-amber-500 dark:text-amber-400" />
-          <h3 className="font-semibold font-serif uppercase tracking-wide text-stone-400 dark:text-stone-500">
-            {t("profile.localSandbox.title")}
-          </h3>
-        </div>
-        <p className="text-xs text-stone-500 dark:text-stone-400">
-          {t("profile.localSandbox.needDesktop")}
-        </p>
-      </div>
-    );
-  }
-
   // 策略显示跟随 daemon 上报值（写配置→重启→新 hello 上报→status 刷新闭环）；
   // 用户正在切换（policyOpen/applying）时不回写，避免覆盖在途选择
   const reportedPolicy = status?.daemon_confirm_policy;
@@ -119,6 +104,56 @@ export function LocalSandboxSection() {
     processStatus === "unsupported" ||
     statusError === "unauthorized";
   const loading = processStatus === "";
+
+  // 登录即配对（自动，每挂载一次）：未配对且 daemon 停止时——
+  // - 已有落盘 PAT：直接拉起 daemon（配对数据还在，只是进程没起来——
+  //   例如壳启动时 sidecar 缺失/版本门拒连后的恢复）；
+  // - 无 PAT：用壳会话 JWT 铸 PAT 自动配对（同账号；换账号配对仍走表单）。
+  // 任何失败静默回落配对表单，不循环重试。
+  const autoPairHandled = useRef(false);
+  useEffect(() => {
+    if (!shell || loading || !unpaired || unpairing || autoPairHandled.current) {
+      return;
+    }
+    autoPairHandled.current = true;
+    (async () => {
+      try {
+        const existingPat = await readPairingPat().catch(() => null);
+        if (existingPat) {
+          await restartDaemon();
+          notifySandboxStatusRefresh();
+          refresh();
+          refreshProcessStatus();
+          return;
+        }
+        const sessionJwt = getAccessToken();
+        if (!sessionJwt) return;
+        const pat = await sandboxApi.createPairingPat(sessionJwt);
+        await applyPatAndRestart(pat.token, pat.pat_id, policy);
+      } catch (err) {
+        console.warn("[LocalSandboxSection] auto pair failed:", err);
+      }
+    })();
+    // applyPatAndRestart/refresh/refreshProcessStatus 每渲染重建；
+    // autoPairHandled 保证只执行一次，依赖收窄不会漏触发
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shell, loading, unpaired, unpairing]);
+
+  if (!shell) {
+    return (
+      <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
+        <div className="flex items-center gap-2 mb-2">
+          <Monitor size={15} className="text-amber-500 dark:text-amber-400" />
+          <h3 className="font-semibold font-serif uppercase tracking-wide text-stone-400 dark:text-stone-500">
+            {t("profile.localSandbox.title")}
+          </h3>
+        </div>
+        <p className="text-xs text-stone-500 dark:text-stone-400">
+          {t("profile.localSandbox.needDesktop")}
+        </p>
+      </div>
+    );
+  }
 
   const applyPatAndRestart = async (
     pat: string,

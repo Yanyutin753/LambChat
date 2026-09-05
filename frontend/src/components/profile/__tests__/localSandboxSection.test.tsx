@@ -286,3 +286,51 @@ test("paired view syncs policy display from daemon-reported confirm policy", asy
   expect(await screen.findByText("No confirmation")).toBeInTheDocument();
   expect(screen.queryByText("Confirm all actions")).not.toBeInTheDocument();
 });
+
+// ---------- 登录即配对：会话 JWT 自动铸 PAT / 已有 PAT 自动拉起 ----------
+
+test("auto-pairs with session token when unpaired and no local PAT", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("stopped");
+  mocks.getStatus.mockResolvedValue({ online: false });
+  mocks.readPairingPat.mockResolvedValue(null);
+  window.localStorage.setItem("access_token", "jwt-session");
+  mocks.createPairingPat.mockResolvedValue({ token: "lcpat_auto", pat_id: "p-auto" });
+  mocks.savePairing.mockResolvedValue(undefined);
+  mocks.restartDaemon.mockResolvedValue(undefined);
+
+  render(<LocalSandboxSection />);
+
+  await waitFor(() => expect(mocks.restartDaemon).toHaveBeenCalled());
+  expect(mocks.createPairingPat).toHaveBeenCalledWith("jwt-session");
+  expect(mocks.savePairing).toHaveBeenCalledWith(
+    expect.objectContaining({ pat: "lcpat_auto", patId: "p-auto" }),
+  );
+});
+
+test("auto-restarts daemon without re-minting when PAT already on disk", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("stopped");
+  mocks.getStatus.mockResolvedValue({ online: false });
+  mocks.readPairingPat.mockResolvedValue("lcpat_existing");
+  mocks.restartDaemon.mockResolvedValue(undefined);
+
+  render(<LocalSandboxSection />);
+
+  await waitFor(() => expect(mocks.restartDaemon).toHaveBeenCalled());
+  expect(mocks.createPairingPat).not.toHaveBeenCalled();
+  expect(mocks.savePairing).not.toHaveBeenCalled();
+});
+
+test("auto-pair failure falls back to the manual pairing form", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("stopped");
+  mocks.getStatus.mockResolvedValue({ online: false });
+  mocks.readPairingPat.mockResolvedValue(null);
+  window.localStorage.setItem("access_token", "jwt-session");
+  mocks.createPairingPat.mockRejectedValue(new Error("401"));
+
+  render(<LocalSandboxSection />);
+
+  expect(await screen.findByPlaceholderText(/username/i)).toBeInTheDocument();
+});
