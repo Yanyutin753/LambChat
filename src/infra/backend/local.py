@@ -159,17 +159,33 @@ class LocalSandboxBackend(BaseSandbox):
             )
         return FileUploadResponse(path=path, error=None)
 
-    def _download_response(self, path: str, result: ExecuteResponse) -> FileDownloadResponse:
-        if result.exit_code != 0:
+    def _download_response(self, path: str, result: dict) -> FileDownloadResponse:
+        """从 dispatch 原始结果构造下载响应：内容只取 stdout（base64），stderr 不混入。"""
+        if result.get("exit_code") != 0:
+            error_text = "\n".join(x for x in (result.get("stdout"), result.get("stderr")) if x)
             return file_download_response(
-                path=path, content=None, error=_classify_file_error(result.output)
+                path=path, content=None, error=_classify_file_error(error_text)
             )
         try:
-            content = base64.b64decode(result.output.strip())
+            content = base64.b64decode((result.get("stdout") or "").strip())
         except (ValueError, TypeError):
             logger.warning("local download_files(%s) got non-base64 output", path)
             return file_download_response(path=path, content=None, error="file_not_found")
         return FileDownloadResponse(path=path, content=content, error=None)
+
+    async def _download_one(self, path: str) -> FileDownloadResponse:
+        """单文件下载：直接经 dispatch 取原始 dict，只解码 stdout 字段。
+
+        不走 aexecute——它把 stdout+stderr 合并进 output，stderr 告警文本会
+        混进 base64 流解码出损坏字节（executor 返回 dict 天然带独立 stdout 字段）。
+        """
+        result = await dispatch_local_call(
+            self._user_id,
+            "exec",
+            {"command": self._download_command(path), "cwd": self.work_dir},
+            timeout=float(self._exec_timeout),
+        )
+        return self._download_response(path, result)
 
     def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
         responses: list[FileUploadResponse] = []
@@ -205,7 +221,7 @@ class LocalSandboxBackend(BaseSandbox):
         responses: list[FileDownloadResponse] = []
         for path in paths:
             try:
-                result = self.execute(self._download_command(path))
+                responses.append(_run_coro_sync(self._download_one(path)))
             except AppError:
                 raise
             except Exception:
@@ -213,16 +229,14 @@ class LocalSandboxBackend(BaseSandbox):
                 responses.append(
                     file_download_response(path=path, content=None, error="file_not_found")
                 )
-                continue
-            responses.append(self._download_response(path, result))
         return responses
 
     async def adownload_files(self, paths: list[str]) -> list[FileDownloadResponse]:
-        # 覆盖协议默认（to_thread 同步版）：直接走 aexecute，避免事件循环桥接
+        # 覆盖协议默认（to_thread 同步版）：直接走 dispatch，避免事件循环桥接
         responses: list[FileDownloadResponse] = []
         for path in paths:
             try:
-                result = await self.aexecute(self._download_command(path))
+                responses.append(await self._download_one(path))
             except AppError:
                 raise
             except Exception:
@@ -230,6 +244,4 @@ class LocalSandboxBackend(BaseSandbox):
                 responses.append(
                     file_download_response(path=path, content=None, error="file_not_found")
                 )
-                continue
-            responses.append(self._download_response(path, result))
         return responses

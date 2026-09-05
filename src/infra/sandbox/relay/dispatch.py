@@ -34,6 +34,7 @@ async def dispatch_local_call(
         "op": op,
         "payload": payload,
         "timeout": exec_timeout,
+        "ts": time.time(),  # 入队时间戳：channel_frames 据此丢弃 daemon 重连后的积压陈旧请求
     }
     redis = _redis()
     resp_key = f"sandbox:resp:{call_id}"

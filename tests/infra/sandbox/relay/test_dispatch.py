@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import time
 
 import pytest
 
@@ -57,6 +58,9 @@ async def test_roundtrip_ack_then_done(fake, monkeypatch):
         await asyncio.sleep(0.02)
         req = json.loads(await fake.lpop("sandbox:req:u1"))
         assert req["timeout"] == 5  # 帧契约（spec §3.2）：daemon 按 timeout 掐表
+        # 帧契约（陈旧丢弃）：req 带入队时间戳，供 channel_frames 判定陈旧
+        assert isinstance(req["ts"], (int, float))
+        assert 0 <= time.time() - req["ts"] < 5
         await fake.set(
             f"sandbox:resp:{req['call_id']}", json.dumps({"user_id": "u1", "stage": "ack"})
         )

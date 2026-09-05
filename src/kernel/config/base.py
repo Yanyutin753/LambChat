@@ -239,6 +239,7 @@ class Settings(BaseSettings):
     SANDBOX_PLATFORM: str = "daytona"
     SANDBOX_LOCAL_ACK_TIMEOUT: int = 30  # 本地沙箱 daemon ACK 超时（秒）
     SANDBOX_LOCAL_EXEC_TIMEOUT: int = 120  # 本地沙箱执行总超时（秒）
+    SANDBOX_RESULTS_MAX_BYTES: int = 2097152  # 本地沙箱 results 回传 body 上限（字节，2 MiB）
     DAYTONA_API_KEY: str = ""
     DAYTONA_SERVER_URL: str = ""
     DAYTONA_TIMEOUT: int = 180

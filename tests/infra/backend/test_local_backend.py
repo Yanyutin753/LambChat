@@ -100,6 +100,43 @@ def test_download_files_decodes_base64(monkeypatch):
     assert responses[0].content == content.encode()
 
 
+def test_download_files_stderr_does_not_pollute_base64(monkeypatch):
+    """download 解码只取 stdout 字段：stderr 非空（如 shell 告警）不得混进 base64。
+
+    旧实现经 aexecute 把 stdout+stderr 合并进 output 再解码，stderr 文本里
+    的字母会被 base64 解码器吞掉，产出损坏字节。
+    """
+    content = b"file-body"
+    noisy = "grep: warning: something noisy on stderr"
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+        assert payload["cwd"] == "/workspace/s1"  # 与 aexecute 同 cwd 契约
+        b64 = base64.b64encode(content).decode()
+        return _ok_response(stdout=b64, stderr=noisy)
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    responses = backend.download_files(["/workspace/s1/a.txt"])
+    assert responses[0].error is None
+    assert responses[0].content == content
+
+
+async def test_adownload_files_stderr_does_not_pollute_base64(monkeypatch):
+    # 内容长度取 3 的倍数：b64 无 padding，旧实现的合并解码无法借 padding 截断蒙混过关
+    content = b"async-body-1"
+    noisy = "[PID 123] some daemon chatter"
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+        b64 = base64.b64encode(content).decode()
+        return _ok_response(stdout=b64, stderr=noisy)
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    responses = await backend.adownload_files(["/workspace/s1/a.bin"])
+    assert responses[0].error is None
+    assert responses[0].content == content
+
+
 def test_download_files_maps_missing_to_error(monkeypatch):
     # 真实 daemon 的 ENOENT 输出（python3 open() 抛出后经 stderr 回传）
     enoent = "[Errno 2] No such file or directory: '/workspace/s1/missing.txt'"

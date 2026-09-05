@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import time
 
 import pytest
 from fastapi import FastAPI, Request
@@ -49,6 +50,7 @@ class _FakeRegistry:
     def __init__(self):
         self.beats = 0
         self.active: tuple[str, str] | None = ("c1", "node-a")
+        self.unregistered: list[tuple[str, str]] = []
 
     async def register(self, user_id, client_id, node_id):
         self.active = (client_id, node_id)
@@ -56,8 +58,8 @@ class _FakeRegistry:
     async def heartbeat(self, *a, **k):
         self.beats += 1
 
-    async def unregister(self, *a, **k):
-        pass
+    async def unregister(self, user_id, client_id):
+        self.unregistered.append((user_id, client_id))
 
     async def is_online(self, user_id):
         return True
@@ -121,6 +123,45 @@ async def test_channel_frames_returns_when_superseded(monkeypatch, superseded_by
     assert registry.beats == 0  # 失主后不再心跳续期，不把自己写回注册表
 
 
+async def test_channel_frames_drops_stale_requests(monkeypatch):
+    """陈旧请求丢弃：超过 ACK 超时的积压请求不下发（丢弃并打日志），新鲜的照常下发。
+
+    daemon 重连后 Redis list 里可能残留断连前入队的旧请求——按 dispatch 入队时
+    写入的 ts 判龄，超龄即丢，避免 daemon 一连上就收到注定超时的过期调用；
+    无 ts 的帧（旧格式写入方）按新鲜处理，不误杀。
+    """
+    from src.api.routes.sandbox import channel_frames
+
+    monkeypatch.setattr(sandbox_route.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 1)
+    redis = _FakeRedis()
+    await redis.rpush(
+        "sandbox:req:u1",
+        json.dumps({"call_id": "old", "op": "exec", "payload": {}, "ts": time.time() - 60}),
+    )
+    await redis.rpush(
+        "sandbox:req:u1", json.dumps({"call_id": "legacy", "op": "exec", "payload": {}})
+    )
+    await redis.rpush(
+        "sandbox:req:u1",
+        json.dumps({"call_id": "new", "op": "exec", "payload": {}, "ts": time.time()}),
+    )
+    registry = _FakeRegistry()
+    monkeypatch.setattr(sandbox_route, "_POLL_INTERVAL", 0.01)
+    stop = asyncio.Event()
+    frames = []
+    async for frame in channel_frames(redis, registry, "u1", "c1", stop=stop):
+        frames.append(frame)
+        if len(frames) >= 3:  # hello + legacy + new（old 被丢弃）
+            stop.set()
+
+    yielded = [
+        json.loads(frame.split("data: ", 1)[1])["call_id"]
+        for frame in frames
+        if frame.startswith("event: tool_call\n")
+    ]
+    assert yielded == ["legacy", "new"]  # 陈旧的 old 不出现，其余顺序保留
+
+
 async def test_channel_and_results_reject_jwt(monkeypatch):
     """channel/results 是 daemon 端点：JWT（无 pat_scopes）一律 401 unauthorized。"""
     app = FastAPI()
@@ -162,6 +203,31 @@ async def test_results_endpoint_writes_resp(monkeypatch):
     assert stored["user_id"] == "u1" and stored["stage"] == "done"
 
 
+async def test_results_rejects_oversized_body(monkeypatch):
+    """results 上限：body 超过 SANDBOX_RESULTS_MAX_BYTES 返回 413，不落 Redis。
+
+    daemon 侧 stdout/base64 回传是失控大头（如误把二进制整读进来），
+    超限即拒绝，防止单次回传把 Redis 与内存打爆。
+    """
+    redis = _FakeRedis()
+    monkeypatch.setattr(sandbox_route.settings, "SANDBOX_RESULTS_MAX_BYTES", 64)
+    app = FastAPI()
+    register_error_handlers(app)
+    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
+    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_pat_user
+    monkeypatch.setattr(sandbox_route, "_redis", lambda: redis)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        resp = await client.post(
+            "/api/sandbox/results/call-1",
+            json={"stage": "done", "status": "ok", "stdout": "x" * 200},
+        )
+    assert resp.status_code == 413
+    assert resp.json()["detail"]["code"] == "sandbox_payload_too_large"
+    assert not redis.kv  # 超限直接拒绝，不写 resp key
+
+
 async def test_status_endpoint(monkeypatch):
     app = FastAPI()
     register_error_handlers(app)
@@ -174,3 +240,53 @@ async def test_status_endpoint(monkeypatch):
         resp = await client.get("/api/sandbox/status")
     assert resp.status_code == 200
     assert resp.json() == {"online": True, "client_id": "c1"}
+
+
+async def test_offline_endpoint_unregisters_active_client(monkeypatch):
+    """daemon 主动下线：从 get_active 取当前 client_id 注销，收敛断连检测窗口。"""
+    registry = _FakeRegistry()
+    app = FastAPI()
+    register_error_handlers(app)
+    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
+    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_pat_user
+    monkeypatch.setattr(sandbox_route, "_registry", lambda: registry)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        resp = await client.post("/api/sandbox/offline")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "offline"}
+    assert registry.unregistered == [("u1", "c1")]
+
+
+async def test_offline_endpoint_without_active_client(monkeypatch):
+    """无活跃连接时 offline 是幂等的：不注销任何字段，仍返回 offline。"""
+    registry = _FakeRegistry()
+    registry.active = None
+    app = FastAPI()
+    register_error_handlers(app)
+    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
+    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_pat_user
+    monkeypatch.setattr(sandbox_route, "_registry", lambda: registry)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        resp = await client.post("/api/sandbox/offline")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "offline"}
+    assert registry.unregistered == []
+
+
+async def test_offline_endpoint_rejects_jwt(monkeypatch):
+    """offline 同为 daemon 端点：JWT（无 pat_scopes）一律 401。"""
+    app = FastAPI()
+    register_error_handlers(app)
+    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
+    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_user
+    monkeypatch.setattr(sandbox_route, "_registry", lambda: _FakeRegistry())
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        resp = await client.post("/api/sandbox/offline")
+    assert resp.status_code == 401
+    assert resp.json()["detail"]["code"] == "unauthorized"
