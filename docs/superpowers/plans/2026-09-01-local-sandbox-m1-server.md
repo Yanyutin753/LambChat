@@ -1664,7 +1664,18 @@ git commit -m "docs(sandbox): M1 服务端中继落地标记"
 - daemon 契约明确：exec 成功时 `stderr` 必须为空（或 download 走独立字段，避免错误文本混入 base64 输出被误分类）
 - 文件工具命令依赖 python3/POSIX（`mkdir -p`、`python3 -c`），Windows 矩阵发布前需 daemon 侧兜底实现
 - 原子 register：delete→hset→expire 三步与旧流心跳 hset 存在毫秒级竞态（可能"反踢"新连接、get_active 取首字段），改 Lua/单键原子写或属主校验按字段成员判定
-- 断连判活窗口（真机冒烟实证）：daemon 非正常死亡后，服务端要到下一次心跳写入（≤15s）才发现并 unregister，期间 registry 仍报在线——该窗口内 dispatch 不走 daemon_offline 快速失败，而是挂到 ack 超时报 sandbox_timeout（请求还留在 req list，成为 M2 ts 字段要治理的陈旧请求）。daemon 可主动发一个显式 bye 帧或 results 通道通知来收敛窗口
+- 断连判活窗口（真机冒烟实证）：daemon 非正常死亡后，服务端要到下一次心跳写入（≤15s）才发现并 unregister，期间 registry 仍报在线——该窗口内 dispatch 不走 daemon_offline 快速失败，而是挂到 ack 超时报 sandbox_timeout（请求还留在 req list，成为 M2 ts 字段要治理的陈旧请求）。daemon 可主动发一个显式 bye 帧或 results 通道通知来收敛窗口（M2 已交付 offline 端点）
+
+### M2 终审补充留存（→ M3/M4，2026-09-05 二审记录）
+
+- **2MB 全量达标状态**：上限链路三处已对齐（argv 分块 48KB 原始内容 / 下载 stat 预检 2MB / results body 2MiB、边界 `>` 放行恰好限值），但 2MB **全量**端到端真机冒烟未跑（上传实测到 256KB），M3 真机回归补一轮 2MB 上传+下载全量验证
+- **content-length 预检**：上传侧可在服务端 local.py 对 content 总量先做预检（>2MiB 直接 file_too_large），省掉注定超限的分块下发与执行
+- **Windows killpg 守卫**：executor 超时用 `os.killpg` 杀整个进程组，Windows 无该语义（os.killpg 缺失）——发布 Windows 矩阵前需 platform 守卫 + `CREATE_NEW_PROCESS_GROUP`/taskkill 兜底（与上文"文件工具命令依赖 python3/POSIX"同批处理）
+- **login 撤销同名旧 PAT**：CLI login 每次创建同名 `sandbox-daemon` PAT，旧的不撤销，重复 login 会在用户 PAT 列表堆积——M3 配对 UI 时改为创建前撤销同名旧 PAT
+- **ts 时钟漂移标注**：channel 陈旧请求丢弃按 `time.time()` 差值判龄，隐含 dispatch 写入方与 channel 同机（或 NTP 对齐）假设；多节点部署时时钟漂移会误判新鲜度——上多节点前改为单调时钟或部署级对时保障
+- **save_config 原子写**：`save_config` 直接覆写目标文件，进程中断会留半截 JSON——改临时文件 + `os.replace` 原子替换
+- **cmd_login EOFError**：非交互环境（stdin 已关，如 `login < /dev/null` 或 CI 管道）`input()` 抛 EOFError 崩栈——捕获后给"需交互式终端"友好提示（冒烟时管道喂 getpass 可用，但 stdin 全关的 EOF 路径未兜）
+- **版本管理后续**：M2 终审已铺版本地基（`__version__=0.1.0`、connect URL `?version=`、registry `node_id|version`、status `daemon_version`、CLI `version` 子命令）；后续 M3 Tauri updater 随壳更新 daemon、M4 独立 CLI self-update + 服务端最低版本拒连
 
 ## Self-Review 记录
 
