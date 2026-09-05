@@ -823,6 +823,7 @@
       "runStepsToggle": "Expand or collapse run steps",
       "runStepsWorking": "Working {{duration}}",
       "runStepsWorkingNoTimer": "Working",
+      "runStepsStopped": "Stopped",
       "running": "Running...",
       "startTime": "Start time",
       "starterPrompts": "Starter Prompts",

@@ -823,6 +823,7 @@
       "runStepsToggle": "実行ステップを展開・折りたたみ",
       "runStepsWorking": "作業中 {{duration}}",
       "runStepsWorkingNoTimer": "作業中",
+      "runStepsStopped": "停止しました",
       "running": "実行中...",
       "startTime": "開始時刻",
       "starterPrompts": "スタータープロンプト",

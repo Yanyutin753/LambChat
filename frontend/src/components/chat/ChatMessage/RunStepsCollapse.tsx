@@ -20,6 +20,7 @@ export function RunStepsCollapse({
   durationMs,
   startedAtMs = null,
   active = false,
+  stopped = false,
   stateKey,
   renderExpanded,
 }: {
@@ -27,6 +28,8 @@ export function RunStepsCollapse({
   durationMs: number | null;
   startedAtMs?: number | null;
   active?: boolean;
+  /** 轮次被插话打断（cancelled）：状态行「已停止」而非「已工作 N」 */
+  stopped?: boolean;
   /** 稳定标识（如 message.id）：跨虚拟化卸载复水展开状态 */
   stateKey?: string;
   renderExpanded: () => ReactNode;
@@ -82,9 +85,11 @@ export function RunStepsCollapse({
     ? durationLabel
       ? t("chat.message.runStepsWorking", { duration: durationLabel })
       : t("chat.message.runStepsWorkingNoTimer")
-    : durationLabel
-      ? t("chat.message.runStepsSummary", { duration: durationLabel })
-      : t("chat.message.runStepsCount", { count: steps });
+    : stopped
+      ? t("chat.message.runStepsStopped")
+      : durationLabel
+        ? t("chat.message.runStepsSummary", { duration: durationLabel })
+        : t("chat.message.runStepsCount", { count: steps });
   const statusClass =
     "min-w-0 truncate leading-6 text-[0.9375rem] max-sm:text-base text-gray-700 dark:text-gray-300";
 
