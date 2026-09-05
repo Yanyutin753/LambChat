@@ -13,6 +13,8 @@ export interface SandboxStatus {
   daemon_version?: string | null;
   /** daemon 上报平台（linux/darwin/win32，M4 T3；旧 daemon 为 null） */
   daemon_platform?: string | null;
+  /** daemon 上报的确认策略（all/commands/none，服务端确认门；旧 daemon 为 null） */
+  daemon_confirm_policy?: string | null;
 }
 
 export interface PatCreateResult {

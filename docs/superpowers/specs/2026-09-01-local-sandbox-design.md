@@ -1,7 +1,11 @@
 # LambChat 本地沙箱设计（v2）
 
 - 日期：2026-09-01（v2 全量重写，替代同日 v1「本地 Agent 桌面客户端」方案，见 §1 取舍）
-- 状态：M1-M4 全部实施完成（2026-09-05/06）：M1 服务端中继、M2 客户端 daemon、M3 Tauri sidecar + 前端本地模式、M4 三平台 + 自动更新 + 收口。Linux 侧全量自测通过（后端 4017 / 前端 2201 / 实链五项），win/mac 真机留 CI 首跑与人工后验（记录见 docs/superpowers/plans/ 四份冒烟/自测记录）
+- 状态：M1-M4 全部实施完成（2026-09-05/06）：M1 服务端中继、M2 客户端 daemon、M3 Tauri sidecar + 前端本地模式、M4 三平台 + 自动更新 + 收口。Linux 侧全量自测通过（后端 4017 / 前端 2201 / 实链五项），win/mac 真机留 CI 首跑与人工后验（记录见 docs/superpowers/plans/ 四份冒烟/自测记录）。
+  追加（2026-09-06）：确认门统一服务端 HITL（§3.5 实施记录）+ 本地沙箱注入用户
+  env 变量（exec 载荷 `env` 字段经 daemon 合并进子进程环境，对齐云端
+  E2B/Daytona 的 `envs=` 语义；env_var 工具运行中改动经 `sync_sandbox_env_vars`
+  实时生效）——实施计划见 docs/superpowers/plans/2026-09-06-local-sandbox-server-confirm.md。
 - 分支：`feat/local-agent-desktop`
 
 ## 0. 决策记录
@@ -75,10 +79,21 @@ daemon 常驻连接不能存用户密码，JWT 周期太短：
 - agent 装载沙箱/文件工具时据此选择后端；`local` 且离线时报错（或按配置回退 cloud，默认关）。
 - 前端会话创建/设置处可切换，存量会话不受影响。
 
-### 3.5 确认机制（复用 HITL）
+### 3.5 确认机制（复用 HITL）——已实施（2026-09-06，服务端统一门）
 
 - 本地 `write/edit/exec` 默认先触发 `ask_human` 中断（deepagents interrupt），网页端弹窗确认后才经中继下发 daemon；确认策略三档：全部确认（默认）/仅命令确认/免确认。
 - 实现注意：确认发生在服务端工具内部 interrupt，daemon 只收到已确认的执行请求。
+- **实施记录（2026-09-06）**：M2 曾把确认门做在 daemon 侧终端交互（`terminal_confirm`），
+  sidecar 形态无 TTY 时全拒/卡死——已拆除（daemon 0.2.0 起为纯执行器）。现行实现：
+  - 服务端统一门 `src/infra/sandbox/confirm.py`（`needs_confirm` + `confirm_local_op`），
+    在 `LocalSandboxBackend`/`WorkspaceAliasBackend` 的 exec/写/上传入口以
+    `kind="ask_human"` 的 interrupt payload 挂起图，全复用既有 HITL 审批卡与
+    `Command(resume)` 恢复链；读类（read/ls/glob/grep/download）绕过门（只读，
+    且 deepagents glob/grep 工具的异常边界会吞 GraphInterrupt）；
+  - 三档策略唯一权威仍是 `~/.lambchat/sandbox.json`，daemon connect URL 第四段
+    `confirm_policy` 上报进注册表（value 四段式），服务端门实时读取，未上报/
+    查询失败归一 all 保守确认；
+  - `SANDBOX_MIN_DAEMON_VERSION` 升 0.2.0：旧 daemon（带本地门）拒连，防双重确认。
 
 ### 3.6 错误码与 i18n
 

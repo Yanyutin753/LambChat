@@ -270,3 +270,19 @@ test("unpair proceeds without server revoke when no local PAT exists", async () 
   await waitFor(() => expect(mocks.clearPairing).toHaveBeenCalled());
   expect(mocks.revokePairingPat).not.toHaveBeenCalled();
 });
+
+test("paired view syncs policy display from daemon-reported confirm policy", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({
+    online: true,
+    daemon_version: "0.2.0",
+    daemon_confirm_policy: "none",
+  });
+
+  render(<LocalSandboxSection />);
+
+  // SelectRow 当前值跟随 daemon 上报（而非本地默认 all）
+  expect(await screen.findByText("No confirmation")).toBeInTheDocument();
+  expect(screen.queryByText("Confirm all actions")).not.toBeInTheDocument();
+});

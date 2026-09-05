@@ -97,6 +97,21 @@ export function LocalSandboxSection() {
     );
   }
 
+  // 策略显示跟随 daemon 上报值（写配置→重启→新 hello 上报→status 刷新闭环）；
+  // 用户正在切换（policyOpen/applying）时不回写，避免覆盖在途选择
+  const reportedPolicy = status?.daemon_confirm_policy;
+  useEffect(() => {
+    if (
+      reportedPolicy &&
+      !policyOpen &&
+      !applying &&
+      reportedPolicy !== policy &&
+      CONFIRM_POLICY_OPTIONS.some((o) => o.key === reportedPolicy)
+    ) {
+      setPolicy(reportedPolicy as ConfirmPolicy);
+    }
+  }, [reportedPolicy, policyOpen, applying, policy]);
+
   // 未配对判定：daemon 进程退出/不可用（未配对时 daemon 启动即退），
   // 或会话已失效（status 401）——两者都回到配对表单
   const unpaired =

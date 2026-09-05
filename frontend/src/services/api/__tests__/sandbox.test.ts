@@ -20,7 +20,8 @@ test("getSandboxStatus fetches the daemon online status", async () => {
   mocks.authFetch.mockResolvedValueOnce({
     online: true,
     client_id: "abc123",
-    daemon_version: "0.1.0",
+    daemon_version: "0.2.0",
+    daemon_confirm_policy: "commands",
   });
 
   const status = await sandboxApi.getStatus();
@@ -28,7 +29,8 @@ test("getSandboxStatus fetches the daemon online status", async () => {
   expect(status).toEqual({
     online: true,
     client_id: "abc123",
-    daemon_version: "0.1.0",
+    daemon_version: "0.2.0",
+    daemon_confirm_policy: "commands",
   });
   expect(mocks.authFetch).toHaveBeenCalledWith("/api/sandbox/status");
 });
