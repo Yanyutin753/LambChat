@@ -2118,6 +2118,28 @@
     "lightTheme": "ライト",
     "limitedSupport": "一部対応",
     "loading": "読み込み中...",
+    "localSandbox": {
+      "title": "ローカルサンドボックス",
+      "statusOnline": "オンライン",
+      "statusOffline": "オフライン",
+      "version": "daemon {{version}}",
+      "processRunning": "実行中",
+      "processStopped": "停止済み",
+      "pairTitle": "LambChat アカウントでローカルサンドボックスをペアリングすると、この端末でコードを実行できます。",
+      "pairButton": "ペアリングして開始",
+      "paired": "ペアリング完了",
+      "policy": "実行確認ポリシー",
+      "policyOptions": {
+        "all": "すべての操作を確認",
+        "commands": "コマンドのみ確認",
+        "none": "確認なし"
+      },
+      "openWorkspaces": "ワークスペースを開く",
+      "openAudit": "監査フォルダを開く",
+      "restartDaemon": "daemon を再起動",
+      "needDesktop": "ローカルサンドボックスには LambChat デスクトップアプリが必要です。ウェブではクラウドサンドボックスのみ利用できます。",
+      "pairFailed": "ペアリングに失敗しました。認証情報を確認して再試行してください。"
+    },
     "maxPinnedModels": "最大{{max}}個のモデルをピン留めできます",
     "memoryToggle": "セッション横断メモリ",
     "mobileNotification": "モバイル通知",

@@ -2118,6 +2118,28 @@
     "lightTheme": "라이트",
     "limitedSupport": "일부 지원",
     "loading": "로딩 중...",
+    "localSandbox": {
+      "title": "로컬 샌드박스",
+      "statusOnline": "온라인",
+      "statusOffline": "오프라인",
+      "version": "daemon {{version}}",
+      "processRunning": "실행 중",
+      "processStopped": "중지됨",
+      "pairTitle": "LambChat 계정으로 로컬 샌드박스를 페어링하면 이 기기에서 코드를 실행할 수 있습니다.",
+      "pairButton": "페어링 및 시작",
+      "paired": "페어링 완료",
+      "policy": "실행 확인 정책",
+      "policyOptions": {
+        "all": "모든 작업 확인",
+        "commands": "명령만 확인",
+        "none": "확인 안 함"
+      },
+      "openWorkspaces": "작업 공간 폴더 열기",
+      "openAudit": "감사 폴더 열기",
+      "restartDaemon": "daemon 재시작",
+      "needDesktop": "로컬 샌드박스에는 LambChat 데스크톱 앱이 필요합니다. 웹에서는 클라우드 샌드박스만 사용할 수 있습니다.",
+      "pairFailed": "페어링에 실패했습니다. 계정 정보를 확인하고 다시 시도하세요."
+    },
     "maxPinnedModels": "최대 {{max}}개 모델을 고정할 수 있습니다",
     "memoryToggle": "세션 간 메모리",
     "mobileNotification": "모바일 알림",

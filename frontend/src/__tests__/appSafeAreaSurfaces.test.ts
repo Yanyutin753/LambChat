@@ -145,7 +145,8 @@ test("portal dialogs and sheets reserve safe-area spacing", () => {
     "../components/chat/ChatMessage/FeedbackDialog.tsx",
     "../components/sidebar/SessionPreviewDialog.tsx",
     "../components/chat/ChatInputShortcuts.tsx",
-    "../components/profile/tabs/ProfilePreferencesTab.tsx",
+    // SelectRow（含 safe-area 弹层）已从 ProfilePreferencesTab 抽取为共享组件
+    "../components/profile/SelectRow.tsx",
     "../components/documents/LazyDocumentPreview.tsx",
     "../components/panels/NotificationPanel.tsx",
     "../components/panels/FeedbackPanel.tsx",

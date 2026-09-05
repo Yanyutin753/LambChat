@@ -2118,6 +2118,28 @@
     "lightTheme": "Light",
     "limitedSupport": "Limited",
     "loading": "Loading...",
+    "localSandbox": {
+      "title": "Local Sandbox",
+      "statusOnline": "Online",
+      "statusOffline": "Offline",
+      "version": "daemon {{version}}",
+      "processRunning": "Running",
+      "processStopped": "Stopped",
+      "pairTitle": "Pair the local sandbox with your LambChat account to run code on this device.",
+      "pairButton": "Pair and start",
+      "paired": "Paired",
+      "policy": "Confirmation policy",
+      "policyOptions": {
+        "all": "Confirm all actions",
+        "commands": "Confirm commands only",
+        "none": "No confirmation"
+      },
+      "openWorkspaces": "Open workspaces",
+      "openAudit": "Open audit log",
+      "restartDaemon": "Restart daemon",
+      "needDesktop": "The local sandbox requires the LambChat desktop app. Only the cloud sandbox is available on the web.",
+      "pairFailed": "Pairing failed. Check your credentials and try again."
+    },
     "maxPinnedModels": "Pin up to {{max}} models",
     "memoryToggle": "Cross-session memory",
     "mobileNotification": "Mobile Notifications",
