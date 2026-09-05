@@ -16,6 +16,7 @@ import random
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -118,10 +119,14 @@ class ChannelClient:
         )
         response = await cm.__aenter__()
         parser = _FrameParser()
+        # 关键：整个连接生命周期只用这一个行生成器。hello 阶段推进它，
+        # 之后把同一生成器交给 _iter_tool_calls 续读——对同一 Response 二次调用
+        # aiter_lines() 在真实（不可重放）流上会抛 StreamConsumed。
+        lines = response.aiter_lines()
         try:
             _raise_for_status(response, "channel")
             hello: dict[str, Any] | None = None
-            async for line in response.aiter_lines():
+            async for line in lines:
                 frame = parser.feed(line)
                 if frame is None or frame.event != "hello":
                     continue
@@ -134,16 +139,16 @@ class ChannelClient:
         except BaseException:
             await cm.__aexit__(None, None, None)
             raise
-        return hello, self._iter_tool_calls(response, cm, parser)
+        return hello, self._iter_tool_calls(lines, cm, parser)
 
     async def _iter_tool_calls(
         self,
-        response: httpx.Response,
+        lines: AsyncIterator[str],
         cm: _StreamCM,
         parser: _FrameParser,
     ) -> AsyncIterator[ToolCall]:
         try:
-            async for line in response.aiter_lines():
+            async for line in lines:
                 frame = parser.feed(line)
                 if frame is None or frame.event != "tool_call":
                     continue
@@ -156,7 +161,7 @@ class ChannelClient:
     async def post_result(self, call_id: str, body: dict[str, Any]) -> None:
         """回传执行结果；body 中值为 None 的字段按契约剔除（exclude_none）。"""
         response = await self._client.post(
-            f"{self._base}/api/sandbox/results/{call_id}",
+            f"{self._base}/api/sandbox/results/{quote(call_id, safe='')}",
             json={k: v for k, v in body.items() if v is not None},
             headers=self._auth_headers(),
         )
