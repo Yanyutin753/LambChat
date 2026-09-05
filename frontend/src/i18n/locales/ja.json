@@ -254,6 +254,11 @@
       },
       "offlineHint": "ローカルサンドボックスはオフラインです。先に設定でペアリングしてください。",
       "restoredOffline": "保存されたローカルサンドボックス設定は現在オフラインです。"
+    },
+    "sandboxMachine": {
+      "label": "マシン",
+      "description": "ローカルサンドボックスコマンドの実行マシンを選択",
+      "auto": "自動（デフォルト）"
     }
   },
   "agents": {
@@ -646,7 +651,9 @@
     "sandboxTimeout": "ローカルサンドボックス呼び出しがタイムアウトしました（{{seconds}}秒）",
     "sandboxPayloadTooLarge": "ローカルサンドボックスのペイロードが大きすぎます",
     "sandboxExecFailed": "ローカルサンドボックスの実行に失敗しました：{{detail}}",
-    "daemonVersionUnsupported": "ローカルサンドボックスデーモンのバージョン {{version}} は最低要件 {{min}} 未満です。アップデートしてください"
+    "daemonVersionUnsupported": "ローカルサンドボックスデーモンのバージョン {{version}} は最低要件 {{min}} 未満です。アップデートしてください",
+    "sandboxMachineOffline": "選択したサンドボックスマシン「{{machine}}」は現在オフラインです",
+    "sandboxMachineNotFound": "サンドボックスマシン「{{machine}}」が見つからないか、削除されました"
   },
   "categories": {
     "agent": "エージェント",
@@ -2158,7 +2165,22 @@
       "needDesktop": "ローカルサンドボックスには LambChat デスクトップアプリが必要です。ウェブではクラウドサンドボックスのみ利用できます。",
       "pairFailed": "ペアリングに失敗しました。認証情報を確認して再試行してください。",
       "unpair": "ペアリング解除",
-      "unpaired": "ペアリングを解除しました"
+      "unpaired": "ペアリングを解除しました",
+      "machines": "マイマシン",
+      "machinesDesc": "接続中のローカルサンドボックスマシン。セッションごとに実行先を選択でき、未選択時はデフォルト機を使用します。",
+      "machinesEmpty": "オンラインのマシンはありません",
+      "currentServer": "サーバー：",
+      "setDefault": "デフォルトに設定",
+      "defaultBadge": "デフォルト",
+      "rename": "名前を変更",
+      "renameSave": "保存",
+      "renameCancel": "キャンセル",
+      "platform": {
+        "windows": "Windows",
+        "macos": "macOS",
+        "linux": "Linux",
+        "unknown": "不明"
+      }
     },
     "maxPinnedModels": "最大{{max}}個のモデルをピン留めできます",
     "memoryToggle": "セッション横断メモリ",

@@ -555,3 +555,36 @@ def test_channel_client_builds_heartbeat_aware_read_timeout():
     client = ChannelClient(SERVER, PAT)
     assert client._client.timeout.connect == 10.0
     assert client._client.timeout.read == 45.0
+
+
+# ---------------------------------------------------------------------------
+# 多机 daemon：channel URL 携带机器身份
+# ---------------------------------------------------------------------------
+
+
+async def test_channel_url_carries_machine_identity():
+    log: list[httpx.Request] = []
+    client = ChannelClient(
+        SERVER,
+        PAT,
+        machine_id="m123abc",
+        machine_name="My Linux Box",
+        client=_client(_sse_transport(log, GOOD_STREAM.encode("utf-8"))),
+    )
+    hello, _ = await client.connect()
+    assert hello["sandbox_id"]
+    req = log[0]
+    assert "machine_id=m123abc" in str(req.url)
+    assert "machine_name=My%20Linux%20Box" in str(req.url)
+
+
+async def test_channel_url_omits_machine_params_when_unset():
+    log: list[httpx.Request] = []
+    client = ChannelClient(
+        SERVER,
+        PAT,
+        client=_client(_sse_transport(log, GOOD_STREAM.encode("utf-8"))),
+    )
+    await client.connect()
+    assert "machine_id=" not in str(log[0].url)
+    assert "machine_name=" not in str(log[0].url)

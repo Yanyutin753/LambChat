@@ -132,11 +132,15 @@ class ChannelClient:
         pat: str,
         *,
         confirm_policy: str = "",
+        machine_id: str = "",
+        machine_name: str = "",
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._base = server_url.rstrip("/")
         self._pat = pat
         self._confirm_policy = confirm_policy
+        self._machine_id = machine_id
+        self._machine_name = machine_name
         self._client = (
             client
             if client is not None
@@ -157,15 +161,23 @@ class ChannelClient:
         平台随每次建连上报（服务端访问日志与注册表均可见）——平台是服务端
         文件命令生成分支（M4 T3）的依据，与版本同链路扩展；``confirm_policy``
         （all/commands/none）是服务端统一确认门的策略来源，随连接上报进
-        注册表第四段（空值省略参数，服务端按未上报归 all 保守确认）。
+        注册表第四段（空值省略参数，服务端按未上报归 all 保守确认）；
+        ``machine_id``/``machine_name``（多机 daemon）是注册表按机器分槽的
+        主键与展示名，空值省略参数——服务端按 legacy 单机路径兼容。
         """
         policy_param = (
             f"&confirm_policy={quote(self._confirm_policy)}" if self._confirm_policy else ""
         )
+        machine_params = (
+            f"&machine_id={quote(self._machine_id)}&machine_name={quote(self._machine_name)}"
+            if self._machine_id
+            else ""
+        )
         cm = self._client.stream(
             "GET",
             f"{self._base}/api/sandbox/channel"
-            f"?version={quote(__version__)}&platform={quote(daemon_platform())}{policy_param}",
+            f"?version={quote(__version__)}&platform={quote(daemon_platform())}"
+            f"{policy_param}{machine_params}",
             headers={"Authorization": f"Bearer {self._pat}", "Accept": "text/event-stream"},
         )
         response = await cm.__aenter__()

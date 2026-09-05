@@ -90,6 +90,16 @@ class ErrorCode(Enum):
     PAT_EXPIRED = ("pat_expired", 401, "Personal access token expired")
     PAT_SCOPE_DENIED = ("pat_scope_denied", 403, "Token missing required scope '{{scope}}'")
     DAEMON_OFFLINE = ("daemon_offline", 409, "Local sandbox daemon is offline")
+    SANDBOX_MACHINE_OFFLINE = (
+        "sandbox_machine_offline",
+        409,
+        "Selected sandbox machine '{{machine}}' is offline",
+    )
+    SANDBOX_MACHINE_NOT_FOUND = (
+        "sandbox_machine_not_found",
+        404,
+        "Sandbox machine '{{machine}}' not found",
+    )
     SANDBOX_TIMEOUT = ("sandbox_timeout", 504, "Local sandbox call timed out after {{seconds}}s")
     SANDBOX_EXEC_FAILED = (
         "sandbox_exec_failed",

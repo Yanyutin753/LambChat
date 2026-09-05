@@ -254,6 +254,11 @@
       },
       "offlineHint": "Local sandbox is offline. Pair it in Settings first.",
       "restoredOffline": "The saved local sandbox tier is currently offline."
+    },
+    "sandboxMachine": {
+      "label": "Machine",
+      "description": "Choose which machine runs local sandbox commands",
+      "auto": "Auto (default)"
     }
   },
   "agents": {
@@ -646,7 +651,9 @@
     "sandboxTimeout": "Local sandbox call timed out after {{seconds}}s",
     "sandboxPayloadTooLarge": "Local sandbox payload exceeds limit",
     "sandboxExecFailed": "Local sandbox execution failed: {{detail}}",
-    "daemonVersionUnsupported": "Daemon version {{version}} is below minimum {{min}}; please update"
+    "daemonVersionUnsupported": "Daemon version {{version}} is below minimum {{min}}; please update",
+    "sandboxMachineOffline": "Selected sandbox machine '{{machine}}' is offline",
+    "sandboxMachineNotFound": "Sandbox machine '{{machine}}' not found or removed"
   },
   "categories": {
     "agent": "Agent",
@@ -2158,7 +2165,22 @@
       "needDesktop": "The local sandbox requires the LambChat desktop app. Only the cloud sandbox is available on the web.",
       "pairFailed": "Pairing failed. Check your credentials and try again.",
       "unpair": "Unpair",
-      "unpaired": "Pairing removed"
+      "unpaired": "Pairing removed",
+      "machines": "My Machines",
+      "machinesDesc": "Connected local sandbox machines; pick the target per session, the default is used when unset.",
+      "machinesEmpty": "No machines online",
+      "currentServer": "Server: ",
+      "setDefault": "Set default",
+      "defaultBadge": "Default",
+      "rename": "Rename",
+      "renameSave": "Save",
+      "renameCancel": "Cancel",
+      "platform": {
+        "windows": "Windows",
+        "macos": "macOS",
+        "linux": "Linux",
+        "unknown": "Unknown"
+      }
     },
     "maxPinnedModels": "Pin up to {{max}} models",
     "memoryToggle": "Cross-session memory",

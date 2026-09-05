@@ -40,6 +40,13 @@ class _FakeRegistry:
     async def is_online(self, user_id: str) -> bool:
         return self.online
 
+    async def resolve_target(self, user_id: str, machine_id: str | None = None):
+        return "legacy" if self.online else None
+
+    def queue_key(self, user_id: str, machine_id: str) -> str:
+        # legacy 路由：旧断言的队列键（无机器后缀）
+        return f"sandbox:req:{user_id}"
+
 
 @pytest.fixture
 def fake(monkeypatch):
@@ -112,3 +119,55 @@ async def test_exec_timeout_raises_after_ack(fake, monkeypatch):
     await task
     assert exc.value.error_code == ErrorCode.SANDBOX_TIMEOUT
     assert exc.value.args_data == {"seconds": 0}  # int(0.05)，区别于 ack 超时路径
+
+
+# ---------------------------------------------------------------------------
+# 多机：machine_id 路由与离线语义
+# ---------------------------------------------------------------------------
+
+
+class _MachinesFakeRegistry:
+    """resolve_target/queue_key 可控行为：online_machine 控制 resolve 结果。"""
+
+    def __init__(self, resolved: str | None):
+        self.resolved = resolved
+
+    async def is_online(self, user_id: str) -> bool:
+        return self.resolved is not None
+
+    async def resolve_target(self, user_id: str, machine_id: str | None = None):
+        return self.resolved
+
+    def queue_key(self, user_id: str, machine_id: str) -> str:
+        return f"sandbox:req:{user_id}:{machine_id}"
+
+
+async def test_dispatch_routes_to_selected_machine_queue(monkeypatch):
+    redis = _FakeRedis()
+    monkeypatch.setattr(dispatch_module, "_redis", lambda: redis)
+    monkeypatch.setattr(dispatch_module, "_registry", lambda: _MachinesFakeRegistry("mac1"))
+    monkeypatch.setattr(dispatch_module, "_POLL_INTERVAL", 0.01)
+
+    async def fake_get(key):
+        return json.dumps({"user_id": "u1", "stage": "done", "status": "ok"})
+
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 1)
+    import contextlib
+
+    with contextlib.suppress(Exception):
+        # 只验证入队键：done 立即返回，不等待超时
+        async def fast_get(key):
+            return json.dumps({"user_id": "u1", "stage": "done", "status": "ok"})
+
+        redis.get = fast_get  # type: ignore[method-assign]
+        await dispatch_local_call("u1", "exec", {"command": "ls"}, machine_id="mac1")
+    assert list(redis.lists) == ["sandbox:req:u1:mac1"]
+
+
+async def test_dispatch_selected_machine_offline_raises_machine_error(monkeypatch):
+    redis = _FakeRedis()
+    monkeypatch.setattr(dispatch_module, "_redis", lambda: redis)
+    monkeypatch.setattr(dispatch_module, "_registry", lambda: _MachinesFakeRegistry(None))
+    with pytest.raises(AppError) as exc_info:
+        await dispatch_local_call("u1", "exec", {"command": "ls"}, machine_id="mac1")
+    assert exc_info.value.error_code == ErrorCode.SANDBOX_MACHINE_OFFLINE

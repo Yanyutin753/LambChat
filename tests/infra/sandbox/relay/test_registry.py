@@ -33,6 +33,22 @@ class _FakeRedis:
     async def hgetall(self, key: str) -> dict[str, str]:
         return dict(self.store.get(key, {}))
 
+    # 多机路径占位（legacy 测试不触及；注册表新分支按需调用）
+    async def smembers(self, key: str) -> set:
+        return set()
+
+    async def get(self, key: str):
+        return None
+
+    async def set(self, key: str, value: str, ex: int | None = None) -> None:
+        pass
+
+    async def sadd(self, key: str, member: str) -> None:
+        pass
+
+    async def srem(self, key: str, member: str) -> None:
+        pass
+
 
 @pytest.fixture
 def registry(monkeypatch) -> SandboxClientRegistry:
