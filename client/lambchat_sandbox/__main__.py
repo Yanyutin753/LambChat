@@ -54,7 +54,23 @@ def _watch_parent_windows() -> None:
     watch_parent(_thread.interrupt_main)
 
 
+def _force_utf8_stdio() -> None:
+    """std 统一 UTF-8：Windows 控制台/管道默认 cp1252，中文输出（cli.py 的
+    login/status 提示等）直接 UnicodeEncodeError；errors=replace 保证写失败
+    也不致命（打印诊断信息绝不该带崩主流程）。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001 - 降级即可，不阻塞启动
+            pass
+
+
 if __name__ == "__main__":
+    _force_utf8_stdio()
     _enable_parent_death_signal()
     _watch_parent_windows()
     from lambchat_sandbox.cli import main
