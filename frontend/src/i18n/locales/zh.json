@@ -3543,5 +3543,13 @@
     "sessionTitle": "本会话书签",
     "locating": "正在定位书签…",
     "messageMissing": "书签指向的消息不在历史中，可能已被删除"
+  },
+  "update": {
+    "aboutTitle": "关于",
+    "checkNow": "检查更新",
+    "notificationBody": "新版本 {{version}} 已发布，可在设置中检查更新",
+    "notificationTitle": "发现新版本",
+    "upToDate": "已是最新版本",
+    "updateRelaunchInstall": "重启并安装"
   }
 }

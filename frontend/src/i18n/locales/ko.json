@@ -3543,5 +3543,13 @@
     "sessionTitle": "이 대화의 북마크",
     "locating": "북마크를 찾는 중…",
     "messageMissing": "북마크한 메시지를 기록에서 찾을 수 없습니다. 삭제되었을 수 있습니다"
+  },
+  "update": {
+    "aboutTitle": "정보",
+    "checkNow": "업데이트 확인",
+    "notificationBody": "버전 {{version}}이(가) 출시되었습니다. 설정에서 업데이트를 확인하세요",
+    "notificationTitle": "새 버전 available",
+    "upToDate": "최신 버전입니다",
+    "updateRelaunchInstall": "재시작 후 설치"
   }
 }

@@ -3543,5 +3543,13 @@
     "sessionTitle": "この会話のブックマーク",
     "locating": "ブックマークを定位しています…",
     "messageMissing": "ブックマークのメッセージが履歴に見つかりません。削除された可能性があります"
+  },
+  "update": {
+    "aboutTitle": "について",
+    "checkNow": "更新を確認",
+    "notificationBody": "バージョン {{version}} が公開されました。設定で更新を確認してください",
+    "notificationTitle": "新バージョンがあります",
+    "upToDate": "最新バージョンです",
+    "updateRelaunchInstall": "再起動してインストール"
   }
 }

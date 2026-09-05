@@ -1,7 +1,8 @@
 import { lazy, Suspense, useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Cloud, Container, Settings } from "lucide-react";
+import { Cloud, Container, RefreshCw, Settings } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { isNativeAppRuntime } from "../../../services/api/config";
 import { useTheme } from "../../../contexts/ThemeContext";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { useAuth } from "../../../hooks/useAuth";
@@ -441,6 +442,30 @@ export function ProfilePreferencesTab() {
           <LocalSandboxSection embedded />
         </Suspense>
       </div>
+
+      {/* 关于：检查更新——仅原生客户端（桌面/移动）渲染；Web 随部署走刷新即更 */}
+      {isNativeAppRuntime() && (
+      <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <RefreshCw size={15} className="text-amber-500 dark:text-amber-400" />
+            <h3 className="font-semibold font-serif uppercase tracking-wide text-stone-400 dark:text-stone-500">
+              {t("update.aboutTitle", "关于")}
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              window.dispatchEvent(new Event("lambchat:check-update"));
+            }}
+            className="flex items-center gap-1.5 rounded-lg border border-stone-200/70 dark:border-stone-600/60 px-3 py-1.5 text-xs font-medium text-stone-600 dark:text-stone-300 hover:bg-white/60 dark:hover:bg-black/20 transition-colors"
+          >
+            <RefreshCw size={12} />
+            {t("update.checkNow", "检查更新")}
+          </button>
+        </div>
+      </div>
+      )}
     </div>
   );
 }

@@ -64,14 +64,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate app URL
+      - name: Validate app URL (optional)
+        # app_url 可选：提供则构建期烘焙为默认服务器（VITE_API_BASE）；
+        # 缺省打「运行时配置」包——安装后首启设置屏填 base_url 即可用。
         shell: bash
         run: |
-          test -n "$LAMBCHAT_APP_URL"
-          case "$LAMBCHAT_APP_URL" in
-            https://*) ;;
-            *) echo "LAMBCHAT_APP_URL must be an https:// URL"; exit 1 ;;
-          esac
+          if [ -n "$LAMBCHAT_APP_URL" ]; then
+            case "$LAMBCHAT_APP_URL" in
+              https://*) ;;
+              *) echo "LAMBCHAT_APP_URL must be an https:// URL"; exit 1 ;;
+            esac
+          else
+            echo "LAMBCHAT_APP_URL not set: building runtime-configured package (first-run setup)"
+          fi
 
       - name: Install Linux desktop dependencies
         if: runner.os == 'Linux'
@@ -369,14 +374,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate app URL
+      - name: Validate app URL (optional)
+        # app_url 可选：提供则构建期烘焙为默认服务器（VITE_API_BASE）；
+        # 缺省打「运行时配置」包——安装后首启设置屏填 base_url 即可用。
         shell: bash
         run: |
-          test -n "$LAMBCHAT_APP_URL"
-          case "$LAMBCHAT_APP_URL" in
-            https://*) ;;
-            *) echo "LAMBCHAT_APP_URL must be an https:// URL"; exit 1 ;;
-          esac
+          if [ -n "$LAMBCHAT_APP_URL" ]; then
+            case "$LAMBCHAT_APP_URL" in
+              https://*) ;;
+              *) echo "LAMBCHAT_APP_URL must be an https:// URL"; exit 1 ;;
+            esac
+          else
+            echo "LAMBCHAT_APP_URL not set: building runtime-configured package (first-run setup)"
+          fi
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4

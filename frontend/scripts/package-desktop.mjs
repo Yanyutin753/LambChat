@@ -10,16 +10,15 @@ function hasCommand(command) {
   );
 }
 
+// LAMBCHAT_APP_URL 可选：提供则构建期烘焙为默认服务器；缺省打「运行时
+// 配置」包（安装后首启设置屏填 base_url，见 serverConfig/ServerSetupScreen）
 const appUrl = process.env.LAMBCHAT_APP_URL || "";
-
-if (!appUrl) {
-  console.error(
-    "Missing LAMBCHAT_APP_URL. Example: LAMBCHAT_APP_URL=https://chat.example.com pnpm package:desktop",
-  );
-  process.exit(1);
-}
-
 const normalizedAppUrl = appUrl.replace(/\/+$/, "");
+if (!normalizedAppUrl) {
+  console.log(
+    "LAMBCHAT_APP_URL not set: building runtime-configured package (first-run server setup)",
+  );
+}
 const tauriCliPackage = "@tauri-apps/cli@2.11.2";
 
 if (!hasCommand("rustc") || !hasCommand("cargo")) {

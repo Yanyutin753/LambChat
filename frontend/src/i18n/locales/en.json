@@ -3543,5 +3543,13 @@
     "sessionTitle": "Session bookmarks",
     "locating": "Locating the bookmarked message…",
     "messageMissing": "The bookmarked message is no longer in the history; it may have been deleted"
+  },
+  "update": {
+    "aboutTitle": "About",
+    "checkNow": "Check for updates",
+    "notificationBody": "Version {{version}} is available. Check for updates in settings",
+    "notificationTitle": "Update available",
+    "upToDate": "You are on the latest version",
+    "updateRelaunchInstall": "Restart & install"
   }
 }
