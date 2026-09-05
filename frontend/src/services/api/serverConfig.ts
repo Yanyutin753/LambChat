@@ -9,6 +9,7 @@ const STORAGE_KEY = "lambchat_server_url";
 export interface NativeGlobalLike {
   __TAURI__?: unknown;
   __TAURI_INTERNALS__?: unknown;
+  Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string };
 }
 
 export function isTauriRuntime(globalLike?: NativeGlobalLike | null): boolean {
@@ -62,12 +63,13 @@ export function effectiveApiBase(): string {
   return getStoredServerUrl() || API_BASE;
 }
 
-/** 打包壳是否需要首启服务器配置（Tauri 壳内且没有任何可用基址）。 */
+/** 打包客户端是否需要首启服务器配置（桌面 Tauri 壳 + 移动 Capacitor 壳）。 */
 export function needsServerSetup(globalLike?: NativeGlobalLike | null): boolean {
-  const tauri = globalLike
-    ? isTauriRuntime(globalLike)
-    : isNativeAppRuntime() && isTauriRuntime();
-  return tauri && !effectiveApiBase();
+  const native = globalLike
+    ? isTauriRuntime(globalLike) ||
+      Boolean(globalLike.Capacitor?.isNativePlatform?.())
+    : isNativeAppRuntime();
+  return native && !effectiveApiBase();
 }
 
 export function buildAbsoluteUrl(
@@ -96,6 +98,8 @@ export interface PatchDeps {
  */
 export function installServerUrlNetworkPatch(deps: PatchDeps = {}): boolean {
   if (typeof window === "undefined") return false;
+  // 未注入依赖（生产启动）时仅原生端安装：Web 同源部署无需改写
+  if (!deps.fetchImpl && !isNativeAppRuntime()) return false;
   const base = deps.base ?? effectiveApiBase();
   if (!base) return false;
 

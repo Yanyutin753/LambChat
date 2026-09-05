@@ -126,3 +126,13 @@ describe("installServerUrlNetworkPatch", () => {
     );
   });
 });
+
+describe("移动端（Capacitor）运行时配置", () => {
+  test("capacitor runtime needs setup when unconfigured", () => {
+    const capGlobal = { Capacitor: { isNativePlatform: () => true, getPlatform: () => "android" } };
+    expect(needsServerSetup(capGlobal as never)).toBe(true);
+    setStoredServerUrl("https://s.example.com");
+    expect(needsServerSetup(capGlobal as never)).toBe(false);
+    clearStoredServerUrl();
+  });
+});
