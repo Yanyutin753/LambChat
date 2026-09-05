@@ -234,15 +234,24 @@ class Executor:
         self._data_root = Path(data_root)
         self._extra_path = Path(extra_path) if extra_path is not None else None
 
-    def _spawn_env(self) -> dict[str, str] | None:
-        """extra_path 前置进子进程 PATH；无 extra_path 返回 None（= 继承父环境）。"""
-        if self._extra_path is None:
+    def _spawn_env(self, workspace: Path | None = None) -> dict[str, str] | None:
+        """构建子进程环境：extra_path 前置进 PATH；workspace 非空时注入
+        LAMBCHAT_WORKSPACE（指向映射后的真实工作区目录——云端沙箱在每条
+        命令前 export 同名变量，系统提示词据此让模型用 $LAMBCHAT_WORKSPACE；
+        本地链路由这里等效提供，否则模型生成的 `"$LAMBCHAT_WORKSPACE/x"`
+        展开为 /x 而失败）。两者皆无返回 None（= 继承父环境）。"""
+        if self._extra_path is None and workspace is None:
             return None
         env = dict(os.environ)
-        path = env.get("PATH", "")
-        env["PATH"] = (
-            os.pathsep.join([str(self._extra_path), path]) if path else str(self._extra_path)
-        )
+        if self._extra_path is not None:
+            path = env.get("PATH", "")
+            env["PATH"] = (
+                os.pathsep.join([str(self._extra_path), path])
+                if path
+                else str(self._extra_path)
+            )
+        if workspace is not None:
+            env["LAMBCHAT_WORKSPACE"] = str(workspace)
         return env
 
     def execute(self, command: str, virtual_cwd: str, timeout: float) -> dict:
@@ -258,7 +267,7 @@ class Executor:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             start_new_session=True,  # 子进程自成会话：pgid == pid，超时可整组击杀
-            env=self._spawn_env(),
+            env=self._spawn_env(workspace),
         )
         try:
             stdout_b, stderr_b = proc.communicate(timeout=timeout)
@@ -311,7 +320,7 @@ class Executor:
                 cwd=workspace,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                env=self._spawn_env(),
+                env=self._spawn_env(workspace),
             )
             try:
                 process = winapi.open_process(PROCESS_SET_QUOTA | PROCESS_TERMINATE, proc.pid)

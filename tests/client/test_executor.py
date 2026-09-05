@@ -240,3 +240,22 @@ def test_spawn_env_prepends_extra_path(tmp_path):
     assert env["PATH"].split(os.pathsep)[0] == str(tmp_path / "b")
     # 其余环境变量原样保留
     assert env.get("HOME") == os.environ.get("HOME")
+
+
+def test_spawn_env_injects_workspace_variable(tmp_path):
+    """LAMBCHAT_WORKSPACE 注入映射后的真实工作区目录（云端沙箱等效变量）。"""
+    ex = Executor(tmp_path)
+    ws = map_workspace("/workspace/s1", tmp_path)
+    env = ex._spawn_env(ws)  # noqa: SLF001
+    assert env is not None
+    assert env["LAMBCHAT_WORKSPACE"] == str(ws)
+
+
+def test_execute_resolves_workspace_var_in_command(tmp_path):
+    """模型惯用的 $LAMBCHAT_WORKSPACE/<name> 命令在本地链路真实可用（回归自实测事故）。"""
+    ex = Executor(tmp_path)
+    r = ex.execute('echo "$LAMBCHAT_WORKSPACE"', "/workspace/wsvar", timeout=10)
+    assert r["status"] == "ok", r
+    assert r["stdout"].strip() == str(map_workspace("/workspace/wsvar", tmp_path))
+    r2 = ex.execute('echo hi > "$LAMBCHAT_WORKSPACE/note.txt" && cat "$LAMBCHAT_WORKSPACE/note.txt"', "/workspace/wsvar", timeout=10)
+    assert r2["status"] == "ok" and r2["stdout"].strip() == "hi", r2
