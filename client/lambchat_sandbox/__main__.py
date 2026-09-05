@@ -20,7 +20,7 @@ def _enable_parent_death_signal() -> None:
     try:
         import ctypes
 
-        PR_SET_PDEATHSIG = 1
+        PR_SET_PDEATHSIG = 1  # noqa: N806 - linux/prctl.h 原名，保留便于对照
         libc = ctypes.CDLL(None, use_errno=True)
         if libc.prctl(PR_SET_PDEATHSIG, signal.SIGKILL) != 0:
             return
@@ -34,8 +34,29 @@ def _enable_parent_death_signal() -> None:
         pass
 
 
+def _watch_parent_windows() -> None:
+    """Windows 挂载父进程监视：父亡即向主线程注入 SIGINT（PDEATHSIG 替代）。
+
+    仅 Windows 生效（Linux 已有 PDEATHSIG，不双挂；macOS 留 M5）。exit_fn 用
+    ``_thread.interrupt_main``：主线程的 asyncio.Runner 把 KeyboardInterrupt
+    转成任务取消，走 daemon 既有的优雅下线路径（finally: post_offline +
+    close + 审计 shutdown），与 ``cmd_run`` 捕获 (KeyboardInterrupt,
+    CancelledError) 的既有语义吻合——不另造退出通道。
+    """
+    from lambchat_sandbox import platform as plat
+
+    if not plat.is_windows():
+        return
+    import _thread
+
+    from lambchat_sandbox.procsup import watch_parent
+
+    watch_parent(_thread.interrupt_main)
+
+
 if __name__ == "__main__":
     _enable_parent_death_signal()
+    _watch_parent_windows()
     from lambchat_sandbox.cli import main
 
     raise SystemExit(main())

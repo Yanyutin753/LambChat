@@ -5,10 +5,15 @@ daemon 收到 ``op=exec`` 的 tool_call 后经此执行：
 - **工作区映射**：虚拟 cwd ``/workspace/{sid}`` 唯一映射到 ``data_root/{sid}``；
   非法路径（非 ``/workspace/`` 前缀、含 ``..``、sid 含 ``/`` 或为空）抛
   :class:`ExecutorError`，绝不落到 data_root 之外；
-- **隔离执行**：``shell=True`` + ``start_new_session=True``（子进程自成会话与
-  进程组，与 daemon 脱钩），cwd 即映射后的工作区（mkdir -p）；
-- **超时杀组**：超时对整个进程组 ``os.killpg`` 补 SIGKILL——shell 的后台孙进程
-  与 shell 同组，只杀直接子进程会漏杀；
+- **隔离执行**（平台分支，:func:`lambchat_sandbox.platform.is_windows`）：
+  - POSIX：``shell=True`` + ``start_new_session=True``（子进程自成会话与
+    进程组，与 daemon 脱钩），cwd 即映射后的工作区（mkdir -p）；
+  - Windows：Job Object（``JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE``）圈住整棵
+    进程树——daemon 持有 Job 句柄，daemon 意外死亡时最后一个句柄关闭、
+    内核自动击杀 Job 内全部进程（对齐 PDEATHSIG 的"父亡子死"语义）；
+- **超时杀树**：POSIX 对整个进程组 ``os.killpg`` 补 SIGKILL——shell 的后台
+  孙进程与 shell 同组，只杀直接子进程会漏杀；Windows
+  ``TerminateJobObject`` 一次击杀 Job 内所有进程，语义对仗；
 - **输出截断**：stdout/stderr 各保留尾部 :data:`MAX_OUTPUT_BYTES` 字节，被截断时
   头部加 :data:`TRUNCATED_MARK` 标记。
 
@@ -25,10 +30,13 @@ daemon 收到 ``op=exec`` 的 tool_call 后经此执行：
 from __future__ import annotations
 
 import contextlib
+import ctypes
 import os
 import signal
 import subprocess
 from pathlib import Path
+
+from lambchat_sandbox import platform as plat
 
 MAX_OUTPUT_BYTES = 256 * 1024
 TRUNCATED_MARK = "...[truncated]"
@@ -38,6 +46,166 @@ _WORKSPACE_PREFIX = "/workspace/"
 
 class ExecutorError(Exception):
     """虚拟工作区路径非法。"""
+
+
+# ---------------------------------------------------------------------------
+# Windows Job Object：整棵进程树的隔离与击杀（POSIX 走 start_new_session+killpg）
+#
+# 结构体字段序/常量原值出处（learn.microsoft.com）：
+# - JOBOBJECT_BASIC_LIMIT_INFORMATION:
+#   windows/win32/api/winnt/ns-winnt-jobobject_basic_limit_information
+# - IO_COUNTERS:                    windows/win32/api/winnt/ns-winnt-io_counters
+# - JOBOBJECT_EXTENDED_LIMIT_INFORMATION:
+#   windows/win32/api/winnt/ns-winnt-jobobject_extended_limit_information
+# - JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE（winnt.h）：Causes all processes to be
+#   terminated when the job's last handle is closed
+# - JOBOBJECTINFOCLASS 枚举（winbase.h）：JobObjectExtendedLimitInformation = 9
+# - OpenProcess 权限（processthreadsapi.h）：进程加入 Job 需 PROCESS_SET_QUOTA；
+#   兜底单杀需 PROCESS_TERMINATE
+# ---------------------------------------------------------------------------
+
+#: winnt.h ``JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE``：Job 最后一个句柄关闭时
+#: 内核自动击杀 Job 内全部进程——daemon 意外死亡即整树陪葬（对齐 PDEATHSIG）。
+JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
+
+#: winbase.h ``JOBOBJECTINFOCLASS`` 枚举成员序：SetInformationJobObject 的信息类。
+JOBOBJECT_INFO_CLASS_EXTENDED_LIMIT = 9
+
+#: processthreadsapi.h OpenProcess 权限位原值。
+PROCESS_TERMINATE = 0x0001
+PROCESS_SET_QUOTA = 0x0100
+
+#: 超时击杀 Job 的退出码（任意非零即可；协议上 exit_code 仍透传 None）。
+_JOB_TERMINATE_EXIT_CODE = 1
+
+
+class IO_COUNTERS(ctypes.Structure):  # noqa: N801 - winnt.h 原名，保留便于对照头文件
+    """winnt.h ``IO_COUNTERS``：六个 8 字节 ULONGLONG 计数器，字段序照抄文档。"""
+
+    _fields_ = [
+        ("ReadOperationCount", ctypes.c_ulonglong),
+        ("WriteOperationCount", ctypes.c_ulonglong),
+        ("OtherOperationCount", ctypes.c_ulonglong),
+        ("ReadTransferCount", ctypes.c_ulonglong),
+        ("WriteTransferCount", ctypes.c_ulonglong),
+        ("OtherTransferCount", ctypes.c_ulonglong),
+    ]
+
+
+class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):  # noqa: N801 - winnt.h 原名
+    """winnt.h ``JOBOBJECT_BASIC_LIMIT_INFORMATION``（字段序照抄文档）。
+
+    LARGE_INTEGER 按 8 字节 ``c_int64`` 定义（本用法只需清零，联合体另一半
+    不参与布局）；SIZE_T/ULONG_PTR 按指针尺寸 ``c_size_t``；ctypes 原生对齐
+    与 MSVC x64 布局一致（64 字节，测试锁死）。
+    """
+
+    _fields_ = [
+        ("PerProcessUserTimeLimit", ctypes.c_int64),
+        ("PerJobUserTimeLimit", ctypes.c_int64),
+        ("LimitFlags", ctypes.c_uint32),
+        ("MinimumWorkingSetSize", ctypes.c_size_t),
+        ("MaximumWorkingSetSize", ctypes.c_size_t),
+        ("ActiveProcessLimit", ctypes.c_uint32),
+        ("Affinity", ctypes.c_size_t),
+        ("PriorityClass", ctypes.c_uint32),
+        ("SchedulingClass", ctypes.c_uint32),
+    ]
+
+
+class JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):  # noqa: N801 - winnt.h 原名
+    """winnt.h ``JOBOBJECT_EXTENDED_LIMIT_INFORMATION``（字段序照抄文档）。"""
+
+    _fields_ = [
+        ("BasicLimitInformation", JOBOBJECT_BASIC_LIMIT_INFORMATION),
+        ("IoInfo", IO_COUNTERS),
+        ("ProcessMemoryLimit", ctypes.c_size_t),
+        ("JobMemoryLimit", ctypes.c_size_t),
+        ("PeakProcessMemoryUsed", ctypes.c_size_t),
+        ("PeakJobMemoryUsed", ctypes.c_size_t),
+    ]
+
+
+class _WinApi:
+    """kernel32 Job Object API 的 ctypes 薄封装（方法与 win32 函数一一对应）。
+
+    仅真实 Windows 宿主实例化（见模块尾 ``_winapi``）；失败抛
+    :class:`OSError`（附 GetLastError）。测试通过 monkeypatch 替换模块级
+    ``_winapi`` 注入假实现、断言调用序与参数——本类自身不进测试路径。
+    """
+
+    def __init__(self) -> None:
+        windll = getattr(ctypes, "windll", None)  # Windows 独有（stdcall 加载器）
+        if windll is None:
+            raise OSError("Job Object API 仅 Windows 可用（ctypes.windll 缺失）")
+        self._kernel32 = windll.kernel32
+
+    def _fail(self, api: str) -> OSError:
+        # get_last_error 是 Windows 专属 API（typeshed 不声明、本类也仅 Windows 执行）
+        return OSError(f"{api} 失败: GetLastError={ctypes.get_last_error()}")  # type: ignore[attr-defined]
+
+    def create_job_object(self) -> int:
+        """``CreateJobObjectW(NULL, NULL)`` → 新 Job 句柄。"""
+        fn = self._kernel32.CreateJobObjectW
+        fn.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p]
+        fn.restype = ctypes.c_void_p
+        handle = fn(None, None)
+        if not handle:
+            raise self._fail("CreateJobObjectW")
+        return int(handle)
+
+    def set_information_job_object(
+        self, job: int, info_class: int, info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION
+    ) -> None:
+        """``SetInformationJobObject(job, 类, byref(info), sizeof(info))``。"""
+        fn = self._kernel32.SetInformationJobObject
+        fn.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
+        fn.restype = ctypes.c_int  # BOOL
+        if not fn(job, info_class, ctypes.byref(info), ctypes.sizeof(info)):
+            raise self._fail("SetInformationJobObject")
+
+    def open_process(self, desired_access: int, pid: int) -> int:
+        """``OpenProcess(access, FALSE, pid)`` → 进程句柄。
+
+        不用 ``Popen._handle``：那是 CPython 实现细节，跨版本稳定性差；
+        OpenProcess 是公开契约（Assign 进程需要 SET_QUOTA 权限）。
+        """
+        fn = self._kernel32.OpenProcess
+        fn.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
+        fn.restype = ctypes.c_void_p
+        handle = fn(desired_access, False, pid)
+        if not handle:
+            raise self._fail("OpenProcess")
+        return int(handle)
+
+    def assign_process_to_job_object(self, job: int, process: int) -> None:
+        """``AssignProcessToJobObject(job, process)``：进程（及此后代）入 Job。"""
+        fn = self._kernel32.AssignProcessToJobObject
+        fn.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        fn.restype = ctypes.c_int  # BOOL
+        if not fn(job, process):
+            raise self._fail("AssignProcessToJobObject")
+
+    def terminate_job_object(self, job: int, exit_code: int) -> None:
+        """``TerminateJobObject(job, exit_code)``：击杀 Job 内全部进程。"""
+        fn = self._kernel32.TerminateJobObject
+        fn.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+        fn.restype = ctypes.c_int  # BOOL
+        if not fn(job, exit_code):
+            raise self._fail("TerminateJobObject")
+
+    def close_handle(self, handle: int) -> None:
+        """``CloseHandle``：关 Job 句柄即引爆 KILL_ON_JOB_CLOSE；关进程句柄防泄漏。"""
+        fn = self._kernel32.CloseHandle
+        fn.argtypes = [ctypes.c_void_p]
+        fn.restype = ctypes.c_int  # BOOL
+        if not fn(handle):
+            raise self._fail("CloseHandle")
+
+
+# 模块级可注入的 win32 API 面：真实宿主仅 Windows 构造，其余平台为 None
+# （Windows 分支必经 is_windows() 门控；测试 monkeypatch 本变量注入假实现）。
+_winapi: _WinApi | None = _WinApi() if plat.is_windows() else None
 
 
 def map_workspace(virtual_cwd: str, data_root: Path) -> Path:
@@ -64,6 +232,8 @@ class Executor:
         """执行 command，返回 {status, stdout, stderr, exit_code, error}。"""
         workspace = map_workspace(virtual_cwd, self._data_root)
         workspace.mkdir(parents=True, exist_ok=True)
+        if plat.is_windows():
+            return self._execute_windows(command, workspace, timeout)
         proc = subprocess.Popen(
             command,
             shell=True,
@@ -96,6 +266,72 @@ class Executor:
             "exit_code": exit_code,
             "error": None,
         }
+
+    def _execute_windows(self, command: str, workspace: Path, timeout: float) -> dict:
+        """Windows 路径：Job Object 圈住整棵进程树（KILL_ON_JOB_CLOSE）。
+
+        生命周期：CreateJobObjectW → Set（KILL_ON_JOB_CLOSE）→ Popen（不传
+        ``start_new_session``，POSIX 专属参数）→ OpenProcess(pid) → Assign →
+        关进程句柄（Job 句柄留到收尾）→ [超时 TerminateJobObject] → 关 Job 句柄。
+        shell=True 走 cmd.exe：cmd 及其全部后代默认随父入 Job（未设 breakaway），
+        对齐 POSIX"孙进程同组"的击杀覆盖面。
+
+        已知窄窗：Popen 到 Assign 之间子进程若抢先再 spawn 孙进程，孙进程不
+        在 Job 内（POSIX 的 start_new_session 在 exec 前生效、无此竞窗）——窗口
+        为毫秒级且仅影响极端抢跑场景，真机验证项记录于 M4 任务报告。
+        """
+        winapi = _winapi
+        assert winapi is not None  # 仅经 is_windows() 分支进入（mypy 收窄）
+        job = winapi.create_job_object()
+        try:
+            info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+            winapi.set_information_job_object(job, JOBOBJECT_INFO_CLASS_EXTENDED_LIMIT, info)
+            proc = subprocess.Popen(
+                command,
+                shell=True,
+                cwd=workspace,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            try:
+                process = winapi.open_process(PROCESS_SET_QUOTA | PROCESS_TERMINATE, proc.pid)
+                try:
+                    winapi.assign_process_to_job_object(job, process)
+                finally:
+                    winapi.close_handle(process)
+            except OSError:
+                # 未入 Job（OpenProcess 失败，或进程已在别的 Job 且不许
+                # breakaway）：KILL_ON_JOB_CLOSE 罩不住它，补杀再上抛防泄漏。
+                proc.kill()
+                _reap(proc)
+                raise
+            try:
+                stdout_b, stderr_b = proc.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired as exc:
+                # 与 POSIX 对仗：communicate 超时不杀进程，这里击杀 Job 内全部
+                # 进程（= 进程组语义），随后关管道、回收直接子进程、不重读管道。
+                winapi.terminate_job_object(job, _JOB_TERMINATE_EXIT_CODE)
+                _reap(proc)
+                return {
+                    "status": "error",
+                    "stdout": _tail(_partial(exc.stdout)),
+                    "stderr": _tail(_partial(exc.stderr)),
+                    "exit_code": None,
+                    "error": "timeout",
+                }
+            exit_code = proc.returncode
+            return {
+                "status": "ok" if exit_code == 0 else "error",
+                "stdout": _tail(stdout_b),
+                "stderr": _tail(stderr_b),
+                "exit_code": exit_code,
+                "error": None,
+            }
+        finally:
+            # 收尾关 Job 句柄：进程树正常退完即释放内核对象；若仍有存活成员，
+            # 这一步就是 KILL_ON_JOB_CLOSE 的击杀钥匙。
+            winapi.close_handle(job)
 
 
 def _reap(proc: subprocess.Popen) -> None:
