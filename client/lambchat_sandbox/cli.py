@@ -12,6 +12,8 @@ import httpx
 
 from lambchat_sandbox.auth import AuthError, clear_pat, load_pat, pair
 from lambchat_sandbox.config import SandboxConfig, load_config, save_config
+from lambchat_sandbox.daemon import run_daemon
+from lambchat_sandbox.transport import TransportAuthError
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -23,7 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("logout", help="清除本地 PAT")
     sub.add_parser("status", help="查询服务端沙箱状态")
-    sub.add_parser("run", help="启动沙箱 daemon（尚未实现）")
+    sub.add_parser("run", help="启动沙箱 daemon：连接服务端通道并在本机受控执行命令")
     return parser
 
 
@@ -92,8 +94,22 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    print("daemon 未实现")
-    return 1
+    pat = load_pat()
+    if not pat:
+        print("未找到 PAT，请先 lambchat_sandbox login", file=sys.stderr)
+        return 1
+    cfg = load_config()
+    try:
+        asyncio.run(run_daemon(cfg, pat=pat))
+    except TransportAuthError as exc:
+        print(f"PAT 已失效（{exc}），请重新 lambchat_sandbox login", file=sys.stderr)
+        return 1
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        # SIGINT→KeyboardInterrupt、SIGTERM→CancelledError，殊途同归：
+        # run_daemon 的 finally 已完成 post_offline + close + 审计 shutdown
+        print("[sandbox] 收到中断，已优雅下线")
+        return 0
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:

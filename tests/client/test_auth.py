@@ -170,9 +170,11 @@ async def test_pair_pat_creation_failure_raises_auth_error():
 # ---------- CLI ----------
 
 
-def test_cli_run_placeholder_prints_and_returns_1(capsys):
+def test_cli_run_without_pat_returns_1(capsys, monkeypatch):
+    # run 已接 daemon：无 PAT 时拒绝启动（占位行为已被 T6 取代）
+    monkeypatch.setattr(cli, "load_pat", lambda: None)
     assert main(["run"]) == 1
-    assert "daemon 未实现" in capsys.readouterr().out
+    assert "login" in capsys.readouterr().err
 
 
 def test_cli_logout_clears_pat(capsys):
