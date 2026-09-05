@@ -12,8 +12,13 @@ from __future__ import annotations
 
 import contextlib
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
+
+# session_id 直接拼进文件名，白名单与 executor.map_workspace 对 sid 的防线同级：
+# 字母/数字/``.``/``_``/``-`` 之外（含 ``/``、上溯 ``..``、绝对路径）一律拒绝。
+_SESSION_ID = re.compile(r"[A-Za-z0-9._-]+")
 
 
 def _now_iso() -> str:
@@ -27,9 +32,15 @@ class Auditor:
         self._root = Path(root)
 
     def log(self, session_id: str, event: dict) -> None:
-        """追加一行事件到 ``{root}/{session_id}.jsonl``；任何失败静默吞掉。"""
-        record = {"ts": _now_iso(), **event}  # 自动补 ts：event 自带时不覆盖
+        """追加一行事件到 ``{root}/{session_id}.jsonl``；任何失败静默吞掉。
+
+        session_id 不匹配白名单 ``[A-Za-z0-9._-]+`` 的事件静默丢弃（不落盘、
+        不抛）——沿用"审计绝不阻断执行"的 suppress 语义。
+        """
         with contextlib.suppress(Exception):
+            if _SESSION_ID.fullmatch(session_id) is None:
+                return  # 非法 sid：静默丢弃，绝不写出 audit root 之外
+            record = {"ts": _now_iso(), **event}  # 自动补 ts：event 自带时不覆盖
             self._root.mkdir(parents=True, exist_ok=True)
             with (self._root / f"{session_id}.jsonl").open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(record, ensure_ascii=False) + "\n")

@@ -76,3 +76,30 @@ def test_log_failure_does_not_break_subsequent_logging(tmp_path):
     broken.log("s1", {"event": "doomed"})  # 失败被吞
     good.log("s1", {"event": "received"})  # 后续审计照常工作
     assert _read_lines(tmp_path / "fine" / "s1.jsonl")[0]["event"] == "received"
+
+
+def test_log_silently_drops_illegal_session_ids(tmp_path):
+    # sid 白名单：与 executor.map_workspace 对 sid 的防线同级——含 / 或 ..
+    # 的 sid 会写出 audit root 之外，必须静默丢弃（不抛、不落盘）
+    root = tmp_path / "audit"
+    sid_absolute = str(tmp_path / "escaped")  # 绝对路径整体替换 root
+    for sid in ["../evil", "a/b", sid_absolute]:
+        Auditor(root).log(sid, {"event": "received"})  # 不抛即通过
+
+    assert not (root / "evil.jsonl").exists()  # ../evil 不落 root 内
+    assert not (tmp_path / "evil.jsonl").exists()  # 也不落 root 外（上溯）
+    assert not Path(sid_absolute + ".jsonl").exists()  # 绝对路径不落
+    assert not list(root.rglob("*.jsonl"))  # root 内一个文件都不落
+
+
+def test_log_accepts_whitelisted_session_id_characters(tmp_path):
+    # 白名单字符集（字母/数字/._-）内的合法 sid 照常追加
+    sid = "sess.1-x_9"
+    Auditor(tmp_path).log(sid, {"event": "received"})
+    assert _read_lines(tmp_path / f"{sid}.jsonl")[0]["event"] == "received"
+
+
+def test_log_swallows_non_dict_event(tmp_path):
+    # 构造容错：record 合并纳入 suppress——非 dict 的 event 不抛、不落盘
+    Auditor(tmp_path).log("s1", ["not", "a", "dict"])  # 不抛即通过
+    assert not list(tmp_path.rglob("*.jsonl"))
