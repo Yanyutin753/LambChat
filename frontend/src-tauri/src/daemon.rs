@@ -265,7 +265,7 @@ fn graceful_terminate_sidecar(pid: u32) {
     #[cfg(not(unix))]
     {
         // TODO(M4): Windows 侧优雅终止（GenerateConsoleCtrlEvent / taskkill）；
-        // 当前发布矩阵仅 unix，先直落调用方的 kill 兜底。
+        // win/mac 已恢复发布矩阵且 daemon 步已接，暂直落调用方的 kill 兜底。
         let _ = pid;
     }
 }

@@ -197,6 +197,9 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
+        // process 插件：updater 安装完成后前端 `relaunch()` 重启壳
+        // （useAutoUpdate 依赖；缺此注册 + capability，更新后自动重启会失败）。
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             clean_on_version_upgrade(app.handle());
             app.manage(daemon::DaemonManager::default());

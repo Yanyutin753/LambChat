@@ -168,3 +168,32 @@ def test_build_script_appends_exe_suffix_on_windows_sidecar() -> None:
     assert 'EXE_SUFFIX=""' in script
     assert "lambchat-daemon${EXE_SUFFIX}" in script
     assert "lambchat-daemon-${TRIPLE}${EXE_SUFFIX}" in script
+
+
+def test_release_workflow_collect_steps_publish_daemon_sidecar_assets() -> None:
+    """三个 Collect 步骤必须把 daemon sidecar 二进制拷入 release-assets/。
+
+    selfupdate 按 ``lambchat-daemon-<triple>`` 前缀匹配 release 资产
+    （client/lambchat_sandbox/selfupdate.py 的 ASSET_PREFIX + host_triple），
+    所以拷贝必须保留 triple 原名（Windows 加 ``.exe``），不得套 RELEASE_TAG
+    重命名——否则 CLI 自更新永远找不到平台资产（M4 final-review F1）。
+    """
+    steps = {step["name"]: step for step in _desktop_job()["steps"]}
+    expected = {
+        "Collect Linux desktop artifacts": "lambchat-daemon-*",
+        "Collect Windows desktop artifacts": "lambchat-daemon-*.exe",
+        "Collect macOS desktop artifacts": "lambchat-daemon-*",
+    }
+    for name, pattern in expected.items():
+        run = steps[name]["run"]
+        assert f"frontend/src-tauri/binaries/{pattern}" in run, (
+            f"{name} 应把 {pattern} 拷入 release-assets/"
+        )
+        for line in run.splitlines():
+            if "lambchat-daemon" in line and "binaries/" in line:
+                assert "release-assets" in line, (
+                    f"{name}: daemon sidecar 拷贝必须落入 release-assets/"
+                )
+                assert "RELEASE_TAG" not in line, (
+                    f"{name}: daemon 资产名保留 triple 原名，不得重命名"
+                )

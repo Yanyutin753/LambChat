@@ -191,6 +191,8 @@ jobs:
             echo "No Linux desktop artifacts found"
             exit 1
           fi
+          # daemon sidecar 资产：保留 triple 原名（selfupdate 按 lambchat-daemon-<triple> 前缀匹配）
+          cp frontend/src-tauri/binaries/lambchat-daemon-* release-assets/
 
       - name: Collect Windows desktop artifacts
         if: runner.os == 'Windows'
@@ -221,6 +223,8 @@ jobs:
           ) -Encoding UTF8
           Compress-Archive -Path "$portableDir/*" -DestinationPath "release-assets/LambChat-$env:RELEASE_TAG-Windows-Portable.zip" -Force
           Remove-Item -Recurse -Force $portableDir
+          # daemon sidecar 资产：保留 triple 原名（selfupdate 按 lambchat-daemon-<triple> 前缀匹配）
+          Copy-Item 'frontend/src-tauri/binaries/lambchat-daemon-*.exe' 'release-assets/'
 
       - name: Collect macOS desktop artifacts
         if: runner.os == 'macOS'
@@ -246,6 +250,8 @@ jobs:
             echo "No macOS .app bundle found; uploading DMG only."
           fi
           cp "$dmg_path" "release-assets/LambChat-${RELEASE_TAG}-macOS.dmg"
+          # daemon sidecar 资产：保留 triple 原名（selfupdate 按 lambchat-daemon-<triple> 前缀匹配）
+          cp frontend/src-tauri/binaries/lambchat-daemon-* release-assets/
 
       - name: Collect updater manifest artifacts
         shell: bash
