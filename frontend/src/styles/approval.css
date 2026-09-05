@@ -117,25 +117,11 @@
   white-space: normal;
 }
 
-.approval-ask-human-badge {
-  flex-shrink: 0;
-  border: 1px solid
-    color-mix(in srgb, var(--approval-text-dim) 45%, var(--approval-border));
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--approval-bg) 80%, white 4%);
-  padding: 0.22rem 0.62rem;
-  color: var(--approval-text);
-  font-size: 0.75rem;
-  font-weight: 400;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-}
-
 .approval-ask-human-question {
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--approval-text);
-  font-size: 1rem;
+  font-size: 0.875rem;
   font-weight: 400;
   letter-spacing: 0;
   line-height: 1.5;
@@ -199,7 +185,7 @@
   align-items: center;
   gap: 0.45rem;
   color: var(--approval-text-dim);
-  font-size: 0.8125rem;
+  font-size: 0.6875rem;
   line-height: 1.4;
   opacity: 0.82;
 }
@@ -217,15 +203,15 @@
 .approval-ask-human-option {
   display: grid;
   grid-template-columns: 1.65rem minmax(0, 1fr);
-  min-height: 2.75rem;
+  min-height: 2.5rem;
   align-items: center;
   column-gap: 0.8rem;
   border: 1px solid color-mix(in srgb, var(--approval-border) 42%, transparent);
   border-radius: 0.75rem;
   background: color-mix(in srgb, var(--approval-bg) 88%, transparent);
-  padding: 0.45rem 0.75rem;
+  padding: 0.4rem 0.7rem;
   color: var(--approval-text);
-  font-size: 1rem;
+  font-size: 0.8125rem;
   font-weight: 400;
   line-height: 1.5;
   text-align: left;
@@ -249,7 +235,7 @@
     color-mix(in srgb, var(--approval-border) 75%, var(--approval-text-dim));
   border-radius: 999px;
   color: var(--approval-text-dim);
-  font-size: 0.78rem;
+  font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   line-height: 1;
@@ -263,56 +249,46 @@
 .approval-ask-human-option:hover:not(.approval-ask-human-option--selected) {
   border-color: color-mix(
     in srgb,
-    var(--approval-accent) 42%,
+    var(--approval-accent) 32%,
     var(--approval-border)
   );
   background: color-mix(
     in srgb,
-    var(--approval-accent-light) 12%,
+    var(--approval-accent-light) 8%,
     var(--approval-bg)
   );
   color: var(--approval-text);
 }
 
-.approval-ask-human-option--focused:not(.approval-ask-human-option--selected) {
+.approval-ask-human-option:hover:not(.approval-ask-human-option--selected)
+  .approval-ask-human-option-indicator {
   border-color: color-mix(
     in srgb,
-    var(--approval-accent) 58%,
+    var(--approval-accent) 45%,
     var(--approval-border)
   );
-  box-shadow: 0 0 0 2px
-    color-mix(in srgb, var(--approval-accent) 16%, transparent);
-}
-
-.approval-ask-human-option:hover:not(.approval-ask-human-option--selected)
-  .approval-ask-human-option-indicator,
-.approval-ask-human-option--focused:not(.approval-ask-human-option--selected)
-  .approval-ask-human-option-indicator {
-  border-color: var(--approval-accent);
-  background: color-mix(in srgb, var(--approval-accent-light) 28%, transparent);
-  color: var(--approval-accent);
+  color: var(--approval-text);
 }
 
 .approval-ask-human-option--selected {
   border-color: color-mix(
     in srgb,
-    var(--approval-accent) 66%,
+    var(--approval-accent) 55%,
     var(--approval-border)
   );
   background: color-mix(
     in srgb,
-    var(--approval-accent-light) 18%,
+    var(--approval-accent-light) 14%,
     var(--approval-bg)
   );
   color: var(--approval-text);
   font-weight: 500;
-  box-shadow: 0 3px 12px -9px color-mix(in srgb, var(--approval-accent) 70%, transparent);
 }
 
 .approval-ask-human-option--selected:hover {
   background: color-mix(
     in srgb,
-    var(--approval-accent-light) 32%,
+    var(--approval-accent-light) 20%,
     var(--approval-bg)
   );
 }
@@ -336,7 +312,7 @@
   align-items: center;
   gap: 0.25rem;
   padding: 0 1.1rem 0.4rem;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   line-height: 1.5;
   letter-spacing: 0.01em;
   color: var(--approval-text-dim, var(--theme-text-secondary));
@@ -347,7 +323,7 @@
   display: block;
   margin-bottom: 0.5rem;
   color: var(--approval-text-dim);
-  font-size: 0.85rem;
+  font-size: 0.8125rem;
 }
 
 .approval-ask-human-footer {
@@ -455,9 +431,12 @@
 }
 
 @media (min-width: 641px) {
-  .approval-ask-human-question,
+  .approval-ask-human-question {
+    font-size: 0.875rem;
+  }
+
   .approval-ask-human-option {
-    font-size: 1rem;
+    font-size: 0.8125rem;
   }
 }
 
@@ -672,7 +651,7 @@
 .approval-form--ask-human {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1rem;
   padding-top: 0.75rem;
   padding-bottom: 0.75rem;
 }
@@ -680,7 +659,7 @@
 .approval-form--ask-human > div {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.6rem;
   padding: 0;
 }
 
@@ -695,12 +674,13 @@
 
 .approval-form--ask-human > div > label {
   margin-bottom: 0;
-  font-size: 1rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
   line-height: 1.5;
 }
 
 .approval-form--ask-human .approval-input {
-  font-size: 1rem;
+  font-size: 0.8125rem;
   line-height: 1.5;
 }
 

@@ -267,7 +267,6 @@
     "continue": "Continue",
     "enterResponse": "Enter your response...",
     "ignore": "Ignore",
-    "mainGoal": "Main goal",
     "multiSelectHint": "Multiple selections allowed · Click an option to select or clear",
     "needsConfirmation": "Needs Confirmation",
     "next": "Next item",
@@ -289,7 +288,7 @@
     },
     "selectOption": "Select an option",
     "send": "Send",
-    "shortcutHint": "↑↓ navigate · Enter confirm · 1-9 select",
+    "shortcutHint": "Enter to submit",
     "submit": "Submit"
   },
   "auth": {
@@ -2881,6 +2880,7 @@
     "noSessions": "No chat sessions yet",
     "older": "Older",
     "open": "open",
+    "pendingStatus": "Pending",
     "pinToTop": "Pin to top",
     "pinToggleFailed": "Failed to update pin status",
     "pinned": "Pinned",
@@ -2901,6 +2901,7 @@
     "renameFailed": "Failed to rename session",
     "renamed": "Session renamed",
     "retry": "Retry",
+    "runningStatus": "Running",
     "scrollToTop": "Scroll to top",
     "searchResultCount": "{{count}} results",
     "searchSessions": "Search sessions",

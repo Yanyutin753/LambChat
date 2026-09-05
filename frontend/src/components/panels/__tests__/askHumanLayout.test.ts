@@ -27,7 +27,9 @@ test("places the ignore action before submit in the approval footer", () => {
 });
 
 test("localizes ask-human labels and keeps one final submit action", () => {
-  expect(approvalSource).toMatch(/approvals\.mainGoal/);
+  // 「主要目标」徽标与问题语义无关，头部只渲染问题本身
+  expect(approvalSource).not.toMatch(/approvals\.mainGoal/);
+  expect(approvalSource).not.toMatch(/approval-ask-human-badge/);
   expect(approvalSource).not.toMatch(/aria-label="上一项"/);
   expect(approvalSource).not.toMatch(/aria-label="下一项"/);
   expect(approvalSource).not.toMatch(
@@ -150,7 +152,7 @@ test("pins approval actions to the right with a clear button group", () => {
 test("uses a compact spacing rhythm for ask-human fields", () => {
   expect(approvalSource).toMatch(/approval-form--ask-human/);
   expect(approvalCss).toMatch(
-    /\.approval-form--ask-human\s*\{[\s\S]*?gap:\s*0\.75rem;/,
+    /\.approval-form--ask-human\s*\{[\s\S]*?gap:\s*1rem;/,
   );
   expect(approvalCss).toMatch(
     /\.approval-form--ask-human > div \+ div[\s\S]*?padding-top:\s*0;/,
@@ -169,10 +171,17 @@ test("keeps approval text readable without truncation", () => {
     /\.approval-ask-human-question\s*\{[^}]*white-space:\s*nowrap;/,
   );
   expect(approvalCss).toMatch(
-    /\.approval-form--ask-human > div > label[\s\S]*?font-size:\s*1rem;/,
+    /\.approval-form--ask-human > div > label[\s\S]*?font-size:\s*0\.8125rem;/,
   );
   expect(approvalCss).toMatch(
-    /\.approval-form--ask-human \.approval-input[\s\S]*?font-size:\s*1rem;/,
+    /\.approval-form--ask-human \.approval-input[\s\S]*?font-size:\s*0\.8125rem;/,
+  );
+});
+
+test("renders ask-human questions bold for clearer scanning", () => {
+  // 问题标签加粗，与选项内容拉开层级
+  expect(approvalCss).toMatch(
+    /\.approval-form--ask-human > div > label[\s\S]*?font-weight:\s*600;/,
   );
 });
 
@@ -225,19 +234,23 @@ test("aligns ask-human options to the same content start as labels and inputs", 
     /\.approval-ask-human-option\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*1\.65rem minmax\(0, 1fr\);/,
   );
   expect(approvalCss).toMatch(
-    /\.approval-ask-human-option\s*\{[\s\S]*?font-size:\s*1rem;[\s\S]*?line-height:\s*1\.5;/,
+    /\.approval-ask-human-option\s*\{[\s\S]*?font-size:\s*0\.8125rem;[\s\S]*?line-height:\s*1\.5;/,
   );
   expect(approvalCss).toMatch(
     /@media \(max-width: 640px\)[\s\S]*?\.approval-ask-human-options[\s\S]*?padding:\s*0\.1rem 0 0\.25rem;/,
   );
 });
 
-test("uses the same readable body line-height for question and options", () => {
+test("keeps ask-human form text one step smaller than the question", () => {
+  // 表单区（标签/选项/输入框）比头部问题再小一档，行高保持一致的可读节奏
   expect(approvalCss).toMatch(
-    /\.approval-ask-human-question\s*\{[^}]*?font-size:\s*1rem;[^}]*?line-height:\s*1\.5;/,
+    /\.approval-ask-human-question\s*\{[^}]*?font-size:\s*0\.875rem;/,
   );
   expect(approvalCss).toMatch(
-    /\.approval-ask-human-option\s*\{[^}]*?font-size:\s*1rem;[^}]*?line-height:\s*1\.5;/,
+    /\.approval-ask-human-option\s*\{[^}]*?font-size:\s*0\.8125rem;[^}]*?line-height:\s*1\.5;/,
+  );
+  expect(approvalCss).toMatch(
+    /\.approval-ask-human-option\s*\{[^}]*?min-height:\s*2\.5rem;/,
   );
 });
 
@@ -245,14 +258,14 @@ test("keeps hover, keyboard focus, and selected states visually distinct", () =>
   expect(approvalCss).toMatch(
     /\.approval-ask-human-option:hover:not\(\.approval-ask-human-option--selected\)/,
   );
+  // 自定义键盘光标高亮已整体移除，只剩原生 :focus-visible 焦点可访问性
+  expect(approvalCss).not.toMatch(/approval-ask-human-option--focused/);
+  // 选中态靠边框+浅底+加粗区分，不靠投影光晕
   expect(approvalCss).toMatch(
-    /\.approval-ask-human-option--focused:not\(\.approval-ask-human-option--selected\)[\s\S]*?box-shadow:/,
-  );
-  expect(approvalCss).toMatch(
-    /\.approval-ask-human-option--selected\s*\{[^}]*?box-shadow:[\s\S]*?0 3px 12px -9px/,
+    /\.approval-ask-human-option--selected\s*\{[^}]*?font-weight:\s*500;/,
   );
   expect(approvalCss).not.toMatch(
-    /\.approval-ask-human-option--selected\s*\{[^}]*?inset/,
+    /\.approval-ask-human-option--selected\s*\{[^}]*?box-shadow/,
   );
   expect(approvalCss).toMatch(
     /\.approval-ask-human-option:focus-visible\s*\{[^}]*?outline:\s*2px/,
@@ -261,7 +274,7 @@ test("keeps hover, keyboard focus, and selected states visually distinct", () =>
 
 test("keeps the ask-human shortcut hint readable beside the actions", () => {
   expect(approvalCss).toMatch(
-    /\.approval-ask-human-shortcut-hint\s*\{[^}]*?font-size:\s*0\.875rem;[^}]*?line-height:\s*1\.5;/,
+    /\.approval-ask-human-shortcut-hint\s*\{[^}]*?font-size:\s*0\.8125rem;[^}]*?line-height:\s*1\.5;/,
   );
 });
 
@@ -271,13 +284,13 @@ test("announces multi-select choices with an accessible reminder", () => {
   expect(approvalSource).toMatch(/approval-ask-human-multi-select-hint/);
   expect(approvalSource).toMatch(/approvals\.multiSelectHint/);
   expect(approvalCss).toMatch(
-    /\.approval-ask-human-multi-select-hint\s*\{[^}]*?font-size:\s*0\.8125rem;[^}]*?line-height:\s*1\.4;/,
+    /\.approval-ask-human-multi-select-hint\s*\{[^}]*?font-size:\s*0\.6875rem;[^}]*?line-height:\s*1\.4;/,
   );
 });
 
 test("keeps the multi-select reminder visually secondary", () => {
   expect(approvalCss).toMatch(
-    /\.approval-ask-human-multi-select-hint\s*\{[^}]*?font-size:\s*0\.8125rem;[^}]*?opacity:\s*0\.82;/,
+    /\.approval-ask-human-multi-select-hint\s*\{[^}]*?font-size:\s*0\.6875rem;[^}]*?opacity:\s*0\.82;/,
   );
   expect(approvalCss).toMatch(
     /\.approval-ask-human-multi-select-hint::before\s*\{[^}]*?background:\s*var\(--approval-text-dim\);[^}]*?box-shadow:\s*none;/,
@@ -286,10 +299,10 @@ test("keeps the multi-select reminder visually secondary", () => {
 
 test("uses one vertical rhythm across ask-human fields", () => {
   expect(approvalCss).toMatch(
-    /\.approval-form--ask-human\s*\{[^}]*?gap:\s*0\.75rem;/,
+    /\.approval-form--ask-human\s*\{[^}]*?gap:\s*1rem;/,
   );
   expect(approvalCss).toMatch(
-    /\.approval-form--ask-human > div\s*\{[^}]*?display:\s*flex;[^}]*?gap:\s*0\.45rem;/,
+    /\.approval-form--ask-human > div\s*\{[^}]*?display:\s*flex;[^}]*?gap:\s*0\.6rem;/,
   );
   expect(approvalCss).toMatch(
     /\.approval-form--ask-human > div\.space-y-1 > \* \+ \*\s*\{[^}]*?margin-top:\s*0;/,
@@ -298,11 +311,18 @@ test("uses one vertical rhythm across ask-human fields", () => {
 
 test("keeps selected and hover accents restrained", () => {
   expect(approvalCss).toMatch(
-    /\.approval-ask-human-option:hover:not\(\.approval-ask-human-option--selected\)[\s\S]*?background:[\s\S]*?12%/,
+    /\.approval-ask-human-option:hover:not\(\.approval-ask-human-option--selected\)[\s\S]*?background:[\s\S]*?8%/,
   );
   expect(approvalCss).toMatch(
-    /\.approval-ask-human-option--selected\s*\{[\s\S]*?background:[\s\S]*?18%/,
+    /\.approval-ask-human-option--selected\s*\{[\s\S]*?background:[\s\S]*?14%/,
   );
+});
+
+test("only mouse clicks toggle single-select choices", () => {
+  // toggle 只存在于鼠标点击路径（再点取消）；键盘层已移除，不存在快捷键误取消
+  expect(
+    (approvalSource.match(/toggleSingleSelectValue\(/g) ?? []).length,
+  ).toBe(1);
 });
 
 test("keeps the approval card surfaces visually quiet", () => {
@@ -324,12 +344,26 @@ test("shows desktop-only keyboard shortcut hint for ask-human choices", () => {
   expect(approvalSource).toMatch(/hidden sm:inline-flex/);
 });
 
-test("supports number-key selection for ask-human choices", () => {
-  expect(approvalSource).toMatch(/event\.key >= "1"/);
+test("skips the enter shortcut while typing inside card text controls", () => {
+  expect(approvalSource).toMatch(
+    /isEditableEventTarget\(event\.target\)[\s\S]*?event\.key !== "Enter"/,
+  );
 });
 
-test("skips ask-human shortcuts while typing inside card text controls", () => {
-  expect(approvalSource).toMatch(
-    /isEditableEventTarget\(event\.target\)[\s\S]*?event\.key >= "1"/,
-  );
+test("lets a single-select choice be deselected by clicking it again", () => {
+  // 单选再点同一项应取消选择（toggle），而不是只能换选
+  expect(approvalSource).toMatch(/toggleSingleSelectValue\(/);
+});
+
+test("ask-human options carry no custom keyboard cursor highlight", () => {
+  // 数字键/↑↓/光标高亮整套自定义键盘层已移除：不再有任何"乱 hover"高亮源
+  expect(approvalSource).not.toMatch(/askHumanSelectedIndex/);
+  expect(approvalSource).not.toMatch(/approval-ask-human-option--focused/);
+  expect(approvalCss).not.toMatch(/approval-ask-human-option--focused/);
+});
+
+test("enter submits the ask-human answer from anywhere on the card", () => {
+  // 唯一保留的快捷键：Enter 提交（文本框内换行、按钮上原生激活除外）
+  expect(approvalSource).toMatch(/event\.key !== "Enter"/);
+  expect(approvalSource).toMatch(/handleSubmit\(\);/);
 });

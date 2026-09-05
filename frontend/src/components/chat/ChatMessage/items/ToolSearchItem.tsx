@@ -25,7 +25,7 @@ function ToolSearchDetail({ args, result }: ToolDetailProps) {
     : "";
 
   return (
-    <div className="space-y-3 max-h-full overflow-y-auto p-2 sm:p-4">
+    <div className="flex h-full min-h-0 flex-col space-y-3 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
       {query && (
         <ToolArgsBlock size="detail">
           <Search
@@ -38,7 +38,7 @@ function ToolSearchDetail({ args, result }: ToolDetailProps) {
         </ToolArgsBlock>
       )}
       {hasResult && (
-        <div className="group/result relative text-xs text-theme-text-secondary overflow-y-auto min-w-0">
+        <div className="group/result relative flex-1 min-h-0 text-xs text-theme-text-secondary overflow-y-auto min-w-0">
           <ToolHoverCopyButton
             text={resultText}
             position="resultCompact"

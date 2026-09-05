@@ -267,7 +267,6 @@
     "continue": "계속",
     "enterResponse": "응답 입력...",
     "ignore": "무시",
-    "mainGoal": "주요 목표",
     "multiSelectHint": "여러 항목을 선택할 수 있습니다 · 클릭하여 선택/해제",
     "needsConfirmation": "확인 필요",
     "next": "다음 항목",
@@ -289,7 +288,7 @@
     },
     "selectOption": "옵션을 선택하세요",
     "send": "전송",
-    "shortcutHint": "↑↓ 이동 · Enter 확인 · 1-9 선택",
+    "shortcutHint": "Enter 제출",
     "submit": "확인"
   },
   "auth": {
@@ -2881,6 +2880,7 @@
     "noSessions": "아직 채팅 세션이 없습니다",
     "older": "이전",
     "open": "열기",
+    "pendingStatus": "대기 중",
     "pinToTop": "고정",
     "pinToggleFailed": "고정 상태 업데이트 실패",
     "pinned": "고정됨",
@@ -2901,6 +2901,7 @@
     "renameFailed": "세션 이름 변경에 실패했습니다",
     "renamed": "세션 이름이 변경되었습니다",
     "retry": "재시도",
+    "runningStatus": "실행 중",
     "scrollToTop": "맨 위로",
     "searchResultCount": "{{count}}개 결과",
     "searchSessions": "세션 검색",

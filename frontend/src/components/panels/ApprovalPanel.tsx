@@ -28,6 +28,7 @@ import { parseDate } from "../../utils/datetime";
 import {
   isFormFieldsValid,
   toggleMultiSelectValue,
+  toggleSingleSelectValue,
 } from "./approvalFormValidation";
 
 interface ApprovalPanelProps {
@@ -238,15 +239,13 @@ function AskHumanChoiceList({
   field,
   value,
   disabled,
-  selectedIndex,
   onSelect,
   onInteract,
 }: {
   field: FormField;
   value: unknown;
   disabled: boolean;
-  selectedIndex: number;
-  onSelect: (option: string, index: number) => void;
+  onSelect: (option: string) => void;
   onInteract: () => void;
 }) {
   const { t } = useTranslation();
@@ -281,11 +280,10 @@ function AskHumanChoiceList({
               className={clsx(
                 "approval-ask-human-option",
                 selected && "approval-ask-human-option--selected",
-                selectedIndex === index && "approval-ask-human-option--focused",
               )}
               onClick={() => {
                 onInteract();
-                onSelect(option, index);
+                onSelect(option);
               }}
             >
               <span
@@ -311,14 +309,12 @@ export function ApprovalPanel({
   const { t } = useTranslation();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [askHumanSelectedIndex, setAskHumanSelectedIndex] = useState(0);
   const [formValues, setFormValues] = useState<
     Record<string, Record<string, unknown>>
   >({});
 
   // Countdown state: map of approval id -> remaining seconds
   const [remaining, setRemaining] = useState<Record<string, number>>({});
-  const currentApprovalId = approvals[currentIndex]?.id;
   // Track expiry deadlines so we can update them on extend
   const deadlinesRef = useRef<Record<string, number>>({});
   // Debounce extend calls (per approval)
@@ -369,10 +365,6 @@ export function ApprovalPanel({
       }
     }
   }, [approvals]);
-
-  useEffect(() => {
-    setAskHumanSelectedIndex(0);
-  }, [currentApprovalId]);
 
   // Countdown tick
   useEffect(() => {
@@ -555,7 +547,6 @@ export function ApprovalPanel({
       field.type === "multi_select" ||
       field.type === "select",
   );
-  const askHumanKeyboardField = askHumanChoiceFields[0];
   const askHumanQuestion = approvalSummary;
   const isSubmitDisabled =
     isLoading || !isFormFieldsValid(currentApproval.fields, currentFormValues);
@@ -607,53 +598,13 @@ export function ApprovalPanel({
           }`}
           key={currentApproval.id}
           onKeyDown={(event) => {
-            // 卡片内文本控件（如“其他”自由填写）优先走原生输入，快捷键让位
+            // 唯一快捷键：Enter 提交。文本控件内走原生（换行），按钮上走原生激活，
+            // 其余数字键/方向键一律不劫持，避免选中乱跳的高亮
             if (isEditableEventTarget(event.target)) return;
-            if (!isAskHuman || !askHumanKeyboardField?.options?.length) return;
-            const count = askHumanKeyboardField.options.length;
-            if (event.key === "ArrowDown" || event.key === "Tab") {
-              event.preventDefault();
-              setAskHumanSelectedIndex((index) => (index + 1) % count);
-            } else if (event.key === "ArrowUp") {
-              event.preventDefault();
-              setAskHumanSelectedIndex((index) => (index - 1 + count) % count);
-            } else if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              const option =
-                askHumanKeyboardField.options[askHumanSelectedIndex];
-              if (option) {
-                handleFieldChange(
-                  askHumanKeyboardField.name,
-                  askHumanKeyboardField.type === "multi_select"
-                    ? toggleMultiSelectValue(
-                        currentFormValues[askHumanKeyboardField.name],
-                        option,
-                      )
-                    : option,
-                );
-              }
-            } else if (
-              event.key >= "1" &&
-              event.key <= "9" &&
-              Number(event.key) <= count
-            ) {
-              // 数字键快捷选择对应序号的选项
-              event.preventDefault();
-              const option =
-                askHumanKeyboardField.options[Number(event.key) - 1];
-              if (option) {
-                setAskHumanSelectedIndex(Number(event.key) - 1);
-                handleFieldChange(
-                  askHumanKeyboardField.name,
-                  askHumanKeyboardField.type === "multi_select"
-                    ? toggleMultiSelectValue(
-                        currentFormValues[askHumanKeyboardField.name],
-                        option,
-                      )
-                    : option,
-                );
-              }
-            }
+            if (event.target instanceof HTMLButtonElement) return;
+            if (!isAskHuman || event.key !== "Enter") return;
+            event.preventDefault();
+            handleSubmit();
           }}
           tabIndex={isAskHuman ? 0 : undefined}
         >
@@ -698,10 +649,7 @@ export function ApprovalPanel({
             </button>
           ) : (
             <div className="approval-ask-human-header">
-              <div className="approval-ask-human-title-row">
-                <span className="approval-ask-human-badge">
-                  {t("approvals.mainGoal")}
-                </span>
+              <div className="approval-ask-human-title-row font-serif">
                 <span className="approval-ask-human-question">
                   {askHumanQuestion}
                 </span>
@@ -770,16 +718,9 @@ export function ApprovalPanel({
                               field={field}
                               value={currentFormValues[field.name]}
                               disabled={isLoading}
-                              selectedIndex={
-                                field === askHumanKeyboardField
-                                  ? askHumanSelectedIndex
-                                  : -1
-                              }
                               onInteract={handleInteract(currentApproval.id)}
-                              onSelect={(option, index) => {
-                                if (field === askHumanKeyboardField) {
-                                  setAskHumanSelectedIndex(index);
-                                }
+                              onSelect={(option) => {
+                                // 鼠标点击：单选再点同一项取消，多选增删
                                 handleFieldChange(
                                   field.name,
                                   field.type === "multi_select"
@@ -787,7 +728,10 @@ export function ApprovalPanel({
                                         currentFormValues[field.name],
                                         option,
                                       )
-                                    : option,
+                                    : toggleSingleSelectValue(
+                                        currentFormValues[field.name],
+                                        option,
+                                      ),
                                 );
                               }}
                             />
@@ -865,11 +809,11 @@ export function ApprovalPanel({
                 )}
               </div>
               <div
-                className={`approval-actions ${
+                className={`approval-actions font-serif ${
                   isAskHuman ? "approval-ask-human-footer" : ""
                 }`}
               >
-                {isAskHuman && askHumanChoiceFields.length > 0 && (
+                {isAskHuman && (
                   <span
                     className="approval-ask-human-shortcut-hint hidden sm:inline-flex"
                     aria-hidden="true"
@@ -887,7 +831,7 @@ export function ApprovalPanel({
                     title={
                       isAskHuman ? t("approvals.ignore") : t("approvals.cancel")
                     }
-                    className="approval-btn-cancel flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="approval-btn-cancel flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <X size={14} />
                     <span>
@@ -901,7 +845,7 @@ export function ApprovalPanel({
                     disabled={isSubmitDisabled}
                     aria-label={t("approvals.submit")}
                     title={t("approvals.submit")}
-                    className="approval-btn-submit flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="approval-btn-submit flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Send size={14} />
                     <span>{t("approvals.submit")}</span>

@@ -267,7 +267,6 @@
     "continue": "続ける",
     "enterResponse": "返信を入力...",
     "ignore": "無視",
-    "mainGoal": "主な目標",
     "multiSelectHint": "複数選択できます · クリックで選択/解除",
     "needsConfirmation": "確認が必要です",
     "next": "次の項目",
@@ -289,7 +288,7 @@
     },
     "selectOption": "オプションを選択",
     "send": "送信",
-    "shortcutHint": "↑↓ 移動 · Enter 決定 · 1-9 選択",
+    "shortcutHint": "Enter で送信",
     "submit": "確定"
   },
   "auth": {
@@ -2881,6 +2880,7 @@
     "noSessions": "まだチャットセッションがありません",
     "older": "それ以前",
     "open": "開く",
+    "pendingStatus": "待機中",
     "pinToTop": "ピン留め",
     "pinToggleFailed": "ピン留め状態の更新に失敗しました",
     "pinned": "ピン留めしました",
@@ -2901,6 +2901,7 @@
     "renameFailed": "セッション名の変更に失敗しました",
     "renamed": "セッション名が変更されました",
     "retry": "再試行",
+    "runningStatus": "実行中",
     "scrollToTop": "トップへ戻る",
     "searchResultCount": "{{count}} 件",
     "searchSessions": "セッションを検索",

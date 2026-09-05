@@ -49,3 +49,63 @@ test("expanded collapsible section cards fill the available panel height", () =>
     /title=\{t\("chat\.message\.result"\)\}[\s\S]*?expandedClassName="flex min-h-0 flex-col grow shrink-0"/,
   );
 });
+
+test("generic tool call panel stretches the result card to fill remaining height", () => {
+  const toolCallItemSource = readFileSync(
+    new URL("../ToolCallItem.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // 面板根节点：占满 panel-body 并自身兜底滚动
+  expect(toolCallItemSource).toMatch(
+    /className="relative flex h-full min-h-0 flex-col overflow-y-auto p-2 sm:p-4 \[&_pre\]:!text-sm \[&_pre\]:!max-h-none"/,
+  );
+  // 内层 flex 列承载小节，result 卡片展开时吃掉剩余空间
+  expect(toolCallItemSource).toMatch(
+    /className="flex min-h-0 flex-1 flex-col space-y-3"/,
+  );
+  expect(toolCallItemSource).toMatch(
+    /title=\{t\("chat\.message\.result"\)\}[\s\S]*?expandedClassName="flex min-h-0 flex-col grow shrink-0"/,
+  );
+});
+
+test("tool live panel details fill the panel height while inline previews keep their caps", () => {
+  const itemsDir = new URL("../items/", import.meta.url);
+  const panelDetailItems = [
+    "ToolSearchItem",
+    "TransferItem",
+    "UploadUrlToSandboxItem",
+    "SkillSearchItem",
+    "ConversationHistoryItem",
+  ];
+
+  for (const item of panelDetailItems) {
+    const source = readFileSync(new URL(`${item}.tsx`, itemsDir), "utf8");
+    // 面板详情根节点铺满 panel-body，自身兜底滚动
+    expect(
+      source,
+      `${item} panel detail root should fill the panel height`,
+    ).toMatch(
+      /className="flex h-full min-h-0 flex-col space-y-3 overflow-y-auto p-2 sm:p-4 \[&_pre\]:!max-h-none"/,
+    );
+    expect(
+      source,
+      `${item} should not keep the old shrink-to-fit panel detail root`,
+    ).not.toMatch(/space-y-3 max-h-full overflow-y-auto p-2 sm:p-4/);
+  }
+
+  // 结果区直接可滚动的三个面板：result 区块伸展吃掉剩余空间
+  for (const item of [
+    "ToolSearchItem",
+    "TransferItem",
+    "UploadUrlToSandboxItem",
+  ]) {
+    const source = readFileSync(new URL(`${item}.tsx`, itemsDir), "utf8");
+    expect(
+      source,
+      `${item} panel result block should stretch to fill remaining height`,
+    ).toMatch(
+      /group\/result relative flex-1 min-h-0 text-xs text-theme-text-secondary overflow-y-auto min-w-0/,
+    );
+  }
+});

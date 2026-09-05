@@ -298,7 +298,7 @@ export const ScheduledTaskSidebarItem = forwardRef<
             badgeId={`task-${task.id}`}
             markingReadId={markingReadId ?? null}
             onMarkAllRead={() => onMarkAllRead?.({ scheduledTaskId: task.id })}
-            title={t("sidebar.markAllRead")}
+            tooltip={t("sidebar.markAllRead")}
           />
         )}
       </div>
