@@ -20,6 +20,7 @@ import { useFilteredSessionList } from "../../hooks/useSession";
 import { SessionItem } from "./SessionItem";
 import { ProjectMenu } from "./ProjectMenu";
 import { LoadingSpinner } from "../common/LoadingSpinner";
+import { Tooltip } from "../common/Tooltip";
 import { DynamicIcon } from "../common/DynamicIcon";
 import { isSessionFavorite } from "./sessionFavorites";
 import { isSessionPinned } from "./sessionPin";
@@ -338,17 +339,19 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
               autoFocus
             />
           ) : (
-            <button
-              onClick={handleStartIconEdit}
-              className="flex-shrink-0 hover:opacity-70 transition-opacity"
-              title={t("sidebar.clickToEditIcon")}
-            >
-              <DynamicIcon
-                name={project.icon}
-                size={20}
-                className="text-primary text-20"
-              />
-            </button>
+            <Tooltip content={t("sidebar.clickToEditIcon")}>
+              <button
+                onClick={handleStartIconEdit}
+                aria-label={t("sidebar.clickToEditIcon")}
+                className="flex-shrink-0 hover:opacity-70 transition-opacity"
+              >
+                <DynamicIcon
+                  name={project.icon}
+                  size={20}
+                  className="text-primary text-20"
+                />
+              </button>
+            </Tooltip>
           )}
 
           {/* Project name - editable or display */}
@@ -378,24 +381,29 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
               badgeId={`project-${project.id}`}
               markingReadId={markingReadId ?? null}
               onMarkAllRead={() => onMarkAllRead?.({ projectId: project.id })}
-              title={t("sidebar.markAllRead")}
+              tooltip={t("sidebar.markAllRead")}
             />
           )}
 
           {/* Menu button - only for custom projects */}
           {!isFavorites && !isEditing && (
-            <button
-              ref={menuButtonRef}
-              onClick={handleMenuClick}
-              className="flex-shrink-0 rounded p-0.5 hover:bg-stone-200/60 dark:hover:bg-stone-700/60 transition-all opacity-0 group-hover:opacity-100 [&:not(:placeholder-shown)]:opacity-100"
-              style={isTouched ? { opacity: 1 } : undefined}
-              title={t("sidebar.moreOptions")}
+            <Tooltip
+              content={t("sidebar.moreOptions")}
+              open={isTouched && !isMenuOpen}
             >
-              <MoreHorizontal
-                size={14}
-                className="text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300"
-              />
-            </button>
+              <button
+                ref={menuButtonRef}
+                onClick={handleMenuClick}
+                aria-label={t("sidebar.moreOptions")}
+                className="flex-shrink-0 rounded p-0.5 hover:bg-stone-200/60 dark:hover:bg-stone-700/60 transition-all opacity-0 group-hover:opacity-100 [&:not(:placeholder-shown)]:opacity-100"
+                style={isTouched ? { opacity: 1 } : undefined}
+              >
+                <MoreHorizontal
+                  size={14}
+                  className="text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300"
+                />
+              </button>
+            </Tooltip>
           )}
         </div>
 

@@ -3,6 +3,7 @@ import {
   isFieldValueFilled,
   isFormFieldsValid,
   toggleMultiSelectValue,
+  toggleSingleSelectValue,
 } from "../approvalFormValidation";
 import type { FormField } from "../../../types";
 
@@ -63,5 +64,17 @@ describe("toggleMultiSelectValue", () => {
 
   test("removes an option when already selected", () => {
     expect(toggleMultiSelectValue(["a", "b"], "a")).toEqual(["b"]);
+  });
+});
+
+describe("toggleSingleSelectValue", () => {
+  test("selects an option when nothing or something else is selected", () => {
+    expect(toggleSingleSelectValue("", "a")).toBe("a");
+    expect(toggleSingleSelectValue("b", "a")).toBe("a");
+    expect(toggleSingleSelectValue(null, "a")).toBe("a");
+  });
+
+  test("deselects the option when clicking it again", () => {
+    expect(toggleSingleSelectValue("a", "a")).toBe("");
   });
 });

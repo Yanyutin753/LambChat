@@ -18,6 +18,8 @@ interface TooltipProps {
   className?: string;
   /** z-index for the tooltip (default: 60) */
   zIndex?: number;
+  /** Force the bubble visible (e.g. driven by a parent's touch state); hover/long-press still work when not forced */
+  open?: boolean;
 }
 
 /** Long press duration (ms) before tooltip appears on touch */
@@ -31,6 +33,7 @@ export function Tooltip({
   children,
   className,
   zIndex = 60,
+  open,
 }: TooltipProps) {
   const [show, setShow] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -132,7 +135,10 @@ export function Tooltip({
     };
   }, []);
 
-  const tipStyle = useStickyDropdownPosition(childElRef, show, (rect) => {
+  // Forced-open (touch-driven) shows the bubble on top of the internal hover/long-press state
+  const visible = open === true || show;
+
+  const tipStyle = useStickyDropdownPosition(childElRef, visible, (rect) => {
     const textLen =
       typeof content === "string"
         ? content.length
@@ -167,7 +173,7 @@ export function Tooltip({
         {children}
       </span>
 
-      {show &&
+      {visible &&
         createPortal(
           <span
             className={`fixed max-w-[240px] w-max rounded-lg bg-stone-700 dark:bg-stone-900 px-2.5 py-1.5 text-xs leading-relaxed text-white shadow-lg whitespace-normal pointer-events-none ${

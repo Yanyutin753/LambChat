@@ -33,3 +33,11 @@ export function toggleMultiSelectValue(
     ? list.filter((v) => v !== option)
     : [...list, option];
 }
+
+/** radio 单选点选行为：点已选项取消选择（回到空串），点其他项换选。 */
+export function toggleSingleSelectValue(
+  current: unknown,
+  option: string,
+): string {
+  return current === option ? "" : option;
+}

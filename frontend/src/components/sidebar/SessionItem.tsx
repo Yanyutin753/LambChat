@@ -10,6 +10,7 @@ import type { BackendSession } from "../../services/api/session";
 import type { Project } from "../../types";
 import { sessionApi } from "../../services/api";
 import { SessionMenu } from "./SessionMenu";
+import { Tooltip } from "../common/Tooltip";
 import { shouldBlockSessionSelection } from "../../utils/sessionSelectionGuard";
 
 interface SessionItemProps {
@@ -353,31 +354,30 @@ function SessionItemComponent({
         </div>
 
         {/* Task running indicator - same position/size as unread badge */}
-        {isGenerating && (
-          <span
-            title={taskStatusLabel ?? undefined}
-            aria-label={taskStatusLabel ?? undefined}
-            className="shrink-0 inline-flex items-center justify-center gap-1 text-xs text-amber-500 dark:text-amber-400"
-          >
-            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border-2 border-amber-500/25 border-t-amber-500 dark:border-t-amber-400 animate-spin" />
-            {isTouched && <span>{taskStatusLabel}</span>}
-          </span>
+        {isGenerating && taskStatusLabel && (
+          <Tooltip content={taskStatusLabel} open={isTouched}>
+            <span
+              aria-label={taskStatusLabel}
+              className="shrink-0 inline-flex items-center justify-center"
+            >
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border-2 border-amber-500/25 border-t-amber-500 dark:border-t-amber-400 animate-spin" />
+            </span>
+          </Tooltip>
         )}
 
         {isWaitingForHuman && (
-          <span
-            data-session-status="ask-human"
-            title="Ask human · 等待你的回复"
-            aria-label="Ask human · 等待你的回复"
-            className="shrink-0 inline-flex items-center justify-center w-4 h-4 text-amber-500 dark:text-amber-400"
+          <Tooltip
+            content={t("sidebar.waitingHuman", "等待回复")}
+            open={isTouched}
           >
-            <AlertCircle size={16} strokeWidth={2.3} />
-            {isTouched && (
-              <span className="ml-1 text-xs">
-                {t("sidebar.waitingHuman", "等待回复")}
-              </span>
-            )}
-          </span>
+            <span
+              data-session-status="ask-human"
+              aria-label="Ask human · 等待你的回复"
+              className="shrink-0 inline-flex items-center justify-center w-4 h-4 text-amber-500 dark:text-amber-400"
+            >
+              <AlertCircle size={16} strokeWidth={2.3} />
+            </span>
+          </Tooltip>
         )}
 
         {/* Unread dot - hidden when session is active (user is viewing it) */}
@@ -396,18 +396,23 @@ function SessionItemComponent({
             </span>
           )}
         {!selectionMode && !isEditing && (
-          <button
-            ref={menuButtonRef}
-            onClick={handleMenuClick}
-            className="flex-shrink-0 rounded p-1 hover:bg-stone-200/60 dark:hover:bg-stone-700/60 transition-all opacity-0 group-hover:opacity-100"
-            style={isTouched ? { opacity: 1 } : undefined}
-            title={t("sidebar.moreOptions")}
+          <Tooltip
+            content={t("sidebar.moreOptions")}
+            open={isTouched && !isMenuOpen}
           >
-            <MoreHorizontal
-              size={14}
-              className="text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300"
-            />
-          </button>
+            <button
+              ref={menuButtonRef}
+              onClick={handleMenuClick}
+              aria-label={t("sidebar.moreOptions")}
+              className="flex-shrink-0 rounded p-1 hover:bg-stone-200/60 dark:hover:bg-stone-700/60 transition-all opacity-0 group-hover:opacity-100"
+              style={isTouched ? { opacity: 1 } : undefined}
+            >
+              <MoreHorizontal
+                size={14}
+                className="text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300"
+              />
+            </button>
+          </Tooltip>
         )}
       </div>
       {/* Context Menu */}
