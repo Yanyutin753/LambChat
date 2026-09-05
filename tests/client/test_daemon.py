@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import time
 from collections import defaultdict
 from pathlib import Path
 
@@ -280,10 +281,63 @@ async def test_confirm_true_passes_gate_with_policy_all():
     assert [body for _, body in client.posted][0] == {"stage": "ack"}
 
 
+async def test_ack_is_posted_before_confirm_gate():
+    """F3①：ack 先于确认门发出——用户盯着终端确认提示发呆时，dispatch 的 30s
+    ack 死线不再被吃掉；确认等待改为计入执行超时窗口（迟到检查见下）。"""
+    events: list[str] = []
+    client = FakeClient(
+        calls=[_call(payload={"command": "rm -rf /tmp/x", "cwd": "/workspace/s5"})], events=events
+    )
+
+    def confirm(command: str) -> bool:
+        events.append(f"confirm:{command}")
+        return True
+
+    await _run(
+        _cfg("all"),
+        FakeFactory([client, _terminator()]),
+        executor=FakeExecutor(),
+        auditor=MemoryAuditor(),
+        confirm_fn=confirm,
+    )
+
+    assert events[:2] == ["post:c1:ack", "confirm:rm -rf /tmp/x"]
+
+
+async def test_late_call_after_slow_confirm_rejected_as_expired():
+    """F3②：确认耗时超过 call.timeout 后即便放行也拒绝执行——dispatch 侧 exec
+    死线已到，执行结果注定无人接收，done(expired) 快速失败且 executor 不被调用。"""
+    client = FakeClient(
+        calls=[_call(payload={"command": "rm -rf /tmp/x", "cwd": "/workspace/s5"}, timeout=0.2)]
+    )
+    executor = FakeExecutor()
+    auditor = MemoryAuditor()
+
+    def slow_confirm(command: str) -> bool:
+        time.sleep(0.3)  # 超过 timeout=0.2：确认返回时调用已迟到
+        return True
+
+    await _run(
+        _cfg("all"),
+        FakeFactory([client, _terminator()]),
+        executor=executor,
+        auditor=auditor,
+        confirm_fn=slow_confirm,
+    )
+
+    assert client.posted == [
+        ("c1", {"stage": "ack"}),
+        ("c1", {"stage": "done", "status": "error", "error": "expired"}),
+    ]
+    assert executor.calls == []  # 迟到即拒绝，不调 executor
+    assert [e["event"] for e in auditor.records["s5"]] == ["received", "allowed", "expired"]
+
+
 # ---------- 拒绝路径 ----------
 
 
-async def test_decline_posts_declined_by_user_without_ack_or_execute():
+async def test_decline_posts_ack_then_declined_by_user_without_execute():
+    """拒绝路径：ack（收到即发）→ done(declined_by_user)；不执行、审计 declined。"""
     client = FakeClient(calls=[_call(payload={"command": "rm -rf /tmp/x", "cwd": "/workspace/s2"})])
     executor = FakeExecutor()
     auditor = MemoryAuditor()
@@ -300,7 +354,8 @@ async def test_decline_posts_declined_by_user_without_ack_or_execute():
     )
 
     assert client.posted == [
-        ("c1", {"stage": "done", "status": "error", "error": "declined_by_user"})
+        ("c1", {"stage": "ack"}),
+        ("c1", {"stage": "done", "status": "error", "error": "declined_by_user"}),
     ]
     assert executor.calls == []  # 拒绝即不执行
     assert [e["event"] for e in auditor.records["s2"]] == ["received", "declined"]
@@ -324,7 +379,8 @@ async def test_confirm_raising_is_treated_as_decline_and_keeps_channel():
     )
 
     assert client.posted == [
-        ("c1", {"stage": "done", "status": "error", "error": "declined_by_user"})
+        ("c1", {"stage": "ack"}),
+        ("c1", {"stage": "done", "status": "error", "error": "declined_by_user"}),
     ]
     assert executor.calls == []
 
@@ -403,7 +459,7 @@ async def test_executor_raising_posts_error_done_and_keeps_channel():
     assert [e["event"] for e in auditor.records["unknown"]] == ["received", "allowed", "executed"]
 
 
-async def test_unsupported_op_posts_error_done_without_confirm_or_execute():
+async def test_unsupported_op_posts_ack_then_error_done_without_confirm_or_execute():
     call = _call("c9", op="download", payload={"path": "a.txt", "cwd": "/workspace/s9"})
     client = FakeClient(calls=[call])
     executor = FakeExecutor()
@@ -418,7 +474,8 @@ async def test_unsupported_op_posts_error_done_without_confirm_or_execute():
     )
 
     assert client.posted == [
-        ("c9", {"stage": "done", "status": "error", "error": "unsupported op: download"})
+        ("c9", {"stage": "ack"}),
+        ("c9", {"stage": "done", "status": "error", "error": "unsupported op: download"}),
     ]
     assert executor.calls == []
     assert [e["event"] for e in auditor.records["s9"]] == ["received"]

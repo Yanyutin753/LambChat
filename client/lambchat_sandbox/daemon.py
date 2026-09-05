@@ -5,10 +5,13 @@
 - **外层重连循环**：``ChannelClient.connect`` 成功（收到 hello）即清零退避计数；
   连接失败或流中断按 :func:`backoff_delay` 指数退避重试；
 - **单连接处理**（:func:`_handle_channel`）：逐条 ToolCall → 审计 ``received`` →
-  确认门控（拒绝 → ``done(status=error, error=declined_by_user)`` + 审计
-  ``declined``；放行 → 审计 ``allowed`` → ``ack`` → ``executor.execute`` →
-  ``done`` → 审计 ``executed``）。执行器超时结果（``error="timeout"``）与其他
-  异常都原样透传成 ``done``，绝不拖断通道；
+  ``ack``（**先于确认门**：收到即确认接收，用户盯着确认提示发呆不再吃 dispatch
+  的 30s ack 死线，确认等待改计入执行超时窗口）→ 确认门控（拒绝 →
+  ``done(status=error, error=declined_by_user)`` + 审计 ``declined``；放行 →
+  审计 ``allowed``）→ 迟到检查（确认返回时 ``elapsed >= timeout`` →
+  ``done(status=error, error=expired)`` + 审计 ``expired``，不执行）→
+  ``executor.execute`` → ``done`` → 审计 ``executed``。执行器超时结果
+  （``error="timeout"``）与其他异常都原样透传成 ``done``，绝不拖断通道；
 - **退出**（SIGTERM/SIGINT/任务取消）→ :func:`_graceful_shutdown`：尽力
   ``post_offline`` → ``close`` → 审计 ``shutdown``；
 - :class:`TransportAuthError`（401/403）直接上抛不重连、不 offline——
@@ -30,6 +33,7 @@ import asyncio
 import contextlib
 import signal
 import sys
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 
@@ -131,14 +135,23 @@ async def _process_call(
     executor: Executor,
     auditor: Auditor,
 ) -> None:
-    """单条 ToolCall 的完整决策链：审计 received → 确认门控 → ack → 执行 → done。"""
+    """单条 ToolCall 的完整决策链：审计 received → ack → 确认门控 → 迟到检查 → 执行 → done。
+
+    ack 先于确认门（收到即发）：确认等待计入执行超时窗口而非 dispatch 的 30s
+    ack 死线——否则用户在终端确认提示前犹豫超过 30s，dispatch 侧就误报
+    ``sandbox_timeout`` 而本地命令根本没跑。作为代价，确认放行后要检查迟到：
+    ``elapsed >= timeout`` 说明 dispatch 的 exec 死线已到（或将近），执行结果
+    注定无人接收，直接 ``done(error=expired)`` 快速失败，不浪费本机资源。
+    """
     command = str(call.payload.get("command", ""))
     virtual_cwd = str(call.payload.get("cwd", ""))
     session_id = _session_id_from_cwd(virtual_cwd)
+    started = time.monotonic()
     auditor.log(
         session_id,
         {"event": "received", "call_id": call.call_id, "op": call.op, "command": command},
     )
+    await client.post_result(call.call_id, {"stage": "ack"})
 
     if call.op != "exec":
         await client.post_result(
@@ -155,8 +168,15 @@ async def _process_call(
         return
 
     auditor.log(session_id, {"event": "allowed", "call_id": call.call_id, "command": command})
-    await client.post_result(call.call_id, {"stage": "ack"})
-    result = _execute(executor, command, virtual_cwd, call.timeout)
+    effective = call.timeout if call.timeout > 0 else DEFAULT_EXEC_TIMEOUT_S
+    if time.monotonic() - started >= effective:
+        await client.post_result(
+            call.call_id, {"stage": "done", "status": "error", "error": "expired"}
+        )
+        auditor.log(session_id, {"event": "expired", "call_id": call.call_id, "command": command})
+        return
+
+    result = _execute(executor, command, virtual_cwd, effective)
     await client.post_result(
         call.call_id, {"stage": "done", **{k: result.get(k) for k in _DONE_KEYS}}
     )
