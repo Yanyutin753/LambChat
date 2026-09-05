@@ -16,6 +16,7 @@
 | 离线回退云端 | 默认**关**，可配置 | 选本地即有意让数据落本地，静默切云端危险 |
 | 确认策略 | 本地写文件/执行命令默认经 HITL 网页确认 | 复用 `ask_human` 既有交互，可配置放开 |
 | 形态依据 | 2026-09 两轮业界调研后定稿：**Devin Outposts 同构**（云 brain + 本机执行 + 仅出网拨号）；产品定位 = 网页功能零改动 + 本机作执行基座 | 见 §12 |
+| 版本管理与自动更新 | **客户端必须带版本管理并可自动更新**（用户要求 2026-09-05）。分层落地：M2 版本地基（`__version__`、hello/?version= 上报、status 返回 daemon_version、CLI `version`）；M3 Tauri updater 随壳整体更新（sidecar 与壳版本成对）；M4 独立 CLI `self-update` + 服务端最低版本拒连（过旧版本拒连并提示升级） | §5/§7 |
 
 ## 1. 背景与目标
 
@@ -131,6 +132,8 @@ client/lambchat_sandbox/
 - 签名/公证证书：开放问题（同 v1），可先无签名发布并文档标注。
 
 ## 10. 里程碑（每步独立可合入 develop）
+
+> 状态：M1（服务端中继）与 M2（客户端 daemon + 服务端硬化 + 版本地基）已于 2026-09-05 实施完成并真机冒烟通过（M1 8/8、M2 8/8，记录见 docs/superpowers/plans/ 下两份冒烟记录）。M3/M4 待启动。
 
 1. **M1 服务端**：PAT + SSE 通道 + Redis 路由 + LocalSandboxBackend（mock daemon 全测）+ 会话沙箱路由。
 2. **M2 daemon 闭环**：CLI 形态 daemon，网页端选"本地沙箱"真机跑通文件问答与代码执行。
