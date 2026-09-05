@@ -878,6 +878,10 @@ async def steer_running_agent(
 
     消息进入会话插话队列，由 SteerMiddleware 在下一次主 agent 模型调用时
     注入并持久化；当前步骤完成后 agent 即可看到。仅 RUNNING 状态接受插话。
+
+    ask_human 挂起（WAITING_HUMAN）时插话语义不同：图停在 interrupt 上，
+    插话永远等不到下一次模型调用——此时插话视为打断，终止挂起 run
+    （前端状态行切「已停止」），消息由前端作为新 run 的普通输入发送。
     """
     session_manager = SessionManager()
     session = await session_manager.get_session(session_id)
@@ -891,6 +895,13 @@ async def steer_running_agent(
 
     task_manager = get_task_manager()
     status = await task_manager.get_status(session_id)
+    if status == TaskStatus.WAITING_HUMAN:
+        message_id = request.message_id or f"steer-{uuid.uuid4().hex}"
+        from src.api.routes.chat_steer import steer_interrupt_waiting_human
+
+        return await steer_interrupt_waiting_human(
+            session_id, session, user, message_id, task_manager
+        )
     if status != TaskStatus.RUNNING:
         raise AppError(
             ErrorCode.STEER_SESSION_NOT_RUNNING,

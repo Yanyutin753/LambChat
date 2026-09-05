@@ -823,6 +823,8 @@
       "runStepsToggle": "展开或收起运行步骤",
       "runStepsWorking": "工作中 {{duration}}",
       "runStepsWorkingNoTimer": "工作中",
+      "runStepsStopped": "已停止 {{duration}}",
+      "runStepsStoppedNoTimer": "已停止",
       "running": "运行中...",
       "startTime": "开始时间",
       "starterPrompts": "开场提示词",

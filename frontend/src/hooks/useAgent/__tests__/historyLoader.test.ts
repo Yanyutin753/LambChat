@@ -857,6 +857,58 @@ test("reconstructMessagesFromEvents keeps token usage after cancel on the cancel
   expect(messages[1]?.duration).toBe(24927.353858947754);
 });
 
+test("user:cancel with reason=steer marks cancelled without the cancelled pill part", () => {
+  const runId = "run_20260905_steer_interrupt";
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        id: "event-user",
+        event_type: "user:message",
+        run_id: runId,
+        timestamp: "2026-09-05T10:00:00.000Z",
+        data: { content: "任务", message_id: `${runId}:user`, attachments: [] },
+      },
+      {
+        id: "event-chunk",
+        event_type: "message:chunk",
+        run_id: runId,
+        timestamp: "2026-09-05T10:00:01.000Z",
+        data: { content: "半截输出", depth: 0 },
+      },
+      {
+        id: "event-approval-required",
+        event_type: "approval_required",
+        run_id: runId,
+        timestamp: "2026-09-05T10:00:05.000Z",
+        data: { id: "appr-1", message: "要继续吗？", fields: [] },
+      },
+      {
+        id: "event-steer-cancel",
+        event_type: "user:cancel",
+        run_id: runId,
+        timestamp: "2026-09-05T10:00:20.000Z",
+        data: { run_id: runId, reason: "steer" },
+      },
+      {
+        id: "event-done",
+        event_type: "done",
+        run_id: runId,
+        timestamp: "2026-09-05T10:00:20.100Z",
+        data: { status: "cancelled" },
+      },
+    ] satisfies HistoryEvent[],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  expect(messages.length).toBe(2);
+  const assistant = messages[1];
+  expect(assistant?.role).toBe("assistant");
+  // 已停止走状态行文字切换：cancelled 标志置位，但不出现 cancelled part 胶囊
+  expect(assistant?.cancelled).toBe(true);
+  expect(assistant?.parts?.some((part) => part.type === "cancelled")).toBe(false);
+});
+
 test("reconstructMessagesFromEvents keeps late run events after cancel on the cancelled assistant", () => {
   const runId = "run_20260530120841_cf52eb51";
   const messages = reconstructMessagesFromEvents(
@@ -1693,7 +1745,8 @@ test("steer delivered marks the pre-steer assistant turn as cancelled", () => {
   const sealed = messages[1];
   expect(sealed.role).toBe("assistant");
   expect(sealed.cancelled).toBe(true);
-  expect(sealed.parts?.some((part) => part.type === "cancelled")).toBe(true);
+  // 已停止是状态行文字切换，不追加 cancelled part 胶囊
+  expect(sealed.parts?.some((part) => part.type === "cancelled")).toBe(false);
   const final = messages[3];
   expect(final.cancelled).toBeUndefined();
   expect(final.parts?.some((part) => part.type === "cancelled")).toBe(false);

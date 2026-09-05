@@ -773,6 +773,7 @@ export const ChatMessage = memo(function ChatMessage({
                   startedAtMs={getRunStartedAtMs(message)}
                   stateKey={message.id}
                   active={message.isStreaming}
+                  stopped={message.cancelled === true}
                   renderExpanded={() => renderPartGroups(runHeadGroups)}
                 />
               )}

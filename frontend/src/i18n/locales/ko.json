@@ -823,6 +823,8 @@
       "runStepsToggle": "실행 단계 펼치기/접기",
       "runStepsWorking": "작업 중 {{duration}}",
       "runStepsWorkingNoTimer": "작업 중",
+      "runStepsStopped": "중지됨 {{duration}}",
+      "runStepsStoppedNoTimer": "중지됨",
       "running": "실행 중...",
       "startTime": "시작 시간",
       "starterPrompts": "시작 프롬프트",

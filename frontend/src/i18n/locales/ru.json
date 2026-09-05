@@ -823,6 +823,8 @@
       "runStepsToggle": "Развернуть или свернуть шаги выполнения",
       "runStepsWorking": "Работаю {{duration}}",
       "runStepsWorkingNoTimer": "Работаю",
+      "runStepsStopped": "Остановлено {{duration}}",
+      "runStepsStoppedNoTimer": "Остановлено",
       "running": "Выполняется...",
       "startTime": "Время начала",
       "starterPrompts": "Начальные промпты",
