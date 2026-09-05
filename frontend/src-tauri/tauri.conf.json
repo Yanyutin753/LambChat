@@ -39,7 +39,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "RWRZzzdYRbbbZ4GoYIDXU9yyqow9ig+HaKnitNeX/qiZb/K/O5tznruR",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY3REJCNjQ1NTgzN0NGNTkKUldSWnp6ZFlSYmJiWjRHb1lJRFhVOXl5cW93OWlnK0hhS25pdE5lWC9xaVpiL0svTzV0em5ydVIK",
       "endpoints": [
         "https://github.com/Yanyutin753/LambChat/releases/latest/download/latest.json"
       ]
