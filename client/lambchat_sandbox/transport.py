@@ -23,6 +23,11 @@ import httpx
 BACKOFF_MAX_S = 60.0
 BACKOFF_JITTER = 0.2  # ±20%
 
+# 结果回传/offline 通知的 per-request 超时（秒）。client 全局 timeout=None 是给
+# SSE 长连接用的（心跳流不能被读超时切断），POST 沿用同一默认时服务端半死会让
+# 回传永久挂起，拖垮 daemon 主循环。
+POST_TIMEOUT_S = 10.0
+
 AUTH_STATUSES = frozenset({401, 403})
 
 _StreamCM = contextlib.AbstractAsyncContextManager[httpx.Response]
@@ -164,13 +169,16 @@ class ChannelClient:
             f"{self._base}/api/sandbox/results/{quote(call_id, safe='')}",
             json={k: v for k, v in body.items() if v is not None},
             headers=self._auth_headers(),
+            timeout=POST_TIMEOUT_S,
         )
         _raise_for_status(response, "post_result")
 
     async def post_offline(self) -> None:
         """优雅退出通知（服务端 offline 端点）。"""
         response = await self._client.post(
-            f"{self._base}/api/sandbox/offline", headers=self._auth_headers()
+            f"{self._base}/api/sandbox/offline",
+            headers=self._auth_headers(),
+            timeout=POST_TIMEOUT_S,
         )
         _raise_for_status(response, "post_offline")
 

@@ -309,6 +309,54 @@ async def test_post_offline_auth_failure_raises_transport_auth_error():
     await client.close()
 
 
+# ---------- POST per-request 超时（全局 timeout=None 是给 SSE 流的） ----------
+
+
+async def test_post_result_applies_per_request_timeout():
+    """F4：结果回传带 10s per-request 超时。client 全局 timeout=None 服务的是
+    SSE 长连接（心跳流不能被读超时切断），POST 沿用同一默认时，服务端半死
+    （accept 后不回包）会让 ack/done 永久挂起，拖垮整个 daemon 主循环。"""
+    log: list[httpx.Request] = []
+    client = _channel_client(_api_transport(log))
+    await client.post_result("call-9", {"stage": "done", "status": "ok"})
+
+    assert log[0].extensions["timeout"] == {
+        "connect": 10.0,
+        "read": 10.0,
+        "write": 10.0,
+        "pool": 10.0,
+    }
+    await client.close()
+
+
+async def test_post_offline_applies_per_request_timeout():
+    """offline 通知同样带 10s 超时：退出路径不能被一个挂死的 POST 无限拖延。"""
+    log: list[httpx.Request] = []
+    client = _channel_client(_api_transport(log))
+    await client.post_offline()
+
+    assert log[0].extensions["timeout"] == {
+        "connect": 10.0,
+        "read": 10.0,
+        "write": 10.0,
+        "pool": 10.0,
+    }
+    await client.close()
+
+
+async def test_connect_keeps_no_timeout_for_sse_stream():
+    """SSE 通道保持无超时：长连接靠心跳注释行保活，不能被 10s 读超时误杀。"""
+    log: list[httpx.Request] = []
+    client = _channel_client(_sse_transport(log, GOOD_STREAM.encode("utf-8")))
+    hello, calls = await client.connect()
+    assert hello is not None
+    async for _ in calls:
+        pass
+
+    assert all(v is None for v in log[0].extensions["timeout"].values())
+    await client.close()
+
+
 async def test_close_closes_underlying_client():
     raw = httpx.AsyncClient(transport=_api_transport([]), timeout=None)
     client = ChannelClient(SERVER, PAT, client=raw)
