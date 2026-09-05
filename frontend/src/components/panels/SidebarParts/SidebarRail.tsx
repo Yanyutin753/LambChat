@@ -13,6 +13,7 @@ import { Permission } from "../../../types/auth";
 import { getFullUrl } from "../../../services/api";
 import { APP_NAME } from "../../../constants";
 import { BrandLogo } from "../../common/BrandLogo";
+import { Tooltip } from "../../common/Tooltip";
 import { ImageWithSkeleton } from "../../chat/ChatMessage/ImageWithSkeleton";
 
 const railBtn =
@@ -70,26 +71,28 @@ export function SidebarRail({
     >
       {/* Expand button — default: app icon, hover: expand icon */}
       <div className="flex items-center justify-center w-full pt-3">
-        <button
-          onClick={onExpand}
-          className={`${railBtn} group cursor-e-resize rtl:cursor-w-resize`}
-          aria-label={t("sidebar.expandSidebar")}
-        >
-          <BrandLogo alt={APP_NAME} className="size-7 group-hover:hidden" />
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            className="size-5 hidden group-hover:block"
+        <Tooltip content={t("sidebar.expandSidebar")}>
+          <button
+            onClick={onExpand}
+            className={`${railBtn} group cursor-e-resize rtl:cursor-w-resize`}
+            aria-label={t("sidebar.expandSidebar")}
           >
-            <path
-              fillRule="evenodd"
-              clipRule="evenodd"
-              d="M8.85719 3H15.1428C16.2266 2.99999 17.1007 2.99998 17.8086 3.05782C18.5375 3.11737 19.1777 3.24318 19.77 3.54497C20.7108 4.02433 21.4757 4.78924 21.955 5.73005C22.2568 6.32234 22.3826 6.96253 22.4422 7.69138C22.5 8.39925 22.5 9.27339 22.5 10.3572V13.6428C22.5 14.7266 22.5 15.6008 22.4422 16.3086C22.3826 17.0375 22.2568 17.6777 21.955 18.27C21.4757 19.2108 20.7108 19.9757 19.77 20.455C19.1777 20.7568 18.5375 20.8826 17.8086 20.9422C17.1008 21 16.2266 21 15.1428 21H8.85717C7.77339 21 6.89925 21 6.19138 20.9422C5.46253 20.8826 4.82234 20.7568 4.23005 20.455C3.28924 19.9757 2.52433 19.2108 2.04497 18.27C1.74318 17.6777 1.61737 17.0375 1.55782 16.3086C1.49998 15.6007 1.49999 14.7266 1.5 13.6428V10.3572C1.49999 9.27341 1.49998 8.39926 1.55782 7.69138C1.61737 6.96253 1.74318 6.32234 2.04497 5.73005C2.52433 4.78924 2.52433 4.02433 4.23005 3.54497C4.82234 3.24318 5.46253 3.11737 6.19138 3.05782C6.89926 2.99998 7.77341 2.99999 8.85719 3ZM6.35424 5.05118C5.74907 5.10062 5.40138 5.19279 5.13803 5.32698C4.57354 5.6146 4.1146 6.07354 3.82698 6.63803C3.69279 6.90138 3.60062 7.24907 3.55118 7.85424C3.50078 8.47108 3.5 9.26339 3.5 10.4V13.6C3.5 14.7366 3.50078 15.5289 3.55118 16.1458C3.60062 16.7509 3.69279 17.0986 3.82698 17.362C4.1146 17.9265 4.57354 18.3854 5.13803 18.673C5.40138 18.8072 5.74907 18.8994 6.35424 18.9488C6.97108 18.9992 7.76339 19 8.9 19H9.5V5H8.9C7.76339 5 6.97108 5.00078 6.35424 5.05118ZM11.5 5V19H15.1C16.2366 19 17.0289 18.9992 17.6458 18.9488C18.2509 18.8994 18.5986 18.8072 18.862 18.673C19.4265 18.3854 19.8854 17.9265 20.173 17.362C20.3072 17.0986 20.3994 16.7509 20.4488 16.1458C20.4992 15.5289 20.5 14.7366 20.5 13.6V10.4C20.5 9.26339 20.4992 8.47108 20.4488 7.85424C20.3994 7.24907 20.3072 6.40138 20.173 6.63803C19.8854 6.57354 19.4265 6.1146 18.862 5.32698C18.5986 5.19279 18.2509 5.10062 17.6458 5.05118C17.0289 5.00078 16.2366 5 15.1 5H11.5ZM5 8.5C5 7.94772 5.44772 7.5 6 7.5H7C7.55229 7.5 8 7.94772 8 8.5C8 9.05229 7.55229 9.5 7 9.5H6C5.44772 9.5 5 9.05229 5 8.5ZM5 12C5 11.4477 5.44772 11 6 11H7C7.55229 11 8 11.4477 8 12C8 12.5523 7.55229 13 7 13H6C5.44772 13 5 12.5527 5 12Z"
-              fill="currentColor"
-            />
-          </svg>
-        </button>
+            <BrandLogo alt={APP_NAME} className="size-7 group-hover:hidden" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              className="size-5 hidden group-hover:block"
+            >
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M8.85719 3H15.1428C16.2266 2.99999 17.1007 2.99998 17.8086 3.05782C18.5375 3.11737 19.1777 3.24318 19.77 3.54497C20.7108 4.02433 21.4757 4.78924 21.955 5.73005C22.2568 6.32234 22.3826 6.96253 22.4422 7.69138C22.5 8.39925 22.5 9.27339 22.5 10.3572V13.6428C22.5 14.7266 22.5 15.6008 22.4422 16.3086C22.3826 17.0375 22.2568 17.6777 21.955 18.27C21.4757 19.2108 20.7108 19.9757 19.77 20.455C19.1777 20.7568 18.5375 20.8826 17.8086 20.9422C17.1008 21 16.2266 21 15.1428 21H8.85717C7.77339 21 6.89925 21 6.19138 20.9422C5.46253 20.8826 4.82234 20.7568 4.23005 20.455C3.28924 19.9757 2.52433 19.2108 2.04497 18.27C1.74318 17.6777 1.61737 17.0375 1.55782 16.3086C1.49998 15.6007 1.49999 14.7266 1.5 13.6428V10.3572C1.49999 9.27341 1.49998 8.39926 1.55782 7.69138C1.61737 6.96253 1.74318 6.32234 2.04497 5.73005C2.52433 4.78924 2.52433 4.02433 4.23005 3.54497C4.82234 3.24318 5.46253 3.11737 6.19138 3.05782C6.89926 2.99998 7.77341 2.99999 8.85719 3ZM6.35424 5.05118C5.74907 5.10062 5.40138 5.19279 5.13803 5.32698C4.57354 5.6146 4.1146 6.07354 3.82698 6.63803C3.69279 6.90138 3.60062 7.24907 3.55118 7.85424C3.50078 8.47108 3.5 9.26339 3.5 10.4V13.6C3.5 14.7366 3.50078 15.5289 3.55118 16.1458C3.60062 16.7509 3.69279 17.0986 3.82698 17.362C4.1146 17.9265 4.57354 18.3854 5.13803 18.673C5.40138 18.8072 5.74907 18.8994 6.35424 18.9488C6.97108 18.9992 7.76339 19 8.9 19H9.5V5H8.9C7.76339 5 6.97108 5.00078 6.35424 5.05118ZM11.5 5V19H15.1C16.2366 19 17.0289 18.9992 17.6458 18.9488C18.2509 18.8994 18.5986 18.8072 18.862 18.673C19.4265 18.3854 19.8854 17.9265 20.173 17.362C20.3072 17.0986 20.3994 16.7509 20.4488 16.1458C20.4992 15.5289 20.5 14.7366 20.5 13.6V10.4C20.5 9.26339 20.4992 8.47108 20.4488 7.85424C20.3994 7.24907 20.3072 6.40138 20.173 6.63803C19.8854 6.57354 19.4265 6.1146 18.862 5.32698C18.5986 5.19279 18.2509 5.10062 17.6458 5.05118C17.0289 5.00078 16.2366 5 15.1 5H11.5ZM5 8.5C5 7.94772 5.44772 7.5 6 7.5H7C7.55229 7.5 8 7.94772 8 8.5C8 9.05229 7.55229 9.5 7 9.5H6C5.44772 9.5 5 9.05229 5 8.5ZM5 12C5 11.4477 5.44772 11 6 11H7C7.55229 11 8 11.4477 8 12C8 12.5523 7.55229 13 7 13H6C5.44772 13 5 12.5527 5 12Z"
+                fill="currentColor"
+              />
+            </svg>
+          </button>
+        </Tooltip>
       </div>
 
       {/* Action icons — scrollable when overflowing, no scrollbar */}
@@ -97,83 +100,90 @@ export function SidebarRail({
         className="mt-3 flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col items-center w-full space-y-1"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
-        <button
-          type="button"
-          onClick={onNewSession}
-          className={railBtn}
-          title={t("sidebar.newChat")}
-          aria-label={t("sidebar.newChat")}
-        >
-          <MessageSquarePlus size={20} />
-        </button>
-        <button
-          type="button"
-          onClick={onOpenSearch}
-          className={railBtn}
-          title={t("sidebar.searchSessions")}
-          aria-label={t("sidebar.searchSessions")}
-        >
-          <Search size={20} />
-        </button>
+        <Tooltip content={t("sidebar.newChat")}>
+          <button
+            type="button"
+            onClick={onNewSession}
+            className={railBtn}
+            aria-label={t("sidebar.newChat")}
+          >
+            <MessageSquarePlus size={20} />
+          </button>
+        </Tooltip>
+        <Tooltip content={t("sidebar.searchSessions")}>
+          <button
+            type="button"
+            onClick={onOpenSearch}
+            className={railBtn}
+            aria-label={t("sidebar.searchSessions")}
+          >
+            <Search size={20} />
+          </button>
+        </Tooltip>
         {canReadScheduledTasks && (
-          <button
-            type="button"
-            onClick={onOpenScheduledTasks}
-            className={railBtn}
-            title={t("nav.scheduled-tasks")}
-            aria-label={t("nav.scheduled-tasks")}
-          >
-            <CalendarClock size={20} />
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={onOpenFileLibrary}
-          className={railBtn}
-          title={t("fileLibrary.title")}
-          aria-label={t("fileLibrary.title")}
-        >
-          <FolderOpen size={20} />
-        </button>
-        <button
-          type="button"
-          onClick={onOpenBookmarks}
-          className={railBtn}
-          title={t("bookmarks.title")}
-          aria-label={t("bookmarks.title")}
-        >
-          <Bookmark size={20} />
-        </button>
-        <button
-          type="button"
-          ref={recentChatsBtnRef}
-          onClick={onOpenRecentChats}
-          className={`${railBtn} relative`}
-          title={t("sidebar.recentChats")}
-          aria-label={t("sidebar.recentChats")}
-        >
-          <History size={20} />
-          {unreadCount > 0 && (
-            <span
-              className={`absolute -top-0 right-0 flex items-center justify-center rounded-full bg-gradient-to-br from-red-400 to-rose-500 text-9 font-bold leading-none text-white shadow-[0_1px_3px_rgba(239,68,68,0.4)] ring-1 ring-white/20 ${
-                unreadCount <= 9 ? "w-3.5 h-3.5" : "h-3.5 min-w-[18px] px-1"
-              }`}
+          <Tooltip content={t("nav.scheduled-tasks")}>
+            <button
+              type="button"
+              onClick={onOpenScheduledTasks}
+              className={railBtn}
+              aria-label={t("nav.scheduled-tasks")}
             >
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </span>
-          )}
-        </button>
-        {hasMoreMenuItems && (
+              <CalendarClock size={20} />
+            </button>
+          </Tooltip>
+        )}
+        <Tooltip content={t("fileLibrary.title")}>
           <button
             type="button"
-            ref={moreMenuBtnRef}
-            onClick={onToggleMoreMenu}
+            onClick={onOpenFileLibrary}
             className={railBtn}
-            title={t("nav.more", "更多")}
-            aria-label={t("nav.more", "更多")}
+            aria-label={t("fileLibrary.title")}
           >
-            <MoreHorizontal size={20} />
+            <FolderOpen size={20} />
           </button>
+        </Tooltip>
+        <Tooltip content={t("bookmarks.title")}>
+          <button
+            type="button"
+            onClick={onOpenBookmarks}
+            className={railBtn}
+            aria-label={t("bookmarks.title")}
+          >
+            <Bookmark size={20} />
+          </button>
+        </Tooltip>
+        <Tooltip content={t("sidebar.recentChats")}>
+          <button
+            type="button"
+            ref={recentChatsBtnRef}
+            onClick={onOpenRecentChats}
+            className={`${railBtn} relative`}
+            aria-label={t("sidebar.recentChats")}
+          >
+            <History size={20} />
+            {unreadCount > 0 && (
+              <span
+                className={`absolute -top-0 right-0 flex items-center justify-center rounded-full bg-gradient-to-br from-red-400 to-rose-500 text-9 font-bold leading-none text-white shadow-[0_1px_3px_rgba(239,68,68,0.4)] ring-1 ring-white/20 ${
+                  unreadCount <= 9 ? "w-3.5 h-3.5" : "h-3.5 min-w-[18px] px-1"
+                }`}
+              >
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+          </button>
+        </Tooltip>
+        {hasMoreMenuItems && (
+          <Tooltip content={t("nav.more", "更多")}>
+            <button
+              type="button"
+              ref={moreMenuBtnRef}
+              onClick={onToggleMoreMenu}
+              className={railBtn}
+              aria-label={t("nav.more", "更多")}
+            >
+              <MoreHorizontal size={20} />
+            </button>
+          </Tooltip>
         )}
       </div>
 
@@ -182,40 +192,42 @@ export function SidebarRail({
         className="shrink-0 py-4 border-t flex flex-col items-center w-full"
         style={{ borderColor: "var(--theme-border)" }}
       >
-        <button
-          onClick={onShowProfile}
-          className={`${railBtn} rounded-full transition cursor-pointer`}
-          aria-label={t("sidebar.expandSidebar")}
-        >
-          <div
-            className="shrink-0 w-8 h-8 rounded-full overflow-hidden transition"
-            style={{ boxShadow: "0 0 0 1px var(--theme-border)" }}
+        <Tooltip content={t("sidebar.expandSidebar")}>
+          <button
+            onClick={onShowProfile}
+            className={`${railBtn} rounded-full transition cursor-pointer`}
+            aria-label={t("sidebar.expandSidebar")}
           >
-            {user?.avatar_url && !imgError ? (
-              <ImageWithSkeleton
-                src={getFullUrl(user.avatar_url) ?? user.avatar_url}
-                alt={user?.username || t("common.user")}
-                skipUrlResolve
-                inline
-                className="w-full h-full object-cover rounded-full"
-                style={{ borderRadius: "50%" }}
-                errorFallback={
-                  <div className="flex w-full h-full items-center justify-center bg-gradient-to-br from-amber-400 to-orange-500 rounded-full">
-                    <span className="text-xs font-semibold text-white font-serif">
-                      {user?.username?.charAt(0).toUpperCase() || "U"}
-                    </span>
-                  </div>
-                }
-              />
-            ) : (
-              <div className="flex w-full h-full items-center justify-center bg-gradient-to-br from-amber-400 to-orange-500 rounded-full">
-                <span className="text-xs font-semibold text-white font-serif">
-                  {user?.username?.charAt(0).toUpperCase() || "U"}
-                </span>
-              </div>
-            )}
-          </div>
-        </button>
+            <div
+              className="shrink-0 w-8 h-8 rounded-full overflow-hidden transition"
+              style={{ boxShadow: "0 0 0 1px var(--theme-border)" }}
+            >
+              {user?.avatar_url && !imgError ? (
+                <ImageWithSkeleton
+                  src={getFullUrl(user.avatar_url) ?? user.avatar_url}
+                  alt={user?.username || t("common.user")}
+                  skipUrlResolve
+                  inline
+                  className="w-full h-full object-cover rounded-full"
+                  style={{ borderRadius: "50%" }}
+                  errorFallback={
+                    <div className="flex w-full h-full items-center justify-center bg-gradient-to-br from-amber-400 to-orange-500 rounded-full">
+                      <span className="text-xs font-semibold text-white font-serif">
+                        {user?.username?.charAt(0).toUpperCase() || "U"}
+                      </span>
+                    </div>
+                  }
+                />
+              ) : (
+                <div className="flex w-full h-full items-center justify-center bg-gradient-to-br from-amber-400 to-orange-500 rounded-full">
+                  <span className="text-xs font-semibold text-white font-serif">
+                    {user?.username?.charAt(0).toUpperCase() || "U"}
+                  </span>
+                </div>
+              )}
+            </div>
+          </button>
+        </Tooltip>
       </div>
     </nav>
   );

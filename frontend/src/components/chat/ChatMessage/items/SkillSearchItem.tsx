@@ -68,7 +68,7 @@ function SkillSearchDetail({ args, result }: ToolDetailProps) {
   const hasRawFallback = !!result && matches.length === 0;
 
   return (
-    <div className="space-y-3 max-h-full overflow-y-auto p-2 sm:p-4">
+    <div className="flex h-full min-h-0 flex-col space-y-3 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
       {query && (
         <ToolArgsBlock size="detail">
           <Search

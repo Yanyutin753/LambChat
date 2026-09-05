@@ -267,7 +267,6 @@
     "continue": "Продолжить",
     "enterResponse": "Введите ваш ответ...",
     "ignore": "Игнорировать",
-    "mainGoal": "Основная цель",
     "multiSelectHint": "Можно выбрать несколько · Нажмите, чтобы выбрать или снять выбор",
     "needsConfirmation": "Требуется подтверждение",
     "next": "Следующий пункт",
@@ -289,7 +288,7 @@
     },
     "selectOption": "Выберите параметр",
     "send": "Отправить",
-    "shortcutHint": "↑↓ выбор · Enter подтвердить · 1-9 выбор",
+    "shortcutHint": "Enter — отправить",
     "submit": "Отправить"
   },
   "auth": {
@@ -2881,6 +2880,7 @@
     "noSessions": "Чат-сессий пока нет",
     "older": "Старее",
     "open": "открыть",
+    "pendingStatus": "Ожидание",
     "pinToTop": "Закрепить",
     "pinToggleFailed": "Не удалось обновить статус закрепления",
     "pinned": "Закреплено",
@@ -2901,6 +2901,7 @@
     "renameFailed": "Не удалось переименовать сессию",
     "renamed": "Сессия переименована",
     "retry": "Повторить",
+    "runningStatus": "Выполняется",
     "scrollToTop": "В начало",
     "searchResultCount": "{{count}} результатов",
     "searchSessions": "Поиск сессий",

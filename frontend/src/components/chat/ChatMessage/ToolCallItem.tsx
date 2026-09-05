@@ -163,38 +163,43 @@ function ToolCallPanelContent({ toolCallId }: { toolCallId: string }) {
   const hasArgs = Object.keys(data.args).length > 0;
 
   return (
-    <div className="space-y-3 max-h-full overflow-y-auto p-2 sm:p-4 [&_pre]:!text-sm">
-      {hasArgs && (
-        <CollapsibleSection title={t("chat.message.args")}>
-          <ToolArgsDisplay args={data.args} />
-        </CollapsibleSection>
-      )}
+    <div className="relative flex h-full min-h-0 flex-col overflow-y-auto p-2 sm:p-4 [&_pre]:!text-sm [&_pre]:!max-h-none">
+      <div className="flex min-h-0 flex-1 flex-col space-y-3">
+        {hasArgs && (
+          <CollapsibleSection title={t("chat.message.args")}>
+            <ToolArgsDisplay args={data.args} />
+          </CollapsibleSection>
+        )}
 
-      {data.result !== undefined && (
-        <CollapsibleSection
-          title={t("chat.message.result")}
-          action={
-            <CopyButton
-              text={
-                typeof data.result === "string"
-                  ? data.result
-                  : JSON.stringify(data.result, null, 2)
-              }
-              size={12}
-            />
-          }
-        >
-          <ToolResultContent result={data.result} hideCopyButton />
-        </CollapsibleSection>
-      )}
+        {data.result !== undefined && (
+          <CollapsibleSection
+            title={t("chat.message.result")}
+            action={
+              <CopyButton
+                text={
+                  typeof data.result === "string"
+                    ? data.result
+                    : JSON.stringify(data.result, null, 2)
+                }
+                size={12}
+              />
+            }
+            expandedClassName="flex min-h-0 flex-col grow shrink-0"
+          >
+            <ToolResultContent result={data.result} hideCopyButton />
+          </CollapsibleSection>
+        )}
 
-      {data.isPending && (
-        <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
-          <LoadingSpinner size="xs" />
-          <span>{t("chat.message.running")}</span>
-          <span className="tabular-nums">{formatElapsed(elapsedSeconds)}</span>
-        </div>
-      )}
+        {data.isPending && (
+          <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+            <LoadingSpinner size="xs" />
+            <span>{t("chat.message.running")}</span>
+            <span className="tabular-nums">
+              {formatElapsed(elapsedSeconds)}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

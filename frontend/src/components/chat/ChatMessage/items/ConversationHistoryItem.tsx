@@ -1,11 +1,5 @@
 import { memo, useMemo } from "react";
-import {
-  History,
-  Search,
-  User,
-  MessageSquareText,
-  Clock,
-} from "lucide-react";
+import { History, Search, User, MessageSquareText, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { extractText } from "./toolUtils";
@@ -89,7 +83,8 @@ function matchSourceLabel(
   t: (key: string) => string,
 ): string | null {
   if (source === "user") return t("chat.message.toolHistoryMatchUser");
-  if (source === "assistant") return t("chat.message.toolHistoryMatchAssistant");
+  if (source === "assistant")
+    return t("chat.message.toolHistoryMatchAssistant");
   if (source === "both") return t("chat.message.toolHistoryMatchBoth");
   return null;
 }
@@ -115,9 +110,15 @@ function HistoryQueryChip({
   return (
     <ToolArgsBlock size={size}>
       {isSearch ? (
-        <Search size={size === "detail" ? 14 : 12} className="shrink-0 text-sky-500 dark:text-sky-400" />
+        <Search
+          size={size === "detail" ? 14 : 12}
+          className="shrink-0 text-sky-500 dark:text-sky-400"
+        />
       ) : (
-        <History size={size === "detail" ? 14 : 12} className="shrink-0 text-sky-500 dark:text-sky-400" />
+        <History
+          size={size === "detail" ? 14 : 12}
+          className="shrink-0 text-sky-500 dark:text-sky-400"
+        />
       )}
       <span className="text-sky-600 dark:text-sky-400 font-mono font-medium min-w-0 truncate">
         {isSearch ? truncate(value, 80) : truncate(value, 36)}
@@ -162,7 +163,7 @@ function ConversationHistoryDetail({
   const hasRawFallback = !!result && !parsed;
 
   return (
-    <div className="space-y-3 max-h-full overflow-y-auto p-2 sm:p-4">
+    <div className="flex h-full min-h-0 flex-col space-y-3 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
       <HistoryQueryChip toolName={toolName} args={args} size="detail" />
 
       {parsed?.kind === "search" && parsed.items && parsed.items.length > 0 && (
@@ -299,7 +300,8 @@ const ConversationHistoryItem = memo(function ConversationHistoryItem({
   const titleLabel = isSearch
     ? t("chat.message.toolHistorySearch")
     : t("chat.message.toolHistoryDetail");
-  const sessionName = parsed?.kind === "detail" ? parsed.sessionName : undefined;
+  const sessionName =
+    parsed?.kind === "detail" ? parsed.sessionName : undefined;
 
   const pillLabel = isSearch
     ? `${titleLabel} ${query ? `"${truncate(query, 24)}"` : ""}${
