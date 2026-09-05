@@ -341,6 +341,9 @@ class Settings(BaseSettings):
             "http://tauri.localhost",
             "capacitor://localhost",
             "http://localhost",
+            # Capacitor 5+ Android 默认 androidScheme=https，WebView origin 为
+            # https://localhost；缺失时移动端请求全被 CORS 拦（Failed to fetch）
+            "https://localhost",
         ]
     )
     DEFAULT_AGENT: str = "fast"
