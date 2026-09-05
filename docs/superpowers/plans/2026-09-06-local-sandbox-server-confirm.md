@@ -801,6 +801,35 @@ git commit -m "feat(frontend): 本地沙箱确认策略跟随 daemon 上报值�
 
 ---
 
+### Task 7: 本地沙箱支持后端 env 变量（对齐云端沙箱）
+
+> 用户新增需求（2026-09-06）：「本地沙箱支持后端的 env 变量，跟其他沙箱兼容」。
+> 云端现状：`sync_sandbox_env_vars`（src/infra/envvar/sync.py）把用户加密 env 解密后
+> set 到 backend 的 `env_vars` 属性，E2B/Daytona 在每条命令执行时传 SDK
+> （`envs=`/`env=`）。本地现状：LocalSandboxBackend 无 `env_vars` 属性，sync 的
+> `hasattr` 检查静默跳过；daemon executor 只注入 PATH shim 与 LAMBCHAT_WORKSPACE。
+
+**Files:**
+- Modify: `src/infra/backend/local.py`、`src/agents/search_agent/nodes.py`、`client/lambchat_sandbox/daemon.py`、`client/lambchat_sandbox/executor.py`
+- Test: `tests/infra/backend/test_local_backend.py`、`tests/client/test_daemon.py`、`tests/client/test_executor.py`、`tests/agents/search_agent/test_sandbox_routing.py`
+
+**Interfaces:**
+- Produces:
+  - `LocalSandboxBackend.__init__(..., env_vars: dict[str, str] | None = None)` → `self.env_vars`（hasattr 成立后 `sync_sandbox_env_vars` 即可写入——env_var 工具运行中改动实时生效）
+  - exec op 载荷新增 `"env": dict[str, str]`（仅 exec；fs_* / upload / download 不带）
+  - `Executor.execute(command, virtual_cwd, timeout, env_extra: dict[str, str] | None = None)`；`_spawn_env(workspace, env_extra)` 合并序：用户 env → PATH shim 前置 → LAMBCHAT_WORKSPACE（契约变量最后落笔不被用户覆盖）
+- 载荷安全：EnvVarStorage 已限 50 个 / 单值 16k chars / 总量 64k chars，无需额外上限。
+- daemon 侧对 `payload["env"]` 做防御净化（非 dict / 非 str 值丢弃）。
+
+**Steps（TDD 摘要）：**
+1. RED：服务端测试——backend 带 env_vars 时 aexecute 载荷含 `"env"`；无 env_vars 时载荷无该键；`sync_sandbox_env_vars` 能写入 local backend 的 env_vars；`test_sandbox_routing.py` 源码断言 nodes.py 本地分支调 `sync_sandbox_env_vars(local_backend`。
+2. GREEN：local.py 加属性 + 载荷；nodes.py 本地分支构造后 `await sync_sandbox_env_vars(local_backend, user_id)`。
+3. RED：client 测试——daemon 把 payload env 透传 executor（fake executor 记录 env_extra）；executor `_spawn_env` 合并序断言（用户 env 生效、PATH 前置不丢、LAMBCHAT_WORKSPACE 不被覆盖）；非法 env 条目被丢弃。
+4. GREEN：daemon `_process_exec_call` 净化透传；executor 签名与合并实现（posix + windows 两分支同参）。
+5. Commit：`feat(sandbox): 本地沙箱执行注入用户 env 变量，对齐云端沙箱行为`。
+
+---
+
 ## 验证（全部任务完成后）
 
 ```bash

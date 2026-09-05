@@ -1,6 +1,7 @@
 """daemon 主循环：确认门控 / 执行回传 / 审计 / 退避重连 / 优雅下线。
 
-测试策略：注入 fake client_factory / executor / confirm_fn / 内存 Auditor。
+测试策略：注入 fake client_factory / executor / 内存 Auditor。确认门已统一在服务端
+（spec §3.5），daemon 是纯执行器。
 常驻循环的退出手法——连接流结束后 daemon 会重连，用「connect 即抛
 TransportAuthError 的终结 client」让 run_daemon 自然上抛退出，顺带锁死
 「认证失败不重连、直接上抛」的语义；优雅下线路径用 wait_for 取消驱动。
@@ -184,24 +185,19 @@ def _terminator() -> FakeClient:
     return FakeClient(connect_error=TransportAuthError("channel: HTTP 401"))
 
 
-async def _run(cfg, factory, *, executor, auditor, confirm_fn, sleep=None):
+async def _run(cfg, factory, *, executor, auditor, sleep=None):
     """跑 run_daemon 直到 TransportAuthError 上抛；返回退避记录器。"""
     sleep_fn = sleep if sleep is not None else SleepRecorder()
     with pytest.raises(TransportAuthError):
         await run_daemon(
             cfg,
             pat=PAT,
-            confirm_fn=confirm_fn,
             client_factory=factory,
             executor=executor,
             auditor=auditor,
             sleep_fn=sleep_fn,
         )
     return sleep_fn
-
-
-def _boom_confirm(command: str) -> bool:
-    raise AssertionError(f"不应触发确认: {command}")
 
 
 # ---------- 放行路径 ----------
@@ -220,7 +216,6 @@ async def test_allow_path_posts_ack_then_executes_then_done():
         FakeFactory([client, _terminator()]),
         executor=executor,
         auditor=auditor,
-        confirm_fn=_boom_confirm,  # policy=none：确认门根本不应被触碰
     )
 
     # 顺序与 payload：ack 先于执行结果，done 携带执行器五字段
@@ -259,7 +254,6 @@ async def test_allow_path_audits_received_allowed_executed_per_session():
         FakeFactory([client, _terminator()]),
         executor=FakeExecutor(),
         auditor=auditor,
-        confirm_fn=_boom_confirm,
     )
 
     assert [e["event"] for e in auditor.records["s1"]] == ["received", "allowed", "executed"]
@@ -267,68 +261,45 @@ async def test_allow_path_audits_received_allowed_executed_per_session():
     assert auditor.records["s1"][0]["command"] == "echo a"
 
 
-async def test_confirm_true_passes_gate_with_policy_all():
+async def test_exec_policy_all_executes_without_local_gate():
+    """确认门已统一在服务端（spec §3.5）：daemon 收到即执行，policy=all 也不拦截。"""
     client = FakeClient(calls=[_call(payload={"command": "rm -rf /tmp/x", "cwd": "/workspace/s3"})])
-    confirmed: list[str] = []
-
-    def confirm(command: str) -> bool:
-        confirmed.append(command)
-        return True
+    executor = FakeExecutor()
 
     await _run(
         _cfg("all"),
         FakeFactory([client, _terminator()]),
-        executor=FakeExecutor(),
+        executor=executor,
         auditor=MemoryAuditor(),
-        confirm_fn=confirm,
     )
 
-    assert confirmed == ["rm -rf /tmp/x"]
+    assert executor.calls == [("rm -rf /tmp/x", "/workspace/s3", 5.0)]
     assert [body for _, body in client.posted][0] == {"stage": "ack"}
 
 
-async def test_ack_is_posted_before_confirm_gate():
-    """F3①：ack 先于确认门发出——用户盯着终端确认提示发呆时，dispatch 的 30s
-    ack 死线不再被吃掉；确认等待改为计入执行超时窗口（迟到检查见下）。"""
-    events: list[str] = []
-    client = FakeClient(
-        calls=[_call(payload={"command": "rm -rf /tmp/x", "cwd": "/workspace/s5"})], events=events
-    )
+class _SlowAckClient(FakeClient):
+    """ack 慢发的通道替身：ack 耗时计入执行窗口，用于触发迟到检查。"""
 
-    def confirm(command: str) -> bool:
-        events.append(f"confirm:{command}")
-        return True
-
-    await _run(
-        _cfg("all"),
-        FakeFactory([client, _terminator()]),
-        executor=FakeExecutor(),
-        auditor=MemoryAuditor(),
-        confirm_fn=confirm,
-    )
-
-    assert events[:2] == ["post:c1:ack", "confirm:rm -rf /tmp/x"]
+    async def post_result(self, call_id: str, body: dict) -> None:
+        if body.get("stage") == "ack":
+            time.sleep(0.3)
+        await super().post_result(call_id, body)
 
 
-async def test_late_call_after_slow_confirm_rejected_as_expired():
-    """F3②：确认耗时超过 call.timeout 后即便放行也拒绝执行——dispatch 侧 exec
-    死线已到，执行结果注定无人接收，done(expired) 快速失败且 executor 不被调用。"""
-    client = FakeClient(
+async def test_late_call_after_slow_ack_rejected_as_expired():
+    """F3②：ack 耗时超过 call.timeout 后拒绝执行——dispatch 侧 exec 死线已到，
+    执行结果注定无人接收，done(expired) 快速失败且 executor 不被调用。"""
+    client = _SlowAckClient(
         calls=[_call(payload={"command": "rm -rf /tmp/x", "cwd": "/workspace/s5"}, timeout=0.2)]
     )
     executor = FakeExecutor()
     auditor = MemoryAuditor()
-
-    def slow_confirm(command: str) -> bool:
-        time.sleep(0.3)  # 超过 timeout=0.2：确认返回时调用已迟到
-        return True
 
     await _run(
         _cfg("all"),
         FakeFactory([client, _terminator()]),
         executor=executor,
         auditor=auditor,
-        confirm_fn=slow_confirm,
     )
 
     assert client.posted == [
@@ -337,58 +308,6 @@ async def test_late_call_after_slow_confirm_rejected_as_expired():
     ]
     assert executor.calls == []  # 迟到即拒绝，不调 executor
     assert [e["event"] for e in auditor.records["s5"]] == ["received", "allowed", "expired"]
-
-
-# ---------- 拒绝路径 ----------
-
-
-async def test_decline_posts_ack_then_declined_by_user_without_execute():
-    """拒绝路径：ack（收到即发）→ done(declined_by_user)；不执行、审计 declined。"""
-    client = FakeClient(calls=[_call(payload={"command": "rm -rf /tmp/x", "cwd": "/workspace/s2"})])
-    executor = FakeExecutor()
-    auditor = MemoryAuditor()
-
-    def confirm(command: str) -> bool:
-        return False
-
-    await _run(
-        _cfg("all"),
-        FakeFactory([client, _terminator()]),
-        executor=executor,
-        auditor=auditor,
-        confirm_fn=confirm,
-    )
-
-    assert client.posted == [
-        ("c1", {"stage": "ack"}),
-        ("c1", {"stage": "done", "status": "error", "error": "declined_by_user"}),
-    ]
-    assert executor.calls == []  # 拒绝即不执行
-    assert [e["event"] for e in auditor.records["s2"]] == ["received", "declined"]
-
-
-async def test_confirm_raising_is_treated_as_decline_and_keeps_channel():
-    """confirm_fn 崩溃（如 stdin 关闭的 EOFError）按拒绝收敛，绝不拖断通道。"""
-
-    def broken_confirm(command: str) -> bool:
-        raise RuntimeError("stdin closed")
-
-    client = FakeClient(calls=[_call()])
-    executor = FakeExecutor()
-
-    await _run(  # 走到重连并以认证错误收尾 == 通道未因 confirm 崩溃而中断
-        _cfg("all"),
-        FakeFactory([client, _terminator()]),
-        executor=executor,
-        auditor=MemoryAuditor(),
-        confirm_fn=broken_confirm,
-    )
-
-    assert client.posted == [
-        ("c1", {"stage": "ack"}),
-        ("c1", {"stage": "done", "status": "error", "error": "declined_by_user"}),
-    ]
-    assert executor.calls == []
 
 
 # ---------- 执行结果透传 ----------
@@ -412,7 +331,6 @@ async def test_executor_timeout_result_translates_to_done_error_timeout():
         FakeFactory([client, _terminator()]),
         executor=FakeExecutor(result=timeout_result),
         auditor=auditor,
-        confirm_fn=_boom_confirm,
     )
 
     assert client.posted == [
@@ -444,7 +362,6 @@ async def test_executor_raising_posts_error_done_and_keeps_channel():
         FakeFactory([client, _terminator()]),
         executor=executor,
         auditor=auditor,
-        confirm_fn=_boom_confirm,
     )
 
     assert client.posted == [
@@ -476,7 +393,6 @@ async def test_unsupported_op_posts_ack_then_error_done_without_confirm_or_execu
         FakeFactory([client, _terminator()]),
         executor=executor,
         auditor=auditor,
-        confirm_fn=_boom_confirm,
     )
 
     assert client.posted == [
@@ -497,7 +413,6 @@ async def test_non_positive_timeout_falls_back_to_default():
         FakeFactory([client, _terminator()]),
         executor=executor,
         auditor=MemoryAuditor(),
-        confirm_fn=_boom_confirm,
     )
 
     assert executor.calls[0][2] == DEFAULT_EXEC_TIMEOUT_S
@@ -517,7 +432,6 @@ async def test_connection_error_reconnects_with_backoff():
         FakeFactory([flaky, good, _terminator()]),
         executor=FakeExecutor(),
         auditor=auditor,
-        confirm_fn=_boom_confirm,
         sleep=sleep,
     )
 
@@ -540,7 +454,6 @@ async def test_backoff_resets_after_successful_connect():
         FakeFactory([first, second, _terminator()]),
         executor=FakeExecutor(),
         auditor=MemoryAuditor(),
-        confirm_fn=_boom_confirm,
         sleep=sleep,
     )
 
@@ -585,8 +498,7 @@ async def test_cancellation_triggers_graceful_shutdown():
             run_daemon(
                 _cfg("none"),
                 pat=PAT,
-                confirm_fn=_boom_confirm,
-                client_factory=lambda: client,
+                        client_factory=lambda: client,
                 executor=FakeExecutor(),
                 auditor=auditor,
                 sleep_fn=SleepRecorder(),
@@ -640,8 +552,7 @@ async def test_run_daemon_update_required_stops_without_backoff_or_offline(capsy
         await run_daemon(
             _cfg("none"),
             pat=PAT,
-            confirm_fn=_boom_confirm,
-            client_factory=factory,
+                client_factory=factory,
             executor=FakeExecutor(),
             auditor=auditor,
             sleep_fn=sleep_fn,
@@ -764,7 +675,6 @@ async def test_fs_read_dispatches_to_fsops_and_done_carries_result(tmp_path):
         FakeFactory([client, _terminator()]),
         executor=executor,
         auditor=auditor,
-        confirm_fn=_boom_confirm,
     )
 
     assert client.posted == [
@@ -792,8 +702,8 @@ async def test_fs_read_dispatches_to_fsops_and_done_carries_result(tmp_path):
     assert received["op"] == "fs_read" and received["path"] == "f.txt"
 
 
-async def test_fs_write_passes_confirm_gate_with_description(tmp_path):
-    """写类 fs op 过确认门：描述是 "fs_write sub/a.txt" 形式；放行后真实落盘。"""
+async def test_fs_write_executes_directly_under_policy_all(tmp_path):
+    """写类 fs op 到达即执行（确认在服务端完成）：policy=all 也不拦截，真实落盘。"""
     client = FakeClient(
         calls=[
             _fs_call(
@@ -803,72 +713,21 @@ async def test_fs_write_passes_confirm_gate_with_description(tmp_path):
         ]
     )
     auditor = MemoryAuditor()
-    confirmed: list[str] = []
-
-    def confirm(description: str) -> bool:
-        confirmed.append(description)
-        return True
 
     await _run(
         _cfg("all", data_root=tmp_path),
         FakeFactory([client, _terminator()]),
         executor=FakeExecutor(),
         auditor=auditor,
-        confirm_fn=confirm,
     )
 
-    assert confirmed == ["fs_write sub/a.txt"]
     assert (tmp_path / "s1" / "sub" / "a.txt").read_text(encoding="utf-8") == "hello"
     assert client.posted[1] == ("c1", {"stage": "done", "status": "ok", "result": {}})
+    assert [e["event"] for e in auditor.records["s1"]] == ["received", "allowed", "executed"]
 
 
-async def test_fs_write_declined_leaves_file_untouched(tmp_path):
-    client = FakeClient(
-        calls=[
-            _fs_call(
-                op="fs_write",
-                payload={"path": "a.txt", "cwd": "/workspace/s1", "content_b64": "aGVsbG8="},
-            )
-        ]
-    )
-    auditor = MemoryAuditor()
-
-    await _run(
-        _cfg("all", data_root=tmp_path),
-        FakeFactory([client, _terminator()]),
-        executor=FakeExecutor(),
-        auditor=auditor,
-        confirm_fn=lambda description: False,
-    )
-
-    assert client.posted == [
-        ("c1", {"stage": "ack"}),
-        ("c1", {"stage": "done", "status": "error", "error": "declined_by_user"}),
-    ]
-    assert not (tmp_path / "s1" / "a.txt").exists()
-    assert [e["event"] for e in auditor.records["s1"]] == ["received", "declined"]
-
-
-async def test_fs_write_confirms_under_commands_policy(tmp_path):
-    """commands 策略下写类 fs op 仍确认——它们天然是变更操作。"""
-    client = FakeClient(
-        calls=[_fs_call(op="fs_delete", payload={"path": "a.txt", "cwd": "/workspace/s1"})]
-    )
-    confirmed: list[str] = []
-
-    await _run(
-        _cfg("commands", data_root=tmp_path),
-        FakeFactory([client, _terminator()]),
-        executor=FakeExecutor(),
-        auditor=MemoryAuditor(),
-        confirm_fn=lambda d: (confirmed.append(d), True)[1],
-    )
-
-    assert confirmed == ["fs_delete a.txt"]
-
-
-async def test_fs_read_skips_confirm_under_commands_policy(tmp_path):
-    """读类 fs op 在 commands 策略下不确认（只读）。"""
+async def test_fs_read_executes_under_commands_policy(tmp_path):
+    """读类 fs op 照常执行（确认语义整体在服务端，daemon 不区分读写门控）。"""
     (tmp_path / "s1").mkdir()
     client = FakeClient(calls=[_fs_call()])
     auditor = MemoryAuditor()
@@ -878,7 +737,6 @@ async def test_fs_read_skips_confirm_under_commands_policy(tmp_path):
         FakeFactory([client, _terminator()]),
         executor=FakeExecutor(),
         auditor=auditor,
-        confirm_fn=_boom_confirm,
     )
 
     assert client.posted[1][1]["status"] == "ok"
@@ -896,7 +754,6 @@ async def test_fs_op_file_level_error_is_ok_status_with_result_error(tmp_path):
         FakeFactory([client, _terminator()]),
         executor=FakeExecutor(),
         auditor=auditor,
-        confirm_fn=_boom_confirm,
     )
 
     body = client.posted[1][1]
@@ -923,7 +780,6 @@ async def test_fs_op_crash_converges_to_error_done_and_keeps_channel(tmp_path, m
         FakeFactory([client, _terminator()]),
         executor=executor,
         auditor=auditor,
-        confirm_fn=_boom_confirm,
     )
 
     assert client.posted[1] == (
@@ -944,7 +800,6 @@ async def test_fs_op_invalid_cwd_converges_to_error_done(tmp_path):
         FakeFactory([client, _terminator()]),
         executor=FakeExecutor(),
         auditor=auditor,
-        confirm_fn=_boom_confirm,
     )
 
     body = client.posted[1][1]
@@ -980,8 +835,7 @@ async def _run_with_real_executor(cfg, monkeypatch, *, ensure_result, data_root)
         await run_daemon(
             cfg,
             pat=PAT,
-            confirm_fn=_boom_confirm,
-            client_factory=FakeFactory([client, _terminator()]),
+                client_factory=FakeFactory([client, _terminator()]),
             auditor=auditor,
             sleep_fn=SleepRecorder(),
         )
@@ -1022,8 +876,7 @@ async def test_daemon_skips_ensure_runtime_when_embedded_python_false(tmp_path, 
         await run_daemon(
             cfg,
             pat=PAT,
-            confirm_fn=_boom_confirm,
-            client_factory=FakeFactory([client, _terminator()]),
+                client_factory=FakeFactory([client, _terminator()]),
             auditor=MemoryAuditor(),
             sleep_fn=SleepRecorder(),
         )
@@ -1059,8 +912,7 @@ async def test_daemon_falls_back_when_ensure_runtime_raises(tmp_path, monkeypatc
         await run_daemon(
             cfg,
             pat=PAT,
-            confirm_fn=_boom_confirm,
-            client_factory=FakeFactory([client, _terminator()]),
+                client_factory=FakeFactory([client, _terminator()]),
             auditor=MemoryAuditor(),
             sleep_fn=SleepRecorder(),
         )

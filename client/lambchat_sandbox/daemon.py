@@ -22,12 +22,10 @@
 
 信号取舍：SIGTERM 经 ``add_signal_handler`` 取消当前任务（Unix；Windows/
 非主线程无此实现则静默跳过）；SIGINT 保持解释器默认——asyncio.Runner 会把
-KeyboardInterrupt 转成任务取消走同一条优雅下线路径，且默认行为能在
-terminal_confirm 阻塞于 ``input()`` 时立刻打断提示（换成 add_signal_handler
-方案，事件循环被同步 ``input()`` 卡住时回调永远没有机会运行）。
+KeyboardInterrupt 转成任务取消走同一条优雅下线路径。
 
-注入点：``client_factory`` / ``executor`` / ``auditor`` / ``confirm_fn`` /
-``sleep_fn`` 全部可替换，测试不碰网络、不真睡。
+注入点：``client_factory`` / ``executor`` / ``auditor`` / ``sleep_fn`` 全部
+可替换，测试不碰网络、不真睡。
 """
 
 from __future__ import annotations
@@ -43,9 +41,8 @@ from pathlib import Path
 from lambchat_sandbox import pbs
 from lambchat_sandbox.audit import Auditor
 from lambchat_sandbox.config import SandboxConfig
-from lambchat_sandbox.confirm import needs_confirm, terminal_confirm
 from lambchat_sandbox.executor import Executor
-from lambchat_sandbox.fsops import FS_OPS, WRITE_OPS, handle_fs_op
+from lambchat_sandbox.fsops import FS_OPS, handle_fs_op
 from lambchat_sandbox.transport import (
     ChannelClient,
     ToolCall,
@@ -65,7 +62,6 @@ async def run_daemon(
     cfg: SandboxConfig,
     *,
     pat: str,
-    confirm_fn: Callable[[str], bool] = terminal_confirm,
     client_factory: Callable[[], ChannelClient] | None = None,
     executor: Executor | None = None,
     auditor: Auditor | None = None,
@@ -106,7 +102,6 @@ async def run_daemon(
                     client,
                     calls,
                     cfg=cfg,
-                    confirm_fn=confirm_fn,
                     executor=executor_,
                     auditor=auditor_,
                 )
@@ -143,15 +138,12 @@ async def _handle_channel(
     calls: AsyncIterator[ToolCall],
     *,
     cfg: SandboxConfig,
-    confirm_fn: Callable[[str], bool],
     executor: Executor,
     auditor: Auditor,
 ) -> None:
     """单次连接内逐条处理 ToolCall；流结束/异常交回外层重连循环。"""
     async for call in calls:
-        await _process_call(
-            client, call, cfg=cfg, confirm_fn=confirm_fn, executor=executor, auditor=auditor
-        )
+        await _process_call(client, call, cfg=cfg, executor=executor, auditor=auditor)
 
 
 async def _process_call(
@@ -159,17 +151,14 @@ async def _process_call(
     call: ToolCall,
     *,
     cfg: SandboxConfig,
-    confirm_fn: Callable[[str], bool],
     executor: Executor,
     auditor: Auditor,
 ) -> None:
-    """单条 ToolCall 的完整决策链：审计 received → ack → op 分发 → 确认门控 → 迟到检查 → 执行 → done。
+    """单条 ToolCall 的完整决策链：审计 received → ack → op 分发 → 迟到检查 → 执行 → done。
 
-    ack 先于确认门（收到即发）：确认等待计入执行超时窗口而非 dispatch 的 30s
-    ack 死线——否则用户在终端确认提示前犹豫超过 30s，dispatch 侧就误报
-    ``sandbox_timeout`` 而本地命令根本没跑。作为代价，确认放行后要检查迟到：
-    ``elapsed >= timeout`` 说明 dispatch 的 exec 死线已到（或将近），执行结果
-    注定无人接收，直接 ``done(error=expired)`` 快速失败，不浪费本机资源。
+    确认门控不在本层（spec §3.5 服务端实现）：服务端统一确认门在 dispatch
+    前以 ask_human interrupt 完成，daemon 只收到已确认的执行请求，到达即执行。
+    ``confirm_policy`` 仍随连接上报（connect URL 第四段）供服务端门读取。
 
     op 分发（M4 T3.5）：``exec`` 走 executor（shell 命令）；``fs_*`` 走
     :func:`lambchat_sandbox.fsops.handle_fs_op`（win32 结构化文件操作——
@@ -202,7 +191,6 @@ async def _process_call(
             virtual_cwd=virtual_cwd,
             started=started,
             cfg=cfg,
-            confirm_fn=confirm_fn,
             executor=executor,
             auditor=auditor,
         )
@@ -215,7 +203,6 @@ async def _process_call(
             path=path,
             started=started,
             cfg=cfg,
-            confirm_fn=confirm_fn,
             auditor=auditor,
         )
         return
@@ -235,21 +222,10 @@ async def _process_exec_call(
     virtual_cwd: str,
     started: float,
     cfg: SandboxConfig,
-    confirm_fn: Callable[[str], bool],
     executor: Executor,
     auditor: Auditor,
 ) -> None:
-    """op=exec 的执行链：确认门 → 迟到检查 → executor → done → 审计。"""
-    if needs_confirm(command, cfg.confirm_policy) and not _confirm(command, confirm_fn):
-        await client.post_result(
-            call.call_id, {"stage": "done", "status": "error", "error": "declined_by_user"}
-        )
-        auditor.log(
-            session_id,
-            {"event": "declined", "call_id": call.call_id, "op": "exec", "command": command},
-        )
-        return
-
+    """op=exec 的执行链：迟到检查 → executor → done → 审计（确认在服务端）。"""
     auditor.log(
         session_id, {"event": "allowed", "call_id": call.call_id, "op": "exec", "command": command}
     )
@@ -289,31 +265,16 @@ async def _process_fs_call(
     path: str,
     started: float,
     cfg: SandboxConfig,
-    confirm_fn: Callable[[str], bool],
     auditor: Auditor,
 ) -> None:
     """op=fs_* 的执行链：结果走同一 ack/done 协议，结果体放 ``result`` 字段。
 
-    - **确认门**：写类 fs op（write/edit/delete）同样过 needs_confirm——用户
-      看到的描述是 ``fs_write sub/a.txt`` 形式。``commands`` 策略按词匹配
-      命令，``fs_write`` 不在变更清单里，但写类 fs op 天然变更状态，故以
-      ``rm`` 前缀哨兵送判（命中清单即确认）；读类只读，不确认；
+    - **确认在服务端**：到达即已确认（写类同样——服务端在 override 入口过
+      统一确认门后才发 fs op），daemon 不再做本地门控；
     - **错误两级**：文件级错误（不存在/逃逸/坏载荷）在 ``result`` 里（done
       的 status 仍是 ok——模型可改路径重试）；fsops 内部异常（含非法 cwd 的
       ExecutorError）收敛为 ``status=error``，与 exec 的对应路径对齐。
     """
-    description = f"{call.op} {path}".rstrip()
-    gate_command = description if call.op not in WRITE_OPS else f"rm {description}"
-    if needs_confirm(gate_command, cfg.confirm_policy) and not _confirm(description, confirm_fn):
-        await client.post_result(
-            call.call_id, {"stage": "done", "status": "error", "error": "declined_by_user"}
-        )
-        auditor.log(
-            session_id,
-            {"event": "declined", "call_id": call.call_id, "op": call.op, "path": path},
-        )
-        return
-
     auditor.log(
         session_id, {"event": "allowed", "call_id": call.call_id, "op": call.op, "path": path}
     )
@@ -374,15 +335,6 @@ def _session_id_from_cwd(virtual_cwd: str) -> str:
     if sid and "/" not in sid and sid not in (".", ".."):
         return sid
     return "unknown"
-
-
-def _confirm(command: str, confirm_fn: Callable[[str], bool]) -> bool:
-    """确认门：confirm_fn 抛异常（如 stdin 关闭的 EOFError）按拒绝收敛——
-    fail-closed，绝不牵连通道。"""
-    try:
-        return bool(confirm_fn(command))
-    except Exception:  # noqa: BLE001 - 确认端崩溃收敛为拒绝而非断连
-        return False
 
 
 def _execute(executor: Executor, command: str, virtual_cwd: str, timeout: float) -> dict:
