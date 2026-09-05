@@ -179,7 +179,9 @@ class _InterruptHarness:
         harness = self
 
         class _Executor:
-            async def _update_session_status(self, session_id, task_status, error=None, run_id=None):
+            async def _update_session_status(
+                self, session_id, task_status, error=None, run_id=None
+            ):
                 harness.status_calls.append((session_id, task_status))
 
             async def _expire_terminal_stream(self, session_id, run_id, dual_writer):
@@ -326,9 +328,7 @@ async def test_steer_waiting_human_without_approvals_still_interrupts(monkeypatc
     harness = _InterruptHarness()
     _wire_waiting_human(monkeypatch, harness, [])
 
-    result = await steer_running_agent(
-        "session-1", SteerRequest(message="继续"), user=_user()
-    )
+    result = await steer_running_agent("session-1", SteerRequest(message="继续"), user=_user())
 
     assert result["outcome"] == "interrupted"
     assert ("session-1", TaskStatus.CANCELLED) in harness.status_calls

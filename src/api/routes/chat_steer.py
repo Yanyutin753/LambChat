@@ -48,9 +48,7 @@ async def steer_interrupt_waiting_human(
     # 对方的 submit_hitl_resume_run 会因会话已离开 WAITING_HUMAN 跳过。
     approvals = [
         approval
-        for approval in await get_approval_storage().list_pending(
-            session_id=session_id, limit=20
-        )
+        for approval in await get_approval_storage().list_pending(session_id=session_id, limit=20)
         if is_interrupt_approval(approval)
     ]
     held_locks: list[tuple[str, str]] = []
@@ -86,12 +84,8 @@ async def steer_interrupt_waiting_human(
                 event_type="approval_resolved",
                 data={
                     "id": approval.id,
-                    "tool_call_id": (getattr(approval, "metadata", None) or {}).get(
-                        "tool_call_id"
-                    ),
-                    "interrupt_id": (getattr(approval, "metadata", None) or {}).get(
-                        "interrupt_id"
-                    ),
+                    "tool_call_id": (getattr(approval, "metadata", None) or {}).get("tool_call_id"),
+                    "interrupt_id": (getattr(approval, "metadata", None) or {}).get("interrupt_id"),
                     "status": "cancelled",
                     "success": False,
                     "result": {"status": "cancelled", "message": "已被新插话打断"},
@@ -127,9 +121,7 @@ async def steer_interrupt_waiting_human(
             trace_id=trace_id,
         )
         if run_id:
-            await task_manager._executor._expire_terminal_stream(
-                session_id, run_id, dual_writer
-            )
+            await task_manager._executor._expire_terminal_stream(session_id, run_id, dual_writer)
 
         # 挂起前残留在插话队列的条目一并清空：新 run 不应把它们当插话注入
         try:
