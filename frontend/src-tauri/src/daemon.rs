@@ -75,9 +75,9 @@ pub fn start(app: &AppHandle) -> Result<(), String> {
     }
     let generation = manager.generation.fetch_add(1, Ordering::SeqCst) + 1;
 
-    // 优先 dev 回退：外部可执行（如 uv 包装脚本）。
+    // 优先 dev 回退：外部可执行（如 uv 包装脚本）。子命令 `run` = 常驻 daemon 模式。
     if let Some(env_bin) = std::env::var_os("LAMBCHAT_DAEMON_BIN") {
-        match std::process::Command::new(&env_bin).spawn() {
+        match std::process::Command::new(&env_bin).arg("run").spawn() {
             Ok(child) => {
                 warn_log!(
                     "daemon started from LAMBCHAT_DAEMON_BIN={} (pid {})",
@@ -100,10 +100,13 @@ pub fn start(app: &AppHandle) -> Result<(), String> {
     }
 
     // 常规路径：随壳分发的 sidecar（经 shell 插件解析 target-triple 后 spawn）。
+    // 子命令 `run` = 常驻 daemon 模式（未配对时 daemon 自行快速退出，
+    // 由重启上限收敛；配对完成后的 restart_daemon 会再次拉起）。
     let spawn_result = app
         .shell()
         .sidecar("lambchat-daemon")
         .map_err(|e| format!("sidecar binary not available: {e}"))?
+        .args(["run"])
         .spawn();
     let (mut rx, child) = match spawn_result {
         Ok(pair) => pair,
