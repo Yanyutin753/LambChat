@@ -16,13 +16,13 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Manager};
 use tauri_plugin_opener::OpenerExt;
-use tauri_plugin_shell::process::{CommandChild, CommandEvent};
+use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::ShellExt;
 
 /// 意外退出后的自动重启次数上限。
 const MAX_RESTARTS: u8 = 3;
 
-/// env 直启监视线轮询子进程存活的间隔。
+/// 监视线轮询间隔（env 直启 try_wait / sidecar kill(pid,0) 探活共用）。
 const ENV_POLL_INTERVAL: Duration = Duration::from_millis(500);
 
 macro_rules! warn_log {
@@ -123,17 +123,17 @@ pub fn start(app: &AppHandle) -> Result<(), String> {
         }
     };
     warn_log!("daemon sidecar started (pid {})", child.pid());
+    let pid = child.pid();
     *slot = Some(DaemonChild::Sidecar(child));
     manager.unsupported.store(false, Ordering::SeqCst);
 
-    let monitor_app = app.clone();
+    // 退出检测不走插件事件通道（原因见 spawn_sidecar_monitor 注释）。
+    spawn_sidecar_monitor(app.clone(), generation, pid);
+
+    // 仅排空插件事件通道（stdout/stderr 事件），防止管道缓冲写满阻塞插件内部线程。
+    // 注意绝不能 drop rx：读端关闭会让仍在运行的 daemon 写 stdout 时收到 EPIPE。
     tauri::async_runtime::spawn(async move {
-        while let Some(event) = rx.recv().await {
-            if matches!(event, CommandEvent::Terminated { .. }) {
-                break;
-            }
-        }
-        handle_exit(&monitor_app, generation);
+        while (rx.recv().await).is_some() {}
     });
     Ok(())
 }
@@ -194,6 +194,56 @@ fn spawn_env_monitor(app: AppHandle, generation: u64) {
         }
         handle_exit(&app, generation);
     });
+}
+
+/// sidecar 子进程的监视线：每 500ms `kill(pid, 0)` 探活，退出走 [`handle_exit`]。
+///
+/// 为什么不用插件事件（`CommandEvent::Terminated`）：tauri-plugin-shell 2.3.6
+/// 中 Terminated 由内部 wait 线程在拿到 guard **写锁**后投递，而 stdout/stderr
+/// 管道 reader 线程持有 guard **读锁**直到管道 EOF。PyInstaller onefile 的
+/// 内层进程**继承管道写端**——SIGKILL 外层 wrapper 后内层仍存活，管道永不
+/// EOF，wait 线程永久阻塞在写锁上：Terminated 永不投递，且 sender 未释放
+/// 导致 rx 也永不关闭，事件监听协程随之永久挂起（T8 实测复现）。故 sidecar
+/// 与 env 直启统一采用 spawn_blocking 轮询模式。
+fn spawn_sidecar_monitor(app: AppHandle, generation: u64, pid: u32) {
+    tauri::async_runtime::spawn_blocking(move || {
+        loop {
+            std::thread::sleep(ENV_POLL_INTERVAL);
+            let manager = app.state::<DaemonManager>();
+            if manager.generation.load(Ordering::SeqCst) != generation {
+                return; // 槽位已被新一轮 start/stop 接管
+            }
+            let slot = manager.child.lock().unwrap();
+            match slot.as_ref() {
+                Some(DaemonChild::Sidecar(current)) if current.pid() == pid => {
+                    if !process_alive(pid) {
+                        break;
+                    }
+                }
+                // 槽位已不属于这一代（形态或 pid 变化）
+                _ => return,
+            }
+        }
+        handle_exit(&app, generation);
+    });
+}
+
+/// 进程探活：`kill(pid, 0)` 只做存在性/权限校验，不发送实际信号。
+/// 仅 ESRCH（不存在）返回 false；EPERM（存在但属主不同）仍视为存活。
+/// 注：pid 复用理论上可能误判存活——只会延迟退出检测（500ms 轮询窗口内
+/// 无关进程恰好拿到同 pid 的概率极低），由重启计数语义兜底，不影响正确性。
+fn process_alive(pid: u32) -> bool {
+    #[cfg(unix)]
+    {
+        let rc = unsafe { libc::kill(pid as libc::pid_t, 0) };
+        rc == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+    }
+    #[cfg(not(unix))]
+    {
+        // TODO(M4): Windows 用 OpenProcess 探活；当前发布矩阵仅 unix。
+        let _ = pid;
+        true
+    }
 }
 
 /// 子进程退出后的统一处理：仅当退出事件仍属于当前 generation 时才视为意外退出。

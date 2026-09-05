@@ -24,3 +24,7 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 time = "=0.3.36"
+
+[target.'cfg(unix)'.dependencies]
+# daemon sidecar 探活轮询用 kill(pid, 0)（存在性校验，不发实际信号）
+libc = "0.2"
