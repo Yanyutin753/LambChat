@@ -8,6 +8,7 @@
     "notification:default",
     "updater:default",
     "shell:default",
-    "shell:allow-execute"
+    "shell:allow-execute",
+    "opener:default"
   ]
 }

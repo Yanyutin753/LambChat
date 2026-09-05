@@ -47,6 +47,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             clean_on_version_upgrade(app.handle());
             app.manage(daemon::DaemonManager::default());
@@ -59,6 +60,12 @@ pub fn run() {
             });
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            daemon::save_pairing,
+            daemon::restart_daemon,
+            daemon::daemon_process_status,
+            daemon::open_local_path
+        ])
         .build(tauri::generate_context!())
         .expect("error while building LambChat desktop app")
         .run(|app_handle, event| {
