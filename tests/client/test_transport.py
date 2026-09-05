@@ -357,6 +357,21 @@ async def test_connect_keeps_no_timeout_for_sse_stream():
     await client.close()
 
 
+async def test_connect_url_carries_version_query():
+    """版本地基：connect 的 URL 带 ?version=——服务端访问日志可直接看到 daemon 版本。"""
+    from lambchat_sandbox import __version__
+
+    log: list[httpx.Request] = []
+    client = _channel_client(_sse_transport(log, GOOD_STREAM.encode("utf-8")))
+    hello, calls = await client.connect()
+    assert hello is not None
+    async for _ in calls:
+        pass
+
+    assert log[0].url.params["version"] == __version__
+    await client.close()
+
+
 async def test_close_closes_underlying_client():
     raw = httpx.AsyncClient(transport=_api_transport([]), timeout=None)
     client = ChannelClient(SERVER, PAT, client=raw)

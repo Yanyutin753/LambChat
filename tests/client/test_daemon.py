@@ -591,7 +591,7 @@ async def test_cancellation_triggers_graceful_shutdown():
     assert events == ["offline", "closed", "audit:daemon:shutdown"]
 
 
-# ---------- CLI run 子命令 ----------
+# ---------- CLI run / version 子命令 ----------
 
 
 def _ns() -> argparse.Namespace:
@@ -643,3 +643,18 @@ def test_cmd_run_invokes_run_daemon_with_loaded_config_and_pat(monkeypatch):
     monkeypatch.setattr(cli, "run_daemon", fake_daemon)
     assert cli.cmd_run(_ns()) == 0
     assert seen == {"cfg": cfg, "pat": PAT}
+
+
+def test_cmd_version_prints_package_version(capsys):
+    """CLI version 子命令：打印包 __version__（与服务端 daemon_version 同源）。"""
+    from lambchat_sandbox import __version__
+
+    assert cli.cmd_version(_ns()) == 0
+    assert capsys.readouterr().out.strip() == __version__
+
+
+def test_main_dispatches_version_subcommand(capsys):
+    from lambchat_sandbox import __version__
+
+    assert cli.main(["version"]) == 0
+    assert capsys.readouterr().out.strip() == __version__

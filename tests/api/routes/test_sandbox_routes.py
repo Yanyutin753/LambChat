@@ -51,12 +51,16 @@ class _FakeRegistry:
         self.beats = 0
         self.active: tuple[str, str] | None = ("c1", "node-a")
         self.unregistered: list[tuple[str, str]] = []
+        self.registered: list[tuple[str, str, str, str]] = []
+        self.heartbeats: list[tuple[str, str, str, str]] = []
 
-    async def register(self, user_id, client_id, node_id):
+    async def register(self, user_id, client_id, node_id, *, version=""):
         self.active = (client_id, node_id)
+        self.registered.append((user_id, client_id, node_id, version))
 
-    async def heartbeat(self, *a, **k):
+    async def heartbeat(self, user_id, client_id, node_id, *, version=""):
         self.beats += 1
+        self.heartbeats.append((user_id, client_id, node_id, version))
 
     async def unregister(self, user_id, client_id):
         self.unregistered.append((user_id, client_id))
@@ -283,7 +287,56 @@ async def test_status_endpoint(monkeypatch):
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         resp = await client.get("/api/sandbox/status")
     assert resp.status_code == 200
-    assert resp.json() == {"online": True, "client_id": "c1"}
+    # 旧格式 value（无版本上报的 daemon）：daemon_version 为 null
+    assert resp.json() == {"online": True, "client_id": "c1", "daemon_version": None}
+
+
+async def test_status_endpoint_reports_daemon_version(monkeypatch):
+    """版本地基：注册表 value 里的 node_id|version 解析成 daemon_version 返回。"""
+    registry = _FakeRegistry()
+    registry.active = ("c1", "node-a|0.1.0")
+    app = FastAPI()
+    register_error_handlers(app)
+    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
+    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_user
+    monkeypatch.setattr(sandbox_route, "_registry", lambda: registry)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        resp = await client.get("/api/sandbox/status")
+    assert resp.status_code == 200
+    assert resp.json() == {"online": True, "client_id": "c1", "daemon_version": "0.1.0"}
+
+
+async def test_channel_registers_version_from_query(monkeypatch):
+    """channel 端点从 query 读 version 随 register 存入；心跳帧生成器收到同一
+    version（否则首个心跳会把注册值降级回纯 node_id，版本 15s 后丢失）。"""
+    registry = _FakeRegistry()
+    seen: dict[str, object] = {}
+
+    async def fake_frames(redis, reg, user_id, client_id, *, stop, version=""):
+        seen["version"] = version
+        seen["registered"] = list(registry.registered)
+        if False:  # pragma: no cover - 使其成为 async generator（空流即结束）
+            yield ""
+
+    monkeypatch.setattr(sandbox_route, "channel_frames", fake_frames)
+    app = FastAPI()
+    register_error_handlers(app)
+    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
+    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_pat_user
+    monkeypatch.setattr(sandbox_route, "_registry", lambda: registry)
+    monkeypatch.setattr(sandbox_route, "_redis", lambda: _FakeRedis())
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        resp = await client.get("/api/sandbox/channel?version=0.1.0")
+    assert resp.status_code == 200
+    assert seen["version"] == "0.1.0"
+    assert len(registry.registered) == 1
+    user_id, _client_id, node_id, version = registry.registered[0]
+    assert (user_id, version) == ("u1", "0.1.0")
+    assert node_id == sandbox_route._NODE_ID
 
 
 async def test_offline_endpoint_unregisters_active_client(monkeypatch):

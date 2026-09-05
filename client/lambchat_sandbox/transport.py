@@ -20,6 +20,8 @@ from urllib.parse import quote
 
 import httpx
 
+from lambchat_sandbox import __version__
+
 BACKOFF_MAX_S = 60.0
 BACKOFF_JITTER = 0.2  # ±20%
 
@@ -116,10 +118,14 @@ class ChannelClient:
         self._client = client if client is not None else httpx.AsyncClient(timeout=None)
 
     async def connect(self) -> tuple[dict[str, Any], AsyncIterator[ToolCall]]:
-        """建立 SSE 通道，读到 hello 帧后返回 (hello 数据, tool_call 迭代器)。"""
+        """建立 SSE 通道，读到 hello 帧后返回 (hello 数据, tool_call 迭代器)。
+
+        URL 携带 ``?version={__version__}``：客户端版本随每次建连上报（服务端
+        访问日志与注册表均可见），是版本互通地基的第一跳。
+        """
         cm = self._client.stream(
             "GET",
-            f"{self._base}/api/sandbox/channel",
+            f"{self._base}/api/sandbox/channel?version={quote(__version__)}",
             headers={"Authorization": f"Bearer {self._pat}", "Accept": "text/event-stream"},
         )
         response = await cm.__aenter__()

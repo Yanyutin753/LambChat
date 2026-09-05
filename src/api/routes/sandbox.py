@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from src.api.deps import get_current_user_pat_or_jwt, require_pat_only
 from src.infra.logging import get_logger
-from src.infra.sandbox.relay.registry import SandboxClientRegistry
+from src.infra.sandbox.relay.registry import SandboxClientRegistry, parse_daemon_version
 from src.infra.storage.redis import get_redis_client
 from src.kernel.config import settings
 from src.kernel.errors import AppError, ErrorCode
@@ -48,13 +48,20 @@ def _request_age_seconds(raw: str) -> float:
 
 
 async def channel_frames(
-    redis, registry: SandboxClientRegistry, user_id: str, client_id: str, *, stop: asyncio.Event
+    redis,
+    registry: SandboxClientRegistry,
+    user_id: str,
+    client_id: str,
+    *,
+    stop: asyncio.Event,
+    version: str = "",
 ) -> AsyncIterator[str]:
     """SSE 帧生成器：hello -> (tool_call | 心跳) 循环；连接期心跳注册表。
 
     心跳前校验属主：新连接 register 清空注册表后，旧流在此退场（后连踢前连），
     踢旧窗口收敛到一个心跳周期（15s）。旧流结束时 finally 的 unregister 只
-    hdel 自己的字段，不会破坏新连接的注册。
+    hdel 自己的字段，不会破坏新连接的注册。心跳带同一 ``version`` 重写——
+    不带会把注册值降级回纯 node_id，daemon_version 15s 后丢失。
 
     陈旧请求丢弃：daemon 重连后 list 里残留的断连前积压请求，按 dispatch 写入
     的 ts 判龄，超过 ACK 超时的直接丢弃——执行窗口早已超时，下发只会白白
@@ -69,7 +76,7 @@ async def channel_frames(
             active = await registry.get_active(user_id)
             if active is None or active[0] != client_id:
                 return  # 已被新连接取代（或注册表失效），旧流退场
-            await registry.heartbeat(user_id, client_id, _NODE_ID)
+            await registry.heartbeat(user_id, client_id, _NODE_ID, version=version)
             last_beat = now
             yield ": heartbeat\n\n"
         raw = await redis.lpop(f"sandbox:req:{user_id}")
@@ -89,15 +96,23 @@ async def channel_frames(
 
 
 @router.get("/channel")
-async def sandbox_channel(user: TokenPayload = Depends(require_pat_only("sandbox:execute"))):
+async def sandbox_channel(
+    version: str = "",
+    user: TokenPayload = Depends(require_pat_only("sandbox:execute")),
+):
+    """daemon SSE 通道。``?version=`` 是 daemon connect URL 自带的客户端版本
+    （服务端访问日志可见），随 register/heartbeat 存入注册表 hash value，
+    status 端点解析成 daemon_version 暴露。"""
     registry = _registry()
     client_id = uuid.uuid4().hex[:12]
-    await registry.register(user.sub, client_id, _NODE_ID)
+    await registry.register(user.sub, client_id, _NODE_ID, version=version)
     stop = asyncio.Event()
 
     async def generator():
         try:
-            async for frame in channel_frames(_redis(), registry, user.sub, client_id, stop=stop):
+            async for frame in channel_frames(
+                _redis(), registry, user.sub, client_id, stop=stop, version=version
+            ):
                 yield frame
         finally:
             await registry.unregister(user.sub, client_id)
@@ -142,7 +157,13 @@ async def sandbox_status(user: TokenPayload = Depends(get_current_user_pat_or_jw
     active = await _registry().get_active(user.sub)
     if active is None:
         return {"online": False}
-    return {"online": True, "client_id": active[0]}
+    # hash value 可能是 node_id|version（新 daemon）或纯 node_id（旧格式），
+    # 解析不出版本时 daemon_version 为 null
+    return {
+        "online": True,
+        "client_id": active[0],
+        "daemon_version": parse_daemon_version(active[1]) or None,
+    }
 
 
 @router.post("/offline")

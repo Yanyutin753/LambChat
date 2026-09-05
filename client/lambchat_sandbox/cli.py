@@ -1,4 +1,4 @@
-"""lambchat_sandbox 命令行入口：login / logout / status / run。"""
+"""lambchat_sandbox 命令行入口：login / logout / status / run / version。"""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import sys
 
 import httpx
 
+from lambchat_sandbox import __version__
 from lambchat_sandbox.auth import AuthError, clear_pat, load_pat, pair
 from lambchat_sandbox.config import SandboxConfig, load_config, save_config
 from lambchat_sandbox.daemon import run_daemon
@@ -26,6 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("logout", help="清除本地 PAT")
     sub.add_parser("status", help="查询服务端沙箱状态")
     sub.add_parser("run", help="启动沙箱 daemon：连接服务端通道并在本机受控执行命令")
+    sub.add_parser("version", help="打印客户端版本")
     return parser
 
 
@@ -112,6 +114,11 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_version(args: argparse.Namespace) -> int:
+    print(__version__)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     handlers = {
@@ -119,5 +126,6 @@ def main(argv: list[str] | None = None) -> int:
         "logout": cmd_logout,
         "status": cmd_status,
         "run": cmd_run,
+        "version": cmd_version,
     }
     return handlers[args.command](args)
