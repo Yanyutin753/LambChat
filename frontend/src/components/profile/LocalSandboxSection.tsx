@@ -1,12 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
-import { Monitor, FolderOpen, RotateCw } from "lucide-react";
-import { authApi } from "../../services/api/auth";
-import {
-  DESKTOP_SHELL_PAT_NAME,
-  sandboxApi,
-} from "../../services/api/sandbox";
+import { Monitor, FolderOpen, Link2Off, RotateCw } from "lucide-react";
+import { sandboxApi } from "../../services/api/sandbox";
 import { API_BASE } from "../../services/api/config";
 import {
   SANDBOX_STATUS_REFRESH_EVENT,
@@ -19,6 +15,9 @@ import {
   openLocalPath,
   restartDaemon,
   savePairing,
+  clearPairing,
+  readPairingPat,
+  writeConfirmPolicy,
 } from "../../services/tauri/sandboxShell";
 import { SkeletonLine } from "../skeletons";
 import { SelectRow } from "./SelectRow";
@@ -42,8 +41,12 @@ function resolveServerUrl(): string {
  * 设置页"本地沙箱"分区。
  *
  * 动态适配：纯 web 只渲染"需要桌面端"提示；壳内按配对态渲染
- * 状态行 + 配对表单（login → PAT → savePairing → restartDaemon）
- * 或策略/目录/重启控制行。
+ * 状态行 + 配对表单（无副作用 login → 铸 PAT → savePairing → restartDaemon）
+ * 或策略/目录/重启/取消配对控制行。
+ *
+ * 凭据纪律（M4 T7）：配对登录直连 fetch（不 setTokens、不派发 auth:login，
+ * 换账号配对不切换壳会话身份）；策略切换只写配置不重铸 PAT；取消配对用
+ * 落盘 PAT 调服务端自删端点精准吊销后清理本地凭据。
  */
 export function LocalSandboxSection() {
   const { t } = useTranslation();
@@ -54,6 +57,7 @@ export function LocalSandboxSection() {
   const [policyOpen, setPolicyOpen] = useState(false);
   const [pairing, setPairing] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [unpairing, setUnpairing] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
@@ -101,10 +105,15 @@ export function LocalSandboxSection() {
     statusError === "unauthorized";
   const loading = processStatus === "";
 
-  const applyPatAndRestart = async (pat: string, confirmPolicy: ConfirmPolicy) => {
+  const applyPatAndRestart = async (
+    pat: string,
+    patId: string,
+    confirmPolicy: ConfirmPolicy,
+  ) => {
     await savePairing({
       serverUrl: resolveServerUrl(),
       pat,
+      patId,
       confirmPolicy,
     });
     await restartDaemon();
@@ -118,9 +127,15 @@ export function LocalSandboxSection() {
     if (pairing || !username.trim() || !password) return;
     setPairing(true);
     try {
-      await authApi.login({ username: username.trim(), password });
-      const pat = await sandboxApi.createPat(DESKTOP_SHELL_PAT_NAME);
-      await applyPatAndRestart(pat.token, policy);
+      // 无副作用登录：直连 fetch 拿 access_token，不 setTokens、不派发
+      // auth:login（换账号配对不得切换壳会话身份），JWT 只活在本次闭包里。
+      const pairingJwt = await sandboxApi.pairingLogin({
+        username: username.trim(),
+        password,
+      });
+      // 用配对账号的 JWT（而非壳会话 token）铸 PAT，并保存配对回执 pat_id
+      const pat = await sandboxApi.createPairingPat(pairingJwt);
+      await applyPatAndRestart(pat.token, pat.pat_id, policy);
       toast.success(t("profile.localSandbox.paired"));
       setPassword("");
     } catch (err) {
@@ -137,14 +152,45 @@ export function LocalSandboxSection() {
     if (applying) return;
     setApplying(true);
     try {
-      // savePairing 需要完整凭据：每次覆写配一枚新 PAT（旧 PAT 可在 PAT 列表吊销）
-      const pat = await sandboxApi.createPat(DESKTOP_SHELL_PAT_NAME);
-      await applyPatAndRestart(pat.token, next);
+      // 只写配置：write_confirm_policy 仅覆写 confirm_policy（保留 pat 等其余
+      // 字段），不重铸 PAT——旧实现每次切换铸一枚永久凭据，会无限累积。
+      await writeConfirmPolicy(next);
+      await restartDaemon();
+      notifySandboxStatusRefresh();
+      refresh();
+      refreshProcessStatus();
     } catch (err) {
       console.warn("[LocalSandboxSection] policy change failed:", err);
       toast.error(t("common.operationFailed"));
     } finally {
       setApplying(false);
+    }
+  };
+
+  const handleUnpair = async () => {
+    if (unpairing) return;
+    setUnpairing(true);
+    try {
+      // 服务端自撤销：用落盘 PAT 调 DELETE /api/auth/pat/current 删自己；
+      // 失败（已吊销/离线）不阻塞本地清理——残留 PAT 可在网页端 PAT 管理页吊销。
+      const storedPat = await readPairingPat();
+      if (storedPat) {
+        try {
+          await sandboxApi.revokePairingPat(storedPat);
+        } catch (err) {
+          console.warn("[LocalSandboxSection] server-side PAT revoke failed:", err);
+        }
+      }
+      await clearPairing();
+      notifySandboxStatusRefresh();
+      refresh();
+      refreshProcessStatus();
+      toast.success(t("profile.localSandbox.unpaired"));
+    } catch (err) {
+      console.warn("[LocalSandboxSection] unpair failed:", err);
+      toast.error(t("common.operationFailed"));
+    } finally {
+      setUnpairing(false);
     }
   };
 
@@ -239,7 +285,7 @@ export function LocalSandboxSection() {
           </form>
         ) : (
           <>
-            {/* 确认策略：savePairing 覆写配置后重启 daemon 生效 */}
+            {/* 确认策略：writeConfirmPolicy 只写配置后重启 daemon 生效（不重铸 PAT） */}
             <SelectRow
               label={t("profile.localSandbox.policy")}
               value={policy}
@@ -274,6 +320,17 @@ export function LocalSandboxSection() {
               >
                 <RotateCw size={12} className="opacity-50" />
                 {t("profile.localSandbox.restartDaemon")}
+              </button>
+              <button
+                type="button"
+                onClick={handleUnpair}
+                disabled={unpairing}
+                className="flex items-center gap-1.5 rounded-xl border border-red-200 dark:border-red-900/60 px-3 py-1.5 text-xs text-red-600 dark:text-red-400 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50"
+              >
+                <Link2Off size={12} className="opacity-50" />
+                {unpairing
+                  ? t("common.loading")
+                  : t("profile.localSandbox.unpair")}
               </button>
             </div>
           </>

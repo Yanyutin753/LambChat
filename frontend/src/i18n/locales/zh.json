@@ -2152,7 +2152,9 @@
       "openAudit": "打开审计目录",
       "restartDaemon": "重启 daemon",
       "needDesktop": "本地沙箱需要 LambChat 桌面端，网页端仅支持云端沙箱。",
-      "pairFailed": "配对失败，请检查账号密码后重试"
+      "pairFailed": "配对失败，请检查账号密码后重试",
+      "unpair": "取消配对",
+      "unpaired": "已取消配对"
     },
     "maxPinnedModels": "最多置顶 {{max}} 个模型",
     "memoryToggle": "跨会话记忆",

@@ -2152,7 +2152,9 @@
       "openAudit": "감사 폴더 열기",
       "restartDaemon": "daemon 재시작",
       "needDesktop": "로컬 샌드박스에는 LambChat 데스크톱 앱이 필요합니다. 웹에서는 클라우드 샌드박스만 사용할 수 있습니다.",
-      "pairFailed": "페어링에 실패했습니다. 계정 정보를 확인하고 다시 시도하세요."
+      "pairFailed": "페어링에 실패했습니다. 계정 정보를 확인하고 다시 시도하세요.",
+      "unpair": "페어링 해제",
+      "unpaired": "페어링이 해제되었습니다"
     },
     "maxPinnedModels": "최대 {{max}}개 모델을 고정할 수 있습니다",
     "memoryToggle": "세션 간 메모리",

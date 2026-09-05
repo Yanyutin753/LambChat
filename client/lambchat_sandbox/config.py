@@ -19,6 +19,9 @@ class SandboxConfig:
     data_root: Path = Path.home() / ".lambchat" / "workspaces"
     confirm_policy: str = "all"  # all | commands | none
     embedded_python: bool = True  # 内嵌 PBS 运行时（false 走系统 PATH）
+    # 壳侧配对回执（Rust save_pairing 落盘）：daemon 目前只回读不使用，
+    # 网页端 PAT 管理页可据此对上"哪一条是本机桌面壳"。
+    pat_id: str | None = None
 
 
 def config_path() -> Path:
@@ -42,11 +45,16 @@ def load_config(path: Path | None = None) -> SandboxConfig:
     if not isinstance(raw_embedded, bool):  # 旧配置缺字段走默认；非布尔值拒绝
         raise ConfigError(f"embedded_python must be a boolean, got {raw_embedded!r} ({p})")
 
+    raw_pat_id = raw.get("pat_id")
+    if raw_pat_id is not None and not isinstance(raw_pat_id, str):  # 壳侧写入；缺键走 None
+        raise ConfigError(f"pat_id must be a string or null, got {raw_pat_id!r} ({p})")
+
     cfg = SandboxConfig(
         server_url=str(raw.get("server_url", SandboxConfig.server_url)),
         data_root=Path(str(raw.get("data_root", SandboxConfig.data_root))),
         confirm_policy=str(raw.get("confirm_policy", SandboxConfig.confirm_policy)),
         embedded_python=raw_embedded,
+        pat_id=raw_pat_id,
     )
     _validate(cfg, p)
     return cfg
@@ -62,6 +70,8 @@ def save_config(cfg: SandboxConfig, path: Path | None = None) -> None:
         "confirm_policy": cfg.confirm_policy,
         "embedded_python": cfg.embedded_python,
     }
+    if cfg.pat_id is not None:  # 未设置不落键，保持旧配置文件形态
+        payload["pat_id"] = cfg.pat_id
     p.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 

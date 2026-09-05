@@ -64,3 +64,44 @@ def test_load_non_bool_embedded_python_rejected(tmp_path):
     p.write_text(json.dumps({"embedded_python": "yes"}))
     with pytest.raises(ConfigError):
         load_config(p)
+
+
+# ---------- pat_id（M4 T7：壳侧配对回执，daemon 回读用） ----------
+
+
+def test_pat_id_defaults_none():
+    assert SandboxConfig().pat_id is None
+
+
+def test_load_legacy_config_without_pat_id_stays_none(tmp_path):
+    """旧配置缺字段 → None（向后兼容，Rust 写入的 pat_id 不影响旧 daemon 语义）。"""
+    p = tmp_path / "sandbox.json"
+    p.write_text(json.dumps({"server_url": "http://127.0.0.1:8000", "confirm_policy": "none"}))
+    assert load_config(p).pat_id is None
+
+
+def test_load_reads_pat_id_written_by_shell(tmp_path):
+    """壳侧 Rust save_pairing 落盘的 pat_id 可被 daemon 回读。"""
+    p = tmp_path / "sandbox.json"
+    p.write_text(
+        json.dumps(
+            {"server_url": "http://127.0.0.1:8000", "confirm_policy": "all", "pat_id": "abc123"}
+        )
+    )
+    assert load_config(p).pat_id == "abc123"
+
+
+def test_save_roundtrip_keeps_pat_id(tmp_path):
+    p = tmp_path / "sandbox.json"
+    cfg = SandboxConfig(pat_id="abc123")
+    save_config(cfg, p)
+    raw = json.loads(p.read_text())
+    assert raw["pat_id"] == "abc123"
+    assert load_config(p).pat_id == "abc123"
+
+
+def test_save_omits_pat_id_when_unset(tmp_path):
+    """未设置时不写键：保持旧配置文件形态，避免 None 落盘。"""
+    p = tmp_path / "sandbox.json"
+    save_config(SandboxConfig(), p)
+    assert "pat_id" not in json.loads(p.read_text())

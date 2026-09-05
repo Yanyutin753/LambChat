@@ -65,6 +65,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             daemon::save_pairing,
+            daemon::write_confirm_policy,
+            daemon::clear_pairing,
+            daemon::read_pairing_pat,
             daemon::restart_daemon,
             daemon::daemon_process_status,
             daemon::open_local_path

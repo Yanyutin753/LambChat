@@ -71,6 +71,17 @@ async def test_revoke_makes_token_invalid(storage):
     assert verified is None and reason == "revoked"
 
 
+async def test_revoke_by_token_self_revokes_exactly_once(storage):
+    """自删端点路径：按 token 明文吊销自身，重复吊销返回 False。"""
+    token, _record = await storage.create(user_id="u1", name="shell", scopes=["sandbox:execute"])
+    assert await storage.revoke_by_token(token) is True
+    verified, reason = await storage.verify(token)
+    assert verified is None and reason == "revoked"
+    # 已吊销 / 未知 token → False（幂等拒绝）
+    assert await storage.revoke_by_token(token) is False
+    assert await storage.revoke_by_token("lc_pat_never_issued") is False
+
+
 async def test_expired_token_rejected(storage):
     token, _ = await storage.create(
         user_id="u1",

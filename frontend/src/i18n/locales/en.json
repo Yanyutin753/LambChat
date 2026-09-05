@@ -2152,7 +2152,9 @@
       "openAudit": "Open audit log",
       "restartDaemon": "Restart daemon",
       "needDesktop": "The local sandbox requires the LambChat desktop app. Only the cloud sandbox is available on the web.",
-      "pairFailed": "Pairing failed. Check your credentials and try again."
+      "pairFailed": "Pairing failed. Check your credentials and try again.",
+      "unpair": "Unpair",
+      "unpaired": "Pairing removed"
     },
     "maxPinnedModels": "Pin up to {{max}} models",
     "memoryToggle": "Cross-session memory",

@@ -104,6 +104,18 @@ class PATStorage:
         await self._get_collection().update_one({"pat_id": pat_id}, {"$set": {"revoked": True}})
         return True
 
+    async def revoke_by_token(self, token: str) -> bool:
+        """按 token 明文自撤销（自删端点用）：命中未撤销记录返回 True。"""
+        doc = await self._get_collection().find_one(
+            {"token_hash": _hash_token(token), "revoked": False}
+        )
+        if doc is None:
+            return False
+        await self._get_collection().update_one(
+            {"pat_id": doc["pat_id"]}, {"$set": {"revoked": True}}
+        )
+        return True
+
     async def touch_last_used(self, pat_id: str) -> None:
         await self._get_collection().update_one(
             {"pat_id": pat_id}, {"$set": {"last_used_at": _utcnow()}}

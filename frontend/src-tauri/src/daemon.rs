@@ -353,27 +353,49 @@ fn restrict_to_owner(path: &Path) -> Result<(), String> {
 ///
 /// - `~/.lambchat/pat`：PAT 明文（0600），与 client/lambchat_sandbox/auth.py 的
 ///   文件回退后端一致；
-/// - `~/.lambchat/sandbox.json`：server_url / data_root / confirm_policy，
+/// - `~/.lambchat/sandbox.json`：server_url / data_root / confirm_policy / pat_id，
 ///   与 client/lambchat_sandbox/config.py 的字段与校验规则保持一致，
-///   已存在的 `data_root` 原样保留（不覆盖用户自定义）。
+///   已存在的 `data_root` 原样保留（不覆盖用户自定义）；
+/// - `pat_id`：配对回执（PAT 记录 id）。Python config 侧可回读；
+///   `None`/空白 → 不写键（兼容旧形态）。
 #[tauri::command]
 pub fn save_pairing(
     server_url: String,
     pat: String,
     confirm_policy: String,
+    pat_id: Option<String>,
+) -> Result<(), String> {
+    let pat_id = pat_id
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty());
+    write_pairing_files(
+        &sandbox_home()?,
+        &server_url,
+        &pat,
+        &confirm_policy,
+        pat_id.as_deref(),
+    )
+}
+
+/// 文件层配对写入（可测试核心：home 由调用方注入）。
+fn write_pairing_files(
+    home: &Path,
+    server_url: &str,
+    pat: &str,
+    confirm_policy: &str,
+    pat_id: Option<&str>,
 ) -> Result<(), String> {
     if !(server_url.starts_with("http://") || server_url.starts_with("https://")) {
         return Err("server_url must start with http:// or https://".to_string());
     }
-    if !matches!(confirm_policy.as_str(), "all" | "commands" | "none") {
+    if !matches!(confirm_policy, "all" | "commands" | "none") {
         return Err("confirm_policy must be one of all/commands/none".to_string());
     }
     if pat.trim().is_empty() {
         return Err("pat must not be empty".to_string());
     }
 
-    let home = sandbox_home()?;
-    std::fs::create_dir_all(&home)
+    std::fs::create_dir_all(home)
         .map_err(|e| format!("failed to create {}: {e}", home.display()))?;
 
     let pat_file = home.join("pat");
@@ -395,17 +417,115 @@ pub fn save_pairing(
         })
         .unwrap_or_else(|| default_data_root.to_string_lossy().into_owned());
 
-    let payload = serde_json::json!({
+    let mut payload = serde_json::json!({
         "server_url": server_url,
         "data_root": data_root,
         "confirm_policy": confirm_policy,
     });
+    if let Some(id) = pat_id {
+        payload["pat_id"] = serde_json::Value::String(id.to_string());
+    }
     let mut body = serde_json::to_string_pretty(&payload)
         .map_err(|e| format!("failed to serialize sandbox config: {e}"))?;
     body.push('\n');
     std::fs::write(&config_path, body)
         .map_err(|e| format!("failed to write {}: {e}", config_path.display()))?;
     Ok(())
+}
+
+/// 只写 sandbox.json 的 confirm_policy，保留其余全部字段（含 pat_id / data_root /
+/// embedded_python）。策略切换用——不重铸 PAT、不碰凭据文件。
+#[tauri::command]
+pub fn write_confirm_policy(policy: String) -> Result<(), String> {
+    write_policy_only(&sandbox_home()?, &policy)
+}
+
+/// 文件层策略独立写（可测试核心：home 由调用方注入）。
+///
+/// 配置文件不存在时拒绝：没有配对就没有可改的策略（避免凭空造出半份配置）。
+fn write_policy_only(home: &Path, confirm_policy: &str) -> Result<(), String> {
+    if !matches!(confirm_policy, "all" | "commands" | "none") {
+        return Err("confirm_policy must be one of all/commands/none".to_string());
+    }
+    let config_path = home.join("sandbox.json");
+    let raw = std::fs::read_to_string(&config_path)
+        .map_err(|e| format!("failed to read {}: {e}", config_path.display()))?;
+    let mut cfg: serde_json::Value = serde_json::from_str(&raw)
+        .map_err(|e| format!("invalid JSON in {}: {e}", config_path.display()))?;
+    let obj = cfg
+        .as_object_mut()
+        .ok_or_else(|| format!("config root must be a JSON object: {}", config_path.display()))?;
+    obj.insert(
+        "confirm_policy".to_string(),
+        serde_json::Value::String(confirm_policy.to_string()),
+    );
+    let mut body = serde_json::to_string_pretty(&cfg)
+        .map_err(|e| format!("failed to serialize sandbox config: {e}"))?;
+    body.push('\n');
+    std::fs::write(&config_path, body)
+        .map_err(|e| format!("failed to write {}: {e}", config_path.display()))?;
+    Ok(())
+}
+
+/// 取消配对：停 daemon + 删 `~/.lambchat/pat` + 移除 sandbox.json 的 `pat_id` 键
+/// （其余配置保留，重新配对时可复用 server_url / data_root / 策略）。
+/// 服务端的 PAT 吊销由前端用读出的 PAT 调 `DELETE /api/auth/pat/current` 完成。
+#[tauri::command]
+pub fn clear_pairing(app: AppHandle) -> Result<(), String> {
+    stop(&app);
+    clear_pairing_files(&sandbox_home()?)
+}
+
+/// 文件层取消配对（可测试核心：home 由调用方注入）。幂等：文件不存在不报错。
+fn clear_pairing_files(home: &Path) -> Result<(), String> {
+    let pat_file = home.join("pat");
+    match std::fs::remove_file(&pat_file) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => return Err(format!("failed to remove {}: {e}", pat_file.display())),
+    }
+
+    let config_path = home.join("sandbox.json");
+    let raw = match std::fs::read_to_string(&config_path) {
+        Ok(raw) => raw,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(format!("failed to read {}: {e}", config_path.display())),
+    };
+    let mut cfg: serde_json::Value = serde_json::from_str(&raw)
+        .map_err(|e| format!("invalid JSON in {}: {e}", config_path.display()))?;
+    if let Some(obj) = cfg.as_object_mut() {
+        obj.remove("pat_id");
+    }
+    let mut body = serde_json::to_string_pretty(&cfg)
+        .map_err(|e| format!("failed to serialize sandbox config: {e}"))?;
+    body.push('\n');
+    std::fs::write(&config_path, body)
+        .map_err(|e| format!("failed to write {}: {e}", config_path.display()))?;
+    Ok(())
+}
+
+/// 读回配对 PAT（取消配对时前端拿它调服务端自删端点）。
+/// 文件缺失 → `Ok(None)`（未配对）。
+#[tauri::command]
+pub fn read_pairing_pat() -> Result<Option<String>, String> {
+    read_pat_file(&sandbox_home()?)
+}
+
+/// 文件层读 PAT（可测试核心：home 由调用方注入）。
+fn read_pat_file(home: &Path) -> Result<Option<String>, String> {
+    let pat_file = home.join("pat");
+    match std::fs::read_to_string(&pat_file) {
+        Ok(raw) => {
+            let trimmed = raw.trim();
+            if trimmed.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(trimmed.to_string()))
+            }
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("failed to read {}: {e}", pat_file.display())),
+    }
 }
 
 /// 重启托管的 daemon（stop → start）。
@@ -495,6 +615,103 @@ pub fn open_local_path(app: AppHandle, path: String) -> Result<(), String> {
 mod tests {
     use super::*;
     use std::sync::Arc;
+
+    /// 配对文件生命周期：save_pairing 落盘 pat_id → 策略独立写保留其余字段
+    /// → clear_pairing 删 pat 文件并移除 pat_id 键（M4 T7）。
+    ///
+    /// 单一测试函数内串行断言（共享同一 tmp 目录，无 $HOME 竞争）。
+    #[test]
+    fn pairing_files_lifecycle_pat_id_policy_and_clear() {
+        let tmp = std::env::temp_dir().join(format!(
+            "lambchat-daemon-pairing-test-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let home = tmp.join("home");
+        let sandbox = home.join(".lambchat");
+        let config_path = sandbox.join("sandbox.json");
+        let pat_path = sandbox.join("pat");
+
+        // ---- save_pairing：pat_id 落盘 ----
+        write_pairing_files(
+            &sandbox,
+            "https://lc.example",
+            "lc_pat_secret",
+            "all",
+            Some("pat-uuid-1"),
+        )
+        .unwrap();
+        let cfg: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+        assert_eq!(cfg["pat_id"], "pat-uuid-1");
+        assert_eq!(cfg["server_url"], "https://lc.example");
+        assert_eq!(cfg["confirm_policy"], "all");
+        // data_root 缺省落到 home 下 workspaces
+        assert_eq!(
+            cfg["data_root"].as_str().unwrap(),
+            sandbox.join("workspaces").to_string_lossy()
+        );
+        // pat 文件内容为明文 PAT
+        assert_eq!(std::fs::read_to_string(&pat_path).unwrap(), "lc_pat_secret");
+
+        // ---- save_pairing：pat_id 为 None → 不写键（旧形态） ----
+        write_pairing_files(&sandbox, "https://lc.example", "lc_pat_secret2", "none", None).unwrap();
+        let cfg: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+        assert!(cfg.get("pat_id").is_none());
+
+        // ---- write_policy_only：只改 confirm_policy，保留其余字段（含 pat_id） ----
+        write_pairing_files(
+            &sandbox,
+            "https://lc.example",
+            "lc_pat_secret3",
+            "commands",
+            Some("pat-uuid-2"),
+        )
+        .unwrap();
+        // 用户手工定制过的 data_root 必须保留
+        let mut custom: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+        custom["data_root"] = "/custom/ws".into();
+        custom["embedded_python"] = false.into();
+        std::fs::write(&config_path, serde_json::to_string_pretty(&custom).unwrap()).unwrap();
+
+        write_policy_only(&sandbox, "none").unwrap();
+        let cfg: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+        assert_eq!(cfg["confirm_policy"], "none");
+        assert_eq!(cfg["pat_id"], "pat-uuid-2");
+        assert_eq!(cfg["data_root"], "/custom/ws");
+        assert_eq!(cfg["embedded_python"], false);
+
+        // ---- read_pat_file：读回配对 PAT ----
+        assert_eq!(
+            read_pat_file(&sandbox).unwrap().as_deref(),
+            Some("lc_pat_secret3")
+        );
+
+        // ---- clear_pairing：删 pat 文件 + 移除 pat_id 键，其余保留 ----
+        clear_pairing_files(&sandbox).unwrap();
+        assert!(!pat_path.exists());
+        let cfg: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+        assert!(cfg.get("pat_id").is_none());
+        assert_eq!(cfg["server_url"], "https://lc.example");
+        assert_eq!(cfg["confirm_policy"], "none");
+        assert_eq!(read_pat_file(&sandbox).unwrap(), None);
+
+        // ---- 校验失败路径 ----
+        assert!(write_pairing_files(&sandbox, "ftp://bad", "p", "all", None).is_err());
+        assert!(write_pairing_files(&sandbox, "https://ok", "p", "yolo", None).is_err());
+        assert!(write_pairing_files(&sandbox, "https://ok", "  ", "all", None).is_err());
+        assert!(write_policy_only(&sandbox, "yolo").is_err());
+
+        // ---- clear_pairing 幂等：文件不存在也不报错 ----
+        let _ = std::fs::remove_dir_all(&sandbox);
+        clear_pairing_files(&sandbox).unwrap();
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 
     /// 白名单路径解析：真实路径放行、符号链接逃逸与 `..` 逃逸拒绝。
     ///

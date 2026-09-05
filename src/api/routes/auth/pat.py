@@ -3,10 +3,10 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
-from src.api.deps import get_current_user_required
+from src.api.deps import get_current_user_pat_or_jwt, get_current_user_required
 from src.infra.auth.pat import PATStorage
 from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import TokenPayload
@@ -80,6 +80,30 @@ async def list_pats(
             for r in records
         ]
     )
+
+
+@router.delete("/current")
+async def revoke_current_pat(
+    request: Request,
+    user: TokenPayload = Depends(get_current_user_pat_or_jwt),
+    storage: PATStorage = Depends(get_pat_storage),
+):
+    """PAT 自撤销：仅 Bearer PAT 可用，按 token 哈希吊销自身。
+
+    桌面壳"取消配对"用：壳侧没有账号 JWT、也不知道 pat_id，唯一凭据就是
+    配对时落盘的 PAT 本身。JWT 路径拒绝（该凭据应走 ``DELETE /{pat_id}``）。
+    注意：必须声明在 ``/{pat_id}`` 之前，否则 "current" 会被当成路径参数。
+    """
+    if getattr(request.state, "pat_scopes", None) is None:
+        raise AppError(
+            ErrorCode.BAD_REQUEST,
+            message="This endpoint only accepts a personal access token",
+        )
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    ok = await storage.revoke_by_token(token)
+    if not ok:
+        raise AppError(ErrorCode.PAT_NOT_FOUND)
+    return {"status": "ok"}
 
 
 @router.delete("/{pat_id}")

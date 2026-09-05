@@ -2152,7 +2152,9 @@
       "openAudit": "監査フォルダを開く",
       "restartDaemon": "daemon を再起動",
       "needDesktop": "ローカルサンドボックスには LambChat デスクトップアプリが必要です。ウェブではクラウドサンドボックスのみ利用できます。",
-      "pairFailed": "ペアリングに失敗しました。認証情報を確認して再試行してください。"
+      "pairFailed": "ペアリングに失敗しました。認証情報を確認して再試行してください。",
+      "unpair": "ペアリング解除",
+      "unpaired": "ペアリングを解除しました"
     },
     "maxPinnedModels": "最大{{max}}個のモデルをピン留めできます",
     "memoryToggle": "セッション横断メモリ",

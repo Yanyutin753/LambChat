@@ -63,15 +63,42 @@ export interface SavePairingOptions {
   pat: string;
   /** 确认策略：all | commands | none。 */
   confirmPolicy: string;
+  /** 配对回执（PAT 记录 id），落盘 sandbox.json 供回读/取消配对。 */
+  patId?: string;
 }
 
 /** 写入配对凭据（~/.lambchat/pat）与 daemon 配置（~/.lambchat/sandbox.json）。 */
 export function savePairing(opts: SavePairingOptions): Promise<void> {
-  return invokeInShell("save_pairing", {
+  const args: Record<string, unknown> = {
     serverUrl: opts.serverUrl,
     pat: opts.pat,
     confirmPolicy: opts.confirmPolicy,
-  }).then(() => undefined);
+  };
+  if (opts.patId !== undefined) {
+    args.patId = opts.patId;
+  }
+  return invokeInShell("save_pairing", args).then(() => undefined);
+}
+
+/**
+ * 只写确认策略（sandbox.json 的 confirm_policy，保留其余字段）。
+ * 策略切换专用——不重铸 PAT、不碰凭据文件，避免永久凭据累积。
+ */
+export function writeConfirmPolicy(policy: string): Promise<void> {
+  return invokeInShell("write_confirm_policy", { policy }).then(() => undefined);
+}
+
+/**
+ * 取消配对：停 daemon + 删 ~/.lambchat/pat + 移除 sandbox.json 的 pat_id
+ * （服务端 PAT 吊销由调用方先用 readPairingPat 的结果调自删端点完成）。
+ */
+export function clearPairing(): Promise<void> {
+  return invokeInShell("clear_pairing").then(() => undefined);
+}
+
+/** 读回配对 PAT（未配对时 null）。 */
+export function readPairingPat(): Promise<string | null> {
+  return invokeInShell<string | null>("read_pairing_pat");
 }
 
 /** 重启托管的 daemon（stop → start）。 */

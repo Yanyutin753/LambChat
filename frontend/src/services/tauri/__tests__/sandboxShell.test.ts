@@ -9,11 +9,14 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 
 import {
+  clearPairing,
   daemonProcessStatus,
   isShellAvailable,
   openLocalPath,
+  readPairingPat,
   restartDaemon,
   savePairing,
+  writeConfirmPolicy,
 } from "../sandboxShell.ts";
 
 function enterTauriShell(marker: "__TAURI__" | "__TAURI_INTERNALS__" = "__TAURI_INTERNALS__") {
@@ -126,13 +129,73 @@ test("savePairing invokes save_pairing with camelCase args", async () => {
     serverUrl: "http://127.0.0.1:8000",
     pat: "pat-token",
     confirmPolicy: "commands",
+    patId: "pat-uuid-1",
   });
 
   expect(mocks.invoke).toHaveBeenCalledWith("save_pairing", {
     serverUrl: "http://127.0.0.1:8000",
     pat: "pat-token",
     confirmPolicy: "commands",
+    patId: "pat-uuid-1",
   });
+});
+
+test("savePairing forwards patId as undefined when omitted (legacy shape)", async () => {
+  enterTauriShell();
+  mocks.invoke.mockResolvedValueOnce(undefined);
+
+  await savePairing({
+    serverUrl: "http://127.0.0.1:8000",
+    pat: "pat-token",
+    confirmPolicy: "all",
+  });
+
+  const args = mocks.invoke.mock.calls[0][1] as Record<string, unknown>;
+  expect(args).toMatchObject({
+    serverUrl: "http://127.0.0.1:8000",
+    pat: "pat-token",
+    confirmPolicy: "all",
+  });
+  // 未传 patId 时不携带该键（Rust Option<String> 收到 None）
+  expect("patId" in args).toBe(false);
+});
+
+test("writeConfirmPolicy invokes write_confirm_policy with the policy", async () => {
+  enterTauriShell();
+  mocks.invoke.mockResolvedValueOnce(undefined);
+
+  await writeConfirmPolicy("commands");
+
+  expect(mocks.invoke).toHaveBeenCalledWith("write_confirm_policy", {
+    policy: "commands",
+  });
+});
+
+test("clearPairing invokes clear_pairing with no args", async () => {
+  enterTauriShell();
+  mocks.invoke.mockResolvedValueOnce(undefined);
+
+  await clearPairing();
+
+  expect(mocks.invoke).toHaveBeenCalledWith("clear_pairing", undefined);
+});
+
+test("readPairingPat resolves the stored PAT or null", async () => {
+  enterTauriShell();
+  mocks.invoke.mockResolvedValueOnce("lc_pat_stored");
+  await expect(readPairingPat()).resolves.toBe("lc_pat_stored");
+
+  mocks.invoke.mockResolvedValueOnce(null);
+  await expect(readPairingPat()).resolves.toBeNull();
+
+  expect(mocks.invoke).toHaveBeenNthCalledWith(2, "read_pairing_pat", undefined);
+});
+
+test("writeConfirmPolicy and clearPairing reject outside the shell", async () => {
+  await expect(writeConfirmPolicy("all")).rejects.toThrow(/desktop shell/i);
+  await expect(clearPairing()).rejects.toThrow(/desktop shell/i);
+  await expect(readPairingPat()).rejects.toThrow(/desktop shell/i);
+  expect(mocks.invoke).not.toHaveBeenCalled();
 });
 
 test("restartDaemon invokes restart_daemon with no args", async () => {
