@@ -45,6 +45,16 @@ logger = get_logger(__name__)
 
 T = TypeVar("T")
 
+# 上传分块阈值：单条命令的原始内容上限 48KB（b64 后 ~64KB）。
+# b64 内容作为单个 argv 下发，内核 MAX_ARG_STRLEN 限制单参数 128KB，
+# 扣除引号/命令前缀开销后 ~96KB 即触发 E2BIG（Errno 7）——48KB 留足余量。
+_UPLOAD_CHUNK_RAW_BYTES = 48 * 1024
+
+# 下载单文件上限 2MB：与服务端 SANDBOX_RESULTS_MAX_BYTES（2 MiB）同量级。
+# 无预检时超限文件会整读 base64 回传，轻则链路中途炸出含糊错误、重则撑爆
+# results 回传 body——stat 预检在 daemon 侧给显式 file_too_large 而非 base64。
+_DOWNLOAD_MAX_BYTES = 2 * 1024 * 1024
+
 
 def _run_coro_sync(coro: Coroutine[Any, Any, T]) -> T:
     """在同步上下文中运行异步协程（照 _skills_path_utils._run_async 模式）。
@@ -76,6 +86,15 @@ def _classify_file_error(text: str) -> ExtendedFileError:
         return "permission_denied"
     if "is a directory" in lowered or "errno 21]" in lowered or "eisdir" in lowered:
         return "is_directory"
+    # E2BIG（Errno 7，argv 超长）/ EFBIG（Errno 27）/ 显式超限文本（下载预检）
+    if (
+        "too large" in lowered
+        or "too_large" in lowered
+        or "argument list too long" in lowered
+        or "errno 7]" in lowered
+        or "e2big" in lowered
+    ):
+        return "file_too_large"
     return "file_not_found"
 
 
@@ -142,23 +161,77 @@ class LocalSandboxBackend(BaseSandbox):
     # =========================================================================
 
     @staticmethod
-    def _upload_command(path: str, content: bytes) -> str:
-        b64_content = base64.standard_b64encode(content).decode("ascii")
+    def _upload_command(path: str, content: bytes, *, append: bool = False) -> str:
+        mode = "ab" if append else "wb"
         parent = posixpath.dirname(path)
-        mkdir = f"mkdir -p {shlex.quote(parent)} && " if parent else ""
+        # 追加块落位时父目录必已存在（首块已 mkdir），无需重复创建
+        mkdir = f"mkdir -p {shlex.quote(parent)} && " if parent and not append else ""
+        b64_content = base64.standard_b64encode(content).decode("ascii")
         return (
             f'{mkdir}python3 -c "import base64, sys; '
-            f"open(sys.argv[1], 'wb').write(base64.b64decode(sys.argv[2]))\" "
+            f"open(sys.argv[1], '{mode}').write(base64.b64decode(sys.argv[2]))\" "
             f"{shlex.quote(path)} {shlex.quote(b64_content)}"
         )
 
+    @classmethod
+    def _upload_chunk_commands(cls, path: str, content: bytes) -> list[str]:
+        """上传命令序列：≤48KB 单命令直写；更大分块——首块 `wb` 截断创建，后续块 `ab` 追加。
+
+        整个 b64 塞单个 argv 会撞内核 MAX_ARG_STRLEN（E2BIG，见
+        _UPLOAD_CHUNK_RAW_BYTES 注释），分片后每条命令的 argv 都留足余量。
+        """
+        if len(content) <= _UPLOAD_CHUNK_RAW_BYTES:
+            return [cls._upload_command(path, content)]
+        commands = [cls._upload_command(path, content[:_UPLOAD_CHUNK_RAW_BYTES])]
+        for offset in range(_UPLOAD_CHUNK_RAW_BYTES, len(content), _UPLOAD_CHUNK_RAW_BYTES):
+            commands.append(
+                cls._upload_command(
+                    path, content[offset : offset + _UPLOAD_CHUNK_RAW_BYTES], append=True
+                )
+            )
+        return commands
+
     @staticmethod
     def _download_command(path: str) -> str:
-        return (
-            'python3 -c "import base64, sys; '
-            "sys.stdout.buffer.write(base64.b64encode(open(sys.argv[1], 'rb').read()))\" "
-            f"{shlex.quote(path)}"
+        # stat 预检：超限打印显式 error（exit 1，stderr 带 file_too_large 标记与
+        # 字节数）而非输出 base64；不存在的路径仍由 python 抛 ENOENT 走原分类。
+        script = (
+            "import os, sys, base64\n"
+            "size = os.path.getsize(sys.argv[1])\n"
+            f"if size > {_DOWNLOAD_MAX_BYTES}:\n"
+            f"    sys.stderr.write('file_too_large: %d bytes exceeds {_DOWNLOAD_MAX_BYTES} limit'\n"
+            "                  ' (download cap)')\n"
+            "    sys.exit(1)\n"
+            "sys.stdout.buffer.write(base64.b64encode(open(sys.argv[1], 'rb').read()))"
         )
+        return f'python3 -c "{script}" {shlex.quote(path)}'
+
+    def _upload_one(self, path: str, content: bytes) -> FileUploadResponse:
+        try:
+            for command in self._upload_chunk_commands(path, content):
+                result = self.execute(command)
+                if result.exit_code != 0:
+                    return self._upload_response(path, result)
+        except AppError:
+            # 中继级故障（离线/超时）不属于单文件错误，向上透传给统一错误处理
+            raise
+        except Exception:
+            logger.exception("local upload_files(%s) failed", path)
+            return file_upload_response(path=path, error="invalid_path")
+        return FileUploadResponse(path=path, error=None)
+
+    async def _aupload_one(self, path: str, content: bytes) -> FileUploadResponse:
+        try:
+            for command in self._upload_chunk_commands(path, content):
+                result = await self.aexecute(command)
+                if result.exit_code != 0:
+                    return self._upload_response(path, result)
+        except AppError:
+            raise
+        except Exception:
+            logger.exception("local aupload_files(%s) failed", path)
+            return file_upload_response(path=path, error="invalid_path")
+        return FileUploadResponse(path=path, error=None)
 
     def _upload_response(self, path: str, result: ExecuteResponse) -> FileUploadResponse:
         if result.exit_code != 0:
@@ -175,11 +248,17 @@ class LocalSandboxBackend(BaseSandbox):
             return file_download_response(
                 path=path, content=None, error=_classify_file_error(error_text)
             )
+        stdout = (result.get("stdout") or "").strip()
         try:
-            content = base64.b64decode((result.get("stdout") or "").strip())
+            content = base64.b64decode(stdout)
         except (ValueError, TypeError):
+            # 解码失败 ≠ 文件不存在：错误带原始 stdout 片段供排查，不误报 file_not_found
             logger.warning("local download_files(%s) got non-base64 output", path)
-            return file_download_response(path=path, content=None, error="file_not_found")
+            return file_download_response(
+                path=path,
+                content=None,
+                error=f"invalid_download_output: {stdout[:80]!r}",
+            )
         return FileDownloadResponse(path=path, content=content, error=None)
 
     async def _download_one(self, path: str) -> FileDownloadResponse:
@@ -197,33 +276,13 @@ class LocalSandboxBackend(BaseSandbox):
         return self._download_response(path, result)
 
     def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
-        responses: list[FileUploadResponse] = []
-        for path, content in files:
-            try:
-                result = self.execute(self._upload_command(path, content))
-            except AppError:
-                # 中继级故障（离线/超时）不属于单文件错误，向上透传给统一错误处理
-                raise
-            except Exception:
-                logger.exception("local upload_files(%s) failed", path)
-                responses.append(file_upload_response(path=path, error="invalid_path"))
-                continue
-            responses.append(self._upload_response(path, result))
-        return responses
+        return [self._upload_one(path, content) for path, content in files]
 
     async def aupload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
         # 覆盖协议默认（to_thread 同步版）：直接走 aexecute，避免事件循环桥接
         responses: list[FileUploadResponse] = []
         for path, content in files:
-            try:
-                result = await self.aexecute(self._upload_command(path, content))
-            except AppError:
-                raise
-            except Exception:
-                logger.exception("local aupload_files(%s) failed", path)
-                responses.append(file_upload_response(path=path, error="invalid_path"))
-                continue
-            responses.append(self._upload_response(path, result))
+            responses.append(await self._aupload_one(path, content))
         return responses
 
     def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
@@ -439,19 +498,17 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
     def edit(self, file_path: str, old_string: str, new_string: str, replace_all: bool = False):
         result = super().edit(self._strip_required(file_path), old_string, new_string, replace_all)
         if result.path is not None:
-            return EditResult(
-                error=result.error, path=file_path, occurrences=result.occurrences
-            )
+            return EditResult(error=result.error, path=file_path, occurrences=result.occurrences)
         return result
 
-    async def aedit(self, file_path: str, old_string: str, new_string: str, replace_all: bool = False):
+    async def aedit(
+        self, file_path: str, old_string: str, new_string: str, replace_all: bool = False
+    ):
         result = await super().aedit(
             self._strip_required(file_path), old_string, new_string, replace_all
         )
         if result.path is not None:
-            return EditResult(
-                error=result.error, path=file_path, occurrences=result.occurrences
-            )
+            return EditResult(error=result.error, path=file_path, occurrences=result.occurrences)
         return result
 
     def delete(self, file_path: str) -> DeleteResult:

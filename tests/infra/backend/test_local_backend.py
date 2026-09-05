@@ -26,9 +26,7 @@ def _real_exec_dispatch(cwd: Path):
     """
 
     async def fake_dispatch(user_id, op, payload, *, timeout=None):
-        proc = subprocess.run(
-            payload["command"], shell=True, cwd=cwd, capture_output=True
-        )
+        proc = subprocess.run(payload["command"], shell=True, cwd=cwd, capture_output=True)
         return {
             "status": "ok",
             "stdout": proc.stdout.decode("utf-8", errors="replace"),
@@ -304,3 +302,91 @@ async def test_alias_aread_passthrough_for_outside_absolute_path(monkeypatch, tm
     await backend.aread("/etc/hostname")
     assert captured == ["/workspace/s1"]  # cwd 契约不变，仍是虚拟别名
 
+
+# =========================================================================
+# F2: 传输上限与误报（分块上传 / 下载 size 预检 / 错误分类）
+# =========================================================================
+
+
+async def test_aupload_files_large_content_chunked_end_to_end(monkeypatch, tmp_path):
+    """端到端验收：>128KB 内容上传成功——分块多条命令写入，落盘内容逐字节一致。
+
+    旧实现把整个 base64 塞单个 argv，超过内核 MAX_ARG_STRLEN（单参数 128KB，
+    扣除引号/命令开销 ~96KB 即断）触发 E2BIG，且被误分类为 file_not_found。
+    """
+    content = bytes(range(256)) * 1024  # 256KB 确定性内容
+    commands: list[str] = []
+    real = _real_exec_dispatch(tmp_path)
+
+    async def tracking_dispatch(user_id, op, payload, *, timeout=None):
+        commands.append(payload["command"])
+        return await real(user_id, op, payload, timeout=timeout)
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", tracking_dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    responses = await backend.aupload_files([("/workspace/s1/big.bin", content)])
+
+    assert responses[0].error is None
+    assert (tmp_path / "big.bin").read_bytes() == content
+    assert len(commands) > 1  # 分块：多条命令而非单个巨型 argv
+    assert all(len(cmd) < 100_000 for cmd in commands)  # 单命令远离 MAX_ARG_STRLEN
+
+
+def test_upload_chunk_commands_split_bounds():
+    """分块边界：超 48KB 起分片——首块 wb 截断创建（含 mkdir），后续块 ab 追加。"""
+    content = b"x" * (48 * 1024 + 1)
+    cmds = LocalSandboxBackend._upload_chunk_commands("sub/dir/f.bin", content)
+    assert len(cmds) == 2
+    assert "mkdir -p" in cmds[0] and "'wb'" in cmds[0]
+    assert "mkdir -p" not in cmds[1] and "'ab'" in cmds[1]
+    assert all(len(c) < 100_000 for c in cmds)
+
+
+def test_upload_chunk_commands_single_command_at_or_below_threshold():
+    """≤48KB 保持单命令直写（不额外拆分）。"""
+    assert len(LocalSandboxBackend._upload_chunk_commands("f", b"x" * (48 * 1024))) == 1
+    assert len(LocalSandboxBackend._upload_chunk_commands("f", b"tiny")) == 1
+
+
+async def test_adownload_files_oversized_explicit_error(monkeypatch, tmp_path):
+    """端到端验收：>2MB 文件下载得显式 file_too_large，而非 base64 半途炸或误报。"""
+    (tmp_path / "big.bin").write_bytes(b"0" * (local_module._DOWNLOAD_MAX_BYTES + 1))
+    monkeypatch.setattr(local_module, "dispatch_local_call", _real_exec_dispatch(tmp_path))
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    responses = await backend.adownload_files(["/workspace/s1/big.bin"])
+    assert responses[0].error == "file_too_large"
+    assert responses[0].content is None
+
+
+async def test_adownload_files_within_limit_roundtrips(monkeypatch, tmp_path):
+    """限内文件走 stat 预检路径正常回读：内容逐字节一致。"""
+    payload = b"roundtrip-body-\x00\x01" * 64
+    (tmp_path / "ok.bin").write_bytes(payload)
+    monkeypatch.setattr(local_module, "dispatch_local_call", _real_exec_dispatch(tmp_path))
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    responses = await backend.adownload_files(["/workspace/s1/ok.bin"])
+    assert responses[0].error is None
+    assert responses[0].content == payload
+
+
+def test_classify_maps_too_large_and_e2big():
+    """Errno 7（E2BIG）与显式超限文本 → file_too_large，不得回落 file_not_found。"""
+    classify = local_module._classify_file_error
+    assert classify("[Errno 7] Argument list too long") == "file_too_large"
+    assert classify("file_too_large: 3145728 bytes exceeds 2097152 limit") == "file_too_large"
+    assert classify("OSError: [Errno 27] File too large") == "file_too_large"
+
+
+async def test_adownload_decode_failure_carries_original_output(monkeypatch):
+    """b64decode 异常不得标成 file_not_found：错误带原始 stdout 片段供排查。"""
+    garbage = "not!!valid!!b64!!"
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+        return _ok_response(stdout=garbage)
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    responses = await backend.adownload_files(["/workspace/s1/a.txt"])
+    assert responses[0].error != "file_not_found"
+    assert garbage in str(responses[0].error)
+    assert responses[0].content is None
