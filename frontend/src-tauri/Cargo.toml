@@ -16,8 +16,9 @@ tauri-build = { version = "2.6.2", features = [] }
 
 [dependencies]
 tauri = { version = "2.11.2", features = ["tray-icon"] }
-tauri-plugin-notification = "2.3.3"
-tauri-plugin-updater = "2"
+# NPM 侧同名包须保持相同 major.minor（tauri build 启动校验，不一致直接报错）
+tauri-plugin-notification = "2.4"
+tauri-plugin-updater = "2.11"
 tauri-plugin-process = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-opener = "2"

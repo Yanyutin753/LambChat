@@ -46,7 +46,18 @@ if (iconResult.status !== 0) {
   process.exit(iconResult.status ?? 1);
 }
 
-const args = ["dlx", tauriCliPackage, "build", "--ci", "--no-sign"];
+// 统一证书签名：CI 提供 TAURI_SIGNING_PRIVATE_KEY 时必须签名（updater 产物
+// .sig/latest.json 依赖它，跳过则客户端无法自动更新）；仅本地无密钥时降级 --no-sign。
+const hasSigningKey = Boolean(process.env.TAURI_SIGNING_PRIVATE_KEY);
+if (!hasSigningKey) {
+  console.log(
+    "TAURI_SIGNING_PRIVATE_KEY not set: updater artifacts will be unsigned (--no-sign).",
+  );
+}
+const args = ["dlx", tauriCliPackage, "build", "--ci"];
+if (!hasSigningKey) {
+  args.push("--no-sign");
+}
 
 const target = process.env.TAURI_TARGET || process.env.DESKTOP_TARGET || "";
 if (target) {
