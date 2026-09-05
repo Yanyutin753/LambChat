@@ -44,8 +44,11 @@ pub struct DaemonManager {
     child: Mutex<Option<DaemonChild>>,
     /// 意外退出后的已重启次数。
     restarts: AtomicU8,
-    /// 每次 start/stop 递增；监视线据此判断退出事件是否仍属于"当前这代"进程，
-    /// 避免 stop 之后的迟到退出事件被误判为意外退出而触发重启。
+    /// 每次 start/stop 递增（**一律持有 `child` 锁**，stop 亦然——递增点
+    /// 必须与 [`DaemonManager::take_if_current`] 的持锁复检配对，否则迟到
+    /// 的退出事件可在锁缝里 take 掉新代子进程）；监视线据此判断退出事件
+    /// 是否仍属于"当前这代"进程，避免 stop 之后的迟到退出事件被误判为
+    /// 意外退出而触发重启。
     generation: AtomicU64,
     /// 无任何可用 daemon 可执行（无 env 覆盖且 sidecar 缺失）时置位。
     unsupported: AtomicBool,
@@ -59,6 +62,30 @@ impl Default for DaemonManager {
             generation: AtomicU64::new(0),
             unsupported: AtomicBool::new(false),
         }
+    }
+}
+
+impl DaemonManager {
+    /// 子进程退出事件的归属判定：**持锁复检** generation 后取走槽位。
+    ///
+    /// 返回 `Some(child)` 表示退出事件确属该代（槽位已取走）；`None` 表示
+    /// 已被新一轮 start/stop 接管（或同代槽位已被处理过），调用方不得动
+    /// 槽位也不得重启。
+    ///
+    /// 并发正确性：generation 的所有递增点（start/stop）都持有 `child` 锁，
+    /// 因此「读 generation + take 槽位」必须同样全程持锁——若在锁外读
+    /// generation、锁内才 take（旧写法），restart_daemon 恰好落在两步之间时
+    /// （stop 清槽递增、start 装入新子进程再递增），迟到的 handle_exit 会
+    /// take 掉**新代**子进程的句柄：新进程从此无人 stop 成为孤儿，随后的
+    /// 重启逻辑再拉起一个 daemon——双实例。持锁复检后，generation 仍等于
+    /// 该代就意味着锁的互斥性保证没有任何 start/stop 发生过，槽位必然
+    /// 属于这一代（回归锚点：tests::take_if_current_never_takes_slot_of_newer_generation）。
+    fn take_if_current(&self, generation: u64) -> Option<DaemonChild> {
+        let mut slot = self.child.lock().unwrap();
+        if self.generation.load(Ordering::SeqCst) != generation {
+            return None;
+        }
+        slot.take()
     }
 }
 
@@ -141,9 +168,12 @@ pub fn start(app: &AppHandle) -> Result<(), String> {
 /// 停止 daemon：kill 子进程、清理句柄、重启计数归零。幂等。
 pub fn stop(app: &AppHandle) {
     let manager = app.state::<DaemonManager>();
-    // 先递增 generation，使在飞行的监视线失效（不触发重启）。
-    manager.generation.fetch_add(1, Ordering::SeqCst);
     let mut slot = manager.child.lock().unwrap();
+    // 持锁递增 generation（与 start 一致）：generation 的全部变更点都在
+    // child 锁内，handle_exit 的持锁复检（take_if_current）才能成立。递增后，
+    // 在飞行的监视线即便刚通过锁外的快速检查，也会在 handle_exit 的锁内
+    // 复检被拦下，不会把这次主动 stop 误判为意外退出而触发重启。
+    manager.generation.fetch_add(1, Ordering::SeqCst);
     match slot.take() {
         Some(DaemonChild::Env(mut child)) => {
             warn_log!("stopping daemon (pid {})", child.id());
@@ -247,12 +277,16 @@ fn process_alive(pid: u32) -> bool {
 }
 
 /// 子进程退出后的统一处理：仅当退出事件仍属于当前 generation 时才视为意外退出。
+///
+/// 归属判定经 [`DaemonManager::take_if_current`] **持锁复检** generation
+/// （推理见其注释）：旧写法在锁外读 generation、锁内才 take，restart_daemon
+/// 落在两步之间时会 take 掉新代子进程（孤儿 + 双实例）。锁在进入重启流程前
+/// 已释放，下方 start 内部重新获取，无死锁。
 fn handle_exit(app: &AppHandle, generation: u64) {
     let manager = app.state::<DaemonManager>();
-    if manager.generation.load(Ordering::SeqCst) != generation {
-        return; // 已被 stop() 或新一轮 start() 接管，交由新逻辑负责
+    if manager.take_if_current(generation).is_none() {
+        return; // 已被 stop() 或新一轮 start() 接管（或同代槽位已处理过），交由新逻辑负责
     }
-    manager.child.lock().unwrap().take();
 
     let restarts = manager.restarts.fetch_add(1, Ordering::SeqCst);
     if restarts >= MAX_RESTARTS {
@@ -460,6 +494,7 @@ pub fn open_local_path(app: AppHandle, path: String) -> Result<(), String> {
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
+    use std::sync::Arc;
 
     /// 白名单路径解析：真实路径放行、符号链接逃逸与 `..` 逃逸拒绝。
     ///
@@ -521,5 +556,79 @@ mod tests {
             None => std::env::remove_var("HOME"),
         }
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// handle_exit 竞窗回归锚点（M3 终审 F3）：迟到的退出事件不得取走
+    /// 新一代子进程的句柄。
+    ///
+    /// 场景回放：gen=1 的监视线在锁外读完 generation（仍为 1）后阻塞在
+    /// child 锁上；restart_daemon 随后完整交错——stop 清槽递增 generation、
+    /// start 放入新子进程再递增。旧实现（锁外检查、锁内才 take）此刻醒来
+    /// 会 take 掉新代子进程：句柄被无人 kill 地丢弃 → 孤儿进程，随后
+    /// handle_exit 的重启逻辑再拉一个 daemon → 双实例。
+    ///
+    /// 构造方式：主线程自装入 gen=1 子进程起持续持有 child 锁（与修复后
+    /// start/stop 的持锁纪律一致），监视线线程的锁外检查读到的必然仍是
+    /// generation==1；主线程在锁内完成 stop+start 的等效交错后放锁。
+    /// 修复后的 take_if_current 持锁复检 generation，只能返回 None；
+    /// 若返回 Some，其子进程必须是 gen=1 的那个（pid 相等），绝不可能是
+    /// 新装入的子进程。
+    #[test]
+    fn take_if_current_never_takes_slot_of_newer_generation() {
+        let manager = Arc::new(DaemonManager::default());
+        let child_gen1 = std::process::Command::new("sleep").arg("30").spawn().unwrap();
+        let pid_gen1 = child_gen1.id();
+        let child_gen3 = std::process::Command::new("sleep").arg("30").spawn().unwrap();
+
+        // 主线程持锁：装入 gen=1 的子进程（start 的落点效果）。
+        let mut slot = manager.child.lock().unwrap();
+        manager.generation.store(1, Ordering::SeqCst);
+        *slot = Some(DaemonChild::Env(child_gen1));
+
+        // 监视线线程：此刻 generation 仍为 1（主线程持锁且尚未递增）。
+        // 旧实现在锁外通过检查后，会阻塞在主线程持有的 child 锁上。
+        let stale_manager = Arc::clone(&manager);
+        let stale_exit = std::thread::spawn(move || stale_manager.take_if_current(1));
+
+        // 给监视线足够时间完成锁外检查并阻塞在锁上（50ms ≫ 线程启动）。
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        // restart_daemon 交错（修复后纪律：generation 变更全程持锁）——
+        // stop：gen→2、取走并 kill 旧子进程；start：gen→3、装入新子进程。
+        manager.generation.fetch_add(1, Ordering::SeqCst);
+        if let Some(DaemonChild::Env(mut old)) = slot.take() {
+            let _ = old.kill();
+            let _ = old.wait();
+        }
+        manager.generation.fetch_add(1, Ordering::SeqCst);
+        *slot = Some(DaemonChild::Env(child_gen3));
+        drop(slot);
+
+        match stale_exit.join().unwrap() {
+            // 正确：迟到的 gen=1 退出事件不得触碰新一代槽位。
+            None => {}
+            // 理论上仅当交错未发生（gen 仍为 1 时取走原槽位）才会走到这里，
+            // 此时取到的必须是 gen=1 的子进程本身；取到新代 pid 即竞窗实锤。
+            Some(DaemonChild::Env(mut c)) => {
+                let pid = c.id();
+                let _ = c.kill();
+                let _ = c.wait();
+                assert_eq!(
+                    pid, pid_gen1,
+                    "stale exit handler took the child of a newer generation"
+                );
+            }
+            Some(DaemonChild::Sidecar(_)) => panic!("unexpected sidecar child in test"),
+        }
+
+        // 新代子进程必须仍在槽内（未被迟到的退出事件 take 掉）。
+        let mut final_slot = manager.child.lock().unwrap();
+        match final_slot.take() {
+            Some(DaemonChild::Env(mut c)) => {
+                let _ = c.kill();
+                let _ = c.wait();
+            }
+            _ => panic!("new-generation child was taken by the stale exit handler"),
+        }
     }
 }
