@@ -24,8 +24,16 @@ import {
 import { APP_TOASTER_CLASS_NAME } from "./components/layout/AppContent/appToastLayout";
 import { PwaStatusToasts } from "./components/pwa/PwaStatusToasts";
 import { appNotificationService } from "./services/notifications/appNotificationService";
-import { UpdateDialog } from "./components/update/UpdateDialog";
 import { useAutoUpdate } from "./hooks/useAutoUpdate";
+
+// 更新对话框懒加载（M4 T8 PWA 预算）：仅在「有新版本且用户未跳过」时才
+// 渲染的桌面/移动端专属 UI——拆出 eager 包（含 UpdateProgressBar），
+// 启动 JS 不再为此买单。fallback null：对话框按需挂载，无骨架可显。
+const UpdateDialog = lazy(() =>
+  import("./components/update/UpdateDialog").then((m) => ({
+    default: m.UpdateDialog,
+  })),
+);
 
 const SharedEntry = lazy(() =>
   import("./components/share/SharedEntry").then((m) => ({
@@ -418,14 +426,16 @@ function App() {
         </Toaster>
         <PwaStatusToasts />
         {showUpdateDialog && updateState.available && (
-          <UpdateDialog
-            state={updateState}
-            isOpen={showUpdateDialog}
-            onUpgrade={startUpdate}
-            onSkip={skipUpdate}
-            onDismiss={() => setShowUpdateDialog(false)}
-            platform={updatePlatform as "tauri" | "android" | "ios"}
-          />
+          <Suspense fallback={null}>
+            <UpdateDialog
+              state={updateState}
+              isOpen={showUpdateDialog}
+              onUpgrade={startUpdate}
+              onSkip={skipUpdate}
+              onDismiss={() => setShowUpdateDialog(false)}
+              platform={updatePlatform as "tauri" | "android" | "ios"}
+            />
+          </Suspense>
         )}
         <SelectionActionPopover />
         <Suspense fallback={<ChatPageSkeleton />}>

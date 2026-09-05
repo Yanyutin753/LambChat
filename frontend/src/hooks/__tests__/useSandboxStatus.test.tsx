@@ -95,3 +95,46 @@ test("stops polling after unmount", async () => {
   // unmount 后事件监听已清理，不再发起请求
   expect(mocks.getStatus).toHaveBeenCalledTimes(1);
 });
+
+function GatedProbe({ enabled }: { enabled: boolean }) {
+  const { status, statusError } = useSandboxStatus({ enabled });
+  return (
+    <div data-testid="probe">
+      {JSON.stringify({ status, statusError })}
+    </div>
+  );
+}
+
+test("enabled=false does not fetch, poll, or react to refresh events", async () => {
+  mocks.getStatus.mockResolvedValue({ online: false });
+
+  const view = render(<GatedProbe enabled={false} />);
+
+  act(() => {
+    notifySandboxStatusRefresh();
+  });
+  // 门控关闭：不拉取、不响应刷新事件
+  expect(mocks.getStatus).not.toHaveBeenCalled();
+
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  view.unmount();
+});
+
+test("enabled toggles polling on and picks up immediately on open", async () => {
+  mocks.getStatus.mockResolvedValue({ online: true });
+
+  const view = render(<GatedProbe enabled={false} />);
+  expect(mocks.getStatus).not.toHaveBeenCalled();
+
+  // false → true：effect 重跑，立即补拉一次（popover 展开瞬间拿到状态）
+  view.rerender(<GatedProbe enabled={true} />);
+  await waitFor(() => expect(mocks.getStatus).toHaveBeenCalledTimes(1));
+
+  // 回到 false：不再轮询（刷新事件被门控挡下）
+  view.rerender(<GatedProbe enabled={false} />);
+  act(() => {
+    notifySandboxStatusRefresh();
+  });
+  expect(mocks.getStatus).toHaveBeenCalledTimes(1);
+  view.unmount();
+});

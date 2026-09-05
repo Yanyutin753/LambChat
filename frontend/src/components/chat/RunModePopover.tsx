@@ -72,8 +72,10 @@ export function RunModePopover({
 }: RunModePopoverProps) {
   const { t } = useTranslation();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  // 沙箱条目上的 daemon 在线状态点（绿=在线，灰=离线）
-  const { online: sandboxOnline } = useSandboxStatus();
+  // 沙箱条目上的 daemon 在线状态点（绿=在线，灰=离线）。
+  // 轮询门控：仅 popover 展开时拉取/轮询（关闭期间浮层不可见，不空转 10s
+  // 轮询）；ChatInputSelectors 的常驻实例保持 always-on 不受影响。
+  const { online: sandboxOnline } = useSandboxStatus({ enabled: open });
 
   const hasSettings =
     hasAgentSelector ||

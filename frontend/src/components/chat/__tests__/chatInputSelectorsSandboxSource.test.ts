@@ -39,3 +39,13 @@ test("sandbox status dot anchors to the visible popover entry, not a closed-stat
   expect(runModePopoverSource).toMatch(/data-sandbox-status-dot/);
   expect(source).not.toMatch(/data-sandbox-status-dot/);
 });
+
+test("popover gates sandbox status polling on its open state; the selector stays always-on", () => {
+  // 轮询门控（M4 T8）：RunModePopover 只在展开时拉取/轮询（浮层关闭期间
+  // 状态点不可见，不空转 10s 轮询）；ChatInputSelectors 的常驻实例保持
+  // always-on（选择器动态适配依赖它）。
+  expect(runModePopoverSource).toMatch(/useSandboxStatus\(\{ enabled: open \}\)/);
+  // 选择器实例不传参数（缺省 enabled=true 的常驻轮询）
+  expect(source).toMatch(/useSandboxStatus\(\)/);
+  expect(source).not.toMatch(/useSandboxStatus\(\{/);
+});

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { lazy, Suspense, useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Settings } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -8,7 +8,6 @@ import { useAuth } from "../../../hooks/useAuth";
 import { authApi, agentConfigApi, agentApi } from "../../../services/api";
 import { DEFAULT_THINKING_LEVEL_STORAGE_KEY } from "../../layout/AppContent/useAgentOptions";
 import { resolveAgentDisplayName } from "../../agent/agentCatalog";
-import { LocalSandboxSection } from "../LocalSandboxSection";
 import { SelectRow } from "../SelectRow";
 import type { AgentInfo } from "../../../types";
 import type { Theme } from "../../../utils/themeDom";
@@ -23,6 +22,12 @@ import {
   SEND_MODIFIER_STORAGE_KEY,
   type SendModifier,
 } from "../../../hooks/sendModifier";
+
+// 本地沙箱分区懒加载（M4 T8 PWA 预算）：该分区携带 Tauri invoke 封装与
+// 配对表单，只有桌面壳用户才真正渲染——拆出 eager 包（设置页打开时按需
+// 加载），纯 web/移动端的启动 JS 不再为此买单。fallback null：设置页分区
+// 短暂空缺远好于把整段代码塞进启动路径。
+const LocalSandboxSection = lazy(() => import("../LocalSandboxSection"));
 
 const LANGUAGES = [
   { code: "en", nativeName: "English" },
@@ -368,7 +373,9 @@ export function ProfilePreferencesTab() {
         </div>
       </div>
 
-      <LocalSandboxSection />
+      <Suspense fallback={null}>
+        <LocalSandboxSection />
+      </Suspense>
     </div>
   );
 }

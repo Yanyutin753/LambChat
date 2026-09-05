@@ -339,3 +339,7 @@ export function LocalSandboxSection() {
     </div>
   );
 }
+
+// React.lazy 消费的默认导出（M4 T8 PWA 预算：设置页懒加载本分区）；
+// 具名导出保留给既有测试直接引用。
+export default LocalSandboxSection;

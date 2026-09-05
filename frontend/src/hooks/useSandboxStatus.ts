@@ -1,4 +1,5 @@
-// 本地沙箱 daemon 在线状态：挂载拉取 + 10s 轮询 + 事件立即刷新，失败静默。
+// 本地沙箱 daemon 在线状态：挂载拉取 + 10s 轮询 + 事件立即刷新，失败静默
+// （`enabled: false` 可整体门控，见 UseSandboxStatusOptions）。
 // 配对/重启完成后由 LocalSandboxSection 派发 sandbox-status-refresh 立即重拉；
 // 聊天输入区的沙箱选择器也消费该状态做动态适配（纯 web 仅在线时渲染本地档）。
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -17,12 +18,25 @@ function toStatusError(err: unknown): SandboxStatusError {
   return "failed";
 }
 
-export function useSandboxStatus(): {
+export interface UseSandboxStatusOptions {
+  /**
+   * 轮询门控（M4 T8）：false 时不拉取、不轮询、不响应刷新事件。
+   * 默认 true（选择器等常驻消费方保持 always-on）；RunModePopover 这类
+   * 仅在浮层展开时才展示状态点的消费方传 `enabled: open`，关闭期间
+   * 不再空转 10s 轮询。false→true 切换时立即补拉一次（effect 重跑）。
+   */
+  enabled?: boolean;
+}
+
+export function useSandboxStatus(
+  options?: UseSandboxStatusOptions,
+): {
   status: SandboxStatus | null;
   statusError: SandboxStatusError;
   online: boolean;
   refresh: () => void;
 } {
+  const enabled = options?.enabled ?? true;
   const [status, setStatus] = useState<SandboxStatus | null>(null);
   const [statusError, setStatusError] = useState<SandboxStatusError>(null);
   const inFlight = useRef(false);
@@ -52,6 +66,7 @@ export function useSandboxStatus(): {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     fetchStatus();
     const timer = setInterval(fetchStatus, REFRESH_INTERVAL_MS);
     const onRefresh = () => fetchStatus();
@@ -60,7 +75,7 @@ export function useSandboxStatus(): {
       clearInterval(timer);
       window.removeEventListener(SANDBOX_STATUS_REFRESH_EVENT, onRefresh);
     };
-  }, [fetchStatus]);
+  }, [fetchStatus, enabled]);
 
   return {
     status,
