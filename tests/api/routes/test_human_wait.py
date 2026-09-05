@@ -5,9 +5,14 @@ import json
 
 import pytest
 
+from src.api.deps import TokenPayload
 from src.api.routes import human
 from src.infra.storage.mongodb import ApprovalResponse
 from src.kernel.errors import AppError
+
+
+def _make_user(user_id: str = "user-1") -> TokenPayload:
+    return TokenPayload(sub=user_id, username="tester", exp=None)
 
 
 @pytest.mark.asyncio
@@ -72,6 +77,7 @@ async def test_respond_to_approval_offloads_response_json_parse(
 
     class _FakeApproval:
         status = "pending"
+        user_id = "user-1"
 
     class _FakeApprovalStorage:
         async def get(self, approval_id: str):
@@ -101,6 +107,7 @@ async def test_respond_to_approval_offloads_response_json_parse(
         "approval-1",
         approved=True,
         response='{"note": "ok"}',
+        user=_make_user(),
     )
 
     assert calls == [json.loads]
@@ -117,6 +124,7 @@ async def test_respond_to_approval_uses_atomic_pending_update(
 
     class _FakeApproval:
         status = "pending"
+        user_id = "user-1"
 
     class _FakeApprovalStorage:
         async def get(self, approval_id: str):
@@ -145,6 +153,7 @@ async def test_respond_to_approval_uses_atomic_pending_update(
             "approval-1",
             approved=True,
             response="{}",
+            user=_make_user(),
         )
 
     assert exc.value.error_code.code == "approval_already_handled"
@@ -162,6 +171,7 @@ async def test_interrupt_resume_failure_restores_pending_approval(
         id = "approval-1"
         status = "pending"
         session_id = "session-1"
+        user_id = "user-1"
         metadata = {"mode": "interrupt", "interrupt_id": "interrupt-a"}
 
     class _FakeApprovalStorage:
@@ -187,7 +197,12 @@ async def test_interrupt_resume_failure_restores_pending_approval(
     monkeypatch.setattr("src.infra.task.hitl.submit_hitl_resume_run", fake_submit)
 
     with pytest.raises(AppError) as exc:
-        await human.respond_to_approval("approval-1", approved=True, response="{}")
+        await human.respond_to_approval(
+            "approval-1",
+            approved=True,
+            response="{}",
+            user=_make_user(),
+        )
 
     assert exc.value.error_code.code == "human_resume_submit_failed"
     assert exc.value.http_status == 503
@@ -204,6 +219,7 @@ async def test_interrupt_resume_success_skips_blocking_waiter_notification(
         id = "approval-1"
         status = "pending"
         session_id = "session-1"
+        user_id = "user-1"
         metadata = {"mode": "interrupt", "interrupt_id": "interrupt-a"}
 
     class _FakeApprovalStorage:
@@ -228,7 +244,9 @@ async def test_interrupt_resume_success_skips_blocking_waiter_notification(
     monkeypatch.setattr("src.infra.task.hitl.submit_hitl_resume_run", fake_submit)
     monkeypatch.setattr("src.infra.task.hitl.settings.HITL_MODE", "blocking")
 
-    result = await human.respond_to_approval("approval-1", approved=True, response="{}")
+    result = await human.respond_to_approval(
+        "approval-1", approved=True, response="{}", user=_make_user()
+    )
 
     assert result["hitl_resume"]["submitted"] is True
     assert notified is False
@@ -244,6 +262,7 @@ async def test_arq_interrupt_prepares_before_atomic_response_and_activates(
         id = "approval-1"
         status = "pending"
         session_id = "session-1"
+        user_id = "user-1"
         metadata = {"mode": "interrupt", "run_id": "run-1", "trace_id": "trace-1"}
 
     class _FakeApprovalStorage:
@@ -280,7 +299,9 @@ async def test_arq_interrupt_prepares_before_atomic_response_and_activates(
     monkeypatch.setattr("src.infra.task.hitl.activate_hitl_resume_attempt", fake_activate)
     monkeypatch.setattr("src.infra.task.hitl.settings.TASK_BACKEND", "arq")
 
-    result = await human.respond_to_approval("approval-1", approved=True, response="{}")
+    result = await human.respond_to_approval(
+        "approval-1", approved=True, response="{}", user=_make_user()
+    )
 
     assert result["hitl_resume"]["run_id"] == "run-1"
     assert order == ["prepare", "claim", "activate"]
@@ -294,6 +315,7 @@ async def test_concurrent_arq_responses_activate_only_the_atomic_winner(
         id = "approval-1"
         status = "pending"
         session_id = "session-1"
+        user_id = "user-1"
         metadata = {"mode": "interrupt", "run_id": "run-1", "trace_id": "trace-1"}
 
     class _FakeApprovalStorage:
@@ -342,8 +364,10 @@ async def test_concurrent_arq_responses_activate_only_the_atomic_winner(
     monkeypatch.setattr("src.infra.task.hitl.settings.TASK_BACKEND", "arq")
 
     results = await asyncio.gather(
-        human.respond_to_approval("approval-1", approved=True, response='{"choice":"a"}'),
-        human.respond_to_approval("approval-1", approved=False, response="{}"),
+        human.respond_to_approval(
+            "approval-1", approved=True, response='{"choice":"a"}', user=_make_user()
+        ),
+        human.respond_to_approval("approval-1", approved=False, response="{}", user=_make_user()),
         return_exceptions=True,
     )
 

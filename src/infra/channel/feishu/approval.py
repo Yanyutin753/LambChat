@@ -82,12 +82,22 @@ async def _get_existing_approval_status(approval_id: str) -> str:
 
 
 async def _respond_to_human_approval(approval_id: str, *, approved: bool) -> None:
-    from src.api.routes.human import respond_to_approval
+    """以审批属主身份代答（飞书卡片点击在其自身信任域内完成授权）。"""
+    from src.api.routes.human import resolve_approval_owner_id, respond_to_approval
+    from src.infra.storage.mongodb import get_approval_storage
+    from src.kernel.errors import AppError, ErrorCode
+    from src.kernel.schemas.user import TokenPayload
+
+    approval = await get_approval_storage().get(approval_id)
+    owner_id = await resolve_approval_owner_id(approval) if approval is not None else None
+    if not owner_id:
+        raise AppError(ErrorCode.APPROVAL_NOT_FOUND)
 
     await respond_to_approval(
         approval_id,
         approved=approved,
         response="{}",
+        user=TokenPayload(sub=owner_id, username="feishu-channel"),
     )
 
 
