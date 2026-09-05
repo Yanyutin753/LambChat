@@ -2544,7 +2544,7 @@
     "LANGFUSE_SECRET_KEY": "Langfuse シークレットキー",
     "LANGFUSE_HOST": "Langfuse サーバーアドレス",
     "LLM_FALLBACK_MODEL": "プライマリモデルが再試行後も失敗した場合（モデルごとのフォールバック未設定時）に切り替えるモデル（空欄で無効）",
-    "LLM_FIRST_EVENT_TIMEOUT": "ストリーミング応答の最初のproviderイベントを待つ秒数（0以下で無効。以降は合計時間やchunkアイドルのタイムアウトなし）",
+    "LLM_FIRST_EVENT_TIMEOUT": "ストリーミング応答の最初のproviderイベントを待つ秒数（0以下で無効。以降は合計時間の制限なし）",
     "LLM_MAX_RETRIES": "最初のLLM呼び出し失敗後の再試行回数（タイムアウト、ネットワーク、レート制限、5xx）",
     "LLM_MODEL_CACHE_SIZE": "LLMモデルインスタンスキャッシュサイズ（各インスタンス約10-30MB）。デフォルト50、マルチユーザー/マルチパラメータシナリオに対応。小さすぎると頻繁な作成/破棄、大きすぎるとメモリ消費増加。",
     "LLM_KV_CACHE": "OpenAI 互換リクエストに Codex と同じ KV キャッシュルーティングを適用します：/v1/responses と /v1/chat/completions の両方にセッション単位の prompt_cache_key を付与（responses では暗号化推論コンテンツの再生とステートレス store も含む）。プロバイダがこれらの標準フィールドを拒否する場合のみ無効化してください。",
@@ -2697,7 +2697,8 @@
     "WELCOME_SUGGESTION_ICON": "アイコン",
     "WELCOME_SUGGESTION_ITEM": "候補",
     "WELCOME_SUGGESTION_LANG": "言語",
-    "WELCOME_SUGGESTION_TEXT": "テキスト"
+    "WELCOME_SUGGESTION_TEXT": "テキスト",
+    "LLM_STREAM_IDLE_TIMEOUT": "ストリーミングchunk間の最大アイドル秒数。上游の停滞で実行が固まるのを防ぐ（0以下で無効）"
   },
   "settings": {
     "defaultModel": "デフォルトモデル",

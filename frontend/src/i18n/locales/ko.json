@@ -2544,7 +2544,7 @@
     "LANGFUSE_SECRET_KEY": "Langfuse 시크릿 키",
     "LANGFUSE_HOST": "Langfuse 서버 주소",
     "LLM_FALLBACK_MODEL": "기본 모델이 재시도 후에도 실패했고 모델별 폴백이 없을 때 전환할 모델 (비워두면 비활성화)",
-    "LLM_FIRST_EVENT_TIMEOUT": "스트리밍 응답의 첫 provider 이벤트 대기 시간(초, 0 이하는 비활성화, 이후 총 시간 또는 chunk 유휴 시간 제한 없음)",
+    "LLM_FIRST_EVENT_TIMEOUT": "스트리밍 응답의 첫 provider 이벤트 대기 시간(초, 0 이하는 비활성화, 이후 총 시간 제한 없음)",
     "LLM_MAX_RETRIES": "첫 LLM 호출 실패 후 재시도 횟수(시간 초과, 네트워크, 속도 제한, 5xx)",
     "LLM_MODEL_CACHE_SIZE": "LLM 모델 인스턴스 캐시 크기(인스턴스당 약 10-30MB). 기본값 50, 다중 사용자/다중 파라미터 시나리오 지원. 너무 작으면 빈번한 생성/소멸, 너무 크면 메모리 소비 증가.",
     "LLM_KV_CACHE": "OpenAI 호환 요청에 Codex와 동일한 KV 캐시 라우팅을 적용합니다: /v1/responses와 /v1/chat/completions 모두 세션 단위 prompt_cache_key를 전송합니다(responses는 암호화된 추론 콘텐츠 재생과 스테이트리스 store 포함). 공급자가 이 표준 필드를 거부하는 경우에만 비활성화하세요.",
@@ -2697,7 +2697,8 @@
     "WELCOME_SUGGESTION_ICON": "아이콘",
     "WELCOME_SUGGESTION_ITEM": "제안",
     "WELCOME_SUGGESTION_LANG": "언어",
-    "WELCOME_SUGGESTION_TEXT": "텍스트"
+    "WELCOME_SUGGESTION_TEXT": "텍스트",
+    "LLM_STREAM_IDLE_TIMEOUT": "스트리밍 chunk 사이의 최대 유휴 시간(초). 업스트림 정체로 실행이 멈추는 것을 방지(0 이하는 비활성화)"
   },
   "settings": {
     "defaultModel": "기본 모델",

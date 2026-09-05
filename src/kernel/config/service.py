@@ -204,6 +204,7 @@ async def refresh_settings(key: Optional[str] = None) -> None:
         "LLM_RETRY_DELAY",
         "LLM_REQUEST_TIMEOUT",
         "LLM_FIRST_EVENT_TIMEOUT",
+        "LLM_STREAM_IDLE_TIMEOUT",
         "LLM_FALLBACK_MODEL",
         "LLM_OPENAI_API_FORMAT",
         "LLM_KV_CACHE",
