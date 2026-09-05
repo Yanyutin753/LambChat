@@ -41,9 +41,7 @@ async def test_idle_timeout_allows_chunks_arriving_within_deadline() -> None:
 
     got = [
         item
-        async for item in aiter_with_first_event_timeout(
-            chunks(), timeout=0.5, idle_timeout=0.5
-        )
+        async for item in aiter_with_first_event_timeout(chunks(), timeout=0.5, idle_timeout=0.5)
     ]
 
     assert got == ["a", "b", "c"]
@@ -57,9 +55,7 @@ async def test_idle_timeout_can_be_disabled() -> None:
 
     got = [
         item
-        async for item in aiter_with_first_event_timeout(
-            chunks(), timeout=0.5, idle_timeout=None
-        )
+        async for item in aiter_with_first_event_timeout(chunks(), timeout=0.5, idle_timeout=None)
     ]
 
     assert got == ["a", "b"]
@@ -72,10 +68,7 @@ async def test_idle_timeout_non_positive_value_disables_it() -> None:
         yield "b"
 
     got = [
-        item
-        async for item in aiter_with_first_event_timeout(
-            chunks(), timeout=0.5, idle_timeout=0
-        )
+        item async for item in aiter_with_first_event_timeout(chunks(), timeout=0.5, idle_timeout=0)
     ]
 
     assert got == ["a", "b"]

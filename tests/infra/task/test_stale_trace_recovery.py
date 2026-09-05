@@ -74,9 +74,7 @@ def test_recovery_job_registers_with_scheduler(monkeypatch: pytest.MonkeyPatch) 
         def register_job(self, job):
             registered.append(job)
 
-    monkeypatch.setattr(
-        stale_trace_recovery, "get_runtime_scheduler", lambda: _FakeScheduler()
-    )
+    monkeypatch.setattr(stale_trace_recovery, "get_runtime_scheduler", lambda: _FakeScheduler())
     monkeypatch.setattr(
         stale_trace_recovery,
         "recovery_interval_seconds",

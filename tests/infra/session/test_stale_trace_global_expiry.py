@@ -56,9 +56,7 @@ class _GlobalExpiryCollection:
                     status=update["$set"]["status"],
                     completed_at=update["$set"]["completed_at"],
                 )
-                doc.setdefault("metadata", {})[
-                    "error_code"
-                ] = update["$set"]["metadata.error_code"]
+                doc.setdefault("metadata", {})["error_code"] = update["$set"]["metadata.error_code"]
                 modified += 1
         return SimpleNamespace(modified_count=modified)
 
