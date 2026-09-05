@@ -539,7 +539,8 @@ async def _create_backend_and_prompt(
     Returns:
         (backend, system_prompt, store, sandbox_backend, sandbox_work_dir) 元组。
         sandbox_backend 在沙箱模式下为 LazySandboxBackend（云端）或
-        LocalSandboxBackend（agent_options.sandbox=local）实例，否则为 None。
+        WorkspaceAliasBackend（agent_options.sandbox=local，别名剥离器）实例，
+        否则为 None。
     """
     # 创建 store（优先 PostgreSQL → MongoDB fallback）
     store = await acreate_store()
@@ -565,9 +566,11 @@ async def _create_backend_and_prompt(
     session_id = state.get("session_id") or context.session_id
     platform = _resolve_sandbox_platform(agent_options, settings.SANDBOX_PLATFORM.lower())
     if platform == "local":
-        from src.infra.backend.local import LocalSandboxBackend
+        from src.infra.backend.local import WorkspaceAliasBackend
 
-        local_backend = LocalSandboxBackend(user_id=user_id, session_id=session_id)
+        # WorkspaceAliasBackend：prompt_policy 让模型用 /workspace/{sid}/x 别名
+        # 路径调文件工具，别名剥离层把路径翻译回相对路径再构造命令（F1）。
+        local_backend = WorkspaceAliasBackend(user_id=user_id, session_id=session_id)
         logger.info(
             f"Sandbox enabled (local), using local sandbox backend for assistant: {assistant_id}"
         )

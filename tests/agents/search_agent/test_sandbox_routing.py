@@ -17,7 +17,7 @@ from src.agents.search_agent import nodes as search_nodes
 from src.agents.search_agent.context import SearchAgentContext
 from src.agents.search_agent.nodes import _resolve_sandbox_platform
 from src.infra.backend.lazy_sandbox import LazySandboxBackend
-from src.infra.backend.local import LocalSandboxBackend
+from src.infra.backend.local import LocalSandboxBackend, WorkspaceAliasBackend
 
 NODES_SOURCE = (
     Path(__file__).resolve().parents[3] / "src" / "agents" / "search_agent" / "nodes.py"
@@ -42,9 +42,14 @@ def test_resolve_sandbox_platform(agent_options, expected):
 
 
 def test_local_branch_wired():
-    """nodes.py 的后端选择处必须引用 _resolve_sandbox_platform 并含 local 分支（源码结构断言）。"""
+    """nodes.py 的后端选择处必须引用 _resolve_sandbox_platform 并含 local 分支（源码结构断言）。
+
+    local 分支必须 wiring WorkspaceAliasBackend（F1）：模型按 prompt_policy 用
+    `/workspace/{sid}/x` 别名路径调用文件工具，裸 LocalSandboxBackend 会把别名
+    原样下发导致 daemon 机器上 file_not_found。
+    """
     assert "_resolve_sandbox_platform(" in NODES_SOURCE
-    assert "LocalSandboxBackend" in NODES_SOURCE
+    assert "WorkspaceAliasBackend(" in NODES_SOURCE
 
 
 def _patch_store_and_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -72,7 +77,8 @@ async def test_local_option_routes_to_local_sandbox_backend(
     )
 
     assert isinstance(backend, CompositeBackend)
-    assert isinstance(sandbox, LocalSandboxBackend)
+    assert isinstance(sandbox, WorkspaceAliasBackend)
+    assert isinstance(sandbox, LocalSandboxBackend)  # 别名剥离器仍是本地后端子类
     assert prompt == search_nodes.SANDBOX_SYSTEM_PROMPT
     # daemon 侧 cwd 契约（spec §3.3）：/workspace/{session_id}
     assert work_dir == "/workspace/session-1"
