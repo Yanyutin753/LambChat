@@ -1664,6 +1664,7 @@ git commit -m "docs(sandbox): M1 服务端中继落地标记"
 - daemon 契约明确：exec 成功时 `stderr` 必须为空（或 download 走独立字段，避免错误文本混入 base64 输出被误分类）
 - 文件工具命令依赖 python3/POSIX（`mkdir -p`、`python3 -c`），Windows 矩阵发布前需 daemon 侧兜底实现
 - 原子 register：delete→hset→expire 三步与旧流心跳 hset 存在毫秒级竞态（可能"反踢"新连接、get_active 取首字段），改 Lua/单键原子写或属主校验按字段成员判定
+- 断连判活窗口（真机冒烟实证）：daemon 非正常死亡后，服务端要到下一次心跳写入（≤15s）才发现并 unregister，期间 registry 仍报在线——该窗口内 dispatch 不走 daemon_offline 快速失败，而是挂到 ack 超时报 sandbox_timeout（请求还留在 req list，成为 M2 ts 字段要治理的陈旧请求）。daemon 可主动发一个显式 bye 帧或 results 通道通知来收敛窗口
 
 ## Self-Review 记录
 
