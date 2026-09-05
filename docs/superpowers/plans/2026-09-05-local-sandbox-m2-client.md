@@ -80,6 +80,7 @@ class ConfigError(Exception)
 
 ```python
 """SandboxConfig 加载/保存/校验。"""
+
 import json
 
 import pytest

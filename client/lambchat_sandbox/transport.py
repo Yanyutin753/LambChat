@@ -137,12 +137,16 @@ class ChannelClient:
         self._base = server_url.rstrip("/")
         self._pat = pat
         self._confirm_policy = confirm_policy
-        self._client = client if client is not None else httpx.AsyncClient(
-            timeout=httpx.Timeout(
-                connect=_CHANNEL_CONNECT_TIMEOUT_S,
-                read=_CHANNEL_READ_TIMEOUT_S,
-                write=30.0,
-                pool=30.0,
+        self._client = (
+            client
+            if client is not None
+            else httpx.AsyncClient(
+                timeout=httpx.Timeout(
+                    connect=_CHANNEL_CONNECT_TIMEOUT_S,
+                    read=_CHANNEL_READ_TIMEOUT_S,
+                    write=30.0,
+                    pool=30.0,
+                )
             )
         )
 

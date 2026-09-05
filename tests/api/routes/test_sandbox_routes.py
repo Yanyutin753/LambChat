@@ -416,7 +416,9 @@ async def test_channel_registers_version_from_query(monkeypatch):
     registry = _FakeRegistry()
     seen: dict[str, object] = {}
 
-    async def fake_frames(redis, reg, user_id, client_id, *, stop, version="", platform="", confirm_policy=""):
+    async def fake_frames(
+        redis, reg, user_id, client_id, *, stop, version="", platform="", confirm_policy=""
+    ):
         seen["version"] = version
         seen["platform"] = platform
         seen["registered"] = list(registry.registered)
@@ -449,7 +451,9 @@ async def test_channel_registers_platform_from_query(monkeypatch):
     registry = _FakeRegistry()
     seen: dict[str, object] = {}
 
-    async def fake_frames(redis, reg, user_id, client_id, *, stop, version="", platform="", confirm_policy=""):
+    async def fake_frames(
+        redis, reg, user_id, client_id, *, stop, version="", platform="", confirm_policy=""
+    ):
         seen["platform"] = platform
         if False:  # pragma: no cover - 使其成为 async generator（空流即结束）
             yield ""
@@ -524,7 +528,9 @@ async def test_channel_allows_version_at_or_above_min(monkeypatch):
     monkeypatch.setattr(sandbox_route.settings, "SANDBOX_MIN_DAEMON_VERSION", "0.2.0")
     seen: list[str] = []
 
-    async def fake_frames(redis, reg, user_id, client_id, *, stop, version="", platform="", confirm_policy=""):
+    async def fake_frames(
+        redis, reg, user_id, client_id, *, stop, version="", platform="", confirm_policy=""
+    ):
         seen.append(version)
         if False:  # pragma: no cover - 空 async generator
             yield ""
@@ -542,7 +548,9 @@ async def test_channel_allows_equal_min_with_nonnumeric_suffix(monkeypatch):
     """容错语义：非数字段按 0——"0.2.x" 解析为 (0,2,0) 不低于 min "0.2.0"，放行。"""
     monkeypatch.setattr(sandbox_route.settings, "SANDBOX_MIN_DAEMON_VERSION", "0.2.0")
 
-    async def fake_frames(redis, reg, user_id, client_id, *, stop, version="", platform="", confirm_policy=""):
+    async def fake_frames(
+        redis, reg, user_id, client_id, *, stop, version="", platform="", confirm_policy=""
+    ):
         if False:  # pragma: no cover - 空 async generator
             yield ""
 

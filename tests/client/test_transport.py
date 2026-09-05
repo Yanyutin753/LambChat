@@ -524,7 +524,10 @@ def test_backoff_delay_is_deterministic_per_seed():
 async def test_connect_url_carries_confirm_policy():
     log: list[httpx.Request] = []
     client = ChannelClient(
-        SERVER, PAT, confirm_policy="none", client=_client(_sse_transport(log, GOOD_STREAM.encode("utf-8")))
+        SERVER,
+        PAT,
+        confirm_policy="none",
+        client=_client(_sse_transport(log, GOOD_STREAM.encode("utf-8"))),
     )
     _, _ = await client.connect()
 

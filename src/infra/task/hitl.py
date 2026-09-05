@@ -193,9 +193,7 @@ async def materialize_ask_human_approvals(
             existing_interrupt_ids.add(interrupt_id)
         created += 1
         if session_id:
-            await _send_approval_sse(
-                approval, fields, session_id, run_id, trace_id, origin=origin
-            )
+            await _send_approval_sse(approval, fields, session_id, run_id, trace_id, origin=origin)
         logger.info(
             "[HITL] approval_id=%s Materialized from interrupt: session=%s run_id=%s",
             approval.id,
@@ -392,9 +390,7 @@ async def submit_hitl_resume_run(
         interrupt_id = approval_metadata.get("interrupt_id")
         resume_context = approval_metadata.get("resume_context") or {}
         sandbox_confirm_message = (
-            str(approval.message)
-            if approval_metadata.get("origin") == "sandbox_confirm"
-            else None
+            str(approval.message) if approval_metadata.get("origin") == "sandbox_confirm" else None
         )
         command_resume = {str(interrupt_id): resume_value} if interrupt_id else resume_value
         hitl_resume = {

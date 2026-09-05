@@ -62,12 +62,16 @@ tests/agents/search_agent/test_sandbox_routing.py  # 新
 - [ ] **Step 1: 在 `src/kernel/errors.py` 追加成员**（格式 = `(snake_case, http_status, english)`，照 `USERNAME_EXISTS = ("username_exists", 409, "Username '{{user}}' already exists")` 的样子）
 
 ```python
-    PAT_NOT_FOUND = ("pat_not_found", 401, "Personal access token not found or revoked")
-    PAT_EXPIRED = ("pat_expired", 401, "Personal access token expired")
-    PAT_SCOPE_DENIED = ("pat_scope_denied", 403, "Token missing required scope '{{scope}}'")
-    DAEMON_OFFLINE = ("daemon_offline", 409, "Local sandbox daemon is offline")
-    SANDBOX_TIMEOUT = ("sandbox_timeout", 504, "Local sandbox call timed out after {{seconds}}s")
-    SANDBOX_PAYLOAD_TOO_LARGE = ("sandbox_payload_too_large", 413, "Local sandbox payload exceeds limit")
+PAT_NOT_FOUND = ("pat_not_found", 401, "Personal access token not found or revoked")
+PAT_EXPIRED = ("pat_expired", 401, "Personal access token expired")
+PAT_SCOPE_DENIED = ("pat_scope_denied", 403, "Token missing required scope '{{scope}}'")
+DAEMON_OFFLINE = ("daemon_offline", 409, "Local sandbox daemon is offline")
+SANDBOX_TIMEOUT = ("sandbox_timeout", 504, "Local sandbox call timed out after {{seconds}}s")
+SANDBOX_PAYLOAD_TOO_LARGE = (
+    "sandbox_payload_too_large",
+    413,
+    "Local sandbox payload exceeds limit",
+)
 ```
 
 - [ ] **Step 2: 在 `scripts/sync_error_locales.py` 的 `TRANSLATIONS` 加四语条目**（key 是 camelCase 码名）
@@ -168,6 +172,7 @@ class PATStorage:
 
 ```python
 """PAT 存储层测试：创建/校验/撤销/过期/范围。"""
+
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -237,7 +242,9 @@ async def test_revoke_makes_token_invalid(storage):
 
 async def test_expired_token_rejected(storage):
     token, _ = await storage.create(
-        user_id="u1", name="a", scopes=["sandbox:execute"],
+        user_id="u1",
+        name="a",
+        scopes=["sandbox:execute"],
         expires_at=datetime.now(timezone.utc) - timedelta(hours=1),
     )
     assert await storage.verify(token) is None
@@ -267,6 +274,7 @@ Expected: FAIL，`ModuleNotFoundError: No module named 'src.infra.auth.pat'`。
 
 ```python
 """PAT 个人访问令牌存储：明文只在创建时返回，库中仅存 SHA-256 哈希。"""
+
 import hashlib
 import secrets
 import uuid
@@ -361,9 +369,7 @@ class PATStorage:
         doc = await self._get_collection().find_one({"pat_id": pat_id, "user_id": user_id})
         if doc is None:
             return False
-        await self._get_collection().update_one(
-            {"pat_id": pat_id}, {"$set": {"revoked": True}}
-        )
+        await self._get_collection().update_one({"pat_id": pat_id}, {"$set": {"revoked": True}})
         return True
 
     async def touch_last_used(self, pat_id: str) -> None:
@@ -401,6 +407,7 @@ git commit -m "feat(sandbox): PAT 个人访问令牌存储"
 
 ```python
 """PAT 路由测试：创建返回一次明文、列表不含哈希、撤销。"""
+
 from datetime import datetime
 
 from fastapi import FastAPI
@@ -487,6 +494,7 @@ Expected: FAIL，模块不存在。
 
 ```python
 """PAT 个人访问令牌管理路由。"""
+
 from datetime import datetime
 from typing import Optional
 
@@ -556,8 +564,13 @@ async def list_pats(
     return PATListResponse(
         pats=[
             PATItem(
-                pat_id=r.pat_id, name=r.name, scopes=r.scopes, prefix=r.prefix,
-                created_at=r.created_at, expires_at=r.expires_at, last_used_at=r.last_used_at,
+                pat_id=r.pat_id,
+                name=r.name,
+                scopes=r.scopes,
+                prefix=r.prefix,
+                created_at=r.created_at,
+                expires_at=r.expires_at,
+                last_used_at=r.last_used_at,
             )
             for r in records
         ]
@@ -628,6 +641,7 @@ def require_pat_scope(scope: str) -> 依赖  # 在 PAT 路径上校验 scope，J
 
 ```python
 """PAT/JWT 双通道鉴权依赖测试。"""
+
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
@@ -642,17 +656,28 @@ def _pat_record(scopes: list[str]) -> PATRecord:
     from datetime import datetime, timezone
 
     return PATRecord(
-        pat_id="p1", user_id="u1", name="t", scopes=scopes, token_hash="h" * 64,
-        prefix="lc_pat_abc", created_at=datetime.now(timezone.utc),
+        pat_id="p1",
+        user_id="u1",
+        name="t",
+        scopes=scopes,
+        token_hash="h" * 64,
+        prefix="lc_pat_abc",
+        created_at=datetime.now(timezone.utc),
     )
 
 
 async def test_pat_token_builds_payload(monkeypatch):
     record = _pat_record(["sandbox:execute"])
     monkeypatch.setattr(pat_module.PATStorage, "verify", lambda self, token: _async_return(record))
-    monkeypatch.setattr(api_deps, "_load_user_payload", lambda user_id: _async_return(
-        api_deps.TokenPayload(sub="u1", username="tester", roles=["user"], permissions=["sandbox:execute"])
-    ))
+    monkeypatch.setattr(
+        api_deps,
+        "_load_user_payload",
+        lambda user_id: _async_return(
+            api_deps.TokenPayload(
+                sub="u1", username="tester", roles=["user"], permissions=["sandbox:execute"]
+            )
+        ),
+    )
     app = FastAPI()
     register_error_handlers(app)
 
@@ -669,9 +694,13 @@ async def test_pat_token_builds_payload(monkeypatch):
 async def test_pat_missing_scope_denied(monkeypatch):
     record = _pat_record([])
     monkeypatch.setattr(pat_module.PATStorage, "verify", lambda self, token: _async_return(record))
-    monkeypatch.setattr(api_deps, "_load_user_payload", lambda user_id: _async_return(
-        api_deps.TokenPayload(sub="u1", username="tester", roles=["user"], permissions=[])
-    ))
+    monkeypatch.setattr(
+        api_deps,
+        "_load_user_payload",
+        lambda user_id: _async_return(
+            api_deps.TokenPayload(sub="u1", username="tester", roles=["user"], permissions=[])
+        ),
+    )
     app = FastAPI()
     register_error_handlers(app)
 
@@ -797,6 +826,7 @@ class SandboxClientRegistry:
 
 ```python
 """daemon 注册表测试：注册/心跳/TTL/踢旧连/摘除。"""
+
 import pytest
 
 from src.infra.sandbox.relay.registry import SandboxClientRegistry
@@ -872,6 +902,7 @@ Expected: FAIL，模块不存在。
 
 ```python
 """daemon 连接注册表：Redis hash + TTL 心跳判活（spec §3.2）。同用户仅一个活跃连接。"""
+
 from src.infra.storage.redis import get_redis_client
 
 _TTL_SECONDS = 35
@@ -953,6 +984,7 @@ async def dispatch_local_call(user_id: str, op: str, payload: dict, *, timeout: 
 
 ```python
 """dispatch 测试：正常往返、离线快速失败、ack 超时。"""
+
 import asyncio
 import json
 
@@ -1009,7 +1041,9 @@ async def test_roundtrip_ack_then_done(fake, monkeypatch):
     async def daemon():
         await asyncio.sleep(0.02)
         req = json.loads(await fake.lpop("sandbox:req:u1"))
-        await fake.set(f"sandbox:resp:{req['call_id']}", json.dumps({"user_id": "u1", "stage": "ack"}))
+        await fake.set(
+            f"sandbox:resp:{req['call_id']}", json.dumps({"user_id": "u1", "stage": "ack"})
+        )
         await asyncio.sleep(0.02)
         await fake.set(
             f"sandbox:resp:{req['call_id']}",
@@ -1062,6 +1096,7 @@ SANDBOX_LOCAL_EXEC_TIMEOUT=120
 
 ```python
 """工具调用下发与结果等待：Redis list 请求 + key 轮询结果（spec §3.2，lpop 轮询替代 BLPOP）。"""
+
 import asyncio
 import json
 import time
@@ -1119,7 +1154,9 @@ async def dispatch_local_call(
                     )
                 return resp
             if not acked and time.monotonic() > ack_deadline:
-                raise AppError(ErrorCode.SANDBOX_TIMEOUT, args={"seconds": settings.SANDBOX_LOCAL_ACK_TIMEOUT})
+                raise AppError(
+                    ErrorCode.SANDBOX_TIMEOUT, args={"seconds": settings.SANDBOX_LOCAL_ACK_TIMEOUT}
+                )
             await asyncio.sleep(_POLL_INTERVAL)
         raise AppError(ErrorCode.SANDBOX_TIMEOUT, args={"seconds": int(exec_timeout)})
     finally:
@@ -1164,6 +1201,7 @@ git commit -m "feat(sandbox): 本地工具调用下发与结果等待（Redis �
 
 ```python
 """sandbox 通道路由测试：帧生成器、results 写入、status。"""
+
 import asyncio
 import json
 
@@ -1222,7 +1260,9 @@ async def test_channel_frames_hello_then_tool_call_then_heartbeat(monkeypatch):
     from src.api.routes.sandbox import channel_frames
 
     redis = _FakeRedis()
-    await redis.rpush("sandbox:req:u1", json.dumps({"call_id": "x", "op": "exec", "payload": {}, "timeout": 10}))
+    await redis.rpush(
+        "sandbox:req:u1", json.dumps({"call_id": "x", "op": "exec", "payload": {}, "timeout": 10})
+    )
     registry = _FakeRegistry()
     monkeypatch.setattr(sandbox_route, "_POLL_INTERVAL", 0.01)
     monkeypatch.setattr(sandbox_route, "_HEARTBEAT_SECONDS", 0.05)
@@ -1281,6 +1321,7 @@ Expected: FAIL，模块不存在。
 
 ```python
 """本地沙箱中继：daemon SSE 通道、结果回传、在线状态。"""
+
 import asyncio
 import json
 import socket
@@ -1349,7 +1390,11 @@ async def sandbox_channel(user: TokenPayload = Depends(require_pat_scope("sandbo
     return StreamingResponse(
         generator(),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 
@@ -1430,6 +1475,7 @@ class LocalSandboxBackend(BaseSandbox):
 
 ```python
 """LocalSandboxBackend 测试：execute 往返、离线透传、id。"""
+
 import pytest
 
 from src.infra.backend import local as local_module
@@ -1474,6 +1520,7 @@ Expected: FAIL，模块不存在。
 
 ```python
 """本地沙箱后端：命令经中继落到用户本机 daemon 执行（spec §3.3）。文件操作由 BaseSandbox 基于 execute() 自动获得。"""
+
 from src.infra.sandbox.relay.dispatch import dispatch_local_call
 from src.kernel.config import settings
 from src.utils.async_utils import run_blocking_io  # 位置以 e2b.py:132 的实际 import 为准
@@ -1549,6 +1596,7 @@ def _resolve_sandbox_platform(agent_options: dict | None, default_platform: str)
 
 ```python
 """会话级沙箱平台解析测试。"""
+
 import pytest
 
 from src.agents.search_agent.nodes import _resolve_sandbox_platform

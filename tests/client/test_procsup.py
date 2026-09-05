@@ -136,6 +136,7 @@ def test_watch_parent_probe_failure_degrades_to_alive(monkeypatch) -> None:
     抛错（如权限/资源异常）按"父仍存活"处理——绝不误杀，也不让监视线程崩溃。"""
     parent = _spawn_fake_parent()
     try:
+
         def boom_pid_exists(pid: int) -> bool:
             raise PermissionError(f"probe denied for {pid}")
 

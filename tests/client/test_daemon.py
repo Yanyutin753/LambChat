@@ -545,7 +545,7 @@ async def test_cancellation_triggers_graceful_shutdown():
             run_daemon(
                 _cfg("none"),
                 pat=PAT,
-                        client_factory=lambda: client,
+                client_factory=lambda: client,
                 executor=FakeExecutor(),
                 auditor=auditor,
                 sleep_fn=SleepRecorder(),
@@ -599,7 +599,7 @@ async def test_run_daemon_update_required_stops_without_backoff_or_offline(capsy
         await run_daemon(
             _cfg("none"),
             pat=PAT,
-                client_factory=factory,
+            client_factory=factory,
             executor=FakeExecutor(),
             auditor=auditor,
             sleep_fn=sleep_fn,
@@ -882,7 +882,7 @@ async def _run_with_real_executor(cfg, monkeypatch, *, ensure_result, data_root)
         await run_daemon(
             cfg,
             pat=PAT,
-                client_factory=FakeFactory([client, _terminator()]),
+            client_factory=FakeFactory([client, _terminator()]),
             auditor=auditor,
             sleep_fn=SleepRecorder(),
         )
@@ -923,7 +923,7 @@ async def test_daemon_skips_ensure_runtime_when_embedded_python_false(tmp_path, 
         await run_daemon(
             cfg,
             pat=PAT,
-                client_factory=FakeFactory([client, _terminator()]),
+            client_factory=FakeFactory([client, _terminator()]),
             auditor=MemoryAuditor(),
             sleep_fn=SleepRecorder(),
         )
@@ -959,7 +959,7 @@ async def test_daemon_falls_back_when_ensure_runtime_raises(tmp_path, monkeypatc
         await run_daemon(
             cfg,
             pat=PAT,
-                client_factory=FakeFactory([client, _terminator()]),
+            client_factory=FakeFactory([client, _terminator()]),
             auditor=MemoryAuditor(),
             sleep_fn=SleepRecorder(),
         )

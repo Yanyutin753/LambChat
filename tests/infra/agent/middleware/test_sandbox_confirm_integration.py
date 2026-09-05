@@ -139,7 +139,12 @@ async def test_parallel_batch_one_card_and_exactly_once_execution(
             tool_calls=[
                 {"name": "execute", "args": {"command": "df -h"}, "id": "c1", "type": "tool_call"},
                 {"name": "execute", "args": {"command": "lsblk"}, "id": "c2", "type": "tool_call"},
-                {"name": "execute", "args": {"command": "free -m"}, "id": "c3", "type": "tool_call"},
+                {
+                    "name": "execute",
+                    "args": {"command": "free -m"},
+                    "id": "c3",
+                    "type": "tool_call",
+                },
             ],
         ),
         AIMessage(content="done"),
@@ -235,8 +240,18 @@ async def test_read_tools_execute_without_confirmation(recorder_install) -> None
         AIMessage(
             content="",
             tool_calls=[
-                {"name": "execute", "args": {"command": "du /var"}, "id": "c1", "type": "tool_call"},
-                {"name": "read_file", "args": {"file_path": "a.txt"}, "id": "c2", "type": "tool_call"},
+                {
+                    "name": "execute",
+                    "args": {"command": "du /var"},
+                    "id": "c1",
+                    "type": "tool_call",
+                },
+                {
+                    "name": "read_file",
+                    "args": {"file_path": "a.txt"},
+                    "id": "c2",
+                    "type": "tool_call",
+                },
             ],
         ),
         AIMessage(content="done"),
@@ -268,9 +283,12 @@ async def test_second_batch_confirms_again(recorder_install) -> None:
     rec = recorder_install
     model_messages = [
         _tool_call("execute", {"command": "cmd-A"}, "c1"),
-        AIMessage(content="", tool_calls=[
-            {"name": "execute", "args": {"command": "cmd-B"}, "id": "c2", "type": "tool_call"},
-        ]),
+        AIMessage(
+            content="",
+            tool_calls=[
+                {"name": "execute", "args": {"command": "cmd-B"}, "id": "c2", "type": "tool_call"},
+            ],
+        ),
         AIMessage(content="done"),
     ]
     graph = _graph(model_messages)
@@ -313,7 +331,12 @@ async def test_write_tools_included_in_batch(recorder_install) -> None:
             content="",
             tool_calls=[
                 {"name": "execute", "args": {"command": "whoami"}, "id": "c1", "type": "tool_call"},
-                {"name": "write_file", "args": {"file_path": "x.txt", "content": "1"}, "id": "c2", "type": "tool_call"},
+                {
+                    "name": "write_file",
+                    "args": {"file_path": "x.txt", "content": "1"},
+                    "id": "c2",
+                    "type": "tool_call",
+                },
             ],
         ),
         AIMessage(content="done"),

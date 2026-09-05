@@ -257,7 +257,11 @@ def test_execute_resolves_workspace_var_in_command(tmp_path):
     r = ex.execute('echo "$LAMBCHAT_WORKSPACE"', "/workspace/wsvar", timeout=10)
     assert r["status"] == "ok", r
     assert r["stdout"].strip() == str(map_workspace("/workspace/wsvar", tmp_path))
-    r2 = ex.execute('echo hi > "$LAMBCHAT_WORKSPACE/note.txt" && cat "$LAMBCHAT_WORKSPACE/note.txt"', "/workspace/wsvar", timeout=10)
+    r2 = ex.execute(
+        'echo hi > "$LAMBCHAT_WORKSPACE/note.txt" && cat "$LAMBCHAT_WORKSPACE/note.txt"',
+        "/workspace/wsvar",
+        timeout=10,
+    )
     assert r2["status"] == "ok" and r2["stdout"].strip() == "hi", r2
 
 
@@ -268,7 +272,7 @@ def test_execute_env_extra_reaches_subprocess(tmp_path):
     """env_extra 进子进程环境：命令内可见；不传时行为不变。"""
     ex = Executor(tmp_path)
     result = ex.execute(
-        'python3 -c "import os; print(os.environ.get(\'LC_TEST_FLAG\', \'missing\'))"',
+        "python3 -c \"import os; print(os.environ.get('LC_TEST_FLAG', 'missing'))\"",
         "/workspace/s1",
         timeout=10.0,
         env_extra={"LC_TEST_FLAG": "yes"},

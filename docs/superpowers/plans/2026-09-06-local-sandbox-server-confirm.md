@@ -208,14 +208,18 @@ def test_all_policy_raises_graph_interrupt_with_ask_human_payload(interrupt_supp
 def test_resume_approved_returns_true(interrupt_supported, monkeypatch):
     import langgraph.types
 
-    monkeypatch.setattr(langgraph.types, "interrupt", lambda value: {"approved": True, "values": {}})
+    monkeypatch.setattr(
+        langgraph.types, "interrupt", lambda value: {"approved": True, "values": {}}
+    )
     assert confirm_local_op("rm x", "all", description="d") is True
 
 
 def test_resume_rejected_returns_false(interrupt_supported, monkeypatch):
     import langgraph.types
 
-    monkeypatch.setattr(langgraph.types, "interrupt", lambda value: {"approved": False, "values": {}})
+    monkeypatch.setattr(
+        langgraph.types, "interrupt", lambda value: {"approved": False, "values": {}}
+    )
     assert confirm_local_op("rm x", "all", description="d") is False
 
 
@@ -323,9 +327,7 @@ from src.infra.backend.local import LocalSandboxBackend, WorkspaceAliasBackend
 @pytest.fixture
 def fake_dispatch(monkeypatch):
     calls: list[tuple[str, str, dict]] = []
-    mock = AsyncMock(
-        return_value={"stdout": "", "stderr": "", "exit_code": 0}
-    )
+    mock = AsyncMock(return_value={"stdout": "", "stderr": "", "exit_code": 0})
 
     async def _dispatch(user_id, op, payload, *, timeout=None):
         calls.append((user_id, op, payload))
@@ -372,12 +374,12 @@ async def test_exec_policy_all_raises_interrupt_before_dispatch(
     assert fake_dispatch == []
 
 
-async def test_exec_declined_returns_error_response(fake_dispatch, policy, interrupt_ok, monkeypatch):
+async def test_exec_declined_returns_error_response(
+    fake_dispatch, policy, interrupt_ok, monkeypatch
+):
     import langgraph.types
 
-    monkeypatch.setattr(
-        langgraph.types, "interrupt", lambda v: {"approved": False, "values": {}}
-    )
+    monkeypatch.setattr(langgraph.types, "interrupt", lambda v: {"approved": False, "values": {}})
     backend = LocalSandboxBackend(user_id="u1", session_id="s1")
     resp = await backend.aexecute("rm x")
     assert resp.exit_code == 1
@@ -388,9 +390,7 @@ async def test_exec_declined_returns_error_response(fake_dispatch, policy, inter
 async def test_exec_approved_dispatches(fake_dispatch, policy, interrupt_ok, monkeypatch):
     import langgraph.types
 
-    monkeypatch.setattr(
-        langgraph.types, "interrupt", lambda v: {"approved": True, "values": {}}
-    )
+    monkeypatch.setattr(langgraph.types, "interrupt", lambda v: {"approved": True, "values": {}})
     backend = LocalSandboxBackend(user_id="u1", session_id="s1")
     resp = await backend.aexecute("rm x")
     assert resp.exit_code == 0
@@ -442,9 +442,7 @@ async def test_write_gates_once_with_rm_sentinel(fake_dispatch, policy, interrup
 async def test_delete_declined_returns_error(fake_dispatch, policy, interrupt_ok, monkeypatch):
     import langgraph.types
 
-    monkeypatch.setattr(
-        langgraph.types, "interrupt", lambda v: {"approved": False, "values": {}}
-    )
+    monkeypatch.setattr(langgraph.types, "interrupt", lambda v: {"approved": False, "values": {}})
     backend = WorkspaceAliasBackend(user_id="u1", session_id="s1")
     result = await backend.adelete("a.txt")
     assert result.error and "declined_by_user" in result.error
@@ -524,18 +522,17 @@ async def _lookup_confirm_policy(user_id: str) -> str:
 3b. `LocalSandboxBackend` 增加方法 + `aexecute` 过门：
 
 ```python
-    async def _confirm_exec(self, command: str) -> bool:
-        """执行确认门：按 daemon 上报策略判定，未批准时 False（不 dispatch）。"""
-        policy = await _lookup_confirm_policy(self._user_id)
-        clipped = command if len(command) <= 800 else command[:800] + "…"
-        return confirm_local_op(
-            command, policy, description=f"确认在本机执行命令：\n{clipped}"
-        )
+async def _confirm_exec(self, command: str) -> bool:
+    """执行确认门：按 daemon 上报策略判定，未批准时 False（不 dispatch）。"""
+    policy = await _lookup_confirm_policy(self._user_id)
+    clipped = command if len(command) <= 800 else command[:800] + "…"
+    return confirm_local_op(command, policy, description=f"确认在本机执行命令：\n{clipped}")
 
-    async def aexecute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
-        if not _gate_bypassed.get() and not await self._confirm_exec(command):
-            return ExecuteResponse(output=_EXEC_DECLINED_OUTPUT, exit_code=1, truncated=False)
-        result = await dispatch_local_call(...)  # 原有体不变
+
+async def aexecute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
+    if not _gate_bypassed.get() and not await self._confirm_exec(command):
+        return ExecuteResponse(output=_EXEC_DECLINED_OUTPUT, exit_code=1, truncated=False)
+    result = await dispatch_local_call(...)  # 原有体不变
 ```
 
 3c. `WorkspaceAliasBackend` 写类 override 入口门（write/edit/delete 各 sync+async 共 6 处，模式一致，以 `awrite` 为例；`_strip_required` 之后、分支之前）：

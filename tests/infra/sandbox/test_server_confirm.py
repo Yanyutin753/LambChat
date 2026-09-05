@@ -68,9 +68,7 @@ def test_none_policy_passes_without_interrupt(interrupt_supported):
     assert confirm_local_op("rm -rf /", "none", description="x") is True
 
 
-def test_all_policy_raises_graph_interrupt_with_ask_human_payload(
-    interrupt_supported, monkeypatch
-):
+def test_all_policy_raises_graph_interrupt_with_ask_human_payload(interrupt_supported, monkeypatch):
     # 无图上下文时 langgraph interrupt() 抛 RuntimeError 而非挂起——
     # monkeypatch 模拟图任务内行为：raise GraphInterrupt(payload)
     import langgraph.types

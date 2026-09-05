@@ -73,6 +73,7 @@ logger = get_logger(__name__)
 
 T = TypeVar("T")
 
+
 async def _lookup_daemon_platform(user_id: str) -> str:
     """经注册表查当前活跃 daemon 的上报平台（win32/linux/darwin）。
 

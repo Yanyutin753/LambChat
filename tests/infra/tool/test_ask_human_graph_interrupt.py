@@ -447,9 +447,7 @@ async def test_materialize_dedups_sandbox_confirm_batch_to_one_approval(
 ) -> None:
     """并行工具各自中断（同 origin+message）→ 物化只建一张审批卡。"""
     snapshot = _sbx_snapshot(3)
-    await materialize_ask_human_approvals(
-        snapshot, session_id="s1", run_id="r1", user_id="u1"
-    )
+    await materialize_ask_human_approvals(snapshot, session_id="s1", run_id="r1", user_id="u1")
     assert len(recorder.created) == 1
     assert recorder.created[0]["metadata"]["origin"] == "sandbox_confirm"
     # 重复物化（重放）依旧一张

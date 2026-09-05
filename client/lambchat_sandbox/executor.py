@@ -259,9 +259,7 @@ class Executor:
         if self._extra_path is not None:
             path = env.get("PATH", "")
             env["PATH"] = (
-                os.pathsep.join([str(self._extra_path), path])
-                if path
-                else str(self._extra_path)
+                os.pathsep.join([str(self._extra_path), path]) if path else str(self._extra_path)
             )
         if workspace is not None:
             env["LAMBCHAT_WORKSPACE"] = str(workspace)

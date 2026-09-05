@@ -30,7 +30,9 @@ class _Recorder:
 
     async def handler(self, request):
         self.handled.append(request.tool_call["name"])
-        return ToolMessage(content="ok", tool_call_id=request.tool_call["id"], name=request.tool_call["name"])
+        return ToolMessage(
+            content="ok", tool_call_id=request.tool_call["id"], name=request.tool_call["name"]
+        )
 
 
 @pytest.fixture

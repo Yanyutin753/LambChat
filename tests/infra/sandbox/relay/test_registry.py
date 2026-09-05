@@ -176,7 +176,9 @@ def test_parse_confirm_policy_missing_segments_returns_empty():
 
 
 async def test_register_stores_confirm_policy(registry):
-    await registry.register("u1", "c1", "node-a", version="0.2.0", platform="linux", confirm_policy="none")
+    await registry.register(
+        "u1", "c1", "node-a", version="0.2.0", platform="linux", confirm_policy="none"
+    )
     assert await registry.get_confirm_policy("u1") == "none"
 
 
@@ -186,5 +188,7 @@ async def test_get_confirm_policy_offline_returns_empty(registry):
 
 async def test_heartbeat_rewrites_confirm_policy(registry):
     await registry.register("u1", "c1", "node-a", confirm_policy="all")
-    await registry.heartbeat("u1", "c1", "node-a", version="0.2.0", platform="linux", confirm_policy="commands")
+    await registry.heartbeat(
+        "u1", "c1", "node-a", version="0.2.0", platform="linux", confirm_policy="commands"
+    )
     assert await registry.get_confirm_policy("u1") == "commands"

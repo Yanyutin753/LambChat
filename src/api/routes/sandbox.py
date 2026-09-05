@@ -124,8 +124,7 @@ def _version_tuple(version: str) -> tuple[int, ...]:
     if not version:
         return (0,)
     return tuple(
-        int(part) if part.isascii() and part.isdigit() else 0
-        for part in version.strip().split(".")
+        int(part) if part.isascii() and part.isdigit() else 0 for part in version.strip().split(".")
     )
 
 
