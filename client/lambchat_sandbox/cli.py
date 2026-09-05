@@ -1,4 +1,4 @@
-"""lambchat_sandbox 命令行入口：login / logout / status / run / version。"""
+"""lambchat_sandbox 命令行入口：login / logout / status / run / version / update。"""
 
 from __future__ import annotations
 
@@ -10,10 +10,11 @@ import sys
 
 import httpx
 
-from lambchat_sandbox import __version__
+from lambchat_sandbox import __version__, selfupdate
 from lambchat_sandbox.auth import AuthError, clear_pat, load_pat, pair
 from lambchat_sandbox.config import SandboxConfig, load_config, save_config
 from lambchat_sandbox.daemon import run_daemon
+from lambchat_sandbox.selfupdate import SelfUpdateError
 from lambchat_sandbox.transport import TransportAuthError
 
 
@@ -28,6 +29,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("status", help="查询服务端沙箱状态")
     sub.add_parser("run", help="启动沙箱 daemon：连接服务端通道并在本机受控执行命令")
     sub.add_parser("version", help="打印客户端版本")
+    update_p = sub.add_parser("update", help="自更新：检查 GitHub latest release 并替换自身二进制")
+    update_p.add_argument(
+        "--repo", default=None, help="覆盖默认 GitHub 仓库（owner/name，默认 Yanyutin753/LambChat）"
+    )
     return parser
 
 
@@ -120,6 +125,19 @@ def cmd_version(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_update(args: argparse.Namespace) -> int:
+    try:
+        message = selfupdate.perform_update(args.repo or selfupdate.DEFAULT_REPO)
+    except SelfUpdateError as exc:
+        print(f"更新失败: {exc}", file=sys.stderr)
+        return 1
+    except httpx.HTTPError as exc:
+        print(f"无法连接 GitHub: {exc}", file=sys.stderr)
+        return 1
+    print(message)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     handlers = {
@@ -128,5 +146,6 @@ def main(argv: list[str] | None = None) -> int:
         "status": cmd_status,
         "run": cmd_run,
         "version": cmd_version,
+        "update": cmd_update,
     }
     return handlers[args.command](args)
