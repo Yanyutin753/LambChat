@@ -11,6 +11,13 @@ BaseSandbox 的抽象成员，这里以单条 python3 + base64 命令往返实�
 省略 ``mkdir -p`` 前缀（makedirs 并进脚本）、脚本单行化且无 ``%``；
 其余（含无平台信息）保持 posix 现状，命令串逐字节不变。
 
+结构化文件操作（M4 T3.5）：deepagents BaseSandbox 继承的 read/ls/write/
+edit/delete/glob/grep 命令是多行 POSIX 脚本（``2>/dev/null``、heredoc、
+``rm -rf``），cmd.exe 跑不了——WorkspaceAliasBackend 在 daemon 平台为
+win32 时这些方法不走命令生成，改发 ``fs_*`` 结构化 op 由 daemon 原生执行
+（client fsops.py），返回 dict 构造成 protocol_compat 的对应 Result 类型；
+posix（含无平台信息）保持 super() 现状零变化。
+
 注意（与 E2BBackend 相反的方向）：本后端的原生原语是异步的
 （dispatch_local_call 轮询 Redis），因此 aexecute 是主路径，同步
 execute 通过 asyncio.run 桥接（照 _skills_path_utils._run_async 模式）；
@@ -26,19 +33,27 @@ from dataclasses import dataclass
 from typing import Any, Coroutine, TypeVar, cast
 
 from deepagents.backends.protocol import ASYNC_GLOB_TIMEOUT
-from deepagents.backends.sandbox import BaseSandbox, _build_glob_cmd, _parse_glob_output
+from deepagents.backends.sandbox import (
+    BaseSandbox,
+    _build_glob_cmd,
+    _map_edit_error,
+    _parse_glob_output,
+)
 
 from src.infra.backend.protocol_compat import (
     DeleteResult,
     EditResult,
     ExecuteResponse,
     ExtendedFileError,
+    FileData,
     FileDownloadResponse,
     FileInfo,
     FileUploadResponse,
     GlobResult,
+    GrepMatch,
     GrepResult,
     LsResult,
+    ReadResult,
     WriteResult,
     file_download_response,
     file_upload_response,
@@ -62,6 +77,11 @@ _UPLOAD_CHUNK_RAW_BYTES = 48 * 1024
 # 无预检时超限文件会整读 base64 回传，轻则链路中途炸出含糊错误、重则撑爆
 # results 回传 body——stat 预检在 daemon 侧给显式 file_too_large 而非 base64。
 _DOWNLOAD_MAX_BYTES = 2 * 1024 * 1024
+
+# fs_write 单次载荷上限（M4 T3.5，win32 结构化文件操作）：与下载/results 通道
+# 的 2MB 同量级——超限在服务端预检拒绝（file_too_large），不下发 daemon；
+# daemon 侧 fsops.FS_WRITE_MAX_BYTES 是同一上限的第二道闸。
+_FS_WRITE_MAX_BYTES = 2 * 1024 * 1024
 
 
 # =========================================================================
@@ -548,6 +568,91 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
             return command
         return re.sub(re.escape(self.work_dir) + r"(?![A-Za-z0-9_.-])", ".", command)
 
+    # ---- win32 结构化 fs op（M4 T3.5）----
+
+    def _daemon_platform_is_win32(self) -> bool:
+        """同步版平台判定（照 upload_files 的 asyncio.run 桥接约束）。"""
+        return _platform_ctx(_run_coro_sync(self._resolve_platform())).is_windows
+
+    async def _adaemon_platform_is_win32(self) -> bool:
+        """异步版平台判定：win32 → 文件方法走结构化 fs op。"""
+        return _platform_ctx(await self._resolve_platform()).is_windows
+
+    async def _afs_call(self, op: str, payload: dict[str, Any]) -> dict:
+        """发一个结构化 fs op，取回结果体（cwd 一律附虚拟工作区，daemon 据此映射）。"""
+        resp = await dispatch_local_call(
+            self._user_id,
+            op,
+            {**payload, "cwd": self.work_dir},
+            timeout=float(self._exec_timeout),
+        )
+        result = resp.get("result")
+        return result if isinstance(result, dict) else {}
+
+    def _fs_call(self, op: str, payload: dict[str, Any]) -> dict:
+        return _run_coro_sync(self._afs_call(op, payload))
+
+    @staticmethod
+    def _fs_read_result(data: dict, path: str) -> ReadResult:
+        """fs_read 结果 → ReadResult（构造与 deepagents ``_parse_read_output`` 同构：
+        error 直嵌；分页字段组合非法降级为错误而非裸异常）。"""
+        if "error" in data:
+            return ReadResult(error=f"File '{path}': {data['error']}")
+        try:
+            return ReadResult(
+                file_data=FileData(
+                    content=str(data["content"]),
+                    encoding=str(data.get("encoding", "utf-8")),
+                ),
+                total_lines=data.get("total_lines"),
+                start_line=data.get("start_line"),
+                end_line=data.get("end_line"),
+                next_offset=data.get("next_offset"),
+                no_lines_requested=bool(data.get("no_lines_requested")),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            return ReadResult(error=f"File '{path}': unexpected server response: {exc}")
+
+    def _fs_write_result(self, data: dict, path: str, display: str) -> WriteResult:
+        if "error" in data:
+            return WriteResult(error=f"Failed to write file '{path}': {data['error']}")
+        return WriteResult(error=None, path=display)
+
+    @staticmethod
+    def _fs_edit_result(data: dict, path: str, old_string: str, display: str) -> EditResult:
+        """错误码经 deepagents ``_map_edit_error``——与 posix 路径同一条消息。"""
+        if "error" in data:
+            return _map_edit_error(str(data["error"]), path, old_string)
+        return EditResult(error=None, path=display, occurrences=data.get("count", 1))
+
+    @staticmethod
+    def _fs_delete_result(data: dict, path: str, display: str) -> DeleteResult:
+        if "error" in data:
+            err = str(data["error"])
+            if err == "file_not_found":
+                return DeleteResult(error=f"Error: '{path}' not found")
+            return DeleteResult(error=f"Error deleting file '{path}': {err}")
+        return DeleteResult(path=display)
+
+    def _fs_glob_result(self, data: dict, search_path: str, virtual_root: str) -> GlobResult:
+        """fs_glob 结果 → GlobResult：相对匹配先并入虚拟搜索根，再回填别名前缀。"""
+        if "error" in data:
+            return GlobResult(matches=None, error=f"Path '{search_path}': {data['error']}")
+        infos: list[FileInfo] = []
+        for m in data.get("matches") or []:
+            rel = str(m.get("path", ""))
+            joined = rel if rel.startswith("/") else posixpath.normpath(f"{virtual_root}/{rel}")
+            infos.append(
+                _restore_file_info_path(
+                    {"path": joined, "is_dir": bool(m.get("is_dir", False))}, self.work_dir
+                )
+            )
+        return GlobResult(
+            matches=infos,
+            truncated=bool(data.get("truncated")),
+            truncation_reason=data.get("truncation_reason"),
+        )
+
     # ---- 命令执行：命令串内的别名改写 ----
 
     async def aexecute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
@@ -559,28 +664,63 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
     # ---- 读：路径参数剥离（结果无路径字段，无需回填） ----
 
     def read(self, file_path: str, offset: int = 0, limit: int = 2000):
-        return super().read(self._strip_required(file_path), offset, limit)
+        stripped = self._strip_required(file_path)
+        if self._daemon_platform_is_win32():
+            data = self._fs_call("fs_read", {"path": stripped, "offset": offset, "limit": limit})
+            return self._fs_read_result(data, stripped)
+        return super().read(stripped, offset, limit)
 
     async def aread(self, file_path: str, offset: int = 0, limit: int = 2000):
-        return await super().aread(self._strip_required(file_path), offset, limit)
+        stripped = self._strip_required(file_path)
+        if await self._adaemon_platform_is_win32():
+            data = await self._afs_call(
+                "fs_read", {"path": stripped, "offset": offset, "limit": limit}
+            )
+            return self._fs_read_result(data, stripped)
+        return await super().aread(stripped, offset, limit)
 
     # ---- 列目录：剥离 + 条目路径回填 ----
 
     def ls(self, path: str) -> LsResult:
-        result = super().ls(self._strip_required(path))
+        stripped = self._strip_required(path)
+        if self._daemon_platform_is_win32():
+            return self._fs_ls_result(self._fs_call("fs_ls", {"path": stripped}), stripped)
+        return self._ls_via_exec(stripped)
+
+    async def als(self, path: str) -> LsResult:
+        stripped = self._strip_required(path)
+        if await self._adaemon_platform_is_win32():
+            return self._fs_ls_result(await self._afs_call("fs_ls", {"path": stripped}), stripped)
+        return await self._als_via_exec(stripped)
+
+    def _ls_via_exec(self, stripped: str) -> LsResult:
+        result = super().ls(stripped)
         if result.error or not result.entries:
             return result
         return LsResult(
             entries=[_restore_file_info_path(info, self.work_dir) for info in result.entries]
         )
 
-    async def als(self, path: str) -> LsResult:
-        result = await super().als(self._strip_required(path))
+    async def _als_via_exec(self, stripped: str) -> LsResult:
+        result = await super().als(stripped)
         if result.error or not result.entries:
             return result
         return LsResult(
             entries=[_restore_file_info_path(info, self.work_dir) for info in result.entries]
         )
+
+    def _fs_ls_result(self, data: dict, path: str) -> LsResult:
+        """fs_ls 结果 → LsResult：条目相对路径回填别名前缀（错误码同 ls 模板）。"""
+        if "error" in data:
+            return LsResult(entries=None, error=f"Path '{path}': {data['error']}")
+        entries = [
+            _restore_file_info_path(
+                {"path": str(e.get("path", "")), "is_dir": bool(e.get("is_dir", False))},
+                self.work_dir,
+            )
+            for e in data.get("entries") or []
+        ]
+        return LsResult(entries=entries)
 
     # ---- glob：绕开 _glob_search_root 的绝对化（相对根 "." 即已映射 cwd） ----
 
@@ -600,11 +740,19 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
 
     def glob(self, pattern: str, path: str | None = None) -> GlobResult:
         search_path = self._glob_root(path)
+        if self._daemon_platform_is_win32():
+            virtual_root = "." if search_path == "/" else search_path
+            data = self._fs_call("fs_glob", {"pattern": pattern, "path": virtual_root})
+            return self._fs_glob_result(data, search_path, virtual_root)
         result = super().execute(_build_glob_cmd(pattern, search_path))
         return self._restore_glob(_parse_glob_output(result, search_path))
 
     async def aglob(self, pattern: str, path: str | None = None) -> GlobResult:
         search_path = self._glob_root(path)
+        if await self._adaemon_platform_is_win32():
+            virtual_root = "." if search_path == "/" else search_path
+            data = await self._afs_call("fs_glob", {"pattern": pattern, "path": virtual_root})
+            return self._fs_glob_result(data, search_path, virtual_root)
         try:
             result = await asyncio.wait_for(
                 super().aexecute(_build_glob_cmd(pattern, search_path)),
@@ -640,6 +788,9 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
         *,
         max_count: int | None = None,
     ) -> GrepResult:
+        if self._daemon_platform_is_win32():
+            data = self._fs_call("fs_grep", self._fs_grep_payload(pattern, path, glob, max_count))
+            return self._fs_grep_result(data, path)
         result = super().grep(pattern, self._strip_path(path), glob, max_count=max_count)
         return self._restore_grep(result)
 
@@ -651,25 +802,105 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
         *,
         max_count: int | None = None,
     ) -> GrepResult:
+        if await self._adaemon_platform_is_win32():
+            data = await self._afs_call(
+                "fs_grep", self._fs_grep_payload(pattern, path, glob, max_count)
+            )
+            return self._fs_grep_result(data, path)
         result = await super().agrep(pattern, self._strip_path(path), glob, max_count=max_count)
         return self._restore_grep(result)
+
+    def _fs_grep_payload(
+        self,
+        pattern: str,
+        path: str | None,
+        glob: str | None,
+        max_count: int | None,
+    ) -> dict[str, Any]:
+        """fs_grep 载荷：deepagents grep 是字面量匹配（-F），is_regex 恒 False。"""
+        payload: dict[str, Any] = {
+            "pattern": pattern,
+            "path": self._strip_path(path) or ".",
+            "is_regex": False,
+        }
+        if glob is not None:
+            payload["glob"] = glob
+        if max_count is not None:
+            payload["max_count"] = int(max_count)
+        return payload
+
+    def _fs_grep_result(self, data: dict, path: str | None) -> GrepResult:
+        if "error" in data:
+            return GrepResult(error=f"Path '{path or '.'}': {data['error']}")
+        matches: list[GrepMatch] = [
+            {
+                "path": str(m.get("path", "")),
+                "line": int(m.get("line", 0)),
+                "text": str(m.get("text", "")),
+            }
+            for m in data.get("matches") or []
+        ]
+        return self._restore_grep(
+            GrepResult(matches=matches, truncated=bool(data.get("truncated")))
+        )
 
     # ---- 写/编辑/删除：剥离入参 + 结果路径回填 ----
 
     def write(self, file_path: str, content: str) -> WriteResult:
-        result = super().write(self._strip_required(file_path), content)
+        stripped = self._strip_required(file_path)
+        if self._daemon_platform_is_win32():
+            return self._fs_write(stripped, content, file_path)
+        result = super().write(stripped, content)
         if result.path is not None and result.error is None:
             return WriteResult(error=None, path=file_path)
         return result
 
     async def awrite(self, file_path: str, content: str) -> WriteResult:
-        result = await super().awrite(self._strip_required(file_path), content)
+        stripped = self._strip_required(file_path)
+        if await self._adaemon_platform_is_win32():
+            return await self._afs_write(stripped, content, file_path)
+        result = await super().awrite(stripped, content)
         if result.path is not None and result.error is None:
             return WriteResult(error=None, path=file_path)
         return result
 
+    def _fs_write(self, path: str, content: str, display: str) -> WriteResult:
+        """win32 写：单次 fs_write 上限 2MB（超限预检拒绝，不下发 daemon）。"""
+        raw = content.encode("utf-8")
+        if len(raw) > _FS_WRITE_MAX_BYTES:
+            return WriteResult(
+                error=(
+                    f"Failed to write file '{path}': file_too_large: {len(raw)} bytes "
+                    f"exceeds {_FS_WRITE_MAX_BYTES} limit (write cap)"
+                )
+            )
+        data = self._fs_call(
+            "fs_write", {"path": path, "content_b64": base64.b64encode(raw).decode("ascii")}
+        )
+        return self._fs_write_result(data, path, display)
+
+    async def _afs_write(self, path: str, content: str, display: str) -> WriteResult:
+        raw = content.encode("utf-8")
+        if len(raw) > _FS_WRITE_MAX_BYTES:
+            return WriteResult(
+                error=(
+                    f"Failed to write file '{path}': file_too_large: {len(raw)} bytes "
+                    f"exceeds {_FS_WRITE_MAX_BYTES} limit (write cap)"
+                )
+            )
+        data = await self._afs_call(
+            "fs_write", {"path": path, "content_b64": base64.b64encode(raw).decode("ascii")}
+        )
+        return self._fs_write_result(data, path, display)
+
     def edit(self, file_path: str, old_string: str, new_string: str, replace_all: bool = False):
-        result = super().edit(self._strip_required(file_path), old_string, new_string, replace_all)
+        stripped = self._strip_required(file_path)
+        if self._daemon_platform_is_win32():
+            payload = self._fs_edit_payload(stripped, old_string, new_string, replace_all)
+            return self._fs_edit_result(
+                self._fs_call("fs_edit", payload), stripped, old_string, file_path
+            )
+        result = super().edit(stripped, old_string, new_string, replace_all)
         if result.path is not None:
             return EditResult(error=result.error, path=file_path, occurrences=result.occurrences)
         return result
@@ -677,21 +908,44 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
     async def aedit(
         self, file_path: str, old_string: str, new_string: str, replace_all: bool = False
     ):
-        result = await super().aedit(
-            self._strip_required(file_path), old_string, new_string, replace_all
-        )
+        stripped = self._strip_required(file_path)
+        if await self._adaemon_platform_is_win32():
+            payload = self._fs_edit_payload(stripped, old_string, new_string, replace_all)
+            data = await self._afs_call("fs_edit", payload)
+            return self._fs_edit_result(data, stripped, old_string, file_path)
+        result = await super().aedit(stripped, old_string, new_string, replace_all)
         if result.path is not None:
             return EditResult(error=result.error, path=file_path, occurrences=result.occurrences)
         return result
 
+    @staticmethod
+    def _fs_edit_payload(
+        path: str, old_string: str, new_string: str, replace_all: bool
+    ) -> dict[str, Any]:
+        return {
+            "path": path,
+            "old_str_b64": base64.b64encode(old_string.encode("utf-8")).decode("ascii"),
+            "new_str_b64": base64.b64encode(new_string.encode("utf-8")).decode("ascii"),
+            "replace_all": replace_all,
+        }
+
     def delete(self, file_path: str) -> DeleteResult:
-        result = super().delete(self._strip_required(file_path))
+        stripped = self._strip_required(file_path)
+        if self._daemon_platform_is_win32():
+            return self._fs_delete_result(
+                self._fs_call("fs_delete", {"path": stripped}), stripped, file_path
+            )
+        result = super().delete(stripped)
         if result.path is not None:
             return DeleteResult(path=file_path)
         return result
 
     async def adelete(self, file_path: str) -> DeleteResult:
-        result = await super().adelete(self._strip_required(file_path))
+        stripped = self._strip_required(file_path)
+        if await self._adaemon_platform_is_win32():
+            data = await self._afs_call("fs_delete", {"path": stripped})
+            return self._fs_delete_result(data, stripped, file_path)
+        result = await super().adelete(stripped)
         if result.path is not None:
             return DeleteResult(path=file_path)
         return result

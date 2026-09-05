@@ -153,10 +153,10 @@ async def _never():
 # ---------- helpers ----------
 
 
-def _cfg(policy: str = "none") -> SandboxConfig:
+def _cfg(policy: str = "none", data_root: Path | None = None) -> SandboxConfig:
     return SandboxConfig(
         server_url="https://lc.example",
-        data_root=Path("/tmp/sbx-workspaces"),
+        data_root=data_root if data_root is not None else Path("/tmp/sbx-workspaces"),
         confirm_policy=policy,
     )
 
@@ -658,3 +658,223 @@ def test_main_dispatches_version_subcommand(capsys):
 
     assert cli.main(["version"]) == 0
     assert capsys.readouterr().out.strip() == __version__
+
+
+# ---------- fs op 分发（M4 T3.5：win32 结构化文件操作直达 daemon） ----------
+
+
+def _fs_call(
+    call_id: str = "c1",
+    *,
+    op: str = "fs_read",
+    payload: dict | None = None,
+    timeout: float = 5.0,
+) -> ToolCall:
+    if payload is None:
+        payload = {"path": "f.txt", "cwd": "/workspace/s1"}
+    return ToolCall(call_id=call_id, op=op, payload=payload, timeout=timeout)
+
+
+async def test_fs_read_dispatches_to_fsops_and_done_carries_result(tmp_path):
+    """fs_read 真文件系统端到端：ack → done(status=ok, result=分页字段)；executor 不被触碰。"""
+    (tmp_path / "s1").mkdir()
+    (tmp_path / "s1" / "f.txt").write_text("l1\nl2\n", encoding="utf-8")
+    client = FakeClient(
+        calls=[_fs_call(payload={"path": "f.txt", "cwd": "/workspace/s1", "offset": 0, "limit": 1})]
+    )
+    executor = FakeExecutor()
+    auditor = MemoryAuditor()
+
+    await _run(
+        _cfg("none", data_root=tmp_path),
+        FakeFactory([client, _terminator()]),
+        executor=executor,
+        auditor=auditor,
+        confirm_fn=_boom_confirm,
+    )
+
+    assert client.posted == [
+        ("c1", {"stage": "ack"}),
+        (
+            "c1",
+            {
+                "stage": "done",
+                "status": "ok",
+                "result": {
+                    "encoding": "utf-8",
+                    "content": "l1",
+                    "total_lines": 2,
+                    "start_line": 1,
+                    "end_line": 1,
+                    "next_offset": 1,
+                },
+            },
+        ),
+    ]
+    assert executor.calls == []
+    events = [e["event"] for e in auditor.records["s1"]]
+    assert events == ["received", "allowed", "executed"]
+    received = auditor.records["s1"][0]
+    assert received["op"] == "fs_read" and received["path"] == "f.txt"
+
+
+async def test_fs_write_passes_confirm_gate_with_description(tmp_path):
+    """写类 fs op 过确认门：描述是 "fs_write sub/a.txt" 形式；放行后真实落盘。"""
+    client = FakeClient(
+        calls=[
+            _fs_call(
+                op="fs_write",
+                payload={"path": "sub/a.txt", "cwd": "/workspace/s1", "content_b64": "aGVsbG8="},
+            )
+        ]
+    )
+    auditor = MemoryAuditor()
+    confirmed: list[str] = []
+
+    def confirm(description: str) -> bool:
+        confirmed.append(description)
+        return True
+
+    await _run(
+        _cfg("all", data_root=tmp_path),
+        FakeFactory([client, _terminator()]),
+        executor=FakeExecutor(),
+        auditor=auditor,
+        confirm_fn=confirm,
+    )
+
+    assert confirmed == ["fs_write sub/a.txt"]
+    assert (tmp_path / "s1" / "sub" / "a.txt").read_text(encoding="utf-8") == "hello"
+    assert client.posted[1] == ("c1", {"stage": "done", "status": "ok", "result": {}})
+
+
+async def test_fs_write_declined_leaves_file_untouched(tmp_path):
+    client = FakeClient(
+        calls=[
+            _fs_call(
+                op="fs_write",
+                payload={"path": "a.txt", "cwd": "/workspace/s1", "content_b64": "aGVsbG8="},
+            )
+        ]
+    )
+    auditor = MemoryAuditor()
+
+    await _run(
+        _cfg("all", data_root=tmp_path),
+        FakeFactory([client, _terminator()]),
+        executor=FakeExecutor(),
+        auditor=auditor,
+        confirm_fn=lambda description: False,
+    )
+
+    assert client.posted == [
+        ("c1", {"stage": "ack"}),
+        ("c1", {"stage": "done", "status": "error", "error": "declined_by_user"}),
+    ]
+    assert not (tmp_path / "s1" / "a.txt").exists()
+    assert [e["event"] for e in auditor.records["s1"]] == ["received", "declined"]
+
+
+async def test_fs_write_confirms_under_commands_policy(tmp_path):
+    """commands 策略下写类 fs op 仍确认——它们天然是变更操作。"""
+    client = FakeClient(
+        calls=[_fs_call(op="fs_delete", payload={"path": "a.txt", "cwd": "/workspace/s1"})]
+    )
+    confirmed: list[str] = []
+
+    await _run(
+        _cfg("commands", data_root=tmp_path),
+        FakeFactory([client, _terminator()]),
+        executor=FakeExecutor(),
+        auditor=MemoryAuditor(),
+        confirm_fn=lambda d: (confirmed.append(d), True)[1],
+    )
+
+    assert confirmed == ["fs_delete a.txt"]
+
+
+async def test_fs_read_skips_confirm_under_commands_policy(tmp_path):
+    """读类 fs op 在 commands 策略下不确认（只读）。"""
+    (tmp_path / "s1").mkdir()
+    client = FakeClient(calls=[_fs_call()])
+    auditor = MemoryAuditor()
+
+    await _run(
+        _cfg("commands", data_root=tmp_path),
+        FakeFactory([client, _terminator()]),
+        executor=FakeExecutor(),
+        auditor=auditor,
+        confirm_fn=_boom_confirm,
+    )
+
+    assert client.posted[1][1]["status"] == "ok"
+
+
+async def test_fs_op_file_level_error_is_ok_status_with_result_error(tmp_path):
+    """路径逃逸等结果级错误：done(status=ok, result.error=…)——模型可改路径重试。"""
+    client = FakeClient(
+        calls=[_fs_call(op="fs_read", payload={"path": "../../etc/passwd", "cwd": "/workspace/s1"})]
+    )
+    auditor = MemoryAuditor()
+
+    await _run(
+        _cfg("none", data_root=tmp_path),
+        FakeFactory([client, _terminator()]),
+        executor=FakeExecutor(),
+        auditor=auditor,
+        confirm_fn=_boom_confirm,
+    )
+
+    body = client.posted[1][1]
+    assert body["status"] == "ok"
+    assert "escape" in body["result"]["error"]
+    assert [e["event"] for e in auditor.records["s1"]] == ["received", "allowed", "executed"]
+
+
+async def test_fs_op_crash_converges_to_error_done_and_keeps_channel(tmp_path, monkeypatch):
+    """fsops 内部异常收敛为 done(status=error)，通道继续处理后续任务。"""
+    from lambchat_sandbox import daemon as daemon_module
+
+    def boom(op, payload, data_root):
+        raise RuntimeError("disk exploded")
+
+    monkeypatch.setattr(daemon_module, "handle_fs_op", boom)
+    ok_call = _call("c2", payload={"command": "echo ok", "cwd": "/workspace/s2"})
+    client = FakeClient(calls=[_fs_call("c1"), ok_call])
+    executor = FakeExecutor()
+    auditor = MemoryAuditor()
+
+    await _run(
+        _cfg("none", data_root=tmp_path),
+        FakeFactory([client, _terminator()]),
+        executor=executor,
+        auditor=auditor,
+        confirm_fn=_boom_confirm,
+    )
+
+    assert client.posted[1] == (
+        "c1",
+        {"stage": "done", "status": "error", "error": "disk exploded"},
+    )
+    assert client.posted[3][1]["status"] == "ok"  # 后续 exec 正常
+    assert [e["event"] for e in auditor.records["s1"]] == ["received", "allowed", "executed"]
+
+
+async def test_fs_op_invalid_cwd_converges_to_error_done(tmp_path):
+    """非法 cwd 的 fs op：ExecutorError → done(status=error)，不断连。"""
+    client = FakeClient(calls=[_fs_call(payload={"path": "f.txt", "cwd": "/etc"})])
+    auditor = MemoryAuditor()
+
+    await _run(
+        _cfg("none", data_root=tmp_path),
+        FakeFactory([client, _terminator()]),
+        executor=FakeExecutor(),
+        auditor=auditor,
+        confirm_fn=_boom_confirm,
+    )
+
+    body = client.posted[1][1]
+    assert body["status"] == "error"
+    assert "workspace" in body["error"]
+    # 非法 cwd 的 session_id 回落 unknown
+    assert [e["event"] for e in auditor.records["unknown"]] == ["received", "allowed", "executed"]

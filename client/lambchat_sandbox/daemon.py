@@ -41,6 +41,7 @@ from lambchat_sandbox.audit import Auditor
 from lambchat_sandbox.config import SandboxConfig
 from lambchat_sandbox.confirm import needs_confirm, terminal_confirm
 from lambchat_sandbox.executor import Executor
+from lambchat_sandbox.fsops import FS_OPS, WRITE_OPS, handle_fs_op
 from lambchat_sandbox.transport import (
     ChannelClient,
     ToolCall,
@@ -135,45 +136,105 @@ async def _process_call(
     executor: Executor,
     auditor: Auditor,
 ) -> None:
-    """单条 ToolCall 的完整决策链：审计 received → ack → 确认门控 → 迟到检查 → 执行 → done。
+    """单条 ToolCall 的完整决策链：审计 received → ack → op 分发 → 确认门控 → 迟到检查 → 执行 → done。
 
     ack 先于确认门（收到即发）：确认等待计入执行超时窗口而非 dispatch 的 30s
     ack 死线——否则用户在终端确认提示前犹豫超过 30s，dispatch 侧就误报
     ``sandbox_timeout`` 而本地命令根本没跑。作为代价，确认放行后要检查迟到：
     ``elapsed >= timeout`` 说明 dispatch 的 exec 死线已到（或将近），执行结果
     注定无人接收，直接 ``done(error=expired)`` 快速失败，不浪费本机资源。
+
+    op 分发（M4 T3.5）：``exec`` 走 executor（shell 命令）；``fs_*`` 走
+    :func:`lambchat_sandbox.fsops.handle_fs_op`（win32 结构化文件操作——
+    deepagents 的 POSIX 脚本命令 cmd.exe 跑不了，服务端改发结构化 op）；
+    其余 op 回 ``unsupported`` 错误。
     """
     command = str(call.payload.get("command", ""))
     virtual_cwd = str(call.payload.get("cwd", ""))
+    path = str(call.payload.get("path", ""))
     session_id = _session_id_from_cwd(virtual_cwd)
     started = time.monotonic()
     auditor.log(
         session_id,
-        {"event": "received", "call_id": call.call_id, "op": call.op, "command": command},
+        {
+            "event": "received",
+            "call_id": call.call_id,
+            "op": call.op,
+            "command": command,
+            "path": path,
+        },
     )
     await client.post_result(call.call_id, {"stage": "ack"})
 
-    if call.op != "exec":
-        await client.post_result(
-            call.call_id,
-            {"stage": "done", "status": "error", "error": f"unsupported op: {call.op}"},
+    if call.op == "exec":
+        await _process_exec_call(
+            client,
+            call,
+            session_id=session_id,
+            command=command,
+            virtual_cwd=virtual_cwd,
+            started=started,
+            cfg=cfg,
+            confirm_fn=confirm_fn,
+            executor=executor,
+            auditor=auditor,
+        )
+        return
+    if call.op in FS_OPS:
+        await _process_fs_call(
+            client,
+            call,
+            session_id=session_id,
+            path=path,
+            started=started,
+            cfg=cfg,
+            confirm_fn=confirm_fn,
+            auditor=auditor,
         )
         return
 
+    await client.post_result(
+        call.call_id,
+        {"stage": "done", "status": "error", "error": f"unsupported op: {call.op}"},
+    )
+
+
+async def _process_exec_call(
+    client: ChannelClient,
+    call: ToolCall,
+    *,
+    session_id: str,
+    command: str,
+    virtual_cwd: str,
+    started: float,
+    cfg: SandboxConfig,
+    confirm_fn: Callable[[str], bool],
+    executor: Executor,
+    auditor: Auditor,
+) -> None:
+    """op=exec 的执行链：确认门 → 迟到检查 → executor → done → 审计。"""
     if needs_confirm(command, cfg.confirm_policy) and not _confirm(command, confirm_fn):
         await client.post_result(
             call.call_id, {"stage": "done", "status": "error", "error": "declined_by_user"}
         )
-        auditor.log(session_id, {"event": "declined", "call_id": call.call_id, "command": command})
+        auditor.log(
+            session_id,
+            {"event": "declined", "call_id": call.call_id, "op": "exec", "command": command},
+        )
         return
 
-    auditor.log(session_id, {"event": "allowed", "call_id": call.call_id, "command": command})
+    auditor.log(
+        session_id, {"event": "allowed", "call_id": call.call_id, "op": "exec", "command": command}
+    )
     effective = call.timeout if call.timeout > 0 else DEFAULT_EXEC_TIMEOUT_S
     if time.monotonic() - started >= effective:
         await client.post_result(
             call.call_id, {"stage": "done", "status": "error", "error": "expired"}
         )
-        auditor.log(session_id, {"event": "expired", "call_id": call.call_id, "command": command})
+        auditor.log(
+            session_id,
+            {"event": "expired", "call_id": call.call_id, "op": "exec", "command": command},
+        )
         return
 
     result = _execute(executor, command, virtual_cwd, effective)
@@ -185,10 +246,82 @@ async def _process_call(
         {
             "event": "executed",
             "call_id": call.call_id,
+            "op": "exec",
             "command": command,
             "status": result.get("status"),
             "exit_code": result.get("exit_code"),
         },
+    )
+
+
+async def _process_fs_call(
+    client: ChannelClient,
+    call: ToolCall,
+    *,
+    session_id: str,
+    path: str,
+    started: float,
+    cfg: SandboxConfig,
+    confirm_fn: Callable[[str], bool],
+    auditor: Auditor,
+) -> None:
+    """op=fs_* 的执行链：结果走同一 ack/done 协议，结果体放 ``result`` 字段。
+
+    - **确认门**：写类 fs op（write/edit/delete）同样过 needs_confirm——用户
+      看到的描述是 ``fs_write sub/a.txt`` 形式。``commands`` 策略按词匹配
+      命令，``fs_write`` 不在变更清单里，但写类 fs op 天然变更状态，故以
+      ``rm`` 前缀哨兵送判（命中清单即确认）；读类只读，不确认；
+    - **错误两级**：文件级错误（不存在/逃逸/坏载荷）在 ``result`` 里（done
+      的 status 仍是 ok——模型可改路径重试）；fsops 内部异常（含非法 cwd 的
+      ExecutorError）收敛为 ``status=error``，与 exec 的对应路径对齐。
+    """
+    description = f"{call.op} {path}".rstrip()
+    gate_command = description if call.op not in WRITE_OPS else f"rm {description}"
+    if needs_confirm(gate_command, cfg.confirm_policy) and not _confirm(description, confirm_fn):
+        await client.post_result(
+            call.call_id, {"stage": "done", "status": "error", "error": "declined_by_user"}
+        )
+        auditor.log(
+            session_id,
+            {"event": "declined", "call_id": call.call_id, "op": call.op, "path": path},
+        )
+        return
+
+    auditor.log(
+        session_id, {"event": "allowed", "call_id": call.call_id, "op": call.op, "path": path}
+    )
+    effective = call.timeout if call.timeout > 0 else DEFAULT_EXEC_TIMEOUT_S
+    if time.monotonic() - started >= effective:
+        await client.post_result(
+            call.call_id, {"stage": "done", "status": "error", "error": "expired"}
+        )
+        auditor.log(
+            session_id, {"event": "expired", "call_id": call.call_id, "op": call.op, "path": path}
+        )
+        return
+
+    try:
+        result = handle_fs_op(call.op, call.payload, cfg.data_root)
+    except Exception as exc:  # noqa: BLE001 - 单条 fs op 崩溃不拖垮通道
+        await client.post_result(
+            call.call_id, {"stage": "done", "status": "error", "error": str(exc)}
+        )
+        auditor.log(
+            session_id,
+            {
+                "event": "executed",
+                "call_id": call.call_id,
+                "op": call.op,
+                "path": path,
+                "status": "error",
+            },
+        )
+        return
+
+    await client.post_result(call.call_id, {"stage": "done", "status": "ok", "result": result})
+    auditor.log(
+        session_id,
+        {"event": "executed", "call_id": call.call_id, "op": call.op, "path": path, "status": "ok"},
     )
 
 

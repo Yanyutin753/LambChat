@@ -448,7 +448,7 @@ def test_upload_command_posix_append_bytes_locked():
 def test_download_command_posix_bytes_locked():
     """Linux daemon 零回归锁：posix 下载命令逐字节快照（多行脚本 + %d 文本）。"""
     assert LocalSandboxBackend._download_command("a b.txt") == (
-        "python3 -c \"import os, sys, base64\n"
+        'python3 -c "import os, sys, base64\n'
         "size = os.path.getsize(sys.argv[1])\n"
         "if size > 2097152:\n"
         "    sys.stderr.write('file_too_large: %d bytes exceeds 2097152 limit'\n"
@@ -698,3 +698,328 @@ def test_inherited_read_commands_are_platform_neutral():
         assert "mkdir -p" not in cmd
     # 路径以 base64 进脚本，不作为 shell 参数出现（无 shlex/cmd 引用形态）
     assert base64.b64encode(b"a b/c.txt").decode() in _build_ls_cmd("a b/c.txt")
+
+
+# =========================================================================
+# M4 T3.5: win32 结构化文件操作（daemon 平台 win32 时 fs op 直达，posix 零变化）
+# =========================================================================
+
+
+def _fs_dispatch(result: dict):
+    """fake dispatch：记录 (op, payload) 序列并回放 fs 结果体。"""
+
+    calls: list[tuple[str, dict]] = []
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+        assert (user_id, op) == ("u1", op)
+        calls.append((op, dict(payload)))
+        return {"status": "ok", "result": result}
+
+    fake_dispatch.calls = calls
+    return fake_dispatch
+
+
+async def test_win32_aread_dispatches_structured_fs_read(monkeypatch, _default_daemon_platform):
+    _default_daemon_platform["platform"] = "win32"
+    dispatch = _fs_dispatch(
+        {
+            "encoding": "utf-8",
+            "content": "l1\nl2",
+            "total_lines": 2,
+            "start_line": 1,
+            "end_line": 2,
+            "next_offset": 2,
+        }
+    )
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    result = await backend.aread("/workspace/s1/note.txt", offset=0, limit=2)
+
+    assert dispatch.calls == [
+        ("fs_read", {"path": "note.txt", "offset": 0, "limit": 2, "cwd": "/workspace/s1"})
+    ]
+    assert result.error is None
+    assert result.file_data is not None
+    assert result.file_data["content"] == "l1\nl2"
+    assert result.file_data["encoding"] == "utf-8"
+    assert (result.total_lines, result.start_line, result.end_line, result.next_offset) == (
+        2,
+        1,
+        2,
+        2,
+    )
+
+
+async def test_win32_aread_error_message_matches_posix_format(
+    monkeypatch, _default_daemon_platform
+):
+    _default_daemon_platform["platform"] = "win32"
+    dispatch = _fs_dispatch({"error": "file_not_found"})
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    result = await backend.aread("/workspace/s1/ghost.txt")
+    assert result.error == "File 'ghost.txt': file_not_found"  # 与 _parse_read_output 同构
+
+
+def test_win32_sync_read_uses_fs_op(monkeypatch, _default_daemon_platform):
+    _default_daemon_platform["platform"] = "win32"
+    dispatch = _fs_dispatch({"encoding": "utf-8", "content": "body", "no_lines_requested": False})
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    result = backend.read("/workspace/s1/f.txt")
+    assert result.error is None
+    assert result.file_data is not None and result.file_data["content"] == "body"
+    assert dispatch.calls[0][0] == "fs_read"
+
+
+async def test_posix_read_still_exec_pos_commands(monkeypatch, _default_daemon_platform):
+    """posix（无平台信息）走 super() 的 exec 命令路径——现状零变化。"""
+    captured: list[str] = []
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+        captured.append(op)
+        captured.append(payload["command"])
+        return _ok_response(stdout='{"encoding": "utf-8", "content": "posix"}')
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    result = await backend.aread("/workspace/s1/note.txt")
+    assert captured[0] == "exec"
+    assert "python3" in captured[1]
+    assert result.file_data is not None and result.file_data["content"] == "posix"
+
+
+async def test_win32_als_restores_alias_prefix_on_entries(monkeypatch, _default_daemon_platform):
+    _default_daemon_platform["platform"] = "win32"
+    dispatch = _fs_dispatch(
+        {"entries": [{"path": "./note.txt", "is_dir": False}, {"path": "./subdir", "is_dir": True}]}
+    )
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    result = await backend.als("/workspace/s1")
+    assert dispatch.calls == [("fs_ls", {"path": ".", "cwd": "/workspace/s1"})]
+    assert result.error is None
+    assert {(e["path"], e["is_dir"]) for e in (result.entries or [])} == {
+        ("/workspace/s1/note.txt", False),
+        ("/workspace/s1/subdir", True),
+    }
+
+
+async def test_win32_als_error_uses_ls_error_format(monkeypatch, _default_daemon_platform):
+    _default_daemon_platform["platform"] = "win32"
+    dispatch = _fs_dispatch({"error": "path_not_found"})
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    result = await backend.als("/workspace/s1/ghost")
+    assert result.entries is None
+    assert result.error == "Path 'ghost': path_not_found"
+
+
+async def test_win32_awrite_sends_b64_and_restores_path(monkeypatch, _default_daemon_platform):
+    _default_daemon_platform["platform"] = "win32"
+    dispatch = _fs_dispatch({})
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    result = await backend.awrite("/workspace/s1/sub/new.txt", "内容 ✓")
+    assert dispatch.calls == [
+        (
+            "fs_write",
+            {
+                "path": "sub/new.txt",
+                "content_b64": base64.b64encode("内容 ✓".encode()).decode(),
+                "cwd": "/workspace/s1",
+            },
+        )
+    ]
+    assert result.error is None
+    assert result.path == "/workspace/s1/sub/new.txt"  # 成功回填原别名路径
+
+
+async def test_win32_awrite_over_cap_rejects_before_dispatch(monkeypatch, _default_daemon_platform):
+    """>2MB 内容单次 fs_write 拒绝（file_too_large，与 posix 侧 2MB 量级对齐）。"""
+    _default_daemon_platform["platform"] = "win32"
+    dispatch = _fs_dispatch({})
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    result = await backend.awrite(
+        "/workspace/s1/big.bin", "x" * (local_module._FS_WRITE_MAX_BYTES + 1)
+    )
+    assert dispatch.calls == []  # 未下发
+    assert result.path is None
+    assert "file_too_large" in (result.error or "")
+
+
+async def test_win32_awrite_error_wrapped(monkeypatch, _default_daemon_platform):
+    _default_daemon_platform["platform"] = "win32"
+    dispatch = _fs_dispatch({"error": "permission_denied"})
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    result = await backend.awrite("/workspace/s1/f.txt", "x")
+    assert result.path is None
+    assert result.error == "Failed to write file 'f.txt': permission_denied"
+
+
+async def test_win32_aedit_sends_b64_and_maps_errors(monkeypatch, _default_daemon_platform):
+    _default_daemon_platform["platform"] = "win32"
+    dispatch = _fs_dispatch({"count": 2})
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    result = await backend.aedit("/workspace/s1/f.txt", "old", "new", replace_all=True)
+    assert dispatch.calls == [
+        (
+            "fs_edit",
+            {
+                "path": "f.txt",
+                "old_str_b64": base64.b64encode(b"old").decode(),
+                "new_str_b64": base64.b64encode(b"new").decode(),
+                "replace_all": True,
+                "cwd": "/workspace/s1",
+            },
+        )
+    ]
+    assert result.error is None
+    assert result.path == "/workspace/s1/f.txt"
+    assert result.occurrences == 2
+
+
+async def test_win32_aedit_string_not_found_message_posix_parity(
+    monkeypatch, _default_daemon_platform
+):
+    """错误码经 deepagents _map_edit_error——与 posix 路径同一条消息。"""
+    _default_daemon_platform["platform"] = "win32"
+    dispatch = _fs_dispatch({"error": "string_not_found"})
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    result = await backend.aedit("/workspace/s1/f.txt", "needle", "x")
+    assert result.error == "Error: String not found in file: 'needle'"
+    assert result.path is None
+
+
+async def test_win32_adelete_dispatch_and_not_found(monkeypatch, _default_daemon_platform):
+    _default_daemon_platform["platform"] = "win32"
+    dispatch = _fs_dispatch({})
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    result = await backend.adelete("/workspace/s1/f.txt")
+    assert dispatch.calls == [("fs_delete", {"path": "f.txt", "cwd": "/workspace/s1"})]
+    assert result.path == "/workspace/s1/f.txt"
+
+    missing = _fs_dispatch({"error": "file_not_found"})
+    monkeypatch.setattr(local_module, "dispatch_local_call", missing)
+    result = await backend.adelete("/workspace/s1/ghost")
+    assert result.error == "Error: 'ghost' not found"
+
+
+async def test_win32_aglob_root_normalizes_and_restores(monkeypatch, _default_daemon_platform):
+    _default_daemon_platform["platform"] = "win32"
+    dispatch = _fs_dispatch(
+        {
+            "matches": [{"path": "deep/a.py", "is_dir": False}],
+            "truncated": False,
+            "truncation_reason": None,
+        }
+    )
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    result = await backend.aglob("*.py")  # path=None → 根搜索（fs 语义 = 工作区根）
+    assert dispatch.calls == [("fs_glob", {"pattern": "*.py", "path": ".", "cwd": "/workspace/s1"})]
+    assert result.error is None
+    assert [m["path"] for m in (result.matches or [])] == ["/workspace/s1/deep/a.py"]
+
+
+async def test_win32_aglob_subroot_joins_virtual_root(monkeypatch, _default_daemon_platform):
+    _default_daemon_platform["platform"] = "win32"
+    dispatch = _fs_dispatch({"matches": [{"path": "a.txt", "is_dir": False}]})
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    result = await backend.aglob("*.txt", path="/workspace/s1/src")
+    assert dispatch.calls[0][1]["path"] == "src"
+    assert [m["path"] for m in (result.matches or [])] == ["/workspace/s1/src/a.txt"]
+
+
+async def test_win32_agrep_payload_and_restore(monkeypatch, _default_daemon_platform):
+    _default_daemon_platform["platform"] = "win32"
+    dispatch = _fs_dispatch(
+        {"matches": [{"path": "./a.txt", "line": 2, "text": "beta"}], "truncated": False}
+    )
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    result = await backend.agrep("beta", path="/workspace/s1", glob="*.txt", max_count=5)
+    assert dispatch.calls == [
+        (
+            "fs_grep",
+            {
+                "pattern": "beta",
+                "path": ".",
+                "glob": "*.txt",
+                "max_count": 5,
+                "is_regex": False,
+                "cwd": "/workspace/s1",
+            },
+        )
+    ]
+    assert result.error is None
+    assert result.matches is not None and len(result.matches) == 1
+    assert result.matches[0] == {"path": "/workspace/s1/a.txt", "line": 2, "text": "beta"}
+    assert result.truncated is False
+
+
+async def test_win32_agrep_truncated_and_error(monkeypatch, _default_daemon_platform):
+    _default_daemon_platform["platform"] = "win32"
+    dispatch = _fs_dispatch({"matches": [], "truncated": True})
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    result = await backend.agrep("x", path=None)
+    assert dispatch.calls[0][1]["path"] == "."
+    assert result.truncated is True
+
+    failing = _fs_dispatch({"error": "invalid_pattern"})
+    monkeypatch.setattr(local_module, "dispatch_local_call", failing)
+    result = await backend.agrep("", path=None)
+    assert result.error == "Path '.': invalid_pattern"
+    assert result.matches is None
+
+
+async def test_platform_hint_win32_triggers_fs_without_registry(monkeypatch):
+    """构造期显式 platform_hint=win32：不查注册表即走 fs 分支（wiring/测试通道）。"""
+    dispatch = _fs_dispatch({"entries": []})
+
+    async def boom_lookup(user_id):
+        raise AssertionError("platform hint 不应触注册表")
+
+    monkeypatch.setattr(local_module, "_lookup_daemon_platform", boom_lookup)
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(
+        user_id="u1", session_id="s1", platform_hint="win32"
+    )
+
+    result = await backend.als("/workspace/s1")
+    assert dispatch.calls == [("fs_ls", {"path": ".", "cwd": "/workspace/s1"})]
+    assert result.entries == []
+
+
+async def test_platform_hint_posix_keeps_exec_commands(monkeypatch):
+    dispatch = _fs_dispatch({})
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+        dispatch.calls.append((op, dict(payload)))
+        return _ok_response(stdout="{}")
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = local_module.WorkspaceAliasBackend(
+        user_id="u1", session_id="s1", platform_hint="linux"
+    )
+
+    await backend.aread("/workspace/s1/f.txt")
+    assert dispatch.calls[0][0] == "exec"
+
+
+async def test_win32_fs_result_malformed_degrades_to_error(monkeypatch, _default_daemon_platform):
+    """坏结果体（缺 content / 分页字段组合非法）降级为错误而非裸异常。"""
+    _default_daemon_platform["platform"] = "win32"
+    dispatch = _fs_dispatch({"total_lines": 5})  # 无 content 且分页字段缺窗
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    result = await backend.aread("/workspace/s1/f.txt")
+    assert result.error is not None
+    assert "unexpected server response" in result.error
