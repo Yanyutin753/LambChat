@@ -645,7 +645,8 @@
     "daemonOffline": "ローカルサンドボックスデーモンはオフラインです",
     "sandboxTimeout": "ローカルサンドボックス呼び出しがタイムアウトしました（{{seconds}}秒）",
     "sandboxPayloadTooLarge": "ローカルサンドボックスのペイロードが大きすぎます",
-    "sandboxExecFailed": "ローカルサンドボックスの実行に失敗しました：{{detail}}"
+    "sandboxExecFailed": "ローカルサンドボックスの実行に失敗しました：{{detail}}",
+    "daemonVersionUnsupported": "ローカルサンドボックスデーモンのバージョン {{version}} は最低要件 {{min}} 未満です。アップデートしてください"
   },
   "categories": {
     "agent": "エージェント",

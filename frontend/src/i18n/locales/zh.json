@@ -645,7 +645,8 @@
     "daemonOffline": "本地沙箱守护进程离线",
     "sandboxTimeout": "本地沙箱调用超时（{{seconds}} 秒）",
     "sandboxPayloadTooLarge": "本地沙箱载荷超限",
-    "sandboxExecFailed": "本地沙箱执行失败：{{detail}}"
+    "sandboxExecFailed": "本地沙箱执行失败：{{detail}}",
+    "daemonVersionUnsupported": "本地沙箱守护进程版本 {{version}} 低于最低要求 {{min}}，请升级"
   },
   "categories": {
     "agent": "代理",

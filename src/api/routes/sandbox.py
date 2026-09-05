@@ -102,6 +102,18 @@ async def channel_frames(
         await asyncio.sleep(_POLL_INTERVAL)
 
 
+def _version_tuple(version: str) -> tuple[int, ...]:
+    """语义化版本串 → 可比较 int 元组：按 ``.`` 分段，非数字段容错按 0 处理。
+
+    空串 → ``(0,)``（最低）：M1 旧 daemon 不上报 version，按最低版本拒连，
+    倒逼升级到带版本上报与 self-update 的新客户端。段数不齐时短元组直接
+    比较（``(0, 1) < (0, 1, 0)``），与直觉一致。
+    """
+    if not version:
+        return (0,)
+    return tuple(int(part) if part.isdigit() else 0 for part in version.strip().split("."))
+
+
 @router.get("/channel")
 async def sandbox_channel(
     version: str = "",
@@ -111,7 +123,27 @@ async def sandbox_channel(
     """daemon SSE 通道。``?version=``/``?platform=`` 是 daemon connect URL
     自带的客户端版本与归一平台（服务端访问日志可见），随 register/heartbeat
     存入注册表 hash value，status 端点解析成 daemon_version/daemon_platform
-    暴露；platform 另供文件命令生成的平台分支（M4 T3）查询。"""
+    暴露；platform 另供文件命令生成的平台分支（M4 T3）查询。
+
+    版本门（M4 T5）：version 低于 ``SANDBOX_MIN_DAEMON_VERSION``（缺失按最低）
+    直接 426 拒连——错误在 StreamingResponse 建立前 raise，走全局 AppError
+    处理器返回统一 JSON 契约，daemon 侧拿到结构化错误码而非沉默断流；拒绝
+    的连接不 register，不产生幽灵在线。
+    """
+    if _version_tuple(version) < _version_tuple(settings.SANDBOX_MIN_DAEMON_VERSION):
+        logger.info(
+            "sandbox channel rejected daemon version %r (min %s) for user %s",
+            version,
+            settings.SANDBOX_MIN_DAEMON_VERSION,
+            user.sub,
+        )
+        raise AppError(
+            ErrorCode.DAEMON_VERSION_UNSUPPORTED,
+            args={
+                "version": version or "unknown",
+                "min": settings.SANDBOX_MIN_DAEMON_VERSION,
+            },
+        )
     registry = _registry()
     client_id = uuid.uuid4().hex[:12]
     await registry.register(user.sub, client_id, _NODE_ID, version=version, platform=platform)

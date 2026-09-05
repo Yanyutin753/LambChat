@@ -240,6 +240,8 @@ class Settings(BaseSettings):
     SANDBOX_LOCAL_ACK_TIMEOUT: int = 30  # 本地沙箱 daemon ACK 超时（秒）
     SANDBOX_LOCAL_EXEC_TIMEOUT: int = 120  # 本地沙箱执行总超时（秒）
     SANDBOX_RESULTS_MAX_BYTES: int = 2097152  # 本地沙箱 results 回传 body 上限（字节，2 MiB）
+    # 本地沙箱 daemon 最低连接版本（语义化比较）：低于即拒连（426），逼客户端 self-update
+    SANDBOX_MIN_DAEMON_VERSION: str = "0.1.0"
     DAYTONA_API_KEY: str = ""
     DAYTONA_SERVER_URL: str = ""
     DAYTONA_TIMEOUT: int = 180

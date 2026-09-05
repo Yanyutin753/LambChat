@@ -253,7 +253,9 @@ async def _post_results_with_size(monkeypatch, body: bytes):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         resp = await client.post(
-            "/api/sandbox/results/call-1", content=body, headers={"content-type": "application/json"}
+            "/api/sandbox/results/call-1",
+            content=body,
+            headers={"content-type": "application/json"},
         )
     return resp, redis
 
@@ -401,6 +403,98 @@ async def test_channel_registers_platform_from_query(monkeypatch):
     user_id, _client_id, node_id, version, platform = registry.registered[0]
     assert (user_id, version, platform) == ("u1", "0.1.0", "win32")
     assert node_id == sandbox_route._NODE_ID
+
+
+def _channel_app(monkeypatch, registry):
+    """组装 channel 测试 app：PAT 通道 + 假注册表/Redis，返回 AsyncClient 工厂。"""
+    app = FastAPI()
+    register_error_handlers(app)
+    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
+    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_pat_user
+    monkeypatch.setattr(sandbox_route, "_registry", lambda: registry)
+    monkeypatch.setattr(sandbox_route, "_redis", lambda: _FakeRedis())
+    return AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver")
+
+
+async def test_channel_rejects_version_below_min(monkeypatch):
+    """最低版本拒连（M4 T5）：daemon 上报版本低于 SANDBOX_MIN_DAEMON_VERSION 时
+    426 daemon_version_unsupported，且不注册进在线表（拒连不产生幽灵在线）。"""
+    monkeypatch.setattr(sandbox_route.settings, "SANDBOX_MIN_DAEMON_VERSION", "0.2.0")
+    registry = _FakeRegistry()
+    async with _channel_app(monkeypatch, registry) as client:
+        resp = await client.get("/api/sandbox/channel?version=0.1.9")
+    assert resp.status_code == 426
+    detail = resp.json()["detail"]
+    assert detail["code"] == "daemon_version_unsupported"
+    assert detail["args"] == {"version": "0.1.9", "min": "0.2.0"}
+    assert registry.registered == []
+
+
+async def test_channel_rejects_missing_version(monkeypatch):
+    """无 version（M1 旧 daemon / 手工连接）按最低处理：同样 426 拒连。"""
+    monkeypatch.setattr(sandbox_route.settings, "SANDBOX_MIN_DAEMON_VERSION", "0.2.0")
+    registry = _FakeRegistry()
+    async with _channel_app(monkeypatch, registry) as client:
+        resp = await client.get("/api/sandbox/channel")
+    assert resp.status_code == 426
+    assert resp.json()["detail"]["code"] == "daemon_version_unsupported"
+    assert registry.registered == []
+
+
+async def test_channel_rejects_malformed_version(monkeypatch):
+    """坏版本串容错：非数字段按 0 处理（"x.y.z" → (0,0,0)），低于 min 即拒。"""
+    monkeypatch.setattr(sandbox_route.settings, "SANDBOX_MIN_DAEMON_VERSION", "0.2.0")
+    registry = _FakeRegistry()
+    async with _channel_app(monkeypatch, registry) as client:
+        resp = await client.get("/api/sandbox/channel?version=x.y.z")
+    assert resp.status_code == 426
+    assert resp.json()["detail"]["args"] == {"version": "x.y.z", "min": "0.2.0"}
+
+
+async def test_channel_allows_version_at_or_above_min(monkeypatch):
+    """等于/高于放行：等于 min（0.2.0）与更高（0.3.0）都正常注册进流。"""
+    monkeypatch.setattr(sandbox_route.settings, "SANDBOX_MIN_DAEMON_VERSION", "0.2.0")
+    seen: list[str] = []
+
+    async def fake_frames(redis, reg, user_id, client_id, *, stop, version="", platform=""):
+        seen.append(version)
+        if False:  # pragma: no cover - 空 async generator
+            yield ""
+
+    monkeypatch.setattr(sandbox_route, "channel_frames", fake_frames)
+    for version in ("0.2.0", "0.3.0"):
+        registry = _FakeRegistry()
+        async with _channel_app(monkeypatch, registry) as client:
+            resp = await client.get(f"/api/sandbox/channel?version={version}")
+        assert resp.status_code == 200
+        assert registry.registered and registry.registered[0][3] == version
+
+
+async def test_channel_allows_equal_min_with_nonnumeric_suffix(monkeypatch):
+    """容错语义：非数字段按 0——"0.2.x" 解析为 (0,2,0) 不低于 min "0.2.0"，放行。"""
+    monkeypatch.setattr(sandbox_route.settings, "SANDBOX_MIN_DAEMON_VERSION", "0.2.0")
+
+    async def fake_frames(redis, reg, user_id, client_id, *, stop, version="", platform=""):
+        if False:  # pragma: no cover - 空 async generator
+            yield ""
+
+    monkeypatch.setattr(sandbox_route, "channel_frames", fake_frames)
+    registry = _FakeRegistry()
+    async with _channel_app(monkeypatch, registry) as client:
+        resp = await client.get("/api/sandbox/channel?version=0.2.ignored")
+    assert resp.status_code == 200
+
+
+async def test_channel_version_gate_defaults(monkeypatch):
+    """默认配置即拒旧：出厂 SANDBOX_MIN_DAEMON_VERSION=0.1.0，低于它的 0.0.x 拒连。"""
+    monkeypatch.setattr(
+        sandbox_route.settings, "SANDBOX_MIN_DAEMON_VERSION", "0.1.0", raising=False
+    )
+    registry = _FakeRegistry()
+    async with _channel_app(monkeypatch, registry) as client:
+        resp = await client.get("/api/sandbox/channel?version=0.0.9")
+    assert resp.status_code == 426
+    assert resp.json()["detail"]["code"] == "daemon_version_unsupported"
 
 
 async def test_offline_endpoint_unregisters_active_client(monkeypatch):

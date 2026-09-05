@@ -101,6 +101,11 @@ class ErrorCode(Enum):
         413,
         "Local sandbox payload exceeds limit",
     )
+    DAEMON_VERSION_UNSUPPORTED = (
+        "daemon_version_unsupported",
+        426,
+        "Daemon version {{version}} is below minimum {{min}}; please update",
+    )
 
     # ---------- push：推送订阅 ----------
     PUSH_UNAVAILABLE = (

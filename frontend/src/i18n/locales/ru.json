@@ -645,7 +645,8 @@
     "daemonOffline": "Локальный sandbox-демон не подключён",
     "sandboxTimeout": "Превышено время ожидания локального sandbox ({{seconds}} с)",
     "sandboxPayloadTooLarge": "Полезная нагрузка локального sandbox слишком велика",
-    "sandboxExecFailed": "Ошибка выполнения локального sandbox: {{detail}}"
+    "sandboxExecFailed": "Ошибка выполнения локального sandbox: {{detail}}",
+    "daemonVersionUnsupported": "Версия локального sandbox-демона {{version}} ниже минимальной {{min}}, обновите его"
   },
   "categories": {
     "agent": "Агент",
