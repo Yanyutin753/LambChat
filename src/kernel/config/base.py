@@ -242,10 +242,6 @@ class Settings(BaseSettings):
     SANDBOX_RESULTS_MAX_BYTES: int = 2097152  # 本地沙箱 results 回传 body 上限（字节，2 MiB）
     # 本地沙箱 daemon 最低连接版本（语义化比较）：低于即拒连（426），逼客户端 self-update
     SANDBOX_MIN_DAEMON_VERSION: str = "0.2.0"  # 0.2.0：确认门搬服务端 + 策略上报；旧版带 daemon 侧门，拒连防双重确认
-    # 云端沙箱（E2B/Daytona/Cube）确认策略：统一确认门（SandboxConfirmMiddleware）
-    # 覆盖全部沙箱后端；本地沿用 daemon 上报策略，云端用此部署级配置。
-    # 默认 none = 保持云上历史行为（隔离环境无确认），需要时收紧为 all/commands。
-    SANDBOX_CLOUD_CONFIRM_POLICY: str = "none"
     DAYTONA_API_KEY: str = ""
     DAYTONA_SERVER_URL: str = ""
     DAYTONA_TIMEOUT: int = 180
@@ -340,6 +336,7 @@ class Settings(BaseSettings):
             "http://localhost:5173",
             "tauri://localhost",
             "https://tauri.localhost",
+            "http://tauri.localhost",
             "capacitor://localhost",
             "http://localhost",
         ]

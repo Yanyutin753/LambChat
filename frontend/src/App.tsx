@@ -24,6 +24,10 @@ import {
 import { APP_TOASTER_CLASS_NAME } from "./components/layout/AppContent/appToastLayout";
 import { PwaStatusToasts } from "./components/pwa/PwaStatusToasts";
 import { appNotificationService } from "./services/notifications/appNotificationService";
+import { needsServerSetup } from "./services/api/serverConfig";
+const ServerSetupScreen = lazy(
+  () => import("./components/auth/ServerSetupScreen").then((m) => ({ default: m.ServerSetupScreen })),
+);
 import { useAutoUpdate } from "./hooks/useAutoUpdate";
 
 // 更新对话框懒加载（M4 T8 PWA 预算）：仅在「有新版本且用户未跳过」时才
@@ -361,6 +365,16 @@ function App() {
     appNotificationService.initializeNativeClickHandlers();
     return () => appNotificationService.setNavigator(null);
   }, [navigate]);
+
+  // 打包壳首启：未配置服务器地址时先引导设置（保存后整页重载生效）。
+  // 放在全部 hooks 之后（lazy 加载不占 PWA eager 预算）
+  if (needsServerSetup()) {
+    return (
+      <Suspense fallback={null}>
+        <ServerSetupScreen />
+      </Suspense>
+    );
+  }
 
   return (
     <ThemeProvider>

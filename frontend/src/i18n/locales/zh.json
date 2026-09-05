@@ -2482,6 +2482,16 @@
       "title": "消息书签"
     }
   },
+  "serverSetup": {
+    "title": "连接你的 LambChat 服务器",
+    "desc": "输入服务端地址，连接后即可开始使用",
+    "label": "服务器地址",
+    "connect": "连接",
+    "testing": "正在连接…",
+    "fail": "服务器响应异常（HTTP {{status}}），请检查地址",
+    "unreachable": "无法连接到该地址，请确认服务已启动且可访问",
+    "invalid": "地址格式不正确"
+  },
   "session": {
     "deleteFailed": "删除会话失败",
     "loadFailed": "加载会话失败",

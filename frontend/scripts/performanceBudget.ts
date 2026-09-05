@@ -155,7 +155,9 @@ export function combinePrecacheBudgetEntries(
   });
 }
 
-export const EAGER_JAVASCRIPT_BUDGET_BYTES = 500 * 1024;
+// 502KB：500KB 基线 + 打包壳运行时服务器配置（serverConfig 网络改写 +
+// 首启设置引导的五语文案），见 feat 分发安装包（装完仅需填 base_url）。
+export const EAGER_JAVASCRIPT_BUDGET_BYTES = 502 * 1024;
 export const PRECACHE_BUDGET_BYTES = 5 * 1024 * 1024;
 export const PRECACHE_ADDITIONAL_ENTRIES: PrecacheEntry[] = [];
 

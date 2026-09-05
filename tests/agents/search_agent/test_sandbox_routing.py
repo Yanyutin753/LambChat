@@ -54,7 +54,8 @@ def test_local_branch_wired():
     assert "sync_sandbox_env_vars(local_backend, user_id)" in NODES_SOURCE
     # 统一确认门：全部沙箱后端（本地+云端）都挂 SandboxConfirmMiddleware
     assert "SandboxConfirmMiddleware(" in NODES_SOURCE
-    assert "_cloud_confirm_policy" in NODES_SOURCE
+    # 云端策略源是用户级（user.metadata），本地走 daemon 注册表默认源
+    assert "_CloudPolicyResolver(" in NODES_SOURCE
 
 
 def _patch_store_and_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:

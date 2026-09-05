@@ -81,11 +81,29 @@ async def _lookup_confirm_policy(user_id: str) -> str:
         return "all"
 
 
-async def _cloud_confirm_policy() -> str:
-    """云端沙箱策略源：部署级配置（默认 none 保持云上历史行为）。"""
-    from src.kernel.config import settings
+def _user_storage():
+    """延迟导入的用户存储工厂（测试替换点）。"""
+    from src.infra.user.storage import UserStorage
 
-    return settings.SANDBOX_CLOUD_CONFIRM_POLICY
+    return UserStorage()
+
+
+async def _lookup_cloud_confirm_policy(user_id: str) -> str:
+    """云端沙箱策略源：用户 metadata 偏好 sandboxCloudConfirmPolicy。
+
+    未设置/非法值归 none（保持云上隔离环境无确认的历史行为）；用户不存在
+    同样归 none；查询异常归 all（与本地门同样保守 fail-closed——静默降级
+    放行会绕过用户自己选的更严策略）。
+    """
+    try:
+        user = await _user_storage().get_by_id(user_id)
+    except Exception:  # noqa: BLE001 - 查询尽力而为，失败保守归 all
+        logger.warning(
+            "cloud confirm policy lookup failed for user %s; defaulting to all", user_id
+        )
+        return "all"
+    value = (getattr(user, "metadata", None) or {}).get("sandboxCloudConfirmPolicy")
+    return value if value in ("all", "commands", "none") else "none"
 
 
 class _RegistryPolicyResolver:
@@ -96,6 +114,23 @@ class _RegistryPolicyResolver:
 
     async def __call__(self) -> str:
         return await _lookup_confirm_policy(self._user_id)
+
+
+class _CloudPolicyResolver:
+    """云端策略源（用户 metadata 偏好，未设置归 none）。
+
+    实例内缓存：中间件每次 run 重建，策略按 run 快照——run 内不因偏好
+    修改中途变档，也避免每条工具调用都打一次用户表。
+    """
+
+    def __init__(self, user_id: str) -> None:
+        self._user_id = user_id
+        self._policy: str | None = None
+
+    async def __call__(self) -> str:
+        if self._policy is None:
+            self._policy = await _lookup_cloud_confirm_policy(self._user_id)
+        return self._policy
 
 
 def _last_tool_calls(state: Any) -> list[dict[str, Any]]:
@@ -132,7 +167,7 @@ class SandboxConfirmMiddleware(AgentMiddleware):
       无 resume 值串用。
 
     ``policy_resolver``：策略源——本地传 daemon 注册表上报（默认），
-    云端传 :func:`_cloud_confirm_policy`（部署级配置）。
+    云端传 :class:`_CloudPolicyResolver`（用户 metadata 偏好）。
     """
 
     def __init__(

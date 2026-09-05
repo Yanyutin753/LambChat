@@ -305,10 +305,10 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     if sandbox_backend:
         user_middleware.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
         # 沙箱统一确认门（本地 + 云端）：整批单次 interrupt，本地读 daemon
-        # 上报策略，云端读部署配置（默认 none 保持云上历史行为）
+        # 上报策略，云端读用户 metadata 偏好（未设置归 none 保持云上历史行为）
         from src.infra.agent.middleware.sandbox_confirm import (
             SandboxConfirmMiddleware,
-            _cloud_confirm_policy,
+            _CloudPolicyResolver,
         )
         from src.infra.backend.local import WorkspaceAliasBackend
 
@@ -318,7 +318,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
                 policy_resolver=(
                     None
                     if isinstance(sandbox_backend, WorkspaceAliasBackend)
-                    else _cloud_confirm_policy
+                    else _CloudPolicyResolver(context.user_id or "default")
                 ),
             )
         )

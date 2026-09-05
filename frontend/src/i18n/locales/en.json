@@ -2482,6 +2482,16 @@
       "title": "Message Bookmarks"
     }
   },
+  "serverSetup": {
+    "title": "Connect to your LambChat server",
+    "desc": "Enter your server address to get started",
+    "label": "Server address",
+    "connect": "Connect",
+    "testing": "Connecting…",
+    "fail": "Server responded abnormally (HTTP {{status}}), please check the address",
+    "unreachable": "Cannot reach this address. Make sure the server is running and accessible",
+    "invalid": "Invalid address format"
+  },
   "session": {
     "deleteFailed": "Failed to delete session",
     "loadFailed": "Failed to load session",

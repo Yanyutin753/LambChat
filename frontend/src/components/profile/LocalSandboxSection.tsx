@@ -4,7 +4,7 @@ import { toast } from "react-hot-toast";
 import { Monitor, FolderOpen, Link2Off, RotateCw } from "lucide-react";
 import { sandboxApi } from "../../services/api/sandbox";
 import { getAccessToken } from "../../services/api/token";
-import { API_BASE } from "../../services/api/config";
+import { effectiveApiBase } from "../../services/api/serverConfig";
 import {
   SANDBOX_STATUS_REFRESH_EVENT,
   notifySandboxStatusRefresh,
@@ -33,9 +33,10 @@ const CONFIRM_POLICY_OPTIONS = [
 
 type ConfirmPolicy = (typeof CONFIRM_POLICY_OPTIONS)[number]["key"];
 
-/** daemon 连接的服务端地址：打包壳内 API_BASE 固定注入；同源部署回退 origin。 */
+/** daemon 连接的服务端地址：运行时配置（打包壳首启设置）优先，构建期
+ * API_BASE 次之；同源部署回退 origin。 */
 function resolveServerUrl(): string {
-  return API_BASE || (typeof window !== "undefined" ? window.location.origin : "");
+  return effectiveApiBase() || (typeof window !== "undefined" ? window.location.origin : "");
 }
 
 /**

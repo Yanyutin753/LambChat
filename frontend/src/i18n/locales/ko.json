@@ -2482,6 +2482,16 @@
       "title": "메시지 북마크"
     }
   },
+  "serverSetup": {
+    "title": "LambChat 서버에 연결",
+    "desc": "서버 주소를 입력하고 시작하세요",
+    "label": "서버 주소",
+    "connect": "연결",
+    "testing": "연결 중…",
+    "fail": "서버 응답 이상(HTTP {{status}}). 주소를 확인해 주세요",
+    "unreachable": "이 주소에 연결할 수 없습니다. 서버가 실행 중인지 확인해 주세요",
+    "invalid": "주소 형식이 올바르지 않습니다"
+  },
   "session": {
     "deleteFailed": "세션 삭제에 실패했습니다",
     "loadFailed": "세션을 불러오지 못했습니다",
