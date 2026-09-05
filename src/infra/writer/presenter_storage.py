@@ -367,6 +367,20 @@ class StoragePresenterMixin:
         Args:
             event: SSE 事件字典，包含 event 和 data 字段
         """
+        # 主代理正文追踪放在最前（enable_storage=False 时也要标记）：
+        # message:chunk 可能经两条路径进入（executor 循环、处理器缓冲 flush
+        # 的 emit），executor 零正文守卫依赖本标记判定 run 是否交付过答案。
+        _event_type = event.get("event", "unknown")
+        _data = event.get("data")
+        if (
+            _event_type == "message:chunk"
+            and isinstance(_data, dict)
+            and not (isinstance(_data.get("depth"), int) and _data["depth"] > 0)
+            and isinstance(_data.get("content"), str)
+            and _data["content"].strip()
+        ):
+            self.produced_main_text = True
+
         if not self.config.enable_storage:
             return
 

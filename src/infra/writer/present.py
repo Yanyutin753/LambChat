@@ -103,6 +103,11 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
         self._done_recorded: bool = False
         self._goal_end_recorded: bool = False
         self._recommend_questions_recorded: bool = False
+        # 主代理（depth=0）非空 message:chunk 是否经本 presenter 交付过。
+        # 事件有两条入口：executor 循环的 save_event、AgentEventProcessor
+        # 缓冲 flush 的 emit——两者都汇聚到 save_event，在此统一标记，
+        # 供 executor 零正文守卫判定 run 是否真的交付过答案。
+        self.produced_main_text: bool = False
 
     @property
     def trace_id(self) -> str:
