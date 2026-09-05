@@ -15,6 +15,7 @@ from typing import Any, Callable, Dict, List, Optional, Type
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 
+from src.agents.core.trace_finalizer import complete_owned_presenter_trace
 from src.infra.agent import AgentEventProcessor
 from src.infra.async_utils import run_blocking_io
 from src.infra.llm.responses_cache import (
@@ -103,54 +104,6 @@ def register_agent(agent_id: str):
         return cls
 
     return decorator
-
-
-_OWNED_TRACE_FINALIZED_FLAG = "_lambchat_owned_trace_finalized"
-
-
-async def complete_owned_presenter_trace(
-    presenter: Presenter, terminal_error: BaseException | None
-) -> None:
-    """终结 agent 自建 presenter 的 trace（直连 ``/api/{agent_id}/stream`` 路径）。
-
-    TaskExecutor 传入的 presenter 由 executor 负责终结；本函数只服务于
-    ``BaseGraphAgent._stream`` 自建 presenter 的场景，保证成功 / 报错 /
-    取消三种出口都不把 trace 留在 status="running"（否则 run 挂死后
-    前端大纲永远显示进行中，且无任何清理路径能回收）。
-    """
-    if getattr(presenter, _OWNED_TRACE_FINALIZED_FLAG, False):
-        return
-    try:
-        if terminal_error is None:
-            await presenter.complete("completed")
-        else:
-            if isinstance(terminal_error, asyncio.CancelledError):
-                event = presenter.error(
-                    "Task cancelled", error_type="CancelledError", code="task_cancelled"
-                )
-            else:
-                from src.infra.task.manager import TaskInterruptedError
-
-                if isinstance(terminal_error, TaskInterruptedError):
-                    event = presenter.error(
-                        "Task cancelled",
-                        error_type="CancelledError",
-                        code="task_cancelled",
-                    )
-                else:
-                    event = presenter.error(
-                        str(terminal_error) or type(terminal_error).__name__,
-                        error_type=type(terminal_error).__name__,
-                    )
-            await presenter.emit(event)
-            await presenter.complete("error")
-        setattr(presenter, _OWNED_TRACE_FINALIZED_FLAG, True)
-    except Exception:
-        logger.warning(
-            "[Agent] Failed to finalize owned presenter trace: run_id=%s",
-            getattr(presenter, "run_id", None),
-            exc_info=True,
-        )
 
 
 # ============================================================================
