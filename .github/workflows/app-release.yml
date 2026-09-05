@@ -474,31 +474,60 @@ jobs:
           find release-assets -type f -print
           test "$(find release-assets -type f | wc -l)" -gt 0
 
-      - name: Merge updater manifests into latest.json
+      - name: Checkout repository (app version for updater manifest)
+        uses: actions/checkout@v4
+
+      - name: Generate latest.json updater manifest
+        # Tauri v2 CLI 只产出 .sig 签名文件，不再自动生成更新清单（v1 行为已
+        # 移除）；这里按平台 sig 组装 latest.json（端点见 tauri.conf.json
+        # updater.endpoints）。macOS 暂缺 updater 产物：dmg 不参与自动更新，
+        # .app.tar.gz 归 M5，故 platforms 暂无 darwin-aarch64。
+        env:
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
         run: |
-          python3 -c "
-          import json, glob, os
-          platform_files = glob.glob('release-assets/latest*.json') or glob.glob('release-assets/*-latest.json')
-          if not platform_files:
-              print('No updater manifests found')
-              exit(0)
-          merged = {}
-          for f in sorted(platform_files):
-              data = json.load(open(f))
-              if 'platforms' in data:
-                  merged['platforms'] = merged.get('platforms', {})
-                  merged['platforms'].update(data['platforms'])
-              if 'version' not in merged and 'version' in data:
-                  merged['version'] = data['version']
-              if 'notes' not in merged and 'notes' in data:
-                  merged['notes'] = data['notes']
-              if 'pub_date' not in merged and 'pub_date' in data:
-                  merged['pub_date'] = data['pub_date']
-          if merged:
-              with open('release-assets/latest.json', 'w') as out:
-                  json.dump(merged, out, indent=2)
-              print(f'Merged {len(platform_files)} manifests into latest.json')
-          "
+          python3 - <<'EOF'
+          import datetime
+          import glob
+          import json
+          import os
+          import pathlib
+
+          tag = os.environ["RELEASE_TAG"]
+          base = f"https://github.com/Yanyutin753/LambChat/releases/download/{tag}"
+          version = json.loads(
+              pathlib.Path("frontend/src-tauri/tauri.conf.json").read_text()
+          )["version"]
+
+          def sig(pattern: str) -> str | None:
+              files = sorted(glob.glob(f"release-assets/{pattern}"))
+              return pathlib.Path(files[0]).read_text().strip() if files else None
+
+          mapping = [
+              ("windows-x86_64", "*_x64_en-US.msi.sig", f"LambChat-{tag}-Windows.msi"),
+              ("linux-x86_64", "*_amd64.AppImage.sig", f"LambChat-{tag}-Linux-x86_64.AppImage"),
+              ("linux-aarch64", "*_aarch64.AppImage.sig", f"LambChat-{tag}-Linux-arm64.AppImage"),
+          ]
+          platforms = {}
+          for key, pattern, asset in mapping:
+              signature = sig(pattern)
+              if signature:
+                  platforms[key] = {"signature": signature, "url": f"{base}/{asset}"}
+              else:
+                  print(f"WARN: no sig file matches {pattern}, platform {key} omitted")
+
+          manifest = {
+              "version": version,
+              "notes": f"LambChat {tag}",
+              "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime(
+                  "%Y-%m-%dT%H:%M:%SZ"
+              ),
+              "platforms": platforms,
+          }
+          pathlib.Path("release-assets/latest.json").write_text(
+              json.dumps(manifest, indent=2)
+          )
+          print(f"latest.json platforms: {sorted(platforms)}")
+          EOF
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
