@@ -628,7 +628,8 @@
     "roleNameExists": "Role name '{{name}}' already exists",
     "systemRoleProtected": "System roles cannot be modified or deleted",
     "agentNotRegistered": "Agent '{{agent}}' is not registered",
-    "bookmarkUpdateFailed": "Failed to update bookmark state"
+    "bookmarkUpdateFailed": "Failed to update bookmark state",
+    "modelEmptyResponse": "The model returned an empty response after retries, please try again or switch models"
   },
   "categories": {
     "agent": "Agent",

@@ -628,7 +628,8 @@
     "roleNameExists": "角色名 {{name}} 已存在",
     "systemRoleProtected": "系统角色不可修改或删除",
     "agentNotRegistered": "Agent '{{agent}}' 未注册",
-    "bookmarkUpdateFailed": "书签状态更新失败"
+    "bookmarkUpdateFailed": "书签状态更新失败",
+    "modelEmptyResponse": "模型在多次重试后仍返回了空回复，请重试或更换模型"
   },
   "categories": {
     "agent": "代理",

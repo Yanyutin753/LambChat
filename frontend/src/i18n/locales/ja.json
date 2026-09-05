@@ -628,7 +628,8 @@
     "roleNameExists": "ロール名 {{name}} は既に存在します",
     "systemRoleProtected": "システムロールは変更・削除できません",
     "agentNotRegistered": "エージェント '{{agent}}' は登録されていません",
-    "bookmarkUpdateFailed": "ブックマーク状態の更新に失敗しました"
+    "bookmarkUpdateFailed": "ブックマーク状態の更新に失敗しました",
+    "modelEmptyResponse": "モデルは再試行後も空の応答を返しました。再試行するか、モデルを変更してください"
   },
   "categories": {
     "agent": "エージェント",
