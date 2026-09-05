@@ -233,3 +233,51 @@ def _const_policy(value: str):
         return value
 
     return resolver
+
+
+# ---------- AppError 护盾：单命令失败不再击穿整个 run ----------
+
+
+async def test_app_error_from_handler_becomes_error_tool_message(policy, interrupt, supported):
+    """后端派发失败（超时/离线/exec_failed）转错误 ToolMessage，模型可继续。"""
+    from src.kernel.errors import AppError, ErrorCode
+
+    interrupt["raise"] = False
+    interrupt["resume"] = {"approved": True, "values": {}}
+
+    async def failing_handler(request):
+        raise AppError(ErrorCode.SANDBOX_TIMEOUT, args={"seconds": 30})
+
+    mw = SandboxConfirmMiddleware(user_id="u1")
+    result = await mw.awrap_tool_call(_request("execute", {"command": "du /"}), failing_handler)
+    assert result.status == "error"
+    assert "timed out after 30s" in result.content
+    assert "{{" not in result.content
+
+
+async def test_read_tool_app_error_also_shielded(policy, interrupt, supported):
+    """非确认类工具（读）同样受护盾——读失败也不该打死对话。"""
+    from src.kernel.errors import AppError, ErrorCode
+
+    async def failing_handler(request):
+        raise AppError(ErrorCode.DAEMON_OFFLINE)
+
+    mw = SandboxConfirmMiddleware(user_id="u1")
+    result = await mw.awrap_tool_call(_request("read_file", {"file_path": "x"}), failing_handler)
+    assert result.status == "error"
+    assert "offline" in result.content.lower()
+
+
+async def test_programming_error_still_propagates(policy, interrupt, supported):
+    """非业务异常（编程错误）照旧上抛——护盾不掩盖 bug。"""
+    import pytest as _pytest
+
+    interrupt["raise"] = False
+    interrupt["resume"] = {"approved": True, "values": {}}
+
+    async def buggy_handler(request):
+        raise TypeError("bug")
+
+    mw = SandboxConfirmMiddleware(user_id="u1")
+    with _pytest.raises(TypeError):
+        await mw.awrap_tool_call(_request("execute", {"command": "ls"}), buggy_handler)
