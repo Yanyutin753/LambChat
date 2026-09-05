@@ -34,10 +34,9 @@ import {
   updateSubagentResult,
   updateToolResultInDepth,
   clearAllLoadingStates,
-  markPendingToolsAwaiting,
-  takeOverDanglingToolPart,
   upgradeGeneratingToolPart,
 } from "./messageParts";
+import { markPendingToolsAwaiting, takeOverDanglingToolPart } from "./suspendedToolParts";
 import type { ThinkingPart } from "../../types";
 
 // ============================================
