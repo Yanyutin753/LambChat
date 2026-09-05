@@ -389,12 +389,16 @@ fn handle_exit(app: &AppHandle, generation: u64) {
 
 /// daemon 数据根 `~/.lambchat`（lib.rs 的 PBS 归档落位也复用）。
 ///
-/// TODO(M4): Windows 下 `$HOME` 通常不存在，改用已知目录 API（如 `dirs::home_dir`
-/// 或 `%USERPROFILE%`）后再放开 Windows 打包。
+/// `$HOME` 优先（unix / git-bash dev）；Windows 常规进程无 `HOME`，回退
+/// `%USERPROFILE%`——与 daemon 侧 Python `Path.home()` 的 Windows 语义一致
+/// （M4 T9：恢复 Windows 打包矩阵的前置，两进程必须解析到同一目录）。
 pub(crate) fn sandbox_home() -> Result<PathBuf, String> {
     std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
         .map(|home| PathBuf::from(home).join(".lambchat"))
-        .ok_or_else(|| "$HOME is not set; cannot locate ~/.lambchat".to_string())
+        .ok_or_else(|| {
+            "neither $HOME nor %USERPROFILE% is set; cannot locate ~/.lambchat".to_string()
+        })
 }
 
 /// 写入敏感文件：unix 下以 0600 模式原子创建（`OpenOptions::mode` 在 create

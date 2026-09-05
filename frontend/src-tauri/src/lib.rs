@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::{Path, PathBuf};
 use tauri::Manager;
 
 mod daemon;
@@ -58,14 +59,46 @@ fn install_sigterm_handler(app: tauri::AppHandle) {
         .expect("failed to spawn SIGTERM watcher thread");
 }
 
-/// 把随包分发的 PBS 归档落位到 daemon 约定读取的位置（M4 T4 约定 / T8 补齐）。
+/// 当前平台的 PBS 平台标签（与 `client/scripts/fetch-pbs.py` 的
+/// `PLATFORM_TRIPLES` 键一一对应；每个发布包只内嵌当前平台的归档）。
+fn current_platform_tag() -> Option<&'static str> {
+    match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("linux", "x86_64") => Some("linux-x86_64"),
+        ("linux", "aarch64") => Some("linux-aarch64"),
+        ("windows", "x86_64") => Some("windows-x86_64"),
+        ("macos", "aarch64") => Some("macos-arm64"),
+        ("macos", "x86_64") => Some("macos-x64"),
+        _ => None,
+    }
+}
+
+/// 在壳 resources 里定位 PBS 归档（纯路径逻辑，可测试）。
 ///
-/// - 源：`resource_dir()/resources/python/python.tar.gz`——`bundle.resources =
-///   ["resources/python/"]` 经 tauri-build（dev：copy 到 target/<profile>）与
-///   bundler（打包：保相对路径进 $RESOURCE）落在同一相对结构，dev 与打包
+/// 优先平台子目录布局 `resources/python/<platform-tag>/python.tar.gz`
+/// （`bundle.resources = ["resources/python/"]` 打包时保相对结构分发，
+/// fetch-pbs.py 的产物即此布局）；回退扁平 `resources/python/python.tar.gz`
+/// （dev 手工放位 / 旧约定兼容）。均缺失返回 `None`。
+fn pbs_resource_archive(resource_dir: &Path) -> Option<PathBuf> {
+    let python_dir = resource_dir.join("resources").join("python");
+    if let Some(tag) = current_platform_tag() {
+        let tagged = python_dir.join(tag).join("python.tar.gz");
+        if tagged.is_file() {
+            return Some(tagged);
+        }
+    }
+    let flat = python_dir.join("python.tar.gz");
+    flat.is_file().then_some(flat)
+}
+
+/// 把随包分发的 PBS 归档落位到 daemon 约定读取的位置（M4 T4 约定 / T8 补齐 /
+/// T9 对齐平台子目录布局 + 原子落位）。
+///
+/// - 源：[`pbs_resource_archive`]（平台子目录优先，扁平回退）——dev 与打包
 ///   形态同构；
 /// - 目标：`~/.lambchat/resources/python/python.tar.gz`（daemon 侧
 ///   `pbs.DEFAULT_RESOURCES_DIR` 只认这里，daemon 不感知壳的 resources 路径）；
+/// - 落位原子性：先拷贝到同目录 `.part` 再 rename——归档 ~111MB，非原子
+///   fs::copy 半途崩溃会留下截断文件被 daemon 当真归档（T8 审查 Low）；
 /// - 幂等：目标已在或源缺失（dev 未 fetch / 纯净安装）时 no-op，daemon 回退
 ///   系统 PATH；升级换新归档由打包/升级流程负责清目录。
 fn seed_pbs_runtime_resource(app: &tauri::AppHandle) {
@@ -76,13 +109,10 @@ fn seed_pbs_runtime_resource(app: &tauri::AppHandle) {
             return;
         }
     };
-    let src = resource_dir
-        .join("resources")
-        .join("python")
-        .join("python.tar.gz");
-    if !src.is_file() {
-        return; // 无归档：静默跳过（daemon 回退系统 PATH）
-    }
+    let src = match pbs_resource_archive(&resource_dir) {
+        Some(src) => src,
+        None => return, // 无归档：静默跳过（daemon 回退系统 PATH）
+    };
     let home = match daemon::sandbox_home() {
         Ok(home) => home,
         Err(e) => {
@@ -103,15 +133,22 @@ fn seed_pbs_runtime_resource(app: &tauri::AppHandle) {
             return;
         }
     }
-    match fs::copy(&src, &dest) {
+    // 同目录 .part 中转 + rename 原子可见（与 fetch-pbs.py 的下载落位同款约定）
+    let tmp = dest.with_file_name("python.tar.gz.part");
+    match fs::copy(&src, &tmp)
+        .and_then(|bytes| fs::rename(&tmp, &dest).map(|_| bytes))
+    {
         Ok(bytes) => eprintln!(
             "[lambchat] seeded PBS runtime archive to {} ({bytes} bytes)",
             dest.display()
         ),
-        Err(e) => eprintln!(
-            "[lambchat] failed to seed PBS runtime archive to {}: {e}",
-            dest.display()
-        ),
+        Err(e) => {
+            let _ = fs::remove_file(&tmp); // 半截中转文件不留
+            eprintln!(
+                "[lambchat] failed to seed PBS runtime archive to {}: {e}",
+                dest.display()
+            );
+        }
     }
 }
 
@@ -197,4 +234,63 @@ pub fn run() {
                 daemon::stop(app_handle);
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// PBS 归档定位：平台子目录布局优先，扁平布局回退（M4 T9 对齐
+    /// fetch-pbs.py 产物随 bundle.resources 保相对结构分发的真实链路）。
+    #[test]
+    fn pbs_resource_archive_prefers_platform_subdir_then_flat() {
+        let tmp = std::env::temp_dir().join(format!(
+            "lambchat-pbs-lookup-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&tmp);
+
+        // 空目录：无归档
+        fs::create_dir_all(tmp.join("resources").join("python")).unwrap();
+        assert!(pbs_resource_archive(&tmp).is_none());
+
+        // 平台子目录布局（fetch-pbs.py → tauri bundle 的真实形态）
+        if let Some(tag) = current_platform_tag() {
+            let tagged = tmp.join("resources").join("python").join(tag).join("python.tar.gz");
+            fs::create_dir_all(tagged.parent().unwrap()).unwrap();
+            fs::write(&tagged, b"tagged").unwrap();
+            assert_eq!(pbs_resource_archive(&tmp), Some(tagged));
+        } else {
+            // 未映射平台不得误报
+            assert!(pbs_resource_archive(&tmp).is_none());
+        }
+
+        // 扁平布局回退（dev 手工放位 / 旧约定兼容）
+        let _ = fs::remove_dir_all(tmp.join("resources"));
+        let flat = tmp.join("resources").join("python").join("python.tar.gz");
+        fs::create_dir_all(flat.parent().unwrap()).unwrap();
+        fs::write(&flat, b"flat").unwrap();
+        assert_eq!(pbs_resource_archive(&tmp), Some(flat));
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    /// 平台标签映射：与 fetch-pbs.py 的 PLATFORM_TRIPLES 键一致（五平台词汇表）。
+    #[test]
+    fn current_platform_tag_matches_fetch_pbs_vocabulary() {
+        let expected = if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+            "linux-x86_64"
+        } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+            "linux-aarch64"
+        } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+            "windows-x86_64"
+        } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+            "macos-arm64"
+        } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
+            "macos-x64"
+        } else {
+            panic!("unsupported target for platform tag test");
+        };
+        assert_eq!(current_platform_tag(), Some(expected));
+    }
 }
