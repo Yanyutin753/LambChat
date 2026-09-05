@@ -11,6 +11,8 @@ interface AgentOptionButtonProps {
   option: AgentOption;
   value: boolean | string | number;
   onChange: (value: boolean | string | number) => void;
+  /** 面板内提示行（如沙箱本地档离线说明），渲染在描述下方。 */
+  note?: string;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
@@ -29,7 +31,9 @@ function AgentOptionRow({
     <button
       type="button"
       onClick={onSelect}
-      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors text-left cursor-pointer active:scale-[0.98]"
+      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors text-left cursor-pointer active:scale-[0.98]${
+        option.disabled ? " opacity-50" : ""
+      }`}
       style={{
         background: isActive
           ? "color-mix(in srgb, var(--theme-primary) 12%, transparent)"
@@ -63,6 +67,7 @@ export const AgentOptionButton = memo(function AgentOptionButton({
   option,
   value,
   onChange,
+  note,
   isOpen: externalIsOpen,
   onOpenChange: externalOnOpenChange,
 }: AgentOptionButtonProps) {
@@ -153,6 +158,17 @@ export const AgentOptionButton = memo(function AgentOptionButton({
                   >
                     {description}
                   </div>
+                  {note && (
+                    <div
+                      className="text-xs mb-3 px-2.5 py-1.5 rounded-lg"
+                      style={{
+                        color: "var(--theme-text-secondary)",
+                        background: "color-mix(in srgb, var(--theme-border) 30%, transparent)",
+                      }}
+                    >
+                      {note}
+                    </div>
+                  )}
                   <div className="flex flex-col gap-1">
                     {options.map((opt) => (
                       <AgentOptionRow
@@ -240,6 +256,17 @@ export const AgentOptionButton = memo(function AgentOptionButton({
                   >
                     {description}
                   </div>
+                  {note && (
+                    <div
+                      className="text-xs mb-3 px-2.5 py-1.5 rounded-lg"
+                      style={{
+                        color: "var(--theme-text-secondary)",
+                        background: "color-mix(in srgb, var(--theme-border) 30%, transparent)",
+                      }}
+                    >
+                      {note}
+                    </div>
+                  )}
                   <div className="flex flex-col gap-1">
                     {options.map((opt) => (
                       <AgentOptionRow
@@ -272,6 +299,14 @@ export const AgentOptionButton = memo(function AgentOptionButton({
                 >
                   {description}
                 </div>
+                {note && (
+                  <div
+                    className="px-2.5 pb-1.5 text-xs"
+                    style={{ color: "var(--theme-text-secondary)" }}
+                  >
+                    {note}
+                  </div>
+                )}
                 <div className="flex flex-col gap-1">
                   {options.map((opt) => (
                     <AgentOptionRow

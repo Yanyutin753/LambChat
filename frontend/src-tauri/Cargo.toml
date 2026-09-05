@@ -15,10 +15,19 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.6.2", features = [] }
 
 [dependencies]
-tauri = { version = "2.11.2", features = [] }
-tauri-plugin-notification = "2.3.3"
-tauri-plugin-updater = "2"
+tauri = { version = "2.11.2", features = ["tray-icon"] }
+# NPM 侧同名包须保持相同 major.minor（tauri build 启动校验，不一致直接报错）
+tauri-plugin-notification = "2.4"
+tauri-plugin-updater = "2.11"
 tauri-plugin-process = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 time = "=0.3.36"
+# 托盘菜单文案按系统 locale 五语本地化（M4 T8）；无传递依赖，纯 Rust 读 env/API
+sys-locale = "0.3"
+
+[target.'cfg(unix)'.dependencies]
+# daemon sidecar 探活轮询用 kill(pid, 0)（存在性校验，不发实际信号）
+libc = "0.2"

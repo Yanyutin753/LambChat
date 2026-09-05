@@ -70,6 +70,7 @@ async def _send_approval_sse(
     session_id: str,
     run_id: Optional[str],
     trace_id: Optional[str] = None,
+    origin: Optional[str] = None,
 ) -> None:
     """挂起后发送 approval_required 事件到 SSE 流。
 
@@ -89,6 +90,7 @@ async def _send_approval_sse(
                 "fields": fields,
                 "tool_call_id": (getattr(approval, "metadata", None) or {}).get("tool_call_id"),
                 "interrupt_id": (getattr(approval, "metadata", None) or {}).get("interrupt_id"),
+                "origin": origin,
             },
             run_id=run_id,
             trace_id=trace_id,
@@ -126,6 +128,7 @@ async def materialize_ask_human_approvals(
 
     existing_interrupt_ids: set[str] = set()
     legacy_messages: dict[str, int] = {}
+    existing_sandbox_messages: set[str] = set()
     if session_id:
         try:
             for approval in await get_approval_storage().list_pending(
@@ -133,6 +136,8 @@ async def materialize_ask_human_approvals(
             ):
                 metadata = getattr(approval, "metadata", None) or {}
                 interrupt_id = metadata.get("interrupt_id")
+                if metadata.get("origin") == "sandbox_confirm":
+                    existing_sandbox_messages.add(str(getattr(approval, "message", "")))
                 if interrupt_id:
                     existing_interrupt_ids.add(str(interrupt_id))
                 else:
@@ -142,10 +147,18 @@ async def materialize_ask_human_approvals(
             logger.warning("[HITL] Failed to list pending approvals: %s", e)
 
     created = 0
+    # 沙箱确认门整批：并行工具各自中断但携带同一批消息——同 origin+message
+    # 只物化一张审批卡（恢复侧 expand_sandbox_confirm_resume 负责把批复值
+    # 映射回全部同批中断）
+    sandbox_seen_messages: set[str] = set()
     for payload in payloads:
         message = str(payload.get("message", ""))
         fields = payload.get("fields") or []
         interrupt_id = str(payload.get("interrupt_id") or "")
+        if payload.get("origin") == "sandbox_confirm":
+            if message in sandbox_seen_messages or message in existing_sandbox_messages:
+                continue
+            sandbox_seen_messages.add(message)
         if interrupt_id and interrupt_id in existing_interrupt_ids:
             continue
         if message and legacy_messages.get(message, 0) > 0:
@@ -164,6 +177,9 @@ async def materialize_ask_human_approvals(
         tool_call_id = payload.get("tool_call_id")
         if tool_call_id:
             metadata["tool_call_id"] = str(tool_call_id)
+        origin = payload.get("origin")
+        if origin:
+            metadata["origin"] = str(origin)
         approval = await create_approval(
             message=message,
             approval_type="form",
@@ -177,7 +193,7 @@ async def materialize_ask_human_approvals(
             existing_interrupt_ids.add(interrupt_id)
         created += 1
         if session_id:
-            await _send_approval_sse(approval, fields, session_id, run_id, trace_id)
+            await _send_approval_sse(approval, fields, session_id, run_id, trace_id, origin=origin)
         logger.info(
             "[HITL] approval_id=%s Materialized from interrupt: session=%s run_id=%s",
             approval.id,
@@ -373,11 +389,19 @@ async def submit_hitl_resume_run(
 
         interrupt_id = approval_metadata.get("interrupt_id")
         resume_context = approval_metadata.get("resume_context") or {}
+        sandbox_confirm_message = (
+            str(approval.message) if approval_metadata.get("origin") == "sandbox_confirm" else None
+        )
         command_resume = {str(interrupt_id): resume_value} if interrupt_id else resume_value
         hitl_resume = {
             "approval_id": approval.id,
             "resume_attempt_id": resume_attempt_id,
             "resume_value": command_resume,
+            **(
+                {"sandbox_confirm_message": sandbox_confirm_message}
+                if sandbox_confirm_message
+                else {}
+            ),
             "goal_started_at": resume_context.get("goal_started_at"),
             "approval_resolved": {
                 "id": approval.id,
@@ -501,3 +525,48 @@ async def submit_hitl_resume_run(
     finally:
         if token is not None:
             await _release_resume_lock(approval.id, token)
+
+
+async def expand_sandbox_confirm_resume(
+    graph: Any,
+    config: Any,
+    resume_map: Dict[str, Any],
+    *,
+    message: str,
+) -> Dict[str, Any]:
+    """沙箱确认门整批恢复扩展：把批复值映射到同批（同 origin+message）全部中断。
+
+    并行工具各自是独立图任务、各持一个同消息中断；审批卡只有一张（物化
+    去重），respond 只带一个 interrupt_id。节点恢复前调用本函数把同一批复
+    值扩散到全部同批中断 id——所有任务同时拿到决定，各执行恰好一次。
+    ``resume_map`` 形如 ``{interrupt_id: resume_value}``（hitl.py 构建）。
+    """
+    if not isinstance(resume_map, dict) or not resume_map:
+        return resume_map
+    value = next(iter(resume_map.values()))
+    try:
+        snapshot = await graph.aget_state(config)
+    except Exception as e:  # noqa: BLE001 - 扩展失败回退单点映射（保守降级）
+        logger.warning("[HITL] sandbox_confirm resume expand failed: %s", e)
+        return resume_map
+    if snapshot is None:
+        return resume_map
+    tasks = getattr(snapshot, "tasks", None) or ()
+    if isinstance(tasks, dict):
+        tasks = [
+            t
+            for group in tasks.values()
+            for t in (group if isinstance(group, (list, tuple)) else [group])
+        ]
+    expanded: Dict[str, Any] = {}
+    for task in tasks:
+        for intr in getattr(task, "interrupts", None) or ():
+            payload = getattr(intr, "value", None)
+            if (
+                isinstance(payload, dict)
+                and payload.get("origin") == "sandbox_confirm"
+                and str(payload.get("message", "")) == message
+                and getattr(intr, "id", None)
+            ):
+                expanded[str(intr.id)] = value
+    return expanded or resume_map

@@ -20,6 +20,7 @@ import { AgentIcon } from "../agent/AgentIcon";
 import { subscribeTeamsChanged } from "../../hooks/teamEvents";
 import { RunModePopover } from "./RunModePopover";
 import { ComposerUsageChip } from "./ComposerUsageChip";
+import { resolveSandboxPresentation } from "./sandboxOption";
 
 export interface ChatInputToolbarProps {
   activePanel: FeaturePanel;
@@ -191,6 +192,11 @@ export function ChatInputToolbar({
       )
     : undefined;
 
+  // 沙箱选择器入口（RunModePopover 设置组）：会话存在 sandbox 选项且有切换回调时显示
+  const { has: hasSandboxOption, label: sandboxLabel } =
+    resolveSandboxPresentation(agentOptions, agentOptionValues, t);
+  const showSandboxEntry = hasSandboxOption && !!onToggleAgentOption;
+
   const handleUploadFiles = useCallback(() => {
     if (fileInputRef.current) {
       fileInputRef.current.accept = getFileAccept(uploadCategories);
@@ -331,6 +337,9 @@ export function ChatInputToolbar({
           hasThinkingOption={hasThinkingOption}
           thinkingLabel={thinkingLabel}
           onOpenThinkingPanel={() => onActivePanelChange("thinking")}
+          hasSandboxOption={showSandboxEntry}
+          sandboxLabel={sandboxLabel}
+          onOpenSandboxPanel={() => onActivePanelChange("sandbox")}
           booleanAgentOptions={booleanAgentOptions}
           agentOptionValues={agentOptionValues}
           onToggleAgentOption={onToggleAgentOption}

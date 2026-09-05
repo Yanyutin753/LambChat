@@ -22,6 +22,7 @@ export type FeaturePanel =
   | "skills"
   | "agent"
   | "thinking"
+  | "sandbox"
   | null;
 
 interface FeatureMenuProps {

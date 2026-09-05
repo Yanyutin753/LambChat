@@ -46,6 +46,8 @@ ExtendedFileError = Literal[
     "invalid_path",
     "too_many_files",
     "file_too_large",
+    # 服务端统一确认门拒绝（用户未批准上传，非文件系统错误）
+    "declined_by_user",
 ]
 
 
@@ -62,9 +64,14 @@ def file_download_response(
     *,
     path: str,
     content: bytes | None = None,
-    error: ExtendedFileError | None = None,
+    error: ExtendedFileError | str | None = None,
 ) -> FileDownloadResponse:
-    """Create a download response with LambChat's extended sandbox error codes."""
+    """Create a download response with LambChat's extended sandbox error codes.
+
+    error 除标准字面量外接受自由文本（deepagents 契约本身是
+    ``FileOperationError | str | None``），供解码失败等无标准码可映射的
+    场景携带原始信息而非误报。
+    """
     return FileDownloadResponse(path=path, content=content, error=cast(Any, error))
 
 

@@ -6,6 +6,10 @@ import "./fonts.css";
 // 也不占 PWA 预缓存预算），见 src/fonts-cjk.ts。
 void import("./fonts-cjk");
 import "./i18n";
+// 打包壳网络改写：运行时配置的服务器地址生效（fetch/EventSource/WebSocket
+// 的相对 /api、/ws 请求单点改写，业务代码零侵入）。未配置时由首启设置屏引导。
+import { installServerUrlNetworkPatch } from "./services/api/serverConfig";
+installServerUrlNetworkPatch();
 import App from "./App.tsx";
 import "./styles/tailwind.css";
 import "./styles/tokens.css";

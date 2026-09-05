@@ -33,38 +33,50 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # pbs_platform：fetch-pbs.py 的 --platform 取值（内嵌 Python 运行时
+          # 归档按平台落 resources/python/<tag>/，与 daemon 平台一一对应）
           - label: Linux x86_64
             runner: ubuntu-latest
             bundles: appimage,deb,rpm
             artifact_slug: linux-x86_64
             arch: x86_64
+            pbs_platform: linux-x86_64
           - label: Linux ARM64
             runner: ubuntu-24.04-arm
             bundles: appimage,deb,rpm
             artifact_slug: linux-arm64
             arch: arm64
+            pbs_platform: linux-aarch64
           - label: Windows
             runner: windows-2022
             bundles: msi
             artifact_slug: windows
+            pbs_platform: windows-x86_64
+          # M4 裁决：macOS 先 arm64 单架构（macos-14 原生），universal + lipo 属 M5
           - label: macOS
             runner: macos-14
             bundles: dmg
             artifact_slug: macos
-            target: universal-apple-darwin
+            target: aarch64-apple-darwin
+            pbs_platform: macos-arm64
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate app URL
+      - name: Validate app URL (optional)
+        # app_url 可选：提供则构建期烘焙为默认服务器（VITE_API_BASE）；
+        # 缺省打「运行时配置」包——安装后首启设置屏填 base_url 即可用。
         shell: bash
         run: |
-          test -n "$LAMBCHAT_APP_URL"
-          case "$LAMBCHAT_APP_URL" in
-            https://*) ;;
-            *) echo "LAMBCHAT_APP_URL must be an https:// URL"; exit 1 ;;
-          esac
+          if [ -n "$LAMBCHAT_APP_URL" ]; then
+            case "$LAMBCHAT_APP_URL" in
+              https://*) ;;
+              *) echo "LAMBCHAT_APP_URL must be an https:// URL"; exit 1 ;;
+            esac
+          else
+            echo "LAMBCHAT_APP_URL not set: building runtime-configured package (first-run setup)"
+          fi
 
       - name: Install Linux desktop dependencies
         if: runner.os == 'Linux'
@@ -95,10 +107,9 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Add macOS universal Rust targets
+      - name: Add macOS Rust target
         if: runner.os == 'macOS'
-        run: |
-          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+        run: rustup target add aarch64-apple-darwin
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
@@ -117,6 +128,35 @@ jobs:
           "TEMP=D:\temp" | Out-File -FilePath $env:GITHUB_ENV -Append
           "TMP=D:\temp" | Out-File -FilePath $env:GITHUB_ENV -Append
           New-Item -ItemType Directory -Force D:\pnpm-store,D:\npm-cache,D:\temp | Out-Null
+
+      # M4：daemon sidecar（PyInstaller onefile → binaries/lambchat-daemon-<triple>，
+      # Windows 为 <triple>.exe）三平台同链路。externalBin 声明了该产物且
+      # binaries/ 被 gitignore，缺此步 Tauri 打包必败。直调 build-daemon.sh
+      # 而非 make client-build-daemon：windows-2022 镜像不预装 GNU make。
+      # uv 安装方式与 lint.yml 保持一致。
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Build sandbox daemon sidecar (PyInstaller)
+        shell: bash
+        env:
+          # uv.lock pins a CN mirror; GH-hosted runners throttle under
+          # uv's 50 parallel downloads (same mitigation as lint.yml).
+          UV_CONCURRENT_DOWNLOADS: "8"
+        run: |
+          uv sync --group dev || (sleep 15 && uv sync --group dev)
+          bash client/scripts/build-daemon.sh
+
+      # M4：内嵌 Python 运行时（python-build-standalone install_only 归档，
+      # ~111MB/平台）落到 tauri resources 约定位置，使 bundle.resources 有货。
+      # tar.gz 由 daemon 首启解压（lambchat_sandbox.pbs.ensure_runtime）。
+      # 产物体积大且随 PBS_TAG 锁定可复现，CI 缓存后加（本任务不做）。
+      - name: Fetch embedded Python runtime (PBS)
+        shell: bash
+        run: uv run python client/scripts/fetch-pbs.py --platform ${{ matrix.pbs_platform }}
 
       - name: Build desktop package with Tauri
         env:
@@ -156,6 +196,8 @@ jobs:
             echo "No Linux desktop artifacts found"
             exit 1
           fi
+          # daemon sidecar 资产：保留 triple 原名（selfupdate 按 lambchat-daemon-<triple> 前缀匹配）
+          cp frontend/src-tauri/binaries/lambchat-daemon-* release-assets/
 
       - name: Collect Windows desktop artifacts
         if: runner.os == 'Windows'
@@ -186,6 +228,8 @@ jobs:
           ) -Encoding UTF8
           Compress-Archive -Path "$portableDir/*" -DestinationPath "release-assets/LambChat-$env:RELEASE_TAG-Windows-Portable.zip" -Force
           Remove-Item -Recurse -Force $portableDir
+          # daemon sidecar 资产：保留 triple 原名（selfupdate 按 lambchat-daemon-<triple> 前缀匹配）
+          Copy-Item 'frontend/src-tauri/binaries/lambchat-daemon-*.exe' 'release-assets/'
 
       - name: Collect macOS desktop artifacts
         if: runner.os == 'macOS'
@@ -211,6 +255,8 @@ jobs:
             echo "No macOS .app bundle found; uploading DMG only."
           fi
           cp "$dmg_path" "release-assets/LambChat-${RELEASE_TAG}-macOS.dmg"
+          # daemon sidecar 资产：保留 triple 原名（selfupdate 按 lambchat-daemon-<triple> 前缀匹配）
+          cp frontend/src-tauri/binaries/lambchat-daemon-* release-assets/
 
       - name: Collect updater manifest artifacts
         shell: bash
@@ -328,14 +374,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate app URL
+      - name: Validate app URL (optional)
+        # app_url 可选：提供则构建期烘焙为默认服务器（VITE_API_BASE）；
+        # 缺省打「运行时配置」包——安装后首启设置屏填 base_url 即可用。
         shell: bash
         run: |
-          test -n "$LAMBCHAT_APP_URL"
-          case "$LAMBCHAT_APP_URL" in
-            https://*) ;;
-            *) echo "LAMBCHAT_APP_URL must be an https:// URL"; exit 1 ;;
-          esac
+          if [ -n "$LAMBCHAT_APP_URL" ]; then
+            case "$LAMBCHAT_APP_URL" in
+              https://*) ;;
+              *) echo "LAMBCHAT_APP_URL must be an https:// URL"; exit 1 ;;
+            esac
+          else
+            echo "LAMBCHAT_APP_URL not set: building runtime-configured package (first-run setup)"
+          fi
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4

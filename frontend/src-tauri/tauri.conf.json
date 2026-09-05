@@ -27,6 +27,8 @@
     "active": true,
     "targets": "all",
     "createUpdaterArtifacts": true,
+    "externalBin": ["binaries/lambchat-daemon"],
+    "resources": ["resources/python/"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -37,7 +39,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "T8eGmTNDhF6TuPOvREjRqYgJ/VDHn96kWVGm8Q+1+Bo=",
+      "pubkey": "RWRZzzdYRbbbZ4GoYIDXU9yyqow9ig+HaKnitNeX/qiZb/K/O5tznruR",
       "endpoints": [
         "https://github.com/Yanyutin753/LambChat/releases/latest/download/latest.json"
       ]

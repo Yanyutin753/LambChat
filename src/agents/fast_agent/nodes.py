@@ -361,7 +361,16 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     if hitl_resume is not None:
         from langgraph.types import Command
 
-        graph_input: Any = Command(resume=hitl_resume.get("resume_value"))
+        resume_map = hitl_resume.get("resume_value")
+        sandbox_message = hitl_resume.get("sandbox_confirm_message")
+        if sandbox_message and isinstance(resume_map, dict):
+            # 沙箱确认门整批：同批全部中断共享批复值（并行工具各任务各中断）
+            from src.infra.task.hitl import expand_sandbox_confirm_resume
+
+            resume_map = await expand_sandbox_confirm_resume(
+                inner_graph, inner_config, resume_map, message=sandbox_message
+            )
+        graph_input: Any = Command(resume=resume_map)
     else:
         if supports_vision:
             attachments = await inline_image_attachments_as_data_urls(

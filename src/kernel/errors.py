@@ -85,6 +85,28 @@ class ErrorCode(Enum):
         "OAuth provider '{{provider}}' is not enabled",
     )
 
+    # ---------- sandbox：本地沙箱 PAT 与守护进程 ----------
+    PAT_NOT_FOUND = ("pat_not_found", 401, "Personal access token not found or revoked")
+    PAT_EXPIRED = ("pat_expired", 401, "Personal access token expired")
+    PAT_SCOPE_DENIED = ("pat_scope_denied", 403, "Token missing required scope '{{scope}}'")
+    DAEMON_OFFLINE = ("daemon_offline", 409, "Local sandbox daemon is offline")
+    SANDBOX_TIMEOUT = ("sandbox_timeout", 504, "Local sandbox call timed out after {{seconds}}s")
+    SANDBOX_EXEC_FAILED = (
+        "sandbox_exec_failed",
+        500,
+        "Local sandbox execution failed: {{detail}}",
+    )
+    SANDBOX_PAYLOAD_TOO_LARGE = (
+        "sandbox_payload_too_large",
+        413,
+        "Local sandbox payload exceeds limit",
+    )
+    DAEMON_VERSION_UNSUPPORTED = (
+        "daemon_version_unsupported",
+        426,
+        "Daemon version {{version}} is below minimum {{min}}; please update",
+    )
+
     # ---------- push：推送订阅 ----------
     PUSH_UNAVAILABLE = (
         "push_unavailable",
@@ -699,3 +721,17 @@ class AppError(Exception):
     @property
     def http_status(self) -> int:
         return self.error_code.status
+
+    @property
+    def display_message(self) -> str:
+        """插值 ``{{param}}`` 后的展示文案（SSE 等直接面向用户的场景）。
+
+        HTTP 契约走 code+message+args 三段式由前端插值；SSE 错误事件只带
+        单条文本，这里先行插值，不留 ``{{detail}}`` 原文。
+        """
+        import re
+
+        def _sub(match: "re.Match[str]") -> str:
+            return str(self.args_data.get(match.group(1), match.group(0)))
+
+        return re.sub(r"\{\{(\w+)\}\}", _sub, self.message)

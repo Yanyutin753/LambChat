@@ -226,7 +226,7 @@ describe("frontend performance budgets", () => {
     ]);
     expect(result.warnings).toEqual([]);
     expect(logs).toHaveLength(1);
-    expect(logs[0]).toMatch(/eager JavaScript: \d+\/512000 bytes/);
+    expect(logs[0]).toMatch(/eager JavaScript: \d+\/516096 bytes/);
     expect(logs[0]).toMatch(/precache: 8 entries, \d+\/5242880 bytes/);
   });
 
@@ -273,7 +273,7 @@ describe("frontend performance budgets", () => {
           ? deterministicNoise(600_000)
           : baseFiles.get(filePath)!,
       )([{ url: "assets/index.js", size: 600_000 }]),
-    ).rejects.toThrow(/eager JavaScript budget exceeded: \d+ > 512000 bytes/);
+    ).rejects.toThrow(/eager JavaScript budget exceeded: \d+ > 516096 bytes/);
 
     await expect(
       makeTransform((filePath) =>

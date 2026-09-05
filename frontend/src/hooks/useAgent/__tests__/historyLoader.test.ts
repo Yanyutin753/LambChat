@@ -1792,3 +1792,123 @@ test("steer with no prior assistant output adds no cancelled marker", () => {
   expect(messages).toHaveLength(3);
   expect(messages.some((message) => message.cancelled)).toBe(false);
 });
+
+test("sandbox confirm approval does not synthesize an extra tool card", () => {
+  // 沙箱确认门（origin=sandbox_confirm）：执行卡（等待确认→结果）+ 审批面板
+  // 已完整表达，历史回放不得再合成 ask_human 卡——否则一次执行渲染两张卡。
+  const stableId = "tools:e5648a60-7bef-ec09-bc93-884797cec567|5fc527e7b116";
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: "run-sbx",
+        timestamp: "2026-09-05T15:51:09.000Z",
+        data: { content: "看看磁盘", message_id: "run-sbx:user" },
+      },
+      {
+        event_type: "metadata",
+        run_id: "run-sbx",
+        timestamp: "2026-09-05T15:51:10.000Z",
+        data: { session_id: "s1", agent_id: "search" },
+      },
+      {
+        event_type: "tool:start",
+        run_id: "run-sbx",
+        timestamp: "2026-09-05T15:51:15.000Z",
+        data: { tool: "execute", tool_call_id: stableId, args: { command: "df -h" } },
+      },
+      {
+        event_type: "approval_required",
+        run_id: "run-sbx",
+        timestamp: "2026-09-05T15:51:16.000Z",
+        data: {
+          id: "approval-sbx-1",
+          message: "确认在本机执行命令：\ndf -h",
+          type: "form",
+          fields: [],
+          origin: "sandbox_confirm",
+        },
+      },
+      {
+        event_type: "hitl:suspended",
+        run_id: "run-sbx",
+        timestamp: "2026-09-05T15:51:16.500Z",
+        data: { session_id: "s1", run_id: "run-sbx", status: "waiting_human" },
+      },
+      {
+        event_type: "approval_resolved",
+        run_id: "run-sbx",
+        timestamp: "2026-09-05T15:51:59.000Z",
+        data: {
+          id: "approval-sbx-1",
+          tool_call_id: null,
+          interrupt_id: "intr-1",
+          status: "approved",
+          success: true,
+        },
+      },
+      {
+        event_type: "human_resume_started",
+        run_id: "run-sbx",
+        timestamp: "2026-09-05T15:51:59.500Z",
+        data: { approval_id: "approval-sbx-1" },
+      },
+      {
+        event_type: "tool:start",
+        run_id: "run-sbx",
+        timestamp: "2026-09-05T15:52:00.000Z",
+        data: { tool: "execute", tool_call_id: stableId, args: { command: "df -h" } },
+      },
+      {
+        event_type: "tool:result",
+        run_id: "run-sbx",
+        timestamp: "2026-09-05T15:52:01.000Z",
+        data: {
+          tool: "execute",
+          tool_call_id: stableId,
+          result: "文件系统 468G",
+          success: true,
+        },
+      },
+    ] satisfies HistoryEvent[],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  const toolParts = messages
+    .filter((m) => m.role === "assistant")
+    .flatMap((m) => (m.parts || []).filter((p) => p.type === "tool"));
+  expect(toolParts).toHaveLength(1);
+  expect(toolParts[0]).toMatchObject({ id: stableId, name: "execute" });
+  expect(toolParts[0].result).toBe("文件系统 468G");
+});
+
+test("legacy sandbox confirm approval (no origin) is recognized by message prefix", () => {
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: "run-sbx-old",
+        timestamp: "2026-09-05T15:25:46.000Z",
+        data: { content: "磁盘", message_id: "run-sbx-old:user" },
+      },
+      {
+        event_type: "approval_required",
+        run_id: "run-sbx-old",
+        timestamp: "2026-09-05T15:25:56.000Z",
+        data: {
+          id: "approval-old",
+          message: "确认在本机执行命令：\ndf -h",
+          type: "form",
+          fields: [],
+        },
+      },
+    ] satisfies HistoryEvent[],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+  const toolParts = messages
+    .filter((m) => m.role === "assistant")
+    .flatMap((m) => (m.parts || []).filter((p) => p.type === "tool"));
+  expect(toolParts).toHaveLength(0);
+});

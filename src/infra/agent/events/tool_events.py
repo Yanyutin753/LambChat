@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import uuid
 from typing import Any
@@ -31,6 +32,29 @@ def _clip_tool_result_text(text: str) -> str:
     )
 
 
+def _stable_tool_call_id(event: StreamEvent) -> str | None:
+    """interrupt/resume 稳定的工具调用键：checkpoint_ns + 工具名 + 参数摘要。
+
+    langgraph 的 on_tool_start/end 每次执行尝试都换 run_id——确认门
+    （ask_human / 沙箱确认）挂起后图以**同任务**重放，checkpoint_ns 不变
+    而 run_id 变化，同一逻辑执行会渲染成两张卡（一张永远等不到 result）。
+    ns 是任务级命名空间，并行多工具共享同一任务 ns，故再拼工具名与参数
+    摘要保证唯一。None = 事件未携带 ns（旧包装器/异常路径），调用方回退
+    run_id 现状。
+    """
+    metadata = event.get("metadata") or {}
+    ns = metadata.get("langgraph_checkpoint_ns") or metadata.get("checkpoint_ns")
+    if not ns:
+        return None
+    args = (event.get("data") or {}).get("input")
+    digest = hashlib.md5()  # 稳定键用途，非安全哈希
+    digest.update(str(event.get("name") or "").encode())
+    digest.update(b"\x00")
+    if isinstance(args, dict):
+        digest.update(json.dumps(args, sort_keys=True, ensure_ascii=False, default=str).encode())
+    return f"{ns}|{digest.hexdigest()[:12]}"
+
+
 def _parse_tool_result_json(raw: str) -> Any | None:
     try:
         parsed = orjson.loads(raw)
@@ -58,6 +82,9 @@ class ToolEventMixin:
     _started_tool_call_ids: set[str]
 
     def _get_tool_call_id(self, event: StreamEvent) -> str:
+        stable = _stable_tool_call_id(event)
+        if stable:
+            return stable
         return event.get("run_id") or f"tool_{uuid.uuid4().hex}"
 
     def _format_tool_error(self, tool_name: str, error: Any) -> str:

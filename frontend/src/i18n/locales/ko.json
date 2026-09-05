@@ -244,6 +244,16 @@
         "max": "최강",
         "medium": "중간"
       }
+    },
+    "sandbox": {
+      "label": "샌드박스",
+      "description": "샌드박스 명령 실행 위치를 선택합니다",
+      "options": {
+        "cloud": "클라우드",
+        "local": "로컬"
+      },
+      "offlineHint": "로컬 샌드박스가 오프라인입니다. 먼저 설정에서 페어링하세요.",
+      "restoredOffline": "저장된 로컬 샌드박스 설정이 현재 오프라인입니다."
     }
   },
   "agents": {
@@ -628,7 +638,15 @@
     "systemRoleProtected": "시스템 역할은 수정하거나 삭제할 수 없습니다",
     "agentNotRegistered": "에이전트 '{{agent}}'이(가) 등록되어 있지 않습니다",
     "bookmarkUpdateFailed": "북마크 상태 업데이트에 실패했습니다",
-    "modelEmptyResponse": "재시도 후에도 모델이 빈 응답을 반환했습니다. 다시 시도하거나 모델을 변경해 주세요"
+    "modelEmptyResponse": "재시도 후에도 모델이 빈 응답을 반환했습니다. 다시 시도하거나 모델을 변경해 주세요",
+    "patNotFound": "개인 액세스 토큰이 없거나 폐기되었습니다",
+    "patExpired": "개인 액세스 토큰이 만료되었습니다",
+    "patScopeDenied": "토큰에 필요한 스코프 {{scope}}가 없습니다",
+    "daemonOffline": "로컬 샌드박스 데몬이 오프라인입니다",
+    "sandboxTimeout": "로컬 샌드박스 호출 시간 초과({{seconds}}초)",
+    "sandboxPayloadTooLarge": "로컬 샌드박스 페이로드가 너무 큽니다",
+    "sandboxExecFailed": "로컬 샌드박스 실행 실패: {{detail}}",
+    "daemonVersionUnsupported": "로컬 샌드박스 데몬 버전 {{version}}이(가) 최소 요구 사항 {{min}} 미만입니다. 업데이트해 주세요"
   },
   "categories": {
     "agent": "에이전트",
@@ -824,6 +842,7 @@
       "runStepsWorkingNoTimer": "작업 중",
       "runStepsStopped": "중지됨",
       "running": "실행 중...",
+      "waitingConfirm": "확인 대기 중",
       "startTime": "시작 시간",
       "starterPrompts": "시작 프롬프트",
       "subagentProgress": "하위 에이전트 진행률",
@@ -990,6 +1009,9 @@
     "sendLongTextAsText": "텍스트로 보내기",
     "sessionUnavailable": "세션이 없거나 삭제되었습니다",
     "shiftEnterNewLine": "로 줄바꿈",
+    "runMode": {
+      "sandbox": "샌드박스"
+    },
     "skillCreated": "스킬이 생성되었습니다",
     "skillUpdated": "스킬이 업데이트되었습니다",
     "slashCommands": {
@@ -2090,6 +2112,8 @@
     "changeAvatar": "아바타 변경",
     "changePassword": "비밀번호 변경",
     "confirmPassword": "비밀번호 확인",
+    "cloudSandbox": "클라우드 샌드박스",
+    "cloudSandboxDesc": "클라우드 샌드박스에서 코드를 실행하기 전 이 정책에 따라 확인을 요청합니다",
     "darkTheme": "다크",
     "defaultModel": "기본 모델",
     "defaultModelDesc": "새 대화에 사용할 기본 모델을 선택하세요",
@@ -2111,6 +2135,31 @@
     "lightTheme": "라이트",
     "limitedSupport": "일부 지원",
     "loading": "로딩 중...",
+    "localSandbox": {
+      "title": "로컬 샌드박스",
+      "desc": "데스크톱 앱을 통해 사용자의 PC에서 직접 명령과 파일 작업을 수행합니다",
+      "statusOnline": "온라인",
+      "statusOffline": "오프라인",
+      "version": "daemon {{version}}",
+      "processRunning": "실행 중",
+      "processStopped": "중지됨",
+      "pairTitle": "LambChat 계정으로 로컬 샌드박스를 페어링하면 이 기기에서 코드를 실행할 수 있습니다.",
+      "pairButton": "페어링 및 시작",
+      "paired": "페어링 완료",
+      "policy": "실행 확인 정책",
+      "policyOptions": {
+        "all": "모든 작업 확인",
+        "commands": "명령만 확인",
+        "none": "확인 안 함"
+      },
+      "openWorkspaces": "작업 공간 폴더 열기",
+      "openAudit": "감사 폴더 열기",
+      "restartDaemon": "daemon 재시작",
+      "needDesktop": "로컬 샌드박스에는 LambChat 데스크톱 앱이 필요합니다. 웹에서는 클라우드 샌드박스만 사용할 수 있습니다.",
+      "pairFailed": "페어링에 실패했습니다. 계정 정보를 확인하고 다시 시도하세요.",
+      "unpair": "페어링 해제",
+      "unpaired": "페어링이 해제되었습니다"
+    },
     "maxPinnedModels": "최대 {{max}}개 모델을 고정할 수 있습니다",
     "memoryToggle": "세션 간 메모리",
     "mobileNotification": "모바일 알림",
@@ -2139,6 +2188,7 @@
     "realtimeNotificationDesc": "WebSocket을 통해 작업 완료 알림 받기",
     "retry": "다시 시도",
     "roles": "역할",
+    "sandbox": "샌드박스",
     "searchModels": "모델 검색",
     "sendBehavior": "전송 동작",
     "sendOnEnter": "메시지 보내기",
@@ -2435,6 +2485,16 @@
       "description": "개요·요약 등 중요한 메시지를 저장하고 언제든 바로 이동할 수 있습니다.",
       "title": "메시지 북마크"
     }
+  },
+  "serverSetup": {
+    "title": "LambChat 서버에 연결",
+    "desc": "서버 주소를 입력하고 시작하세요",
+    "label": "서버 주소",
+    "connect": "연결",
+    "testing": "연결 중…",
+    "fail": "서버 응답 이상(HTTP {{status}}). 주소를 확인해 주세요",
+    "unreachable": "이 주소에 연결할 수 없습니다. 서버가 실행 중인지 확인해 주세요",
+    "invalid": "주소 형식이 올바르지 않습니다"
   },
   "session": {
     "deleteFailed": "세션 삭제에 실패했습니다",
@@ -3483,5 +3543,13 @@
     "sessionTitle": "이 대화의 북마크",
     "locating": "북마크를 찾는 중…",
     "messageMissing": "북마크한 메시지를 기록에서 찾을 수 없습니다. 삭제되었을 수 있습니다"
+  },
+  "update": {
+    "aboutTitle": "정보",
+    "checkNow": "업데이트 확인",
+    "notificationBody": "버전 {{version}}이(가) 출시되었습니다. 설정에서 업데이트를 확인하세요",
+    "notificationTitle": "새 버전 available",
+    "upToDate": "최신 버전입니다",
+    "updateRelaunchInstall": "재시작 후 설치"
   }
 }

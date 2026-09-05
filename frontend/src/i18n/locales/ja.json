@@ -244,6 +244,16 @@
         "max": "最強",
         "medium": "中"
       }
+    },
+    "sandbox": {
+      "label": "サンドボックス",
+      "description": "サンドボックスのコマンド実行場所を選択します",
+      "options": {
+        "cloud": "クラウド",
+        "local": "ローカル"
+      },
+      "offlineHint": "ローカルサンドボックスはオフラインです。先に設定でペアリングしてください。",
+      "restoredOffline": "保存されたローカルサンドボックス設定は現在オフラインです。"
     }
   },
   "agents": {
@@ -628,7 +638,15 @@
     "systemRoleProtected": "システムロールは変更・削除できません",
     "agentNotRegistered": "エージェント '{{agent}}' は登録されていません",
     "bookmarkUpdateFailed": "ブックマーク状態の更新に失敗しました",
-    "modelEmptyResponse": "モデルは再試行後も空の応答を返しました。再試行するか、モデルを変更してください"
+    "modelEmptyResponse": "モデルは再試行後も空の応答を返しました。再試行するか、モデルを変更してください",
+    "patNotFound": "パーソナルアクセストークンが見つからないか失効しています",
+    "patExpired": "パーソナルアクセストークンの有効期限が切れました",
+    "patScopeDenied": "トークンに必要なスコープ {{scope}} がありません",
+    "daemonOffline": "ローカルサンドボックスデーモンはオフラインです",
+    "sandboxTimeout": "ローカルサンドボックス呼び出しがタイムアウトしました（{{seconds}}秒）",
+    "sandboxPayloadTooLarge": "ローカルサンドボックスのペイロードが大きすぎます",
+    "sandboxExecFailed": "ローカルサンドボックスの実行に失敗しました：{{detail}}",
+    "daemonVersionUnsupported": "ローカルサンドボックスデーモンのバージョン {{version}} は最低要件 {{min}} 未満です。アップデートしてください"
   },
   "categories": {
     "agent": "エージェント",
@@ -824,6 +842,7 @@
       "runStepsWorkingNoTimer": "作業中",
       "runStepsStopped": "停止しました",
       "running": "実行中...",
+      "waitingConfirm": "確認待ち",
       "startTime": "開始時刻",
       "starterPrompts": "スタータープロンプト",
       "subagentProgress": "サブエージェントの進捗",
@@ -990,6 +1009,9 @@
     "sendLongTextAsText": "テキストのまま送信",
     "sessionUnavailable": "セッションが存在しないか、削除されました",
     "shiftEnterNewLine": "で改行",
+    "runMode": {
+      "sandbox": "サンドボックス"
+    },
     "skillCreated": "スキルが作成されました",
     "skillUpdated": "スキルが更新されました",
     "slashCommands": {
@@ -2090,6 +2112,8 @@
     "changeAvatar": "アバターを変更",
     "changePassword": "パスワードを変更",
     "confirmPassword": "パスワードを確認",
+    "cloudSandbox": "クラウドサンドボックス",
+    "cloudSandboxDesc": "クラウドサンドボックスでコードを実行する前に、このポリシーに従って確認を求めます",
     "darkTheme": "ダーク",
     "defaultModel": "デフォルトモデル",
     "defaultModelDesc": "新しい会話のデフォルトモデルを選択",
@@ -2111,6 +2135,31 @@
     "lightTheme": "ライト",
     "limitedSupport": "一部対応",
     "loading": "読み込み中...",
+    "localSandbox": {
+      "title": "ローカルサンドボックス",
+      "desc": "デスクトップアプリを介して、あなた自身のPC上でコマンドとファイル操作を実行します",
+      "statusOnline": "オンライン",
+      "statusOffline": "オフライン",
+      "version": "daemon {{version}}",
+      "processRunning": "実行中",
+      "processStopped": "停止済み",
+      "pairTitle": "LambChat アカウントでローカルサンドボックスをペアリングすると、この端末でコードを実行できます。",
+      "pairButton": "ペアリングして開始",
+      "paired": "ペアリング完了",
+      "policy": "実行確認ポリシー",
+      "policyOptions": {
+        "all": "すべての操作を確認",
+        "commands": "コマンドのみ確認",
+        "none": "確認なし"
+      },
+      "openWorkspaces": "ワークスペースを開く",
+      "openAudit": "監査フォルダを開く",
+      "restartDaemon": "daemon を再起動",
+      "needDesktop": "ローカルサンドボックスには LambChat デスクトップアプリが必要です。ウェブではクラウドサンドボックスのみ利用できます。",
+      "pairFailed": "ペアリングに失敗しました。認証情報を確認して再試行してください。",
+      "unpair": "ペアリング解除",
+      "unpaired": "ペアリングを解除しました"
+    },
     "maxPinnedModels": "最大{{max}}個のモデルをピン留めできます",
     "memoryToggle": "セッション横断メモリ",
     "mobileNotification": "モバイル通知",
@@ -2139,6 +2188,7 @@
     "realtimeNotificationDesc": "WebSocketでタスク完了通知を受け取る",
     "retry": "再試行",
     "roles": "ロール",
+    "sandbox": "サンドボックス",
     "searchModels": "モデルを検索",
     "sendBehavior": "送信動作",
     "sendOnEnter": "メッセージ送信",
@@ -2435,6 +2485,16 @@
       "description": "アウトラインやまとめなど重要なメッセージを保存し、いつでもワンクリックで戻れます。",
       "title": "メッセージブックマーク"
     }
+  },
+  "serverSetup": {
+    "title": "LambChat サーバーに接続",
+    "desc": "サーバーアドレスを入力して開始します",
+    "label": "サーバーアドレス",
+    "connect": "接続",
+    "testing": "接続中…",
+    "fail": "サーバー応答異常（HTTP {{status}}）。アドレスを確認してください",
+    "unreachable": "このアドレスに接続できません。サーバーが起動しているか確認してください",
+    "invalid": "アドレスの形式が正しくありません"
   },
   "session": {
     "deleteFailed": "セッションの削除に失敗しました",
@@ -3483,5 +3543,13 @@
     "sessionTitle": "この会話のブックマーク",
     "locating": "ブックマークを定位しています…",
     "messageMissing": "ブックマークのメッセージが履歴に見つかりません。削除された可能性があります"
+  },
+  "update": {
+    "aboutTitle": "について",
+    "checkNow": "更新を確認",
+    "notificationBody": "バージョン {{version}} が公開されました。設定で更新を確認してください",
+    "notificationTitle": "新バージョンがあります",
+    "upToDate": "最新バージョンです",
+    "updateRelaunchInstall": "再起動してインストール"
   }
 }

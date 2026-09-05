@@ -10,9 +10,11 @@ import {
   Target,
   Settings2,
   ChevronRight,
+  Monitor,
 } from "lucide-react";
 import { getRunModePopoverPosition } from "./runModePopoverPosition";
 import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
+import { useSandboxStatus } from "../../hooks/useSandboxStatus";
 import type { AgentOption } from "../../types";
 
 interface RunModePopoverProps {
@@ -30,6 +32,10 @@ interface RunModePopoverProps {
   hasThinkingOption?: boolean;
   thinkingLabel?: string;
   onOpenThinkingPanel?: () => void;
+  /** 沙箱选择器入口（会话存在 sandbox 选项时显示，点击打开 sandbox 面板）。 */
+  hasSandboxOption?: boolean;
+  sandboxLabel?: string;
+  onOpenSandboxPanel?: () => void;
   booleanAgentOptions?: Record<string, AgentOption>;
   agentOptionValues?: Record<string, boolean | string | number>;
   onToggleAgentOption?: (key: string, value: boolean | string | number) => void;
@@ -57,16 +63,24 @@ export function RunModePopover({
   hasThinkingOption,
   thinkingLabel,
   onOpenThinkingPanel,
+  hasSandboxOption,
+  sandboxLabel,
+  onOpenSandboxPanel,
   booleanAgentOptions,
   agentOptionValues = {},
   onToggleAgentOption,
 }: RunModePopoverProps) {
   const { t } = useTranslation();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  // 沙箱条目上的 daemon 在线状态点（绿=在线，灰=离线）。
+  // 轮询门控：仅 popover 展开时拉取/轮询（关闭期间浮层不可见，不空转 10s
+  // 轮询）；ChatInputSelectors 的常驻实例保持 always-on 不受影响。
+  const { online: sandboxOnline } = useSandboxStatus({ enabled: open });
 
   const hasSettings =
     hasAgentSelector ||
     hasThinkingOption ||
+    hasSandboxOption ||
     Object.keys(booleanAgentOptions ?? {}).length > 0;
 
   const getStyle = (rect: DOMRect): CSSProperties => {
@@ -241,6 +255,39 @@ export function RunModePopover({
                       {thinkingLabel}
                     </span>
                   )}
+                  <ChevronRight size={14} className="feature-menu-chevron" />
+                </button>
+              )}
+
+              {/* Sandbox (cloud / local) */}
+              {hasSandboxOption && (
+                <button
+                  type="button"
+                  className="feature-menu-item"
+                  onClick={() => {
+                    onOpenSandboxPanel?.();
+                    onClose();
+                  }}
+                >
+                  <span className="feature-menu-item-icon">
+                    <Monitor size={18} />
+                  </span>
+                  <span className="flex-1 text-left truncate">
+                    {t("chat.runMode.sandbox", "Sandbox")}
+                  </span>
+                  {sandboxLabel && (
+                    <span className="feature-menu-item-badge font-serif">
+                      {sandboxLabel}
+                    </span>
+                  )}
+                  {/* daemon 在线状态点：锚定在可见的触发条目上，绿=在线，灰=离线 */}
+                  <span
+                    data-sandbox-status-dot
+                    className="h-1.5 w-1.5 shrink-0 rounded-full"
+                    style={{
+                      background: sandboxOnline ? "#22c55e" : "#a8a29e",
+                    }}
+                  />
                   <ChevronRight size={14} className="feature-menu-chevron" />
                 </button>
               )}

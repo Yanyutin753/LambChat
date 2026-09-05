@@ -20,7 +20,8 @@ test("channel panel configuration card heading uses font-serif", () => {
 });
 
 test("profile preferences dropdown title uses font-serif", () => {
-  const source = readComponent("profile/tabs/ProfilePreferencesTab.tsx");
+  // SelectRow（含下拉弹窗标题）已从 ProfilePreferencesTab 抽取为共享组件
+  const source = readComponent("profile/SelectRow.tsx");
   expect(source).toMatch(
     /<h4 className="text-sm font-semibold font-serif/,
   );

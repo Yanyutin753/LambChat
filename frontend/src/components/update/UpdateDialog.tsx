@@ -141,7 +141,9 @@ export function UpdateDialog({
               )}
               {state.downloading
                 ? t("updateDownloading", "正在下载...")
-                : t("updateDownload", "立即升级")}
+                : state.readyToInstall
+                  ? t("updateRelaunchInstall", "重启并安装")
+                  : t("updateDownload", "立即升级")}
             </button>
           )}
 

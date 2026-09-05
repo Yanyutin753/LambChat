@@ -13,6 +13,8 @@ export interface ToolCallPanelData {
   result?: string | Record<string, unknown>;
   success?: boolean;
   isPending?: boolean;
+  /** 确认门挂起中：面板行文案切「等待确认」 */
+  awaitingConfirmation?: boolean;
   cancelled?: boolean;
   startedAt?: string;
   completedAt?: string;

@@ -473,3 +473,151 @@ test("complete event cancels unfinished todo items", () => {
   ]);
   expect(todo.items[1].activeForm).toBe(undefined);
 });
+
+// ---------- 确认门挂起/恢复：工具卡「等待确认」态 + 旧 id 重复折叠 ----------
+
+test("hitl suspension marks pending tools as awaiting confirmation", () => {
+  const started = processMessageEvent(
+    "tool:start",
+    { tool: "execute", tool_call_id: "stable-1", args: { command: "df -h" } },
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  const suspended = processMessageEvent(
+    "hitl:suspended",
+    { session_id: "s1", run_id: "r1", status: "waiting_human" },
+    started.parts,
+    "",
+    started.toolCalls,
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  expect(suspended.parts[0]).toMatchObject({
+    type: "tool",
+    isPending: true,
+    awaitingConfirmation: true,
+  });
+});
+
+test("human resume clears awaiting confirmation back to running", () => {
+  const started = processMessageEvent(
+    "tool:start",
+    { tool: "execute", tool_call_id: "stable-1", args: { command: "df -h" } },
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+  const suspended = processMessageEvent(
+    "hitl:suspended",
+    {},
+    started.parts,
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  const resumed = processMessageEvent(
+    "human_resume_started",
+    { approval_id: "a1" },
+    suspended.parts,
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  expect(resumed.parts[0]).toMatchObject({ isPending: true });
+  expect(resumed.parts[0].awaitingConfirmation).toBeFalsy();
+});
+
+test("replayed tool start with a new id takes over the dangling duplicate", () => {
+  // 旧后端：interrupt 挂起那次 start（id A）与恢复重放 start（id B）不同 id
+  const first = processMessageEvent(
+    "tool:start",
+    { tool: "execute", tool_call_id: "id-attempt-1", args: { command: "df -h" } },
+    [],
+    "",
+    [],
+    0,
+    [],
+    false,
+    "message-1",
+  );
+  const second = processMessageEvent(
+    "tool:start",
+    { tool: "execute", tool_call_id: "id-attempt-2", args: { command: "df -h" } },
+    first.parts,
+    "",
+    first.toolCalls,
+    0,
+    [],
+    false,
+    "message-1",
+  );
+
+  expect(second.parts).toHaveLength(1);
+  expect(second.parts[0]).toMatchObject({ id: "id-attempt-2", isPending: true });
+
+  const withResult = processMessageEvent(
+    "tool:result",
+    {
+      tool: "execute",
+      tool_call_id: "id-attempt-2",
+      result: "Filesystem 468G",
+      success: true,
+    },
+    second.parts,
+    "",
+    second.toolCalls,
+    0,
+    [],
+    false,
+    "message-1",
+  );
+  expect(withResult.parts).toHaveLength(1);
+  expect(withResult.parts[0].result).toBe("Filesystem 468G");
+});
+
+test("tool start with different args still appends a separate part", () => {
+  const first = processMessageEvent(
+    "tool:start",
+    { tool: "execute", tool_call_id: "a", args: { command: "df -h" } },
+    [],
+    "",
+    [],
+    0,
+    [],
+    false,
+    "message-1",
+  );
+  const second = processMessageEvent(
+    "tool:start",
+    { tool: "execute", tool_call_id: "b", args: { command: "ls" } },
+    first.parts,
+    "",
+    first.toolCalls,
+    0,
+    [],
+    false,
+    "message-1",
+  );
+  expect(second.parts).toHaveLength(2);
+});
