@@ -75,7 +75,9 @@ async def run_daemon(
     并重新抛出 CancelledError；:class:`TransportAuthError` 原样上抛交 CLI 提示。
     """
     factory = (
-        client_factory if client_factory is not None else lambda: ChannelClient(cfg.server_url, pat)
+        client_factory if client_factory is not None else lambda: ChannelClient(
+            cfg.server_url, pat, confirm_policy=cfg.confirm_policy
+        )
     )
     # 启动即装配内嵌 Python 运行时（embedded_python=true 且归档在位时）：
     # shim bin 目录前置进 executor 子进程 PATH，python3 命中内嵌解释器。

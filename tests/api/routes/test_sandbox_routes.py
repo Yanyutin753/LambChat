@@ -51,16 +51,20 @@ class _FakeRegistry:
         self.beats = 0
         self.active: tuple[str, str] | None = ("c1", "node-a")
         self.unregistered: list[tuple[str, str]] = []
-        self.registered: list[tuple[str, str, str, str, str]] = []
-        self.heartbeats: list[tuple[str, str, str, str, str]] = []
+        self.registered: list[tuple[str, str, str, str, str, str]] = []
+        self.heartbeats: list[tuple[str, str, str, str, str, str]] = []
 
-    async def register(self, user_id, client_id, node_id, *, version="", platform=""):
+    async def register(
+        self, user_id, client_id, node_id, *, version="", platform="", confirm_policy=""
+    ):
         self.active = (client_id, node_id)
-        self.registered.append((user_id, client_id, node_id, version, platform))
+        self.registered.append((user_id, client_id, node_id, version, platform, confirm_policy))
 
-    async def heartbeat(self, user_id, client_id, node_id, *, version="", platform=""):
+    async def heartbeat(
+        self, user_id, client_id, node_id, *, version="", platform="", confirm_policy=""
+    ):
         self.beats += 1
-        self.heartbeats.append((user_id, client_id, node_id, version, platform))
+        self.heartbeats.append((user_id, client_id, node_id, version, platform, confirm_policy))
 
     async def unregister(self, user_id, client_id):
         self.unregistered.append((user_id, client_id))
@@ -295,6 +299,7 @@ async def test_status_endpoint(monkeypatch):
         "client_id": "c1",
         "daemon_version": None,
         "daemon_platform": None,
+        "daemon_confirm_policy": None,
     }
 
 
@@ -317,6 +322,7 @@ async def test_status_endpoint_reports_daemon_version(monkeypatch):
         "client_id": "c1",
         "daemon_version": "0.1.0",
         "daemon_platform": None,  # M2 两段格式：无平台段
+        "daemon_confirm_policy": None,
     }
 
 
@@ -339,7 +345,69 @@ async def test_status_endpoint_reports_daemon_platform(monkeypatch):
         "client_id": "c1",
         "daemon_version": "0.1.0",
         "daemon_platform": "win32",
+        "daemon_confirm_policy": None,
     }
+
+
+async def test_status_endpoint_reports_confirm_policy(monkeypatch):
+    """服务端确认门：四段 value 的第四段解析成 daemon_confirm_policy 返回。"""
+    registry = _FakeRegistry()
+    registry.active = ("c1", "node-a|0.2.0|linux|commands")
+    app = FastAPI()
+    register_error_handlers(app)
+    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
+    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_user
+    monkeypatch.setattr(sandbox_route, "_registry", lambda: registry)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        resp = await client.get("/api/sandbox/status")
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "online": True,
+        "client_id": "c1",
+        "daemon_version": "0.2.0",
+        "daemon_platform": "linux",
+        "daemon_confirm_policy": "commands",
+    }
+
+
+async def test_channel_registers_confirm_policy_from_query(monkeypatch):
+    """channel 端点从 query 读 confirm_policy 随 register 存入并透传帧生成器
+    （心跳重写不带上会把注册值降级）；非法值归一空串。"""
+    registry = _FakeRegistry()
+    seen: dict[str, object] = {}
+
+    async def fake_frames(
+        redis, reg, user_id, client_id, *, stop, version="", platform="", confirm_policy=""
+    ):
+        seen["confirm_policy"] = confirm_policy
+        if False:  # pragma: no cover - 使其成为 async generator（空流即结束）
+            yield ""
+
+    monkeypatch.setattr(sandbox_route, "channel_frames", fake_frames)
+    app = FastAPI()
+    register_error_handlers(app)
+    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
+    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_pat_user
+    monkeypatch.setattr(sandbox_route, "_registry", lambda: registry)
+    monkeypatch.setattr(sandbox_route, "_redis", lambda: _FakeRedis())
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        resp = await client.get(
+            "/api/sandbox/channel",
+            params={"version": "0.2.0", "platform": "linux", "confirm_policy": "none"},
+        )
+        assert resp.status_code == 200
+        resp2 = await client.get(
+            "/api/sandbox/channel",
+            params={"version": "0.2.0", "confirm_policy": "yolo"},
+        )
+        assert resp2.status_code == 200
+    assert registry.registered[0][5] == "none"
+    assert registry.registered[1][5] == ""  # 非法值归一空串
+    assert seen["confirm_policy"] == ""  # 帧生成器收到归一后的值
 
 
 async def test_channel_registers_version_from_query(monkeypatch):
@@ -348,7 +416,7 @@ async def test_channel_registers_version_from_query(monkeypatch):
     registry = _FakeRegistry()
     seen: dict[str, object] = {}
 
-    async def fake_frames(redis, reg, user_id, client_id, *, stop, version="", platform=""):
+    async def fake_frames(redis, reg, user_id, client_id, *, stop, version="", platform="", confirm_policy=""):
         seen["version"] = version
         seen["platform"] = platform
         seen["registered"] = list(registry.registered)
@@ -365,12 +433,12 @@ async def test_channel_registers_version_from_query(monkeypatch):
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
-        resp = await client.get("/api/sandbox/channel?version=0.1.0")
+        resp = await client.get("/api/sandbox/channel?version=0.2.0")
     assert resp.status_code == 200
-    assert seen["version"] == "0.1.0"
+    assert seen["version"] == "0.2.0"
     assert len(registry.registered) == 1
-    user_id, _client_id, node_id, version, platform = registry.registered[0]
-    assert (user_id, version) == ("u1", "0.1.0")
+    user_id, _client_id, node_id, version, platform, _confirm_policy = registry.registered[0]
+    assert (user_id, version) == ("u1", "0.2.0")
     assert node_id == sandbox_route._NODE_ID
     assert platform == ""  # 未上报平台：保持空（旧 daemon 兼容）
 
@@ -381,7 +449,7 @@ async def test_channel_registers_platform_from_query(monkeypatch):
     registry = _FakeRegistry()
     seen: dict[str, object] = {}
 
-    async def fake_frames(redis, reg, user_id, client_id, *, stop, version="", platform=""):
+    async def fake_frames(redis, reg, user_id, client_id, *, stop, version="", platform="", confirm_policy=""):
         seen["platform"] = platform
         if False:  # pragma: no cover - 使其成为 async generator（空流即结束）
             yield ""
@@ -396,12 +464,12 @@ async def test_channel_registers_platform_from_query(monkeypatch):
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
-        resp = await client.get("/api/sandbox/channel?version=0.1.0&platform=win32")
+        resp = await client.get("/api/sandbox/channel?version=0.2.0&platform=win32")
     assert resp.status_code == 200
     assert seen["platform"] == "win32"
     assert len(registry.registered) == 1
-    user_id, _client_id, node_id, version, platform = registry.registered[0]
-    assert (user_id, version, platform) == ("u1", "0.1.0", "win32")
+    user_id, _client_id, node_id, version, platform, _confirm_policy = registry.registered[0]
+    assert (user_id, version, platform) == ("u1", "0.2.0", "win32")
     assert node_id == sandbox_route._NODE_ID
 
 
@@ -456,7 +524,7 @@ async def test_channel_allows_version_at_or_above_min(monkeypatch):
     monkeypatch.setattr(sandbox_route.settings, "SANDBOX_MIN_DAEMON_VERSION", "0.2.0")
     seen: list[str] = []
 
-    async def fake_frames(redis, reg, user_id, client_id, *, stop, version="", platform=""):
+    async def fake_frames(redis, reg, user_id, client_id, *, stop, version="", platform="", confirm_policy=""):
         seen.append(version)
         if False:  # pragma: no cover - 空 async generator
             yield ""
@@ -474,7 +542,7 @@ async def test_channel_allows_equal_min_with_nonnumeric_suffix(monkeypatch):
     """容错语义：非数字段按 0——"0.2.x" 解析为 (0,2,0) 不低于 min "0.2.0"，放行。"""
     monkeypatch.setattr(sandbox_route.settings, "SANDBOX_MIN_DAEMON_VERSION", "0.2.0")
 
-    async def fake_frames(redis, reg, user_id, client_id, *, stop, version="", platform=""):
+    async def fake_frames(redis, reg, user_id, client_id, *, stop, version="", platform="", confirm_policy=""):
         if False:  # pragma: no cover - 空 async generator
             yield ""
 

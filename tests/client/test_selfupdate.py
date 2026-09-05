@@ -82,25 +82,25 @@ def _fake_argv0(monkeypatch, tmp_path):
 
 def test_check_latest_finds_newer_platform_asset():
     resp = _api_response(
-        "v0.2.0",
+        "v0.3.0",
         [
             {"name": "lambchat-daemon-aarch64-apple-darwin"},
             {"name": _ASSET_NAME, "digest": "sha256:" + "0" * 64},
         ],
     )
     result = selfupdate.check_latest(
-        "Yanyutin753/LambChat", current_version="0.1.0", transport=_transport(api_response=resp)
+        "Yanyutin753/LambChat", current_version="0.2.0", transport=_transport(api_response=resp)
     )
-    assert result == ("0.2.0", f"https://dl.example/{_ASSET_NAME}")
+    assert result == ("0.3.0", f"https://dl.example/{_ASSET_NAME}")
 
 
 def test_check_latest_without_matching_asset_returns_none():
     """release 存在但无当前平台资产：无更新可用（None），不误报版本。"""
-    resp = _api_response("v0.2.0", [{"name": "lambchat-daemon-some-other-triple"}])
+    resp = _api_response("v0.3.0", [{"name": "lambchat-daemon-some-other-triple"}])
     assert (
         selfupdate.check_latest(
             "Yanyutin753/LambChat",
-            current_version="0.1.0",
+            current_version="0.2.0",
             transport=_transport(api_response=resp),
         )
         is None
@@ -109,12 +109,12 @@ def test_check_latest_without_matching_asset_returns_none():
 
 def test_check_latest_already_up_to_date_returns_none():
     """release 版本 <= 当前（含相等与更低）：None，不触发下载。"""
-    for tag in ("v0.1.0", "0.1.0", "v0.0.9"):
+    for tag in ("v0.2.0", "0.2.0", "v0.1.9"):
         resp = _api_response(tag, [{"name": _ASSET_NAME}])
         assert (
             selfupdate.check_latest(
                 "Yanyutin753/LambChat",
-                current_version="0.1.0",
+                current_version="0.2.0",
                 transport=_transport(api_response=resp),
             )
             is None
@@ -126,7 +126,7 @@ def test_check_latest_no_release_at_all_returns_none():
     assert (
         selfupdate.check_latest(
             "Yanyutin753/LambChat",
-            current_version="0.1.0",
+            current_version="0.2.0",
             transport=_transport(api_status=404),
         )
         is None
@@ -137,10 +137,10 @@ def test_check_latest_sends_github_token_when_present(monkeypatch):
     """GITHUB_TOKEN 存在时携带 Authorization 头（私有/限流场景），缺失不发。"""
     monkeypatch.setenv("GITHUB_TOKEN", "gh-token-1")
     log: list[httpx.Request] = []
-    resp = _api_response("v0.2.0", [{"name": _ASSET_NAME}])
+    resp = _api_response("v0.3.0", [{"name": _ASSET_NAME}])
     selfupdate.check_latest(
         "Yanyutin753/LambChat",
-        current_version="0.1.0",
+        current_version="0.2.0",
         transport=_transport(api_response=resp, log=log),
     )
     assert log[0].headers["Authorization"] == "Bearer gh-token-1"
@@ -168,7 +168,7 @@ def _good_transport(
     asset_name: str = _ASSET_NAME,
 ):
     digest = "sha256:" + hashlib.sha256(content).hexdigest()
-    resp = _api_response("v0.2.0", [{"name": asset_name, "digest": digest}])
+    resp = _api_response("v0.3.0", [{"name": asset_name, "digest": digest}])
     return _transport(api_response=resp, asset_content=content, log=log)
 
 
@@ -184,7 +184,7 @@ def test_perform_update_replaces_target(tmp_path, _fake_argv0):
         "Yanyutin753/LambChat", transport=_good_transport(b"NEW-BINARY", log)
     )
 
-    assert "0.2.0" in message
+    assert "0.3.0" in message
     assert "重启" in message
     assert target.read_bytes() == b"NEW-BINARY"
     assert not (tmp_path / "lambchat-daemon.new").exists()  # 临时名无残留
@@ -195,22 +195,22 @@ def test_perform_update_replaces_target(tmp_path, _fake_argv0):
 def test_perform_update_already_latest_leaves_target(_fake_argv0):
     """已是最新：目标文件原样不动、不发起资产下载。"""
     log: list[httpx.Request] = []
-    resp = _api_response("v0.1.0", [{"name": _ASSET_NAME}])  # 与当前同版
+    resp = _api_response("v0.2.0", [{"name": _ASSET_NAME}])  # 与当前同版
 
     message = selfupdate.perform_update(
         "Yanyutin753/LambChat",
-        current_version="0.1.0",
+        current_version="0.2.0",
         transport=_transport(api_response=resp, log=log),
     )
 
-    assert "0.1.0" in message
+    assert "0.2.0" in message
     assert _fake_argv0.read_bytes() == b"OLD-BINARY"
     assert len(log) == 1  # 只查了 release，没有下载
 
 
 def test_perform_update_download_failure_raises(_fake_argv0):
     """下载失败：check 通过但资产端点 500 → SelfUpdateError，目标保持原样。"""
-    resp = _api_response("v0.2.0", [{"name": _ASSET_NAME}])
+    resp = _api_response("v0.3.0", [{"name": _ASSET_NAME}])
     with pytest.raises(selfupdate.SelfUpdateError, match="下载"):
         selfupdate.perform_update(
             "Yanyutin753/LambChat", transport=_transport(api_response=resp, asset_status=500)
@@ -221,7 +221,7 @@ def test_perform_update_download_failure_raises(_fake_argv0):
 def test_perform_update_digest_mismatch_raises(tmp_path, _fake_argv0):
     """digest 校验：资产内容与 release 声明的 sha256 不符 → 拒绝替换。"""
     bad_digest = "sha256:" + hashlib.sha256(b"DIFFERENT").hexdigest()
-    resp = _api_response("v0.2.0", [{"name": _ASSET_NAME, "digest": bad_digest}])
+    resp = _api_response("v0.3.0", [{"name": _ASSET_NAME, "digest": bad_digest}])
     with pytest.raises(selfupdate.SelfUpdateError, match="校验"):
         selfupdate.perform_update(
             "Yanyutin753/LambChat", transport=_transport(api_response=resp, asset_content=b"EVIL")
@@ -232,7 +232,7 @@ def test_perform_update_digest_mismatch_raises(tmp_path, _fake_argv0):
 
 def test_perform_update_without_digest_skips_verification(_fake_argv0):
     """资产未声明 digest：跳过校验并注明（不误伤无摘要的早期 release）。"""
-    resp = _api_response("v0.2.0", [{"name": _ASSET_NAME}])  # 无 digest 字段
+    resp = _api_response("v0.3.0", [{"name": _ASSET_NAME}])  # 无 digest 字段
 
     message = selfupdate.perform_update(
         "Yanyutin753/LambChat", transport=_transport(api_response=resp, asset_content=b"NEW")

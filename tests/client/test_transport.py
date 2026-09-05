@@ -516,3 +516,27 @@ def test_backoff_delay_is_deterministic_per_seed():
     assert first == second
     bases = [1, 2, 4, 8, 16]
     assert any(d != b for d, b in zip(first, bases))  # 确实带抖动，不是恒等基线
+
+
+# ---------- connect URL：确认策略上报（服务端统一确认门，spec §3.5） ----------
+
+
+async def test_connect_url_carries_confirm_policy():
+    log: list[httpx.Request] = []
+    client = ChannelClient(
+        SERVER, PAT, confirm_policy="none", client=_client(_sse_transport(log, GOOD_STREAM.encode("utf-8")))
+    )
+    _, _ = await client.connect()
+
+    assert len(log) == 1
+    url = str(log[0].url)
+    assert "confirm_policy=none" in url
+    assert "version=" in url and "platform=" in url
+
+
+async def test_connect_url_omits_confirm_policy_when_empty():
+    log: list[httpx.Request] = []
+    client = _channel_client(_sse_transport(log, GOOD_STREAM.encode("utf-8")))
+    _, _ = await client.connect()
+
+    assert "confirm_policy=" not in str(log[0].url)

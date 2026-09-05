@@ -154,3 +154,37 @@ def test_parse_daemon_platform_all_formats():
     assert parse_daemon_platform("node-a|0.1.0") == ""  # 两段：平台段缺失
     assert parse_daemon_platform("node-a") == ""  # 旧格式（无版本写入方）
     assert parse_daemon_platform("node-a|0.1.0|") == ""  # 空平台与未上报等价
+
+
+# ---- 确认策略四段式（服务端统一确认门，spec §3.5）----
+
+
+def test_encode_with_confirm_policy_four_segments():
+    from src.infra.sandbox.relay.registry import encode_node_value, parse_confirm_policy
+
+    value = encode_node_value("n1", "0.2.0", "linux", "none")
+    assert value == "n1|0.2.0|linux|none"
+    assert parse_confirm_policy(value) == "none"
+
+
+def test_parse_confirm_policy_missing_segments_returns_empty():
+    from src.infra.sandbox.relay.registry import parse_confirm_policy
+
+    assert parse_confirm_policy("n1|0.2.0|linux") == ""
+    assert parse_confirm_policy("n1|0.2.0") == ""
+    assert parse_confirm_policy("n1") == ""
+
+
+async def test_register_stores_confirm_policy(registry):
+    await registry.register("u1", "c1", "node-a", version="0.2.0", platform="linux", confirm_policy="none")
+    assert await registry.get_confirm_policy("u1") == "none"
+
+
+async def test_get_confirm_policy_offline_returns_empty(registry):
+    assert await registry.get_confirm_policy("u1") == ""
+
+
+async def test_heartbeat_rewrites_confirm_policy(registry):
+    await registry.register("u1", "c1", "node-a", confirm_policy="all")
+    await registry.heartbeat("u1", "c1", "node-a", version="0.2.0", platform="linux", confirm_policy="commands")
+    assert await registry.get_confirm_policy("u1") == "commands"
