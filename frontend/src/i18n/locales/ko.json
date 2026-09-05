@@ -842,6 +842,7 @@
       "runStepsWorkingNoTimer": "작업 중",
       "runStepsStopped": "중지됨",
       "running": "실행 중...",
+      "waitingConfirm": "확인 대기 중",
       "startTime": "시작 시간",
       "starterPrompts": "시작 프롬프트",
       "subagentProgress": "하위 에이전트 진행률",

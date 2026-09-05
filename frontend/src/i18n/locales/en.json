@@ -842,6 +842,7 @@
       "runStepsWorkingNoTimer": "Working",
       "runStepsStopped": "Stopped",
       "running": "Running...",
+      "waitingConfirm": "Waiting for confirmation",
       "startTime": "Start time",
       "starterPrompts": "Starter Prompts",
       "subagentProgress": "Subagent progress",

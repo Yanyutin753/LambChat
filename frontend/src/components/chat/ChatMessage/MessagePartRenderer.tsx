@@ -532,6 +532,7 @@ export function MessagePartRenderer({
         result={part.result}
         success={part.success}
         isPending={part.isPending}
+        awaitingConfirmation={part.awaitingConfirmation}
         cancelled={part.cancelled}
         startedAt={part.startedAt}
         completedAt={part.completedAt}

@@ -842,6 +842,7 @@
       "runStepsWorkingNoTimer": "作業中",
       "runStepsStopped": "停止しました",
       "running": "実行中...",
+      "waitingConfirm": "確認待ち",
       "startTime": "開始時刻",
       "starterPrompts": "スタータープロンプト",
       "subagentProgress": "サブエージェントの進捗",

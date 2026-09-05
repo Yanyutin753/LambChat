@@ -842,6 +842,7 @@
       "runStepsWorkingNoTimer": "Работаю",
       "runStepsStopped": "Остановлено",
       "running": "Выполняется...",
+      "waitingConfirm": "Ожидание подтверждения",
       "startTime": "Время начала",
       "starterPrompts": "Начальные промпты",
       "subagentProgress": "Прогресс подагента",

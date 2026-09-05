@@ -417,6 +417,8 @@ export function handleStreamEvent(
     "tool:result",
     "tool:args:chunk",
     "approval_resolved",
+    "hitl:suspended",
+    "human_resume_started",
     "artifact:result",
     "sandbox:starting",
     "sandbox:ready",
