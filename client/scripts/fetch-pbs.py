@@ -127,7 +127,22 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _force_utf8_stdio() -> None:
+    """std 统一 UTF-8：Windows runner 控制台默认 cp1252，中文进度输出
+    （"==> 下载 …"）直接 UnicodeEncodeError 使 CI 挂掉（Linux/macOS 不触发）。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001 - 降级即可，不阻塞下载
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _force_utf8_stdio()
     args = build_parser().parse_args(argv)
     if args.platform == "all":
         targets = sorted(PLATFORM_TRIPLES)
