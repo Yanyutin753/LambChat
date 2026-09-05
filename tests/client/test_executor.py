@@ -147,8 +147,10 @@ def _wait_until_dead(pid: int, deadline_s: float = 3.0) -> bool:
     while time.monotonic() < end:
         try:
             stat = Path(f"/proc/{pid}/stat").read_text()
-        except FileNotFoundError:
-            return True  # 已被 init 回收
+        except (FileNotFoundError, ProcessLookupError):
+            # procfs 回收竞态下"进程已没了"有两种表现：ENOENT（目录已摘除）
+            # 与 ESRCH（task 正被收尸），都按已死处理，绝不能当异常炸掉
+            return True
         state = stat.rsplit(")", 1)[1].split()[0]
         if state in {"Z", "X"}:
             return True  # 僵尸/死亡：已被 SIGKILL

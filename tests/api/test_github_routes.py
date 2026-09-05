@@ -192,6 +192,14 @@ async def test_fetch_github_file_releases_download_chunks_between_reads(
 
     monkeypatch.setattr(github.httpx, "AsyncClient", lambda: _FakeClient())
 
+    async def _inline_blocking_io(fn, *args):
+        # 线程池实现里 future 解析后、工作线程退栈前，线程栈帧仍持有 chunk
+        # 参数引用——慢机上这个"幽灵引用"使释放断言假阴性（gc 收不回活引用）。
+        # 内联执行去掉测量噪声，只验证消费侧 del chunk 的释放纪律。
+        return fn(*args)
+
+    monkeypatch.setattr(github, "run_blocking_io", _inline_blocking_io)
+
     content = await github.fetch_github_file("owner", "repo", "main", "skill/SKILL.md")
 
     assert content == "hello world"
