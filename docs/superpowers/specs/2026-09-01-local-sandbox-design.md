@@ -13,6 +13,7 @@
 | 断联治理 | 心跳 15s + 注册表 TTL + 状态 UI 可见 + 下发前 fail-fast | 见 §3.2/§6 |
 | 隔离方式 | 子进程 + 目录边界（软隔离） | Docker 容器列为后续可选增强，不进 v1 |
 | daemon 形态 | sidecar 打进现有 Tauri 桌面壳 | 随壳安装/升级，用户只装一个 app |
+| 跨平台 | **Windows/macOS/Linux 三平台一等支持**（用户要求 2026-09-05，业界调研佐证：Codex/Claude Code 均原生三平台、不 WSL-first） | M4：per-runner PyInstaller 矩阵 + Windows Job Object（杀树+孤儿双用）+ 内嵌 python-build-standalone + 命令生成平台分支 |
 | 离线回退云端 | 默认**关**，可配置 | 选本地即有意让数据落本地，静默切云端危险 |
 | 确认策略 | 本地写文件/执行命令默认经 HITL 网页确认 | 复用 `ask_human` 既有交互，可配置放开 |
 | 形态依据 | 2026-09 两轮业界调研后定稿：**Devin Outposts 同构**（云 brain + 本机执行 + 仅出网拨号）；产品定位 = 网页功能零改动 + 本机作执行基座 | 见 §12 |
