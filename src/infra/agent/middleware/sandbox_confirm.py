@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import json
 from collections.abc import Awaitable, Callable
-from contextvars import ContextVar
 from typing import Any
 
 from langchain.agents.middleware.types import AgentMiddleware, ToolCallRequest
@@ -37,11 +36,6 @@ logger = get_logger(__name__)
 
 # 过门的模型可见工具（本地沙箱执行/写/上传）；读类不确认
 CONFIRMABLE_TOOLS = frozenset({"execute", "write_file", "edit_file", "delete", "upload"})
-
-# 批内已决 memo：(tool_name, args-json) -> approved
-_batch_decisions: ContextVar[dict[tuple[str, str], bool] | None] = ContextVar(
-    "sandbox_confirm_decisions", default=None
-)
 
 # 操作文案动词（用户可读描述）
 _OP_LABELS = {
@@ -123,7 +117,18 @@ def _last_tool_calls(state: Any) -> list[dict[str, Any]]:
 
 
 class SandboxConfirmMiddleware(AgentMiddleware):
-    """沙箱统一确认门（本地 + 云端全部后端）：整批单次 interrupt + 批内 memo 直通。
+    """沙箱统一确认门（本地 + 云端全部后端）：整批同消息 interrupt。
+
+    并行工具在 ToolNode 下是**独立图任务**（一个任务挂起不会取消兄弟任务，
+    实验验证），且 interrupt 匹配按任务隔离——因此让**每个需确认的调用各自
+    interrupt**，但携带**同一份确定性批清单**（来自 checkpoint 的 tool_calls，
+    跨任务跨重放一致）：
+
+    - 挂起快照会有 N 个同消息中断 → 物化层（hitl.materialize）按
+      origin+message 去重为**一张审批卡**；
+    - 恢复时节点侧 expand_sandbox_confirm_resume 把批复值映射到**全部同批
+      中断 id** → 所有任务同时拿到决定，各执行恰好一次——无锁、无等待、
+      无 resume 值串用。
 
     ``policy_resolver``：策略源——本地传 daemon 注册表上报（默认），
     云端传 :func:`_cloud_confirm_policy`（部署级配置）。
@@ -149,34 +154,29 @@ class SandboxConfirmMiddleware(AgentMiddleware):
         if tool_name not in CONFIRMABLE_TOOLS:
             return await handler(request)
 
-        args = tool_call.get("args") or {}
-        key = _batch_key(tool_name, args)
-        memo = _batch_decisions.get()
-        if memo is not None and key in memo:
-            return await self._run(request, handler, memo[key])
-
         policy = await self._policy_resolver()
         if policy == "none":
             return await handler(request)
+        args = tool_call.get("args") or {}
         _, sentinel = _op_description(tool_name, args)
         if not needs_confirm(sentinel, policy):
             return await handler(request)
 
-        # 整批复核：本批全部需要确认的操作合并为一次 interrupt
+        # 确定性批清单：本批全部需确认的操作（各并行任务算得同一份）
         batch_listing: list[str] = []
-        confirmed_keys: set[tuple[str, str]] = set()
+        seen: set[tuple[str, str]] = set()
         for tc in _last_tool_calls(request.state):
             tc_name = str(tc.get("name", ""))
             if tc_name not in CONFIRMABLE_TOOLS:
                 continue
             tc_key = _batch_key(tc_name, tc.get("args") or {})
-            if tc_key in confirmed_keys:
+            if tc_key in seen:
                 continue
             desc, snt = _op_description(tc_name, tc.get("args") or {})
             if policy == "all" or needs_confirm(snt, policy):
-                confirmed_keys.add(tc_key)
+                seen.add(tc_key)
                 batch_listing.append(desc)
-        if not confirmed_keys:
+        if not batch_listing:
             return await handler(request)
 
         from src.infra.tool.human_tool.runtime import hitl_interrupt_supported
@@ -204,13 +204,6 @@ class SandboxConfirmMiddleware(AgentMiddleware):
             }
         )
         approved = bool(isinstance(resume_value, dict) and resume_value.get("approved"))
-
-        # memo 覆盖本批全部已复核项：首个调用直通，其余同批调用不再过门
-        new_memo = dict(memo) if memo else {}
-        for tc_key in confirmed_keys:
-            new_memo[tc_key] = approved
-        _batch_decisions.set(new_memo)
-
         return await self._run(request, handler, approved)
 
     async def _run(

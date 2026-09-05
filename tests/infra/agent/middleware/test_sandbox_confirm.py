@@ -96,8 +96,11 @@ async def test_declined_returns_error_tool_message_without_executing(policy, int
     assert result.status == "error"
 
 
-async def test_parallel_batch_confirms_once_then_memo_passes_rest(policy, interrupt, supported):
-    """整批一次中断：同批第 2/3 个请求经 memo 直通，不再 interrupt。"""
+async def test_parallel_batch_each_call_interrupts_with_identical_payload(
+    policy, interrupt, supported
+):
+    """并行整批：每个需确认调用各自 interrupt（任务隔离语义），但携带
+    同一份确定性批清单——物化层按 origin+message 去重为一张审批卡。"""
     interrupt["raise"] = False
     interrupt["resume"] = {"approved": True, "values": {}}
     batch = [
@@ -108,19 +111,19 @@ async def test_parallel_batch_confirms_once_then_memo_passes_rest(policy, interr
     mw = SandboxConfirmMiddleware(user_id="u1")
     rec = _Recorder()
 
-    await mw.awrap_tool_call(_request("execute", batch[0]["args"], batch), rec.handler)
-    await mw.awrap_tool_call(_request("execute", batch[1]["args"], batch), rec.handler)
-    await mw.awrap_tool_call(_request("execute", batch[2]["args"], batch), rec.handler)
+    for item in batch:
+        await mw.awrap_tool_call(_request("execute", item["args"], batch), rec.handler)
 
     assert rec.handled == ["execute", "execute", "execute"]
-    assert len(interrupt["payloads"]) == 1  # 整批仅一次
+    assert len(interrupt["payloads"]) == 3  # 每任务各一次
+    messages = {p["message"] for p in interrupt["payloads"]}
+    assert len(messages) == 1  # 消息完全一致（同批同卡）
     msg = interrupt["payloads"][0]["message"]
     assert "du /home" in msg and "du /var" in msg and "snap list" in msg
 
 
-async def test_replay_rebuilds_memo_from_interrupt_return(policy, interrupt, supported):
-    """恢复重放：memo 不跨 checkpoint，第一个请求重放时 interrupt 返回既定
-    批复值 → memo 重建 → 本批其余请求直通。"""
+async def test_replay_each_task_interrupt_returns_batch_decision(policy, interrupt, supported):
+    """恢复重放：各任务 interrupt() 返回（扩展映射后的）批复值，各自执行。"""
     interrupt["raise"] = False
     interrupt["resume"] = {"approved": True, "values": {}}
     batch = [
@@ -131,10 +134,10 @@ async def test_replay_rebuilds_memo_from_interrupt_return(policy, interrupt, sup
     rec = _Recorder()
     await mw.awrap_tool_call(_request("execute", batch[0]["args"], batch), rec.handler)
     await mw.awrap_tool_call(_request("write_file", batch[1]["args"], batch), rec.handler)
-    # write_file 与 execute 同批复核（同一条审批消息列出两者）
     assert rec.handled == ["execute", "write_file"]
-    assert len(interrupt["payloads"]) == 1
-    assert "写入" in interrupt["payloads"][0]["message"] or "a.txt" in interrupt["payloads"][0]["message"]
+    assert len({p["message"] for p in interrupt["payloads"]}) == 1
+    msg = interrupt["payloads"][0]["message"]
+    assert "a.txt" in msg
 
 
 async def test_policy_none_passes_without_interrupt(policy, interrupt, supported):

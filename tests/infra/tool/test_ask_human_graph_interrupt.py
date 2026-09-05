@@ -414,3 +414,84 @@ async def test_parallel_ask_human_interrupts_resume_by_id_in_either_order(
         hitl_interrupt_supported.reset(token_supported)
 
     assert "两个回答都已收到" in final_state["messages"][-1].text
+
+
+# ---- 沙箱确认门整批：同消息多中断 → 一张审批卡 + 恢复全批映射 ----
+
+
+def _sbx_interrupt(message: str, intr_id: str):
+    return SimpleNamespace(
+        id=intr_id,
+        value={
+            "kind": "ask_human",
+            "origin": "sandbox_confirm",
+            "message": message,
+            "fields": [],
+        },
+    )
+
+
+def _sbx_snapshot(messages_batch: int):
+    """构造带 N 个同消息 sandbox_confirm 中断的快照替身。"""
+    msg = "确认在本机执行 2 项操作：\n1. 执行命令：df -h\n2. 执行命令：lsblk"
+    return SimpleNamespace(
+        tasks=[
+            SimpleNamespace(interrupts=[_sbx_interrupt(msg, f"intr-{i}")])
+            for i in range(messages_batch)
+        ]
+    )
+
+
+async def test_materialize_dedups_sandbox_confirm_batch_to_one_approval(
+    interrupt_mode: None, recorder: ApprovalRecorder
+) -> None:
+    """并行工具各自中断（同 origin+message）→ 物化只建一张审批卡。"""
+    snapshot = _sbx_snapshot(3)
+    await materialize_ask_human_approvals(
+        snapshot, session_id="s1", run_id="r1", user_id="u1"
+    )
+    assert len(recorder.created) == 1
+    assert recorder.created[0]["metadata"]["origin"] == "sandbox_confirm"
+    # 重复物化（重放）依旧一张
+    await materialize_ask_human_approvals(
+        _sbx_snapshot(3), session_id="s1", run_id="r1", user_id="u1"
+    )
+    assert len(recorder.created) == 1
+
+
+async def test_expand_sandbox_confirm_resume_maps_all_batch_interrupts() -> None:
+    """恢复扩展：同批（同 origin+message）全部中断共享同一批复值。"""
+    from src.infra.task.hitl import expand_sandbox_confirm_resume
+
+    msg = "确认在本机执行 2 项操作：\n1. 执行命令：df -h\n2. 执行命令：lsblk"
+    other = "确认在本机执行 1 项操作：\n1. 执行命令：other"
+
+    async def fake_get_state(config=None):
+        return snapshot_with(msg, msg, other, "另一个问题")
+
+    graph = SimpleNamespace(aget_state=fake_get_state)
+    resume_map = {"intr-target": {"approved": True, "values": {}}}
+    expanded = await expand_sandbox_confirm_resume(
+        graph, config={}, resume_map=resume_map, message=msg
+    )
+    ids = set(expanded)
+    assert "intr-0" in ids and "intr-1" in ids  # 同批两个中断都拿到值
+    assert "intr-2" not in ids and "intr-3" not in ids  # 其他批次/问题不扩散
+    assert expanded["intr-0"] == {"approved": True, "values": {}}
+
+
+def snapshot_with(*messages: str):
+    tasks = []
+    for i, m in enumerate(messages):
+        origin = "sandbox_confirm" if "执行命令" in m else "ask_human"
+        tasks.append(
+            SimpleNamespace(
+                interrupts=[
+                    SimpleNamespace(
+                        id=f"intr-{i}",
+                        value={"kind": "ask_human", "origin": origin, "message": m, "fields": []},
+                    )
+                ]
+            )
+        )
+    return SimpleNamespace(tasks=tasks)
