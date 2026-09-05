@@ -3,7 +3,6 @@ import pytest
 from langchain_core.messages import AIMessage
 
 from src.infra.agent.middleware.retry import EmptyContentRetryMiddleware, ModelFallbackMiddleware
-from src.kernel.errors import AppError, ErrorCode
 
 
 class _Request:
@@ -91,11 +90,15 @@ async def test_fallback_runs_when_primary_returns_truncated_content() -> None:
     assert result.content == "fallback answer"
 
 
-async def test_empty_content_retry_raises_when_all_attempts_empty() -> None:
-    """重试耗尽仍是空正文（thinking-only/完全空）必须上抛，禁止静默返回空回答。
+async def test_empty_content_retry_exhausted_returns_last_response_without_raise() -> None:
+    """重试耗尽仍空最终消息时返回最后响应，不上抛。
 
-    2026-09-05 生产事故：无缝续跑后模型连续 4 次只返回 thinking 没有正文，
-    重试与降级耗尽后被静默放行，run 假装 completed 但用户拿不到任何答案。
+    中间件层没有「用户是否已通过流式拿到正文」的视野：2026-09-05 13:50 生产
+    4 例，上游流式已把完整答案交付（message:chunk + done 之后）但最终聚合
+    AIMessage 为空，此处上抛会在 done 后追加 error、把成功 run 标成失败，
+    还触发 210K input 的重试/降级重复烧钱。「零正文」的终态判定权在
+    executor 层（按真实 message:chunk 事件判定，见
+    tests/infra/task/test_executor_no_output_guard.py）。
     """
     middleware = EmptyContentRetryMiddleware(max_retries=1, retry_delay=0)
     calls = 0
@@ -105,10 +108,9 @@ async def test_empty_content_retry_raises_when_all_attempts_empty() -> None:
         calls += 1
         return AIMessage(content="", additional_kwargs={"reasoning_content": "长篇思考"})
 
-    with pytest.raises(AppError) as exc_info:
-        await middleware.awrap_model_call(None, handler)
+    result = await middleware.awrap_model_call(None, handler)
 
-    assert exc_info.value.error_code is ErrorCode.MODEL_EMPTY_RESPONSE
+    assert result.content == ""
     assert calls == 2
 
 
@@ -143,26 +145,8 @@ async def test_tool_call_only_response_returns_without_raise() -> None:
     assert result is message
 
 
-async def test_fallback_re_raises_when_fallback_model_also_empty() -> None:
-    """兜底模型重放后仍空正文（内部 EmptyContentRetry 上抛）必须继续上抛。"""
-    primary_model = object()
-    fallback_model = object()
-    middleware = ModelFallbackMiddleware(fallback_model="openai/fallback-model")
-    middleware._fallback_llm = fallback_model
-
-    async def handler(request):
-        if request.model is primary_model:
-            return AIMessage(content="")
-        raise AppError(ErrorCode.MODEL_EMPTY_RESPONSE)
-
-    with pytest.raises(AppError) as exc_info:
-        await middleware.awrap_model_call(_Request(primary_model), handler)
-
-    assert exc_info.value.error_code is ErrorCode.MODEL_EMPTY_RESPONSE
-
-
-async def test_fallback_empty_response_without_raise_still_escalates() -> None:
-    """防御：兜底结果即使未被内层上抛（如中间件栈被重构），仍按空正文上抛。"""
+async def test_fallback_empty_final_message_returns_response_without_raise() -> None:
+    """兜底模型的最终消息为空时返回该响应，不上抛（同上：流式可能已交付）。"""
     primary_model = object()
     fallback_model = object()
     middleware = ModelFallbackMiddleware(fallback_model="openai/fallback-model")
@@ -173,8 +157,9 @@ async def test_fallback_empty_response_without_raise_still_escalates() -> None:
             return AIMessage(content="")
         return AIMessage(content="", additional_kwargs={"reasoning_content": "兜底也在思考"})
 
-    with pytest.raises(AppError):
-        await middleware.awrap_model_call(_Request(primary_model), handler)
+    result = await middleware.awrap_model_call(_Request(primary_model), handler)
+
+    assert result.content == ""
 
 
 async def test_fallback_model_is_created_with_same_thinking_config(monkeypatch) -> None:
