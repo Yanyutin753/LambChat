@@ -228,6 +228,50 @@ async def test_results_rejects_oversized_body(monkeypatch):
     assert not redis.kv  # 超限直接拒绝，不写 resp key
 
 
+def _results_body_of_size(n: int) -> bytes:
+    """构造恰好 n 字节的合法 results JSON body（stdout 填充字符逐字节可调）。"""
+    template = json.dumps({"stage": "done", "status": "ok", "stdout": ""})
+    body = json.dumps({"stage": "done", "status": "ok", "stdout": "x" * (n - len(template))})
+    assert len(body.encode("utf-8")) == n
+    return body.encode("utf-8")
+
+
+async def _post_results_with_size(monkeypatch, body: bytes):
+    """带精确字节数 body 打 results 端点；返回 (response, redis)。"""
+    monkeypatch.setattr(sandbox_route.settings, "SANDBOX_RESULTS_MAX_BYTES", 128)
+    redis = _FakeRedis()
+    app = FastAPI()
+    register_error_handlers(app)
+    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
+    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_pat_user
+    monkeypatch.setattr(sandbox_route, "_redis", lambda: redis)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        resp = await client.post(
+            "/api/sandbox/results/call-1", content=body, headers={"content-type": "application/json"}
+        )
+    return resp, redis
+
+
+async def test_results_accepts_body_at_exact_limit(monkeypatch):
+    """at-limit 边界：body 恰好 SANDBOX_RESULTS_MAX_BYTES 放行（上限判 > 而非 >=，
+    卡在限上的合法回传不得被 413 误杀）。"""
+    resp, redis = await _post_results_with_size(monkeypatch, _results_body_of_size(128))
+
+    assert resp.status_code == 200
+    assert "sandbox:resp:call-1" in redis.kv
+
+
+async def test_results_rejects_body_one_byte_over_limit(monkeypatch):
+    """at-limit 边界：超限 1 字节即 413 sandbox_payload_too_large，不落 Redis。"""
+    resp, redis = await _post_results_with_size(monkeypatch, _results_body_of_size(129))
+
+    assert resp.status_code == 413
+    assert resp.json()["detail"]["code"] == "sandbox_payload_too_large"
+    assert not redis.kv
+
+
 async def test_status_endpoint(monkeypatch):
     app = FastAPI()
     register_error_handlers(app)
