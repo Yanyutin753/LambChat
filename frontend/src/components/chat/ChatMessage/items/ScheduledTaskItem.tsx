@@ -764,7 +764,9 @@ const ScheduledTaskItem = memo(function ScheduledTaskItem({
           })}
           {tasks.length > 6 && (
             <span className="text-10 text-theme-text-tertiary pl-2">
-              {t("chat.message.toolMoreFiles", { count: tasks.length - 6 })}
+              {t("chat.message.toolMoreTasks", {
+                count: tasks.length - 6,
+              })}
             </span>
           )}
         </div>

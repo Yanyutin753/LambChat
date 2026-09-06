@@ -127,3 +127,6 @@ uv.lock
 # Agent tooling local state (ZCode / Mimosa, not part of this repo)
 .mimosa/
 .zcode/
+
+# GUI 走查截图（agent 生成的本地验证产物，勿提交）
+gui-test-screenshots/

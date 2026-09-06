@@ -45,10 +45,22 @@ from typing import Any, Callable
 
 from lambchat_sandbox.executor import map_workspace
 
-FS_OPS = frozenset({"fs_read", "fs_ls", "fs_write", "fs_edit", "fs_delete", "fs_glob", "fs_grep"})
+FS_OPS = frozenset(
+    {
+        "fs_read",
+        "fs_ls",
+        "fs_write",
+        "fs_edit",
+        "fs_delete",
+        "fs_glob",
+        "fs_grep",
+        "fs_upload",
+        "fs_download",
+    }
+)
 """daemon 支持的全部结构化 fs op（daemon.py 据此分发）。"""
 
-WRITE_OPS = frozenset({"fs_write", "fs_edit", "fs_delete"})
+WRITE_OPS = frozenset({"fs_write", "fs_edit", "fs_delete", "fs_upload"})
 """变更类 fs op：daemon 侧过确认门（读类只读，不确认）。"""
 
 # 与 deepagents sandbox.py 常量字面量保持同步（tests/client/test_fsops.py 互锁）。
@@ -68,6 +80,10 @@ TIME_BUDGET = 5.0
 #: fs_write 单次载荷上限：与服务端 results 通道 2MB 同量级（服务端也预检，
 #: 这里是防伪造服务端的第二道闸）。
 FS_WRITE_MAX_BYTES = 2 * 1024 * 1024
+
+#: fs_upload 单块 / fs_download 单片的字节上限：与 FS_WRITE_MAX_BYTES 同源
+#: （中继通道量级）；更大文件由服务端按 offset 分块多 op 完成，单 op 不放大。
+FS_TRANSFER_MAX_BYTES = 2 * 1024 * 1024
 
 _DEFAULT_READ_LIMIT = 2000
 
@@ -578,6 +594,94 @@ def _fs_grep(payload: dict, workspace: Path) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# fs_upload / fs_download：结构化传输 op（无状态分块协议）
+#
+# 取代 upload/download 走 exec 的 base64 命令往返（win32 cmd.exe 命令行
+# 8191 字符上限使 >~6KB 的文件上传必败，且 shell 往返对二进制内容天然
+# 脆弱）。协议按字节 offset 定位、每块独立幂等——无 daemon 会话状态，
+# 重传/续传天然安全：
+#
+# - fs_upload：``{path, content_b64, offset, truncate}``；首块 truncate=True
+#   建父目录并截断创建，后续块 r+b 定位写（文件须已存在）；
+# - fs_download：``{path, offset, length}`` → ``{content_b64, size, eof}``；
+#   服务端循环到 eof 终止，size 供上层做进度/一致性核对。
+# ---------------------------------------------------------------------------
+
+
+def _payload_int(payload: dict, field: str, *, default: int, minimum: int) -> int:
+    """载荷整型字段净化：非整型/越界一律 FsOpError（结果级错误）。"""
+    try:
+        value = int(payload.get(field, default))
+    except (TypeError, ValueError):
+        raise FsOpError(f"{field} must be an integer") from None
+    if value < minimum:
+        raise FsOpError(f"{field} must be >= {minimum}")
+    return value
+
+
+def _fs_upload(payload: dict, workspace: Path) -> dict:
+    path = _resolve(payload.get("path"), workspace)
+    content = _decode_b64(payload.get("content_b64"), "content_b64")
+    if len(content) > FS_TRANSFER_MAX_BYTES:
+        return {
+            "error": (
+                f"file_too_large: {len(content)} bytes exceeds "
+                f"{FS_TRANSFER_MAX_BYTES} limit (upload chunk cap)"
+            )
+        }
+    offset = _payload_int(payload, "offset", default=0, minimum=0)
+    truncate = bool(payload.get("truncate"))
+    try:
+        if truncate:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            mode = "wb"
+        else:
+            mode = "r+b"
+        with open(path, mode) as f:
+            f.seek(offset)
+            f.write(content)
+        return {"written": len(content)}
+    except FsOpError:
+        raise
+    except OSError as exc:
+        return {"error": _os_error_code(exc)}
+
+
+def _fs_download(payload: dict, workspace: Path) -> dict:
+    path = _resolve(payload.get("path"), workspace)
+    length = _payload_int(payload, "length", default=0, minimum=1)
+    if length > FS_TRANSFER_MAX_BYTES:
+        return {
+            "error": (
+                f"file_too_large: {length} bytes exceeds "
+                f"{FS_TRANSFER_MAX_BYTES} limit (download slice cap)"
+            )
+        }
+    offset = _payload_int(payload, "offset", default=0, minimum=0)
+    try:
+        st = path.stat()
+    except OSError as exc:
+        return {"error": _os_error_code(exc)}
+    if stat_module.S_ISDIR(st.st_mode):
+        return {"error": "is_directory"}
+    if not stat_module.S_ISREG(st.st_mode):
+        return {"error": "not_a_file"}
+    if offset > st.st_size:
+        return {"error": f"offset {offset} beyond end of file ({st.st_size} bytes)"}
+    try:
+        with open(path, "rb") as f:
+            f.seek(offset)
+            chunk = f.read(length)
+    except OSError as exc:
+        return {"error": _os_error_code(exc)}
+    return {
+        "content_b64": base64.b64encode(chunk).decode("ascii"),
+        "size": st.st_size,
+        "eof": offset + len(chunk) >= st.st_size,
+    }
+
+
+# ---------------------------------------------------------------------------
 # 分发入口
 # ---------------------------------------------------------------------------
 
@@ -590,6 +694,8 @@ _HANDLERS: dict[str, Callable[[dict, Path], dict]] = {
     "fs_delete": _fs_delete,
     "fs_glob": _fs_glob,
     "fs_grep": _fs_grep,
+    "fs_upload": _fs_upload,
+    "fs_download": _fs_download,
 }
 
 

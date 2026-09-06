@@ -19,7 +19,9 @@ import {
   writeConfirmPolicy,
 } from "../sandboxShell.ts";
 
-function enterTauriShell(marker: "__TAURI__" | "__TAURI_INTERNALS__" = "__TAURI_INTERNALS__") {
+function enterTauriShell(
+  marker: "__TAURI__" | "__TAURI_INTERNALS__" = "__TAURI_INTERNALS__",
+) {
   (globalThis as Record<string, unknown>)[marker] = {};
 }
 
@@ -78,7 +80,11 @@ test("isShellAvailable is false inside the Capacitor iOS app", () => {
 
 test("isShellAvailable is false on a capacitor: webview origin", () => {
   vi.stubGlobal("window", {
-    location: { protocol: "capacitor:", host: "localhost", hostname: "localhost" },
+    location: {
+      protocol: "capacitor:",
+      host: "localhost",
+      hostname: "localhost",
+    },
   });
   expect(isShellAvailable()).toBe(false);
 });
@@ -92,21 +98,33 @@ test("isShellAvailable is true on a tauri: webview origin", () => {
 
 test("isShellAvailable is true on the tauri.localhost origin (Windows)", () => {
   vi.stubGlobal("window", {
-    location: { protocol: "https:", host: "tauri.localhost", hostname: "tauri.localhost" },
+    location: {
+      protocol: "https:",
+      host: "tauri.localhost",
+      hostname: "tauri.localhost",
+    },
   });
   expect(isShellAvailable()).toBe(true);
 });
 
 test("isShellAvailable is false on a plain web origin", () => {
   vi.stubGlobal("window", {
-    location: { protocol: "https:", host: "app.example.com", hostname: "app.example.com" },
+    location: {
+      protocol: "https:",
+      host: "app.example.com",
+      hostname: "app.example.com",
+    },
   });
   expect(isShellAvailable()).toBe(false);
 });
 
 test("savePairing rejects with an explicit error outside the shell", async () => {
   await expect(
-    savePairing({ serverUrl: "http://127.0.0.1:8000", pat: "pat", confirmPolicy: "all" }),
+    savePairing({
+      serverUrl: "http://127.0.0.1:8000",
+      pat: "pat",
+      confirmPolicy: "all",
+    }),
   ).rejects.toThrow(/desktop shell/i);
   expect(mocks.invoke).not.toHaveBeenCalled();
 });
@@ -188,7 +206,11 @@ test("readPairingPat resolves the stored PAT or null", async () => {
   mocks.invoke.mockResolvedValueOnce(null);
   await expect(readPairingPat()).resolves.toBeNull();
 
-  expect(mocks.invoke).toHaveBeenNthCalledWith(2, "read_pairing_pat", undefined);
+  expect(mocks.invoke).toHaveBeenNthCalledWith(
+    2,
+    "read_pairing_pat",
+    undefined,
+  );
 });
 
 test("writeConfirmPolicy and clearPairing reject outside the shell", async () => {
@@ -221,12 +243,16 @@ test("openLocalPath invokes open_local_path with the path payload", async () => 
 
   await openLocalPath("audit");
 
-  expect(mocks.invoke).toHaveBeenCalledWith("open_local_path", { path: "audit" });
+  expect(mocks.invoke).toHaveBeenCalledWith("open_local_path", {
+    path: "audit",
+  });
 });
 
 test("shell command errors propagate to the caller", async () => {
   enterTauriShell();
-  mocks.invoke.mockRejectedValueOnce(new Error("path must be inside ~/.lambchat"));
+  mocks.invoke.mockRejectedValueOnce(
+    new Error("path must be inside ~/.lambchat"),
+  );
 
   await expect(openLocalPath("/etc/passwd")).rejects.toThrow(
     /path must be inside/,

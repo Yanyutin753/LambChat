@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
+import { Download } from "lucide-react";
 import { ToolSelector } from "../selectors/ToolSelector";
 import { SkillSelector } from "../selectors/SkillSelector";
 import { AgentModeSelector } from "../selectors/AgentModeSelector";
@@ -11,7 +12,6 @@ import { useSandboxStatus } from "../../hooks/useSandboxStatus";
 import { isShellAvailable } from "../../services/tauri/sandboxShell";
 import {
   SANDBOX_AGENT_OPTION_KEY,
-  SANDBOX_LOCAL_VALUE,
   SANDBOX_MACHINE_AGENT_OPTION_KEY,
   adaptSandboxAgentOption,
   buildSandboxMachineOption,
@@ -270,12 +270,22 @@ export function ChatInputSelectors({
             };
 
             if (isSandbox) {
-              const note =
-                !sandboxOnline && sandboxShell
-                  ? t("agentOptions.sandbox.offlineHint")
-                  : !sandboxOnline && storedValue === SANDBOX_LOCAL_VALUE
-                    ? t("agentOptions.sandbox.restoredOffline")
-                    : undefined;
+              // 离线（壳内或纯 web 本地档置灰可见）：统一提示 + 底部下载引导
+              const note = !sandboxOnline
+                ? t("agentOptions.sandbox.offlineHint")
+                : undefined;
+              const downloadFooter = !sandboxOnline ? (
+                <button
+                  type="button"
+                  onClick={() => navigate("/download")}
+                  className="flex w-full items-center gap-2 px-3 py-2 rounded-xl text-sm cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                  style={{ color: "var(--theme-primary)" }}
+                  data-sandbox-download-entry
+                >
+                  <Download size={14} className="shrink-0" />
+                  {t("agentOptions.sandbox.downloadEntry")}
+                </button>
+              ) : undefined;
               // 独立 panel key：与思考档模态互斥，同帧只开一个选项模态；
               // 触发入口在 RunModePopover 的"沙箱"条目（含 daemon 状态点）。
               return (
@@ -286,6 +296,7 @@ export function ChatInputSelectors({
                   value={adapted.value}
                   onChange={handleChange}
                   note={note}
+                  footer={downloadFooter}
                   isOpen={activePanel === "sandbox"}
                   onOpenChange={(open) =>
                     onActivePanelChange(open ? "sandbox" : null)

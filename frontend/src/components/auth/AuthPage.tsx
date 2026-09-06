@@ -29,7 +29,8 @@ import { Turnstile } from "react-turnstile";
 import { useAuth } from "../../hooks/useAuth";
 import { useMobileKeyboardAware } from "../../hooks/useMobileKeyboardAware";
 import { useTheme } from "../../contexts/ThemeContext";
-import { Loading, LoadingSpinner } from "../common/LoadingSpinner";
+import { LoadingSpinner } from "../common/LoadingSpinner";
+import { AutoLoginSplash } from "../landing/AutoLoginSplash";
 import { ContactAdminDialog } from "../common/ContactAdminDialog";
 import { ThemeToggle } from "../common/ThemeToggle";
 import { LanguageToggle } from "../common/LanguageToggle";
@@ -439,16 +440,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
   }, [handleGlobalCharacterPointerMove, resetCharacterGaze]);
 
   if (isRedirecting) {
-    return (
-      <div className="auth-shell safe-area-top safe-area-bottom flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <Loading size="lg" className="justify-center" />
-          <p className="mt-4 text-stone-600 dark:text-stone-400">
-            {t("auth.completingLogin")}
-          </p>
-        </div>
-      </div>
-    );
+    return <AutoLoginSplash text={t("auth.completingLogin")} />;
   }
 
   return (

@@ -85,7 +85,9 @@ export function savePairing(opts: SavePairingOptions): Promise<void> {
  * 策略切换专用——不重铸 PAT、不碰凭据文件，避免永久凭据累积。
  */
 export function writeConfirmPolicy(policy: string): Promise<void> {
-  return invokeInShell("write_confirm_policy", { policy }).then(() => undefined);
+  return invokeInShell("write_confirm_policy", { policy }).then(
+    () => undefined,
+  );
 }
 
 /**

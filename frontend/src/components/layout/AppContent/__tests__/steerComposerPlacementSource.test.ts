@@ -23,5 +23,8 @@ test("keeps pending steer items out of the Virtuoso message list", () => {
 
 test("renders pending steer items above the composer", () => {
   expect(chatInputTypesSource).toMatch(/steerMessages\?:/);
-  expect(chatInputSource).toMatch(/steerMessages\.map\(/);
+  // 渲染移入 ChatInputSteerQueue（steerMessages.map 在队列组件内执行）
+  expect(chatInputSource).toMatch(
+    /<ChatInputSteerQueue items=\{steerMessages\} onCancel=\{onCancelSteer\}/,
+  );
 });

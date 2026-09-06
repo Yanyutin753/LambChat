@@ -11,7 +11,10 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
 import { Check, Laptop, Link2, Pencil, Star, X } from "lucide-react";
-import { useSandboxStatus, notifySandboxStatusRefresh } from "../../hooks/useSandboxStatus";
+import {
+  useSandboxStatus,
+  notifySandboxStatusRefresh,
+} from "../../hooks/useSandboxStatus";
 import {
   machinePlatformLabel,
   sandboxApiMachines,
@@ -63,9 +66,12 @@ export function SandboxMachinesCard() {
   };
 
   return (
-    <div className="mt-3 border-t border-stone-200/70 dark:border-stone-600/50 pt-3">
+    <div className="mt-3 border-t border-stone-200/70 dark:border-stone-600/50 pt-3.5">
       <div className="flex items-center gap-1.5">
-        <Laptop size={13} className="text-stone-400 dark:text-stone-500 shrink-0" />
+        <Laptop
+          size={13}
+          className="text-stone-400 dark:text-stone-500 shrink-0"
+        />
         <span className="font-medium font-serif text-sm text-stone-900 dark:text-stone-100">
           {t("profile.localSandbox.machines")}
         </span>
@@ -74,18 +80,24 @@ export function SandboxMachinesCard() {
         {t("profile.localSandbox.machinesDesc")}
       </p>
 
-      {/* 当前服务器：配对/登录目标一目了然（运行时配置优先，构建期烘焙兜底） */}
-      <div className="mt-2 flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
-        <Link2 size={12} className="opacity-50 shrink-0" />
-        <span>{t("profile.localSandbox.currentServer")}</span>
-        <span className="font-mono truncate" data-sandbox-server-url>
+      {/* 当前服务器：label-value 行（同设置行语言，mono 值右对齐截断）；
+          运行时配置优先，构建期烘焙兜底 */}
+      <div className="flex items-center justify-between gap-3 py-2.5">
+        <span className="flex shrink-0 items-center gap-1.5 text-sm text-stone-700 dark:text-stone-200">
+          <Link2 size={13} className="opacity-50" />
+          {t("profile.localSandbox.currentServer")}
+        </span>
+        <span
+          className="min-w-0 truncate font-mono text-xs text-stone-500 dark:text-stone-400"
+          data-sandbox-server-url
+        >
           {serverUrl}
         </span>
       </div>
 
-      <div className="mt-1.5 space-y-0.5" data-sandbox-machines-count={machines.length}>
+      <div data-sandbox-machines-count={machines.length}>
         {online && machines.length === 0 && (
-          <p className="text-xs text-stone-400 dark:text-stone-500 py-1.5">
+          <p className="py-1.5 text-xs text-stone-400 dark:text-stone-500">
             {t("profile.localSandbox.machinesEmpty")}
           </p>
         )}
@@ -95,7 +107,7 @@ export function SandboxMachinesCard() {
           return (
             <div
               key={machine.machine_id}
-              className="flex items-center gap-2 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-stone-100/70 dark:hover:bg-stone-700/40"
+              className="flex items-center gap-2 rounded-lg px-1.5 py-2 transition-colors hover:bg-stone-100/70 dark:hover:bg-stone-700/40"
               data-sandbox-machine={machine.machine_id}
             >
               <span className="h-2 w-2 rounded-full bg-green-500 shrink-0" />
@@ -131,27 +143,27 @@ export function SandboxMachinesCard() {
                 </span>
               ) : (
                 <>
-                  <span className="min-w-0 flex-1 truncate text-sm text-stone-800 dark:text-stone-100">
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800 dark:text-stone-100">
                     {machine.name}
                     {isDefault && (
-                      <span className="ml-1.5 rounded-full bg-amber-100 dark:bg-amber-500/15 px-1.5 py-0.5 text-10 font-medium text-amber-700 dark:text-amber-400">
+                      <span className="ml-1.5 whitespace-nowrap rounded-full bg-amber-100 dark:bg-amber-500/15 px-1.5 py-0.5 text-10 font-medium text-amber-700 dark:text-amber-400">
                         {t("profile.localSandbox.defaultBadge")}
                       </span>
                     )}
-                    <span className="ml-1.5 text-xs text-stone-500 dark:text-stone-400">
-                      {machinePlatformLabel(machine.platform, t)}
-                      {machine.version ? ` · v${machine.version}` : ""}
-                    </span>
+                  </span>
+                  <span className="shrink-0 whitespace-nowrap text-xs text-stone-500 dark:text-stone-400">
+                    {machinePlatformLabel(machine.platform, t)}
+                    {machine.version ? ` · v${machine.version}` : ""}
                   </span>
                   {!isDefault && (
                     <button
                       type="button"
                       onClick={() => void handleSetDefault(machine.machine_id)}
                       disabled={busy}
-                      className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-stone-500 dark:text-stone-400 transition-colors hover:text-amber-600 dark:hover:text-amber-400 disabled:opacity-50"
+                      className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs text-stone-400 dark:text-stone-500 transition-colors hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:text-amber-600 dark:hover:text-amber-400 disabled:opacity-50"
                       title={t("profile.localSandbox.setDefault")}
                     >
-                      <Star size={12} className="opacity-70" />
+                      <Star size={11} />
                       {t("profile.localSandbox.setDefault")}
                     </button>
                   )}
@@ -159,10 +171,10 @@ export function SandboxMachinesCard() {
                     type="button"
                     onClick={() => startRename(machine)}
                     disabled={busy}
-                    className="rounded-md p-1 text-stone-500 dark:text-stone-400 transition-colors hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-50"
+                    className="shrink-0 rounded-md p-1 text-stone-400 dark:text-stone-500 transition-colors hover:bg-stone-200/70 dark:hover:bg-stone-700/60 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50"
                     title={t("profile.localSandbox.rename")}
                   >
-                    <Pencil size={12} className="opacity-70" />
+                    <Pencil size={12} />
                   </button>
                 </>
               )}

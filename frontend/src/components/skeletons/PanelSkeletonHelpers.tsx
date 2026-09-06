@@ -39,7 +39,7 @@ export function PanelSegmentedTabsSkeleton({
   inactiveWidth: string;
 }) {
   return (
-    <div className="inline-grid grid-cols-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 my-3">
+    <div className="inline-grid grid-cols-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 my-3 font-serif">
       <div className={panelSegmentedTabItemClass}>
         <SkeletonLine width={activeWidth} className="!h-4" />
       </div>

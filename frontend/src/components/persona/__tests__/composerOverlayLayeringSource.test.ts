@@ -6,18 +6,12 @@ import { expect, test } from "vitest";
 // can be opened from the expanded composer (z-280) must sit above it but
 // below the dialog band (z-299+).
 const personaSelectorSource = readFileSync(
-  join(
-    import.meta.dirname,
-    "../PersonaPresetSelector.tsx",
-  ),
+  join(import.meta.dirname, "../PersonaPresetSelector.tsx"),
   "utf8",
 );
 
 const teamPickerSource = readFileSync(
-  join(
-    import.meta.dirname,
-    "../../team/TeamPickerModal.tsx",
-  ),
+  join(import.meta.dirname, "../../team/TeamPickerModal.tsx"),
   "utf8",
 );
 

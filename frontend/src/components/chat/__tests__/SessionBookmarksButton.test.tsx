@@ -104,7 +104,9 @@ test("jumping from an entry closes the panel and navigates to the message", () =
 test("panel body lists bookmark entries for the session", () => {
   state.items = [makeBookmark()];
 
-  render(<SessionBookmarksPanelBody bookmarks={state.items} onJump={() => {}} />);
+  render(
+    <SessionBookmarksPanelBody bookmarks={state.items} onJump={() => {}} />,
+  );
 
   expect(screen.getByText("季度规划大纲")).toBeInTheDocument();
 });
@@ -113,10 +115,7 @@ test("removing an entry keeps the panel open for the remaining ones", () => {
   state.items = [makeBookmark()];
 
   render(
-    <SessionBookmarksPanelBody
-      bookmarks={state.items}
-      onJump={() => {}}
-    />,
+    <SessionBookmarksPanelBody bookmarks={state.items} onJump={() => {}} />,
   );
   fireEvent.click(screen.getByRole("button", { name: /remove bookmark/i }));
 

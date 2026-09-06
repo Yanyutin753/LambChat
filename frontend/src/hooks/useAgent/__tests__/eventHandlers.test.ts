@@ -221,9 +221,7 @@ test("uses the steer created_at send time for the delivered message timestamp", 
     ctx,
   );
 
-  const delivered = ctx
-    .messages()
-    .find((message) => message.id === "steer-ts");
+  const delivered = ctx.messages().find((message) => message.id === "steer-ts");
   expect(delivered?.timestamp?.toISOString()).toBe("2026-08-22T15:14:55.000Z");
 });
 
@@ -759,4 +757,3 @@ test("goal:end auto-clears the active goal after a short delay", () => {
   // Immediately after goal:end, the goal still has ended_at set
   expect(ctx.activeGoal()?.ended_at).toBe("2026-05-30T08:00:05.000Z");
 });
-

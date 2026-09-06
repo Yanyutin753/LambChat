@@ -145,7 +145,7 @@ export function MentionPopup({
                       iconSize={14}
                     />
                     <div className="mention-popup-text">
-                      <span className="mention-popup-name">
+                      <span className="mention-popup-name font-serif">
                         {preset.name}
                         {isSelected && (
                           <Check

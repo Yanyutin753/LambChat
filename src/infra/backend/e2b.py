@@ -15,7 +15,7 @@ import asyncio
 import base64
 import os
 import shlex
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Callable
 
 from deepagents.backends.sandbox import BaseSandbox
 from deepagents.backends.utils import create_file_data, slice_read_response
@@ -32,6 +32,7 @@ from src.infra.backend.protocol_compat import (
     LsResult,
     ReadResult,
     WriteResult,
+    classify_upload_error,
     file_download_response,
     file_upload_response,
 )
@@ -559,16 +560,7 @@ class E2BBackend(BaseSandbox):
                 self._sandbox.files.write(path=path, data=content)
                 responses.append(FileUploadResponse(path=path, error=None))
             except Exception as e:
-                error_type: (
-                    Literal["file_not_found", "permission_denied", "is_directory", "invalid_path"]
-                    | None
-                ) = None
-                if "permission" in str(e).lower():
-                    error_type = "permission_denied"
-                elif "directory" in str(e).lower():
-                    error_type = "is_directory"
-                else:
-                    error_type = "file_not_found"
+                error_type = classify_upload_error(str(e))
                 logger.error(f"Failed to upload {path}: {e}")
                 responses.append(FileUploadResponse(path=path, error=error_type))
         return responses

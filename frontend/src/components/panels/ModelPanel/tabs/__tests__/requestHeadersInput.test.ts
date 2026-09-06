@@ -7,7 +7,9 @@ import {
 
 describe("formatRequestHeaders", () => {
   test("formats stored headers as pretty JSON", () => {
-    expect(formatRequestHeaders({ "x-app": "cli" })).toBe('{\n  "x-app": "cli"\n}');
+    expect(formatRequestHeaders({ "x-app": "cli" })).toBe(
+      '{\n  "x-app": "cli"\n}',
+    );
   });
 
   test("empty or missing headers render as empty string", () => {
@@ -27,7 +29,10 @@ describe("formatRequestHeaders", () => {
 
 describe("parseRequestHeadersInput", () => {
   test("empty input clears the override", () => {
-    expect(parseRequestHeadersInput("")).toEqual({ ok: true, headers: undefined });
+    expect(parseRequestHeadersInput("")).toEqual({
+      ok: true,
+      headers: undefined,
+    });
     expect(parseRequestHeadersInput("   ")).toEqual({
       ok: true,
       headers: undefined,
@@ -36,7 +41,9 @@ describe("parseRequestHeadersInput", () => {
 
   test("parses a JSON object of headers", () => {
     expect(
-      parseRequestHeadersInput('{"User-Agent": "my-agent/1.0", "x-app": "cli"}'),
+      parseRequestHeadersInput(
+        '{"User-Agent": "my-agent/1.0", "x-app": "cli"}',
+      ),
     ).toEqual({
       ok: true,
       headers: { "User-Agent": "my-agent/1.0", "x-app": "cli" },

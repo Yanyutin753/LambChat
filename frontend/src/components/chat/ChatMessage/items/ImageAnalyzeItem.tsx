@@ -209,7 +209,9 @@ const ImageAnalyzeItem = memo(function ImageAnalyzeItem({
           ))}
           {imageUrls.length > 3 && (
             <div className="text-11 text-theme-text-tertiary">
-              {t("chat.message.toolMoreFiles", { count: imageUrls.length - 3 })}
+              {t("chat.message.toolMoreImages", {
+                count: imageUrls.length - 3,
+              })}
             </div>
           )}
           {analysisBlock}

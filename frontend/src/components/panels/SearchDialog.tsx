@@ -360,7 +360,7 @@ export function SearchDialog({
                     }`}
                   >
                     <span className="flex-1 min-w-0">
-                      <span className="block text-sm text-stone-700 dark:text-stone-200 truncate leading-snug">
+                      <span className="block text-sm font-serif text-stone-700 dark:text-stone-200 truncate leading-snug">
                         {getSessionTitle(session, t)}
                       </span>
                       {searchMatch && (
@@ -373,7 +373,7 @@ export function SearchDialog({
                       )}
                     </span>
                     {projectName && (
-                      <span className="flex-shrink-0 flex items-center gap-1 text-11 text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-800/50 px-1.5 py-0.5 rounded-md">
+                      <span className="flex-shrink-0 flex items-center gap-1 text-11 font-serif text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-800/50 px-1.5 py-0.5 rounded-md">
                         <Hash size={9} strokeWidth={2} />
                         {projectName}
                       </span>

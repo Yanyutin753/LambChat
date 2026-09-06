@@ -41,9 +41,8 @@ const QUEUE_POLL_MAX_TICKS = 360; // 最多轮询 30 分钟，超时自然停止
 export function startQueuePositionPolling(
   sessionId: string,
   runId: string,
-  fetchSnapshot: (sessionId: string) => Promise<QueuePositionSnapshot> = (
-    id,
-  ) => sessionApi.getQueuePosition(id),
+  fetchSnapshot: (sessionId: string) => Promise<QueuePositionSnapshot> = (id) =>
+    sessionApi.getQueuePosition(id),
   onUpdate: (position: number) => void = (position) => {
     import("react-hot-toast").then(({ default: toast }) => {
       toast.loading(i18n.t("chat.queued", { position }), {

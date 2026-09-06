@@ -28,6 +28,7 @@ from deepagents.backends.protocol import SandboxBackendProtocol
 
 from src.infra.async_utils import run_blocking_io
 from src.infra.backend.daytona import DaytonaBackend
+from src.infra.backend.lazy_sandbox import provider_shared_work_dir
 from src.infra.backend.skills_store import create_skills_backend
 from src.infra.envvar.sync import sync_sandbox_env_vars
 from src.infra.logging import get_logger
@@ -213,15 +214,16 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
     async def _ensure_work_dir(self, backend: CompositeBackend, work_dir: str) -> None:
         sandbox_backend = cast(SandboxBackendProtocol, backend.default)
         sandbox_id = str(getattr(sandbox_backend, "id", "unknown"))
-        cache_key = f"{sandbox_id}:{work_dir}"
-        if cache_key in self._ready_work_dirs:
-            self._ready_work_dirs.move_to_end(cache_key)
-            return
-
-        result = await sandbox_backend.aexecute(f"mkdir -p {shlex.quote(work_dir)}")
-        if getattr(result, "exit_code", 0) != 0:
-            raise RuntimeError(f"Failed to create session work_dir {work_dir}: {result.output}")
-        self._ready_work_dirs[cache_key] = None
+        shared_dir = provider_shared_work_dir(work_dir)
+        for target in (work_dir, shared_dir):
+            cache_key = f"{sandbox_id}:{target}"
+            if cache_key in self._ready_work_dirs:
+                self._ready_work_dirs.move_to_end(cache_key)
+                continue
+            result = await sandbox_backend.aexecute(f"mkdir -p {shlex.quote(target)}")
+            if getattr(result, "exit_code", 0) != 0:
+                raise RuntimeError(f"Failed to create sandbox directory {target}: {result.output}")
+            self._ready_work_dirs[cache_key] = None
         while len(self._ready_work_dirs) > _MAX_READY_WORK_DIRS:
             self._ready_work_dirs.popitem(last=False)
 

@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { expect, test } from "vitest";const source = readFileSync(
-  resolve(import.meta.dirname, "../ChatView.tsx"),
-  { encoding: "utf8" },
-);
+import { expect, test } from "vitest";
+const source = readFileSync(resolve(import.meta.dirname, "../ChatView.tsx"), {
+  encoding: "utf8",
+});
 
 test("message-dependent row callbacks stay stable across streaming ticks", () => {
   // 流式期间 messages 每个 tick 都换引用；行级回调若依赖 messages，

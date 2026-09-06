@@ -31,12 +31,16 @@ import {
   createSubagentPart,
   createThinkingPart,
   createToolPart,
+  mergeSummaryPart,
   updateSubagentResult,
   updateToolResultInDepth,
   clearAllLoadingStates,
   upgradeGeneratingToolPart,
 } from "./messageParts";
-import { markPendingToolsAwaiting, takeOverDanglingToolPart } from "./suspendedToolParts";
+import {
+  markPendingToolsAwaiting,
+  takeOverDanglingToolPart,
+} from "./suspendedToolParts";
 import type { ThinkingPart } from "../../types";
 
 // ============================================
@@ -534,12 +538,16 @@ export function processMessageEvent(
 
     case "summary": {
       const summaryContent = data.content || "";
-      if (!summaryContent) break;
+      const freedTokens =
+        typeof data.freed_tokens === "number" ? data.freed_tokens : undefined;
+      // stats 事件（content 为空、携带 freed_tokens）与正文 chunk 都要处理
+      if (!summaryContent && freedTokens === undefined) break;
 
       const summaryPart: SummaryPart = {
         type: "summary",
         content: summaryContent,
         summary_id: data.summary_id,
+        ...(freedTokens !== undefined ? { freed_tokens: freedTokens } : {}),
         depth,
         agent_id: agentId,
         isStreaming,
@@ -555,25 +563,10 @@ export function processMessageEvent(
           messageId,
         );
       } else {
-        const newParts = [...parts];
-        let lastSummaryIdx = -1;
-        for (let i = newParts.length - 1; i >= 0; i--) {
-          const p = newParts[i];
-          if (p.type === "summary" && p.summary_id === data.summary_id) {
-            lastSummaryIdx = i;
-            break;
-          }
-        }
-        if (lastSummaryIdx >= 0) {
-          const existing = newParts[lastSummaryIdx] as SummaryPart;
-          newParts[lastSummaryIdx] = {
-            ...existing,
-            content: existing.content + summaryContent,
-          };
-        } else {
-          newParts.push(summaryPart);
-        }
-        result.parts = newParts;
+        result.parts = mergeSummaryPart(parts, summaryPart) ?? [
+          ...parts,
+          summaryPart,
+        ];
       }
       break;
     }
@@ -711,7 +704,8 @@ function upsertMemoryStatusPart(
         const prevStartedAt = p.startedAt;
         return {
           ...memoryPart,
-          startedAt: memoryPart.startedAt ?? prevStartedAt ?? memoryPart.timestamp,
+          startedAt:
+            memoryPart.startedAt ?? prevStartedAt ?? memoryPart.timestamp,
         };
       })
     : [

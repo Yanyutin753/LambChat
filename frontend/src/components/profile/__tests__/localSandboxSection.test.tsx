@@ -19,6 +19,11 @@ const mocks = vi.hoisted(() => ({
   pairingLogin: vi.fn(),
   createPairingPat: vi.fn(),
   revokePairingPat: vi.fn(),
+  navigate: vi.fn(),
+}));
+
+vi.mock("react-router-dom", () => ({
+  useNavigate: () => mocks.navigate,
 }));
 
 vi.mock("../../../services/tauri/sandboxShell", () => ({
@@ -63,7 +68,7 @@ beforeEach(async () => {
   });
 });
 
-test("pure web offline renders the pairing guidance hint", async () => {
+test("pure web offline renders the pairing guidance with a download CTA", async () => {
   mocks.isShellAvailable.mockReturnValue(false);
   mocks.getStatus.mockResolvedValue({ online: false });
 
@@ -72,6 +77,12 @@ test("pure web offline renders the pairing guidance hint", async () => {
   expect(
     await screen.findByText(/pair it with the LambChat desktop app/i),
   ).toBeInTheDocument();
+  // 离线引导卡：下载入口跳站内下载页（含桌面端/daemon + 教程）
+  const downloadCta = await screen.findByRole("button", {
+    name: /download local sandbox/i,
+  });
+  fireEvent.click(downloadCta);
+  expect(mocks.navigate).toHaveBeenCalledWith("/download");
   // 纯 web：不渲染配对表单，也不探测壳内进程
   expect(screen.queryByRole("form")).not.toBeInTheDocument();
   expect(mocks.daemonProcessStatus).not.toHaveBeenCalled();

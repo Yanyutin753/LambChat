@@ -9,8 +9,9 @@ async def test_build_skills_prompt_requires_transfer_before_execution() -> None:
         [{"name": "demo-skill", "description": "Run a demo script."}]
     )
 
-    assert "Transfer executable files to the workspace" in prompt
+    assert "Transfer executables once into `/workspace/.shared/`" in prompt
     assert "`transfer_file` or `transfer_path`" in prompt
+    assert "persists across sessions" in prompt
 
 
 @pytest.mark.asyncio

@@ -32,7 +32,10 @@ afterEach(() => {
 });
 
 test("shows the effective server url with runtime override winning", () => {
-  window.localStorage.setItem("lambchat_server_url", "https://test.lambchat.com");
+  window.localStorage.setItem(
+    "lambchat_server_url",
+    "https://test.lambchat.com",
+  );
   render(<ServerUrlSection />);
   expect(screen.getByText("https://test.lambchat.com")).toBeInTheDocument();
 });
@@ -72,15 +75,16 @@ test("an unhealthy server shows the failure message and saves nothing", async ()
   });
   fireEvent.click(screen.getByRole("button", { name: /^connect$/i }));
 
-  await waitFor(() =>
-    expect(screen.getByText(/HTTP 503/)).toBeInTheDocument(),
-  );
+  await waitFor(() => expect(screen.getByText(/HTTP 503/)).toBeInTheDocument());
   expect(window.localStorage.getItem("lambchat_server_url")).toBeNull();
   expect(mocks.reload).not.toHaveBeenCalled();
 });
 
 test("reset clears the runtime override and reloads", async () => {
-  window.localStorage.setItem("lambchat_server_url", "https://override.example.com");
+  window.localStorage.setItem(
+    "lambchat_server_url",
+    "https://override.example.com",
+  );
   render(<ServerUrlSection />);
 
   fireEvent.click(screen.getByRole("button", { name: /reset/i }));

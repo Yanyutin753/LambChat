@@ -33,9 +33,7 @@ export function buildCategoryLabels(
   };
 }
 
-export function buildSubcategoryLabels(
-  t: Translate,
-): Record<string, string> {
+export function buildSubcategoryLabels(t: Translate): Record<string, string> {
   return {
     display: t("subcategories.display"),
     contact: t("subcategories.contact"),

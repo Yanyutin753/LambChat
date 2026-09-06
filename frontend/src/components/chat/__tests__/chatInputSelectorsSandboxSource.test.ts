@@ -40,8 +40,11 @@ test("offline local selection warns without blocking the change", () => {
   expect(source).toMatch(/value === "local" && !sandboxOnline/);
 });
 
-test("restored local value carries an offline note on pure web", () => {
-  expect(source).toMatch(/agentOptions\.sandbox\.restoredOffline/);
+test("offline sandbox panel offers a download entry to the in-app download page", () => {
+  // 离线（壳内或纯 web，本地档置灰可见）：面板底部下载引导跳站内下载页
+  expect(source).toMatch(/agentOptions\.sandbox\.downloadEntry/);
+  expect(source).toMatch(/navigate\("\/download"\)/);
+  expect(source).toMatch(/data-sandbox-download-entry/);
 });
 
 test("sandbox status dot anchors to the visible popover entry, not a closed-state wrapper", () => {

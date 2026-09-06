@@ -189,7 +189,7 @@ export function ChannelPersonaSelect({
           className="glass-input es-select-btn"
         >
           {selected && <PersonaPresetIcon preset={selected} />}
-          <span className="truncate">{displayText}</span>
+          <span className="truncate font-serif">{displayText}</span>
           <ChevronDown
             size={15}
             className="shrink-0 text-[var(--theme-text-secondary)] transition-transform duration-200"
@@ -267,7 +267,7 @@ export function ChannelPersonaSelect({
                     )}
                     <span className="flex min-w-0 items-center gap-2">
                       <PersonaPresetIcon preset={preset} />
-                      <span className="truncate">{preset.name}</span>
+                      <span className="truncate font-serif">{preset.name}</span>
                     </span>
                   </button>
                 );

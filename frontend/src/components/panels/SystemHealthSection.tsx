@@ -47,9 +47,7 @@ function MetricCard({
     <div className="flex items-center gap-2.5 rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-2">
       <Icon size={16} className="shrink-0 text-stone-400 dark:text-stone-500" />
       <div className="min-w-0">
-        <p className="text-11 text-stone-400 dark:text-stone-500">
-          {label}
-        </p>
+        <p className="text-11 text-stone-400 dark:text-stone-500">{label}</p>
         <p className="text-sm font-medium tabular-nums text-stone-700 dark:text-stone-200">
           {value ?? "-"}
         </p>

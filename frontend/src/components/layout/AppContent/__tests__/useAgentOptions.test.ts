@@ -67,7 +67,10 @@ test("normalizes legacy off default in agent option schema", () => {
 
 test("passes through non-thinking options untouched", () => {
   expect(
-    normalizeAgentOptionValues({ model_id: "abc", enable_code_interpreter: true }),
+    normalizeAgentOptionValues({
+      model_id: "abc",
+      enable_code_interpreter: true,
+    }),
   ).toEqual({ model_id: "abc", enable_code_interpreter: true });
 });
 
@@ -110,7 +113,11 @@ test("preserves overlapping values only when the same agent schema changes", () 
 // ---- 会话沙箱选项注入（M3）----
 
 const OPTION_INPUT = {
-  enable_thinking: { type: "string" as const, default: "low", label: "Thinking" },
+  enable_thinking: {
+    type: "string" as const,
+    default: "low",
+    label: "Thinking",
+  },
 };
 
 test("injects a cloud-default sandbox option alongside thinking", () => {
@@ -146,7 +153,9 @@ test("does not inject sandbox when the agent defines no options", () => {
 
 test("buildAgentOptionValues seeds sandbox=cloud and preserves restored local", () => {
   // 新会话：默认云端档（随 agent_options 提交）
-  expect(buildAgentOptionValues(normalizeAgentOptions(OPTION_INPUT))).toMatchObject({
+  expect(
+    buildAgentOptionValues(normalizeAgentOptions(OPTION_INPUT)),
+  ).toMatchObject({
     enable_thinking: "low",
     sandbox: "cloud",
   });

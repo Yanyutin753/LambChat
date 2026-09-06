@@ -364,15 +364,16 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
 
       // 拉起系统安装器（ACTION_VIEW + FileProvider 覆盖安装）。
       // Share（ACTION_SEND）只开分享面板装不了包。
-      const { ApkInstaller } = await import("../services/capacitor/apkInstaller");
+      const { ApkInstaller } = await import(
+        "../services/capacitor/apkInstaller"
+      );
       const res = await ApkInstaller.installApk({ path: written.uri });
       if (res.status === "settings") {
         // 未授予「安装未知应用」：原生已跳设置页，提示授权后重试
         const { toast } = await import("react-hot-toast");
         toast(
           i18n.t("update.installPermissionHint", {
-            defaultValue:
-              "请先允许 LambChat 安装未知应用，授权后重新点击升级",
+            defaultValue: "请先允许 LambChat 安装未知应用，授权后重新点击升级",
           }),
         );
       }

@@ -24,8 +24,10 @@ test("selector modals share the portal overlay and viewport wrapper", () => {
   expect(modalSource).toMatch(
     /className="fixed inset-0 z-\[300\] bg-black\/50 animate-fade-in"/,
   );
+  // 容器不再用 viewport padding 把 sheet 顶离屏幕底边，
+  // 底部 inset 由 SelectorModalShell 表面自己承担
   expect(modalSource).toMatch(
-    /className="safe-area-x safe-area-viewport-padding fixed z-\[301\] sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4 inset-x-0 bottom-0 animate-slide-up sm:animate-scale-in"/,
+    /className="safe-area-x fixed z-\[301\] sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4 inset-x-0 bottom-0 animate-slide-up sm:animate-scale-in"/,
   );
 
   for (const relativePath of consumers) {
@@ -51,6 +53,8 @@ test("selector modals share the content shell without changing its classes", () 
     /border border-white\/70 dark:border-stone-700\/80/,
   );
   expect(shellSource).toMatch(/background: "var\(--theme-bg-card\)"/);
+  // sheet 表面自带底部 inset，背景铺满到屏幕物理底边
+  expect(shellSource).toMatch(/safe-area-bottom/);
   expect(shellSource).toMatch(
     /onClick=\{\(event\) => event\.stopPropagation\(\)\}/,
   );

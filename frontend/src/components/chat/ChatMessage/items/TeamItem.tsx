@@ -508,7 +508,7 @@ function TeamDetail({
                           </div>
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="text-xs text-theme-text font-semibold truncate">
+                          <div className="text-xs text-theme-text font-semibold font-serif truncate">
                             {roleName}
                           </div>
                           {mTags.length > 0 && (
@@ -698,7 +698,10 @@ const TeamItem = memo(function TeamItem({
               : undefined,
             fallback: detailContent || undefined,
             buildDetail: (data) => (
-              <TeamDetail {...toolDetailPropsFromPanelData(data)} toolName={toolName} />
+              <TeamDetail
+                {...toolDetailPropsFromPanelData(data)}
+                toolName={toolName}
+              />
             ),
             footer: durationFooter,
           });

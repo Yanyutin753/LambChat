@@ -110,11 +110,11 @@ export function TeamPickerModal({
   return createPortal(
     <div
       data-yields-sidebar
-      className="safe-area-viewport-padding fixed inset-0 z-[290] flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-6"
+      className="safe-area-viewport-padding-top fixed inset-0 z-[290] flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-6"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-2xl shadow-2xl sm:max-w-3xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl sm:rounded-2xl"
+        className="flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-2xl shadow-2xl sm:max-w-3xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl sm:rounded-2xl safe-area-bottom"
         style={{ background: "var(--theme-bg-card)" }}
         onClick={(event) => event.stopPropagation()}
       >
@@ -288,7 +288,7 @@ export function TeamPickerModal({
                           {team.members.slice(0, 3).map((member) => (
                             <span
                               key={member.member_id}
-                              className="scb__mini-tag"
+                              className="scb__mini-tag font-serif"
                               style={{ cursor: "default" }}
                             >
                               {member.role_name}

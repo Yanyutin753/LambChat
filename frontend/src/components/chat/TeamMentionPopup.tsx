@@ -124,7 +124,7 @@ export function TeamMentionPopup({
                       iconSize={14}
                     />
                     <div className="mention-popup-text">
-                      <span className="mention-popup-name">
+                      <span className="mention-popup-name font-serif">
                         {team.name}
                         {isSelected && (
                           <Check

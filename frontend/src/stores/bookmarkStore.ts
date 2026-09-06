@@ -56,7 +56,11 @@ export function ensureBookmarksLoaded(force = false): Promise<void> {
   return inflightLoad;
 }
 
-function bookmarkMatches(item: BookmarkItem, sessionId: string, messageId: string) {
+function bookmarkMatches(
+  item: BookmarkItem,
+  sessionId: string,
+  messageId: string,
+) {
   return item.session_id === sessionId && item.message_id === messageId;
 }
 
@@ -77,7 +81,9 @@ export async function toggleMessageBookmark(
   if (isBookmarked(items, sessionId, messageId)) {
     store.set({
       ...store.get(),
-      items: items.filter((item) => !bookmarkMatches(item, sessionId, messageId)),
+      items: items.filter(
+        (item) => !bookmarkMatches(item, sessionId, messageId),
+      ),
     });
     try {
       await bookmarkApi.toggle(sessionId, messageId);
@@ -98,9 +104,10 @@ export async function toggleMessageBookmark(
   );
   store.set({
     ...store.get(),
-    items: response.bookmarked && response.bookmark
-      ? [response.bookmark, ...rest]
-      : rest,
+    items:
+      response.bookmarked && response.bookmark
+        ? [response.bookmark, ...rest]
+        : rest,
   });
   return { bookmarked: response.bookmarked };
 }

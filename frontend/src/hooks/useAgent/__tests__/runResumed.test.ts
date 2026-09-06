@@ -20,9 +20,7 @@ function createLiveContext(initial: Message[]): {
       processedEventIdsRef: { current: new Set<string>() },
       lastHistoryTimestampRef: { current: null },
       activeSubagentStackRef: {
-        current: [
-          { agent_id: "researcher", depth: 1, message_id: "run-1" },
-        ],
+        current: [{ agent_id: "researcher", depth: 1, message_id: "run-1" }],
       },
       streamVersionRef: { current: 0 },
       setSessionId: () => undefined,
@@ -33,7 +31,7 @@ function createLiveContext(initial: Message[]): {
       setIsInitializingSandbox: () => {
         sandboxCleared += 1;
       },
-        setSandboxError: (error: unknown) => {
+      setSandboxError: (error: unknown) => {
         if (error === null) sandboxErrorCleared += 1;
       },
       setActiveGoal: () => undefined,
@@ -178,11 +176,9 @@ describe("history rebuild with run:resumed", () => {
   ];
 
   test("keeps only post-resume content in the assistant bubble", () => {
-    const messages = reconstructMessagesFromEvents(
-      events,
-      new Set<string>(),
-      { activeSubagentStack: [] },
-    );
+    const messages = reconstructMessagesFromEvents(events, new Set<string>(), {
+      activeSubagentStack: [],
+    });
     const assistant = messages.find((m) => m.role === "assistant");
 
     expect(assistant?.content).toBe("恢复后的完整回答");

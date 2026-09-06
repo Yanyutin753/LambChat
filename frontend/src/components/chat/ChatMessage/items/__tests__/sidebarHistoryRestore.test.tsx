@@ -89,7 +89,9 @@ test("restore drops a pending snapshot that belongs to another panel", async () 
 test("panel host keeps view mode / fullscreen in panel state for back-restore", async () => {
   // Host 的受控接线见 persistentToolPanelState.tsx：viewMode/isFullscreen
   // 回写 store，历史 capture 冻结整个 panel 对象，返回后原样恢复
-  const { PersistentToolPanelHost } = await import("../persistentToolPanelState");
+  const { PersistentToolPanelHost } = await import(
+    "../persistentToolPanelState"
+  );
   const host = render(<PersistentToolPanelHost />);
   expect(host.container.textContent).toBe("");
 

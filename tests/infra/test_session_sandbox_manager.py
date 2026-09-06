@@ -613,14 +613,13 @@ async def test_cubesandbox_reconnect_cleans_other_user_sandboxes(
 @pytest.mark.asyncio
 async def test_ensure_work_dir_skips_already_ready_directory() -> None:
     manager = sandbox_module.SessionSandboxManager()
-    calls = 0
+    commands: list[str] = []
 
     class _Backend:
         id = "sandbox-1"
 
         async def aexecute(self, command: str):
-            nonlocal calls
-            calls += 1
+            commands.append(command)
             return type("Result", (), {"exit_code": 0, "output": command})()
 
     backend = type("Composite", (), {"default": _Backend()})()
@@ -628,7 +627,10 @@ async def test_ensure_work_dir_skips_already_ready_directory() -> None:
     await manager._ensure_work_dir(backend, "/home/user/sessions/session-1")
     await manager._ensure_work_dir(backend, "/home/user/sessions/session-1")
 
-    assert calls == 1
+    assert commands == [
+        "mkdir -p /home/user/sessions/session-1",
+        "mkdir -p /home/user/shared",
+    ]
 
 
 def test_session_work_dir_uses_safe_session_specific_subdirectory() -> None:

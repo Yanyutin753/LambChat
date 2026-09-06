@@ -3,10 +3,7 @@ import { resolve } from "node:path";
 import { expect, test } from "vitest";
 
 const rendererSource = readFileSync(
-  resolve(
-    import.meta.dirname,
-    "../MessagePartRenderer.tsx",
-  ),
+  resolve(import.meta.dirname, "../MessagePartRenderer.tsx"),
   { encoding: "utf8" },
 );
 

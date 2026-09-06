@@ -11,7 +11,7 @@ function readRepoFile(...segments: string[]): string {
 test("tailwind config defines the serif stack led by Source Serif 4", () => {
   const config = readRepoFile("tailwind.config.js");
 
-  expect(config).toMatch(/serif:\s*\[\s*"'Source Serif 4'"/);
+  expect(config).toMatch(/serif:\s*\[\s*"['"]Source Serif 4['"]"/);
 });
 
 test("serif stack avoids Georgia whose old-style digits drop below the baseline", () => {
@@ -36,8 +36,8 @@ test("fonts are self-hosted: no Google Fonts origin, local @font-face with swap"
   expect(html).not.toMatch(/fonts\.googleapis\.com/);
   expect(html).not.toMatch(/fonts\.gstatic\.com/);
   expect(html).toMatch(/\/fonts\/source-sans-3-400-latin\.woff2/);
-  expect(fontsCss).toMatch(/font-family:\s*'Source Serif 4'/);
-  expect(fontsCss).toMatch(/font-family:\s*'Source Sans 3'/);
+  expect(fontsCss).toMatch(/font-family:\s*['"]Source Serif 4['"]/);
+  expect(fontsCss).toMatch(/font-family:\s*['"]Source Sans 3['"]/);
   expect(fontsCss).toMatch(/font-display:\s*swap/);
   expect(main).toMatch(/import\s+"\.\/fonts\.css"/);
 });

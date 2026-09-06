@@ -306,7 +306,10 @@ export const BatchCreateModal = ({
                     value={batchApiFormat}
                     onChange={(v) => setBatchApiFormat(v as ApiFormat | "")}
                     options={[
-                      { value: "", label: t("agentConfig.apiFormatFollowDefault") },
+                      {
+                        value: "",
+                        label: t("agentConfig.apiFormatFollowDefault"),
+                      },
                       { value: "chat_completions", label: "Chat Completions" },
                       { value: "responses", label: "Responses" },
                     ]}

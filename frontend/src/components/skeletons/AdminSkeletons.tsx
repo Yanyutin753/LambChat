@@ -42,7 +42,8 @@ export function UsersPanelSkeleton() {
                     "1px solid var(--glass-border, var(--theme-border))",
                 }}
               >
-                <div className="flex items-center gap-3 w-28 xl:w-32 shrink-0">
+                {/* Username — entity name (font-medium font-serif) */}
+                <div className="flex items-center gap-3 w-28 xl:w-32 shrink-0 font-serif">
                   <div className="skeleton-line size-8 rounded-full shrink-0" />
                   <SkeletonLine
                     width={i % 2 === 0 ? "w-16 xl:w-20" : "w-20 xl:w-24"}
@@ -53,7 +54,8 @@ export function UsersPanelSkeleton() {
                   width={i % 3 === 0 ? "w-36 xl:w-52" : "w-44 xl:w-60"}
                   className="!h-3.5 flex-1"
                 />
-                <div className="flex gap-1 w-20 xl:w-24 shrink-0">
+                {/* Roles tags (tag tag-default font-serif) */}
+                <div className="flex gap-1 w-20 xl:w-24 shrink-0 font-serif">
                   <SkeletonLine width="w-14" className="!h-5 !rounded-full" />
                 </div>
                 <SkeletonLine
@@ -76,15 +78,17 @@ export function UsersPanelSkeleton() {
               <div className="flex items-start gap-3">
                 <div className="skeleton-line size-10 rounded-full shrink-0" />
                 <div className="flex-1 min-w-0">
+                  {/* Username — entity name (font-medium font-serif) */}
                   <SkeletonLine
                     width={i % 2 === 0 ? "w-24" : "w-20"}
-                    className="!h-4"
+                    className="!h-4 font-serif"
                   />
                   <SkeletonLine width="w-36" className="!h-3 mt-1" />
                 </div>
                 <div className="skeleton-line size-7 rounded-lg shrink-0" />
               </div>
-              <div className="mt-3 flex flex-wrap gap-1.5">
+              {/* Roles tags (tag tag-default font-serif) */}
+              <div className="mt-3 flex flex-wrap gap-1.5 font-serif">
                 <SkeletonLine width="w-14" className="!h-5 !rounded-full" />
                 <SkeletonLine width="w-16" className="!h-5 !rounded-full" />
               </div>

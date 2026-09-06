@@ -366,7 +366,7 @@ export function MemoryPanel() {
                       size="lg"
                       checked={checked}
                       onChange={() => toggleCheck(memory.memory_id)}
-                      className="shadow-sm opacity-0 group-hover:opacity-100"
+                      className="shadow-sm opacity-0 group-hover:opacity-100 max-sm:opacity-100"
                     />
                   </div>
 

@@ -72,7 +72,11 @@ function syncSubagentParts(parts: readonly MessagePart[]): void {
       completedAt: part.completedAt,
       // 与 buildSubagentPanelState 的 effectiveStatus 派生保持一致
       status: (part.status ||
-        (part.isPending ? "running" : part.success ? "complete" : "error")) as SubagentPanelData["status"],
+        (part.isPending
+          ? "running"
+          : part.success
+            ? "complete"
+            : "error")) as SubagentPanelData["status"],
     });
     if (part.parts) syncSubagentParts(part.parts);
   });

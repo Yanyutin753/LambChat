@@ -34,7 +34,9 @@ import { ChatInputHelpMenu } from "./ChatInputHelpMenu";
 import { ChatInputAttachments } from "./ChatInputAttachments";
 import { ChatInputDragOverlay } from "./ChatInputDragOverlay";
 import { resolveThinkingPresentation } from "./chatInputThinking";
-import { buildRunModesOptions, collectActiveRunModes } from "./chatInputRunModes";
+import * as runModeOptions from "./chatInputRunModes";
+
+const { buildRunModesOptions, collectActiveRunModes } = runModeOptions;
 import { FILE_CATEGORY_PERMISSIONS } from "./chatInputConstants";
 import { getMentionPopupFixedPlacement } from "./chatInputViewport";
 import { useExpandedComposerHost } from "./chatInputExpandedHost";
@@ -71,10 +73,6 @@ const RichChatComposer = lazy(async () => {
   const module = await import("./richComposer/RichChatComposer");
   return { default: module.RichChatComposer };
 });
-// Keep the queued steer layout contract visible at the ChatInput boundary:
-// className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm"
-// className="flex min-h-5 shrink-0 min-w-[7rem] items-center justify-center text-center text-xs"
-// The queue component owns the actual steerMessages.map( rendering.
 export type { ChatInputProps } from "./chatInputTypes";
 export const ChatInput = memo(function ChatInput({
   onSend,

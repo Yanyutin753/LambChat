@@ -22,8 +22,9 @@ test("panel skeletons share the repeated pagination placeholder", () => {
 
 test("panel skeletons share segmented tab placeholders", () => {
   expect(source).toMatch(/function PanelSegmentedTabsSkeleton\(/);
+  // 真实分段页签容器带 font-serif（AgentSection / ModelSection），骨架同步
   expect(source).toMatch(
-    /className="inline-grid grid-cols-2 rounded-lg border border-\[var\(--glass-border\)\] bg-\[var\(--glass-bg-subtle\)\] p-1 my-3"/,
+    /className="inline-grid grid-cols-2 rounded-lg border border-\[var\(--glass-border\)\] bg-\[var\(--glass-bg-subtle\)\] p-1 my-3 font-serif"/,
   );
   expect(source).toMatch(
     /panelSegmentedTabItemClass =\s*"flex items-center justify-center gap-2 rounded-md px-3 py-2"/,
@@ -31,7 +32,7 @@ test("panel skeletons share segmented tab placeholders", () => {
 
   expect(
     source.match(
-      /inline-grid grid-cols-2 rounded-lg border border-\[var\(--glass-border\)\] bg-\[var\(--glass-bg-subtle\)\] p-1 my-3/g,
+      /inline-grid grid-cols-2 rounded-lg border border-\[var\(--glass-border\)\] bg-\[var\(--glass-bg-subtle\)\] p-1 my-3 font-serif/g,
     )?.length,
   ).toBe(1);
   expect(

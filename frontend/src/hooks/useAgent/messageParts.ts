@@ -75,17 +75,20 @@ function findGeneratingToolIndex(
 ): number {
   if (toolCallId) {
     return parts.findIndex(
-      (p) => p.type === "tool" && (p as ToolPart).argsPartial && p.id === toolCallId,
+      (p) =>
+        p.type === "tool" && (p as ToolPart).argsPartial && p.id === toolCallId,
     );
   }
   for (let i = parts.length - 1; i >= 0; i--) {
-    if (parts[i].type === "tool" && (parts[i] as ToolPart).argsPartial) return i;
+    if (parts[i].type === "tool" && (parts[i] as ToolPart).argsPartial)
+      return i;
   }
   return -1;
 }
 
 function appendPartialArgs(existing: ToolPart, delta: string): ToolPart {
-  const current = typeof existing.args.partial === "string" ? existing.args.partial : "";
+  const current =
+    typeof existing.args.partial === "string" ? existing.args.partial : "";
   return { ...existing, args: { partial: current + delta } };
 }
 
@@ -139,14 +142,30 @@ export function appendToolArgsDelta(
     return parts;
   }
 
-  const part = createGeneratingToolPart(toolName, toolCallId, delta, depth, agentId);
+  const part = createGeneratingToolPart(
+    toolName,
+    toolCallId,
+    delta,
+    depth,
+    agentId,
+  );
   if (depth > 0) {
-    return addPartToDepth(parts, part, depth, activeSubagentStack, agentId, messageId);
+    return addPartToDepth(
+      parts,
+      part,
+      depth,
+      activeSubagentStack,
+      agentId,
+      messageId,
+    );
   }
   return [...parts, part];
 }
 
-function hasUpgradedToolCallId(parts: MessagePart[], toolCallId: string): boolean {
+function hasUpgradedToolCallId(
+  parts: MessagePart[],
+  toolCallId: string,
+): boolean {
   return parts.some((p) => {
     if (p.type === "tool") {
       return (
@@ -203,7 +222,11 @@ export function upgradeGeneratingToolPart(
     for (let i = 0; i < parts.length; i++) {
       const p = parts[i];
       if (p.type !== "subagent" || !p.parts) continue;
-      const updated = upgradeGeneratingToolPart(p.parts, replacement, targetDepth - 1);
+      const updated = upgradeGeneratingToolPart(
+        p.parts,
+        replacement,
+        targetDepth - 1,
+      );
       if (updated) {
         const newParts = [...parts];
         newParts[i] = { ...p, parts: updated };
@@ -396,22 +419,59 @@ export function appendTopLevelTextChunk(
 /**
  * Merge a summary chunk into an existing parts array.
  * Returns a new array with content concatenated, or null if no match found.
+ *
+ * 压缩释放 token 数（freed_tokens）的 stats 事件与正文 chunk 到达顺序不定：
+ * - stats 先到且正文未到 → 调用方落成无 summary_id 的桩，正文到达后在此采纳；
+ * - stats 后到 → 并入最后一个 summary part（不覆盖已有统计）。
  */
-function mergeSummaryPart(
+export function mergeSummaryPart(
   parts: MessagePart[],
   part: SummaryPart,
 ): MessagePart[] | null {
-  const idx = findSummaryIndex(parts, part.summary_id);
-  if (idx < 0) return null;
+  // stats-only 事件：并入最后一个 summary part；没有则交还调用方落桩
+  if (!part.content && part.freed_tokens !== undefined) {
+    for (let i = parts.length - 1; i >= 0; i--) {
+      if (parts[i].type !== "summary") continue;
+      const existing = parts[i] as SummaryPart;
+      if (existing.freed_tokens !== undefined) return null;
+      const newParts = [...parts];
+      newParts[i] = { ...existing, freed_tokens: part.freed_tokens };
+      return newParts;
+    }
+    return null;
+  }
 
-  const newParts = [...parts];
-  const existing = newParts[idx] as SummaryPart;
-  newParts[idx] = {
-    ...existing,
-    content: existing.content + part.content,
-    isStreaming: part.isStreaming ? true : existing.isStreaming,
-  };
-  return newParts;
+  const idx = findSummaryIndex(parts, part.summary_id);
+  if (idx >= 0) {
+    const newParts = [...parts];
+    const existing = newParts[idx] as SummaryPart;
+    newParts[idx] = {
+      ...existing,
+      content: existing.content + part.content,
+      freed_tokens: existing.freed_tokens ?? part.freed_tokens,
+      isStreaming: part.isStreaming ? true : existing.isStreaming,
+    };
+    return newParts;
+  }
+
+  // 正文 chunk 采纳先到的 stats 桩（无 summary_id），保留 freed_tokens
+  if (part.content) {
+    const stubIdx = findSummaryStubIndex(parts);
+    if (stubIdx >= 0) {
+      const newParts = [...parts];
+      const stub = newParts[stubIdx] as SummaryPart;
+      newParts[stubIdx] = {
+        ...stub,
+        content: stub.content + part.content,
+        summary_id: part.summary_id,
+        freed_tokens: stub.freed_tokens ?? part.freed_tokens,
+        isStreaming: part.isStreaming ? true : stub.isStreaming,
+      };
+      return newParts;
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -579,6 +639,17 @@ function findSummaryIndex(parts: MessagePart[], summaryId?: string): number {
   for (let i = parts.length - 1; i >= 0; i--) {
     const part = parts[i];
     if (part.type === "summary" && part.summary_id === summaryId) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/** 找最后一个无 summary_id 的 summary part（stats 事件先到时落下的桩）。 */
+function findSummaryStubIndex(parts: MessagePart[]): number {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i];
+    if (part.type === "summary" && part.summary_id == null) {
       return i;
     }
   }

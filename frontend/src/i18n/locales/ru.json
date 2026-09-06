@@ -252,8 +252,8 @@
         "cloud": "Облако",
         "local": "Локально"
       },
-      "offlineHint": "Локальная песочница офлайн. Сначала выполните сопряжение в настройках.",
-      "restoredOffline": "Сохранённый локальный режим песочницы сейчас офлайн."
+      "offlineHint": "Локальная песочница офлайн: скачайте и запустите её, чтобы использовать",
+      "downloadEntry": "Скачать локальную песочницу"
     },
     "sandboxMachine": {
       "label": "Машина",
@@ -788,6 +788,7 @@
     "mermaid": "Mermaid",
     "mermaidDiagram": "Диаграмма Mermaid",
     "message": {
+      "addBookmark": "Добавить закладку",
       "allFiles": "Все файлы",
       "args": "Аргументы",
       "artifactsSubtitleFiles": "{{count}} файлов",
@@ -802,6 +803,9 @@
       "askHumanWaiting": "Ожидание ответа…",
       "askHumanYourAnswer": "Ваш ответ",
       "assistant": "Ассистент",
+      "bookmarkAdded": "Добавлено в закладки",
+      "bookmarkRemoved": "Закладка удалена",
+      "bookmarkToggleFailed": "Не удалось выполнить операцию с закладкой",
       "cancelled": "Генерация отменена",
       "codePreview": "Предпросмотр кода",
       "collapse": "Свернуть",
@@ -839,22 +843,23 @@
       "processing": "Процесс",
       "projects": "Проекты",
       "rejected": "Операция отклонена пользователем",
+      "removeBookmark": "Удалить закладку",
       "result": "Результат",
       "retryAnswer": "Ответить заново",
       "runStepsCount": "Шагов: {{count}}",
       "runStepsDetail": "Подробнее",
+      "runStepsStopped": "Остановлено",
       "runStepsSummary": "Работал {{duration}}",
       "runStepsToggle": "Развернуть или свернуть шаги выполнения",
       "runStepsWorking": "Работаю {{duration}}",
       "runStepsWorkingNoTimer": "Работаю",
-      "runStepsStopped": "Остановлено",
       "running": "Выполняется...",
-      "waitingConfirm": "Ожидание подтверждения",
       "startTime": "Время начала",
       "starterPrompts": "Начальные промпты",
       "subagentProgress": "Прогресс подагента",
       "summary": "Итог",
       "summaryDescription": "Ключевые пункты",
+      "summaryFreedTokens": "Освобождено токенов: {{tokens}}",
       "synthesizing": "Синтезирование результатов из {{count}} подагента(ов)...",
       "systemPrompt": "Системный промпт",
       "table": "Таблица",
@@ -890,7 +895,7 @@
       "toolFileCount": "{{count}} файлов",
       "toolFileCount_one": "{{count}} файл",
       "toolFileCount_other": "{{count}} файлов",
-      "toolGlob": "Glob",
+      "toolGlob": "Поиск файлов",
       "toolHistoryAssistant": "Ответ",
       "toolHistoryDetail": "Детали истории",
       "toolHistoryMatchAssistant": "Ответ",
@@ -903,6 +908,8 @@
       "toolHistoryMoreTurns_one": "+{{count}} диалог",
       "toolHistoryMoreTurns_other": "+{{count}} диалогов",
       "toolHistorySearch": "Поиск в истории",
+      "toolHistorySessionCount": "Найдено сеансов: {{count}}",
+      "toolHistoryTurnCount": "{{count}} диалогов",
       "toolHistoryUser": "Вопрос",
       "toolImageAnalyze": "Анализ изображения",
       "toolImageAnalyzeCount": "{{count}} изображений",
@@ -918,7 +925,7 @@
       "toolImageTag": "Генерация изображений",
       "toolInPath": "в {{path}}",
       "toolItemCount": "({{count}} элементов)",
-      "toolLs": "Ls",
+      "toolLs": "Обзор папки",
       "toolMemberCount": "{{count}} участников",
       "toolMemoryContent": "Содержимое памяти",
       "toolMemoryDaysAgo": "{{count}}д назад",
@@ -937,8 +944,12 @@
       "toolMemoryToday": "сегодня",
       "toolMemoryYearsAgo": "{{count}}г назад",
       "toolMemoryYesterday": "вчера",
-      "toolMoreFiles": "+{{count}} ещё",
-      "toolMoreLines": "... +{{count}} ещё строк",
+      "toolMoreFiles": "+{{count}} файлов",
+      "toolMoreImages": "+{{count}} изображений",
+      "toolMoreLines": "+{{count}} строк",
+      "toolMoreMemories": "+{{count}} воспоминаний",
+      "toolMoreTasks": "+{{count}} задач",
+      "toolMoreTools": "+{{count}} инструментов",
       "toolOpenFile": "Открыть файл",
       "toolOutput": "вывод инструмента",
       "toolParseError": "Не удалось обработать данные проекта",
@@ -957,9 +968,9 @@
       "toolScheduledTaskRun": "Запустить задачу",
       "toolScheduledTaskUpdate": "Обновить задачу",
       "toolSearch": "Поиск",
-      "toolSearchAlreadyAvailable": "Доступен",
+      "toolSearchAlreadyAvailable": "Доступно: {{count}}",
       "toolSearchMoreParams": "ещё параметров",
-      "toolSearchNewlyLoaded": "Новый",
+      "toolSearchNewlyLoaded": "Новых: {{count}}",
       "toolSearchPersonas": "Поиск",
       "toolSearchToolCount": "Найдено {{count}} инструментов",
       "toolSearchTools": "Поиск инструментов",
@@ -978,11 +989,7 @@
       "toolUploadUrlToSandbox": "Загрузить URL в песочницу",
       "toolVarCount": "{{count}} переменных",
       "toolWrite": "Запись",
-      "addBookmark": "Добавить закладку",
-      "bookmarkAdded": "Добавлено в закладки",
-      "bookmarkRemoved": "Закладка удалена",
-      "bookmarkToggleFailed": "Не удалось выполнить операцию с закладкой",
-      "removeBookmark": "Удалить закладку"
+      "waitingConfirm": "Ожидание подтверждения"
     },
     "messageInput": "Поле ввода сообщения",
     "noPermission": "Нет прав для отправки сообщений",
@@ -1582,6 +1589,7 @@
     "agents": "Агенты",
     "architecture": "Архитектура самостоятельного размещения",
     "architectureDesc": "Разверните рабочее пространство FastAPI + React с выполнением LangGraph/deepagents, хранением Redis/MongoDB, изоляцией песочницы и слоями расширения для MCP, Skills, памяти и провайдеров моделей.",
+    "autoLoginPending": "Выполняется вход…",
     "badge": "Самостоятельно размещаемое рабочее пространство AI Agent",
     "channels": "Каналы",
     "channelsIntegrations": "Корпоративные каналы",
@@ -2176,7 +2184,7 @@
       "machines": "Мои машины",
       "machinesDesc": "Подключённые машины локальной песочницы; цель выбирается на уровне сессии, по умолчанию — машина по умолчанию.",
       "machinesEmpty": "Нет машин в сети",
-      "currentServer": "Сервер: ",
+      "currentServer": "Сервер",
       "setDefault": "Сделать основной",
       "defaultBadge": "Основная",
       "rename": "Переименовать",
@@ -2187,7 +2195,8 @@
         "macos": "macOS",
         "linux": "Linux",
         "unknown": "Неизвестно"
-      }
+      },
+      "downloadCta": "Скачать локальную песочницу"
     },
     "maxPinnedModels": "Можно закрепить до {{max}} моделей",
     "memoryToggle": "Межсессионная память",
@@ -2513,6 +2522,9 @@
     "bookmarks": {
       "description": "Сохраняйте важные сообщения диалога — конспекты, итоги, планы — и возвращайтесь к ним в любой момент.",
       "title": "Закладки сообщений"
+    },
+    "download": {
+      "title": "Скачать локальную песочницу"
     }
   },
   "serverSetup": {
@@ -3581,5 +3593,39 @@
     "upToDate": "У вас последняя версия",
     "installPermissionHint": "Сначала разрешите LambChat установку неизвестных приложений, затем снова нажмите «Обновить»",
     "updateRelaunchInstall": "Перезапустить и установить"
+  },
+  "download": {
+    "title": "Скачать локальную песочницу",
+    "description": "Agent выполняет команды и работает с файлами на вашем компьютере — данные не покидают машину.",
+    "latestVersion": "Последняя версия: {{version}}",
+    "detectedPlatform": "Ваша система",
+    "back": "Вернуться в чат",
+    "viewAllReleases": "Все релизы на GitHub",
+    "loadFailed": "Не удалось загрузить ссылки. Последние пакеты можно взять на GitHub Releases:",
+    "noAssets": "Для этого релиза пока нет пакетов.",
+    "desktop": {
+      "title": "Настольное приложение (рекомендуется)",
+      "desc": "Установите, войдите в аккаунт LambChat — сопряжение произойдёт автоматически, и локальная песочница появится в веб-версии."
+    },
+    "daemon": {
+      "title": "Автономный daemon (серверы / без GUI)",
+      "desc": "Запустите daemon на сервере или рабочей машине — настольное приложение не нужно.",
+      "usage": "Использование: скачайте бинарник для своей платформы, дайте права на выполнение, войдите на свой сервер и держите запущенным.",
+      "binaries": "Бинарники"
+    },
+    "tutorial": {
+      "title": "Инструкция по сопряжению",
+      "step1": "Установите настольное приложение и войдите в аккаунт LambChat (сопряжение автоматически); на сервере выполните команды daemon выше.",
+      "step2": "Откройте LambChat в браузере → Настройки → Предпочтения → Песочница и убедитесь, что локальная песочница «Онлайн».",
+      "step3": "В поле ввода чата откройте выбор «Песочница» и переключитесь на «Локально» — Agent будет работать на вашей машине."
+    },
+    "tag": "LambChat · Локальная песочница",
+    "heroCta": "Скачать настольное приложение",
+    "heroCtaTutorial": "Инструкция по сопряжению",
+    "downloadFor": "Скачать для {{platform}}",
+    "mobile": {
+      "title": "Мобильное приложение",
+      "desc": "Клиент LambChat для Android (прямая установка APK) — вход по тому же аккаунту, что и в веб-версии."
+    }
   }
 }

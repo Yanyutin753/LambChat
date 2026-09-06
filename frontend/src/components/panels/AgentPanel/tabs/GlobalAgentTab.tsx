@@ -129,7 +129,7 @@ export function GlobalAgentTab({
                   </div>
                   <Pencil
                     size={14}
-                    className="flex-shrink-0 text-theme-text-tertiary opacity-0 transition-opacity group-hover:opacity-100"
+                    className="flex-shrink-0 text-theme-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 max-sm:opacity-100"
                   />
                 </button>
 

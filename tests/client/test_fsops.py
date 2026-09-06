@@ -501,6 +501,193 @@ def test_fs_grep_invalid_regex_errors(tmp_path):
     assert "error" in data
 
 
+# ---------- fs_upload：分块无状态写（truncate 首块 + offset 定位追加） ----------
+
+
+def test_fs_upload_first_chunk_creates_file_with_parents(tmp_path):
+    data = _op(
+        "fs_upload",
+        _payload(
+            "sub/dir/f.bin",
+            content_b64=base64.b64encode(b"hello").decode(),
+            offset=0,
+            truncate=True,
+        ),
+        tmp_path,
+    )
+    assert data == {"written": 5}
+    assert (_ws(tmp_path) / "sub/dir/f.bin").read_bytes() == b"hello"
+
+
+def test_fs_upload_later_chunk_writes_at_offset_without_truncate(tmp_path):
+    ws = _ws(tmp_path)
+    _op(
+        "fs_upload",
+        _payload("f.bin", content_b64=base64.b64encode(b"AAAA").decode(), offset=0, truncate=True),
+        tmp_path,
+    )
+    data = _op(
+        "fs_upload",
+        _payload("f.bin", content_b64=base64.b64encode(b"BBBB").decode(), offset=4, truncate=False),
+        tmp_path,
+    )
+    assert data == {"written": 4}
+    assert (ws / "f.bin").read_bytes() == b"AAAABBBB"
+
+
+def test_fs_upload_truncate_chunk_discards_previous_content(tmp_path):
+    ws = _ws(tmp_path)
+    (ws / "f.txt").write_bytes(b"old-and-long-content")
+    _op(
+        "fs_upload",
+        _payload("f.txt", content_b64=base64.b64encode(b"new").decode(), offset=0, truncate=True),
+        tmp_path,
+    )
+    assert (ws / "f.txt").read_bytes() == b"new"
+
+
+def test_fs_upload_overlapping_offset_overwrites_in_place(tmp_path):
+    ws = _ws(tmp_path)
+    (ws / "f.bin").write_bytes(b"0123456789")
+    _op(
+        "fs_upload",
+        _payload("f.bin", content_b64=base64.b64encode(b"XY").decode(), offset=3, truncate=False),
+        tmp_path,
+    )
+    assert (ws / "f.bin").read_bytes() == b"012XY56789"
+
+
+def test_fs_upload_binary_content_roundtrip(tmp_path):
+    ws = _ws(tmp_path)
+    raw = bytes(range(256)) * 8
+    _op(
+        "fs_upload",
+        _payload("blob.bin", content_b64=base64.b64encode(raw).decode(), offset=0, truncate=True),
+        tmp_path,
+    )
+    assert (ws / "blob.bin").read_bytes() == raw
+
+
+def test_fs_upload_later_chunk_missing_file_errors(tmp_path):
+    _ws(tmp_path)
+    data = _op(
+        "fs_upload",
+        _payload("f.bin", content_b64=base64.b64encode(b"x").decode(), offset=0, truncate=False),
+        tmp_path,
+    )
+    assert data == {"error": "file_not_found"}
+
+
+def test_fs_upload_oversize_chunk_rejected(tmp_path):
+    ws = _ws(tmp_path)
+    raw = b"x" * (fsops.FS_TRANSFER_MAX_BYTES + 1)
+    data = _op(
+        "fs_upload",
+        _payload("big.bin", content_b64=base64.b64encode(raw).decode(), offset=0, truncate=True),
+        tmp_path,
+    )
+    assert "file_too_large" in data["error"]
+    assert not (ws / "big.bin").exists()
+
+
+def test_fs_upload_negative_offset_rejected(tmp_path):
+    _ws(tmp_path)
+    data = _op(
+        "fs_upload",
+        _payload("f.bin", content_b64=base64.b64encode(b"x").decode(), offset=-1, truncate=True),
+        tmp_path,
+    )
+    assert "offset" in data["error"]
+
+
+def test_fs_upload_rejects_path_escape(tmp_path):
+    _ws(tmp_path)
+    data = _op(
+        "fs_upload",
+        _payload(
+            "../outside.bin", content_b64=base64.b64encode(b"x").decode(), offset=0, truncate=True
+        ),
+        tmp_path,
+    )
+    assert "escape" in data["error"]
+
+
+# ---------- fs_download：分片无状态读（size + eof 终止协议） ----------
+
+
+def test_fs_download_slice_returns_content_size_eof(tmp_path):
+    ws = _ws(tmp_path)
+    (ws / "f.bin").write_bytes(b"0123456789")
+    data = _op("fs_download", _payload("f.bin", offset=2, length=4), tmp_path)
+    assert base64.b64decode(data["content_b64"]) == b"2345"
+    assert data["size"] == 10
+    assert data["eof"] is False
+
+
+def test_fs_download_short_final_slice_sets_eof(tmp_path):
+    ws = _ws(tmp_path)
+    (ws / "f.bin").write_bytes(b"0123456789")
+    data = _op("fs_download", _payload("f.bin", offset=6, length=100), tmp_path)
+    assert base64.b64decode(data["content_b64"]) == b"6789"
+    assert data["size"] == 10
+    assert data["eof"] is True
+
+
+def test_fs_download_empty_file_returns_eof_immediately(tmp_path):
+    ws = _ws(tmp_path)
+    (ws / "empty.bin").write_bytes(b"")
+    data = _op("fs_download", _payload("empty.bin", offset=0, length=64), tmp_path)
+    assert base64.b64decode(data["content_b64"]) == b""
+    assert data == {"content_b64": "", "size": 0, "eof": True}
+
+
+def test_fs_download_exact_boundary_slice_sets_eof(tmp_path):
+    ws = _ws(tmp_path)
+    (ws / "f.bin").write_bytes(b"0123456789")
+    data = _op("fs_download", _payload("f.bin", offset=0, length=10), tmp_path)
+    assert data["eof"] is True
+    data = _op("fs_download", _payload("f.bin", offset=0, length=9), tmp_path)
+    assert data["eof"] is False
+
+
+def test_fs_download_missing_file_and_directory_errors(tmp_path):
+    ws = _ws(tmp_path)
+    assert _op("fs_download", _payload("missing.bin", offset=0, length=1), tmp_path) == {
+        "error": "file_not_found"
+    }
+    (ws / "adir").mkdir()
+    assert _op("fs_download", _payload("adir", offset=0, length=1), tmp_path) == {
+        "error": "is_directory"
+    }
+
+
+def test_fs_download_oversize_length_rejected(tmp_path):
+    ws = _ws(tmp_path)
+    (ws / "f.bin").write_bytes(b"0123456789")
+    data = _op(
+        "fs_download", _payload("f.bin", offset=0, length=fsops.FS_TRANSFER_MAX_BYTES + 1), tmp_path
+    )
+    assert "file_too_large" in data["error"]
+
+
+def test_fs_download_offset_beyond_size_errors(tmp_path):
+    ws = _ws(tmp_path)
+    (ws / "f.bin").write_bytes(b"0123456789")
+    data = _op("fs_download", _payload("f.bin", offset=11, length=1), tmp_path)
+    assert "offset" in data["error"]
+
+
+def test_fs_download_binary_content_roundtrip(tmp_path):
+    ws = _ws(tmp_path)
+    raw = bytes(range(256)) * 8
+    (ws / "blob.bin").write_bytes(raw)
+    data = _op(
+        "fs_download", _payload("blob.bin", offset=0, length=fsops.FS_TRANSFER_MAX_BYTES), tmp_path
+    )
+    assert base64.b64decode(data["content_b64"]) == raw
+    assert data["eof"] is True
+
+
 # ---------- 路径约束（逃逸拒绝） ----------
 
 
@@ -561,5 +748,7 @@ def test_fs_op_registry_covers_all_documented_ops():
         "fs_delete",
         "fs_glob",
         "fs_grep",
+        "fs_upload",
+        "fs_download",
     }
-    assert fsops.WRITE_OPS == {"fs_write", "fs_edit", "fs_delete"}
+    assert fsops.WRITE_OPS == {"fs_write", "fs_edit", "fs_delete", "fs_upload"}

@@ -22,7 +22,9 @@ afterEach(() => {
   toolCallPanelStore.clear();
 });
 
-function panelData(overrides: Partial<Parameters<typeof toolCallPanelStore.set>[0]> = {}) {
+function panelData(
+  overrides: Partial<Parameters<typeof toolCallPanelStore.set>[0]> = {},
+) {
   return {
     toolCallId: "tool-live-1",
     toolName: "read_file",

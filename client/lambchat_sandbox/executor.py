@@ -268,6 +268,7 @@ class Executor:
             )
         if workspace is not None:
             env["LAMBCHAT_WORKSPACE"] = str(workspace)
+            env["LAMBCHAT_SHARED"] = str(self._data_root / ".shared")
         return env
 
     def execute(
@@ -284,6 +285,9 @@ class Executor:
         """
         workspace = map_workspace(virtual_cwd, self._data_root)
         workspace.mkdir(parents=True, exist_ok=True)
+        # 共享目录（LAMBCHAT_SHARED 指向处）随首次执行一并建好——跨会话持久，
+        # 之后任意会话的重定向 `$LAMBCHAT_SHARED/…` 不会再因目录缺失而失败。
+        (self._data_root / ".shared").mkdir(parents=True, exist_ok=True)
         if plat.is_windows():
             return self._execute_windows(command, workspace, timeout, env_extra)
         proc = subprocess.Popen(

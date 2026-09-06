@@ -36,9 +36,12 @@ test("connects, stores normalized url and reloads on healthy server", async () =
   fireEvent.click(screen.getByRole("button", { name: /connect/i }));
 
   await waitFor(() => expect(reloadSpy).toHaveBeenCalled());
-  expect(fetchMock).toHaveBeenCalledWith("https://my-lambchat.example.com/health", {
-    method: "GET",
-  });
+  expect(fetchMock).toHaveBeenCalledWith(
+    "https://my-lambchat.example.com/health",
+    {
+      method: "GET",
+    },
+  );
   expect(getStoredServerUrl()).toBe("https://my-lambchat.example.com");
 });
 
@@ -51,7 +54,9 @@ test("unreachable server shows error and keeps url unset", async () => {
   });
   fireEvent.click(screen.getByRole("button", { name: /connect/i }));
 
-  await waitFor(() => expect(screen.getByText(/cannot reach/i)).toBeInTheDocument());
+  await waitFor(() =>
+    expect(screen.getByText(/cannot reach/i)).toBeInTheDocument(),
+  );
   expect(getStoredServerUrl()).toBeNull();
   expect(reloadSpy).not.toHaveBeenCalled();
 });

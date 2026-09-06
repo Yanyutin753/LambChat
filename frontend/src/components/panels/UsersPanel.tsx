@@ -510,7 +510,7 @@ export function UsersPanel() {
                       <td className="whitespace-nowrap px-6 py-4">
                         <div className="flex items-center gap-3">
                           <UserAvatar user={user} />
-                          <span className="font-medium text-theme-text">
+                          <span className="font-medium font-serif text-theme-text">
                             {user.username}
                           </span>
                         </div>
@@ -523,7 +523,10 @@ export function UsersPanel() {
                           {user.roles.map((roleName: string) => {
                             const role = roles.find((r) => r.name === roleName);
                             return (
-                              <span key={roleName} className="tag tag-default">
+                              <span
+                                key={roleName}
+                                className="tag tag-default font-serif"
+                              >
                                 {role ? role.name : roleName}
                               </span>
                             );
@@ -583,7 +586,7 @@ export function UsersPanel() {
                   <div className="flex items-start gap-3">
                     <UserAvatar user={user} size="md" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium text-theme-text">
+                      <p className="truncate font-medium font-serif text-theme-text">
                         {user.username}
                       </p>
                       <p className="truncate text-sm text-theme-text-secondary">
@@ -595,7 +598,10 @@ export function UsersPanel() {
                   {/* Roles tags */}
                   <div className="mt-3 flex flex-wrap gap-1">
                     {user.roles.map((roleName: string) => (
-                      <span key={roleName} className="tag tag-default">
+                      <span
+                        key={roleName}
+                        className="tag tag-default font-serif"
+                      >
                         {roles.find((r) => r.name === roleName)?.name ||
                           roleName}
                       </span>

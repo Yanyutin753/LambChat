@@ -369,7 +369,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
-              <div className="truncate text-13 text-stone-600 dark:text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-300 transition-colors">
+              <div className="truncate text-13 font-serif text-stone-600 dark:text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-300 transition-colors">
                 {isFavorites ? t("sidebar.favorites") : project.name}
               </div>
             )}
@@ -395,7 +395,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
                 ref={menuButtonRef}
                 onClick={handleMenuClick}
                 aria-label={t("sidebar.moreOptions")}
-                className="flex-shrink-0 rounded p-0.5 hover:bg-stone-200/60 dark:hover:bg-stone-700/60 transition-all opacity-0 group-hover:opacity-100 [&:not(:placeholder-shown)]:opacity-100"
+                className="flex-shrink-0 rounded p-0.5 hover:bg-stone-200/60 dark:hover:bg-stone-700/60 transition-all opacity-0 group-hover:opacity-100 [&:not(:placeholder-shown)]:opacity-100 max-sm:opacity-100"
                 style={isTouched ? { opacity: 1 } : undefined}
               >
                 <MoreHorizontal

@@ -63,10 +63,14 @@ export function BookmarkButton({
         busy && "opacity-60 cursor-wait",
       )}
       title={
-        active ? t("chat.message.removeBookmark") : t("chat.message.addBookmark")
+        active
+          ? t("chat.message.removeBookmark")
+          : t("chat.message.addBookmark")
       }
       aria-label={
-        active ? t("chat.message.removeBookmark") : t("chat.message.addBookmark")
+        active
+          ? t("chat.message.removeBookmark")
+          : t("chat.message.addBookmark")
       }
       aria-pressed={active}
     >

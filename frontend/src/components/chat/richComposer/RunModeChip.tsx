@@ -36,9 +36,7 @@ export function RunModeChip({ modeKey, onClick, readOnly }: RunModeChipProps) {
   return (
     <span
       className="skill-chip-node run-mode-chip-node"
-      {...(readOnly
-        ? {}
-        : { role: "button", tabIndex: 0 })}
+      {...(readOnly ? {} : { role: "button", tabIndex: 0 })}
       aria-label={label}
       title={label}
       contentEditable={false}

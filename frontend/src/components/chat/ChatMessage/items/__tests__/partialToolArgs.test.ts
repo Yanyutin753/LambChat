@@ -20,7 +20,9 @@ describe("parsePartialToolArgs — 非法/空前缀", () => {
 describe("parsePartialToolArgs — 完整键值对", () => {
   test("完整 JSON 对象全部解析", () => {
     expect(
-      parsePartialToolArgs('{"file_path":"/tmp/a.py","offset":10,"limit":null}'),
+      parsePartialToolArgs(
+        '{"file_path":"/tmp/a.py","offset":10,"limit":null}',
+      ),
     ).toEqual({ file_path: "/tmp/a.py", offset: 10, limit: null });
   });
 
@@ -32,9 +34,10 @@ describe("parsePartialToolArgs — 完整键值对", () => {
   });
 
   test("完整嵌套对象与数组按原样解析", () => {
-    expect(
-      parsePartialToolArgs('{"opts":{"a":1},"tags":["x","y"]}'),
-    ).toEqual({ opts: { a: 1 }, tags: ["x", "y"] });
+    expect(parsePartialToolArgs('{"opts":{"a":1},"tags":["x","y"]}')).toEqual({
+      opts: { a: 1 },
+      tags: ["x", "y"],
+    });
   });
 
   test("键后缺冒号时保留更早的键值对", () => {
@@ -50,7 +53,9 @@ describe("parsePartialToolArgs — 生成中的字符串值", () => {
   });
 
   test("保留生成中字符串之前的完整键值对", () => {
-    expect(parsePartialToolArgs('{"path":"/tmp","content":"line1\nline')).toEqual({
+    expect(
+      parsePartialToolArgs('{"path":"/tmp","content":"line1\nline'),
+    ).toEqual({
       path: "/tmp",
       content: "line1\nline",
     });

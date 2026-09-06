@@ -55,7 +55,10 @@ test("memory_done 先到（SSE 重放同批/丢失 start）也能落成 ready pa
   );
 
   expect(done.parts).toHaveLength(1);
-  expect(done.parts[0]).toMatchObject({ type: "memoryStatus", status: "ready" });
+  expect(done.parts[0]).toMatchObject({
+    type: "memoryStatus",
+    status: "ready",
+  });
 });
 
 test("其他 status stage 不产生 part", () => {

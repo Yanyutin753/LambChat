@@ -58,9 +58,8 @@ test("sans stack keeps system CJK fallbacks (no Noto Sans SC takeover)", () => {
 
 test("root font-family routes CJK UI text to system fonts", () => {
   const tokens = readRepoFile("src/styles/tokens.css");
-  const rootFamily = tokens.match(
-    /:root\s*\{[^}]*font-family:\s*([^;]+);/s,
-  )?.[1] ?? "";
+  const rootFamily =
+    tokens.match(/:root\s*\{[^}]*font-family:\s*([^;]+);/s)?.[1] ?? "";
 
   expect(rootFamily.indexOf("Inter")).toBeLessThan(
     rootFamily.indexOf("system-ui"),

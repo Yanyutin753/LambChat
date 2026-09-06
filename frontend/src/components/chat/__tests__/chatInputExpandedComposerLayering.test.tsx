@@ -50,9 +50,7 @@ test("expanded composer renders at body level outside the chat shell", async () 
   expect(collapsedContainer?.closest("form")).not.toBeNull();
 
   await act(async () => {
-    fireEvent.click(
-      screen.getByRole("button", { name: /(expand|展开编辑)/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /(expand|展开编辑)/i }));
   });
 
   const expandedContainer = document.querySelector(
@@ -85,18 +83,14 @@ test("collapsing restores the composer inside the form without remounting the ed
 
   const editor = await screen.findByRole("textbox");
   await act(async () => {
-    fireEvent.click(
-      screen.getByRole("button", { name: /(expand|展开编辑)/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /(expand|展开编辑)/i }));
   });
   expect(
     document.querySelector(".chat-input-container[data-composer-expanded]"),
   ).not.toBeNull();
 
   await act(async () => {
-    fireEvent.click(
-      screen.getByRole("button", { name: /(collapse|收起)/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /(collapse|收起)/i }));
   });
 
   const restoredContainer = document.querySelector(".chat-input-container");
@@ -123,9 +117,7 @@ test("Enter still submits from the body-level expanded composer", async () => {
 
   const editor = await screen.findByRole("textbox");
   await act(async () => {
-    fireEvent.click(
-      screen.getByRole("button", { name: /(expand|展开编辑)/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /(expand|展开编辑)/i }));
   });
   editor.focus();
   await act(async () => {

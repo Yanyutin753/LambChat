@@ -58,7 +58,13 @@ describe("startQueuePositionPolling", () => {
     const fetchSnapshot = vi.fn(async () => snapshots.shift());
     const onUpdate = vi.fn((position: number) => updates.push(position));
 
-    startQueuePositionPolling("session-1", "run-1", fetchSnapshot, onUpdate, 10);
+    startQueuePositionPolling(
+      "session-1",
+      "run-1",
+      fetchSnapshot,
+      onUpdate,
+      10,
+    );
 
     await vi.advanceTimersByTimeAsync(10);
     await vi.advanceTimersByTimeAsync(10);
@@ -76,7 +82,13 @@ describe("startQueuePositionPolling", () => {
       throw new Error("network down");
     });
 
-    startQueuePositionPolling("session-1", "run-1", fetchSnapshot, onUpdate, 10);
+    startQueuePositionPolling(
+      "session-1",
+      "run-1",
+      fetchSnapshot,
+      onUpdate,
+      10,
+    );
 
     await vi.advanceTimersByTimeAsync(50);
     expect(fetchSnapshot).toHaveBeenCalledTimes(1);

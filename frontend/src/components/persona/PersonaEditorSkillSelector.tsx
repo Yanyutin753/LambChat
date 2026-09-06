@@ -350,7 +350,7 @@ export function SkillSelector({
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">
+                      <div className="text-sm font-medium font-serif truncate">
                         {skill.name}
                       </div>
                       {skill.description && (

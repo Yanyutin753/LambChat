@@ -294,8 +294,8 @@ export function ProfilePreferencesTab() {
     <div className="space-y-4">
       <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
         <div className="flex items-center gap-2 mb-3">
-          <Settings size={15} className="text-amber-500 dark:text-amber-400" />
-          <h3 className="font-semibold font-serif uppercase tracking-wide text-stone-400 dark:text-stone-500">
+          <Settings size={13} className="text-amber-500 dark:text-amber-400" />
+          <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-stone-400 dark:text-stone-500">
             {t("profile.preferences")}
           </h3>
         </div>
@@ -419,18 +419,18 @@ export function ProfilePreferencesTab() {
         </Suspense>
       )}
 
-      {/* 沙箱：云端 + 本地合并一张卡（子区用内嵌 tile，同通知页分区语言）；
-          本地分区仍懒加载（M4 T8 PWA 预算） */}
+      {/* 沙箱：云端 + 本地合并一张卡——平铺分区，分区之间用 hairline 分隔
+          （不叠 tile 夹层）；本地分区仍懒加载（M4 T8 PWA 预算） */}
       <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
         <div className="flex items-center gap-2 mb-3">
-          <Container size={15} className="text-amber-500 dark:text-amber-400" />
-          <h3 className="font-semibold font-serif uppercase tracking-wide text-stone-400 dark:text-stone-500">
+          <Container size={13} className="text-amber-500 dark:text-amber-400" />
+          <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-stone-400 dark:text-stone-500">
             {t("profile.sandbox")}
           </h3>
         </div>
 
         {/* 云端沙箱：执行确认策略（用户级偏好，存 metadata） */}
-        <div className="rounded-xl bg-stone-50 dark:bg-stone-700/50 p-3.5 sm:p-4">
+        <div>
           <div className="flex items-center gap-1.5">
             <Cloud size={13} className="text-stone-400 dark:text-stone-500" />
             <span className="font-medium font-serif text-sm text-stone-900 dark:text-stone-100">
@@ -457,26 +457,29 @@ export function ProfilePreferencesTab() {
 
       {/* 关于：检查更新——仅原生客户端（桌面/移动）渲染；Web 随部署走刷新即更 */}
       {isNativeAppRuntime() && (
-      <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <RefreshCw size={15} className="text-amber-500 dark:text-amber-400" />
-            <h3 className="font-semibold font-serif uppercase tracking-wide text-stone-400 dark:text-stone-500">
-              {t("update.aboutTitle", "关于")}
-            </h3>
+        <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <RefreshCw
+                size={13}
+                className="text-amber-500 dark:text-amber-400"
+              />
+              <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-stone-400 dark:text-stone-500">
+                {t("update.aboutTitle", "关于")}
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(new Event("lambchat:check-update"));
+              }}
+              className="flex items-center gap-1.5 rounded-lg border border-stone-200/70 dark:border-stone-600/60 px-3 py-1.5 text-xs font-medium text-stone-600 dark:text-stone-300 hover:bg-white/60 dark:hover:bg-black/20 transition-colors"
+            >
+              <RefreshCw size={12} />
+              {t("update.checkNow", "检查更新")}
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              window.dispatchEvent(new Event("lambchat:check-update"));
-            }}
-            className="flex items-center gap-1.5 rounded-lg border border-stone-200/70 dark:border-stone-600/60 px-3 py-1.5 text-xs font-medium text-stone-600 dark:text-stone-300 hover:bg-white/60 dark:hover:bg-black/20 transition-colors"
-          >
-            <RefreshCw size={12} />
-            {t("update.checkNow", "检查更新")}
-          </button>
         </div>
-      </div>
       )}
     </div>
   );

@@ -22,10 +22,7 @@ test("chat scroller component identity never depends on the skeleton flag", () =
   const scrollerStart = chatViewSource.indexOf(
     "const virtuosoScrollerComponent = useCallback(",
   );
-  const scrollerEnd = chatViewSource.indexOf(
-    "\n  );",
-    scrollerStart,
-  );
+  const scrollerEnd = chatViewSource.indexOf("\n  );", scrollerStart);
 
   expect(scrollerStart).toBeGreaterThan(-1);
   expect(scrollerEnd).toBeGreaterThan(scrollerStart);
@@ -39,10 +36,7 @@ test("chat scroller component identity never depends on the skeleton flag", () =
   const componentsStart = chatViewSource.indexOf(
     "const virtuosoComponents = useMemo(",
   );
-  const componentsEnd = chatViewSource.indexOf(
-    "\n  );",
-    componentsStart,
-  );
+  const componentsEnd = chatViewSource.indexOf("\n  );", componentsStart);
   const componentsBlock = chatViewSource.slice(componentsStart, componentsEnd);
   expect(componentsStart).toBeGreaterThan(-1);
   expect(componentsBlock).toMatch(/Scroller: virtuosoScrollerComponent/);
