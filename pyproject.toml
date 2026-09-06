@@ -117,3 +117,9 @@ plugins = ["pydantic.mypy"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = [".", "client"]
+
+[tool.uv]
+# 官方 PyPI：CI（GitHub 海外 runner）直连官方源。此前 uv.lock 历史遗留
+# 腾讯镜像 URL，国内镜像抖动会随机打断 CI（依赖下载超时）。本地如需镜像
+# 加速，用 UV_DEFAULT_INDEX 环境变量临时覆盖，但提交 lock 前保持官方源。
+default-index = "https://pypi.org/simple"
