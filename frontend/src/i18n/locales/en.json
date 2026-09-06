@@ -1957,7 +1957,6 @@
     "users": "Manage user accounts and access"
   },
   "notification": {
-    "active": "Active",
     "cancel": "Cancel",
     "collapse": "Hide details",
     "contentLabel": "Content",
@@ -1972,7 +1971,6 @@
     "endTime": "End Time",
     "expand": "Show details",
     "expired": "Expired",
-    "inactive": "Inactive",
     "isActive": "Active",
     "noNotifications": "No notifications yet",
     "save": "Save",
@@ -2142,6 +2140,14 @@
     "lightTheme": "Light",
     "limitedSupport": "Limited",
     "loading": "Loading...",
+    "serverUrl": {
+      "title": "Server",
+      "desc": "Address of the LambChat server this app talks to. Changing it reloads the app and you will need to sign in again.",
+      "change": "Change",
+      "cancel": "Cancel",
+      "reset": "Reset",
+      "resetTitle": "Clear the runtime override and return to the server baked into this build"
+    },
     "localSandbox": {
       "title": "Local Sandbox",
       "desc": "The agent runs commands and file edits on your own machine through the desktop app",
@@ -2162,7 +2168,8 @@
       "openWorkspaces": "Open workspaces",
       "openAudit": "Open audit log",
       "restartDaemon": "Restart daemon",
-      "needDesktop": "The local sandbox requires the LambChat desktop app. Only the cloud sandbox is available on the web.",
+      "needDesktop": "Local sandbox is offline. Pair it with the LambChat desktop app to use it on the web.",
+      "webManaged": "Managed by the paired desktop app",
       "pairFailed": "Pairing failed. Check your credentials and try again.",
       "unpair": "Unpair",
       "unpaired": "Pairing removed",

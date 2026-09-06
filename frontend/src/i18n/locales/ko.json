@@ -1957,7 +1957,6 @@
     "users": "사용자 계정 및 접근 권한 관리"
   },
   "notification": {
-    "active": "활성",
     "cancel": "취소",
     "collapse": "상세 숨기기",
     "contentLabel": "내용",
@@ -1972,7 +1971,6 @@
     "endTime": "종료 시간",
     "expand": "상세 보기",
     "expired": "만료됨",
-    "inactive": "비활성",
     "isActive": "활성화",
     "noNotifications": "알림이 없습니다",
     "save": "저장",
@@ -2142,6 +2140,14 @@
     "lightTheme": "라이트",
     "limitedSupport": "일부 지원",
     "loading": "로딩 중...",
+    "serverUrl": {
+      "title": "서버",
+      "desc": "앱이 연결된 LambChat 서버 주소입니다. 변경하면 앱이 새로고침되며 다시 로그인해야 합니다.",
+      "change": "변경",
+      "cancel": "취소",
+      "reset": "기본값으로",
+      "resetTitle": "런타임 설정을 지우고 설치 패키지에 내장된 기본 서버로 되돌립니다"
+    },
     "localSandbox": {
       "title": "로컬 샌드박스",
       "desc": "데스크톱 앱을 통해 사용자의 PC에서 직접 명령과 파일 작업을 수행합니다",
@@ -2162,7 +2168,8 @@
       "openWorkspaces": "작업 공간 폴더 열기",
       "openAudit": "감사 폴더 열기",
       "restartDaemon": "daemon 재시작",
-      "needDesktop": "로컬 샌드박스에는 LambChat 데스크톱 앱이 필요합니다. 웹에서는 클라우드 샌드박스만 사용할 수 있습니다.",
+      "needDesktop": "로컬 샌드박스가 오프라인입니다. LambChat 데스크톱 앱과 페어링하면 웹에서도 사용할 수 있습니다.",
+      "webManaged": "페어링된 데스크톱 앱에서 관리",
       "pairFailed": "페어링에 실패했습니다. 계정 정보를 확인하고 다시 시도하세요.",
       "unpair": "페어링 해제",
       "unpaired": "페어링이 해제되었습니다",

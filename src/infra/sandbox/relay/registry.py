@@ -274,7 +274,7 @@ class SandboxClientRegistry:
             return await self._redis().exists(_key(user_id)) > 0
         return await self._redis().exists(_machine_key(user_id, machine_id)) > 0
 
-    async def _machine_value(self, user_id: str, machine_id: str) -> str:
+    async def machine_value(self, user_id: str, machine_id: str) -> str:
         """目标机的注册 value（resolve 后调用；离线返回空串）。"""
         redis = self._redis()
         if machine_id == LEGACY_MACHINE_ID:
@@ -292,7 +292,7 @@ class SandboxClientRegistry:
         target = await self.resolve_target(user_id, machine_id)
         if target is None:
             return ""
-        return parse_daemon_platform(await self._machine_value(user_id, target))
+        return parse_daemon_platform(await self.machine_value(user_id, target))
 
     async def get_confirm_policy(self, user_id: str, machine_id: str | None = None) -> str:
         """目标机的上报确认策略（all/commands/none）。
@@ -304,4 +304,4 @@ class SandboxClientRegistry:
         target = await self.resolve_target(user_id, machine_id)
         if target is None:
             return ""
-        return parse_confirm_policy(await self._machine_value(user_id, target))
+        return parse_confirm_policy(await self.machine_value(user_id, target))

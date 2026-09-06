@@ -10,9 +10,9 @@ import {
   Pencil,
   Trash2,
   Bell,
-  X,
   AlertCircle,
   ChevronDown,
+  Save,
 } from "lucide-react";
 import { PanelHeader } from "../common/PanelHeader";
 import { ConfirmDialog } from "../common/ConfirmDialog";
@@ -27,6 +27,8 @@ import {
   PanelFooterActions,
   Textarea,
 } from "../common";
+import { EditorSidebar } from "../common/EditorSidebar";
+import { ToggleSwitch } from "./AgentPanel/shared";
 import { notificationApi } from "../../services/api/notification";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
@@ -140,193 +142,142 @@ function NotificationFormModal({
   };
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-50 bg-black/50 transition-opacity"
-        onClick={onClose}
-      />
-      {/* Modal */}
-      <div className="safe-area-viewport-padding fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div
-          className="w-full max-w-2xl max-h-[90dvh] transform overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] text-left align-middle shadow-xl transition-all flex flex-col"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-[var(--glass-border)] p-6 pb-4">
-            <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
-              {isEdit ? t("notification.edit") : t("notification.create")}
-            </h3>
-            <IconButton
-              aria-label={t("common.close")}
-              icon={<X size={20} />}
-              onClick={onClose}
-              size="sm"
-              className="h-8 w-8 rounded-lg text-stone-400 hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-800 dark:hover:text-stone-300"
+    <EditorSidebar
+      open={true}
+      onClose={onClose}
+      title={isEdit ? t("notification.edit") : t("notification.create")}
+      icon={isEdit ? <Pencil size={16} /> : <Plus size={16} />}
+      footer={
+        <PanelFooterActions>
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
+          <Button
+            variant="primary"
+            onClick={handleSave}
+            loading={isSaving}
+            leftIcon={<Save size={16} />}
+          >
+            {t("common.save")}
+          </Button>
+        </PanelFooterActions>
+      }
+    >
+      <div className="es-form">
+        {/* Title fields for each language */}
+        <div className="es-section">
+          <div className="es-section-title">{t("notification.titleLabel")}</div>
+          <div className="space-y-3">
+            {LOCALE_KEYS.map(({ key, label }) => (
+              <div key={key} className="es-field">
+                <label className="es-label">{label}</label>
+                <Input
+                  type="text"
+                  value={titleI18n[key]}
+                  onChange={(e) =>
+                    setTitleI18n((prev) => ({
+                      ...prev,
+                      [key]: e.target.value,
+                    }))
+                  }
+                  aria-label={`${t("notification.titleLabel")} - ${label}`}
+                  placeholder={`${label} title`}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Content fields for each language */}
+        <div className="es-section">
+          <div className="es-section-title">
+            {t("notification.contentLabel")}
+          </div>
+          <div className="space-y-3">
+            {LOCALE_KEYS.map(({ key, label }) => (
+              <div key={key} className="es-field">
+                <label className="es-label">{label}</label>
+                <Textarea
+                  value={contentI18n[key]}
+                  onChange={(e) =>
+                    setContentI18n((prev) => ({
+                      ...prev,
+                      [key]: e.target.value,
+                    }))
+                  }
+                  rows={3}
+                  aria-label={`${t("notification.contentLabel")} - ${label}`}
+                  placeholder={`${label} content`}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Type selector */}
+        <div className="es-field">
+          <label className="es-label">{t("notification.typeLabel")}</label>
+          <div className="flex flex-wrap gap-2">
+            {(["info", "success", "warning", "maintenance"] as const).map(
+              (nt) => (
+                <button
+                  key={nt}
+                  type="button"
+                  onClick={() => setNotifType(nt)}
+                  className={`rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
+                    notifType === nt
+                      ? nt === "info"
+                        ? "border-blue-400 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-900/30 dark:text-blue-300"
+                        : nt === "success"
+                          ? "border-emerald-400 bg-emerald-50 text-emerald-700 dark:border-emerald-500 dark:bg-emerald-900/30 dark:text-emerald-300"
+                          : nt === "warning"
+                            ? "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-500 dark:bg-amber-900/30 dark:text-amber-300"
+                            : "border-orange-400 bg-orange-50 text-orange-700 dark:border-orange-500 dark:bg-orange-900/30 dark:text-orange-300"
+                      : "border-stone-200 bg-stone-50 text-stone-500 hover:border-stone-300 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-400 dark:hover:border-stone-600"
+                  }`}
+                >
+                  {t(
+                    `notification.type${
+                      nt.charAt(0).toUpperCase() + nt.slice(1)
+                    }`,
+                  )}
+                </button>
+              ),
+            )}
+          </div>
+        </div>
+
+        {/* Schedule */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="es-field">
+            <label className="es-label">{t("notification.startTime")}</label>
+            <Input
+              type="datetime-local"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
             />
           </div>
-
-          {/* Body */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            {/* Title fields for each language */}
-            <div>
-              <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-3">
-                {t("notification.titleLabel")}
-              </label>
-              <div className="space-y-3">
-                {LOCALE_KEYS.map(({ key, label }) => (
-                  <div key={key}>
-                    <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">
-                      {label}
-                    </label>
-                    <Input
-                      type="text"
-                      value={titleI18n[key]}
-                      onChange={(e) =>
-                        setTitleI18n((prev) => ({
-                          ...prev,
-                          [key]: e.target.value,
-                        }))
-                      }
-                      aria-label={`${t("notification.titleLabel")} - ${label}`}
-                      placeholder={`${label} title`}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Content fields for each language */}
-            <div>
-              <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-3">
-                {t("notification.contentLabel")}
-              </label>
-              <div className="space-y-3">
-                {LOCALE_KEYS.map(({ key, label }) => (
-                  <div key={key}>
-                    <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">
-                      {label}
-                    </label>
-                    <Textarea
-                      value={contentI18n[key]}
-                      onChange={(e) =>
-                        setContentI18n((prev) => ({
-                          ...prev,
-                          [key]: e.target.value,
-                        }))
-                      }
-                      rows={3}
-                      aria-label={`${t(
-                        "notification.contentLabel",
-                      )} - ${label}`}
-                      placeholder={`${label} content`}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Type selector */}
-            <div>
-              <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-1.5">
-                {t("notification.typeLabel")}
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {(["info", "success", "warning", "maintenance"] as const).map(
-                  (nt) => (
-                    <button
-                      key={nt}
-                      type="button"
-                      onClick={() => setNotifType(nt)}
-                      className={`rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
-                        notifType === nt
-                          ? nt === "info"
-                            ? "border-blue-400 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-900/30 dark:text-blue-300"
-                            : nt === "success"
-                              ? "border-emerald-400 bg-emerald-50 text-emerald-700 dark:border-emerald-500 dark:bg-emerald-900/30 dark:text-emerald-300"
-                              : nt === "warning"
-                                ? "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-500 dark:bg-amber-900/30 dark:text-amber-300"
-                                : "border-orange-400 bg-orange-50 text-orange-700 dark:border-orange-500 dark:bg-orange-900/30 dark:text-orange-300"
-                          : "border-stone-200 bg-stone-50 text-stone-500 hover:border-stone-300 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-400 dark:hover:border-stone-600"
-                      }`}
-                    >
-                      {t(
-                        `notification.type${
-                          nt.charAt(0).toUpperCase() + nt.slice(1)
-                        }`,
-                      )}
-                    </button>
-                  ),
-                )}
-              </div>
-            </div>
-
-            {/* Schedule */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-1.5">
-                  {t("notification.startTime")}
-                </label>
-                <Input
-                  type="datetime-local"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-1.5">
-                  {t("notification.endTime")}
-                </label>
-                <Input
-                  type="datetime-local"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Active toggle */}
-            <div className="flex items-center justify-between rounded-xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-700 dark:bg-stone-900">
-              <div>
-                <p className="text-sm font-medium text-stone-700 dark:text-stone-300">
-                  {t("notification.isActive")}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsActive(!isActive)}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-stone-500/20 ${
-                  isActive ? "bg-emerald-500" : "bg-stone-300 dark:bg-stone-600"
-                }`}
-              >
-                <span
-                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                    isActive ? "translate-x-5" : "translate-x-0"
-                  }`}
-                />
-              </button>
-            </div>
+          <div className="es-field">
+            <label className="es-label">{t("notification.endTime")}</label>
+            <Input
+              type="datetime-local"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+            />
           </div>
+        </div>
 
-          {/* Footer */}
-          <PanelFooterActions className="border-t border-[var(--glass-border)] p-6 pt-4">
-            <Button onClick={onClose} className="flex-1">
-              {t("notification.cancel")}
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleSave}
-              loading={isSaving}
-              className="flex-1"
-            >
-              {isSaving
-                ? t("common.saving") || "Saving..."
-                : t("notification.save")}
-            </Button>
-          </PanelFooterActions>
+        {/* Active toggle */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-theme-text-secondary">
+            {t("notification.isActive")}
+          </span>
+          <ToggleSwitch
+            enabled={isActive}
+            onToggle={() => setIsActive(!isActive)}
+            ariaLabel={t("notification.isActive")}
+          />
         </div>
       </div>
-    </>
+    </EditorSidebar>
   );
 }
 

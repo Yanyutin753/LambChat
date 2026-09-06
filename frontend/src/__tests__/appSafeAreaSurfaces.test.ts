@@ -135,7 +135,7 @@ test("portal dialogs and sheets reserve safe-area spacing", () => {
     "../components/common/ContactAdminDialog.tsx",
     "../components/common/DeleteProjectDialog.tsx",
     "../components/profile/ProfileModal.tsx",
-    "../components/notification/NotificationDialog.tsx",
+    // NotificationDialog 复用 SelectorModalPortal，safe-area 由共享 Portal 提供
     "../components/team/TeamPickerModal.tsx",
     "../components/persona/PersonaPresetSelector.tsx",
     "../components/panels/SearchDialog.tsx",
@@ -148,7 +148,7 @@ test("portal dialogs and sheets reserve safe-area spacing", () => {
     // SelectRow（含 safe-area 弹层）已从 ProfilePreferencesTab 抽取为共享组件
     "../components/profile/SelectRow.tsx",
     "../components/documents/LazyDocumentPreview.tsx",
-    "../components/panels/NotificationPanel.tsx",
+    // NotificationPanel 的创建/编辑表单已改用共享 EditorSidebar（其 CSS 内建 safe-area inset）
     "../components/panels/FeedbackPanel.tsx",
     "../components/layout/AppContent/ChatAppContent.tsx",
     "../components/chat/AgentOptionButton.tsx",

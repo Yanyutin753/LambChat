@@ -1,7 +1,8 @@
 /** @vitest-environment jsdom */
 // 沙箱选择器集成（fix round 1）：
-// 1. 同一时刻只允许一个选项模态打开（thinking / sandbox 互斥，FeaturePanel 有独立 "sandbox" key）
+// 1. 同一时刻只允许一个选项模态打开（thinking / sandbox / machine 互斥，FeaturePanel 各有独立 key）
 // 2. RunModePopover 设置组提供"沙箱"条目（当前档位 badge + daemon 在线状态点），点击打开 sandbox 面板
+// 3. 本地档 + 在线机器时提供"机器"子条目，点击打开 machine 面板（多机选机入口）
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 import i18n from "../../../i18n";
@@ -9,6 +10,7 @@ import i18n from "../../../i18n";
 const mocks = vi.hoisted(() => ({
   isShellAvailable: vi.fn(),
   getStatus: vi.fn(),
+  listMachines: vi.fn(),
   teamList: vi.fn(),
 }));
 
@@ -21,6 +23,9 @@ vi.mock("../../../services/api/sandbox", () => ({
   sandboxApi: {
     getStatus: mocks.getStatus,
     createPat: vi.fn(),
+  },
+  sandboxApiMachines: {
+    listMachines: mocks.listMachines,
   },
 }));
 
@@ -45,10 +50,30 @@ import { ChatInputSelectors } from "../ChatInputSelectors";
 import { ChatInputToolbar } from "../ChatInputToolbar";
 import { RunModePopover } from "../RunModePopover";
 import { resolveSandboxPresentation } from "../sandboxOption";
+import type { SandboxMachine } from "../../../services/api/sandbox";
 import type { AgentOption } from "../../../types";
 
 const THINKING_DESCRIPTION = "Control thinking intensity";
 const SANDBOX_DESCRIPTION = "Choose where sandboxed commands run";
+
+const MACHINES: SandboxMachine[] = [
+  {
+    machine_id: "mac1",
+    name: "MacBook",
+    platform: "darwin",
+    version: "0.3.0",
+    confirm_policy: "all",
+    online: true,
+  },
+  {
+    machine_id: "srv1",
+    name: "Server",
+    platform: "linux",
+    version: "0.3.0",
+    confirm_policy: "none",
+    online: true,
+  },
+];
 
 function buildAgentOptions(): Record<string, AgentOption> {
   return {
@@ -82,14 +107,50 @@ function buildAgentOptions(): Record<string, AgentOption> {
   };
 }
 
-function renderSelectors(activePanel: "thinking" | "sandbox") {
+function renderSelectors(
+  activePanel: "thinking" | "sandbox" | "machine",
+  agentOptionValues: Record<string, boolean | string | number> = {},
+) {
   return render(
     <ChatInputSelectors
       activePanel={activePanel}
       onActivePanelChange={() => {}}
       agentOptions={buildAgentOptions()}
-      agentOptionValues={{}}
+      agentOptionValues={agentOptionValues}
       onToggleAgentOption={() => {}}
+    />,
+  );
+}
+
+function renderToolbar(
+  onActivePanelChange: (
+    panel: "thinking" | "sandbox" | "machine" | null,
+  ) => void,
+  agentOptionValues: Record<string, boolean | string | number> = {},
+) {
+  return render(
+    <ChatInputToolbar
+      activePanel={null}
+      onActivePanelChange={onActivePanelChange}
+      canSend
+      isLoading={false}
+      canSubmit
+      hasUploadingAttachment={false}
+      enabledToolsCount={0}
+      totalToolsCount={0}
+      enabledSkillsCount={0}
+      totalSkillsCount={0}
+      hasPersonaSelector={false}
+      hasAgentSelector={false}
+      hasThinkingOption={false}
+      uploadCategories={[]}
+      uploadFiles={() => {}}
+      personaAvatar={null}
+      agentOptions={buildAgentOptions()}
+      agentOptionValues={agentOptionValues}
+      onToggleAgentOption={() => {}}
+      onStopClick={() => {}}
+      onNoPermissionClick={() => {}}
     />,
   );
 }
@@ -99,6 +160,10 @@ beforeEach(async () => {
   vi.clearAllMocks();
   mocks.isShellAvailable.mockReturnValue(true);
   mocks.getStatus.mockResolvedValue({ online: true });
+  mocks.listMachines.mockResolvedValue({
+    machines: [],
+    default_machine_id: null,
+  });
   mocks.teamList.mockResolvedValue({ total: 0, teams: [] });
 });
 
@@ -118,31 +183,7 @@ test("sandbox panel open renders only the sandbox modal, not the thinking modal"
 
 test("run mode popover shows a sandbox entry that opens the sandbox panel", () => {
   const onActivePanelChange = vi.fn();
-  render(
-    <ChatInputToolbar
-      activePanel={null}
-      onActivePanelChange={onActivePanelChange}
-      canSend
-      isLoading={false}
-      canSubmit
-      hasUploadingAttachment={false}
-      enabledToolsCount={0}
-      totalToolsCount={0}
-      enabledSkillsCount={0}
-      totalSkillsCount={0}
-      hasPersonaSelector={false}
-      hasAgentSelector={false}
-      hasThinkingOption={false}
-      uploadCategories={[]}
-      uploadFiles={() => {}}
-      personaAvatar={null}
-      agentOptions={buildAgentOptions()}
-      agentOptionValues={{}}
-      onToggleAgentOption={() => {}}
-      onStopClick={() => {}}
-      onNoPermissionClick={() => {}}
-    />,
-  );
+  renderToolbar(onActivePanelChange);
 
   fireEvent.click(document.querySelector("[data-run-mode-trigger]")!);
   // 设置组默认折叠，先展开再点击沙箱条目
@@ -198,4 +239,63 @@ test("resolveSandboxPresentation reports presence and the stored tier label", ()
     has: true,
     label: "Cloud",
   });
+});
+
+test("machine panel renders only the machine modal with online machines", async () => {
+  mocks.listMachines.mockResolvedValue({
+    machines: MACHINES,
+    default_machine_id: "mac1",
+  });
+  renderSelectors("machine", { sandbox: "local" });
+
+  // 机器模态：自动档 + 在线机器名单
+  expect(await screen.findByText("MacBook")).toBeInTheDocument();
+  expect(screen.getByText("Server")).toBeInTheDocument();
+  expect(screen.getByText("Auto (default)")).toBeInTheDocument();
+  // 同帧互斥：思考/沙箱模态不渲染
+  expect(screen.queryByText(THINKING_DESCRIPTION)).not.toBeInTheDocument();
+  expect(screen.queryByText(SANDBOX_DESCRIPTION)).not.toBeInTheDocument();
+});
+
+test("thinking panel does not stack the machine selector modal", async () => {
+  // 回归防护：机器选项注入后不得再挂在 thinking 面板上同帧双开
+  mocks.listMachines.mockResolvedValue({
+    machines: MACHINES,
+    default_machine_id: null,
+  });
+  renderSelectors("thinking", { sandbox: "local" });
+
+  await waitFor(() => {
+    expect(screen.getByText(THINKING_DESCRIPTION)).toBeInTheDocument();
+  });
+  expect(screen.queryByText("MacBook")).not.toBeInTheDocument();
+});
+
+test("popover lists a machine entry for the local tier that opens the machine panel", async () => {
+  mocks.listMachines.mockResolvedValue({
+    machines: MACHINES,
+    default_machine_id: "mac1",
+  });
+  const onActivePanelChange = vi.fn();
+  renderToolbar(onActivePanelChange, { sandbox: "local" });
+
+  fireEvent.click(document.querySelector("[data-run-mode-trigger]")!);
+  fireEvent.click(screen.getByText("Settings"));
+  fireEvent.click(await screen.findByText("Machine"));
+
+  expect(onActivePanelChange).toHaveBeenCalledWith("machine");
+});
+
+test("popover hides the machine entry on the cloud tier", async () => {
+  mocks.listMachines.mockResolvedValue({
+    machines: MACHINES,
+    default_machine_id: null,
+  });
+  renderToolbar(vi.fn(), { sandbox: "cloud" });
+
+  fireEvent.click(document.querySelector("[data-run-mode-trigger]")!);
+  fireEvent.click(screen.getByText("Settings"));
+  // 云端档没有机器可言：等沙箱条目出现后仍不应有机器入口
+  await screen.findByText("Sandbox");
+  expect(screen.queryByText("Machine")).not.toBeInTheDocument();
 });

@@ -61,7 +61,7 @@ export function MobileMoreMenuSheet({
           (menuRef as React.RefObject<HTMLDivElement | null>).current = el;
           (swipeRef as React.RefObject<HTMLDivElement | null>).current = el;
         }}
-        className="safe-area-viewport-padding fixed bottom-0 left-0 right-0 z-50 sm:hidden rounded-t-2xl shadow-xl max-h-[70dvh] overflow-y-auto"
+        className="safe-area-x safe-area-viewport-padding fixed bottom-0 left-0 right-0 z-50 sm:hidden rounded-t-2xl shadow-xl max-h-[70dvh] overflow-y-auto"
         style={{ backgroundColor: "var(--theme-bg-card)" }}
       >
         <div className="flex justify-center py-2">

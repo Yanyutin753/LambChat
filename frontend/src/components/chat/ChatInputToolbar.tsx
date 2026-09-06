@@ -340,6 +340,9 @@ export function ChatInputToolbar({
           hasSandboxOption={showSandboxEntry}
           sandboxLabel={sandboxLabel}
           onOpenSandboxPanel={() => onActivePanelChange("sandbox")}
+          onOpenMachinePanel={
+            showSandboxEntry ? () => onActivePanelChange("machine") : undefined
+          }
           booleanAgentOptions={booleanAgentOptions}
           agentOptionValues={agentOptionValues}
           onToggleAgentOption={onToggleAgentOption}

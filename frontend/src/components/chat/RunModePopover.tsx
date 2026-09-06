@@ -8,13 +8,18 @@ import {
   ToggleLeft,
   Zap,
   Target,
-  Settings2,
   ChevronRight,
   Monitor,
+  Laptop,
 } from "lucide-react";
 import { getRunModePopoverPosition } from "./runModePopoverPosition";
 import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 import { useSandboxStatus } from "../../hooks/useSandboxStatus";
+import {
+  SANDBOX_AGENT_OPTION_KEY,
+  SANDBOX_LOCAL_VALUE,
+  SANDBOX_MACHINE_AGENT_OPTION_KEY,
+} from "./sandboxOption";
 import type { AgentOption } from "../../types";
 
 interface RunModePopoverProps {
@@ -36,6 +41,8 @@ interface RunModePopoverProps {
   hasSandboxOption?: boolean;
   sandboxLabel?: string;
   onOpenSandboxPanel?: () => void;
+  /** 机器选择器入口（本地档 + 在线机器时显示，点击打开 machine 面板）。 */
+  onOpenMachinePanel?: () => void;
   booleanAgentOptions?: Record<string, AgentOption>;
   agentOptionValues?: Record<string, boolean | string | number>;
   onToggleAgentOption?: (key: string, value: boolean | string | number) => void;
@@ -66,16 +73,35 @@ export function RunModePopover({
   hasSandboxOption,
   sandboxLabel,
   onOpenSandboxPanel,
+  onOpenMachinePanel,
   booleanAgentOptions,
   agentOptionValues = {},
   onToggleAgentOption,
 }: RunModePopoverProps) {
   const { t } = useTranslation();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  // 沙箱条目上的 daemon 在线状态点（绿=在线，灰=离线）。
+  // 沙箱条目上的 daemon 在线状态点（绿=在线，灰=离线）+ 机器入口的在线机器列表。
   // 轮询门控：仅 popover 展开时拉取/轮询（关闭期间浮层不可见，不空转 10s
   // 轮询）；ChatInputSelectors 的常驻实例保持 always-on 不受影响。
-  const { online: sandboxOnline } = useSandboxStatus({ enabled: open });
+  const { online: sandboxOnline, machines } = useSandboxStatus({
+    enabled: open,
+  });
+
+  // 机器子入口：仅本地档且有在线机器时出现（云端档无执行目标可选）
+  const sandboxTier = agentOptionValues[SANDBOX_AGENT_OPTION_KEY];
+  const selectedMachineId = agentOptionValues[SANDBOX_MACHINE_AGENT_OPTION_KEY];
+  const selectedMachine = machines.find(
+    (m) =>
+      typeof selectedMachineId === "string" &&
+      m.machine_id === selectedMachineId,
+  );
+  const machineBadge =
+    (selectedMachine && (selectedMachine.name || selectedMachine.machine_id)) ||
+    t("agentOptions.sandboxMachine.auto");
+  const showMachineEntry =
+    !!onOpenMachinePanel &&
+    sandboxTier === SANDBOX_LOCAL_VALUE &&
+    machines.length > 0;
 
   const hasSettings =
     hasAgentSelector ||
@@ -136,16 +162,8 @@ export function RunModePopover({
     >
       {/* ── Run Mode group ── */}
       <div className="feature-menu-group" role="group">
-        <div
-          className="feature-menu-group-header"
-          style={{ cursor: "default", pointerEvents: "none" }}
-        >
-          <span className="feature-menu-group-icon">
-            <Settings2 size={18} />
-          </span>
-          <span className="flex-1 text-left truncate">
-            {t("mode.title", "Run Mode")}
-          </span>
+        <div className="run-mode-section-label">
+          {t("mode.title", "Run Mode")}
         </div>
         <div className="feature-menu-group-body" data-expanded>
           <div className="feature-menu-group-inner">
@@ -194,9 +212,6 @@ export function RunModePopover({
             className="feature-menu-group-header"
             onClick={() => setSettingsExpanded((v) => !v)}
           >
-            <span className="feature-menu-group-icon">
-              <Settings2 size={18} />
-            </span>
             <span className="flex-1 text-left truncate">
               {t("featureMenu.settings", "Settings")}
             </span>
@@ -283,11 +298,40 @@ export function RunModePopover({
                   {/* daemon 在线状态点：锚定在可见的触发条目上，绿=在线，灰=离线 */}
                   <span
                     data-sandbox-status-dot
+                    title={
+                      sandboxOnline
+                        ? t("profile.localSandbox.statusOnline")
+                        : t("profile.localSandbox.statusOffline")
+                    }
                     className="h-1.5 w-1.5 shrink-0 rounded-full"
                     style={{
                       background: sandboxOnline ? "#22c55e" : "#a8a29e",
                     }}
                   />
+                  <ChevronRight size={14} className="feature-menu-chevron" />
+                </button>
+              )}
+
+              {/* Machine（本地档的执行目标，沙箱条目的子项） */}
+              {showMachineEntry && (
+                <button
+                  type="button"
+                  className="feature-menu-item run-mode-subitem"
+                  data-machine-entry
+                  onClick={() => {
+                    onOpenMachinePanel?.();
+                    onClose();
+                  }}
+                >
+                  <span className="feature-menu-item-icon">
+                    <Laptop size={16} />
+                  </span>
+                  <span className="flex-1 text-left truncate">
+                    {t("agentOptions.sandboxMachine.label")}
+                  </span>
+                  <span className="feature-menu-item-badge font-serif">
+                    {machineBadge}
+                  </span>
                   <ChevronRight size={14} className="feature-menu-chevron" />
                 </button>
               )}

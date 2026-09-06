@@ -1957,7 +1957,6 @@
     "users": "管理用户账户和访问权限"
   },
   "notification": {
-    "active": "已激活",
     "cancel": "取消",
     "collapse": "收起详情",
     "contentLabel": "内容",
@@ -1972,7 +1971,6 @@
     "endTime": "结束时间",
     "expand": "展开详情",
     "expired": "已过期",
-    "inactive": "未激活",
     "isActive": "启用",
     "noNotifications": "暂无通知",
     "save": "保存",
@@ -2142,6 +2140,14 @@
     "lightTheme": "浅色",
     "limitedSupport": "部分支持",
     "loading": "加载中...",
+    "serverUrl": {
+      "title": "服务器",
+      "desc": "应用连接的 LambChat 服务端地址；修改后将刷新应用并需要重新登录。",
+      "change": "修改",
+      "cancel": "取消",
+      "reset": "恢复默认",
+      "resetTitle": "清除运行时配置，恢复安装包内置的默认服务器"
+    },
     "localSandbox": {
       "title": "本地沙箱",
       "desc": "Agent 通过桌面端在你自己的电脑上执行命令与文件读写",
@@ -2162,7 +2168,8 @@
       "openWorkspaces": "打开工作区目录",
       "openAudit": "打开审计目录",
       "restartDaemon": "重启 daemon",
-      "needDesktop": "本地沙箱需要 LambChat 桌面端，网页端仅支持云端沙箱。",
+      "needDesktop": "本地沙箱当前离线：用 LambChat 桌面端配对连接后，即可在网页端选用本地沙箱。",
+      "webManaged": "由已配对的桌面端管理",
       "pairFailed": "配对失败，请检查账号密码后重试",
       "unpair": "取消配对",
       "unpaired": "已取消配对",

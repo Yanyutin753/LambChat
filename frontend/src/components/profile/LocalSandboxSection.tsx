@@ -37,15 +37,19 @@ type ConfirmPolicy = (typeof CONFIRM_POLICY_OPTIONS)[number]["key"];
 /** daemon 连接的服务端地址：运行时配置（打包壳首启设置）优先，构建期
  * API_BASE 次之；同源部署回退 origin。 */
 function resolveServerUrl(): string {
-  return effectiveApiBase() || (typeof window !== "undefined" ? window.location.origin : "");
+  return (
+    effectiveApiBase() ||
+    (typeof window !== "undefined" ? window.location.origin : "")
+  );
 }
 
 /**
  * 设置页"本地沙箱"分区。
  *
- * 动态适配：纯 web 只渲染"需要桌面端"提示；壳内按配对态渲染
- * 状态行 + 配对表单（无副作用 login → 铸 PAT → savePairing → restartDaemon）
- * 或策略/目录/重启/取消配对控制行。
+ * 动态适配：纯 web 在 daemon 在线（桌面端已配对连接）时渲染状态行 +
+ * 机器列表（会话里可选本地档与执行机器），离线时渲染配对引导提示；
+ * 壳内按配对态渲染状态行 + 配对表单（无副作用 login → 铸 PAT →
+ * savePairing → restartDaemon）或策略/目录/重启/取消配对控制行。
  *
  * ``embedded``：嵌入"沙箱"合并卡渲染——去掉自带卡片壳，只留分区头
  * （带上分隔线）与内容；独立渲染（默认）保持原卡片形态供测试直接引用。
@@ -54,7 +58,11 @@ function resolveServerUrl(): string {
  * 换账号配对不切换壳会话身份）；策略切换只写配置不重铸 PAT；取消配对用
  * 落盘 PAT 调服务端自删端点精准吊销后清理本地凭据。
  */
-export function LocalSandboxSection({ embedded = false }: { embedded?: boolean }) {
+export function LocalSandboxSection({
+  embedded = false,
+}: {
+  embedded?: boolean;
+}) {
   const { t } = useTranslation();
   const shell = isShellAvailable();
   const { status, statusError, online, refresh } = useSandboxStatus();
@@ -117,7 +125,13 @@ export function LocalSandboxSection({ embedded = false }: { embedded?: boolean }
   // 任何失败静默回落配对表单，不循环重试。
   const autoPairHandled = useRef(false);
   useEffect(() => {
-    if (!shell || loading || !unpaired || unpairing || autoPairHandled.current) {
+    if (
+      !shell ||
+      loading ||
+      !unpaired ||
+      unpairing ||
+      autoPairHandled.current
+    ) {
       return;
     }
     autoPairHandled.current = true;
@@ -171,24 +185,57 @@ export function LocalSandboxSection({ embedded = false }: { embedded?: boolean }
   );
 
   if (!shell) {
-    const webHint = (
+    // 纯 web：daemon 在线（桌面端/CLI 已配对连接）→ 状态行 + 机器列表；
+    // 离线 → 配对引导；首帧状态未回 → 骨架（不闪现引导提示）
+    const statusLoading = status === null && statusError === null;
+    const webBody = (
       <>
         {header}
-        <p className="text-xs text-stone-500 dark:text-stone-400">
-          {t("profile.localSandbox.needDesktop")}
-        </p>
+        <div className={embedded ? "mt-2 space-y-0" : "space-y-0"}>
+          {statusLoading ? (
+            <SkeletonLine width="w-full" />
+          ) : online ? (
+            <>
+              <div className="flex w-full items-center justify-between py-3 first:pt-0 last:pb-0 text-left">
+                <span className="flex items-center gap-2 text-sm text-stone-700 dark:text-stone-200">
+                  <span
+                    className="h-2 w-2 rounded-full shrink-0 bg-green-500"
+                    data-sandbox-online={online}
+                  />
+                  {t("profile.localSandbox.statusOnline")}
+                  {status?.daemon_version && (
+                    <span className="text-xs text-stone-500 dark:text-stone-400">
+                      {t("profile.localSandbox.version", {
+                        version: status.daemon_version,
+                      })}
+                    </span>
+                  )}
+                </span>
+                <span className="text-xs text-stone-500 dark:text-stone-400">
+                  {t("profile.localSandbox.webManaged")}
+                </span>
+              </div>
+              {/* 多机管理在 web 同样可用（纯 API：列表/默认机/重命名） */}
+              <SandboxMachinesCard />
+            </>
+          ) : (
+            <p className="text-xs text-stone-500 dark:text-stone-400">
+              {t("profile.localSandbox.needDesktop")}
+            </p>
+          )}
+        </div>
       </>
     );
     if (embedded) {
       return (
         <div className="mt-3 rounded-xl bg-stone-50 dark:bg-stone-700/50 p-3.5 sm:p-4">
-          {webHint}
+          {webBody}
         </div>
       );
     }
     return (
       <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
-        {webHint}
+        {webBody}
       </div>
     );
   }
@@ -266,7 +313,10 @@ export function LocalSandboxSection({ embedded = false }: { embedded?: boolean }
         try {
           await sandboxApi.revokePairingPat(storedPat);
         } catch (err) {
-          console.warn("[LocalSandboxSection] server-side PAT revoke failed:", err);
+          console.warn(
+            "[LocalSandboxSection] server-side PAT revoke failed:",
+            err,
+          );
         }
       }
       await clearPairing();
@@ -363,7 +413,9 @@ export function LocalSandboxSection({ embedded = false }: { embedded?: boolean }
               disabled={pairing || !username.trim() || !password}
               className="w-full rounded-xl bg-amber-500 disabled:opacity-50 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-600"
             >
-              {pairing ? t("common.loading") : t("profile.localSandbox.pairButton")}
+              {pairing
+                ? t("common.loading")
+                : t("profile.localSandbox.pairButton")}
             </button>
           </form>
         ) : (

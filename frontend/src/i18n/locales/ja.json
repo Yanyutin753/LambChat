@@ -1957,7 +1957,6 @@
     "users": "ユーザーアカウントとアクセスの管理"
   },
   "notification": {
-    "active": "アクティブ",
     "cancel": "キャンセル",
     "collapse": "詳細を隠す",
     "contentLabel": "内容",
@@ -1972,7 +1971,6 @@
     "endTime": "終了時刻",
     "expand": "詳細を表示",
     "expired": "期限切れ",
-    "inactive": "非アクティブ",
     "isActive": "有効",
     "noNotifications": "お知らせはありません",
     "save": "保存",
@@ -2142,6 +2140,14 @@
     "lightTheme": "ライト",
     "limitedSupport": "一部対応",
     "loading": "読み込み中...",
+    "serverUrl": {
+      "title": "サーバー",
+      "desc": "アプリが接続する LambChat サーバーのアドレスです。変更するとアプリが再読み込みされ、再度ログインが必要になります。",
+      "change": "変更",
+      "cancel": "キャンセル",
+      "reset": "デフォルトに戻す",
+      "resetTitle": "実行時の設定をクリアし、インストールパッケージ既定のサーバーに戻します"
+    },
     "localSandbox": {
       "title": "ローカルサンドボックス",
       "desc": "デスクトップアプリを介して、あなた自身のPC上でコマンドとファイル操作を実行します",
@@ -2162,7 +2168,8 @@
       "openWorkspaces": "ワークスペースを開く",
       "openAudit": "監査フォルダを開く",
       "restartDaemon": "daemon を再起動",
-      "needDesktop": "ローカルサンドボックスには LambChat デスクトップアプリが必要です。ウェブではクラウドサンドボックスのみ利用できます。",
+      "needDesktop": "ローカルサンドボックスは現在オフラインです。LambChat デスクトップアプリでペアリングすると、ウェブでも利用できます。",
+      "webManaged": "ペアリング済みデスクトップアプリで管理",
       "pairFailed": "ペアリングに失敗しました。認証情報を確認して再試行してください。",
       "unpair": "ペアリング解除",
       "unpaired": "ペアリングを解除しました",
