@@ -35,23 +35,34 @@ jobs:
         include:
           # pbs_platform：fetch-pbs.py 的 --platform 取值（内嵌 Python 运行时
           # 归档按平台落 resources/python/<tag>/，与 daemon 平台一一对应）
+          # updater_*：即发即传时增量合并 latest.json 的平台条目（macOS 暂无
+          # updater 产物，不配置即跳过该步）
           - label: Linux x86_64
             runner: ubuntu-latest
             bundles: appimage,deb,rpm
             artifact_slug: linux-x86_64
             arch: x86_64
             pbs_platform: linux-x86_64
+            updater_key: linux-x86_64
+            updater_sig: "*_amd64.AppImage.sig"
+            updater_asset_suffix: Linux-x86_64.AppImage
           - label: Linux ARM64
             runner: ubuntu-24.04-arm
             bundles: appimage,deb,rpm
             artifact_slug: linux-arm64
             arch: arm64
             pbs_platform: linux-aarch64
+            updater_key: linux-aarch64
+            updater_sig: "*_aarch64.AppImage.sig"
+            updater_asset_suffix: Linux-arm64.AppImage
           - label: Windows
             runner: windows-2022
             bundles: msi
             artifact_slug: windows
             pbs_platform: windows-x86_64
+            updater_key: windows-x86_64
+            updater_sig: "*_x64_en-US.msi.sig"
+            updater_asset_suffix: Windows.msi
           # M4 裁决：macOS 先 arm64 单架构（macos-14 原生），universal + lipo 属 M5
           - label: macOS
             runner: macos-14
@@ -276,6 +287,72 @@ jobs:
           path: release-assets/*
           if-no-files-found: error
 
+      # 即发即传：本平台构建完成立即上传 Release，不等六端汇总。多 job 并发
+      # 创建同一 Release 的竞态用「已存在即跳过 + 退避重试」收敛；重跑同一
+      # tag 时 --clobber 原地替换同名资产。
+      - name: Publish desktop assets to release immediately
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for delay in 0 5 15; do
+            if [ "$delay" -gt 0 ]; then sleep "$delay"; fi
+            if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              break
+            fi
+            if gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" --title "LambChat $RELEASE_TAG" \
+              --generate-notes >/dev/null 2>&1; then
+              break
+            fi
+          done
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          gh release upload "$RELEASE_TAG" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
+
+      # latest.json 增量合并：本平台 sig 就绪即把平台条目并入已发布的
+      # latest.json（下载-合并-上传）。并发读合写的丢条目竞态由汇总 job 的
+      # 权威重生成兜底。node 合并：三平台镜像都装了 Node，规避 Windows 无
+      # python3 的可执行名差异。
+      - name: Merge updater platform entry into latest.json
+        if: matrix.updater_key != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPDATER_KEY: ${{ matrix.updater_key }}
+          UPDATER_SIG: ${{ matrix.updater_sig }}
+          UPDATER_ASSET_SUFFIX: ${{ matrix.updater_asset_suffix }}
+        run: |
+          set -euo pipefail
+          sig_file="$(compgen -G "release-assets/$UPDATER_SIG" | head -1 || true)"
+          if [ -z "$sig_file" ]; then
+            echo "No sig matches $UPDATER_SIG; skip latest.json merge"
+            exit 0
+          fi
+          export SIG_FILE="$sig_file"
+          rm -f latest.json
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern latest.json --dir . >/dev/null 2>&1 || true
+          node -e '
+            const fs = require("fs");
+            const key = process.env.UPDATER_KEY;
+            const signature = fs.readFileSync(process.env.SIG_FILE, "utf8").trim();
+            const asset = `LambChat-${process.env.RELEASE_TAG}-${process.env.UPDATER_ASSET_SUFFIX}`;
+            const base = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/${process.env.RELEASE_TAG}`;
+            let manifest = {};
+            if (fs.existsSync("latest.json")) {
+              try { manifest = JSON.parse(fs.readFileSync("latest.json", "utf8")); } catch {}
+            }
+            manifest.platforms = manifest.platforms || {};
+            manifest.platforms[key] = { signature, url: `${base}/${asset}` };
+            manifest.version = JSON.parse(fs.readFileSync("frontend/src-tauri/tauri.conf.json", "utf8")).version;
+            manifest.notes = `LambChat ${process.env.RELEASE_TAG}`;
+            manifest.pub_date = new Date().toISOString().replace(/\.\d+Z$/, "Z");
+            fs.writeFileSync("latest.json", JSON.stringify(manifest, null, 2));
+            console.log("latest.json platforms:", Object.keys(manifest.platforms).sort().join(", "));
+          '
+          gh release upload "$RELEASE_TAG" latest.json --clobber --repo "$GITHUB_REPOSITORY"
+
   android:
     name: Android
     runs-on: ubuntu-latest
@@ -369,6 +446,28 @@ jobs:
           path: release-assets/*
           if-no-files-found: error
 
+      # 即发即传：不等六端汇总（与 desktop job 同款创建竞态收敛）
+      - name: Publish Android assets to release immediately
+        if: steps.android-artifact.outputs.has_artifact == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for delay in 0 5 15; do
+            if [ "$delay" -gt 0 ]; then sleep "$delay"; fi
+            if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              break
+            fi
+            if gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" --title "LambChat $RELEASE_TAG" \
+              --generate-notes >/dev/null 2>&1; then
+              break
+            fi
+          done
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          gh release upload "$RELEASE_TAG" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
+
   ios:
     name: iOS
     runs-on: macos-latest
@@ -448,6 +547,27 @@ jobs:
           path: release-assets/*
           if-no-files-found: error
 
+      # 即发即传：不等六端汇总（与 desktop job 同款创建竞态收敛）
+      - name: Publish iOS archive to release immediately
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for delay in 0 5 15; do
+            if [ "$delay" -gt 0 ]; then sleep "$delay"; fi
+            if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              break
+            fi
+            if gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" --title "LambChat $RELEASE_TAG" \
+              --generate-notes >/dev/null 2>&1; then
+              break
+            fi
+          done
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          gh release upload "$RELEASE_TAG" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
+
   release:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
@@ -456,6 +576,9 @@ jobs:
       - android
       - ios
     if: always()
+    # 即发即传改造后本 job 的职责：① 权威重生成完整 latest.json（修复各
+    # 平台增量合并的读-合-写竞态丢条目）；② 部分平台失败时的打捞重发
+    # （needs + always()，资产已即时上传的 --clobber 原地替换幂等）。
 
     steps:
       # checkout 必须先于 artifact 下载：actions/checkout@v4.2+ 在 init 前
