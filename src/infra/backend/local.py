@@ -133,12 +133,24 @@ class LocalSandboxBackend(BaseSandbox):
         # 构造时由 wiring 经 sync_sandbox_env_vars 注入；env_var 工具运行中
         # 改动时同一 helper 经 hasattr 探测写入，后续 exec 即时生效。
         self.env_vars: dict[str, str] = dict(env_vars) if env_vars else {}
+        # 平台粘滞缓存：注册表查询瞬断（redis 抖动等）时复用最近一次成功值，
+        # 不让已确认 win32 的会话翻回 posix 分支（多行 POSIX 脚本在 cmd.exe
+        # 上产出垃圾输出——2026-09-06 生产事故的连锁之一）。None = 从未解析。
+        self._sticky_platform: str | None = None
 
     async def _resolve_platform(self) -> str:
-        """本次命令生成所用平台：显式 hint 优先，否则查注册表（容错 posix）。"""
+        """本次命令生成所用平台：显式 hint 优先，否则查注册表（容错 posix）。
+
+        查询失败（空串）时回退粘滞缓存；从未成功解析过的会话才按空串归一
+        posix（现状零变化）。
+        """
         if self._platform_hint is not None:
             return self._platform_hint
-        return await _lookup_daemon_platform(self._user_id, self._machine_id)
+        platform = await _lookup_daemon_platform(self._user_id, self._machine_id)
+        if platform:
+            self._sticky_platform = platform
+            return platform
+        return self._sticky_platform or ""
 
     @property
     def id(self) -> str:

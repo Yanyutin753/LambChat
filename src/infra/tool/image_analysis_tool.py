@@ -369,6 +369,8 @@ async def image_analyze(
             }
         )
     except Exception as exc:
+        # 只记异常类型不记正文：LLM 异常消息可能内嵌请求体（图片 data URL），
+        # 全量落日志会泄露用户内容（test_image_analyze_model_error_omits_request_content 守卫）。
         logger.warning(
             "[image_analyze] failed: error_type=%s",
             type(exc).__name__,

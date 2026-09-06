@@ -67,12 +67,21 @@ async def worker_startup(ctx: dict[str, Any]) -> None:
     del ctx
     validate_distributed_runtime_settings(settings)
 
+    # 登记本进程事件循环：本地沙箱同步文件操作的协程桥接统一投递到该循环，
+    # 共享 redis.asyncio 连接池不再跨循环复用（对齐 API 进程 lifespan 的登记）
+    from src.infra.async_utils import loop_bridge
+
+    loop_bridge.set_main_loop(asyncio.get_running_loop())
+
 
 async def worker_shutdown(ctx: dict[str, Any]) -> None:
     """Mark the worker process as shutting down so recovery entrypoints go quiet."""
     del ctx
+    from src.infra.async_utils import loop_bridge
+
     from .lifecycle import mark_shutting_down
 
+    loop_bridge.clear_main_loop()
     mark_shutting_down()
 
 
