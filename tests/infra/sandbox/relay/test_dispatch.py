@@ -40,6 +40,13 @@ class _FakeRegistry:
     async def is_online(self, user_id: str) -> bool:
         return self.online
 
+    async def resolve_target(self, user_id: str, machine_id: str | None = None):
+        return "legacy" if self.online else None
+
+    def queue_key(self, user_id: str, machine_id: str) -> str:
+        # legacy 路由：旧断言的队列键（无机器后缀）
+        return f"sandbox:req:{user_id}"
+
 
 @pytest.fixture
 def fake(monkeypatch):
@@ -84,6 +91,75 @@ async def test_offline_fails_fast(fake, monkeypatch):
     assert not fake.lists  # rpush 之前快速失败，不产生孤儿请求
 
 
+async def test_exec_done_error_status_returns_command_outcome(fake, monkeypatch):
+    """exec 的非零退出码是命令结局而非中继故障：done 载荷带 executor 结果字段
+    （stdout/stderr/exit_code）时原样回传，由 aexecute 构造 ExecuteResponse 让
+    模型看到真实输出（Windows cmd.exe 上命令失败是常态，不能全部变成不透明
+    AppError——生产实测模型连续 6 条命令只见 "execution failed"，无从纠错）。"""
+    monkeypatch.setattr(dispatch_module, "_POLL_INTERVAL", 0.01)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 2)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_EXEC_TIMEOUT", 5)
+
+    async def daemon():
+        await asyncio.sleep(0.02)
+        req = json.loads(await fake.lpop("sandbox:req:u1"))
+        await fake.set(
+            f"sandbox:resp:{req['call_id']}",
+            json.dumps(
+                {
+                    "user_id": "u1",
+                    "stage": "ack",
+                }
+            ),
+        )
+        await asyncio.sleep(0.02)
+        await fake.set(
+            f"sandbox:resp:{req['call_id']}",
+            json.dumps(
+                {
+                    "user_id": "u1",
+                    "stage": "done",
+                    "status": "error",
+                    "stdout": "",
+                    "stderr": "'free' is not recognized as an internal or external command",
+                    "exit_code": 1,
+                    "error": None,
+                }
+            ),
+        )
+
+    task = asyncio.create_task(daemon())
+    result = await dispatch_local_call("u1", "exec", {"command": "free -h"})
+    await task
+    assert result["exit_code"] == 1
+    assert "not recognized" in result["stderr"]
+
+
+async def test_fs_op_done_error_status_still_raises(fake, monkeypatch):
+    """fs_* op 的 status=error 是 daemon 内部异常（ExecutorError 等）：仍按
+    SANDBOX_EXEC_FAILED 上抛；detail 取 error 字段（None 不落成字面 "None"）。"""
+    monkeypatch.setattr(dispatch_module, "_POLL_INTERVAL", 0.01)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 2)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_EXEC_TIMEOUT", 5)
+
+    async def daemon():
+        await asyncio.sleep(0.02)
+        req = json.loads(await fake.lpop("sandbox:req:u1"))
+        await fake.set(
+            f"sandbox:resp:{req['call_id']}",
+            json.dumps(
+                {"user_id": "u1", "stage": "done", "status": "error", "error": "illegal cwd"}
+            ),
+        )
+
+    task = asyncio.create_task(daemon())
+    with pytest.raises(AppError) as exc:
+        await dispatch_local_call("u1", "fs_read", {"path": "a.txt"})
+    await task
+    assert exc.value.error_code == ErrorCode.SANDBOX_EXEC_FAILED
+    assert exc.value.args_data == {"detail": "illegal cwd"}
+
+
 async def test_ack_timeout_raises(fake, monkeypatch):
     monkeypatch.setattr(dispatch_module, "_POLL_INTERVAL", 0.01)
     monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 0.05)
@@ -112,3 +188,55 @@ async def test_exec_timeout_raises_after_ack(fake, monkeypatch):
     await task
     assert exc.value.error_code == ErrorCode.SANDBOX_TIMEOUT
     assert exc.value.args_data == {"seconds": 0}  # int(0.05)，区别于 ack 超时路径
+
+
+# ---------------------------------------------------------------------------
+# 多机：machine_id 路由与离线语义
+# ---------------------------------------------------------------------------
+
+
+class _MachinesFakeRegistry:
+    """resolve_target/queue_key 可控行为：online_machine 控制 resolve 结果。"""
+
+    def __init__(self, resolved: str | None):
+        self.resolved = resolved
+
+    async def is_online(self, user_id: str) -> bool:
+        return self.resolved is not None
+
+    async def resolve_target(self, user_id: str, machine_id: str | None = None):
+        return self.resolved
+
+    def queue_key(self, user_id: str, machine_id: str) -> str:
+        return f"sandbox:req:{user_id}:{machine_id}"
+
+
+async def test_dispatch_routes_to_selected_machine_queue(monkeypatch):
+    redis = _FakeRedis()
+    monkeypatch.setattr(dispatch_module, "_redis", lambda: redis)
+    monkeypatch.setattr(dispatch_module, "_registry", lambda: _MachinesFakeRegistry("mac1"))
+    monkeypatch.setattr(dispatch_module, "_POLL_INTERVAL", 0.01)
+
+    async def fake_get(key):
+        return json.dumps({"user_id": "u1", "stage": "done", "status": "ok"})
+
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 1)
+    import contextlib
+
+    with contextlib.suppress(Exception):
+        # 只验证入队键：done 立即返回，不等待超时
+        async def fast_get(key):
+            return json.dumps({"user_id": "u1", "stage": "done", "status": "ok"})
+
+        redis.get = fast_get  # type: ignore[method-assign]
+        await dispatch_local_call("u1", "exec", {"command": "ls"}, machine_id="mac1")
+    assert list(redis.lists) == ["sandbox:req:u1:mac1"]
+
+
+async def test_dispatch_selected_machine_offline_raises_machine_error(monkeypatch):
+    redis = _FakeRedis()
+    monkeypatch.setattr(dispatch_module, "_redis", lambda: redis)
+    monkeypatch.setattr(dispatch_module, "_registry", lambda: _MachinesFakeRegistry(None))
+    with pytest.raises(AppError) as exc_info:
+        await dispatch_local_call("u1", "exec", {"command": "ls"}, machine_id="mac1")
+    assert exc_info.value.error_code == ErrorCode.SANDBOX_MACHINE_OFFLINE

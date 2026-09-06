@@ -254,6 +254,11 @@
       },
       "offlineHint": "本地沙箱离线，请先在设置中配对",
       "restoredOffline": "已保存的本地沙箱档当前离线"
+    },
+    "sandboxMachine": {
+      "label": "机器",
+      "description": "选择本地沙箱命令的执行机器",
+      "auto": "自动（默认机）"
     }
   },
   "agents": {
@@ -646,7 +651,9 @@
     "sandboxTimeout": "本地沙箱调用超时（{{seconds}} 秒）",
     "sandboxPayloadTooLarge": "本地沙箱载荷超限",
     "sandboxExecFailed": "本地沙箱执行失败：{{detail}}",
-    "daemonVersionUnsupported": "本地沙箱守护进程版本 {{version}} 低于最低要求 {{min}}，请升级"
+    "daemonVersionUnsupported": "本地沙箱守护进程版本 {{version}} 低于最低要求 {{min}}，请升级",
+    "sandboxMachineOffline": "所选沙箱机器「{{machine}}」当前离线",
+    "sandboxMachineNotFound": "沙箱机器「{{machine}}」不存在或已移除"
   },
   "categories": {
     "agent": "代理",
@@ -2158,7 +2165,22 @@
       "needDesktop": "本地沙箱需要 LambChat 桌面端，网页端仅支持云端沙箱。",
       "pairFailed": "配对失败，请检查账号密码后重试",
       "unpair": "取消配对",
-      "unpaired": "已取消配对"
+      "unpaired": "已取消配对",
+      "machines": "我的机器",
+      "machinesDesc": "已连接的本地沙箱机器；会话中可选择执行目标，默认机用于未选择时。",
+      "machinesEmpty": "暂无在线机器",
+      "currentServer": "当前服务器：",
+      "setDefault": "设为默认",
+      "defaultBadge": "默认",
+      "rename": "重命名",
+      "renameSave": "保存",
+      "renameCancel": "取消",
+      "platform": {
+        "windows": "Windows",
+        "macos": "macOS",
+        "linux": "Linux",
+        "unknown": "未知平台"
+      }
     },
     "maxPinnedModels": "最多置顶 {{max}} 个模型",
     "memoryToggle": "跨会话记忆",

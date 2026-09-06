@@ -130,3 +130,66 @@ export const sandboxApi = {
     }
   },
 };
+
+// ---------------------------------------------------------------------------
+// 多机 daemon：机器列表与管理
+// ---------------------------------------------------------------------------
+
+/** 在线机器条目（GET /api/sandbox/machines）。 */
+export interface SandboxMachine {
+  machine_id: string;
+  name: string;
+  platform: string;
+  version: string;
+  confirm_policy: string;
+  online: boolean;
+}
+
+export interface SandboxMachinesResponse {
+  machines: SandboxMachine[];
+  default_machine_id: string | null;
+}
+
+export const sandboxApiMachines = {
+  /** 在线机器列表 + 当前默认机（PAT/JWT 双通道） */
+  async listMachines(): Promise<SandboxMachinesResponse> {
+    return authFetch<SandboxMachinesResponse>(`${API_BASE}/api/sandbox/machines`);
+  },
+
+  /** 设默认机：无会话级选择时的执行目标 */
+  async setDefaultMachine(machineId: string): Promise<void> {
+    await authFetch(`${API_BASE}/api/sandbox/machines/${encodeURIComponent(machineId)}/default`, {
+      method: "PUT",
+    });
+  },
+
+  /** 重命名机器（rename 覆盖层，daemon 重连不冲掉自定义名） */
+  async renameMachine(machineId: string, name: string): Promise<void> {
+    await authFetch(`${API_BASE}/api/sandbox/machines/${encodeURIComponent(machineId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+  },
+
+  /** 移除离线机器（清集合、rename 与默认机指向） */
+  async forgetMachine(machineId: string): Promise<void> {
+    await authFetch(`${API_BASE}/api/sandbox/machines/${encodeURIComponent(machineId)}`, {
+      method: "DELETE",
+    });
+  },
+};
+
+/** 机器展示纯函数：平台 → 图标语义标签（选择器/设置卡共用）。 */
+export function machinePlatformLabel(platform: string, t: (k: string) => string): string {
+  switch (platform) {
+    case "win32":
+      return t("profile.localSandbox.platform.windows");
+    case "darwin":
+      return t("profile.localSandbox.platform.macos");
+    case "linux":
+      return t("profile.localSandbox.platform.linux");
+    default:
+      return platform || t("profile.localSandbox.platform.unknown");
+  }
+}

@@ -74,15 +74,15 @@ logger = get_logger(__name__)
 T = TypeVar("T")
 
 
-async def _lookup_daemon_platform(user_id: str) -> str:
-    """经注册表查当前活跃 daemon 的上报平台（win32/linux/darwin）。
+async def _lookup_daemon_platform(user_id: str, machine_id: str | None = None) -> str:
+    """经注册表查目标机 daemon 的上报平台（win32/linux/darwin）。
 
     一次 redis 读（注册表 value 第三段，M4 T3）；离线/旧格式/未上报返回
     空串，任何故障（redis 不可达等）也回落空串——空串在 :func:`_platform_ctx`
     归一为 posix，文件操作不因平台查询失败而中断。
     """
     try:
-        return await SandboxClientRegistry().get_platform(user_id)
+        return await SandboxClientRegistry().get_platform(user_id, machine_id)
     except Exception:  # noqa: BLE001 - 平台查询尽力而为，失败回落 posix
         logger.warning("daemon platform lookup failed for user %s; falling back to posix", user_id)
         return ""
@@ -119,9 +119,12 @@ class LocalSandboxBackend(BaseSandbox):
         exec_timeout: int | None = None,
         platform_hint: str | None = None,
         env_vars: dict[str, str] | None = None,
+        machine_id: str | None = None,
     ):
         self._user_id = user_id
         self._session_id = session_id
+        # 会话级选机（多机 daemon）：None = 注册表默认解析（默认机→唯一在线→legacy）
+        self._machine_id = machine_id
         self._exec_timeout = exec_timeout or settings.SANDBOX_LOCAL_EXEC_TIMEOUT
         # 显式平台提示（构造期已知 daemon 平台的 wiring/测试用）；None = 每次
         # 文件操作前经注册表查当前活跃 daemon 的平台（一次 redis 读）。
@@ -135,7 +138,7 @@ class LocalSandboxBackend(BaseSandbox):
         """本次命令生成所用平台：显式 hint 优先，否则查注册表（容错 posix）。"""
         if self._platform_hint is not None:
             return self._platform_hint
-        return await _lookup_daemon_platform(self._user_id)
+        return await _lookup_daemon_platform(self._user_id, self._machine_id)
 
     @property
     def id(self) -> str:
@@ -173,11 +176,15 @@ class LocalSandboxBackend(BaseSandbox):
             "exec",
             payload,
             timeout=float(timeout or self._exec_timeout),
+            machine_id=self._machine_id,
         )
         stdout = result.get("stdout") or ""
         stderr = result.get("stderr") or ""
+        # executor 错误标记（timeout/expired）：并入 output 让模型能区分
+        # 「命令超时/迟到」与「命令以非零码退出」（后者的 error 为 None）。
+        error = str(result.get("error") or "")
         # ExecuteResponse 只有合并 output 字段（protocol.py），照 E2BBackend 的拼接方式
-        output = f"{stdout}\n{stderr}" if stdout and stderr else (stdout or stderr)
+        output = "\n".join(part for part in (stdout, stderr, error) if part)
         exit_code = result.get("exit_code")
         # 缺失 exit_code 透传 None（协议：未确定），不伪装成 0 成功
         return ExecuteResponse(
@@ -345,6 +352,7 @@ class LocalSandboxBackend(BaseSandbox):
             "exec",
             {"command": self._download_command(path, platform=platform), "cwd": self.work_dir},
             timeout=float(self._exec_timeout),
+            machine_id=self._machine_id,
         )
         return self._download_response(path, result)
 
@@ -456,6 +464,7 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
             op,
             {**payload, "cwd": self.work_dir},
             timeout=float(self._exec_timeout),
+            machine_id=self._machine_id,
         )
         result = resp.get("result")
         return result if isinstance(result, dict) else {}

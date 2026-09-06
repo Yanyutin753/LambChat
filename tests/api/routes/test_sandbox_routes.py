@@ -55,18 +55,36 @@ class _FakeRegistry:
         self.heartbeats: list[tuple[str, str, str, str, str, str]] = []
 
     async def register(
-        self, user_id, client_id, node_id, *, version="", platform="", confirm_policy=""
+        self,
+        user_id,
+        client_id,
+        node_id,
+        *,
+        version="",
+        platform="",
+        confirm_policy="",
+        machine_id="",
+        machine_name="",
     ):
         self.active = (client_id, node_id)
         self.registered.append((user_id, client_id, node_id, version, platform, confirm_policy))
 
     async def heartbeat(
-        self, user_id, client_id, node_id, *, version="", platform="", confirm_policy=""
+        self,
+        user_id,
+        client_id,
+        node_id,
+        *,
+        version="",
+        platform="",
+        confirm_policy="",
+        machine_id="",
+        machine_name="",
     ):
         self.beats += 1
         self.heartbeats.append((user_id, client_id, node_id, version, platform, confirm_policy))
 
-    async def unregister(self, user_id, client_id):
+    async def unregister(self, user_id, client_id, machine_id=""):
         self.unregistered.append((user_id, client_id))
 
     async def is_online(self, user_id):
@@ -379,7 +397,17 @@ async def test_channel_registers_confirm_policy_from_query(monkeypatch):
     seen: dict[str, object] = {}
 
     async def fake_frames(
-        redis, reg, user_id, client_id, *, stop, version="", platform="", confirm_policy=""
+        redis,
+        reg,
+        user_id,
+        client_id,
+        *,
+        stop,
+        version="",
+        platform="",
+        confirm_policy="",
+        machine_id="",
+        machine_name="",
     ):
         seen["confirm_policy"] = confirm_policy
         if False:  # pragma: no cover - 使其成为 async generator（空流即结束）
@@ -417,7 +445,17 @@ async def test_channel_registers_version_from_query(monkeypatch):
     seen: dict[str, object] = {}
 
     async def fake_frames(
-        redis, reg, user_id, client_id, *, stop, version="", platform="", confirm_policy=""
+        redis,
+        reg,
+        user_id,
+        client_id,
+        *,
+        stop,
+        version="",
+        platform="",
+        confirm_policy="",
+        machine_id="",
+        machine_name="",
     ):
         seen["version"] = version
         seen["platform"] = platform
@@ -452,7 +490,17 @@ async def test_channel_registers_platform_from_query(monkeypatch):
     seen: dict[str, object] = {}
 
     async def fake_frames(
-        redis, reg, user_id, client_id, *, stop, version="", platform="", confirm_policy=""
+        redis,
+        reg,
+        user_id,
+        client_id,
+        *,
+        stop,
+        version="",
+        platform="",
+        confirm_policy="",
+        machine_id="",
+        machine_name="",
     ):
         seen["platform"] = platform
         if False:  # pragma: no cover - 使其成为 async generator（空流即结束）
@@ -529,7 +577,17 @@ async def test_channel_allows_version_at_or_above_min(monkeypatch):
     seen: list[str] = []
 
     async def fake_frames(
-        redis, reg, user_id, client_id, *, stop, version="", platform="", confirm_policy=""
+        redis,
+        reg,
+        user_id,
+        client_id,
+        *,
+        stop,
+        version="",
+        platform="",
+        confirm_policy="",
+        machine_id="",
+        machine_name="",
     ):
         seen.append(version)
         if False:  # pragma: no cover - 空 async generator
@@ -549,7 +607,17 @@ async def test_channel_allows_equal_min_with_nonnumeric_suffix(monkeypatch):
     monkeypatch.setattr(sandbox_route.settings, "SANDBOX_MIN_DAEMON_VERSION", "0.2.0")
 
     async def fake_frames(
-        redis, reg, user_id, client_id, *, stop, version="", platform="", confirm_policy=""
+        redis,
+        reg,
+        user_id,
+        client_id,
+        *,
+        stop,
+        version="",
+        platform="",
+        confirm_policy="",
+        machine_id="",
+        machine_name="",
     ):
         if False:  # pragma: no cover - 空 async generator
             yield ""

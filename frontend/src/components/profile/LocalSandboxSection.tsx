@@ -22,6 +22,7 @@ import {
 } from "../../services/tauri/sandboxShell";
 import { SkeletonLine } from "../skeletons";
 import { SelectRow } from "./SelectRow";
+import { SandboxMachinesCard } from "./SandboxMachinesCard";
 
 const PROCESS_POLL_INTERVAL_MS = 10 * 1000;
 
@@ -415,6 +416,9 @@ export function LocalSandboxSection({ embedded = false }: { embedded?: boolean }
                   : t("profile.localSandbox.unpair")}
               </button>
             </div>
+
+            {/* 多机管理：在线机器列表 + 默认机/重命名 + 当前服务器地址 */}
+            <SandboxMachinesCard />
           </>
         )}
       </div>

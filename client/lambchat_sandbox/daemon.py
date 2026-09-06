@@ -55,6 +55,14 @@ DEFAULT_AUDIT_ROOT = Path.home() / ".lambchat" / "audit"
 DEFAULT_EXEC_TIMEOUT_S = 60.0  # 帧缺失/非正 timeout 的兜底，避免 communicate(timeout=0) 立即超时
 DAEMON_AUDIT_SESSION = "daemon"  # shutdown 等进程级事件的审计会话（过 Auditor 白名单）
 
+
+def _default_machine_name() -> str:
+    """machine_name 未配置时的展示名退回 hostname（截断防超长 URL）。"""
+    import socket
+
+    return socket.gethostname()[:64]
+
+
 _DONE_KEYS = ("status", "stdout", "stderr", "exit_code", "error")
 
 
@@ -73,7 +81,13 @@ async def run_daemon(
     factory = (
         client_factory
         if client_factory is not None
-        else lambda: ChannelClient(cfg.server_url, pat, confirm_policy=cfg.confirm_policy)
+        else lambda: ChannelClient(
+            cfg.server_url,
+            pat,
+            confirm_policy=cfg.confirm_policy,
+            machine_id=cfg.machine_id,
+            machine_name=cfg.machine_name or _default_machine_name(),
+        )
     )
     # 启动即装配内嵌 Python 运行时（embedded_python=true 且归档在位时）：
     # shim bin 目录前置进 executor 子进程 PATH，python3 命中内嵌解释器。

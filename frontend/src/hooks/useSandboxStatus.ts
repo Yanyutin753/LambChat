@@ -3,7 +3,12 @@
 // 配对/重启完成后由 LocalSandboxSection 派发 sandbox-status-refresh 立即重拉；
 // 聊天输入区的沙箱选择器也消费该状态做动态适配（纯 web 仅在线时渲染本地档）。
 import { useCallback, useEffect, useRef, useState } from "react";
-import { sandboxApi, type SandboxStatus } from "../services/api/sandbox";
+import {
+  sandboxApi,
+  sandboxApiMachines,
+  type SandboxMachine,
+  type SandboxStatus,
+} from "../services/api/sandbox";
 
 const REFRESH_INTERVAL_MS = 10 * 1000;
 export const SANDBOX_STATUS_REFRESH_EVENT = "sandbox-status-refresh";
@@ -34,11 +39,15 @@ export function useSandboxStatus(
   status: SandboxStatus | null;
   statusError: SandboxStatusError;
   online: boolean;
+  machines: SandboxMachine[];
+  defaultMachineId: string | null;
   refresh: () => void;
 } {
   const enabled = options?.enabled ?? true;
   const [status, setStatus] = useState<SandboxStatus | null>(null);
   const [statusError, setStatusError] = useState<SandboxStatusError>(null);
+  const [machines, setMachines] = useState<SandboxMachine[]>([]);
+  const [defaultMachineId, setDefaultMachineId] = useState<string | null>(null);
   const inFlight = useRef(false);
   const pending = useRef(false);
 
@@ -65,22 +74,43 @@ export function useSandboxStatus(
     }
   }, []);
 
+  // 机器列表与状态同一节拍拉取（多机 daemon）；失败静默——单机/旧后端用户
+  // 的机器选择器自然隐藏，不影响既有 status 消费方。
+  const fetchMachines = useCallback(async () => {
+    try {
+      const data = await sandboxApiMachines.listMachines();
+      setMachines(data.machines);
+      setDefaultMachineId(data.default_machine_id);
+    } catch {
+      // 静默：machines 是附加能力，不污染 status 错误通道
+    }
+  }, []);
+
   useEffect(() => {
     if (!enabled) return;
     fetchStatus();
-    const timer = setInterval(fetchStatus, REFRESH_INTERVAL_MS);
-    const onRefresh = () => fetchStatus();
+    fetchMachines();
+    const timer = setInterval(() => {
+      fetchStatus();
+      fetchMachines();
+    }, REFRESH_INTERVAL_MS);
+    const onRefresh = () => {
+      fetchStatus();
+      fetchMachines();
+    };
     window.addEventListener(SANDBOX_STATUS_REFRESH_EVENT, onRefresh);
     return () => {
       clearInterval(timer);
       window.removeEventListener(SANDBOX_STATUS_REFRESH_EVENT, onRefresh);
     };
-  }, [fetchStatus, enabled]);
+  }, [fetchStatus, fetchMachines, enabled]);
 
   return {
     status,
     statusError,
     online: !!status?.online,
+    machines,
+    defaultMachineId,
     refresh: fetchStatus,
   };
 }

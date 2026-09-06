@@ -26,6 +26,7 @@ from src.agents.core.node_utils import (
     resolve_model_supports_vision,
 )
 from src.agents.core.persona import build_persona_prompt_sections
+from src.agents.core.prompt_policy import sandbox_shell_platform_section
 from src.agents.core.startup_preparation import prepare_agent_inputs
 from src.agents.core.subagent_prompts import (
     CODEBASE_INVESTIGATOR_PROMPT,
@@ -85,6 +86,28 @@ logger = get_logger(__name__)
 # ============================================================================
 # 节点函数
 # ============================================================================
+
+
+async def _build_sandbox_runtime_policy(
+    sandbox_backend: Any, sandbox_work_dir: str | None, *, user_id: str
+) -> str:
+    """沙箱运行时提示段：workspace 策略 + （仅本地 daemon）shell 方言段。
+
+    本地 daemon 在 win32/darwin 上时追加平台段（prompt_policy.sandbox_shell_platform_section），
+    让模型生成 cmd.exe / macOS 兼容命令——否则模型默认 POSIX 语法在 Windows
+    cmd.exe 全军覆没（实测根因之二）。云端沙箱与 Linux/未上报一律不加段，
+    prompt 逐字节保持现状；段文本随会话内 daemon 平台稳定，provider 前缀
+    缓存不受逐 turn 影响。
+    """
+    if not sandbox_backend or not sandbox_work_dir:
+        return ""
+    from src.infra.backend.local import WorkspaceAliasBackend, _lookup_daemon_platform
+
+    shell_section = ""
+    if isinstance(sandbox_backend, WorkspaceAliasBackend):
+        shell_section = sandbox_shell_platform_section(await _lookup_daemon_platform(user_id))
+    base = SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir)
+    return "\n\n".join(part for part in (base, shell_section) if part)
 
 
 async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str, Any]:
@@ -198,10 +221,8 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     # 自定义子代理配置 - 强制将所有中间信息保存到文件
     search_base_url = configurable.get("base_url", "")
     subagent_prompt_sections = [s for s in (*persona_sections, memory_guide) if s]
-    sandbox_runtime_policy = (
-        SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir)
-        if sandbox_backend and sandbox_work_dir
-        else ""
+    sandbox_runtime_policy = await _build_sandbox_runtime_policy(
+        sandbox_backend, sandbox_work_dir, user_id=context.user_id or "default"
     )
 
     def _build_subagent_middleware(subagent_type: str) -> list:
@@ -320,16 +341,18 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
                     if isinstance(sandbox_backend, WorkspaceAliasBackend)
                     else _CloudPolicyResolver(context.user_id or "default")
                 ),
+                # 确认策略与执行同机（本地多机）：会话选机透传，与 dispatch 同源
+                machine_id=(
+                    (agent_options or {}).get("sandbox_machine_id") or None
+                    if isinstance(sandbox_backend, WorkspaceAliasBackend)
+                    else None
+                ),
             )
         )
-        if sandbox_work_dir:
+        if sandbox_runtime_policy:
             from src.infra.agent.middleware import SandboxWorkspaceMiddleware
 
-            user_middleware.append(
-                SandboxWorkspaceMiddleware(
-                    policy_text=SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir)
-                )
-            )
+            user_middleware.append(SandboxWorkspaceMiddleware(policy_text=sandbox_runtime_policy))
     # Tool search: per-turn dynamic content
     if context.deferred_manager is not None:
         from src.infra.agent.middleware import ToolSearchMiddleware
@@ -598,7 +621,13 @@ async def _create_backend_and_prompt(
 
         # WorkspaceAliasBackend：prompt_policy 让模型用 /workspace/{sid}/x 别名
         # 路径调文件工具，别名剥离层把路径翻译回相对路径再构造命令（F1）。
-        local_backend = WorkspaceAliasBackend(user_id=user_id, session_id=session_id)
+        # 会话级选机（多机 daemon）：agent_options.sandbox_machine_id 缺省走
+        # 注册表默认解析（默认机→唯一在线→legacy）
+        local_backend = WorkspaceAliasBackend(
+            user_id=user_id,
+            session_id=session_id,
+            machine_id=(agent_options or {}).get("sandbox_machine_id") or None,
+        )
         # 用户 env 变量注入（对齐云端：backend.env_vars → 执行时下发）；
         # env_var 工具运行中改动经 sync_envvar_change 实时刷新同一属性
         await sync_sandbox_env_vars(local_backend, user_id)

@@ -22,10 +22,28 @@ def _registry() -> SandboxClientRegistry:
 
 
 async def dispatch_local_call(
-    user_id: str, op: str, payload: dict, *, timeout: float | None = None
+    user_id: str,
+    op: str,
+    payload: dict,
+    *,
+    timeout: float | None = None,
+    machine_id: str | None = None,
 ) -> dict:
-    if not await _registry().is_online(user_id):
-        raise AppError(ErrorCode.DAEMON_OFFLINE)
+    """下发工具调用到目标机。
+
+    ``machine_id``：会话级选机（None = 注册表默认解析：默认机 → 唯一在线机
+    → legacy）。显式指定且该机离线时报 SANDBOX_MACHINE_OFFLINE（区别于无任何
+    机器在线的 DAEMON_OFFLINE，前端据此提示换机）。
+    """
+    registry = _registry()
+    if machine_id:
+        target = await registry.resolve_target(user_id, machine_id)
+        if target is None:
+            raise AppError(ErrorCode.SANDBOX_MACHINE_OFFLINE, args={"machine": machine_id})
+    else:
+        target = await registry.resolve_target(user_id)
+        if target is None:
+            raise AppError(ErrorCode.DAEMON_OFFLINE)
     exec_timeout = timeout if timeout is not None else float(settings.SANDBOX_LOCAL_EXEC_TIMEOUT)
     call_id = uuid.uuid4().hex
     req = {
@@ -38,7 +56,7 @@ async def dispatch_local_call(
     }
     redis = _redis()
     resp_key = f"sandbox:resp:{call_id}"
-    await redis.rpush(f"sandbox:req:{user_id}", json.dumps(req))
+    await redis.rpush(registry.queue_key(user_id, target), json.dumps(req))
 
     start = time.monotonic()
     acked = False
@@ -58,9 +76,19 @@ async def dispatch_local_call(
             if resp is not None and resp.get("stage") == "done":
                 await redis.delete(resp_key)
                 if resp.get("status") != "ok":
+                    # exec 的非零退出码/命令超时是**命令结局**而非中继故障（daemon
+                    # executor 的 status 镜像 exit_code）：带 executor 结果字段的
+                    # done 载荷原样回传，由 LocalSandboxBackend.aexecute 构造
+                    # ExecuteResponse——模型看得到 stdout/stderr/exit_code 才能自行
+                    # 纠错（Windows cmd.exe 上命令失败是常态；劫持成 AppError 会让
+                    # 模型只见 "execution failed" 而无从换命令）。其余 op（fs_* 的
+                    # 内部异常）与 exec 的 daemon 级错误（expired/unsupported，无
+                    # 结果字段）仍按中继失败上抛。
+                    if op == "exec" and ("exit_code" in resp or "stdout" in resp):
+                        return resp
                     raise AppError(
                         ErrorCode.SANDBOX_EXEC_FAILED,
-                        args={"detail": str(resp.get("error", "local execution failed"))},
+                        args={"detail": str(resp.get("error") or "local execution failed")},
                     )
                 return resp
             if not acked and time.monotonic() > ack_deadline:

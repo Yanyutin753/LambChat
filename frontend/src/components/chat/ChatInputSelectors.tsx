@@ -12,7 +12,10 @@ import { isShellAvailable } from "../../services/tauri/sandboxShell";
 import {
   SANDBOX_AGENT_OPTION_KEY,
   SANDBOX_LOCAL_VALUE,
+  SANDBOX_MACHINE_AGENT_OPTION_KEY,
   adaptSandboxAgentOption,
+  buildSandboxMachineOption,
+  shouldShowSandboxMachineOption,
 } from "./sandboxOption";
 import type { FeaturePanel } from "../selectors/FeatureMenu";
 import type {
@@ -134,8 +137,16 @@ export function ChatInputSelectors({
   const navigate = useNavigate();
   const { t } = useTranslation();
   // 沙箱选择器动态适配：壳检测 + daemon 在线状态双条件
-  const { online: sandboxOnline } = useSandboxStatus();
+  const { online: sandboxOnline, machines, defaultMachineId } = useSandboxStatus();
   const sandboxShell = isShellAvailable();
+  // 多机 daemon：本地档时动态注入机器选择器（sandbox_machine_id 会话级选机）
+  const sandboxValue = agentOptionValues[SANDBOX_AGENT_OPTION_KEY] ?? "cloud";
+  const machineOption = shouldShowSandboxMachineOption(sandboxValue, machines)
+    ? buildSandboxMachineOption(machines, defaultMachineId, t)
+    : null;
+  const enrichedAgentOptions = machineOption
+    ? { ...(agentOptions ?? {}), [SANDBOX_MACHINE_AGENT_OPTION_KEY]: machineOption }
+    : (agentOptions ?? {});
 
   return (
     <>
@@ -221,7 +232,7 @@ export function ChatInputSelectors({
       {agentOptions &&
         onToggleAgentOption &&
         Object.keys(agentOptions).length > 0 &&
-        Object.entries(agentOptions)
+        Object.entries(enrichedAgentOptions)
           .filter(
             ([key, opt]) =>
               opt.options &&

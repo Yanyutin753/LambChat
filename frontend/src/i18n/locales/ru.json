@@ -254,6 +254,11 @@
       },
       "offlineHint": "Локальная песочница офлайн. Сначала выполните сопряжение в настройках.",
       "restoredOffline": "Сохранённый локальный режим песочницы сейчас офлайн."
+    },
+    "sandboxMachine": {
+      "label": "Машина",
+      "description": "Выберите машину для локальных команд песочницы",
+      "auto": "Авто (по умолчанию)"
     }
   },
   "agents": {
@@ -646,7 +651,9 @@
     "sandboxTimeout": "Превышено время ожидания локального sandbox ({{seconds}} с)",
     "sandboxPayloadTooLarge": "Полезная нагрузка локального sandbox слишком велика",
     "sandboxExecFailed": "Ошибка выполнения локального sandbox: {{detail}}",
-    "daemonVersionUnsupported": "Версия локального sandbox-демона {{version}} ниже минимальной {{min}}, обновите его"
+    "daemonVersionUnsupported": "Версия локального sandbox-демона {{version}} ниже минимальной {{min}}, обновите его",
+    "sandboxMachineOffline": "Выбранная машина песочницы «{{machine}}» сейчас не в сети",
+    "sandboxMachineNotFound": "Машина песочницы «{{machine}}» не найдена или удалена"
   },
   "categories": {
     "agent": "Агент",
@@ -2158,7 +2165,22 @@
       "needDesktop": "Локальная песочница требует настольное приложение LambChat. В веб-доступна только облачная песочница.",
       "pairFailed": "Не удалось выполнить сопряжение. Проверьте учётные данные и повторите попытку.",
       "unpair": "Отменить сопряжение",
-      "unpaired": "Сопряжение отменено"
+      "unpaired": "Сопряжение отменено",
+      "machines": "Мои машины",
+      "machinesDesc": "Подключённые машины локальной песочницы; цель выбирается на уровне сессии, по умолчанию — машина по умолчанию.",
+      "machinesEmpty": "Нет машин в сети",
+      "currentServer": "Сервер: ",
+      "setDefault": "Сделать основной",
+      "defaultBadge": "Основная",
+      "rename": "Переименовать",
+      "renameSave": "Сохранить",
+      "renameCancel": "Отмена",
+      "platform": {
+        "windows": "Windows",
+        "macos": "macOS",
+        "linux": "Linux",
+        "unknown": "Неизвестно"
+      }
     },
     "maxPinnedModels": "Можно закрепить до {{max}} моделей",
     "memoryToggle": "Межсессионная память",
