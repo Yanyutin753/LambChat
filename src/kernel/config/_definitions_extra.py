@@ -238,6 +238,7 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "subcategory": "limits",
         "description": "settingDesc.S3_INTERNAL_UPLOAD_MAX_SIZE",
         "default": 1073741824,
+        "frontend_visible": True,
         "depends_on": "S3_ENABLED",
     },
     "S3_PRESIGNED_URL_EXPIRES": {

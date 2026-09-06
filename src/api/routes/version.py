@@ -1,5 +1,7 @@
 """Version info route."""
 
+from typing import Optional
+
 from fastapi import APIRouter, Query
 
 from src.infra.github_client import github_client
@@ -13,15 +15,22 @@ router = APIRouter()
 @router.get("/version", response_model=VersionResponse)
 async def get_version(
     force_refresh: bool = Query(False, description="Force refresh GitHub cache"),
+    client_version: Optional[str] = Query(
+        None,
+        description="Client app version; has_update compares against it instead of server version",
+    ),
 ) -> VersionResponse:
     """Get application version info including git tag and build time."""
     # Fetch latest from GitHub
     latest_release = await github_client.get_latest_release(force_refresh=force_refresh)
 
     # Determine if update available
+    # has_update 优先按客户端上报版本比较（客户端自检更新）；未上报时回落
+    # 服务端版本（网页端仅展示版本信息，沿用旧语义）
+    current_version = client_version or settings.APP_VERSION
     has_update = False
     if latest_release:
-        has_update = has_new_version(settings.APP_VERSION, latest_release.tag_name)
+        has_update = has_new_version(current_version, latest_release.tag_name)
 
     release_assets = None
     if latest_release:

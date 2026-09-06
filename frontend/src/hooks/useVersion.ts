@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import i18n from "i18next";
 import { versionApi } from "../services/api";
+import { APP_VERSION } from "../utils/appVersion";
 import type { VersionInfo } from "../types";
 
 interface UseVersionReturn {
@@ -36,7 +37,7 @@ export function useVersion(): UseVersionReturn {
     setIsLoading(true);
     setError(null);
     try {
-      const info = await versionApi.checkForUpdates();
+      const info = await versionApi.checkForUpdates(APP_VERSION);
       setVersionInfo(info);
     } catch (err) {
       setError(
