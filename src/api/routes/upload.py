@@ -227,6 +227,16 @@ async def _get_file_response_metadata(key: str) -> tuple[str | None, str]:
     return filename_for_disposition, content_type
 
 
+def _inline_content_disposition(filename: str) -> str:
+    """HTTP 头只允许 latin-1：非 ASCII 文件名按 RFC 5987 走 filename*=utf-8''。"""
+    from urllib.parse import quote
+
+    quoted = quote(filename)
+    if quoted != filename:
+        return f"inline; filename*=utf-8''{quoted}"
+    return f'inline; filename="{filename.replace(chr(34), "")}"'
+
+
 async def _read_upload_file_limited(
     file: Any,
     *,
@@ -891,7 +901,7 @@ async def get_file_proxy(
         filename_for_disposition, content_type = await _get_file_response_metadata(key)
         headers = {"Cache-Control": "public, max-age=300"}
         if filename_for_disposition:
-            headers["Content-Disposition"] = f'inline; filename="{filename_for_disposition}"'
+            headers["Content-Disposition"] = _inline_content_disposition(filename_for_disposition)
 
         return StreamingResponse(
             storage.download_stream(key),

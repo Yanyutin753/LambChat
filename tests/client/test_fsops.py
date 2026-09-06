@@ -752,3 +752,97 @@ def test_fs_op_registry_covers_all_documented_ops():
         "fs_download",
     }
     assert fsops.WRITE_OPS == {"fs_write", "fs_edit", "fs_delete", "fs_upload"}
+
+
+# ---------- fs_download_stream：单请求流式下载（二进制帧生成器） ----------
+
+from lambchat_sandbox.frames import (  # noqa: E402
+    FRAME_DATA,
+    FRAME_EOF,
+    FRAME_ERROR,
+    FRAME_META,
+)
+
+
+def _stream_frames(payload: dict, tmp_path: Path) -> list[tuple[int, bytes]]:
+    return list(fsops.handle_fs_stream("fs_download_stream", payload, tmp_path))
+
+
+def _data_of(frames: list[tuple[int, bytes]]) -> bytes:
+    return b"".join(p for t, p in frames if t == FRAME_DATA)
+
+
+def test_fs_download_stream_yields_meta_data_eof(tmp_path):
+    """正常流：首帧 meta(size)，数据帧为裸字节（无 base64），末帧 eof。"""
+    ws = tmp_path / "s1"
+    ws.mkdir()
+    body = bytes(range(256)) * (2 * 4096 + 7)  # ~8MiB+7B → 4MiB 帧 ×3
+    (ws / "big.bin").write_bytes(body)
+
+    frames = _stream_frames({"cwd": "/workspace/s1", "path": "big.bin"}, tmp_path)
+
+    assert frames[0] == (FRAME_META, b'{"size": %d}' % len(body))
+    assert frames[-1] == (FRAME_EOF, b"")
+    assert _data_of(frames) == body
+
+
+def test_fs_download_stream_single_frame_for_small_file(tmp_path):
+    ws = tmp_path / "s1"
+    ws.mkdir()
+    (ws / "a.txt").write_bytes(b"hello")
+    frames = _stream_frames({"cwd": "/workspace/s1", "path": "a.txt"}, tmp_path)
+    assert frames == [
+        (FRAME_META, b'{"size": 5}'),
+        (FRAME_DATA, b"hello"),
+        (FRAME_EOF, b""),
+    ]
+
+
+def test_fs_download_stream_file_errors_are_single_error_frames(tmp_path):
+    """缺文件/目录/超限：单个错误帧即收（错误串在 JSON payload 里）。"""
+    ws = tmp_path / "s1"
+    ws.mkdir()
+    (ws / "d").mkdir()
+    (ws / "a").write_bytes(b"xy")
+
+    def err_text(frames):
+        t, p = frames[0]
+        assert t == FRAME_ERROR and len(frames) == 1
+        import json as _json
+
+        return _json.loads(p)["error"]
+
+    assert err_text(_stream_frames({"cwd": "/workspace/s1", "path": "missing"}, tmp_path)) == (
+        "file_not_found"
+    )
+    assert err_text(_stream_frames({"cwd": "/workspace/s1", "path": "d"}, tmp_path)) == (
+        "is_directory"
+    )
+    assert err_text(
+        _stream_frames({"cwd": "/workspace/s1", "path": "a", "max_bytes": 1}, tmp_path)
+    ).startswith("file_too_large: 2 bytes exceeds 1 limit")
+
+
+def test_fs_download_stream_rejects_absolute_path_as_error_frame(tmp_path):
+    """绝对路径在流式 op 同样按逃逸拒绝（所有平台语义一致）——生成器不炸通道。"""
+    tmp_path.joinpath("s1").mkdir()
+    frames = _stream_frames({"cwd": "/workspace/s1", "path": "/etc/passwd"}, tmp_path)
+    assert len(frames) == 1 and frames[0][0] == FRAME_ERROR
+    assert "escapes workspace" in frames[0][1].decode()
+
+
+def test_fs_download_stream_respects_offset_and_length(tmp_path):
+    ws = tmp_path / "s1"
+    ws.mkdir()
+    (ws / "f").write_bytes(b"0123456789")
+    frames = _stream_frames(
+        {"cwd": "/workspace/s1", "path": "f", "offset": 3, "length": 4}, tmp_path
+    )
+    assert _data_of(frames) == b"3456"
+    assert frames[0] == (FRAME_META, b'{"size": 10}')
+    assert frames[-1] == (FRAME_EOF, b"")
+
+
+def test_handle_fs_stream_unknown_op_raises():
+    with pytest.raises(ValueError, match="unknown stream op"):
+        fsops.handle_fs_stream("fs_upload_stream", {}, Path("/tmp/x"))

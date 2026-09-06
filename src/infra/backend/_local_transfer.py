@@ -21,6 +21,7 @@ exec 旧链路（daemon 自更新后重建 backend 即恢复新通道）。
 from __future__ import annotations
 
 import base64
+import re
 from typing import TYPE_CHECKING, Any
 
 from src.infra.backend._local_compat import _run_coro_sync
@@ -32,9 +33,13 @@ from src.infra.backend.protocol_compat import (
     file_upload_response,
 )
 from src.infra.logging import get_logger
-from src.infra.sandbox.relay.dispatch import dispatch_local_call
+from src.infra.sandbox.relay.dispatch import (
+    dispatch_local_call,
+    dispatch_local_stream,
+    dispatch_local_stream_upload,
+)
 from src.kernel.config import settings
-from src.kernel.errors import AppError
+from src.kernel.errors import AppError, ErrorCode
 
 logger = get_logger(__name__)
 
@@ -52,6 +57,14 @@ class FsTransferUnsupportedError(Exception):
     """
 
 
+class FsStreamUnsupportedError(Exception):
+    """老 daemon 不认识 fs_download_stream（回 ``unsupported op``）。
+
+    独立于 :class:`FsTransferUnsupportedError` 的能力位：流式不支持时降级
+    分块 fs_download（而非直接跳 exec）——两级降级链各自粘滞。
+    """
+
+
 def _download_max_bytes() -> int:
     """下载单文件上限：与 reveal/S3 内部上传共用同一个环境变量旋钮。
 
@@ -63,18 +76,33 @@ def _download_max_bytes() -> int:
     return configured if configured > 0 else 1
 
 
+# win32 绝对路径形态：盘符根相对（C:\ 或 C:/开头）与 UNC（\\server\share）。
+# daemon 的 fs op 锁死工作区（fsops._resolve 见绝对路径即判逃逸），这类路径
+# 必须与 posix 绝对路径同语义走 exec 旧链路（2026-09-07 生产事故：agent 抄
+# LAMBCHAT_WORKSPACE 真实路径调 reveal_file，被 fs 通道全数拒绝后误报
+# file_not_found_or_empty 并反复重试）。
+_WIN_DRIVE_ABSOLUTE = re.compile(r"^[A-Za-z]:[\\/]")
+
+
+def _is_windows_absolute_path(path: str) -> bool:
+    return bool(_WIN_DRIVE_ABSOLUTE.match(path)) or path.startswith("\\\\")
+
+
 class LocalFsTransferMixin:
     """fs_upload/fs_download 通道原语。
 
     依赖宿主（LocalSandboxBackend）实例属性：``_user_id`` / ``_machine_id`` /
-    ``_exec_timeout`` / ``_fs_transfer_supported``。通道方法显式收 ``cwd``
-    （虚拟工作区路径），不读取宿主的 work_dir。
+    ``_exec_timeout`` / ``_fs_transfer_supported`` / ``_stream_transfer_supported``。
+    通道方法显式收 ``cwd``（虚拟工作区路径），不读取宿主的 work_dir。
     """
 
     _user_id: str
     _machine_id: str | None
     _exec_timeout: int
     _fs_transfer_supported: bool | None
+    # 流式通道（fs_download_stream）能力位：None = 未探测，False = 老 daemon
+    # 不支持（粘滞走分块 fs_download）。见 FsStreamUnsupportedError。
+    _stream_transfer_supported: bool | None = None
 
     async def _afs_transfer_call(self, op: str, payload: dict[str, Any]) -> dict:
         """发一个传输 fs op 并取回 ``result`` 体（文件级错误在 result 里）。"""
@@ -108,6 +136,46 @@ class LocalFsTransferMixin:
         raise last_exc  # type: ignore[misc]  # 循环必已赋值
 
     async def _aupload_via_fs(self, path: str, content: bytes, *, cwd: str) -> str | None:
+        """上传主路径：新 daemon 优先流式（单 GET 传整个文件），否则分块写。
+
+        返回错误码/错误文本或 None（成功）。流式与下载方向对称——老 daemon
+        按 ``unsupported op`` 粘滞降级到分块 fs_upload，再降级 exec 的既有
+        链条不变。
+        """
+        if self._stream_transfer_supported is not False:
+            max_bytes = _download_max_bytes()
+            if len(content) > max_bytes:
+                return (
+                    f"file_too_large: {len(content)} bytes exceeds {max_bytes} limit "
+                    "(S3_INTERNAL_UPLOAD_MAX_SIZE)"
+                )
+            try:
+                outcome = await self._aupload_via_stream(path, content, cwd=cwd)
+            except FsStreamUnsupportedError:
+                self._stream_transfer_supported = False  # 老 daemon：后续上传直接分块
+            else:
+                return outcome
+        return await self._aupload_chunked(path, content, cwd=cwd)
+
+    async def _aupload_via_stream(self, path: str, content: bytes, *, cwd: str) -> str | None:
+        """经 fs_upload_stream 单 GET 流式写整个文件；返回错误文本或 None。"""
+        try:
+            await dispatch_local_stream_upload(
+                self._user_id,
+                {"cwd": cwd, "path": path, "max_bytes": _download_max_bytes()},
+                content,
+                machine_id=self._machine_id,
+            )
+        except AppError as exc:
+            if exc.error_code == ErrorCode.SANDBOX_EXEC_FAILED:
+                detail = str(exc.args_data.get("detail") or exc.message)
+                if "unsupported op" in detail:
+                    raise FsStreamUnsupportedError(detail) from exc
+                return detail
+            raise
+        return None
+
+    async def _aupload_chunked(self, path: str, content: bytes, *, cwd: str) -> str | None:
         """经 fs_upload 分块写文件；返回错误码/错误文本或 None（成功）。
 
         首块 truncate 创建（daemon 建父目录），后续块按 offset 定位写；
@@ -134,6 +202,51 @@ class LocalFsTransferMixin:
         return None
 
     async def _adownload_via_fs(self, path: str, *, cwd: str) -> bytes | str:
+        """下载主路径：新 daemon 优先流式（单 op 传整个文件），否则分片循环。
+
+        流式通道（fs_download_stream）把「块数 × 每块一对 HTTP 往返」摊销成
+        每文件常数次往返——大文件传输从时延主导回归带宽主导。老 daemon 不
+        认识流式 op 时按 ``unsupported op`` 粘滞降级到分块 fs_download（零
+        行为回归），再降级 exec 旧链路的既有链条不变。
+
+        返回内容字节或错误文本（文件级错误，与分块路径同形态）。
+        """
+        if self._stream_transfer_supported is not False:
+            try:
+                outcome = await self._adownload_via_stream(path, cwd=cwd)
+            except FsStreamUnsupportedError:
+                self._stream_transfer_supported = False  # 老 daemon：后续下载直接分块
+            else:
+                return outcome
+        return await self._adownload_chunked(path, cwd=cwd)
+
+    async def _adownload_via_stream(self, path: str, *, cwd: str) -> bytes | str:
+        """经 fs_download_stream 流式读完整个文件；返回内容字节或错误文本。
+
+        错误分级（对齐 exec 旧链路的语义）：``SANDBOX_EXEC_FAILED`` 是行级
+        文件错误（缺文件/超限/目录），映射为错误文本；离线/超时等中继级
+        AppError 向上透传给统一错误处理，不吞成单文件错误。
+        """
+        chunks: list[bytes] = []
+        try:
+            async for chunk in dispatch_local_stream(
+                self._user_id,
+                "fs_download_stream",
+                {"cwd": cwd, "path": path, "max_bytes": _download_max_bytes()},
+                timeout=float(settings.SANDBOX_LOCAL_STREAM_TIMEOUT),
+                machine_id=self._machine_id,
+            ):
+                chunks.append(chunk)
+        except AppError as exc:
+            if exc.error_code == ErrorCode.SANDBOX_EXEC_FAILED:
+                detail = str(exc.args_data.get("detail") or exc.message)
+                if "unsupported op" in detail:
+                    raise FsStreamUnsupportedError(detail) from exc
+                return detail
+            raise
+        return b"".join(chunks)
+
+    async def _adownload_chunked(self, path: str, *, cwd: str) -> bytes | str:
         """经 fs_download 分片循环读到 eof；返回内容字节或错误文本。
 
         首片响应携带全文件 ``size``——据此执行统一上限预检
@@ -202,10 +315,11 @@ class WorkspaceAliasTransferMixin:
     def _fs_transfer_eligible(self, stripped: str) -> bool:
         """该（已剥离别名的）路径能否走结构化通道：须是工作区内相对路径。
 
-        绝对路径与 ``../`` 上溯（.shared 除外）是 exec 旧链路的既有语义
-        （fs op 锁死工作区会拒绝），保持分流不改变行为。
+        绝对路径（posix ``/`` 与 win32 盘符/UNC——daemon 的 fs op 锁死工作区
+        会拒绝）与 ``../`` 上溯（.shared 除外）是 exec 旧链路的既有语义
+        （exec 可按 daemon 机器真实路径读写），保持分流不改变行为。
         """
-        if stripped.startswith("/"):
+        if stripped.startswith("/") or _is_windows_absolute_path(stripped):
             return False
         if stripped == "../.shared" or stripped.startswith("../.shared/"):
             return True

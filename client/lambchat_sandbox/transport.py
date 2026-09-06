@@ -13,7 +13,7 @@ from __future__ import annotations
 import contextlib
 import json
 import random
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterable
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote
@@ -231,6 +231,61 @@ class ChannelClient:
         )
         await _raise_for_status(response, "post_result")
 
+    async def post_stream_result(
+        self,
+        call_id: str,
+        frame_iter: "Iterable[tuple[int, bytes]]",
+        *,
+        deadline_s: float,
+    ) -> None:
+        """流式结果回传：整个结果装进一个 chunked POST 的**二进制帧** body。
+
+        帧生成器是同步的（本地磁盘读，毫秒级），在异步生成器里逐帧编码产出
+        即可——daemon 事件循环在流期间本来就没别的事做。数据帧是裸字节（无
+        base64 膨胀、无逐块 JSON）。超时语义：write 每次 30s；read/pool 放宽
+        到流截止（服务端消费完整个 body 才回响应，POST_TIMEOUT_S=10s 的常规
+        上限对大文件必炸）。
+        """
+        from lambchat_sandbox import frames as frame_codec
+
+        async def _frame_stream() -> AsyncIterator[bytes]:
+            for ftype, payload in frame_iter:
+                yield frame_codec.encode_frame(ftype, payload)
+
+        response = await self._client.post(
+            f"{self._base}/api/sandbox/results/stream/{quote(call_id, safe='')}",
+            content=_frame_stream(),
+            headers={**self._auth_headers(), "Content-Type": "application/octet-stream"},
+            timeout=httpx.Timeout(
+                connect=_CHANNEL_CONNECT_TIMEOUT_S,
+                write=30.0,
+                read=max(deadline_s, 30.0),
+                pool=max(deadline_s, 30.0),
+            ),
+        )
+        await _raise_for_status(response, "post_stream_result")
+
+    def get_stream(
+        self, call_id: str, *, deadline_s: float
+    ) -> "contextlib.AbstractAsyncContextManager[AsyncIterator[bytes]]":
+        """流式上传拉流：GET 一个 chunked 响应，异步逐块产出帧字节。
+
+        返回异步上下文管理器（yield 字节迭代器）——daemon 在其内解析帧并
+        落盘。read/pool 超时放宽到流截止（与 post_stream_result 同则）。
+        """
+        cm = self._client.stream(
+            "GET",
+            f"{self._base}/api/sandbox/upload/{quote(call_id, safe='')}",
+            headers=self._auth_headers(),
+            timeout=httpx.Timeout(
+                connect=_CHANNEL_CONNECT_TIMEOUT_S,
+                read=max(deadline_s, 30.0),
+                write=30.0,
+                pool=max(deadline_s, 30.0),
+            ),
+        )
+        return _StreamStatusGuard(cm, "get_stream")
+
     async def post_offline(self) -> None:
         """优雅退出通知（服务端 offline 端点）。"""
         response = await self._client.post(
@@ -308,3 +363,23 @@ def _parse_tool_call(data: str) -> ToolCall | None:
     except (TypeError, ValueError):
         return None
     return ToolCall(call_id=call_id, op=op, payload=payload, timeout=timeout)
+
+
+class _StreamStatusGuard:
+    """包装 httpx stream CM：进入时校验状态码（4xx 抛 TransportError 语义）。"""
+
+    def __init__(self, cm: "_StreamCM", context: str) -> None:
+        self._cm = cm
+        self._context = context
+
+    async def __aenter__(self) -> "AsyncIterator[bytes]":
+        response = await self._cm.__aenter__()
+        try:
+            await _raise_for_status(response, self._context)
+        except BaseException:
+            await self._cm.__aexit__(None, None, None)
+            raise
+        return response.aiter_bytes()
+
+    async def __aexit__(self, *exc_info: object) -> None:
+        await self._cm.__aexit__(*exc_info)  # type: ignore[arg-type]

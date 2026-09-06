@@ -1930,7 +1930,7 @@ dependencies = [
 
 [[package]]
 name = "lambchat"
-version = "2.8.3"
+version = "2.8.4"
 dependencies = [
  "libc",
  "serde",

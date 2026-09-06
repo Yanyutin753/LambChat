@@ -5,7 +5,7 @@ import json
 import socket
 import time
 import uuid
-from typing import AsyncIterator, Optional
+from typing import Any, AsyncIterator, Optional
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
@@ -13,6 +13,7 @@ from pydantic import BaseModel, field_validator
 
 from src.api.deps import get_current_user_pat_or_jwt, require_pat_only
 from src.infra.logging import get_logger
+from src.infra.sandbox.relay import _frames
 from src.infra.sandbox.relay.registry import (
     SandboxClientRegistry,
     parse_confirm_policy,
@@ -245,6 +246,11 @@ class SandboxResultRequest(BaseModel):
     stderr: Optional[str] = None
     exit_code: Optional[int] = None
     error: Optional[str] = None
+    # fs_* 结构化 op 的结果体（文件级错误与 fs_download 的 content_b64 都在这里，
+    # daemon._process_fs_call 契约）。漏掉该字段会把它静默剥掉——fs_download 回
+    # 空内容，reveal_file/artifact 全线误报 file_not_found_or_empty（2026-09-07
+    # 生产事故）。body 上限（SANDBOX_RESULTS_MAX_BYTES）对 result 同样生效。
+    result: Optional[dict[str, Any]] = None
 
 
 @router.post("/results/{call_id}")
@@ -260,6 +266,116 @@ async def sandbox_result(
     payload = {"user_id": user.sub, **body.model_dump(exclude_none=True)}
     await _redis().set(f"sandbox:resp:{call_id}", json.dumps(payload), ex=120)
     return {"status": "ok"}
+
+
+def _stream_total_max_bytes() -> int:
+    """流式总量上限：统一上传上限（S3_INTERNAL_UPLOAD_MAX_SIZE）+ 1MiB 帧头开销
+    余量——二进制帧无 base64 膨胀，且流式端点永不整体缓冲。"""
+    return int(settings.S3_INTERNAL_UPLOAD_MAX_SIZE + 1024 * 1024)
+
+
+@router.post("/results/stream/{call_id}")
+async def sandbox_result_stream(
+    call_id: str,
+    request: Request,
+    user: TokenPayload = Depends(require_pat_only("sandbox:execute")),
+):
+    """流式结果回传：fs_download_stream 的二进制帧经 chunked body 逐帧入 Redis list。
+
+    分块通道每块一对 HTTP 往返，块数×往返时延是大文件传输的主导成本；流式
+    op 把整个文件装进一个 POST。帧原样透传（数据帧是裸字节——无 base64
+    膨胀与逐块 JSON 开销；解析在消费端 dispatch_local_stream），本端点只做
+    三件事：帧/总量上限、逐帧 rpush、无 eof 帧断流的哨兵补齐。
+    """
+    redis = _redis()
+    key = f"sandbox:stream:{user.sub}:{call_id}"
+    total = 0
+    saw_eof = False
+    buffer = b""
+    try:
+        async for chunk in request.stream():
+            if isinstance(chunk, str):  # 防御：个别传输层（ASGI 测试）可能给 str
+                chunk = chunk.encode("utf-8")
+            buffer += chunk
+            while True:
+                parsed = _frames.try_parse_frame(buffer)
+                if parsed is None:
+                    break
+                ftype, payload, buffer = parsed
+                total += len(payload)
+                if total > _stream_total_max_bytes():
+                    await _push_stream_error(redis, key, "sandbox_payload_too_large")
+                    raise AppError(ErrorCode.SANDBOX_PAYLOAD_TOO_LARGE)
+                await _push_stream_frame(redis, key, _frames.encode_frame(ftype, payload))
+                if ftype == _frames.FRAME_EOF:
+                    saw_eof = True
+                    return {"status": "ok"}
+    except AppError:
+        raise
+    except ValueError:
+        # 帧超限（try_parse_frame 的载荷上限）：哨兵补齐后按 413 拒绝
+        await _push_stream_error(redis, key, "sandbox_payload_too_large")
+        raise AppError(ErrorCode.SANDBOX_PAYLOAD_TOO_LARGE) from None
+    except Exception:
+        # 坏流等：哨兵补齐（消费端立即出错，不挂到超时）后按中继失败上抛
+        await _push_stream_error(redis, key, "stream_interrupted")
+        raise
+    if not saw_eof:
+        # body 结束但没有 eof 帧（daemon 断连/中途崩溃）
+        await _push_stream_error(redis, key, "stream_interrupted")
+    return {"status": "ok"}
+
+
+async def _push_stream_frame(redis, key: str, frame: bytes) -> None:
+    await redis.rpush(key, frame)
+    await redis.expire(key, 120)
+
+
+async def _push_stream_error(redis, key: str, text: str) -> None:
+    await _push_stream_frame(
+        redis, key, _frames.encode_frame(_frames.FRAME_ERROR, json.dumps({"error": text}).encode())
+    )
+
+
+@router.get("/upload/{call_id}")
+async def sandbox_upload_stream(
+    call_id: str,
+    user: TokenPayload = Depends(require_pat_only("sandbox:execute")),
+):
+    """流式上传拉流端点：daemon 对 fs_upload_stream 的单个 GET 在这里取走整个文件。
+
+    服务端生产者（dispatch_local_stream_upload）把二进制帧 rpush 进 Redis
+    list（有界窗口），本端点 lpop 逐帧转发为 chunked 响应直至 eof 帧——
+    数据不过服务端内存整缓冲。总量上限已在生产者侧预检（max_bytes）。
+    """
+    redis = _redis()
+    key = f"sandbox:upblob:{user.sub}:{call_id}"
+    deadline = time.monotonic() + float(settings.SANDBOX_LOCAL_STREAM_TIMEOUT) + 10.0
+
+    async def _frame_stream():
+        try:
+            while time.monotonic() < deadline:
+                item = await redis.lpop(key)
+                if item is None:
+                    await asyncio.sleep(0.01)
+                    continue
+                if isinstance(item, str):
+                    item = item.encode("utf-8")
+                yield item
+                parsed = _frames.try_parse_frame(item)
+                if parsed is not None and parsed[0] == _frames.FRAME_EOF:
+                    return
+        finally:
+            try:
+                await redis.delete(key)
+            except Exception:  # noqa: BLE001 - 清理尽力而为
+                pass
+
+    return StreamingResponse(
+        _frame_stream(),
+        media_type="application/octet-stream",
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/machines")

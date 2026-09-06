@@ -239,6 +239,10 @@ class Settings(BaseSettings):
     SANDBOX_PLATFORM: str = "daytona"
     SANDBOX_LOCAL_ACK_TIMEOUT: int = 30  # 本地沙箱 daemon ACK 超时（秒）
     SANDBOX_LOCAL_EXEC_TIMEOUT: int = 120  # 本地沙箱执行总超时（秒）
+    # 本地沙箱流式传输（fs_download_stream）总超时（秒）：单个 chunked POST
+    # 装下整个文件，大文件按带宽计而非按块计——120s 的 exec 超时对 100MB 慢
+    # 上行不够（10Mbps ≈ 110s+），流式专用窗口放宽到 10 分钟。
+    SANDBOX_LOCAL_STREAM_TIMEOUT: int = 600
     SANDBOX_RESULTS_MAX_BYTES: int = 2097152  # 本地沙箱 results 回传 body 上限（字节，2 MiB）
     # 本地沙箱 daemon 最低连接版本（语义化比较）：低于即拒连（426），逼客户端 self-update
     SANDBOX_MIN_DAEMON_VERSION: str = "0.3.1"  # 0.3.1：Windows python3 shim 修复（复制 exe 找不到 stdlib）+ 输出 GBK 解码；0.3.0 及以下必须升级
