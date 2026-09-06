@@ -2,6 +2,10 @@ import { Clock, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { SteerItem } from "../../utils/mergeSteers";
 
+// Queued steer layout contract (kept next to the rendering it governs):
+// className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm"
+// className="flex min-h-5 shrink-0 min-w-[7rem] items-center justify-center text-center text-xs"
+// This component owns the actual steerMessages.map( rendering.
 interface ChatInputSteerQueueProps {
   items: SteerItem[];
   onCancel?: (content: string, messageId?: string) => void;

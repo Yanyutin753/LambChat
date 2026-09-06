@@ -46,8 +46,8 @@ test("tailwind config 定义 rem 字号 token 刻度", () => {
 
   expect(config).toMatch(/fontSize:\s*\{/);
   // token 只声明 font-size（字符串形式），不附带 line-height，保持与原 text-[Npx] 行为一致
-  expect(config).toMatch(/"11":\s*"0\.6875rem"/);
-  expect(config).toMatch(/"13":\s*"0\.8125rem"/);
-  expect(config).toMatch(/"15":\s*"0\.9375rem"/);
+  expect(config).toMatch(/['"]?11['"]?:\s*"0\.6875rem"/);
+  expect(config).toMatch(/["']?13["']?:\s*"0\.8125rem"/);
+  expect(config).toMatch(/["']?15["']?:\s*"0\.9375rem"/);
   expect(config).not.toMatch(/fontSize:\s*\{[^}]*px/);
 });

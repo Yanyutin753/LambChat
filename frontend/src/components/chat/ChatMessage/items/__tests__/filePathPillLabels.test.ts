@@ -42,7 +42,7 @@ test("read file pill renders the line range in the suffix so it survives path tr
   );
   // 面板标题同样带行号，侧栏里同文件的多个标签页可区分
   expect(readFileItem).toMatch(
-    /title: `\$\{t\("chat\.message\.toolRead"\)\} \$\{fileName \|\| filePath\}\$\{lineRange\}`/,
+    /title: `\$\{t\("chat\.message\.toolRead"\)\} \$\{\s*fileName \|\| filePath\s*\}\$\{lineRange\}`/,
   );
 });
 

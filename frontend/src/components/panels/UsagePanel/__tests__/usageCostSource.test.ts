@@ -32,7 +32,7 @@ test("usage log table renders a cost column across desktop, tablet and mobile", 
   );
   // 桌面网格、平板行、移动卡三处都要渲染费用
   expect(
-    source.match(/fmtCostUsd\(log\.cost_usd/g)?.length,
+    source.match(/fmtCostUsd\(\s*log\.cost_usd/g)?.length,
   ).toBeGreaterThanOrEqual(3);
 });
 

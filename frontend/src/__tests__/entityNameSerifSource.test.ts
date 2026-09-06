@@ -83,7 +83,7 @@ test("sidebar session and project titles use font-serif", () => {
   const mobileList = readComponent(
     "panels/SidebarParts/SessionListContent.tsx",
   );
-  expect(mobileList).toMatch(/truncate font-serif">\{project\.name\}/);
+  expect(mobileList).toMatch(/truncate font-serif">\s*\{project\.name\}/);
 });
 
 test("search and recent chat lists render session titles with font-serif", () => {
