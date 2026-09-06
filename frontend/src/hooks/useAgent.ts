@@ -234,17 +234,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setActiveGoal,
       setGoalsByRunId,
     }),
-    [
-      options,
-      markSteerDelivered,
-      setActiveGoal,
-      setConnectionStatus,
-      setCurrentRunId,
-      setGoalsByRunId,
-      setIsInitializingSandbox,
-      setSandboxError,
-      setSessionId,
-    ],
+    [options, markSteerDelivered],
   );
 
   // Create SSE connection context
@@ -487,17 +477,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       recordFirstWindow,
       recordFeedback,
       resetHistoryPagination,
-      onApprovalLookup,
-      setActiveGoal,
-      setCurrentProjectId,
-      setCurrentRunId,
-      setError,
-      setGoalModeEnabled,
-      setGoalsByRunId,
-      setHistoryLoadGeneration,
-      setIsLoading,
-      setIsLoadingHistory,
-      setSessionId,
     ],
   );
 
@@ -827,17 +806,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       selectedTeamId,
       goalModeEnabled,
       clearSteer,
-      setActiveGoal,
-      setConnectionStatus,
-      setCurrentProjectId,
-      setCurrentRunId,
-      setError,
-      setGoalModeEnabled,
-      setGoalsByRunId,
-      setIsInitializingSandbox,
-      setIsLoading,
-      setNewlyCreatedSession,
-      setSessionId,
     ],
   );
 
@@ -892,7 +860,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         );
       }
     }
-  }, [options, setIsInitializingSandbox, setIsLoading, setSandboxError]);
+  }, [options]);
 
   const clearMessages = useCallback(() => {
     loadHistoryRequestIdRef.current += 1;
@@ -926,24 +894,12 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       abortControllerRef.current = null;
     }
     clearReconnectTimeout(reconnectTimeoutRef);
-  }, [
-    clearSteerMessages,
-    resetHistoryPagination,
-    setActiveGoal,
-    setConnectionStatus,
-    setCurrentRunId,
-    setError,
-    setGoalModeEnabled,
-    setGoalsByRunId,
-    setIsLoading,
-    setIsLoadingHistory,
-    setSessionId,
-  ]);
+  }, [clearSteerMessages, resetHistoryPagination]);
 
   const clearActiveGoal = useCallback(() => {
     setGoalModeEnabled(false);
     setActiveGoal(null);
-  }, [setActiveGoal, setGoalModeEnabled]);
+  }, []);
 
   const selectAgent = useCallback(
     (agentId: string) => {
@@ -962,12 +918,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   );
 
   // Select a team for team-mode agent
-  const selectTeam = useCallback(
-    (teamId: string | null) => {
-      setSelectedTeamId(teamId);
-    },
-    [setSelectedTeamId],
-  );
+  const selectTeam = useCallback((teamId: string | null) => {
+    setSelectedTeamId(teamId);
+  }, []);
 
   const applyRecommendQuestions = useCallback(
     (runId: string, questions: string[]) => {
