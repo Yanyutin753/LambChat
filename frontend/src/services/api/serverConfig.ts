@@ -3,8 +3,20 @@
  */
 
 import { API_BASE, isNativeAppRuntime } from "./config";
+import {
+  clearStoredServerUrl,
+  getStoredServerUrl,
+  normalizeServerUrl,
+  setStoredServerUrl,
+} from "./serverUrlStore";
 
-const STORAGE_KEY = "lambchat_server_url";
+// 存储实现抽到 serverUrlStore.ts（config.ts 也要读，避免环依赖）；此处转发保持既有导入不变
+export {
+  clearStoredServerUrl,
+  getStoredServerUrl,
+  normalizeServerUrl,
+  setStoredServerUrl,
+};
 
 export interface NativeGlobalLike {
   __TAURI__?: unknown;
@@ -19,50 +31,6 @@ export function isTauriRuntime(globalLike?: NativeGlobalLike | null): boolean {
       ? (globalThis as NativeGlobalLike)
       : null);
   return Boolean(globalObject?.__TAURI__ || globalObject?.__TAURI_INTERNALS__);
-}
-
-/** 归一化服务器地址：去空白与尾部斜杠；裸域名补 https://。空/非法返回 ""。 */
-export function normalizeServerUrl(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed) return "";
-  const withScheme = /^https?:\/\//i.test(trimmed)
-    ? trimmed
-    : `https://${trimmed}`;
-  try {
-    const parsed = new URL(withScheme);
-    if (!parsed.hostname || !parsed.hostname.includes(".")) {
-      if (
-        parsed.hostname !== "localhost" &&
-        !/^\d+\.\d+\.\d+\.\d+$/.test(parsed.hostname)
-      ) {
-        return "";
-      }
-    }
-    return withScheme.replace(/\/+$/, "");
-  } catch {
-    return "";
-  }
-}
-
-export function getStoredServerUrl(): string | null {
-  if (typeof window === "undefined" || !window.localStorage) return null;
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  const normalized = raw ? normalizeServerUrl(raw) : "";
-  return normalized || null;
-}
-
-/** 保存服务器地址（归一化后）；返回归一化结果。 */
-export function setStoredServerUrl(raw: string): string {
-  const normalized = normalizeServerUrl(raw);
-  if (normalized) {
-    window.localStorage.setItem(STORAGE_KEY, normalized);
-  }
-  return normalized;
-}
-
-export function clearStoredServerUrl(): void {
-  if (typeof window === "undefined" || !window.localStorage) return;
-  window.localStorage.removeItem(STORAGE_KEY);
 }
 
 /** 生效的 API 基址：运行时配置优先，构建期 VITE_API_BASE 兜底，Web 同源空串。 */

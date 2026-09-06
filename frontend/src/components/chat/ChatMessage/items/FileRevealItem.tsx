@@ -10,6 +10,7 @@ import {
   isExcalidrawFile,
 } from "../../../documents/utils";
 import { ExcalidrawCardPreview } from "../../../documents/previews/ExcalidrawCardPreview";
+import { mediaProxyFallbackSrc } from "../../../documents/documentFetchCache";
 import { getFullUrl } from "../../../../services/api";
 import { buildChatThumbUrl } from "../../../../utils/chatThumbs";
 import {
@@ -344,6 +345,11 @@ export function FileRevealItem({
                 className="w-full"
                 src={parsed.s3Url}
                 preload="metadata"
+                onError={(e) => {
+                  // 直连 302 的预签名地址不可达时，改走应用代理流式加载
+                  const fallback = mediaProxyFallbackSrc(e.currentTarget);
+                  if (fallback) e.currentTarget.src = fallback;
+                }}
               />
             </div>
           ) : (
@@ -384,7 +390,13 @@ export function FileRevealItem({
                     playsInline
                     onLoadedData={() => setMediaLoaded(true)}
                     onCanPlay={() => setMediaLoaded(true)}
-                    onError={() => setMediaLoaded(true)}
+                    onError={(e) => {
+                      // 直连 302 的预签名地址不可达时，改走应用代理流式加载；
+                      // 重试仍失败再撤掉骨架屏
+                      const fallback = mediaProxyFallbackSrc(e.currentTarget);
+                      if (fallback) e.currentTarget.src = fallback;
+                      else setMediaLoaded(true);
+                    }}
                   />
                 )
               )}

@@ -118,9 +118,11 @@ html[data-mobile-keyboard="true"]
   align-items: center;
   justify-content: center;
   min-width: 2.25rem;
-  min-height: 2.25rem;
+  /* 固定高度（= 发送键 h-9）：所有工具栏按钮 hover 背景同高，
+     不被 text-base 等内容行高撑开；垂直居中交给 flex，padding 只留水平 */
+  height: 2.25rem;
   border-radius: 9999px;
-  padding: 0.5rem;
+  padding: 0 0.5rem;
   border: none;
   background: transparent;
   color: var(--theme-text-secondary);

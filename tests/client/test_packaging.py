@@ -120,7 +120,8 @@ def test_release_workflow_matrix_covers_three_platforms() -> None:
         "macos-14",
     }
     assert by_runner["macos-14"]["target"] == "aarch64-apple-darwin"
-    assert by_runner["macos-14"]["bundles"] == "dmg"
+    # dmg 仅首装；app bundle 产出 .app.tar.gz 供 Tauri updater 增量更新
+    assert by_runner["macos-14"]["bundles"] == "dmg,app"
     assert by_runner["windows-2022"]["bundles"] == "msi"
     # PBS 平台标签与 fetch-pbs.py 的 PLATFORM_TRIPLES 键一致
     assert {entry["pbs_platform"] for entry in matrix} == {
@@ -186,13 +187,16 @@ def test_release_workflow_publishes_assets_immediately_per_platform() -> None:
     assert "--clobber" in desktop_run
     assert "--generate-notes" in desktop_run
 
-    # updater 平台（linux x2 + windows）增量合并 latest.json；macOS 无条目
+    # updater 平台（linux x2 + windows + macOS）增量合并 latest.json
     matrix = _desktop_job()["strategy"]["matrix"]["include"]
     by_label = {entry["label"]: entry for entry in matrix}
     assert by_label["Linux x86_64"]["updater_key"] == "linux-x86_64"
     assert by_label["Linux ARM64"]["updater_key"] == "linux-aarch64"
     assert by_label["Windows"]["updater_key"] == "windows-x86_64"
-    assert "updater_key" not in by_label["macOS"]
+    # macOS updater 走 .app.tar.gz（dmg 不能原地更新）
+    assert by_label["macOS"]["updater_key"] == "darwin-aarch64"
+    assert by_label["macOS"]["updater_sig"] == "*.app.tar.gz.sig"
+    assert by_label["macOS"]["updater_asset_suffix"] == "macOS.app.tar.gz"
     merge_step = next(
         s
         for s in _desktop_job()["steps"]
@@ -208,6 +212,56 @@ def test_release_workflow_publishes_assets_immediately_per_platform() -> None:
     release_steps = job_step_names("release")
     assert "Generate latest.json updater manifest" in release_steps
     assert "Publish release" in release_steps
+
+
+def test_release_workflow_guards_version_drift_and_manifest_version_from_tag() -> None:
+    """v2.8.2 事故防线：tauri.conf.json 漂移到 2.8.1 时 latest.json 报 2.8.1，
+    桌面端永远检测不到更新。三道闸：打包前 preflight 校验、清单版本一律
+    取自 tag、macOS updater 条目纳入权威重生成。
+    """
+    workflow = _release_workflow()
+
+    # 闸 1：三个构建 job 打包前都有版本一致性校验，失败即中止
+    for job in ("desktop", "android", "ios"):
+        names = [s["name"] for s in workflow["jobs"][job]["steps"]]
+        preflight = next(
+            s
+            for s in workflow["jobs"][job]["steps"]
+            if s["name"] == "Preflight version consistency"
+        )
+        assert "versionCode" in preflight["run"], job
+        assert "MARKETING_VERSION" in preflight["run"], job
+
+    # 闸 2：增量合并的 manifest.version 取自 tag（不再读 tauri.conf.json）
+    merge_step = next(
+        s
+        for s in _desktop_job()["steps"]
+        if s["name"] == "Merge updater platform entry into latest.json"
+    )
+    assert 'RELEASE_TAG.replace(/^v/, "")' in merge_step["run"]
+    # 不再从 tauri.conf.json 读版本（漂移源）
+    assert 'readFileSync("frontend/src-tauri/tauri.conf.json")' not in merge_step["run"]
+
+    # 闸 3：权威重生成同样从 tag 取版本，且包含 darwin-aarch64 条目
+    regen = next(
+        s
+        for s in workflow["jobs"]["release"]["steps"]
+        if s["name"] == "Generate latest.json updater manifest"
+    )
+    assert 'version = tag.lstrip("v")' in regen["run"]
+    assert "read_text()" not in regen["run"] or "tauri.conf" not in regen["run"]
+    assert '("darwin-aarch64", "*.app.tar.gz.sig"' in regen["run"]
+
+
+def test_release_workflow_macos_collect_requires_app_tar_gz() -> None:
+    """macOS 收集步骤必须上传 .app.tar.gz updater 产物且缺失即失败：
+    静默跳过会让 darwin-aarch64 条目被略过、mac 永远收不到更新。"""
+    collect = next(
+        s for s in _desktop_job()["steps"] if s["name"] == "Collect macOS desktop artifacts"
+    )
+    assert "*.app.tar.gz" in collect["run"]
+    assert "macOS.app.tar.gz" in collect["run"]
+    assert "exit 1" in collect["run"]
 
 
 def test_build_script_appends_exe_suffix_on_windows_sidecar() -> None:

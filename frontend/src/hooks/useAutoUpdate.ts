@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import i18n from "i18next";
-import { versionApi } from "../services/api";
+import { versionApi, buildReleaseAssetDownloadUrl } from "../services/api";
 import { APP_VERSION } from "../utils/appVersion";
+import { bytesToBase64 } from "../utils/bytesToBase64";
 import type { UpdateState, ReleaseAsset } from "../types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -324,20 +325,42 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       const apkAsset = findApkAsset(state.releaseAssets);
       if (!apkAsset) throw new Error("No APK found in release assets");
 
-      const response = await fetch(apkAsset.url);
+      // 直连 GitHub browser_download_url 会被 WebView CORS 拦截
+      // （Failed to fetch）：走自托管后端同源代理流式下载。
+      const response = await fetch(buildReleaseAssetDownloadUrl(apkAsset.name));
       if (!response.ok) throw new Error(`Download failed: ${response.status}`);
       const contentLength = Number(response.headers.get("content-length") ?? 0);
       const reader = response.body?.getReader();
       if (!reader) throw new Error("No response body");
 
-      // Stream download into a Blob — avoids loading entire APK in memory as an array
-      const chunks: BlobPart[] = [];
+      // 逐块 base64 落盘（writeFile + appendFile），避免整包 APK 在
+      // WebView 内存里 Blob+base64 双份驻留导致低端机 OOM。
+      const { Filesystem, Directory } = await import("@capacitor/filesystem");
+      const fileName = apkAsset.name || "LambChat-update.apk";
+      let wroteAny = false;
+      let writtenUri: string | undefined;
       let downloaded = 0;
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        chunks.push(new Uint8Array(value));
+        if (!value?.length) continue;
+        const base64Chunk = bytesToBase64(new Uint8Array(value));
+        if (!wroteAny) {
+          const written = await Filesystem.writeFile({
+            path: fileName,
+            data: base64Chunk,
+            directory: Directory.Cache,
+          });
+          writtenUri = written.uri;
+          wroteAny = true;
+        } else {
+          await Filesystem.appendFile({
+            path: fileName,
+            data: base64Chunk,
+            directory: Directory.Cache,
+          });
+        }
         downloaded += value.byteLength;
         const pct = contentLength > 0 ? (downloaded / contentLength) * 100 : 0;
         setState((prev) => ({
@@ -347,27 +370,14 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
           contentLength,
         }));
       }
-
-      const blob = new Blob(chunks, {
-        type: apkAsset.content_type,
-      });
-
-      // Use Capacitor Filesystem to write the APK, then open it
-      const { Filesystem, Directory } = await import("@capacitor/filesystem");
-      const base64 = await blobToBase64(blob);
-      const fileName = apkAsset.name || "LambChat-update.apk";
-      const written = await Filesystem.writeFile({
-        path: fileName,
-        data: base64,
-        directory: Directory.Cache,
-      });
+      if (!wroteAny || !writtenUri) throw new Error("Empty download");
 
       // 拉起系统安装器（ACTION_VIEW + FileProvider 覆盖安装）。
       // Share（ACTION_SEND）只开分享面板装不了包。
       const { ApkInstaller } = await import(
         "../services/capacitor/apkInstaller"
       );
-      const res = await ApkInstaller.installApk({ path: written.uri });
+      const res = await ApkInstaller.installApk({ path: writtenUri });
       if (res.status === "settings") {
         // 未授予「安装未知应用」：原生已跳设置页，提示授权后重试
         const { toast } = await import("react-hot-toast");
@@ -388,9 +398,13 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         ...prev,
         downloading: false,
         error:
-          err instanceof Error
-            ? err.message
-            : i18n.t("updateError", "更新失败"),
+          err instanceof TypeError
+            ? i18n.t("updateDownloadNetworkError", {
+                defaultValue: "下载失败，请检查网络后重试",
+              })
+            : err instanceof Error
+              ? err.message
+              : i18n.t("updateError", "更新失败"),
       }));
     }
   }, [state.releaseAssets]);
@@ -476,19 +490,4 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     skipUpdate,
     checkNow,
   };
-}
-
-/** Convert a Blob to base64 string */
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      // Remove data URL prefix: "data:...;base64,"
-      const base64 = result.split(",")[1] || "";
-      resolve(base64);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
 }

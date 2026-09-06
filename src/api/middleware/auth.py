@@ -34,6 +34,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/sw.js",
         "/offline.html",
         "/api/version",
+        # release 资产下载代理：与 /api/version 同为公开端点（移动端更新链路）
+        "/api/version/assets/",
         "/robots.txt",
         "/sitemap.xml",
         "/index.html",

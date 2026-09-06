@@ -4,6 +4,7 @@ import { Download, ExternalLink, RefreshCw, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import { LoadingSpinner } from "../common/LoadingSpinner";
+import { ReleaseNotesMarkdown } from "./ReleaseNotesMarkdown";
 import { UpdateProgressBar } from "./UpdateProgressBar";
 import type { UpdateState } from "../../types";
 
@@ -86,8 +87,8 @@ export function UpdateDialog({
               <p className="text-xs font-medium text-stone-600 dark:text-stone-300">
                 {t("updateReleaseNotes", "更新内容")}
               </p>
-              <div className="max-h-40 overflow-y-auto rounded-lg bg-stone-50 dark:bg-stone-900/50 p-3 text-sm text-stone-600 dark:text-stone-400 leading-relaxed prose prose-sm prose-stone dark:prose-invert max-w-none">
-                {state.releaseNotes}
+              <div className="max-h-40 overflow-y-auto rounded-lg bg-stone-50 dark:bg-stone-900/50 p-3">
+                <ReleaseNotesMarkdown content={state.releaseNotes} />
               </div>
             </div>
           )}

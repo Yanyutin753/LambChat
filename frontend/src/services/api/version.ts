@@ -3,8 +3,25 @@
  */
 
 import type { VersionInfo } from "../../types";
-import { API_BASE } from "./config";
+import { API_BASE, buildApiUrl } from "./config";
 import { authFetch } from "./fetch";
+
+/**
+ * 构造 release 资产的同源代理下载 URL。
+ *
+ * 移动端 WebView 直连 GitHub browser_download_url 会被 CORS 拦截
+ * （release 下载端点不带 Access-Control-Allow-Origin），必须经
+ * 自托管后端流式转发，进度条（content-length）照常工作。
+ */
+export function buildReleaseAssetDownloadUrl(
+  assetName: string,
+  apiBase: string = API_BASE,
+): string {
+  return buildApiUrl(
+    `/api/version/assets/${encodeURIComponent(assetName)}/download`,
+    apiBase,
+  );
+}
 
 export const versionApi = {
   /**

@@ -155,10 +155,9 @@ export function combinePrecacheBudgetEntries(
   });
 }
 
-// 510KB：506KB + 本地沙箱下载引导（聊天选择器 footer 与五语文案必须在
-// eager 路径；下载页本体已懒加载不计入；seo 描述复用 download.description
-// 已去重），沿 500→502→504→506 的 2KB 阶梯惯例抬两档。
-export const EAGER_JAVASCRIPT_BUDGET_BYTES = 510 * 1024;
+// 512KB：510KB + 客户端文件预览修复（serverUrlStore 拆分与 config.ts 原生
+// 运行时解析进入 eager 路径）沿 500→502→504→506→510 的 2KB 阶梯惯例抬一档。
+export const EAGER_JAVASCRIPT_BUDGET_BYTES = 512 * 1024;
 export const PRECACHE_BUDGET_BYTES = 5 * 1024 * 1024;
 export const PRECACHE_ADDITIONAL_ENTRIES: PrecacheEntry[] = [];
 

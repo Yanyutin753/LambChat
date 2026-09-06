@@ -24,6 +24,7 @@ test("tracks every direct ReactMarkdown renderer", () => {
     "components/layout/AppContent/MessageTimelineRail.tsx",
     "components/layout/AppContent/TaskToastMarkdown.tsx",
     "components/panels/ApprovalPanel.tsx",
+    "components/update/ReleaseNotesMarkdown.tsx",
   ]);
 });
 

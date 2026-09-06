@@ -24,7 +24,15 @@ declare module "@capacitor/filesystem" {
     uri: string;
   }
 
+  export interface AppendFileOptions {
+    path: string;
+    data: string;
+    directory?: Directory;
+    recursive?: boolean;
+  }
+
   export const Filesystem: {
     writeFile: (options: WriteFileOptions) => Promise<WriteFileResult>;
+    appendFile: (options: AppendFileOptions) => Promise<void>;
   };
 }
