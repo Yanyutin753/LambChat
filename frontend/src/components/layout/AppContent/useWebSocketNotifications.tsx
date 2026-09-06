@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
@@ -17,6 +17,8 @@ import {
   shouldSurfaceTaskNotification,
 } from "./taskNotificationGuards";
 import { buildTaskNotificationCopy } from "./taskNotificationContent";
+import { hasTaskNotified, markTaskNotified } from "./taskNotificationDedupe";
+import { selectCatchUpCandidates, toCatchUpSnapshot } from "./taskCatchUp";
 import { ImageWithSkeleton } from "../../chat/ChatMessage/ImageWithSkeleton";
 import { isMobileDevice } from "../../../utils/mobile";
 
@@ -37,6 +39,20 @@ interface UseWebSocketNotificationsOptions {
   }) => void;
 }
 
+interface TaskCompleteDelivery {
+  data: {
+    session_id: string;
+    run_id?: string;
+    status: string;
+    message?: string;
+    unread_count?: number;
+    project_id?: string | null;
+    scheduled_task_id?: string | null;
+    is_favorite?: boolean;
+    dedupeKey?: string;
+  };
+}
+
 export function useWebSocketNotifications({
   sessionId,
   enabled = true,
@@ -54,31 +70,8 @@ export function useWebSocketNotifications({
   const onSessionTaskStatusRef = useRef(onSessionTaskStatus);
   onSessionTaskStatusRef.current = onSessionTaskStatus;
 
-  // WebSocket for task completion notifications
-  useWebSocket({
-    enabled,
-    onUsageUpdated: () => {
-      // 后端 usage_logs 落库后推送，直接触发各处当日用量刷新
-      window.dispatchEvent(new Event(TODAY_USAGE_REFRESH_EVENT));
-    },
-    onSessionTaskStatus: (data) => {
-      onSessionTaskStatusRef.current?.(data);
-    },
-    onRecommendQuestions: (notification) => {
-      onRecommendQuestionsRef.current?.(notification);
-    },
-    onTaskComplete: async (notification: {
-      data: {
-        session_id: string;
-        run_id: string;
-        status: string;
-        message?: string;
-        unread_count?: number;
-        project_id?: string | null;
-        scheduled_task_id?: string | null;
-        is_favorite?: boolean;
-      };
-    }) => {
+  const deliverTaskCompletion = useCallback(
+    async (notification: TaskCompleteDelivery) => {
       const {
         session_id,
         run_id,
@@ -89,6 +82,15 @@ export function useWebSocketNotifications({
         scheduled_task_id,
         is_favorite,
       } = notification.data;
+
+      // 跨通道去重：websocket 即时通知与回前台补发共用同一 key 空间
+      const dedupeKey =
+        notification.data.dedupeKey ??
+        (run_id ? `task:${run_id}:${status}` : undefined);
+      if (dedupeKey) {
+        if (hasTaskNotified(dedupeKey)) return;
+        markTaskNotified(dedupeKey);
+      }
 
       // 通知侧边栏更新 unread_count（仅非当前 session）
       if (session_id !== sessionId && unread_count !== undefined) {
@@ -269,6 +271,86 @@ export function useWebSocketNotifications({
           },
         },
       );
+    },
+    [sessionId, t, navigate, notify, isSupported, permission],
+  );
+
+  const deliverTaskCompletionRef = useRef(deliverTaskCompletion);
+  deliverTaskCompletionRef.current = deliverTaskCompletion;
+  const sessionIdRef = useRef(sessionId);
+  sessionIdRef.current = sessionId;
+
+  // 回前台补发：移动端退后台后 WebSocket 被系统挂断，`task:complete`
+  // 送达不了；回到前台时对比「切走时刻 vs 会话列表最新状态」，把后台
+  // 期间完成的 run 补一条通知（与即时通知共用 dedupe，不会重复）。
+  useEffect(() => {
+    if (!enabled) return;
+
+    const hiddenAtRef: { current: number | null } = { current: null };
+    let catchUpInFlight = false;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAtRef.current = Date.now();
+        return;
+      }
+
+      const hiddenAt = hiddenAtRef.current;
+      hiddenAtRef.current = null;
+      if (!hiddenAt || catchUpInFlight) return;
+
+      catchUpInFlight = true;
+      void (async () => {
+        try {
+          const response = await sessionApi.list({ limit: 100 });
+          const sessions = Array.isArray(response)
+            ? response
+            : response?.sessions ?? [];
+          const candidates = selectCatchUpCandidates({
+            sessions: sessions.map(toCatchUpSnapshot),
+            hiddenAt,
+            currentSessionId: sessionIdRef.current,
+            hasNotified: hasTaskNotified,
+          });
+          for (const candidate of candidates) {
+            await deliverTaskCompletionRef.current({
+              data: {
+                session_id: candidate.session_id,
+                run_id: candidate.run_id,
+                status: candidate.status,
+                unread_count: candidate.unreadCount,
+                dedupeKey: candidate.dedupeKey,
+              },
+            });
+          }
+        } catch (err) {
+          console.warn("[AppContent] Task catch-up check failed:", err);
+        } finally {
+          catchUpInFlight = false;
+        }
+      })();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [enabled]);
+
+  // WebSocket for task completion notifications
+  useWebSocket({
+    enabled,
+    onUsageUpdated: () => {
+      // 后端 usage_logs 落库后推送，直接触发各处当日用量刷新
+      window.dispatchEvent(new Event(TODAY_USAGE_REFRESH_EVENT));
+    },
+    onSessionTaskStatus: (data) => {
+      onSessionTaskStatusRef.current?.(data);
+    },
+    onRecommendQuestions: (notification) => {
+      onRecommendQuestionsRef.current?.(notification);
+    },
+    onTaskComplete: (notification) => {
+      void deliverTaskCompletionRef.current(notification);
     },
   });
 }

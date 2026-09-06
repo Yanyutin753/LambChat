@@ -14,6 +14,7 @@ import { personaPresetApi } from "../../../services/api";
 import { usePersonaPresets } from "../../../hooks/usePersonaPresets";
 import { useProjectManager } from "../../../hooks/useProjectManager";
 import { appNotificationService } from "../../../services/notifications/appNotificationService";
+import { promptAppNotificationPermissionOnce } from "./appNotificationPermissionPrompt";
 import { useSessionConfig } from "../../../hooks/useSessionConfig";
 import {
   Permission,
@@ -868,15 +869,24 @@ export function ChatAppContent({
             sendAttachments,
             runOptions,
             submissionCallbacks,
-          ) =>
-            void sendMessage(
+          ) => {
+            // 第一次发消息后请求原生通知权限（仅 App 客户端，一次性）：
+            // 此刻用户最需要「回复完成提醒」，且 Android 只允许前台请求
+            void promptAppNotificationPermissionOnce({
+              appRuntime: appNotificationService.getRuntime(),
+              storage:
+                typeof localStorage !== "undefined" ? localStorage : null,
+              requestPermission: () =>
+                appNotificationService.requestPermission(),
+            });
+            return void sendMessage(
               content,
               undefined,
               sendAttachments,
               runOptions,
               submissionCallbacks,
-            )
-          }
+            );
+          }}
           onStopGeneration={stopGeneration}
           onSteerMessage={steerMessage}
           steerMessages={steerMessages}
