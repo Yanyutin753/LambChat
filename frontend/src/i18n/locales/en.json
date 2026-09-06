@@ -3579,6 +3579,7 @@
     "notificationBody": "Version {{version}} is available. Check for updates in settings",
     "notificationTitle": "Update available",
     "upToDate": "You are on the latest version",
+    "installPermissionHint": "Allow LambChat to install unknown apps first, then tap upgrade again",
     "updateRelaunchInstall": "Restart & install"
   }
 }

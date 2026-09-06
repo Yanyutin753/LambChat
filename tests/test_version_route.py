@@ -83,3 +83,31 @@ def test_version_response_no_release(client):
         data = resp.json()
         assert data["release_notes"] is None
         assert data["release_assets"] is None
+
+
+def test_has_update_compares_client_version(client):
+    """客户端上报版本时，has_update 按客户端版本比较，服务端版本不参与。"""
+    release = make_mock_release(tag_name="v2.6.0")
+    with patch.object(
+        GitHubClient, "get_latest_release", new_callable=AsyncMock, return_value=release
+    ):
+        # 客户端已是 2.6.0：即使服务端是 2.5.0 也不提示更新
+        resp = client.get("/api/version", params={"client_version": "2.6.0"})
+        assert resp.status_code == 200
+        assert resp.json()["has_update"] is False
+
+        # 客户端 2.5.0 落后于最新版：提示更新
+        resp = client.get("/api/version", params={"client_version": "2.5.0"})
+        assert resp.status_code == 200
+        assert resp.json()["has_update"] is True
+
+
+def test_has_update_falls_back_to_server_version_without_client_version(client):
+    """未上报客户端版本时保持旧行为：按服务端版本比较。"""
+    release = make_mock_release(tag_name="v2.6.0")
+    with patch.object(
+        GitHubClient, "get_latest_release", new_callable=AsyncMock, return_value=release
+    ):
+        resp = client.get("/api/version")
+        assert resp.status_code == 200
+        assert resp.json()["has_update"] is True

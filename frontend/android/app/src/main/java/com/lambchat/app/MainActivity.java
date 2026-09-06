@@ -19,6 +19,9 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // 必须在 super.onCreate 之前注册：BridgeActivity.onCreate 末尾 load()
+        // 即消费 bridgeBuilder 创建 bridge，晚于此注册插件不会生效
+        registerPlugin(ApkInstallerPlugin.class);
         super.onCreate(savedInstanceState);
 
         WebView webView = getBridge().getWebView();

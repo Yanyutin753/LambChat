@@ -17,14 +17,16 @@ export const versionApi = {
   },
 
   /**
-   * Check for updates (force refresh from GitHub)
+   * Check for updates (force refresh from GitHub).
+   * client_version 让后端按客户端 App 版本（而非服务端版本）判断 has_update。
    */
-  async checkForUpdates(): Promise<VersionInfo> {
-    return authFetch<VersionInfo>(
-      `${API_BASE}/api/version?force_refresh=true`,
-      {
-        skipAuth: true,
-      },
-    );
+  async checkForUpdates(clientVersion?: string): Promise<VersionInfo> {
+    const query = new URLSearchParams({ force_refresh: "true" });
+    if (clientVersion) {
+      query.set("client_version", clientVersion);
+    }
+    return authFetch<VersionInfo>(`${API_BASE}/api/version?${query}`, {
+      skipAuth: true,
+    });
   },
 };
