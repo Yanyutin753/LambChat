@@ -388,6 +388,11 @@ async def lifespan(app: FastAPI):
     # 启动时初始化
     logger.info("%s v%s starting...", settings.APP_NAME, settings.APP_VERSION)
 
+    # 登记主事件循环：本地沙箱同步文件操作的协程桥接统一投递到该循环，
+    # 共享 redis.asyncio 连接池不再跨循环复用（2026-09-06 生产事故修复）
+    from src.infra.async_utils import loop_bridge
+
+    loop_bridge.set_main_loop(asyncio.get_running_loop())
     # 复位进程关闭标志（进程复用/热重载场景），随后才允许扫描/恢复入口工作
     from src.infra.task.lifecycle import clear_shutting_down
 
@@ -547,8 +552,10 @@ async def lifespan(app: FastAPI):
     finally:
         # 关闭时清理
         from src.agents import AgentFactory
+        from src.infra.async_utils import loop_bridge
         from src.infra.sandbox import SandboxFactory
 
+        loop_bridge.clear_main_loop()
         # 第一时间置进程关闭标志：此后周期扫描/孤儿接管不再发起新的恢复，
         # 否则依赖逐个断开期间，垂死实例会把恢复任务塞给自己并随即被杀掉。
         from src.infra.task.lifecycle import mark_shutting_down

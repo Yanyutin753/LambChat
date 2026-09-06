@@ -9,12 +9,12 @@ local.py 命名空间解析这些名字，测试打桩路径不变；本模块�
 
 from __future__ import annotations
 
-import asyncio
 import posixpath
 import shlex
 from dataclasses import dataclass
 from typing import Any, Coroutine, TypeVar, cast
 
+from src.infra.async_utils import loop_bridge
 from src.infra.backend.protocol_compat import ExtendedFileError, FileInfo
 
 T = TypeVar("T")
@@ -108,19 +108,16 @@ def _platform_ctx(platform: str) -> _PlatformCmdCtx:
 
 
 def _run_coro_sync(coro: Coroutine[Any, Any, T]) -> T:
-    """在同步上下文中运行异步协程（照 _skills_path_utils._run_async 模式）。
+    """在同步上下文中运行异步协程：经 loop_bridge 投递到进程主循环。
 
-    没有运行中的事件循环（如 asyncio.to_thread 的 worker 线程）时用
-    asyncio.run；若在运行中的事件循环内被同步调用则报错，要求改用异步 API。
+    直接 ``asyncio.run`` 会为每次调用新建临时事件循环，而协程内部使用的
+    ``redis.asyncio`` 共享连接池绑定首个使用它的循环——跨循环复用报
+    ``got Future attached to a different loop`` 并污染池（2026-09-06 生产
+    事故：/api/sandbox/* 连锁 500、daemon 通道反复断连）。lifespan 已登记
+    主循环，统一投递执行；未登记（脚本/测试）时 loop_bridge 内部退回
+    ``asyncio.run``。活动循环内同步调用仍报错，要求改用异步 API。
     """
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-    coro.close()
-    raise RuntimeError(
-        "LocalSandboxBackend.execute() cannot run inside an active event loop; use aexecute()."
-    )
+    return loop_bridge.run_coro_sync(coro)
 
 
 def _classify_file_error(text: str) -> ExtendedFileError:

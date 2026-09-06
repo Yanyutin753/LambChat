@@ -7,4 +7,4 @@ value（``node_id|version``），经 ``GET /api/sandbox/status`` 的
 self-update 与服务端最低版本拒连打底。发版时同步递增本值。
 """
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
