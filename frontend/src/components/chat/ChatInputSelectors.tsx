@@ -137,7 +137,11 @@ export function ChatInputSelectors({
   const navigate = useNavigate();
   const { t } = useTranslation();
   // 沙箱选择器动态适配：壳检测 + daemon 在线状态双条件
-  const { online: sandboxOnline, machines, defaultMachineId } = useSandboxStatus();
+  const {
+    online: sandboxOnline,
+    machines,
+    defaultMachineId,
+  } = useSandboxStatus();
   const sandboxShell = isShellAvailable();
   // 多机 daemon：本地档时动态注入机器选择器（sandbox_machine_id 会话级选机）
   const sandboxValue = agentOptionValues[SANDBOX_AGENT_OPTION_KEY] ?? "cloud";
@@ -145,8 +149,11 @@ export function ChatInputSelectors({
     ? buildSandboxMachineOption(machines, defaultMachineId, t)
     : null;
   const enrichedAgentOptions = machineOption
-    ? { ...(agentOptions ?? {}), [SANDBOX_MACHINE_AGENT_OPTION_KEY]: machineOption }
-    : (agentOptions ?? {});
+    ? {
+        ...(agentOptions ?? {}),
+        [SANDBOX_MACHINE_AGENT_OPTION_KEY]: machineOption,
+      }
+    : agentOptions ?? {};
 
   return (
     <>
@@ -243,6 +250,7 @@ export function ChatInputSelectors({
           .map(([key, option]) => {
             const storedValue = agentOptionValues[key] ?? option.default;
             const isSandbox = key === SANDBOX_AGENT_OPTION_KEY;
+            const isMachine = key === SANDBOX_MACHINE_AGENT_OPTION_KEY;
 
             // 沙箱选项：按壳/在线状态裁剪档位并回退显示值（不篡改已存会话值）
             const adapted = isSandbox
@@ -281,6 +289,24 @@ export function ChatInputSelectors({
                   isOpen={activePanel === "sandbox"}
                   onOpenChange={(open) =>
                     onActivePanelChange(open ? "sandbox" : null)
+                  }
+                />
+              );
+            }
+
+            if (isMachine) {
+              // 机器选择器同样独立 panel key（不与思考档共用）；
+              // 触发入口在 RunModePopover 沙箱条目下的"机器"子条目。
+              return (
+                <AgentOptionButton
+                  key={key}
+                  optionKey={key}
+                  option={option}
+                  value={storedValue}
+                  onChange={handleChange}
+                  isOpen={activePanel === "machine"}
+                  onOpenChange={(open) =>
+                    onActivePanelChange(open ? "machine" : null)
                   }
                 />
               );

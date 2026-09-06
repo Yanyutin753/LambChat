@@ -11,6 +11,7 @@ from httpx import ASGITransport, AsyncClient
 from src.api import deps as api_deps
 from src.api.error_handlers import register_error_handlers
 from src.api.routes import sandbox as sandbox_route
+from src.infra.sandbox.relay.registry import SandboxClientRegistry
 
 
 def _fake_user():
@@ -28,9 +29,19 @@ def _fake_pat_user(request: Request):
 
 
 class _FakeRedis:
+    """内存 Redis：list（通道帧）+ string/set/hash（真实注册表）全覆盖，
+    TTL 由 expires_at 模拟——status 测试跑真实 SandboxClientRegistry 时依赖。"""
+
     def __init__(self):
         self.lists: dict[str, list[str]] = {}
         self.kv: dict[str, str] = {}
+        self.sets: "dict[str, set[str]]" = {}
+        self.hashes: dict[str, dict[str, str]] = {}
+        self.expires_at: dict[str, float] = {}
+
+    def _alive(self, key: str) -> bool:
+        exp = self.expires_at.get(key)
+        return exp is None or exp > time.monotonic()
 
     async def rpush(self, key, value):
         self.lists.setdefault(key, []).append(value)
@@ -41,9 +52,72 @@ class _FakeRedis:
 
     async def set(self, key, value, ex=None):
         self.kv[key] = value
+        if ex is not None:
+            self.expires_at[key] = time.monotonic() + ex
 
     async def get(self, key):
-        return self.kv.get(key)
+        if key in self.kv and self._alive(key):
+            return self.kv[key]
+        return None
+
+    async def sadd(self, key, member):
+        self.sets.setdefault(key, set()).add(member)
+
+    async def srem(self, key, member):
+        self.sets.get(key, set()).discard(member)
+
+    async def smembers(self, key):
+        return set(self.sets.get(key, set()))
+
+    async def hset(self, key, field, value):
+        self.hashes.setdefault(key, {})[field] = value
+
+    async def hdel(self, key, field):
+        self.hashes.get(key, {}).pop(field, None)
+
+    async def hgetall(self, key):
+        if not self._alive(key):
+            return {}
+        return dict(self.hashes.get(key, {}))
+
+    async def delete(self, key):
+        self.lists.pop(key, None)
+        self.kv.pop(key, None)
+        self.sets.pop(key, None)
+        self.hashes.pop(key, None)
+        self.expires_at.pop(key, None)
+
+    async def expire(self, key, seconds):
+        self.expires_at[key] = time.monotonic() + seconds
+
+    async def exists(self, key):
+        return (
+            1
+            if self._alive(key) and (key in self.kv or key in self.sets or key in self.hashes)
+            else 0
+        )
+
+
+def _real_registry(monkeypatch) -> "tuple[SandboxClientRegistry, _FakeRedis]":
+    """真实注册表 + 内存 Redis：status 断言走真实多机/legacy 语义。
+
+    此前 status 测试用恒返回 active 的替身，把「多机注册不落 legacy hash →
+    /status 误报离线」的回归整个掩盖了（2026-09-06 生产实例）。
+    """
+    redis = _FakeRedis()
+    registry = SandboxClientRegistry()
+    monkeypatch.setattr(registry, "_redis", lambda: redis)
+    return registry, redis
+
+
+def _status_client(monkeypatch, registry):
+    """status 端点专用 app/client：JWT 通道 + 注册表替换。"""
+    app = FastAPI()
+    register_error_handlers(app)
+    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
+    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_user
+    monkeypatch.setattr(sandbox_route, "_registry", lambda: registry)
+    return AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver")
 
 
 class _FakeRegistry:
@@ -301,14 +375,9 @@ async def test_results_rejects_body_one_byte_over_limit(monkeypatch):
 
 
 async def test_status_endpoint(monkeypatch):
-    app = FastAPI()
-    register_error_handlers(app)
-    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
-    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_user
-    monkeypatch.setattr(sandbox_route, "_registry", lambda: _FakeRegistry())
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+    registry, _ = _real_registry(monkeypatch)
+    await registry.register("u1", "c1", "node-a")  # legacy：无 machine_id
+    async with _status_client(monkeypatch, registry) as client:
         resp = await client.get("/api/sandbox/status")
     assert resp.status_code == 200
     # 旧格式 value（无版本/平台上报的 daemon）：daemon_version/daemon_platform 为 null
@@ -323,16 +392,9 @@ async def test_status_endpoint(monkeypatch):
 
 async def test_status_endpoint_reports_daemon_version(monkeypatch):
     """版本地基：注册表 value 里的 node_id|version 解析成 daemon_version 返回。"""
-    registry = _FakeRegistry()
-    registry.active = ("c1", "node-a|0.1.0")
-    app = FastAPI()
-    register_error_handlers(app)
-    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
-    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_user
-    monkeypatch.setattr(sandbox_route, "_registry", lambda: registry)
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+    registry, _ = _real_registry(monkeypatch)
+    await registry.register("u1", "c1", "node-a", version="0.1.0")
+    async with _status_client(monkeypatch, registry) as client:
         resp = await client.get("/api/sandbox/status")
     assert resp.status_code == 200
     assert resp.json() == {
@@ -346,16 +408,9 @@ async def test_status_endpoint_reports_daemon_version(monkeypatch):
 
 async def test_status_endpoint_reports_daemon_platform(monkeypatch):
     """平台地基（M4 T3）：三段 value 的第三段解析成 daemon_platform 返回。"""
-    registry = _FakeRegistry()
-    registry.active = ("c1", "node-a|0.1.0|win32")
-    app = FastAPI()
-    register_error_handlers(app)
-    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
-    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_user
-    monkeypatch.setattr(sandbox_route, "_registry", lambda: registry)
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+    registry, _ = _real_registry(monkeypatch)
+    await registry.register("u1", "c1", "node-a", version="0.1.0", platform="win32")
+    async with _status_client(monkeypatch, registry) as client:
         resp = await client.get("/api/sandbox/status")
     assert resp.status_code == 200
     assert resp.json() == {
@@ -369,16 +424,11 @@ async def test_status_endpoint_reports_daemon_platform(monkeypatch):
 
 async def test_status_endpoint_reports_confirm_policy(monkeypatch):
     """服务端确认门：四段 value 的第四段解析成 daemon_confirm_policy 返回。"""
-    registry = _FakeRegistry()
-    registry.active = ("c1", "node-a|0.2.0|linux|commands")
-    app = FastAPI()
-    register_error_handlers(app)
-    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
-    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_user
-    monkeypatch.setattr(sandbox_route, "_registry", lambda: registry)
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+    registry, _ = _real_registry(monkeypatch)
+    await registry.register(
+        "u1", "c1", "node-a", version="0.2.0", platform="linux", confirm_policy="commands"
+    )
+    async with _status_client(monkeypatch, registry) as client:
         resp = await client.get("/api/sandbox/status")
     assert resp.status_code == 200
     assert resp.json() == {
@@ -388,6 +438,79 @@ async def test_status_endpoint_reports_confirm_policy(monkeypatch):
         "daemon_platform": "linux",
         "daemon_confirm_policy": "commands",
     }
+
+
+async def test_status_endpoint_multi_machine_daemon_online(monkeypatch):
+    """多机 daemon（0.3.0+ 带 machine_id）不落 legacy hash，但机器在线时
+    status 必须报 online 并带机器上报的版本/平台/策略——此前端点只查
+    legacy hash，把 0.3.0 daemon 整体误报离线（前端本地档置灰的根因）。"""
+    registry, _ = _real_registry(monkeypatch)
+    await registry.register(
+        "u1",
+        "c1",
+        "n1",
+        version="0.3.0",
+        platform="win32",
+        confirm_policy="all",
+        machine_id="pc1",
+        machine_name="yangyang",
+    )
+    assert await registry.get_active("u1") is None  # 多机注册不写 legacy hash（回归根因）
+
+    async with _status_client(monkeypatch, registry) as client:
+        resp = await client.get("/api/sandbox/status")
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "online": True,
+        "daemon_version": "0.3.0",
+        "daemon_platform": "win32",
+        "daemon_confirm_policy": "all",
+    }
+
+
+async def test_status_endpoint_multi_machine_reports_default_machine(monkeypatch):
+    """多机在线时 status 字段取缺省目标机（默认机），与 dispatch 解析同规则。"""
+    registry, _ = _real_registry(monkeypatch)
+    await registry.register("u1", "c1", "n1", version="0.3.0", platform="linux", machine_id="mac1")
+    await registry.register("u1", "c2", "n2", version="0.3.1", platform="win32", machine_id="pc1")
+    await registry.set_default_machine("u1", "pc1")
+
+    async with _status_client(monkeypatch, registry) as client:
+        resp = await client.get("/api/sandbox/status")
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "online": True,
+        "daemon_version": "0.3.1",
+        "daemon_platform": "win32",
+        "daemon_confirm_policy": None,
+    }
+
+
+async def test_status_endpoint_multiple_machines_without_default_online(monkeypatch):
+    """多机并存且未设默认：无缺省目标机（版本/平台为 null），但在线判定
+    必须为 True——任一机器在线即在线，与机器列表绿点一致。"""
+    registry, _ = _real_registry(monkeypatch)
+    await registry.register("u1", "c1", "n1", version="0.3.0", platform="linux", machine_id="mac1")
+    await registry.register("u1", "c2", "n2", version="0.3.1", platform="win32", machine_id="pc1")
+
+    async with _status_client(monkeypatch, registry) as client:
+        resp = await client.get("/api/sandbox/status")
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "online": True,
+        "daemon_version": None,
+        "daemon_platform": None,
+        "daemon_confirm_policy": None,
+    }
+
+
+async def test_status_endpoint_offline_when_no_daemon(monkeypatch):
+    """无任何在线（legacy 与机器都空）：online False。"""
+    registry, _ = _real_registry(monkeypatch)
+    async with _status_client(monkeypatch, registry) as client:
+        resp = await client.get("/api/sandbox/status")
+    assert resp.status_code == 200
+    assert resp.json() == {"online": False}
 
 
 async def test_channel_registers_confirm_policy_from_query(monkeypatch):
