@@ -26,6 +26,7 @@ from .heartbeat import TaskHeartbeat
 from .stall_watchdog import aiter_with_stall_timeout
 from .state_machine import TaskStateMachine
 from .status import TaskStatus
+from .steer import emit_undelivered_steer_events
 
 logger = get_logger(__name__)
 _TERMINAL_STREAM_TTL_SECONDS = 60
@@ -296,6 +297,9 @@ class TaskExecutor:
             if not produced_main_text:
                 raise AppError(ErrorCode.MODEL_EMPTY_RESPONSE)
 
+            # 终态补写未注入的插话（steer:undelivered），落库可见、不静默丢失
+            await emit_undelivered_steer_events(session_id, run_id, presenter)
+
             # 完成 trace（更新 MongoDB trace 状态为 completed）
             await presenter.complete("completed")
 
@@ -375,6 +379,8 @@ class TaskExecutor:
                 pass
         trace_id = presenter.trace_id if presenter else None
         if dual_writer is not None:
+            # 终态补写未注入的插话（steer:undelivered）
+            await emit_undelivered_steer_events(session_id, run_id, presenter)
             await self._emit_cancel_terminal_events(
                 session_id=session_id,
                 run_id=run_id,
@@ -501,6 +507,8 @@ class TaskExecutor:
             logger.warning(f"Failed to flush events on TaskInterruptedError: {flush_error}")
         trace_id = presenter.trace_id if presenter else None
         if dual_writer is not None:
+            # 终态补写未注入的插话（steer:undelivered）
+            await emit_undelivered_steer_events(session_id, run_id, presenter)
             await self._emit_cancel_terminal_events(
                 session_id=session_id,
                 run_id=run_id,
@@ -589,6 +597,8 @@ class TaskExecutor:
 
         # 写入错误事件（包含 trace_id 以写入 MongoDB）；code 为稳定错误码供前端翻译
         trace_id = presenter.trace_id if presenter else None
+        # 终态补写未注入的插话（steer:undelivered）
+        await emit_undelivered_steer_events(session_id, run_id, presenter)
         error_code = getattr(error, "error_code", None)
         await dual_writer.write_event(
             session_id=session_id,

@@ -153,3 +153,94 @@ async def test_clear_session_redis_deletes_pending_inflight_and_lease_keys() -> 
             "lambchat:steer:session-redis:lease",
         ]
     )
+
+
+class _RecordingPresenter:
+    def __init__(self) -> None:
+        self.saved: list[dict] = []
+
+    async def save_event(self, event: dict) -> None:
+        self.saved.append(event)
+
+
+async def test_emit_undelivered_writes_one_event_per_pending_item() -> None:
+    """run 终态时未注入的插话必须落库为 steer:undelivered（每条一个事件）。"""
+    from src.infra.task.steer import emit_undelivered_steer_events
+
+    queue = SteerQueue(redis=None)
+    await queue.enqueue_item("session-1", SteerItem(id="steer-a", content="插话A"))
+    await queue.enqueue_item("session-1", SteerItem(id="steer-b", content="插话B"))
+
+    presenter = _RecordingPresenter()
+    written = await emit_undelivered_steer_events(
+        "session-1", run_id="run-9", presenter=presenter, queue=queue
+    )
+
+    assert written == 2
+    assert [e["event"] for e in presenter.saved] == ["steer:undelivered", "steer:undelivered"]
+    assert presenter.saved[0]["data"]["message_id"] == "steer-a"
+    assert presenter.saved[0]["data"]["content"] == "插话A"
+    assert presenter.saved[0]["data"]["run_id"] == "run-9"
+    assert presenter.saved[1]["data"]["message_id"] == "steer-b"
+    # 队列不清空：前端补发流程仍按 ID 取消残留项，避免双投递
+    assert len(await queue.list_items("session-1")) == 2
+
+
+async def test_emit_undelivered_without_pending_writes_nothing() -> None:
+    from src.infra.task.steer import emit_undelivered_steer_events
+
+    queue = SteerQueue(redis=None)
+    presenter = _RecordingPresenter()
+
+    assert await emit_undelivered_steer_events("session-1", presenter=presenter, queue=queue) == 0
+    assert presenter.saved == []
+
+
+async def test_emit_undelivered_falls_back_to_dual_writer_without_presenter(
+    monkeypatch,
+) -> None:
+    from src.infra.task.steer import emit_undelivered_steer_events
+
+    queue = SteerQueue(redis=None)
+    await queue.enqueue_item("session-1", SteerItem(id="steer-x", content="插话X"))
+
+    recorded: list[dict] = []
+
+    class _Writer:
+        async def write_event(self, **kwargs):
+            recorded.append(kwargs)
+
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: _Writer())
+
+    written = await emit_undelivered_steer_events(
+        "session-1", run_id="run-1", presenter=None, queue=queue
+    )
+
+    assert written == 1
+    assert recorded[0]["event_type"] == "steer:undelivered"
+    assert recorded[0]["session_id"] == "session-1"
+    assert recorded[0]["data"]["message_id"] == "steer-x"
+
+
+async def test_emit_undelivered_is_best_effort_on_persistence_failure() -> None:
+    """写出失败不抛异常：失败的记日志，其余条目继续写。"""
+    from src.infra.task.steer import emit_undelivered_steer_events
+
+    queue = SteerQueue(redis=None)
+    await queue.enqueue_item("session-1", SteerItem(id="steer-bad", content="坏的"))
+    await queue.enqueue_item("session-1", SteerItem(id="steer-good", content="好的"))
+
+    class _FlakyPresenter:
+        def __init__(self) -> None:
+            self.saved: list[dict] = []
+
+        async def save_event(self, event: dict) -> None:
+            if event["data"]["message_id"] == "steer-bad":
+                raise RuntimeError("storage down")
+            self.saved.append(event)
+
+    written = await emit_undelivered_steer_events(
+        "session-1", run_id="run-1", presenter=_FlakyPresenter(), queue=queue
+    )
+
+    assert written == 1
