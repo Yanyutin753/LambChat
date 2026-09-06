@@ -2,8 +2,8 @@ import {
   buildProxyCoverUrl,
   buildImageThumbUrl,
   buildVideoThumbChain,
-      isOssDirectUrl,
-    tokenizeCodeLine,
+  isOssDirectUrl,
+  tokenizeCodeLine,
 } from "../coverTheme.ts";
 
 /* ── OSS direct URL detection ────────────────────────── */
@@ -90,7 +90,9 @@ test("tokenizeCodeLine accents quoted strings and literals for numbers", () => {
 
 test("buildProxyCoverUrl appends ?cover=1 to app proxy file URLs", () => {
   expect(
-    buildProxyCoverUrl("https://lambchat.com/api/upload/file/revealed_files/a.jpg"),
+    buildProxyCoverUrl(
+      "https://lambchat.com/api/upload/file/revealed_files/a.jpg",
+    ),
   ).toBe("https://lambchat.com/api/upload/file/revealed_files/a.jpg?cover=1");
   expect(buildProxyCoverUrl("/api/upload/file/a.jpg")).toBe(
     "/api/upload/file/a.jpg?cover=1",
@@ -98,12 +100,12 @@ test("buildProxyCoverUrl appends ?cover=1 to app proxy file URLs", () => {
 });
 
 test("buildProxyCoverUrl carries video timestamps and existing params", () => {
-  expect(
-    buildProxyCoverUrl("/api/upload/file/a/clip.mp4", { t: 1000 }),
-  ).toBe("/api/upload/file/a/clip.mp4?cover=1&t=1000");
-  expect(
-    buildProxyCoverUrl("/api/upload/file/a.mp4?x=2", { t: 0 }),
-  ).toBe("/api/upload/file/a.mp4?x=2&cover=1&t=0");
+  expect(buildProxyCoverUrl("/api/upload/file/a/clip.mp4", { t: 1000 })).toBe(
+    "/api/upload/file/a/clip.mp4?cover=1&t=1000",
+  );
+  expect(buildProxyCoverUrl("/api/upload/file/a.mp4?x=2", { t: 0 })).toBe(
+    "/api/upload/file/a.mp4?x=2&cover=1&t=0",
+  );
 });
 
 test("buildProxyCoverUrl returns null for non-proxy URLs", () => {

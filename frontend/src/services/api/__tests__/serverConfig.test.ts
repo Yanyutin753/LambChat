@@ -20,16 +20,22 @@ beforeEach(() => {
 
 describe("normalizeServerUrl", () => {
   test("trims and strips trailing slashes", () => {
-    expect(normalizeServerUrl(" https://lc.example.com/ ")).toBe("https://lc.example.com");
+    expect(normalizeServerUrl(" https://lc.example.com/ ")).toBe(
+      "https://lc.example.com",
+    );
   });
   test("bare domain gets https scheme", () => {
     expect(normalizeServerUrl("lc.example.com")).toBe("https://lc.example.com");
   });
   test("localhost without dot allowed", () => {
-    expect(normalizeServerUrl("http://localhost:8000")).toBe("http://localhost:8000");
+    expect(normalizeServerUrl("http://localhost:8000")).toBe(
+      "http://localhost:8000",
+    );
   });
   test("ip allowed", () => {
-    expect(normalizeServerUrl("http://192.168.1.5:8000")).toBe("http://192.168.1.5:8000");
+    expect(normalizeServerUrl("http://192.168.1.5:8000")).toBe(
+      "http://192.168.1.5:8000",
+    );
   });
   test("empty and garbage rejected", () => {
     expect(normalizeServerUrl("  ")).toBe("");
@@ -117,7 +123,10 @@ describe("installServerUrlNetworkPatch", () => {
     });
     const sameOrigin = new URL("/api/chat", window.location.href).toString();
     await window.fetch(new Request(sameOrigin, { method: "POST", body: "hi" }));
-    expect(seen[0]).toEqual({ url: "https://s.example.com/api/chat", method: "POST" });
+    expect(seen[0]).toEqual({
+      url: "https://s.example.com/api/chat",
+      method: "POST",
+    });
   });
 
   test("buildAbsoluteUrl joins base and path", () => {
@@ -129,7 +138,9 @@ describe("installServerUrlNetworkPatch", () => {
 
 describe("移动端（Capacitor）运行时配置", () => {
   test("capacitor runtime needs setup when unconfigured", () => {
-    const capGlobal = { Capacitor: { isNativePlatform: () => true, getPlatform: () => "android" } };
+    const capGlobal = {
+      Capacitor: { isNativePlatform: () => true, getPlatform: () => "android" },
+    };
     expect(needsServerSetup(capGlobal as never)).toBe(true);
     setStoredServerUrl("https://s.example.com");
     expect(needsServerSetup(capGlobal as never)).toBe(false);

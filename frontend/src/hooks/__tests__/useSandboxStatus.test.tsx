@@ -19,9 +19,7 @@ import {
 function Probe() {
   const { status, statusError } = useSandboxStatus();
   return (
-    <div data-testid="probe">
-      {JSON.stringify({ status, statusError })}
-    </div>
+    <div data-testid="probe">{JSON.stringify({ status, statusError })}</div>
   );
 }
 
@@ -99,9 +97,7 @@ test("stops polling after unmount", async () => {
 function GatedProbe({ enabled }: { enabled: boolean }) {
   const { status, statusError } = useSandboxStatus({ enabled });
   return (
-    <div data-testid="probe">
-      {JSON.stringify({ status, statusError })}
-    </div>
+    <div data-testid="probe">{JSON.stringify({ status, statusError })}</div>
   );
 }
 

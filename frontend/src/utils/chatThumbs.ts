@@ -54,7 +54,9 @@ export function buildChatThumbUrl(
     return `${url}${joiner}thumb=1`;
   }
   if (isOssDirectUrl(url)) {
-    return `${url}${joiner}x-oss-process=${encodeURIComponent(THUMB_LFIT_PROCESS)}`;
+    return `${url}${joiner}x-oss-process=${encodeURIComponent(
+      THUMB_LFIT_PROCESS,
+    )}`;
   }
   return undefined;
 }

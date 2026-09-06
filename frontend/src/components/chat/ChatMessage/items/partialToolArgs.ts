@@ -129,7 +129,8 @@ function scanValue(s: string, start: number): ScannedValue | null {
     ["null", null],
   ] as const) {
     if (lit.startsWith(s.slice(start))) return null; // 字面量截断（tru/nul…）
-    if (s.startsWith(lit, start)) return { value: val, end: start + lit.length, closed: true };
+    if (s.startsWith(lit, start))
+      return { value: val, end: start + lit.length, closed: true };
   }
   if (c === "{" || c === "[") {
     const end = findBracketEnd(s, start);

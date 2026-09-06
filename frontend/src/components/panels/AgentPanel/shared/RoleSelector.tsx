@@ -48,7 +48,7 @@ export const RoleSelector = React.memo(function RoleSelector({
           aria-haspopup="listbox"
           className="flex w-full items-center justify-between rounded-lg border border-stone-300 bg-white px-4 py-3 text-sm font-medium text-stone-900 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-100"
         >
-          <span className="flex items-center gap-2">
+          <span className="flex items-center gap-2 font-serif">
             <Settings size={16} className="text-stone-500" />
             {selectedRole?.name || t("agentConfig.selectRole")}
           </span>
@@ -80,7 +80,7 @@ export const RoleSelector = React.memo(function RoleSelector({
                     : "text-stone-700 hover:bg-stone-50 dark:text-stone-300 dark:hover:bg-stone-700/50"
                 }`}
               >
-                <span>{role.name}</span>
+                <span className="font-serif">{role.name}</span>
                 {selectedRoleId === role.id && (
                   <Check
                     size={16}

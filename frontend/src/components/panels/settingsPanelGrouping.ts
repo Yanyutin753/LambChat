@@ -44,7 +44,9 @@ export function groupFilteredSettings(
   const map = new Map<string, SettingItem[]>();
 
   for (const s of filteredSettings) {
-    const key = opts.isGlobalSearch ? `__cat__:${s.category}` : s.subcategory || "";
+    const key = opts.isGlobalSearch
+      ? `__cat__:${s.category}`
+      : s.subcategory || "";
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(s);
   }

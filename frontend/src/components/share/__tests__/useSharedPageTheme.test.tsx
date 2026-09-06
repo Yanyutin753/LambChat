@@ -73,7 +73,9 @@ test("cycles light -> dark -> sepia -> light and syncs <html> classes", () => {
   act(() => result.current.toggleTheme());
   expect(result.current.theme).toBe("light");
   expect(document.documentElement.classList.contains("dark")).toBe(false);
-  expect(document.documentElement.classList.contains("theme-sepia")).toBe(false);
+  expect(document.documentElement.classList.contains("theme-sepia")).toBe(
+    false,
+  );
 });
 
 test("persists the active theme to the lambchat-theme storage key", () => {

@@ -58,11 +58,17 @@ export function ChannelAgentSelect({
         }
         options={agents.map((agent) => ({
           value: agent.id,
-          label: `${resolveAgentDisplayName(
-            agent,
-            i18n.language,
-            t,
-          )} — ${resolveAgentDescription(agent, i18n.language, t)}`,
+          label: (
+            <>
+              <span className="font-serif">
+                {resolveAgentDisplayName(agent, i18n.language, t)}
+              </span>
+              <span className="opacity-60">
+                {" — "}
+                {resolveAgentDescription(agent, i18n.language, t)}
+              </span>
+            </>
+          ),
         }))}
       />
       <p className="es-hint">

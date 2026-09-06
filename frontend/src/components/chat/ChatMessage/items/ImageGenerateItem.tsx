@@ -183,7 +183,9 @@ function ImageGenerateDetail({
           {inputImages.length > 0 && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-secondary text-xs">
               <ImagePlus size={10} className="opacity-50" />
-              {t("chat.message.toolImageRefCount", { count: inputImages.length })}
+              {t("chat.message.toolImageRefCount", {
+                count: inputImages.length,
+              })}
             </span>
           )}
         </div>

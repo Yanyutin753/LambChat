@@ -132,7 +132,7 @@ export function NotificationBanner() {
 
   return (
     <>
-      <div className="absolute bottom-4 sm:bottom-6 left-0 right-0 flex justify-center px-[20px] z-0 pointer-events-none">
+      <div className="notification-banner-root absolute bottom-4 sm:bottom-6 left-0 right-0 flex justify-center px-[20px] z-0 pointer-events-none">
         <div className="w-full sm:max-w-[44rem] md:max-w-[46rem] lg:max-w-[48rem] xl:max-w-[50rem] 2xl:max-w-[52rem] flex flex-col items-center pointer-events-auto">
           {/* Card */}
           <div className="relative group max-w-full">

@@ -205,7 +205,9 @@ const GrepItem = memo(function GrepItem({
       <CollapsiblePill
         status={status}
         icon={<Search size={12} className="shrink-0 opacity-50" />}
-        label={`${t("chat.message.toolSearch")} ${pattern || ""}`}
+        label={`${t("chat.message.toolSearch")} ${pattern || ""}${
+          parsedResult.files.length > 0 ? ` (${parsedResult.files.length})` : ""
+        }`}
         variant="tool"
         expandable={canExpand}
         onPanelOpen={() => {

@@ -79,9 +79,9 @@ test("args 插值透传给 t", () => {
 test("无码时走原文映射兜底", () => {
   const tt = makeT();
   // makeT 无 override 时返回 key 本身，可验证命中了映射而非原文直出
-  expect(
-    translateApiError(undefined, "用户名或密码错误", undefined, tt),
-  ).toBe("backendErrors.invalidCredentials");
+  expect(translateApiError(undefined, "用户名或密码错误", undefined, tt)).toBe(
+    "backendErrors.invalidCredentials",
+  );
 });
 
 test("internal_error 码不翻译直接用原文", () => {

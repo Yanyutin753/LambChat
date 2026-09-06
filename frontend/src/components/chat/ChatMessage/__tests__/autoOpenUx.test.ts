@@ -25,7 +25,10 @@ test("reading-history signal derives from detach and bottom state", () => {
 
   setStreamFollowSignal({ nearBottom: true });
   expect(isUserReadingHistory()).toBe(false);
-  expect(getStreamFollowSignal()).toEqual({ detached: false, nearBottom: true });
+  expect(getStreamFollowSignal()).toEqual({
+    detached: false,
+    nearBottom: true,
+  });
 
   resetStreamFollowSignal();
 });

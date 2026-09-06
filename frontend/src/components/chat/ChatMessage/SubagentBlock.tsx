@@ -319,7 +319,7 @@ export function SubagentBlock({
         <div className="flex-1 min-w-0">
           <span
             className={clsx(
-              "text-13 font-medium truncate block",
+              "text-13 font-medium font-serif truncate block",
               "text-theme-text",
             )}
           >

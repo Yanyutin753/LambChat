@@ -18,6 +18,7 @@ test("safe-area utility classes map to native inset variables", () => {
   );
   expect(utilities).toMatch(/\.safe-area-y\s*\{/);
   expect(utilities).toMatch(/\.safe-area-viewport-padding\s*\{/);
+  expect(utilities).toMatch(/\.safe-area-viewport-padding-top\s*\{/);
   expect(utilities).toMatch(/\.safe-area-viewport-height\s*\{/);
 });
 
@@ -158,16 +159,26 @@ test("portal dialogs and sheets reserve safe-area spacing", () => {
     "../components/panels/SidebarParts/MobileMoreMenuSheet.tsx",
   ];
 
+  // 弹层文件必须显式考虑安全区：居中弹窗用 safe-area-viewport-padding，
+  // 底部弹层外层用 -top 变体、sheet 表面用 safe-area-bottom
+  // （逐文件的精确模式由 fullscreenOverlaysSafeAreaSource.test.ts 锁定）
   for (const path of safeViewportFiles) {
-    expect(readSource(path)).toMatch(/safe-area-viewport-padding/);
+    expect(readSource(path)).toMatch(
+      /safe-area-viewport-padding\b|safe-area-bottom/,
+    );
   }
 });
 
 test("profile mobile sheet relies on the portal viewport safe area only", () => {
   const profileModal = readSource("../components/profile/ProfileModal.tsx");
 
+  // 外层只避让顶部系统栏；底部 inset 由 sheet 表面自己承担，
+  // 不允许 padding-bottom 把 sheet 顶离屏幕底边（遮罩会露缝）
   expect(profileModal).toMatch(
-    /className="safe-area-viewport-padding fixed inset-0 z-\[300\] flex items-end/,
+    /className="safe-area-viewport-padding-top fixed inset-0 z-\[300\] flex items-end/,
+  );
+  expect(profileModal).toMatch(
+    /sm:hidden relative z-10 w-full bg-white[^"]*safe-area-bottom/,
   );
   expect(profileModal).not.toMatch(
     /renderFooter\(\s*"[^"]*\bsafe-area-bottom\b/,
@@ -178,13 +189,14 @@ test("profile mobile sheet relies on the portal viewport safe area only", () => 
 });
 
 test("standalone full-page fallback surfaces use safe-area spacing", () => {
-  const oauth = readSource("../components/auth/OAuthCallback.tsx");
+  // OAuthCallback / AuthPage 重定向态现在渲染 AutoLoginSplash（独立全屏过渡面）
+  const splash = readSource("../components/landing/AutoLoginSplash.tsx");
   const protectedRoute = readSource("../components/auth/ProtectedRoute.tsx");
   const notFound = readSource("../components/common/NotFoundPage.tsx");
   const errorBoundary = readSource("../components/common/ErrorBoundary.tsx");
   const welcome = readSource("../styles/welcome.css");
 
-  expect(oauth).toMatch(/safe-area-viewport-padding/);
+  expect(splash).toMatch(/safe-area-viewport-padding/);
   expect(protectedRoute).toMatch(/safe-area-viewport-padding/);
   expect(notFound).toMatch(/safe-area-viewport-padding/);
   expect(errorBoundary).toMatch(/safe-area-viewport-padding/);

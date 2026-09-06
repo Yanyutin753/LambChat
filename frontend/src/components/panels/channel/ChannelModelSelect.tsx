@@ -54,7 +54,12 @@ export function ChannelModelSelect({
         }
         options={models.map((model) => ({
           value: model.id,
-          label: `${model.label} (${model.value})`,
+          label: (
+            <>
+              <span className="font-serif">{model.label}</span>
+              <span className="opacity-60"> ({model.value})</span>
+            </>
+          ),
         }))}
       />
       <p className="es-hint">

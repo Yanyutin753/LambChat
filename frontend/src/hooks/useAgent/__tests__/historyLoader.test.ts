@@ -906,7 +906,9 @@ test("user:cancel with reason=steer marks cancelled without the cancelled pill p
   expect(assistant?.role).toBe("assistant");
   // 已停止走状态行文字切换：cancelled 标志置位，但不出现 cancelled part 胶囊
   expect(assistant?.cancelled).toBe(true);
-  expect(assistant?.parts?.some((part) => part.type === "cancelled")).toBe(false);
+  expect(assistant?.parts?.some((part) => part.type === "cancelled")).toBe(
+    false,
+  );
 });
 
 test("reconstructMessagesFromEvents keeps late run events after cancel on the cancelled assistant", () => {
@@ -1153,7 +1155,11 @@ test("renders a retried steer:message only once by message_id", () => {
         event_type: "user:message",
         run_id: "run-retry",
         timestamp: "2026-08-22T15:00:00.000Z",
-        data: { content: "任务", message_id: "run-retry:user", attachments: [] },
+        data: {
+          content: "任务",
+          message_id: "run-retry:user",
+          attachments: [],
+        },
       } satisfies HistoryEvent,
       {
         event_type: "message:chunk",
@@ -1211,7 +1217,11 @@ test("places a legacy tail steer:message before the reply turn it answers", () =
         event_type: "user:message",
         run_id: runId,
         timestamp: "2026-08-22T15:14:35.186Z",
-        data: { content: "搜索 今日新闻", message_id: `${runId}:user`, attachments: [] },
+        data: {
+          content: "搜索 今日新闻",
+          message_id: `${runId}:user`,
+          attachments: [],
+        },
       } satisfies HistoryEvent,
       {
         event_type: "thinking",
@@ -1223,13 +1233,22 @@ test("places a legacy tail steer:message before the reply turn it answers", () =
         event_type: "tool:start",
         run_id: runId,
         timestamp: "2026-08-22T15:14:41.476Z",
-        data: { tool: "web-search", args: { query: "今日新闻" }, tool_call_id: "t1" },
+        data: {
+          tool: "web-search",
+          args: { query: "今日新闻" },
+          tool_call_id: "t1",
+        },
       } satisfies HistoryEvent,
       {
         event_type: "tool:result",
         run_id: runId,
         timestamp: "2026-08-22T15:14:42.100Z",
-        data: { tool: "web-search", result: "结果", tool_call_id: "t1", success: true },
+        data: {
+          tool: "web-search",
+          result: "结果",
+          tool_call_id: "t1",
+          success: true,
+        },
       } satisfies HistoryEvent,
       {
         event_type: "thinking",
@@ -1815,7 +1834,11 @@ test("sandbox confirm approval does not synthesize an extra tool card", () => {
         event_type: "tool:start",
         run_id: "run-sbx",
         timestamp: "2026-09-05T15:51:15.000Z",
-        data: { tool: "execute", tool_call_id: stableId, args: { command: "df -h" } },
+        data: {
+          tool: "execute",
+          tool_call_id: stableId,
+          args: { command: "df -h" },
+        },
       },
       {
         event_type: "approval_required",
@@ -1857,7 +1880,11 @@ test("sandbox confirm approval does not synthesize an extra tool card", () => {
         event_type: "tool:start",
         run_id: "run-sbx",
         timestamp: "2026-09-05T15:52:00.000Z",
-        data: { tool: "execute", tool_call_id: stableId, args: { command: "df -h" } },
+        data: {
+          tool: "execute",
+          tool_call_id: stableId,
+          args: { command: "df -h" },
+        },
       },
       {
         event_type: "tool:result",

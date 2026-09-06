@@ -4,6 +4,7 @@ import {
   collectRouteShellUrls,
   combinePrecacheBudgetEntries,
   createPerformanceManifestTransform,
+  EAGER_JAVASCRIPT_BUDGET_BYTES,
   extractEagerJavaScriptUrls,
   filterPrecacheEntries,
   sumGzipBytes,
@@ -226,7 +227,11 @@ describe("frontend performance budgets", () => {
     ]);
     expect(result.warnings).toEqual([]);
     expect(logs).toHaveLength(1);
-    expect(logs[0]).toMatch(/eager JavaScript: \d+\/518144 bytes/);
+    expect(logs[0]).toMatch(
+      new RegExp(
+        `eager JavaScript: \\d+\\/${EAGER_JAVASCRIPT_BUDGET_BYTES} bytes`,
+      ),
+    );
     expect(logs[0]).toMatch(/precache: 8 entries, \d+\/5242880 bytes/);
   });
 
@@ -273,7 +278,11 @@ describe("frontend performance budgets", () => {
           ? deterministicNoise(600_000)
           : baseFiles.get(filePath)!,
       )([{ url: "assets/index.js", size: 600_000 }]),
-    ).rejects.toThrow(/eager JavaScript budget exceeded: \d+ > 518144 bytes/);
+    ).rejects.toThrow(
+      new RegExp(
+        `eager JavaScript budget exceeded: \\d+ > ${EAGER_JAVASCRIPT_BUDGET_BYTES} bytes`,
+      ),
+    );
 
     await expect(
       makeTransform((filePath) =>

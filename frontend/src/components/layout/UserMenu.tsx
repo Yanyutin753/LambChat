@@ -293,7 +293,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
             isMobile ? (
               // Mobile: bottom sheet with backdrop
               <div
-                className="safe-area-viewport-padding fixed inset-0 z-[100] sm:hidden"
+                className="fixed inset-0 z-[100] sm:hidden"
                 onClick={() => setShowMenu(false)}
               >
                 <div className="fixed inset-0 bg-black/40 animate-fade-in" />
@@ -302,7 +302,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
                     menuRef.current = el;
                     swipeRef.current = el;
                   }}
-                  className="safe-area-viewport-padding fixed inset-x-0 bottom-0 z-[101] rounded-t-2xl shadow-2xl max-h-[85dvh] overflow-y-auto animate-slide-up-sheet"
+                  className="safe-area-bottom fixed inset-x-0 bottom-0 z-[101] rounded-t-2xl shadow-2xl max-h-[85dvh] overflow-y-auto animate-slide-up-sheet"
                   style={{ backgroundColor: "var(--theme-bg-card)" }}
                   onClick={(e) => e.stopPropagation()}
                 >

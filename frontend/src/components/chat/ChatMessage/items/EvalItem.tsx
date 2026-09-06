@@ -131,9 +131,7 @@ function EvalResultContent({
     return (
       <pre
         className={
-          compact
-            ? evalInlineCodePreviewClassName
-            : evalCodePreviewClassName
+          compact ? evalInlineCodePreviewClassName : evalCodePreviewClassName
         }
       >
         <code>{rawText}</code>
@@ -154,7 +152,9 @@ function EvalResultContent({
           }
         >
           {error.type && (
-            <span className={`${evalKindBadgeClassName} mb-1.5 inline-block bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300`}>
+            <span
+              className={`${evalKindBadgeClassName} mb-1.5 inline-block bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300`}
+            >
               {error.type}
             </span>
           )}

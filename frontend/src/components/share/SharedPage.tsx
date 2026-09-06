@@ -600,210 +600,215 @@ export function SharedPage({
       {/* Scrollable article area */}
       <main className="relative flex-1 overflow-x-hidden scroll-smooth">
         <SessionImageGalleryProvider messages={messages}>
-        <article className="max-w-4xl lg:max-w-5xl xl:max-w-6xl mx-auto">
-          {/* Editorial hero */}
-          <header className="pt-[calc(5rem+var(--app-safe-area-top,0px))] sm:pt-[calc(7rem+var(--app-safe-area-top,0px))] lg:pt-[calc(9rem+var(--app-safe-area-top,0px))] pb-0 animate-in fade-in duration-800">
-            {/* Overline label */}
-            <div className="text-center mb-5">
-              <span className="inline-block text-11 font-semibold font-serif tracking-[0.15em] uppercase text-stone-400 dark:text-stone-500">
-                {t("share.sharedConversation")}
-              </span>
-            </div>
-
-            {/* Title */}
-            <h1 className="text-[1.75rem] sm:text-4xl lg:text-[2.75rem] font-light text-theme-text text-center leading-[1.2] tracking-[-0.01em] max-w-3xl mx-auto font-serif">
-              {sessionTitle}
-            </h1>
-
-            {/* Author + meta strip */}
-            <div className="mt-10 sm:mt-14 flex flex-col items-center gap-4 sm:gap-5 font-serif">
-              {/* Author */}
-              <div className="flex items-center gap-3">
-                {data.owner.avatar_url ? (
-                  <ImageWithSkeleton
-                    src={
-                      getFullUrl(data.owner.avatar_url) ?? data.owner.avatar_url
-                    }
-                    alt={data.owner.username}
-                    skipUrlResolve
-                    inline
-                    className="size-10 rounded-full flex-shrink-0 ring-2 ring-stone-100 dark:ring-stone-800"
-                    style={{ objectFit: "cover", filter: "grayscale(20%)" }}
-                    errorFallback={
-                      <BrandLogo className="size-12 rounded-full flex-shrink-0 ring-2 ring-stone-100 dark:ring-stone-800" />
-                    }
-                  />
-                ) : (
-                  <BrandLogo className="size-12 rounded-full flex-shrink-0 ring-2 ring-stone-100 dark:ring-stone-800" />
-                )}
-                <div className="space-y-1">
-                  <div className="text-13 font-semibold text-stone-800 dark:text-stone-200">
-                    {data.owner.username}
-                  </div>
-                  {data.session.created_at && (
-                    <div className="text-11 text-stone-400 dark:text-stone-500 mt-0.5 tracking-wide">
-                      {formatDateTimeShort(data.session.created_at)}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Meta chips row */}
-              <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 px-6">
-                {messages.length > 0 && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
-                    <MessageSquare size={11} />
-                    {messages.length} {t("share.messages")}
-                  </span>
-                )}
-                {data.session.agent_name && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
-                    {data.session.agent_name}
-                  </span>
-                )}
-                {data.session.persona_preset_name && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
-                    {data.session.persona_avatar &&
-                    !data.session.persona_avatar.startsWith("icon:") &&
-                    !isEmojiAvatar(data.session.persona_avatar) ? (
-                      <PersonaAvatarImage
-                        avatar={data.session.persona_avatar}
-                        className="w-3.5 h-3.5 rounded-full object-cover"
-                      />
-                    ) : isEmojiAvatar(data.session.persona_avatar) ? (
-                      <PersonaAvatarImage
-                        avatar={getEmojiAvatarUrl(data.session.persona_avatar)}
-                        className="w-3.5 h-3.5 rounded-full object-cover"
-                      />
-                    ) : (
-                      <PersonaAvatarIcon
-                        avatar={data.session.persona_avatar}
-                        size={14}
-                      />
-                    )}
-                    {data.session.persona_preset_name}
-                  </span>
-                )}
-                {data.session.team_name && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
-                    {data.session.team_name}
-                  </span>
-                )}
-                {data.session.model && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
-                    {(() => {
-                      const iconUrl = getModelIconUrl(
-                        data.session.model,
-                        (data.session as Record<string, unknown>).provider as
-                          | string
-                          | undefined,
-                      );
-                      const mono = isMonochromeIcon(
-                        data.session.model,
-                        (data.session as Record<string, unknown>).provider as
-                          | string
-                          | undefined,
-                      );
-                      return iconUrl ? (
-                        <ImageWithSkeleton
-                          src={iconUrl}
-                          alt=""
-                          skipUrlResolve
-                          inline
-                          className={`w-3.5 h-3.5 ${mono ? "dark:invert" : ""}`}
-                        />
-                      ) : null;
-                    })()}
-                    {data.session.model}
-                  </span>
-                )}
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium capitalize">
-                  {readingTime}
+          <article className="max-w-4xl lg:max-w-5xl xl:max-w-6xl mx-auto">
+            {/* Editorial hero */}
+            <header className="pt-[calc(5rem+var(--app-safe-area-top,0px))] sm:pt-[calc(7rem+var(--app-safe-area-top,0px))] lg:pt-[calc(9rem+var(--app-safe-area-top,0px))] pb-0 animate-in fade-in duration-800">
+              {/* Overline label */}
+              <div className="text-center mb-5">
+                <span className="inline-block text-11 font-semibold font-serif tracking-[0.15em] uppercase text-stone-400 dark:text-stone-500">
+                  {t("share.sharedConversation")}
                 </span>
               </div>
-            </div>
 
-            {/* Status badge */}
-            {data.session.task_status &&
-              data.session.task_status !== "completed" && (
-                <div className="mt-5 flex justify-center">
-                  <span
-                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-11 font-medium ${
-                      data.session.task_status === "failed"
-                        ? "bg-red-50 dark:bg-red-950/30 text-red-500"
-                        : data.session.task_status === "running"
-                          ? "bg-sky-50 dark:bg-sky-950/30 text-sky-500"
-                          : "bg-stone-100 dark:bg-stone-800 text-stone-500"
-                    }`}
-                  >
-                    {data.session.task_status === "running" && (
-                      <Loader2 size={10} className="animate-spin" />
+              {/* Title */}
+              <h1 className="text-[1.75rem] sm:text-4xl lg:text-[2.75rem] font-light text-theme-text text-center leading-[1.2] tracking-[-0.01em] max-w-3xl mx-auto font-serif">
+                {sessionTitle}
+              </h1>
+
+              {/* Author + meta strip */}
+              <div className="mt-10 sm:mt-14 flex flex-col items-center gap-4 sm:gap-5 font-serif">
+                {/* Author */}
+                <div className="flex items-center gap-3">
+                  {data.owner.avatar_url ? (
+                    <ImageWithSkeleton
+                      src={
+                        getFullUrl(data.owner.avatar_url) ??
+                        data.owner.avatar_url
+                      }
+                      alt={data.owner.username}
+                      skipUrlResolve
+                      inline
+                      className="size-10 rounded-full flex-shrink-0 ring-2 ring-stone-100 dark:ring-stone-800"
+                      style={{ objectFit: "cover", filter: "grayscale(20%)" }}
+                      errorFallback={
+                        <BrandLogo className="size-12 rounded-full flex-shrink-0 ring-2 ring-stone-100 dark:ring-stone-800" />
+                      }
+                    />
+                  ) : (
+                    <BrandLogo className="size-12 rounded-full flex-shrink-0 ring-2 ring-stone-100 dark:ring-stone-800" />
+                  )}
+                  <div className="space-y-1">
+                    <div className="text-13 font-semibold text-stone-800 dark:text-stone-200">
+                      {data.owner.username}
+                    </div>
+                    {data.session.created_at && (
+                      <div className="text-11 text-stone-400 dark:text-stone-500 mt-0.5 tracking-wide">
+                        {formatDateTimeShort(data.session.created_at)}
+                      </div>
                     )}
-                    {data.session.task_status === "failed" && (
-                      <XCircle size={10} />
-                    )}
-                    {data.session.task_status === "running" &&
-                      t("share.taskRunning")}
-                    {data.session.task_status === "failed" &&
-                      t("share.taskFailed")}
-                    {data.session.task_status === "pending" &&
-                      t("share.taskPending")}
+                  </div>
+                </div>
+
+                {/* Meta chips row */}
+                <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 px-6">
+                  {messages.length > 0 && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
+                      <MessageSquare size={11} />
+                      {messages.length} {t("share.messages")}
+                    </span>
+                  )}
+                  {data.session.agent_name && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
+                      {data.session.agent_name}
+                    </span>
+                  )}
+                  {data.session.persona_preset_name && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
+                      {data.session.persona_avatar &&
+                      !data.session.persona_avatar.startsWith("icon:") &&
+                      !isEmojiAvatar(data.session.persona_avatar) ? (
+                        <PersonaAvatarImage
+                          avatar={data.session.persona_avatar}
+                          className="w-3.5 h-3.5 rounded-full object-cover"
+                        />
+                      ) : isEmojiAvatar(data.session.persona_avatar) ? (
+                        <PersonaAvatarImage
+                          avatar={getEmojiAvatarUrl(
+                            data.session.persona_avatar,
+                          )}
+                          className="w-3.5 h-3.5 rounded-full object-cover"
+                        />
+                      ) : (
+                        <PersonaAvatarIcon
+                          avatar={data.session.persona_avatar}
+                          size={14}
+                        />
+                      )}
+                      {data.session.persona_preset_name}
+                    </span>
+                  )}
+                  {data.session.team_name && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
+                      {data.session.team_name}
+                    </span>
+                  )}
+                  {data.session.model && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
+                      {(() => {
+                        const iconUrl = getModelIconUrl(
+                          data.session.model,
+                          (data.session as Record<string, unknown>).provider as
+                            | string
+                            | undefined,
+                        );
+                        const mono = isMonochromeIcon(
+                          data.session.model,
+                          (data.session as Record<string, unknown>).provider as
+                            | string
+                            | undefined,
+                        );
+                        return iconUrl ? (
+                          <ImageWithSkeleton
+                            src={iconUrl}
+                            alt=""
+                            skipUrlResolve
+                            inline
+                            className={`w-3.5 h-3.5 ${
+                              mono ? "dark:invert" : ""
+                            }`}
+                          />
+                        ) : null;
+                      })()}
+                      {data.session.model}
+                    </span>
+                  )}
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium capitalize">
+                    {readingTime}
                   </span>
                 </div>
-              )}
-          </header>
-
-          {/* Conversation divider */}
-          <div
-            data-share-conversation-divider
-            className="flex items-center gap-3 px-4 py-8 sm:px-6 sm:py-12"
-          >
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-stone-200/80 dark:via-stone-700/50 to-transparent" />
-            <span className="flex-shrink-0 text-10 font-semibold tracking-[0.18em] uppercase text-stone-400 dark:text-stone-500 font-mono tabular-nums select-none">
-              {t("share.conversationHistory")}
-            </span>
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-stone-200/80 dark:via-stone-700/50 to-transparent" />
-          </div>
-
-          {/* Messages */}
-          {messages.length === 0 ? (
-            <div className="text-center pb-24 pt-12 sm:pb-32 sm:pt-16">
-              <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-stone-100 dark:bg-stone-800/60 flex items-center justify-center">
-                <MessageSquare
-                  size={22}
-                  className="text-stone-300 dark:text-stone-600"
-                />
               </div>
-              <p className="text-stone-400 dark:text-stone-500 text-sm font-serif">
-                {t("share.noMessages")}
-              </p>
+
+              {/* Status badge */}
+              {data.session.task_status &&
+                data.session.task_status !== "completed" && (
+                  <div className="mt-5 flex justify-center">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-11 font-medium ${
+                        data.session.task_status === "failed"
+                          ? "bg-red-50 dark:bg-red-950/30 text-red-500"
+                          : data.session.task_status === "running"
+                            ? "bg-sky-50 dark:bg-sky-950/30 text-sky-500"
+                            : "bg-stone-100 dark:bg-stone-800 text-stone-500"
+                      }`}
+                    >
+                      {data.session.task_status === "running" && (
+                        <Loader2 size={10} className="animate-spin" />
+                      )}
+                      {data.session.task_status === "failed" && (
+                        <XCircle size={10} />
+                      )}
+                      {data.session.task_status === "running" &&
+                        t("share.taskRunning")}
+                      {data.session.task_status === "failed" &&
+                        t("share.taskFailed")}
+                      {data.session.task_status === "pending" &&
+                        t("share.taskPending")}
+                    </span>
+                  </div>
+                )}
+            </header>
+
+            {/* Conversation divider */}
+            <div
+              data-share-conversation-divider
+              className="flex items-center gap-3 px-4 py-8 sm:px-6 sm:py-12"
+            >
+              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-stone-200/80 dark:via-stone-700/50 to-transparent" />
+              <span className="flex-shrink-0 text-10 font-semibold tracking-[0.18em] uppercase text-stone-400 dark:text-stone-500 font-mono tabular-nums select-none">
+                {t("share.conversationHistory")}
+              </span>
+              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-stone-200/80 dark:via-stone-700/50 to-transparent" />
             </div>
-          ) : (
-            <div className="pb-8 sm:pb-12">
-              {messages.map((message, index) => (
-                <div
-                  key={message.id}
-                  className="animate-in fade-in"
-                  style={{ animationDelay: `${Math.min(index * 30, 200)}ms` }}
-                >
-                  <ChatMessage
-                    message={message}
-                    sessionId={data.session.id}
-                    runId={data.run_ids?.[0]}
-                    isLastMessage={index === messages.length - 1}
-                    personaAvatar={sharedAssistant.avatar}
-                    personaName={sharedAssistant.name}
-                    activePreview={activePreview}
-                    latestAutoPreview={latestAutoPreview}
-                    onOpenPreview={handleOpenPreview}
-                    showFeedbackAndShareActions={false}
-                    isFirst={index === 0}
+
+            {/* Messages */}
+            {messages.length === 0 ? (
+              <div className="text-center pb-24 pt-12 sm:pb-32 sm:pt-16">
+                <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-stone-100 dark:bg-stone-800/60 flex items-center justify-center">
+                  <MessageSquare
+                    size={22}
+                    className="text-stone-300 dark:text-stone-600"
                   />
                 </div>
-              ))}
-            </div>
-          )}
-        </article>
+                <p className="text-stone-400 dark:text-stone-500 text-sm font-serif">
+                  {t("share.noMessages")}
+                </p>
+              </div>
+            ) : (
+              <div className="pb-8 sm:pb-12">
+                {messages.map((message, index) => (
+                  <div
+                    key={message.id}
+                    className="animate-in fade-in"
+                    style={{ animationDelay: `${Math.min(index * 30, 200)}ms` }}
+                  >
+                    <ChatMessage
+                      message={message}
+                      sessionId={data.session.id}
+                      runId={data.run_ids?.[0]}
+                      isLastMessage={index === messages.length - 1}
+                      personaAvatar={sharedAssistant.avatar}
+                      personaName={sharedAssistant.name}
+                      activePreview={activePreview}
+                      latestAutoPreview={latestAutoPreview}
+                      onOpenPreview={handleOpenPreview}
+                      showFeedbackAndShareActions={false}
+                      isFirst={index === 0}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </article>
         </SessionImageGalleryProvider>
       </main>
 

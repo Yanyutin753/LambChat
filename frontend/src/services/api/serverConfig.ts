@@ -15,7 +15,9 @@ export interface NativeGlobalLike {
 export function isTauriRuntime(globalLike?: NativeGlobalLike | null): boolean {
   const globalObject =
     globalLike ??
-    (typeof globalThis !== "undefined" ? (globalThis as NativeGlobalLike) : null);
+    (typeof globalThis !== "undefined"
+      ? (globalThis as NativeGlobalLike)
+      : null);
   return Boolean(globalObject?.__TAURI__ || globalObject?.__TAURI_INTERNALS__);
 }
 
@@ -23,11 +25,16 @@ export function isTauriRuntime(globalLike?: NativeGlobalLike | null): boolean {
 export function normalizeServerUrl(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) return "";
-  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  const withScheme = /^https?:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
   try {
     const parsed = new URL(withScheme);
     if (!parsed.hostname || !parsed.hostname.includes(".")) {
-      if (parsed.hostname !== "localhost" && !/^\d+\.\d+\.\d+\.\d+$/.test(parsed.hostname)) {
+      if (
+        parsed.hostname !== "localhost" &&
+        !/^\d+\.\d+\.\d+\.\d+$/.test(parsed.hostname)
+      ) {
         return "";
       }
     }
@@ -64,7 +71,9 @@ export function effectiveApiBase(): string {
 }
 
 /** 打包客户端是否需要首启服务器配置（桌面 Tauri 壳 + 移动 Capacitor 壳）。 */
-export function needsServerSetup(globalLike?: NativeGlobalLike | null): boolean {
+export function needsServerSetup(
+  globalLike?: NativeGlobalLike | null,
+): boolean {
   const native = globalLike
     ? isTauriRuntime(globalLike) ||
       Boolean(globalLike.Capacitor?.isNativePlatform?.())
@@ -85,7 +94,10 @@ type FetchLike = typeof fetch;
 
 export interface PatchDeps {
   fetchImpl?: FetchLike;
-  WebSocketCtor?: new (url: string | URL, protocols?: string | string[]) => WebSocket;
+  WebSocketCtor?: new (
+    url: string | URL,
+    protocols?: string | string[],
+  ) => WebSocket;
   base?: string;
 }
 
@@ -108,9 +120,12 @@ export function installServerUrlNetworkPatch(deps: PatchDeps = {}): boolean {
   const shouldRewrite = (url: string): boolean => {
     try {
       const parsed = new URL(url, window.location.origin);
-      const isApiPath = parsed.pathname.startsWith("/api") || parsed.pathname.startsWith("/ws");
+      const isApiPath =
+        parsed.pathname.startsWith("/api") || parsed.pathname.startsWith("/ws");
       if (!isApiPath) return false;
-      return !/^https?:\/\//i.test(url) || parsed.origin === window.location.origin;
+      return (
+        !/^https?:\/\//i.test(url) || parsed.origin === window.location.origin
+      );
     } catch {
       return false;
     }

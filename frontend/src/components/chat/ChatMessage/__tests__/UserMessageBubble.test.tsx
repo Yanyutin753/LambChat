@@ -20,9 +20,7 @@ vi.mock("react-i18next", async (importOriginal) => {
 import { UserMessageBubble } from "../UserMessageBubble";
 
 test("renders run-mode chips on the user message when modes were active", () => {
-  render(
-    <UserMessageBubble content="ok" runModes={["auto", "goal"]} />,
-  );
+  render(<UserMessageBubble content="ok" runModes={["auto", "goal"]} />);
 
   expect(screen.getByText("ok")).toBeTruthy();
   expect(screen.getByText("自动")).toBeTruthy();

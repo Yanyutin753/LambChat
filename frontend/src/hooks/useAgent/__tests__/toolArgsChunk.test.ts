@@ -106,7 +106,11 @@ test("tool:start upgrades the generating part in place with final args", () => {
   });
   expect((started.parts[0] as ToolPart).argsPartial).toBeUndefined();
   expect(started.toolCalls).toEqual([
-    { id: "run-level-id", name: "write_file", args: { content: "hello world" } },
+    {
+      id: "run-level-id",
+      name: "write_file",
+      args: { content: "hello world" },
+    },
   ]);
 });
 
@@ -284,7 +288,9 @@ test("tool:args:chunk lands inside the matching subagent container", () => {
 });
 
 test("subagent tool:start upgrades the generating part inside the container", () => {
-  const stack = [{ agent_id: "sub-agent-1", depth: 1, message_id: "message-1" }];
+  const stack = [
+    { agent_id: "sub-agent-1", depth: 1, message_id: "message-1" },
+  ];
   let parts: MessagePart[] = processMessageEvent(
     "agent:call",
     {
@@ -635,7 +641,10 @@ test("tool:start upgrades the LATEST generating part, not a stale leftover", () 
   expect(parts[1]).toMatchObject({ id: "run-9", args: { q: "new" } });
   expect(parts[1].argsPartial).toBeUndefined();
   // stale part 保持原样（由中断清理流程标记 cancelled，不被误吃）
-  expect(parts[0]).toMatchObject({ argsPartial: true, args: { partial: '{"q":"old"' } });
+  expect(parts[0]).toMatchObject({
+    argsPartial: true,
+    args: { partial: '{"q":"old"' },
+  });
 });
 
 test("parallel tools upgrade by tool name even in reverse execution order", () => {

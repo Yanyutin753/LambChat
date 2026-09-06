@@ -33,9 +33,9 @@ describe("buildProxyFallbackUrl", () => {
   });
 
   test("merges with an existing query string", () => {
-    expect(
-      buildProxyFallbackUrl("/api/upload/file/a/b.txt?direct=true"),
-    ).toBe("/api/upload/file/a/b.txt?direct=true&proxy=true");
+    expect(buildProxyFallbackUrl("/api/upload/file/a/b.txt?direct=true")).toBe(
+      "/api/upload/file/a/b.txt?direct=true&proxy=true",
+    );
   });
 
   test("returns null when proxy=true is already present", () => {
@@ -58,9 +58,7 @@ describe("fetchDocumentText proxy fallback", () => {
       .mockResolvedValueOnce(okResponse("# code"));
     vi.stubGlobal("fetch", fetchMock);
 
-    const text = await fetchDocumentText(
-      "/api/upload/file/revealed_files/x.R",
-    );
+    const text = await fetchDocumentText("/api/upload/file/revealed_files/x.R");
 
     expect(text).toBe("# code");
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -101,9 +99,7 @@ describe("fetchDocumentText proxy fallback", () => {
       .mockRejectedValueOnce(new TypeError("Failed to fetch"));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(
-      fetchDocumentText("/api/upload/file/a.txt"),
-    ).rejects.toThrow();
+    await expect(fetchDocumentText("/api/upload/file/a.txt")).rejects.toThrow();
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     // 失败后不缓存，下次点击可重试
@@ -139,7 +135,9 @@ describe("fetchUploadFile init passthrough", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[0][0]).toBe("/api/upload/file/a.bin");
     expect(fetchMock.mock.calls[0][1]).toEqual({ signal: controller.signal });
-    expect(fetchMock.mock.calls[1][0]).toBe("/api/upload/file/a.bin?proxy=true");
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      "/api/upload/file/a.bin?proxy=true",
+    );
     expect(fetchMock.mock.calls[1][1]).toEqual({ signal: controller.signal });
   });
 
@@ -165,9 +163,9 @@ describe("fetchUploadFile init passthrough", () => {
       .mockRejectedValue(new DOMException("Aborted", "AbortError"));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(
-      fetchUploadFile("/api/upload/file/a.bin"),
-    ).rejects.toThrow("Aborted");
+    await expect(fetchUploadFile("/api/upload/file/a.bin")).rejects.toThrow(
+      "Aborted",
+    );
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });

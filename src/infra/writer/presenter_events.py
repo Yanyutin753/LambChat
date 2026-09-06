@@ -168,6 +168,7 @@ class EventPresenterMixin:
         summary_id: Optional[str] = None,
         depth: int = 0,
         agent_id: Optional[str] = None,
+        freed_tokens: Optional[int] = None,
     ) -> Dict[str, Any]:
         """输出总结/意图信息（来自 summarization 事件）
 
@@ -176,14 +177,18 @@ class EventPresenterMixin:
             summary_id: 唯一标识（用于前端合并多个 chunk）
             depth: 层级深度（0=主代理，1+=子代理）
             agent_id: 代理ID（用于子代理事件）
+            freed_tokens: 本次压缩释放的上下文 token 数（统计事件时 content 为空）
         """
+        data: Dict[str, Any] = {
+            "content": content,
+            "summary_id": summary_id,
+            "timestamp": utc_now_iso(),
+        }
+        if freed_tokens is not None:
+            data["freed_tokens"] = freed_tokens
         return self._build_event(
             "summary",
-            {
-                "content": content,
-                "summary_id": summary_id,
-                "timestamp": utc_now_iso(),
-            },
+            data,
             depth=depth,
             agent_id=agent_id,
         )

@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState, useEffect } from "react";
-import { ArrowUp, Square, Lock, Settings2 } from "lucide-react";
+import { ArrowUp, Cloud, Monitor, Settings2, Square, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { FeatureMenu, type FeaturePanel } from "../selectors/FeatureMenu";
 import {
@@ -20,7 +20,12 @@ import { AgentIcon } from "../agent/AgentIcon";
 import { subscribeTeamsChanged } from "../../hooks/teamEvents";
 import { RunModePopover } from "./RunModePopover";
 import { ComposerUsageChip } from "./ComposerUsageChip";
-import { resolveSandboxPresentation } from "./sandboxOption";
+import { useSandboxStatus } from "../../hooks/useSandboxStatus";
+import {
+  resolveSandboxPresentation,
+  SANDBOX_AGENT_OPTION_KEY,
+  SANDBOX_LOCAL_VALUE,
+} from "./sandboxOption";
 
 export interface ChatInputToolbarProps {
   activePanel: FeaturePanel;
@@ -197,6 +202,19 @@ export function ChatInputToolbar({
     resolveSandboxPresentation(agentOptions, agentOptionValues, t);
   const showSandboxEntry = hasSandboxOption && !!onToggleAgentOption;
 
+  // 沙箱 chip：拉出设置组的一等入口（与 Agent/Persona chip 同级，单击直达面板）。
+  // 状态点仅本地档需要 daemon 健康；云端档不挂状态轮询，避免常驻空转。
+  const sandboxTier =
+    agentOptionValues[SANDBOX_AGENT_OPTION_KEY] ??
+    agentOptions?.[SANDBOX_AGENT_OPTION_KEY]?.default;
+  const sandboxChipLocal = sandboxTier === SANDBOX_LOCAL_VALUE;
+  const { online: sandboxOnline } = useSandboxStatus({
+    enabled: showSandboxEntry && sandboxChipLocal,
+  });
+  const sandboxChipTitle = sandboxLabel
+    ? `${t("agentOptions.sandbox.label")} · ${sandboxLabel}`
+    : t("agentOptions.sandbox.label");
+
   const handleUploadFiles = useCallback(() => {
     if (fileInputRef.current) {
       fileInputRef.current.accept = getFileAccept(uploadCategories);
@@ -216,8 +234,10 @@ export function ChatInputToolbar({
   const selectedTeamName = selectedTeam?.name ?? null;
 
   return (
-    <div className="flex max-w-full flex-nowrap justify-between gap-2 px-2 pb-3 pt-3 mx-0.5">
-      <div className="flex min-h-10 min-w-0 flex-1 items-center gap-1 overflow-x-auto no-scrollbar sm:gap-2">
+    <div className="flex max-w-full flex-nowrap justify-between gap-1 px-2 pb-3 pt-3 mx-0.5">
+      {/* 左行不设横向滚动：滚动容器会在手机端裁切 chip（视觉上与右簇重叠），
+          超宽时由 chip 的 shrink + truncate 优雅降级 */}
+      <div className="flex min-h-10 min-w-0 flex-1 items-center gap-0.5 sm:gap-1.5">
         <input
           ref={fileInputRef}
           type="file"
@@ -305,7 +325,40 @@ export function ChatInputToolbar({
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-3 self-end">
+      {/* 右簇与左行同轴居中：避免贴底对齐造成发送键相对左行图标错位。
+          簇内间距整体收紧（沙箱/用量/模式/发送四枚图标）。 */}
+      <div className="flex shrink-0 items-center gap-1 sm:gap-1.5 self-center">
+        {showSandboxEntry && (
+          <ToolbarChip
+            icon={
+              // 手机端档位文字隐藏，档位靠图标区分：云端=云图标，本地=显示器图标
+              sandboxChipLocal ? <Monitor size={18} /> : <Cloud size={18} />
+            }
+            label={sandboxLabel || ""}
+            title={sandboxChipTitle}
+            labelClassName="hidden sm:inline"
+            onClick={() => onActivePanelChange("sandbox")}
+            trailing={
+              sandboxChipLocal ? (
+                // daemon 在线状态点：绿=在线，灰=离线（与 RunModePopover 沙箱条目同源）；
+                // 手机端只留纯图标，点在 sm 起显示
+                <span
+                  data-sandbox-status-dot
+                  title={
+                    sandboxOnline
+                      ? t("profile.localSandbox.statusOnline")
+                      : t("profile.localSandbox.statusOffline")
+                  }
+                  className="hidden sm:inline h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{
+                    background: sandboxOnline ? "#22c55e" : "#a8a29e",
+                  }}
+                />
+              ) : undefined
+            }
+          />
+        )}
+
         {/* Today's usage — amount chip with usage card */}
         <ComposerUsageChip />
 

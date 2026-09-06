@@ -5,6 +5,8 @@ import { ImageViewer } from "../common/ImageViewer";
 import { useAuth } from "../../hooks/useAuth";
 import { getAccessToken } from "../../services/api/token";
 import { useSEO } from "../../hooks/usePageTitle";
+import { AutoLoginSplash } from "./AutoLoginSplash";
+import { shouldShowAutoLoginSplash } from "./autoLoginGate";
 import { useScrollReveal } from "./hooks/useScrollReveal";
 import { useScrollProgress } from "./hooks/useScrollProgress";
 import { useActiveSection } from "./hooks/useActiveSection";
@@ -43,7 +45,7 @@ export function LandingPage() {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const containerRef = useScrollReveal();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, token } = useAuth();
   const scrollProgress = useScrollProgress();
   const activeSection = useActiveSection(SECTION_IDS);
   const [showBackTop, setShowBackTop] = useState(false);
@@ -168,6 +170,18 @@ export function LandingPage() {
       }),
     [],
   );
+
+  // 已登录用户停在 / 时鉴权尚未落地——先显示品牌过渡页，
+  // 避免整个营销落地页闪现后再被跳去 /chat（放在全部 hooks 之后）
+  if (
+    shouldShowAutoLoginSplash({
+      isLoading,
+      isAuthenticated,
+      hasToken: !!token,
+    })
+  ) {
+    return <AutoLoginSplash />;
+  }
 
   return (
     <div

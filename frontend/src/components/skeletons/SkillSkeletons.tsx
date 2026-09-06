@@ -57,9 +57,10 @@ function SkillCardsSkeleton({
             <div className="flex items-start gap-3">
               <div className="scb__icon-ring shrink-0 skeleton-line" />
               <div className="min-w-0 flex-1">
+                {/* Title — entity name (SkillBaseCard: font-semibold font-serif) */}
                 <SkeletonLine
                   width={i % 3 === 0 ? "w-3/4" : "w-1/2"}
-                  className="!h-[15px] sm:!h-[16px]"
+                  className="!h-[15px] sm:!h-[16px] font-serif"
                 />
                 {/* statusPills skeleton — e.g. source pill or date/author */}
                 {marketplace ? (

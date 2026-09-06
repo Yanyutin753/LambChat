@@ -63,7 +63,9 @@ export async function authFetch<T>(
   // 检查当前用户是否被修改（需要重新登录）
   if (!skipAuth && response.headers.get("X-Force-Relogin") === "true") {
     clearAuthState();
-    throw new Error(i18n.t("backendErrors.forceRelogin", "用户权限已变更，请重新登录"));
+    throw new Error(
+      i18n.t("backendErrors.forceRelogin", "用户权限已变更，请重新登录"),
+    );
   }
 
   // 处理 401 未授权响应
@@ -88,8 +90,7 @@ export async function authFetch<T>(
     const errorData = await response.json().catch(() => ({}));
     // 统一契约 {"detail": {code, message, args}}；兼容旧字符串 detail
     const { code, message, args } = parseErrorDetail(errorData);
-    const errorMessage =
-      message || `Request failed: ${response.statusText}`;
+    const errorMessage = message || `Request failed: ${response.statusText}`;
     const error = new Error(
       translateApiError(code, errorMessage, args, i18n.t.bind(i18n)),
     ) as Error & {

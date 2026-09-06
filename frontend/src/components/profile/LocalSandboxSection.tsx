@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
-import { Monitor, FolderOpen, Link2Off, RotateCw } from "lucide-react";
+import {
+  Monitor,
+  FolderOpen,
+  Link2Off,
+  RotateCw,
+  Download,
+} from "lucide-react";
 import { sandboxApi } from "../../services/api/sandbox";
 import { getAccessToken } from "../../services/api/token";
 import { effectiveApiBase } from "../../services/api/serverConfig";
@@ -51,8 +58,9 @@ function resolveServerUrl(): string {
  * 壳内按配对态渲染状态行 + 配对表单（无副作用 login → 铸 PAT →
  * savePairing → restartDaemon）或策略/目录/重启/取消配对控制行。
  *
- * ``embedded``：嵌入"沙箱"合并卡渲染——去掉自带卡片壳，只留分区头
- * （带上分隔线）与内容；独立渲染（默认）保持原卡片形态供测试直接引用。
+ * ``embedded``：嵌入"沙箱"合并卡渲染——去掉自带卡片壳，只留分区头与
+ * 内容（分区之间用 hairline 分隔，不叠 tile 夹层）；独立渲染（默认）
+ * 保持原卡片形态供测试直接引用。
  *
  * 凭据纪律（M4 T7）：配对登录直连 fetch（不 setTokens、不派发 auth:login，
  * 换账号配对不切换壳会话身份）；策略切换只写配置不重铸 PAT；取消配对用
@@ -64,6 +72,7 @@ export function LocalSandboxSection({
   embedded?: boolean;
 }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const shell = isShellAvailable();
   const { status, statusError, online, refresh } = useSandboxStatus();
   const [processStatus, setProcessStatus] = useState("");
@@ -177,8 +186,8 @@ export function LocalSandboxSection({
     </>
   ) : (
     <div className="flex items-center gap-2 mb-3">
-      <Monitor size={15} className="text-amber-500 dark:text-amber-400" />
-      <h3 className="font-semibold font-serif uppercase tracking-wide text-stone-400 dark:text-stone-500">
+      <Monitor size={13} className="text-amber-500 dark:text-amber-400" />
+      <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-stone-400 dark:text-stone-500">
         {t("profile.localSandbox.title")}
       </h3>
     </div>
@@ -196,22 +205,22 @@ export function LocalSandboxSection({
             <SkeletonLine width="w-full" />
           ) : online ? (
             <>
-              <div className="flex w-full items-center justify-between py-3 first:pt-0 last:pb-0 text-left">
-                <span className="flex items-center gap-2 text-sm text-stone-700 dark:text-stone-200">
+              <div className="flex w-full items-center justify-between gap-2 py-3 first:pt-2 last:pb-0 text-left">
+                <span className="flex min-w-0 items-center gap-2 text-sm text-stone-700 dark:text-stone-200">
                   <span
                     className="h-2 w-2 rounded-full shrink-0 bg-green-500"
                     data-sandbox-online={online}
                   />
                   {t("profile.localSandbox.statusOnline")}
                   {status?.daemon_version && (
-                    <span className="text-xs text-stone-500 dark:text-stone-400">
+                    <span className="truncate text-xs text-stone-500 dark:text-stone-400">
                       {t("profile.localSandbox.version", {
                         version: status.daemon_version,
                       })}
                     </span>
                   )}
                 </span>
-                <span className="text-xs text-stone-500 dark:text-stone-400">
+                <span className="shrink-0 text-xs text-stone-500 dark:text-stone-400">
                   {t("profile.localSandbox.webManaged")}
                 </span>
               </div>
@@ -219,16 +228,28 @@ export function LocalSandboxSection({
               <SandboxMachinesCard />
             </>
           ) : (
-            <p className="text-xs text-stone-500 dark:text-stone-400">
-              {t("profile.localSandbox.needDesktop")}
-            </p>
+            <div className="space-y-2">
+              <p className="text-xs text-stone-500 dark:text-stone-400">
+                {t("profile.localSandbox.needDesktop")}
+              </p>
+              {/* 离线引导：跳站内下载页（桌面端/daemon 安装包 + 配对教程） */}
+              <button
+                type="button"
+                onClick={() => navigate("/download")}
+                data-sandbox-download-cta
+                className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-amber-500 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-600"
+              >
+                <Download size={13} />
+                {t("profile.localSandbox.downloadCta")}
+              </button>
+            </div>
           )}
         </div>
       </>
     );
     if (embedded) {
       return (
-        <div className="mt-3 rounded-xl bg-stone-50 dark:bg-stone-700/50 p-3.5 sm:p-4">
+        <div className="mt-3 border-t border-stone-200/70 dark:border-stone-600/50 pt-3.5">
           {webBody}
         </div>
       );
@@ -356,12 +377,12 @@ export function LocalSandboxSection({
       {header}
 
       <div className={embedded ? "mt-2 space-y-0" : "space-y-0"}>
-        {/* 状态行：在线圆点 + daemon 版本 + 进程状态 */}
+        {/* 状态行：在线圆点 + daemon 版本 + 进程状态徽标 */}
         {loading ? (
           <SkeletonLine width="w-full" />
         ) : (
-          <div className="flex w-full items-center justify-between py-3 first:pt-0 last:pb-0 text-left">
-            <span className="flex items-center gap-2 text-sm text-stone-700 dark:text-stone-200">
+          <div className="flex w-full items-center justify-between gap-2 py-3 first:pt-2 last:pb-0 text-left">
+            <span className="flex min-w-0 items-center gap-2 text-sm text-stone-700 dark:text-stone-200">
               <span
                 className={`h-2 w-2 rounded-full shrink-0 ${
                   online ? "bg-green-500" : "bg-stone-400 dark:bg-stone-500"
@@ -372,14 +393,20 @@ export function LocalSandboxSection({
                 ? t("profile.localSandbox.statusOnline")
                 : t("profile.localSandbox.statusOffline")}
               {status?.daemon_version && (
-                <span className="text-xs text-stone-500 dark:text-stone-400">
+                <span className="truncate text-xs text-stone-500 dark:text-stone-400">
                   {t("profile.localSandbox.version", {
                     version: status.daemon_version,
                   })}
                 </span>
               )}
             </span>
-            <span className="text-xs text-stone-500 dark:text-stone-400">
+            <span
+              className={`shrink-0 rounded-full px-2 py-0.5 text-10 font-medium ${
+                processStatus === "running"
+                  ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                  : "bg-stone-500/10 dark:bg-stone-500/20 text-stone-500 dark:text-stone-400"
+              }`}
+            >
               {processStatus === "running"
                 ? t("profile.localSandbox.processRunning")
                 : t("profile.localSandbox.processStopped")}
@@ -431,38 +458,50 @@ export function LocalSandboxSection({
               loading={applying}
             />
 
-            <div className="flex flex-wrap gap-2 pt-3">
+            {/* 快捷操作：等宽三列，居中对齐（destructive 操作单独降级到下一行） */}
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => handleOpenLocalPath("workspaces")}
-                className="flex items-center gap-1.5 rounded-xl border border-stone-200 dark:border-stone-600 px-3 py-1.5 text-xs text-stone-600 dark:text-stone-300 transition-colors hover:bg-stone-100 dark:hover:bg-stone-700/50"
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-stone-200/80 dark:border-stone-500/70 px-2 py-2 text-xs font-medium text-stone-600 dark:text-stone-300 transition-colors hover:border-stone-300 dark:hover:border-stone-400/70 hover:bg-white dark:hover:bg-stone-800/70"
               >
-                <FolderOpen size={12} className="opacity-50" />
-                {t("profile.localSandbox.openWorkspaces")}
+                <FolderOpen size={12} className="shrink-0 opacity-60" />
+                <span className="truncate">
+                  {t("profile.localSandbox.openWorkspaces")}
+                </span>
               </button>
               <button
                 type="button"
                 onClick={() => handleOpenLocalPath("audit")}
-                className="flex items-center gap-1.5 rounded-xl border border-stone-200 dark:border-stone-600 px-3 py-1.5 text-xs text-stone-600 dark:text-stone-300 transition-colors hover:bg-stone-100 dark:hover:bg-stone-700/50"
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-stone-200/80 dark:border-stone-500/70 px-2 py-2 text-xs font-medium text-stone-600 dark:text-stone-300 transition-colors hover:border-stone-300 dark:hover:border-stone-400/70 hover:bg-white dark:hover:bg-stone-800/70"
               >
-                <FolderOpen size={12} className="opacity-50" />
-                {t("profile.localSandbox.openAudit")}
+                <FolderOpen size={12} className="shrink-0 opacity-60" />
+                <span className="truncate">
+                  {t("profile.localSandbox.openAudit")}
+                </span>
               </button>
               <button
                 type="button"
                 onClick={handleRestart}
-                className="flex items-center gap-1.5 rounded-xl border border-stone-200 dark:border-stone-600 px-3 py-1.5 text-xs text-stone-600 dark:text-stone-300 transition-colors hover:bg-stone-100 dark:hover:bg-stone-700/50"
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-stone-200/80 dark:border-stone-500/70 px-2 py-2 text-xs font-medium text-stone-600 dark:text-stone-300 transition-colors hover:border-stone-300 dark:hover:border-stone-400/70 hover:bg-white dark:hover:bg-stone-800/70"
               >
-                <RotateCw size={12} className="opacity-50" />
-                {t("profile.localSandbox.restartDaemon")}
+                <RotateCw size={12} className="shrink-0 opacity-60" />
+                <span className="truncate">
+                  {t("profile.localSandbox.restartDaemon")}
+                </span>
               </button>
+            </div>
+
+            {/* 取消配对：低强调 ghost，悬停才泛红——与日常操作组拉开间距，
+                远离动线避免误触 */}
+            <div className="mt-2.5 flex justify-end">
               <button
                 type="button"
                 onClick={handleUnpair}
                 disabled={unpairing}
-                className="flex items-center gap-1.5 rounded-xl border border-red-200 dark:border-red-900/60 px-3 py-1.5 text-xs text-red-600 dark:text-red-400 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-stone-400 dark:text-stone-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
               >
-                <Link2Off size={12} className="opacity-50" />
+                <Link2Off size={12} />
                 {unpairing
                   ? t("common.loading")
                   : t("profile.localSandbox.unpair")}
@@ -479,7 +518,7 @@ export function LocalSandboxSection({
 
   if (embedded) {
     return (
-      <div className="mt-3 rounded-xl bg-stone-50 dark:bg-stone-700/50 p-3.5 sm:p-4">
+      <div className="mt-3 border-t border-stone-200/70 dark:border-stone-600/50 pt-3.5">
         {body}
       </div>
     );

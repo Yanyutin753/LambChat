@@ -40,9 +40,10 @@ export function PersonaPlazaSkeleton() {
                 <div className="flex items-start gap-3">
                   <div className="scb__icon-ring shrink-0 skeleton-line" />
                   <div className="min-w-0 flex-1">
+                    {/* Title — entity name (PersonaPresetCard: font-semibold font-serif) */}
                     <SkeletonLine
                       width={i % 2 === 0 ? "w-3/4" : "w-1/2"}
-                      className="!h-4"
+                      className="!h-4 font-serif"
                     />
                     {/* Metadata line — scope, status, usage count */}
                     <SkeletonLine

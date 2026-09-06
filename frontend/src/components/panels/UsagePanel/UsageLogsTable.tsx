@@ -198,8 +198,14 @@ function DesktopTable({
                   <div className="min-w-0 whitespace-nowrap px-4 py-3 text-right text-12 font-semibold tabular-nums text-[var(--theme-primary)]">
                     {fmt(log.total_tokens)}
                   </div>
-                  <div className={`${numericCellClass} text-theme-text-tertiary`}>
-                    {fmtCostUsd(log.cost_usd, Boolean(log.cost_available), costOpts)}
+                  <div
+                    className={`${numericCellClass} text-theme-text-tertiary`}
+                  >
+                    {fmtCostUsd(
+                      log.cost_usd,
+                      Boolean(log.cost_available),
+                      costOpts,
+                    )}
                   </div>
                   <div className="min-w-0 whitespace-nowrap px-4 py-3 text-right text-12 tabular-nums text-theme-text-tertiary">
                     {fmtDur(log.duration)}
@@ -447,6 +453,8 @@ export function UsageLogsTable({
   const { t, i18n } = useTranslation();
   const fxRates = useFxRates();
   const costOpts: CostFormatOpts = { language: i18n.language, rates: fxRates };
+  // 手机端费用格空间窄，只保留 3 位小数
+  const mobileCostOpts: CostFormatOpts = { ...costOpts, maxDecimals: 3 };
 
   if (logs.length === 0) {
     return (
@@ -503,7 +511,7 @@ export function UsageLogsTable({
             key={log.trace_id}
             log={log}
             isAdmin={isAdmin}
-            costOpts={costOpts}
+            costOpts={mobileCostOpts}
           />
         ))}
       </div>

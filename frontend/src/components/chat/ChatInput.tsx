@@ -34,7 +34,10 @@ import { ChatInputHelpMenu } from "./ChatInputHelpMenu";
 import { ChatInputAttachments } from "./ChatInputAttachments";
 import { ChatInputDragOverlay } from "./ChatInputDragOverlay";
 import { resolveThinkingPresentation } from "./chatInputThinking";
-import { buildRunModesOptions, collectActiveRunModes } from "./chatInputRunModes";
+import {
+  buildRunModesOptions,
+  collectActiveRunModes,
+} from "./chatInputRunModes";
 import { FILE_CATEGORY_PERMISSIONS } from "./chatInputConstants";
 import { getMentionPopupFixedPlacement } from "./chatInputViewport";
 import { useExpandedComposerHost } from "./chatInputExpandedHost";

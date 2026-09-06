@@ -299,7 +299,7 @@ export function RecentChatsDialog({
                 >
                   <div className="min-w-0 flex-1">
                     <div
-                      className={`truncate text-13 ${
+                      className={`truncate text-13 font-serif ${
                         session.id === currentSessionId
                           ? "text-stone-800 dark:text-stone-100 font-medium"
                           : "text-stone-600 dark:text-stone-300 group-hover:text-stone-700 dark:group-hover:text-stone-200"

@@ -125,8 +125,8 @@ export function ProfileToolsTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Wrench size={15} className="text-amber-500 dark:text-amber-400" />
-          <h3 className="font-semibold font-serif uppercase tracking-wide text-stone-400 dark:text-stone-500">
+          <Wrench size={13} className="text-amber-500 dark:text-amber-400" />
+          <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-stone-400 dark:text-stone-500">
             {t("profile.toolsManagement", "MCP Tools")}
           </h3>
         </div>

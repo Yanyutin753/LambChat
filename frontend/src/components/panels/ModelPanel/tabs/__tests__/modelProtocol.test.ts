@@ -20,19 +20,31 @@ describe("resolveModelProtocol", () => {
 
   test("显式 provider 字段优先于裸模型名", () => {
     expect(
-      resolveModelProtocol({ value: "deepseek-chat", provider: "deepseek", providers }),
+      resolveModelProtocol({
+        value: "deepseek-chat",
+        provider: "deepseek",
+        providers,
+      }),
     ).toBe("openai");
   });
 
   test("值前缀优先于 provider 提示（与后端 _parse_provider 一致）", () => {
     expect(
-      resolveModelProtocol({ value: "anthropic/claude-x", provider: "openai", providers }),
+      resolveModelProtocol({
+        value: "anthropic/claude-x",
+        provider: "openai",
+        providers,
+      }),
     ).toBe("anthropic");
   });
 
   test("裸模型名按前缀推断", () => {
-    expect(resolveModelProtocol({ value: "claude-opus-4", providers })).toBe("anthropic");
-    expect(resolveModelProtocol({ value: "gemini-2.5-flash", providers })).toBe("google");
+    expect(resolveModelProtocol({ value: "claude-opus-4", providers })).toBe(
+      "anthropic",
+    );
+    expect(resolveModelProtocol({ value: "gemini-2.5-flash", providers })).toBe(
+      "google",
+    );
     expect(resolveModelProtocol({ value: "gpt-4o", providers })).toBe("openai");
   });
 
@@ -40,12 +52,16 @@ describe("resolveModelProtocol", () => {
     expect(
       resolveModelProtocol({ value: "relay/custom-model", providers }),
     ).toBe("openai");
-    expect(resolveModelProtocol({ value: "totally-unknown", providers })).toBe("openai");
+    expect(resolveModelProtocol({ value: "totally-unknown", providers })).toBe(
+      "openai",
+    );
     expect(resolveModelProtocol({ value: "", providers })).toBe("openai");
   });
 
   test("空 provider 列表安全回退", () => {
-    expect(resolveModelProtocol({ value: "claude-x", providers: [] })).toBe("openai");
+    expect(resolveModelProtocol({ value: "claude-x", providers: [] })).toBe(
+      "openai",
+    );
   });
 });
 

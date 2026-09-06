@@ -66,9 +66,7 @@ test("clicking a bookmark navigates to the session with run deep link", () => {
 });
 
 test("user-message bookmarks strip the :user suffix for the deep link", () => {
-  state.items = [
-    makeBookmark({ message_id: "run-42:user", run_id: null }),
-  ];
+  state.items = [makeBookmark({ message_id: "run-42:user", run_id: null })];
 
   render(<BookmarksPanel />);
   fireEvent.click(screen.getByText("季度规划大纲"));

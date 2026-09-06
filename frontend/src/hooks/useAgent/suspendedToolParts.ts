@@ -78,7 +78,11 @@ export function takeOverDanglingToolPart(
     for (let i = 0; i < parts.length; i++) {
       const p = parts[i];
       if (p.type !== "subagent" || !p.parts) continue;
-      const updated = takeOverDanglingToolPart(p.parts, replacement, targetDepth - 1);
+      const updated = takeOverDanglingToolPart(
+        p.parts,
+        replacement,
+        targetDepth - 1,
+      );
       if (updated) {
         const newParts = [...parts];
         newParts[i] = { ...p, parts: updated };

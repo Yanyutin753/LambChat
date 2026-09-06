@@ -195,7 +195,7 @@ export function SlashDropdownMenu({
                         >
                           <SkillIcon size={12} className="text-white" />
                         </div>
-                        <span className="min-w-0 flex-1 truncate">
+                        <span className="min-w-0 flex-1 truncate font-serif">
                           {item.skill.name}
                         </span>
                         {isSelected && (

@@ -46,6 +46,14 @@ from src.infra.backend._local_compat import (
     _restore_file_info_path,
     _run_coro_sync,
 )
+from src.infra.backend._local_transfer import (
+    FS_TRANSFER_CHUNK_BYTES,  # noqa: F401  # re-export（测试/结构引用）
+    FsTransferUnsupportedError,  # noqa: F401  # re-export
+    LocalFsTransferMixin,
+    WorkspaceAliasTransferMixin,
+    _download_max_bytes,
+)
+from src.infra.backend.lazy_sandbox import PUBLIC_SHARED_DIR
 from src.infra.backend.protocol_compat import (
     DeleteResult,
     EditResult,
@@ -88,10 +96,17 @@ async def _lookup_daemon_platform(user_id: str, machine_id: str | None = None) -
         return ""
 
 
-# 上传分块阈值：单条命令的原始内容上限 48KB（b64 后 ~64KB）。
+# 上传分块阈值（posix）：单条命令的原始内容上限 48KB（b64 后 ~64KB）。
 # b64 内容作为单个 argv 下发，内核 MAX_ARG_STRLEN 限制单参数 128KB，
 # 扣除引号/命令前缀开销后 ~96KB 即触发 E2BIG（Errno 7）——48KB 留足余量。
 _UPLOAD_CHUNK_RAW_BYTES = 48 * 1024
+
+# win32 上传分块阈值：单条命令全文必须 < 8191 字符（cmd.exe 命令行上限，
+# 2026-09-06 生产事故根因——48KB 分块只防 Linux E2BIG，win32 上 >~6KB 文件
+# 的 b64 单命令必超限失败并被误分类 file_not_found）。3KB 原始 → ~4KB b64
+# + 命令前缀，余量充足。
+_UPLOAD_CHUNK_WIN32_RAW_BYTES = 3 * 1024
+
 
 # 下载分块的原始字节数：daemon executor 对 stdout 只保留尾部 256KB
 # （MAX_OUTPUT_BYTES）并加 "...[truncated]" 前缀——单命令整读的 base64 流
@@ -101,24 +116,13 @@ _UPLOAD_CHUNK_RAW_BYTES = 48 * 1024
 _DOWNLOAD_CHUNK_RAW_BYTES = 144 * 1024
 
 
-def _download_max_bytes() -> int:
-    """下载单文件上限：与 reveal/S3 内部上传共用同一个环境变量旋钮。
-
-    ``S3_INTERNAL_UPLOAD_MAX_SIZE``（默认 1GB，见 kernel.config）统一控制
-    reveal 文件、本地沙箱下载与 S3 内部上传三处上限，不各自写死；超限在
-    stat 预检后即报显式 ``file_too_large``，不下发分片。
-    """
-    configured = int(getattr(settings, "S3_INTERNAL_UPLOAD_MAX_SIZE", 0) or 0)
-    return configured if configured > 0 else 1
-
-
 # fs_write 单次载荷上限（M4 T3.5，win32 结构化文件操作）：与下载/results 通道
 # 的 2MB 同量级——超限在服务端预检拒绝（file_too_large），不下发 daemon；
 # daemon 侧 fsops.FS_WRITE_MAX_BYTES 是同一上限的第二道闸。
 _FS_WRITE_MAX_BYTES = 2 * 1024 * 1024
 
 
-class LocalSandboxBackend(BaseSandbox):
+class LocalSandboxBackend(LocalFsTransferMixin, BaseSandbox):
     """本地沙箱后端：命令经中继（Redis 请求/结果通道）落到用户本机 daemon。
 
     cwd 固定为 `/workspace/{session_id}`（spec §3.3），由 daemon 负责创建与
@@ -137,6 +141,9 @@ class LocalSandboxBackend(BaseSandbox):
     ):
         self._user_id = user_id
         self._session_id = session_id
+        # 沙箱工作目录（daemon 侧 cwd 契约，spec §3.3，与 aexecute 的 cwd 一致）；
+        # create_sandbox_backend 以 getattr(backend, "work_dir") 锚定 artifacts 根。
+        self.work_dir = f"/workspace/{session_id}"
         # 会话级选机（多机 daemon）：None = 注册表默认解析（默认机→唯一在线→legacy）
         self._machine_id = machine_id
         self._exec_timeout = exec_timeout or settings.SANDBOX_LOCAL_EXEC_TIMEOUT
@@ -151,6 +158,9 @@ class LocalSandboxBackend(BaseSandbox):
         # 不让已确认 win32 的会话翻回 posix 分支（多行 POSIX 脚本在 cmd.exe
         # 上产出垃圾输出——2026-09-06 生产事故的连锁之一）。None = 从未解析。
         self._sticky_platform: str | None = None
+        # 结构化传输通道能力位：None = 未探测（首次尝试 fs_upload/fs_download），
+        # False = 老 daemon 不支持（粘滞走 exec 旧链路）。见 FsTransferUnsupportedError。
+        self._fs_transfer_supported: bool | None = None
 
     async def _resolve_platform(self) -> str:
         """本次命令生成所用平台：显式 hint 优先，否则查注册表（容错 posix）。
@@ -169,15 +179,6 @@ class LocalSandboxBackend(BaseSandbox):
     @property
     def id(self) -> str:
         return f"local-{self._session_id}"
-
-    @property
-    def work_dir(self) -> str:
-        """沙箱工作目录（daemon 侧 cwd 契约，spec §3.3，与 aexecute 的 cwd 一致）。
-
-        create_sandbox_backend 以 getattr(backend, "work_dir") 锚定 artifacts 根，
-        缺失会退化到云端默认 "/home/user"，在用户本机上不存在。
-        """
-        return f"/workspace/{self._session_id}"
 
     async def before_tool_start(self, tool_name: str, tool_input: dict[str, object]) -> None:
         """LazySandboxBackend 同名契约的对等实现（agent_node 事件处理器 wiring）。
@@ -260,19 +261,25 @@ class LocalSandboxBackend(BaseSandbox):
 
     @classmethod
     def _upload_chunk_commands(cls, path: str, content: bytes, *, platform: str = "") -> list[str]:
-        """上传命令序列：≤48KB 单命令直写；更大分块——首块 `wb` 截断创建，后续块 `ab` 追加。
+        """上传命令序列：≤阈值单命令直写；更大分块——首块 `wb` 截断创建，后续块 `ab` 追加。
 
-        整个 b64 塞单个 argv 会撞内核 MAX_ARG_STRLEN（E2BIG，见
-        _UPLOAD_CHUNK_RAW_BYTES 注释），分片后每条命令的 argv 都留足余量。
+        阈值按平台取：posix 48KB（防内核 MAX_ARG_STRLEN/E2BIG，见
+        _UPLOAD_CHUNK_RAW_BYTES 注释）；win32 3KB（防 cmd.exe 8191 字符命令行
+        上限，见 _UPLOAD_CHUNK_WIN32_RAW_BYTES 注释）。
         """
-        if len(content) <= _UPLOAD_CHUNK_RAW_BYTES:
+        chunk_bytes = (
+            _UPLOAD_CHUNK_WIN32_RAW_BYTES
+            if _platform_ctx(platform).is_windows
+            else _UPLOAD_CHUNK_RAW_BYTES
+        )
+        if len(content) <= chunk_bytes:
             return [cls._upload_command(path, content, platform=platform)]
-        commands = [cls._upload_command(path, content[:_UPLOAD_CHUNK_RAW_BYTES], platform=platform)]
-        for offset in range(_UPLOAD_CHUNK_RAW_BYTES, len(content), _UPLOAD_CHUNK_RAW_BYTES):
+        commands = [cls._upload_command(path, content[:chunk_bytes], platform=platform)]
+        for offset in range(chunk_bytes, len(content), chunk_bytes):
             commands.append(
                 cls._upload_command(
                     path,
-                    content[offset : offset + _UPLOAD_CHUNK_RAW_BYTES],
+                    content[offset : offset + chunk_bytes],
                     append=True,
                     platform=platform,
                 )
@@ -450,9 +457,7 @@ class LocalSandboxBackend(BaseSandbox):
                 raise
             except Exception:
                 logger.exception("local download_files(%s) failed", path)
-                responses.append(
-                    file_download_response(path=path, content=None, error="file_not_found")
-                )
+                responses.append(file_download_response(path=path, content=None, error="io_error"))
         return responses
 
     async def adownload_files(self, paths: list[str]) -> list[FileDownloadResponse]:
@@ -467,13 +472,11 @@ class LocalSandboxBackend(BaseSandbox):
                 raise
             except Exception:
                 logger.exception("local adownload_files(%s) failed", path)
-                responses.append(
-                    file_download_response(path=path, content=None, error="file_not_found")
-                )
+                responses.append(file_download_response(path=path, content=None, error="io_error"))
         return responses
 
 
-class WorkspaceAliasBackend(LocalSandboxBackend):
+class WorkspaceAliasBackend(WorkspaceAliasTransferMixin, LocalSandboxBackend):
     """虚拟别名路径剥离器：`/workspace/{sid}/x` → 相对路径 `x`（F1 修复）。
 
     prompt_policy 以 `work_dir = /workspace/{session_id}` 指示模型「文件工具
@@ -488,6 +491,10 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
     def _strip_path(self, path: str | None) -> str | None:
         if path is None or not self._session_id:
             return path
+        if path == PUBLIC_SHARED_DIR:
+            return "../.shared"
+        if path.startswith(f"{PUBLIC_SHARED_DIR}/"):
+            return f"../.shared/{path[len(PUBLIC_SHARED_DIR) + 1 :]}"
         work_dir = self.work_dir
         if path == work_dir or path == f"{work_dir}/":
             return "."
@@ -508,13 +515,19 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
         return posixpath.normpath(f"{self.work_dir}/{path}")
 
     def _strip_command(self, command: str) -> str:
-        """shell 命令串里的别名 → `.`（`cd /workspace/s1` → `cd .`）。
+        """shell 命令串里的别名 → 相对路径（`cd /workspace/s1` → `cd .`，
+        `/workspace/.shared/x` → `../.shared/x`）。
 
-        负向断言保证 `/workspace/s1` 之后必须是非路径字符（`/`、空白、串尾
-        等），`/workspace/s12` 这类更长 sid 不被误改写。
+        负向断言保证别名之后必须是非路径字符（`/`、空白、串尾
+        等），`/workspace/s12`、`/workspace/.shared-x` 这类更长名字不被误改写。
         """
         if not self._session_id:
             return command
+        command = re.sub(
+            re.escape(PUBLIC_SHARED_DIR) + r"(?![A-Za-z0-9_.-])",
+            "../.shared",
+            command,
+        )
         return re.sub(re.escape(self.work_dir) + r"(?![A-Za-z0-9_.-])", ".", command)
 
     # ---- win32 结构化 fs op（M4 T3.5）----
@@ -528,11 +541,22 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
         return _platform_ctx(await self._resolve_platform()).is_windows
 
     async def _afs_call(self, op: str, payload: dict[str, Any]) -> dict:
-        """发一个结构化 fs op，取回结果体（cwd 一律附虚拟工作区，daemon 据此映射）。"""
+        """发一个结构化 fs op，取回结果体（cwd 一律附虚拟工作区，daemon 据此映射）。
+
+        fsops 的路径必须相对 cwd 且不得逃出工作区，而共享目录别名剥成的是
+        `../.shared/…`——这里把这类路径重定位为 cwd=/workspace/.shared + 纯相对
+        路径（daemon 的 map_workspace 对 ".shared" 这个 sid 的映射与真 daemon
+        data_root/.shared 一致），无需 daemon 侧改动。
+        """
+        rebased = dict(payload)
+        path = rebased.get("path")
+        if isinstance(path, str) and (path == "../.shared" or path.startswith("../.shared/")):
+            rebased["cwd"] = PUBLIC_SHARED_DIR
+            rebased["path"] = path[len("../.shared") :].lstrip("/") or "."
         resp = await dispatch_local_call(
             self._user_id,
             op,
-            {**payload, "cwd": self.work_dir},
+            {**rebased, "cwd": rebased.get("cwd", self.work_dir)},
             timeout=float(self._exec_timeout),
             machine_id=self._machine_id,
         )
@@ -899,33 +923,3 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
         if result.path is not None:
             return DeleteResult(path=file_path)
         return result
-
-    # ---- upload/download：入参剥离 + 响应路径回填 ----
-
-    def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
-        stripped = [(self._strip_path(path) or path, content) for path, content in files]
-        return [
-            FileUploadResponse(path=path, error=result.error)
-            for (path, _), result in zip(files, super().upload_files(stripped), strict=True)
-        ]
-
-    async def aupload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
-        stripped = [(self._strip_path(path) or path, content) for path, content in files]
-        return [
-            FileUploadResponse(path=path, error=result.error)
-            for (path, _), result in zip(files, await super().aupload_files(stripped), strict=True)
-        ]
-
-    def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
-        stripped = [self._strip_path(path) or path for path in paths]
-        return [
-            FileDownloadResponse(path=path, content=result.content, error=result.error)
-            for path, result in zip(paths, super().download_files(stripped), strict=True)
-        ]
-
-    async def adownload_files(self, paths: list[str]) -> list[FileDownloadResponse]:
-        stripped = [self._strip_path(path) or path for path in paths]
-        return [
-            FileDownloadResponse(path=path, content=result.content, error=result.error)
-            for path, result in zip(paths, await super().adownload_files(stripped), strict=True)
-        ]

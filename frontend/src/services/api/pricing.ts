@@ -46,7 +46,9 @@ let fxCache: { doc: FxRatesResponse | null; at: number } | null = null;
 let fxInflight: Promise<FxRatesResponse | null> | null = null;
 
 /** 获取 USD 基准汇率表（带缓存；失败返回 null） */
-export async function getFxRates(force = false): Promise<FxRatesResponse | null> {
+export async function getFxRates(
+  force = false,
+): Promise<FxRatesResponse | null> {
   const now = Date.now();
   if (!force && fxCache && now - fxCache.at < FX_CACHE_TTL_MS) {
     return fxCache.doc;
@@ -72,9 +74,12 @@ export async function getFxRates(force = false): Promise<FxRatesResponse | null>
 export const pricingApi = {
   /** 管理员：手动同步 models.dev 价格 + 汇率 */
   async sync(): Promise<PricingSyncResponse> {
-    const doc = await authFetch<PricingSyncResponse>(`${API_BASE}/api/pricing/sync`, {
-      method: "POST",
-    });
+    const doc = await authFetch<PricingSyncResponse>(
+      `${API_BASE}/api/pricing/sync`,
+      {
+        method: "POST",
+      },
+    );
     void getFxRates(true).catch(() => null);
     return doc;
   },

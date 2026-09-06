@@ -105,9 +105,7 @@ test("todo block collapse survives virtualized unmount/remount", () => {
     { content: "task-b", status: "in_progress" as const },
   ];
 
-  const { unmount } = render(
-    <TodoBlock items={items} stateKey="msg-3:2" />,
-  );
+  const { unmount } = render(<TodoBlock items={items} stateKey="msg-3:2" />);
   expect(screen.getByText("task-a")).toBeTruthy();
 
   // 收起整块

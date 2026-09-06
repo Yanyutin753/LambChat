@@ -66,7 +66,11 @@ export function TeamMemberCard({
     { value: "", label: t("team.followTeamMode", "跟随团队模式") },
     ...availableAgents.map((agent) => ({
       value: agent.id,
-      label: resolveAgentDisplayName(agent, i18n.language, t) || agent.id,
+      label: (
+        <span className="font-serif">
+          {resolveAgentDisplayName(agent, i18n.language, t) || agent.id}
+        </span>
+      ),
     })),
   ];
 
@@ -74,7 +78,7 @@ export function TeamMemberCard({
     { value: "", label: t("team.followSessionModel", "跟随会话模型") },
     ...availableModels.map((model) => ({
       value: model.id,
-      label: model.label || model.value,
+      label: <span className="font-serif">{model.label || model.value}</span>,
     })),
   ];
 
@@ -131,12 +135,12 @@ export function TeamMemberCard({
             <span className="team-member-card__meta-row">
               <span className="team-member-card__model" title={agentLabel}>
                 <Bot size={11} />
-                <span>{agentLabel}</span>
+                <span className="font-serif">{agentLabel}</span>
               </span>
               <span className="team-member-card__model-sep" />
               <span className="team-member-card__model" title={modelLabel}>
                 <Cpu size={11} />
-                <span>{modelLabel}</span>
+                <span className="font-serif">{modelLabel}</span>
               </span>
             </span>
           </div>

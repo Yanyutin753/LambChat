@@ -37,7 +37,9 @@ export function useUiExpansionState(
   defaultExpanded: boolean,
 ) {
   const [expanded, setExpanded] = useState(() =>
-    key !== undefined ? (getUiExpansion(key) ?? defaultExpanded) : defaultExpanded,
+    key !== undefined
+      ? getUiExpansion(key) ?? defaultExpanded
+      : defaultExpanded,
   );
 
   const toggle = useCallback(() => {

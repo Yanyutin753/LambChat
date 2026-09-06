@@ -23,7 +23,9 @@ function extractErrorCodes(): Array<{ code: string; en: string }> {
     entries.push({ code: match[1], en: match[3] });
   }
   if (entries.length === 0) {
-    throw new Error("未能从 src/kernel/errors.py 提取到任何错误码，正则可能失效");
+    throw new Error(
+      "未能从 src/kernel/errors.py 提取到任何错误码，正则可能失效",
+    );
   }
   return entries;
 }
@@ -64,17 +66,20 @@ test("en 文案不得残留中文（未翻译检查）", () => {
   const section = data.backendErrors ?? {};
   // locale 文案为人工审校副本、枚举 default_message 仅为无翻译时兜底，二者措辞允许不同；
   // 但 en locale 出现中文说明翻译遗漏。
-  const cjk = Object.entries(section).filter(([, v]) => /[\u4e00-\u9fff]/.test(v));
+  const cjk = Object.entries(section).filter(([, v]) =>
+    /[\u4e00-\u9fff]/.test(v),
+  );
   expect(cjk.map(([k]) => k)).toEqual([]);
 });
 
 test("插值占位符五语一致", () => {
-  const sections = LOCALES.map((locale) =>
-    (
-      JSON.parse(
-        readFileSync(join(LOCALES_DIR, `${locale}.json`), "utf-8"),
-      ) as Record<string, Record<string, string>>
-    ).backendErrors ?? {},
+  const sections = LOCALES.map(
+    (locale) =>
+      (
+        JSON.parse(
+          readFileSync(join(LOCALES_DIR, `${locale}.json`), "utf-8"),
+        ) as Record<string, Record<string, string>>
+      ).backendErrors ?? {},
   );
   const placeholders = (s: string) =>
     Array.from(s.matchAll(/\{\{(\w+)\}\}/g))
@@ -86,7 +91,10 @@ test("插值占位符五语一致", () => {
   for (const key of Object.keys(base)) {
     const expected = placeholders(base[key]);
     for (let i = 1; i < sections.length; i++) {
-      if (sections[i][key] !== undefined && placeholders(sections[i][key]) !== expected) {
+      if (
+        sections[i][key] !== undefined &&
+        placeholders(sections[i][key]) !== expected
+      ) {
         mismatched.push(`${LOCALES[i]}.${key}`);
       }
     }

@@ -7,7 +7,11 @@ import {
   resolveDisplayCurrency,
 } from "../currency";
 
-const rates = { base: "USD", rates: { USD: 1, CNY: 7.1, JPY: 150, KRW: 1350, RUB: 92 }, synced_at: null };
+const rates = {
+  base: "USD",
+  rates: { USD: 1, CNY: 7.1, JPY: 150, KRW: 1350, RUB: 92 },
+  synced_at: null,
+};
 
 describe("resolveDisplayCurrency", () => {
   test("maps app language to local currency", () => {
@@ -21,7 +25,13 @@ describe("resolveDisplayCurrency", () => {
 
   test("falls back to USD when rates are unavailable for the currency", () => {
     expect(resolveDisplayCurrency("zh", null)).toBe("USD");
-    expect(resolveDisplayCurrency("zh", { base: "USD", rates: { USD: 1 }, synced_at: null })).toBe("USD");
+    expect(
+      resolveDisplayCurrency("zh", {
+        base: "USD",
+        rates: { USD: 1 },
+        synced_at: null,
+      }),
+    ).toBe("USD");
   });
 
   test("unknown language falls back to USD", () => {
@@ -41,7 +51,13 @@ describe("getUsdRate / convertUsdToCurrency", () => {
 
   test("returns null when currency rate is missing", () => {
     expect(convertUsdToCurrency(2, "CNY", null)).toBeNull();
-    expect(convertUsdToCurrency(2, "CNY", { base: "USD", rates: { USD: 1 }, synced_at: null })).toBeNull();
+    expect(
+      convertUsdToCurrency(2, "CNY", {
+        base: "USD",
+        rates: { USD: 1 },
+        synced_at: null,
+      }),
+    ).toBeNull();
   });
 });
 
@@ -73,6 +89,26 @@ describe("formatCostUsd", () => {
   test("KRW large magnitude formats with 2 decimals", () => {
     const out = formatCostUsd(2, { language: "ko", rates });
     expect(out).toContain("2,700");
+  });
+
+  test("maxDecimals caps precision for tiny amounts", () => {
+    expect(formatCostUsd(0.0123, { language: "en", maxDecimals: 3 })).toBe(
+      "$0.012",
+    );
+    expect(formatCostUsd(0.000123, { language: "en", maxDecimals: 3 })).toBe(
+      "$0.0",
+    );
+  });
+
+  test("maxDecimals keeps 2-decimal formatting for normal amounts", () => {
+    expect(formatCostUsd(12.3456, { language: "en", maxDecimals: 3 })).toBe(
+      "$12.35",
+    );
+  });
+
+  test("maxDecimals applies after currency conversion", () => {
+    const out = formatCostUsd(0.05, { language: "zh", rates, maxDecimals: 3 });
+    expect(out).toContain("¥0.355");
   });
 });
 

@@ -19,24 +19,25 @@ function collectSourceFiles(dir: string): string[] {
       }
       return collectSourceFiles(resolve(dir, entry.name));
     }
-    return /\.(tsx?|jsx?)$/.test(entry.name)
-      ? [resolve(dir, entry.name)]
-      : [];
+    return /\.(tsx?|jsx?)$/.test(entry.name) ? [resolve(dir, entry.name)] : [];
   });
 }
 
 test("src 不允许写死像素字号：禁止 text-[Npx]，一律用 rem token 刻度", () => {
   const offenders = collectSourceFiles(
     resolve(import.meta.dirname, "../..", "src"),
-  ).flatMap((file) =>
-    readFileSync(file, "utf8")
-      .match(PX_TEXT_CLASS)
-      ?.map((match) => `${file}: ${match}`) ?? [],
+  ).flatMap(
+    (file) =>
+      readFileSync(file, "utf8")
+        .match(PX_TEXT_CLASS)
+        ?.map((match) => `${file}: ${match}`) ?? [],
   );
 
   expect(
     offenders.slice(0, 10),
-    `发现 ${offenders.length} 处像素字号工具类（前 10 条）：\n${offenders.slice(0, 10).join("\n")}`,
+    `发现 ${offenders.length} 处像素字号工具类（前 10 条）：\n${offenders
+      .slice(0, 10)
+      .join("\n")}`,
   ).toEqual([]);
 });
 

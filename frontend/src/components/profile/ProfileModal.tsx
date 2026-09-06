@@ -168,7 +168,7 @@ export function ProfileModal({
   return createPortal(
     <div
       data-yields-sidebar
-      className="safe-area-viewport-padding fixed inset-0 z-[300] flex items-end sm:items-center sm:justify-center"
+      className="safe-area-viewport-padding-top fixed inset-0 z-[300] flex items-end sm:items-center sm:justify-center"
       onClick={() => onCloseProfileModal()}
     >
       {/* Backdrop */}
@@ -177,7 +177,7 @@ export function ProfileModal({
       {/* ===== Mobile: bottom sheet ===== */}
       <div
         ref={swipeRef as React.RefObject<HTMLDivElement>}
-        className="sm:hidden relative z-10 w-full bg-white dark:bg-stone-800 rounded-t-2xl shadow-2xl shadow-black/20 dark:shadow-black/50 border-x border-t border-stone-200/80 dark:border-stone-700/60 overflow-hidden max-h-[90dvh] flex flex-col animate-slide-up-sheet"
+        className="sm:hidden relative z-10 w-full bg-white dark:bg-stone-800 rounded-t-2xl shadow-2xl shadow-black/20 dark:shadow-black/50 border-x border-t border-stone-200/80 dark:border-stone-700/60 overflow-hidden max-h-[90dvh] flex flex-col animate-slide-up-sheet safe-area-bottom"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drag handle */}

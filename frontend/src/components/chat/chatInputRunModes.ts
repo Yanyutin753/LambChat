@@ -1,7 +1,4 @@
-import type {
-  RunModeKey,
-  RunModesOptions,
-} from "./richComposer/composerTypes";
+import type { RunModeKey, RunModesOptions } from "./richComposer/composerTypes";
 
 type ToggleHandler = (enabled: boolean) => void;
 

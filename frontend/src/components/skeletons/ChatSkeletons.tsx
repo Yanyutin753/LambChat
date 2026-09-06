@@ -165,12 +165,12 @@ function ChatInputShellSkeleton() {
         </div>
       </div>
       {/* Toolbar — 1:1 with real ChatInputToolbar default idle state */}
-      <div className="flex max-w-full flex-nowrap justify-between gap-2 px-2 pb-3 pt-3 mx-0.5">
-        <div className="flex min-h-10 min-w-0 flex-1 items-center gap-1 overflow-x-auto no-scrollbar sm:gap-2">
+      <div className="flex max-w-full flex-nowrap justify-between gap-1 px-2 pb-3 pt-3 mx-0.5">
+        <div className="flex min-h-10 min-w-0 flex-1 items-center gap-0.5 sm:gap-1.5">
           {/* FeatureMenu button (chat-tool-btn: min 2.25rem, p-2, rounded-full) */}
           <div className="skeleton-line h-9 w-9 rounded-full shrink-0" />
           {/* Agent chip (chat-tool-btn + avatar 18px + text-sm label) */}
-          <div className="chat-tool-btn group shrink min-w-0 pointer-events-none">
+          <div className="chat-tool-btn group shrink min-w-0 overflow-hidden pointer-events-none">
             <div className="flex flex-row items-center gap-2 min-w-0">
               <span className="relative h-[18px] w-[18px] shrink-0 inline-flex items-center justify-center overflow-hidden">
                 <div className="skeleton-line h-[18px] w-[18px] rounded-full" />
@@ -179,7 +179,7 @@ function ChatInputShellSkeleton() {
             </div>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-3 self-end">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-1.5 self-center">
           {/* Settings / Run Mode button (chat-tool-btn) */}
           <div className="skeleton-line h-9 w-9 rounded-full shrink-0" />
           {/* Send button (h-9 w-9 rounded-full) */}

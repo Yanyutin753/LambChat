@@ -498,6 +498,12 @@
     display: none;
   }
 
+  /* The pinned banner shares the shrunken viewport with the compacted
+     suggestions — hide it while typing instead of letting them overlap */
+  html[data-mobile-keyboard="true"] .notification-banner-root {
+    display: none;
+  }
+
   html[data-mobile-keyboard="true"] .welcome-persona-gallery {
     display: grid;
     grid-template-columns: 1fr;

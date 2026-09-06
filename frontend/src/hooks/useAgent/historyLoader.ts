@@ -94,7 +94,9 @@ const STEER_REPLY_TEXT_EVENTS = new Set(["thinking", "message:chunk"]);
  * 文本事件（thinking / message:chunk），插到该文本块开始处。带
  * created_at 的新版事件按注入时刻写入，位置天然正确，直接跳过。
  */
-function anchorLegacySteerMessageEvents(events: HistoryEvent[]): HistoryEvent[] {
+function anchorLegacySteerMessageEvents(
+  events: HistoryEvent[],
+): HistoryEvent[] {
   const anchored = [...events];
   for (let i = 0; i < anchored.length; i += 1) {
     const event = anchored[i];
@@ -371,9 +373,7 @@ function resetInterruptedAssistantForResume(
 }
 
 export function normalizeEventRunIds(events: HistoryEvent[]): HistoryEvent[] {
-  const prevRunIdByIndex: Array<string | undefined> = new Array(
-    events.length,
-  );
+  const prevRunIdByIndex: Array<string | undefined> = new Array(events.length);
   let lastSeenRunId: string | undefined;
   for (let index = 0; index < events.length; index++) {
     prevRunIdByIndex[index] = lastSeenRunId;
@@ -381,9 +381,7 @@ export function normalizeEventRunIds(events: HistoryEvent[]): HistoryEvent[] {
     if (runId) lastSeenRunId = runId;
   }
 
-  const nextRunIdByIndex: Array<string | undefined> = new Array(
-    events.length,
-  );
+  const nextRunIdByIndex: Array<string | undefined> = new Array(events.length);
   let nextSeenRunId: string | undefined;
   for (let index = events.length - 1; index >= 0; index--) {
     nextRunIdByIndex[index] = nextSeenRunId;
@@ -951,5 +949,8 @@ export function createScheduledTaskApprovalLookup(
     id: string;
     status: string;
     metadata?: Record<string, unknown> | null;
-  }) => setMessages((previous) => resolveLegacyScheduledTaskApproval(previous, approval));
+  }) =>
+    setMessages((previous) =>
+      resolveLegacyScheduledTaskApproval(previous, approval),
+    );
 }

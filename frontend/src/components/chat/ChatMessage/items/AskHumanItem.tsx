@@ -274,11 +274,7 @@ function AnswerSummary({
  * 模块作用域声明保证组件类型稳定，流式更新只 patch props，
  * 不会重置内部本地状态（FieldDisplay 等只读展示，无表单输入）。
  */
-function AskHumanDetail({
-  args,
-  result,
-  isPending,
-}: ToolDetailProps) {
+function AskHumanDetail({ args, result, isPending }: ToolDetailProps) {
   const { t } = useTranslation();
 
   const parsed = useMemo(() => parseArgs(args), [args]);

@@ -98,7 +98,8 @@ export function normalizeAgentOptions(
               option.description ||
               "Control thinking intensity (supported models only)",
             description_key:
-              option.description_key || "agentOptions.enableThinking.description",
+              option.description_key ||
+              "agentOptions.enableThinking.description",
             icon: option.icon || "Brain",
             options: option.options?.length
               ? option.options

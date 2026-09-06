@@ -10,7 +10,10 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Globe, Server } from "lucide-react";
 
-import { normalizeServerUrl, setStoredServerUrl } from "../../services/api/serverConfig";
+import {
+  normalizeServerUrl,
+  setStoredServerUrl,
+} from "../../services/api/serverConfig";
 
 export function ServerSetupScreen() {
   const { t } = useTranslation();
@@ -76,7 +79,9 @@ export function ServerSetupScreen() {
         </div>
 
         {input && !normalized && (
-          <p className="mt-2 text-xs text-red-500">{t("serverSetup.invalid")}</p>
+          <p className="mt-2 text-xs text-red-500">
+            {t("serverSetup.invalid")}
+          </p>
         )}
         {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
 

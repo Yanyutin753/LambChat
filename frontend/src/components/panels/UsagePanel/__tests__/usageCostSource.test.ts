@@ -27,9 +27,25 @@ test("usage log table renders a cost column across desktop, tablet and mobile", 
   );
 
   expect(source).toMatch(/usage\.cost/);
-  expect(source).toMatch(/fmtCostUsd\(log\.cost_usd, Boolean\(log\.cost_available\)/);
+  expect(source).toMatch(
+    /fmtCostUsd\(log\.cost_usd, Boolean\(log\.cost_available\)/,
+  );
   // 桌面网格、平板行、移动卡三处都要渲染费用
-  expect(source.match(/fmtCostUsd\(log\.cost_usd/g)?.length).toBeGreaterThanOrEqual(3);
+  expect(
+    source.match(/fmtCostUsd\(log\.cost_usd/g)?.length,
+  ).toBeGreaterThanOrEqual(3);
+});
+
+test("mobile usage card caps cost to 3 decimals", () => {
+  const source = readFileSync(
+    resolve(currentDir, "../UsageLogsTable.tsx"),
+    "utf8",
+  );
+
+  // 手机端费用格空间窄，只保留 3 位小数；桌面/平板沿用默认精度
+  expect(source).toMatch(/mobileCostOpts/);
+  expect(source).toMatch(/maxDecimals: 3/);
+  expect(source).toMatch(/<MobileCard[^>]*mobileCostOpts/s);
 });
 
 test("ranking rows show per-model cost", () => {

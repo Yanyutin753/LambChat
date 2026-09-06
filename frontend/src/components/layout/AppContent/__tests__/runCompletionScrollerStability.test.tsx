@@ -40,7 +40,18 @@ function CapturingHarness({
 }: HarnessProps) {
   const [messageListSessionKey] = useState("session-run");
 
-  const scroll = useMessageScroll(messages, "session-run", null, null, null, false, false, false, 1, null);
+  const scroll = useMessageScroll(
+    messages,
+    "session-run",
+    null,
+    null,
+    null,
+    false,
+    false,
+    false,
+    1,
+    null,
+  );
   lastScrollApi = scroll;
 
   const sessionRunning = isSessionRunning(messages, isLoading);
@@ -54,7 +65,8 @@ function CapturingHarness({
     hasVisibleStreamingMessage,
   });
 
-  const handleScrollerElementChange = scroll.handleVirtuosoScrollerElementChange;
+  const handleScrollerElementChange =
+    scroll.handleVirtuosoScrollerElementChange;
   const footerRef = scroll.messagesEndRef;
 
   // ChatView keeps the Scroller identity stable (useCallback on the stable
@@ -75,9 +87,8 @@ function CapturingHarness({
             handleScrollerElementChange(el);
             if (typeof vRef === "function") vRef(el);
             else if (vRef)
-              (
-                vRef as React.MutableRefObject<HTMLDivElement | null>
-              ).current = el;
+              (vRef as React.MutableRefObject<HTMLDivElement | null>).current =
+                el;
           }}
         >
           {children}
@@ -90,9 +101,7 @@ function CapturingHarness({
   const virtuosoFooterComponent = useCallback(
     () => (
       <>
-        {showStreamingFooterSkeleton && (
-          <div data-testid="footer-skeleton" />
-        )}
+        {showStreamingFooterSkeleton && <div data-testid="footer-skeleton" />}
         <div ref={footerRef} />
       </>
     ),
@@ -196,18 +205,14 @@ describe("run completion keeps the chat scroller mounted", () => {
     // The scroller DOM element must NOT be recreated: react-virtuoso remounts
     // the whole scroller subtree (resetting scroll to the first message) when
     // components.Scroller changes identity.
-    expect(lastScrollApi!.virtuosoScrollerRef.current).toBe(
-      scrollerDuringRun,
-    );
+    expect(lastScrollApi!.virtuosoScrollerRef.current).toBe(scrollerDuringRun);
     expect(scrollerDuringRun!.isConnected).toBe(true);
 
     // --- finally commit: isLoading flips false, skeleton hides again. ---
     currentProps.isLoading = false;
     commit();
 
-    expect(lastScrollApi!.virtuosoScrollerRef.current).toBe(
-      scrollerDuringRun,
-    );
+    expect(lastScrollApi!.virtuosoScrollerRef.current).toBe(scrollerDuringRun);
     expect(scrollerDuringRun!.isConnected).toBe(true);
   });
 });

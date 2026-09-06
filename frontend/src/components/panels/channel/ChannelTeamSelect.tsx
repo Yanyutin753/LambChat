@@ -118,7 +118,7 @@ export function ChannelTeamSelect({ value, onChange }: ChannelTeamSelectProps) {
               iconSize={14}
             />
           )}
-          <span className="truncate">{displayText}</span>
+          <span className="truncate font-serif">{displayText}</span>
           <ChevronDown
             size={15}
             className="shrink-0 text-[var(--theme-text-secondary)] transition-transform duration-200"
@@ -174,7 +174,7 @@ export function ChannelTeamSelect({ value, onChange }: ChannelTeamSelectProps) {
                       className="team-toolbar-avatar"
                       iconSize={14}
                     />
-                    <span className="truncate">{team.name}</span>
+                    <span className="truncate font-serif">{team.name}</span>
                   </span>
                 </button>
               );

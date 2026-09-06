@@ -94,7 +94,12 @@ test("pairingLogin rejects on failed credentials without resolving a token", asy
     "fetch",
     vi.fn().mockResolvedValue(
       new Response(
-        JSON.stringify({ detail: { code: "invalid_credentials", message: "Invalid username or password" } }),
+        JSON.stringify({
+          detail: {
+            code: "invalid_credentials",
+            message: "Invalid username or password",
+          },
+        }),
         { status: 401 },
       ),
     ),
@@ -110,7 +115,9 @@ test("pairingLogin rejects on failed credentials without resolving a token", asy
 
 test("createPairingPat mints a PAT with the pairing account's bearer token", async () => {
   const fetchMock = vi.fn().mockResolvedValue(
-    new Response(JSON.stringify({ token: "lc_pat_new", pat_id: "p9" }), { status: 200 }),
+    new Response(JSON.stringify({ token: "lc_pat_new", pat_id: "p9" }), {
+      status: 200,
+    }),
   );
   vi.stubGlobal("fetch", fetchMock);
 
@@ -135,10 +142,14 @@ test("createPairingPat mints a PAT with the pairing account's bearer token", asy
 test("revokePairingPat deletes the bearer PAT itself via /current", async () => {
   const fetchMock = vi
     .fn()
-    .mockResolvedValue(new Response(JSON.stringify({ status: "ok" }), { status: 200 }));
+    .mockResolvedValue(
+      new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
+    );
   vi.stubGlobal("fetch", fetchMock);
 
-  await expect(sandboxApi.revokePairingPat("lc_pat_old")).resolves.toBeUndefined();
+  await expect(
+    sandboxApi.revokePairingPat("lc_pat_old"),
+  ).resolves.toBeUndefined();
 
   const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
   expect(url).toBe("/api/auth/pat/current");
@@ -153,7 +164,12 @@ test("revokePairingPat surfaces structured errors (e.g. already revoked)", async
     "fetch",
     vi.fn().mockResolvedValue(
       new Response(
-        JSON.stringify({ detail: { code: "pat_not_found", message: "Personal access token not found or revoked" } }),
+        JSON.stringify({
+          detail: {
+            code: "pat_not_found",
+            message: "Personal access token not found or revoked",
+          },
+        }),
         { status: 401 },
       ),
     ),

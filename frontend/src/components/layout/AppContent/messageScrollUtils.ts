@@ -724,8 +724,7 @@ export function nextWheelIntentState(
   },
 ): { detach: boolean; state: WheelIntentAccumulator } {
   const singlePx = options?.singlePx ?? WHEEL_DETACH_SINGLE_PX;
-  const cumulativePx =
-    options?.cumulativePx ?? WHEEL_DETACH_CUMULATIVE_PX;
+  const cumulativePx = options?.cumulativePx ?? WHEEL_DETACH_CUMULATIVE_PX;
   const windowMs = options?.windowMs ?? WHEEL_INTENT_WINDOW_MS;
 
   if (deltaY >= 0) {

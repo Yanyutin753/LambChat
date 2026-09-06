@@ -29,9 +29,7 @@ export function isBookmarked(
 
 /** 把消息内容压成单行摘要，超长截断，作为书签列表展示文案 */
 export function buildBookmarkLabel(text: string, maxLength = 80): string {
-  const collapsed = (text ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
+  const collapsed = (text ?? "").replace(/\s+/g, " ").trim();
   if (!collapsed) {
     return "";
   }
@@ -62,7 +60,5 @@ export function deriveRunIdForJump(bookmark: BookmarkIdentity): string | null {
 export function buildBookmarkNavigatePath(bookmark: BookmarkIdentity): string {
   const runId = deriveRunIdForJump(bookmark);
   const base = `/chat/${encodeURIComponent(bookmark.session_id)}`;
-  return runId
-    ? `${base}?run_id=${encodeURIComponent(runId)}`
-    : base;
+  return runId ? `${base}?run_id=${encodeURIComponent(runId)}` : base;
 }

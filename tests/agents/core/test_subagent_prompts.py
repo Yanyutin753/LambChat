@@ -70,7 +70,8 @@ def test_workflow_policy_is_capability_agnostic_and_compact() -> None:
 
 
 def test_storage_and_subagent_policies_fit_compact_budgets() -> None:
-    assert len(SANDBOX_STORAGE_POLICY) <= 330
+    # 400：第三条存储位置（/workspace/.shared 持久目录）入册后的新预算
+    assert len(SANDBOX_STORAGE_POLICY) <= 400
     assert len(SUBAGENT_TASK_GUIDE) <= 560
 
 
@@ -94,6 +95,14 @@ def test_sandbox_storage_is_shared_and_runtime_path_is_separate() -> None:
     assert "{work_dir}" in SANDBOX_RUNTIME_SECTION
     assert SANDBOX_SYSTEM_PROMPT.count("virtual Skill storage") == 1
     assert "transfer_file" not in SANDBOX_SYSTEM_PROMPT
+
+
+def test_storage_and_runtime_policies_document_persistent_shared_dir() -> None:
+    """/workspace/.shared 持久目录约定进全部沙箱策略（文件工具别名 + shell 变量）。"""
+    for policy in (SANDBOX_STORAGE_POLICY, LAZY_SANDBOX_RUNTIME_POLICY, SANDBOX_RUNTIME_POLICY):
+        assert "/workspace/.shared" in policy
+    for runtime in (LAZY_SANDBOX_RUNTIME_POLICY, SANDBOX_RUNTIME_POLICY):
+        assert "$LAMBCHAT_SHARED" in runtime
 
 
 def test_search_lazy_runtime_distinguishes_file_and_shell_workspace_paths() -> None:
@@ -127,13 +136,16 @@ def test_search_lazy_runtime_documents_file_tool_shell_bridging() -> None:
             "never at a guessed `/workspace/<name>`",
         ),
     )
-    # /skills 与 /memories 是文件工具专属的虚拟存储，进 shell 必须先 transfer_path 进工作目录
+    # /skills 与 /memories 是文件工具专属的虚拟存储；可复用产物进持久共享目录，
+    # 先 ls 检查避免每轮重复转移；一次性文件才进当前会话工作区
     _assert_markers(
         rendered,
         (
             "exist only for file tools",
             "transfer_path",
-            "target prefix `/workspace/session-1/`",
+            "target prefix `/workspace/.shared/`",
+            "$LAMBCHAT_SHARED",
+            "persists across sessions",
         ),
     )
     # URL 下载要落到工作目录 alias，后续 shell 命令才能用

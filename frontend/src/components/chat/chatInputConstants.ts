@@ -1,4 +1,11 @@
-import { Brain, Zap, Settings, Monitor, Laptop, type LucideIcon } from "lucide-react";
+import {
+  Brain,
+  Zap,
+  Settings,
+  Monitor,
+  Laptop,
+  type LucideIcon,
+} from "lucide-react";
 import { Permission, type FileCategory } from "../../types";
 
 export const FILE_CATEGORY_PERMISSIONS: Record<FileCategory, Permission> = {

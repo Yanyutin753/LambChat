@@ -43,7 +43,11 @@ test("renders unbookmarked state by default", () => {
   state.items = [];
 
   render(
-    <BookmarkButton sessionId="session-1" messageId="message-1" runId="run-1" />,
+    <BookmarkButton
+      sessionId="session-1"
+      messageId="message-1"
+      runId="run-1"
+    />,
   );
 
   const button = screen.getByRole("button", { name: "Add bookmark" });
@@ -54,7 +58,11 @@ test("renders bookmarked state when the message is saved", () => {
   state.items = [makeBookmark()];
 
   render(
-    <BookmarkButton sessionId="session-1" messageId="message-1" runId="run-1" />,
+    <BookmarkButton
+      sessionId="session-1"
+      messageId="message-1"
+      runId="run-1"
+    />,
   );
 
   const button = screen.getByRole("button", { name: "Remove bookmark" });

@@ -252,8 +252,8 @@
         "cloud": "云端",
         "local": "本地"
       },
-      "offlineHint": "本地沙箱离线，请先在设置中配对",
-      "restoredOffline": "已保存的本地沙箱档当前离线"
+      "offlineHint": "本地沙箱离线：下载并启动后即可使用本地档",
+      "downloadEntry": "下载本地沙箱"
     },
     "sandboxMachine": {
       "label": "机器",
@@ -788,6 +788,7 @@
     "mermaid": "Mermaid",
     "mermaidDiagram": "Mermaid 图表",
     "message": {
+      "addBookmark": "添加书签",
       "allFiles": "全部文件",
       "args": "参数",
       "artifactsSubtitleFiles": "{{count}} 个文件",
@@ -802,6 +803,9 @@
       "askHumanWaiting": "等待您的输入…",
       "askHumanYourAnswer": "你的回答",
       "assistant": "Assistant",
+      "bookmarkAdded": "已加入书签",
+      "bookmarkRemoved": "已移除书签",
+      "bookmarkToggleFailed": "书签操作失败",
       "cancelled": "生成已取消",
       "codePreview": "代码预览",
       "collapse": "收起",
@@ -839,22 +843,23 @@
       "processing": "过程",
       "projects": "项目",
       "rejected": "操作已被用户拒绝",
+      "removeBookmark": "移除书签",
       "result": "结果",
       "retryAnswer": "重新回答",
       "runStepsCount": "{{count}} 个步骤",
       "runStepsDetail": "查看完整详情",
+      "runStepsStopped": "已停止",
       "runStepsSummary": "已工作 {{duration}}",
       "runStepsToggle": "展开或收起运行步骤",
       "runStepsWorking": "工作中 {{duration}}",
       "runStepsWorkingNoTimer": "工作中",
-      "runStepsStopped": "已停止",
       "running": "运行中...",
-      "waitingConfirm": "等待确认",
       "startTime": "开始时间",
       "starterPrompts": "开场提示词",
       "subagentProgress": "子代理进度",
       "summary": "总结",
       "summaryDescription": "本轮要点",
+      "summaryFreedTokens": "已释放 {{tokens}} tokens",
       "synthesizing": "正在综合 {{count}} 个子代理的结果...",
       "systemPrompt": "系统提示词",
       "table": "表格",
@@ -890,7 +895,7 @@
       "toolFileCount": "{{count}} 个文件",
       "toolFileCount_one": "{{count}} 个文件",
       "toolFileCount_other": "{{count}} 个文件",
-      "toolGlob": "匹配",
+      "toolGlob": "查找文件",
       "toolHistoryAssistant": "助手",
       "toolHistoryDetail": "历史详情",
       "toolHistoryMatchAssistant": "助手",
@@ -903,6 +908,8 @@
       "toolHistoryMoreTurns_one": "+{{count}} 轮对话",
       "toolHistoryMoreTurns_other": "+{{count}} 轮对话",
       "toolHistorySearch": "历史搜索",
+      "toolHistorySessionCount": "找到 {{count}} 个会话",
+      "toolHistoryTurnCount": "{{count}} 轮对话",
       "toolHistoryUser": "用户",
       "toolImageAnalyze": "图片分析",
       "toolImageAnalyzeCount": "{{count}} 张图片",
@@ -918,7 +925,7 @@
       "toolImageTag": "图像生成",
       "toolInPath": "在 {{path}}",
       "toolItemCount": "({{count}} 项)",
-      "toolLs": "列表",
+      "toolLs": "浏览目录",
       "toolMemberCount": "{{count}} 个成员",
       "toolMemoryContent": "记忆内容",
       "toolMemoryDaysAgo": "{{count}}天前",
@@ -937,8 +944,12 @@
       "toolMemoryToday": "今天",
       "toolMemoryYearsAgo": "{{count}}年前",
       "toolMemoryYesterday": "昨天",
-      "toolMoreFiles": "+{{count}} 更多",
-      "toolMoreLines": "... +{{count}} 更多行",
+      "toolMoreFiles": "+{{count}} 个文件",
+      "toolMoreImages": "+{{count}} 张图片",
+      "toolMoreLines": "+{{count}} 行",
+      "toolMoreMemories": "+{{count}} 条记忆",
+      "toolMoreTasks": "+{{count}} 个任务",
+      "toolMoreTools": "+{{count}} 个工具",
       "toolOpenFile": "打开文件",
       "toolOutput": "工具输出",
       "toolParseError": "解析项目数据失败",
@@ -957,9 +968,9 @@
       "toolScheduledTaskRun": "运行任务",
       "toolScheduledTaskUpdate": "更新任务",
       "toolSearch": "搜索",
-      "toolSearchAlreadyAvailable": "已可用",
+      "toolSearchAlreadyAvailable": "已可用 {{count}}",
       "toolSearchMoreParams": "更多参数",
-      "toolSearchNewlyLoaded": "新加载",
+      "toolSearchNewlyLoaded": "新加载 {{count}}",
       "toolSearchPersonas": "搜索",
       "toolSearchToolCount": "找到 {{count}} 个工具",
       "toolSearchTools": "搜索工具",
@@ -978,11 +989,7 @@
       "toolUploadUrlToSandbox": "上传 URL 到沙箱",
       "toolVarCount": "{{count}} 个变量",
       "toolWrite": "写入",
-      "addBookmark": "添加书签",
-      "bookmarkAdded": "已加入书签",
-      "bookmarkRemoved": "已移除书签",
-      "bookmarkToggleFailed": "书签操作失败",
-      "removeBookmark": "移除书签"
+      "waitingConfirm": "等待确认"
     },
     "messageInput": "消息输入框",
     "noPermission": "没有发送消息的权限",
@@ -1582,6 +1589,7 @@
     "agents": "助手",
     "architecture": "自托管架构",
     "architectureDesc": "部署 FastAPI + React 工作台，结合 LangGraph/deepagents 执行、Redis/MongoDB 持久化、沙箱隔离，以及 MCP、Skills、记忆和模型供应商扩展层。",
+    "autoLoginPending": "正在进入 LambChat…",
     "badge": "自托管 AI Agent 工作台",
     "channels": "渠道",
     "channelsIntegrations": "企业渠道",
@@ -2176,7 +2184,7 @@
       "machines": "我的机器",
       "machinesDesc": "已连接的本地沙箱机器；会话中可选择执行目标，默认机用于未选择时。",
       "machinesEmpty": "暂无在线机器",
-      "currentServer": "当前服务器：",
+      "currentServer": "当前服务器",
       "setDefault": "设为默认",
       "defaultBadge": "默认",
       "rename": "重命名",
@@ -2187,7 +2195,8 @@
         "macos": "macOS",
         "linux": "Linux",
         "unknown": "未知平台"
-      }
+      },
+      "downloadCta": "下载本地沙箱"
     },
     "maxPinnedModels": "最多置顶 {{max}} 个模型",
     "memoryToggle": "跨会话记忆",
@@ -2513,6 +2522,9 @@
     "bookmarks": {
       "description": "收藏会话中的重要消息（大纲、总结、方案），随时一键跳转回顾。",
       "title": "消息书签"
+    },
+    "download": {
+      "title": "下载本地沙箱"
     }
   },
   "serverSetup": {
@@ -3581,5 +3593,39 @@
     "upToDate": "已是最新版本",
     "installPermissionHint": "请先允许 LambChat 安装未知应用，授权后重新点击升级",
     "updateRelaunchInstall": "重启并安装"
+  },
+  "download": {
+    "title": "下载本地沙箱",
+    "description": "让 Agent 在你自己的电脑上执行命令与文件读写——数据不出本机。",
+    "latestVersion": "最新版本：{{version}}",
+    "detectedPlatform": "当前平台",
+    "back": "返回聊天",
+    "viewAllReleases": "在 GitHub 查看全部版本",
+    "loadFailed": "暂时拿不到下载地址，可前往 GitHub Releases 获取最新安装包：",
+    "noAssets": "该版本暂无可用安装包。",
+    "desktop": {
+      "title": "桌面端（推荐）",
+      "desc": "安装后登录 LambChat 账号即自动配对，网页端可直接选用本地沙箱。"
+    },
+    "daemon": {
+      "title": "独立 daemon（服务器 / 无桌面）",
+      "desc": "在你的服务器或开发机上运行守护进程，无需安装桌面应用。",
+      "usage": "用法：下载对应平台的二进制，赋予执行权限，登录你的 LambChat 服务后保持运行。",
+      "binaries": "下载二进制"
+    },
+    "tutorial": {
+      "title": "配对教程",
+      "step1": "安装桌面端并登录 LambChat 账号（自动配对）；服务器用户在目标机器执行上方 daemon 命令。",
+      "step2": "打开 LambChat 网页端 → 设置 → 偏好 → 沙箱，确认「本地沙箱」显示在线。",
+      "step3": "在聊天输入框打开「沙箱」选择器，切换为「本地」，Agent 即在本机执行。"
+    },
+    "tag": "LambChat · 本地沙箱",
+    "heroCta": "下载桌面端",
+    "heroCtaTutorial": "查看配对教程",
+    "downloadFor": "下载 {{platform}} 版",
+    "mobile": {
+      "title": "手机端 App",
+      "desc": "LambChat Android 客户端（APK 直装），与网页端同一账号登录。"
+    }
   }
 }

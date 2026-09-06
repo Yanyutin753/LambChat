@@ -321,6 +321,33 @@ async def _upload_to_backend(backend: Any, target_path: str, content: bytes) -> 
     return "backend does not support upload_files"
 
 
+# 确定性上传失败：重试只会原样再失败一轮，直接返回。其余（upload_failed/
+# io_error 或异常文本——中继/SDK 瞬时抖动）立即重试一次。
+_NON_RETRYABLE_UPLOAD_ERRORS = frozenset(
+    {
+        "permission_denied",
+        "is_directory",
+        "invalid_path",
+        "too_many_files",
+        "file_too_large",
+        "declined_by_user",
+        "file_not_found",
+        "backend does not support upload_files",
+    }
+)
+
+
+async def _upload_to_backend_with_retry(
+    backend: Any, target_path: str, content: bytes
+) -> Optional[str]:
+    """带单次重试的上传：瞬时失败立即重试（内容不变，幂等安全）。"""
+    error = await _upload_to_backend(backend, target_path, content)
+    if error is None or error in _NON_RETRYABLE_UPLOAD_ERRORS:
+        return error
+    logger.warning(f"[transfer] transient upload failure ({error}), retrying: {target_path}")
+    return await _upload_to_backend(backend, target_path, content)
+
+
 @tool
 async def transfer_file(
     source_path: Annotated[
@@ -333,8 +360,9 @@ async def transfer_file(
     ],
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
-    """Transfer one text file between workspace and /skills/ storage. Binary files are
-    unsupported; use memory_* rather than files for cross-session semantic memory."""
+    """Transfer one text file between workspace and /skills/ storage. Reusable files
+    belong in /workspace/.shared/ (persists across sessions — `ls` first, skip when
+    present). Binary files are unsupported; use memory_* for cross-session memory."""
     backend = get_backend_from_runtime(runtime)
 
     if backend is None:
@@ -381,7 +409,7 @@ async def transfer_file(
         )
 
     # 4. 上传
-    upload_error = await _upload_to_backend(backend, target_path, content)
+    upload_error = await _upload_to_backend_with_retry(backend, target_path, content)
     if upload_error:
         return await _json_dumps_result(
             {
@@ -481,12 +509,17 @@ async def transfer_path(
     ],
     target_prefix: Annotated[
         str,
-        "Target prefix; defaults to /skills/ and keeps the source directory name.",
+        (
+            "Target prefix; defaults to /skills/ and keeps the source directory name. "
+            "Use /workspace/.shared/ for reusable assets."
+        ),
     ] = "/skills/",
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
-    """Transfer a directory of text files between workspace and /skills/. Limits:
-    10MB/file, 100MB total, depth 5, 500 files; binary files and .. traversal are rejected."""
+    """Transfer a directory of text files between workspace and /skills/. Reusable
+    directories go under /workspace/.shared/ (persists across sessions — `ls` first,
+    skip when present). Limits: 10MB/file, 100MB total, depth 5, 500 files; binary
+    files and .. traversal are rejected."""
     backend = get_backend_from_runtime(runtime)
 
     if backend is None:
@@ -650,7 +683,7 @@ async def transfer_path(
             continue
 
         # 上传
-        upload_err = await _upload_to_backend(backend, target_path, content)
+        upload_err = await _upload_to_backend_with_retry(backend, target_path, content)
         if upload_err:
             files_omitted = _append_transfer_result(
                 results,

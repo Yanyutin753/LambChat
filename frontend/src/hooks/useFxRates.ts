@@ -11,7 +11,11 @@ export function useFxRates(): FxRatesDoc | null {
     getFxRates()
       .then((doc) => {
         if (alive && doc) {
-          setRates({ base: doc.base, rates: doc.rates, synced_at: doc.synced_at });
+          setRates({
+            base: doc.base,
+            rates: doc.rates,
+            synced_at: doc.synced_at,
+          });
         }
       })
       .catch(() => null);

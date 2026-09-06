@@ -253,6 +253,24 @@ def test_spawn_env_injects_workspace_variable(tmp_path):
     assert env["LAMBCHAT_WORKSPACE"] == str(ws)
 
 
+def test_spawn_env_injects_shared_variable(tmp_path):
+    """LAMBCHAT_SHARED 注入 data_root/.shared——云端 export 同名变量的本地等效。"""
+    ex = Executor(tmp_path)
+    ws = map_workspace("/workspace/s1", tmp_path)
+    env = ex._spawn_env(ws)  # noqa: SLF001
+    assert env is not None
+    assert env["LAMBCHAT_SHARED"] == str(tmp_path / ".shared")
+
+
+def test_execute_shared_var_persists_across_sessions(tmp_path):
+    """跨会话持久：s1 写入 $LAMBCHAT_SHARED，s2 仍可读（会话目录隔离不隔离它）。"""
+    ex = Executor(tmp_path)
+    r = ex.execute('echo shared > "$LAMBCHAT_SHARED/skill.txt"', "/workspace/s1", timeout=10)
+    assert r["status"] == "ok", r
+    r2 = ex.execute('cat "$LAMBCHAT_SHARED/skill.txt"', "/workspace/s2", timeout=10)
+    assert r2["status"] == "ok" and r2["stdout"].strip() == "shared", r2
+
+
 def test_execute_resolves_workspace_var_in_command(tmp_path):
     """模型惯用的 $LAMBCHAT_WORKSPACE/<name> 命令在本地链路真实可用（回归自实测事故）。"""
     ex = Executor(tmp_path)

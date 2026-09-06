@@ -161,7 +161,7 @@ export function RoleDetailSidebar({
                 {t("roles.uploadLimitsTitle")}
               </label>
               <div className="es-section">
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
                   {limitEntries.map(({ label, value }) => (
                     <div
                       key={label}

@@ -13,7 +13,7 @@ import {
   getRedirectPath,
   clearRedirectPath,
 } from "../../services/api";
-import { Loading } from "../common";
+import { AutoLoginSplash } from "../landing/AutoLoginSplash";
 
 export function OAuthCallback() {
   const { t } = useTranslation();
@@ -77,16 +77,7 @@ export function OAuthCallback() {
     handleCallback();
   }, [navigate, refreshUser, searchParams]);
 
-  return (
-    <div className="safe-area-viewport-padding flex min-h-screen items-center justify-center bg-stone-50 dark:bg-stone-900">
-      <div className="text-center">
-        <Loading size="lg" className="justify-center" />
-        <p className="mt-4 text-stone-600 dark:text-stone-400">
-          {t("auth.completingLogin")}
-        </p>
-      </div>
-    </div>
-  );
+  return <AutoLoginSplash text={t("auth.completingLogin")} />;
 }
 
 export default OAuthCallback;

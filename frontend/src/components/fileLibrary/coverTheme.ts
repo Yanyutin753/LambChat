@@ -1,4 +1,3 @@
-
 /* ═══════════════════════════════════════════════════════
    Cover helpers — thumbnail URL chains (app proxy ?cover=1 →
    OSS processing → original) and the lightweight code-line
@@ -132,12 +131,15 @@ export function tokenizeCodeLine(line: string): CodeToken[] {
   let last = 0;
   for (const match of line.matchAll(TOKEN_RE)) {
     const idx = match.index ?? 0;
-    if (idx > last) tokens.push({ text: line.slice(last, idx), tone: "default" });
+    if (idx > last)
+      tokens.push({ text: line.slice(last, idx), tone: "default" });
     const text = match[0];
-    const tone = text.startsWith('"') || text.startsWith("'") ? "accent" : "literal";
+    const tone =
+      text.startsWith('"') || text.startsWith("'") ? "accent" : "literal";
     tokens.push({ text, tone });
     last = idx + text.length;
   }
-  if (last < line.length) tokens.push({ text: line.slice(last), tone: "default" });
+  if (last < line.length)
+    tokens.push({ text: line.slice(last), tone: "default" });
   return tokens.length ? tokens : [{ text: line, tone: "default" }];
 }

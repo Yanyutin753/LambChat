@@ -25,8 +25,10 @@ import { APP_TOASTER_CLASS_NAME } from "./components/layout/AppContent/appToastL
 import { PwaStatusToasts } from "./components/pwa/PwaStatusToasts";
 import { appNotificationService } from "./services/notifications/appNotificationService";
 import { needsServerSetup } from "./services/api/serverConfig";
-const ServerSetupScreen = lazy(
-  () => import("./components/auth/ServerSetupScreen").then((m) => ({ default: m.ServerSetupScreen })),
+const ServerSetupScreen = lazy(() =>
+  import("./components/auth/ServerSetupScreen").then((m) => ({
+    default: m.ServerSetupScreen,
+  })),
 );
 import { useAutoUpdate } from "./hooks/useAutoUpdate";
 
@@ -72,6 +74,12 @@ const RegistrationPending = lazy(() =>
 const LandingPage = lazy(() =>
   import("./components/landing/LandingPage").then((m) => ({
     default: m.LandingPage,
+  })),
+);
+// 下载页懒加载（公开路由）：本地沙箱安装包 + 配对教程
+const DownloadPage = lazy(() =>
+  import("./components/download/DownloadPage").then((m) => ({
+    default: m.DownloadPage,
   })),
 );
 const AuthPage = lazy(() =>
@@ -461,6 +469,7 @@ function App() {
             <Route path="/dashboard" element={<LandingPage />} />
             <Route path="/responsive" element={<LandingPage />} />
             <Route path="/github" element={<GitHubPage />} />
+            <Route path="/download" element={<DownloadPage />} />
             {/* Auth routes */}
             <Route path="/auth/login" element={<AuthPageWrapper />} />
             <Route

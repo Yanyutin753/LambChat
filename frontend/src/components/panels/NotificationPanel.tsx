@@ -435,7 +435,7 @@ export function NotificationPanel() {
             onClick={() => setIsCreating(true)}
             leftIcon={<Plus size={16} />}
           >
-            <span>{t("notification.create")}</span>
+            <span className="hidden sm:inline">{t("notification.create")}</span>
           </Button>
         }
       />

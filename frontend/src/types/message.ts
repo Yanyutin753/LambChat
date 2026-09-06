@@ -127,6 +127,8 @@ export interface SummaryPart {
   depth?: number;
   agent_id?: string;
   isStreaming?: boolean;
+  /** 本次压缩释放的上下文 token 数（来自后端 stats 事件，可能先于正文到达） */
+  freed_tokens?: number;
 }
 
 export interface RecommendQuestion {

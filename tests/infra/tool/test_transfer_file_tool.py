@@ -317,3 +317,125 @@ async def test_transfer_path_skips_known_batch_oversize_before_download(
     assert result["skipped"] == 1
     assert "batch size limit exceeded" in result["files"][1]["error"]
     assert backend.downloaded == [first_path]
+
+
+def test_transfer_tools_document_persistent_shared_dir_convention() -> None:
+    """工具描述写明持久共享目录约定：可复用文件进 /workspace/.shared，先 ls 复用避免重复转移。"""
+    file_doc = transfer_file_tool.get_transfer_file_tool().description or ""
+    path_doc = transfer_file_tool.get_transfer_path_tool().description or ""
+
+    for doc in (file_doc, path_doc):
+        assert "/workspace/.shared" in doc
+        assert "persist" in doc
+        assert "`ls`" in doc
+
+    target_hint = transfer_file_tool.get_transfer_path_tool().args["target_prefix"]["description"]
+    assert "/workspace/.shared/" in target_hint
+
+
+@pytest.mark.asyncio
+async def test_transfer_file_retries_once_on_transient_upload_failure() -> None:
+    """上传瞬时失败（upload_failed/io_error 等非确定性错误）重试一次即成功。
+
+    2026-09-06 生产事故的衍生加固：中继/SDK 抖动导致的单次上传失败不应
+    直接判死整个文件转移。
+    """
+
+    class _FlakyBackend:
+        def __init__(self) -> None:
+            self.upload_attempts = 0
+            self.downloaded: list[str] = []
+
+        async def aget_file_size(self, path: str):
+            return 3
+
+        async def adownload_files(self, paths):
+            self.downloaded.extend(paths)
+            return [SimpleNamespace(path=paths[0], content=b"abc", error=None)]
+
+        async def aupload_files(self, files):
+            self.upload_attempts += 1
+            if self.upload_attempts == 1:
+                return [SimpleNamespace(path=files[0][0], content=None, error="upload_failed")]
+            return [SimpleNamespace(path=files[0][0], content=None, error=None)]
+
+    backend = _FlakyBackend()
+    result = json.loads(
+        await transfer_file_tool.transfer_file.coroutine(
+            source_path="/skills/demo/SKILL.md",
+            target_path="/workspace/w1/SKILL.md",
+            runtime=_Runtime(backend),
+        )
+    )
+
+    assert result["success"] is True
+    assert backend.upload_attempts == 2
+
+
+@pytest.mark.asyncio
+async def test_transfer_file_does_not_retry_deterministic_upload_error() -> None:
+    """确定性失败（permission_denied 等）不重试——重试只会浪费一轮往返。"""
+
+    class _DeniedBackend:
+        def __init__(self) -> None:
+            self.upload_attempts = 0
+
+        async def aget_file_size(self, path: str):
+            return 3
+
+        async def adownload_files(self, paths):
+            return [SimpleNamespace(path=paths[0], content=b"abc", error=None)]
+
+        async def aupload_files(self, files):
+            self.upload_attempts += 1
+            return [SimpleNamespace(path=files[0][0], content=None, error="permission_denied")]
+
+    backend = _DeniedBackend()
+    result = json.loads(
+        await transfer_file_tool.transfer_file.coroutine(
+            source_path="/skills/demo/SKILL.md",
+            target_path="/workspace/w1/SKILL.md",
+            runtime=_Runtime(backend),
+        )
+    )
+
+    assert result["success"] is False
+    assert "permission_denied" in result["error"]
+    assert backend.upload_attempts == 1
+
+
+@pytest.mark.asyncio
+async def test_transfer_path_retries_transient_upload_failure_per_file() -> None:
+    class _FlakyOnceBackend:
+        def __init__(self) -> None:
+            self.upload_attempts: dict[str, int] = {}
+
+        async def als(self, path: str) -> LsResult:
+            if path == "/skills/demo":
+                return LsResult(
+                    entries=[{"path": "/skills/demo/a.txt", "is_dir": False, "size": 3}]
+                )
+            return LsResult(entries=[])
+
+        async def adownload_files(self, paths):
+            return [SimpleNamespace(path=paths[0], content=b"abc", error=None)]
+
+        async def aupload_files(self, files):
+            target = files[0][0]
+            self.upload_attempts[target] = self.upload_attempts.get(target, 0) + 1
+            if self.upload_attempts[target] == 1:
+                return [SimpleNamespace(path=target, content=None, error="upload_failed")]
+            return [SimpleNamespace(path=target, content=None, error=None)]
+
+    backend = _FlakyOnceBackend()
+    result = json.loads(
+        await transfer_file_tool.transfer_path.coroutine(
+            source_dir="/skills/demo",
+            target_prefix="/workspace/w1/",
+            runtime=_Runtime(backend),
+        )
+    )
+
+    assert result["success"] is True
+    assert result["transferred"] == 1
+    assert result["failed"] == 0

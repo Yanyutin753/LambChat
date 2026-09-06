@@ -1,7 +1,4 @@
-import {
-  buildMessageBookmarkUrl,
-  buildMessageBookmarkBody,
-} from "../bookmark";
+import { buildMessageBookmarkUrl, buildMessageBookmarkBody } from "../bookmark";
 
 test("builds the message bookmark toggle url", () => {
   expect(buildMessageBookmarkUrl("session-1", "message-1")).toBe(

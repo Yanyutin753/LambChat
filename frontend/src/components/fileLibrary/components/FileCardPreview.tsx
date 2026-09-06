@@ -126,8 +126,7 @@ function DocCover({ p }: { p: FileCardPreviewModel }) {
               style={{ fontSize }}
               className={clsx(
                 "truncate leading-[1.6] text-stone-500 dark:text-stone-400",
-                i === 0 &&
-                  "font-medium text-stone-700 dark:text-stone-300",
+                i === 0 && "font-medium text-stone-700 dark:text-stone-300",
                 DOC_LINE_WIDTHS[i % DOC_LINE_WIDTHS.length],
               )}
             >
@@ -181,7 +180,9 @@ function SheetCover({ p }: { p: FileCardPreviewModel }) {
                     key={col}
                     className={clsx(
                       "flex-1 truncate border-r border-stone-100 px-1.5 py-1 text-8.5 text-stone-500 last:border-r-0 dark:border-stone-800/60 dark:text-stone-400",
-                      r === 0 && c === 0 && "font-medium text-stone-600 dark:text-stone-300",
+                      r === 0 &&
+                        c === 0 &&
+                        "font-medium text-stone-600 dark:text-stone-300",
                       c === 0 && "w-1/4 flex-none",
                     )}
                   >
@@ -224,9 +225,12 @@ function CodeCover({ p }: { p: FileCardPreviewModel }) {
                   <span
                     key={j}
                     className={clsx(
-                      tok.tone === "accent" && "text-amber-700 dark:text-amber-300",
-                      tok.tone === "literal" && "text-blue-700 dark:text-blue-300",
-                      tok.tone === "muted" && "text-stone-400 italic dark:text-stone-500",
+                      tok.tone === "accent" &&
+                        "text-amber-700 dark:text-amber-300",
+                      tok.tone === "literal" &&
+                        "text-blue-700 dark:text-blue-300",
+                      tok.tone === "muted" &&
+                        "text-stone-400 italic dark:text-stone-500",
                     )}
                   >
                     {tok.text}
@@ -244,11 +248,14 @@ function CodeCover({ p }: { p: FileCardPreviewModel }) {
 /* ── Data cover: quiet mini table / rows ─────────────── */
 
 function DataCover({ p }: { p: FileCardPreviewModel }) {
-  const isTable = p.badge?.toUpperCase() === "CSV" && (p.lines[0] ?? "").includes(",");
+  const isTable =
+    p.badge?.toUpperCase() === "CSV" && (p.lines[0] ?? "").includes(",");
 
   if (isTable) {
     const header = (p.lines[0] ?? "").split(",").map((c) => c.trim());
-    const rows = p.lines.slice(1, 3).map((l) => l.split(",").map((c) => c.trim()));
+    const rows = p.lines
+      .slice(1, 3)
+      .map((l) => l.split(",").map((c) => c.trim()));
     return (
       <PaperCanvas>
         <div className="flex h-full flex-col px-3 pb-3 pt-3">
@@ -298,7 +305,8 @@ function DataCover({ p }: { p: FileCardPreviewModel }) {
                 className={clsx(
                   tok.tone === "accent" && "text-amber-700 dark:text-amber-300",
                   tok.tone === "literal" && "text-blue-700 dark:text-blue-300",
-                  tok.tone === "muted" && "text-stone-400 italic dark:text-stone-500",
+                  tok.tone === "muted" &&
+                    "text-stone-400 italic dark:text-stone-500",
                 )}
               >
                 {tok.text}

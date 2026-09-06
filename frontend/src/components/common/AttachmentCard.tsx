@@ -11,7 +11,11 @@ import {
   isExcalidrawFile,
 } from "../documents/utils";
 import { getFullUrl } from "../../services/api";
-import { buildChatThumbUrl, buildFileCoverUrl, isChatCoverableFile } from "../../utils/chatThumbs";
+import {
+  buildChatThumbUrl,
+  buildFileCoverUrl,
+  isChatCoverableFile,
+} from "../../utils/chatThumbs";
 
 // Re-export formatFileSize for external use
 // eslint-disable-next-line react-refresh/only-export-components

@@ -135,6 +135,9 @@ const LsItem = memo(function LsItem({
   const hasEntries = entries.length > 0;
   const displayLabel =
     dirPath === "/" ? "/" : dirPath.split("/").filter(Boolean).pop() || dirPath;
+  const pillCount = hasEntries
+    ? ` ${t("chat.message.toolItemCount", { count: entries.length })}`
+    : "";
   const status = isPending
     ? "loading"
     : cancelled
@@ -160,7 +163,7 @@ const LsItem = memo(function LsItem({
       <CollapsiblePill
         status={status}
         icon={<FolderOpen size={12} className="shrink-0 opacity-50" />}
-        label={`${t("chat.message.toolLs")} ${dirPath}`}
+        label={`${t("chat.message.toolLs")} ${dirPath}${pillCount}`}
         variant="tool"
         formatLabel={false}
         expandable={canExpand}

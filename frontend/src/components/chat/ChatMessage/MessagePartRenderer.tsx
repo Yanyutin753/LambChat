@@ -617,6 +617,7 @@ export function MessagePartRenderer({
         content={part.content}
         isStreaming={isStreaming && isLast && part.isStreaming}
         panelKey={panelKey}
+        freedTokens={part.freed_tokens}
       />
     );
   }
