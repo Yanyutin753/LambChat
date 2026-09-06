@@ -265,7 +265,8 @@ test("xlsx files get the spreadsheet cover kind", () => {
     createFile({
       file_name: "季度财务报表.xlsx",
       file_type: "document",
-      mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      mime_type:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     }),
   );
   expect(preview.kind).toBe("sheet");

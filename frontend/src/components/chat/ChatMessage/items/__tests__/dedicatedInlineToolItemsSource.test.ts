@@ -206,13 +206,19 @@ test("overflow wording keys exist in every locale", () => {
 
   for (const locale of locales) {
     const localeJson = JSON.parse(
-      readFileSync(resolve(repoRoot, `frontend/src/i18n/locales/${locale}.json`), "utf8"),
+      readFileSync(
+        resolve(repoRoot, `frontend/src/i18n/locales/${locale}.json`),
+        "utf8",
+      ),
     );
     const chatMessage = localeJson.chat.message;
     for (const key of requiredKeys) {
       const shortKey = key.split(".").pop() as string;
       expect(chatMessage[shortKey], `${locale}.json ${key}`).toBeTruthy();
-      expect(chatMessage[`${shortKey}_other`], `${locale}.json ${key}_other`).toBeTruthy();
+      expect(
+        chatMessage[`${shortKey}_other`],
+        `${locale}.json ${key}_other`,
+      ).toBeTruthy();
     }
   }
 });

@@ -41,7 +41,10 @@ import type { ChatViewProps } from "./ChatViewProps";
 import { useCurrentTeam, resolveChatAssistantIdentity } from "./ChatViewProps";
 import { useChatOutline } from "./useChatOutline";
 import { resolveAgentDisplayName } from "../../agent/agentCatalog";
-import { shouldShowMessageOutline, createMessageAnchorId } from "./messageOutline";
+import {
+  shouldShowMessageOutline,
+  createMessageAnchorId,
+} from "./messageOutline";
 import { SessionBookmarksButton } from "../../chat/SessionBookmarksButton";
 import { loadHistoryUntilMessageFound } from "../../../utils/bookmarkHistoryPaging";
 import {
@@ -200,7 +203,8 @@ export function ChatView({
 
   // O(全部 parts) 的 ask-human 扫描每 tick 只跑一次（此前每渲染两遍）
   const hasPendingAskHumanParts = useMemo(
-    () => hasPendingAskHuman(messages.flatMap((message) => message.parts ?? [])),
+    () =>
+      hasPendingAskHuman(messages.flatMap((message) => message.parts ?? [])),
     [messages],
   );
 

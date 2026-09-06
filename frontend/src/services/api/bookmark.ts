@@ -41,9 +41,10 @@ export function buildMessageBookmarkUrl(
   return `${API_BASE}/api/sessions/${sessionId}/messages/${messageId}/bookmark`;
 }
 
-export function buildMessageBookmarkBody(
-  options?: BookmarkToggleOptions,
-): { run_id: string | null; label: string | null } {
+export function buildMessageBookmarkBody(options?: BookmarkToggleOptions): {
+  run_id: string | null;
+  label: string | null;
+} {
   return {
     run_id: options?.run_id ?? null,
     label: options?.label ?? null,

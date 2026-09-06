@@ -802,7 +802,9 @@ export function SessionListContent({
                         size={15}
                         className="shrink-0 text-stone-400"
                       />
-                      <span className="truncate">{project.name}</span>
+                      <span className="truncate font-serif">
+                        {project.name}
+                      </span>
                     </button>
                   ))}
                   <button

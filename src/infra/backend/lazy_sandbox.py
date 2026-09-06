@@ -30,6 +30,8 @@ from src.infra.logging import get_logger
 from src.kernel.config import settings
 
 PUBLIC_SANDBOX_ROOT = "/workspace"
+PUBLIC_SHARED_DIR = "/workspace/.shared"
+_SESSIONS_SEGMENT = "/sessions/"
 _ROUTED_STORAGE_ROOTS = ("/skills", "/memories")
 _SANDBOX_TOOL_PATH_ARGS = {
     "ls": "path",
@@ -48,6 +50,21 @@ def public_sandbox_work_dir(session_id: str) -> str:
     """Return the stable provider-neutral workspace for a session."""
     safe = re.sub(r"[^A-Za-z0-9_.-]+", "-", session_id).strip(".-")
     return f"{PUBLIC_SANDBOX_ROOT}/{safe[:80] or 'session'}"
+
+
+def provider_shared_work_dir(actual_work_dir: str) -> str:
+    """Derive the per-user persistent shared dir from a session work dir.
+
+    Session work dirs follow the manager layout ``{base}/sessions/{sid}``, so
+    the shared dir is ``{base}/shared``. Any other layout falls back to a
+    sibling ``shared`` directory, which stays user-scoped and persistent as
+    long as session dirs are siblings under one base.
+    """
+    actual = actual_work_dir.rstrip("/")
+    marker = actual.rfind(_SESSIONS_SEGMENT)
+    if marker != -1:
+        return f"{actual[:marker]}/shared"
+    return f"{PurePosixPath(actual).parent.as_posix()}/shared"
 
 
 class SandboxInitializationError(RuntimeError):
@@ -158,8 +175,12 @@ class LazySandboxBackend(BaseSandbox):
             return
 
     def _with_workspace_env(self, command: str) -> str:
-        actual_work_dir = shlex.quote(self._require_actual_work_dir())
-        return f"export LAMBCHAT_WORKSPACE={actual_work_dir}; {command}"
+        actual_work_dir = self._require_actual_work_dir()
+        shared_dir = provider_shared_work_dir(actual_work_dir)
+        return (
+            f"export LAMBCHAT_WORKSPACE={shlex.quote(actual_work_dir)}; "
+            f"export LAMBCHAT_SHARED={shlex.quote(shared_dir)}; {command}"
+        )
 
     def _to_public_file_info(self, info: FileInfo) -> FileInfo:
         return cast(FileInfo, {**info, "path": self._to_public_path(info["path"])})
@@ -491,6 +512,14 @@ class LazySandboxBackend(BaseSandbox):
 
     def _to_provider_path(self, path: str) -> str:
         actual_work_dir = self._require_actual_work_dir()
+        shared_dir = provider_shared_work_dir(actual_work_dir).rstrip("/")
+        shared_public_prefix = f"{PUBLIC_SHARED_DIR}/"
+
+        if path == PUBLIC_SHARED_DIR:
+            return shared_dir
+        if path.startswith(shared_public_prefix):
+            return f"{shared_dir}/{path[len(shared_public_prefix) :]}"
+
         public_prefix = f"{self._public_work_dir}/"
 
         if path == self._public_work_dir:
@@ -503,6 +532,14 @@ class LazySandboxBackend(BaseSandbox):
 
     def _to_public_path(self, path: str) -> str:
         actual_work_dir = self._require_actual_work_dir()
+        shared_dir = provider_shared_work_dir(actual_work_dir).rstrip("/")
+        shared_provider_prefix = f"{shared_dir}/"
+
+        if path == shared_dir:
+            return PUBLIC_SHARED_DIR
+        if path.startswith(shared_provider_prefix):
+            return f"{PUBLIC_SHARED_DIR}/{path[len(shared_provider_prefix) :]}"
+
         actual_prefix = f"{actual_work_dir.rstrip('/')}/"
 
         if path == actual_work_dir:

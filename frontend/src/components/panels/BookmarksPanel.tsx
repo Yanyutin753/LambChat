@@ -146,7 +146,7 @@ export function BookmarksPanel() {
                       e.stopPropagation();
                       void handleRemove(bookmark);
                     }}
-                    className="shrink-0 rounded-md p-1.5 text-[var(--theme-text-secondary)] opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100 hover:text-red-500 dark:hover:text-red-400"
+                    className="shrink-0 rounded-md p-1.5 text-[var(--theme-text-secondary)] opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100 hover:text-red-500 dark:hover:text-red-400 max-sm:opacity-100"
                     title={t("bookmarks.remove")}
                     aria-label={t("bookmarks.remove")}
                   >

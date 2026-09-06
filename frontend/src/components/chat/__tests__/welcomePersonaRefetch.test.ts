@@ -15,10 +15,7 @@ const hookSource = readFileSync(
   "utf8",
 );
 const chatAppContentSource = readFileSync(
-  resolve(
-    currentDir,
-    "../../layout/AppContent/ChatAppContent.tsx",
-  ),
+  resolve(currentDir, "../../layout/AppContent/ChatAppContent.tsx"),
   "utf8",
 );
 const chatViewPropsSource = readFileSync(
@@ -41,9 +38,7 @@ test("persona presets hook exposes a settled-first-fetch flag", () => {
 });
 
 test("chat app content threads loaded flag and page size to chat view", () => {
-  expect(chatAppContentSource).toMatch(
-    /hasLoaded: personaPresetsLoaded,/,
-  );
+  expect(chatAppContentSource).toMatch(/hasLoaded: personaPresetsLoaded,/);
   expect(chatAppContentSource).toMatch(
     /personaPresetsLoaded=\{personaPresetsLoaded\}/,
   );
@@ -58,9 +53,7 @@ test("chat view passes the loaded flag into the welcome page", () => {
 });
 
 test("welcome page readiness consults the loaded flag", () => {
-  expect(welcomePageSource).toMatch(
-    /personaPresetsLoaded,/,
-  );
+  expect(welcomePageSource).toMatch(/personaPresetsLoaded,/);
   expect(welcomePageSource).toMatch(/personaPresetsLoaded,/);
   expect(welcomePageSource).toMatch(
     /isWelcomeContentReady\(\{[\s\S]*personaPresetsLoaded,[\s\S]*\}\)/,

@@ -18,6 +18,7 @@ from collections.abc import Awaitable, Iterator, Sequence
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
+from src.infra.agent.middleware.summary_stats import attach_summary_token_stats
 from src.infra.llm.retry import is_auth_model_error, is_retryable_model_error
 
 if TYPE_CHECKING:
@@ -152,19 +153,21 @@ def summarization_fallback_patch(
     def patched(model: Any, backend: Any, **kwargs: Any) -> Any:
         kwargs.setdefault("token_counter", _image_aware_counter_for(model))
         middleware = original(model, backend, **kwargs)
-        if not fallback_model:
-            return middleware
-        try:
-            return protect_summarization_middleware(
-                middleware, fallback_model=fallback_model, thinking=thinking
-            )
-        except Exception:
-            logger.warning(
-                "[SummaryFallback] Could not wrap summarization middleware; "
-                "summaries stay on the primary model",
-                exc_info=True,
-            )
-            return middleware
+        # 兜底保护先套、stats 包装在最外层：主模型或兜底模型任一路径成功，
+        # stats 都能基于最终摘要文本计算；stats 包装同时透传兜底标记，
+        # 保证 protect 的幂等检查与外层 introspection 不失效。
+        if fallback_model:
+            try:
+                middleware = protect_summarization_middleware(
+                    middleware, fallback_model=fallback_model, thinking=thinking
+                )
+            except Exception:
+                logger.warning(
+                    "[SummaryFallback] Could not wrap summarization middleware; "
+                    "summaries stay on the primary model",
+                    exc_info=True,
+                )
+        return attach_summary_token_stats(middleware, passthrough_markers=(_FALLBACK_MARKER,))
 
     deepagents_graph.create_summarization_middleware = patched
     try:

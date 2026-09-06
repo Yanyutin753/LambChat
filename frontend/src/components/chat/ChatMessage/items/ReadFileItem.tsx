@@ -205,7 +205,9 @@ const ReadFileItem = memo(function ReadFileItem({
           if (!canOpenPanel) return;
           openToolLivePanel({
             id,
-            title: `${t("chat.message.toolRead")} ${fileName || filePath}${lineRange}`,
+            title: `${t("chat.message.toolRead")} ${
+              fileName || filePath
+            }${lineRange}`,
             icon: <FileText size={16} />,
             status,
             subtitle: filePath,

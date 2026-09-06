@@ -64,7 +64,7 @@ export function ImageWithSkeleton({
     () => thumbSrc ?? resolvedSrc,
   );
   const [isLoaded, setIsLoaded] = useState(() =>
-    loadedImages.has((thumbSrc ?? resolvedSrc) ?? ""),
+    loadedImages.has(thumbSrc ?? resolvedSrc ?? ""),
   );
   const [hasError, setHasError] = useState(false);
 

@@ -37,52 +37,57 @@ function GlobDetail({ args, result }: ToolDetailProps) {
         )}
       </ToolArgsBlock>
       {paths.length > 0 && (
-        <div className="relative group rounded-lg border border-theme-border bg-theme-bg overflow-auto max-h-[60dvh]">
-          <ToolHoverCopyButton
-            text={paths.join("\n")}
-            size={14}
-            position="panelRaised"
-            copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
-          />
-          {paths.map((p, i) => {
-            const isDir = p.endsWith("/") || p.endsWith("\\");
-            const name = isDir
-              ? p.slice(0, -1).split("/").filter(Boolean).pop() ||
-                p.slice(0, -1)
-              : p.split("/").filter(Boolean).pop() || p;
-            return (
-              <div
-                key={i}
-                className={clsx(
-                  "flex items-center gap-2.5 px-4 py-2 text-sm font-mono tool-file-row",
-                  "border-b border-theme-border-faint last:border-b-0",
-                  "hover:bg-theme-bg-subtle transition-colors",
-                )}
-              >
-                {isDir ? (
-                  <FolderSearch
-                    size={14}
-                    className="shrink-0 text-amber-500 dark:text-amber-400"
-                  />
-                ) : (
-                  <FileText
-                    size={14}
-                    className="shrink-0 text-theme-text-tertiary"
-                  />
-                )}
-                <span
+        <div>
+          <div className="text-xs text-theme-text-tertiary mb-2">
+            {t("chat.message.toolFileCount", { count: paths.length })}
+          </div>
+          <div className="relative group rounded-lg border border-theme-border bg-theme-bg overflow-auto max-h-[60dvh]">
+            <ToolHoverCopyButton
+              text={paths.join("\n")}
+              size={14}
+              position="panelRaised"
+              copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
+            />
+            {paths.map((p, i) => {
+              const isDir = p.endsWith("/") || p.endsWith("\\");
+              const name = isDir
+                ? p.slice(0, -1).split("/").filter(Boolean).pop() ||
+                  p.slice(0, -1)
+                : p.split("/").filter(Boolean).pop() || p;
+              return (
+                <div
+                  key={i}
                   className={clsx(
-                    "min-w-0 flex-1 truncate",
-                    isDir
-                      ? "text-theme-text font-medium"
-                      : "text-theme-text-secondary",
+                    "flex items-center gap-2.5 px-4 py-2 text-sm font-mono tool-file-row",
+                    "border-b border-theme-border-faint last:border-b-0",
+                    "hover:bg-theme-bg-subtle transition-colors",
                   )}
                 >
-                  {name}
-                </span>
-              </div>
-            );
-          })}
+                  {isDir ? (
+                    <FolderSearch
+                      size={14}
+                      className="shrink-0 text-amber-500 dark:text-amber-400"
+                    />
+                  ) : (
+                    <FileText
+                      size={14}
+                      className="shrink-0 text-theme-text-tertiary"
+                    />
+                  )}
+                  <span
+                    className={clsx(
+                      "min-w-0 flex-1 truncate",
+                      isDir
+                        ? "text-theme-text font-medium"
+                        : "text-theme-text-secondary",
+                    )}
+                  >
+                    {name}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
@@ -146,7 +151,9 @@ const GlobItem = memo(function GlobItem({
       <CollapsiblePill
         status={status}
         icon={<FolderSearch size={12} className="shrink-0 opacity-50" />}
-        label={`${t("chat.message.toolGlob")} ${pattern || ""}`}
+        label={`${t("chat.message.toolGlob")} ${pattern || ""}${
+          paths.length > 0 ? ` (${paths.length})` : ""
+        }`}
         variant="tool"
         expandable={canExpand}
         onPanelOpen={() => {
@@ -178,51 +185,63 @@ const GlobItem = memo(function GlobItem({
               )}
             </ToolArgsBlock>
             {paths.length > 0 && (
-              <div className="relative group max-h-48 overflow-y-auto rounded-md border border-theme-border bg-theme-bg">
-                <ToolHoverCopyButton
-                  text={paths.join("\n")}
-                  position="panelCompactRaised"
-                  copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
-                />
-                {paths.map((p, i) => {
-                  const isDir = p.endsWith("/") || p.endsWith("\\");
-                  const name = isDir
-                    ? p.slice(0, -1).split("/").filter(Boolean).pop() ||
-                      p.slice(0, -1)
-                    : p.split("/").filter(Boolean).pop() || p;
-                  return (
-                    <div
-                      key={i}
-                      className={clsx(
-                        "flex items-center gap-2 px-3 py-1 text-xs font-mono tool-file-row",
-                        "border-b border-theme-border-faint last:border-b-0",
-                        "hover:bg-theme-bg-subtle transition-colors",
-                      )}
-                    >
-                      {isDir ? (
-                        <FolderSearch
-                          size={12}
-                          className="shrink-0 text-amber-500 dark:text-amber-400"
-                        />
-                      ) : (
-                        <FileText
-                          size={12}
-                          className="shrink-0 text-theme-text-tertiary"
-                        />
-                      )}
-                      <span
+              <div>
+                <div className="text-xs text-theme-text-tertiary mb-1">
+                  {t("chat.message.toolFileCount", { count: paths.length })}
+                </div>
+                <div className="relative group max-h-48 overflow-y-auto rounded-md border border-theme-border bg-theme-bg">
+                  <ToolHoverCopyButton
+                    text={paths.join("\n")}
+                    position="panelCompactRaised"
+                    copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
+                  />
+                  {paths.slice(0, 10).map((p, i) => {
+                    const isDir = p.endsWith("/") || p.endsWith("\\");
+                    const name = isDir
+                      ? p.slice(0, -1).split("/").filter(Boolean).pop() ||
+                        p.slice(0, -1)
+                      : p.split("/").filter(Boolean).pop() || p;
+                    return (
+                      <div
+                        key={i}
                         className={clsx(
-                          "min-w-0 flex-1 truncate",
-                          isDir
-                            ? "text-theme-text font-medium"
-                            : "text-theme-text-secondary",
+                          "flex items-center gap-2 px-3 py-1 text-xs font-mono tool-file-row",
+                          "border-b border-theme-border-faint last:border-b-0",
+                          "hover:bg-theme-bg-subtle transition-colors",
                         )}
                       >
-                        {name}
-                      </span>
+                        {isDir ? (
+                          <FolderSearch
+                            size={12}
+                            className="shrink-0 text-amber-500 dark:text-amber-400"
+                          />
+                        ) : (
+                          <FileText
+                            size={12}
+                            className="shrink-0 text-theme-text-tertiary"
+                          />
+                        )}
+                        <span
+                          className={clsx(
+                            "min-w-0 flex-1 truncate",
+                            isDir
+                              ? "text-theme-text font-medium"
+                              : "text-theme-text-secondary",
+                          )}
+                        >
+                          {name}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {paths.length > 10 && (
+                    <div className="text-xs text-theme-text-tertiary px-3 py-1.5 border-t border-theme-border-faint">
+                      {t("chat.message.toolMoreFiles", {
+                        count: paths.length - 10,
+                      })}
                     </div>
-                  );
-                })}
+                  )}
+                </div>
               </div>
             )}
           </ToolInlineDetails>

@@ -105,7 +105,8 @@ const DEMO_FILES: RevealedFileItem[] = [
   file({
     file_name: "季度财务报表.xlsx",
     file_type: "document",
-    mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    mime_type:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     url: `${OSS_BASE}/report.xlsx`,
   }),
   file({
@@ -119,8 +120,8 @@ const DEMO_FILES: RevealedFileItem[] = [
 function noop() {}
 
 export function CoverGalleryDemo() {
-  const [dark, setDark] = useState(
-    () => document.documentElement.classList.contains("dark"),
+  const [dark, setDark] = useState(() =>
+    document.documentElement.classList.contains("dark"),
   );
 
   const toggleTheme = () => {

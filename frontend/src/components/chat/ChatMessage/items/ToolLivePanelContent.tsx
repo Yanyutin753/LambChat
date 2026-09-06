@@ -48,7 +48,8 @@ export function shouldStickPanelOutputToBottom(
   scroller: HTMLElement,
   threshold = PANEL_STICK_TO_BOTTOM_PX,
 ): boolean {
-  const distance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+  const distance =
+    scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
   return distance <= threshold;
 }
 
@@ -128,7 +129,7 @@ export function openToolLivePanel(options: {
         fallback={options.fallback}
       />
     ) : (
-      (options.fallback ?? null)
+      options.fallback ?? null
     ),
     footer: options.footer,
     onUserClose: options.onUserClose,

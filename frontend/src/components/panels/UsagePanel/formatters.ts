@@ -74,6 +74,8 @@ export function normalizeTrendPoints(
 export interface CostFormatOpts {
   language?: string;
   rates?: FxRatesDoc | null;
+  /** 小数位上限；手机端窄格子传 3 截短小金额精度 */
+  maxDecimals?: number;
 }
 
 /** 用量日志成本展示：未计价显示占位符，已计价按展示货币格式化 */

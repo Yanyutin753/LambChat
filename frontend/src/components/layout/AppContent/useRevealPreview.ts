@@ -301,8 +301,7 @@ export function useRevealPreview(
         }),
       [messages, externalNavigationPreview, currentRunId],
     ),
-    (a, b) =>
-      a?.messageId === b?.messageId && a?.partIndex === b?.partIndex,
+    (a, b) => a?.messageId === b?.messageId && a?.partIndex === b?.partIndex,
   );
 
   const latestAutoPreviewRequest = useStableMemoValue(

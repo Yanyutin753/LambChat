@@ -817,7 +817,7 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
                         className="team-form-role-option"
                         onClick={() => handleAddRole(preset)}
                       >
-                        <span className="team-form-role-option__name">
+                        <span className="team-form-role-option__name font-serif">
                           {preset.name}
                         </span>
                         {preset.description && (

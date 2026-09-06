@@ -116,7 +116,9 @@ export function RoleSquare({
             >
               {renderAvatar(preset)}
               <div className="team-role-card__body">
-                <span className="team-role-card__name">{preset.name}</span>
+                <span className="team-role-card__name font-serif">
+                  {preset.name}
+                </span>
                 {preset.description && (
                   <span className="team-role-card__desc">
                     {preset.description}

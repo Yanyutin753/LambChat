@@ -8,10 +8,22 @@ import {
 } from "../sandboxOption";
 
 const machines: SandboxMachine[] = [
-  { machine_id: "mac1", name: "MacBook", platform: "darwin", version: "0.3.0",
-    confirm_policy: "all", online: true },
-  { machine_id: "srv1", name: "Server", platform: "linux", version: "0.3.0",
-    confirm_policy: "none", online: true },
+  {
+    machine_id: "mac1",
+    name: "MacBook",
+    platform: "darwin",
+    version: "0.3.0",
+    confirm_policy: "all",
+    online: true,
+  },
+  {
+    machine_id: "srv1",
+    name: "Server",
+    platform: "linux",
+    version: "0.3.0",
+    confirm_policy: "none",
+    online: true,
+  },
 ];
 const t = (k: string) => k;
 
@@ -27,7 +39,10 @@ describe("buildSandboxMachineOption", () => {
   it("首档为「自动（默认机）」，随后按机器生成档位", () => {
     const option = buildSandboxMachineOption(machines, "MacBook", t)!;
     expect(option).not.toBeNull();
-    expect(option.options?.[0]).toMatchObject({ value: "", label_key: "agentOptions.sandboxMachine.auto" });
+    expect(option.options?.[0]).toMatchObject({
+      value: "",
+      label_key: "agentOptions.sandboxMachine.auto",
+    });
     expect(option.options?.map((o) => o.value)).toEqual(["", "mac1", "srv1"]);
     expect(option.default).toBe("mac1"); // 默认机优先，无默认取首台
   });

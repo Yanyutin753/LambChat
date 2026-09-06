@@ -150,6 +150,8 @@ export interface EventData {
   updated_index?: number;
   // summary event fields
   summary_id?: string;
+  /** summary 事件：本次压缩释放的上下文 token 数（stats 事件 content 为空） */
+  freed_tokens?: number;
   // recommend:questions / followup:questions event fields
   questions?: Array<
     | string

@@ -37,7 +37,9 @@ test("useAutoUpdate checks updates with the client version and installs via nati
 });
 
 test("ApkInstaller bridge registers the native Capacitor plugin", () => {
-  const bridge = readRepoFile("frontend/src/services/capacitor/apkInstaller.ts");
+  const bridge = readRepoFile(
+    "frontend/src/services/capacitor/apkInstaller.ts",
+  );
   expect(bridge).toMatch(/registerPlugin/);
   expect(bridge).toMatch(/"ApkInstaller"/);
   expect(bridge).toMatch(/installApk/);
@@ -69,7 +71,9 @@ test("ApkInstallerPlugin opens the system installer via ACTION_VIEW", () => {
 });
 
 test("Android manifest keeps the install permission for in-app updates", () => {
-  const manifest = readRepoFile("frontend/android/app/src/main/AndroidManifest.xml");
+  const manifest = readRepoFile(
+    "frontend/android/app/src/main/AndroidManifest.xml",
+  );
   expect(manifest).toMatch(/REQUEST_INSTALL_PACKAGES/);
 });
 

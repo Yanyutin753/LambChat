@@ -16,7 +16,6 @@ import asyncio
 import os
 import shlex
 import uuid
-from typing import Literal
 
 import daytona
 from daytona import FileDownloadRequest, FileUpload
@@ -32,6 +31,7 @@ from src.infra.async_utils import run_blocking_io
 from src.infra.backend.protocol_compat import (
     FileInfo,
     GlobResult,
+    classify_upload_error,
     file_download_response,
     file_upload_response,
 )
@@ -498,23 +498,7 @@ class DaytonaBackend(BaseSandbox):
                 responses.append(file_upload_response(path=path, error="file_too_large"))
                 continue
             error_str = upload_errors.get(path) or rename_errors.get(path)
-            # 类型转换：确保 error 是允许的类型
-            final_error: (
-                Literal[
-                    "file_not_found",
-                    "permission_denied",
-                    "is_directory",
-                    "invalid_path",
-                ]
-                | None
-            ) = None
-            if error_str:
-                if "permission" in error_str.lower():
-                    final_error = "permission_denied"
-                elif "directory" in error_str.lower():
-                    final_error = "is_directory"
-                else:
-                    final_error = "file_not_found"
+            final_error = classify_upload_error(error_str) if error_str else None
             responses.append(FileUploadResponse(path=path, error=final_error))
 
         return responses

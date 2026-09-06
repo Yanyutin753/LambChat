@@ -143,7 +143,9 @@ def _classify_file_error(text: str) -> ExtendedFileError:
         or "e2big" in lowered
     ):
         return "file_too_large"
-    return "file_not_found"
+    # 识别不了的失败如实报 io_error——兜底成 file_not_found 会误导模型/用户
+    # （2026-09-06 生产事故：win32 命令超长的上传失败被标成"文件不存在"）。
+    return "io_error"
 
 
 def _restore_file_info_path(info: FileInfo, workspace_path: str) -> FileInfo:

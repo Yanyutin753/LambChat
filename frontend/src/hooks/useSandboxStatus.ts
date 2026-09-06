@@ -33,9 +33,7 @@ export interface UseSandboxStatusOptions {
   enabled?: boolean;
 }
 
-export function useSandboxStatus(
-  options?: UseSandboxStatusOptions,
-): {
+export function useSandboxStatus(options?: UseSandboxStatusOptions): {
   status: SandboxStatus | null;
   statusError: SandboxStatusError;
   online: boolean;

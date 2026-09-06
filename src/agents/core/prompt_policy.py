@@ -9,13 +9,16 @@ Use an existing project path only when requested or clearly relevant; otherwise 
 SANDBOX_STORAGE_POLICY = """## Storage
 
 - Sandbox local: use the runtime-supplied current session workspace for shell, files, and uploads (the file-tool descriptions carry the session workspace path).
-- `/skills/`: virtual Skill storage accessed with file tools (see the file-tool descriptions)."""
+- `/skills/`: virtual Skill storage accessed with file tools (see the file-tool descriptions).
+- `/workspace/.shared/`: persistent per-user dir shared across sessions for reusable assets (shell: `$LAMBCHAT_SHARED`)."""
 
 SANDBOX_RUNTIME_POLICY = """## Sandbox Runtime
 
 Current session workspace: `{work_dir}`
 
-Use this absolute, session-scoped path for shell/file output and uploads. Do not persist it in durable documents unless requested."""
+Use this absolute, session-scoped path for shell/file output and uploads. Do not persist it in durable documents unless requested.
+
+Persistent shared dir: `/workspace/.shared` (file tools) or `$LAMBCHAT_SHARED` (shell) — reusable assets persist there across sessions; check with `ls` before transferring again."""
 
 LAZY_SANDBOX_RUNTIME_POLICY = """## Sandbox Runtime
 
@@ -26,7 +29,7 @@ Use this alias only with file tools and uploads. For shell commands, use relativ
 ### File/Shell Path Bridging
 - File tools and shell share one sandbox filesystem. `{work_dir}/<name>` and `$LAMBCHAT_WORKSPACE/<name>` are the same directory: file-tool writes appear in the shell, and shell-created files are readable by file tools at `{work_dir}/<name>` — never at a guessed `/workspace/<name>`.
 - Absolute paths outside `{work_dir}` (e.g. `/workspace/<name>`) sit outside the work directory; the shell reaches them only by that exact absolute path, never via `$LAMBCHAT_WORKSPACE` or relative paths. Keep working files under `{work_dir}` / `$LAMBCHAT_WORKSPACE`.
-- `/skills/` and `/memories/` exist only for file tools. To run skill scripts in the shell, `transfer_path` them with target prefix `{work_dir}/` first.
+- `/skills/` and `/memories/` exist only for file tools. To run skill scripts in the shell, `transfer_path` them with target prefix `/workspace/.shared/` for reusable assets (persists across sessions — `ls` first and skip what exists; shell: `$LAMBCHAT_SHARED`) or `{work_dir}/` for one-off files.
 - `upload_url_to_sandbox` downloads inside the sandbox; pass `{work_dir}/<name>` as the target so the file lands in `$LAMBCHAT_WORKSPACE` for later shell commands."""
 
 WORKSPACE_POLICY = """### Workspace Boundaries
@@ -39,7 +42,7 @@ _SANDBOX_SHELL_WIN32 = """### Local Machine Shell: Windows (cmd.exe)
 
 The local sandbox is the user's Windows machine; `execute` runs commands through cmd.exe, NOT bash.
 - Use Windows syntax: `%ERRORLEVEL%` (not POSIX exit-variable), `%VAR%` (not POSIX variable expansion), `set X=Y` (not `export`), `^` as escape (not `\\`), `REM` for comments (not `#`), `dir` / `type` / `findstr` instead of `ls` / `cat` / `grep`.
-- The session workspace env var is `%LAMBCHAT_WORKSPACE%` in cmd.exe. There is no `/proc`, no `uname`, no POSIX pipes-with-stderr like `2>/dev/null`.
+- The session workspace env var is `%LAMBCHAT_WORKSPACE%` in cmd.exe; the persistent shared dir is `%LAMBCHAT_SHARED%`. There is no `/proc`, no `uname`, no POSIX pipes-with-stderr like `2>/dev/null`.
 - Prefer `python3 -c "..."` (embedded interpreter, on PATH) for anything nontrivial — quoting, JSON, math, file inspection — instead of shell gymnastics.
 - A command may legitimately fail (non-zero exit); its stdout/stderr come back to you — read the error text and adapt (e.g. fall back to `python3`) instead of assuming the sandbox is blocked."""
 
@@ -47,7 +50,7 @@ The local sandbox is the user's Windows machine; `execute` runs commands through
 _SANDBOX_SHELL_DARWIN = """### Local Machine Shell: macOS (POSIX/BSD)
 
 The local sandbox is the user's Mac; `execute` runs commands via /bin/sh (POSIX). Shell syntax works as usual, but the userland is BSD: there is no `/proc`, no `free`, and some GNU flags differ (`sed -i ''`, `tar` quirks).
-- `$LAMBCHAT_WORKSPACE` is the session workspace directory.
+- `$LAMBCHAT_WORKSPACE` is the session workspace directory; `$LAMBCHAT_SHARED` is the persistent shared dir.
 - Prefer `python3 -c "..."` (embedded interpreter, on PATH) for system introspection and portable work (e.g. memory/CPU info via `os.sysconf`, `platform`, `subprocess`), since Linux-style `/proc` reads do not exist.
 - A command may legitimately fail (non-zero exit); its stdout/stderr come back to you — read the error text and adapt."""
 

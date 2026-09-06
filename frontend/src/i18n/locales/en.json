@@ -252,8 +252,8 @@
         "cloud": "Cloud",
         "local": "Local"
       },
-      "offlineHint": "Local sandbox is offline. Pair it in Settings first.",
-      "restoredOffline": "The saved local sandbox tier is currently offline."
+      "offlineHint": "Local sandbox is offline: download and start it to use the local tier",
+      "downloadEntry": "Download local sandbox"
     },
     "sandboxMachine": {
       "label": "Machine",
@@ -788,6 +788,7 @@
     "mermaid": "Mermaid",
     "mermaidDiagram": "Mermaid Diagram",
     "message": {
+      "addBookmark": "Add bookmark",
       "allFiles": "All files",
       "args": "Args",
       "artifactsSubtitleFiles": "{{count}} files",
@@ -802,6 +803,9 @@
       "askHumanWaiting": "Waiting for your input…",
       "askHumanYourAnswer": "Your answer",
       "assistant": "Assistant",
+      "bookmarkAdded": "Bookmarked",
+      "bookmarkRemoved": "Bookmark removed",
+      "bookmarkToggleFailed": "Bookmark operation failed",
       "cancelled": "Generation cancelled",
       "codePreview": "Code preview",
       "collapse": "Collapse",
@@ -839,22 +843,23 @@
       "processing": "Process",
       "projects": "Projects",
       "rejected": "Operation rejected by user",
+      "removeBookmark": "Remove bookmark",
       "result": "Result",
       "retryAnswer": "Retry answer",
       "runStepsCount": "{{count}} steps",
       "runStepsDetail": "Show full details",
+      "runStepsStopped": "Stopped",
       "runStepsSummary": "Worked for {{duration}}",
       "runStepsToggle": "Expand or collapse run steps",
       "runStepsWorking": "Working {{duration}}",
       "runStepsWorkingNoTimer": "Working",
-      "runStepsStopped": "Stopped",
       "running": "Running...",
-      "waitingConfirm": "Waiting for confirmation",
       "startTime": "Start time",
       "starterPrompts": "Starter Prompts",
       "subagentProgress": "Subagent progress",
       "summary": "Summary",
       "summaryDescription": "Key points",
+      "summaryFreedTokens": "Freed {{tokens}} tokens",
       "synthesizing": "Synthesizing results from {{count}} subagent(s)...",
       "systemPrompt": "System Prompt",
       "table": "Table",
@@ -890,7 +895,7 @@
       "toolFileCount": "{{count}} files",
       "toolFileCount_one": "{{count}} file",
       "toolFileCount_other": "{{count}} files",
-      "toolGlob": "Glob",
+      "toolGlob": "Find files",
       "toolHistoryAssistant": "Assistant",
       "toolHistoryDetail": "History Detail",
       "toolHistoryMatchAssistant": "Assistant",
@@ -903,6 +908,8 @@
       "toolHistoryMoreTurns_one": "+{{count}} more turn",
       "toolHistoryMoreTurns_other": "+{{count}} more turns",
       "toolHistorySearch": "History Search",
+      "toolHistorySessionCount": "{{count}} sessions found",
+      "toolHistoryTurnCount": "{{count}} turns",
       "toolHistoryUser": "User",
       "toolImageAnalyze": "Image Analyze",
       "toolImageAnalyzeCount": "{{count}} images",
@@ -918,7 +925,7 @@
       "toolImageTag": "image-generation",
       "toolInPath": "in {{path}}",
       "toolItemCount": "({{count}} items)",
-      "toolLs": "Ls",
+      "toolLs": "Browse folder",
       "toolMemberCount": "{{count}} members",
       "toolMemoryContent": "Memory Content",
       "toolMemoryDaysAgo": "{{count}}d ago",
@@ -937,8 +944,12 @@
       "toolMemoryToday": "today",
       "toolMemoryYearsAgo": "{{count}}y ago",
       "toolMemoryYesterday": "yesterday",
-      "toolMoreFiles": "+{{count}} more",
-      "toolMoreLines": "... +{{count}} more lines",
+      "toolMoreFiles": "+{{count}} more files",
+      "toolMoreImages": "+{{count}} more images",
+      "toolMoreLines": "+{{count}} more lines",
+      "toolMoreMemories": "+{{count}} more memories",
+      "toolMoreTasks": "+{{count}} more tasks",
+      "toolMoreTools": "+{{count}} more tools",
       "toolOpenFile": "Open file",
       "toolOutput": "tool output",
       "toolParseError": "Failed to parse project data",
@@ -957,9 +968,9 @@
       "toolScheduledTaskRun": "Run Task",
       "toolScheduledTaskUpdate": "Update Task",
       "toolSearch": "Search",
-      "toolSearchAlreadyAvailable": "Available",
+      "toolSearchAlreadyAvailable": "{{count}} already available",
       "toolSearchMoreParams": "more params",
-      "toolSearchNewlyLoaded": "New",
+      "toolSearchNewlyLoaded": "{{count}} newly loaded",
       "toolSearchPersonas": "Search",
       "toolSearchToolCount": "{{count}} tools found",
       "toolSearchTools": "Search Tools",
@@ -978,11 +989,7 @@
       "toolUploadUrlToSandbox": "Upload URL To Sandbox",
       "toolVarCount": "{{count}} variables",
       "toolWrite": "Write",
-      "addBookmark": "Add bookmark",
-      "bookmarkAdded": "Bookmarked",
-      "bookmarkRemoved": "Bookmark removed",
-      "bookmarkToggleFailed": "Bookmark operation failed",
-      "removeBookmark": "Remove bookmark"
+      "waitingConfirm": "Waiting for confirmation"
     },
     "messageInput": "Message",
     "noPermission": "No permission to send messages",
@@ -1582,6 +1589,7 @@
     "agents": "Agents",
     "architecture": "Self-hosted Architecture",
     "architectureDesc": "Deploy a FastAPI + React workspace with LangGraph/deepagents execution, Redis/MongoDB persistence, sandbox isolation, and extension layers for MCP, Skills, memory, and model providers.",
+    "autoLoginPending": "Signing you in…",
     "badge": "Self-hosted AI Agent Workspace",
     "channels": "Channels",
     "channelsIntegrations": "Enterprise Channels",
@@ -2176,7 +2184,7 @@
       "machines": "My Machines",
       "machinesDesc": "Connected local sandbox machines; pick the target per session, the default is used when unset.",
       "machinesEmpty": "No machines online",
-      "currentServer": "Server: ",
+      "currentServer": "Server",
       "setDefault": "Set default",
       "defaultBadge": "Default",
       "rename": "Rename",
@@ -2187,7 +2195,8 @@
         "macos": "macOS",
         "linux": "Linux",
         "unknown": "Unknown"
-      }
+      },
+      "downloadCta": "Download local sandbox"
     },
     "maxPinnedModels": "Pin up to {{max}} models",
     "memoryToggle": "Cross-session memory",
@@ -2513,6 +2522,9 @@
     "bookmarks": {
       "description": "Save important chat messages such as outlines and summaries, and jump back to them anytime.",
       "title": "Message Bookmarks"
+    },
+    "download": {
+      "title": "Download Local Sandbox"
     }
   },
   "serverSetup": {
@@ -3581,5 +3593,39 @@
     "upToDate": "You are on the latest version",
     "installPermissionHint": "Allow LambChat to install unknown apps first, then tap upgrade again",
     "updateRelaunchInstall": "Restart & install"
+  },
+  "download": {
+    "title": "Download Local Sandbox",
+    "description": "Run Agent commands and file access on your own machine — data never leaves your computer.",
+    "latestVersion": "Latest version: {{version}}",
+    "detectedPlatform": "Detected",
+    "back": "Back to chat",
+    "viewAllReleases": "View all releases on GitHub",
+    "loadFailed": "Couldn't load the download links right now. You can grab the latest packages from GitHub Releases:",
+    "noAssets": "No package available for this release yet.",
+    "desktop": {
+      "title": "Desktop app (recommended)",
+      "desc": "Install, sign in with your LambChat account, and pairing is automatic — the local sandbox becomes selectable on the web."
+    },
+    "daemon": {
+      "title": "Standalone daemon (servers / headless)",
+      "desc": "Run the daemon on a server or dev machine — no desktop app needed.",
+      "usage": "Usage: download the binary for your platform, make it executable, log in to your server, then keep it running.",
+      "binaries": "Binaries"
+    },
+    "tutorial": {
+      "title": "Pairing tutorial",
+      "step1": "Install the desktop app and sign in with your LambChat account (pairing is automatic), or run the daemon commands above on your machine.",
+      "step2": "Open LambChat on the web, go to Settings → Preferences → Sandbox, and confirm the local sandbox shows Online.",
+      "step3": "In the chat input, open the Sandbox selector and switch to Local — the Agent now executes on your machine."
+    },
+    "tag": "LambChat · Local Sandbox",
+    "heroCta": "Get the desktop app",
+    "heroCtaTutorial": "See the pairing tutorial",
+    "downloadFor": "Download for {{platform}}",
+    "mobile": {
+      "title": "Mobile app",
+      "desc": "The LambChat Android client (direct APK install) — sign in with the same account as the web."
+    }
   }
 }

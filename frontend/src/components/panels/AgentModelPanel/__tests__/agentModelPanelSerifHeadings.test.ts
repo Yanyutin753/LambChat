@@ -60,5 +60,7 @@ test("model list item names use font-serif", () => {
 
 test("roles agent tab section header row uses font-serif like roles model tab", () => {
   expect(rolesModelTabSource).toMatch(/justify-between gap-3 font-serif/);
-  expect(rolesAgentTabSource).toMatch(/glass-bg-subtle\)\] px-4 py-2\.5 font-serif/);
+  expect(rolesAgentTabSource).toMatch(
+    /glass-bg-subtle\)\] px-4 py-2\.5 font-serif/,
+  );
 });

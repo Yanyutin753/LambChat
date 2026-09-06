@@ -33,9 +33,7 @@ test("buildBookmarkLabel collapses whitespace and truncates with ellipsis", () =
   ).toBe("## 大纲 - 第一条 - 第二条 继续的内容在这里");
 
   expect(buildBookmarkLabel("短消息")).toBe("短消息");
-  expect(buildBookmarkLabel("x".repeat(100), 80)).toBe(
-    `${"x".repeat(79)}…`,
-  );
+  expect(buildBookmarkLabel("x".repeat(100), 80)).toBe(`${"x".repeat(79)}…`);
 });
 
 test("buildBookmarkLabel returns a fallback for blank input", () => {
@@ -53,9 +51,9 @@ test("deriveRunIdForJump strips the :user suffix from message ids", () => {
 });
 
 test("deriveRunIdForJump gives up on opaque message ids", () => {
-  expect(deriveRunIdForJump(bookmark({ run_id: null, message_id: "abc" }))).toBe(
-    null,
-  );
+  expect(
+    deriveRunIdForJump(bookmark({ run_id: null, message_id: "abc" })),
+  ).toBe(null);
 });
 
 test("buildBookmarkNavigatePath deep links to the session and run", () => {

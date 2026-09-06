@@ -469,7 +469,7 @@ const MemoryRecallItem = memo(function MemoryRecallItem({
                 })}
                 {memories.length > 5 && (
                   <div className="text-xs text-theme-text-tertiary px-2.5">
-                    {t("chat.message.toolMoreFiles", {
+                    {t("chat.message.toolMoreMemories", {
                       count: memories.length - 5,
                     })}
                   </div>

@@ -199,7 +199,7 @@ export function ShareProjectDialog({
       {/* Dialog - bottom sheet on mobile, centered on desktop */}
       <div
         data-yields-sidebar
-        className="safe-area-viewport-padding fixed inset-0 z-[300] flex items-end sm:items-center sm:justify-center sm:pointer-events-none"
+        className="safe-area-viewport-padding-top fixed inset-0 z-[300] flex items-end sm:items-center sm:justify-center sm:pointer-events-none"
       >
         <div
           ref={swipeRef as RefObject<HTMLDivElement>}

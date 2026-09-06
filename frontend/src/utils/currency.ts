@@ -36,7 +36,10 @@ export function resolveDisplayCurrency(
   return typeof rate === "number" && rate > 0 ? currency : "USD";
 }
 
-export function getUsdRate(currency: string, rates: FxRatesDoc | null): number | null {
+export function getUsdRate(
+  currency: string,
+  rates: FxRatesDoc | null,
+): number | null {
   if (currency === "USD") return 1;
   const rate = rates?.rates?.[currency];
   return typeof rate === "number" && rate > 0 ? rate : null;
@@ -67,14 +70,23 @@ function decimalsFor(value: number): { min: number; max: number } {
 /** USD 金额 → 本地货币格式化字符串；无法换算时回落 USD。 */
 export function formatCostUsd(
   usd: number,
-  opts: { language?: string; rates?: FxRatesDoc | null },
+  opts: {
+    language?: string;
+    rates?: FxRatesDoc | null;
+    /** 小数位上限（换算后应用）；手机端窄格子用它截短小金额精度 */
+    maxDecimals?: number;
+  },
 ): string {
   const language = opts.language;
   const currency = resolveDisplayCurrency(language, opts.rates ?? null);
   const converted = convertUsdToCurrency(usd, currency, opts.rates ?? null);
   const value = converted ?? usd;
   const finalCurrency = converted === null ? "USD" : currency;
-  const { min, max } = decimalsFor(value);
+  let { min, max } = decimalsFor(value);
+  if (typeof opts.maxDecimals === "number") {
+    max = Math.min(max, opts.maxDecimals);
+    min = Math.min(min, max);
+  }
   try {
     return new Intl.NumberFormat(localeTag(language), {
       style: "currency",

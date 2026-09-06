@@ -38,8 +38,15 @@ export function selectSteersForFollowUp(items: SteerItem[]): SteerItem[] {
 
 export interface PromoteSteerFollowUpsDeps {
   sessionId: string | null;
-  cancelSteer: (sessionId: string, content: string, messageId: string) => Promise<unknown>;
-  sendMessage: (content: string, attachments?: MessageAttachment[]) => Promise<unknown>;
+  cancelSteer: (
+    sessionId: string,
+    content: string,
+    messageId: string,
+  ) => Promise<unknown>;
+  sendMessage: (
+    content: string,
+    attachments?: MessageAttachment[],
+  ) => Promise<unknown>;
   isCancelled?: (messageId: string) => boolean;
   clearSteer?: (content: string, messageId: string) => void;
   /** 会话仍有运行中的 run 时返回 true：插话留在队列等注入，不补发 */
@@ -122,7 +129,8 @@ export interface SteerFollowUpPromotionOptions {
   followUpSteerIdsRef: RefObject<Set<string>>;
   sessionIdRef: RefObject<string | null>;
   sendMessageRef: RefObject<
-    ((content: string, attachments?: MessageAttachment[]) => Promise<void>) | null
+    | ((content: string, attachments?: MessageAttachment[]) => Promise<void>)
+    | null
   >;
 }
 
@@ -202,7 +210,16 @@ export function useSteerFollowUpPromotion(
       window.clearTimeout(timer);
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
     };
-  }, [clearSteer, isLoading, isSendingRef, steerMessages, cancelledSteerIdsRef, followUpSteerIdsRef, sessionIdRef, sendMessageRef]);
+  }, [
+    clearSteer,
+    isLoading,
+    isSendingRef,
+    steerMessages,
+    cancelledSteerIdsRef,
+    followUpSteerIdsRef,
+    sessionIdRef,
+    sendMessageRef,
+  ]);
 }
 
 export interface PendingSteerSnapshot {

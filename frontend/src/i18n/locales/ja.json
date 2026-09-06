@@ -252,8 +252,8 @@
         "cloud": "クラウド",
         "local": "ローカル"
       },
-      "offlineHint": "ローカルサンドボックスはオフラインです。先に設定でペアリングしてください。",
-      "restoredOffline": "保存されたローカルサンドボックス設定は現在オフラインです。"
+      "offlineHint": "ローカルサンドボックスはオフラインです：ダウンロードして起動すると利用できます",
+      "downloadEntry": "ローカルサンドボックスをダウンロード"
     },
     "sandboxMachine": {
       "label": "マシン",
@@ -788,6 +788,7 @@
     "mermaid": "Mermaid",
     "mermaidDiagram": "Mermaid 図",
     "message": {
+      "addBookmark": "ブックマークに追加",
       "allFiles": "すべてのファイル",
       "args": "引数",
       "artifactsSubtitleFiles": "{{count}} 件のファイル",
@@ -802,6 +803,9 @@
       "askHumanWaiting": "入力待ち…",
       "askHumanYourAnswer": "あなたの回答",
       "assistant": "アシスタント",
+      "bookmarkAdded": "ブックマークに追加しました",
+      "bookmarkRemoved": "ブックマークを削除しました",
+      "bookmarkToggleFailed": "ブックマーク操作に失敗しました",
       "cancelled": "生成がキャンセルされました",
       "codePreview": "コードプレビュー",
       "collapse": "折りたたむ",
@@ -839,22 +843,23 @@
       "processing": "過程",
       "projects": "プロジェクト",
       "rejected": "ユーザーにより操作が拒否されました",
+      "removeBookmark": "ブックマークを削除",
       "result": "結果",
       "retryAnswer": "回答を再生成",
       "runStepsCount": "{{count}} ステップ",
       "runStepsDetail": "詳細を表示",
+      "runStepsStopped": "停止しました",
       "runStepsSummary": "{{duration}} 作業",
       "runStepsToggle": "実行ステップを展開・折りたたみ",
       "runStepsWorking": "作業中 {{duration}}",
       "runStepsWorkingNoTimer": "作業中",
-      "runStepsStopped": "停止しました",
       "running": "実行中...",
-      "waitingConfirm": "確認待ち",
       "startTime": "開始時刻",
       "starterPrompts": "スタータープロンプト",
       "subagentProgress": "サブエージェントの進捗",
       "summary": "要約",
       "summaryDescription": "要点",
+      "summaryFreedTokens": "{{tokens}} トークンを解放",
       "synthesizing": "{{count}}件のサブエージェントの結果を統合中...",
       "systemPrompt": "システムプロンプト",
       "table": "テーブル",
@@ -890,7 +895,7 @@
       "toolFileCount": "{{count}} ファイル",
       "toolFileCount_one": "{{count}} ファイル",
       "toolFileCount_other": "{{count}} ファイル",
-      "toolGlob": "Glob",
+      "toolGlob": "ファイル検索",
       "toolHistoryAssistant": "アシスタント",
       "toolHistoryDetail": "履歴詳細",
       "toolHistoryMatchAssistant": "アシスタント",
@@ -903,6 +908,8 @@
       "toolHistoryMoreTurns_one": "+{{count}} 件の対話",
       "toolHistoryMoreTurns_other": "+{{count}} 件の対話",
       "toolHistorySearch": "履歴検索",
+      "toolHistorySessionCount": "{{count}} 件のセッションが見つかりました",
+      "toolHistoryTurnCount": "{{count}} 往復",
       "toolHistoryUser": "ユーザー",
       "toolImageAnalyze": "画像分析",
       "toolImageAnalyzeCount": "{{count}} 枚の画像",
@@ -918,7 +925,7 @@
       "toolImageTag": "画像生成",
       "toolInPath": "{{path}} 内",
       "toolItemCount": "({{count}} 項目)",
-      "toolLs": "一覧",
+      "toolLs": "ディレクトリ参照",
       "toolMemberCount": "{{count}} 人のメンバー",
       "toolMemoryContent": "メモリ内容",
       "toolMemoryDaysAgo": "{{count}}日前",
@@ -937,8 +944,12 @@
       "toolMemoryToday": "今日",
       "toolMemoryYearsAgo": "{{count}}年前",
       "toolMemoryYesterday": "昨日",
-      "toolMoreFiles": "+{{count}} 件",
-      "toolMoreLines": "... +{{count}} 行",
+      "toolMoreFiles": "+{{count}} 件のファイル",
+      "toolMoreImages": "+{{count}} 枚の画像",
+      "toolMoreLines": "+{{count}} 行",
+      "toolMoreMemories": "+{{count}} 件のメモリ",
+      "toolMoreTasks": "+{{count}} 件のタスク",
+      "toolMoreTools": "+{{count}} 件のツール",
       "toolOpenFile": "ファイルを開く",
       "toolOutput": "ツール出力",
       "toolParseError": "プロジェクトデータの解析に失敗しました",
@@ -957,9 +968,9 @@
       "toolScheduledTaskRun": "タスク実行",
       "toolScheduledTaskUpdate": "タスク更新",
       "toolSearch": "検索",
-      "toolSearchAlreadyAvailable": "利用可能",
+      "toolSearchAlreadyAvailable": "利用可能 {{count}} 件",
       "toolSearchMoreParams": "他のパラメータ",
-      "toolSearchNewlyLoaded": "新規",
+      "toolSearchNewlyLoaded": "新規ロード {{count}} 件",
       "toolSearchPersonas": "検索",
       "toolSearchToolCount": "{{count}} 件見つかりました",
       "toolSearchTools": "ツール検索",
@@ -978,11 +989,7 @@
       "toolUploadUrlToSandbox": "URLをサンドボックスへアップロード",
       "toolVarCount": "{{count}} 個の変数",
       "toolWrite": "書込",
-      "addBookmark": "ブックマークに追加",
-      "bookmarkAdded": "ブックマークに追加しました",
-      "bookmarkRemoved": "ブックマークを削除しました",
-      "bookmarkToggleFailed": "ブックマーク操作に失敗しました",
-      "removeBookmark": "ブックマークを削除"
+      "waitingConfirm": "確認待ち"
     },
     "messageInput": "メッセージ入力",
     "noPermission": "メッセージを送信する権限がありません",
@@ -1582,6 +1589,7 @@
     "agents": "Agent",
     "architecture": "セルフホスト型アーキテクチャ",
     "architectureDesc": "FastAPI + React ワークスペースを展開し、LangGraph/deepagents 実行、Redis/MongoDB 永続化、サンドボックス分離、MCP・Skills・メモリ・モデルプロバイダーの拡張レイヤーを組み合わせます。",
+    "autoLoginPending": "サインインしています…",
     "badge": "セルフホスト型 AI Agent ワークスペース",
     "channels": "チャネル",
     "channelsIntegrations": "エンタープライズチャネル",
@@ -2176,7 +2184,7 @@
       "machines": "マイマシン",
       "machinesDesc": "接続中のローカルサンドボックスマシン。セッションごとに実行先を選択でき、未選択時はデフォルト機を使用します。",
       "machinesEmpty": "オンラインのマシンはありません",
-      "currentServer": "サーバー：",
+      "currentServer": "サーバー",
       "setDefault": "デフォルトに設定",
       "defaultBadge": "デフォルト",
       "rename": "名前を変更",
@@ -2187,7 +2195,8 @@
         "macos": "macOS",
         "linux": "Linux",
         "unknown": "不明"
-      }
+      },
+      "downloadCta": "ローカルサンドボックスをダウンロード"
     },
     "maxPinnedModels": "最大{{max}}個のモデルをピン留めできます",
     "memoryToggle": "セッション横断メモリ",
@@ -2513,6 +2522,9 @@
     "bookmarks": {
       "description": "アウトラインやまとめなど重要なメッセージを保存し、いつでもワンクリックで戻れます。",
       "title": "メッセージブックマーク"
+    },
+    "download": {
+      "title": "ローカルサンドボックスのダウンロード"
     }
   },
   "serverSetup": {
@@ -3581,5 +3593,39 @@
     "upToDate": "最新バージョンです",
     "installPermissionHint": "まず LambChat に不明なアプリのインストールを許可してから、再度アップグレードをタップしてください",
     "updateRelaunchInstall": "再起動してインストール"
+  },
+  "download": {
+    "title": "ローカルサンドボックスのダウンロード",
+    "description": "Agent のコマンド実行とファイル操作を自分の PC で行えます——データは端末の外に出ません。",
+    "latestVersion": "最新バージョン：{{version}}",
+    "detectedPlatform": "この端末",
+    "back": "チャットに戻る",
+    "viewAllReleases": "GitHub ですべてのリリースを見る",
+    "loadFailed": "現在ダウンロードリンクを取得できません。GitHub Releases から最新パッケージを入手できます：",
+    "noAssets": "このリリースにはパッケージがありません。",
+    "desktop": {
+      "title": "デスクトップアプリ（推奨）",
+      "desc": "インストールして LambChat アカウントでログインすると自動でペアリングされ、Web からローカルサンドボックスを選択できます。"
+    },
+    "daemon": {
+      "title": "スタンドアロン daemon（サーバー / GUI なし）",
+      "desc": "サーバーや開発機で daemon を実行——デスクトップアプリは不要です。",
+      "usage": "使い方：プラットフォーム用のバイナリをダウンロードして実行権限を付け、サーバーにログインして起動し続けます。",
+      "binaries": "バイナリ"
+    },
+    "tutorial": {
+      "title": "ペアリングチュートリアル",
+      "step1": "デスクトップアプリをインストールして LambChat アカウントでログイン（自動ペアリング）。サーバー利用者は上記の daemon コマンドを実行してください。",
+      "step2": "LambChat の Web を開き、設定 → 環境設定 → サンドボックスでローカルサンドボックスが「オンライン」になっていることを確認します。",
+      "step3": "チャット入力欄の「サンドボックス」セレクターで「ローカル」に切り替えると、Agent が自分の PC で実行されます。"
+    },
+    "tag": "LambChat · ローカルサンドボックス",
+    "heroCta": "デスクトップアプリを入手",
+    "heroCtaTutorial": "ペアリングチュートリアルを見る",
+    "downloadFor": "{{platform}} 版をダウンロード",
+    "mobile": {
+      "title": "モバイルアプリ",
+      "desc": "LambChat Android クライアント（APK 直接インストール）。Web と同じアカウントでログインできます。"
+    }
   }
 }

@@ -22,7 +22,9 @@ test("mobile category nav is a horizontally scrollable chip tab strip", () => {
 });
 
 test("mobile category chips no longer use a Select dropdown", () => {
-  expect(panelSource).not.toMatch(/<Select[\s\S]{0,120}value=\{activeCategory\}/);
+  expect(panelSource).not.toMatch(
+    /<Select[\s\S]{0,120}value=\{activeCategory\}/,
+  );
 });
 
 test("active category chip scrolls into view on mobile", () => {

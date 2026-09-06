@@ -640,7 +640,10 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
                 } catch (err) {
                   toast.error(
                     (err as Error).message ||
-                      t("agentConfig.pricingBackfillFailed", "补算历史费用失败"),
+                      t(
+                        "agentConfig.pricingBackfillFailed",
+                        "补算历史费用失败",
+                      ),
                   );
                 } finally {
                   setIsBackfillingCosts(false);
@@ -649,7 +652,10 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
               disabled={isBackfillingCosts}
               className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--glass-border)] text-stone-700 dark:text-stone-300 hover:bg-[var(--glass-bg-subtle)] transition-colors disabled:opacity-50"
             >
-              <History size={16} className={isBackfillingCosts ? "animate-spin" : ""} />
+              <History
+                size={16}
+                className={isBackfillingCosts ? "animate-spin" : ""}
+              />
               <span className="hidden sm:inline">
                 {t("agentConfig.pricingBackfill", "补算历史费用")}
               </span>

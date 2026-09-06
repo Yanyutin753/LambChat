@@ -74,7 +74,8 @@ function CapturingHarness({
   }, [messages.length, sessionId]);
 
   const manualDetachFromStreamRef = scroll.manualDetachFromStreamRef;
-  const handleScrollerElementChange = scroll.handleVirtuosoScrollerElementChange;
+  const handleScrollerElementChange =
+    scroll.handleVirtuosoScrollerElementChange;
   const footerRef = scroll.messagesEndRef;
 
   const handleFollowOutput = useMemo(() => {

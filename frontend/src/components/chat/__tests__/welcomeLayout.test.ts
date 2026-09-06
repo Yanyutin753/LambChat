@@ -151,10 +151,10 @@ test("keeps chat input skeleton structure 1:1 with real ChatInput", () => {
     /className="bg-transparent w-full pt-\[10px\] text-15 leading-relaxed min-h-\[40px\] sm:min-h-\[44px\]"/,
   );
   expect(chatSkeletonsSource).toMatch(
-    /className="flex max-w-full flex-nowrap justify-between gap-2 px-2 pb-3 pt-3 mx-0\.5"/,
+    /className="flex max-w-full flex-nowrap justify-between gap-1 px-2 pb-3 pt-3 mx-0\.5"/,
   );
   expect(chatSkeletonsSource).toMatch(
-    /className="chat-tool-btn group shrink min-w-0 pointer-events-none"/,
+    /className="chat-tool-btn group shrink min-w-0 overflow-hidden pointer-events-none"/,
   );
   expect(chatSkeletonsSource).toMatch(
     /className="skeleton-line h-9 w-9 rounded-full shrink-0"/,

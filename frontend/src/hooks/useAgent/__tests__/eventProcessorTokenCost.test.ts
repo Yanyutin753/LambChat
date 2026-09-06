@@ -19,7 +19,12 @@ test("token:usage carries cost fields through to the message part", () => {
         cache_write: 0,
         total: 0.0246,
       },
-      cost_rates: { input: 2.5, output: 10, cache_read: 1.25, cache_write: null },
+      cost_rates: {
+        input: 2.5,
+        output: 10,
+        cache_read: 1.25,
+        cache_write: null,
+      },
     },
     [],
     "",

@@ -340,7 +340,7 @@ function SessionItemComponent({
             />
           ) : (
             <div
-              className={`truncate text-13 transition-colors ${
+              className={`truncate text-13 font-serif transition-colors ${
                 isSelected
                   ? "text-stone-700 dark:text-stone-200"
                   : isActive
@@ -404,7 +404,7 @@ function SessionItemComponent({
               ref={menuButtonRef}
               onClick={handleMenuClick}
               aria-label={t("sidebar.moreOptions")}
-              className="flex-shrink-0 rounded p-1 hover:bg-stone-200/60 dark:hover:bg-stone-700/60 transition-all opacity-0 group-hover:opacity-100"
+              className="flex-shrink-0 rounded p-1 hover:bg-stone-200/60 dark:hover:bg-stone-700/60 transition-all opacity-0 group-hover:opacity-100 max-sm:opacity-100"
               style={isTouched ? { opacity: 1 } : undefined}
             >
               <MoreHorizontal

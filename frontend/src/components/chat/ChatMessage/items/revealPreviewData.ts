@@ -312,7 +312,9 @@ function rememberProjectRevealFiles(
   result: LoadedProjectRevealFiles,
 ): void {
   loadedProjectRevealFilesCache.set(previewKey, result);
-  while (loadedProjectRevealFilesCache.size > PROJECT_REVEAL_FILES_CACHE_MAX_ENTRIES) {
+  while (
+    loadedProjectRevealFilesCache.size > PROJECT_REVEAL_FILES_CACHE_MAX_ENTRIES
+  ) {
     const oldestKey = loadedProjectRevealFilesCache.keys().next().value;
     if (oldestKey === undefined) break;
     loadedProjectRevealFilesCache.delete(oldestKey);

@@ -1,19 +1,18 @@
 /**
  * 会话沙箱选择器的动态适配（纯函数，独立于 React 便于测试）。
  *
- * 显示矩阵（2026-09-05 确认）：
+ * 显示矩阵（2026-09-06 修订）：
  * - 云端档始终显示；
- * - 本地档：桌面壳内始终显示（离线置灰但可选择）；纯 web 仅当
- *   useSandboxStatus 报 online 时渲染（用户可能在本机手动跑 CLI daemon）；
- * - 会话恢复到 local 但当前无 daemon：回退显示云端档，不静默改已存值。
+ * - 本地档始终显示：离线（无论纯 web 还是壳内）置灰但可选择，面板内
+ *   附下载引导（ChatInputSelectors 的 footer 入口）；此前纯 web 离线
+ *   整档隐藏导致用户不知道本地沙箱存在；
+ * - 会话恢复到 local 但当前无 daemon：原样显示 local（置灰），不改已存值。
  */
 import type { TFunction } from "i18next";
 import type { AgentOption } from "../../types";
 
 export const SANDBOX_AGENT_OPTION_KEY = "sandbox";
 
-/** 本地档兜底显示值：本地档不可见时的回退档位。 */
-export const SANDBOX_CLOUD_VALUE = "cloud";
 export const SANDBOX_LOCAL_VALUE = "local";
 
 export interface SandboxOptionVisibility {
@@ -21,10 +20,6 @@ export interface SandboxOptionVisibility {
   shell: boolean;
   /** daemon 是否在线（GET /api/sandbox/status）。 */
   online: boolean;
-}
-
-export function isSandboxLocalVisible(visibility: SandboxOptionVisibility): boolean {
-  return visibility.shell || visibility.online;
 }
 
 /**
@@ -36,25 +31,16 @@ export function adaptSandboxAgentOption(
   visibility: SandboxOptionVisibility,
   value: boolean | string | number,
 ): { option: AgentOption; value: boolean | string | number } {
-  const localVisible = isSandboxLocalVisible(visibility);
   const options: AgentOption["options"] = [];
   for (const entry of option.options ?? []) {
-    if (entry.value === SANDBOX_LOCAL_VALUE && !localVisible) {
-      continue; // 纯 web 且离线：本地档整个不出现
-    }
     if (entry.value === SANDBOX_LOCAL_VALUE && !visibility.online) {
-      options.push({ ...entry, disabled: true }); // 壳内离线：置灰但可选择
+      options.push({ ...entry, disabled: true }); // 离线：置灰但可选择
       continue;
     }
     options.push(entry);
   }
 
-  const displayValue =
-    value === SANDBOX_LOCAL_VALUE && !localVisible
-      ? SANDBOX_CLOUD_VALUE
-      : value;
-
-  return { option: { ...option, options }, value: displayValue };
+  return { option: { ...option, options }, value };
 }
 
 /**
@@ -116,9 +102,11 @@ export function buildSandboxMachineOption(
   ];
   return {
     type: "string",
-    default: defaultMachineId && machines.some((m) => m.machine_id === defaultMachineId)
-      ? defaultMachineId
-      : machines[0].machine_id,
+    default:
+      defaultMachineId &&
+      machines.some((m) => m.machine_id === defaultMachineId)
+        ? defaultMachineId
+        : machines[0].machine_id,
     label: t("agentOptions.sandboxMachine.label"),
     label_key: "agentOptions.sandboxMachine.label",
     description: t("agentOptions.sandboxMachine.description"),

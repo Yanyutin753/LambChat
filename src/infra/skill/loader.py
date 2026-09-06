@@ -125,7 +125,7 @@ def format_skills_prompt(skills: list[dict]) -> str:
 Available Skills ({len(ordered)}):
 {inventory}
 
-Use `search_skills`, then read `/skills/<name>/SKILL.md` before applying a Skill. `/skills/` is virtual; use file tools, not shell. Transfer executable files to the workspace with `transfer_file` or `transfer_path` before running them.
+Use `search_skills`, then read `/skills/<name>/SKILL.md` before applying a Skill. `/skills/` is virtual; use file tools, not shell. Transfer executables once into `/workspace/.shared/` (persists across sessions; `ls` first to reuse) with `transfer_file` or `transfer_path` before running them.
 """
 
 

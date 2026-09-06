@@ -28,4 +28,3 @@ declare module "@capacitor/filesystem" {
     writeFile: (options: WriteFileOptions) => Promise<WriteFileResult>;
   };
 }
-

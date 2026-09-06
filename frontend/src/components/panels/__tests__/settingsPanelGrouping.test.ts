@@ -37,10 +37,12 @@ test("buildVisibleCategories keeps CATEGORY_ORDER order and drops empty categori
   } as unknown as Parameters<typeof buildVisibleCategories>[0];
 
   expect(
-    buildVisibleCategories(byCategory, () => true).map(({ category, count }) => ({
-      category,
-      count,
-    })),
+    buildVisibleCategories(byCategory, () => true).map(
+      ({ category, count }) => ({
+        category,
+        count,
+      }),
+    ),
   ).toEqual([
     { category: "frontend", count: 2 },
     { category: "llm", count: 1 },

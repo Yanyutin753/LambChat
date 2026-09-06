@@ -14,9 +14,7 @@ const appSource = readFileSync(join(process.cwd(), "src/App.tsx"), "utf8");
 test("preferences tab lazy-loads the local sandbox section", () => {
   // PWA 预算（M4 T8）：本地沙箱分区（Tauri invoke 封装 + 配对表单）只有
   // 桌面壳用户才渲染——不得静态 import 进设置页所在的加载图。
-  expect(preferencesTabSource).not.toMatch(
-    /import \{ LocalSandboxSection \}/,
-  );
+  expect(preferencesTabSource).not.toMatch(/import \{ LocalSandboxSection \}/);
   expect(preferencesTabSource).toMatch(/lazy\(\(\) =>/);
   expect(preferencesTabSource).toMatch(/import\("\.\.\/LocalSandboxSection"\)/);
   expect(preferencesTabSource).toMatch(/<Suspense/);
@@ -37,5 +35,7 @@ test("app shell lazy-loads the update dialog", () => {
   );
   expect(appSource).toMatch(/import\("\.\/components\/update\/UpdateDialog"\)/);
   // 懒组件必须包 Suspense（fallback null：对话框按需挂载）
-  expect(appSource).toMatch(/<Suspense fallback=\{null\}>[\s\S]*?<UpdateDialog/);
+  expect(appSource).toMatch(
+    /<Suspense fallback=\{null\}>[\s\S]*?<UpdateDialog/,
+  );
 });

@@ -5,7 +5,10 @@ import { fileURLToPath } from "node:url";
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const localesDir = resolve(currentDir, "../../../i18n/locales");
 const tabSourcePath = resolve(currentDir, "../tabs/ProfilePreferencesTab.tsx");
-const localSectionSourcePath = resolve(currentDir, "../LocalSandboxSection.tsx");
+const localSectionSourcePath = resolve(
+  currentDir,
+  "../LocalSandboxSection.tsx",
+);
 
 const locales = ["en", "zh", "ja", "ko", "ru"];
 
@@ -31,7 +34,9 @@ test("preferences tab merges cloud and local sandbox into one card", () => {
 
   // 用户级存储：走 user metadata（同 memoryEnabled/defaultThinkingLevel 轨道）
   expect(source).toMatch(/sandboxCloudConfirmPolicy/);
-  expect(source).toMatch(/authApi\.updateMetadata\(\{\s*sandboxCloudConfirmPolicy/);
+  expect(source).toMatch(
+    /authApi\.updateMetadata\(\{\s*sandboxCloudConfirmPolicy/,
+  );
   // 一张「沙箱」卡：云端子区策略行 + 本地沙箱嵌入渲染（仍懒加载）
   expect(source).toMatch(/profile\.sandbox/);
   expect(source).toMatch(/profile\.cloudSandbox/);

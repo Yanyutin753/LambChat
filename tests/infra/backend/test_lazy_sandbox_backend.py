@@ -29,6 +29,7 @@ from deepagents.middleware.filesystem import FilesystemMiddleware
 from src.infra.backend.lazy_sandbox import (
     LazySandboxBackend,
     SandboxInitializationError,
+    provider_shared_work_dir,
 )
 
 
@@ -727,7 +728,11 @@ async def test_async_protocol_delegates_with_path_mapping_and_complete_results(
             truncated=True,
         )
         assert provider.commands[-1] == (
-            f"export LAMBCHAT_WORKSPACE={shlex.quote(actual)}; printf async",
+            (
+                f"export LAMBCHAT_WORKSPACE={shlex.quote(actual)}; "
+                f"export LAMBCHAT_SHARED={shlex.quote(provider_shared_work_dir(actual))}; "
+                "printf async"
+            ),
             23,
             actual,
         )
@@ -959,15 +964,17 @@ async def test_shared_provider_commands_use_isolated_workspace_env_without_mutat
     assert result_a.output == "complete output"
     assert result_b.output == "complete output"
     command_records = {
-        command.rsplit("; ", 1)[-1]: (command, cwd) for command, _, cwd in provider.commands
+        command.split("; ", 2)[-1]: (command, cwd) for command, _, cwd in provider.commands
     }
     assert command_records == {
         "printf session-a": (
-            "export LAMBCHAT_WORKSPACE='/remote/user sessions/a'; printf session-a",
+            "export LAMBCHAT_WORKSPACE='/remote/user sessions/a'; "
+            "export LAMBCHAT_SHARED='/remote/user sessions/shared'; printf session-a",
             "/remote/provider-cwd",
         ),
         "printf session-b": (
-            "export LAMBCHAT_WORKSPACE='/remote/user sessions/b'; printf session-b",
+            "export LAMBCHAT_WORKSPACE='/remote/user sessions/b'; "
+            "export LAMBCHAT_SHARED='/remote/user sessions/shared'; printf session-b",
             "/remote/provider-cwd",
         ),
     }
@@ -1015,7 +1022,11 @@ async def test_offload_maps_capture_and_returns_public_readable_pointer(
     )
     read_result = await lazy.aread(public_capture)
 
-    expected_command = f"export LAMBCHAT_WORKSPACE={shlex.quote(actual)}; python generate.py"
+    expected_command = (
+        f"export LAMBCHAT_WORKSPACE={shlex.quote(actual)}; "
+        f"export LAMBCHAT_SHARED={shlex.quote(provider_shared_work_dir(actual))}; "
+        "python generate.py"
+    )
     assert provider.offload_calls == [
         (expected_command, f"{actual}/large_tool_results/tool-call-1", 8, 128, 31)
     ]
@@ -1041,7 +1052,10 @@ async def test_disabled_provider_capture_offload_executes_command_once() -> None
         max_inline_bytes=4,
     )
 
-    expected_command = f"export LAMBCHAT_WORKSPACE={actual}; printf full"
+    expected_command = (
+        f"export LAMBCHAT_WORKSPACE={actual}; "
+        f"export LAMBCHAT_SHARED={provider_shared_work_dir(actual)}; printf full"
+    )
     assert result == ExecuteOffloadResult(
         offloaded=False,
         response=ExecuteResponse(
@@ -1534,7 +1548,12 @@ async def test_sync_operation_is_rejected_until_ready_event_attempt_finishes() -
         truncated=True,
     )
     assert provider.commands == [
-        (f"export LAMBCHAT_WORKSPACE={actual}; printf ready", None, actual)
+        (
+            f"export LAMBCHAT_WORKSPACE={actual}; "
+            f"export LAMBCHAT_SHARED={provider_shared_work_dir(actual)}; printf ready",
+            None,
+            actual,
+        )
     ]
 
 
@@ -1710,3 +1729,81 @@ async def test_event_logs_record_safe_initialization_timings(
     ]
     assert all(getattr(record, "sandbox_platform") for record in timing_records)
     assert all(getattr(record, "duration_seconds") >= 0 for record in timing_records)
+
+
+# ── Persistent shared workspace alias (/workspace/.shared) ──────────────
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("requested_path", "provider_path", "public_result_path"),
+    [
+        ("/workspace/.shared", "/remote/home/shared", "/workspace/.shared"),
+        (
+            "/workspace/.shared/skills/demo/SKILL.md",
+            "/remote/home/shared/skills/demo/SKILL.md",
+            "/workspace/.shared/skills/demo/SKILL.md",
+        ),
+        (
+            "/workspace/.shared-x/report.txt",
+            "/workspace/.shared-x/report.txt",
+            "/workspace/.shared-x/report.txt",
+        ),
+    ],
+)
+async def test_write_maps_public_shared_dir_alias_with_segment_boundaries(
+    requested_path: str,
+    provider_path: str,
+    public_result_path: str,
+) -> None:
+    provider = _RecordingSandbox(work_dir="/remote/home/sessions/session-1")
+    backend = _lazy(_Manager(provider))
+
+    result = await backend.awrite(requested_path, "ok")
+
+    assert provider.write_calls == [(provider_path, "ok")]
+    assert result.path == public_result_path
+
+
+@pytest.mark.asyncio
+async def test_shared_provider_result_paths_map_to_public_alias() -> None:
+    provider = _RecordingSandbox(
+        work_dir="/remote/home/sessions/session-1",
+        write_result_path="/remote/home/shared/skills/demo/SKILL.md",
+    )
+    backend = _lazy(_Manager(provider))
+
+    result = await backend.awrite("/tmp/request.txt", "ok")
+
+    assert result.path == "/workspace/.shared/skills/demo/SKILL.md"
+
+
+@pytest.mark.asyncio
+async def test_execute_exports_lambchat_shared_env_beside_workspace() -> None:
+    provider = _RecordingSandbox(work_dir="/remote/home/sessions/session-1")
+    backend = _lazy(_Manager(provider))
+
+    await backend.aexecute("ls")
+
+    assert provider.commands == [
+        (
+            "export LAMBCHAT_WORKSPACE=/remote/home/sessions/session-1; "
+            "export LAMBCHAT_SHARED=/remote/home/shared; ls",
+            None,
+            "/remote/home/sessions/session-1",
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_upload_and_download_map_shared_alias_paths() -> None:
+    provider = _RecordingSandbox(work_dir="/remote/home/sessions/session-1")
+    backend = _lazy(_Manager(provider))
+
+    await backend.aupload_files([("/workspace/.shared/skills/demo/SKILL.md", b"# demo")])
+    await backend.adownload_files(["/workspace/.shared/skills/demo/SKILL.md"])
+
+    assert provider.calls[-2:] == [
+        ("upload_files", [("/remote/home/shared/skills/demo/SKILL.md", b"# demo")]),
+        ("download_files", ["/remote/home/shared/skills/demo/SKILL.md"]),
+    ]

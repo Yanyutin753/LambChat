@@ -38,7 +38,10 @@ import {
   MODEL_CONFIG_SETTING_KEYS,
   TYPE_COLORS,
 } from "./SettingsPanel.constants";
-import { buildCategoryLabels, buildSubcategoryLabels } from "./settingsPanelLabels";
+import {
+  buildCategoryLabels,
+  buildSubcategoryLabels,
+} from "./settingsPanelLabels";
 import {
   buildVisibleCategories,
   groupFilteredSettings,
@@ -620,7 +623,7 @@ export function SettingsPanel() {
                 {groupedSettings.map((group) => (
                   <div key={group.subcategory} className="space-y-3">
                     {group.label && (
-                      <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-500">
+                      <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-stone-400 dark:text-stone-500">
                         {group.label}
                       </h3>
                     )}

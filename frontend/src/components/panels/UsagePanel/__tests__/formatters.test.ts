@@ -63,4 +63,10 @@ describe("fmtCostUsd", () => {
   test("priced log with missing amount formats zero", () => {
     expect(fmtCostUsd(undefined, true, { language: "en" })).toBe("$0.00");
   });
+
+  test("maxDecimals caps tiny cost precision for mobile", () => {
+    expect(fmtCostUsd(0.0246, true, { language: "en", maxDecimals: 3 })).toBe(
+      "$0.025",
+    );
+  });
 });

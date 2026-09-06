@@ -1,8 +1,9 @@
+import type { ReactNode } from "react";
 import { Select } from "./ui";
 
 export interface GlassSelectOption {
   value: string;
-  label: string;
+  label: ReactNode;
   disabled?: boolean;
 }
 

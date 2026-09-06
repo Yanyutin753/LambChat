@@ -158,9 +158,7 @@ function useLivePanelChrome(panelKey?: string): LivePanelChrome | null {
     if (subagentId) return subagentPanelStore.subscribe(subagentId, listener);
   }, [toolCallId, subagentId]);
 
-  const toolData = toolCallId
-    ? toolCallPanelStore.get(toolCallId)
-    : undefined;
+  const toolData = toolCallId ? toolCallPanelStore.get(toolCallId) : undefined;
   if (toolData) {
     return {
       status: toolData.status,

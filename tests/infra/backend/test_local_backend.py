@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from src.infra.backend import _local_transfer as transfer_module
 from src.infra.backend import local as local_module
 from src.infra.backend.local import LocalSandboxBackend
 from src.kernel.errors import AppError, ErrorCode
@@ -36,6 +37,28 @@ def _default_daemon_platform(monkeypatch):
     return state
 
 
+@pytest.fixture(autouse=True)
+def _bridge_transfer_module(monkeypatch):
+    """把 _local_transfer 模块（fs 传输通道）的 dispatch/上限代理到 local 模块当前绑定。
+
+    通道拆分到 _local_transfer 后，测试沿用「patch local_module.dispatch_local_call」
+    的既有写法即可同时接管 exec 与 fs 两条链路；_download_max_bytes 同理。
+    """
+    from src.infra.backend import _local_transfer as transfer_module
+
+    async def _bridged_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
+        return await local_module.dispatch_local_call(
+            user_id, op, payload, timeout=timeout, machine_id=machine_id
+        )
+
+    def _bridged_max_bytes():
+        return local_module._download_max_bytes()
+
+    monkeypatch.setattr(transfer_module, "dispatch_local_call", _bridged_dispatch)
+    monkeypatch.setattr(transfer_module, "_download_max_bytes", _bridged_max_bytes)
+    return transfer_module
+
+
 def _ok_response(stdout: str = "", stderr: str = "", exit_code: int = 0) -> dict:
     return {"status": "ok", "stdout": stdout, "stderr": stderr, "exit_code": exit_code}
 
@@ -54,6 +77,27 @@ def _real_exec_dispatch(cwd: Path):
             "stderr": proc.stderr.decode("utf-8", errors="replace"),
             "exit_code": proc.returncode,
         }
+
+    return fake_dispatch
+
+
+def _daemon_dispatch(tmp_path: Path):
+    """daemon 全仿真 dispatch：exec 落真实 shell（cwd=工作区），fs_* 走真实 fsops。
+
+    工作区 = data_root/s1（与 daemon 的 map_workspace 一致），exec 的 cwd 取
+    同一目录——两类 op 看到同一份文件树，可混用互证（F3 传输通道端到端用）。
+    """
+    from lambchat_sandbox import fsops
+
+    ws = tmp_path / "s1"
+    ws.mkdir(exist_ok=True)
+    real_exec = _real_exec_dispatch(ws)
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
+        if op in ("fs_upload", "fs_download"):
+            result = fsops.handle_fs_op(op, payload, tmp_path)
+            return {"stage": "done", "status": "ok", "result": result}
+        return await real_exec(user_id, op, payload, timeout=timeout, machine_id=machine_id)
 
     return fake_dispatch
 
@@ -211,6 +255,15 @@ def test_classify_file_error_real_daemon_strings():
     assert classify("mkdir: cannot create directory '/x': Permission denied") == "permission_denied"
 
 
+def test_classify_file_error_unknown_text_is_io_error_not_file_not_found():
+    """识别不了的错误文本不得兜底成 file_not_found——那是 2026-09-06 生产事故的
+    误导链（win32 命令超长失败被标"文件不存在"，agent/用户全被带偏）。"""
+    classify = local_module._classify_file_error
+    assert classify("some unexpected failure") == "io_error"
+    assert classify("The filename or extension is too long") == "io_error"
+    assert classify("") == "io_error"
+
+
 async def test_aexecute_returns_failed_command_output(monkeypatch):
     """非零退出码的命令结果必须回到模型（output 含 stderr、exit_code 透传）——
     不能在中继层被劫持成 AppError（Windows 实测：模型看不到 'free' is not
@@ -323,12 +376,18 @@ async def test_alias_als_lists_entries_with_prefixed_paths(monkeypatch, tmp_path
 
 
 async def test_alias_awrite_via_virtual_path_lands_in_workspace(monkeypatch, tmp_path):
-    monkeypatch.setattr(local_module, "dispatch_local_call", _real_exec_dispatch(tmp_path))
+    """awrite 经 upload_files（BaseSandbox 委托）走 fs_upload 落到会话工作区。
+
+    deepagents 的 write/edit 都委托 upload_files 传输内容——新结构化通道
+    自动让 write/edit 也摆脱 exec 命令行限制（daemon 仿真 dispatch 验证
+    exec 与 fs 两类 op 落同一份文件树）。
+    """
+    monkeypatch.setattr(local_module, "dispatch_local_call", _daemon_dispatch(tmp_path))
     backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
     result = await backend.awrite("/workspace/s1/new.txt", "written-via-alias")
     assert result.error is None
     assert result.path == "/workspace/s1/new.txt"
-    assert (tmp_path / "new.txt").read_text(encoding="utf-8") == "written-via-alias"
+    assert (tmp_path / "s1" / "new.txt").read_text(encoding="utf-8") == "written-via-alias"
 
 
 async def test_alias_execute_rewrites_command_alias_with_boundary(monkeypatch):
@@ -347,6 +406,22 @@ async def test_alias_execute_rewrites_command_alias_with_boundary(monkeypatch):
     assert captured[0] == "cat ./note.txt"
     assert captured[1] == "cd . && ls"
     assert captured[2] == "cat /workspace/s12/other.txt"  # 边界：更长 sid 不改写
+
+
+async def test_alias_execute_rewrites_shared_alias_with_boundary(monkeypatch):
+    """命令串里的 /workspace/.shared → ../.shared（相对已映射 cwd 可达），不误伤 .shared-x。"""
+    captured: list[str] = []
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
+        captured.append(payload["command"])
+        return _ok_response()
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    await backend.aexecute("python3 /workspace/.shared/skills/demo/run.py")
+    await backend.aexecute("cat /workspace/.shared-x/other.txt")
+    assert captured[0] == "python3 ../.shared/skills/demo/run.py"
+    assert captured[1] == "cat /workspace/.shared-x/other.txt"
 
 
 async def test_alias_aread_passthrough_for_outside_absolute_path(monkeypatch, tmp_path):
@@ -369,10 +444,11 @@ async def test_alias_aread_passthrough_for_outside_absolute_path(monkeypatch, tm
 
 
 async def test_aupload_files_large_content_chunked_end_to_end(monkeypatch, tmp_path):
-    """端到端验收：>128KB 内容上传成功——分块多条命令写入，落盘内容逐字节一致。
+    """端到端验收（legacy exec 链路）：>128KB 内容上传成功——分块多条命令写入，落盘内容逐字节一致。
 
     旧实现把整个 base64 塞单个 argv，超过内核 MAX_ARG_STRLEN（单参数 128KB，
     扣除引号/命令开销 ~96KB 即断）触发 E2BIG，且被误分类为 file_not_found。
+    新结构化通道（F3）分流常规上传后，本用例钉住 exec 兜底路径的分块行为。
     """
     content = bytes(range(256)) * 1024  # 256KB 确定性内容
     commands: list[str] = []
@@ -384,6 +460,7 @@ async def test_aupload_files_large_content_chunked_end_to_end(monkeypatch, tmp_p
 
     monkeypatch.setattr(local_module, "dispatch_local_call", tracking_dispatch)
     backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    backend._fs_transfer_supported = False  # 钉住 legacy exec 分块（新通道另测）
     responses = await backend.aupload_files([("/workspace/s1/big.bin", content)])
 
     assert responses[0].error is None
@@ -408,12 +485,28 @@ def test_upload_chunk_commands_single_command_at_or_below_threshold():
     assert len(LocalSandboxBackend._upload_chunk_commands("f", b"tiny")) == 1
 
 
+def test_upload_chunk_commands_win32_sized_for_cmd_exe_limit():
+    """win32 旧链路兜底分块：单条命令全文 < 8191（cmd.exe 命令行上限）。
+
+    48KB 分块只防 Linux MAX_ARG_STRLEN（128KB）；win32 上 >~6KB 文件的 b64
+    单命令即超 cmd.exe 上限必败（2026-09-06 生产事故根因——新结构化通道
+    分流常规上传后，本用例钉住 exec 降级路径的 win32 安全分块）。
+    """
+    content = b"x" * (6 * 1024 + 100)  # ~6.1KB：旧 win32 单命令必超限的量级
+    cmds = LocalSandboxBackend._upload_chunk_commands("dir/f.bin", content, platform="win32")
+    assert len(cmds) > 1
+    assert all(len(cmd) < 8191 for cmd in cmds)
+    # posix 不受影响：同内容单命令
+    assert len(LocalSandboxBackend._upload_chunk_commands("dir/f.bin", content)) == 1
+
+
 async def test_adownload_files_oversized_explicit_error(monkeypatch, tmp_path):
     """端到端验收：超过统一上限的文件得显式 file_too_large（带字节数与
     S3_INTERNAL_UPLOAD_MAX_SIZE 来源），而非 base64 半途炸或误报。"""
-    (tmp_path / "big.bin").write_bytes(b"0" * 200)
+    (tmp_path / "s1").mkdir()
+    (tmp_path / "s1/big.bin").write_bytes(b"0" * 200)
     monkeypatch.setattr(local_module, "_download_max_bytes", lambda: 100)
-    monkeypatch.setattr(local_module, "dispatch_local_call", _real_exec_dispatch(tmp_path))
+    monkeypatch.setattr(local_module, "dispatch_local_call", _daemon_dispatch(tmp_path))
     backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
     responses = await backend.adownload_files(["/workspace/s1/big.bin"])
     assert responses[0].error is not None
@@ -422,10 +515,11 @@ async def test_adownload_files_oversized_explicit_error(monkeypatch, tmp_path):
 
 
 async def test_adownload_files_within_limit_roundtrips(monkeypatch, tmp_path):
-    """限内文件走 stat 预检路径正常回读：内容逐字节一致。"""
+    """限内文件正常回读：内容逐字节一致（含二进制字节）。"""
     payload = b"roundtrip-body-\x00\x01" * 64
-    (tmp_path / "ok.bin").write_bytes(payload)
-    monkeypatch.setattr(local_module, "dispatch_local_call", _real_exec_dispatch(tmp_path))
+    (tmp_path / "s1").mkdir()
+    (tmp_path / "s1/ok.bin").write_bytes(payload)
+    monkeypatch.setattr(local_module, "dispatch_local_call", _daemon_dispatch(tmp_path))
     backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
     responses = await backend.adownload_files(["/workspace/s1/ok.bin"])
     assert responses[0].error is None
@@ -453,6 +547,174 @@ async def test_adownload_decode_failure_carries_original_output(monkeypatch):
     assert responses[0].error != "file_not_found"
     assert garbage in str(responses[0].error)
     assert responses[0].content is None
+
+
+# =========================================================================
+# F3: 结构化传输通道（fs_upload/fs_download，老 daemon 自动降级 exec）
+# =========================================================================
+
+
+async def test_aupload_via_fs_upload_skips_exec_commands(monkeypatch, tmp_path):
+    """端到端：常规大小文件上传走 fs_upload 结构化 op，不再生成 exec 命令。
+
+    旧链路把整个文件 base64 成单条命令——win32 cmd.exe 命令行 8191 字符上限
+    下 >~6KB 文件必败（2026-09-06 生产事故：SKILL.md/interact.py 报
+    file_not_found，实际是上传命令超长失败被误分类）。
+    """
+    content = ("技能文件内容中文示意\n" * 300).encode("utf-8")  # ~6.4KB，事故同量级
+    ops: list[tuple[str, dict]] = []
+    daemon = _daemon_dispatch(tmp_path)
+
+    async def tracking(user_id, op, payload, *, timeout=None, machine_id=None):
+        ops.append((op, dict(payload)))
+        return await daemon(user_id, op, payload, timeout=timeout, machine_id=machine_id)
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", tracking)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    responses = await backend.aupload_files([("/workspace/s1/browser/SKILL.md", content)])
+
+    assert responses[0].error is None
+    assert responses[0].path == "/workspace/s1/browser/SKILL.md"
+    assert [op for op, _ in ops] == ["fs_upload"]  # 单 op，零 exec 命令
+    payload = ops[0][1]
+    assert payload["path"] == "browser/SKILL.md"
+    assert payload["truncate"] is True
+    assert payload["offset"] == 0
+    assert base64.b64decode(payload["content_b64"]) == content
+    assert (tmp_path / "s1/browser/SKILL.md").read_bytes() == content
+
+
+async def test_aupload_via_fs_upload_chunks_by_offset(monkeypatch, tmp_path):
+    """大文件分块：按 offset 定位多 op 传输，首块 truncate 创建，后续块定位写。"""
+    monkeypatch.setattr(transfer_module, "FS_TRANSFER_CHUNK_BYTES", 1024)
+    content = bytes(range(256)) * 10  # 2560B → 3 块（1KiB+1KiB+512B）
+    calls: list[dict] = []
+    daemon = _daemon_dispatch(tmp_path)
+
+    async def tracking(user_id, op, payload, *, timeout=None, machine_id=None):
+        calls.append(dict(payload))
+        return await daemon(user_id, op, payload, timeout=timeout, machine_id=machine_id)
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", tracking)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    responses = await backend.aupload_files([("/workspace/s1/big.bin", content)])
+
+    assert responses[0].error is None
+    assert [(c["offset"], c["truncate"]) for c in calls] == [
+        (0, True),
+        (1024, False),
+        (2048, False),
+    ]
+    assert (tmp_path / "s1/big.bin").read_bytes() == content
+
+
+async def test_aupload_falls_back_to_exec_on_unsupported_op(monkeypatch, tmp_path):
+    """老 daemon（不认识 fs_upload）→ 降级 exec 旧链路成功，且能力位粘滞不再探测。"""
+    daemon = _daemon_dispatch(tmp_path)
+    fs_attempts: list[str] = []
+
+    async def dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
+        if op == "fs_upload":
+            fs_attempts.append(op)
+            raise AppError(ErrorCode.SANDBOX_EXEC_FAILED, args={"detail": f"unsupported op: {op}"})
+        return await daemon(user_id, op, payload, timeout=timeout, machine_id=machine_id)
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    first = await backend.aupload_files([("/workspace/s1/legacy.txt", b"via-exec")])
+    assert first[0].error is None
+    assert (tmp_path / "s1/legacy.txt").read_bytes() == b"via-exec"
+
+    second = await backend.aupload_files([("/workspace/s1/legacy2.txt", b"again")])
+    assert second[0].error is None
+    assert fs_attempts == ["fs_upload"]  # 第二批直接 exec，不再逐批探测
+
+
+async def test_aupload_absolute_path_outside_workspace_uses_exec(monkeypatch):
+    """别名外绝对路径（fs op 锁死工作区）仍走 exec 旧链路，保住既有语义。"""
+    seen: list[str] = []
+
+    async def dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
+        seen.append(op)
+        assert op == "exec", "绝对路径不应走 fs op"
+        return _ok_response()
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    responses = await backend.aupload_files([("/etc/abs-check.txt", b"x")])
+    assert responses[0].error is None
+    assert seen == ["exec"]
+
+
+async def test_aupload_shared_dir_rebases_to_shared_cwd(monkeypatch):
+    """.shared 别名：fs op 的 cwd 重定位到 /workspace/.shared，路径剥成纯相对。"""
+    captured: list[tuple[str, str, str]] = []
+
+    async def dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
+        captured.append((op, str(payload.get("cwd")), str(payload.get("path"))))
+        return {"stage": "done", "status": "ok", "result": {"written": 9}}
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    responses = await backend.aupload_files(
+        [("/workspace/.shared/skills/demo/run.py", b"print(1)\n")]
+    )
+    assert responses[0].error is None
+    assert captured == [("fs_upload", local_module.PUBLIC_SHARED_DIR, "skills/demo/run.py")]
+
+
+async def test_aupload_file_level_error_passthrough(monkeypatch):
+    """daemon 结果级错误原样透传（不降级 exec——权限/路径问题 exec 同样会失败）。"""
+
+    async def dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
+        return {"stage": "done", "status": "ok", "result": {"error": "permission_denied"}}
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    responses = await backend.aupload_files([("/workspace/s1/locked.txt", b"x")])
+    assert responses[0].error == "permission_denied"
+
+
+async def test_adownload_via_fs_download_until_eof(monkeypatch, tmp_path):
+    """下载走 fs_download 分片循环到 eof：内容逐字节一致，路径回填别名。"""
+    monkeypatch.setattr(transfer_module, "FS_TRANSFER_CHUNK_BYTES", 1024)
+    content = bytes(range(256)) * 10
+    (tmp_path / "s1").mkdir()
+    (tmp_path / "s1/blob.bin").write_bytes(content)
+    daemon = _daemon_dispatch(tmp_path)
+    calls: list[dict] = []
+
+    async def tracking(user_id, op, payload, *, timeout=None, machine_id=None):
+        if op == "fs_download":
+            calls.append(dict(payload))
+        return await daemon(user_id, op, payload, timeout=timeout, machine_id=machine_id)
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", tracking)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    responses = await backend.adownload_files(["/workspace/s1/blob.bin"])
+    assert responses[0].error is None
+    assert responses[0].content == content
+    assert responses[0].path == "/workspace/s1/blob.bin"
+    assert [c["offset"] for c in calls] == [0, 1024, 2048]
+
+
+async def test_adownload_falls_back_to_exec_on_unsupported_op(monkeypatch, tmp_path):
+    """老 daemon：fs_download 不支持 → exec 旧链路回读成功。"""
+    content = b"legacy-download"
+    (tmp_path / "s1").mkdir()
+    (tmp_path / "s1/f.txt").write_bytes(content)
+    daemon = _daemon_dispatch(tmp_path)
+
+    async def dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
+        if op == "fs_download":
+            raise AppError(ErrorCode.SANDBOX_EXEC_FAILED, args={"detail": f"unsupported op: {op}"})
+        return await daemon(user_id, op, payload, timeout=timeout, machine_id=machine_id)
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    responses = await backend.adownload_files(["/workspace/s1/f.txt"])
+    assert responses[0].error is None
+    assert responses[0].content == content
 
 
 # =========================================================================
@@ -585,7 +847,10 @@ def test_upload_files_windows_via_registry_platform(monkeypatch, _default_daemon
 
 
 async def test_aupload_files_windows_chunked_commands(monkeypatch, _default_daemon_platform):
-    """win32 分块上传：首块带 makedirs、后续块无（对仗 posix 分块语义）。"""
+    """win32 分块上传（legacy exec 链路）：首块带 makedirs、后续块无（对仗 posix 分块语义）。
+
+    win32 阈值 3KB（cmd.exe 命令行上限），见 _UPLOAD_CHUNK_WIN32_RAW_BYTES。
+    """
     _default_daemon_platform["platform"] = "win32"
     commands: list[str] = []
 
@@ -595,13 +860,13 @@ async def test_aupload_files_windows_chunked_commands(monkeypatch, _default_daem
 
     monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
     backend = LocalSandboxBackend(user_id="u1", session_id="s1")
-    content = b"x" * (local_module._UPLOAD_CHUNK_RAW_BYTES + 1)
+    content = b"x" * (local_module._UPLOAD_CHUNK_WIN32_RAW_BYTES + 1)
     responses = await backend.aupload_files([("/workspace/s1/big.bin", content)])
     assert responses[0].error is None
     assert len(commands) == 2
     assert "os.makedirs" in commands[0] and "'wb'" in commands[0]
     assert "os.makedirs" not in commands[1] and "'ab'" in commands[1]
-    assert all("mkdir -p" not in c for c in commands)
+    assert all(len(c) < 8191 for c in commands)
 
 
 async def test_adownload_files_windows_command_shape(monkeypatch, _default_daemon_platform):
@@ -1277,3 +1542,131 @@ def test_download_size_and_slice_commands_are_windows_safe(_default_daemon_platf
         assert "%d" not in cmd and "%s" not in cmd
     assert "f.seek(147456)" in slice_cmd
     assert "f.read(147456)" in slice_cmd
+
+
+# =========================================================================
+# 持久共享目录别名（/workspace/.shared → data_root/.shared，跨会话复用）
+# =========================================================================
+
+
+def _shared_layout_exec_dispatch(base: Path):
+    """fake dispatch：按 daemon 契约把虚拟 cwd 映射到 base 下真实目录后执行。
+
+    `/workspace/s1` → base/s1，`/workspace/.shared` → base/.shared——与真 daemon
+    的 map_workspace 对 ".shared" 这个 sid 的映射一致；fs_upload/fs_download
+    走真实 fsops（同一映射规则），exec 与 fs 两类 op 看到同一份文件树。
+    """
+    from lambchat_sandbox import fsops
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
+        if op in ("fs_upload", "fs_download"):
+            result = fsops.handle_fs_op(op, payload, base)
+            return {"stage": "done", "status": "ok", "result": result}
+        virtual_cwd = str(payload.get("cwd", "/workspace/s1"))
+        target = base / virtual_cwd.removeprefix("/workspace/")
+        target.mkdir(parents=True, exist_ok=True)  # 对齐真 daemon：exec 前 mkdir 工作区
+        proc = subprocess.run(payload["command"], shell=True, cwd=target, capture_output=True)
+        return {
+            "status": "ok",
+            "stdout": proc.stdout.decode("utf-8", errors="replace"),
+            "stderr": proc.stderr.decode("utf-8", errors="replace"),
+            "exit_code": proc.returncode,
+        }
+
+    return fake_dispatch
+
+
+async def test_alias_awrite_via_shared_dir_alias_lands_in_shared_root(monkeypatch, tmp_path):
+    """posix 写经 /workspace/.shared/x 落到 data_root/.shared/x（不在会话目录内）。"""
+    monkeypatch.setattr(local_module, "dispatch_local_call", _shared_layout_exec_dispatch(tmp_path))
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+
+    result = await backend.awrite("/workspace/.shared/skills/demo.md", "shared-body")
+
+    assert result.error is None
+    assert result.path == "/workspace/.shared/skills/demo.md"
+    assert (tmp_path / ".shared" / "skills" / "demo.md").read_text(
+        encoding="utf-8"
+    ) == "shared-body"
+    assert not (tmp_path / "s1" / "skills").exists()
+
+
+async def test_alias_aread_via_shared_dir_alias(monkeypatch, tmp_path):
+    shared_root = tmp_path / ".shared"
+    (shared_root / "skills").mkdir(parents=True)
+    (shared_root / "skills" / "note.txt").write_text("shared-note", encoding="utf-8")
+    monkeypatch.setattr(local_module, "dispatch_local_call", _shared_layout_exec_dispatch(tmp_path))
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s2")
+
+    result = await backend.aread("/workspace/.shared/skills/note.txt")
+
+    assert result.error is None
+    assert "shared-note" in str(result.file_data["content"])
+
+
+async def test_alias_als_shared_dir_lists_public_prefixed_paths(monkeypatch, tmp_path):
+    shared_root = tmp_path / ".shared"
+    (shared_root / "tool").mkdir(parents=True)
+    (shared_root / "tool" / "run.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+    monkeypatch.setattr(local_module, "dispatch_local_call", _shared_layout_exec_dispatch(tmp_path))
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+
+    result = await backend.als("/workspace/.shared/tool")
+
+    assert result.error is None
+    paths = {entry["path"] for entry in (result.entries or [])}
+    assert paths == {"/workspace/.shared/tool/run.sh"}
+
+
+async def test_alias_upload_download_via_shared_dir_alias(monkeypatch, tmp_path):
+    monkeypatch.setattr(local_module, "dispatch_local_call", _shared_layout_exec_dispatch(tmp_path))
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+
+    upload = await backend.aupload_files([("/workspace/.shared/up/demo.txt", b"payload")])
+    assert len(upload) == 1
+    assert upload[0].path == "/workspace/.shared/up/demo.txt"
+    assert upload[0].error is None
+    assert (tmp_path / ".shared" / "up" / "demo.txt").read_bytes() == b"payload"
+
+    download = await backend.adownload_files(["/workspace/.shared/up/demo.txt"])
+    assert download[0].path == "/workspace/.shared/up/demo.txt"
+    assert download[0].content == b"payload"
+
+
+async def test_win32_fs_call_rebases_shared_path_to_shared_cwd(monkeypatch, tmp_path):
+    """win32 结构化 fs op：../.shared/x 重定位为 cwd=/workspace/.shared + 相对路径。"""
+    captured: list[tuple[str, dict]] = []
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
+        captured.append((op, dict(payload)))
+        return _ok_response()
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = local_module.WorkspaceAliasBackend(
+        user_id="u1", session_id="s1", platform_hint="win32"
+    )
+
+    result = await backend.awrite("/workspace/.shared/skills/demo.md", "win-shared")
+
+    assert result.error is None
+    assert result.path == "/workspace/.shared/skills/demo.md"
+    op, payload = captured[-1]
+    assert op == "fs_write"
+    assert payload["cwd"] == "/workspace/.shared"
+    assert payload["path"] == "skills/demo.md"
+
+
+async def test_alias_paths_outside_shared_alias_keep_segment_boundary(monkeypatch):
+    """/workspace/.shared-x 不是共享别名，按别名外绝对路径原样透传。"""
+    captured: list[dict] = []
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
+        captured.append(dict(payload))
+        return _ok_response(stdout="{}")
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+
+    await backend.aread("/workspace/.shared-x/note.txt")
+
+    assert captured[-1]["cwd"] == "/workspace/s1"

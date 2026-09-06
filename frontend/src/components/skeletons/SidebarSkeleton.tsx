@@ -98,7 +98,7 @@ function SidebarExpandedSkeleton() {
           </div>
           {/* New Project button */}
           <SidebarNavRowSkeleton labelWidth="w-20" />
-          {/* Project items */}
+          {/* Project items — titles are entity names (truncate text-13 font-serif) */}
           <div className="space-y-px">
             {Array.from({ length: PANEL_ROW_SKELETON_COUNT }, (_, i) => (
               <div
@@ -107,7 +107,7 @@ function SidebarExpandedSkeleton() {
               >
                 <div className="skeleton-line size-5 rounded shrink-0" />
                 <div
-                  className="skeleton-line h-[13px] rounded-md flex-1"
+                  className="skeleton-line h-[13px] rounded-md flex-1 font-serif"
                   style={{ width: i === 0 ? "75%" : i === 1 ? "60%" : "85%" }}
                 />
               </div>
@@ -148,7 +148,7 @@ function SidebarExpandedSkeleton() {
             <div className="skeleton-line h-3 w-12 rounded-md" />
             <div className="skeleton-line size-3.5 rounded-sm shrink-0" />
           </div>
-          {/* Chat items */}
+          {/* Chat items — session titles are entity names (truncate text-13 font-serif) */}
           <div className="space-y-px">
             {Array.from({ length: PANEL_ROW_SKELETON_COUNT }, (_, i) => (
               <div
@@ -156,7 +156,7 @@ function SidebarExpandedSkeleton() {
                 className="flex items-center gap-2 px-[9px] h-10 rounded-[10px]"
               >
                 <div
-                  className="skeleton-line h-[13px] rounded-md flex-1"
+                  className="skeleton-line h-[13px] rounded-md flex-1 font-serif"
                   style={{
                     width:
                       i % 4 === 0

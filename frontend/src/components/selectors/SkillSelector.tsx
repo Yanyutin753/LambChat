@@ -402,7 +402,7 @@ export function SkillSelector({
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                                 <span
-                                  className={`text-12 sm:text-13 font-medium truncate ${
+                                  className={`text-12 sm:text-13 font-medium font-serif truncate ${
                                     skill.enabled
                                       ? "text-stone-700 dark:text-stone-200"
                                       : "text-[var(--theme-primary)] dark:text-[var(--theme-primary)]"

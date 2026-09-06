@@ -1,6 +1,4 @@
-import { Globe, Wrench,
-  Clock,
-} from "lucide-react";
+import { Globe, Wrench, Clock } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill, CopyButton, LoadingSpinner } from "../../common";
@@ -192,22 +190,24 @@ function ToolCallPanelContent({ toolCallId }: { toolCallId: string }) {
           </CollapsibleSection>
         )}
 
-      {data.isPending && (
-        <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
-          {data.awaitingConfirmation ? (
-            <Clock size={12} className="shrink-0 animate-none" />
-          ) : (
-            <LoadingSpinner size="xs" />
-          )}
-          <span>
-            {data.awaitingConfirmation
-              ? t("chat.message.waitingConfirm")
-              : t("chat.message.running")}
-          </span>
-          <span className="tabular-nums">{formatElapsed(elapsedSeconds)}</span>
-        </div>
-      )}
-    </div>
+        {data.isPending && (
+          <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+            {data.awaitingConfirmation ? (
+              <Clock size={12} className="shrink-0 animate-none" />
+            ) : (
+              <LoadingSpinner size="xs" />
+            )}
+            <span>
+              {data.awaitingConfirmation
+                ? t("chat.message.waitingConfirm")
+                : t("chat.message.running")}
+            </span>
+            <span className="tabular-nums">
+              {formatElapsed(elapsedSeconds)}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

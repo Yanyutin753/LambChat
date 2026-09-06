@@ -95,13 +95,21 @@ describe("splitAssistantTurn", () => {
   test("封存轮次没有任何内容时不加已停止标记（避免空气泡出现已停止噪音）", () => {
     const base: Message[] = [
       msg({ id: "u1", role: "user", content: "任务" }),
-      msg({ id: "a1", role: "assistant", content: "", isStreaming: true, parts: [] }),
+      msg({
+        id: "a1",
+        role: "assistant",
+        content: "",
+        isStreaming: true,
+        parts: [],
+      }),
     ];
 
     const result = splitAssistantTurn(base, "a1");
 
     expect(result[1].cancelled).toBeUndefined();
-    expect(result[1].parts?.some((part) => part.type === "cancelled")).toBe(false);
+    expect(result[1].parts?.some((part) => part.type === "cancelled")).toBe(
+      false,
+    );
   });
 
   test("封存轮次已有 cancelled part 时保留原状，仅补 cancelled 标志", () => {

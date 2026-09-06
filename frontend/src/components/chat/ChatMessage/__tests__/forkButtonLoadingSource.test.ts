@@ -8,7 +8,9 @@ test("fork button shows a spinner and disables while forking", () => {
   const source = readFileSync(resolve(currentDir, "../index.tsx"), "utf8");
 
   // 分叉耗时长，点击后按钮进入 loading 态而不是无反馈
-  expect(source).toMatch(/const \[isForking, setIsForking\] = useState\(false\)/);
+  expect(source).toMatch(
+    /const \[isForking, setIsForking\] = useState\(false\)/,
+  );
   expect(source).toMatch(/setIsForking\(true\)/);
   expect(source).toMatch(/finally\s*\{[\s\S]*?setIsForking\(false\)/);
   expect(source).toMatch(/isForking \? \(\s*<Loader2[^>]*animate-spin/);
