@@ -2747,7 +2747,7 @@
     "S3_CUSTOM_DOMAIN": "Custom CDN domain for S3 files",
     "S3_ENABLED": "Enable S3-compatible storage for file uploads",
     "S3_ENDPOINT_URL": "S3 endpoint URL (required for MinIO and custom providers)",
-    "S3_INTERNAL_UPLOAD_MAX_SIZE": "Maximum internal upload size in bytes (default: 50MB)",
+    "S3_INTERNAL_UPLOAD_MAX_SIZE": "Unified file size cap in bytes (default 1GB): shared by reveal file delivery, local sandbox downloads, and S3 internal uploads; applies immediately, oversized files fail with file_too_large",
     "S3_MAX_FILE_SIZE": "Maximum file size in bytes (default: 10MB)",
     "S3_PATH_STYLE": "Use path-style URLs (required for MinIO)",
     "S3_PRESIGNED_URL_EXPIRES": "Presigned URL expiration time in seconds (default: 7 days)",

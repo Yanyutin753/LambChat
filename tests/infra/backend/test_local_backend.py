@@ -126,82 +126,79 @@ def test_execute_bridges_sync(monkeypatch):
     assert resp.exit_code == 0
 
 
-def test_download_files_decodes_base64(monkeypatch):
-    content = "file-body"
+def test_download_files_decodes_base64(monkeypatch, tmp_path):
+    content = b"file-body"
+    (tmp_path / "a.txt").write_bytes(content)
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
-        b64 = base64.b64encode(content.encode()).decode()
-        return _ok_response(stdout=b64)
-
-    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    monkeypatch.setattr(local_module, "dispatch_local_call", _truncating_exec_dispatch(tmp_path))
     backend = LocalSandboxBackend(user_id="u1", session_id="s1")
-    responses = backend.download_files(["/workspace/s1/a.txt"])
+    responses = backend.download_files([str(tmp_path / "a.txt")])
     assert len(responses) == 1
     assert responses[0].error is None
-    assert responses[0].content == content.encode()
+    assert responses[0].content == content
 
 
-def test_download_files_stderr_does_not_pollute_base64(monkeypatch):
+def test_download_files_stderr_does_not_pollute_base64(monkeypatch, tmp_path):
     """download 解码只取 stdout 字段：stderr 非空（如 shell 告警）不得混进 base64。
 
     旧实现经 aexecute 把 stdout+stderr 合并进 output 再解码，stderr 文本里
     的字母会被 base64 解码器吞掉，产出损坏字节。
     """
-    content = b"file-body"
+    content = b"file-body-1"
+    (tmp_path / "a.txt").write_bytes(content)
     noisy = "grep: warning: something noisy on stderr"
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
-        assert payload["cwd"] == "/workspace/s1"  # 与 aexecute 同 cwd 契约
-        b64 = base64.b64encode(content).decode()
-        return _ok_response(stdout=b64, stderr=noisy)
+    real_dispatch = _truncating_exec_dispatch(tmp_path)
 
-    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    async def noisy_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
+        result = await real_dispatch(user_id, op, payload, timeout=timeout, machine_id=machine_id)
+        result["stderr"] = noisy
+        return result
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", noisy_dispatch)
     backend = LocalSandboxBackend(user_id="u1", session_id="s1")
-    responses = backend.download_files(["/workspace/s1/a.txt"])
+    responses = backend.download_files([str(tmp_path / "a.txt")])
     assert responses[0].error is None
     assert responses[0].content == content
 
 
-async def test_adownload_files_stderr_does_not_pollute_base64(monkeypatch):
+async def test_adownload_files_stderr_does_not_pollute_base64(monkeypatch, tmp_path):
     # 内容长度取 3 的倍数：b64 无 padding，旧实现的合并解码无法借 padding 截断蒙混过关
     content = b"async-body-1"
+    (tmp_path / "a.bin").write_bytes(content)
     noisy = "[PID 123] some daemon chatter"
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
-        b64 = base64.b64encode(content).decode()
-        return _ok_response(stdout=b64, stderr=noisy)
+    real_dispatch = _truncating_exec_dispatch(tmp_path)
 
-    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    async def noisy_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
+        result = await real_dispatch(user_id, op, payload, timeout=timeout, machine_id=machine_id)
+        result["stderr"] = noisy
+        return result
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", noisy_dispatch)
     backend = LocalSandboxBackend(user_id="u1", session_id="s1")
-    responses = await backend.adownload_files(["/workspace/s1/a.bin"])
+    responses = await backend.adownload_files([str(tmp_path / "a.bin")])
     assert responses[0].error is None
     assert responses[0].content == content
 
 
-def test_download_files_maps_missing_to_error(monkeypatch):
-    # 真实 daemon 的 ENOENT 输出（python3 open() 抛出后经 stderr 回传）
-    enoent = "[Errno 2] No such file or directory: '/workspace/s1/missing.txt'"
+def test_download_files_maps_missing_to_error(monkeypatch, tmp_path):
+    """缺文件：stat 探测即失败，python 的 ENOENT 走原分类。"""
+    missing = tmp_path / "missing.txt"
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
-        return _ok_response(stdout=enoent, exit_code=1)
-
-    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    monkeypatch.setattr(local_module, "dispatch_local_call", _truncating_exec_dispatch(tmp_path))
     backend = LocalSandboxBackend(user_id="u1", session_id="s1")
-    responses = backend.download_files(["/workspace/s1/missing.txt"])
+    responses = backend.download_files([str(missing)])
     # ENOENT 文本含 "directory" 子串，不能被误分类为 is_directory
     assert responses[0].error == "file_not_found"
     assert responses[0].content is None
 
 
-def test_download_files_maps_is_directory_error(monkeypatch):
-    eisdir = "[Errno 21] Is a directory: '/workspace/s1'"
-
-    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
-        return _ok_response(stdout=eisdir, exit_code=1)
-
-    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+def test_download_files_maps_is_directory_error(monkeypatch, tmp_path):
+    """目录：Linux 上 stat(getsize) 对目录成功，分片 open 才抛 EISDIR。"""
+    monkeypatch.setattr(local_module, "dispatch_local_call", _truncating_exec_dispatch(tmp_path))
     backend = LocalSandboxBackend(user_id="u1", session_id="s1")
-    responses = backend.download_files(["/workspace/s1"])
+    responses = backend.download_files([str(tmp_path)])
     assert responses[0].error == "is_directory"
 
 
@@ -412,12 +409,15 @@ def test_upload_chunk_commands_single_command_at_or_below_threshold():
 
 
 async def test_adownload_files_oversized_explicit_error(monkeypatch, tmp_path):
-    """端到端验收：>2MB 文件下载得显式 file_too_large，而非 base64 半途炸或误报。"""
-    (tmp_path / "big.bin").write_bytes(b"0" * (local_module._DOWNLOAD_MAX_BYTES + 1))
+    """端到端验收：超过统一上限的文件得显式 file_too_large（带字节数与
+    S3_INTERNAL_UPLOAD_MAX_SIZE 来源），而非 base64 半途炸或误报。"""
+    (tmp_path / "big.bin").write_bytes(b"0" * 200)
+    monkeypatch.setattr(local_module, "_download_max_bytes", lambda: 100)
     monkeypatch.setattr(local_module, "dispatch_local_call", _real_exec_dispatch(tmp_path))
     backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
     responses = await backend.adownload_files(["/workspace/s1/big.bin"])
-    assert responses[0].error == "file_too_large"
+    assert responses[0].error is not None
+    assert responses[0].error.startswith("file_too_large: 200 bytes exceeds 100 limit")
     assert responses[0].content is None
 
 
@@ -487,16 +487,21 @@ def test_upload_command_posix_append_bytes_locked():
     )
 
 
-def test_download_command_posix_bytes_locked():
-    """Linux daemon 零回归锁：posix 下载命令逐字节快照（多行脚本 + %d 文本）。"""
-    assert LocalSandboxBackend._download_command("a b.txt") == (
-        'python3 -c "import os, sys, base64\n'
-        "size = os.path.getsize(sys.argv[1])\n"
-        "if size > 2097152:\n"
-        "    sys.stderr.write('file_too_large: %d bytes exceeds 2097152 limit'\n"
-        "                  ' (download cap)')\n"
-        "    sys.exit(1)\n"
-        "sys.stdout.buffer.write(base64.b64encode(open(sys.argv[1], 'rb').read()))\" "
+def test_download_size_command_posix_bytes_locked():
+    """Linux daemon 零回归锁：posix stat 探测命令逐字节快照（单行脚本）。"""
+    assert LocalSandboxBackend._download_size_command("a b.txt") == (
+        'python3 -c "import os, sys; '
+        'sys.stdout.write(str(os.path.getsize(sys.argv[1])))" '
+        "'a b.txt'"
+    )
+
+
+def test_download_slice_command_posix_bytes_locked():
+    """posix 分片命令逐字节快照：seek 偏移与读取长度为字面数字插值。"""
+    assert LocalSandboxBackend._download_slice_command("a b.txt", offset=147456, length=147456) == (
+        'python3 -c "import sys, base64; '
+        "f = open(sys.argv[1], 'rb'); f.seek(147456); "
+        'sys.stdout.buffer.write(base64.b64encode(f.read(147456)))" '
         "'a b.txt'"
     )
 
@@ -539,21 +544,25 @@ def test_upload_command_windows_append_skips_makedirs():
     )
 
 
-def test_download_command_windows_single_line_no_percent():
-    """win32 下载：单行脚本、无 % （cmd 双引号内 %VAR% 会被展开）、无 /dev/null。"""
-    cmd = LocalSandboxBackend._download_command("a b.txt", platform="win32")
-    assert cmd == (
-        'python3 -c "import os, sys, base64; '
-        "size = os.path.getsize(sys.argv[1]); "
-        "size > 2097152 and (sys.stderr.write("
-        "'file_too_large: ' + str(size) + ' bytes exceeds 2097152 limit (download cap)'), "
-        "sys.exit(1)); "
-        "sys.stdout.buffer.write(base64.b64encode(open(sys.argv[1], 'rb').read()))\" "
+def test_download_commands_windows_single_line_no_percent():
+    """win32 下载探测/分片：单行脚本、无 % （cmd 双引号内 %VAR% 会被展开）。"""
+    size_cmd = LocalSandboxBackend._download_size_command("a b.txt", platform="win32")
+    slice_cmd = LocalSandboxBackend._download_slice_command(
+        "a b.txt", offset=147456, length=147456, platform="win32"
+    )
+    assert size_cmd == (
+        'python3 -c "import os, sys; sys.stdout.write(str(os.path.getsize(sys.argv[1])))" "a b.txt"'
+    )
+    assert slice_cmd == (
+        'python3 -c "import sys, base64; '
+        "f = open(sys.argv[1], 'rb'); f.seek(147456); "
+        'sys.stdout.buffer.write(base64.b64encode(f.read(147456)))" '
         '"a b.txt"'
     )
-    assert "\n" not in cmd
-    assert "%" not in cmd
-    assert "/dev/null" not in cmd
+    for cmd in (size_cmd, slice_cmd):
+        assert "\n" not in cmd
+        assert "%" not in cmd
+        assert "/dev/null" not in cmd
 
 
 def test_upload_files_windows_via_registry_platform(monkeypatch, _default_daemon_platform):
@@ -596,20 +605,24 @@ async def test_aupload_files_windows_chunked_commands(monkeypatch, _default_daem
 
 
 async def test_adownload_files_windows_command_shape(monkeypatch, _default_daemon_platform):
-    """win32 下载全链：下发命令为单行 cmd 形态、路径 cmd 引用。"""
+    """win32 下载全链：stat 探测与分片命令都是单行 cmd 形态、路径 cmd 引用。"""
     _default_daemon_platform["platform"] = "win32"
-    captured: dict[str, str] = {}
+    captured: list[str] = []
 
     async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
-        captured["command"] = payload["command"]
+        captured.append(payload["command"])
+        if "getsize" in payload["command"]:
+            return _ok_response(stdout="4")
         return _ok_response(stdout=base64.b64encode(b"body").decode())
 
     monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
     backend = LocalSandboxBackend(user_id="u1", session_id="s1")
     responses = await backend.adownload_files(["/workspace/s1/a b.txt"])
     assert responses[0].error is None
-    assert captured["command"].endswith('"/workspace/s1/a b.txt"')  # cmd 引用含空格路径
-    assert "\n" not in captured["command"]
+    assert len(captured) == 2  # stat + 单片
+    for command in captured:
+        assert command.endswith('"/workspace/s1/a b.txt"')  # cmd 引用含空格路径
+        assert "\n" not in command
 
 
 def test_platform_hint_overrides_registry(monkeypatch):
@@ -1158,3 +1171,109 @@ async def test_resolve_platform_prefers_hint_over_sticky_cache(monkeypatch):
     monkeypatch.setattr(local_module, "_lookup_daemon_platform", fake_lookup)
     backend = LocalSandboxBackend(user_id="u1", session_id="s1", platform_hint="linux")
     assert await backend._resolve_platform() == "linux"
+
+
+# ---------------------------------------------------------------------------
+# 分块下载（2026-09-06 生产事故）：daemon executor 的 stdout 只保留尾部
+# 256KB（MAX_OUTPUT_BYTES）并加 "...[truncated]" 前缀——单命令整读的
+# base64 流超线即被毁，>192KB 文件 reveal/下载全部 invalid_download_output，
+# 上层误报 file_not_found_or_empty（1.2MB 截图案例）。
+# ---------------------------------------------------------------------------
+
+_DAEMON_MAX_OUTPUT_BYTES = 256 * 1024
+_DAEMON_TRUNC_MARK = "...[truncated]"
+
+
+def _truncating_exec_dispatch(cwd: Path):
+    """fake dispatch：真实执行命令，并复刻 daemon 的 stdout 截断语义。"""
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
+        proc = subprocess.run(payload["command"], shell=True, cwd=cwd, capture_output=True)
+        stdout = proc.stdout
+        if len(stdout) > _DAEMON_MAX_OUTPUT_BYTES:
+            stdout = _DAEMON_TRUNC_MARK.encode() + stdout[-_DAEMON_MAX_OUTPUT_BYTES:]
+        return {
+            "status": "ok",
+            "stdout": stdout.decode("utf-8", errors="replace"),
+            "stderr": proc.stderr.decode("utf-8", errors="replace"),
+            "exit_code": proc.returncode,
+        }
+
+    return fake_dispatch
+
+
+async def test_download_files_large_file_survives_daemon_output_truncation(monkeypatch, tmp_path):
+    """>分块线的文件必须分片回传：在复刻 daemon 截断的链路上 2.65MB 全量还原。
+
+    体量刻意压过已删除的旧 2MB 下载上限——上限统一走
+    S3_INTERNAL_UPLOAD_MAX_SIZE（默认 1GB），本地下载不再有自己的小额度。
+    """
+    import os
+
+    data = os.urandom(144 * 1024 * 18 + 1234)  # ~2.65MB，跨 19 个分块
+    target = tmp_path / "big.bin"
+    target.write_bytes(data)
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", _truncating_exec_dispatch(tmp_path))
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    responses = await backend.adownload_files([str(target)])
+
+    assert responses[0].error is None, responses[0].error
+    assert responses[0].content == data
+
+
+async def test_download_files_small_file_roundtrip(monkeypatch, tmp_path):
+    """≤分块线的文件同样经 stat+单片往返，内容必须逐字节还原。"""
+    data = b"tiny-body"
+    target = tmp_path / "small.txt"
+    target.write_bytes(data)
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", _truncating_exec_dispatch(tmp_path))
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    responses = await backend.adownload_files([str(target)])
+
+    assert responses[0].error is None
+    assert responses[0].content == data
+
+
+async def test_download_files_oversize_reports_too_large_without_slicing(monkeypatch, tmp_path):
+    """超过统一上限（环境变量 S3_INTERNAL_UPLOAD_MAX_SIZE）直接 file_too_large，
+    报错信息带字节数与上限来源，且不下发任何分片命令。"""
+    data = b"x" * 200
+    target = tmp_path / "huge.bin"
+    target.write_bytes(data)
+
+    monkeypatch.setattr(local_module, "_download_max_bytes", lambda: 100)
+    commands = []
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
+        commands.append(payload["command"])
+        if "getsize" in payload["command"]:
+            return _ok_response(stdout=str(len(data)))
+        raise AssertionError(f"unexpected command after size probe: {payload['command']}")
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    responses = await backend.adownload_files([str(target)])
+
+    assert responses[0].content is None
+    assert responses[0].error is not None
+    assert responses[0].error.startswith("file_too_large: 200 bytes exceeds 100 limit")
+    assert "S3_INTERNAL_UPLOAD_MAX_SIZE" in responses[0].error
+    assert len(commands) == 1  # 只有 stat 探测，零分片下发
+
+
+def test_download_size_and_slice_commands_are_windows_safe(_default_daemon_platform):
+    """win32 分片/探测命令：单行脚本、无 % 格式化（cmd 会吞双引号内的 % 对）。"""
+    _default_daemon_platform["platform"] = "win32"
+    size_cmd = LocalSandboxBackend._download_size_command("/workspace/s1/big.bin", platform="win32")
+    slice_cmd = LocalSandboxBackend._download_slice_command(
+        "/workspace/s1/big.bin", offset=144 * 1024, length=144 * 1024, platform="win32"
+    )
+    for cmd in (size_cmd, slice_cmd):
+        assert "\n" not in cmd  # cmd.exe 逐行解析
+        assert cmd.count('"') % 2 == 0
+        assert "python3 -c " in cmd
+        assert "%d" not in cmd and "%s" not in cmd
+    assert "f.seek(147456)" in slice_cmd
+    assert "f.read(147456)" in slice_cmd

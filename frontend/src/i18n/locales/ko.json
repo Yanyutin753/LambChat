@@ -2747,7 +2747,7 @@
     "S3_CUSTOM_DOMAIN": "S3 파일의 사용자 정의 CDN 도메인",
     "S3_ENABLED": "파일 업로드용 S3 호환 스토리지 활성화",
     "S3_ENDPOINT_URL": "S3 엔드포인트 URL(MinIO 및 사용자 정의 제공자에 필요)",
-    "S3_INTERNAL_UPLOAD_MAX_SIZE": "최대 내부 업로드 크기(바이트, 기본값: 50MB)",
+    "S3_INTERNAL_UPLOAD_MAX_SIZE": "통합 파일 크기 상한(바이트, 기본 1GB): reveal 파일 전달, 로컬 샌드박스 다운로드, S3 내부 업로드에 공통 적용. 변경은 즉시 적용되며 초과 시 file_too_large 오류",
     "S3_MAX_FILE_SIZE": "최대 파일 크기(바이트, 기본값: 10MB)",
     "S3_PATH_STYLE": "경로 스타일 URL 사용(MinIO에 필요)",
     "S3_PRESIGNED_URL_EXPIRES": "사전 서명된 URL 만료 시간(초, 기본값: 7일)",

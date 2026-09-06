@@ -309,7 +309,9 @@ class Settings(BaseSettings):
     S3_CUSTOM_DOMAIN: Optional[str] = None
     S3_PATH_STYLE: bool = False
     S3_MAX_FILE_SIZE: int = 10 * 1024 * 1024
-    S3_INTERNAL_UPLOAD_MAX_SIZE: int = 50 * 1024 * 1024
+    # reveal 文件 / 本地沙箱下载 / S3 内部上传共用的统一上限（环境变量
+    # S3_INTERNAL_UPLOAD_MAX_SIZE 可覆盖；超限给显式 file_too_large 报错）
+    S3_INTERNAL_UPLOAD_MAX_SIZE: int = 1024 * 1024 * 1024
     S3_PUBLIC_BUCKET: bool = False
     S3_PRESIGNED_URL_EXPIRES: int = 7 * 24 * 3600
 
