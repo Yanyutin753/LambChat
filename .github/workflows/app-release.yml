@@ -458,6 +458,13 @@ jobs:
     if: always()
 
     steps:
+      # checkout 必须先于 artifact 下载：actions/checkout@v4.2+ 在 init 前
+      # "Deleting the contents of <workspace>"——放下载之后会把已下载的
+      # release-assets/ 整目录清掉（v0.2.0-rc1 首发实测：latest.json 步骤
+      # ENOENT + 全平台 sig glob 落空）。
+      - name: Checkout repository (app version for updater manifest)
+        uses: actions/checkout@v4
+
       - name: Download release artifacts
         uses: actions/download-artifact@v4
         with:
@@ -473,9 +480,6 @@ jobs:
           fi
           find release-assets -type f -print
           test "$(find release-assets -type f | wc -l)" -gt 0
-
-      - name: Checkout repository (app version for updater manifest)
-        uses: actions/checkout@v4
 
       - name: Generate latest.json updater manifest
         # Tauri v2 CLI 只产出 .sig 签名文件，不再自动生成更新清单（v1 行为已
