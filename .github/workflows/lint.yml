@@ -165,7 +165,7 @@ jobs:
         run: pnpm install --frozen-lockfile
         working-directory: frontend
 
-      - name: Check files over 1000 lines
+      - name: Check files over 1500 lines
         run: pnpm run find-large-files
         working-directory: frontend
 
