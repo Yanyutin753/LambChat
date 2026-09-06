@@ -1957,7 +1957,6 @@
     "users": "管理用户账户和访问权限"
   },
   "notification": {
-    "active": "已激活",
     "cancel": "取消",
     "collapse": "收起详情",
     "contentLabel": "内容",
@@ -1972,7 +1971,6 @@
     "endTime": "结束时间",
     "expand": "展开详情",
     "expired": "已过期",
-    "inactive": "未激活",
     "isActive": "启用",
     "noNotifications": "暂无通知",
     "save": "保存",
@@ -2162,7 +2160,8 @@
       "openWorkspaces": "打开工作区目录",
       "openAudit": "打开审计目录",
       "restartDaemon": "重启 daemon",
-      "needDesktop": "本地沙箱需要 LambChat 桌面端，网页端仅支持云端沙箱。",
+      "needDesktop": "本地沙箱当前离线：用 LambChat 桌面端配对连接后，即可在网页端选用本地沙箱。",
+      "webManaged": "由已配对的桌面端管理",
       "pairFailed": "配对失败，请检查账号密码后重试",
       "unpair": "取消配对",
       "unpaired": "已取消配对",

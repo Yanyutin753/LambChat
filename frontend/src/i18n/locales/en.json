@@ -1957,7 +1957,6 @@
     "users": "Manage user accounts and access"
   },
   "notification": {
-    "active": "Active",
     "cancel": "Cancel",
     "collapse": "Hide details",
     "contentLabel": "Content",
@@ -1972,7 +1971,6 @@
     "endTime": "End Time",
     "expand": "Show details",
     "expired": "Expired",
-    "inactive": "Inactive",
     "isActive": "Active",
     "noNotifications": "No notifications yet",
     "save": "Save",
@@ -2162,7 +2160,8 @@
       "openWorkspaces": "Open workspaces",
       "openAudit": "Open audit log",
       "restartDaemon": "Restart daemon",
-      "needDesktop": "The local sandbox requires the LambChat desktop app. Only the cloud sandbox is available on the web.",
+      "needDesktop": "Local sandbox is offline. Pair it with the LambChat desktop app to use it on the web.",
+      "webManaged": "Managed by the paired desktop app",
       "pairFailed": "Pairing failed. Check your credentials and try again.",
       "unpair": "Unpair",
       "unpaired": "Pairing removed",
