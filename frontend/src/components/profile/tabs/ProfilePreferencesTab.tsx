@@ -10,7 +10,6 @@ import { authApi, agentConfigApi, agentApi } from "../../../services/api";
 import { DEFAULT_THINKING_LEVEL_STORAGE_KEY } from "../../layout/AppContent/useAgentOptions";
 import { resolveAgentDisplayName } from "../../agent/agentCatalog";
 import { SelectRow } from "../SelectRow";
-import { ServerUrlSection } from "../ServerUrlSection";
 import type { AgentInfo } from "../../../types";
 import type { Theme } from "../../../utils/themeDom";
 import {
@@ -30,6 +29,10 @@ import {
 // 加载），纯 web/移动端的启动 JS 不再为此买单。fallback null：设置页分区
 // 短暂空缺远好于把整段代码塞进启动路径。
 const LocalSandboxSection = lazy(() => import("../LocalSandboxSection"));
+
+// 服务器地址分区同样懒加载：仅原生客户端渲染（web 永不挂载），eager 进
+// 主包会把启动 JS 顶过 eager 预算（实测超 418 字节构建失败）。
+const ServerUrlSection = lazy(() => import("../ServerUrlSection"));
 
 const LANGUAGES = [
   { code: "en", nativeName: "English" },
@@ -410,7 +413,11 @@ export function ProfilePreferencesTab() {
 
       {/* 服务器地址：仅原生客户端渲染——烘焙了 VITE_API_BASE 的包首启不出
           ServerSetupScreen，这里是安装后唯一的改址入口（运行时配置优先） */}
-      {isNativeAppRuntime() && <ServerUrlSection />}
+      {isNativeAppRuntime() && (
+        <Suspense fallback={null}>
+          <ServerUrlSection />
+        </Suspense>
+      )}
 
       {/* 沙箱：云端 + 本地合并一张卡（子区用内嵌 tile，同通知页分区语言）；
           本地分区仍懒加载（M4 T8 PWA 预算） */}
