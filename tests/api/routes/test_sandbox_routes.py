@@ -548,12 +548,12 @@ async def test_channel_registers_confirm_policy_from_query(monkeypatch):
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         resp = await client.get(
             "/api/sandbox/channel",
-            params={"version": "0.2.0", "platform": "linux", "confirm_policy": "none"},
+            params={"version": "0.3.1", "platform": "linux", "confirm_policy": "none"},
         )
         assert resp.status_code == 200
         resp2 = await client.get(
             "/api/sandbox/channel",
-            params={"version": "0.2.0", "confirm_policy": "yolo"},
+            params={"version": "0.3.1", "confirm_policy": "yolo"},
         )
         assert resp2.status_code == 200
     assert registry.registered[0][5] == "none"
@@ -596,12 +596,12 @@ async def test_channel_registers_version_from_query(monkeypatch):
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
-        resp = await client.get("/api/sandbox/channel?version=0.2.0")
+        resp = await client.get("/api/sandbox/channel?version=0.3.1")
     assert resp.status_code == 200
-    assert seen["version"] == "0.2.0"
+    assert seen["version"] == "0.3.1"
     assert len(registry.registered) == 1
     user_id, _client_id, node_id, version, platform, _confirm_policy = registry.registered[0]
-    assert (user_id, version) == ("u1", "0.2.0")
+    assert (user_id, version) == ("u1", "0.3.1")
     assert node_id == sandbox_route._NODE_ID
     assert platform == ""  # 未上报平台：保持空（旧 daemon 兼容）
 
@@ -639,12 +639,12 @@ async def test_channel_registers_platform_from_query(monkeypatch):
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
-        resp = await client.get("/api/sandbox/channel?version=0.2.0&platform=win32")
+        resp = await client.get("/api/sandbox/channel?version=0.3.1&platform=win32")
     assert resp.status_code == 200
     assert seen["platform"] == "win32"
     assert len(registry.registered) == 1
     user_id, _client_id, node_id, version, platform, _confirm_policy = registry.registered[0]
-    assert (user_id, version, platform) == ("u1", "0.2.0", "win32")
+    assert (user_id, version, platform) == ("u1", "0.3.1", "win32")
     assert node_id == sandbox_route._NODE_ID
 
 

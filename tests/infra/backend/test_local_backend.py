@@ -1114,3 +1114,47 @@ async def test_sync_sandbox_env_vars_writes_local_backend(monkeypatch):
     backend = LocalSandboxBackend(user_id="u1", session_id="s1")
     await sync_sandbox_env_vars(backend, "u1")
     assert backend.env_vars == {"FOO": "bar"}
+
+
+async def test_resolve_platform_sticky_after_transient_lookup_failure(monkeypatch):
+    """平台查询瞬断（redis 异常）不回退 posix：复用最近一次成功解析值。
+
+    生产事故（2026-09-06）：一次查询失败把 win32 会话翻回 posix 分支，
+    daemon 收到多行 POSIX python3 脚本产出垃圾输出（ls 全空、read 报
+    unexpected server response）。粘滞缓存保证一次成功解析后不再漂移。
+    """
+    state = {"fail": False}
+
+    async def fake_lookup(user_id, machine_id=None):
+        if state["fail"]:
+            return ""  # 真实 _lookup_daemon_platform 故障时回落空串（不抛异常）
+        return "win32"
+
+    monkeypatch.setattr(local_module, "_lookup_daemon_platform", fake_lookup)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    assert await backend._resolve_platform() == "win32"
+
+    state["fail"] = True
+    assert await backend._resolve_platform() == "win32"
+
+
+async def test_resolve_platform_posix_when_never_resolved(monkeypatch):
+    """从未成功解析过平台的会话，查询失败仍按空串（posix 现状）处理。"""
+
+    async def fake_lookup(user_id, machine_id=None):
+        return ""  # 持续故障：真实契约回落空串
+
+    monkeypatch.setattr(local_module, "_lookup_daemon_platform", fake_lookup)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    assert await backend._resolve_platform() == ""
+
+
+async def test_resolve_platform_prefers_hint_over_sticky_cache(monkeypatch):
+    """显式 platform_hint 优先级最高，粘滞缓存不影响既有构造期提示语义。"""
+
+    async def fake_lookup(user_id, machine_id=None):
+        return "win32"
+
+    monkeypatch.setattr(local_module, "_lookup_daemon_platform", fake_lookup)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1", platform_hint="linux")
+    assert await backend._resolve_platform() == "linux"
