@@ -414,6 +414,76 @@ class SteerQueue:
             return False
 
 
+async def emit_undelivered_steer_events(
+    session_id: str,
+    run_id: str | None = None,
+    presenter: Any = None,
+    queue: SteerQueue | None = None,
+) -> int:
+    """run 终态时把未注入的插话落库为 ``steer:undelivered`` 事件（尽力而为）。
+
+    run 在插话入队后、下一次模型调用前结束（典型：单次模型调用直接完成），
+    插话既没注入也无任何落库痕迹，纯 API 消费者静默丢失。本函数在
+    executor 的终态路径（completed / 用户取消 / 中断 / 失败）调用，逐条
+    写出与 ``steer:message`` 同形状的事件，便于前端按 ``message_id`` 关联。
+
+    队列本身不清空：前端补发流程仍按 ID 取消残留项再补发为普通消息，
+    这里若清空会让「补发 + 取消」契约失去目标。返回成功写出的事件数。
+    """
+    target = queue if queue is not None else get_steer_queue()
+    try:
+        items = await target.list_items(session_id)
+    except Exception:
+        logger.warning(
+            "[Steer] session=%s failed to list pending steers at run end",
+            session_id,
+            exc_info=True,
+        )
+        return 0
+    if not items:
+        return 0
+
+    import uuid
+
+    written = 0
+    for item in items:
+        data = {
+            "content": item.content,
+            "message_id": item.id or f"steer-{uuid.uuid4().hex[:12]}",
+            "attachments": item.attachments,
+        }
+        if getattr(item, "created_at", None):
+            data["created_at"] = item.created_at.isoformat()
+        if run_id:
+            data["run_id"] = run_id
+        try:
+            if presenter is not None:
+                await presenter.save_event({"event": "steer:undelivered", "data": data})
+            else:
+                from src.infra.session.dual_writer import get_dual_writer
+
+                await get_dual_writer().write_event(
+                    session_id=session_id,
+                    event_type="steer:undelivered",
+                    data=data,
+                )
+            written += 1
+        except Exception:
+            logger.warning(
+                "[Steer] session=%s failed to persist undelivered steer %s",
+                session_id,
+                getattr(item, "id", "unknown"),
+                exc_info=True,
+            )
+    if written:
+        logger.info(
+            "[Steer] session=%s persisted %d undelivered steer(s) at run end",
+            session_id,
+            written,
+        )
+    return written
+
+
 _steer_queue: SteerQueue | None = None
 
 
