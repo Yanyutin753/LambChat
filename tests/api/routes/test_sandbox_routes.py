@@ -50,6 +50,9 @@ class _FakeRedis:
         items = self.lists.get(key)
         return items.pop(0) if items else None
 
+    async def llen(self, key):
+        return len(self.lists.get(key) or ())
+
     async def set(self, key, value, ex=None):
         self.kv[key] = value
         if ex is not None:
@@ -822,3 +825,359 @@ async def test_offline_endpoint_rejects_jwt(monkeypatch):
         resp = await client.post("/api/sandbox/offline")
     assert resp.status_code == 401
     assert resp.json()["detail"]["code"] == "unauthorized"
+
+
+async def test_results_endpoint_preserves_fs_op_result(monkeypatch):
+    """fs op 结果体的 ``result`` 字段必须原样落 Redis。
+
+    win32 结构化 fs op（fs_download/fs_upload/fs_read…）的全部有效载荷都在
+    ``result`` dict 里（daemon._process_fs_call 契约）；端点模型漏掉该字段会
+    把它静默丢弃——fs_download 回空内容，上层 reveal_file/artifact 全线误报
+    ``file_not_found_or_empty``（2026-09-07 生产事故，issue 见
+    https://lambchat.com/shared/d-_7Oqe2I3ay）。
+    """
+    redis = _FakeRedis()
+    app = FastAPI()
+    register_error_handlers(app)
+    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
+    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_pat_user
+    monkeypatch.setattr(sandbox_route, "_redis", lambda: redis)
+
+    fs_result = {"content_b64": "QUJD", "size": 3, "eof": True}
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        resp = await client.post(
+            "/api/sandbox/results/call-1",
+            json={"stage": "done", "status": "ok", "result": fs_result},
+        )
+    assert resp.status_code == 200
+    stored = json.loads(redis.kv["sandbox:resp:call-1"])
+    assert stored["user_id"] == "u1" and stored["stage"] == "done"
+    assert stored["result"] == fs_result
+
+
+async def _make_download_seam(monkeypatch, tmp_path):
+    """下载 seam 公共环境：真实路由 app + 真实 dispatch（内存 Redis）+ 别名 backend。
+
+    返回 (redis, app, backend)。daemon 行为由各测试内联的 fake_daemon 决定
+    （新 daemon 走流式端点 / 老 daemon 回 unsupported op 走分块）。
+    """
+    from src.infra.backend import _local_transfer as transfer_module
+    from src.infra.backend import local as local_module
+    from src.infra.backend.local import WorkspaceAliasBackend
+    from src.infra.sandbox.relay import dispatch as dispatch_module
+    from src.infra.sandbox.relay.registry import LEGACY_MACHINE_ID
+
+    redis = _FakeRedis()
+    app = FastAPI()
+    register_error_handlers(app)
+    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
+    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_pat_user
+    monkeypatch.setattr(sandbox_route, "_redis", lambda: redis)
+
+    class _LegacyRegistry:
+        def queue_key(self, user_id, machine_id):
+            return f"sandbox:req:{user_id}"
+
+        async def resolve_target(self, user_id, machine_id=None):
+            return LEGACY_MACHINE_ID
+
+    monkeypatch.setattr(dispatch_module, "_redis", lambda: redis)
+    monkeypatch.setattr(dispatch_module, "_registry", _LegacyRegistry)
+
+    async def fake_platform(user_id, machine_id=None):
+        return ""
+
+    monkeypatch.setattr(local_module, "_lookup_daemon_platform", fake_platform)
+    local_module.dispatch_local_call = dispatch_module.dispatch_local_call
+    transfer_module.dispatch_local_call = dispatch_module.dispatch_local_call
+    backend = WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    return redis, app, backend
+
+
+async def _streaming_daemon(redis, client, data_root, counters=None):
+    """新 daemon：fs_download_stream 走单个流式 POST（真实 fsops 行生成器）。"""
+    from lambchat_sandbox import fsops
+
+    while True:
+        raw = await redis.lpop("sandbox:req:u1")
+        if raw is None:
+            await asyncio.sleep(0.01)
+            continue
+        req = json.loads(raw)
+        if req["op"] == "fs_download_stream":
+            await client.post(f"/api/sandbox/results/{req['call_id']}", json={"stage": "ack"})
+            from lambchat_sandbox.frames import encode_frame
+
+            frames_iter = fsops.handle_fs_stream(req["op"], req["payload"], data_root)
+
+            async def _frame_body():
+                for ftype, payload in frames_iter:
+                    yield encode_frame(ftype, payload)
+
+            resp = await client.post(
+                f"/api/sandbox/results/stream/{req['call_id']}",
+                content=_frame_body(),
+                headers={"content-type": "application/octet-stream"},
+            )
+            assert resp.status_code == 200, resp.text
+            if counters is not None:
+                counters["stream_posts"] = counters.get("stream_posts", 0) + 1
+            continue
+        # 非流式 op（exec 等）按老协议回
+        await client.post(f"/api/sandbox/results/{req['call_id']}", json={"stage": "ack"})
+        result = fsops.handle_fs_op(req["op"], req["payload"], data_root)
+        await client.post(
+            f"/api/sandbox/results/{req['call_id']}",
+            json={"stage": "done", "status": "ok", "result": result},
+        )
+
+
+async def test_stream_download_seam_single_post_for_whole_file(monkeypatch, tmp_path):
+    """流式主路径端到端：3MiB 文件 = 1 个流式 op + 1 个流式 POST，逐字节一致。
+
+    分块通道同样的文件要 3 对 HTTP 往返；本用例锁定「往返次数与文件大小
+    解耦」——这是大文件传输从时延主导回归带宽主导的关键。
+    """
+    content = bytes(range(256)) * (3 * 4096)  # 3 MiB
+    (tmp_path / "s1").mkdir()
+    (tmp_path / "s1" / "big.bin").write_bytes(content)
+
+    redis, app, backend = await _make_download_seam(monkeypatch, tmp_path)
+    counters = {"stream_posts": 0}
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        daemon_task = asyncio.create_task(_streaming_daemon(redis, client, tmp_path, counters))
+        responses = await asyncio.wait_for(
+            backend.adownload_files(["/workspace/s1/big.bin"]), timeout=30
+        )
+        daemon_task.cancel()
+
+    assert counters["stream_posts"] == 1  # 整个文件一个 POST
+    assert responses[0].error is None
+    assert responses[0].content == content
+
+
+async def test_stream_download_seam_file_error_reaches_backend(monkeypatch, tmp_path):
+    """流式链路的文件级错误（缺文件）以错误串形态到达 backend，与分块路径一致。"""
+    (tmp_path / "s1").mkdir()
+
+    redis, app, backend = await _make_download_seam(monkeypatch, tmp_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        daemon_task = asyncio.create_task(_streaming_daemon(redis, client, tmp_path))
+        responses = await asyncio.wait_for(
+            backend.adownload_files(["/workspace/s1/missing.bin"]), timeout=30
+        )
+        daemon_task.cancel()
+
+    assert responses[0].error == "file_not_found"
+    assert responses[0].content is None
+
+
+async def test_chunked_download_seam_old_daemon_fallback(monkeypatch, tmp_path):
+    """老 daemon（不认识流式 op）端到端：自动粘滞降级分块 fs_download，行为零回归。
+
+    2026-09-07 生产事故的断裂点恰在两层各自有测试的接缝上；本用例连同流式
+    用例把「新路径可用、老路径不坏」一起锁死。
+    """
+    from lambchat_sandbox import fsops
+
+    content = "卤味批发进货台账".encode("utf-8")
+    (tmp_path / "s1").mkdir()
+    (tmp_path / "s1" / "台账.xlsx").write_bytes(content)
+
+    redis, app, backend = await _make_download_seam(monkeypatch, tmp_path)
+    ops: list[str] = []
+
+    async def fake_daemon(client: AsyncClient) -> None:
+        while True:
+            raw = await redis.lpop("sandbox:req:u1")
+            if raw is None:
+                await asyncio.sleep(0.01)
+                continue
+            req = json.loads(raw)
+            ops.append(req["op"])
+            if req["op"] == "fs_download_stream":
+                # 老 daemon：不认识流式 op，按普通 results 端点回错
+                await client.post(
+                    f"/api/sandbox/results/{req['call_id']}",
+                    json={
+                        "stage": "done",
+                        "status": "error",
+                        "error": f"unsupported op: {req['op']}",
+                    },
+                )
+                continue
+            await client.post(f"/api/sandbox/results/{req['call_id']}", json={"stage": "ack"})
+            result = fsops.handle_fs_op(req["op"], req["payload"], tmp_path)
+            await client.post(
+                f"/api/sandbox/results/{req['call_id']}",
+                json={"stage": "done", "status": "ok", "result": result},
+            )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        daemon_task = asyncio.create_task(fake_daemon(client))
+        responses = await asyncio.wait_for(
+            backend.adownload_files(["/workspace/s1/台账.xlsx"]), timeout=30
+        )
+        daemon_task.cancel()
+
+    assert ops[0] == "fs_download_stream"  # 先探测流式
+    assert "fs_download" in ops  # 降级到分块
+    assert responses[0].error is None
+    assert responses[0].content == content
+
+
+def _stream_app(monkeypatch, redis):
+    app = FastAPI()
+    register_error_handlers(app)
+    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
+    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_pat_user
+    monkeypatch.setattr(sandbox_route, "_redis", lambda: redis)
+    return app
+
+
+async def _post_stream_frames(app, frames: list[bytes]):
+    """以 chunked 流式 body POST 二进制帧（httpx content=异步生成器）。"""
+
+    async def gen():
+        for f in frames:
+            yield f
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        return await client.post(
+            "/api/sandbox/results/stream/call-s1",
+            content=gen(),
+            headers={"content-type": "application/octet-stream"},
+        )
+
+
+async def test_results_stream_endpoint_stores_frames_in_order(monkeypatch):
+    """二进制帧原样进 stream list（消费端按帧解析）；eof 帧即收。"""
+    from src.infra.sandbox.relay._frames import FRAME_DATA, FRAME_EOF, encode_frame
+
+    redis = _FakeRedis()
+    app = _stream_app(monkeypatch, redis)
+    frame1 = encode_frame(FRAME_DATA, b"\x00\x01raw-bytes")
+    frame2 = encode_frame(FRAME_EOF)
+
+    resp = await _post_stream_frames(app, [frame1, frame2])
+
+    assert resp.status_code == 200
+    assert redis.lists["sandbox:stream:u1:call-s1"] == [frame1, frame2]
+    assert redis.expires_at.get("sandbox:stream:u1:call-s1") is not None
+
+
+async def test_results_stream_endpoint_interrupted_body_pushes_sentinel(monkeypatch):
+    """连接中断（body 无 eof 帧即结束）：补 stream_interrupted 错误帧，消费端不挂到超时。"""
+    from src.infra.sandbox.relay._frames import (
+        FRAME_DATA,
+        FRAME_ERROR,
+        encode_frame,
+        try_parse_frame,
+    )
+
+    redis = _FakeRedis()
+    app = _stream_app(monkeypatch, redis)
+    data = encode_frame(FRAME_DATA, b"partial")
+
+    resp = await _post_stream_frames(app, [data])
+
+    assert resp.status_code == 200
+    stored = redis.lists["sandbox:stream:u1:call-s1"]
+    assert stored[0] == data
+    ftype, payload, _ = try_parse_frame(stored[1])
+    assert ftype == FRAME_ERROR
+    assert json.loads(payload)["error"] == "stream_interrupted"
+
+
+async def test_results_stream_endpoint_rejects_oversized_frame(monkeypatch):
+    """单帧 payload 超限：413 + 错误帧哨兵入列，不整体缓冲。"""
+    from src.infra.sandbox.relay._frames import FRAME_DATA, encode_frame
+
+    redis = _FakeRedis()
+    app = _stream_app(monkeypatch, redis)
+    huge = encode_frame(FRAME_DATA, b"x" * (sandbox_route._frames.FRAME_PAYLOAD_MAX + 1))
+
+    resp = await _post_stream_frames(app, [huge])
+
+    assert resp.status_code == 413
+    assert resp.json()["detail"]["code"] == "sandbox_payload_too_large"
+    stored = redis.lists["sandbox:stream:u1:call-s1"]
+    assert b"sandbox_payload_too_large" in stored[-1]
+
+
+async def test_stream_upload_seam_single_get_for_whole_file(monkeypatch, tmp_path):
+    """上传方向端到端：3MiB 文件 = 1 个流式 op + 1 个 GET，落盘逐字节一致。"""
+    from lambchat_sandbox.frames import FRAME_EOF, try_parse_frame
+
+    content = bytes(range(256)) * (3 * 4096)  # 3 MiB
+    (tmp_path / "s1").mkdir()
+
+    redis, app, backend = await _make_download_seam(monkeypatch, tmp_path)
+    counters = {"gets": 0, "ops": 0}
+
+    async def upload_daemon(client: AsyncClient) -> None:
+        from lambchat_sandbox.fsops import make_stream_upload_writer
+
+        while True:
+            raw = await redis.lpop("sandbox:req:u1")
+            if raw is None:
+                await asyncio.sleep(0.01)
+                continue
+            req = json.loads(raw)
+            counters["ops"] += 1
+            assert req["op"] == "fs_upload_stream"
+            await client.post(f"/api/sandbox/results/{req['call_id']}", json={"stage": "ack"})
+            counters["gets"] += 1
+            writer = make_stream_upload_writer(req["payload"], tmp_path)
+            buffer = b""
+            error = None
+            async with client.stream("GET", f"/api/sandbox/upload/{req['call_id']}") as resp:
+                assert resp.status_code == 200
+                async for chunk in resp.aiter_bytes():
+                    buffer += chunk
+                    while True:
+                        parsed = try_parse_frame(buffer)
+                        if parsed is None:
+                            break
+                        ftype, payload, buffer = parsed
+                        if ftype == 0x02:
+                            writer.write(payload)
+                        elif ftype == 0x04:
+                            error = json.loads(payload).get("error")
+                        elif ftype == FRAME_EOF:
+                            buffer = b""
+            writer.close()
+            if error:
+                await client.post(
+                    f"/api/sandbox/results/{req['call_id']}",
+                    json={"stage": "done", "status": "error", "error": error},
+                )
+            else:
+                await client.post(
+                    f"/api/sandbox/results/{req['call_id']}",
+                    json={
+                        "stage": "done",
+                        "status": "ok",
+                        "result": {"written": writer.written},
+                    },
+                )
+            assert (tmp_path / "s1" / "up.bin").read_bytes() == content if writer.written else True
+
+    # 目标文件名
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        daemon_task = asyncio.create_task(upload_daemon(client))
+        responses = await asyncio.wait_for(
+            backend.aupload_files([("/workspace/s1/up.bin", content)]), timeout=30
+        )
+        daemon_task.cancel()
+
+    assert counters == {"gets": 1, "ops": 1}  # 整个文件一个 GET
+    assert responses[0].error is None
+    assert (tmp_path / "s1" / "up.bin").read_bytes() == content

@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import signal
 import sys
 import time
@@ -41,8 +42,14 @@ from pathlib import Path
 from lambchat_sandbox import pbs
 from lambchat_sandbox.audit import Auditor
 from lambchat_sandbox.config import SandboxConfig
-from lambchat_sandbox.executor import Executor
-from lambchat_sandbox.fsops import FS_OPS, handle_fs_op
+from lambchat_sandbox.executor import Executor, ExecutorError
+from lambchat_sandbox.fsops import (
+    FS_OPS,
+    STREAM_OPS,
+    handle_fs_op,
+    handle_fs_stream,
+    make_stream_upload_writer,
+)
 from lambchat_sandbox.transport import (
     ChannelClient,
     ToolCall,
@@ -54,6 +61,10 @@ from lambchat_sandbox.transport import (
 DEFAULT_AUDIT_ROOT = Path.home() / ".lambchat" / "audit"
 DEFAULT_EXEC_TIMEOUT_S = 60.0  # 帧缺失/非正 timeout 的兜底，避免 communicate(timeout=0) 立即超时
 DAEMON_AUDIT_SESSION = "daemon"  # shutdown 等进程级事件的审计会话（过 Auditor 白名单）
+
+# exec 的 watchdog ack 延时（秒）：短于此的命令不发 ack、done 直接到达——
+# 省一次 HTTP 往返；长命令到点补 ack，服务端 30s ACK 死线（远大于本值）无虞
+_EXEC_ACK_DELAY_S = 8.0
 
 
 def _default_machine_name() -> str:
@@ -174,10 +185,10 @@ async def _process_call(
     前以 ask_human interrupt 完成，daemon 只收到已确认的执行请求，到达即执行。
     ``confirm_policy`` 仍随连接上报（connect URL 第四段）供服务端门读取。
 
-    op 分发（M4 T3.5）：``exec`` 走 executor（shell 命令）；``fs_*`` 走
-    :func:`lambchat_sandbox.fsops.handle_fs_op`（win32 结构化文件操作——
-    deepagents 的 POSIX 脚本命令 cmd.exe 跑不了，服务端改发结构化 op）；
-    其余 op 回 ``unsupported`` 错误。
+    op 分发（M4 T3.5）：``exec`` 走 executor（shell 命令，**watchdog 延迟
+    ack**——短命令免一次 HTTP 往返）；``fs_*`` 走
+    :func:`lambchat_sandbox.fsops.handle_fs_op`（win32 结构化文件操作）与流式
+    op（长传输，立即 ack）；其余 op 回 ``unsupported`` 错误。
     """
     command = str(call.payload.get("command", ""))
     virtual_cwd = str(call.payload.get("cwd", ""))
@@ -194,7 +205,6 @@ async def _process_call(
             "path": path,
         },
     )
-    await client.post_result(call.call_id, {"stage": "ack"})
 
     if call.op == "exec":
         await _process_exec_call(
@@ -206,6 +216,24 @@ async def _process_call(
             started=started,
             cfg=cfg,
             executor=executor,
+            auditor=auditor,
+        )
+        return
+    # fs op / 流式 op：立即 ack——结构化 op 快（无 watchdog 必要），流式传输
+    # 可达数分钟（必须先 ack 才不会撞服务端 ACK 死线）
+    if call.op in STREAM_OPS or call.op in FS_OPS:
+        await client.post_result(call.call_id, {"stage": "ack"})
+    if call.op in STREAM_OPS:
+        handler = (
+            _process_upload_stream_call if call.op == "fs_upload_stream" else _process_stream_call
+        )
+        await handler(
+            client,
+            call,
+            session_id=session_id,
+            path=path,
+            started=started,
+            cfg=cfg,
             auditor=auditor,
         )
         return
@@ -239,7 +267,13 @@ async def _process_exec_call(
     executor: Executor,
     auditor: Auditor,
 ) -> None:
-    """op=exec 的执行链：迟到检查 → executor → done → 审计（确认在服务端）。
+    """op=exec 的执行链：迟到检查 → executor（线程）→ done → 审计。
+
+    **watchdog 延迟 ack**：短命令（< ``_EXEC_ACK_DELAY_S``）done 直接先到，
+    省掉一次 HTTP 往返——agent 循环里 exec 是最高频 op，每条省一次往返对
+    命令结果传递速度是净赚；长命令由 watchdog 在延时到点补 ack，服务端 30s
+    ACK 死线不受影响。executor 是阻塞 subprocess，丢线程跑释放事件循环，
+    watchdog 才有机会触发。
 
     ``payload["env"]``（服务端用户 env 变量，对齐云端 envs= 语义）净化后
     透传 executor 合并进子进程环境——非 dict 载荷或非 str 条目静默丢弃，
@@ -259,7 +293,17 @@ async def _process_exec_call(
         )
         return
 
-    result = _execute(executor, command, virtual_cwd, effective, _sanitize_env(call.payload))
+    finished = asyncio.Event()
+    watchdog = asyncio.create_task(_exec_ack_watchdog(client, call.call_id, finished))
+    try:
+        result = await asyncio.to_thread(
+            _execute, executor, command, virtual_cwd, effective, _sanitize_env(call.payload)
+        )
+    finally:
+        finished.set()
+        watchdog.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await watchdog
     await client.post_result(
         call.call_id, {"stage": "done", **{k: result.get(k) for k in _DONE_KEYS}}
     )
@@ -274,6 +318,15 @@ async def _process_exec_call(
             "exit_code": result.get("exit_code"),
         },
     )
+
+
+async def _exec_ack_watchdog(client: ChannelClient, call_id: str, finished: asyncio.Event) -> None:
+    """长命令的迟到 ack：到点命令仍在执行才补发一次（之后等 done 即可）。"""
+    try:
+        await asyncio.wait_for(finished.wait(), timeout=_EXEC_ACK_DELAY_S)
+    except asyncio.TimeoutError:
+        with contextlib.suppress(Exception):  # noqa: BLE001 - ack 尽力而为，失败不拖垮执行
+            await client.post_result(call_id, {"stage": "ack"})
 
 
 async def _process_fs_call(
@@ -326,6 +379,161 @@ async def _process_fs_call(
         return
 
     await client.post_result(call.call_id, {"stage": "done", "status": "ok", "result": result})
+    auditor.log(
+        session_id,
+        {"event": "executed", "call_id": call.call_id, "op": call.op, "path": path, "status": "ok"},
+    )
+
+
+async def _process_stream_call(
+    client: ChannelClient,
+    call: ToolCall,
+    *,
+    session_id: str,
+    path: str,
+    started: float,
+    cfg: SandboxConfig,
+    auditor: Auditor,
+) -> None:
+    """op=fs_download_stream：ack 由 _process_call 顶层统一发出，结果走**单个**
+    流式 POST（NDJSON 行）。
+
+    分块通道每块一对 HTTP 往返，大文件块数×往返时延线性放大；流式 op 把
+    整个文件装进一个 chunked POST——行协议见 fsops（错误也是行）。行生成
+    迭代中的 ``ExecutorError``（非法 cwd）收敛为 error done 不炸通道（与
+    fs op 同语义）；网络级 POST 失败照常上抛交外层重连。
+    """
+    auditor.log(
+        session_id, {"event": "allowed", "call_id": call.call_id, "op": call.op, "path": path}
+    )
+    effective = call.timeout if call.timeout > 0 else DEFAULT_EXEC_TIMEOUT_S
+    if time.monotonic() - started >= effective:
+        await client.post_result(
+            call.call_id, {"stage": "done", "status": "error", "error": "expired"}
+        )
+        auditor.log(
+            session_id, {"event": "expired", "call_id": call.call_id, "op": call.op, "path": path}
+        )
+        return
+
+    try:
+        lines = handle_fs_stream(call.op, call.payload, cfg.data_root)
+        await client.post_stream_result(call.call_id, lines, deadline_s=effective)
+    except ExecutorError as exc:
+        await client.post_result(
+            call.call_id, {"stage": "done", "status": "error", "error": str(exc)}
+        )
+        auditor.log(
+            session_id,
+            {
+                "event": "executed",
+                "call_id": call.call_id,
+                "op": call.op,
+                "path": path,
+                "status": "error",
+            },
+        )
+        return
+    auditor.log(
+        session_id,
+        {"event": "executed", "call_id": call.call_id, "op": call.op, "path": path, "status": "ok"},
+    )
+
+
+async def _process_upload_stream_call(
+    client: ChannelClient,
+    call: ToolCall,
+    *,
+    session_id: str,
+    path: str,
+    started: float,
+    cfg: SandboxConfig,
+    auditor: Auditor,
+) -> None:
+    """op=fs_upload_stream：服务端 → daemon 方向的流式上传。
+
+    ack 由 _process_call 发出后，daemon **单个 GET** 拉取整个文件（服务端
+    生产者把帧写入 Redis list，GET 端点边拉边吐），逐帧解析落盘。分块
+    fs_upload 每块一对 HTTP 往返的成本在这里摊销成每文件常数次。
+    ``ExecutorError``（非法 cwd）/``FsOpError``（逃逸/超限）收敛为 error
+    done 不炸通道；网络级失败上抛交外层重连。
+    """
+    auditor.log(
+        session_id, {"event": "allowed", "call_id": call.call_id, "op": call.op, "path": path}
+    )
+    effective = call.timeout if call.timeout > 0 else DEFAULT_EXEC_TIMEOUT_S
+    if time.monotonic() - started >= effective:
+        await client.post_result(
+            call.call_id, {"stage": "done", "status": "error", "error": "expired"}
+        )
+        auditor.log(
+            session_id, {"event": "expired", "call_id": call.call_id, "op": call.op, "path": path}
+        )
+        return
+
+    from lambchat_sandbox import frames as frame_codec
+    from lambchat_sandbox.fsops import FsOpError
+
+    try:
+        writer = make_stream_upload_writer(call.payload, cfg.data_root)
+    except (ExecutorError, FsOpError) as exc:
+        await client.post_result(
+            call.call_id, {"stage": "done", "status": "error", "error": str(exc)}
+        )
+        auditor.log(
+            session_id,
+            {
+                "event": "executed",
+                "call_id": call.call_id,
+                "op": call.op,
+                "path": path,
+                "status": "error",
+            },
+        )
+        return
+
+    error: str | None = None
+    buffer = b""
+    try:
+        async with client.get_stream(call.call_id, deadline_s=effective) as chunks:
+            async for chunk in chunks:
+                buffer += chunk
+                while True:
+                    parsed = frame_codec.try_parse_frame(buffer)
+                    if parsed is None:
+                        break
+                    ftype, payload, buffer = parsed
+                    if ftype == frame_codec.FRAME_DATA:
+                        writer.write(payload)
+                    elif ftype == frame_codec.FRAME_ERROR:
+                        error = str(json.loads(payload).get("error") or "upload stream failed")
+                        break
+                    elif ftype == frame_codec.FRAME_EOF:
+                        break
+                if error is not None:
+                    break
+    except (ExecutorError, FsOpError) as exc:
+        error = str(exc)
+    finally:
+        writer.close()
+
+    if error is not None:
+        await client.post_result(call.call_id, {"stage": "done", "status": "error", "error": error})
+        auditor.log(
+            session_id,
+            {
+                "event": "executed",
+                "call_id": call.call_id,
+                "op": call.op,
+                "path": path,
+                "status": "error",
+            },
+        )
+        return
+    await client.post_result(
+        call.call_id,
+        {"stage": "done", "status": "ok", "result": {"written": writer.written}},
+    )
     auditor.log(
         session_id,
         {"event": "executed", "call_id": call.call_id, "op": call.op, "path": path, "status": "ok"},

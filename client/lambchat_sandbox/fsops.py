@@ -35,13 +35,14 @@ import base64
 import binascii
 import codecs
 import fnmatch
+import json
 import os
 import re
 import shutil
 import stat as stat_module
 import time
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 from lambchat_sandbox.executor import map_workspace
 
@@ -682,6 +683,111 @@ def _fs_download(payload: dict, workspace: Path) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# fs_download_stream：单请求流式下载（NDJSON 行生成器）
+#
+# 分块通道（fs_download）每块一对 HTTP 往返（ack + 结果 POST）——带宽外的
+# 固定开销随块数线性放大（100MB/1MiB 块 ≈ 100 次往返）。流式 op 把整个
+# 文件装进**一个** chunked POST 的 body（二进制帧，见 frames.py）：
+# 消除的是每块的往返，数据帧是裸字节（无 base64 膨胀、无逐块 JSON 开销）。
+# 生成器产出类型化帧 ``(ftype, payload)``：
+#
+# - ``(FRAME_META, b'{"size": N}')`` 首帧；
+# - ``(FRAME_DATA, <裸字节>)`` 可重复；
+# - ``(FRAME_EOF, b"")`` 正常收尾；
+# - ``(FRAME_ERROR, b'{"error": "..."}')`` 终态错误。
+#
+# ``offset``/``length`` 与 fs_download 同语义；``max_bytes``（服务端统一上限，
+# S3_INTERNAL_UPLOAD_MAX_SIZE）在 daemon 侧预检，超限不出流。
+# ---------------------------------------------------------------------------
+
+#: 流式数据帧的原始字节数：4MiB/帧在「Redis item 尺寸」与「逐帧固定开销」
+#: 之间取中——单帧上限（FRAME_PAYLOAD_MAX=8MiB）留一倍拒绝余量
+FS_STREAM_FRAME_BYTES = 4 * 1024 * 1024
+
+STREAM_OPS = frozenset({"fs_download_stream"})
+"""流式传输 op（daemon.py 据此分发到 handle_fs_stream）。"""
+
+
+def _fs_download_stream(payload: dict, workspace: Path) -> "Iterator[tuple[int, bytes]]":
+    from lambchat_sandbox.frames import FRAME_DATA, FRAME_EOF, FRAME_ERROR, FRAME_META
+
+    def _err(text: str) -> tuple[int, bytes]:
+        return FRAME_ERROR, json.dumps({"error": text}).encode("utf-8")
+
+    path = _resolve(payload.get("path"), workspace)
+    raw_length = payload.get("length")
+    length = int(raw_length) if raw_length is not None else None
+    offset = _payload_int(payload, "offset", default=0, minimum=0)
+    max_bytes = int(payload.get("max_bytes") or 0)
+    try:
+        st = path.stat()
+    except OSError as exc:
+        yield _err(_os_error_code(exc))
+        return
+    if stat_module.S_ISDIR(st.st_mode):
+        yield _err("is_directory")
+        return
+    if not stat_module.S_ISREG(st.st_mode):
+        yield _err("not_a_file")
+        return
+    total = st.st_size
+    if offset > total:
+        yield _err(f"offset {offset} beyond end of file ({total} bytes)")
+        return
+    wanted = total - offset if length is None else min(length, total - offset)
+    if max_bytes > 0 and wanted > max_bytes:
+        yield _err(
+            f"file_too_large: {wanted} bytes exceeds {max_bytes} limit "
+            "(S3_INTERNAL_UPLOAD_MAX_SIZE)"
+        )
+        return
+
+    yield FRAME_META, json.dumps({"size": total}).encode("utf-8")
+    remaining = wanted
+    with open(path, "rb") as f:
+        f.seek(offset)
+        while remaining > 0:
+            chunk = f.read(min(FS_STREAM_FRAME_BYTES, remaining))
+            if not chunk:
+                break  # 文件被并发截短：按已读部分收尾，不无限循环
+            remaining -= len(chunk)
+            yield FRAME_DATA, chunk
+    yield FRAME_EOF, b""
+
+
+_STREAM_HANDLERS: dict[str, Callable[[dict, Path], "Iterator[tuple[int, bytes]]"]] = {
+    "fs_download_stream": _fs_download_stream,
+}
+
+
+def handle_fs_stream(op: str, payload: dict, data_root: Path) -> "Iterator[tuple[int, bytes]]":
+    """执行一个流式 fs op，返回帧生成器（文件级错误也是错误帧，非异常）。
+
+    cwd 映射/按需建区与 :func:`handle_fs_op` 同则；未知 op **急切**抛
+    ``ValueError``（非生成器惰性——daemon 在开 POST 流之前就该失败）。
+    """
+    handler = _STREAM_HANDLERS.get(op)
+    if handler is None:
+        raise ValueError(f"unknown stream op: {op}")
+    return _run_fs_stream(handler, payload, data_root)
+
+
+def _run_fs_stream(
+    handler: Callable[[dict, Path], "Iterator[tuple[int, bytes]]"],
+    payload: dict,
+    data_root: Path,
+) -> "Iterator[tuple[int, bytes]]":
+    from lambchat_sandbox.frames import FRAME_ERROR
+
+    workspace = map_workspace(str(payload.get("cwd", "")), Path(data_root))
+    workspace.mkdir(parents=True, exist_ok=True)
+    try:
+        yield from handler(payload, workspace)
+    except FsOpError as exc:
+        yield FRAME_ERROR, json.dumps({"error": str(exc)}).encode("utf-8")
+
+
+# ---------------------------------------------------------------------------
 # 分发入口
 # ---------------------------------------------------------------------------
 
@@ -717,3 +823,46 @@ def handle_fs_op(op: str, payload: dict[str, Any], data_root: Path) -> dict:
         return handler(payload, workspace)
     except FsOpError as exc:
         return {"error": str(exc)}
+
+
+# ---------- fs_upload_stream：单请求流式上传（服务端 → daemon 的 GET 拉流） ----------
+
+
+class StreamUploadWriter:
+    """流式上传的落盘端：首个数据帧截断创建（建父目录），累计字节超限即拒。
+
+    与分块 fs_upload 的 truncate/offset 语义对齐到「整文件单流」形态：一次
+    open 贯穿整个 GET 流，无需 per-chunk 定位。
+    """
+
+    def __init__(self, path: Path, max_bytes: int) -> None:
+        self._path = path
+        self._max_bytes = max_bytes
+        self._fh = None
+        self.written = 0
+
+    def write(self, chunk: bytes) -> None:
+        if self._fh is None:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            self._fh = open(self._path, "wb")
+        self.written += len(chunk)
+        if self._max_bytes > 0 and self.written > self._max_bytes:
+            self.close()
+            raise FsOpError(
+                f"file_too_large: {self.written} bytes exceeds {self._max_bytes} limit "
+                "(S3_INTERNAL_UPLOAD_MAX_SIZE)"
+            )
+        self._fh.write(chunk)
+
+    def close(self) -> None:
+        if self._fh is not None:
+            fh, self._fh = self._fh, None
+            fh.close()
+
+
+def make_stream_upload_writer(payload: dict, data_root: Path) -> StreamUploadWriter:
+    """构建流式上传写入器：cwd 映射 + 工作区锁定解析（逃逸/非法 cwd 抛错）。"""
+    workspace = map_workspace(str(payload.get("cwd", "")), Path(data_root))
+    workspace.mkdir(parents=True, exist_ok=True)
+    path = _resolve(payload.get("path"), workspace)
+    return StreamUploadWriter(path, int(payload.get("max_bytes") or 0))

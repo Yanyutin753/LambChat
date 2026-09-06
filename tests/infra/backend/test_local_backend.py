@@ -43,8 +43,18 @@ def _bridge_transfer_module(monkeypatch):
 
     通道拆分到 _local_transfer 后，测试沿用「patch local_module.dispatch_local_call」
     的既有写法即可同时接管 exec 与 fs 两条链路；_download_max_bytes 同理。
+    流式通道（dispatch_local_stream）默认按「老 daemon 不支持」打桩——既有
+    用例继续锁分块路径的行为；流式专属用例自行覆盖该桩。
     """
-    from src.infra.backend import _local_transfer as transfer_module
+
+    async def _unsupported_stream(user_id, op, payload, *, timeout=None, machine_id=None):
+        raise AppError(ErrorCode.SANDBOX_EXEC_FAILED, args={"detail": f"unsupported op: {op}"})
+        yield b""  # pragma: no cover - 使其成为异步生成器
+
+    async def _unsupported_stream_upload(user_id, payload, content, *, machine_id=None):
+        raise AppError(
+            ErrorCode.SANDBOX_EXEC_FAILED, args={"detail": "unsupported op: fs_upload_stream"}
+        )
 
     async def _bridged_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         return await local_module.dispatch_local_call(
@@ -55,6 +65,8 @@ def _bridge_transfer_module(monkeypatch):
         return local_module._download_max_bytes()
 
     monkeypatch.setattr(transfer_module, "dispatch_local_call", _bridged_dispatch)
+    monkeypatch.setattr(transfer_module, "dispatch_local_stream", _unsupported_stream)
+    monkeypatch.setattr(transfer_module, "dispatch_local_stream_upload", _unsupported_stream_upload)
     monkeypatch.setattr(transfer_module, "_download_max_bytes", _bridged_max_bytes)
     return transfer_module
 
@@ -524,6 +536,45 @@ async def test_adownload_files_within_limit_roundtrips(monkeypatch, tmp_path):
     responses = await backend.adownload_files(["/workspace/s1/ok.bin"])
     assert responses[0].error is None
     assert responses[0].content == payload
+
+
+@pytest.mark.parametrize(
+    "win_path",
+    [
+        "C:\\Users\\yangyang\\.lambchat\\workspaces\\s1\\卤味.xlsx",
+        "\\\\nas\\share\\out\\report.xlsx",  # UNC
+    ],
+    ids=["drive", "unc"],
+)
+async def test_adownload_windows_absolute_path_routes_to_exec(
+    monkeypatch, _default_daemon_platform, win_path
+):
+    """win32 绝对路径（盘符/UNC）不走 fs 传输通道——daemon 的 fs op 锁死工作区，
+    绝对路径必被 ``path escapes workspace`` 拒（2026-09-07 生产事故：agent 抄
+    LAMBCHAT_WORKSPACE 真实路径调 reveal_file，三次全部空手而归）。应与 posix
+    绝对路径同语义走 exec 旧链路：python3 按 daemon 机器真实路径 stat+分片读。
+    """
+    _default_daemon_platform["platform"] = "win32"
+    ops: list[tuple[str, dict]] = []
+    body = "卤味台账-body".encode("utf-8")
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
+        ops.append((op, dict(payload)))
+        assert op == "exec", f"绝对路径必须走 exec 旧链路，实际发了 {op}"
+        command = payload["command"]
+        if "getsize" in command:  # stat 探测
+            return _ok_response(stdout=str(len(body)))
+        return _ok_response(stdout=base64.b64encode(body).decode("ascii"))  # 分片回传
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    responses = await backend.adownload_files([win_path])
+
+    assert responses[0].error is None
+    assert responses[0].content == body
+    assert all(op == "exec" for op, _ in ops)
+    assert len(ops) >= 2  # stat + 至少一片
+    assert win_path in ops[0][1]["command"]  # 真实路径原样进命令（win32 cmd 引用包裹）
 
 
 def test_classify_maps_too_large_and_e2big():
@@ -1670,3 +1721,148 @@ async def test_alias_paths_outside_shared_alias_keep_segment_boundary(monkeypatc
     await backend.aread("/workspace/.shared-x/note.txt")
 
     assert captured[-1]["cwd"] == "/workspace/s1"
+
+
+# ---------- 流式下载通道（fs_download_stream）：优先流式，不支持自动降级 ----------
+
+
+async def test_adownload_uses_stream_channel_when_supported(monkeypatch, tmp_path):
+    """新 daemon：整个文件一个流式 op 传完——不再逐块 fs_download 往返。"""
+    (tmp_path / "s1").mkdir()
+    (tmp_path / "f.bin").write_bytes(b"abcd")
+    captured: list[dict] = []
+    chunk_calls: list[str] = []
+
+    async def fake_stream(user_id, op, payload, *, timeout=None, machine_id=None):
+        captured.append({"op": op, **payload, "timeout": timeout})
+        yield b"ab"
+        yield b"cd"
+
+    async def no_chunked(user_id, op, payload, *, timeout=None, machine_id=None):
+        chunk_calls.append(op)  # 不应被调用（流式已成功）
+        return _ok_response(stdout="")
+
+    monkeypatch.setattr(transfer_module, "dispatch_local_stream", fake_stream)
+    monkeypatch.setattr(local_module, "dispatch_local_call", no_chunked)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    responses = await backend.adownload_files(["/workspace/s1/f.bin"])
+
+    assert responses[0].error is None and responses[0].content == b"abcd"
+    assert chunk_calls == []
+    assert captured[0]["op"] == "fs_download_stream"
+    assert captured[0]["cwd"] == "/workspace/s1" and captured[0]["path"] == "f.bin"
+    assert captured[0]["timeout"] == 600.0  # SANDBOX_LOCAL_STREAM_TIMEOUT：大文件按带宽计
+
+
+async def test_adownload_falls_back_to_chunked_when_stream_unsupported(monkeypatch, tmp_path):
+    """老 daemon 不认识流式 op：粘滞降级到分块 fs_download（零行为回归）。"""
+    (tmp_path / "s1").mkdir()
+    payload = b"chunked-fallback"
+    (tmp_path / "s1" / "f.bin").write_bytes(payload)
+    stream_calls = []
+
+    async def unsupported(user_id, op, payload, *, timeout=None, machine_id=None):
+        from src.kernel.errors import AppError, ErrorCode
+
+        stream_calls.append(op)
+        raise AppError(ErrorCode.SANDBOX_EXEC_FAILED, args={"detail": f"unsupported op: {op}"})
+        yield b""  # pragma: no cover
+
+    monkeypatch.setattr(transfer_module, "dispatch_local_stream", unsupported)
+    monkeypatch.setattr(local_module, "dispatch_local_call", _daemon_dispatch(tmp_path))
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+
+    responses = await backend.adownload_files(["/workspace/s1/f.bin"])
+    assert responses[0].error is None and responses[0].content == payload
+
+    # 粘滞能力位：第二次下载不再探测流式
+    responses2 = await backend.adownload_files(["/workspace/s1/f.bin"])
+    assert responses2[0].content == payload
+    assert stream_calls == ["fs_download_stream"]  # 只探测过一次
+
+
+async def test_adownload_stream_file_error_surfaces_as_error_string(monkeypatch, tmp_path):
+    """流式行的文件级错误（缺文件等）映射为响应 error 串，与分块路径同形态。"""
+    tmp_path.joinpath("s1").mkdir()
+
+    async def file_error(user_id, op, payload, *, timeout=None, machine_id=None):
+        from src.kernel.errors import AppError, ErrorCode
+
+        raise AppError(ErrorCode.SANDBOX_EXEC_FAILED, args={"detail": "file_not_found"})
+        yield b""  # pragma: no cover
+
+    monkeypatch.setattr(transfer_module, "dispatch_local_stream", file_error)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    responses = await backend.adownload_files(["/workspace/s1/missing.bin"])
+    assert responses[0].error == "file_not_found"
+    assert responses[0].content is None
+
+
+# ---------- 流式上传通道（fs_upload_stream）：优先流式，不支持自动降级 ----------
+
+
+async def test_aupload_uses_stream_channel_when_supported(monkeypatch, tmp_path):
+    """新 daemon：整个文件一个流式 op 写入（单 GET），不再逐块 fs_upload。"""
+    calls = []
+    chunked_ops = []
+
+    async def fake_stream_upload(user_id, payload, content, *, machine_id=None):
+        calls.append({"payload": dict(payload), "len": len(content)})
+        (tmp_path / "s1").mkdir(exist_ok=True)
+        (tmp_path / "s1" / "f.bin").write_bytes(content)  # 模拟 daemon 落盘
+
+    async def no_chunked(user_id, op, payload, *, timeout=None, machine_id=None):
+        chunked_ops.append(op)
+        return _ok_response(stdout="")
+
+    monkeypatch.setattr(transfer_module, "dispatch_local_stream_upload", fake_stream_upload)
+    monkeypatch.setattr(local_module, "dispatch_local_call", no_chunked)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    responses = await backend.aupload_files([("/workspace/s1/f.bin", b"stream-body")])
+
+    assert responses[0].error is None
+    assert chunked_ops == []
+    assert calls[0]["payload"]["cwd"] == "/workspace/s1"
+    assert calls[0]["payload"]["path"] == "f.bin"
+    assert calls[0]["len"] == 11
+
+
+async def test_aupload_falls_back_to_chunked_when_stream_unsupported(monkeypatch, tmp_path):
+    """老 daemon：粘滞降级分块 fs_upload，落盘内容逐字节一致。"""
+    (tmp_path / "s1").mkdir(exist_ok=True)
+    body = bytes(range(256)) * 300  # 75KB
+    probes = []
+
+    async def unsupported(user_id, payload, content, *, machine_id=None):
+        probes.append(payload["path"])
+        raise AppError(
+            ErrorCode.SANDBOX_EXEC_FAILED, args={"detail": "unsupported op: fs_upload_stream"}
+        )
+
+    monkeypatch.setattr(transfer_module, "dispatch_local_stream_upload", unsupported)
+    monkeypatch.setattr(local_module, "dispatch_local_call", _daemon_dispatch(tmp_path))
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+
+    r1 = await backend.aupload_files([("/workspace/s1/big.bin", body)])
+    assert r1[0].error is None
+    assert (tmp_path / "s1" / "big.bin").read_bytes() == body
+
+    r2 = await backend.aupload_files([("/workspace/s1/big.bin", body)])
+    assert r2[0].error is None
+    assert probes == ["big.bin"]  # 只探测一次
+
+
+async def test_aupload_stream_oversize_preflight(monkeypatch):
+    """超统一上限：服务端预检直接报 file_too_large，不发起任何传输。"""
+    sent = []
+
+    async def must_not_send(user_id, payload, content, *, machine_id=None):
+        sent.append(payload)
+
+    monkeypatch.setattr(transfer_module, "dispatch_local_stream_upload", must_not_send)
+    monkeypatch.setattr(local_module, "_download_max_bytes", lambda: 10)
+    backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    responses = await backend.aupload_files([("/workspace/s1/x", b"0" * 11)])
+    assert sent == []
+    assert responses[0].error is not None
+    assert responses[0].error.startswith("file_too_large: 11 bytes exceeds 10 limit")
