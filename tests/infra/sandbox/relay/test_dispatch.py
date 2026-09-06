@@ -84,6 +84,75 @@ async def test_offline_fails_fast(fake, monkeypatch):
     assert not fake.lists  # rpush 之前快速失败，不产生孤儿请求
 
 
+async def test_exec_done_error_status_returns_command_outcome(fake, monkeypatch):
+    """exec 的非零退出码是命令结局而非中继故障：done 载荷带 executor 结果字段
+    （stdout/stderr/exit_code）时原样回传，由 aexecute 构造 ExecuteResponse 让
+    模型看到真实输出（Windows cmd.exe 上命令失败是常态，不能全部变成不透明
+    AppError——生产实测模型连续 6 条命令只见 "execution failed"，无从纠错）。"""
+    monkeypatch.setattr(dispatch_module, "_POLL_INTERVAL", 0.01)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 2)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_EXEC_TIMEOUT", 5)
+
+    async def daemon():
+        await asyncio.sleep(0.02)
+        req = json.loads(await fake.lpop("sandbox:req:u1"))
+        await fake.set(
+            f"sandbox:resp:{req['call_id']}",
+            json.dumps(
+                {
+                    "user_id": "u1",
+                    "stage": "ack",
+                }
+            ),
+        )
+        await asyncio.sleep(0.02)
+        await fake.set(
+            f"sandbox:resp:{req['call_id']}",
+            json.dumps(
+                {
+                    "user_id": "u1",
+                    "stage": "done",
+                    "status": "error",
+                    "stdout": "",
+                    "stderr": "'free' is not recognized as an internal or external command",
+                    "exit_code": 1,
+                    "error": None,
+                }
+            ),
+        )
+
+    task = asyncio.create_task(daemon())
+    result = await dispatch_local_call("u1", "exec", {"command": "free -h"})
+    await task
+    assert result["exit_code"] == 1
+    assert "not recognized" in result["stderr"]
+
+
+async def test_fs_op_done_error_status_still_raises(fake, monkeypatch):
+    """fs_* op 的 status=error 是 daemon 内部异常（ExecutorError 等）：仍按
+    SANDBOX_EXEC_FAILED 上抛；detail 取 error 字段（None 不落成字面 "None"）。"""
+    monkeypatch.setattr(dispatch_module, "_POLL_INTERVAL", 0.01)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 2)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_EXEC_TIMEOUT", 5)
+
+    async def daemon():
+        await asyncio.sleep(0.02)
+        req = json.loads(await fake.lpop("sandbox:req:u1"))
+        await fake.set(
+            f"sandbox:resp:{req['call_id']}",
+            json.dumps(
+                {"user_id": "u1", "stage": "done", "status": "error", "error": "illegal cwd"}
+            ),
+        )
+
+    task = asyncio.create_task(daemon())
+    with pytest.raises(AppError) as exc:
+        await dispatch_local_call("u1", "fs_read", {"path": "a.txt"})
+    await task
+    assert exc.value.error_code == ErrorCode.SANDBOX_EXEC_FAILED
+    assert exc.value.args_data == {"detail": "illegal cwd"}
+
+
 async def test_ack_timeout_raises(fake, monkeypatch):
     monkeypatch.setattr(dispatch_module, "_POLL_INTERVAL", 0.01)
     monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 0.05)

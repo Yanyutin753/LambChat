@@ -30,7 +30,40 @@ Use this alias only with file tools and uploads. For shell commands, use relativ
 - `upload_url_to_sandbox` downloads inside the sandbox; pass `{work_dir}/<name>` as the target so the file lands in `$LAMBCHAT_WORKSPACE` for later shell commands."""
 
 WORKSPACE_POLICY = """### Workspace Boundaries
-Check whether a target exists before creating it. Modify an existing project only when requested or relevant; otherwise use a named directory in the current session workspace."""
+Check whether a target exists before creating it. Modify an existing project only when requested or clearly relevant; otherwise use a named directory in the current session workspace."""
+
+#: win32 本地 daemon 的 shell 方言提示（cmd.exe）。daemon 上报平台经注册表第三段
+#: 查得（win32/linux/darwin），linux 与未上报不加段——云端沙箱与 Linux 本地
+#: 的 prompt 逐字节保持现状，provider 前缀缓存零失效。
+_SANDBOX_SHELL_WIN32 = """### Local Machine Shell: Windows (cmd.exe)
+
+The local sandbox is the user's Windows machine; `execute` runs commands through cmd.exe, NOT bash.
+- Use Windows syntax: `%ERRORLEVEL%` (not POSIX exit-variable), `%VAR%` (not POSIX variable expansion), `set X=Y` (not `export`), `^` as escape (not `\\`), `REM` for comments (not `#`), `dir` / `type` / `findstr` instead of `ls` / `cat` / `grep`.
+- The session workspace env var is `%LAMBCHAT_WORKSPACE%` in cmd.exe. There is no `/proc`, no `uname`, no POSIX pipes-with-stderr like `2>/dev/null`.
+- Prefer `python3 -c "..."` (embedded interpreter, on PATH) for anything nontrivial — quoting, JSON, math, file inspection — instead of shell gymnastics.
+- A command may legitimately fail (non-zero exit); its stdout/stderr come back to you — read the error text and adapt (e.g. fall back to `python3`) instead of assuming the sandbox is blocked."""
+
+#: darwin 本地 daemon：POSIX shell 可用，但 BSD userland 与 Linux 有差集。
+_SANDBOX_SHELL_DARWIN = """### Local Machine Shell: macOS (POSIX/BSD)
+
+The local sandbox is the user's Mac; `execute` runs commands via /bin/sh (POSIX). Shell syntax works as usual, but the userland is BSD: there is no `/proc`, no `free`, and some GNU flags differ (`sed -i ''`, `tar` quirks).
+- `$LAMBCHAT_WORKSPACE` is the session workspace directory.
+- Prefer `python3 -c "..."` (embedded interpreter, on PATH) for system introspection and portable work (e.g. memory/CPU info via `os.sysconf`, `platform`, `subprocess`), since Linux-style `/proc` reads do not exist.
+- A command may legitimately fail (non-zero exit); its stdout/stderr come back to you — read the error text and adapt."""
+
+
+def sandbox_shell_platform_section(daemon_platform: str) -> str:
+    """daemon 上报平台 → 沙箱运行时提示追加段；空串 = 不追加（保持现状）。
+
+    平台串是注册表第三段的归一值（win32/linux/darwin）；空串涵盖云端沙箱、
+    daemon 离线与旧版未上报——一律不加段，绝不错入 Windows 分支。
+    """
+    if daemon_platform == "win32":
+        return _SANDBOX_SHELL_WIN32
+    if daemon_platform == "darwin":
+        return _SANDBOX_SHELL_DARWIN
+    return ""
+
 
 ARTIFACT_POLICY = """### Artifact Delivery
 `write_file`/`edit_file` outputs are auto-staged; workspace shell outputs are detected by snapshots. Use `reveal_file` for an external HTTP(S) URL or one file and use its returned URL in user-facing documents. Use `reveal_project` for a multi-file project or folder.

@@ -93,7 +93,14 @@ class ToolEventMixin:
 
         if isinstance(error, BaseException):
             error_type = type(error).__name__
-            error_message = str(error) if str(error) else repr(error)
+            # AppError 的 str() 是未插值的默认模板（生产实测裸奔 "{{detail}}"）；
+            # 面向模型/前端的单条文本必须走 display_message 的插值版。
+            from src.kernel.errors import AppError
+
+            if isinstance(error, AppError):
+                error_message = error.display_message or repr(error)
+            else:
+                error_message = str(error) if str(error) else repr(error)
             return f"[MCP Tool Error] {tool_name} failed: [{error_type}] {error_message}"
 
         if isinstance(error, dict):

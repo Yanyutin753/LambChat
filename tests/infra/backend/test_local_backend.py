@@ -214,6 +214,48 @@ def test_classify_file_error_real_daemon_strings():
     assert classify("mkdir: cannot create directory '/x': Permission denied") == "permission_denied"
 
 
+async def test_aexecute_returns_failed_command_output(monkeypatch):
+    """非零退出码的命令结果必须回到模型（output 含 stderr、exit_code 透传）——
+    不能在中继层被劫持成 AppError（Windows 实测：模型看不到 'free' is not
+    recognized，无从换成正确命令）。"""
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+        return {
+            "status": "error",
+            "stdout": "",
+            "stderr": "'free' is not recognized as an internal or external command",
+            "exit_code": 1,
+            "error": None,
+        }
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    resp = await backend.aexecute("free -h")
+    assert resp.exit_code == 1
+    assert "not recognized" in resp.output
+
+
+async def test_aexecute_appends_executor_error_marker(monkeypatch):
+    """executor 超时结果（error="timeout"，exit_code=None）：error 字段并入
+    output 作显式标记，模型能区分「命令超时」与「命令失败」。"""
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+        return {
+            "status": "error",
+            "stdout": "partial",
+            "stderr": "",
+            "exit_code": None,
+            "error": "timeout",
+        }
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    resp = await backend.aexecute("sleep 999")
+    assert resp.exit_code is None
+    assert "partial" in resp.output
+    assert "timeout" in resp.output
+
+
 async def test_aexecute_missing_exit_code_is_undetermined(monkeypatch):
     async def fake_dispatch(user_id, op, payload, *, timeout=None):
         return {"status": "ok", "stdout": "partial"}
