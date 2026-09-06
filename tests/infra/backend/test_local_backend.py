@@ -219,7 +219,7 @@ async def test_aexecute_returns_failed_command_output(monkeypatch):
     不能在中继层被劫持成 AppError（Windows 实测：模型看不到 'free' is not
     recognized，无从换成正确命令）。"""
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         return {
             "status": "error",
             "stdout": "",
@@ -239,7 +239,7 @@ async def test_aexecute_appends_executor_error_marker(monkeypatch):
     """executor 超时结果（error="timeout"，exit_code=None）：error 字段并入
     output 作显式标记，模型能区分「命令超时」与「命令失败」。"""
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         return {
             "status": "error",
             "stdout": "partial",
