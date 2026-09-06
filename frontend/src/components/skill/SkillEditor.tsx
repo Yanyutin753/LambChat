@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { EditorView } from "@codemirror/view";
 import { oneDark } from "@codemirror/theme-one-dark";
+import { useAppThemeMode } from "../../hooks/useAppThemeMode";
 import { getLangSupport } from "../common/getLangSupport";
 
 export function SkillEditor({
@@ -19,22 +20,8 @@ export function SkillEditor({
   readOnly?: boolean;
   lineWrapping?: boolean;
 }) {
-  const [isDark, setIsDark] = useState(() =>
-    typeof document !== "undefined"
-      ? document.documentElement.classList.contains("dark")
-      : true,
-  );
-
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setIsDark(document.documentElement.classList.contains("dark"));
-    });
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-    return () => observer.disconnect();
-  }, []);
+  const themeMode = useAppThemeMode();
+  const isDark = themeMode === "dark";
 
   const extensions = useMemo(() => {
     const langSupport = getLangSupport(undefined, filePath);

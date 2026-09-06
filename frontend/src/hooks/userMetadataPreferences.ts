@@ -8,6 +8,7 @@ import {
   FONT_SCALE_STORAGE_KEY,
   isFontScale,
 } from "../utils/fontScale";
+import { THEME_SCHEDULE_STORAGE_KEY } from "../utils/themeDom";
 
 export const SIDEBAR_COLLAPSED_STORAGE_KEY = "lamb-sidebar-collapsed";
 export const PROJECTS_COLLAPSED_STORAGE_KEY = "lamb-projects-collapsed";
@@ -21,6 +22,7 @@ export const DEFAULT_MODEL_STORAGE_KEY = "defaultModel";
 type UserMetadataPreferences = {
   language?: unknown;
   theme?: unknown;
+  theme_schedule?: unknown;
   newlineModifier?: unknown;
   defaultThinkingLevel?: unknown;
   sidebarCollapsed?: unknown;
@@ -63,6 +65,14 @@ export function applyUserMetadataPreferences({
   if (theme) {
     localStorage.setItem("lambchat-theme", theme);
     dispatchEvent(new CustomEvent("theme:external-change", { detail: theme }));
+  }
+
+  if (metadata.theme_schedule !== undefined) {
+    localStorage.setItem(
+      THEME_SCHEDULE_STORAGE_KEY,
+      JSON.stringify(metadata.theme_schedule),
+    );
+    dispatchEvent(new CustomEvent("theme-schedule:external-change"));
   }
 
   const fontScale = stringValue(metadata.fontScale);

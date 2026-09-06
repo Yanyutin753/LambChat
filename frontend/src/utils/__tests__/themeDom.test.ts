@@ -2,7 +2,11 @@ import {
   applyThemeToDocument,
   getInitialThemePreference,
   isTheme,
+  parseThemeSchedule,
+  readThemeMode,
   resolveNextTheme,
+  resolveScheduledTheme,
+  themeExportBackground,
 } from "../themeDom.ts";
 
 test("getInitialThemePreference prefers persisted theme over system preference", () => {
@@ -43,10 +47,104 @@ test("getInitialThemePreference restores persisted sepia theme", () => {
   expect(getInitialThemePreference(env)).toBe("sepia");
 });
 
+test("readThemeMode maps html classes to the three theme modes", () => {
+  const modeOf = (classNames: string[]) =>
+    readThemeMode({
+      documentElement: { classList: { contains: (name: string) => classNames.includes(name) } },
+    });
+
+  expect(modeOf([])).toBe("light");
+  expect(modeOf(["dark"])).toBe("dark");
+  expect(modeOf(["theme-sepia"])).toBe("sepia");
+});
+
+test("readThemeMode treats dark as the winner when both theme classes linger", () => {
+  expect(
+    readThemeMode({
+      documentElement: {
+        classList: { contains: (name: string) => name === "dark" || name === "theme-sepia" },
+      },
+    }),
+  ).toBe("dark");
+});
+
 test("resolveNextTheme cycles light → dark → sepia → light", () => {
   expect(resolveNextTheme("light")).toBe("dark");
   expect(resolveNextTheme("dark")).toBe("sepia");
   expect(resolveNextTheme("sepia")).toBe("light");
+});
+
+test("themeExportBackground maps each theme to its canvas export color", () => {
+  expect(themeExportBackground("light")).toBe("#ffffff");
+  expect(themeExportBackground("dark")).toBe("#1c1917");
+  expect(themeExportBackground("sepia")).toBe("#faf6ea");
+});
+
+describe("resolveScheduledTheme", () => {
+  const schedule = {
+    enabled: true,
+    nightStart: "22:00",
+    nightEnd: "07:00",
+    nightTheme: "sepia" as const,
+  };
+
+  test("returns null while the schedule is disabled", () => {
+    expect(
+      resolveScheduledTheme({ ...schedule, enabled: false }, new Date(2026, 8, 5, 23, 0)),
+    ).toBeNull();
+  });
+
+  test("cross-midnight window: night before and after twelve", () => {
+    expect(resolveScheduledTheme(schedule, new Date(2026, 8, 5, 23, 30))).toBe("sepia");
+    expect(resolveScheduledTheme(schedule, new Date(2026, 8, 6, 0, 30))).toBe("sepia");
+    expect(resolveScheduledTheme(schedule, new Date(2026, 8, 6, 6, 59))).toBe("sepia");
+  });
+
+  test("cross-midnight window: day outside the window", () => {
+    expect(resolveScheduledTheme(schedule, new Date(2026, 8, 6, 7, 0))).toBe("light");
+    expect(resolveScheduledTheme(schedule, new Date(2026, 8, 6, 12, 0))).toBe("light");
+    expect(resolveScheduledTheme(schedule, new Date(2026, 8, 6, 21, 59))).toBe("light");
+  });
+
+  test("start is inclusive and end is exclusive", () => {
+    expect(resolveScheduledTheme(schedule, new Date(2026, 8, 6, 22, 0))).toBe("sepia");
+  });
+
+  test("same-day window", () => {
+    const nap = { ...schedule, nightStart: "13:00", nightEnd: "15:00" };
+    expect(resolveScheduledTheme(nap, new Date(2026, 8, 6, 14, 0))).toBe("sepia");
+    expect(resolveScheduledTheme(nap, new Date(2026, 8, 6, 12, 59))).toBe("light");
+    expect(resolveScheduledTheme(nap, new Date(2026, 8, 6, 15, 0))).toBe("light");
+  });
+
+  test("degenerate window with identical start and end stays inactive", () => {
+    expect(
+      resolveScheduledTheme({ ...schedule, nightStart: "22:00", nightEnd: "22:00" }, new Date(2026, 8, 6, 23, 0)),
+    ).toBeNull();
+  });
+});
+
+test("parseThemeSchedule restores valid stored schedules and rejects junk", () => {
+  expect(
+    parseThemeSchedule({
+      enabled: true,
+      night_start: "22:00",
+      night_end: "07:00",
+      night_theme: "sepia",
+    }),
+  ).toEqual({
+    enabled: true,
+    nightStart: "22:00",
+    nightEnd: "07:00",
+    nightTheme: "sepia",
+  });
+
+  expect(parseThemeSchedule({ enabled: true })).toBeNull();
+  expect(parseThemeSchedule({ enabled: 1, night_start: "22:00", night_end: "07:00", night_theme: "dark" })).toBeNull();
+  expect(parseThemeSchedule({ enabled: true, night_start: "9:00", night_end: "07:00", night_theme: "dark" })).toBeNull();
+  expect(parseThemeSchedule({ enabled: true, night_start: "22:00", night_end: "07:00", night_theme: "light" })).toBeNull();
+  expect(parseThemeSchedule(null)).toBeNull();
+  expect(parseThemeSchedule("22:00-07:00")).toBeNull();
 });
 
 test("applyThemeToDocument applies theme-sepia class without dark for sepia theme", () => {

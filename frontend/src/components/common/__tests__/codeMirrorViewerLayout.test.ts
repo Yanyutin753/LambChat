@@ -54,6 +54,23 @@ test("CodeMirrorViewer keeps the selection layer visible", () => {
   expect(source).toMatch(/rgba\(37, 99, 235, 0\.26\)/);
 });
 
+test("CodeMirrorViewer derives dark mode from the shared useAppThemeMode hook", () => {
+  const source = readSource("../CodeMirrorViewer.tsx");
+
+  expect(source).toMatch(/from ["'].*hooks\/useAppThemeMode["']/);
+  expect(source).toMatch(/useAppThemeMode\(\)/);
+  expect(source).not.toMatch(/MutationObserver/);
+});
+
+test("CodeMirrorViewer deepens low-contrast syntax tokens for sepia", () => {
+  const source = readSource("../CodeMirrorViewer.tsx");
+
+  expect(source).toMatch(/themeMode === "sepia" \? githubSepia : githubLight/);
+  expect(source).toMatch(/"\.cm-keyword": \{ color: "#a61e28" \}/);
+  expect(source).toMatch(/"\.cm-comment": \{ color: "#5c6470", fontStyle: "italic" \}/);
+  expect(source).toMatch(/"\.cm-def": \{ color: "#6e3ec8" \}/);
+});
+
 test("DeferredCodeMirrorViewer fallback does not flash raw code", () => {
   const source = readSource("../DeferredCodeMirrorViewer.tsx");
 

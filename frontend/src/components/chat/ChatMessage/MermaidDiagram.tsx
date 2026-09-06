@@ -12,6 +12,8 @@ import { ViewerToolbar } from "../../common/ViewerToolbar";
 import { ViewerTopBarButton } from "../../common/ViewerTopBarButton";
 import { downloadBlob } from "../../common/viewerDownload";
 import { copyToClipboard } from "../../../utils/clipboard";
+import { useAppThemeMode } from "../../../hooks/useAppThemeMode";
+import { themeExportBackground } from "../../../utils/themeDom";
 
 // Fix common AI-generated mermaid syntax issues:
 // - subgraph 🎯 ["title"] → subgraph S1["🎯 title"]
@@ -45,6 +47,7 @@ export function MermaidDiagram({
   isStreaming?: boolean;
 }) {
   const { t } = useTranslation();
+  const themeMode = useAppThemeMode();
   const ref = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
@@ -152,10 +155,15 @@ export function MermaidDiagram({
       try {
         const mermaid = await import("mermaid");
 
-        // Initialize mermaid
+        // Initialize mermaid — follow the active theme; sepia keeps the light
+        // palette but repaints the canvas onto the beige card background
+        const isSepia = themeMode === "sepia";
         mermaid.default.initialize({
           startOnLoad: false,
-          theme: "default",
+          theme: themeMode === "dark" ? "dark" : "default",
+          ...(isSepia
+            ? { themeVariables: { background: "#faf6ea" } }
+            : {}),
           securityLevel: "strict",
         });
 
@@ -199,7 +207,7 @@ export function MermaidDiagram({
     };
 
     renderDiagram();
-  }, [chart, t, shouldRenderDiagram]);
+  }, [chart, t, shouldRenderDiagram, themeMode]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -271,9 +279,7 @@ export function MermaidDiagram({
 
     img.onload = () => {
       ctx.scale(pngScale, pngScale);
-      ctx.fillStyle = document.documentElement.classList.contains("dark")
-        ? "#1c1917"
-        : "#ffffff";
+      ctx.fillStyle = themeExportBackground(themeMode);
       ctx.fillRect(0, 0, width, height);
       ctx.drawImage(img, 0, 0, width, height);
 

@@ -129,3 +129,77 @@ async def test_update_profile_metadata_rejects_too_many_skill_lists(
 
     assert response.status_code == 400
     assert response.json()["detail"]["code"] == "profile_field_too_many"
+
+
+@pytest.mark.asyncio
+async def test_update_profile_metadata_accepts_valid_theme_schedule(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    received: dict = {}
+
+    class _FakeStorage:
+        async def update_metadata(self, _user_id, metadata):
+            received.update(metadata)
+            return {"metadata": metadata}
+
+    monkeypatch.setattr(user_storage, "UserStorage", lambda: _FakeStorage())
+
+    app = FastAPI()
+    app.include_router(profile_route.router, prefix="/api/auth")
+    register_error_handlers(app)
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
+
+    schedule = {
+        "enabled": True,
+        "night_start": "22:00",
+        "night_end": "07:00",
+        "night_theme": "sepia",
+    }
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.put(
+            "/api/auth/profile/metadata",
+            json={"metadata": {"theme_schedule": schedule}},
+        )
+
+    assert response.status_code == 200
+    assert received == {"theme_schedule": schedule}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("schedule", "reason"),
+    [
+        ({"enabled": "yes", "night_start": "22:00", "night_end": "07:00", "night_theme": "dark"}, "enabled must be a boolean"),
+        ({"enabled": True, "night_start": "25:00", "night_end": "07:00", "night_theme": "dark"}, "night_start must be HH:MM"),
+        ({"enabled": True, "night_start": "22:00", "night_end": "7:00", "night_theme": "dark"}, "night_end must be HH:MM"),
+        ({"enabled": True, "night_start": "22:00", "night_end": "07:00", "night_theme": "light"}, "night_theme must be 'dark' or 'sepia'"),
+        ("22:00-07:00", "theme_schedule must be an object"),
+    ],
+)
+async def test_update_profile_metadata_rejects_invalid_theme_schedule(
+    monkeypatch: pytest.MonkeyPatch,
+    schedule: object,
+    reason: str,
+) -> None:
+    class _StorageShouldNotBeCalled:
+        async def update_metadata(self, *_args, **_kwargs):
+            raise AssertionError("invalid schedule should be rejected before storage update")
+
+    monkeypatch.setattr(user_storage, "UserStorage", lambda: _StorageShouldNotBeCalled())
+
+    app = FastAPI()
+    app.include_router(profile_route.router, prefix="/api/auth")
+    register_error_handlers(app)
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.put(
+            "/api/auth/profile/metadata",
+            json={"metadata": {"theme_schedule": schedule}},
+        )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "invalid_theme_schedule"
+    assert response.json()["detail"]["args"]["reason"] == reason

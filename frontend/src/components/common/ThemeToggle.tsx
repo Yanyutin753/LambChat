@@ -25,7 +25,7 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
         className ??
         "flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
       }
-      title={t(NEXT_THEME_LABEL_KEY[theme])}
+      title={`${t(NEXT_THEME_LABEL_KEY[theme])} · ${t("theme.shortcutHint")}`}
     >
       {theme === "light" ? (
         <Moon size={20} className="text-[var(--theme-text-secondary)]" />

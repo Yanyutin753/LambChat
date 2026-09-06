@@ -531,6 +531,7 @@
     "profileFieldTooMany": "{{field}} が多すぎます。最大 {{max}} 個です",
     "unsupportedLanguage": "サポートされていない言語です: {{lang}}",
     "invalidTheme": "テーマが無効です: {{theme}}。light、dark、sepia のいずれかを指定してください",
+    "invalidThemeSchedule": "テーマの自動切替設定が無効です：{{reason}}",
     "messageNotFound": "メッセージが見つかりません",
     "sessionDeleteInProgress": "セッションの削除が進行中です",
     "sessionError": "セッション操作に失敗しました",
@@ -2224,6 +2225,10 @@
     "sendWithEnter": "Enter で送信、Shift+Enter で改行",
     "sendWithEnterCtrl": "Ctrl+Enter で送信、Enter で改行",
     "sepiaTheme": "セピア（保護）",
+    "themeSchedule": "時間帯でテーマ自動切替",
+    "themeScheduleNightStart": "夜間開始",
+    "themeScheduleNightEnd": "夜間終了",
+    "themeScheduleNightTheme": "夜間テーマ",
     "setDefault": "デフォルトに設定",
     "supported": "対応",
     "termsItem1": "<a>生成人工知能サービス管理暫定弁法</a>に基づき、生成AIが生成するコンテンツは社会主義的核心価値観を反映し、政治的発言、ポルノ、銃器暴力、「科学上网」、軍事・戦争コンテンツなどの違法または不適切な情報を生成してはなりません。本プラットフォームのコンテンツはAIによって生成されます。ユーザーは情報の真実性を判断する必要があります。人種、民族、信仰、国籍、地域、性別、年齢、職業に基づく誘導、欺瞞、差別を行う生成AIの使用は厳禁です。知的財産権と商業道徳を尊重し、アルゴリズム、データ、プラットフォームの優位性を利用した不正競争を行わないでください。",
@@ -3344,7 +3349,8 @@
   "theme": {
     "switchToDark": "ダークモードに切り替え",
     "switchToLight": "ライトモードに切り替え",
-    "switchToSepia": "セピアモードに切り替え"
+    "switchToSepia": "セピアモードに切り替え",
+    "shortcutHint": "ショートカット Ctrl/Cmd+Shift+L"
   },
   "tools": {
     "add": "追加",

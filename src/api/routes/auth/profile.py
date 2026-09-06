@@ -2,6 +2,8 @@
 User profile routes (password change, avatar, profile, username)
 """
 
+import re
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
@@ -49,6 +51,35 @@ def _validate_bounded_string_list(
         raise AppError(
             ErrorCode.PROFILE_FIELD_TOO_MANY,
             args={"field": field_name, "max": max_items},
+        )
+
+
+_HHMM_PATTERN = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+def _validate_theme_schedule(schedule: object) -> None:
+    """theme_schedule: {enabled: bool, night_start/night_end: HH:MM, night_theme: dark|sepia}"""
+    if not isinstance(schedule, dict):
+        raise AppError(
+            ErrorCode.INVALID_THEME_SCHEDULE,
+            args={"reason": "theme_schedule must be an object"},
+        )
+    if not isinstance(schedule.get("enabled"), bool):
+        raise AppError(
+            ErrorCode.INVALID_THEME_SCHEDULE,
+            args={"reason": "enabled must be a boolean"},
+        )
+    for field_name in ("night_start", "night_end"):
+        value = schedule.get(field_name)
+        if not isinstance(value, str) or not _HHMM_PATTERN.match(value):
+            raise AppError(
+                ErrorCode.INVALID_THEME_SCHEDULE,
+                args={"reason": f"{field_name} must be HH:MM"},
+            )
+    if schedule.get("night_theme") not in ("dark", "sepia"):
+        raise AppError(
+            ErrorCode.INVALID_THEME_SCHEDULE,
+            args={"reason": "night_theme must be 'dark' or 'sepia'"},
         )
 
 
@@ -136,6 +167,10 @@ async def update_user_metadata(
         theme = request.metadata["theme"]
         if theme not in ("light", "dark", "sepia"):
             raise AppError(ErrorCode.INVALID_THEME, args={"theme": theme})
+
+    # Validate theme_schedule if provided
+    if "theme_schedule" in request.metadata:
+        _validate_theme_schedule(request.metadata["theme_schedule"])
 
     # Validate disabled_tools if provided
     if "disabled_tools" in request.metadata:

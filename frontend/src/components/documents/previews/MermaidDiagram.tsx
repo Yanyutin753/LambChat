@@ -3,6 +3,8 @@ import { Copy, Check, Download, ChevronDown } from "lucide-react";
 import { ViewerDropdownMenuItem } from "../../common";
 import { downloadBlob } from "../../common/viewerDownload";
 import { copyToClipboard } from "../../../utils/clipboard";
+import { themeExportBackground } from "../../../utils/themeDom";
+import { useAppThemeMode } from "../../../hooks/useAppThemeMode";
 
 interface MermaidDiagramProps {
   code: string;
@@ -14,6 +16,7 @@ const MermaidDiagram = memo(function MermaidDiagram({
   code,
   t,
 }: MermaidDiagramProps) {
+  const themeMode = useAppThemeMode();
   const [svg, setSvg] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -104,11 +107,15 @@ const MermaidDiagram = memo(function MermaidDiagram({
     const renderDiagram = async () => {
       try {
         const mermaid = await import("mermaid");
-        // Initialize mermaid with theme based on dark mode
-        const isDark = document.documentElement.classList.contains("dark");
+        // Initialize mermaid — follow the active theme; sepia keeps the light
+        // palette but repaints the canvas onto the beige card background
+        const isSepia = themeMode === "sepia";
         mermaid.default.initialize({
           startOnLoad: false,
-          theme: isDark ? "dark" : "default",
+          theme: themeMode === "dark" ? "dark" : "default",
+          ...(isSepia
+            ? { themeVariables: { background: "#faf6ea" } }
+            : {}),
           securityLevel: "strict",
           flowchart: {
             useMaxWidth: true,
@@ -131,7 +138,7 @@ const MermaidDiagram = memo(function MermaidDiagram({
       }
     };
     renderDiagram();
-  }, [code, t]);
+  }, [code, t, themeMode]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -209,9 +216,7 @@ const MermaidDiagram = memo(function MermaidDiagram({
 
     img.onload = () => {
       ctx.scale(scale, scale);
-      ctx.fillStyle = document.documentElement.classList.contains("dark")
-        ? "#1c1917"
-        : "#ffffff";
+      ctx.fillStyle = themeExportBackground(themeMode);
       ctx.fillRect(0, 0, width, height);
       ctx.drawImage(img, 0, 0, width, height);
 

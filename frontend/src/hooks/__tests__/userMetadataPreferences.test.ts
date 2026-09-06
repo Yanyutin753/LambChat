@@ -105,3 +105,37 @@ test("restores font scale preference and ignores unknown values", () => {
 
   expect(untouched.getItem("lambchat-font-scale")).toBe(null);
 });
+
+test("applies the persisted theme schedule and notifies the theme context", () => {
+  const localStorage = new LocalStorageMock();
+  const events: { type: string; detail: unknown }[] = [];
+
+  applyUserMetadataPreferences({
+    metadata: {
+      theme_schedule: {
+        enabled: true,
+        night_start: "22:00",
+        night_end: "07:00",
+        night_theme: "sepia",
+      },
+    },
+    localStorage,
+    changeLanguage: () => {},
+    dispatchEvent: (event) => {
+      events.push({ type: event.type, detail: event.detail });
+    },
+  });
+
+  expect(localStorage.getItem("lambchat-theme-schedule")).toBe(
+    JSON.stringify({
+      enabled: true,
+      night_start: "22:00",
+      night_end: "07:00",
+      night_theme: "sepia",
+    }),
+  );
+  expect(events).toContainEqual({
+    type: "theme-schedule:external-change",
+    detail: null,
+  });
+});

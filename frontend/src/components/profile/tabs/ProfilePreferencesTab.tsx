@@ -4,6 +4,7 @@ import { Cloud, Container, RefreshCw, Settings } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { isNativeAppRuntime } from "../../../services/api/config";
 import { useTheme } from "../../../contexts/ThemeContext";
+import type { Theme, ThemeSchedule } from "../../../utils/themeDom";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { useAuth } from "../../../hooks/useAuth";
 import { authApi, agentConfigApi, agentApi } from "../../../services/api";
@@ -11,7 +12,6 @@ import { DEFAULT_THINKING_LEVEL_STORAGE_KEY } from "../../layout/AppContent/useA
 import { resolveAgentDisplayName } from "../../agent/agentCatalog";
 import { SelectRow } from "../SelectRow";
 import type { AgentInfo } from "../../../types";
-import type { Theme } from "../../../utils/themeDom";
 import {
   applyFontScaleToDocument,
   FONT_SCALE_STORAGE_KEY,
@@ -56,6 +56,19 @@ const THEME_OPTIONS: { key: Theme; labelKey: string }[] = [
   { key: "sepia", labelKey: "profile.sepiaTheme" },
 ];
 
+/** 按时段自动切换：夜间主题二选一（夜间不允许回到浅色，浅色是白天语义） */
+const NIGHT_THEME_OPTIONS: { key: "dark" | "sepia"; labelKey: string }[] = [
+  { key: "dark", labelKey: "profile.darkTheme" },
+  { key: "sepia", labelKey: "profile.sepiaTheme" },
+];
+
+const DEFAULT_SCHEDULE: ThemeSchedule = {
+  enabled: false,
+  nightStart: "22:00",
+  nightEnd: "07:00",
+  nightTheme: "dark",
+};
+
 /** 云端沙箱执行确认策略（与本地沙箱同一三档语义，选项文案共用） */
 const CLOUD_SANDBOX_POLICY_OPTIONS = [
   { key: "all", labelKey: "profile.localSandbox.policyOptions.all" },
@@ -87,7 +100,7 @@ const THINKING_LEVEL_OPTIONS: { key: ThinkingLevel; labelKey: string }[] = [
 
 export function ProfilePreferencesTab() {
   const { t, i18n } = useTranslation();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, schedule, setSchedule } = useTheme();
   const { availableModels, defaultModel } = useSettingsContext();
   const { enableMemory } = useSettingsContext();
   const { user } = useAuth();
@@ -202,6 +215,28 @@ export function ProfilePreferencesTab() {
   const handleThemeChange = (newTheme: Theme) => {
     setTheme(newTheme);
     authApi.updateMetadata({ theme: newTheme }).catch(() => {});
+    setOpenDropdown(null);
+  };
+
+  // 按时段自动切换：开关翻转沿用现值（首次开启用默认 22:00–07:00 暗色）
+  const scheduleEnabled = schedule?.enabled ?? false;
+  const activeSchedule: ThemeSchedule = schedule ?? DEFAULT_SCHEDULE;
+
+  const handleScheduleToggle = () => {
+    setSchedule({ ...activeSchedule, enabled: !scheduleEnabled });
+  };
+
+  const HHMM = /^\d{2}:\d{2}$/;
+
+  const handleScheduleFieldChange = (
+    field: "nightStart" | "nightEnd" | "nightTheme",
+    value: string,
+  ) => {
+    // time 输入清空得 ""：忽略而不是落盘脏值（否则解析侧会静默丢弃整个偏好）
+    if (field !== "nightTheme" && !HHMM.test(value)) {
+      return;
+    }
+    setSchedule({ ...activeSchedule, enabled: true, [field]: value });
     setOpenDropdown(null);
   };
 
@@ -351,6 +386,73 @@ export function ProfilePreferencesTab() {
             onToggle={() => toggle("theme")}
             onSelect={handleThemeChange}
           />
+
+          {/* 按时段自动切换：夜间用夜间主题、白天回浅色；手动切换即退出 */}
+          <button
+            onClick={handleScheduleToggle}
+            className="flex w-full items-center justify-between py-3 text-left"
+          >
+            <span className="text-sm text-stone-700 dark:text-stone-200">
+              {t("profile.themeSchedule")}
+            </span>
+            <span
+              className={`relative h-5 w-9 rounded-full transition-colors ${
+                scheduleEnabled
+                  ? "bg-amber-500"
+                  : "bg-stone-300 dark:bg-stone-600"
+              }`}
+              role="switch"
+              aria-checked={scheduleEnabled}
+              aria-label={t("profile.themeSchedule")}
+            >
+              <span
+                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${
+                  scheduleEnabled ? "left-[1.15rem]" : "left-0.5"
+                }`}
+              />
+            </span>
+          </button>
+
+          {scheduleEnabled && (
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pb-3 text-sm text-stone-700 dark:text-stone-200">
+              <label className="flex items-center gap-2">
+                <span className="text-xs text-stone-500 dark:text-stone-400">
+                  {t("profile.themeScheduleNightStart")}
+                </span>
+                <input
+                  type="time"
+                  value={activeSchedule.nightStart}
+                  onChange={(e) =>
+                    handleScheduleFieldChange("nightStart", e.target.value)
+                  }
+                  className="rounded-lg border border-stone-200 dark:border-stone-600 bg-transparent px-2 py-1 text-xs"
+                />
+              </label>
+              <label className="flex items-center gap-2">
+                <span className="text-xs text-stone-500 dark:text-stone-400">
+                  {t("profile.themeScheduleNightEnd")}
+                </span>
+                <input
+                  type="time"
+                  value={activeSchedule.nightEnd}
+                  onChange={(e) =>
+                    handleScheduleFieldChange("nightEnd", e.target.value)
+                  }
+                  className="rounded-lg border border-stone-200 dark:border-stone-600 bg-transparent px-2 py-1 text-xs"
+                />
+              </label>
+              <div className="flex-1 min-w-[10rem]">
+                <SelectRow
+                  label={t("profile.themeScheduleNightTheme")}
+                  value={activeSchedule.nightTheme}
+                  options={NIGHT_THEME_OPTIONS}
+                  open={openDropdown === "nightTheme"}
+                  onToggle={() => toggle("nightTheme")}
+                  onSelect={(key) => handleScheduleFieldChange("nightTheme", key)}
+                />
+              </div>
+            </div>
+          )}
 
           <SelectRow
             label={t("profile.fontSize")}
