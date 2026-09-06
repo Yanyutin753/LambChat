@@ -696,7 +696,7 @@ function MermaidViewer({
   return createPortal(
     <div
       data-yields-sidebar
-      className="fixed inset-0 z-[300] flex flex-col bg-black/90"
+      className="safe-area-x fixed inset-0 z-[300] flex flex-col bg-black/90"
     >
       {/* Top bar - close + code actions */}
       <ViewerTopBar>

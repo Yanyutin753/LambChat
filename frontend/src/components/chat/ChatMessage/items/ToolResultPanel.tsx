@@ -637,11 +637,7 @@ export function ToolResultPanel({
       aria-modal={presentation === "docked" ? undefined : true}
       aria-labelledby={title ? titleId : undefined}
       aria-label={title ? undefined : t("documents.preview", "Content preview")}
-      className={`fixed inset-0 z-[200] flex flex-col ${
-        isFullscreen
-          ? "bg-transparent pointer-events-none"
-          : "safe-area-viewport-padding"
-      } ${
+      className={`fixed inset-0 z-[200] flex flex-col safe-area-viewport-padding safe-area-x ${
         overlayClass
           ? overlayClass
           : isFullscreen

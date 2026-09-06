@@ -33,6 +33,12 @@
   );
 }
 
+/* 横屏刘海/摄像头开孔：给 fixed inset-0 浮层加左右 inset（本文件在 Tailwind utilities 之后加载，会覆盖 px-*） */
+.safe-area-x {
+  padding-left: var(--app-safe-area-left, 0px);
+  padding-right: var(--app-safe-area-right, 0px);
+}
+
 .safe-area-viewport-padding {
   padding-top: var(--app-safe-area-top-active, var(--app-safe-area-top, 0px));
   padding-bottom: var(
