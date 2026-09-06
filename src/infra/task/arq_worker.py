@@ -249,6 +249,7 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
             attachment_references_claimed=bool(payload.get("attachment_references_claimed", False)),
             hitl_resume=payload.get("hitl_resume"),
             interrupted_resume=interrupted_resume,
+            base_url=str(payload.get("base_url") or ""),
         )
     except TaskInterruptedError:
         await payload_store.delete(dispatch_id)

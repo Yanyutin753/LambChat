@@ -233,6 +233,18 @@ class ErrorCode(Enum):
         "Some sessions do not belong to this project",
     )
 
+    # ---------- release / version：发布与客户端更新 ----------
+    RELEASE_ASSET_NOT_FOUND = (
+        "release_asset_not_found",
+        404,
+        "Release asset {{name}} not found",
+    )
+    RELEASE_ASSET_FETCH_FAILED = (
+        "release_asset_fetch_failed",
+        502,
+        "Failed to fetch release asset from upstream (HTTP {{status}})",
+    )
+
     # ---------- 通用操作失败 ----------
     DELETE_FAILED = ("delete_failed", 500, "Delete failed")
     UPDATE_FAILED = ("update_failed", 500, "Update failed")

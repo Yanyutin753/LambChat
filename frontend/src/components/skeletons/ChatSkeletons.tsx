@@ -167,7 +167,7 @@ function ChatInputShellSkeleton() {
       {/* Toolbar — 1:1 with real ChatInputToolbar default idle state */}
       <div className="flex max-w-full flex-nowrap justify-between gap-1 px-2 pb-3 pt-3 mx-0.5">
         <div className="flex min-h-10 min-w-0 flex-1 items-center gap-0.5 sm:gap-1.5">
-          {/* FeatureMenu button (chat-tool-btn: min 2.25rem, p-2, rounded-full) */}
+          {/* FeatureMenu button (chat-tool-btn: fixed 2.25rem height, rounded-full) */}
           <div className="skeleton-line h-9 w-9 rounded-full shrink-0" />
           {/* Agent chip (chat-tool-btn + avatar 18px + text-sm label) */}
           <div className="chat-tool-btn group shrink min-w-0 overflow-hidden pointer-events-none">
