@@ -19,6 +19,10 @@ from src.agents.core.base import AgentFactory
 from src.api.deps import get_current_user_required, require_permissions
 from src.api.routes.auth.utils import _get_language
 from src.api.routes.chat_language import apply_response_language
+from src.api.routes.chat_request_config import (  # noqa: F401 - 转发导入保持 from chat import 兼容
+    build_conversation_config,
+    resolve_persona_request,
+)
 from src.api.routes.chat_sse import (  # noqa: F401 - 供 SSE 路由与既有测试导入
     CHAT_SSE_DATA_MAX_BYTES,
     _format_sse_event,
@@ -33,7 +37,6 @@ from src.infra.chat.session_baseline import (
 )
 from src.infra.goal import GoalSpec, coerce_goal_spec
 from src.infra.logging import get_logger
-from src.infra.persona_preset.manager import PersonaPresetManager
 from src.infra.session.manager import SessionManager
 from src.infra.task.cancellation import _close_agent_safely
 from src.infra.task.concurrency import register_executor
@@ -47,7 +50,6 @@ from src.kernel.errors import AppError, ErrorCode
 from src.kernel.exceptions import AuthorizationError, NotFoundError
 from src.kernel.schemas.agent import AgentRequest, AttachmentSchema
 from src.kernel.schemas.model import ModelConfig
-from src.kernel.schemas.persona_preset import PersonaPresetSnapshot
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
@@ -193,77 +195,6 @@ def resolve_goal_for_request(
     return active_goal, request.message
 
 
-def _persona_enabled_skills_from_snapshot(
-    snapshot: PersonaPresetSnapshot,
-) -> list[str] | None:
-    """Return a whitelist only when the persona has usable skills."""
-    if snapshot.skill_names:
-        return snapshot.skill_names
-    return None
-
-
-def build_conversation_config(
-    run_id: str,
-    agent_id: str,
-    request: AgentRequest,
-    language: str,
-    session_id: str | None = None,
-    trace_id: str | None = None,
-) -> dict:
-    """Build session metadata for conversation configuration."""
-    conversation_config = {
-        "current_run_id": run_id,
-        "agent_id": agent_id,
-        "executor_key": "agent_stream",
-        "agent_options": request.agent_options or {},
-        "disabled_tools": request.disabled_tools or [],
-        "disabled_skills": request.disabled_skills or [],
-        "enabled_skills": request.enabled_skills,
-        "disabled_mcp_tools": request.disabled_mcp_tools or [],
-        "language": language,
-        "auto_mode": request.auto_mode,
-    }
-    if trace_id:
-        conversation_config["trace_id"] = trace_id
-    if request.persona_preset_id:
-        conversation_config["persona_preset_id"] = request.persona_preset_id
-    if request.persona_preset_id and request.persona_snapshot:
-        conversation_config["persona_preset_name"] = request.persona_snapshot.name
-        conversation_config["persona_snapshot"] = request.persona_snapshot.model_dump()
-        if request.persona_snapshot.avatar:
-            conversation_config["persona_avatar"] = request.persona_snapshot.avatar
-    if request.project_id:
-        conversation_config["project_id"] = request.project_id
-    if request.user_timezone:
-        conversation_config["user_timezone"] = request.user_timezone
-    if agent_id == "team" and request.team_id:
-        conversation_config["team_id"] = request.team_id
-    return conversation_config
-
-
-async def resolve_persona_request(
-    request: AgentRequest,
-    user: TokenPayload,
-    manager: PersonaPresetManager | None = None,
-) -> None:
-    """Resolve persona preset data and drop any client-supplied prompt injection."""
-    request.persona_snapshot = None
-    request.persona_system_prompt = None
-
-    if not request.persona_preset_id:
-        return
-
-    persona_manager = manager or PersonaPresetManager()
-    snapshot = await persona_manager.use_preset(
-        request.persona_preset_id,
-        user_id=user.sub,
-        is_admin="persona_preset:admin" in (user.permissions or []),
-    )
-    request.persona_snapshot = snapshot
-    request.enabled_skills = _persona_enabled_skills_from_snapshot(snapshot)
-    request.persona_system_prompt = snapshot.system_prompt
-
-
 async def _execute_agent_stream(
     session_id: str,
     agent_id: str,
@@ -282,6 +213,7 @@ async def _execute_agent_stream(
     recommendation_input: str | None = None,
     auto_mode: bool = False,
     hitl_resume: dict | None = None,
+    base_url: str = "",
 ):
     """执行 Agent 并流式输出事件（供 TaskManager 调用）"""
     from src.infra.task.manager import TaskInterruptedError
@@ -320,6 +252,7 @@ async def _execute_agent_stream(
             goal_started_at=started_at,
             recommendation_input=recommendation_input,
             hitl_resume=hitl_resume,
+            base_url=base_url,
         ):
             if event.get("event") == "goal:end":
                 goal_end_emitted = True
@@ -445,6 +378,14 @@ async def chat_stream(
     # 生成 run_id（不管是否排队都需要唯一 ID）
     run_id = _generate_run_id()
 
+    # base_url：生成文件 URL（reveal/产物投递）的前缀。排队执行器脱离请求上下文，
+    # 必须在入队时捕获；优先 APP_BASE_URL，回退 request.base_url
+    base_url = getattr(settings, "APP_BASE_URL", "").rstrip("/")
+    if not base_url:
+        base_url = str(getattr(http_request, "base_url", "") or "").rstrip("/")
+        if base_url == "http://None":
+            base_url = ""
+
     # 残留插话随旧 run 结束已失效（前端会补发为普通消息），清空后端
     # 队列避免新 run 首次模型调用重复注入；HITL 恢复不经过这里
     from src.infra.task.steer import purge_stale_steers
@@ -495,6 +436,7 @@ async def chat_stream(
         "active_goal": active_goal_data,
         "recommendation_input": request.message,
         "auto_mode": request.auto_mode,
+        "base_url": base_url,
     }
 
     if attachment_keys:
@@ -626,6 +568,7 @@ async def chat_stream(
                 team_id=request.team_id,
                 active_goal=active_goal_data,
                 auto_mode=request.auto_mode,
+                base_url=base_url,
                 write_user_message_immediately=True,
                 attachment_references_claimed=attachment_references_claimed,
                 index_user_message=True,
@@ -657,6 +600,7 @@ async def chat_stream(
                 trace_id=trace_id,
                 active_goal=active_goal_data,
                 auto_mode=request.auto_mode,
+                base_url=base_url,
                 write_user_message_immediately=True,
                 attachment_references_claimed=attachment_references_claimed,
             )

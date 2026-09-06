@@ -275,6 +275,7 @@ class BackgroundTaskManager:
         attachment_references_claimed: bool = False,
         hitl_resume: Optional[Dict[str, Any]] = None,
         interrupted_resume: bool = False,
+        base_url: str = "",
     ) -> Tuple[str, str]:
         """
         提交后台任务
@@ -380,6 +381,7 @@ class BackgroundTaskManager:
                     attachment_references_claimed=attachment_references_claimed,
                     hitl_resume=hitl_resume,
                     interrupted_resume=interrupted_resume,
+                    base_url=base_url,
                 )
             )
             self._tasks[run_id] = task
@@ -425,6 +427,7 @@ class BackgroundTaskManager:
         hitl_resume: Optional[Dict[str, Any]] = None,
         interrupted_resume: bool = False,
         initial_status: TaskStatus | None = TaskStatus.QUEUED,
+        base_url: str = "",
     ) -> Tuple[str, str]:
         """Submit a task to arq after persisting serializable task context."""
         task_executor = self._ensure_executor()
@@ -505,6 +508,7 @@ class BackgroundTaskManager:
                     "auto_mode": auto_mode,
                     "hitl_resume": hitl_resume,
                     "interrupted_resume": interrupted_resume,
+                    "base_url": base_url,
                 },
             )
             if should_index_user_message and search_index_content:

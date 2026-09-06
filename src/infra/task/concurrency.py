@@ -670,6 +670,7 @@ class UserConcurrencyLimiter:
                 attachment_references_claimed = bool(
                     task_ctx.get("attachment_references_claimed", False)
                 )
+                base_url = str(task_ctx.get("base_url") or "")
             else:
                 # Legacy fallback: context in process memory (single-worker)
                 pending = task_manager.pop_pending_task(run_id)
@@ -694,6 +695,7 @@ class UserConcurrencyLimiter:
                 attachment_references_claimed = bool(
                     pending.get("attachment_references_claimed", False)
                 )
+                base_url = str(pending.get("base_url") or "")
 
             if task_ctx and settings.TASK_BACKEND == "arq":
                 await task_manager.submit_arq(
@@ -719,6 +721,7 @@ class UserConcurrencyLimiter:
                     auto_mode=auto_mode,
                     attachment_references_claimed=attachment_references_claimed,
                     index_user_message=True,
+                    base_url=base_url,
                 )
                 await self._send_queue_processing_event(session_id, run_id)
                 return
@@ -761,6 +764,7 @@ class UserConcurrencyLimiter:
                         active_goal=active_goal,
                         auto_mode=auto_mode,
                         attachment_references_claimed=attachment_references_claimed,
+                        base_url=base_url,
                     )
                 )
                 task_manager._tasks[run_id] = task

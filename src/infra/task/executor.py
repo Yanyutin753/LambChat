@@ -116,6 +116,7 @@ class TaskExecutor:
         attachment_references_claimed: bool = False,
         hitl_resume: Optional[Dict[str, Any]] = None,
         interrupted_resume: bool = False,
+        base_url: str = "",
     ) -> bool | None:
         """执行任务"""
         from src.infra.writer.present import Presenter, PresenterConfig
@@ -261,6 +262,7 @@ class TaskExecutor:
                     active_goal=active_goal,
                     auto_mode=auto_mode,
                     hitl_resume=hitl_resume,
+                    base_url=base_url,
                 ),
                 timeout=_run_stall_timeout_seconds(),
             ):
