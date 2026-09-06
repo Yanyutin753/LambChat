@@ -2140,6 +2140,14 @@
     "lightTheme": "浅色",
     "limitedSupport": "部分支持",
     "loading": "加载中...",
+    "serverUrl": {
+      "title": "服务器",
+      "desc": "应用连接的 LambChat 服务端地址；修改后将刷新应用并需要重新登录。",
+      "change": "修改",
+      "cancel": "取消",
+      "reset": "恢复默认",
+      "resetTitle": "清除运行时配置，恢复安装包内置的默认服务器"
+    },
     "localSandbox": {
       "title": "本地沙箱",
       "desc": "Agent 通过桌面端在你自己的电脑上执行命令与文件读写",
