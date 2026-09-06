@@ -17,9 +17,6 @@ importers:
       '@capacitor/local-notifications':
         specifier: ^7.0.7
         version: 7.0.7(@capacitor/core@7.6.5)
-      '@capacitor/share':
-        specifier: ^7.0.4
-        version: 7.0.4(@capacitor/core@7.6.5)
       '@codemirror/lang-css':
         specifier: ^6.3.1
         version: 6.3.1
@@ -992,11 +989,6 @@ packages:
 
   '@capacitor/local-notifications@7.0.7':
     resolution: {integrity: sha512-3qSpa8PpVMONHqBOaJ4RbA/lB5vOdEngtep0myGmP3S56gShPScDCotbw7dwmQy3NCdY4Up9nH3ySrGvUh2jZg==}
-    peerDependencies:
-      '@capacitor/core': '>=7.0.0'
-
-  '@capacitor/share@7.0.4':
-    resolution: {integrity: sha512-wNXxmXUcChrtbZ5jQv8scFIbIGKo3rk6B7qpWySxfUhYJP5NANgAqQ9Z69m0k/zYsucdh66SBU7XW1ykd9aUug==}
     peerDependencies:
       '@capacitor/core': '>=7.0.0'
 
@@ -8584,10 +8576,6 @@ snapshots:
       '@capacitor/core': 7.6.5
 
   '@capacitor/local-notifications@7.0.7(@capacitor/core@7.6.5)':
-    dependencies:
-      '@capacitor/core': 7.6.5
-
-  '@capacitor/share@7.0.4(@capacitor/core@7.6.5)':
     dependencies:
       '@capacitor/core': 7.6.5
 

@@ -3579,6 +3579,7 @@
     "notificationBody": "新版本 {{version}} 已发布，可在设置中检查更新",
     "notificationTitle": "发现新版本",
     "upToDate": "已是最新版本",
+    "installPermissionHint": "请先允许 LambChat 安装未知应用，授权后重新点击升级",
     "updateRelaunchInstall": "重启并安装"
   }
 }

@@ -29,15 +29,3 @@ declare module "@capacitor/filesystem" {
   };
 }
 
-declare module "@capacitor/share" {
-  export interface ShareOptions {
-    title?: string;
-    text?: string;
-    url?: string;
-    path?: string;
-  }
-
-  export const Share: {
-    share: (options: ShareOptions) => Promise<void>;
-  };
-}

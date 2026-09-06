@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import i18n from "i18next";
 import { versionApi } from "../services/api";
+import { APP_VERSION } from "../utils/appVersion";
 import type { UpdateState, ReleaseAsset } from "../types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -202,10 +203,10 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     [startBackgroundDownload],
   );
 
-  /** Check via backend /api/version endpoint */
+  /** Check via backend /api/version endpoint（上报客户端版本，has_update 按它判断） */
   const checkBackendUpdate = useCallback(async (background = false) => {
     try {
-      const info = await versionApi.checkForUpdates();
+      const info = await versionApi.checkForUpdates(APP_VERSION);
       if (info.has_update) {
         setState({
           ...INITIAL_STATE,
@@ -355,17 +356,26 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       const { Filesystem, Directory } = await import("@capacitor/filesystem");
       const base64 = await blobToBase64(blob);
       const fileName = apkAsset.name || "LambChat-update.apk";
-      const result = await Filesystem.writeFile({
+      const written = await Filesystem.writeFile({
         path: fileName,
         data: base64,
         directory: Directory.Cache,
       });
 
-      // Use Capacitor Share to open the APK file (triggers install)
-      const { Share } = await import("@capacitor/share");
-      await Share.share({
-        path: result.uri,
-      });
+      // 拉起系统安装器（ACTION_VIEW + FileProvider 覆盖安装）。
+      // Share（ACTION_SEND）只开分享面板装不了包。
+      const { ApkInstaller } = await import("../services/capacitor/apkInstaller");
+      const res = await ApkInstaller.installApk({ path: written.uri });
+      if (res.status === "settings") {
+        // 未授予「安装未知应用」：原生已跳设置页，提示授权后重试
+        const { toast } = await import("react-hot-toast");
+        toast(
+          i18n.t("update.installPermissionHint", {
+            defaultValue:
+              "请先允许 LambChat 安装未知应用，授权后重新点击升级",
+          }),
+        );
+      }
 
       setState((prev) => ({
         ...prev,

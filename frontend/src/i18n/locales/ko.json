@@ -3579,6 +3579,7 @@
     "notificationBody": "버전 {{version}}이(가) 출시되었습니다. 설정에서 업데이트를 확인하세요",
     "notificationTitle": "새 버전 available",
     "upToDate": "최신 버전입니다",
+    "installPermissionHint": "먼저 LambChat의 알 수 없는 앱 설치를 허용한 뒤 업그레이드를 다시 눌러주세요",
     "updateRelaunchInstall": "재시작 후 설치"
   }
 }
