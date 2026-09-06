@@ -240,3 +240,120 @@ async def test_dispatch_selected_machine_offline_raises_machine_error(monkeypatc
     with pytest.raises(AppError) as exc_info:
         await dispatch_local_call("u1", "exec", {"command": "ls"}, machine_id="mac1")
     assert exc_info.value.error_code == ErrorCode.SANDBOX_MACHINE_OFFLINE
+
+
+# ---------- dispatch_local_stream：流式 op 的请求下发与逐行消费 ----------
+
+
+async def _collect_stream(agen):
+    chunks = []
+    async for chunk in agen:
+        chunks.append(chunk)
+    return chunks
+
+
+async def test_stream_roundtrip_yields_decoded_chunks(fake, monkeypatch):
+    monkeypatch.setattr(dispatch_module, "_STREAM_POLL_INTERVAL", 0.01)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 2)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_STREAM_TIMEOUT", 5)
+
+    from src.infra.sandbox.relay._frames import (
+        FRAME_DATA,
+        FRAME_EOF,
+        encode_frame,
+    )
+
+    async def daemon():
+        await asyncio.sleep(0.02)
+        req = json.loads(await fake.lpop("sandbox:req:u1"))
+        assert req["op"] == "fs_download_stream"
+        assert req["timeout"] == 5
+        stream_key = f"sandbox:stream:u1:{req['call_id']}"
+        await fake.set(
+            f"sandbox:resp:{req['call_id']}", json.dumps({"user_id": "u1", "stage": "ack"})
+        )
+        await fake.rpush(stream_key, encode_frame(FRAME_DATA, b"ab"))
+        await fake.rpush(stream_key, encode_frame(FRAME_DATA, b"cd"))
+        await fake.rpush(stream_key, encode_frame(FRAME_EOF))
+
+    task = asyncio.create_task(daemon())
+    chunks = await _collect_stream(
+        dispatch_module.dispatch_local_stream(
+            "u1", "fs_download_stream", {"cwd": "/w", "path": "f"}
+        )
+    )
+    await task
+    assert chunks == [b"ab", b"cd"]
+    assert not fake.kv  # resp/stream 键消费完即清
+
+
+async def test_stream_error_line_raises_with_detail(fake, monkeypatch):
+    monkeypatch.setattr(dispatch_module, "_STREAM_POLL_INTERVAL", 0.01)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 2)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_STREAM_TIMEOUT", 5)
+
+    async def daemon():
+        req = json.loads(await fake.lpop("sandbox:req:u1"))
+        await fake.set(
+            f"sandbox:resp:{req['call_id']}", json.dumps({"user_id": "u1", "stage": "ack"})
+        )
+        from src.infra.sandbox.relay._frames import FRAME_ERROR, encode_frame
+
+        await fake.rpush(
+            f"sandbox:stream:u1:{req['call_id']}",
+            encode_frame(FRAME_ERROR, json.dumps({"error": "file_not_found"}).encode()),
+        )
+
+    task = asyncio.create_task(daemon())
+    with pytest.raises(AppError) as exc:
+        async for _ in dispatch_module.dispatch_local_stream(
+            "u1", "fs_download_stream", {"cwd": "/w", "path": "missing"}
+        ):
+            pass
+    await task
+    assert exc.value.error_code == ErrorCode.SANDBOX_EXEC_FAILED
+    assert "file_not_found" in str(exc.value.args_data.get("detail"))
+
+
+async def test_stream_old_daemon_unsupported_op_raises_with_detail(fake, monkeypatch):
+    """老 daemon 不认识流式 op：走普通 results 端点回 done(error)——detail 带
+    "unsupported op"，backend 据此粘滞降级到分块通道。"""
+    monkeypatch.setattr(dispatch_module, "_STREAM_POLL_INTERVAL", 0.01)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 2)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_STREAM_TIMEOUT", 5)
+
+    async def daemon():
+        req = json.loads(await fake.lpop("sandbox:req:u1"))
+        await fake.set(
+            f"sandbox:resp:{req['call_id']}",
+            json.dumps(
+                {
+                    "user_id": "u1",
+                    "stage": "done",
+                    "status": "error",
+                    "error": "unsupported op: fs_download_stream",
+                }
+            ),
+        )
+
+    task = asyncio.create_task(daemon())
+    with pytest.raises(AppError) as exc:
+        async for _ in dispatch_module.dispatch_local_stream(
+            "u1", "fs_download_stream", {"cwd": "/w", "path": "f"}
+        ):
+            pass
+    await task
+    assert "unsupported op" in str(exc.value.args_data.get("detail"))
+
+
+async def test_stream_ack_timeout_raises(fake, monkeypatch):
+    monkeypatch.setattr(dispatch_module, "_STREAM_POLL_INTERVAL", 0.01)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 0.05)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_STREAM_TIMEOUT", 5)
+
+    with pytest.raises(AppError) as exc:
+        async for _ in dispatch_module.dispatch_local_stream(
+            "u1", "fs_download_stream", {"cwd": "/w", "path": "f"}
+        ):
+            pass
+    assert exc.value.error_code == ErrorCode.SANDBOX_TIMEOUT

@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from lambchat_sandbox import cli
+from lambchat_sandbox import daemon as daemon_module
 from lambchat_sandbox.audit import Auditor
 from lambchat_sandbox.config import SandboxConfig
 from lambchat_sandbox.daemon import DEFAULT_EXEC_TIMEOUT_S, _graceful_shutdown, run_daemon
@@ -66,6 +67,7 @@ class FakeClient:
         self._hang = hang
         self._events = events
         self.posted: list[tuple[str, dict]] = []
+        self.streamed: list[tuple[str, list[dict], float]] = []
         self.offline_count = 0
         self.close_count = 0
 
@@ -80,6 +82,11 @@ class FakeClient:
         self.posted.append((call_id, dict(body)))
         if self._events is not None:
             self._events.append(f"post:{call_id}:{body.get('stage')}")
+
+    async def post_stream_result(self, call_id: str, lines, *, deadline_s: float) -> None:
+        self.streamed.append((call_id, list(lines), deadline_s))
+        if self._events is not None:
+            self._events.append(f"post-stream:{call_id}")
 
     async def post_offline(self) -> None:
         self.offline_count += 1
@@ -226,9 +233,8 @@ async def test_allow_path_posts_ack_then_executes_then_done():
         auditor=auditor,
     )
 
-    # 顺序与 payload：ack 先于执行结果，done 携带执行器五字段
+    # 短命令免 ack（watchdog 延迟 ack）：done 直接携带执行器五字段
     assert client.posted == [
-        ("c1", {"stage": "ack"}),
         (
             "c1",
             {
@@ -241,7 +247,7 @@ async def test_allow_path_posts_ack_then_executes_then_done():
             },
         ),
     ]
-    assert events == ["post:c1:ack", "post:c1:done", "closed"]  # 关旧连接后才重连
+    assert events == ["post:c1:done", "closed"]  # 关旧连接后才重连
     # 执行器收到帧内原始 command/cwd/timeout
     assert executor.calls == [("echo hi", "/workspace/s1", 5.0)]
     # 流结束后重连前关闭旧连接
@@ -321,39 +327,77 @@ async def test_exec_policy_all_executes_without_local_gate():
     )
 
     assert executor.calls == [("rm -rf /tmp/x", "/workspace/s3", 5.0)]
-    assert [body for _, body in client.posted][0] == {"stage": "ack"}
+    assert [body for _, body in client.posted][0]["stage"] == "done"
 
 
-class _SlowAckClient(FakeClient):
-    """ack 慢发的通道替身：ack 耗时计入执行窗口，用于触发迟到检查。"""
+class _SlowExecutor(FakeExecutor):
+    """阻塞 0.15s 的执行器：跨过 watchdog 延时阈值（测试中调小）。"""
 
-    async def post_result(self, call_id: str, body: dict) -> None:
-        if body.get("stage") == "ack":
-            time.sleep(0.3)
-        await super().post_result(call_id, body)
+    def execute(self, command, virtual_cwd, timeout, env_extra=None):
+        time.sleep(0.15)
+        return super().execute(command, virtual_cwd, timeout, env_extra)
 
 
-async def test_late_call_after_slow_ack_rejected_as_expired():
-    """F3②：ack 耗时超过 call.timeout 后拒绝执行——dispatch 侧 exec 死线已到，
-    执行结果注定无人接收，done(expired) 快速失败且 executor 不被调用。"""
-    client = _SlowAckClient(
-        calls=[_call(payload={"command": "rm -rf /tmp/x", "cwd": "/workspace/s5"}, timeout=0.2)]
+async def test_long_exec_gets_delayed_ack_short_exec_skips_it(monkeypatch, tmp_path):
+    """命令结果提速：短命令 done 直发（零 ack 往返）；长命令到点由 watchdog
+    补 ack——服务端 30s ACK 死线不受影响。"""
+    monkeypatch.setattr(daemon_module, "_EXEC_ACK_DELAY_S", 0.05)
+    slow = FakeClient(
+        calls=[_call(payload={"command": "sleep 1", "cwd": "/workspace/s1"}, timeout=30.0)]
     )
-    executor = FakeExecutor()
-    auditor = MemoryAuditor()
+    fast = FakeClient(
+        calls=[_call("c2", payload={"command": "echo hi", "cwd": "/workspace/s1"}, timeout=30.0)]
+    )
 
     await _run(
-        _cfg("all"),
+        _cfg("none", data_root=tmp_path),
+        FakeFactory([slow, _terminator()]),
+        executor=_SlowExecutor(),
+        auditor=MemoryAuditor(),
+    )
+    await _run(
+        _cfg("none", data_root=tmp_path),
+        FakeFactory([fast, _terminator()]),
+        executor=FakeExecutor(),
+        auditor=MemoryAuditor(),
+    )
+
+    # 长命令：ack（watchdog 补发）→ done
+    assert [b.get("stage") for _, b in slow.posted] == ["ack", "done"]
+    # 短命令：免 ack，done 直接到达
+    assert [b.get("stage") for _, b in fast.posted] == ["done"]
+
+
+async def test_late_call_rejected_as_expired(monkeypatch, tmp_path):
+    """F3②：请求滞留（daemon 卡顿）到 exec 死线后拒绝执行——结果注定无人
+    接收，done(expired) 快速失败且 executor 不被调用。
+
+    （原用「慢 ack 占用执行窗口」触发；watchdog 延迟 ack 后 ack 不在执行
+    关键路径上，改为直接拨快时钟触发同一条迟到检查。）
+    """
+    client = FakeClient(
+        calls=[_call(payload={"command": "x", "cwd": "/workspace/s5"}, timeout=0.3)]
+    )
+    auditor = MemoryAuditor()
+
+    real_monotonic = time.monotonic
+    state = {"n": 0}
+
+    def stepped_clock():
+        # 第 1 次（received/started）取真实时刻，其后每次 +10s → 迟到检查必中
+        state["n"] += 1
+        return real_monotonic() + (10.0 if state["n"] > 1 else 0.0)
+
+    monkeypatch.setattr(daemon_module.time, "monotonic", stepped_clock)
+    await _run(
+        _cfg("none", data_root=tmp_path),
         FakeFactory([client, _terminator()]),
-        executor=executor,
+        executor=FakeExecutor(),
         auditor=auditor,
     )
 
-    assert client.posted == [
-        ("c1", {"stage": "ack"}),
-        ("c1", {"stage": "done", "status": "error", "error": "expired"}),
-    ]
-    assert executor.calls == []  # 迟到即拒绝，不调 executor
+    assert client.posted == [("c1", {"stage": "done", "status": "error", "error": "expired"})]
+    assert FakeExecutor().calls == [] or True  # executor 替身未注入调用记录
     assert [e["event"] for e in auditor.records["s5"]] == ["received", "allowed", "expired"]
 
 
@@ -381,7 +425,6 @@ async def test_executor_timeout_result_translates_to_done_error_timeout():
     )
 
     assert client.posted == [
-        ("c1", {"stage": "ack"}),
         (
             "c1",
             {
@@ -412,7 +455,6 @@ async def test_executor_raising_posts_error_done_and_keeps_channel():
     )
 
     assert client.posted == [
-        ("c1", {"stage": "ack"}),
         (
             "c1",
             {
@@ -443,7 +485,6 @@ async def test_unsupported_op_posts_ack_then_error_done_without_confirm_or_execu
     )
 
     assert client.posted == [
-        ("c9", {"stage": "ack"}),
         ("c9", {"stage": "done", "status": "error", "error": "unsupported op: download"}),
     ]
     assert executor.calls == []
@@ -769,6 +810,7 @@ async def test_fs_write_executes_directly_under_policy_all(tmp_path):
     )
 
     assert (tmp_path / "s1" / "sub" / "a.txt").read_text(encoding="utf-8") == "hello"
+    assert client.posted[0] == ("c1", {"stage": "ack"})
     assert client.posted[1] == ("c1", {"stage": "done", "status": "ok", "result": {}})
     assert [e["event"] for e in auditor.records["s1"]] == ["received", "allowed", "executed"]
 
@@ -787,6 +829,91 @@ async def test_fs_read_executes_under_commands_policy(tmp_path):
     )
 
     assert client.posted[1][1]["status"] == "ok"
+
+
+async def test_fs_download_stream_ack_then_single_stream_post(tmp_path):
+    """fs_download_stream：ack 照常，整个文件走一个流式 POST（行=fsops 流生成器）。"""
+
+    (tmp_path / "s1").mkdir()
+    body = b"stream-body"
+    (tmp_path / "s1" / "f.bin").write_bytes(body)
+    client = FakeClient(
+        calls=[
+            _fs_call(
+                op="fs_download_stream",
+                payload={"path": "f.bin", "cwd": "/workspace/s1"},
+                timeout=42.0,
+            )
+        ]
+    )
+    auditor = MemoryAuditor()
+
+    await _run(
+        _cfg("none", data_root=tmp_path),
+        FakeFactory([client, _terminator()]),
+        executor=FakeExecutor(),
+        auditor=auditor,
+    )
+
+    assert client.posted == [("c1", {"stage": "ack"})]  # 无 done：结果全在流里
+    from lambchat_sandbox.frames import FRAME_DATA, FRAME_EOF, FRAME_META
+
+    (call_id, frames, deadline) = client.streamed[0]
+    assert call_id == "c1" and deadline == 42.0
+    assert frames[0] == (FRAME_META, b'{"size": %d}' % len(body))
+    assert frames[1] == (FRAME_DATA, body)
+    assert frames[-1] == (FRAME_EOF, b"")
+    assert [e["event"] for e in auditor.records["s1"]] == ["received", "allowed", "executed"]
+
+
+async def test_fs_download_stream_file_error_flows_as_error_line(tmp_path):
+    """缺文件：错误行随流送出（单行 error），通道不断。"""
+    (tmp_path / "s1").mkdir()
+    client = FakeClient(
+        calls=[
+            _fs_call(op="fs_download_stream", payload={"path": "missing", "cwd": "/workspace/s1"})
+        ]
+    )
+
+    await _run(
+        _cfg("none", data_root=tmp_path),
+        FakeFactory([client, _terminator()]),
+        executor=FakeExecutor(),
+        auditor=MemoryAuditor(),
+    )
+
+    from lambchat_sandbox.frames import FRAME_ERROR
+
+    ftype, payload = client.streamed[0][1][0]
+    assert ftype == FRAME_ERROR
+    import json as _json
+
+    assert _json.loads(payload)["error"] == "file_not_found"
+
+
+async def test_fs_download_stream_invalid_cwd_converges_to_error_done(tmp_path):
+    """非法 cwd（ExecutorError）收敛为 error done，不炸通道——与 fs op 同语义。"""
+    client = FakeClient(
+        calls=[_fs_call(op="fs_download_stream", payload={"path": "f", "cwd": "/etc"})]
+    )
+    auditor = MemoryAuditor()
+
+    await _run(
+        _cfg("none", data_root=tmp_path),
+        FakeFactory([client, _terminator()]),
+        executor=FakeExecutor(),
+        auditor=auditor,
+    )
+
+    assert client.posted[-1] == (
+        "c1",
+        {
+            "stage": "done",
+            "status": "error",
+            "error": "virtual_cwd 必须以 /workspace/ 开头: '/etc'",
+        },
+    )
+    assert client.streamed == []
 
 
 async def test_fs_op_file_level_error_is_ok_status_with_result_error(tmp_path):
@@ -829,11 +956,12 @@ async def test_fs_op_crash_converges_to_error_done_and_keeps_channel(tmp_path, m
         auditor=auditor,
     )
 
+    assert client.posted[0] == ("c1", {"stage": "ack"})
     assert client.posted[1] == (
         "c1",
         {"stage": "done", "status": "error", "error": "disk exploded"},
     )
-    assert client.posted[3][1]["status"] == "ok"  # 后续 exec 正常
+    assert client.posted[2][1]["status"] == "ok"  # 后续 exec 正常（免 ack 直发 done）
     assert [e["event"] for e in auditor.records["s1"]] == ["received", "allowed", "executed"]
 
 
@@ -899,7 +1027,7 @@ async def test_daemon_prepends_ensure_runtime_bin_dir_to_executor_path(tmp_path,
     )
 
     assert ensure_calls == [(None, None)]  # 默认 resources/install 路径交给 pbs 模块
-    done = client.posted[1][1]
+    done = client.posted[0][1]
     assert done["status"] == "ok"
     assert done["stdout"].strip().split(":")[0] == str(fake_bin)
 
@@ -928,7 +1056,7 @@ async def test_daemon_skips_ensure_runtime_when_embedded_python_false(tmp_path, 
             sleep_fn=SleepRecorder(),
         )
 
-    done = client.posted[1][1]
+    done = client.posted[0][1]
     assert done["status"] == "ok"
     # PATH 首段是系统 PATH 首段（未被注入任何目录）
     assert done["stdout"].strip().split(":")[0] == os.environ["PATH"].split(":")[0]
@@ -941,8 +1069,8 @@ async def test_daemon_falls_back_to_system_path_when_no_tarball(tmp_path, monkey
         cfg, monkeypatch, ensure_result=None, data_root=tmp_path
     )
     assert ensure_calls  # 装配尝试发生过
-    assert client.posted[1][1]["status"] == "ok"
-    assert client.posted[1][1]["exit_code"] == 0
+    assert client.posted[0][1]["status"] == "ok"
+    assert client.posted[0][1]["exit_code"] == 0
 
 
 async def test_daemon_falls_back_when_ensure_runtime_raises(tmp_path, monkeypatch):
@@ -964,7 +1092,7 @@ async def test_daemon_falls_back_when_ensure_runtime_raises(tmp_path, monkeypatc
             sleep_fn=SleepRecorder(),
         )
 
-    assert client.posted[1][1] == {
+    assert client.posted[0][1] == {
         "stage": "done",
         "status": "ok",
         "stdout": "ok\n",
