@@ -132,32 +132,75 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     }
   }, [platform, checkForUpdate]);
 
-  /** Check via Tauri updater plugin */
-  const checkTauriUpdate = useCallback(async (background = false) => {
+  /** 后台静默下载更新（发现即触发）：进度进 state，完成置 readyToInstall */
+  const startBackgroundDownload = useCallback(async (update: any) => {
+    if (pendingUpdateRef.current) return; // 已下载或下载中
+    setState((prev) =>
+      prev.available ? { ...prev, downloading: true, error: null } : prev,
+    );
     try {
-      const { check } = await import("@tauri-apps/plugin-updater");
-      const update = await check();
-      if (update?.available) {
-        setState({
-          ...INITIAL_STATE,
-          available: true,
-          version: update.version,
-          releaseNotes: update.body ?? null,
-          releaseUrl: null,
-          releaseAssets: [],
-        });
-        setShowDialog(true);
-        // 自动下载：发现更新即后台静默下载（不阻塞用户），完成后一键重启安装
-        void startBackgroundDownload(update);
-        if (background && notifiedVersionRef.current !== update.version) {
-          notifiedVersionRef.current = update.version;
-          void notifyUpdateAvailable(update.version);
+      let downloaded = 0;
+      let contentLength = 0;
+      await update.download((event: any) => {
+        switch (event.event) {
+          case "Started":
+            contentLength = event.data.contentLength ?? 0;
+            setState((prev) => ({ ...prev, contentLength }));
+            break;
+          case "Progress": {
+            downloaded += event.data.chunkLength;
+            const pct =
+              contentLength > 0 ? (downloaded / contentLength) * 100 : 0;
+            setState((prev) => ({ ...prev, downloaded, progress: pct }));
+            break;
+          }
+          case "Finished":
+            setState((prev) => ({ ...prev, progress: 100 }));
+            break;
         }
-      }
+      });
+      pendingUpdateRef.current = { install: () => update.install() };
+      setState((prev) => ({
+        ...prev,
+        downloading: false,
+        readyToInstall: true,
+      }));
     } catch {
-      // Silently fail — updater may not be available in dev
+      // 后台下载失败不弹错：用户点「立即升级」时走前台 downloadAndInstall 兜底
+      pendingUpdateRef.current = null;
+      setState((prev) => ({ ...prev, downloading: false }));
     }
   }, []);
+
+  /** Check via Tauri updater plugin */
+  const checkTauriUpdate = useCallback(
+    async (background = false) => {
+      try {
+        const { check } = await import("@tauri-apps/plugin-updater");
+        const update = await check();
+        if (update?.available) {
+          setState({
+            ...INITIAL_STATE,
+            available: true,
+            version: update.version,
+            releaseNotes: update.body ?? null,
+            releaseUrl: null,
+            releaseAssets: [],
+          });
+          setShowDialog(true);
+          // 自动下载：发现更新即后台静默下载（不阻塞用户），完成后一键重启安装
+          void startBackgroundDownload(update);
+          if (background && notifiedVersionRef.current !== update.version) {
+            notifiedVersionRef.current = update.version;
+            void notifyUpdateAvailable(update.version);
+          }
+        }
+      } catch {
+        // Silently fail — updater may not be available in dev
+      }
+    },
+    [startBackgroundDownload],
+  );
 
   /** Check via backend /api/version endpoint */
   const checkBackendUpdate = useCallback(async (background = false) => {
@@ -198,7 +241,9 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
           setState((prev) => ({
             ...prev,
             error:
-              err instanceof Error ? err.message : i18n.t("updateError", "更新失败"),
+              err instanceof Error
+                ? err.message
+                : i18n.t("updateError", "更新失败"),
           }));
         }
         return;
@@ -211,44 +256,6 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [platform, state]);
-
-  /** 后台静默下载更新（发现即触发）：进度进 state，完成置 readyToInstall */
-  const startBackgroundDownload = useCallback(async (update: any) => {
-    if (pendingUpdateRef.current) return; // 已下载或下载中
-    setState((prev) => (prev.available ? { ...prev, downloading: true, error: null } : prev));
-    try {
-      let downloaded = 0;
-      let contentLength = 0;
-      await update.download((event: any) => {
-        switch (event.event) {
-          case "Started":
-            contentLength = event.data.contentLength ?? 0;
-            setState((prev) => ({ ...prev, contentLength }));
-            break;
-          case "Progress": {
-            downloaded += event.data.chunkLength;
-            const pct = contentLength > 0 ? (downloaded / contentLength) * 100 : 0;
-            setState((prev) => ({ ...prev, downloaded, progress: pct }));
-            break;
-          }
-          case "Finished":
-            setState((prev) => ({ ...prev, progress: 100 }));
-            break;
-        }
-      });
-      pendingUpdateRef.current = { install: () => update.install() };
-      setState((prev) => ({
-        ...prev,
-        downloading: false,
-        readyToInstall: true,
-      }));
-    } catch (err) {
-      // 后台下载失败不弹错：用户点「立即升级」时走前台 downloadAndInstall 兜底
-      pendingUpdateRef.current = null;
-      setState((prev) => ({ ...prev, downloading: false }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   /** Install via Tauri updater (download + install + relaunch) */
   const installTauriUpdate = useCallback(async () => {
@@ -404,20 +411,31 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     }, CHECK_DELAY_MS);
 
     // 周期检查（12h，后台发现 → 弹窗 + 系统通知）
-    const periodic = setInterval(() => {
-      if (
-        lastCheckedAtRef.current &&
-        shouldCheckNow(lastCheckedAtRef.current, Date.now(), PERIODIC_CHECK_INTERVAL_MS)
-      ) {
-        void checkForUpdate({ background: true });
-      }
-    }, 30 * 60 * 1000);
+    const periodic = setInterval(
+      () => {
+        if (
+          lastCheckedAtRef.current &&
+          shouldCheckNow(
+            lastCheckedAtRef.current,
+            Date.now(),
+            PERIODIC_CHECK_INTERVAL_MS,
+          )
+        ) {
+          void checkForUpdate({ background: true });
+        }
+      },
+      30 * 60 * 1000,
+    );
 
     // 聚焦检查（距上次 ≥1h，后台发现不打断）
     const onFocus = () => {
       if (
         !lastCheckedAtRef.current ||
-        shouldCheckNow(lastCheckedAtRef.current, Date.now(), FOCUS_CHECK_MIN_INTERVAL_MS)
+        shouldCheckNow(
+          lastCheckedAtRef.current,
+          Date.now(),
+          FOCUS_CHECK_MIN_INTERVAL_MS,
+        )
       ) {
         void checkForUpdate({ background: true });
       }
