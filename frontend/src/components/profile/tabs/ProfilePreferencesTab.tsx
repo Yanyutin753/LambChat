@@ -10,6 +10,7 @@ import { authApi, agentConfigApi, agentApi } from "../../../services/api";
 import { DEFAULT_THINKING_LEVEL_STORAGE_KEY } from "../../layout/AppContent/useAgentOptions";
 import { resolveAgentDisplayName } from "../../agent/agentCatalog";
 import { SelectRow } from "../SelectRow";
+import { ServerUrlSection } from "../ServerUrlSection";
 import type { AgentInfo } from "../../../types";
 import type { Theme } from "../../../utils/themeDom";
 import {
@@ -406,6 +407,10 @@ export function ProfilePreferencesTab() {
           />
         </div>
       </div>
+
+      {/* 服务器地址：仅原生客户端渲染——烘焙了 VITE_API_BASE 的包首启不出
+          ServerSetupScreen，这里是安装后唯一的改址入口（运行时配置优先） */}
+      {isNativeAppRuntime() && <ServerUrlSection />}
 
       {/* 沙箱：云端 + 本地合并一张卡（子区用内嵌 tile，同通知页分区语言）；
           本地分区仍懒加载（M4 T8 PWA 预算） */}

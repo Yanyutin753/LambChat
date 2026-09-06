@@ -2142,6 +2142,14 @@
     "lightTheme": "Light",
     "limitedSupport": "Limited",
     "loading": "Loading...",
+    "serverUrl": {
+      "title": "Server",
+      "desc": "Address of the LambChat server this app talks to. Changing it reloads the app and you will need to sign in again.",
+      "change": "Change",
+      "cancel": "Cancel",
+      "reset": "Reset",
+      "resetTitle": "Clear the runtime override and return to the server baked into this build"
+    },
     "localSandbox": {
       "title": "Local Sandbox",
       "desc": "The agent runs commands and file edits on your own machine through the desktop app",

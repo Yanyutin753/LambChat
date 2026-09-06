@@ -2142,6 +2142,14 @@
     "lightTheme": "라이트",
     "limitedSupport": "일부 지원",
     "loading": "로딩 중...",
+    "serverUrl": {
+      "title": "서버",
+      "desc": "앱이 연결된 LambChat 서버 주소입니다. 변경하면 앱이 새로고침되며 다시 로그인해야 합니다.",
+      "change": "변경",
+      "cancel": "취소",
+      "reset": "기본값으로",
+      "resetTitle": "런타임 설정을 지우고 설치 패키지에 내장된 기본 서버로 되돌립니다"
+    },
     "localSandbox": {
       "title": "로컬 샌드박스",
       "desc": "데스크톱 앱을 통해 사용자의 PC에서 직접 명령과 파일 작업을 수행합니다",
