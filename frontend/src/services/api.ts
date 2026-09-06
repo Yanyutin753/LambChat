@@ -43,7 +43,7 @@ export { mcpApi } from "./api/mcp";
 export { memoryApi } from "./api/memory";
 export { envvarApi } from "./api/envvar";
 export { uploadApi } from "./api/upload";
-export { versionApi } from "./api/version";
+export { versionApi, buildReleaseAssetDownloadUrl } from "./api/version";
 export { healthApi } from "./api/health";
 export { teamApi } from "./api/team";
 export { scheduledTaskApi } from "./api/scheduledTask";

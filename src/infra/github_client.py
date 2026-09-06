@@ -22,6 +22,32 @@ class GitHubRelease:
     assets: list[dict] = field(default_factory=list)
 
 
+@dataclass
+class AssetStream:
+    """已打开的上游资产流（持有 httpx 连接，消费完毕必须 close）。"""
+
+    client: httpx.AsyncClient
+    response: httpx.Response
+
+    @property
+    def status_code(self) -> int:
+        return self.response.status_code
+
+    @property
+    def content_length(self) -> int | None:
+        header = self.response.headers.get("content-length")
+        return int(header) if header and header.isdigit() else None
+
+    async def iter_chunks(self):
+        """按 256KB 分块产出上游字节流。"""
+        async for chunk in self.response.aiter_bytes(256 * 1024):
+            yield chunk
+
+    async def close(self) -> None:
+        await self.response.aclose()
+        await self.client.aclose()
+
+
 class GitHubClient:
     """Client for fetching GitHub release information with simple in-memory cache."""
 
@@ -41,11 +67,28 @@ class GitHubClient:
         return release
 
     def _is_cache_valid(self) -> bool:
-        """Check if cache is still valid"""
+        """Check if cache is valid"""
         if self._cache is None or self._cache_time is None:
             return False
         elapsed = datetime.now(UTC) - self._cache_time
         return elapsed < timedelta(seconds=CACHE_TTL_SECONDS)
+
+    async def open_asset_stream(self, url: str) -> "AssetStream":
+        """打开 release 资产的上游下载流（github.com 302 → 签名 blob，需跟随重定向）。
+
+        供下载代理路由使用：调用方负责消费 ``iter_chunks`` 后 ``close``。
+        读超时放宽到 120s（大文件逐块读取），不设总超时。
+        """
+        client = httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=10.0, read=120.0, write=60.0, pool=10.0),
+            follow_redirects=True,
+        )
+        try:
+            response = await client.send(client.build_request("GET", url), stream=True)
+        except Exception:
+            await client.aclose()
+            raise
+        return AssetStream(client=client, response=response)
 
     async def _fetch_release(self) -> Optional[GitHubRelease]:
         """Fetch latest release from GitHub API"""
