@@ -87,7 +87,7 @@ class ApprovalRecorder:
 def policy_all(monkeypatch: pytest.MonkeyPatch) -> None:
     from src.infra.agent.middleware import sandbox_confirm as mw
 
-    async def fake_lookup(user_id):
+    async def fake_lookup(user_id, machine_id=None):
         return "all"
 
     monkeypatch.setattr(mw, "_lookup_confirm_policy", fake_lookup)

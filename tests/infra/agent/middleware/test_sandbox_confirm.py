@@ -39,7 +39,7 @@ class _Recorder:
 def policy(monkeypatch):
     holder = {"value": "all"}
 
-    async def fake_lookup(user_id):
+    async def fake_lookup(user_id, machine_id=None):
         return holder["value"]
 
     monkeypatch.setattr(mw_pkg.sandbox_confirm, "_lookup_confirm_policy", fake_lookup)
@@ -283,3 +283,24 @@ async def test_programming_error_still_propagates(policy, interrupt, supported):
     mw = SandboxConfirmMiddleware(user_id="u1")
     with _pytest.raises(TypeError):
         await mw.awrap_tool_call(_request("execute", {"command": "ls"}), buggy_handler)
+
+
+# ---------------------------------------------------------------------------
+# 多机：确认门策略按目标机解析
+# ---------------------------------------------------------------------------
+
+
+async def test_registry_policy_resolver_passes_machine_id(monkeypatch):
+    from src.infra.agent.middleware import sandbox_confirm
+
+    calls: list[tuple[str, str | None]] = []
+
+    class _FakeRegistry:
+        async def get_confirm_policy(self, user_id, machine_id=None):
+            calls.append((user_id, machine_id))
+            return "none"
+
+    monkeypatch.setattr(sandbox_confirm, "SandboxClientRegistry", _FakeRegistry)
+    resolver = sandbox_confirm._RegistryPolicyResolver("u1", machine_id="mac1")
+    assert await resolver() == "none"
+    assert calls == [("u1", "mac1")]

@@ -78,3 +78,52 @@ export function resolveSandboxPresentation(
       : selected?.label || String(value),
   };
 }
+
+// ---------------------------------------------------------------------------
+// 会话级机器选择（多机 daemon）：动态注入 sandbox_machine_id 选项
+// ---------------------------------------------------------------------------
+
+import type { SandboxMachine } from "../../services/api/sandbox";
+
+/** 会话选机键：与后端 agent_options.sandbox_machine_id 契约一致。 */
+export const SANDBOX_MACHINE_AGENT_OPTION_KEY = "sandbox_machine_id";
+
+/** 机器选择器只在「本地档 + 至少一台在线机」时有意义。 */
+export function shouldShowSandboxMachineOption(
+  sandboxValue: boolean | string | number,
+  machines: SandboxMachine[],
+): boolean {
+  return sandboxValue === SANDBOX_LOCAL_VALUE && machines.length > 0;
+}
+
+/**
+ * 由在线机器动态构建选择器选项：首档「自动」（后端默认解析：默认机→
+ * 唯一在线→legacy），其余按机器列出。default 取用户默认机（无则首台），
+ * 已存会话值不受影响（与 sandbox 档位同规则：只裁剪显示，不篡改存储）。
+ */
+export function buildSandboxMachineOption(
+  machines: SandboxMachine[],
+  defaultMachineId: string | null,
+  t: (key: string) => string,
+): AgentOption | null {
+  if (machines.length === 0) return null;
+  const options = [
+    { value: "", label_key: "agentOptions.sandboxMachine.auto" },
+    ...machines.map((m) => ({
+      value: m.machine_id,
+      label: m.name || m.machine_id,
+    })),
+  ];
+  return {
+    type: "string",
+    default: defaultMachineId && machines.some((m) => m.machine_id === defaultMachineId)
+      ? defaultMachineId
+      : machines[0].machine_id,
+    label: t("agentOptions.sandboxMachine.label"),
+    label_key: "agentOptions.sandboxMachine.label",
+    description: t("agentOptions.sandboxMachine.description"),
+    description_key: "agentOptions.sandboxMachine.description",
+    icon: "Laptop",
+    options,
+  };
+}

@@ -22,10 +22,28 @@ def _registry() -> SandboxClientRegistry:
 
 
 async def dispatch_local_call(
-    user_id: str, op: str, payload: dict, *, timeout: float | None = None
+    user_id: str,
+    op: str,
+    payload: dict,
+    *,
+    timeout: float | None = None,
+    machine_id: str | None = None,
 ) -> dict:
-    if not await _registry().is_online(user_id):
-        raise AppError(ErrorCode.DAEMON_OFFLINE)
+    """下发工具调用到目标机。
+
+    ``machine_id``：会话级选机（None = 注册表默认解析：默认机 → 唯一在线机
+    → legacy）。显式指定且该机离线时报 SANDBOX_MACHINE_OFFLINE（区别于无任何
+    机器在线的 DAEMON_OFFLINE，前端据此提示换机）。
+    """
+    registry = _registry()
+    if machine_id:
+        target = await registry.resolve_target(user_id, machine_id)
+        if target is None:
+            raise AppError(ErrorCode.SANDBOX_MACHINE_OFFLINE, args={"machine": machine_id})
+    else:
+        target = await registry.resolve_target(user_id)
+        if target is None:
+            raise AppError(ErrorCode.DAEMON_OFFLINE)
     exec_timeout = timeout if timeout is not None else float(settings.SANDBOX_LOCAL_EXEC_TIMEOUT)
     call_id = uuid.uuid4().hex
     req = {
@@ -38,7 +56,7 @@ async def dispatch_local_call(
     }
     redis = _redis()
     resp_key = f"sandbox:resp:{call_id}"
-    await redis.rpush(f"sandbox:req:{user_id}", json.dumps(req))
+    await redis.rpush(registry.queue_key(user_id, target), json.dumps(req))
 
     start = time.monotonic()
     acked = False

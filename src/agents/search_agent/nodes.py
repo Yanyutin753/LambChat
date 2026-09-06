@@ -320,6 +320,12 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
                     if isinstance(sandbox_backend, WorkspaceAliasBackend)
                     else _CloudPolicyResolver(context.user_id or "default")
                 ),
+                # 确认策略与执行同机（本地多机）：会话选机透传，与 dispatch 同源
+                machine_id=(
+                    (agent_options or {}).get("sandbox_machine_id") or None
+                    if isinstance(sandbox_backend, WorkspaceAliasBackend)
+                    else None
+                ),
             )
         )
         if sandbox_work_dir:
@@ -598,7 +604,13 @@ async def _create_backend_and_prompt(
 
         # WorkspaceAliasBackend：prompt_policy 让模型用 /workspace/{sid}/x 别名
         # 路径调文件工具，别名剥离层把路径翻译回相对路径再构造命令（F1）。
-        local_backend = WorkspaceAliasBackend(user_id=user_id, session_id=session_id)
+        # 会话级选机（多机 daemon）：agent_options.sandbox_machine_id 缺省走
+        # 注册表默认解析（默认机→唯一在线→legacy）
+        local_backend = WorkspaceAliasBackend(
+            user_id=user_id,
+            session_id=session_id,
+            machine_id=(agent_options or {}).get("sandbox_machine_id") or None,
+        )
         # 用户 env 变量注入（对齐云端：backend.env_vars → 执行时下发）；
         # env_var 工具运行中改动经 sync_envvar_change 实时刷新同一属性
         await sync_sandbox_env_vars(local_backend, user_id)

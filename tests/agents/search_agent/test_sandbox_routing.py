@@ -112,3 +112,21 @@ async def test_cloud_platform_still_uses_lazy_backend_without_local_option(
     assert isinstance(backend, CompositeBackend)
     assert isinstance(sandbox, LazySandboxBackend)
     assert context.run_sandbox is sandbox
+
+
+async def test_local_option_forwards_machine_selection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """agent_options.sandbox_machine_id 透传 LocalSandboxBackend（会话级选机）。"""
+    _patch_store_and_sandbox(monkeypatch)
+
+    context = SearchAgentContext(session_id="session-1", user_id="user-1")
+    _, _, _, sandbox, _ = await search_nodes._create_backend_and_prompt(
+        state={"session_id": "session-1"},
+        context=context,
+        presenter=SimpleNamespace(),
+        assistant_id="assistant-user-1",
+        agent_options={"sandbox": "local", "sandbox_machine_id": "mac1"},
+    )
+    assert isinstance(sandbox, LocalSandboxBackend)
+    assert sandbox._machine_id == "mac1"

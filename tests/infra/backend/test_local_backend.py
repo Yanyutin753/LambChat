@@ -29,7 +29,7 @@ def _default_daemon_platform(monkeypatch):
     """
     state = {"platform": ""}
 
-    async def fake_lookup(user_id):
+    async def fake_lookup(user_id, machine_id=None):
         return state["platform"]
 
     monkeypatch.setattr(local_module, "_lookup_daemon_platform", fake_lookup)
@@ -46,7 +46,7 @@ def _real_exec_dispatch(cwd: Path):
     返回 dict 带 stdout/stderr/exit_code 独立字段——与 daemon executor 契约一致。
     """
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         proc = subprocess.run(payload["command"], shell=True, cwd=cwd, capture_output=True)
         return {
             "status": "ok",
@@ -59,7 +59,7 @@ def _real_exec_dispatch(cwd: Path):
 
 
 async def test_aexecute_maps_result(monkeypatch):
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         assert (user_id, op) == ("u1", "exec")
         assert payload["command"] == "echo hi"
         return _ok_response(stdout="hi", exit_code=0)
@@ -73,7 +73,7 @@ async def test_aexecute_maps_result(monkeypatch):
 
 
 async def test_aexecute_appends_stderr_to_output(monkeypatch):
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         if payload["command"] == "both":
             return _ok_response(stdout="out", stderr="err")
         return _ok_response(stderr="only-err")
@@ -87,7 +87,7 @@ async def test_aexecute_appends_stderr_to_output(monkeypatch):
 async def test_aexecute_passes_cwd_and_timeout(monkeypatch):
     captured = {}
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         captured.update(op=op, payload=payload, timeout=timeout)
         return _ok_response()
 
@@ -100,7 +100,7 @@ async def test_aexecute_passes_cwd_and_timeout(monkeypatch):
 
 
 async def test_offline_propagates(monkeypatch):
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         raise AppError(ErrorCode.DAEMON_OFFLINE)
 
     monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
@@ -116,7 +116,7 @@ def test_id_contains_session():
 
 
 def test_execute_bridges_sync(monkeypatch):
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         return _ok_response(stdout="sync-hi")
 
     monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
@@ -129,7 +129,7 @@ def test_execute_bridges_sync(monkeypatch):
 def test_download_files_decodes_base64(monkeypatch):
     content = "file-body"
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         b64 = base64.b64encode(content.encode()).decode()
         return _ok_response(stdout=b64)
 
@@ -150,7 +150,7 @@ def test_download_files_stderr_does_not_pollute_base64(monkeypatch):
     content = b"file-body"
     noisy = "grep: warning: something noisy on stderr"
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         assert payload["cwd"] == "/workspace/s1"  # 与 aexecute 同 cwd 契约
         b64 = base64.b64encode(content).decode()
         return _ok_response(stdout=b64, stderr=noisy)
@@ -167,7 +167,7 @@ async def test_adownload_files_stderr_does_not_pollute_base64(monkeypatch):
     content = b"async-body-1"
     noisy = "[PID 123] some daemon chatter"
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         b64 = base64.b64encode(content).decode()
         return _ok_response(stdout=b64, stderr=noisy)
 
@@ -182,7 +182,7 @@ def test_download_files_maps_missing_to_error(monkeypatch):
     # 真实 daemon 的 ENOENT 输出（python3 open() 抛出后经 stderr 回传）
     enoent = "[Errno 2] No such file or directory: '/workspace/s1/missing.txt'"
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         return _ok_response(stdout=enoent, exit_code=1)
 
     monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
@@ -196,7 +196,7 @@ def test_download_files_maps_missing_to_error(monkeypatch):
 def test_download_files_maps_is_directory_error(monkeypatch):
     eisdir = "[Errno 21] Is a directory: '/workspace/s1'"
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         return _ok_response(stdout=eisdir, exit_code=1)
 
     monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
@@ -215,7 +215,7 @@ def test_classify_file_error_real_daemon_strings():
 
 
 async def test_aexecute_missing_exit_code_is_undetermined(monkeypatch):
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         return {"status": "ok", "stdout": "partial"}
 
     monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
@@ -229,7 +229,7 @@ async def test_aexecute_missing_exit_code_is_undetermined(monkeypatch):
 def test_upload_files_writes_via_exec(monkeypatch):
     captured = {}
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         captured.update(op=op, payload=payload)
         return _ok_response()
 
@@ -246,7 +246,7 @@ def test_upload_files_writes_via_exec(monkeypatch):
 
 
 async def test_upload_files_offline_propagates(monkeypatch):
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         raise AppError(ErrorCode.SANDBOX_TIMEOUT)
 
     monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
@@ -296,7 +296,7 @@ async def test_alias_execute_rewrites_command_alias_with_boundary(monkeypatch):
     """shell 命令串里的 /workspace/s1 → .（cd /workspace/s1 && … 可用），且不误伤 s12。"""
     captured: list[str] = []
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         captured.append(payload["command"])
         return _ok_response()
 
@@ -314,7 +314,7 @@ async def test_alias_aread_passthrough_for_outside_absolute_path(monkeypatch, tm
     """别名之外的绝对路径（如 /etc/hostname）不改写——冒烟用例 4 的既有语义。"""
     captured: list[str] = []
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         captured.append(payload["cwd"])
         return _ok_response(stdout="{}")
 
@@ -339,7 +339,7 @@ async def test_aupload_files_large_content_chunked_end_to_end(monkeypatch, tmp_p
     commands: list[str] = []
     real = _real_exec_dispatch(tmp_path)
 
-    async def tracking_dispatch(user_id, op, payload, *, timeout=None):
+    async def tracking_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         commands.append(payload["command"])
         return await real(user_id, op, payload, timeout=timeout)
 
@@ -402,7 +402,7 @@ async def test_adownload_decode_failure_carries_original_output(monkeypatch):
     """b64decode 异常不得标成 file_not_found：错误带原始 stdout 片段供排查。"""
     garbage = "not!!valid!!b64!!"
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         return _ok_response(stdout=garbage)
 
     monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
@@ -519,7 +519,7 @@ def test_upload_files_windows_via_registry_platform(monkeypatch, _default_daemon
     _default_daemon_platform["platform"] = "win32"
     commands: list[str] = []
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         commands.append(payload["command"])
         return _ok_response()
 
@@ -538,7 +538,7 @@ async def test_aupload_files_windows_chunked_commands(monkeypatch, _default_daem
     _default_daemon_platform["platform"] = "win32"
     commands: list[str] = []
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         commands.append(payload["command"])
         return _ok_response()
 
@@ -558,7 +558,7 @@ async def test_adownload_files_windows_command_shape(monkeypatch, _default_daemo
     _default_daemon_platform["platform"] = "win32"
     captured: dict[str, str] = {}
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         captured["command"] = payload["command"]
         return _ok_response(stdout=base64.b64encode(b"body").decode())
 
@@ -577,7 +577,7 @@ def test_platform_hint_overrides_registry(monkeypatch):
     async def failing_lookup(user_id):
         raise AssertionError("hint 在场时不应查注册表")
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         commands.append(payload["command"])
         return _ok_response()
 
@@ -603,7 +603,7 @@ def test_upload_files_default_platform_keeps_posix_commands(monkeypatch):
     """无平台信息（旧格式 value/查询失败）→ 命令串与现状逐字节一致。"""
     commands: list[str] = []
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         commands.append(payload["command"])
         return _ok_response()
 
@@ -634,7 +634,7 @@ def test_upload_windows_percent_path_maps_to_error(monkeypatch):
     不崩链路也不下发会被 cmd 改写的命令。"""
     commands: list[str] = []
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         commands.append(payload["command"])
         return _ok_response()
 
@@ -710,7 +710,7 @@ def _fs_dispatch(result: dict):
 
     calls: list[tuple[str, dict]] = []
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         assert (user_id, op) == ("u1", op)
         calls.append((op, dict(payload)))
         return {"status": "ok", "result": result}
@@ -776,7 +776,7 @@ async def test_posix_read_still_exec_pos_commands(monkeypatch, _default_daemon_p
     """posix（无平台信息）走 super() 的 exec 命令路径——现状零变化。"""
     captured: list[str] = []
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         captured.append(op)
         captured.append(payload["command"])
         return _ok_response(stdout='{"encoding": "utf-8", "content": "posix"}')
@@ -1001,7 +1001,7 @@ async def test_platform_hint_win32_triggers_fs_without_registry(monkeypatch):
 async def test_platform_hint_posix_keeps_exec_commands(monkeypatch):
     dispatch = _fs_dispatch({})
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         dispatch.calls.append((op, dict(payload)))
         return _ok_response(stdout="{}")
 
@@ -1033,7 +1033,7 @@ async def test_win32_fs_result_malformed_degrades_to_error(monkeypatch, _default
 async def test_aexecute_payload_carries_env_vars(monkeypatch):
     payloads = []
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         payloads.append(payload)
         return _ok_response()
 
@@ -1048,7 +1048,7 @@ async def test_aexecute_payload_carries_env_vars(monkeypatch):
 async def test_aexecute_payload_omits_env_when_empty(monkeypatch):
     payloads = []
 
-    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
         payloads.append(payload)
         return _ok_response()
 

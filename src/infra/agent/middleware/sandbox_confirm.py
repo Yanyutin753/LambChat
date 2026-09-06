@@ -73,10 +73,14 @@ def _op_description(tool_name: str, args: dict[str, Any]) -> tuple[str, str]:
     return f"{label}：{path}", f"rm {tool_name} {path}"
 
 
-async def _lookup_confirm_policy(user_id: str) -> str:
-    """本地沙箱策略源：当前活跃 daemon 上报（缺失/故障归 all 保守确认）。"""
+async def _lookup_confirm_policy(user_id: str, machine_id: str | None = None) -> str:
+    """本地沙箱策略源：目标机 daemon 上报（缺失/故障归 all 保守确认）。
+
+    ``machine_id`` 与 dispatch 同源（会话级选机）——确认策略与实际执行必须
+    同机，否则「A 机报 none 放行、命令却落到策略 all 的 B 机」会绕过确认。
+    """
     try:
-        policy = await SandboxClientRegistry().get_confirm_policy(user_id)
+        policy = await SandboxClientRegistry().get_confirm_policy(user_id, machine_id)
         return policy if policy in ("all", "commands", "none") else "all"
     except Exception:  # noqa: BLE001 - 查询尽力而为，失败保守归 all
         logger.warning("confirm policy lookup failed for user %s; defaulting to all", user_id)
@@ -107,13 +111,14 @@ async def _lookup_cloud_confirm_policy(user_id: str) -> str:
 
 
 class _RegistryPolicyResolver:
-    """本地策略源闭包（daemon 注册表上报，缺失/故障归 all）。"""
+    """本地策略源闭包（目标机 daemon 注册表上报，缺失/故障归 all）。"""
 
-    def __init__(self, user_id: str) -> None:
+    def __init__(self, user_id: str, machine_id: str | None = None) -> None:
         self._user_id = user_id
+        self._machine_id = machine_id
 
     async def __call__(self) -> str:
-        return await _lookup_confirm_policy(self._user_id)
+        return await _lookup_confirm_policy(self._user_id, self._machine_id)
 
 
 class _CloudPolicyResolver:
@@ -175,10 +180,11 @@ class SandboxConfirmMiddleware(AgentMiddleware):
         *,
         user_id: str,
         policy_resolver: Callable[[], Awaitable[str]] | None = None,
+        machine_id: str | None = None,
     ) -> None:
         super().__init__()
         self._user_id = user_id
-        self._policy_resolver = policy_resolver or _RegistryPolicyResolver(user_id)
+        self._policy_resolver = policy_resolver or _RegistryPolicyResolver(user_id, machine_id)
 
     async def awrap_tool_call(
         self,

@@ -144,3 +144,50 @@ def test_save_omits_pat_id_when_unset(tmp_path):
     p = tmp_path / "sandbox.json"
     save_config(SandboxConfig(), p)
     assert "pat_id" not in json.loads(p.read_text())
+
+
+# ---------------------------------------------------------------------------
+# 机器身份（多机 daemon）：machine_id 持久化 + machine_name 展示名
+# ---------------------------------------------------------------------------
+
+
+def test_machine_id_generated_and_persisted_on_first_load(tmp_path):
+    """首启（无配置文件）生成 machine_id 并立即落盘——不落盘则每次进程重启
+    都换新身份，服务端注册表会堆积幽灵机器。"""
+    cfg = load_config(tmp_path / "sandbox.json")
+    assert cfg.machine_id, "首启必须生成非空 machine_id"
+    assert (tmp_path / "sandbox.json").exists(), "生成的 machine_id 必须立即持久化"
+    again = load_config(tmp_path / "sandbox.json")
+    assert again.machine_id == cfg.machine_id
+
+
+def test_machine_id_stable_across_loads(tmp_path):
+    p = tmp_path / "sandbox.json"
+    cfg = load_config(p)
+    save_config(cfg, p)
+    assert load_config(p).machine_id == cfg.machine_id
+
+
+def test_machine_name_defaults_empty_and_roundtrip(tmp_path):
+    p = tmp_path / "sandbox.json"
+    cfg = load_config(p)
+    assert cfg.machine_name == ""
+    cfg.machine_name = "工作台主机"
+    save_config(cfg, p)
+    assert load_config(p).machine_name == "工作台主机"
+
+
+def test_load_reads_machine_fields_written_externally(tmp_path):
+    """壳（Rust）或用户手写 machine 字段时 daemon 照读不覆盖。"""
+    p = tmp_path / "sandbox.json"
+    p.write_text('{"machine_id": "fixed123", "machine_name": "NAS"}', encoding="utf-8")
+    cfg = load_config(p)
+    assert cfg.machine_id == "fixed123"
+    assert cfg.machine_name == "NAS"
+
+
+def test_load_invalid_machine_id_type_rejected(tmp_path):
+    p = tmp_path / "sandbox.json"
+    p.write_text('{"machine_id": 123}', encoding="utf-8")
+    with pytest.raises(ConfigError):
+        load_config(p)
