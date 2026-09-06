@@ -220,6 +220,7 @@ export function UserMessageBubble({
                 <GitBranch size={16} />
               </button>
             )}
+            {extraActions}
             <button
               onClick={handleCopy}
               className={clsx(
@@ -234,7 +235,6 @@ export function UserMessageBubble({
             >
               {copied ? <Check size={16} /> : <Copy size={16} />}
             </button>
-            {extraActions}
           </div>
         </div>
       </div>
