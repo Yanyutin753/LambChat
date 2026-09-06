@@ -239,10 +239,14 @@ class Executor:
         workspace: Path | None = None,
         env_extra: dict[str, str] | None = None,
     ) -> dict[str, str] | None:
-        """构建子进程环境，落笔顺序固定：用户 env → PATH shim 前置 →
-        LAMBCHAT_WORKSPACE（契约变量最后写，不被用户 env 覆盖——PATH 被
-        覆盖会破坏内嵌 python3 shim 的解析）。
+        """构建子进程环境，落笔顺序固定：PYTHONIOENCODING 默认 → 用户 env →
+        PATH shim 前置 → LAMBCHAT_WORKSPACE（契约变量最后写，不被用户 env
+        覆盖——PATH 被覆盖会破坏内嵌 python3 shim 的解析）。
 
+        - ``PYTHONIOENCODING`` 默认钉 utf-8（用户 env / 继承环境显式给出时
+          尊重原值）：子进程 Python 的 stdio 输出 UTF-8，executor 的解码链
+          原样命中，脚本 print 中文不再吐 GBK（cmd.exe 自身消息仍是 GBK，
+          由解码链兜底）；
         - ``env_extra``：服务端下发的用户 env 变量（对齐云端 envs= 语义，
           来自用户加密存储，EnvVarStorage 已限 50 个/单值 16k/总量 64k）；
         - ``extra_path`` 前置进 PATH（内嵌 Python shim 目录）；
@@ -254,6 +258,7 @@ class Executor:
         if self._extra_path is None and workspace is None and not env_extra:
             return None
         env = dict(os.environ)
+        env.setdefault("PYTHONIOENCODING", "utf-8")
         if env_extra:
             env.update(env_extra)
         if self._extra_path is not None:
@@ -407,8 +412,29 @@ def _partial(data: bytes | str | None) -> bytes:
     return data
 
 
+# 输出解码链（2026-09-06 Windows 真机事故）：cmd.exe 与本地工具在中文
+# Windows 输出 GBK（CP936），一律按 UTF-8 容错解码会把「信息: ...」变成
+# 乱码喂给模型。先按 UTF-8 严格解码（绝大多数子进程输出），失败再试 GBK
+# （中文 Windows 控制台码页），最终退化为 UTF-8 replace（二进制垃圾）。
+_DECODE_FALLBACKS = ("gbk",)
+
+
+def _decode_output(data: bytes) -> str:
+    """按解码链把子进程输出字节转文本：UTF-8 → GBK → UTF-8 replace。"""
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        pass
+    for encoding in _DECODE_FALLBACKS:
+        try:
+            return data.decode(encoding)
+        except (UnicodeDecodeError, LookupError):
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
 def _tail(data: bytes) -> str:
-    """超过 MAX_OUTPUT_BYTES 时保留尾部并加头部标记；UTF-8 容错解码。"""
+    """超过 MAX_OUTPUT_BYTES 时保留尾部并加头部标记；经解码链容错解码。"""
     if len(data) <= MAX_OUTPUT_BYTES:
-        return data.decode("utf-8", errors="replace")
-    return TRUNCATED_MARK + data[-MAX_OUTPUT_BYTES:].decode("utf-8", errors="replace")
+        return _decode_output(data)
+    return TRUNCATED_MARK + _decode_output(data[-MAX_OUTPUT_BYTES:])

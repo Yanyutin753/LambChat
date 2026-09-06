@@ -209,7 +209,7 @@ async def test_channel_registers_machine_identity(fake_registry, monkeypatch):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
         async with c.stream(
             "GET",
-            "/api/sandbox/channel?version=0.3.0&machine_id=mac1&machine_name=MacBook",
+            "/api/sandbox/channel?version=0.3.1&machine_id=mac1&machine_name=MacBook",
         ) as resp:
             body = b""
             async for chunk in resp.aiter_bytes():

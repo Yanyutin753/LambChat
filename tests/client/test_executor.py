@@ -304,3 +304,62 @@ def test_spawn_env_user_only_without_extras(tmp_path):
     assert env is not None
     assert env["LC_ONLY"] == "1"
     assert "PATH" in env  # 基于父环境扩展
+
+
+# ---------------------------------------------------------------------------
+# 输出解码（2026-09-06 Windows 真机事故）：cmd.exe 及本地工具在中文 Windows
+# 输出 GBK（CP936），一律按 UTF-8 容错解码会把「信息: ...」变成乱码。
+# 解码链：UTF-8 严格 → GBK（中文 Windows 控制台常用码页）→ UTF-8 replace。
+# ---------------------------------------------------------------------------
+
+
+def test_decode_output_utf8_bytes_pass_through():
+    from lambchat_sandbox.executor import _decode_output
+
+    text = "信息: 操作完成"
+    assert _decode_output(text.encode("utf-8")) == text
+
+
+def test_decode_output_gbk_bytes_fallback():
+    from lambchat_sandbox.executor import _decode_output
+
+    text = "信息: 用提供的模式无法找到文件。"
+    gbk_bytes = text.encode("gbk")
+    assert _decode_output(gbk_bytes) == text
+
+
+def test_decode_output_binary_garbage_never_raises():
+    from lambchat_sandbox.executor import _decode_output
+
+    garbage = bytes(range(256)) * 8
+    decoded = _decode_output(garbage)
+    assert isinstance(decoded, str)  # 任意字节不抛异常，退化为替换字符
+
+
+def test_tail_uses_decode_chain():
+    from lambchat_sandbox.executor import _tail
+
+    text = "当前卷的目录中没有标签。"
+    assert _tail(text.encode("gbk")) == text
+
+
+def test_spawn_env_defaults_pythonioencoding_utf8(tmp_path):
+    """子进程 Python 的 stdio 编码默认钉死 UTF-8：executor 按解码链吃回输出，
+    python 子进程不再吐 GBK（cmd.exe 自身消息仍 GBK，由解码链兜底）。"""
+    monkey_env = None
+    import os as _os
+
+    saved = _os.environ.get("PYTHONIOENCODING")
+    _os.environ.pop("PYTHONIOENCODING", None)
+    try:
+        env = Executor(tmp_path)._spawn_env(Path("/w"))
+        assert env is not None
+        assert env["PYTHONIOENCODING"] == "utf-8"
+    finally:
+        if saved is not None:
+            _os.environ["PYTHONIOENCODING"] = saved
+
+
+def test_spawn_env_user_overrides_pythonioencoding(tmp_path):
+    env = Executor(tmp_path)._spawn_env(Path("/w"), env_extra={"PYTHONIOENCODING": "cp936"})
+    assert env["PYTHONIOENCODING"] == "cp936"

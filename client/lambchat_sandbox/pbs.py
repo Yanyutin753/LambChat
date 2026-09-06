@@ -17,10 +17,15 @@ daemon 执行环境不依赖用户系统的 python3：壳把 PBS ``install_only`
     内解释器，``python3 -c "import sys;print(sys.executable)"`` 因此命中
     ``~/.lambchat/python/<tag>/``（符号链接做不到：``sys.executable`` 会停在
     链接自身路径）；
-  - Windows：复制语义（``python.exe`` → ``python3.exe``；wrapper/符号链接在
-    win 无益）。Linux 全测，win 分支按此语义实现、真机验证见 M4 任务报告；
-- **回退**：无归档 / 归档缺解释器 / 装配异常 → 打印警告返回 ``None``，调用方
-  （daemon）回退系统 PATH，绝不阻断启动。
+  - Windows：``python3.cmd`` 批处理 wrapper（``@echo off`` + 转发到归档内
+    真实 ``python.exe``）。**不能复制 exe**（2026-09-06 Windows 真机事故）：
+    CPython 按可执行文件自身位置定位标准库，bin/ 下没有 Lib/，副本启动即
+    ``Could not find platform independent libraries <prefix>``、import 全灭；
+    wrapper 让 ``sys.executable`` 命中归档原位解释器，stdlib/DLL 正常发现。
+    旧版本残留的 ``python3.exe`` 副本必须清除——PATHEXT 里 .EXE 优先于
+    .CMD，残留副本会重新赢走命令解析；
+  - **回退**：无归档 / 归档缺解释器 / 装配异常 → 打印警告返回 ``None``，调用方
+    （daemon）回退系统 PATH，绝不阻断启动。
 
 PBS tag / CPython 版本在本模块锁定（``PBS_TAG`` / ``PBS_PYTHON_VERSION``），
 ``client/scripts/fetch-pbs.py`` 构建期同源引用，升版本两处一起动。
@@ -108,16 +113,26 @@ def _extract(tarball: Path, install_root: Path) -> Path | None:
 def _install_shim(interp: Path, bin_dir: Path) -> Path:
     """在 bin_dir 建 python3 shim，返回 shim 路径。
 
-    - Windows：复制解释器为 ``python3.exe``；
+    - Windows：``python3.cmd`` 批处理 wrapper（CRLF 行尾），转发到归档内真实
+      解释器——复制 exe 会让 CPython 按副本位置找不到标准库（见模块
+      docstring）；旧实现残留的 ``python3.exe`` 副本清除（PATHEXT .EXE 优先
+      于 .CMD，不清会重新赢走解析）。
     - POSIX：exec wrapper（``#!/bin/sh\\nexec <解释器> "$@"``），陈旧 shim
       （普通文件/错误指向）先清再写。
     """
     bin_dir.mkdir(parents=True, exist_ok=True)
-    shim = bin_dir / ("python3.exe" if plat.is_windows() else "python3")
     if plat.is_windows():
-        shutil.copyfile(interp, shim)
+        legacy = bin_dir / "python3.exe"
+        if legacy.exists():
+            legacy.unlink()
+        shim = bin_dir / "python3.cmd"
+        # 解释器绝对路径进双引号（PBS 落位在用户目录，路径可含空格）
+        body = f'@echo off\r\n"{interp.resolve()}" %*\r\n'
+        if not (shim.exists() and shim.read_text(encoding="utf-8") == body):
+            shim.write_text(body, encoding="utf-8", newline="")
         os.chmod(shim, 0o755)
         return shim
+    shim = bin_dir / "python3"
     if shim.is_symlink() or shim.exists():
         shim.unlink()
     target = shlex.quote(str(interp.resolve()))

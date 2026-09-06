@@ -11,8 +11,9 @@ install_root 全部落 tmp_path，绝不碰真实 ``~/.lambchat``：
   ``~/.lambchat/python/<tag>/`` 而非 shim 自身路径；符号链接做不到这一点）；
 - 幂等：首次解压后删掉 tar.gz 再调一次，不重解压（标记文件为门）且仍返回
   bin 目录；重复调用不炸；
-- Windows 分支（``platform._sys_platform`` 注入 win32）：shim 是 ``python3.exe``
-  **复制**（非 wrapper）；
+- Windows 分支（``platform._sys_platform`` 注入 win32）：shim 是 ``python3.cmd``
+  **wrapper**（转发到归档内真实解释器；复制 exe 会让 CPython 找不到 stdlib，
+  2026-09-06 Windows 真机事故后弃用）；
 - 回退：无 tar.gz → None + stderr 警告；归档里找不到解释器 → None + 警告；
 - 陈旧 shim（已存在的普通文件/错误指向）被替换成正确 wrapper。
 """
@@ -129,26 +130,54 @@ def test_ensure_runtime_replaces_stale_shim(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Windows 分支：shim 是 python3.exe 复制（Linux 宿主注入 win32 可全测）
+# Windows 分支：shim 是 python3.cmd wrapper（Linux 宿主注入 win32 可全测）
+#
+# 生产事故（2026-09-06，Windows 真机）：旧实现的「复制 python.exe 到 bin/」
+# 让 CPython 按副本自身位置找标准库——bin/ 下没有 Lib/，解释器能启动但
+# ``Could not find platform independent libraries <prefix>``，import 全灭，
+# 本地沙箱的上传/下载（python3 -c 单命令往返）与 agent 的 python3 调用
+# 全部失败。改写 .cmd wrapper：argv[0] 命中归档内真实解释器，stdlib/DLL
+# 按原位布局正常发现。
 # ---------------------------------------------------------------------------
 
 
-def test_ensure_runtime_windows_shim_is_exe_copy(tmp_path, monkeypatch):
+def test_ensure_runtime_windows_shim_is_cmd_wrapper(tmp_path, monkeypatch):
     monkeypatch.setattr(plat, "_sys_platform", "win32")
     resources, install_root = _setup(
         tmp_path, {"python/bin/python.exe": "MZ fake exe"}, {"python/bin/python.exe"}
     )
     bin_dir = pbs.ensure_runtime(resources, install_root)
 
-    shim = bin_dir / "python3.exe"
+    shim = bin_dir / "python3.cmd"
     assert shim.exists()
-    # 复制语义：内容与解释器一致（非 wrapper 文本）
-    assert shim.read_text(encoding="utf-8") == "MZ fake exe"
+    body = shim.read_text(encoding="utf-8")
+    # wrapper 语义：转发到归档内真实解释器（绝对路径），参数原样透传
+    assert body.startswith("@echo off")
+    interp = (install_root / pbs.PBS_TAG / "python" / "bin" / "python.exe").resolve()
+    assert f'"{interp}" %*' in body
+    # 不再产生 exe 副本（PATHEXT 下 .exe 优先于 .cmd，残留副本会重新赢走解析）
+    assert not (bin_dir / "python3.exe").exists()
+
+
+def test_ensure_runtime_windows_removes_legacy_exe_copy(tmp_path, monkeypatch):
+    """旧版本留下的坏 python3.exe 副本必须被清掉（自愈升级路径）。"""
+    monkeypatch.setattr(plat, "_sys_platform", "win32")
+    resources, install_root = _setup(
+        tmp_path, {"python/bin/python.exe": "MZ fake exe"}, {"python/bin/python.exe"}
+    )
+    bin_dir = install_root.parent / "bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    (bin_dir / "python3.exe").write_bytes(b"broken legacy copy")
+
+    pbs.ensure_runtime(resources, install_root)
+
+    assert not (bin_dir / "python3.exe").exists()
+    assert (bin_dir / "python3.cmd").exists()
 
 
 def test_ensure_runtime_windows_install_only_layout(tmp_path, monkeypatch):
     """PBS Windows install_only 真实布局：解释器在 ``python/python.exe``
-    （顶层 python 目录直接放 exe，无 bin 子目录）——同样认（M4 T4 审查）。"""
+    （顶层 python 目录直接放 exe，无 bin 子目录）——wrapper 指向该布局。"""
     monkeypatch.setattr(plat, "_sys_platform", "win32")
     resources, install_root = _setup(
         tmp_path, {"python/python.exe": "MZ root exe"}, {"python/python.exe"}
@@ -156,9 +185,10 @@ def test_ensure_runtime_windows_install_only_layout(tmp_path, monkeypatch):
     bin_dir = pbs.ensure_runtime(resources, install_root)
 
     assert bin_dir == tmp_path / "bin"
-    shim = bin_dir / "python3.exe"
+    shim = bin_dir / "python3.cmd"
     assert shim.exists()
-    assert shim.read_text(encoding="utf-8") == "MZ root exe"
+    interp = (install_root / pbs.PBS_TAG / "python" / "python.exe").resolve()
+    assert f'"{interp}" %*' in shim.read_text(encoding="utf-8")
 
 
 def test_find_interpreter_prefers_python_bin_over_root_level(tmp_path, monkeypatch):
