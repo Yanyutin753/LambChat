@@ -609,7 +609,7 @@ async def _create_backend_and_prompt(
         local_backend = WorkspaceAliasBackend(
             user_id=user_id,
             session_id=session_id,
-            machine_id=agent_options.get("sandbox_machine_id") or None,
+            machine_id=(agent_options or {}).get("sandbox_machine_id") or None,
         )
         # 用户 env 变量注入（对齐云端：backend.env_vars → 执行时下发）；
         # env_var 工具运行中改动经 sync_envvar_change 实时刷新同一属性

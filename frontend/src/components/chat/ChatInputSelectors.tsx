@@ -145,8 +145,8 @@ export function ChatInputSelectors({
     ? buildSandboxMachineOption(machines, defaultMachineId, t)
     : null;
   const enrichedAgentOptions = machineOption
-    ? { ...agentOptions, [SANDBOX_MACHINE_AGENT_OPTION_KEY]: machineOption }
-    : agentOptions;
+    ? { ...(agentOptions ?? {}), [SANDBOX_MACHINE_AGENT_OPTION_KEY]: machineOption }
+    : (agentOptions ?? {});
 
   return (
     <>
