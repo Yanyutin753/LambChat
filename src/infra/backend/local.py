@@ -180,8 +180,11 @@ class LocalSandboxBackend(BaseSandbox):
         )
         stdout = result.get("stdout") or ""
         stderr = result.get("stderr") or ""
+        # executor 错误标记（timeout/expired）：并入 output 让模型能区分
+        # 「命令超时/迟到」与「命令以非零码退出」（后者的 error 为 None）。
+        error = str(result.get("error") or "")
         # ExecuteResponse 只有合并 output 字段（protocol.py），照 E2BBackend 的拼接方式
-        output = f"{stdout}\n{stderr}" if stdout and stderr else (stdout or stderr)
+        output = "\n".join(part for part in (stdout, stderr, error) if part)
         exit_code = result.get("exit_code")
         # 缺失 exit_code 透传 None（协议：未确定），不伪装成 0 成功
         return ExecuteResponse(

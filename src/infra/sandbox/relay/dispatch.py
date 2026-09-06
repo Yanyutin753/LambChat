@@ -76,9 +76,19 @@ async def dispatch_local_call(
             if resp is not None and resp.get("stage") == "done":
                 await redis.delete(resp_key)
                 if resp.get("status") != "ok":
+                    # exec 的非零退出码/命令超时是**命令结局**而非中继故障（daemon
+                    # executor 的 status 镜像 exit_code）：带 executor 结果字段的
+                    # done 载荷原样回传，由 LocalSandboxBackend.aexecute 构造
+                    # ExecuteResponse——模型看得到 stdout/stderr/exit_code 才能自行
+                    # 纠错（Windows cmd.exe 上命令失败是常态；劫持成 AppError 会让
+                    # 模型只见 "execution failed" 而无从换命令）。其余 op（fs_* 的
+                    # 内部异常）与 exec 的 daemon 级错误（expired/unsupported，无
+                    # 结果字段）仍按中继失败上抛。
+                    if op == "exec" and ("exit_code" in resp or "stdout" in resp):
+                        return resp
                     raise AppError(
                         ErrorCode.SANDBOX_EXEC_FAILED,
-                        args={"detail": str(resp.get("error", "local execution failed"))},
+                        args={"detail": str(resp.get("error") or "local execution failed")},
                     )
                 return resp
             if not acked and time.monotonic() > ack_deadline:
