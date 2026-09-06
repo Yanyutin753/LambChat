@@ -56,7 +56,7 @@ test("popover gates sandbox status polling on its open state; the selector stays
   // 状态点不可见，不空转 10s 轮询）；ChatInputSelectors 的常驻实例保持
   // always-on（选择器动态适配依赖它）。
   expect(runModePopoverSource).toMatch(
-    /useSandboxStatus\(\{ enabled: open \}\)/,
+    /useSandboxStatus\(\{\s*enabled: open,?\s*\}\)/,
   );
   // 选择器实例不传参数（缺省 enabled=true 的常驻轮询）
   expect(source).toMatch(/useSandboxStatus\(\)/);
