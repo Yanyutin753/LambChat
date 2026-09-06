@@ -93,10 +93,24 @@ async def _lookup_daemon_platform(user_id: str, machine_id: str | None = None) -
 # 扣除引号/命令前缀开销后 ~96KB 即触发 E2BIG（Errno 7）——48KB 留足余量。
 _UPLOAD_CHUNK_RAW_BYTES = 48 * 1024
 
-# 下载单文件上限 2MB：与服务端 SANDBOX_RESULTS_MAX_BYTES（2 MiB）同量级。
-# 无预检时超限文件会整读 base64 回传，轻则链路中途炸出含糊错误、重则撑爆
-# results 回传 body——stat 预检在 daemon 侧给显式 file_too_large 而非 base64。
-_DOWNLOAD_MAX_BYTES = 2 * 1024 * 1024
+# 下载分块的原始字节数：daemon executor 对 stdout 只保留尾部 256KB
+# （MAX_OUTPUT_BYTES）并加 "...[truncated]" 前缀——单命令整读的 base64 流
+# 超线即被毁（2026-09-06 生产事故：>192KB 文件全部 invalid_download_output，
+# 上层误报 file_not_found_or_empty）。分块使每条命令的 base64 文本稳居
+# 截断线之下：144KB 原始字节 → ~196KB base64 < 256KB。
+_DOWNLOAD_CHUNK_RAW_BYTES = 144 * 1024
+
+
+def _download_max_bytes() -> int:
+    """下载单文件上限：与 reveal/S3 内部上传共用同一个环境变量旋钮。
+
+    ``S3_INTERNAL_UPLOAD_MAX_SIZE``（默认 1GB，见 kernel.config）统一控制
+    reveal 文件、本地沙箱下载与 S3 内部上传三处上限，不各自写死；超限在
+    stat 预检后即报显式 ``file_too_large``，不下发分片。
+    """
+    configured = int(getattr(settings, "S3_INTERNAL_UPLOAD_MAX_SIZE", 0) or 0)
+    return configured if configured > 0 else 1
+
 
 # fs_write 单次载荷上限（M4 T3.5，win32 结构化文件操作）：与下载/results 通道
 # 的 2MB 同量级——超限在服务端预检拒绝（file_too_large），不下发 daemon；
@@ -266,31 +280,24 @@ class LocalSandboxBackend(BaseSandbox):
         return commands
 
     @staticmethod
-    def _download_command(path: str, *, platform: str = "") -> str:
+    def _download_size_command(path: str, *, platform: str = "") -> str:
+        """stat 探测：stdout 输出目标文件字节数（缺文件/目录由 python 抛错分类）。"""
         ctx = _platform_ctx(platform)
-        if ctx.is_windows:
-            # win32：单行脚本（cmd.exe 逐行解析）；错误消息不用 % 格式化——
-            # cmd 在双引号内展开 %VAR%，两个 % 定界即被吞改，改用字符串拼接；
-            # 超限短路退出（`and` 短路 + sys.exit）与 posix 分支同语义。
-            script = (
-                "import os, sys, base64; "
-                "size = os.path.getsize(sys.argv[1]); "
-                f"size > {_DOWNLOAD_MAX_BYTES} and (sys.stderr.write("
-                f"'file_too_large: ' + str(size) + ' bytes exceeds {_DOWNLOAD_MAX_BYTES} limit"
-                " (download cap)'), sys.exit(1)); "
-                "sys.stdout.buffer.write(base64.b64encode(open(sys.argv[1], 'rb').read()))"
-            )
-            return f'python3 -c "{script}" {ctx.quote(path)}'
-        # stat 预检：超限打印显式 error（exit 1，stderr 带 file_too_large 标记与
-        # 字节数）而非输出 base64；不存在的路径仍由 python 抛 ENOENT 走原分类。
+        script = "import os, sys; sys.stdout.write(str(os.path.getsize(sys.argv[1])))"
+        return f'python3 -c "{script}" {ctx.quote(path)}'
+
+    @staticmethod
+    def _download_slice_command(path: str, *, offset: int, length: int, platform: str = "") -> str:
+        """分片读取：seek 到 offset 读 length 字节，stdout 回传该片的 base64。
+
+        两平台同为单行脚本；win32 注意数字直接插值而非 % 格式化——cmd 在
+        双引号内展开 %VAR%，两个 % 定界即被吞改（与上传命令同约束）。
+        """
+        ctx = _platform_ctx(platform)
         script = (
-            "import os, sys, base64\n"
-            "size = os.path.getsize(sys.argv[1])\n"
-            f"if size > {_DOWNLOAD_MAX_BYTES}:\n"
-            f"    sys.stderr.write('file_too_large: %d bytes exceeds {_DOWNLOAD_MAX_BYTES} limit'\n"
-            "                  ' (download cap)')\n"
-            "    sys.exit(1)\n"
-            "sys.stdout.buffer.write(base64.b64encode(open(sys.argv[1], 'rb').read()))"
+            "import sys, base64; "
+            f"f = open(sys.argv[1], 'rb'); f.seek({offset}); "
+            f"sys.stdout.buffer.write(base64.b64encode(f.read({length})))"
         )
         return f'python3 -c "{script}" {ctx.quote(path)}'
 
@@ -354,19 +361,70 @@ class LocalSandboxBackend(BaseSandbox):
         return FileDownloadResponse(path=path, content=content, error=None)
 
     async def _download_one(self, path: str, *, platform: str = "") -> FileDownloadResponse:
-        """单文件下载：直接经 dispatch 取原始 dict，只解码 stdout 字段。
+        """单文件下载：stat 探测尺寸 → 分片 seek+read 回传，逐片解码拼接。
 
         不走 aexecute——它把 stdout+stderr 合并进 output，stderr 告警文本会
         混进 base64 流解码出损坏字节（executor 返回 dict 天然带独立 stdout 字段）。
+        分片原因见 ``_DOWNLOAD_CHUNK_RAW_BYTES``：daemon 对 stdout 只保留尾部
+        256KB，整读命令回传大文件必然被截断打毁。超限（统一环境变量
+        ``S3_INTERNAL_UPLOAD_MAX_SIZE``，默认 1GB）在 stat 后即报显式
+        ``file_too_large``，不下发分片。
         """
-        result = await dispatch_local_call(
+        size_result = await dispatch_local_call(
             self._user_id,
             "exec",
-            {"command": self._download_command(path, platform=platform), "cwd": self.work_dir},
+            {
+                "command": self._download_size_command(path, platform=platform),
+                "cwd": self.work_dir,
+            },
             timeout=float(self._exec_timeout),
             machine_id=self._machine_id,
         )
-        return self._download_response(path, result)
+        if size_result.get("exit_code") != 0:
+            error_text = "\n".join(
+                x for x in (size_result.get("stdout"), size_result.get("stderr")) if x
+            )
+            return file_download_response(
+                path=path, content=None, error=_classify_file_error(error_text)
+            )
+        try:
+            size = int((size_result.get("stdout") or "").strip())
+        except ValueError:
+            logger.warning("local download_files(%s) got non-integer size output", path)
+            return file_download_response(
+                path=path,
+                content=None,
+                error=f"invalid_download_output: {(size_result.get('stdout') or '')[:80]!r}",
+            )
+        max_bytes = _download_max_bytes()
+        if size > max_bytes:
+            return file_download_response(
+                path=path,
+                content=None,
+                error=f"file_too_large: {size} bytes exceeds {max_bytes} limit "
+                "(S3_INTERNAL_UPLOAD_MAX_SIZE)",
+            )
+
+        chunks: list[bytes] = []
+        for offset in range(0, size, _DOWNLOAD_CHUNK_RAW_BYTES):
+            length = min(_DOWNLOAD_CHUNK_RAW_BYTES, size - offset)
+            result = await dispatch_local_call(
+                self._user_id,
+                "exec",
+                {
+                    "command": self._download_slice_command(
+                        path, offset=offset, length=length, platform=platform
+                    ),
+                    "cwd": self.work_dir,
+                },
+                timeout=float(self._exec_timeout),
+                machine_id=self._machine_id,
+            )
+            response = self._download_response(path, result)
+            if response.error is not None:
+                return response
+            chunks.append(response.content or b"")
+        return FileDownloadResponse(path=path, content=b"".join(chunks), error=None)
 
     def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
         # 平台解析一次供整批命令使用（照 execute 的 asyncio.run 桥接约束）

@@ -336,7 +336,7 @@ async def get_s3_config_from_settings() -> S3Config:
         internal_max_upload_size=(
             int(settings.S3_INTERNAL_UPLOAD_MAX_SIZE)
             if settings.S3_INTERNAL_UPLOAD_MAX_SIZE
-            else 50 * 1024 * 1024
+            else 1024 * 1024 * 1024
         ),
         presigned_url_expires=(
             int(settings.S3_PRESIGNED_URL_EXPIRES)

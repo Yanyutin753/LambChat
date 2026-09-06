@@ -2747,7 +2747,7 @@
     "S3_CUSTOM_DOMAIN": "S3 文件的自定义 CDN 域名",
     "S3_ENABLED": "启用 S3 兼容存储用于文件上传",
     "S3_ENDPOINT_URL": "S3 端点 URL（MinIO 和自定义提供商需要）",
-    "S3_INTERNAL_UPLOAD_MAX_SIZE": "最大内部上传大小（字节，默认：50MB）",
+    "S3_INTERNAL_UPLOAD_MAX_SIZE": "统一文件大小上限（字节，默认 1GB）：reveal 文件展示、本地沙箱下载、S3 内部上传共用；修改即时生效，超限报 file_too_large",
     "S3_MAX_FILE_SIZE": "最大文件大小（字节，默认：10MB）",
     "S3_PATH_STYLE": "使用路径风格 URL（MinIO 需要）",
     "S3_PRESIGNED_URL_EXPIRES": "预签名 URL 过期时间（秒，默认：7天）",

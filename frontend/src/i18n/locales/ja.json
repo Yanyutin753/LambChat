@@ -2747,7 +2747,7 @@
     "S3_CUSTOM_DOMAIN": "S3ファイルのカスタムCDNドメイン",
     "S3_ENABLED": "ファイルアップロード用のS3互換ストレージを有効化",
     "S3_ENDPOINT_URL": "S3エンドポイントURL（MinIOとカスタムプロバイダーに必須）",
-    "S3_INTERNAL_UPLOAD_MAX_SIZE": "最大内部アップロードサイズ（バイト、デフォルト：50MB）",
+    "S3_INTERNAL_UPLOAD_MAX_SIZE": "統一ファイルサイズ上限（バイト、デフォルト 1GB）：reveal ファイル配信・ローカルサンドボックスダウンロード・S3 内部アップロードで共用。変更は即時反映、超過時は file_too_large エラー",
     "S3_MAX_FILE_SIZE": "最大ファイルサイズ（バイト、デフォルト：10MB）",
     "S3_PATH_STYLE": "パススタイルURLを使用（MinIOに必須）",
     "S3_PRESIGNED_URL_EXPIRES": "署名付きURL有効期限（秒、デフォルト：7日）",

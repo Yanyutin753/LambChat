@@ -159,6 +159,57 @@ def test_release_workflow_fetches_pbs_per_platform_after_daemon() -> None:
     assert "${{ matrix.pbs_platform }}" in pbs_step["run"]
 
 
+def test_release_workflow_publishes_assets_immediately_per_platform() -> None:
+    """即发即传：各平台 job 构建完成立即上传 Release，不等六端汇总 job。
+
+    汇总 job 退化为兜底（权威重生成 latest.json + 部分失败打捞），
+    资产可用性由各 job 自身的发布步骤保证。
+    """
+    workflow = _release_workflow()
+
+    def job_step_names(job: str) -> list[str]:
+        return [step["name"] for step in workflow["jobs"][job]["steps"]]
+
+    # desktop / android / ios 三个构建 job 都有即发即传步骤
+    assert "Publish desktop assets to release immediately" in job_step_names("desktop")
+    assert "Publish Android assets to release immediately" in job_step_names("android")
+    assert "Publish iOS archive to release immediately" in job_step_names("ios")
+
+    def step_run(job: str, name: str) -> str:
+        step = next(s for s in workflow["jobs"][job]["steps"] if s["name"] == name)
+        return step["run"]
+
+    desktop_run = step_run("desktop", "Publish desktop assets to release immediately")
+    # 创建竞态收敛：已存在即跳过 + 退避重试；上传幂等（--clobber）
+    assert "gh release view" in desktop_run
+    assert "gh release create" in desktop_run
+    assert "--clobber" in desktop_run
+    assert "--generate-notes" in desktop_run
+
+    # updater 平台（linux x2 + windows）增量合并 latest.json；macOS 无条目
+    matrix = _desktop_job()["strategy"]["matrix"]["include"]
+    by_label = {entry["label"]: entry for entry in matrix}
+    assert by_label["Linux x86_64"]["updater_key"] == "linux-x86_64"
+    assert by_label["Linux ARM64"]["updater_key"] == "linux-aarch64"
+    assert by_label["Windows"]["updater_key"] == "windows-x86_64"
+    assert "updater_key" not in by_label["macOS"]
+    merge_step = next(
+        s
+        for s in _desktop_job()["steps"]
+        if s["name"] == "Merge updater platform entry into latest.json"
+    )
+    assert merge_step["if"] == "matrix.updater_key != ''"
+    # node 合并（三平台镜像都有 Node；Windows 无 python3）
+    assert "node -e" in merge_step["run"]
+
+    # 汇总 job 保留：权威 latest.json + 兜底重发
+    release_job = workflow["jobs"]["release"]
+    assert release_job["if"] == "always()"
+    release_steps = job_step_names("release")
+    assert "Generate latest.json updater manifest" in release_steps
+    assert "Publish release" in release_steps
+
+
 def test_build_script_appends_exe_suffix_on_windows_sidecar() -> None:
     script = _source("client/scripts/build-daemon.sh")
 
