@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { Bell, Calendar, X } from "lucide-react";
 import { notificationApi } from "../../services/api/notification";
 import { surfaceAppAnnouncementNotifications } from "../../services/notifications/announcementNotifications";
+import { SelectorModalPortal, SelectorModalShell } from "../selectors/shared";
 import type { Notification } from "../../types/notification";
 
 const AUTO_PLAY_INTERVAL = 5000;
@@ -196,111 +196,88 @@ export function NotificationBanner() {
         </div>
       </div>
 
-      {selectedNotification &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-[320] flex items-center justify-center bg-black/50 p-4"
-            onClick={closeSelectedNotification}
+      {selectedNotification && (
+        <SelectorModalPortal open onClose={closeSelectedNotification}>
+          <SelectorModalShell
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="notification-banner-detail-title"
+            className="notification-banner-detail"
           >
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="notification-banner-detail-title"
-              className="notification-banner-detail w-full max-w-2xl overflow-hidden rounded-2xl border shadow-2xl"
-              style={{
-                backgroundColor: "var(--theme-bg-card)",
-                borderColor: "var(--theme-border)",
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between gap-4 border-b px-5 py-4">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                    style={{
-                      backgroundColor:
-                        "color-mix(in srgb, var(--theme-primary) 12%, transparent)",
-                    }}
-                  >
-                    <Bell size={17} style={{ color: "var(--theme-primary)" }} />
-                  </div>
-                  <div className="min-w-0">
-                    <p
-                      id="notification-banner-detail-title"
-                      className="text-base font-semibold leading-tight"
-                      style={{ color: "var(--theme-text)" }}
-                    >
-                      {selectedNotification.title_i18n[lang] ||
-                        selectedNotification.title_i18n.en}
-                    </p>
-                    <p
-                      className="text-xs"
-                      style={{ color: "var(--theme-text-secondary)" }}
-                    >
-                      {t(
-                        `notification.type${
-                          selectedNotification.type.charAt(0).toUpperCase() +
-                          selectedNotification.type.slice(1)
-                        }`,
-                      )}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={closeSelectedNotification}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors"
-                  style={{ color: "var(--theme-text-secondary)" }}
-                  aria-label={t("common.dismiss", "关闭")}
+            <div className="flex items-center justify-between gap-4 border-b px-5 py-4">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                  style={{
+                    backgroundColor:
+                      "color-mix(in srgb, var(--theme-primary) 12%, transparent)",
+                  }}
                 >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="space-y-4 px-5 py-5">
-                <div className="space-y-2">
+                  <Bell size={17} style={{ color: "var(--theme-primary)" }} />
+                </div>
+                <div className="min-w-0">
                   <p
-                    className="text-sm leading-relaxed whitespace-pre-wrap"
+                    id="notification-banner-detail-title"
+                    className="text-base font-semibold leading-tight"
                     style={{ color: "var(--theme-text)" }}
                   >
-                    {selectedNotification.content_i18n[lang] ||
-                      selectedNotification.content_i18n.en}
+                    {selectedNotification.title_i18n[lang] ||
+                      selectedNotification.title_i18n.en}
+                  </p>
+                  <p
+                    className="text-xs"
+                    style={{ color: "var(--theme-text-secondary)" }}
+                  >
+                    {t(
+                      `notification.type${
+                        selectedNotification.type.charAt(0).toUpperCase() +
+                        selectedNotification.type.slice(1)
+                      }`,
+                    )}
                   </p>
                 </div>
+              </div>
+              <button
+                onClick={closeSelectedNotification}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors"
+                style={{ color: "var(--theme-text-secondary)" }}
+                aria-label={t("common.dismiss", "关闭")}
+              >
+                <X size={18} />
+              </button>
+            </div>
 
-                <div
-                  className="flex flex-wrap items-center gap-3 border-t pt-4 text-xs"
-                  style={{ borderColor: "var(--theme-border)" }}
+            <div className="space-y-4 px-5 py-5">
+              <div className="space-y-2">
+                <p
+                  className="text-sm leading-relaxed whitespace-pre-wrap"
+                  style={{ color: "var(--theme-text)" }}
                 >
-                  <span
-                    className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1"
-                    style={{
-                      backgroundColor:
-                        "color-mix(in srgb, var(--theme-primary) 10%, transparent)",
-                      color: "var(--theme-text-secondary)",
-                    }}
-                  >
-                    <Calendar size={12} />
-                    {selectedNotification.created_at.slice(0, 10)}
-                  </span>
-                  <span
-                    className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1"
-                    style={{
-                      backgroundColor:
-                        "color-mix(in srgb, var(--theme-text) 4%, transparent)",
-                      color: "var(--theme-text-secondary)",
-                    }}
-                  >
-                    <Bell size={12} />
-                    {selectedNotification.is_active
-                      ? t("notification.active", "Active")
-                      : t("notification.inactive", "Inactive")}
-                  </span>
-                </div>
+                  {selectedNotification.content_i18n[lang] ||
+                    selectedNotification.content_i18n.en}
+                </p>
+              </div>
+
+              <div
+                className="flex flex-wrap items-center gap-3 border-t pt-4 text-xs"
+                style={{ borderColor: "var(--theme-border)" }}
+              >
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1"
+                  style={{
+                    backgroundColor:
+                      "color-mix(in srgb, var(--theme-primary) 10%, transparent)",
+                    color: "var(--theme-text-secondary)",
+                  }}
+                >
+                  <Calendar size={12} />
+                  {selectedNotification.created_at.slice(0, 10)}
+                </span>
               </div>
             </div>
-          </div>,
-          document.body,
-        )}
+          </SelectorModalShell>
+        </SelectorModalPortal>
+      )}
     </>
   );
 }

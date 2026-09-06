@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   clearPairing: vi.fn(),
   readPairingPat: vi.fn(),
   getStatus: vi.fn(),
+  listMachines: vi.fn(),
   createPat: vi.fn(),
   pairingLogin: vi.fn(),
   createPairingPat: vi.fn(),
@@ -40,6 +41,10 @@ vi.mock("../../../services/api/sandbox", () => ({
     createPairingPat: mocks.createPairingPat,
     revokePairingPat: mocks.revokePairingPat,
   },
+  sandboxApiMachines: {
+    listMachines: mocks.listMachines,
+  },
+  machinePlatformLabel: (platform: string) => platform,
 }));
 
 vi.mock("react-hot-toast", () => ({
@@ -52,18 +57,58 @@ beforeEach(async () => {
   await i18n.changeLanguage("en");
   vi.clearAllMocks();
   window.localStorage.clear();
+  mocks.listMachines.mockResolvedValue({
+    machines: [],
+    default_machine_id: null,
+  });
 });
 
-test("pure web renders only the desktop-required hint", async () => {
+test("pure web offline renders the pairing guidance hint", async () => {
   mocks.isShellAvailable.mockReturnValue(false);
   mocks.getStatus.mockResolvedValue({ online: false });
 
   render(<LocalSandboxSection />);
 
   expect(
-    screen.getByText(/requires the LambChat desktop app/i),
+    await screen.findByText(/pair it with the LambChat desktop app/i),
   ).toBeInTheDocument();
   // 纯 web：不渲染配对表单，也不探测壳内进程
+  expect(screen.queryByRole("form")).not.toBeInTheDocument();
+  expect(mocks.daemonProcessStatus).not.toHaveBeenCalled();
+});
+
+test("pure web with an online daemon shows status and machines, not the dead-end hint", async () => {
+  // 桌面端已配对连接：网页端能看到本地沙箱在线状态与机器列表
+  //（会话里可选本地档 + 执行机器），而不是"需要桌面端"死提示
+  mocks.isShellAvailable.mockReturnValue(false);
+  mocks.getStatus.mockResolvedValue({ online: true, daemon_version: "0.3.0" });
+  mocks.listMachines.mockResolvedValue({
+    machines: [
+      {
+        machine_id: "pc1",
+        name: "yangyang",
+        platform: "win32",
+        version: "0.3.0",
+        confirm_policy: "all",
+        online: true,
+      },
+    ],
+    default_machine_id: "pc1",
+  });
+
+  render(<LocalSandboxSection />);
+
+  expect(await screen.findByText("Online")).toBeInTheDocument();
+  expect(screen.getByText(/daemon 0\.3\.0/)).toBeInTheDocument();
+  expect(
+    screen.getByText(/managed by the paired desktop app/i),
+  ).toBeInTheDocument();
+  // 机器卡自带独立的 useSandboxStatus 实例（异步拉取），等待式断言
+  expect(await screen.findByText("yangyang")).toBeInTheDocument();
+  // 死提示与配对表单都不出现
+  expect(
+    screen.queryByText(/pair it with the LambChat desktop app/i),
+  ).not.toBeInTheDocument();
   expect(screen.queryByRole("form")).not.toBeInTheDocument();
   expect(mocks.daemonProcessStatus).not.toHaveBeenCalled();
 });
@@ -73,7 +118,10 @@ test("pairing runs side-effect-free login → pat → savePairing → restart in
   mocks.daemonProcessStatus.mockResolvedValue("stopped");
   mocks.getStatus.mockResolvedValue({ online: false });
   mocks.pairingLogin.mockResolvedValue("pairing-jwt");
-  mocks.createPairingPat.mockResolvedValue({ token: "lcpat_pair", pat_id: "p1" });
+  mocks.createPairingPat.mockResolvedValue({
+    token: "lcpat_pair",
+    pat_id: "p1",
+  });
   mocks.savePairing.mockResolvedValue(undefined);
   mocks.restartDaemon.mockResolvedValue(undefined);
   const dispatchSpy = vi.spyOn(window, "dispatchEvent");
@@ -125,7 +173,9 @@ test("pairing runs side-effect-free login → pat → savePairing → restart in
   expect(saveAt).toBeLessThan(restartAt);
 
   // 配对后触发状态刷新事件（hook 重新拉取）
-  await waitFor(() => expect(mocks.getStatus.mock.calls.length).toBeGreaterThanOrEqual(2));
+  await waitFor(() =>
+    expect(mocks.getStatus.mock.calls.length).toBeGreaterThanOrEqual(2),
+  );
 });
 
 test("pairing failure surfaces an error toast and keeps the form", async () => {
@@ -143,7 +193,11 @@ test("pairing failure surfaces an error toast and keeps the form", async () => {
   });
   fireEvent.click(screen.getByRole("button", { name: /pair and start/i }));
 
-  await waitFor(() => expect(screen.getByRole("button", { name: /pair and start/i })).toBeInTheDocument());
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: /pair and start/i }),
+    ).toBeInTheDocument(),
+  );
   expect(mocks.savePairing).not.toHaveBeenCalled();
   expect(mocks.createPairingPat).not.toHaveBeenCalled();
   const { toast } = await import("react-hot-toast");
@@ -242,7 +296,10 @@ test("unpair still clears local pairing when server-side revoke fails", async ()
   mocks.getStatus.mockResolvedValue({ online: true, daemon_version: "0.1.0" });
   mocks.readPairingPat.mockResolvedValue("lcpat_stale");
   mocks.revokePairingPat.mockRejectedValue(
-    Object.assign(new Error("PAT not found"), { status: 401, code: "pat_not_found" }),
+    Object.assign(new Error("PAT not found"), {
+      status: 401,
+      code: "pat_not_found",
+    }),
   );
   mocks.clearPairing.mockResolvedValue(undefined);
 
@@ -295,7 +352,10 @@ test("auto-pairs with session token when unpaired and no local PAT", async () =>
   mocks.getStatus.mockResolvedValue({ online: false });
   mocks.readPairingPat.mockResolvedValue(null);
   window.localStorage.setItem("access_token", "jwt-session");
-  mocks.createPairingPat.mockResolvedValue({ token: "lcpat_auto", pat_id: "p-auto" });
+  mocks.createPairingPat.mockResolvedValue({
+    token: "lcpat_auto",
+    pat_id: "p-auto",
+  });
   mocks.savePairing.mockResolvedValue(undefined);
   mocks.restartDaemon.mockResolvedValue(undefined);
 

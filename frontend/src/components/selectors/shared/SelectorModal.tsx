@@ -22,7 +22,7 @@ export function SelectorModalPortal({
         onClick={onClose}
       />
       <div
-        className="safe-area-viewport-padding fixed z-[301] sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4 inset-x-0 bottom-0 animate-slide-up sm:animate-scale-in"
+        className="safe-area-x safe-area-viewport-padding fixed z-[301] sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4 inset-x-0 bottom-0 animate-slide-up sm:animate-scale-in"
         onClick={onClose}
       >
         {children}

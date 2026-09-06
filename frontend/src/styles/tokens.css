@@ -188,8 +188,23 @@
   --sidebar-width: 16rem;
   --sidebar-rail-width: 3.25rem;
   --sidebar-transition-duration: 150ms;
-  --app-safe-area-top: env(safe-area-inset-top, 0px);
-  --app-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  /* env() 在 Android WebView 恒为 0，原生注入的 --app-native-safe-area-* 兜底，二者取大 */
+  --app-safe-area-top: max(
+    env(safe-area-inset-top, 0px),
+    var(--app-native-safe-area-top, 0px)
+  );
+  --app-safe-area-bottom: max(
+    env(safe-area-inset-bottom, 0px),
+    var(--app-native-safe-area-bottom, 0px)
+  );
+  --app-safe-area-left: max(
+    env(safe-area-inset-left, 0px),
+    var(--app-native-safe-area-left, 0px)
+  );
+  --app-safe-area-right: max(
+    env(safe-area-inset-right, 0px),
+    var(--app-native-safe-area-right, 0px)
+  );
   --app-fullscreen-safe-area-top: 0px;
   --app-fullscreen-safe-area-bottom: 0px;
   --app-safe-area-top-active: max(

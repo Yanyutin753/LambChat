@@ -187,7 +187,7 @@ export function SkillPreviewModal({
           <div
             role="dialog"
             aria-modal="true"
-            className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/45 p-3 sm:p-6"
+            className="safe-area-viewport-padding fixed inset-0 z-[1200] flex items-center justify-center bg-black/45 p-3 sm:p-6"
             onClick={() => setPreviewFilePath(null)}
           >
             <div

@@ -112,7 +112,9 @@ export default function DocumentPreviewToolbar({
           e.stopPropagation();
           onClose();
         }}
-        className="top-4"
+        style={{
+          top: "calc(1rem + var(--app-safe-area-top-active, var(--app-safe-area-top, 0px)))",
+        }}
         title={t("common.close")}
         icon={<X size={18} />}
       />

@@ -23,6 +23,17 @@ test("sandbox selector opens on its own panel key, never the thinking panel", ()
   expect(source).toMatch(/activePanel === "sandbox"/);
 });
 
+test("machine selector opens on its own panel key, never the thinking panel", () => {
+  // 机器选择器独立 panel key：注入机器选项后不得再挂 thinking 面板同帧双开
+  expect(source).toMatch(/activePanel === "machine"/);
+});
+
+test("popover offers a machine sub-entry under the sandbox entry for the local tier", () => {
+  // 多机选机入口：沙箱条目下的"机器"子条目（本地档 + 在线机器时显示）
+  expect(runModePopoverSource).toMatch(/data-machine-entry/);
+  expect(runModePopoverSource).toMatch(/SANDBOX_LOCAL_VALUE/);
+});
+
 test("offline local selection warns without blocking the change", () => {
   // 离线选本地档：五语提示 + 仍应用用户选择
   expect(source).toMatch(/agentOptions\.sandbox\.offlineHint/);
@@ -44,7 +55,9 @@ test("popover gates sandbox status polling on its open state; the selector stays
   // 轮询门控（M4 T8）：RunModePopover 只在展开时拉取/轮询（浮层关闭期间
   // 状态点不可见，不空转 10s 轮询）；ChatInputSelectors 的常驻实例保持
   // always-on（选择器动态适配依赖它）。
-  expect(runModePopoverSource).toMatch(/useSandboxStatus\(\{ enabled: open \}\)/);
+  expect(runModePopoverSource).toMatch(
+    /useSandboxStatus\(\{\s*enabled: open,?\s*\}\)/,
+  );
   // 选择器实例不传参数（缺省 enabled=true 的常驻轮询）
   expect(source).toMatch(/useSandboxStatus\(\)/);
   expect(source).not.toMatch(/useSandboxStatus\(\{/);

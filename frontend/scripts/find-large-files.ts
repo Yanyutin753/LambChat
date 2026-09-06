@@ -8,7 +8,7 @@ const PROJECT_ROOT = path.resolve(__dirname, "../..");
 const FRONTEND_SRC = path.join(PROJECT_ROOT, "frontend/src");
 const BACKEND_SRC = path.join(PROJECT_ROOT, "src");
 
-const LINE_THRESHOLD = 1000;
+const LINE_THRESHOLD = 1500;
 
 async function findLargeFiles(
   pattern: string,

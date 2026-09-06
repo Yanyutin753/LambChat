@@ -7,8 +7,9 @@ test("app shell reserves native mobile status bar safe area", () => {
   const shell = readSource("../AppShell.tsx");
   const tokens = readSource("../../../../styles/tokens.css");
 
+  // Android WebView 里 env() 恒为 0，须与原生注入的 --app-native-safe-area-* 取 max 合并
   expect(tokens).toMatch(
-    /--app-safe-area-top:\s*env\(safe-area-inset-top, 0px\)/,
+    /--app-safe-area-top:\s*max\(\s*env\(safe-area-inset-top, 0px\),\s*var\(--app-native-safe-area-top, 0px\)\s*\)/,
   );
   expect(tokens).toMatch(/--app-fullscreen-safe-area-top:\s*0px/);
   expect(tokens).toMatch(/--app-fullscreen-safe-area-bottom:\s*0px/);

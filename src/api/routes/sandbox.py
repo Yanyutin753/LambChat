@@ -324,19 +324,35 @@ async def sandbox_machine_forget(
 
 @router.get("/status")
 async def sandbox_status(user: TokenPayload = Depends(get_current_user_pat_or_jwt)):
-    active = await _registry().get_active(user.sub)
-    if active is None:
-        return {"online": False}
-    # hash value 可能是 node_id|version|platform|confirm_policy（新 daemon）、
-    # node_id|version|platform（M4）、node_id|version（M2）或纯 node_id（M1
-    # 旧格式），解析不出的字段为 null
-    return {
+    """daemon 在线状态。
+
+    legacy 活跃连接优先（带 ``client_id``）；多机 daemon（0.3.0+ 带
+    machine_id）不落 legacy hash，在线判定走 :meth:`is_online`（任一机器
+    在线即在线，与机器列表一致），版本/平台/策略取缺省目标机的注册 value
+    （默认机→唯一在线机，与 dispatch 解析同规则；无缺省目标时这些字段为
+    null）。value 可能是 node_id|version|platform|confirm_policy（新
+    daemon）、node_id|version|platform（M4）、node_id|version（M2）或纯
+    node_id（M1 旧格式），解析不出的字段为 null。
+    """
+    registry = _registry()
+    active = await registry.get_active(user.sub)
+    if active is not None:
+        client_id, value = active
+    else:
+        if not await registry.is_online(user.sub):
+            return {"online": False}
+        target = await registry.resolve_target(user.sub)
+        client_id = None
+        value = await registry.machine_value(user.sub, target) if target else ""
+    status = {
         "online": True,
-        "client_id": active[0],
-        "daemon_version": parse_daemon_version(active[1]) or None,
-        "daemon_platform": parse_daemon_platform(active[1]) or None,
-        "daemon_confirm_policy": parse_confirm_policy(active[1]) or None,
+        "daemon_version": parse_daemon_version(value) or None,
+        "daemon_platform": parse_daemon_platform(value) or None,
+        "daemon_confirm_policy": parse_confirm_policy(value) or None,
     }
+    if client_id is not None:
+        status["client_id"] = client_id
+    return status
 
 
 @router.post("/offline")

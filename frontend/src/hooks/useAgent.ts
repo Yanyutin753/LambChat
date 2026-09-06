@@ -71,15 +71,36 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   // State（messages + 运行态簇；簇实现下沉 loadingStates.ts 控行数红线）
   const [messages, setMessages] = useState<Message[]>([]);
   const {
-    isLoading, setIsLoading, isLoadingHistory, setIsLoadingHistory,
-    historyLoadGeneration, setHistoryLoadGeneration, sessionId, setSessionId,
-    currentProjectId, setCurrentProjectId, error, setError,
-    connectionStatus, setConnectionStatus, currentRunId, setCurrentRunId,
-    newlyCreatedSession, setNewlyCreatedSession, isInitializingSandbox,
+    isLoading,
+    setIsLoading,
+    isLoadingHistory,
+    setIsLoadingHistory,
+    historyLoadGeneration,
+    setHistoryLoadGeneration,
+    sessionId,
+    setSessionId,
+    currentProjectId,
+    setCurrentProjectId,
+    error,
+    setError,
+    connectionStatus,
+    setConnectionStatus,
+    currentRunId,
+    setCurrentRunId,
+    newlyCreatedSession,
+    setNewlyCreatedSession,
+    isInitializingSandbox,
     setIsInitializingSandbox,
-    sandboxError, setSandboxError, selectedTeamId, setSelectedTeamId,
-    activeGoal, setActiveGoal, goalsByRunId, setGoalsByRunId,
-    goalModeEnabled, setGoalModeEnabled,
+    sandboxError,
+    setSandboxError,
+    selectedTeamId,
+    setSelectedTeamId,
+    activeGoal,
+    setActiveGoal,
+    goalsByRunId,
+    setGoalsByRunId,
+    goalModeEnabled,
+    setGoalModeEnabled,
   } = useChatRuntimeStates();
   const [autoModeEnabled, setAutoModeEnabled] = useAutoModeSetting();
 
@@ -167,7 +188,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
   // 历史回放查到已决的 scheduled-task 审批时，补收尾对应 ask_human pill（详见 historyLoader）
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 工厂仅依赖 useState 的稳定 setter
-  const onApprovalLookup = useCallback(createScheduledTaskApprovalLookup(setMessages), []);
+  const onApprovalLookup = useCallback(
+    createScheduledTaskApprovalLookup(setMessages),
+    [],
+  );
 
   // History trace-window pagination (older pages prepend on scroll)
   const {
@@ -736,7 +760,12 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         const errWithMeta = err as Error & { code?: string };
         const errorMessage =
           err instanceof Error
-            ? translateApiError(errWithMeta.code, err.message, undefined, i18n.t.bind(i18n))
+            ? translateApiError(
+                errWithMeta.code,
+                err.message,
+                undefined,
+                i18n.t.bind(i18n),
+              )
             : i18n.t("chat.unknownError");
         setError(errorMessage);
         setMessages((prev) =>

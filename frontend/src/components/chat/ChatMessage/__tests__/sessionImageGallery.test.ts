@@ -197,7 +197,9 @@ test("ImageViewer follows the mobile visual viewport instead of the layout viewp
     "utf8",
   );
 
-  expect(source).toMatch(/className="fixed inset-0 z-\[300\] flex flex-col/);
+  expect(source).toMatch(
+    /className="safe-area-x fixed inset-0 z-\[300\] flex flex-col/,
+  );
   expect(source).toMatch(/height:\s*"var\(--app-viewport-height, 100dvh\)"/);
   expect(source).toMatch(
     /transform:\s*"translate3d\(0, var\(--app-viewport-offset-top, 0px\), 0\)"/,

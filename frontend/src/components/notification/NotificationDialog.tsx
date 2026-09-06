@@ -1,9 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
-import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
   Bell,
-  X,
   Info,
   CheckCircle,
   AlertTriangle,
@@ -12,6 +10,11 @@ import {
 } from "lucide-react";
 import { notificationApi } from "../../services/api/notification";
 import { surfaceAppAnnouncementNotifications } from "../../services/notifications/announcementNotifications";
+import {
+  SelectorModalHeader,
+  SelectorModalPortal,
+  SelectorModalShell,
+} from "../selectors/shared";
 import type { Notification, NotificationType } from "../../types/notification";
 import { formatDateTimeShort } from "../../utils/datetime";
 
@@ -96,57 +99,19 @@ export function NotificationDialog({
   const lang = (i18n.language?.split("-")[0] ||
     "en") as keyof Notification["title_i18n"];
 
-  return createPortal(
-    <div
-      data-yields-sidebar
-      className="safe-area-viewport-padding fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4"
-      onClick={onClose}
-    >
-      <div
-        className="w-full h-[60dvh] sm:h-[55dvh] sm:max-w-2xl flex flex-col rounded-t-2xl sm:rounded-2xl shadow-2xl"
-        style={{
-          backgroundColor: "var(--theme-bg-card)",
-          border: "1px solid var(--theme-border)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div
-          className="flex items-center justify-between px-5 py-4 border-b shrink-0"
-          style={{ borderColor: "var(--theme-border)" }}
-        >
-          <div className="flex items-center gap-2.5">
-            <div
-              className="flex h-8 w-8 items-center justify-center rounded-lg"
-              style={{
-                backgroundColor:
-                  "color-mix(in srgb, var(--theme-primary) 12%, transparent)",
-              }}
-            >
-              <Bell size={16} style={{ color: "var(--theme-primary)" }} />
-            </div>
-            <h2
-              className="text-base font-semibold font-serif"
-              style={{ color: "var(--theme-text)" }}
-            >
-              {t("nav.notifications")}
-            </h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
-            style={{ color: "var(--theme-text-secondary)" }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor =
-                "var(--theme-bg-hover, rgba(0,0,0,0.05))";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-            }}
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+  return (
+    <SelectorModalPortal open={isOpen} onClose={onClose}>
+      <SelectorModalShell>
+        <SelectorModalHeader
+          icon={
+            <Bell
+              size={16}
+              className="text-stone-500 dark:text-stone-400 sm:w-[18px] sm:h-[18px]"
+            />
+          }
+          title={t("nav.notifications")}
+          onClose={onClose}
+        />
 
         {/* List */}
         <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4 sm:p-5 space-y-2.5">
@@ -276,8 +241,7 @@ export function NotificationDialog({
             })
           )}
         </div>
-      </div>
-    </div>,
-    document.body,
+      </SelectorModalShell>
+    </SelectorModalPortal>
   );
 }
