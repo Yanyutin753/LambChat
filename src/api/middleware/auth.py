@@ -34,8 +34,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/sw.js",
         "/offline.html",
         "/api/version",
-        # release 资产下载代理：与 /api/version 同为公开端点（移动端更新链路）
-        "/api/version/assets/",
         "/robots.txt",
         "/sitemap.xml",
         "/index.html",
@@ -50,6 +48,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/api/auth/verify-email",
         "/api/auth/resend-verification",
         "/api/upload/file/",  # 文件访问端点 - 设计为公开以支持文件分享和前端访问
+        # release 资产下载代理：与 /api/version 同为公开端点（移动端更新链路）。
+        # 必须挂前缀列表——PUBLIC_PATHS 是精确匹配集合，挡不住
+        # /api/version/assets/<name>/download 实际路径（2026-09-07 生产 401 事故）。
+        "/api/version/assets/",
         "/assets/",
         "/icons/",
         "/images/",
