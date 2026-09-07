@@ -136,3 +136,16 @@ test("UpdateDownloaderPlugin downloads to app-private external dir via DownloadM
   // 原生侧 Long.parseLong 消费字符串 id
   expect(plugin).toMatch(/Long\.parseLong/);
 });
+
+test("tauri updater keeps proxy fallback endpoint for manifest fetch", () => {
+  // 桌面更新器清单拉取：GitHub 直连不稳（国内）时回退自托管同源代理。
+  // 端点按序尝试是 tauri-plugin-updater 的内建语义。
+  const conf = readRepoFile("frontend/src-tauri/tauri.conf.json");
+  const endpoints = /"endpoints":\s*\[([\s\S]*?)\]/.exec(conf)?.[1] ?? "";
+  expect(endpoints).toMatch(
+    /github\.com\/Yanyutin753\/LambChat\/releases\/latest\/download\/latest\.json/,
+  );
+  expect(endpoints).toMatch(
+    /lambchat\.com\/api\/version\/assets\/latest\.json\/download/,
+  );
+});
