@@ -85,3 +85,54 @@ test("install permission hint copy exists in all five locales", () => {
     expect(data.update.installPermissionHint, locale).toBeTruthy();
   }
 });
+
+test("installAndroidUpdate tries native downloader before WebView fallback", () => {
+  const hook = readRepoFile("frontend/src/hooks/useAutoUpdate.ts");
+  const nativeCall = hook.indexOf("installAndroidUpdateViaNative(");
+  const webviewCall = hook.indexOf("installAndroidUpdateViaWebViewStream(");
+  // 原生优先、WebView 兜底——旧壳/系统裁剪下原生桥不可用时兼容网仍在
+  expect(nativeCall).toBeGreaterThan(-1);
+  expect(webviewCall).toBeGreaterThan(nativeCall);
+  // 两条链路共用同一自托管代理 URL（保住服务端可达 GitHub 的转发语义）
+  expect(
+    hook.match(/buildReleaseAssetDownloadUrl\(/g)?.length,
+  ).toBeGreaterThanOrEqual(2);
+});
+
+test("UpdateDownloader bridge polls progress with string downloadId", () => {
+  const bridge = readRepoFile(
+    "frontend/src/services/capacitor/updateDownloader.ts",
+  );
+  expect(bridge).toMatch(/registerPlugin/);
+  expect(bridge).toMatch(/"UpdateDownloader"/);
+  // downloadId 字符串往返：规避各 Capacitor 版本 PluginCall 数值取值差异
+  expect(bridge).toMatch(/downloadId: string/);
+
+  const hook = readRepoFile("frontend/src/hooks/useAutoUpdate.ts");
+  expect(hook).toMatch(/UpdateDownloader\.progress\(\{ downloadId \}\)/);
+});
+
+test("MainActivity registers UpdateDownloaderPlugin before the bridge loads", () => {
+  const main = readRepoFile(
+    "frontend/android/app/src/main/java/com/lambchat/app/MainActivity.java",
+  );
+  expect(main).toMatch(/registerPlugin\(UpdateDownloaderPlugin\.class\);/);
+  const registerIdx = main.indexOf(
+    "registerPlugin(UpdateDownloaderPlugin.class);",
+  );
+  const superIdx = main.indexOf("super.onCreate(");
+  expect(registerIdx).toBeGreaterThan(-1);
+  expect(superIdx).toBeGreaterThan(registerIdx);
+});
+
+test("UpdateDownloaderPlugin downloads to app-private external dir via DownloadManager", () => {
+  const plugin = readRepoFile(
+    "frontend/android/app/src/main/java/com/lambchat/app/UpdateDownloaderPlugin.java",
+  );
+  // 应用专属外部目录：免存储权限，且 FileProvider external-path 已覆盖
+  expect(plugin).toMatch(/setDestinationInExternalFilesDir/);
+  expect(plugin).toMatch(/DownloadManager\.COLUMN_STATUS/);
+  expect(plugin).toMatch(/COLUMN_LOCAL_URI/);
+  // 原生侧 Long.parseLong 消费字符串 id
+  expect(plugin).toMatch(/Long\.parseLong/);
+});
