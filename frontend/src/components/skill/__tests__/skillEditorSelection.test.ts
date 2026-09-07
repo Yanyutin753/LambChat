@@ -23,3 +23,9 @@ test("SkillEditor keeps CodeMirror text selection visible and selectable", () =>
     /"\.cm-lineNumbers \.cm-gutterElement":\s*\{[\s\S]*userSelect:\s*"none"/,
   );
 });
+
+test("SkillEditor derives dark mode from the shared useAppThemeMode hook", () => {
+  expect(source).toMatch(/from ["'].*hooks\/useAppThemeMode["']/);
+  expect(source).toMatch(/useAppThemeMode\(\)/);
+  expect(source).not.toMatch(/MutationObserver/);
+});

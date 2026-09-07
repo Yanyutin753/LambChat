@@ -226,3 +226,68 @@
 .dark .hljs-tag {
   color: #f0abfc;
 }
+
+/* ========================================
+   Syntax Highlighting - Sepia (护眼模式)
+   亮色配色按白底设计，在米黄代码底上对比度不足；
+   仅加深不达标的 token（值经 WCAG 对比度实测 ≥4.5:1）。
+   ======================================== */
+
+/* Keywords — fuchsia #c026d3(3.89) → #a21caf(5.22) */
+.theme-sepia .hljs-doctag,
+.theme-sepia .hljs-keyword,
+.theme-sepia .hljs-meta .hljs-keyword,
+.theme-sepia .hljs-template-tag,
+.theme-sepia .hljs-template-variable,
+.theme-sepia .hljs-type,
+.theme-sepia .hljs-variable.language_,
+.theme-sepia .hljs-tag {
+  color: #a21caf;
+}
+
+/* Comments — zinc #71717a(3.99) → #5f6368(4.99) */
+.theme-sepia .hljs-comment,
+.theme-sepia .hljs-code,
+.theme-sepia .hljs-formula,
+.theme-sepia .hljs-punctuation {
+  color: #5f6368;
+}
+
+/* Built-ins / symbols — amber #b45309(4.14) → #9a4a08(5.16) */
+.theme-sepia .hljs-built_in,
+.theme-sepia .hljs-symbol,
+.theme-sepia .hljs-bullet {
+  color: #9a4a08;
+}
+
+/* Tags / selectors — orange #c2410c(4.27) → #a63a0a(5.36) */
+.theme-sepia .hljs-name,
+.theme-sepia .hljs-quote,
+.theme-sepia .hljs-selector-tag,
+.theme-sepia .hljs-selector-pseudo,
+.theme-sepia .hljs-params {
+  color: #a63a0a;
+}
+
+/* Attributes / numbers — cyan #0e7490 → #0d6a7e（最差底 #efe8d4 上 5.08:1） */
+.theme-sepia .hljs-attr,
+.theme-sepia .hljs-attribute,
+.theme-sepia .hljs-literal,
+.theme-sepia .hljs-meta,
+.theme-sepia .hljs-number,
+.theme-sepia .hljs-operator,
+.theme-sepia .hljs-variable,
+.theme-sepia .hljs-selector-attr,
+.theme-sepia .hljs-selector-class,
+.theme-sepia .hljs-selector-id,
+.theme-sepia .hljs-property {
+  color: #0d6a7e;
+}
+
+/* Strings — emerald #047857 → #046d51（最差底 5.18:1） */
+.theme-sepia .hljs-regexp,
+.theme-sepia .hljs-string,
+.theme-sepia .hljs-meta .hljs-string,
+.theme-sepia .hljs-addition {
+  color: #046d51;
+}

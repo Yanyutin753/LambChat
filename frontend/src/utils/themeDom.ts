@@ -41,6 +41,25 @@ export function isTheme(value: unknown): value is Theme {
   return value === "light" || value === "dark" || value === "sepia";
 }
 
+/** 从 <html> 类名读取当前生效的主题模式（dark 类优先，防残留类误判） */
+export function readThemeMode(
+  doc: Pick<Document, "documentElement"> = document,
+): Theme {
+  const classList = doc.documentElement.classList;
+  if (classList.contains("dark")) {
+    return "dark";
+  }
+  return classList.contains("theme-sepia") ? "sepia" : "light";
+}
+
+/** PNG/Canvas 导出时的背景填充色（sepia 用米黄卡片底，避免导出突兀纯白） */
+export function themeExportBackground(theme: Theme): string {
+  if (theme === "dark") {
+    return "#1c1917";
+  }
+  return theme === "sepia" ? "#faf6ea" : "#ffffff";
+}
+
 export function resolveNextTheme(current: Theme): Theme {
   const index = THEME_CYCLE.indexOf(current);
   return THEME_CYCLE[(index + 1) % THEME_CYCLE.length] ?? "light";
