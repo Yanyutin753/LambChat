@@ -64,6 +64,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         setThemeState(newTheme);
       }
     };
+
     window.addEventListener("theme:external-change", handleExternalThemeChange);
     return () =>
       window.removeEventListener(

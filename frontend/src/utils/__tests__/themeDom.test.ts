@@ -2,7 +2,9 @@ import {
   applyThemeToDocument,
   getInitialThemePreference,
   isTheme,
+  readThemeMode,
   resolveNextTheme,
+  themeExportBackground,
 } from "../themeDom.ts";
 
 test("getInitialThemePreference prefers persisted theme over system preference", () => {
@@ -43,11 +45,39 @@ test("getInitialThemePreference restores persisted sepia theme", () => {
   expect(getInitialThemePreference(env)).toBe("sepia");
 });
 
+test("readThemeMode maps html classes to the three theme modes", () => {
+  const modeOf = (classNames: string[]) =>
+    readThemeMode({
+      documentElement: { classList: { contains: (name: string) => classNames.includes(name) } },
+    });
+
+  expect(modeOf([])).toBe("light");
+  expect(modeOf(["dark"])).toBe("dark");
+  expect(modeOf(["theme-sepia"])).toBe("sepia");
+});
+
+test("readThemeMode treats dark as the winner when both theme classes linger", () => {
+  expect(
+    readThemeMode({
+      documentElement: {
+        classList: { contains: (name: string) => name === "dark" || name === "theme-sepia" },
+      },
+    }),
+  ).toBe("dark");
+});
+
 test("resolveNextTheme cycles light → dark → sepia → light", () => {
   expect(resolveNextTheme("light")).toBe("dark");
   expect(resolveNextTheme("dark")).toBe("sepia");
   expect(resolveNextTheme("sepia")).toBe("light");
 });
+
+test("themeExportBackground maps each theme to its canvas export color", () => {
+  expect(themeExportBackground("light")).toBe("#ffffff");
+  expect(themeExportBackground("dark")).toBe("#1c1917");
+  expect(themeExportBackground("sepia")).toBe("#faf6ea");
+});
+
 
 test("applyThemeToDocument applies theme-sepia class without dark for sepia theme", () => {
   const classes = new Set<string>(["dark"]);

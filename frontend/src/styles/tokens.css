@@ -390,7 +390,8 @@
 
   /* ── Text ── */
   --theme-text: #453f33;
-  --theme-text-secondary: #7c715c;
+  /* 次级文字按米黄底校准（#7c715c 仅 4.11:1，未达 AA） */
+  --theme-text-secondary: #6d634e;
   --theme-text-tertiary: #a89e88;
 
   /* ── Overlays ── */
