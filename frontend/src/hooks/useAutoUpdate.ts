@@ -325,9 +325,87 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       const apkAsset = findApkAsset(state.releaseAssets);
       if (!apkAsset) throw new Error("No APK found in release assets");
 
+      // 原生 DownloadManager 优先：无 CORS、不占 WebView 内存、系统断点续传
+      try {
+        await installAndroidUpdateViaNative(apkAsset.name);
+        return;
+      } catch {
+        // 原生桥不可用/下载失败（旧壳、系统裁剪、瞬时网络）：
+        // 回落 WebView 流式代理路径——两条链路同一代理 URL，行为一致
+      }
+      await installAndroidUpdateViaWebViewStream(apkAsset.name);
+    } catch (err) {
+      setState((prev) => ({
+        ...prev,
+        downloading: false,
+        error:
+          err instanceof TypeError
+            ? i18n.t("updateDownloadNetworkError", {
+                defaultValue: "下载失败，请检查网络后重试",
+              })
+            : err instanceof Error
+              ? err.message
+              : i18n.t("updateError", "更新失败"),
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.releaseAssets]);
+
+  /** 原生 DownloadManager 下载 + 拉起安装器（progress 轮询驱动进度条） */
+  const installAndroidUpdateViaNative = useCallback(
+    async (assetName: string) => {
+      const { UpdateDownloader } = await import(
+        "../services/capacitor/updateDownloader"
+      );
+      const { downloadId } = await UpdateDownloader.start({
+        // 同一自托管代理 URL：原生无 CORS 约束，但保住「服务端可达 GitHub」
+        // 的转发语义（国内直连 GitHub release 不稳）
+        url: buildReleaseAssetDownloadUrl(assetName),
+        fileName: assetName,
+      });
+
+      // 轮询驱动 UI：binder 调用极轻量，400ms 粒度足够
+      for (;;) {
+        await new Promise((r) => setTimeout(r, 400));
+        const p = await UpdateDownloader.progress({ downloadId });
+        const pct = p.totalBytes > 0 ? (p.bytesSoFar / p.totalBytes) * 100 : 0;
+        setState((prev) => ({
+          ...prev,
+          downloaded: p.bytesSoFar,
+          progress: pct,
+          contentLength: p.totalBytes,
+        }));
+        if (p.status === "success" && p.localUri) {
+          const { ApkInstaller } = await import(
+            "../services/capacitor/apkInstaller"
+          );
+          const res = await ApkInstaller.installApk({ path: p.localUri });
+          if (res.status === "settings") {
+            const { toast } = await import("react-hot-toast");
+            toast(
+              i18n.t("update.installPermissionHint", {
+                defaultValue:
+                  "请先允许 LambChat 安装未知应用，授权后重新点击升级",
+              }),
+            );
+          }
+          setState((prev) => ({ ...prev, downloading: false, progress: 100 }));
+          return;
+        }
+        if (p.status === "failed") {
+          throw new Error(`Native download failed (reason=${p.reason ?? "?"})`);
+        }
+      }
+    },
+    [],
+  );
+
+  /** WebView 流式代理下载（兜底）：逐块 base64 落盘避免整包驻留内存 */
+  const installAndroidUpdateViaWebViewStream = useCallback(
+    async (assetName: string) => {
       // 直连 GitHub browser_download_url 会被 WebView CORS 拦截
       // （Failed to fetch）：走自托管后端同源代理流式下载。
-      const response = await fetch(buildReleaseAssetDownloadUrl(apkAsset.name));
+      const response = await fetch(buildReleaseAssetDownloadUrl(assetName));
       if (!response.ok) throw new Error(`Download failed: ${response.status}`);
       const contentLength = Number(response.headers.get("content-length") ?? 0);
       const reader = response.body?.getReader();
@@ -336,7 +414,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       // 逐块 base64 落盘（writeFile + appendFile），避免整包 APK 在
       // WebView 内存里 Blob+base64 双份驻留导致低端机 OOM。
       const { Filesystem, Directory } = await import("@capacitor/filesystem");
-      const fileName = apkAsset.name || "LambChat-update.apk";
+      const fileName = assetName || "LambChat-update.apk";
       let wroteAny = false;
       let writtenUri: string | undefined;
       let downloaded = 0;
@@ -393,21 +471,9 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         downloading: false,
         progress: 100,
       }));
-    } catch (err) {
-      setState((prev) => ({
-        ...prev,
-        downloading: false,
-        error:
-          err instanceof TypeError
-            ? i18n.t("updateDownloadNetworkError", {
-                defaultValue: "下载失败，请检查网络后重试",
-              })
-            : err instanceof Error
-              ? err.message
-              : i18n.t("updateError", "更新失败"),
-      }));
-    }
-  }, [state.releaseAssets]);
+    },
+    [],
+  );
 
   /** Open release page in browser (iOS) */
   const openReleasePage = useCallback(() => {
