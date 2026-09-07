@@ -264,6 +264,40 @@ def test_release_workflow_macos_collect_requires_app_tar_gz() -> None:
     assert "exit 1" in collect["run"]
 
 
+def test_tauri_bundle_adhoc_signs_macos_app() -> None:
+    """v2.8.4 事故：未配 signingIdentity 时 Tauri 跳过 bundle 签名，.app 无
+    _CodeSignature/CodeResources 封印，浏览器下载（带隔离标记）后被
+    Gatekeeper 判「已损坏，无法打开」。"-" = ad-hoc 签名，是无 Apple 开发者
+    证书时开源项目的标准分发做法（公证仍不可用，需 xattr 引导兜底）。"""
+    import json
+
+    conf = json.loads(_source("frontend/src-tauri/tauri.conf.json"))
+    assert conf["bundle"]["macOS"]["signingIdentity"] == "-"
+
+
+def test_release_workflow_verifies_macos_code_signing() -> None:
+    """签名门禁：macOS 打包后验证 bundle 封印与嵌套可执行签名（arm64 内核
+    要求全部可执行代码至少 ad-hoc 签名），签名缺失时构建直接失败。"""
+    steps = {step["name"]: step for step in _desktop_job()["steps"]}
+    verify = steps["Verify macOS ad-hoc code signing"]
+    assert verify["if"] == "runner.os == 'macOS'"
+    assert "codesign --verify --deep --strict" in verify["run"]
+    assert "_CodeSignature/CodeResources" in verify["run"]
+
+
+def test_release_workflow_appends_macos_gatekeeper_note() -> None:
+    """Release Notes 固定附 xattr 解法（与下载页 macOS 分区提示同一命令），
+    marker 前缀保证重跑幂等。"""
+    note = next(
+        s
+        for s in _release_workflow()["jobs"]["release"]["steps"]
+        if s["name"] == "Append macOS Gatekeeper install note"
+    )
+    assert "xattr -cr /Applications/LambChat.app" in note["run"]
+    assert "gh release edit" in note["run"]
+    assert "macos-gatekeeper-note" in note["run"]
+
+
 def test_build_script_appends_exe_suffix_on_windows_sidecar() -> None:
     script = _source("client/scripts/build-daemon.sh")
 

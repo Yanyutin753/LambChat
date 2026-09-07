@@ -127,6 +127,35 @@ function SectionDivider() {
   );
 }
 
+/**
+ * macOS 首启引导：未公证的 ad-hoc 安装包经浏览器下载带隔离标记，
+ * Gatekeeper 会提示「已损坏」。xattr 清除隔离是开源分发标准解法，
+ * 与 Release Notes 里的引导保持同一命令。
+ */
+function MacGatekeeperNote() {
+  const { t } = useTranslation();
+  return (
+    <div className="mt-4 rounded-xl border border-amber-200/70 bg-amber-50/50 p-4 dark:border-amber-500/20 dark:bg-amber-500/[0.05]">
+      <div className="mb-1.5 flex items-center gap-2">
+        <Terminal
+          size={13}
+          className="shrink-0 text-amber-600/80 dark:text-amber-400/80"
+        />
+        <span className="text-12 font-semibold text-amber-700 dark:text-amber-400">
+          {t("download.macGatekeeper.title")}
+        </span>
+      </div>
+      <p className="text-12 leading-relaxed text-stone-500 dark:text-stone-400">
+        {t("download.macGatekeeper.body")}
+      </p>
+      <p className="mt-2.5 overflow-x-auto rounded-lg bg-stone-900 px-3.5 py-2.5 font-mono text-12 whitespace-nowrap text-stone-200 dark:bg-black/60 sm:text-13">
+        <span className="select-none text-emerald-400/80">$ </span>
+        xattr -cr /Applications/LambChat.app
+      </p>
+    </div>
+  );
+}
+
 /** 下载页专属大号分区标题（结构同落地页 SectionHeading，字号上调一档）。 */
 function SectionHeadingXL({
   label,
@@ -496,6 +525,9 @@ export function DownloadPage() {
                         </p>
                       )}
                     </div>
+                    {platform === "macos" && links.length > 0 && (
+                      <MacGatekeeperNote />
+                    )}
                   </div>
                 );
               }
@@ -535,6 +567,9 @@ export function DownloadPage() {
                       </p>
                     )}
                   </div>
+                  {platform === "macos" && links.length > 0 && (
+                    <MacGatekeeperNote />
+                  )}
                 </div>
               );
             })}
