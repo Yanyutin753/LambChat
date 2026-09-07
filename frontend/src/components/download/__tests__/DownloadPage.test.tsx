@@ -117,6 +117,23 @@ test("renders desktop and daemon downloads from the latest release assets", asyn
   expect(screen.getByText("Pairing tutorial")).toBeInTheDocument();
 });
 
+test("macOS card shows the Gatekeeper first-launch note with the xattr command", async () => {
+  // 未公证 ad-hoc 包被浏览器下载后 macOS 提示「已损坏」，下载页必须在
+  // macOS 分区给出 xattr 解法（与 release notes 引导同一命令）
+  mocks.get.mockResolvedValue({
+    app_version: "2.8.1",
+    release_assets: ASSETS,
+  });
+
+  render(<DownloadPage />);
+
+  await screen.findByText("macOS");
+  expect(
+    screen.getByText(/xattr -cr \/Applications\/LambChat\.app/),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/damaged/i)).toBeInTheDocument();
+});
+
 test("daemon section shows the login and run commands", async () => {
   mocks.get.mockResolvedValue({
     app_version: "2.8.1",
