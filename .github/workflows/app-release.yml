@@ -213,6 +213,32 @@ jobs:
         run: pnpm package:desktop
         working-directory: frontend
 
+      # macOS 签名门禁：v2.8.4 及更早的 .app 没有 bundle 封印（无
+      # _CodeSignature/CodeResources，Tauri 无 signingIdentity 时跳过签名），
+      # 浏览器下载带隔离标记后被 Gatekeeper 判「已损坏」。signingIdentity "-"
+      # 已让 Tauri 在产出 dmg/updater 产物前 ad-hoc 封印 bundle；本步验证
+      # 封印与嵌套可执行签名（arm64 内核要求全部可执行代码至少 ad-hoc 签名，
+      # daemon sidecar 缺签名会被 SIGKILL），防回归。
+      - name: Verify macOS ad-hoc code signing
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path="$(find frontend/src-tauri/target -path '*/release/bundle/macos/*.app' -type d | head -1)"
+          if [ -z "$app_path" ]; then
+            echo "No .app bundle found to verify"
+            exit 1
+          fi
+          echo "Verifying bundle seal: $app_path"
+          test -f "$app_path/Contents/_CodeSignature/CodeResources"
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          # 嵌套可执行（daemon sidecar）逐一验证
+          while IFS= read -r -d '' bin; do
+            echo "Verifying nested executable: $bin"
+            codesign --verify --verbose=2 "$bin"
+          done < <(find "$app_path/Contents/MacOS" -type f -perm -111 -print0)
+          echo "OK: .app sealed (ad-hoc) and all nested executables signed"
+
       - name: Collect Linux desktop artifacts
         if: runner.os == 'Linux'
         shell: bash
@@ -758,3 +784,33 @@ jobs:
           files: release-assets/*
           fail_on_unmatched_files: true
           generate_release_notes: true
+
+      # macOS 安装引导：无 Apple 开发者证书只能 ad-hoc 签名，浏览器下载的
+      # 未公证包首次打开会被 Gatekeeper 判「已损坏」。Release Notes 固定附
+      # xattr 解法（与下载页 macOS 分区提示同一命令）；marker 保证重跑幂等。
+      - name: Append macOS Gatekeeper install note
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json body -q .body > body.md || true
+          if grep -q "macos-gatekeeper-note" body.md 2>/dev/null; then
+            echo "Gatekeeper note already present; skip"
+            exit 0
+          fi
+          cat >> body.md <<'NOTE'
+
+          ---
+
+          <!-- macos-gatekeeper-note -->
+          ### macOS 安装提示 / macOS install note
+
+          首次打开若提示「已损坏，无法打开」：将 LambChat 拖入「应用程序」文件夹后，
+          打开「终端」执行 `xattr -cr /Applications/LambChat.app`，再启动即可。
+
+          If macOS reports the app as damaged and cannot be opened on first launch:
+          drag LambChat into your Applications folder, run
+          `xattr -cr /Applications/LambChat.app` in Terminal, then launch it.
+          NOTE
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --notes-file body.md
