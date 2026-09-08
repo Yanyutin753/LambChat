@@ -174,6 +174,7 @@ async def test_amain_loads_db_settings_before_any_service(wired, monkeypatch):
 async def test_amain_settings_init_failure_stops_startup(wired, monkeypatch):
     """设置加载失败必须快速失败（k8s CrashLoopBackOff 显性暴露），绝不带
     默认值继续起 worker 吞事件。"""
+
     async def failing_initialize() -> None:
         raise RuntimeError("db unreachable")
 
