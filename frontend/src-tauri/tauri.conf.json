@@ -28,7 +28,8 @@
     "targets": "all",
     "createUpdaterArtifacts": true,
     "macOS": {
-      "signingIdentity": "-"
+      "signingIdentity": "-",
+      "hardenedRuntime": false
     },
     "externalBin": ["binaries/lambchat-daemon"],
     "resources": ["resources/python/"],

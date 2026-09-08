@@ -238,13 +238,17 @@ jobs:
       # macOS 签名门禁：v2.8.4 及更早的 .app 没有 bundle 封印（无
       # _CodeSignature/CodeResources，Tauri 无 signingIdentity 时跳过签名），
       # 浏览器下载带隔离标记后被 Gatekeeper 判「已损坏」。signingIdentity "-"
-      # 已让 Tauri 在产出 dmg/updater 产物前 ad-hoc 封印 bundle；本步先对
-      # daemon sidecar 无选项重封（不带 hardened runtime/library validation
-      # ——PyInstaller 运行时解包出的内嵌 dylib 为构建期 ad-hoc 签名（无团队
-      # ID），library validation 下 dlopen 即 SIGKILL，v2.9.2 macOS「daemon
-      # 起不来」的第二失败面），再验证封印与嵌套可执行签名（arm64 内核要求
-      # 全部可执行代码至少 ad-hoc 签名）并显式打印签名标志作 CI 证据。
-      - name: Re-seal daemon sidecar without hardened runtime + verify signing
+      # 让 Tauri 在产出 dmg/updater 产物前 ad-hoc 封印 bundle。
+      # runtime 标志必须在打包期就 absence（tauri.conf.json hardenedRuntime:
+      # false）：PyInstaller 运行时解包出的内嵌 dylib 是构建期 ad-hoc 签名
+      # （无团队 ID），hardened runtime 隐含的 library validation 下 dlopen 即
+      # SIGKILL——v2.9.2 macOS「daemon 起不来」的根因。不能打包后重封 sidecar
+      # 补救：改内嵌二进制会破坏外层 CodeResources 封印（deep verify 必红），
+      # 且 updater .app.tar.gz 在 Tauri 打包期已生成，重封晚于归档、包内仍是
+      # 坏字节。本步只验证不修改：sidecar 无 runtime 标志 + bundle 封印 +
+      # 嵌套可执行逐一签名（arm64 内核要求全部可执行代码至少 ad-hoc 签名），
+      # 签名标志显式打印作 CI 证据。
+      - name: Verify macOS code signing (sidecar must have no runtime flag)
         if: runner.os == 'macOS'
         shell: bash
         run: |
@@ -256,15 +260,12 @@ jobs:
           fi
           daemon_bin="$app_path/Contents/MacOS/lambchat-daemon"
           if [ -f "$daemon_bin" ]; then
-            echo "== daemon sidecar signature BEFORE re-seal =="
+            echo "== daemon sidecar signature =="
             codesign -dv --verbose=4 "$daemon_bin" 2>&1 | grep -E "Signature|flags|TeamIdentifier|Identifier=" || true
-            # 无 --options 重封：新签名不带 runtime/LV 标志（flags 归零）
-            codesign --force --sign - --timestamp=none "$daemon_bin"
-            echo "== daemon sidecar signature AFTER re-seal =="
-            codesign -dv --verbose=4 "$daemon_bin" 2>&1 | grep -E "Signature|flags|TeamIdentifier|Identifier=" || true
-            # 门禁：CodeDirectory flags 不得含 runtime (0x10000)
+            # 门禁：CodeDirectory flags 不得含 runtime (0x10000)——应在打包期由
+            # tauri.conf.json 的 hardenedRuntime: false 保证，出现即打包链回归
             if codesign -dv --verbose=4 "$daemon_bin" 2>&1 | grep -E "flags=0x[0-9a-f]*1[0-9a-f]{4}"; then
-              echo "!! daemon sidecar 带 runtime 标志——内嵌解包库会被 library validation 击杀"
+              echo "!! daemon sidecar 带 runtime 标志——检查 tauri.conf.json 的 bundle.macOS.hardenedRuntime 是否为 false"
               exit 1
             fi
           fi
@@ -276,7 +277,7 @@ jobs:
             echo "Verifying nested executable: $bin"
             codesign --verify --verbose=2 "$bin"
           done < <(find "$app_path/Contents/MacOS" -type f -perm -111 -print0)
-          echo "OK: .app sealed (ad-hoc), sidecar re-sealed without runtime, all nested executables signed"
+          echo "OK: .app sealed (ad-hoc, no runtime flag on sidecar), all nested executables signed"
 
       - name: Collect Linux desktop artifacts
         if: runner.os == 'Linux'
