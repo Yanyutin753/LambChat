@@ -92,13 +92,14 @@ logger = get_logger(__name__)
 async def _build_sandbox_runtime_policy(
     sandbox_backend: Any, sandbox_work_dir: str | None, *, user_id: str
 ) -> str:
-    """沙箱运行时提示段：workspace 策略 + （仅本地 daemon）shell 方言段。
+    """沙箱运行时提示段：workspace 策略 + （仅本地 daemon）本机身份/平台段。
 
-    本地 daemon 在 win32/darwin 上时追加平台段（prompt_policy.sandbox_shell_platform_section），
-    让模型生成 cmd.exe / macOS 兼容命令——否则模型默认 POSIX 语法在 Windows
-    cmd.exe 全军覆没（实测根因之二）。云端沙箱与 Linux/未上报一律不加段，
-    prompt 逐字节保持现状；段文本随会话内 daemon 平台稳定，provider 前缀
-    缓存不受逐 turn 影响。
+    本地 daemon 上报 win32/linux/darwin 任一平台时追加
+    prompt_policy.sandbox_shell_platform_section（「沙箱=用户本机」身份段 +
+    win32/darwin 的 shell 方言段），让模型既知道自己真的在操作用户的电脑，
+    又能生成 cmd.exe / macOS 兼容命令。云端沙箱与未上报一律不加段，prompt
+    逐字节保持现状；段文本随会话内 daemon 平台稳定，provider 前缀缓存不受
+    逐 turn 影响。
     """
     if not sandbox_backend or not sandbox_work_dir:
         return ""
