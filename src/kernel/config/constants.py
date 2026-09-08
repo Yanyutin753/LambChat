@@ -50,6 +50,9 @@ RESTART_REQUIRED_SETTINGS = {
     "S3_CUSTOM_DOMAIN",
     "S3_PATH_STYLE",
     "S3_PUBLIC_BUCKET",
+    # 任务执行拓扑：k8s/compose 拆分部署（API + 独立 worker）由 env 决定，
+    # DB 历史种子值不得反向拉起 API 内嵌 worker（会与独立 worker 双消费）
+    "ARQ_EMBEDDED_WORKER",
 }
 
 
