@@ -93,8 +93,12 @@ test("renders desktop and daemon downloads from the latest release assets", asyn
 
   render(<DownloadPage />);
 
-  // 平台分区：Windows / macOS / Linux
-  expect(await screen.findByText("Windows")).toBeInTheDocument();
+  // 等待锚点必须是数据驱动内容（资产文件名）：平台卡标签（Windows/macOS）
+  // 不等 versionApi 就渲染，锚在静态标签上会在数据晚到时撞进空窗
+  expect(
+    await screen.findByText("LambChat-v2.8.1-Windows.msi"),
+  ).toBeInTheDocument();
+  expect(screen.getByText("Windows")).toBeInTheDocument();
   expect(screen.getByText("macOS")).toBeInTheDocument();
   expect(screen.getByText("Linux")).toBeInTheDocument();
 
@@ -127,9 +131,10 @@ test("macOS card shows the Gatekeeper first-launch note with the xattr command",
 
   render(<DownloadPage />);
 
-  await screen.findByText("macOS");
+  // 等数据驱动的命令本身（Gatekeeper 说明块要 links 到齐才挂载），
+  // 不锚在静态平台名上（见 test 1 注释）
   expect(
-    screen.getByText(/xattr -cr \/Applications\/LambChat\.app/),
+    await screen.findByText(/xattr -cr \/Applications\/LambChat\.app/),
   ).toBeInTheDocument();
   // 「已损坏」说明同时出现在一键安装与 xattr 兜底两段文案里
   expect(screen.getAllByText(/damaged/i).length).toBeGreaterThanOrEqual(1);
@@ -144,9 +149,11 @@ test("macOS card promotes the one-line install script command", async () => {
 
   render(<DownloadPage />);
 
-  await screen.findByText("macOS");
+  // 同上：等待命令本身出现（macOS 卡的安装块随资产数据异步挂载）
   expect(
-    screen.getByText(/curl -fsSL https:\/\/lambchat\.com\/install\.sh \| sh/),
+    await screen.findByText(
+      /curl -fsSL https:\/\/lambchat\.com\/install\.sh \| sh/,
+    ),
   ).toBeInTheDocument();
 });
 
