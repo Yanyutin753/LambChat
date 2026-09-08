@@ -149,6 +149,87 @@ test("renders approval_required from the SSE payload when approval lookup is una
   vi.unstubAllGlobals();
 });
 
+test("removes a replayed resolved approval from the interactive queue", () => {
+  const onApprovalResolved = vi.fn();
+  const ctx = createContext(
+    [
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-09-08T01:02:03.456Z"),
+        parts: [
+          {
+            type: "tool",
+            id: "call-1",
+            name: "ask_human",
+            args: { message: "确认在本机执行 1 项操作" },
+            isPending: true,
+          },
+        ],
+        isStreaming: true,
+      },
+    ],
+    null,
+  );
+  ctx.options = { onApprovalResolved };
+
+  handleStreamEvent(
+    {
+      event: "approval_resolved",
+      data: JSON.stringify({
+        id: "approval-1",
+        tool_call_id: "call-1",
+        status: "approved",
+        success: true,
+        result: { status: "success", message: "用户已响应", values: {} },
+      }),
+    },
+    "assistant-1",
+    "approval-resolved-event-1",
+    "2026-09-08T01:02:04.000Z",
+    ctx,
+  );
+
+  // 队列收敛：已答复审批出队（与 approval_required 成对，重放/直播同流）
+  expect(onApprovalResolved).toHaveBeenCalledWith("approval-1");
+  // 部件收尾照常：pill 由 tool_call_id 命中转已批准
+  const part = ctx.messages()[0]?.parts?.[0];
+  expect(part).toMatchObject({ type: "tool", id: "call-1", isPending: false });
+});
+
+test("sandbox confirm approval enqueues the approval without an ask_human pill", () => {
+  const onApprovalRequired = vi.fn();
+  const ctx = createContext([], null);
+  ctx.options = { onApprovalRequired };
+
+  handleStreamEvent(
+    {
+      event: "approval_required",
+      data: JSON.stringify({
+        id: "approval-1",
+        message: "确认在本机执行 1 项操作：1. 执行 ls",
+        type: "confirm",
+        fields: [],
+        origin: "sandbox_confirm",
+        interrupt_id: "intr-1",
+      }),
+    },
+    "assistant-1",
+    "approval-event-sandbox",
+    "2026-09-08T01:02:03.456Z",
+    ctx,
+  );
+
+  // 审批面板照常入队（执行确认的应答入口）
+  expect(onApprovalRequired).toHaveBeenCalledWith(
+    expect.objectContaining({ id: "approval-1" }),
+  );
+  // 不合成 ask_human 工具卡：执行卡（等待确认→结果）已完整表达，
+  // 与历史回放对齐，避免一次执行双卡
+  expect(ctx.messages().length).toBe(0);
+});
+
 test("renders a delivered steer event and removes its optimistic duplicate", () => {
   const timestamp = "2026-04-19T01:02:03.456Z";
   const marked: string[] = [];

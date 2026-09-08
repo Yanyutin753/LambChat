@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { clearAllLoadingStates, hasPendingAskHuman } from "../messageParts";
+import {
+  clearAllLoadingStates,
+  hasPendingAskHuman,
+  isSandboxConfirmApprovalEvent,
+} from "../messageParts";
 
 const pendingAskHuman = {
   type: "tool" as const,
@@ -56,6 +60,45 @@ describe("hasPendingAskHuman", () => {
       hasPendingAskHuman([
         { ...pendingAskHuman, isPending: false, success: true },
       ]),
+    ).toBe(false);
+  });
+});
+
+describe("isSandboxConfirmApprovalEvent", () => {
+  it("matches the sandbox_confirm origin marker", () => {
+    expect(
+      isSandboxConfirmApprovalEvent({
+        origin: "sandbox_confirm",
+        message: "任意文案",
+      }),
+    ).toBe(true);
+  });
+
+  it("matches legacy events without origin by the fixed message prefix", () => {
+    expect(
+      isSandboxConfirmApprovalEvent({ message: "确认在本机执行 1 项操作" }),
+    ).toBe(true);
+    expect(
+      isSandboxConfirmApprovalEvent({ message: "确认上传 2 个文件" }),
+    ).toBe(true);
+  });
+
+  it("does not match regular ask_human or scheduled-task approvals", () => {
+    expect(isSandboxConfirmApprovalEvent({ message: "请选择发布渠道" })).toBe(
+      false,
+    );
+    expect(
+      isSandboxConfirmApprovalEvent({
+        origin: "scheduled_task",
+        message: "确认创建定时任务",
+      }),
+    ).toBe(false);
+  });
+
+  it("tolerates non-string payloads", () => {
+    expect(isSandboxConfirmApprovalEvent({})).toBe(false);
+    expect(
+      isSandboxConfirmApprovalEvent({ message: undefined, origin: undefined }),
     ).toBe(false);
   });
 });

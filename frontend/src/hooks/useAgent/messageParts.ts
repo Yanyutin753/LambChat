@@ -899,6 +899,22 @@ export function updateToolResultInPartsById(
 // ============================================
 
 /**
+ * 沙箱确认门（origin=sandbox_confirm）审批事件判定：执行卡（等待确认→结果）
+ * + 审批面板已完整表达，不合成 ask_human 工具卡（避免一次执行双卡）。
+ * 直播与历史回放共用；origin 标记缺失的旧数据按确认门固定文案前缀兜底
+ * （后端 local.py 硬编码中文，稳定）。
+ */
+export function isSandboxConfirmApprovalEvent(data: {
+  origin?: unknown;
+  message?: unknown;
+}): boolean {
+  if (data.origin === "sandbox_confirm") return true;
+  return (
+    typeof data.message === "string" && /^确认(在本机|上传)/.test(data.message)
+  );
+}
+
+/**
  * Whether a message still contains an unanswered ask-human interrupt.
  * Ask-human may be nested inside one or more subagent parts.
  */
