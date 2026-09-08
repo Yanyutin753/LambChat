@@ -147,6 +147,9 @@ class Settings(BaseSettings):
     ARQ_QUEUE_NAME: str = "lambchat:arq"
     ARQ_WORKER_MAX_JOBS: int = 128
     ARQ_JOB_TIMEOUT_SECONDS: int = 86400
+    # arq 取任务轮询间隔（秒）：arq 默认 0.5s 轮询 sorted-set（非阻塞弹出），
+    # 平均吃掉 ~0.25s 派发延迟；缩短以压低 HITL resume 等即时任务的拾取时延。
+    ARQ_POLL_DELAY_SECONDS: float = 0.1
     TASK_STARTUP_CLEANUP_CONCURRENCY: int = 16
     # 周期孤儿接管间隔：缩短实例死亡后对话自动恢复的停顿（心跳按龄判死 + 扫描间隔）
     TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS: int = 15

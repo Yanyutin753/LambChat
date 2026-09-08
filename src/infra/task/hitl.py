@@ -29,6 +29,18 @@ HITL_RESUME_LOCK_TTL_SECONDS = 300
 HITL_SOURCE_RELEASE_PREFIX = "hitl:source-released:"
 HITL_SOURCE_RELEASE_TTL_SECONDS = 300
 HITL_RESUME_ACTIVATION_PREFIX = "hitl:resume-activated:"
+# respond 抢跑兜底：审批卡 SSE 早于 WAITING_HUMAN 状态翻转可见（审批物化在
+# 挂起检测处、状态更新在源 run 收尾），源 run 仍在飞行中时短暂等待翻转。
+HITL_WAITING_HUMAN_GRACE_SECONDS = 3.0
+HITL_WAITING_HUMAN_POLL_INTERVAL = 0.05
+_HITL_INFLIGHT_STATUSES = frozenset(
+    {
+        TaskStatus.QUEUED.value,
+        TaskStatus.PENDING.value,
+        TaskStatus.STARTING.value,
+        TaskStatus.RUNNING.value,
+    }
+)
 
 
 def hitl_interrupt_mode_enabled() -> bool:
@@ -289,14 +301,18 @@ async def wait_for_hitl_resume_activation(
     attempt_id: str,
     timeout: float = 2.0,
 ) -> bool:
-    """Wait for activation, then use one Mongo point read as crash fallback."""
+    """Wait for activation, then use one Mongo point read as crash fallback.
+
+    激活 key 命中后不删除（TTL 统一清理）：job 可能因 source fence 未释放
+    或并发槽占满走 Retry(defer=1) 重跑，重跑时再次等待必须立即命中——
+    否则每轮 retry 都空轮询满 timeout 才落 Mongo 兜底，白烧数秒。
+    """
     redis = get_redis_client()
     key = f"{HITL_RESUME_ACTIVATION_PREFIX}{attempt_id}"
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
     while loop.time() < deadline:
         if await redis.get(key) is not None:
-            await redis.delete(key)
             return True
         await asyncio.sleep(0.02)
 
@@ -309,6 +325,37 @@ async def wait_for_hitl_resume_activation(
         and getattr(approval, "status", "pending") != "pending"
         and metadata.get("resume_attempt_id") == attempt_id
     )
+
+
+async def _await_waiting_human(
+    session_storage: Any,
+    session_id: str,
+    *,
+    source_run_id: str,
+    initial: Dict[str, Any],
+) -> Dict[str, Any]:
+    """respond 抢跑竞态兜底：源 run 仍在飞行中（挂起后状态尚未翻转到
+    WAITING_HUMAN）时短暂等待翻转；状态漂移或超时立即返回最新 metadata，
+    交由调用方按非等待状态拒绝。仅当 current_run_id 仍指向源 run 才等待，
+    避免给无关运行的状态轮询买单。"""
+    metadata = initial
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + HITL_WAITING_HUMAN_GRACE_SECONDS
+    while True:
+        if metadata.get("task_status") == TaskStatus.WAITING_HUMAN.value:
+            return metadata
+        current_run_id = str(metadata.get("current_run_id") or "")
+        source_in_flight = (
+            bool(source_run_id)
+            and current_run_id == source_run_id
+            and metadata.get("task_status") in _HITL_INFLIGHT_STATUSES
+        )
+        if not source_in_flight or loop.time() >= deadline:
+            return metadata
+        await asyncio.sleep(HITL_WAITING_HUMAN_POLL_INTERVAL)
+        session = await session_storage.get_by_session_id(session_id)
+        if session is not None:
+            metadata = getattr(session, "metadata", None) or {}
 
 
 async def submit_hitl_resume_run(
@@ -350,7 +397,15 @@ async def submit_hitl_resume_run(
             return {"submitted": False, "run_id": None, "message": "会话不存在"}
         if not getattr(session, "user_id", None):
             return {"submitted": False, "run_id": None, "message": "会话缺少用户信息"}
-        metadata = getattr(session, "metadata", None) or {}
+        approval_metadata = getattr(approval, "metadata", None) or {}
+        source_run_id = str(approval_metadata.get("run_id") or "")
+        source_trace_id = str(approval_metadata.get("trace_id") or "")
+        metadata = await _await_waiting_human(
+            session_storage,
+            session_id,
+            source_run_id=source_run_id,
+            initial=getattr(session, "metadata", None) or {},
+        )
         if metadata.get("task_status") != TaskStatus.WAITING_HUMAN.value:
             return {
                 "submitted": False,
@@ -358,9 +413,6 @@ async def submit_hitl_resume_run(
                 "message": "会话不在等待人工输入状态，跳过恢复",
             }
 
-        approval_metadata = getattr(approval, "metadata", None) or {}
-        source_run_id = str(approval_metadata.get("run_id") or "")
-        source_trace_id = str(approval_metadata.get("trace_id") or "")
         current_run_id = str(metadata.get("current_run_id") or "")
         if not source_run_id or (current_run_id and current_run_id != source_run_id):
             return {

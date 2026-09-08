@@ -62,6 +62,7 @@ class EmbeddedArqRuntime:
             handle_signals=False,
             max_jobs=settings.ARQ_WORKER_MAX_JOBS,
             job_timeout=settings.ARQ_JOB_TIMEOUT_SECONDS,
+            poll_delay=settings.ARQ_POLL_DELAY_SECONDS,
             ctx={
                 "payload_store": TaskArqPayloadStore(),
                 "search_index_payload_store": UserMessageSearchIndexPayloadStore(),

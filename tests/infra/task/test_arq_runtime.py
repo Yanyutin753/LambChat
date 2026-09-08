@@ -48,6 +48,7 @@ async def test_start_embedded_arq_worker_runs_with_signals_disabled(
         ARQ_EMBEDDED_WORKER=True,
         ARQ_WORKER_MAX_JOBS=128,
         ARQ_JOB_TIMEOUT_SECONDS=30,
+        ARQ_POLL_DELAY_SECONDS=0.1,
         ARQ_QUEUE_NAME="lambchat:arq",
         REDIS_URL="redis://localhost:6379/0",
         REDIS_PASSWORD=None,
@@ -74,6 +75,23 @@ async def test_start_embedded_arq_worker_runs_with_signals_disabled(
 
 
 @pytest.mark.asyncio
+async def test_worker_polls_queue_at_configured_fast_delay(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """取任务轮询间隔来自设置（默认 0.1s）：arq 默认 0.5s 轮询直接吃掉恢复时延。"""
+    _FakeWorker.instances.clear()
+    monkeypatch.setattr(arq_runtime, "settings", _arq_settings())
+
+    runtime = arq_runtime.EmbeddedArqRuntime(worker_factory=_FakeWorker)
+    await runtime.start()
+
+    worker = _FakeWorker.instances[0]
+    assert worker.kwargs["poll_delay"] == 0.1
+
+    await runtime.stop()
+
+
+@pytest.mark.asyncio
 async def test_start_embedded_arq_worker_accepts_future_returned_by_async_run(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -95,6 +113,7 @@ async def test_start_embedded_arq_worker_accepts_future_returned_by_async_run(
         ARQ_EMBEDDED_WORKER=True,
         ARQ_WORKER_MAX_JOBS=128,
         ARQ_JOB_TIMEOUT_SECONDS=30,
+        ARQ_POLL_DELAY_SECONDS=0.1,
         ARQ_QUEUE_NAME="lambchat:arq",
         REDIS_URL="redis://localhost:6379/0",
         REDIS_PASSWORD=None,
@@ -135,6 +154,7 @@ async def test_stop_embedded_arq_worker_awaits_future_returned_by_close(
         ARQ_EMBEDDED_WORKER=True,
         ARQ_WORKER_MAX_JOBS=128,
         ARQ_JOB_TIMEOUT_SECONDS=30,
+        ARQ_POLL_DELAY_SECONDS=0.1,
         ARQ_QUEUE_NAME="lambchat:arq",
         REDIS_URL="redis://localhost:6379/0",
         REDIS_PASSWORD=None,
@@ -173,6 +193,7 @@ def _arq_settings() -> SimpleNamespace:
         ARQ_EMBEDDED_WORKER=True,
         ARQ_WORKER_MAX_JOBS=128,
         ARQ_JOB_TIMEOUT_SECONDS=30,
+        ARQ_POLL_DELAY_SECONDS=0.1,
         ARQ_QUEUE_NAME="lambchat:arq",
         REDIS_URL="redis://localhost:6379/0",
         REDIS_PASSWORD=None,
