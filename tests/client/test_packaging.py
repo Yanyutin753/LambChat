@@ -319,17 +319,27 @@ def test_tauri_bundle_adhoc_signs_macos_app() -> None:
     assert conf["bundle"]["macOS"]["signingIdentity"] == "-"
 
 
+def test_tauri_bundle_disables_hardened_runtime_for_adhoc_sidecar() -> None:
+    """v2.10.0 发版事故防线：Tauri 默认对全部可执行（含 daemon sidecar）落
+    hardened runtime 标志，而 runtime 隐含 library validation——PyInstaller
+    onefile 运行时解包的内嵌 dylib 是无团队 ID 的 ad-hoc 签名，LV 下 dlopen
+    即 SIGKILL（v2.9.2 macOS「daemon 起不来」根因）。ad-hoc 分发不做公证，
+    runtime 标志只有害处，必须在打包期关闭；打包后重封 sidecar 补救不可行
+    （破坏外层封印，且 updater 归档先于重封生成、包内仍是坏字节）。"""
+    import json
+
+    conf = json.loads(_source("frontend/src-tauri/tauri.conf.json"))
+    assert conf["bundle"]["macOS"]["hardenedRuntime"] is False
+
+
 def test_release_workflow_verifies_macos_code_signing() -> None:
-    """签名门禁（v2.9.2 层2）：macOS 打包后先把 daemon sidecar 无 --options
-    重封（不带 hardened runtime / library validation——PyInstaller 解包出的
-    内嵌库无团队 ID，LV 下 dlopen 即被杀），runtime 标志残留时构建直接失败；
-    再验证 bundle 封印与嵌套可执行签名（arm64 内核要求全部可执行代码至少
-    ad-hoc 签名）。"""
+    """签名门禁（v2.9.2 层2）：macOS 打包后验证 sidecar 无 runtime 标志
+    （打包期由 tauri.conf.json hardenedRuntime: false 保证，出现即打包链
+    回归）、bundle 封印与嵌套可执行逐一签名（arm64 内核要求全部可执行代码
+    至少 ad-hoc 签名）。只验证不修改——改内嵌二进制会破坏外层封印。"""
     steps = {step["name"]: step for step in _desktop_job()["steps"]}
-    verify = steps["Re-seal daemon sidecar without hardened runtime + verify signing"]
+    verify = steps["Verify macOS code signing (sidecar must have no runtime flag)"]
     assert verify["if"] == "runner.os == 'macOS'"
-    # 无 --options 重封：新签名不带 runtime/LV 标志（flags 归零）
-    assert 'codesign --force --sign - --timestamp=none "$daemon_bin"' in verify["run"]
     # 门禁：CodeDirectory flags 含 runtime (0x10000) 即红
     assert "flags=0x[0-9a-f]*1[0-9a-f]{4}" in verify["run"]
     assert "codesign --verify --deep --strict" in verify["run"]
