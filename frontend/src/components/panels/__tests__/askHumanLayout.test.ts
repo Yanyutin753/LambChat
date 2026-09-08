@@ -13,6 +13,43 @@ const approvalCss = readFileSync(
   "utf8",
 );
 
+test("adapts sandbox-confirm op rows to two-line stacking on narrow screens", () => {
+  // 窄屏：编号 + 动词胶囊一行，命令独占整行换行并缩进对齐胶囊左缘，
+  // 避免胶囊挤压命令宽度；参数单标签列同步放宽
+  expect(approvalCss).toMatch(
+    /@media \(max-width: 640px\)[\s\S]*?\.approval-op-row\s*\{[\s\S]*?flex-wrap:\s*wrap;/,
+  );
+  expect(approvalCss).toMatch(
+    /@media \(max-width: 640px\)[\s\S]*?\.approval-op-detail\s*\{[\s\S]*?flex-basis:\s*100%;/,
+  );
+  expect(approvalCss).toMatch(
+    /@media \(max-width: 640px\)[\s\S]*?\.approval-st-label\s*\{[\s\S]*?flex-basis:\s*5rem;/,
+  );
+});
+
+test("renders sandbox-confirm batches as a structured op list, not one crammed line", () => {
+  // 沙箱确认门的 message 是「标题 + 编号操作」多行文本：头部只放标题行，
+  // 明细区渲染单据式操作清单，命令走等宽字体 + 任意断行
+  expect(approvalSource).toMatch(
+    /parseAskHumanMessage\(currentApproval\.message\)/,
+  );
+  expect(approvalSource).toMatch(
+    /askHumanQuestion = askHumanParsed\.headline \?\? approvalSummary/,
+  );
+  expect(approvalSource).toMatch(/ApprovalOpList ops=\{askHumanParsed\.ops\}/);
+  expect(approvalSource).toMatch(/approval-ask-human-context/);
+  expect(approvalSource).toMatch(/askHumanParsed\.prose/);
+  expect(approvalCss).toMatch(
+    /\.approval-op-list\s*\{[\s\S]*?flex-direction:\s*column;/,
+  );
+  expect(approvalCss).toMatch(
+    /\.approval-op-detail\s*\{[\s\S]*?overflow-wrap:\s*anywhere;/,
+  );
+  expect(approvalCss).toMatch(
+    /\.approval-op-row \+ \.approval-op-row\s*\{[\s\S]*?border-top:\s*1px dashed/,
+  );
+});
+
 test("renders ask-human as a full card with numbered choices and footer actions", () => {
   expect(approvalSource).toMatch(/approval-card--ask-human/);
   expect(approvalSource).toMatch(/approval-ask-human-option/);

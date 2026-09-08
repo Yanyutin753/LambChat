@@ -58,6 +58,11 @@ class _FakeRedis:
             await asyncio.sleep(timeout)
         return None
 
+    async def lrem(self, key: str, count: int, value: str) -> None:
+        items = self.lists.get(key)
+        if items:
+            self.lists[key] = [x for x in items if x != value]
+
 
 class _FakeRegistry:
     def __init__(self, online: bool):
@@ -571,3 +576,98 @@ async def test_upload_stream_window_wait_aborts_on_interrupt_sentinel(fake, monk
     assert exc.value.error_code == ErrorCode.SANDBOX_EXEC_FAILED
     assert "stream_interrupted" in str(exc.value.args_data.get("detail"))
     assert dt < 5, f"窗口等待未消费中断哨兵，耗时 {dt:.1f}s"
+
+
+# ----------
+# ACK 死线内幂等重推：断联窗口内 tool_call 帧不丢
+# （2026-09-09 生产断联：帧被死连接的 BLPOP 消费即丢失，daemon 重连后无人
+#  再投递，agent 侧干等 30s ACK 超时全灭 SANDBOX_TIMEOUT）
+# ----------
+
+
+async def test_unacked_call_is_repushed_until_ack(fake, monkeypatch):
+    """帧被断联通道吞掉（首次入队无人 ack）时，dispatch 周期性重推同一
+    call_id 的幂等帧：daemon 重连后收到重推帧照常执行，调用整体不失败。"""
+    monkeypatch.setattr(dispatch_module, "_BLPOP_TIMEOUT", 0.01)
+    monkeypatch.setattr(dispatch_module, "_ACK_REPUSH_INTERVAL", 0.05)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 2)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_EXEC_TIMEOUT", 5)
+
+    received: list[dict] = []
+
+    async def daemon():
+        # 首帧被「死连接」消费（lpop 后静默）——模拟 channel 断联丢帧
+        await asyncio.sleep(0.02)
+        first = json.loads(await fake.lpop("sandbox:req:u1"))
+        received.append(first)
+        # 0.3s 后 daemon 重连，收到重推帧：ack + done
+        await asyncio.sleep(0.3)
+        retry = json.loads(await fake.lpop("sandbox:req:u1"))
+        received.append(retry)
+        assert retry["call_id"] == first["call_id"]  # 幂等重推：同一调用
+        assert retry["ts"] >= first["ts"]  # ts 刷新：不被 channel 陈旧丢弃门吃掉
+        await fake.set(
+            f"sandbox:resp:{retry['call_id']}", json.dumps({"user_id": "u1", "stage": "ack"})
+        )
+        await asyncio.sleep(0.02)
+        await fake.set(
+            f"sandbox:resp:{retry['call_id']}",
+            json.dumps({"user_id": "u1", "stage": "done", "status": "ok", "stdout": "hi"}),
+        )
+
+    task = asyncio.create_task(daemon())
+    result = await dispatch_local_call("u1", "exec", {"command": "echo hi"})
+    await task
+    assert result["stdout"] == "hi"
+    assert len(received) == 2
+
+
+async def test_acked_call_is_not_repushed(fake, monkeypatch):
+    """ack 到达后停止重推：正常往返只有一次入队（重推只针对未确认的丢失帧）。"""
+    monkeypatch.setattr(dispatch_module, "_BLPOP_TIMEOUT", 0.01)
+    monkeypatch.setattr(dispatch_module, "_ACK_REPUSH_INTERVAL", 0.05)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 2)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_EXEC_TIMEOUT", 5)
+
+    queue_pushes: list[str] = []
+    original_rpush = fake.rpush
+
+    async def counting_rpush(key: str, value: str) -> None:
+        if key == "sandbox:req:u1":
+            queue_pushes.append(value)
+        await original_rpush(key, value)
+
+    fake.rpush = counting_rpush  # type: ignore[method-assign]
+
+    async def daemon():
+        await asyncio.sleep(0.02)  # 在首个重推点（0.05s）之前就 ack
+        req = json.loads(await fake.lpop("sandbox:req:u1"))
+        await fake.set(
+            f"sandbox:resp:{req['call_id']}", json.dumps({"user_id": "u1", "stage": "ack"})
+        )
+        await asyncio.sleep(0.15)  # done 晚于多个重推点到点：验证 ack 后不再推
+        await fake.set(
+            f"sandbox:resp:{req['call_id']}",
+            json.dumps({"user_id": "u1", "stage": "done", "status": "ok", "stdout": "hi"}),
+        )
+
+    task = asyncio.create_task(daemon())
+    result = await dispatch_local_call("u1", "exec", {"command": "echo hi"})
+    await task
+    assert result["stdout"] == "hi"
+    assert len(queue_pushes) == 1  # ack 一到重推即停，全程只入队一次
+
+
+async def test_ack_timeout_cleans_repush_residue(fake, monkeypatch):
+    """daemon 始终无响应时：重推按既有 ACK 死线失败，且 finally 清掉队列里
+    的全部重推残留——不给重连后的 daemon 留「无人等待的幽灵执行」。"""
+    monkeypatch.setattr(dispatch_module, "_BLPOP_TIMEOUT", 0.01)
+    monkeypatch.setattr(dispatch_module, "_ACK_REPUSH_INTERVAL", 0.05)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 0.2)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_EXEC_TIMEOUT", 5)
+
+    with pytest.raises(AppError) as exc:
+        await dispatch_local_call("u1", "exec", {"command": "echo hi"})
+    assert exc.value.error_code == ErrorCode.SANDBOX_TIMEOUT
+    # 队列残留被 lrem 清空：断联期间积累的重推帧不外泄
+    assert fake.lists.get("sandbox:req:u1") in (None, [])

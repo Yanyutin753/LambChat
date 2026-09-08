@@ -149,6 +149,21 @@ async def test_env_authoritative_warning_masks_sensitive_values(
 
 
 @pytest.mark.asyncio
+async def test_arq_embedded_worker_is_env_authoritative(
+    monkeypatch: pytest.MonkeyPatch, _isolated_config_globals
+) -> None:
+    """worker 拆分部署后 ARQ_EMBEDDED_WORKER 是部署拓扑决策（k8s/compose 设
+    env=false + 独立 worker Deployment），必须 env-authoritative：DB 里的历史
+    种子值（system:init 曾写 true）不得把 API 进程的内嵌 worker 重新拉起，
+    否则 API 与独立 worker 双消费同一队列（2026-09-09 staging 实测踩坑）。"""
+    monkeypatch.setattr(config_service.settings, "ARQ_EMBEDDED_WORKER", False)
+
+    await _run_initialize(monkeypatch, [("ARQ_EMBEDDED_WORKER", True)])
+
+    assert config_service.settings.ARQ_EMBEDDED_WORKER is False
+
+
+@pytest.mark.asyncio
 async def test_refresh_keeps_panel_override_semantics(
     monkeypatch: pytest.MonkeyPatch, _isolated_config_globals
 ) -> None:

@@ -308,6 +308,293 @@
   padding: 0.65rem 1.1rem 1rem;
 }
 
+/* ── 沙箱确认门操作清单（单据式只读列表） ──
+ * 也会渲染在工具实时面板（无 .approval-card 祖先），token 全部带兜底。 */
+.approval-op-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid
+    var(
+      --theme-border,
+      color-mix(in srgb, var(--approval-border) 60%, transparent)
+    );
+  border-radius: 0.75rem;
+  background: color-mix(
+    in srgb,
+    var(--theme-bg-card, var(--approval-bg)) 88%,
+    var(--theme-bg, transparent)
+  );
+  overflow: hidden;
+}
+
+.approval-op-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.55rem 0.8rem;
+}
+
+.approval-op-row + .approval-op-row {
+  border-top: 1px dashed
+    var(
+      --theme-border,
+      color-mix(in srgb, var(--approval-border) 45%, transparent)
+    );
+}
+
+.approval-op-index {
+  min-width: 0.9rem;
+  padding-top: 0.15rem;
+  color: var(--theme-text-secondary, var(--approval-text-dim));
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: right;
+  user-select: none;
+}
+
+.approval-op-verb {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.05rem;
+  padding: 0.12rem 0.5rem;
+  border: 1px solid
+    color-mix(in srgb, var(--approval-accent, #f59e0b) 26%, transparent);
+  border-radius: 999px;
+  background: color-mix(
+    in srgb,
+    var(--approval-accent-light, #fef3c7) 16%,
+    transparent
+  );
+  color: color-mix(
+    in srgb,
+    var(--approval-accent-hover, #d97706) 82%,
+    var(--approval-text, var(--theme-text, inherit))
+  );
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.approval-op-detail {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: var(--approval-text, var(--theme-text, inherit));
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* ask_human 明细区的上下文块：标题以下、表单以上 */
+.approval-ask-human-context {
+  padding: var(--approval-section-y) var(--approval-section-x) 0;
+}
+
+.approval-ask-human-context-prose {
+  color: var(--approval-text-dim, var(--theme-text-secondary));
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ── 定时任务创建审批（spec-sheet 式参数单） ── */
+.approval-st {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.approval-st-lead {
+  margin: 0;
+  color: var(--approval-text, var(--theme-text));
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.approval-st-note {
+  margin: 0;
+  color: var(--approval-text-dim, var(--theme-text-secondary));
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.approval-st-sheet {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid
+    var(
+      --theme-border,
+      color-mix(in srgb, var(--approval-border) 55%, transparent)
+    );
+  border-radius: 0.75rem;
+  background: color-mix(
+    in srgb,
+    var(--theme-bg-card, var(--approval-bg)) 88%,
+    var(--theme-bg, transparent)
+  );
+  overflow: hidden;
+}
+
+.approval-st-row {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.5rem 0.9rem;
+}
+
+.approval-st-row + .approval-st-row {
+  border-top: 1px dashed
+    var(
+      --theme-border,
+      color-mix(in srgb, var(--approval-border) 40%, transparent)
+    );
+}
+
+.approval-st-label {
+  flex: 0 0 4.5rem;
+  color: var(--approval-text-dim, var(--theme-text-secondary));
+  font-size: 0.75rem;
+  line-height: 1.5;
+  user-select: none;
+}
+
+.approval-st-value {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  overflow-wrap: anywhere;
+}
+
+.approval-st-name {
+  color: var(--approval-text, var(--theme-text));
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.approval-st-mono {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  padding: 0.14rem 0.55rem;
+  border: 1px solid
+    color-mix(in srgb, var(--approval-accent, #f59e0b) 18%, transparent);
+  border-radius: 0.45rem;
+  background: color-mix(
+    in srgb,
+    var(--approval-accent-light, #fef3c7) 10%,
+    transparent
+  );
+  color: var(--approval-text, var(--theme-text));
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.approval-st-chip-icon {
+  flex-shrink: 0;
+  opacity: 0.55;
+}
+
+.approval-st-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.14rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.approval-st-flag--on {
+  background: color-mix(in srgb, #10b981 12%, transparent);
+  color: #059669;
+}
+
+.approval-st-flag--off {
+  background: color-mix(
+    in srgb,
+    var(--theme-text-secondary, #78716c) 10%,
+    transparent
+  );
+  color: var(--approval-text-dim, var(--theme-text-secondary));
+}
+
+.dark .approval-st-flag--on {
+  background: color-mix(in srgb, #10b981 16%, transparent);
+  color: #34d399;
+}
+
+.approval-st-effect {
+  margin: 0;
+  color: var(--approval-text-dim, var(--theme-text-secondary));
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.approval-st-prompt {
+  border: 1px solid
+    var(
+      --theme-border,
+      color-mix(in srgb, var(--approval-border) 55%, transparent)
+    );
+  border-radius: 0.75rem;
+  background: color-mix(
+    in srgb,
+    var(--theme-bg-card, var(--approval-bg)) 88%,
+    var(--theme-bg, transparent)
+  );
+  overflow: hidden;
+}
+
+.approval-st-prompt-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.9rem;
+  border-bottom: 1px solid
+    color-mix(
+      in srgb,
+      var(--approval-border, var(--theme-border)) 35%,
+      transparent
+    );
+  color: var(--approval-text-dim, var(--theme-text-secondary));
+  font-family: var(--font-serif, ui-serif, Georgia, serif);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+.approval-st-prompt-body {
+  margin: 0;
+  max-height: 14rem;
+  padding: 0.65rem 0.9rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  color: var(--approval-text, var(--theme-text));
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  font-size: 0.75rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .approval-ask-human-shortcut-hint {
   align-items: center;
   gap: 0.25rem;
@@ -362,6 +649,33 @@
   .approval-card.approval-card--composer {
     --approval-section-x: 1rem;
     border-radius: 1.25rem;
+  }
+
+  /* 窄屏操作行改两段：编号 + 动词胶囊一行，命令独占整行换行，
+   * 避免胶囊挤压命令可用宽度、换行后左边距参差 */
+  .approval-op-row {
+    flex-wrap: wrap;
+    gap: 0.4rem 0.55rem;
+    padding: 0.5rem 0.7rem;
+  }
+
+  .approval-op-detail {
+    flex-basis: 100%;
+    padding-left: 1.45rem; /* 与动词胶囊左缘对齐 */
+  }
+
+  /* 参数单标签列放宽：四字标签 + 间距在窄屏不换行 */
+  .approval-st-label {
+    flex-basis: 5rem;
+  }
+
+  .approval-st-row {
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .approval-st-prompt-body {
+    padding: 0.55rem 0.75rem;
   }
 
   .approval-ask-human-header {

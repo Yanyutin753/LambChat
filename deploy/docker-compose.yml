@@ -59,6 +59,40 @@ services:
       - LOG_LEVEL=INFO
       - ENABLE_MESSAGE_HISTORY=true
       - EVENT_MERGE_INTERVAL=60
+      # 任务执行与 API 分进程（与 k8s 部署同构）：重任务不饿死 API 事件循环
+      # （SSE/沙箱通道心跳停发），API 重启不杀运行中的任务。任务由
+      # lambchat-worker 服务消费（Redis 队列协同）。
+      - ARQ_EMBEDDED_WORKER=false
+    volumes:
+      - lamb-data:/app/data
+      - ./workspace:/app/workspace
+      - ./uploads:/app/uploads
+
+  lambchat-worker:
+    container_name: lambchat-worker
+    image: ghcr.io/yanyutin753/lambchat:latest
+    restart: always
+    command: ["/app/.venv/bin/python", "-m", "src.infra.task.worker_main"]
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    environment:
+      - TZ=Asia/Shanghai
+      - REDIS_URL=redis://redis:6379/0
+      - MONGODB_URL=mongodb://mongodb:27017
+      - E2B_API_KEY=${E2B_API_KEY:-}
+      - E2B_TEMPLATE=${E2B_TEMPLATE:-base}
+      - LLM_MODEL_CACHE_SIZE=${LLM_MODEL_CACHE_SIZE:-50}
+      - SESSION_MAX_EVENTS_PER_TRACE=${SESSION_MAX_EVENTS_PER_TRACE:-10000}
+      - LOG_LEVEL=INFO
     volumes:
       - lamb-data:/app/data
       - ./workspace:/app/workspace

@@ -1215,3 +1215,73 @@ async def test_no_signal_support_returns_empty(monkeypatch):
 
     installed = daemon_module._install_sigterm_cancel()
     assert installed == []
+
+
+# ----------
+# call_id 去重 × 断联日志（2026-09-09 生产断联加固）
+# ----------
+
+
+async def test_duplicate_call_id_executes_once():
+    """dispatch 断联重推是 at-least-once 投递：daemon 按 call_id 去重，重复
+    帧记 audit 后跳过——重复执行用户机器上的命令是不可接受的副作用。"""
+    client = FakeClient(calls=[_call("c1"), _call("c1"), _call("c2")])
+    executor = FakeExecutor(
+        result={"status": "ok", "stdout": "hi\n", "stderr": "", "exit_code": 0, "error": None}
+    )
+    auditor = MemoryAuditor()
+
+    await _run(
+        _cfg("none"),
+        FakeFactory([client, _terminator()]),
+        executor=executor,
+        auditor=auditor,
+    )
+
+    # c1 只执行一次、c2 一次；done 也只各回一次
+    assert len(executor.calls) == 2
+    dones = [cid for cid, body in client.posted if body.get("stage") == "done"]
+    assert dones == ["c1", "c2"]
+
+    # 重复帧有专属审计记录，可事后核对
+    duplicates = [
+        event
+        for records in auditor.records.values()
+        for event in records
+        if event.get("event") == "duplicate_skipped"
+    ]
+    assert len(duplicates) == 1
+    assert duplicates[0]["call_id"] == "c1"
+
+
+async def test_channel_break_logs_exception_type(capsys):
+    """空消息异常（httpx.ReadTimeout/ConnectTimeout 的 str 为空串）断联时，
+    日志必须带异常类型：『通道断开: ReadTimeout: 』而非『通道断开: 』——
+    盲日志是 2026-09-09 断联排查的硬伤。"""
+
+    class _EmptyTimeoutError(Exception):
+        """str() 为空的异常替身（httpx 超时族的形态）。"""
+
+    async def calls_then_break():
+        yield _call("c1")
+        raise _EmptyTimeoutError()
+
+    class BreakAfterCall(FakeClient):
+        async def connect(self):
+            return {"sandbox_id": "sbx-fake"}, calls_then_break()
+
+    breaker = BreakAfterCall(calls=[])
+    terminator = _terminator()
+
+    with pytest.raises(TransportAuthError):
+        await run_daemon(
+            _cfg("none"),
+            pat=PAT,
+            client_factory=FakeFactory([breaker, terminator]),
+            executor=FakeExecutor(),
+            auditor=MemoryAuditor(),
+            sleep_fn=SleepRecorder(),
+        )
+
+    err = capsys.readouterr().err
+    assert "通道断开: _EmptyTimeoutError" in err

@@ -244,7 +244,10 @@ async def test_channel_frames_returns_when_superseded(monkeypatch, superseded_by
 
     assert frames[0].startswith("event: hello\n")
     assert frames[1].startswith("event: tool_call\n")
-    assert not any(f.startswith(": heartbeat") for f in frames)
+    # 先发射后校验（keepalive 不依赖共享池）：失主观测点在发射之后——
+    # 被踢旧流至多多带一个心跳帧，但不再续写注册表
+    heartbeat_frames = [f for f in frames if f.startswith(": heartbeat")]
+    assert len(heartbeat_frames) <= 1
     assert registry.beats == 0  # 失主后不再心跳续期，不把自己写回注册表
 
 

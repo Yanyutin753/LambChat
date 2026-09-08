@@ -331,3 +331,51 @@ async def test_recovery_callback_not_invoked_without_worker_crash(
 
     assert recovery_calls == []
     await runtime.stop()
+
+
+@pytest.mark.asyncio
+async def test_start_skips_when_embedded_flag_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ARQ_EMBEDDED_WORKER=false 只约束 API 进程：默认 start() 尊重它（不启动）。"""
+    _FakeWorker.instances.clear()
+    settings = SimpleNamespace(
+        TASK_BACKEND="arq",
+        ARQ_EMBEDDED_WORKER=False,
+        ARQ_WORKER_MAX_JOBS=128,
+        ARQ_JOB_TIMEOUT_SECONDS=30,
+        ARQ_POLL_DELAY_SECONDS=0.1,
+        ARQ_QUEUE_NAME="lambchat:arq",
+        REDIS_URL="redis://localhost:6379/0",
+        REDIS_PASSWORD=None,
+    )
+    monkeypatch.setattr(arq_runtime, "settings", settings)
+
+    runtime = arq_runtime.EmbeddedArqRuntime(worker_factory=_FakeWorker)
+    await runtime.start()
+    assert runtime.is_running is False
+    assert _FakeWorker.instances == []
+
+
+@pytest.mark.asyncio
+async def test_start_with_force_bypasses_embedded_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """独立 worker 进程（worker_main）在 ARQ_EMBEDDED_WORKER=false 时也要能启动
+    worker——force=True 绕过该开关（拆分部署：API 关内嵌、worker 独立消费）。"""
+    _FakeWorker.instances.clear()
+    settings = SimpleNamespace(
+        TASK_BACKEND="arq",
+        ARQ_EMBEDDED_WORKER=False,
+        ARQ_WORKER_MAX_JOBS=128,
+        ARQ_JOB_TIMEOUT_SECONDS=30,
+        ARQ_POLL_DELAY_SECONDS=0.1,
+        ARQ_QUEUE_NAME="lambchat:arq",
+        REDIS_URL="redis://localhost:6379/0",
+        REDIS_PASSWORD=None,
+    )
+    monkeypatch.setattr(arq_runtime, "settings", settings)
+
+    runtime = arq_runtime.EmbeddedArqRuntime(worker_factory=_FakeWorker)
+    await runtime.start(force=True)
+    assert runtime.is_running is True
+    assert len(_FakeWorker.instances) == 1
+    await runtime.stop()

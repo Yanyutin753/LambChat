@@ -94,11 +94,12 @@ async def channel_frames(
 ) -> AsyncIterator[str]:
     """SSE 帧生成器：hello -> (tool_call | 心跳) 循环；连接期心跳注册表。
 
-    心跳前校验属主：新连接 register 清空注册表后，旧流在此退场（后连踢前连），
-    踢旧窗口收敛到一个心跳周期（15s）。旧流结束时 finally 的 unregister 只
-    hdel 自己的字段，不会破坏新连接的注册。心跳带同一 ``version``/``platform``
-    /``confirm_policy`` 重写——不带会把注册值降级回纯 node_id，daemon
-    版本/平台/策略 15s 后丢失。
+    心跳先发射、后校验属主：keepalive 只依赖事件循环本身，注册表三连写走
+    共享池，池被重任务占满时心跳会跟着停发（2026-09-09 生产断联）。属主
+    校验（后连踢前连）因此后移一拍，踢旧窗口收敛到一两个心跳周期。旧流结
+    束时 finally 的 unregister 只 hdel 自己的字段，不会破坏新连接的注册。心
+    跳带同一 ``version``/``platform``/``confirm_policy`` 重写——不带会把注册
+    值降级回纯 node_id，daemon 版本/平台/策略 15s 后丢失。
 
     多机（``machine_id`` 非空）：属主校验按机器属主键（同机重连换属主踢旧流），
     下发队列按 ``registry.queue_key`` 分机器；legacy 路径语义零变化。
@@ -121,6 +122,12 @@ async def channel_frames(
     while not stop.is_set():
         now = loop.time()
         if now - last_beat >= _HEARTBEAT_SECONDS:
+            # 心跳先发射、后写注册表：keepalive 依赖的只是事件循环本身——
+            # 注册表三连写走共享池，池被重任务占满时 await 会长时间挂起，
+            # 心跳跟着停发、daemon 侧 45s 读超时误判断联（2026-09-09 生产）。
+            # 属主校验后移一个节拍，旧流多活一个心跳周期（repush 兜底误吃帧）。
+            last_beat = now
+            yield ": heartbeat\n\n"
             if machine_id:
                 # 多机属主校验：同机新连接已改写属主键时，旧流退场
                 owner = await redis.get(_owner_key(user_id, machine_id))
@@ -142,8 +149,6 @@ async def channel_frames(
             )
             if machine_id:
                 await redis.set(_owner_key(user_id, machine_id), client_id, ex=35)
-            last_beat = now
-            yield ": heartbeat\n\n"
         # 阻塞读下发队列：超时切片返回 None → 回到心跳检查；Redis 异常上抛
         # 终结本流，daemon 走既有退避重连（与旧轮询模型同语义）
         item = await blocking.blpop(req_key, timeout=timeout_slice)

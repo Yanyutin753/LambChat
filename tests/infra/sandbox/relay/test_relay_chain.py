@@ -260,3 +260,40 @@ async def test_results_endpoint_writes_queue_with_expiry(wired):
     assert json.loads(queue[0])["stage"] == "ack"
     assert json.loads(queue[1])["stage"] == "done"
     assert wired.expires.count("sandbox:resp:call-x") == 2
+
+
+async def test_heartbeat_emitted_before_registry_writes(monkeypatch):
+    """心跳帧必须先于注册表三连写发射：keepalive 只该依赖事件循环本身。
+
+    注册表写入走共享 Redis 池——重任务把池占满时 await 会长时间挂起，若心
+    跳跟在写后停发，daemon 侧 45s 读超时就误判断联（2026-09-09 生产断联）。
+    属主校验/注册表写后移到心跳发射之后。"""
+    monkeypatch.setattr(sandbox_route, "_HEARTBEAT_SECONDS", 0.05)
+    monkeypatch.setattr(sandbox_route, "_BLPOP_TIMEOUT", 0.01)
+
+    calls: list[str] = []
+
+    class _OrderRecordingRegistry(_FakeRegistry):
+        async def get_active(self, user_id):
+            calls.append("get_active")
+            return ("c1", "node1")
+
+        async def heartbeat(self, *args, **kwargs):
+            calls.append("heartbeat")
+
+    redis = _FakeRedis()
+    registry = _OrderRecordingRegistry("legacy")  # legacy 路径（无 machine_id）
+    stop = asyncio.Event()
+
+    agen = sandbox_route.channel_frames(redis, registry, "u1", "c1", stop=stop)
+    try:
+        hello = await agen.__anext__()
+        assert hello.startswith("event: hello")
+        beat = await agen.__anext__()
+        assert beat.startswith(": heartbeat")
+        assert calls == []  # 心跳已在客户端手上，注册表还没写
+        await agen.__anext__()  # 从 yield 恢复：此刻才做属主校验 + 注册表写
+        assert calls == ["get_active", "heartbeat"]
+    finally:
+        stop.set()
+        await agen.aclose()

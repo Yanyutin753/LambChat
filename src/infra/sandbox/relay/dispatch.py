@@ -49,6 +49,45 @@ def _registry() -> SandboxClientRegistry:
 #: 50ms 轮询更糟）；对测试 fake 而言这也是让出事件循环的点。
 _LEGACY_POLL_INTERVAL = 0.05
 
+#: ACK 未确认时的幂等重推间隔（秒）。tool_call 帧被 channel 的 BLPOP 消费后
+#: 即脱离队列——连接在投递瞬间断掉（滚动发布/代理抖动）帧就丢了，daemon
+#: 重连后无人再投递，调用方干等满 ACK 死线（2026-09-09 生产断联窗口内 exec
+#: 全灭 SANDBOX_TIMEOUT）。重推同一 call_id（daemon 侧按 call_id 去重），
+#: ACK 到达即停。
+_ACK_REPUSH_INTERVAL = 5.0
+
+
+class _AckRepusher:
+    """下发帧的幂等重推器：ack 之前周期性重推同一请求，结束时清掉队列残留。
+
+    ts 每次重推刷新——channel 侧按 ts 判龄丢弃陈旧帧，沿用原始时间戳会让
+    重推帧在 ACK 死线附近被自己的陈旧门吃掉。cleanup 用 LREM 精确移除本
+    调用推过的每一帧：调用失败（或完成）后队列里不留副本，daemon 重连后
+    不会执行「已无人等待的幽灵调用」。
+    """
+
+    def __init__(self, redis, queue: str, req: dict) -> None:
+        self._redis = redis
+        self._queue = queue
+        self._req = req
+        self._pushed: list[str] = []
+
+    async def push(self) -> None:
+        self._req["ts"] = time.time()
+        payload = json.dumps(self._req)
+        self._pushed.append(payload)
+        await self._redis.rpush(self._queue, payload)
+
+    def next_due(self) -> float:
+        return time.monotonic() + _ACK_REPUSH_INTERVAL
+
+    async def cleanup(self) -> None:
+        for payload in self._pushed:
+            try:
+                await self._redis.lrem(self._queue, 0, payload)
+            except Exception:  # noqa: BLE001 - 清理尽力而为
+                pass
+
 
 async def _pop_resp(redis, key: str, *, timeout: float | None = None):
     """读一条回传结果：新格式 RPUSH 队列优先（timeout 给出则 BLPOP 阻塞）。
@@ -108,14 +147,19 @@ async def dispatch_local_call(
     # 调用-机器绑定：results 端点据此拒绝同用户其他机器冒答（call_id 难猜，
     # 但绑定后模型上无冒答空间）；无绑定键的旧调用（兼容窗口）跳过校验
     await redis.set(_assign_key(call_id), target, ex=120)
-    await redis.rpush(registry.queue_key(user_id, target), json.dumps(req))
+    repusher = _AckRepusher(redis, registry.queue_key(user_id, target), req)
+    await repusher.push()
 
     start = time.monotonic()
     acked = False
     ack_deadline = start + settings.SANDBOX_LOCAL_ACK_TIMEOUT
     exec_deadline = start + exec_timeout
+    next_repush = repusher.next_due()
     try:
         while time.monotonic() < exec_deadline:
+            if not acked and time.monotonic() >= next_repush:
+                await repusher.push()
+                next_repush = repusher.next_due()
             remaining = exec_deadline - time.monotonic()
             raw = await _pop_resp(
                 redis, resp_key, timeout=min(_BLPOP_TIMEOUT, max(remaining, 0.01))
@@ -157,6 +201,7 @@ async def dispatch_local_call(
             await redis.delete(_assign_key(call_id))
         except Exception:  # noqa: BLE001 - 清理尽力而为
             pass
+        await repusher.cleanup()
 
 
 def _stream_key(user_id: str, call_id: str) -> str:
@@ -207,14 +252,19 @@ async def dispatch_local_stream(
     redis = _binary_redis()  # stream list 是裸二进制帧（req/resp 均为 JSON，bytes 兼容）
     stream_key = _stream_key(user_id, call_id)
     resp_key = f"sandbox:resp:{call_id}"
-    await redis.rpush(registry.queue_key(user_id, target), json.dumps(req))
+    repusher = _AckRepusher(redis, registry.queue_key(user_id, target), req)
+    await repusher.push()
 
     start = time.monotonic()
     acked = False
     ack_deadline = start + settings.SANDBOX_LOCAL_ACK_TIMEOUT
     exec_deadline = start + exec_timeout
+    next_repush = repusher.next_due()
     try:
         while time.monotonic() < exec_deadline:
+            if not acked and time.monotonic() >= next_repush:
+                await repusher.push()
+                next_repush = repusher.next_due()
             resp = None
             # results 端点为 RPUSH 队列（ack/done 按序）；滚动窗口内旧实例仍
             # SET（string）：_pop_resp 捕获 WRONGTYPE 后回落 GET
@@ -268,6 +318,7 @@ async def dispatch_local_stream(
                 await redis.delete(key)
             except Exception:  # noqa: BLE001 - 清理尽力而为
                 pass
+        await repusher.cleanup()
 
 
 _UPBLOB_WINDOW = 8  # 生产者在途帧数上限：×4MiB 帧 = Redis 峰值 ~32MiB

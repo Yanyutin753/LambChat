@@ -6,6 +6,7 @@
 退出 POST /api/sandbox/offline。
 """
 
+import asyncio
 import json
 import random
 
@@ -630,4 +631,48 @@ async def test_post_offline_without_machine_id_omits_query():
     await client.post_offline()
 
     assert log[0].url.params.get("machine_id") is None
+    await client.close()
+
+
+# ----------
+# hello 阶段独立短超时（2026-09-09 生产断联：连接已被发布切换/代理掐死但
+# 首帧永不到达，daemon 挂满 45s 读超时才进退避，掉线窗口被拉到分钟级）
+# ----------
+
+
+class _HangingStream(httpx.AsyncByteStream):
+    """建立连接后一个字节都不发的僵死流。"""
+
+    def __init__(self) -> None:
+        self._release = asyncio.Event()
+
+    async def __aiter__(self):
+        await self._release.wait()
+        yield b""  # pragma: no cover - 测试期内不抵达
+
+
+class _HangingTransport(httpx.AsyncBaseTransport):
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            stream=_HangingStream(),
+        )
+
+
+async def test_connect_hello_timeout_raises_transport_error(monkeypatch):
+    """hello 迟迟不到（僵死连接）时按 hello 独立超时快速失败，不挂满 45s
+    读超时——TransportError 进既有退避重连，掉线窗口压到秒级。"""
+    import lambchat_sandbox.transport as transport_module
+
+    monkeypatch.setattr(transport_module, "_HELLO_TIMEOUT_S", 0.1)
+
+    client = _channel_client(_HangingTransport())
+    import time as time_mod
+
+    t0 = time_mod.monotonic()
+    with pytest.raises(TransportError, match="hello"):
+        await client.connect()
+    dt = time_mod.monotonic() - t0
+    assert dt < 2, f"hello 超时应快速失败，耗时 {dt:.1f}s"
     await client.close()

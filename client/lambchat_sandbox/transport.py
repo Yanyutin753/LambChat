@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
 import random
@@ -31,6 +32,12 @@ BACKOFF_JITTER = 0.2  # ±20%
 # TransportError 进入退避重连，而不是永远挂在 read 上。
 _CHANNEL_READ_TIMEOUT_S = 45.0
 _CHANNEL_CONNECT_TIMEOUT_S = 10.0
+
+# hello 阶段独立超时（秒）：健康服务端建连即发 hello（毫秒级），迟迟不到
+# 说明帧被断联通道吞掉（滚动发布切换/代理僵死）。不等 45s 读超时，快速
+# 失败进退避重连，把 daemon 掉线窗口从分钟级压到秒级（2026-09-09 生产断联
+# 实测：hello 丢失的连接挂满 45s 才重连）。
+_HELLO_TIMEOUT_S = 12.0
 
 # 结果回传/offline 通知的 per-request 超时（秒）。client 全局 timeout=None 是给
 # SSE 长连接用的（心跳流不能被读超时切断），POST 沿用同一默认时服务端半死会让
@@ -189,14 +196,21 @@ class ChannelClient:
         try:
             await _raise_for_status(response, "channel")
             hello: dict[str, Any] | None = None
-            async for line in lines:
-                frame = parser.feed(line)
-                if frame is None or frame.event != "hello":
-                    continue
-                data = _parse_json_object(frame.data)
-                if data is not None:
-                    hello = data
-                    break
+            try:
+                # hello 独立短超时：僵死连接（建连后首帧永不到达）快速失败
+                async with asyncio.timeout(_HELLO_TIMEOUT_S):
+                    async for line in lines:
+                        frame = parser.feed(line)
+                        if frame is None or frame.event != "hello":
+                            continue
+                        data = _parse_json_object(frame.data)
+                        if data is not None:
+                            hello = data
+                            break
+            except TimeoutError:
+                raise TransportError(
+                    f"channel: {_HELLO_TIMEOUT_S:.0f}s 内未收到 hello 帧（连接疑似僵死）"
+                ) from None
             if hello is None:
                 raise TransportError("SSE 通道在 hello 帧前关闭")
         except BaseException:

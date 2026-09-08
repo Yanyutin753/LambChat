@@ -41,12 +41,14 @@ class EmbeddedArqRuntime:
     def is_running(self) -> bool:
         return self._supervisor is not None and not self._supervisor.done()
 
-    async def start(self) -> None:
+    async def start(self, *, force: bool = False) -> None:
         if self.is_running:
             return
         if getattr(settings, "TASK_BACKEND", "local") != "arq":
             return
-        if not getattr(settings, "ARQ_EMBEDDED_WORKER", True):
+        # ARQ_EMBEDDED_WORKER 只约束 API 进程的内嵌行为；独立 worker 进程
+        # （worker_main，拆分部署）以 force=True 绕过。
+        if not force and not getattr(settings, "ARQ_EMBEDDED_WORKER", True):
             return
 
         self._stopping = False

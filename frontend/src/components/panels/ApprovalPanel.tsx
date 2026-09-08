@@ -30,6 +30,8 @@ import {
   toggleMultiSelectValue,
   toggleSingleSelectValue,
 } from "./approvalFormValidation";
+import { parseAskHumanMessage } from "./askHumanMessage";
+import { ApprovalOpList } from "./ApprovalOpList";
 
 interface ApprovalPanelProps {
   approvals: PendingApproval[];
@@ -547,7 +549,9 @@ export function ApprovalPanel({
       field.type === "multi_select" ||
       field.type === "select",
   );
-  const askHumanQuestion = approvalSummary;
+  // 头部只放标题行；编号操作清单/补充说明进明细区，长消息不再挤成一行
+  const askHumanParsed = parseAskHumanMessage(currentApproval.message);
+  const askHumanQuestion = askHumanParsed.headline ?? approvalSummary;
   const isSubmitDisabled =
     isLoading || !isFormFieldsValid(currentApproval.fields, currentFormValues);
 
@@ -690,6 +694,18 @@ export function ApprovalPanel({
                         </ReactMarkdown>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {isAskHuman && (askHumanParsed.ops || askHumanParsed.prose) && (
+                  <div className="approval-ask-human-context">
+                    {askHumanParsed.ops ? (
+                      <ApprovalOpList ops={askHumanParsed.ops} />
+                    ) : (
+                      <p className="approval-ask-human-context-prose">
+                        {askHumanParsed.prose}
+                      </p>
+                    )}
                   </div>
                 )}
 

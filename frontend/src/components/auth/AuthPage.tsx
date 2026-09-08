@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   Workflow,
   Database,
+  Loader2,
 } from "lucide-react";
 import { PasswordInput } from "./PasswordInput";
 import toast from "react-hot-toast";
@@ -107,6 +108,10 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
   const [oauthProviders, setOauthProviders] = useState<
     { id: string; name: string }[]
   >([]);
+  // 点击跳转 OAuth 提供商期间锁住按钮（导航发生前页面仍可交互，防止连点）
+  const [oauthPendingProvider, setOauthPendingProvider] = useState<
+    string | null
+  >(null);
   const [registrationEnabled, setRegistrationEnabled] = useState(true);
   const [turnstileConfig, setTurnstileConfig] = useState<TurnstileConfig>({
     enabled: false,
@@ -186,12 +191,14 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
     setTurnstileKey((prev) => prev + 1);
   }, [mode]);
 
-  // OAuth 登录处理
+  // OAuth 登录处理：点击即进入 loading，直到页面跳走；失败才复位
   const handleOAuthLogin = useCallback(
     async (provider: string) => {
+      setOauthPendingProvider(provider);
       try {
         await loginWithOAuth(provider);
       } catch {
+        setOauthPendingProvider(null);
         toast.error(t("auth.oauthLoginFailed"));
       }
     },
@@ -790,49 +797,56 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                           <button
                             type="button"
                             onClick={() => handleOAuthLogin(provider.id)}
-                            className="auth-oauth-btn auth-social-provider flex h-12 items-center justify-center gap-2 rounded-full px-6 text-16 font-semibold text-slate-900 transition-all active:translate-y-0 dark:text-stone-100 font-serif"
+                            disabled={oauthPendingProvider !== null}
+                            className="auth-oauth-btn auth-social-provider flex h-12 items-center justify-center gap-2 rounded-full px-6 text-16 font-semibold text-slate-900 transition-all active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100 font-serif"
                           >
-                            {provider.id === "google" && (
-                              <svg
-                                className="h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5"
-                                viewBox="0 0 48 48"
-                              >
-                                <path
-                                  fill="#EA4335"
-                                  d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
-                                />
-                                <path
-                                  fill="#4285F4"
-                                  d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
-                                />
-                                <path
-                                  fill="#FBBC05"
-                                  d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
-                                />
-                                <path
-                                  fill="#34A853"
-                                  d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
-                                />
-                              </svg>
+                            {oauthPendingProvider === provider.id && (
+                              <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin sm:h-5 sm:w-5" />
                             )}
-                            {provider.id === "github" && (
-                              <svg
-                                className="h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5"
-                                viewBox="0 0 24 24"
-                                fill="currentColor"
-                              >
-                                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-                              </svg>
-                            )}
-                            {provider.id === "apple" && (
-                              <svg
-                                className="h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5"
-                                viewBox="0 0 24 24"
-                                fill="currentColor"
-                              >
-                                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
-                              </svg>
-                            )}
+                            {provider.id === "google" &&
+                              oauthPendingProvider !== provider.id && (
+                                <svg
+                                  className="h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5"
+                                  viewBox="0 0 48 48"
+                                >
+                                  <path
+                                    fill="#EA4335"
+                                    d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+                                  />
+                                  <path
+                                    fill="#4285F4"
+                                    d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+                                  />
+                                  <path
+                                    fill="#FBBC05"
+                                    d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+                                  />
+                                  <path
+                                    fill="#34A853"
+                                    d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+                                  />
+                                </svg>
+                              )}
+                            {provider.id === "github" &&
+                              oauthPendingProvider !== provider.id && (
+                                <svg
+                                  className="h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5"
+                                  viewBox="0 0 24 24"
+                                  fill="currentColor"
+                                >
+                                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                                </svg>
+                              )}
+                            {provider.id === "apple" &&
+                              oauthPendingProvider !== provider.id && (
+                                <svg
+                                  className="h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5"
+                                  viewBox="0 0 24 24"
+                                  fill="currentColor"
+                                >
+                                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+                                </svg>
+                              )}
                             <span>
                               {t("auth.loginWith", {
                                 provider:

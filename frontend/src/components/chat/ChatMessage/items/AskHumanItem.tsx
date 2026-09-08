@@ -24,6 +24,8 @@ import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import { MarkdownContent } from "../MarkdownContent";
+import { parseAskHumanMessage } from "../../../panels/askHumanMessage";
+import { ApprovalOpList } from "../../../panels/ApprovalOpList";
 import type { FormField } from "../../../../types";
 
 // ── Parsers matching backend ask_human schema ──────────────────────────
@@ -282,6 +284,7 @@ function AskHumanDetail({ args, result, isPending }: ToolDetailProps) {
   const parsedResult = useMemo(() => parseResult(result), [result]);
 
   const { message, fields } = parsed;
+  const parsedMessage = useMemo(() => parseAskHumanMessage(message), [message]);
 
   // Supplement _other field when backend didn't include it
   // (e.g. cached events before the backend fix, or non-standard flows).
@@ -364,15 +367,29 @@ function AskHumanDetail({ args, result, isPending }: ToolDetailProps) {
           )}
         </div>
 
-        {/* Message (supports markdown) */}
+        {/* Message (structured ops list, or markdown prose) */}
         {message && (
           <div className="approval-message">
-            <div
-              className="prose prose-stone dark:prose-invert max-w-none text-14 leading-relaxed prose-p:my-0.5 prose-headings:my-1"
-              style={{ color: "var(--theme-text)" }}
-            >
-              <MarkdownContent content={message} />
-            </div>
+            {parsedMessage.ops ? (
+              <div className="space-y-2">
+                {parsedMessage.headline && (
+                  <div
+                    className="text-14 font-medium leading-relaxed"
+                    style={{ color: "var(--theme-text)" }}
+                  >
+                    {parsedMessage.headline}
+                  </div>
+                )}
+                <ApprovalOpList ops={parsedMessage.ops} />
+              </div>
+            ) : (
+              <div
+                className="prose prose-stone dark:prose-invert max-w-none text-14 leading-relaxed prose-p:my-0.5 prose-headings:my-1"
+                style={{ color: "var(--theme-text)" }}
+              >
+                <MarkdownContent content={message} />
+              </div>
+            )}
           </div>
         )}
 
@@ -478,6 +495,7 @@ const AskHumanItem = memo(function AskHumanItem({
   const parsedResult = useMemo(() => parseResult(result), [result]);
 
   const { message, fields } = parsed;
+  const parsedMessage = useMemo(() => parseAskHumanMessage(message), [message]);
 
   // Supplement _other field when backend didn't include it
   // (e.g. cached events before the backend fix, or non-standard flows).
@@ -531,10 +549,12 @@ const AskHumanItem = memo(function AskHumanItem({
 
   const labelText = (() => {
     const base = t("chat.message.toolAskHuman");
+    // 优先标题行（沙箱确认门是「确认在本机执行 N 项操作」），
+    // 避免把命令截断在 pill 标签里
     if (message) {
+      const headline = parsedMessage.headline ?? parsedMessage.summary;
       const preview =
-        message.length > 50 ? message.slice(0, 47) + "…" : message;
-      // Strip markdown for pill label
+        headline.length > 50 ? headline.slice(0, 47) + "…" : headline;
       const plain = preview.replace(/[#*_`~>[\]!]/g, "").trim();
       return `${base} — ${plain}`;
     }
@@ -553,14 +573,31 @@ const AskHumanItem = memo(function AskHumanItem({
     <ToolInlineDetails>
       {/* Message summary */}
       {message && (
-        <div className="flex items-start gap-2 px-2.5 py-2 rounded-lg bg-theme-bg border border-theme-border">
-          <ShieldCheck
-            size={12}
-            className="shrink-0 mt-0.5 text-[#f59e0b] dark:text-[#fbbf24]"
-          />
-          <span className="text-12 text-theme-text leading-relaxed line-clamp-2">
-            {message.length > 200 ? message.slice(0, 197) + "…" : message}
-          </span>
+        <div className="px-2.5 py-2 rounded-lg bg-theme-bg border border-theme-border space-y-1.5">
+          <div className="flex items-start gap-2">
+            <ShieldCheck
+              size={12}
+              className="shrink-0 mt-0.5 text-[#f59e0b] dark:text-[#fbbf24]"
+            />
+            <span className="text-12 text-theme-text leading-relaxed line-clamp-2">
+              {parsedMessage.headline ?? message}
+            </span>
+          </div>
+          {parsedMessage.ops && parsedMessage.ops.length > 0 && (
+            <div className="pl-5 flex items-baseline gap-1.5 min-w-0">
+              <span className="shrink-0 text-10 font-mono text-theme-text-tertiary tabular-nums">
+                1
+              </span>
+              <span className="text-11 font-mono text-theme-text-secondary leading-relaxed break-all line-clamp-1">
+                {parsedMessage.ops[0].detail}
+              </span>
+              {parsedMessage.ops.length > 1 && (
+                <span className="shrink-0 text-10 text-theme-text-tertiary">
+                  +{parsedMessage.ops.length - 1}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -642,10 +679,11 @@ const AskHumanItem = memo(function AskHumanItem({
             title: t("chat.message.toolAskHuman"),
             icon: <ShieldCheck size={16} />,
             status,
-            subtitle:
-              message && message.length > 120
-                ? message.slice(0, 117) + "…"
-                : message || undefined,
+            subtitle: message
+              ? parsedMessage.summary.length > 120
+                ? parsedMessage.summary.slice(0, 117) + "…"
+                : parsedMessage.summary || undefined
+              : undefined,
             fallback: detailContent || undefined,
             buildDetail: (data) => (
               <AskHumanDetail {...toolDetailPropsFromPanelData(data)} />

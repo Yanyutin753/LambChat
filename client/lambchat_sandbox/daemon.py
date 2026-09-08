@@ -36,6 +36,7 @@ import json
 import signal
 import sys
 import time
+from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 
@@ -65,6 +66,34 @@ DAEMON_AUDIT_SESSION = "daemon"  # shutdown 等进程级事件的审计会话（
 # exec 的 watchdog ack 延时（秒）：短于此的命令不发 ack、done 直接到达——
 # 省一次 HTTP 往返；长命令到点补 ack，服务端 30s ACK 死线（远大于本值）无虞
 _EXEC_ACK_DELAY_S = 8.0
+
+# call_id 去重环容量：服务端 dispatch 断联重推是 at-least-once 投递，重复帧
+# 幂等跳过（重复执行用户机器上的命令是不可接受的副作用）。重复帧总在几秒
+# 内到达，容量只需覆盖一个重推窗口内的调用数。
+_RECENT_CALL_IDS_MAX = 512
+
+
+class _CallDedupe:
+    """跨连接的 call_id 去重：断联重连后收到的重复帧跳过执行。
+
+    FIFO 环形淘汰：容量之外的旧 id 被遗忘——数小时前的迟到重复帧理论上会
+    重执行，但重推窗口只有 ACK 死线（30s），现实中不存在这种迟到。
+    """
+
+    def __init__(self, capacity: int = _RECENT_CALL_IDS_MAX) -> None:
+        self._seen: set[str] = set()
+        self._order: deque[str] = deque()
+        self._capacity = capacity
+
+    def remember(self, call_id: str) -> bool:
+        """首次见到返回 True 并登记；重复返回 False。"""
+        if call_id in self._seen:
+            return False
+        self._seen.add(call_id)
+        self._order.append(call_id)
+        while len(self._order) > self._capacity:
+            self._seen.discard(self._order.popleft())
+        return True
 
 
 def _default_machine_name() -> str:
@@ -113,6 +142,7 @@ async def run_daemon(
 
     client: ChannelClient | None = None
     attempt = 0
+    dedupe = _CallDedupe()
     try:
         while True:
             if client is not None:
@@ -129,6 +159,7 @@ async def run_daemon(
                     cfg=cfg,
                     executor=executor_,
                     auditor=auditor_,
+                    dedupe=dedupe,
                 )
             except TransportAuthError:
                 await _silently_close(client)
@@ -148,7 +179,13 @@ async def run_daemon(
                 )
                 raise
             except Exception as exc:  # noqa: BLE001 - 任何单连接失败都退避重连
-                print(f"[sandbox] 通道断开: {exc}；退避后重连…", file=sys.stderr, flush=True)
+                # httpx 超时族的 str() 为空串（ReadTimeout/ConnectTimeout），
+                # 只打消息会得到『通道断开: 』的盲日志——必须带类型名。
+                print(
+                    f"[sandbox] 通道断开: {type(exc).__name__}: {exc}；退避后重连…",
+                    file=sys.stderr,
+                    flush=True,
+                )
             attempt += 1
             # 保留当前 client（流已关但 httpx 连接池可用）跨退避窗口：取消时仍能 post_offline
             await sleep_fn(backoff_delay(attempt))
@@ -165,10 +202,13 @@ async def _handle_channel(
     cfg: SandboxConfig,
     executor: Executor,
     auditor: Auditor,
+    dedupe: _CallDedupe | None = None,
 ) -> None:
     """单次连接内逐条处理 ToolCall；流结束/异常交回外层重连循环。"""
     async for call in calls:
-        await _process_call(client, call, cfg=cfg, executor=executor, auditor=auditor)
+        await _process_call(
+            client, call, cfg=cfg, executor=executor, auditor=auditor, dedupe=dedupe
+        )
 
 
 async def _process_call(
@@ -178,8 +218,13 @@ async def _process_call(
     cfg: SandboxConfig,
     executor: Executor,
     auditor: Auditor,
+    dedupe: _CallDedupe | None = None,
 ) -> None:
     """单条 ToolCall 的完整决策链：审计 received → ack → op 分发 → 迟到检查 → 执行 → done。
+
+    call_id 去重（dedupe 非 None 时）：服务端 dispatch 在 ACK 死线内对未确认
+    调用幂等重推（断联窗口丢帧的自愈），重复帧记 audit 后直接跳过——同一
+    调用绝不执行两次。
 
     确认门控不在本层（spec §3.5 服务端实现）：服务端统一确认门在 dispatch
     前以 ask_human interrupt 完成，daemon 只收到已确认的执行请求，到达即执行。
@@ -195,6 +240,18 @@ async def _process_call(
     path = str(call.payload.get("path", ""))
     session_id = _session_id_from_cwd(virtual_cwd)
     started = time.monotonic()
+    if dedupe is not None and not dedupe.remember(call.call_id):
+        auditor.log(
+            session_id,
+            {
+                "event": "duplicate_skipped",
+                "call_id": call.call_id,
+                "op": call.op,
+                "command": command,
+                "path": path,
+            },
+        )
+        return
     auditor.log(
         session_id,
         {

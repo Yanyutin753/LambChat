@@ -79,8 +79,11 @@ spec:
           value: "redis"
         - name: TASK_BACKEND
           value: "arq"
+        # 任务执行与 API 分进程（2026-09-09 断联复盘）：agent 任务的同步段
+        # 会饿死 API 事件循环（SSE/沙箱通道心跳停发），API 滚动发布还会杀掉
+        # 运行中的任务。任务全部由 lambchat-worker Deployment 消费。
         - name: ARQ_EMBEDDED_WORKER
-          value: "true"
+          value: "false"
         # --- Object Storage (required for multi-replica deployments) ---
         - name: S3_ENABLED
           value: "true"
@@ -129,6 +132,114 @@ spec:
           periodSeconds: 15
           timeoutSeconds: 10
           failureThreshold: 5
+        volumeMounts:
+        - name: workspace
+          mountPath: /app/workspace
+      volumes:
+      - name: workspace
+        emptyDir: {}
+
+---
+# LambChat Worker Deployment（独立 arq worker 进程）
+# 与 API 分进程：任务全部由本 Deployment 消费（Redis 队列协同），API 进程
+# 不再内嵌 worker——重任务不饿死 API 事件循环，API 滚动发布不杀运行中任务。
+# 注意：label 必须与 Service selector（app: lambchat）区分，否则 worker 会
+# 收到 NodePort 流量。首次上线顺序见 PR 说明（先并存验证、后关内嵌）。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lambchat-worker
+  namespace: lambchat
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: lambchat-worker
+  template:
+    metadata:
+      labels:
+        app: lambchat-worker
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+      - name: lambchat-worker
+        image: ghcr.io/yanyutin753/lambchat:latest
+        imagePullPolicy: Always
+        command: ["/app/.venv/bin/python", "-m", "src.infra.task.worker_main"]
+        env:
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: lambchat-secrets
+              key: jwt-secret-key
+        - name: MCP_ENCRYPTION_SALT
+          valueFrom:
+            secretKeyRef:
+              name: lambchat-secrets
+              key: mcp-encryption-salt
+        - name: MONGODB_URL
+          value: "mongodb://MONGO_HOST:27017"
+        - name: MONGODB_DB
+          value: "agent_state"
+        - name: MONGODB_ENABLED
+          value: "true"
+        - name: MONGODB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: lambchat-secrets
+              key: mongodb-username
+        - name: MONGODB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: lambchat-secrets
+              key: mongodb-password
+        - name: MONGODB_AUTH_SOURCE
+          value: "admin"
+        - name: REDIS_URL
+          value: "redis://REDIS_HOST:6379/3"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: lambchat-secrets
+              key: redis-password
+        - name: LAMBCHAT_DISTRIBUTED_MODE
+          value: "true"
+        - name: SESSION_BACKEND
+          value: "redis"
+        - name: TASK_BACKEND
+          value: "arq"
+        # --- Object Storage（与 API 一致：任务内文件读写走 S3）---
+        - name: S3_ENABLED
+          value: "true"
+        - name: S3_PROVIDER
+          value: "custom"
+        - name: S3_ENDPOINT_URL
+          value: "https://s3.example.com"
+        - name: S3_BUCKET_NAME
+          value: "lambchat-files"
+        - name: S3_REGION
+          value: "us-east-1"
+        - name: S3_PATH_STYLE
+          value: "false"
+        - name: ENABLE_LOCAL_FILESYSTEM_FALLBACK
+          value: "false"
+        - name: S3_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: lambchat-secrets
+              key: s3-access-key
+        - name: S3_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: lambchat-secrets
+              key: s3-secret-key
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
         volumeMounts:
         - name: workspace
           mountPath: /app/workspace
