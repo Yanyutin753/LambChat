@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import os
 import shlex
-from typing import Any
+from typing import Any, cast
 
 from deepagents.backends.utils import create_file_data, slice_read_response
 
@@ -57,18 +57,19 @@ class CubeSandboxBackend(E2BBackend):
         self._ensured_parent_dirs: set[str] = set()
 
     def get_info(self) -> dict[str, Any]:
+        # cubesandbox>=0.7.0 的 SandboxInfo 是 dict 子类（dataclass），装的是
+        # CubeAPI 原始 JSON（camelCase 键）；snake_case 只是类型化属性不是
+        # dict 键。mypy 不认 dataclass 继承 dict，cast 明示运行时形态。
         try:
-            info = self._sandbox.get_info()
-            if isinstance(info, dict):
-                return {
-                    "sandbox_id": info.get("sandboxID") or info.get("sandbox_id") or self.id,
-                    "state": str(info.get("state", "unknown")).lower(),
-                    "template": info.get("templateID") or info.get("template_id"),
-                    "metadata": info.get("metadata") or {},
-                    "started_at": info.get("startedAt") or info.get("started_at"),
-                    "end_at": info.get("endAt") or info.get("end_at"),
-                }
-            return super().get_info()
+            info = cast(dict[str, Any], self._sandbox.get_info())
+            return {
+                "sandbox_id": info.get("sandboxID") or self.id,
+                "state": str(info.get("state", "unknown")).lower(),
+                "template": info.get("templateID"),
+                "metadata": info.get("metadata") or {},
+                "started_at": info.get("startedAt"),
+                "end_at": info.get("endAt"),
+            }
         except Exception as e:
             logger.warning("Failed to get CubeSandbox info: %s", e)
             return {"sandbox_id": self.id, "state": "unknown"}

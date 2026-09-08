@@ -166,6 +166,27 @@ async def test_offline_propagates(monkeypatch):
     assert exc.value.error_code == ErrorCode.DAEMON_OFFLINE
 
 
+async def test_aexecute_converts_dispatch_timeout_to_command_outcome(monkeypatch):
+    """dispatch 兜底死线与 executor 超时同值但时钟起点更早（含队列往返/进程
+    拉起延迟），超时赛跑恒先到期：SANDBOX_TIMEOUT 在 agent 面向的 backend 层
+    转成命令结局（timeout 标记 + exit_code=None），与 daemon executor 超时
+    结果同构，模型可见结局自行换策略；其余 AppError 照抛。"""
+    calls = []
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
+        calls.append(timeout)
+        raise AppError(ErrorCode.SANDBOX_TIMEOUT, args={"seconds": int(timeout or 0)})
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    resp = await backend.aexecute("sleep 999", timeout=4)
+    assert calls == [4.0]
+    assert resp.exit_code is None
+    assert "timeout" in (resp.output or "").lower()
+    assert "4" in resp.output
+    assert resp.truncated is False
+
+
 def test_id_contains_session():
     backend = LocalSandboxBackend(user_id="u1", session_id="s1")
     assert backend.id == "local-s1"

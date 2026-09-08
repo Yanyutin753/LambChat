@@ -51,10 +51,42 @@ const STOP_GRACE: Duration = Duration::from_secs(3);
 /// 宽限期内的探活间隔。
 const STOP_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
+/// 桌面端持久日志：`~/.lambchat/logs/desktop.log`（1MB 截断重开，防无界增长）。
+/// GUI 壳的 stderr 不可见（windows_subsystem="windows" 句柄无效 / mac 从
+/// Finder 启动无控制台）——daemon 托管的启动/退出/重启与排空输出此前完全
+/// 无迹可查，用户报「启动不了」时只能盲猜。写失败静默（日志绝不能反噬主流程）。
+fn append_desktop_log(line: &str) {
+    use std::io::Write;
+    let Ok(home) = sandbox_home() else { return };
+    let dir = home.join("logs");
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    let path = dir.join("desktop.log");
+    if let Ok(meta) = std::fs::metadata(&path) {
+        if meta.len() > 1024 * 1024 {
+            let _ = std::fs::rename(&path, dir.join("desktop.log.1"));
+        }
+    }
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+    {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let _ = writeln!(f, "[{ts}] {line}");
+    }
+}
+
 macro_rules! warn_log {
-    ($($arg:tt)*) => {
-        eprintln!("[lambchat-daemon] {}", format!($($arg)*))
-    };
+    ($($arg:tt)*) => {{
+        let msg = format!("[lambchat-daemon] {}", format!($($arg)*));
+        eprintln!("{msg}");
+        crate::daemon::append_desktop_log(&msg);
+    }};
 }
 
 /// 当前托管的 daemon 子进程：command-group 的 [`GroupChild`]——
@@ -211,6 +243,10 @@ pub fn start(app: &AppHandle) -> Result<(), String> {
                         // daemon 写满 stdout 后永久阻塞（表现为沙箱假死）
                         use std::io::Write;
                         let _ = std::io::stderr().write_all(&buf[..n]);
+                        append_desktop_log(&format!(
+                            "[daemon:out] {}",
+                            String::from_utf8_lossy(&buf[..n]).trim_end()
+                        ));
                     }
                 }
             }
@@ -227,6 +263,10 @@ pub fn start(app: &AppHandle) -> Result<(), String> {
                     Ok(n) => {
                         use std::io::Write;
                         let _ = std::io::stderr().write_all(&buf[..n]);
+                        append_desktop_log(&format!(
+                            "[daemon:err] {}",
+                            String::from_utf8_lossy(&buf[..n]).trim_end()
+                        ));
                     }
                 }
             }

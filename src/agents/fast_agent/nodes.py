@@ -28,6 +28,7 @@ from src.agents.core.persona import build_persona_prompt_sections
 from src.agents.core.startup_preparation import prepare_agent_inputs
 from src.agents.core.subagent_prompts import (
     CODEBASE_INVESTIGATOR_PROMPT,
+    CONTEXT_WORKER_PROMPT,
     IMPLEMENTATION_WORKER_PROMPT,
     MAIN_AGENT_PROMPT_SECTIONS,
     RESEARCH_SUBAGENT_PROMPT,
@@ -261,6 +262,15 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
             "description": SPECIALIZED_SUBAGENT_DESCRIPTIONS["researcher"],
             "system_prompt": RESEARCH_SUBAGENT_PROMPT,
             "middleware": _build_subagent_middleware("researcher"),
+        },
+        {
+            # deepagents 0.7.12+：fork 模式继承父对话历史与状态，承接需要
+            # 父上下文的委派（沿用既定决策/标识符，而非孤立重述任务背景）。
+            "name": "context-worker",
+            "description": SPECIALIZED_SUBAGENT_DESCRIPTIONS["context-worker"],
+            "system_prompt": CONTEXT_WORKER_PROMPT,
+            "middleware": _build_subagent_middleware("context-worker"),
+            "mode": "fork",
         },
     ]
 

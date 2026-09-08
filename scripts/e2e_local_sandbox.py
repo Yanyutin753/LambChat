@@ -778,6 +778,7 @@ async def agent_tools_battery(user_id: str, pat: str, machine_id: str) -> None:
 
     # A6. 动态超时：管理员 PUT 设置 → 存量 backend 调用时读取 → 卡死命令到点击杀
     import pymongo
+    from bson import ObjectId  # pymongo>=4.17 不再顶层暴露 ObjectId
 
     env = _env_map()
     client = pymongo.MongoClient(
@@ -788,12 +789,10 @@ async def agent_tools_battery(user_id: str, pat: str, machine_id: str) -> None:
         serverSelectionTimeoutMS=3000,
     )
     client[env.get("MONGODB_DB", "agent_state")].users.update_one(
-        {"_id": pymongo.ObjectId(user_id)}, {"$set": {"roles": ["admin", "user"]}}
+        {"_id": ObjectId(user_id)}, {"$set": {"roles": ["admin", "user"]}}
     )
-    # 等价链路：写 DB 后调用 refresh_settings——前端 PUT /api/settings 落库后
-    # 触发的就是这同一个函数（E2E 用户 PAT 无 settings:manage，不走 HTTP 面）。
-    from src.kernel.config.service import refresh_settings
-
+    # 前端 PUT /api/settings 的落库链路等价于这里的 system_settings 直写；
+    # 进程内生效见下方 setattr 注释。
     db = client[env.get("MONGODB_DB", "agent_state")]
     db.system_settings.update_one(
         {"key": "SANDBOX_LOCAL_EXEC_TIMEOUT"},
@@ -809,8 +808,12 @@ async def agent_tools_battery(user_id: str, pat: str, machine_id: str) -> None:
         },
         upsert=True,
     )
-    await refresh_settings("SANDBOX_LOCAL_EXEC_TIMEOUT")
+    # refresh_settings 只对已初始化 settings service 的进程（后端服务进程）生效，
+    # E2E 进程内未初始化该 service 是静默 no-op——这里直接改本进程 settings 单例，
+    # 验证目标正是 _exec_timeout_now() 每次 aexecute 现读 settings 的「调用时读取」。
     from src.kernel.config import settings as live_settings
+
+    live_settings.SANDBOX_LOCAL_EXEC_TIMEOUT = 4
 
     t0 = time.monotonic()
     resp6 = await backend.aexecute("sleep 999")  # 卡死命令：无显式超时，走动态设置
@@ -822,7 +825,7 @@ async def agent_tools_battery(user_id: str, pat: str, machine_id: str) -> None:
         f"exit={resp6.exit_code} 用时{dt6:.1f}s out={(resp6.output or '')[:50]!r}",
     )
     db.system_settings.update_one({"key": "SANDBOX_LOCAL_EXEC_TIMEOUT"}, {"$set": {"value": 120}})
-    await refresh_settings("SANDBOX_LOCAL_EXEC_TIMEOUT")
+    live_settings.SANDBOX_LOCAL_EXEC_TIMEOUT = 120
     assert live_settings.SANDBOX_LOCAL_EXEC_TIMEOUT == 120
 
 

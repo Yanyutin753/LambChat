@@ -9,21 +9,12 @@
   [Block 1+] Persona / Skills / Memory / dynamic middleware sections
 """
 
-import importlib
 from typing import Any
 
+from deepagents import HarnessProfile as _HarnessProfile
+from deepagents import register_harness_profile as _register_harness_profile
+
 from src.kernel.config.base import settings
-
-_deepagents: Any = None
-try:
-    _deepagents = importlib.import_module("deepagents")
-except ImportError:  # pragma: no cover - compatibility with older deepagents builds
-    pass
-
-_HarnessProfile = getattr(_deepagents, "HarnessProfile", None) if _deepagents is not None else None
-_register_harness_profile = (
-    getattr(_deepagents, "register_harness_profile", None) if _deepagents is not None else None
-)
 
 DEFAULT_ROLE = "You are an intelligent assistant with tools and skills."
 
@@ -72,17 +63,13 @@ _BEHAVIOR_GUIDE = _build_behavior_guide()
 
 def _build_harness_profile() -> Any:
     """Build the shared runtime profile."""
-    if _HarnessProfile is None:  # pragma: no cover - guarded by import-time registration
-        raise RuntimeError("deepagents HarnessProfile is unavailable")
-
     return _HarnessProfile(base_system_prompt=_BEHAVIOR_GUIDE)
 
 
-if _HarnessProfile is not None and _register_harness_profile is not None:
-    # Register on import — this is idempotent (additive merge).
-    _profile = _build_harness_profile()
-    for _provider in _HARNESS_PROFILE_PROVIDERS:
-        _register_harness_profile(_provider, _profile)
+# Register on import — this is idempotent (additive merge).
+_profile = _build_harness_profile()
+for _provider in _HARNESS_PROFILE_PROVIDERS:
+    _register_harness_profile(_provider, _profile)
 
 
 def split_persona_prompt(system_prompt: str) -> tuple[str, str]:

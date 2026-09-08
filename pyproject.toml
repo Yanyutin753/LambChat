@@ -1,6 +1,6 @@
 [project]
 name = "lambchat"
-version = "2.9.2"
+version = "2.10.0"
 description = "Full-featured AI Agent system with FastAPI, LangGraph, and LangSmith"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -19,7 +19,7 @@ dependencies = [
     "langchain-mcp-adapters>=0.3.2", # MCP integration
     "langgraph>=1.2.11",
     "langsmith>=0.11.2",
-    "deepagents>=0.7.11,<0.8",
+    "deepagents>=0.7.13,<0.8",
     "deepagents-backends>=0.2.0",
     "tiktoken>=0.14.0",
     # Async & Streaming
@@ -122,4 +122,8 @@ pythonpath = [".", "client"]
 # 官方 PyPI：CI（GitHub 海外 runner）直连官方源。此前 uv.lock 历史遗留
 # 腾讯镜像 URL，国内镜像抖动会随机打断 CI（依赖下载超时）。本地如需镜像
 # 加速，用 UV_DEFAULT_INDEX 环境变量临时覆盖，但提交 lock 前保持官方源。
-default-index = "https://pypi.org/simple"
+# 注意：default-index 不是 [tool.uv] 合法字段（uv 会静默忽略），必须用
+# [[tool.uv.index]] 且 default = true，才能压过用户级 uv.toml 的镜像配置。
+[[tool.uv.index]]
+url = "https://pypi.org/simple"
+default = true

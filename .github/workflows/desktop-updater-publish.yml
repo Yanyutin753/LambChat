@@ -1,0 +1,49 @@
+name: Desktop Updater Publish
+
+# 手动发布桌面端自更新清单：出包默认「烘焙态」（资产在 Release 上、
+# latest.json 不上传，桌面端自更新不感知），真机抽检后跑本工作流把
+# latest.json 推上 Release——此刻起桌面端开始收到该版本。
+# 详见 AGENTS.md 发版流程。
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要发布的 tag（如 v2.9.3）"
+        required: true
+        type: string
+
+jobs:
+  publish:
+    name: Publish latest.json for ${{ inputs.tag }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository (manifest generator)
+        uses: actions/checkout@v4
+
+      - name: Download release sig assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          mkdir -p release-assets
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern '*.sig' --dir release-assets
+          ls release-assets/
+
+      - name: Generate and upload latest.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          ASSET_DIR: release-assets
+        run: |
+          set -euo pipefail
+          # 五桌面不齐直接红（判据同 app-release）；齐全才上传——推给桌面端
+          python3 scripts/generate_updater_manifest.py
+          gh release upload "$RELEASE_TAG" release-assets/latest.json --clobber \
+            --repo "$GITHUB_REPOSITORY"
+          echo "✅ 桌面端自更新已推送 $RELEASE_TAG（latest.json 五平台齐全）"

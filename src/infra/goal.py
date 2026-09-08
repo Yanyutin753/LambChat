@@ -113,20 +113,10 @@ def build_goal_prompt_section(goal: dict | GoalSpec | None) -> str:
 
 
 def _load_rubric_middleware_class():
-    """Return DeepAgents RubricMiddleware when installed by the current version."""
-    for module_name, attr_name in (
-        ("deepagents", "RubricMiddleware"),
-        ("deepagents.middleware", "RubricMiddleware"),
-        ("deepagents.middleware.rubric", "RubricMiddleware"),
-    ):
-        try:
-            module = __import__(module_name, fromlist=[attr_name])
-            middleware_cls = getattr(module, attr_name, None)
-        except Exception:
-            middleware_cls = None
-        if middleware_cls is not None:
-            return middleware_cls
-    return None
+    """Return DeepAgents RubricMiddleware (top-level export since the 0.7 floor)."""
+    from deepagents import RubricMiddleware  # noqa: PLC0415
+
+    return RubricMiddleware
 
 
 def _create_rubric_middleware_with_retry(

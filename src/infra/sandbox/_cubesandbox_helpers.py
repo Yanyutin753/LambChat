@@ -175,7 +175,8 @@ class _CubeSandboxMixin:
             return None
 
         for info in candidates:
-            sandbox_id = info.get("sandboxID") or info.get("sandbox_id")
+            # list() 返回 CubeAPI 原始 JSON（camelCase 键）
+            sandbox_id = info.get("sandboxID")
             if not sandbox_id or sandbox_id in exclude_ids:
                 continue
             provider_obj = await run_blocking_io(self._cube_adapter.get_sandbox, sandbox_id)
@@ -225,7 +226,7 @@ class _CubeSandboxMixin:
             return
 
         for info in candidates:
-            sandbox_id = info.get("sandboxID") or info.get("sandbox_id")
+            sandbox_id = info.get("sandboxID")
             if not sandbox_id or sandbox_id == keep_sandbox_id:
                 continue
             try:

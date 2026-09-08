@@ -65,6 +65,12 @@ exe = EXE(
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
-    codesign_identity=None,
+    # macOS：强制 ad-hoc 签名**全部内嵌二进制**（dylib/so/可执行逐个，构建期
+    # 落印、随归档分发）。默认 None 时 PyInstaller 按宿主/目标架构启发式决定
+    # 是否签名（x86_64 目标在 arm64 宿主上跳过），未签名的 libpython3.12.dylib
+    # 解包后 dlopen 即被 arm64 内核/AMFI SIGKILL——v2.9.2 macOS「daemon 起不
+    # 来」的第一失败点（临时副本实验证实：解包目录里的内嵌库缺有效签名）。
+    # ad-hoc（'-'）与发布链路的 tauri signingIdentity "-" 同语义，无需证书。
+    codesign_identity="-" if __import__("sys").platform == "darwin" else None,
     entitlements_file=None,
 )

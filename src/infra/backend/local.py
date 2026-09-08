@@ -197,19 +197,43 @@ class LocalSandboxBackend(LocalFsTransferMixin, BaseSandbox):
         return self._exec_timeout or settings.SANDBOX_LOCAL_EXEC_TIMEOUT
 
     async def aexecute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
+        """模型面向的 exec 入口。
+
+        dispatch 兜底死线与 daemon 执行器超时同值，但时钟起点更早（含队列
+        往返/进程拉起延迟），超时赛跑恒先到期——届时 executor 的 timeout 结局
+        已无法回传。命令超时对模型是「命令结局」而非中继故障：就地转成与
+        executor 超时同构的 ExecuteResponse（timeout 标记 + exit_code=None），
+        模型可见结局并自行换策略；其余 AppError 照抛。plumbing 内部路径
+        （上传/下载命令）走 `_aexecute_dispatch`，超时仍原样上抛。
+        """
+        try:
+            result = await self._aexecute_dispatch(command, timeout=timeout)
+        except AppError as exc:
+            if getattr(exc.error_code, "code", None) != "sandbox_timeout":
+                raise
+            seconds = exc.args_data.get("seconds")
+            detail = f"timeout: exceeded {seconds}s" if seconds is not None else "timeout"
+            return ExecuteResponse(output=detail, exit_code=None, truncated=False)
+        return self._exec_result_to_response(result)
+
+    async def _aexecute_dispatch(self, command: str, *, timeout: int | None = None) -> dict:
+        """下发 exec op 并返回原始 done 结果（plumbing 内部路径，异常上抛）。"""
         payload: dict[str, Any] = {"command": command, "cwd": self.work_dir}
         if self.env_vars:
             # 用户 env 随 exec 下发 daemon 合并进子进程环境（对齐云端 envs= 语义）；
             # 仅 exec 携带——fs_* 是 daemon 本机文件操作，upload/download 是
             # plumbing 命令，均无环境需求。
             payload["env"] = self.env_vars
-        result = await dispatch_local_call(
+        return await dispatch_local_call(
             self._user_id,
             "exec",
             payload,
             timeout=float(timeout or self._exec_timeout_now()),
             machine_id=self._machine_id,
         )
+
+    @staticmethod
+    def _exec_result_to_response(result: dict) -> ExecuteResponse:
         stdout = result.get("stdout") or ""
         stderr = result.get("stderr") or ""
         # executor 错误标记（timeout/expired）：并入 output 让模型能区分
@@ -334,7 +358,9 @@ class LocalSandboxBackend(LocalFsTransferMixin, BaseSandbox):
     ) -> FileUploadResponse:
         try:
             for command in self._upload_chunk_commands(path, content, platform=platform):
-                result = await self.aexecute(command)
+                # plumbing 走原始分发：超时/中继故障原样上抛（区别于模型面向
+                # 的 aexecute 把命令超时转成命令结局）
+                result = self._exec_result_to_response(await self._aexecute_dispatch(command))
                 if result.exit_code != 0:
                     return self._upload_response(path, result)
         except AppError:

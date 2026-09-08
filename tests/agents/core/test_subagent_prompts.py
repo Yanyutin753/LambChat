@@ -7,6 +7,7 @@ from src.agents.core.prompt_policy import (
 )
 from src.agents.core.subagent_prompts import (
     CODEBASE_INVESTIGATOR_PROMPT,
+    CONTEXT_WORKER_PROMPT,
     DEFAULT_SUBAGENT_PROMPT,
     DETAILED_SUBAGENT_PROMPT,
     IMPLEMENTATION_WORKER_PROMPT,
@@ -228,11 +229,39 @@ def test_specialist_prompts_keep_distinct_scopes() -> None:
         "implementation-worker",
         "verification-runner",
         "researcher",
+        "context-worker",
     )
     _assert_markers(CODEBASE_INVESTIGATOR_PROMPT, ("do not edit", "relevant files"))
     _assert_markers(IMPLEMENTATION_WORKER_PROMPT, ("scoped", "verification"))
     _assert_markers(VERIFICATION_RUNNER_PROMPT, ("do not change production", "pass/fail"))
     _assert_markers(RESEARCH_SUBAGENT_PROMPT, ("primary sources", "date/version"))
+
+
+def test_fork_mode_context_worker_wired_into_all_main_agents() -> None:
+    """context-worker 以 deepagents 0.7.12+ fork 模式接入三端主 agent：
+    继承父对话历史与状态，承接依赖父上下文的委派。"""
+    from inspect import getsource
+
+    from src.agents.fast_agent.nodes import fast_agent_node
+    from src.agents.search_agent.nodes import agent_node
+    from src.agents.team_agent.nodes import team_router_node
+
+    for node in (fast_agent_node, agent_node, team_router_node):
+        source = getsource(node)
+        assert '"name": "context-worker"' in source, (
+            f"{node.__name__} must register the context-worker subagent"
+        )
+        assert '"mode": "fork"' in source, f"{node.__name__} must set mode='fork' on context-worker"
+
+
+def test_fork_prompt_appends_role_only_without_repeating_base() -> None:
+    """fork 的 system_prompt 追加在继承的父 prompt 之后：只写角色段，
+    不得重复基座（工作流/交付纪律父 prompt 已含）。"""
+    assert "## Context Worker" in CONTEXT_WORKER_PROMPT
+    assert "Handoff Notes" in CONTEXT_WORKER_PROMPT
+    for marker in ("auto-staged", "Completion Gate", "current session workspace", "## Workflow"):
+        assert marker not in CONTEXT_WORKER_PROMPT
+    assert len(CONTEXT_WORKER_PROMPT) <= 500
 
 
 def test_read_only_specialists_omit_artifact_delivery_policy() -> None:

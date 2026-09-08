@@ -153,13 +153,17 @@ Conventional Commits + 中文描述：`类型(范围): 摘要`。
 | `main-YYYYMMDD-HHmmss` | push `main` | 生产部署 |
 | `v*` | 发版 tag（只打在 `main`） | 归档 + App Release 触发 |
 
+### 发版节奏（防热修风暴）
+
+**规矩：同一自然日最多发一个正式版。**当天发现的问题攒到 develop（P0 例外：生产不可用/数据丢失可即时热修）；出包后处于「烘焙态」，真机抽检通过再推给桌面端。桌面端打包问题（安装包内路径/签名/启动类）历史上只有装包才能发现，v2.9.0~v2.9.2 一天四版即此教训——现在 CI 已有打包产物冒烟门禁 + latest.json 延后发布双保险，但真机抽检（至少 mac + windows 各一台）仍是发布前最后一道人工关。
+
 ### 发版流程（App Release / `v*` tag）
 
 **规矩：发版 tag 一律打在 `main` 的合并提交上——hotfix 或 develop 晋升合入 `main`、CI 全绿后再打 tag；禁止在 feature 分支或未晋升到 `main` 的提交上发版。**
 
 1. 打 tag 前先 bump 六处版本文件并保持一致：`frontend/package.json`、`frontend/src-tauri/tauri.conf.json`、android `versionName`/`versionCode`（数字串 = 版本去点）、iOS `MARKETING_VERSION`、`pyproject.toml`（服务端 `/api/version` 运行时读它，漏 bump 网页端版本号就不同步）、`client/lambchat_sandbox/__init__.py` 的 `__version__`（daemon 自更新比版本，漏 bump daemon 永不更新）——app-release.yml 的 preflight 会校验 tag 与版本一致，漂移直接红。
 2. 在 `main` 合并提交上打 tag 并推送，触发 `app-release.yml`：六端矩阵构建（Linux x86_64/arm64、Windows、macOS Apple Silicon/Intel）+ Android/iOS，即发即传上传 GitHub Release。
-3. 收尾由 release job 权威重生成 `latest.json`（桌面端自更新清单，版本号取自 tag）；发版完成的判据是 latest.json 五个桌面平台条目齐全（含 `darwin-x86_64`）。
+3. 出包默认**烘焙态**：资产全部上 Release、CI 打包产物冒烟（mac 直接跑 .app 内 daemon、Linux 解包 deb 跑、Windows 跑 sidecar）须绿，但 `latest.json` **不上传**——桌面端自更新不感知。真机抽检（mac/windows）通过后，到 Actions 手动跑 **Desktop Updater Publish**（输入 tag）才把 latest.json 推给桌面端；此时发版完成的判据是 latest.json 五个桌面平台条目齐全（含 `darwin-x86_64`）。仓库变量 `DESKTOP_UPDATER_AUTO_PUBLISH=true` 可恢复随包直发（不建议）。
 4. 重打同一 tag：先删远端 tag 与旧 run，再在新提交上重推；资产同名 `--clobber` 原地替换。
 
 ### 晋升 checklist（develop → main）

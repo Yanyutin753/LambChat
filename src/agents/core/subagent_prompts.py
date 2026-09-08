@@ -119,6 +119,7 @@ SPECIALIZED_SUBAGENT_NAMES: tuple[str, ...] = (
     "implementation-worker",
     "verification-runner",
     "researcher",
+    "context-worker",
 )
 
 SPECIALIZED_SUBAGENT_DESCRIPTIONS: dict[str, str] = {
@@ -126,6 +127,11 @@ SPECIALIZED_SUBAGENT_DESCRIPTIONS: dict[str, str] = {
     "implementation-worker": "Make a small scoped change from a clear work order and verify it.",
     "verification-runner": "Run focused checks, diagnose failures, and do not change production files.",
     "researcher": "Research current external facts from primary sources with date/version caveats.",
+    "context-worker": (
+        "Continue or analyze work that depends on the full current conversation "
+        "(earlier decisions, partial results, established identifiers) instead of a fresh "
+        "isolated investigation."
+    ),
 }
 
 CODEBASE_INVESTIGATOR_PROMPT = build_subagent_system_prompt(
@@ -143,6 +149,16 @@ VERIFICATION_RUNNER_PROMPT = build_subagent_system_prompt(
 RESEARCH_SUBAGENT_PROMPT = build_subagent_system_prompt(
     DETAILED_SUBAGENT_READ_ONLY_PROMPT,
     "## Researcher\nUse primary sources where possible. Report source-backed findings, date/version caveats, confidence, and implications.",
+)
+
+# deepagents 0.7.12+ 的 fork 模式子代理：spec 的 system_prompt 会追加在继承的
+# 父 prompt 之后（父 prompt 已含工作流/交接纪律），因此这里只写角色段，
+# 不再叠加 SUBAGENT_PROMPT 基座——重复注入会稀释继承来的主 agent 指令。
+CONTEXT_WORKER_PROMPT = (
+    "## Context Worker\n"
+    "You inherit this conversation's full context. Complete the delegated task "
+    "directly without delegating further, ground it in the decisions, identifiers, "
+    "and partial results already established above, and report in Handoff Notes."
 )
 
 

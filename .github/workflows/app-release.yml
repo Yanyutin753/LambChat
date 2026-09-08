@@ -238,10 +238,13 @@ jobs:
       # macOS 签名门禁：v2.8.4 及更早的 .app 没有 bundle 封印（无
       # _CodeSignature/CodeResources，Tauri 无 signingIdentity 时跳过签名），
       # 浏览器下载带隔离标记后被 Gatekeeper 判「已损坏」。signingIdentity "-"
-      # 已让 Tauri 在产出 dmg/updater 产物前 ad-hoc 封印 bundle；本步验证
-      # 封印与嵌套可执行签名（arm64 内核要求全部可执行代码至少 ad-hoc 签名，
-      # daemon sidecar 缺签名会被 SIGKILL），防回归。
-      - name: Verify macOS ad-hoc code signing
+      # 已让 Tauri 在产出 dmg/updater 产物前 ad-hoc 封印 bundle；本步先对
+      # daemon sidecar 无选项重封（不带 hardened runtime/library validation
+      # ——PyInstaller 运行时解包出的内嵌 dylib 为构建期 ad-hoc 签名（无团队
+      # ID），library validation 下 dlopen 即 SIGKILL，v2.9.2 macOS「daemon
+      # 起不来」的第二失败面），再验证封印与嵌套可执行签名（arm64 内核要求
+      # 全部可执行代码至少 ad-hoc 签名）并显式打印签名标志作 CI 证据。
+      - name: Re-seal daemon sidecar without hardened runtime + verify signing
         if: runner.os == 'macOS'
         shell: bash
         run: |
@@ -251,6 +254,20 @@ jobs:
             echo "No .app bundle found to verify"
             exit 1
           fi
+          daemon_bin="$app_path/Contents/MacOS/lambchat-daemon"
+          if [ -f "$daemon_bin" ]; then
+            echo "== daemon sidecar signature BEFORE re-seal =="
+            codesign -dv --verbose=4 "$daemon_bin" 2>&1 | grep -E "Signature|flags|TeamIdentifier|Identifier=" || true
+            # 无 --options 重封：新签名不带 runtime/LV 标志（flags 归零）
+            codesign --force --sign - --timestamp=none "$daemon_bin"
+            echo "== daemon sidecar signature AFTER re-seal =="
+            codesign -dv --verbose=4 "$daemon_bin" 2>&1 | grep -E "Signature|flags|TeamIdentifier|Identifier=" || true
+            # 门禁：CodeDirectory flags 不得含 runtime (0x10000)
+            if codesign -dv --verbose=4 "$daemon_bin" 2>&1 | grep -E "flags=0x[0-9a-f]*1[0-9a-f]{4}"; then
+              echo "!! daemon sidecar 带 runtime 标志——内嵌解包库会被 library validation 击杀"
+              exit 1
+            fi
+          fi
           echo "Verifying bundle seal: $app_path"
           test -f "$app_path/Contents/_CodeSignature/CodeResources"
           codesign --verify --deep --strict --verbose=2 "$app_path"
@@ -259,7 +276,7 @@ jobs:
             echo "Verifying nested executable: $bin"
             codesign --verify --verbose=2 "$bin"
           done < <(find "$app_path/Contents/MacOS" -type f -perm -111 -print0)
-          echo "OK: .app sealed (ad-hoc) and all nested executables signed"
+          echo "OK: .app sealed (ad-hoc), sidecar re-sealed without runtime, all nested executables signed"
 
       - name: Collect Linux desktop artifacts
         if: runner.os == 'Linux'
@@ -371,6 +388,43 @@ jobs:
           find frontend/src-tauri/target -name "latest*.json" -exec cp {} release-assets/ \; 2>/dev/null || true
           find frontend/src-tauri/target -name "*.sig" -exec cp {} release-assets/ \; 2>/dev/null || true
           ls -la release-assets/ 2>/dev/null || true
+
+      # 打包产物冒烟门禁：v2.9.0~v2.9.2 的三次生产事故（sidecar 路径、Windows
+      # 弹终端/卡死、macOS 内嵌库签名击杀）全部只在用户装包后才暴露——CI 从
+      # 未真正运行过打包产物里的 daemon。本步在**真实打包产物**上跑 daemon
+      # version：macOS 直接执行 .app 内的 sidecar（签名/dylib 击杀当场红）、
+      # Linux 解包 deb 后执行（同时锁布局：sidecar 与主程序同级且去 triple）、
+      # Windows 执行构建产物 sidecar。输出必须等于 tag 版本。
+      - name: Packaged daemon smoke (version assert)
+        if: runner.os != 'Linux' || matrix.arch == 'amd64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${RELEASE_TAG#v}"
+          run_daemon() {
+            local bin="$1"
+            echo "== smoke: $bin =="
+            actual="$("$bin" version | tail -1 | tr -d '\r')"
+            echo "version -> $actual (expect $expected)"
+            [ "$actual" = "$expected" ]
+          }
+          case "${{ runner.os }}" in
+            macOS)
+              app_path="$(find frontend/src-tauri/target -path '*/release/bundle/macos/*.app' -type d | head -1)"
+              run_daemon "$app_path/Contents/MacOS/lambchat-daemon"
+              ;;
+            Linux)
+              deb="$(find frontend/src-tauri/target -name '*.deb' -type f | head -1)"
+              mkdir -p /tmp/deb-x && dpkg-deb -x "$deb" /tmp/deb-x
+              # 布局断言：externalBin 落位主程序同目录且去 triple（v2.9.0 路径事故锚点）
+              test -x /tmp/deb-x/usr/bin/lambchat
+              run_daemon /tmp/deb-x/usr/bin/lambchat-daemon
+              ;;
+            Windows)
+              run_daemon "frontend/src-tauri/binaries/lambchat-daemon-x86_64-pc-windows-msvc.exe"
+              ;;
+          esac
+          echo "OK: packaged daemon smoke passed"
 
       - name: Upload desktop artifacts
         uses: actions/upload-artifact@v4
@@ -756,57 +810,24 @@ jobs:
           test "$(find release-assets -type f | wc -l)" -gt 0
 
       - name: Generate latest.json updater manifest
-        # Tauri v2 CLI 只产出 .sig 签名文件，不再自动生成更新清单（v1 行为已
-        # 移除）；这里按平台 sig 组装 latest.json（端点见 tauri.conf.json
-        # updater.endpoints）。版本取自 tag（preflight 已校验与各端版本文件
-        # 一致）；macOS updater 走 .app.tar.gz，dmg 仅用于首装。
+        # 公共生成器（scripts/generate_updater_manifest.py，与手动 publish
+        # 工作流共用）。烘焙门控：仓库变量 DESKTOP_UPDATER_AUTO_PUBLISH != true
+        # 时 latest.json 不随出包上传——资产在 Release 上可供手工验证，但
+        # 桌面端自更新不感知，待人工/真机抽检后跑 Publish Updater 工作流才
+        # 真正推送（v2.9.0~v2.9.2 三连热修的流程性根治）。
         env:
           RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          ASSET_DIR: release-assets
         run: |
-          python3 - <<'EOF'
-          import datetime
-          import glob
-          import json
-          import os
-          import pathlib
-
-          tag = os.environ["RELEASE_TAG"]
-          base = f"https://github.com/Yanyutin753/LambChat/releases/download/{tag}"
-          version = tag.lstrip("v")
-
-          def sig(pattern: str) -> str | None:
-              files = sorted(glob.glob(f"release-assets/{pattern}"))
-              return pathlib.Path(files[0]).read_text().strip() if files else None
-
-          mapping = [
-              ("windows-x86_64", "*_x64_en-US.msi.sig", f"LambChat-{tag}-Windows.msi"),
-              ("linux-x86_64", "*_amd64.AppImage.sig", f"LambChat-{tag}-Linux-x86_64.AppImage"),
-              ("linux-aarch64", "*_aarch64.AppImage.sig", f"LambChat-{tag}-Linux-arm64.AppImage"),
-              # 双 darwin：sig 按 Tauri updater 产物名的 arch 段区分
-              ("darwin-aarch64", "*-macOS-Apple-Silicon.app.tar.gz.sig", f"LambChat-{tag}-macOS-Apple-Silicon.app.tar.gz"),
-              ("darwin-x86_64", "*-macOS-Intel.app.tar.gz.sig", f"LambChat-{tag}-macOS-Intel.app.tar.gz"),
-          ]
-          platforms = {}
-          for key, pattern, asset in mapping:
-              signature = sig(pattern)
-              if signature:
-                  platforms[key] = {"signature": signature, "url": f"{base}/{asset}"}
-              else:
-                  print(f"WARN: no sig file matches {pattern}, platform {key} omitted")
-
-          manifest = {
-              "version": version,
-              "notes": f"LambChat {tag}",
-              "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime(
-                  "%Y-%m-%dT%H:%M:%SZ"
-              ),
-              "platforms": platforms,
-          }
-          pathlib.Path("release-assets/latest.json").write_text(
-              json.dumps(manifest, indent=2)
-          )
-          print(f"latest.json platforms: {sorted(platforms)}")
-          EOF
+          set -euo pipefail
+          python3 scripts/generate_updater_manifest.py || {
+            echo "!! latest.json 平台不齐——见上方 WARN"; exit 1; }
+          if [ "${{ vars.DESKTOP_UPDATER_AUTO_PUBLISH }}" != "true" ]; then
+            rm -f release-assets/latest.json
+            echo "::notice::出包完成（烘焙态）：latest.json 未上传。真机抽检后到 Actions 跑 Desktop Updater Publish（tag: ${RELEASE_TAG}）推给桌面端。"
+          else
+            echo "::notice::DESKTOP_UPDATER_AUTO_PUBLISH=true——latest.json 随包发布"
+          fi
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
