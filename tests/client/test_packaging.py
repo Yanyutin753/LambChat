@@ -33,6 +33,10 @@ def test_spec_bundles_daemon_entry_as_onefile_named_lambchat_daemon() -> None:
     # click、zstandard、uvloop 等，均为条件导入，daemon 运行路径用不到）
     for heavy in ("numpy", "PIL", "rich", "pygments", "click", "zstandard", "uvloop", "yaml"):
         assert f'"{heavy}"' in spec, f"spec excludes 应包含 {heavy}"
+    # v2.9.2 层1：macOS 上内嵌 dylib/so 构建期强制 ad-hoc 落印——PyInstaller
+    # 默认启发式在 arm64 宿主会跳过部分内嵌二进制签名，未签名 dylib 在
+    # arm64 内核 dlopen 即 SIGKILL；None 会让签名随宿主环境漂移
+    assert 'codesign_identity="-" if __import__("sys").platform == "darwin" else None' in spec
 
 
 def test_build_script_detects_host_triple_and_targets_sidecar_path() -> None:
@@ -265,16 +269,29 @@ def test_release_workflow_guards_version_drift_and_manifest_version_from_tag() -
     # 不再从 tauri.conf.json 读版本（漂移源）
     assert 'readFileSync("frontend/src-tauri/tauri.conf.json")' not in merge_step["run"]
 
-    # 闸 3：权威重生成同样从 tag 取版本，且双 darwin 架构条目齐全
+    # 闸 3：权威重生成委托公共生成器（app-release 与手动 publish 工作流
+    # 共用），版本取 tag、双 darwin 架构条目齐全的契约随之落在生成器内
     regen = next(
         s
         for s in workflow["jobs"]["release"]["steps"]
         if s["name"] == "Generate latest.json updater manifest"
     )
-    assert 'version = tag.lstrip("v")' in regen["run"]
-    assert "read_text()" not in regen["run"] or "tauri.conf" not in regen["run"]
-    assert '("darwin-aarch64", "*-macOS-Apple-Silicon.app.tar.gz.sig"' in regen["run"]
-    assert '("darwin-x86_64", "*-macOS-Intel.app.tar.gz.sig"' in regen["run"]
+    assert "scripts/generate_updater_manifest.py" in regen["run"]
+    generator = _source("scripts/generate_updater_manifest.py")
+    assert 'version = tag.lstrip("v")' in generator
+    # 不读 tauri.conf.json 取版本（漂移源）——版本只从 RELEASE_TAG 派生；
+    # docstring 提及 updater.endpoints 不算读取
+    assert 'os.environ.get("RELEASE_TAG"' in generator
+    assert not [
+        ln for ln in generator.splitlines() if "tauri.conf" in ln and ("read" in ln or "open" in ln)
+    ]
+    assert '("darwin-aarch64", "*-macOS-Apple-Silicon.app.tar.gz.sig"' in generator
+    assert '("darwin-x86_64", "*-macOS-Intel.app.tar.gz.sig"' in generator
+    # 五桌面平台不齐时拒发（exit 2）：缺 darwin-x86_64 不许算发布完成
+    assert (
+        'REQUIRED_PLATFORMS = ("darwin-aarch64", "darwin-x86_64", "linux-x86_64", "windows-x86_64")'
+        in generator
+    )
 
 
 def test_release_workflow_macos_collect_requires_app_tar_gz() -> None:
@@ -303,13 +320,36 @@ def test_tauri_bundle_adhoc_signs_macos_app() -> None:
 
 
 def test_release_workflow_verifies_macos_code_signing() -> None:
-    """签名门禁：macOS 打包后验证 bundle 封印与嵌套可执行签名（arm64 内核
-    要求全部可执行代码至少 ad-hoc 签名），签名缺失时构建直接失败。"""
+    """签名门禁（v2.9.2 层2）：macOS 打包后先把 daemon sidecar 无 --options
+    重封（不带 hardened runtime / library validation——PyInstaller 解包出的
+    内嵌库无团队 ID，LV 下 dlopen 即被杀），runtime 标志残留时构建直接失败；
+    再验证 bundle 封印与嵌套可执行签名（arm64 内核要求全部可执行代码至少
+    ad-hoc 签名）。"""
     steps = {step["name"]: step for step in _desktop_job()["steps"]}
-    verify = steps["Verify macOS ad-hoc code signing"]
+    verify = steps["Re-seal daemon sidecar without hardened runtime + verify signing"]
     assert verify["if"] == "runner.os == 'macOS'"
+    # 无 --options 重封：新签名不带 runtime/LV 标志（flags 归零）
+    assert 'codesign --force --sign - --timestamp=none "$daemon_bin"' in verify["run"]
+    # 门禁：CodeDirectory flags 含 runtime (0x10000) 即红
+    assert "flags=0x[0-9a-f]*1[0-9a-f]{4}" in verify["run"]
     assert "codesign --verify --deep --strict" in verify["run"]
     assert "_CodeSignature/CodeResources" in verify["run"]
+
+
+def test_release_workflow_smokes_packaged_daemon_version() -> None:
+    """打包产物冒烟门禁（v2.9.0/v2.9.2 事故根治）：在**真实打包产物**上跑
+    daemon version 断言——macOS 直接执行 .app 内 sidecar（签名/dylib 击杀
+    当场红）、Linux 解包 deb 执行并锁布局、Windows 执行构建产物 sidecar。
+    仅 codesign --verify 看不到运行时问题。"""
+    steps = {step["name"]: step for step in _desktop_job()["steps"]}
+    smoke = steps["Packaged daemon smoke (version assert)"]
+    assert '"$bin" version' in smoke["run"]
+    assert "${RELEASE_TAG#v}" in smoke["run"]
+    # macOS 走 .app 内 sidecar（不是构建目录里的裸 sidecar）
+    assert "$app_path/Contents/MacOS/lambchat-daemon" in smoke["run"]
+    # Linux 解包 deb 并锁 externalBin 落位（v2.9.0 路径事故锚点）
+    assert "dpkg-deb -x" in smoke["run"]
+    assert "test -x /tmp/deb-x/usr/bin/lambchat" in smoke["run"]
 
 
 def test_release_workflow_appends_macos_gatekeeper_note() -> None:
