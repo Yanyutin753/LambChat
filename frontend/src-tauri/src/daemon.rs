@@ -79,6 +79,12 @@ pub struct DaemonManager {
     generation: AtomicU64,
     /// 无任何可用 daemon 可执行（无 env 覆盖且 sidecar 缺失）时置位。
     unsupported: AtomicBool,
+    /// `child` 槽位非空的原子镜像：状态类 IPC（`daemon_process_status`）在
+    /// **主线程**同步执行，绝不可等 `child` 互斥锁——start 持锁跨越整个
+    /// spawn（Windows AV 扫 PyInstaller 可达数秒），auto-pair 重启进行中
+    /// 进偏好设置会把主线程锁死（v2.9.2 前置版本实测卡死残留路径）。
+    /// 写点与槽位变更同锁内（真值由锁序保证），读侧无锁即时返回。
+    running: AtomicBool,
 }
 
 impl Default for DaemonManager {
@@ -89,6 +95,7 @@ impl Default for DaemonManager {
             restarts: AtomicU8::new(0),
             generation: AtomicU64::new(0),
             unsupported: AtomicBool::new(false),
+            running: AtomicBool::new(false),
         }
     }
 }
@@ -113,7 +120,9 @@ impl DaemonManager {
         if self.generation.load(Ordering::SeqCst) != generation {
             return None;
         }
-        slot.take()
+        let taken = slot.take();
+        self.running.store(taken.is_some(), Ordering::SeqCst);
+        taken
     }
 }
 
@@ -225,6 +234,7 @@ pub fn start(app: &AppHandle) -> Result<(), String> {
     }
 
     *slot = Some(DaemonChild::Group(child));
+    manager.running.store(true, Ordering::SeqCst);
     manager.unsupported.store(false, Ordering::SeqCst);
     *lock_ok(&manager.started_at) = Some(std::time::Instant::now());
     spawn_group_monitor(app.clone(), generation);
@@ -293,7 +303,7 @@ fn sidecar_binary_path(app: &AppHandle) -> Option<PathBuf> {
 fn emit_status(app: &AppHandle) {
     use tauri::Emitter;
     let manager = app.state::<DaemonManager>();
-    let running = lock_ok(&manager.child).is_some();
+    let running = manager.running.load(Ordering::SeqCst);
     let payload = serde_json::json!({
         "running": running,
         "unsupported": manager.unsupported.load(Ordering::SeqCst),
@@ -374,6 +384,7 @@ pub fn stop(app: &AppHandle) {
         }
     }
     manager.restarts.store(0, Ordering::SeqCst);
+    manager.running.store(false, Ordering::SeqCst);
     *lock_ok(&manager.started_at) = None;
     emit_status(app);
 }
@@ -381,7 +392,9 @@ pub fn stop(app: &AppHandle) {
 /// 进程状态：`"running" | "stopped" | "unsupported"`。
 pub fn status(app: &AppHandle) -> &'static str {
     let manager = app.state::<DaemonManager>();
-    if lock_ok(&manager.child).is_some() {
+    // 读原子镜像而非 child 锁：本函数被主线程同步 IPC 调用，锁竞争会把
+    // UI 挂死（见 DaemonManager::running 注释）
+    if manager.running.load(Ordering::SeqCst) {
         "running"
     } else if manager.unsupported.load(Ordering::SeqCst) {
         "unsupported"
@@ -879,6 +892,26 @@ mod tests {
         }
 
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// running 原子镜像（主线程零锁状态查询）：槽位取走即翻 false——
+    /// 状态 IPC 绝不等 child 锁（auto-pair 重启持锁 spawn 期间进偏好设置
+    /// 曾把主线程锁死）。
+    #[test]
+    fn running_mirror_tracks_slot_occupancy() {
+        let manager = DaemonManager::default();
+        assert!(!manager.running.load(Ordering::SeqCst));
+        // 模拟 start 装槽（无法无 AppHandle 真跑 start：直接验证镜像契约）
+        manager.running.store(true, Ordering::SeqCst);
+        assert!(manager.running.load(Ordering::SeqCst));
+        // take_if_current 取走空槽（generation 匹配）→ 镜像复位
+        manager.generation.store(1, Ordering::SeqCst);
+        assert!(manager.take_if_current(1).is_none());
+        assert!(!manager.running.load(Ordering::SeqCst));
+        // generation 不匹配 → 镜像不动
+        manager.running.store(true, Ordering::SeqCst);
+        assert!(manager.take_if_current(999).is_none());
+        assert!(manager.running.load(Ordering::SeqCst));
     }
 
     /// 有界收尸（v2.9.1 偏好设置卡死回归锚点）：kill 后快速等到退出。
