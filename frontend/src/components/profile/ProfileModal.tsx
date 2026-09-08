@@ -141,14 +141,14 @@ export function ProfileModal({
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
-        className="text-11 text-stone-400 dark:text-stone-500 tabular-nums hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
+        className="text-11 text-stone-400 dark:text-stone-500 tabular-nums hover:text-stone-600 dark:hover:text-stone-300 transition-colors flex items-center gap-1 leading-none"
       >
         <BrandWordmark
           decorative
-          className="inline-block h-4 w-auto align-[-0.2em] text-stone-500 dark:text-stone-400"
+          className="inline-block h-4 w-auto text-stone-500 dark:text-stone-400"
         />
         {versionInfo?.app_version && (
-          <span className="ml-1 opacity-70 font-serif">
+          <span className="opacity-70 font-serif leading-none">
             v{versionInfo.app_version}
           </span>
         )}
@@ -158,7 +158,7 @@ export function ProfileModal({
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
-        className="px-1.5 sm:px-2 text-11 font-medium text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 transition-colors py-1 rounded-md hover:bg-stone-100 dark:hover:bg-stone-700/60 shrink-0 font-serif"
+        className="px-1.5 sm:px-2 text-11 font-medium text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 transition-colors py-1 rounded-md hover:bg-stone-100 dark:hover:bg-stone-700/60 shrink-0 font-serif leading-none"
       >
         {t("common.poweredBy")}
       </a>

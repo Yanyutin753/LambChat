@@ -80,7 +80,13 @@ pub fn init(app: &AppHandle) {
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let labels = labels_for_locale(sys_locale::get_locale().as_deref());
     let show = MenuItem::with_id(app, "show", labels.show, true, None::<&str>)?;
-    let workspaces = MenuItem::with_id(app, "open-workspaces", labels.workspaces, true, None::<&str>)?;
+    let workspaces = MenuItem::with_id(
+        app,
+        "open-workspaces",
+        labels.workspaces,
+        true,
+        None::<&str>,
+    )?;
     let audit = MenuItem::with_id(app, "open-audit", labels.audit, true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", labels.quit, true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &workspaces, &audit, &quit])?;
@@ -133,10 +139,7 @@ fn open_sandbox_dir(app: &AppHandle, name: &str) {
 
     match daemon::resolve_openable_path(name) {
         Ok(path) => {
-            if let Err(e) = app
-                .opener()
-                .open_path(path.to_string_lossy(), None::<&str>)
-            {
+            if let Err(e) = app.opener().open_path(path.to_string_lossy(), None::<&str>) {
                 eprintln!("[lambchat-tray] failed to open {}: {e}", path.display());
             }
         }
@@ -154,10 +157,19 @@ mod tests {
         let zh = labels_for_locale(Some("zh-CN"));
         assert_eq!(zh.show, "显示主窗口");
         assert_eq!(zh.quit, "退出");
-        assert_eq!(labels_for_locale(Some("zh_CN.utf8")).workspaces, "打开工作区目录");
-        assert_eq!(labels_for_locale(Some("ja_JP")).show, "メインウィンドウを表示");
+        assert_eq!(
+            labels_for_locale(Some("zh_CN.utf8")).workspaces,
+            "打开工作区目录"
+        );
+        assert_eq!(
+            labels_for_locale(Some("ja_JP")).show,
+            "メインウィンドウを表示"
+        );
         assert_eq!(labels_for_locale(Some("ko-KR")).quit, "종료");
-        assert_eq!(labels_for_locale(Some("ru_RU")).audit, "Открыть папку аудита");
+        assert_eq!(
+            labels_for_locale(Some("ru_RU")).audit,
+            "Открыть папку аудита"
+        );
     }
 
     /// 缺省与未覆盖语言回落英文表。
@@ -166,7 +178,10 @@ mod tests {
         let en = labels_for_locale(None);
         assert_eq!(en.show, "Show Main Window");
         assert_eq!(labels_for_locale(Some("fr-FR")).quit, "Quit");
-        assert_eq!(labels_for_locale(Some("")).workspaces, "Open Workspaces Folder");
+        assert_eq!(
+            labels_for_locale(Some("")).workspaces,
+            "Open Workspaces Folder"
+        );
         // 大小写与空白容错
         assert_eq!(labels_for_locale(Some(" ZH-cn ")).show, "显示主窗口");
     }

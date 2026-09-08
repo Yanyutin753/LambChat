@@ -120,10 +120,7 @@ fn seed_pbs_runtime_resource(app: &tauri::AppHandle) {
             return;
         }
     };
-    let dest = home
-        .join("resources")
-        .join("python")
-        .join("python.tar.gz");
+    let dest = home.join("resources").join("python").join("python.tar.gz");
     if dest.exists() {
         return; // 已落位：幂等
     }
@@ -135,9 +132,7 @@ fn seed_pbs_runtime_resource(app: &tauri::AppHandle) {
     }
     // 同目录 .part 中转 + rename 原子可见（与 fetch-pbs.py 的下载落位同款约定）
     let tmp = dest.with_file_name("python.tar.gz.part");
-    match fs::copy(&src, &tmp)
-        .and_then(|bytes| fs::rename(&tmp, &dest).map(|_| bytes))
-    {
+    match fs::copy(&src, &tmp).and_then(|bytes| fs::rename(&tmp, &dest).map(|_| bytes)) {
         Ok(bytes) => eprintln!(
             "[lambchat] seeded PBS runtime archive to {} ({bytes} bytes)",
             dest.display()
@@ -177,9 +172,10 @@ fn clean_on_version_upgrade(app_handle: &tauri::AppHandle) {
             for entry in entries.flatten() {
                 let path = entry.path();
                 // Remove everything except the version file itself
-                if path.file_name().map_or(false, |n| {
-                    n != ".installed-version"
-                }) {
+                if path
+                    .file_name()
+                    .map_or(false, |n| n != ".installed-version")
+                {
                     let _ = fs::remove_dir_all(&path);
                 }
             }
@@ -247,10 +243,8 @@ mod tests {
     /// fetch-pbs.py 产物随 bundle.resources 保相对结构分发的真实链路）。
     #[test]
     fn pbs_resource_archive_prefers_platform_subdir_then_flat() {
-        let tmp = std::env::temp_dir().join(format!(
-            "lambchat-pbs-lookup-test-{}",
-            std::process::id()
-        ));
+        let tmp =
+            std::env::temp_dir().join(format!("lambchat-pbs-lookup-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&tmp);
 
         // 空目录：无归档
@@ -259,7 +253,11 @@ mod tests {
 
         // 平台子目录布局（fetch-pbs.py → tauri bundle 的真实形态）
         if let Some(tag) = current_platform_tag() {
-            let tagged = tmp.join("resources").join("python").join(tag).join("python.tar.gz");
+            let tagged = tmp
+                .join("resources")
+                .join("python")
+                .join(tag)
+                .join("python.tar.gz");
             fs::create_dir_all(tagged.parent().unwrap()).unwrap();
             fs::write(&tagged, b"tagged").unwrap();
             assert_eq!(pbs_resource_archive(&tmp), Some(tagged));

@@ -109,12 +109,20 @@ impl DaemonManager {
     /// 该代就意味着锁的互斥性保证没有任何 start/stop 发生过，槽位必然
     /// 属于这一代（回归锚点：tests::take_if_current_never_takes_slot_of_newer_generation）。
     fn take_if_current(&self, generation: u64) -> Option<DaemonChild> {
-        let mut slot = self.child.lock().unwrap();
+        let mut slot = lock_ok(&self.child);
         if self.generation.load(Ordering::SeqCst) != generation {
             return None;
         }
         slot.take()
     }
+}
+
+/// 毒锁容忍：任一线程曾持锁 panic 后，后续 `.lock().unwrap()` 会连环 panic——
+/// 状态类 IPC 命令在主线程 panic 即整窗冻结（v2.9.1 卡死嫌疑路径之一）。
+/// 锁中毒说明临界区已不在一致状态，但 daemon 槽位语义可安全重建（take 走
+/// 默认空槽即 stopped），恢复可用性优先于保守放弃。
+fn lock_ok<T>(m: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 /// 启动 daemon。已在运行时为幂等 no-op。
@@ -131,7 +139,7 @@ impl DaemonManager {
 /// 最多在锁上短暂等待本临界区返回，不会死锁。
 pub fn start(app: &AppHandle) -> Result<(), String> {
     let manager = app.state::<DaemonManager>();
-    let mut slot = manager.child.lock().unwrap();
+    let mut slot = lock_ok(&manager.child);
     if slot.is_some() {
         return Ok(());
     }
@@ -156,10 +164,24 @@ pub fn start(app: &AppHandle) -> Result<(), String> {
         })?;
         std::process::Command::new(bin)
     };
-    command.arg("run").stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+    command
+        .arg("run")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
 
+    #[cfg(windows)]
+    use command_group::builder::CommandGroupBuilder;
     use command_group::CommandGroup;
-    let mut child = command.group_spawn().map_err(|e| {
+    let mut group = command.group();
+    // Windows 弹终端根因（v2.9.0 回归）：GUI 子系统壳（windows_subsystem="windows"）
+    // spawn 控制台子系统 daemon 必开新控制台窗口——旧 plugin-shell 内部带
+    // CREATE_NO_WINDOW，换 command-group 后丢失。注意 command-group 的 spawn 会
+    // 以 builder 自身标志**整体覆盖** Command 的 creation_flags（源码
+    // `creation_flags(self.creation_flags | CREATE_SUSPENDED)`），必须经
+    // builder 传入而非 Command::creation_flags。
+    #[cfg(windows)]
+    group.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    let mut child = group.spawn().map_err(|e| {
         manager.unsupported.store(true, Ordering::SeqCst);
         format!("failed to spawn lambchat-daemon: {e}")
     })?;
@@ -175,8 +197,11 @@ pub fn start(app: &AppHandle) -> Result<(), String> {
                 match out.read(&mut buf) {
                     Ok(0) | Err(_) => break,
                     Ok(n) => {
-                        let s = String::from_utf8_lossy(&buf[..n]);
-                        eprint!("{s}");
+                        // 写失败必须忽略：windows_subsystem="windows" 的壳 stderr
+                        // 句柄无效，eprint! 会 panic 杀死排空线程——管道再无人读，
+                        // daemon 写满 stdout 后永久阻塞（表现为沙箱假死）
+                        use std::io::Write;
+                        let _ = std::io::stderr().write_all(&buf[..n]);
                     }
                 }
             }
@@ -191,8 +216,8 @@ pub fn start(app: &AppHandle) -> Result<(), String> {
                 match err.read(&mut buf) {
                     Ok(0) | Err(_) => break,
                     Ok(n) => {
-                        let s = String::from_utf8_lossy(&buf[..n]);
-                        eprint!("{s}");
+                        use std::io::Write;
+                        let _ = std::io::stderr().write_all(&buf[..n]);
                     }
                 }
             }
@@ -201,7 +226,7 @@ pub fn start(app: &AppHandle) -> Result<(), String> {
 
     *slot = Some(DaemonChild::Group(child));
     manager.unsupported.store(false, Ordering::SeqCst);
-    *manager.started_at.lock().unwrap() = Some(std::time::Instant::now());
+    *lock_ok(&manager.started_at) = Some(std::time::Instant::now());
     spawn_group_monitor(app.clone(), generation);
     emit_status(app);
     Ok(())
@@ -242,8 +267,10 @@ fn sidecar_candidates(exe_dir: &Path, resource_dir: Option<&Path>) -> Vec<PathBu
     if let Some(triple) = current_target_triple() {
         candidates.push(exe_dir.join(format!("lambchat-daemon-{triple}{exe}")));
         if let Some(res) = resource_dir {
-            candidates
-                .push(res.join("binaries").join(format!("lambchat-daemon-{triple}{exe}")));
+            candidates.push(
+                res.join("binaries")
+                    .join(format!("lambchat-daemon-{triple}{exe}")),
+            );
         }
     }
     candidates
@@ -266,7 +293,7 @@ fn sidecar_binary_path(app: &AppHandle) -> Option<PathBuf> {
 fn emit_status(app: &AppHandle) {
     use tauri::Emitter;
     let manager = app.state::<DaemonManager>();
-    let running = manager.child.lock().unwrap().is_some();
+    let running = lock_ok(&manager.child).is_some();
     let payload = serde_json::json!({
         "running": running,
         "unsupported": manager.unsupported.load(Ordering::SeqCst),
@@ -284,13 +311,32 @@ fn emit_status(app: &AppHandle) {
 /// 优雅序（M4 T8）：daemon 侧 SIGTERM → post_offline（服务端注册表即刻
 /// 下线，status 窗口从心跳/TTL 的 15-35s 收敛到一次 RTT）→ 审计 shutdown
 /// → 退出。旧实现的直接 SIGKILL 让 daemon 无从优雅下线。
+/// kill 后的有界收尸宽限：超时放弃句柄（见 [`reap_bounded`]）。
+const REAP_GRACE: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// 有界收尸：deadline 内轮询 try_wait，返回是否等到退出。
+///
+/// command-group 的 `wait()` 在 Windows 上阻塞到 Job Object 全组退出，组内
+/// 残留子进程会令其永久挂起——调用方（同步 IPC 命令/主线程）不可承受。
+/// 纯轮询实现便于单测（真实子进程，Linux CI 可跑）。
+fn reap_bounded(child: &mut command_group::GroupChild, grace: std::time::Duration) -> bool {
+    let deadline = std::time::Instant::now() + grace;
+    while std::time::Instant::now() < deadline {
+        match child.try_wait() {
+            Ok(Some(_)) | Err(_) => return true,
+            Ok(None) => std::thread::sleep(STOP_POLL_INTERVAL),
+        }
+    }
+    false
+}
+
 pub fn stop(app: &AppHandle) {
     let manager = app.state::<DaemonManager>();
     // 持锁递增 generation 并取走槽位（与 start 一致）：generation 的全部变更点
     // 都在 child 锁内，handle_exit 的持锁复检（take_if_current）才能成立。
     // 锁在等待**之前**释放：优雅宽限最长 3s，持锁等待会卡住 IPC。
     let child = {
-        let mut slot = manager.child.lock().unwrap();
+        let mut slot = lock_ok(&manager.child);
         manager.generation.fetch_add(1, Ordering::SeqCst);
         slot.take()
     };
@@ -316,18 +362,26 @@ pub fn stop(app: &AppHandle) {
                 warn_log!("failed to kill daemon group: {e}");
             }
         }
-        let _ = child.wait(); // 收尸
+        // 有界收尸：Windows 的 GroupChild::wait() 要等 Job Object 内**全部**
+        // 进程退出（含 daemon 派生的 PBS 运行时子进程），残留即无限阻塞——
+        // stop 由同步命令调用时曾把主线程整个挂死（v2.9.1 偏好设置卡死）。
+        // 超时放弃句柄：kill 已发，残留收尸交 OS（Job 终止语义兜底）。
+        if !reap_bounded(&mut child, REAP_GRACE) {
+            warn_log!(
+                "daemon group not reaped within {:?}; abandoning handle",
+                REAP_GRACE
+            );
+        }
     }
     manager.restarts.store(0, Ordering::SeqCst);
-    *manager.started_at.lock().unwrap() = None;
+    *lock_ok(&manager.started_at) = None;
     emit_status(app);
 }
-
 
 /// 进程状态：`"running" | "stopped" | "unsupported"`。
 pub fn status(app: &AppHandle) -> &'static str {
     let manager = app.state::<DaemonManager>();
-    if manager.child.lock().unwrap().is_some() {
+    if lock_ok(&manager.child).is_some() {
         "running"
     } else if manager.unsupported.load(Ordering::SeqCst) {
         "unsupported"
@@ -335,8 +389,6 @@ pub fn status(app: &AppHandle) -> &'static str {
         "stopped"
     }
 }
-
-
 
 /// 组子进程监视线：500ms `try_wait` 轮询（command-group 句柄语义，跨平台，
 /// 替代 kill(pid,0)/tasklist 探活），退出走 [`handle_exit`]。
@@ -348,7 +400,7 @@ fn spawn_group_monitor(app: AppHandle, generation: u64) {
             if manager.generation.load(Ordering::SeqCst) != generation {
                 return; // 槽位已被新一轮 start/stop 接管
             }
-            let mut slot = manager.child.lock().unwrap();
+            let mut slot = lock_ok(&manager.child);
             match slot.as_mut() {
                 Some(DaemonChild::Group(child)) => match child.try_wait() {
                     Ok(Some(_)) | Err(_) => break,
@@ -378,7 +430,7 @@ fn handle_exit(app: &AppHandle, generation: u64) {
         .unwrap()
         .map(|started| started.elapsed())
         .unwrap_or_default();
-    *manager.started_at.lock().unwrap() = None;
+    *lock_ok(&manager.started_at) = None;
     emit_status(app); // 槽位已空：先广播 stopped，重启成功后会再广播 running
 
     if should_reset_restart_budget(uptime) {
@@ -563,9 +615,12 @@ fn write_policy_only(home: &Path, confirm_policy: &str) -> Result<(), String> {
         .map_err(|e| format!("failed to read {}: {e}", config_path.display()))?;
     let mut cfg: serde_json::Value = serde_json::from_str(&raw)
         .map_err(|e| format!("invalid JSON in {}: {e}", config_path.display()))?;
-    let obj = cfg
-        .as_object_mut()
-        .ok_or_else(|| format!("config root must be a JSON object: {}", config_path.display()))?;
+    let obj = cfg.as_object_mut().ok_or_else(|| {
+        format!(
+            "config root must be a JSON object: {}",
+            config_path.display()
+        )
+    })?;
     obj.insert(
         "confirm_policy".to_string(),
         serde_json::Value::String(confirm_policy.to_string()),
@@ -582,9 +637,16 @@ fn write_policy_only(home: &Path, confirm_policy: &str) -> Result<(), String> {
 /// （其余配置保留，重新配对时可复用 server_url / data_root / 策略）。
 /// 服务端的 PAT 吊销由前端用读出的 PAT 调 `DELETE /api/auth/pat/current` 完成。
 #[tauri::command]
-pub fn clear_pairing(app: AppHandle) -> Result<(), String> {
-    stop(&app);
-    clear_pairing_files(&sandbox_home()?)
+pub async fn clear_pairing(app: AppHandle) -> Result<(), String> {
+    // stop/start 含 SIGTERM 宽限与进程 spawn（Windows 上 AV 扫描 PyInstaller
+    // 可执行可达秒级）——同步命令跑主线程会把 UI 整个挂死（v2.9.1 偏好设置
+    // 卡死根因之一：进入即触发 auto-pair → restart_daemon）。挪 spawn_blocking。
+    tauri::async_runtime::spawn_blocking(move || {
+        stop(&app);
+        clear_pairing_files(&sandbox_home()?)
+    })
+    .await
+    .map_err(|e| format!("clear_pairing task failed: {e}"))?
 }
 
 /// 文件层取消配对（可测试核心：home 由调用方注入）。幂等：文件不存在不报错。
@@ -641,9 +703,14 @@ fn read_pat_file(home: &Path) -> Result<Option<String>, String> {
 
 /// 重启托管的 daemon（stop → start）。
 #[tauri::command]
-pub fn restart_daemon(app: AppHandle) -> Result<(), String> {
-    stop(&app);
-    start(&app)
+pub async fn restart_daemon(app: AppHandle) -> Result<(), String> {
+    // 同 clear_pairing：阻塞的 stop/start 必须离开主线程
+    tauri::async_runtime::spawn_blocking(move || {
+        stop(&app);
+        start(&app)
+    })
+    .await
+    .map_err(|e| format!("restart task failed: {e}"))?
 }
 
 /// daemon 进程状态：`"running" | "stopped" | "unsupported"`。
@@ -755,10 +822,8 @@ mod tests {
     /// 打包后 restartDaemon 必败 → 配对失败。
     #[test]
     fn sidecar_candidates_prefer_bundled_exe_adjacent_name() {
-        let tmp = std::env::temp_dir().join(format!(
-            "lambchat-sidecar-cand-test-{}",
-            std::process::id()
-        ));
+        let tmp =
+            std::env::temp_dir().join(format!("lambchat-sidecar-cand-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
         let exe_dir = tmp.join("bin");
         let res_dir = tmp.join("resources");
@@ -800,22 +865,51 @@ mod tests {
         let candidates = sidecar_candidates(&exe_dir, Some(&res_dir));
         assert_eq!(
             candidates.first(),
-            Some(&exe_dir.join(format!(
-                "lambchat-daemon{}",
-                sidecar_exe_suffix()
-            )))
+            Some(&exe_dir.join(format!("lambchat-daemon{}", sidecar_exe_suffix())))
         );
         if let Some(triple) = current_target_triple() {
             assert_eq!(
                 candidates.get(2),
-                Some(&res_dir.join("binaries").join(format!(
-                    "lambchat-daemon-{triple}{}",
-                    sidecar_exe_suffix()
-                )))
+                Some(
+                    &res_dir
+                        .join("binaries")
+                        .join(format!("lambchat-daemon-{triple}{}", sidecar_exe_suffix()))
+                )
             );
         }
 
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// 有界收尸（v2.9.1 偏好设置卡死回归锚点）：kill 后快速等到退出。
+    #[test]
+    fn reap_bounded_returns_after_kill() {
+        use command_group::CommandGroup;
+        let mut child = std::process::Command::new("sleep")
+            .arg("30")
+            .group_spawn()
+            .expect("spawn sleep");
+        let _ = child.kill();
+        let t0 = std::time::Instant::now();
+        assert!(reap_bounded(&mut child, std::time::Duration::from_secs(2)));
+        assert!(t0.elapsed() < std::time::Duration::from_secs(2));
+    }
+
+    /// 活着不退的进程：宽限到点必须返回 false（放弃句柄而非无限等）。
+    #[test]
+    fn reap_bounded_gives_up_at_deadline() {
+        use command_group::CommandGroup;
+        let mut child = std::process::Command::new("sleep")
+            .arg("30")
+            .group_spawn()
+            .expect("spawn sleep");
+        let t0 = std::time::Instant::now();
+        assert!(!reap_bounded(
+            &mut child,
+            std::time::Duration::from_millis(300)
+        ));
+        assert!(t0.elapsed() < std::time::Duration::from_secs(2));
+        let _ = child.kill();
     }
 
     /// 配对文件生命周期：save_pairing 落盘 pat_id → 策略独立写保留其余字段
@@ -857,7 +951,14 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&pat_path).unwrap(), "lc_pat_secret");
 
         // ---- save_pairing：pat_id 为 None → 不写键（旧形态） ----
-        write_pairing_files(&sandbox, "https://lc.example", "lc_pat_secret2", "none", None).unwrap();
+        write_pairing_files(
+            &sandbox,
+            "https://lc.example",
+            "lc_pat_secret2",
+            "none",
+            None,
+        )
+        .unwrap();
         let cfg: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
         assert!(cfg.get("pat_id").is_none());
@@ -922,10 +1023,8 @@ mod tests {
     /// 单一测试函数内串行断言，避免 `$HOME` 环境变量并发竞争。
     #[test]
     fn resolve_openable_path_blocks_symlink_escape_and_dotdot() {
-        let tmp = std::env::temp_dir().join(format!(
-            "lambchat-daemon-path-test-{}",
-            std::process::id()
-        ));
+        let tmp =
+            std::env::temp_dir().join(format!("lambchat-daemon-path-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
         let home = tmp.join("home");
         let sandbox = home.join(".lambchat");
@@ -933,8 +1032,7 @@ mod tests {
         std::fs::create_dir_all(sandbox.join("audit")).unwrap();
         std::fs::write(sandbox.join("workspaces").join("note.txt"), "x").unwrap();
         // 白名单内的符号链接指向敏感路径——逃逸载体。
-        std::os::unix::fs::symlink("/etc/passwd", sandbox.join("workspaces").join("evil"))
-            .unwrap();
+        std::os::unix::fs::symlink("/etc/passwd", sandbox.join("workspaces").join("evil")).unwrap();
 
         let original_home = std::env::var_os("HOME");
         std::env::set_var("HOME", &home);
@@ -942,31 +1040,21 @@ mod tests {
         // 白名单内的真实路径放行（canonicalize 后前缀校验通过）。
         assert!(resolve_openable_path("workspaces").is_ok());
         assert!(resolve_openable_path("audit").is_ok());
+        assert!(resolve_openable_path(&sandbox.join("audit").to_string_lossy()).is_ok());
         assert!(
-            resolve_openable_path(&sandbox.join("audit").to_string_lossy()).is_ok()
-        );
-        assert!(
-            resolve_openable_path(&sandbox.join("workspaces/note.txt").to_string_lossy())
-                .is_ok()
+            resolve_openable_path(&sandbox.join("workspaces/note.txt").to_string_lossy()).is_ok()
         );
 
         // 符号链接逃逸：词法上在 workspaces 内，canonical 指向 /etc/passwd——必须拒绝。
         // （词法校验优先的旧实现在此会错误放行。）
-        assert!(
-            resolve_openable_path(&sandbox.join("workspaces/evil").to_string_lossy())
-                .is_err()
-        );
+        assert!(resolve_openable_path(&sandbox.join("workspaces/evil").to_string_lossy()).is_err());
 
         // `..` 词法逃逸拒绝。
         assert!(
-            resolve_openable_path(&sandbox.join("workspaces/../../etc").to_string_lossy())
-                .is_err()
+            resolve_openable_path(&sandbox.join("workspaces/../../etc").to_string_lossy()).is_err()
         );
         // 兄弟目录前缀（组件级 starts_with）拒绝。
-        assert!(
-            resolve_openable_path(&sandbox.join("workspaces-evil").to_string_lossy())
-                .is_err()
-        );
+        assert!(resolve_openable_path(&sandbox.join("workspaces-evil").to_string_lossy()).is_err());
         // 白名单外绝对路径拒绝。
         assert!(resolve_openable_path("/etc/passwd").is_err());
 
@@ -1007,7 +1095,7 @@ mod tests {
             .unwrap();
 
         // 主线程持锁：装入 gen=1 的子进程（start 的落点效果）。
-        let mut slot = manager.child.lock().unwrap();
+        let mut slot = lock_ok(&manager.child);
         manager.generation.store(1, Ordering::SeqCst);
         *slot = Some(DaemonChild::Group(child_gen1));
 
@@ -1044,11 +1132,10 @@ mod tests {
                     "stale exit handler took the child of a newer generation"
                 );
             }
-            
         }
 
         // 新代子进程必须仍在槽内（未被迟到的退出事件 take 掉）。
-        let mut final_slot = manager.child.lock().unwrap();
+        let mut final_slot = lock_ok(&manager.child);
         match final_slot.take() {
             Some(DaemonChild::Group(mut c)) => {
                 let _ = c.kill();
