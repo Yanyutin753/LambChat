@@ -47,6 +47,19 @@ export function useApprovals({
     });
   }, []);
 
+  // 审批终态出队（approval_resolved 事件）：与 addApproval 成对收敛，
+  // 使队列对 SSE 整段重放幂等——重放中已答复的审批先入队再出队，不残留
+  const removeApproval = useCallback((approvalId: string) => {
+    setApprovals((prev) => {
+      if (!prev.some((a) => a.id === approvalId)) {
+        return prev;
+      }
+      const next = prev.filter((a) => a.id !== approvalId);
+      hasApprovalsRef.current = next.length > 0;
+      return next;
+    });
+  }, []);
+
   // 清除 approvals（用于对话失败时）；传入 sessionId 时只清除该会话的，
   // 避免误清其他会话（如后台等待审批的会话）的待处理审批
   const clearApprovals = useCallback((sessionId?: string | null) => {
@@ -108,6 +121,7 @@ export function useApprovals({
     isLoading,
     respondToApproval,
     addApproval,
+    removeApproval,
     clearApprovals,
     refresh: fetchApprovals,
   };

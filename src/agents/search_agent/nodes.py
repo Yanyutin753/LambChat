@@ -24,6 +24,7 @@ from src.agents.core.node_utils import (
     resolve_fallback_model,
     resolve_model_image_url_to_base64,
     resolve_model_supports_vision,
+    resolve_run_usage_carry,
 )
 from src.agents.core.persona import build_persona_prompt_sections
 from src.agents.core.prompt_policy import sandbox_shell_platform_section
@@ -92,13 +93,14 @@ logger = get_logger(__name__)
 async def _build_sandbox_runtime_policy(
     sandbox_backend: Any, sandbox_work_dir: str | None, *, user_id: str
 ) -> str:
-    """沙箱运行时提示段：workspace 策略 + （仅本地 daemon）shell 方言段。
+    """沙箱运行时提示段：workspace 策略 + （仅本地 daemon）本机身份/平台段。
 
-    本地 daemon 在 win32/darwin 上时追加平台段（prompt_policy.sandbox_shell_platform_section），
-    让模型生成 cmd.exe / macOS 兼容命令——否则模型默认 POSIX 语法在 Windows
-    cmd.exe 全军覆没（实测根因之二）。云端沙箱与 Linux/未上报一律不加段，
-    prompt 逐字节保持现状；段文本随会话内 daemon 平台稳定，provider 前缀
-    缓存不受逐 turn 影响。
+    本地 daemon 上报 win32/linux/darwin 任一平台时追加
+    prompt_policy.sandbox_shell_platform_section（「沙箱=用户本机」身份段 +
+    win32/darwin 的 shell 方言段），让模型既知道自己真的在操作用户的电脑，
+    又能生成 cmd.exe / macOS 兼容命令。云端沙箱与未上报一律不加段，prompt
+    逐字节保持现状；段文本随会话内 daemon 平台稳定，provider 前缀缓存不受
+    逐 turn 影响。
     """
     if not sandbox_backend or not sandbox_work_dir:
         return ""
@@ -432,6 +434,11 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     # HITL 恢复运行（issue #218）：以 Command(resume=...) 从挂起断点继续，
     # 不注入新的用户消息。
     hitl_resume = configurable.get("hitl_resume")
+    # HITL 恢复沿用原 run 的墙钟起点与先前分段累计用量：token:usage 的
+    # duration 与 token 数跨恢复累计，否则只记审批恢复后的最后一段
+    run_started_at, prior_usage = resolve_run_usage_carry(
+        hitl_resume, default_started_at=start_time
+    )
     if hitl_resume is not None:
         from langgraph.types import Command
 
@@ -466,6 +473,8 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             sandbox_backend.before_tool_start if sandbox_backend is not None else None
         ),
     )
+    if prior_usage is not None:
+        event_processor.seed_usage(prior_usage)
 
     logger.info("[SearchAgent] Starting astream_events")
     # 流式处理事件（不重试，直接调用）
@@ -493,7 +502,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         await emit_token_usage(
             event_processor,
             presenter,
-            start_time,
+            run_started_at,
             model_id=model_id,
             model=selected_model,
         )
@@ -528,6 +537,8 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
                         "active_goal": active_goal,
                         "recommendation_input": recommendation_input,
                         "goal_started_at": configurable.get("goal_started_at"),
+                        "run_started_at": run_started_at,
+                        "prior_usage": event_processor.usage_totals(),
                     },
                 )
         except Exception as e:

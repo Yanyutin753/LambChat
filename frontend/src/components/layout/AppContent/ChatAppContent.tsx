@@ -71,6 +71,7 @@ export function ChatAppContent({
     refresh: refreshApprovals,
     respondToApproval,
     addApproval,
+    removeApproval,
     clearApprovals,
     isLoading: approvalLoading,
   } = useApprovals({
@@ -216,6 +217,9 @@ export function ChatAppContent({
     },
     onClearApprovals: (approvalSessionId) => {
       clearApprovals(approvalSessionId);
+    },
+    onApprovalResolved: (approvalId) => {
+      removeApproval(approvalId);
     },
     getEnabledTools: getDisabledToolNames,
     getDisabledSkills: () => sessionConfigRef.current.disabledSkills,

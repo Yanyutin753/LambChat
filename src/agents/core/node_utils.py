@@ -579,6 +579,41 @@ def build_human_message(
     )
 
 
+def resolve_run_usage_carry(
+    hitl_resume: dict | None, *, default_started_at: float
+) -> tuple[float, dict | None]:
+    """HITL 恢复执行沿用原 run 的起点与先前分段的累计用量。
+
+    审批恢复会从节点顶部重新执行 agent_node，本函数从
+    configurable.hitl_resume 还原跨分段锚点：run_started_at 是原 run
+    的墙钟起点（token:usage 的 duration 据此累计，而非每段清零），
+    prior_usage 是先前分段已记的 token 总量（seed 进处理器后，
+    最终事件与 usage_logs 才是全量口径）。非恢复执行或载荷残缺时
+    回退节点入口时间、不带先验用量。
+    """
+    if not isinstance(hitl_resume, dict):
+        return default_started_at, None
+
+    raw_anchor = hitl_resume.get("run_started_at")
+    started_at = raw_anchor if isinstance(raw_anchor, (int, float)) else default_started_at
+
+    prior = hitl_resume.get("prior_usage")
+    if not isinstance(prior, dict):
+        return started_at, None
+    carried = {
+        key: prior[key]
+        for key in (
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "cache_creation_tokens",
+            "cache_read_tokens",
+        )
+        if isinstance(prior.get(key), int)
+    }
+    return started_at, carried or None
+
+
 async def emit_token_usage(
     event_processor: AgentEventProcessor,
     presenter,
