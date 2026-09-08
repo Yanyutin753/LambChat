@@ -24,12 +24,38 @@ def test_attribution_discipline_reaches_all_main_agents():
         assert any(phrase in section for section in MAIN_AGENT_PROMPT_SECTIONS)
 
 
-def test_shell_platform_section_empty_for_posix_and_unknown():
-    """linux/空串（云端沙箱、未上报、查询失败）不加平台段：prompt 逐字节保持
-    现状，provider 前缀缓存零失效。"""
+def test_shell_platform_section_empty_for_unknown_only():
+    """空串/未知平台（云端沙箱、未上报、查询失败）不加平台段：prompt 逐字节保持
+    现状，provider 前缀缓存零失效，也绝不错入 Windows 方言分支。"""
     assert sandbox_shell_platform_section("") == ""
-    assert sandbox_shell_platform_section("linux") == ""
     assert sandbox_shell_platform_section("winxp") == ""
+
+
+def test_shell_platform_section_linux_injects_local_machine_identity():
+    """linux 本地 daemon 也必须注入「沙箱=用户本机」身份段。
+
+    生产会话 26ed193a 实测：linux daemon 不加段时，模型自认「隔离沙箱、
+    跟用户电脑完全不连通」，当面否认控制能力并反指用户可能中了远控木马
+    ——而命令实际就跑在用户机器上。身份认知正确优先于前缀缓存。"""
+    section = sandbox_shell_platform_section("linux")
+    assert "user's own real computer" in section
+    assert "never claim" in section.lower()
+    # 谨慎操作纪律：真实机器上删改要先确认、新文件优先会话 workspace
+    assert "confirm" in section.lower()
+    assert "session workspace" in section
+
+
+def test_local_machine_identity_reaches_win32_and_darwin():
+    """win32/darwin 的方言段之前只在开头顺带提一句「用户机器」，缺身份与
+    谨慎纪律框架；身份段必须补上，且以纯尾部追加方式——方言段历史字节
+    保持原样（存量会话已缓存前缀零失效），身份段接在最后。"""
+    markers = {"win32": "cmd.exe", "darwin": "macOS"}
+    for platform, marker in markers.items():
+        section = sandbox_shell_platform_section(platform)
+        assert "user's own real computer" in section
+        # 方言段原字节在前的纯追加：分叉点不前移
+        assert section.startswith("### Local Machine Shell:")
+        assert section.index(marker) < section.index("user's own real computer")
 
 
 def test_shell_platform_section_win32_guides_cmdexe_syntax():

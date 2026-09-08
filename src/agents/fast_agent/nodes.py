@@ -23,6 +23,7 @@ from src.agents.core.node_utils import (
     resolve_fallback_model,
     resolve_model_image_url_to_base64,
     resolve_model_supports_vision,
+    resolve_run_usage_carry,
 )
 from src.agents.core.persona import build_persona_prompt_sections
 from src.agents.core.startup_preparation import prepare_agent_inputs
@@ -368,6 +369,11 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     hitl_resume = configurable.get("hitl_resume")
     user_input = state.get("input", "")
     recommendation_input = configurable.get("recommendation_input") or user_input
+    # HITL 恢复沿用原 run 的墙钟起点与先前分段累计用量：token:usage 的
+    # duration 与 token 数跨恢复累计，否则只记审批恢复后的最后一段
+    run_started_at, prior_usage = resolve_run_usage_carry(
+        hitl_resume, default_started_at=start_time
+    )
     if hitl_resume is not None:
         from langgraph.types import Command
 
@@ -396,6 +402,8 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     # 创建事件处理器（使用 AgentEventProcessor 处理 astream_events）
     logger.info("[FastAgent] Creating AgentEventProcessor")
     event_processor = AgentEventProcessor(presenter, base_url=configurable.get("base_url", ""))
+    if prior_usage is not None:
+        event_processor.seed_usage(prior_usage)
 
     logger.info("[FastAgent] Starting astream_events")
     # 流式处理事件（不重试，直接调用）
@@ -423,7 +431,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         await emit_token_usage(
             event_processor,
             presenter,
-            start_time,
+            run_started_at,
             model_id=model_id,
             model=selected_model,
         )
@@ -458,6 +466,8 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
                         "active_goal": active_goal,
                         "recommendation_input": recommendation_input,
                         "goal_started_at": configurable.get("goal_started_at"),
+                        "run_started_at": run_started_at,
+                        "prior_usage": event_processor.usage_totals(),
                     },
                 )
         except Exception as e:

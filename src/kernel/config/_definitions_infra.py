@@ -128,6 +128,15 @@ INFRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": 86400,
         "depends_on": {"key": "TASK_BACKEND", "value": "arq"},
     },
+    "ARQ_POLL_DELAY_SECONDS": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.REDIS,
+        "subcategory": "task",
+        "description": "settingDesc.ARQ_POLL_DELAY_SECONDS",
+        "default": 0.1,
+        "depends_on": {"key": "TASK_BACKEND", "value": "arq"},
+        "frontend_visible": False,
+    },
     "TASK_STARTUP_CLEANUP_CONCURRENCY": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.REDIS,

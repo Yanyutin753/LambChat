@@ -42,6 +42,13 @@ class _FakeRedis:
         released = self.store.pop(key, None) == token
         return _maybe_await(int(released))
 
+    def get(self, key):
+        return _maybe_await(self.store.get(key))
+
+    def delete(self, key):
+        self.store.pop(key, None)
+        return _maybe_await(1)
+
 
 def _maybe_await(value):
     import asyncio
@@ -205,6 +212,28 @@ async def test_resume_activation_mongo_fallback_requires_exact_terminal_attempt(
 
 
 @pytest.mark.asyncio
+async def test_resume_activation_key_survives_read_for_fast_retry(monkeypatch) -> None:
+    """激活 key 读取后必须保留（TTL 清理）：job 因 source fence / 并发槽
+    Retry 重跑时再次等待要立即命中，不得空轮询满 timeout 才落 Mongo 兜底。"""
+    redis = _FakeRedis()
+    key = f"{hitl_mod.HITL_RESUME_ACTIVATION_PREFIX}attempt-1"
+    redis.store[key] = "approval-1"
+    monkeypatch.setattr(hitl_mod, "get_redis_client", lambda: redis)
+    storage = SimpleNamespace(
+        get=AsyncMock(return_value=SimpleNamespace(status="approved", metadata={}))
+    )
+    monkeypatch.setattr("src.infra.storage.mongodb.get_approval_storage", lambda: storage)
+
+    first = await hitl_mod.wait_for_hitl_resume_activation("approval-1", "attempt-1", timeout=0.1)
+    second = await hitl_mod.wait_for_hitl_resume_activation("approval-1", "attempt-1", timeout=0.1)
+
+    assert first is True
+    assert second is True
+    assert key in redis.store
+    storage.get.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_submit_resume_skips_when_not_waiting_human(fake_redis, monkeypatch):
     monkeypatch.setattr(hitl_mod.settings, "HITL_MODE", "interrupt", raising=False)
 
@@ -220,6 +249,53 @@ async def test_submit_resume_skips_when_not_waiting_human(fake_redis, monkeypatc
     result = await submit_hitl_resume_run(_approval(), {"approved": True, "values": {}})
     assert result["submitted"] is False
     assert "等待" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_submit_resume_waits_briefly_when_source_run_still_inflight(fake_redis, monkeypatch):
+    """审批卡 SSE 早于 WAITING_HUMAN 状态翻转可见：respond 抢跑（源 run 还在
+    running/starting 收尾）时短暂等待状态翻转，而不是直接拒绝导致要点两次。"""
+    monkeypatch.setattr(hitl_mod.settings, "TASK_BACKEND", "arq", raising=False)
+
+    statuses = ["running", "running", "waiting_human"]
+
+    class _Storage:
+        calls = 0
+
+        async def get_by_session_id(self, _session_id):
+            _Storage.calls += 1
+            status = statuses[min(_Storage.calls - 1, len(statuses) - 1)]
+            return SimpleNamespace(
+                user_id="user-1",
+                name="s",
+                metadata={
+                    "task_status": status,
+                    "current_run_id": "run-1",
+                    "executor_key": "agent_stream",
+                    "agent_id": "search",
+                },
+            )
+
+    monkeypatch.setattr("src.infra.session.storage.SessionStorage", lambda: _Storage())
+
+    async def fake_executor():
+        yield
+
+    monkeypatch.setattr(
+        "src.infra.task.concurrency.get_registered_executor", lambda key: fake_executor
+    )
+
+    class _FakeManager:
+        async def submit_arq(self, *args, **kwargs):
+            return "run-1", "trace-1"
+
+    monkeypatch.setattr("src.infra.task.manager.get_task_manager", lambda: _FakeManager())
+
+    result = await submit_hitl_resume_run(_approval(), {"approved": True, "values": {}})
+
+    assert result["submitted"] is True
+    assert result["run_id"] == "run-1"
+    assert _Storage.calls >= 3
 
 
 @pytest.mark.asyncio

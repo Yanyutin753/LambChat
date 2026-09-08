@@ -19,7 +19,11 @@ import type {
   SubagentStackItem,
   UseAgentOptions,
 } from "./types";
-import { clearAllLoadingStates, createToolPart } from "./messageParts";
+import {
+  clearAllLoadingStates,
+  createToolPart,
+  isSandboxConfirmApprovalEvent,
+} from "./messageParts";
 import { splitAssistantTurn } from "./steerTurnSplit";
 import { convertAttachments, processMessageEvent } from "./eventProcessor";
 import { dispatchToolMutationRefresh } from "../../components/chat/ChatMessage/items/toolMutationEvents";
@@ -385,6 +389,16 @@ export function handleStreamEvent(
       return;
     }
 
+    case "approval_resolved": {
+      // 审批出队与 approval_required 成对（直播/整段重放同一条流）：
+      // 中 run 刷新后 SSE 从头重放全部事件，已答复审批若只入队不出队，
+      // 会以可交互表单的形式整批重现。break 落回部件收尾（pill 转终态）。
+      if (typeof data.id === "string" && data.id) {
+        ctx.options?.onApprovalResolved?.(data.id);
+      }
+      break;
+    }
+
     case "skills:changed": {
       if (ctx.options?.onSkillAdded) {
         const action = (data.action as string) || "updated";
@@ -708,6 +722,11 @@ function appendAskHumanToolPart(
   eventTimestamp: string | undefined,
   ctx: EventHandlerContext,
 ): void {
+  // 沙箱确认门：执行卡（等待确认→结果）+ 审批面板已完整表达，不合成
+  // ask_human 工具卡，与历史回放共用判定（避免一次执行双卡）
+  if (isSandboxConfirmApprovalEvent(data)) {
+    return;
+  }
   const toolCallId = data.tool_call_id || data.id;
   const args = {
     message: data.message || "",

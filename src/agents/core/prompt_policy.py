@@ -35,9 +35,24 @@ Use this alias only with file tools and uploads. For shell commands, use relativ
 WORKSPACE_POLICY = """### Workspace Boundaries
 Check whether a target exists before creating it. Modify an existing project only when requested or clearly relevant; otherwise use a named directory in the current session workspace."""
 
+#: 本地 daemon 会话的身份段（所有已上报平台共用）：沙箱就是用户自己的真实
+#: 电脑，不是隔离虚拟机。生产会话 26ed193a 实测：linux daemon 不加任何段时，
+#: 模型自认「隔离沙箱、跟用户电脑完全不连通」，当面否认控制能力还反指用户
+#: 可能中了远控木马——而命令实际就跑在用户机器上。
+#: 缓存纪律：本段注入点在文件工具 description 尾部、排在逐会话 {work_dir}
+#: 之后（SandboxWorkspaceMiddleware），跨会话本无共享前缀可失；注入方式
+#: 一律纯尾部追加（见 sandbox_shell_platform_section），存量会话已缓存字节
+#: 零失效，新会话仅首 turn 一次性多 prefill 本段。
+_SANDBOX_LOCAL_MACHINE_IDENTITY = """### Local Machine Sandbox
+
+The sandbox for this session is the user's own real computer (connected via the local desktop daemon), not an isolated virtual machine. Every shell command and file operation executes on the user's actual machine and touches their real files; the daemon may ask the user to confirm each command before it runs.
+- Be honest about this capability: you CAN operate the user's computer through this session. Never claim your environment is isolated from or unconnected to the user's machine.
+- Operate like a careful human operator on someone else's computer: confirm before deleting, overwriting, or modifying anything outside the session workspace, and prefer the session workspace for new files."""
+
 #: win32 本地 daemon 的 shell 方言提示（cmd.exe）。daemon 上报平台经注册表第三段
-#: 查得（win32/linux/darwin），linux 与未上报不加段——云端沙箱与 Linux 本地
-#: 的 prompt 逐字节保持现状，provider 前缀缓存零失效。
+#: 查得（win32/linux/darwin）。身份段对三个平台一律注入；方言段仅 win32/darwin
+#: 需要（POSIX 语法在 Linux daemon 本来就成立）。空串（云端沙箱、daemon 离线、
+#: 旧版未上报）不加任何段——云端 prompt 逐字节保持现状，也绝不错入 Windows 分支。
 _SANDBOX_SHELL_WIN32 = """### Local Machine Shell: Windows (cmd.exe)
 
 The local sandbox is the user's Windows machine; `execute` runs commands through cmd.exe, NOT bash.
@@ -58,13 +73,23 @@ The local sandbox is the user's Mac; `execute` runs commands via /bin/sh (POSIX)
 def sandbox_shell_platform_section(daemon_platform: str) -> str:
     """daemon 上报平台 → 沙箱运行时提示追加段；空串 = 不追加（保持现状）。
 
-    平台串是注册表第三段的归一值（win32/linux/darwin）；空串涵盖云端沙箱、
-    daemon 离线与旧版未上报——一律不加段，绝不错入 Windows 分支。
+    平台串是注册表第三段的归一值（win32/linux/darwin）。三个已上报平台都
+    注入 _SANDBOX_LOCAL_MACHINE_IDENTITY（沙箱=用户本机的身份与谨慎纪律段）；
+    win32/darwin 另需 shell 方言段。
+
+    KV 缓存纪律：方言段字节保持历史原样，身份段一律**尾部追加**——整段文本
+    经 SandboxWorkspaceMiddleware 落在文件工具 description 里、排在逐会话
+    的 {work_dir} 之后，跨会话本就无共享前缀可失；纯追加保证部署时存量
+    会话已缓存的旧字节零失效，新文本只在会话首 turn 一次性多 prefill。
+    空串涵盖云端沙箱、daemon 离线与旧版未上报——一律不加段，云端 prompt
+    逐字节保持现状，也绝不错入 Windows 分支。
     """
     if daemon_platform == "win32":
-        return _SANDBOX_SHELL_WIN32
+        return _SANDBOX_SHELL_WIN32 + "\n\n" + _SANDBOX_LOCAL_MACHINE_IDENTITY
     if daemon_platform == "darwin":
-        return _SANDBOX_SHELL_DARWIN
+        return _SANDBOX_SHELL_DARWIN + "\n\n" + _SANDBOX_LOCAL_MACHINE_IDENTITY
+    if daemon_platform == "linux":
+        return _SANDBOX_LOCAL_MACHINE_IDENTITY
     return ""
 
 
