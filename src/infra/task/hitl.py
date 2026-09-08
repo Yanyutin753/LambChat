@@ -311,6 +311,50 @@ async def wait_for_hitl_resume_activation(
     )
 
 
+def build_hitl_resume_payload(
+    approval: Any,
+    resume_value: Dict[str, Any],
+    *,
+    resume_attempt_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """构建恢复执行的 hitl_resume 载荷。
+
+    resume_context 在挂起时物化进审批 metadata（Mongo，跨副本可靠），
+    其中 run_started_at / prior_usage 让恢复分段沿用原 run 的墙钟起点
+    与先前分段累计用量——否则 token:usage（及取 last 落库的 usage_logs）
+    只记最后一段，工作时长也只剩末段。
+    """
+    approval_metadata = getattr(approval, "metadata", None) or {}
+    resume_context = approval_metadata.get("resume_context") or {}
+    interrupt_id = approval_metadata.get("interrupt_id")
+    sandbox_confirm_message = (
+        str(approval.message) if approval_metadata.get("origin") == "sandbox_confirm" else None
+    )
+    command_resume = {str(interrupt_id): resume_value} if interrupt_id else resume_value
+    return {
+        "approval_id": approval.id,
+        "resume_attempt_id": resume_attempt_id,
+        "resume_value": command_resume,
+        **({"sandbox_confirm_message": sandbox_confirm_message} if sandbox_confirm_message else {}),
+        "goal_started_at": resume_context.get("goal_started_at"),
+        "run_started_at": resume_context.get("run_started_at"),
+        "prior_usage": resume_context.get("prior_usage"),
+        "approval_resolved": {
+            "id": approval.id,
+            "tool_call_id": approval_metadata.get("tool_call_id"),
+            "interrupt_id": interrupt_id,
+            "status": "approved" if resume_value.get("approved") else "rejected",
+            "success": bool(resume_value.get("approved")),
+            "result": {
+                "status": "success" if resume_value.get("approved") else "rejected",
+                "message": ("用户已响应" if resume_value.get("approved") else "用户拒绝了此请求"),
+                "values": resume_value.get("values") or {},
+            },
+            "timestamp": utc_now_iso(),
+        },
+    }
+
+
 async def submit_hitl_resume_run(
     approval: Any,
     resume_value: Dict[str, Any],
@@ -387,38 +431,10 @@ async def submit_hitl_resume_run(
 
         from .manager import get_task_manager
 
-        interrupt_id = approval_metadata.get("interrupt_id")
         resume_context = approval_metadata.get("resume_context") or {}
-        sandbox_confirm_message = (
-            str(approval.message) if approval_metadata.get("origin") == "sandbox_confirm" else None
+        hitl_resume = build_hitl_resume_payload(
+            approval, resume_value, resume_attempt_id=resume_attempt_id
         )
-        command_resume = {str(interrupt_id): resume_value} if interrupt_id else resume_value
-        hitl_resume = {
-            "approval_id": approval.id,
-            "resume_attempt_id": resume_attempt_id,
-            "resume_value": command_resume,
-            **(
-                {"sandbox_confirm_message": sandbox_confirm_message}
-                if sandbox_confirm_message
-                else {}
-            ),
-            "goal_started_at": resume_context.get("goal_started_at"),
-            "approval_resolved": {
-                "id": approval.id,
-                "tool_call_id": approval_metadata.get("tool_call_id"),
-                "interrupt_id": interrupt_id,
-                "status": "approved" if resume_value.get("approved") else "rejected",
-                "success": bool(resume_value.get("approved")),
-                "result": {
-                    "status": "success" if resume_value.get("approved") else "rejected",
-                    "message": (
-                        "用户已响应" if resume_value.get("approved") else "用户拒绝了此请求"
-                    ),
-                    "values": resume_value.get("values") or {},
-                },
-                "timestamp": utc_now_iso(),
-            },
-        }
         manager = get_task_manager()
         common_kwargs: dict[str, Any] = {
             "disabled_tools": metadata.get("disabled_tools") or None,

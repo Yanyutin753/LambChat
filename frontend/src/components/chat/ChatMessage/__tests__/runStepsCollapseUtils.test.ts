@@ -211,6 +211,29 @@ describe("getRunElapsedMs", () => {
   test("returns null when no timing information exists", () => {
     expect(getRunElapsedMs({ parts: [text("hi")] } as Message)).toBeNull();
   });
+
+  test("heals stale HITL segment duration with the full parts span", () => {
+    // 旧数据：审批分段计时的 duration 只含最后一段（44s），parts 全跨度 5m48s
+    const message = {
+      duration: 44000,
+      parts: [
+        tool("a", "2026-09-08T13:48:29Z", "2026-09-08T13:48:58Z"),
+        tool("b", "2026-09-08T13:53:33Z", "2026-09-08T13:54:17Z"),
+      ],
+    } as unknown as Message;
+    expect(getRunElapsedMs(message)).toBe(348000);
+  });
+
+  test("keeps message.duration when it already covers the parts span", () => {
+    const message = {
+      duration: 350000,
+      parts: [
+        tool("a", "2026-09-08T13:48:29Z", "2026-09-08T13:48:58Z"),
+        tool("b", "2026-09-08T13:53:33Z", "2026-09-08T13:54:17Z"),
+      ],
+    } as unknown as Message;
+    expect(getRunElapsedMs(message)).toBe(350000);
+  });
 });
 
 describe("getRunStartedAtMs", () => {

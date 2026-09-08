@@ -135,6 +135,35 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         """Return accumulated top-level assistant output text."""
         return self._output_buffer.getvalue()
 
+    def seed_usage(self, prior_usage: dict | None) -> None:
+        """HITL 恢复：把先前分段的累计用量并入计数器。
+
+        恢复分段重新执行节点时计数器从零开始，不 seed 的话最终
+        token:usage（以及取 last 落库的 usage_logs）只含最后一段。
+        """
+        if not isinstance(prior_usage, dict):
+            return
+        if isinstance(prior_usage.get("input_tokens"), int):
+            self.total_input_tokens += prior_usage["input_tokens"]
+        if isinstance(prior_usage.get("output_tokens"), int):
+            self.total_output_tokens += prior_usage["output_tokens"]
+        if isinstance(prior_usage.get("total_tokens"), int):
+            self.total_tokens += prior_usage["total_tokens"]
+        if isinstance(prior_usage.get("cache_creation_tokens"), int):
+            self.total_cache_creation_tokens += prior_usage["cache_creation_tokens"]
+        if isinstance(prior_usage.get("cache_read_tokens"), int):
+            self.total_cache_read_tokens += prior_usage["cache_read_tokens"]
+
+    def usage_totals(self) -> dict:
+        """当前累计用量快照，用于挂起时写入 resume_context 传给下一段。"""
+        return {
+            "input_tokens": self.total_input_tokens,
+            "output_tokens": self.total_output_tokens,
+            "total_tokens": self.total_tokens,
+            "cache_creation_tokens": self.total_cache_creation_tokens,
+            "cache_read_tokens": self.total_cache_read_tokens,
+        }
+
     async def flush(self) -> None:
         """Flush pending stream chunks without clearing counters or output text."""
         await self._flush_chunk_buffer()

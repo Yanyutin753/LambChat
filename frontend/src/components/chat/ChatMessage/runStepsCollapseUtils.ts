@@ -126,20 +126,25 @@ function collectPartTimes(part: MessagePart, times: number[]): void {
 /**
  * 计算 run 总时长：优先 message.duration（token:usage / 历史加载写入），
  * 否则用 parts 中最早 startedAt 与最晚 completedAt 推算。
+ * 旧数据里 HITL 分段计时的 duration 只含最后一次审批恢复后的那段，
+ * 与 parts 全跨度取较大值兜底（新数据的 duration 本就是 run 全程墙钟）。
  */
 export function getRunElapsedMs(
   message: Pick<Message, "duration" | "parts">,
 ): number | null {
+  const times: number[] = [];
+  for (const part of message.parts ?? []) collectPartTimes(part, times);
+  const partsSpanMs =
+    times.length >= 2 ? Math.max(...times) - Math.min(...times) : null;
+
   if (typeof message.duration === "number" && message.duration > 0) {
+    if (partsSpanMs !== null && partsSpanMs > message.duration) {
+      return partsSpanMs;
+    }
     return message.duration;
   }
 
-  const times: number[] = [];
-  for (const part of message.parts ?? []) collectPartTimes(part, times);
-  if (times.length === 0) return null;
-
-  const elapsed = Math.max(...times) - Math.min(...times);
-  return elapsed > 0 ? elapsed : null;
+  return partsSpanMs !== null && partsSpanMs > 0 ? partsSpanMs : null;
 }
 
 /**
