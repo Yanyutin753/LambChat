@@ -89,6 +89,14 @@ def wired(monkeypatch: pytest.MonkeyPatch):
     async def fake_worker_shutdown(ctx: dict) -> None:
         shutdown_calls.append("worker_shutdown")
 
+    async def fake_initialize_settings() -> None:
+        return None
+
+    def fake_validate(s) -> None:
+        return None
+
+    monkeypatch.setattr(worker_main, "initialize_settings", fake_initialize_settings)
+    monkeypatch.setattr(worker_main, "validate_distributed_runtime_settings", fake_validate)
     monkeypatch.setattr(worker_main, "worker_startup", fake_worker_startup)
     monkeypatch.setattr(worker_main, "worker_shutdown", fake_worker_shutdown)
 
@@ -122,6 +130,62 @@ async def test_amain_starts_required_services_with_forced_arq_runtime(wired, mon
     # force=True：绕过 ARQ_EMBEDDED_WORKER（该开关只约束 API 进程）
     assert wired.runtime.started_with == {"force": True}
     assert wired.startup_calls == ["worker_startup"]  # 分布式校验 + loop_bridge 登记
+
+
+async def test_amain_loads_db_settings_before_any_service(wired, monkeypatch):
+    """设置契约（2026-09-09 生产 P0）：worker 必须先 initialize_settings 再起服务。
+
+    worker 只跑 pydantic 默认值时与 API 的 DB 生效值分叉：生产开了
+    SESSION_EVENT_CHUNK_STORAGE_ENABLED，API 写 chunk、worker 走 legacy 内联，
+    事件被 chunk 视图的 merge 覆写蒸发（刷新即丢历史）；SANDBOX_PLATFORM
+    同理回落默认，本地 daemon 身份段（#499）不再注入。分布式校验随设置
+    加载之后执行，对齐 API lifespan（main.py initialize_settings →
+    validate_distributed_runtime_settings）。
+    """
+    order: list[str] = []
+
+    async def fake_initialize_settings() -> None:
+        order.append("initialize_settings")
+
+    def fake_validate(s) -> None:
+        order.append("validate")
+
+    async def fake_lag_monitor() -> None:
+        order.append("lag_monitor")
+
+    monkeypatch.setattr(worker_main, "initialize_settings", fake_initialize_settings)
+    monkeypatch.setattr(worker_main, "validate_distributed_runtime_settings", fake_validate)
+    monkeypatch.setattr(worker_main, "start_event_loop_lag_monitor", fake_lag_monitor)
+
+    async def release_stop(stop: asyncio.Event) -> None:
+        await asyncio.sleep(0.01)
+        stop.set()
+
+    stop = asyncio.Event()
+    done = asyncio.create_task(release_stop(stop))
+    await worker_main._amain(stop)
+    await done
+
+    assert order[:2] == ["initialize_settings", "validate"]
+    assert order.index("initialize_settings") < order.index("lag_monitor")
+    assert wired.runtime.started_with == {"force": True}
+
+
+async def test_amain_settings_init_failure_stops_startup(wired, monkeypatch):
+    """设置加载失败必须快速失败（k8s CrashLoopBackOff 显性暴露），绝不带
+    默认值继续起 worker 吞事件。"""
+
+    async def failing_initialize() -> None:
+        raise RuntimeError("db unreachable")
+
+    monkeypatch.setattr(worker_main, "initialize_settings", failing_initialize)
+
+    stop = asyncio.Event()
+    with pytest.raises(RuntimeError):
+        await worker_main._amain(stop)
+
+    assert wired.runtime.started_with is None  # 未起 worker
+    assert wired.startup_calls == []
 
 
 async def test_amain_shutdown_stops_listeners_and_runtime_in_order(wired, monkeypatch):

@@ -7,6 +7,12 @@
 
 启动面（任务执行在独立进程里依赖的进程内服务，对齐 API lifespan 的最小集）：
 
+- **initialize_settings（首要）**：从数据库加载生效设置（DB > env > 默认），
+  再做分布式配置校验——与 API 进程看到同一份设置。缺了这一步 worker 只跑
+  pydantic 默认值，与 API 的 DB 生效值分叉：生产开
+  SESSION_EVENT_CHUNK_STORAGE_ENABLED 时 API 写 chunk、worker 走 legacy 内联，
+  事件被 chunk 视图的 merge 覆写蒸发（2026-09-09 生产 P0，刷新即丢历史）；
+  SANDBOX_PLATFORM 同理回落默认，本地 daemon 身份段（#499）不再注入；
 - 事件循环滞后监控：观测「重任务饿死循环」的眼睛；
 - task_manager pubsub 监听：分布式取消信号必须到达**执行方**，不启动则用户
   取消不了跑在本进程上的任务；
@@ -30,22 +36,22 @@ import contextlib
 import signal
 from typing import Any, Callable
 
+# 协作者在模块级具名：测试按 monkeypatch worker_main.<name> 注入替身。
+from src.infra.distributed_validation import validate_distributed_runtime_settings  # noqa: E402
+from src.infra.llm.pubsub import get_model_config_pubsub  # noqa: E402
 from src.infra.logging import get_logger
 from src.infra.monitoring.event_loop import start_event_loop_lag_monitor
-from src.kernel.config import settings
+from src.infra.pricing.pubsub import get_pricing_pubsub  # noqa: E402
+from src.infra.settings.pubsub import get_settings_pubsub  # noqa: E402
+from src.infra.tool.cache_pubsub import get_tool_cache_pubsub  # noqa: E402
+from src.infra.tool.mcp_global import get_mcp_cache_pubsub  # noqa: E402
+from src.kernel.config import initialize_settings, settings
 
 from .arq_runtime import get_arq_runtime
 from .arq_worker import worker_shutdown, worker_startup
 from .manager import get_task_manager
 
 logger = get_logger(__name__)
-
-# 协作者在模块级具名：测试按 monkeypatch worker_main.<name> 注入替身。
-from src.infra.llm.pubsub import get_model_config_pubsub  # noqa: E402
-from src.infra.pricing.pubsub import get_pricing_pubsub  # noqa: E402
-from src.infra.settings.pubsub import get_settings_pubsub  # noqa: E402
-from src.infra.tool.cache_pubsub import get_tool_cache_pubsub  # noqa: E402
-from src.infra.tool.mcp_global import get_mcp_cache_pubsub  # noqa: E402
 
 
 def get_memory_pubsub() -> Any:
@@ -111,6 +117,12 @@ async def _amain(stop: asyncio.Event) -> None:
 
     logger.info("standalone arq worker starting (queue=%s)", settings.ARQ_QUEUE_NAME)
     try:
+        # 设置加载必须先于一切服务启动（对齐 API lifespan）：worker 与 API
+        # 看到同一份 DB > env > 默认的生效设置。失败快速退出（k8s
+        # CrashLoopBackOff 显性暴露），绝不带默认值吞事件。
+        await initialize_settings()
+        logger.info("Settings initialized from database")
+        validate_distributed_runtime_settings(settings)
         await start_event_loop_lag_monitor()
         await task_manager.start_pubsub_listener()
         await _start_cache_listeners()
