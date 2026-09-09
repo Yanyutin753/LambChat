@@ -69,28 +69,47 @@ The local sandbox is the user's Mac; `execute` runs commands via /bin/sh (POSIX)
 - Prefer `python3 -c "..."` (embedded interpreter, on PATH) for system introspection and portable work (e.g. memory/CPU info via `os.sysconf`, `platform`, `subprocess`), since Linux-style `/proc` reads do not exist.
 - A command may legitimately fail (non-zero exit); its stdout/stderr come back to you — read the error text and adapt."""
 
+#: 会话级机器绑定段（三平台一律注入，纯尾部追加）：写明本会话 daemon 连接
+#: 的是用户的哪台机器、什么系统。生产会话 d1def0b5 实测：多机用户（Windows
+#: 工作机 + Ubuntu 本机）的 linux 会话没有任何 OS/机器陈述时，模型按记忆
+#: 猜成 Windows，连试三条 Windows 命令全 404 后才靠 uname 自纠——linux 分支
+#: 原本「POSIX 语法天然成立不需方言段」的省略，把 OS 事实也一并省掉了。
+_SANDBOX_LOCAL_MACHINE_BINDING = """### Local Machine Binding
 
-def sandbox_shell_platform_section(daemon_platform: str) -> str:
+This session's daemon is connected to the user's {os_name} machine{machine_label}. Every shell command and file operation runs on that machine: use its OS and path conventions directly, and never guess the OS from memory when the user has more than one machine."""
+
+_OS_NAMES = {"win32": "Windows", "darwin": "macOS", "linux": "Linux"}
+
+
+def sandbox_shell_platform_section(daemon_platform: str, machine_name: str = "") -> str:
     """daemon 上报平台 → 沙箱运行时提示追加段；空串 = 不追加（保持现状）。
 
     平台串是注册表第三段的归一值（win32/linux/darwin）。三个已上报平台都
     注入 _SANDBOX_LOCAL_MACHINE_IDENTITY（沙箱=用户本机的身份与谨慎纪律段）；
-    win32/darwin 另需 shell 方言段。
+    win32/darwin 另需 shell 方言段；三平台一律在最后追加机器绑定段（OS +
+    机器名，机器名第五段缺失时只写 OS）——多机用户不再需要按记忆猜会话
+    连的是哪台机器。
 
-    KV 缓存纪律：方言段字节保持历史原样，身份段一律**尾部追加**——整段文本
-    经 SandboxWorkspaceMiddleware 落在文件工具 description 里、排在逐会话
-    的 {work_dir} 之后，跨会话本就无共享前缀可失；纯追加保证部署时存量
-    会话已缓存的旧字节零失效，新文本只在会话首 turn 一次性多 prefill。
-    空串涵盖云端沙箱、daemon 离线与旧版未上报——一律不加段，云端 prompt
-    逐字节保持现状，也绝不错入 Windows 分支。
+    KV 缓存纪律：方言段与身份段字节保持历史原样，机器绑定段一律**纯尾部
+    追加**——整段文本经 SandboxWorkspaceMiddleware 落在文件工具 description
+    里、排在逐会话的 {work_dir} 之后，跨会话本就无共享前缀可失；纯追加保
+    证部署时存量会话已缓存的旧字节零失效。绑定段随会话内 daemon 目标机稳
+    定（与平台段同语义）。空串涵盖云端沙箱、daemon 离线与旧版未上报——
+    一律不加段，云端 prompt 逐字节保持现状，也绝不错入 Windows 分支。
     """
     if daemon_platform == "win32":
-        return _SANDBOX_SHELL_WIN32 + "\n\n" + _SANDBOX_LOCAL_MACHINE_IDENTITY
-    if daemon_platform == "darwin":
-        return _SANDBOX_SHELL_DARWIN + "\n\n" + _SANDBOX_LOCAL_MACHINE_IDENTITY
-    if daemon_platform == "linux":
-        return _SANDBOX_LOCAL_MACHINE_IDENTITY
-    return ""
+        base = _SANDBOX_SHELL_WIN32 + "\n\n" + _SANDBOX_LOCAL_MACHINE_IDENTITY
+    elif daemon_platform == "darwin":
+        base = _SANDBOX_SHELL_DARWIN + "\n\n" + _SANDBOX_LOCAL_MACHINE_IDENTITY
+    elif daemon_platform == "linux":
+        base = _SANDBOX_LOCAL_MACHINE_IDENTITY
+    else:
+        return ""
+    label = f" ({machine_name})" if machine_name else ""
+    binding = _SANDBOX_LOCAL_MACHINE_BINDING.format(
+        os_name=_OS_NAMES[daemon_platform], machine_label=label
+    )
+    return f"{base}\n\n{binding}"
 
 
 ARTIFACT_POLICY = """### Artifact Delivery

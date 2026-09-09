@@ -991,6 +991,17 @@ async def test_lookup_daemon_platform_defaults_posix_on_error(monkeypatch):
     assert await local_module._lookup_daemon_platform("u1") == ""
 
 
+async def test_lookup_daemon_identity_defaults_empty_pair_on_error(monkeypatch):
+    """机器身份查询失败容错回落 ("", "")——不加绑定信息，不阻断会话。"""
+
+    class _BrokenRegistry:
+        def __init__(self, *args, **kwargs):
+            raise ConnectionError("redis down")
+
+    monkeypatch.setattr(local_module, "SandboxClientRegistry", _BrokenRegistry)
+    assert await local_module._lookup_daemon_identity("u1") == ("", "")
+
+
 def test_upload_files_default_platform_keeps_posix_commands(monkeypatch):
     """无平台信息（旧格式 value/查询失败）→ 命令串与现状逐字节一致。"""
     commands: list[str] = []

@@ -383,6 +383,20 @@ class SandboxClientRegistry:
             return ""
         return parse_daemon_platform(await self.machine_value(user_id, target))
 
+    async def get_machine_identity(
+        self, user_id: str, machine_id: str | None = None
+    ) -> tuple[str, str]:
+        """目标机的（上报平台, 机器展示名），一次解析共用 machine_value。
+
+        离线或旧格式 value（对应段缺失）返回空串成员——调用方（search agent
+        机器绑定段注入）缺什么就不注入什么，与 get_platform 同语义容错。
+        """
+        target = await self.resolve_target(user_id, machine_id)
+        if target is None:
+            return "", ""
+        value = await self.machine_value(user_id, target)
+        return parse_daemon_platform(value), parse_machine_name(value)
+
     async def get_confirm_policy(self, user_id: str, machine_id: str | None = None) -> str:
         """目标机的上报确认策略（all/commands/none）。
 
