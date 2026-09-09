@@ -67,6 +67,7 @@ test("message part renderer routes internal inline tools to dedicated items", ()
     "get_conversation_detail",
     "search_skills",
     "web_search",
+    "web_fetch",
   ];
 
   for (const toolName of expectedRoutes) {
@@ -79,6 +80,7 @@ test("message part renderer routes internal inline tools to dedicated items", ()
   expect(source).toMatch(/<ConversationHistoryItem/);
   expect(source).toMatch(/<SkillSearchItem/);
   expect(source).toMatch(/<WebSearchItem/);
+  expect(source).toMatch(/<WebFetchItem/);
 });
 
 test("every backend internal tool ships a dedicated item route", () => {
@@ -122,6 +124,7 @@ test("every backend internal tool ships a dedicated item route", () => {
     "transfer_path",
     "update_persona_preset",
     "upload_url_to_sandbox",
+    "web_fetch",
     "web_search",
   ]);
 

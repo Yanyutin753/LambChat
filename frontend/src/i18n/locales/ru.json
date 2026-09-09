@@ -1004,6 +1004,12 @@
       "toolWebSearchMore_one": "Ещё {{count}} результат",
       "toolWebSearchMore_other": "Ещё {{count}} результатов",
       "toolWebSearchNoResults": "Ничего не найдено",
+      "toolWebFetch": "Чтение страницы",
+      "toolWebFetchChars": "{{count}} симв.",
+      "toolWebFetchChars_one": "{{count}} симв.",
+      "toolWebFetchChars_other": "{{count}} симв.",
+      "toolWebFetchTruncated": "Обрезано",
+      "toolWebFetchWaiting": "Читаем содержимое страницы…",
       "toolWebSearchResults": "{{count}} результатов",
       "toolWebSearchResults_one": "{{count}} результат",
       "toolWebSearchResults_other": "{{count}} результатов",
@@ -2839,7 +2845,11 @@
     "WELCOME_SUGGESTION_ITEM": "Предложение",
     "WELCOME_SUGGESTION_LANG": "Язык",
     "WELCOME_SUGGESTION_TEXT": "Текст",
-    "LLM_STREAM_IDLE_TIMEOUT": "Максимальный простой в секундах между chunk потокового ответа; застой вышестоящего канала прерывает вызов, а не зависает навсегда (0 или меньше — отключено)"
+    "LLM_STREAM_IDLE_TIMEOUT": "Максимальный простой в секундах между chunk потокового ответа; застой вышестоящего канала прерывает вызов, а не зависает навсегда (0 или меньше — отключено)",
+    "ENABLE_WEB_FETCH": "Включить инструмент чтения веб-страниц: публичные страницы как Markdown (внутренние адреса всегда отклоняются).",
+    "WEB_FETCH_PROVIDER": "Поставщик: direct = локальная загрузка; jina = r.jina.ai (лучше для JS-страниц); auto = direct, затем jina.",
+    "JINA_API_KEYS": "Ключи Jina Reader API, через запятую для ротации. Пусто — jina отключён.",
+    "WEB_FETCH_MAX_CHARS": "Максимум символов на загрузку; лишнее обрезается."
   },
   "settings": {
     "defaultModel": "Модель по умолчанию",

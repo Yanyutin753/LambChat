@@ -1004,6 +1004,12 @@
       "toolWebSearchMore_one": "还有 {{count}} 条结果",
       "toolWebSearchMore_other": "还有 {{count}} 条结果",
       "toolWebSearchNoResults": "未找到结果",
+      "toolWebFetch": "网页阅读",
+      "toolWebFetchChars": "{{count}} 字符",
+      "toolWebFetchChars_one": "{{count}} 字符",
+      "toolWebFetchChars_other": "{{count}} 字符",
+      "toolWebFetchTruncated": "已截断",
+      "toolWebFetchWaiting": "正在读取页面内容…",
       "toolWebSearchResults": "{{count}} 条结果",
       "toolWebSearchResults_one": "{{count}} 条结果",
       "toolWebSearchResults_other": "{{count}} 条结果",
@@ -2839,7 +2845,11 @@
     "WELCOME_SUGGESTION_ITEM": "建议项",
     "WELCOME_SUGGESTION_LANG": "语言",
     "WELCOME_SUGGESTION_TEXT": "文本",
-    "LLM_STREAM_IDLE_TIMEOUT": "流式响应相邻 chunk 之间的最长空闲秒数，防止上游停滞导致运行挂死（0 或负数禁用）"
+    "LLM_STREAM_IDLE_TIMEOUT": "流式响应相邻 chunk 之间的最长空闲秒数，防止上游停滞导致运行挂死（0 或负数禁用）",
+    "ENABLE_WEB_FETCH": "启用网页阅读工具：抓取公网页面正文并转为 Markdown 供模型阅读（内网地址一律拒绝）。",
+    "WEB_FETCH_PROVIDER": "网页阅读供应商：direct 本机抓取提取；jina 走 r.jina.ai（JS 渲染页更稳）；auto 先 direct 再 jina 兜底。",
+    "JINA_API_KEYS": "Jina Reader API keys，英文逗号分隔多 key 轮询（r.jina.ai 免 key 20 RPM，带 key 200 RPM）。留空则 jina 不启用。",
+    "WEB_FETCH_MAX_CHARS": "单次抓取返回的最大字符数，超出截断。"
   },
   "settings": {
     "defaultModel": "默认模型",

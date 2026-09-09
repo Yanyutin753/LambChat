@@ -1004,6 +1004,12 @@
       "toolWebSearchMore_one": "+{{count}} more result",
       "toolWebSearchMore_other": "+{{count}} more results",
       "toolWebSearchNoResults": "No results found",
+      "toolWebFetch": "Web Reader",
+      "toolWebFetchChars": "{{count}} chars",
+      "toolWebFetchChars_one": "{{count}} char",
+      "toolWebFetchChars_other": "{{count}} chars",
+      "toolWebFetchTruncated": "Truncated",
+      "toolWebFetchWaiting": "Reading page content…",
       "toolWebSearchResults": "{{count}} results",
       "toolWebSearchResults_one": "{{count}} result",
       "toolWebSearchResults_other": "{{count}} results",
@@ -2839,7 +2845,11 @@
     "WELCOME_SUGGESTION_ITEM": "Suggestion",
     "WELCOME_SUGGESTION_LANG": "Language",
     "WELCOME_SUGGESTION_TEXT": "Text",
-    "LLM_STREAM_IDLE_TIMEOUT": "Maximum idle seconds between consecutive streaming chunks; an upstream stall fails the call instead of hanging forever (0 or negative = disabled)"
+    "LLM_STREAM_IDLE_TIMEOUT": "Maximum idle seconds between consecutive streaming chunks; an upstream stall fails the call instead of hanging forever (0 or negative = disabled)",
+    "ENABLE_WEB_FETCH": "Enable the web fetch tool: read public pages as markdown for the model (internal addresses always rejected).",
+    "WEB_FETCH_PROVIDER": "Web fetch provider: direct = local fetch & extract; jina = r.jina.ai (better for JS-rendered pages); auto = direct then jina fallback.",
+    "JINA_API_KEYS": "Jina Reader API keys, comma-separated for rotation (r.jina.ai: 20 RPM keyless, 200 RPM with key). Empty disables jina.",
+    "WEB_FETCH_MAX_CHARS": "Max characters returned per fetch; longer content is truncated."
   },
   "settings": {
     "defaultModel": "Default Model",

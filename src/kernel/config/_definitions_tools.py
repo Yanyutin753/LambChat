@@ -346,4 +346,46 @@ TOOLS_SETTING_DEFINITIONS: dict[str, dict] = {
         "depends_on": "ENABLE_WEB_SEARCH",
         "frontend_visible": True,
     },
+    # ============================================
+    # Web Fetch Settings
+    # ============================================
+    "ENABLE_WEB_FETCH": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.TOOLS,
+        "subcategory": "web_fetch",
+        "description": "settingDesc.ENABLE_WEB_FETCH",
+        "default": False,
+        "frontend_visible": True,
+    },
+    "WEB_FETCH_PROVIDER": {
+        "type": SettingType.SELECT,
+        "category": SettingCategory.TOOLS,
+        "subcategory": "web_fetch",
+        "description": "settingDesc.WEB_FETCH_PROVIDER",
+        "default": "auto",
+        "depends_on": "ENABLE_WEB_FETCH",
+        "frontend_visible": True,
+        "options": ["auto", "direct", "jina"],
+    },
+    "JINA_API_KEYS": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.TOOLS,
+        "subcategory": "web_fetch",
+        "description": "settingDesc.JINA_API_KEYS",
+        "default": "",
+        "is_sensitive": True,
+        "depends_on": "ENABLE_WEB_FETCH",
+        "frontend_visible": True,
+    },
+    "WEB_FETCH_MAX_CHARS": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.TOOLS,
+        "subcategory": "web_fetch",
+        "description": "settingDesc.WEB_FETCH_MAX_CHARS",
+        "default": 32768,
+        "min_value": 1024,
+        "max_value": 262144,
+        "depends_on": "ENABLE_WEB_FETCH",
+        "frontend_visible": True,
+    },
 }

@@ -478,6 +478,12 @@ class Settings(BaseSettings):
     SEARXNG_BASE_URL: str = ""
     SEARXNG_API_KEY: str = ""
 
+    # Web fetch tool settings（Jina 多 key 逗号分隔轮询；direct 无需 key）
+    ENABLE_WEB_FETCH: bool = False
+    WEB_FETCH_PROVIDER: str = "auto"
+    JINA_API_KEYS: str = ""
+    WEB_FETCH_MAX_CHARS: int = 32768
+
     # Image analysis tool settings
     ENABLE_IMAGE_ANALYSIS: bool = False
     IMAGE_ANALYSIS_MODEL_ID: str = ""

@@ -64,6 +64,7 @@ dependencies = [
     "pypdfium2>=5.13.0",
     "openpyxl>=3.1.5",
     "langfuse>=3.0.0",
+    "trafilatura>=2.0",
 ]
 
 [dependency-groups]

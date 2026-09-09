@@ -1004,6 +1004,12 @@
       "toolWebSearchMore_one": "+{{count}}개 결과 더",
       "toolWebSearchMore_other": "+{{count}}개 결과 더",
       "toolWebSearchNoResults": "검색 결과가 없습니다",
+      "toolWebFetch": "웹 읽기",
+      "toolWebFetchChars": "{{count}}자",
+      "toolWebFetchChars_one": "{{count}}자",
+      "toolWebFetchChars_other": "{{count}}자",
+      "toolWebFetchTruncated": "잘림",
+      "toolWebFetchWaiting": "페이지 본문을 읽는 중…",
       "toolWebSearchResults": "결과 {{count}}개",
       "toolWebSearchResults_one": "결과 {{count}}개",
       "toolWebSearchResults_other": "결과 {{count}}개",
@@ -2839,7 +2845,11 @@
     "WELCOME_SUGGESTION_ITEM": "제안",
     "WELCOME_SUGGESTION_LANG": "언어",
     "WELCOME_SUGGESTION_TEXT": "텍스트",
-    "LLM_STREAM_IDLE_TIMEOUT": "스트리밍 chunk 사이의 최대 유휴 시간(초). 업스트림 정체로 실행이 멈추는 것을 방지(0 이하는 비활성화)"
+    "LLM_STREAM_IDLE_TIMEOUT": "스트리밍 chunk 사이의 최대 유휴 시간(초). 업스트림 정체로 실행이 멈추는 것을 방지(0 이하는 비활성화)",
+    "ENABLE_WEB_FETCH": "웹 패치 도구 활성화: 공개 페이지 본문을 Markdown으로 읽어옵니다(내부 주소는 항상 거부).",
+    "WEB_FETCH_PROVIDER": "패치 공급자: direct=로컬 가져오기, jina=r.jina.ai(JS 렌더링 페이지에 유리), auto=direct 후 jina 폴백.",
+    "JINA_API_KEYS": "Jina Reader API 키, 쉼표로 구분하여 로테이션. 비워두면 jina 비활성화.",
+    "WEB_FETCH_MAX_CHARS": "패치당 반환 최대 문자 수. 초과분은 잘립니다."
   },
   "settings": {
     "defaultModel": "기본 모델",
