@@ -495,6 +495,8 @@ class Settings(BaseSettings):
     IMAGE_ANALYSIS_MODEL_ID: str = ""
     IMAGE_ANALYSIS_MAX_ATTEMPTS: int = 3
     IMAGE_ANALYSIS_RETRY_DELAY: float = 1.0
+    # 视频分析复用 IMAGE_ANALYSIS_MODEL_ID 的 VLM；字节上限硬限（base64 ×4/3）
+    VIDEO_ANALYSIS_MAX_BYTES: int = 50 * 1024 * 1024
 
     # Image generation tool settings
     ENABLE_IMAGE_GENERATION: bool = False

@@ -17,6 +17,7 @@ import {
   EvalItem,
   ImageGenerateItem,
   ImageAnalyzeItem,
+  VideoAnalyzeItem,
   AudioTranscribeItem,
   UploadUrlToSandboxItem,
   TransferItem,
@@ -297,6 +298,20 @@ export function MessagePartRenderer({
     if (part.name === "image_analyze") {
       return (
         <ImageAnalyzeItem
+          id={part.id}
+          args={toolArgs}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (part.name === "video_analyze") {
+      return (
+        <VideoAnalyzeItem
           id={part.id}
           args={toolArgs}
           result={part.result}

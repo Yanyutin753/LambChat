@@ -112,6 +112,7 @@ export { FileRevealItem } from "./items/FileRevealItem";
 export { ProjectRevealItem } from "./items/ProjectRevealItem";
 export { ImageGenerateItem } from "./items/ImageGenerateItem";
 export { ImageAnalyzeItem } from "./items/ImageAnalyzeItem";
+export { VideoAnalyzeItem } from "./items/VideoAnalyzeItem";
 export { AudioTranscribeItem } from "./items/AudioTranscribeItem";
 export { UploadUrlToSandboxItem } from "./items/UploadUrlToSandboxItem";
 export { TransferItem } from "./items/TransferItem";

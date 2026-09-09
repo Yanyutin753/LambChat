@@ -21,6 +21,7 @@ from src.infra.tool.mcp_client import MCPToolWithRetry
 from src.infra.tool.persona_preset_tool import get_persona_preset_tools
 from src.infra.tool.scheduled_task import get_scheduled_task_tools
 from src.infra.tool.team_tool import get_team_tools
+from src.infra.tool.video_analysis_tool import get_video_analysis_tool
 from src.infra.tool.web_fetch_tool import get_web_fetch_tool
 from src.infra.tool.web_search_tool import get_web_search_tool
 from src.kernel.config import settings
@@ -51,6 +52,8 @@ def build_internal_tools() -> list[BaseTool]:
 
     if settings.ENABLE_IMAGE_ANALYSIS:
         tools.append(get_image_analysis_tool())
+        # 视频分析同一 VLM 能力族（video_url 块），同一开关门控
+        tools.append(get_video_analysis_tool())
 
     if settings.ENABLE_IMAGE_GENERATION:
         tools.append(get_image_generation_tool())

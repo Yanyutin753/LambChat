@@ -223,6 +223,17 @@ TOOLS_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": 3,
         "depends_on": "ENABLE_IMAGE_ANALYSIS",
     },
+    "VIDEO_ANALYSIS_MAX_BYTES": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.TOOLS,
+        "subcategory": "image_analysis",
+        "description": "settingDesc.VIDEO_ANALYSIS_MAX_BYTES",
+        "default": 52428800,
+        "min_value": 1048576,
+        "max_value": 209715200,
+        "depends_on": "ENABLE_IMAGE_ANALYSIS",
+        "frontend_visible": True,
+    },
     "IMAGE_ANALYSIS_RETRY_DELAY": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.TOOLS,
