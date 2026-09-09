@@ -28,6 +28,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from urllib.parse import urlsplit
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))  # src.* 可导入
@@ -84,6 +85,10 @@ def ensure_backend() -> subprocess.Popen | None:
         print(f"[env] 后端已在运行：{SERVER}")
         return None
     except Exception:
+        parsed = urlsplit(SERVER)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise RuntimeError(f"E2E_SANDBOX_SERVER must be an HTTP URL: {SERVER}")
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
         proc = subprocess.Popen(
             [
                 sys.executable,
@@ -91,9 +96,9 @@ def ensure_backend() -> subprocess.Popen | None:
                 "uvicorn",
                 "src.api.main:app",
                 "--host",
-                "127.0.0.1",
+                parsed.hostname,
                 "--port",
-                "8000",
+                str(port),
             ],
             cwd=REPO,
             stdout=open("/tmp/e2e-backend.log", "w"),
