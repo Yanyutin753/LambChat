@@ -466,6 +466,7 @@ async def test_submit_resume_submits_run_with_hitl_payload(fake_redis, monkeypat
     assert submitted["kwargs"]["hitl_resume"]["approval_resolved"] == {
         "id": "approval-1",
         "tool_call_id": None,
+        "tool_call_ids": [],
         "interrupt_id": "interrupt-a",
         "status": "approved",
         "success": True,

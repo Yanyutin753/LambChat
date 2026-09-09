@@ -56,6 +56,8 @@ export interface EventData {
   agent_avatar?: string;
   tool?: string;
   tool_call_id?: string;
+  /** 沙箱确认门整批复批：全部受控执行卡的 tool_call_id 集合 */
+  tool_call_ids?: string[];
   args?: Record<string, unknown>;
   result?: string | Record<string, unknown>;
   artifact?: Record<string, unknown>;

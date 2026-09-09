@@ -255,6 +255,9 @@ class SandboxConfirmMiddleware(AgentMiddleware):
                 "origin": "sandbox_confirm",
                 "message": message,
                 "fields": [],
+                # 各自 tool_call_id：物化层聚合进审批 metadata，approval_resolved
+                # 回执据此终结聊天里的执行工具卡（缺失则点忽略后卡永远无 result）
+                "tool_call_id": str(tool_call.get("id", "") or ""),
             }
         )
         approved = bool(isinstance(resume_value, dict) and resume_value.get("approved"))
