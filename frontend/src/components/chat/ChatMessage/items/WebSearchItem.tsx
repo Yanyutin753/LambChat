@@ -1,6 +1,7 @@
 import { memo, useCallback, useMemo, useState } from "react";
 import { Globe, ImageIcon, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { clsx } from "clsx";
 import { CollapsiblePill, ImageViewer } from "../../../common";
 import { ImageWithSkeleton } from "../ImageWithSkeleton";
 import {
@@ -27,13 +28,42 @@ function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
-/** favicon：优先后端直出的 favicon_url，否则走 Google S2，失败回退图标。 */
+/** 供应商识别色点：不同搜索源一眼可辨 */
+const PROVIDER_DOTS: Record<string, string> = {
+  tavily: "bg-sky-400",
+  brave: "bg-orange-400",
+  searxng: "bg-violet-400",
+};
+
+function ProviderBadge({ provider, className }: { provider: string; className?: string }) {
+  if (!provider) return null;
+  return (
+    <span
+      className={clsx(
+        "inline-flex items-center gap-1.5 rounded-md bg-theme-bg-card px-2 py-0.5 text-10 font-medium text-theme-text-secondary ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_14%,var(--theme-border))]",
+        className,
+      )}
+    >
+      <span
+        className={clsx(
+          "size-1.5 rounded-full",
+          PROVIDER_DOTS[provider] ?? "bg-theme-text-tertiary",
+        )}
+      />
+      {provider}
+    </span>
+  );
+}
+
+/** favicon：后端直出优先，否则 Google S2，失败回退图标；外面套主题色容器更精致 */
 function ResultFavicon({
   item,
   size = 14,
+  boxed = false,
 }: {
   item: WebSearchResultItem;
   size?: number;
+  boxed?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
   const host = hostFromUrl(item.url);
@@ -41,12 +71,9 @@ function ResultFavicon({
     item.faviconUrl ||
     (host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null);
 
-  if (failed || !src) {
-    return (
-      <Globe size={size} className="shrink-0 text-theme-text-tertiary opacity-70" />
-    );
-  }
-  return (
+  const icon = failed || !src ? (
+    <Globe size={size} className="shrink-0 text-theme-text-tertiary opacity-70" />
+  ) : (
     <img
       src={src}
       width={size}
@@ -58,9 +85,34 @@ function ResultFavicon({
       className="shrink-0 rounded-[3px]"
     />
   );
+
+  if (!boxed) return icon;
+  return (
+    <span className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-theme-bg-card ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_10%,var(--theme-border))]">
+      {icon}
+    </span>
+  );
 }
 
-/** 摘要 chips：供应商 + 结果数 + 图片数 */
+/** 相关性分数：主题色深浅分档的迷你徽章 */
+function ScoreBadge({ score }: { score: number }) {
+  const pct = Math.min(Math.round(score * 100), 100);
+  const strong = pct >= 80;
+  return (
+    <span
+      className={clsx(
+        "inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-10 font-semibold tabular-nums",
+        strong
+          ? "bg-[color-mix(in_srgb,var(--theme-primary)_10%,transparent)] text-[var(--theme-primary)]"
+          : "text-theme-text-tertiary bg-[color-mix(in_srgb,var(--theme-text-tertiary)_10%,transparent)]",
+      )}
+    >
+      {pct}
+    </span>
+  );
+}
+
+/** 摘要 chips：结果数（主题色）+ 供应商 + 图片数 */
 function WebSearchSummaryChips({
   summary,
   size,
@@ -73,27 +125,22 @@ function WebSearchSummaryChips({
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
       <span
-        className={`inline-flex items-center gap-1 rounded-md font-medium text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 ring-1 ring-sky-200/60 dark:ring-sky-800/40 ${
-          compact ? "px-1.5 py-0.5 text-10" : "px-2 py-0.5 text-11"
-        }`}
+        className={clsx(
+          "inline-flex items-center gap-1 rounded-md font-medium",
+          "bg-[color-mix(in_srgb,var(--theme-primary)_9%,transparent)] text-[var(--theme-primary)] ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_16%,transparent)]",
+          compact ? "px-1.5 py-0.5 text-10" : "px-2 py-0.5 text-11",
+        )}
       >
         <Globe size={compact ? 9 : 10} className="shrink-0 opacity-70" />
         {t("chat.message.toolWebSearchResults", { count: summary.results.length })}
       </span>
-      {summary.provider && (
-        <span
-          className={`inline-flex items-center rounded-md font-medium text-theme-text-secondary bg-theme-bg-card ring-1 ring-theme-border ${
-            compact ? "px-1.5 py-0.5 text-10" : "px-2 py-0.5 text-11"
-          }`}
-        >
-          {summary.provider}
-        </span>
-      )}
+      {summary.provider && <ProviderBadge provider={summary.provider} />}
       {summary.images.length > 0 && (
         <span
-          className={`inline-flex items-center gap-1 rounded-md font-medium text-theme-text-secondary bg-theme-bg-card ring-1 ring-theme-border ${
-            compact ? "px-1.5 py-0.5 text-10" : "px-2 py-0.5 text-11"
-          }`}
+          className={clsx(
+            "inline-flex items-center gap-1 rounded-md font-medium text-theme-text-secondary bg-theme-bg-card ring-1 ring-theme-border",
+            compact ? "px-1.5 py-0.5 text-10" : "px-2 py-0.5 text-11",
+          )}
         >
           <ImageIcon size={compact ? 9 : 10} className="shrink-0 opacity-70" />
           {t("chat.message.toolWebSearchImages", { count: summary.images.length })}
@@ -123,21 +170,28 @@ function WebSearchDetail({ args, result }: ToolDetailProps) {
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col space-y-3 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
-      {query && (
-        <ToolArgsBlock size="detail">
-          <Globe size={14} className="shrink-0 text-sky-500 dark:text-sky-400" />
-          <span className="text-sky-600 dark:text-sky-400 font-mono font-semibold">
-            {query}
+    <div className="flex h-full min-h-0 flex-col space-y-3.5 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
+      {/* 查询 hero：主题色染色 + 光晕，面板的视觉锚点 */}
+      {(query || summary?.provider) && (
+        <div className="flex items-center gap-2.5 rounded-xl border border-[color-mix(in_srgb,var(--theme-primary)_16%,var(--theme-border))] bg-[color-mix(in_srgb,var(--theme-primary)_7%,var(--theme-bg-card))] px-3 py-2.5 shadow-[0_10px_24px_-22px_color-mix(in_srgb,var(--theme-primary)_45%,transparent)]">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--theme-primary)_12%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_18%,transparent)]">
+            <Globe
+              size={14}
+              className="shrink-0 text-[var(--theme-primary)]"
+            />
           </span>
-        </ToolArgsBlock>
+          <span className="text-14 font-semibold text-theme-text min-w-0 truncate flex-1">
+            {query || t("chat.message.toolWebSearch")}
+          </span>
+          {summary?.provider && <ProviderBadge provider={summary.provider} />}
+        </div>
       )}
 
       {summary && <WebSearchSummaryChips summary={summary} size="detail" />}
 
       {summary?.answer && (
-        <div className="rounded-xl border border-sky-200/60 dark:border-sky-800/40 bg-sky-50/70 dark:bg-sky-950/30 px-3.5 py-3">
-          <div className="flex items-center gap-1.5 text-11 font-semibold text-sky-700 dark:text-sky-300">
+        <div className="rounded-xl border border-[color-mix(in_srgb,var(--theme-primary)_12%,var(--theme-border))] bg-[color-mix(in_srgb,var(--theme-primary)_4%,var(--theme-bg-card))] px-3.5 py-3">
+          <div className="flex items-center gap-1.5 text-11 font-semibold text-[var(--theme-primary)]">
             <Sparkles size={12} className="shrink-0 opacity-70" />
             {t("chat.message.toolWebSearchAnswer")}
           </div>
@@ -155,7 +209,7 @@ function WebSearchDetail({ args, result }: ToolDetailProps) {
 
       {summary && summary.results.length > 0 && (
         <div className="space-y-2">
-          {summary.results.map((item) => {
+          {summary.results.map((item, index) => {
             const host = hostFromUrl(item.url);
             return (
               <a
@@ -163,31 +217,32 @@ function WebSearchDetail({ args, result }: ToolDetailProps) {
                 href={item.url}
                 target="_blank"
                 rel="noreferrer"
-                className="block rounded-xl bg-theme-bg border border-theme-border px-3.5 py-3 space-y-1.5 shadow-[0_1px_2px_rgb(0_0_0/0.04)] hover:border-sky-300 dark:hover:border-sky-700 transition-colors"
+                className="group/card flex gap-2.5 rounded-xl bg-theme-bg border border-theme-border px-3 py-2.5 transition-all duration-200 hover:border-[color-mix(in_srgb,var(--theme-primary)_32%,var(--theme-border))] hover:shadow-[0_12px_28px_-24px_color-mix(in_srgb,var(--theme-primary)_42%,transparent)]"
               >
-                <div className="flex items-center gap-2 min-w-0">
-                  <ResultFavicon item={item} />
-                  <span className="text-14 font-semibold text-theme-text truncate flex-1">
-                    {item.title || host || item.url}
-                  </span>
-                  {item.score !== null && (
-                    <span className="shrink-0 text-10 text-theme-text-tertiary font-mono">
-                      {Math.round(item.score * 100)}%
+                <span className="flex w-4 shrink-0 items-start justify-center pt-1 text-10 font-mono font-semibold tabular-nums text-theme-text-tertiary">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <ResultFavicon item={item} boxed />
+                    <span className="text-13 font-semibold text-theme-text truncate flex-1 group-hover/card:text-[var(--theme-primary)] transition-colors">
+                      {item.title || host || item.url}
                     </span>
+                    {item.score !== null && <ScoreBadge score={item.score} />}
+                  </div>
+                  {(host || item.publishedDate) && (
+                    <div className="text-10 text-sky-700/80 dark:text-sky-300/70 truncate font-mono">
+                      {host}
+                      {host && item.publishedDate ? " · " : ""}
+                      {item.publishedDate ?? ""}
+                    </div>
+                  )}
+                  {item.snippet && (
+                    <p className="text-12 text-theme-text-secondary leading-relaxed line-clamp-2">
+                      {truncate(item.snippet, 320)}
+                    </p>
                   )}
                 </div>
-                {(host || item.publishedDate) && (
-                  <div className="text-10 text-theme-text-tertiary truncate font-mono">
-                    {host}
-                    {host && item.publishedDate ? " · " : ""}
-                    {item.publishedDate ?? ""}
-                  </div>
-                )}
-                {item.snippet && (
-                  <p className="text-12 text-theme-text-secondary leading-relaxed line-clamp-2">
-                    {truncate(item.snippet, 320)}
-                  </p>
-                )}
               </a>
             );
           })}
@@ -206,7 +261,7 @@ function WebSearchDetail({ args, result }: ToolDetailProps) {
                 key={`${image.url}-${index}`}
                 type="button"
                 onClick={() => openImagePreview(image.url)}
-                className="group/img relative rounded-xl overflow-hidden border border-theme-border hover:border-sky-300 dark:hover:border-sky-700 transition-colors cursor-zoom-in"
+                className="group/img relative rounded-xl overflow-hidden border border-theme-border hover:border-[color-mix(in_srgb,var(--theme-primary)_36%,var(--theme-border))] hover:shadow-[0_12px_28px_-22px_color-mix(in_srgb,var(--theme-primary)_45%,transparent)] transition-all duration-200 cursor-zoom-in"
               >
                 <ImageWithSkeleton
                   src={image.url}
@@ -215,6 +270,9 @@ function WebSearchDetail({ args, result }: ToolDetailProps) {
                   inline
                   className="w-full aspect-[4/3] object-cover"
                 />
+                <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/50 text-white text-9 font-medium tabular-nums">
+                  #{index + 1}
+                </div>
                 {image.description && (
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-2 pb-1.5 pt-4 opacity-0 group-hover/img:opacity-100 transition-opacity">
                     <span className="block text-white/90 text-10 leading-snug line-clamp-2 text-left drop-shadow-sm">
@@ -289,9 +347,14 @@ const WebSearchItem = memo(function WebSearchItem({
         : "error";
 
   const titleLabel = t("chat.message.toolWebSearch");
-  const pillLabel = `${titleLabel} ${query ? `"${truncate(query, 24)}"` : ""}${
-    summary && summary.results.length > 0 ? ` (${summary.results.length})` : ""
-  }`.trim();
+  const pillLabel = `${titleLabel} ${query ? `"${truncate(query, 24)}"` : ""}`.trim();
+  // 结果数走 suffix 徽章，pill 主标签保持干净
+  const countSuffix =
+    summary && summary.results.length > 0 ? (
+      <span className="inline-flex shrink-0 items-center rounded-full bg-black/[0.06] dark:bg-white/10 px-1.5 text-9 font-semibold tabular-nums opacity-80">
+        {summary.results.length}
+      </span>
+    ) : undefined;
 
   // 进行中：标签平滑流出正在生成的参数尾部
   const { label, isStreamingLabel } = useToolStreamingLabel(pillLabel, args, {
@@ -317,6 +380,7 @@ const WebSearchItem = memo(function WebSearchItem({
         status={status}
         icon={<Globe size={12} className="shrink-0 opacity-50" />}
         label={label}
+        suffix={countSuffix}
         animatedDots={isStreamingLabel}
         variant="tool"
         formatLabel={false}
@@ -343,9 +407,9 @@ const WebSearchItem = memo(function WebSearchItem({
               <ToolArgsBlock size="compact">
                 <Globe
                   size={12}
-                  className="shrink-0 text-sky-500 dark:text-sky-400"
+                  className="shrink-0 text-[var(--theme-primary)]"
                 />
-                <span className="text-sky-600 dark:text-sky-400 font-mono font-medium min-w-0 truncate">
+                <span className="text-[color-mix(in_srgb,var(--theme-primary)_78%,var(--theme-text))] font-mono font-medium min-w-0 truncate">
                   {truncate(query, 50)}
                 </span>
               </ToolArgsBlock>
@@ -355,16 +419,19 @@ const WebSearchItem = memo(function WebSearchItem({
 
             {summary && summary.results.length > 0 && (
               <div className="space-y-1">
-                {summary.results.slice(0, 3).map((item) => (
+                {summary.results.slice(0, 3).map((item, index) => (
                   <div
                     key={item.url}
-                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-theme-bg border border-theme-border"
+                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-theme-bg border border-theme-border hover:border-[color-mix(in_srgb,var(--theme-primary)_28%,var(--theme-border))] transition-colors"
                   >
+                    <span className="w-3 shrink-0 text-10 font-mono font-semibold tabular-nums text-theme-text-tertiary text-center">
+                      {index + 1}
+                    </span>
                     <ResultFavicon item={item} size={11} />
                     <span className="text-12 text-theme-text font-medium min-w-0 truncate flex-1">
                       {item.title || hostFromUrl(item.url) || item.url}
                     </span>
-                    <span className="shrink-0 text-10 text-theme-text-tertiary truncate max-w-[110px] font-mono">
+                    <span className="shrink-0 text-10 text-sky-700/80 dark:text-sky-300/70 truncate max-w-[110px] font-mono">
                       {hostFromUrl(item.url)}
                     </span>
                   </div>
