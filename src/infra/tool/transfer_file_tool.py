@@ -20,6 +20,7 @@ Transfer File / Transfer Path 工具
 - 目录深度/文件数限制（深度 5 层，500 文件）
 """
 
+import asyncio
 import inspect
 import json
 import os
@@ -132,6 +133,10 @@ MAX_RECURSION_DEPTH = 5
 MAX_BATCH_FILES = 500
 # 工具响应中最多返回的逐文件明细数，避免大批量传输把 LLM 消息体撑爆。
 TRANSFER_PATH_RESULT_FILE_LIMIT = 100
+# 目录传输的并发度：串行逐文件往返在多文件技能上单次工具调用可达数分钟
+# 零事件（生产事故 2026-09-09：100 文件技能 2.5 分钟界面完全静默），
+# 有界并发把静默窗口压到与一次模型回合同量级。
+TRANSFER_PATH_CONCURRENCY = 8
 
 
 # ==========================================
@@ -272,7 +277,8 @@ async def _download_from_backend(backend: Any, file_path: str) -> Optional[bytes
             responses = await backend.adownload_files([file_path])
             if responses:
                 resp = responses[0]
-                if resp.content:
+                # 空文件（b""）是合法内容，不得误判为缺失落入同步 fallback
+                if resp.content is not None:
                     return resp.content
                 if resp.error:
                     logger.warning(f"[transfer_file] Download error for {file_path}: {resp.error}")
@@ -284,7 +290,7 @@ async def _download_from_backend(backend: Any, file_path: str) -> Optional[bytes
             responses = await run_blocking_io(backend.download_files, [file_path])
             if responses:
                 resp = responses[0]
-                if resp.content:
+                if resp.content is not None:
                     return resp.content
                 if resp.error:
                     logger.warning(f"[transfer_file] Download error for {file_path}: {resp.error}")
@@ -592,117 +598,93 @@ async def transfer_path(
             }
         )
 
-    # 4. 逐个传输
-    results: list[dict[str, Any]] = []
+    # 4. 有界并发传输（结果按 file_paths 顺序汇总，配额经锁原子累加）
     total_size = 0
-    transferred = 0
-    skipped = 0
-    failed = 0
-    files_omitted = 0
+    budget_lock = asyncio.Lock()
+    semaphore = asyncio.Semaphore(TRANSFER_PATH_CONCURRENCY)
+    source_dir_stripped = source_dir.rstrip("/")
 
-    for file_path, known_size in file_paths:
+    async def _transfer_one(file_path: str, known_size: int | None) -> dict[str, Any]:
+        nonlocal total_size
         filename = file_path.rsplit("/", 1)[-1]
 
         # 计算相对路径，映射到目标
         rel_path = file_path
-        source_dir_stripped = source_dir.rstrip("/")
         if file_path.startswith(source_dir_stripped):
             rel_path = file_path[len(source_dir_stripped) :].lstrip("/")
         target_path = f"{target_base}/{rel_path}" if rel_path else f"{target_base}/{filename}"
 
         size_err = _check_known_file_size(known_size, filename)
         if size_err:
-            files_omitted = _append_transfer_result(
-                results,
-                {"file": file_path, "status": "skipped", "error": size_err},
-                files_omitted,
-            )
-            skipped += 1
-            continue
-        if known_size is not None and total_size + known_size > MAX_BATCH_SIZE:
-            files_omitted = _append_transfer_result(
-                results,
-                {
+            return {"file": file_path, "status": "skipped", "error": size_err}
+
+        async with semaphore:
+            # 已知大小时先做批量配额预检（无 IO）
+            if known_size is not None and total_size + known_size > MAX_BATCH_SIZE:
+                return {
                     "file": file_path,
                     "status": "skipped",
                     "error": (
                         f"batch size limit exceeded ({total_size + known_size} > {MAX_BATCH_SIZE})"
                     ),
-                },
-                files_omitted,
-            )
-            skipped += 1
-            continue
+                }
 
-        # 下载
-        try:
-            content = await _download_from_backend(backend, file_path)
-        except Exception as e:
-            logger.warning(f"[transfer_path] Download failed for {file_path}: {e}")
-            files_omitted = _append_transfer_result(
-                results,
-                {"file": file_path, "status": "failed", "error": str(e)},
-                files_omitted,
-            )
-            failed += 1
-            continue
+            # 下载
+            try:
+                content = await _download_from_backend(backend, file_path)
+            except Exception as e:
+                logger.warning(f"[transfer_path] Download failed for {file_path}: {e}")
+                return {"file": file_path, "status": "failed", "error": str(e)}
 
-        if content is None:
-            files_omitted = _append_transfer_result(
-                results,
-                {"file": file_path, "status": "skipped", "error": "file not found or empty"},
-                files_omitted,
-            )
-            skipped += 1
-            continue
+            if content is None:
+                return {"file": file_path, "status": "skipped", "error": "file not found or empty"}
 
-        # 文件校验
-        validation_err = _validate_text_file(filename, content)
-        if validation_err:
-            files_omitted = _append_transfer_result(
-                results,
-                {"file": file_path, "status": "skipped", "error": validation_err},
-                files_omitted,
-            )
-            skipped += 1
-            continue
+            # 文件校验
+            validation_err = _validate_text_file(filename, content)
+            if validation_err:
+                return {"file": file_path, "status": "skipped", "error": validation_err}
 
-        # 总大小检查
-        total_size += len(content)
-        if total_size > MAX_BATCH_SIZE:
-            files_omitted = _append_transfer_result(
-                results,
-                {
+            # 下载后按实际大小做批量配额（锁内原子累加，防止并发超发）
+            async with budget_lock:
+                over_budget = total_size + len(content) > MAX_BATCH_SIZE
+                if not over_budget:
+                    total_size += len(content)
+            if over_budget:
+                return {
                     "file": file_path,
                     "status": "skipped",
-                    "error": f"batch size limit exceeded ({total_size} > {MAX_BATCH_SIZE})",
-                },
-                files_omitted,
-            )
-            skipped += 1
-            continue
+                    "error": f"batch size limit exceeded ({total_size + len(content)} > {MAX_BATCH_SIZE})",
+                }
 
-        # 上传
-        upload_err = await _upload_to_backend_with_retry(backend, target_path, content)
-        if upload_err:
-            files_omitted = _append_transfer_result(
-                results,
-                {"file": file_path, "status": "failed", "error": upload_err},
-                files_omitted,
-            )
-            failed += 1
-        else:
-            files_omitted = _append_transfer_result(
-                results,
-                {
-                    "file": file_path,
-                    "status": "transferred",
-                    "target": target_path,
-                    "size": len(content),
-                },
-                files_omitted,
-            )
+            # 上传
+            upload_err = await _upload_to_backend_with_retry(backend, target_path, content)
+            if upload_err:
+                return {"file": file_path, "status": "failed", "error": upload_err}
+            return {
+                "file": file_path,
+                "status": "transferred",
+                "target": target_path,
+                "size": len(content),
+            }
+
+    file_records = await asyncio.gather(
+        *(_transfer_one(file_path, known_size) for file_path, known_size in file_paths)
+    )
+
+    results: list[dict[str, Any]] = []
+    transferred = 0
+    skipped = 0
+    failed = 0
+    files_omitted = 0
+    for record in file_records:
+        status = record["status"]
+        if status == "transferred":
             transferred += 1
+        elif status == "skipped":
+            skipped += 1
+        else:
+            failed += 1
+        files_omitted = _append_transfer_result(results, record, files_omitted)
 
     logger.info(
         f"[transfer_path] {source_dir} -> {target_base}/ "

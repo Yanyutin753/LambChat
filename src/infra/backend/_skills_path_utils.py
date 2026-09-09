@@ -11,6 +11,7 @@ Contains:
 import asyncio
 import re
 
+from src.infra.async_utils import loop_bridge
 from src.infra.logging import get_logger
 from src.infra.skill.storage import SkillStorage
 
@@ -41,22 +42,28 @@ def _run_async(coro):
     """
     在同步上下文中安全地运行异步协程。
 
-    如果没有运行中的事件循环 → 使用 asyncio.run()
-    如果已有运行中的事件循环 → 报错，要求调用方使用异步 API
+    如果没有运行中的事件循环 → 经 loop_bridge 投递到已登记的进程主循环
+    （API lifespan / arq worker 启动时登记），未登记时退回 asyncio.run()；
+    如果已有运行中的事件循环 → 报错，要求调用方使用异步 API。
+
+    背景（生产事故 2026-09-09，会话 7ffcfc36）：同步包装经 asyncio.run 在
+    blocking-io 线程里临时建循环执行协程，而全局缓存的 SkillStorage（Motor）
+    绑定 worker 主循环——跨循环复用报 ``got Future attached to a different
+    loop``，transfer_path 下载 fallback 直接失败、文件被静默跳过。统一投递到
+    主循环后共享存储全部收敛到同一循环。
     """
     try:
-        loop = asyncio.get_running_loop()
+        asyncio.get_running_loop()
     except RuntimeError:
-        loop = None
-
-    if loop is not None and loop.is_running():
+        pass
+    else:
         coro.close()
         raise RuntimeError(
             "SkillsStoreBackend synchronous API cannot run inside an active event loop; "
             "use the async backend methods instead."
         )
 
-    return asyncio.run(coro)
+    return loop_bridge.run_coro_sync(coro)
 
 
 def normalize_path(path: str) -> str:

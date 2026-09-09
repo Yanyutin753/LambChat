@@ -1,3 +1,4 @@
+import asyncio
 import json
 from types import SimpleNamespace
 
@@ -439,3 +440,188 @@ async def test_transfer_path_retries_transient_upload_failure_per_file() -> None
     assert result["success"] is True
     assert result["transferred"] == 1
     assert result["failed"] == 0
+
+
+@pytest.mark.asyncio
+async def test_download_from_backend_returns_empty_file_content() -> None:
+    """空文件（content=b""）是合法内容，不得误判为缺失后落入同步 fallback。"""
+
+    class _EmptyFileBackend:
+        def __init__(self) -> None:
+            self.sync_download_called = False
+
+        async def adownload_files(self, paths: list[str]):
+            return [SimpleNamespace(content=b"", error=None)]
+
+        def download_files(self, paths: list[str]):
+            self.sync_download_called = True
+            raise RuntimeError("sync fallback must not run when async path succeeded")
+
+    backend = _EmptyFileBackend()
+    content = await transfer_file_tool._download_from_backend(backend, "/skills/demo/__init__.py")
+
+    assert content == b""
+    assert backend.sync_download_called is False
+
+
+@pytest.mark.asyncio
+async def test_transfer_path_transfers_empty_file_instead_of_skipping() -> None:
+    class _EmptyFileBackend:
+        async def als(self, path: str) -> LsResult:
+            if path == "/skills/demo":
+                return LsResult(
+                    entries=[{"path": "/skills/demo/__init__.py", "is_dir": False}]
+                )
+            return LsResult(entries=[])
+
+        async def adownload_files(self, paths):
+            return [SimpleNamespace(content=b"", error=None)]
+
+        async def aupload_files(self, files):
+            return [SimpleNamespace(error=None) for _f in files]
+
+    result = json.loads(
+        await transfer_file_tool.transfer_path.coroutine(
+            source_dir="/skills/demo",
+            target_prefix="/workspace/w1/",
+            runtime=_Runtime(_EmptyFileBackend()),
+        )
+    )
+
+    assert result["success"] is True
+    assert result["transferred"] == 1
+    assert result["skipped"] == 0
+    assert result["files"][0]["size"] == 0
+
+
+@pytest.mark.asyncio
+async def test_transfer_path_transfers_files_concurrently() -> None:
+    """多文件目录并发下载：串行实现会在栅栏处超时失败。"""
+    root = "/skills/big"
+    need = 4
+
+    class _ConcurrentBackend:
+        def __init__(self) -> None:
+            self.in_flight = 0
+            self.max_in_flight = 0
+            self.gate = asyncio.Event()
+
+        async def als(self, path: str) -> LsResult:
+            if path == root:
+                return LsResult(
+                    entries=[
+                        {"path": f"{root}/file-{index}.txt", "is_dir": False}
+                        for index in range(need)
+                    ]
+                )
+            return LsResult(entries=[])
+
+        async def adownload_files(self, paths):
+            self.in_flight += 1
+            self.max_in_flight = max(self.max_in_flight, self.in_flight)
+            if self.in_flight >= need:
+                self.gate.set()
+            try:
+                await asyncio.wait_for(self.gate.wait(), timeout=5)
+            finally:
+                self.in_flight -= 1
+            return [SimpleNamespace(content=b"data", error=None)]
+
+        async def aupload_files(self, files):
+            return [SimpleNamespace(error=None) for _f in files]
+
+    backend = _ConcurrentBackend()
+    result = json.loads(
+        await transfer_file_tool.transfer_path.coroutine(
+            source_dir=root,
+            target_prefix="/workspace/w1/",
+            runtime=_Runtime(backend),
+        )
+    )
+
+    assert result["success"] is True
+    assert result["transferred"] == need
+    assert result["failed"] == 0
+    assert result["skipped"] == 0
+    assert backend.max_in_flight >= need
+
+
+@pytest.mark.asyncio
+async def test_transfer_path_preserves_result_order_under_concurrency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = "/skills/ordered"
+    count = 6
+
+    class _StaggeredBackend:
+        def __init__(self) -> None:
+            self.download_delay = {f"{root}/file-{i}.txt": 0.02 * (count - i) for i in range(count)}
+
+        async def als(self, path: str) -> LsResult:
+            if path == root:
+                return LsResult(
+                    entries=[
+                        {"path": f"{root}/file-{index}.txt", "is_dir": False}
+                        for index in range(count)
+                    ]
+                )
+            return LsResult(entries=[])
+
+        async def adownload_files(self, paths):
+            await asyncio.sleep(self.download_delay[paths[0]])
+            return [SimpleNamespace(content=b"x", error=None)]
+
+        async def aupload_files(self, files):
+            return [SimpleNamespace(error=None) for _f in files]
+
+    result = json.loads(
+        await transfer_file_tool.transfer_path.coroutine(
+            source_dir=root,
+            target_prefix="/workspace/w1/",
+            runtime=_Runtime(_StaggeredBackend()),
+        )
+    )
+
+    assert [entry["file"] for entry in result["files"]] == [
+        f"{root}/file-{index}.txt" for index in range(count)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_transfer_path_enforces_batch_budget_under_concurrency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """下载完成后才知道大小的文件也要受 MAX_BATCH_SIZE 约束（锁内原子配额）。"""
+    monkeypatch.setattr(transfer_file_tool, "MAX_BATCH_SIZE", 10)
+    root = "/skills/budget"
+    count = 3
+
+    class _UnknownSizeBackend:
+        async def als(self, path: str) -> LsResult:
+            if path == root:
+                return LsResult(
+                    entries=[
+                        {"path": f"{root}/file-{index}.txt", "is_dir": False}
+                        for index in range(count)
+                    ]
+                )
+            return LsResult(entries=[])
+
+        async def adownload_files(self, paths):
+            await asyncio.sleep(0.01)
+            return [SimpleNamespace(content=b"1234", error=None)]
+
+        async def aupload_files(self, files):
+            return [SimpleNamespace(error=None) for _f in files]
+
+    result = json.loads(
+        await transfer_file_tool.transfer_path.coroutine(
+            source_dir=root,
+            target_prefix="/workspace/w1/",
+            runtime=_Runtime(_UnknownSizeBackend()),
+        )
+    )
+
+    assert result["transferred"] == 2
+    assert result["skipped"] == 1
+    assert result["total_size"] == 8

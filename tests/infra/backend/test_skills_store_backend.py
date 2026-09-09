@@ -608,3 +608,66 @@ async def test_skills_store_backend_rechecks_actual_binary_download_size(monkeyp
     assert len(responses) == 1
     assert _field(responses[0], "content") is None
     assert _field(responses[0], "error") == "file_too_large"
+
+
+def test_skills_store_backend_sync_api_runs_on_registered_main_loop() -> None:
+    """同步包装经 loop_bridge 投递到已登记主循环执行。
+
+    生产事故（2026-09-09，会话 7ffcfc36）：transfer_path 的下载 fallback 在
+    blocking-io 线程里经 ``asyncio.run`` 临时建循环执行 ``adownload_files``，
+    而缓存的 SkillStorage（Motor）绑定 worker 主循环——跨循环复用直接
+    ``got Future attached to a different loop``，文件被静默跳过。
+    """
+    import asyncio
+    import threading
+
+    from src.infra.async_utils.loop_bridge import clear_main_loop, set_main_loop
+
+    class _LoopCaptureStorage:
+        def __init__(self) -> None:
+            self.seen_loop: object | None = None
+
+        async def get_effective_skills(self, user_id: str) -> dict:
+            return {"skills": {}}
+
+        async def get_skill_file(self, skill_name: str, file_name: str, user_id: str) -> str | None:
+            return "captured"
+
+        async def list_skill_file_paths(self, skill_name: str, user_id: str) -> list[str]:
+            return ["SKILL.md"]
+
+        async def batch_get_skill_files(self, skill_keys: list[tuple[str, str]]) -> dict:
+            return {}
+
+    captured: dict[str, object] = {}
+
+    async def _probe_aread(file_path: str, offset: int = 0, limit: int = 2000):
+        from deepagents.backends.utils import create_file_data, slice_read_response
+
+        captured["loop"] = asyncio.get_running_loop()
+        return slice_read_response(create_file_data("captured"), offset, limit)
+
+    main_loop = asyncio.new_event_loop()
+    set_main_loop(main_loop)
+    try:
+        runner = threading.Thread(target=main_loop.run_forever, daemon=True)
+        runner.start()
+
+        backend = SkillsStoreBackend(user_id="user-1", disabled_skills=[])
+        backend._storage = _LoopCaptureStorage()
+        # 把 aread 替换为探测协程，记录实际执行循环
+        backend.aread = _probe_aread  # type: ignore[method-assign]
+
+        def sync_read() -> None:
+            backend.read("/skills/visible/SKILL.md")
+
+        worker = threading.Thread(target=sync_read)
+        worker.start()
+        worker.join(timeout=10)
+        assert not worker.is_alive(), "sync read did not return from bridged loop"
+        assert captured["loop"] is main_loop
+    finally:
+        main_loop.call_soon_threadsafe(main_loop.stop)
+        runner.join(timeout=10)
+        clear_main_loop()
+        main_loop.close()
