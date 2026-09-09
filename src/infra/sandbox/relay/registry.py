@@ -316,6 +316,32 @@ class SandboxClientRegistry:
     async def rename_machine(self, user_id: str, machine_id: str, name: str) -> None:
         await self._redis().hset(_machname_key(user_id), machine_id, name)
 
+    async def update_confirm_policy(self, user_id: str, machine_id: str, policy: str) -> bool:
+        """热更新在线机器确认策略，无需重连 daemon。"""
+        if policy not in {"all", "commands", "none"}:
+            return False
+        redis = self._redis()
+        key = _machine_key(user_id, machine_id)
+        value = await redis.get(key)
+        if value is None:
+            return False
+        parts = value.split("|", 4)
+        node_id = parts[0]
+        version = parts[1] if len(parts) > 1 else ""
+        platform = parts[2] if len(parts) > 2 else ""
+        machine_name = parts[4] if len(parts) > 4 else ""
+        await redis.set(
+            key,
+            encode_node_value(node_id, version, platform, policy, machine_name),
+            ex=_TTL_SECONDS,
+        )
+        seen_all = await redis.hgetall(_machseen_key(user_id))
+        seen = _decode_seen_record(seen_all.get(machine_id))
+        if seen is not None:
+            seen["confirm_policy"] = policy
+            await redis.hset(_machseen_key(user_id), machine_id, json.dumps(seen))
+        return True
+
     async def forget_machine(self, user_id: str, machine_id: str) -> bool:
         """移除机器（仅离线可移除——在线机器先断连）。清默认机指向。"""
         if machine_id == LEGACY_MACHINE_ID:

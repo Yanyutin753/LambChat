@@ -500,6 +500,17 @@ class MachineRenameRequest(BaseModel):
         return value
 
 
+class MachineConfirmPolicyRequest(BaseModel):
+    policy: str
+
+    @field_validator("policy")
+    @classmethod
+    def _policy_allowed(cls, value: str) -> str:
+        if value not in {"all", "commands", "none"}:
+            raise ValueError("policy must be one of all/commands/none")
+        return value
+
+
 @router.patch("/machines/{machine_id}")
 async def sandbox_machine_rename(
     machine_id: str,
@@ -526,6 +537,20 @@ async def sandbox_machine_set_default(
     await _registry().set_default_machine(user.sub, machine_id)
     await publish_presence(user.sub)
     return {"status": "ok", "default_machine_id": machine_id}
+
+
+@router.put("/machines/{machine_id}/confirm-policy")
+async def sandbox_machine_update_confirm_policy(
+    machine_id: str,
+    body: MachineConfirmPolicyRequest,
+    user: TokenPayload = Depends(get_current_user_pat_or_jwt),
+):
+    """热更新在线 daemon 的确认策略，下一次执行立即生效。"""
+    updated = await _registry().update_confirm_policy(user.sub, machine_id, body.policy)
+    if not updated:
+        raise AppError(ErrorCode.SANDBOX_MACHINE_NOT_FOUND, args={"machine": machine_id})
+    await publish_presence(user.sub)
+    return {"status": "ok", "machine_id": machine_id, "confirm_policy": body.policy}
 
 
 @router.delete("/machines/{machine_id}")

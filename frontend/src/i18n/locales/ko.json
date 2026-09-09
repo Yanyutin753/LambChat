@@ -263,7 +263,8 @@
       "offlineHint": "해당 PC는 오프라인 상태라 실행 머신으로 선택할 수 없어요",
       "section": "실행 기기",
       "currentDevice": "이 기기"
-    }
+    },
+    "sandboxPolicy": { "section": "실행 정책", "all": "모두 확인", "commands": "명령만 확인", "none": "확인하지 않음", "updated": "실행 정책이 업데이트되었습니다", "updateFailed": "실행 정책 업데이트에 실패했습니다" }
   },
   "agents": {
     "fast": {
@@ -1004,6 +1005,12 @@
       "toolWebSearchMore_one": "+{{count}}개 결과 더",
       "toolWebSearchMore_other": "+{{count}}개 결과 더",
       "toolWebSearchNoResults": "검색 결과가 없습니다",
+      "toolWebFetch": "웹 읽기",
+      "toolWebFetchChars": "{{count}}자",
+      "toolWebFetchChars_one": "{{count}}자",
+      "toolWebFetchChars_other": "{{count}}자",
+      "toolWebFetchTruncated": "잘림",
+      "toolWebFetchWaiting": "페이지 본문을 읽는 중…",
       "toolWebSearchResults": "결과 {{count}}개",
       "toolWebSearchResults_one": "결과 {{count}}개",
       "toolWebSearchResults_other": "결과 {{count}}개",
@@ -2839,7 +2846,14 @@
     "WELCOME_SUGGESTION_ITEM": "제안",
     "WELCOME_SUGGESTION_LANG": "언어",
     "WELCOME_SUGGESTION_TEXT": "텍스트",
-    "LLM_STREAM_IDLE_TIMEOUT": "스트리밍 chunk 사이의 최대 유휴 시간(초). 업스트림 정체로 실행이 멈추는 것을 방지(0 이하는 비활성화)"
+    "LLM_STREAM_IDLE_TIMEOUT": "스트리밍 chunk 사이의 최대 유휴 시간(초). 업스트림 정체로 실행이 멈추는 것을 방지(0 이하는 비활성화)",
+    "ENABLE_WEB_FETCH": "웹 패치 도구 활성화: 공개 페이지 본문을 Markdown으로 읽어옵니다(내부 주소는 항상 거부).",
+    "WEB_FETCH_PROVIDER": "패치 공급자: direct=로컬, tavily=검색 키 재사용, firecrawl=자체 호스팅 가능, exa=캐시+실크롤, jina=r.jina.ai, auto=순차 폴백.",
+    "JINA_API_KEYS": "Jina Reader API 키, 쉼표로 구분하여 로테이션. 비워두면 jina 비활성화.",
+    "WEB_FETCH_MAX_CHARS": "패치당 반환 최대 문자 수. 초과분은 잘립니다.",
+    "FIRECRAWL_BASE_URL": "Firecrawl 자체 호스팅 URL(예: http://fc.internal:3000). 비워두면 공식 SaaS. 자체 호스팅은 키 불필요.",
+    "FIRECRAWL_API_KEYS": "Firecrawl API 키, 쉼표로 구분하여 로테이션. 자체 호스팅은 생략 가능.",
+    "EXA_API_KEYS": "Exa API 키, 쉼표 구분 로테이션(캐시 우선 + 라이브 크롤)."
   },
   "settings": {
     "defaultModel": "기본 모델",
@@ -3429,6 +3443,7 @@
     "toolsEnabled": "개 도구 활성화됨"
   },
   "updateDownload": "지금 업데이트",
+  "updateDownloadAndInstall": "다운로드 후 설치",
   "updateDownloading": "다운로드 중...",
   "updateDownloadNetworkError": "다운로드 실패, 네트워크를 확인한 후 다시 시도하세요",
   "updateError": "업데이트 실패",

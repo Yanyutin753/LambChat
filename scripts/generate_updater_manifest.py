@@ -8,6 +8,9 @@ updater.endpoints）；版本取自 tag（app-release 的 preflight 已校验与
 版本文件一致）；macOS updater 走 .app.tar.gz，dmg 仅用于首装。
 缺某平台 sig 时告警并省略该条目（发布完成的判据是五桌面齐全——由调用方
 校验，本脚本只如实反映现状）。
+
+下载 URL 走 lambchat.com 自托管反代并锁 ``?tag=``：国内直连 GitHub 下载
+必挂；反代路由按 tag 查资产，发新版瞬间 latest 前移也不会 404。
 """
 
 from __future__ import annotations
@@ -18,6 +21,8 @@ import json
 import os
 import pathlib
 import sys
+
+PROXY_ASSET_BASE = "https://lambchat.com/api/version/assets"
 
 MAPPING = [
     ("windows-x86_64", "*_x64_en-US.msi.sig", "Windows.msi"),
@@ -38,7 +43,6 @@ def main() -> int:
         print(f"RELEASE_TAG 必须形如 v2.9.3，收到: {tag!r}", file=sys.stderr)
         return 1
 
-    base = f"https://github.com/Yanyutin753/LambChat/releases/download/{tag}"
     version = tag.lstrip("v")
 
     def sig(pattern: str) -> str | None:
@@ -49,9 +53,10 @@ def main() -> int:
     for key, pattern, asset_suffix in MAPPING:
         signature = sig(pattern)
         if signature:
+            asset_name = f"LambChat-{tag}-{asset_suffix}"
             platforms[key] = {
                 "signature": signature,
-                "url": f"{base}/LambChat-{tag}-{asset_suffix}",
+                "url": f"{PROXY_ASSET_BASE}/{asset_name}/download?tag={tag}",
             }
         else:
             print(f"WARN: no sig file matches {pattern}, platform {key} omitted")

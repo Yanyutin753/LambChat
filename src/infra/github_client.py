@@ -8,7 +8,9 @@ import httpx
 
 GITHUB_REPO = "Yanyutin753/LambChat"
 GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+GITHUB_TAG_RELEASE_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{{tag}}"
 CACHE_TTL_SECONDS = 3600  # 1 hour
+TAG_CACHE_MAX_ENTRIES = 8
 
 
 @dataclass
@@ -54,6 +56,7 @@ class GitHubClient:
     def __init__(self):
         self._cache: Optional[GitHubRelease] = None
         self._cache_time: Optional[datetime] = None
+        self._tag_cache: dict[str, tuple[GitHubRelease, datetime]] = {}
 
     async def get_latest_release(self, force_refresh: bool = False) -> Optional[GitHubRelease]:
         """Get latest release from GitHub, using cache if available"""
@@ -73,6 +76,27 @@ class GitHubClient:
         elapsed = datetime.now(UTC) - self._cache_time
         return elapsed < timedelta(seconds=CACHE_TTL_SECONDS)
 
+    async def get_release_by_tag(self, tag: str) -> Optional[GitHubRelease]:
+        """按 tag 查 release（下载代理把清单锁到具体版本时用）。
+
+        更新器下载端点会扇出到这里：不缓存的话 GitHub 匿名 API 限流
+        （60 次/小时/源 IP）会被瞬时打穿，故与 latest 同 TTL 做 per-tag
+        缓存，容量截断防任意 tag 撑爆内存。
+        """
+        key = tag.strip()
+        if not key:
+            return None
+        cached = self._tag_cache.get(key)
+        if cached and datetime.now(UTC) - cached[1] < timedelta(seconds=CACHE_TTL_SECONDS):
+            return cached[0]
+        release = await self._fetch_release(GITHUB_TAG_RELEASE_URL.format(tag=key))
+        if release:
+            if len(self._tag_cache) >= TAG_CACHE_MAX_ENTRIES:
+                oldest = min(self._tag_cache, key=lambda k: self._tag_cache[k][1])
+                del self._tag_cache[oldest]
+            self._tag_cache[key] = (release, datetime.now(UTC))
+        return release
+
     async def open_asset_stream(self, url: str) -> "AssetStream":
         """打开 release 资产的上游下载流（github.com 302 → 签名 blob，需跟随重定向）。
 
@@ -90,13 +114,11 @@ class GitHubClient:
             raise
         return AssetStream(client=client, response=response)
 
-    async def _fetch_release(self) -> Optional[GitHubRelease]:
-        """Fetch latest release from GitHub API"""
+    async def _fetch_release(self, url: str = GITHUB_API_URL) -> Optional[GitHubRelease]:
+        """Fetch release JSON from GitHub API (latest or by-tag endpoint)"""
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(
-                    GITHUB_API_URL, headers={"Accept": "application/vnd.github+json"}
-                )
+                response = await client.get(url, headers={"Accept": "application/vnd.github+json"})
                 if response.status_code == 200:
                     data = response.json()
                     return self._parse_release(data)

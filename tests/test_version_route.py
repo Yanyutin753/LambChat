@@ -193,6 +193,67 @@ def test_download_release_asset_without_release_returns_404(client):
         assert resp.json()["detail"]["code"] == "release_asset_not_found"
 
 
+def test_download_release_asset_with_tag_fetches_that_release(client):
+    """带 ?tag= 时按指定 release 查资产：自更新清单把版本锁进 URL，
+    发新版瞬间（latest 已前移）老清单的下载不受竞态影响。"""
+    tagged = make_mock_release()  # v2.6.0，含目标资产
+    latest = make_mock_release(tag_name="v2.7.0", assets=[])
+    stream = FakeAssetStream(chunks=[b"PK\x03\x04"], content_length=4)
+    with (
+        patch.object(
+            GitHubClient,
+            "get_release_by_tag",
+            new_callable=AsyncMock,
+            return_value=tagged,
+        ) as by_tag,
+        patch.object(
+            GitHubClient,
+            "get_latest_release",
+            new_callable=AsyncMock,
+            return_value=latest,
+        ) as latest_mock,
+        patch.object(
+            GitHubClient,
+            "open_asset_stream",
+            new_callable=AsyncMock,
+            return_value=stream,
+        ),
+    ):
+        resp = client.get(
+            "/api/version/assets/LambChat-v2.6.0-android-signed.apk/download",
+            params={"tag": "v2.6.0"},
+        )
+        assert resp.status_code == 200
+        assert resp.content == b"PK\x03\x04"
+        by_tag.assert_awaited_once_with("v2.6.0")
+        latest_mock.assert_not_awaited()
+
+
+def test_download_release_asset_with_unknown_tag_returns_404_code(client):
+    """tag 对应的 release 不存在：404 + release_asset_not_found。"""
+    with patch.object(
+        GitHubClient, "get_release_by_tag", new_callable=AsyncMock, return_value=None
+    ):
+        resp = client.get("/api/version/assets/whatever.apk/download", params={"tag": "v9.9.9"})
+        assert resp.status_code == 404
+        assert resp.json()["detail"]["code"] == "release_asset_not_found"
+        assert resp.json()["detail"]["args"]["name"] == "whatever.apk"
+
+
+def test_download_release_asset_tag_release_lacks_asset_returns_404_code(client):
+    """tag 的 release 存在但不含该资产：404 + release_asset_not_found。"""
+    tagged = make_mock_release(assets=[])
+    with patch.object(
+        GitHubClient, "get_release_by_tag", new_callable=AsyncMock, return_value=tagged
+    ):
+        resp = client.get(
+            "/api/version/assets/LambChat-v2.6.0-android-signed.apk/download",
+            params={"tag": "v2.6.0"},
+        )
+        assert resp.status_code == 404
+        assert resp.json()["detail"]["code"] == "release_asset_not_found"
+
+
 def test_download_release_asset_upstream_failure_returns_502(client):
     """上游非 200：502 + release_asset_fetch_failed，并关闭上游连接。"""
     release = make_mock_release()

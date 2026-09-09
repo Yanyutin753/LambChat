@@ -149,3 +149,57 @@ test("tauri updater keeps proxy fallback endpoint for manifest fetch", () => {
     /lambchat\.com\/api\/version\/assets\/latest\.json\/download/,
   );
 });
+
+test("linux package update flow routes deb/rpm through the package manager path", () => {
+  const hook = readRepoFile("frontend/src/hooks/useAutoUpdate.ts");
+  // 来源检测 → 分流：deb/rpm 走「下载 + pkexec 安装」而非 updater
+  expect(hook).toMatch(/getLinuxInstallInfo/);
+  expect(hook).toMatch(/installLinuxPackage\(/);
+  expect(hook).toMatch(/buildLinuxPackageAssetName/);
+  expect(hook).toMatch(/buildLinuxPackageDownloadUrl/);
+  // deb/rpm 不进 updater 后台静默下载——它只会拉 AppImage 且装不上系统包
+  expect(hook).toMatch(/linuxSource !== "deb" && linuxSource !== "rpm"/);
+  // unknown 来源不盲装，回落下载页
+  expect(hook).toMatch(/buildApiUrl\("\/download"\)/);
+});
+
+test("linux update service bridges the rust commands and progress event", () => {
+  const service = readRepoFile("frontend/src/services/tauri/linuxUpdate.ts");
+  expect(service).toMatch(/get_linux_install_source/);
+  expect(service).toMatch(/install_linux_package/);
+  expect(service).toMatch(/linux-update-progress/);
+});
+
+test("rust side detects install source and installs deb/rpm via pkexec", () => {
+  const rust = readRepoFile("frontend/src-tauri/src/linux_update.rs");
+  // 检测序：AppImage 扩展名 → dpkg/rpm 包归属反查 → 系统前缀启发式
+  expect(rust).toMatch(/is_appimage_path/);
+  expect(rust).toMatch(/"dpkg", "-S"/);
+  expect(rust).toMatch(/"rpm", "-qf"/);
+  expect(rust).toMatch(/fallback_install_source/);
+  // deb → apt、rpm → dnf，pkexec 提权
+  expect(rust).toMatch(/"apt"/);
+  expect(rust).toMatch(/"dnf"/);
+  expect(rust).toMatch(/"pkexec"/);
+  // 命令注册进 invoke handler（缺注册前端 invoke 直接挂）
+  const lib = readRepoFile("frontend/src-tauri/src/lib.rs");
+  expect(lib).toMatch(/linux_update::get_linux_install_source/);
+  expect(lib).toMatch(/linux_update::install_linux_package/);
+});
+
+test("download-and-install copy exists in all five locales", () => {
+  for (const locale of ["zh", "en", "ja", "ko", "ru"]) {
+    const data = JSON.parse(
+      readRepoFile(`frontend/src/i18n/locales/${locale}.json`),
+    ) as Record<string, string>;
+    expect(data.updateDownloadAndInstall, locale).toBeTruthy();
+  }
+});
+
+test("release workflow asset naming keeps the deb/rpm contract", () => {
+  // CI 收集产物名 LambChat-${RELEASE_TAG}-Linux-${arch}.deb|.rpm 必须与
+  // buildLinuxPackageAssetName 拼出的名字一致（数值用例见 linuxUpdateAssets.test.ts）
+  const wf = readRepoFile(".github/workflows/app-release.yml");
+  expect(wf).toMatch(/LambChat-\$\{RELEASE_TAG\}-Linux-\$\{arch\}\.deb/);
+  expect(wf).toMatch(/LambChat-\$\{RELEASE_TAG\}-Linux-\$\{arch\}\.rpm/);
+});

@@ -263,7 +263,8 @@
       "offlineHint": "Этот компьютер офлайн — нельзя выбрать его машиной выполнения",
       "section": "Устройство",
       "currentDevice": "Это устройство"
-    }
+    },
+    "sandboxPolicy": { "section": "Политика выполнения", "all": "Подтверждать всё", "commands": "Подтверждать только команды", "none": "Не подтверждать", "updated": "Политика выполнения обновлена", "updateFailed": "Не удалось обновить политику выполнения" }
   },
   "agents": {
     "fast": {
@@ -1004,6 +1005,12 @@
       "toolWebSearchMore_one": "Ещё {{count}} результат",
       "toolWebSearchMore_other": "Ещё {{count}} результатов",
       "toolWebSearchNoResults": "Ничего не найдено",
+      "toolWebFetch": "Чтение страницы",
+      "toolWebFetchChars": "{{count}} симв.",
+      "toolWebFetchChars_one": "{{count}} симв.",
+      "toolWebFetchChars_other": "{{count}} симв.",
+      "toolWebFetchTruncated": "Обрезано",
+      "toolWebFetchWaiting": "Читаем содержимое страницы…",
       "toolWebSearchResults": "{{count}} результатов",
       "toolWebSearchResults_one": "{{count}} результат",
       "toolWebSearchResults_other": "{{count}} результатов",
@@ -2839,7 +2846,14 @@
     "WELCOME_SUGGESTION_ITEM": "Предложение",
     "WELCOME_SUGGESTION_LANG": "Язык",
     "WELCOME_SUGGESTION_TEXT": "Текст",
-    "LLM_STREAM_IDLE_TIMEOUT": "Максимальный простой в секундах между chunk потокового ответа; застой вышестоящего канала прерывает вызов, а не зависает навсегда (0 или меньше — отключено)"
+    "LLM_STREAM_IDLE_TIMEOUT": "Максимальный простой в секундах между chunk потокового ответа; застой вышестоящего канала прерывает вызов, а не зависает навсегда (0 или меньше — отключено)",
+    "ENABLE_WEB_FETCH": "Включить инструмент чтения веб-страниц: публичные страницы как Markdown (внутренние адреса всегда отклоняются).",
+    "WEB_FETCH_PROVIDER": "Поставщик: direct, tavily (ключи поиска), firecrawl (self-host), exa (кэш+краул), jina; auto = последовательный фолбэк.",
+    "JINA_API_KEYS": "Ключи Jina Reader API, через запятую для ротации. Пусто — jina отключён.",
+    "WEB_FETCH_MAX_CHARS": "Максимум символов на загрузку; лишнее обрезается.",
+    "FIRECRAWL_BASE_URL": "URL своего Firecrawl (напр. http://fc.internal:3000). Пусто = официальный SaaS. Своий инстанс может работать без ключей.",
+    "FIRECRAWL_API_KEYS": "Ключи Firecrawl API, через запятую. Для своего инстанса необязательны.",
+    "EXA_API_KEYS": "Ключи Exa API, через запятую (кэш + живой обход)."
   },
   "settings": {
     "defaultModel": "Модель по умолчанию",
@@ -3429,6 +3443,7 @@
     "toolsEnabled": "инструментов включено"
   },
   "updateDownload": "Обновить",
+  "updateDownloadAndInstall": "Скачать и установить",
   "updateDownloading": "Загрузка...",
   "updateDownloadNetworkError": "Не удалось скачать. Проверьте сеть и повторите попытку",
   "updateError": "Ошибка обновления",

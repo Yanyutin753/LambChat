@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
 import { Download, Laptop, Monitor, Terminal } from "lucide-react";
@@ -9,7 +10,8 @@ import { PersonaPresetSelector } from "../persona/PersonaPresetSelector";
 import { TeamPickerModal } from "../team/TeamPickerModal";
 import { AgentOptionButton } from "./AgentOptionButton";
 import { useSandboxStatus } from "../../hooks/useSandboxStatus";
-import { isShellAvailable } from "../../services/tauri/sandboxShell";
+import { isShellAvailable, writeConfirmPolicy } from "../../services/tauri/sandboxShell";
+import { sandboxApiMachines } from "../../services/api/sandbox";
 import {
   SANDBOX_AGENT_OPTION_KEY,
   SANDBOX_LOCAL_VALUE,
@@ -145,6 +147,7 @@ export function ChatInputSelectors({
     currentMachineId,
   } = useSandboxStatus();
   const sandboxShell = isShellAvailable();
+  const [policyOverride, setPolicyOverride] = useState<string | null>(null);
   const sandboxValue = agentOptionValues[SANDBOX_AGENT_OPTION_KEY] ?? "cloud";
   // 统一面板设备行：存在任一在线机即展示（云端档点设备 = 一键切本地档），
   // 当前设备（壳内 read_machine_id 比对命中）带标识
@@ -155,6 +158,23 @@ export function ChatInputSelectors({
     typeof agentOptionValues[SANDBOX_MACHINE_AGENT_OPTION_KEY] === "string"
       ? (agentOptionValues[SANDBOX_MACHINE_AGENT_OPTION_KEY] as string)
       : "";
+  const selectedMachine =
+    machines.find((m) => m.machine_id === (machineValue || defaultMachineId)) ??
+    machines.find((m) => m.online !== false);
+  const executionPolicy = policyOverride ?? selectedMachine?.confirm_policy ?? "all";
+  const handlePolicyChange = async (policy: string) => {
+    if (!selectedMachine || selectedMachine.online === false) return;
+    try {
+      await sandboxApiMachines.updateConfirmPolicy(selectedMachine.machine_id, policy);
+      if (selectedMachine.machine_id === currentMachineId && sandboxShell) {
+        await writeConfirmPolicy(policy);
+      }
+      setPolicyOverride(policy);
+      toast.success(t("agentOptions.sandboxPolicy.updated"));
+    } catch {
+      toast.error(t("agentOptions.sandboxPolicy.updateFailed"));
+    }
+  };
   const handleSelectMachineRow = (row: SandboxMachineRow) => {
     if (row.disabled) {
       // 离线机置灰保留展示仅为告知存在：点击提示不落选为目标
@@ -169,6 +189,7 @@ export function ChatInputSelectors({
   };
   const machineSection =
     machineRows.length > 0 ? (
+      <>
       <div
         className="mt-1 pt-1.5 border-t"
         style={{ borderColor: "var(--theme-border)" }}
@@ -229,6 +250,25 @@ export function ChatInputSelectors({
           })}
         </div>
       </div>
+      {selectedMachine && (
+        <div className="mt-1 pt-1.5 border-t" style={{ borderColor: "var(--theme-border)" }} data-sandbox-policy-section>
+          <div className="px-3 pt-1 pb-1.5 text-12 font-medium" style={{ color: "var(--theme-text-secondary)" }}>
+            {t("agentOptions.sandboxPolicy.section")}
+          </div>
+          <div className="flex flex-col gap-1">
+            {(["all", "commands", "none"] as const).map((policy) => (
+              <button key={policy} type="button" onClick={() => void handlePolicyChange(policy)}
+                className="flex items-center gap-3 px-3 py-2 rounded-xl text-14 transition-colors text-left cursor-pointer active:scale-[0.98]"
+                style={{ background: executionPolicy === policy ? "color-mix(in srgb, var(--theme-primary) 12%, transparent)" : "transparent", color: executionPolicy === policy ? "var(--theme-primary)" : "var(--theme-text)" }}>
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: executionPolicy === policy ? "var(--theme-primary)" : "var(--theme-border)" }} />
+                {t(`agentOptions.sandboxPolicy.${policy}`)}
+                {executionPolicy === policy && <span className="ml-auto text-12" style={{ color: "var(--theme-primary)" }}>✓</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      </>
     ) : undefined;
 
   return (

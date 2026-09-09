@@ -263,7 +263,8 @@
       "offlineHint": "That computer is offline and can't be selected as the execution target",
       "section": "Device",
       "currentDevice": "This device"
-    }
+    },
+    "sandboxPolicy": { "section": "Execution policy", "all": "Confirm everything", "commands": "Confirm commands only", "none": "No confirmation", "updated": "Execution policy updated", "updateFailed": "Failed to update execution policy" }
   },
   "agents": {
     "fast": {
@@ -1004,6 +1005,12 @@
       "toolWebSearchMore_one": "+{{count}} more result",
       "toolWebSearchMore_other": "+{{count}} more results",
       "toolWebSearchNoResults": "No results found",
+      "toolWebFetch": "Web Reader",
+      "toolWebFetchChars": "{{count}} chars",
+      "toolWebFetchChars_one": "{{count}} char",
+      "toolWebFetchChars_other": "{{count}} chars",
+      "toolWebFetchTruncated": "Truncated",
+      "toolWebFetchWaiting": "Reading page content…",
       "toolWebSearchResults": "{{count}} results",
       "toolWebSearchResults_one": "{{count}} result",
       "toolWebSearchResults_other": "{{count}} results",
@@ -2839,7 +2846,14 @@
     "WELCOME_SUGGESTION_ITEM": "Suggestion",
     "WELCOME_SUGGESTION_LANG": "Language",
     "WELCOME_SUGGESTION_TEXT": "Text",
-    "LLM_STREAM_IDLE_TIMEOUT": "Maximum idle seconds between consecutive streaming chunks; an upstream stall fails the call instead of hanging forever (0 or negative = disabled)"
+    "LLM_STREAM_IDLE_TIMEOUT": "Maximum idle seconds between consecutive streaming chunks; an upstream stall fails the call instead of hanging forever (0 or negative = disabled)",
+    "ENABLE_WEB_FETCH": "Enable the web fetch tool: read public pages as markdown for the model (internal addresses always rejected).",
+    "WEB_FETCH_PROVIDER": "Web fetch provider: direct = local; tavily = reuses search keys (first fallback for anti-bot); firecrawl = self-hostable; exa = cache+live crawl; jina = r.jina.ai; auto = direct → tavily → firecrawl → exa → jina.",
+    "JINA_API_KEYS": "Jina Reader API keys, comma-separated for rotation (r.jina.ai: 20 RPM keyless, 200 RPM with key). Empty disables jina.",
+    "WEB_FETCH_MAX_CHARS": "Max characters returned per fetch; longer content is truncated.",
+    "FIRECRAWL_BASE_URL": "Self-hosted Firecrawl base URL (e.g. http://fc.internal:3000). Empty = official SaaS. Self-host can work without keys.",
+    "FIRECRAWL_API_KEYS": "Firecrawl API keys, comma-separated for rotation (firecrawl.dev free tier). Optional for self-hosted.",
+    "EXA_API_KEYS": "Exa API keys, comma-separated for rotation (exa.ai free tier, cache-first with live crawl fallback)."
   },
   "settings": {
     "defaultModel": "Default Model",
@@ -3429,6 +3443,7 @@
     "toolsEnabled": "tools enabled"
   },
   "updateDownload": "Update Now",
+  "updateDownloadAndInstall": "Download and Install",
   "updateDownloading": "Downloading...",
   "updateDownloadNetworkError": "Download failed, please check your network and retry",
   "updateError": "Update failed",

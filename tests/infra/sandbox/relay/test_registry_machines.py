@@ -323,3 +323,20 @@ async def test_forget_machine_clears_seen_record(registry):
     assert "sandbox:machseen:u1" not in registry.fake.hashes or "srv1" not in (
         registry.fake.hashes.get("sandbox:machseen:u1") or {}
     )
+
+
+async def test_update_confirm_policy_rewrites_live_machine_and_memory(registry):
+    await registry.register(
+        "u1",
+        "c1",
+        "node1",
+        version="1",
+        platform="linux",
+        confirm_policy="all",
+        machine_id="m1",
+        machine_name="box",
+    )
+    await registry.update_confirm_policy("u1", "m1", "commands")
+    machines = await registry.list_machines("u1")
+    assert machines[0]["confirm_policy"] == "commands"
+    assert await registry.get_confirm_policy("u1", "m1") == "commands"

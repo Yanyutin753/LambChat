@@ -29,6 +29,7 @@ from src.infra.tool.transfer_file_tool import (
     get_transfer_path_tool,
 )
 from src.infra.tool.upload_url_tool import get_upload_url_tool
+from src.infra.tool.web_fetch_tool import get_web_fetch_tool
 from src.infra.tool.web_search_tool import get_web_search_tool
 
 # web_search 工具（214 token）入库后整体抬高一档；新增工具仍应优先压缩描述。
@@ -55,6 +56,7 @@ EXPECTED_TOOL_NAMES = {
     "transfer_file",
     "transfer_path",
     "upload_url_to_sandbox",
+    "web_fetch",
     "web_search",
 }
 
@@ -75,6 +77,7 @@ def _scoped_tools() -> list[BaseTool]:
         get_transfer_file_tool(),
         get_transfer_path_tool(),
         get_upload_url_tool(),
+        get_web_fetch_tool(),
         get_web_search_tool(),
         ToolSearchTool(
             manager=DeferredToolManager(all_deferred_tools=[], session_id="schema-budget")

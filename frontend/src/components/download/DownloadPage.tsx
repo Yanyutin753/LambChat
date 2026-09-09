@@ -15,7 +15,10 @@ import {
   Check,
   Smartphone,
 } from "lucide-react";
-import { versionApi } from "../../services/api/version";
+import {
+  buildReleaseAssetDownloadUrl,
+  versionApi,
+} from "../../services/api/version";
 import { useSEO } from "../../hooks/usePageTitle";
 import { useScrollReveal } from "../landing/hooks/useScrollReveal";
 import {
@@ -245,7 +248,17 @@ export function DownloadPage() {
       .catch(() => setFailed(true));
   }, []);
 
-  const assets = useMemo(() => info?.release_assets ?? [], [info]);
+  // 下载链接一律走自托管反代：/api/version 返回的 browser_download_url 是
+  // GitHub 直链，国内用户直连下载不稳；反代按资产名在最新 release 中查找
+  // （页面资产本就来自最新 release），移动端更新下载同一契约
+  const assets = useMemo(
+    () =>
+      (info?.release_assets ?? []).map((a) => ({
+        ...a,
+        url: buildReleaseAssetDownloadUrl(a.name),
+      })),
+    [info],
+  );
   const desktop = useMemo(() => matchDesktopAssets(assets), [assets]);
   const daemons = useMemo(() => matchDaemonAssets(assets), [assets]);
   const detected =

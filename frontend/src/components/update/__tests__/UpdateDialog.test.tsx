@@ -25,6 +25,7 @@ function makeState(overrides: Partial<UpdateState> = {}): UpdateState {
     downloaded: 0,
     readyToInstall: false,
     error: null,
+    linuxInstallSource: null,
     ...overrides,
   };
 }
@@ -76,6 +77,46 @@ test("downloading state hides skip actions and shows progress", () => {
 test("ready-to-install state shows relaunch button", () => {
   render(
     <UpdateDialog {...baseProps} state={makeState({ readyToInstall: true })} />,
+  );
+  expect(screen.getByRole("button", { name: /重启并安装/ })).toBeTruthy();
+});
+
+test("linux package source (deb/rpm) shows download-and-install button", () => {
+  for (const source of ["deb", "rpm"] as const) {
+    cleanup();
+    render(
+      <UpdateDialog
+        {...baseProps}
+        state={makeState({ linuxInstallSource: source })}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /下载并安装/ })).toBeTruthy();
+    // 非 updater 语义：不该出现「重启并安装」或「立即升级」
+    expect(screen.queryByRole("button", { name: /重启并安装/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /立即升级/ })).toBeNull();
+  }
+});
+
+test("unknown linux source falls back to go-to-download button", () => {
+  render(
+    <UpdateDialog
+      {...baseProps}
+      state={makeState({ linuxInstallSource: "unknown" })}
+    />,
+  );
+  expect(screen.getByRole("button", { name: /前往下载/ })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /下载并安装/ })).toBeNull();
+});
+
+test("appimage source keeps the updater button semantics", () => {
+  render(
+    <UpdateDialog
+      {...baseProps}
+      state={makeState({
+        linuxInstallSource: "appimage",
+        readyToInstall: true,
+      })}
+    />,
   );
   expect(screen.getByRole("button", { name: /重启并安装/ })).toBeTruthy();
 });

@@ -11,4 +11,4 @@ self-update 与服务端最低版本拒连打底。
 2.x/0.3.x 均放行，旧 daemon 经 self-update 平滑升到对齐版本。
 """
 
-__version__ = "2.10.2"
+__version__ = "2.10.3"

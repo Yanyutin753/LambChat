@@ -303,6 +303,30 @@ def test_release_workflow_guards_version_drift_and_manifest_version_from_tag() -
     )
 
 
+def test_updater_manifest_download_urls_go_through_self_hosted_proxy() -> None:
+    """国内用户直连 GitHub 下载安装包必挂：latest.json 的平台下载 URL 必须
+    走 lambchat.com 自托管反代（/api/version/assets/<name>/download）并锁
+    ``?tag=``（发新版瞬间 latest 前移不 404）。生成器与 workflow 增量合并
+    两条写入路径同一契约；检查端点反代在前、GitHub 直连兜底。"""
+    generator = _source("scripts/generate_updater_manifest.py")
+    assert "https://lambchat.com/api/version/assets" in generator
+    assert "?tag=" in generator
+    assert "https://github.com" not in generator
+
+    merge_step = next(
+        s
+        for s in _desktop_job()["steps"]
+        if s["name"] == "Merge updater platform entry into latest.json"
+    )
+    assert "https://lambchat.com/api/version/assets" in merge_step["run"]
+    assert "?tag=" in merge_step["run"]
+    assert "releases/download" not in merge_step["run"]
+
+    tauri = _source("frontend/src-tauri/tauri.conf.json")
+    endpoints = tauri.split('"endpoints"', 1)[1]
+    assert endpoints.index("lambchat.com") < endpoints.index("github.com")
+
+
 def test_release_workflow_macos_collect_requires_app_tar_gz() -> None:
     """macOS 收集步骤必须上传 .app.tar.gz updater 产物且缺失即失败：
     静默跳过会让 darwin 平台条目被略过、mac 永远收不到更新。双 mac 构建

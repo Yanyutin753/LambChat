@@ -30,6 +30,7 @@ import {
   ToolSearchItem,
   ConversationHistoryItem,
   SkillSearchItem,
+  WebFetchItem,
   WebSearchItem,
 } from "./ToolCallItem";
 import { ThinkingBlock, SubagentBlock, SandboxItem } from "./SubagentBlocks";
@@ -527,6 +528,21 @@ export function MessagePartRenderer({
     if (part.name === "web_search") {
       return (
         <WebSearchItem
+          id={part.id}
+          args={toolArgs}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    // Detect web fetch, use dedicated component (shows page content reader)
+    if (part.name === "web_fetch") {
+      return (
+        <WebFetchItem
           id={part.id}
           args={toolArgs}
           result={part.result}

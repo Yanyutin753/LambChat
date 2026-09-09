@@ -107,9 +107,12 @@ jobs:
           ios="$(grep -m1 'MARKETING_VERSION' frontend/ios/App/App.xcodeproj/project.pbxproj | sed -E 's/.*= ([^;]+);.*/\1/')"
           pyproject="$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "([^"]+)"/\1/')"
           daemon="$(grep -m1 '^__version__ = ' client/lambchat_sandbox/__init__.py | sed -E 's/__version__ = "([^"]+)"/\1/')"
+          # Cargo.toml 的包版本编译期进 CARGO_PKG_VERSION（clean_on_version_upgrade
+          # 依赖它），漂移则升级清 WebView 数据逻辑失效——曾冻在 2.8.6 达十版
+          cargo_toml="$(grep -m1 '^version = ' frontend/src-tauri/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')"
           want_code="$(printf '%s' "$tag" | tr -d '.')"
           fail=0
-          for entry in "frontend/package.json=$pkg" "tauri.conf.json=$tauri" "android versionName=$gradle_name" "iOS MARKETING_VERSION=$ios" "pyproject.toml=$pyproject" "daemon __version__=$daemon"; do
+          for entry in "frontend/package.json=$pkg" "tauri.conf.json=$tauri" "src-tauri Cargo.toml=$cargo_toml" "android versionName=$gradle_name" "iOS MARKETING_VERSION=$ios" "pyproject.toml=$pyproject" "daemon __version__=$daemon"; do
             k="${entry%%=*}"; v="${entry#*=}"
             if [ "$v" != "$tag" ]; then echo "✗ $k is $v, expected $tag"; fail=1; fi
           done
@@ -486,13 +489,18 @@ jobs:
             const key = process.env.UPDATER_KEY;
             const signature = fs.readFileSync(process.env.SIG_FILE, "utf8").trim();
             const asset = `LambChat-${process.env.RELEASE_TAG}-${process.env.UPDATER_ASSET_SUFFIX}`;
-            const base = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/${process.env.RELEASE_TAG}`;
+            // 国内直连 GitHub 下载必挂：走自托管反代并锁 tag（与
+            // scripts/generate_updater_manifest.py 同一契约）
+            const base = "https://lambchat.com/api/version/assets";
             let manifest = {};
             if (fs.existsSync("latest.json")) {
               try { manifest = JSON.parse(fs.readFileSync("latest.json", "utf8")); } catch {}
             }
             manifest.platforms = manifest.platforms || {};
-            manifest.platforms[key] = { signature, url: `${base}/${asset}` };
+            manifest.platforms[key] = {
+              signature,
+              url: `${base}/${asset}/download?tag=${process.env.RELEASE_TAG}`,
+            };
             // 版本必须取自 tag：v2.8.2 发布时 tauri.conf.json 仍写 2.8.1，
             // 导致 latest.json 报 2.8.1、桌面端永远检测不到更新。
             manifest.version = process.env.RELEASE_TAG.replace(/^v/, "");
@@ -527,9 +535,12 @@ jobs:
           ios="$(grep -m1 'MARKETING_VERSION' frontend/ios/App/App.xcodeproj/project.pbxproj | sed -E 's/.*= ([^;]+);.*/\1/')"
           pyproject="$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "([^"]+)"/\1/')"
           daemon="$(grep -m1 '^__version__ = ' client/lambchat_sandbox/__init__.py | sed -E 's/__version__ = "([^"]+)"/\1/')"
+          # Cargo.toml 的包版本编译期进 CARGO_PKG_VERSION（clean_on_version_upgrade
+          # 依赖它），漂移则升级清 WebView 数据逻辑失效——曾冻在 2.8.6 达十版
+          cargo_toml="$(grep -m1 '^version = ' frontend/src-tauri/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')"
           want_code="$(printf '%s' "$tag" | tr -d '.')"
           fail=0
-          for entry in "frontend/package.json=$pkg" "tauri.conf.json=$tauri" "android versionName=$gradle_name" "iOS MARKETING_VERSION=$ios" "pyproject.toml=$pyproject" "daemon __version__=$daemon"; do
+          for entry in "frontend/package.json=$pkg" "tauri.conf.json=$tauri" "src-tauri Cargo.toml=$cargo_toml" "android versionName=$gradle_name" "iOS MARKETING_VERSION=$ios" "pyproject.toml=$pyproject" "daemon __version__=$daemon"; do
             k="${entry%%=*}"; v="${entry#*=}"
             if [ "$v" != "$tag" ]; then echo "✗ $k is $v, expected $tag"; fail=1; fi
           done
@@ -668,9 +679,12 @@ jobs:
           ios="$(grep -m1 'MARKETING_VERSION' frontend/ios/App/App.xcodeproj/project.pbxproj | sed -E 's/.*= ([^;]+);.*/\1/')"
           pyproject="$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "([^"]+)"/\1/')"
           daemon="$(grep -m1 '^__version__ = ' client/lambchat_sandbox/__init__.py | sed -E 's/__version__ = "([^"]+)"/\1/')"
+          # Cargo.toml 的包版本编译期进 CARGO_PKG_VERSION（clean_on_version_upgrade
+          # 依赖它），漂移则升级清 WebView 数据逻辑失效——曾冻在 2.8.6 达十版
+          cargo_toml="$(grep -m1 '^version = ' frontend/src-tauri/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')"
           want_code="$(printf '%s' "$tag" | tr -d '.')"
           fail=0
-          for entry in "frontend/package.json=$pkg" "tauri.conf.json=$tauri" "android versionName=$gradle_name" "iOS MARKETING_VERSION=$ios" "pyproject.toml=$pyproject" "daemon __version__=$daemon"; do
+          for entry in "frontend/package.json=$pkg" "tauri.conf.json=$tauri" "src-tauri Cargo.toml=$cargo_toml" "android versionName=$gradle_name" "iOS MARKETING_VERSION=$ios" "pyproject.toml=$pyproject" "daemon __version__=$daemon"; do
             k="${entry%%=*}"; v="${entry#*=}"
             if [ "$v" != "$tag" ]; then echo "✗ $k is $v, expected $tag"; fail=1; fi
           done

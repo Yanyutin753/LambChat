@@ -21,6 +21,7 @@ from src.infra.tool.mcp_client import MCPToolWithRetry
 from src.infra.tool.persona_preset_tool import get_persona_preset_tools
 from src.infra.tool.scheduled_task import get_scheduled_task_tools
 from src.infra.tool.team_tool import get_team_tools
+from src.infra.tool.web_fetch_tool import get_web_fetch_tool
 from src.infra.tool.web_search_tool import get_web_search_tool
 from src.kernel.config import settings
 from src.kernel.schemas.mcp import (
@@ -60,6 +61,9 @@ def build_internal_tools() -> list[BaseTool]:
 
     if settings.ENABLE_WEB_SEARCH:
         tools.append(get_web_search_tool())
+
+    if settings.ENABLE_WEB_FETCH:
+        tools.append(get_web_fetch_tool())
 
     if settings.ENABLE_SCHEDULED_TASK:
         try:

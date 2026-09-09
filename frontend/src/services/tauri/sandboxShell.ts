@@ -43,7 +43,8 @@ export function isShellAvailable(): boolean {
   return protocol === "tauri:" || hostname === "tauri.localhost";
 }
 
-async function invokeInShell<T>(
+/** 壳内 invoke（linuxUpdate 等其他 Tauri 桥共用；非壳环境抛错由调用方降级）。 */
+export async function invokeInShell<T>(
   command: string,
   args?: Record<string, unknown>,
 ): Promise<T> {

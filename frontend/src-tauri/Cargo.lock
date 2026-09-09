@@ -1940,10 +1940,12 @@ dependencies = [
 
 [[package]]
 name = "lambchat"
-version = "2.8.6"
+version = "2.10.3"
 dependencies = [
  "command-group",
  "libc",
+ "reqwest",
+ "rustls",
  "serde",
  "serde_json",
  "sys-locale",

@@ -42,3 +42,34 @@ def test_web_search_settings_are_registered() -> None:
     for key in expected_defaults:
         if key != "ENABLE_WEB_SEARCH":
             assert TOOLS_SETTING_DEFINITIONS[key]["depends_on"] == "ENABLE_WEB_SEARCH"
+
+
+def test_web_fetch_settings_are_registered() -> None:
+    expected_defaults = {
+        "ENABLE_WEB_FETCH": False,
+        "WEB_FETCH_PROVIDER": "auto",
+        "JINA_API_KEYS": "",
+        "FIRECRAWL_BASE_URL": "",
+        "FIRECRAWL_API_KEYS": "",
+        "EXA_API_KEYS": "",
+        "WEB_FETCH_MAX_CHARS": 32768,
+    }
+    for key, default in expected_defaults.items():
+        assert Settings.model_fields[key].default == default
+        assert TOOLS_SETTING_DEFINITIONS[key]["default"] == default
+
+    assert TOOLS_SETTING_DEFINITIONS["WEB_FETCH_PROVIDER"]["options"] == [
+        "auto",
+        "direct",
+        "tavily",
+        "firecrawl",
+        "exa",
+        "jina",
+    ]
+    assert TOOLS_SETTING_DEFINITIONS["FIRECRAWL_API_KEYS"]["is_sensitive"] is True
+    assert TOOLS_SETTING_DEFINITIONS["EXA_API_KEYS"]["is_sensitive"] is True
+    assert TOOLS_SETTING_DEFINITIONS["FIRECRAWL_BASE_URL"].get("is_sensitive") is not True
+    assert TOOLS_SETTING_DEFINITIONS["JINA_API_KEYS"]["is_sensitive"] is True
+    for key in expected_defaults:
+        if key != "ENABLE_WEB_FETCH":
+            assert TOOLS_SETTING_DEFINITIONS[key]["depends_on"] == "ENABLE_WEB_FETCH"

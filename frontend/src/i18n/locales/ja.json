@@ -263,7 +263,8 @@
       "offlineHint": "そのPCは現在オフラインのため、実行マシンとして選択できません",
       "section": "実行デバイス",
       "currentDevice": "このデバイス"
-    }
+    },
+    "sandboxPolicy": { "section": "実行ポリシー", "all": "すべて確認", "commands": "コマンドのみ確認", "none": "確認しない", "updated": "実行ポリシーを更新しました", "updateFailed": "実行ポリシーの更新に失敗しました" }
   },
   "agents": {
     "fast": {
@@ -1004,6 +1005,12 @@
       "toolWebSearchMore_one": "他 {{count}} 件の結果",
       "toolWebSearchMore_other": "他 {{count}} 件の結果",
       "toolWebSearchNoResults": "結果が見つかりませんでした",
+      "toolWebFetch": "ウェブ閲覧",
+      "toolWebFetchChars": "{{count}} 文字",
+      "toolWebFetchChars_one": "{{count}} 文字",
+      "toolWebFetchChars_other": "{{count}} 文字",
+      "toolWebFetchTruncated": "省略あり",
+      "toolWebFetchWaiting": "ページ本文を読み取り中…",
       "toolWebSearchResults": "{{count}} 件の結果",
       "toolWebSearchResults_one": "{{count}} 件の結果",
       "toolWebSearchResults_other": "{{count}} 件の結果",
@@ -2839,7 +2846,14 @@
     "WELCOME_SUGGESTION_ITEM": "候補",
     "WELCOME_SUGGESTION_LANG": "言語",
     "WELCOME_SUGGESTION_TEXT": "テキスト",
-    "LLM_STREAM_IDLE_TIMEOUT": "ストリーミングchunk間の最大アイドル秒数。上游の停滞で実行が固まるのを防ぐ（0以下で無効）"
+    "LLM_STREAM_IDLE_TIMEOUT": "ストリーミングchunk間の最大アイドル秒数。上游の停滞で実行が固まるのを防ぐ（0以下で無効）",
+    "ENABLE_WEB_FETCH": "ウェブ取得ツールを有効化：公開ページの本文を Markdown として取得（内部アドレスは常に拒否）。",
+    "WEB_FETCH_PROVIDER": "取得プロバイダー: direct=ローカル、tavily=検索キー共有、firecrawl=セルフホスト可、exa=キャッシュ+実クロール、jina=r.jina.ai、auto=順次フォールバック。",
+    "JINA_API_KEYS": "Jina Reader API キー（カンマ区切りでローテーション）。空の場合 jina は無効。",
+    "WEB_FETCH_MAX_CHARS": "1 回の取得で返す最大文字数。超過分は切り詰め。",
+    "FIRECRAWL_BASE_URL": "Firecrawl セルフホスト URL（例: http://fc.internal:3000）。空欄で公式 SaaS。セルフホストはキー不要。",
+    "FIRECRAWL_API_KEYS": "Firecrawl API キー（カンマ区切りローテーション）。セルフホストでは省略可。",
+    "EXA_API_KEYS": "Exa API キー（カンマ区切りローテーション、キャッシュ優先+ライブクロール）。"
   },
   "settings": {
     "defaultModel": "デフォルトモデル",
@@ -3429,6 +3443,7 @@
     "toolsEnabled": "件のツールが有効"
   },
   "updateDownload": "今すぐ更新",
+  "updateDownloadAndInstall": "ダウンロードしてインストール",
   "updateDownloading": "ダウンロード中...",
   "updateDownloadNetworkError": "ダウンロードに失敗しました。ネットワークを確認して再試行してください",
   "updateError": "更新に失敗しました",
