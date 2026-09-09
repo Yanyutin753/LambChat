@@ -1303,7 +1303,9 @@
   "errorBoundary": {
     "reloadPage": "ページを再読み込み",
     "title": "エラーが発生しました",
-    "unexpectedError": "予期しないエラーが発生しました"
+    "unexpectedError": "予期しないエラーが発生しました",
+    "updatingTitle": "リソースを更新中",
+    "updatingMessage": "アプリのリソースが更新されたため、自動的にページを再読み込みしています。反応がない場合は下のボタンで再試行してください。"
   },
   "errors": {
     "backToHome": "ホームに戻る",

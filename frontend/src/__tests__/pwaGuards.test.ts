@@ -4,7 +4,9 @@ import {
   PWA_SKIP_WAITING_MESSAGE,
   isPwaSkipWaitingMessage,
   isPwaUpdateReady,
+  isTauriShell,
   shouldRegisterPwa,
+  shouldUnregisterTauriPwa,
 } from "../pwaGuards.ts";
 
 test("registers the PWA only for production browsers with service worker support", () => {
@@ -16,6 +18,48 @@ test("registers the PWA only for production browsers with service worker support
   ).toBe(false);
   expect(
     shouldRegisterPwa({ isProduction: true, hasServiceWorker: false }),
+  ).toBe(false);
+});
+
+test("never registers the PWA service worker inside the Tauri desktop shell", () => {
+  // 桌面端更新走 Tauri updater 换装；SW 在壳内只会沉淀一层陈旧缓存，
+  // updater 重启后回放旧 index.html/旧 chunk——RichChatComposer 动态导入
+  // 每次报 Failed to fetch dynamically imported module 的主要根因。
+  expect(
+    shouldRegisterPwa({
+      isProduction: true,
+      hasServiceWorker: true,
+      isTauriShell: true,
+    }),
+  ).toBe(false);
+  // Web 端（含同款浏览器的 PWA）不受影响
+  expect(
+    shouldRegisterPwa({
+      isProduction: true,
+      hasServiceWorker: true,
+      isTauriShell: false,
+    }),
+  ).toBe(true);
+});
+
+test("detects the Tauri shell via the injected tauri globals", () => {
+  expect(isTauriShell({ __TAURI_INTERNALS__: {} })).toBe(true);
+  expect(isTauriShell({ __TAURI__: {} })).toBe(true);
+  expect(isTauriShell({})).toBe(false);
+  expect(isTauriShell(undefined as unknown as object)).toBe(false);
+});
+
+test("asks to unregister legacy workers only inside the Tauri shell", () => {
+  // 修复上线前桌面端可能已注册过 SW：壳内要主动回收（unregister + 清缓存），
+  // 否则旧 SW 会一直控制 tauri.localhost 页面。
+  expect(
+    shouldUnregisterTauriPwa({ isTauriShell: true, hasServiceWorker: true }),
+  ).toBe(true);
+  expect(
+    shouldUnregisterTauriPwa({ isTauriShell: false, hasServiceWorker: true }),
+  ).toBe(false);
+  expect(
+    shouldUnregisterTauriPwa({ isTauriShell: true, hasServiceWorker: false }),
   ).toBe(false);
 });
 

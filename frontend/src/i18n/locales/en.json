@@ -1303,7 +1303,9 @@
   "errorBoundary": {
     "reloadPage": "Reload Page",
     "title": "Something went wrong",
-    "unexpectedError": "An unexpected error occurred"
+    "unexpectedError": "An unexpected error occurred",
+    "updatingTitle": "Updating resources",
+    "updatingMessage": "App resources changed and the page is refreshing automatically; if nothing happens, use the button below to retry."
   },
   "errors": {
     "backToHome": "Back to Home",

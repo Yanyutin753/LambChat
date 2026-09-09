@@ -1303,7 +1303,9 @@
   "errorBoundary": {
     "reloadPage": "重新加载页面",
     "title": "出了点问题",
-    "unexpectedError": "发生了意外错误"
+    "unexpectedError": "发生了意外错误",
+    "updatingTitle": "正在更新资源",
+    "updatingMessage": "应用资源已更新，正在自动刷新页面；若没有反应，请点击下方按钮重试。"
   },
   "errors": {
     "backToHome": "返回首页",

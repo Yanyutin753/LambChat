@@ -71,6 +71,8 @@ import {
 import { useAcceptedDraftSubmission } from "./useAcceptedDraftSubmission";
 const RichChatComposer = lazy(async () => {
   const module = await import("./richComposer/RichChatComposer");
+  // chunk 自愈吞错后 import resolve undefined：抛回 chunk 错误走更新分支
+  if (!module) throw new Error("Failed to fetch dynamically imported module: RichChatComposer");
   return { default: module.RichChatComposer };
 });
 export type { ChatInputProps } from "./chatInputTypes";

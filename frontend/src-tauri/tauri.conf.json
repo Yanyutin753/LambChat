@@ -16,7 +16,8 @@
         "width": 1280,
         "height": 860,
         "minWidth": 960,
-        "minHeight": 640
+        "minHeight": 640,
+        "additionalBrowserArgs": "--disable-http-cache --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection"
       }
     ],
     "security": {

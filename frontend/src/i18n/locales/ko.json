@@ -1303,7 +1303,9 @@
   "errorBoundary": {
     "reloadPage": "페이지 새로고침",
     "title": "문제가 발생했습니다",
-    "unexpectedError": "예기치 않은 오류가 발생했습니다"
+    "unexpectedError": "예기치 않은 오류가 발생했습니다",
+    "updatingTitle": "리소스 업데이트 중",
+    "updatingMessage": "앱 리소스가 변경되어 자동으로 페이지를 새로 고치는 중입니다. 반응이 없으면 아래 버튼으로 다시 시도해 주세요."
   },
   "errors": {
     "backToHome": "홈으로 돌아가기",
