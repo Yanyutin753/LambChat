@@ -339,7 +339,9 @@ async def test_tavily_extract_normalizes_raw_content(monkeypatch: pytest.MonkeyP
     )
     assert result["success"] is True
     assert result["provider"] == "tavily"
+    assert result["title"] == "标题行"  # raw 首行 "# 标题行" 提升为 title
     assert "Tavily 抽取的正文" in result["content"]
+    assert not result["content"].startswith("# 标题行")
 
 
 async def test_tavily_extract_reports_failed_results(monkeypatch: pytest.MonkeyPatch) -> None:

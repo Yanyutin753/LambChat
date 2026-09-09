@@ -426,12 +426,20 @@ async def tavily_extract(
         failed = data.get("failed_results") or []
         reason = str(failed[0]) if failed else "empty raw_content"
         return {"success": False, "error": f"web_fetch_tavily_failed: {reason}"}
-    content, truncated = _truncate(raw.strip(), max_chars)
+    text = raw.strip()
+    # raw_content 首行常是 "# 标题"：提出来填 title（前端 URL hero 直接展示）
+    title: str | None = None
+    first_line, sep, rest = text.partition("\n")
+    if first_line.startswith("# ") and len(first_line) > 3:
+        title = first_line[2:].strip() or None
+        if sep and rest.strip():
+            text = rest.lstrip("\n")
+    content, truncated = _truncate(text, max_chars)
     return _fetch_result(
         url=url,
         final_url=url,
         provider="tavily",
-        title=None,
+        title=title,
         content=content,
         content_type="text/markdown",
         truncated=truncated,
