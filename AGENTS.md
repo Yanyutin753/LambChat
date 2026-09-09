@@ -20,7 +20,7 @@ LambChat 是全栈 AI Agent 平台：
 
 - **后端**: Python 3.12+, FastAPI, LangGraph/deepagents, MongoDB, Redis, arq。
 - **前端**: React 19, TypeScript, Vite, TailwindCSS, PWA。
-- **客户端**: Capacitor 移动端 App + Tauri 桌面 App。
+- **客户端**: Capacitor 移动端 App + Tauri 桌面 App，开发规范见根目录 `CLIENT.md`（含本地沙箱 daemon sidecar，为本文件在客户端领域的专项细化）。
 - **文档**: VitePress，位于 `docs/`。
 
 主要目录：
