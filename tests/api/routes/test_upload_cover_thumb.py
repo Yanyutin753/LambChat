@@ -554,9 +554,7 @@ def _make_xlsx_bytes_with_empty_fill() -> bytes:
     import zipfile
 
     buf = io.BytesIO()
-    with zipfile.ZipFile(io.BytesIO(_make_xlsx_bytes())) as zin, zipfile.ZipFile(
-        buf, "w"
-    ) as zout:
+    with zipfile.ZipFile(io.BytesIO(_make_xlsx_bytes())) as zin, zipfile.ZipFile(buf, "w") as zout:
         for item in zin.infolist():
             payload = zin.read(item.filename)
             if item.filename == "xl/styles.xml":
