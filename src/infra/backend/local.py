@@ -96,9 +96,7 @@ async def _lookup_daemon_platform(user_id: str, machine_id: str | None = None) -
         return ""
 
 
-async def _lookup_daemon_identity(
-    user_id: str, machine_id: str | None = None
-) -> tuple[str, str]:
+async def _lookup_daemon_identity(user_id: str, machine_id: str | None = None) -> tuple[str, str]:
     """经注册表查目标机 daemon 的（上报平台, 机器展示名）。
 
     prompt 机器绑定段（OS+机器名）的数据源；离线/旧格式/未上报对应成员为

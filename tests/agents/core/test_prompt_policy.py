@@ -101,10 +101,7 @@ def test_machine_binding_is_tail_append_for_all_platforms():
     不前移，存量会话已缓存前缀零失效。"""
     for platform in ("win32", "darwin", "linux"):
         section = sandbox_shell_platform_section(platform, machine_name="m1")
-        assert (
-            section.index("user's own real computer")
-            < section.index("Local Machine Binding")
-        )
+        assert section.index("user's own real computer") < section.index("Local Machine Binding")
         assert section.rstrip().endswith("more than one machine.")
 
 

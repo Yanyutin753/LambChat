@@ -16,9 +16,7 @@ async def test_runtime_policy_carries_machine_identity(monkeypatch):
         assert user_id == "u1"
         return ("linux", "yangyang-Lenovo-XiaoXinPro")
 
-    monkeypatch.setattr(
-        "src.infra.backend.local._lookup_daemon_identity", fake_identity
-    )
+    monkeypatch.setattr("src.infra.backend.local._lookup_daemon_identity", fake_identity)
     policy = await search_nodes._build_sandbox_runtime_policy(
         backend, "/workspace/s1", user_id="u1"
     )
@@ -35,12 +33,8 @@ async def test_runtime_policy_passes_session_machine_id(monkeypatch):
         seen["machine_id"] = machine_id
         return ("darwin", "MacBook")
 
-    monkeypatch.setattr(
-        "src.infra.backend.local._lookup_daemon_identity", fake_identity
-    )
-    await search_nodes._build_sandbox_runtime_policy(
-        backend, "/workspace/s1", user_id="u1"
-    )
+    monkeypatch.setattr("src.infra.backend.local._lookup_daemon_identity", fake_identity)
+    await search_nodes._build_sandbox_runtime_policy(backend, "/workspace/s1", user_id="u1")
     assert seen["machine_id"] == "mac1"
 
 
