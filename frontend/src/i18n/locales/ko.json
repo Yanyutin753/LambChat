@@ -3442,6 +3442,7 @@
     "toolsEnabled": "개 도구 활성화됨"
   },
   "updateDownload": "지금 업데이트",
+  "updateDownloadAndInstall": "다운로드 후 설치",
   "updateDownloading": "다운로드 중...",
   "updateDownloadNetworkError": "다운로드 실패, 네트워크를 확인한 후 다시 시도하세요",
   "updateError": "업데이트 실패",

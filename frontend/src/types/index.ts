@@ -231,7 +231,12 @@ export type {
 // ============================================
 // Version Types
 // ============================================
-export type { VersionInfo, ReleaseAsset, UpdateState } from "./common";
+export type {
+  VersionInfo,
+  ReleaseAsset,
+  UpdateState,
+  LinuxInstallSource,
+} from "./common";
 
 // ============================================
 // Team Types

@@ -32,6 +32,14 @@ export function UpdateDialog({
 }: UpdateDialogProps) {
   const { t } = useTranslation();
 
+  // Linux 安装来源分流文案：deb/rpm=下载并安装（pkexec），unknown=前往下载
+  // （无法判定安装方式不盲装），appimage/非 Linux 保持 updater 语义
+  const source = state.linuxInstallSource;
+  const isLinuxPackage =
+    platform === "tauri" && (source === "deb" || source === "rpm");
+  const isUnknownSource = platform === "tauri" && source === "unknown";
+  const isGoToDownload = platform === "ios" || isUnknownSource;
+
   const footer = (
     <>
       {!state.downloading && (
@@ -53,18 +61,22 @@ export function UpdateDialog({
           <span className="inline-flex h-4 w-4 items-center justify-center">
             <LoadingSpinner size="sm" color="text-current" />
           </span>
-        ) : platform === "ios" ? (
+        ) : isGoToDownload ? (
           <ExternalLink size={16} />
+        ) : isLinuxPackage ? (
+          <Download size={16} />
         ) : (
           <RefreshCw size={16} />
         )}
         {state.downloading
           ? t("updateDownloading", "正在下载...")
-          : platform === "ios"
+          : isGoToDownload
             ? t("updateGoToDownload", "前往下载")
-            : state.readyToInstall
-              ? t("updateRelaunchInstall", "重启并安装")
-              : t("updateDownload", "立即升级")}
+            : isLinuxPackage
+              ? t("updateDownloadAndInstall", "下载并安装")
+              : state.readyToInstall
+                ? t("updateRelaunchInstall", "重启并安装")
+                : t("updateDownload", "立即升级")}
       </button>
     </>
   );

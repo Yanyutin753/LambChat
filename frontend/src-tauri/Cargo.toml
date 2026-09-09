@@ -1,6 +1,6 @@
 [package]
 name = "lambchat"
-version = "2.8.6"
+version = "2.10.2"
 description = "LambChat desktop app"
 authors = ["LambChat"]
 license = ""
@@ -24,6 +24,13 @@ tauri-plugin-shell = "2"
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Linux deb/rpm 更新安装的流式下载（linux_update.rs）。与 updater 插件共用
+# 同版本 reqwest；TLS provider 不自带（rustls-no-provider）——由下方 rustls(ring)
+# 在进程级安装，避免引入 aws-lc-sys 原生构建（reqwest `rustls` feature 的默认）
+reqwest = { version = "0.13", default-features = false, features = ["stream", "rustls-no-provider"] }
+# 声明与 updater 插件完全一致（版本/feature 取并集，lock 零新增），
+# 供 linux_update 安装进程级 ring provider
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 time = "=0.3.36"
 # 托盘菜单文案按系统 locale 五语本地化（M4 T8）；无传递依赖，纯 Rust 读 env/API
 sys-locale = "0.3"

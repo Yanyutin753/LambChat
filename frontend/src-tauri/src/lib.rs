@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use tauri::Manager;
 
 mod daemon;
+mod linux_update;
 mod tray;
 
 /// SIGTERM 停机旗标：信号处理器只做原子置位（async-signal-safe 的唯一动作），
@@ -224,7 +225,9 @@ pub fn run() {
             daemon::read_machine_id,
             daemon::restart_daemon,
             daemon::daemon_process_status,
-            daemon::open_local_path
+            daemon::open_local_path,
+            linux_update::get_linux_install_source,
+            linux_update::install_linux_package
         ])
         .build(tauri::generate_context!())
         .expect("error while building LambChat desktop app")

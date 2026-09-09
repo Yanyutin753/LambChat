@@ -3442,6 +3442,7 @@
     "toolsEnabled": "инструментов включено"
   },
   "updateDownload": "Обновить",
+  "updateDownloadAndInstall": "Скачать и установить",
   "updateDownloading": "Загрузка...",
   "updateDownloadNetworkError": "Не удалось скачать. Проверьте сеть и повторите попытку",
   "updateError": "Ошибка обновления",

@@ -234,9 +234,7 @@ def test_download_release_asset_with_unknown_tag_returns_404_code(client):
     with patch.object(
         GitHubClient, "get_release_by_tag", new_callable=AsyncMock, return_value=None
     ):
-        resp = client.get(
-            "/api/version/assets/whatever.apk/download", params={"tag": "v9.9.9"}
-        )
+        resp = client.get("/api/version/assets/whatever.apk/download", params={"tag": "v9.9.9"})
         assert resp.status_code == 404
         assert resp.json()["detail"]["code"] == "release_asset_not_found"
         assert resp.json()["detail"]["args"]["name"] == "whatever.apk"

@@ -3442,6 +3442,7 @@
     "toolsEnabled": "件のツールが有効"
   },
   "updateDownload": "今すぐ更新",
+  "updateDownloadAndInstall": "ダウンロードしてインストール",
   "updateDownloading": "ダウンロード中...",
   "updateDownloadNetworkError": "ダウンロードに失敗しました。ネットワークを確認して再試行してください",
   "updateError": "更新に失敗しました",

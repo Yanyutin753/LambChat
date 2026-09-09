@@ -118,9 +118,7 @@ class GitHubClient:
         """Fetch release JSON from GitHub API (latest or by-tag endpoint)"""
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(
-                    url, headers={"Accept": "application/vnd.github+json"}
-                )
+                response = await client.get(url, headers={"Accept": "application/vnd.github+json"})
                 if response.status_code == 200:
                     data = response.json()
                     return self._parse_release(data)
