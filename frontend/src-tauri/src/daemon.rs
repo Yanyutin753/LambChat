@@ -536,6 +536,42 @@ pub(crate) fn sandbox_home() -> Result<PathBuf, String> {
 
 /// 写入敏感文件：unix 下以 0600 模式原子创建（`OpenOptions::mode` 在 create
 /// 时生效，消除 write→chmod 之间的宽松权限窗口）。
+/// 写入配置文件时先写同目录临时文件，再原子替换目标，避免 daemon 重启
+/// 恰好读到截断 JSON（Windows/macOS 的进程重启竞态尤其容易复现）。
+fn write_atomic_file(path: &Path, contents: &[u8]) -> Result<(), String> {
+    let parent = path.parent().ok_or_else(|| {
+        format!("cannot determine parent directory for {}", path.display())
+    })?;
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| format!("cannot determine file name for {}", path.display()))?
+        .to_string_lossy();
+    let tmp = parent.join(format!(".{file_name}.{}.tmp", std::process::id()));
+    std::fs::write(&tmp, contents)
+        .map_err(|e| format!("failed to write {}: {e}", tmp.display()))?;
+    if let Err(e) = std::fs::rename(&tmp, path) {
+        #[cfg(windows)]
+        {
+            // Windows rename cannot replace an existing file. Remove only after
+            // the complete temp write succeeds, then perform the short swap.
+            if path.exists() {
+                std::fs::remove_file(path).map_err(|remove_err| {
+                    let _ = std::fs::remove_file(&tmp);
+                    format!("failed to replace {}: {remove_err}", path.display())
+                })?;
+                if let Err(rename_err) = std::fs::rename(&tmp, path) {
+                    let _ = std::fs::remove_file(&tmp);
+                    return Err(format!("failed to replace {}: {rename_err}", path.display()));
+                }
+                return Ok(());
+            }
+        }
+        let _ = std::fs::remove_file(&tmp);
+        return Err(format!("failed to replace {}: {e}", path.display()));
+    }
+    Ok(())
+}
+
 fn write_private_file(path: &Path, contents: &[u8]) -> Result<(), String> {
     let mut options = std::fs::OpenOptions::new();
     options.write(true).create(true).truncate(true);
@@ -656,8 +692,7 @@ fn write_pairing_files(
     let mut body = serde_json::to_string_pretty(&payload)
         .map_err(|e| format!("failed to serialize sandbox config: {e}"))?;
     body.push('\n');
-    std::fs::write(&config_path, body)
-        .map_err(|e| format!("failed to write {}: {e}", config_path.display()))?;
+    write_atomic_file(&config_path, body.as_bytes())?;
     Ok(())
 }
 
@@ -717,8 +752,7 @@ fn write_policy_only(home: &Path, confirm_policy: &str) -> Result<(), String> {
     let mut body = serde_json::to_string_pretty(&cfg)
         .map_err(|e| format!("failed to serialize sandbox config: {e}"))?;
     body.push('\n');
-    std::fs::write(&config_path, body)
-        .map_err(|e| format!("failed to write {}: {e}", config_path.display()))?;
+    write_atomic_file(&config_path, body.as_bytes())?;
     Ok(())
 }
 
@@ -761,8 +795,7 @@ fn clear_pairing_files(home: &Path) -> Result<(), String> {
     let mut body = serde_json::to_string_pretty(&cfg)
         .map_err(|e| format!("failed to serialize sandbox config: {e}"))?;
     body.push('\n');
-    std::fs::write(&config_path, body)
-        .map_err(|e| format!("failed to write {}: {e}", config_path.display()))?;
+    write_atomic_file(&config_path, body.as_bytes())?;
     Ok(())
 }
 
