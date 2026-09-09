@@ -75,3 +75,20 @@ def test_web_fetch_settings_are_registered() -> None:
     for key in expected_defaults:
         if key != "ENABLE_WEB_FETCH":
             assert TOOLS_SETTING_DEFINITIONS[key]["depends_on"] == "ENABLE_WEB_FETCH"
+
+
+def test_video_analysis_settings_suite_is_registered() -> None:
+    """一工具一套：视频分析有独立的模型/重试/字节上限设置（未配模型回落图片的）。"""
+    expected = {
+        "VIDEO_ANALYSIS_MODEL_ID": "",
+        "VIDEO_ANALYSIS_MAX_ATTEMPTS": 3,
+        "VIDEO_ANALYSIS_RETRY_DELAY": 1.0,
+        "VIDEO_ANALYSIS_MAX_BYTES": 52428800,
+    }
+    for key, default in expected.items():
+        assert Settings.model_fields[key].default == default, key
+        assert TOOLS_SETTING_DEFINITIONS[key]["default"] == default, key
+        assert TOOLS_SETTING_DEFINITIONS[key]["subcategory"] == "video_analysis", key
+        assert TOOLS_SETTING_DEFINITIONS[key]["depends_on"] == "ENABLE_IMAGE_ANALYSIS", key
+    assert TOOLS_SETTING_DEFINITIONS["VIDEO_ANALYSIS_MAX_BYTES"]["min_value"] == 1048576
+    assert TOOLS_SETTING_DEFINITIONS["VIDEO_ANALYSIS_MAX_BYTES"]["max_value"] == 209715200

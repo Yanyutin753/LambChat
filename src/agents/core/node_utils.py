@@ -224,6 +224,12 @@ def _is_image_attachment(attachment: dict) -> bool:
     return file_type == "image" or mime_type.startswith("image/")
 
 
+def _is_video_attachment(attachment: dict) -> bool:
+    file_type = str(attachment.get("type", "")).lower()
+    mime_type = str(attachment.get("mime_type") or attachment.get("mimeType") or "").lower()
+    return file_type == "video" or mime_type.startswith("video/")
+
+
 def _attachment_url_from_key(key: object, base_url: str) -> str:
     clean_base_url = base_url.rstrip("/")
     quoted_key = quote(str(key).lstrip("/"), safe="/")
@@ -546,6 +552,7 @@ def build_human_message(
         return HumanMessage(content=text)
 
     multimodal_images: list[dict] = []
+    multimodal_videos: list[dict] = []
     text_summary_attachments: list[dict] = []
 
     for attachment in attachments:
@@ -564,17 +571,29 @@ def build_human_message(
             # 没有链接就无法用 upload_url_to_sandbox 按需取字节
             if url:
                 text_summary_attachments.append({**attachment, "image_index": image_index})
+        elif supports_vision and _is_video_attachment(attachment) and image_url:
+            # VLM 视频输入（video_analyze）：data URL 走 video_url 块
+            video_index = len(multimodal_videos) + 1
+            multimodal_videos.append(
+                {
+                    "type": "video_url",
+                    "video_url": {"url": image_url},
+                }
+            )
+            if url:
+                text_summary_attachments.append({**attachment, "video_index": video_index})
         elif url:
             text_summary_attachments.append(attachment)
 
     enhanced_text = _format_attachment_summary(text, text_summary_attachments)
-    if not multimodal_images:
+    if not multimodal_images and not multimodal_videos:
         return HumanMessage(content=enhanced_text)
 
     return HumanMessage(
         content=[
             {"type": "text", "text": enhanced_text},
             *multimodal_images,
+            *multimodal_videos,
         ]
     )
 

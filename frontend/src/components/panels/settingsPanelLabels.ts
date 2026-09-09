@@ -45,6 +45,8 @@ export function buildSubcategoryLabels(t: Translate): Record<string, string> {
     daytona: t("subcategories.daytona"),
     e2b: t("subcategories.e2b"),
     mcp: t("subcategories.mcp"),
+    image_analysis: t("subcategories.image_analysis"),
+    video_analysis: t("subcategories.video_analysis"),
     deferred: t("subcategories.deferred"),
     connection: t("subcategories.connection"),
     langsmith: t("subcategories.langsmith"),

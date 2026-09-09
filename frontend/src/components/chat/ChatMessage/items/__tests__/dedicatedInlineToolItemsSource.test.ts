@@ -58,6 +58,7 @@ test("message part renderer routes internal inline tools to dedicated items", ()
     "upload_url_to_sandbox",
     "image_analyze",
     "image_edit_with_references",
+    "video_analyze",
     "transfer_file",
     "transfer_path",
     "env_var_delete_all",
@@ -76,6 +77,7 @@ test("message part renderer routes internal inline tools to dedicated items", ()
 
   expect(source).toMatch(/<UploadUrlToSandboxItem/);
   expect(source).toMatch(/<ImageAnalyzeItem/);
+  expect(source).toMatch(/<VideoAnalyzeItem/);
   expect(source).toMatch(/<TransferItem/);
   expect(source).toMatch(/<ConversationHistoryItem/);
   expect(source).toMatch(/<SkillSearchItem/);
@@ -124,6 +126,7 @@ test("every backend internal tool ships a dedicated item route", () => {
     "transfer_path",
     "update_persona_preset",
     "upload_url_to_sandbox",
+    "video_analyze",
     "web_fetch",
     "web_search",
   ]);
