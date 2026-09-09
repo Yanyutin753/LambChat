@@ -3412,7 +3412,6 @@
   "updateDownloadNetworkError": "다운로드 실패, 네트워크를 확인한 후 다시 시도하세요",
   "updateError": "업데이트 실패",
   "updateGoToDownload": "다운로드로 이동",
-  "updateNewVersion": "새 버전 {{version}} 사용 가능",
   "updatePublishedAt": "{{date}} 게시됨",
   "updateReleaseNotes": "릴리스 노트",
   "updateRetry": "재시도",
@@ -3612,7 +3611,10 @@
     "notificationTitle": "새 버전 available",
     "upToDate": "최신 버전입니다",
     "installPermissionHint": "먼저 LambChat의 알 수 없는 앱 설치를 허용한 뒤 업그레이드를 다시 눌러주세요",
-    "updateRelaunchInstall": "재시작 후 설치"
+    "updateRelaunchInstall": "재시작 후 설치",
+    "availableTitle": "새 버전 사용 가능",
+    "skipVersion": "이 버전 건너뛰기",
+    "viewFullNotes": "전체 변경 로그 보기"
   },
   "download": {
     "title": "로컬 샌드박스 다운로드",

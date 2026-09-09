@@ -3412,7 +3412,6 @@
   "updateDownloadNetworkError": "Download failed, please check your network and retry",
   "updateError": "Update failed",
   "updateGoToDownload": "Go to Download",
-  "updateNewVersion": "New version {{version}} available",
   "updatePublishedAt": "Published {{date}}",
   "updateReleaseNotes": "Release Notes",
   "updateRetry": "Retry",
@@ -3612,7 +3611,10 @@
     "notificationTitle": "Update available",
     "upToDate": "You are on the latest version",
     "installPermissionHint": "Allow LambChat to install unknown apps first, then tap upgrade again",
-    "updateRelaunchInstall": "Restart & install"
+    "updateRelaunchInstall": "Restart & install",
+    "availableTitle": "Update Available",
+    "skipVersion": "Skip This Version",
+    "viewFullNotes": "View full changelog"
   },
   "download": {
     "title": "Download Local Sandbox",

@@ -3412,7 +3412,6 @@
   "updateDownloadNetworkError": "下载失败，请检查网络后重试",
   "updateError": "更新失败",
   "updateGoToDownload": "前往下载",
-  "updateNewVersion": "新版本 {{version}} 可用",
   "updatePublishedAt": "发布于 {{date}}",
   "updateReleaseNotes": "更新日志",
   "updateRetry": "重试",
@@ -3612,7 +3611,10 @@
     "notificationTitle": "发现新版本",
     "upToDate": "已是最新版本",
     "installPermissionHint": "请先允许 LambChat 安装未知应用，授权后重新点击升级",
-    "updateRelaunchInstall": "重启并安装"
+    "updateRelaunchInstall": "重启并安装",
+    "availableTitle": "发现新版本",
+    "skipVersion": "跳过此版本",
+    "viewFullNotes": "查看完整更新日志"
   },
   "download": {
     "title": "下载本地沙箱",

@@ -3412,7 +3412,6 @@
   "updateDownloadNetworkError": "ダウンロードに失敗しました。ネットワークを確認して再試行してください",
   "updateError": "更新に失敗しました",
   "updateGoToDownload": "ダウンロードページへ",
-  "updateNewVersion": "新バージョン {{version}} が利用可能",
   "updatePublishedAt": "{{date}} 公開",
   "updateReleaseNotes": "リリースノート",
   "updateRetry": "再試行",
@@ -3612,7 +3611,10 @@
     "notificationTitle": "新バージョンがあります",
     "upToDate": "最新バージョンです",
     "installPermissionHint": "まず LambChat に不明なアプリのインストールを許可してから、再度アップグレードをタップしてください",
-    "updateRelaunchInstall": "再起動してインストール"
+    "updateRelaunchInstall": "再起動してインストール",
+    "availableTitle": "新しいバージョンがあります",
+    "skipVersion": "このバージョンをスキップ",
+    "viewFullNotes": "更新履歴をすべて表示"
   },
   "download": {
     "title": "ローカルサンドボックスのダウンロード",

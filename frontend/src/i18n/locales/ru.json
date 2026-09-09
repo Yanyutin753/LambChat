@@ -3412,7 +3412,6 @@
   "updateDownloadNetworkError": "Не удалось скачать. Проверьте сеть и повторите попытку",
   "updateError": "Ошибка обновления",
   "updateGoToDownload": "Перейти к загрузке",
-  "updateNewVersion": "Доступна новая версия {{version}}",
   "updatePublishedAt": "Опубликовано {{date}}",
   "updateReleaseNotes": "Примечания к выпуску",
   "updateRetry": "Повторить",
@@ -3612,7 +3611,10 @@
     "notificationTitle": "Доступно обновление",
     "upToDate": "У вас последняя версия",
     "installPermissionHint": "Сначала разрешите LambChat установку неизвестных приложений, затем снова нажмите «Обновить»",
-    "updateRelaunchInstall": "Перезапустить и установить"
+    "updateRelaunchInstall": "Перезапустить и установить",
+    "availableTitle": "Доступно обновление",
+    "skipVersion": "Пропустить эту версию",
+    "viewFullNotes": "Полный список изменений"
   },
   "download": {
     "title": "Скачать локальную песочницу",

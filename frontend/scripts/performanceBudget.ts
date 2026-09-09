@@ -155,10 +155,11 @@ export function combinePrecacheBudgetEntries(
   });
 }
 
-// 516KB：514KB + 桌面壳 SW 守卫（pwaGuards isTauriShell/shouldUnregister
+// 518KB：514KB + 桌面壳 SW 守卫（pwaGuards isTauriShell/shouldUnregister
 // 随 registerLambChatPwa 在启动期判定，防止 Tauri 壳内 SW 沉淀陈旧缓存）
-// + ErrorBoundary chunk 错误自愈分支进入 eager 路径，沿 2KB 阶梯惯例抬一档。
-export const EAGER_JAVASCRIPT_BUDGET_BYTES = 516 * 1024;
+// + ErrorBoundary chunk 错误自愈分支 + 更新器跳过版本逻辑（useAutoUpdate
+// 纯函数 + 持久化）与通用 Dialog 弹窗进入 eager 路径，沿 2KB 阶梯惯例累加抬档。
+export const EAGER_JAVASCRIPT_BUDGET_BYTES = 518 * 1024;
 export const PRECACHE_BUDGET_BYTES = 5 * 1024 * 1024;
 export const PRECACHE_ADDITIONAL_ENTRIES: PrecacheEntry[] = [];
 
