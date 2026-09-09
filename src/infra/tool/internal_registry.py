@@ -238,6 +238,18 @@ async def get_internal_tool_policies() -> dict[str, MCPToolPolicy]:
         return {}
 
 
+# 默认 inline 直挂的内置工具：网页检索/阅读是通用基础能力，不该藏在
+# tool_search 元工具后面（模型要先「搜工具」才能发现它们，等于默认不可用）。
+# 管理员在 MCP 面板对工具显式设置过策略的，一律以显式值为准。
+_DEFAULT_INLINE_TOOL_NAMES = frozenset({"web_search", "web_fetch"})
+
+
+def _default_inline_exposure(policy: MCPToolPolicy | None, tool_name: str) -> bool:
+    if policy is not None:
+        return bool(policy.inline_exposure)
+    return tool_name in _DEFAULT_INLINE_TOOL_NAMES
+
+
 async def get_internal_tools_for_user(
     *,
     user_id: str | None,
@@ -287,7 +299,7 @@ async def get_internal_tools_by_exposure_for_user(
             role_quotas=(policy.role_quotas if policy else None),
             quota_tool_name=tool.name,
         )
-        target = direct if policy is not None and policy.inline_exposure else deferred
+        target = direct if _default_inline_exposure(policy, tool.name) else deferred
         target.append(wrapped)
     return direct, deferred
 
@@ -325,7 +337,7 @@ async def get_internal_tool_infos(
                 allowed_roles=list(policy.allowed_roles) if policy else [],
                 role_quotas=dict(policy.role_quotas) if policy else {},
                 policy_configured=policy is not None,
-                inline_exposure=bool(policy.inline_exposure) if policy else False,
+                inline_exposure=_default_inline_exposure(policy, tool.name),
             )
         )
     return infos

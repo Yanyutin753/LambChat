@@ -294,7 +294,7 @@ TOOLS_SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.TOOLS,
         "subcategory": "web_search",
         "description": "settingDesc.ENABLE_WEB_SEARCH",
-        "default": False,
+        "default": True,
         "frontend_visible": True,
     },
     "WEB_SEARCH_PROVIDER": {
@@ -354,7 +354,7 @@ TOOLS_SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.TOOLS,
         "subcategory": "web_fetch",
         "description": "settingDesc.ENABLE_WEB_FETCH",
-        "default": False,
+        "default": True,
         "frontend_visible": True,
     },
     "WEB_FETCH_PROVIDER": {
