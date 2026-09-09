@@ -49,6 +49,9 @@ class _FakeRedis:
     async def hset(self, key: str, field: str, value: str) -> None:
         self.hashes.setdefault(key, {})[field] = value
 
+    async def hget(self, key: str, field: str) -> str | None:
+        return self.hashes.get(key, {}).get(field)
+
     async def hdel(self, key: str, field: str) -> None:
         self.hashes.get(key, {}).pop(field, None)
 

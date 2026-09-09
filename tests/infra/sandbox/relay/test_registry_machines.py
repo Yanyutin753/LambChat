@@ -60,6 +60,9 @@ class _FakeRedis:
     async def hset(self, key: str, field: str, value: str) -> None:
         self.hashes.setdefault(key, {})[field] = value
 
+    async def hget(self, key: str, field: str) -> str | None:
+        return self.hashes.get(key, {}).get(field)
+
     async def hdel(self, key: str, field: str) -> None:
         self.hashes.get(key, {}).pop(field, None)
 
@@ -339,4 +342,40 @@ async def test_update_confirm_policy_rewrites_live_machine_and_memory(registry):
     await registry.update_confirm_policy("u1", "m1", "commands")
     machines = await registry.list_machines("u1")
     assert machines[0]["confirm_policy"] == "commands"
+    assert await registry.get_confirm_policy("u1", "m1") == "commands"
+
+
+# ---------------------------------------------------------------------------
+# 确认策略持久化（machpolicy 耐久层）：全局且跨心跳/重连/过期不回退
+# ---------------------------------------------------------------------------
+
+
+async def test_heartbeat_does_not_clobber_persisted_policy(registry):
+    """对话内热更后 daemon 心跳仍上报启动快照旧值——耐久层优先，不回退。"""
+    await registry.register("u1", "c1", "node1", confirm_policy="all", machine_id="m1")
+    await registry.update_confirm_policy("u1", "m1", "none")
+    # daemon 未重启：心跳继续上报 connect 时的 "all"
+    await registry.heartbeat("u1", "c1", "node1", confirm_policy="all", machine_id="m1")
+    assert await registry.get_confirm_policy("u1", "m1") == "none"
+    machines = await registry.list_machines("u1")
+    assert machines[0]["confirm_policy"] == "none"
+
+
+async def test_policy_survives_daemon_reconnect(registry):
+    """web 端切换只写服务端：daemon 重连（上报 sandbox.json 旧值）后仍持久。"""
+    await registry.register("u1", "c1", "node1", confirm_policy="all", machine_id="m1")
+    await registry.update_confirm_policy("u1", "m1", "commands")
+    await registry.unregister("u1", "c1", "m1")
+    await registry.register("u1", "c1", "node1", confirm_policy="all", machine_id="m1")
+    assert await registry.get_confirm_policy("u1", "m1") == "commands"
+
+
+async def test_daemon_report_seeds_policy_only_without_durable_record(registry):
+    """首连无耐久记录：上报值播种；forget 清耐久层后恢复上报语义。"""
+    await registry.register("u1", "c1", "node1", confirm_policy="none", machine_id="m1")
+    assert await registry.get_confirm_policy("u1", "m1") == "none"
+    await registry.update_confirm_policy("u1", "m1", "all")
+    await registry.unregister("u1", "c1", "m1")
+    assert await registry.forget_machine("u1", "m1") is True
+    await registry.register("u1", "c1", "node1", confirm_policy="commands", machine_id="m1")
     assert await registry.get_confirm_policy("u1", "m1") == "commands"
