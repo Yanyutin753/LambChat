@@ -260,7 +260,9 @@
       "description": "选择本地沙箱命令的执行机器",
       "auto": "自动（默认机）",
       "offline": "离线",
-      "offlineHint": "该电脑当前离线，暂不能选为执行机器"
+      "offlineHint": "该电脑当前离线，暂不能选为执行机器",
+      "section": "执行设备",
+      "currentDevice": "当前设备"
     }
   },
   "agents": {

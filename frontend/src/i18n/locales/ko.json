@@ -260,7 +260,9 @@
       "description": "로컬 샌드박스 명령을 실행할 머신 선택",
       "auto": "자동 (기본 머신)",
       "offline": "오프라인",
-      "offlineHint": "해당 PC는 오프라인 상태라 실행 머신으로 선택할 수 없어요"
+      "offlineHint": "해당 PC는 오프라인 상태라 실행 머신으로 선택할 수 없어요",
+      "section": "실행 기기",
+      "currentDevice": "이 기기"
     }
   },
   "agents": {

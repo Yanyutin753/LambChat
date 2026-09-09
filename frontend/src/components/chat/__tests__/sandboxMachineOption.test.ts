@@ -1,11 +1,7 @@
-/** 会话级机器选择器选项构建（纯函数）：档位联动、默认值与展示名 */
+/** 会话级机器选择器（纯函数）：统一面板设备行构造与入口标签 */
 import { describe, expect, it } from "vitest";
 import type { SandboxMachine } from "../../../services/api/sandbox";
-import {
-  SANDBOX_MACHINE_AGENT_OPTION_KEY,
-  buildSandboxMachineOption,
-  shouldShowSandboxMachineOption,
-} from "../sandboxOption";
+import { buildSandboxMachineRows, resolveSandboxButtonLabel } from "../sandboxOption";
 
 const machines: SandboxMachine[] = [
   {
@@ -27,40 +23,14 @@ const machines: SandboxMachine[] = [
 ];
 const t = (k: string) => k;
 
-describe("shouldShowSandboxMachineOption", () => {
-  it("仅本地档且存在机器时显示", () => {
-    expect(shouldShowSandboxMachineOption("local", machines)).toBe(true);
-    expect(shouldShowSandboxMachineOption("cloud", machines)).toBe(false);
-    expect(shouldShowSandboxMachineOption("local", [])).toBe(false);
-  });
-});
-
-describe("buildSandboxMachineOption", () => {
-  it("首档为「自动（默认机）」，随后按机器生成档位", () => {
-    const option = buildSandboxMachineOption(machines, "MacBook", t)!;
-    expect(option).not.toBeNull();
-    expect(option.options?.[0]).toMatchObject({
-      value: "",
-      label_key: "agentOptions.sandboxMachine.auto",
-    });
-    expect(option.options?.map((o) => o.value)).toEqual(["", "mac1", "srv1"]);
-    expect(option.default).toBe("mac1"); // 默认机优先，无默认取首台
-  });
-
-  it("无机器返回 null（选择器整体隐藏）", () => {
-    expect(buildSandboxMachineOption([], null, t)).toBeNull();
-  });
-
-  it("选项键固定为 sandbox_machine_id（与后端 agent_options 契约一致）", () => {
-    expect(SANDBOX_MACHINE_AGENT_OPTION_KEY).toBe("sandbox_machine_id");
-  });
-});
-
 // ---------------------------------------------------------------------------
-// 离线机保留展示（记忆层）：置灰可选但标注离线；默认机置顶；仅在线机参与
+// 统一沙箱面板（档位 + 执行设备同弹窗）：设备行构造与按钮标签
 // ---------------------------------------------------------------------------
 
-function machine(id: string, opts: Partial<Parameters<typeof buildSandboxMachineOption>[0][number]> = {}) {
+function machine(
+  id: string,
+  opts: Partial<Parameters<typeof buildSandboxMachineRows>[0][number]> = {},
+) {
   return {
     machine_id: id,
     name: id.toUpperCase(),
@@ -73,50 +43,118 @@ function machine(id: string, opts: Partial<Parameters<typeof buildSandboxMachine
   };
 }
 
-test("buildSandboxMachineOption disables offline machines and appends offline hint", () => {
-  const t = (key: string) => key;
-  const option = buildSandboxMachineOption(
-    [machine("on1"), machine("off1", { online: false })],
-    null,
-    t,
-  );
-  expect(option).not.toBeNull();
-  const offline = option!.options!.find((o) => o.value === "off1");
-  expect(offline?.disabled).toBe(true);
-  expect(String(offline?.label)).toContain("agentOptions.sandboxMachine.offline");
-  const online = option!.options!.find((o) => o.value === "on1");
-  expect(online?.disabled).toBeUndefined();
+describe("buildSandboxMachineRows", () => {
+  it("自动档居首，默认机置顶，当前设备带标识", () => {
+    const rows = buildSandboxMachineRows(
+      [machine("srv1"), machine("mac1"), machine("off1", { online: false })],
+      "srv1",
+      "mac1",
+      t,
+    );
+    expect(rows[0]).toMatchObject({
+      value: "",
+      label: t("agentOptions.sandboxMachine.auto"),
+      online: true,
+      isCurrent: false,
+    });
+    // 排序与 buildSandboxMachineOption 同规则：自动 → 默认机 → 其余在线 → 离线
+    expect(rows.map((r) => r.value)).toEqual(["", "srv1", "mac1", "off1"]);
+    expect(rows.find((r) => r.value === "mac1")?.isCurrent).toBe(true);
+    expect(rows.find((r) => r.value === "srv1")?.isCurrent).toBe(false);
+  });
+
+  it("离线机置灰并标注离线；当前设备为离线机时仍标注", () => {
+    const rows = buildSandboxMachineRows(
+      [machine("off1", { online: false })],
+      null,
+      "off1",
+      t,
+    );
+    const off = rows.find((r) => r.value === "off1")!;
+    expect(off.disabled).toBe(true);
+    expect(off.label).toContain("agentOptions.sandboxMachine.offline");
+    expect(off.isCurrent).toBe(true);
+  });
+
+  it("currentMachineId 为 null（纯 web 端）时无当前标识", () => {
+    const rows = buildSandboxMachineRows([machine("on1")], null, null, t);
+    expect(rows.every((r) => !r.isCurrent)).toBe(true);
+  });
+
+  it("行携带平台与在线信息供 UI 渲染图标", () => {
+    const rows = buildSandboxMachineRows(
+      [machine("win1", { platform: "win32" })],
+      null,
+      null,
+      t,
+    );
+    const row = rows.find((r) => r.value === "win1")!;
+    expect(row.platform).toBe("win32");
+    expect(row.online).toBe(true);
+  });
 });
 
-test("buildSandboxMachineOption orders default machine first, online before offline", () => {
-  const t = (key: string) => key;
-  const option = buildSandboxMachineOption(
-    [machine("off1", { online: false }), machine("on2"), machine("on1")],
-    "on2",
-    t,
-  );
-  const values = option!.options!.map((o) => o.value);
-  // 首档「自动」，随后默认机 on2 置顶，再其余在线机（按列表序），最后离线机
-  expect(values).toEqual(["", "on2", "on1", "off1"]);
-});
+describe("resolveSandboxButtonLabel", () => {
+  const tierLabel = "本地";
 
-test("shouldShowSandboxMachineOption hides selector only when no machine is online", () => {
-  expect(
-    shouldShowSandboxMachineOption("local", [
-      machine("off1", { online: false }),
-      machine("off2", { online: false }),
-    ]),
-  ).toBe(false);
-  expect(
-    shouldShowSandboxMachineOption("local", [
-      machine("off1", { online: false }),
-      machine("on1"),
-    ]),
-  ).toBe(true);
-  // 旧数据（无 online 字段）按在线处理，兼容迁移窗口
-  expect(
-    shouldShowSandboxMachineOption("local", [
-      { ...machine("old1"), online: undefined } as never,
-    ]),
-  ).toBe(true);
+  it("云端档显示档位名", () => {
+    expect(
+      resolveSandboxButtonLabel({
+        sandboxValue: "cloud",
+        tierLabel: "云端",
+        machineValue: "mac1",
+        machines,
+      }),
+    ).toBe("云端");
+  });
+
+  it("本地 + 自动（无指定机）显示档位名", () => {
+    expect(
+      resolveSandboxButtonLabel({
+        sandboxValue: "local",
+        tierLabel,
+        machineValue: undefined,
+        machines,
+      }),
+    ).toBe(tierLabel);
+    expect(
+      resolveSandboxButtonLabel({
+        sandboxValue: "local",
+        tierLabel,
+        machineValue: "",
+        machines,
+      }),
+    ).toBe(tierLabel);
+  });
+
+  it("本地 + 指定机器显示「档位名 · 机器名」", () => {
+    expect(
+      resolveSandboxButtonLabel({
+        sandboxValue: "local",
+        tierLabel,
+        machineValue: "mac1",
+        machines,
+      }),
+    ).toBe("本地 · MacBook");
+    // 无名机器回落 machine_id
+    expect(
+      resolveSandboxButtonLabel({
+        sandboxValue: "local",
+        tierLabel,
+        machineValue: "srv1",
+        machines: [machine("srv1", { name: "" })],
+      }),
+    ).toBe("本地 · srv1");
+  });
+
+  it("本地 + 机器值已失效（不在列表）回落档位名", () => {
+    expect(
+      resolveSandboxButtonLabel({
+        sandboxValue: "local",
+        tierLabel,
+        machineValue: "gone1",
+        machines,
+      }),
+    ).toBe(tierLabel);
+  });
 });

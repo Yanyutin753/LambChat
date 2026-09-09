@@ -221,6 +221,7 @@ pub fn run() {
             daemon::write_confirm_policy,
             daemon::clear_pairing,
             daemon::read_pairing_pat,
+            daemon::read_machine_id,
             daemon::restart_daemon,
             daemon::daemon_process_status,
             daemon::open_local_path

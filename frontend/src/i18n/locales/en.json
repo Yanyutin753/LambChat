@@ -260,7 +260,9 @@
       "description": "Choose which machine runs local sandbox commands",
       "auto": "Auto (default)",
       "offline": "offline",
-      "offlineHint": "That computer is offline and can't be selected as the execution target"
+      "offlineHint": "That computer is offline and can't be selected as the execution target",
+      "section": "Device",
+      "currentDevice": "This device"
     }
   },
   "agents": {

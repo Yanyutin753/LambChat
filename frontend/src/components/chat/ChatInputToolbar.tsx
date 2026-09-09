@@ -25,6 +25,8 @@ import {
   resolveSandboxPresentation,
   SANDBOX_AGENT_OPTION_KEY,
   SANDBOX_LOCAL_VALUE,
+  SANDBOX_MACHINE_AGENT_OPTION_KEY,
+  resolveSandboxButtonLabel,
 } from "./sandboxOption";
 
 export interface ChatInputToolbarProps {
@@ -198,7 +200,7 @@ export function ChatInputToolbar({
     : undefined;
 
   // 沙箱选择器入口（RunModePopover 设置组）：会话存在 sandbox 选项且有切换回调时显示
-  const { has: hasSandboxOption, label: sandboxLabel } =
+  const { has: hasSandboxOption, label: sandboxTierLabel } =
     resolveSandboxPresentation(agentOptions, agentOptionValues, t);
   const showSandboxEntry = hasSandboxOption && !!onToggleAgentOption;
 
@@ -208,9 +210,25 @@ export function ChatInputToolbar({
     agentOptionValues[SANDBOX_AGENT_OPTION_KEY] ??
     agentOptions?.[SANDBOX_AGENT_OPTION_KEY]?.default;
   const sandboxChipLocal = sandboxTier === SANDBOX_LOCAL_VALUE;
-  const { online: sandboxOnline } = useSandboxStatus({
-    enabled: showSandboxEntry && sandboxChipLocal,
-  });
+  const { online: sandboxOnline, machines: sandboxMachines } =
+    useSandboxStatus({
+      enabled: showSandboxEntry && sandboxChipLocal,
+    });
+  // 统一面板入口标签：本地档 + 已选设备 → 「档位 · 设备」（chip 与 popover 徽标共用；
+  // 云端档或自动解析时退回纯档位名）
+  const sandboxLabel = sandboxTierLabel
+    ? resolveSandboxButtonLabel({
+        sandboxValue: sandboxTier,
+        tierLabel: sandboxTierLabel,
+        machineValue:
+          typeof agentOptionValues[SANDBOX_MACHINE_AGENT_OPTION_KEY] === "string"
+            ? (agentOptionValues[
+                SANDBOX_MACHINE_AGENT_OPTION_KEY
+              ] as string)
+            : "",
+        machines: sandboxMachines,
+      })
+    : undefined;
   const sandboxChipTitle = sandboxLabel
     ? `${t("agentOptions.sandbox.label")} · ${sandboxLabel}`
     : t("agentOptions.sandbox.label");
@@ -393,9 +411,6 @@ export function ChatInputToolbar({
           hasSandboxOption={showSandboxEntry}
           sandboxLabel={sandboxLabel}
           onOpenSandboxPanel={() => onActivePanelChange("sandbox")}
-          onOpenMachinePanel={
-            showSandboxEntry ? () => onActivePanelChange("machine") : undefined
-          }
           booleanAgentOptions={booleanAgentOptions}
           agentOptionValues={agentOptionValues}
           onToggleAgentOption={onToggleAgentOption}

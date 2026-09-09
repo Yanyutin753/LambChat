@@ -1,9 +1,10 @@
 /** @vitest-environment jsdom */
-// 沙箱选择器集成（fix round 1）：
-// 1. 同一时刻只允许一个选项模态打开（thinking / sandbox / machine 互斥，FeaturePanel 各有独立 key）
-// 2. RunModePopover 设置组提供"沙箱"条目（当前档位 badge + daemon 在线状态点），点击打开 sandbox 面板
-// 3. 本地档 + 在线机器时提供"机器"子条目，点击打开 machine 面板（多机选机入口）
-// 4. 工具栏左侧提供"沙箱"chip（Monitor 图标 + 当前档位 + 本地档状态点），单击直达 sandbox 面板
+// 沙箱选择器集成（统一面板 round）：
+// 1. 同一时刻只允许一个选项模态打开（thinking / sandbox 互斥，FeaturePanel 各有独立 key）
+// 2. RunModePopover 设置组提供"沙箱"条目（档位+设备 badge + daemon 在线状态点），点击打开 sandbox 面板
+// 3. sandbox 面板为统一面板：档位（云端/本地）+ 执行设备同弹窗；点设备自动切本地档
+// 4. 当前设备在设备行上标识（壳内 read_machine_id 比对命中）
+// 5. 工具栏左侧提供"沙箱"chip（档位图标 + 档位·设备标签 + 本地档状态点），单击直达 sandbox 面板
 import {
   cleanup,
   fireEvent,
@@ -16,6 +17,7 @@ import i18n from "../../../i18n";
 
 const mocks = vi.hoisted(() => ({
   isShellAvailable: vi.fn(),
+  readMachineId: vi.fn(),
   getStatus: vi.fn(),
   listMachines: vi.fn(),
   teamList: vi.fn(),
@@ -24,6 +26,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../../../services/tauri/sandboxShell", () => ({
   isShellAvailable: mocks.isShellAvailable,
+  readMachineId: mocks.readMachineId,
 }));
 
 vi.mock("../../../services/api/sandbox", () => ({
@@ -115,8 +118,12 @@ function buildAgentOptions(): Record<string, AgentOption> {
 }
 
 function renderSelectors(
-  activePanel: "thinking" | "sandbox" | "machine",
+  activePanel: "thinking" | "sandbox",
   agentOptionValues: Record<string, boolean | string | number> = {},
+  onToggleAgentOption: (
+    key: string,
+    value: boolean | string | number,
+  ) => void = () => {},
 ) {
   return render(
     <ChatInputSelectors
@@ -124,15 +131,13 @@ function renderSelectors(
       onActivePanelChange={() => {}}
       agentOptions={buildAgentOptions()}
       agentOptionValues={agentOptionValues}
-      onToggleAgentOption={() => {}}
+      onToggleAgentOption={onToggleAgentOption}
     />,
   );
 }
 
 function renderToolbar(
-  onActivePanelChange: (
-    panel: "thinking" | "sandbox" | "machine" | null,
-  ) => void,
+  onActivePanelChange: (panel: "thinking" | "sandbox" | null) => void,
   agentOptionValues: Record<string, boolean | string | number> = {},
 ) {
   return render(
@@ -166,12 +171,12 @@ beforeEach(async () => {
   await i18n.changeLanguage("en");
   vi.clearAllMocks();
   mocks.isShellAvailable.mockReturnValue(true);
+  mocks.readMachineId.mockResolvedValue(null);
   mocks.getStatus.mockResolvedValue({ online: true });
   mocks.listMachines.mockResolvedValue({
     machines: [],
     default_machine_id: null,
   });
-  mocks.listMachines.mockResolvedValue({ machines: [], default_machine_id: null });
   mocks.teamList.mockResolvedValue({ total: 0, teams: [] });
   // useSandboxStatus 现在是全局单例 store 的薄壳：跨用例隔离状态
   _resetSandboxStatusStoreForTests();
@@ -251,23 +256,60 @@ test("resolveSandboxPresentation reports presence and the stored tier label", ()
   });
 });
 
-test("machine panel renders only the machine modal with online machines", async () => {
+// ---------------------------------------------------------------------------
+// 统一面板：档位 + 执行设备同弹窗（不再有独立 machine 面板）
+// ---------------------------------------------------------------------------
+
+test("sandbox panel lists machines in the same modal on the local tier", async () => {
   mocks.listMachines.mockResolvedValue({
     machines: MACHINES,
     default_machine_id: "mac1",
   });
-  renderSelectors("machine", { sandbox: "local" });
+  renderSelectors("sandbox", { sandbox: "local" });
 
-  // 机器模态：自动档 + 在线机器名单
+  // 同一弹窗：档位描述 + 设备行（自动 + 机器名单）同帧渲染
+  expect(await screen.findByText(SANDBOX_DESCRIPTION)).toBeInTheDocument();
   expect(await screen.findByText("MacBook")).toBeInTheDocument();
   expect(screen.getByText("Server")).toBeInTheDocument();
   expect(screen.getByText("Auto (default)")).toBeInTheDocument();
-  // 同帧互斥：思考/沙箱模态不渲染
+  // 思考模态互斥：不渲染
   expect(screen.queryByText(THINKING_DESCRIPTION)).not.toBeInTheDocument();
-  expect(screen.queryByText(SANDBOX_DESCRIPTION)).not.toBeInTheDocument();
 });
 
-test("machine panel blocks selecting an offline machine with a hint", async () => {
+test("sandbox panel shows the machine section on the cloud tier for one-tap switching", async () => {
+  mocks.listMachines.mockResolvedValue({
+    machines: MACHINES,
+    default_machine_id: null,
+  });
+  const onToggleAgentOption = vi.fn();
+  renderSelectors("sandbox", { sandbox: "cloud" }, onToggleAgentOption);
+
+  // 云端档也展示设备：点设备 = 一键切本地 + 指定执行目标
+  fireEvent.click(await screen.findByText("MacBook"));
+  expect(onToggleAgentOption).toHaveBeenCalledWith("sandbox", "local");
+  expect(onToggleAgentOption).toHaveBeenCalledWith(
+    "sandbox_machine_id",
+    "mac1",
+  );
+});
+
+test("sandbox panel hides the machine section when no machine is online", async () => {
+  mocks.listMachines.mockResolvedValue({
+    machines: [
+      { ...MACHINES[0], online: false },
+      { ...MACHINES[1], online: false },
+    ],
+    default_machine_id: null,
+  });
+  renderSelectors("sandbox", { sandbox: "local" });
+
+  await screen.findByText(SANDBOX_DESCRIPTION);
+  await waitFor(() =>
+    expect(screen.queryByText("MacBook")).not.toBeInTheDocument(),
+  );
+});
+
+test("sandbox panel blocks selecting an offline machine with a hint", async () => {
   mocks.listMachines.mockResolvedValue({
     machines: [
       ...MACHINES,
@@ -283,15 +325,7 @@ test("machine panel blocks selecting an offline machine with a hint", async () =
     default_machine_id: "mac1",
   });
   const onToggleAgentOption = vi.fn();
-  render(
-    <ChatInputSelectors
-      activePanel="machine"
-      onActivePanelChange={() => {}}
-      agentOptions={buildAgentOptions()}
-      agentOptionValues={{ sandbox: "local" }}
-      onToggleAgentOption={onToggleAgentOption}
-    />,
-  );
+  renderSelectors("sandbox", { sandbox: "local" }, onToggleAgentOption);
 
   // 离线机置灰保留展示：点击只提示，不落选为目标机
   const offlineRow = await screen.findByText(/Old PC · offline/);
@@ -302,13 +336,32 @@ test("machine panel blocks selecting an offline machine with a hint", async () =
   );
   expect(onToggleAgentOption).not.toHaveBeenCalled();
 
-  // 在线机正常可选
+  // 在线机正常可选（档位已是 local，仅更新目标机）
   fireEvent.click(screen.getByText("MacBook"));
   expect(onToggleAgentOption).toHaveBeenCalledWith("sandbox_machine_id", "mac1");
+  expect(onToggleAgentOption).not.toHaveBeenCalledWith("sandbox", "local");
+});
+
+test("sandbox panel marks the current device on its machine row", async () => {
+  mocks.readMachineId.mockResolvedValue("srv1");
+  mocks.listMachines.mockResolvedValue({
+    machines: MACHINES,
+    default_machine_id: null,
+  });
+  renderSelectors("sandbox", { sandbox: "local" });
+
+  await screen.findByText("Server");
+  // 当前设备标识只落在命中的行上
+  const badges = screen
+    .getAllByText("This device")
+    .map((el) => el.closest("[data-sandbox-machine-row]"));
+  expect(badges).toHaveLength(1);
+  expect(badges[0]).not.toBeNull();
+  expect(badges[0]!.textContent).toContain("Server");
 });
 
 test("thinking panel does not stack the machine selector modal", async () => {
-  // 回归防护：机器选项注入后不得再挂在 thinking 面板上同帧双开
+  // 回归防护：设备行只属于 sandbox 面板，不得挂到 thinking 面板上
   mocks.listMachines.mockResolvedValue({
     machines: MACHINES,
     default_machine_id: null,
@@ -319,35 +372,6 @@ test("thinking panel does not stack the machine selector modal", async () => {
     expect(screen.getByText(THINKING_DESCRIPTION)).toBeInTheDocument();
   });
   expect(screen.queryByText("MacBook")).not.toBeInTheDocument();
-});
-
-test("popover lists a machine entry for the local tier that opens the machine panel", async () => {
-  mocks.listMachines.mockResolvedValue({
-    machines: MACHINES,
-    default_machine_id: "mac1",
-  });
-  const onActivePanelChange = vi.fn();
-  renderToolbar(onActivePanelChange, { sandbox: "local" });
-
-  fireEvent.click(document.querySelector("[data-run-mode-trigger]")!);
-  fireEvent.click(screen.getByText("Settings"));
-  fireEvent.click(await screen.findByText("Machine"));
-
-  expect(onActivePanelChange).toHaveBeenCalledWith("machine");
-});
-
-test("popover hides the machine entry on the cloud tier", async () => {
-  mocks.listMachines.mockResolvedValue({
-    machines: MACHINES,
-    default_machine_id: null,
-  });
-  renderToolbar(vi.fn(), { sandbox: "cloud" });
-
-  fireEvent.click(document.querySelector("[data-run-mode-trigger]")!);
-  fireEvent.click(screen.getByText("Settings"));
-  // 云端档没有机器可言：等沙箱条目出现后仍不应有机器入口
-  await screen.findByText("Sandbox");
-  expect(screen.queryByText("Machine")).not.toBeInTheDocument();
 });
 
 test("sandbox panel on offline web keeps the local tier visible with a download entry", async () => {
@@ -399,6 +423,29 @@ test("sandbox chip reflects the stored local tier in the label", () => {
   renderToolbar(vi.fn(), { sandbox: "local" });
 
   expect(screen.getByTitle("Sandbox · Local computer")).toHaveTextContent("Local computer");
+});
+
+test("sandbox chip shows the selected machine in the label on the local tier", async () => {
+  mocks.listMachines.mockResolvedValue({
+    machines: MACHINES,
+    default_machine_id: null,
+  });
+  renderToolbar(vi.fn(), { sandbox: "local", sandbox_machine_id: "mac1" });
+
+  // chip：档位 · 设备 一目了然
+  const chip = await screen.findByTitle("Sandbox · Local computer · MacBook");
+  expect(chip).toHaveTextContent("MacBook");
+});
+
+test("sandbox chip keeps the tier-only label on auto machine resolution", async () => {
+  mocks.listMachines.mockResolvedValue({
+    machines: MACHINES,
+    default_machine_id: null,
+  });
+  renderToolbar(vi.fn(), { sandbox: "local", sandbox_machine_id: "" });
+
+  await screen.findByTitle("Sandbox · Local computer");
+  expect(screen.queryByTitle(/MacBook/)).not.toBeInTheDocument();
 });
 
 test("sandbox chip swaps to a cloud icon on the cloud tier and a monitor icon on the local tier", () => {

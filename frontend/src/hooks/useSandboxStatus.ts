@@ -4,7 +4,7 @@
 // 现收敛为全 App 一个轮询源——订阅引用计数启动/停止，WS presence 推送直达
 // 更新，WS 健康时轮询降频为 60s 对账、断线回升 10s；后台 tab 暂停打点。
 // 对外 API 形状不变（status/statusError/online/machines/defaultMachineId/
-// refresh），既有消费方零改动。
+// currentMachineId/refresh），既有消费方零改动。
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import type { SandboxMachine, SandboxStatus } from "../services/api/sandbox";
 import {
@@ -40,6 +40,8 @@ export function useSandboxStatus(options?: UseSandboxStatusOptions): {
   online: boolean;
   machines: SandboxMachine[];
   defaultMachineId: string | null;
+  /** 本机 machine_id（壳内）；web 端 null，用于"当前设备"标识。 */
+  currentMachineId: string | null;
   refresh: () => void;
 } {
   const enabled = options?.enabled ?? true;
@@ -65,6 +67,7 @@ export function useSandboxStatus(options?: UseSandboxStatusOptions): {
       online: false,
       machines: [],
       defaultMachineId: null,
+      currentMachineId: null,
       refresh,
     };
   }
@@ -75,6 +78,7 @@ export function useSandboxStatus(options?: UseSandboxStatusOptions): {
     online: isSandboxOnline(state),
     machines: state.machines,
     defaultMachineId: state.defaultMachineId,
+    currentMachineId: state.currentMachineId,
     refresh,
   };
 }

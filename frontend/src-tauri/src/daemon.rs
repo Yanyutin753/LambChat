@@ -619,12 +619,16 @@ fn write_pairing_files(
     write_private_file(&pat_file, pat.as_bytes())?;
     restrict_to_owner(&pat_file)?;
 
-    // 保留既有 data_root（配置文件可能被用户手工定制过）。
+    // 保留既有 data_root（配置文件可能被用户手工定制过），以及 daemon 生成的
+    // 机器身份（machine_id / machine_name）——重新配对不得轮换机器身份，否则
+    // 服务端注册表堆积幽灵机器、前端"当前设备"标识失效。
     let config_path = home.join("sandbox.json");
     let default_data_root = home.join("workspaces");
-    let data_root = std::fs::read_to_string(&config_path)
+    let existing: Option<serde_json::Value> = std::fs::read_to_string(&config_path)
         .ok()
-        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok());
+    let data_root = existing
+        .as_ref()
         .and_then(|cfg| {
             cfg.get("data_root")
                 .and_then(|v| v.as_str())
@@ -638,6 +642,14 @@ fn write_pairing_files(
         "data_root": data_root,
         "confirm_policy": confirm_policy,
     });
+    for key in ["machine_id", "machine_name"] {
+        let value = existing.as_ref().and_then(|cfg| cfg.get(key));
+        if let Some(v) = value {
+            if v.as_str().map(|s| !s.trim().is_empty()).unwrap_or(false) {
+                payload[key] = v.clone();
+            }
+        }
+    }
     if let Some(id) = pat_id {
         payload["pat_id"] = serde_json::Value::String(id.to_string());
     }
@@ -654,6 +666,30 @@ fn write_pairing_files(
 #[tauri::command]
 pub fn write_confirm_policy(policy: String) -> Result<(), String> {
     write_policy_only(&sandbox_home()?, &policy)
+}
+
+/// 读 sandbox.json 的机器身份 machine_id（daemon 首启生成并持久化）。前端用于
+/// 在机器列表上标注"当前设备"。未配对 / daemon 未写过 → Ok(None)（非错误）；
+/// 仅配置文件损坏时报错。
+#[tauri::command]
+pub fn read_machine_id() -> Result<Option<String>, String> {
+    read_machine_id_from(&sandbox_home()?)
+}
+
+/// 文件层机器身份读取（可测试核心：home 由调用方注入）。
+fn read_machine_id_from(home: &Path) -> Result<Option<String>, String> {
+    let config_path = home.join("sandbox.json");
+    let raw = match std::fs::read_to_string(&config_path) {
+        Ok(raw) => raw,
+        Err(_) => return Ok(None), // 未配对 / 尚未落盘：无机器身份
+    };
+    let cfg: serde_json::Value = serde_json::from_str(&raw)
+        .map_err(|e| format!("invalid JSON in {}: {e}", config_path.display()))?;
+    Ok(cfg
+        .get("machine_id")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.trim().is_empty())
+        .map(str::to_string))
 }
 
 /// 文件层策略独立写（可测试核心：home 由调用方注入）。
@@ -1085,6 +1121,66 @@ mod tests {
         // ---- clear_pairing 幂等：文件不存在也不报错 ----
         let _ = std::fs::remove_dir_all(&sandbox);
         clear_pairing_files(&sandbox).unwrap();
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// 机器身份链路：read_machine_id 读回本机身份；重新配对（write_pairing_files
+    /// 整写配置）必须保留 daemon 生成的 machine_id/machine_name——否则换 PAT 就
+    /// 换身份，服务端注册表堆积幽灵机器、前端"当前设备"标识失效。
+    #[test]
+    fn machine_identity_survives_repairing_and_is_readable() {
+        let tmp = std::env::temp_dir().join(format!(
+            "lambchat-daemon-machine-id-test-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let sandbox = tmp.join(".lambchat");
+        let config_path = sandbox.join("sandbox.json");
+
+        // 未配对 / 配置不存在：无身份，Ok(None) 而非报错
+        assert_eq!(read_machine_id_from(&sandbox).unwrap(), None);
+
+        // 首次配对：配置里还没有 machine_id
+        write_pairing_files(&sandbox, "https://lc.example", "p", "all", None).unwrap();
+        assert_eq!(read_machine_id_from(&sandbox).unwrap(), None);
+
+        // daemon 首启生成并持久化身份（模拟 client/lambchat_sandbox/config.py 落盘）
+        let mut cfg: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+        cfg["machine_id"] = "abc123def456".into();
+        cfg["machine_name"] = "Yang 的 MacBook".into();
+        std::fs::write(&config_path, serde_json::to_string_pretty(&cfg).unwrap()).unwrap();
+        assert_eq!(
+            read_machine_id_from(&sandbox).unwrap().as_deref(),
+            Some("abc123def456")
+        );
+
+        // 重新配对（换 server/PAT/策略）：身份保留，其余字段照常更新
+        write_pairing_files(
+            &sandbox,
+            "https://lc2.example",
+            "p2",
+            "none",
+            Some("pat-uuid-x"),
+        )
+        .unwrap();
+        let cfg: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+        assert_eq!(cfg["machine_id"], "abc123def456");
+        assert_eq!(cfg["machine_name"], "Yang 的 MacBook");
+        assert_eq!(cfg["server_url"], "https://lc2.example");
+        assert_eq!(
+            read_machine_id_from(&sandbox).unwrap().as_deref(),
+            Some("abc123def456")
+        );
+
+        // 空白身份视为无（Python 侧默认 "" 不落成幽灵值）
+        let mut blank: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+        blank["machine_id"] = "".into();
+        std::fs::write(&config_path, serde_json::to_string_pretty(&blank).unwrap()).unwrap();
+        assert_eq!(read_machine_id_from(&sandbox).unwrap(), None);
 
         let _ = std::fs::remove_dir_all(&tmp);
     }
