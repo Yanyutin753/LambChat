@@ -435,12 +435,12 @@ LLM 模型通过 **Model Config UI** 配置，无需在环境变量中设置 API
 **规矩：凡涉及本地沙箱链路的开发——`src/infra/sandbox/`、`client/lambchat_sandbox/`、`src/api/routes/sandbox.py`、请求体门限/传输相关中间件、桌面端 daemon 托管（`frontend/src-tauri/src/daemon.rs`）——合并前必须在本机跑通全量 E2E：**
 
 ```bash
-uv run python scripts/e2e_local_sandbox.py             # 功能链路（15 项，须全 PASS）
+uv run python scripts/e2e_local_sandbox.py             # 功能链路（全项须 PASS）
 uv run python scripts/e2e_local_sandbox.py --stress    # 发版前/大改动追加压测段
 ```
 
-- 脚本自举环境：后端未起会自动拉起、注册一次性测试用户并铸 PAT、拉起 daemon，结束自动回收（测试用户/PAT/工作目录），只要求本机 MongoDB/Redis 可达（凭据读 `.env`）。
-- 覆盖面：SSE 握手与多机注册表、exec 往返、机器绑定防冒答（409）、双向流式大文件传输（10/50/100MB sha256 校验）、结构化 fs op、分块 base64 兜底、优雅下线秒级翻转；`--stress` 追加并发扫描与持续负载。
+- 脚本自举环境：后端未起会自动拉起（8000 被占时可用 `E2E_SANDBOX_SERVER` 指向自备实例）、注册一次性测试用户并铸 PAT、拉起 daemon，结束自动回收（测试用户/PAT/工作目录），只要求本机 MongoDB/Redis 可达（凭据读 `.env`）。
+- 覆盖面：SSE 握手与多机注册表、exec 往返、机器绑定防冒答（409）、双向流式大文件传输（10/50/100MB sha256 校验）、结构化 fs op、分块 base64 兜底、优雅下线秒级翻转、skills 虚拟挂载 glob 递归契约（真实 MongoDB）、transfer_path 大批量整树搬运（真实 daemon）；`--stress` 追加并发扫描与持续负载。
 - 这条门禁的由来：`fs_upload_stream` 分发漏注册（上传快路径整条失效）与请求体门限误伤流式回传（>8MiB 下载全灭）两个生产级 bug，都是单测/seam 全绿下只有该 E2E 抓到的。
 
 ## 本地开发地址
