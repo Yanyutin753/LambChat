@@ -327,7 +327,7 @@ async def test_tavily_extract_normalizes_raw_content(monkeypatch: pytest.MonkeyP
             headers={"Content-Type": "application/json"},
             content=(
                 '{"results": [{"url": "https://example.com/doc", '
-                '"raw_content": "Tavily 抽取的正文内容，长度足以通过阈值判定。"}]}'
+                '"raw_content": "# 标题行\\n\\nTavily 抽取的正文内容，长度足以通过阈值判定。"}]}'
             ).encode(),
             request=httpx.Request("POST", url),
         )
