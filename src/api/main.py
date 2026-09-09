@@ -579,6 +579,11 @@ async def lifespan(app: FastAPI):
 
         await close_image_clients()
 
+        # 关闭 web search 工具复用的 httpx client
+        from src.infra.tool.web_search_providers import close_web_search_client
+
+        await close_web_search_client()
+
         # 停止事件合并器
         from src.infra.session.event_merger import close_event_merger
         from src.infra.session.trace_storage import close_trace_storage

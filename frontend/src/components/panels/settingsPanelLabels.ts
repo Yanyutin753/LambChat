@@ -66,5 +66,6 @@ export function buildSubcategoryLabels(t: Translate): Record<string, string> {
     llm: t("subcategories.llm"),
     model: t("subcategories.model"),
     policy: t("subcategories.policy"),
+    web_search: t("subcategories.webSearch"),
   };
 }

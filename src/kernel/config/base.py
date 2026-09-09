@@ -470,6 +470,14 @@ class Settings(BaseSettings):
     AUDIO_TRANSCRIPTION_MODEL: str = "gpt-4o-mini-transcribe"
     AUDIO_TRANSCRIPTION_MAX_DOWNLOAD_BYTES: int = 50 * 1024 * 1024
 
+    # Web search tool settings（多 key 用英文逗号分隔，round-robin 轮询）
+    ENABLE_WEB_SEARCH: bool = False
+    WEB_SEARCH_PROVIDER: str = "auto"
+    TAVILY_API_KEYS: str = ""
+    BRAVE_API_KEYS: str = ""
+    SEARXNG_BASE_URL: str = ""
+    SEARXNG_API_KEY: str = ""
+
     # Image analysis tool settings
     ENABLE_IMAGE_ANALYSIS: bool = False
     IMAGE_ANALYSIS_MODEL_ID: str = ""

@@ -30,6 +30,7 @@ import {
   ToolSearchItem,
   ConversationHistoryItem,
   SkillSearchItem,
+  WebSearchItem,
 } from "./ToolCallItem";
 import { ThinkingBlock, SubagentBlock, SandboxItem } from "./SubagentBlocks";
 import { MemoryStatusItem } from "./MemoryStatusItem";
@@ -511,6 +512,21 @@ export function MessagePartRenderer({
     if (part.name === "search_skills") {
       return (
         <SkillSearchItem
+          id={part.id}
+          args={toolArgs}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    // Detect web search, use dedicated component (shows result cards + image grid)
+    if (part.name === "web_search") {
+      return (
+        <WebSearchItem
           id={part.id}
           args={toolArgs}
           result={part.result}
