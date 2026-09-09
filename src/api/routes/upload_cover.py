@@ -205,13 +205,41 @@ def render_pdf_cover(data: bytes) -> bytes:
     return buf.getvalue()
 
 
+def _repair_empty_fill_styles(data: bytes) -> bytes:
+    """Rewrite bare ``<fill/>`` style entries as explicit no-op patternFills.
+
+    Some third-party writers emit empty fill elements in styles.xml; Excel
+    opens them fine, but openpyxl 3.1 raises
+    ``TypeError: expected <class 'openpyxl.styles.fills.Fill'>`` (seen on
+    production sheet covers). The regexes only touch fully empty fill tags —
+    ``<fills>`` containers and pattern/gradient children are unaffected.
+    """
+    import io
+    import zipfile
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as zin, zipfile.ZipFile(out, "w") as zout:
+        for item in zin.infolist():
+            payload = zin.read(item.filename)
+            if item.filename == "xl/styles.xml":
+                payload = re.sub(rb"<fill\s*/>", b"<fill><patternFill/></fill>", payload)
+                payload = re.sub(rb"<fill\s*>\s*</fill>", b"<fill><patternFill/></fill>", payload)
+            zout.writestr(item, payload)
+    return out.getvalue()
+
+
 def _sheet_preview_rows(data: bytes) -> list[list[str]]:
     """First rows of the first sheet, stringified."""
     import io
 
     import openpyxl
 
-    workbook = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    try:
+        workbook = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    except TypeError:
+        workbook = openpyxl.load_workbook(
+            io.BytesIO(_repair_empty_fill_styles(data)), read_only=True, data_only=True
+        )
     try:
         rows: list[list[str]] = []
         if workbook.worksheets:
