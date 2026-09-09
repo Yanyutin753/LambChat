@@ -9,6 +9,7 @@ import asyncio
 import json
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
@@ -658,6 +659,22 @@ async def session_stream(
     async def event_generator():
         logger.info(f"[SSE] Generator started for session={session_id}, run_id={run_id}")
         try:
+            # 终态 stream 已过 60s TTL 被清（run 结束超过 60 秒后的重连）：重放
+            # 0 条事件且下方 xread 永远等不到新事件，只能靠 24h 兜底超时——
+            # 断线重连的客户端在途工具卡因此永远转圈（孤儿组件）。stream 为
+            # 空且 run 已终态时立即合成终态事件返回。
+            if await dual_writer.get_stream_length(session_id, run_id=run_id) == 0:
+                terminal = await _resolve_terminal_stream_status(session, run_id)
+                if terminal is not None:
+                    event = _synthesize_terminal_stream_event(run_id, session, terminal)
+                    logger.info(
+                        "[SSE] Stream expired and run is terminal (%s); synthesized %s",
+                        terminal,
+                        event["event_type"],
+                    )
+                    yield await run_blocking_io(_format_sse_event, event)
+                    return
+
             # 使用 run_id 读取特定轮次的事件
             event_count = 0
             async for event in dual_writer.read_from_redis(
@@ -692,6 +709,71 @@ async def session_stream(
             "X-Accel-Buffering": "no",  # Disable nginx buffering
         },
     )
+
+
+async def _resolve_terminal_stream_status(session: Any, run_id: str) -> str | None:
+    """终态 stream 过期后的 run 终态判定；非终态/查不到返回 None（维持现状）。
+
+    优先按 run_id 查 trace（会话级 metadata 的 task_status 在多 run 并存时
+    会串到别的 run）；trace 无记录时回落 session metadata，但仅当
+    current_run_id 与请求的 run_id 一致才可信。
+    """
+    from src.infra.logging import get_logger
+    from src.infra.session.trace_storage import get_trace_storage
+
+    logger = get_logger(__name__)
+    try:
+        cursor = (
+            get_trace_storage()
+            .collection.find({"run_id": run_id}, {"status": 1, "_id": 0})
+            .sort("started_at", -1)
+            .limit(1)
+        )
+        traces = await cursor.to_list(length=1)
+        if traces:
+            status = traces[0].get("status")
+            if status in ("completed", "error"):
+                return status
+            return None  # running 等非终态：孤儿接管/续跑窗口期，继续等
+    except Exception as e:
+        logger.warning("[SSE] Terminal status lookup via trace failed: %s", e)
+
+    try:
+        metadata = getattr(session, "metadata", None) or {}
+        if metadata.get("current_run_id") == run_id:
+            task_status = metadata.get("task_status")
+            if task_status == "completed":
+                return "completed"
+            if task_status in ("error", "failed", "cancelled"):
+                return "error"
+    except Exception as e:
+        logger.warning("[SSE] Terminal status lookup via session metadata failed: %s", e)
+    return None
+
+
+def _synthesize_terminal_stream_event(run_id: str, session: Any, terminal: str) -> dict:
+    """合成终态 SSE 事件（stream 已过期、无法重放真实终态事件时的替身）。"""
+    timestamp = datetime.now(timezone.utc).isoformat()
+    if terminal == "completed":
+        return {
+            "event_type": "done",
+            "data": {"status": "completed", "run_id": run_id},
+            "id": f"synthetic:{run_id}:done",
+            "timestamp": timestamp,
+        }
+    metadata = getattr(session, "metadata", None) or {}
+    message = metadata.get("task_error") or "This run has already ended."
+    return {
+        "event_type": "error",
+        "data": {
+            "error": message,
+            "type": "task_failed",
+            "run_id": run_id,
+            "code": "run_already_ended",
+        },
+        "id": f"synthetic:{run_id}:error",
+        "timestamp": timestamp,
+    }
 
 
 @router.get("/sessions/{session_id}/status")

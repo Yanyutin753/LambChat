@@ -143,6 +143,9 @@ async def test_session_stream_offloads_sse_event_formatting(monkeypatch: pytest.
             return type("Session", (), {"user_id": "user-1"})()
 
     class _DualWriter:
+        async def get_stream_length(self, session_id, run_id=None):
+            return 1  # stream 仍有事件：走重放路径，不触发终态合成
+
         async def read_from_redis(self, session_id, *, run_id):
             yield {
                 "event_type": "message:chunk",
