@@ -21,7 +21,6 @@ export type TabType =
 export interface ChatAppContentProps {
   showProfileModal: boolean;
   onCloseProfileModal: () => void;
-  versionInfo: import("../../../types").VersionInfo | null;
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean) => void;
   mobileSidebarOpen: boolean;

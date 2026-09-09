@@ -26,9 +26,16 @@ export function buildReleaseAssetDownloadUrl(
 export const versionApi = {
   /**
    * Get application version info
+   *
+   * client_version 让后端按客户端 App 版本（而非服务端版本）判断 has_update。
    */
-  async get(): Promise<VersionInfo> {
-    return authFetch<VersionInfo>(`${API_BASE}/api/version`, {
+  async get(clientVersion?: string): Promise<VersionInfo> {
+    const query = new URLSearchParams();
+    if (clientVersion) {
+      query.set("client_version", clientVersion);
+    }
+    const suffix = query.size > 0 ? `?${query}` : "";
+    return authFetch<VersionInfo>(`${API_BASE}/api/version${suffix}`, {
       skipAuth: true,
     });
   },

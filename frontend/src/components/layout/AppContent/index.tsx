@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RightPanelLayoutSnapshot } from "../../../hooks/rightPanelLayout";
 import { getRightPanelLayoutSnapshot } from "../../../hooks/rightPanelWidthEvents";
-import { useVersion } from "../../../hooks/useVersion";
 import { SIDEBAR_COLLAPSED_STORAGE_KEY } from "../../../hooks/useAuth";
 import { authApi } from "../../../services/api";
 import { ChatAppContent } from "./ChatAppContent";
@@ -22,7 +21,6 @@ interface AppContentProps {
 }
 
 export function AppContent({ activeTab }: AppContentProps) {
-  const { versionInfo } = useVersion();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Persisted sidebar state — only changes on explicit user action
@@ -160,7 +158,6 @@ export function AppContent({ activeTab }: AppContentProps) {
       <ChatAppContent
         showProfileModal={showProfileModal}
         onCloseProfileModal={handleCloseProfileModal}
-        versionInfo={versionInfo}
         sidebarCollapsed={effectiveCollapsed}
         setSidebarCollapsed={handleSetSidebarCollapsed}
         mobileSidebarOpen={mobileSidebarOpen}
@@ -175,7 +172,6 @@ export function AppContent({ activeTab }: AppContentProps) {
       activeTab={activeTab}
       showProfileModal={showProfileModal}
       onCloseProfileModal={handleCloseProfileModal}
-      versionInfo={versionInfo}
       sidebarCollapsed={effectiveCollapsed}
       setSidebarCollapsed={handleSetSidebarCollapsed}
       mobileSidebarOpen={mobileSidebarOpen}
