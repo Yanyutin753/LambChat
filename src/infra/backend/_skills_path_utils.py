@@ -64,6 +64,9 @@ def normalize_path(path: str) -> str:
     if not path:
         return "/skills/"
 
+    if path == "/skills":
+        return "/skills/"
+
     if path.startswith("/skills/"):
         return path
 
