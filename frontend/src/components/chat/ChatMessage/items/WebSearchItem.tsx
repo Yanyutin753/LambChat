@@ -7,6 +7,7 @@ import { ImageWithSkeleton } from "../ImageWithSkeleton";
 import {
   hostFromUrl,
   parseWebSearchResult,
+  siteLabelFromUrl,
   type WebSearchResultItem,
   type WebSearchSummary,
 } from "./webSearchResult";
@@ -108,6 +109,55 @@ function ScoreBadge({ score }: { score: number }) {
       )}
     >
       {pct}
+    </span>
+  );
+}
+
+/** 收起态来源卡：favicon + 短站点名（ChatGPT 引用卡风格），点击直达原文 */
+function SourceCard({ item }: { item: WebSearchResultItem }) {
+  return (
+    <a
+      href={item.url}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1.5 rounded-lg border border-theme-border/60 bg-theme-bg-card px-2 py-1 text-12 text-theme-text-secondary transition-all duration-200 hover:border-theme-border hover:text-theme-text hover:shadow-[0_4px_12px_-10px_rgb(0_0_0/0.35)]"
+    >
+      <ResultFavicon item={item} size={14} />
+      <span className="max-w-[110px] truncate">
+        {siteLabelFromUrl(item.url) || item.url}
+      </span>
+    </a>
+  );
+}
+
+/** 收起态图片缩略（ChatGPT 图片条风格，加载失败静默隐藏） */
+function SourceThumb({
+  src,
+  alt,
+  interactive = false,
+}: {
+  src: string;
+  alt: string;
+  interactive?: boolean;
+}) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+  return (
+    <span
+      className={clsx(
+        "block h-10 w-14 shrink-0 overflow-hidden rounded-lg border border-theme-border/60 bg-theme-bg-card",
+        interactive &&
+          "transition-all duration-200 group-hover/thumb:border-[color-mix(in_srgb,var(--theme-primary)_36%,var(--theme-border))] group-hover/thumb:shadow-[0_6px_14px_-10px_color-mix(in_srgb,var(--theme-primary)_45%,transparent)]",
+      )}
+    >
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
+        className="h-full w-full object-cover transition-transform duration-200 group-hover/thumb:scale-105"
+      />
     </span>
   );
 }
@@ -219,7 +269,7 @@ function WebSearchDetail({ args, result }: ToolDetailProps) {
                 rel="noreferrer"
                 className="group/card flex gap-2.5 rounded-xl bg-theme-bg border border-theme-border px-3 py-2.5 transition-all duration-200 hover:border-[color-mix(in_srgb,var(--theme-primary)_32%,var(--theme-border))] hover:shadow-[0_12px_28px_-24px_color-mix(in_srgb,var(--theme-primary)_42%,transparent)]"
               >
-                <span className="flex w-4 shrink-0 items-start justify-center pt-1 text-10 font-mono font-semibold tabular-nums text-theme-text-tertiary">
+                <span className="flex w-5 shrink-0 items-start justify-center pt-1.5 text-10 font-mono font-semibold tabular-nums text-theme-text-tertiary">
                   {String(index + 1).padStart(2, "0")}
                 </span>
                 <div className="min-w-0 flex-1 space-y-1">
@@ -329,6 +379,8 @@ const WebSearchItem = memo(function WebSearchItem({
   completedAt?: string;
 }) {
   const { t } = useTranslation();
+  const sessionImageGallery = useSessionImageGallery();
+  const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
   const durationFooter = (
     <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
   );
@@ -374,6 +426,37 @@ const WebSearchItem = memo(function WebSearchItem({
     />
   );
 
+  const openSearchPanel = () => {
+    if (!canExpand) return;
+    openToolLivePanel({
+      id,
+      title: titleLabel,
+      icon: <Globe size={16} />,
+      status,
+      subtitle: query || undefined,
+      fallback: detailContent || undefined,
+      buildDetail: (data) => (
+        <WebSearchDetail {...toolDetailPropsFromPanelData(data)} />
+      ),
+      footer: durationFooter,
+    });
+  };
+
+  // 收起态预览条：把面板里的信息露出一点，制造点击欲望
+  const showSourceStrip =
+    !isPending && summary !== null && summary.results.length > 0;
+
+  // 收起态缩略图点击 → 图片查看器（会话相册优先，无 Context 时本地兜底）
+  const openCollapsedImagePreview = useCallback(
+    (src: string) => {
+      sessionImageGallery?.openImage(src);
+      if (!sessionImageGallery) {
+        setImageViewerSrc(src);
+      }
+    },
+    [sessionImageGallery],
+  );
+
   return (
     <>
       <CollapsiblePill
@@ -385,21 +468,7 @@ const WebSearchItem = memo(function WebSearchItem({
         variant="tool"
         formatLabel={false}
         expandable={canExpand}
-        onPanelOpen={() => {
-          if (!canExpand) return;
-          openToolLivePanel({
-            id,
-            title: titleLabel,
-            icon: <Globe size={16} />,
-            status,
-            subtitle: query || undefined,
-            fallback: detailContent || undefined,
-            buildDetail: (data) => (
-              <WebSearchDetail {...toolDetailPropsFromPanelData(data)} />
-            ),
-            footer: durationFooter,
-          });
-        }}
+        onPanelOpen={openSearchPanel}
       >
         {canExpand && (
           <ToolInlineDetails>
@@ -470,6 +539,64 @@ const WebSearchItem = memo(function WebSearchItem({
           </ToolInlineDetails>
         )}
       </CollapsiblePill>
+
+      {/* 收起态来源预览（ChatGPT 风格）：来源卡直达原文，缩略图/+N 打开实时面板 */}
+      {showSourceStrip && (
+        <div className="mt-1.5 space-y-1.5 pl-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {summary.results.slice(0, 5).map((item) => (
+              <SourceCard key={item.url} item={item} />
+            ))}
+            {summary.results.length > 5 && (
+              <button
+                type="button"
+                onClick={openSearchPanel}
+                className="inline-flex items-center rounded-lg border border-theme-border/60 bg-theme-bg-card px-2 py-1 text-12 font-medium tabular-nums text-theme-text-tertiary transition-all duration-200 hover:border-theme-border hover:text-theme-text"
+              >
+                +{summary.results.length - 5}
+              </button>
+            )}
+          </div>
+          {summary.images.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              {summary.images.slice(0, 3).map((image, index) => (
+                <button
+                  key={`${image.url}-${index}`}
+                  type="button"
+                  onClick={() => openCollapsedImagePreview(image.url)}
+                  title={image.description || undefined}
+                  className="group/thumb cursor-zoom-in transition-transform duration-200 hover:-translate-y-0.5"
+                >
+                  <SourceThumb
+                    src={image.url}
+                    alt={image.description || ""}
+                    interactive
+                  />
+                </button>
+              ))}
+              {summary.images.length > 3 && (
+                <button
+                  type="button"
+                  onClick={openSearchPanel}
+                  className="inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-11 font-medium tabular-nums text-theme-text-tertiary transition-colors hover:text-[var(--theme-primary)]"
+                >
+                  <ImageIcon size={11} className="opacity-70" />
+                  +{summary.images.length - 3}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 收起态本地图片查看器兜底（无会话相册 Context 时） */}
+      {imageViewerSrc && (
+        <ImageViewer
+          src={imageViewerSrc}
+          isOpen={!!imageViewerSrc}
+          onClose={() => setImageViewerSrc(null)}
+        />
+      )}
     </>
   );
 });

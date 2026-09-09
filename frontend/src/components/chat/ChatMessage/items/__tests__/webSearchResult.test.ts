@@ -1,4 +1,4 @@
-import { parseWebSearchResult } from "../webSearchResult";
+import { hostFromUrl, parseWebSearchResult, siteLabelFromUrl } from "../webSearchResult";
 
 const payload = {
   success: true,
@@ -77,4 +77,19 @@ test("returns null for failed or unparseable results", () => {
   expect(parseWebSearchResult("not json")).toBeNull();
   expect(parseWebSearchResult(undefined)).toBeNull();
   expect(parseWebSearchResult(42)).toBeNull();
+});
+
+test("siteLabelFromUrl strips subdomains like ChatGPT source cards", () => {
+  expect(siteLabelFromUrl("https://zhuanlan.zhihu.com/p/1")).toBe("zhihu.com");
+  expect(siteLabelFromUrl("https://www.53ai.com/news/x")).toBe("53ai.com");
+  expect(siteLabelFromUrl("https://github.com/a/b")).toBe("github.com");
+  expect(siteLabelFromUrl("https://open.bigmodel.cn/dev")).toBe("bigmodel.cn");
+  expect(siteLabelFromUrl("https://www.bbc.co.uk/news")).toBe("bbc.co.uk");
+  expect(siteLabelFromUrl("https://arxiv.org/abs/1")).toBe("arxiv.org");
+  expect(siteLabelFromUrl("not a url")).toBe("");
+});
+
+test("hostFromUrl returns the full host", () => {
+  expect(hostFromUrl("https://zhuanlan.zhihu.com/p/1")).toBe("zhuanlan.zhihu.com");
+  expect(hostFromUrl("bad")).toBe("");
 });

@@ -91,3 +91,31 @@ export function hostFromUrl(url: string): string {
     return "";
   }
 }
+
+const SECOND_LEVEL_TLDS = new Set([
+  "co",
+  "com",
+  "gov",
+  "ac",
+  "net",
+  "org",
+  "edu",
+]);
+
+/**
+ * 提取短站点名（ChatGPT 引用卡风格）：去 www. 与二级子域，
+ * 如 zhuanlan.zhihu.com → zhihu.com、www.bbc.co.uk → bbc.co.uk。
+ */
+export function siteLabelFromUrl(url: string): string {
+  try {
+    const parts = new URL(url).host.replace(/^www\./, "").split(".");
+    if (parts.length <= 2) return parts.join(".");
+    const publicSuffix =
+      parts.length >= 3 && SECOND_LEVEL_TLDS.has(parts[parts.length - 2]);
+    return publicSuffix
+      ? parts.slice(-3).join(".")
+      : parts.slice(-2).join(".");
+  } catch {
+    return "";
+  }
+}
