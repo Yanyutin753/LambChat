@@ -16,7 +16,7 @@ class FileCategory(str, Enum):
 
 # File extension mappings
 FILE_EXTENSIONS: dict[FileCategory, set[str]] = {
-    FileCategory.IMAGE: {"jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "ico"},
+    FileCategory.IMAGE: {"jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "ico", "tiff", "tif"},
     FileCategory.VIDEO: {"mp4", "webm", "mov", "avi", "mkv", "wmv", "flv"},
     FileCategory.AUDIO: {"mp3", "wav", "ogg", "aac", "flac", "m4a", "wma"},
     FileCategory.DOCUMENT: {
@@ -27,6 +27,9 @@ FILE_EXTENSIONS: dict[FileCategory, set[str]] = {
         "xlsx",
         "ppt",
         "pptx",
+        "vsd",
+        "vsdx",
+        "vsdm",
         "txt",
         "md",
         "csv",
