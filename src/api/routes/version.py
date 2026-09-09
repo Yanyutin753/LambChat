@@ -64,15 +64,25 @@ def _find_asset(latest_release: Any, asset_name: str) -> Optional[dict]:
 
 
 @router.get("/version/assets/{asset_name}/download")
-async def download_release_asset(asset_name: str) -> StreamingResponse:
+async def download_release_asset(
+    asset_name: str,
+    tag: Optional[str] = Query(None, description="锁定 release tag；缺省取最新"),
+) -> StreamingResponse:
     """按资产名流式代理 GitHub release 资产下载。
 
     移动端 WebView 直连 github.com 会被 CORS 拦截（release 下载端点不带
     Access-Control-Allow-Origin）；经自托管后端同源转发即可正常下载，
-    且 content-length 转发后前端进度条照常工作。
+    且 content-length 转发后前端进度条照常工作。国内用户直连 GitHub
+    不稳，桌面端自更新清单（latest.json）与下载页也走这里。
+
+    ``?tag=`` 把资产锁定到具体 release：发新版瞬间 latest 已前移时，
+    老清单里的资产名仍能在其所属 release 中找到，不因竞态 404。
     """
-    latest_release = await github_client.get_latest_release()
-    asset = _find_asset(latest_release, asset_name)
+    if tag:
+        release = await github_client.get_release_by_tag(tag)
+    else:
+        release = await github_client.get_latest_release()
+    asset = _find_asset(release, asset_name)
     if asset is None:
         raise AppError(ErrorCode.RELEASE_ASSET_NOT_FOUND, args={"name": asset_name})
 

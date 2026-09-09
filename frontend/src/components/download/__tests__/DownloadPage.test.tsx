@@ -17,7 +17,9 @@ const mocks = vi.hoisted(() => ({
   get: vi.fn(),
 }));
 
-vi.mock("../../../services/api/version", () => ({
+vi.mock("../../../services/api/version", async (importOriginal) => ({
+  // buildReleaseAssetDownloadUrl 用真实实现（同源反代 URL 契约本身要被测）
+  ...(await importOriginal<Record<string, unknown>>()),
   versionApi: { get: mocks.get },
 }));
 
@@ -102,11 +104,17 @@ test("renders desktop and daemon downloads from the latest release assets", asyn
   expect(screen.getByText("macOS")).toBeInTheDocument();
   expect(screen.getByText("Linux")).toBeInTheDocument();
 
-  // 下载直链锚点（跟随最新 release，自动更新）
+  // 下载直链锚点：走自托管反代（国内直连 GitHub 下载不稳），跟随最新 release
   const msi = screen.getByText("LambChat-v2.8.1-Windows.msi").closest("a");
-  expect(msi).toHaveAttribute("href", "https://gh/LambChat-v2.8.1-Windows.msi");
+  expect(msi).toHaveAttribute(
+    "href",
+    "/api/version/assets/LambChat-v2.8.1-Windows.msi/download",
+  );
   const dmg = screen.getByText("LambChat-v2.8.1-macOS.dmg").closest("a");
-  expect(dmg).toHaveAttribute("href", "https://gh/LambChat-v2.8.1-macOS.dmg");
+  expect(dmg).toHaveAttribute(
+    "href",
+    "/api/version/assets/LambChat-v2.8.1-macOS.dmg/download",
+  );
 
   // daemon 二进制区
   const daemon = screen
@@ -114,7 +122,7 @@ test("renders desktop and daemon downloads from the latest release assets", asyn
     .closest("a");
   expect(daemon).toHaveAttribute(
     "href",
-    "https://gh/lambchat-daemon-x86_64-pc-windows-msvc.exe",
+    "/api/version/assets/lambchat-daemon-x86_64-pc-windows-msvc.exe/download",
   );
 
   // 教程步骤
@@ -203,7 +211,7 @@ test("hero CTA directly downloads the detected platform's installer", async () =
     const direct = await screen.findByText(/Download for Windows/i);
     expect(direct.closest("a")).toHaveAttribute(
       "href",
-      "https://gh/LambChat-v2.8.1-Windows.msi",
+      "/api/version/assets/LambChat-v2.8.1-Windows.msi/download",
     );
   } finally {
     Object.defineProperty(window.navigator, "userAgent", {
@@ -231,7 +239,7 @@ test("android visitors get a direct apk download in the hero and a mobile sectio
     const direct = await screen.findByText(/Download for Android/i);
     expect(direct.closest("a")).toHaveAttribute(
       "href",
-      "https://gh/LambChat-android-v2.8.1-signed.apk",
+      "/api/version/assets/LambChat-android-v2.8.1-signed.apk/download",
     );
 
     // 手机端分区：APK 行可下载
@@ -240,7 +248,7 @@ test("android visitors get a direct apk download in the hero and a mobile sectio
     );
     expect(apkRow.closest("a")).toHaveAttribute(
       "href",
-      "https://gh/LambChat-android-v2.8.1-signed.apk",
+      "/api/version/assets/LambChat-android-v2.8.1-signed.apk/download",
     );
   } finally {
     Object.defineProperty(window.navigator, "userAgent", {

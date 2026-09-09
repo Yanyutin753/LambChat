@@ -486,13 +486,18 @@ jobs:
             const key = process.env.UPDATER_KEY;
             const signature = fs.readFileSync(process.env.SIG_FILE, "utf8").trim();
             const asset = `LambChat-${process.env.RELEASE_TAG}-${process.env.UPDATER_ASSET_SUFFIX}`;
-            const base = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/${process.env.RELEASE_TAG}`;
+            // 国内直连 GitHub 下载必挂：走自托管反代并锁 tag（与
+            // scripts/generate_updater_manifest.py 同一契约）
+            const base = "https://lambchat.com/api/version/assets";
             let manifest = {};
             if (fs.existsSync("latest.json")) {
               try { manifest = JSON.parse(fs.readFileSync("latest.json", "utf8")); } catch {}
             }
             manifest.platforms = manifest.platforms || {};
-            manifest.platforms[key] = { signature, url: `${base}/${asset}` };
+            manifest.platforms[key] = {
+              signature,
+              url: `${base}/${asset}/download?tag=${process.env.RELEASE_TAG}`,
+            };
             // 版本必须取自 tag：v2.8.2 发布时 tauri.conf.json 仍写 2.8.1，
             // 导致 latest.json 报 2.8.1、桌面端永远检测不到更新。
             manifest.version = process.env.RELEASE_TAG.replace(/^v/, "");
