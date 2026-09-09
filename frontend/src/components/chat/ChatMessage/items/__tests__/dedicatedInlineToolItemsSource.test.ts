@@ -66,6 +66,7 @@ test("message part renderer routes internal inline tools to dedicated items", ()
     "search_conversation_history",
     "get_conversation_detail",
     "search_skills",
+    "web_search",
   ];
 
   for (const toolName of expectedRoutes) {
@@ -77,6 +78,7 @@ test("message part renderer routes internal inline tools to dedicated items", ()
   expect(source).toMatch(/<TransferItem/);
   expect(source).toMatch(/<ConversationHistoryItem/);
   expect(source).toMatch(/<SkillSearchItem/);
+  expect(source).toMatch(/<WebSearchItem/);
 });
 
 test("every backend internal tool ships a dedicated item route", () => {
@@ -120,6 +122,7 @@ test("every backend internal tool ships a dedicated item route", () => {
     "transfer_path",
     "update_persona_preset",
     "upload_url_to_sandbox",
+    "web_search",
   ]);
 
   for (const toolName of internalToolNames) {
@@ -196,11 +199,31 @@ test("skill search item uses skill-specific overflow wording", () => {
   expect(source).not.toMatch(/toolMoreFiles/);
 });
 
+test("web search item presents query, result cards and image grid", () => {
+  const source = readSource("../WebSearchItem.tsx");
+
+  expect(source).toMatch(/toolWebSearch/);
+  expect(source).toMatch(/args\.query/);
+  expect(source).toMatch(/Globe size=\{12\}/);
+  expect(source).toMatch(/ImageWithSkeleton/);
+  expect(source).toMatch(/openToolLivePanel/);
+  expect(source).toMatch(/ToolInlineDetails/);
+});
+
+test("web search item uses search-specific overflow wording", () => {
+  const source = readSource("../WebSearchItem.tsx");
+
+  // 搜索结果的溢出提示不得复用文件语义的 toolMoreFiles
+  expect(source).toMatch(/toolWebSearchMore/);
+  expect(source).not.toMatch(/toolMoreFiles/);
+});
+
 test("overflow wording keys exist in every locale", () => {
   const requiredKeys = [
     "chat.message.toolHistoryMoreSessions",
     "chat.message.toolHistoryMoreTurns",
     "chat.message.toolSkillMore",
+    "chat.message.toolWebSearchMore",
   ];
   const locales = ["en", "zh", "ja", "ko", "ru"];
 

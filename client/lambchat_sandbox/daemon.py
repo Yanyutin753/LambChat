@@ -241,6 +241,10 @@ async def _process_call(
     session_id = _session_id_from_cwd(virtual_cwd)
     started = time.monotonic()
     if dedupe is not None and not dedupe.remember(call.call_id):
+        # The first ACK may have been lost with the previous SSE connection.
+        # Re-ack the duplicate so server-side at-least-once dispatch can stop
+        # retrying, while still never executing the side effect twice.
+        await client.post_result(call.call_id, {"stage": "ack"})
         auditor.log(
             session_id,
             {

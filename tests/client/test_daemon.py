@@ -1242,6 +1242,9 @@ async def test_duplicate_call_id_executes_once():
     assert len(executor.calls) == 2
     dones = [cid for cid, body in client.posted if body.get("stage") == "done"]
     assert dones == ["c1", "c2"]
+    # 重复帧必须重发 ACK，避免第一次 ACK 丢失时服务端持续重投
+    acks = [cid for cid, body in client.posted if body.get("stage") == "ack"]
+    assert acks == ["c1"]
 
     # 重复帧有专属审计记录，可事后核对
     duplicates = [

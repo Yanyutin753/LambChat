@@ -25,6 +25,8 @@ import {
   resolveSandboxPresentation,
   SANDBOX_AGENT_OPTION_KEY,
   SANDBOX_LOCAL_VALUE,
+  SANDBOX_MACHINE_AGENT_OPTION_KEY,
+  resolveSandboxButtonLabel,
 } from "./sandboxOption";
 
 export interface ChatInputToolbarProps {
@@ -80,7 +82,7 @@ const FILE_CATEGORY_ACCEPT: Record<FileCategory, string> = {
   audio:
     "audio/*,.m4a,.mp3,.wav,.ogg,.aac,.flac,.wma,.opus,.aiff,.caf,.amr,.mid,.midi,.ape,.alac,.wv",
   document:
-    ".pdf,.doc,.docx,.dot,.dotx,.docm,.xls,.xlsx,.xlsm,.csv,.xlt,.ods,.ppt,.pptx,.potx,.ppsx,.pptm,.odp,.txt,.md,.csv,.rtf,.odt,.epub,.dxf,.dwg,.log,.json,.xml,.html,.htm,.yaml,.yml,.toml,.ini,.cfg,.tex,.diff,.patch,.py,.js,.ts,.jsx,.tsx,.vue,.svelte,.go,.rs,.rb,.php,.java,.c,.cpp,.h,.cs,.swift,.kt,.scala,.dart,.lua,.r,.pl,.sql,.sh,.bash,.zsh,.fish,.ps1,.bat,.cmd,.properties,.gradle,.cmake,.env,.graphql,.proto,.zip,.rar,.7z,.tar,.gz,.bz2,.xz,.tgz",
+    ".pdf,.doc,.docx,.dot,.dotx,.docm,.xls,.xlsx,.xlsm,.csv,.xlt,.ods,.ppt,.pptx,.potx,.ppsx,.pptm,.odp,.vsd,.vsdx,.vsdm,.txt,.md,.csv,.rtf,.odt,.epub,.dxf,.dwg,.log,.json,.xml,.html,.htm,.yaml,.yml,.toml,.ini,.cfg,.tex,.diff,.patch,.py,.js,.ts,.jsx,.tsx,.vue,.svelte,.go,.rs,.rb,.php,.java,.c,.cpp,.h,.cs,.swift,.kt,.scala,.dart,.lua,.r,.pl,.sql,.sh,.bash,.zsh,.fish,.ps1,.bat,.cmd,.properties,.gradle,.cmake,.env,.graphql,.proto,.zip,.rar,.7z,.tar,.gz,.bz2,.xz,.tgz",
 };
 
 const FILE_ACCEPT_ALL = Object.values(FILE_CATEGORY_ACCEPT).join(",");
@@ -198,7 +200,7 @@ export function ChatInputToolbar({
     : undefined;
 
   // 沙箱选择器入口（RunModePopover 设置组）：会话存在 sandbox 选项且有切换回调时显示
-  const { has: hasSandboxOption, label: sandboxLabel } =
+  const { has: hasSandboxOption, label: sandboxTierLabel } =
     resolveSandboxPresentation(agentOptions, agentOptionValues, t);
   const showSandboxEntry = hasSandboxOption && !!onToggleAgentOption;
 
@@ -208,9 +210,25 @@ export function ChatInputToolbar({
     agentOptionValues[SANDBOX_AGENT_OPTION_KEY] ??
     agentOptions?.[SANDBOX_AGENT_OPTION_KEY]?.default;
   const sandboxChipLocal = sandboxTier === SANDBOX_LOCAL_VALUE;
-  const { online: sandboxOnline } = useSandboxStatus({
-    enabled: showSandboxEntry && sandboxChipLocal,
-  });
+  const { online: sandboxOnline, machines: sandboxMachines } =
+    useSandboxStatus({
+      enabled: showSandboxEntry && sandboxChipLocal,
+    });
+  // 统一面板入口标签：本地档 + 已选设备 → 「档位 · 设备」（chip 与 popover 徽标共用；
+  // 云端档或自动解析时退回纯档位名）
+  const sandboxLabel = sandboxTierLabel
+    ? resolveSandboxButtonLabel({
+        sandboxValue: sandboxTier,
+        tierLabel: sandboxTierLabel,
+        machineValue:
+          typeof agentOptionValues[SANDBOX_MACHINE_AGENT_OPTION_KEY] === "string"
+            ? (agentOptionValues[
+                SANDBOX_MACHINE_AGENT_OPTION_KEY
+              ] as string)
+            : "",
+        machines: sandboxMachines,
+      })
+    : undefined;
   const sandboxChipTitle = sandboxLabel
     ? `${t("agentOptions.sandbox.label")} · ${sandboxLabel}`
     : t("agentOptions.sandbox.label");
@@ -393,9 +411,6 @@ export function ChatInputToolbar({
           hasSandboxOption={showSandboxEntry}
           sandboxLabel={sandboxLabel}
           onOpenSandboxPanel={() => onActivePanelChange("sandbox")}
-          onOpenMachinePanel={
-            showSandboxEntry ? () => onActivePanelChange("machine") : undefined
-          }
           booleanAgentOptions={booleanAgentOptions}
           agentOptionValues={agentOptionValues}
           onToggleAgentOption={onToggleAgentOption}

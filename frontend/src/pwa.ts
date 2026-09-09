@@ -2,7 +2,9 @@ import {
   PWA_SKIP_WAITING_MESSAGE,
   PWA_UPDATE_AVAILABLE_EVENT,
   isPwaUpdateReady,
+  isTauriShell,
   shouldRegisterPwa,
+  shouldUnregisterTauriPwa,
 } from "./pwaGuards";
 
 export interface LambChatPwaUpdateEventDetail {
@@ -10,6 +12,25 @@ export interface LambChatPwaUpdateEventDetail {
 }
 
 let reloadWhenControllerChanges = false;
+
+/** 桌面壳内回收历史注册的 PWA service worker 与 Cache Storage。
+
+ * 本修复上线前，Windows WebView2（tauri.localhost 可注册 SW）里的桌面端
+ * 可能已注册过 SW：updater 换装后它仍控制页面、回放旧 index.html/旧
+ * chunk（RichChatComposer 动态导入 404 的主要根因），必须主动清退。 */
+async function cleanupTauriServiceWorkers(): Promise<void> {
+  try {
+    const registrations =
+      await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((reg) => reg.unregister()));
+    if ("caches" in window) {
+      const cacheKeys = await caches.keys();
+      await Promise.all(cacheKeys.map((key) => caches.delete(key)));
+    }
+  } catch (error) {
+    console.warn("[PWA] Tauri shell service worker cleanup failed:", error);
+  }
+}
 
 function notifyPwaUpdateAvailable(registration: ServiceWorkerRegistration) {
   window.dispatchEvent(
@@ -54,11 +75,20 @@ export function activateWaitingLambChatPwaUpdate(
 export function registerLambChatPwa(): void {
   const hasServiceWorker =
     typeof navigator !== "undefined" && "serviceWorker" in navigator;
+  const tauriShell = isTauriShell();
+
+  // Tauri 桌面壳：更新走 updater 换装，SW 只会留一层陈旧缓存——不注册，
+  // 并回收历史版本已注册的 SW 与 Cache Storage。
+  if (shouldUnregisterTauriPwa({ isTauriShell: tauriShell, hasServiceWorker })) {
+    void cleanupTauriServiceWorkers();
+    return;
+  }
 
   if (
     !shouldRegisterPwa({
       isProduction: import.meta.env.PROD,
       hasServiceWorker,
+      isTauriShell: tauriShell,
     })
   ) {
     return;

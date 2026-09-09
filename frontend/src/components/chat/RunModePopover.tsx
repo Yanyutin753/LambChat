@@ -10,16 +10,10 @@ import {
   Target,
   ChevronRight,
   Monitor,
-  Laptop,
 } from "lucide-react";
 import { getRunModePopoverPosition } from "./runModePopoverPosition";
 import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 import { useSandboxStatus } from "../../hooks/useSandboxStatus";
-import {
-  SANDBOX_AGENT_OPTION_KEY,
-  SANDBOX_LOCAL_VALUE,
-  SANDBOX_MACHINE_AGENT_OPTION_KEY,
-} from "./sandboxOption";
 import type { AgentOption } from "../../types";
 
 interface RunModePopoverProps {
@@ -37,12 +31,11 @@ interface RunModePopoverProps {
   hasThinkingOption?: boolean;
   thinkingLabel?: string;
   onOpenThinkingPanel?: () => void;
-  /** 沙箱选择器入口（会话存在 sandbox 选项时显示，点击打开 sandbox 面板）。 */
+  /** 沙箱选择器入口（会话存在 sandbox 选项时显示，点击打开 sandbox 统一面板）。 */
   hasSandboxOption?: boolean;
+  /** 档位（+本地档已选设备）标签，由 ChatInputToolbar 统一计算。 */
   sandboxLabel?: string;
   onOpenSandboxPanel?: () => void;
-  /** 机器选择器入口（本地档 + 在线机器时显示，点击打开 machine 面板）。 */
-  onOpenMachinePanel?: () => void;
   booleanAgentOptions?: Record<string, AgentOption>;
   agentOptionValues?: Record<string, boolean | string | number>;
   onToggleAgentOption?: (key: string, value: boolean | string | number) => void;
@@ -73,7 +66,6 @@ export function RunModePopover({
   hasSandboxOption,
   sandboxLabel,
   onOpenSandboxPanel,
-  onOpenMachinePanel,
   booleanAgentOptions,
   agentOptionValues = {},
   onToggleAgentOption,
@@ -83,25 +75,9 @@ export function RunModePopover({
   // 沙箱条目上的 daemon 在线状态点（绿=在线，灰=离线）+ 机器入口的在线机器列表。
   // 轮询门控：仅 popover 展开时拉取/轮询（关闭期间浮层不可见，不空转 10s
   // 轮询）；ChatInputSelectors 的常驻实例保持 always-on 不受影响。
-  const { online: sandboxOnline, machines } = useSandboxStatus({
+  const { online: sandboxOnline } = useSandboxStatus({
     enabled: open,
   });
-
-  // 机器子入口：仅本地档且有在线机器时出现（云端档无执行目标可选）
-  const sandboxTier = agentOptionValues[SANDBOX_AGENT_OPTION_KEY];
-  const selectedMachineId = agentOptionValues[SANDBOX_MACHINE_AGENT_OPTION_KEY];
-  const selectedMachine = machines.find(
-    (m) =>
-      typeof selectedMachineId === "string" &&
-      m.machine_id === selectedMachineId,
-  );
-  const machineBadge =
-    (selectedMachine && (selectedMachine.name || selectedMachine.machine_id)) ||
-    t("agentOptions.sandboxMachine.auto");
-  const showMachineEntry =
-    !!onOpenMachinePanel &&
-    sandboxTier === SANDBOX_LOCAL_VALUE &&
-    machines.length > 0;
 
   const hasSettings =
     hasAgentSelector ||
@@ -308,30 +284,6 @@ export function RunModePopover({
                       background: sandboxOnline ? "#22c55e" : "#a8a29e",
                     }}
                   />
-                  <ChevronRight size={14} className="feature-menu-chevron" />
-                </button>
-              )}
-
-              {/* Machine（本地档的执行目标，沙箱条目的子项） */}
-              {showMachineEntry && (
-                <button
-                  type="button"
-                  className="feature-menu-item run-mode-subitem"
-                  data-machine-entry
-                  onClick={() => {
-                    onOpenMachinePanel?.();
-                    onClose();
-                  }}
-                >
-                  <span className="feature-menu-item-icon">
-                    <Laptop size={16} />
-                  </span>
-                  <span className="flex-1 text-left truncate">
-                    {t("agentOptions.sandboxMachine.label")}
-                  </span>
-                  <span className="feature-menu-item-badge font-serif">
-                    {machineBadge}
-                  </span>
                   <ChevronRight size={14} className="feature-menu-chevron" />
                 </button>
               )}

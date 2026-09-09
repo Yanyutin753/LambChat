@@ -60,6 +60,22 @@ interface InstallOptions {
   now?: () => number;
 }
 
+/** 带缓存参数 replace 一次（冷却期内拒绝）：vite:preloadError 入口与
+ * ErrorBoundary 兜底共用同一自愈路径，返回是否真的触发了导航。 */
+export function attemptChunkReload(
+  win: ChunkLoadRecoveryWindow = window as typeof window,
+  { now = Date.now }: InstallOptions = {},
+): boolean {
+  const at = now();
+  const storedAt = Number(win.sessionStorage.getItem(CHUNK_RELOAD_STORAGE_KEY));
+  if (!shouldReloadAfterChunkError(Number.isFinite(storedAt) ? storedAt : null, at)) {
+    return false;
+  }
+  win.sessionStorage.setItem(CHUNK_RELOAD_STORAGE_KEY, String(at));
+  win.location.replace(buildCacheBustedUrl(win.location.href, at));
+  return true;
+}
+
 export function installChunkLoadRecovery(
   win: ChunkLoadRecoveryWindow = window as typeof window,
   { now = Date.now }: InstallOptions = {},
@@ -71,12 +87,6 @@ export function installChunkLoadRecovery(
     // 吞掉错误，避免它冒泡到 React lazy 边界崩成白屏
     event.preventDefault();
 
-    const at = now();
-    const storedAt = Number(win.sessionStorage.getItem(CHUNK_RELOAD_STORAGE_KEY));
-    if (!shouldReloadAfterChunkError(Number.isFinite(storedAt) ? storedAt : null, at)) {
-      return;
-    }
-    win.sessionStorage.setItem(CHUNK_RELOAD_STORAGE_KEY, String(at));
-    win.location.replace(buildCacheBustedUrl(win.location.href, at));
+    attemptChunkReload(win, { now });
   });
 }

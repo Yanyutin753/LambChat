@@ -40,6 +40,7 @@ const DEDICATED_ITEMS = [
   "MemoryStoreItem",
   "AskHumanItem",
   "ToolSearchItem",
+  "WebSearchItem",
 ] as const;
 
 test("every dedicated tool item receives the part id for live panel wiring", () => {

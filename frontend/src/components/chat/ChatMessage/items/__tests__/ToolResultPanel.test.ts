@@ -83,8 +83,12 @@ test("tool result header truncates long titles and subtitles on narrow screens",
   expect(componentSource).toMatch(
     /className="tool-console-title-row flex items-end gap-2 min-w-0 flex-1 overflow-hidden font-serif"/,
   );
+  // 无副标题时标题占满整行可用宽度（"General-purpose" 级别的名字不再被 40% 上限截断）
   expect(componentSource).toMatch(
-    /className="tool-console-title min-w-0 max-w-\[40%\] truncate font-medium text-14 text-theme-text"/,
+    /tool-console-title min-w-0 truncate font-medium text-14 text-theme-text \$\{\s*subtitle \? "max-w-\[40%\]" : "max-w-full"\s*\}/,
+  );
+  expect(componentSource).not.toMatch(
+    /className="tool-console-title min-w-0 max-w-\[40%\] truncate/,
   );
   expect(componentSource).toMatch(
     /className="tool-console-subtitle-pill inline-flex h-5 min-w-0 max-w-\[45vw\] sm:max-w-\[min\(32rem,52%\)\] items-end overflow-hidden px-0 pb-\[1px\] text-12 font-normal leading-none text-theme-text-tertiary"/,

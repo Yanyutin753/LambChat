@@ -6,6 +6,8 @@ Contains grep and glob utility methods used by the backend.
 
 import fnmatch
 
+from deepagents.backends.utils import compile_grep_include_glob
+
 from src.infra.async_utils import run_blocking_io
 from src.infra.backend.protocol_compat import FileInfo, GrepMatch
 from src.infra.logging import get_logger
@@ -161,18 +163,21 @@ def build_file_list_from_paths(skill_name: str, prefix: str, paths: list[str]) -
 def glob_files_from_paths(
     skill_name: str, prefix: str, pattern: str, paths: list[str]
 ) -> list[FileInfo]:
-    """在 skill 文件路径中按 glob 模式匹配（无内容大小）"""
+    """在 skill 文件路径中按共享 glob 契约匹配（无内容大小）。
+
+    契约与 deepagents BackendProtocol.glob 对齐：不含 ``/`` 的模式匹配任意深度的
+    basename；含 ``/`` 的模式按相对搜索根的路径匹配并支持 ``**`` 递归。
+    """
     prefix_slash = f"{prefix}/" if prefix else ""
+    matcher = compile_grep_include_glob(pattern)
     entries: list[FileInfo] = []
 
-    for file_path in paths:
+    for file_path in sorted(paths):
         if not file_path.startswith(prefix_slash):
             continue
 
         relative = file_path[len(prefix_slash) :]
-        basename = relative.rsplit("/", 1)[-1] if "/" in relative else relative
-
-        if fnmatch.fnmatch(basename, pattern):
+        if matcher(relative):
             entries.append(
                 FileInfo(
                     path=f"/{skill_name}/{file_path}",

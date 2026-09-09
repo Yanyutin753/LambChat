@@ -9,6 +9,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { useVersion } from "../../hooks/useVersion";
 import { APP_NAME } from "../../constants";
+import { APP_VERSION } from "../../utils/appVersion";
 import { SkeletonBlock, SkeletonLine } from "../skeletons";
 
 interface AboutDialogProps {
@@ -99,14 +100,15 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
             </div>
           ) : versionInfo ? (
             <>
-              {/* App Version */}
+              {/* App Version（客户端自身版本，打包进 bundle——客户端是什么
+                  版本就显示什么，与服务端版本无关） */}
               <div className="flex items-center justify-between rounded-lg bg-stone-50 p-4 dark:bg-stone-700/50">
                 <div>
                   <div className="text-12 text-stone-500 dark:text-stone-400">
                     {t("about.currentVersion", "Current Version")}
                   </div>
                   <div className="font-mono text-24 font-bold text-stone-900 dark:text-stone-100">
-                    {versionInfo.app_version}
+                    {APP_VERSION}
                   </div>
                 </div>
                 <button

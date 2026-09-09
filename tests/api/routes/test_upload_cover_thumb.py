@@ -545,6 +545,36 @@ def test_render_sheet_cover_draws_real_chinese_table():
     assert len(out) > 12000
 
 
+def _make_xlsx_bytes_with_empty_fill() -> bytes:
+    """Repack a workbook whose styles.xml contains a bare <fill/> — some
+    third-party writers emit these, Excel opens them fine, but openpyxl
+    3.1 raises TypeError("expected <class 'openpyxl.styles.fills.Fill'>")."""
+    import io
+    import re
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(_make_xlsx_bytes())) as zin, zipfile.ZipFile(buf, "w") as zout:
+        for item in zin.infolist():
+            payload = zin.read(item.filename)
+            if item.filename == "xl/styles.xml":
+                payload = re.sub(rb"<fill>.*?</fill>", b"<fill/>", payload, count=1)
+            zout.writestr(item, payload)
+    return buf.getvalue()
+
+
+def test_render_sheet_cover_tolerates_empty_fill_styles():
+    """空 <fill/> 样式条目（Excel 可开、openpyxl 3.1 抛 TypeError）不应让
+    封面渲染失败——修补后照常渲染出表格内容。"""
+    import io
+
+    out = render_sheet_cover(_make_xlsx_bytes_with_empty_fill())
+
+    cover = Image.open(io.BytesIO(out))
+    assert cover.size == (1120, 630)
+    assert len(out) > 12000
+
+
 # ── Concurrency protection ───────────────────────────────────────────────
 
 

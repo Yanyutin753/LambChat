@@ -262,6 +262,7 @@ jobs:
           if [ -f "$daemon_bin" ]; then
             echo "== daemon sidecar signature =="
             codesign -dv --verbose=4 "$daemon_bin" 2>&1 | grep -E "Signature|flags|TeamIdentifier|Identifier=" || true
+            codesign --verify --strict --verbose=2 "$daemon_bin"
             # 门禁：CodeDirectory flags 不得含 runtime (0x10000)——应在打包期由
             # tauri.conf.json 的 hardenedRuntime: false 保证，出现即打包链回归
             if codesign -dv --verbose=4 "$daemon_bin" 2>&1 | grep -E "flags=0x[0-9a-f]*1[0-9a-f]{4}"; then

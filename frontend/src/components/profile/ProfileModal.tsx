@@ -12,9 +12,9 @@ import {
   Scale,
   LogOut,
 } from "lucide-react";
-import { useVersion } from "../../hooks/useVersion";
 import { useAuth } from "../../hooks/useAuth";
 import { BrandWordmark } from "../common/BrandWordmark";
+import { APP_VERSION } from "../../utils/appVersion";
 
 import { ProfileInfoTab } from "./tabs/ProfileInfoTab";
 import { ProfileNotificationTab } from "./tabs/ProfileNotificationTab";
@@ -29,7 +29,6 @@ import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 interface ProfileModalProps {
   showProfileModal: boolean;
   onCloseProfileModal: () => void;
-  versionInfo: ReturnType<typeof useVersion>["versionInfo"];
 }
 
 const TAB_ICONS: Record<
@@ -48,7 +47,6 @@ const TAB_ICONS: Record<
 export function ProfileModal({
   showProfileModal,
   onCloseProfileModal,
-  versionInfo,
 }: ProfileModalProps) {
   const { t } = useTranslation();
   const { logout } = useAuth();
@@ -147,11 +145,10 @@ export function ProfileModal({
           decorative
           className="inline-block h-4 w-auto text-stone-500 dark:text-stone-400"
         />
-        {versionInfo?.app_version && (
-          <span className="opacity-70 font-serif leading-none">
-            v{versionInfo.app_version}
-          </span>
-        )}
+        {/* 客户端自身版本（打包进 bundle），不是所连服务端的版本 */}
+        <span className="opacity-70 font-serif leading-none">
+          v{APP_VERSION}
+        </span>
       </a>
       <a
         href="https://github.com/Yanyutin753/LambChat"

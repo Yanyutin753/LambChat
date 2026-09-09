@@ -28,6 +28,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from urllib.parse import urlsplit
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))  # src.* 可导入
@@ -84,6 +85,10 @@ def ensure_backend() -> subprocess.Popen | None:
         print(f"[env] 后端已在运行：{SERVER}")
         return None
     except Exception:
+        parsed = urlsplit(SERVER)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise RuntimeError(f"E2E_SANDBOX_SERVER must be an HTTP URL: {SERVER}")
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
         proc = subprocess.Popen(
             [
                 sys.executable,
@@ -91,9 +96,9 @@ def ensure_backend() -> subprocess.Popen | None:
                 "uvicorn",
                 "src.api.main:app",
                 "--host",
-                "127.0.0.1",
+                parsed.hostname,
                 "--port",
-                "8000",
+                str(port),
             ],
             cwd=REPO,
             stdout=open("/tmp/e2e-backend.log", "w"),
@@ -829,6 +834,102 @@ async def agent_tools_battery(user_id: str, pat: str, machine_id: str) -> None:
     assert live_settings.SANDBOX_LOCAL_EXEC_TIMEOUT == 120
 
 
+async def file_tools_battery(user_id: str, machine_id: str) -> None:
+    """文件工具层 E2E：skills 虚拟挂载 glob 递归契约（真实 MongoDB）与
+    transfer_path 大批量整树搬运（真实 daemon 链路）。
+
+    对应 2026-09-09 生产会话两处缺陷：/skills 挂载 glob 不支持 `**` 递归
+    （含 `/` 的模式一律空结果）+ 501 文件整树搬运被 500 上限卡死。
+    """
+    from types import SimpleNamespace
+
+    # ---- 1. skills 挂载 glob（SkillsStoreBackend → 真实 SkillStorage/MongoDB） ----
+    from src.infra.backend.skills_store import create_skills_backend
+    from src.infra.skill.storage import SkillStorage
+
+    probe = "e2e-glob-probe"
+    skills_backend = create_skills_backend(user_id=user_id)
+    try:
+        await skills_backend.awrite(f"/skills/{probe}/SKILL.md", "probe skill")
+        await skills_backend.awrite(f"/skills/{probe}/scripts/browse.py", "# browse")
+        await skills_backend.awrite(f"/skills/{probe}/scripts/sub/deep.py", "# deep")
+
+        # aglob 是协程，逐个 await（当前已在事件循环内）
+        root_md = await skills_backend.aglob("**/SKILL.md", "/skills")
+        nested_py = await skills_backend.aglob("**/*.py", f"/skills/{probe}")
+        direct_py = await skills_backend.aglob("scripts/*.py", f"/skills/{probe}")
+        root_dirs = await skills_backend.aglob("*", "/skills")
+
+        def paths(result) -> list[str]:
+            ms = getattr(result, "matches", None) or []
+            return [
+                m.get("path", str(m)) if isinstance(m, dict) else getattr(m, "path", str(m))
+                for m in ms
+            ]
+
+        p_root_md = paths(root_md)
+        p_nested = paths(nested_py)
+        p_direct = paths(direct_py)
+        p_dirs = paths(root_dirs)
+
+        check(
+            "skills glob 根目录 **/SKILL.md 递归命中",
+            f"/{probe}/SKILL.md" in p_root_md,
+            f"matches={len(p_root_md)} sample={p_root_md[:3]}",
+        )
+        check(
+            "skills glob **/*.py 命中多层嵌套",
+            p_nested == [f"/{probe}/scripts/browse.py", f"/{probe}/scripts/sub/deep.py"],
+            ",".join(p_nested)[:80],
+        )
+        check(
+            "skills glob scripts/*.py 不跨目录（路径相对匹配）",
+            p_direct == [f"/{probe}/scripts/browse.py"],
+            ",".join(p_direct)[:80],
+        )
+        check(
+            "skills glob 根目录无尾斜杠 + 裸模式仍列目录",
+            f"/{probe}/" in p_dirs,
+            f"dirs={len(p_dirs)} sample={p_dirs[:3]}",
+        )
+    finally:
+        from src.infra.backend.skills_store import SkillsStoreBackend
+
+        storage = SkillStorage()
+        await storage.delete_skill_and_meta(probe, user_id=user_id)
+        await SkillsStoreBackend.cleanup_storage_cache()
+
+    # ---- 2. transfer_path 501 文件整树单次搬运（WorkspaceAliasBackend → 真实 daemon） ----
+    from src.infra.backend.local import WorkspaceAliasBackend
+    from src.infra.tool.transfer_file_tool import transfer_path
+
+    session = "file-tools-e2e"
+    alias_backend = WorkspaceAliasBackend(
+        user_id=user_id, session_id=session, machine_id=machine_id
+    )
+    await alias_backend.aexecute(
+        "mkdir -p many && for i in $(seq 1 501); do printf 'x' > many/file-$i.txt; done"
+    )
+    runtime = SimpleNamespace(config={"configurable": {"backend": alias_backend}})
+    raw = await transfer_path.coroutine(
+        source_dir=f"/workspace/{session}/many",
+        target_prefix=f"/workspace/{session}/backup/",
+        runtime=runtime,
+    )
+    result = json.loads(raw)
+    spot = await alias_backend.aread(f"/workspace/{session}/backup/many/file-500.txt")
+    fd = getattr(spot, "file_data", None)
+    spot_content = fd.get("content") if isinstance(fd, dict) else getattr(fd, "content", None)
+    check(
+        "transfer_path 501 文件整树单次搬运（真实 daemon）",
+        result.get("success") is True
+        and result.get("transferred") == 501
+        and result.get("failed") == 0,
+        f"transferred={result.get('transferred')} failed={result.get('failed')} "
+        f"err={result.get('error')} spot={str(spot_content)[:20]!r}",
+    )
+
+
 async def stress(user_id: str, machine_id: str) -> None:
     import random
 
@@ -946,6 +1047,7 @@ def main() -> int:
             await crash_recovery(user_id, pat, machine_id, holder)
             await comprehensive(user_id, pat, machine_id, holder)
             await agent_tools_battery(user_id, pat, machine_id)
+            await file_tools_battery(user_id, machine_id)
             if args.stress:
                 await stress(user_id, machine_id)
 

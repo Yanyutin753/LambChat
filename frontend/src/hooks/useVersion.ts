@@ -20,7 +20,9 @@ export function useVersion(): UseVersionReturn {
     setIsLoading(true);
     setError(null);
     try {
-      const info = await versionApi.get();
+      // 首次拉取也上报客户端版本：has_update 按客户端 App 版本比较，而非
+      // 服务端版本（桌面端/移动端两者可能相差多个版本）
+      const info = await versionApi.get(APP_VERSION);
       setVersionInfo(info);
     } catch (err) {
       setError(

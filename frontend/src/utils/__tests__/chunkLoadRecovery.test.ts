@@ -2,6 +2,7 @@ import { expect, test, vi } from "vitest";
 import {
   CHUNK_RELOAD_COOLDOWN_MS,
   CHUNK_RELOAD_STORAGE_KEY,
+  attemptChunkReload,
   buildCacheBustedUrl,
   installChunkLoadRecovery,
   isChunkLoadError,
@@ -142,4 +143,26 @@ test("installChunkLoadRecovery ignores non-chunk preload errors", () => {
 
   expect(prevented).toBe(false);
   expect(replace).not.toHaveBeenCalled();
+});
+
+test("attemptChunkReload reloads with cache-busted url respecting cooldown", () => {
+  // ErrorBoundary 等非 vite:preloadError 入口共用同一自愈路径：带 bust 重载
+  // 一次，冷却期内拒绝再次导航（防真坏掉时无限重载）。
+  const { win, replace, store } = createHarness();
+  let now = 1_000_000;
+
+  expect(attemptChunkReload(win, { now: () => now })).toBe(true);
+  expect(replace).toHaveBeenCalledTimes(1);
+  expect(replace).toHaveBeenCalledWith(
+    expect.stringContaining("chunk_reload="),
+  );
+
+  now += 1_000;
+  expect(attemptChunkReload(win, { now: () => now })).toBe(false);
+  expect(replace).toHaveBeenCalledTimes(1);
+  expect(store.get(CHUNK_RELOAD_STORAGE_KEY)).toBeTruthy();
+
+  now += CHUNK_RELOAD_COOLDOWN_MS;
+  expect(attemptChunkReload(win, { now: () => now })).toBe(true);
+  expect(replace).toHaveBeenCalledTimes(2);
 });

@@ -2,6 +2,7 @@ import { Component, ReactNode } from "react";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import clsx from "clsx";
 import i18n from "i18next";
+import { attemptChunkReload, isChunkLoadError } from "../../utils/chunkLoadRecovery";
 
 interface Props {
   children: ReactNode;
@@ -24,11 +25,17 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("[ErrorBoundary] Caught error:", error, errorInfo);
+    // 桌面端更新后旧 chunk 404：自动带缓存参数重载自愈，不把裸报错
+    // （Failed to fetch dynamically imported module: ...）甩给用户。
+    if (isChunkLoadError(error)) {
+      attemptChunkReload();
+    }
   }
 
   render() {
     if (this.state.hasError) {
       const t = i18n.t.bind(i18n);
+      const isChunkError = isChunkLoadError(this.state.error);
       return (
         <div className="safe-area-viewport-padding min-h-screen flex items-center justify-center bg-stone-50 dark:bg-stone-950 px-4">
           <div className="w-full max-w-[380px] sm:max-w-[420px] rounded-2xl border border-stone-200/80 dark:border-stone-800/60 bg-white/80 dark:bg-stone-900/80 p-8 sm:p-10 text-center shadow-[0_2px_12px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_16px_rgba(0,0,0,0.2)]">
@@ -36,10 +43,18 @@ export class ErrorBoundary extends Component<Props, State> {
               <AlertTriangle className="w-7 h-7 text-amber-500 dark:text-amber-400" />
             </div>
             <h1 className="text-20 font-bold text-stone-900 dark:text-stone-100 font-serif tracking-tight mb-2">
-              {t("errorBoundary.title")}
+              {isChunkError
+                ? t("errorBoundary.updatingTitle", "正在更新资源")
+                : t("errorBoundary.title")}
             </h1>
             <p className="text-14 text-stone-500 dark:text-stone-400 leading-relaxed mb-6 break-words">
-              {this.state.error?.message || t("errorBoundary.unexpectedError")}
+              {isChunkError
+                ? t(
+                    "errorBoundary.updatingMessage",
+                    "应用资源已更新，正在自动刷新页面；若没有反应，请点击下方按钮重试。",
+                  )
+                : this.state.error?.message ||
+                  t("errorBoundary.unexpectedError")}
             </p>
             <button
               onClick={() => window.location.reload()}

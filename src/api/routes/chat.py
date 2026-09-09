@@ -27,6 +27,10 @@ from src.api.routes.chat_sse import (  # noqa: F401 - 供 SSE 路由与既有测
     CHAT_SSE_DATA_MAX_BYTES,
     _format_sse_event,
 )
+from src.api.routes.chat_stream_terminal import (
+    resolve_terminal_stream_status,
+    synthesize_terminal_stream_event,
+)
 from src.api.routes.chat_validation import validate_team_agent_request
 from src.api.routes.session import verify_session_ownership
 from src.infra.async_utils import run_blocking_io
@@ -658,6 +662,22 @@ async def session_stream(
     async def event_generator():
         logger.info(f"[SSE] Generator started for session={session_id}, run_id={run_id}")
         try:
+            # 终态 stream 已过 60s TTL 被清（run 结束超过 60 秒后的重连）：重放
+            # 0 条事件且下方 xread 永远等不到新事件，只能靠 24h 兜底超时——
+            # 断线重连的客户端在途工具卡因此永远转圈（孤儿组件）。stream 为
+            # 空且 run 已终态时立即合成终态事件返回。
+            if await dual_writer.get_stream_length(session_id, run_id=run_id) == 0:
+                terminal = await resolve_terminal_stream_status(session, run_id)
+                if terminal is not None:
+                    event = synthesize_terminal_stream_event(run_id, session, terminal)
+                    logger.info(
+                        "[SSE] Stream expired and run is terminal (%s); synthesized %s",
+                        terminal,
+                        event["event_type"],
+                    )
+                    yield await run_blocking_io(_format_sse_event, event)
+                    return
+
             # 使用 run_id 读取特定轮次的事件
             event_count = 0
             async for event in dual_writer.read_from_redis(

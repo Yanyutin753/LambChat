@@ -9,7 +9,6 @@ export interface NonChatAppContentProps {
   activeTab: Exclude<TabType, "chat">;
   showProfileModal: boolean;
   onCloseProfileModal: () => void;
-  versionInfo: import("../../../types").VersionInfo | null;
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean) => void;
   mobileSidebarOpen: boolean;
@@ -21,7 +20,6 @@ export function NonChatAppContent({
   activeTab,
   showProfileModal,
   onCloseProfileModal,
-  versionInfo,
   sidebarCollapsed,
   setSidebarCollapsed,
   mobileSidebarOpen,
@@ -51,7 +49,6 @@ export function NonChatAppContent({
       activeTab={activeTab}
       showProfileModal={showProfileModal}
       onCloseProfileModal={onCloseProfileModal}
-      versionInfo={versionInfo}
       setMobileSidebarOpen={setMobileSidebarOpen}
       currentProjectId={null}
       projectManager={{ projects: [] }}

@@ -66,7 +66,7 @@ export function resolveSandboxPresentation(
 }
 
 // ---------------------------------------------------------------------------
-// 会话级机器选择（多机 daemon）：动态注入 sandbox_machine_id 选项
+// 会话级机器选择（多机 daemon）：sandbox_machine_id 会话级选机
 // ---------------------------------------------------------------------------
 
 import type { SandboxMachine } from "../../services/api/sandbox";
@@ -74,12 +74,21 @@ import type { SandboxMachine } from "../../services/api/sandbox";
 /** 会话选机键：与后端 agent_options.sandbox_machine_id 契约一致。 */
 export const SANDBOX_MACHINE_AGENT_OPTION_KEY = "sandbox_machine_id";
 
-/** 机器选择器只在「本地档 + 至少一台在线机」时有意义（离线机保留置灰展示）。 */
-export function shouldShowSandboxMachineOption(
-  sandboxValue: boolean | string | number,
-  machines: SandboxMachine[],
-): boolean {
-  return sandboxValue === SANDBOX_LOCAL_VALUE && machines.some((m) => m.online !== false);
+// ---------------------------------------------------------------------------
+// 统一沙箱面板（档位 + 执行设备同弹窗）
+// ---------------------------------------------------------------------------
+
+/** 统一面板的设备行描述：value "" = 自动（后端默认解析：默认机→唯一在线→legacy）。 */
+export interface SandboxMachineRow {
+  value: string;
+  label: string;
+  /** 行对应机器的 machine_id（自动档无）。 */
+  machineId?: string;
+  platform?: string;
+  online: boolean;
+  /** 当前设备：壳内读 ~/.lambchat/sandbox.json 的 machine_id 比对命中。 */
+  isCurrent: boolean;
+  disabled?: boolean;
 }
 
 /** 机器在线判定：缺省（旧后端无该字段）按在线处理，兼容迁移窗口。 */
@@ -88,46 +97,60 @@ export function isMachineOnline(machine: SandboxMachine): boolean {
 }
 
 /**
- * 由机器列表动态构建选择器选项：首档「自动」（后端默认解析：默认机→
- * 唯一在线→legacy），其余按「默认机置顶 → 在线机 → 离线机」排序；离线机
- * 置灰（disabled）并在名称后标注离线——保留展示让用户知道机器存在，但
- * 明确当前不可选为目标。default 取用户默认机（无则首台在线机），
- * 已存会话值不受影响（与 sandbox 档位同规则：只裁剪显示，不篡改存储）。
+ * 由机器列表构建统一面板的设备行：自动 → 默认机 → 其余在线 → 离线，
+ * 离线置灰标注；当前设备即使离线也标注——用户需要认出"哪台是我这台"，
+ * 与可否选为执行目标无关。
  */
-export function buildSandboxMachineOption(
+export function buildSandboxMachineRows(
   machines: SandboxMachine[],
   defaultMachineId: string | null,
+  currentMachineId: string | null,
   t: (key: string) => string,
-): AgentOption | null {
+): SandboxMachineRow[] {
+  if (machines.length === 0) return [];
   const onlineMachines = machines.filter(isMachineOnline);
-  if (machines.length === 0) return null;
   const ordered = [
     ...onlineMachines.filter((m) => m.machine_id === defaultMachineId),
     ...onlineMachines.filter((m) => m.machine_id !== defaultMachineId),
     ...machines.filter((m) => !isMachineOnline(m)),
   ];
-  const options = [
-    { value: "", label_key: "agentOptions.sandboxMachine.auto" },
+  return [
+    {
+      value: "",
+      label: t("agentOptions.sandboxMachine.auto"),
+      online: true,
+      isCurrent: false,
+    },
     ...ordered.map((m) => ({
       value: m.machine_id,
       label: isMachineOnline(m)
         ? m.name || m.machine_id
         : `${m.name || m.machine_id} · ${t("agentOptions.sandboxMachine.offline")}`,
+      machineId: m.machine_id,
+      platform: m.platform,
+      online: isMachineOnline(m),
+      isCurrent: !!currentMachineId && m.machine_id === currentMachineId,
       disabled: !isMachineOnline(m) || undefined,
     })),
   ];
-  return {
-    type: "string",
-    default:
-      defaultMachineId &&
-      onlineMachines.some((m) => m.machine_id === defaultMachineId)
-        ? defaultMachineId
-        : onlineMachines[0]?.machine_id ?? machines[0].machine_id,
-    label: t("agentOptions.sandboxMachine.label"),
-    label_key: "agentOptions.sandboxMachine.label",
-    description: t("agentOptions.sandboxMachine.description"),
-    description_key: "agentOptions.sandboxMachine.description",
-    icon: "Laptop",
-    options,
-  };
+}
+
+/**
+ * 沙箱入口按钮（工具栏 chip / RunModePopover 徽标）的展示标签：
+ * 云端档或本地自动 → 档位名；本地指定机 → 「档位名 · 机器名」。
+ * 机器值不在列表（他端删除/失效）回落档位名，不展示幽灵机器。
+ */
+export function resolveSandboxButtonLabel(opts: {
+  sandboxValue: boolean | string | number;
+  tierLabel: string;
+  machineValue: string | null | undefined;
+  machines: SandboxMachine[];
+}): string {
+  if (opts.sandboxValue !== SANDBOX_LOCAL_VALUE) return opts.tierLabel;
+  const machineId =
+    typeof opts.machineValue === "string" ? opts.machineValue : "";
+  if (!machineId) return opts.tierLabel;
+  const machine = opts.machines.find((m) => m.machine_id === machineId);
+  if (!machine) return opts.tierLabel;
+  return `${opts.tierLabel} · ${machine.name || machine.machine_id}`;
 }

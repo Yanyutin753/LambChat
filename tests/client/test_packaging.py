@@ -39,6 +39,15 @@ def test_spec_bundles_daemon_entry_as_onefile_named_lambchat_daemon() -> None:
     assert 'codesign_identity="-" if __import__("sys").platform == "darwin" else None' in spec
 
 
+def test_build_script_resigns_and_verifies_macos_sidecar() -> None:
+    script = _source("client/scripts/build-daemon.sh")
+
+    assert 'case "$TRIPLE" in' in script
+    assert "*-apple-darwin)" in script
+    assert 'codesign --force --sign "-"' in script
+    assert "codesign --verify --strict --verbose=2" in script
+
+
 def test_build_script_detects_host_triple_and_targets_sidecar_path() -> None:
     script = _source("client/scripts/build-daemon.sh")
 

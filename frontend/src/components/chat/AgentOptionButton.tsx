@@ -15,6 +15,8 @@ interface AgentOptionButtonProps {
   note?: string;
   /** 面板底部操作区（如沙箱离线时的下载引导），渲染在档位列表下方。 */
   footer?: ReactNode;
+  /** 档位列表下方、footer 上方的扩展区（如沙箱统一面板的执行设备列表）。 */
+  belowOptions?: ReactNode;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
@@ -71,6 +73,7 @@ export const AgentOptionButton = memo(function AgentOptionButton({
   onChange,
   note,
   footer,
+  belowOptions,
   isOpen: externalIsOpen,
   onOpenChange: externalOnOpenChange,
 }: AgentOptionButtonProps) {
@@ -186,6 +189,7 @@ export const AgentOptionButton = memo(function AgentOptionButton({
                       />
                     ))}
                   </div>
+                  {belowOptions}
                   {footer && (
                     <div
                       className="mt-2 pt-1 border-t"
@@ -293,6 +297,7 @@ export const AgentOptionButton = memo(function AgentOptionButton({
                       />
                     ))}
                   </div>
+                  {belowOptions}
                   {footer && (
                     <div
                       className="mt-2 pt-1.5 border-t"
@@ -341,6 +346,7 @@ export const AgentOptionButton = memo(function AgentOptionButton({
                     />
                   ))}
                 </div>
+                {belowOptions}
                 {footer && (
                   <div
                     className="mt-2 pt-1.5 border-t"

@@ -14,3 +14,31 @@ def test_skill_prompt_description_threshold_is_registered() -> None:
 def test_removed_deferred_prompt_limit_is_not_registered() -> None:
     assert "DEFERRED_TOOL_PROMPT_LIMIT" not in Settings.model_fields
     assert "DEFERRED_TOOL_PROMPT_LIMIT" not in TOOLS_SETTING_DEFINITIONS
+
+
+def test_web_search_settings_are_registered() -> None:
+    expected_defaults = {
+        "ENABLE_WEB_SEARCH": False,
+        "WEB_SEARCH_PROVIDER": "auto",
+        "TAVILY_API_KEYS": "",
+        "BRAVE_API_KEYS": "",
+        "SEARXNG_BASE_URL": "",
+        "SEARXNG_API_KEY": "",
+    }
+    for key, default in expected_defaults.items():
+        assert Settings.model_fields[key].default == default
+        assert TOOLS_SETTING_DEFINITIONS[key]["default"] == default
+
+    assert TOOLS_SETTING_DEFINITIONS["WEB_SEARCH_PROVIDER"]["options"] == [
+        "auto",
+        "tavily",
+        "brave",
+        "searxng",
+    ]
+    assert TOOLS_SETTING_DEFINITIONS["TAVILY_API_KEYS"]["is_sensitive"] is True
+    assert TOOLS_SETTING_DEFINITIONS["BRAVE_API_KEYS"]["is_sensitive"] is True
+    assert TOOLS_SETTING_DEFINITIONS["SEARXNG_API_KEY"]["is_sensitive"] is True
+    assert TOOLS_SETTING_DEFINITIONS["SEARXNG_BASE_URL"].get("is_sensitive") is not True
+    for key in expected_defaults:
+        if key != "ENABLE_WEB_SEARCH":
+            assert TOOLS_SETTING_DEFINITIONS[key]["depends_on"] == "ENABLE_WEB_SEARCH"

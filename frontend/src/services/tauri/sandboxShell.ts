@@ -103,6 +103,14 @@ export function readPairingPat(): Promise<string | null> {
   return invokeInShell<string | null>("read_pairing_pat");
 }
 
+/**
+ * 读本机机器身份 machine_id（~/.lambchat/sandbox.json，daemon 首启生成持久化）。
+ * 未配对 / daemon 未写过时 null；用于机器列表上的"当前设备"标识。
+ */
+export function readMachineId(): Promise<string | null> {
+  return invokeInShell<string | null>("read_machine_id");
+}
+
 /** 重启托管的 daemon（stop → start）。 */
 export function restartDaemon(): Promise<void> {
   return invokeInShell("restart_daemon").then(() => undefined);

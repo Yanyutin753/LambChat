@@ -125,6 +125,22 @@ mkdir -p "$REPO_ROOT/frontend/src-tauri/binaries"
 cp -f "$DIST_ARTIFACT" "$TARGET"
 chmod +x "$TARGET"
 
+# PyInstaller 的 onefile 会在启动时把内嵌 dylib 解包到临时目录；macOS
+# 必须信任这些嵌套代码。对最终 sidecar 再签一次，覆盖 Rosetta 交叉构建、
+# PyInstaller 版本差异和 Tauri 复制过程，避免 libpython3.12.dylib 因未签名
+# 被 AMFI 拒绝加载。hardened runtime 仍由 Tauri 配置显式关闭。
+case "$TRIPLE" in
+    *-apple-darwin)
+        if ! command -v codesign >/dev/null 2>&1; then
+            echo "macOS sidecar 构建需要 codesign" >&2
+            exit 1
+        fi
+        echo "==> ad-hoc 签名 macOS daemon sidecar..."
+        codesign --force --sign "-" --timestamp=none "$TARGET"
+        codesign --verify --strict --verbose=2 "$TARGET"
+        ;;
+esac
+
 echo "==> sidecar 产物: $TARGET"
 echo "==> 冒烟验证: version 子命令（onefile 首跑解包需数秒）..."
 version="$("$TARGET" version)"

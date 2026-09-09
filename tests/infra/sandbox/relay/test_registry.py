@@ -6,6 +6,7 @@ from src.infra.sandbox.relay.registry import (
     SandboxClientRegistry,
     parse_daemon_platform,
     parse_daemon_version,
+    parse_machine_name,
 )
 
 
@@ -168,6 +169,36 @@ def test_parse_daemon_platform_all_formats():
     assert parse_daemon_platform("node-a|0.1.0|win32") == "win32"
     assert parse_daemon_platform("node-a||darwin") == "darwin"
     assert parse_daemon_platform("node-a|0.1.0") == ""  # 两段：平台段缺失
+
+
+# ---------- 机器身份（平台+机器名）：prompt 机器绑定段的数据源 ----------
+
+
+async def test_get_machine_identity_returns_platform_and_name(registry):
+    """一次解析同时给出（平台, 机器名）——search agent 机器绑定段的查询入口。"""
+    await registry.register(
+        "u1",
+        "c1",
+        "n1",
+        version="0.3.0",
+        platform="linux",
+        confirm_policy="all",
+        machine_name="yangyang-Lenovo",
+    )
+    assert await registry.get_machine_identity("u1") == ("linux", "yangyang-Lenovo")
+
+
+async def test_get_machine_identity_empty_when_offline_or_old_value(registry):
+    """离线、旧格式 value（机器名第五段缺失）→ ("", "")，调用方不加绑定信息。"""
+    assert await registry.get_machine_identity("nobody") == ("", "")
+    await registry.register("u1", "c1", "n1", version="0.1.0", platform="linux")
+    assert await registry.get_machine_identity("u1") == ("linux", "")
+
+
+def test_parse_machine_name_all_formats():
+    assert parse_machine_name("n1|0.3.0|linux|all|yangyang-Lenovo") == "yangyang-Lenovo"
+    assert parse_machine_name("n1|0.3.0|linux") == ""  # 五段缺失（旧 daemon 未上报）
+    assert parse_machine_name("n1") == ""
     assert parse_daemon_platform("node-a") == ""  # 旧格式（无版本写入方）
     assert parse_daemon_platform("node-a|0.1.0|") == ""  # 空平台与未上报等价
 

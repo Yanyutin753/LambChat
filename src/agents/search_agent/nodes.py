@@ -93,22 +93,28 @@ logger = get_logger(__name__)
 async def _build_sandbox_runtime_policy(
     sandbox_backend: Any, sandbox_work_dir: str | None, *, user_id: str
 ) -> str:
-    """沙箱运行时提示段：workspace 策略 + （仅本地 daemon）本机身份/平台段。
+    """沙箱运行时提示段：workspace 策略 + （仅本地 daemon）本机身份/机器绑定段。
 
     本地 daemon 上报 win32/linux/darwin 任一平台时追加
     prompt_policy.sandbox_shell_platform_section（「沙箱=用户本机」身份段 +
-    win32/darwin 的 shell 方言段），让模型既知道自己真的在操作用户的电脑，
+    机器绑定段（OS+机器名，多机用户不再按记忆猜系统）+ win32/darwin 的
+    shell 方言段），让模型既知道自己真的在操作用户的电脑、连的是哪台，
     又能生成 cmd.exe / macOS 兼容命令。云端沙箱与未上报一律不加段，prompt
-    逐字节保持现状；段文本随会话内 daemon 平台稳定，provider 前缀缓存不受
-    逐 turn 影响。
+    逐字节保持现状；段文本随会话内 daemon 目标机稳定，provider 前缀缓存
+    不受逐 turn 影响。
     """
     if not sandbox_backend or not sandbox_work_dir:
         return ""
-    from src.infra.backend.local import WorkspaceAliasBackend, _lookup_daemon_platform
+    from src.infra.backend.local import (
+        WorkspaceAliasBackend,
+        _lookup_daemon_identity,
+    )
 
     shell_section = ""
     if isinstance(sandbox_backend, WorkspaceAliasBackend):
-        shell_section = sandbox_shell_platform_section(await _lookup_daemon_platform(user_id))
+        machine_id = getattr(sandbox_backend, "_machine_id", None)
+        platform, machine_name = await _lookup_daemon_identity(user_id, machine_id)
+        shell_section = sandbox_shell_platform_section(platform, machine_name)
     base = SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir)
     return "\n\n".join(part for part in (base, shell_section) if part)
 

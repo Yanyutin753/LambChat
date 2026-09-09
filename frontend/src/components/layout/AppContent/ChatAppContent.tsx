@@ -48,7 +48,6 @@ const CHAT_SKILL_LIST_PARAMS = { limit: 100 };
 export function ChatAppContent({
   showProfileModal,
   onCloseProfileModal,
-  versionInfo,
   sidebarCollapsed,
   setSidebarCollapsed,
   mobileSidebarOpen,
@@ -750,7 +749,6 @@ export function ChatAppContent({
       activeTab="chat"
       showProfileModal={showProfileModal}
       onCloseProfileModal={onCloseProfileModal}
-      versionInfo={versionInfo}
       setMobileSidebarOpen={setMobileSidebarOpen}
       currentProjectId={currentProjectId}
       projectManager={projectManager}

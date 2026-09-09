@@ -12,7 +12,7 @@ import {
   shouldNudgeBrowserChrome,
 } from "./appBrowserChrome";
 import { isMobileDevice } from "../../../utils/mobile";
-import type { Project, VersionInfo } from "../../../types";
+import type { Project } from "../../../types";
 import type { TabType } from "./types";
 
 function isEditableElementFocused(): boolean {
@@ -51,7 +51,6 @@ export interface AppShellProps {
   activeTab: TabType;
   showProfileModal: boolean;
   onCloseProfileModal: () => void;
-  versionInfo: VersionInfo | null;
   setMobileSidebarOpen: (open: boolean) => void;
   currentProjectId: string | null;
   projectManager: { projects: Project[] };
@@ -82,7 +81,6 @@ export function AppShell({
   activeTab,
   showProfileModal,
   onCloseProfileModal,
-  versionInfo,
   setMobileSidebarOpen,
   currentProjectId,
   projectManager,
@@ -283,7 +281,6 @@ export function AppShell({
       <ProfileModal
         showProfileModal={showProfileModal}
         onCloseProfileModal={onCloseProfileModal}
-        versionInfo={versionInfo}
       />
 
       <div

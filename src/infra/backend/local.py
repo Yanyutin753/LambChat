@@ -96,6 +96,19 @@ async def _lookup_daemon_platform(user_id: str, machine_id: str | None = None) -
         return ""
 
 
+async def _lookup_daemon_identity(user_id: str, machine_id: str | None = None) -> tuple[str, str]:
+    """经注册表查目标机 daemon 的（上报平台, 机器展示名）。
+
+    prompt 机器绑定段（OS+机器名）的数据源；离线/旧格式/未上报对应成员为
+    空串，任何故障回落 ("", "")——缺什么就不注入什么，不阻断会话。
+    """
+    try:
+        return await SandboxClientRegistry().get_machine_identity(user_id, machine_id)
+    except Exception:  # noqa: BLE001 - 身份查询尽力而为，失败不注入
+        logger.warning("daemon identity lookup failed for user %s", user_id)
+        return "", ""
+
+
 # 上传分块阈值（posix）：单条命令的原始内容上限 48KB（b64 后 ~64KB）。
 # b64 内容作为单个 argv 下发，内核 MAX_ARG_STRLEN 限制单参数 128KB，
 # 扣除引号/命令前缀开销后 ~96KB 即触发 E2BIG（Errno 7）——48KB 留足余量。

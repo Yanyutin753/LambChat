@@ -16,7 +16,11 @@ import fnmatch
 from tempfile import SpooledTemporaryFile
 from typing import TYPE_CHECKING, Any, Optional
 
-from deepagents.backends.utils import create_file_data, slice_read_response
+from deepagents.backends.utils import (
+    compile_grep_include_glob,
+    create_file_data,
+    slice_read_response,
+)
 from langgraph.config import get_config
 
 from src.infra.async_utils import run_blocking_io
@@ -715,11 +719,31 @@ class SkillsStoreBackend(BackendProtocol):
                 skill_names = [
                     name for name in sorted(all_skill_names) if self._is_skill_visible(name)
                 ]
-                entries: list[FileInfo] = []
+                if "/" not in pattern:
+                    # 裸模式：沿用既有行为，按 skill 目录名列举（ls 语义）
+                    entries: list[FileInfo] = []
+                    for skill_name in skill_names:
+                        if fnmatch.fnmatch(skill_name, pattern):
+                            entries.append(FileInfo(path=f"/{skill_name}/", is_dir=True))
+                    return GlobResult(matches=entries)
+
+                # 含 `/` 的模式：跨 skill 递归匹配文件，契约与其余 backend 对齐
+                # （`**` 递归、路径相对匹配；只出文件不出目录）
+                matcher = compile_grep_include_glob(pattern)
+                file_entries: list[FileInfo] = []
                 for skill_name in skill_names:
-                    if fnmatch.fnmatch(skill_name, pattern):
-                        entries.append(FileInfo(path=f"/{skill_name}/", is_dir=True))
-                return GlobResult(matches=entries)
+                    for file_path in sorted(await self._get_skill_file_paths(storage, skill_name)):
+                        if matcher(f"{skill_name}/{file_path}"):
+                            file_entries.append(
+                                FileInfo(path=f"/{skill_name}/{file_path}", is_dir=False)
+                            )
+                            if len(file_entries) >= SKILLS_GREP_MAX_MATCHES:
+                                return GlobResult(
+                                    matches=file_entries,
+                                    truncated=True,
+                                    truncation_reason="budget",
+                                )
+                return GlobResult(matches=file_entries)
 
             parsed = parse_skill_path(normalized_path.rstrip("/"))
             if not parsed:

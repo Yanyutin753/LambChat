@@ -37,6 +37,8 @@ export interface UseAutoUpdateReturn {
   setShowDialog: (v: boolean) => void;
   startUpdate: () => Promise<void>;
   skipUpdate: () => void;
+  /** 跳过此版本：该版本不再自动提醒（手动检查仍会显示） */
+  skipThisVersion: () => void;
   /** 手动检查（设置页事件触发）：无更新时提示「已是最新」 */
   checkNow: () => Promise<void>;
 }
@@ -70,6 +72,54 @@ export function shouldCheckNow(
   minIntervalMs: number,
 ): boolean {
   return now - lastCheckedAt >= minIntervalMs;
+}
+
+/** 「跳过此版本」持久化（标准更新器行为：该版本不再自动打扰） */
+export const SKIPPED_UPDATE_VERSIONS_KEY = "lambchat:skipped-update-versions";
+
+export function readSkippedUpdateVersions(
+  storage: Pick<Storage, "getItem">,
+): string[] {
+  try {
+    const raw = storage.getItem(SKIPPED_UPDATE_VERSIONS_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((v): v is string => typeof v === "string");
+  } catch {
+    return [];
+  }
+}
+
+export function isVersionSkipped(
+  version: string | null,
+  skipped: string[],
+): boolean {
+  if (!version) return false;
+  return skipped.includes(version);
+}
+
+/** 是否弹更新提示：跳过过的版本静默（手动「检查更新」除外——主动要看） */
+export function shouldPromptUpdate(
+  version: string | null,
+  skipped: string[],
+  opts: { manual: boolean },
+): boolean {
+  if (!version) return false;
+  if (opts.manual) return true;
+  return !isVersionSkipped(version, skipped);
+}
+
+function persistSkippedVersion(
+  storage: Pick<Storage, "setItem" | "getItem">,
+  version: string,
+): void {
+  const next = [...readSkippedUpdateVersions(storage), version];
+  try {
+    storage.setItem(SKIPPED_UPDATE_VERSIONS_KEY, JSON.stringify(next));
+  } catch {
+    // 存储写失败（隐私模式等）：本次会话内仍生效（调用方关闭弹窗）
+  }
 }
 
 /** 后台发现新版本时的系统通知（每版本一次；桌面托盘/系统通知） */
@@ -107,14 +157,16 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
 
   const platform = platformRef.current;
 
-  /** Check for updates. background=true 时不打断用户：弹窗 + 系统通知（每版本一次） */
+  /** Check for updates. background=true 时不打断用户：弹窗 + 系统通知（每版本一次）；
+   * manual=true（设置页手动检查）无视「跳过此版本」列表 */
   const checkForUpdate = useCallback(
-    async (options?: { background?: boolean }) => {
+    async (options?: { background?: boolean; manual?: boolean }) => {
       const background = options?.background === true;
+      const manual = options?.manual === true;
       if (platform === "tauri") {
-        await checkTauriUpdate(background);
+        await checkTauriUpdate(background, manual);
       } else if (platform === "android" || platform === "ios") {
-        await checkBackendUpdate(background);
+        await checkBackendUpdate(background, manual);
       }
       lastCheckedAtRef.current = Date.now();
       // web: no-op
@@ -127,7 +179,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   const checkNow = useCallback(async () => {
     if (platform === "web") return;
     const before = stateRef.current.available;
-    await checkForUpdate();
+    await checkForUpdate({ manual: true });
     if (!stateRef.current.available && !before) {
       const { toast } = await import("react-hot-toast");
       toast.success(i18n.t("update.upToDate", "已是最新版本"));
@@ -176,11 +228,16 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
 
   /** Check via Tauri updater plugin */
   const checkTauriUpdate = useCallback(
-    async (background = false) => {
+    async (background = false, manual = false) => {
       try {
         const { check } = await import("@tauri-apps/plugin-updater");
         const update = await check();
         if (update?.available) {
+          const prompt = shouldPromptUpdate(
+            update.version,
+            readSkippedUpdateVersions(window.localStorage),
+            { manual },
+          );
           setState({
             ...INITIAL_STATE,
             available: true,
@@ -189,12 +246,14 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
             releaseUrl: null,
             releaseAssets: [],
           });
-          setShowDialog(true);
-          // 自动下载：发现更新即后台静默下载（不阻塞用户），完成后一键重启安装
-          void startBackgroundDownload(update);
-          if (background && notifiedVersionRef.current !== update.version) {
-            notifiedVersionRef.current = update.version;
-            void notifyUpdateAvailable(update.version);
+          if (prompt) {
+            setShowDialog(true);
+            // 自动下载：发现更新即后台静默下载（不阻塞用户），完成后一键重启安装
+            void startBackgroundDownload(update);
+            if (background && notifiedVersionRef.current !== update.version) {
+              notifiedVersionRef.current = update.version;
+              void notifyUpdateAvailable(update.version);
+            }
           }
         }
       } catch {
@@ -205,23 +264,30 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   );
 
   /** Check via backend /api/version endpoint（上报客户端版本，has_update 按它判断） */
-  const checkBackendUpdate = useCallback(async (background = false) => {
+  const checkBackendUpdate = useCallback(async (background = false, manual = false) => {
     try {
       const info = await versionApi.checkForUpdates(APP_VERSION);
       if (info.has_update) {
+        const v = info.latest_version ?? null;
+        const prompt = shouldPromptUpdate(
+          v,
+          readSkippedUpdateVersions(window.localStorage),
+          { manual },
+        );
         setState({
           ...INITIAL_STATE,
           available: true,
-          version: info.latest_version ?? null,
+          version: v,
           releaseNotes: info.release_notes ?? null,
           releaseUrl: info.release_url ?? null,
           releaseAssets: info.release_assets ?? [],
         });
-        setShowDialog(true);
-        const v = info.latest_version ?? null;
-        if (background && v && notifiedVersionRef.current !== v) {
-          notifiedVersionRef.current = v;
-          void notifyUpdateAvailable(v);
+        if (prompt) {
+          setShowDialog(true);
+          if (background && v && notifiedVersionRef.current !== v) {
+            notifiedVersionRef.current = v;
+            void notifyUpdateAvailable(v);
+          }
         }
       }
     } catch {
@@ -487,6 +553,15 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     setShowDialog(false);
   }, []);
 
+  /** 跳过此版本：持久化后该版本不再自动提醒（手动检查仍会显示） */
+  const skipThisVersion = useCallback(() => {
+    const version = stateRef.current.version;
+    if (version) {
+      persistSkippedVersion(window.localStorage, version);
+    }
+    setShowDialog(false);
+  }, []);
+
   // 最新 state 供 checkNow 读取（避免闭包旧值）
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -554,6 +629,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     setShowDialog,
     startUpdate,
     skipUpdate,
+    skipThisVersion,
     checkNow,
   };
 }
