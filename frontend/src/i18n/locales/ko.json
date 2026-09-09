@@ -2671,6 +2671,10 @@
     "IMAGE_ANALYSIS_MAX_ATTEMPTS": "이미지 분석 모델 호출 최대 시도 횟수",
     "IMAGE_ANALYSIS_MODEL_ID": "image_analyze 도구에서 사용할 VLM 모델 구성 ID입니다. 모델 설정에서 비전 지원으로 표시된 모델을 선택하세요.",
     "IMAGE_ANALYSIS_RETRY_DELAY": "이미지 분석 재시도 기본 대기 시간(초, 지수 백오프 시작값)",
+    "VIDEO_ANALYSIS_MODEL_ID": "video_analyze 도구가 사용하는 VLM 모델 설정 ID. 비워 두면 이미지 분석 모델로 대체됩니다. 비전 지원 모델이어야 합니다.",
+    "VIDEO_ANALYSIS_MAX_ATTEMPTS": "동영상 인식 모델 최대 시도 횟수",
+    "VIDEO_ANALYSIS_RETRY_DELAY": "동영상 분석 재시도 기본 간격(초, 지수 백오프)",
+    "VIDEO_ANALYSIS_MAX_BYTES": "분석 가능한 동영상 크기 상한(바이트, 기본 50MB. base64로 4/3 증가, 초과 시 거부)",
     "IMAGE_GENERATION_API_KEY": "이미지 생성/편집 API 키",
     "IMAGE_GENERATION_BASE_URL": "OpenAI 호환 이미지 API 기본 URL",
     "IMAGE_GENERATION_MODEL": "이미지 생성 모델 이름",
@@ -3259,6 +3263,8 @@
     "title": "스킬"
   },
   "subcategories": {
+    "image_analysis": "이미지 분석",
+    "video_analysis": "동영상 분석",
     "api": "API",
     "apple": "Apple",
     "bucket": "버킷",

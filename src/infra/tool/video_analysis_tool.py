@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import mimetypes
@@ -89,6 +90,35 @@ async def _json_dumps_result(data: dict[str, Any]) -> str:
     return await run_blocking_io(json.dumps, data, ensure_ascii=False)
 
 
+async def _call_with_retries(llm: Any, messages: list[Any]) -> Any:
+    """与 image_analysis_tool 同款退避重试，但读视频工具自己的
+    VIDEO_ANALYSIS_MAX_ATTEMPTS / VIDEO_ANALYSIS_RETRY_DELAY（一工具一套）。"""
+    max_attempts = max(1, int(getattr(settings, "VIDEO_ANALYSIS_MAX_ATTEMPTS", 3) or 3))
+    base_delay = float(getattr(settings, "VIDEO_ANALYSIS_RETRY_DELAY", 1.0) or 0)
+
+    last_exc: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return await llm.ainvoke(messages, config=VIDEO_ANALYSIS_INTERNAL_RUN_CONFIG)
+        except Exception as exc:
+            last_exc = exc
+            if attempt >= max_attempts:
+                break
+            delay = base_delay * (2 ** max(0, attempt - 1))
+            logger.warning(
+                "[video_analyze] model call failed with %s (attempt %d/%d), retrying in %.1fs",
+                type(exc).__name__,
+                attempt,
+                max_attempts,
+                delay,
+            )
+            if delay > 0:
+                await asyncio.sleep(delay)
+
+    assert last_exc is not None
+    raise last_exc
+
+
 @tool
 async def video_analyze(
     video_urls: Annotated[
@@ -104,24 +134,29 @@ async def video_analyze(
     """Analyze one or more videos with the configured vision-language model."""
     from src.infra.llm.client import LLMClient
     from src.infra.tool.image_analysis_tool import (
-        _call_with_retries,
         _content_to_text,
         _download_file_from_backend,
         _resolve_model_config,
     )
 
     try:
-        model_reference = str(getattr(settings, "IMAGE_ANALYSIS_MODEL_ID", "") or "").strip()
-        if not model_reference:
-            return await _json_dumps_result({"error": "IMAGE_ANALYSIS_MODEL_ID is not configured"})
-        model_config = await _resolve_model_config(model_reference)
-        if not model_config:
+        # 视频专用模型优先；未配置回落图片分析的 VLM（同一能力族）
+        model_reference = str(getattr(settings, "VIDEO_ANALYSIS_MODEL_ID", "") or "").strip()
+        fallback_reference = str(getattr(settings, "IMAGE_ANALYSIS_MODEL_ID", "") or "").strip()
+        effective_reference = model_reference or fallback_reference
+        configured_key = "VIDEO_ANALYSIS_MODEL_ID" if model_reference else "IMAGE_ANALYSIS_MODEL_ID"
+        if not effective_reference:
             return await _json_dumps_result(
-                {"error": "Configured IMAGE_ANALYSIS_MODEL_ID not found"}
+                {
+                    "error": "Neither VIDEO_ANALYSIS_MODEL_ID nor IMAGE_ANALYSIS_MODEL_ID is configured"
+                }
             )
+        model_config = await _resolve_model_config(effective_reference)
+        if not model_config:
+            return await _json_dumps_result({"error": f"Configured {configured_key} not found"})
         if not model_config.profile or not model_config.profile.supports_vision:
             return await _json_dumps_result(
-                {"error": "Configured IMAGE_ANALYSIS_MODEL_ID does not support vision"},
+                {"error": f"Configured {configured_key} does not support vision"},
             )
 
         refs = [str(u).strip() for u in (video_urls or []) if str(u).strip()]
@@ -198,7 +233,7 @@ async def video_analyze(
             {
                 "success": True,
                 "analysis": analysis,
-                "model_id": model_config.id or model_reference,
+                "model_id": model_config.id or effective_reference,
                 "videos": videos_meta,
                 **({"errors": errors} if errors else {}),
             },

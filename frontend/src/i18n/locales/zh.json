@@ -2671,6 +2671,10 @@
     "IMAGE_ANALYSIS_MAX_ATTEMPTS": "图片识别模型调用最大尝试次数",
     "IMAGE_ANALYSIS_MODEL_ID": "image_analyze 工具使用的 VLM 模型配置 ID。请选择已在模型配置中标记支持视觉的模型。",
     "IMAGE_ANALYSIS_RETRY_DELAY": "图片识别重试基础等待时间（秒，指数退避起始值）",
+    "VIDEO_ANALYSIS_MODEL_ID": "video_analyze 工具使用的 VLM 模型配置 ID；留空回落图片分析的模型。需为支持视觉的模型。",
+    "VIDEO_ANALYSIS_MAX_ATTEMPTS": "视频识别模型调用最大尝试次数",
+    "VIDEO_ANALYSIS_RETRY_DELAY": "视频识别重试基础间隔（秒，指数退避）",
+    "VIDEO_ANALYSIS_MAX_BYTES": "单视频分析字节上限（默认 50MB；base64 会膨胀 4/3，超限整文件拒绝）",
     "IMAGE_GENERATION_API_KEY": "图像生成/编辑 API 密钥",
     "IMAGE_GENERATION_BASE_URL": "OpenAI 兼容图像 API 基础 URL",
     "IMAGE_GENERATION_MODEL": "图像生成模型名称",
@@ -3259,6 +3263,8 @@
     "title": "技能"
   },
   "subcategories": {
+    "image_analysis": "图片分析",
+    "video_analysis": "视频分析",
     "api": "API",
     "apple": "Apple",
     "bucket": "存储桶",

@@ -2671,6 +2671,10 @@
     "IMAGE_ANALYSIS_MAX_ATTEMPTS": "画像解析モデル呼び出しの最大試行回数",
     "IMAGE_ANALYSIS_MODEL_ID": "image_analyze ツールで使う VLM モデル設定 ID。モデル設定で視覚対応としてマークしたモデルを選択してください。",
     "IMAGE_ANALYSIS_RETRY_DELAY": "画像解析リトライの基本待機時間（秒、指数バックオフの開始値）",
+    "VIDEO_ANALYSIS_MODEL_ID": "video_analyze ツールが使用する VLM モデル設定 ID。空の場合は画像分析のモデルにフォールバック。ビジョン対応モデルが必要です。",
+    "VIDEO_ANALYSIS_MAX_ATTEMPTS": "動画認識モデルの最大試行回数",
+    "VIDEO_ANALYSIS_RETRY_DELAY": "動画認識のリトライ基準間隔（秒、指数バックオフ）",
+    "VIDEO_ANALYSIS_MAX_BYTES": "解析する動画のサイズ上限（バイト、デフォルト 50MB。base64 で 4/3 に膨張、超過は拒否）",
     "IMAGE_GENERATION_API_KEY": "画像生成・編集 API キー",
     "IMAGE_GENERATION_BASE_URL": "OpenAI互換画像APIのベースURL",
     "IMAGE_GENERATION_MODEL": "画像生成モデル名",
@@ -3259,6 +3263,8 @@
     "title": "スキル"
   },
   "subcategories": {
+    "image_analysis": "画像分析",
+    "video_analysis": "動画分析",
     "api": "API",
     "apple": "Apple",
     "bucket": "バケット",

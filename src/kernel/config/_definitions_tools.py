@@ -223,10 +223,38 @@ TOOLS_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": 3,
         "depends_on": "ENABLE_IMAGE_ANALYSIS",
     },
+    # ============================================
+    # Video Analysis Settings（与图片分析同开关挂载；未配模型回落 IMAGE_ANALYSIS_MODEL_ID）
+    # ============================================
+    "VIDEO_ANALYSIS_MODEL_ID": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.TOOLS,
+        "subcategory": "video_analysis",
+        "description": "settingDesc.VIDEO_ANALYSIS_MODEL_ID",
+        "default": "",
+        "depends_on": "ENABLE_IMAGE_ANALYSIS",
+        "frontend_visible": True,
+    },
+    "VIDEO_ANALYSIS_MAX_ATTEMPTS": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.TOOLS,
+        "subcategory": "video_analysis",
+        "description": "settingDesc.VIDEO_ANALYSIS_MAX_ATTEMPTS",
+        "default": 3,
+        "depends_on": "ENABLE_IMAGE_ANALYSIS",
+    },
+    "VIDEO_ANALYSIS_RETRY_DELAY": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.TOOLS,
+        "subcategory": "video_analysis",
+        "description": "settingDesc.VIDEO_ANALYSIS_RETRY_DELAY",
+        "default": 1.0,
+        "depends_on": "ENABLE_IMAGE_ANALYSIS",
+    },
     "VIDEO_ANALYSIS_MAX_BYTES": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.TOOLS,
-        "subcategory": "image_analysis",
+        "subcategory": "video_analysis",
         "description": "settingDesc.VIDEO_ANALYSIS_MAX_BYTES",
         "default": 52428800,
         "min_value": 1048576,

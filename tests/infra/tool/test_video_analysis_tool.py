@@ -139,9 +139,11 @@ async def test_video_analyze_success_builds_video_url_message(
             captured["messages"] = messages
             return SimpleNamespace(content="A cat is jumping.")
 
-    monkeypatch.setattr(video_analysis_tool.settings, "IMAGE_ANALYSIS_MODEL_ID", "vision-id")
-    monkeypatch.setattr(video_analysis_tool.settings, "IMAGE_ANALYSIS_MAX_ATTEMPTS", 1)
-    monkeypatch.setattr(video_analysis_tool.settings, "IMAGE_ANALYSIS_RETRY_DELAY", 0)
+    # 视频专用模型优先于图片分析的模型
+    monkeypatch.setattr(video_analysis_tool.settings, "IMAGE_ANALYSIS_MODEL_ID", "image-model")
+    monkeypatch.setattr(video_analysis_tool.settings, "VIDEO_ANALYSIS_MODEL_ID", "vision-id")
+    monkeypatch.setattr(video_analysis_tool.settings, "VIDEO_ANALYSIS_MAX_ATTEMPTS", 1)
+    monkeypatch.setattr(video_analysis_tool.settings, "VIDEO_ANALYSIS_RETRY_DELAY", 0)
     monkeypatch.setattr(
         "src.infra.agent.model_storage.get_model_storage",
         lambda: _FakeStorage(model),
@@ -200,8 +202,8 @@ async def test_video_analyze_rejects_oversized_video_without_model_call(
             ]
 
     monkeypatch.setattr(video_analysis_tool.settings, "IMAGE_ANALYSIS_MODEL_ID", "vision-id")
-    monkeypatch.setattr(video_analysis_tool.settings, "IMAGE_ANALYSIS_MAX_ATTEMPTS", 1)
-    monkeypatch.setattr(video_analysis_tool.settings, "IMAGE_ANALYSIS_RETRY_DELAY", 0)
+    monkeypatch.setattr(video_analysis_tool.settings, "VIDEO_ANALYSIS_MAX_ATTEMPTS", 1)
+    monkeypatch.setattr(video_analysis_tool.settings, "VIDEO_ANALYSIS_RETRY_DELAY", 0)
     monkeypatch.setattr(video_analysis_tool.settings, "VIDEO_ANALYSIS_MAX_BYTES", 1024 * 1024)
     monkeypatch.setattr(
         "src.infra.agent.model_storage.get_model_storage",
@@ -252,3 +254,75 @@ async def test_internal_registry_exposes_video_analyze_with_image_analysis(
     names = {getattr(tool, "name", None) for tool in tools}
     assert "image_analyze" in names
     assert "video_analyze" in names
+
+
+@pytest.mark.asyncio
+async def test_video_analyze_falls_back_to_image_model_when_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """未配 VIDEO_ANALYSIS_MODEL_ID 时回落 IMAGE_ANALYSIS_MODEL_ID。"""
+    from src.infra.tool import video_analysis_tool
+
+    requested: list[str] = []
+
+    class _FakeStorage:
+        async def get(self, model_id: str):
+            requested.append(model_id)
+            if model_id != "image-model":
+                return None
+            return ModelConfig(
+                id="image-model",
+                value="openai/glm-4.5v",
+                label="Vision",
+                profile=ModelProfile(supports_vision=True),
+            )
+
+        async def get_by_value(self, value: str):
+            requested.append(value)
+            return None
+
+    class _FakeLLM:
+        async def ainvoke(self, messages, config=None):
+            return SimpleNamespace(content="fallback ok")
+
+    monkeypatch.setattr(video_analysis_tool.settings, "IMAGE_ANALYSIS_MODEL_ID", "image-model")
+    monkeypatch.setattr(video_analysis_tool.settings, "VIDEO_ANALYSIS_MODEL_ID", "")
+    monkeypatch.setattr("src.infra.agent.model_storage.get_model_storage", lambda: _FakeStorage())
+    from src.infra.llm.client import LLMClient
+
+    async def fake_get_model(**_kwargs):
+        return _FakeLLM()
+
+    monkeypatch.setattr(LLMClient, "get_model", fake_get_model)
+
+    class _FakeBackend:
+        async def adownload_files(self, paths: list[str]):
+            return [SimpleNamespace(path=paths[0], content=_mp4_bytes(), error=None)]
+
+    result = json.loads(
+        await video_analysis_tool.video_analyze.coroutine(
+            video_urls=["/workspace/clip.mp4"],
+            runtime=_Runtime(backend=_FakeBackend()),
+        )
+    )
+    assert result["success"] is True
+    assert result["model_id"] == "image-model"
+    assert "image-model" in requested
+
+
+@pytest.mark.asyncio
+async def test_video_analyze_errors_when_neither_model_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import video_analysis_tool
+
+    monkeypatch.setattr(video_analysis_tool.settings, "IMAGE_ANALYSIS_MODEL_ID", "")
+    monkeypatch.setattr(video_analysis_tool.settings, "VIDEO_ANALYSIS_MODEL_ID", "")
+
+    result = json.loads(
+        await video_analysis_tool.video_analyze.coroutine(
+            video_urls=["/workspace/clip.mp4"],
+            runtime=_Runtime(),
+        )
+    )
+    assert "Neither VIDEO_ANALYSIS_MODEL_ID nor IMAGE_ANALYSIS_MODEL_ID" in result["error"]

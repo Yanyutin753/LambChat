@@ -2671,6 +2671,10 @@
     "IMAGE_ANALYSIS_MAX_ATTEMPTS": "Maximum image analysis model call attempts",
     "IMAGE_ANALYSIS_MODEL_ID": "VLM model config ID used by the image_analyze tool. Choose a model marked as vision-capable in model settings.",
     "IMAGE_ANALYSIS_RETRY_DELAY": "Image analysis retry base wait time in seconds (exponential backoff starting value)",
+    "VIDEO_ANALYSIS_MODEL_ID": "VLM model config ID used by the video_analyze tool; falls back to the image analysis model when empty. Must support vision.",
+    "VIDEO_ANALYSIS_MAX_ATTEMPTS": "Max attempts for video model calls",
+    "VIDEO_ANALYSIS_RETRY_DELAY": "Base retry delay for video analysis (seconds, exponential backoff)",
+    "VIDEO_ANALYSIS_MAX_BYTES": "Per-video size limit in bytes (default 50MB; base64 inflates by 4/3, oversized files are rejected)",
     "IMAGE_GENERATION_API_KEY": "Image generation API key",
     "IMAGE_GENERATION_BASE_URL": "OpenAI-compatible image API base URL",
     "IMAGE_GENERATION_MODEL": "Image generation model name",
@@ -3259,6 +3263,8 @@
     "title": "Skills"
   },
   "subcategories": {
+    "image_analysis": "Image Analysis",
+    "video_analysis": "Video Analysis",
     "api": "API",
     "apple": "Apple",
     "bucket": "Bucket",
