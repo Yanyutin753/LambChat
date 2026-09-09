@@ -899,7 +899,9 @@ async def file_tools_battery(user_id: str, machine_id: str) -> None:
     from src.infra.tool.transfer_file_tool import transfer_path
 
     session = "file-tools-e2e"
-    alias_backend = WorkspaceAliasBackend(user_id=user_id, session_id=session, machine_id=machine_id)
+    alias_backend = WorkspaceAliasBackend(
+        user_id=user_id, session_id=session, machine_id=machine_id
+    )
     await alias_backend.aexecute(
         "mkdir -p many && for i in $(seq 1 501); do printf 'x' > many/file-$i.txt; done"
     )

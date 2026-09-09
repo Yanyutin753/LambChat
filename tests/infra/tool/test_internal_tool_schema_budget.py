@@ -168,7 +168,7 @@ def test_compact_descriptions_keep_tool_selection_boundaries() -> None:
         "scheduled_task_create": ("date", "interval", "cron", "timezone"),
         "create_agent_team": ("search_persona_presets", "member"),
         "transfer_file": ("text", "/skills/"),
-        "transfer_path": ("text", "10mb", "100mb", "500"),
+        "transfer_path": ("text", "10mb", "100mb", "2000"),
         "search_tools": ("+", "select:"),
     }
     for tool_name, markers in required_markers.items():
