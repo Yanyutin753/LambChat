@@ -2847,9 +2847,12 @@
     "WELCOME_SUGGESTION_TEXT": "文本",
     "LLM_STREAM_IDLE_TIMEOUT": "流式响应相邻 chunk 之间的最长空闲秒数，防止上游停滞导致运行挂死（0 或负数禁用）",
     "ENABLE_WEB_FETCH": "启用网页阅读工具：抓取公网页面正文并转为 Markdown 供模型阅读（内网地址一律拒绝）。",
-    "WEB_FETCH_PROVIDER": "网页阅读供应商：direct 本机抓取提取；tavily 走 Tavily Extract（复用搜索的 key，反爬页首选兜底）；jina 走 r.jina.ai（JS 渲染页更稳）；auto 依次 direct → tavily → jina。",
+    "WEB_FETCH_PROVIDER": "网页阅读供应商：direct 本机抓取提取；tavily 复用搜索 key（反爬页首选兜底）；firecrawl 可自建；exa 缓存+实爬；jina 走 r.jina.ai（JS 渲染页稳）；auto 按 direct → tavily → firecrawl → exa → jina 依次兜底。",
     "JINA_API_KEYS": "Jina Reader API keys，英文逗号分隔多 key 轮询（r.jina.ai 免 key 20 RPM，带 key 200 RPM）。留空则 jina 不启用。",
-    "WEB_FETCH_MAX_CHARS": "单次抓取返回的最大字符数，超出截断。"
+    "WEB_FETCH_MAX_CHARS": "单次抓取返回的最大字符数，超出截断。",
+    "FIRECRAWL_BASE_URL": "Firecrawl 自建实例地址（如 http://fc.internal:3000）。留空用官方 SaaS。自建可免 key。",
+    "FIRECRAWL_API_KEYS": "Firecrawl API keys，英文逗号分隔多 key 轮询（firecrawl.dev 免费档）。自建实例可留空。",
+    "EXA_API_KEYS": "Exa API keys，英文逗号分隔多 key 轮询（exa.ai 免费档，缓存优先+实爬兜底）。"
   },
   "settings": {
     "defaultModel": "默认模型",

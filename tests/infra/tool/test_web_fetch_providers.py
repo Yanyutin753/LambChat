@@ -439,3 +439,136 @@ async def test_execute_web_fetch_pinned_jina_keyless(monkeypatch: pytest.MonkeyP
     result = await wfp.execute_web_fetch("https://example.com/x", 32768, provider="jina")
     assert result["success"] is True
     assert seen_keys == [""]  # 空 key = 不带 Authorization 头
+
+
+# ---------------------------------------------------------------------------
+# Firecrawl / Exa 渠道（2026-09-09 二轮扩展）
+# ---------------------------------------------------------------------------
+
+
+async def test_firecrawl_fetch_saas_shape(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: dict = {}
+
+    async def fake_request(client, method, url, *, json=None, headers=None):
+        seen.update(url=url, method=method, json=json, headers=headers)
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "application/json"},
+            content=(
+                '{"success": true, "data": {"markdown": "# Firecrawl 正文\\n\\n'
+                '足够长的正文内容以通过阈值判定。", '
+                '"metadata": {"title": "FC 标题", "url": "https://example.com/final"}}}'
+            ).encode(),
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(wfp, "validate_public_http_url", _allow_all)
+    monkeypatch.setattr(wfp, "_request_no_redirect", fake_request)
+    result = await wfp.firecrawl_fetch(
+        wfp._get_client(), "https://example.com/page", "fc-key", 32768
+    )
+    assert seen["url"] == "https://api.firecrawl.dev/v1/scrape"
+    assert seen["json"] == {"url": "https://example.com/page", "formats": ["markdown"]}
+    assert seen["headers"]["Authorization"] == "Bearer fc-key"
+    assert result["success"] is True
+    assert result["provider"] == "firecrawl"
+    assert result["title"] == "FC 标题"
+    assert result["final_url"] == "https://example.com/final"
+    assert "Firecrawl 正文" in result["content"]
+
+
+async def test_firecrawl_fetch_selfhost_keyless(monkeypatch: pytest.MonkeyPatch) -> None:
+    """自建实例（非默认 BASE_URL）：无 key 不带 Authorization 头。"""
+    seen: dict = {}
+
+    async def fake_request(client, method, url, *, json=None, headers=None):
+        seen.update(url=url, headers=headers)
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "application/json"},
+            content=('{"data": {"markdown": "自建实例正文，足够长以通过阈值判定。"}}').encode(),
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(wfp, "validate_public_http_url", _allow_all)
+    monkeypatch.setattr(wfp, "_request_no_redirect", fake_request)
+    monkeypatch.setattr(wfp, "_firecrawl_base", lambda: "http://fc.internal:3000")
+    result = await wfp.firecrawl_fetch(wfp._get_client(), "https://example.com/page", "", 32768)
+    assert seen["url"] == "http://fc.internal:3000/v1/scrape"
+    assert "Authorization" not in seen["headers"]
+    assert result["success"] is True
+
+
+async def test_exa_fetch_normalizes_results(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: dict = {}
+
+    async def fake_request(client, method, url, *, json=None, headers=None):
+        seen.update(url=url, json=json, headers=headers)
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "application/json"},
+            content=(
+                '{"results": [{"url": "https://example.com/doc", "title": "Exa 标题", '
+                '"text": "Exa 返回的正文内容，足够长以通过阈值判定。"}]}'
+            ).encode(),
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(wfp, "validate_public_http_url", _allow_all)
+    monkeypatch.setattr(wfp, "_request_no_redirect", fake_request)
+    result = await wfp.exa_fetch(wfp._get_client(), "https://example.com/doc", "exa-key", 32768)
+    assert seen["url"] == wfp.EXA_CONTENTS_URL
+    assert seen["json"] == {"urls": ["https://example.com/doc"]}
+    assert seen["headers"]["x-api-key"] == "exa-key"
+    assert result["success"] is True
+    assert result["provider"] == "exa"
+    assert result["title"] == "Exa 标题"
+    assert "Exa 返回的正文" in result["content"]
+
+
+def test_resolve_fetch_chain_full_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(wfp, "_tavily_available", lambda: True)
+    monkeypatch.setattr(wfp, "_firecrawl_keys", lambda: ["fk1"])
+    monkeypatch.setattr(wfp, "_exa_keys", lambda: ["ek1"])
+    monkeypatch.setattr(wfp, "_jina_keys", lambda: ["jk1"])
+    assert wfp.resolve_fetch_chain() == ["direct", "tavily", "firecrawl", "exa", "jina"]
+
+
+def test_resolve_fetch_chain_selfhost_firecrawl_without_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """自建 Firecrawl（仅 BASE_URL 无 key）也纳入链路。"""
+    monkeypatch.setattr(wfp, "_tavily_available", lambda: False)
+    monkeypatch.setattr(wfp, "_firecrawl_keys", lambda: [])
+    monkeypatch.setattr(wfp, "_exa_keys", lambda: [])
+    monkeypatch.setattr(wfp, "_jina_keys", lambda: [])
+    monkeypatch.setattr(
+        wfp.settings, "FIRECRAWL_BASE_URL", "http://fc.internal:3000", raising=False
+    )
+    assert wfp.resolve_fetch_chain() == ["direct", "firecrawl"]
+
+
+async def test_execute_web_fetch_skips_unkeyed_providers_gracefully(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """全链无 key（tavily/firecrawl/exa/jina 都没配）：逐层跳过并汇总错误，不崩。"""
+    calls: list[str] = []
+
+    async def empty_direct(client, url, max_chars):
+        calls.append("direct")
+        return {"success": False, "error": "web_fetch_http_403"}
+
+    monkeypatch.setattr(wfp, "direct_fetch", empty_direct)
+    monkeypatch.setattr(wfp, "validate_public_http_url", _allow_all)
+    monkeypatch.setattr(wfp, "_tavily_available", lambda: True)
+    monkeypatch.setattr(wfp, "_firecrawl_keys", lambda: [])
+    monkeypatch.setattr(wfp, "_exa_keys", lambda: [])
+    monkeypatch.setattr(wfp, "_jina_keys", lambda: [])
+    # tavily 池真实存在（从 web_search 设置读）但本环境为空 → 链上跳过
+    monkeypatch.setattr(wfp, "_get_pool", lambda provider: None)
+    monkeypatch.setattr(wfp.settings, "FIRECRAWL_BASE_URL", "", raising=False)
+
+    result = await wfp.execute_web_fetch("https://example.com/x", 32768, provider="auto")
+    assert result["success"] is False
+    assert calls == ["direct"]
+    assert result["error"] == "web_fetch_all_providers_failed"

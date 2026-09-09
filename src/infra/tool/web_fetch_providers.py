@@ -41,6 +41,8 @@ logger = get_logger(__name__)
 
 JINA_READER_PREFIX = "https://r.jina.ai/"
 TAVILY_EXTRACT_URL = "https://api.tavily.com/extract"
+FIRECRAWL_DEFAULT_BASE = "https://api.firecrawl.dev"
+EXA_CONTENTS_URL = "https://api.exa.ai/contents"
 
 # 直连抓取限制：读超时 30s；下载体积上限 5MB（Markdown 提取前的原始 body 上限，
 # 超出即截断读取——超大页面提取出的正文也必然远小于该值）
@@ -390,6 +392,110 @@ def _get_jina_pool() -> ApiKeyPool | None:
     return _jina_pool
 
 
+def _firecrawl_base() -> str:
+    raw = str(getattr(settings, "FIRECRAWL_BASE_URL", "") or "").strip()
+    return raw.rstrip("/") or FIRECRAWL_DEFAULT_BASE
+
+
+def _firecrawl_keys() -> list[str]:
+    raw = str(getattr(settings, "FIRECRAWL_API_KEYS", "") or "")
+    return [k.strip() for k in raw.split(",") if k.strip()]
+
+
+async def firecrawl_fetch(
+    client: httpx.AsyncClient, url: str, api_key: str, max_chars: int
+) -> dict[str, Any]:
+    """Firecrawl scrape：HTML→LLM Markdown 的专项引擎。
+
+    SaaS（默认 api.firecrawl.dev，需 key）与自建实例（FIRECRAWL_BASE_URL
+    指向自己的 Docker 部署，可无 key）同一协议；反爬与 JS 渲染处理强。
+    """
+    ok, err = await validate_public_http_url(url)
+    if not ok:
+        return {"success": False, "error": err}
+
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    response = await _request_no_redirect(
+        client,
+        "POST",
+        f"{_firecrawl_base()}/v1/scrape",
+        json={"url": url, "formats": ["markdown"]},
+        headers=headers,
+    )
+    _raise_for_status(response)
+    try:
+        data = response.json()
+    except Exception as exc:  # noqa: BLE001
+        return {"success": False, "error": f"web_fetch_firecrawl_bad_response: {exc}"}
+    if data.get("success") is False:
+        return {"success": False, "error": f"web_fetch_firecrawl_failed: {data.get('error')}"}
+    payload = data.get("data") if isinstance(data.get("data"), dict) else data
+    raw = str(payload.get("markdown") or payload.get("content") or "").strip()
+    if not raw:
+        return {"success": False, "error": "web_fetch_empty_content"}
+    meta = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+    title = str(meta.get("title") or "").strip() or None
+    content, truncated = _truncate(raw, max_chars)
+    return _fetch_result(
+        url=url,
+        final_url=str(meta.get("url") or meta.get("sourceURL") or url),
+        provider="firecrawl",
+        title=title,
+        content=content,
+        content_type="text/markdown",
+        truncated=truncated,
+    )
+
+
+def _exa_keys() -> list[str]:
+    raw = str(getattr(settings, "EXA_API_KEYS", "") or "")
+    return [k.strip() for k in raw.split(",") if k.strip()]
+
+
+async def exa_fetch(
+    client: httpx.AsyncClient, url: str, api_key: str, max_chars: int
+) -> dict[str, Any]:
+    """Exa contents：缓存优先、未命中自动实爬的 AI 原生内容引擎。"""
+    ok, err = await validate_public_http_url(url)
+    if not ok:
+        return {"success": False, "error": err}
+
+    response = await _request_no_redirect(
+        client,
+        "POST",
+        EXA_CONTENTS_URL,
+        json={"urls": [url]},
+        headers={"x-api-key": api_key, "Content-Type": "application/json"},
+    )
+    _raise_for_status(response)
+    try:
+        data = response.json()
+    except Exception as exc:  # noqa: BLE001
+        return {"success": False, "error": f"web_fetch_exa_bad_response: {exc}"}
+    results = data.get("results") or []
+    raw = ""
+    title = None
+    for item in results:
+        if isinstance(item, dict) and str(item.get("url") or "").rstrip("/") == url.rstrip("/"):
+            raw = str(item.get("text") or item.get("contents") or "").strip()
+            title = str(item.get("title") or "").strip() or None
+            break
+    if not raw:
+        return {"success": False, "error": "web_fetch_empty_content"}
+    content, truncated = _truncate(raw, max_chars)
+    return _fetch_result(
+        url=url,
+        final_url=url,
+        provider="exa",
+        title=title,
+        content=content,
+        content_type="text/markdown",
+        truncated=truncated,
+    )
+
+
 async def tavily_extract(
     client: httpx.AsyncClient, url: str, api_key: str, max_chars: int
 ) -> dict[str, Any]:
@@ -497,16 +603,22 @@ def _tavily_available() -> bool:
 
 
 def resolve_fetch_chain() -> list[str]:
-    """供应商链：auto = direct → tavily → jina（各看配置）；钉死则单元素。
+    """供应商链：auto 按配置拼接 direct → tavily → firecrawl → exa → jina。
 
-    direct 被拦（UA 门禁/反爬）由 tavily extract 接住；JS 渲染页再落 jina。
+    direct 被拦（UA 门禁/反爬，微信公众号典型）由 tavily extract 接住；
+    firecrawl（可自建）与 exa（缓存+实爬）做中段兜底；jina 收尾 JS 渲染页。
+    钉死供应商时只返回它。
     """
     provider = str(getattr(settings, "WEB_FETCH_PROVIDER", "auto") or "auto").strip().lower()
-    if provider in ("direct", "tavily", "jina"):
+    if provider in ("direct", "tavily", "firecrawl", "exa", "jina"):
         return [provider]
     chain = ["direct"]
     if _tavily_available():
         chain.append("tavily")
+    if _firecrawl_keys() or str(getattr(settings, "FIRECRAWL_BASE_URL", "") or "").strip():
+        chain.append("firecrawl")
+    if _exa_keys():
+        chain.append("exa")
     if _jina_keys():
         chain.append("jina")
     return chain
@@ -540,18 +652,30 @@ async def execute_web_fetch(
             errors.append(str(result.get("error")))
             continue
 
-        if name == "tavily":
-            pool = _get_pool("tavily")
+        if name in ("tavily", "firecrawl", "exa"):
+            fetcher = {"tavily": tavily_extract, "firecrawl": firecrawl_fetch, "exa": exa_fetch}[
+                name
+            ]
+            if name == "tavily":
+                pool = _get_pool("tavily")
+            elif name == "firecrawl":
+                keys = _firecrawl_keys()
+                if not keys and _firecrawl_base() != FIRECRAWL_DEFAULT_BASE:
+                    keys = [""]  # 自建实例可无 key
+                pool = ApiKeyPool(keys) if keys else None
+            else:
+                keys = _exa_keys()
+                pool = ApiKeyPool(keys) if keys else None
             if pool is None:
-                errors.append("tavily: no api keys configured")
+                errors.append(f"{name}: no api keys configured")
                 continue
             picked = pool.next_key()
             if picked is None:
-                errors.append("tavily: all keys cooling down")
+                errors.append(f"{name}: all keys cooling down")
                 continue
             index, key = picked
             try:
-                result = await tavily_extract(client, url, key, max_chars)
+                result = await fetcher(client, url, key, max_chars)
             except ProviderRequestError as exc:
                 if exc.status_code in (429, 432, 402):
                     pool.mark_cooldown(index, _COOLDOWN_429_S)
@@ -559,11 +683,11 @@ async def execute_web_fetch(
                     pool.mark_cooldown(index, 6 * 3600.0)
                 else:
                     pool.mark_cooldown(index, 30.0)
-                errors.append(f"tavily key#{index + 1}: HTTP {exc.status_code}")
+                errors.append(f"{name} key#{index + 1}: HTTP {exc.status_code}")
                 continue
             except Exception as exc:  # noqa: BLE001
                 pool.mark_cooldown(index, 30.0)
-                errors.append(f"tavily key#{index + 1}: {exc}")
+                errors.append(f"{name} key#{index + 1}: {exc}")
                 continue
             if result.get("success"):
                 return result

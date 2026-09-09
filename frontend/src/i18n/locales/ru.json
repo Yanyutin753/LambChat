@@ -2847,9 +2847,12 @@
     "WELCOME_SUGGESTION_TEXT": "Текст",
     "LLM_STREAM_IDLE_TIMEOUT": "Максимальный простой в секундах между chunk потокового ответа; застой вышестоящего канала прерывает вызов, а не зависает навсегда (0 или меньше — отключено)",
     "ENABLE_WEB_FETCH": "Включить инструмент чтения веб-страниц: публичные страницы как Markdown (внутренние адреса всегда отклоняются).",
-    "WEB_FETCH_PROVIDER": "Поставщик: direct = локальная загрузка; tavily = Tavily Extract (общие ключи с поиском, первый фолбэк для антибот-страниц); jina = r.jina.ai; auto = direct → tavily → jina.",
+    "WEB_FETCH_PROVIDER": "Поставщик: direct, tavily (ключи поиска), firecrawl (self-host), exa (кэш+краул), jina; auto = последовательный фолбэк.",
     "JINA_API_KEYS": "Ключи Jina Reader API, через запятую для ротации. Пусто — jina отключён.",
-    "WEB_FETCH_MAX_CHARS": "Максимум символов на загрузку; лишнее обрезается."
+    "WEB_FETCH_MAX_CHARS": "Максимум символов на загрузку; лишнее обрезается.",
+    "FIRECRAWL_BASE_URL": "URL своего Firecrawl (напр. http://fc.internal:3000). Пусто = официальный SaaS. Своий инстанс может работать без ключей.",
+    "FIRECRAWL_API_KEYS": "Ключи Firecrawl API, через запятую. Для своего инстанса необязательны.",
+    "EXA_API_KEYS": "Ключи Exa API, через запятую (кэш + живой обход)."
   },
   "settings": {
     "defaultModel": "Модель по умолчанию",

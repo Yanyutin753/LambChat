@@ -49,6 +49,9 @@ def test_web_fetch_settings_are_registered() -> None:
         "ENABLE_WEB_FETCH": False,
         "WEB_FETCH_PROVIDER": "auto",
         "JINA_API_KEYS": "",
+        "FIRECRAWL_BASE_URL": "",
+        "FIRECRAWL_API_KEYS": "",
+        "EXA_API_KEYS": "",
         "WEB_FETCH_MAX_CHARS": 32768,
     }
     for key, default in expected_defaults.items():
@@ -59,8 +62,13 @@ def test_web_fetch_settings_are_registered() -> None:
         "auto",
         "direct",
         "tavily",
+        "firecrawl",
+        "exa",
         "jina",
     ]
+    assert TOOLS_SETTING_DEFINITIONS["FIRECRAWL_API_KEYS"]["is_sensitive"] is True
+    assert TOOLS_SETTING_DEFINITIONS["EXA_API_KEYS"]["is_sensitive"] is True
+    assert TOOLS_SETTING_DEFINITIONS["FIRECRAWL_BASE_URL"].get("is_sensitive") is not True
     assert TOOLS_SETTING_DEFINITIONS["JINA_API_KEYS"]["is_sensitive"] is True
     for key in expected_defaults:
         if key != "ENABLE_WEB_FETCH":

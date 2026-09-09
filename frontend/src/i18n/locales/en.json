@@ -2847,9 +2847,12 @@
     "WELCOME_SUGGESTION_TEXT": "Text",
     "LLM_STREAM_IDLE_TIMEOUT": "Maximum idle seconds between consecutive streaming chunks; an upstream stall fails the call instead of hanging forever (0 or negative = disabled)",
     "ENABLE_WEB_FETCH": "Enable the web fetch tool: read public pages as markdown for the model (internal addresses always rejected).",
-    "WEB_FETCH_PROVIDER": "Web fetch provider: direct = local fetch & extract; tavily = Tavily Extract (reuses search keys, first fallback for anti-bot pages); jina = r.jina.ai (better for JS pages); auto = direct → tavily → jina.",
+    "WEB_FETCH_PROVIDER": "Web fetch provider: direct = local; tavily = reuses search keys (first fallback for anti-bot); firecrawl = self-hostable; exa = cache+live crawl; jina = r.jina.ai; auto = direct → tavily → firecrawl → exa → jina.",
     "JINA_API_KEYS": "Jina Reader API keys, comma-separated for rotation (r.jina.ai: 20 RPM keyless, 200 RPM with key). Empty disables jina.",
-    "WEB_FETCH_MAX_CHARS": "Max characters returned per fetch; longer content is truncated."
+    "WEB_FETCH_MAX_CHARS": "Max characters returned per fetch; longer content is truncated.",
+    "FIRECRAWL_BASE_URL": "Self-hosted Firecrawl base URL (e.g. http://fc.internal:3000). Empty = official SaaS. Self-host can work without keys.",
+    "FIRECRAWL_API_KEYS": "Firecrawl API keys, comma-separated for rotation (firecrawl.dev free tier). Optional for self-hosted.",
+    "EXA_API_KEYS": "Exa API keys, comma-separated for rotation (exa.ai free tier, cache-first with live crawl fallback)."
   },
   "settings": {
     "defaultModel": "Default Model",
