@@ -330,7 +330,11 @@ class SandboxClientRegistry:
         version = parts[1] if len(parts) > 1 else ""
         platform = parts[2] if len(parts) > 2 else ""
         machine_name = parts[4] if len(parts) > 4 else ""
-        await redis.set(key, encode_node_value(node_id, version, platform, policy, machine_name), ex=_TTL_SECONDS)
+        await redis.set(
+            key,
+            encode_node_value(node_id, version, platform, policy, machine_name),
+            ex=_TTL_SECONDS,
+        )
         seen_all = await redis.hgetall(_machseen_key(user_id))
         seen = _decode_seen_record(seen_all.get(machine_id))
         if seen is not None:

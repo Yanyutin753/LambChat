@@ -327,8 +327,14 @@ async def test_forget_machine_clears_seen_record(registry):
 
 async def test_update_confirm_policy_rewrites_live_machine_and_memory(registry):
     await registry.register(
-        "u1", "c1", "node1", version="1", platform="linux",
-        confirm_policy="all", machine_id="m1", machine_name="box",
+        "u1",
+        "c1",
+        "node1",
+        version="1",
+        platform="linux",
+        confirm_policy="all",
+        machine_id="m1",
+        machine_name="box",
     )
     await registry.update_confirm_policy("u1", "m1", "commands")
     machines = await registry.list_machines("u1")
