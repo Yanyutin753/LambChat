@@ -572,6 +572,19 @@ async def execute_web_fetch(
 
         pool = _get_jina_pool()
         if pool is None:
+            if provider == "jina":
+                # 钉死 jina 且未配 key：走官方免 key 模式（20 RPM，全局
+                # 共享额度无从冷却记账），尊重显式选择而非报错；
+                # auto 链仍要求配 key 才纳入。
+                try:
+                    result = await jina_fetch(client, url, "", max_chars)
+                except Exception as exc:  # noqa: BLE001
+                    errors.append(f"jina keyless: {exc}")
+                    continue
+                if result.get("success"):
+                    return result
+                errors.append(str(result.get("error")))
+                continue
             errors.append("jina: no api keys configured")
             continue
         picked = pool.next_key()

@@ -414,3 +414,28 @@ async def test_execute_web_fetch_falls_back_to_tavily_on_block(
     assert result["success"] is True
     assert result["provider"] == "tavily"
     assert calls == ["direct", "tavily"]
+
+
+async def test_execute_web_fetch_pinned_jina_keyless(monkeypatch: pytest.MonkeyPatch) -> None:
+    """钉死 jina 且未配 key：走官方免 key 模式（单空 key），不报「未配置」。"""
+    seen_keys: list[str] = []
+
+    async def ok_jina(client, url, key, max_chars):
+        seen_keys.append(key)
+        return {
+            "success": True,
+            "provider": "jina",
+            "url": url,
+            "final_url": url,
+            "title": "t",
+            "content": "免 key 模式取回的正文内容。",
+            "content_chars": 30,
+            "truncated": False,
+        }
+
+    monkeypatch.setattr(wfp, "jina_fetch", ok_jina)
+    monkeypatch.setattr(wfp, "validate_public_http_url", _allow_all)
+
+    result = await wfp.execute_web_fetch("https://example.com/x", 32768, provider="jina")
+    assert result["success"] is True
+    assert seen_keys == [""]  # 空 key = 不带 Authorization 头
