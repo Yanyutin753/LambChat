@@ -124,6 +124,39 @@ async def test_parallel_batch_each_call_interrupts_with_identical_payload(
     assert "du /home" in msg and "du /var" in msg and "snap list" in msg
 
 
+async def test_interrupt_payload_carries_tool_call_id(policy, interrupt, supported):
+    """中断 payload 必须携带各自 tool_call_id：审批解析回执（approval_resolved）
+    靠它终结聊天里的执行工具卡——缺失时用户点忽略后执行卡永远无 result
+    （2026-09-09 生产反馈）。并行批每个调用各带自己的 id。"""
+    interrupt["raise"] = False
+    interrupt["resume"] = {"approved": False, "values": {}}
+    batch = [
+        {"name": "execute", "args": {"command": "du /home"}, "id": "c1"},
+        {"name": "execute", "args": {"command": "du /var"}, "id": "c2"},
+    ]
+    mw = SandboxConfirmMiddleware(user_id="u1")
+    rec = _Recorder()
+
+    for item in batch:
+        state = {"messages": [AIMessage(content="", tool_calls=batch)]}
+        req = type(
+            "R",
+            (),
+            {
+                "tool_call": {
+                    "name": "execute",
+                    "args": item["args"],
+                    "id": item["id"],
+                },
+                "state": state,
+            },
+        )()
+        await mw.awrap_tool_call(req, rec.handler)
+
+    ids = [p.get("tool_call_id") for p in interrupt["payloads"]]
+    assert ids == ["c1", "c2"]
+
+
 async def test_replay_each_task_interrupt_returns_batch_decision(policy, interrupt, supported):
     """恢复重放：各任务 interrupt() 返回（扩展映射后的）批复值，各自执行。"""
     interrupt["raise"] = False

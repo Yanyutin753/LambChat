@@ -161,7 +161,16 @@ async def materialize_ask_human_approvals(
     created = 0
     # 沙箱确认门整批：并行工具各自中断但携带同一批消息——同 origin+message
     # 只物化一张审批卡（恢复侧 expand_sandbox_confirm_resume 负责把批复值
-    # 映射回全部同批中断）
+    # 映射回全部同批中断）；各中断的 tool_call_id 预聚合进该卡 metadata，
+    # approval_resolved 回执据此批量终结执行工具卡
+    sandbox_batch_tool_call_ids: dict[str, list[str]] = {}
+    for payload in payloads:
+        if payload.get("origin") != "sandbox_confirm":
+            continue
+        batch_ids = sandbox_batch_tool_call_ids.setdefault(str(payload.get("message", "")), [])
+        payload_tool_call_id = str(payload.get("tool_call_id") or "")
+        if payload_tool_call_id and payload_tool_call_id not in batch_ids:
+            batch_ids.append(payload_tool_call_id)
     sandbox_seen_messages: set[str] = set()
     for payload in payloads:
         message = str(payload.get("message", ""))
@@ -189,6 +198,9 @@ async def materialize_ask_human_approvals(
         tool_call_id = payload.get("tool_call_id")
         if tool_call_id:
             metadata["tool_call_id"] = str(tool_call_id)
+        batch_ids = sandbox_batch_tool_call_ids.get(message) or []
+        if payload.get("origin") == "sandbox_confirm" and batch_ids:
+            metadata["tool_call_ids"] = list(batch_ids)
         origin = payload.get("origin")
         if origin:
             metadata["origin"] = str(origin)
@@ -389,6 +401,8 @@ def build_hitl_resume_payload(
         "approval_resolved": {
             "id": approval.id,
             "tool_call_id": approval_metadata.get("tool_call_id"),
+            # 沙箱确认门整批：全部受控工具卡的终结锚点（前端批量转终态）
+            "tool_call_ids": list(approval_metadata.get("tool_call_ids") or []),
             "interrupt_id": interrupt_id,
             "status": "approved" if resume_value.get("approved") else "rejected",
             "success": bool(resume_value.get("approved")),

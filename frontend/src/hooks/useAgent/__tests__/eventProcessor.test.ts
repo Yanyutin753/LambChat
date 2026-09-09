@@ -86,8 +86,7 @@ test("keeps cancelled ask-human tool results pending while HITL resumes", () => 
   });
 });
 
-test("resolves the exact ask-human tool from a durable approval event", () => {
-  const first = processMessageEvent(
+test("resolves the exact ask-human tool from a durable approval event", () => {  const first = processMessageEvent(
     "tool:start",
     { tool: "ask_human", tool_call_id: "ask-1", args: { message: "first" } },
     [],
@@ -183,6 +182,47 @@ test("replayed approval resolution is idempotent", () => {
 
   expect(replayed.parts).toEqual(first.parts);
   expect(replayed.parts).toHaveLength(1);
+});
+
+test("sandbox confirm resolution finalizes the whole batch of execute cards", () => {
+  // 沙箱确认门不合成 ask_human 卡，聊天里挂起的是执行工具卡（等待确认）；
+  // 点忽略后 approval_resolved 携带整批 tool_call_ids，全部执行卡必须转为
+  // 终态，否则工具卡永远没有 result（2026-09-09 生产反馈）。
+  let parts: MessagePart[] = [];
+  for (const id of ["exec-1", "exec-2"]) {
+    const started = processMessageEvent(
+      "tool:start",
+      { tool: "execute", tool_call_id: id, args: { command: `du ${id}` } },
+      parts,
+      "",
+      [],
+      0,
+      [],
+      true,
+      "message-1",
+    );
+    parts = started.parts;
+  }
+
+  const resolved = processMessageEvent(
+    "approval_resolved",
+    {
+      id: "approval-batch",
+      tool_call_ids: ["exec-1", "exec-2"],
+      result: { status: "rejected", message: "用户拒绝了此请求", values: {} },
+      success: false,
+    },
+    parts,
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  expect(resolved.parts[0]).toMatchObject({ id: "exec-1", isPending: false });
+  expect(resolved.parts[1]).toMatchObject({ id: "exec-2", isPending: false });
 });
 
 test("does not duplicate a replayed tool start with the same tool call id", () => {

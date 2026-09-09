@@ -457,6 +457,58 @@ async def test_materialize_dedups_sandbox_confirm_batch_to_one_approval(
     assert len(recorder.created) == 1
 
 
+async def test_materialize_aggregates_batch_tool_call_ids(
+    interrupt_mode: None, recorder: ApprovalRecorder
+) -> None:
+    """同批去重为一张卡时，各中断携带的 tool_call_id 聚合进 metadata——
+    approval_resolved 回执据此批量终结执行工具卡（点忽略后不再无 result）。"""
+    msg = "确认在本机执行 2 项操作：\n1. 执行命令：df -h\n2. 执行命令：lsblk"
+    snapshot = SimpleNamespace(
+        tasks=[
+            SimpleNamespace(
+                interrupts=[
+                    SimpleNamespace(
+                        id=f"intr-{i}",
+                        value={
+                            "kind": "ask_human",
+                            "origin": "sandbox_confirm",
+                            "message": msg,
+                            "fields": [],
+                            "tool_call_id": f"call-{i}",
+                        },
+                    )
+                ]
+            )
+            for i in range(3)
+        ]
+    )
+    await materialize_ask_human_approvals(snapshot, session_id="s1", run_id="r1", user_id="u1")
+    assert len(recorder.created) == 1
+    ids = recorder.created[0]["metadata"].get("tool_call_ids")
+    assert sorted(ids) == ["call-0", "call-1", "call-2"]
+
+
+async def test_resume_payload_receipt_carries_batch_tool_call_ids() -> None:
+    """approval_resolved 回执透传 tool_call_ids：前端据此把整批执行卡转终态。"""
+    from src.infra.task.hitl import build_hitl_resume_payload
+
+    approval = SimpleNamespace(
+        id="ap-1",
+        message="确认在本机执行 2 项操作",
+        metadata={
+            "mode": "interrupt",
+            "origin": "sandbox_confirm",
+            "interrupt_id": "intr-0",
+            "tool_call_ids": ["call-0", "call-1"],
+        },
+    )
+    payload = build_hitl_resume_payload(approval, {"approved": False, "values": {}})
+    receipt = payload["approval_resolved"]
+    assert receipt["tool_call_ids"] == ["call-0", "call-1"]
+    assert receipt["tool_call_id"] is None  # 单值字段不虚构
+    assert receipt["status"] == "rejected"
+
+
 async def test_expand_sandbox_confirm_resume_maps_all_batch_interrupts() -> None:
     """恢复扩展：同批（同 origin+message）全部中断共享同一批复值。"""
     from src.infra.task.hitl import expand_sandbox_confirm_resume

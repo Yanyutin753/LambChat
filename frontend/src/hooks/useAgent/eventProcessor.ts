@@ -313,11 +313,34 @@ export function processMessageEvent(
 
     case "approval_resolved": {
       const toolCallId = data.tool_call_id as string | undefined;
+      // 沙箱确认门整批：回执携带全部受控工具卡的 tool_call_ids，逐一转终态
+      const batchToolCallIds = Array.isArray(data.tool_call_ids)
+        ? (data.tool_call_ids as unknown[]).filter(
+            (id): id is string => typeof id === "string" && id.length > 0,
+          )
+        : [];
       const resolvedResult =
         typeof data.result === "object" && data.result !== null
           ? data.result
           : { status: data.success === false ? "rejected" : "success" };
-      if (toolCallId) {
+      if (batchToolCallIds.length > 0) {
+        // 沙箱确认门整批：执行卡（等待确认→结果）按 tool_call_ids 批量转终态；
+        // 确认门不合成 ask_human 卡（保持 Codex 式执行卡体验）
+        let updatedParts = parts;
+        for (const batchId of batchToolCallIds) {
+          updatedParts = updateToolResultInDepth(
+            updatedParts,
+            batchId,
+            resolvedResult,
+            data.success !== false,
+            data.error,
+            depth,
+            agentId,
+            data.timestamp,
+          );
+        }
+        result.parts = updatedParts;
+      } else if (toolCallId) {
         result.parts = updateToolResultInDepth(
           parts,
           toolCallId,
