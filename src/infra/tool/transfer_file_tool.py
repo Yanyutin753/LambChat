@@ -17,7 +17,7 @@ Transfer File / Transfer Path 工具
 - 路径穿越防护（.. 规范化检查）
 - 文件类型限制（扩展名黑名单 + null 字节检测）
 - 文件大小限制（单文件 10MB，批量 100MB）
-- 目录深度/文件数限制（深度 5 层，500 文件）
+- 目录深度/文件数限制（深度 5 层，2000 文件）
 """
 
 import inspect
@@ -129,7 +129,9 @@ MAX_BATCH_SIZE = 100 * 1024 * 1024
 # 目录递归最大深度
 MAX_RECURSION_DEPTH = 5
 # 批量传输最大文件数
-MAX_BATCH_FILES = 500
+# 2026-09-09 生产会话：/skills 全量 501 文件刚好卡死 500 上限，agent 被迫逐目录
+# 分批。总数据量已有 MAX_BATCH_SIZE（100MB）护栏，文件数抬高到 2000。
+MAX_BATCH_FILES = 2000
 # 工具响应中最多返回的逐文件明细数，避免大批量传输把 LLM 消息体撑爆。
 TRANSFER_PATH_RESULT_FILE_LIMIT = 100
 
@@ -518,7 +520,7 @@ async def transfer_path(
 ) -> str:
     """Transfer a directory of text files between workspace and /skills/. Reusable
     directories go under /workspace/.shared/ (persists across sessions — `ls` first,
-    skip when present). Limits: 10MB/file, 100MB total, depth 5, 500 files; binary
+    skip when present). Limits: 10MB/file, 100MB total, depth 5, 2000 files; binary
     files and .. traversal are rejected."""
     backend = get_backend_from_runtime(runtime)
 

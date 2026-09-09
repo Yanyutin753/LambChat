@@ -319,6 +319,45 @@ async def test_transfer_path_skips_known_batch_oversize_before_download(
     assert backend.downloaded == [first_path]
 
 
+@pytest.mark.asyncio
+async def test_transfer_path_moves_501_file_tree_in_one_call() -> None:
+    """/skills 全量搬运场景（2026-09-09 生产会话）：501 个文件刚好卡死 500 上限。
+
+    上限抬高后，此类整树搬运应单次调用完成，而不是要求 agent 手工分批。
+    """
+
+    root = "/skills/all"
+    file_count = 501
+
+    class _FakeBackend:
+        async def als(self, path: str) -> LsResult:
+            assert path == root
+            return LsResult(
+                entries=[
+                    {"path": f"{root}/file-{index}.txt", "is_dir": False, "size": 3}
+                    for index in range(file_count)
+                ]
+            )
+
+        async def adownload_files(self, paths: list[str]):
+            return [SimpleNamespace(content=b"abc", error=None) for _path in paths]
+
+        async def aupload_files(self, files: list[tuple[str, bytes]]):
+            return [SimpleNamespace(error=None) for _path, _content in files]
+
+    result = json.loads(
+        await transfer_file_tool.transfer_path.coroutine(
+            source_dir=root,
+            target_prefix="/workspace/backup/",
+            runtime=_Runtime(_FakeBackend()),
+        )
+    )
+
+    assert result["success"] is True
+    assert result["transferred"] == file_count
+    assert result["failed"] == 0
+
+
 def test_transfer_tools_document_persistent_shared_dir_convention() -> None:
     """工具描述写明持久共享目录约定：可复用文件进 /workspace/.shared，先 ls 复用避免重复转移。"""
     file_doc = transfer_file_tool.get_transfer_file_tool().description or ""
