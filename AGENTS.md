@@ -4,6 +4,16 @@
 
 优先响应当前请求；当请求未提供特殊说明时，遵循以下项目约定。
 
+## Impeccable 前端设计规范
+
+所有前端开发、UI 修改和视觉走查都必须先阅读仓库根目录的 `DESIGN.md` 与 `PRODUCT.md`。这两份文件记录 LambChat 的视觉系统、产品上下文和交互约束，是 Impeccable 项目级设计指导在本仓库的落地文件。
+
+- 新增或修改 UI 前，先复用现有组件、主题 token、布局和 i18n 结构；不得另起一套颜色、字体、间距或圆角体系。
+- 优先保证信息层级、可读性、响应式、键盘操作、无障碍、深浅色主题和加载/空/错状态；避免 AI 常见的无意义渐变、嵌套卡片、过度圆角、侧边标签、装饰性 emoji 和无目的动效。
+- 面向用户的文案同步更新 zh / en / ja / ko / ru 五个 locale；动效尊重 `prefers-reduced-motion`。
+- 修改后运行 `DESIGN.md` 的交付检查，并在环境允许时运行 `npx impeccable update` 或 Impeccable 检查器；检查器不可用时，按同一清单完成人工检查。
+- 前端变更仍必须通过仓库既有的测试、lint、build 和类型检查，Impeccable 不能替代这些门禁。
+
 ## 项目概览
 
 LambChat 是全栈 AI Agent 平台：
