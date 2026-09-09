@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 import src.infra.tool.web_fetch_providers as wfp
+import src.infra.tool.web_search_providers as wsp
 
 
 @pytest.fixture(autouse=True)
@@ -262,3 +263,152 @@ async def test_execute_web_fetch_ssrf_blocked_never_reaches_providers(
     result = await wfp.execute_web_fetch("http://127.0.0.1:8000/api/auth/login", 32768)
     assert result["success"] is False
     assert "ssrf" in result["error"] or "blocked" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# 微信公众号专属提取 + Tavily Extract 兜底（2026-09-09 增强）
+# ---------------------------------------------------------------------------
+
+_WECHAT_HTML = (
+    "<html><head><title>公众号文章</title>"
+    '<meta property="og:title" content="深度：开源 Agent 的正文提取实践" /></head>'
+    "<body><div id='js_content'><p>这是公众号正文第一段，足够长以通过阈值判定。</p>"
+    "<p>第二段内容：<strong>关键结论</strong>与细节展开。</p>"
+    "<script>evil()</script></div></body></html>"
+)
+
+
+async def test_direct_fetch_wechat_uses_js_content(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_request(client, method, url, **kwargs):
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "text/html; charset=utf-8"},
+            content=_WECHAT_HTML.encode("utf-8"),
+            request=httpx.Request("GET", url),
+        )
+
+    monkeypatch.setattr(wfp, "validate_public_http_url", _allow_all)
+    monkeypatch.setattr(wfp, "_request_no_redirect", fake_request)
+    result = await wfp.direct_fetch(wfp._get_client(), "https://mp.weixin.qq.com/s/abc123", 32768)
+    assert result["success"] is True
+    assert result["title"] == "深度：开源 Agent 的正文提取实践"
+    assert "公众号正文第一段" in result["content"]
+    assert "关键结论" in result["content"]
+    assert "evil()" not in result["content"]  # script 必须剥除
+
+
+async def test_direct_fetch_generic_site_with_js_content_falls_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """非微信域但沿用 js_content 容器的站点：通用提取空正文时按同结构再试。"""
+
+    async def fake_request(client, method, url, **kwargs):
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "text/html; charset=utf-8"},
+            content=_WECHAT_HTML.encode("utf-8"),
+            request=httpx.Request("GET", url),
+        )
+
+    monkeypatch.setattr(wfp, "validate_public_http_url", _allow_all)
+    monkeypatch.setattr(wfp, "_request_no_redirect", fake_request)
+    result = await wfp.direct_fetch(wfp._get_client(), "https://news.example.com/article/1", 32768)
+    assert result["success"] is True
+    assert "公众号正文第一段" in result["content"]
+
+
+async def test_tavily_extract_normalizes_raw_content(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_request(client, method, url, *, json=None, headers=None):
+        assert url == wfp.TAVILY_EXTRACT_URL
+        assert method == "POST"
+        assert json == {"urls": ["https://example.com/doc"]}
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "application/json"},
+            content=(
+                '{"results": [{"url": "https://example.com/doc", '
+                '"raw_content": "Tavily 抽取的正文内容，长度足以通过阈值判定。"}]}'
+            ).encode(),
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(wfp, "validate_public_http_url", _allow_all)
+    monkeypatch.setattr(wfp, "_request_no_redirect", fake_request)
+    result = await wfp.tavily_extract(
+        wfp._get_client(), "https://example.com/doc", "tvly-key", 32768
+    )
+    assert result["success"] is True
+    assert result["provider"] == "tavily"
+    assert "Tavily 抽取的正文" in result["content"]
+
+
+async def test_tavily_extract_reports_failed_results(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_request(client, method, url, *, json=None, headers=None):
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "application/json"},
+            content=b'{"results": [], "failed_results": [{"url": "x", "error": "403"}]}',
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(wfp, "validate_public_http_url", _allow_all)
+    monkeypatch.setattr(wfp, "_request_no_redirect", fake_request)
+    result = await wfp.tavily_extract(
+        wfp._get_client(), "https://example.com/doc", "tvly-key", 32768
+    )
+    assert result["success"] is False
+    assert "web_fetch_tavily_failed" in result["error"]
+
+
+def test_resolve_fetch_chain_includes_tavily_when_keys_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(wfp, "_tavily_available", lambda: True)
+    monkeypatch.setattr(wfp, "_jina_keys", lambda: ["jk1"])
+    assert wfp.resolve_fetch_chain() == ["direct", "tavily", "jina"]
+
+    monkeypatch.setattr(wfp, "_tavily_available", lambda: False)
+    assert wfp.resolve_fetch_chain() == ["direct", "jina"]
+
+
+async def test_execute_web_fetch_falls_back_to_tavily_on_block(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """直连被拦（403 反爬）→ tavily extract 接住：auto 链的次序保证。"""
+    calls: list[str] = []
+
+    async def blocked_direct(client, url, max_chars):
+        calls.append("direct")
+        return {"success": False, "error": "web_fetch_http_403"}
+
+    async def ok_tavily(client, url, key, max_chars):
+        calls.append("tavily")
+        return {
+            "success": True,
+            "provider": "tavily",
+            "url": url,
+            "final_url": url,
+            "title": None,
+            "content": "兜底正文内容，长度足以通过阈值判定。",
+            "content_chars": 30,
+            "truncated": False,
+        }
+
+    async def never_jina(client, url, key, max_chars):
+        calls.append("jina")
+        raise AssertionError("tavily 已成功，不应再落 jina")
+
+    monkeypatch.setattr(wfp, "direct_fetch", blocked_direct)
+    monkeypatch.setattr(wfp, "tavily_extract", ok_tavily)
+    monkeypatch.setattr(wfp, "jina_fetch", never_jina)
+    monkeypatch.setattr(wfp, "validate_public_http_url", _allow_all)
+    monkeypatch.setattr(wfp, "_tavily_available", lambda: True)
+    monkeypatch.setattr(wfp, "_jina_keys", lambda: ["jk1"])
+    monkeypatch.setattr(wfp, "_get_pool", lambda provider: wsp.ApiKeyPool(["tk1"]))
+
+    result = await wfp.execute_web_fetch(
+        "https://mp.weixin.qq.com/s/blocked", 32768, provider="auto"
+    )
+    assert result["success"] is True
+    assert result["provider"] == "tavily"
+    assert calls == ["direct", "tavily"]

@@ -32,6 +32,7 @@ from src.infra.tool.web_search_providers import (
     COOLDOWN_RATE_LIMIT_SECONDS,
     ApiKeyPool,
     ProviderRequestError,
+    _get_pool,
     _raise_for_status,
 )
 from src.kernel.config import settings
@@ -39,6 +40,7 @@ from src.kernel.config import settings
 logger = get_logger(__name__)
 
 JINA_READER_PREFIX = "https://r.jina.ai/"
+TAVILY_EXTRACT_URL = "https://api.tavily.com/extract"
 
 # 直连抓取限制：读超时 30s；下载体积上限 5MB（Markdown 提取前的原始 body 上限，
 # 超出即截断读取——超大页面提取出的正文也必然远小于该值）
@@ -158,11 +160,22 @@ async def close_web_fetch_client() -> None:
 
 
 async def _request_no_redirect(
-    client: httpx.AsyncClient, method: str, url: str, **kwargs: Any
+    client: httpx.AsyncClient,
+    method: str,
+    url: str,
+    *,
+    json: Any | None = None,
+    headers: dict[str, str] | None = None,
 ) -> httpx.Response:
-    """单跳请求（不跟随重定向），带体积上限的增量下载。"""
+    """单跳请求（不跟随重定向），带体积上限的增量下载。
 
-    async with client.stream(method, url, headers=_FETCH_HEADERS, **kwargs) as response:
+    headers 与默认 _FETCH_HEADERS 合并（调用方可覆盖 UA 或加鉴权头）。
+    """
+
+    merged = dict(_FETCH_HEADERS)
+    if headers:
+        merged.update(headers)
+    async with client.stream(method, url, headers=merged, json=json) as response:
         chunks: list[bytes] = []
         received = 0
         async for chunk in response.aiter_bytes():
@@ -204,6 +217,44 @@ def _extract_markdown(html: str) -> tuple[str | None, str]:
         logger.warning("[WebFetch] trafilatura extract failed: %s", exc)
         return None, ""
     return title, (extracted or "").strip()
+
+
+def _extract_wechat(html: str) -> tuple[str | None, str]:
+    """微信公众号文章提取：正文在 #js_content div，通用提取器常拿不全。
+
+    结构化路径：lxml 取 #js_content → 剥 script/style → 包成干净 article
+    再交 trafilatura 转 Markdown；标题优先 og:title（activity-name 需要
+    JS 展开，静态 HTML 里常为空）。
+    """
+    from lxml import html as lxml_html
+
+    try:
+        doc = lxml_html.fromstring(html)
+    except Exception:  # noqa: BLE001 - 畸形 HTML
+        return None, ""
+
+    title: str | None = None
+    for meta in doc.iter("meta"):
+        if (meta.get("property") or meta.get("name") or "").lower() in (
+            "og:title",
+            "twitter:title",
+        ):
+            candidate = (meta.get("content") or "").strip()
+            if candidate:
+                title = candidate
+                break
+
+    content_el = doc.get_element_by_id("js_content") if hasattr(doc, "get_element_by_id") else None
+    if content_el is None:
+        return title, ""
+    for bad in content_el.iter("script", "style"):
+        parent = bad.getparent()
+        if parent is not None:
+            parent.remove(bad)
+    inner = lxml_html.tostring(content_el, encoding="unicode")
+    wrapped = f"<html><body><article>{inner}</article></body></html>"
+    _, markdown = _extract_markdown(wrapped)
+    return title, markdown
 
 
 def _truncate(text: str, max_chars: int) -> tuple[str, bool]:
@@ -270,7 +321,14 @@ async def direct_fetch(client: httpx.AsyncClient, url: str, max_chars: int) -> d
         content_type == "" and response.text.lstrip()[:1] == "<"
     ):
         html = response.text
-        title, markdown = _extract_markdown(html)
+        host = urlsplit(current).hostname or ""
+        if host == "mp.weixin.qq.com" or host.endswith(".mp.weixin.qq.com"):
+            title, markdown = _extract_wechat(html)
+        else:
+            title, markdown = _extract_markdown(html)
+            if len(markdown) < _EMPTY_CONTENT_THRESHOLD and 'id="js_content"' in html:
+                # 部分中文站点沿用微信排版容器：通用提取失败时按同结构再试
+                title, markdown = _extract_wechat(html)
         if len(markdown) < _EMPTY_CONTENT_THRESHOLD:
             # SPA/JS 渲染页：直连拿不到正文，交回供应商链走 Jina 兜底
             return {"success": False, "error": "web_fetch_empty_content"}
@@ -332,6 +390,54 @@ def _get_jina_pool() -> ApiKeyPool | None:
     return _jina_pool
 
 
+async def tavily_extract(
+    client: httpx.AsyncClient, url: str, api_key: str, max_chars: int
+) -> dict[str, Any]:
+    """Tavily Extract：由 Tavily 基础设施抓取并抽取正文。
+
+    直连被拦（UA 门禁/反爬/地域封锁，微信公众号是典型）时的第一层兜底；
+    key 池与 web_search 的 TAVILY_API_KEYS 共享——同一额度、同一冷却。
+    """
+    ok, err = await validate_public_http_url(url)
+    if not ok:
+        return {"success": False, "error": err}
+
+    response = await _request_no_redirect(
+        client,
+        "POST",
+        TAVILY_EXTRACT_URL,
+        json={"urls": [url]},
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+    )
+    _raise_for_status(response)
+    try:
+        data = response.json()
+    except Exception as exc:  # noqa: BLE001 - 非 JSON 响应
+        return {"success": False, "error": f"web_fetch_tavily_bad_response: {exc}"}
+    results = data.get("results") or []
+    raw = ""
+    for item in results:
+        if isinstance(item, dict) and (item.get("url") or "").rstrip("/") == url.rstrip("/"):
+            raw = str(item.get("raw_content") or "")
+            break
+    if not raw and results and isinstance(results[0], dict):
+        raw = str(results[0].get("raw_content") or "")
+    if not raw:
+        failed = data.get("failed_results") or []
+        reason = str(failed[0]) if failed else "empty raw_content"
+        return {"success": False, "error": f"web_fetch_tavily_failed: {reason}"}
+    content, truncated = _truncate(raw.strip(), max_chars)
+    return _fetch_result(
+        url=url,
+        final_url=url,
+        provider="tavily",
+        title=None,
+        content=content,
+        content_type="text/markdown",
+        truncated=truncated,
+    )
+
+
 async def jina_fetch(
     client: httpx.AsyncClient, url: str, api_key: str, max_chars: int
 ) -> dict[str, Any]:
@@ -375,14 +481,24 @@ async def jina_fetch(
 # ---------------------------------------------------------------------------
 
 
+def _tavily_available() -> bool:
+    try:
+        return _get_pool("tavily") is not None
+    except KeyError:
+        return False
+
+
 def resolve_fetch_chain() -> list[str]:
-    """供应商链：auto = direct → jina（有 key 才含）；钉死则单元素。"""
+    """供应商链：auto = direct → tavily → jina（各看配置）；钉死则单元素。
+
+    direct 被拦（UA 门禁/反爬）由 tavily extract 接住；JS 渲染页再落 jina。
+    """
     provider = str(getattr(settings, "WEB_FETCH_PROVIDER", "auto") or "auto").strip().lower()
-    if provider == "direct":
-        return ["direct"]
-    if provider == "jina":
-        return ["jina"]
+    if provider in ("direct", "tavily", "jina"):
+        return [provider]
     chain = ["direct"]
+    if _tavily_available():
+        chain.append("tavily")
     if _jina_keys():
         chain.append("jina")
     return chain
@@ -410,6 +526,36 @@ async def execute_web_fetch(
             except Exception as exc:  # noqa: BLE001
                 logger.warning("[WebFetch] direct failed: %s", exc)
                 errors.append(f"direct: {exc}")
+                continue
+            if result.get("success"):
+                return result
+            errors.append(str(result.get("error")))
+            continue
+
+        if name == "tavily":
+            pool = _get_pool("tavily")
+            if pool is None:
+                errors.append("tavily: no api keys configured")
+                continue
+            picked = pool.next_key()
+            if picked is None:
+                errors.append("tavily: all keys cooling down")
+                continue
+            index, key = picked
+            try:
+                result = await tavily_extract(client, url, key, max_chars)
+            except ProviderRequestError as exc:
+                if exc.status_code in (429, 432, 402):
+                    pool.mark_cooldown(index, _COOLDOWN_429_S)
+                elif exc.status_code in (401, 403):
+                    pool.mark_cooldown(index, 6 * 3600.0)
+                else:
+                    pool.mark_cooldown(index, 30.0)
+                errors.append(f"tavily key#{index + 1}: HTTP {exc.status_code}")
+                continue
+            except Exception as exc:  # noqa: BLE001
+                pool.mark_cooldown(index, 30.0)
+                errors.append(f"tavily key#{index + 1}: {exc}")
                 continue
             if result.get("success"):
                 return result

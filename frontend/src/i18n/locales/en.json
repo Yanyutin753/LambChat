@@ -2847,7 +2847,7 @@
     "WELCOME_SUGGESTION_TEXT": "Text",
     "LLM_STREAM_IDLE_TIMEOUT": "Maximum idle seconds between consecutive streaming chunks; an upstream stall fails the call instead of hanging forever (0 or negative = disabled)",
     "ENABLE_WEB_FETCH": "Enable the web fetch tool: read public pages as markdown for the model (internal addresses always rejected).",
-    "WEB_FETCH_PROVIDER": "Web fetch provider: direct = local fetch & extract; jina = r.jina.ai (better for JS-rendered pages); auto = direct then jina fallback.",
+    "WEB_FETCH_PROVIDER": "Web fetch provider: direct = local fetch & extract; tavily = Tavily Extract (reuses search keys, first fallback for anti-bot pages); jina = r.jina.ai (better for JS pages); auto = direct → tavily → jina.",
     "JINA_API_KEYS": "Jina Reader API keys, comma-separated for rotation (r.jina.ai: 20 RPM keyless, 200 RPM with key). Empty disables jina.",
     "WEB_FETCH_MAX_CHARS": "Max characters returned per fetch; longer content is truncated."
   },

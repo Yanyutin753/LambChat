@@ -55,7 +55,12 @@ def test_web_fetch_settings_are_registered() -> None:
         assert Settings.model_fields[key].default == default
         assert TOOLS_SETTING_DEFINITIONS[key]["default"] == default
 
-    assert TOOLS_SETTING_DEFINITIONS["WEB_FETCH_PROVIDER"]["options"] == ["auto", "direct", "jina"]
+    assert TOOLS_SETTING_DEFINITIONS["WEB_FETCH_PROVIDER"]["options"] == [
+        "auto",
+        "direct",
+        "tavily",
+        "jina",
+    ]
     assert TOOLS_SETTING_DEFINITIONS["JINA_API_KEYS"]["is_sensitive"] is True
     for key in expected_defaults:
         if key != "ENABLE_WEB_FETCH":

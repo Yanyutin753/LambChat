@@ -2847,7 +2847,7 @@
     "WELCOME_SUGGESTION_TEXT": "テキスト",
     "LLM_STREAM_IDLE_TIMEOUT": "ストリーミングchunk間の最大アイドル秒数。上游の停滞で実行が固まるのを防ぐ（0以下で無効）",
     "ENABLE_WEB_FETCH": "ウェブ取得ツールを有効化：公開ページの本文を Markdown として取得（内部アドレスは常に拒否）。",
-    "WEB_FETCH_PROVIDER": "取得プロバイダー：direct=ローカル取得、jina=r.jina.ai（JS 描画ページに強い）、auto=direct→jina フォールバック。",
+    "WEB_FETCH_PROVIDER": "取得プロバイダー：direct=ローカル取得、tavily=Tavily Extract（検索キーを共有、アンチボット页面の第一フォールバック）、jina=r.jina.ai（JS 描画に強い）、auto=direct→tavily→jina。",
     "JINA_API_KEYS": "Jina Reader API キー（カンマ区切りでローテーション）。空の場合 jina は無効。",
     "WEB_FETCH_MAX_CHARS": "1 回の取得で返す最大文字数。超過分は切り詰め。"
   },
