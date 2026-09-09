@@ -263,7 +263,8 @@
       "offlineHint": "そのPCは現在オフラインのため、実行マシンとして選択できません",
       "section": "実行デバイス",
       "currentDevice": "このデバイス"
-    }
+    },
+    "sandboxPolicy": { "section": "実行ポリシー", "all": "すべて確認", "commands": "コマンドのみ確認", "none": "確認しない", "updated": "実行ポリシーを更新しました", "updateFailed": "実行ポリシーの更新に失敗しました" }
   },
   "agents": {
     "fast": {

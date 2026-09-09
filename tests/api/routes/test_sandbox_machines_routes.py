@@ -36,6 +36,7 @@ class _FakeRegistry:
                 "forget",
                 "get_default",
                 "resolve",
+                "update_policy",
             )
         }
         self.machines: list[dict] = []
@@ -72,6 +73,10 @@ class _FakeRegistry:
 
     async def rename_machine(self, user_id, machine_id, name):
         self.calls["rename"].append((machine_id, name))
+
+    async def update_confirm_policy(self, user_id, machine_id, policy):
+        self.calls["update_policy"].append((machine_id, policy))
+        return True
 
     def queue_key(self, user_id, machine_id):
         return f"sandbox:req:{user_id}:{machine_id}"
@@ -138,6 +143,12 @@ async def test_machines_rename_endpoint(fake_registry, client):
     resp = await client.patch("/api/sandbox/machines/mac1", json={"name": "主力开发机"})
     assert resp.status_code == 200
     assert fake_registry.calls["rename"] == [("mac1", "主力开发机")]
+
+
+async def test_machines_policy_endpoint(fake_registry, client):
+    resp = await client.put("/api/sandbox/machines/mac1/confirm-policy", json={"policy": "none"})
+    assert resp.status_code == 200
+    assert fake_registry.calls["update_policy"] == [("mac1", "none")]
 
 
 async def test_machines_rename_rejects_empty_name(fake_registry, client):

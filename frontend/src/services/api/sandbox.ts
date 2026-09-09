@@ -179,6 +179,13 @@ export const sandboxApiMachines = {
     );
   },
 
+  async updateConfirmPolicy(machineId: string, policy: string): Promise<void> {
+    await authFetch(
+      `${API_BASE}/api/sandbox/machines/${encodeURIComponent(machineId)}/confirm-policy`,
+      { method: "PUT", body: JSON.stringify({ policy }), headers: { "Content-Type": "application/json" } },
+    );
+  },
+
   /** 重命名机器（rename 覆盖层，daemon 重连不冲掉自定义名） */
   async renameMachine(machineId: string, name: string): Promise<void> {
     await authFetch(

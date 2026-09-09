@@ -263,7 +263,8 @@
       "offlineHint": "해당 PC는 오프라인 상태라 실행 머신으로 선택할 수 없어요",
       "section": "실행 기기",
       "currentDevice": "이 기기"
-    }
+    },
+    "sandboxPolicy": { "section": "실행 정책", "all": "모두 확인", "commands": "명령만 확인", "none": "확인하지 않음", "updated": "실행 정책이 업데이트되었습니다", "updateFailed": "실행 정책 업데이트에 실패했습니다" }
   },
   "agents": {
     "fast": {

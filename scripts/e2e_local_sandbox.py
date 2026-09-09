@@ -223,6 +223,23 @@ async def battery(user_id: str, pat: str, machine_id: str) -> None:
     _, status = http_json("GET", "/api/sandbox/status", token=pat)
     check("status 在线", status.get("online") is True)
 
+    # 1.1 在线热更新确认策略：只改注册元数据，不重连 daemon。
+    _, updated = http_json(
+        "PUT",
+        f"/api/sandbox/machines/{machine_id}/confirm-policy",
+        {"policy": "commands"},
+        token=pat,
+    )
+    _, machines_after = http_json("GET", "/api/sandbox/machines", token=pat)
+    m_after = next((x for x in machines_after["machines"] if x["machine_id"] == machine_id), None)
+    check(
+        "执行策略热更新且连接不中断",
+        updated.get("confirm_policy") == "commands"
+        and m_after is not None
+        and m_after.get("online") is True
+        and m_after.get("confirm_policy") == "commands",
+    )
+
     # 2. exec 往返（含中文/命令替换/多行）
     t0 = time.monotonic()
     r = await dispatch_local_call(

@@ -263,7 +263,8 @@
       "offlineHint": "That computer is offline and can't be selected as the execution target",
       "section": "Device",
       "currentDevice": "This device"
-    }
+    },
+    "sandboxPolicy": { "section": "Execution policy", "all": "Confirm everything", "commands": "Confirm commands only", "none": "No confirmation", "updated": "Execution policy updated", "updateFailed": "Failed to update execution policy" }
   },
   "agents": {
     "fast": {

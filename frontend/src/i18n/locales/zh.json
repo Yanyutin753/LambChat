@@ -263,7 +263,8 @@
       "offlineHint": "该电脑当前离线，暂不能选为执行机器",
       "section": "执行设备",
       "currentDevice": "当前设备"
-    }
+    },
+    "sandboxPolicy": { "section": "执行策略", "all": "全部确认", "commands": "仅命令确认", "none": "不确认", "updated": "执行策略已更新", "updateFailed": "执行策略更新失败" }
   },
   "agents": {
     "fast": {
