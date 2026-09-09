@@ -232,7 +232,12 @@ def test_release_workflow_publishes_assets_immediately_per_platform() -> None:
         for s in _desktop_job()["steps"]
         if s["name"] == "Merge updater platform entry into latest.json"
     )
-    assert merge_step["if"] == "matrix.updater_key != ''"
+    # 烘焙门控：即发即传的增量合并必须与汇总 job 同受
+    # DESKTOP_UPDATER_AUTO_PUBLISH 门控，否则平台 job 直传击穿烘焙态
+    # （v2.10.3 实测泄漏，#539 修复）
+    assert merge_step["if"] == (
+        "matrix.updater_key != '' && vars.DESKTOP_UPDATER_AUTO_PUBLISH == 'true'"
+    )
     # node 合并（三平台镜像都有 Node；Windows 无 python3）
     assert "node -e" in merge_step["run"]
 
