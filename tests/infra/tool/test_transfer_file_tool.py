@@ -469,9 +469,7 @@ async def test_transfer_path_transfers_empty_file_instead_of_skipping() -> None:
     class _EmptyFileBackend:
         async def als(self, path: str) -> LsResult:
             if path == "/skills/demo":
-                return LsResult(
-                    entries=[{"path": "/skills/demo/__init__.py", "is_dir": False}]
-                )
+                return LsResult(entries=[{"path": "/skills/demo/__init__.py", "is_dir": False}])
             return LsResult(entries=[])
 
         async def adownload_files(self, paths):
