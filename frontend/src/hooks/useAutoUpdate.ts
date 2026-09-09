@@ -58,6 +58,15 @@ const INITIAL_STATE: UpdateState = {
   error: null,
 };
 
+export function formatUpdateError(error: unknown, platform: string): string {
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  const detail = raw.trim() || "更新失败";
+  if (platform === "tauri" && /permission|access denied|拒绝访问|权限|replace|rename/i.test(detail)) {
+    return `${detail}。Linux 请确认 AppImage 所在目录可写，并从用户目录运行；如果安装的是 .deb/.rpm，请手动安装新版安装包。`;
+  }
+  return detail;
+}
+
 /** Debounce delay (ms) before checking for updates on startup */
 const CHECK_DELAY_MS = 5000;
 
@@ -308,10 +317,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         } catch (err) {
           setState((prev) => ({
             ...prev,
-            error:
-              err instanceof Error
-                ? err.message
-                : i18n.t("updateError", "更新失败"),
+            error: formatUpdateError(err, platform),
           }));
         }
         return;
@@ -371,10 +377,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       setState((prev) => ({
         ...prev,
         downloading: false,
-        error:
-          err instanceof Error
-            ? err.message
-            : i18n.t("updateError", "更新失败"),
+        error: formatUpdateError(err, platform),
       }));
     }
   }, []);
