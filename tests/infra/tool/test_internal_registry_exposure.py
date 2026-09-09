@@ -78,6 +78,8 @@ async def test_conversation_history_tools_default_to_deferred_exposure(monkeypat
     monkeypatch.setattr(internal_registry.settings, "ENABLE_IMAGE_GENERATION", False)
     monkeypatch.setattr(internal_registry.settings, "ENABLE_AUDIO_TRANSCRIPTION", False)
     monkeypatch.setattr(internal_registry.settings, "ENABLE_SCHEDULED_TASK", False)
+    monkeypatch.setattr(internal_registry.settings, "ENABLE_WEB_SEARCH", False)
+    monkeypatch.setattr(internal_registry.settings, "ENABLE_WEB_FETCH", False)
     monkeypatch.setattr(internal_registry, "get_env_var_tools", lambda: [])
     monkeypatch.setattr(internal_registry, "get_persona_preset_tools", lambda: [])
     monkeypatch.setattr(internal_registry, "get_team_tools", lambda: [])
@@ -98,3 +100,55 @@ async def test_conversation_history_tools_default_to_deferred_exposure(monkeypat
         "search_conversation_history",
         "get_conversation_detail",
     }
+
+
+@pytest.mark.asyncio
+async def test_web_tools_mount_by_default_as_system_tools(monkeypatch) -> None:
+    """web_search/web_fetch 默认即挂载且 inline 直挂：无策略时进 direct
+    暴露集（模型工具表直接可见），不再需要先经 tool_search 元工具发现；
+    管理员显式设置过策略的以显式值为准。"""
+    monkeypatch.setattr(internal_registry.settings, "ENABLE_IMAGE_ANALYSIS", False)
+    monkeypatch.setattr(internal_registry.settings, "ENABLE_IMAGE_GENERATION", False)
+    monkeypatch.setattr(internal_registry.settings, "ENABLE_AUDIO_TRANSCRIPTION", False)
+    monkeypatch.setattr(internal_registry.settings, "ENABLE_SCHEDULED_TASK", False)
+    monkeypatch.setattr(internal_registry, "get_env_var_tools", lambda: [])
+    monkeypatch.setattr(internal_registry, "get_persona_preset_tools", lambda: [])
+    monkeypatch.setattr(internal_registry, "get_team_tools", lambda: [])
+
+    async def no_policies():
+        return {}
+
+    monkeypatch.setattr(internal_registry, "get_internal_tool_policies", no_policies)
+
+    # 不 monkeypatch web 开关：默认值（True）下两工具必须在册且直挂
+    direct, deferred = await internal_registry.get_internal_tools_by_exposure_for_user(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+    direct_names = {tool.name for tool in direct}
+    assert {"web_search", "web_fetch"} <= direct_names
+    assert not {"web_search", "web_fetch"} & {tool.name for tool in deferred}
+
+    # 显式策略优先：管理员钉死 inline_exposure=False 时回落 deferred
+    from src.kernel.schemas.mcp import MCPToolPolicy
+
+    async def explicit_policies():
+        return {
+            "web_search": MCPToolPolicy(
+                server_name=internal_registry.INTERNAL_MCP_SERVER_NAME,
+                tool_name="web_search",
+                inline_exposure=False,
+            ),
+        }
+
+    monkeypatch.setattr(internal_registry, "get_internal_tool_policies", explicit_policies)
+    direct, deferred = await internal_registry.get_internal_tools_by_exposure_for_user(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+    assert "web_search" not in {tool.name for tool in direct}
+    assert "web_search" in {tool.name for tool in deferred}
+    # 未被显式策略覆盖的 web_fetch 仍默认直挂
+    assert "web_fetch" in {tool.name for tool in direct}

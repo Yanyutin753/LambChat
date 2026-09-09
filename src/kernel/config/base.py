@@ -470,16 +470,19 @@ class Settings(BaseSettings):
     AUDIO_TRANSCRIPTION_MODEL: str = "gpt-4o-mini-transcribe"
     AUDIO_TRANSCRIPTION_MAX_DOWNLOAD_BYTES: int = 50 * 1024 * 1024
 
-    # Web search tool settings（多 key 用英文逗号分隔，round-robin 轮询）
-    ENABLE_WEB_SEARCH: bool = False
+    # Web search tool settings（多 key 用英文逗号分隔，round-robin 轮询）。
+    # 默认挂载为系统内置工具：未配置任何 provider 时工具返回
+    # web_search_no_provider_configured 引导配置，而不是不挂载
+    ENABLE_WEB_SEARCH: bool = True
     WEB_SEARCH_PROVIDER: str = "auto"
     TAVILY_API_KEYS: str = ""
     BRAVE_API_KEYS: str = ""
     SEARXNG_BASE_URL: str = ""
     SEARXNG_API_KEY: str = ""
 
-    # Web fetch tool settings（各家 key 英文逗号分隔轮询；direct 无需 key）
-    ENABLE_WEB_FETCH: bool = False
+    # Web fetch tool settings（各家 key 英文逗号分隔轮询；direct 无需 key）。
+    # 默认挂载：direct 供应商零 key 可用
+    ENABLE_WEB_FETCH: bool = True
     WEB_FETCH_PROVIDER: str = "auto"
     JINA_API_KEYS: str = ""
     FIRECRAWL_BASE_URL: str = ""

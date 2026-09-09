@@ -9,7 +9,7 @@ import {
   RotateCw,
   Download,
 } from "lucide-react";
-import { sandboxApi } from "../../services/api/sandbox";
+import { sandboxApi, sandboxApiMachines } from "../../services/api/sandbox";
 import { getValidAccessToken } from "../../services/api/tokenManager";
 import { effectiveApiBase } from "../../services/api/serverConfig";
 import {
@@ -81,7 +81,8 @@ export function LocalSandboxSection({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const shell = isShellAvailable();
-  const { status, statusError, online, refresh } = useSandboxStatus();
+  const { status, statusError, online, refresh, currentMachineId } =
+    useSandboxStatus();
   const [processStatus, setProcessStatus] = useState("");
   const [policy, setPolicy] = useState<ConfirmPolicy>("all");
   const [policyOpen, setPolicyOpen] = useState(false);
@@ -369,6 +370,11 @@ export function LocalSandboxSection({
     if (applying) return;
     setApplying(true);
     try {
+      // 服务端耐久层（machpolicy）是持久化真源：先写它，daemon 重连/心跳
+      // 才不会用 sandbox.json 启动快照把策略打回旧值（全局生效的关键）。
+      if (currentMachineId) {
+        await sandboxApiMachines.updateConfirmPolicy(currentMachineId, next);
+      }
       // 只写配置：write_confirm_policy 仅覆写 confirm_policy（保留 pat 等其余
       // 字段），不重铸 PAT——旧实现每次切换铸一枚永久凭据，会无限累积。
       await writeConfirmPolicy(next);

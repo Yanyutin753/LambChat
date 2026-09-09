@@ -18,7 +18,8 @@ def test_removed_deferred_prompt_limit_is_not_registered() -> None:
 
 def test_web_search_settings_are_registered() -> None:
     expected_defaults = {
-        "ENABLE_WEB_SEARCH": False,
+        # 默认挂载为系统内置工具（未配 provider 时工具自述引导，而非不挂载）
+        "ENABLE_WEB_SEARCH": True,
         "WEB_SEARCH_PROVIDER": "auto",
         "TAVILY_API_KEYS": "",
         "BRAVE_API_KEYS": "",
@@ -46,7 +47,8 @@ def test_web_search_settings_are_registered() -> None:
 
 def test_web_fetch_settings_are_registered() -> None:
     expected_defaults = {
-        "ENABLE_WEB_FETCH": False,
+        # 默认挂载（direct 供应商零 key 可用）
+        "ENABLE_WEB_FETCH": True,
         "WEB_FETCH_PROVIDER": "auto",
         "JINA_API_KEYS": "",
         "FIRECRAWL_BASE_URL": "",

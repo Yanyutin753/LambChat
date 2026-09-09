@@ -465,8 +465,11 @@ jobs:
       # latest.json（下载-合并-上传）。并发读合写的丢条目竞态由汇总 job 的
       # 权威重生成兜底。node 合并：三平台镜像都装了 Node，规避 Windows 无
       # python3 的可执行名差异。
+      # 烘焙门控：本步骤直传 Release，必须与汇总 job 同受
+      # DESKTOP_UPDATER_AUTO_PUBLISH 门控——v2.10.3 实测平台 job 无条件
+      # 直传击穿烘焙态（汇总 job 的 rm 只挡自己那份），真机抽检防线失守。
       - name: Merge updater platform entry into latest.json
-        if: matrix.updater_key != ''
+        if: matrix.updater_key != '' && vars.DESKTOP_UPDATER_AUTO_PUBLISH == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

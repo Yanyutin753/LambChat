@@ -151,6 +151,10 @@ export const AgentOptionButton = memo(function AgentOptionButton({
                   style={{
                     background: "var(--theme-bg-card)",
                     maxHeight: "60dvh",
+                    // 内容超高（沙箱设备+策略两段）可滚：否则移动端 sheet 底部
+                    // 条目被裁掉点不到（仅命令确认截半、无需确认不可达）
+                    overflowY: "auto",
+                    overscrollBehavior: "contain",
                   }}
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -259,6 +263,9 @@ export const AgentOptionButton = memo(function AgentOptionButton({
                   style={{
                     background: "var(--theme-bg-card)",
                     maxHeight: "60dvh",
+                    // 同上：超高内容可滚，防止移动端 sheet 底部条目不可达
+                    overflowY: "auto",
+                    overscrollBehavior: "contain",
                   }}
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -317,6 +324,10 @@ export const AgentOptionButton = memo(function AgentOptionButton({
                   ...dropdownStyle,
                   background: "var(--theme-bg-card)",
                   borderColor: "var(--theme-border)",
+                  // 桌面下拉靠近视口底时超高可滚（机器多 + 策略段展开时）
+                  maxHeight: "calc(100dvh - 8rem)",
+                  overflowY: "auto",
+                  overscrollBehavior: "contain",
                 }}
               >
                 <div
