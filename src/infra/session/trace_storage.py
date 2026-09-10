@@ -773,7 +773,15 @@ class TraceStorage(
                     event.get("event_type") in {"recommend:questions", "followup:questions"}
                     for event in trace_events
                 )
-                if questions and recommendation_requested and not has_legacy_recommendation:
+                # 活跃 run 的历史快照只回 user:message（正文等 SSE 重放）；
+                # 此时合成 recommend:questions 会与零正文一起折叠成孤儿
+                # 空壳助手轮次——活跃 run 的推荐由实时通道推送。
+                if (
+                    questions
+                    and recommendation_requested
+                    and not has_legacy_recommendation
+                    and not is_active_running
+                ):
                     compatibility_event_type = "recommend:questions"
                     if (
                         event_types

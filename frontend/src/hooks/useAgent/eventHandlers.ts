@@ -25,6 +25,7 @@ import {
   isSandboxConfirmApprovalEvent,
 } from "./messageParts";
 import { splitAssistantTurn } from "./steerTurnSplit";
+import { settleAssistantMessage } from "./settleStream";
 import { convertAttachments, processMessageEvent } from "./eventProcessor";
 import { dispatchToolMutationRefresh } from "../../components/chat/ChatMessage/items/toolMutationEvents";
 
@@ -52,6 +53,9 @@ export interface EventHandlerContext {
   setGoalsByRunId: React.Dispatch<
     React.SetStateAction<Record<string, import("./types").ActiveGoalSpec>>
   >;
+  /** 运行已在服务端终结、而本地流式目标从未收到正文（空壳）时触发，
+   *  用于拉起一次历史重载恢复存储端已有的内容。 */
+  onStaleRunStateDetected?: (runId: string) => void;
 }
 
 /**
@@ -350,19 +354,9 @@ export function handleStreamEvent(
 
     case "complete":
     case "done": {
-      ctx.setMessages((prev) =>
-        prev.map((m) =>
-          m.id === messageId
-            ? {
-                ...m,
-                isStreaming: false,
-                parts: clearAllLoadingStates(m.parts || [], {
-                  preserveAskHuman: true,
-                }),
-              }
-            : m,
-        ),
-      );
+      // 落定：清 loading；若目标从未收到任何正文（重放未挂上/只挂了推荐），
+      // 直接移除，避免留下只有头像和操作栏的孤儿气泡。
+      ctx.setMessages((prev) => settleAssistantMessage(prev, messageId));
       ctx.setConnectionStatus("disconnected");
       // AI 回复完成，用户正在查看当前 session，立即标记为已读
       const activeSessionId = ctx.sessionIdRef.current;

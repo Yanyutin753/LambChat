@@ -75,7 +75,7 @@ test("attaches runless recommendation events to the preceding assistant turn", (
   );
 });
 
-test("inherits the run id for a synthesized recommendation event", () => {
+test("drops an assistant turn that only carries recommend questions", () => {
   const messages = reconstructMessagesFromEvents(
     [
       {
@@ -86,6 +86,7 @@ test("inherits the run id for a synthesized recommendation event", () => {
       },
       {
         event_type: "recommend:questions",
+        run_id: "run-1",
         timestamp: "2026-08-21T00:00:01.000Z",
         data: { questions: ["next?"] },
       },
@@ -94,7 +95,11 @@ test("inherits the run id for a synthesized recommendation event", () => {
     { activeSubagentStack: [] },
   );
 
-  expect(messages.at(-1)?.runId).toBe("run-1");
+  // 活跃 run 历史快照可能只带 user:message + 合成推荐事件（零正文）；
+  // 只有推荐 part 的助手轮次要整体丢弃，不能留一个空壳气泡。
+  expect(messages).toHaveLength(1);
+  expect(messages[0]?.role).toBe("user");
+  expect(messages[0]?.id).toBe("run-1:user");
 });
 
 test("reconstructs one resolved ask-human item from same-run history", () => {
