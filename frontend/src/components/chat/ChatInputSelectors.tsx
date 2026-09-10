@@ -9,8 +9,11 @@ import { AgentModeSelector } from "../selectors/AgentModeSelector";
 import { PersonaPresetSelector } from "../persona/PersonaPresetSelector";
 import { TeamPickerModal } from "../team/TeamPickerModal";
 import { AgentOptionButton } from "./AgentOptionButton";
-import { useSandboxStatus } from "../../hooks/useSandboxStatus";
 import { isShellAvailable, writeConfirmPolicy } from "../../services/tauri/sandboxShell";
+import {
+  notifySandboxStatusRefresh,
+  useSandboxStatus,
+} from "../../hooks/useSandboxStatus";
 import { sandboxApiMachines } from "../../services/api/sandbox";
 import {
   SANDBOX_AGENT_OPTION_KEY,
@@ -170,6 +173,10 @@ export function ChatInputSelectors({
         await writeConfirmPolicy(policy);
       }
       setPolicyOverride(policy);
+      // 与偏好设置页同款对账：machines 走 presence 秒推，但 profile 页依赖的
+      // status（daemon_confirm_policy）要等 60s 对账轮询——不发本事件会出现
+      // 「chat input 已新、偏好设置还旧」的双显不同步
+      notifySandboxStatusRefresh();
       toast.success(t("agentOptions.sandboxPolicy.updated"));
     } catch {
       toast.error(t("agentOptions.sandboxPolicy.updateFailed"));
