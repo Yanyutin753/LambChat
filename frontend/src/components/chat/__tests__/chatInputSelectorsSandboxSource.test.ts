@@ -69,3 +69,14 @@ test("popover gates sandbox status polling on its open state; the selector stays
   expect(source).toMatch(/useSandboxStatus\(\)/);
   expect(source).not.toMatch(/useSandboxStatus\(\{/);
 });
+
+test("policy change notifies the sandbox status store to resync status", () => {
+  // 双显不同步根因：machines 走 presence 秒推、profile 页依赖的 status 只有
+  // 60s 对账轮询——chat input 切换成功后必须发 SANDBOX_STATUS_REFRESH 事件
+  expect(source).toMatch(/notifySandboxStatusRefresh\(\);/);
+  const successIdx = source.indexOf("agentOptions.sandboxPolicy.updated");
+  const notifyIdx = source.indexOf("notifySandboxStatusRefresh();");
+  expect(successIdx).toBeGreaterThan(-1);
+  expect(notifyIdx).toBeGreaterThan(-1);
+  expect(notifyIdx).toBeLessThan(successIdx);
+});
