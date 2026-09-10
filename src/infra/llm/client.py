@@ -233,8 +233,9 @@ def _langchain_profile(profile: Optional[dict]) -> Optional[dict]:
 
 # OpenAI-protocol providers whose reasoning models accept reasoning_effort.
 # o1 系不发送：o1-preview/o1-mini 不支持该参数（发送即 400），o1 已退役。
+# gpt-6 系同 gpt-5 接受 reasoning_effort（-chat-latest/-non-reasoning 变体除外）。
 _REASONING_EFFORT_PREFIXES: dict[str, tuple[str, ...]] = {
-    "openai": ("gpt-5", "o3", "o4"),
+    "openai": ("gpt-5", "gpt-6", "o3", "o4"),
     "xai": ("grok-4",),
 }
 # zhipu hybrid-reasoning GLM families that accept the `thinking` request-body
@@ -289,10 +290,14 @@ def _resolve_reasoning_effort(
         return None
 
     level = str(thinking.get("level") or "medium")
-    if provider == "xai" and level == "max":
-        # grok 4.6+ 的 max 档映射到 xhigh
-        match = _GROK_VERSION_RE.search(name)
-        return "xhigh" if match and _version_tuple(match) >= (4, 6) else "high"
+    if level == "max" and provider in {"openai", "xai"}:
+        # max 档原生支持度按家族分野：gpt-6 与 grok-4.6+ 原生接受
+        # max/xhigh；gpt-5/o3/o4 只到 high（发 max 会 400），降档处理
+        if provider == "openai" and name.startswith("gpt-6"):
+            return "max"
+        if provider == "xai":
+            match = _GROK_VERSION_RE.search(name)
+            return "xhigh" if match and _version_tuple(match) >= (4, 6) else "high"
     return _EFFORT_BY_LEVEL.get(level, "medium")
 
 

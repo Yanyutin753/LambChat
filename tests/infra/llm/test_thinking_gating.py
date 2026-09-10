@@ -52,6 +52,19 @@ def _google_model(model_name: str, thinking: dict | None):
 # ── OpenAI provider ──────────────────────────────────────────────────────
 
 
+def test_openai_gpt6_receives_effort_per_level() -> None:
+    # gpt-6 系与 gpt-5 同为 reasoning_effort 家族（曾漏配导致强度控件隐藏）；
+    # 且原生支持 max 档（gpt-5 只到 high）——Astra 不支持 none、始终思考
+    for level, expected in [
+        ("low", "low"),
+        ("medium", "medium"),
+        ("high", "high"),
+        ("max", "max"),
+    ]:
+        model = _openai_model("openai", "gpt-6-astra", ENABLED(level))
+        assert model.reasoning_effort == expected
+
+
 def test_openai_reasoning_models_receive_effort_per_level() -> None:
     for level, expected in [
         ("low", "low"),
@@ -304,6 +317,7 @@ def test_gemini_2_5_lite_variant_supported() -> None:
 
 
 def test_model_supports_thinking_openai_families() -> None:
+    assert model_supports_thinking("openai", "gpt-6-astra") is True
     assert model_supports_thinking("openai", "gpt-5.5") is True
     assert model_supports_thinking("openai", "o3-mini") is True
     assert model_supports_thinking("openai", "o4-mini-high") is True
@@ -316,6 +330,7 @@ def test_model_supports_thinking_openai_exclusions() -> None:
     assert model_supports_thinking("openai", "gpt-4.1") is False
     assert model_supports_thinking("openai", "o1") is False
     assert model_supports_thinking("openai", "gpt-5.1-chat-latest") is False
+    assert model_supports_thinking("openai", "gpt-6-chat-latest") is False
     assert model_supports_thinking("xai", "grok-4-fast-non-reasoning") is False
     assert model_supports_thinking("xai", "grok-3") is False
 
