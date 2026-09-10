@@ -678,6 +678,7 @@ async def _call_generation_api(
 
     return {
         "success": True,
+        "model": resolved_model,
         "images": images,
     }
 
@@ -772,6 +773,7 @@ async def _call_edit_api(
 
     return {
         "success": True,
+        "model": resolved_model,
         "images": images,
     }
 
