@@ -241,10 +241,20 @@ async def get_internal_tool_policies() -> dict[str, MCPToolPolicy]:
         return {}
 
 
-# 默认 inline 直挂的内置工具：网页检索/阅读是通用基础能力，不该藏在
-# tool_search 元工具后面（模型要先「搜工具」才能发现它们，等于默认不可用）。
-# 管理员在 MCP 面板对工具显式设置过策略的，一律以显式值为准。
-_DEFAULT_INLINE_TOOL_NAMES = frozenset({"web_search", "web_fetch"})
+# 默认 inline 直挂的内置工具：能力型系统工具（网页检索/阅读、图像生成/
+# 图片与视频分析、语音转写）是通用基础能力，不该藏在 tool_search 元工具
+# 后面（模型要先「搜工具」才能发现它们，等于默认不可用）。管理员在 MCP
+# 面板对工具显式设置过策略的，一律以显式值为准。
+_DEFAULT_INLINE_TOOL_NAMES = frozenset(
+    {
+        "web_search",
+        "web_fetch",
+        "image_generate",
+        "image_analyze",
+        "video_analyze",
+        "audio_transcribe",
+    }
+)
 
 
 def _default_inline_exposure(policy: MCPToolPolicy | None, tool_name: str) -> bool:
