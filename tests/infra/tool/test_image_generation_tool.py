@@ -866,6 +866,7 @@ async def test_image_generate_compresses_oversized_input_images_before_edit_requ
         size="1024x1024",
         quality="auto",
         output_format="png",
+        model="",
         runtime=_Runtime("user-1"),
     )
 
@@ -937,6 +938,7 @@ async def test_image_generate_keeps_original_edit_source_when_compression_is_not
         size="1024x1024",
         quality="auto",
         output_format="png",
+        model="",
         runtime=_Runtime("user-1"),
     )
 
@@ -988,6 +990,7 @@ async def test_compressed_edit_source_files_close_when_a_later_download_fails(
             size="1024x1024",
             quality="auto",
             output_format="png",
+            model="",
             runtime=_Runtime("user-1"),
         )
 
@@ -1681,3 +1684,403 @@ async def test_fast_agent_context_includes_image_generation_tool(
     assert "image_generate" not in names
     assert ctx.deferred_manager is not None
     assert ctx.deferred_manager.get_tool("image_generate") is not None
+
+
+# ---------------------------------------------------------------------------
+# 多模型动态选择（IMAGE_GENERATION_MODELS：[{name, description}]，首个为默认）
+# ---------------------------------------------------------------------------
+
+_FLARE_SUNBURST_MODELS = [
+    {"name": "gpt-image-2.5-flare", "description": "fast default for quick iterations"},
+    {"name": "gpt-image-2.5-sunburst", "description": "precision for editing-focused premium work"},
+]
+
+
+def _set_model_choices(monkeypatch: pytest.MonkeyPatch, value: object) -> None:
+    from src.infra.tool import image_generation_tool
+
+    monkeypatch.setattr(
+        image_generation_tool.settings, "IMAGE_GENERATION_MODELS", value, raising=False
+    )
+
+
+def test_resolve_model_choices_parses_configured_entries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool.image_model_catalog import resolve_model_choices
+
+    _set_model_choices(monkeypatch, _FLARE_SUNBURST_MODELS)
+
+    assert resolve_model_choices() == [
+        ("gpt-image-2.5-flare", "fast default for quick iterations"),
+        ("gpt-image-2.5-sunburst", "precision for editing-focused premium work"),
+    ]
+
+
+def test_resolve_model_choices_skips_nameless_entries_and_dedupes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool.image_model_catalog import resolve_model_choices
+
+    _set_model_choices(
+        monkeypatch,
+        [
+            {"description": "missing name"},
+            {"name": "  ", "description": "blank name"},
+            {"name": "gpt-image-2.5-flare", "description": "first wins"},
+            {"name": "gpt-image-2.5-flare", "description": "duplicate dropped"},
+            {"name": "gpt-image-2.5-sunburst"},
+            "bare-string-model",
+            42,
+        ],
+    )
+
+    assert resolve_model_choices() == [
+        ("gpt-image-2.5-flare", "first wins"),
+        ("gpt-image-2.5-sunburst", ""),
+        ("bare-string-model", ""),
+    ]
+
+
+def test_resolve_model_choices_ignores_non_list_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool.image_model_catalog import resolve_model_choices
+
+    _set_model_choices(monkeypatch, "gpt-image-2.5-flare")
+
+    assert resolve_model_choices() == []
+
+
+def test_resolve_model_defaults_to_first_configured_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool.image_model_catalog import resolve_model
+
+    _set_model_choices(monkeypatch, _FLARE_SUNBURST_MODELS)
+
+    assert resolve_model(None) == "gpt-image-2.5-flare"
+    assert resolve_model("") == "gpt-image-2.5-flare"
+
+
+def test_resolve_model_returns_requested_when_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool.image_model_catalog import resolve_model
+
+    _set_model_choices(monkeypatch, _FLARE_SUNBURST_MODELS)
+
+    assert resolve_model("gpt-image-2.5-sunburst") == "gpt-image-2.5-sunburst"
+
+
+def test_resolve_model_rejects_unknown_model_with_catalog(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool.image_model_catalog import resolve_model
+
+    _set_model_choices(monkeypatch, _FLARE_SUNBURST_MODELS)
+
+    with pytest.raises(ValueError) as exc_info:
+        resolve_model("gpt-image-3")
+
+    message = str(exc_info.value)
+    # 错误目录同时列出模型名与描述，LLM 拿到即可自纠重试
+    assert "gpt-image-2.5-flare" in message
+    assert "gpt-image-2.5-sunburst" in message
+    assert "quick iterations" in message
+    assert "premium work" in message
+
+
+def test_resolve_model_falls_back_to_legacy_setting_when_no_choices(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import image_generation_tool
+    from src.infra.tool.image_model_catalog import resolve_model
+
+    _set_model_choices(monkeypatch, [])
+    monkeypatch.setattr(
+        image_generation_tool.settings, "IMAGE_GENERATION_MODEL", "gpt-image-2-custom"
+    )
+
+    assert resolve_model(None) == "gpt-image-2-custom"
+    assert resolve_model("gpt-image-2-custom") == "gpt-image-2-custom"
+
+
+def test_resolve_model_rejects_unknown_model_in_legacy_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import image_generation_tool
+    from src.infra.tool.image_model_catalog import resolve_model
+
+    _set_model_choices(monkeypatch, [])
+    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_MODEL", "gpt-image-2")
+
+    # 用户点名新模型而管理员只配了旧单模型时，必须显式报错而非静默代画
+    with pytest.raises(ValueError, match="gpt-image-2.5-sunburst.*IMAGE_GENERATION_MODELS"):
+        resolve_model("gpt-image-2.5-sunburst")
+
+
+def test_image_generate_tool_exposes_model_enum_with_descriptions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool.image_generation_tool import get_image_generation_tool
+
+    _set_model_choices(monkeypatch, _FLARE_SUNBURST_MODELS)
+
+    tool = get_image_generation_tool()
+    # tool_call_schema 是剔除注入参数后真正绑定给 LLM 的视图
+    schema = tool.tool_call_schema.model_json_schema()
+
+    assert tool.name == "image_generate"
+    assert schema["properties"]["model"]["enum"] == [
+        "gpt-image-2.5-flare",
+        "gpt-image-2.5-sunburst",
+    ]
+    field_description = tool.args_schema.model_fields["model"].description or ""
+    assert "gpt-image-2.5-flare" in field_description
+    assert "gpt-image-2.5-sunburst" in field_description
+    assert "quick iterations" in field_description
+    assert "premium work" in field_description
+
+
+def test_reference_tool_exposes_model_enum_with_descriptions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool.image_generation_tool import get_reference_image_generation_tool
+
+    _set_model_choices(monkeypatch, _FLARE_SUNBURST_MODELS)
+
+    tool = get_reference_image_generation_tool()
+    schema = tool.tool_call_schema.model_json_schema()
+
+    assert tool.name == "image_edit_with_references"
+    assert schema["properties"]["model"]["enum"] == [
+        "gpt-image-2.5-flare",
+        "gpt-image-2.5-sunburst",
+    ]
+    assert tool.args_schema.model_fields["input_images"].is_required()
+
+
+def test_tool_factory_refreshes_schema_when_settings_change(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool.image_generation_tool import get_image_generation_tool
+
+    _set_model_choices(monkeypatch, _FLARE_SUNBURST_MODELS)
+    first = get_image_generation_tool().tool_call_schema.model_json_schema()
+
+    _set_model_choices(monkeypatch, [{"name": "img-x", "description": "only model"}])
+    second = get_image_generation_tool().tool_call_schema.model_json_schema()
+
+    assert first["properties"]["model"]["enum"] == [
+        "gpt-image-2.5-flare",
+        "gpt-image-2.5-sunburst",
+    ]
+    # 单值 Literal 在 JSON schema 里渲染为 const（等价单元素 enum）
+    second_model = second["properties"]["model"]
+    assert second_model.get("enum") == ["img-x"] or second_model.get("const") == "img-x"
+
+
+def test_tool_schema_keeps_plain_model_field_without_choices(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool.image_generation_tool import get_image_generation_tool
+
+    _set_model_choices(monkeypatch, [])
+
+    tool = get_image_generation_tool()
+    schema = tool.tool_call_schema.model_json_schema()
+
+    assert tool.name == "image_generate"
+    assert "enum" not in schema["properties"]["model"]
+    assert tool.args_schema.model_fields["model"].default == ""
+    assert not tool.args_schema.model_fields["model"].is_required()
+
+
+class _ModelCatalogFakeResponse:
+    def __init__(self, payload: dict[str, object]) -> None:
+        self._payload = payload
+        self.headers = {"content-type": "image/png"}
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> dict[str, object]:
+        return self._payload
+
+
+def _install_model_catalog_harness(
+    monkeypatch: pytest.MonkeyPatch,
+    captured: dict[str, object],
+    image_bytes: bytes,
+) -> None:
+    from src.infra.tool import image_generation_tool
+
+    b64_image = base64.b64encode(image_bytes).decode("ascii")
+
+    class _FakeHttpClient:
+        async def post(self, request_url: str, **kwargs):
+            captured["request_url"] = request_url
+            captured["kwargs"] = kwargs
+            return _ModelCatalogFakeResponse({"data": [{"b64_json": b64_image}]})
+
+    class _FakeStorage:
+        is_local = False
+
+        async def upload_file(self, file, folder, filename, content_type, **kwargs):
+            return SimpleNamespace(key=f"{folder}/{filename}", url="https://oss.example.com/x.png")
+
+    monkeypatch.setattr(
+        image_generation_tool.httpx, "AsyncClient", lambda **kwargs: _FakeHttpClient()
+    )
+    monkeypatch.setattr(
+        image_generation_tool, "get_or_init_storage", lambda: _async_return(_FakeStorage())
+    )
+    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_API_KEY", "sk-test")
+    monkeypatch.setattr(
+        image_generation_tool.settings,
+        "IMAGE_GENERATION_BASE_URL",
+        "https://api.example.com/v1",
+    )
+    monkeypatch.setattr(
+        image_generation_tool.settings, "IMAGE_GENERATION_MODEL", "legacy-image-model"
+    )
+
+
+async def _async_return(value: object):
+    return value
+
+
+async def test_image_generate_threads_model_choice_into_generation_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import image_generation_tool
+
+    captured: dict[str, object] = {}
+    _install_model_catalog_harness(monkeypatch, captured, b"fake-png")
+    _set_model_choices(monkeypatch, _FLARE_SUNBURST_MODELS)
+
+    result = json.loads(
+        await image_generation_tool.image_generate.coroutine(
+            prompt="draw a cat",
+            model="gpt-image-2.5-sunburst",
+            runtime=_Runtime("user-1"),
+        )
+    )
+
+    assert result["success"] is True
+    assert captured["request_url"] == "https://api.example.com/v1/images/generations"
+    assert captured["kwargs"]["json"]["model"] == "gpt-image-2.5-sunburst"
+
+
+async def test_image_generate_defaults_to_first_model_when_omitted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import image_generation_tool
+
+    captured: dict[str, object] = {}
+    _install_model_catalog_harness(monkeypatch, captured, b"fake-png")
+    _set_model_choices(monkeypatch, _FLARE_SUNBURST_MODELS)
+
+    result = json.loads(
+        await image_generation_tool.image_generate.coroutine(
+            prompt="draw a cat",
+            runtime=_Runtime("user-1"),
+        )
+    )
+
+    assert result["success"] is True
+    # 清单非空时旧设置 IMAGE_GENERATION_MODEL（legacy-image-model）被忽略，首个条目为默认
+    assert captured["kwargs"]["json"]["model"] == "gpt-image-2.5-flare"
+
+
+async def test_image_generate_reports_available_models_on_unknown_choice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import image_generation_tool
+
+    captured: dict[str, object] = {}
+    _install_model_catalog_harness(monkeypatch, captured, b"fake-png")
+    _set_model_choices(monkeypatch, _FLARE_SUNBURST_MODELS)
+
+    result = json.loads(
+        await image_generation_tool.image_generate.coroutine(
+            prompt="draw a cat",
+            model="gpt-image-3",
+            runtime=_Runtime("user-1"),
+        )
+    )
+
+    assert "error" in result
+    assert "gpt-image-2.5-flare" in result["error"]
+    assert "gpt-image-2.5-sunburst" in result["error"]
+    assert captured.get("request_url") is None
+
+
+async def test_image_edit_with_references_threads_model_choice_into_edit_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import image_generation_tool
+
+    captured: dict[str, object] = {}
+    b64_source = base64.b64encode(b"edit-source").decode("ascii")
+
+    class _FakeStreamResponse:
+        headers = {"content-type": "image/png"}
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def raise_for_status(self) -> None:
+            return None
+
+        async def aiter_bytes(self):
+            yield b"edit-source"
+
+    class _FakeHttpClient:
+        def stream(self, method: str, request_url: str):
+            assert method == "GET"
+            return _FakeStreamResponse()
+
+        async def post(self, request_url: str, **kwargs):
+            captured["request_url"] = request_url
+            captured["kwargs"] = kwargs
+            return _ModelCatalogFakeResponse({"data": [{"b64_json": b64_source}]})
+
+    class _FakeStorage:
+        is_local = False
+
+        async def upload_file(self, file, folder, filename, content_type, **kwargs):
+            return SimpleNamespace(
+                key=f"{folder}/{filename}", url="https://oss.example.com/edit.png"
+            )
+
+    monkeypatch.setattr(
+        image_generation_tool.httpx, "AsyncClient", lambda **kwargs: _FakeHttpClient()
+    )
+    monkeypatch.setattr(
+        image_generation_tool, "get_or_init_storage", lambda: _async_return(_FakeStorage())
+    )
+    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_API_KEY", "sk-test")
+    monkeypatch.setattr(
+        image_generation_tool.settings,
+        "IMAGE_GENERATION_BASE_URL",
+        "https://api.example.com/v1",
+    )
+    _set_model_choices(monkeypatch, _FLARE_SUNBURST_MODELS)
+
+    result = json.loads(
+        await image_generation_tool.image_edit_with_references.coroutine(
+            prompt="make it brighter",
+            input_images=["https://cdn.example.com/source.png"],
+            model="gpt-image-2.5-sunburst",
+            runtime=_Runtime("user-1"),
+        )
+    )
+
+    assert result["success"] is True
+    assert captured["request_url"] == "https://api.example.com/v1/images/edits"
+    assert captured["kwargs"]["data"]["model"] == "gpt-image-2.5-sunburst"

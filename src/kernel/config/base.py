@@ -508,6 +508,9 @@ class Settings(BaseSettings):
     IMAGE_GENERATION_API_KEY: str = ""
     IMAGE_GENERATION_BASE_URL: str = "https://api.openai.com/v1"
     IMAGE_GENERATION_MODEL: str = "gpt-image-2"
+    # 多模型可选清单（[{name, description}]，首个为默认）；为空时回落单模型
+    # IMAGE_GENERATION_MODEL。设置热更新 + 工具按请求重建 schema，改配置即生效。
+    IMAGE_GENERATION_MODELS: Any = Field(default_factory=list)
     IMAGE_GENERATION_TIMEOUT: int = 120  # 生图 API read timeout（两次数据读取间最大空闲间隔）
     # 生图 HTTP 超时细粒度控制（秒）。带宽差时可调大 write/download 相关值。
     IMAGE_API_CONNECT_TIMEOUT: float = 15.0  # TCP 连接建立超时
