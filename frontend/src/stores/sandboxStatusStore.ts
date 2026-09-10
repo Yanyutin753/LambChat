@@ -94,8 +94,11 @@ export async function refreshSandboxStatus(): Promise<void> {
   }
   inFlight = true;
   try {
+    // 已知本机 machine_id 时显式指定：默认机失效+多机在线时缺省解析
+    // 返回 None，daemon_confirm_policy 会恒为 null（偏好设置不再跟随）
+    const currentMachine = store.get().currentMachineId;
     const [statusResult, machinesResult] = await Promise.allSettled([
-      sandboxApi.getStatus(),
+      sandboxApi.getStatus(currentMachine),
       sandboxApiMachines.listMachines(),
     ]);
     const next: Partial<SandboxStatusStoreState> = {};
