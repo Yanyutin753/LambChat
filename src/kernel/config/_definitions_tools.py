@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from src.kernel.schemas.setting import SettingCategory, SettingType
+from src.kernel.schemas.setting import (
+    JsonSchema,
+    JsonSchemaField,
+    SettingCategory,
+    SettingType,
+)
 
 TOOLS_SETTING_DEFINITIONS: dict[str, dict] = {
     # ============================================
@@ -305,6 +310,33 @@ TOOLS_SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "settingDesc.IMAGE_GENERATION_MODEL",
         "default": "gpt-image-2",
         "depends_on": "ENABLE_IMAGE_GENERATION",
+    },
+    "IMAGE_GENERATION_MODELS": {
+        "type": SettingType.JSON,
+        "category": SettingCategory.TOOLS,
+        "subcategory": "image_generation",
+        "description": "settingDesc.IMAGE_GENERATION_MODELS",
+        "default": [],
+        "depends_on": "ENABLE_IMAGE_GENERATION",
+        "json_schema": JsonSchema(
+            type="array",
+            item_label="settingDesc.IMAGE_GENERATION_MODEL_ITEM",
+            fields=[
+                JsonSchemaField(
+                    name="name",
+                    type="text",
+                    label="settingDesc.IMAGE_GENERATION_MODEL_NAME",
+                    placeholder="gpt-image-2.5-sunburst",
+                    required=True,
+                ),
+                JsonSchemaField(
+                    name="description",
+                    type="text",
+                    label="settingDesc.IMAGE_GENERATION_MODEL_DESCRIPTION",
+                    placeholder="precision model for editing-focused premium work",
+                ),
+            ],
+        ),
     },
     "IMAGE_GENERATION_TIMEOUT": {
         "type": SettingType.NUMBER,

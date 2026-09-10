@@ -15,7 +15,10 @@ import {
 import { getRefreshToken } from "../../services/api/token";
 import type { EventType, StreamEvent } from "./types";
 import { handleStreamEvent, type EventHandlerContext } from "./eventHandlers";
-import { clearAllLoadingStates } from "./messageParts";
+import {
+  assistantMessageHasContent,
+  settleAssistantMessage,
+} from "./settleStream";
 import type { Message, ConnectionStatus } from "../../types";
 
 /**
@@ -237,19 +240,8 @@ export async function connectToSSE(
           setConnectionStatus("disconnected");
           isConnectingRef.current = false;
           ctx.setIsInitializingSandbox(false);
-          ctx.setMessages((prev) =>
-            prev.map((m) =>
-              m.id === messageId
-                ? {
-                    ...m,
-                    isStreaming: false,
-                    parts: clearAllLoadingStates(m.parts || [], {
-                      preserveAskHuman: true,
-                    }),
-                  }
-                : m,
-            ),
-          );
+          // 落定并移除从未收到正文的空壳气泡
+          ctx.setMessages((prev) => settleAssistantMessage(prev, messageId));
         },
       },
     );
@@ -331,19 +323,18 @@ export async function reconnectSSE(
       streamingMessageIdRef.current = null;
       // Clear loading states on the message
       if (currentMsgId) {
-        ctx.setMessages((prev) =>
-          prev.map((m) =>
-            m.id === currentMsgId
-              ? {
-                  ...m,
-                  isStreaming: false,
-                  parts: clearAllLoadingStates(m.parts || [], {
-                    preserveAskHuman: true,
-                  }),
-                }
-              : m,
-          ),
-        );
+        // 运行已在服务端终结：若本地目标仍在流式态或从未收到正文，
+        // 本地状态必然缺失（重放没挂上/断连窗口内完成）——落定并移除
+        // 空壳，同时拉起一次历史重载恢复存储端已有的内容。
+        const target = messagesRef.current.find((m) => m.id === currentMsgId);
+        const missingContent =
+          !target ||
+          target.isStreaming ||
+          (target.role === "assistant" && !assistantMessageHasContent(target));
+        ctx.setMessages((prev) => settleAssistantMessage(prev, currentMsgId));
+        if (missingContent) {
+          ctx.onStaleRunStateDetected?.(currentRId);
+        }
       }
       return;
     }

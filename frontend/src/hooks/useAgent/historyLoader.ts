@@ -25,6 +25,7 @@ import {
   createToolPart,
   isSandboxConfirmApprovalEvent,
 } from "./messageParts";
+import { assistantMessageHasContent } from "./settleStream";
 import { markInterruptedBySteer } from "./steerTurnSplit";
 import { parseDate } from "../../utils/datetime";
 
@@ -663,16 +664,14 @@ export function reconstructMessagesFromEvents(
   // producing assistant content. They still create a placeholder while the
   // event stream is being folded, which leaves an empty assistant bubble in
   // history between two real turns. Keep meaningful terminal/tool states, but
-  // remove content-less placeholders before the list reaches the UI.
+  // remove content-less placeholders before the list reaches the UI. A turn
+  // whose only payload is recommend questions counts as empty: suggestions
+  // render under the last message, never as a standalone empty bubble (this
+  // happens when an active-run snapshot synthesizes a recommend event next to
+  // a withheld content stream).
   return reconstructedMessages.filter((message) => {
     if (message.role !== "assistant") return true;
-    return Boolean(
-      message.content?.trim() ||
-        message.parts?.length ||
-        message.toolCalls?.length ||
-        message.toolResults?.length ||
-        message.cancelled,
-    );
+    return assistantMessageHasContent(message);
   });
 }
 

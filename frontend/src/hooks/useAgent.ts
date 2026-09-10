@@ -131,6 +131,12 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   // Current streaming message ID
   const streamingMessageIdRef = useRef<string | null>(null);
 
+  // 最新 loadHistory 的稳定引用：SSE 层发现「run 已终结但本地空壳」时
+  // 拉起历史重载（定义在下方，渲染期回填，避免 useCallback 依赖环）
+  const loadHistoryRef = useRef<
+    ((targetSessionId: string) => Promise<unknown>) | null
+  >(null);
+
   // Flag for reconnect from history
   const isReconnectFromHistoryRef = useRef<boolean>(false);
 
@@ -233,6 +239,19 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setSandboxError,
       setActiveGoal,
       setGoalsByRunId,
+      onStaleRunStateDetected: (runId: string) => {
+        // 只在该 run 仍是当前 run 且没有新的发送/加载进行时重载，
+        // 防止覆盖用户刚发出的问题或乐观消息。
+        const activeSessionId = sessionIdRef.current;
+        if (
+          activeSessionId &&
+          currentRunIdRef.current === runId &&
+          !isSendingRef.current &&
+          !isLoadingHistoryRef.current
+        ) {
+          void loadHistoryRef.current?.(activeSessionId);
+        }
+      },
     }),
     [
       options,
@@ -848,6 +867,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   ) => {
     return sendMessage(content, undefined, attachments);
   };
+
+  // SSE 层 onStaleRunStateDetected 回调经此拿到最新 loadHistory
+  loadHistoryRef.current = loadHistory;
 
   // If the run finishes after the API accepted a steer but before the next
   // model boundary, promote it to a normal follow-up instead of leaving it

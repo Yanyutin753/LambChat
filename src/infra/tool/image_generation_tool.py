@@ -27,6 +27,11 @@ from src.infra.tool.backend_utils import (
     get_base_url_from_runtime,
     get_user_id_from_runtime,
 )
+from src.infra.tool.image_model_catalog import (
+    MODEL_PARAM_DESCRIPTION,
+    resolve_model,
+    tool_with_dynamic_model_catalog,
+)
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
 
@@ -43,7 +48,6 @@ from langchain.tools import tool  # noqa: E402
 logger = get_logger(__name__)
 
 DEFAULT_IMAGE_GENERATION_BASE_URL = "https://api.openai.com/v1"
-DEFAULT_IMAGE_GENERATION_MODEL = "gpt-image-2"
 IMAGE_API_MAX_ATTEMPTS = 3
 IMAGE_API_RETRY_BASE_DELAY_SECONDS = 1.0
 IMAGE_API_RETRY_JITTER_SECONDS = 0.5  # 重试抖动，防惊群
@@ -317,11 +321,6 @@ def _resolve_base_url() -> str:
         getattr(settings, "IMAGE_GENERATION_BASE_URL", "") or DEFAULT_IMAGE_GENERATION_BASE_URL
     )
     return str(base_url).rstrip("/")
-
-
-def _resolve_model() -> str:
-    model = getattr(settings, "IMAGE_GENERATION_MODEL", "") or DEFAULT_IMAGE_GENERATION_MODEL
-    return str(model).strip() or DEFAULT_IMAGE_GENERATION_MODEL
 
 
 def _normalize_image_size(size: Any) -> str:
@@ -619,6 +618,7 @@ async def _call_generation_api(
     size: str,
     quality: str,
     output_format: str,
+    model: str,
     runtime: ToolRuntime | None,
 ) -> dict[str, Any]:
     api_key = getattr(settings, "IMAGE_GENERATION_API_KEY", "") or ""
@@ -626,14 +626,14 @@ async def _call_generation_api(
         return {"error": "IMAGE_GENERATION_API_KEY is not configured"}
 
     base_url = _resolve_base_url()
-    model = _resolve_model()
+    resolved_model = resolve_model(model)
     user_id = get_user_id_from_runtime(runtime) or "anonymous"
 
     headers = {
         "Authorization": f"Bearer {api_key}",
     }
     payload: dict[str, Any] = {
-        "model": model,
+        "model": resolved_model,
         "prompt": prompt,
         "background": str(background),
         "size": _normalize_image_size(size),
@@ -691,6 +691,7 @@ async def _call_edit_api(
     size: str,
     quality: str,
     output_format: str,
+    model: str,
     runtime: ToolRuntime | None,
 ) -> dict[str, Any]:
     api_key = getattr(settings, "IMAGE_GENERATION_API_KEY", "") or ""
@@ -698,7 +699,7 @@ async def _call_edit_api(
         return {"error": "IMAGE_GENERATION_API_KEY is not configured"}
 
     base_url = _resolve_base_url()
-    model = _resolve_model()
+    resolved_model = resolve_model(model)
     user_id = get_user_id_from_runtime(runtime) or "anonymous"
 
     source_files = []
@@ -719,7 +720,7 @@ async def _call_edit_api(
             files.append(("image", (filename, image_file, content_type)))
 
         data: dict[str, Any] = {
-            "model": model,
+            "model": resolved_model,
             "prompt": prompt,
             "background": str(background),
             "input_fidelity": str(input_fidelity),
@@ -784,6 +785,7 @@ async def _image_generate_impl(
     size: str,
     quality: str,
     output_format: str,
+    model: str,
     runtime: ToolRuntime | None,
 ) -> str:
     try:
@@ -796,6 +798,7 @@ async def _image_generate_impl(
                 size=size,
                 quality=quality,
                 output_format=output_format,
+                model=model,
                 runtime=runtime,
             )
         else:
@@ -805,6 +808,7 @@ async def _image_generate_impl(
                 size=size,
                 quality=quality,
                 output_format=output_format,
+                model=model,
                 runtime=runtime,
             )
         return await _json_dumps_result(result)
@@ -840,6 +844,7 @@ async def image_generate(
         Literal["png", "jpeg", "webp"],
         "Output format.",
     ] = "png",
+    model: Annotated[str, MODEL_PARAM_DESCRIPTION] = "",
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
     """Generate from text, or edit when input_images contains reference URLs.
@@ -853,6 +858,7 @@ async def image_generate(
         size=size,
         quality=quality,
         output_format=output_format,
+        model=model,
         runtime=runtime,
     )
 
@@ -887,6 +893,7 @@ async def image_edit_with_references(
         Literal["png", "jpeg", "webp"],
         "Output format.",
     ] = "png",
+    model: Annotated[str, MODEL_PARAM_DESCRIPTION] = "",
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
     """Edit or regenerate from required reference images (图生图/参考图/照着这张).
@@ -910,13 +917,14 @@ async def image_edit_with_references(
         size=size,
         quality=quality,
         output_format=output_format,
+        model=model,
         runtime=runtime,
     )
 
 
 def get_image_generation_tool() -> BaseTool:
-    return image_generate
+    return tool_with_dynamic_model_catalog(image_generate)
 
 
 def get_reference_image_generation_tool() -> BaseTool:
-    return image_edit_with_references
+    return tool_with_dynamic_model_catalog(image_edit_with_references)

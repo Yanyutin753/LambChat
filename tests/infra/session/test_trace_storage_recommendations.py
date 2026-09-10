@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
 import pytest
@@ -68,6 +69,49 @@ async def test_set_run_recommend_questions_persists_a_bounded_normalized_field()
     set_fields = collection.calls[0][1]["$set"]
     assert set_fields["recommend_questions"] == ["问题一？", "问题二？", "问题三？"]
     assert "recommend_questions_updated_at" in set_fields
+
+
+@pytest.mark.asyncio
+async def test_active_running_trace_does_not_synthesize_recommend_event() -> None:
+    collection = _ReadCollection(
+        [
+            {
+                "trace_id": "trace-1",
+                "run_id": "run-1",
+                "status": "running",
+                "started_at": "2026-09-10T02:57:40Z",
+                "updated_at": datetime.now(timezone.utc),
+                "recommend_questions": ["问题一？"],
+                "recommend_questions_updated_at": "2026-09-10T03:18:04Z",
+            }
+        ]
+    )
+    storage = TraceStorage()
+    storage._collection = collection
+    storage.read_trace_events_batch_compat = AsyncMock(  # type: ignore[method-assign]
+        return_value={
+            "trace-1": [
+                {
+                    "event_type": "user:message",
+                    "data": {"content": "hello"},
+                    "timestamp": "2026-09-10T02:57:41Z",
+                },
+                {
+                    "event_type": "message:chunk",
+                    "data": {"content": "partial"},
+                    "timestamp": "2026-09-10T03:00:00Z",
+                },
+            ]
+        }
+    )
+
+    snapshot = await storage.get_session_events_snapshot("session-1", active_run_id="run-1")
+
+    # 活跃 run 的历史快照只回 user:message（正文等 SSE 重放）；
+    # 此时合成 recommend:questions 会折叠出零正文的孤儿助手轮次。
+    assert [event["event_type"] for event in snapshot.events] == ["user:message"]
+    assert snapshot.history_mode == "active_user_only"
+    assert snapshot.stream_run_id == "run-1"
 
 
 @pytest.mark.asyncio

@@ -33,7 +33,8 @@ from src.infra.tool.web_fetch_tool import get_web_fetch_tool
 from src.infra.tool.web_search_tool import get_web_search_tool
 
 # web_search 工具（214 token）入库后整体抬高一档；新增工具仍应优先压缩描述。
-MAX_ESTIMATED_SCHEMA_TOKENS = 6000
+# 生图工具 model 参数（多模型按次选择）×2 再抬一档：65 token 为结构性成本。
+MAX_ESTIMATED_SCHEMA_TOKENS = 6100
 EXPECTED_TOOL_NAMES = {
     "ask_human",
     "audio_transcribe",

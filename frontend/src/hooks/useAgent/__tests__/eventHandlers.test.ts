@@ -838,3 +838,35 @@ test("goal:end auto-clears the active goal after a short delay", () => {
   // Immediately after goal:end, the goal still has ended_at set
   expect(ctx.activeGoal()?.ended_at).toBe("2026-05-30T08:00:05.000Z");
 });
+
+test("done removes an assistant bubble that never received content", () => {
+  const ctx = createContext(
+    [
+      {
+        id: "run-1:user",
+        role: "user",
+        content: "hello",
+        timestamp: new Date("2026-09-10T02:59:59.000Z"),
+      },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-09-10T03:00:00.000Z"),
+        parts: [],
+        isStreaming: true,
+      },
+    ],
+    null,
+  );
+
+  handleStreamEvent(
+    { event: "done", data: JSON.stringify({ status: "completed" }) },
+    "assistant-1",
+    "redis-event-done-empty",
+    "2026-09-10T03:18:04.000Z",
+    ctx,
+  );
+
+  expect(ctx.messages().map((message) => message.id)).toEqual(["run-1:user"]);
+});
