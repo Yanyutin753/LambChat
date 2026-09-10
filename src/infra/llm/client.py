@@ -237,6 +237,9 @@ def _langchain_profile(profile: Optional[dict]) -> Optional[dict]:
 _REASONING_EFFORT_PREFIXES: dict[str, tuple[str, ...]] = {
     "openai": ("gpt-5", "gpt-6", "o3", "o4"),
     "xai": ("grok-4",),
+    # deepseek V4 系官方接受 reasoning_effort（low/high/max，无 medium——
+    # medium 映射到 high）；旧 V3 家族（deepseek-chat/r1/v3）不发送
+    "deepseek": ("deepseek-flash", "deepseek-v4"),
 }
 # zhipu hybrid-reasoning GLM families that accept the `thinking` request-body
 # field (via model_kwargs). glm-4.7 未核实，不发送。
@@ -290,6 +293,9 @@ def _resolve_reasoning_effort(
         return None
 
     level = str(thinking.get("level") or "medium")
+    if provider == "deepseek":
+        # 官方仅 low/high/max 三档：medium 并入 high
+        return {"low": "low", "medium": "high", "high": "high", "max": "max"}.get(level, "high")
     if level == "max" and provider in {"openai", "xai"}:
         # max 档原生支持度按家族分野：gpt-6 与 grok-4.6+ 原生接受
         # max/xhigh；gpt-5/o3/o4 只到 high（发 max 会 400），降档处理
@@ -609,8 +615,8 @@ class LLMClient:
         #   langchain-openai 会自动映射为 reasoning.effort
         # - zhipu GLM-4.5+/GLM-5 收到 `thinking` 请求体字段（经 model_kwargs，
         #   仅 chat completions 线格式；/v1/responses 不接受该字段）
-        # - 其他 OpenAI 兼容提供商 (DeepSeek、Qwen 等) 有各自的推理机制，
-        #   发送 reasoning_effort 会触发不兼容的"思考模式"导致 API 报错
+        # - deepseek V4 系官方接受 reasoning_effort（见前缀表）；
+        #   其余 OpenAI 兼容提供商（Qwen 等）不发送——会触发不兼容思考模式
         reasoning_effort: Optional[str] = None
         zhipu_thinking_body: Optional[dict[str, Any]] = None
         if thinking:

@@ -409,3 +409,29 @@ def test_model_supports_thinking_infers_provider_when_missing() -> None:
 def test_model_supports_thinking_explicit_provider_wins() -> None:
     # 显式 provider 优先于 value 前缀：google 渠道托管的 glm 走 Gemini 门控（不匹配）
     assert model_supports_thinking("google", "zhipu/glm-4.6") is False
+
+
+def test_deepseek_v4_receives_effort_with_medium_folded_to_high() -> None:
+    # 官方 Thinking Mode：low/high/max 三档，无 medium（并入 high）
+    for level, expected in [
+        ("low", "low"),
+        ("medium", "high"),
+        ("high", "high"),
+        ("max", "max"),
+    ]:
+        model = _openai_model("deepseek", "deepseek-flash", ENABLED(level))
+        assert model.reasoning_effort == expected, level
+    model = _openai_model("deepseek", "deepseek-v4-pro", ENABLED("max"))
+    assert model.reasoning_effort == "max"
+
+
+def test_deepseek_legacy_families_receive_no_effort() -> None:
+    for name in ("deepseek-chat", "deepseek-r1", "deepseek-v3"):
+        model = _openai_model("deepseek", name, ENABLED("high"))
+        assert model.reasoning_effort is None, name
+
+
+def test_model_supports_thinking_deepseek_families() -> None:
+    assert model_supports_thinking("deepseek", "deepseek-flash") is True
+    assert model_supports_thinking("deepseek", "deepseek-v4-pro") is True
+    assert model_supports_thinking("deepseek", "deepseek-chat") is False
