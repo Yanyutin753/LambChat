@@ -105,9 +105,7 @@ async def test_active_running_trace_does_not_synthesize_recommend_event() -> Non
         }
     )
 
-    snapshot = await storage.get_session_events_snapshot(
-        "session-1", active_run_id="run-1"
-    )
+    snapshot = await storage.get_session_events_snapshot("session-1", active_run_id="run-1")
 
     # 活跃 run 的历史快照只回 user:message（正文等 SSE 重放）；
     # 此时合成 recommend:questions 会折叠出零正文的孤儿助手轮次。
