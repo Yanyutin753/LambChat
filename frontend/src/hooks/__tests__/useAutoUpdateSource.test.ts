@@ -203,3 +203,39 @@ test("release workflow asset naming keeps the deb/rpm contract", () => {
   expect(wf).toMatch(/LambChat-\$\{RELEASE_TAG\}-Linux-\$\{arch\}\.deb/);
   expect(wf).toMatch(/LambChat-\$\{RELEASE_TAG\}-Linux-\$\{arch\}\.rpm/);
 });
+
+test("update flow is single-flight: downloads guarded by in-flight flag, re-checks preserve progress", () => {
+  const hook = readRepoFile("frontend/src/hooks/useAutoUpdate.ts");
+  // 在飞标志存在且三条下载路径（后台/AppImage 前台/Linux 包管理器）都先查它
+  expect(hook).toMatch(/const downloadInFlightRef = useRef\(false\)/);
+  const guards = hook.match(/if \(downloadInFlightRef\.current\) return/g) ?? [];
+  expect(guards.length).toBe(2); // installTauriUpdate + installLinuxPackageUpdate
+  // 后台下载卫兵 = pending(已完成) + inFlight(进行中) 双查——单查完成标志
+  // 会在下载中放行第二条下载（多进度条/并发下载根因）
+  expect(hook).toMatch(
+    /if \(pendingUpdateRef\.current \|\| downloadInFlightRef\.current\) return/,
+  );
+  // 失败路径必须复位在飞标志（否则一次失败永久卡死后续下载）
+  const resets = hook.match(/downloadInFlightRef\.current = false/g) ?? [];
+  expect(resets.length).toBeGreaterThanOrEqual(4);
+  // 复检不能清掉进行中下载/待安装态（进度条中途消失重来的来源）
+  expect(hook).toMatch(/const preserve =\n\s+downloadInFlightRef\.current \|\| pendingUpdateRef\.current !== null/);
+  // 迟到的 Linux 进度事件不污染非下载态
+  expect(hook).toMatch(/if \(!prev\.downloading\) return prev/);
+});
+
+test("manual update check distinguishes failure from up-to-date", () => {
+  const hook = readRepoFile("frontend/src/hooks/useAutoUpdate.ts");
+  // 检查失败不得伪装成「已是最新」；两条检查路径都返回成败
+  expect(hook).toMatch(/updateCheckFailed/);
+  expect(hook).toMatch(/ok = await checkTauriUpdate\(background, manual\)/);
+  expect(hook).toMatch(/ok = await checkBackendUpdate\(background, manual\)/);
+
+  // 失败文案五语齐
+  for (const locale of ["zh", "en", "ja", "ko", "ru"]) {
+    const data = JSON.parse(
+      readRepoFile(`frontend/src/i18n/locales/${locale}.json`),
+    ) as Record<string, string>;
+    expect(data.updateCheckFailed, locale).toBeTruthy();
+  }
+});

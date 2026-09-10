@@ -196,6 +196,9 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   const linuxDetectPromiseRef = useRef<Promise<LinuxInstallSource | null> | null>(
     null,
   );
+  /** 下载/安装「在飞」标志：pendingUpdateRef 只在下载完成时置位，卫兵只查它
+   * 会漏掉下载中——复检再触发即起第二条下载（进度条跳变/多进度的根因） */
+  const downloadInFlightRef = useRef(false);
 
   const platform = platformRef.current;
 
@@ -228,15 +231,18 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     let unsub: (() => void) | null = null;
     let disposed = false;
     void subscribeLinuxUpdateProgress((p) => {
-      setState((prev) => ({
-        ...prev,
-        downloaded: p.downloaded,
-        contentLength: p.contentLength,
-        progress:
-          p.contentLength > 0
-            ? (p.downloaded / p.contentLength) * 100
-            : prev.progress,
-      }));
+      setState((prev) => {
+        if (!prev.downloading) return prev; // 迟到事件不污染非下载态
+        return {
+          ...prev,
+          downloaded: p.downloaded,
+          contentLength: p.contentLength,
+          progress:
+            p.contentLength > 0
+              ? (p.downloaded / p.contentLength) * 100
+              : prev.progress,
+        };
+      });
     }).then((fn) => {
       if (disposed) {
         fn?.();
@@ -257,32 +263,43 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     async (options?: { background?: boolean; manual?: boolean }) => {
       const background = options?.background === true;
       const manual = options?.manual === true;
+      let ok = true;
       if (platform === "tauri") {
-        await checkTauriUpdate(background, manual);
+        ok = await checkTauriUpdate(background, manual);
       } else if (platform === "android" || platform === "ios") {
-        await checkBackendUpdate(background, manual);
+        ok = await checkBackendUpdate(background, manual);
       }
       lastCheckedAtRef.current = Date.now();
-      // web: no-op
+      return ok;
+      // web: no-op（恒 true）
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [platform],
   );
 
-  /** 手动「检查更新」（设置页事件触发）：无更新给「已是最新」提示 */
+  /** 手动「检查更新」（设置页事件触发）：无更新给「已是最新」、失败明确报错——
+   * 此前检查失败也弹「已是最新」，把网络/清单故障伪装成最新态 */
   const checkNow = useCallback(async () => {
     if (platform === "web") return;
     const before = stateRef.current.available;
-    await checkForUpdate({ manual: true });
+    const ok = await checkForUpdate({ manual: true });
+    const { toast } = await import("react-hot-toast");
+    if (!ok) {
+      toast.error(i18n.t("updateCheckFailed", "检查更新失败，请稍后重试"));
+      return;
+    }
     if (!stateRef.current.available && !before) {
-      const { toast } = await import("react-hot-toast");
       toast.success(i18n.t("update.upToDate", "已是最新版本"));
     }
   }, [platform, checkForUpdate]);
 
   /** 后台静默下载更新（发现即触发）：进度进 state，完成置 readyToInstall */
   const startBackgroundDownload = useCallback(async (update: any) => {
-    if (pendingUpdateRef.current) return; // 已下载或下载中
+    // 卫兵必须含「在飞」标志：pendingUpdateRef 只在下载完成时置位，下载中
+    // 它是空的——复检（设置页手动检查/聚焦）会再起第二条下载，两条流交错
+    // 写 progress 表现为进度条跳变/多进度（v2.10.3 实测并发下载）
+    if (pendingUpdateRef.current || downloadInFlightRef.current) return;
+    downloadInFlightRef.current = true;
     setState((prev) =>
       prev.available ? { ...prev, downloading: true, error: null } : prev,
     );
@@ -308,6 +325,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         }
       });
       pendingUpdateRef.current = { install: () => update.install() };
+      downloadInFlightRef.current = false;
       setState((prev) => ({
         ...prev,
         downloading: false,
@@ -316,13 +334,14 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     } catch {
       // 后台下载失败不弹错：用户点「立即升级」时走前台 downloadAndInstall 兜底
       pendingUpdateRef.current = null;
+      downloadInFlightRef.current = false;
       setState((prev) => ({ ...prev, downloading: false }));
     }
   }, []);
 
-  /** Check via Tauri updater plugin */
+  /** Check via Tauri updater plugin（返回检查是否成功，失败供手动检查提示区分） */
   const checkTauriUpdate = useCallback(
-    async (background = false, manual = false) => {
+    async (background = false, manual = false): Promise<boolean> => {
       try {
         const { check } = await import("@tauri-apps/plugin-updater");
         const update = await check();
@@ -333,15 +352,20 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
             { manual },
           );
           const linuxSource = await ensureLinuxSource();
-          setState({
-            ...INITIAL_STATE,
+          // 复检（手动/聚焦/周期）不能清掉进行中的下载进度或待安装态：
+          // 否则进度条中途消失重来、readyToInstall 错乱
+          const preserve =
+            downloadInFlightRef.current || pendingUpdateRef.current !== null;
+          setState((prev) => ({
+            ...(preserve ? prev : INITIAL_STATE),
             available: true,
             version: update.version,
-            releaseNotes: update.body ?? null,
+            releaseNotes:
+              update.body ?? (preserve ? prev.releaseNotes : null),
             releaseUrl: null,
             releaseAssets: [],
             linuxInstallSource: linuxSourceRef.current,
-          });
+          }));
           if (prompt) {
             setShowDialog(true);
             // 自动下载：发现更新即后台静默下载（不阻塞用户），完成后一键重启安装。
@@ -358,13 +382,17 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         }
       } catch {
         // Silently fail — updater may not be available in dev
+        return false;
       }
+      return true;
     },
     [startBackgroundDownload, ensureLinuxSource],
   );
 
-  /** Check via backend /api/version endpoint（上报客户端版本，has_update 按它判断） */
-  const checkBackendUpdate = useCallback(async (background = false, manual = false) => {
+  /** Check via backend /api/version endpoint（上报客户端版本，has_update 按它判断；
+   * 返回检查是否成功，与 Tauri 路径同供手动检查提示区分） */
+  const checkBackendUpdate = useCallback(
+    async (background = false, manual = false): Promise<boolean> => {
     try {
       const info = await versionApi.checkForUpdates(APP_VERSION);
       if (info.has_update) {
@@ -392,7 +420,9 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       }
     } catch {
       // Silently fail
+      return false;
     }
+    return true;
   }, []);
 
   /** Start the update process */
@@ -440,6 +470,8 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
    */
   const installLinuxPackageUpdate = useCallback(
     async (source: "deb" | "rpm") => {
+      if (downloadInFlightRef.current) return; // 双击/在飞互斥：两次 invoke=两次 pkexec 下载
+      downloadInFlightRef.current = true;
       setState((prev) => ({
         ...prev,
         downloading: true,
@@ -461,6 +493,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         const { relaunch } = await import("@tauri-apps/plugin-process");
         await relaunch();
       } catch (err) {
+        downloadInFlightRef.current = false;
         setState((prev) => ({
           ...prev,
           downloading: false,
@@ -478,6 +511,8 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
 
   /** Install via Tauri updater (download + install + relaunch) */
   const installTauriUpdate = useCallback(async () => {
+    if (downloadInFlightRef.current) return; // 与后台下载/另一前台安装互斥
+    downloadInFlightRef.current = true;
     setState((prev) => ({
       ...prev,
       downloading: true,
@@ -519,6 +554,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       // Download and install complete, relaunch
       await relaunch();
     } catch (err) {
+      downloadInFlightRef.current = false;
       setState((prev) => ({
         ...prev,
         downloading: false,

@@ -3453,6 +3453,7 @@
   },
   "updateDownload": "Update Now",
   "updateDownloadAndInstall": "Download and Install",
+  "updateCheckFailed": "Failed to check for updates, please retry later",
   "updateDownloading": "Downloading...",
   "updateDownloadNetworkError": "Download failed, please check your network and retry",
   "updateError": "Update failed",

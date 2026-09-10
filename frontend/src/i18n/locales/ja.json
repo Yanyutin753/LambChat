@@ -3453,6 +3453,7 @@
   },
   "updateDownload": "今すぐ更新",
   "updateDownloadAndInstall": "ダウンロードしてインストール",
+  "updateCheckFailed": "アップデートの確認に失敗しました。後でもう一度お試しください",
   "updateDownloading": "ダウンロード中...",
   "updateDownloadNetworkError": "ダウンロードに失敗しました。ネットワークを確認して再試行してください",
   "updateError": "更新に失敗しました",

@@ -3453,6 +3453,7 @@
   },
   "updateDownload": "지금 업데이트",
   "updateDownloadAndInstall": "다운로드 후 설치",
+  "updateCheckFailed": "업데이트 확인에 실패했습니다. 잠시 후 다시 시도해 주세요",
   "updateDownloading": "다운로드 중...",
   "updateDownloadNetworkError": "다운로드 실패, 네트워크를 확인한 후 다시 시도하세요",
   "updateError": "업데이트 실패",
