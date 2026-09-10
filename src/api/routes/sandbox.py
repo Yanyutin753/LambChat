@@ -8,7 +8,7 @@ import time
 import uuid
 from typing import Any, AsyncIterator, Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
 
@@ -570,15 +570,20 @@ async def sandbox_machine_forget(
 
 
 @router.get("/status")
-async def sandbox_status(user: TokenPayload = Depends(get_current_user_pat_or_jwt)):
+async def sandbox_status(
+    machine_id: str = Query("", description="指定机器；缺省走默认机解析"),
+    user: TokenPayload = Depends(get_current_user_pat_or_jwt),
+):
     """daemon 在线状态。
 
     legacy 活跃连接优先（带 ``client_id``）；多机 daemon（0.3.0+ 带
     machine_id）不落 legacy hash，在线判定走 :meth:`is_online`（任一机器
-    在线即在线，与机器列表一致），版本/平台/策略取缺省目标机的注册 value
-    （默认机→唯一在线机，与 dispatch 解析同规则；无缺省目标时这些字段为
-    null）。value 可能是 node_id|version|platform|confirm_policy（新
-    daemon）、node_id|version|platform（M4）、node_id|version（M2）或纯
+    在线即在线，与机器列表一致），版本/平台/策略取目标机的注册 value。
+    目标机解析：显式 ``machine_id``（桌面壳已知本机 id 时直查，避免
+    默认机失效+多机在线时 resolve 返回 None、策略恒为 null 的双显不同步）
+    → 默认机 → 唯一在线机，与 dispatch 解析同规则。value 可能是
+    node_id|version|platform|confirm_policy（新 daemon）、
+    node_id|version|platform（M4）、node_id|version（M2）或纯
     node_id（M1 旧格式），解析不出的字段为 null。
     """
     registry = _registry()
@@ -588,7 +593,7 @@ async def sandbox_status(user: TokenPayload = Depends(get_current_user_pat_or_jw
     else:
         if not await registry.is_online(user.sub):
             return {"online": False}
-        target = await registry.resolve_target(user.sub)
+        target = await registry.resolve_target(user.sub, machine_id.strip() or None)
         client_id = None
         value = await registry.machine_value(user.sub, target) if target else ""
     status = {

@@ -1524,3 +1524,47 @@ async def test_upload_stream_client_disconnect_pushes_error_done(monkeypatch):
 
     queued = redis.lists.get("sandbox:resp:c1") or []
     assert queued and "stream_interrupted" in queued[0], f"resp 队列: {queued}"
+
+
+async def test_status_endpoint_explicit_machine_id_survives_stale_default(monkeypatch):
+    """默认机失效 + 多机在线：缺省解析返回 None（策略恒 null），显式
+    machine_id 必须直查目标机——桌面壳已知本机 id，偏好设置才能跟随
+    chat input 的策略切换（双显不同步的深层根因）。"""
+    registry, fake = _real_registry(monkeypatch)
+    await registry.register(
+        "u1",
+        "c1",
+        "n1",
+        version="0.3.0",
+        platform="win32",
+        confirm_policy="none",
+        machine_id="pc1",
+        machine_name="win",
+    )
+    await registry.register(
+        "u1",
+        "c2",
+        "n2",
+        version="0.3.0",
+        platform="linux",
+        confirm_policy="commands",
+        machine_id="pc2",
+        machine_name="laptop",
+    )
+    # 脏默认机：指向一台已不存在的机器（forget/过期残留）
+    fake.kv["sandbox:machdefault:u1"] = "ghost"
+
+    async with _status_client(monkeypatch, registry) as client:
+        # 缺省解析：默认机无效 + 两台在线无法裁决 → 策略为 null（旧行为）
+        resp = await client.get("/api/sandbox/status")
+        assert resp.status_code == 200
+        assert resp.json()["daemon_confirm_policy"] is None
+        # 显式指定本机：直查该机注册值
+        resp2 = await client.get("/api/sandbox/status?machine_id=pc2")
+        assert resp2.status_code == 200
+        assert resp2.json() == {
+            "online": True,
+            "daemon_version": "0.3.0",
+            "daemon_platform": "linux",
+            "daemon_confirm_policy": "commands",
+        }

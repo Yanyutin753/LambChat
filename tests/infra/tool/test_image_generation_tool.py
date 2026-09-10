@@ -201,7 +201,8 @@ async def test_image_generate_calls_images_api_and_uploads_base64_result(
     )
 
     assert result["success"] is True
-    assert set(result.keys()) == {"success", "images"}
+    assert set(result.keys()) == {"success", "model", "images"}
+    assert result["model"] == "gpt-image-2"
     assert result["images"][0] == {
         "url": "https://app.example.com/api/upload/file/generated-images/user-1/generated-20260523_123456-1.png",
         "key": "generated-images/user-1/generated-20260523_123456-1.png",
@@ -1656,9 +1657,8 @@ async def test_search_agent_context_includes_image_generation_tool(
     await ctx.setup()
 
     names = {tool.name for tool in ctx.tools}
-    assert "image_generate" not in names
-    assert ctx.deferred_manager is not None
-    assert ctx.deferred_manager.get_tool("image_generate") is not None
+    # 能力型系统工具默认 inline 直挂（不再藏 tool_search 后面）
+    assert "image_generate" in names
 
 
 @pytest.mark.asyncio
@@ -1681,9 +1681,8 @@ async def test_fast_agent_context_includes_image_generation_tool(
     await ctx.setup()
 
     names = {tool.name for tool in ctx.tools}
-    assert "image_generate" not in names
-    assert ctx.deferred_manager is not None
-    assert ctx.deferred_manager.get_tool("image_generate") is not None
+    # 能力型系统工具默认 inline 直挂（不再藏 tool_search 后面）
+    assert "image_generate" in names
 
 
 # ---------------------------------------------------------------------------

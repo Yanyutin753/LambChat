@@ -46,7 +46,24 @@ function ImageGenerateDetail({
   const size = (args.size as string) || "";
   const quality = (args.quality as string) || "";
   const outputFormat = (args.output_format as string) || "";
-  const model = (args.model as string) || "";
+  // 优先取结果里的 resolved model（多模型清单下才是实际出图模型），
+  // 无结果/流式中回落请求参数
+  const resultModel = useMemo(() => {
+    let parsed: unknown = result;
+    if (typeof result === "string") {
+      try {
+        parsed = JSON.parse(result);
+      } catch {
+        return "";
+      }
+    }
+    if (parsed && typeof parsed === "object") {
+      const m = (parsed as { model?: unknown }).model;
+      if (typeof m === "string" && m) return m;
+    }
+    return "";
+  }, [result]);
+  const model = resultModel || (args.model as string) || "";
   const style = (args.style as string) || "";
 
   const inputImages: string[] = useMemo(() => {

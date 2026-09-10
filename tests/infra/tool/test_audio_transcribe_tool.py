@@ -474,9 +474,8 @@ async def test_search_agent_context_includes_audio_transcribe_tool(
     await ctx.setup()
 
     names = {tool.name for tool in ctx.tools}
-    assert "audio_transcribe" not in names
-    assert ctx.deferred_manager is not None
-    assert ctx.deferred_manager.get_tool("audio_transcribe") is not None
+    # 能力型系统工具默认 inline 直挂（不再藏 tool_search 后面）
+    assert "audio_transcribe" in names
 
 
 @pytest.mark.asyncio
@@ -508,6 +507,5 @@ async def test_fast_agent_context_includes_audio_transcribe_tool(
     await ctx.setup()
 
     names = {tool.name for tool in ctx.tools}
-    assert "audio_transcribe" not in names
-    assert ctx.deferred_manager is not None
-    assert ctx.deferred_manager.get_tool("audio_transcribe") is not None
+    # 能力型系统工具默认 inline 直挂（不再藏 tool_search 后面）
+    assert "audio_transcribe" in names
