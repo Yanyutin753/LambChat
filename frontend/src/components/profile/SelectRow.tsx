@@ -32,10 +32,10 @@ export function SelectRow<T extends string>({
         onClick={onToggle}
         className="flex w-full items-center justify-between py-3 first:pt-0 last:pb-0 text-left"
       >
-        <span className="text-14 text-stone-700 dark:text-stone-200">
+        <span className="text-14 text-theme-text dark:text-stone-200">
           {label}
         </span>
-        <span className="flex items-center gap-1 text-12 text-stone-500 dark:text-stone-400">
+        <span className="flex items-center gap-1 text-12 text-theme-text-secondary dark:text-stone-400">
           {loading ? (
             <SkeletonLine width="w-16" />
           ) : (
@@ -47,7 +47,7 @@ export function SelectRow<T extends string>({
                   : value}
             </span>
           )}
-          <ChevronRight size={14} className="shrink-0 text-stone-400" />
+          <ChevronRight size={14} className="shrink-0 text-theme-text-tertiary" />
         </span>
       </button>
       {open &&
@@ -58,11 +58,11 @@ export function SelectRow<T extends string>({
           >
             <div className="absolute inset-0 bg-black/40" />
             <div
-              className="relative z-10 w-[300px] max-h-[60dvh] rounded-2xl bg-theme-bg-card dark:bg-stone-800 border border-stone-200 dark:border-stone-700 shadow-2xl overflow-hidden animate-scale-in"
+              className="relative z-10 w-[300px] max-h-[60dvh] rounded-2xl bg-theme-bg-card dark:bg-stone-800 border border-theme-border dark:border-stone-700 shadow-2xl overflow-hidden animate-scale-in"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="px-5 pt-4 pb-2">
-                <h4 className="text-14 font-semibold font-serif text-stone-900 dark:text-stone-100">
+                <h4 className="text-14 font-semibold font-serif text-theme-text dark:text-stone-100">
                   {label}
                 </h4>
               </div>
@@ -73,8 +73,8 @@ export function SelectRow<T extends string>({
                     onClick={() => onSelect(opt.key)}
                     className={`w-full text-left px-5 py-2.5 text-14 transition-colors ${
                       value === opt.key
-                        ? "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 font-medium"
-                        : "text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700/50"
+                        ? "bg-theme-accent-light dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 font-medium"
+                        : "text-theme-text dark:text-stone-300 hover:bg-theme-bg-subtle dark:hover:bg-stone-700/50"
                     }`}
                   >
                     <span className="flex items-center justify-between">
@@ -86,10 +86,10 @@ export function SelectRow<T extends string>({
                   </button>
                 ))}
               </div>
-              <div className="border-t border-stone-100 dark:border-stone-700/50 px-5 py-3">
+              <div className="border-t border-theme-border-subtle dark:border-stone-700/50 px-5 py-3">
                 <button
                   onClick={onToggle}
-                  className="w-full text-center text-12 font-medium text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors"
+                  className="w-full text-center text-12 font-medium text-theme-text-secondary dark:text-stone-400 hover:text-theme-text dark:hover:text-stone-200 transition-colors"
                 >
                   {t("common.cancel")}
                 </button>

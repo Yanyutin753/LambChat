@@ -176,6 +176,8 @@
   --theme-accent-hover: linear-gradient(to bottom right, #f59e0b, #ea580c);
   --theme-accent-light: #fffbeb;
   --theme-accent-glow: rgba(251, 191, 36, 0.2);
+  /* 开关旋钮：彩色轨道上的滑块，三主题恒白（dark/sepia 不覆盖） */
+  --theme-toggle-knob: #ffffff;
 
   /* ── Composed Shadows ── */
   --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04);

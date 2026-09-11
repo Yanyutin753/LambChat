@@ -11,6 +11,8 @@ from pathlib import Path
 
 import httpx
 
+from lambchat_sandbox import paths
+
 try:  # keyring 为可选依赖，缺失时静默使用文件后端
     import keyring
 except ImportError:  # pragma: no cover - 是否触发取决于运行环境
@@ -18,8 +20,6 @@ except ImportError:  # pragma: no cover - 是否触发取决于运行环境
 
 KEYRING_SERVICE = "lambchat-sandbox"
 KEYRING_USER = "pat"
-
-PAT_FILE = Path.home() / ".lambchat" / "pat"
 
 
 class AuthError(Exception):
@@ -38,7 +38,7 @@ def store_pat(token: str, path: Path | None = None) -> None:
             return
         except Exception:
             pass  # 静默落文件
-    p = path if path is not None else PAT_FILE
+    p = path if path is not None else paths.pat_file()
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(token, encoding="utf-8")
     os.chmod(p, 0o600)
@@ -53,7 +53,7 @@ def load_pat(path: Path | None = None) -> str | None:
                 return token
         except Exception:
             pass
-    p = path if path is not None else PAT_FILE
+    p = path if path is not None else paths.pat_file()
     try:
         token = p.read_text(encoding="utf-8").strip()
     except FileNotFoundError:
@@ -68,7 +68,7 @@ def clear_pat(path: Path | None = None) -> None:
             keyring.delete_password(KEYRING_SERVICE, KEYRING_USER)
         except Exception:
             pass
-    p = path if path is not None else PAT_FILE
+    p = path if path is not None else paths.pat_file()
     try:
         p.unlink()
     except FileNotFoundError:

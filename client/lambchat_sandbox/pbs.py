@@ -40,6 +40,7 @@ import sys
 import tarfile
 from pathlib import Path
 
+from lambchat_sandbox import paths
 from lambchat_sandbox import platform as plat
 
 #: 锁定的 python-build-standalone release tag（fetch-pbs.py 同源引用）。
@@ -53,12 +54,6 @@ TARBALL_NAME = "python.tar.gz"
 
 #: 幂等标记：install_dir 下存在即视为解压完成，不再重解压。
 EXTRACT_MARKER = ".lambchat-extracted"
-
-#: 默认归档查找目录：~/.lambchat/resources/python/python.tar.gz。
-DEFAULT_RESOURCES_DIR = Path.home() / ".lambchat" / "resources" / "python"
-
-#: 默认解压根：~/.lambchat/python/<tag>/。
-DEFAULT_INSTALL_ROOT = Path.home() / ".lambchat" / "python"
 
 
 def shim_bin_dir(install_root: Path) -> Path:
@@ -150,8 +145,8 @@ def ensure_runtime(
     调用方回退系统 PATH——绝不抛异常阻断 daemon 启动。幂等：已解压（标记
     文件在）则只补 shim。
     """
-    resources = Path(resources_dir) if resources_dir is not None else DEFAULT_RESOURCES_DIR
-    root = Path(install_root) if install_root is not None else DEFAULT_INSTALL_ROOT
+    resources = Path(resources_dir) if resources_dir is not None else paths.resources_dir()
+    root = Path(install_root) if install_root is not None else paths.install_root()
     install_dir = root / PBS_TAG
 
     if not (install_dir / EXTRACT_MARKER).exists():

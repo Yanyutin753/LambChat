@@ -76,7 +76,7 @@ test("online machines show green dot, offline machines greyed with last-seen and
   // 离线机：置灰点 + 离线徽标 + 相对时间
   expect(screen.getByText("Old PC")).toBeInTheDocument();
   const offlineRow = screen.getByText("Old PC").closest("div");
-  expect(offlineRow?.querySelector("span")?.className).toContain("bg-stone-300");
+  expect(offlineRow?.querySelector("span")?.className).toContain("bg-theme-border-hover");
   expect(screen.getByText(/offline/i)).toBeInTheDocument();
   expect(screen.getByTestId("last-seen-pc1").textContent).toMatch(/1h|h/);
 

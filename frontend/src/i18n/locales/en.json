@@ -2209,6 +2209,7 @@
       },
       "openWorkspaces": "Open workspaces",
       "openAudit": "Open audit log",
+      "openLogs": "Open logs",
       "restartDaemon": "Restart daemon",
       "needDesktop": "Local sandbox is offline. Pair it with the LambChat desktop app to use it on the web.",
       "webManaged": "Managed by the paired desktop app",

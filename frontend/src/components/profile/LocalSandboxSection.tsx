@@ -109,7 +109,11 @@ export function LocalSandboxSection({
     let cancelled = false;
     void subscribeDaemonStatus((event) => {
       setProcessStatus(
-        event.unsupported ? "unsupported" : event.running ? "running" : "stopped",
+        event.unsupported
+          ? "unsupported"
+          : event.running
+            ? "running"
+            : "stopped",
       );
     }).then((cancel) => {
       if (cancelled && cancel) {
@@ -117,7 +121,10 @@ export function LocalSandboxSection({
         return;
       }
       if (!cancel) {
-        fallbackTimer = setInterval(refreshProcessStatus, PROCESS_POLL_INTERVAL_MS);
+        fallbackTimer = setInterval(
+          refreshProcessStatus,
+          PROCESS_POLL_INTERVAL_MS,
+        );
       }
       cancelSubscription = cancel;
     });
@@ -211,20 +218,20 @@ export function LocalSandboxSection({
       <div className="flex items-center gap-1.5">
         <Monitor
           size={13}
-          className="text-stone-400 dark:text-stone-500 shrink-0"
+          className="text-theme-text-tertiary dark:text-stone-500 shrink-0"
         />
-        <span className="font-medium font-serif text-14 text-stone-900 dark:text-stone-100">
+        <span className="font-medium font-serif text-14 text-theme-text dark:text-stone-100">
           {t("profile.localSandbox.title")}
         </span>
       </div>
-      <p className="text-12 text-stone-500 dark:text-stone-400 mt-1 leading-relaxed">
+      <p className="text-12 text-theme-text-secondary dark:text-stone-400 mt-1 leading-relaxed">
         {t("profile.localSandbox.desc")}
       </p>
     </>
   ) : (
     <div className="flex items-center gap-2 mb-3">
       <Monitor size={13} className="text-amber-500 dark:text-amber-400" />
-      <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-stone-400 dark:text-stone-500">
+      <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-theme-text-tertiary dark:text-stone-500">
         {t("profile.localSandbox.title")}
       </h3>
     </div>
@@ -243,21 +250,21 @@ export function LocalSandboxSection({
           ) : online ? (
             <>
               <div className="flex w-full items-center justify-between gap-2 py-3 first:pt-2 last:pb-0 text-left">
-                <span className="flex min-w-0 items-center gap-2 text-14 text-stone-700 dark:text-stone-200">
+                <span className="flex min-w-0 items-center gap-2 text-14 text-theme-text dark:text-stone-200">
                   <span
                     className="h-2 w-2 rounded-full shrink-0 bg-green-500"
                     data-sandbox-online={online}
                   />
                   {t("profile.localSandbox.statusOnline")}
                   {status?.daemon_version && (
-                    <span className="truncate text-12 text-stone-500 dark:text-stone-400">
+                    <span className="truncate text-12 text-theme-text-secondary dark:text-stone-400">
                       {t("profile.localSandbox.version", {
                         version: status.daemon_version,
                       })}
                     </span>
                   )}
                 </span>
-                <span className="shrink-0 text-12 text-stone-500 dark:text-stone-400">
+                <span className="shrink-0 text-12 text-theme-text-secondary dark:text-stone-400">
                   {t("profile.localSandbox.webManaged")}
                 </span>
               </div>
@@ -266,7 +273,7 @@ export function LocalSandboxSection({
             </>
           ) : (
             <div className="space-y-2">
-              <p className="text-12 text-stone-500 dark:text-stone-400">
+              <p className="text-12 text-theme-text-secondary dark:text-stone-400">
                 {t("profile.localSandbox.needDesktop")}
               </p>
               {/* 离线引导：跳站内下载页（桌面端/daemon 安装包 + 配对教程） */}
@@ -286,13 +293,13 @@ export function LocalSandboxSection({
     );
     if (embedded) {
       return (
-        <div className="mt-3 border-t border-stone-200/70 dark:border-stone-600/50 pt-3.5">
+        <div className="mt-3 border-t border-theme-border dark:border-stone-600/50 pt-3.5">
           {webBody}
         </div>
       );
     }
     return (
-      <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
+      <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-theme-border dark:border-stone-600/40">
         {webBody}
       </div>
     );
@@ -432,7 +439,9 @@ export function LocalSandboxSection({
     }
   };
 
-  const handleOpenLocalPath = (logicalName: "workspaces" | "audit") => {
+  const handleOpenLocalPath = (
+    logicalName: "workspaces" | "audit" | "logs",
+  ) => {
     openLocalPath(logicalName).catch((err) => {
       console.warn("[LocalSandboxSection] open path failed:", err);
       toast.error(t("common.operationFailed"));
@@ -449,10 +458,10 @@ export function LocalSandboxSection({
           <SkeletonLine width="w-full" />
         ) : (
           <div className="flex w-full items-center justify-between gap-2 py-3 first:pt-2 last:pb-0 text-left">
-            <span className="flex min-w-0 items-center gap-2 text-14 text-stone-700 dark:text-stone-200">
+            <span className="flex min-w-0 items-center gap-2 text-14 text-theme-text dark:text-stone-200">
               <span
                 className={`h-2 w-2 rounded-full shrink-0 ${
-                  online ? "bg-green-500" : "bg-stone-400 dark:bg-stone-500"
+                  online ? "bg-green-500" : "bg-theme-text-tertiary dark:bg-stone-500"
                 }`}
                 data-sandbox-online={online}
               />
@@ -460,7 +469,7 @@ export function LocalSandboxSection({
                 ? t("profile.localSandbox.statusOnline")
                 : t("profile.localSandbox.statusOffline")}
               {status?.daemon_version && (
-                <span className="truncate text-12 text-stone-500 dark:text-stone-400">
+                <span className="truncate text-12 text-theme-text-secondary dark:text-stone-400">
                   {t("profile.localSandbox.version", {
                     version: status.daemon_version,
                   })}
@@ -471,7 +480,7 @@ export function LocalSandboxSection({
               className={`shrink-0 rounded-full px-2 py-0.5 text-10 font-medium ${
                 processStatus === "running"
                   ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                  : "bg-stone-500/10 dark:bg-stone-500/20 text-stone-500 dark:text-stone-400"
+                  : "bg-stone-500/10 dark:bg-stone-500/20 text-theme-text-secondary dark:text-stone-400"
               }`}
             >
               {processStatus === "running"
@@ -483,7 +492,7 @@ export function LocalSandboxSection({
 
         {unpaired ? (
           <form onSubmit={handlePair} className="space-y-2 pt-2">
-            <p className="text-12 text-stone-500 dark:text-stone-400">
+            <p className="text-12 text-theme-text-secondary dark:text-stone-400">
               {t("profile.localSandbox.pairTitle")}
             </p>
             {/* 一键配对：当前登录账号铸 PAT（OAuth 账号唯一可用的手动路径） */}
@@ -498,7 +507,7 @@ export function LocalSandboxSection({
                 ? t("common.loading")
                 : t("profile.localSandbox.pairWithCurrent")}
             </button>
-            <p className="pt-1 text-12 text-stone-400 dark:text-stone-500">
+            <p className="pt-1 text-12 text-theme-text-tertiary dark:text-stone-500">
               {t("profile.localSandbox.pairOtherAccount")}
             </p>
             <input
@@ -507,7 +516,7 @@ export function LocalSandboxSection({
               placeholder={t("auth.usernamePlaceholder")}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full rounded-xl border border-stone-200 dark:border-stone-600 bg-theme-bg-card dark:bg-stone-800 px-3 py-2 text-14 text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-1 focus:ring-amber-400"
+              className="w-full rounded-xl border border-theme-border dark:border-stone-600 bg-theme-bg-card dark:bg-stone-800 px-3 py-2 text-14 text-theme-text dark:text-stone-100 focus:outline-none focus:ring-1 focus:ring-amber-400"
             />
             <input
               type="password"
@@ -515,12 +524,12 @@ export function LocalSandboxSection({
               placeholder={t("auth.passwordPlaceholder")}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-xl border border-stone-200 dark:border-stone-600 bg-theme-bg-card dark:bg-stone-800 px-3 py-2 text-14 text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-1 focus:ring-amber-400"
+              className="w-full rounded-xl border border-theme-border dark:border-stone-600 bg-theme-bg-card dark:bg-stone-800 px-3 py-2 text-14 text-theme-text dark:text-stone-100 focus:outline-none focus:ring-1 focus:ring-amber-400"
             />
             <button
               type="submit"
               disabled={pairing || !username.trim() || !password}
-              className="w-full rounded-xl border border-stone-200/80 dark:border-stone-500/70 disabled:opacity-50 px-3 py-2 text-14 font-medium text-stone-600 dark:text-stone-300 transition-colors hover:border-stone-300 dark:hover:border-stone-400/70 hover:bg-white dark:hover:bg-stone-800/70"
+              className="w-full rounded-xl border border-theme-border dark:border-stone-500/70 disabled:opacity-50 px-3 py-2 text-14 font-medium text-theme-text-secondary dark:text-stone-300 transition-colors hover:border-theme-border-hover dark:hover:border-stone-400/70 hover:bg-theme-bg-card dark:hover:bg-stone-800/70"
             >
               {pairing
                 ? t("common.loading")
@@ -540,12 +549,12 @@ export function LocalSandboxSection({
               loading={applying}
             />
 
-            {/* 快捷操作：等宽三列，居中对齐（destructive 操作单独降级到下一行） */}
-            <div className="grid grid-cols-3 gap-2">
+            {/* 快捷操作：等宽四列，居中对齐（destructive 操作单独降级到下一行） */}
+            <div className="grid grid-cols-4 gap-2">
               <button
                 type="button"
                 onClick={() => handleOpenLocalPath("workspaces")}
-                className="flex items-center justify-center gap-1.5 rounded-xl border border-stone-200/80 dark:border-stone-500/70 px-2 py-2 text-12 font-medium text-stone-600 dark:text-stone-300 transition-colors hover:border-stone-300 dark:hover:border-stone-400/70 hover:bg-white dark:hover:bg-stone-800/70"
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-theme-border dark:border-stone-500/70 px-2 py-2 text-12 font-medium text-theme-text-secondary dark:text-stone-300 transition-colors hover:border-theme-border-hover dark:hover:border-stone-400/70 hover:bg-theme-bg-card dark:hover:bg-stone-800/70"
               >
                 <FolderOpen size={12} className="shrink-0 opacity-60" />
                 <span className="truncate">
@@ -555,7 +564,7 @@ export function LocalSandboxSection({
               <button
                 type="button"
                 onClick={() => handleOpenLocalPath("audit")}
-                className="flex items-center justify-center gap-1.5 rounded-xl border border-stone-200/80 dark:border-stone-500/70 px-2 py-2 text-12 font-medium text-stone-600 dark:text-stone-300 transition-colors hover:border-stone-300 dark:hover:border-stone-400/70 hover:bg-white dark:hover:bg-stone-800/70"
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-theme-border dark:border-stone-500/70 px-2 py-2 text-12 font-medium text-theme-text-secondary dark:text-stone-300 transition-colors hover:border-theme-border-hover dark:hover:border-stone-400/70 hover:bg-theme-bg-card dark:hover:bg-stone-800/70"
               >
                 <FolderOpen size={12} className="shrink-0 opacity-60" />
                 <span className="truncate">
@@ -564,8 +573,18 @@ export function LocalSandboxSection({
               </button>
               <button
                 type="button"
+                onClick={() => handleOpenLocalPath("logs")}
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-theme-border dark:border-stone-500/70 px-2 py-2 text-12 font-medium text-theme-text-secondary dark:text-stone-300 transition-colors hover:border-theme-border-hover dark:hover:border-stone-400/70 hover:bg-theme-bg-card dark:hover:bg-stone-800/70"
+              >
+                <FolderOpen size={12} className="shrink-0 opacity-60" />
+                <span className="truncate">
+                  {t("profile.localSandbox.openLogs")}
+                </span>
+              </button>
+              <button
+                type="button"
                 onClick={handleRestart}
-                className="flex items-center justify-center gap-1.5 rounded-xl border border-stone-200/80 dark:border-stone-500/70 px-2 py-2 text-12 font-medium text-stone-600 dark:text-stone-300 transition-colors hover:border-stone-300 dark:hover:border-stone-400/70 hover:bg-white dark:hover:bg-stone-800/70"
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-theme-border dark:border-stone-500/70 px-2 py-2 text-12 font-medium text-theme-text-secondary dark:text-stone-300 transition-colors hover:border-theme-border-hover dark:hover:border-stone-400/70 hover:bg-theme-bg-card dark:hover:bg-stone-800/70"
               >
                 <RotateCw size={12} className="shrink-0 opacity-60" />
                 <span className="truncate">
@@ -581,7 +600,7 @@ export function LocalSandboxSection({
                 type="button"
                 onClick={handleUnpair}
                 disabled={unpairing}
-                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-12 text-stone-400 dark:text-stone-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-12 text-theme-text-tertiary dark:text-stone-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
               >
                 <Link2Off size={12} />
                 {unpairing
@@ -600,13 +619,13 @@ export function LocalSandboxSection({
 
   if (embedded) {
     return (
-      <div className="mt-3 border-t border-stone-200/70 dark:border-stone-600/50 pt-3.5">
+      <div className="mt-3 border-t border-theme-border dark:border-stone-600/50 pt-3.5">
         {body}
       </div>
     );
   }
   return (
-    <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
+    <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-theme-border dark:border-stone-600/40">
       {body}
     </div>
   );

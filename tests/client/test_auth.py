@@ -9,15 +9,16 @@ import pytest
 import lambchat_sandbox.auth as auth
 import lambchat_sandbox.cli as cli
 import lambchat_sandbox.config as config_mod
+from lambchat_sandbox import paths
 from lambchat_sandbox.auth import AuthError, clear_pat, load_pat, pair, store_pat
 from lambchat_sandbox.cli import main
 
 
 @pytest.fixture(autouse=True)
 def _isolate_pat_store(monkeypatch, tmp_path):
-    """默认强制文件后端 + tmp 路径，不触碰真实 keyring 与 ~/.lambchat。"""
+    """默认强制文件后端 + tmp 根（LAMBCHAT_HOME 注入），不触碰真实 keyring 与 ~/.lambchat。"""
     monkeypatch.setattr(auth, "keyring", None)
-    monkeypatch.setattr(auth, "PAT_FILE", tmp_path / "pat")
+    monkeypatch.setenv(paths.HOME_ENV, str(tmp_path))
     monkeypatch.setattr(config_mod, "config_path", lambda: tmp_path / "sandbox.json")
 
 
@@ -104,20 +105,21 @@ def test_clear_missing_pat_is_noop(tmp_path):
     clear_pat(path=tmp_path / "pat")  # 不应抛异常
 
 
-def test_store_prefers_keyring_when_available(monkeypatch):
+def test_store_prefers_keyring_when_available(monkeypatch, tmp_path):
     fake = FakeKeyring()
     monkeypatch.setattr(auth, "keyring", fake)
     store_pat("token-4")
     assert fake.store == {(auth.KEYRING_SERVICE, auth.KEYRING_USER): "token-4"}
-    assert not auth.PAT_FILE.exists()  # keyring 成功时不落文件
+    assert not (tmp_path / "pat").exists()  # keyring 成功时不落文件
     assert load_pat() == "token-4"
 
 
-def test_keyring_failure_falls_back_to_file(monkeypatch):
+def test_keyring_failure_falls_back_to_file(monkeypatch, tmp_path):
     monkeypatch.setattr(auth, "keyring", FakeKeyring(fail=True))
     store_pat("token-5")
-    assert auth.PAT_FILE.read_text(encoding="utf-8") == "token-5"
-    assert stat.S_IMODE(auth.PAT_FILE.stat().st_mode) == 0o600
+    pat_file = tmp_path / "pat"
+    assert pat_file.read_text(encoding="utf-8") == "token-5"
+    assert stat.S_IMODE(pat_file.stat().st_mode) == 0o600
     assert load_pat() == "token-5"  # keyring 读失败回退文件
 
 

@@ -6,8 +6,10 @@ import json
 import os
 import tempfile
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+
+from lambchat_sandbox import paths
 
 _VALID_CONFIRM_POLICIES = frozenset({"all", "commands", "none"})
 
@@ -19,7 +21,8 @@ class ConfigError(Exception):
 @dataclass
 class SandboxConfig:
     server_url: str = "http://127.0.0.1:8000"
-    data_root: Path = Path.home() / ".lambchat" / "workspaces"
+    # 调用时解析（default_factory）：LAMBCHAT_HOME 设定即生效，见 paths 模块。
+    data_root: Path = field(default_factory=paths.workspaces_root)
     confirm_policy: str = "all"  # all | commands | none
     embedded_python: bool = True  # 内嵌 PBS 运行时（false 走系统 PATH）
     # 壳侧配对回执（Rust save_pairing 落盘）：daemon 目前只回读不使用，
@@ -38,8 +41,8 @@ def new_machine_id() -> str:
 
 
 def config_path() -> Path:
-    """默认配置文件路径：~/.lambchat/sandbox.json"""
-    return Path.home() / ".lambchat" / "sandbox.json"
+    """默认配置文件路径：LAMBCHAT_HOME 优先，缺省 ~/.lambchat/sandbox.json"""
+    return paths.config_file()
 
 
 def load_config(path: Path | None = None) -> SandboxConfig:
@@ -78,7 +81,7 @@ def load_config(path: Path | None = None) -> SandboxConfig:
 
     cfg = SandboxConfig(
         server_url=str(raw.get("server_url", SandboxConfig.server_url)),
-        data_root=Path(str(raw.get("data_root", SandboxConfig.data_root))),
+        data_root=Path(str(raw.get("data_root", paths.workspaces_root()))),
         confirm_policy=str(raw.get("confirm_policy", SandboxConfig.confirm_policy)),
         embedded_python=raw_embedded,
         pat_id=raw_pat_id,

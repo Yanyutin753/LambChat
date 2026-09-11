@@ -123,8 +123,8 @@ export async function daemonProcessStatus(): Promise<string> {
 }
 
 /**
- * 打开本地目录（仅限 ~/.lambchat/workspaces 与 ~/.lambchat/audit，
- * Rust 侧做白名单校验）。
+ * 打开本地目录（仅限 ~/.lambchat/workspaces、~/.lambchat/audit 与
+ * ~/.lambchat/logs，Rust 侧做白名单校验）。
  */
 export function openLocalPath(path: string): Promise<void> {
   return invokeInShell("open_local_path", { path }).then(() => undefined);

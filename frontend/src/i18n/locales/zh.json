@@ -2209,6 +2209,7 @@
       },
       "openWorkspaces": "打开工作区目录",
       "openAudit": "打开审计目录",
+      "openLogs": "打开日志目录",
       "restartDaemon": "重启 daemon",
       "needDesktop": "本地沙箱当前离线：用 LambChat 桌面端配对连接后，即可在网页端选用本地沙箱。",
       "webManaged": "由已配对的桌面端管理",

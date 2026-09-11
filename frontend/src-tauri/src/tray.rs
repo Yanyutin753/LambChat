@@ -1,4 +1,4 @@
-//! 系统托盘：显示主窗口 / 打开工作区目录 / 打开审计目录 / 退出。
+//! 系统托盘：显示主窗口 / 打开工作区目录 / 打开审计目录 / 打开日志目录 / 退出。
 //!
 //! 菜单文案按系统 locale 本地化（M4 T8）：en / zh / ja / ko / ru 五张表，
 //! 无法识别或未覆盖的语言缺省英文。构建失败（如 Linux 缺 appindicator
@@ -15,6 +15,7 @@ struct TrayLabels {
     show: &'static str,
     workspaces: &'static str,
     audit: &'static str,
+    logs: &'static str,
     quit: &'static str,
 }
 
@@ -22,6 +23,7 @@ const LABELS_EN: TrayLabels = TrayLabels {
     show: "Show Main Window",
     workspaces: "Open Workspaces Folder",
     audit: "Open Audit Folder",
+    logs: "Open Logs Folder",
     quit: "Quit",
 };
 
@@ -29,6 +31,7 @@ const LABELS_ZH: TrayLabels = TrayLabels {
     show: "显示主窗口",
     workspaces: "打开工作区目录",
     audit: "打开审计目录",
+    logs: "打开日志目录",
     quit: "退出",
 };
 
@@ -36,6 +39,7 @@ const LABELS_JA: TrayLabels = TrayLabels {
     show: "メインウィンドウを表示",
     workspaces: "ワークスペースフォルダを開く",
     audit: "監査フォルダを開く",
+    logs: "ログフォルダを開く",
     quit: "終了",
 };
 
@@ -43,6 +47,7 @@ const LABELS_KO: TrayLabels = TrayLabels {
     show: "메인 창 표시",
     workspaces: "워크스페이스 폴더 열기",
     audit: "감사 폴더 열기",
+    logs: "로그 폴더 열기",
     quit: "종료",
 };
 
@@ -50,6 +55,7 @@ const LABELS_RU: TrayLabels = TrayLabels {
     show: "Показать главное окно",
     workspaces: "Открыть папку рабочих областей",
     audit: "Открыть папку аудита",
+    logs: "Открыть папку журналов",
     quit: "Выход",
 };
 
@@ -88,8 +94,9 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         None::<&str>,
     )?;
     let audit = MenuItem::with_id(app, "open-audit", labels.audit, true, None::<&str>)?;
+    let logs = MenuItem::with_id(app, "open-logs", labels.logs, true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", labels.quit, true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &workspaces, &audit, &quit])?;
+    let menu = Menu::with_items(app, &[&show, &workspaces, &audit, &logs, &quit])?;
 
     let mut builder = TrayIconBuilder::with_id("lambchat-tray")
         .tooltip("LambChat")
@@ -100,6 +107,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             "show" => show_main_window(app),
             "open-workspaces" => open_sandbox_dir(app, "workspaces"),
             "open-audit" => open_sandbox_dir(app, "audit"),
+            "open-logs" => open_sandbox_dir(app, "logs"),
             "quit" => {
                 daemon::stop(app);
                 app.exit(0);
@@ -161,6 +169,7 @@ mod tests {
             labels_for_locale(Some("zh_CN.utf8")).workspaces,
             "打开工作区目录"
         );
+        assert_eq!(labels_for_locale(Some("zh-CN")).logs, "打开日志目录");
         assert_eq!(
             labels_for_locale(Some("ja_JP")).show,
             "メインウィンドウを表示"
@@ -170,6 +179,10 @@ mod tests {
             labels_for_locale(Some("ru_RU")).audit,
             "Открыть папку аудита"
         );
+        assert_eq!(
+            labels_for_locale(Some("ru_RU")).logs,
+            "Открыть папку журналов"
+        );
     }
 
     /// 缺省与未覆盖语言回落英文表。
@@ -177,6 +190,7 @@ mod tests {
     fn unknown_or_missing_locale_falls_back_to_english() {
         let en = labels_for_locale(None);
         assert_eq!(en.show, "Show Main Window");
+        assert_eq!(en.logs, "Open Logs Folder");
         assert_eq!(labels_for_locale(Some("fr-FR")).quit, "Quit");
         assert_eq!(
             labels_for_locale(Some("")).workspaces,

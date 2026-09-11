@@ -27,7 +27,7 @@ import tarfile
 from collections.abc import Collection
 from pathlib import Path
 
-from lambchat_sandbox import pbs
+from lambchat_sandbox import paths, pbs
 from lambchat_sandbox import platform as plat
 
 _FAKE_PY = '#!/bin/sh\necho "argv0=$0"\n'
@@ -235,12 +235,13 @@ def test_ensure_runtime_tarball_without_interpreter_returns_none(tmp_path, capsy
     assert "python3" in capsys.readouterr().err or "python.exe" in capsys.readouterr().err
 
 
-def test_default_paths_under_lambchat_home():
+def test_default_paths_under_lambchat_home(monkeypatch):
     """默认 resources / install_root / shim 目录的 ~/.lambchat 约定锁死。"""
-    assert pbs.DEFAULT_RESOURCES_DIR == Path.home() / ".lambchat" / "resources" / "python"
-    assert pbs.DEFAULT_INSTALL_ROOT == Path.home() / ".lambchat" / "python"
+    monkeypatch.delenv(paths.HOME_ENV, raising=False)
+    assert paths.resources_dir() == Path.home() / ".lambchat" / "resources" / "python"
+    assert paths.install_root() == Path.home() / ".lambchat" / "python"
     # shim 目录由 install_root 推导：~/.lambchat/python → ~/.lambchat/bin
-    assert pbs.shim_bin_dir(pbs.DEFAULT_INSTALL_ROOT) == Path.home() / ".lambchat" / "bin"
+    assert pbs.shim_bin_dir(paths.install_root()) == Path.home() / ".lambchat" / "bin"
 
 
 def test_extract_marker_name_is_dotted():

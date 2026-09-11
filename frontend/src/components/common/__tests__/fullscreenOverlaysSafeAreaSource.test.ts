@@ -178,7 +178,7 @@ const bottomSheetSurfaceExpectations: OverlayExpectation[] = [
   {
     name: "ProfileModal mobile sheet carries the bottom inset itself",
     path: "../../profile/ProfileModal.tsx",
-    pattern: /sm:hidden relative z-10 w-full bg-white[^"]*safe-area-bottom/,
+    pattern: /sm:hidden relative z-10 w-full bg-theme-bg-card[^"]*safe-area-bottom/,
   },
   {
     name: "SessionPreviewDialog sheet carries the bottom inset itself",

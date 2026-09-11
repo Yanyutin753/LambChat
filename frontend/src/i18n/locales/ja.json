@@ -2209,6 +2209,7 @@
       },
       "openWorkspaces": "ワークスペースを開く",
       "openAudit": "監査フォルダを開く",
+      "openLogs": "ログフォルダを開く",
       "restartDaemon": "daemon を再起動",
       "needDesktop": "ローカルサンドボックスは現在オフラインです。LambChat デスクトップアプリでペアリングすると、ウェブでも利用できます。",
       "webManaged": "ペアリング済みデスクトップアプリで管理",

@@ -40,7 +40,7 @@ from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 
-from lambchat_sandbox import pbs
+from lambchat_sandbox import paths, pbs
 from lambchat_sandbox.audit import Auditor
 from lambchat_sandbox.config import SandboxConfig
 from lambchat_sandbox.executor import Executor, ExecutorError
@@ -59,7 +59,6 @@ from lambchat_sandbox.transport import (
     backoff_delay,
 )
 
-DEFAULT_AUDIT_ROOT = Path.home() / ".lambchat" / "audit"
 DEFAULT_EXEC_TIMEOUT_S = 60.0  # 帧缺失/非正 timeout 的兜底，避免 communicate(timeout=0) 立即超时
 DAEMON_AUDIT_SESSION = "daemon"  # shutdown 等进程级事件的审计会话（过 Auditor 白名单）
 
@@ -137,7 +136,7 @@ async def run_daemon(
         if executor is not None
         else Executor(cfg.data_root, extra_path=_ensure_runtime_bin(cfg))
     )
-    auditor_ = auditor if auditor is not None else Auditor(DEFAULT_AUDIT_ROOT)
+    auditor_ = auditor if auditor is not None else Auditor(paths.audit_root())
     installed = _install_sigterm_cancel()
 
     client: ChannelClient | None = None

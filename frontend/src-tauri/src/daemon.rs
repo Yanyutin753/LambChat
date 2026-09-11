@@ -520,12 +520,21 @@ fn handle_exit(app: &AppHandle, generation: u64) {
 // invoke 命令（配对 / 配置 / 启停 / 开目录）
 // ---------------------------------------------------------------------------
 
-/// daemon 数据根 `~/.lambchat`（lib.rs 的 PBS 归档落位也复用）。
+/// daemon 数据根：`LAMBCHAT_HOME` 优先，缺省 `~/.lambchat`（lib.rs 的 PBS
+/// 归档落位与 append_desktop_log 均复用）。
 ///
-/// `$HOME` 优先（unix / git-bash dev）；Windows 常规进程无 `HOME`，回退
-/// `%USERPROFILE%`——与 daemon 侧 Python `Path.home()` 的 Windows 语义一致
-/// （M4 T9：恢复 Windows 打包矩阵的前置，两进程必须解析到同一目录）。
+/// `LAMBCHAT_HOME`（非空白）即数据根本身，两侧（Python `paths.home_root()`）
+/// 读同一个变量——迁移沙箱根时两进程解析到同一目录；未设时：`$HOME` 优先
+/// （unix / git-bash dev），Windows 常规进程无 `HOME` 回退 `%USERPROFILE%`，
+/// 与 daemon 侧 Python `Path.home()` 的 Windows 语义一致（M4 T9：恢复
+/// Windows 打包矩阵的前置，两进程必须解析到同一目录）。
+/// daemon 由壳 spawn 继承环境：用户级环境变量改动需重启壳生效。
 pub(crate) fn sandbox_home() -> Result<PathBuf, String> {
+    if let Some(custom) = std::env::var_os("LAMBCHAT_HOME") {
+        if !custom.to_string_lossy().trim().is_empty() {
+            return Ok(PathBuf::from(custom));
+        }
+    }
     std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map(|home| PathBuf::from(home).join(".lambchat"))
@@ -858,9 +867,10 @@ fn normalize_lexically(path: &Path) -> PathBuf {
 
 /// 解析可打开的本地路径。
 ///
-/// 白名单：`~/.lambchat/workspaces` 与 `~/.lambchat/audit` 之下（含目录本身）。
+/// 白名单：`~/.lambchat/workspaces`、`~/.lambchat/audit` 与 `~/.lambchat/logs`
+/// 之下（含目录本身）。
 /// 接受两种输入：
-/// - 逻辑名 `"workspaces"` / `"audit"`（托盘与设置页按钮使用）；
+/// - 逻辑名 `"workspaces"` / `"audit"` / `"logs"`（托盘与设置页按钮使用）；
 /// - 绝对路径。
 ///
 /// 校验顺序（防符号链接逃逸的关键）：
@@ -873,10 +883,14 @@ fn normalize_lexically(path: &Path) -> PathBuf {
 pub(crate) fn resolve_openable_path(raw: &str) -> Result<PathBuf, String> {
     let home = sandbox_home()?;
     let expanded = match raw {
-        "workspaces" | "audit" => home.join(raw),
+        "workspaces" | "audit" | "logs" => home.join(raw),
         _ => PathBuf::from(raw),
     };
-    let bases = [home.join("workspaces"), home.join("audit")];
+    let bases = [
+        home.join("workspaces"),
+        home.join("audit"),
+        home.join("logs"),
+    ];
 
     if let Ok(canonical_target) = std::fs::canonicalize(&expanded) {
         for base in &bases {
@@ -887,7 +901,7 @@ pub(crate) fn resolve_openable_path(raw: &str) -> Result<PathBuf, String> {
             }
         }
         return Err(format!(
-            "path must be inside ~/.lambchat/workspaces or ~/.lambchat/audit, got: {raw}"
+            "path must be inside ~/.lambchat/workspaces, ~/.lambchat/audit or ~/.lambchat/logs, got: {raw}"
         ));
     }
 
@@ -898,7 +912,7 @@ pub(crate) fn resolve_openable_path(raw: &str) -> Result<PathBuf, String> {
     }
 
     Err(format!(
-        "path must be inside ~/.lambchat/workspaces or ~/.lambchat/audit, got: {raw}"
+        "path must be inside ~/.lambchat/workspaces, ~/.lambchat/audit or ~/.lambchat/logs, got: {raw}"
     ))
 }
 
@@ -1232,6 +1246,7 @@ mod tests {
         let sandbox = home.join(".lambchat");
         std::fs::create_dir_all(sandbox.join("workspaces")).unwrap();
         std::fs::create_dir_all(sandbox.join("audit")).unwrap();
+        std::fs::create_dir_all(sandbox.join("logs")).unwrap();
         std::fs::write(sandbox.join("workspaces").join("note.txt"), "x").unwrap();
         // 白名单内的符号链接指向敏感路径——逃逸载体。
         std::os::unix::fs::symlink("/etc/passwd", sandbox.join("workspaces").join("evil")).unwrap();
@@ -1242,6 +1257,8 @@ mod tests {
         // 白名单内的真实路径放行（canonicalize 后前缀校验通过）。
         assert!(resolve_openable_path("workspaces").is_ok());
         assert!(resolve_openable_path("audit").is_ok());
+        // logs（desktop.log 所在目录）同属白名单。
+        assert!(resolve_openable_path("logs").is_ok());
         assert!(resolve_openable_path(&sandbox.join("audit").to_string_lossy()).is_ok());
         assert!(
             resolve_openable_path(&sandbox.join("workspaces/note.txt").to_string_lossy()).is_ok()
@@ -1259,6 +1276,16 @@ mod tests {
         assert!(resolve_openable_path(&sandbox.join("workspaces-evil").to_string_lossy()).is_err());
         // 白名单外绝对路径拒绝。
         assert!(resolve_openable_path("/etc/passwd").is_err());
+
+        // LAMBCHAT_HOME 优先于 HOME/USERPROFILE（沙箱根可迁移；与 Python
+        // paths.home_root() 同语义）。仍在 HOME 已设的本测试函数内断言——
+        // env 竞争纪律：本模块所有 env 断言集中在此串行函数。
+        std::env::set_var("LAMBCHAT_HOME", tmp.join("custom-root"));
+        assert_eq!(sandbox_home().unwrap(), tmp.join("custom-root"));
+        // 空白值视同未设：回落 HOME 下的 .lambchat（此刻 HOME 仍指向 tmp/home）。
+        std::env::set_var("LAMBCHAT_HOME", "   ");
+        assert_eq!(sandbox_home().unwrap(), home.join(".lambchat"));
+        std::env::remove_var("LAMBCHAT_HOME");
 
         match original_home {
             Some(h) => std::env::set_var("HOME", h),

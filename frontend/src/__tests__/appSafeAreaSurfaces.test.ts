@@ -178,7 +178,7 @@ test("profile mobile sheet relies on the portal viewport safe area only", () => 
     /className="safe-area-viewport-padding-top fixed inset-0 z-\[300\] flex items-end/,
   );
   expect(profileModal).toMatch(
-    /sm:hidden relative z-10 w-full bg-white[^"]*safe-area-bottom/,
+    /sm:hidden relative z-10 w-full bg-theme-bg-card[^"]*safe-area-bottom/,
   );
   expect(profileModal).not.toMatch(
     /renderFooter\(\s*"[^"]*\bsafe-area-bottom\b/,

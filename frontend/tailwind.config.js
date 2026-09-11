@@ -69,6 +69,7 @@ export default {
           primary: "var(--theme-primary)",
           "primary-hover": "var(--theme-primary-hover)",
           "primary-light": "var(--theme-primary-light)",
+          "toggle-knob": "var(--theme-toggle-knob)",
         },
       },
     },

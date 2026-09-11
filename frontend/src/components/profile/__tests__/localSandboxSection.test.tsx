@@ -274,10 +274,12 @@ test("paired view opens whitelisted local folders via logical names", async () =
   await screen.findByText("Online");
   fireEvent.click(screen.getByRole("button", { name: /open workspaces/i }));
   fireEvent.click(screen.getByRole("button", { name: /open audit/i }));
+  fireEvent.click(screen.getByRole("button", { name: /open logs/i }));
 
-  await waitFor(() => expect(mocks.openLocalPath).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(mocks.openLocalPath).toHaveBeenCalledTimes(3));
   expect(mocks.openLocalPath).toHaveBeenNthCalledWith(1, "workspaces");
   expect(mocks.openLocalPath).toHaveBeenNthCalledWith(2, "audit");
+  expect(mocks.openLocalPath).toHaveBeenNthCalledWith(3, "logs");
 });
 
 test("paired view restart button bounces the daemon", async () => {
