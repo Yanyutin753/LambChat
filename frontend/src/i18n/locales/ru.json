@@ -1,4 +1,11 @@
 {
+  "sessionWorkspace": {
+    "loading": "Выбор папки…",
+    "reset": "Вернуть папку разговора по умолчанию",
+    "scope": "Папка для файлов и команд в этом разговоре",
+    "failed": "Не удалось выбрать папку. Проверьте подключение приложения.",
+    "choose": "Выбрать рабочую папку"
+  },
   "about": {
     "appVersion": "Версия",
     "buildTime": "Время сборки",
@@ -264,7 +271,14 @@
       "section": "Устройство",
       "currentDevice": "Это устройство"
     },
-    "sandboxPolicy": { "section": "Политика выполнения", "all": "Подтверждать всё", "commands": "Подтверждать только команды", "none": "Не подтверждать", "updated": "Политика выполнения обновлена", "updateFailed": "Не удалось обновить политику выполнения" }
+    "sandboxPolicy": {
+      "section": "Политика выполнения",
+      "all": "Подтверждать всё",
+      "commands": "Подтверждать только команды",
+      "none": "Не подтверждать",
+      "updated": "Политика выполнения обновлена",
+      "updateFailed": "Не удалось обновить политику выполнения"
+    }
   },
   "agents": {
     "fast": {
@@ -540,7 +554,8 @@
     "invalidTheme": "Недопустимая тема: {{theme}}. Должна быть light, dark или sepia",
     "invalidThemeSchedule": "Недопустимое расписание тем: нужны enabled (логическое), start/end (ЧЧ:ММ) и nightTheme (dark или sepia)",
     "invalidDateFormat": "Неверная дата: {{value}}. Ожидается ISO 8601",
-    "bookmarkMessageNotFound": "Сообщение в диалоге не найдено",    "messageNotFound": "Сообщение не найдено",
+    "bookmarkMessageNotFound": "Сообщение в диалоге не найдено",
+    "messageNotFound": "Сообщение не найдено",
     "sessionDeleteInProgress": "Выполняется удаление сессии",
     "sessionError": "Ошибка операции с сессией",
     "pinUpdateFailed": "Не удалось обновить состояние закрепления",
@@ -923,7 +938,7 @@
       "toolHistoryUser": "Вопрос",
       "toolImageAnalyze": "Анализ изображения",
       "toolImageAnalyzeCount": "{{count}} изображений",
-"toolVideoAnalyze": "Анализ видео",
+      "toolVideoAnalyze": "Анализ видео",
       "toolVideoAnalyzeCount": "{{count}} видео",
       "toolImageCount": "{{count}} изображений",
       "toolImageGenerate": "Генерация",
@@ -3468,7 +3483,7 @@
   "theme": {
     "switchToDark": "Переключить на тёмную тему",
     "switchToLight": "Переключить на светлую тему",
-      "cycleShortcut": "Горячая клавиша Ctrl/Cmd+Shift+L",
+    "cycleShortcut": "Горячая клавиша Ctrl/Cmd+Shift+L",
     "switchToSepia": "Переключить на режим сепии"
   },
   "tools": {

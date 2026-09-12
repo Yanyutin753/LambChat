@@ -1192,7 +1192,7 @@ mod sandbox_home_override_tests {
     #[test]
     fn migrate_root_entries_moves_top_level_and_is_idempotent() {
         let tmp = std::env::temp_dir().join(format!("lc-migrate-test-{}", std::process::id()));
-        let _ = std::env::remove_dir_all(&tmp);
+        let _ = std::fs::remove_dir_all(&tmp);
         let old_root = tmp.join("old");
         let new_root = tmp.join("new");
         std::fs::create_dir_all(old_root.join("audit")).unwrap();
@@ -1219,7 +1219,7 @@ mod sandbox_home_override_tests {
         let absent = migrate_root_entries(&tmp.join("nope"), &new_root).unwrap();
         assert_eq!(absent, 0);
 
-        let _ = std::env::remove_dir_all(&tmp);
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }
 

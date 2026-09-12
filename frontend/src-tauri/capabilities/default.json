@@ -4,6 +4,8 @@
   "description": "Default desktop capability. process:default 供更新完成后 relaunch 重启壳；dialog:default 供设置页选择沙箱数据目录",
   "windows": ["main"],
   "permissions": [
+    "allow-existing-desktop-commands",
+    "allow-sandbox-pick-workspace",
     "core:default",
     "notification:default",
     "updater:default",

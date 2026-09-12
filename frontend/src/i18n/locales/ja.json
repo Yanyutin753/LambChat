@@ -1,4 +1,11 @@
 {
+  "sessionWorkspace": {
+    "loading": "フォルダーを選択中…",
+    "reset": "既定の会話フォルダーに戻す",
+    "scope": "この会話のファイル操作とコマンド実行に使用します",
+    "failed": "フォルダーを選択できません。デスクトップの接続を確認してください。",
+    "choose": "作業フォルダーを選択"
+  },
   "about": {
     "appVersion": "バージョン",
     "buildTime": "ビルド時刻",
@@ -264,7 +271,14 @@
       "section": "実行デバイス",
       "currentDevice": "このデバイス"
     },
-    "sandboxPolicy": { "section": "実行ポリシー", "all": "すべて確認", "commands": "コマンドのみ確認", "none": "確認しない", "updated": "実行ポリシーを更新しました", "updateFailed": "実行ポリシーの更新に失敗しました" }
+    "sandboxPolicy": {
+      "section": "実行ポリシー",
+      "all": "すべて確認",
+      "commands": "コマンドのみ確認",
+      "none": "確認しない",
+      "updated": "実行ポリシーを更新しました",
+      "updateFailed": "実行ポリシーの更新に失敗しました"
+    }
   },
   "agents": {
     "fast": {
@@ -540,7 +554,8 @@
     "invalidTheme": "テーマが無効です: {{theme}}。light、dark、sepia のいずれかを指定してください",
     "invalidThemeSchedule": "テーマの自動切り替え設定が無効です：enabled（真偽値）、start/end（HH:MM）、nightTheme（dark または sepia）が必要です",
     "invalidDateFormat": "日付が無効です：{{value}}。ISO 8601 形式で指定",
-    "bookmarkMessageNotFound": "このセッションにメッセージが見つかりません",    "messageNotFound": "メッセージが見つかりません",
+    "bookmarkMessageNotFound": "このセッションにメッセージが見つかりません",
+    "messageNotFound": "メッセージが見つかりません",
     "sessionDeleteInProgress": "セッションの削除が進行中です",
     "sessionError": "セッション操作に失敗しました",
     "pinUpdateFailed": "ピン留め状態の更新に失敗しました",
@@ -923,7 +938,7 @@
       "toolHistoryUser": "ユーザー",
       "toolImageAnalyze": "画像分析",
       "toolImageAnalyzeCount": "{{count}} 枚の画像",
-"toolVideoAnalyze": "動画分析",
+      "toolVideoAnalyze": "動画分析",
       "toolVideoAnalyzeCount": "{{count}} 本の動画",
       "toolImageCount": "{{count}} 枚の画像",
       "toolImageGenerate": "生成",
@@ -3468,7 +3483,7 @@
   "theme": {
     "switchToDark": "ダークモードに切り替え",
     "switchToLight": "ライトモードに切り替え",
-      "cycleShortcut": "ショートカット Ctrl/Cmd+Shift+L",
+    "cycleShortcut": "ショートカット Ctrl/Cmd+Shift+L",
     "switchToSepia": "セピアモードに切り替え"
   },
   "tools": {

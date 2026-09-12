@@ -1,0 +1,18 @@
+[[permission]]
+identifier = "allow-existing-desktop-commands"
+description = "Preserve the desktop commands available before app ACL was enabled."
+commands.allow = [
+  "save_pairing",
+  "write_confirm_policy",
+  "clear_pairing",
+  "read_pairing_pat",
+  "read_machine_id",
+  "restart_daemon",
+  "daemon_process_status",
+  "open_local_path",
+  "sandbox_data_location",
+  "set_sandbox_data_location",
+  "clear_sandbox_data_location",
+  "get_linux_install_source",
+  "install_linux_package",
+]

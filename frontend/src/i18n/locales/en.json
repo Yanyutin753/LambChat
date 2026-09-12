@@ -1,4 +1,11 @@
 {
+  "sessionWorkspace": {
+    "loading": "Choosing directory…",
+    "reset": "Restore default session directory",
+    "scope": "Use this directory for files and commands throughout this session",
+    "failed": "Could not select a directory. Check the desktop connection and try again.",
+    "choose": "Choose working directory"
+  },
   "about": {
     "appVersion": "Version",
     "buildTime": "Build Time",
@@ -264,7 +271,14 @@
       "section": "Device",
       "currentDevice": "This device"
     },
-    "sandboxPolicy": { "section": "Execution policy", "all": "Confirm everything", "commands": "Confirm commands only", "none": "No confirmation", "updated": "Execution policy updated", "updateFailed": "Failed to update execution policy" }
+    "sandboxPolicy": {
+      "section": "Execution policy",
+      "all": "Confirm everything",
+      "commands": "Confirm commands only",
+      "none": "No confirmation",
+      "updated": "Execution policy updated",
+      "updateFailed": "Failed to update execution policy"
+    }
   },
   "agents": {
     "fast": {
@@ -540,7 +554,8 @@
     "invalidTheme": "Invalid theme: {{theme}}. Must be 'light', 'dark' or 'sepia'",
     "invalidThemeSchedule": "Invalid theme schedule: expected enabled (boolean), start/end (HH:MM) and nightTheme (dark or sepia)",
     "invalidDateFormat": "Invalid date: {{value}}. Use ISO 8601",
-    "bookmarkMessageNotFound": "Message not found in this session",    "messageNotFound": "Message not found",
+    "bookmarkMessageNotFound": "Message not found in this session",
+    "messageNotFound": "Message not found",
     "sessionDeleteInProgress": "Session deletion is in progress",
     "sessionError": "Session operation failed",
     "pinUpdateFailed": "Failed to update pin state",
@@ -923,7 +938,7 @@
       "toolHistoryUser": "User",
       "toolImageAnalyze": "Image Analyze",
       "toolImageAnalyzeCount": "{{count}} images",
-"toolVideoAnalyze": "Video Analysis",
+      "toolVideoAnalyze": "Video Analysis",
       "toolVideoAnalyzeCount": "{{count}} videos",
       "toolImageCount": "{{count}} images",
       "toolImageGenerate": "Generate",
@@ -3468,7 +3483,7 @@
   "theme": {
     "switchToDark": "Switch to dark mode",
     "switchToLight": "Switch to light mode",
-      "cycleShortcut": "Shortcut Ctrl/Cmd+Shift+L",
+    "cycleShortcut": "Shortcut Ctrl/Cmd+Shift+L",
     "switchToSepia": "Switch to sepia mode"
   },
   "tools": {

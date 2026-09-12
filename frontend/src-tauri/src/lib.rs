@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use tauri::Manager;
 
 mod daemon;
+mod commands;
 mod linux_update;
 mod tray;
 
@@ -223,6 +224,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::workspace::sandbox_pick_workspace,
             daemon::save_pairing,
             daemon::write_confirm_policy,
             daemon::clear_pairing,

@@ -25,6 +25,12 @@ vi.mock("../ChatInputSelectors", () => ({
   ChatInputSelectors: () => null,
 }));
 
+vi.mock("../SessionWorkspaceBar", () => ({
+  SessionWorkspaceBar: () => (
+    <div data-testid="workspace-header">Project directory</div>
+  ),
+}));
+
 import { ChatInput } from "../ChatInput";
 
 beforeEach(() => {
@@ -32,6 +38,34 @@ beforeEach(() => {
 });
 
 const longDraft = "hello expanded composer ".repeat(10);
+
+test("directory header shares the composer boundary and follows expand and collapse", async () => {
+  render(
+    <ChatInput
+      onSend={vi.fn()}
+      onStop={vi.fn()}
+      isLoading={false}
+      pendingInput={longDraft}
+    />,
+  );
+  const editor = await screen.findByRole("textbox");
+  const header = screen.getByTestId("workspace-header");
+  const container = editor.closest(".chat-input-container");
+  expect(header.parentElement).toBe(container);
+  expect(
+    header.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: /(expand|展开编辑)/i }));
+  });
+  expect(header.parentElement).toBe(container);
+  expect(header.closest(".chat-input-shell")).toBeNull();
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: /(collapse|收起)/i }));
+  });
+  expect(header.closest("form")).not.toBeNull();
+  expect(editor.isConnected).toBe(true);
+});
 
 test("expanded composer renders at body level outside the chat shell", async () => {
   render(

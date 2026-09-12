@@ -1,4 +1,11 @@
 {
+  "sessionWorkspace": {
+    "loading": "正在选择目录…",
+    "reset": "恢复默认会话目录",
+    "scope": "此目录用于当前会话的文件操作和命令执行",
+    "failed": "无法选择工作目录，请确认本地客户端已连接后重试",
+    "choose": "选择工作目录"
+  },
   "about": {
     "appVersion": "版本",
     "buildTime": "构建时间",
@@ -264,7 +271,14 @@
       "section": "执行设备",
       "currentDevice": "当前设备"
     },
-    "sandboxPolicy": { "section": "执行策略", "all": "全部确认", "commands": "仅命令确认", "none": "不确认", "updated": "执行策略已更新", "updateFailed": "执行策略更新失败" }
+    "sandboxPolicy": {
+      "section": "执行策略",
+      "all": "全部确认",
+      "commands": "仅命令确认",
+      "none": "不确认",
+      "updated": "执行策略已更新",
+      "updateFailed": "执行策略更新失败"
+    }
   },
   "agents": {
     "fast": {
@@ -540,7 +554,8 @@
     "invalidTheme": "主题无效：{{theme}}，必须为 light、dark 或 sepia",
     "invalidThemeSchedule": "主题定时切换配置无效：需要 enabled（布尔）、start/end（HH:MM）与 nightTheme（dark 或 sepia）",
     "invalidDateFormat": "日期无效：{{value}}，需 ISO 8601 格式",
-    "bookmarkMessageNotFound": "会话中未找到该消息，无法收藏",    "messageNotFound": "消息不存在",
+    "bookmarkMessageNotFound": "会话中未找到该消息，无法收藏",
+    "messageNotFound": "消息不存在",
     "sessionDeleteInProgress": "会话删除进行中",
     "sessionError": "会话操作失败",
     "pinUpdateFailed": "置顶状态更新失败",
@@ -923,7 +938,7 @@
       "toolHistoryUser": "用户",
       "toolImageAnalyze": "图片分析",
       "toolImageAnalyzeCount": "{{count}} 张图片",
-"toolVideoAnalyze": "视频分析",
+      "toolVideoAnalyze": "视频分析",
       "toolVideoAnalyzeCount": "{{count}} 段视频",
       "toolImageCount": "{{count}} 张图片",
       "toolImageGenerate": "生成",
@@ -3468,7 +3483,7 @@
   "theme": {
     "switchToDark": "切换到深色模式",
     "switchToLight": "切换到浅色模式",
-      "cycleShortcut": "快捷键 Ctrl/Cmd+Shift+L",
+    "cycleShortcut": "快捷键 Ctrl/Cmd+Shift+L",
     "switchToSepia": "切换到护眼模式"
   },
   "tools": {

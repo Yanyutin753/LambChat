@@ -1013,6 +1013,43 @@ async def stress(user_id: str, machine_id: str) -> None:
     )
 
 
+async def selected_workspace_battery(user_id: str, machine_id: str) -> None:
+    """Use a native-picker-format binding through the real backend and daemon."""
+    from src.infra.backend.local import WorkspaceAliasBackend
+    from src.infra.backend.workspace_selection import selected_workspace_id
+
+    root = WORKSPACE_ROOT / machine_id
+    selected = root / "selected-project"
+    selected.mkdir(exist_ok=True)
+    bindings = root / "workspaces" / ".selected"
+    bindings.mkdir(exist_ok=True)
+    key = "local-" + secrets.token_hex(16)
+    (bindings / f"{key}.json").write_text(json.dumps(str(selected.resolve())))
+    options = {
+        "sandbox_machine_id": machine_id,
+        "sandbox_workspace": json.dumps({"id": key, "machineId": machine_id}),
+    }
+    for turn in (1, 2):
+        backend = WorkspaceAliasBackend(
+            user_id=user_id,
+            session_id=f".selected/{selected_workspace_id(options)}",
+            machine_id=machine_id,
+        )
+        await backend.awrite(f"{backend.work_dir}/turn-{turn}.txt", f"turn {turn}")
+        result = await backend.aexecute("pwd")
+        check(
+            f"所选目录跨轮次执行 turn={turn}",
+            (selected / f"turn-{turn}.txt").read_text() == f"turn {turn}"
+            and str(selected.resolve()) in result.output,
+        )
+    from src.infra.sandbox.relay.dispatch import dispatch_local_call
+
+    result = await dispatch_local_call(
+        user_id, "fs_read", {"cwd": backend.work_dir, "path": "turn-1.txt"}, machine_id=machine_id
+    )
+    check("所选目录结构化文件操作", (result.get("result") or {}).get("content") == "turn 1")
+
+
 async def run_daemon_child(pat: str, machine_id: str) -> None:
     sys.path.insert(0, str(REPO / "client"))
     from lambchat_sandbox.config import SandboxConfig
@@ -1033,6 +1070,9 @@ async def run_daemon_child(pat: str, machine_id: str) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--stress", action="store_true", help="追加压测段")
+    ap.add_argument(
+        "--selected-workspace-only", action="store_true", help="仅验证所选目录跨轮次执行"
+    )
     ap.add_argument("--daemon-child", nargs=2, metavar=("PAT", "MACHINE_ID"))
     args = ap.parse_args()
 
@@ -1057,9 +1097,13 @@ def main() -> int:
         print(f"[env] daemon pid={holder['proc'].pid} machine={machine_id} user={username}")
 
         async def run_all():
+            if args.selected_workspace_only:
+                await selected_workspace_battery(user_id, machine_id)
+                return
             # battery/edge/crash/stress 必须同一事件循环：redis 客户端是模块级单例，
             # 跨 asyncio.run 复用会把旧循环的连接带进新循环（Event loop is closed）
             await battery(user_id, pat, machine_id)
+            await selected_workspace_battery(user_id, machine_id)
             await edge_cases(user_id, machine_id)
             await crash_recovery(user_id, pat, machine_id, holder)
             await comprehensive(user_id, pat, machine_id, holder)

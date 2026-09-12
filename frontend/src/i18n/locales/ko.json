@@ -1,4 +1,11 @@
 {
+  "sessionWorkspace": {
+    "loading": "폴더 선택 중…",
+    "reset": "기본 대화 폴더로 복원",
+    "scope": "이 대화의 파일 작업과 명령 실행에 사용합니다",
+    "failed": "폴더를 선택할 수 없습니다. 데스크톱 연결을 확인해 주세요.",
+    "choose": "작업 폴더 선택"
+  },
   "about": {
     "appVersion": "버전",
     "buildTime": "빌드 시간",
@@ -264,7 +271,14 @@
       "section": "실행 기기",
       "currentDevice": "이 기기"
     },
-    "sandboxPolicy": { "section": "실행 정책", "all": "모두 확인", "commands": "명령만 확인", "none": "확인하지 않음", "updated": "실행 정책이 업데이트되었습니다", "updateFailed": "실행 정책 업데이트에 실패했습니다" }
+    "sandboxPolicy": {
+      "section": "실행 정책",
+      "all": "모두 확인",
+      "commands": "명령만 확인",
+      "none": "확인하지 않음",
+      "updated": "실행 정책이 업데이트되었습니다",
+      "updateFailed": "실행 정책 업데이트에 실패했습니다"
+    }
   },
   "agents": {
     "fast": {
@@ -540,7 +554,8 @@
     "invalidTheme": "잘못된 테마입니다: {{theme}}. light, dark, sepia 중 하나여야 합니다",
     "invalidThemeSchedule": "테마 예약 전환 설정이 잘못되었습니다: enabled(불리언), start/end(HH:MM), nightTheme(dark 또는 sepia)이 필요합니다",
     "invalidDateFormat": "잘못된 날짜: {{value}}. ISO 8601 형식 필요",
-    "bookmarkMessageNotFound": "이 세션에서 메시지를 찾을 수 없습니다",    "messageNotFound": "메시지를 찾을 수 없습니다",
+    "bookmarkMessageNotFound": "이 세션에서 메시지를 찾을 수 없습니다",
+    "messageNotFound": "메시지를 찾을 수 없습니다",
     "sessionDeleteInProgress": "세션 삭제가 진행 중입니다",
     "sessionError": "세션 작업에 실패했습니다",
     "pinUpdateFailed": "고정 상태 업데이트에 실패했습니다",
@@ -923,7 +938,7 @@
       "toolHistoryUser": "사용자",
       "toolImageAnalyze": "이미지 분석",
       "toolImageAnalyzeCount": "{{count}}개 이미지",
-"toolVideoAnalyze": "동영상 분석",
+      "toolVideoAnalyze": "동영상 분석",
       "toolVideoAnalyzeCount": "동영상 {{count}}개",
       "toolImageCount": "{{count}}개 이미지",
       "toolImageGenerate": "생성",
@@ -3468,7 +3483,7 @@
   "theme": {
     "switchToDark": "다크 모드로 전환",
     "switchToLight": "라이트 모드로 전환",
-      "cycleShortcut": "단축키 Ctrl/Cmd+Shift+L",
+    "cycleShortcut": "단축키 Ctrl/Cmd+Shift+L",
     "switchToSepia": "세피아 모드로 전환"
   },
   "tools": {

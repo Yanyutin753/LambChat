@@ -645,14 +645,16 @@ async def _create_backend_and_prompt(
     platform = _resolve_sandbox_platform(agent_options, settings.SANDBOX_PLATFORM.lower())
     if platform == "local":
         from src.infra.backend.local import WorkspaceAliasBackend
+        from src.infra.backend.workspace_selection import selected_workspace_id
 
         # WorkspaceAliasBackend：prompt_policy 让模型用 /workspace/{sid}/x 别名
         # 路径调文件工具，别名剥离层把路径翻译回相对路径再构造命令（F1）。
         # 会话级选机（多机 daemon）：agent_options.sandbox_machine_id 缺省走
         # 注册表默认解析（默认机→唯一在线→legacy）
+        workspace_id = selected_workspace_id(agent_options)
         local_backend = WorkspaceAliasBackend(
             user_id=user_id,
-            session_id=session_id,
+            session_id=f".selected/{workspace_id}" if workspace_id else session_id,
             machine_id=(agent_options or {}).get("sandbox_machine_id") or None,
         )
         # 用户 env 变量注入（对齐云端：backend.env_vars → 执行时下发）；

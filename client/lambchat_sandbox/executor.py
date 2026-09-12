@@ -31,7 +31,9 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
+import json
 import os
+import re
 import signal
 import subprocess
 from pathlib import Path
@@ -217,7 +219,23 @@ def map_workspace(virtual_cwd: str, data_root: Path) -> Path:
     if not virtual_cwd.startswith(_WORKSPACE_PREFIX):
         raise ExecutorError(f"virtual_cwd 必须以 {_WORKSPACE_PREFIX} 开头: {virtual_cwd!r}")
     sid = virtual_cwd[len(_WORKSPACE_PREFIX) :]
-    if not sid or "/" in sid or sid in (".", ".."):
+    if sid.startswith(".selected/"):
+        sid = sid[len(".selected/") :]
+        if not re.fullmatch(r"local-[0-9a-f]{32}", sid):
+            raise ExecutorError("Invalid selected workspace identifier")
+        try:
+            raw = json.loads((Path(data_root) / ".selected" / f"{sid}.json").read_text())
+            if not isinstance(raw, str):
+                raise ValueError("Invalid workspace binding")
+            selected = Path(raw)
+            if not selected.is_absolute() or not selected.is_dir():
+                raise ValueError("Selected directory is unavailable")
+            return selected.resolve()
+        except (OSError, ValueError) as exc:
+            raise ExecutorError(
+                "Selected directory is unavailable; select it again in the desktop app"
+            ) from exc
+    if not sid or "/" in sid or "\\" in sid or sid in (".", "..", ".selected"):
         raise ExecutorError(f"非法会话路径: {virtual_cwd!r}")
     return Path(data_root) / sid
 
