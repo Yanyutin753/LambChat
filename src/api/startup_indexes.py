@@ -37,6 +37,12 @@ def get_startup_index_initializers() -> list[tuple[str, Callable[[], Awaitable[N
         await init_skill_indexes()
         logger.info("Skill indexes initialized")
 
+    async def _init_plugin_indexes() -> None:
+        from src.infra.plugin import init_plugin_indexes
+
+        await init_plugin_indexes()
+        logger.info("Plugin indexes initialized")
+
     async def _init_trace_storage() -> None:
         from src.infra.session.trace_storage import get_trace_storage
 
@@ -144,6 +150,7 @@ def get_startup_index_initializers() -> list[tuple[str, Callable[[], Awaitable[N
         ("model_storage", _init_model_storage),
         ("channel_storage", _init_channel_storage),
         ("skill_indexes", _init_skill_indexes),
+        ("plugin_indexes", _init_plugin_indexes),
         ("trace_storage", _init_trace_storage),
         ("session_storage", _init_session_storage),
         ("revealed_file_storage", _init_revealed_file_storage),

@@ -752,6 +752,11 @@ def create_app() -> FastAPI:
 
     app.include_router(marketplace_router, prefix="/api/marketplace", tags=["Marketplace"])
 
+    # Plugin Hub API
+    from src.api.routes.plugin import router as plugin_router
+
+    app.include_router(plugin_router, prefix="/api/plugins", tags=["Plugins"])
+
     app.include_router(settings_router.router, prefix="/api/settings", tags=["Settings"])
     app.include_router(memory.router, prefix="/api/memory", tags=["Memory"])
     app.include_router(mcp.router, prefix="/api/mcp", tags=["MCP"])

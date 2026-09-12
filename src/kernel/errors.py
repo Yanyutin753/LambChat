@@ -545,6 +545,46 @@ class ErrorCode(Enum):
     GITHUB_FETCH_FAILED = ("github_fetch_failed", 500, "Failed to fetch repository")
     GITHUB_SCAN_FAILED = ("github_scan_failed", 500, "Failed to scan repository")
 
+    # ---------- plugin：插件中心 ----------
+    PLUGIN_NOT_FOUND = ("plugin_not_found", 404, "Plugin '{{name}}' not found")
+    PLUGIN_INACTIVE = ("plugin_inactive", 409, "Plugin '{{name}}' is not active")
+    PLUGIN_ALREADY_INSTALLED = (
+        "plugin_already_installed",
+        409,
+        "Plugin '{{name}}' already installed",
+    )
+    PLUGIN_NOT_INSTALLED = (
+        "plugin_not_installed",
+        400,
+        "Plugin '{{name}}' not installed",
+    )
+    PLUGIN_NAME_EXISTS = ("plugin_name_exists", 409, "Plugin name '{{name}}' already taken")
+    PLUGIN_MCP_NAME_CONFLICT = (
+        "plugin_mcp_name_conflict",
+        409,
+        "MCP server name '{{server}}' is already used by another plugin or server",
+    )
+    PLUGIN_MCP_REF_NOT_FOUND = (
+        "plugin_mcp_ref_not_found",
+        404,
+        "Referenced system MCP server '{{server}}' not found",
+    )
+    PLUGIN_INVALID_PAYLOAD = (
+        "plugin_invalid_payload",
+        400,
+        "Plugin payload invalid: {{reason}}",
+    )
+    PLUGIN_FILE_NOT_FOUND = (
+        "plugin_file_not_found",
+        404,
+        "File '{{path}}' not found in plugin '{{name}}'",
+    )
+    PLUGIN_NO_EDIT_PERMISSION = (
+        "plugin_no_edit_permission",
+        403,
+        "No permission to edit plugin '{{name}}'",
+    )
+
     # ---------- settings / notification ----------
     SETTING_NOT_FOUND = ("setting_not_found", 404, "Setting not found")
     NOTIFICATION_NOT_FOUND = ("notification_not_found", 404, "Notification not found")

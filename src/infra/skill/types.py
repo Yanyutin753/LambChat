@@ -9,6 +9,7 @@ class InstalledFrom(str, Enum):
 
     MARKETPLACE = "marketplace"
     MANUAL = "manual"
+    PLUGIN = "plugin"
 
 
 class MarketplaceSkill(BaseModel):

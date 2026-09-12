@@ -241,6 +241,7 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
             enabled_skills=payload.get("enabled_skills"),
             persona_system_prompt=payload.get("persona_system_prompt"),
             disabled_mcp_tools=payload.get("disabled_mcp_tools"),
+            enabled_mcp_servers=payload.get("enabled_mcp_servers"),
             display_message=payload.get("display_message"),
             recommendation_input=payload.get("recommendation_input"),
             team_id=payload.get("team_id"),

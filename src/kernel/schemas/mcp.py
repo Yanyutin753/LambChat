@@ -104,6 +104,9 @@ class MCPServerUpdate(BaseModel):
 class SystemMCPServer(MCPServerBase):
     """System-level MCP server configuration (admin managed)"""
 
+    source_plugin: Optional[str] = Field(
+        None, description="Plugin name that materialized this system server"
+    )
     is_system: bool = Field(True, description="Always True for system servers")
     is_internal: bool = Field(False, description="Whether this is a virtual internal server")
     disabled_tools: list[str] = Field(
@@ -138,6 +141,9 @@ class UserMCPServer(MCPServerBase):
 class MCPServerResponse(MCPServerBase):
     """MCP server response with additional metadata"""
 
+    source_plugin: Optional[str] = Field(
+        None, description="Plugin name that materialized this system server"
+    )
     is_system: bool = Field(..., description="Whether this is a system server")
     is_internal: bool = Field(False, description="Whether this is a virtual internal server")
     can_edit: bool = Field(..., description="Whether current user can edit this server")

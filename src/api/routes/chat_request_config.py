@@ -12,6 +12,15 @@ from src.kernel.schemas.persona_preset import PersonaPresetSnapshot
 from src.kernel.schemas.user import TokenPayload
 
 
+def _persona_enabled_mcp_servers_from_snapshot(
+    snapshot: PersonaPresetSnapshot,
+) -> list[str] | None:
+    """Return a MCP server whitelist only when the persona pins servers."""
+    if snapshot.mcp_server_names:
+        return snapshot.mcp_server_names
+    return None
+
+
 def _persona_enabled_skills_from_snapshot(
     snapshot: PersonaPresetSnapshot,
 ) -> list[str] | None:
@@ -39,6 +48,7 @@ def build_conversation_config(
         "disabled_skills": request.disabled_skills or [],
         "enabled_skills": request.enabled_skills,
         "disabled_mcp_tools": request.disabled_mcp_tools or [],
+        "enabled_mcp_servers": request.enabled_mcp_servers,
         "language": language,
         "auto_mode": request.auto_mode,
     }
@@ -80,4 +90,5 @@ async def resolve_persona_request(
     )
     request.persona_snapshot = snapshot
     request.enabled_skills = _persona_enabled_skills_from_snapshot(snapshot)
+    request.enabled_mcp_servers = _persona_enabled_mcp_servers_from_snapshot(snapshot)
     request.persona_system_prompt = snapshot.system_prompt

@@ -664,6 +664,7 @@ class UserConcurrencyLimiter:
                 enabled_skills = task_ctx.get("enabled_skills")
                 persona_system_prompt = task_ctx.get("persona_system_prompt")
                 disabled_mcp_tools = task_ctx.get("disabled_mcp_tools")
+                enabled_mcp_servers = task_ctx.get("enabled_mcp_servers")
                 team_id = task_ctx.get("team_id")
                 active_goal = task_ctx.get("active_goal")
                 auto_mode = bool(task_ctx.get("auto_mode", False))
@@ -689,6 +690,7 @@ class UserConcurrencyLimiter:
                 enabled_skills = pending.get("enabled_skills")
                 persona_system_prompt = pending.get("persona_system_prompt")
                 disabled_mcp_tools = pending.get("disabled_mcp_tools")
+                enabled_mcp_servers = pending.get("enabled_mcp_servers")
                 team_id = pending.get("team_id")
                 active_goal = pending.get("active_goal")
                 auto_mode = bool(pending.get("auto_mode", False))
@@ -712,6 +714,7 @@ class UserConcurrencyLimiter:
                     enabled_skills=enabled_skills,
                     persona_system_prompt=persona_system_prompt,
                     disabled_mcp_tools=disabled_mcp_tools,
+                    enabled_mcp_servers=enabled_mcp_servers,
                     display_message=task_ctx.get("display_message"),
                     recommendation_input=task_ctx.get("recommendation_input"),
                     trace_id=task_ctx.get("trace_id"),
@@ -756,6 +759,7 @@ class UserConcurrencyLimiter:
                         enabled_skills=enabled_skills,
                         persona_system_prompt=persona_system_prompt,
                         disabled_mcp_tools=disabled_mcp_tools,
+                        enabled_mcp_servers=enabled_mcp_servers,
                         display_message=task_ctx.get("display_message") if task_ctx else None,
                         recommendation_input=task_ctx.get("recommendation_input")
                         if task_ctx

@@ -3,6 +3,7 @@
 from typing import Optional
 
 from src.infra.persona_preset.storage import PersonaPresetStorage
+from src.infra.plugin.storage import PluginStorage
 from src.infra.skill.storage import SkillStorage
 from src.infra.utils.datetime import utc_now
 from src.kernel.exceptions import AuthorizationError, NotFoundError
@@ -24,9 +25,11 @@ class PersonaPresetManager:
         self,
         storage: PersonaPresetStorage | None = None,
         skill_storage: SkillStorage | None = None,
+        plugin_storage: PluginStorage | None = None,
     ) -> None:
         self.storage = storage or PersonaPresetStorage()
         self.skill_storage = skill_storage or SkillStorage()
+        self.plugin_storage = plugin_storage or PluginStorage()
 
     @staticmethod
     def _can_view(doc: dict, *, user_id: str, is_admin: bool) -> bool:
@@ -249,6 +252,8 @@ class PersonaPresetManager:
                 prompt.model_dump(mode="json") for prompt in source.starter_prompts
             ],
             "skill_names": source.skill_names,
+            "plugin_names": source.plugin_names,
+            "mcp_server_names": source.mcp_server_names,
             "visibility": PersonaPresetVisibility.PRIVATE.value,
             "status": PersonaPresetStatus.DRAFT.value,
             "source_preset_id": source.id,
@@ -272,8 +277,16 @@ class PersonaPresetManager:
     ) -> PersonaPresetSnapshot:
         preset = await self.get_preset(preset_id, user_id=user_id, is_admin=is_admin)
         available = await self._get_available_skill_names(user_id)
-        skill_names = [name for name in preset.skill_names if name in available]
+
+        plugin_skill_names, plugin_mcp_names, missing_plugins = await self._resolve_plugins(
+            preset.plugin_names
+        )
+        requested = list(dict.fromkeys([*preset.skill_names, *plugin_skill_names]))
+        skill_names = [name for name in requested if name in available]
         missing = [name for name in preset.skill_names if name not in available]
+        mcp_server_names = list(
+            dict.fromkeys([*preset.mcp_server_names, *plugin_mcp_names])
+        )
 
         await self.storage.increment_usage(preset_id)
         await self.storage.touch_user_preference(user_id=user_id, preset_id=preset_id)
@@ -284,9 +297,36 @@ class PersonaPresetManager:
             starter_prompts=preset.starter_prompts,
             skill_names=skill_names,
             missing_skill_names=missing,
+            plugin_names=[name for name in preset.plugin_names if name not in missing_plugins],
+            missing_plugin_names=missing_plugins,
+            mcp_server_names=mcp_server_names,
             version=preset.version,
             avatar=preset.avatar,
         )
+
+    async def _resolve_plugins(
+        self, plugin_names: list[str]
+    ) -> tuple[list[str], list[str], list[str]]:
+        """展开插件绑定为（技能名, MCP server 名, 缺失插件名）。"""
+        if not plugin_names:
+            return [], [], []
+        skill_names: list[str] = []
+        mcp_names: list[str] = []
+        missing: list[str] = []
+        for name in plugin_names:
+            doc = await self.plugin_storage.get_plugin_doc(name)
+            if not doc or doc.get("status") != "active":
+                missing.append(name)
+                continue
+            for skill in doc.get("skills", []) or []:
+                skill_name = skill.get("skill_name")
+                if skill_name:
+                    skill_names.append(skill_name)
+            for server in doc.get("mcp_servers", []) or []:
+                server_name = server.get("name")
+                if server_name:
+                    mcp_names.append(server_name)
+        return skill_names, mcp_names, missing
 
     async def _get_available_skill_names(self, user_id: str) -> set[str]:
         """Return skill names that can actually be loaded for this user."""
@@ -304,6 +344,7 @@ class PersonaPresetManager:
     async def close(self) -> None:
         await self.storage.close()
         await self.skill_storage.close()
+        await self.plugin_storage.close()
 
 
 _persona_preset_manager: Optional[PersonaPresetManager] = None

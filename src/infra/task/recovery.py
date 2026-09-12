@@ -347,6 +347,7 @@ class TaskRecoveryService:
                 else None
             ),
             "disabled_mcp_tools": session_metadata.get("disabled_mcp_tools") or None,
+            "enabled_mcp_servers": session_metadata.get("enabled_mcp_servers") or None,
             "project_id": session_metadata.get("project_id"),
             "session_name": getattr(session, "name", None),
             "user_message_written": True,

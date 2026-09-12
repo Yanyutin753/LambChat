@@ -157,7 +157,21 @@ class MCPStorage(StorageOperations):
         """Check raw name reservation without exposing legacy server data."""
         return await self._get_system_collection().find_one({"name": name}) is not None
 
-    async def create_system_server(self, server, admin_user_id: str) -> SystemMCPServer:
+    async def iter_system_servers_by_plugin(self, plugin_name: str):
+        """Iterate system MCP servers materialized by the given plugin."""
+        collection = self._get_system_collection()
+        async for doc in collection.find({"source_plugin": plugin_name}):
+            if _is_legacy_sandbox_server(doc):
+                continue
+            yield await self._doc_to_system_server_async(doc)
+
+    async def create_system_server(
+        self,
+        server,
+        admin_user_id: str,
+        *,
+        source_plugin: str | None = None,
+    ) -> SystemMCPServer:
         """Create a system MCP server (admin only)"""
         collection = self._get_system_collection()
 
@@ -169,6 +183,7 @@ class MCPStorage(StorageOperations):
             "url": server.url,
             "headers": server.headers,
             "is_system": True,
+            "source_plugin": source_plugin,
             "allowed_roles": getattr(server, "allowed_roles", []),
             "role_quotas": {
                 role_name: quota.model_dump() if hasattr(quota, "model_dump") else quota
@@ -821,6 +836,7 @@ class MCPStorage(StorageOperations):
             url=doc.get("url"),
             headers=doc.get("headers"),
             is_system=True,
+            source_plugin=doc.get("source_plugin"),
             disabled_tools=_normalize_disabled_tools(doc.get("disabled_tools", [])),
             allowed_roles=doc.get("allowed_roles", []),
             role_quotas=doc.get("role_quotas", {}),
@@ -928,6 +944,7 @@ class MCPStorage(StorageOperations):
             enabled=doc_copy.get("enabled", True),
             url=doc_copy.get("url"),
             headers=doc_copy.get("headers"),
+            source_plugin=doc_copy.get("source_plugin"),
             is_system=is_system,
             can_edit=can_edit,
             allowed_roles=doc_copy.get("allowed_roles", []),
