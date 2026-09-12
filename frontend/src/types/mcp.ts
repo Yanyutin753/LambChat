@@ -16,6 +16,7 @@ export interface MCPServerBase {
 
 // MCP Server Response (from API)
 export interface MCPServerResponse extends MCPServerBase {
+  source_plugin?: string | null;
   is_system: boolean;
   is_internal?: boolean;
   can_edit: boolean;

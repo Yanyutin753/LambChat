@@ -157,20 +157,8 @@ class MCPStorage(StorageOperations):
         """Check raw name reservation without exposing legacy server data."""
         return await self._get_system_collection().find_one({"name": name}) is not None
 
-    async def iter_system_servers_by_plugin(self, plugin_name: str):
-        """Iterate system MCP servers materialized by the given plugin."""
-        collection = self._get_system_collection()
-        async for doc in collection.find({"source_plugin": plugin_name}):
-            if _is_legacy_sandbox_server(doc):
-                continue
-            yield await self._doc_to_system_server_async(doc)
-
     async def create_system_server(
-        self,
-        server,
-        admin_user_id: str,
-        *,
-        source_plugin: str | None = None,
+        self, server, admin_user_id: str, *, source_plugin: str | None = None
     ) -> SystemMCPServer:
         """Create a system MCP server (admin only)"""
         collection = self._get_system_collection()

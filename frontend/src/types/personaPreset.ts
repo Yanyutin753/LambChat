@@ -19,6 +19,8 @@ export interface PersonaPreset {
   system_prompt: string;
   starter_prompts?: PersonaStarterPrompt[];
   skill_names: string[];
+  plugin_names: string[];
+  mcp_server_names: string[];
   visibility: PersonaPresetVisibility;
   status: PersonaPresetStatus;
   source_preset_id?: string | null;
@@ -42,6 +44,8 @@ export interface PersonaPresetCreate {
   system_prompt: string;
   starter_prompts?: PersonaStarterPrompt[];
   skill_names?: string[];
+  plugin_names?: string[];
+  mcp_server_names?: string[];
   scope?: PersonaPresetScope;
   visibility?: PersonaPresetVisibility;
   status?: PersonaPresetStatus;
@@ -55,6 +59,8 @@ export interface PersonaPresetUpdate {
   system_prompt?: string;
   starter_prompts?: PersonaStarterPrompt[];
   skill_names?: string[];
+  plugin_names?: string[];
+  mcp_server_names?: string[];
   scope?: PersonaPresetScope;
   visibility?: PersonaPresetVisibility;
   status?: PersonaPresetStatus;
@@ -72,6 +78,9 @@ export interface PersonaPresetSnapshot {
   starter_prompts?: PersonaStarterPrompt[];
   skill_names: string[];
   missing_skill_names: string[];
+  plugin_names: string[];
+  missing_plugin_names: string[];
+  mcp_server_names: string[];
   version: number;
   avatar?: string | null;
 }

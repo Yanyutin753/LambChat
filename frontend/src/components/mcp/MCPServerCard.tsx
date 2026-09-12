@@ -79,6 +79,11 @@ export function MCPServerCard({
                 {t("mcp.card.system")}
               </span>
             )}
+            {server.source_plugin && (
+              <span className="scb__status-pill scb__status-pill--installed">
+                {t("mcp.card.fromPlugin", { name: server.source_plugin })}
+              </span>
+            )}
             {!server.enabled && (
               <span className="scb__status-pill scb__status-pill--danger">
                 {t("mcp.card.disabled")}

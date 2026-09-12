@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import {
+  Puzzle,
   Sparkles,
   ChevronRight,
   Plus,
@@ -50,11 +51,13 @@ interface SkillSelectorProps {
 const sourceIcons: Record<SkillSource, typeof FileCode> = {
   marketplace: Store,
   manual: FileCode,
+  plugin: Puzzle,
 };
 
 const sourceColors: Record<SkillSource, string> = {
   marketplace: "text-[var(--theme-primary)]",
   manual: "text-[var(--theme-text)]",
+  plugin: "text-[var(--theme-primary)]",
 };
 
 export function SkillSelector({
@@ -78,7 +81,7 @@ export function SkillSelector({
   const setIsOpen = externalOnOpenChange ?? setInternalOpen;
   const [expandedCategories, setExpandedCategories] = useState<
     Set<SkillSource>
-  >(new Set(["marketplace", "manual"]));
+  >(new Set(["marketplace", "manual", "plugin"]));
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const swipeRef = useSwipeToClose({

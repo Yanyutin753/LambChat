@@ -20,6 +20,8 @@ export interface PersonaEditorDraft {
   starter_prompts: { icon: string; text: string }[];
   tags: string;
   skill_names: string[];
+  plugin_names: string[];
+  mcp_server_names: string[];
 }
 
 export interface PersonaEditorModalProps {

@@ -1,16 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GlassSelect } from "../common/GlassSelect";
-import { Plus, Pencil, Sparkles, Tag, Save, MessageSquare } from "lucide-react";
+import { Plus, Pencil, Sparkles, Tag, Save, MessageSquare, Puzzle, Server } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { EditorSidebar } from "../common/EditorSidebar";
 import toast from "react-hot-toast";
+import { mcpApi } from "../../services/api/mcp";
+import { pluginApi } from "../../services/api/plugin";
 import {
   buildPersonaPresetPayload,
   draftRowsToStarterPrompts,
   starterPromptsToDraftRows,
 } from "./personaPresetEditor";
 import { AvatarSection } from "./PersonaEditorAvatarSection";
+import {
+  PersonaEditorBindingSelector,
+  type BindingOption,
+} from "./PersonaEditorBindingSelector";
 import { SkillSelector } from "./PersonaEditorSkillSelector";
 import { StarterPromptsEditor } from "./PersonaEditorStarterPrompts";
 import type {
@@ -45,9 +51,57 @@ export function PersonaEditorModal({
     starter_prompts: starterPromptsToDraftRows(editingPreset?.starter_prompts),
     tags: editingPreset?.tags.join(", ") || "",
     skill_names: [...(editingPreset?.skill_names || [])] as string[],
+    plugin_names: [...(editingPreset?.plugin_names || [])] as string[],
+    mcp_server_names: [...(editingPreset?.mcp_server_names || [])] as string[],
   });
 
   const [skillDropdownOpen, setSkillDropdownOpen] = useState(false);
+  const [pluginDropdownOpen, setPluginDropdownOpen] = useState(false);
+  const [mcpDropdownOpen, setMcpDropdownOpen] = useState(false);
+  const [pluginOptions, setPluginOptions] = useState<BindingOption[]>([]);
+  const [mcpOptions, setMcpOptions] = useState<BindingOption[]>([]);
+  const [bindingsLoading, setBindingsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!showModal) return;
+    let cancelled = false;
+    setBindingsLoading(true);
+    void (async () => {
+      try {
+        const [installs, mcpList] = await Promise.all([
+          pluginApi.listInstalled(),
+          mcpApi.list(),
+        ]);
+        if (cancelled) return;
+        setPluginOptions(
+          (installs.installs ?? []).map((record) => ({
+            name: record.plugin_name,
+            description: null,
+          })),
+        );
+        setMcpOptions(
+          (mcpList.servers ?? [])
+            .filter((server) => server.enabled)
+            .map((server) => ({
+              name: server.name,
+              description: server.source_plugin
+                ? t("personaPresets.mcpFromPlugin", { name: server.source_plugin })
+                : null,
+            })),
+        );
+      } catch {
+        if (!cancelled) {
+          setPluginOptions([]);
+          setMcpOptions([]);
+        }
+      } finally {
+        if (!cancelled) setBindingsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showModal, t]);
 
   useEffect(() => {
     if (showModal) {
@@ -66,6 +120,8 @@ export function PersonaEditorModal({
         ),
         tags: editingPreset?.tags.join(", ") || "",
         skill_names: [...(editingPreset?.skill_names || [])] as string[],
+        plugin_names: [...(editingPreset?.plugin_names || [])] as string[],
+        mcp_server_names: [...(editingPreset?.mcp_server_names || [])] as string[],
       });
       setSkillDropdownOpen(false);
     }
@@ -84,6 +140,8 @@ export function PersonaEditorModal({
         .map((s) => s.trim())
         .filter(Boolean),
       skill_names: draft.skill_names,
+      plugin_names: draft.plugin_names,
+      mcp_server_names: draft.mcp_server_names,
     };
 
     const saved = editingPreset
@@ -358,6 +416,56 @@ export function PersonaEditorModal({
               }
               open={skillDropdownOpen}
               onOpenChange={setSkillDropdownOpen}
+            />
+          </div>
+
+          <div className="ppe-field">
+            <label className="ppe-label">
+              <Puzzle size={13} className="ppe-label-icon" />
+              {t("personaPresets.pluginsInput", "插件")}
+            </label>
+            <PersonaEditorBindingSelector
+              options={pluginOptions}
+              selected={draft.plugin_names}
+              onChange={(updater) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  plugin_names: updater(prev.plugin_names),
+                }))
+              }
+              open={pluginDropdownOpen}
+              onOpenChange={setPluginDropdownOpen}
+              icon={<Puzzle size={12} />}
+              countLabelKey="personaPresets.pluginCount"
+              placeholderKey="personaPresets.pluginsInputPlaceholder"
+              searchPlaceholderKey="personaPresets.pluginsSearchPlaceholder"
+              emptyKey="personaPresets.noPlugins"
+              loading={bindingsLoading}
+            />
+          </div>
+
+          <div className="ppe-field">
+            <label className="ppe-label">
+              <Server size={13} className="ppe-label-icon" />
+              {t("personaPresets.mcpServersInput", "MCP 服务")}
+            </label>
+            <PersonaEditorBindingSelector
+              options={mcpOptions}
+              selected={draft.mcp_server_names}
+              onChange={(updater) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  mcp_server_names: updater(prev.mcp_server_names),
+                }))
+              }
+              open={mcpDropdownOpen}
+              onOpenChange={setMcpDropdownOpen}
+              icon={<Server size={12} />}
+              countLabelKey="personaPresets.mcpServerCount"
+              placeholderKey="personaPresets.mcpServersInputPlaceholder"
+              searchPlaceholderKey="personaPresets.mcpSearchPlaceholder"
+              emptyKey="personaPresets.noMcpServers"
+              loading={bindingsLoading}
             />
           </div>
         </div>

@@ -651,3 +651,15 @@ class StorageOperations:
             servers[doc["name"]] = config
 
         return {"mcpServers": servers}
+
+    async def iter_system_servers_by_plugin(  # type: ignore[misc]
+        self: "MCPStorage", plugin_name: str
+    ):
+        """Iterate system MCP servers materialized by the given plugin."""
+        from src.infra.mcp.storage import _is_legacy_sandbox_server
+
+        collection = self._get_system_collection()
+        async for doc in collection.find({"source_plugin": plugin_name}):
+            if _is_legacy_sandbox_server(doc):
+                continue
+            yield await self._doc_to_system_server_async(doc)
