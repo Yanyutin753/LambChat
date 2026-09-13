@@ -47,7 +47,9 @@ async def test_emit_direct_path_refreshes_last_progress() -> None:
     before = presenter.last_progress_monotonic()
     await asyncio.sleep(0.01)
 
-    await presenter.emit({"event": "message:chunk", "data": {"content": "直连路径输出", "depth": 1}})
+    await presenter.emit(
+        {"event": "message:chunk", "data": {"content": "直连路径输出", "depth": 1}}
+    )
 
     assert presenter.last_progress_monotonic() > before
 
