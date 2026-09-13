@@ -15,7 +15,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-import time
 import urllib.error
 import urllib.request
 import uuid
@@ -159,7 +158,6 @@ def main() -> int:
     plain_user = f"{PREFIX}-user"
     admin_token = register_and_login(admin_user, elevate_admin=True)
     user_token = register_and_login(plain_user, elevate_admin=False)
-    admin_id = str(db.users.find_one({"username": admin_user})["_id"])
     user_id = str(db.users.find_one({"username": plain_user})["_id"])
 
     try:
