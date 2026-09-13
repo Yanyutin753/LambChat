@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Dict
 
@@ -355,6 +356,10 @@ class StoragePresenterMixin:
     # 事件存储
     # ------------------------------------------------------------------
 
+    def last_progress_monotonic(self) -> float:
+        """最近一次 save_event 汇聚的单调时间戳（stall watchdog 进展探针）。"""
+        return self._last_progress_monotonic
+
     async def save_event(
         self,
         event: Dict[str, Any],
@@ -367,6 +372,10 @@ class StoragePresenterMixin:
         Args:
             event: SSE 事件字典，包含 event 和 data 字段
         """
+        # 两条入口（executor 循环、直连 emit）都汇聚到这里：刷新进展时间戳，
+        # 供 stall watchdog 探针判定流仍在推进（2026-09-12/13 生产事故）。
+        self._last_progress_monotonic = time.monotonic()
+
         # 主代理正文追踪放在最前（enable_storage=False 时也要标记）：
         # message:chunk 可能经两条路径进入（executor 循环、处理器缓冲 flush
         # 的 emit），executor 零正文守卫依赖本标记判定 run 是否交付过答案。
