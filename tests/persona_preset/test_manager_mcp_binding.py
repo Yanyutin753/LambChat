@@ -49,18 +49,30 @@ class FakePresetStorage:
 
 
 class FakeMCPStorage:
-    def __init__(self, visible_names: set[str]) -> None:
-        self._visible = visible_names
+    def __init__(self, system_servers: dict, user_servers: set) -> None:
+        self._system = system_servers
+        self._user = user_servers
+        self.point_lookups: list[str] = []
 
-    async def get_visible_servers(self, user_id, is_admin=False, user_roles=None, limit=None):
-        return [type("S", (), {"name": n})() for n in sorted(self._visible)]
+    async def get_system_server(self, name):
+        self.point_lookups.append(f"system:{name}")
+        doc = self._system.get(name)
+        if doc is None:
+            return None
+        return type("S", (), {"name": name, "allowed_roles": doc})()
+
+    async def get_user_server(self, name, user_id):
+        self.point_lookups.append(f"user:{name}")
+        return type("S", (), {"name": name})() if name in self._user else None
 
 
 class FakeSkillStorage:
     def __init__(self, names: set[str]) -> None:
         self._names = names
+        self.effective_calls = 0
 
     async def get_effective_skills(self, user_id: str) -> dict:
+        self.effective_calls += 1
         return {"skills": {name: {} for name in self._names}}
 
     async def get_all_user_skill_names(self, user_id: str) -> list[str]:
@@ -72,31 +84,19 @@ class FakeSkillStorage:
 
 def _make_manager(
     skill_names: set[str],
-    visible_mcp: set[str] | None = None,
-    quota_admin: bool = False,
+    system_mcp: dict | None = None,
+    user_mcp: set | None = None,
 ) -> PersonaPresetManager:
-    import src.infra.mcp.quota as quota_module
-
-    original = quota_module.resolve_user_mcp_access
-
-    async def _fake_resolve(user_id: str):
-        return ["user"], quota_admin
-
-    quota_module.resolve_user_mcp_access = _fake_resolve
-    manager = PersonaPresetManager(
+    return PersonaPresetManager(
         storage=FakePresetStorage(),
         skill_storage=FakeSkillStorage(skill_names),
-        mcp_storage=FakeMCPStorage(visible_mcp or set()),
+        mcp_storage=FakeMCPStorage(system_mcp or {}, user_mcp or set()),
     )
-    manager.__dict__["_restore_quota"] = lambda: setattr(
-        quota_module, "resolve_user_mcp_access", original
-    )
-    return manager
 
 
 async def test_use_preset_passes_mcp_whitelist_into_snapshot() -> None:
-    manager = _make_manager({"own-skill"}, visible_mcp={"arxiv", "weather"})
-    try:
+    manager = _make_manager({"own-skill"}, system_mcp={"arxiv": [], "weather": ["researcher"]})
+    if True:
         preset_id = (
             await manager.storage.create(
                 {
@@ -114,20 +114,22 @@ async def test_use_preset_passes_mcp_whitelist_into_snapshot() -> None:
             )
         )["id"]
 
-        snapshot = await manager.use_preset(preset_id, user_id="user-1", is_admin=False)
-    finally:
-        manager.__dict__["_restore_quota"]()
+        snapshot = await manager.use_preset(
+            preset_id, user_id="user-1", is_admin=False, user_roles=["user"]
+        )
 
     # 技能/MCP 均与用户实际可用集合求交集，缺失分别记录
     assert snapshot.skill_names == ["own-skill"]
     assert snapshot.missing_skill_names == ["gone-skill"]
-    assert snapshot.mcp_server_names == ["arxiv", "weather"]
-    assert snapshot.missing_mcp_server_names == []
+    assert snapshot.mcp_server_names == ["arxiv"]  # weather 限 researcher 角色，不可见
+    assert snapshot.missing_mcp_server_names == ["weather"]
+    # 点查路径：system 两次（weather 非用户服务不再查 user 表）
+    assert manager.mcp_storage.point_lookups == ["system:arxiv", "system:weather"]
 
 
 async def test_use_preset_drops_invisible_mcp_and_records_missing() -> None:
-    manager = _make_manager(set(), visible_mcp={"arxiv"})
-    try:
+    manager = _make_manager(set(), system_mcp={"arxiv": []})
+    if True:
         preset_id = (
             await manager.storage.create(
                 {
@@ -144,9 +146,9 @@ async def test_use_preset_drops_invisible_mcp_and_records_missing() -> None:
                 }
             )
         )["id"]
-        snapshot = await manager.use_preset(preset_id, user_id="user-1", is_admin=False)
-    finally:
-        manager.__dict__["_restore_quota"]()
+        snapshot = await manager.use_preset(
+            preset_id, user_id="user-1", is_admin=False, user_roles=["user"]
+        )
     assert snapshot.mcp_server_names == ["arxiv"]
     assert snapshot.missing_mcp_server_names == ["ghost"]
 
@@ -157,8 +159,8 @@ async def test_use_preset_all_mcp_missing_keeps_lenient_no_whitelist() -> None:
         _persona_enabled_mcp_servers_from_snapshot,
     )
 
-    manager = _make_manager(set(), visible_mcp=set())
-    try:
+    manager = _make_manager(set())
+    if True:
         preset_id = (
             await manager.storage.create(
                 {
@@ -175,9 +177,9 @@ async def test_use_preset_all_mcp_missing_keeps_lenient_no_whitelist() -> None:
                 }
             )
         )["id"]
-        snapshot = await manager.use_preset(preset_id, user_id="user-1", is_admin=False)
-    finally:
-        manager.__dict__["_restore_quota"]()
+        snapshot = await manager.use_preset(
+            preset_id, user_id="user-1", is_admin=False, user_roles=["user"]
+        )
     assert snapshot.mcp_server_names == []
     assert snapshot.missing_mcp_server_names == ["ghost"]
     assert _persona_enabled_mcp_servers_from_snapshot(snapshot) is None
@@ -203,3 +205,35 @@ async def test_copy_preset_carries_mcp_bindings() -> None:
     )["id"]
     copied = await manager.copy_preset(source_id, user_id="user-1", is_admin=True)
     assert copied.mcp_server_names == ["arxiv"]
+
+
+async def test_use_preset_without_bindings_skips_all_queries() -> None:
+    """热路径契约：无技能/MCP 绑定的预设不触发任何可用性/可见性查询。"""
+    manager = _make_manager({"some-skill"})
+    preset_id = (
+        await manager.storage.create(
+            {
+                "scope": "user",
+                "owner_user_id": "user-1",
+                "name": "Plain",
+                "system_prompt": "You chat.",
+                "starter_prompts": [],
+                "skill_names": [],
+                "mcp_server_names": [],
+                "visibility": "private",
+                "status": "published",
+                "version": 1,
+            }
+        )
+    )["id"]
+
+    snapshot = await manager.use_preset(
+        preset_id, user_id="user-1", is_admin=False, user_roles=["user"]
+    )
+
+    assert snapshot.skill_names == []
+    assert snapshot.mcp_server_names == []
+    assert snapshot.missing_skill_names == []
+    assert snapshot.missing_mcp_server_names == []
+    assert manager.skill_storage.effective_calls == 0
+    assert manager.mcp_storage.point_lookups == []

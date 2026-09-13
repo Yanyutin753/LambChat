@@ -6,7 +6,10 @@
 
 from __future__ import annotations
 
-from src.infra.persona_preset.manager import PersonaPresetManager
+from src.infra.persona_preset.manager import (
+    PersonaPresetManager,
+    get_persona_preset_manager,
+)
 from src.kernel.schemas.agent import AgentRequest
 from src.kernel.schemas.persona_preset import PersonaPresetSnapshot
 from src.kernel.schemas.user import TokenPayload
@@ -82,11 +85,12 @@ async def resolve_persona_request(
     if not request.persona_preset_id:
         return
 
-    persona_manager = manager or PersonaPresetManager()
+    persona_manager = manager or get_persona_preset_manager()
     snapshot = await persona_manager.use_preset(
         request.persona_preset_id,
         user_id=user.sub,
         is_admin="persona_preset:admin" in (user.permissions or []),
+        user_roles=list(user.roles or []),
     )
     request.persona_snapshot = snapshot
     request.enabled_skills = _persona_enabled_skills_from_snapshot(snapshot)

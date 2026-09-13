@@ -67,9 +67,11 @@ export function PersonaEditorModal({
     setBindingsLoading(true);
     void (async () => {
       try {
+        // 技能列表只为「缺失提示」服务：编辑的预设没有技能绑定时直接跳过请求
+        const needSkills = (editingPreset?.skill_names ?? []).length > 0;
         const [mcpList, skillList] = await Promise.all([
           mcpApi.list(),
-          skillApi.list({ limit: 100 }),
+          needSkills ? skillApi.list({ limit: 100 }) : Promise.resolve(null),
         ]);
         if (cancelled) return;
         setMcpOptions(
@@ -81,7 +83,7 @@ export function PersonaEditorModal({
             })),
         );
         setInstalledSkillNames(
-          (skillList.skills ?? []).map((skill) => skill.skill_name),
+          (skillList?.skills ?? []).map((skill) => skill.skill_name),
         );
       } catch {
         if (!cancelled) {
@@ -95,7 +97,7 @@ export function PersonaEditorModal({
     return () => {
       cancelled = true;
     };
-  }, [showModal, t]);
+  }, [showModal, t, editingPreset]);
 
   // 编辑既有预设时，绑定里当前用户不可用的部分（技能未安装 / MCP 不可见）
   const missingSkills = computeMissingBindings(
