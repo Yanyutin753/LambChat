@@ -2142,6 +2142,8 @@
     "skillsCount": "스킬",
     "skillsInput": "스킬",
     "mcpServersInput": "MCP 서버",
+    "missingSkillsHint": "설치되지 않은 바인딩 스킬: {{names}} (대화에서 적용되지 않음)",
+    "missingMcpHint": "현재 보이지 않는 MCP 서버: {{names}} (대화에서 적용되지 않음)",
     "mcpServerCount": "MCP 서버 {{count}}개 바인딩됨",
     "mcpServersInputPlaceholder": "사용할 MCP 서버 제한(비워두면 전부)...",
     "mcpSearchPlaceholder": "MCP 서버 검색...",

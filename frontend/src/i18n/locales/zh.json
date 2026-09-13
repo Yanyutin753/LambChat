@@ -2142,6 +2142,8 @@
     "skillsCount": "个技能",
     "skillsInput": "技能",
     "mcpServersInput": "MCP 服务",
+    "missingSkillsHint": "未安装的绑定技能：{{names}}（对话中不会生效）",
+    "missingMcpHint": "当前不可见的 MCP 服务：{{names}}（对话中不会生效）",
     "mcpServerCount": "{{count}} 个 MCP 服务已绑定",
     "mcpServersInputPlaceholder": "限定可用的 MCP 服务（留空不限制）...",
     "mcpSearchPlaceholder": "搜索 MCP 服务...",

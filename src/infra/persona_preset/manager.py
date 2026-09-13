@@ -2,6 +2,7 @@
 
 from typing import Optional
 
+from src.infra.mcp.storage import MCPStorage
 from src.infra.persona_preset.storage import PersonaPresetStorage
 from src.infra.skill.storage import SkillStorage
 from src.infra.utils.datetime import utc_now
@@ -24,9 +25,11 @@ class PersonaPresetManager:
         self,
         storage: PersonaPresetStorage | None = None,
         skill_storage: SkillStorage | None = None,
+        mcp_storage: MCPStorage | None = None,
     ) -> None:
         self.storage = storage or PersonaPresetStorage()
         self.skill_storage = skill_storage or SkillStorage()
+        self.mcp_storage = mcp_storage or MCPStorage()
 
     @staticmethod
     def _can_view(doc: dict, *, user_id: str, is_admin: bool) -> bool:
@@ -275,7 +278,20 @@ class PersonaPresetManager:
         available = await self._get_available_skill_names(user_id)
         skill_names = [name for name in preset.skill_names if name in available]
         missing = [name for name in preset.skill_names if name not in available]
-        mcp_server_names = list(preset.mcp_server_names)
+
+        # MCP 可见性校验：快照只保留当前用户可见的服务（全缺时不设白名单→放行全部，
+        # 与技能语义一致）；不可见的记录进 missing 供前端提示。
+        visible_mcp = await self._get_visible_mcp_server_names(user_id, is_admin=is_admin)
+        if visible_mcp is None:
+            mcp_server_names = list(preset.mcp_server_names)
+            missing_mcp: list[str] = []
+        else:
+            mcp_server_names = [
+                name for name in preset.mcp_server_names if name in visible_mcp
+            ]
+            missing_mcp = [
+                name for name in preset.mcp_server_names if name not in visible_mcp
+            ]
 
         await self.storage.increment_usage(preset_id)
         await self.storage.touch_user_preference(user_id=user_id, preset_id=preset_id)
@@ -287,9 +303,27 @@ class PersonaPresetManager:
             skill_names=skill_names,
             missing_skill_names=missing,
             mcp_server_names=mcp_server_names,
+            missing_mcp_server_names=missing_mcp,
             version=preset.version,
             avatar=preset.avatar,
         )
+
+    async def _get_visible_mcp_server_names(
+        self, user_id: str, *, is_admin: bool
+    ) -> set[str] | None:
+        """当前用户可见的 MCP server 名集合；查询失败返回 None（跳过校验不阻塞）。"""
+        try:
+            from src.infra.mcp.quota import resolve_user_mcp_access
+
+            user_roles, quota_admin = await resolve_user_mcp_access(user_id)
+            servers = await self.mcp_storage.get_visible_servers(
+                user_id,
+                is_admin=is_admin or quota_admin,
+                user_roles=user_roles,
+            )
+            return {server.name for server in servers}
+        except Exception:
+            return None
 
     async def _get_available_skill_names(self, user_id: str) -> set[str]:
         """Return skill names that can actually be loaded for this user."""

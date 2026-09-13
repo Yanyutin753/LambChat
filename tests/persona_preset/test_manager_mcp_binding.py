@@ -48,6 +48,14 @@ class FakePresetStorage:
         return None
 
 
+class FakeMCPStorage:
+    def __init__(self, visible_names: set[str]) -> None:
+        self._visible = visible_names
+
+    async def get_visible_servers(self, user_id, is_admin=False, user_roles=None, limit=None):
+        return [type("S", (), {"name": n})() for n in sorted(self._visible)]
+
+
 class FakeSkillStorage:
     def __init__(self, names: set[str]) -> None:
         self._names = names
@@ -62,38 +70,117 @@ class FakeSkillStorage:
         return None
 
 
-def _make_manager(skill_names: set[str]) -> PersonaPresetManager:
-    return PersonaPresetManager(
+def _make_manager(
+    skill_names: set[str],
+    visible_mcp: set[str] | None = None,
+    quota_admin: bool = False,
+) -> PersonaPresetManager:
+    import src.infra.mcp.quota as quota_module
+
+    original = quota_module.resolve_user_mcp_access
+
+    async def _fake_resolve(user_id: str):
+        return ["user"], quota_admin
+
+    quota_module.resolve_user_mcp_access = _fake_resolve
+    manager = PersonaPresetManager(
         storage=FakePresetStorage(),
         skill_storage=FakeSkillStorage(skill_names),
+        mcp_storage=FakeMCPStorage(visible_mcp or set()),
     )
+    manager.__dict__["_restore_quota"] = lambda: setattr(
+        quota_module, "resolve_user_mcp_access", original
+    )
+    return manager
 
 
 async def test_use_preset_passes_mcp_whitelist_into_snapshot() -> None:
-    manager = _make_manager({"own-skill"})
-    preset_id = (
-        await manager.storage.create(
-            {
-                "scope": "user",
-                "owner_user_id": "user-1",
-                "name": "Researcher",
-                "system_prompt": "You research.",
-                "starter_prompts": [],
-                "skill_names": ["own-skill", "gone-skill"],
-                "mcp_server_names": ["arxiv", "weather"],
-                "visibility": "private",
-                "status": "published",
-                "version": 1,
-            }
-        )
-    )["id"]
+    manager = _make_manager({"own-skill"}, visible_mcp={"arxiv", "weather"})
+    try:
+        preset_id = (
+            await manager.storage.create(
+                {
+                    "scope": "user",
+                    "owner_user_id": "user-1",
+                    "name": "Researcher",
+                    "system_prompt": "You research.",
+                    "starter_prompts": [],
+                    "skill_names": ["own-skill", "gone-skill"],
+                    "mcp_server_names": ["arxiv", "weather"],
+                    "visibility": "private",
+                    "status": "published",
+                    "version": 1,
+                }
+            )
+        )["id"]
 
-    snapshot = await manager.use_preset(preset_id, user_id="user-1", is_admin=False)
+        snapshot = await manager.use_preset(preset_id, user_id="user-1", is_admin=False)
+    finally:
+        manager.__dict__["_restore_quota"]()
 
-    # 技能与用户实际可用技能求交集（缺失记录）；MCP 白名单原样透传给运行时
+    # 技能/MCP 均与用户实际可用集合求交集，缺失分别记录
     assert snapshot.skill_names == ["own-skill"]
     assert snapshot.missing_skill_names == ["gone-skill"]
     assert snapshot.mcp_server_names == ["arxiv", "weather"]
+    assert snapshot.missing_mcp_server_names == []
+
+
+async def test_use_preset_drops_invisible_mcp_and_records_missing() -> None:
+    manager = _make_manager(set(), visible_mcp={"arxiv"})
+    try:
+        preset_id = (
+            await manager.storage.create(
+                {
+                    "scope": "user",
+                    "owner_user_id": "user-1",
+                    "name": "Partial",
+                    "system_prompt": "You chat.",
+                    "starter_prompts": [],
+                    "skill_names": [],
+                    "mcp_server_names": ["arxiv", "ghost"],
+                    "visibility": "private",
+                    "status": "published",
+                    "version": 1,
+                }
+            )
+        )["id"]
+        snapshot = await manager.use_preset(preset_id, user_id="user-1", is_admin=False)
+    finally:
+        manager.__dict__["_restore_quota"]()
+    assert snapshot.mcp_server_names == ["arxiv"]
+    assert snapshot.missing_mcp_server_names == ["ghost"]
+
+
+async def test_use_preset_all_mcp_missing_keeps_lenient_no_whitelist() -> None:
+    """全缺放行：绑定的 MCP 一个都不可见时快照白名单为空（请求侧回落为不限制）。"""
+    from src.api.routes.chat_request_config import (
+        _persona_enabled_mcp_servers_from_snapshot,
+    )
+
+    manager = _make_manager(set(), visible_mcp=set())
+    try:
+        preset_id = (
+            await manager.storage.create(
+                {
+                    "scope": "user",
+                    "owner_user_id": "user-1",
+                    "name": "Ghost",
+                    "system_prompt": "You chat.",
+                    "starter_prompts": [],
+                    "skill_names": [],
+                    "mcp_server_names": ["ghost"],
+                    "visibility": "private",
+                    "status": "published",
+                    "version": 1,
+                }
+            )
+        )["id"]
+        snapshot = await manager.use_preset(preset_id, user_id="user-1", is_admin=False)
+    finally:
+        manager.__dict__["_restore_quota"]()
+    assert snapshot.mcp_server_names == []
+    assert snapshot.missing_mcp_server_names == ["ghost"]
+    assert _persona_enabled_mcp_servers_from_snapshot(snapshot) is None
 
 
 async def test_copy_preset_carries_mcp_bindings() -> None:

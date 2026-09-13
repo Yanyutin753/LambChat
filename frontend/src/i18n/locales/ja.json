@@ -2142,6 +2142,8 @@
     "skillsCount": "スキル",
     "skillsInput": "スキル",
     "mcpServersInput": "MCP サーバー",
+    "missingSkillsHint": "未インストールのバインドスキル：{{names}}（会話では無効）",
+    "missingMcpHint": "現在表示できない MCP サーバー：{{names}}（会話では無効）",
     "mcpServerCount": "MCP サーバー {{count}} 件をバインド",
     "mcpServersInputPlaceholder": "使用する MCP サーバーを限定（空欄で無制限）...",
     "mcpSearchPlaceholder": "MCP サーバーを検索...",

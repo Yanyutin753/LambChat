@@ -2142,6 +2142,8 @@
     "skillsCount": "навыков",
     "skillsInput": "Навыки",
     "mcpServersInput": "MCP-серверы",
+    "missingSkillsHint": "Привязанные навыки не установлены: {{names}} (не действуют в чате)",
+    "missingMcpHint": "Недоступные вам MCP-серверы: {{names}} (не действуют в чате)",
     "mcpServerCount": "Привязано MCP-серверов: {{count}}",
     "mcpServersInputPlaceholder": "Ограничить MCP-серверы (пусто = все)...",
     "mcpSearchPlaceholder": "Поиск MCP-серверов...",

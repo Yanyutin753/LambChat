@@ -169,6 +169,7 @@ class PersonaPresetSnapshot(BaseModel):
     skill_names: list[str] = Field(default_factory=list)
     missing_skill_names: list[str] = Field(default_factory=list)
     mcp_server_names: list[str] = Field(default_factory=list)
+    missing_mcp_server_names: list[str] = Field(default_factory=list)
     version: int = 1
     avatar: Optional[str] = None
 

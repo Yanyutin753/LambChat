@@ -2142,6 +2142,8 @@
     "skillsCount": "skills",
     "skillsInput": "Skills",
     "mcpServersInput": "MCP Servers",
+    "missingSkillsHint": "Bound skills not installed: {{names}} (inactive in chat)",
+    "missingMcpHint": "MCP servers not visible to you: {{names}} (inactive in chat)",
     "mcpServerCount": "{{count}} MCP servers bound",
     "mcpServersInputPlaceholder": "Restrict usable MCP servers (empty = all)...",
     "mcpSearchPlaceholder": "Search MCP servers...",
