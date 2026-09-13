@@ -80,9 +80,16 @@ async def download_release_asset(
     """
     if tag:
         release = await github_client.get_release_by_tag(tag)
+        asset = _find_asset(release, asset_name)
     else:
         release = await github_client.get_latest_release()
-    asset = _find_asset(release, asset_name)
+        asset = _find_asset(release, asset_name)
+        if asset is None:
+            # 缓存竞态自愈：发版后 latest.json 由 updater 工作流后上传，
+            # 进程内 1 小时缓存可能持有无该资产的旧快照（v2.11.0 发版实测：
+            # 双 pod 缓存窗口内自更新主端点 404）。找不到时强刷一次再找。
+            release = await github_client.get_latest_release(force_refresh=True)
+            asset = _find_asset(release, asset_name)
     if asset is None:
         raise AppError(ErrorCode.RELEASE_ASSET_NOT_FOUND, args={"name": asset_name})
 
