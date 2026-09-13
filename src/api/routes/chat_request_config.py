@@ -7,9 +7,9 @@
 from __future__ import annotations
 
 from src.infra.persona_preset.manager import (
-        PersonaPresetManager,
-        get_persona_preset_manager,
-    )
+    PersonaPresetManager,
+    get_persona_preset_manager,
+)
 from src.kernel.schemas.agent import AgentRequest
 from src.kernel.schemas.persona_preset import PersonaPresetSnapshot
 from src.kernel.schemas.user import TokenPayload
