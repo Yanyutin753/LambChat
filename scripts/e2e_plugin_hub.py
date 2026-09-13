@@ -69,6 +69,21 @@ def _mongo():
     env = dotenv_values(".env")
     import pymongo
 
+    if MONGO_URL_OVERRIDE:
+        url = MONGO_URL_OVERRIDE
+        user = os.environ.get("E2E_PLUGIN_HUB_MONGO_USER", "")
+        pwd = os.environ.get("E2E_PLUGIN_HUB_MONGO_PASSWORD", "")
+        if user and pwd:
+            return pymongo.MongoClient(
+                url,
+                username=user,
+                password=pwd,
+                authSource=env.get("MONGODB_AUTH_SOURCE", "admin"),
+                serverSelectionTimeoutMS=5000,
+            )[os.environ.get("E2E_PLUGIN_HUB_MONGO_DB", "agent_state_staging")]
+        return pymongo.MongoClient(url, serverSelectionTimeoutMS=5000)[
+            os.environ.get("E2E_PLUGIN_HUB_MONGO_DB", "agent_state_staging")
+        ]
     url = env.get("MONGODB_URL", "mongodb://localhost:27017")
     user, pwd = env.get("MONGODB_USERNAME", ""), env.get("MONGODB_PASSWORD", "")
     if user and pwd:
@@ -84,16 +99,19 @@ def _mongo():
     ]
 
 
+MONGO_URL_OVERRIDE = os.environ.get("E2E_PLUGIN_HUB_MONGO_URL", "")
+
+
 def register_and_login(username: str, elevate_admin: bool) -> str:
     http_json(
         "POST",
         "/api/auth/register",
         {"username": username, "password": "E2ePass!123", "email": f"{username}@example.com"},
     )
-    db = _mongo()
     update: dict = {"is_active": True, "email_verified": True}
     if elevate_admin:
         update["roles"] = ["admin"]
+    db = _mongo()
     db.users.update_one({"username": username}, {"$set": update})
     status, login = http_json(
         "POST", "/api/auth/login", {"username": username, "password": "E2ePass!123"}
