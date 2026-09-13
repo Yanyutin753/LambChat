@@ -221,6 +221,8 @@ class TaskExecutor:
                 )
 
             if hitl_resume is not None:
+                # HITL 恢复：清除挂起标记（挂起期间它让全局僵尸清扫豁免本 trace）
+                await self._set_trace_waiting_human(presenter.trace_id, waiting=False)
                 resolved = hitl_resume.get("approval_resolved")
                 if isinstance(resolved, dict):
                     await presenter.save_event({"event": "approval_resolved", "data": resolved})
@@ -277,6 +279,9 @@ class TaskExecutor:
 
             # interrupt 模式挂起（issue #218）：保留 checkpoint，标记 WAITING_HUMAN
             if presenter is not None and getattr(presenter, "hitl_suspended", False):
+                # 等人工输入期间事件停流、updated_at 不刷新；打 waiting_human 标记
+                # 让全局僵尸清扫豁免（#583：挂起 10 分钟被误终态为 error）
+                await self._set_trace_waiting_human(presenter.trace_id, waiting=True)
                 if dual_writer is not None:
                     try:
                         await dual_writer.flush_mongo_buffer(require_empty=True)
@@ -339,6 +344,15 @@ class TaskExecutor:
             # 清除请求上下文，防止 contextvars 泄漏到后续任务
             TraceContext.clear_request_context()
             TraceContext.clear()
+
+    async def _set_trace_waiting_human(self, trace_id: str, *, waiting: bool) -> None:
+        """HITL 挂起标记（#583）：失败只降级为日志，不影响挂起/恢复主流程。"""
+        try:
+            from src.infra.session.trace_storage import get_trace_storage
+
+            await get_trace_storage().set_trace_waiting_human(trace_id, waiting=waiting)
+        except Exception as e:
+            logger.warning("Failed to mark trace %s waiting_human=%s: %s", trace_id, waiting, e)
 
     async def _handle_cancelled_error(
         self,

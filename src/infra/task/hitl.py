@@ -524,6 +524,27 @@ async def submit_hitl_resume_run(
             "recommendation_input": resume_context.get("recommendation_input"),
             "auto_mode": bool(metadata.get("auto_mode", False)),
         }
+        if source_trace_id:
+            # 挂起等审批超过 10 分钟时，全局僵尸清扫会把 updated_at 过期的
+            # trace 误终态为 error（#583）。恢复前重开（error→running，幂等），
+            # 否则跑完后 complete_trace 被终态保护拒绝，trace 永远停在 error。
+            try:
+                from src.infra.session.trace_storage import get_trace_storage
+
+                reopened = await get_trace_storage().reopen_interrupted_trace(source_trace_id)
+                if reopened:
+                    logger.info(
+                        "[HITL] approval_id=%s Reopened error-finalized trace %s before resume",
+                        approval.id,
+                        source_trace_id,
+                    )
+            except Exception as e:
+                logger.warning(
+                    "[HITL] approval_id=%s Failed to reopen trace %s before resume: %s",
+                    approval.id,
+                    source_trace_id,
+                    e,
+                )
         if getattr(settings, "TASK_BACKEND", "local") == "arq":
             dispatch_id = resume_attempt_id or f"hitl-resume:{approval.id}:{uuid.uuid4().hex}"
             run_id, _ = await manager.submit_arq(
