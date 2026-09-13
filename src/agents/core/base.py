@@ -19,7 +19,6 @@ from src.agents.core.trace_finalizer import complete_owned_presenter_trace
 from src.infra.agent import AgentEventProcessor
 from src.infra.async_utils import run_blocking_io
 from src.infra.llm.responses_cache import (
-    reset_responses_prompt_cache_key,
     session_prompt_cache_key,
     set_responses_prompt_cache_key,
 )
@@ -334,12 +333,13 @@ class BaseGraphAgent(ABC):
         入口：graph 任务（ensure_future/create_task 复制当前上下文）与嵌套
         子 agent 都继承同一个 key，对齐 Codex 的会话级缓存路由语义。
         """
-        cache_key_token = set_responses_prompt_cache_key(session_id)
-        try:
-            async for event in self._stream(message, session_id, user_id=user_id, **kwargs):
-                yield event
-        finally:
-            reset_responses_prompt_cache_key(cache_key_token)
+        # 每轮事件重新绑定（而非入口 set + finally reset）：stall 看门狗会把
+        # 每个 __anext__ 包成独立 asyncio.Task（context 副本），入口 set 的值
+        # 无法跨副本可见，token 复位还会跨 context 报错。幂等 set 让每个副本
+        # 都拿到会话级 key；key 随副本消亡，无需复位。
+        async for event in self._stream(message, session_id, user_id=user_id, **kwargs):
+            set_responses_prompt_cache_key(session_id)
+            yield event
 
     async def _stream(
         self,

@@ -189,9 +189,10 @@ def test_overlong_session_id_is_truncated() -> None:
 def test_base_graph_agent_binds_session_key_around_graph_execution() -> None:
     # fast/search/team 各自重写 _stream，绑定必须放在未被重写的公共入口：
     # stream() → _stream_with_cache_key() → self._stream(...)
+    # 热修（跨 context 安全）：每轮事件幂等 set（看门狗把每个 __anext__ 包成
+    # 独立 Task/context 副本，入口 set + finally reset 会跨 context 崩溃）。
     assert "return self._stream_with_cache_key(" in AGENTS_BASE_SOURCE
     assert "set_responses_prompt_cache_key(session_id)" in AGENTS_BASE_SOURCE
-    assert "reset_responses_prompt_cache_key(cache_key_token)" in AGENTS_BASE_SOURCE
     assert "async for event in self._stream(message, session_id" in AGENTS_BASE_SOURCE
     assert "session_prompt_cache_key(session_id)" in AGENTS_BASE_SOURCE
 
