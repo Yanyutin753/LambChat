@@ -6,11 +6,10 @@
 热修：latest 路径找不到资产时 force_refresh 一次再找。
 """
 
+import pytest
+
 from src.api.routes.version import download_release_asset
 from src.infra.github_client import GitHubRelease
-from src.kernel.errors import AppError, ErrorCode
-
-import pytest
 
 
 def _release(assets: list[str]) -> GitHubRelease:
