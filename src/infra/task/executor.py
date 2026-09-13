@@ -267,6 +267,9 @@ class TaskExecutor:
                     base_url=base_url,
                 ),
                 timeout=_run_stall_timeout_seconds(),
+                # 直连路径（emit→save_event）的进展也证明流未挂死：
+                # 深跑时生成器可静默超过 deadline，全靠探针续命
+                progress_probe=getattr(presenter, "last_progress_monotonic", None),
             ):
                 await presenter.save_event(event)
                 if not produced_main_text and _is_main_agent_text_event(event):

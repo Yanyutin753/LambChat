@@ -8,6 +8,7 @@ Worker 存活但 agent stream 挂死（LLM 首包永不到达等）时，心跳�
 from __future__ import annotations
 
 import asyncio
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -34,7 +35,12 @@ class _FakePresenter:
         self._trace_created = False
         self.saved_events: list[dict] = []
         self.completed: list[str] = []
+        self._last_progress_monotonic = time.monotonic()
         self.__class__.instances.append(self)
+
+    def last_progress_monotonic(self) -> float:
+        """镜像真实 Presenter 的进展时间戳契约（save_event 汇聚点刷新）。"""
+        return self._last_progress_monotonic
 
     async def _ensure_trace(self) -> None:
         self._trace_created = True
@@ -44,6 +50,7 @@ class _FakePresenter:
 
     async def save_event(self, event: dict) -> None:
         self.saved_events.append(event)
+        self._last_progress_monotonic = time.monotonic()
 
     async def complete(self, status: str) -> None:
         self.completed.append(status)
@@ -185,6 +192,42 @@ async def test_progressing_stream_completes_without_watchdog_interference(
     assert result is False  # completed path
     assert presenter.completed == ["completed"]
     assert len(presenter.saved_events) == 3
+    assert not [w for w in writer.written if w.get("event_type") == "error"]
+
+
+@pytest.mark.asyncio
+async def test_presenter_direct_path_progress_prevents_stall(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """presenter 直连路径持续落事件时，生成器静默不得误杀（2026-09-12/13 生产事故）。
+
+    Search Agent 深跑的 message:chunk / 子代理事件走 presenter.emit 直连，
+    executor 生成器可静默超过整个 stall 超时窗口；run 实际满负荷运行，
+    却被「无事件」看门狗判死。探针观察到 presenter 进展即续命。
+    """
+    executor, writer, _status_updates = _executor_fixture(monkeypatch, stall_timeout=0.05)
+
+    async def _busy_direct_emit_stream(*_args, presenter=None, **_kwargs):
+        # 生成器全程不 yield，直到最后才出正文；期间靠直连路径持续产出
+        for i in range(5):
+            await asyncio.sleep(0.03)  # 直连事件间隔 < stall 超时
+            await presenter.save_event(
+                {"event": "message:chunk", "data": {"content": f"direct-{i}", "depth": 1}}
+            )
+        yield {"event": "message:chunk", "data": {"content": "final"}}
+
+    result = await executor.run_task(
+        session_id="session-1",
+        run_id="run-5",
+        agent_id="search",
+        message="",
+        user_id="user-1",
+        executor=_busy_direct_emit_stream,
+    )
+
+    presenter = _FakePresenter.instances[0]
+    assert result is False  # completed path
+    assert presenter.completed == ["completed"]
     assert not [w for w in writer.written if w.get("event_type") == "error"]
 
 
