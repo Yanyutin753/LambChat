@@ -1,7 +1,14 @@
 # 插件中心（Plugin Hub）设计：技能 / MCP / 角色统一插件体系
 
 日期：2026-09-13
-状态：已实现（feat/plugin-hub）
+状态：已修订——插件层退役，角色（persona）作为唯一能力绑定入口
+
+> **修订（2026-09-13 晚）**：对照 Codex 源码（codex 无 persona 概念，plugin 仅为
+> skills/MCP 的分发层），LambChat 已有角色广场/发布/复制体系，再叠一层插件形成两个
+> 「能力包」概念。修订后：**插件层整体退役**（路由/infra/迁移/错误码/前端面板），
+> 技能市场恢复原样；**persona 保留 `mcp_server_names` 绑定 + `enabled_mcp_servers`
+> 运行时白名单链路**（即"角色配置 MCP"），技能绑定沿用 `skill_names`。
+> 本文中插件相关章节保留为决策记录，不再描述现状。
 
 ## 背景与目标
 

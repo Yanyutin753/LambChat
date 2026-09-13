@@ -75,13 +75,12 @@ class PersonaPresetBase(BaseModel):
     system_prompt: str = Field(..., min_length=1)
     starter_prompts: list[PersonaStarterPrompt] = Field(default_factory=list)
     skill_names: list[str] = Field(default_factory=list)
-    plugin_names: list[str] = Field(default_factory=list)
     mcp_server_names: list[str] = Field(default_factory=list)
     scope: PersonaPresetScope = PersonaPresetScope.USER
     visibility: PersonaPresetVisibility = PersonaPresetVisibility.PRIVATE
     status: PersonaPresetStatus = PersonaPresetStatus.DRAFT
 
-    @field_validator("tags", "skill_names", "plugin_names", "mcp_server_names")
+    @field_validator("tags", "skill_names", "mcp_server_names")
     @classmethod
     def _dedupe_strings(cls, values: list[str]) -> list[str]:
         seen: set[str] = set()
@@ -109,13 +108,12 @@ class PersonaPresetUpdate(BaseModel):
     system_prompt: Optional[str] = Field(None, min_length=1)
     starter_prompts: Optional[list[PersonaStarterPrompt]] = None
     skill_names: Optional[list[str]] = None
-    plugin_names: Optional[list[str]] = None
     mcp_server_names: Optional[list[str]] = None
     scope: Optional[PersonaPresetScope] = None
     visibility: Optional[PersonaPresetVisibility] = None
     status: Optional[PersonaPresetStatus] = None
 
-    @field_validator("tags", "skill_names", "plugin_names", "mcp_server_names")
+    @field_validator("tags", "skill_names", "mcp_server_names")
     @classmethod
     def _dedupe_optional_strings(cls, values: list[str] | None) -> list[str] | None:
         if values is None:
@@ -145,7 +143,6 @@ class PersonaPreset(BaseModel):
     system_prompt: str
     starter_prompts: list[PersonaStarterPrompt] = Field(default_factory=list)
     skill_names: list[str] = Field(default_factory=list)
-    plugin_names: list[str] = Field(default_factory=list)
     mcp_server_names: list[str] = Field(default_factory=list)
     visibility: PersonaPresetVisibility
     status: PersonaPresetStatus
@@ -171,8 +168,6 @@ class PersonaPresetSnapshot(BaseModel):
     starter_prompts: list[PersonaStarterPrompt] = Field(default_factory=list)
     skill_names: list[str] = Field(default_factory=list)
     missing_skill_names: list[str] = Field(default_factory=list)
-    plugin_names: list[str] = Field(default_factory=list)
-    missing_plugin_names: list[str] = Field(default_factory=list)
     mcp_server_names: list[str] = Field(default_factory=list)
     version: int = 1
     avatar: Optional[str] = None

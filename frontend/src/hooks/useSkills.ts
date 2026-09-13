@@ -56,8 +56,6 @@ function mapInstalledToSource(installed_from: string): SkillSource {
   switch (installed_from) {
     case "marketplace":
       return "marketplace";
-    case "plugin":
-      return "plugin";
     case "manual":
     default:
       return "manual";
@@ -601,7 +599,6 @@ export function useSkills(options?: {
     const stats: Record<SkillSource, { enabled: number; total: number }> = {
       marketplace: { enabled: 0, total: 0 },
       manual: { enabled: 0, total: 0 },
-      plugin: { enabled: 0, total: 0 },
     };
 
     skills.forEach((skill) => {

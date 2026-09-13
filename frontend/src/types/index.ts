@@ -302,23 +302,3 @@ export type {
 // ============================================
 export type { UsageLog, UsageStats, UsageLogListResponse } from "./usage";
 
-// ============================================
-// Plugin Hub Types
-// ============================================
-export type {
-  PluginStatus,
-  PluginSkillPayload,
-  PluginMcpServerPayload,
-  PluginStarterPromptPayload,
-  PluginPersonaPayload,
-  PluginResponse,
-  PluginListResponse,
-  PluginInstallResponse,
-  PluginInstallRecord,
-  PluginInstalledListResponse,
-  PluginTagsResponse,
-  PluginCreateRequest,
-  PluginUpdateRequest,
-  PluginSkillFilesResponse,
-  PluginFileContentResponse,
-} from "./plugin";

@@ -19,7 +19,6 @@ export interface PersonaPresetEditorDraft {
   starter_prompts: PersonaStarterPrompt[];
   tags: string[];
   skill_names: string[];
-  plugin_names: string[];
   mcp_server_names: string[];
 }
 
@@ -103,7 +102,6 @@ export function buildPersonaPresetPayload(
     starter_prompts: draft.starter_prompts,
     tags: draft.tags,
     skill_names: draft.skill_names,
-    plugin_names: draft.plugin_names,
     mcp_server_names: draft.mcp_server_names,
   };
 
