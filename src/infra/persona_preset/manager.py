@@ -286,12 +286,8 @@ class PersonaPresetManager:
             mcp_server_names = list(preset.mcp_server_names)
             missing_mcp: list[str] = []
         else:
-            mcp_server_names = [
-                name for name in preset.mcp_server_names if name in visible_mcp
-            ]
-            missing_mcp = [
-                name for name in preset.mcp_server_names if name not in visible_mcp
-            ]
+            mcp_server_names = [name for name in preset.mcp_server_names if name in visible_mcp]
+            missing_mcp = [name for name in preset.mcp_server_names if name not in visible_mcp]
 
         await self.storage.increment_usage(preset_id)
         await self.storage.touch_user_preference(user_id=user_id, preset_id=preset_id)
