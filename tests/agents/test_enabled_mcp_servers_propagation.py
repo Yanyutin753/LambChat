@@ -31,7 +31,9 @@ def test_chat_routes_thread_enabled_mcp_servers() -> None:
 def test_persona_request_config_sets_whitelist_from_snapshot() -> None:
     src = _read("src/api/routes/chat_request_config.py")
     assert "_persona_enabled_mcp_servers_from_snapshot" in src
-    assert "request.enabled_mcp_servers = _persona_enabled_mcp_servers_from_snapshot(snapshot)" in src
+    assert (
+        "request.enabled_mcp_servers = _persona_enabled_mcp_servers_from_snapshot(snapshot)" in src
+    )
     assert '"enabled_mcp_servers": request.enabled_mcp_servers' in src
 
 

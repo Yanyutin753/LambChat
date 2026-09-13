@@ -284,9 +284,7 @@ class PersonaPresetManager:
         requested = list(dict.fromkeys([*preset.skill_names, *plugin_skill_names]))
         skill_names = [name for name in requested if name in available]
         missing = [name for name in preset.skill_names if name not in available]
-        mcp_server_names = list(
-            dict.fromkeys([*preset.mcp_server_names, *plugin_mcp_names])
-        )
+        mcp_server_names = list(dict.fromkeys([*preset.mcp_server_names, *plugin_mcp_names]))
 
         await self.storage.increment_usage(preset_id)
         await self.storage.touch_user_preference(user_id=user_id, preset_id=preset_id)

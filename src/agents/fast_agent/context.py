@@ -144,9 +144,7 @@ class FastAgentContext:
             )
 
             # persona 绑定的 MCP server 白名单：只保留可归属到白名单 server 的工具
-            mcp_tools = filter_mcp_tools_by_server_whitelist(
-                mcp_tools, self.enabled_mcp_servers
-            )
+            mcp_tools = filter_mcp_tools_by_server_whitelist(mcp_tools, self.enabled_mcp_servers)
 
             from src.agents.core.mcp_tool_exposure import split_mcp_tools_for_exposure
 

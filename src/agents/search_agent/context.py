@@ -132,9 +132,7 @@ class SearchAgentContext:
             # 过滤数据库中标记为 system_disabled / user_disabled 的工具
             db_disabled = await get_db_disabled_mcp_tool_names(self.user_id)
             mcp_tools = filter_mcp_tools_by_db_state(mcp_tools, db_disabled)
-            mcp_tools = filter_mcp_tools_by_server_whitelist(
-                mcp_tools, self.enabled_mcp_servers
-            )
+            mcp_tools = filter_mcp_tools_by_server_whitelist(mcp_tools, self.enabled_mcp_servers)
             logger.info(
                 f"[SearchAgentContext] After DB filter: {len(mcp_tools)} MCP tools "
                 f"(removed {len(db_disabled)} disabled names)"

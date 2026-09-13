@@ -109,7 +109,19 @@ def cleanup(db) -> None:
     db.plugin_installs.delete_many({"plugin_name": {"$regex": f"^{PREFIX}"}})
     db.system_mcp_servers.delete_many({"name": {"$regex": f"^{PREFIX}"}})
     db.persona_presets.delete_many(
-        {"$or": [{"name": {"$regex": f"^{PREFIX}"}}, {"owner_user_id": {"$in": [str(u["_id"]) for u in db.users.find({"username": {"$regex": f"^{PREFIX}"}})]}}]}
+        {
+            "$or": [
+                {"name": {"$regex": f"^{PREFIX}"}},
+                {
+                    "owner_user_id": {
+                        "$in": [
+                            str(u["_id"])
+                            for u in db.users.find({"username": {"$regex": f"^{PREFIX}"}})
+                        ]
+                    }
+                },
+            ]
+        }
     )
     for user_doc in db.users.find({"username": {"$regex": f"^{PREFIX}"}}):
         db.skill_files.delete_many({"user_id": str(user_doc["_id"])})
@@ -127,7 +139,11 @@ def make_plugin_payload(name: str) -> dict:
         "version": "1.0.0",
         "tags": ["e2e", "testing"],
         "skills": [
-            {"skill_name": f"{name}-research", "description": "Research skill", "tags": ["research"]},
+            {
+                "skill_name": f"{name}-research",
+                "description": "Research skill",
+                "tags": ["research"],
+            },
             {"skill_name": f"{name}-writer", "description": "Writer skill", "tags": ["writing"]},
         ],
         "mcp_servers": [
@@ -163,35 +179,73 @@ def main() -> int:
     try:
         # ----------------------------------------------------------
         print("\n== 1. 创建与激活（MCP 物化） ==")
-        status, body = http_json("POST", "/api/plugins/", {**make_plugin_payload(PLUGIN), "activate": False}, token=admin_token)
-        check("admin 创建插件（draft）", status == 200 and body.get("status") == "draft", f"{status} {body}")
+        status, body = http_json(
+            "POST",
+            "/api/plugins/",
+            {**make_plugin_payload(PLUGIN), "activate": False},
+            token=admin_token,
+        )
+        check(
+            "admin 创建插件（draft）",
+            status == 200 and body.get("status") == "draft",
+            f"{status} {body}",
+        )
 
         status, body = http_json(
             "PUT",
             f"/api/plugins/{PLUGIN}/skills/{PLUGIN}-research/files",
-            {"files": {f"{PLUGIN}-research/SKILL.md": "---\nname: research\ndescription: d\n---\n# R v1", "extra.md": "v1"}},
+            {
+                "files": {
+                    f"{PLUGIN}-research/SKILL.md": "---\nname: research\ndescription: d\n---\n# R v1",
+                    "extra.md": "v1",
+                }
+            },
             token=admin_token,
         )
         check("写入技能负载文件", status == 200, f"{status} {body}")
         http_json(
             "PUT",
             f"/api/plugins/{PLUGIN}/skills/{PLUGIN}-writer/files",
-            {"files": {f"{PLUGIN}-writer/SKILL.md": "---\nname: writer\ndescription: d\n---\n# W v1"}},
+            {
+                "files": {
+                    f"{PLUGIN}-writer/SKILL.md": "---\nname: writer\ndescription: d\n---\n# W v1"
+                }
+            },
             token=admin_token,
         )
 
-        status, body = http_json("PATCH", f"/api/plugins/{PLUGIN}/activate", {"is_active": True}, token=admin_token)
-        check("写入文件后激活成功", status == 200 and body.get("status") == "active", f"{status} {body}")
+        status, body = http_json(
+            "PATCH", f"/api/plugins/{PLUGIN}/activate", {"is_active": True}, token=admin_token
+        )
+        check(
+            "写入文件后激活成功",
+            status == 200 and body.get("status") == "active",
+            f"{status} {body}",
+        )
 
         # 防呆：声明技能但无文件的插件不可激活
         status, _ = http_json(
             "POST",
             "/api/plugins/",
-            {**make_plugin_payload(f"{PREFIX}-nofiles"), "skills": [{"skill_name": f"{PREFIX}-empty", "description": "", "tags": []}], "mcp_servers": [], "activate": False},
+            {
+                **make_plugin_payload(f"{PREFIX}-nofiles"),
+                "skills": [{"skill_name": f"{PREFIX}-empty", "description": "", "tags": []}],
+                "mcp_servers": [],
+                "activate": False,
+            },
             token=admin_token,
         )
-        status, body = http_json("PATCH", f"/api/plugins/{PREFIX}-nofiles/activate", {"is_active": True}, token=admin_token)
-        check("空技能负载激活 → plugin_invalid_payload", status == 400 and err_code(body) == "plugin_invalid_payload", f"{status} {body}")
+        status, body = http_json(
+            "PATCH",
+            f"/api/plugins/{PREFIX}-nofiles/activate",
+            {"is_active": True},
+            token=admin_token,
+        )
+        check(
+            "空技能负载激活 → plugin_invalid_payload",
+            status == 400 and err_code(body) == "plugin_invalid_payload",
+            f"{status} {body}",
+        )
 
         server_doc = db.system_mcp_servers.find_one({"name": MCP_NAME})
         check(
@@ -208,44 +262,98 @@ def main() -> int:
             )
 
         status, body = http_json("GET", "/api/plugins/tags", token=user_token)
-        check("标签接口返回 e2e 标签", status == 200 and "e2e" in body.get("tags", []), f"{status} {body}")
+        check(
+            "标签接口返回 e2e 标签",
+            status == 200 and "e2e" in body.get("tags", []),
+            f"{status} {body}",
+        )
 
         # ----------------------------------------------------------
         print("\n== 2. 边缘：命名冲突 / 引用缺失 / 越权 ==")
-        status, body = http_json("POST", "/api/plugins/", make_plugin_payload(PLUGIN), token=admin_token)
-        check("重复插件名 → plugin_name_exists", status == 409 and err_code(body) == "plugin_name_exists", f"{status} {body}")
+        status, body = http_json(
+            "POST", "/api/plugins/", make_plugin_payload(PLUGIN), token=admin_token
+        )
+        check(
+            "重复插件名 → plugin_name_exists",
+            status == 409 and err_code(body) == "plugin_name_exists",
+            f"{status} {body}",
+        )
 
         # ref 指向不存在的 server → 激活失败
         status, _ = http_json(
             "POST",
             "/api/plugins/",
-            {**make_plugin_payload(PLUGIN_REF_BAD), "skills": [], "persona": None, "mcp_servers": [{"name": MCP_REF, "transport": "streamable_http", "url": None, "ref": True}], "activate": False},
+            {
+                **make_plugin_payload(PLUGIN_REF_BAD),
+                "skills": [],
+                "persona": None,
+                "mcp_servers": [
+                    {"name": MCP_REF, "transport": "streamable_http", "url": None, "ref": True}
+                ],
+                "activate": False,
+            },
             token=admin_token,
         )
         check("创建引用型插件（draft）", status == 200, f"{status}")
-        status, body = http_json("PATCH", f"/api/plugins/{PLUGIN_REF_BAD}/activate", {"is_active": True}, token=admin_token)
-        check("引用缺失 server → plugin_mcp_ref_not_found", status == 404 and err_code(body) == "plugin_mcp_ref_not_found", f"{status} {body}")
+        status, body = http_json(
+            "PATCH",
+            f"/api/plugins/{PLUGIN_REF_BAD}/activate",
+            {"is_active": True},
+            token=admin_token,
+        )
+        check(
+            "引用缺失 server → plugin_mcp_ref_not_found",
+            status == 404 and err_code(body) == "plugin_mcp_ref_not_found",
+            f"{status} {body}",
+        )
         doc = db.plugins.find_one({"name": PLUGIN_REF_BAD})
-        check("激活失败后仍为 draft", doc is not None and doc.get("status") == "draft", str(doc)[:80] if doc else "missing")
+        check(
+            "激活失败后仍为 draft",
+            doc is not None and doc.get("status") == "draft",
+            str(doc)[:80] if doc else "missing",
+        )
 
         # 另一插件复用同名 MCP server → 冲突
         status, _ = http_json(
             "POST",
             "/api/plugins/",
-            {**make_plugin_payload(PLUGIN_CONFLICT), "skills": [], "persona": None, "activate": False},
+            {
+                **make_plugin_payload(PLUGIN_CONFLICT),
+                "skills": [],
+                "persona": None,
+                "activate": False,
+            },
             token=admin_token,
         )
-        status, body = http_json("PATCH", f"/api/plugins/{PLUGIN_CONFLICT}/activate", {"is_active": True}, token=admin_token)
-        check("MCP server 名冲突 → plugin_mcp_name_conflict", status == 409 and err_code(body) == "plugin_mcp_name_conflict", f"{status} {body}")
+        status, body = http_json(
+            "PATCH",
+            f"/api/plugins/{PLUGIN_CONFLICT}/activate",
+            {"is_active": True},
+            token=admin_token,
+        )
+        check(
+            "MCP server 名冲突 → plugin_mcp_name_conflict",
+            status == 409 and err_code(body) == "plugin_mcp_name_conflict",
+            f"{status} {body}",
+        )
 
-        status, body = http_json("PATCH", f"/api/plugins/{PLUGIN_CONFLICT}/activate", {"is_active": True}, token=user_token)
+        status, body = http_json(
+            "PATCH",
+            f"/api/plugins/{PLUGIN_CONFLICT}/activate",
+            {"is_active": True},
+            token=user_token,
+        )
         check("普通用户激活 → 403", status == 403, f"{status} {body}")
         status, body = http_json("DELETE", f"/api/plugins/{PLUGIN}", token=user_token)
         check("普通用户删插件 → 403", status == 403, f"{status} {body}")
 
         status, body = http_json("GET", "/api/plugins/", token=user_token)
         names = [p["name"] for p in body.get("plugins", [])]
-        check("用户列表只见 active（draft 冲突插件不可见）", PLUGIN in names and PLUGIN_CONFLICT not in names and PLUGIN_REF_BAD not in names, str(names))
+        check(
+            "用户列表只见 active（draft 冲突插件不可见）",
+            PLUGIN in names and PLUGIN_CONFLICT not in names and PLUGIN_REF_BAD not in names,
+            str(names),
+        )
 
         # ----------------------------------------------------------
         print("\n== 3. 安装 / 重复 / 未装状态 ==")
@@ -259,79 +367,180 @@ def main() -> int:
             f"{status} {body}",
         )
 
-        meta = db.skill_files.find_one({"user_id": user_id, "skill_name": f"{PLUGIN}-research", "file_path": "__meta__"})
-        check("技能 __meta__ installed_from=plugin", meta is not None and "plugin" in (meta.get("content") or ""), str(meta)[:120] if meta else "missing")
+        meta = db.skill_files.find_one(
+            {"user_id": user_id, "skill_name": f"{PLUGIN}-research", "file_path": "__meta__"}
+        )
+        check(
+            "技能 __meta__ installed_from=plugin",
+            meta is not None and "plugin" in (meta.get("content") or ""),
+            str(meta)[:120] if meta else "missing",
+        )
 
         status, body = http_json("GET", "/api/plugins/installed", token=user_token)
         installs = {i["plugin_name"]: i["version"] for i in body.get("installs", [])}
         check("安装记录列表含插件与版本", installs.get(PLUGIN) == "1.0.0", str(installs))
 
         status, body = http_json("POST", f"/api/plugins/{PLUGIN}/install", token=user_token)
-        check("重复安装 → plugin_already_installed", status == 409 and err_code(body) == "plugin_already_installed", f"{status} {body}")
+        check(
+            "重复安装 → plugin_already_installed",
+            status == 409 and err_code(body) == "plugin_already_installed",
+            f"{status} {body}",
+        )
 
         status, body = http_json("POST", f"/api/plugins/{PLUGIN_CONFLICT}/update", token=user_token)
-        check("未安装就 update → plugin_not_installed", status == 400 and err_code(body) == "plugin_not_installed", f"{status} {body}")
-        status, body = http_json("POST", f"/api/plugins/{PLUGIN_CONFLICT}/uninstall", token=user_token)
-        check("未安装就卸载 → plugin_not_installed", status == 400 and err_code(body) == "plugin_not_installed", f"{status} {body}")
+        check(
+            "未安装就 update → plugin_not_installed",
+            status == 400 and err_code(body) == "plugin_not_installed",
+            f"{status} {body}",
+        )
+        status, body = http_json(
+            "POST", f"/api/plugins/{PLUGIN_CONFLICT}/uninstall", token=user_token
+        )
+        check(
+            "未安装就卸载 → plugin_not_installed",
+            status == 400 and err_code(body) == "plugin_not_installed",
+            f"{status} {body}",
+        )
 
         status, body = http_json(
-            "PATCH", f"/api/plugins/{PLUGIN_REF_BAD}/activate", {"is_active": True}, token=admin_token
+            "PATCH",
+            f"/api/plugins/{PLUGIN_REF_BAD}/activate",
+            {"is_active": True},
+            token=admin_token,
         )
         # 修好引用后再激活（用真物化的 server 作为引用目标）
         status, body = http_json(
             "PUT",
             f"/api/plugins/{PLUGIN_REF_BAD}",
-            {"mcp_servers": [{"name": MCP_NAME, "transport": "streamable_http", "url": None, "ref": True}]},
+            {
+                "mcp_servers": [
+                    {"name": MCP_NAME, "transport": "streamable_http", "url": None, "ref": True}
+                ]
+            },
             token=admin_token,
         )
-        status, body = http_json("PATCH", f"/api/plugins/{PLUGIN_REF_BAD}/activate", {"is_active": True}, token=admin_token)
-        check("ref 指向真实 server 后可激活", status == 200 and body.get("status") == "active", f"{status} {body}")
+        status, body = http_json(
+            "PATCH",
+            f"/api/plugins/{PLUGIN_REF_BAD}/activate",
+            {"is_active": True},
+            token=admin_token,
+        )
+        check(
+            "ref 指向真实 server 后可激活",
+            status == 200 and body.get("status") == "active",
+            f"{status} {body}",
+        )
 
         status, body = http_json("POST", f"/api/plugins/{PLUGIN_REF_BAD}/install", token=user_token)
         check("停用前可安装 ref 插件", status == 200, f"{status} {body}")
 
         # 停用主插件（inline 物化方）→ server 一并禁用
-        status, body = http_json("PATCH", f"/api/plugins/{PLUGIN}/activate", {"is_active": False}, token=admin_token)
-        check("admin 停用主插件", status == 200 and body.get("status") == "deactivated", f"{status} {body}")
+        status, body = http_json(
+            "PATCH", f"/api/plugins/{PLUGIN}/activate", {"is_active": False}, token=admin_token
+        )
+        check(
+            "admin 停用主插件",
+            status == 200 and body.get("status") == "deactivated",
+            f"{status} {body}",
+        )
         server_doc = db.system_mcp_servers.find_one({"name": MCP_NAME})
-        check("停用后物化 server enabled=false", server_doc is not None and server_doc.get("enabled") is False, str(server_doc)[:100] if server_doc else "missing")
+        check(
+            "停用后物化 server enabled=false",
+            server_doc is not None and server_doc.get("enabled") is False,
+            str(server_doc)[:100] if server_doc else "missing",
+        )
 
         # 停用期间：新装拒绝、已装用户更新也拒绝（对齐旧商店语义）
         status, body = http_json("POST", f"/api/plugins/{PLUGIN_REF_BAD}/install", token=user_token)
-        check("已停用插件再装 → plugin_already_installed（install 记录优先）", status == 409, f"{status} {body}")
+        check(
+            "已停用插件再装 → plugin_already_installed（install 记录优先）",
+            status == 409,
+            f"{status} {body}",
+        )
         status, body = http_json("POST", f"/api/plugins/{PLUGIN}/update", token=user_token)
-        check("停用插件更新副本 → plugin_inactive", status == 409 and err_code(body) == "plugin_inactive", f"{status} {body}")
+        check(
+            "停用插件更新副本 → plugin_inactive",
+            status == 409 and err_code(body) == "plugin_inactive",
+            f"{status} {body}",
+        )
 
-        status, body = http_json("PATCH", f"/api/plugins/{PLUGIN}/activate", {"is_active": True}, token=admin_token)
-        check("重新激活恢复 server", status == 200 and db.system_mcp_servers.find_one({"name": MCP_NAME}).get("enabled") is True, f"{status}")
+        status, body = http_json(
+            "PATCH", f"/api/plugins/{PLUGIN}/activate", {"is_active": True}, token=admin_token
+        )
+        check(
+            "重新激活恢复 server",
+            status == 200
+            and db.system_mcp_servers.find_one({"name": MCP_NAME}).get("enabled") is True,
+            f"{status}",
+        )
 
         # ref 插件停用不影响被引用 server（ref 只引用不拥有）
-        http_json("PATCH", f"/api/plugins/{PLUGIN_REF_BAD}/activate", {"is_active": False}, token=admin_token)
+        http_json(
+            "PATCH",
+            f"/api/plugins/{PLUGIN_REF_BAD}/activate",
+            {"is_active": False},
+            token=admin_token,
+        )
         server_doc = db.system_mcp_servers.find_one({"name": MCP_NAME})
-        check("ref 插件停用不影响被引用 server", server_doc is not None and server_doc.get("enabled") is True, str(server_doc)[:80] if server_doc else "missing")
-        http_json("PATCH", f"/api/plugins/{PLUGIN_REF_BAD}/activate", {"is_active": True}, token=admin_token)
+        check(
+            "ref 插件停用不影响被引用 server",
+            server_doc is not None and server_doc.get("enabled") is True,
+            str(server_doc)[:80] if server_doc else "missing",
+        )
+        http_json(
+            "PATCH",
+            f"/api/plugins/{PLUGIN_REF_BAD}/activate",
+            {"is_active": True},
+            token=admin_token,
+        )
 
         # ----------------------------------------------------------
         print("\n== 4. 文件读取 / 更新链路 ==")
-        status, body = http_json("GET", f"/api/plugins/{PLUGIN}/skills/{PLUGIN}-research/files", token=user_token)
-        check("列技能负载文件", status == 200 and len(body.get("file_paths", [])) == 2, f"{status} {body}")
-        status, body = http_json("GET", f"/api/plugins/{PLUGIN}/skills/{PLUGIN}-research/files/extra.md", token=user_token)
+        status, body = http_json(
+            "GET", f"/api/plugins/{PLUGIN}/skills/{PLUGIN}-research/files", token=user_token
+        )
+        check(
+            "列技能负载文件",
+            status == 200 and len(body.get("file_paths", [])) == 2,
+            f"{status} {body}",
+        )
+        status, body = http_json(
+            "GET",
+            f"/api/plugins/{PLUGIN}/skills/{PLUGIN}-research/files/extra.md",
+            token=user_token,
+        )
         check("读负载文件内容", status == 200 and body.get("content") == "v1", f"{status} {body}")
 
-        http_json(
-            "PUT", f"/api/plugins/{PLUGIN}", {"version": "1.1.0"}, token=admin_token
-        )
+        http_json("PUT", f"/api/plugins/{PLUGIN}", {"version": "1.1.0"}, token=admin_token)
         http_json(
             "PUT",
             f"/api/plugins/{PLUGIN}/skills/{PLUGIN}-research/files",
-            {"files": {f"{PLUGIN}-research/SKILL.md": "---\nname: research\ndescription: d\n---\n# R v2", "extra.md": "v2"}},
+            {
+                "files": {
+                    f"{PLUGIN}-research/SKILL.md": "---\nname: research\ndescription: d\n---\n# R v2",
+                    "extra.md": "v2",
+                }
+            },
             token=admin_token,
         )
         status, body = http_json("POST", f"/api/plugins/{PLUGIN}/update", token=user_token)
-        check("更新插件到 1.1.0", status == 200 and body.get("version") == "1.1.0", f"{status} {body}")
-        doc = db.skill_files.find_one({"user_id": user_id, "skill_name": f"{PLUGIN}-research", "file_path": "extra.md"})
-        check("技能副本内容已刷新", doc is not None and doc.get("content") == "v2", str(doc)[:100] if doc else "missing")
-        installs = {i["plugin_name"]: i["version"] for i in http_json("GET", "/api/plugins/installed", token=user_token)[1].get("installs", [])}
+        check(
+            "更新插件到 1.1.0", status == 200 and body.get("version") == "1.1.0", f"{status} {body}"
+        )
+        doc = db.skill_files.find_one(
+            {"user_id": user_id, "skill_name": f"{PLUGIN}-research", "file_path": "extra.md"}
+        )
+        check(
+            "技能副本内容已刷新",
+            doc is not None and doc.get("content") == "v2",
+            str(doc)[:100] if doc else "missing",
+        )
+        installs = {
+            i["plugin_name"]: i["version"]
+            for i in http_json("GET", "/api/plugins/installed", token=user_token)[1].get(
+                "installs", []
+            )
+        }
         check("安装记录版本跟进", installs.get(PLUGIN) == "1.1.0", str(installs))
 
         # ----------------------------------------------------------
@@ -350,7 +559,9 @@ def main() -> int:
             token=user_token,
         )
         check("创建绑定插件的角色", status == 200, f"{status} {persona}")
-        status, snap = http_json("POST", f"/api/persona-presets/{persona['id']}/use", token=user_token)
+        status, snap = http_json(
+            "POST", f"/api/persona-presets/{persona['id']}/use", token=user_token
+        )
         check(
             "use 快照展开插件技能与 MCP 白名单",
             status == 200
@@ -383,19 +594,33 @@ def main() -> int:
         # admin 未安装该插件 → 技能求交后为空，但 MCP 白名单仍透传
         check(
             "未安装用户求交为空但白名单保留",
-            status == 200 and snap2.get("skill_names") == [] and MCP_NAME in snap2.get("mcp_server_names", []),
+            status == 200
+            and snap2.get("skill_names") == []
+            and MCP_NAME in snap2.get("mcp_server_names", []),
             f"{status} {json.dumps(snap2, ensure_ascii=False)[:200]}",
         )
         # 私有 persona 他人不可见（含 admin）
-        status, _ = http_json("POST", f"/api/persona-presets/{persona['id']}/use", token=admin_token)
+        status, _ = http_json(
+            "POST", f"/api/persona-presets/{persona['id']}/use", token=admin_token
+        )
         check("私有 persona 他人 use → 404", status == 404, f"{status}")
 
         # ----------------------------------------------------------
         print("\n== 6. 卸载 / 删除清理 ==")
         status, body = http_json("POST", f"/api/plugins/{PLUGIN}/uninstall", token=user_token)
         check("卸载移除安装记录", status == 200, f"{status} {body}")
-        check("卸载后技能副本保留", db.skill_files.count_documents({"user_id": user_id, "skill_name": f"{PLUGIN}-research"}) >= 1, "")
-        installs = {i["plugin_name"] for i in http_json("GET", "/api/plugins/installed", token=user_token)[1].get("installs", [])}
+        check(
+            "卸载后技能副本保留",
+            db.skill_files.count_documents({"user_id": user_id, "skill_name": f"{PLUGIN}-research"})
+            >= 1,
+            "",
+        )
+        installs = {
+            i["plugin_name"]
+            for i in http_json("GET", "/api/plugins/installed", token=user_token)[1].get(
+                "installs", []
+            )
+        }
         check("安装记录已清", PLUGIN not in installs, str(installs))
 
         status, body = http_json("DELETE", f"/api/plugins/{PLUGIN_REF_BAD}", token=admin_token)
@@ -406,8 +631,16 @@ def main() -> int:
         check("admin 删除 conflict 草稿", status == 200, f"{status} {body}")
         status, body = http_json("DELETE", f"/api/plugins/{PLUGIN}", token=admin_token)
         check("admin 删除主插件", status == 200, f"{status} {body}")
-        check("删除后物化 server 一并清理", db.system_mcp_servers.count_documents({"name": MCP_NAME}) == 0, "")
-        check("删除后插件与负载清理", db.plugins.count_documents({"name": {"$regex": f"^{PREFIX}"}}) == 0, "")
+        check(
+            "删除后物化 server 一并清理",
+            db.system_mcp_servers.count_documents({"name": MCP_NAME}) == 0,
+            "",
+        )
+        check(
+            "删除后插件与负载清理",
+            db.plugins.count_documents({"name": {"$regex": f"^{PREFIX}"}}) == 0,
+            "",
+        )
 
     finally:
         cleanup(db)

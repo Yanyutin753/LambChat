@@ -220,7 +220,7 @@ class SearchAgent(BaseGraphAgent):
                 "enabled_skills": enabled_skills,
                 "persona_system_prompt": kwargs.get("persona_system_prompt"),
                 "disabled_mcp_tools": disabled_mcp_tools,
-            "enabled_mcp_servers": enabled_mcp_servers,
+                "enabled_mcp_servers": enabled_mcp_servers,
                 "base_url": kwargs.get("base_url", ""),  # 传递 base_url 给工具使用
                 "active_goal": kwargs.get("active_goal"),
                 "auto_mode": kwargs.get("auto_mode", False),
