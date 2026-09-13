@@ -102,6 +102,20 @@ def _validate_plugin_files(files: dict[str, str]) -> None:
             )
 
 
+async def _validate_plugin_payload_ready(doc: dict, storage: PluginStorage) -> None:
+    """激活前校验：每个声明的技能负载须至少有一个文件（防呆空技能）。"""
+    for skill in doc.get("skills", []) or []:
+        skill_name = skill.get("skill_name")
+        if not skill_name:
+            continue
+        paths = await storage.list_skill_file_paths(doc["name"], skill_name)
+        if not paths:
+            raise AppError(
+                ErrorCode.PLUGIN_INVALID_PAYLOAD,
+                args={"reason": f"skill '{skill_name}' has no payload files"},
+            )
+
+
 async def _sync_plugin_skills_to_user(
     plugin_doc: dict,
     storage: PluginStorage,
@@ -286,6 +300,8 @@ async def update_plugin_install(
         raise AppError(ErrorCode.PLUGIN_NOT_FOUND, args={"name": name})
     if not await storage.get_install(user.sub, name):
         raise AppError(ErrorCode.PLUGIN_NOT_INSTALLED, args={"name": name})
+    if doc.get("status") != PluginStatus.ACTIVE.value:
+        raise AppError(ErrorCode.PLUGIN_INACTIVE, args={"name": name})
 
     installed_skills = await _sync_plugin_skills_to_user(doc, storage, skill_storage, user.sub)
     await storage.upsert_install(user.sub, name, doc.get("version", "1.0.0"))
@@ -332,6 +348,7 @@ async def create_plugin(
     created = await storage.create_plugin(doc)
 
     if status is PluginStatus.ACTIVE:
+        await _validate_plugin_payload_ready(created, storage)
         await materialize_plugin_mcp(created, admin_user_id=user.sub)
     return await storage.get_plugin_response(data.name, viewer_id=user.sub, user_id=user.sub)
 
@@ -390,6 +407,7 @@ async def activate_plugin(
         raise AppError(ErrorCode.PLUGIN_NOT_FOUND, args={"name": name})
 
     if data.is_active:
+        await _validate_plugin_payload_ready(doc, storage)
         await materialize_plugin_mcp(doc, admin_user_id=user.sub)
         await storage.set_plugin_status(name, PluginStatus.ACTIVE)
     else:

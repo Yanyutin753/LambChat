@@ -74,6 +74,9 @@ class FakePluginStorage:
     async def increment_install_count(self, plugin_name: str) -> None:
         self.install_counts[plugin_name] = self.install_counts.get(plugin_name, 0) + 1
 
+    async def list_skill_file_paths(self, plugin_name: str, skill_name: str):
+        return ["SKILL.md"]
+
     async def iter_skill_file_batches(self, plugin_name: str, skill_name: str):
         yield {"SKILL.md": "# Plugin skill"}
 
@@ -190,3 +193,47 @@ async def test_create_plugin_without_admin_lands_as_draft(
     )
     await plugin_routes.create_plugin(data, user=_user(["marketplace:publish"]), storage=storage)
     assert storage.docs["fresh-kit"]["status"] == "draft"
+
+
+async def test_activate_rejects_empty_skill_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    """声明了技能但没有任何负载文件时不可激活（防呆空技能）。"""
+
+    class _EmptyFilesStorage(FakePluginStorage):
+        async def list_skill_file_paths(self, plugin_name: str, skill_name: str):
+            return []
+
+    storage = _EmptyFilesStorage({"empty-kit": _plugin_doc(name="empty-kit", status="draft")})
+    with pytest.raises(AppError) as excinfo:
+        await plugin_routes.activate_plugin(
+            "empty-kit",
+            plugin_routes.SetPluginActiveRequest(is_active=True),
+            user=_user(["marketplace:admin"]),
+            storage=storage,
+        )
+    assert excinfo.value.error_code == ErrorCode.PLUGIN_INVALID_PAYLOAD
+    assert storage.docs["empty-kit"]["status"] == "draft"
+
+
+async def test_update_install_checks_before_status() -> None:
+    """update 先查安装记录（not_installed），再查激活状态（inactive）。"""
+    storage = FakePluginStorage({"research-kit": _plugin_doc()})
+    storage.docs["research-kit"]["status"] = "draft"
+
+    with pytest.raises(AppError) as excinfo:
+        await plugin_routes.update_plugin_install(
+            "research-kit",
+            user=_user(["marketplace:read"]),
+            storage=storage,
+            skill_storage=FakeSkillStorage(),
+        )
+    assert excinfo.value.error_code == ErrorCode.PLUGIN_NOT_INSTALLED
+
+    storage.installs[("user-1", "research-kit")] = "1.0.0"
+    with pytest.raises(AppError) as excinfo:
+        await plugin_routes.update_plugin_install(
+            "research-kit",
+            user=_user(["marketplace:read"]),
+            storage=storage,
+            skill_storage=FakeSkillStorage(),
+        )
+    assert excinfo.value.error_code == ErrorCode.PLUGIN_INACTIVE
