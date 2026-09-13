@@ -47,9 +47,21 @@ def set_responses_prompt_cache_key(session_id: object) -> Token[Optional[str]]:
 
 
 def reset_responses_prompt_cache_key(token: Token[Optional[str]]) -> None:
-    """恢复 set 之前的上下文值（token 为 None 时无操作）。"""
-    if token is not None:
+    """恢复 set 之前的上下文值（token 为 None 时无操作）。
+
+    跨 context 防御：stall 看门狗（aiter_with_stall_timeout）把每个
+    ``__anext__`` 包成独立 asyncio.Task，生成器体内 set 的 token 可能落在
+    另一个 context 副本里，reset 会抛
+    ``ValueError: Token was created in a different Context``（生产事故：
+    main-20260913-081350 普通对话全挂）。此时降级为无操作——key 是会话级
+    路由提示，随所在 context 副本一起消亡，不污染外层。
+    """
+    if token is None:
+        return
+    try:
         _responses_prompt_cache_key.reset(token)
+    except ValueError:
+        pass
 
 
 def current_responses_prompt_cache_key() -> Optional[str]:
