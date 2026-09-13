@@ -6,6 +6,21 @@ import type {
   PersonaPresetUpdate,
 } from "../../types";
 
+/**
+ * 计算「预设声明的绑定」里当前用户不可用的部分（技能未安装 / MCP 不可见），
+ * 供编辑器展示缺失提示；全缺时由运行时回落为放行全部，这里只做可视化。
+ */
+export function computeMissingBindings(
+  declared: string[] | null | undefined,
+  available: string[],
+): string[] {
+  if (!declared || declared.length === 0) {
+    return [];
+  }
+  const available_set = new Set(available);
+  return declared.filter((name) => !available_set.has(name));
+}
+
 export interface StarterPromptDraftRow {
   icon: string;
   text: string;

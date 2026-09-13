@@ -76,6 +76,7 @@ export interface PersonaPresetSnapshot {
   skill_names: string[];
   missing_skill_names: string[];
   mcp_server_names: string[];
+  missing_mcp_server_names?: string[];
   version: number;
   avatar?: string | null;
 }
