@@ -19,20 +19,25 @@ CUTOFF = datetime(2026, 9, 5, 12, 0, tzinfo=timezone.utc)
 
 
 class _GlobalExpiryCollection:
-    """支持 find(status/updated_at 过滤 + sort + limit) 与 update_many($in) 的假集合。"""
+    """支持 find(status/updated_at/waiting_human 过滤) + sort + limit 与 update_many($in) 的假集合。"""
 
     def __init__(self, docs: list[dict]) -> None:
         self.docs = docs
         self.update_queries: list[dict] = []
 
+    @staticmethod
+    def _matches(doc: dict, query: dict) -> bool:
+        if doc.get("status") != query.get("status"):
+            return False
+        if "updated_at" in query and doc.get("updated_at") > query["updated_at"]["$lte"]:
+            return False
+        if query.get("metadata.waiting_human") == {"$ne": True}:
+            if (doc.get("metadata") or {}).get("waiting_human") is True:
+                return False
+        return True
+
     def find(self, query: dict, _projection: dict | None = None) -> "_GlobalExpiryCollection":
-        matched = [
-            doc
-            for doc in self.docs
-            if doc.get("status") == query.get("status")
-            and doc.get("updated_at") <= query["updated_at"]["$lte"]
-        ]
-        self._matched = matched
+        self._matched = [doc for doc in self.docs if self._matches(doc, query)]
         return self
 
     def sort(self, _key: str, _direction: int) -> "_GlobalExpiryCollection":
@@ -51,7 +56,7 @@ class _GlobalExpiryCollection:
         ids = set(query["_id"]["$in"])
         modified = 0
         for doc in self.docs:
-            if doc["_id"] in ids and doc.get("status") == query["status"]:
+            if doc["_id"] in ids and self._matches(doc, query):
                 doc.update(
                     status=update["$set"]["status"],
                     completed_at=update["$set"]["completed_at"],
@@ -145,3 +150,58 @@ async def test_expiry_swallows_collection_errors() -> None:
     storage._collection = _Broken()
 
     assert await storage.expire_stale_running_traces_globally(now=CUTOFF) == 0
+
+
+def _waiting_human_trace(doc_id: str, age_minutes: int) -> dict:
+    doc = _trace(doc_id, "running", age_minutes)
+    doc["metadata"] = {"waiting_human": True}
+    return doc
+
+
+@pytest.mark.asyncio
+async def test_expiry_skips_waiting_human_traces() -> None:
+    """HITL 挂起等人工输入时事件天然停流，不是僵尸（#583）——全局清扫必须豁免。"""
+    docs = [
+        _waiting_human_trace("waiting-old", age_minutes=120),
+        _trace("stale-old", "running", age_minutes=120),
+    ]
+    storage, _collection = _storage_with(docs)
+
+    count = await storage.expire_stale_running_traces_globally(now=CUTOFF)
+
+    by_id = {doc["_id"]: doc for doc in docs}
+    assert count == 1
+    assert by_id["waiting-old"]["status"] == "running"
+    assert by_id["stale-old"]["status"] == "error"
+
+
+@pytest.mark.asyncio
+async def test_session_deletion_expiry_still_expires_waiting_human() -> None:
+    """会话删除路径不豁免挂起 trace：用户删会话时删除必须赢（锁定语义，防过度豁免）。"""
+    docs = [_waiting_human_trace("waiting-old", age_minutes=120)]
+    storage = TraceStorage()
+
+    class _DelCollection:
+        def __init__(self) -> None:
+            self.queries: list[dict] = []
+
+        async def update_many(self, query: dict, update: dict) -> SimpleNamespace:
+            self.queries.append(query)
+            matched = [
+                doc
+                for doc in docs
+                if doc.get("session_id") == query.get("session_id")
+                and doc.get("status") == query.get("status")
+                and doc.get("updated_at") <= query["updated_at"]["$lte"]
+            ]
+            for doc in matched:
+                doc["status"] = update["$set"]["status"]
+            return SimpleNamespace(modified_count=len(matched))
+
+    del_collection = _DelCollection()
+    storage._collection = del_collection
+
+    count = await storage.expire_stale_running_traces("session-waiting-old", now=CUTOFF)
+
+    assert count == 1
+    assert docs[0]["status"] == "error"

@@ -572,3 +572,61 @@ async def test_submit_resume_failure_restores_waiting_session_state(fake_redis, 
             {"task_status": "waiting_human", "current_run_id": "run-1"},
         )
     ]
+
+
+@pytest.mark.asyncio
+async def test_submit_resume_reopens_error_finalized_trace(fake_redis, monkeypatch):
+    """恢复前重开被全局僵尸清扫误终态的 trace（#583）。
+
+    挂起等审批超过 10 分钟时 updated_at 心跳过期，trace 被标 error；
+    若不重开（error→running），恢复跑完后 complete_trace 被终态保护拒绝，
+    trace 永远停在 error。reopen 幂等：trace 本就 running 时为 no-op。
+    """
+    monkeypatch.setattr(hitl_mod.settings, "TASK_BACKEND", "arq", raising=False)
+
+    class _Storage:
+        async def get_by_session_id(self, _session_id):
+            return SimpleNamespace(
+                user_id="user-1",
+                name="s",
+                metadata={
+                    "task_status": "waiting_human",
+                    "current_run_id": "run-1",
+                    "executor_key": "agent_stream",
+                    "agent_id": "search",
+                },
+            )
+
+    monkeypatch.setattr("src.infra.session.storage.SessionStorage", lambda: _Storage())
+
+    async def fake_executor():
+        yield
+
+    monkeypatch.setattr(
+        "src.infra.task.concurrency.get_registered_executor", lambda _key: fake_executor
+    )
+
+    class _FakeManager:
+        async def submit_arq(self, *args, **kwargs):
+            return "run-1", "trace-source"
+
+    monkeypatch.setattr("src.infra.task.manager.get_task_manager", lambda: _FakeManager())
+
+    reopened: list[str] = []
+
+    class _FakeTraceStorage:
+        async def reopen_interrupted_trace(self, trace_id: str) -> bool:
+            reopened.append(trace_id)
+            return True
+
+    monkeypatch.setattr(
+        "src.infra.session.trace_storage.get_trace_storage", lambda: _FakeTraceStorage()
+    )
+
+    result = await submit_hitl_resume_run(
+        _approval(metadata={"mode": "interrupt", "run_id": "run-1", "trace_id": "trace-source"}),
+        {"approved": True, "values": {}},
+    )
+
+    assert result["submitted"] is True
+    assert reopened == ["trace-source"]

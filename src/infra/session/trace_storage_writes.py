@@ -396,6 +396,23 @@ class TraceStorageWriteMixin:
             logger.error(f"Failed to complete trace {trace_id}: {e}")
             return False
 
+    async def set_trace_waiting_human(self, trace_id: str, *, waiting: bool = True) -> bool:
+        """标记/清除 HITL 挂起（#583）。
+
+        等人工输入期间事件停流、updated_at 不再刷新，全局僵尸清扫
+        （expire_stale_running_traces_globally）据 metadata.waiting_human=True
+        豁免；恢复时清除。失败只返回 False，由调用方降级为日志。
+        """
+        try:
+            result = await self.collection.update_one(
+                {"trace_id": trace_id},
+                {"$set": {"metadata.waiting_human": waiting}},
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.warning("Failed to set waiting_human=%s on trace %s: %s", waiting, trace_id, e)
+            return False
+
     async def reopen_interrupted_trace(self, trace_id: str) -> bool:
         """Reopen an error-finalized trace so a seamless resume can append events.
 

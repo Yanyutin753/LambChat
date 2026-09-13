@@ -48,23 +48,23 @@ class TraceAttachmentCleanupMixin:
         """
         current = now if now is not None else utc_now()
         stale_before = current - ttl
+        # HITL 挂起（等人工输入）期间事件天然停流，updated_at 不刷新，但不是
+        # 僵尸——据 metadata.waiting_human 豁免（#583）。会话删除路径
+        # （expire_stale_running_traces）不豁免：用户删会话时删除必须赢。
+        base_query: Dict[str, Any] = {
+            "status": "running",
+            "updated_at": {"$lte": stale_before},
+            "metadata.waiting_human": {"$ne": True},
+        }
         try:
-            cursor = (
-                self.collection.find(
-                    {"status": "running", "updated_at": {"$lte": stale_before}},
-                    {"_id": 1},
-                )
-                .sort("updated_at", 1)
-                .limit(limit)
-            )
+            cursor = self.collection.find(base_query, {"_id": 1}).sort("updated_at", 1).limit(limit)
             docs = await cursor.to_list(length=limit)
             if not docs:
                 return 0
             result = await self.collection.update_many(
                 {
                     "_id": {"$in": [doc["_id"] for doc in docs]},
-                    "status": "running",
-                    "updated_at": {"$lte": stale_before},
+                    **base_query,
                 },
                 {
                     "$set": {
