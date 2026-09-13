@@ -103,6 +103,12 @@ def get_startup_index_initializers() -> list[tuple[str, Callable[[], Awaitable[N
         await ProjectStorage().ensure_indexes()
         logger.info("ProjectStorage indexes initialized")
 
+    async def _init_feedback_storage() -> None:
+        from src.infra.feedback.storage import FeedbackStorage
+
+        await FeedbackStorage().create_indexes()
+        logger.info("FeedbackStorage indexes initialized")
+
     async def _init_persona_preset_storage() -> None:
         from src.infra.persona_preset.storage import PersonaPresetStorage
 
@@ -147,6 +153,7 @@ def get_startup_index_initializers() -> list[tuple[str, Callable[[], Awaitable[N
         ("usage_storage", _init_usage_storage),
         ("team_storage", _init_team_storage),
         ("project_storage", _init_project_storage),
+        ("feedback_storage", _init_feedback_storage),
         ("persona_preset_storage", _init_persona_preset_storage),
         ("role_storage", _init_role_storage),
         ("mcp_storage", _init_mcp_storage),

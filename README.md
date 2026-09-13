@@ -278,8 +278,8 @@ TASK_BACKEND=arq  # local or arq
 make format       # Format with ruff
 make lint         # Lint with ruff
 make typecheck    # Type check with mypy
-make test         # Backend tests with pytest
-make check-all    # Run lint + typecheck + tests
+make test         # Frontend (vitest) + backend (pytest) tests
+make check-all    # Run pre-commit hooks + typecheck + tests + builds
 ```
 
 ### Frontend, Mobile, and Docs

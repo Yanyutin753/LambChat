@@ -164,6 +164,16 @@ class ErrorCode(Enum):
         400,
         "Invalid theme: {{theme}}. Must be 'light', 'dark' or 'sepia'",
     )
+    INVALID_THEME_SCHEDULE = (
+        "invalid_theme_schedule",
+        400,
+        "Invalid theme schedule: expected {enabled: bool, start: 'HH:MM', end: 'HH:MM', nightTheme: 'dark'|'sepia'}",
+    )
+    INVALID_DATE_FORMAT = (
+        "invalid_date_format",
+        400,
+        "Invalid date: {{value}}. Expected ISO 8601 format",
+    )
     ROLE_NOT_FOUND = ("role_not_found", 404, "Role not found")
     ROLE_NAME_EXISTS = ("role_name_exists", 409, "Role name '{{name}}' already exists")
     SYSTEM_ROLE_PROTECTED = (
@@ -183,6 +193,11 @@ class ErrorCode(Enum):
     # ---------- session：会话 ----------
     SESSION_NOT_FOUND = ("session_not_found", 404, "Session not found")
     MESSAGE_NOT_FOUND = ("message_not_found", 404, "Message not found")
+    BOOKMARK_MESSAGE_NOT_FOUND = (
+        "bookmark_message_not_found",
+        404,
+        "Message not found in this session; cannot bookmark",
+    )
     SESSION_DELETE_IN_PROGRESS = (
         "session_delete_in_progress",
         409,
@@ -530,6 +545,7 @@ class ErrorCode(Enum):
     GITHUB_FETCH_FAILED = ("github_fetch_failed", 500, "Failed to fetch repository")
     GITHUB_SCAN_FAILED = ("github_scan_failed", 500, "Failed to scan repository")
 
+    # ---------- settings
     # ---------- settings / notification ----------
     SETTING_NOT_FOUND = ("setting_not_found", 404, "Setting not found")
     NOTIFICATION_NOT_FOUND = ("notification_not_found", 404, "Notification not found")

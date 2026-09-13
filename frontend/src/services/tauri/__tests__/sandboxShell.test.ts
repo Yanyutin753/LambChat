@@ -307,3 +307,91 @@ test("subscribeDaemonStatus returns null outside the shell", async () => {
   expect(await subscribeDaemonStatus(() => {})).toBeNull();
   expect(eventMocks.listen).not.toHaveBeenCalled();
 });
+
+// ---------------------------------------------------------------------------
+// 沙箱数据位置：sandbox_data_location / set / clear + 原生目录选择
+// ---------------------------------------------------------------------------
+
+const dialogMocks = vi.hoisted(() => ({ open: vi.fn() }));
+
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: dialogMocks.open }));
+
+import {
+  clearSandboxDataLocation,
+  pickSandboxDirectory,
+  readSandboxDataLocation,
+  setSandboxDataLocation,
+} from "../sandboxShell.ts";
+
+const LOCATION = {
+  root: "D:\\lambchat",
+  customized: true,
+  overrideConfigured: true,
+};
+
+test("readSandboxDataLocation resolves the typed location from the shell", async () => {
+  enterTauriShell();
+  mocks.invoke.mockResolvedValueOnce(LOCATION);
+
+  await expect(readSandboxDataLocation()).resolves.toEqual(LOCATION);
+  expect(mocks.invoke).toHaveBeenCalledWith("sandbox_data_location", undefined);
+});
+
+test("setSandboxDataLocation invokes set_sandbox_data_location with camelCase args", async () => {
+  enterTauriShell();
+  mocks.invoke.mockResolvedValueOnce(undefined);
+
+  await setSandboxDataLocation("D:\\lambchat", true);
+
+  expect(mocks.invoke).toHaveBeenCalledWith("set_sandbox_data_location", {
+    path: "D:\\lambchat",
+    migrateData: true,
+  });
+});
+
+test("clearSandboxDataLocation invokes clear_sandbox_data_location", async () => {
+  enterTauriShell();
+  mocks.invoke.mockResolvedValueOnce(undefined);
+
+  await clearSandboxDataLocation();
+
+  expect(mocks.invoke).toHaveBeenCalledWith(
+    "clear_sandbox_data_location",
+    undefined,
+  );
+});
+
+test("data location commands reject outside the shell without invoking", async () => {
+  await expect(readSandboxDataLocation()).rejects.toThrow(/desktop shell/i);
+  await expect(setSandboxDataLocation("D:\\x", false)).rejects.toThrow(
+    /desktop shell/i,
+  );
+  await expect(clearSandboxDataLocation()).rejects.toThrow(/desktop shell/i);
+  expect(mocks.invoke).not.toHaveBeenCalled();
+});
+
+test("pickSandboxDirectory opens a native directory dialog in the shell", async () => {
+  enterTauriShell();
+  dialogMocks.open.mockResolvedValueOnce("E:\\sandbox-data");
+
+  await expect(pickSandboxDirectory()).resolves.toBe("E:\\sandbox-data");
+  expect(dialogMocks.open).toHaveBeenCalledWith({
+    directory: true,
+    multiple: false,
+  });
+});
+
+test("pickSandboxDirectory maps multi-selection and cancel to null", async () => {
+  enterTauriShell();
+  dialogMocks.open.mockResolvedValueOnce(["E:\\a", "E:\\b"]);
+  await expect(pickSandboxDirectory()).resolves.toBeNull();
+
+  dialogMocks.open.mockResolvedValueOnce(null);
+  await expect(pickSandboxDirectory()).resolves.toBeNull();
+});
+
+test("pickSandboxDirectory returns null outside the shell without the dialog", async () => {
+  dialogMocks.open.mockClear();
+  await expect(pickSandboxDirectory()).resolves.toBeNull();
+  expect(dialogMocks.open).not.toHaveBeenCalled();
+});

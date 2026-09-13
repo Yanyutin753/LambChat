@@ -412,6 +412,7 @@ class BaseGraphAgent(ABC):
                 "enabled_skills": kwargs.get("enabled_skills"),
                 "persona_system_prompt": kwargs.get("persona_system_prompt"),
                 "disabled_mcp_tools": kwargs.get("disabled_mcp_tools"),
+                "enabled_mcp_servers": kwargs.get("enabled_mcp_servers"),
                 "base_url": kwargs.get("base_url", ""),
                 "team_id": kwargs.get("team_id"),
                 "active_goal": kwargs.get("active_goal"),

@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 function readSource(relativePath: string): string {
-  return readFileSync(new URL(relativePath, import.meta.url), "utf8");
+  // Windows 检出为 CRLF，归一化后再做结构断言
+  return readFileSync(new URL(relativePath, import.meta.url), "utf8").replace(
+    /\r\n/g,
+    "\n",
+  );
 }
 
 test("file operation pills render full file paths without path-breaking formatting", () => {
@@ -48,7 +52,7 @@ test("read file pill renders the line range in the suffix so it survives path tr
 });
 
 test("collapsible pill always truncates labels to prevent overflow", () => {
-  const source = readFileSync(
+  const source = readSource(
     new URL("../../../../common/CollapsiblePill.tsx", import.meta.url),
     "utf8",
   );
@@ -59,7 +63,7 @@ test("collapsible pill always truncates labels to prevent overflow", () => {
 });
 
 test("collapsible pill can preserve labels without path-breaking formatting", () => {
-  const source = readFileSync(
+  const source = readSource(
     new URL("../../../../common/CollapsiblePill.tsx", import.meta.url),
     "utf8",
   );
@@ -72,7 +76,7 @@ test("collapsible pill can preserve labels without path-breaking formatting", ()
 });
 
 test("collapsible pill uses a non-submit button for form-safe tool clicks", () => {
-  const source = readFileSync(
+  const source = readSource(
     new URL("../../../../common/CollapsiblePill.tsx", import.meta.url),
     "utf8",
   );

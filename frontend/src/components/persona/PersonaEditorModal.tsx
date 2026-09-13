@@ -1,16 +1,23 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GlassSelect } from "../common/GlassSelect";
-import { Plus, Pencil, Sparkles, Tag, Save, MessageSquare } from "lucide-react";
+import { Plus, Pencil, Sparkles, Tag, Save, MessageSquare, Server, TriangleAlert } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { EditorSidebar } from "../common/EditorSidebar";
 import toast from "react-hot-toast";
+import { mcpApi } from "../../services/api/mcp";
+import { skillApi } from "../../services/api/skill";
 import {
   buildPersonaPresetPayload,
+  computeMissingBindings,
   draftRowsToStarterPrompts,
   starterPromptsToDraftRows,
 } from "./personaPresetEditor";
 import { AvatarSection } from "./PersonaEditorAvatarSection";
+import {
+  PersonaEditorBindingSelector,
+  type BindingOption,
+} from "./PersonaEditorBindingSelector";
 import { SkillSelector } from "./PersonaEditorSkillSelector";
 import { StarterPromptsEditor } from "./PersonaEditorStarterPrompts";
 import type {
@@ -45,9 +52,62 @@ export function PersonaEditorModal({
     starter_prompts: starterPromptsToDraftRows(editingPreset?.starter_prompts),
     tags: editingPreset?.tags.join(", ") || "",
     skill_names: [...(editingPreset?.skill_names || [])] as string[],
+    mcp_server_names: [...(editingPreset?.mcp_server_names || [])] as string[],
   });
 
   const [skillDropdownOpen, setSkillDropdownOpen] = useState(false);
+  const [mcpDropdownOpen, setMcpDropdownOpen] = useState(false);
+  const [mcpOptions, setMcpOptions] = useState<BindingOption[]>([]);
+  const [installedSkillNames, setInstalledSkillNames] = useState<string[]>([]);
+  const [bindingsLoading, setBindingsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!showModal) return;
+    let cancelled = false;
+    setBindingsLoading(true);
+    void (async () => {
+      try {
+        // 技能列表只为「缺失提示」服务：编辑的预设没有技能绑定时直接跳过请求
+        const needSkills = (editingPreset?.skill_names ?? []).length > 0;
+        const [mcpList, skillList] = await Promise.all([
+          mcpApi.list(),
+          needSkills ? skillApi.list({ limit: 100 }) : Promise.resolve(null),
+        ]);
+        if (cancelled) return;
+        setMcpOptions(
+          (mcpList.servers ?? [])
+            .filter((server) => server.enabled)
+            .map((server) => ({
+              name: server.name,
+              description: null,
+            })),
+        );
+        setInstalledSkillNames(
+          (skillList?.skills ?? []).map((skill) => skill.skill_name),
+        );
+      } catch {
+        if (!cancelled) {
+          setMcpOptions([]);
+          setInstalledSkillNames([]);
+        }
+      } finally {
+        if (!cancelled) setBindingsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showModal, t, editingPreset]);
+
+  // 编辑既有预设时，绑定里当前用户不可用的部分（技能未安装 / MCP 不可见）
+  const missingSkills = computeMissingBindings(
+    editingPreset?.skill_names,
+    installedSkillNames,
+  );
+  const missingMcpServers = computeMissingBindings(
+    editingPreset?.mcp_server_names,
+    mcpOptions.map((option) => option.name),
+  );
 
   useEffect(() => {
     if (showModal) {
@@ -66,6 +126,7 @@ export function PersonaEditorModal({
         ),
         tags: editingPreset?.tags.join(", ") || "",
         skill_names: [...(editingPreset?.skill_names || [])] as string[],
+            mcp_server_names: [...(editingPreset?.mcp_server_names || [])] as string[],
       });
       setSkillDropdownOpen(false);
     }
@@ -84,6 +145,7 @@ export function PersonaEditorModal({
         .map((s) => s.trim())
         .filter(Boolean),
       skill_names: draft.skill_names,
+      mcp_server_names: draft.mcp_server_names,
     };
 
     const saved = editingPreset
@@ -359,6 +421,47 @@ export function PersonaEditorModal({
               open={skillDropdownOpen}
               onOpenChange={setSkillDropdownOpen}
             />
+            {!bindingsLoading && missingSkills.length > 0 && (
+              <p className="mt-1.5 flex items-start gap-1 text-11 leading-relaxed text-amber-600/90 dark:text-amber-400/90">
+                <TriangleAlert size={11} className="mt-0.5 shrink-0 opacity-80" />
+                {t("personaPresets.missingSkillsHint", {
+                  names: missingSkills.join("、"),
+                })}
+              </p>
+            )}
+          </div>
+
+          <div className="ppe-field">
+            <label className="ppe-label">
+              <Server size={13} className="ppe-label-icon" />
+              {t("personaPresets.mcpServersInput", "MCP 服务")}
+            </label>
+            <PersonaEditorBindingSelector
+              options={mcpOptions}
+              selected={draft.mcp_server_names}
+              onChange={(updater) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  mcp_server_names: updater(prev.mcp_server_names),
+                }))
+              }
+              open={mcpDropdownOpen}
+              onOpenChange={setMcpDropdownOpen}
+              icon={<Server size={12} />}
+              countLabelKey="personaPresets.mcpServerCount"
+              placeholderKey="personaPresets.mcpServersInputPlaceholder"
+              searchPlaceholderKey="personaPresets.mcpSearchPlaceholder"
+              emptyKey="personaPresets.noMcpServers"
+              loading={bindingsLoading}
+            />
+            {!bindingsLoading && missingMcpServers.length > 0 && (
+              <p className="mt-1.5 flex items-start gap-1 text-11 leading-relaxed text-amber-600/90 dark:text-amber-400/90">
+                <TriangleAlert size={11} className="mt-0.5 shrink-0 opacity-80" />
+                {t("personaPresets.missingMcpHint", {
+                  names: missingMcpServers.join("、"),
+                })}
+              </p>
+            )}
           </div>
         </div>
       </div>

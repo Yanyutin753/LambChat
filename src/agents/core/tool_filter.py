@@ -97,6 +97,44 @@ def filter_disabled_tools(
     return filtered
 
 
+def filter_mcp_tools_by_server_whitelist(
+    mcp_tools: List[Any],
+    server_whitelist: Optional[List[str]],
+) -> List[Any]:
+    """按 MCP server 白名单过滤工具（persona 绑定 MCP 的运行时执行点）。
+
+    匹配规则：
+    - 工具名形如 "server:tool" 时按 server 前缀归属；
+    - 工具有 server 属性时按属性归属；
+    - 无法归属到任何 server 的工具保留（不影响内置/内部工具的既有行为）。
+    """
+    if not server_whitelist:
+        return mcp_tools
+
+    allowed = set(server_whitelist)
+    filtered: List[Any] = []
+    for tool in mcp_tools:
+        tool_name = getattr(tool, "name", "") or ""
+        server = getattr(tool, "server", None)
+        if server is None and ":" in tool_name:
+            server = tool_name.split(":", 1)[0]
+        if server is not None and server not in allowed:
+            continue
+        filtered.append(tool)
+
+    removed = len(mcp_tools) - len(filtered)
+    if removed > 0:
+        from src.infra.logging import get_logger
+
+        get_logger(__name__).info(
+            "[tool_filter] Whitelisted %d/%d MCP tools by server (allowed=%d)",
+            len(filtered),
+            len(mcp_tools),
+            len(allowed),
+        )
+    return filtered
+
+
 async def get_db_disabled_mcp_tool_names(user_id: str) -> Set[str]:
     """
     从数据库查询所有被禁用的 MCP 工具名（合并 system_disabled 和 user_disabled）。

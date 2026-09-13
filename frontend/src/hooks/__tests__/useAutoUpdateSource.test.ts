@@ -10,7 +10,8 @@ function readRepoFile(path: string): string {
   if (!existsSync(url)) {
     throw new Error(`repo file not found: ${path}`);
   }
-  return readFileSync(url, "utf8");
+  // Windows 检出为 CRLF，归一化后再做结构断言
+  return readFileSync(url, "utf8").replace(/\r\n/g, "\n");
 }
 
 test("version service reports the bundled client version on update checks", () => {

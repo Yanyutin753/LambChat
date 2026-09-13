@@ -21,6 +21,10 @@ const mocks = vi.hoisted(() => ({
   writeConfirmPolicy: vi.fn(),
   clearPairing: vi.fn(),
   readPairingPat: vi.fn(),
+  readSandboxDataLocation: vi.fn(),
+  setSandboxDataLocation: vi.fn(),
+  clearSandboxDataLocation: vi.fn(),
+  pickSandboxDirectory: vi.fn(),
   getStatus: vi.fn(),
   listMachines: vi.fn(),
   createPat: vi.fn(),
@@ -49,6 +53,10 @@ vi.mock("../../../services/tauri/sandboxShell", () => ({
   writeConfirmPolicy: mocks.writeConfirmPolicy,
   clearPairing: mocks.clearPairing,
   readPairingPat: mocks.readPairingPat,
+  readSandboxDataLocation: mocks.readSandboxDataLocation,
+  setSandboxDataLocation: mocks.setSandboxDataLocation,
+  clearSandboxDataLocation: mocks.clearSandboxDataLocation,
+  pickSandboxDirectory: mocks.pickSandboxDirectory,
 }));
 
 vi.mock("../../../services/api/sandbox", () => ({
@@ -80,6 +88,9 @@ beforeEach(async () => {
   vi.clearAllMocks();
   // 默认：非事件模式（resolve null → 组件回退轮询，与旧行为同构）
   mocks.subscribeDaemonStatus.mockImplementation(() => Promise.resolve(null));
+  // 数据位置卡默认读取失败（静默不渲染）——既有用例不感知新卡；
+  // 卡片自身的交互用例见 sandboxDataLocationCard.test.tsx
+  mocks.readSandboxDataLocation.mockRejectedValue(new Error("unset"));
   window.localStorage.clear();
   _resetSandboxStatusStoreForTests();
   mocks.listMachines.mockResolvedValue({

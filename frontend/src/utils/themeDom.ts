@@ -60,9 +60,74 @@ export function themeExportBackground(theme: Theme): string {
   return theme === "sepia" ? "#faf6ea" : "#ffffff";
 }
 
+/** 主题循环快捷键（Ctrl/Cmd+Shift+L）；可编辑目标的豁免由监听方负责 */
+export function isThemeCycleShortcut(
+  event: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey">,
+): boolean {
+  return (
+    (event.ctrlKey || event.metaKey) &&
+    event.shiftKey &&
+    (event.key === "L" || event.key === "l")
+  );
+}
+
 export function resolveNextTheme(current: Theme): Theme {
   const index = THEME_CYCLE.indexOf(current);
   return THEME_CYCLE[(index + 1) % THEME_CYCLE.length] ?? "light";
+}
+
+/** 按时段自动切换主题的偏好（与后端 metadata 校验同构） */
+export interface ThemeSchedule {
+  enabled: boolean;
+  /** 夜间开始 HH:MM */
+  start: string;
+  /** 夜间结束 HH:MM */
+  end: string;
+  /** 夜间使用的主题（暗色或护眼） */
+  nightTheme: "dark" | "sepia";
+}
+
+const THEME_SCHEDULE_STORAGE_KEY = "lambchat-theme-schedule";
+
+export const THEME_SCHEDULE_KEY = THEME_SCHEDULE_STORAGE_KEY;
+
+export const THEME_SCHEDULE_CHANGE_EVENT = "theme-schedule-change";
+
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+function toMinutes(time: string): number {
+  const [hours, minutes] = time.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+/** 校验并归一 themeSchedule；不合式返回 null（与后端拒绝规则一致） */
+export function parseThemeSchedule(value: unknown): ThemeSchedule | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  const { enabled, start, end, nightTheme } = record;
+  if (typeof enabled !== "boolean") return null;
+  if (typeof start !== "string" || !TIME_PATTERN.test(start)) return null;
+  if (typeof end !== "string" || !TIME_PATTERN.test(end)) return null;
+  if (nightTheme !== "dark" && nightTheme !== "sepia") return null;
+  return { enabled, start, end, nightTheme };
+}
+
+/** 定时主题解析：夜窗内返回 nightTheme，否则 light；起止相同视为无效配置 */
+export function resolveScheduledTheme(
+  nowMinutes: number,
+  schedule: ThemeSchedule,
+): Theme {
+  const start = toMinutes(schedule.start);
+  const end = toMinutes(schedule.end);
+  if (start === end) return "light";
+  const inNight =
+    start < end ? nowMinutes >= start && nowMinutes < end : nowMinutes >= start || nowMinutes < end;
+  return inNight ? schedule.nightTheme : "light";
+}
+
+/** 读取当前时刻的本地分钟数（0..1439），便于注入假时钟测试 */
+export function currentLocalMinutes(date: Date = new Date()): number {
+  return date.getHours() * 60 + date.getMinutes();
 }
 
 export function getInitialThemePreference(

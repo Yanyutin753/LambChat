@@ -14,6 +14,10 @@ kubectl get pods -n lambchat
 kubectl get svc -n lambchat
 ```
 
+::: tip
+清单会从 `lambchat-secrets` Secret 读取敏感值（JWT 密钥、MCP 加密盐、数据库凭据、S3 密钥）。请将 `k8s/lambchat-secret.yaml.example` 复制为 `k8s/lambchat-secret.yaml`，填入你的值并 apply——Secret 不存在时 Pod 无法启动。
+:::
+
 ## 架构
 
 K8s 清单（`k8s/lambchat.yaml`）创建以下资源：
@@ -59,11 +63,11 @@ env:
 
 ```yaml
 env:
-  - name: LLM_API_KEY
+  - name: JWT_SECRET_KEY
     valueFrom:
       secretKeyRef:
         name: lambchat-secrets
-        key: llm-api-key
+        key: jwt-secret-key
 ```
 
 ### Ingress
@@ -97,7 +101,7 @@ spec:
               service:
                 name: lambchat
                 port:
-                  number: 8000
+                  number: 80
 ```
 
 ## 扩缩容

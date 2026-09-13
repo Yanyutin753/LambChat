@@ -1,4 +1,5 @@
 import { gzipSync } from "node:zlib";
+import { resolve } from "node:path";
 import { describe, expect, test } from "vitest";
 import {
   collectRouteShellUrls,
@@ -136,15 +137,18 @@ describe("frontend performance budgets", () => {
   });
 
   test("filters to the eager graph, route shells, offline shell, and icons", async () => {
+    // distDir 必须是平台正确的绝对路径：Windows 上 resolve("/dist") 会落盘符根
+    const distDir = resolve("perf-dist-fixture");
+    const dist = (...parts: string[]) => resolve(distDir, ...parts);
     const files = new Map<string, Buffer>([
       [
-        "/dist/index.html",
+        dist("index.html"),
         Buffer.from(
           '<script type="module" src="/assets/index.js"></script><link rel="modulepreload" href="/assets/vendor.js">',
         ),
       ],
       [
-        "/dist/.vite/manifest.json",
+        dist(".vite", "manifest.json"),
         Buffer.from(
           JSON.stringify({
             "src/main.tsx": {
@@ -163,14 +167,14 @@ describe("frontend performance budgets", () => {
           }),
         ),
       ],
-      ["/dist/assets/index.js", Buffer.from("entry")],
-      ["/dist/assets/vendor.js", Buffer.from("vendor")],
-      ["/dist/assets/app.js", Buffer.from("app")],
-      ["/dist/assets/mermaid.js", Buffer.from("mermaid")],
-      ["/dist/assets/font.woff2", Buffer.from("font")],
-      ["/dist/offline.html", Buffer.from("offline")],
+      [dist("assets", "index.js"), Buffer.from("entry")],
+      [dist("assets", "vendor.js"), Buffer.from("vendor")],
+      [dist("assets", "app.js"), Buffer.from("app")],
+      [dist("assets", "mermaid.js"), Buffer.from("mermaid")],
+      [dist("assets", "font.woff2"), Buffer.from("font")],
+      [dist("offline.html"), Buffer.from("offline")],
       [
-        "/dist/manifest.json",
+        dist("manifest.json"),
         Buffer.from(
           JSON.stringify({
             icons: [{ src: "/icons/icon-192.png" }],
@@ -178,9 +182,9 @@ describe("frontend performance budgets", () => {
           }),
         ),
       ],
-      ["/dist/favicon.ico", Buffer.from("icon")],
-      ["/dist/icons/icon-192.png", Buffer.from("pwa icon")],
-      ["/dist/icons/og-image.png", Buffer.from("social image")],
+      [dist("favicon.ico"), Buffer.from("icon")],
+      [dist("icons", "icon-192.png"), Buffer.from("pwa icon")],
+      [dist("icons", "og-image.png"), Buffer.from("social image")],
     ]);
     const logs: string[] = [];
     const readBytes = (filePath: string) => {
@@ -188,15 +192,9 @@ describe("frontend performance budgets", () => {
       if (!value) throw new Error(`missing test file: ${filePath}`);
       return value;
     };
-    files.set(
-      "/dist/index.html",
-      Buffer.from(
-        '<script type="module" src="/assets/index.js"></script><link rel="modulepreload" href="/assets/vendor.js">',
-      ),
-    );
 
     const transform = createPerformanceManifestTransform({
-      distDir: "/dist",
+      distDir,
       readText: (filePath) => readBytes(filePath).toString("utf8"),
       readBytes,
       log: (message) => logs.push(message),
@@ -247,25 +245,27 @@ describe("frontend performance budgets", () => {
       }
       return value;
     };
+    const distDir = resolve("perf-dist-fixture-budget");
+    const dist = (...parts: string[]) => resolve(distDir, ...parts);
     const baseFiles = new Map<string, Buffer>([
       [
-        "/dist/index.html",
+        dist("index.html"),
         Buffer.from('<script type="module" src="/assets/index.js"></script>'),
       ],
       [
-        "/dist/.vite/manifest.json",
+        dist(".vite", "manifest.json"),
         Buffer.from(
           JSON.stringify({
             "index.html": { file: "assets/index.js", isEntry: true },
           }),
         ),
       ],
-      ["/dist/assets/index.js", Buffer.from("entry")],
-      ["/dist/manifest.json", Buffer.from('{"icons":[]}')],
+      [dist("assets", "index.js"), Buffer.from("entry")],
+      [dist("manifest.json"), Buffer.from('{"icons":[]}')],
     ]);
     const makeTransform = (readBytes: (filePath: string) => Uint8Array) =>
       createPerformanceManifestTransform({
-        distDir: "/dist",
+        distDir,
         readText: (filePath) =>
           Buffer.from(readBytes(filePath)).toString("utf8"),
         readBytes,
@@ -274,7 +274,7 @@ describe("frontend performance budgets", () => {
 
     await expect(
       makeTransform((filePath) =>
-        filePath === "/dist/assets/index.js"
+        filePath === dist("assets", "index.js")
           ? deterministicNoise(600_000)
           : baseFiles.get(filePath)!,
       )([{ url: "assets/index.js", size: 600_000 }]),
@@ -286,7 +286,7 @@ describe("frontend performance budgets", () => {
 
     await expect(
       makeTransform((filePath) =>
-        filePath === "/dist/assets/index.js"
+        filePath === dist("assets", "index.js")
           ? Buffer.alloc(5 * 1024 * 1024 + 1, 0)
           : baseFiles.get(filePath)!,
       )([{ url: "assets/index.js", size: 5 * 1024 * 1024 + 1 }]),

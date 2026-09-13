@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use tauri::Manager;
 
 mod daemon;
+mod commands;
 mod linux_update;
 mod tray;
 
@@ -197,7 +198,12 @@ pub fn run() {
         // process 插件：updater 安装完成后前端 `relaunch()` 重启壳
         // （useAutoUpdate 依赖；缺此注册 + capability，更新后自动重启会失败）。
         .plugin(tauri_plugin_process::init())
+        // dialog 插件：设置页"沙箱数据位置"目录选择（原生对话框）
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            // 沙箱根覆盖注入必须最先：此后所有 sandbox_home() 解析（PBS
+            // 播种、daemon spawn、open_local_path 白名单）都跟随覆盖文件。
+            daemon::apply_sandbox_home_override(app.handle());
             clean_on_version_upgrade(app.handle());
             app.manage(daemon::DaemonManager::default());
             // SIGTERM 优雅退出路径（unix）：kill -TERM → app.exit(0) → Exit 事件
@@ -218,6 +224,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::workspace::sandbox_pick_workspace,
             daemon::save_pairing,
             daemon::write_confirm_policy,
             daemon::clear_pairing,
@@ -226,6 +233,9 @@ pub fn run() {
             daemon::restart_daemon,
             daemon::daemon_process_status,
             daemon::open_local_path,
+            daemon::sandbox_data_location,
+            daemon::set_sandbox_data_location,
+            daemon::clear_sandbox_data_location,
             linux_update::get_linux_install_source,
             linux_update::install_linux_package
         ])

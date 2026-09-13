@@ -178,6 +178,7 @@ async def use_persona_preset(
             preset_id,
             user_id=user.sub,
             is_admin=_is_admin(user),
+            user_roles=list(user.roles or []),
         )
     except NotFoundError:
         raise AppError(ErrorCode.PERSONA_PRESET_NOT_FOUND)

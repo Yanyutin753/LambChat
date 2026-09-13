@@ -35,8 +35,21 @@ async def toggle_message_bookmark(
         raise AppError(ErrorCode.SESSION_NOT_FOUND)
     verify_session_ownership(session, user)
 
+    storage = BookmarkStorage()
+
+    # 防悬空：只拦新建。校验上线前遗留的悬空书签仍允许 toggle 删除，
+    # 否则用户永远删不掉旧数据。
+    if not await manager.message_anchor_exists(session_id, message_id):
+        existing = await storage.get(
+            user_id=user.sub,
+            session_id=session_id,
+            message_id=message_id,
+        )
+        if not existing:
+            raise AppError(ErrorCode.BOOKMARK_MESSAGE_NOT_FOUND)
+
     try:
-        bookmarked, bookmark = await BookmarkStorage().toggle(
+        bookmarked, bookmark = await storage.toggle(
             user_id=user.sub,
             session_id=session_id,
             message_id=message_id,

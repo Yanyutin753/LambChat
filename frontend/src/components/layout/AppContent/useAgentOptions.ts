@@ -40,7 +40,9 @@ export function injectSandboxOption(
   };
 }
 
-/** 归一思考档位值："off" 时代已下线，历史 off 值统一降级到 low */export function normalizeThinkingOptionValue(value: boolean | string | number) {
+/** 归一思考档位值："off" 时代已下线，历史 off 值统一降级到 low */ export function normalizeThinkingOptionValue(
+  value: boolean | string | number,
+) {
   if (value === true) return "medium";
   if (value === false) return "low";
   if (typeof value !== "string") return value;
@@ -180,7 +182,9 @@ function applySandboxDefault(
   }
   const stored =
     storage?.getItem("defaultSandboxMode") ??
-    (typeof window !== "undefined" ? window.localStorage.getItem("defaultSandboxMode") : null);
+    (typeof window !== "undefined"
+      ? window.localStorage.getItem("defaultSandboxMode")
+      : null);
   return {
     ...defaultValues,
     sandbox: resolveSandboxDefault(stored, hints?.sandboxOnline ?? false),
@@ -307,7 +311,11 @@ export function useAgentOptions(agents: AgentInfo[], currentAgent: string) {
     setAgentOptionValues((prev) => {
       const rebuilt = buildAgentOptionValues(options);
       for (const key of Object.keys(prev)) {
-        if (key in rebuilt) {
+        if (
+          key in rebuilt ||
+          key === "sandbox_workspace" ||
+          key === "sandbox_machine_id"
+        ) {
           (rebuilt as Record<string, boolean | string | number>)[key] =
             prev[key];
         }

@@ -2,6 +2,8 @@
 User profile routes (password change, avatar, profile, username)
 """
 
+import re
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
@@ -50,6 +52,22 @@ def _validate_bounded_string_list(
             ErrorCode.PROFILE_FIELD_TOO_MANY,
             args={"field": field_name, "max": max_items},
         )
+
+
+def _validate_theme_schedule(schedule: object) -> None:
+    """按时段自动切换主题的偏好：{enabled, start, end, nightTheme}"""
+    if not isinstance(schedule, dict):
+        raise AppError(ErrorCode.INVALID_THEME_SCHEDULE)
+    if set(schedule.keys()) != {"enabled", "start", "end", "nightTheme"}:
+        raise AppError(ErrorCode.INVALID_THEME_SCHEDULE)
+    if not isinstance(schedule["enabled"], bool):
+        raise AppError(ErrorCode.INVALID_THEME_SCHEDULE)
+    for key in ("start", "end"):
+        value = schedule[key]
+        if not isinstance(value, str) or not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", value):
+            raise AppError(ErrorCode.INVALID_THEME_SCHEDULE)
+    if schedule["nightTheme"] not in ("dark", "sepia"):
+        raise AppError(ErrorCode.INVALID_THEME_SCHEDULE)
 
 
 @router.post("/update-avatar")
@@ -136,6 +154,10 @@ async def update_user_metadata(
         theme = request.metadata["theme"]
         if theme not in ("light", "dark", "sepia"):
             raise AppError(ErrorCode.INVALID_THEME, args={"theme": theme})
+
+    # Validate theme schedule if provided
+    if "themeSchedule" in request.metadata:
+        _validate_theme_schedule(request.metadata["themeSchedule"])
 
     # Validate disabled_tools if provided
     if "disabled_tools" in request.metadata:

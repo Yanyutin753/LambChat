@@ -138,8 +138,9 @@ class MongoDBStorage(StorageBase):
 
     async def exists(self, key: str) -> bool:
         """检查键是否存在"""
-        result = await self.collection.find_one({"_id": key})
-        return result is not None
+        # P2-12: 仅判存在性，count_documents + limit 避免读取整文档字段
+        count = await self.collection.count_documents({"_id": key}, limit=1)
+        return count > 0
 
     async def keys(self, pattern: str) -> list[str]:
         """获取匹配的键列表，默认限制数量避免误扫全库。"""

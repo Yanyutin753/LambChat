@@ -137,6 +137,51 @@ export interface DaemonStatusEvent {
   restarts: number;
 }
 
+// ---------------------------------------------------------------------------
+// 沙箱数据位置（LAMBCHAT_HOME 覆盖：设置页"数据位置"卡片）
+// ---------------------------------------------------------------------------
+
+export interface SandboxDataLocation {
+  /** 当前生效根（LAMBCHAT_HOME 或缺省 ~/.lambchat） */
+  root: string;
+  /** 当前根非缺省（覆盖文件或外部环境变量生效） */
+  customized: boolean;
+  /** 壳级覆盖文件存在（"恢复默认"可用；仅外部环境变量生效时 false） */
+  overrideConfigured: boolean;
+}
+
+/** 读取沙箱数据根状态。 */
+export function readSandboxDataLocation(): Promise<SandboxDataLocation> {
+  return invokeInShell<SandboxDataLocation>("sandbox_data_location");
+}
+
+/** 更改沙箱数据根：migrateData=true 时把旧根顶层数据搬到新根。成功后须
+ * 重启壳彻底生效（PBS 播种等启动期逻辑 relaunch 后才换根）。 */
+export function setSandboxDataLocation(
+  path: string,
+  migrateData: boolean,
+): Promise<void> {
+  return invokeInShell("set_sandbox_data_location", { path, migrateData }).then(
+    () => undefined,
+  );
+}
+
+/** 恢复缺省沙箱根（删壳级覆盖文件）：现有数据留在原处不搬回；重启壳生效。 */
+export function clearSandboxDataLocation(): Promise<void> {
+  return invokeInShell("clear_sandbox_data_location").then(() => undefined);
+}
+
+/**
+ * 原生目录选择对话框（plugin-dialog）：返回所选绝对路径，取消返回
+ * null；非壳环境直接 null（调用方不展示入口）。
+ */
+export async function pickSandboxDirectory(): Promise<string | null> {
+  if (!isShellAvailable()) return null;
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const picked = await open({ directory: true, multiple: false });
+  return typeof picked === "string" ? picked : null;
+}
+
 /**
  * 订阅 daemon 托管状态事件（Tauri event `sandbox-daemon-status`）：
  * 启动/停止/意外退出/重启时由壳推送，前端据此替代 10s 轮询

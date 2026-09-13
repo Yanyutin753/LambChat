@@ -610,10 +610,23 @@ class Settings(BaseSettings):
             self.BUILD_TIME = os.environ.get("BUILD_TIME")
 
         # Sync LangSmith settings to os.environ (required by langsmith SDK)
+        self.sync_tracing_env()
+
+    def sync_tracing_env(self) -> None:
+        """把 LangSmith/Langfuse 配置双向同步到 os.environ（SDK 读 env）。
+
+        __init__ 期调用一次（OS env/.env 权威）；initialize_settings 在 DB
+        加载后、refresh_settings 在运行时面板修改后重放，使 UI 配置真正
+        生效。双向：关闭/置空即清除对应 env，避免残留旧值让 tracer 误开。
+        """
         if self.LANGSMITH_TRACING:
             os.environ["LANGSMITH_TRACING"] = "true"
+        else:
+            os.environ.pop("LANGSMITH_TRACING", None)
         if self.LANGSMITH_API_KEY:
             os.environ["LANGSMITH_API_KEY"] = self.LANGSMITH_API_KEY
+        else:
+            os.environ.pop("LANGSMITH_API_KEY", None)
         if self.LANGSMITH_PROJECT:
             os.environ["LANGSMITH_PROJECT"] = self.LANGSMITH_PROJECT
         if self.LANGSMITH_API_URL:
@@ -621,13 +634,18 @@ class Settings(BaseSettings):
         if self.LANGSMITH_SAMPLE_RATE:
             os.environ["LANGSMITH_SAMPLE_RATE"] = str(self.LANGSMITH_SAMPLE_RATE)
 
-        # Sync Langfuse settings to os.environ (required by langfuse SDK)
         if self.LANGFUSE_ENABLED:
             os.environ["LANGFUSE_ENABLED"] = "true"
+        else:
+            os.environ.pop("LANGFUSE_ENABLED", None)
         if self.LANGFUSE_PUBLIC_KEY:
             os.environ["LANGFUSE_PUBLIC_KEY"] = self.LANGFUSE_PUBLIC_KEY
+        else:
+            os.environ.pop("LANGFUSE_PUBLIC_KEY", None)
         if self.LANGFUSE_SECRET_KEY:
             os.environ["LANGFUSE_SECRET_KEY"] = self.LANGFUSE_SECRET_KEY
+        else:
+            os.environ.pop("LANGFUSE_SECRET_KEY", None)
         if self.LANGFUSE_HOST:
             os.environ["LANGFUSE_HOST"] = self.LANGFUSE_HOST
 

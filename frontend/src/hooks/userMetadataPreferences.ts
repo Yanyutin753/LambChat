@@ -21,6 +21,7 @@ export const DEFAULT_MODEL_STORAGE_KEY = "defaultModel";
 type UserMetadataPreferences = {
   language?: unknown;
   theme?: unknown;
+  themeSchedule?: unknown;
   newlineModifier?: unknown;
   defaultThinkingLevel?: unknown;
   sidebarCollapsed?: unknown;
@@ -63,6 +64,16 @@ export function applyUserMetadataPreferences({
   if (theme) {
     localStorage.setItem("lambchat-theme", theme);
     dispatchEvent(new CustomEvent("theme:external-change", { detail: theme }));
+  }
+
+  if (metadata.themeSchedule !== undefined) {
+    localStorage.setItem(
+      "lambchat-theme-schedule",
+      JSON.stringify(metadata.themeSchedule),
+    );
+    dispatchEvent(
+      new CustomEvent("theme-schedule-change", { detail: metadata.themeSchedule }),
+    );
   }
 
   const fontScale = stringValue(metadata.fontScale);

@@ -7,7 +7,9 @@ import { fileURLToPath } from "node:url";
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const frontendRoot = resolve(currentDir, "../../..");
 const extractorPath = resolve(frontendRoot, "scripts/extract-i18n.ts");
-const tsxPath = resolve(frontendRoot, "node_modules/.bin/tsx");
+// Windows 下 .bin/tsx 是无扩展名 shell 脚本，execFileSync 直接 spawn 会 ENOENT；
+// 统一走 node + tsx CLI 入口，跨平台一致。
+const tsxPath = resolve(frontendRoot, "node_modules/tsx/dist/cli.mjs");
 
 test("reports each newly extracted locale key once", () => {
   const fixtureDir = mkdtempSync(resolve(tmpdir(), "lambchat-i18n-extract-"));
@@ -24,7 +26,7 @@ test("reports each newly extracted locale key once", () => {
       writeFileSync(resolve(localesDir, `${locale}.json`), "{}\n");
     }
 
-    const output = execFileSync(tsxPath, [extractorPath], {
+    const output = execFileSync(process.execPath, [tsxPath, extractorPath], {
       cwd: fixtureDir,
       encoding: "utf8",
     });
@@ -59,7 +61,7 @@ test("extracts keys from .ts hook files but skips __tests__ fixtures", () => {
       writeFileSync(resolve(localesDir, `${locale}.json`), "{}\n");
     }
 
-    const output = execFileSync(tsxPath, [extractorPath], {
+    const output = execFileSync(process.execPath, [tsxPath, extractorPath], {
       cwd: fixtureDir,
       encoding: "utf8",
     });

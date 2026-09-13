@@ -155,10 +155,10 @@ export function combinePrecacheBudgetEntries(
   });
 }
 
-// 524KB：522KB + #552 孤儿助手空壳修复与 #553 生图多模型的 locale 文案
-// 叠加把 eager JS 顶到 534.6KB（91 字节越线挂镜像构建），沿 2KB 阶梯
-// 惯例累加抬档。
-export const EAGER_JAVASCRIPT_BUDGET_BYTES = 524 * 1024;
+// 528KB：#563 沙箱数据位置卡片（五语 13 键，顶到 525.1KB）与 #565
+// 定时主题（调度状态机 + themeDom 解析助手 + 五语文案，再 +1.2KB）叠加
+// 把 eager JS 顶到约 526.8KB，沿 2KB 阶梯惯例累加抬档。
+export const EAGER_JAVASCRIPT_BUDGET_BYTES = 530 * 1024;
 export const PRECACHE_BUDGET_BYTES = 5 * 1024 * 1024;
 export const PRECACHE_ADDITIONAL_ENTRIES: PrecacheEntry[] = [];
 

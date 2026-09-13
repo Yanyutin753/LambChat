@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Download, ChevronRight, Copy, Check } from "lucide-react";
+import { Download, ChevronRight, Copy, Check, Loader2 } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from "react-i18next";
 import { getFileTypeInfo, isImageFile } from "../../../documents/utils";
@@ -220,7 +220,11 @@ function FileTreeNode({
                 isDownloading && "opacity-50 pointer-events-none",
               )}
             >
-              <Download size={18} />
+              {isDownloading ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <Download size={18} />
+              )}
             </span>
           )}
           <ChevronRight

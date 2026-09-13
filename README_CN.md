@@ -278,8 +278,8 @@ TASK_BACKEND=arq  # local 或 arq
 make format       # 使用 ruff 格式化
 make lint         # 使用 ruff 检查
 make typecheck    # 使用 mypy 做类型检查
-make test         # 使用 pytest 跑后端测试
-make check-all    # 运行 lint + typecheck + test
+make test         # 运行前端（vitest）+ 后端（pytest）测试
+make check-all    # 运行 pre-commit + 类型检查 + 测试 + 构建
 ```
 
 ### 前端、移动端与文档

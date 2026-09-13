@@ -1,4 +1,11 @@
 {
+  "sessionWorkspace": {
+    "loading": "Выбор папки…",
+    "reset": "Вернуть папку разговора по умолчанию",
+    "scope": "Папка для файлов и команд в этом разговоре",
+    "failed": "Не удалось выбрать папку. Проверьте подключение приложения.",
+    "choose": "Выбрать рабочую папку"
+  },
   "about": {
     "appVersion": "Версия",
     "buildTime": "Время сборки",
@@ -264,7 +271,14 @@
       "section": "Устройство",
       "currentDevice": "Это устройство"
     },
-    "sandboxPolicy": { "section": "Политика выполнения", "all": "Подтверждать всё", "commands": "Подтверждать только команды", "none": "Не подтверждать", "updated": "Политика выполнения обновлена", "updateFailed": "Не удалось обновить политику выполнения" }
+    "sandboxPolicy": {
+      "section": "Политика выполнения",
+      "all": "Подтверждать всё",
+      "commands": "Подтверждать только команды",
+      "none": "Не подтверждать",
+      "updated": "Политика выполнения обновлена",
+      "updateFailed": "Не удалось обновить политику выполнения"
+    }
   },
   "agents": {
     "fast": {
@@ -538,6 +552,9 @@
     "profileFieldTooMany": "Слишком много {{field}}: максимум {{max}}",
     "unsupportedLanguage": "Неподдерживаемый язык: {{lang}}",
     "invalidTheme": "Недопустимая тема: {{theme}}. Должна быть light, dark или sepia",
+    "invalidThemeSchedule": "Недопустимое расписание тем: нужны enabled (логическое), start/end (ЧЧ:ММ) и nightTheme (dark или sepia)",
+    "invalidDateFormat": "Неверная дата: {{value}}. Ожидается ISO 8601",
+    "bookmarkMessageNotFound": "Сообщение в диалоге не найдено",
     "messageNotFound": "Сообщение не найдено",
     "sessionDeleteInProgress": "Выполняется удаление сессии",
     "sessionError": "Ошибка операции с сессией",
@@ -661,7 +678,8 @@
     "sandboxExecFailed": "Ошибка выполнения локального sandbox: {{detail}}",
     "daemonVersionUnsupported": "Версия локального sandbox-демона {{version}} ниже минимальной {{min}}, обновите его",
     "sandboxMachineOffline": "Выбранная машина песочницы «{{machine}}» сейчас не в сети",
-    "sandboxMachineNotFound": "Машина песочницы «{{machine}}» не найдена или удалена"
+    "sandboxMachineNotFound": "Машина песочницы «{{machine}}» не найдена или удалена",
+    "pluginNoEditPermission": "Нет прав на редактирование плагина {{name}}"
   },
   "categories": {
     "agent": "Агент",
@@ -921,7 +939,7 @@
       "toolHistoryUser": "Вопрос",
       "toolImageAnalyze": "Анализ изображения",
       "toolImageAnalyzeCount": "{{count}} изображений",
-"toolVideoAnalyze": "Анализ видео",
+      "toolVideoAnalyze": "Анализ видео",
       "toolVideoAnalyzeCount": "{{count}} видео",
       "toolImageCount": "{{count}} изображений",
       "toolImageGenerate": "Генерация",
@@ -1763,6 +1781,7 @@
     "updateSuccess": "Навык успешно обновлён",
     "viewInMySkills": "Открыть в моих навыках"
   },
+
   "mcp": {
     "addFirst": "Добавьте первый MCP сервер",
     "addNew": "Добавить новый MCP сервер",
@@ -2122,6 +2141,14 @@
     "skillsControlledHint": "Текущая персона \"{{name}}\" управляет доступными навыками. Очистите персону или измените пресет, чтобы сменить навыки для этого чата.",
     "skillsCount": "навыков",
     "skillsInput": "Навыки",
+    "mcpServersInput": "MCP-серверы",
+    "missingSkillsHint": "Привязанные навыки не установлены: {{names}} (не действуют в чате)",
+    "missingMcpHint": "Недоступные вам MCP-серверы: {{names}} (не действуют в чате)",
+    "mcpServerCount": "Привязано MCP-серверов: {{count}}",
+    "mcpServersInputPlaceholder": "Ограничить MCP-серверы (пусто = все)...",
+    "mcpSearchPlaceholder": "Поиск MCP-серверов...",
+    "noMcpServers": "Нет доступных MCP-серверов",
+    "mcpFromPlugin": "Из плагина {{name}}",
     "skillsInputPlaceholder": "Нажмите, чтобы выбрать доступные навыки...",
     "starterIcon": "Иконка",
     "starterPromptPlaceholder": "Введите подсказку или используйте {\"zh\":\"...\",\"en\":\"...\"}",
@@ -2188,6 +2215,21 @@
       "resetTitle": "Сбросить переопределение и вернуть сервер, встроенный в сборку"
     },
     "localSandbox": {
+      "dataLocation": {
+        "title": "Расположение данных",
+        "desc": "Где хранятся рабочие области песочницы, журналы аудита и встроенная среда Python",
+        "customizedBadge": "Своё",
+        "defaultBadge": "По умолчанию",
+        "change": "Изменить расположение",
+        "reset": "Вернуть по умолчанию",
+        "selected": "Выбрано: {{path}}",
+        "migrateLabel": "Перенести существующие данные в новое расположение",
+        "confirmChange": "Сохранить и перенести",
+        "confirmChangeNoMigrate": "Сохранить",
+        "savedRestartPending": "Сохранено. Перезапустите приложение, чтобы применить новое расположение.",
+        "resetRestartPending": "Возвращено расположение по умолчанию. Применится после перезапуска приложения; существующие данные останутся на прежнем месте.",
+        "relaunchNow": "Перезапустить сейчас"
+      },
       "title": "Локальная песочница",
       "desc": "Агент выполняет команды и работу с файлами на вашем компьютере через десктоп-приложение",
       "statusOnline": "Онлайн",
@@ -2286,6 +2328,11 @@
     "termsTab": "Условия использования",
     "termsTitle": "Условия использования",
     "theme": "Тема",
+    "themeScheduleToggle": "Автопереключение по расписанию",
+    "themeScheduleStart": "Начало ночи",
+    "themeScheduleEnd": "Конец ночи",
+    "themeScheduleNightTheme": "Ночная тема",
+    "themeSchedulePreview": "Для текущего времени используется: {{theme}}",
     "themeSynced": "Настройки темы сохранены",
     "title": "Профиль",
     "togglePasswordVisibility": "Переключить видимость пароля",
@@ -2311,6 +2358,7 @@
     "exitFullscreen": "Выйти из полноэкранного режима",
     "expand": "Развернуть",
     "exportZip": "Экспорт ZIP",
+    "downloadFolder": "Скачать папку как ZIP",
     "fileCount": "{{count}} файлов",
     "fullscreen": "Полный экран",
     "fullscreenHint": "Нажмите Esc для выхода из полноэкранного режима",
@@ -3445,6 +3493,7 @@
   "theme": {
     "switchToDark": "Переключить на тёмную тему",
     "switchToLight": "Переключить на светлую тему",
+    "cycleShortcut": "Горячая клавиша Ctrl/Cmd+Shift+L",
     "switchToSepia": "Переключить на режим сепии"
   },
   "tools": {

@@ -78,12 +78,9 @@ class FeedbackStorage:
         Raises:
             ValueError: 如果用户已对该 run 提交过反馈
         """
-        # 检查是否已存在
-        existing = await self.get_user_feedback_for_run(
-            user_id, feedback_data.session_id, feedback_data.run_id
-        )
-        if existing:
-            raise ValueError("您已经对该对话提交过反馈")
+        # 并发安全（P2-10）：依赖 user_run_unique 唯一索引，不再"先检查后插入"。
+        # 直接 insert，冲突即重复，捕获 DuplicateKeyError → ValueError（保持调用方契约）。
+        from pymongo.errors import DuplicateKeyError
 
         now = utc_now()
         feedback_dict: dict[str, Any] = {
@@ -99,7 +96,11 @@ class FeedbackStorage:
             feedback_dict["attachments"] = [
                 a.model_dump(by_alias=True) for a in feedback_data.attachments
             ]
-        result = await self.collection.insert_one(feedback_dict)
+        try:
+            result = await self.collection.insert_one(feedback_dict)
+        except DuplicateKeyError:
+            # 唯一索引 user_run_unique 冲突 = 该 (user_id, session_id, run_id) 已有反馈
+            raise ValueError("您已经对该对话提交过反馈")
         feedback_dict["id"] = str(result.inserted_id)
         return Feedback.model_validate(feedback_dict)
 

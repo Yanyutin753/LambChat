@@ -54,6 +54,9 @@ class AgentRequest(BaseModel):
     disabled_mcp_tools: Optional[list[str]] = Field(
         None, description="MCP tools to disable for this conversation"
     )
+    enabled_mcp_servers: Optional[list[str]] = Field(
+        None, description="MCP server whitelist for this conversation (persona binding)"
+    )
     user_timezone: Optional[str] = Field(
         None, description="User IANA timezone for timestamping chat messages"
     )

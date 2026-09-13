@@ -1,4 +1,11 @@
 {
+  "sessionWorkspace": {
+    "loading": "폴더 선택 중…",
+    "reset": "기본 대화 폴더로 복원",
+    "scope": "이 대화의 파일 작업과 명령 실행에 사용합니다",
+    "failed": "폴더를 선택할 수 없습니다. 데스크톱 연결을 확인해 주세요.",
+    "choose": "작업 폴더 선택"
+  },
   "about": {
     "appVersion": "버전",
     "buildTime": "빌드 시간",
@@ -264,7 +271,14 @@
       "section": "실행 기기",
       "currentDevice": "이 기기"
     },
-    "sandboxPolicy": { "section": "실행 정책", "all": "모두 확인", "commands": "명령만 확인", "none": "확인하지 않음", "updated": "실행 정책이 업데이트되었습니다", "updateFailed": "실행 정책 업데이트에 실패했습니다" }
+    "sandboxPolicy": {
+      "section": "실행 정책",
+      "all": "모두 확인",
+      "commands": "명령만 확인",
+      "none": "확인하지 않음",
+      "updated": "실행 정책이 업데이트되었습니다",
+      "updateFailed": "실행 정책 업데이트에 실패했습니다"
+    }
   },
   "agents": {
     "fast": {
@@ -538,6 +552,9 @@
     "profileFieldTooMany": "{{field}}이(가) 너무 많습니다. 최대 {{max}}개까지 가능합니다",
     "unsupportedLanguage": "지원하지 않는 언어입니다: {{lang}}",
     "invalidTheme": "잘못된 테마입니다: {{theme}}. light, dark, sepia 중 하나여야 합니다",
+    "invalidThemeSchedule": "테마 예약 전환 설정이 잘못되었습니다: enabled(불리언), start/end(HH:MM), nightTheme(dark 또는 sepia)이 필요합니다",
+    "invalidDateFormat": "잘못된 날짜: {{value}}. ISO 8601 형식 필요",
+    "bookmarkMessageNotFound": "이 세션에서 메시지를 찾을 수 없습니다",
     "messageNotFound": "메시지를 찾을 수 없습니다",
     "sessionDeleteInProgress": "세션 삭제가 진행 중입니다",
     "sessionError": "세션 작업에 실패했습니다",
@@ -661,7 +678,8 @@
     "sandboxExecFailed": "로컬 샌드박스 실행 실패: {{detail}}",
     "daemonVersionUnsupported": "로컬 샌드박스 데몬 버전 {{version}}이(가) 최소 요구 사항 {{min}} 미만입니다. 업데이트해 주세요",
     "sandboxMachineOffline": "선택한 샌드박스 머신 '{{machine}}'이(가) 오프라인 상태입니다",
-    "sandboxMachineNotFound": "샌드박스 머신 '{{machine}}'을(를) 찾을 수 없거나 제거되었습니다"
+    "sandboxMachineNotFound": "샌드박스 머신 '{{machine}}'을(를) 찾을 수 없거나 제거되었습니다",
+    "pluginNoEditPermission": "플러그인 {{name}}을(를) 편집할 권한이 없습니다"
   },
   "categories": {
     "agent": "에이전트",
@@ -921,7 +939,7 @@
       "toolHistoryUser": "사용자",
       "toolImageAnalyze": "이미지 분석",
       "toolImageAnalyzeCount": "{{count}}개 이미지",
-"toolVideoAnalyze": "동영상 분석",
+      "toolVideoAnalyze": "동영상 분석",
       "toolVideoAnalyzeCount": "동영상 {{count}}개",
       "toolImageCount": "{{count}}개 이미지",
       "toolImageGenerate": "생성",
@@ -1763,6 +1781,7 @@
     "updateSuccess": "스킬이 업데이트되었습니다",
     "viewInMySkills": "내 스킬에서 열기"
   },
+
   "mcp": {
     "addFirst": "첫 번째 MCP 서버 추가",
     "addNew": "새 MCP 서버 추가",
@@ -2122,6 +2141,14 @@
     "skillsControlledHint": "현재 페르소나 \"{{name}}\"이(가) 사용 가능한 스킬을 제어합니다. 이 채팅의 스킬을 변경하려면 페르소나를 해제하거나 프리셋을 편집하세요.",
     "skillsCount": "스킬",
     "skillsInput": "스킬",
+    "mcpServersInput": "MCP 서버",
+    "missingSkillsHint": "설치되지 않은 바인딩 스킬: {{names}} (대화에서 적용되지 않음)",
+    "missingMcpHint": "현재 보이지 않는 MCP 서버: {{names}} (대화에서 적용되지 않음)",
+    "mcpServerCount": "MCP 서버 {{count}}개 바인딩됨",
+    "mcpServersInputPlaceholder": "사용할 MCP 서버 제한(비워두면 전부)...",
+    "mcpSearchPlaceholder": "MCP 서버 검색...",
+    "noMcpServers": "사용 가능한 MCP 서버가 없습니다",
+    "mcpFromPlugin": "플러그인 {{name}}에서",
     "skillsInputPlaceholder": "클릭하여 사용 가능한 스킬을 선택...",
     "starterIcon": "아이콘",
     "starterPromptPlaceholder": "프롬프트를 입력하거나 {\"zh\":\"...\",\"en\":\"...\"} 사용",
@@ -2188,6 +2215,21 @@
       "resetTitle": "런타임 설정을 지우고 설치 패키지에 내장된 기본 서버로 되돌립니다"
     },
     "localSandbox": {
+      "dataLocation": {
+        "title": "데이터 위치",
+        "desc": "샌드박스 작업 공간, 감사 로그, 내장 Python 런타임의 저장 위치",
+        "customizedBadge": "사용자 지정",
+        "defaultBadge": "기본",
+        "change": "위치 변경",
+        "reset": "기본값으로 복원",
+        "selected": "선택됨: {{path}}",
+        "migrateLabel": "기존 데이터를 새 위치로 이동",
+        "confirmChange": "저장하고 이동",
+        "confirmChangeNoMigrate": "저장",
+        "savedRestartPending": "저장되었습니다. 앱을 재시작하면 새 위치가 적용됩니다.",
+        "resetRestartPending": "기본 위치로 복원되었습니다. 앱 재시작 후 적용되며 기존 데이터는 원래 위치에 남습니다.",
+        "relaunchNow": "지금 재시작"
+      },
       "title": "로컬 샌드박스",
       "desc": "데스크톱 앱을 통해 사용자의 PC에서 직접 명령과 파일 작업을 수행합니다",
       "statusOnline": "온라인",
@@ -2286,6 +2328,11 @@
     "termsTab": "이용약관",
     "termsTitle": "이용약관",
     "theme": "테마",
+    "themeScheduleToggle": "시간대별 자동 전환",
+    "themeScheduleStart": "야간 시작",
+    "themeScheduleEnd": "야간 종료",
+    "themeScheduleNightTheme": "야간 테마",
+    "themeSchedulePreview": "현재 시간 기준 테마: {{theme}}",
     "themeSynced": "테마 환경설정이 저장되었습니다",
     "title": "프로필",
     "togglePasswordVisibility": "비밀번호 표시 전환",
@@ -2311,6 +2358,7 @@
     "exitFullscreen": "전체 화면 종료",
     "expand": "펼치기",
     "exportZip": "ZIP 내보내기",
+    "downloadFolder": "폴더를 ZIP으로 다운로드",
     "fileCount": "{{count}}개 파일",
     "fullscreen": "전체 화면",
     "fullscreenHint": "Esc를 눌러 전체 화면 종료",
@@ -3445,6 +3493,7 @@
   "theme": {
     "switchToDark": "다크 모드로 전환",
     "switchToLight": "라이트 모드로 전환",
+    "cycleShortcut": "단축키 Ctrl/Cmd+Shift+L",
     "switchToSepia": "세피아 모드로 전환"
   },
   "tools": {

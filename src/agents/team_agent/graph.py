@@ -152,6 +152,7 @@ class TeamAgent(BaseGraphAgent):
         disabled_skills = kwargs.get("disabled_skills")
         enabled_skills = kwargs.get("enabled_skills")
         disabled_mcp_tools = kwargs.get("disabled_mcp_tools")
+        enabled_mcp_servers = kwargs.get("enabled_mcp_servers")
         team_id = kwargs.get("team_id")
         context_enabled_skills = None if team_id else enabled_skills
         context = TeamAgentContext(
@@ -162,6 +163,7 @@ class TeamAgent(BaseGraphAgent):
             disabled_skills=disabled_skills,
             enabled_skills=context_enabled_skills,
             disabled_mcp_tools=disabled_mcp_tools,
+            enabled_mcp_servers=enabled_mcp_servers,
             auto_mode=kwargs.get("auto_mode", False),
         )
         await context.setup()
@@ -179,6 +181,7 @@ class TeamAgent(BaseGraphAgent):
             "enabled_skills": context_enabled_skills,
             "persona_system_prompt": kwargs.get("persona_system_prompt"),
             "disabled_mcp_tools": disabled_mcp_tools,
+            "enabled_mcp_servers": enabled_mcp_servers,
             "base_url": kwargs.get("base_url", ""),
             "team_id": team_id,
             "active_goal": kwargs.get("active_goal"),
@@ -202,6 +205,7 @@ class TeamAgent(BaseGraphAgent):
                 "enabled_skills": context_enabled_skills,
                 "persona_system_prompt": kwargs.get("persona_system_prompt"),
                 "disabled_mcp_tools": disabled_mcp_tools,
+                "enabled_mcp_servers": enabled_mcp_servers,
                 "base_url": kwargs.get("base_url", ""),
                 "team_id": team_id,
                 "active_goal": kwargs.get("active_goal"),

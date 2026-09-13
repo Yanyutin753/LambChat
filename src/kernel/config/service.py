@@ -54,6 +54,31 @@ def _skip_db_override(key: str) -> bool:
     return key in RESTART_REQUIRED_SETTINGS
 
 
+TRACING_ENV_SYNC_SETTINGS = frozenset(
+    {
+        "LANGFUSE_ENABLED",
+        "LANGFUSE_PUBLIC_KEY",
+        "LANGFUSE_SECRET_KEY",
+        "LANGFUSE_HOST",
+        "LANGSMITH_TRACING",
+        "LANGSMITH_API_KEY",
+        "LANGSMITH_PROJECT",
+        "LANGSMITH_API_URL",
+        "LANGSMITH_SAMPLE_RATE",
+    }
+)
+
+
+def _reset_langfuse_tracer() -> None:
+    """复位 tracer 门控缓存，使追踪配置变更在下次评估时重新读 env。"""
+    try:
+        from src.infra.tracing.langfuse_client import langfuse_tracer
+
+        langfuse_tracer.reset()
+    except Exception as exc:  # noqa: BLE001 —— 追踪属旁路功能，失败不影响主链路
+        logger.warning("[Settings] Failed to reset Langfuse tracer: %s", exc)
+
+
 def _describe_setting_value(key: str, value: Any) -> str:
     """敏感值只报状态与长度：克隆库场景下 DB 值可能是生产凭据，不能进日志。"""
     if key not in SENSITIVE_SETTINGS:
@@ -133,6 +158,10 @@ async def initialize_settings() -> None:
             logger.info("[Settings] Migrated HITL_MODE to interrupt")
         except Exception as exc:
             logger.warning("[Settings] Failed to persist HITL_MODE migration: %s", exc)
+
+    # 重放追踪 env 同步（工单 1）：DB 值生效后 LANGFUSE_*/LANGSMITH_* 才能到达
+    # os.environ，tracer 门控（重启后首次评估）才读得到 UI 配置
+    settings.sync_tracing_env()
 
     # Persist auto-generated VAPID keys to database so they survive restarts
     if settings._vapid_keys_generated and _settings_service is not None:
@@ -242,11 +271,17 @@ async def refresh_settings(key: Optional[str] = None) -> None:
 
                 schedule_backend_reset()
                 logger.info(f"[Settings] Memory backend reset after setting '{key}' changed")
+            # Tracing keys: replay env sync + reset the cached tracer gate so
+            # runtime panel changes take effect without a restart (ticket 1)
+            if key in TRACING_ENV_SYNC_SETTINGS:
+                settings.sync_tracing_env()
+                _reset_langfuse_tracer()
     else:
         # Refresh all settings
         all_settings = await _settings_service.get_all(admin_mode=True, mask_sensitive=False)
         any_llm_setting_changed = False
         any_memory_setting_changed = False
+        any_tracing_setting_changed = False
         for items in all_settings.values():
             for item in items:
                 if (
@@ -264,6 +299,8 @@ async def refresh_settings(key: Optional[str] = None) -> None:
                         any_llm_setting_changed = True
                     if item.key in memory_affected_settings:
                         any_memory_setting_changed = True
+                    if item.key in TRACING_ENV_SYNC_SETTINGS:
+                        any_tracing_setting_changed = True
 
         # Clear LLM model cache if any affected setting changed
         if any_llm_setting_changed:
@@ -280,3 +317,8 @@ async def refresh_settings(key: Optional[str] = None) -> None:
 
             schedule_backend_reset()
             logger.info("[Settings] Memory backend reset after settings refresh")
+
+        # Tracing keys: replay env sync + reset the cached tracer gate
+        if any_tracing_setting_changed:
+            settings.sync_tracing_env()
+            _reset_langfuse_tracer()

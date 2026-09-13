@@ -12,6 +12,7 @@ from src.infra.logging import get_logger
 from src.infra.storage.mongodb import get_mongo_client
 from src.infra.utils.datetime import parse_iso
 from src.kernel.config import settings
+from src.kernel.errors import AppError, ErrorCode
 
 logger = get_logger(__name__)
 
@@ -69,6 +70,14 @@ def _as_datetime(value: Any) -> datetime | None:
         except ValueError:
             return None
     return None
+
+
+def _parse_date_filter(value: str) -> datetime:
+    """查询入口的显式日期过滤：非法值统一 400，而不是 500 或静默吞错。"""
+    try:
+        return parse_iso(value)
+    except (ValueError, TypeError):
+        raise AppError(ErrorCode.INVALID_DATE_FORMAT, args={"value": value}) from None
 
 
 def _as_str(value: Any) -> str:
@@ -323,6 +332,9 @@ class UsageStorage:
             items = await items_task
 
             return items, total, stats
+        except AppError:
+            # 入参校验错误（如非法日期格式）必须冒泡为 400，不能吞成空统计
+            raise
         except Exception as e:
             logger.error(f"Failed to list usage logs: {e}")
             return [], 0, _empty_stats()
@@ -345,9 +357,9 @@ class UsageStorage:
         if start_date or end_date:
             date_filter: Dict[str, Any] = {}
             if start_date:
-                date_filter["$gte"] = parse_iso(start_date)
+                date_filter["$gte"] = _parse_date_filter(start_date)
             if end_date:
-                date_filter["$lt"] = parse_iso(end_date)
+                date_filter["$lt"] = _parse_date_filter(end_date)
             query["started_at"] = date_filter
         if search:
             query["username"] = {"$regex": search, "$options": "i"}

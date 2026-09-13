@@ -1,4 +1,11 @@
 {
+  "sessionWorkspace": {
+    "loading": "Choosing directory…",
+    "reset": "Restore default session directory",
+    "scope": "Use this directory for files and commands throughout this session",
+    "failed": "Could not select a directory. Check the desktop connection and try again.",
+    "choose": "Choose working directory"
+  },
   "about": {
     "appVersion": "Version",
     "buildTime": "Build Time",
@@ -264,7 +271,14 @@
       "section": "Device",
       "currentDevice": "This device"
     },
-    "sandboxPolicy": { "section": "Execution policy", "all": "Confirm everything", "commands": "Confirm commands only", "none": "No confirmation", "updated": "Execution policy updated", "updateFailed": "Failed to update execution policy" }
+    "sandboxPolicy": {
+      "section": "Execution policy",
+      "all": "Confirm everything",
+      "commands": "Confirm commands only",
+      "none": "No confirmation",
+      "updated": "Execution policy updated",
+      "updateFailed": "Failed to update execution policy"
+    }
   },
   "agents": {
     "fast": {
@@ -538,6 +552,9 @@
     "profileFieldTooMany": "Too many {{field}}: maximum {{max}} allowed",
     "unsupportedLanguage": "Unsupported language: {{lang}}",
     "invalidTheme": "Invalid theme: {{theme}}. Must be 'light', 'dark' or 'sepia'",
+    "invalidThemeSchedule": "Invalid theme schedule: expected enabled (boolean), start/end (HH:MM) and nightTheme (dark or sepia)",
+    "invalidDateFormat": "Invalid date: {{value}}. Use ISO 8601",
+    "bookmarkMessageNotFound": "Message not found in this session",
     "messageNotFound": "Message not found",
     "sessionDeleteInProgress": "Session deletion is in progress",
     "sessionError": "Session operation failed",
@@ -661,7 +678,8 @@
     "sandboxExecFailed": "Local sandbox execution failed: {{detail}}",
     "daemonVersionUnsupported": "Daemon version {{version}} is below minimum {{min}}; please update",
     "sandboxMachineOffline": "Selected sandbox machine '{{machine}}' is offline",
-    "sandboxMachineNotFound": "Sandbox machine '{{machine}}' not found or removed"
+    "sandboxMachineNotFound": "Sandbox machine '{{machine}}' not found or removed",
+    "pluginNoEditPermission": "No permission to edit plugin {{name}}"
   },
   "categories": {
     "agent": "Agent",
@@ -921,7 +939,7 @@
       "toolHistoryUser": "User",
       "toolImageAnalyze": "Image Analyze",
       "toolImageAnalyzeCount": "{{count}} images",
-"toolVideoAnalyze": "Video Analysis",
+      "toolVideoAnalyze": "Video Analysis",
       "toolVideoAnalyzeCount": "{{count}} videos",
       "toolImageCount": "{{count}} images",
       "toolImageGenerate": "Generate",
@@ -1763,6 +1781,7 @@
     "updateSuccess": "Skill updated successfully",
     "viewInMySkills": "Open in My Skills"
   },
+
   "mcp": {
     "addFirst": "Add your first MCP server",
     "addNew": "Add New MCP Server",
@@ -2122,6 +2141,14 @@
     "skillsControlledHint": "The current persona \"{{name}}\" controls the available Skills. Clear the persona or edit the preset to change skills for this chat.",
     "skillsCount": "skills",
     "skillsInput": "Skills",
+    "mcpServersInput": "MCP Servers",
+    "missingSkillsHint": "Bound skills not installed: {{names}} (inactive in chat)",
+    "missingMcpHint": "MCP servers not visible to you: {{names}} (inactive in chat)",
+    "mcpServerCount": "{{count}} MCP servers bound",
+    "mcpServersInputPlaceholder": "Restrict usable MCP servers (empty = all)...",
+    "mcpSearchPlaceholder": "Search MCP servers...",
+    "noMcpServers": "No available MCP servers",
+    "mcpFromPlugin": "From plugin {{name}}",
     "skillsInputPlaceholder": "Click to select available skills...",
     "starterIcon": "Icon",
     "starterPromptPlaceholder": "Enter a prompt, or use {\"zh\":\"...\",\"en\":\"...\"}",
@@ -2188,6 +2215,21 @@
       "resetTitle": "Clear the runtime override and return to the server baked into this build"
     },
     "localSandbox": {
+      "dataLocation": {
+        "title": "Data location",
+        "desc": "Where sandbox workspaces, audit logs, and the embedded Python runtime live",
+        "customizedBadge": "Custom",
+        "defaultBadge": "Default",
+        "change": "Change location",
+        "reset": "Reset to default",
+        "selected": "Selected: {{path}}",
+        "migrateLabel": "Move existing data to the new location",
+        "confirmChange": "Save and move",
+        "confirmChangeNoMigrate": "Save",
+        "savedRestartPending": "Saved. Restart the app to apply the new location.",
+        "resetRestartPending": "Default location restored. Restart the app to apply; existing data stays where it is.",
+        "relaunchNow": "Restart now"
+      },
       "title": "Local Sandbox",
       "desc": "The agent runs commands and file edits on your own machine through the desktop app",
       "statusOnline": "Online",
@@ -2286,6 +2328,11 @@
     "termsTab": "Terms of Service",
     "termsTitle": "Terms of Service",
     "theme": "Theme",
+    "themeScheduleToggle": "Auto-switch by schedule",
+    "themeScheduleStart": "Night starts",
+    "themeScheduleEnd": "Night ends",
+    "themeScheduleNightTheme": "Night theme",
+    "themeSchedulePreview": "Current time will use: {{theme}}",
     "themeSynced": "Theme preference saved",
     "title": "Profile",
     "togglePasswordVisibility": "Toggle password visibility",
@@ -2311,6 +2358,7 @@
     "exitFullscreen": "Exit fullscreen",
     "expand": "Expand",
     "exportZip": "Export ZIP",
+    "downloadFolder": "Download folder as ZIP",
     "fileCount": "{{count}} files",
     "fullscreen": "Fullscreen",
     "fullscreenHint": "Press Esc to exit fullscreen",
@@ -3445,6 +3493,7 @@
   "theme": {
     "switchToDark": "Switch to dark mode",
     "switchToLight": "Switch to light mode",
+    "cycleShortcut": "Shortcut Ctrl/Cmd+Shift+L",
     "switchToSepia": "Switch to sepia mode"
   },
   "tools": {

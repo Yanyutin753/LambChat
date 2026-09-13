@@ -20,6 +20,7 @@ Writer 模块 - 统一流式输出 + 事件存储
 """
 
 import asyncio
+import time
 from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence
 
 from src.infra.async_utils.background_tasks import BestEffortTaskLimiter
@@ -108,6 +109,9 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
         # 缓冲 flush 的 emit——两者都汇聚到 save_event，在此统一标记，
         # 供 executor 零正文守卫判定 run 是否真的交付过答案。
         self.produced_main_text: bool = False
+        # save_event 汇聚点的单调进展时间戳（含直连路径）：stall watchdog
+        # 的探针据此判定流仍在推进——生成器静默不代表挂死。
+        self._last_progress_monotonic: float = time.monotonic()
 
     @property
     def trace_id(self) -> str:

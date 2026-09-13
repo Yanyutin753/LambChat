@@ -101,6 +101,7 @@ def _has_permission_for_transport(user: TokenPayload, transport: str) -> bool:
 # ==========================================
 
 
+@router.get("", response_model=MCPServersResponse, include_in_schema=False)
 @router.get("/", response_model=MCPServersResponse)
 async def list_servers(
     skip: int = Query(0, ge=0),
@@ -124,6 +125,7 @@ async def list_servers(
     return _paginate_servers(servers, skip=skip, limit=limit, q=q)
 
 
+@router.post("", response_model=MCPServerResponse, status_code=201, include_in_schema=False)
 @router.post("/", response_model=MCPServerResponse, status_code=201)
 async def create_server(
     data: MCPServerCreate,

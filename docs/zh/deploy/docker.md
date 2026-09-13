@@ -10,9 +10,9 @@ Kubernetes 或其他编排系统，并配置共享 MongoDB、Redis 和 S3 兼容
 git clone https://github.com/Yanyutin753/LambChat.git
 cd LambChat
 
-# 复制并编辑环境文件
-cp deploy/.env.example .env
-# 编辑 .env 填入你的配置
+# 复制并编辑环境文件（Compose 从 deploy/ 目录读取 .env）
+cp deploy/.env.example deploy/.env
+# 编辑 deploy/.env 填入你的配置
 
 # 启动所有服务
 docker compose -f deploy/docker-compose.yml up -d
@@ -24,32 +24,36 @@ Docker Compose 为单节点服务栈启动三个服务：
 
 | 服务 | 镜像 | 端口 | 说明 |
 |------|------|------|------|
-| `lambchat` | 自定义构建 | 8000 | LambChat 应用（FastAPI + 静态前端） |
-| `mongo` | `mongo:7` | 27017 | MongoDB 数据库 |
-| `redis` | `redis:7-alpine` | 6379 | Redis 缓存和发布/订阅 |
+| `lambchat` | `ghcr.io/yanyutin753/lambchat:latest` | 8000 | LambChat 应用（FastAPI + 静态前端） |
+| `mongodb` | `mongo:8.2.5` | 127.0.0.1:27017 | MongoDB 数据库 |
+| `redis` | `redis:alpine` | 127.0.0.1:6379 | Redis 缓存和发布/订阅 |
+
+MongoDB 和 Redis 端口绑定在 `127.0.0.1`，不会暴露给其他主机访问。
 
 ## 配置
 
 ### 环境变量
 
-将 `deploy/.env.example` 复制为 `.env` 并配置：
+将 `deploy/.env.example` 复制为 `deploy/.env`。Compose 文件会从其中读取以下变量：
 
 ```bash
-# 推荐：设置稳定的 JWT 密钥（不设置则每次重启自动生成，导致已登录用户失效）
-JWT_SECRET_KEY=your-stable-secret-key
+# E2B 沙箱（可选）
+E2B_API_KEY=your_e2b_api_key
+E2B_TEMPLATE=base
 
-# 推荐：设置 MCP 加密盐值（不设置则每次重启自动生成，导致已保存的 MCP 配置失效）
-MCP_ENCRYPTION_SALT=your-stable-encryption-salt
+# 可选调优项
+LLM_MODEL_CACHE_SIZE=50
+SESSION_MAX_EVENTS_PER_TRACE=10000
+```
 
-# 可选：配置 MongoDB 连接
-MONGODB_URL=mongodb://localhost:27017
-MONGODB_DB=agent_state
-MONGODB_USERNAME=admin
-MONGODB_PASSWORD=your-mongo-password
+`REDIS_URL` 和 `MONGODB_URL` 已预设为服务栈内的 Redis 和 MongoDB 服务。其他环境变量（如 `JWT_SECRET_KEY`——稳定的 JWT 密钥，不设置则每次重启自动生成，导致已登录用户失效；`MCP_ENCRYPTION_SALT`——稳定的 MCP 加密盐值，不设置则每次重启自动生成，导致已保存的 MCP 配置失效）默认未接线——需要在 `deploy/docker-compose.yml` 的 `lambchat` 服务 `environment` 段中添加：
 
-# 可选：配置 Redis 连接
-REDIS_URL=redis://localhost:6379/0
-REDIS_PASSWORD=your-redis-password
+```yaml
+    environment:
+      # 推荐：保持登录会话在重启后仍然有效
+      - JWT_SECRET_KEY=your-stable-secret-key
+      # 推荐：保持已保存 MCP 配置在重启后仍可解密
+      - MCP_ENCRYPTION_SALT=your-stable-encryption-salt
 ```
 
 ::: tip
@@ -112,17 +116,20 @@ docker compose -f deploy/docker-compose.yml down
 # 重启应用（保留数据）
 docker compose -f deploy/docker-compose.yml restart lambchat
 
-# 代码变更后重新构建
-docker compose -f deploy/docker-compose.yml up -d --build lambchat
+# 更新到最新发布的镜像
+docker compose -f deploy/docker-compose.yml pull lambchat
+docker compose -f deploy/docker-compose.yml up -d lambchat
 ```
 
 ## 数据持久化
 
-Docker Compose 使用命名卷来持久化数据：
+Docker Compose 使用命名卷和绑定挂载来持久化数据：
 
-- `mongo_data` — MongoDB 数据
-- `redis_data` — Redis 数据
-- `uploads` — 上传的文件（本地存储模式）
+- `mongodb-data` — MongoDB 数据
+- `redis-data` — Redis 数据
+- `lamb-data` — LambChat 应用数据（`/app/data`）
+- `./workspace` — Agent 工作区（绑定挂载，解析到 `deploy/` 下）
+- `./uploads` — 本地存储模式下的上传文件（绑定挂载，解析到 `deploy/` 下）
 
 这些卷在容器重启和重建时保持不变。
 

@@ -31,6 +31,10 @@ class LangfuseTracer:
         has_keys = bool(os.getenv("LANGFUSE_PUBLIC_KEY")) and bool(os.getenv("LANGFUSE_SECRET_KEY"))
         self._enabled = enabled and has_keys
 
+    def reset(self) -> None:
+        """Forget the cached gate so tracing config changes re-evaluate."""
+        self._enabled = None
+
     @property
     def enabled(self) -> bool:
         """Check if tracing is enabled and fully configured."""

@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { test, expect } from "vitest";
 
 // 所有拉取上传文件内容的调用点必须走 documentFetchCache 的统一入口，
@@ -55,7 +56,7 @@ test("binary consumers download via fetchUploadFile", () => {
 });
 
 test("no source file combines buildUploadProxyUrl with a raw fetch()", () => {
-  const srcDir = new URL("../../../", import.meta.url).pathname;
+  const srcDir = fileURLToPath(new URL("../../../", import.meta.url));
   const offenders: string[] = [];
   for (const file of listSourceFiles(srcDir)) {
     const src = readFileSync(file, "utf8");

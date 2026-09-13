@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-sandbox-pick-workspace"
+description = "Choose a local directory through the native picker and bind it to a session workspace."
+commands.allow = ["sandbox_pick_workspace"]

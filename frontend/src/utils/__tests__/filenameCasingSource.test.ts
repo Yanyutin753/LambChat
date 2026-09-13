@@ -1,5 +1,6 @@
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { test, expect } from "vitest";
 
 // 同目录下 basename 仅差大小写的 .ts/.tsx 文件对客户端构建是地雷：
@@ -7,7 +8,8 @@ import { test, expect } from "vitest";
 // （v2.7.0 的 RunStepsCollapse.tsx ↔ runStepsCollapse.ts 曾炸掉全部客户端构建）。
 // 新增文件若与本测试冲突，请重命名（如加 Utils 后缀）而不是加白名单。
 
-const SRC_ROOT = new URL("../..", import.meta.url).pathname;
+// .pathname 在 Windows 会产出 /D:/... 形态的坏路径，必须经 fileURLToPath 转换
+const SRC_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
 function listFiles(dir: string): string[] {
   const out: string[] = [];

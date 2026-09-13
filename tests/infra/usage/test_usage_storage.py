@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from src.infra.usage.storage import UsageStorage
+from src.kernel.errors import AppError, ErrorCode
 
 
 class _FakeCursor:
@@ -679,3 +680,22 @@ def test_cache_read_share_clamped_when_cache_exceeds_input() -> None:
     assert _cache_read_share(input_tokens=0, cache_read_tokens=0, cache_creation_tokens=0) == 0.0
     # 标准口径（input 已含缓存）：eff=input，share 不变
     assert abs(_cache_read_share(100, 30, 20) - 0.3) < 1e-9
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method", "kwargs"),
+    [
+        ("get_usage_dashboard", {"user_id": "user-1", "start_date": "not-a-date"}),
+        ("get_usage_dashboard", {"user_id": "user-1", "end_date": "2026-13-40"}),
+        ("list_usage_logs", {"user_id": "user-1", "start_date": "not-a-date"}),
+        ("list_usage_logs", {"user_id": "user-1", "end_date": "2026-13-40"}),
+    ],
+)
+async def test_invalid_date_filters_raise_invalid_date_format(method: str, kwargs: dict) -> None:
+    storage = UsageStorage()
+
+    with pytest.raises(AppError) as exc_info:
+        await getattr(storage, method)(**kwargs)
+
+    assert exc_info.value.error_code == ErrorCode.INVALID_DATE_FORMAT

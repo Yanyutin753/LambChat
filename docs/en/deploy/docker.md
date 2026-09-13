@@ -11,9 +11,9 @@ orchestrator with shared MongoDB, Redis, and S3-compatible object storage.
 git clone https://github.com/Yanyutin753/LambChat.git
 cd LambChat
 
-# Copy and edit environment file
-cp deploy/.env.example .env
-# Edit .env with your configuration
+# Copy and edit environment file (Compose reads .env from deploy/)
+cp deploy/.env.example deploy/.env
+# Edit deploy/.env with your configuration
 
 # Start all services
 docker compose -f deploy/docker-compose.yml up -d
@@ -25,32 +25,36 @@ Docker Compose starts three services for a single-node stack:
 
 | Service | Image | Port | Description |
 |---------|-------|------|-------------|
-| `lambchat` | Custom build | 8000 | LambChat application (FastAPI + static frontend) |
-| `mongo` | `mongo:7` | 27017 | MongoDB database |
-| `redis` | `redis:7-alpine` | 6379 | Redis cache & pub/sub |
+| `lambchat` | `ghcr.io/yanyutin753/lambchat:latest` | 8000 | LambChat application (FastAPI + static frontend) |
+| `mongodb` | `mongo:8.2.5` | 127.0.0.1:27017 | MongoDB database |
+| `redis` | `redis:alpine` | 127.0.0.1:6379 | Redis cache & pub/sub |
+
+MongoDB and Redis ports are bound to `127.0.0.1` so they are not reachable from other hosts.
 
 ## Configuration
 
 ### Environment Variables
 
-Copy `deploy/.env.example` to `.env` and configure:
+Copy `deploy/.env.example` to `deploy/.env`. The compose file wires the following variables from it:
 
 ```bash
-# Recommended: Set a stable JWT secret (auto-generated on each restart if unset, invalidating existing sessions)
-JWT_SECRET_KEY=your-stable-secret-key
+# E2B sandbox (optional)
+E2B_API_KEY=your_e2b_api_key
+E2B_TEMPLATE=base
 
-# Recommended: Set MCP encryption salt (auto-generated on each restart if unset, invalidating saved MCP configs)
-MCP_ENCRYPTION_SALT=your-stable-encryption-salt
+# Optional tuning
+LLM_MODEL_CACHE_SIZE=50
+SESSION_MAX_EVENTS_PER_TRACE=10000
+```
 
-# Optional: Configure MongoDB connection
-MONGODB_URL=mongodb://localhost:27017
-MONGODB_DB=agent_state
-MONGODB_USERNAME=admin
-MONGODB_PASSWORD=your-mongo-password
+`REDIS_URL` and `MONGODB_URL` are preset to the in-stack Redis and MongoDB services. Other environment variables such as `JWT_SECRET_KEY` (stable JWT secret; auto-generated on each restart if unset, invalidating existing sessions) and `MCP_ENCRYPTION_SALT` (stable MCP encryption salt; auto-generated on each restart if unset, invalidating saved MCP configs) are not wired by default — add them to the `environment` section of the `lambchat` service in `deploy/docker-compose.yml`:
 
-# Optional: Configure Redis connection
-REDIS_URL=redis://localhost:6379/0
-REDIS_PASSWORD=your-redis-password
+```yaml
+    environment:
+      # Recommended: keep sessions valid across restarts
+      - JWT_SECRET_KEY=your-stable-secret-key
+      # Recommended: keep saved MCP configs decryptable across restarts
+      - MCP_ENCRYPTION_SALT=your-stable-encryption-salt
 ```
 
 ::: tip
@@ -113,17 +117,20 @@ docker compose -f deploy/docker-compose.yml down
 # Restart application (preserves data)
 docker compose -f deploy/docker-compose.yml restart lambchat
 
-# Rebuild after code changes
-docker compose -f deploy/docker-compose.yml up -d --build lambchat
+# Update to the latest published image
+docker compose -f deploy/docker-compose.yml pull lambchat
+docker compose -f deploy/docker-compose.yml up -d lambchat
 ```
 
 ## Data Persistence
 
-Docker Compose uses named volumes for data persistence:
+Docker Compose uses named volumes and bind mounts for data persistence:
 
-- `mongo_data` — MongoDB data
-- `redis_data` — Redis data
-- `uploads` — Uploaded files (local storage mode)
+- `mongodb-data` — MongoDB data
+- `redis-data` — Redis data
+- `lamb-data` — LambChat application data (`/app/data`)
+- `./workspace` — agent workspace (bind mount, resolved under `deploy/`)
+- `./uploads` — uploaded files in local storage mode (bind mount, resolved under `deploy/`)
 
 These volumes persist across container restarts and recreations.
 

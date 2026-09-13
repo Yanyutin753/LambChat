@@ -293,7 +293,9 @@ async def test_append_user_message_search_updates_session_document() -> None:
 
     payload: dict = storage.collection.last_update["$set"]  # type: ignore[assignment]
     assert payload["search_index_version"] == SESSION_SEARCH_INDEX_VERSION
-    assert payload["search_index_updated_at"] != now
+    assert (
+        payload["search_index_updated_at"] >= now
+    )  # 同微秒碰撞时不等式退化为相等，不应依赖时钟分辨率
     assert payload["latest_user_message"] == "Need to fix 编译错误 in parser module"
     assert "parser" in payload["search_terms"]
     assert "编译" in payload["search_terms"]

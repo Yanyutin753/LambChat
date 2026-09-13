@@ -2,11 +2,12 @@ import { readFileSync } from "node:fs";
 const stateSource = readFileSync(
   new URL("../useDocumentPreviewState.ts", import.meta.url),
   "utf8",
-);
+  // Windows 检出为 CRLF，归一化后再做结构断言
+).replace(/\r\n/g, "\n");
 const contentSource = readFileSync(
   new URL("../DocumentPreviewContent.tsx", import.meta.url),
   "utf8",
-);
+).replace(/\r\n/g, "\n");
 
 test("PDF preview uses a local PDF blob URL instead of embedding the download URL directly", () => {
   const pdfBranch = stateSource.match(

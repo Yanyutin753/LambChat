@@ -22,16 +22,11 @@ export function useExpandedComposerHost(expanded: boolean) {
   const slotRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     if (!host) return;
-    const slot = slotRef.current;
-    if (!host.parentNode && slot) {
-      slot.appendChild(host);
-    }
-    if (!expanded) return;
-    document.body.appendChild(host);
-    return () => {
-      if (slot && slot.isConnected) slot.appendChild(host);
-      else host.remove();
-    };
-  }, [expanded, host]);
+    const target = expanded ? document.body : slotRef.current;
+    // React can replace the slot during a layout change or hot update.
+    // Reattach the existing editor, preserving its draft and undo history.
+    if (target && host.parentNode !== target) target.appendChild(host);
+  });
+  useLayoutEffect(() => () => host?.remove(), [host]);
   return { host, slotRef };
 }

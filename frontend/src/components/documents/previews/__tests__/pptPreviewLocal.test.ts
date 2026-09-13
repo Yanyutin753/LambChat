@@ -2,11 +2,12 @@ import { readFileSync } from "node:fs";
 const previewSource = readFileSync(
   new URL("../PptPreview.tsx", import.meta.url),
   "utf8",
-);
+  // Windows 检出为 CRLF，归一化后再做结构断言
+).replace(/\r\n/g, "\n");
 const stateSource = readFileSync(
   new URL("../../useDocumentPreviewState.ts", import.meta.url),
   "utf8",
-);
+).replace(/\r\n/g, "\n");
 const frontendPackage = JSON.parse(
   readFileSync(new URL("../../../../../package.json", import.meta.url), "utf8"),
 );

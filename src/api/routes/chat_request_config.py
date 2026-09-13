@@ -6,10 +6,22 @@
 
 from __future__ import annotations
 
-from src.infra.persona_preset.manager import PersonaPresetManager
+from src.infra.persona_preset.manager import (
+    PersonaPresetManager,
+    get_persona_preset_manager,
+)
 from src.kernel.schemas.agent import AgentRequest
 from src.kernel.schemas.persona_preset import PersonaPresetSnapshot
 from src.kernel.schemas.user import TokenPayload
+
+
+def _persona_enabled_mcp_servers_from_snapshot(
+    snapshot: PersonaPresetSnapshot,
+) -> list[str] | None:
+    """Return a MCP server whitelist only when the persona pins servers."""
+    if snapshot.mcp_server_names:
+        return snapshot.mcp_server_names
+    return None
 
 
 def _persona_enabled_skills_from_snapshot(
@@ -39,6 +51,7 @@ def build_conversation_config(
         "disabled_skills": request.disabled_skills or [],
         "enabled_skills": request.enabled_skills,
         "disabled_mcp_tools": request.disabled_mcp_tools or [],
+        "enabled_mcp_servers": request.enabled_mcp_servers,
         "language": language,
         "auto_mode": request.auto_mode,
     }
@@ -72,12 +85,14 @@ async def resolve_persona_request(
     if not request.persona_preset_id:
         return
 
-    persona_manager = manager or PersonaPresetManager()
+    persona_manager = manager or get_persona_preset_manager()
     snapshot = await persona_manager.use_preset(
         request.persona_preset_id,
         user_id=user.sub,
         is_admin="persona_preset:admin" in (user.permissions or []),
+        user_roles=list(user.roles or []),
     )
     request.persona_snapshot = snapshot
     request.enabled_skills = _persona_enabled_skills_from_snapshot(snapshot)
+    request.enabled_mcp_servers = _persona_enabled_mcp_servers_from_snapshot(snapshot)
     request.persona_system_prompt = snapshot.system_prompt

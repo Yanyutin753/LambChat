@@ -29,13 +29,13 @@ import { MentionPopup } from "./MentionPopup";
 import { TeamMentionPopup } from "./TeamMentionPopup";
 import { ActiveGoalBar } from "./ActiveGoalBar";
 import { ChatInputToolbar } from "./ChatInputToolbar";
+import { SessionWorkspaceBar } from "./SessionWorkspaceBar";
 import { ChatInputSelectors } from "./ChatInputSelectors";
 import { ChatInputHelpMenu } from "./ChatInputHelpMenu";
 import { ChatInputAttachments } from "./ChatInputAttachments";
 import { ChatInputDragOverlay } from "./ChatInputDragOverlay";
 import { resolveThinkingPresentation } from "./chatInputThinking";
 import * as runModeOptions from "./chatInputRunModes";
-
 const { buildRunModesOptions, collectActiveRunModes } = runModeOptions;
 import { FILE_CATEGORY_PERMISSIONS } from "./chatInputConstants";
 import { getMentionPopupFixedPlacement } from "./chatInputViewport";
@@ -72,7 +72,10 @@ import { useAcceptedDraftSubmission } from "./useAcceptedDraftSubmission";
 const RichChatComposer = lazy(async () => {
   const module = await import("./richComposer/RichChatComposer");
   // chunk 自愈吞错后 import resolve undefined：抛回 chunk 错误走更新分支
-  if (!module) throw new Error("Failed to fetch dynamically imported module: RichChatComposer");
+  if (!module)
+    throw new Error(
+      "Failed to fetch dynamically imported module: RichChatComposer",
+    );
   return { default: module.RichChatComposer };
 });
 export type { ChatInputProps } from "./chatInputTypes";
@@ -152,7 +155,6 @@ export const ChatInput = memo(function ChatInput({
   const composerRef = useRef<RichChatComposerHandle>(null);
   const [activeReferenceIds, setActiveReferenceIds] = useState<string[]>([]);
   const longTextResourcesRef = useRef(new Map<string, LongTextPastePayload>());
-  // Consume external pendingInput: fill textarea and focus
   useEffect(() => {
     if (pendingInput) {
       setInput(pendingInput);
@@ -520,8 +522,7 @@ export const ChatInput = memo(function ChatInput({
   const hasInvalidAttachment = !areAttachmentsSendable(visibleAttachments);
   const handleComposerKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
-      // Lexical prevents Enter before this React handler runs, so
-      // defaultPrevented cannot distinguish editor handling from send intent.
+      // Lexical prevents Enter first; defaultPrevented cannot distinguish send intent.
       if (mention.isActive) {
         if (event.key === "Enter" || event.key === "Tab") {
           event.preventDefault();
@@ -562,9 +563,7 @@ export const ChatInput = memo(function ChatInput({
             setStopConfirmOpen(true);
           }
         } else {
-          // The expanded editor renders outside the form (body-level
-          // portal host), so resolve the form via ref instead of DOM
-          // ancestry.
+          // The expanded editor is outside the form; resolve it via ref, not ancestry.
           formRef.current?.requestSubmit();
         }
         return;
@@ -720,6 +719,11 @@ export const ChatInput = memo(function ChatInput({
                   backgroundColor: "var(--theme-bg-card)",
                 }}
               >
+                <SessionWorkspaceBar
+                  values={agentOptionValues}
+                  onChange={onToggleAgentOption}
+                  disabled={isLoading || !canSend}
+                />
                 {isDraggingOver && <ChatInputDragOverlay />}
                 <ActiveGoalBar
                   goal={activeGoal ?? null}
@@ -864,7 +868,6 @@ export const ChatInput = memo(function ChatInput({
                     ) : null}
                   </div>
                 </div>
-
                 <ChatInputToolbar
                   activePanel={activePanel}
                   onActivePanelChange={setActivePanel}
@@ -933,7 +936,6 @@ export const ChatInput = memo(function ChatInput({
             )}
         </div>
       </form>
-
       <ChatInputSelectors
         activePanel={activePanel}
         onActivePanelChange={setActivePanel}
@@ -978,9 +980,7 @@ export const ChatInput = memo(function ChatInput({
         onToggleAgentOption={onToggleAgentOption}
         modelSupportsThinking={modelSupportsThinking}
       />
-
       {showHelpMenu && <ChatInputHelpMenu className={helpMenuClassName} />}
-
       <ChatInputDialogLayer
         stopConfirmOpen={stopConfirmOpen}
         onConfirmStop={() => {

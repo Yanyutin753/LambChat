@@ -10,6 +10,8 @@ import { authApi, agentConfigApi, agentApi } from "../../../services/api";
 import { DEFAULT_THINKING_LEVEL_STORAGE_KEY } from "../../layout/AppContent/useAgentOptions";
 import { resolveAgentDisplayName } from "../../agent/agentCatalog";
 import { SelectRow } from "../SelectRow";
+// 定时主题分区懒加载：仅启用定时切换的用户展开渲染，避免顶高 eager 预算
+const ThemeScheduleSection = lazy(() => import("../ThemeScheduleSection"));
 import type { AgentInfo } from "../../../types";
 import type { Theme } from "../../../utils/themeDom";
 import {
@@ -351,6 +353,8 @@ export function ProfilePreferencesTab() {
             onToggle={() => toggle("theme")}
             onSelect={handleThemeChange}
           />
+
+          <ThemeScheduleSection />
 
           <SelectRow
             label={t("profile.fontSize")}

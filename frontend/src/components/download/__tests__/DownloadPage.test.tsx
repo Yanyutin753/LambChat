@@ -96,16 +96,21 @@ test("renders desktop and daemon downloads from the latest release assets", asyn
   render(<DownloadPage />);
 
   // 等待锚点必须是数据驱动内容（资产文件名）：平台卡标签（Windows/macOS）
-  // 不等 versionApi 就渲染，锚在静态标签上会在数据晚到时撞进空窗
+  // 不等 versionApi 就渲染，锚在静态标签上会在数据晚到时撞进空窗。
+  // 检测到的平台（跟随宿主 userAgent，jsdom 在 mac/win 主机不同）会把安装包
+  // 同时渲染进 hero CTA 和平台卡，因此用 AllBy 变体容忍重复。
   expect(
-    await screen.findByText("LambChat-v2.8.1-Windows.msi"),
-  ).toBeInTheDocument();
+    (await screen.findAllByText("LambChat-v2.8.1-Windows.msi")).length,
+  ).toBeGreaterThanOrEqual(1);
   expect(screen.getByText("Windows")).toBeInTheDocument();
   expect(screen.getByText("macOS")).toBeInTheDocument();
   expect(screen.getByText("Linux")).toBeInTheDocument();
 
   // 下载直链锚点：走自托管反代（国内直连 GitHub 下载不稳），跟随最新 release
-  const msi = screen.getByText("LambChat-v2.8.1-Windows.msi").closest("a");
+  const msi = screen
+    .getAllByText("LambChat-v2.8.1-Windows.msi")
+    .map((el) => el.closest("a"))
+    .find(Boolean);
   expect(msi).toHaveAttribute(
     "href",
     "/api/version/assets/LambChat-v2.8.1-Windows.msi/download",

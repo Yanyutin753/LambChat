@@ -3,6 +3,9 @@ import {
   getInitialThemePreference,
   isTheme,
   readThemeMode,
+  isThemeCycleShortcut,
+  parseThemeSchedule,
+  resolveScheduledTheme,
   resolveNextTheme,
   themeExportBackground,
 } from "../themeDom.ts";
@@ -234,4 +237,51 @@ test("applyThemeToDocument keeps the page background in sync for system bars", (
   expect(rootStyle.get("color-scheme")).toBe("dark");
   expect(bodyStyle.get("background-color")).toBe("#151210");
   expect(bodyStyle.get("color-scheme")).toBe("dark");
+});
+
+test("isThemeCycleShortcut matches Ctrl/Cmd+Shift+L in either case", () => {
+  expect(isThemeCycleShortcut({ key: "l", ctrlKey: true, metaKey: false, shiftKey: true })).toBe(true);
+  expect(isThemeCycleShortcut({ key: "L", ctrlKey: false, metaKey: true, shiftKey: true })).toBe(true);
+});
+
+test("isThemeCycleShortcut rejects missing modifiers or other keys", () => {
+  expect(isThemeCycleShortcut({ key: "l", ctrlKey: false, metaKey: false, shiftKey: true })).toBe(false);
+  expect(isThemeCycleShortcut({ key: "l", ctrlKey: true, metaKey: false, shiftKey: false })).toBe(false);
+  expect(isThemeCycleShortcut({ key: "k", ctrlKey: true, metaKey: false, shiftKey: true })).toBe(false);
+});
+
+test("resolveScheduledTheme enters night theme at or after start", () => {
+  const schedule = { enabled: true, start: "22:00", end: "07:00", nightTheme: "sepia" as const };
+  expect(resolveScheduledTheme(22 * 60, schedule)).toBe("sepia");
+  expect(resolveScheduledTheme(23 * 60 + 30, schedule)).toBe("sepia");
+  expect(resolveScheduledTheme(0, schedule)).toBe("sepia");
+  expect(resolveScheduledTheme(6 * 60 + 59, schedule)).toBe("sepia");
+});
+
+test("resolveScheduledTheme returns light outside the night window", () => {
+  const schedule = { enabled: true, start: "22:00", end: "07:00", nightTheme: "dark" as const };
+  expect(resolveScheduledTheme(7 * 60, schedule)).toBe("light");
+  expect(resolveScheduledTheme(12 * 60, schedule)).toBe("light");
+  expect(resolveScheduledTheme(21 * 60 + 59, schedule)).toBe("light");
+});
+
+test("resolveScheduledTheme handles same-window ranges and equal bounds", () => {
+  const daytime = { enabled: true, start: "07:00", end: "22:00", nightTheme: "dark" as const };
+  expect(resolveScheduledTheme(8 * 60, daytime)).toBe("dark");
+  expect(resolveScheduledTheme(23 * 60, daytime)).toBe("light");
+  const equal = { enabled: true, start: "22:00", end: "22:00", nightTheme: "dark" as const };
+  expect(resolveScheduledTheme(22 * 60, equal)).toBe("light");
+});
+
+test("parseThemeSchedule validates shape and rejects malformed values", () => {
+  expect(parseThemeSchedule({ enabled: true, start: "22:00", end: "07:00", nightTheme: "sepia" })).toEqual({
+    enabled: true,
+    start: "22:00",
+    end: "07:00",
+    nightTheme: "sepia",
+  });
+  expect(parseThemeSchedule(null)).toBeNull();
+  expect(parseThemeSchedule({ enabled: true, start: "22:00" })).toBeNull();
+  expect(parseThemeSchedule({ enabled: true, start: "24:00", end: "07:00", nightTheme: "dark" })).toBeNull();
+  expect(parseThemeSchedule({ enabled: true, start: "22:00", end: "07:00", nightTheme: "neon" })).toBeNull();
 });

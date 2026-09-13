@@ -31,6 +31,7 @@ import {
 import { SkeletonLine } from "../skeletons";
 import { SelectRow } from "./SelectRow";
 import { SandboxMachinesCard } from "./SandboxMachinesCard";
+import { SandboxDataLocationCard } from "./SandboxDataLocationCard";
 
 const PROCESS_POLL_INTERVAL_MS = 10 * 1000;
 
@@ -489,6 +490,9 @@ export function LocalSandboxSection({
             </span>
           </div>
         )}
+
+        {/* 数据位置（配对态无关）：当前根 + 更改/恢复默认 + 重启引导 */}
+        <SandboxDataLocationCard />
 
         {unpaired ? (
           <form onSubmit={handlePair} className="space-y-2 pt-2">

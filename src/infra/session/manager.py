@@ -736,6 +736,59 @@ class SessionManager:
         await _flush_batch()
         return result
 
+    async def message_anchor_exists(self, session_id: str, message_id: str) -> bool:
+        """校验 message_id 是否锚定在本会话的真实消息上（书签防悬空）。
+
+        合法锚点与前端历史重建的 id 派生规则一致：
+        - run 派生：{run_id}（该 run 的助手消息）、{run_id}#t{N}（同 run 后续
+          助手轮次）、{run_id}:user（用户消息回退 id）
+        - user:message 事件里显式记录的 message_id（客户端自带 id 的场景）
+
+        run 派生分支从 message_id 反推候选 run_id，单次 `$in` 查询即可判定；
+        仅当反推未命中时才退回逐 trace 读取 user:message 事件的兜底扫描。
+        """
+        candidate = (message_id or "").strip()
+        if not candidate:
+            return False
+
+        # 反推候选 run_id：仅接受良构后缀（#t 后必须是数字轮次），防止
+        # "run-1#tx" 这类畸形 id 借前缀蹭过校验；反推失败时 base 留空串
+        base = candidate
+        if "#t" in base:
+            head, tail = base.split("#t", 1)
+            base = head if head and tail.isdigit() else ""
+        if base.endswith(":user"):
+            base = base[: -len(":user")]
+        candidates = {candidate, base} if base else {candidate}
+
+        run_cursor = self.trace_storage.collection.find(
+            {"session_id": session_id, "run_id": {"$in": list(candidates)}},
+            {"_id": 0, "run_id": 1},
+        )
+        async for _trace in run_cursor:
+            return True
+
+        # 兜底：user:message 事件里显式记录的客户端 message_id
+        trace_cursor = self.trace_storage.collection.find(
+            {"session_id": session_id},
+            {"_id": 0, "trace_id": 1},
+        )
+        compat_reader = getattr(self.trace_storage, "read_trace_events_compat", None)
+        async for trace in trace_cursor:
+            trace_id = trace.get("trace_id")
+            if not isinstance(trace_id, str) or not trace_id or not callable(compat_reader):
+                continue
+            try:
+                events = await compat_reader(trace_id, event_types=["user:message"])
+            except Exception as exc:  # noqa: BLE001 —— 与 fork 路径同一容错语义
+                logger.warning("Failed to read user:message events for %s: %s", trace_id, exc)
+                continue
+            for event in events:
+                data = event.get("data") or {}
+                if str(data.get("message_id") or "").strip() == candidate:
+                    return True
+        return False
+
     async def _resolve_fork_target(self, session_id: str, message_id: str) -> dict:
         cursor = self.trace_storage.collection.find(
             {"session_id": session_id},

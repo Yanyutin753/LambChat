@@ -1,4 +1,11 @@
 {
+  "sessionWorkspace": {
+    "loading": "正在选择目录…",
+    "reset": "恢复默认会话目录",
+    "scope": "此目录用于当前会话的文件操作和命令执行",
+    "failed": "无法选择工作目录，请确认本地客户端已连接后重试",
+    "choose": "选择工作目录"
+  },
   "about": {
     "appVersion": "版本",
     "buildTime": "构建时间",
@@ -264,7 +271,14 @@
       "section": "执行设备",
       "currentDevice": "当前设备"
     },
-    "sandboxPolicy": { "section": "执行策略", "all": "全部确认", "commands": "仅命令确认", "none": "不确认", "updated": "执行策略已更新", "updateFailed": "执行策略更新失败" }
+    "sandboxPolicy": {
+      "section": "执行策略",
+      "all": "全部确认",
+      "commands": "仅命令确认",
+      "none": "不确认",
+      "updated": "执行策略已更新",
+      "updateFailed": "执行策略更新失败"
+    }
   },
   "agents": {
     "fast": {
@@ -538,6 +552,9 @@
     "profileFieldTooMany": "{{field}} 数量过多：最多 {{max}} 个",
     "unsupportedLanguage": "不支持的语言：{{lang}}",
     "invalidTheme": "主题无效：{{theme}}，必须为 light、dark 或 sepia",
+    "invalidThemeSchedule": "主题定时切换配置无效：需要 enabled（布尔）、start/end（HH:MM）与 nightTheme（dark 或 sepia）",
+    "invalidDateFormat": "日期无效：{{value}}，需 ISO 8601 格式",
+    "bookmarkMessageNotFound": "会话中未找到该消息，无法收藏",
     "messageNotFound": "消息不存在",
     "sessionDeleteInProgress": "会话删除进行中",
     "sessionError": "会话操作失败",
@@ -661,7 +678,8 @@
     "sandboxExecFailed": "本地沙箱执行失败：{{detail}}",
     "daemonVersionUnsupported": "本地沙箱守护进程版本 {{version}} 低于最低要求 {{min}}，请升级",
     "sandboxMachineOffline": "所选沙箱机器「{{machine}}」当前离线",
-    "sandboxMachineNotFound": "沙箱机器「{{machine}}」不存在或已移除"
+    "sandboxMachineNotFound": "沙箱机器「{{machine}}」不存在或已移除",
+    "pluginNoEditPermission": "没有编辑插件 {{name}} 的权限"
   },
   "categories": {
     "agent": "代理",
@@ -921,7 +939,7 @@
       "toolHistoryUser": "用户",
       "toolImageAnalyze": "图片分析",
       "toolImageAnalyzeCount": "{{count}} 张图片",
-"toolVideoAnalyze": "视频分析",
+      "toolVideoAnalyze": "视频分析",
       "toolVideoAnalyzeCount": "{{count}} 段视频",
       "toolImageCount": "{{count}} 张图片",
       "toolImageGenerate": "生成",
@@ -1763,6 +1781,7 @@
     "updateSuccess": "技能更新成功",
     "viewInMySkills": "去我的技能查看"
   },
+
   "mcp": {
     "addFirst": "添加您的第一个 MCP 服务器",
     "addNew": "添加新 MCP 服务器",
@@ -2122,6 +2141,14 @@
     "skillsControlledHint": "当前角色「{{name}}」正在控制可用 Skills。要调整本次对话的技能，请先清除当前角色，或编辑该角色预设。",
     "skillsCount": "个技能",
     "skillsInput": "技能",
+    "mcpServersInput": "MCP 服务",
+    "missingSkillsHint": "未安装的绑定技能：{{names}}（对话中不会生效）",
+    "missingMcpHint": "当前不可见的 MCP 服务：{{names}}（对话中不会生效）",
+    "mcpServerCount": "{{count}} 个 MCP 服务已绑定",
+    "mcpServersInputPlaceholder": "限定可用的 MCP 服务（留空不限制）...",
+    "mcpSearchPlaceholder": "搜索 MCP 服务...",
+    "noMcpServers": "暂无可用的 MCP 服务",
+    "mcpFromPlugin": "来自插件 {{name}}",
     "skillsInputPlaceholder": "点击选择可用技能...",
     "starterIcon": "图标",
     "starterPromptPlaceholder": "输入提示词，或使用 {\"zh\":\"...\",\"en\":\"...\"}",
@@ -2188,6 +2215,21 @@
       "resetTitle": "清除运行时配置，恢复安装包内置的默认服务器"
     },
     "localSandbox": {
+      "dataLocation": {
+        "title": "数据位置",
+        "desc": "沙箱工作区、审计日志与内置 Python 运行时的存放位置",
+        "customizedBadge": "自定义",
+        "defaultBadge": "默认",
+        "change": "更改位置",
+        "reset": "恢复默认",
+        "selected": "已选择：{{path}}",
+        "migrateLabel": "迁移现有数据到新位置",
+        "confirmChange": "保存并迁移",
+        "confirmChangeNoMigrate": "保存",
+        "savedRestartPending": "已保存，重启应用后新位置生效。",
+        "resetRestartPending": "已恢复默认位置，重启应用后生效；现有数据保留在原位置，不会自动搬回。",
+        "relaunchNow": "立即重启"
+      },
       "title": "本地沙箱",
       "desc": "Agent 通过桌面端在你自己的电脑上执行命令与文件读写",
       "statusOnline": "在线",
@@ -2286,6 +2328,11 @@
     "termsTab": "服务条款",
     "termsTitle": "服务条款",
     "theme": "主题",
+    "themeScheduleToggle": "按时段自动切换",
+    "themeScheduleStart": "夜间开始",
+    "themeScheduleEnd": "夜间结束",
+    "themeScheduleNightTheme": "夜间主题",
+    "themeSchedulePreview": "按当前时间将使用：{{theme}}",
     "themeSynced": "主题偏好已保存",
     "title": "个人信息",
     "togglePasswordVisibility": "切换密码可见性",
@@ -2311,6 +2358,7 @@
     "exitFullscreen": "退出全屏",
     "expand": "展开",
     "exportZip": "导出 ZIP",
+    "downloadFolder": "下载此文件夹为 ZIP",
     "fileCount": "{{count}} 个文件",
     "fullscreen": "全屏",
     "fullscreenHint": "按 Esc 退出全屏",
@@ -3445,6 +3493,7 @@
   "theme": {
     "switchToDark": "切换到深色模式",
     "switchToLight": "切换到浅色模式",
+    "cycleShortcut": "快捷键 Ctrl/Cmd+Shift+L",
     "switchToSepia": "切换到护眼模式"
   },
   "tools": {

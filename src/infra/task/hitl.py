@@ -513,6 +513,7 @@ async def submit_hitl_resume_run(
                 else None
             ),
             "disabled_mcp_tools": metadata.get("disabled_mcp_tools") or None,
+            "enabled_mcp_servers": metadata.get("enabled_mcp_servers") or None,
             "session_name": getattr(session, "name", None),
             "user_message_written": True,
             "run_id": source_run_id,

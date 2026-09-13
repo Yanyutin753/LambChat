@@ -4,7 +4,7 @@
 
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
-| `DEFAULT_AGENT` | `default` | 创建新会话时的默认 Agent ID。 |
+| `DEFAULT_AGENT` | `fast` | 创建新会话时的默认 Agent ID。 |
 | `WELCOME_SUGGESTIONS` | _(4 项列表)_ | 欢迎页建议项。`{icon, text}` 对象的 JSON 数组。 |
 | `FRONTEND_DEV_URL` | _(空)_ | 前端开发服务器 URL，用于 CORS。仅在开发时需要。 |
 | `VITE_API_BASE` | _(空)_ | 前端 fetch 调用的 API 基础 URL。留空表示同源。 |
@@ -33,7 +33,7 @@
 ## 示例
 
 ```bash
-DEFAULT_AGENT=default
+DEFAULT_AGENT=fast
 WELCOME_SUGGESTIONS=[{"icon":"🐍","text":"创建一个 Python Hello World 脚本"},{"icon":"📁","text":"列出工作区目录中的文件"}]
 FRONTEND_DEV_URL=http://localhost:3001
 ```

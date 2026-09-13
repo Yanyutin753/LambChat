@@ -24,7 +24,7 @@ export const mcpApi = {
    * List all visible MCP servers
    */
   async list(): Promise<MCPServersResponse> {
-    return authFetch<MCPServersResponse>(`${API_BASE}/api/mcp`);
+    return authFetch<MCPServersResponse>(`${API_BASE}/api/mcp/`);
   },
 
   /**
@@ -40,7 +40,7 @@ export const mcpApi = {
    * Create a new MCP server
    */
   async create(data: MCPServerCreate): Promise<MCPServerResponse> {
-    return authFetch<MCPServerResponse>(`${API_BASE}/api/mcp`, {
+    return authFetch<MCPServerResponse>(`${API_BASE}/api/mcp/`, {
       method: "POST",
       body: JSON.stringify(data),
     });

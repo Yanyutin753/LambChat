@@ -132,3 +132,6 @@ uv.lock
 
 # GUI 走查截图（agent 生成的本地验证产物，勿提交）
 gui-test-screenshots/
+
+# 本地工单/PR 文稿（工单清单、spec、PR body 草稿，勿提交）
+tickets/

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, List, Optional
 from src.agents.core.tool_filter import (
     filter_disabled_tools,
     filter_mcp_tools_by_db_state,
+    filter_mcp_tools_by_server_whitelist,
     get_db_disabled_mcp_tool_names,
 )
 from src.infra.logging import get_logger
@@ -48,6 +49,7 @@ class FastAgentContext:
         disabled_skills: Optional[List[str]] = None,
         enabled_skills: Optional[List[str]] = None,
         disabled_mcp_tools: Optional[List[str]] = None,
+        enabled_mcp_servers: Optional[List[str]] = None,
         auto_mode: bool = False,
     ):
         self.session_id = session_id or str(uuid.uuid4())
@@ -57,6 +59,7 @@ class FastAgentContext:
         self.disabled_skills = disabled_skills
         self.enabled_skills = enabled_skills
         self.disabled_mcp_tools = disabled_mcp_tools
+        self.enabled_mcp_servers = enabled_mcp_servers
         self.auto_mode = auto_mode
         self.mcp_manager: Optional[MCPClientManager] = None
         self._mcp_loaded: bool = False
@@ -139,6 +142,9 @@ class FastAgentContext:
                 f"[FastAgentContext] After DB filter: {len(mcp_tools)} MCP tools "
                 f"(removed {len(db_disabled)} disabled names)"
             )
+
+            # persona 绑定的 MCP server 白名单：只保留可归属到白名单 server 的工具
+            mcp_tools = filter_mcp_tools_by_server_whitelist(mcp_tools, self.enabled_mcp_servers)
 
             from src.agents.core.mcp_tool_exposure import split_mcp_tools_for_exposure
 

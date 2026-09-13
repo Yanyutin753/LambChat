@@ -56,7 +56,10 @@ async def test_toggle_message_bookmark_success():
     with (
         patch(
             "src.api.routes.bookmark.SessionManager",
-            return_value=MagicMock(get_session=AsyncMock(return_value=session)),
+            return_value=MagicMock(
+                get_session=AsyncMock(return_value=session),
+                message_anchor_exists=AsyncMock(return_value=True),
+            ),
         ),
         patch("src.api.routes.bookmark.verify_session_ownership"),
         patch(
@@ -89,7 +92,10 @@ async def test_toggle_message_bookmark_passes_body_fields():
     with (
         patch(
             "src.api.routes.bookmark.SessionManager",
-            return_value=MagicMock(get_session=AsyncMock(return_value=session)),
+            return_value=MagicMock(
+                get_session=AsyncMock(return_value=session),
+                message_anchor_exists=AsyncMock(return_value=True),
+            ),
         ),
         patch("src.api.routes.bookmark.verify_session_ownership"),
         patch(
@@ -164,3 +170,59 @@ async def test_list_my_bookmarks_returns_items_for_current_user():
     assert response["total"] == 1
     assert response["items"] == [bookmark]
     storage_cls.return_value.list_for_user.assert_awaited_once_with("user-1")
+
+
+@pytest.mark.asyncio
+async def test_toggle_message_bookmark_rejects_unanchored_message():
+    user = _make_user()
+    session = MagicMock()
+    session.user_id = "user-1"
+
+    manager = MagicMock(
+        get_session=AsyncMock(return_value=session),
+        message_anchor_exists=AsyncMock(return_value=False),
+    )
+    storage_cls = MagicMock(
+        get=AsyncMock(return_value=None),
+        toggle=AsyncMock(side_effect=AssertionError("should not toggle")),
+    )
+    with (
+        patch("src.api.routes.bookmark.SessionManager", return_value=manager),
+        patch("src.api.routes.bookmark.verify_session_ownership"),
+        patch("src.api.routes.bookmark.BookmarkStorage", return_value=storage_cls),
+    ):
+        handler = _find_route("POST", "/bookmark")
+        with pytest.raises(AppError) as exc_info:
+            await handler("session-1", "message-404", user=user)
+
+    assert exc_info.value.error_code is ErrorCode.BOOKMARK_MESSAGE_NOT_FOUND
+    manager.message_anchor_exists.assert_awaited_once_with("session-1", "message-404")
+    storage_cls.toggle.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_toggle_message_bookmark_allows_removing_dangling_legacy_bookmark():
+    """校验上线前的悬空书签仍允许 toggle 删除，只挡新建。"""
+    user = _make_user()
+    session = MagicMock()
+    session.user_id = "user-1"
+    bookmark = _make_bookmark(message_id="dangling-1")
+
+    manager = MagicMock(
+        get_session=AsyncMock(return_value=session),
+        message_anchor_exists=AsyncMock(return_value=False),
+    )
+    storage_cls = MagicMock(
+        get=AsyncMock(return_value=bookmark),
+        toggle=AsyncMock(return_value=(False, None)),
+    )
+    with (
+        patch("src.api.routes.bookmark.SessionManager", return_value=manager),
+        patch("src.api.routes.bookmark.verify_session_ownership"),
+        patch("src.api.routes.bookmark.BookmarkStorage", return_value=storage_cls),
+    ):
+        handler = _find_route("POST", "/bookmark")
+        response = await handler("session-1", "dangling-1", user=user)
+
+    assert response["bookmarked"] is False
+    storage_cls.toggle.assert_awaited_once()

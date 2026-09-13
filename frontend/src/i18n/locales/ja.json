@@ -1,4 +1,11 @@
 {
+  "sessionWorkspace": {
+    "loading": "フォルダーを選択中…",
+    "reset": "既定の会話フォルダーに戻す",
+    "scope": "この会話のファイル操作とコマンド実行に使用します",
+    "failed": "フォルダーを選択できません。デスクトップの接続を確認してください。",
+    "choose": "作業フォルダーを選択"
+  },
   "about": {
     "appVersion": "バージョン",
     "buildTime": "ビルド時刻",
@@ -264,7 +271,14 @@
       "section": "実行デバイス",
       "currentDevice": "このデバイス"
     },
-    "sandboxPolicy": { "section": "実行ポリシー", "all": "すべて確認", "commands": "コマンドのみ確認", "none": "確認しない", "updated": "実行ポリシーを更新しました", "updateFailed": "実行ポリシーの更新に失敗しました" }
+    "sandboxPolicy": {
+      "section": "実行ポリシー",
+      "all": "すべて確認",
+      "commands": "コマンドのみ確認",
+      "none": "確認しない",
+      "updated": "実行ポリシーを更新しました",
+      "updateFailed": "実行ポリシーの更新に失敗しました"
+    }
   },
   "agents": {
     "fast": {
@@ -538,6 +552,9 @@
     "profileFieldTooMany": "{{field}} が多すぎます。最大 {{max}} 個です",
     "unsupportedLanguage": "サポートされていない言語です: {{lang}}",
     "invalidTheme": "テーマが無効です: {{theme}}。light、dark、sepia のいずれかを指定してください",
+    "invalidThemeSchedule": "テーマの自動切り替え設定が無効です：enabled（真偽値）、start/end（HH:MM）、nightTheme（dark または sepia）が必要です",
+    "invalidDateFormat": "日付が無効です：{{value}}。ISO 8601 形式で指定",
+    "bookmarkMessageNotFound": "このセッションにメッセージが見つかりません",
     "messageNotFound": "メッセージが見つかりません",
     "sessionDeleteInProgress": "セッションの削除が進行中です",
     "sessionError": "セッション操作に失敗しました",
@@ -661,7 +678,8 @@
     "sandboxExecFailed": "ローカルサンドボックスの実行に失敗しました：{{detail}}",
     "daemonVersionUnsupported": "ローカルサンドボックスデーモンのバージョン {{version}} は最低要件 {{min}} 未満です。アップデートしてください",
     "sandboxMachineOffline": "選択したサンドボックスマシン「{{machine}}」は現在オフラインです",
-    "sandboxMachineNotFound": "サンドボックスマシン「{{machine}}」が見つからないか、削除されました"
+    "sandboxMachineNotFound": "サンドボックスマシン「{{machine}}」が見つからないか、削除されました",
+    "pluginNoEditPermission": "プラグイン {{name}} を編集する権限がありません"
   },
   "categories": {
     "agent": "エージェント",
@@ -921,7 +939,7 @@
       "toolHistoryUser": "ユーザー",
       "toolImageAnalyze": "画像分析",
       "toolImageAnalyzeCount": "{{count}} 枚の画像",
-"toolVideoAnalyze": "動画分析",
+      "toolVideoAnalyze": "動画分析",
       "toolVideoAnalyzeCount": "{{count}} 本の動画",
       "toolImageCount": "{{count}} 枚の画像",
       "toolImageGenerate": "生成",
@@ -1763,6 +1781,7 @@
     "updateSuccess": "スキルが正常に更新されました",
     "viewInMySkills": "マイスキルで開く"
   },
+
   "mcp": {
     "addFirst": "最初のMCPサーバーを追加",
     "addNew": "新しいMCPサーバーを追加",
@@ -2122,6 +2141,14 @@
     "skillsControlledHint": "現在のペルソナ「{{name}}」が使用可能なスキルを制御しています。スキルを変更するには、ペルソナを解除するかプリセットを編集してください。",
     "skillsCount": "スキル",
     "skillsInput": "スキル",
+    "mcpServersInput": "MCP サーバー",
+    "missingSkillsHint": "未インストールのバインドスキル：{{names}}（会話では無効）",
+    "missingMcpHint": "現在表示できない MCP サーバー：{{names}}（会話では無効）",
+    "mcpServerCount": "MCP サーバー {{count}} 件をバインド",
+    "mcpServersInputPlaceholder": "使用する MCP サーバーを限定（空欄で無制限）...",
+    "mcpSearchPlaceholder": "MCP サーバーを検索...",
+    "noMcpServers": "利用可能な MCP サーバーはありません",
+    "mcpFromPlugin": "プラグイン {{name}} から",
     "skillsInputPlaceholder": "クリックして利用可能なスキルを選択...",
     "starterIcon": "アイコン",
     "starterPromptPlaceholder": "プロンプトを入力、または {\"zh\":\"...\",\"en\":\"...\"} を使用",
@@ -2188,6 +2215,21 @@
       "resetTitle": "実行時の設定をクリアし、インストールパッケージ既定のサーバーに戻します"
     },
     "localSandbox": {
+      "dataLocation": {
+        "title": "データ保存場所",
+        "desc": "サンドボックスのワークスペース、監査ログ、内蔵 Python ランタイムの保存先",
+        "customizedBadge": "カスタム",
+        "defaultBadge": "デフォルト",
+        "change": "場所を変更",
+        "reset": "デフォルトに戻す",
+        "selected": "選択：{{path}}",
+        "migrateLabel": "既存のデータを新しい場所へ移動する",
+        "confirmChange": "保存して移動",
+        "confirmChangeNoMigrate": "保存",
+        "savedRestartPending": "保存しました。アプリを再起動すると新しい場所が有効になります。",
+        "resetRestartPending": "デフォルトの場所に戻しました。アプリの再起動後に有効になります。既存のデータは元の場所に残ります。",
+        "relaunchNow": "今すぐ再起動"
+      },
       "title": "ローカルサンドボックス",
       "desc": "デスクトップアプリを介して、あなた自身のPC上でコマンドとファイル操作を実行します",
       "statusOnline": "オンライン",
@@ -2286,6 +2328,11 @@
     "termsTab": "利用規約",
     "termsTitle": "利用規約",
     "theme": "テーマ",
+    "themeScheduleToggle": "時間帯で自動切り替え",
+    "themeScheduleStart": "夜間の開始",
+    "themeScheduleEnd": "夜間の終了",
+    "themeScheduleNightTheme": "夜間テーマ",
+    "themeSchedulePreview": "現在の時刻で使用するテーマ：{{theme}}",
     "themeSynced": "テーマ設定を保存しました",
     "title": "プロフィール",
     "togglePasswordVisibility": "パスワードの表示切替",
@@ -2311,6 +2358,7 @@
     "exitFullscreen": "全画面を終了",
     "expand": "展開",
     "exportZip": "ZIPエクスポート",
+    "downloadFolder": "フォルダを ZIP でダウンロード",
     "fileCount": "{{count}}ファイル",
     "fullscreen": "全画面",
     "fullscreenHint": "Esc を押して全画面を終了",
@@ -3445,6 +3493,7 @@
   "theme": {
     "switchToDark": "ダークモードに切り替え",
     "switchToLight": "ライトモードに切り替え",
+    "cycleShortcut": "ショートカット Ctrl/Cmd+Shift+L",
     "switchToSepia": "セピアモードに切り替え"
   },
   "tools": {

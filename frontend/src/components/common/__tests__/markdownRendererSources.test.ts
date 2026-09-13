@@ -13,7 +13,8 @@ function listTsxFiles(directory: string): string[] {
 const sourceRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const directRenderers = listTsxFiles(sourceRoot)
   .map((path) => ({
-    path: relative(sourceRoot, path),
+    // Windows 下 relative() 产出反斜杠分隔符，统一为 / 便于断言
+    path: relative(sourceRoot, path).split("\\").join("/"),
     source: readFileSync(path, "utf8"),
   }))
   .filter(({ source }) => source.includes("<ReactMarkdown"));

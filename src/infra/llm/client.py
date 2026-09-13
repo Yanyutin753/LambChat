@@ -19,7 +19,12 @@ from pydantic import SecretStr
 
 from src.infra.llm.anthropic_chat import LambChatAnthropicChatModel as ChatAnthropic
 from src.infra.llm.google_chat import LambChatGoogleChatModel as ChatGoogleGenerativeAI
-from src.infra.llm.openai_chat import LambChatOpenAIChatModel as ChatOpenAI
+from src.infra.llm.openai_chat import (
+    LambChatOpenAIChatModel as ChatOpenAI,
+)
+from src.infra.llm.openai_chat import (
+    is_official_openai_base_url,
+)
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 from src.kernel.exceptions import AuthorizationError
@@ -605,7 +610,12 @@ class LLMClient:
         # - store=False：无状态全量重放，不依赖服务端会话存储（ChatGPT
         #   codex 后端中转更是强制要求 store=false）。
         # 调用方显式传参优先；LLM_KV_CACHE=False 可整体关闭。
-        if openai_kwargs["use_responses_api"] and getattr(settings, "LLM_KV_CACHE", True):
+        # 仅官方端点注入：严格校验未知字段的第三方网关会 4xx（工单 2）。
+        if (
+            openai_kwargs["use_responses_api"]
+            and getattr(settings, "LLM_KV_CACHE", True)
+            and is_official_openai_base_url(api_base)
+        ):
             if "include" not in kwargs:
                 openai_kwargs["include"] = ["reasoning.encrypted_content"]
             if "store" not in kwargs:

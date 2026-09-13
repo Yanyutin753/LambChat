@@ -168,6 +168,7 @@ class SearchAgent(BaseGraphAgent):
         disabled_skills = kwargs.get("disabled_skills")
         enabled_skills = kwargs.get("enabled_skills")
         disabled_mcp_tools = kwargs.get("disabled_mcp_tools")
+        enabled_mcp_servers = kwargs.get("enabled_mcp_servers")
         context = SearchAgentContext(
             session_id=session_id,
             agent_id=self.agent_id,
@@ -176,6 +177,7 @@ class SearchAgent(BaseGraphAgent):
             disabled_skills=disabled_skills,
             enabled_skills=enabled_skills,
             disabled_mcp_tools=disabled_mcp_tools,
+            enabled_mcp_servers=enabled_mcp_servers,
             auto_mode=kwargs.get("auto_mode", False),
         )
         await context.setup()
@@ -194,6 +196,7 @@ class SearchAgent(BaseGraphAgent):
             "enabled_skills": enabled_skills,
             "persona_system_prompt": kwargs.get("persona_system_prompt"),
             "disabled_mcp_tools": disabled_mcp_tools,
+            "enabled_mcp_servers": enabled_mcp_servers,
             "base_url": kwargs.get("base_url", ""),
             "active_goal": kwargs.get("active_goal"),
             "recommendation_input": kwargs.get("recommendation_input"),
@@ -217,6 +220,7 @@ class SearchAgent(BaseGraphAgent):
                 "enabled_skills": enabled_skills,
                 "persona_system_prompt": kwargs.get("persona_system_prompt"),
                 "disabled_mcp_tools": disabled_mcp_tools,
+                "enabled_mcp_servers": enabled_mcp_servers,
                 "base_url": kwargs.get("base_url", ""),  # 传递 base_url 给工具使用
                 "active_goal": kwargs.get("active_goal"),
                 "auto_mode": kwargs.get("auto_mode", False),

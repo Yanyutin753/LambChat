@@ -535,12 +535,17 @@ pub(crate) fn sandbox_home() -> Result<PathBuf, String> {
             return Ok(PathBuf::from(custom));
         }
     }
+    default_sandbox_home()
+        .ok_or_else(|| "neither $HOME nor %USERPROFILE% is set; cannot locate ~/.lambchat".to_string())
+}
+
+/// 缺省根 `~/.lambchat`（未设 `LAMBCHAT_HOME` 时的解析结果，供"是否自定义"
+/// 比较复用）：`$HOME` 优先（unix / git-bash dev），Windows 常规进程回退
+/// `%USERPROFILE%`，与 daemon 侧 Python `Path.home()` 的 Windows 语义一致。
+fn default_sandbox_home() -> Option<PathBuf> {
     std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map(|home| PathBuf::from(home).join(".lambchat"))
-        .ok_or_else(|| {
-            "neither $HOME nor %USERPROFILE% is set; cannot locate ~/.lambchat".to_string()
-        })
 }
 
 /// 写入敏感文件：unix 下以 0600 模式原子创建（`OpenOptions::mode` 在 create
@@ -923,6 +928,299 @@ pub fn open_local_path(app: AppHandle, path: String) -> Result<(), String> {
     app.opener()
         .open_path(resolved.to_string_lossy(), None::<&str>)
         .map_err(|e| format!("failed to open {}: {e}", resolved.display()))
+}
+
+// ---------------------------------------------------------------------------
+// 沙箱数据根：设置页读写（LAMBCHAT_HOME 壳级覆盖文件）
+// ---------------------------------------------------------------------------
+
+/// 壳级覆盖文件名，落在 app_config_dir（`%APPDATA%/com.lambchat.app` 等，
+/// 随应用安装而非随沙箱数据根）——根迁移后壳仍能找到它。用户级环境变量
+/// 在 GUI 进程里没有可靠的跨平台持久化写法（Windows 注册表 / macOS
+/// launchctl 各一套且互不兼容），统一收敛到这份文件：壳启动时把它注入为
+/// `LAMBCHAT_HOME`（见 [`apply_sandbox_home_override`]），daemon 由壳 spawn
+/// 继承同一变量，两侧（Python `paths.home_root()`）解析到同一目录。
+const SANDBOX_HOME_OVERRIDE_FILE: &str = "sandbox-home.json";
+
+fn sandbox_home_override_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("failed to resolve app config dir: {e}"))?;
+    Ok(dir.join(SANDBOX_HOME_OVERRIDE_FILE))
+}
+
+/// 覆盖文件内容 → 自定义根（损坏 JSON / 缺 `home` 键 / 空白值 → None）。
+fn parse_sandbox_home_override(raw: &str) -> Option<String> {
+    let parsed = serde_json::from_str::<serde_json::Value>(raw).ok()?;
+    let home = parsed.get("home")?.as_str()?.trim().to_string();
+    if home.is_empty() {
+        None
+    } else {
+        Some(home)
+    }
+}
+
+/// 读覆盖文件里的自定义根（文件缺失/不可读 → None，仅此而已——损坏降级
+/// 等价未自定义，绝不阻断启动）。
+fn read_sandbox_home_override(app: &AppHandle) -> Option<String> {
+    let path = sandbox_home_override_path(app).ok()?;
+    let raw = std::fs::read_to_string(&path).ok()?;
+    parse_sandbox_home_override(&raw)
+}
+
+/// 壳启动注入（lib.rs setup 最先调用）：覆盖文件存在且外部未显式设置
+/// `LAMBCHAT_HOME` 时注入环境变量——此后 `sandbox_home()`、daemon spawn、
+/// PBS 播种全部自动跟随。显式环境变量优先（手工启动调试场景不被覆盖）。
+pub(crate) fn apply_sandbox_home_override(app: &AppHandle) {
+    let Some(home) = read_sandbox_home_override(app) else { return };
+    if let Some(existing) = std::env::var_os("LAMBCHAT_HOME") {
+        if !existing.to_string_lossy().trim().is_empty() {
+            return;
+        }
+    }
+    std::env::set_var("LAMBCHAT_HOME", &home);
+}
+
+/// 新根合法性（纯校验，便于单测）：非空、绝对路径、不等于当前根、与当前
+/// 根互不嵌套（新根在旧根内部，迁移会把目录搬进自己；旧根在新根内部，
+/// 迁移语义退化为"旧根整树搬进新根后仍套在新根里"的递归混乱）。
+fn validate_new_sandbox_home(raw: &str, current: &Path) -> Result<PathBuf, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err("path is empty".to_string());
+    }
+    let new_home = PathBuf::from(trimmed);
+    if !new_home.is_absolute() {
+        return Err(format!("path is not absolute: {trimmed}"));
+    }
+    if new_home == current {
+        return Err(format!("path is already the sandbox home: {trimmed}"));
+    }
+    if new_home.starts_with(current) || current.starts_with(&new_home) {
+        return Err(format!(
+            "new sandbox home must not overlap the current one: {trimmed} vs {}",
+            current.display()
+        ));
+    }
+    Ok(new_home)
+}
+
+/// 递归拷贝目录（跨卷 rename 失败后的回退路径：copy + remove）。
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
+    std::fs::create_dir_all(dst)
+        .map_err(|e| format!("failed to create {}: {e}", dst.display()))?;
+    let entries = std::fs::read_dir(src)
+        .map_err(|e| format!("failed to read {}: {e}", src.display()))?;
+    for entry in entries {
+        let entry =
+            entry.map_err(|e| format!("failed to read entry in {}: {e}", src.display()))?;
+        let from = entry.path();
+        let to = dst.join(entry.file_name());
+        if from.is_dir() {
+            copy_dir_recursive(&from, &to)?;
+        } else {
+            std::fs::copy(&from, &to).map_err(|e| {
+                format!("failed to copy {} -> {}: {e}", from.display(), to.display())
+            })?;
+        }
+    }
+    Ok(())
+}
+
+/// 旧根顶层条目迁移到新根：先 rename（同盘零拷贝），跨卷失败回退递归
+/// copy + remove；目标已存在则跳过（部分失败后重跑幂等，绝不覆盖新根
+/// 已有内容）。旧根不存在（全新安装）直接 0 迁移。返回迁移条目数。
+fn migrate_root_entries(old_root: &Path, new_root: &Path) -> Result<usize, String> {
+    let entries = match std::fs::read_dir(old_root) {
+        Ok(entries) => entries,
+        Err(_) => return Ok(0), // 旧根不存在：无需迁移
+    };
+    let mut moved = 0usize;
+    for entry in entries.flatten() {
+        let from = entry.path();
+        let to = new_root.join(entry.file_name());
+        if to.exists() {
+            continue; // 幂等：已在新根的条目跳过，不覆盖
+        }
+        if std::fs::rename(&from, &to).is_err() {
+            // 跨卷（不同盘符/挂载点）rename 失败 → copy + remove 回退
+            copy_dir_recursive(&from, &to)?;
+            if from.is_dir() {
+                std::fs::remove_dir_all(&from).map_err(|e| {
+                    format!("failed to remove {}: {e}", from.display())
+                })?;
+            } else {
+                std::fs::remove_file(&from)
+                    .map_err(|e| format!("failed to remove {}: {e}", from.display()))?;
+            }
+        }
+        moved += 1;
+    }
+    Ok(moved)
+}
+
+/// 沙箱数据根状态（设置页"数据位置"卡片）。
+#[derive(serde::Serialize)]
+pub struct SandboxDataLocation {
+    /// 当前生效根（LAMBCHAT_HOME 或缺省 ~/.lambchat）
+    pub root: String,
+    /// 当前根非缺省（覆盖文件或外部环境变量生效）
+    pub customized: bool,
+    /// 壳级覆盖文件存在（"恢复默认"按钮可用；仅外部环境变量生效时 false）
+    pub override_configured: bool,
+}
+
+/// 读取沙箱数据根。
+#[tauri::command]
+pub fn sandbox_data_location(app: AppHandle) -> Result<SandboxDataLocation, String> {
+    let root = sandbox_home()?;
+    let override_configured = read_sandbox_home_override(&app).is_some();
+    let customized = Some(&root) != default_sandbox_home().as_ref();
+    Ok(SandboxDataLocation {
+        root: root.to_string_lossy().into_owned(),
+        customized,
+        override_configured,
+    })
+}
+
+/// 更改沙箱数据根（设置页"更改位置"）。校验 → 停 daemon（迁移前释放
+/// audit/workspaces 文件句柄）→ 可选迁移旧根顶层条目 → 写覆盖文件 →
+/// 本进程 `set_var` 即时生效。**前端成功后须引导重启壳**：PBS 播种等
+/// 启动期逻辑与托盘状态在 relaunch 后才彻底换根。async：跨盘迁移数百
+/// MB（PBS 运行时）耗时长，不阻塞主线程命令通道。
+#[tauri::command]
+pub async fn set_sandbox_data_location(
+    app: AppHandle,
+    path: String,
+    migrate_data: bool,
+) -> Result<(), String> {
+    let current = sandbox_home()?;
+    let new_home = validate_new_sandbox_home(&path, &current)?;
+    std::fs::create_dir_all(&new_home)
+        .map_err(|e| format!("failed to create {}: {e}", new_home.display()))?;
+
+    stop(&app);
+
+    if migrate_data {
+        migrate_root_entries(&current, &new_home)?;
+    }
+
+    let override_path = sandbox_home_override_path(&app)?;
+    if let Some(parent) = override_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("failed to create {}: {e}", parent.display()))?;
+    }
+    let payload = serde_json::json!({ "home": new_home.to_string_lossy() });
+    let raw = serde_json::to_string(&payload)
+        .map_err(|e| format!("failed to serialize override: {e}"))?;
+    write_atomic_file(&override_path, raw.as_bytes())?;
+
+    std::env::set_var("LAMBCHAT_HOME", &new_home);
+    emit_status(&app); // daemon 已停：状态行即时翻转，不等事件
+    Ok(())
+}
+
+/// 恢复缺省根（设置页"恢复默认"）：删覆盖文件 + 清本进程变量。已有数据
+/// 留在原处不搬回（前端文案明示）；重启壳后回落 `~/.lambchat`。
+#[tauri::command]
+pub fn clear_sandbox_data_location(app: AppHandle) -> Result<(), String> {
+    let override_path = sandbox_home_override_path(&app)?;
+    if override_path.exists() {
+        std::fs::remove_file(&override_path).map_err(|e| {
+            format!("failed to remove {}: {e}", override_path.display())
+        })?;
+    }
+    std::env::remove_var("LAMBCHAT_HOME");
+    Ok(())
+}
+
+
+#[cfg(test)]
+mod sandbox_home_override_tests {
+    use super::*;
+
+    /// 覆盖文件解析：合法值、空白值、缺键、损坏 JSON 各自落位——除合法
+    /// 值外一律 None（损坏降级等价未自定义，不阻断启动）。
+    #[test]
+    fn parse_override_handles_valid_blank_missing_and_corrupt() {
+        assert_eq!(
+            parse_sandbox_home_override(r#"{"home":"D:\\lambchat"}"#),
+            Some("D:\\lambchat".to_string())
+        );
+        assert_eq!(parse_sandbox_home_override(r#"{"home":"  "}"#), None);
+        assert_eq!(parse_sandbox_home_override(r#"{"other":1}"#), None);
+        assert_eq!(parse_sandbox_home_override("not json"), None);
+    }
+
+    /// 新根校验：空/相对路径/同根/双向嵌套拒绝，无关绝对路径（含首尾
+    /// 空白）放行。路径用 temp_dir 推导保证跨平台绝对路径语义。
+    #[test]
+    fn validate_rejects_empty_relative_same_and_overlapping() {
+        let tmp = std::env::temp_dir();
+        let current = tmp.join("lc-home-current");
+
+        assert!(validate_new_sandbox_home("", &current).is_err());
+        assert!(validate_new_sandbox_home("   ", &current).is_err());
+        assert!(validate_new_sandbox_home("relative/path", &current).is_err());
+        assert!(validate_new_sandbox_home(
+            current.to_string_lossy().as_ref(),
+            &current
+        )
+        .is_err());
+        // 新根嵌在当前根内 → 拒绝
+        assert!(validate_new_sandbox_home(
+            current.join("sub").to_string_lossy().as_ref(),
+            &current
+        )
+        .is_err());
+        // 当前根嵌在新根内 → 拒绝
+        let bigger = tmp.join("lc-home-bigger");
+        assert!(validate_new_sandbox_home(
+            bigger.to_string_lossy().as_ref(),
+            &bigger.join("nested")
+        )
+        .is_err());
+        // 无关绝对路径放行；首尾空白容忍
+        let other = tmp.join("lc-home-other").to_string_lossy().into_owned();
+        assert!(validate_new_sandbox_home(&other, &current).is_ok());
+        assert!(validate_new_sandbox_home(&format!("  {other}  "), &current).is_ok());
+    }
+
+    /// 顶层条目迁移：全部搬走（目录递归 + 文件）、重跑幂等（目标已存在
+    /// 跳过不覆盖）、旧根不存在返回 0。
+    #[test]
+    fn migrate_root_entries_moves_top_level_and_is_idempotent() {
+        let tmp = std::env::temp_dir().join(format!("lc-migrate-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let old_root = tmp.join("old");
+        let new_root = tmp.join("new");
+        std::fs::create_dir_all(old_root.join("audit")).unwrap();
+        std::fs::write(old_root.join("audit").join("a.jsonl"), "log").unwrap();
+        std::fs::write(old_root.join("sandbox.json"), "{}").unwrap();
+
+        let moved = migrate_root_entries(&old_root, &new_root).unwrap();
+        assert_eq!(moved, 2);
+        assert!(new_root.join("audit").join("a.jsonl").exists());
+        assert!(!old_root.join("sandbox.json").exists());
+
+        // 重跑幂等：旧根重新出现同名条目，但新根已存在 → 跳过（不覆盖）
+        std::fs::write(old_root.join("sandbox.json"), "stale").unwrap();
+        let moved_again = migrate_root_entries(&old_root, &new_root).unwrap();
+        assert_eq!(moved_again, 0);
+        assert!(new_root.join("sandbox.json").exists());
+        // 跳过的旧条目留在原地（内容未被动过）
+        assert_eq!(
+            std::fs::read_to_string(old_root.join("sandbox.json")).unwrap(),
+            "stale"
+        );
+
+        // 旧根不存在（全新安装）→ 0 迁移
+        let absent = migrate_root_entries(&tmp.join("nope"), &new_root).unwrap();
+        assert_eq!(absent, 0);
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 }
 
 #[cfg(all(test, unix))]

@@ -15,6 +15,10 @@ kubectl get pods -n lambchat
 kubectl get svc -n lambchat
 ```
 
+::: tip
+The manifest reads sensitive values (JWT secret, MCP encryption salt, database credentials, S3 keys) from the `lambchat-secrets` Secret. Copy `k8s/lambchat-secret.yaml.example` to `k8s/lambchat-secret.yaml`, fill in your values, and apply it — pods cannot start until the Secret exists.
+:::
+
 ## Architecture
 
 The K8s manifest (`k8s/lambchat.yaml`) creates:
@@ -61,11 +65,11 @@ For sensitive values, use Kubernetes Secrets:
 
 ```yaml
 env:
-  - name: LLM_API_KEY
+  - name: JWT_SECRET_KEY
     valueFrom:
       secretKeyRef:
         name: lambchat-secrets
-        key: llm-api-key
+        key: jwt-secret-key
 ```
 
 ### Ingress
@@ -99,7 +103,7 @@ spec:
               service:
                 name: lambchat
                 port:
-                  number: 8000
+                  number: 80
 ```
 
 ## Scaling

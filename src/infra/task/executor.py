@@ -108,6 +108,7 @@ class TaskExecutor:
         enabled_skills: Optional[List[str]] = None,
         persona_system_prompt: Optional[str] = None,
         disabled_mcp_tools: Optional[List[str]] = None,
+        enabled_mcp_servers: Optional[List[str]] = None,
         display_message: Optional[str] = None,
         recommendation_input: Optional[str] = None,
         team_id: Optional[str] = None,
@@ -257,6 +258,7 @@ class TaskExecutor:
                     enabled_skills=enabled_skills,
                     persona_system_prompt=persona_system_prompt,
                     disabled_mcp_tools=disabled_mcp_tools,
+                    enabled_mcp_servers=enabled_mcp_servers,
                     recommendation_input=recommendation_input,
                     team_id=team_id,
                     active_goal=active_goal,
@@ -265,6 +267,9 @@ class TaskExecutor:
                     base_url=base_url,
                 ),
                 timeout=_run_stall_timeout_seconds(),
+                # 直连路径（emit→save_event）的进展也证明流未挂死：
+                # 深跑时生成器可静默超过 deadline，全靠探针续命
+                progress_probe=getattr(presenter, "last_progress_monotonic", None),
             ):
                 await presenter.save_event(event)
                 if not produced_main_text and _is_main_agent_text_event(event):
