@@ -158,13 +158,13 @@ function SkillsPage() {
   return <AppContent key="skills" activeTab="skills" />;
 }
 
-function PluginsPage() {
+function MarketplacePage() {
   useSEO({
-    title: "seo.plugins.title",
-    description: "seo.plugins.description",
-    path: "/plugins",
+    title: "seo.marketplace.title",
+    description: "seo.marketplace.description",
+    path: "/marketplace",
   });
-  return <AppContent key="plugins" activeTab="marketplace" />;
+  return <AppContent key="marketplace" activeTab="marketplace" />;
 }
 
 function UsersPage() {
@@ -503,7 +503,7 @@ function App() {
               }
             />
             <Route
-              path="/plugins"
+              path="/marketplace"
               element={
                 <ProtectedRoute
                   permissions={[
@@ -514,12 +514,10 @@ function App() {
                   showToast
                   toastMessage={t("errors.noPermission")}
                 >
-                  <PluginsPage />
+                  <MarketplacePage />
                 </ProtectedRoute>
               }
             />
-            {/* 旧商店路径归一到插件市场 */}
-            <Route path="/marketplace" element={<Navigate to="/plugins" replace />} />
             <Route
               path="/mcp"
               element={

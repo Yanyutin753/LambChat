@@ -5,7 +5,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import {
-  Puzzle,
   Server,
   Brain,
   MessageCircle,
@@ -36,7 +35,6 @@ export function useMoreMenu({ isCollapsed, isMobile }: UseMoreMenuParams) {
   const canReadChannels = hasAnyPermission([Permission.CHANNEL_READ]);
   const canReadMemory = enableMemory;
   const canReadSkills = hasAnyPermission([Permission.SKILL_READ]);
-  const canReadPlugins = hasAnyPermission([Permission.MARKETPLACE_READ]);
   const canReadTeam = hasAnyPermission([Permission.TEAM_READ]);
 
   const moreMenuFeatureItems = [
@@ -57,12 +55,6 @@ export function useMoreMenu({ isCollapsed, isMobile }: UseMoreMenuParams) {
       label: t("nav.skills"),
       icon: Sparkles,
       show: canReadSkills,
-    },
-    {
-      path: "/plugins",
-      label: t("nav.plugins"),
-      icon: Puzzle,
-      show: canReadPlugins,
     },
     {
       path: "/mcp",

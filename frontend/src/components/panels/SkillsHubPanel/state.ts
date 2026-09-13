@@ -1,11 +1,11 @@
-export type SkillsHubTab = "skills" | "plugins";
+export type SkillsHubTab = "skills" | "marketplace";
 
 export function resolveSkillsHubTab(
   requestedTab: SkillsHubTab | undefined,
   canReadSkills: boolean,
-  canReadPlugins: boolean,
+  canReadMarketplace: boolean,
 ): SkillsHubTab | null {
-  if (canReadSkills && canReadPlugins) {
+  if (canReadSkills && canReadMarketplace) {
     return requestedTab ?? "skills";
   }
 
@@ -13,8 +13,8 @@ export function resolveSkillsHubTab(
     return "skills";
   }
 
-  if (canReadPlugins) {
-    return "plugins";
+  if (canReadMarketplace) {
+    return "marketplace";
   }
 
   return null;

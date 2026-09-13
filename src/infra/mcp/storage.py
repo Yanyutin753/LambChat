@@ -157,9 +157,7 @@ class MCPStorage(StorageOperations):
         """Check raw name reservation without exposing legacy server data."""
         return await self._get_system_collection().find_one({"name": name}) is not None
 
-    async def create_system_server(
-        self, server, admin_user_id: str, *, source_plugin: str | None = None
-    ) -> SystemMCPServer:
+    async def create_system_server(self, server, admin_user_id: str) -> SystemMCPServer:
         """Create a system MCP server (admin only)"""
         collection = self._get_system_collection()
 
@@ -171,7 +169,6 @@ class MCPStorage(StorageOperations):
             "url": server.url,
             "headers": server.headers,
             "is_system": True,
-            "source_plugin": source_plugin,
             "allowed_roles": getattr(server, "allowed_roles", []),
             "role_quotas": {
                 role_name: quota.model_dump() if hasattr(quota, "model_dump") else quota
@@ -824,7 +821,6 @@ class MCPStorage(StorageOperations):
             url=doc.get("url"),
             headers=doc.get("headers"),
             is_system=True,
-            source_plugin=doc.get("source_plugin"),
             disabled_tools=_normalize_disabled_tools(doc.get("disabled_tools", [])),
             allowed_roles=doc.get("allowed_roles", []),
             role_quotas=doc.get("role_quotas", {}),
@@ -932,7 +928,6 @@ class MCPStorage(StorageOperations):
             enabled=doc_copy.get("enabled", True),
             url=doc_copy.get("url"),
             headers=doc_copy.get("headers"),
-            source_plugin=doc_copy.get("source_plugin"),
             is_system=is_system,
             can_edit=can_edit,
             allowed_roles=doc_copy.get("allowed_roles", []),

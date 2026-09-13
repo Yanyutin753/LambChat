@@ -1,17 +1,17 @@
 import { useEffect } from "react";
-import { Package, PackageX, Puzzle } from "lucide-react";
+import { Package, PackageX, ShoppingBag } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSettingsContext } from "../../contexts/SettingsContext";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
-import { PluginMarketPanel } from "./PluginMarketPanel";
+import { MarketplacePanel } from "./MarketplacePanel";
 import { SkillsPanel } from "./SkillsPanel";
 import { resolveSkillsHubTab, type SkillsHubTab } from "./SkillsHubPanel/state";
 
 const TAB_PATHS: Record<SkillsHubTab, string> = {
   skills: "/skills",
-  plugins: "/plugins",
+  marketplace: "/marketplace",
 };
 
 export function SkillsHubPanel() {
@@ -22,18 +22,15 @@ export function SkillsHubPanel() {
   const { enableSkills } = useSettingsContext();
 
   const canReadSkills = hasAnyPermission([Permission.SKILL_READ]);
-  const canReadPlugins = hasAnyPermission([Permission.MARKETPLACE_READ]);
-  // 旧商店路径归一到插件市场（商店内容已由启动迁移转为插件）
+  const canReadMarketplace = hasAnyPermission([Permission.MARKETPLACE_READ]);
   const requestedTab: SkillsHubTab =
-    location.pathname === "/plugins" || location.pathname === "/marketplace"
-      ? "plugins"
-      : "skills";
+    location.pathname === "/marketplace" ? "marketplace" : "skills";
   const visibleTab = resolveSkillsHubTab(
     requestedTab,
     canReadSkills,
-    canReadPlugins,
+    canReadMarketplace,
   );
-  const showTabSwitcher = canReadSkills && canReadPlugins;
+  const showTabSwitcher = canReadSkills && canReadMarketplace;
   const hubTabs = [
     {
       key: "skills" as const,
@@ -42,10 +39,10 @@ export function SkillsHubPanel() {
       path: TAB_PATHS.skills,
     },
     {
-      key: "plugins" as const,
-      label: t("nav.plugins"),
-      icon: Puzzle,
-      path: TAB_PATHS.plugins,
+      key: "marketplace" as const,
+      label: t("nav.marketplace"),
+      icon: ShoppingBag,
+      path: TAB_PATHS.marketplace,
     },
   ];
 
@@ -112,7 +109,7 @@ export function SkillsHubPanel() {
         {visibleTab === "skills" ? (
           <SkillsPanel embedded />
         ) : (
-          <PluginMarketPanel embedded />
+          <MarketplacePanel embedded />
         )}
       </div>
     </div>
