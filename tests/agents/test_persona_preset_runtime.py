@@ -134,7 +134,9 @@ async def test_resolve_persona_request_overwrites_client_persona_fields_from_pre
     )
 
     class _FakeManager:
-        async def use_preset(self, preset_id: str, *, user_id: str, is_admin: bool):
+        async def use_preset(
+            self, preset_id: str, *, user_id: str, is_admin: bool, user_roles=None
+        ):
             assert preset_id == "preset-1"
             assert user_id == "user-1"
             assert is_admin is True
@@ -179,7 +181,9 @@ async def test_resolve_persona_request_keeps_global_skills_when_preset_has_no_sk
     )
 
     class _FakeManager:
-        async def use_preset(self, preset_id: str, *, user_id: str, is_admin: bool):
+        async def use_preset(
+            self, preset_id: str, *, user_id: str, is_admin: bool, user_roles=None
+        ):
             return snapshot
 
     request = AgentRequest(
@@ -206,7 +210,9 @@ async def test_resolve_persona_request_keeps_global_skills_when_configured_skill
     )
 
     class _FakeManager:
-        async def use_preset(self, preset_id: str, *, user_id: str, is_admin: bool):
+        async def use_preset(
+            self, preset_id: str, *, user_id: str, is_admin: bool, user_roles=None
+        ):
             return snapshot
 
     request = AgentRequest(
