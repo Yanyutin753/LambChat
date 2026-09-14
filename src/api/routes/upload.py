@@ -31,6 +31,7 @@ from src.api.routes.file_type import (
     get_permission_for_category,
 )
 from src.api.routes.upload_cover import get_file_cover_response
+from src.api.routes.upload_model_safe import get_model_safe_file_response
 from src.api.routes.upload_signed_urls import (
     SignedUrlItem,
     SignedUrlRequest,
@@ -45,6 +46,7 @@ from src.api.routes.upload_thumb import get_file_thumb_response
 from src.infra.async_utils import run_blocking_io
 from src.infra.async_utils.background_tasks import BestEffortTaskLimiter
 from src.infra.auth.rbac import check_permission
+from src.infra.image_utils import needs_model_safe_transcode, transcode_image_bytes
 from src.infra.logging import get_logger
 from src.infra.storage.s3 import (
     S3Config,
@@ -311,6 +313,49 @@ async def _spool_upload_file_limited(
         raise
 
 
+def _read_all(file: Any) -> bytes:
+    return file.read()
+
+
+async def _transcode_spooled_image(
+    spooled_upload: SpooledUpload,
+    *,
+    max_size_bytes: int,
+    max_size_mb: int,
+    source_ext: str,
+) -> SpooledUpload:
+    """Transcode a spooled model-unsafe image (TIFF/BMP/ICO…) to JPEG in place.
+
+    The replacement spool hashes the JPEG bytes so dedupe and the stored
+    record describe what is actually uploaded.
+    """
+    await run_blocking_io(spooled_upload.file.seek, 0)
+    content = await run_blocking_io(_read_all, spooled_upload.file)
+    try:
+        transcoded, _mime_type = await run_blocking_io(transcode_image_bytes, content)
+    except ValueError:
+        raise AppError(ErrorCode.IMAGE_TRANSCODE_FAILED, args={"ext": source_ext})
+    if len(transcoded) > max_size_bytes:
+        raise AppError(ErrorCode.FILE_TOO_LARGE, args={"max": max_size_mb})
+
+    digest = hashlib.sha256(transcoded)
+    replacement = SpooledTemporaryFile(max_size=UPLOAD_SPOOL_MEMORY_LIMIT, mode="w+b")
+    try:
+        await run_blocking_io(replacement.write, transcoded)
+        await run_blocking_io(replacement.seek, 0)
+        new_upload = SpooledUpload(
+            file=replacement,
+            sha256_hex=digest.hexdigest(),
+            size=len(transcoded),
+        )
+    except Exception:
+        replacement.close()
+        raise
+    finally:
+        spooled_upload.close()
+    return new_upload
+
+
 def get_s3_enabled() -> bool:
     """Get S3 enabled status from cached settings"""
     return _parse_bool(settings.S3_ENABLED)
@@ -506,12 +551,28 @@ async def upload_file(
     spooled_upload: SpooledUpload | None = None
     storage_key = ""
     file_hash = ""
+    effective_content_type = file.content_type
+    did_transcode = False
     try:
         spooled_upload = await _spool_upload_file_limited(
             file,
             max_size_bytes=max_size_bytes,
             max_size_mb=max_size_mb,
         )
+
+        # Vision providers reject TIFF/BMP/ICO (GLM: 1210) and browsers cannot
+        # decode TIFF in canvas, so the frontend passes them through untouched —
+        # transcode to JPEG here so every stored image is model-safe.
+        if category == FileCategory.IMAGE and needs_model_safe_transcode(ext, file.content_type):
+            spooled_upload = await _transcode_spooled_image(
+                spooled_upload,
+                max_size_bytes=max_size_bytes,
+                max_size_mb=max_size_mb,
+                source_ext=ext,
+            )
+            effective_content_type = "image/jpeg"
+            did_transcode = True
+
         file_hash = spooled_upload.sha256_hex
 
         # Check if hash already exists (race condition guard)
@@ -530,6 +591,8 @@ async def upload_file(
         # Upload with short key organized by category and user
         short_id = uuid.uuid4().hex[:16]
         ext = (file.filename or "").rsplit(".", 1)[-1] if "." in (file.filename or "") else ""
+        if did_transcode:
+            ext = "jpg"
         storage_key = (
             f"{category.value}/{current_user.sub}/{short_id}.{ext}"
             if ext
@@ -538,7 +601,7 @@ async def upload_file(
         upload_result = await storage.upload_stream_to_key(
             file=spooled_upload.file,
             key=storage_key,
-            content_type=file.content_type,
+            content_type=effective_content_type,
             metadata={"uploaded_by": current_user.sub, "content_hash": file_hash},
             skip_size_limit=True,
         )
@@ -549,7 +612,7 @@ async def upload_file(
             file_hash=file_hash,
             key=storage_key,
             name=file.filename or "unknown",
-            mime_type=file.content_type or "application/octet-stream",
+            mime_type=effective_content_type or "application/octet-stream",
             size=spooled_upload.size,
             category=category.value,
             uploaded_by=current_user.sub,
@@ -560,7 +623,7 @@ async def upload_file(
             key=storage_key,
             name=file.filename or "unknown",
             file_type=category.value,
-            mime_type=file.content_type or "application/octet-stream",
+            mime_type=effective_content_type or "application/octet-stream",
             size=spooled_upload.size,
         )
     except DuplicateKeyError as duplicate_error:
@@ -859,6 +922,12 @@ async def get_file_proxy(
 
     if thumb:
         return await get_file_thumb_response(storage, key)
+
+    # Legacy uploads in vision-unsafe formats (e.g. TIFF) are healed on read:
+    # serve a transcoded JPEG so old session URLs keep working for models.
+    model_safe_response = await get_model_safe_file_response(storage, key)
+    if model_safe_response is not None:
+        return model_safe_response
 
     base_url = _get_base_url(request)
     proxy_url = f"{base_url}/api/upload/file/{key}"

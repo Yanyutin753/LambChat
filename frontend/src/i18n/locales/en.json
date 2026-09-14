@@ -587,6 +587,7 @@
     "envvarNotFound": "Environment variable '{{key}}' not found",
     "envvarError": "Environment variable operation failed",
     "fileExtensionNotAllowed": "File extension '.{{ext}}' is not allowed for {{category}} files",
+    "imageTranscodeFailed": "Failed to convert '.{{ext}}' image; please upload JPG/PNG instead",
     "fileTypeNotAllowed": "File type '.{{ext}}' is not allowed. Allowed types: {{allowed}}",
     "uploadFailed": "Upload failed",
     "avatarUploadFailed": "Avatar upload failed",

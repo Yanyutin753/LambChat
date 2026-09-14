@@ -587,6 +587,7 @@
     "envvarNotFound": "环境变量 '{{key}}' 不存在",
     "envvarError": "环境变量操作失败",
     "fileExtensionNotAllowed": "{{category}} 文件不允许使用 .{{ext}} 扩展名",
+    "imageTranscodeFailed": "图片转换失败（.{{ext}}），请改传 JPG/PNG 格式",
     "fileTypeNotAllowed": "不允许的文件类型 .{{ext}}，允许的类型：{{allowed}}",
     "uploadFailed": "上传失败",
     "avatarUploadFailed": "头像上传失败",

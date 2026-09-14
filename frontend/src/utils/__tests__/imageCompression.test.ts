@@ -119,6 +119,30 @@ test("returns the original image when worker compression is unsupported", async 
   ).resolves.toBe(input);
 });
 
+test("passes TIFF through untouched without spawning a worker", async () => {
+  // Browsers cannot decode TIFF in canvas, so compression would always fail;
+  // the backend transcodes these formats to JPEG on upload instead.
+  const constructions = vi.fn();
+  class NeverConstructedWorker {
+    constructor() {
+      constructions();
+    }
+    onmessage = null;
+    onerror = null;
+    postMessage() {
+      throw new Error("worker should not be used for TIFF");
+    }
+    terminate() {}
+  }
+  vi.stubGlobal("Worker", NeverConstructedWorker);
+  const input = new File([new Uint8Array(300 * 1024)], "scan.tiff", {
+    type: "image/tiff",
+  });
+
+  await expect(compressImageFile(input)).resolves.toBe(input);
+  expect(constructions).not.toHaveBeenCalled();
+});
+
 test("uses the main-thread fallback only when explicitly requested", async () => {
   vi.stubGlobal("Worker", UnsupportedCompressionWorker);
   vi.stubGlobal(

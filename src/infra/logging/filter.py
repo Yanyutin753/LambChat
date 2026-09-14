@@ -7,9 +7,36 @@ Trace Filter - 日志过滤器
 from __future__ import annotations
 
 import logging
+import time
 from typing import Protocol, cast
 
 from src.infra.logging.context import TraceContext
+
+
+class KeywordRateLimitFilter(logging.Filter):
+    """Emit matching records at most once per window.
+
+    Third-party clients can spam the same warning for every retry (LangSmith
+    logged hundreds of "Rate limit exceeded" 429 warnings per task once the
+    monthly quota ran out). The first matching record passes; further matches
+    are dropped until the window elapses. Non-matching records are unaffected.
+    """
+
+    def __init__(self, keywords: tuple[str, ...], window_seconds: float = 600.0) -> None:
+        super().__init__()
+        self._keywords = keywords
+        self._window_seconds = window_seconds
+        self._last_emit: float = -window_seconds
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        message = record.getMessage()
+        if not any(keyword in message for keyword in self._keywords):
+            return True
+        now = time.monotonic()
+        if now - self._last_emit < self._window_seconds:
+            return False
+        self._last_emit = now
+        return True
 
 
 class _TraceLogRecord(Protocol):

@@ -422,6 +422,11 @@ class ErrorCode(Enum):
     THUMB_NOT_AVAILABLE = ("thumb_not_available", 404, "Thumb not available")
     COVER_RENDER_FAILED = ("cover_render_failed", 500, "Failed to render cover")
     THUMB_RENDER_FAILED = ("thumb_render_failed", 500, "Failed to render thumb")
+    IMAGE_TRANSCODE_FAILED = (
+        "image_transcode_failed",
+        400,
+        "Failed to convert '.{{ext}}' image; please upload JPG/PNG instead",
+    )
 
     # ---------- skill / marketplace：技能与市场 ----------
     SKILL_NOT_FOUND = ("skill_not_found", 404, "Skill not found")

@@ -60,6 +60,11 @@ export async function compressImageFile(
   // Skip SVG — vector format, canvas rasterization is undesirable
   if (file.type === "image/svg+xml") return file;
 
+  // Skip formats browsers cannot decode in canvas (createImageBitmap rejects
+  // them, so compression would always fail). The backend transcodes these to
+  // JPEG on upload — pass them through untouched.
+  if (/^image\/(tiff|heic|heif)$/.test(file.type)) return file;
+
   try {
     const response = await compressImageInWorker(file, {
       maxDimension,

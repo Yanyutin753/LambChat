@@ -587,6 +587,7 @@
     "envvarNotFound": "환경 변수 '{{key}}'를 찾을 수 없습니다",
     "envvarError": "환경 변수 작업에 실패했습니다",
     "fileExtensionNotAllowed": "{{category}} 파일에는 .{{ext}} 확장자를 사용할 수 없습니다",
+    "imageTranscodeFailed": "이미지 변환에 실패했습니다(.{{ext}}). JPG/PNG 형식으로 업로드해 주세요",
     "fileTypeNotAllowed": "파일 유형 .{{ext}}은(는) 허용되지 않습니다. 허용됨: {{allowed}}",
     "uploadFailed": "업로드에 실패했습니다",
     "avatarUploadFailed": "아바타 업로드에 실패했습니다",

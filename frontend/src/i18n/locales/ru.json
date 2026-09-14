@@ -587,6 +587,7 @@
     "envvarNotFound": "Переменная окружения «{{key}}» не найдена",
     "envvarError": "Ошибка операции с переменной окружения",
     "fileExtensionNotAllowed": "Расширение .{{ext}} недопустимо для файлов {{category}}",
+    "imageTranscodeFailed": "Не удалось преобразовать изображение (.{{ext}}); загрузите JPG или PNG",
     "fileTypeNotAllowed": "Тип файла .{{ext}} не разрешён. Разрешены: {{allowed}}",
     "uploadFailed": "Не удалось загрузить",
     "avatarUploadFailed": "Не удалось загрузить аватар",

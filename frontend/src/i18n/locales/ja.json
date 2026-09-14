@@ -587,6 +587,7 @@
     "envvarNotFound": "環境変数 '{{key}}' が見つかりません",
     "envvarError": "環境変数の操作に失敗しました",
     "fileExtensionNotAllowed": "{{category}} ファイルに拡張子 .{{ext}} は許可されていません",
+    "imageTranscodeFailed": "画像の変換に失敗しました（.{{ext}}）。JPG/PNG 形式でアップロードしてください",
     "fileTypeNotAllowed": "ファイルタイプ .{{ext}} は許可されていません。許可: {{allowed}}",
     "uploadFailed": "アップロードに失敗しました",
     "avatarUploadFailed": "アバターのアップロードに失敗しました",

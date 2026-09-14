@@ -10,7 +10,7 @@ import logging
 import sys
 from typing import Dict
 
-from src.infra.logging.filter import TraceFilter
+from src.infra.logging.filter import KeywordRateLimitFilter, TraceFilter
 from src.infra.logging.formatter import ColoredFormatter
 
 
@@ -73,6 +73,11 @@ def setup_logging() -> None:
 
     # 添加追踪过滤器
     console_handler.addFilter(TraceFilter())
+
+    # 第三方客户端同质告警限频（LangSmith 额度耗尽时每个任务刷数百条 429 warning）
+    console_handler.addFilter(
+        KeywordRateLimitFilter(keywords=("Rate limit exceeded",), window_seconds=600)
+    )
 
     # 添加处理器到根日志器
     root_logger.addHandler(console_handler)
