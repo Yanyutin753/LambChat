@@ -407,9 +407,9 @@ async def get_session_events(
     if events_limited:
         events = events[:limit]
     if compact_message_chunks:
-        from src.infra.session.history_compaction import compact_consecutive_message_chunks
+        from src.infra.session.history_compaction import compact_history_events
 
-        events = compact_consecutive_message_chunks(events)
+        events = compact_history_events(events)
 
     response = {
         "events": events,

@@ -4,8 +4,10 @@ Event Merger - 事件合并器
 定期合并 trace 中的流式事件，减少事件数量，提升前后端性能。
 
 合并策略:
-- 按 (event_type, agent_id, depth, thinking_id, text_id) 合并连续的可合并事件（message:chunk, thinking）
-- 只合并连续同 key 事件，避免把后续文本提前到中间的 tool/thinking 事件之前
+- message:chunk 相邻合并；thinking 按 thinking_id、tool:args:chunk 按
+  tool_call_id 分组归并到首现位置（并行子代理/并行工具调用的增量在
+  事件流里交错，只按连续性合并对它们无效）
+- 分组键与前端 part 路由语义一致，由 history_compaction 共享核心实现
 - 不可合并的事件（如 tool:start）保持原位
 - 合并后的事件标记为 merged=True，并记录 merged_count、started_at、ended_at
 - 只合并 metadata.merged != True 的已完成 trace（status != "running"）
@@ -33,8 +35,12 @@ from src.kernel.config import settings
 
 logger = get_logger(__name__)
 
-# 可合并的事件类型
-MERGEABLE_EVENT_TYPES = frozenset(["message:chunk", "thinking"])
+# 可合并的事件类型（实际分组/身份判定在 history_compaction 核心内）
+MERGEABLE_EVENT_TYPES = frozenset(["message:chunk", "thinking", "tool:args:chunk"])
+
+# 合并策略版本：旧版只做连续合并，交错流（并行子代理 thinking）收缩失败
+# 也会标记 metadata.merged=True——按策略版本重新入队，让存量自愈
+_MERGE_STRATEGY_GROUPED = "grouped"
 
 # Redis 分布式锁配置
 MERGE_LOCK_KEY = "event_merger:lock"
@@ -295,11 +301,22 @@ class EventMerger:
             cursor = collection.find(
                 {
                     "status": {"$in": list(_MERGE_TERMINAL_STATUSES)},
-                    "metadata.merged": {"$ne": True},
                     _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
-                    "$or": [
-                        {"event_count": {"$lte": max_events_per_trace}},
-                        {"event_count": {"$exists": False}},
+                    # （同一 dict 只能有一个 $or 键，两组条件用 $and 组合）
+                    "$and": [
+                        # 未合并过，或由旧策略标记过（交错流未被真正合掉）
+                        {
+                            "$or": [
+                                {"metadata.merged": {"$ne": True}},
+                                {"metadata.merge_strategy": {"$ne": _MERGE_STRATEGY_GROUPED}},
+                            ]
+                        },
+                        {
+                            "$or": [
+                                {"event_count": {"$lte": max_events_per_trace}},
+                                {"event_count": {"$exists": False}},
+                            ]
+                        },
                     ],
                 },
                 {
@@ -412,6 +429,7 @@ class EventMerger:
                 update_fields: Dict[str, Any] = {
                     "metadata.merged": True,
                     "metadata.merged_at": now,
+                    "metadata.merge_strategy": _MERGE_STRATEGY_GROUPED,
                     "updated_at": now,
                 }
                 if len(merged_events) < len(original_events):
@@ -422,6 +440,7 @@ class EventMerger:
                             parent_updates={
                                 "metadata.merged": True,
                                 "metadata.merged_at": now,
+                                "metadata.merge_strategy": _MERGE_STRATEGY_GROUPED,
                             },
                         )
                         if not replaced:
@@ -514,95 +533,24 @@ class EventMerger:
 
     def _merge_events(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        合并事件列表
+        合并事件列表（委托 history_compaction 的共享核心）
 
         策略:
-        - 按 (event_type, agent_id, depth, thinking_id, text_id) 合并连续的可合并事件
-        - 保留原始时间线：遇到不可合并事件或 key 变化就结束当前合并段
+        - message:chunk / 无块标识旧数据：相邻同身份合并
+        - thinking 按 thinking_id、tool:args:chunk 按 tool_call_id 分组归并
+          到首现位置——并行子代理/并行工具调用的增量在流里交错，只按
+          连续性合并对它们完全无效（生产实测单 run 1.7 万条 thinking
+          事件因此未被合掉）。分组键与前端 part 路由语义一致，等价性
+          由读取侧 compact_history_events 的真实数据回归保障
+        - 归并目标标记 merged/merged_count/started_at/ended_at
         - 不可合并的事件（如 tool:start）保持原位
         """
         if not events:
             return []
 
-        mergeable = MERGEABLE_EVENT_TYPES
-        merged: list[Dict[str, Any]] = []
-        current_key: Optional[tuple[Any, Any, Any, Any, Any]] = None
-        current_group: list[Dict[str, Any]] = []
+        from src.infra.session.history_compaction import compact_history_events
 
-        def merge_key(event: Dict[str, Any]) -> Optional[tuple[Any, Any, Any, Any, Any]]:
-            event_type = event.get("event_type")
-            if event_type not in mergeable:
-                return None
-            data = event.get("data", {})
-            return (
-                event_type,
-                data.get("agent_id"),
-                data.get("depth"),
-                data.get("thinking_id"),
-                data.get("text_id"),
-            )
-
-        def flush_group() -> None:
-            nonlocal current_key, current_group
-            if current_group:
-                merged.append(self._merge_group(current_group))
-            current_key = None
-            current_group = []
-
-        for event in events:
-            key = merge_key(event)
-            if key is None:
-                flush_group()
-                merged.append(event)
-                continue
-            if current_group and key != current_key:
-                flush_group()
-            current_key = key
-            current_group.append(event)
-
-        flush_group()
-        return merged
-
-    def _merge_group(self, group: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        合并一组事件
-
-        Args:
-            group: 相同类型的连续事件列表
-
-        Returns:
-            合并后的事件
-        """
-        if len(group) == 1:
-            return group[0]
-
-        # 提取公共字段
-        first = group[0]
-        last = group[-1]
-        event_type = first.get("event_type")
-        first_data = first.get("data", {})
-
-        # 合并 content（避免创建中间列表）
-        parts: list[str] = []
-        for event in group:
-            data = event.get("data", {})
-            content = data.get("content")
-            if content:
-                parts.append(content)
-
-        # 构建合并后的事件
-        merged_data = first_data.copy()
-        merged_data["content"] = "".join(parts)
-        merged_data["merged"] = True
-        merged_data["merged_count"] = len(group)
-        merged_data["started_at"] = first.get("timestamp")
-        merged_data["ended_at"] = last.get("timestamp")
-
-        return {
-            "event_type": event_type,
-            "data": merged_data,
-            "timestamp": first.get("timestamp"),  # 使用第一个事件的时间戳
-        }
+        return compact_history_events(events, mark_merges=True)
 
 
 # Singleton

@@ -18,6 +18,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from src.api.error_handlers import register_error_handlers
 from src.api.middleware.auth import AuthMiddleware
+from src.api.middleware.compression import add_compression_middleware
 from src.api.middleware.tracing import TracingMiddleware
 from src.api.middleware.user_context import UserContextMiddleware
 from src.api.routes import (
@@ -713,6 +714,9 @@ def create_app() -> FastAPI:
     app.add_middleware(AuthMiddleware)
     app.add_middleware(TracingMiddleware)
     app.add_middleware(RequestBodyLimitMiddleware)
+
+    # gzip 压缩（最外层，压缩最终响应体；SSE 与已压缩二进制在模块内排除）
+    add_compression_middleware(app)
 
     # 全局异常处理器：统一 {"detail": {code, message, args}} 错误契约
     register_error_handlers(app)

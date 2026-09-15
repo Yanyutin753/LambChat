@@ -553,7 +553,9 @@ async def test_get_session_events_compacts_chunks_only_when_requested(
 
     assert len(response["events"]) == 1
     assert response["events"][0]["data"]["content"] == "hello world"
-    assert response["events"][0]["seq"] == 2
+    # compact_history_events 统一保留首条增量的信封（与分组归并语义一致），
+    # 内容与渲染顺序不变
+    assert response["events"][0]["seq"] == 1
 
 
 @pytest.mark.asyncio

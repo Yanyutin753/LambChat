@@ -22,6 +22,7 @@ from src.infra.session.search_index import (
     build_search_query_terms,
     compose_session_search_index,
     merge_search_state,
+    session_list_projection,
 )
 from src.infra.session.session_attachment_operations import (
     SessionAttachmentOperationsMixin,
@@ -434,7 +435,12 @@ class SessionStorage(SessionAttachmentOperationsMixin):
                 query["$or"] = favorite_query
 
         cursor = (
-            self.collection.find(query)
+            self.collection.find(
+                query,
+                # 搜索索引/预览字段可达数十 KB/会话且 Session 模型不声明,
+                # 列表读取一律投影掉;搜索路径保留 search_text 生成命中预览
+                session_list_projection(keep_search_text=bool(search)),
+            )
             .skip(skip)
             .limit(limit)
             .sort([("metadata.is_pinned", -1), ("updated_at", -1)])
@@ -485,7 +491,12 @@ class SessionStorage(SessionAttachmentOperationsMixin):
             "metadata.scheduled_task_id": scheduled_task_id,
         }
         total = await self.collection.count_documents(query)
-        cursor = self.collection.find(query).skip(skip).limit(limit).sort("updated_at", -1)
+        cursor = (
+            self.collection.find(query, session_list_projection())
+            .skip(skip)
+            .limit(limit)
+            .sort("updated_at", -1)
+        )
         sessions = []
         for session_dict in await cursor.to_list(length=limit):
             session = self._build_session(session_dict)

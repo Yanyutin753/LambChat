@@ -18,7 +18,10 @@ Current session workspace: `{work_dir}`
 
 Use this absolute, session-scoped path for shell/file output and uploads. Do not persist it in durable documents unless requested.
 
-Persistent shared dir: `/workspace/.shared` (file tools) or `$LAMBCHAT_SHARED` (shell) — reusable assets persist there across sessions; check with `ls` before transferring again."""
+Persistent shared dir: `/workspace/.shared` (file tools) or `$LAMBCHAT_SHARED` (shell) — reusable assets persist there across sessions; check with `ls` before transferring again.
+
+### Archives
+- `.rar`: use `unrar x -o+` or `bsdtar -xf` — plain `7z x` lacks the RAR codec on some sandbox images and **silently writes 0-byte files**. Never discard extraction stderr (`>/dev/null`, `|| true`); verify entry sizes after extracting."""
 
 LAZY_SANDBOX_RUNTIME_POLICY = """## Sandbox Runtime
 
@@ -30,7 +33,10 @@ Use this alias only with file tools and uploads. For shell commands, use relativ
 - File tools and shell share one sandbox filesystem. `{work_dir}/<name>` and `$LAMBCHAT_WORKSPACE/<name>` are the same directory: file-tool writes appear in the shell, and shell-created files are readable by file tools at `{work_dir}/<name>` — never at a guessed `/workspace/<name>`.
 - Absolute paths outside `{work_dir}` (e.g. `/workspace/<name>`) sit outside the work directory; the shell reaches them only by that exact absolute path, never via `$LAMBCHAT_WORKSPACE` or relative paths. Keep working files under `{work_dir}` / `$LAMBCHAT_WORKSPACE`.
 - `/skills/` and `/memories/` exist only for file tools. To run skill scripts in the shell, `transfer_path` them with target prefix `/workspace/.shared/` for reusable assets (persists across sessions — `ls` first and skip what exists; shell: `$LAMBCHAT_SHARED`) or `{work_dir}/` for one-off files.
-- `upload_url_to_sandbox` downloads inside the sandbox; pass `{work_dir}/<name>` as the target so the file lands in `$LAMBCHAT_WORKSPACE` for later shell commands."""
+- `upload_url_to_sandbox` downloads inside the sandbox; pass `{work_dir}/<name>` as the target so the file lands in `$LAMBCHAT_WORKSPACE` for later shell commands.
+
+### Archives
+- `.rar`: use `unrar x -o+` or `bsdtar -xf` — bare `7z x` may silently write 0-byte files (no RAR codec). Never hide extraction errors (`>/dev/null`, `|| true`); verify sizes (`find <dir> -size 0`) and retry another tool if empty."""
 
 WORKSPACE_POLICY = """### Workspace Boundaries
 Check whether a target exists before creating it. Modify an existing project only when requested or clearly relevant; otherwise use a named directory in the current session workspace."""

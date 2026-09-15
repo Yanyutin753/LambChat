@@ -10,6 +10,33 @@ MAX_SESSION_SEARCH_TERMS = 4096
 MAX_SESSION_SEARCH_TEXT_CHARS = 24000
 MAX_PREVIEW_CHARS = 160
 
+# 会话文档上的搜索索引/写入器字段：只被搜索与回填路径消费，可达数十
+# KB/会话；列表读取（侧边栏）一律投影掉，Session 模型也不声明它们
+SESSION_LIST_EXCLUDED_FIELDS = frozenset(
+    {
+        "search_text",
+        "search_terms",
+        "name_search_terms",
+        "message_search_terms",
+        "latest_user_message",
+        "search_index_version",
+        "search_index_updated_at",
+        "active_trace_writers",
+    }
+)
+
+
+def session_list_projection(*, keep_search_text: bool = False) -> dict[str, int]:
+    """Mongo 投影：列表读取排除搜索索引重字段。
+
+    keep_search_text=True 供搜索路径生成命中预览（search_text 不排除）。
+    """
+    projection = {field: 0 for field in SESSION_LIST_EXCLUDED_FIELDS}
+    if keep_search_text:
+        projection.pop("search_text", None)
+    return projection
+
+
 _WORD_OR_CJK_RE = re.compile(r"[A-Za-z0-9_]+|[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]+")
 _WHITESPACE_RE = re.compile(r"\s+")
 

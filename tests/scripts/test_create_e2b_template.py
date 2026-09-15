@@ -44,6 +44,41 @@ def test_build_template_installs_issue_199_commands() -> None:
     assert builder.pip_packages == EXTRA_PIP_PACKAGES
 
 
+def test_build_template_installs_rar_extraction_support() -> None:
+    """RAR 解压支持（生产会话 12ec5070 实测）：裸 p7zip-full 无 rar 编解码,
+    7z x 对 RAR5 静默产出 0 字节文件;pip 的 rarfile 没有后端二进制同样无效。"""
+    from scripts.create_e2b_template import build_template
+
+    builder = _RecordingBuilder()
+    build_template(builder)
+
+    apt = next(command for command in builder.commands if "apt-get install" in command)
+    assert "p7zip-rar" in apt
+    assert "libarchive-tools" in apt  # bsdtar(主仓库),RAR5 兜底
+
+
+def test_verify_manifest_checks_rar_extraction_tooling(tmp_path: Path) -> None:
+    from scripts.create_e2b_template import verify_manifest
+
+    manifest_path = tmp_path / "candidate.json"
+    _write_candidate_manifest(manifest_path)
+    sandbox = _RecordingSandbox()
+
+    class _FakeSandboxApi:
+        @staticmethod
+        def create(reference: str, **kwargs: object) -> _RecordingSandbox:
+            return sandbox
+
+    verify_manifest(manifest_path, "e2b-secret", sandbox_api=_FakeSandboxApi)
+
+    command = sandbox.commands.calls[0]
+    assert "dpkg -s p7zip-rar" in command
+    assert "command -v bsdtar" in command
+    # bsdtar 功能性冒烟:真实打包-解包往返(证明 libarchive 可用)
+    assert "bsdtar -cf" in command
+    assert "bsdtar -xf" in command
+
+
 def test_build_candidate_uses_unique_tag_and_writes_secret_free_manifest(
     tmp_path: Path,
 ) -> None:

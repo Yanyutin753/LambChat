@@ -372,6 +372,247 @@ def test_event_merger_only_merges_contiguous_events_to_preserve_timeline() -> No
     assert [event["data"].get("content") for event in merged] == ["a", None, "bc"]
 
 
+def test_event_merger_merges_interleaved_thinking_streams_by_thinking_id() -> None:
+    """并行子代理的 thinking 增量交错落库（生产 34K 事件的根源）：
+    按块标识分组归并到首现位置，连续合并不生效。"""
+    merger = EventMerger(trace_storage=None)
+
+    events = [
+        {
+            "event_type": "thinking",
+            "data": {"content": "A1", "thinking_id": "ta"},
+            "timestamp": "t1",
+        },
+        {
+            "event_type": "thinking",
+            "data": {"content": "B1", "thinking_id": "tb"},
+            "timestamp": "t2",
+        },
+        {"event_type": "tool:start", "data": {"tool": "read_file"}, "timestamp": "t3"},
+        {
+            "event_type": "thinking",
+            "data": {"content": "A2", "thinking_id": "ta"},
+            "timestamp": "t4",
+        },
+        {
+            "event_type": "thinking",
+            "data": {"content": "B2", "thinking_id": "tb"},
+            "timestamp": "t5",
+        },
+    ]
+
+    merged = merger._merge_events(events)
+
+    assert [event["event_type"] for event in merged] == [
+        "thinking",
+        "thinking",
+        "tool:start",
+    ]
+    assert merged[0]["data"]["content"] == "A1A2"
+    assert merged[1]["data"]["content"] == "B1B2"
+    assert merged[0]["timestamp"] == "t1"
+
+
+def test_event_merger_merges_tool_args_chunks_by_call_id() -> None:
+    merger = EventMerger(trace_storage=None)
+
+    events = [
+        {
+            "event_type": "tool:args:chunk",
+            "data": {"content": '{"a"', "tool": "read_file", "tool_call_id": "c1"},
+            "timestamp": "t1",
+        },
+        {
+            "event_type": "tool:args:chunk",
+            "data": {"content": '{"b"', "tool": "read_file", "tool_call_id": "c2"},
+            "timestamp": "t2",
+        },
+        {
+            "event_type": "tool:args:chunk",
+            "data": {"content": ": 1}", "tool": "read_file", "tool_call_id": "c1"},
+            "timestamp": "t3",
+        },
+        {
+            "event_type": "tool:args:chunk",
+            "data": {"content": ": 2}", "tool": "read_file", "tool_call_id": "c2"},
+            "timestamp": "t4",
+        },
+    ]
+
+    merged = merger._merge_events(events)
+
+    assert len(merged) == 2
+    assert merged[0]["data"]["content"] == '{"a": 1}'
+    assert merged[1]["data"]["content"] == '{"b": 2}'
+
+
+def test_event_merger_marks_merged_events_with_counts_and_times() -> None:
+    merger = EventMerger(trace_storage=None)
+
+    events = [
+        {
+            "event_type": "thinking",
+            "data": {"content": "a", "thinking_id": "t1"},
+            "timestamp": "t1",
+        },
+        {"event_type": "tool:start", "data": {"tool": "x"}, "timestamp": "t2"},
+        {
+            "event_type": "thinking",
+            "data": {"content": "b", "thinking_id": "t1"},
+            "timestamp": "t3",
+        },
+        {
+            "event_type": "thinking",
+            "data": {"content": "c", "thinking_id": "t1"},
+            "timestamp": "t4",
+        },
+    ]
+
+    merged = merger._merge_events(events)
+
+    thinking = merged[0]
+    assert thinking["data"]["merged"] is True
+    assert thinking["data"]["merged_count"] == 3
+    assert thinking["data"]["started_at"] == "t1"
+    assert thinking["data"]["ended_at"] == "t4"
+
+
+def test_event_merger_does_not_merge_thinking_across_agent_at_depth() -> None:
+    merger = EventMerger(trace_storage=None)
+
+    events = [
+        {
+            "event_type": "thinking",
+            "data": {"content": "a", "thinking_id": "t1", "depth": 1, "agent_id": "w1"},
+            "timestamp": "t1",
+        },
+        {
+            "event_type": "thinking",
+            "data": {"content": "b", "thinking_id": "t1", "depth": 1, "agent_id": "w2"},
+            "timestamp": "t2",
+        },
+    ]
+
+    merged = merger._merge_events(events)
+
+    assert [event["data"]["content"] for event in merged] == ["a", "b"]
+
+
+@pytest.mark.asyncio
+async def test_event_merger_reenqueues_traces_merged_by_old_strategy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """旧版连续合并器收缩失败也会标记 metadata.merged=True，交错的 thinking
+    trace 从未被真正合掉——按合并策略版本重新入队自愈。"""
+    import src.infra.session.event_merger as event_merger
+
+    monkeypatch.setattr(event_merger.settings, "EVENT_MERGE_BATCH_SIZE", 4, raising=False)
+    monkeypatch.setattr(
+        event_merger.settings, "SESSION_EVENT_CHUNK_STORAGE_ENABLED", False, raising=False
+    )
+    captured: dict = {}
+
+    class _Cursor:
+        def limit(self, _limit):
+            return self
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            raise StopAsyncIteration
+
+    class _Collection:
+        def find(self, filter, *args, **kwargs):
+            captured["filter"] = filter
+            return _Cursor()
+
+        async def bulk_write(self, operations, ordered: bool = False):
+            return type("_Result", (), {"modified_count": 0})()
+
+    class _TraceStorage:
+        collection = _Collection()
+
+        async def recover_incomplete_chunk_replacements(self):
+            return None
+
+    merger = EventMerger(trace_storage=_TraceStorage())
+    await merger._merge_completed_traces()
+
+    or_conditions = captured["filter"]["$and"][0]["$or"]
+    assert {"metadata.merged": {"$ne": True}} in or_conditions
+    assert {"metadata.merge_strategy": {"$ne": "grouped"}} in or_conditions
+    event_count_conditions = captured["filter"]["$and"][1]["$or"]
+    assert {"event_count": {"$exists": False}} in event_count_conditions
+
+
+@pytest.mark.asyncio
+async def test_event_merger_marks_merge_strategy_on_completion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.infra.session.event_merger as event_merger
+
+    monkeypatch.setattr(event_merger.settings, "EVENT_MERGE_BATCH_SIZE", 4, raising=False)
+    monkeypatch.setattr(
+        event_merger.settings, "SESSION_EVENT_CHUNK_STORAGE_ENABLED", False, raising=False
+    )
+    operations: list = []
+
+    class _Cursor:
+        def __init__(self) -> None:
+            self._docs = [
+                {
+                    "_id": "parent-0",
+                    "trace_id": "trace-0",
+                    "session_id": "session-1",
+                    "run_id": "run-1",
+                    "status": "completed",
+                    "updated_at": "v0",
+                    "events": [
+                        {"event_type": "thinking", "data": {"content": "a", "thinking_id": "t1"}},
+                        {"event_type": "thinking", "data": {"content": "b", "thinking_id": "t1"}},
+                    ],
+                }
+            ]
+            self._index = 0
+
+        def limit(self, _limit):
+            return self
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if self._index >= len(self._docs):
+                raise StopAsyncIteration
+            item = self._docs[self._index]
+            self._index += 1
+            return dict(item)
+
+    class _Collection:
+        def find(self, *args, **kwargs):
+            return _Cursor()
+
+        async def bulk_write(self, ops, ordered: bool = False):
+            operations.extend(ops)
+            return type("_Result", (), {"modified_count": len(ops)})()
+
+    class _TraceStorage:
+        collection = _Collection()
+
+        async def recover_incomplete_chunk_replacements(self):
+            return None
+
+    merger = EventMerger(trace_storage=_TraceStorage())
+    await merger._merge_completed_traces()
+
+    assert operations, "shrinkable trace should produce an update"
+    update = operations[0]
+    set_fields = update._doc["$set"] if hasattr(update, "_doc") else update.doc["$set"]
+    assert set_fields["metadata.merged"] is True
+    assert set_fields["metadata.merge_strategy"] == "grouped"
+
+
 @pytest.mark.asyncio
 async def test_event_merger_filters_out_giant_traces_before_loading_events(
     monkeypatch: pytest.MonkeyPatch,
@@ -416,11 +657,20 @@ async def test_event_merger_filters_out_giant_traces_before_loading_events(
 
     assert storage.collection.query == {
         "status": {"$in": ["completed", "error"]},
-        "metadata.merged": {"$ne": True},
         "attachment_chunk_write_operation": {"$exists": False},
-        "$or": [
-            {"event_count": {"$lte": 5}},
-            {"event_count": {"$exists": False}},
+        "$and": [
+            {
+                "$or": [
+                    {"metadata.merged": {"$ne": True}},
+                    {"metadata.merge_strategy": {"$ne": "grouped"}},
+                ]
+            },
+            {
+                "$or": [
+                    {"event_count": {"$lte": 5}},
+                    {"event_count": {"$exists": False}},
+                ]
+            },
         ],
     }
     assert storage.collection.projection == {

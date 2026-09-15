@@ -125,6 +125,11 @@ SYSTEM_PACKAGES = [
     "curl",
     "unzip",
     "p7zip-full",
+    # RAR 解压（生产会话 12ec5070 实测缺失）：裸 p7zip-full 无 rar 编解码,
+    # 7z x 对 RAR5 静默产出 0 字节同名文件;pip 的 rarfile 无后端二进制同样无效。
+    # p7zip-rar(non-free)给 7z 补编解码;libarchive-tools 的 bsdtar(主仓库)兜底 RAR5。
+    "p7zip-rar",
+    "libarchive-tools",
     "ripgrep",  # rg - 快速内容搜索（agent 裸 bash 调用，补 #199）
     "librsvg2-bin",  # rsvg-convert - SVG 转 PNG/PDF（补 #199）
     # 中文字体
@@ -274,11 +279,18 @@ def verify_manifest(
             "set -euo pipefail; "
             "command -v rg; "
             "command -v rsvg-convert; "
+            "dpkg -s p7zip-rar >/dev/null; "
+            "command -v bsdtar; "
             "tmpdir=$(mktemp -d); "
             "trap 'rm -rf \"$tmpdir\"' EXIT; "
             'printf \'%s\' \'<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2"><rect width="2" height="2"/></svg>\' > "$tmpdir/check.svg"; '
             'rsvg-convert "$tmpdir/check.svg" -o "$tmpdir/check.png"; '
-            'test -s "$tmpdir/check.png"'
+            'test -s "$tmpdir/check.png"; '
+            "printf 'rar-roundtrip' > \"$tmpdir/f\"; "
+            'bsdtar -cf "$tmpdir/t.tar" -C "$tmpdir" f; '
+            'mkdir "$tmpdir/out"; '
+            'bsdtar -xf "$tmpdir/t.tar" -C "$tmpdir/out"; '
+            'test "$(cat "$tmpdir/out/f")" = "rar-roundtrip"'
         )
     finally:
         sandbox.kill()
