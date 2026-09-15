@@ -30,6 +30,12 @@ export function InsightStrip({
     s.failed_requests > 0
       ? "text-amber-600 dark:text-amber-400"
       : "text-emerald-500 dark:text-emerald-400";
+  // 取消不计入失败后，失败卡片透出取消数，口径收窄才可解释
+  const cancelled = s.cancelled_requests ?? 0;
+  const failureDetail =
+    cancelled > 0
+      ? `${t("usage.insight.successRate", { rate: pct(s.success_rate) })} · ${t("usage.insight.cancelledCount", { count: fmt(cancelled) })}`
+      : t("usage.insight.successRate", { rate: pct(s.success_rate) });
 
   const insights: Insight[] = [
     {
@@ -58,7 +64,7 @@ export function InsightStrip({
       icon: AlertTriangle,
       label: t("usage.insight.failedRequests"),
       value: fmt(s.failed_requests),
-      detail: t("usage.insight.successRate", { rate: pct(s.success_rate) }),
+      detail: failureDetail,
       tone: failureTone,
     },
     {

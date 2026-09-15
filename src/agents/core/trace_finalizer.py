@@ -29,26 +29,24 @@ async def complete_owned_presenter_trace(
         if terminal_error is None:
             await presenter.complete("completed")
         else:
-            if isinstance(terminal_error, asyncio.CancelledError):
+            from src.infra.task.manager import TaskInterruptedError
+
+            # 用户取消（CancelledError / TaskInterruptedError）是独立终态，
+            # 与 executor 侧口径一致：写成 error 会让用量面板把主动停止显示为 Err
+            is_user_cancel = isinstance(
+                terminal_error, (asyncio.CancelledError, TaskInterruptedError)
+            )
+            if is_user_cancel:
                 event = presenter.error(
                     "Task cancelled", error_type="CancelledError", code="task_cancelled"
                 )
             else:
-                from src.infra.task.manager import TaskInterruptedError
-
-                if isinstance(terminal_error, TaskInterruptedError):
-                    event = presenter.error(
-                        "Task cancelled",
-                        error_type="CancelledError",
-                        code="task_cancelled",
-                    )
-                else:
-                    event = presenter.error(
-                        str(terminal_error) or type(terminal_error).__name__,
-                        error_type=type(terminal_error).__name__,
-                    )
+                event = presenter.error(
+                    str(terminal_error) or type(terminal_error).__name__,
+                    error_type=type(terminal_error).__name__,
+                )
             await presenter.emit(event)
-            await presenter.complete("error")
+            await presenter.complete("cancelled" if is_user_cancel else "error")
         setattr(presenter, _OWNED_TRACE_FINALIZED_FLAG, True)
     except Exception:
         logger.warning(

@@ -12,7 +12,10 @@ from src.infra.session._trace_storage_support import (
 from src.infra.session.trace_event_chunks import ATTACHMENT_CHUNK_WRITE_FIELD
 from src.infra.utils.datetime import utc_now
 
-ATTACHMENT_CLEAR_TERMINAL_STATUSES = ("completed", "error")
+# cancelled（用户取消）是独立终态：不列入的话含取消记录的会话永远删不掉
+# （expire_stale_running_traces 只回收 running，cancelled 会卡住
+# session_delete_has_trace_survivors）
+ATTACHMENT_CLEAR_TERMINAL_STATUSES = ("completed", "error", "cancelled")
 
 # A running trace whose updated_at heartbeat is older than this TTL belongs to
 # a writer that is gone (crashed run / missed restart recovery); it can never

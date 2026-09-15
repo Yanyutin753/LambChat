@@ -1375,7 +1375,8 @@ html.dark .blog-landing-container::after {
    底色与 ChatPageSkeleton 一致，跳转后视觉无缝衔接
    ═══════════════════════════════════════════ */
 .auto-login-splash {
-  min-height: 100dvh;
+  /* 桌面自绘标题栏让位（网页 --titlebar-inset 为 0，行为不变） */
+  min-height: calc(100dvh - var(--titlebar-inset, 0px));
   display: flex;
   align-items: center;
   justify-content: center;

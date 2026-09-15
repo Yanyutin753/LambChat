@@ -12,6 +12,6 @@ test("global toaster gives default toasts a dismiss button without wrapping cust
   expect(appSource).toMatch(/aria-label=\{t\("common\.dismiss"/);
   expect(appSource).toMatch(/flex w-full items-center gap-3 text-left/);
   expect(appSource).toMatch(
-    /top:\s*"calc\(56px \+ var\(--app-safe-area-top, 0px\)\)"/,
+    /top:\s*"calc\(56px \+ var\(--app-safe-area-top, 0px\) \+ var\(--titlebar-inset, 0px\)\)"/,
   );
 });

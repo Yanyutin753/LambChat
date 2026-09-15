@@ -422,7 +422,8 @@ class TaskExecutor:
             except Exception:
                 pass
         if presenter is not None:
-            await presenter.complete("error")
+            # 用户取消是独立终态，不能写成 error（用量面板按 trace status 展示）
+            await presenter.complete("cancelled")
         logger.warning(f"Task cancelled: session={session_id}, run_id={run_id}")
         # 发送任务取消通知
         await self._send_task_notification(
@@ -550,7 +551,8 @@ class TaskExecutor:
             except Exception:
                 pass
         if presenter is not None:
-            await presenter.complete("error")
+            # TaskInterruptedError 即用户取消路径，同样以 cancelled 终结
+            await presenter.complete("cancelled")
         logger.info(f"Task interrupted: session={session_id}, run_id={run_id}")
         # 发送任务中断通知
         await self._send_task_notification(

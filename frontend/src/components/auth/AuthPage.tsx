@@ -451,7 +451,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
   }
 
   return (
-    <div className="auth-shell auth-lamb-shell min-h-[100svh] min-h-[100dvh] overflow-y-auto overflow-x-hidden">
+    <div className="auth-shell auth-lamb-shell min-h-[calc(100svh-var(--titlebar-inset,0px))] min-h-[calc(100dvh-var(--titlebar-inset,0px))] overflow-y-auto overflow-x-hidden">
       <div className="auth-crosshatch" aria-hidden="true" />
       <div className="auth-lamb-pattern" aria-hidden="true" />
 
@@ -488,13 +488,13 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
 
       {/* Main content */}
       <div
-        className={`relative z-10 flex min-h-[100svh] min-h-[100dvh] justify-center lg:justify-stretch ${
+        className={`relative z-10 flex min-h-[calc(100svh-var(--titlebar-inset,0px))] min-h-[calc(100dvh-var(--titlebar-inset,0px))] justify-center lg:justify-stretch ${
           isKeyboardOpen
             ? "items-start px-4 pt-[calc(4rem+var(--app-safe-area-top,0px))] sm:px-6 sm:pt-[calc(5rem+var(--app-safe-area-top,0px))] lg:px-0 lg:pt-0"
             : "items-center px-4 pt-[calc(5.5rem+var(--app-safe-area-top,0px))] pb-[calc(4.5rem+var(--app-safe-area-bottom,0px))] sm:px-6 sm:pt-[calc(6rem+var(--app-safe-area-top,0px))] sm:pb-[calc(5rem+var(--app-safe-area-bottom,0px))] lg:px-0 lg:py-0"
         }`}
       >
-        <div className="grid w-full max-w-[980px] items-center gap-8 lg:min-h-[100svh] lg:max-w-none lg:grid-cols-2 lg:gap-0">
+        <div className="grid w-full max-w-[980px] items-center gap-8 lg:min-h-[calc(100svh-var(--titlebar-inset,0px))] lg:max-w-none lg:grid-cols-2 lg:gap-0">
           <div
             ref={characterPanelRef}
             className="auth-illustration-panel hidden lg:flex"
@@ -564,7 +564,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
             </div>
           </div>
 
-          <div className="auth-form-side relative flex w-full justify-center lg:min-h-[100svh] lg:items-center">
+          <div className="auth-form-side relative flex w-full justify-center lg:min-h-[calc(100svh-var(--titlebar-inset,0px))] lg:items-center">
             <div className="absolute right-6 top-6 hidden items-center gap-1.5 lg:flex">
               <LanguageToggle />
               <ThemeToggle />

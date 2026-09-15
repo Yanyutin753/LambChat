@@ -1,7 +1,8 @@
 /* Shared page server preview transition */
 #shared-server-preview {
   transition: opacity 0.35s ease;
-  min-height: 100dvh;
+  /* 桌面自绘标题栏让位（网页 --titlebar-inset 为 0，行为不变） */
+  min-height: calc(100dvh - var(--titlebar-inset, 0px));
 }
 #shared-server-preview.shared-preview-fade-out {
   opacity: 0;

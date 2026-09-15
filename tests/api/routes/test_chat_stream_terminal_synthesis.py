@@ -114,6 +114,27 @@ async def test_expired_stream_with_failed_run_synthesizes_terminal_error(monkeyp
     assert "Worker crashed" in body
 
 
+async def test_expired_stream_with_cancelled_run_synthesizes_terminal_error(monkeypatch):
+    """用户取消的 run 终态是 cancelled：重连时同样合成终态事件断流，
+    且 error 事件带 task_cancelled 类型供前端区分展示。"""
+    _install(
+        monkeypatch,
+        stream_len=0,
+        metadata={
+            "current_run_id": "r1",
+            "task_status": "cancelled",
+            "task_error": "Task cancelled",
+        },
+        trace_docs=[{"status": "cancelled"}],
+    )
+    response = await session_stream("s1", run_id="r1", user=_user())
+    body = await _collect(response)
+    assert "event: error" in body
+    assert '"type":"task_cancelled"' in body.replace(" ", "")
+    assert '"run_id":"r1"' in body.replace(" ", "")
+    assert "Task cancelled" in body
+
+
 async def test_expired_stream_with_running_run_keeps_waiting(monkeypatch):
     """stream 空但 run 还在跑（孤儿接管窗口期）：维持现状挂流等待，
     不合成终态。"""

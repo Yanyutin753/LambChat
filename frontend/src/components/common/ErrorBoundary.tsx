@@ -37,7 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
       const t = i18n.t.bind(i18n);
       const isChunkError = isChunkLoadError(this.state.error);
       return (
-        <div className="safe-area-viewport-padding min-h-screen flex items-center justify-center bg-stone-50 dark:bg-stone-950 px-4">
+        <div className="safe-area-viewport-padding min-h-[calc(100vh-var(--titlebar-inset,0px))] flex items-center justify-center bg-stone-50 dark:bg-stone-950 px-4">
           <div className="w-full max-w-[380px] sm:max-w-[420px] rounded-2xl border border-stone-200/80 dark:border-stone-800/60 bg-white/80 dark:bg-stone-900/80 p-8 sm:p-10 text-center shadow-[0_2px_12px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_16px_rgba(0,0,0,0.2)]">
             <div className="mx-auto mb-5 w-14 h-14 rounded-full bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center">
               <AlertTriangle className="w-7 h-7 text-amber-500 dark:text-amber-400" />

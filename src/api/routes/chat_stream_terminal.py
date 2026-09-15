@@ -35,7 +35,7 @@ async def resolve_terminal_stream_status(session: Any, run_id: str) -> str | Non
         traces = await cursor.to_list(length=1)
         if traces:
             status = traces[0].get("status")
-            if status in ("completed", "error"):
+            if status in ("completed", "error", "cancelled"):
                 return status
             return None  # running 等非终态：孤儿接管/续跑窗口期，继续等
     except Exception as e:  # noqa: BLE001 - 状态查询尽力而为，失败维持现状
@@ -47,7 +47,9 @@ async def resolve_terminal_stream_status(session: Any, run_id: str) -> str | Non
             task_status = metadata.get("task_status")
             if task_status == "completed":
                 return "completed"
-            if task_status in ("error", "failed", "cancelled"):
+            if task_status == "cancelled":
+                return "cancelled"
+            if task_status in ("error", "failed"):
                 return "error"
     except Exception as e:  # noqa: BLE001 - 同上
         logger.warning("[SSE] Terminal status lookup via session metadata failed: %s", e)
@@ -65,6 +67,21 @@ def synthesize_terminal_stream_event(run_id: str, session: Any, terminal: str) -
             "timestamp": timestamp,
         }
     metadata = getattr(session, "metadata", None) or {}
+    if terminal == "cancelled":
+        # 用户取消：同样以 error 事件断流（前端靠 error 事件收尾），
+        # 但 type/task_error 区分于真失败，避免客户端误报为故障
+        message = metadata.get("task_error") or "Task cancelled by user."
+        return {
+            "event_type": "error",
+            "data": {
+                "error": message,
+                "type": "task_cancelled",
+                "run_id": run_id,
+                "code": "run_cancelled",
+            },
+            "id": f"synthetic:{run_id}:error",
+            "timestamp": timestamp,
+        }
     message = metadata.get("task_error") or "This run has already ended."
     return {
         "event_type": "error",

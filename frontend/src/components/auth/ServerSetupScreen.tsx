@@ -44,7 +44,7 @@ export function ServerSetupScreen() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-stone-100 p-6 dark:bg-stone-900">
+    <div className="flex min-h-[calc(100vh-var(--titlebar-inset,0px))] items-center justify-center bg-stone-100 p-6 dark:bg-stone-900">
       <div className="w-full max-w-md rounded-3xl border border-stone-200/70 bg-white/90 p-8 shadow-xl backdrop-blur dark:border-stone-700/60 dark:bg-stone-800/90">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex size-11 items-center justify-center rounded-2xl bg-amber-500/10">

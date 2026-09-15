@@ -3570,6 +3570,7 @@
     "inputTokens": "输入 Tokens",
     "insight": {
       "automationShare": "自动化占比",
+      "cancelledCount": "已取消 {{count}}",
       "avgPerRequest": "平均单次",
       "cacheReuse": "缓存复用",
       "failedRequests": "异常请求",
@@ -3623,6 +3624,7 @@
     "searchPlaceholder": "搜索用户名...",
     "statsScopeHint": "顶部统计为当前筛选下全部数据",
     "status": "状态",
+    "statusCancelled": "已取消",
     "statusError": "Err",
     "statusOk": "OK",
     "subtitle": "Token 消耗追踪",
@@ -3736,7 +3738,9 @@
     "updateRelaunchInstall": "重启并安装",
     "availableTitle": "发现新版本",
     "skipVersion": "跳过此版本",
-    "viewFullNotes": "查看完整更新日志"
+    "viewFullNotes": "查看完整更新日志",
+    "foundToast": "发现新版本 v{{version}}",
+    "notificationBodyDesktop": "新版本 {{version}} 已开始后台下载，完成后可在标题栏一键重启安装"
   },
   "download": {
     "title": "下载本地沙箱",
@@ -3779,5 +3783,13 @@
       "title": "手机端 App",
       "desc": "LambChat Android 客户端（APK 直装），与网页端同一账号登录。"
     }
+  },
+  "titlebar": {
+    "back": "后退",
+    "forward": "前进",
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "还原",
+    "close": "关闭"
   }
 }

@@ -34,7 +34,7 @@ test("the authenticated app shell reserves both status bar and home indicator ar
   expect(shell).toMatch(/paddingTop:\s*appSafeAreaTop/);
   expect(shell).toMatch(/paddingBottom:\s*appSafeAreaBottom/);
   expect(shell).toMatch(
-    /height:\s*`calc\(var\(--app-viewport-height, 100dvh\) - \$\{appSafeAreaTop\} - \$\{appSafeAreaBottom\}\)`/,
+    /height:\s*`calc\(var\(--app-viewport-height, 100dvh\) - \$\{appSafeAreaTop\} - \$\{appSafeAreaBottom\} - var\(--titlebar-inset, 0px\)\)`/,
   );
 });
 

@@ -73,12 +73,26 @@ async def test_terminal_error_emits_error_event_and_finalizes_as_error() -> None
 
 
 @pytest.mark.asyncio
-async def test_cancellation_finalizes_as_error_with_cancelled_code() -> None:
+async def test_cancellation_finalizes_as_cancelled_with_cancelled_code() -> None:
     presenter = _FakePresenter()
 
     await complete_owned_presenter_trace(presenter, terminal_error=asyncio.CancelledError())
 
-    assert presenter.completed == ["error"]
+    # 用户取消是独立终态：写成 error 会让用量面板把主动停止显示为 Err
+    assert presenter.completed == ["cancelled"]
+    assert presenter.emitted[0]["data"]["code"] == "task_cancelled"
+
+
+@pytest.mark.asyncio
+async def test_interrupted_finalizes_as_cancelled_with_cancelled_code() -> None:
+    from src.infra.task.manager import TaskInterruptedError
+
+    presenter = _FakePresenter()
+
+    await complete_owned_presenter_trace(presenter, terminal_error=TaskInterruptedError("stop"))
+
+    # TaskInterruptedError 即用户取消路径（与 executor 侧口径一致）
+    assert presenter.completed == ["cancelled"]
     assert presenter.emitted[0]["data"]["code"] == "task_cancelled"
 
 

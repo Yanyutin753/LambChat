@@ -156,7 +156,9 @@ class TaskCancellation:
                     trace_storage = get_trace_storage()
                     success = await trace_storage.complete_trace(
                         trace_id,
-                        status="error",
+                        # 用户取消是独立终态：写成 error 会让用量面板把主动
+                        # 停止误读为服务故障（cancel_reason 供面板透出原因）
+                        status="cancelled",
                         metadata={"cancel_reason": "Task cancelled by user"},
                         ensure_token_usage=False,
                     )

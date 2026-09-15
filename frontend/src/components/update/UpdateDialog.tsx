@@ -75,7 +75,7 @@ export function UpdateDialog({
             : isLinuxPackage
               ? t("updateDownloadAndInstall", "下载并安装")
               : state.readyToInstall
-                ? t("updateRelaunchInstall", "重启并安装")
+                ? t("update.updateRelaunchInstall", "重启并安装")
                 : t("updateDownload", "立即升级")}
       </button>
     </>

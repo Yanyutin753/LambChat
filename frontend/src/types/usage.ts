@@ -64,6 +64,7 @@ export interface UsageDashboardSummary {
   total_tool_calls: number;
   scheduled_runs: number;
   failed_requests: number;
+  cancelled_requests?: number;
   success_rate: number;
   avg_tokens_per_request: number;
   avg_duration_per_request: number;

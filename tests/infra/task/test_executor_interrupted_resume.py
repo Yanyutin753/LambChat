@@ -154,7 +154,7 @@ async def test_shutdown_cancel_writes_no_terminal_events(monkeypatch: pytest.Mon
 
 @pytest.mark.asyncio
 async def test_user_cancel_still_writes_terminal_events(monkeypatch: pytest.MonkeyPatch) -> None:
-    """用户取消（interrupt 标志在）保持旧行为：写终态事件并把 trace 终结为 error。"""
+    """用户取消（interrupt 标志在）写终态事件并把 trace 终结为 cancelled。"""
     executor, writer, holder, _ = _executor_fixture(monkeypatch, interrupt_flag=True)
 
     with pytest.raises(asyncio.CancelledError):
@@ -169,7 +169,7 @@ async def test_user_cancel_still_writes_terminal_events(monkeypatch: pytest.Monk
         )
 
     presenter = holder["presenter"]
-    assert presenter.completions == ["error"]
+    assert presenter.completions == ["cancelled"]
     written_types = [event["event_type"] for event in writer.written]
     assert "user:cancel" in written_types
     assert "error" in written_types

@@ -19,7 +19,11 @@ import type {
   HistoryEventData,
   ActiveGoalSpec,
 } from "./types";
-import { convertAttachments, processMessageEvent } from "./eventProcessor";
+import {
+  convertAttachments,
+  isCancelledErrorType,
+  processMessageEvent,
+} from "./eventProcessor";
 import {
   clearAllLoadingStates,
   createToolPart,
@@ -274,7 +278,7 @@ function processHistoryEvent(
   // CancelledError with no current message — don't create an empty assistant message
   if (eventType === "error") {
     const errorData = eventData as { type?: string };
-    if (errorData.type === "CancelledError" && !currentAssistantMessage) {
+    if (isCancelledErrorType(errorData.type) && !currentAssistantMessage) {
       return null;
     }
   }

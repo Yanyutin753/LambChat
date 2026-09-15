@@ -14,7 +14,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   const isKeyboardOpen = useMobileKeyboardAware();
 
   return (
-    <div className="auth-shell min-h-[100svh] min-h-[100dvh] overflow-y-auto overflow-x-hidden">
+    <div className="auth-shell min-h-[calc(100svh-var(--titlebar-inset,0px))] min-h-[calc(100dvh-var(--titlebar-inset,0px))] overflow-y-auto overflow-x-hidden">
       <div className="auth-crosshatch" aria-hidden="true" />
       <div className="auth-atmosphere" aria-hidden="true">
         <div className="auth-glow-main absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[500px] bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.06)_0%,rgba(251,146,60,0.025)_40%,transparent_70%)] dark:bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.035)_0%,rgba(251,146,60,0.015)_40%,transparent_70%)]" />
@@ -42,7 +42,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
       </nav>
 
       <div
-        className={`relative z-10 flex min-h-[100svh] min-h-[100dvh] justify-center px-4 sm:px-6 ${
+        className={`relative z-10 flex min-h-[calc(100svh-var(--titlebar-inset,0px))] min-h-[calc(100dvh-var(--titlebar-inset,0px))] justify-center px-4 sm:px-6 ${
           isKeyboardOpen
             ? "items-start pt-16 sm:pt-20"
             : "items-center py-20 sm:py-24"

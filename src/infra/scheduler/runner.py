@@ -115,6 +115,37 @@ async def _resolve_task_owner(user_id: str) -> TokenPayload | None:
     )
 
 
+async def _agent_options_with_default_model(
+    agent_options: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """未显式选模的定时任务注入全局默认模型。
+
+    不注入时节点运行期照样静默走默认模型，但 presenter 配置与
+    token:usage 事件都拿不到模型名——用量面板的模型列与费用全部缺失。
+    已带 model/model_id 的选项原样返回，不覆盖创建时的显式选择。
+    """
+    options = dict(agent_options) if isinstance(agent_options, dict) else {}
+    if options.get("model") or options.get("model_id"):
+        return agent_options
+    from src.infra.llm.models_service import get_default_model, get_default_model_id
+
+    try:
+        model = await get_default_model()
+    except Exception as e:  # noqa: BLE001 - 模型归属尽力而为，不得阻塞任务执行
+        logger.warning("[ScheduledTask] Failed to resolve default model for attribution: %s", e)
+        return agent_options
+    if not model:
+        return agent_options
+    options["model"] = model
+    try:
+        model_id = await get_default_model_id()
+    except Exception:  # noqa: BLE001 - 同上，缺 model_id 不影响模型 value 归属
+        model_id = ""
+    if model_id:
+        options["model_id"] = model_id
+    return options
+
+
 class ScheduledTaskRunner:
     """Execute a scheduled task: acquire lock → create record → run agent → record result."""
 
@@ -397,6 +428,7 @@ class ScheduledTaskRunner:
             await validate_agent_model_access(agent_options, user)
         else:
             agent_options = None
+        agent_options = await _agent_options_with_default_model(agent_options)
 
         persona_preset_id = task.input_payload.get("persona_preset_id")
         persona_preset_id = (

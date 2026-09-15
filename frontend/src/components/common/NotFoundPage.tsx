@@ -8,7 +8,7 @@ export function NotFoundPage() {
   const navigate = useNavigate();
 
   return (
-    <div className="safe-area-viewport-padding flex h-screen w-full flex-col items-center justify-center bg-theme-bg dark:bg-stone-900 px-4">
+    <div className="safe-area-viewport-padding flex h-[calc(100vh-var(--titlebar-inset,0px))] w-full flex-col items-center justify-center bg-theme-bg dark:bg-stone-900 px-4">
       <div className="flex flex-col items-center max-w-md text-center">
         {/* Title */}
         <h1 className="text-24 font-semibold font-serif text-stone-900 dark:text-stone-100 mb-2">

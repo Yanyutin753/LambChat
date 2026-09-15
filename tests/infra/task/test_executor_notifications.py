@@ -232,6 +232,8 @@ async def test_cancelled_task_emits_user_cancel_before_done(
         "run-1",
     ]
     assert writer.expired_streams == [("session-1", "run-1", 60)]
+    # 用户取消的 trace 终态是 cancelled（用量面板按 trace status 照抄展示）
+    assert [(c[0], c[1]) for c in writer.completed] == [("trace-1", "cancelled")]
 
 
 @pytest.mark.asyncio
@@ -264,6 +266,8 @@ async def test_interrupted_task_emits_user_cancel_before_done(
         "error",
         "done",
     ]
+    # 用户中断（TaskInterruptedError）同样以 cancelled 终结 trace
+    assert [(c[0], c[1]) for c in writer.completed] == [("trace-1", "cancelled")]
 
 
 @pytest.mark.asyncio

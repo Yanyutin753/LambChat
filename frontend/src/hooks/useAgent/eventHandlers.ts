@@ -7,7 +7,7 @@
  * and React state updates (side effects).
  */
 
-import type { Message, MessagePart } from "../../types";
+import type { Message } from "../../types";
 import { uuid } from "../../utils/uuid";
 import { sessionApi } from "../../services/api/session";
 import i18n from "../../i18n";
@@ -26,7 +26,12 @@ import {
 } from "./messageParts";
 import { splitAssistantTurn } from "./steerTurnSplit";
 import { settleAssistantMessage } from "./settleStream";
-import { convertAttachments, processMessageEvent } from "./eventProcessor";
+import {
+  appendCancelledPart,
+  convertAttachments,
+  isCancelledErrorType,
+  processMessageEvent,
+} from "./eventProcessor";
 import { dispatchToolMutationRefresh } from "../../components/chat/ChatMessage/items/toolMutationEvents";
 
 /**
@@ -672,7 +677,7 @@ function handleError(
   const errorMsg = data.error
     ? translateApiError(data.code, data.error, undefined, i18n.t.bind(i18n))
     : i18n.t("chat.unknownError");
-  const isCancelled = forceCancelled || data.type === "CancelledError";
+  const isCancelled = forceCancelled || isCancelledErrorType(data.type);
 
   ctx.setMessages((prev) =>
     prev.map((m) => {
@@ -701,13 +706,6 @@ function handleError(
     ctx.setIsInitializingSandbox(false);
   }
   ctx.options?.onClearApprovals?.(ctx.sessionIdRef.current);
-}
-
-function appendCancelledPart(parts: MessagePart[]): MessagePart[] {
-  if (parts.some((part) => part.type === "cancelled")) {
-    return parts;
-  }
-  return [...parts, { type: "cancelled" }];
 }
 
 function appendAskHumanToolPart(

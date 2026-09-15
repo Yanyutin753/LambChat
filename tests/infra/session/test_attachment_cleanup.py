@@ -1016,6 +1016,19 @@ async def test_cleanup_snapshot_deletes_every_terminal_parent_and_only_its_exact
                 "events": [{"event_type": "assistant:message", "data": {}}],
             },
             {
+                "_id": "parent-cancelled",
+                "session_id": "session-1",
+                "trace_id": "trace-cancelled",
+                "status": "cancelled",
+                "updated_at": before,
+                "events": [
+                    {
+                        "event_type": "user:message",
+                        "data": {"attachments": [{"key": "cancelled-key"}]},
+                    }
+                ],
+            },
+            {
                 "_id": "parent-no-trace-id",
                 "session_id": "session-1",
                 "status": "completed",
@@ -1129,16 +1142,23 @@ async def test_cleanup_snapshot_deletes_every_terminal_parent_and_only_its_exact
         {
             "parent-key": 1,
             "no-trace-key": 1,
+            "cancelled-key": 1,
             "chunk-key": 1,
             "unrelated-key": 1,
         }
     )
-    assert trace_ids == ["trace-user", "trace-no-user"]
-    assert parent_ids == ["parent-user", "parent-no-user", "parent-no-trace-id"]
+    assert trace_ids == ["trace-user", "trace-no-user", "trace-cancelled"]
+    assert parent_ids == [
+        "parent-user",
+        "parent-no-user",
+        "parent-cancelled",
+        "parent-no-trace-id",
+    ]
     assert chunk_ids == ["chunk-user", "chunk-no-user", "chunk-unrelated"]
     assert parents.ids() == {
         "parent-active",
         "parent-post-cutoff",
+        "parent-cancelled",
         "parent-unknown-status",
         "parent-user",
         "parent-no-user",

@@ -154,7 +154,8 @@ class TaskPubSub:
                         trace_storage = get_trace_storage()
                         success = await trace_storage.complete_trace(
                             trace_id,
-                            status="error",
+                            # 用户取消独立于 error：用量面板按此展示「已取消」
+                            status="cancelled",
                             metadata={"cancel_reason": "Task cancelled via pub/sub"},
                             ensure_token_usage=False,
                         )

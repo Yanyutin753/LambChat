@@ -3570,6 +3570,7 @@
     "inputTokens": "入力Tokens",
     "insight": {
       "automationShare": "自動化比率",
+      "cancelledCount": "キャンセル {{count}}",
       "avgPerRequest": "平均リクエスト",
       "cacheReuse": "キャッシュ再利用",
       "failedRequests": "異常リクエスト",
@@ -3623,6 +3624,7 @@
     "searchPlaceholder": "ユーザー名で検索...",
     "statsScopeHint": "集計はすべての一致するレコードを対象としています",
     "status": "ステータス",
+    "statusCancelled": "取消済み",
     "statusError": "Err",
     "statusOk": "OK",
     "subtitle": "Token消費の追跡",
@@ -3736,7 +3738,9 @@
     "updateRelaunchInstall": "再起動してインストール",
     "availableTitle": "新しいバージョンがあります",
     "skipVersion": "このバージョンをスキップ",
-    "viewFullNotes": "更新履歴をすべて表示"
+    "viewFullNotes": "更新履歴をすべて表示",
+    "foundToast": "新バージョン v{{version}} があります",
+    "notificationBodyDesktop": "新バージョン {{version}} をバックグラウンドでダウンロード中です。完了後、タイトルバーから再起動してインストールできます"
   },
   "download": {
     "title": "ローカルサンドボックスのダウンロード",
@@ -3779,5 +3783,13 @@
       "title": "モバイルアプリ",
       "desc": "LambChat Android クライアント（APK 直接インストール）。Web と同じアカウントでログインできます。"
     }
+  },
+  "titlebar": {
+    "back": "戻る",
+    "forward": "進む",
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "元に戻す",
+    "close": "閉じる"
   }
 }

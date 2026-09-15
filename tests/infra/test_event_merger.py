@@ -316,7 +316,7 @@ async def test_event_merger_processes_traces_with_bounded_coroutines(
         assert operation._filter == {
             "_id": f"parent-{index}",
             "trace_id": f"trace-{index}",
-            "status": {"$in": ["completed", "error"]},
+            "status": {"$in": ["completed", "error", "cancelled"]},
             "updated_at": f"version-{index}",
             "attachment_chunk_write_operation": {"$exists": False},
         }
@@ -732,7 +732,7 @@ async def test_event_merger_filters_out_giant_traces_before_loading_events(
     await merger._merge_completed_traces()
 
     assert storage.collection.query == {
-        "status": {"$in": ["completed", "error"]},
+        "status": {"$in": ["completed", "error", "cancelled"]},
         "attachment_chunk_write_operation": {"$exists": False},
         "$and": [
             {

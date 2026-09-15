@@ -3,28 +3,45 @@ import { useTranslation } from "react-i18next";
 import { formatDateTimeShort } from "../../../utils/datetime";
 import type { UsageLog } from "../../../types/usage";
 import { useFxRates } from "../../../hooks/useFxRates";
-import { fmt, fmtCostUsd, fmtDur, type CostFormatOpts } from "./formatters";
+import {
+  fmt,
+  fmtCostUsd,
+  fmtDur,
+  usageStatusKind,
+  type CostFormatOpts,
+} from "./formatters";
+
+const _STATUS_PILL_STYLES: Record<
+  ReturnType<typeof usageStatusKind>,
+  { pill: string; dot: string; labelKey: string }
+> = {
+  ok: {
+    pill: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    dot: "bg-emerald-500 animate-[status-ok-pulse_2s_ease-in-out_infinite]",
+    labelKey: "usage.statusOk",
+  },
+  cancelled: {
+    pill: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    dot: "bg-amber-500",
+    labelKey: "usage.statusCancelled",
+  },
+  error: {
+    pill: "bg-red-500/10 text-red-500 dark:text-red-400",
+    dot: "bg-red-500",
+    labelKey: "usage.statusError",
+  },
+};
 
 function StatusPill({ status, title }: { status: string; title?: string }) {
   const { t } = useTranslation();
-  const ok = status === "completed";
+  const style = _STATUS_PILL_STYLES[usageStatusKind(status)];
   return (
     <span
       title={title}
-      className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-10 font-medium tabular-nums ${
-        ok
-          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-          : "bg-red-500/10 text-red-500 dark:text-red-400"
-      }`}
+      className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-10 font-medium tabular-nums ${style.pill}`}
     >
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${
-          ok
-            ? "bg-emerald-500 animate-[status-ok-pulse_2s_ease-in-out_infinite]"
-            : "bg-red-500"
-        }`}
-      />
-      {ok ? t("usage.statusOk") : t("usage.statusError")}
+      <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+      {t(style.labelKey)}
     </span>
   );
 }
@@ -257,7 +274,11 @@ function TabletRow({
           </p>
           {log.status !== "completed" && log.error_message && (
             <p
-              className="mt-1 truncate text-10 text-red-500 dark:text-red-400"
+              className={`mt-1 truncate text-10 ${
+                usageStatusKind(log.status) === "cancelled"
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "text-red-500 dark:text-red-400"
+              }`}
               title={log.error_message}
             >
               {log.error_message}
@@ -322,7 +343,7 @@ function MobileCard({
   costOpts: CostFormatOpts;
 }) {
   const { t } = useTranslation();
-  const ok = log.status === "completed";
+  const statusKind = usageStatusKind(log.status);
   const personaOrTeam = [log.persona_preset_name, log.team_name]
     .filter(Boolean)
     .join(" · ");
@@ -335,9 +356,11 @@ function MobileCard({
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
             <div
               className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                ok
+                statusKind === "ok"
                   ? "bg-emerald-500/[0.08] text-emerald-600 dark:text-emerald-400"
-                  : "bg-red-500/[0.08] text-red-500 dark:text-red-400"
+                  : statusKind === "cancelled"
+                    ? "bg-amber-500/[0.08] text-amber-600 dark:text-amber-400"
+                    : "bg-red-500/[0.08] text-red-500 dark:text-red-400"
               }`}
             >
               <Bot size={16} strokeWidth={2} />
@@ -358,7 +381,11 @@ function MobileCard({
               </div>
               {log.status !== "completed" && log.error_message && (
                 <p
-                  className="mt-2 truncate text-10 text-red-500 dark:text-red-400"
+                  className={`mt-2 truncate text-10 ${
+                    statusKind === "cancelled"
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-red-500 dark:text-red-400"
+                  }`}
                   title={log.error_message}
                 >
                   {log.error_message}

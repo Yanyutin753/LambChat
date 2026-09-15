@@ -19,5 +19,8 @@ test("auth pages use safe centered mobile layout classes", () => {
   expect(forgotPassword.includes("max-wfull")).toBe(false);
   expect(resetPassword.includes("max-wfull")).toBe(false);
   expect(authPage.includes("auth-crosshatch")).toBe(true);
-  expect(authPage.includes("min-h-[100dvh]")).toBe(true);
+  // 全屏高度扣除自绘标题栏（网页 --titlebar-inset 为 0，行为不变）
+  expect(
+    authPage.includes("min-h-[calc(100dvh-var(--titlebar-inset,0px))]"),
+  ).toBe(true);
 });

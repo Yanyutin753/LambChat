@@ -796,3 +796,27 @@ test("summary stats event lands inside the subagent like its text", () => {
     freed_tokens: 777,
   });
 });
+
+test("synthesized reconnect cancel (type task_cancelled) is treated as cancelled, not failure", () => {
+  const result = processMessageEvent(
+    "error",
+    {
+      error: "Task cancelled by user.",
+      type: "task_cancelled",
+      run_id: "run-1",
+      code: "run_cancelled",
+    },
+    [{ type: "text", content: "partial" }],
+    "partial",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  // chat_stream_terminal 合成的重连取消事件：与 CancelledError 同属用户取消，
+  // 不得渲染成错误气泡（content 保持原文，不打错误前缀）
+  expect(result.cancelled).toBe(true);
+  expect(result.content).toBe("partial");
+});

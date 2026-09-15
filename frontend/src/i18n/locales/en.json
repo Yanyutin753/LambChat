@@ -3570,6 +3570,7 @@
     "inputTokens": "Input Tokens",
     "insight": {
       "automationShare": "Automation Share",
+      "cancelledCount": "Cancelled {{count}}",
       "avgPerRequest": "Avg per Request",
       "cacheReuse": "Cache Reuse",
       "failedRequests": "Failed Requests",
@@ -3623,6 +3624,7 @@
     "searchPlaceholder": "Search by username...",
     "statsScopeHint": "Summary covers all matching records",
     "status": "Status",
+    "statusCancelled": "Canceled",
     "statusError": "Err",
     "statusOk": "OK",
     "subtitle": "Token consumption tracking",
@@ -3736,7 +3738,9 @@
     "updateRelaunchInstall": "Restart & install",
     "availableTitle": "Update Available",
     "skipVersion": "Skip This Version",
-    "viewFullNotes": "View full changelog"
+    "viewFullNotes": "View full changelog",
+    "foundToast": "New version v{{version}} available",
+    "notificationBodyDesktop": "Version {{version}} is downloading in the background. Restart to install from the title bar when it's ready"
   },
   "download": {
     "title": "Download Local Sandbox",
@@ -3779,5 +3783,13 @@
       "title": "Mobile app",
       "desc": "The LambChat Android client (direct APK install) — sign in with the same account as the web."
     }
+  },
+  "titlebar": {
+    "back": "Back",
+    "forward": "Forward",
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "restore": "Restore",
+    "close": "Close"
   }
 }

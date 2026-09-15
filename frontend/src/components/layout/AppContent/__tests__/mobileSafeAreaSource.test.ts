@@ -24,6 +24,6 @@ test("app shell reserves native mobile status bar safe area", () => {
   expect(shell).toMatch(/paddingTop:\s*appSafeAreaTop/);
   expect(shell).toMatch(/paddingBottom:\s*appSafeAreaBottom/);
   expect(shell).toMatch(
-    /height:\s*`calc\(var\(--app-viewport-height, 100dvh\) - \$\{appSafeAreaTop\} - \$\{appSafeAreaBottom\}\)`/,
+    /height:\s*`calc\(var\(--app-viewport-height, 100dvh\) - \$\{appSafeAreaTop\} - \$\{appSafeAreaBottom\} - var\(--titlebar-inset, 0px\)\)`/,
   );
 });

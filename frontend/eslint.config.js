@@ -25,7 +25,7 @@ export default tseslint.config(
         "warn",
         {
           allowConstantExport: true,
-          allowExportNames: ["useSessionImageGallery"],
+          allowExportNames: ["useSessionImageGallery", "useNavigationHistory"],
         },
       ],
       "@typescript-eslint/no-unused-vars": [

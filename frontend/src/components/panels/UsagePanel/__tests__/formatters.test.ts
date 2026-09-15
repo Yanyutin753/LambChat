@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 
-import { fmt, fmtCostUsd, pct, precise } from "../formatters";
+import { fmt, fmtCostUsd, pct, precise, usageStatusKind } from "../formatters";
 
 describe("fmt number abbreviation", () => {
   test("keeps plain numbers below 1K", () => {
@@ -69,4 +72,35 @@ describe("fmtCostUsd", () => {
       "$0.025",
     );
   });
+});
+
+describe("usageStatusKind status mapping", () => {
+  test("maps completed to ok", () => {
+    expect(usageStatusKind("completed")).toBe("ok");
+  });
+
+  test("maps cancelled to its own kind, not error", () => {
+    expect(usageStatusKind("cancelled")).toBe("cancelled");
+  });
+
+  test("maps error and unknown statuses to error", () => {
+    expect(usageStatusKind("error")).toBe("error");
+    expect(usageStatusKind("unknown")).toBe("error");
+    expect(usageStatusKind("")).toBe("error");
+  });
+});
+
+test("usage status labels exist in all five locales", () => {
+  const localeDir = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../../../i18n/locales",
+  );
+  for (const locale of ["zh", "en", "ja", "ko", "ru"]) {
+    const data = JSON.parse(
+      readFileSync(resolve(localeDir, `${locale}.json`), "utf8"),
+    );
+    expect(data.usage.statusOk, `${locale} statusOk`).toBeTruthy();
+    expect(data.usage.statusError, `${locale} statusError`).toBeTruthy();
+    expect(data.usage.statusCancelled, `${locale} statusCancelled`).toBeTruthy();
+  }
 });

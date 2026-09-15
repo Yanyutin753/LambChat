@@ -118,3 +118,59 @@ async def test_cancel_pubsub_sets_local_interrupt_flag_before_cancelling(monkeyp
 
     assert cancelled_at[0]["flag_age"] is True, "cancel() 前本地中断标志必须已设置"
     _interrupted_runs.pop("run-local-flag", None)
+
+
+@pytest.mark.asyncio
+async def test_cancel_pubsub_completes_trace_as_cancelled_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """用户取消的 trace 终态是 cancelled，不是 error。
+
+    用量面板按 trace status 照抄展示；取消写成 error 会让运营把用户主动
+    停止误读为服务故障（回归：取消记录在控制台显示 Err 且无原因）。
+    """
+
+    class _TraceStorage:
+        def __init__(self) -> None:
+            self.complete_calls: list[tuple[tuple, dict]] = []
+
+        async def complete_trace(self, *args, **kwargs):
+            self.complete_calls.append((args, kwargs))
+            return True
+
+    class _DualWriter:
+        async def flush_mongo_buffer(self):
+            return None
+
+    trace_storage = _TraceStorage()
+    monkeypatch.setattr(
+        "src.infra.session.trace_storage.get_trace_storage",
+        lambda: trace_storage,
+    )
+    monkeypatch.setattr(
+        "src.infra.session.dual_writer.get_dual_writer",
+        lambda: _DualWriter(),
+    )
+
+    pubsub = TaskPubSub(asyncio.Lock(), {})
+
+    await pubsub._handle_cancel_message(
+        {
+            "data": json.dumps(
+                {
+                    "run_id": "run-cancel-status",
+                    "trace_id": "trace-1",
+                }
+            )
+        },
+    )
+
+    assert trace_storage.complete_calls, "cancel 信号必须终结 trace"
+    args, kwargs = trace_storage.complete_calls[0]
+    assert args == ("trace-1",)
+    assert kwargs["status"] == "cancelled"
+    assert kwargs["metadata"]["cancel_reason"]
+
+    from src.infra.task.cancellation import _interrupted_runs
+
+    _interrupted_runs.pop("run-cancel-status", None)

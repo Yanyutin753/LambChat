@@ -3570,6 +3570,7 @@
     "inputTokens": "입력 Tokens",
     "insight": {
       "automationShare": "자동화 비율",
+      "cancelledCount": "취소 {{count}}",
       "avgPerRequest": "평균 요청",
       "cacheReuse": "캐시 재사용",
       "failedRequests": "실패 요청",
@@ -3623,6 +3624,7 @@
     "searchPlaceholder": "사용자명으로 검색...",
     "statsScopeHint": "요약은 모든 일치하는 레코드를 포함합니다",
     "status": "상태",
+    "statusCancelled": "취소됨",
     "statusError": "Err",
     "statusOk": "OK",
     "subtitle": "Token 소비 추적",
@@ -3736,7 +3738,9 @@
     "updateRelaunchInstall": "재시작 후 설치",
     "availableTitle": "새 버전 사용 가능",
     "skipVersion": "이 버전 건너뛰기",
-    "viewFullNotes": "전체 변경 로그 보기"
+    "viewFullNotes": "전체 변경 로그 보기",
+    "foundToast": "새 버전 v{{version}}이(가) 있습니다",
+    "notificationBodyDesktop": "새 버전 {{version}}을(를) 백그라운드로 다운로드 중입니다. 완료 후 타이틀 바에서 바로 재시작해 설치할 수 있습니다"
   },
   "download": {
     "title": "로컬 샌드박스 다운로드",
@@ -3779,5 +3783,13 @@
       "title": "모바일 앱",
       "desc": "LambChat Android 클라이언트(APK 직접 설치). 웹과 같은 계정으로 로그인하세요."
     }
+  },
+  "titlebar": {
+    "back": "뒤로",
+    "forward": "앞으로",
+    "minimize": "최소화",
+    "maximize": "최대화",
+    "restore": "이전 크기로",
+    "close": "닫기"
   }
 }

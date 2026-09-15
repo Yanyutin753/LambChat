@@ -80,6 +80,32 @@ def mock_spawn_monitor():
         yield spawned
 
 
+@pytest.fixture(autouse=True)
+def mock_default_model():
+    """桩掉全局默认模型查询：未选模任务的注入路径不再触达 Mongo/Redis。
+
+    关注注入行为本身的测试会用自己的 monkeypatch 覆盖这里的桩。
+    """
+
+    async def _default_model(allowed_models=None):
+        return "glm-5.3-flash"
+
+    async def _default_model_id(allowed_models=None):
+        return ""
+
+    with (
+        patch(
+            "src.infra.llm.models_service.get_default_model",
+            new=_default_model,
+        ),
+        patch(
+            "src.infra.llm.models_service.get_default_model_id",
+            new=_default_model_id,
+        ),
+    ):
+        yield
+
+
 async def _await_spawned(spawned: list[asyncio.Task]) -> None:
     """Wait for all spawned monitor tasks to complete."""
     if spawned:
@@ -860,3 +886,110 @@ async def test_execute_agent_anchors_timestamp_to_run_start(
     assert submitted["message"].startswith(
         "[User message sent at: 2026-08-22 09:02:03 +08:00 Asia/Shanghai] "
     )
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_injects_default_model_when_task_has_no_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """未显式选模的定时任务提交前注入全局默认模型。
+
+    不注入时节点运行期静默走默认模型，但 presenter/token:usage 都拿不到
+    模型名——用量面板的模型列和费用全部缺失（回归：定时任务记录 model "-"）。
+    """
+    task = _make_task(input_payload={"message": "Run the report"})
+    submitted: dict[str, Any] = {}
+
+    class _FakeTaskManager:
+        async def submit(self, **kwargs: Any) -> tuple[str, str]:
+            submitted.update(kwargs)
+            return "run_1", "trace_1"
+
+        async def get_run_status(self, session_id: str, run_id: str) -> TaskStatus:
+            return TaskStatus.COMPLETED
+
+    class _FakeSessionManager:
+        async def update_session_metadata(
+            self,
+            session_id: str,
+            metadata: dict[str, Any],
+        ) -> None:
+            return None
+
+    async def _default_model(allowed_models=None):
+        return "glm-5.3-flash"
+
+    async def _default_model_id(allowed_models=None):
+        return "479d617d-8105-49e0-8401-1dbdf2fe5358"
+
+    monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "local")
+    monkeypatch.setattr("src.infra.task.manager.get_task_manager", lambda: _FakeTaskManager())
+    monkeypatch.setattr(
+        "src.infra.task.concurrency.get_registered_executor",
+        lambda key: (lambda *args, **kwargs: None) if key == "agent_stream" else None,
+    )
+    monkeypatch.setattr("src.infra.session.manager.SessionManager", lambda: _FakeSessionManager())
+    monkeypatch.setattr("src.infra.llm.models_service.get_default_model", _default_model)
+    monkeypatch.setattr("src.infra.llm.models_service.get_default_model_id", _default_model_id)
+
+    await ScheduledTaskRunner()._execute_agent(task, run_id="run_1", session_id="session_1")
+
+    assert submitted["agent_options"] == {
+        "model": "glm-5.3-flash",
+        "model_id": "479d617d-8105-49e0-8401-1dbdf2fe5358",
+    }
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_keeps_existing_model_selection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """任务已带模型时不得覆盖用户/Agent 创建时的显式选择。"""
+    task = _make_task(
+        input_payload={
+            "message": "Run the report",
+            "agent_options": {"model": "deepseek-flash", "response_language": "zh"},
+        }
+    )
+    submitted: dict[str, Any] = {}
+
+    class _FakeTaskManager:
+        async def submit(self, **kwargs: Any) -> tuple[str, str]:
+            submitted.update(kwargs)
+            return "run_1", "trace_1"
+
+        async def get_run_status(self, session_id: str, run_id: str) -> TaskStatus:
+            return TaskStatus.COMPLETED
+
+    class _FakeSessionManager:
+        async def update_session_metadata(
+            self,
+            session_id: str,
+            metadata: dict[str, Any],
+        ) -> None:
+            return None
+
+    async def _default_model(allowed_models=None):
+        return "glm-5.3-flash"
+
+    monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "local")
+    monkeypatch.setattr("src.infra.task.manager.get_task_manager", lambda: _FakeTaskManager())
+    monkeypatch.setattr(
+        "src.infra.task.concurrency.get_registered_executor",
+        lambda key: (lambda *args, **kwargs: None) if key == "agent_stream" else None,
+    )
+    monkeypatch.setattr("src.infra.session.manager.SessionManager", lambda: _FakeSessionManager())
+    monkeypatch.setattr("src.infra.llm.models_service.get_default_model", _default_model)
+    # 显式选模走 validate_agent_model_access 分支，需要任务 owner 在场
+    monkeypatch.setattr(
+        "src.infra.scheduler.runner._resolve_task_owner",
+        AsyncMock(return_value=object()),
+    )
+    monkeypatch.setattr("src.api.routes.chat.validate_agent_model_access", AsyncMock())
+
+    await ScheduledTaskRunner()._execute_agent(task, run_id="run_1", session_id="session_1")
+
+    assert submitted["agent_options"] == {
+        "model": "deepseek-flash",
+        "response_language": "zh",
+    }

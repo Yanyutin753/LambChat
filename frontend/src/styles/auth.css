@@ -700,7 +700,8 @@ html.dark .auth-social-provider {
   --mouth-y: 0px;
   --mouth-rotate: 0deg;
   position: relative;
-  min-height: 100svh;
+  /* 桌面自绘标题栏让位（网页 --titlebar-inset 为 0，行为不变） */
+  min-height: calc(100svh - var(--titlebar-inset, 0px));
   flex-direction: column;
   justify-content: space-between;
   overflow: hidden;

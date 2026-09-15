@@ -3570,6 +3570,7 @@
     "inputTokens": "Входные токены",
     "insight": {
       "automationShare": "Доля автоматизации",
+      "cancelledCount": "Отменено {{count}}",
       "avgPerRequest": "Среднее за запрос",
       "cacheReuse": "Повторное использование кэша",
       "failedRequests": "Ошибочные запросы",
@@ -3623,6 +3624,7 @@
     "searchPlaceholder": "Поиск по имени пользователя...",
     "statsScopeHint": "Сводка включает все совпадающие записи",
     "status": "Статус",
+    "statusCancelled": "Отменено",
     "statusError": "Err",
     "statusOk": "OK",
     "subtitle": "Отслеживание потребления токенов",
@@ -3736,7 +3738,9 @@
     "updateRelaunchInstall": "Перезапустить и установить",
     "availableTitle": "Доступно обновление",
     "skipVersion": "Пропустить эту версию",
-    "viewFullNotes": "Полный список изменений"
+    "viewFullNotes": "Полный список изменений",
+    "foundToast": "Доступна новая версия v{{version}}",
+    "notificationBodyDesktop": "Версия {{version}} загружается в фоне. По завершении можно перезапустить приложение и установить обновление с панели заголовка"
   },
   "download": {
     "title": "Скачать локальную песочницу",
@@ -3779,5 +3783,13 @@
       "title": "Мобильное приложение",
       "desc": "Клиент LambChat для Android (прямая установка APK) — вход по тому же аккаунту, что и в веб-версии."
     }
+  },
+  "titlebar": {
+    "back": "Назад",
+    "forward": "Вперёд",
+    "minimize": "Свернуть",
+    "maximize": "Развернуть",
+    "restore": "Восстановить",
+    "close": "Закрыть"
   }
 }

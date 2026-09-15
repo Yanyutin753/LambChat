@@ -35,7 +35,7 @@ interface ProtectedRouteProps {
 function NoPermission() {
   const { t } = useTranslation();
   return (
-    <div className="safe-area-viewport-padding flex min-h-screen items-center justify-center bg-stone-50 dark:bg-stone-900">
+    <div className="safe-area-viewport-padding flex min-h-[calc(100vh-var(--titlebar-inset,0px))] items-center justify-center bg-stone-50 dark:bg-stone-900">
       <div className="text-center">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
           <svg

@@ -870,3 +870,45 @@ test("done removes an assistant bubble that never received content", () => {
 
   expect(ctx.messages().map((message) => message.id)).toEqual(["run-1:user"]);
 });
+
+test("synthesized reconnect cancel (type task_cancelled) marks message cancelled, not failed", () => {
+  const ctx = createContext(
+    [
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "partial",
+        timestamp: new Date("2026-04-19T01:02:03.456Z"),
+        parts: [{ type: "text", content: "partial" }],
+        isStreaming: true,
+      },
+    ],
+    null,
+  );
+
+  handleStreamEvent(
+    {
+      event: "error",
+      data: JSON.stringify({
+        error: "Task cancelled by user.",
+        type: "task_cancelled",
+        run_id: "run-1",
+        code: "run_cancelled",
+      }),
+    },
+    "assistant-1",
+    "synthetic-reconnect-cancel",
+    "2026-04-19T01:02:04.000Z",
+    ctx,
+  );
+
+  // 重连合成的取消事件（chat_stream_terminal）必须走取消 UI：
+  // cancelled 标志 + 中断胶囊，而不是把气泡内容替换成错误文案
+  expect(ctx.messages()[0]?.cancelled).toBe(true);
+  expect(ctx.messages()[0]?.isStreaming).toBe(false);
+  expect(ctx.messages()[0]?.content).toBe("partial");
+  expect(ctx.messages()[0]?.parts?.map((part) => part.type)).toEqual([
+    "text",
+    "cancelled",
+  ]);
+});

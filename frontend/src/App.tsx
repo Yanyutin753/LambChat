@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   Routes,
   Route,
@@ -15,6 +15,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { SelectionActionPopover } from "./components/common/SelectionActionPopover.tsx";
 import { useSEO } from "./hooks/usePageTitle";
+import { resolveTitlebarOs } from "./components/layout/TitleBar/titlebarPlatform";
 import { GITHUB_URL } from "./constants";
 import { Permission } from "./types";
 import {
@@ -32,12 +33,19 @@ const ServerSetupScreen = lazy(() =>
 );
 import { useAutoUpdate } from "./hooks/useAutoUpdate";
 
-// 更新对话框懒加载（M4 T8 PWA 预算）：仅在「有新版本且用户未跳过」时才
-// 渲染的桌面/移动端专属 UI——拆出 eager 包（含 UpdateProgressBar），
-// 启动 JS 不再为此买单。fallback null：对话框按需挂载，无骨架可显。
+// 更新对话框懒加载（M4 T8 PWA 预算）：移动端专属 UI（安装需用户确认），
+// 桌面端走标题栏指示器，不再弹模态框。
 const UpdateDialog = lazy(() =>
   import("./components/update/UpdateDialog").then((m) => ({
     default: m.UpdateDialog,
+  })),
+);
+
+// 桌面自绘标题栏框架懒加载：仅 Tauri 壳渲染，连带导航历史 Provider 一起
+// 拆出 eager 包，不占网页 PWA 的启动 JS 预算。
+const DesktopTitlebarFrame = lazy(() =>
+  import("./components/layout/TitleBar/DesktopTitlebarFrame").then((m) => ({
+    default: m.DesktopTitlebarFrame,
   })),
 );
 
@@ -366,6 +374,14 @@ function App() {
     }
     return "web";
   })();
+  // 桌面自绘标题栏平台（null = 网页/移动端，不渲染标题栏）
+  const titlebarOs = useMemo(
+    () =>
+      typeof window === "undefined"
+        ? null
+        : resolveTitlebarOs(window as unknown as Parameters<typeof resolveTitlebarOs>[0]),
+    [],
+  );
 
   useEffect(() => {
     appNotificationService.setNavigator((route) => {
@@ -392,7 +408,7 @@ function App() {
           position="top-center"
           containerClassName={APP_TOASTER_CLASS_NAME}
           containerStyle={{
-            top: "calc(56px + var(--app-safe-area-top, 0px))",
+            top: "calc(56px + var(--app-safe-area-top, 0px) + var(--titlebar-inset, 0px))",
           }}
           toastOptions={{
             duration: 4000,
@@ -448,22 +464,26 @@ function App() {
           }}
         </Toaster>
         <PwaStatusToasts />
-        {showUpdateDialog && updateState.available && (
-          <Suspense fallback={null}>
-            <UpdateDialog
-              state={updateState}
-              isOpen={showUpdateDialog}
-              onUpgrade={startUpdate}
-              onSkip={skipUpdate}
-              onSkipVersion={skipThisVersion}
-              onDismiss={() => setShowUpdateDialog(false)}
-              platform={updatePlatform as "tauri" | "android" | "ios"}
-            />
-          </Suspense>
-        )}
+        {(updatePlatform === "android" || updatePlatform === "ios") &&
+          showUpdateDialog &&
+          updateState.available && (
+            <Suspense fallback={null}>
+              <UpdateDialog
+                state={updateState}
+                isOpen={showUpdateDialog}
+                onUpgrade={startUpdate}
+                onSkip={skipUpdate}
+                onSkipVersion={skipThisVersion}
+                onDismiss={() => setShowUpdateDialog(false)}
+                platform={updatePlatform as "tauri" | "android" | "ios"}
+              />
+            </Suspense>
+          )}
         <SelectionActionPopover />
-        <Suspense fallback={<ChatPageSkeleton />}>
-          <Routes>
+        {(() => {
+          const appRoutes = (
+            <Suspense fallback={<ChatPageSkeleton />}>
+              <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/interface" element={<LandingPage />} />
             <Route path="/features" element={<LandingPage />} />
@@ -713,8 +733,32 @@ function App() {
               }
             />
             <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </Suspense>
+              </Routes>
+            </Suspense>
+          );
+          return titlebarOs ? (
+            <Suspense
+              // fallback 与框架同构（40px 占位 + 内容区），消除标题栏载入跳动
+              fallback={
+                <div className="flex h-full min-h-0 flex-col">
+                  <div className="h-10 shrink-0" />
+                  <div className="min-h-0 flex-1">{appRoutes}</div>
+                </div>
+              }
+            >
+              <DesktopTitlebarFrame
+                os={titlebarOs}
+                updateState={updateState}
+                onInstallUpdate={startUpdate}
+                onSkipVersion={skipThisVersion}
+              >
+                {appRoutes}
+              </DesktopTitlebarFrame>
+            </Suspense>
+          ) : (
+            appRoutes
+          );
+        })()}
       </ErrorBoundary>
     </ThemeProvider>
   );

@@ -290,7 +290,8 @@ export function AppShell({
           boxSizing: "content-box",
           paddingTop: appSafeAreaTop,
           paddingBottom: appSafeAreaBottom,
-          height: `calc(var(--app-viewport-height, 100dvh) - ${appSafeAreaTop} - ${appSafeAreaBottom})`,
+          // 桌面自绘标题栏占用的高度（网页/移动端 --titlebar-inset 为 0）
+          height: `calc(var(--app-viewport-height, 100dvh) - ${appSafeAreaTop} - ${appSafeAreaBottom} - var(--titlebar-inset, 0px))`,
           transform: "translate3d(0, var(--app-viewport-offset-top, 0px), 0)",
         }}
       >

@@ -78,6 +78,7 @@ class UsageDashboardSummary(BaseModel):
     total_tool_calls: int = 0
     scheduled_runs: int = 0
     failed_requests: int = 0
+    cancelled_requests: int = 0
     success_rate: float = 0.0
     avg_tokens_per_request: float = 0.0
     avg_duration_per_request: float = 0.0
@@ -95,6 +96,7 @@ class UsageDailyPoint(BaseModel):
     cost_usd: float = 0.0
     duration: float = 0.0
     scheduled_runs: int = 0
+    cancelled_requests: int = 0
     failed_requests: int = 0
     tool_calls: int = 0
     input_tokens: int = 0

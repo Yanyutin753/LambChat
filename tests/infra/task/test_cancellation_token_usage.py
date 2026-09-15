@@ -25,7 +25,7 @@ class _FakeTraceStorage:
 
 
 @pytest.mark.asyncio
-async def test_cancel_run_marks_trace_error_without_zero_usage_placeholder(
+async def test_cancel_run_marks_trace_cancelled_without_zero_usage_placeholder(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     trace_storage = _FakeTraceStorage()
@@ -48,7 +48,7 @@ async def test_cancel_run_marks_trace_error_without_zero_usage_placeholder(
         (
             ("trace-1",),
             {
-                "status": "error",
+                "status": "cancelled",
                 "metadata": {"cancel_reason": "Task cancelled by user"},
                 "ensure_token_usage": False,
             },

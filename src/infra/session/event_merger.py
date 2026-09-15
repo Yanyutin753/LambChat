@@ -53,7 +53,8 @@ BATCH_SIZE = 100
 
 # 单批内并发合并的最大 trace 数量
 _MERGE_CONCURRENCY = 3
-_MERGE_TERMINAL_STATUSES = ("completed", "error")
+# cancelled（用户取消）与 error 同为终态，漏掉会让取消的 trace 永不参与事件压缩
+_MERGE_TERMINAL_STATUSES = ("completed", "error", "cancelled")
 _ATTACHMENT_CHUNK_WRITE_FIELD = "attachment_chunk_write_operation"
 _TRACE_EVENT_REVISION_FIELD = "event_revision"
 
