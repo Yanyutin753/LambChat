@@ -107,9 +107,8 @@ test("uses a much tighter bottom threshold on desktop than on mobile", () => {
 });
 
 test("keeps the mobile footer spacer compact so history loads can settle near the latest message", () => {
-  expect(getMessageListFooterSpacerClass(true)).toBe(
-    "h-[calc(1.5rem+env(safe-area-inset-bottom))]",
-  );
+  // 底部不预留安全区（内容铺满到底部），移动端占位与 1.5rem 等高即可
+  expect(getMessageListFooterSpacerClass(true)).toBe("h-6");
   expect(getMessageListFooterSpacerClass(false)).toBe("h-8");
 });
 

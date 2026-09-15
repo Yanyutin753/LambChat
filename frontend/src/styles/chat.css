@@ -87,7 +87,7 @@
     height: auto;
     transform: none;
     border-radius: 1.25rem 1.25rem 0 0;
-    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    padding-bottom: 0.75rem;
   }
 }
 

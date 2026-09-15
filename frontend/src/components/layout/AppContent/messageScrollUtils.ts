@@ -117,9 +117,7 @@ export function getAwayFromBottomThresholdPx(
 export function getMessageListFooterSpacerClass(
   isMobileViewport: boolean,
 ): string {
-  return isMobileViewport
-    ? "h-[calc(1.5rem+env(safe-area-inset-bottom))]"
-    : "h-8";
+  return isMobileViewport ? "h-6" : "h-8";
 }
 
 export function getMessageListSessionKey(sessionId?: string | null): string {

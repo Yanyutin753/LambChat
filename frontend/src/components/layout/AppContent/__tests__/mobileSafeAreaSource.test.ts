@@ -12,13 +12,14 @@ test("app shell reserves native mobile status bar safe area", () => {
     /--app-safe-area-top:\s*max\(\s*env\(safe-area-inset-top, 0px\),\s*var\(--app-native-safe-area-top, 0px\)\s*\)/,
   );
   expect(tokens).toMatch(/--app-fullscreen-safe-area-top:\s*0px/);
+  // 底部不预留安全区（产品决策：内容铺满到屏幕底边），只允许 0px
+  expect(tokens).toMatch(/--app-safe-area-bottom:\s*0px/);
+  expect(tokens).not.toMatch(/--app-safe-area-bottom:\s*max\(/);
   expect(tokens).toMatch(/--app-fullscreen-safe-area-bottom:\s*0px/);
   expect(tokens).toMatch(
     /@media \(display-mode: standalone\), \(display-mode: fullscreen\)\s*\{[\s\S]*--app-fullscreen-safe-area-top:\s*12px/,
   );
-  expect(tokens).toMatch(
-    /@media \(display-mode: standalone\), \(display-mode: fullscreen\)\s*\{[\s\S]*--app-fullscreen-safe-area-bottom:\s*12px/,
-  );
+  expect(tokens).not.toMatch(/--app-fullscreen-safe-area-bottom:\s*12px/);
   expect(shell).toMatch(/boxSizing:\s*"content-box"/);
   expect(shell).toMatch(/paddingTop:\s*appSafeAreaTop/);
   expect(shell).toMatch(/paddingBottom:\s*appSafeAreaBottom/);

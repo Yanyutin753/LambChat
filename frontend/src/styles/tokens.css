@@ -195,10 +195,8 @@
     env(safe-area-inset-top, 0px),
     var(--app-native-safe-area-top, 0px)
   );
-  --app-safe-area-bottom: max(
-    env(safe-area-inset-bottom, 0px),
-    var(--app-native-safe-area-bottom, 0px)
-  );
+  /* 底部不预留安全区：内容铺满到屏幕底边（产品决策），顶部/横向仍需避让系统栏 */
+  --app-safe-area-bottom: 0px;
   --app-safe-area-left: max(
     env(safe-area-inset-left, 0px),
     var(--app-native-safe-area-left, 0px)
@@ -224,7 +222,6 @@
 @media (display-mode: standalone), (display-mode: fullscreen) {
   :root {
     --app-fullscreen-safe-area-top: 12px;
-    --app-fullscreen-safe-area-bottom: 12px;
   }
 }
 
