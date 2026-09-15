@@ -583,7 +583,12 @@ jobs:
           java-version: '21'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        # v3 硬编码 sdkmanager tools，Google 已把 legacy tools 包从 SDK 仓库下架，
+        # 必挂（Failed to find package 'tools'）；v4 改为 packages 输入、默认不装包，
+        # platform-tools 保持与 v3 行为对齐（runner 镜像未含它时兜底）
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
