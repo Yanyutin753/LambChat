@@ -78,6 +78,67 @@ async def test_close_event_merger_does_not_create_singleton_when_unused() -> Non
     assert event_merger_module._event_merger is None
 
 
+def test_event_merger_lock_timeout_has_floor_for_short_intervals(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """短间隔提速时批次仍可能耗时数分钟：锁 TTL 保底，避免批次进行中
+    锁过期导致双实例并发合并。"""
+    import src.infra.session.event_merger as event_merger
+
+    monkeypatch.setattr(event_merger.settings, "EVENT_MERGE_INTERVAL", 30.0, raising=False)
+    assert event_merger._get_lock_timeout() >= 600
+
+    monkeypatch.setattr(event_merger.settings, "EVENT_MERGE_INTERVAL", 600.0, raising=False)
+    assert event_merger._get_lock_timeout() == 1200
+
+
+@pytest.mark.asyncio
+async def test_event_merger_scans_largest_traces_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """存量自愈按 event_count 降序扫描：交错增量堆积的重型 trace
+    （存储大头、用户感知最强的会话）最先被治，小 trace 慢慢补标记。"""
+    import src.infra.session.event_merger as event_merger
+
+    monkeypatch.setattr(event_merger.settings, "EVENT_MERGE_BATCH_SIZE", 4, raising=False)
+    monkeypatch.setattr(
+        event_merger.settings, "SESSION_EVENT_CHUNK_STORAGE_ENABLED", False, raising=False
+    )
+    captured: dict = {}
+
+    class _Cursor:
+        def sort(self, key, direction):
+            captured["sort"] = (key, direction)
+            return self
+
+        def limit(self, _limit):
+            return self
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            raise StopAsyncIteration
+
+    class _Collection:
+        def find(self, _filter, _projection):
+            return _Cursor()
+
+        async def bulk_write(self, operations, ordered: bool = False):
+            return type("_Result", (), {"modified_count": 0})()
+
+    class _TraceStorage:
+        collection = _Collection()
+
+        async def recover_incomplete_chunk_replacements(self):
+            return None
+
+    merger = EventMerger(trace_storage=_TraceStorage())
+    await merger._merge_completed_traces()
+
+    assert captured["sort"] == ("event_count", -1)
+
+
 def test_event_merger_limits_follow_runtime_settings(monkeypatch: pytest.MonkeyPatch) -> None:
     import src.infra.session.event_merger as event_merger
 
@@ -201,6 +262,9 @@ async def test_event_merger_processes_traces_with_bounded_coroutines(
                 for index in range(batch_size)
             ]
 
+        def sort(self, *_args):
+            return self
+
         def limit(self, _limit: int):
             return self
 
@@ -278,6 +342,9 @@ async def test_event_merger_streams_cursor_without_materializing_batch(
                 for index in range(3)
             ]
             self._index = 0
+
+        def sort(self, *_args):
+            return self
 
         def limit(self, _limit: int):
             return self
@@ -513,6 +580,9 @@ async def test_event_merger_reenqueues_traces_merged_by_old_strategy(
     captured: dict = {}
 
     class _Cursor:
+        def sort(self, *_args):
+            return self
+
         def limit(self, _limit):
             return self
 
@@ -576,6 +646,9 @@ async def test_event_merger_marks_merge_strategy_on_completion(
             ]
             self._index = 0
 
+        def sort(self, *_args):
+            return self
+
         def limit(self, _limit):
             return self
 
@@ -627,6 +700,9 @@ async def test_event_merger_filters_out_giant_traces_before_loading_events(
     )
 
     class _Cursor:
+        def sort(self, *_args):
+            return self
+
         def limit(self, _limit: int):
             return self
 

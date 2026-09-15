@@ -64,8 +64,12 @@ def _get_merge_interval() -> float:
 
 
 def _get_lock_timeout() -> int:
-    """获取锁超时时间（合并间隔的 2 倍）"""
-    return int(_get_merge_interval() * 2)
+    """获取锁超时时间（合并间隔的 2 倍，保底 10 分钟）。
+
+    短间隔提速时单个批次（数百 trace 的读取+合并+回写）仍可能耗时
+    数分钟——锁提前过期会让另一副本并发开批，白做重复工作。
+    """
+    return max(600, int(_get_merge_interval() * 2))
 
 
 def _get_merge_timeout() -> float:
@@ -298,40 +302,46 @@ class EventMerger:
             # 使用投影减少数据传输
             batch_size = _get_merge_batch_size()
             max_events_per_trace = _get_merge_max_events_per_trace()
-            cursor = collection.find(
-                {
-                    "status": {"$in": list(_MERGE_TERMINAL_STATUSES)},
-                    _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
-                    # （同一 dict 只能有一个 $or 键，两组条件用 $and 组合）
-                    "$and": [
-                        # 未合并过，或由旧策略标记过（交错流未被真正合掉）
-                        {
-                            "$or": [
-                                {"metadata.merged": {"$ne": True}},
-                                {"metadata.merge_strategy": {"$ne": _MERGE_STRATEGY_GROUPED}},
-                            ]
-                        },
-                        {
-                            "$or": [
-                                {"event_count": {"$lte": max_events_per_trace}},
-                                {"event_count": {"$exists": False}},
-                            ]
-                        },
-                    ],
-                },
-                {
-                    "_id": 1,
-                    "trace_id": 1,
-                    "session_id": 1,
-                    "run_id": 1,
-                    "started_at": 1,
-                    "status": 1,
-                    "updated_at": 1,
-                    "event_count": 1,
-                    _TRACE_EVENT_REVISION_FIELD: 1,
-                    "metadata": 1,
-                },
-            ).limit(batch_size)
+            cursor = (
+                collection.find(
+                    {
+                        "status": {"$in": list(_MERGE_TERMINAL_STATUSES)},
+                        _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
+                        # （同一 dict 只能有一个 $or 键，两组条件用 $and 组合）
+                        "$and": [
+                            # 未合并过，或由旧策略标记过（交错流未被真正合掉）
+                            {
+                                "$or": [
+                                    {"metadata.merged": {"$ne": True}},
+                                    {"metadata.merge_strategy": {"$ne": _MERGE_STRATEGY_GROUPED}},
+                                ]
+                            },
+                            {
+                                "$or": [
+                                    {"event_count": {"$lte": max_events_per_trace}},
+                                    {"event_count": {"$exists": False}},
+                                ]
+                            },
+                        ],
+                    },
+                    {
+                        "_id": 1,
+                        "trace_id": 1,
+                        "session_id": 1,
+                        "run_id": 1,
+                        "started_at": 1,
+                        "status": 1,
+                        "updated_at": 1,
+                        "event_count": 1,
+                        _TRACE_EVENT_REVISION_FIELD: 1,
+                        "metadata": 1,
+                    },
+                    # 大 trace 优先：存量自愈先治存储大头（交错增量堆积的重型
+                    # 会话，用户感知最强），小 trace 慢慢补策略标记
+                )
+                .sort("event_count", -1)
+                .limit(batch_size)
+            )
 
             trace_batch: list[dict[str, Any]] = []
             total_found = 0
