@@ -46,6 +46,8 @@ import {
   buildVisibleCategories,
   groupFilteredSettings,
 } from "./settingsPanelGrouping";
+import { SettingsCategoryNav } from "./SettingsCategoryNav";
+import { filterSettings, SETTINGS_NAV_GROUPS } from "./settingsNavigation";
 
 export function SettingsPanel() {
   const { t } = useTranslation();
@@ -71,6 +73,11 @@ export function SettingsPanel() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] =
     useState<SettingCategory>("frontend");
+  const [activeSubcategory, setActiveSubcategory] = useState<string | null>(
+    null,
+  );
+  const contentRef = useRef<HTMLDivElement>(null);
+  const isSearching = searchQuery.trim().length > 0;
   const [editValues, setEditValues] = useState<
     Record<string, string | number | boolean | object>
   >({});
@@ -86,6 +93,7 @@ export function SettingsPanel() {
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [resetConfirmKey, setResetConfirmKey] = useState<string | null>(null);
   const [isResetAllConfirmOpen, setIsResetAllConfirmOpen] = useState(false);
+  const [isResettingAll, setIsResettingAll] = useState(false);
 
   const canManage = hasPermission(Permission.SETTINGS_MANAGE);
 
@@ -189,24 +197,54 @@ export function SettingsPanel() {
     [settings, editValues],
   );
 
-  // Filter settings by search query and visibility
-  // When search is active, search across ALL categories; otherwise only the active category
-  const filteredSettings = useMemo(() => {
-    const query = searchQuery.toLowerCase();
-    const sourceSettings = query
-      ? Object.values(settings?.settings ?? {})
-          .flat()
-          .filter((s) => s.frontend_visible !== false)
-      : settings?.settings[activeCategory] ?? [];
-    return sourceSettings.filter((setting) => {
-      const matchesSearch =
-        !query ||
-        setting.key.toLowerCase().includes(query) ||
-        setting.description.toLowerCase().includes(query) ||
-        t(setting.description).toLowerCase().includes(query);
-      return matchesSearch && isSettingVisible(setting);
-    });
-  }, [searchQuery, settings, activeCategory, isSettingVisible, t]);
+  const filteredSettings = useMemo(
+    () =>
+      filterSettings(Object.values(settings?.settings ?? {}).flat(), {
+        query: searchQuery,
+        includeAdmin: canManage,
+        category: activeCategory,
+        subcategory: activeSubcategory,
+        isVisible: isSettingVisible,
+        translate: t,
+        categoryLabels: CATEGORY_LABELS,
+        subcategoryLabels: SUBCATEGORY_LABELS,
+      }),
+    [
+      searchQuery,
+      canManage,
+      settings,
+      activeCategory,
+      activeSubcategory,
+      isSettingVisible,
+      t,
+      CATEGORY_LABELS,
+      SUBCATEGORY_LABELS,
+    ],
+  );
+
+  const subcategories = useMemo(
+    () =>
+      groupFilteredSettings(
+        (settings?.settings[activeCategory] ?? []).filter(
+          (setting) =>
+            (canManage || setting.frontend_visible !== false) &&
+            isSettingVisible(setting),
+        ),
+        {
+          isGlobalSearch: false,
+          categoryLabels: CATEGORY_LABELS,
+          subcategoryLabels: SUBCATEGORY_LABELS,
+        },
+      ),
+    [
+      settings,
+      canManage,
+      activeCategory,
+      isSettingVisible,
+      CATEGORY_LABELS,
+      SUBCATEGORY_LABELS,
+    ],
+  );
 
   // Group filtered settings by category (when searching globally) or subcategory (when browsing a single category)
   const groupedSettings = useMemo(
@@ -222,21 +260,42 @@ export function SettingsPanel() {
   // Categories that still expose visible settings; shared by the desktop
   // sidebar nav and the mobile chip strip so both stay in sync
   const visibleCategories = useMemo(
-    () => buildVisibleCategories(settings?.settings, isSettingVisible),
-    [settings, isSettingVisible],
+    () =>
+      buildVisibleCategories(settings?.settings, isSettingVisible, canManage),
+    [settings, isSettingVisible, canManage],
   );
 
-  // Keep the active category chip visible on mobile. scrollIntoView loses to
-  // the strip's scroll-snap/scroll-smooth CSS in some webviews (the scroll is
-  // reverted), so compute the offset and jump instantly.
-  const activeCategoryTabRef = useRef<HTMLButtonElement | null>(null);
+  const selectCategory = useCallback((category: SettingCategory) => {
+    setActiveCategory(category);
+    setActiveSubcategory(null);
+    setSearchQuery("");
+  }, []);
+
+  // Permissions/dependencies may remove the current category or subcategory.
   useEffect(() => {
-    const chip = activeCategoryTabRef.current;
-    const strip = chip?.parentElement;
-    if (!chip || !strip) return;
-    const target = chip.offsetLeft - (strip.clientWidth - chip.offsetWidth) / 2;
-    strip.scrollTo({ left: Math.max(0, target), behavior: "instant" });
-  }, [activeCategory]);
+    if (
+      visibleCategories.length &&
+      !visibleCategories.some(({ category }) => category === activeCategory)
+    ) {
+      selectCategory(visibleCategories[0].category);
+    }
+  }, [visibleCategories, activeCategory, selectCategory]);
+  useEffect(() => {
+    if (
+      activeSubcategory !== null &&
+      !subcategories.some((group) => group.subcategory === activeSubcategory)
+    ) {
+      setActiveSubcategory(null);
+    }
+  }, [subcategories, activeSubcategory]);
+  useEffect(() => {
+    contentRef.current?.scrollTo({ top: 0, behavior: "instant" });
+  }, [activeCategory, activeSubcategory, searchQuery]);
+
+  const navigation = settings?.navigation ?? SETTINGS_NAV_GROUPS;
+  const activeGroup = navigation.find((group) =>
+    group.categories.includes(activeCategory),
+  );
 
   // Handle value change
   const handleValueChange = useCallback(
@@ -338,13 +397,19 @@ export function SettingsPanel() {
   }, []);
 
   const confirmResetAll = useCallback(async () => {
-    const success = await resetAllSettings();
-    if (success) {
-      setEditValues({});
-      toast.success(t("settings.resetAllSuccess"));
+    if (isResettingAll) return;
+    setIsResettingAll(true);
+    try {
+      const success = await resetAllSettings();
+      if (success) {
+        setEditValues({});
+        toast.success(t("settings.resetAllSuccess"));
+        setIsResetAllConfirmOpen(false);
+      }
+    } finally {
+      setIsResettingAll(false);
     }
-    setIsResetAllConfirmOpen(false);
-  }, [resetAllSettings, t]);
+  }, [resetAllSettings, isResettingAll, t]);
 
   const cancelResetAll = () => {
     setIsResetAllConfirmOpen(false);
@@ -430,46 +495,30 @@ export function SettingsPanel() {
         />
 
         {/* Left Sidebar - Categories (hidden on mobile) */}
-        <div className="hidden w-56 flex-shrink-0 flex-col border-r border-[var(--glass-border)] sm:flex">
+        <div className="hidden w-60 flex-shrink-0 flex-col border-r border-[var(--glass-border)] sm:flex">
           {/* Sidebar Header */}
           <div className="flex items-center gap-2.5 px-5 py-4">
-            <div className="[&>svg]:size-[18px] flex size-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-stone-100 to-stone-50 text-stone-600 shadow-sm ring-1 ring-stone-200/60 dark:from-stone-800 dark:to-stone-900 dark:text-stone-300 dark:ring-stone-700/50">
+            <div className="flex size-9 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--glass-bg-subtle)] text-stone-600 dark:text-stone-300">
               <Settings size={18} />
             </div>
             <div>
-              <h2 className="text-14 font-semibold text-stone-900 dark:text-stone-100 font-serif">
+              <h2 className="text-14 font-semibold text-stone-900 dark:text-stone-100">
                 {t("settings.title")}
               </h2>
               <p className="text-12 text-stone-400 dark:text-stone-500">
-                {t("settings.modelConfigDescription", "管理应用配置")}
+                {t("settings.navigation.subtitle")}
               </p>
             </div>
           </div>
 
-          {/* Category List */}
-          <nav className="flex-1 overflow-y-auto px-3 py-2">
-            {visibleCategories.map(({ category, count }) => {
-              const isActive = activeCategory === category;
-              return (
-                <button
-                  key={category}
-                  onClick={() => setActiveCategory(category)}
-                  className={`w-full rounded-lg px-3 py-2 text-left text-14 transition-all duration-150 ${
-                    isActive
-                      ? "bg-[var(--glass-bg)] font-semibold text-stone-900 dark:text-stone-100 shadow-sm"
-                      : "font-medium text-stone-500 hover:bg-[var(--glass-bg-subtle)] dark:text-stone-400"
-                  }`}
-                >
-                  <span className="flex items-center justify-between">
-                    {CATEGORY_LABELS[category]}
-                    <span className="ml-2 text-12 tabular-nums opacity-40">
-                      {count}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </nav>
+          <SettingsCategoryNav
+            categories={visibleCategories}
+            navigation={navigation}
+            activeCategory={activeCategory}
+            searching={isSearching}
+            labels={CATEGORY_LABELS}
+            onSelect={selectCategory}
+          />
 
           {/* Bottom actions */}
           <div className="flex gap-1.5 border-t border-[var(--glass-border)] px-3 py-2.5">
@@ -495,42 +544,18 @@ export function SettingsPanel() {
         </div>
 
         {/* Right Content */}
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {/* Header with Category Dropdown (mobile) and Search */}
           <div className="flex-shrink-0 border-b border-[var(--glass-border)] p-3 sm:p-4">
-            {/* Mobile Category Chips */}
-            <div className="mb-2 sm:hidden">
-              <div
-                className="flex gap-1 overflow-x-auto scrollbar-none scroll-smooth pb-0.5"
-                style={{ scrollSnapType: "x mandatory" }}
-              >
-                {visibleCategories.map(({ category, count }) => {
-                  const isActive = activeCategory === category;
-                  return (
-                    <button
-                      key={category}
-                      ref={isActive ? activeCategoryTabRef : undefined}
-                      onClick={() => setActiveCategory(category)}
-                      style={{ scrollSnapAlign: "start" }}
-                      className={`relative flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-3 py-1.5 text-12 font-medium transition-all ${
-                        isActive
-                          ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"
-                          : "bg-[var(--glass-bg-subtle)] text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
-                      }`}
-                    >
-                      {CATEGORY_LABELS[category]}
-                      <span
-                        className={`text-11 tabular-nums ${
-                          isActive ? "opacity-60" : "opacity-40"
-                        }`}
-                      >
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <SettingsCategoryNav
+              mobile
+              categories={visibleCategories}
+              navigation={navigation}
+              activeCategory={activeCategory}
+              searching={isSearching}
+              labels={CATEGORY_LABELS}
+              onSelect={selectCategory}
+            />
 
             {/* Search and Export/Import */}
             <div className="flex items-center gap-2">
@@ -541,7 +566,8 @@ export function SettingsPanel() {
                 />
                 <PanelSearchInput
                   type="text"
-                  placeholder={t("settings.searchPlaceholder")}
+                  placeholder={t("settings.navigation.searchPlaceholder")}
+                  aria-label={t("settings.navigation.searchPlaceholder")}
                   value={searchQuery}
                   onValueChange={setSearchQuery}
                   className="panel-search h-10"
@@ -555,6 +581,7 @@ export function SettingsPanel() {
                     leftIcon={<Download size={16} />}
                     className="h-10 px-3"
                     title={t("settings.exportSettings")}
+                    aria-label={t("settings.exportSettings")}
                   >
                     <span className="hidden sm:inline text-14">
                       {t("common.export")}
@@ -567,6 +594,7 @@ export function SettingsPanel() {
                     leftIcon={<Upload size={16} />}
                     className="h-10 px-3"
                     title={t("settings.importSettings")}
+                    aria-label={t("settings.importSettings")}
                   >
                     <span className="hidden sm:inline text-14">
                       {t("common.import")}
@@ -575,18 +603,6 @@ export function SettingsPanel() {
                 </>
               )}
             </div>
-
-            {/* Mobile Reset All Button */}
-            {canManage && (
-              <button
-                onClick={handleResetAll}
-                disabled={isLoading}
-                className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg border border-red-200 bg-[var(--glass-bg-subtle)] px-2 py-1.5 text-12 font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 sm:hidden dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20"
-              >
-                <RotateCcw size={12} />
-                {t("common.resetAll")}
-              </button>
-            )}
           </div>
 
           {/* Error */}
@@ -603,9 +619,88 @@ export function SettingsPanel() {
           )}
 
           {/* Settings List */}
-          <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4">
+          <div
+            ref={contentRef}
+            className="min-h-0 flex-1 overflow-y-auto py-2 sm:py-4 px-4"
+          >
+            <div className="mb-4 border-b border-[var(--glass-border)] pb-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="mb-1 text-12 text-stone-500 dark:text-stone-400">
+                    {isSearching || !activeGroup
+                      ? t("settings.navigation.allCategories")
+                      : t(`settings.navigation.groups.${activeGroup.id}`)}
+                  </p>
+                  <h2 className="text-18 font-semibold text-stone-900 dark:text-stone-100">
+                    {isSearching
+                      ? t("settings.navigation.searchResults")
+                      : CATEGORY_LABELS[activeCategory]}
+                  </h2>
+                  {!isSearching && activeGroup && (
+                    <p className="mt-1 text-12 text-stone-500 dark:text-stone-400">
+                      {t(`settings.navigation.descriptions.${activeGroup.id}`)}
+                    </p>
+                  )}
+                </div>
+                <span
+                  role="status"
+                  className="text-12 tabular-nums text-stone-500 dark:text-stone-400"
+                >
+                  {t("settings.navigation.resultCount", {
+                    count: filteredSettings.length,
+                  })}
+                </span>
+              </div>
+              {isSearching ? (
+                <Button
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => setSearchQuery("")}
+                >
+                  {t("settings.navigation.clearSearch")}
+                </Button>
+              ) : (
+                subcategories.length > 1 && (
+                  <label className="mt-3 flex flex-wrap items-center gap-2 text-12 text-stone-600 dark:text-stone-400">
+                    <span>{t("settings.navigation.subcategory")}</span>
+                    <select
+                      value={activeSubcategory ?? "__all__"}
+                      onChange={(event) =>
+                        setActiveSubcategory(
+                          event.target.value === "__all__"
+                            ? null
+                            : event.target.value,
+                        )
+                      }
+                      className="h-10 min-w-0 max-w-full rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] px-3 text-14 text-stone-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] dark:text-stone-100"
+                    >
+                      <option value="__all__">
+                        {t("settings.navigation.allSubcategories")}
+                      </option>
+                      {subcategories.map((group) => (
+                        <option
+                          key={group.subcategory}
+                          value={group.subcategory}
+                        >
+                          {group.label || t("subcategories.general")} ·{" "}
+                          {group.settings.length}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )
+              )}
+              <p className="mt-2 text-12 text-stone-500 dark:text-stone-400">
+                {canManage
+                  ? t("settings.navigation.saveHint")
+                  : t("settings.readOnlyNotice")}
+              </p>
+            </div>
+
             {/* System Health Monitor */}
-            <SystemHealthSection />
+            {!isSearching && activeGroup?.id === "infrastructure" && (
+              <SystemHealthSection />
+            )}
 
             {isLoading && !settings ? (
               <PanelLoadingState text={t("settings.loading")} />
@@ -613,7 +708,7 @@ export function SettingsPanel() {
               <div className="flex h-full flex-col items-center justify-center text-stone-400 dark:text-stone-500">
                 <Search size={40} className="mb-2 opacity-30" />
                 <p className="text-14">
-                  {searchQuery
+                  {isSearching
                     ? t("settings.noMatch")
                     : t("settings.noSettings")}
                 </p>
@@ -623,7 +718,7 @@ export function SettingsPanel() {
                 {groupedSettings.map((group) => (
                   <div key={group.subcategory} className="space-y-3">
                     {group.label && (
-                      <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-stone-400 dark:text-stone-500">
+                      <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-stone-500 dark:text-stone-400">
                         {group.label}
                       </h3>
                     )}
@@ -665,13 +760,15 @@ export function SettingsPanel() {
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2">
-                                {searchQuery && (
+                                {isSearching && (
                                   <button
                                     onClick={() => {
-                                      setActiveCategory(setting.category);
-                                      setSearchQuery("");
+                                      selectCategory(setting.category);
+                                      setActiveSubcategory(
+                                        setting.subcategory || "",
+                                      );
                                     }}
-                                    className="rounded-md bg-amber-100 px-2 py-0.5 text-11 font-medium text-amber-700 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/60"
+                                    className="rounded-md bg-[var(--glass-bg-subtle)] px-2 py-1 text-12 font-medium text-[var(--theme-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
                                   >
                                     {CATEGORY_LABELS[setting.category]}
                                   </button>
@@ -915,6 +1012,25 @@ export function SettingsPanel() {
                 ))}
               </div>
             )}
+            <div className="mt-5 flex flex-wrap gap-2 border-t border-[var(--glass-border)] pt-3 sm:hidden">
+              <Button
+                size="sm"
+                onClick={() => setShowAbout(true)}
+                leftIcon={<Info size={14} />}
+              >
+                {t("common.about")}
+              </Button>
+              {canManage && (
+                <Button
+                  size="sm"
+                  onClick={handleResetAll}
+                  disabled={isLoading}
+                  leftIcon={<RotateCcw size={14} />}
+                >
+                  {t("common.resetAll")}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -943,6 +1059,7 @@ export function SettingsPanel() {
         cancelText={t("common.cancel")}
         onConfirm={confirmResetAll}
         onCancel={cancelResetAll}
+        loading={isResettingAll}
         variant="danger"
       />
     </>

@@ -13,10 +13,13 @@ export interface VisibleCategory {
 export function buildVisibleCategories(
   settingsByCategory: Record<SettingCategory, SettingItem[]> | undefined,
   isSettingVisible: (setting: SettingItem) => boolean,
+  includeAdmin = false,
 ): VisibleCategory[] {
   return CATEGORY_ORDER.map((category) => {
     const count = (settingsByCategory?.[category] ?? []).filter(
-      isSettingVisible,
+      (setting) =>
+        (includeAdmin || setting.frontend_visible !== false) &&
+        isSettingVisible(setting),
     ).length;
     return { category, count };
   }).filter(({ count }) => count > 0);

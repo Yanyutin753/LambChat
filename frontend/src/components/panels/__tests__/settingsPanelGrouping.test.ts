@@ -64,6 +64,25 @@ test("buildVisibleCategories filters items through the visibility predicate", ()
   expect(visible).toEqual([{ category: "frontend", count: 1 }]);
 });
 
+test("navigation counts exclude settings hidden from the frontend", () => {
+  const byCategory = {
+    frontend: [setting({}), setting({ frontend_visible: false })],
+    llm: [setting({ frontend_visible: false })],
+  } as unknown as Parameters<typeof buildVisibleCategories>[0];
+  expect(buildVisibleCategories(byCategory, () => true)).toEqual([
+    { category: "frontend", count: 1 },
+  ]);
+});
+
+test("administrator navigation counts include management-only settings", () => {
+  const byCategory = {
+    frontend: [setting({ frontend_visible: false })],
+  } as Parameters<typeof buildVisibleCategories>[0];
+  expect(buildVisibleCategories(byCategory, () => true, true)).toEqual([
+    { category: "frontend", count: 1 },
+  ]);
+});
+
 test("groupFilteredSettings groups by category label on global search", () => {
   const items = [
     setting({ key: "A", category: "frontend" }),

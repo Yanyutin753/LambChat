@@ -244,28 +244,25 @@ function AnswerSummary({
   };
 
   return (
-    <div className="approval-answer-summary">
+    <div className="approval-result-section approval-answer-summary">
       <div className="approval-answer-summary-header">
         <CheckCircle2 size={13} />
         <span>{t("chat.message.askHumanYourAnswer")}</span>
       </div>
-      <div className="approval-answer-summary-body">
-        {answeredFields.map((field, idx) => {
+      <dl className="approval-answer-summary-body">
+        {answeredFields.map((field) => {
           const v = values[field.name] ?? field.default ?? null;
           return (
-            <div key={field.name} className="approval-answer-item">
-              {idx > 0 && <div className="approval-answer-item-sep" />}
-              <div className="approval-answer-row">
-                <span className="approval-answer-label">{field.label}</span>
-                <span className="approval-answer-value">
-                  <span className="approval-answer-value-dot" />
-                  {formatValue(field, v)}
-                </span>
-              </div>
+            <div
+              key={field.name}
+              className="approval-answer-item approval-answer-row"
+            >
+              <dt className="approval-answer-label">{field.label}</dt>
+              <dd className="approval-answer-value">{formatValue(field, v)}</dd>
             </div>
           );
         })}
-      </div>
+      </dl>
     </div>
   );
 }
@@ -321,11 +318,12 @@ function AskHumanDetail({ args, result, isPending }: ToolDetailProps) {
   );
 
   const hasFields = effectiveFields.length > 0;
+  const isAnswered = !isPending && parsedResult?.status === "success";
 
   return (
     <div className="p-4 sm:p-5 space-y-3">
       {/* Mini approval-style card (read-only snapshot) */}
-      <div className="approval-card">
+      <div className="approval-card approval-card--snapshot">
         {/* Header */}
         <div className="approval-header">
           <div className="approval-icon">
@@ -361,7 +359,7 @@ function AskHumanDetail({ args, result, isPending }: ToolDetailProps) {
           )}
           {isPending && (
             <span className="approval-timer ml-auto flex items-center gap-1 text-12">
-              <Clock size={14} className="animate-pulse" />
+              <Clock size={14} className="motion-safe:animate-pulse" />
               {t("chat.message.askHumanWaiting")}
             </span>
           )}
@@ -394,7 +392,7 @@ function AskHumanDetail({ args, result, isPending }: ToolDetailProps) {
         )}
 
         {/* Form fields (read-only) */}
-        {hasFields && (
+        {hasFields && !isAnswered && (
           <>
             <div className="approval-divider" />
             <div className="approval-form space-y-3">
@@ -412,17 +410,12 @@ function AskHumanDetail({ args, result, isPending }: ToolDetailProps) {
         )}
 
         {/* Result summary — structured answer display */}
-        {!isPending && parsedResult && parsedResult.status === "success" && (
-          <>
-            <div className="approval-divider" />
-            <div className="approval-result-section">
-              <AnswerSummary
-                fields={resolvedFields}
-                values={parsedResult.values}
-                t={t}
-              />
-            </div>
-          </>
+        {isAnswered && parsedResult && (
+          <AnswerSummary
+            fields={resolvedFields}
+            values={parsedResult.values}
+            t={t}
+          />
         )}
 
         {/* Result message for non-success states */}

@@ -8,6 +8,7 @@ export function buildCategoryLabels(
   return {
     frontend: t("categories.frontend"),
     agent: t("categories.agent"),
+    scheduled_task: t("categories.scheduled_task"),
     llm: t("categories.llm"),
     session: t("categories.session"),
     skills: t("categories.skills"),
@@ -27,6 +28,7 @@ export function buildCategoryLabels(
     file_upload: t("categories.file_upload"),
     tools: t("categories.tools"),
     audio_transcription: t("categories.audio_transcription"),
+    document_parse: t("categories.document_parse"),
     tracing: t("categories.tracing"),
     user: t("categories.user"),
     oauth: t("categories.oauth"),

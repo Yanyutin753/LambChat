@@ -1,6 +1,12 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 
@@ -40,13 +46,20 @@ const idleUpdateState: UpdateState = {
 function NavigateButton({ to }: { to: string }) {
   const navigate = useNavigate();
   return (
-    <button type="button" data-testid={`go-${to.replace(/\//g, "")}`} onClick={() => navigate(to)}>
+    <button
+      type="button"
+      data-testid={`go-${to.replace(/\//g, "")}`}
+      onClick={() => navigate(to)}
+    >
       go
     </button>
   );
 }
 
-function renderTitleBar(os: "windows" | "linux" | "mac", withNavHelper = false) {
+function renderTitleBar(
+  os: "windows" | "linux" | "mac",
+  withNavHelper = false,
+) {
   return render(
     <MemoryRouter initialEntries={["/chat"]}>
       <NavigationHistoryProvider>

@@ -192,6 +192,7 @@ export type {
   SettingDependsOn,
   SettingItem,
   SettingsResponse,
+  SettingsNavigationGroup,
   SettingUpdate,
   SettingResetResponse,
 } from "./settings";
@@ -301,4 +302,3 @@ export type {
 // Usage Types
 // ============================================
 export type { UsageLog, UsageStats, UsageLogListResponse } from "./usage";
-

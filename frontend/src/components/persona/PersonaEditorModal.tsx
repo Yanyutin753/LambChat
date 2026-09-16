@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GlassSelect } from "../common/GlassSelect";
-import { Plus, Pencil, Sparkles, Tag, Save, MessageSquare, Server, TriangleAlert } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Sparkles,
+  Tag,
+  Save,
+  MessageSquare,
+  Server,
+  TriangleAlert,
+} from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { EditorSidebar } from "../common/EditorSidebar";
 import toast from "react-hot-toast";
@@ -126,7 +135,9 @@ export function PersonaEditorModal({
         ),
         tags: editingPreset?.tags.join(", ") || "",
         skill_names: [...(editingPreset?.skill_names || [])] as string[],
-            mcp_server_names: [...(editingPreset?.mcp_server_names || [])] as string[],
+        mcp_server_names: [
+          ...(editingPreset?.mcp_server_names || []),
+        ] as string[],
       });
       setSkillDropdownOpen(false);
     }
@@ -423,7 +434,10 @@ export function PersonaEditorModal({
             />
             {!bindingsLoading && missingSkills.length > 0 && (
               <p className="mt-1.5 flex items-start gap-1 text-11 leading-relaxed text-amber-600/90 dark:text-amber-400/90">
-                <TriangleAlert size={11} className="mt-0.5 shrink-0 opacity-80" />
+                <TriangleAlert
+                  size={11}
+                  className="mt-0.5 shrink-0 opacity-80"
+                />
                 {t("personaPresets.missingSkillsHint", {
                   names: missingSkills.join("、"),
                 })}
@@ -456,7 +470,10 @@ export function PersonaEditorModal({
             />
             {!bindingsLoading && missingMcpServers.length > 0 && (
               <p className="mt-1.5 flex items-start gap-1 text-11 leading-relaxed text-amber-600/90 dark:text-amber-400/90">
-                <TriangleAlert size={11} className="mt-0.5 shrink-0 opacity-80" />
+                <TriangleAlert
+                  size={11}
+                  className="mt-0.5 shrink-0 opacity-80"
+                />
                 {t("personaPresets.missingMcpHint", {
                   names: missingMcpServers.join("、"),
                 })}

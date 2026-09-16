@@ -22,7 +22,6 @@ import { useTeamMentionSearch } from "../../hooks/useTeamMentionSearch";
 import { useInputHistory } from "../../hooks/useInputHistory";
 import { useLongTextConversion } from "../../hooks/useLongTextConversion";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
-import { isSendEnterKey } from "../../hooks/sendModifier";
 import { useNotifyTodayUsageRefresh } from "../../hooks/useTodayUsageCost";
 import { useAuth } from "../../hooks/useAuth";
 import { MentionPopup } from "./MentionPopup";
@@ -64,10 +63,11 @@ import type { ComposerArrowDirection } from "./richComposer/ArrowKeyPlugin";
 import { selectVisibleDraftAttachments } from "./acceptedDraftCleanup";
 import { ChatInputSteerQueue } from "./ChatInputSteerQueue";
 import { ChatInputDialogLayer } from "./ChatInputDialogLayer";
+import { areAttachmentsSendable } from "./attachmentValidation";
 import {
-  areAttachmentsSendable,
-  filterSendableAttachments,
-} from "./attachmentValidation";
+  createRunningSendToolkit,
+  handleEnterSubmit,
+} from "./chatInputRunningSend";
 import { useAcceptedDraftSubmission } from "./useAcceptedDraftSubmission";
 const RichChatComposer = lazy(async () => {
   const module = await import("./richComposer/RichChatComposer");
@@ -82,7 +82,8 @@ export type { ChatInputProps } from "./chatInputTypes";
 export const ChatInput = memo(function ChatInput({
   onSend,
   onStop,
-  onSteer,
+  onSupplement,
+  onQueueFollowUp,
   steerMessages = [],
   onCancelSteer,
   isLoading,
@@ -153,6 +154,9 @@ export const ChatInput = memo(function ChatInput({
   const [input, setInput] = useState("");
   const inputValueRef = useRef("");
   const composerRef = useRef<RichChatComposerHandle>(null);
+  const focusComposerAtEnd = useCallback(() => {
+    requestAnimationFrame(() => composerRef.current?.focus({ atEnd: true }));
+  }, []);
   const [activeReferenceIds, setActiveReferenceIds] = useState<string[]>([]);
   const longTextResourcesRef = useRef(new Map<string, LongTextPastePayload>());
   useEffect(() => {
@@ -161,11 +165,9 @@ export const ChatInput = memo(function ChatInput({
       inputValueRef.current = pendingInput;
       composerRef.current?.setPlainText(pendingInput);
       onPendingInputConsumed?.();
-      requestAnimationFrame(() => {
-        composerRef.current?.focus({ atEnd: true });
-      });
+      focusComposerAtEnd();
     }
-  }, [pendingInput, onPendingInputConsumed]);
+  }, [pendingInput, onPendingInputConsumed, focusComposerAtEnd]);
   const [activePanel, setActivePanel] = useState<FeaturePanel>(null);
   const [runEnabledSkillNames, setRunEnabledSkillNames] = useState<
     string[] | null
@@ -265,31 +267,19 @@ export const ChatInput = memo(function ChatInput({
   }, [mention.isActive, mention.query, onMentionQueryChange]);
   // 一轮对话结束后通知工具栏用量 chip 刷新当日金额
   useNotifyTodayUsageRefresh(isLoading);
+  // @人选定后把提及片段从草稿摘除并聚焦（人设/团队共用同一行为）
   useEffect(() => {
-    if (!onMentionQueryChange || !selectedPersonaPresetId || !mention.isActive)
-      return;
+    const selectedId =
+      mentionMode === "team" ? selectedTeamId : selectedPersonaPresetId;
+    if (!onMentionQueryChange || !selectedId || !mention.isActive) return;
     const before = input.substring(0, mention.atIndex);
     const after = input.substring(mention.atIndex + mention.query.length + 1);
     setComposerPlainText(before + after);
     setCursorPosition(before.length || 0);
-    requestAnimationFrame(() => {
-      composerRef.current?.focus({ atEnd: true });
-    });
+    focusComposerAtEnd();
     resetMention();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires only on preset selection
-  }, [selectedPersonaPresetId, setComposerPlainText]);
-  useEffect(() => {
-    if (!onMentionQueryChange || !selectedTeamId || !mention.isActive) return;
-    const before = input.substring(0, mention.atIndex);
-    const after = input.substring(mention.atIndex + mention.query.length + 1);
-    setComposerPlainText(before + after);
-    setCursorPosition(before.length || 0);
-    requestAnimationFrame(() => {
-      composerRef.current?.focus({ atEnd: true });
-    });
-    resetMention();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires only on team selection
-  }, [selectedTeamId, setComposerPlainText]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires only on selection
+  }, [selectedPersonaPresetId, selectedTeamId, setComposerPlainText]);
   useEffect(() => {
     const applySelectionActionPrompt = (prompt: string) => {
       const separator = inputValueRef.current.trim() ? "\n\n" : "";
@@ -403,13 +393,18 @@ export const ChatInput = memo(function ChatInput({
       const newInput = before + after;
       setComposerPlainText(newInput);
       setCursorPosition(before.length || 0);
-      requestAnimationFrame(() => {
-        composerRef.current?.focus({ atEnd: true });
-      });
+      focusComposerAtEnd();
       onUsePersonaPreset?.(preset);
       resetMention();
     },
-    [input, mention, onUsePersonaPreset, resetMention, setComposerPlainText],
+    [
+      input,
+      mention,
+      focusComposerAtEnd,
+      onUsePersonaPreset,
+      resetMention,
+      setComposerPlainText,
+    ],
   );
   const applyTeamMentionSelection = useCallback(
     (team: Team) => {
@@ -419,13 +414,18 @@ export const ChatInput = memo(function ChatInput({
       const newInput = before + after;
       setComposerPlainText(newInput);
       setCursorPosition(before.length || 0);
-      requestAnimationFrame(() => {
-        composerRef.current?.focus({ atEnd: true });
-      });
+      focusComposerAtEnd();
       onSelectTeam?.(team.id);
       resetMention();
     },
-    [input, mention, onSelectTeam, resetMention, setComposerPlainText],
+    [
+      input,
+      mention,
+      focusComposerAtEnd,
+      onSelectTeam,
+      resetMention,
+      setComposerPlainText,
+    ],
   );
   const handleComposerChange = useCallback((change: RichChatComposerChange) => {
     const { projection } = change;
@@ -520,9 +520,17 @@ export const ChatInput = memo(function ChatInput({
     (attachment) => attachment.uploadError,
   );
   const hasInvalidAttachment = !areAttachmentsSendable(visibleAttachments);
+  const { sendRunningDraft, editQueuedMessage } = createRunningSendToolkit({
+    input,
+    visibleAttachments,
+    clearDraft: clearSteerDraft,
+    setComposerText: setComposerPlainText,
+    restoreAttachments: setAttachments,
+    removeQueued: onCancelSteer,
+    focusComposer: focusComposerAtEnd,
+  });
   const handleComposerKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
-      // Lexical prevents Enter first; defaultPrevented cannot distinguish send intent.
       if (mention.isActive) {
         if (event.key === "Enter" || event.key === "Tab") {
           event.preventDefault();
@@ -543,30 +551,24 @@ export const ChatInput = memo(function ChatInput({
       }
       if (event.key === "Enter") {
         if (event.nativeEvent.isComposing || event.keyCode === 229) return;
-        if (!isSendEnterKey(event)) return;
-        event.preventDefault();
-        if (sendBlocked) {
-          return;
-        }
-        // 运行中且支持插话：Enter 发送 steer 消息（Codex 式），否则保留停止确认
-        if (isLoading) {
-          if (
-            onSteer &&
-            (input.trim() || visibleAttachments.length > 0) &&
-            !hasUploadingAttachment &&
-            !hasFailedAttachment &&
-            !hasInvalidAttachment
-          ) {
-            onSteer(input, filterSendableAttachments(visibleAttachments));
-            clearSteerDraft();
-          } else {
-            setStopConfirmOpen(true);
-          }
-        } else {
-          // The expanded editor is outside the form; resolve it via ref, not ancestry.
-          formRef.current?.requestSubmit();
-        }
-        return;
+        handleEnterSubmit(
+          event,
+          {
+            isLoading,
+            sendBlocked,
+            input,
+            visibleAttachments,
+            hasUploadingAttachment,
+            hasFailedAttachment,
+            hasInvalidAttachment,
+          },
+          { onQueueFollowUp },
+          {
+            clearDraft: clearSteerDraft,
+            openStopConfirm: () => setStopConfirmOpen(true),
+            submitForm: () => formRef.current?.requestSubmit(),
+          },
+        );
       }
     },
     [
@@ -582,7 +584,7 @@ export const ChatInput = memo(function ChatInput({
       mention.isActive,
       mentionMode,
       mentionSearch.presets,
-      onSteer,
+      onQueueFollowUp,
       resetMention,
       sendBlocked,
       visibleAttachments,
@@ -611,7 +613,7 @@ export const ChatInput = memo(function ChatInput({
         direction === "up" ? navigateUp(input) : navigateDown();
       if (historyValue === null) return false;
       setComposerPlainText(historyValue);
-      requestAnimationFrame(() => composerRef.current?.focus({ atEnd: true }));
+      focusComposerAtEnd();
       return true;
     },
     [
@@ -619,6 +621,7 @@ export const ChatInput = memo(function ChatInput({
       isBrowsing,
       cursorPosition,
       availableRunSkills,
+      focusComposerAtEnd,
       mention.isActive,
       moveMentionHighlight,
       navigateDown,
@@ -626,10 +629,9 @@ export const ChatInput = memo(function ChatInput({
       setComposerPlainText,
     ],
   );
-  const hasContent =
-    (!!input.trim() || visibleAttachments.length > 0) && !disabled;
   const canSubmit =
-    hasContent &&
+    (!!input.trim() || visibleAttachments.length > 0) &&
+    !disabled &&
     canSend &&
     !sendBlocked &&
     !isLoading &&
@@ -695,7 +697,14 @@ export const ChatInput = memo(function ChatInput({
             document.body,
           )
         : null}
-      <ChatInputSteerQueue items={steerMessages} onCancel={onCancelSteer} />
+      <ChatInputSteerQueue
+        items={steerMessages}
+        onCancel={onCancelSteer}
+        onEdit={onCancelSteer ? editQueuedMessage : undefined}
+        onGuide={
+          isLoading && canSend && !sendBlocked ? onSupplement : undefined
+        }
+      />
       <form
         ref={formRef}
         onSubmit={handleSubmit}
@@ -875,16 +884,7 @@ export const ChatInput = memo(function ChatInput({
                   sendBlocked={sendBlocked}
                   isLoading={isLoading}
                   hasDraft={!!input.trim() || visibleAttachments.length > 0}
-                  onSteer={
-                    onSteer &&
-                    (() => {
-                      onSteer(
-                        input,
-                        filterSendableAttachments(visibleAttachments),
-                      );
-                      clearSteerDraft();
-                    })
-                  }
+                  onQueueFollowUp={sendRunningDraft(onQueueFollowUp)}
                   canSubmit={canSubmit}
                   hasUploadingAttachment={hasUploadingAttachment}
                   hasFailedAttachment={hasFailedAttachment}

@@ -66,17 +66,20 @@ beforeEach(async () => {
 
 test("online machines show green dot, offline machines greyed with last-seen and forget", async () => {
   render(<SandboxMachinesCard />);
-  await waitFor(() =>
-    expect(screen.getByText("Server")).toBeInTheDocument(),
-  );
+  await waitFor(() => expect(screen.getByText("Server")).toBeInTheDocument());
 
   const onlineRow = screen.getByText("PrimaryServer").closest("div");
-  expect(onlineRow?.querySelector("span")?.className).toContain("bg-green-500");
+  // 在线状态点走语义 token（护眼模式下降饱和），不再用裸 green-500
+  expect(onlineRow?.querySelector("span")?.className).toContain(
+    "bg-theme-success",
+  );
 
   // 离线机：置灰点 + 离线徽标 + 相对时间
   expect(screen.getByText("Old PC")).toBeInTheDocument();
   const offlineRow = screen.getByText("Old PC").closest("div");
-  expect(offlineRow?.querySelector("span")?.className).toContain("bg-theme-border-hover");
+  expect(offlineRow?.querySelector("span")?.className).toContain(
+    "bg-theme-border-hover",
+  );
   expect(screen.getByText(/offline/i)).toBeInTheDocument();
   expect(screen.getByTestId("last-seen-pc1").textContent).toMatch(/1h|h/);
 
@@ -104,10 +107,10 @@ test("each machine row renders exactly one rename button and one platform label"
 test("forget calls the API then refreshes presence state", async () => {
   window.confirm = vi.fn(() => true);
   render(<SandboxMachinesCard />);
-  await waitFor(() => expect(screen.getByTestId("forget-pc1")).toBeInTheDocument());
+  await waitFor(() =>
+    expect(screen.getByTestId("forget-pc1")).toBeInTheDocument(),
+  );
 
   fireEvent.click(screen.getByTestId("forget-pc1"));
-  await waitFor(() =>
-    expect(mocks.forgetMachine).toHaveBeenCalledWith("pc1"),
-  );
+  await waitFor(() => expect(mocks.forgetMachine).toHaveBeenCalledWith("pc1"));
 });

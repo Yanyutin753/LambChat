@@ -43,17 +43,21 @@ function createLiveContext(initial: Message[]): {
 }
 
 describe("live run:resumed event", () => {
-  test("resets interrupted bubble content and returns to streaming", () => {
+  test("preserves interrupted text and tools while returning to streaming", () => {
     const { ctx, messages } = createLiveContext([
       {
         id: "run-1",
         role: "assistant",
-        content: "错误：连接中断",
+        content: "已完成的分析",
         timestamp: new Date(),
         isStreaming: false,
         cancelled: true,
         runId: "run-1",
-        parts: [{ type: "cancelled" }],
+        parts: [
+          { type: "text", content: "已完成的分析" },
+          { type: "tool", id: "t1", name: "bash", args: {}, isPending: true },
+          { type: "cancelled" },
+        ],
         toolCalls: [{ id: "t1", name: "bash", args: {} }],
       },
     ]);
@@ -66,9 +70,19 @@ describe("live run:resumed event", () => {
 
     const message = messages().find((m) => m.id === "run-1");
     expect(message).toBeDefined();
-    expect(message?.parts).toEqual([]);
-    expect(message?.content).toBe("");
-    expect(message?.toolCalls).toEqual([]);
+    expect(message?.parts).toEqual([
+      { type: "text", content: "已完成的分析" },
+      {
+        type: "tool",
+        id: "t1",
+        name: "bash",
+        args: {},
+        isPending: false,
+        cancelled: true,
+      },
+    ]);
+    expect(message?.content).toBe("已完成的分析");
+    expect(message?.toolCalls).toEqual([{ id: "t1", name: "bash", args: {} }]);
     expect(message?.cancelled).toBe(false);
     expect(message?.isStreaming).toBe(true);
   });
@@ -110,7 +124,7 @@ describe("live run:resumed event", () => {
     expect(effects().sandboxErrorCleared).toBe(1);
   });
 
-  test("post-resume chunks rebuild content from scratch", () => {
+  test("post-resume chunks retain pre-resume content", () => {
     const { ctx, messages } = createLiveContext([
       {
         id: "run-1",
@@ -142,7 +156,7 @@ describe("live run:resumed event", () => {
     );
 
     expect(messages().find((m) => m.id === "run-1")?.content).toBe(
-      "重新生成的完整回答",
+      "半截输出重新生成的完整回答",
     );
   });
 });
@@ -175,13 +189,13 @@ describe("history rebuild with run:resumed", () => {
     },
   ];
 
-  test("keeps only post-resume content in the assistant bubble", () => {
+  test("keeps both pre-resume and post-resume content in history", () => {
     const messages = reconstructMessagesFromEvents(events, new Set<string>(), {
       activeSubagentStack: [],
     });
     const assistant = messages.find((m) => m.role === "assistant");
 
-    expect(assistant?.content).toBe("恢复后的完整回答");
+    expect(assistant?.content).toBe("中断前的半截恢复后的完整回答");
     expect(assistant?.id).toBe("run-1");
   });
 
@@ -194,6 +208,53 @@ describe("history rebuild with run:resumed", () => {
     const assistant = messages.find((m) => m.role === "assistant");
 
     expect(assistant?.content).toBe("中断前的半截");
+  });
+
+  test("history preserves completed tools and routes resumed output outside interrupted subagents", () => {
+    const messages = reconstructMessagesFromEvents(
+      [
+        ...events.slice(0, 2),
+        {
+          event_type: "tool:start",
+          run_id: "run-1",
+          data: { tool: "bash", tool_call_id: "t1", args: { cmd: "ls" } },
+          timestamp: "2026-09-01T00:00:02Z",
+        },
+        {
+          event_type: "tool:result",
+          run_id: "run-1",
+          data: {
+            tool: "bash",
+            tool_call_id: "t1",
+            result: "report.txt",
+            success: true,
+          },
+          timestamp: "2026-09-01T00:00:03Z",
+        },
+        {
+          event_type: "agent:call",
+          run_id: "run-1",
+          data: { agent_id: "researcher", depth: 1 },
+          timestamp: "2026-09-01T00:00:04Z",
+        },
+        ...events.slice(2),
+      ],
+      new Set<string>(),
+      { activeSubagentStack: [] },
+    );
+    const assistant = messages.find((m) => m.role === "assistant");
+    expect(assistant?.parts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "tool",
+          id: "t1",
+          result: "report.txt",
+        }),
+        expect.objectContaining({ type: "subagent", isPending: false }),
+        expect.objectContaining({ type: "text", content: "恢复后的完整回答" }),
+      ]),
+    );
+    expect(assistant?.content).toBe("中断前的半截恢复后的完整回答");
   });
 });
 

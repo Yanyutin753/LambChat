@@ -36,7 +36,13 @@ const PROVIDER_DOTS: Record<string, string> = {
   searxng: "bg-violet-400",
 };
 
-function ProviderBadge({ provider, className }: { provider: string; className?: string }) {
+function ProviderBadge({
+  provider,
+  className,
+}: {
+  provider: string;
+  className?: string;
+}) {
   if (!provider) return null;
   return (
     <span
@@ -72,20 +78,24 @@ function ResultFavicon({
     item.faviconUrl ||
     (host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null);
 
-  const icon = failed || !src ? (
-    <Globe size={size} className="shrink-0 text-theme-text-tertiary opacity-70" />
-  ) : (
-    <img
-      src={src}
-      width={size}
-      height={size}
-      alt=""
-      loading="lazy"
-      referrerPolicy="no-referrer"
-      onError={() => setFailed(true)}
-      className="shrink-0 rounded-[3px]"
-    />
-  );
+  const icon =
+    failed || !src ? (
+      <Globe
+        size={size}
+        className="shrink-0 text-theme-text-tertiary opacity-70"
+      />
+    ) : (
+      <img
+        src={src}
+        width={size}
+        height={size}
+        alt=""
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
+        className="shrink-0 rounded-[3px]"
+      />
+    );
 
   if (!boxed) return icon;
   return (
@@ -182,7 +192,9 @@ function WebSearchSummaryChips({
         )}
       >
         <Globe size={compact ? 9 : 10} className="shrink-0 opacity-70" />
-        {t("chat.message.toolWebSearchResults", { count: summary.results.length })}
+        {t("chat.message.toolWebSearchResults", {
+          count: summary.results.length,
+        })}
       </span>
       {summary.provider && <ProviderBadge provider={summary.provider} />}
       {summary.images.length > 0 && (
@@ -193,7 +205,9 @@ function WebSearchSummaryChips({
           )}
         >
           <ImageIcon size={compact ? 9 : 10} className="shrink-0 opacity-70" />
-          {t("chat.message.toolWebSearchImages", { count: summary.images.length })}
+          {t("chat.message.toolWebSearchImages", {
+            count: summary.images.length,
+          })}
         </span>
       )}
     </div>
@@ -225,10 +239,7 @@ function WebSearchDetail({ args, result }: ToolDetailProps) {
       {(query || summary?.provider) && (
         <div className="flex items-center gap-2.5 rounded-xl border border-[color-mix(in_srgb,var(--theme-primary)_16%,var(--theme-border))] bg-[color-mix(in_srgb,var(--theme-primary)_7%,var(--theme-bg-card))] px-3 py-2.5 shadow-[0_10px_24px_-22px_color-mix(in_srgb,var(--theme-primary)_45%,transparent)]">
           <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--theme-primary)_12%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_18%,transparent)]">
-            <Globe
-              size={14}
-              className="shrink-0 text-[var(--theme-primary)]"
-            />
+            <Globe size={14} className="shrink-0 text-[var(--theme-primary)]" />
           </span>
           <span className="text-14 font-semibold text-theme-text min-w-0 truncate flex-1">
             {query || t("chat.message.toolWebSearch")}
@@ -303,7 +314,9 @@ function WebSearchDetail({ args, result }: ToolDetailProps) {
         <div className="space-y-1.5">
           <div className="flex items-center gap-1.5 text-11 font-medium text-theme-text-secondary px-0.5">
             <ImageIcon size={12} className="shrink-0 opacity-70" />
-            {t("chat.message.toolWebSearchImages", { count: summary.images.length })}
+            {t("chat.message.toolWebSearchImages", {
+              count: summary.images.length,
+            })}
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {summary.images.slice(0, 9).map((image, index) => (
@@ -399,7 +412,9 @@ const WebSearchItem = memo(function WebSearchItem({
         : "error";
 
   const titleLabel = t("chat.message.toolWebSearch");
-  const pillLabel = `${titleLabel} ${query ? `"${truncate(query, 24)}"` : ""}`.trim();
+  const pillLabel = `${titleLabel} ${
+    query ? `"${truncate(query, 24)}"` : ""
+  }`.trim();
   // 结果数走 suffix 徽章，pill 主标签保持干净
   const countSuffix =
     summary && summary.results.length > 0 ? (
@@ -484,7 +499,9 @@ const WebSearchItem = memo(function WebSearchItem({
               </ToolArgsBlock>
             )}
 
-            {summary && <WebSearchSummaryChips summary={summary} size="compact" />}
+            {summary && (
+              <WebSearchSummaryChips summary={summary} size="compact" />
+            )}
 
             {summary && summary.results.length > 0 && (
               <div className="space-y-1">
@@ -580,8 +597,8 @@ const WebSearchItem = memo(function WebSearchItem({
                   onClick={openSearchPanel}
                   className="inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-11 font-medium tabular-nums text-theme-text-tertiary transition-colors hover:text-[var(--theme-primary)]"
                 >
-                  <ImageIcon size={11} className="opacity-70" />
-                  +{summary.images.length - 3}
+                  <ImageIcon size={11} className="opacity-70" />+
+                  {summary.images.length - 3}
                 </button>
               )}
             </div>

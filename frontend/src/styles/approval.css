@@ -1165,97 +1165,83 @@
   padding: var(--approval-section-y) var(--approval-section-x);
 }
 
-/* ── Answer summary (replaces generic status footer) ── */
-.approval-answer-summary {
-  background: var(--approval-bg);
-  border: 1px solid var(--approval-border);
-  border-radius: 0.625rem;
-  overflow: hidden;
+/* Read-only tool detail: one quiet surface, with answers as content. */
+.approval-card.approval-card--snapshot {
+  box-shadow: none;
+}
+
+.approval-card--snapshot .approval-header {
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
+  padding-bottom: var(--approval-section-y);
+}
+
+.approval-card--snapshot .approval-icon {
+  background: var(--theme-bg);
+  color: var(--theme-text-secondary);
+}
+
+.approval-card--snapshot .approval-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.approval-card--snapshot .approval-answer-summary {
+  border-top: 1px solid var(--approval-border);
 }
 
 .approval-answer-summary-header {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
-  padding: 0.5rem 0.75rem;
-  background: color-mix(
-    in srgb,
-    var(--approval-accent-light) 40%,
-    var(--approval-bg)
-  );
-  border-bottom: 1px solid var(--approval-border);
+  gap: 0.5rem;
+  color: var(--approval-text-dim);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.5;
 }
 
 .approval-answer-summary-header svg {
   flex-shrink: 0;
 }
 
-.approval-answer-summary-header span {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--approval-accent);
-  letter-spacing: 0.02em;
+.approval-answer-summary-body {
+  margin: 0.25rem 0 0;
 }
 
-.approval-answer-summary-body {
-  padding: 0.625rem 0.75rem 0.75rem;
+.approval-answer-item {
+  padding: 0.875rem 0;
+}
+
+.approval-answer-item:last-child {
+  padding-bottom: 0.25rem;
 }
 
 .approval-answer-item + .approval-answer-item {
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid
-    color-mix(in srgb, var(--approval-border) 40%, transparent);
+  border-top: 1px solid var(--approval-border);
 }
 
 .approval-answer-row {
   display: flex;
+  min-width: 0;
   flex-direction: column;
-  gap: 0.25rem;
-}
-
-.approval-answer-item-sep {
-  display: none;
+  gap: 0.375rem;
 }
 
 .approval-answer-label {
-  font-size: 0.625rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   color: var(--approval-text-dim);
-  line-height: 1.4;
-  word-break: break-word;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .approval-answer-value {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  line-height: 1.5;
-  color: var(--approval-text-dim);
-  word-break: break-word;
-  padding: 0.25rem 0.5rem;
-  background: color-mix(
-    in srgb,
-    var(--approval-accent-light) 50%,
-    var(--approval-input-bg)
-  );
-  border-radius: 0.375rem;
-  border: 1px solid
-    color-mix(in srgb, var(--approval-accent) 8%, var(--approval-border));
-  max-width: fit-content;
-}
-
-.approval-answer-value-dot {
-  width: 0.25rem;
-  height: 0.25rem;
-  border-radius: 9999px;
-  background: var(--approval-accent);
-  flex-shrink: 0;
-  opacity: 0.8;
+  margin: 0;
+  color: var(--approval-text);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* ── Action buttons ── */

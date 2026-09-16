@@ -30,6 +30,7 @@ const DEDICATED_ITEMS = [
   "ImageGenerateItem",
   "ImageAnalyzeItem",
   "AudioTranscribeItem",
+  "DocumentParseItem",
   "UploadUrlToSandboxItem",
   "TransferItem",
   "ScheduledTaskItem",

@@ -19,6 +19,7 @@ import {
   ImageAnalyzeItem,
   VideoAnalyzeItem,
   AudioTranscribeItem,
+  DocumentParseItem,
   UploadUrlToSandboxItem,
   TransferItem,
   ScheduledTaskItem,
@@ -355,6 +356,20 @@ export function MessagePartRenderer({
     if (part.name === "audio_transcribe") {
       return (
         <AudioTranscribeItem
+          id={part.id}
+          args={toolArgs}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (part.name === "document_parse") {
+      return (
+        <DocumentParseItem
           id={part.id}
           args={toolArgs}
           result={part.result}

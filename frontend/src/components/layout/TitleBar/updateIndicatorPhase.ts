@@ -7,9 +7,7 @@ export type UpdateIndicatorPhase =
   | "error"
   | "available";
 
-export function updateIndicatorPhase(
-  state: UpdateState,
-): UpdateIndicatorPhase {
+export function updateIndicatorPhase(state: UpdateState): UpdateIndicatorPhase {
   if (state.downloading) return "downloading";
   if (state.readyToInstall) return "ready";
   if (state.error) return "error";

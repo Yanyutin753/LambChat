@@ -33,7 +33,9 @@ function asScore(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function parseResultEntry(entry: Record<string, unknown>): WebSearchResultItem | null {
+function parseResultEntry(
+  entry: Record<string, unknown>,
+): WebSearchResultItem | null {
   const url = asString(entry.url);
   if (!url) return null;
   return {
@@ -42,7 +44,8 @@ function parseResultEntry(entry: Record<string, unknown>): WebSearchResultItem |
     snippet: asString(entry.snippet) ?? "",
     score: asScore(entry.score),
     faviconUrl: asString(entry.favicon_url) ?? asString(entry.faviconUrl),
-    publishedDate: asString(entry.published_date) ?? asString(entry.publishedDate),
+    publishedDate:
+      asString(entry.published_date) ?? asString(entry.publishedDate),
   };
 }
 
@@ -112,9 +115,7 @@ export function siteLabelFromUrl(url: string): string {
     if (parts.length <= 2) return parts.join(".");
     const publicSuffix =
       parts.length >= 3 && SECOND_LEVEL_TLDS.has(parts[parts.length - 2]);
-    return publicSuffix
-      ? parts.slice(-3).join(".")
-      : parts.slice(-2).join(".");
+    return publicSuffix ? parts.slice(-3).join(".") : parts.slice(-2).join(".");
   } catch {
     return "";
   }

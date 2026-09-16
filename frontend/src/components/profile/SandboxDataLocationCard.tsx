@@ -86,9 +86,7 @@ export function SandboxDataLocationCard() {
     try {
       await clearSandboxDataLocation();
       setPendingRestart("reset");
-      toast.success(
-        t("profile.localSandbox.dataLocation.resetRestartPending"),
-      );
+      toast.success(t("profile.localSandbox.dataLocation.resetRestartPending"));
     } catch (err) {
       console.warn("[SandboxDataLocationCard] reset failed:", err);
       toast.error(String(err));
@@ -203,7 +201,9 @@ export function SandboxDataLocationCard() {
                 ? t("common.loading")
                 : migrate
                   ? t("profile.localSandbox.dataLocation.confirmChange")
-                  : t("profile.localSandbox.dataLocation.confirmChangeNoMigrate")}
+                  : t(
+                      "profile.localSandbox.dataLocation.confirmChangeNoMigrate",
+                    )}
             </button>
           </div>
         </div>

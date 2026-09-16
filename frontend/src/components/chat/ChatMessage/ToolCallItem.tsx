@@ -114,6 +114,7 @@ export { ImageGenerateItem } from "./items/ImageGenerateItem";
 export { ImageAnalyzeItem } from "./items/ImageAnalyzeItem";
 export { VideoAnalyzeItem } from "./items/VideoAnalyzeItem";
 export { AudioTranscribeItem } from "./items/AudioTranscribeItem";
+export { DocumentParseItem } from "./items/DocumentParseItem";
 export { UploadUrlToSandboxItem } from "./items/UploadUrlToSandboxItem";
 export { TransferItem } from "./items/TransferItem";
 export { ScheduledTaskItem } from "./items/ScheduledTaskItem";

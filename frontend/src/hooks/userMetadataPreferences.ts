@@ -72,7 +72,9 @@ export function applyUserMetadataPreferences({
       JSON.stringify(metadata.themeSchedule),
     );
     dispatchEvent(
-      new CustomEvent("theme-schedule-change", { detail: metadata.themeSchedule }),
+      new CustomEvent("theme-schedule-change", {
+        detail: metadata.themeSchedule,
+      }),
     );
   }
 

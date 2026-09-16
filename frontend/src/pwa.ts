@@ -20,8 +20,7 @@ let reloadWhenControllerChanges = false;
  * chunk（RichChatComposer 动态导入 404 的主要根因），必须主动清退。 */
 async function cleanupTauriServiceWorkers(): Promise<void> {
   try {
-    const registrations =
-      await navigator.serviceWorker.getRegistrations();
+    const registrations = await navigator.serviceWorker.getRegistrations();
     await Promise.all(registrations.map((reg) => reg.unregister()));
     if ("caches" in window) {
       const cacheKeys = await caches.keys();
@@ -79,7 +78,9 @@ export function registerLambChatPwa(): void {
 
   // Tauri 桌面壳：更新走 updater 换装，SW 只会留一层陈旧缓存——不注册，
   // 并回收历史版本已注册的 SW 与 Cache Storage。
-  if (shouldUnregisterTauriPwa({ isTauriShell: tauriShell, hasServiceWorker })) {
+  if (
+    shouldUnregisterTauriPwa({ isTauriShell: tauriShell, hasServiceWorker })
+  ) {
     void cleanupTauriServiceWorkers();
     return;
   }

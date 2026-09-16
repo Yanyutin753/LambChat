@@ -51,7 +51,9 @@ test("release workflow publishes branded desktop and mobile artifacts", () => {
   // latest.json 由公共生成器产出（app-release 与手动 publish 工作流共用）：
   // darwin 双架构条目映射与「版本取自 tag」契约随生成器迁移到
   // scripts/generate_updater_manifest.py（不再内联在 workflow 里）
-  const manifestGenerator = readRepoFile("scripts/generate_updater_manifest.py");
+  const manifestGenerator = readRepoFile(
+    "scripts/generate_updater_manifest.py",
+  );
   expect(workflow).toMatch(/scripts\/generate_updater_manifest\.py/);
   expect(manifestGenerator).toMatch(
     /"darwin-aarch64", "\*-macOS-Apple-Silicon\.app\.tar\.gz\.sig"/,

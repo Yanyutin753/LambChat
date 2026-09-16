@@ -470,6 +470,28 @@ class Settings(BaseSettings):
     AUDIO_TRANSCRIPTION_MODEL: str = "gpt-4o-mini-transcribe"
     AUDIO_TRANSCRIPTION_MAX_DOWNLOAD_BYTES: int = 50 * 1024 * 1024
 
+    # Document parse tool settings（多提供商：Mistral OCR / MinerU / Azure DI /
+    # docling-serve / PaddleOCR-VL / Tika，形态对齐 web_search）
+    ENABLE_DOCUMENT_PARSE: bool = False
+    DOCUMENT_PARSE_PROVIDER: str = "auto"
+    DOCUMENT_PARSE_MISTRAL_API_KEY: str = ""
+    DOCUMENT_PARSE_MISTRAL_BASE_URL: str = "https://api.mistral.ai"
+    DOCUMENT_PARSE_MISTRAL_MODEL: str = "mistral-ocr-latest"
+    DOCUMENT_PARSE_MINERU_API_MODE: str = "cloud"
+    DOCUMENT_PARSE_MINERU_API_URL: str = ""
+    DOCUMENT_PARSE_MINERU_API_KEY: str = ""
+    DOCUMENT_PARSE_AZURE_ENDPOINT: str = ""
+    DOCUMENT_PARSE_AZURE_KEY: str = ""
+    DOCUMENT_PARSE_AZURE_MODEL: str = "prebuilt-read"
+    DOCUMENT_PARSE_DOCLING_URL: str = ""
+    DOCUMENT_PARSE_DOCLING_API_KEY: str = ""
+    DOCUMENT_PARSE_PADDLEOCR_URL: str = ""
+    DOCUMENT_PARSE_PADDLEOCR_TOKEN: str = ""
+    DOCUMENT_PARSE_TIKA_URL: str = ""
+    DOCUMENT_PARSE_MAX_DOWNLOAD_BYTES: int = 50 * 1024 * 1024
+    DOCUMENT_PARSE_MAX_OUTPUT_CHARS: int = 200_000
+    DOCUMENT_PARSE_MAX_IMAGES: int = 20
+
     # Web search tool settings（多 key 用英文逗号分隔，round-robin 轮询）。
     # 默认挂载为系统内置工具：未配置任何 provider 时工具返回
     # web_search_no_provider_configured 引导配置，而不是不挂载

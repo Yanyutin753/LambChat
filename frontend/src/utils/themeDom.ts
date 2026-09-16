@@ -121,7 +121,9 @@ export function resolveScheduledTheme(
   const end = toMinutes(schedule.end);
   if (start === end) return "light";
   const inNight =
-    start < end ? nowMinutes >= start && nowMinutes < end : nowMinutes >= start || nowMinutes < end;
+    start < end
+      ? nowMinutes >= start && nowMinutes < end
+      : nowMinutes >= start || nowMinutes < end;
   return inNight ? schedule.nightTheme : "light";
 }
 

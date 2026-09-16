@@ -10,7 +10,12 @@ const locales = ["en", "zh", "ja", "ko", "ru"];
 /** 更新 UI（标题栏指示器 / UpdateDialog）的主按钮与状态文案 key。
  * updateRelaunchInstall 只有 update.* 命名空间内的条目——引用成顶层
  * key 时五语全部 miss，非中文用户会看到中文 defaultValue 兜底。 */
-const namespacedKeys = ["updateRelaunchInstall", "availableTitle", "skipVersion", "viewFullNotes"];
+const namespacedKeys = [
+  "updateRelaunchInstall",
+  "availableTitle",
+  "skipVersion",
+  "viewFullNotes",
+];
 const topLevelKeys = [
   "updateDownloading",
   "updateError",

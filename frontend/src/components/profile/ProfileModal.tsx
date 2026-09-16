@@ -208,7 +208,7 @@ export function ProfileModal({
                   style={{ scrollSnapAlign: "start" }}
                   className={`relative shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-12 font-medium transition-all whitespace-nowrap ${
                     isActive
-                      ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"
+                      ? "bg-theme-text text-theme-bg-card dark:bg-stone-100 dark:text-stone-900"
                       : "text-theme-text-secondary dark:text-stone-400 hover:bg-theme-bg-subtle dark:hover:bg-stone-700/50"
                   }`}
                 >
@@ -222,7 +222,7 @@ export function ProfileModal({
                 logout();
                 onCloseProfileModal();
               }}
-              className="relative shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-12 font-medium transition-all whitespace-nowrap text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+              className="relative shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-12 font-medium transition-all whitespace-nowrap text-theme-error dark:text-red-400 hover:bg-[color-mix(in_srgb,var(--theme-error)_12%,transparent)] dark:hover:bg-red-900/20"
             >
               <LogOut size={14} />
               {t("auth.logout")}
@@ -294,7 +294,7 @@ export function ProfileModal({
                   logout();
                   onCloseProfileModal();
                 }}
-                className="w-full text-left flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-12 font-medium transition-all text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 border border-transparent"
+                className="w-full text-left flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-12 font-medium transition-all text-theme-error dark:text-red-400 hover:opacity-80 dark:hover:text-red-300 hover:bg-[color-mix(in_srgb,var(--theme-error)_12%,transparent)] dark:hover:bg-red-900/20 border border-transparent"
               >
                 <LogOut size={15} className="opacity-70" />
                 {t("auth.logout")}

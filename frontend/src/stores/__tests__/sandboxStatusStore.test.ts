@@ -12,9 +12,7 @@ vi.mock("../../services/api/sandbox", () => ({
   sandboxApiMachines: { listMachines: mocks.listMachines },
 }));
 
-import {
-  SANDBOX_ONLINE_CHANGED_EVENT,
-} from "../../components/layout/AppContent/useAgentOptions";
+import { SANDBOX_ONLINE_CHANGED_EVENT } from "../../components/layout/AppContent/useAgentOptions";
 import {
   applySandboxPresence,
   attachSandboxStatusStore,
@@ -31,7 +29,10 @@ beforeEach(() => {
   vi.useFakeTimers();
   mocks.getStatus.mockReset();
   mocks.listMachines.mockReset();
-  mocks.listMachines.mockResolvedValue({ machines: [], default_machine_id: null });
+  mocks.listMachines.mockResolvedValue({
+    machines: [],
+    default_machine_id: null,
+  });
   _resetSandboxStatusStoreForTests();
 });
 

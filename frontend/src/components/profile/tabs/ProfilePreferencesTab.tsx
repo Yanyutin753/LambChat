@@ -436,7 +436,10 @@ export function ProfilePreferencesTab() {
         {/* 云端沙箱：执行确认策略（用户级偏好，存 metadata） */}
         <div>
           <div className="flex items-center gap-1.5">
-            <Cloud size={13} className="text-theme-text-tertiary dark:text-stone-500" />
+            <Cloud
+              size={13}
+              className="text-theme-text-tertiary dark:text-stone-500"
+            />
             <span className="font-medium font-serif text-14 text-theme-text dark:text-stone-100">
               {t("profile.cloudSandbox")}
             </span>

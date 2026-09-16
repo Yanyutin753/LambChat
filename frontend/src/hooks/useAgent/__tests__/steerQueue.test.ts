@@ -151,6 +151,56 @@ describe("promoteSteerFollowUps", () => {
     expect(result).toEqual({ promoted: 0, skippedActive: 1 });
   });
 
+  test("defers items while a local submission is in flight instead of dropping them", async () => {
+    // run 结束的瞬间用户又手动发了一条：sendMessage 的在途守卫会静默
+    // 丢弃补发调用，若先清了本地项这条排队消息就丢了——必须原样
+    // 留在队列里等下一轮重试
+    const calls: string[] = [];
+    const result = await promoteSteerFollowUps(
+      [item("s1", "第一条"), item("s2", "第二条")],
+      {
+        sessionId: "session-1",
+        isSending: () => true,
+        clearSteer: (content) => {
+          calls.push(`clear:${content}`);
+        },
+        cancelSteer: async () => {
+          calls.push("cancel");
+        },
+        sendMessage: async (content) => {
+          calls.push(`send:${content}`);
+        },
+      },
+    );
+
+    expect(calls).toEqual([]);
+    expect(result).toEqual({ promoted: 0, skippedActive: 2 });
+  });
+
+  test("stops mid-drain when a local submission starts, keeping the rest queued", async () => {
+    // 多条排队逐条补发途中用户手动发送：剩余条目不在本轮流里补发
+    const calls: string[] = [];
+    let inFlight = false;
+    const result = await promoteSteerFollowUps(
+      [item("s1", "第一条"), item("s2", "第二条"), item("s3", "第三条")],
+      {
+        sessionId: "session-1",
+        isSending: () => inFlight,
+        clearSteer: (content) => {
+          calls.push(`clear:${content}`);
+        },
+        cancelSteer: async () => {},
+        sendMessage: async (content) => {
+          calls.push(`send:${content}`);
+          inFlight = true;
+        },
+      },
+    );
+
+    expect(calls).toEqual(["clear:第一条", "send:第一条"]);
+    expect(result).toEqual({ promoted: 1, skippedActive: 2 });
+  });
+
   test("status probe failure is treated as active (never double-send blind)", async () => {
     const sent: string[] = [];
     const result = await promoteSteerFollowUps([item("s1", "插话")], {

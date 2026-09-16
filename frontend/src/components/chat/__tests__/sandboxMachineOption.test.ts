@@ -1,7 +1,10 @@
 /** 会话级机器选择器（纯函数）：统一面板设备行构造与入口标签 */
 import { describe, expect, it } from "vitest";
 import type { SandboxMachine } from "../../../services/api/sandbox";
-import { buildSandboxMachineRows, resolveSandboxButtonLabel } from "../sandboxOption";
+import {
+  buildSandboxMachineRows,
+  resolveSandboxButtonLabel,
+} from "../sandboxOption";
 
 const machines: SandboxMachine[] = [
   {

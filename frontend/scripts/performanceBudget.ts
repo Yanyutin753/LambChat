@@ -155,10 +155,10 @@ export function combinePrecacheBudgetEntries(
   });
 }
 
-// 528KB：#563 沙箱数据位置卡片（五语 13 键，顶到 525.1KB）与 #565
-// 定时主题（调度状态机 + themeDom 解析助手 + 五语文案，再 +1.2KB）叠加
-// 把 eager JS 顶到约 526.8KB，沿 2KB 阶梯惯例累加抬档。
-export const EAGER_JAVASCRIPT_BUDGET_BYTES = 530 * 1024;
+// 536KB：排队消息可编辑（Codex 式编辑按钮 + Alt+↑ 弹回 + 分组标题/提示，
+// 五语 4 键）把 eager JS 顶到约 534.4KB，距 534KB 线仅剩 42 字节余量，
+// 沿 2KB 阶梯惯例累加抬档（此前 #563/#565/#612/#613 的抬档史见 git log）。
+export const EAGER_JAVASCRIPT_BUDGET_BYTES = 536 * 1024;
 export const PRECACHE_BUDGET_BYTES = 5 * 1024 * 1024;
 export const PRECACHE_ADDITIONAL_ENTRIES: PrecacheEntry[] = [];
 

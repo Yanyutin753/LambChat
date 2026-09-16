@@ -9,7 +9,10 @@ import { AgentModeSelector } from "../selectors/AgentModeSelector";
 import { PersonaPresetSelector } from "../persona/PersonaPresetSelector";
 import { TeamPickerModal } from "../team/TeamPickerModal";
 import { AgentOptionButton } from "./AgentOptionButton";
-import { isShellAvailable, writeConfirmPolicy } from "../../services/tauri/sandboxShell";
+import {
+  isShellAvailable,
+  writeConfirmPolicy,
+} from "../../services/tauri/sandboxShell";
 import {
   notifySandboxStatusRefresh,
   useSandboxStatus,
@@ -164,11 +167,15 @@ export function ChatInputSelectors({
   const selectedMachine =
     machines.find((m) => m.machine_id === (machineValue || defaultMachineId)) ??
     machines.find((m) => m.online !== false);
-  const executionPolicy = policyOverride ?? selectedMachine?.confirm_policy ?? "all";
+  const executionPolicy =
+    policyOverride ?? selectedMachine?.confirm_policy ?? "all";
   const handlePolicyChange = async (policy: string) => {
     if (!selectedMachine || selectedMachine.online === false) return;
     try {
-      await sandboxApiMachines.updateConfirmPolicy(selectedMachine.machine_id, policy);
+      await sandboxApiMachines.updateConfirmPolicy(
+        selectedMachine.machine_id,
+        policy,
+      );
       if (selectedMachine.machine_id === currentMachineId && sandboxShell) {
         await writeConfirmPolicy(policy);
       }
@@ -197,84 +204,122 @@ export function ChatInputSelectors({
   const machineSection =
     machineRows.length > 0 ? (
       <>
-      <div
-        className="mt-1 pt-1.5 border-t"
-        style={{ borderColor: "var(--theme-border)" }}
-        data-sandbox-machine-section
-      >
         <div
-          className="px-3 pt-1 pb-1.5 text-12 font-medium"
-          style={{ color: "var(--theme-text-secondary)" }}
+          className="mt-1 pt-1.5 border-t"
+          style={{ borderColor: "var(--theme-border)" }}
+          data-sandbox-machine-section
         >
-          {t("agentOptions.sandboxMachine.section")}
-        </div>
-        <div className="flex flex-col gap-1">
-          {machineRows.map((row) => {
-            const active =
-              sandboxValue === SANDBOX_LOCAL_VALUE && row.value === machineValue;
-            const PlatformIcon = machinePlatformIcon(row.platform);
-            return (
-              <button
-                key={row.value || "auto"}
-                type="button"
-                data-sandbox-machine-row
-                onClick={() => handleSelectMachineRow(row)}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-14 transition-colors text-left cursor-pointer active:scale-[0.98]${
-                  row.disabled ? " opacity-50" : ""
-                }`}
-                style={{
-                  background: active
-                    ? "color-mix(in srgb, var(--theme-primary) 12%, transparent)"
-                    : "transparent",
-                  color: active ? "var(--theme-primary)" : "var(--theme-text)",
-                }}
-              >
-                <PlatformIcon size={14} className="shrink-0 opacity-60" />
-                <span className="truncate">{row.label}</span>
-                {row.isCurrent && (
-                  <span
-                    data-current-device-badge
-                    className="ml-1 shrink-0 px-1.5 py-0.5 rounded-full text-12"
-                    style={{
-                      color: "var(--theme-primary)",
-                      background:
-                        "color-mix(in srgb, var(--theme-primary) 12%, transparent)",
-                    }}
-                  >
-                    {t("agentOptions.sandboxMachine.currentDevice")}
-                  </span>
-                )}
-                {active && (
-                  <span
-                    className="ml-auto text-12"
-                    style={{ color: "var(--theme-primary)" }}
-                  >
-                    ✓
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      {selectedMachine && (
-        <div className="mt-1 pt-1.5 border-t" style={{ borderColor: "var(--theme-border)" }} data-sandbox-policy-section>
-          <div className="px-3 pt-1 pb-1.5 text-12 font-medium" style={{ color: "var(--theme-text-secondary)" }}>
-            {t("agentOptions.sandboxPolicy.section")}
+          <div
+            className="px-3 pt-1 pb-1.5 text-12 font-medium"
+            style={{ color: "var(--theme-text-secondary)" }}
+          >
+            {t("agentOptions.sandboxMachine.section")}
           </div>
           <div className="flex flex-col gap-1">
-            {(["all", "commands", "none"] as const).map((policy) => (
-              <button key={policy} type="button" onClick={() => void handlePolicyChange(policy)}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl text-14 transition-colors text-left cursor-pointer active:scale-[0.98]"
-                style={{ background: executionPolicy === policy ? "color-mix(in srgb, var(--theme-primary) 12%, transparent)" : "transparent", color: executionPolicy === policy ? "var(--theme-primary)" : "var(--theme-text)" }}>
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: executionPolicy === policy ? "var(--theme-primary)" : "var(--theme-border)" }} />
-                {t(`agentOptions.sandboxPolicy.${policy}`)}
-                {executionPolicy === policy && <span className="ml-auto text-12" style={{ color: "var(--theme-primary)" }}>✓</span>}
-              </button>
-            ))}
+            {machineRows.map((row) => {
+              const active =
+                sandboxValue === SANDBOX_LOCAL_VALUE &&
+                row.value === machineValue;
+              const PlatformIcon = machinePlatformIcon(row.platform);
+              return (
+                <button
+                  key={row.value || "auto"}
+                  type="button"
+                  data-sandbox-machine-row
+                  onClick={() => handleSelectMachineRow(row)}
+                  className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-14 transition-colors text-left cursor-pointer active:scale-[0.98]${
+                    row.disabled ? " opacity-50" : ""
+                  }`}
+                  style={{
+                    background: active
+                      ? "color-mix(in srgb, var(--theme-primary) 12%, transparent)"
+                      : "transparent",
+                    color: active
+                      ? "var(--theme-primary)"
+                      : "var(--theme-text)",
+                  }}
+                >
+                  <PlatformIcon size={14} className="shrink-0 opacity-60" />
+                  <span className="truncate">{row.label}</span>
+                  {row.isCurrent && (
+                    <span
+                      data-current-device-badge
+                      className="ml-1 shrink-0 px-1.5 py-0.5 rounded-full text-12"
+                      style={{
+                        color: "var(--theme-primary)",
+                        background:
+                          "color-mix(in srgb, var(--theme-primary) 12%, transparent)",
+                      }}
+                    >
+                      {t("agentOptions.sandboxMachine.currentDevice")}
+                    </span>
+                  )}
+                  {active && (
+                    <span
+                      className="ml-auto text-12"
+                      style={{ color: "var(--theme-primary)" }}
+                    >
+                      ✓
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
-      )}
+        {selectedMachine && (
+          <div
+            className="mt-1 pt-1.5 border-t"
+            style={{ borderColor: "var(--theme-border)" }}
+            data-sandbox-policy-section
+          >
+            <div
+              className="px-3 pt-1 pb-1.5 text-12 font-medium"
+              style={{ color: "var(--theme-text-secondary)" }}
+            >
+              {t("agentOptions.sandboxPolicy.section")}
+            </div>
+            <div className="flex flex-col gap-1">
+              {(["all", "commands", "none"] as const).map((policy) => (
+                <button
+                  key={policy}
+                  type="button"
+                  onClick={() => void handlePolicyChange(policy)}
+                  className="flex items-center gap-3 px-3 py-2 rounded-xl text-14 transition-colors text-left cursor-pointer active:scale-[0.98]"
+                  style={{
+                    background:
+                      executionPolicy === policy
+                        ? "color-mix(in srgb, var(--theme-primary) 12%, transparent)"
+                        : "transparent",
+                    color:
+                      executionPolicy === policy
+                        ? "var(--theme-primary)"
+                        : "var(--theme-text)",
+                  }}
+                >
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{
+                      background:
+                        executionPolicy === policy
+                          ? "var(--theme-primary)"
+                          : "var(--theme-border)",
+                    }}
+                  />
+                  {t(`agentOptions.sandboxPolicy.${policy}`)}
+                  {executionPolicy === policy && (
+                    <span
+                      className="ml-auto text-12"
+                      style={{ color: "var(--theme-primary)" }}
+                    >
+                      ✓
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </>
     ) : undefined;
 

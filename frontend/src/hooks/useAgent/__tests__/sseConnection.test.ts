@@ -128,27 +128,26 @@ function createReconnectContext(messages: Message[]) {
 
 test("reconnect drops an empty streaming bubble and reloads history when the run completed", async () => {
   mocks.getStatus.mockResolvedValueOnce({ status: "completed" });
-  const { ctx, onStaleRunStateDetected, readMessages } = createReconnectContext([
-    {
-      id: "run-a:user",
-      role: "user",
-      content: "hello",
-      timestamp: new Date("2026-09-10T02:59:59.000Z"),
-    },
-    {
-      id: "assistant-a",
-      role: "assistant",
-      content: "",
-      timestamp: new Date("2026-09-10T03:00:00.000Z"),
-      parts: [],
-      isStreaming: true,
-    },
-  ]);
-
-  await reconnectSSE(
-    ctx as Parameters<typeof reconnectSSE>[0],
-    "run-a",
+  const { ctx, onStaleRunStateDetected, readMessages } = createReconnectContext(
+    [
+      {
+        id: "run-a:user",
+        role: "user",
+        content: "hello",
+        timestamp: new Date("2026-09-10T02:59:59.000Z"),
+      },
+      {
+        id: "assistant-a",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-09-10T03:00:00.000Z"),
+        parts: [],
+        isStreaming: true,
+      },
+    ],
   );
+
+  await reconnectSSE(ctx as Parameters<typeof reconnectSSE>[0], "run-a");
 
   expect(readMessages().map((message) => message.id)).toEqual(["run-a:user"]);
   expect(onStaleRunStateDetected).toHaveBeenCalledWith("run-a");
@@ -156,27 +155,26 @@ test("reconnect drops an empty streaming bubble and reloads history when the run
 
 test("reconnect keeps a settled answer and does not reload history", async () => {
   mocks.getStatus.mockResolvedValueOnce({ status: "completed" });
-  const { ctx, onStaleRunStateDetected, readMessages } = createReconnectContext([
-    {
-      id: "run-a:user",
-      role: "user",
-      content: "hello",
-      timestamp: new Date("2026-09-10T02:59:59.000Z"),
-    },
-    {
-      id: "assistant-a",
-      role: "assistant",
-      content: "final answer",
-      timestamp: new Date("2026-09-10T03:00:00.000Z"),
-      parts: [],
-      isStreaming: false,
-    },
-  ]);
-
-  await reconnectSSE(
-    ctx as Parameters<typeof reconnectSSE>[0],
-    "run-a",
+  const { ctx, onStaleRunStateDetected, readMessages } = createReconnectContext(
+    [
+      {
+        id: "run-a:user",
+        role: "user",
+        content: "hello",
+        timestamp: new Date("2026-09-10T02:59:59.000Z"),
+      },
+      {
+        id: "assistant-a",
+        role: "assistant",
+        content: "final answer",
+        timestamp: new Date("2026-09-10T03:00:00.000Z"),
+        parts: [],
+        isStreaming: false,
+      },
+    ],
   );
+
+  await reconnectSSE(ctx as Parameters<typeof reconnectSSE>[0], "run-a");
 
   expect(readMessages().map((message) => message.id)).toEqual([
     "run-a:user",

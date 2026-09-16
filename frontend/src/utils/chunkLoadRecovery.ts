@@ -28,9 +28,7 @@ export const CHUNK_RELOAD_COOLDOWN_MS = 30_000;
 export function isChunkLoadError(error: unknown): boolean {
   if (!error) return false;
   const message = error instanceof Error ? error.message : String(error);
-  return CHUNK_LOAD_ERROR_PATTERNS.some((pattern) =>
-    message.includes(pattern),
-  );
+  return CHUNK_LOAD_ERROR_PATTERNS.some((pattern) => message.includes(pattern));
 }
 
 /** 同一 URL 加上/更新 chunk_reload 随机数，强制 webview 重新拉取文档 */
@@ -68,7 +66,12 @@ export function attemptChunkReload(
 ): boolean {
   const at = now();
   const storedAt = Number(win.sessionStorage.getItem(CHUNK_RELOAD_STORAGE_KEY));
-  if (!shouldReloadAfterChunkError(Number.isFinite(storedAt) ? storedAt : null, at)) {
+  if (
+    !shouldReloadAfterChunkError(
+      Number.isFinite(storedAt) ? storedAt : null,
+      at,
+    )
+  ) {
     return false;
   }
   win.sessionStorage.setItem(CHUNK_RELOAD_STORAGE_KEY, String(at));

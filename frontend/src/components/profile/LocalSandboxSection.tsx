@@ -462,7 +462,9 @@ export function LocalSandboxSection({
             <span className="flex min-w-0 items-center gap-2 text-14 text-theme-text dark:text-stone-200">
               <span
                 className={`h-2 w-2 rounded-full shrink-0 ${
-                  online ? "bg-green-500" : "bg-theme-text-tertiary dark:bg-stone-500"
+                  online
+                    ? "bg-green-500"
+                    : "bg-theme-text-tertiary dark:bg-stone-500"
                 }`}
                 data-sandbox-online={online}
               />

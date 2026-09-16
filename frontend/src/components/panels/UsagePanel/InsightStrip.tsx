@@ -34,7 +34,10 @@ export function InsightStrip({
   const cancelled = s.cancelled_requests ?? 0;
   const failureDetail =
     cancelled > 0
-      ? `${t("usage.insight.successRate", { rate: pct(s.success_rate) })} · ${t("usage.insight.cancelledCount", { count: fmt(cancelled) })}`
+      ? `${t("usage.insight.successRate", { rate: pct(s.success_rate) })} · ${t(
+          "usage.insight.cancelledCount",
+          { count: fmt(cancelled) },
+        )}`
       : t("usage.insight.successRate", { rate: pct(s.success_rate) });
 
   const insights: Insight[] = [

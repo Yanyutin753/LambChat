@@ -17,6 +17,7 @@ const toolItems = [
   "../UploadUrlToSandboxItem.tsx",
   "../TransferItem.tsx",
   "../AudioTranscribeItem.tsx",
+  "../DocumentParseItem.tsx",
   "../ScheduledTaskItem.tsx",
   "../EnvVarItem.tsx",
   "../PersonaItem.tsx",

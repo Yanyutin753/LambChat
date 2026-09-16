@@ -86,7 +86,8 @@ test("keeps cancelled ask-human tool results pending while HITL resumes", () => 
   });
 });
 
-test("resolves the exact ask-human tool from a durable approval event", () => {  const first = processMessageEvent(
+test("resolves the exact ask-human tool from a durable approval event", () => {
+  const first = processMessageEvent(
     "tool:start",
     { tool: "ask_human", tool_call_id: "ask-1", args: { message: "first" } },
     [],

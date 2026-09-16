@@ -146,7 +146,9 @@ export function TitleBar({
   return (
     <div
       data-titlebar
-      className={`sticky top-0 z-[300] flex h-10 select-none items-center gap-1 border-b border-[var(--theme-border)] bg-[var(--theme-bg)] ${isMac ? "pl-[78px] pr-2" : "px-2"}`}
+      className={`sticky top-0 z-[300] flex h-10 select-none items-center gap-1 border-b border-[var(--theme-border)] bg-[var(--theme-bg)] ${
+        isMac ? "pl-[78px] pr-2" : "px-2"
+      }`}
     >
       {!isMac && (
         <div className="flex min-w-0 items-center gap-2 pl-1 pr-2">

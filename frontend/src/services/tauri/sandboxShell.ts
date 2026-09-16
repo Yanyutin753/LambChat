@@ -196,9 +196,12 @@ export async function subscribeDaemonStatus(
     return null;
   }
   const { listen } = await import("@tauri-apps/api/event");
-  const unlisten = await listen<DaemonStatusEvent>("sandbox-daemon-status", (event) => {
-    listener(event.payload);
-  });
+  const unlisten = await listen<DaemonStatusEvent>(
+    "sandbox-daemon-status",
+    (event) => {
+      listener(event.payload);
+    },
+  );
   let cancelled = false;
   return () => {
     if (cancelled) return;

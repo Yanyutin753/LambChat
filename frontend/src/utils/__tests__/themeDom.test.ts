@@ -51,7 +51,9 @@ test("getInitialThemePreference restores persisted sepia theme", () => {
 test("readThemeMode maps html classes to the three theme modes", () => {
   const modeOf = (classNames: string[]) =>
     readThemeMode({
-      documentElement: { classList: { contains: (name: string) => classNames.includes(name) } },
+      documentElement: {
+        classList: { contains: (name: string) => classNames.includes(name) },
+      },
     });
 
   expect(modeOf([])).toBe("light");
@@ -63,7 +65,9 @@ test("readThemeMode treats dark as the winner when both theme classes linger", (
   expect(
     readThemeMode({
       documentElement: {
-        classList: { contains: (name: string) => name === "dark" || name === "theme-sepia" },
+        classList: {
+          contains: (name: string) => name === "dark" || name === "theme-sepia",
+        },
       },
     }),
   ).toBe("dark");
@@ -80,7 +84,6 @@ test("themeExportBackground maps each theme to its canvas export color", () => {
   expect(themeExportBackground("dark")).toBe("#1c1917");
   expect(themeExportBackground("sepia")).toBe("#faf6ea");
 });
-
 
 test("applyThemeToDocument applies theme-sepia class without dark for sepia theme", () => {
   const classes = new Set<string>(["dark"]);
@@ -240,18 +243,58 @@ test("applyThemeToDocument keeps the page background in sync for system bars", (
 });
 
 test("isThemeCycleShortcut matches Ctrl/Cmd+Shift+L in either case", () => {
-  expect(isThemeCycleShortcut({ key: "l", ctrlKey: true, metaKey: false, shiftKey: true })).toBe(true);
-  expect(isThemeCycleShortcut({ key: "L", ctrlKey: false, metaKey: true, shiftKey: true })).toBe(true);
+  expect(
+    isThemeCycleShortcut({
+      key: "l",
+      ctrlKey: true,
+      metaKey: false,
+      shiftKey: true,
+    }),
+  ).toBe(true);
+  expect(
+    isThemeCycleShortcut({
+      key: "L",
+      ctrlKey: false,
+      metaKey: true,
+      shiftKey: true,
+    }),
+  ).toBe(true);
 });
 
 test("isThemeCycleShortcut rejects missing modifiers or other keys", () => {
-  expect(isThemeCycleShortcut({ key: "l", ctrlKey: false, metaKey: false, shiftKey: true })).toBe(false);
-  expect(isThemeCycleShortcut({ key: "l", ctrlKey: true, metaKey: false, shiftKey: false })).toBe(false);
-  expect(isThemeCycleShortcut({ key: "k", ctrlKey: true, metaKey: false, shiftKey: true })).toBe(false);
+  expect(
+    isThemeCycleShortcut({
+      key: "l",
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: true,
+    }),
+  ).toBe(false);
+  expect(
+    isThemeCycleShortcut({
+      key: "l",
+      ctrlKey: true,
+      metaKey: false,
+      shiftKey: false,
+    }),
+  ).toBe(false);
+  expect(
+    isThemeCycleShortcut({
+      key: "k",
+      ctrlKey: true,
+      metaKey: false,
+      shiftKey: true,
+    }),
+  ).toBe(false);
 });
 
 test("resolveScheduledTheme enters night theme at or after start", () => {
-  const schedule = { enabled: true, start: "22:00", end: "07:00", nightTheme: "sepia" as const };
+  const schedule = {
+    enabled: true,
+    start: "22:00",
+    end: "07:00",
+    nightTheme: "sepia" as const,
+  };
   expect(resolveScheduledTheme(22 * 60, schedule)).toBe("sepia");
   expect(resolveScheduledTheme(23 * 60 + 30, schedule)).toBe("sepia");
   expect(resolveScheduledTheme(0, schedule)).toBe("sepia");
@@ -259,22 +302,44 @@ test("resolveScheduledTheme enters night theme at or after start", () => {
 });
 
 test("resolveScheduledTheme returns light outside the night window", () => {
-  const schedule = { enabled: true, start: "22:00", end: "07:00", nightTheme: "dark" as const };
+  const schedule = {
+    enabled: true,
+    start: "22:00",
+    end: "07:00",
+    nightTheme: "dark" as const,
+  };
   expect(resolveScheduledTheme(7 * 60, schedule)).toBe("light");
   expect(resolveScheduledTheme(12 * 60, schedule)).toBe("light");
   expect(resolveScheduledTheme(21 * 60 + 59, schedule)).toBe("light");
 });
 
 test("resolveScheduledTheme handles same-window ranges and equal bounds", () => {
-  const daytime = { enabled: true, start: "07:00", end: "22:00", nightTheme: "dark" as const };
+  const daytime = {
+    enabled: true,
+    start: "07:00",
+    end: "22:00",
+    nightTheme: "dark" as const,
+  };
   expect(resolveScheduledTheme(8 * 60, daytime)).toBe("dark");
   expect(resolveScheduledTheme(23 * 60, daytime)).toBe("light");
-  const equal = { enabled: true, start: "22:00", end: "22:00", nightTheme: "dark" as const };
+  const equal = {
+    enabled: true,
+    start: "22:00",
+    end: "22:00",
+    nightTheme: "dark" as const,
+  };
   expect(resolveScheduledTheme(22 * 60, equal)).toBe("light");
 });
 
 test("parseThemeSchedule validates shape and rejects malformed values", () => {
-  expect(parseThemeSchedule({ enabled: true, start: "22:00", end: "07:00", nightTheme: "sepia" })).toEqual({
+  expect(
+    parseThemeSchedule({
+      enabled: true,
+      start: "22:00",
+      end: "07:00",
+      nightTheme: "sepia",
+    }),
+  ).toEqual({
     enabled: true,
     start: "22:00",
     end: "07:00",
@@ -282,6 +347,20 @@ test("parseThemeSchedule validates shape and rejects malformed values", () => {
   });
   expect(parseThemeSchedule(null)).toBeNull();
   expect(parseThemeSchedule({ enabled: true, start: "22:00" })).toBeNull();
-  expect(parseThemeSchedule({ enabled: true, start: "24:00", end: "07:00", nightTheme: "dark" })).toBeNull();
-  expect(parseThemeSchedule({ enabled: true, start: "22:00", end: "07:00", nightTheme: "neon" })).toBeNull();
+  expect(
+    parseThemeSchedule({
+      enabled: true,
+      start: "24:00",
+      end: "07:00",
+      nightTheme: "dark",
+    }),
+  ).toBeNull();
+  expect(
+    parseThemeSchedule({
+      enabled: true,
+      start: "22:00",
+      end: "07:00",
+      nightTheme: "neon",
+    }),
+  ).toBeNull();
 });

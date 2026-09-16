@@ -44,6 +44,7 @@ export const settingsApi = {
   async resetAll(): Promise<SettingResetResponse> {
     return authFetch<SettingResetResponse>(`${API_BASE}/api/settings/reset`, {
       method: "POST",
+      body: JSON.stringify({ confirmed: true }),
     });
   },
 

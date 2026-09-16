@@ -3,6 +3,7 @@ import type { SettingCategory, SettingType } from "../../types";
 export const CATEGORY_ORDER: SettingCategory[] = [
   "frontend",
   "agent",
+  "scheduled_task",
   "llm",
   "session",
   "mongodb",
@@ -22,6 +23,7 @@ export const CATEGORY_ORDER: SettingCategory[] = [
   "skills",
   "tools",
   "audio_transcription",
+  "document_parse",
   "tracing",
   "user",
   "oauth",

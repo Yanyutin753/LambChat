@@ -36,7 +36,10 @@ describe.each(FAMILY_FILES)("%s", (file) => {
 });
 
 test("弹窗外壳与下拉弹层表面走 theme token", () => {
-  const modal = readFileSync(new URL("../ProfileModal.tsx", import.meta.url), "utf8");
+  const modal = readFileSync(
+    new URL("../ProfileModal.tsx", import.meta.url),
+    "utf8",
+  );
   // 移动端抽屉 + 桌面弹窗两处壳，加桌面侧栏激活项，共三处同款表面
   expect(modal.match(/bg-theme-bg-card dark:bg-stone-800/g)?.length).toBe(3);
   // SelectRow 选中项：accent-light 亮色值即 amber-50，sepia 下暖米黄

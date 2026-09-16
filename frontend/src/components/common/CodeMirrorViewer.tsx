@@ -305,7 +305,9 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
           className="h-full"
           height="100%"
           value={value}
-          theme={isDark ? oneDark : themeMode === "sepia" ? githubSepia : githubLight}
+          theme={
+            isDark ? oneDark : themeMode === "sepia" ? githubSepia : githubLight
+          }
           extensions={[...extensions, ...lineOffsetExtensions]}
           onCreateEditor={handleCreateEditor}
           basicSetup={{

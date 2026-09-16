@@ -168,7 +168,11 @@ export function UpdateTitlebarIndicator({
             <div className="space-y-3 p-3.5">
               <div className="flex items-center gap-1.5 font-mono text-13 text-[var(--color-text-secondary)]">
                 v{APP_VERSION}
-                <ArrowRight size={13} className="opacity-60" aria-hidden="true" />
+                <ArrowRight
+                  size={13}
+                  className="opacity-60"
+                  aria-hidden="true"
+                />
                 <span className="font-semibold text-[var(--color-text-primary)]">
                   v{state.version ?? ""}
                 </span>

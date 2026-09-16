@@ -49,7 +49,11 @@ export function PersonaEditorBindingSelector({
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (open && dropdownRef.current && !dropdownRef.current.contains(target)) {
+      if (
+        open &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(target)
+      ) {
         onOpenChange(false);
       }
     };
@@ -94,7 +98,9 @@ export function PersonaEditorBindingSelector({
         onClick={() => onOpenChange(!open)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className={`ppe-skill-trigger ${open ? "ppe-skill-trigger--open" : ""} ${triggerClassName}`}
+        className={`ppe-skill-trigger ${
+          open ? "ppe-skill-trigger--open" : ""
+        } ${triggerClassName}`}
       >
         {selected.length > 0 ? (
           <span className="ppe-skill-trigger__count">
@@ -102,7 +108,9 @@ export function PersonaEditorBindingSelector({
             {t(countLabelKey, { count: selected.length })}
           </span>
         ) : (
-          <span className="ppe-skill-trigger__placeholder">{t(placeholderKey)}</span>
+          <span className="ppe-skill-trigger__placeholder">
+            {t(placeholderKey)}
+          </span>
         )}
         <ChevronDown
           size={14}
@@ -161,15 +169,23 @@ export function PersonaEditorBindingSelector({
                     key={option.name}
                     type="button"
                     onClick={() => toggle(option.name)}
-                    className={`ppe-skill-option ${isSelected ? "ppe-skill-option--selected" : ""}`}
+                    className={`ppe-skill-option ${
+                      isSelected ? "ppe-skill-option--selected" : ""
+                    }`}
                     role="option"
                     aria-selected={isSelected}
                   >
                     <div className="ppe-skill-option__check-ring">
                       {isSelected ? (
-                        <Check size={12} className="ppe-skill-option__check-icon" />
+                        <Check
+                          size={12}
+                          className="ppe-skill-option__check-icon"
+                        />
                       ) : (
-                        <Plus size={12} className="ppe-skill-option__plus-icon" />
+                        <Plus
+                          size={12}
+                          className="ppe-skill-option__plus-icon"
+                        />
                       )}
                     </div>
                     <div className="min-w-0 flex-1">

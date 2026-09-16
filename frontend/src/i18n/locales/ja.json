@@ -683,6 +683,7 @@
     "pluginNoEditPermission": "プラグイン {{name}} を編集する権限がありません"
   },
   "categories": {
+    "scheduled_task": "スケジュールタスク",
     "agent": "エージェント",
     "audio_transcription": "音声文字起こし",
     "captcha": "CAPTCHA",
@@ -706,7 +707,8 @@
     "skills": "スキル",
     "tools": "ツール",
     "tracing": "トレース",
-    "user": "プロフィール"
+    "user": "プロフィール",
+    "document_parse": "ドキュメント解析"
   },
   "channel": {
     "addFirstInstance": "最初のインスタンスを追加",
@@ -869,6 +871,9 @@
       "parameters": "パラメータ",
       "processing": "過程",
       "projects": "プロジェクト",
+      "queueEdit": "このキュー済みメッセージを編集",
+      "queueFollowUp": "メッセージを予約（現在のタスク終了後に送信）",
+      "queueGroup": "後続入力のキュー",
       "rejected": "ユーザーにより操作が拒否されました",
       "removeBookmark": "ブックマークを削除",
       "result": "結果",
@@ -1037,7 +1042,8 @@
       "toolWebSearchResults_one": "{{count}} 件の結果",
       "toolWebSearchResults_other": "{{count}} 件の結果",
       "toolWrite": "書込",
-      "waitingConfirm": "確認待ち"
+      "waitingConfirm": "確認待ち",
+      "toolDocumentParse": "ドキュメント解析"
     },
     "messageInput": "メッセージ入力",
     "noPermission": "メッセージを送信する権限がありません",
@@ -1051,7 +1057,7 @@
     "queued": "順番待ち中 ({{position}}番目)...",
     "rateLimited": "リクエストが多すぎます。しばらくしてからお試しください",
     "requestFailed": "セッションの読み込みに失敗しました",
-    "runningPlaceholder": "入力を続けると修正が順番にキューされます…",
+    "runningPlaceholder": "続けて入力…",
     "memory": {
       "initializing": "関連するメモリを検索中",
       "ready": "メモリ検索完了"
@@ -1083,17 +1089,21 @@
     "status": {
       "cancelled": "キャンセル済み"
     },
-    "steer": "ステアリング送信（現在のステップ完了後に届く）",
     "steerCancel": "このステアリングをキャンセル",
     "steerFailed": "ステアリングメッセージの送信に失敗しました。もう一度お試しください",
     "steerFailedRetry": "送信に失敗しました。もう一度お試しください",
     "steerNext": "タスク完了後に送信",
-    "steerQueue": "保留中のステアリング",
+    "queueGuide": "方向修正",
+    "queueGuideHint": "このメッセージを現在のタスクに反映",
+    "queueDelete": "待機中のメッセージを削除",
+    "queueMore": "その他の操作",
+    "steerQueue": "送信待ちのメッセージ",
     "steerQueued": "現在のステップ完了後に届きます",
     "stop": "生成を停止",
     "stopConfirmMessage": "本当に生成を停止しますか？生成された内容は保持されます。",
     "stopConfirmTitle": "生成を停止",
     "subagentStatus": "サブエージェントステータス: {{status}}",
+    "supplement": "現在の質問を補足（回答を中断し、追加分を反映して再考）",
     "teamPlaceholder": "メッセージを入力して会話を開始、@ でチームを切替…",
     "teamSelected": "チーム選択済み",
     "textAutoUploaded": "長いテキストがファイルとして自動アップロードされました",
@@ -1782,7 +1792,6 @@
     "updateSuccess": "スキルが正常に更新されました",
     "viewInMySkills": "マイスキルで開く"
   },
-
   "mcp": {
     "addFirst": "最初のMCPサーバーを追加",
     "addNew": "新しいMCPサーバーを追加",
@@ -2359,7 +2368,6 @@
     "exitFullscreen": "全画面を終了",
     "expand": "展開",
     "exportZip": "ZIPエクスポート",
-    "downloadFolder": "フォルダを ZIP でダウンロード",
     "fileCount": "{{count}}ファイル",
     "fullscreen": "全画面",
     "fullscreenHint": "Esc を押して全画面を終了",
@@ -2917,9 +2925,56 @@
     "WEB_FETCH_MAX_CHARS": "1 回の取得で返す最大文字数。超過分は切り詰め。",
     "FIRECRAWL_BASE_URL": "Firecrawl セルフホスト URL（例: http://fc.internal:3000）。空欄で公式 SaaS。セルフホストはキー不要。",
     "FIRECRAWL_API_KEYS": "Firecrawl API キー（カンマ区切りローテーション）。セルフホストでは省略可。",
-    "EXA_API_KEYS": "Exa API キー（カンマ区切りローテーション、キャッシュ優先+ライブクロール）。"
+    "EXA_API_KEYS": "Exa API キー（カンマ区切りローテーション、キャッシュ優先+ライブクロール）。",
+    "ENABLE_DOCUMENT_PARSE": "PDF/DOCX/PPTX などのドキュメントを Markdown に変換し、埋め込み画像を抽出するドキュメント解析ツールを有効化",
+    "DOCUMENT_PARSE_PROVIDER": "ドキュメント解析プロバイダー。auto は設定済みのプロバイダーを順番に使用",
+    "DOCUMENT_PARSE_MISTRAL_API_KEY": "Mistral OCR プロバイダーの API キー",
+    "DOCUMENT_PARSE_MISTRAL_BASE_URL": "Mistral OCR API のベース URL。既定は公式エンドポイント",
+    "DOCUMENT_PARSE_MISTRAL_MODEL": "Mistral OCR モデル名",
+    "DOCUMENT_PARSE_MINERU_API_MODE": "MinerU モード。cloud は公式 API、local は自己ホストの MinerU サーバー",
+    "DOCUMENT_PARSE_MINERU_API_URL": "MinerU サーバー URL。local モードでは必須、cloud モードの既定は https://mineru.net/api/v4",
+    "DOCUMENT_PARSE_MINERU_API_KEY": "MinerU クラウド API トークン（mineru.net で取得）",
+    "DOCUMENT_PARSE_AZURE_ENDPOINT": "Azure Document Intelligence エンドポイント",
+    "DOCUMENT_PARSE_AZURE_KEY": "Azure Document Intelligence サブスクリプションキー",
+    "DOCUMENT_PARSE_AZURE_MODEL": "Azure Document Intelligence モデル（例: prebuilt-read / prebuilt-layout）",
+    "DOCUMENT_PARSE_DOCLING_URL": "docling-serve サーバー URL（自己ホスト）",
+    "DOCUMENT_PARSE_DOCLING_API_KEY": "docling-serve API キー（サーバーが認証を要求する場合）",
+    "DOCUMENT_PARSE_PADDLEOCR_URL": "PaddleOCR-VL サーバー URL（自己ホストの PaddleX）",
+    "DOCUMENT_PARSE_PADDLEOCR_TOKEN": "PaddleOCR-VL アクセストークン",
+    "DOCUMENT_PARSE_TIKA_URL": "Apache Tika サーバー URL（自己ホスト）",
+    "DOCUMENT_PARSE_MAX_DOWNLOAD_BYTES": "ドキュメントダウンロードの最大サイズ（バイト）",
+    "DOCUMENT_PARSE_MAX_OUTPUT_CHARS": "解析結果 Markdown の最大文字数（超過分は切り詰め）",
+    "DOCUMENT_PARSE_MAX_IMAGES": "1 回の解析で抽出する画像の最大数"
   },
   "settings": {
+    "navigation": {
+      "browse": "カテゴリから探す",
+      "subtitle": "アプリとサービスの設定",
+      "searchPlaceholder": "名前・説明・設定キーを検索",
+      "searchResults": "検索結果",
+      "allCategories": "すべてのカテゴリ",
+      "resultCount": "{{count}} 件の設定",
+      "clearSearch": "検索をクリア",
+      "subcategory": "サブカテゴリ",
+      "allSubcategories": "すべてのサブカテゴリ",
+      "saveHint": "変更した設定は個別に保存してください。カテゴリを切り替えても未保存の入力は保持されます。",
+      "groups": {
+        "experience": "基本設定",
+        "intelligence": "Agent とモデル",
+        "memory": "メモリ",
+        "capabilities": "ツールとファイル",
+        "access": "アカウントとセキュリティ",
+        "infrastructure": "インフラ"
+      },
+      "descriptions": {
+        "experience": "画面表示とセッションの動作を設定します。",
+        "intelligence": "Agent の実行、モデル呼び出し、再試行を調整します。",
+        "memory": "メモリの抽出、埋め込み、検索、保存を管理します。",
+        "capabilities": "ツール、スキル、サンドボックス、ファイル処理を設定します。",
+        "access": "登録、ログイン、認証、メールを管理します。",
+        "infrastructure": "データベース、キャッシュ、永続化、監視を設定します。"
+      }
+    },
     "defaultModel": "デフォルトモデル",
     "exportSettings": "設定をエクスポート",
     "exportSuccess": "設定をエクスポートしました",

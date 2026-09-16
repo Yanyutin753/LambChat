@@ -69,6 +69,7 @@ test("message part renderer routes internal inline tools to dedicated items", ()
     "search_skills",
     "web_search",
     "web_fetch",
+    "document_parse",
   ];
 
   for (const toolName of expectedRoutes) {
@@ -83,6 +84,7 @@ test("message part renderer routes internal inline tools to dedicated items", ()
   expect(source).toMatch(/<SkillSearchItem/);
   expect(source).toMatch(/<WebSearchItem/);
   expect(source).toMatch(/<WebFetchItem/);
+  expect(source).toMatch(/<DocumentParseItem/);
 });
 
 test("every backend internal tool ships a dedicated item route", () => {
@@ -96,6 +98,7 @@ test("every backend internal tool ships a dedicated item route", () => {
     "audio_transcribe",
     "create_agent_team",
     "create_persona_preset",
+    "document_parse",
     "env_var_delete",
     "env_var_delete_all",
     "env_var_list",

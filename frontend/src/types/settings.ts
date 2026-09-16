@@ -33,7 +33,9 @@ export type SettingCategory =
   | "memory_embedding"
   | "memory_search"
   | "memory_storage"
-  | "audio_transcription";
+  | "audio_transcription"
+  | "document_parse"
+  | "scheduled_task";
 
 // Setting dependency condition
 export interface SettingDependsOn {
@@ -80,7 +82,13 @@ export interface SettingItem {
   updated_by?: string;
 }
 
+export interface SettingsNavigationGroup {
+  id: string;
+  categories: SettingCategory[];
+}
+
 export interface SettingsResponse {
+  navigation?: SettingsNavigationGroup[];
   settings: Record<SettingCategory, SettingItem[]>;
 }
 

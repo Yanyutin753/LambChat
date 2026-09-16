@@ -67,7 +67,9 @@ test("CodeMirrorViewer deepens low-contrast syntax tokens for sepia", () => {
 
   expect(source).toMatch(/themeMode === "sepia" \? githubSepia : githubLight/);
   expect(source).toMatch(/"\.cm-keyword": \{ color: "#a61e28" \}/);
-  expect(source).toMatch(/"\.cm-comment": \{ color: "#5c6470", fontStyle: "italic" \}/);
+  expect(source).toMatch(
+    /"\.cm-comment": \{ color: "#5c6470", fontStyle: "italic" \}/,
+  );
   expect(source).toMatch(/"\.cm-def": \{ color: "#6e3ec8" \}/);
 });
 

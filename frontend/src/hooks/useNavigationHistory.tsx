@@ -6,11 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  useLocation,
-  useNavigationType,
-  useNavigate,
-} from "react-router-dom";
+import { useLocation, useNavigationType, useNavigate } from "react-router-dom";
 import {
   applyNavigation,
   canGoBack,
@@ -70,9 +66,7 @@ export function NavigationHistoryProvider({
   const [stack, setStack] = useState<NavHistoryStack>(() =>
     createNavHistoryStack(locationKey(location.pathname, location.search)),
   );
-  const prevHistoryIdxRef = useRef<number | null>(
-    readBrowserHistoryIndex(),
-  );
+  const prevHistoryIdxRef = useRef<number | null>(readBrowserHistoryIndex());
   const stackRef = useRef(stack);
   stackRef.current = stack;
 
@@ -89,9 +83,7 @@ export function NavigationHistoryProvider({
       const delta = resolvePopDelta(prevHistoryIdxRef.current, nextIdx);
       return applyNavigation(
         prev,
-        delta === null
-          ? { kind: "replace", key }
-          : { kind: "pop", delta, key },
+        delta === null ? { kind: "replace", key } : { kind: "pop", delta, key },
       );
     });
     prevHistoryIdxRef.current = readBrowserHistoryIndex();

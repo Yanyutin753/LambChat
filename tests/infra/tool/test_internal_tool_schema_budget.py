@@ -11,6 +11,7 @@ from langchain_core.utils.function_calling import convert_to_openai_tool
 
 from src.infra.tool.audio_transcribe_tool import get_audio_transcribe_tool
 from src.infra.tool.deferred_manager import DeferredToolManager
+from src.infra.tool.document_parse_tool import get_document_parse_tool
 from src.infra.tool.env_var_tool import get_env_var_tools
 from src.infra.tool.human_tool.tool import AskHumanTool
 from src.infra.tool.image_analysis_tool import get_image_analysis_tool
@@ -34,11 +35,13 @@ from src.infra.tool.web_search_tool import get_web_search_tool
 
 # web_search 工具（214 token）入库后整体抬高一档；新增工具仍应优先压缩描述。
 # 生图工具 model 参数（多模型按次选择）×2 再抬一档：65 token 为结构性成本。
-MAX_ESTIMATED_SCHEMA_TOKENS = 6100
+# document_parse（文档 OCR 工具，4 参数含图片提取/页码）再抬一档。
+MAX_ESTIMATED_SCHEMA_TOKENS = 6500
 EXPECTED_TOOL_NAMES = {
     "ask_human",
     "audio_transcribe",
     "create_agent_team",
+    "document_parse",
     "env_var_delete",
     "env_var_list",
     "env_var_set",
@@ -65,6 +68,7 @@ EXPECTED_TOOL_NAMES = {
 def _scoped_tools() -> list[BaseTool]:
     return [
         get_audio_transcribe_tool(),
+        get_document_parse_tool(),
         *get_env_var_tools(),
         AskHumanTool(),
         get_image_analysis_tool(),

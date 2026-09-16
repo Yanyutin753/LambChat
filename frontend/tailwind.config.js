@@ -70,6 +70,12 @@ export default {
           "primary-hover": "var(--theme-primary-hover)",
           "primary-light": "var(--theme-primary-light)",
           "toggle-knob": "var(--theme-toggle-knob)",
+          // 语义状态色：CSS 变量在 tokens.css 按三主题各自定义（sepia 降饱和），
+          // 漏映射时 text-theme-error 之类会静默不生成（守卫测试盯这条）
+          success: "var(--theme-success)",
+          error: "var(--theme-error)",
+          warning: "var(--theme-warning)",
+          info: "var(--theme-info)",
         },
       },
     },

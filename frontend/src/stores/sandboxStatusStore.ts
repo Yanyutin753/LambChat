@@ -73,7 +73,9 @@ export function subscribeSandboxStatus(listener: () => void): () => void {
 
 /** 在线判定（双保险）：/status 在线，或机器列表里任一机器在线。 */
 export function isSandboxOnline(state: SandboxStatusStoreState): boolean {
-  return !!state.status?.online || state.machines.some((m) => m.online !== false);
+  return (
+    !!state.status?.online || state.machines.some((m) => m.online !== false)
+  );
 }
 
 function emitOnlineTransition(): boolean {
@@ -225,10 +227,7 @@ function sanitizePresenceMachines(
 export function applySandboxPresence(data: SandboxPresencePayload): void {
   if (!data || typeof data !== "object") return;
   if (typeof data.revision !== "number") return;
-  if (
-    lastPresenceRevision !== null &&
-    data.revision <= lastPresenceRevision
-  ) {
+  if (lastPresenceRevision !== null && data.revision <= lastPresenceRevision) {
     return; // 乱序旧事件：丢弃
   }
   const machines = sanitizePresenceMachines(data.machines);
@@ -238,7 +237,9 @@ export function applySandboxPresence(data: SandboxPresencePayload): void {
     ...store.get(),
     machines,
     defaultMachineId:
-      typeof data.default_machine_id === "string" ? data.default_machine_id : null,
+      typeof data.default_machine_id === "string"
+        ? data.default_machine_id
+        : null,
   });
   const transitioned = emitOnlineTransition();
   // 仅离线→在线翻转时补拉一次 /status：确认策略等元数据跟进（presence 不携带）；

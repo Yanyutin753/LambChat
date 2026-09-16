@@ -2,7 +2,10 @@ import { Component, ReactNode } from "react";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import clsx from "clsx";
 import i18n from "i18next";
-import { attemptChunkReload, isChunkLoadError } from "../../utils/chunkLoadRecovery";
+import {
+  attemptChunkReload,
+  isChunkLoadError,
+} from "../../utils/chunkLoadRecovery";
 
 interface Props {
   children: ReactNode;

@@ -4,6 +4,10 @@ const chatInputSource = readFileSync(
   new URL("../ChatInput.tsx", import.meta.url),
   "utf8",
 );
+const runningSendSource = readFileSync(
+  new URL("../chatInputRunningSend.ts", import.meta.url),
+  "utf8",
+);
 const toolbarSource = readFileSync(
   new URL("../ChatInputToolbar.tsx", import.meta.url),
   "utf8",
@@ -14,7 +18,8 @@ const chatViewSource = readFileSync(
 );
 
 test("blocks keyboard submission while waiting for human input", () => {
-  expect(chatInputSource).toMatch(/if \(sendBlocked\) \{/);
+  // Enter 去向守卫抽到 chatInputRunningSend；ask-human 期间只吞键不发送
+  expect(runningSendSource).toMatch(/if \(state\.sendBlocked\) return;/);
   expect(chatInputSource).toMatch(/!sendBlocked/);
 });
 

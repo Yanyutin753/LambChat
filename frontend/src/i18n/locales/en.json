@@ -683,6 +683,7 @@
     "pluginNoEditPermission": "No permission to edit plugin {{name}}"
   },
   "categories": {
+    "scheduled_task": "Scheduled tasks",
     "agent": "Agent",
     "audio_transcription": "Audio Transcription",
     "captcha": "CAPTCHA",
@@ -706,7 +707,8 @@
     "skills": "Skills",
     "tools": "Tools",
     "tracing": "Tracing",
-    "user": "Profile"
+    "user": "Profile",
+    "document_parse": "Document Parsing"
   },
   "channel": {
     "addFirstInstance": "Add First Instance",
@@ -869,6 +871,9 @@
       "parameters": "Parameters",
       "processing": "Process",
       "projects": "Projects",
+      "queueEdit": "Edit this queued message",
+      "queueFollowUp": "Queue message (send after the current task)",
+      "queueGroup": "Queued follow-up inputs",
       "rejected": "Operation rejected by user",
       "removeBookmark": "Remove bookmark",
       "result": "Result",
@@ -1037,7 +1042,8 @@
       "toolWebSearchResults_one": "{{count}} result",
       "toolWebSearchResults_other": "{{count}} results",
       "toolWrite": "Write",
-      "waitingConfirm": "Waiting for confirmation"
+      "waitingConfirm": "Waiting for confirmation",
+      "toolDocumentParse": "Parse document"
     },
     "messageInput": "Message",
     "noPermission": "No permission to send messages",
@@ -1051,7 +1057,7 @@
     "queued": "Queued (position {{position}})...",
     "rateLimited": "Too many requests, please try again later",
     "requestFailed": "Failed to load session",
-    "runningPlaceholder": "Keep typing to queue ordered edits…",
+    "runningPlaceholder": "Keep typing…",
     "memory": {
       "initializing": "Recalling relevant memories",
       "ready": "Memory recall complete"
@@ -1083,17 +1089,21 @@
     "status": {
       "cancelled": "Cancelled"
     },
-    "steer": "Send steering message (delivered after the current step)",
     "steerCancel": "Cancel this steering message",
     "steerFailed": "Failed to send the steering message, please try again",
     "steerFailedRetry": "Failed to send, please try again",
     "steerNext": "Send when the task finishes",
-    "steerQueue": "Pending steering messages",
+    "queueGuide": "Steer",
+    "queueGuideHint": "Use this message in the current task",
+    "queueDelete": "Delete queued message",
+    "queueMore": "More actions",
+    "steerQueue": "Queued messages to send",
     "steerQueued": "Delivered after the current step",
     "stop": "Stop generating",
     "stopConfirmMessage": "Are you sure you want to stop generating? The content generated so far will be kept.",
     "stopConfirmTitle": "Stop generating",
     "subagentStatus": "Subagent status: {{status}}",
+    "supplement": "Supplement this question (interrupts the reply and rethinks with the addition)",
     "teamPlaceholder": "Type a message to start, @ to switch team…",
     "teamSelected": "Team selected",
     "textAutoUploaded": "Long text automatically converted to file upload",
@@ -1782,7 +1792,6 @@
     "updateSuccess": "Skill updated successfully",
     "viewInMySkills": "Open in My Skills"
   },
-
   "mcp": {
     "addFirst": "Add your first MCP server",
     "addNew": "Add New MCP Server",
@@ -2359,7 +2368,6 @@
     "exitFullscreen": "Exit fullscreen",
     "expand": "Expand",
     "exportZip": "Export ZIP",
-    "downloadFolder": "Download folder as ZIP",
     "fileCount": "{{count}} files",
     "fullscreen": "Fullscreen",
     "fullscreenHint": "Press Esc to exit fullscreen",
@@ -2917,9 +2925,56 @@
     "WEB_FETCH_MAX_CHARS": "Max characters returned per fetch; longer content is truncated.",
     "FIRECRAWL_BASE_URL": "Self-hosted Firecrawl base URL (e.g. http://fc.internal:3000). Empty = official SaaS. Self-host can work without keys.",
     "FIRECRAWL_API_KEYS": "Firecrawl API keys, comma-separated for rotation (firecrawl.dev free tier). Optional for self-hosted.",
-    "EXA_API_KEYS": "Exa API keys, comma-separated for rotation (exa.ai free tier, cache-first with live crawl fallback)."
+    "EXA_API_KEYS": "Exa API keys, comma-separated for rotation (exa.ai free tier, cache-first with live crawl fallback).",
+    "ENABLE_DOCUMENT_PARSE": "Enable the document parsing tool that converts PDF/DOCX/PPTX into Markdown with embedded images extracted",
+    "DOCUMENT_PARSE_PROVIDER": "Document parsing provider; auto uses the first configured provider in order",
+    "DOCUMENT_PARSE_MISTRAL_API_KEY": "Mistral OCR provider API key",
+    "DOCUMENT_PARSE_MISTRAL_BASE_URL": "Mistral OCR API base URL, defaults to the official endpoint",
+    "DOCUMENT_PARSE_MISTRAL_MODEL": "Mistral OCR model name",
+    "DOCUMENT_PARSE_MINERU_API_MODE": "MinerU mode: cloud uses the official API, local uses a self-hosted MinerU server",
+    "DOCUMENT_PARSE_MINERU_API_URL": "MinerU server URL; required for local mode, defaults to https://mineru.net/api/v4 in cloud mode",
+    "DOCUMENT_PARSE_MINERU_API_KEY": "MinerU cloud API token (from mineru.net)",
+    "DOCUMENT_PARSE_AZURE_ENDPOINT": "Azure Document Intelligence endpoint",
+    "DOCUMENT_PARSE_AZURE_KEY": "Azure Document Intelligence subscription key",
+    "DOCUMENT_PARSE_AZURE_MODEL": "Azure Document Intelligence model, e.g. prebuilt-read / prebuilt-layout",
+    "DOCUMENT_PARSE_DOCLING_URL": "docling-serve server URL (self-hosted)",
+    "DOCUMENT_PARSE_DOCLING_API_KEY": "docling-serve API key (when the server enforces auth)",
+    "DOCUMENT_PARSE_PADDLEOCR_URL": "PaddleOCR-VL server URL (self-hosted PaddleX)",
+    "DOCUMENT_PARSE_PADDLEOCR_TOKEN": "PaddleOCR-VL access token",
+    "DOCUMENT_PARSE_TIKA_URL": "Apache Tika server URL (self-hosted)",
+    "DOCUMENT_PARSE_MAX_DOWNLOAD_BYTES": "Maximum document download size in bytes",
+    "DOCUMENT_PARSE_MAX_OUTPUT_CHARS": "Maximum characters of parsed Markdown before truncation",
+    "DOCUMENT_PARSE_MAX_IMAGES": "Maximum images extracted per parse"
   },
   "settings": {
+    "navigation": {
+      "browse": "Browse categories",
+      "subtitle": "Application and service settings",
+      "searchPlaceholder": "Search names, descriptions or keys",
+      "searchResults": "Search results",
+      "allCategories": "All categories",
+      "resultCount": "{{count}} settings",
+      "clearSearch": "Clear search",
+      "subcategory": "Subcategory",
+      "allSubcategories": "All subcategories",
+      "saveHint": "Save each setting after editing. Unsaved inputs are kept when you switch categories.",
+      "groups": {
+        "experience": "Experience",
+        "intelligence": "Agents & models",
+        "memory": "Memory",
+        "capabilities": "Tools & files",
+        "access": "Account & security",
+        "infrastructure": "Infrastructure"
+      },
+      "descriptions": {
+        "experience": "Configure the interface and session behavior.",
+        "intelligence": "Adjust agent execution, model requests and retry policies.",
+        "memory": "Manage memory extraction, embeddings, retrieval and storage.",
+        "capabilities": "Configure tools, skills, sandboxes and file processing.",
+        "access": "Manage registration, sign-in, authentication and email.",
+        "infrastructure": "Configure databases, caching, persistence and monitoring."
+      }
+    },
     "defaultModel": "Default Model",
     "exportSettings": "Export settings",
     "exportSuccess": "Settings exported successfully",

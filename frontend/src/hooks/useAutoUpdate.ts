@@ -72,7 +72,8 @@ const INITIAL_STATE: UpdateState = {
 
 /** 当前 runtime 是否是 Linux 桌面（deb/rpm/AppImage 分流只在这类设备生效） */
 export function isLinuxDesktopEnvironment(
-  nav: { userAgent?: string; platform?: string } = typeof navigator !== "undefined"
+  nav: { userAgent?: string; platform?: string } = typeof navigator !==
+  "undefined"
     ? navigator
     : {},
 ): boolean {
@@ -86,7 +87,10 @@ export function isLinuxDesktopEnvironment(
 export function formatUpdateError(error: unknown, platform: string): string {
   const raw = error instanceof Error ? error.message : String(error ?? "");
   const detail = raw.trim() || "更新失败";
-  if (platform === "tauri" && /permission|access denied|拒绝访问|权限|replace|rename/i.test(detail)) {
+  if (
+    platform === "tauri" &&
+    /permission|access denied|拒绝访问|权限|replace|rename/i.test(detail)
+  ) {
     return `${detail}。Linux 请确认 AppImage 所在目录可写，并从用户目录运行；如果安装的是 .deb/.rpm，请手动安装新版安装包。`;
   }
   return detail;
@@ -211,9 +215,8 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   /** 资产命名的 arch 段（Rust 上报；拼 deb/rpm 资产名用） */
   const linuxArchRef = useRef<string | null>(null);
   /** 检测 promise 缓存：更新检查与安装分流共用一次检测结果 */
-  const linuxDetectPromiseRef = useRef<Promise<LinuxInstallSource | null> | null>(
-    null,
-  );
+  const linuxDetectPromiseRef =
+    useRef<Promise<LinuxInstallSource | null> | null>(null);
   /** 下载/安装「在飞」标志：pendingUpdateRef 只在下载完成时置位，卫兵只查它
    * 会漏掉下载中——复检再触发即起第二条下载（进度条跳变/多进度的根因） */
   const downloadInFlightRef = useRef(false);
@@ -224,8 +227,8 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
    * 确保 Linux 安装来源已检测（一次）：更新检查时决定是否后台静默下载、
    * 安装时决定走 updater 还是 deb/rpm 包管理器路径。非 Linux 桌面返回 null。
    */
-  const ensureLinuxSource = useCallback(
-    async (): Promise<LinuxInstallSource | null> => {
+  const ensureLinuxSource =
+    useCallback(async (): Promise<LinuxInstallSource | null> => {
       if (platform !== "tauri" || !isLinuxDesktopEnvironment()) return null;
       if (!linuxDetectPromiseRef.current) {
         linuxDetectPromiseRef.current = (async () => {
@@ -238,9 +241,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         })();
       }
       return linuxDetectPromiseRef.current;
-    },
-    [platform],
-  );
+    }, [platform]);
 
   // Linux 桌面：启动即检测安装来源 + 订阅 deb/rpm 下载进度事件
   useEffect(() => {
@@ -427,43 +428,45 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
    * 返回检查是否成功，与 Tauri 路径同供手动检查提示区分） */
   const checkBackendUpdate = useCallback(
     async (background = false, manual = false): Promise<boolean> => {
-    try {
-      const info = await versionApi.checkForUpdates(APP_VERSION);
-      if (info.has_update) {
-        const v = info.latest_version ?? null;
-        const prompt = shouldPromptUpdate(
-          v,
-          readSkippedUpdateVersions(window.localStorage),
-          { manual },
-        );
-        if (prompt) {
-          setState({
-            ...INITIAL_STATE,
-            available: true,
-            version: v,
-            releaseNotes: info.release_notes ?? null,
-            releaseUrl: info.release_url ?? null,
-            releaseAssets: info.release_assets ?? [],
-          });
-          // 该路径仅移动端（android/ios）可达：对话框保留
-          if (shouldOpenUpdateDialog(platform)) {
-            setShowDialog(true);
+      try {
+        const info = await versionApi.checkForUpdates(APP_VERSION);
+        if (info.has_update) {
+          const v = info.latest_version ?? null;
+          const prompt = shouldPromptUpdate(
+            v,
+            readSkippedUpdateVersions(window.localStorage),
+            { manual },
+          );
+          if (prompt) {
+            setState({
+              ...INITIAL_STATE,
+              available: true,
+              version: v,
+              releaseNotes: info.release_notes ?? null,
+              releaseUrl: info.release_url ?? null,
+              releaseAssets: info.release_assets ?? [],
+            });
+            // 该路径仅移动端（android/ios）可达：对话框保留
+            if (shouldOpenUpdateDialog(platform)) {
+              setShowDialog(true);
+            }
+            if (background && v && notifiedVersionRef.current !== v) {
+              notifiedVersionRef.current = v;
+              void notifyUpdateAvailable(v, false);
+            }
+          } else {
+            setState(INITIAL_STATE);
           }
-          if (background && v && notifiedVersionRef.current !== v) {
-            notifiedVersionRef.current = v;
-            void notifyUpdateAvailable(v, false);
-          }
-        } else {
-          setState(INITIAL_STATE);
         }
+      } catch {
+        // Silently fail
+        return false;
       }
-    } catch {
-      // Silently fail
-      return false;
-    }
-    return true;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      return true;
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [],
+  );
 
   /** Start the update process */
   const startUpdate = useCallback(async () => {

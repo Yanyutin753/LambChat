@@ -338,7 +338,10 @@ test("sandbox panel blocks selecting an offline machine with a hint", async () =
 
   // 在线机正常可选（档位已是 local，仅更新目标机）
   fireEvent.click(screen.getByText("MacBook"));
-  expect(onToggleAgentOption).toHaveBeenCalledWith("sandbox_machine_id", "mac1");
+  expect(onToggleAgentOption).toHaveBeenCalledWith(
+    "sandbox_machine_id",
+    "mac1",
+  );
   expect(onToggleAgentOption).not.toHaveBeenCalledWith("sandbox", "local");
 });
 
@@ -422,7 +425,9 @@ test("toolbar shows a sandbox chip with the current tier that opens the sandbox 
 test("sandbox chip reflects the stored local tier in the label", () => {
   renderToolbar(vi.fn(), { sandbox: "local" });
 
-  expect(screen.getByTitle("Sandbox · Local computer")).toHaveTextContent("Local computer");
+  expect(screen.getByTitle("Sandbox · Local computer")).toHaveTextContent(
+    "Local computer",
+  );
 });
 
 test("sandbox chip shows the selected machine in the label on the local tier", async () => {
@@ -452,13 +457,17 @@ test("sandbox chip swaps to a cloud icon on the cloud tier and a monitor icon on
   // 手机端档位文字隐藏，仅靠图标区分档位：云端=云图标，本地=显示器图标
   renderToolbar(vi.fn(), { sandbox: "cloud" });
   expect(
-    screen.getByTitle("Sandbox · Cloud computer").querySelector("svg.lucide-cloud"),
+    screen
+      .getByTitle("Sandbox · Cloud computer")
+      .querySelector("svg.lucide-cloud"),
   ).not.toBeNull();
 
   cleanup();
   renderToolbar(vi.fn(), { sandbox: "local" });
   expect(
-    screen.getByTitle("Sandbox · Local computer").querySelector("svg.lucide-monitor"),
+    screen
+      .getByTitle("Sandbox · Local computer")
+      .querySelector("svg.lucide-monitor"),
   ).not.toBeNull();
 });
 

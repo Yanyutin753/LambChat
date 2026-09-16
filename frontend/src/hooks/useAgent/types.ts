@@ -313,6 +313,13 @@ export interface UseAgentReturn {
     content: string,
     attachments?: MessageAttachment[],
   ) => Promise<void>;
+  /** 追加提问：不打断当前 run，本轮结束后自动作为新消息发送 */
+  queueFollowUp: (content: string, attachments?: MessageAttachment[]) => void;
+  /** 补充当前问题：打断当前 run，把新内容并入这轮思考重新生成 */
+  supplementFollowUp: (
+    content: string,
+    attachments?: MessageAttachment[],
+  ) => Promise<void>;
   cancelSteer: (content: string, messageId?: string) => void;
   steerMessages: import("../../utils/mergeSteers").SteerItem[];
   markSteerDelivered: (content: string, messageId?: string) => void;

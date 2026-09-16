@@ -31,7 +31,7 @@ test("loadHistory ignores stale async results instead of overwriting the active 
   expect(source).toMatch(/resolveHistoryStreamRunId/);
   expect(source).toMatch(/sseGenerationRef\.current \+= 1/);
   expect(source).toMatch(
-    /if \(isStaleHistoryLoad\(\)\) return null;[\s\S]*?sessionData\.name[\s\S]*?dispatchSessionTitleUpdated/,
+    /if \(isStaleHistoryLoad\(\)\) \{[\s\S]*?return null;\s*\}[\s\S]*?sessionData\.name[\s\S]*?dispatchSessionTitleUpdated/,
   );
   expect(source).toMatch(/historyLoadGeneration,/);
 });

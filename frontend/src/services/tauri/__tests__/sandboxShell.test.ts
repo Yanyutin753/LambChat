@@ -290,7 +290,9 @@ test("subscribeDaemonStatus forwards event payloads and unlisten is idempotent",
     expect.any(Function),
   );
 
-  captured!({ payload: { running: true, unsupported: false, generation: 3, restarts: 1 } });
+  captured!({
+    payload: { running: true, unsupported: false, generation: 3, restarts: 1 },
+  });
   expect(received).toEqual([
     { running: true, unsupported: false, generation: 3, restarts: 1 },
   ]);

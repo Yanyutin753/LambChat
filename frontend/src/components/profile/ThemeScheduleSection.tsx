@@ -105,7 +105,9 @@ export function ThemeScheduleSection() {
             options={NIGHT_THEME_OPTIONS}
             open={openDropdown === "nightTheme"}
             onToggle={() =>
-              setOpenDropdown((prev) => (prev === "nightTheme" ? null : "nightTheme"))
+              setOpenDropdown((prev) =>
+                prev === "nightTheme" ? null : "nightTheme",
+              )
             }
             onSelect={(key) => {
               update({ nightTheme: key });

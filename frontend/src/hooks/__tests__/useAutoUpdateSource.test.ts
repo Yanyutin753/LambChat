@@ -209,7 +209,8 @@ test("update flow is single-flight: downloads guarded by in-flight flag, re-chec
   const hook = readRepoFile("frontend/src/hooks/useAutoUpdate.ts");
   // 在飞标志存在且三条下载路径（后台/AppImage 前台/Linux 包管理器）都先查它
   expect(hook).toMatch(/const downloadInFlightRef = useRef\(false\)/);
-  const guards = hook.match(/if \(downloadInFlightRef\.current\) return/g) ?? [];
+  const guards =
+    hook.match(/if \(downloadInFlightRef\.current\) return/g) ?? [];
   expect(guards.length).toBe(2); // installTauriUpdate + installLinuxPackageUpdate
   // 后台下载卫兵 = pending(已完成) + inFlight(进行中) 双查——单查完成标志
   // 会在下载中放行第二条下载（多进度条/并发下载根因）
@@ -220,7 +221,9 @@ test("update flow is single-flight: downloads guarded by in-flight flag, re-chec
   const resets = hook.match(/downloadInFlightRef\.current = false/g) ?? [];
   expect(resets.length).toBeGreaterThanOrEqual(4);
   // 复检不能清掉进行中下载/待安装态（进度条中途消失重来的来源）
-  expect(hook).toMatch(/const preserve =\n\s+downloadInFlightRef\.current \|\| pendingUpdateRef\.current !== null/);
+  expect(hook).toMatch(
+    /const preserve =\n\s+downloadInFlightRef\.current \|\| pendingUpdateRef\.current !== null/,
+  );
   // 迟到的 Linux 进度事件不污染非下载态
   expect(hook).toMatch(/if \(!prev\.downloading\) return prev/);
 });

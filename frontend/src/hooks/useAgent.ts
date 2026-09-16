@@ -113,6 +113,11 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const isConnectingRef = useRef(false);
   const isLoadingHistoryRef = useRef(false);
   const isSendingRef = useRef(false);
+  // 发送所有权序号：fetch-event-source 的 abort 是 resolve 而非 reject，
+  // 被顶掉的旧 sendMessage 的 finally 必然执行且不得重置共享标志
+  const sendSeqRef = useRef(0);
+  // submitChat POST 在途（服务端尚未受理）：此窗口内打断补充会造成同会话双提交
+  const submitInFlightRef = useRef(false);
   const loadHistoryRequestIdRef = useRef(0);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -181,8 +186,15 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     },
     removeDeferredSteer,
   });
-  const { markSteerDelivered, clearSteerMessages, clearSteer, hydrateSteers } =
-    steerQueue;
+  const {
+    markSteerDelivered,
+    clearSteerMessages,
+    clearSteer,
+    hydrateSteers,
+    queueFollowUp,
+    restoreSteerMessages,
+    bindSteerSession,
+  } = steerQueue;
 
   useEffect(() => {
     currentRunIdRef.current = currentRunId;
@@ -340,9 +352,11 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       clearReconnectTimeout(reconnectTimeoutRef);
 
       setIsLoading(true);
+      // 清屏前快照：本加载被发送/新加载顶掉（stale 早退）时若列表已被
+      // 清空且无人接管，恢复快照，避免「消息全没了」的空列表滞留
+      const messagesSnapshot = messagesRef.current;
       setMessages([]);
-      // A history load replaces the rendered conversation. Drop any optimistic
-      // steer entries so they cannot survive a session switch or manual refresh.
+      // Clear the previous view; restore this session's local follow-ups after access is verified.
       clearSteerMessages();
       deferredSteersRef.current = [];
       followUpSteerIdsRef.current.clear();
@@ -376,7 +390,11 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             signal,
           }),
         ]);
-        if (isStaleHistoryLoad()) return null;
+        if (isStaleHistoryLoad()) {
+          // stale 且列表仍为空（无接管方重建内容）时恢复进入前快照
+          if (messagesRef.current.length === 0) setMessages(messagesSnapshot);
+          return null;
+        }
 
         const pendingSteersData = await sessionApi
           .getPendingSteers(targetSessionId)
@@ -387,6 +405,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             );
             return { session_id: targetSessionId, items: [] };
           });
+        if (isStaleHistoryLoad()) return null;
+        restoreSteerMessages(targetSessionId);
         hydrateSteers(pendingSteersData.items);
 
         if (sessionData) {
@@ -441,7 +461,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             streamingMessageId = prepared.streamingMessageId;
           }
 
-          if (isStaleHistoryLoad()) return null;
+          if (isStaleHistoryLoad()) {
+            if (messagesRef.current.length === 0) setMessages(messagesSnapshot);
+            return null;
+          }
           setCurrentRunId(currentRunId);
           setActiveGoal(restoredGoal);
           setGoalsByRunId(restoredGoalsByRun);
@@ -481,6 +504,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           isStaleHistoryLoad() ||
           (err instanceof Error && err.name === "AbortError")
         ) {
+          if (isStaleHistoryLoad() && messagesRef.current.length === 0) {
+            setMessages(messagesSnapshot);
+          }
           return null;
         }
         console.error("Failed to load session:", err);
@@ -504,6 +530,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       canReadFeedback,
       clearSteerMessages,
       hydrateSteers,
+      restoreSteerMessages,
       recordFirstWindow,
       recordFeedback,
       resetHistoryPagination,
@@ -537,9 +564,13 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         notifySubmissionRejected(submissionCallbacks);
         return;
       }
+      // 顶掉在途 loadHistory：同步释放其加载标志，否则该加载被 stale 后
+      // 无人复位，isLoadingHistory 会永久卡死
       loadHistoryRequestIdRef.current += 1;
       historyAbortControllerRef.current?.abort();
       historyAbortControllerRef.current = null;
+      setIsLoadingHistory(false);
+      isLoadingHistoryRef.current = false;
 
       const goalPlan = planGoalSubmission(content, goalModeEnabled);
       if (goalPlan.handledWithoutSend) {
@@ -566,6 +597,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         return;
       }
       isSendingRef.current = true;
+      // 发送所有权：后续发送/停止会递增序号夺走所有权，旧发送的 finally
+      // 据此让位，不再触碰 isLoading/isSendingRef（abort=resolve 必走 finally）
+      const sendSeq = ++sendSeqRef.current;
+      const ownsSend = () => sendSeqRef.current === sendSeq;
 
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -618,6 +653,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
         // Prefetch/refresh access token in parallel with submit so SSE connect
         // rarely waits on a serial token refresh after POST returns.
+        submitInFlightRef.current = true;
         const [submitData] = await Promise.all([
           sessionApi.submitChat(
             currentAgent,
@@ -646,6 +682,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         const newSessionId = submitData.session_id;
         const newRunId = submitData.run_id;
         const projectId = pendingProjectIdRef.current;
+        submitInFlightRef.current = false;
         submissionAccepted = true;
         notifySubmissionAccepted(submissionCallbacks);
 
@@ -682,6 +719,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         }
 
         if (!sessionId && newSessionId) {
+          bindSteerSession(newSessionId);
           setSessionId(newSessionId);
           const now = new Date().toISOString();
 
@@ -798,6 +836,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         if (err instanceof Error && err.name === "AbortError") {
           return;
         }
+        // 被后续发送/停止顶掉的旧发送不渲染错误（当前发送 owns 标志）
+        if (!ownsSend()) return;
         const errWithMeta = err as Error & { code?: string };
         const errorMessage =
           err instanceof Error
@@ -824,17 +864,41 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         setConnectionStatus("disconnected");
         setIsInitializingSandbox(false);
       } finally {
-        setIsLoading(false);
-        isSendingRef.current = false;
-        const deferredSteers = deferredSteersRef.current.splice(0);
-        if (deferredSteers.length > 0) {
-          setTimeout(() => {
-            for (const deferred of deferredSteers) {
-              if (cancelledSteerIdsRef.current.has(deferred.id)) continue;
-              clearSteer(deferred.content, deferred.id);
-              sendMessageRef.current?.(deferred.content, deferred.attachments);
-            }
-          }, 0);
+        // 收尾自己的乐观助手气泡：流被后续发送/停止顶掉时不会再收到
+        // 终态事件，不落定会留下永久 isStreaming 的空气泡
+        setMessages((prev) => {
+          const target = prev.find(
+            (m) => m.id === finalAssistantMessageId && m.isStreaming,
+          );
+          if (!target) return prev;
+          return prev.map((m) =>
+            m.id === finalAssistantMessageId
+              ? {
+                  ...m,
+                  isStreaming: false,
+                  parts: clearAllLoadingStates(m.parts || []),
+                }
+              : m,
+          );
+        });
+        // 仅当前所有者重置共享标志；finally 里不能 return（会吞异常）
+        if (ownsSend()) {
+          submitInFlightRef.current = false;
+          setIsLoading(false);
+          isSendingRef.current = false;
+          const deferredSteers = deferredSteersRef.current.splice(0);
+          if (deferredSteers.length > 0) {
+            setTimeout(() => {
+              for (const deferred of deferredSteers) {
+                if (cancelledSteerIdsRef.current.has(deferred.id)) continue;
+                clearSteer(deferred.content, deferred.id);
+                sendMessageRef.current?.(
+                  deferred.content,
+                  deferred.attachments,
+                );
+              }
+            }, 0);
+          }
         }
       }
     },
@@ -843,10 +907,12 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       currentAgent,
       createSSEContext,
       newlyCreatedSession?.metadata,
+      setIsLoadingHistory,
       options,
       selectedTeamId,
       goalModeEnabled,
       clearSteer,
+      bindSteerSession,
       setActiveGoal,
       setConnectionStatus,
       setCurrentProjectId,
@@ -887,6 +953,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   });
 
   const stopGeneration = useCallback(async () => {
+    // 用户停止即夺取发送所有权：在途 sendMessage 的 finally 不得再重置
+    // 共享标志（否则会把停止后新发送刚置好的状态抹掉）
+    sendSeqRef.current += 1;
+    submitInFlightRef.current = false;
     isSendingRef.current = false;
     setIsLoading(false);
     setIsInitializingSandbox(false);
@@ -916,6 +986,24 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       }
     }
   }, [options, setIsInitializingSandbox, setIsLoading, setSandboxError]);
+
+  // 补充当前问题：打断进行中的 run，把补充内容并入这轮思考重新生成
+  // （原问题与已生成部分保留在历史，新一轮自动携带完整上下文）
+  const supplementFollowUp = useCallback(
+    async (content: string, attachments?: MessageAttachment[]) => {
+      const text = content.trim();
+      if (!text && !attachments?.length) return;
+      // isSendingRef 在整个流式期间恒为 true，不能用它在途判定；只有
+      // POST 尚未被服务端受理时打断才会造成同会话双提交——仅该窗口转排队
+      if (submitInFlightRef.current) {
+        queueFollowUp(text, attachments);
+        return;
+      }
+      await stopGeneration();
+      await sendMessageRef.current?.(text, attachments);
+    },
+    [queueFollowUp, stopGeneration],
+  );
 
   const clearMessages = useCallback(() => {
     loadHistoryRequestIdRef.current += 1;
@@ -1035,6 +1123,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     sandboxError,
     sendMessage,
     ...steerQueue,
+    supplementFollowUp,
     applyRecommendQuestions,
     clearActiveGoal,
     stopGeneration,

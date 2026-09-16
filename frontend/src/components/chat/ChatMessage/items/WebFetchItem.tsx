@@ -103,7 +103,10 @@ function WebFetchDetail({ args, result }: ToolDetailProps) {
           className="flex items-center gap-2.5 rounded-xl border border-[color-mix(in_srgb,var(--theme-primary)_16%,var(--theme-border))] bg-[color-mix(in_srgb,var(--theme-primary)_7%,var(--theme-bg-card))] px-3 py-2.5 shadow-[0_10px_24px_-22px_color-mix(in_srgb,var(--theme-primary)_45%,transparent)] transition-colors hover:border-[color-mix(in_srgb,var(--theme-primary)_30%,var(--theme-border))]"
         >
           <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--theme-primary)_12%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_18%,transparent)]">
-            <BookOpen size={14} className="shrink-0 text-[var(--theme-primary)]" />
+            <BookOpen
+              size={14}
+              className="shrink-0 text-[var(--theme-primary)]"
+            />
           </span>
           <span className="min-w-0 flex-1">
             {summary?.title && (
@@ -193,7 +196,9 @@ const WebFetchItem = memo(function WebFetchItem({
         : "error";
 
   const titleLabel = t("chat.message.toolWebFetch");
-  const pillLabel = `${titleLabel} ${url ? `"${truncate(hostFromUrl(url) || url, 24)}"` : ""}`.trim();
+  const pillLabel = `${titleLabel} ${
+    url ? `"${truncate(hostFromUrl(url) || url, 24)}"` : ""
+  }`.trim();
 
   const { label, isStreamingLabel } = useToolStreamingLabel(pillLabel, args, {
     isPending,

@@ -28,7 +28,9 @@ test("downloading takes precedence for the live progress phase", () => {
   );
   // 下载中即使残留 ready/error 字段也以进行中的下载为准
   expect(
-    updateIndicatorPhase(makeState({ downloading: true, readyToInstall: true })),
+    updateIndicatorPhase(
+      makeState({ downloading: true, readyToInstall: true }),
+    ),
   ).toBe("downloading");
 });
 

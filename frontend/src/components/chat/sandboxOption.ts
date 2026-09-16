@@ -125,7 +125,9 @@ export function buildSandboxMachineRows(
       value: m.machine_id,
       label: isMachineOnline(m)
         ? m.name || m.machine_id
-        : `${m.name || m.machine_id} · ${t("agentOptions.sandboxMachine.offline")}`,
+        : `${m.name || m.machine_id} · ${t(
+            "agentOptions.sandboxMachine.offline",
+          )}`,
       machineId: m.machine_id,
       platform: m.platform,
       online: isMachineOnline(m),

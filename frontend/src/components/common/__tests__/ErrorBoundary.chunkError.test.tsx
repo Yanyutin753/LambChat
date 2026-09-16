@@ -9,9 +9,7 @@ vi.mock("../../../utils/chunkLoadRecovery", () => ({
   isChunkLoadError: vi.fn((error: unknown) =>
     Boolean(
       error instanceof Error &&
-        error.message.includes(
-          "Failed to fetch dynamically imported module",
-        ),
+        error.message.includes("Failed to fetch dynamically imported module"),
     ),
   ),
 }));
@@ -38,9 +36,11 @@ test("chunk load errors render the friendly updating UI and self-heal", () => {
   render(
     <ErrorBoundary>
       <Bomb
-        error={new Error(
-          "Failed to fetch dynamically imported module: http://tauri.localhost/assets/RichChatComposer-6TNnBJWu.js",
-        )}
+        error={
+          new Error(
+            "Failed to fetch dynamically imported module: http://tauri.localhost/assets/RichChatComposer-6TNnBJWu.js",
+          )
+        }
       />
     </ErrorBoundary>,
   );

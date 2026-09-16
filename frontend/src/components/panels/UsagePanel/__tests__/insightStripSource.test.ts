@@ -6,7 +6,10 @@ const currentDir = dirname(fileURLToPath(import.meta.url));
 const localeDir = resolve(currentDir, "../../../../i18n/locales");
 
 test("failed-requests insight surfaces the cancelled count when present", () => {
-  const source = readFileSync(resolve(currentDir, "../InsightStrip.tsx"), "utf8");
+  const source = readFileSync(
+    resolve(currentDir, "../InsightStrip.tsx"),
+    "utf8",
+  );
 
   // 取消不计入 failed_requests 后，失败卡片必须透出取消数，
   // 否则口径收窄在控制台上无法解释（字段算了却无处展示）

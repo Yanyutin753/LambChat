@@ -60,7 +60,10 @@ describe("parseWebFetchResult", () => {
 
 test("web fetch item presents url, content reader and live panel", () => {
   const source = readFileSync(
-    resolve(repoRoot, "frontend/src/components/chat/ChatMessage/items/WebFetchItem.tsx"),
+    resolve(
+      repoRoot,
+      "frontend/src/components/chat/ChatMessage/items/WebFetchItem.tsx",
+    ),
     "utf8",
   );
   expect(source).toMatch(/toolWebFetch/);

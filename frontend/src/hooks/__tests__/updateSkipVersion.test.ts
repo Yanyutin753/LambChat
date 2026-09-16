@@ -16,13 +16,13 @@ function fakeStorage(initial: string | null) {
 test("readSkippedUpdateVersions tolerates missing and malformed data", () => {
   expect(readSkippedUpdateVersions(fakeStorage(null))).toEqual([]);
   expect(readSkippedUpdateVersions(fakeStorage("garbage"))).toEqual([]);
-  expect(
-    readSkippedUpdateVersions(fakeStorage('["2.10.1","2.11.0"]')),
-  ).toEqual(["2.10.1", "2.11.0"]);
+  expect(readSkippedUpdateVersions(fakeStorage('["2.10.1","2.11.0"]'))).toEqual(
+    ["2.10.1", "2.11.0"],
+  );
   // 非字符串成员过滤
-  expect(
-    readSkippedUpdateVersions(fakeStorage('[2.1,"2.11.0"]')),
-  ).toEqual(["2.11.0"]);
+  expect(readSkippedUpdateVersions(fakeStorage('[2.1,"2.11.0"]'))).toEqual([
+    "2.11.0",
+  ]);
 });
 
 test("isVersionSkipped matches exact versions only", () => {
@@ -36,9 +36,7 @@ test("isVersionSkipped matches exact versions only", () => {
 test("shouldPromptUpdate: skipped version stays quiet unless manual check", () => {
   const skipped = ["2.11.0"];
   // 后台/启动检查：跳过过的版本不再打扰（标准开源更新器行为）
-  expect(
-    shouldPromptUpdate("2.11.0", skipped, { manual: false }),
-  ).toBe(false);
+  expect(shouldPromptUpdate("2.11.0", skipped, { manual: false })).toBe(false);
   // 手动「检查更新」无视跳过列表——用户主动要看
   expect(shouldPromptUpdate("2.11.0", skipped, { manual: true })).toBe(true);
   // 新版本照常提示

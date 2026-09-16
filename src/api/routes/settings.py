@@ -11,11 +11,13 @@ from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.setting import (
     SettingItem,
     SettingResetResponse,
+    SettingsResetRequest,
     SettingsResponse,
     SettingUpdate,
     SettingUpdateResponse,
 )
 from src.kernel.schemas.user import TokenPayload
+from src.kernel.settings_navigation import build_settings_navigation
 
 router = APIRouter()
 
@@ -30,7 +32,7 @@ async def get_settings(
     has_admin = "settings:manage" in (user.permissions or [])
     async with timed_server_phase("settings"):
         settings = await service.get_all(admin_mode=has_admin)
-    return SettingsResponse(settings=settings)
+    return SettingsResponse(settings=settings, navigation=build_settings_navigation(settings))
 
 
 @router.get("/{key}", response_model=SettingItem)
@@ -89,10 +91,11 @@ async def init_settings_from_env(
 
 @router.post("/reset", response_model=SettingResetResponse)
 async def reset_all_settings(
+    data: SettingsResetRequest,
     _: TokenPayload = Depends(require_permissions("settings:manage")),
     service: SettingsService = Depends(get_settings_service),
 ):
-    """Reset all settings to default values"""
+    """Reset all settings only after explicit client confirmation."""
     count = await service.reset()
     return SettingResetResponse(
         message="All settings reset to defaults",

@@ -1,9 +1,6 @@
 import { expect, test } from "vitest";
 
-import {
-  detectDesktopOs,
-  resolveTitlebarOs,
-} from "../titlebarPlatform";
+import { detectDesktopOs, resolveTitlebarOs } from "../titlebarPlatform";
 
 test("detectDesktopOs maps desktop webview user agents", () => {
   // WebView2（Windows）
@@ -33,7 +30,9 @@ test("detectDesktopOs rejects mobile and unknown agents", () => {
       "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36",
     ),
   ).toBeNull();
-  expect(detectDesktopOs("Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X)")).toBeNull();
+  expect(
+    detectDesktopOs("Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X)"),
+  ).toBeNull();
   expect(detectDesktopOs("")).toBeNull();
 });
 
@@ -41,10 +40,14 @@ test("resolveTitlebarOs requires the tauri runtime", () => {
   const navigator = { userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" };
   // 无 Tauri 标记（浏览器/PWA/Capacitor）→ 永不出自绘标题栏
   expect(
-    resolveTitlebarOs({ navigator, __TAURI__: undefined, __TAURI_INTERNALS__: undefined }),
+    resolveTitlebarOs({
+      navigator,
+      __TAURI__: undefined,
+      __TAURI_INTERNALS__: undefined,
+    }),
   ).toBeNull();
   expect(resolveTitlebarOs({ navigator, __TAURI__: {} })).toBe("windows");
-  expect(
-    resolveTitlebarOs({ navigator, __TAURI_INTERNALS__: {} }),
-  ).toBe("windows");
+  expect(resolveTitlebarOs({ navigator, __TAURI_INTERNALS__: {} })).toBe(
+    "windows",
+  );
 });

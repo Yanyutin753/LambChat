@@ -355,13 +355,7 @@ function processHistoryEvent(
 }
 
 /**
- * 为缺失 run_id 的历史事件回填就近 run_id。
- * 旧记录（如推荐问题）可能缺少 run_id 信封；按时间序取前向最近的
- * run_id，无前向时回退到后向第一个 run_id，保持与逐事件反向查找一致的语义。
- */
-/**
- * 中断后同 run 无缝续跑：丢弃半截/错误累积，同一气泡回到空态，
- * 后续事件（模型重新生成的完整回答）从零重新折叠。
+ * 同 run 恢复保留已有内容，仅清理中断状态和悬挂的 loading。
  */
 function resetInterruptedAssistantForResume(
   message: Message | null,
@@ -369,13 +363,18 @@ function resetInterruptedAssistantForResume(
   if (!message) return null;
   return {
     ...message,
-    parts: [],
-    content: "",
-    toolCalls: [],
+    parts: clearAllLoadingStates(message.parts || []).filter(
+      (part) => part.type !== "cancelled",
+    ),
     cancelled: false,
   };
 }
 
+/**
+ * 为缺失 run_id 的历史事件回填就近 run_id。
+ * 旧记录（如推荐问题）可能缺少 run_id 信封；按时间序取前向最近的
+ * run_id，无前向时回退到后向第一个 run_id，保持与逐事件反向查找一致的语义。
+ */
 export function normalizeEventRunIds(events: HistoryEvent[]): HistoryEvent[] {
   const prevRunIdByIndex: Array<string | undefined> = new Array(events.length);
   let lastSeenRunId: string | undefined;
@@ -580,8 +579,8 @@ export function reconstructMessagesFromEvents(
 
     // Handle seamless run resume
     if (eventType === "run:resumed") {
-      // 中断后同 run 恢复：丢弃半截/错误累积，同一气泡从空态继续折叠
-      // 后续事件（模型重新生成完整回答）
+      // 与实时恢复一致：保留内容，后续事件继续追加。
+      opts.activeSubagentStack.length = 0;
       currentAssistantMessage = resetInterruptedAssistantForResume(
         currentAssistantMessage,
       );

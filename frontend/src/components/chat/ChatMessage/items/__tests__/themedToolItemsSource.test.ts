@@ -17,6 +17,7 @@ const themedItems = [
   { file: "../ConversationHistoryItem.tsx", accent: "sky" },
   { file: "../SkillSearchItem.tsx", accent: "violet" },
   { file: "../WebSearchItem.tsx", accent: "sky" },
+  { file: "../DocumentParseItem.tsx", accent: "sky" },
 ];
 
 test("internal tool items keep accents while using theme surfaces", () => {

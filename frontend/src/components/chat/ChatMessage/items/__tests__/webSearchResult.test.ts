@@ -1,4 +1,8 @@
-import { hostFromUrl, parseWebSearchResult, siteLabelFromUrl } from "../webSearchResult";
+import {
+  hostFromUrl,
+  parseWebSearchResult,
+  siteLabelFromUrl,
+} from "../webSearchResult";
 
 const payload = {
   success: true,
@@ -33,7 +37,9 @@ test("parses object result with snake_case fields", () => {
     faviconUrl: "https://a.com/f.ico",
     publishedDate: "2026-09-01",
   });
-  expect(summary!.images).toEqual([{ url: "https://img/1", description: "d1" }]);
+  expect(summary!.images).toEqual([
+    { url: "https://img/1", description: "d1" },
+  ]);
 });
 
 test("parses JSON string result", () => {
@@ -69,7 +75,9 @@ test("drops entries without url", () => {
   });
 
   expect(summary!.results).toHaveLength(1);
-  expect(summary!.images).toEqual([{ url: "https://img/str", description: null }]);
+  expect(summary!.images).toEqual([
+    { url: "https://img/str", description: null },
+  ]);
 });
 
 test("returns null for failed or unparseable results", () => {
@@ -90,6 +98,8 @@ test("siteLabelFromUrl strips subdomains like ChatGPT source cards", () => {
 });
 
 test("hostFromUrl returns the full host", () => {
-  expect(hostFromUrl("https://zhuanlan.zhihu.com/p/1")).toBe("zhuanlan.zhihu.com");
+  expect(hostFromUrl("https://zhuanlan.zhihu.com/p/1")).toBe(
+    "zhuanlan.zhihu.com",
+  );
   expect(hostFromUrl("bad")).toBe("");
 });

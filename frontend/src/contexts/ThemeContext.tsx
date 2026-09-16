@@ -40,14 +40,16 @@ interface ThemeProviderProps {
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<Theme>(getInitialThemePreference);
-  const [themeSchedule, setScheduleState] = useState<ThemeSchedule | null>(() => {
-    try {
-      const raw = localStorage.getItem(THEME_SCHEDULE_KEY);
-      return raw ? parseThemeSchedule(JSON.parse(raw)) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [themeSchedule, setScheduleState] = useState<ThemeSchedule | null>(
+    () => {
+      try {
+        const raw = localStorage.getItem(THEME_SCHEDULE_KEY);
+        return raw ? parseThemeSchedule(JSON.parse(raw)) : null;
+      } catch {
+        return null;
+      }
+    },
+  );
 
   useLayoutEffect(() => {
     applyThemeToDocument(theme);
@@ -95,7 +97,9 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   useEffect(() => {
     if (!themeSchedule?.enabled) return;
     const applyScheduledTheme = () => {
-      setThemeState(resolveScheduledTheme(currentLocalMinutes(), themeSchedule));
+      setThemeState(
+        resolveScheduledTheme(currentLocalMinutes(), themeSchedule),
+      );
     };
     applyScheduledTheme();
     const timer = window.setInterval(applyScheduledTheme, 30_000);

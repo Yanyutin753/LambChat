@@ -683,6 +683,7 @@
     "pluginNoEditPermission": "플러그인 {{name}}을(를) 편집할 권한이 없습니다"
   },
   "categories": {
+    "scheduled_task": "예약 작업",
     "agent": "에이전트",
     "audio_transcription": "오디오 전사",
     "captcha": "CAPTCHA",
@@ -706,7 +707,8 @@
     "skills": "스킬",
     "tools": "도구",
     "tracing": "추적",
-    "user": "프로필"
+    "user": "프로필",
+    "document_parse": "문서 파싱"
   },
   "channel": {
     "addFirstInstance": "첫 번째 인스턴스 추가",
@@ -869,6 +871,9 @@
       "parameters": "매개변수",
       "processing": "과정",
       "projects": "프로젝트",
+      "queueEdit": "대기 중인 메시지 편집",
+      "queueFollowUp": "메시지 대기열에 추가 (현재 작업 후 전송)",
+      "queueGroup": "후속 입력 대기열",
       "rejected": "사용자가 작업을 거부했습니다",
       "removeBookmark": "북마크 제거",
       "result": "결과",
@@ -1037,7 +1042,8 @@
       "toolWebSearchResults_one": "결과 {{count}}개",
       "toolWebSearchResults_other": "결과 {{count}}개",
       "toolWrite": "쓰기",
-      "waitingConfirm": "확인 대기 중"
+      "waitingConfirm": "확인 대기 중",
+      "toolDocumentParse": "문서 파싱"
     },
     "messageInput": "메시지 입력",
     "noPermission": "메시지를 보낼 권한이 없습니다",
@@ -1051,7 +1057,7 @@
     "queued": "대기 중 ({{position}}번째)...",
     "rateLimited": "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요",
     "requestFailed": "세션 로드에 실패했습니다",
-    "runningPlaceholder": "계속 입력하면 수정이 순서대로 대기열에 추가됩니다…",
+    "runningPlaceholder": "계속 입력하세요…",
     "memory": {
       "initializing": "관련 메모리를 검색하는 중",
       "ready": "메모리 검색 완료"
@@ -1083,17 +1089,21 @@
     "status": {
       "cancelled": "취소됨"
     },
-    "steer": "스티어링 전송 (현재 단계 후 전달)",
     "steerCancel": "이 스티어링 취소",
     "steerFailed": "스티어링 메시지 전송에 실패했습니다. 다시 시도해 주세요",
     "steerFailedRetry": "전송에 실패했습니다. 다시 시도해 주세요",
     "steerNext": "작업이 끝난 후 전송",
-    "steerQueue": "대기 중인 스티어링 메시지",
+    "queueGuide": "방향 조정",
+    "queueGuideHint": "이 메시지를 현재 작업에 반영",
+    "queueDelete": "대기 메시지 삭제",
+    "queueMore": "추가 작업",
+    "steerQueue": "전송 대기 중인 메시지",
     "steerQueued": "현재 단계가 끝난 후 전달됩니다",
     "stop": "생성 중지",
     "stopConfirmMessage": "정말로 생성을 중단하시겠습니까? 지금까지 생성된 내용은 유지됩니다.",
     "stopConfirmTitle": "생성 중단",
     "subagentStatus": "서브에이전트 상태: {{status}}",
+    "supplement": "현재 질문 보충(답변을 중단하고 추가 내용을 반영해 재생성)",
     "teamPlaceholder": "메시지를 입력하여 대화를 시작, @ 로 팀 전환…",
     "teamSelected": "팀 선택됨",
     "textAutoUploaded": "긴 텍스트가 파일로 자동 업로드되었습니다",
@@ -1782,7 +1792,6 @@
     "updateSuccess": "스킬이 업데이트되었습니다",
     "viewInMySkills": "내 스킬에서 열기"
   },
-
   "mcp": {
     "addFirst": "첫 번째 MCP 서버 추가",
     "addNew": "새 MCP 서버 추가",
@@ -2359,7 +2368,6 @@
     "exitFullscreen": "전체 화면 종료",
     "expand": "펼치기",
     "exportZip": "ZIP 내보내기",
-    "downloadFolder": "폴더를 ZIP으로 다운로드",
     "fileCount": "{{count}}개 파일",
     "fullscreen": "전체 화면",
     "fullscreenHint": "Esc를 눌러 전체 화면 종료",
@@ -2917,9 +2925,56 @@
     "WEB_FETCH_MAX_CHARS": "패치당 반환 최대 문자 수. 초과분은 잘립니다.",
     "FIRECRAWL_BASE_URL": "Firecrawl 자체 호스팅 URL(예: http://fc.internal:3000). 비워두면 공식 SaaS. 자체 호스팅은 키 불필요.",
     "FIRECRAWL_API_KEYS": "Firecrawl API 키, 쉼표로 구분하여 로테이션. 자체 호스팅은 생략 가능.",
-    "EXA_API_KEYS": "Exa API 키, 쉼표 구분 로테이션(캐시 우선 + 라이브 크롤)."
+    "EXA_API_KEYS": "Exa API 키, 쉼표 구분 로테이션(캐시 우선 + 라이브 크롤).",
+    "ENABLE_DOCUMENT_PARSE": "PDF/DOCX/PPTX 등 문서를 Markdown으로 변환하고 삽입된 이미지를 추출하는 문서 파싱 도구 활성화",
+    "DOCUMENT_PARSE_PROVIDER": "문서 파싱 제공자. auto 는 설정된 제공자를 순서대로 사용",
+    "DOCUMENT_PARSE_MISTRAL_API_KEY": "Mistral OCR 제공자 API 키",
+    "DOCUMENT_PARSE_MISTRAL_BASE_URL": "Mistral OCR API 기본 URL. 기본값은 공식 엔드포인트",
+    "DOCUMENT_PARSE_MISTRAL_MODEL": "Mistral OCR 모델 이름",
+    "DOCUMENT_PARSE_MINERU_API_MODE": "MinerU 모드. cloud 는 공식 API, local 은 자체 호스팅 MinerU 서버",
+    "DOCUMENT_PARSE_MINERU_API_URL": "MinerU 서버 URL. local 모드에서는 필수, cloud 모드 기본값은 https://mineru.net/api/v4",
+    "DOCUMENT_PARSE_MINERU_API_KEY": "MinerU 클라우드 API 토큰 (mineru.net 에서 발급)",
+    "DOCUMENT_PARSE_AZURE_ENDPOINT": "Azure Document Intelligence 엔드포인트",
+    "DOCUMENT_PARSE_AZURE_KEY": "Azure Document Intelligence 구독 키",
+    "DOCUMENT_PARSE_AZURE_MODEL": "Azure Document Intelligence 모델 (예: prebuilt-read / prebuilt-layout)",
+    "DOCUMENT_PARSE_DOCLING_URL": "docling-serve 서버 URL (자체 호스팅)",
+    "DOCUMENT_PARSE_DOCLING_API_KEY": "docling-serve API 키 (서버 인증 활성 시)",
+    "DOCUMENT_PARSE_PADDLEOCR_URL": "PaddleOCR-VL 서버 URL (자체 호스팅 PaddleX)",
+    "DOCUMENT_PARSE_PADDLEOCR_TOKEN": "PaddleOCR-VL 액세스 토큰",
+    "DOCUMENT_PARSE_TIKA_URL": "Apache Tika 서버 URL (자체 호스팅)",
+    "DOCUMENT_PARSE_MAX_DOWNLOAD_BYTES": "문서 다운로드 최대 크기 (바이트)",
+    "DOCUMENT_PARSE_MAX_OUTPUT_CHARS": "파싱 결과 Markdown 최대 문자 수, 초과 시 잘림",
+    "DOCUMENT_PARSE_MAX_IMAGES": "한 번의 파싱에서 추출할 최대 이미지 수"
   },
   "settings": {
+    "navigation": {
+      "browse": "카테고리별 탐색",
+      "subtitle": "앱 및 서비스 설정",
+      "searchPlaceholder": "이름, 설명 또는 설정 키 검색",
+      "searchResults": "검색 결과",
+      "allCategories": "모든 카테고리",
+      "resultCount": "설정 {{count}}개",
+      "clearSearch": "검색 지우기",
+      "subcategory": "하위 카테고리",
+      "allSubcategories": "모든 하위 카테고리",
+      "saveHint": "수정한 설정은 각각 저장하세요. 카테고리를 전환해도 저장하지 않은 입력은 유지됩니다.",
+      "groups": {
+        "experience": "기본 환경",
+        "intelligence": "Agent 및 모델",
+        "memory": "메모리",
+        "capabilities": "도구 및 파일",
+        "access": "계정 및 보안",
+        "infrastructure": "인프라"
+      },
+      "descriptions": {
+        "experience": "화면 표시와 세션 동작을 설정합니다.",
+        "intelligence": "Agent 실행, 모델 요청 및 재시도 정책을 조정합니다.",
+        "memory": "메모리 추출, 임베딩, 검색 및 저장을 관리합니다.",
+        "capabilities": "도구, 스킬, 샌드박스 및 파일 처리를 설정합니다.",
+        "access": "가입, 로그인, 인증 및 이메일을 관리합니다.",
+        "infrastructure": "데이터베이스, 캐시, 영구 저장 및 모니터링을 설정합니다."
+      }
+    },
     "defaultModel": "기본 모델",
     "exportSettings": "설정 내보내기",
     "exportSuccess": "설정 내보내기 완료",

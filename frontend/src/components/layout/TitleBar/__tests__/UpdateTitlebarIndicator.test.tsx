@@ -1,6 +1,12 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
 import { UpdateTitlebarIndicator } from "../UpdateTitlebarIndicator";
@@ -57,12 +63,19 @@ test("clicking the icon opens a popover with version transition and notes", () =
 
 test("downloading phase shows progress and hides the skip action", () => {
   renderIndicator(
-    makeState({ downloading: true, progress: 42, downloaded: 50, contentLength: 100 }),
+    makeState({
+      downloading: true,
+      progress: 42,
+      downloaded: 50,
+      contentLength: 100,
+    }),
   );
   fireEvent.click(screen.getByRole("button", { name: /正在下载/ }));
   const popover = screen.getByRole("dialog");
   expect(within(popover).getByText(/42%/)).toBeTruthy();
-  expect(within(popover).queryByRole("button", { name: /跳过此版本/ })).toBeNull();
+  expect(
+    within(popover).queryByRole("button", { name: /跳过此版本/ }),
+  ).toBeNull();
   // 下载中主按钮禁用，防重复触发
   expect(
     within(popover).getByRole("button", { name: /正在下载/ }),

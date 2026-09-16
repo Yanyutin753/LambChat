@@ -35,9 +35,10 @@ export interface ChatInputToolbarProps {
   canSend: boolean;
   sendBlocked?: boolean;
   isLoading: boolean;
-  /** 运行中是否有草稿文本：有则按钮发送插话（steer），无则保持停止 */
+  /** 运行中是否有草稿文本：有则主按钮追加排队，无则保持停止 */
   hasDraft?: boolean;
-  onSteer?: () => void;
+  /** 追加提问：不打断当前 run，本轮结束后自动作为新消息发送 */
+  onQueueFollowUp?: () => void;
   canSubmit: boolean;
   hasUploadingAttachment: boolean;
   hasFailedAttachment?: boolean;
@@ -99,7 +100,7 @@ export function ChatInputToolbar({
   sendBlocked = false,
   isLoading,
   hasDraft = false,
-  onSteer,
+  onQueueFollowUp,
   canSubmit,
   hasUploadingAttachment,
   hasFailedAttachment = false,
@@ -210,10 +211,11 @@ export function ChatInputToolbar({
     agentOptionValues[SANDBOX_AGENT_OPTION_KEY] ??
     agentOptions?.[SANDBOX_AGENT_OPTION_KEY]?.default;
   const sandboxChipLocal = sandboxTier === SANDBOX_LOCAL_VALUE;
-  const { online: sandboxOnline, machines: sandboxMachines } =
-    useSandboxStatus({
+  const { online: sandboxOnline, machines: sandboxMachines } = useSandboxStatus(
+    {
       enabled: showSandboxEntry && sandboxChipLocal,
-    });
+    },
+  );
   // 统一面板入口标签：本地档 + 已选设备 → 「档位 · 设备」（chip 与 popover 徽标共用；
   // 云端档或自动解析时退回纯档位名）
   const sandboxLabel = sandboxTierLabel
@@ -221,10 +223,9 @@ export function ChatInputToolbar({
         sandboxValue: sandboxTier,
         tierLabel: sandboxTierLabel,
         machineValue:
-          typeof agentOptionValues[SANDBOX_MACHINE_AGENT_OPTION_KEY] === "string"
-            ? (agentOptionValues[
-                SANDBOX_MACHINE_AGENT_OPTION_KEY
-              ] as string)
+          typeof agentOptionValues[SANDBOX_MACHINE_AGENT_OPTION_KEY] ===
+          "string"
+            ? (agentOptionValues[SANDBOX_MACHINE_AGENT_OPTION_KEY] as string)
             : "",
         machines: sandboxMachines,
       })
@@ -448,16 +449,17 @@ export function ChatInputToolbar({
           </button>
         ) : isLoading &&
           hasDraft &&
-          onSteer &&
+          onQueueFollowUp &&
           !hasUploadingAttachment &&
           !hasFailedAttachment &&
           !hasInvalidAttachment ? (
           <button
             type="button"
+            data-testid="queue-followup-trigger"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              onSteer();
+              onQueueFollowUp();
             }}
             className="flex items-center justify-center rounded-full h-9 w-9 transition-all duration-300 hover:scale-105 active:scale-95"
             style={{
@@ -465,7 +467,14 @@ export function ChatInputToolbar({
               border: "1px solid var(--theme-primary)",
               color: "var(--theme-bg-card)",
             }}
-            title={t("chat.steer", "发送插话（当前步骤后送达）")}
+            title={t(
+              "chat.message.queueFollowUp",
+              "追加消息（当前任务结束后发送）",
+            )}
+            aria-label={t(
+              "chat.message.queueFollowUp",
+              "追加消息（当前任务结束后发送）",
+            )}
           >
             <ArrowUp size={18} />
           </button>

@@ -107,6 +107,15 @@ const CoverGalleryDemo = import.meta.env.DEV
       })),
     )
   : null;
+
+// Dev-only 原型：护眼模式下个人信息模块的视觉统一性方案对比（一次性）。
+const ProfileSepiaPrototype = import.meta.env.DEV
+  ? lazy(() =>
+      import("./components/profile/__demo__/ProfileSepiaPrototype").then(
+        (m) => ({ default: m.ProfileSepiaPrototype }),
+      ),
+    )
+  : null;
 const NotFoundPage = lazy(() =>
   import("./components/common/NotFoundPage").then((m) => ({
     default: m.NotFoundPage,
@@ -379,7 +388,9 @@ function App() {
     () =>
       typeof window === "undefined"
         ? null
-        : resolveTitlebarOs(window as unknown as Parameters<typeof resolveTitlebarOs>[0]),
+        : resolveTitlebarOs(
+            window as unknown as Parameters<typeof resolveTitlebarOs>[0],
+          ),
     [],
   );
 
@@ -484,255 +495,274 @@ function App() {
           const appRoutes = (
             <Suspense fallback={<ChatPageSkeleton />}>
               <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/interface" element={<LandingPage />} />
-            <Route path="/features" element={<LandingPage />} />
-            <Route path="/architecture" element={<LandingPage />} />
-            <Route path="/dashboard" element={<LandingPage />} />
-            <Route path="/responsive" element={<LandingPage />} />
-            <Route path="/github" element={<GitHubPage />} />
-            <Route path="/download" element={<DownloadPage />} />
-            {/* Auth routes */}
-            <Route path="/auth/login" element={<AuthPageWrapper />} />
-            <Route
-              path="/auth/register"
-              element={<AuthPageWrapper initialMode="register" />}
-            />
-            <Route
-              path="/chat/:sessionId?"
-              element={
-                <ProtectedRoute>
-                  <ChatPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/skills"
-              element={
-                <ProtectedRoute
-                  permissions={[
-                    Permission.SKILL_READ,
-                    Permission.MARKETPLACE_READ,
-                  ]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <SkillsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/marketplace"
-              element={
-                <ProtectedRoute
-                  permissions={[
-                    Permission.SKILL_READ,
-                    Permission.MARKETPLACE_READ,
-                  ]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <MarketplacePage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/mcp"
-              element={
-                <ProtectedRoute
-                  permissions={[Permission.MCP_READ]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <MCPPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/users"
-              element={
-                <ProtectedRoute
-                  permissions={[Permission.USER_READ]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <UsersPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/roles"
-              element={
-                <ProtectedRoute
-                  permissions={[Permission.ROLE_MANAGE]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <RolesPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <ProtectedRoute
-                  permissions={[Permission.SETTINGS_MANAGE]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <SettingsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/feedback"
-              element={
-                <ProtectedRoute
-                  permissions={[Permission.FEEDBACK_READ]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <FeedbackPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/channels/:channelType?/:instanceId?"
-              element={
-                <ProtectedRoute
-                  permissions={[Permission.CHANNEL_READ]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <ChannelsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/agents"
-              element={
-                <ProtectedRoute>
-                  <AgentsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/models" element={<Navigate to="/agents" replace />} />
-            <Route
-              path="/team"
-              element={
-                <ProtectedRoute permissions={[Permission.TEAM_READ]}>
-                  <TeamPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/persona"
-              element={
-                <ProtectedRoute>
-                  <PersonaPage />
-                </ProtectedRoute>
-              }
-            />
-            {import.meta.env.DEV && CoverGalleryDemo && (
-              <Route
-                path="/dev/covers"
-                element={
-                  <Suspense fallback={null}>
-                    <CoverGalleryDemo />
-                  </Suspense>
-                }
-              />
-            )}
-            <Route
-              path="/files"
-              element={
-                <ProtectedRoute loadingComponent={<FilesPageSkeleton />}>
-                  <FilesPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/bookmarks"
-              element={
-                <ProtectedRoute loadingComponent={<FilesPageSkeleton />}>
-                  <BookmarksPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/notifications"
-              element={
-                <ProtectedRoute
-                  permissions={[Permission.NOTIFICATION_MANAGE]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <NotificationsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/memory"
-              element={
-                <ProtectedRoute>
-                  <MemoryPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/scheduled-tasks/:taskId?"
-              element={
-                <ProtectedRoute
-                  permissions={[Permission.SCHEDULED_TASK_READ]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <ScheduledTasksPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/usage"
-              element={
-                <ProtectedRoute
-                  permissions={[Permission.USAGE_READ]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <UsagePage />
-                </ProtectedRoute>
-              }
-            />
-            {/* OAuth callback page - handles OAuth redirect from backend */}
-            <Route path="/auth/callback" element={<OAuthCallback />} />
-            {/* Password reset pages - no auth required */}
-            <Route path="/auth/reset-request" element={<ForgotPassword />} />
-            <Route path="/auth/reset-password" element={<ResetPassword />} />
-            {/* Email verification page - no auth required */}
-            <Route path="/auth/verify-email" element={<VerifyEmail />} />
-            {/* Registration pending verification page - no auth required */}
-            <Route path="/auth/pending" element={<RegistrationPending />} />
-            {/* Public shared page (session or project) - no auth required */}
-            <Route
-              path="/shared/:shareId"
-              element={
-                <Suspense fallback={null}>
-                  <SharedEntry />
-                </Suspense>
-              }
-            />
-            <Route path="*" element={<NotFoundPage />} />
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/interface" element={<LandingPage />} />
+                <Route path="/features" element={<LandingPage />} />
+                <Route path="/architecture" element={<LandingPage />} />
+                <Route path="/dashboard" element={<LandingPage />} />
+                <Route path="/responsive" element={<LandingPage />} />
+                <Route path="/github" element={<GitHubPage />} />
+                <Route path="/download" element={<DownloadPage />} />
+                {/* Auth routes */}
+                <Route path="/auth/login" element={<AuthPageWrapper />} />
+                <Route
+                  path="/auth/register"
+                  element={<AuthPageWrapper initialMode="register" />}
+                />
+                <Route
+                  path="/chat/:sessionId?"
+                  element={
+                    <ProtectedRoute>
+                      <ChatPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/skills"
+                  element={
+                    <ProtectedRoute
+                      permissions={[
+                        Permission.SKILL_READ,
+                        Permission.MARKETPLACE_READ,
+                      ]}
+                      redirectTo="/chat"
+                      showToast
+                      toastMessage={t("errors.noPermission")}
+                    >
+                      <SkillsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/marketplace"
+                  element={
+                    <ProtectedRoute
+                      permissions={[
+                        Permission.SKILL_READ,
+                        Permission.MARKETPLACE_READ,
+                      ]}
+                      redirectTo="/chat"
+                      showToast
+                      toastMessage={t("errors.noPermission")}
+                    >
+                      <MarketplacePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/mcp"
+                  element={
+                    <ProtectedRoute
+                      permissions={[Permission.MCP_READ]}
+                      redirectTo="/chat"
+                      showToast
+                      toastMessage={t("errors.noPermission")}
+                    >
+                      <MCPPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/users"
+                  element={
+                    <ProtectedRoute
+                      permissions={[Permission.USER_READ]}
+                      redirectTo="/chat"
+                      showToast
+                      toastMessage={t("errors.noPermission")}
+                    >
+                      <UsersPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/roles"
+                  element={
+                    <ProtectedRoute
+                      permissions={[Permission.ROLE_MANAGE]}
+                      redirectTo="/chat"
+                      showToast
+                      toastMessage={t("errors.noPermission")}
+                    >
+                      <RolesPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <ProtectedRoute
+                      permissions={[Permission.SETTINGS_MANAGE]}
+                      redirectTo="/chat"
+                      showToast
+                      toastMessage={t("errors.noPermission")}
+                    >
+                      <SettingsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/feedback"
+                  element={
+                    <ProtectedRoute
+                      permissions={[Permission.FEEDBACK_READ]}
+                      redirectTo="/chat"
+                      showToast
+                      toastMessage={t("errors.noPermission")}
+                    >
+                      <FeedbackPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/channels/:channelType?/:instanceId?"
+                  element={
+                    <ProtectedRoute
+                      permissions={[Permission.CHANNEL_READ]}
+                      redirectTo="/chat"
+                      showToast
+                      toastMessage={t("errors.noPermission")}
+                    >
+                      <ChannelsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/agents"
+                  element={
+                    <ProtectedRoute>
+                      <AgentsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/models"
+                  element={<Navigate to="/agents" replace />}
+                />
+                <Route
+                  path="/team"
+                  element={
+                    <ProtectedRoute permissions={[Permission.TEAM_READ]}>
+                      <TeamPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/persona"
+                  element={
+                    <ProtectedRoute>
+                      <PersonaPage />
+                    </ProtectedRoute>
+                  }
+                />
+                {import.meta.env.DEV && CoverGalleryDemo && (
+                  <Route
+                    path="/dev/covers"
+                    element={
+                      <Suspense fallback={null}>
+                        <CoverGalleryDemo />
+                      </Suspense>
+                    }
+                  />
+                )}
+                {import.meta.env.DEV && ProfileSepiaPrototype && (
+                  <Route
+                    path="/dev/profile-sepia"
+                    element={
+                      <Suspense fallback={null}>
+                        <ProfileSepiaPrototype />
+                      </Suspense>
+                    }
+                  />
+                )}
+                <Route
+                  path="/files"
+                  element={
+                    <ProtectedRoute loadingComponent={<FilesPageSkeleton />}>
+                      <FilesPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/bookmarks"
+                  element={
+                    <ProtectedRoute loadingComponent={<FilesPageSkeleton />}>
+                      <BookmarksPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/notifications"
+                  element={
+                    <ProtectedRoute
+                      permissions={[Permission.NOTIFICATION_MANAGE]}
+                      redirectTo="/chat"
+                      showToast
+                      toastMessage={t("errors.noPermission")}
+                    >
+                      <NotificationsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/memory"
+                  element={
+                    <ProtectedRoute>
+                      <MemoryPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/scheduled-tasks/:taskId?"
+                  element={
+                    <ProtectedRoute
+                      permissions={[Permission.SCHEDULED_TASK_READ]}
+                      redirectTo="/chat"
+                      showToast
+                      toastMessage={t("errors.noPermission")}
+                    >
+                      <ScheduledTasksPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/usage"
+                  element={
+                    <ProtectedRoute
+                      permissions={[Permission.USAGE_READ]}
+                      redirectTo="/chat"
+                      showToast
+                      toastMessage={t("errors.noPermission")}
+                    >
+                      <UsagePage />
+                    </ProtectedRoute>
+                  }
+                />
+                {/* OAuth callback page - handles OAuth redirect from backend */}
+                <Route path="/auth/callback" element={<OAuthCallback />} />
+                {/* Password reset pages - no auth required */}
+                <Route
+                  path="/auth/reset-request"
+                  element={<ForgotPassword />}
+                />
+                <Route
+                  path="/auth/reset-password"
+                  element={<ResetPassword />}
+                />
+                {/* Email verification page - no auth required */}
+                <Route path="/auth/verify-email" element={<VerifyEmail />} />
+                {/* Registration pending verification page - no auth required */}
+                <Route path="/auth/pending" element={<RegistrationPending />} />
+                {/* Public shared page (session or project) - no auth required */}
+                <Route
+                  path="/shared/:shareId"
+                  element={
+                    <Suspense fallback={null}>
+                      <SharedEntry />
+                    </Suspense>
+                  }
+                />
+                <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </Suspense>
           );

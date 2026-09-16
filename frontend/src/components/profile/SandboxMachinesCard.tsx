@@ -12,7 +12,10 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
 import { Check, Laptop, Link2, Pencil, Star, Trash2, X } from "lucide-react";
-import { useSandboxStatus, notifySandboxStatusRefresh } from "../../hooks/useSandboxStatus";
+import {
+  useSandboxStatus,
+  notifySandboxStatusRefresh,
+} from "../../hooks/useSandboxStatus";
 import {
   machinePlatformLabel,
   sandboxApiMachines,
@@ -78,7 +81,11 @@ export function SandboxMachinesCard() {
 
   const handleForget = async (machine: SandboxMachine) => {
     if (busy) return;
-    if (!window.confirm(t("profile.localSandbox.forgetMachineConfirm", { name: machine.name }))) {
+    if (
+      !window.confirm(
+        t("profile.localSandbox.forgetMachineConfirm", { name: machine.name }),
+      )
+    ) {
       return;
     }
     setBusy(true);
@@ -143,7 +150,9 @@ export function SandboxMachinesCard() {
             >
               <span
                 className={`h-2 w-2 rounded-full shrink-0 ${
-                  machineOnline ? "bg-green-500" : "bg-theme-border-hover dark:bg-stone-600"
+                  machineOnline
+                    ? "bg-theme-success"
+                    : "bg-theme-border-hover dark:bg-stone-600"
                 }`}
               />
               {renaming ? (
@@ -203,19 +212,22 @@ export function SandboxMachinesCard() {
                           minutes: Math.max(
                             1,
                             Math.round(
-                              (Date.now() / 1000 - (machine.last_seen ?? 0)) / 60,
+                              (Date.now() / 1000 - (machine.last_seen ?? 0)) /
+                                60,
                             ),
                           ),
                           hours: Math.max(
                             1,
                             Math.round(
-                              (Date.now() / 1000 - (machine.last_seen ?? 0)) / 3600,
+                              (Date.now() / 1000 - (machine.last_seen ?? 0)) /
+                                3600,
                             ),
                           ),
                           days: Math.max(
                             1,
                             Math.round(
-                              (Date.now() / 1000 - (machine.last_seen ?? 0)) / 86400,
+                              (Date.now() / 1000 - (machine.last_seen ?? 0)) /
+                                86400,
                             ),
                           ),
                         })}
@@ -227,7 +239,7 @@ export function SandboxMachinesCard() {
                       type="button"
                       onClick={() => void handleForget(machine)}
                       disabled={busy}
-                      className="rounded-md p-1 text-theme-text-tertiary dark:text-stone-500 transition-colors hover:text-red-500 dark:hover:text-red-400 disabled:opacity-50"
+                      className="rounded-md p-1 text-theme-text-tertiary dark:text-stone-500 transition-colors hover:text-theme-error dark:hover:text-red-400 disabled:opacity-50"
                       title={t("profile.localSandbox.forgetMachine")}
                       data-testid={`forget-${machine.machine_id}`}
                     >

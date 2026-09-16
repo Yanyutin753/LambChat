@@ -101,6 +101,9 @@ test("usage status labels exist in all five locales", () => {
     );
     expect(data.usage.statusOk, `${locale} statusOk`).toBeTruthy();
     expect(data.usage.statusError, `${locale} statusError`).toBeTruthy();
-    expect(data.usage.statusCancelled, `${locale} statusCancelled`).toBeTruthy();
+    expect(
+      data.usage.statusCancelled,
+      `${locale} statusCancelled`,
+    ).toBeTruthy();
   }
 });

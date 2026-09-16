@@ -88,7 +88,9 @@ export function UpdateDialog({
       dismissible={!state.downloading}
       size="md"
       title={t("update.availableTitle", "发现新版本")}
-      icon={<Download size={18} className="shrink-0 text-[var(--theme-primary)]" />}
+      icon={
+        <Download size={18} className="shrink-0 text-[var(--theme-primary)]" />
+      }
       footer={footer}
     >
       <div className="space-y-3">

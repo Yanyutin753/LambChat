@@ -5,7 +5,7 @@ Setting schemas for API request/response
 from enum import Enum
 from typing import Any, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool, field_validator
 
 
 class SettingDependsOn(BaseModel):
@@ -53,6 +53,7 @@ class SettingCategory(str, Enum):
     MEMORY_SEARCH = "memory_search"
     MEMORY_STORAGE = "memory_storage"
     AUDIO_TRANSCRIPTION = "audio_transcription"
+    DOCUMENT_PARSE = "document_parse"
     SCHEDULED_TASK = "scheduled_task"
 
 
@@ -107,10 +108,31 @@ class SettingUpdate(BaseModel):
     value: Any
 
 
+class SettingsNavigationGroup(BaseModel):
+    """Ordered category group; labels are localized by the client."""
+
+    id: str
+    categories: list[SettingCategory]
+
+
 class SettingsResponse(BaseModel):
     """Settings grouped by category"""
 
     settings: dict[str, list[SettingItem]] = Field(default_factory=dict)
+    navigation: list[SettingsNavigationGroup] = Field(default_factory=list)
+
+
+class SettingsResetRequest(BaseModel):
+    """Explicit confirmation for the destructive bulk reset operation."""
+
+    confirmed: StrictBool
+
+    @field_validator("confirmed")
+    @classmethod
+    def require_confirmation(cls, value: bool) -> bool:
+        if not value:
+            raise ValueError("Resetting all settings requires explicit confirmation")
+        return value
 
 
 class SettingUpdateResponse(BaseModel):

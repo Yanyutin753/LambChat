@@ -11,6 +11,7 @@ from src.infra.mcp.storage import MCPStorage
 from src.infra.role.storage import RoleStorage
 from src.infra.tool.audio_transcribe_tool import get_audio_transcribe_tool
 from src.infra.tool.conversation_history_tool import get_conversation_history_tools
+from src.infra.tool.document_parse_tool import get_document_parse_tool
 from src.infra.tool.env_var_tool import get_env_var_tools
 from src.infra.tool.image_analysis_tool import get_image_analysis_tool
 from src.infra.tool.image_generation_tool import (
@@ -61,6 +62,9 @@ def build_internal_tools() -> list[BaseTool]:
 
     if settings.ENABLE_AUDIO_TRANSCRIPTION:
         tools.append(get_audio_transcribe_tool())
+
+    if settings.ENABLE_DOCUMENT_PARSE:
+        tools.append(get_document_parse_tool())
 
     if settings.ENABLE_WEB_SEARCH:
         tools.append(get_web_search_tool())

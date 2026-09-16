@@ -205,7 +205,14 @@ export interface ChatViewProps {
     submissionCallbacks?: ChatSubmissionCallbacks,
   ) => void;
   onStopGeneration: () => void;
-  onSteerMessage?: (content: string) => void;
+  onSupplementFollowUpMessage?: (
+    content: string,
+    attachments?: MessageAttachment[],
+  ) => void;
+  onQueueFollowUpMessage?: (
+    content: string,
+    attachments?: MessageAttachment[],
+  ) => void;
   steerMessages?: import("../../../utils/mergeSteers").SteerItem[];
   onCancelSteer?: (content: string, messageId?: string) => void;
   activeGoal: ActiveGoalSpec | null;

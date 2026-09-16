@@ -17,14 +17,18 @@ const TAURI_STALE_CHUNK_ERROR = new TypeError(
 
 test("isChunkLoadError matches stale-chunk fetch failures across engines", () => {
   expect(isChunkLoadError(TAURI_STALE_CHUNK_ERROR)).toBe(true);
-  expect(
-    isChunkLoadError(new Error("Importing a module script failed")),
-  ).toBe(true);
+  expect(isChunkLoadError(new Error("Importing a module script failed"))).toBe(
+    true,
+  );
   expect(
     isChunkLoadError(new Error("error loading dynamically imported module")),
   ).toBe(true);
   expect(
-    isChunkLoadError(new Error("Unable to preload CSS for http://tauri.localhost/assets/x.css")),
+    isChunkLoadError(
+      new Error(
+        "Unable to preload CSS for http://tauri.localhost/assets/x.css",
+      ),
+    ),
   ).toBe(true);
 });
 
@@ -57,17 +61,17 @@ test("shouldReloadAfterChunkError allows first attempt and blocks within cooldow
   const now = 1_000_000;
   expect(shouldReloadAfterChunkError(null, now)).toBe(true);
   expect(shouldReloadAfterChunkError(now - 1_000, now)).toBe(false);
-  expect(
-    shouldReloadAfterChunkError(now - CHUNK_RELOAD_COOLDOWN_MS, now),
-  ).toBe(true);
+  expect(shouldReloadAfterChunkError(now - CHUNK_RELOAD_COOLDOWN_MS, now)).toBe(
+    true,
+  );
 });
 
 interface FakeWindow {
-  addEventListener: (
-    type: string,
-    listener: (event: Event) => void,
-  ) => void;
-  sessionStorage: { getItem(k: string): string | null; setItem(k: string, v: string): void };
+  addEventListener: (type: string, listener: (event: Event) => void) => void;
+  sessionStorage: {
+    getItem(k: string): string | null;
+    setItem(k: string, v: string): void;
+  };
   location: { href: string; replace(url: string): void };
 }
 

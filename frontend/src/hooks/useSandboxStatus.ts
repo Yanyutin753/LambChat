@@ -16,9 +16,7 @@ import {
   type SandboxStatusError,
 } from "../stores/sandboxStatusStore";
 
-export {
-  SANDBOX_STATUS_REFRESH_EVENT,
-} from "../stores/sandboxStatusStore";
+export { SANDBOX_STATUS_REFRESH_EVENT } from "../stores/sandboxStatusStore";
 export type { SandboxStatusError } from "../stores/sandboxStatusStore";
 export { SANDBOX_ONLINE_CHANGED_EVENT } from "../components/layout/AppContent/useAgentOptions";
 

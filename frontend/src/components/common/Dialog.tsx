@@ -96,7 +96,9 @@ export function Dialog({
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">
+          {children}
+        </div>
 
         {footer !== undefined && (
           <div className="safe-area-bottom flex items-center justify-end gap-2 border-t border-stone-100 bg-stone-50 px-5 py-3 dark:border-stone-700 dark:bg-stone-900/50">

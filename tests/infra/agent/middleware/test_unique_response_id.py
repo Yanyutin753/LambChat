@@ -24,6 +24,7 @@ from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import tool
 from langgraph.checkpoint.memory import InMemorySaver
+from langsmith import tracing_context
 
 from src.infra.agent.middleware.retry import (
     UniqueResponseIdMiddleware,
@@ -60,7 +61,10 @@ async def test_replayed_response_id_does_not_crash_deepagents_graph() -> None:
     )
     config = {"configurable": {"thread_id": "t-replay"}}
 
-    result = await graph.ainvoke({"messages": [HumanMessage(content="hi")]}, config)
+    # Tracing serializes the fake model's iterator and can consume its script.
+    # Keep this in-process graph test independent of local tracing credentials.
+    with tracing_context(enabled=False):
+        result = await graph.ainvoke({"messages": [HumanMessage(content="hi")]}, config)
 
     messages = result["messages"]
     contents = [m.content for m in messages if isinstance(m, AIMessage)]

@@ -683,6 +683,7 @@
     "pluginNoEditPermission": "没有编辑插件 {{name}} 的权限"
   },
   "categories": {
+    "scheduled_task": "定时任务",
     "agent": "代理",
     "audio_transcription": "音频转写",
     "captcha": "验证码",
@@ -706,7 +707,8 @@
     "skills": "技能",
     "tools": "工具",
     "tracing": "追踪",
-    "user": "个人资料"
+    "user": "个人资料",
+    "document_parse": "文档解析"
   },
   "channel": {
     "addFirstInstance": "添加第一个实例",
@@ -869,6 +871,9 @@
       "parameters": "参数",
       "processing": "过程",
       "projects": "项目",
+      "queueEdit": "编辑这条排队消息",
+      "queueFollowUp": "追加消息（当前任务结束后发送）",
+      "queueGroup": "排队的后续输入",
       "rejected": "操作已被用户拒绝",
       "removeBookmark": "移除书签",
       "result": "结果",
@@ -1037,7 +1042,8 @@
       "toolWebSearchResults_one": "{{count}} 条结果",
       "toolWebSearchResults_other": "{{count}} 条结果",
       "toolWrite": "写入",
-      "waitingConfirm": "等待确认"
+      "waitingConfirm": "等待确认",
+      "toolDocumentParse": "解析文档"
     },
     "messageInput": "消息输入框",
     "noPermission": "没有发送消息的权限",
@@ -1051,7 +1057,7 @@
     "queued": "排队中 (第 {{position}} 位)...",
     "rateLimited": "请求过于频繁，请稍后再试",
     "requestFailed": "加载会话失败",
-    "runningPlaceholder": "继续输入以排队有序修改…",
+    "runningPlaceholder": "继续输入…",
     "memory": {
       "initializing": "正在检索相关记忆",
       "ready": "记忆检索完成"
@@ -1083,17 +1089,21 @@
     "status": {
       "cancelled": "已取消"
     },
-    "steer": "发送插话（当前步骤后送达）",
     "steerCancel": "取消这条插话",
     "steerFailed": "插话发送失败，请稍后重试",
     "steerFailedRetry": "发送失败，请重试",
     "steerNext": "任务结束后发送",
-    "steerQueue": "待发送的插话",
+    "queueGuide": "引导",
+    "queueGuideHint": "将这条消息用于当前任务",
+    "queueDelete": "删除这条排队消息",
+    "queueMore": "更多操作",
+    "steerQueue": "待发送的排队消息",
     "steerQueued": "当前步骤后送达",
     "stop": "停止生成",
     "stopConfirmMessage": "确定要停止当前生成吗？已生成的内容将保留。",
     "stopConfirmTitle": "停止生成",
     "subagentStatus": "子代理状态: {{status}}",
+    "supplement": "补充当前问题（打断本条回答，结合新内容重新思考）",
     "teamPlaceholder": "输入消息开始对话，@ 可切换团队…",
     "teamSelected": "已选择团队",
     "textAutoUploaded": "长文本已自动转为文件上传",
@@ -1782,7 +1792,6 @@
     "updateSuccess": "技能更新成功",
     "viewInMySkills": "去我的技能查看"
   },
-
   "mcp": {
     "addFirst": "添加您的第一个 MCP 服务器",
     "addNew": "添加新 MCP 服务器",
@@ -2359,7 +2368,6 @@
     "exitFullscreen": "退出全屏",
     "expand": "展开",
     "exportZip": "导出 ZIP",
-    "downloadFolder": "下载此文件夹为 ZIP",
     "fileCount": "{{count}} 个文件",
     "fullscreen": "全屏",
     "fullscreenHint": "按 Esc 退出全屏",
@@ -2917,9 +2925,56 @@
     "WEB_FETCH_MAX_CHARS": "单次抓取返回的最大字符数，超出截断。",
     "FIRECRAWL_BASE_URL": "Firecrawl 自建实例地址（如 http://fc.internal:3000）。留空用官方 SaaS。自建可免 key。",
     "FIRECRAWL_API_KEYS": "Firecrawl API keys，英文逗号分隔多 key 轮询（firecrawl.dev 免费档）。自建实例可留空。",
-    "EXA_API_KEYS": "Exa API keys，英文逗号分隔多 key 轮询（exa.ai 免费档，缓存优先+实爬兜底）。"
+    "EXA_API_KEYS": "Exa API keys，英文逗号分隔多 key 轮询（exa.ai 免费档，缓存优先+实爬兜底）。",
+    "ENABLE_DOCUMENT_PARSE": "启用文档解析工具，将 PDF/DOCX/PPTX 等文档解析为 Markdown 并提取内嵌图片",
+    "DOCUMENT_PARSE_PROVIDER": "文档解析提供商；auto 按顺序使用第一个已配置的提供商",
+    "DOCUMENT_PARSE_MISTRAL_API_KEY": "Mistral OCR 提供商 API Key",
+    "DOCUMENT_PARSE_MISTRAL_BASE_URL": "Mistral OCR API 地址，默认官方端点",
+    "DOCUMENT_PARSE_MISTRAL_MODEL": "Mistral OCR 模型名",
+    "DOCUMENT_PARSE_MINERU_API_MODE": "MinerU 接入模式：cloud 走官方 API，local 走自建 MinerU 服务",
+    "DOCUMENT_PARSE_MINERU_API_URL": "MinerU 服务地址；local 模式必填，cloud 模式默认官方 https://mineru.net/api/v4",
+    "DOCUMENT_PARSE_MINERU_API_KEY": "MinerU 云端 API Token（mineru.net 获取）",
+    "DOCUMENT_PARSE_AZURE_ENDPOINT": "Azure Document Intelligence 端点",
+    "DOCUMENT_PARSE_AZURE_KEY": "Azure Document Intelligence 订阅 Key",
+    "DOCUMENT_PARSE_AZURE_MODEL": "Azure Document Intelligence 模型，如 prebuilt-read / prebuilt-layout",
+    "DOCUMENT_PARSE_DOCLING_URL": "docling-serve 服务地址（自建）",
+    "DOCUMENT_PARSE_DOCLING_API_KEY": "docling-serve API Key（服务启用鉴权时填写）",
+    "DOCUMENT_PARSE_PADDLEOCR_URL": "PaddleOCR-VL 服务地址（自建 PaddleX）",
+    "DOCUMENT_PARSE_PADDLEOCR_TOKEN": "PaddleOCR-VL 访问 Token",
+    "DOCUMENT_PARSE_TIKA_URL": "Apache Tika 服务器地址（自建）",
+    "DOCUMENT_PARSE_MAX_DOWNLOAD_BYTES": "文档下载大小上限（字节）",
+    "DOCUMENT_PARSE_MAX_OUTPUT_CHARS": "解析结果 Markdown 最大字符数，超出截断",
+    "DOCUMENT_PARSE_MAX_IMAGES": "单次解析最多提取的图片数"
   },
   "settings": {
+    "navigation": {
+      "browse": "按分类浏览",
+      "subtitle": "应用与服务配置",
+      "searchPlaceholder": "搜索名称、说明或配置键",
+      "searchResults": "搜索结果",
+      "allCategories": "全部分类",
+      "resultCount": "{{count}} 项设置",
+      "clearSearch": "清除搜索",
+      "subcategory": "子分类",
+      "allSubcategories": "全部子分类",
+      "saveHint": "修改后请逐项保存；切换分类会保留尚未保存的输入。",
+      "groups": {
+        "experience": "基础体验",
+        "intelligence": "Agent 与模型",
+        "memory": "记忆",
+        "capabilities": "工具与文件",
+        "access": "账号与安全",
+        "infrastructure": "基础设施"
+      },
+      "descriptions": {
+        "experience": "配置界面展示与会话行为。",
+        "intelligence": "调整 Agent 执行、模型调用与重试策略。",
+        "memory": "管理记忆提取、向量化、检索和存储。",
+        "capabilities": "配置工具、技能、沙箱与文件处理能力。",
+        "access": "管理注册登录、身份验证与邮件服务。",
+        "infrastructure": "配置数据库、缓存、持久化和运行监控。"
+      }
+    },
     "defaultModel": "默认模型",
     "exportSettings": "导出设置",
     "exportSuccess": "设置导出成功",

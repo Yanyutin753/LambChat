@@ -161,9 +161,7 @@ export function MermaidDiagram({
         mermaid.default.initialize({
           startOnLoad: false,
           theme: themeMode === "dark" ? "dark" : "default",
-          ...(isSepia
-            ? { themeVariables: { background: "#faf6ea" } }
-            : {}),
+          ...(isSepia ? { themeVariables: { background: "#faf6ea" } } : {}),
           securityLevel: "strict",
         });
 

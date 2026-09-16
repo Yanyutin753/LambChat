@@ -47,7 +47,10 @@ export function SelectRow<T extends string>({
                   : value}
             </span>
           )}
-          <ChevronRight size={14} className="shrink-0 text-theme-text-tertiary" />
+          <ChevronRight
+            size={14}
+            className="shrink-0 text-theme-text-tertiary"
+          />
         </span>
       </button>
       {open &&

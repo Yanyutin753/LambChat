@@ -52,7 +52,11 @@ test("shows the version transition (current → new) like standard updaters", ()
 test("skip-this-version action is available before download and wired", () => {
   const onSkipVersion = vi.fn();
   render(
-    <UpdateDialog {...baseProps} onSkipVersion={onSkipVersion} state={makeState()} />,
+    <UpdateDialog
+      {...baseProps}
+      onSkipVersion={onSkipVersion}
+      state={makeState()}
+    />,
   );
   fireEvent.click(screen.getByRole("button", { name: /跳过此版本/ }));
   expect(onSkipVersion).toHaveBeenCalledTimes(1);
@@ -66,7 +70,12 @@ test("downloading state hides skip actions and shows progress", () => {
       {...baseProps}
       onSkip={onSkip}
       onSkipVersion={onSkipVersion}
-      state={makeState({ downloading: true, progress: 42, downloaded: 50, contentLength: 100 })}
+      state={makeState({
+        downloading: true,
+        progress: 42,
+        downloaded: 50,
+        contentLength: 100,
+      })}
     />,
   );
   expect(screen.queryByRole("button", { name: /跳过此版本/ })).toBeNull();

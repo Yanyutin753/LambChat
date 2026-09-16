@@ -570,12 +570,14 @@ test("one-click pairing surfaces an error toast when signed out", async () => {
 
 test("daemon process status follows shell status events instead of polling", async () => {
   // 壳推送模式：订阅成功后不再起 10s 轮询，状态随事件翻转
-  let eventListener: ((event: {
-    running: boolean;
-    unsupported: boolean;
-    generation: number;
-    restarts: number;
-  }) => void) | null = null;
+  let eventListener:
+    | ((event: {
+        running: boolean;
+        unsupported: boolean;
+        generation: number;
+        restarts: number;
+      }) => void)
+    | null = null;
   mocks.isShellAvailable.mockReturnValue(true);
   mocks.daemonProcessStatus.mockResolvedValue("stopped");
   mocks.subscribeDaemonStatus.mockImplementation(
@@ -584,7 +586,7 @@ test("daemon process status follows shell status events instead of polling", asy
         eventListener = _listener as typeof eventListener;
         resolve(() => {});
       }),
-    );
+  );
   mocks.getStatus.mockResolvedValue({ online: true, daemon_version: "0.1.0" });
 
   render(<LocalSandboxSection />);
@@ -602,9 +604,7 @@ test("daemon process status follows shell status events instead of polling", asy
       restarts: 0,
     });
   });
-  await waitFor(() =>
-    expect(screen.getByText("Online")).toBeInTheDocument(),
-  );
+  await waitFor(() => expect(screen.getByText("Online")).toBeInTheDocument());
 
   // 事件：daemon 退出 → 回到配对表单（服务端在线徽章仍在，进程态翻为 Stopped）
   act(() => {
@@ -615,9 +615,7 @@ test("daemon process status follows shell status events instead of polling", asy
       restarts: 1,
     });
   });
-  await waitFor(() =>
-    expect(screen.getByText("Stopped")).toBeInTheDocument(),
-  );
+  await waitFor(() => expect(screen.getByText("Stopped")).toBeInTheDocument());
   // 事件模式下不追加轮询（仅初始对账那一次）
   expect(mocks.daemonProcessStatus).toHaveBeenCalledTimes(1);
 });

@@ -65,6 +65,7 @@ dependencies = [
     "openpyxl>=3.1.5",
     "langfuse>=3.0.0",
     "trafilatura>=2.0",
+    "markitdown[docx,pdf,pptx]>=0.1.7",
 ]
 
 [dependency-groups]
