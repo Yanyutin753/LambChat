@@ -11,7 +11,7 @@ import ipaddress
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from tempfile import SpooledTemporaryFile
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import quote, unquote, urlsplit
 
 from langchain_core.messages import HumanMessage
@@ -206,16 +206,39 @@ async def resolve_model_supports_vision(
     )
 
 
-async def resolve_model_image_url_to_base64(
+async def resolve_model_image_url_mode(
     model_id: str | None,
     selected_model: str | None,
     *,
     log_prefix: str = "",
-) -> bool:
-    """Resolve whether image_url blocks should be converted to base64 data URLs."""
-    return await _resolve_model_profile_bool(
-        "image_url_to_base64", model_id, selected_model, log_prefix=log_prefix
-    )
+) -> Literal["url", "base64", "proxy_direct"]:
+    """Resolve how image URLs should be handed to the selected model.
+
+    兼容旧配置：profile 只写了 image_url_to_base64=true 时按 "base64" 处理。
+    """
+    from src.kernel.schemas.model import effective_image_url_mode
+
+    if not model_id and not selected_model:
+        return "url"
+
+    from src.infra.agent.model_storage import get_model_storage
+
+    storage = get_model_storage()
+    db_model = None
+
+    try:
+        if model_id:
+            db_model = await storage.get(model_id)
+        elif selected_model:
+            db_model = await storage.get_by_value(selected_model)
+    except Exception as e:
+        logger.warning("%s Failed to lookup model profile (image_url_mode): %s", log_prefix, e)
+        return "url"
+
+    if not db_model:
+        return "url"
+
+    return effective_image_url_mode(getattr(db_model, "profile", None))
 
 
 def _is_image_attachment(attachment: dict) -> bool:

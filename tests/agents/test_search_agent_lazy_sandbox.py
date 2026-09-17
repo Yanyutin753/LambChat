@@ -376,7 +376,7 @@ async def _run_search_graph(
         agent_options={
             "_resolved_fallback_model": None,
             "_resolved_supports_vision": False,
-            "_resolved_image_url_to_base64": False,
+            "_resolved_image_url_mode": "url",
         },
     ):
         events.append(event)
@@ -622,7 +622,7 @@ async def test_search_stream_first_write_initializes_after_pre_tool_content_once
         agent_options={
             "_resolved_fallback_model": None,
             "_resolved_supports_vision": False,
-            "_resolved_image_url_to_base64": False,
+            "_resolved_image_url_mode": "url",
         },
     ):
         events.append(event)
@@ -666,7 +666,7 @@ async def test_search_stream_waits_for_sandbox_ready_before_first_tool_start(
             agent_options={
                 "_resolved_fallback_model": None,
                 "_resolved_supports_vision": False,
-                "_resolved_image_url_to_base64": False,
+                "_resolved_image_url_mode": "url",
             },
         ):
             timeline.append(f"yield:{event['event']}")
@@ -727,7 +727,7 @@ async def test_search_stream_model_exception_closes_context(
             agent_options={
                 "_resolved_fallback_model": None,
                 "_resolved_supports_vision": False,
-                "_resolved_image_url_to_base64": False,
+                "_resolved_image_url_mode": "url",
             },
         ):
             events.append(event)
@@ -766,7 +766,7 @@ async def test_search_stream_cancellation_during_first_initialization_closes_con
             agent_options={
                 "_resolved_fallback_model": None,
                 "_resolved_supports_vision": False,
-                "_resolved_image_url_to_base64": False,
+                "_resolved_image_url_mode": "url",
             },
         ):
             timeline.append(f"yield:{event['event']}")

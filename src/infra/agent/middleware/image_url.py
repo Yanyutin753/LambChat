@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from langchain.agents.middleware.types import (
     AgentMiddleware,
@@ -146,3 +147,106 @@ class ImageUrlToBase64Middleware(AgentMiddleware):
         if messages is not request.messages:
             request = request.override(messages=messages)
         return await handler(request)
+
+
+_UPLOAD_FILE_MARKER = "/api/upload/file/"
+
+
+def _append_proxy_direct_param(url: str) -> str:
+    """Append ``proxy=true`` to an app upload file URL, leaving others untouched.
+
+    本站 /api/upload/file/ 默认 302 跳转到短时签名地址（保证历史消息链接永不过期），
+    但部分供应商（如 DeepSeek）取图不跟随重定向。加上 ``proxy=true`` 后应用直接
+    回传文件字节，供这类供应商拉取；会话状态里仍保存原始短 URL。
+    """
+    if not url or url.startswith("data:"):
+        return url
+
+    parsed = urlsplit(url)
+    if parsed.scheme not in ("http", "https") or _UPLOAD_FILE_MARKER not in (parsed.path or ""):
+        return url
+
+    query = parse_qsl(parsed.query, keep_blank_values=True)
+    if any(k == "proxy" and v == "true" for k, v in query):
+        return url
+
+    query.append(("proxy", "true"))
+    return urlunsplit(parsed._replace(query=urlencode(query)))
+
+
+def _with_proxy_direct_url(block: dict, url: str) -> dict:
+    if block.get("type") == "image":
+        source = block.get("source")
+        if isinstance(source, dict) and source.get("type") == "url":
+            return {**block, "source": {**source, "url": url}}
+
+    image_url = block.get("image_url")
+    if isinstance(image_url, dict):
+        return {**block, "image_url": {**image_url, "url": url}}
+    return {**block, "image_url": {"url": url}}
+
+
+class ImageUrlProxyDirectMiddleware(AgentMiddleware):
+    """Rewrite outbound app upload image URLs to stream bytes directly (?proxy=true)."""
+
+    def _rewrite_content_blocks(self, content: Any) -> Any:
+        if not isinstance(content, list):
+            return content
+
+        rewritten: list[Any] = []
+        changed = False
+        for block in content:
+            url = _image_url_from_block(block)
+            if not url or not isinstance(block, dict):
+                rewritten.append(block)
+                continue
+
+            direct_url = _append_proxy_direct_param(url)
+            if direct_url == url:
+                rewritten.append(block)
+                continue
+
+            rewritten.append(_with_proxy_direct_url(block, direct_url))
+            changed = True
+
+        return rewritten if changed else content
+
+    def _rewrite_messages(self, messages: list[Any]) -> list[Any]:
+        rewritten_messages: list[Any] = []
+        changed = False
+
+        for message in messages:
+            content = getattr(message, "content", None)
+            rewritten_content = self._rewrite_content_blocks(content)
+            if rewritten_content is content:
+                rewritten_messages.append(message)
+                continue
+
+            changed = True
+            if hasattr(message, "model_copy"):
+                rewritten_messages.append(message.model_copy(update={"content": rewritten_content}))
+            else:
+                clone = message.copy()
+                clone.content = rewritten_content
+                rewritten_messages.append(clone)
+
+        return rewritten_messages if changed else messages
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest[ContextT],
+        handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
+    ) -> ModelResponse[ResponseT]:
+        messages = self._rewrite_messages(request.messages)
+        if messages is not request.messages:
+            request = request.override(messages=messages)
+        return await handler(request)
+
+
+def image_url_middleware_for_mode(mode: str | None) -> AgentMiddleware | None:
+    """Return the outbound image URL middleware for a model's image_url_mode."""
+    if mode == "base64":
+        return ImageUrlToBase64Middleware()
+    if mode == "proxy_direct":
+        return ImageUrlProxyDirectMiddleware()
+    return None

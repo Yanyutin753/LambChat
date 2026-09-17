@@ -53,7 +53,7 @@ from src.kernel.config import settings
 from src.kernel.errors import AppError, ErrorCode
 from src.kernel.exceptions import AuthorizationError, NotFoundError
 from src.kernel.schemas.agent import AgentRequest, AttachmentSchema
-from src.kernel.schemas.model import ModelConfig
+from src.kernel.schemas.model import ModelConfig, effective_image_url_mode
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
@@ -90,9 +90,7 @@ async def _attach_resolved_model_options(agent_options: dict, model: ModelConfig
     agent_options["_resolved_supports_vision"] = bool(
         getattr(model.profile, "supports_vision", False)
     )
-    agent_options["_resolved_image_url_to_base64"] = bool(
-        getattr(model.profile, "image_url_to_base64", False)
-    )
+    agent_options["_resolved_image_url_mode"] = effective_image_url_mode(model.profile)
     if model.api_key:
         from src.infra.llm.models_service import set_cached_api_key
 

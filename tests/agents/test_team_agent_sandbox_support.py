@@ -394,7 +394,11 @@ async def test_team_member_model_override_sets_subagent_model_and_profile_middle
 
     monkeypatch.setattr(team_nodes.LLMClient, "get_model", fake_get_model)
     monkeypatch.setattr(team_nodes, "resolve_team_member_model_config", fake_member_model)
-    monkeypatch.setattr(team_nodes, "ImageUrlToBase64Middleware", lambda: "image-b64")
+    monkeypatch.setattr(
+        team_nodes,
+        "image_url_middleware_for_mode",
+        lambda mode: "image-b64" if mode == "base64" else None,
+    )
 
     await _run_team_node_with_members(
         monkeypatch,

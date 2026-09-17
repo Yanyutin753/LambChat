@@ -9,8 +9,9 @@ from src.agents.core.node_utils import (
     build_human_message,
     get_image_download_max_bytes,
     inline_image_attachments_as_data_urls,
-    resolve_model_image_url_to_base64,
+    resolve_model_image_url_mode,
 )
+from src.kernel.schemas.model import ModelProfile, effective_image_url_mode
 
 
 def test_image_download_limit_uses_configured_image_upload_size(monkeypatch):
@@ -394,6 +395,10 @@ class FakeStorage:
             return SimpleNamespace(profile=SimpleNamespace(supports_vision=True))
         if model_id == "base64-id":
             return SimpleNamespace(profile=SimpleNamespace(image_url_to_base64=True))
+        if model_id == "proxy-id":
+            return SimpleNamespace(
+                profile=SimpleNamespace(image_url_mode="proxy_direct", image_url_to_base64=False)
+            )
         return None
 
     async def get_by_value(self, value):
@@ -401,6 +406,10 @@ class FakeStorage:
             return SimpleNamespace(profile=SimpleNamespace(supports_vision=False))
         if value == "base64-model":
             return SimpleNamespace(profile=SimpleNamespace(image_url_to_base64=True))
+        if value == "proxy-model":
+            return SimpleNamespace(
+                profile=SimpleNamespace(image_url_mode="proxy_direct", image_url_to_base64=False)
+            )
         return None
 
 
@@ -426,15 +435,29 @@ async def test_resolve_model_supports_vision_defaults_false(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_resolve_model_image_url_to_base64_uses_model_profile(monkeypatch):
+async def test_resolve_model_image_url_mode_honors_profile(monkeypatch):
     monkeypatch.setattr(
         "src.infra.agent.model_storage.get_model_storage",
         lambda: FakeStorage(),
     )
 
-    assert await resolve_model_image_url_to_base64("base64-id", None) is True
-    assert await resolve_model_image_url_to_base64(None, "base64-model") is True
-    assert await resolve_model_image_url_to_base64(None, "missing") is False
+    # 旧配置只写 image_url_to_base64=true → 兼容按 base64 处理
+    assert await resolve_model_image_url_mode("base64-id", None) == "base64"
+    assert await resolve_model_image_url_mode(None, "base64-model") == "base64"
+    assert await resolve_model_image_url_mode("proxy-id", None) == "proxy_direct"
+    assert await resolve_model_image_url_mode(None, "missing") == "url"
+
+
+def test_effective_image_url_mode_prefers_explicit_mode():
+    assert (
+        effective_image_url_mode(
+            ModelProfile(image_url_mode="proxy_direct", image_url_to_base64=True)
+        )
+        == "proxy_direct"
+    )
+    assert effective_image_url_mode(ModelProfile(image_url_to_base64=True)) == "base64"
+    assert effective_image_url_mode(ModelProfile()) == "url"
+    assert effective_image_url_mode(None) == "url"
 
 
 # ---------------------------------------------------------------------------

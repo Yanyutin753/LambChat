@@ -4,7 +4,12 @@ import pytest
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 
-from src.infra.agent.middleware.image_url import ImageUrlToBase64Middleware, _with_data_url
+from src.infra.agent.middleware.image_url import (
+    ImageUrlProxyDirectMiddleware,
+    ImageUrlToBase64Middleware,
+    _append_proxy_direct_param,
+    _with_data_url,
+)
 
 
 def test_anthropic_image_block_uses_compressed_data_url_mime_type():
@@ -95,3 +100,133 @@ async def test_image_url_middleware_failure_log_omits_exception_details(
     assert content[0]["image_url"]["url"] == secret_url
     assert secret_url not in caplog.text
     assert "RuntimeError" in caplog.text
+
+
+# ---------- ImageUrlProxyDirectMiddleware ----------
+
+
+def test_append_proxy_direct_param_adds_param_to_upload_url():
+    url = "https://lambchat.com/api/upload/file/image/u1/a.png"
+    assert _append_proxy_direct_param(url) == url + "?proxy=true"
+
+
+def test_append_proxy_direct_param_preserves_existing_query():
+    url = "https://lambchat.com/api/upload/file/image/u1/a.png?x=1"
+    assert _append_proxy_direct_param(url) == url + "&proxy=true"
+
+
+def test_append_proxy_direct_param_is_idempotent():
+    url = "https://lambchat.com/api/upload/file/image/u1/a.png?proxy=true"
+    assert _append_proxy_direct_param(url) == url
+
+
+def test_append_proxy_direct_param_ignores_external_urls():
+    url = "https://cdn.example.com/image/a.png"
+    assert _append_proxy_direct_param(url) == url
+
+
+def test_append_proxy_direct_param_ignores_data_urls():
+    url = "data:image/png;base64,aW1hZ2U="
+    assert _append_proxy_direct_param(url) == url
+
+
+async def test_proxy_direct_middleware_rewrites_upload_image_blocks():
+    class Request:
+        def __init__(self, messages):
+            self.messages = messages
+
+        def override(self, **kwargs):
+            return Request(kwargs.get("messages", self.messages))
+
+    seen = {}
+
+    async def handler(request):
+        seen["request"] = request
+        return request
+
+    middleware = ImageUrlProxyDirectMiddleware()
+    message = HumanMessage(
+        content=[
+            {"type": "text", "text": "what is this?"},
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": "https://lambchat.com/api/upload/file/image/u1/a.png",
+                    "mime_type": "image/png",
+                },
+            },
+            {
+                "type": "image_url",
+                "image_url": {"url": "https://cdn.example.com/image/b.png"},
+            },
+        ]
+    )
+
+    await middleware.awrap_model_call(Request([message]), handler)
+
+    rewritten = seen["request"].messages[0]
+    assert rewritten is not message
+    assert (
+        rewritten.content[1]["image_url"]["url"]
+        == "https://lambchat.com/api/upload/file/image/u1/a.png?proxy=true"
+    )
+    assert rewritten.content[2]["image_url"]["url"] == "https://cdn.example.com/image/b.png"
+
+
+async def test_proxy_direct_middleware_rewrites_anthropic_url_source_blocks():
+    class Request:
+        def __init__(self, messages):
+            self.messages = messages
+
+        def override(self, **kwargs):
+            return Request(kwargs.get("messages", self.messages))
+
+    seen = {}
+
+    async def handler(request):
+        seen["request"] = request
+        return request
+
+    middleware = ImageUrlProxyDirectMiddleware()
+    message = HumanMessage(
+        content=[
+            {
+                "type": "image",
+                "source": {
+                    "type": "url",
+                    "url": "https://lambchat.com/api/upload/file/image/u1/c.png",
+                    "media_type": "image/png",
+                },
+            },
+        ]
+    )
+
+    await middleware.awrap_model_call(Request([message]), handler)
+
+    rewritten = seen["request"].messages[0]
+    assert (
+        rewritten.content[0]["source"]["url"]
+        == "https://lambchat.com/api/upload/file/image/u1/c.png?proxy=true"
+    )
+
+
+async def test_proxy_direct_middleware_keeps_reference_when_nothing_changed():
+    class Request:
+        def __init__(self, messages):
+            self.messages = messages
+
+        def override(self, **kwargs):
+            return Request(kwargs.get("messages", self.messages))
+
+    seen = {}
+
+    async def handler(request):
+        seen["request"] = request
+        return request
+
+    middleware = ImageUrlProxyDirectMiddleware()
+    message = HumanMessage(content=[{"type": "text", "text": "no images here"}])
+
+    await middleware.awrap_model_call(Request([message]), handler)
+
+    assert seen["request"].messages is message or seen["request"].messages == [message]

@@ -180,6 +180,7 @@ async def test_list_available_models_returns_public_fields_only(
             "profile": {
                 "max_input_tokens": None,
                 "supports_vision": True,
+                "image_url_mode": None,
                 "image_url_to_base64": False,
             },
             "supports_thinking": False,

@@ -21,13 +21,14 @@ from src.agents.core.node_utils import (
     get_image_download_max_bytes,
     inline_image_attachments_as_data_urls,
 )
+from src.infra.agent.middleware.image_url import _append_proxy_direct_param
 from src.infra.async_utils import run_blocking_io
 from src.infra.image_utils import compress_image_bytes_if_needed
 from src.infra.llm.client import LLMClient
 from src.infra.logging import get_logger
 from src.infra.tool.backend_utils import get_backend_from_runtime, get_base_url_from_runtime
 from src.kernel.config import settings
-from src.kernel.schemas.model import ModelConfig
+from src.kernel.schemas.model import ModelConfig, effective_image_url_mode
 
 try:
     from langchain.tools import ToolRuntime  # type: ignore[assignment]
@@ -341,12 +342,19 @@ async def image_analyze(
             return await _json_dumps_result({"error": "image_urls must include at least one image"})
 
         attachments = await _inline_backend_image_paths(attachments, runtime)
-        force_data_url = bool(model_config.profile.image_url_to_base64)
+        # 本工具直连 LLM,不经 agent 中间件链:base64 模式只能在此临场内联;
+        # proxy_direct 模式给 URL 加直出参数,不增加请求体体积。
+        image_url_mode = effective_image_url_mode(model_config.profile)
         attachments = await inline_image_attachments_as_data_urls(
             attachments,
             base_url=get_base_url_from_runtime(runtime),
-            force_data_url=force_data_url,
+            force_data_url=image_url_mode == "base64",
         )
+        if image_url_mode == "proxy_direct":
+            attachments = [
+                ({**att, "url": _append_proxy_direct_param(att["url"])} if att.get("url") else att)
+                for att in attachments
+            ]
         try:
             _validate_attachment_data_urls(attachments)
         except ValueError:

@@ -21,7 +21,7 @@ from src.agents.core.node_utils import (
     inline_image_attachments_as_data_urls,
     isolated_nested_graph_run,
     resolve_fallback_model,
-    resolve_model_image_url_to_base64,
+    resolve_model_image_url_mode,
     resolve_model_supports_vision,
     resolve_run_usage_carry,
 )
@@ -45,7 +45,6 @@ from src.agents.fast_agent.prompt import FAST_SYSTEM_PROMPT
 from src.infra.agent import AgentEventProcessor
 from src.infra.agent.middleware import (
     ArtifactDeliveryMiddleware,
-    ImageUrlToBase64Middleware,
     MainAgentContextMiddleware,
     MemoryRecallIndexMiddleware,
     SectionPromptMiddleware,
@@ -55,6 +54,7 @@ from src.infra.agent.middleware import (
     ToolResultBinaryMiddleware,
     create_code_interpreter_middleware,
     create_retry_middleware,
+    image_url_middleware_for_mode,
     summarization_fallback_patch,
 )
 from src.infra.backend.deepagent import create_persistent_backend
@@ -117,7 +117,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
 
     session_id = state.get("session_id", str(uuid.uuid4()))
 
-    async def _load_model_bundle() -> tuple[Any, Any, bool, bool]:
+    async def _load_model_bundle() -> tuple[Any, Any, bool, str]:
         llm_start = time.time()
         model = await LLMClient.get_model(
             model=selected_model,
@@ -136,12 +136,12 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
             vision = await resolve_model_supports_vision(
                 model_id, selected_model, log_prefix="[FastAgent]"
             )
-        convert_images = agent_options.get("_resolved_image_url_to_base64")
-        if convert_images is None:
-            convert_images = await resolve_model_image_url_to_base64(
+        image_url_mode = agent_options.get("_resolved_image_url_mode")
+        if image_url_mode is None:
+            image_url_mode = await resolve_model_image_url_mode(
                 model_id, selected_model, log_prefix="[FastAgent]"
             )
-        return model, fallback, bool(vision), bool(convert_images)
+        return model, fallback, bool(vision), image_url_mode
 
     async def _load_backend_bundle() -> tuple[Any, Any]:
         backend_start = time.time()
@@ -170,7 +170,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         tools=_load_context_tools(),
         checkpointer=get_async_checkpointer(thread_id=state.get("session_id")),
     )
-    llm, fallback_model_value, supports_vision, image_url_to_base64 = prepared.model
+    llm, fallback_model_value, supports_vision, image_url_mode = prepared.model
     backend, store = prepared.backend
     filtered_tool_list = prepared.tools
     inner_checkpointer = prepared.checkpointer
@@ -214,8 +214,9 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
             ArtifactDeliveryMiddleware(),
             SubagentActivityMiddleware(backend=backend),
         ]
-        if image_url_to_base64:
-            mw.append(ImageUrlToBase64Middleware())
+        _image_mw = image_url_middleware_for_mode(image_url_mode)
+        if _image_mw:
+            mw.append(_image_mw)
         if subagent_prompt_sections:
             mw.append(SectionPromptMiddleware(sections=subagent_prompt_sections))
         if context.deferred_manager is not None:
@@ -282,8 +283,9 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     user_middleware.insert(0, SteerMiddleware(session_id=str(session_id), presenter=presenter))
     user_middleware.append(ToolResultBinaryMiddleware(base_url=subagent_base_url))
     user_middleware.append(ArtifactDeliveryMiddleware())
-    if image_url_to_base64:
-        user_middleware.append(ImageUrlToBase64Middleware())
+    _image_mw = image_url_middleware_for_mode(image_url_mode)
+    if _image_mw:
+        user_middleware.append(_image_mw)
     active_goal = configurable.get("active_goal")
     # Persona, skills, memory guidance, goal, and mode share one authored prompt block.
     _prompt_sections = [
@@ -392,7 +394,6 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
             attachments = await inline_image_attachments_as_data_urls(
                 attachments,
                 base_url=configurable.get("base_url", ""),
-                force_data_url=image_url_to_base64,
             )
         new_message = build_human_message(user_input, attachments, supports_vision=supports_vision)
         graph_input = build_goal_input(

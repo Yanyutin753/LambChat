@@ -137,7 +137,7 @@ async def test_validate_agent_model_access_allows_role_model_id(
     assert agent_options["_resolved_model_config"]["api_key"] is None
     assert agent_options["_resolved_fallback_model"] == "openai/gpt-fallback"
     assert agent_options["_resolved_supports_vision"] is True
-    assert agent_options["_resolved_image_url_to_base64"] is True
+    assert agent_options["_resolved_image_url_mode"] == "base64"
 
 
 @pytest.mark.asyncio

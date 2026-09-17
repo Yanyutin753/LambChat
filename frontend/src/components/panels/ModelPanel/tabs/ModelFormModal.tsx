@@ -18,6 +18,7 @@ import { pricingApi } from "../../../../services/api/pricing";
 import type { PricingLookupResponse } from "../../../../services/api/pricing";
 import type {
   ApiFormat,
+  ImageUrlMode,
   ModelConfig,
   ModelConfigCreate,
   ModelConfigUpdate,
@@ -76,8 +77,9 @@ export const ModelFormModal = ({
   const [formSupportsVision, setFormSupportsVision] = useState(
     Boolean(model?.profile?.supports_vision),
   );
-  const [formImageUrlToBase64, setFormImageUrlToBase64] = useState(
-    Boolean(model?.profile?.image_url_to_base64),
+  const [formImageUrlMode, setFormImageUrlMode] = useState<ImageUrlMode>(
+    model?.profile?.image_url_mode ??
+      (model?.profile?.image_url_to_base64 ? "base64" : "url"),
   );
   const [formProvider, setFormProvider] = useState(model?.provider || "");
   const [formIcon, setFormIcon] = useState(model?.icon || "");
@@ -173,7 +175,9 @@ export const ModelFormModal = ({
     const profile: ModelProfile = {
       ...(maxInputTokens ? { max_input_tokens: maxInputTokens } : {}),
       supports_vision: formSupportsVision,
-      image_url_to_base64: formImageUrlToBase64,
+      image_url_mode: formImageUrlMode,
+      // 兼容旧后端/回滚:显式 base64 模式时同步置位
+      image_url_to_base64: formImageUrlMode === "base64",
     };
 
     if (
@@ -281,7 +285,7 @@ export const ModelFormModal = ({
     formMaxTokens,
     formMaxInputTokens,
     formSupportsVision,
-    formImageUrlToBase64,
+    formImageUrlMode,
     formProvider,
     formIcon,
     formFallbackModel,
@@ -637,26 +641,20 @@ export const ModelFormModal = ({
               </label>
             </div>
             <div className="es-field">
-              <label className="flex items-start gap-2 text-14 text-theme-text cursor-pointer">
-                <Checkbox
-                  checked={formImageUrlToBase64}
-                  onChange={() =>
-                    setFormImageUrlToBase64((checked) => !checked)
-                  }
-                  className="mt-1"
-                />
-                <span>
-                  <span className="block font-medium">
-                    {t("agentConfig.imageUrlToBase64", "图片链接转 base64")}
-                  </span>
-                  <span className="es-hint block">
-                    {t(
-                      "agentConfig.imageUrlToBase64Hint",
-                      "发给模型前把 image_url 自动转成 data URL",
-                    )}
-                  </span>
-                </span>
-              </label>
+              <label className="es-label">{t("agentConfig.imageUrlMode")}</label>
+              <Select
+                value={formImageUrlMode}
+                onChange={(v) => setFormImageUrlMode(v as ImageUrlMode)}
+                options={[
+                  { value: "url", label: t("agentConfig.imageUrlModeUrl") },
+                  { value: "base64", label: t("agentConfig.imageUrlModeBase64") },
+                  {
+                    value: "proxy_direct",
+                    label: t("agentConfig.imageUrlModeProxyDirect"),
+                  },
+                ]}
+              />
+              <p className="es-hint">{t("agentConfig.imageUrlModeHint")}</p>
             </div>
           </div>
         </details>

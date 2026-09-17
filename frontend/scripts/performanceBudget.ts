@@ -155,10 +155,10 @@ export function combinePrecacheBudgetEntries(
   });
 }
 
-// 536KB：排队消息可编辑（Codex 式编辑按钮 + Alt+↑ 弹回 + 分组标题/提示，
-// 五语 4 键）把 eager JS 顶到约 534.4KB，距 534KB 线仅剩 42 字节余量，
-// 沿 2KB 阶梯惯例累加抬档（此前 #563/#565/#612/#613 的抬档史见 git log）。
-export const EAGER_JAVASCRIPT_BUDGET_BYTES = 536 * 1024;
+// 538KB：模型表单图片链接处理三态选择器（url/base64/proxy_direct，五语 5 键）
+// 把 eager JS 顶破 536KB 线约 0.4KB，沿 2KB 阶梯惯例累加抬档
+// （此前 #563/#565/#612/#613 及 536KB 档的抬档史见 git log）。
+export const EAGER_JAVASCRIPT_BUDGET_BYTES = 538 * 1024;
 export const PRECACHE_BUDGET_BYTES = 5 * 1024 * 1024;
 export const PRECACHE_ADDITIONAL_ENTRIES: PrecacheEntry[] = [];
 

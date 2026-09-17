@@ -10,6 +10,12 @@ from pydantic import BaseModel, ConfigDict, Field
 # LLM_OPENAI_API_FORMAT global setting.
 ApiFormat = Literal["chat_completions", "responses"]
 
+# How image URLs are handed to the model:
+# - "url": pass through as-is (provider fetches the redirecting proxy URL)
+# - "base64": rewrite to base64 data URLs in-flight (state keeps compact URLs)
+# - "proxy_direct": append ?proxy=true so the app streams bytes (no redirect)
+ImageUrlMode = Literal["url", "base64", "proxy_direct"]
+
 
 class ModelProfile(BaseModel):
     """Per-model profile configuration."""
@@ -21,10 +27,24 @@ class ModelProfile(BaseModel):
         False,
         description="Whether this model accepts image input",
     )
+    image_url_mode: Optional[ImageUrlMode] = Field(
+        None,
+        description="How image URLs are handed to the model (url | base64 | proxy_direct)",
+    )
     image_url_to_base64: Optional[bool] = Field(
         False,
-        description="Whether image_url blocks should be converted to base64 data URLs before model calls",
+        description="Legacy flag for image_url_mode='base64'; ignored when image_url_mode is set",
     )
+
+
+def effective_image_url_mode(profile: "ModelProfile | None") -> ImageUrlMode:
+    """Resolve the effective image URL mode, honoring the legacy base64 flag."""
+    if profile is None:
+        return "url"
+    mode = getattr(profile, "image_url_mode", None)
+    if mode:
+        return mode
+    return "base64" if getattr(profile, "image_url_to_base64", False) else "url"
 
 
 class ModelPricingOverride(BaseModel):

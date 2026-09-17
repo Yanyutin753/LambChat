@@ -11,10 +11,14 @@ test("model form persists the supports vision profile flag", () => {
   expect(source).toMatch(/max_input_tokens:\s*maxInputTokens/);
 });
 
-test("model form persists the image URL base64 profile flag", () => {
-  expect(source).toMatch(/formImageUrlToBase64/);
-  expect(source).toMatch(/model\?\.profile\?\.image_url_to_base64/);
-  expect(source).toMatch(/image_url_to_base64:\s*formImageUrlToBase64/);
+test("model form persists the image URL mode selection", () => {
+  expect(source).toMatch(/formImageUrlMode/);
+  expect(source).toMatch(/model\?\.profile\?\.image_url_mode/);
+  // 旧配置只写 image_url_to_base64 时回退为 base64 模式
+  expect(source).toMatch(/model\?\.profile\?\.image_url_to_base64 \? "base64" : "url"/);
+  expect(source).toMatch(/image_url_mode:\s*formImageUrlMode/);
+  // 显式 base64 模式时同步置位旧字段,保证回滚兼容
+  expect(source).toMatch(/image_url_to_base64:\s*formImageUrlMode === "base64"/);
 });
 
 test("model form persists an explicit model icon selection", () => {
