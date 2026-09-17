@@ -127,17 +127,47 @@ class ModelFallbackMiddleware(AgentMiddleware):
         self._fallback_model = fallback_model
         self._thinking = thinking
         self._fallback_llm: BaseChatModel | None = None
+        self._prewarm_task: asyncio.Task[None] | None = None
+
+    async def _create_fallback_llm(self) -> BaseChatModel:
+        from src.infra.llm.client import LLMClient
+
+        llm = await LLMClient.get_model(
+            model=self._fallback_model,
+            thinking=self._thinking,
+        )
+        logger.info("[ModelFallback] Created fallback LLM: %s", self._fallback_model)
+        return llm
+
+    def _schedule_prewarm(self) -> None:
+        """首次模型调用即后台预热 fallback 客户端。
+
+        主模型失败往往在数秒全链路往返后才暴露（上游 4xx/5xx），届时才开始
+        创建 fallback 客户端会叠加查库/解密/建连冷启动。预热结果进
+        LLMClient 的进程级 LRU 缓存，重复创建无副作用。
+        """
+        if self._fallback_llm is not None or self._prewarm_task is not None:
+            return
+
+        async def _prewarm() -> None:
+            try:
+                self._fallback_llm = await self._create_fallback_llm()
+            except Exception:
+                # 预热是尽力而为：失败路径仍会走直接创建兜底
+                logger.debug(
+                    "[ModelFallback] Prewarm failed; will create on demand",
+                    exc_info=True,
+                )
+
+        self._prewarm_task = asyncio.create_task(_prewarm())
 
     async def _get_fallback_llm(self) -> BaseChatModel:
         """Lazily create the fallback LLM instance."""
+        if self._fallback_llm is None and self._prewarm_task is not None:
+            # 等预热任务落定（其内部已吞异常），未产出实例则直接创建兜底
+            await self._prewarm_task
         if self._fallback_llm is None:
-            from src.infra.llm.client import LLMClient
-
-            self._fallback_llm = await LLMClient.get_model(
-                model=self._fallback_model,
-                thinking=self._thinking,
-            )
-            logger.info("[ModelFallback] Created fallback LLM: %s", self._fallback_model)
+            self._fallback_llm = await self._create_fallback_llm()
         return self._fallback_llm
 
     async def _invoke_fallback(
@@ -173,6 +203,7 @@ class ModelFallbackMiddleware(AgentMiddleware):
         request: ModelRequest[ContextT],
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
     ) -> ModelResponse[ResponseT]:
+        self._schedule_prewarm()
         try:
             response = await handler(request)
         except Exception as exc:

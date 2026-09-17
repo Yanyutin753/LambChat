@@ -19,6 +19,29 @@ from src.kernel.config import settings
 
 _OPENAI_OFFICIAL_HOSTS = frozenset({"api.openai.com"})
 
+# Responses API 的输出 item 自带这些只读字段，回传 input 时任何合规端点都不接受
+_RESPONSES_INPUT_READONLY_FIELDS = ("status",)
+
+
+def strip_readonly_responses_input_fields(payload: dict) -> dict:
+    """剥离回传历史 item 顶层的只读输出字段（就地修改）。
+
+    上游 Responses API 的输出 item（reasoning / function_call 等）带
+    ``status`` 等只读字段，langchain 经 ``model_dump`` 原样存进消息历史，
+    下一轮全量重放时被带回 ``input`` 数组，严格校验的端点会以 400
+    ``unknown_parameter`` 拒绝整个请求（生产 2026-09-17：``input[13].status``，
+    该会话每轮先 400 再 fallback，首字时间 ~7s）。``status`` 不是任何
+    input item 的合法字段，剥离无条件执行。
+    """
+    input_items = payload.get("input")
+    if not isinstance(input_items, list):
+        return payload
+    for item in input_items:
+        if isinstance(item, dict):
+            for field in _RESPONSES_INPUT_READONLY_FIELDS:
+                item.pop(field, None)
+    return payload
+
 
 def is_official_openai_base_url(base_url: Any) -> bool:
     """prompt_cache_key 只对官方端点注入：严格校验未知字段的第三方
@@ -48,6 +71,10 @@ class LambChatOpenAIChatModel(ChatOpenAI):
         self, input_: Any, *, stop: list[str] | None = None, **kwargs: Any
     ) -> dict:
         payload = super()._get_request_payload(input_, stop=stop, **kwargs)
+        # 历史回传的 reasoning/function_call 等输出 item 带 status 只读字段，
+        # 严格校验的端点会整体 400（生产 2026-09-17：input[13].status），
+        # 在统一出口剥离后再注入其余字段。
+        strip_readonly_responses_input_fields(payload)
         # Codex 同款 KV 缓存路由：会话级 prompt_cache_key 让同前缀请求持续
         # 落在同一缓存机器。/v1/responses 与 /v1/chat/completions 两种线
         # 格式都注入（SDK 3.6.0 起后者同样支持该字段，替代 user 做缓存

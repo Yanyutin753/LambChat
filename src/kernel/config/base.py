@@ -92,6 +92,9 @@ class Settings(BaseSettings):
         "chat_completions"  # OpenAI 协议线格式默认值（chat_completions | responses）
     )
     LLM_MODEL_CACHE_SIZE: int = 50  # 模型实例缓存大小，防止内存泄漏
+    LLM_MODEL_WARMUP_ON_STARTUP: bool = (
+        True  # worker 启动后台预创建已启用模型客户端，消首个请求冷启动
+    )
     LLM_KV_CACHE: bool = (
         True  # OpenAI 协议携带 KV 缓存参数（会话级 prompt_cache_key；responses 另含 include/store）
     )

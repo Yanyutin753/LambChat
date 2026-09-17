@@ -73,6 +73,41 @@ async def worker_startup(ctx: dict[str, Any]) -> None:
 
     loop_bridge.set_main_loop(asyncio.get_running_loop())
 
+    _schedule_model_warmup()
+
+
+async def _warmup_model_clients() -> None:
+    """预创建所有已启用模型的 LLM 客户端（尽力而为，不阻塞不致命）。
+
+    生产测量（2026-09-17 yang）：worker 冷启动后每个模型的第一个请求要现场
+    建实例（含 api_key 查库/Fernet 解密），TaskGroup 段 ~0.8s。预热结果进
+    LLMClient 进程级 LRU，重复创建无副作用。
+    """
+    from src.infra.agent.model_storage import get_model_storage
+    from src.infra.llm.client import LLMClient
+
+    try:
+        models = await get_model_storage().list_models(include_disabled=False)
+    except Exception:
+        logger.warning("[ModelWarmup] Skipping warmup: model listing failed", exc_info=True)
+        return
+
+    warmed = 0
+    for model_cfg in models:
+        try:
+            await LLMClient.get_model(model=model_cfg.value, model_config=model_cfg)
+            warmed += 1
+        except Exception:
+            logger.debug("[ModelWarmup] Warmup failed for %s", model_cfg.value, exc_info=True)
+    logger.info("[ModelWarmup] Pre-created %d/%d enabled model clients", warmed, len(models))
+
+
+def _schedule_model_warmup() -> asyncio.Task[None] | None:
+    """在 worker 启动时后台调度模型客户端预热；配置关闭时返回 None。"""
+    if not getattr(settings, "LLM_MODEL_WARMUP_ON_STARTUP", True):
+        return None
+    return asyncio.create_task(_warmup_model_clients())
+
 
 async def worker_shutdown(ctx: dict[str, Any]) -> None:
     """Mark the worker process as shutting down so recovery entrypoints go quiet."""
