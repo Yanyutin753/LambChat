@@ -389,7 +389,7 @@ async def test_malformed_row_skipped_not_crash(monkeypatch):
     class FakeCol:
         async def find_one(self, query):
             key = query["_id"]
-            if key == "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED":
+            if key == "ENABLE_EVENT_MERGER":
                 # 坏行：updated_at 是 Date（正确应为 ISO 字符串）
                 return {
                     "_id": key,
@@ -417,7 +417,7 @@ async def test_malformed_row_skipped_not_crash(monkeypatch):
     storage._collection = FakeCol()
 
     # 坏行：返回 None（视为不存在 → 回退默认），不抛 ValidationError
-    bad = await storage.get("NATIVE_MEMORY_QUERY_CONTEXT_ENABLED")
+    bad = await storage.get("ENABLE_EVENT_MERGER")
     assert bad is None
     # 好行：正常返回
     good = await storage.get("ENABLE_MEMORY")

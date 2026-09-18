@@ -135,8 +135,8 @@ def test_format_sse_event_drops_oversized_payload() -> None:
 
 
 @pytest.mark.asyncio
-async def test_session_stream_offloads_sse_event_formatting(monkeypatch: pytest.MonkeyPatch):
-    calls: list[str] = []
+async def test_session_stream_formats_sse_events_inline(monkeypatch: pytest.MonkeyPatch):
+    """SSE 事件格式化内联执行（输出被 256KB 上限封顶，无需逐事件线程池跳变）。"""
 
     class _SessionManager:
         async def get_session(self, session_id):
@@ -154,13 +154,8 @@ async def test_session_stream_offloads_sse_event_formatting(monkeypatch: pytest.
                 "id": "1-0",
             }
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
-        calls.append(func.__name__)
-        return func(*args, **kwargs)
-
     monkeypatch.setattr("src.api.routes.chat.SessionManager", lambda: _SessionManager())
     monkeypatch.setattr("src.api.routes.chat.verify_session_ownership", lambda session, user: None)
-    monkeypatch.setattr("src.api.routes.chat.run_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(
         "src.infra.session.dual_writer.get_dual_writer",
         lambda: _DualWriter(),
@@ -175,7 +170,6 @@ async def test_session_stream_offloads_sse_event_formatting(monkeypatch: pytest.
     chunk = await body_iterator.__anext__()
 
     assert "event: message:chunk" in chunk
-    assert calls == ["_format_sse_event"]
 
 
 @pytest.mark.asyncio

@@ -717,4 +717,13 @@ async def test_session_indexes_are_initialized_once_across_instances() -> None:
         SessionStorage._indexes_done = original_done
         SessionStorage._indexes_lock = original_lock
 
-    assert len(shared_collection.created_indexes) == 7
+    assert len(shared_collection.created_indexes) == 8
+    # 列表排序 (metadata.is_pinned desc, updated_at desc) 的组合索引
+    (keys, kwargs) = shared_collection.created_indexes[0]
+    assert list(keys) == [
+        ("user_id", 1),
+        ("is_active", 1),
+        ("metadata.is_pinned", -1),
+        ("updated_at", -1),
+    ]
+    assert kwargs == {"name": "user_status_pinned_updated_idx", "background": True}

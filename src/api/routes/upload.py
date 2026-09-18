@@ -1,8 +1,4 @@
-"""
-File upload API routes
-
-Provides endpoints for file uploads to S3-compatible storage.
-"""
+"""文件上传 API 路由（S3 兼容存储）。"""
 
 import hashlib
 import uuid
@@ -54,6 +50,7 @@ from src.infra.storage.s3 import (
 )
 from src.infra.storage.s3.base import BinaryReadFile
 from src.infra.upload.file_record import FileRecordStorage
+from src.infra.utils.hashing import sha256_hexdigest
 from src.kernel.config import settings
 from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import TokenPayload
@@ -300,7 +297,7 @@ async def _spool_upload_file_limited(
             total_size += len(chunk)
             if total_size > max_size_bytes:
                 raise AppError(ErrorCode.FILE_TOO_LARGE, args={"max": max_size_mb})
-            digest.update(chunk)
+            await run_blocking_io(digest.update, chunk)
             await run_blocking_io(spooled.write, chunk)
 
         if total_size == 0:
@@ -338,14 +335,14 @@ async def _transcode_spooled_image(
     if len(transcoded) > max_size_bytes:
         raise AppError(ErrorCode.FILE_TOO_LARGE, args={"max": max_size_mb})
 
-    digest = hashlib.sha256(transcoded)
+    sha256_hex = await run_blocking_io(sha256_hexdigest, transcoded)
     replacement = SpooledTemporaryFile(max_size=UPLOAD_SPOOL_MEMORY_LIMIT, mode="w+b")
     try:
         await run_blocking_io(replacement.write, transcoded)
         await run_blocking_io(replacement.seek, 0)
         new_upload = SpooledUpload(
             file=replacement,
-            sha256_hex=digest.hexdigest(),
+            sha256_hex=sha256_hex,
             size=len(transcoded),
         )
     except Exception:

@@ -1359,7 +1359,8 @@ async def test_get_session_events_applies_explicit_limit_across_chunks() -> None
 
     events = await storage.get_session_events("session-1", max_events=1)
 
-    assert [event["data"]["content"] for event in events] == ["a"]
+    # 整轮预算：单轮即使超预算也完整返回
+    assert [event["data"]["content"] for event in events] == ["a", "b"]
 
 
 @pytest.mark.asyncio
@@ -1401,7 +1402,8 @@ async def test_get_session_events_uses_one_batch_read_and_applies_limit() -> Non
     events = await storage.get_session_events("session-1", max_events=1)
 
     assert storage.batch_reads == [["trace-1"]]
-    assert [event["data"]["content"] for event in events] == ["a"]
+    # 整轮预算：单轮即使超预算也完整返回
+    assert [event["data"]["content"] for event in events] == ["a", "b"]
 
 
 @pytest.mark.asyncio

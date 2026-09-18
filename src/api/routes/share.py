@@ -247,19 +247,19 @@ async def _build_session_content(
         if share.share_scope == ShareScope.SESSION and share.share_type == ShareType.PARTIAL
         else None
     )
+    # 事件按全量返回（每个 run 完整显示）；仅显式传 event_limit 时施加
+    # 整轮预算（丢弃更旧的整轮，不切断 run）。走 snapshot 以获得
+    # events_truncated 标志（整轮丢弃时 len 可能 ≤ limit，仅比长度会漏报）
     read_events_kwargs: dict[str, Any] = {"completed_only": True}
     if event_limit is not None:
         read_events_kwargs["max_events"] = event_limit + 1
-
     if partial_run_ids:
-        events = await dual_writer.read_session_events(
-            session.id, run_ids=partial_run_ids, **read_events_kwargs
-        )
-    else:
-        events = await dual_writer.read_session_events(session.id, **read_events_kwargs)
-    events_limited = event_limit is not None and len(events) > event_limit
-    if events_limited and event_limit is not None:
-        events = events[:event_limit]
+        read_events_kwargs["run_ids"] = partial_run_ids
+    snapshot = await dual_writer.read_session_events_snapshot(session.id, **read_events_kwargs)
+    events = snapshot.events
+    events_limited = event_limit is not None and (
+        snapshot.events_truncated or len(events) > event_limit
+    )
 
     owner = await UserStorage().get_by_id(share.owner_id)
     owner_info = SharedContentOwner(

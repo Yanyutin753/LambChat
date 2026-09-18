@@ -73,6 +73,10 @@ class _FakeDualWriter:
     def __init__(self):
         self.calls = []
 
+    async def read_session_events_snapshot(self, session_id: str, **kwargs):
+        events = await self.read_session_events(session_id, **kwargs)
+        return SimpleNamespace(events=events, events_truncated=False)
+
     async def read_session_events(self, session_id: str, **kwargs):
         self.calls.append({"session_id": session_id, **kwargs})
         return [
@@ -221,12 +225,7 @@ async def test_get_shared_content_returns_all_events_when_limit_is_omitted(
 
     response = await share_route.get_shared_content("share-1", user=None)
 
-    assert dual_writer.calls == [
-        {
-            "session_id": "session-1",
-            "completed_only": True,
-        }
-    ]
+    assert dual_writer.calls == [{"session_id": "session-1", "completed_only": True}]
     assert len(response.events) == 3
     assert response.events_limited is False
     assert response.events_limit is None
@@ -278,6 +277,44 @@ async def test_get_shared_content_caps_full_share_events_with_probe_limit(
             "max_events": 3,
         }
     ]
-    assert len(response.events) == 2
+    # 整轮预算：run 内事件完整返回，路由不二次切片
+    assert len(response.events) == 3
     assert response.events_limited is True
     assert response.events_limit == 2
+
+
+class _ManyEventsDualWriter:
+    def __init__(self, count: int):
+        self.calls = []
+        self._count = count
+
+    async def read_session_events_snapshot(self, session_id: str, **kwargs):
+        events = await self.read_session_events(session_id, **kwargs)
+        return SimpleNamespace(events=events, events_truncated=False)
+
+    async def read_session_events(self, session_id: str, **kwargs):
+        self.calls.append({"session_id": session_id, **kwargs})
+        return [
+            {"event_type": "message:chunk", "data": {"content": f"e{i}"}, "seq": i}
+            for i in range(1, self._count + 1)
+        ]
+
+
+@pytest.mark.asyncio
+async def test_get_shared_content_returns_full_events_when_event_limit_omitted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    writer = _ManyEventsDualWriter(count=7)
+    monkeypatch.setattr(share_route, "ShareStorage", _FakeShareStorage)
+    monkeypatch.setattr(share_route, "SessionManager", _FakeSessionManager)
+    monkeypatch.setattr(share_route, "get_dual_writer", lambda: writer)
+    monkeypatch.setattr(share_route, "UserStorage", _FakeUserStorage)
+    monkeypatch.setattr(share_route, "get_agent_class", _raise_unknown_agent)
+
+    response = await share_route.get_shared_content("share-1", user=None)
+
+    # 不带 event_limit 的公开分享：全量返回（每个 run 完整显示），无预算
+    assert "max_events" not in writer.calls[0]
+    assert len(response.events) == 7
+    assert response.events_limited is False
+    assert response.events_limit is None

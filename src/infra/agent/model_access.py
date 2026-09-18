@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from src.kernel.schemas.user import TokenPayload
 
 ROLE_MODEL_ACCESS_LIMIT = 100
@@ -13,6 +15,9 @@ async def resolve_user_allowed_model_ids(user: TokenPayload) -> list[str] | None
     A missing role-model assignment means the role is not configured and remains
     unrestricted for backward compatibility. An existing assignment with an empty
     list means the role allows no models.
+
+    角色与角色-模型配置查询均按 asyncio.gather 并行执行；合并阶段保持原
+    串行实现的顺序与去重语义（gather 保序）。
     """
     if not user.roles:
         return None
@@ -26,11 +31,16 @@ async def resolve_user_allowed_model_ids(user: TokenPayload) -> list[str] | None
     seen: set[str] = set()
     has_restricted_role = False
 
-    for role_name in user.roles:
-        role = await role_manager.get_role_by_name(role_name)
-        if not role:
-            continue
-        role_models = await storage.get_role_models(role.id)
+    roles = await asyncio.gather(
+        *(role_manager.get_role_by_name(role_name) for role_name in user.roles)
+    )
+    existing_roles = [role for role in roles if role]
+
+    role_models_list = await asyncio.gather(
+        *(storage.get_role_models(role.id) for role in existing_roles)
+    )
+
+    for role_models in role_models_list:
         if role_models is None:
             return None
         has_restricted_role = True

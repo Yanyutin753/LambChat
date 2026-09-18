@@ -98,11 +98,9 @@ async def get_usage_stats(
 
     start = start_date or _compute_start_date(period or "all")
 
-    _, _, stats = await storage.list_usage_logs(
+    stats = await storage.get_usage_stats_only(
         user_id=effective_user_id,
         start_date=start,
-        skip=0,
-        limit=1,  # 只需要 stats，不需要 items
     )
     return UsageStats(**stats)
 

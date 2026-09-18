@@ -35,6 +35,36 @@ SESSION_BATCH_LOOKUP_LIMIT = 100
 SESSION_LIST_LOOKUP_LIMIT = 100
 
 
+# 会话集合索引清单（单一定义点）：(keys, name, 额外 kwargs)
+_SESSION_INDEX_SPEC: list[tuple[list[tuple[str, int]], str, dict[str, Any]]] = [
+    # 列表排序 (is_pinned desc, updated_at desc)：等值前缀 + 排序后缀，避免大列表内存排序
+    (
+        [("user_id", 1), ("is_active", 1), ("metadata.is_pinned", -1), ("updated_at", -1)],
+        "user_status_pinned_updated_idx",
+        {},
+    ),
+    ([("user_id", 1), ("is_active", 1), ("updated_at", -1)], "user_status_updated_idx", {}),
+    (
+        [("user_id", 1), ("metadata.project_id", 1), ("updated_at", -1)],
+        "user_project_updated_idx",
+        {},
+    ),
+    ([("session_id", 1)], "session_id_idx", {"sparse": True}),
+    (
+        [("user_id", 1), ("search_terms", 1), ("updated_at", -1)],
+        "user_search_terms_updated_idx",
+        {},
+    ),
+    ([("search_index_version", 1), ("updated_at", -1)], "search_index_version_updated_idx", {}),
+    ([("search_index_updated_at", 1)], "search_index_updated_at_idx", {"sparse": True}),
+    (
+        [("metadata.scheduled_task_id", 1), ("updated_at", -1)],
+        "scheduled_task_sessions_idx",
+        {"sparse": True},
+    ),
+]
+
+
 class SessionStorage(SessionAttachmentOperationsMixin):
     """
     会话存储类
@@ -92,44 +122,9 @@ class SessionStorage(SessionAttachmentOperationsMixin):
     async def _ensure_indexes(self) -> bool:
         try:
             collection = self.collection
-            await collection.create_index(
-                [("user_id", 1), ("is_active", 1), ("updated_at", -1)],
-                name="user_status_updated_idx",
-                background=True,
-            )
-            await collection.create_index(
-                [("user_id", 1), ("metadata.project_id", 1), ("updated_at", -1)],
-                name="user_project_updated_idx",
-                background=True,
-            )
-            await collection.create_index(
-                [("session_id", 1)],
-                name="session_id_idx",
-                background=True,
-                sparse=True,
-            )
-            await collection.create_index(
-                [("user_id", 1), ("search_terms", 1), ("updated_at", -1)],
-                name="user_search_terms_updated_idx",
-                background=True,
-            )
-            await collection.create_index(
-                [("search_index_version", 1), ("updated_at", -1)],
-                name="search_index_version_updated_idx",
-                background=True,
-            )
-            await collection.create_index(
-                [("search_index_updated_at", 1)],
-                name="search_index_updated_at_idx",
-                background=True,
-                sparse=True,
-            )
-            await collection.create_index(
-                [("metadata.scheduled_task_id", 1), ("updated_at", -1)],
-                name="scheduled_task_sessions_idx",
-                background=True,
-                sparse=True,
-            )
+
+            for keys, name, extra in _SESSION_INDEX_SPEC:
+                await collection.create_index(keys, name=name, background=True, **extra)
             return True
         except Exception:
             # Search index creation is best-effort and should not block the app.

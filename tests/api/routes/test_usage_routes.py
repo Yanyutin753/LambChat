@@ -45,6 +45,20 @@ class _FakeUsageStorage:
             },
         )
 
+    async def get_usage_stats_only(self, **kwargs):
+        self.calls.append(("stats_only", kwargs))
+        return {
+            "total_requests": 1,
+            "total_input_tokens": 10,
+            "total_output_tokens": 5,
+            "total_tokens": 15,
+            "total_cache_creation_tokens": 2,
+            "total_cache_read_tokens": 3,
+            "total_duration": 1.5,
+            "total_cost_usd": 0.0,
+            "unpriced_requests": 0,
+        }
+
     async def get_usage_dashboard(self, **kwargs):
         self.calls.append(kwargs)
         return {
@@ -200,10 +214,12 @@ async def test_get_usage_stats_uses_period_and_admin_scope(monkeypatch) -> None:
     )
 
     assert response.total_tokens == 15
-    assert storage.calls[0]["user_id"] == "user-2"
-    assert storage.calls[0]["start_date"] == "2026-06-14T00:00:00+00:00"
-    assert storage.calls[0]["skip"] == 0
-    assert storage.calls[0]["limit"] == 1
+    assert storage.calls == [
+        (
+            "stats_only",
+            {"user_id": "user-2", "start_date": "2026-06-14T00:00:00+00:00"},
+        )
+    ]
 
 
 @pytest.mark.asyncio
@@ -228,8 +244,11 @@ async def test_get_usage_stats_prefers_explicit_start_date(monkeypatch) -> None:
         user=user,
     )
 
-    # 显式 start_date（客户端本地 0 点）优先于 period 推导的 UTC 0 点
-    assert storage.calls[0]["start_date"] == "2026-06-14T00:00:00+08:00"
+    # 显式 start_date（客户端本地 0 点）优先于 period 推导的 UTC 0 点；
+    # stats 路由不再走 list_usage_logs 全链路（无 items 查询）
+    assert storage.calls == [
+        ("stats_only", {"user_id": "user-1", "start_date": "2026-06-14T00:00:00+08:00"})
+    ]
 
 
 @pytest.mark.asyncio
@@ -333,7 +352,10 @@ async def test_get_usage_stats_defaults_admin_to_own_usage(monkeypatch) -> None:
         user=user,
     )
 
-    assert storage.calls[0]["user_id"] == "admin-1"
+    assert storage.calls[0] == (
+        "stats_only",
+        {"user_id": "admin-1", "start_date": "2026-06-14T00:00:00+08:00"},
+    )
 
 
 @pytest.mark.asyncio
@@ -404,3 +426,20 @@ async def test_dashboard_exposes_cache_read_share(monkeypatch) -> None:
     assert abs(resp.summary.cache_read_share - 0.75) < 1e-6
     assert resp.daily[0].cache_read_tokens == 250
     assert abs(resp.daily[0].cache_read_share - 250 / 300) < 1e-6
+
+
+@pytest.mark.asyncio
+async def test_get_usage_stats_does_not_fetch_items(monkeypatch) -> None:
+    """stats 路由必须走 stats-only 存储路径，不触发 items 分页查询。"""
+    storage = _FakeUsageStorage()
+    monkeypatch.setattr(usage_routes, "get_usage_storage", lambda: storage)
+    user = TokenPayload(sub="user-1", username="User", permissions=["usage:read"])
+
+    response = await usage_routes.get_usage_stats(
+        user_id=None, period="all", start_date=None, user=user
+    )
+
+    assert response.total_tokens == 15
+    assert all(call[0] == "stats_only" for call in storage.calls)
+    kwargs = storage.calls[0][1]
+    assert "skip" not in kwargs and "limit" not in kwargs

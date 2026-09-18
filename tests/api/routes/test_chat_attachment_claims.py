@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from typing import Any
 
@@ -141,6 +142,9 @@ async def _invoke_chat(
     limiter: _Limiter | None = None,
     task_manager: _TaskManager | None = None,
     metadata_failure: bool = False,
+    drain_config: bool = True,
+    purge: Any = None,
+    update_config: Any = None,
 ) -> tuple[Any, _FileRecords, _Limiter, _TaskManager]:
     file_records = file_records or _FileRecords(reject=reject_claim)
     limiter = limiter or _Limiter(limiter_result)
@@ -148,6 +152,11 @@ async def _invoke_chat(
 
     async def _noop_async(*args: Any, **kwargs: Any) -> None:
         return None
+
+    async def _noop_purge(session_id: str) -> None:
+        return None
+
+    monkeypatch.setattr("src.infra.task.steer.purge_stale_steers", purge or _noop_purge)
 
     async def _update_config(*args: Any, **kwargs: Any) -> None:
         if metadata_failure:
@@ -159,7 +168,7 @@ async def _invoke_chat(
     monkeypatch.setattr(chat, "validate_team_agent_request", lambda *args: None)
     monkeypatch.setattr(chat, "get_task_manager", lambda: task_manager)
     monkeypatch.setattr(chat, "_get_language", lambda request: "en")
-    monkeypatch.setattr(chat, "_update_session_config", _update_config)
+    monkeypatch.setattr(chat, "_update_session_config", update_config or _update_config)
     monkeypatch.setattr(chat, "Presenter", _Presenter, raising=False)
     monkeypatch.setattr("src.infra.writer.present.Presenter", _Presenter)
     monkeypatch.setattr(chat.settings, "TASK_BACKEND", task_backend)
@@ -175,6 +184,8 @@ async def _invoke_chat(
         SimpleNamespace(headers={}),
         user=SimpleNamespace(sub="owner-1", roles=["member"]),
     )
+    if drain_config:
+        await chat._session_config_tasks.drain(timeout=2)
     return result, file_records, limiter, task_manager
 
 
@@ -403,22 +414,230 @@ async def test_direct_submission_failure_releases_only_the_acquired_active_run(
 
 
 @pytest.mark.asyncio
-async def test_queued_post_persistence_metadata_failure_retains_claim_and_queue(
+async def test_queued_metadata_failure_no_longer_fails_the_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """会话配置写入已后置为 fire-and-forget：失败只记日志，不影响请求结果。"""
     file_records = _FileRecords()
     limiter = _Limiter(ConcurrencyResult.QUEUED)
 
-    with pytest.raises(RuntimeError, match="metadata failed"):
-        await _invoke_chat(
-            monkeypatch,
-            attachments=[_attachment("key-1")],
-            limiter_result=ConcurrencyResult.QUEUED,
-            file_records=file_records,
-            limiter=limiter,
-            metadata_failure=True,
-        )
+    result, _records, _limiter, _task_manager = await _invoke_chat(
+        monkeypatch,
+        attachments=[_attachment("key-1")],
+        limiter_result=ConcurrencyResult.QUEUED,
+        file_records=file_records,
+        limiter=limiter,
+        metadata_failure=True,
+    )
 
+    assert result["status"] == "queued"
     assert file_records.releases == []
     assert limiter.remove_calls == []
     assert limiter.release_calls == []
+
+
+@pytest.mark.asyncio
+async def test_purge_stale_steers_and_attachment_claim_run_concurrently(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """purge 与附件 claim 并行执行：互不等待对方启动（串行会超时失败）。"""
+    purge_started = asyncio.Event()
+    claim_started = asyncio.Event()
+
+    class _SyncFileRecords(_FileRecords):
+        async def claim_owned_references(self, keys: list[str], uploaded_by: str) -> list[str]:
+            claim_started.set()
+            await asyncio.wait_for(purge_started.wait(), timeout=2)
+            return await super().claim_owned_references(keys, uploaded_by)
+
+    async def _sync_purge(session_id: str) -> None:
+        purge_started.set()
+        await asyncio.wait_for(claim_started.wait(), timeout=2)
+
+    await _invoke_chat(
+        monkeypatch,
+        attachments=[_attachment("key-1")],
+        limiter_result=ConcurrencyResult.STARTED,
+        file_records=_SyncFileRecords(),
+        purge=_sync_purge,
+    )
+
+
+@pytest.mark.asyncio
+async def test_session_config_update_is_scheduled_and_completes_after_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+    config_seen_event = asyncio.Event()
+
+    async def _record_update(*args: Any, **kwargs: Any) -> None:
+        calls.append({"args": args, "kwargs": kwargs})
+        config_seen_event.set()
+
+    result, _file_records, _limiter, _task_manager = await _invoke_chat(
+        monkeypatch,
+        attachments=None,
+        limiter_result=ConcurrencyResult.STARTED,
+        drain_config=False,
+        update_config=_record_update,
+    )
+
+    # 响应在配置写入完成前即可返回（fire-and-forget）
+    assert result["status"] == "pending"
+    await asyncio.wait_for(chat._session_config_tasks.drain(timeout=2), timeout=5)
+    await asyncio.wait_for(config_seen_event.wait(), timeout=5)
+
+    assert len(calls) == 1
+    positional = calls[0]["args"]
+    assert positional[0] == result["session_id"] or positional[0] is not None
+    assert positional[2]  # agent_id
+    kwargs = calls[0]["kwargs"]
+    assert kwargs["trace_id"]
+    assert "prompt_turn_context_signature" in kwargs["prompt_state"]
+
+
+@pytest.mark.asyncio
+async def test_queued_branch_schedules_session_config_update(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    async def _record_update(*args: Any, **kwargs: Any) -> None:
+        calls.append({"args": args, "kwargs": kwargs})
+
+    result, _file_records, _limiter, _task_manager = await _invoke_chat(
+        monkeypatch,
+        attachments=None,
+        limiter_result=ConcurrencyResult.QUEUED,
+        drain_config=False,
+        update_config=_record_update,
+    )
+
+    assert result["status"] == "queued"
+    await asyncio.wait_for(chat._session_config_tasks.drain(timeout=2), timeout=5)
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_session_config_update_runs_inline_when_task_pool_full(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """任务池打满时降级为内联 await，绝不静默丢会话配置写入。"""
+    calls: list[dict[str, Any]] = []
+
+    async def _record_update(*args: Any, **kwargs: Any) -> None:
+        calls.append({"args": args, "kwargs": kwargs})
+
+    release = asyncio.Event()
+    blockers: list[asyncio.Task[None]] = []
+
+    async def _block() -> None:
+        await release.wait()
+
+    for _ in range(chat._SESSION_CONFIG_MAX_TASKS):
+        blockers.append(chat._session_config_tasks.create_task(_block()))
+    assert chat._session_config_tasks.active_count >= chat._SESSION_CONFIG_MAX_TASKS
+
+    try:
+        await _invoke_chat(
+            monkeypatch,
+            attachments=None,
+            limiter_result=ConcurrencyResult.STARTED,
+            drain_config=False,
+            update_config=_record_update,
+        )
+        # 池满 → 内联执行：chat_stream 返回前写入必须已发生（未 drain）
+        assert len(calls) == 1
+    finally:
+        release.set()
+        await chat._session_config_tasks.drain(timeout=5)
+        for task in blockers:
+            task.cancel()
+
+
+@pytest.mark.asyncio
+async def test_purge_error_takes_priority_over_invalid_attachments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """两者都失败时，purge 的异常优先暴露（与原串行顺序一致）。"""
+
+    async def _failing_purge(session_id: str) -> None:
+        raise RuntimeError("purge failed")
+
+    with pytest.raises(RuntimeError, match="purge failed"):
+        await _invoke_chat(
+            monkeypatch,
+            attachments=[_attachment("key-1")],
+            limiter_result=ConcurrencyResult.STARTED,
+            file_records=_FileRecords(reject=True),
+            purge=_failing_purge,
+        )
+
+
+@pytest.mark.asyncio
+async def test_purge_failure_releases_already_claimed_attachments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """并行后 purge 失败时，已成功的 claim 必须回滚（引用计数不能永久 +1）。"""
+
+    async def _failing_purge(session_id: str) -> None:
+        raise RuntimeError("purge failed")
+
+    file_records = _FileRecords()
+    with pytest.raises(RuntimeError, match="purge failed"):
+        await _invoke_chat(
+            monkeypatch,
+            attachments=[_attachment("key-1")],
+            limiter_result=ConcurrencyResult.STARTED,
+            file_records=file_records,
+            purge=_failing_purge,
+        )
+
+    assert file_records.claims == [(["key-1"], "owner-1")]
+    assert file_records.releases == [(["key-1"], "owner-1")]
+
+
+@pytest.mark.asyncio
+async def test_session_config_writes_for_same_session_execute_in_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """同会话背靠背两次提交：后台配置写必须串行、按提交顺序落库（防旧写后落覆盖新写）。"""
+    order: list[str] = []
+    first_started = asyncio.Event()
+    second_submitted = asyncio.Event()
+
+    async def _slow_update(*args: Any, **kwargs: Any) -> None:
+        order.append("first:start")
+        first_started.set()
+        await asyncio.wait_for(second_submitted.wait(), timeout=5)
+        order.append("first:done")
+
+    async def _fast_update(*args: Any, **kwargs: Any) -> None:
+        order.append("second:start")
+        order.append("second:done")
+
+    result1, *_ = await _invoke_chat(
+        monkeypatch,
+        attachments=None,
+        limiter_result=ConcurrencyResult.STARTED,
+        drain_config=False,
+        update_config=_slow_update,
+    )
+    await asyncio.wait_for(first_started.wait(), timeout=5)
+    assert result1["status"] == "pending"
+
+    second_submitted.set()
+    # 第二次提交挂入串行链后立即返回（不等第一个写完成）
+    result2, *_ = await _invoke_chat(
+        monkeypatch,
+        attachments=None,
+        limiter_result=ConcurrencyResult.STARTED,
+        drain_config=False,
+        update_config=_fast_update,
+    )
+    assert result2["status"] == "pending"
+
+    await asyncio.wait_for(chat._session_config_tasks.drain(timeout=5), timeout=10)
+
+    # 串行且有序：first 完成前 second 不得开始
+    assert order == ["first:start", "first:done", "second:start", "second:done"]

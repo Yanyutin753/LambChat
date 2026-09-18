@@ -99,7 +99,7 @@ async def test_spool_upload_file_limited_offloads_spooled_file_writes(
 
     try:
         assert bytes(spooled.file.data) == b"abcdef"
-        assert calls == ["write", "write", "seek"]
+        assert calls == ["update", "write", "update", "write", "seek"]
     finally:
         spooled.close()
 

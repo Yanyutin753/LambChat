@@ -31,6 +31,7 @@ class TraceStorageWriteMixin:
 
     if TYPE_CHECKING:
         collection: Any
+        chunks_collection: Any
         _merger: Any
 
         async def ensure_indexes_if_needed(self) -> None: ...
@@ -241,6 +242,26 @@ class TraceStorageWriteMixin:
             )
             return False
 
+    async def _has_token_usage_event(self, trace_id: str) -> Optional[bool]:
+        """低成本探测 trace 是否已有 token:usage 事件（2 次索引点查）。
+
+        返回 None 表示探测失败，调用方应回退到原全量路径。
+        """
+        try:
+            legacy = await self.collection.find_one(
+                {"trace_id": trace_id, "events.event_type": "token:usage"},
+                {"_id": 1},
+            )
+            if legacy is not None:
+                return True
+            chunk = await self.chunks_collection.find_one(
+                {"trace_id": trace_id, "events.event_type": "token:usage"},
+                {"_id": 1},
+            )
+            return chunk is not None
+        except Exception:
+            return None
+
     async def _ensure_token_usage_event(self, trace_id: str) -> None:
         """Insert a zero token usage event before done when a trace has no usage event yet."""
         now = utc_now()
@@ -256,6 +277,11 @@ class TraceStorageWriteMixin:
             "timestamp": now,
         }
         try:
+            # 快速路径：绝大多数 trace 完成前已写入 token:usage，两次点查
+            # 即可短路，避免 chunked 路径全量读回 + 整体重写（读放大）。
+            # 探测失败（None）时走下方原逻辑，语义不变。
+            if await self._has_token_usage_event(trace_id):
+                return
             if await self._has_event_chunks(trace_id):
                 events = await self.read_trace_events_compat(trace_id)
                 if any(event.get("event_type") == "token:usage" for event in events):

@@ -158,3 +158,22 @@ async def test_flush_drops_poisoned_group_after_attempt_cap(
     drop_logs = [r for r in caplog.records if "unwritable" in r.getMessage()]
     assert drop_logs, "expected a drop error log"
     assert fake_trace.append_calls == 3
+
+
+# ---------------------------------------------------------------------------
+# Redis 序列化 helpers：微秒级 json 调用必须内联，不走线程池
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_redis_event_json_helpers_run_inline(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _fail_run_blocking_io(func, *args, **kwargs):
+        raise AssertionError(f"run_blocking_io must not be used for microsecond json calls: {func}")
+
+    monkeypatch.setattr(dual_writer_module, "run_blocking_io", _fail_run_blocking_io)
+
+    serialized = await dual_writer_module._serialize_event_data_for_redis({"a": "中文"})
+    assert serialized == '{"a": "中文"}'
+    assert await dual_writer_module._serialize_event_data_for_redis(5) == "5"
+    assert await dual_writer_module._parse_event_data_from_redis(serialized) == {"a": "中文"}
+    assert await dual_writer_module._parse_event_data_from_redis("not-json") == "not-json"

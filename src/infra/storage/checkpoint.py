@@ -368,14 +368,14 @@ async def get_async_checkpointer(thread_id: str | None = None) -> BaseCheckpoint
     backend = getattr(settings, "CHECKPOINT_BACKEND", "mongodb")
 
     if backend == "postgres":
-        logger.info("Using PostgreSQL checkpointer")
+        logger.debug("Using PostgreSQL checkpointer")
         checkpointer = await get_pg_checkpointer()
         if checkpointer is not None:
             return checkpointer
         logger.warning("PostgreSQL checkpointer unavailable, falling back")
 
     # MongoDB (default)
-    logger.info("Using MongoDB checkpointer")
+    logger.debug("Using MongoDB checkpointer")
     checkpointer = get_mongo_checkpointer()
     if checkpointer is None:
         logger.warning("MongoDB checkpointer unavailable, falling back")

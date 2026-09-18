@@ -346,6 +346,28 @@ class UsageStorage:
             logger.error(f"Failed to list usage logs: {e}")
             return [], 0, _empty_stats()
 
+    async def get_usage_stats_only(
+        self,
+        *,
+        user_id: Optional[str] = None,
+        start_date: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Stats-only 查询路径：跳过 items 分页 find，只做计数 + 聚合。
+
+        /stats 路由只需要聚合统计；走 list_usage_logs 全链路会白做一次
+        items 查询。返回结构与 _empty_stats()/stats_dict 完全一致。
+        """
+        query = self._build_query(user_id=user_id, start_date=start_date)
+        try:
+            _, stats = await self._count_and_stats(query)
+            return stats
+        except AppError:
+            # 入参校验错误（如非法日期格式）必须冒泡为 400
+            raise
+        except Exception as e:
+            logger.error(f"Failed to aggregate usage stats (stats-only): {e}")
+            return _empty_stats()
+
     def _build_query(
         self,
         *,

@@ -225,3 +225,124 @@ class TraceEventReadCompatMixin:
             events_by_trace[trace_id] = events
 
         return events_by_trace
+
+    async def get_first_trace_events_batch(
+        self,
+        trace_ids: List[str],
+        event_types: Optional[List[str]] = None,
+    ) -> Dict[str, Optional[Dict[str, Any]]]:
+        """批量取每个 trace 的第一条匹配事件（最多 2 次查询，替代 N+1）。
+
+        语义与逐条调用 ``get_first_trace_event`` 等价：
+        - chunked trace：legacy 头部事件（seq < 首个 chunk 的 start_seq）优先，
+          其次按 chunk 顺序取第一个匹配；
+        - legacy trace：events 数组顺序的第一个匹配；
+        - 无匹配返回 None；单条查询失败按空结果处理（与旧逐条路径吞错一致）。
+        """
+        bounded_ids = trace_storage_helpers._bounded_unique_strings(
+            trace_ids, trace_storage_helpers.TRACE_LIST_LIMIT
+        )
+        if not bounded_ids:
+            return {}
+        bounded_types = trace_storage_helpers._bounded_unique_strings(
+            event_types, trace_storage_helpers.SESSION_EVENT_FILTER_LIST_LIMIT
+        )
+        allowed = set(bounded_types)
+
+        # 1) chunks：一次聚合取回整批 trace 的匹配事件（chunk 内已 $filter，只传输匹配项）
+        chunks_by_trace: Dict[str, List[Dict[str, Any]]] = {}
+        try:
+            match: Dict[str, Any] = {"trace_id": {"$in": bounded_ids}}
+            if allowed:
+                match["events.event_type"] = {"$in": sorted(allowed)}
+            events_projection: Any = (
+                {
+                    "$filter": {
+                        "input": {"$ifNull": ["$events", []]},
+                        "as": "event",
+                        "cond": {"$in": ["$$event.event_type", sorted(allowed)]},
+                    }
+                }
+                if allowed
+                else 1
+            )
+            pipeline: List[Dict[str, Any]] = [
+                {"$match": match},
+                {"$sort": {"trace_id": 1, "chunk_index": 1}},
+                {
+                    "$project": {
+                        "_id": 0,
+                        "trace_id": 1,
+                        "start_seq": 1,
+                        "events": events_projection,
+                    }
+                },
+                {
+                    "$group": {
+                        "_id": "$trace_id",
+                        "chunks": {"$push": {"start_seq": "$start_seq", "events": "$events"}},
+                    }
+                },
+            ]
+            async for doc in self.chunks_collection.aggregate(pipeline):
+                chunks_by_trace[str(doc.get("_id"))] = list(doc.get("chunks") or [])
+        except Exception as e:
+            logger.error(f"Failed to batch read first trace events from chunks: {e}")
+            chunks_by_trace = {}
+
+        # 2) legacy events / chunk 头部：一次查询取回整批 trace 的 events 数组
+        legacy_events_by_trace: Dict[str, List[Dict[str, Any]]] = {}
+        try:
+            cursor = self.collection.find(
+                {"trace_id": {"$in": bounded_ids}},
+                {"_id": 0, "trace_id": 1, "events": 1},
+            )
+            async for doc in cursor:
+                legacy_events_by_trace[str(doc.get("trace_id"))] = list(doc.get("events") or [])
+        except Exception as e:
+            logger.error(f"Failed to batch read first trace events from legacy traces: {e}")
+            legacy_events_by_trace = {}
+
+        def _accepts(event: Dict[str, Any]) -> bool:
+            return not allowed or event.get("event_type") in allowed
+
+        result: Dict[str, Optional[Dict[str, Any]]] = {}
+        for trace_id in bounded_ids:
+            chunks = chunks_by_trace.get(trace_id) or []
+            first_chunk_start_seq: Optional[int] = None
+            if chunks:
+                first_chunk = chunks[0]
+                first_chunk_start_seq = int(
+                    first_chunk.get("start_seq")
+                    or min(
+                        (
+                            trace_storage_helpers._event_seq(event, index + 1)
+                            for index, event in enumerate(first_chunk.get("events") or [])
+                        ),
+                        default=1,
+                    )
+                )
+            first: Optional[Dict[str, Any]] = None
+            for index, event in enumerate(legacy_events_by_trace.get(trace_id) or [], start=1):
+                if (
+                    first_chunk_start_seq is not None
+                    and trace_storage_helpers._event_seq(event, index) >= first_chunk_start_seq
+                ):
+                    continue
+                if _accepts(event):
+                    first = event
+                    break
+            if first is None:
+                for chunk in chunks:
+                    ordered = sorted(
+                        enumerate(chunk.get("events") or []),
+                        key=lambda item: trace_storage_helpers._event_seq(item[1], item[0]),
+                    )
+                    for _index, event in ordered:
+                        if _accepts(event):
+                            first = event
+                            break
+                    if first is not None:
+                        break
+            result[trace_id] = first
+        return result

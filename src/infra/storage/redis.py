@@ -140,14 +140,16 @@ class RedisStorage(StorageBase):
         if value is None:
             return None
         try:
-            return await run_blocking_io(json.loads, value)
+            # json.loads 是微秒级纯 CPU 调用，走线程池的开销远大于收益，直接内联
+            return json.loads(value)
         except json.JSONDecodeError:
             return value
 
     async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
         """设置数据"""
         if isinstance(value, (dict, list)):
-            value = await run_blocking_io(json.dumps, value)
+            # 微秒级纯 CPU 序列化，内联执行避免线程池往返
+            value = json.dumps(value)
         await self.client.set(key, value, ex=ttl)
 
     async def delete(self, key: str) -> bool:
@@ -209,7 +211,8 @@ class RedisStorage(StorageBase):
         serialized = {}
         for k, v in fields.items():
             if isinstance(v, dict):
-                serialized[k] = await run_blocking_io(json.dumps, v)
+                # 微秒级纯 CPU 序列化，内联执行避免线程池往返
+                serialized[k] = json.dumps(v)
             else:
                 serialized[k] = str(v)
 

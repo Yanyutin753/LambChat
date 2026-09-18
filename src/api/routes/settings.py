@@ -42,7 +42,7 @@ async def get_setting(
     service: SettingsService = Depends(get_settings_service),
 ):
     """Get single setting by key"""
-    setting = await service._storage.get(key)
+    setting = await service.get_item(key)
     if not setting:
         raise AppError(ErrorCode.SETTING_NOT_FOUND)
     return setting

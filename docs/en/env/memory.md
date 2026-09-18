@@ -28,9 +28,6 @@ When enabled, each user message gets top-K relevant memories appended **at write
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `NATIVE_MEMORY_QUERY_CONTEXT_ENABLED` | `false` | Enable query-time relevance injection. Off by default; enable gradually. |
-| `NATIVE_MEMORY_QUERY_CONTEXT_TOP_K` | `3` | Max relevant memories injected per turn. |
-| `NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS` | `1200` | Injected block char budget. Below minimum renderable size = skip entirely. |
 
 ## Self-Evolving Memory
 
@@ -62,7 +59,6 @@ Guardrails (borrowed from Codex/Claude Code): writes only via offline pipeline (
 |----------|---------|-------------|
 | `NATIVE_MEMORY_INDEX_ENABLED` | `true` | Enable memory search index. |
 | `NATIVE_MEMORY_INDEX_CACHE_TTL` | `300` | Index cache TTL in seconds. |
-| `NATIVE_MEMORY_APPEND_MAX_DETAILS` | `8` | Maximum details per memory append. |
 | `NATIVE_MEMORY_MAX_TOKENS` | `2000` | Maximum tokens for memory content. |
 | `NATIVE_MEMORY_INLINE_CONTENT_MAX_CHARS` | `1200` | Maximum chars for inline memory content. |
 
@@ -84,7 +80,6 @@ Optional reranking for improved memory relevance.
 | `NATIVE_MEMORY_COMPACTION_MODEL_ID` | _(empty)_ | No | Admin model config ID for compaction agent. Empty = default model. |
 | `NATIVE_MEMORY_STORE_NAMESPACE` | `memories` | No | LangGraph store namespace. |
 | `NATIVE_MEMORY_STALENESS_DAYS` | `30` | No | Days before memory is considered stale. |
-| `NATIVE_MEMORY_PRUNE_THRESHOLD` | `90` | No | Prune threshold percentage. |
 | `NATIVE_MEMORY_RECALL_MIN_SCORE` | `0.3` | No | Minimum relevance score (0.0-1.0) for recalled memories. |
 | `NATIVE_MEMORY_AUTO_COMPACT_ENABLED` | `true` | No | Enable background compaction agent. |
 | `NATIVE_MEMORY_AUTO_COMPACT_THRESHOLD` | `40` | No | Per-user count triggering auto-compaction. |
@@ -112,7 +107,6 @@ NATIVE_MEMORY_EMBEDDING_DIMENSIONS=1024
 NATIVE_MEMORY_MODEL=glm-5.3-flash
 
 # 4. Query-time injection (enable after observation)
-NATIVE_MEMORY_QUERY_CONTEXT_ENABLED=true
 
 # 5. Self-evolution (requires ENABLE_SCHEDULED_TASK=true)
 NATIVE_MEMORY_SELF_EVOLVE_ENABLED=true
@@ -135,9 +129,6 @@ NATIVE_MEMORY_EMBEDDING_DIMENSIONS=1024
 NATIVE_MEMORY_MODEL=glm-5.3-flash
 
 # Query-time injection
-NATIVE_MEMORY_QUERY_CONTEXT_ENABLED=true
-NATIVE_MEMORY_QUERY_CONTEXT_TOP_K=3
-NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS=1200
 
 # Self-evolution
 NATIVE_MEMORY_SELF_EVOLVE_ENABLED=true

@@ -469,6 +469,10 @@ async def test_get_shared_content_session_scope_still_returns_events(monkeypatch
             )
 
     class _DualWriter:
+        async def read_session_events_snapshot(self, session_id, **kwargs):
+            events = await self.read_session_events(session_id, **kwargs)
+            return SimpleNamespace(events=events, events_truncated=False)
+
         async def read_session_events(self, session_id, **_kwargs):
             return [{"event_type": "user:message", "data": {"content": "hi"}}]
 
@@ -550,6 +554,10 @@ async def test_subsession_returns_events_for_member(monkeypatch) -> None:
             )
 
     class _DualWriter:
+        async def read_session_events_snapshot(self, session_id, **kwargs):
+            events = await self.read_session_events(session_id, **kwargs)
+            return SimpleNamespace(events=events, events_truncated=False)
+
         async def read_session_events(self, session_id, **_kwargs):
             return [{"event_type": "assistant:message", "data": {"content": "yo"}}]
 
@@ -594,6 +602,10 @@ async def test_project_partial_subsession_does_not_apply_session_run_filter(monk
             )
 
     class _DualWriter:
+        async def read_session_events_snapshot(self, session_id, **kwargs):
+            events = await self.read_session_events(session_id, **kwargs)
+            return SimpleNamespace(events=events, events_truncated=False)
+
         async def read_session_events(self, session_id, **kwargs):
             captured_kwargs.update(kwargs)
             return []

@@ -57,11 +57,18 @@ def _set_cached_user(token: str, payload: TokenPayload) -> None:
     _auth_cache[token] = (time.monotonic() + _AUTH_CACHE_TTL_SECONDS, payload.model_copy(deep=True))
 
 
+async def _fetch_role(role_storage: RoleStorage, role_name: str):
+    """查询单个角色。缓存语义交给 RoleStorage 的全局失效缓存（Redis 版本化）。"""
+    return await role_storage.get_by_name(role_name)
+
+
 async def _get_user_roles_and_permissions(user_roles: list[str]) -> tuple[list[str], list[str]]:
     """
     获取用户角色列表和合并后的权限列表
 
-    角色数据通过 RoleStorage 的 Redis 缓存获取，无需额外缓存层。
+    角色查询按 asyncio.gather 并行执行，合并顺序与逐个串行查询时一致
+    （gather 保序），角色不存在时同样跳过；不再加进程内 TTL 缓存，
+    保证角色权限变更（Redis 全局失效）即时生效。
 
     Args:
         user_roles: 用户角色列表（从 token 中获取）
@@ -73,8 +80,11 @@ async def _get_user_roles_and_permissions(user_roles: list[str]) -> tuple[list[s
     roles = []
     permissions = set()
 
-    for role_name in user_roles:
-        role = await role_storage.get_by_name(role_name)
+    fetched = await asyncio.gather(
+        *(_fetch_role(role_storage, role_name) for role_name in user_roles)
+    )
+
+    for role in fetched:
         if role:
             roles.append(role.name)
             for perm in role.permissions:

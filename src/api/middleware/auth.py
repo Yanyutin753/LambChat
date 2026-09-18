@@ -4,12 +4,11 @@
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.kernel.config import settings
 
 
-class AuthMiddleware(BaseHTTPMiddleware):
+class AuthMiddleware:
     """
     认证中间件
 
@@ -17,7 +16,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
     Note: Most routes use route-level Depends(get_current_user_required) for auth.
     This middleware provides an additional layer for paths that may not have
     route-level guards.
+
+    纯 ASGI 实现（避免基类中间件每请求的 task 与流拷贝开销）。
     """
+
+    def __init__(self, app) -> None:
+        self.app = app
 
     # 不需要认证的路径（精确匹配）
     PUBLIC_PATHS = {
@@ -97,31 +101,43 @@ class AuthMiddleware(BaseHTTPMiddleware):
             response.headers["Vary"] = "Origin"
         return response
 
-    async def dispatch(self, request: Request, call_next):
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope)
         path = request.url.path
+
+        async def _call_next() -> None:
+            await self.app(scope, receive, send)
 
         # CORS preflight — always pass
         if request.method == "OPTIONS":
-            return await call_next(request)
+            await _call_next()
+            return
 
         # Exact match on public paths
         if path in self.PUBLIC_PATHS:
-            return await call_next(request)
+            await _call_next()
+            return
 
         # Prefix match for known public prefixes
         for prefix in self.PUBLIC_PREFIXES:
             if path.startswith(prefix):
-                return await call_next(request)
+                await _call_next()
+                return
 
         # Let browser page navigations reach the SPA fallback / redirect route.
         if self._is_browser_page_request(request):
-            return await call_next(request)
+            await _call_next()
+            return
 
         # All other paths require an Authorization header
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
-            # 统一错误契约 {"detail": {code, message}}
-            return self._cors_response(
+            # 统一错误契约 {"detail": {code, message}}（JSONResponse 直接以 ASGI 协议写出）
+            response = self._cors_response(
                 request,
                 status_code=401,
                 content={
@@ -131,5 +147,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     }
                 },
             )
+            await response(scope, receive, send)
+            return
 
-        return await call_next(request)
+        await _call_next()

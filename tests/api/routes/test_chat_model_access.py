@@ -10,6 +10,24 @@ from src.kernel.schemas.user import TokenPayload
 
 
 class _ModelStorage:
+    def __init__(self) -> None:
+        self.batch_calls: list[list[str]] = []
+
+    async def get_many_by_ids_and_values(
+        self, model_ids_or_values: list[str]
+    ) -> tuple[dict[str, ModelConfig], dict[str, ModelConfig]]:
+        self.batch_calls.append(list(model_ids_or_values))
+        by_id: dict[str, ModelConfig] = {}
+        by_value: dict[str, ModelConfig] = {}
+        for allowed_id in model_ids_or_values:
+            model = await self.get(allowed_id)
+            if model is not None:
+                by_id[allowed_id] = model
+            by_value_model = await self.get_by_value(allowed_id)
+            if by_value_model is not None and by_value_model.enabled:
+                by_value.setdefault(allowed_id, by_value_model)
+        return by_id, by_value
+
     async def get(self, model_id: str) -> ModelConfig | None:
         if model_id == "allowed-enabled":
             return ModelConfig(
@@ -63,6 +81,8 @@ class _AgentConfigStorage:
             return []
         if role_id == "role-large":
             return [f"model-{index}" for index in range(model_access.ROLE_MODEL_ACCESS_LIMIT + 25)]
+        if role_id == "role-multi":
+            return ["allowed-enabled", "blocked-enabled", "by-value-only"]
         return None
 
 
@@ -82,6 +102,8 @@ class _RoleManager:
             return _EmptyRole()
         if role_name == "large":
             return type("LargeRole", (), {"id": "role-large"})()
+        if role_name == "multi":
+            return type("MultiRole", (), {"id": "role-multi"})()
         return None
 
 
@@ -207,3 +229,101 @@ async def test_resolve_user_allowed_model_ids_caps_large_role_model_lists(
     allowed = await model_access.resolve_user_allowed_model_ids(user)
 
     assert allowed == [f"model-{index}" for index in range(model_access.ROLE_MODEL_ACCESS_LIMIT)]
+
+
+def _apply_storage_monkeypatches(monkeypatch: pytest.MonkeyPatch, storage: _ModelStorage) -> None:
+    monkeypatch.setattr(
+        "src.infra.agent.model_storage.get_model_storage",
+        lambda: storage,
+    )
+    monkeypatch.setattr(
+        "src.infra.agent.config_storage.get_agent_config_storage",
+        lambda: _AgentConfigStorage(),
+    )
+    monkeypatch.setattr(
+        "src.infra.role.manager.get_role_manager",
+        lambda: _RoleManager(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_default_model_branch_uses_single_batch_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _ModelStorage()
+    _apply_storage_monkeypatches(monkeypatch, storage)
+    user = TokenPayload(sub="user-1", username="tester", roles=["multi"])
+    agent_options = {}
+
+    await validate_agent_model_access(agent_options, user)
+
+    # 单次批量查询解析默认模型，而不是对 allowed 列表逐个 get/get_by_value
+    assert storage.batch_calls == [["allowed-enabled", "blocked-enabled", "by-value-only"]]
+    assert agent_options["model_id"] == "allowed-enabled"
+    assert agent_options["model"] == "openai/gpt-allowed"
+
+
+@pytest.mark.asyncio
+async def test_default_model_branch_falls_through_disabled_id_to_next_allowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _ModelStorage()
+
+    async def _get(model_id: str) -> ModelConfig | None:
+        if model_id == "allowed-enabled":
+            # id 命中但禁用：语义上不得回落到 value 查找，应跳到下一个 allowed
+            return ModelConfig(
+                id=model_id, value="openai/gpt-allowed", label="Allowed", enabled=False
+            )
+        if model_id == "blocked-enabled":
+            return ModelConfig(
+                id=model_id, value="openai/gpt-blocked", label="Blocked", enabled=True
+            )
+        return None
+
+    async def _get_by_value(value: str) -> ModelConfig | None:
+        if value == "openai/gpt-allowed":
+            return ModelConfig(id="allowed-enabled", value=value, label="Allowed", enabled=True)
+        return None
+
+    storage.get = _get  # type: ignore[method-assign]
+    storage.get_by_value = _get_by_value  # type: ignore[method-assign]
+    _apply_storage_monkeypatches(monkeypatch, storage)
+    user = TokenPayload(sub="user-1", username="tester", roles=["multi"])
+    agent_options = {}
+
+    await validate_agent_model_access(agent_options, user)
+
+    assert agent_options["model_id"] == "blocked-enabled"
+    assert agent_options["model"] == "openai/gpt-blocked"
+
+
+@pytest.mark.asyncio
+async def test_default_model_branch_resolves_value_only_entry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _ModelStorage()
+
+    async def _get(model_id: str) -> ModelConfig | None:
+        if model_id in ("allowed-enabled", "blocked-enabled"):
+            # allowed 前两个 id 均未命中，应回落到 value 查找再继续列表
+            return None
+        if model_id == "by-value-only":
+            return None
+        return None
+
+    async def _get_by_value(value: str) -> ModelConfig | None:
+        if value == "by-value-only":
+            return ModelConfig(id="value-only-1", value=value, label="ValueOnly", enabled=True)
+        return None
+
+    storage.get = _get  # type: ignore[method-assign]
+    storage.get_by_value = _get_by_value  # type: ignore[method-assign]
+    _apply_storage_monkeypatches(monkeypatch, storage)
+    user = TokenPayload(sub="user-1", username="tester", roles=["multi"])
+    agent_options = {}
+
+    await validate_agent_model_access(agent_options, user)
+
+    assert agent_options["model_id"] == "value-only-1"
+    assert agent_options["model"] == "by-value-only"

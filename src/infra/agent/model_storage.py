@@ -219,6 +219,57 @@ class ModelStorage:
             models.append(ModelConfig(**doc))
         return models
 
+    async def get_many_by_ids_and_values(
+        self,
+        model_ids_or_values: list[str],
+    ) -> tuple[dict[str, ModelConfig], dict[str, ModelConfig]]:
+        """Batch-resolve models by id or value with a single MongoDB query.
+
+        用于默认模型回退路径（对 allowed 列表的逐个 get/get_by_value 是 N+1）。
+
+        Returns:
+            (by_id, by_value)
+            - by_id: id → 模型（含禁用），与 ``get()`` 语义一致
+            - by_value: value → 该 value 下 order 最小的启用模型，
+              与 ``get_by_value()`` 语义一致
+        """
+        unique: list[str] = []
+        seen: set[str] = set()
+        for value in model_ids_or_values:
+            if value in seen:
+                continue
+            seen.add(value)
+            unique.append(value)
+        if not unique:
+            return {}, {}
+
+        by_id: dict[str, ModelConfig] = {}
+        by_value: dict[str, ModelConfig] = {}
+        # 分批 $in 覆盖全部 id（与逐个遍历的旧语义一致），批大小仅约束单次查询体积
+        for start in range(0, len(unique), MODEL_RESTRICTED_LIST_LIMIT):
+            batch = unique[start : start + MODEL_RESTRICTED_LIST_LIMIT]
+            cursor = (
+                self._get_collection()
+                .find(
+                    {
+                        "$or": [
+                            {"id": {"$in": batch}},
+                            {"value": {"$in": batch}, "enabled": True},
+                        ]
+                    }
+                )
+                .sort("order", 1)
+            )
+            async for doc in cursor:
+                doc.pop("_id", None)
+                model = ModelConfig(**await self._decrypt_doc(doc))
+                if model.id is not None:
+                    by_id.setdefault(model.id, model)
+                value = model.value
+                if model.enabled and value is not None and value in seen:
+                    by_value.setdefault(value, model)
+        return by_id, by_value
+
     async def get(self, model_id: str) -> Optional[ModelConfig]:
         """根据 ID 获取模型配置
 

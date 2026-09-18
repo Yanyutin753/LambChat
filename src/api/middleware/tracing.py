@@ -8,7 +8,7 @@ import time
 import uuid
 
 from fastapi import Request
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.datastructures import MutableHeaders
 
 from src.api.server_timing import (
     begin_server_timing_request,
@@ -45,15 +45,26 @@ def _current_log_context(request: Request | None = None) -> dict[str, str]:
     }
 
 
-class TracingMiddleware(BaseHTTPMiddleware):
+class TracingMiddleware:
     """
     追踪中间件
 
     为每个请求添加追踪 ID 和计时。
     自动将追踪上下文注入到日志中。
+
+    纯 ASGI 实现（避免基类中间件每请求的 task 与流拷贝开销），
+    通过包装 send 在 http.response.start 上注入响应头。
     """
 
-    async def dispatch(self, request: Request, call_next):
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope)
         # request_id 用于单次 HTTP 请求日志关联；trace_id 保留分布式追踪语义。
         request_id = _make_request_id(request.headers.get("X-Request-ID"))
         # 从请求头获取或生成 trace_id（支持分布式追踪）
@@ -70,10 +81,28 @@ class TracingMiddleware(BaseHTTPMiddleware):
 
         # 记录开始时间
         start_time = time.time()
+        status_code_holder: list[int] = []
+        # 首字节时间（响应头写出时刻）：成功日志的 duration 语义与基类中间件版
+        # 基类中间件版一致（≈TTFB），不随流式 body 拖长
+        ttfb_holder: list[float] = []
+
+        async def send_with_headers(message) -> None:
+            if message["type"] == "http.response.start":
+                status_code_holder.append(message["status"])
+                process_time = time.time() - start_time
+                ttfb_holder.append(process_time)
+                headers = MutableHeaders(scope=message)
+                headers["X-Request-ID"] = request_id
+                headers["X-Trace-ID"] = trace_id
+                headers["X-Span-ID"] = span_id
+                headers["X-Process-Time"] = f"{process_time:.3f}s"
+                server_timing = serialize_server_timing()
+                if server_timing:
+                    headers["Server-Timing"] = server_timing
+            await send(message)
 
         try:
-            # 处理请求
-            response = await call_next(request)
+            await self.app(scope, receive, send_with_headers)
         except Exception:
             process_time = time.time() - start_time
             client_host = request.client.host if request.client else "-"
@@ -87,9 +116,9 @@ class TracingMiddleware(BaseHTTPMiddleware):
             )
             raise
         else:
-            # 计算处理时间
-            process_time = time.time() - start_time
-            status_code = getattr(response, "status_code", 0)
+            # 计算处理时间：用首字节时刻（长连 SSE 的 body 流不拖长该值）
+            process_time = ttfb_holder[0] if ttfb_holder else time.time() - start_time
+            status_code = status_code_holder[0] if status_code_holder else 0
             client_host = request.client.host if request.client else "-"
 
             logger.info(
@@ -101,17 +130,6 @@ class TracingMiddleware(BaseHTTPMiddleware):
                 client_host,
                 extra=_current_log_context(request),
             )
-
-            # 添加响应头
-            response.headers["X-Request-ID"] = request_id
-            response.headers["X-Trace-ID"] = trace_id
-            response.headers["X-Span-ID"] = span_id
-            response.headers["X-Process-Time"] = f"{process_time:.3f}s"
-            server_timing = serialize_server_timing()
-            if server_timing:
-                response.headers["Server-Timing"] = server_timing
-
-            return response
         finally:
             # 完成/失败日志需要在清理前写出，才能带上 request_id。
             TraceContext.clear_request_context()

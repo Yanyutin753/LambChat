@@ -108,6 +108,21 @@ class SettingsService:
         # Return default
         return SETTING_DEFINITIONS[key]["default"]
 
+    async def get_item(self, key: str) -> Optional[SettingItem]:
+        """Get a single masked SettingItem for API responses.
+
+        Served from the shared get_all cache (admin + masked), so single-key
+        lookups (GET /settings/{key}) don't hit MongoDB on every request.
+        """
+        if key not in SETTING_DEFINITIONS:
+            return None
+        grouped = await self.get_all(admin_mode=True, mask_sensitive=True)
+        for items in grouped.values():
+            for item in items:
+                if item.key == key:
+                    return item
+        return None
+
     async def get_all(
         self, admin_mode: bool = False, mask_sensitive: bool = True
     ) -> dict[str, list[SettingItem]]:

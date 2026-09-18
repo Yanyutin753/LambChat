@@ -505,7 +505,8 @@ async def test_get_session_events_clamps_requested_max_events() -> None:
 
     events = await storage.get_session_events("session-1", max_events=1)
 
-    assert len(events) == 1
+    # 预算按整轮消费：单轮超预算也完整返回（每个 run 必须完整显示）
+    assert len(events) == 2
 
 
 @pytest.mark.asyncio
@@ -530,7 +531,8 @@ async def test_get_session_events_streams_trace_metadata_cursor() -> None:
 
     events = await storage.get_session_events("session-1", max_events=1)
 
-    assert len(events) == 1
+    # 预算按整轮消费：单轮超预算也完整返回（每个 run 必须完整显示）
+    assert len(events) == 2
 
 
 @pytest.mark.asyncio
@@ -700,3 +702,111 @@ async def test_get_trace_events_clamps_requested_max_events() -> None:
     events = await storage.get_trace_events("trace-1", max_events=1)
 
     assert [event["data"]["content"] for event in events] == ["a"]
+
+
+class _ChunkUsageProbeCollection:
+    """legacy trace 文档（无 token:usage）。"""
+
+    def __init__(self) -> None:
+        self.find_one_calls = []
+
+    async def find_one(self, query, projection):
+        self.find_one_calls.append((query, projection))
+        return None
+
+
+class _ChunkUsageFoundChunkCollection:
+    def __init__(self) -> None:
+        self.find_one_calls = []
+
+    async def find_one(self, query, projection):
+        self.find_one_calls.append((query, projection))
+        if "events.event_type" in query:
+            return {"_id": "chunk-1"}
+        return None
+
+
+class _ChunkUsageMissingChunkCollection:
+    def __init__(self) -> None:
+        self.find_one_calls = []
+
+    async def find_one(self, query, projection):
+        self.find_one_calls.append((query, projection))
+        return None
+
+
+@pytest.mark.asyncio
+async def test_ensure_token_usage_skips_full_read_when_usage_in_chunks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = TraceStorage()
+    storage._collection = _ChunkUsageProbeCollection()
+    storage._chunks_collection = _ChunkUsageFoundChunkCollection()
+
+    async def _fail_read_compat(*args, **kwargs):
+        raise AssertionError("fast path must not read full events")
+
+    async def _fail_replace(*args, **kwargs):
+        raise AssertionError("fast path must not rewrite chunks")
+
+    async def _fail_has_chunks(*args, **kwargs):
+        raise AssertionError("fast path must not probe _has_event_chunks")
+
+    monkeypatch.setattr(TraceStorage, "read_trace_events_compat", _fail_read_compat)
+    monkeypatch.setattr(TraceStorage, "replace_trace_events_with_chunks", _fail_replace)
+    monkeypatch.setattr(TraceStorage, "_has_event_chunks", _fail_has_chunks)
+
+    await storage._ensure_token_usage_event("trace-1")
+
+    # 两次轻量探测：legacy events + chunks，均带 events.event_type 过滤
+    assert len(storage.collection.find_one_calls) == 1
+    legacy_query = storage.collection.find_one_calls[0][0]
+    assert legacy_query["trace_id"] == "trace-1"
+    assert legacy_query["events.event_type"] == "token:usage"
+    assert len(storage.chunks_collection.find_one_calls) == 1
+    chunk_query = storage.chunks_collection.find_one_calls[0][0]
+    assert chunk_query["trace_id"] == "trace-1"
+    assert chunk_query["events.event_type"] == "token:usage"
+
+
+@pytest.mark.asyncio
+async def test_ensure_token_usage_skips_when_usage_in_legacy_events() -> None:
+    storage = TraceStorage()
+    storage._collection = _ChunkUsageFoundChunkCollection()
+    storage._chunks_collection = _ChunkUsageMissingChunkCollection()
+    called = []
+
+    async def _fail_read_compat(*args, **kwargs):
+        called.append("compat")
+        return []
+
+    orig_compat = TraceStorage.read_trace_events_compat
+    TraceStorage.read_trace_events_compat = _fail_read_compat
+    try:
+        await storage._ensure_token_usage_event("trace-1")
+    finally:
+        TraceStorage.read_trace_events_compat = orig_compat
+
+    assert called == []
+    # legacy 命中后不再探测 chunks
+    assert storage.chunks_collection.find_one_calls == []
+
+
+@pytest.mark.asyncio
+async def test_ensure_token_usage_probe_failure_falls_back_to_full_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = TraceStorage()
+    storage._collection = _FakeTraceCollection(has_usage=False)
+    storage._chunks_collection = _ChunkUsageMissingChunkCollection()
+
+    # 探测返回 None（无法判定）→ 走原有全量路径（此处为 legacy pipeline update）
+    async def _undecided_probe(self, trace_id):
+        return None
+
+    monkeypatch.setattr(TraceStorage, "_has_token_usage_event", _undecided_probe)
+
+    await storage._ensure_token_usage_event("trace-1")
+
+    assert len(storage.collection.calls) == 1
+    assert "events.event_type" in storage.collection.calls[0][0]

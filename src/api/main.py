@@ -575,6 +575,11 @@ async def lifespan(app: FastAPI):
         # 再统一取消 lifespan 后台任务，让各任务自己的 finally 在依赖关闭前完成。
         await _cancel_lifespan_background_tasks_for_shutdown(app)
 
+        # 等待会话配置后台写落库，避免退出丢数据
+        from src.api.routes.chat import drain_session_config_tasks
+
+        await drain_session_config_tasks()
+
         # 关闭生图工具复用的 httpx client
         from src.infra.tool.image_generation_tool import close_image_clients
 

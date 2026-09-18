@@ -28,9 +28,6 @@
 
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
-| `NATIVE_MEMORY_QUERY_CONTEXT_ENABLED` | `false` | 启用查询时相关性注入。默认关闭，灰度开启。 |
-| `NATIVE_MEMORY_QUERY_CONTEXT_TOP_K` | `3` | 每轮注入的相关记忆条数上限。 |
-| `NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS` | `1200` | 注入块字符预算。低于最小可渲染值时整个放弃。 |
 
 ## 自进化记忆
 
@@ -62,7 +59,6 @@
 |--------|--------|------|
 | `NATIVE_MEMORY_INDEX_ENABLED` | `true` | 启用记忆搜索索引。 |
 | `NATIVE_MEMORY_INDEX_CACHE_TTL` | `300` | 索引缓存 TTL（秒）。 |
-| `NATIVE_MEMORY_APPEND_MAX_DETAILS` | `8` | 每次记忆追加的最大详情数。 |
 | `NATIVE_MEMORY_MAX_TOKENS` | `2000` | 记忆内容的最大 token 数。 |
 | `NATIVE_MEMORY_INLINE_CONTENT_MAX_CHARS` | `1200` | 内联记忆内容的最大字符数。 |
 
@@ -84,7 +80,6 @@
 | `NATIVE_MEMORY_COMPACTION_MODEL_ID` | _(空)_ | 否 | 后台记忆压缩 agent 使用的管理员模型配置 ID。空 = 默认模型。 |
 | `NATIVE_MEMORY_STORE_NAMESPACE` | `memories` | 否 | LangGraph 存储命名空间。 |
 | `NATIVE_MEMORY_STALENESS_DAYS` | `30` | 否 | 记忆被视为过期的天数。 |
-| `NATIVE_MEMORY_PRUNE_THRESHOLD` | `90` | 否 | 裁剪阈值百分比。 |
 | `NATIVE_MEMORY_RECALL_MIN_SCORE` | `0.3` | 否 | 召回记忆的最低相关性分数（0.0-1.0）。 |
 | `NATIVE_MEMORY_AUTO_COMPACT_ENABLED` | `true` | 否 | 启用后台记忆压缩 agent。 |
 | `NATIVE_MEMORY_AUTO_COMPACT_THRESHOLD` | `40` | 否 | 每个用户触发自动压缩的记忆数量阈值。 |
@@ -112,7 +107,6 @@ NATIVE_MEMORY_EMBEDDING_DIMENSIONS=1024
 NATIVE_MEMORY_MODEL=glm-5.3-flash
 
 # 4. 灰度开查询时注入（观察几天后）
-NATIVE_MEMORY_QUERY_CONTEXT_ENABLED=true
 
 # 5. 按需开自进化（需 ENABLE_SCHEDULED_TASK=true）
 NATIVE_MEMORY_SELF_EVOLVE_ENABLED=true
@@ -135,9 +129,6 @@ NATIVE_MEMORY_EMBEDDING_DIMENSIONS=1024
 NATIVE_MEMORY_MODEL=glm-5.3-flash
 
 # 查询时注入
-NATIVE_MEMORY_QUERY_CONTEXT_ENABLED=true
-NATIVE_MEMORY_QUERY_CONTEXT_TOP_K=3
-NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS=1200
 
 # 自进化
 NATIVE_MEMORY_SELF_EVOLVE_ENABLED=true

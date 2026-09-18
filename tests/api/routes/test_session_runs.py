@@ -59,6 +59,7 @@ class _FakeSessionSnapshotDualWriter:
             events=[{"event_type": "user:message", "data": {"content": "active"}}],
             history_mode="active_user_only",
             stream_run_id="run-active",
+            events_truncated=False,
         )
 
 
@@ -431,9 +432,11 @@ async def test_get_session_events_uses_bounded_history_read(
     )
 
     assert response == {
+        # 整轮预算：run 内事件完整返回，不在路由层二次切片
         "events": [
             {"event_type": "user:message", "data": {"content": "one"}},
             {"event_type": "message:chunk", "data": {"content": "two"}},
+            {"event_type": "done", "data": {}},
         ],
         "session_id": "session-1",
         "run_id": "run-1",
@@ -614,3 +617,72 @@ async def test_get_session_raw_traces_slices_events_in_mongo_projection(
         "limit": 2,
         "events_limit": 3,
     }
+
+
+class _ManyEventsDualWriter:
+    def __init__(self, count: int):
+        self.calls = []
+        self._count = count
+
+    async def read_session_events(self, session_id: str, event_types=None, **kwargs):
+        self.calls.append({"session_id": session_id, "event_types": event_types, **kwargs})
+        return [
+            {"event_type": "message:chunk", "data": {"content": f"e{i}"}, "seq": i}
+            for i in range(1, self._count + 1)
+        ]
+
+
+@pytest.mark.asyncio
+async def test_get_session_events_returns_full_history_when_limit_omitted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session_routes = _load_session_routes_module(monkeypatch)
+    dual_writer_module = sys.modules["src.infra.session.dual_writer"]
+    writer = _ManyEventsDualWriter(count=5)
+    monkeypatch.setattr(session_routes, "SessionManager", lambda: _FakeSessionManager())
+    monkeypatch.setattr(dual_writer_module, "get_dual_writer", lambda: writer)
+
+    response = await session_routes.get_session_events(
+        "session-1",
+        event_types=None,
+        run_id=None,
+        exclude_run_id=None,
+        limit=None,
+        include_active_user_message=False,
+        compact_message_chunks=False,
+        user=SimpleNamespace(sub="user-1"),
+    )
+
+    # 不传 limit = 全量返回（分页单位是 trace 窗口），不施加事件预算
+    assert writer.calls[0]["max_events"] is None
+    assert len(response["events"]) == 5
+    assert response["events_limited"] is False
+    assert response["events_limit"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_session_events_explicit_limit_still_wins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session_routes = _load_session_routes_module(monkeypatch)
+    dual_writer_module = sys.modules["src.infra.session.dual_writer"]
+    writer = _ManyEventsDualWriter(count=5)
+    monkeypatch.setattr(session_routes, "SessionManager", lambda: _FakeSessionManager())
+    monkeypatch.setattr(dual_writer_module, "get_dual_writer", lambda: writer)
+
+    response = await session_routes.get_session_events(
+        "session-1",
+        event_types=None,
+        run_id=None,
+        exclude_run_id=None,
+        limit=2,
+        include_active_user_message=False,
+        compact_message_chunks=False,
+        user=SimpleNamespace(sub="user-1"),
+    )
+
+    assert writer.calls[0]["max_events"] == 3
+    # 整轮预算：显式 limit 由存储层按整轮执行，路由不切片（fake 5 条全回）
+    assert len(response["events"]) == 5
+    assert response["events_limited"] is True
+    assert response["events_limit"] == 2
