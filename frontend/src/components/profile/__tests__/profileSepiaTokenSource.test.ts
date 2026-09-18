@@ -71,11 +71,13 @@ const tailwindConfig = readFileSync(
   "utf8",
 );
 
-test.each([
-  ["success", "var(--theme-success)"],
-  ["error", "var(--theme-error)"],
-  ["warning", "var(--theme-warning)"],
-  ["info", "var(--theme-info)"],
-])("tailwind theme 色板映射语义色 %s", (name, varRef) => {
-  expect(tailwindConfig).toContain(`${name}: "${varRef}"`);
-});
+test.each(["success", "error", "warning", "info"])(
+  "tailwind theme 色板映射语义色 %s",
+  (name) => {
+    expect(tailwindConfig).toMatch(
+      new RegExp(
+        `"?${name}"?\\s*:\\s*"color-mix\\(in srgb, var\\(--theme-${name}\\) calc\\(<alpha-value> \\* 100%\\), transparent\\)"`,
+      ),
+    );
+  },
+);

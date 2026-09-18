@@ -2036,6 +2036,7 @@
     "users": "Manage user accounts and access"
   },
   "notification": {
+    "active": "Active",
     "cancel": "Cancel",
     "collapse": "Hide details",
     "contentLabel": "Content",
@@ -2050,6 +2051,7 @@
     "endTime": "End Time",
     "expand": "Show details",
     "expired": "Expired",
+    "inactive": "Inactive",
     "isActive": "Active",
     "noNotifications": "No notifications yet",
     "save": "Save",

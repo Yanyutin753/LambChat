@@ -2036,6 +2036,7 @@
     "users": "ユーザーアカウントとアクセスの管理"
   },
   "notification": {
+    "active": "有効中",
     "cancel": "キャンセル",
     "collapse": "詳細を隠す",
     "contentLabel": "内容",
@@ -2050,6 +2051,7 @@
     "endTime": "終了時刻",
     "expand": "詳細を表示",
     "expired": "期限切れ",
+    "inactive": "無効",
     "isActive": "有効",
     "noNotifications": "お知らせはありません",
     "save": "保存",

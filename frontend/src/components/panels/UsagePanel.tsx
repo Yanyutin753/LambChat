@@ -25,6 +25,10 @@ import toast from "react-hot-toast";
 import { useFxRates } from "../../hooks/useFxRates";
 import { effectivePromptInput } from "../chat/todayUsageSnapshot";
 import { fmtCostUsd } from "./UsagePanel/formatters";
+import {
+  buildModelLabelMap,
+  withModelDisplayNames,
+} from "./UsagePanel/modelDisplay";
 import { PanelHeader } from "../common/PanelHeader";
 import { PanelFilterSelect } from "../common";
 import { Pagination } from "../common/Pagination";
@@ -42,6 +46,7 @@ import {
 } from "./UsagePanel/index";
 import { usageApi } from "../../services/api/usage";
 import { useAuth } from "../../hooks/useAuth";
+import { useSettingsContext } from "../../contexts/SettingsContext";
 import { Permission } from "../../types";
 import type {
   UsageDashboardResponse,
@@ -66,6 +71,8 @@ export function UsagePanel() {
   const { t, i18n } = useTranslation();
   const fxRates = useFxRates();
   const { hasPermission } = useAuth();
+  const { availableModels } = useSettingsContext();
+  const modelLabels = useMemo(() => buildModelLabelMap(availableModels), [availableModels]);
   const isAdmin = hasPermission(Permission.USAGE_ADMIN);
 
   const [logs, setLogs] = useState<UsageLog[]>([]);
@@ -400,7 +407,7 @@ export function UsagePanel() {
             <RankingList
               title={modelRankingTitle}
               icon={DatabaseZap}
-              items={dashboard.top_models}
+              items={withModelDisplayNames(dashboard.top_models, modelLabels)}
               emptyLabel={t("usage.empty.model")}
               showCacheMetrics
             />
@@ -453,6 +460,7 @@ export function UsagePanel() {
           pageSize={pageSize}
           isAdmin={isAdmin}
           hasAnyCache={hasAnyCache}
+          modelLabels={modelLabels}
         />
       </div>
 

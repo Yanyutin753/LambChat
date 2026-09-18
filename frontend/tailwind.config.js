@@ -53,29 +53,48 @@ export default {
         ],
       },
       colors: {
+        // 裸 var() 字符串无法承载透明度修饰符（border-theme-border/60 会
+        // 静默不生成，边框回落 preflight 默认 #e5e7eb，深色模式呈现白边），
+        // 因此统一走 color-mix + <alpha-value>：无修饰符时 100% 混合等于
+        // 原色，/N 时注入对应透明度（守卫测试 themeColorAlphaSource 盯这条）
         theme: {
-          text: "var(--theme-text)",
-          "text-secondary": "var(--theme-text-secondary)",
-          "text-tertiary": "var(--theme-text-tertiary)",
-          bg: "var(--theme-bg)",
-          "bg-card": "var(--theme-bg-card)",
-          "bg-elevated": "var(--theme-bg-elevated)",
-          "bg-subtle": "var(--theme-bg-subtle)",
-          "bg-code": "var(--theme-bg-code)",
-          border: "var(--theme-border)",
-          "border-hover": "var(--theme-border-hover)",
-          "border-subtle": "var(--theme-border-subtle)",
-          "border-faint": "var(--theme-border-faint)",
-          primary: "var(--theme-primary)",
-          "primary-hover": "var(--theme-primary-hover)",
-          "primary-light": "var(--theme-primary-light)",
-          "toggle-knob": "var(--theme-toggle-knob)",
+          text: "color-mix(in srgb, var(--theme-text) calc(<alpha-value> * 100%), transparent)",
+          "text-secondary":
+            "color-mix(in srgb, var(--theme-text-secondary) calc(<alpha-value> * 100%), transparent)",
+          "text-tertiary":
+            "color-mix(in srgb, var(--theme-text-tertiary) calc(<alpha-value> * 100%), transparent)",
+          bg: "color-mix(in srgb, var(--theme-bg) calc(<alpha-value> * 100%), transparent)",
+          "bg-card":
+            "color-mix(in srgb, var(--theme-bg-card) calc(<alpha-value> * 100%), transparent)",
+          "bg-elevated":
+            "color-mix(in srgb, var(--theme-bg-elevated) calc(<alpha-value> * 100%), transparent)",
+          "bg-subtle":
+            "color-mix(in srgb, var(--theme-bg-subtle) calc(<alpha-value> * 100%), transparent)",
+          "bg-code":
+            "color-mix(in srgb, var(--theme-bg-code) calc(<alpha-value> * 100%), transparent)",
+          border: "color-mix(in srgb, var(--theme-border) calc(<alpha-value> * 100%), transparent)",
+          "border-hover":
+            "color-mix(in srgb, var(--theme-border-hover) calc(<alpha-value> * 100%), transparent)",
+          "border-subtle":
+            "color-mix(in srgb, var(--theme-border-subtle) calc(<alpha-value> * 100%), transparent)",
+          "border-faint":
+            "color-mix(in srgb, var(--theme-border-faint) calc(<alpha-value> * 100%), transparent)",
+          primary:
+            "color-mix(in srgb, var(--theme-primary) calc(<alpha-value> * 100%), transparent)",
+          "primary-hover":
+            "color-mix(in srgb, var(--theme-primary-hover) calc(<alpha-value> * 100%), transparent)",
+          "primary-light":
+            "color-mix(in srgb, var(--theme-primary-light) calc(<alpha-value> * 100%), transparent)",
+          "toggle-knob":
+            "color-mix(in srgb, var(--theme-toggle-knob) calc(<alpha-value> * 100%), transparent)",
           // 语义状态色：CSS 变量在 tokens.css 按三主题各自定义（sepia 降饱和），
           // 漏映射时 text-theme-error 之类会静默不生成（守卫测试盯这条）
-          success: "var(--theme-success)",
-          error: "var(--theme-error)",
-          warning: "var(--theme-warning)",
-          info: "var(--theme-info)",
+          success:
+            "color-mix(in srgb, var(--theme-success) calc(<alpha-value> * 100%), transparent)",
+          error: "color-mix(in srgb, var(--theme-error) calc(<alpha-value> * 100%), transparent)",
+          warning:
+            "color-mix(in srgb, var(--theme-warning) calc(<alpha-value> * 100%), transparent)",
+          info: "color-mix(in srgb, var(--theme-info) calc(<alpha-value> * 100%), transparent)",
         },
       },
     },

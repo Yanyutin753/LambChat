@@ -10,6 +10,9 @@ import {
   usageStatusKind,
   type CostFormatOpts,
 } from "./formatters";
+import { modelDisplayName, type ModelLabelMap } from "./modelDisplay";
+
+const _EMPTY_MODEL_LABELS: ModelLabelMap = new Map();
 
 const _STATUS_PILL_STYLES: Record<
   ReturnType<typeof usageStatusKind>,
@@ -88,11 +91,13 @@ function DesktopTable({
   isAdmin,
   hasAnyCache,
   costOpts,
+  modelLabels,
 }: {
   logs: UsageLog[];
   isAdmin: boolean;
   hasAnyCache: boolean;
   costOpts: CostFormatOpts;
+  modelLabels: ModelLabelMap;
 }) {
   const { t } = useTranslation();
   const desktopGridTemplate = isAdmin
@@ -185,8 +190,8 @@ function DesktopTable({
                     </div>
                   )}
                   <div className={textCellClass}>
-                    <span className="block truncate tabular-nums">
-                      {log.model || "-"}
+                    <span className="block truncate tabular-nums" title={log.model}>
+                      {modelDisplayName(modelLabels, log.model) || "-"}
                     </span>
                   </div>
                   <div className={textCellClass}>
@@ -246,10 +251,12 @@ function TabletRow({
   log,
   isAdmin,
   costOpts,
+  modelLabels,
 }: {
   log: UsageLog;
   isAdmin: boolean;
   costOpts: CostFormatOpts;
+  modelLabels: ModelLabelMap;
 }) {
   const { t } = useTranslation();
   const personaOrTeam = [log.persona_preset_name, log.team_name]
@@ -261,8 +268,11 @@ function TabletRow({
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <code className="min-w-0 truncate font-serif text-12 font-semibold text-theme-text tabular-nums">
-              {log.model || "-"}
+            <code
+              className="min-w-0 truncate font-serif text-12 font-semibold text-theme-text tabular-nums"
+              title={log.model}
+            >
+              {modelDisplayName(modelLabels, log.model) || "-"}
             </code>
             <StatusPill status={log.status} title={log.error_message} />
           </div>
@@ -337,10 +347,12 @@ function MobileCard({
   log,
   isAdmin,
   costOpts,
+  modelLabels,
 }: {
   log: UsageLog;
   isAdmin: boolean;
   costOpts: CostFormatOpts;
+  modelLabels: ModelLabelMap;
 }) {
   const { t } = useTranslation();
   const statusKind = usageStatusKind(log.status);
@@ -366,8 +378,11 @@ function MobileCard({
               <Bot size={16} strokeWidth={2} />
             </div>
             <div className="min-w-0 flex-1">
-              <code className="block truncate font-serif text-13 font-bold text-theme-text tabular-nums">
-                {log.model || "-"}
+              <code
+                className="block truncate font-serif text-13 font-bold text-theme-text tabular-nums"
+                title={log.model}
+              >
+                {modelDisplayName(modelLabels, log.model) || "-"}
               </code>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <span className="usage-soft-pill text-10 font-medium text-theme-text-secondary">
@@ -469,6 +484,7 @@ export function UsageLogsTable({
   pageSize,
   isAdmin,
   hasAnyCache,
+  modelLabels = _EMPTY_MODEL_LABELS,
 }: {
   logs: UsageLog[];
   total: number;
@@ -476,6 +492,8 @@ export function UsageLogsTable({
   pageSize: number;
   isAdmin: boolean;
   hasAnyCache: boolean;
+  /** 模型 value → 展示名映射；未知模型回退原始 ID（悬浮提示可看原值） */
+  modelLabels?: ModelLabelMap;
 }) {
   const { t, i18n } = useTranslation();
   const fxRates = useFxRates();
@@ -515,6 +533,7 @@ export function UsageLogsTable({
         isAdmin={isAdmin}
         hasAnyCache={hasAnyCache}
         costOpts={costOpts}
+        modelLabels={modelLabels}
       />
 
       {/* Tablet rows */}
@@ -526,6 +545,7 @@ export function UsageLogsTable({
               log={log}
               isAdmin={isAdmin}
               costOpts={costOpts}
+              modelLabels={modelLabels}
             />
           ))}
         </div>
@@ -539,6 +559,7 @@ export function UsageLogsTable({
             log={log}
             isAdmin={isAdmin}
             costOpts={mobileCostOpts}
+            modelLabels={modelLabels}
           />
         ))}
       </div>

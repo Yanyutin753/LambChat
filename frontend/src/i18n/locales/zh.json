@@ -2036,6 +2036,7 @@
     "users": "管理用户账户和访问权限"
   },
   "notification": {
+    "active": "生效中",
     "cancel": "取消",
     "collapse": "收起详情",
     "contentLabel": "内容",
@@ -2050,6 +2051,7 @@
     "endTime": "结束时间",
     "expand": "展开详情",
     "expired": "已过期",
+    "inactive": "已停用",
     "isActive": "启用",
     "noNotifications": "暂无通知",
     "save": "保存",
