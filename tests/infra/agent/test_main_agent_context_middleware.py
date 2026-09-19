@@ -553,3 +553,101 @@ async def test_context_compressor_treats_history_as_untrusted_data(monkeypatch) 
     assert "<memory_context>" not in str(captured[-1].content)
     assert "&lt;memory_context&gt;" in str(captured[-1].content)
     assert "<memory_context>" not in result
+
+
+@pytest.mark.asyncio
+async def test_main_agent_context_skips_snapshot_for_fork_subagent() -> None:
+    """fork 子代理（如 context-worker）直接继承父对话历史，无需再写上下文快照。
+
+    不传构造参数即走内置默认名单（DEFAULT_FORK_SUBAGENT_NAMES）。
+    """
+    writes: list[tuple[str, str]] = []
+
+    class _Backend:
+        async def awrite(self, path: str, content: str):
+            writes.append((path, content))
+            return SimpleNamespace(error=None, path=path)
+
+    class _Request(SimpleNamespace):
+        def override(self, **overrides: Any):
+            values = dict(self.__dict__)
+            values.update(overrides)
+            return _Request(**values)
+
+    middleware = MainAgentContextMiddleware(backend=_Backend())
+    request = _Request(
+        runtime=SimpleNamespace(
+            state={
+                "messages": [
+                    HumanMessage(content="Please inspect the auth flow"),
+                    AIMessage(content="I will check the relevant files."),
+                ]
+            }
+        ),
+        state={},
+        tool_call={
+            "id": "call-1",
+            "name": "task",
+            "args": {
+                "subagent_type": "context-worker",
+                "description": "Continue the delegated investigation.",
+            },
+        },
+    )
+    captured: dict[str, Any] = {}
+
+    async def _handler(passed: Any) -> str:
+        captured["args"] = passed.tool_call["args"]
+        return "ok"
+
+    await middleware.awrap_tool_call(request, _handler)
+
+    assert writes == [], "fork dispatch must not write a redundant context snapshot"
+    assert captured["args"]["description"] == "Continue the delegated investigation."
+    assert "Main-Agent Context Snapshot" not in captured["args"]["description"]
+
+
+@pytest.mark.asyncio
+async def test_main_agent_context_skips_snapshot_inside_forked_context() -> None:
+    """fork 内部再派发 task 会被 deepagents 拒绝，不应先写一份注定无用的快照。"""
+    writes: list[tuple[str, str]] = []
+
+    class _Backend:
+        async def awrite(self, path: str, content: str):
+            writes.append((path, content))
+            return SimpleNamespace(error=None, path=path)
+
+    class _Request(SimpleNamespace):
+        def override(self, **overrides: Any):
+            values = dict(self.__dict__)
+            values.update(overrides)
+            return _Request(**values)
+
+    middleware = MainAgentContextMiddleware(backend=_Backend())
+    request = _Request(
+        runtime=SimpleNamespace(
+            state={
+                "_deepagents_forked_context": True,
+                "messages": [HumanMessage(content="inherited history")],
+            }
+        ),
+        state={},
+        tool_call={
+            "id": "call-2",
+            "name": "task",
+            "args": {
+                "subagent_type": "general-purpose",
+                "description": "Delegate further.",
+            },
+        },
+    )
+    captured: dict[str, Any] = {}
+
+    async def _handler(passed: Any) -> str:
+        captured["args"] = passed.tool_call["args"]
+        return "refused"
+
+    await middleware.awrap_tool_call(request, _handler)
+
+    assert writes == []
+    assert captured["args"]["description"] == "Delegate further."

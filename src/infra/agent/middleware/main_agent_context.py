@@ -238,6 +238,12 @@ async def format_messages_as_markdown(messages: list[Any]) -> str:
     return "\n".join(entries)
 
 
+#: 内置 fork 子代理名单（deepagents `mode="fork"`，直接继承父对话历史）。
+#: 作为 MainAgentContextMiddleware 的默认值——fork 派发不需要父上下文快照。
+#: 新增内置 fork 子代理时同步维护；自定义 fork 通过构造参数覆盖。
+DEFAULT_FORK_SUBAGENT_NAMES: tuple[str, ...] = ("context-worker",)
+
+
 class MainAgentContextMiddleware(AgentMiddleware):
     """Writes parent message context before launching a subagent task."""
 
@@ -249,6 +255,9 @@ class MainAgentContextMiddleware(AgentMiddleware):
         keep_recent: int = _DEFAULT_KEEP_RECENT,
         max_log_chars: int = _DEFAULT_MAX_LOG_CHARS,
         run_id_factory: Callable[[], str] | None = None,
+        fork_subagent_names: frozenset[str] | set[str] | tuple[str, ...] = (
+            DEFAULT_FORK_SUBAGENT_NAMES
+        ),
     ) -> None:
         super().__init__()
         self._backend = backend
@@ -258,6 +267,7 @@ class MainAgentContextMiddleware(AgentMiddleware):
         self._run_id_factory = run_id_factory or (lambda: uuid.uuid4().hex[:8])
         self._snapshot_cache: dict[tuple[Any, ...], str] = {}
         self._snapshot_cache_max_size = 128
+        self._fork_subagent_names = frozenset(fork_subagent_names)
 
     def _get_backend(self, runtime: Any) -> Any:
         if callable(self._backend):
@@ -471,6 +481,14 @@ class MainAgentContextMiddleware(AgentMiddleware):
         args = dict(tool_call.get("args") or {})
         description = args.get("description")
         if not isinstance(description, str) or not description.strip():
+            return await handler(request)
+
+        # fork 子代理直接继承父对话历史与状态：快照纯属冗余（且与
+        # 「无需重述上下文」的工具描述自相矛盾）；fork 内部再派发 task
+        # 会被 deepagents 拒绝，同样不值得先写一份注定无人读的快照。
+        if args.get("subagent_type") in self._fork_subagent_names:
+            return await handler(request)
+        if self._state_from_request(request).get("_deepagents_forked_context"):
             return await handler(request)
 
         context_path = await self._write_context_file(request)

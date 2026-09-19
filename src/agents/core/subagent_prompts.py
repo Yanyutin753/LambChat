@@ -122,6 +122,10 @@ SPECIALIZED_SUBAGENT_NAMES: tuple[str, ...] = (
     "context-worker",
 )
 
+#: fork 模式（继承父对话历史）子代理的跳快照名单收敛在
+#: infra 层 `main_agent_context.DEFAULT_FORK_SUBAGENT_NAMES`（中间件默认值），
+#: 新增 fork 子代理时在那里维护。
+
 SPECIALIZED_SUBAGENT_DESCRIPTIONS: dict[str, str] = {
     "codebase-investigator": "Inspect relevant files, call paths, patterns, risks, and tests without editing.",
     "implementation-worker": "Make a small scoped change from a clear work order and verify it.",
