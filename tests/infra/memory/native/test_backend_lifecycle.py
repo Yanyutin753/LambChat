@@ -55,6 +55,79 @@ async def test_delete_removes_store_payload_for_long_memory():
 
 
 @pytest.mark.asyncio
+async def test_delete_scoped_adds_current_project_visibility_clause():
+    seen: dict[str, object] = {}
+
+    class FakeCollection:
+        async def find_one(self, query, _projection=None):
+            seen["find_query"] = query
+            return {"content_storage_mode": "inline"}
+
+        async def delete_one(self, query):
+            seen["delete_query"] = query
+
+            class Result:
+                deleted_count = 1
+
+            return Result()
+
+    backend = NativeMemoryBackend()
+    backend._collection = FakeCollection()
+
+    async def fake_invalidate(_user_id):
+        seen["invalidated"] = True
+
+    backend._invalidate_cache = fake_invalidate  # type: ignore[method-assign]
+
+    result = await backend.delete_scoped("u1", "m1", project_id="proj-1")
+
+    expected_scope = {
+        "$or": [
+            {"scope": {"$in": [None, "user", "reference"]}},
+            {"scope": "project", "project_id": "proj-1"},
+        ]
+    }
+    assert result["success"] is True
+    assert seen["find_query"] == {
+        "user_id": "u1",
+        "memory_id": "m1",
+        **expected_scope,
+    }
+    assert seen["delete_query"] == seen["find_query"]
+    assert seen["invalidated"] is True
+
+
+@pytest.mark.asyncio
+async def test_invalidate_cache_clears_prompt_recall_index(monkeypatch: pytest.MonkeyPatch) -> None:
+    invalidated: list[str] = []
+    published: list[str] = []
+    backend = NativeMemoryBackend()
+    backend._index_cache = {
+        ("u1", "project-1"): (0.0, "old"),
+        ("u2", "project-2"): (0.0, "keep"),
+    }
+
+    async def fake_publish(user_id: str) -> None:
+        published.append(user_id)
+
+    monkeypatch.setattr(
+        "src.infra.agent.middleware.prompt_injection.invalidate_memory_index_snapshot",
+        invalidated.append,
+    )
+    monkeypatch.setattr(
+        "src.infra.memory.distributed.publish_memory_invalidation",
+        fake_publish,
+    )
+
+    await backend._invalidate_cache("u1")
+
+    assert invalidated == ["u1"]
+    assert published == ["u1"]
+    assert ("u1", "project-1") not in backend._index_cache
+    assert ("u2", "project-2") in backend._index_cache
+
+
+@pytest.mark.asyncio
 async def test_maybe_embed_offloads_sync_embedding_function(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

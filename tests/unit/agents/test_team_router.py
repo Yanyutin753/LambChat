@@ -133,9 +133,9 @@ def test_team_router_prompt_includes_tool_progress_guidance():
     lower_prompt = prompt.lower()
 
     assert "tool progress" in lower_prompt
-    assert "before the first tool call" in lower_prompt
-    assert "content may interleave text and tool calls" in lower_prompt
-    assert "do not invent tool results" in lower_prompt
+    assert "before any tool call" in lower_prompt
+    assert "text/tool calls may interleave" in lower_prompt
+    assert "never invent results" in lower_prompt
 
 
 def test_build_team_members_description_skips_disabled():

@@ -15,6 +15,7 @@ from langchain_core.runnables import RunnableConfig
 
 from src.agents.core.base import get_presenter
 from src.agents.core.node_utils import (
+    append_memory_recall_middleware,
     build_human_message,
     build_nested_graph_configurable,
     emit_token_usage,
@@ -41,6 +42,7 @@ from src.agents.core.subagent_prompts import (
     get_memory_guide,
 )
 from src.agents.core.thinking import build_thinking_config
+from src.agents.core.todo_middleware import create_todo_middleware
 from src.agents.fast_agent.prompt import FAST_SYSTEM_PROMPT
 from src.agents.search_agent.prompt import (
     DEFAULT_SYSTEM_PROMPT as SEARCH_DEFAULT_SYSTEM_PROMPT,
@@ -505,6 +507,8 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
     # ── 子代理配置 ──
     subagent_base_url = configurable.get("base_url", "")
+    session_id = state.get("session_id")
+    active_goal = configurable.get("active_goal")
 
     def _build_subagent_middleware(
         subagent_type: str = "general-purpose",
@@ -515,6 +519,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         """Build the middleware stack for a single subagent."""
         mw = [
             *create_retry_middleware(fallback_model=fallback_model, thinking=thinking_config),
+            create_todo_middleware(),
             ToolResultBinaryMiddleware(base_url=subagent_base_url),
             ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir),
             SubagentActivityMiddleware(backend=backend),
@@ -530,6 +535,9 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                 from src.infra.agent.middleware import SandboxWorkspaceMiddleware
 
                 mw.append(SandboxWorkspaceMiddleware(policy_text=subagent_runtime_section))
+        append_memory_recall_middleware(
+            mw, settings.ENABLE_MEMORY, context.user_id, session_id, active_goal
+        )
         if context.deferred_manager is not None:
             from src.infra.agent.middleware import ToolSearchMiddleware
 
@@ -750,6 +758,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     user_middleware = create_retry_middleware(
         fallback_model=fallback_model_value, thinking=thinking_config
     )
+    user_middleware.append(create_todo_middleware())
     user_middleware.insert(
         0, SteerMiddleware(session_id=str(state.get("session_id") or ""), presenter=presenter)
     )
@@ -758,7 +767,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     _image_mw = image_url_middleware_for_mode(image_url_mode)
     if _image_mw:
         user_middleware.append(_image_mw)
-    active_goal = configurable.get("active_goal")
     _prompt_sections = [
         s
         for s in (
@@ -776,6 +784,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             MemoryRecallIndexMiddleware(
                 user_id=context.user_id,
                 session_id=str(state.get("session_id") or "") or None,
+                active_goal=active_goal,
             )
         )
     if sandbox_backend:
@@ -958,7 +967,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
         schedule_memory_extraction(context.user_id)
 
-    session_id = state.get("session_id")
     if (
         context.deferred_manager is not None
         and session_id

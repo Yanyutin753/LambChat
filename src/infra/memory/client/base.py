@@ -146,6 +146,9 @@ class MemoryBackend(ABC):
         memory_types: Optional[list[str]] = None,
         context_filter: Optional[str] = None,
         project_id: Optional[str] = None,
+        *,
+        touch_access: bool = True,
+        enable_rerank: bool = True,
     ) -> dict[str, Any]:
         """Recall memories matching the query."""
         ...

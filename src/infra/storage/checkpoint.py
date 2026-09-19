@@ -589,6 +589,10 @@ async def delete_checkpoints_for_thread(thread_id: str) -> None:
 
 def build_messages_from_trace_events(traces: list[dict]) -> list[object]:
     """Build a minimal chat message list from persisted trace events."""
+    # Lazy import avoids checkpoint → memory → session → checkpoint import
+    # recursion during application startup.
+    from src.infra.memory.control_frames import escape_control_frame_tags
+
     messages: list[object] = []
     for trace in traces:
         assistant_chunks: list[str] = []
@@ -598,7 +602,7 @@ def build_messages_from_trace_events(traces: list[dict]) -> list[object]:
             if event_type == "user:message":
                 content = str(data.get("content") or data.get("message") or "")
                 if content:
-                    messages.append(HumanMessage(content=content))
+                    messages.append(HumanMessage(content=escape_control_frame_tags(content)))
             elif event_type == "message:chunk":
                 content = str(data.get("content") or "")
                 if content:

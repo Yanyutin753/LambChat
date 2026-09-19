@@ -22,11 +22,33 @@ from src.infra.agent import AgentEventProcessor
 from src.infra.async_utils import run_blocking_io
 from src.infra.image_utils import compress_image_bytes_if_needed
 from src.infra.logging import get_logger
+from src.infra.memory.control_frames import escape_control_frame_tags
 
 logger = get_logger(__name__)
 DEFAULT_IMAGE_DOWNLOAD_MAX_BYTES = 25 * 1024 * 1024
 IMAGE_DATA_URL_SPOOL_MAX_MEMORY_BYTES = 256 * 1024
 IMAGE_DATA_URL_ENCODE_CHUNK_BYTES = 192 * 1024
+
+
+def append_memory_recall_middleware(
+    middleware: list[Any],
+    enabled: bool,
+    user_id: str | None,
+    session_id: Any,
+    active_goal: Any,
+) -> None:
+    """Give an Agent or sub-agent the same scoped recall context."""
+    if not enabled or not user_id:
+        return
+    from src.infra.agent.middleware import MemoryRecallIndexMiddleware
+
+    middleware.append(
+        MemoryRecallIndexMiddleware(
+            user_id=user_id,
+            session_id=str(session_id or "") or None,
+            active_goal=active_goal,
+        )
+    )
 
 
 def get_image_download_max_bytes() -> int:
@@ -571,8 +593,9 @@ def build_human_message(
     Returns:
         HumanMessage: 包含文本和附件信息的消息
     """
+    safe_text = escape_control_frame_tags(text)
     if not attachments:
-        return HumanMessage(content=text)
+        return HumanMessage(content=safe_text)
 
     multimodal_images: list[dict] = []
     multimodal_videos: list[dict] = []
@@ -608,7 +631,9 @@ def build_human_message(
         elif url:
             text_summary_attachments.append(attachment)
 
-    enhanced_text = _format_attachment_summary(text, text_summary_attachments)
+    enhanced_text = escape_control_frame_tags(
+        _format_attachment_summary(safe_text, text_summary_attachments)
+    )
     if not multimodal_images and not multimodal_videos:
         return HumanMessage(content=enhanced_text)
 

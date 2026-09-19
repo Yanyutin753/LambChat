@@ -78,6 +78,8 @@ def test_native_memory_guide_preserves_compact_behavior_contract() -> None:
         "30 days",
         "stale",
         "/memories/",
+        "Todo",
+        "session state",
     )
 
     assert all(marker.lower() in NATIVE_MEMORY_GUIDE.lower() for marker in required)
@@ -95,7 +97,8 @@ def test_memory_recall_description_embeds_source_lookup_sop() -> None:
     assert "run_id" in description
     assert "complete `text`" in description
     assert "do not omit" in description.lower()
-    assert "not injected into user messages" in description.lower()
+    assert "bounded hint may be injected" in description.lower()
+    assert "instead of trusting the injected hint" in description.lower()
     assert "call this tool" in description.lower()
 
 
@@ -494,6 +497,47 @@ async def test_memory_recall_without_session_uses_user_scope(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_memory_delete_applies_session_project_scope(monkeypatch):
+    from src.infra.memory import scope as scope_module
+    from src.infra.memory import tools as memory_tools
+
+    seen = {}
+
+    class FakeBackend:
+        async def delete_scoped(self, user_id, memory_id, *, project_id):
+            seen["args"] = (user_id, memory_id)
+            seen["project_id"] = project_id
+            return {"success": True}
+
+        async def delete(self, *_args, **_kwargs):
+            raise AssertionError("scoped deletion must be used when available")
+
+    async def fake_get_backend():
+        return FakeBackend()
+
+    async def fake_resolve(session_id):
+        seen["resolved_session"] = session_id
+        return "proj-delete"
+
+    monkeypatch.setattr(memory_tools, "_get_backend", fake_get_backend)
+    monkeypatch.setattr(scope_module, "resolve_session_project_id", fake_resolve)
+
+    result = json.loads(
+        await memory_tools.memory_delete.coroutine(
+            "memory-1",
+            runtime=_Runtime("u1", session_id="sess-delete"),
+        )
+    )
+
+    assert result == {"success": True}
+    assert seen == {
+        "args": ("u1", "memory-1"),
+        "project_id": "proj-delete",
+        "resolved_session": "sess-delete",
+    }
+
+
+@pytest.mark.asyncio
 async def test_memory_retain_degrades_project_scope_without_project_context(monkeypatch):
     """无项目会话中 agent 显式 scope='project' → 降级 user 存储，不再硬拒绝。
 
@@ -609,7 +653,8 @@ def test_memory_recall_description_within_dedup_budget():
     # 预算：recall 描述瘦身到 900 字符以内（保留全部既有契约标记）
     assert len(description) <= 900
     for marker in (
-        "not injected into user messages",
+        "bounded hint may be injected",
+        "instead of trusting the injected hint",
         "call this tool",
         "complete `text`",
         "do not omit",
@@ -627,3 +672,48 @@ def test_memory_recall_description_documents_scope_isolation():
     description = memory_recall.description
     assert "Scope isolation" in description
     assert "never returned" in description
+
+
+@pytest.mark.asyncio
+async def test_memory_retain_project_context_defaults_to_project_scope(monkeypatch):
+    """生产实测（2026-09-19）：329/330 条 project 类内容全落 user 作用域（agent
+    不传 scope），跨话题互相污染召回。context 为 project* 且会话有项目时，
+    未显式指定 scope 的 retain 自动绑定项目归属。"""
+    from src.infra.memory import scope as scope_module
+    from src.infra.memory import tools as memory_tools
+
+    seen = {}
+
+    class FakeBackend:
+        async def retain(self, *args, **kwargs):
+            seen["kwargs"] = kwargs
+            return {"success": True}
+
+    async def fake_get_backend():
+        return FakeBackend()
+
+    async def fake_resolve(session_id):
+        return "proj-1"
+
+    monkeypatch.setattr(memory_tools, "_get_backend", fake_get_backend)
+    monkeypatch.setattr(scope_module, "resolve_session_project_id", fake_resolve)
+
+    json.loads(
+        await memory_tools.memory_retain.coroutine(
+            "本项目所有依赖安装必须用 pnpm。",
+            context="project_status",
+            runtime=_Runtime("u1", session_id="sess-1"),
+        )
+    )
+    assert seen["kwargs"]["scope"] == "project"
+    assert seen["kwargs"]["project_id"] == "proj-1"
+
+    # 对照：非 project 类内容不自动升级（保持 agent 显式语义）
+    json.loads(
+        await memory_tools.memory_retain.coroutine(
+            "用户偏好简洁中文回复。",
+            context="user_preference",
+            runtime=_Runtime("u1", session_id="sess-1"),
+        )
+    )
+    assert seen["kwargs"]["scope"] is None

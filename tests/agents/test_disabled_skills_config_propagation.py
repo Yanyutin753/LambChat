@@ -207,6 +207,7 @@ async def test_fast_agent_subagent_keeps_functional_middleware(
     monkeypatch.setattr(fast_nodes, "ToolResultBinaryMiddleware", lambda **_kwargs: binary)
     monkeypatch.setattr(fast_nodes, "ArtifactDeliveryMiddleware", lambda **_kwargs: artifact)
     monkeypatch.setattr(fast_nodes, "SubagentActivityMiddleware", lambda **_kwargs: activity)
+    monkeypatch.setattr(fast_nodes.settings, "ENABLE_MEMORY", True)
 
     context = SimpleNamespace(user_id="user-1", skills=[], deferred_manager=None)
     config = {
@@ -225,7 +226,11 @@ async def test_fast_agent_subagent_keeps_functional_middleware(
 
     assert fake_graph.captured_create_kwargs is not None
     subagent_middleware = fake_graph.captured_create_kwargs["subagents"][0]["middleware"]
-    assert subagent_middleware[:3] == [binary, artifact, activity]
+    assert binary in subagent_middleware
+    assert artifact in subagent_middleware
+    assert activity in subagent_middleware
+    assert any(type(item).__name__ == "TodoListMiddleware" for item in subagent_middleware)
+    assert any(type(item).__name__ == "MemoryRecallIndexMiddleware" for item in subagent_middleware)
 
 
 @pytest.mark.asyncio
@@ -523,6 +528,7 @@ async def test_search_agent_subagent_keeps_functional_middleware(
     monkeypatch.setattr(search_nodes, "ToolResultBinaryMiddleware", lambda **_kwargs: binary)
     monkeypatch.setattr(search_nodes, "ArtifactDeliveryMiddleware", lambda **_kwargs: artifact)
     monkeypatch.setattr(search_nodes, "SubagentActivityMiddleware", lambda **_kwargs: activity)
+    monkeypatch.setattr(search_nodes.settings, "ENABLE_MEMORY", True)
 
     async def fake_create_backend_and_prompt(**_kwargs):
         return object(), "system prompt", object(), None, None
@@ -546,7 +552,11 @@ async def test_search_agent_subagent_keeps_functional_middleware(
 
     assert fake_graph.captured_create_kwargs is not None
     subagent_middleware = fake_graph.captured_create_kwargs["subagents"][0]["middleware"]
-    assert subagent_middleware[:3] == [binary, artifact, activity]
+    assert binary in subagent_middleware
+    assert artifact in subagent_middleware
+    assert activity in subagent_middleware
+    assert any(type(item).__name__ == "TodoListMiddleware" for item in subagent_middleware)
+    assert any(type(item).__name__ == "MemoryRecallIndexMiddleware" for item in subagent_middleware)
 
 
 @pytest.mark.asyncio
@@ -677,6 +687,7 @@ async def test_team_role_subagent_prompt_includes_role_instructions_and_skills(
     _patch_common(monkeypatch, team_nodes, fake_graph)
     monkeypatch.setattr(team_nodes.settings, "ENABLE_SANDBOX", False)
     monkeypatch.setattr(team_nodes.settings, "ENABLE_SKILLS", True)
+    monkeypatch.setattr(team_nodes.settings, "ENABLE_MEMORY", True)
     monkeypatch.setattr(team_nodes, "create_persistent_backend", lambda **_kwargs: object())
 
     team = TeamResponse(
@@ -752,6 +763,9 @@ async def test_team_role_subagent_prompt_includes_role_instructions_and_skills(
     assert fake_graph.captured_create_kwargs is not None
     subagent = fake_graph.captured_create_kwargs["subagents"][0]
     assert subagent["system_prompt"] == team_nodes.SUBAGENT_PROMPT
+    assert any(
+        type(item).__name__ == "MemoryRecallIndexMiddleware" for item in subagent["middleware"]
+    )
     sections = _section_prompt(subagent["middleware"])
     assert "你是小红书风格文案写手，语气活泼可爱。" in sections
     assert "### Role Instructions" in sections

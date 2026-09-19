@@ -15,6 +15,7 @@ from langchain_core.runnables import RunnableConfig
 
 from src.agents.core.base import get_presenter
 from src.agents.core.node_utils import (
+    append_memory_recall_middleware,
     build_human_message,
     build_nested_graph_configurable,
     emit_token_usage,
@@ -40,6 +41,7 @@ from src.agents.core.subagent_prompts import (
     get_memory_guide,
 )
 from src.agents.core.thinking import build_thinking_config
+from src.agents.core.todo_middleware import create_todo_middleware
 from src.agents.fast_agent.context import FastAgentContext
 from src.agents.fast_agent.prompt import FAST_SYSTEM_PROMPT
 from src.infra.agent import AgentEventProcessor
@@ -206,10 +208,12 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     # 自定义子代理配置 - 强制将所有中间信息保存到文件
     subagent_base_url = configurable.get("base_url", "")
     subagent_prompt_sections = [s for s in (*persona_sections, memory_guide) if s]
+    active_goal = configurable.get("active_goal")
 
     def _build_subagent_middleware(subagent_type: str) -> list:
         mw = [
             *create_retry_middleware(fallback_model=fallback_model_value, thinking=thinking_config),
+            create_todo_middleware(),
             ToolResultBinaryMiddleware(base_url=subagent_base_url),
             ArtifactDeliveryMiddleware(),
             SubagentActivityMiddleware(backend=backend),
@@ -219,6 +223,9 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
             mw.append(_image_mw)
         if subagent_prompt_sections:
             mw.append(SectionPromptMiddleware(sections=subagent_prompt_sections))
+        append_memory_recall_middleware(
+            mw, settings.ENABLE_MEMORY, context.user_id, session_id, active_goal
+        )
         if context.deferred_manager is not None:
             from src.infra.agent.middleware import ToolSearchMiddleware
 
@@ -280,13 +287,13 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     user_middleware = create_retry_middleware(
         fallback_model=fallback_model_value, thinking=thinking_config
     )
+    user_middleware.append(create_todo_middleware())
     user_middleware.insert(0, SteerMiddleware(session_id=str(session_id), presenter=presenter))
     user_middleware.append(ToolResultBinaryMiddleware(base_url=subagent_base_url))
     user_middleware.append(ArtifactDeliveryMiddleware())
     _image_mw = image_url_middleware_for_mode(image_url_mode)
     if _image_mw:
         user_middleware.append(_image_mw)
-    active_goal = configurable.get("active_goal")
     # Persona, skills, memory guidance, goal, and mode share one authored prompt block.
     _prompt_sections = [
         s
@@ -305,6 +312,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
             MemoryRecallIndexMiddleware(
                 user_id=context.user_id,
                 session_id=str(state.get("session_id") or "") or None,
+                active_goal=active_goal,
             )
         )
     if context.deferred_manager is not None:

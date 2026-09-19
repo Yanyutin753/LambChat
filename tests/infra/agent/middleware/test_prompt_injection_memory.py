@@ -27,7 +27,7 @@ def test_user_snapshot_cache_bounded():
     cap = pi._MEMORY_INDEX_USER_SNAPSHOT_MAX_SIZE
     now = time.monotonic()
     for i in range(cap + 500):
-        pi._MEMORY_INDEX_USER_SNAPSHOTS[f"u{i}"] = (now - i, "idx")
+        pi._MEMORY_INDEX_USER_SNAPSHOTS[(f"u{i}", None)] = (now - i, "idx")
     pi._evict_oldest_user_snapshots()
     assert len(pi._MEMORY_INDEX_USER_SNAPSHOTS) <= cap
 
@@ -36,10 +36,10 @@ def test_user_snapshot_eviction_prefers_expired():
     cap = pi._MEMORY_INDEX_USER_SNAPSHOT_MAX_SIZE
     now = time.monotonic()
     for i in range(cap + 500):
-        pi._MEMORY_INDEX_USER_SNAPSHOTS[f"stale-{i}"] = (now - 3600, "idx")
-    pi._MEMORY_INDEX_USER_SNAPSHOTS["fresh"] = (now, "idx")
+        pi._MEMORY_INDEX_USER_SNAPSHOTS[(f"stale-{i}", None)] = (now - 3600, "idx")
+    pi._MEMORY_INDEX_USER_SNAPSHOTS[("fresh", None)] = (now, "idx")
     pi._evict_oldest_user_snapshots()
-    assert "fresh" in pi._MEMORY_INDEX_USER_SNAPSHOTS
+    assert ("fresh", None) in pi._MEMORY_INDEX_USER_SNAPSHOTS
 
 
 @pytest.mark.asyncio
@@ -103,6 +103,22 @@ async def test_index_frame_keeps_security_fence_without_usage_dup(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_memory_index_guides_todo_and_scope_separation(monkeypatch):
+    async def fake_index(
+        user_id: str, *, session_id: str | None = None, project_id: str | None = None
+    ) -> str:
+        return "<memory_index>x</memory_index>"
+
+    monkeypatch.setattr(pi, "_build_memory_index_for_user", fake_index)
+
+    frame = await pi.build_memory_recall_index_context("u1", session_id="s1", project_id="p1")
+
+    assert "project" in frame.lower()
+    assert "todo" in frame.lower()
+    assert "session state" in frame.lower()
+
+
+@pytest.mark.asyncio
 async def test_memory_index_middleware_attaches_index_only_to_recall_tool(monkeypatch):
     async def fake_index(
         user_id: str, *, session_id: str | None = None, project_id: str | None = None
@@ -148,6 +164,23 @@ async def test_memory_index_middleware_attaches_index_only_to_recall_tool(monkey
     assert other_tool.description == "other description"
     assert updated.messages[0].content == "曼玲粥的皮蛋供应商是谁？"
     assert "<memory_index" not in str(updated.messages[0].content)
+
+
+@pytest.mark.asyncio
+async def test_memory_index_skips_build_when_recall_tool_is_unavailable(monkeypatch):
+    async def unexpected_index(*args, **kwargs):
+        raise AssertionError("memory index must not build without memory_recall")
+
+    monkeypatch.setattr(pi, "build_memory_recall_index_context", unexpected_index)
+    middleware = pi.MemoryRecallIndexMiddleware(user_id="u1", session_id="s1")
+    request = type("Request", (), {"tools": [_tool("other", "Other")], "state": {}})()
+
+    async def handler(updated):
+        return updated
+
+    result = await middleware.awrap_model_call(request, handler)
+
+    assert result is request
 
 
 @pytest.mark.asyncio
@@ -278,3 +311,45 @@ async def test_middleware_resolves_project_once_per_session(monkeypatch):
                 await middleware.awrap_model_call(request, handler)
 
     assert resolve_calls == ["s1"]
+
+
+@pytest.mark.asyncio
+async def test_memory_index_cache_isolated_when_session_project_changes(monkeypatch):
+    calls: list[str | None] = []
+
+    async def fake_index(
+        user_id: str, *, session_id: str | None = None, project_id: str | None = None
+    ) -> str:
+        calls.append(project_id)
+        return f"<memory_index>{project_id}</memory_index>"
+
+    monkeypatch.setattr(pi, "_build_memory_index_full", fake_index)
+    pi._MEMORY_INDEX_SNAPSHOTS.clear()
+
+    first = await pi._build_memory_index_for_user("u1", session_id="s1", project_id="p1")
+    second = await pi._build_memory_index_for_user("u1", session_id="s1", project_id="p2")
+
+    assert "p1" in first
+    assert "p2" in second
+    assert calls == ["p1", "p2"]
+
+
+@pytest.mark.asyncio
+async def test_user_snapshot_cache_isolated_by_project(monkeypatch):
+    calls: list[str | None] = []
+
+    async def fake_index(
+        user_id: str, *, session_id: str | None = None, project_id: str | None = None
+    ) -> str:
+        calls.append(project_id)
+        return f"<memory_index>{project_id}</memory_index>"
+
+    monkeypatch.setattr(pi, "_build_memory_index_full", fake_index)
+    pi._MEMORY_INDEX_USER_SNAPSHOTS.clear()
+
+    first = await pi._build_memory_index_for_user("u1", project_id="p1")
+    second = await pi._build_memory_index_for_user("u1", project_id="p2")
+
+    assert "p1" in first
+    assert "p2" in second
+    assert calls == ["p1", "p2"]

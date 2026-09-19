@@ -10,7 +10,7 @@ from typing import Any, Optional
 import httpx
 
 from src.infra.logging import get_logger
-from src.infra.memory.client.native.content import hydrate_formatted_memory
+from src.infra.memory.client.native.content import hydrate_formatted_memory, sanitize_memory_text
 from src.infra.memory.client.native.models import (
     STOPWORDS,
     char_ngrams,
@@ -24,6 +24,8 @@ from src.kernel.schemas.conversation_history import ConversationSourceRef
 
 NATIVE_MEMORY_RECALL_MAX_RESULTS = 20
 NATIVE_MEMORY_RECALL_QUERY_MAX_CHARS = 2_000
+_VECTOR_SCOPE_OVERFETCH_FACTOR = 4
+_VECTOR_MAX_CANDIDATES = 100
 logger = get_logger(__name__)
 
 
@@ -118,6 +120,7 @@ def build_keyword_clauses(query: str) -> list[dict[str, Any]]:
         clauses.append({"content": {"$regex": escaped, "$options": "i"}})
         clauses.append({"summary": {"$regex": escaped, "$options": "i"}})
         clauses.append({"title": {"$regex": escaped, "$options": "i"}})
+        clauses.append({"tags": {"$regex": escaped, "$options": "i"}})
     return clauses
 
 
@@ -129,13 +132,15 @@ def format_memory(doc: dict, score: float, now: datetime | None = None) -> dict:
     result: dict[str, Any] = {
         "memory_id": doc["memory_id"],
         "user_id": doc.get("user_id"),
-        "text": doc["content"],
-        "preview": doc.get("content", ""),
-        "summary": doc["summary"],
-        "title": doc.get("title", ""),
+        "text": sanitize_memory_text(doc["content"]),
+        "preview": sanitize_memory_text(doc.get("content", "")),
+        "summary": sanitize_memory_text(doc["summary"]),
+        "title": sanitize_memory_text(doc.get("title", "")),
+        "tags": [sanitize_memory_text(tag) for tag in (doc.get("tags") or [])],
         "type": doc["memory_type"],
         "scope": doc.get("scope") or "user",
         "project_id": doc.get("project_id"),
+        "context": doc.get("context"),
         "source": doc.get("source", "manual"),
         "storage_mode": doc.get("content_storage_mode", "inline"),
         "content_store_key": doc.get("content_store_key"),
@@ -143,6 +148,9 @@ def format_memory(doc: dict, score: float, now: datetime | None = None) -> dict:
         "created_at": doc["created_at"].isoformat()
         if isinstance(doc["created_at"], datetime)
         else str(doc["created_at"]),
+        "updated_at": doc["updated_at"].isoformat()
+        if isinstance(doc["updated_at"], datetime)
+        else str(doc["updated_at"]),
         "score": score,
     }
     if staleness_days > staleness_days_cfg:
@@ -165,14 +173,30 @@ def prioritize_sources(memories: list[dict]) -> list[dict]:
         "user": 1,
         "reference": 1,
     }
-    return sorted(
-        memories,
-        key=lambda memory: (
-            source_order.get(str(memory.get("source", "")), 50),
+
+    def ranking_key(memory: dict) -> tuple[int, int, int, float, float]:
+        context = str(memory.get("context") or "")
+        # Project context is the strongest boundary. Within a boundary,
+        # explicit feedback rules outrank generic preferences because they
+        # encode corrections learned from earlier interactions.
+        lesson_rank = 0 if context.startswith("feedback") else 1
+        updated_at = memory.get("updated_at")
+        try:
+            if isinstance(updated_at, datetime):
+                updated_timestamp = updated_at.timestamp()
+            else:
+                updated_timestamp = datetime.fromisoformat(str(updated_at)).timestamp()
+        except (TypeError, ValueError, OverflowError):
+            updated_timestamp = 0.0
+        return (
             scope_order.get(str(memory.get("scope") or "user"), 1),
+            lesson_rank,
+            source_order.get(str(memory.get("source", "")), 50),
             -float(memory.get("score", 0.0) or 0.0),
-        ),
-    )
+            -updated_timestamp,
+        )
+
+    return sorted(memories, key=ranking_key)
 
 
 def is_context_overview_query(query: str) -> bool:
@@ -184,6 +208,25 @@ def is_context_overview_query(query: str) -> bool:
         "what should i know",
         "memory overview",
         "relevant memories",
+        # Keep overview fallback usable for the locales supported by the UI.
+        "记忆概览",
+        "记忆总览",
+        "用户偏好",
+        "项目上下文",
+        "相关记忆",
+        "我需要知道什么",
+        "メモリ概要",
+        "ユーザー設定",
+        "プロジェクトのコンテキスト",
+        "関連する記憶",
+        "메모리 개요",
+        "사용자 선호",
+        "프로젝트 컨텍스트",
+        "관련 기억",
+        "обзор памяти",
+        "предпочтения пользователя",
+        "контекст проекта",
+        "релевантные воспоминания",
     )
     return any(marker in lowered for marker in overview_markers)
 
@@ -213,6 +256,10 @@ async def recent_context_fallback(
                 "title": 1,
                 "memory_type": 1,
                 "source": 1,
+                "tags": 1,
+                "scope": 1,
+                "project_id": 1,
+                "context": 1,
                 "content_storage_mode": 1,
                 "content_store_key": 1,
                 "created_at": 1,
@@ -224,7 +271,10 @@ async def recent_context_fallback(
         .limit(limit)
     )
     docs = await cursor.to_list(length=limit)
-    return [format_memory(doc, 0.0) for doc in docs]
+    # This is a recency-based overview fallback, not a semantic match. Give
+    # selected documents a neutral passing score so the normal relevance gate
+    # does not erase the overview that explicitly requested them.
+    return [format_memory(doc, 1.0) for doc in docs]
 
 
 async def text_search(
@@ -302,6 +352,10 @@ async def keyword_fallback(
         "title": 1,
         "memory_type": 1,
         "source": 1,
+        "tags": 1,
+        "scope": 1,
+        "project_id": 1,
+        "context": 1,
         "content_storage_mode": 1,
         "content_store_key": 1,
         "created_at": 1,
@@ -313,7 +367,10 @@ async def keyword_fallback(
     except TypeError:
         cursor = collection.find(base)
     cursor = cursor.sort("updated_at", -1).limit(limit)
-    return await cursor.to_list(length=limit)
+    docs = await cursor.to_list(length=limit)
+    for doc in docs:
+        doc["score"] = _keyword_match_score(query, doc)
+    return docs
 
 
 async def vector_search(
@@ -353,11 +410,19 @@ async def vector_search(
     qdrant_hits = None
     if not context_prefetch_failed:
         # scope 过滤不在 Qdrant 下推（旧 point 缺 scope 字段的语义不可靠），
-        # 由下方 Mongo hydration 查询做权威过滤；limit 已放大缓解召回不足
+        # 由下方 Mongo hydration 查询做权威过滤；项目检索多取几倍 ANN 候选，
+        # 避免其他项目的近邻占满 limit 后把当前项目的可见结果挤掉。
+        ann_limit = min(
+            max(
+                limit * (_VECTOR_SCOPE_OVERFETCH_FACTOR if project_id else 1),
+                limit,
+            ),
+            _VECTOR_MAX_CANDIDATES,
+        )
         qdrant_hits = await index_search(
             vector=query_vec,
             user_id=user_id,
-            limit=limit,
+            limit=ann_limit,
             memory_types=memory_types,
             context_values=context_values,
         )
@@ -365,18 +430,27 @@ async def vector_search(
         if not qdrant_hits:
             return []
         order = {h.memory_id: h.score for h in qdrant_hits}
-        cursor = backend._collection.find(
-            {
-                "user_id": user_id,
-                "memory_id": {"$in": list(order)},
-                "source": {"$ne": "session_summary"},
-                **build_scope_clause(project_id),
-            },
-            {"embedding": 0},
-        )
-        docs = await cursor.to_list(length=limit)
-        docs.sort(key=lambda d: -order.get(d.get("memory_id"), 0.0))
-        return [format_memory(doc, order.get(doc.get("memory_id"), 1.0)) for doc in docs]
+        hydration_query: dict[str, Any] = {
+            "user_id": user_id,
+            "memory_id": {"$in": list(order)},
+            "source": {"$ne": "session_summary"},
+        }
+        if memory_types:
+            hydration_query["memory_type"] = {"$in": memory_types}
+        if context_filter:
+            hydration_query["context"] = build_context_clause(context_filter)
+        hydration_query.update(build_scope_clause(project_id))
+        cursor = backend._collection.find(hydration_query, {"embedding": 0})
+        docs = await cursor.to_list(length=ann_limit)
+        if docs:
+            docs.sort(key=lambda d: -order.get(d.get("memory_id"), 0.0))
+            return [
+                format_memory(doc, order.get(doc.get("memory_id"), 1.0)) for doc in docs[:limit]
+            ]
+        # Qdrant does not yet enforce the full scope clause (legacy points may
+        # lack scope payloads). If every ANN hit is rejected by authoritative
+        # Mongo hydration, continue through the Mongo vector/cosine fallback so
+        # visible memories are not hidden by another project's nearest vectors.
 
     base: dict[str, Any] = {
         "user_id": user_id,
@@ -390,21 +464,33 @@ async def vector_search(
     base.update(build_scope_clause(project_id))
 
     try:
+        ann_limit = min(
+            max(
+                limit * (_VECTOR_SCOPE_OVERFETCH_FACTOR if project_id else 1),
+                limit,
+            ),
+            _VECTOR_MAX_CANDIDATES,
+        )
         pipeline = [
             {
                 "$vectorSearch": {
                     "index": "native_mem_vector_idx",
                     "path": "embedding",
                     "queryVector": query_vec,
-                    "numCandidates": limit * 5,
-                    "limit": limit,
+                    "numCandidates": ann_limit * 5,
+                    "limit": ann_limit,
                 }
             },
             {"$match": base},
         ]
         cursor = backend._collection.aggregate(pipeline)
-        docs = await cursor.to_list(length=limit)
-        return [format_memory(doc, doc.get("score", 1.0)) for doc in docs]
+        docs = await cursor.to_list(length=ann_limit)
+        if docs:
+            return [format_memory(doc, doc.get("score", 1.0)) for doc in docs[:limit]]
+        # The Atlas stage can spend its candidate budget on vectors that the
+        # post-filter rejects (especially when scope is not pushed down). Let
+        # the bounded Python cosine scan fill visible results instead of
+        # treating the filtered stage as an authoritative empty answer.
     except Exception:
         pass
 
@@ -421,6 +507,10 @@ async def vector_search(
         "summary": 1,
         "memory_type": 1,
         "source": 1,
+        "tags": 1,
+        "scope": 1,
+        "project_id": 1,
+        "context": 1,
         "created_at": 1,
         "updated_at": 1,
         "embedding": 1,
@@ -461,20 +551,59 @@ def _field_overlap_score(query_terms: set[str], text: str) -> float:
     overlap = len(query_terms & field_terms)
     coverage = overlap / max(len(query_terms), 1)
     density = overlap / max(len(field_terms), 1)
-    return coverage * 0.7 + density * 0.3
+    # Query coverage is the gate: matching one frequent word in a six-word
+    # query must not look relevant merely because the candidate field is short.
+    return coverage * (0.7 + density * 0.3)
+
+
+def _keyword_match_score(query: str, doc: dict[str, Any]) -> float:
+    """Score a Mongo regex fallback using the strongest matching field.
+
+    Mongo's ``$text`` metadata score is unavailable in the regex fallback. A
+    bounded lexical score keeps exact tag/title matches useful while ensuring
+    a single common word cannot pass a multi-term query's relevance threshold.
+    """
+    query_terms = _query_terms(query)
+    if not query_terms:
+        return 0.0
+    raw_tags = doc.get("tags") or []
+    tags_text = (
+        " ".join(str(tag) for tag in raw_tags) if isinstance(raw_tags, list) else str(raw_tags)
+    )
+    return max(
+        (
+            _field_overlap_score(query_terms, str(doc.get("title", ""))),
+            _field_overlap_score(query_terms, str(doc.get("summary", ""))),
+            _field_overlap_score(query_terms, str(doc.get("content", ""))),
+            _field_overlap_score(query_terms, tags_text),
+        ),
+        default=0.0,
+    )
 
 
 def local_rerank(query: str, candidates: list[dict], max_results: int) -> list[dict]:
     query_terms = _query_terms(query)
 
-    def score(candidate: dict) -> tuple[float, float, float, float]:
+    def score(candidate: dict) -> tuple[float, float, float, float, float]:
         title_score = _field_overlap_score(query_terms, str(candidate.get("title", "")))
         summary_score = _field_overlap_score(query_terms, str(candidate.get("summary", "")))
         text_score = _field_overlap_score(query_terms, str(candidate.get("text", "")))
+        raw_tags = candidate.get("tags") or []
+        tags_text = (
+            " ".join(str(tag) for tag in raw_tags) if isinstance(raw_tags, list) else str(raw_tags)
+        )
+        tags_score = _field_overlap_score(query_terms, tags_text)
         base_score = float(candidate.get("score", 0.0) or 0.0)
-        blended = base_score + title_score * 0.8 + summary_score * 0.6 + text_score * 0.3
+        blended = (
+            base_score
+            + tags_score * 1.0
+            + title_score * 0.8
+            + summary_score * 0.6
+            + text_score * 0.3
+        )
         return (
             blended,
+            tags_score,
             title_score,
             summary_score,
             text_score,
@@ -497,6 +626,7 @@ async def rerank_candidates(query: str, candidates: list[dict], max_results: int
             part
             for part in (
                 str(candidate.get("title", "")).strip(),
+                "Tags: " + ", ".join(str(tag) for tag in (candidate.get("tags") or [])),
                 str(candidate.get("summary", "")).strip(),
                 str(candidate.get("text", "")).strip(),
             )
@@ -554,6 +684,12 @@ def _memory_score(memory: dict) -> float:
         return float(memory.get("score", 0.0) or 0.0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _recall_score(memory: dict) -> float:
+    # Search backends may omit scores for an already-ranked text hit. Preserve
+    # the historical pass-through behavior while handling malformed values.
+    return 1.0 if "score" not in memory else _memory_score(memory)
 
 
 def rrf_merge(
@@ -666,18 +802,22 @@ async def recall_memories(
         vector_results = []
 
     memories = rrf_merge(text_results, vector_results, max_results * 2)
-
-    if not memories and is_context_overview_query(query):
-        memories = await recent_context_fallback(
-            backend._collection, user_id, max_results * 2, memory_types, context_filter, project_id
-        )
-
-    # rerank 全池排序（不提前截断），让 min_score 过滤后仍有足额候选回填 top-N
+    # Rerank the full pool before filtering so remaining candidates can fill top-N.
     if enable_rerank and memories and len(memories) > 1:
         memories = await rerank_candidates(query, memories, len(memories))
     min_score = getattr(settings, "NATIVE_MEMORY_RECALL_MIN_SCORE", 0.3)
     if min_score > 0:
-        memories = [m for m in memories if m.get("score", 1.0) >= min_score]
+        memories = [m for m in memories if _recall_score(m) >= min_score]
+
+    if not memories and is_context_overview_query(query):
+        # An overview requests recent context, not a semantic match. Retrieve
+        # it after the relevance gate so reranking cannot erase the fallback.
+        # Keep enough candidates for scope/context priority even at max_results=1.
+        overview_limit = max(max_results * 2, 10)
+        memories = await recent_context_fallback(
+            backend._collection, user_id, overview_limit, memory_types, context_filter, project_id
+        )
+
     memories = prioritize_sources(memories)
 
     if memories:

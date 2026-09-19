@@ -47,7 +47,7 @@ def test_v07_empty_ls_and_glob_tools_return_no_files_found() -> None:
     assert globbed.content == "No files found"
 
 
-def test_v07_read_file_uses_dynamic_two_space_line_markers() -> None:
+def test_v07_read_file_uses_range_header_without_line_markers() -> None:
     content = "".join(f"line {line_number}\n" for line_number in range(1, 101))
     middleware = FilesystemMiddleware(backend=_ToolOutputBackend(content))
 
@@ -58,5 +58,7 @@ def test_v07_read_file_uses_dynamic_two_space_line_markers() -> None:
         runtime=_runtime(),
     )
 
-    assert result.content == " 99  line 99\n100  line 100"
+    # deepagents 0.7.14 起 read_file 输出范围头（@@ lines a-b of n @@），
+    # 取代 0.7.13 的逐行两空格行号标记。
+    assert result.content == "@@ lines 99-100 of 100 @@\nline 99\nline 100"
     assert "\t" not in result.content

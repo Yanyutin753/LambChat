@@ -8,6 +8,13 @@ from typing import Any
 from src.kernel.config import settings
 
 
+def sanitize_memory_text(value: Any) -> str:
+    """Escape internal control frames before memory text reaches a model."""
+    from src.infra.memory.control_frames import escape_control_frame_tags
+
+    return escape_control_frame_tags(value)
+
+
 async def maybe_await(value: Any) -> Any:
     if isinstance(value, Awaitable):
         return await value
@@ -119,20 +126,25 @@ async def hydrate_memory_text(backend, doc: dict[str, Any]) -> str:
 
 
 async def hydrate_memory_text_status(backend, doc: dict[str, Any]) -> tuple[str, bool]:
-    preview = str(doc.get("content", ""))
+    preview = sanitize_memory_text(doc.get("content", ""))
     if doc.get("content_storage_mode") != "store" or not doc.get("content_store_key"):
         return preview, True
 
-    item = await store_get(
-        backend,
-        memory_store_namespace(doc["user_id"]),
-        doc["content_store_key"],
-    )
+    try:
+        item = await store_get(
+            backend,
+            memory_store_namespace(doc["user_id"]),
+            doc["content_store_key"],
+        )
+    except Exception:
+        # The inline preview remains useful when the optional content store is
+        # temporarily unavailable; callers can retry hydration later.
+        return preview, False
     if item is None:
         return preview, False
     value = getattr(item, "value", item)
     if isinstance(value, dict) and value.get("text") is not None:
-        return str(value["text"]), True
+        return sanitize_memory_text(value["text"]), True
     return preview, False
 
 

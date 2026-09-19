@@ -19,7 +19,7 @@ from src.infra.memory.client.native.content import (
 )
 from src.infra.memory.client.native.indexing import build_memory_index
 from src.infra.memory.client.native.models import COLLECTION_NAME
-from src.infra.memory.client.native.search import recall_memories
+from src.infra.memory.client.native.search import build_scope_clause, recall_memories
 from src.infra.memory.client.native.summaries import (
     build_index_label,
     llm_enrich_memory,
@@ -82,6 +82,18 @@ class NativeMemoryBackend(MemoryBackend):
         """Invalidate local index cache and publish invalidation to other instances."""
         for key in [k for k in self._index_cache if k[0] == user_id]:
             self._index_cache.pop(key, None)
+        try:
+            # The prompt middleware has a separate navigation-index snapshot
+            # cache. Keep it coherent for writes from tools, extraction,
+            # compaction, and self-evolution alike. This is best-effort so a
+            # cache notification can never fail a durable mutation.
+            from src.infra.agent.middleware.prompt_injection import (
+                invalidate_memory_index_snapshot,
+            )
+
+            invalidate_memory_index_snapshot(user_id)
+        except Exception:
+            pass
         try:
             from src.infra.memory.distributed import publish_memory_invalidation
 
@@ -179,6 +191,7 @@ class NativeMemoryBackend(MemoryBackend):
 
         from src.infra.memory.scope import ScopeResolutionError, resolve_retain_scope
 
+        requested_scope = scope
         try:
             scope, project_id = resolve_retain_scope(scope=scope, project_id=project_id)
         except ScopeResolutionError as exc:
@@ -241,6 +254,8 @@ class NativeMemoryBackend(MemoryBackend):
             "memory_id": 1,
             "memory_type": 1,
             "summary": 1,
+            "scope": 1,
+            "project_id": 1,
             "updated_at": 1,
             "content_storage_mode": 1,
             "content_store_key": 1,
@@ -248,11 +263,24 @@ class NativeMemoryBackend(MemoryBackend):
         }
         if existing_memory_id:
             forced_match = await self._collection.find_one(
-                {"user_id": user_id, "memory_id": existing_memory_id},
+                {
+                    "user_id": user_id,
+                    "memory_id": existing_memory_id,
+                    **build_scope_clause(project_id),
+                },
                 _match_projection,
             )
             if forced_match:
                 existing_match = forced_match
+                # A project session can still update a visible user/reference
+                # memory by ID. Preserve its existing ownership unless the
+                # caller explicitly selected a new scope.
+                if requested_scope is None:
+                    existing_scope = existing_match.get("scope") or "user"
+                    scope = existing_scope
+                    project_id = (
+                        existing_match.get("project_id") if existing_scope == "project" else None
+                    )
         if existing_match is None:
             existing_match = await find_existing_memory_match(
                 fetch_recent=fetch_recent_memories,
@@ -404,6 +432,9 @@ class NativeMemoryBackend(MemoryBackend):
         memory_types: Optional[list[str]] = None,
         context_filter: Optional[str] = None,
         project_id: Optional[str] = None,
+        *,
+        touch_access: bool = True,
+        enable_rerank: bool = True,
     ) -> dict[str, Any]:
         return await recall_memories(
             self,
@@ -411,6 +442,8 @@ class NativeMemoryBackend(MemoryBackend):
             query,
             max_results,
             memory_types,
+            touch_access=touch_access,
+            enable_rerank=enable_rerank,
             context_filter=context_filter,
             project_id=project_id,
         )
@@ -420,11 +453,41 @@ class NativeMemoryBackend(MemoryBackend):
         user_id: str,
         memory_id: str,
     ) -> dict[str, Any]:
-        existing_doc = await self._collection.find_one(
+        return await self._delete_matching_memory(
+            user_id,
+            memory_id,
             {"user_id": user_id, "memory_id": memory_id},
+        )
+
+    async def delete_scoped(
+        self,
+        user_id: str,
+        memory_id: str,
+        *,
+        project_id: Optional[str],
+    ) -> dict[str, Any]:
+        """Delete only memories visible in the current project scope."""
+        return await self._delete_matching_memory(
+            user_id,
+            memory_id,
+            {
+                "user_id": user_id,
+                "memory_id": memory_id,
+                **build_scope_clause(project_id),
+            },
+        )
+
+    async def _delete_matching_memory(
+        self,
+        user_id: str,
+        memory_id: str,
+        query: dict[str, Any],
+    ) -> dict[str, Any]:
+        existing_doc = await self._collection.find_one(
+            query,
             {"content_storage_mode": 1, "content_store_key": 1},
         )
-        result = await self._collection.delete_one({"user_id": user_id, "memory_id": memory_id})
+        result = await self._collection.delete_one(query)
         if result.deleted_count > 0:
             if existing_doc and existing_doc.get("content_storage_mode") == "store":
                 await delete_memory_content(self, user_id, existing_doc.get("content_store_key"))

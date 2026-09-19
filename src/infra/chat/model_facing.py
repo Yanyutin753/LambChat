@@ -9,6 +9,7 @@ from __future__ import annotations
 from src.infra.chat.turn_context import append_turn_context_prompt
 from src.infra.chat.user_message_timestamp import format_user_message_with_timestamp
 from src.infra.goal import GoalSpec
+from src.infra.memory.control_frames import escape_control_frame_tags
 
 
 def append_required_skills_prompt(message: str, enabled_skills: list[str] | None) -> str:
@@ -47,6 +48,9 @@ async def build_model_facing_message(
 
     `include_memory` 仅保留调用兼容性，记忆始终不进入用户消息。
     """
+    # User-authored markup must not be confused with the internal control
+    # frames appended below or stripped by memory extraction.
+    raw_message = escape_control_frame_tags(raw_message)
     if include_timestamp:
         formatted = format_user_message_with_timestamp(raw_message, user_timezone)
     else:

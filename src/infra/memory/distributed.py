@@ -279,9 +279,20 @@ class MemoryPubSub:
 
             if not isinstance(backend, NativeMemoryBackend):
                 return
-            # Invalidate the index cache for this user
-            backend._index_cache.pop(user_id, None)
-            logger.debug("[MemoryPubSub] Invalidated index cache for user %s", user_id)
+            # Cache entries are keyed by (user_id, project_id). Clear every
+            # project variant so a write in one instance cannot leave a stale
+            # project index on another instance.
+            for cache_key in [key for key in backend._index_cache if key[0] == user_id]:
+                backend._index_cache.pop(cache_key, None)
+            # The prompt middleware maintains a separate process-local cache
+            # for the same navigation index; invalidate it without publishing
+            # another Redis event (which would create a feedback loop).
+            from src.infra.agent.middleware.prompt_injection import (
+                invalidate_memory_index_snapshot,
+            )
+
+            invalidate_memory_index_snapshot(user_id)
+            logger.debug("[MemoryPubSub] Invalidated index caches for user %s", user_id)
 
         except Exception as e:
             logger.debug("[MemoryPubSub] Error handling message: %s", e)

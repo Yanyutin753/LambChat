@@ -19,7 +19,7 @@ dependencies = [
     "langchain-mcp-adapters>=0.3.2", # MCP integration
     "langgraph>=1.2.11",
     "langsmith>=0.11.2",
-    "deepagents>=0.7.13,<0.8",
+    "deepagents>=0.7.15,<0.8", # 0.7.15：修复子代理自带 middleware 的 state key 传播（#5553）等
     "deepagents-backends>=0.2.0",
     "tiktoken>=0.14.0",
     # Async & Streaming

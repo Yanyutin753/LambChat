@@ -31,6 +31,8 @@ Model Context Protocol (MCP) 和工具系统设置。
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
 | `ENABLE_CODE_INTERPRETER` | `false` | 启用实验性的 QuickJS 代码解释器供 Agent 运行使用。 |
+| `CODE_INTERPRETER_PTC_TOOLS` | `web_search,web_fetch` | PTC 白名单：允许在解释器内一次执行中批量并发调用的只读工具名，逗号分隔，留空禁用。白名单工具须无人工审批门控与副作用。 |
+| `CODE_INTERPRETER_SNAPSHOT_KEY` | _(空，敏感)_ | REPL 快照 HMAC 签名密钥；留空时从显式配置的 `JWT_SECRET_KEY` 派生（开发环境随机密钥下不签名）。 |
 
 ## 音频转写
 
@@ -63,6 +65,8 @@ ENABLE_SKILLS=true
 
 # 代码解释器（可选）
 ENABLE_CODE_INTERPRETER=false
+# PTC 只读工具白名单（可选；启用解释器后生效）
+CODE_INTERPRETER_PTC_TOOLS=web_search,web_fetch
 
 # 音频转写（可选）
 ENABLE_AUDIO_TRANSCRIPTION=true

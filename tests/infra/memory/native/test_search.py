@@ -5,7 +5,14 @@ import pytest
 from src.infra.memory.client.native.search import (
     build_keyword_clauses,
     format_memory,
+    is_context_overview_query,
+    prioritize_sources,
 )
+
+
+@pytest.mark.parametrize("query", ["记忆概览", "用户偏好", "项目上下文", "相关记忆"])
+def test_context_overview_query_supports_chinese_markers(query):
+    assert is_context_overview_query(query) is True
 
 
 def test_build_keyword_clauses_supports_cjk_queries_without_spaces():
@@ -20,6 +27,12 @@ def test_build_keyword_clauses_supports_english_queries():
 
     assert clauses
     assert any("summary" in clause for clause in clauses)
+
+
+def test_build_keyword_clauses_searches_memory_tags():
+    clauses = build_keyword_clauses("kubernetes")
+
+    assert any("tags" in clause for clause in clauses)
 
 
 def test_format_memory_sets_staleness_warning_for_old_memories():
@@ -41,6 +54,30 @@ def test_format_memory_sets_staleness_warning_for_old_memories():
 
     assert memory["memory_id"] == "m1"
     assert "staleness_warning" in memory
+
+
+def test_prioritize_sources_prefers_newer_equivalent_memory():
+    base = {
+        "user_id": "u1",
+        "content": "The deployment policy is staging first.",
+        "summary": "Deployment policy",
+        "title": "Deployment",
+        "memory_type": "user",
+        "source": "manual",
+        "created_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
+    }
+    older = format_memory(
+        {**base, "memory_id": "older", "updated_at": datetime(2026, 1, 1, tzinfo=timezone.utc)},
+        score=0.8,
+    )
+    newer = format_memory(
+        {**base, "memory_id": "newer", "updated_at": datetime(2026, 2, 1, tzinfo=timezone.utc)},
+        score=0.8,
+    )
+
+    ranked = prioritize_sources([older, newer])
+
+    assert [memory["memory_id"] for memory in ranked] == ["newer", "older"]
 
 
 @pytest.mark.asyncio
@@ -138,6 +175,42 @@ async def test_text_search_without_context_filter_unchanged():
     await text_search(FakeCollection(), None, "u1", "项目约束", 5, None, context_filter=None)
 
     assert "context" not in seen["query"]
+
+
+@pytest.mark.asyncio
+async def test_recent_context_fallback_assigns_passing_overview_score():
+    from src.infra.memory.client.native.search import recent_context_fallback
+
+    now = datetime(2026, 9, 1, tzinfo=timezone.utc)
+
+    class FakeCursor:
+        def sort(self, *_args, **_kwargs):
+            return self
+
+        def limit(self, *_args, **_kwargs):
+            return self
+
+        async def to_list(self, length):
+            return [
+                {
+                    "memory_id": "overview",
+                    "user_id": "u1",
+                    "content": "A durable preference",
+                    "summary": "A durable preference",
+                    "title": "Preference",
+                    "memory_type": "user",
+                    "created_at": now,
+                    "updated_at": now,
+                }
+            ]
+
+    class FakeCollection:
+        def find(self, *_args, **_kwargs):
+            return FakeCursor()
+
+    memories = await recent_context_fallback(FakeCollection(), "u1", 5, None)
+
+    assert memories[0]["score"] >= 0.3
 
 
 @pytest.mark.asyncio
@@ -294,6 +367,85 @@ async def test_vector_search_qdrant_empty_is_authoritative(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_vector_search_qdrant_hidden_hits_fall_back_to_mongo(monkeypatch):
+    """Qdrant hits outside the visible scope must not hide visible Mongo vectors."""
+    from src.infra.memory.client.native import search, vector_store
+    from src.infra.memory.client.native.vector_store import VectorHit
+
+    captured: dict = {}
+
+    async def fake_index_search(**kw):
+        captured.update(kw)
+        return [VectorHit(memory_id="hidden" * 6 + "ab", score=0.99)]
+
+    monkeypatch.setattr(vector_store, "index_search", fake_index_search)
+
+    visible = _mem_doc("a" * 32, "visible", embedding=[1.0, 0.0])
+
+    class ScopeAwareCollection(_FakeCollection):
+        def __init__(self):
+            super().__init__([visible])
+            self.find_count = 0
+
+        def find(self, query, projection=None):
+            self.find_count += 1
+            self.find_queries.append(query)
+            # First call is Qdrant hydration: the hidden hit is filtered out by
+            # the authoritative Mongo scope query. Later calls are the normal
+            # Mongo vector fallback and can see the visible embedding.
+            return _FakeCursor([] if self.find_count == 1 else [visible])
+
+    col = ScopeAwareCollection()
+
+    async def embed(_q):
+        return [1.0, 0.0]
+
+    backend = SimpleNamespace(
+        _maybe_embed=embed,
+        _collection=col,
+        _logger=SimpleNamespace(debug=lambda *a, **k: None),
+    )
+
+    out = await search.vector_search(backend, "u1", "查询", 5, None, project_id="p1")
+
+    assert [d["memory_id"] for d in out] == ["a" * 32]
+    assert col.find_count >= 2
+    assert captured["limit"] == 20  # 4x ANN overfetch for project-scope hydration
+
+
+@pytest.mark.asyncio
+async def test_vector_search_atlas_scope_filter_empty_falls_back_to_cosine(monkeypatch):
+    """An Atlas vector stage filtered empty must still scan visible embeddings."""
+    from src.infra.memory.client.native import search, vector_store
+
+    async def no_qdrant(**kw):
+        return None
+
+    monkeypatch.setattr(vector_store, "index_search", no_qdrant)
+    visible = _mem_doc("a" * 32, "visible", embedding=[1.0, 0.0])
+
+    class AtlasCollection(_FakeCollection):
+        def aggregate(self, pipeline):
+            return _FakeCursor([])  # cross-project ANN hits removed by $match
+
+    col = AtlasCollection([visible])
+
+    async def embed(_q):
+        return [1.0, 0.0]
+
+    backend = SimpleNamespace(
+        _maybe_embed=embed,
+        _collection=col,
+        _logger=SimpleNamespace(debug=lambda *a, **k: None),
+    )
+
+    out = await search.vector_search(backend, "u1", "查询", 5, None, project_id="p1")
+
+    assert [d["memory_id"] for d in out] == ["a" * 32]
+    assert col.find_queries
+
+
+@pytest.mark.asyncio
 async def test_vector_search_qdrant_none_falls_back_to_cosine(monkeypatch):
     from src.infra.memory.client.native import search, vector_store
 
@@ -407,6 +559,7 @@ async def test_vector_search_resolves_context_family_for_qdrant(monkeypatch):
         "project_status",
     ]
     assert col.distinct_queries[0][1]["user_id"] == "u1"
+    assert col.find_queries[0]["context"] == search.build_context_clause("project")
 
 
 @pytest.mark.asyncio

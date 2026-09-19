@@ -235,4 +235,23 @@ SANDBOX_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": False,
         "frontend_visible": True,
     },
+    "CODE_INTERPRETER_PTC_TOOLS": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.TOOLS,
+        "subcategory": "code",
+        "description": "settingDesc.CODE_INTERPRETER_PTC_TOOLS",
+        "default": "web_search,web_fetch",
+        "frontend_visible": True,
+        "depends_on": "ENABLE_CODE_INTERPRETER",
+    },
+    "CODE_INTERPRETER_SNAPSHOT_KEY": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.TOOLS,
+        "subcategory": "code",
+        "description": "settingDesc.CODE_INTERPRETER_SNAPSHOT_KEY",
+        "default": "",
+        "is_sensitive": True,
+        "frontend_visible": True,
+        "depends_on": "ENABLE_CODE_INTERPRETER",
+    },
 }

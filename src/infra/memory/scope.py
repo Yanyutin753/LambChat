@@ -30,6 +30,14 @@ class ScopeResolutionError(ValueError):
     """retain 的 scope 参数无法解析为合法归属。"""
 
 
+def invalidate_session_project_cache(session_id: Optional[str] = None) -> None:
+    """Drop cached project ownership after a session is moved or uncategorized."""
+    if session_id:
+        _SESSION_PROJECT_CACHE.pop(session_id, None)
+    else:
+        _SESSION_PROJECT_CACHE.clear()
+
+
 def resolve_retain_scope(
     *,
     scope: Optional[str],

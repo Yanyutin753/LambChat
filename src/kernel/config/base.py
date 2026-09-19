@@ -285,6 +285,8 @@ class Settings(BaseSettings):
 
     # Code Interpreter Settings
     ENABLE_CODE_INTERPRETER: bool = False
+    CODE_INTERPRETER_PTC_TOOLS: str = "web_search,web_fetch"
+    CODE_INTERPRETER_SNAPSHOT_KEY: str = ""
 
     # Model Pricing Settings（models.dev 价格同步 + USD 汇率换算）
     PRICING_MODELS_DEV_URL: str = "https://models.dev/api.json"
@@ -418,6 +420,12 @@ class Settings(BaseSettings):
     NATIVE_MEMORY_STALENESS_DAYS: int = 30
     NATIVE_MEMORY_INDEX_ENABLED: bool = True
     NATIVE_MEMORY_INDEX_CACHE_TTL: int = 300
+    # Optional write-time injection of top relevant memories into the model
+    # message. Disabled by default; the memory_recall tool remains the source
+    # of detailed evidence.
+    NATIVE_MEMORY_QUERY_CONTEXT_ENABLED: bool = False
+    NATIVE_MEMORY_QUERY_CONTEXT_TOP_K: int = 3
+    NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS: int = 1200
     NATIVE_MEMORY_MODEL: str = ""
     NATIVE_MEMORY_COMPACTION_MODEL_ID: str = ""
     NATIVE_MEMORY_RERANK_MODEL: str = ""

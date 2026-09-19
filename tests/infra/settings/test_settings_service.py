@@ -242,3 +242,26 @@ async def test_refresh_applies_empty_llm_fallback_model_without_restart(
     await config_service.refresh_settings("LLM_FALLBACK_MODEL")
 
     assert settings.LLM_FALLBACK_MODEL == ""
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("key", ["CODE_INTERPRETER_PTC_TOOLS", "CODE_INTERPRETER_SNAPSHOT_KEY"])
+async def test_refresh_applies_empty_code_interpreter_settings(
+    monkeypatch: pytest.MonkeyPatch, key: str
+) -> None:
+    class _RawStorage:
+        async def get_raw(self, requested_key: str):
+            assert requested_key == key
+            return SimpleNamespace(value="")
+
+    import src.kernel.config.service as config_service
+    from src.kernel.config import settings
+
+    monkeypatch.setattr(
+        config_service, "_settings_service", SimpleNamespace(_storage=_RawStorage())
+    )
+    monkeypatch.setattr(settings, key, "previous-value")
+
+    await config_service.refresh_settings(key)
+
+    assert getattr(settings, key) == ""

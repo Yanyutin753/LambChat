@@ -31,6 +31,8 @@ For MCP servers with many tools, deferred loading reduces prompt size by loading
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ENABLE_CODE_INTERPRETER` | `false` | Enable the experimental QuickJS code interpreter for agent runs. |
+| `CODE_INTERPRETER_PTC_TOOLS` | `web_search,web_fetch` | PTC allowlist: read-only tool names the interpreter may batch-call concurrently in one execution, comma-separated; empty disables. Allowlisted tools must have no human-approval gating or side effects. |
+| `CODE_INTERPRETER_SNAPSHOT_KEY` | _(empty, sensitive)_ | HMAC signing key for REPL snapshots; when empty, derived from an explicitly configured `JWT_SECRET_KEY` (unsigned under the dev-only random secret). |
 
 ## Audio Transcription
 
@@ -63,6 +65,8 @@ ENABLE_SKILLS=true
 
 # Code Interpreter (optional)
 ENABLE_CODE_INTERPRETER=false
+# PTC read-only tool allowlist (optional; effective once the interpreter is on)
+CODE_INTERPRETER_PTC_TOOLS=web_search,web_fetch
 
 # Audio Transcription (optional)
 ENABLE_AUDIO_TRANSCRIPTION=true

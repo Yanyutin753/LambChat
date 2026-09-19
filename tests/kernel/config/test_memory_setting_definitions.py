@@ -11,6 +11,20 @@ def test_memory_index_cache_ttl_defaults_aligned() -> None:
     assert definition["default"] == 300
 
 
+def test_memory_query_context_defaults_match_definitions() -> None:
+    configured = Settings(_env_file=None)
+    expected = {
+        "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED": False,
+        "NATIVE_MEMORY_QUERY_CONTEXT_TOP_K": 3,
+        "NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS": 1200,
+    }
+    for name, value in expected.items():
+        assert getattr(configured, name) == value
+        assert SETTING_DEFINITIONS[name]["default"] == value
+        assert SETTING_DEFINITIONS[name]["depends_on"] == "ENABLE_MEMORY"
+        assert SETTING_DEFINITIONS[name]["frontend_visible"] is True
+
+
 def test_memory_embedding_dimensions_default_matches_definition() -> None:
     definition = SETTING_DEFINITIONS["NATIVE_MEMORY_EMBEDDING_DIMENSIONS"]
 

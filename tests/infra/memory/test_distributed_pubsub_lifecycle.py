@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from src.infra.memory import distributed
@@ -44,6 +46,35 @@ async def test_close_memory_pubsub_does_not_create_singleton_when_unused(
     await close_memory_pubsub()
 
     assert distributed._memory_pubsub is None
+
+
+@pytest.mark.asyncio
+async def test_memory_pubsub_invalidates_all_project_snapshots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.memory.client.native.backend import NativeMemoryBackend
+
+    backend = NativeMemoryBackend()
+    backend._index_cache = {
+        ("u1", "project-1"): (0.0, "old-1"),
+        ("u1", "project-2"): (0.0, "old-2"),
+        ("u2", "project-3"): (0.0, "keep"),
+    }
+    invalidated: list[str] = []
+
+    async def fake_get_backend():
+        return backend
+
+    monkeypatch.setattr("src.infra.memory.tools._get_backend", fake_get_backend)
+    monkeypatch.setattr(
+        "src.infra.agent.middleware.prompt_injection.invalidate_memory_index_snapshot",
+        invalidated.append,
+    )
+
+    await distributed.MemoryPubSub()._handle_message({"data": json.dumps({"user_id": "u1"})})
+
+    assert backend._index_cache == {("u2", "project-3"): (0.0, "keep")}
+    assert invalidated == ["u1"]
 
 
 class _FakeStartablePubSub:

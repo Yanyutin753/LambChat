@@ -57,6 +57,7 @@ COMMON_WORKFLOW_MARKERS = (
     "privacy",
     "progress",
     "todo",
+    "write_todos",
 )
 
 
@@ -289,7 +290,8 @@ def test_read_only_specialists_omit_artifact_delivery_policy() -> None:
                 "Handoff Notes",
             ),
         )
-        assert len(prompt) <= 2500
+        # 2560：PROGRESS_POLICY 增加 Todo 触发阈值与显式请求强制条款（+34 字符）。
+        assert len(prompt) <= 2560
 
 
 def test_writer_subagents_keep_artifact_delivery_policy() -> None:

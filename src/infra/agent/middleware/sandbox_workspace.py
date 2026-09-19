@@ -23,6 +23,7 @@ from langchain.agents.middleware.types import (
 from langchain_core.tools import BaseTool
 
 from src.infra.agent.middleware._helpers import _append_system_text_block
+from src.infra.memory.control_frames import escape_control_frame_tags
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ class SandboxWorkspaceMiddleware(AgentMiddleware):
 
     def __init__(self, *, policy_text: str) -> None:
         super().__init__()
-        normalized = policy_text.strip() if policy_text else ""
+        normalized = escape_control_frame_tags(policy_text.strip()) if policy_text else ""
         self._framed = (
             (
                 f"{self._FRAME_MARKER}\n"

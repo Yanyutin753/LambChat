@@ -33,6 +33,7 @@ from src.api.routes.chat_stream_terminal import (
 )
 from src.api.routes.chat_validation import validate_team_agent_request
 from src.api.routes.session import verify_session_ownership
+from src.infra.chat.memory_context import append_memory_context, build_memory_query
 from src.infra.chat.session_baseline import (
     _time_report_due,
     _turn_context_signature,
@@ -362,10 +363,7 @@ async def chat_stream(
     # submit / submit_arq / scheduler 均携带 agent_options）
     apply_response_language(request.agent_options, http_request.headers.get("accept-language"))
 
-    # 模型侧消息只包含本轮上下文，不注入记忆；记忆索引归属 memory_recall
-    # 工具描述，详细内容由模型按需调用工具获取。
-    # - 报时漂移：首轮或超阈值才带时间戳
-    # - goal/自动模式签名去重：目标未变不重复注入
+    # Model-facing assembly includes turn context and optional bounded memory hints.
     time_due = _time_report_due(existing_metadata)
     tc_signature = _turn_context_signature(active_goal, request.auto_mode)
 
@@ -379,6 +377,16 @@ async def chat_stream(
         include_timestamp=time_due,
         last_tc_signature=(existing_metadata or {}).get("prompt_turn_context_signature"),
     )
+    # Existing sessions resolve project scope from persisted metadata; only a
+    # brand-new session may use the request's project assignment.
+    memory_project_id = request.project_id if not request.session_id else None
+    formatted_message = await append_memory_context(
+        formatted_message,
+        user.sub,
+        raw_query=build_memory_query(request.message, active_goal),
+        project_id=memory_project_id,
+        session_id=session_id,
+    )
 
     # 本轮注入状态写回会话元数据（供后续轮次判定）
     prompt_state = {"prompt_turn_context_signature": tc_signature}
@@ -390,20 +398,17 @@ async def chat_stream(
     # 生成 run_id（不管是否排队都需要唯一 ID）
     run_id = _generate_run_id()
 
-    # base_url：生成文件 URL（reveal/产物投递）的前缀。排队执行器脱离请求上下文，
-    # 必须在入队时捕获；优先 APP_BASE_URL，回退 request.base_url
+    # Capture the base URL before queueing so artifact links survive worker dispatch.
     base_url = getattr(settings, "APP_BASE_URL", "").rstrip("/")
     if not base_url:
         base_url = str(getattr(http_request, "base_url", "") or "").rstrip("/")
         if base_url == "http://None":
             base_url = ""
 
-    # 残留插话随旧 run 结束已失效（前端会补发为普通消息），清空后端
-    # 队列避免新 run 首次模型调用重复注入；HITL 恢复不经过这里
+    # Drop stale steer items so a new run does not repeat them.
     from src.infra.task.steer import purge_stale_steers
 
-    # Build task context for queued dispatch (stored in Redis, multi-worker safe)
-    # trace_id is generated early so it can be passed to the executor for trace reuse
+    # Build queued task context; trace_id is generated early for executor reuse.
     from src.infra.writer.present import Presenter, PresenterConfig
 
     _pre_presenter = Presenter(
@@ -925,8 +930,7 @@ async def steer_running_agent(
         SteerItem(id=message_id, content=message, attachments=attachments),
     )
     return {
-        # Keep `status=queued` for existing clients; `outcome` is the
-        # unambiguous protocol field for newer clients.
+        # Keep status=queued for existing clients; outcome is newer protocol field.
         "status": "queued",
         "outcome": "accepted",
         "session_id": session_id,
