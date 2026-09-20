@@ -10,6 +10,7 @@ from src.infra.channel.pubsub import (
     close_channel_config_pubsub,
     publish_channel_config_changed,
 )
+from src.infra.pubsub_hub import namespaced_channel
 
 
 class _FakeHub:
@@ -140,7 +141,7 @@ async def test_publish_channel_config_changed_broadcasts_instance_scoped_payload
 
     assert fake_redis.published == [
         (
-            CHANNEL_CONFIG_CHANNEL,
+            namespaced_channel(CHANNEL_CONFIG_CHANNEL),
             json.dumps(
                 {
                     "instance_id": "instance-a",

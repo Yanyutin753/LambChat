@@ -14,7 +14,7 @@ from fastapi import WebSocket
 
 from src.infra.async_utils.blocking import run_blocking_io
 from src.infra.logging import get_logger
-from src.infra.pubsub_hub import get_pubsub_hub
+from src.infra.pubsub_hub import get_pubsub_hub, namespaced_channel
 from src.infra.storage.redis import create_redis_client
 
 logger = get_logger(__name__)
@@ -341,7 +341,7 @@ class ConnectionManager:
                     await redis_client.srem(self._route_set_key(user_id), instance_id)
                     continue
                 subscriber_count = await redis_client.publish(
-                    self._delivery_channel(instance_id),
+                    namespaced_channel(self._delivery_channel(instance_id)),
                     payload,
                 )
                 published += int(subscriber_count or 0)

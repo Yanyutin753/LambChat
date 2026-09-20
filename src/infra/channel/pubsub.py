@@ -9,7 +9,7 @@ from typing import Any, Optional
 from src.infra.async_utils import run_blocking_io
 from src.infra.channel.registry import get_registry
 from src.infra.logging import get_logger
-from src.infra.pubsub_hub import get_pubsub_hub
+from src.infra.pubsub_hub import get_pubsub_hub, namespaced_channel
 from src.infra.storage.redis import get_redis_client
 from src.kernel.schemas.channel import ChannelType
 
@@ -129,6 +129,6 @@ async def publish_channel_config_changed(
                 "action": action,
             },
         )
-        await redis_client.publish(CHANNEL_CONFIG_CHANNEL, payload)
+        await redis_client.publish(namespaced_channel(CHANNEL_CONFIG_CHANNEL), payload)
     except Exception as e:
         logger.warning("Failed to publish channel config change: %s", e)

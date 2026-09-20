@@ -13,7 +13,7 @@ from typing import Any, Optional
 
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
-from src.infra.pubsub_hub import get_pubsub_hub
+from src.infra.pubsub_hub import get_pubsub_hub, namespaced_channel
 from src.infra.storage.redis import get_redis_client
 
 from ..task.constants import MODEL_CONFIG_CHANNEL
@@ -125,7 +125,7 @@ async def publish_model_config_changed() -> None:
         redis_client = get_redis_client()
         pubsub = get_model_config_pubsub()
         message = await run_blocking_io(json.dumps, {"instance_id": pubsub.instance_id})
-        await redis_client.publish(MODEL_CONFIG_CHANNEL, message)
+        await redis_client.publish(namespaced_channel(MODEL_CONFIG_CHANNEL), message)
         logger.debug(f"[ModelConfigPubSub] Published model config change: {message}")
     except Exception as e:
         logger.warning(f"[ModelConfigPubSub] Failed to publish model config change: {e}")

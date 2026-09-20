@@ -15,7 +15,7 @@ from typing import Any, Dict, Optional
 
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
-from src.infra.pubsub_hub import get_pubsub_hub
+from src.infra.pubsub_hub import get_pubsub_hub, namespaced_channel
 from src.infra.storage.redis import get_redis_client
 
 logger = get_logger(__name__)
@@ -56,7 +56,7 @@ async def publish_memory_invalidation(user_id: str) -> None:
         redis_client = get_redis_client()
         payload = await run_blocking_io(json.dumps, {"user_id": user_id})
         await redis_client.publish(
-            MEMORY_INVALIDATION_CHANNEL,
+            namespaced_channel(MEMORY_INVALIDATION_CHANNEL),
             payload,
         )
     except Exception as e:

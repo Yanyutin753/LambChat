@@ -8,6 +8,7 @@ import pytest
 from src.infra.channel import pubsub as channel_pubsub
 from src.infra.llm import pubsub as llm_pubsub
 from src.infra.memory import distributed as memory_distributed
+from src.infra.pubsub_hub import namespaced_channel
 from src.infra.settings import pubsub as settings_pubsub
 from src.infra.settings.service import SettingsService
 from src.infra.task.constants import MODEL_CONFIG_CHANNEL, SETTINGS_CHANNEL
@@ -149,7 +150,7 @@ async def test_pubsub_publishers_offload_json_serialization(
         await publish_func(kwargs["user_id"])
 
     assert calls == [json.dumps]
-    assert fake_redis.published[0][0] == channel
+    assert fake_redis.published[0][0] == namespaced_channel(channel)
 
 
 @pytest.mark.asyncio
@@ -176,4 +177,4 @@ async def test_settings_service_publish_change_offloads_json_serialization(
     await SettingsService._publish_change("APP_NAME", "LambChat")
 
     assert calls == [json.dumps]
-    assert fake_redis.published[0][0] == SETTINGS_CHANNEL
+    assert fake_redis.published[0][0] == namespaced_channel(SETTINGS_CHANNEL)

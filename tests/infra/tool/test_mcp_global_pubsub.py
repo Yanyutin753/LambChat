@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 import pytest_asyncio
 
+from src.infra.pubsub_hub import namespaced_channel
 from src.infra.tool import mcp_global
 
 
@@ -376,7 +377,7 @@ async def test_invalidate_global_cache_publishes_cross_instance_notification(
 
     assert fake_redis.published == [
         (
-            mcp_global.MCP_CACHE_INVALIDATE_CHANNEL,
+            namespaced_channel(mcp_global.MCP_CACHE_INVALIDATE_CHANNEL),
             json.dumps(
                 {
                     "instance_id": "instance-a",

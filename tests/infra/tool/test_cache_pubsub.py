@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from src.infra.pubsub_hub import namespaced_channel
 from src.infra.tool import cache_pubsub as cache_pubsub_module
 from src.infra.tool.cache_pubsub import (
     TOOL_CACHE_INVALIDATION_CHANNEL,
@@ -99,7 +100,7 @@ async def test_publish_tool_cache_invalidation_broadcasts_cache_key_and_user(
 
     assert fake_redis.published == [
         (
-            TOOL_CACHE_INVALIDATION_CHANNEL,
+            namespaced_channel(TOOL_CACHE_INVALIDATION_CHANNEL),
             json.dumps(
                 {
                     "instance_id": "instance-a",

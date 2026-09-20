@@ -9,6 +9,7 @@ import os
 from typing import Any, Optional
 
 from src.infra.async_utils import run_blocking_io
+from src.infra.pubsub_hub import namespaced_channel
 from src.infra.settings.storage import (
     RESTART_REQUIRED_SETTINGS,
     SETTING_DEFINITIONS,
@@ -341,7 +342,7 @@ class SettingsService:
             instance_id = get_settings_pubsub().instance_id
             payload = await run_blocking_io(json.dumps, {"key": key, "instance_id": instance_id})
             await redis_client.publish(
-                SETTINGS_CHANNEL,
+                namespaced_channel(SETTINGS_CHANNEL),
                 payload,
             )
         except Exception as e:

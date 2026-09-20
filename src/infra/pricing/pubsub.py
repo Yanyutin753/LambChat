@@ -14,7 +14,7 @@ from typing import Any, Optional
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
 from src.infra.pricing.service import reset_runtime_cache
-from src.infra.pubsub_hub import get_pubsub_hub
+from src.infra.pubsub_hub import get_pubsub_hub, namespaced_channel
 from src.infra.storage.redis import get_redis_client
 from src.infra.task.constants import PRICING_CACHE_CHANNEL
 
@@ -86,7 +86,7 @@ async def publish_pricing_cache_invalidate() -> None:
         redis_client = get_redis_client()
         pubsub = get_pricing_pubsub()
         message = await run_blocking_io(json.dumps, {"instance_id": pubsub.instance_id})
-        await redis_client.publish(PRICING_CACHE_CHANNEL, message)
+        await redis_client.publish(namespaced_channel(PRICING_CACHE_CHANNEL), message)
         logger.debug(f"[PricingPubSub] published cache invalidate: {message}")
     except Exception as e:
         logger.warning(f"[PricingPubSub] 发布失效广播失败: {e}")

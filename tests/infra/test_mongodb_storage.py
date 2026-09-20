@@ -5,6 +5,7 @@ import json
 
 import pytest
 
+from src.infra.pubsub_hub import namespaced_channel
 from src.infra.storage import mongodb
 from src.infra.storage.mongodb import ApprovalResponse, ApprovalStorage, MongoDBStorage
 
@@ -523,7 +524,7 @@ async def test_notify_approval_response_publishes_approval_id(
 
     assert published == [
         (
-            mongodb.APPROVAL_RESPONSE_CHANNEL,
+            namespaced_channel(mongodb.APPROVAL_RESPONSE_CHANNEL),
             '{"approval_id": "approval-1"}',
         )
     ]
@@ -554,4 +555,4 @@ async def test_notify_approval_response_offloads_json_serialization(
     )
 
     assert calls == [json.dumps]
-    assert published[0][0] == mongodb.APPROVAL_RESPONSE_CHANNEL
+    assert published[0][0] == namespaced_channel(mongodb.APPROVAL_RESPONSE_CHANNEL)

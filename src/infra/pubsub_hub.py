@@ -27,6 +27,25 @@ _DEFAULT_MAX_HANDLER_TASKS = 128
 _DEFAULT_MAX_MESSAGE_BYTES = 256 * 1024
 
 
+def channel_namespace() -> str:
+    """环境级 Redis pub/sub 命名空间（按 MONGODB_DB 派生）。
+
+    Redis pub/sub 通道是实例级全局：SELECT db 隔离不了 PUBLISH/SUBSCRIBE。
+    生产（redis db3）与 staging（redis db6）共用同一 Redis 实例时，裸通道名
+    会让取消 / 缓存失效等广播跨环境串台（2026-09-20 生产实测：staging worker
+    收到并处理了生产 run 的 cancel 信号）。
+    """
+    from src.kernel.config import settings
+
+    db = getattr(settings, "MONGODB_DB", None) or "agent_state"
+    return f"lambchat:{db}"
+
+
+def namespaced_channel(channel: str) -> str:
+    """给 pub/sub 通道名加环境前缀；订阅（hub.subscribe）与发布两侧必须一致使用。"""
+    return f"{channel_namespace()}:{channel}"
+
+
 def create_redis_client(*, isolated_pool: bool = False, socket_timeout: Any = None) -> Any:
     """Create Redis client lazily to avoid import cycles at module import time."""
     from src.infra.storage.redis import create_redis_client as _create_redis_client
@@ -70,9 +89,9 @@ class RedisPubSubHub:
         self._max_message_bytes = max(1, int(max_message_bytes))
 
     def subscribe(self, channel: str, handler: PubSubHandler) -> str:
-        """Register a handler for a Redis channel."""
+        """Register a handler for a Redis channel (auto-prefixed per environment)."""
         token = uuid.uuid4().hex
-        self._subscriptions[channel][token] = handler
+        self._subscriptions[namespaced_channel(channel)][token] = handler
         if self._running:
             self._schedule_resubscribe()
         return token

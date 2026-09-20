@@ -14,7 +14,7 @@ from pymongo import ReturnDocument
 
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
-from src.infra.pubsub_hub import get_pubsub_hub
+from src.infra.pubsub_hub import get_pubsub_hub, namespaced_channel
 from src.infra.storage.base import StorageBase
 from src.infra.storage.redis import get_redis_client
 from src.infra.utils.datetime import utc_now
@@ -472,7 +472,7 @@ async def notify_approval_response(approval_id: str, response: ApprovalResponse)
         redis_client = get_redis_client()
         payload = await run_blocking_io(json.dumps, {"approval_id": approval_id})
         await redis_client.publish(
-            APPROVAL_RESPONSE_CHANNEL,
+            namespaced_channel(APPROVAL_RESPONSE_CHANNEL),
             payload,
         )
     except Exception as e:

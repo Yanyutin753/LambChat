@@ -4,7 +4,7 @@ import pytest
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from src.infra import pubsub_hub as pubsub_hub_module
-from src.infra.pubsub_hub import RedisPubSubHub
+from src.infra.pubsub_hub import RedisPubSubHub, namespaced_channel
 
 
 class FakePubSub:
@@ -79,8 +79,8 @@ async def test_hub_uses_one_pubsub_connection_for_multiple_channels(
 
     assert fake_redis.pubsub_calls == 1
     assert fake_redis.pubsubs[0].subscribed == [
-        "settings:changed",
-        "task:cancel",
+        namespaced_channel("settings:changed"),
+        namespaced_channel("task:cancel"),
     ]
     assert create_calls == [(True, None)]
 
@@ -118,7 +118,7 @@ async def test_hub_dispatches_message_only_to_matching_channel_handlers(
     await pubsub.push(
         {
             "type": "message",
-            "channel": "task:cancel",
+            "channel": namespaced_channel("task:cancel"),
             "data": '{"run_id":"run-123"}',
         }
     )
@@ -159,9 +159,13 @@ async def test_slow_async_handler_does_not_block_later_pubsub_messages(
     pubsub = fake_redis.pubsubs[0]
     await pubsub.subscribed_event.wait()
 
-    await pubsub.push({"type": "message", "channel": "task:cancel", "data": "slow"})
+    await pubsub.push(
+        {"type": "message", "channel": namespaced_channel("task:cancel"), "data": "slow"}
+    )
     await asyncio.sleep(0)
-    await pubsub.push({"type": "message", "channel": "settings:changed", "data": "fast"})
+    await pubsub.push(
+        {"type": "message", "channel": namespaced_channel("settings:changed"), "data": "fast"}
+    )
 
     await asyncio.wait_for(fast_handled.wait(), timeout=1)
     assert received == ["slow:slow", "fast:fast"]
@@ -195,8 +199,12 @@ async def test_hub_applies_backpressure_to_handler_tasks(
     pubsub = fake_redis.pubsubs[0]
     await pubsub.subscribed_event.wait()
 
-    await pubsub.push({"type": "message", "channel": "task:cancel", "data": "one"})
-    await pubsub.push({"type": "message", "channel": "task:cancel", "data": "two"})
+    await pubsub.push(
+        {"type": "message", "channel": namespaced_channel("task:cancel"), "data": "one"}
+    )
+    await pubsub.push(
+        {"type": "message", "channel": namespaced_channel("task:cancel"), "data": "two"}
+    )
     await asyncio.sleep(0)
     await asyncio.sleep(0)
 
@@ -233,7 +241,9 @@ async def test_hub_drops_oversized_messages_before_handler_fanout(
     pubsub = fake_redis.pubsubs[0]
     await pubsub.subscribed_event.wait()
 
-    await pubsub.push({"type": "message", "channel": "settings:changed", "data": "too-large"})
+    await pubsub.push(
+        {"type": "message", "channel": namespaced_channel("settings:changed"), "data": "too-large"}
+    )
     await asyncio.sleep(0)
     await asyncio.sleep(0)
 
@@ -301,8 +311,8 @@ async def test_hub_resubscribes_without_logging_error_for_intentional_reconnect(
     await asyncio.wait_for(_wait_until(_resubscribed), timeout=1)
 
     assert fake_redis.pubsubs[1].subscribed == [
-        "settings:changed",
-        "task:cancel",
+        namespaced_channel("settings:changed"),
+        namespaced_channel("task:cancel"),
     ]
     assert "Pub/sub hub listener error: Connection closed by server." not in caplog.text
 
@@ -323,8 +333,8 @@ def test_hub_reports_subscription_snapshot() -> None:
         "channel_count": 2,
         "subscription_count": 3,
         "channels": {
-            "settings:changed": 1,
-            "task:cancel": 2,
+            namespaced_channel("settings:changed"): 1,
+            namespaced_channel("task:cancel"): 2,
         },
     }
 

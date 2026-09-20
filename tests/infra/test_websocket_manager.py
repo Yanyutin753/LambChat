@@ -6,6 +6,7 @@ import json
 import pytest
 
 import src.infra.websocket as websocket_module
+from src.infra.pubsub_hub import namespaced_channel
 from src.infra.websocket import ConnectionManager
 
 
@@ -240,7 +241,7 @@ async def test_send_to_user_uses_instance_targeted_channels(
     assert sent == 2
     assert fake_redis.published == [
         (
-            "ws:deliver:instance-a",
+            namespaced_channel("ws:deliver:instance-a"),
             json.dumps(
                 {
                     "user_id": "user-1",
@@ -250,7 +251,7 @@ async def test_send_to_user_uses_instance_targeted_channels(
             ),
         ),
         (
-            "ws:deliver:instance-b",
+            namespaced_channel("ws:deliver:instance-b"),
             json.dumps(
                 {
                     "user_id": "user-1",
@@ -397,8 +398,8 @@ async def test_send_to_user_uses_route_set_without_scanning_keys(
 
     assert sent == 2
     assert [channel for channel, _ in fake_redis.published] == [
-        "ws:deliver:instance-a",
-        "ws:deliver:instance-b",
+        namespaced_channel("ws:deliver:instance-a"),
+        namespaced_channel("ws:deliver:instance-b"),
     ]
     assert fake_redis.scan_calls == 0
 
@@ -430,7 +431,7 @@ async def test_send_to_user_limits_route_set_fanout(
 
     assert sent == websocket_module.WS_ROUTE_SCAN_LIMIT
     assert len(fake_redis.published) == websocket_module.WS_ROUTE_SCAN_LIMIT
-    assert fake_redis.published[-1][0] == (
+    assert fake_redis.published[-1][0] == namespaced_channel(
         f"ws:deliver:instance-{websocket_module.WS_ROUTE_SCAN_LIMIT - 1:03d}"
     )
     assert fake_redis.scan_calls == 0
