@@ -21,3 +21,15 @@ test("dashboard fetch uses the same local date window as the logs fetch", () => 
     source.match(/computeDateRange\(period\)/g)?.length,
   ).toBeGreaterThanOrEqual(2);
 });
+
+test("usage panel defaults to week so the dashboard aggregate hits the started_at index", () => {
+  const source = readFileSync(
+    resolve(currentDir, "../../UsagePanel.tsx"),
+    "utf8",
+  );
+
+  // 默认 all 会让后端 $match 为空，usage_logs 的 6 个 started_at 索引全部失效，
+  // 变成每次打开面板全表扫描（COLLSCAN 1w+ 文档、140-160ms，随数据量线性变差）。
+  // 默认 week 后 $match 走 started_at_-1 索引；"全部"仍是用户可选项。
+  expect(source).toMatch(/useState<string>\("week"\)/);
+});

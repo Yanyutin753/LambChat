@@ -384,12 +384,8 @@ export function MessagePartRenderer({
     if (
       part.name === "scheduled_task_create" ||
       part.name === "scheduled_task_list" ||
-      part.name === "scheduled_task_get" ||
       part.name === "scheduled_task_update" ||
-      part.name === "scheduled_task_pause" ||
-      part.name === "scheduled_task_resume" ||
-      part.name === "scheduled_task_delete" ||
-      part.name === "scheduled_task_run"
+      part.name === "scheduled_task_delete"
     ) {
       return (
         <ScheduledTaskItem

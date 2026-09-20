@@ -1,4 +1,4 @@
-"""scheduled_task_list and scheduled_task_get tool implementations."""
+"""scheduled_task_list tool implementation (single-task details via task_id)."""
 
 import sys
 from typing import TYPE_CHECKING, Annotated, Any, Literal, Optional
@@ -84,40 +84,5 @@ async def scheduled_task_list(
             "success": True,
             "tasks": items,
             "total": len(items),
-        }
-    )
-
-
-@tool
-async def scheduled_task_get(
-    task_id: Annotated[str, "ID of the scheduled task"],
-    runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> str:
-    """Get detailed information about a specific scheduled task, including its
-    last run status, total runs, and trigger configuration."""
-    user_id = get_user_id_from_runtime(runtime)
-    if not user_id:
-        return _json({"error": "No user context available"})
-    error = await _permission_error(user_id, Permission.SCHEDULED_TASK_READ.value)
-    if error:
-        return _json(error)
-
-    service = ScheduledTaskService()
-    try:
-        task = await service.get_task(task_id)
-    except Exception as e:
-        return _json({"error": f"Failed to get task: {e}"})
-
-    if task is None:
-        return _json({"error": f"Task '{task_id}' not found"})
-
-    if task.owner_id != user_id:
-        return _json({"error": f"Task '{task_id}' not found"})
-
-    resp = ScheduledTaskService.to_response(task)
-    return _json(
-        {
-            "success": True,
-            "task": resp.model_dump(mode="json"),
         }
     )

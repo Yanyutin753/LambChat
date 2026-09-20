@@ -1,0 +1,5 @@
+# 部署时本地生成的运行时产物，勿提交
+downloaded-dashboards/
+profiles/
+bin/
+.grafana-admin-password

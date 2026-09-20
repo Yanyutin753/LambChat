@@ -1,4 +1,4 @@
-"""scheduled_task_delete and scheduled_task_run tool implementations."""
+"""scheduled_task_delete tool implementation."""
 
 import sys
 from typing import TYPE_CHECKING, Annotated, Any
@@ -58,43 +58,5 @@ async def scheduled_task_delete(
             "action": "deleted",
             "task_id": task_id,
             "message": f"Task '{task.name}' deleted.",
-        }
-    )
-
-
-@tool
-async def scheduled_task_run(
-    task_id: Annotated[str, "ID of the task to trigger manually"],
-    runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> str:
-    """Manually trigger a scheduled task to run once immediately, regardless of its schedule.
-    Useful for testing or ad-hoc execution."""
-    user_id = get_user_id_from_runtime(runtime)
-    if not user_id:
-        return _json({"error": "No user context available"})
-    error = await _permission_error(user_id, Permission.SCHEDULED_TASK_WRITE.value)
-    if error:
-        return _json(error)
-
-    service = ScheduledTaskService()
-    task = await service.get_task(task_id)
-    if task is None:
-        return _json({"error": f"Task '{task_id}' not found"})
-    if task.owner_id != user_id:
-        return _json({"error": f"Task '{task_id}' not found"})
-
-    try:
-        result = await service.run_task_now(task_id)
-    except Exception as e:
-        return _json({"error": f"Failed to run task: {e}"})
-
-    return _json(
-        {
-            "success": True,
-            "action": "triggered",
-            "task_id": task_id,
-            "name": task.name,
-            "result": result,
-            "message": f"Task '{task.name}' triggered manually.",
         }
     )

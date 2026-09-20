@@ -1,0 +1,94 @@
+# Beyla: eBPF 零侵入采集 LambChat 生产 Pod 的 HTTP RED 指标（按路由的 QPS/错误/耗时）
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: beyla
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: beyla-monitoring
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: beyla-monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: beyla-monitoring
+subjects:
+  - kind: ServiceAccount
+    name: beyla
+    namespace: monitoring
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: beyla
+  namespace: monitoring
+  labels:
+    app: beyla
+spec:
+  selector:
+    matchLabels:
+      app: beyla
+  template:
+    metadata:
+      labels:
+        app: beyla
+    spec:
+      serviceAccountName: beyla
+      hostNetwork: true
+      hostPID: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: beyla
+          image: grafana/beyla:3.36.0
+          securityContext:
+            privileged: true
+          env:
+            # 改成 LambChat 实际监听端口：仓库清单默认 8000；
+            # hostNetwork 分片部署（如 a/b 双 Pod 8011/8012）填 "8011,8012"
+            - name: BEYLA_OPEN_PORT
+              value: "8000"
+            - name: BEYLA_PROMETHEUS_PORT
+              value: "9099"
+            - name: BEYLA_LOG_LEVEL
+              value: "info"
+          ports:
+            - containerPort: 9099
+          volumeMounts:
+            - name: sys-kernel-debug
+              mountPath: /sys/kernel/debug
+            - name: sys-kernel-btf
+              mountPath: /sys/kernel/btf
+              readOnly: true
+            - name: sys-fs-cgroup
+              mountPath: /sys/fs/cgroup
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 768Mi
+      volumes:
+        - name: sys-kernel-debug
+          hostPath:
+            path: /sys/kernel/debug
+            type: DirectoryOrCreate
+        - name: sys-kernel-btf
+          hostPath:
+            path: /sys/kernel/btf
+        - name: sys-fs-cgroup
+          hostPath:
+            path: /sys/fs/cgroup

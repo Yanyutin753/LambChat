@@ -1,0 +1,61 @@
+{
+  "uid": "lambchat-mongo",
+  "title": "LambChat MongoDB",
+  "tags": ["lambchat", "mongodb"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "editable": true,
+  "time": { "from": "now-3h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "操作速率（query/insert/update/delete/getmore/command）",
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
+      "targets": [{ "expr": "sum by (type) (rate(mongodb_ss_opcounters[5m]))", "legendFormat": "{{type}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } }, "overrides": [] }
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "平均操作延迟（读/写/命令，ms）",
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "rate(mongodb_ss_opLatencies_latency{op_type=\"reads\"}[5m]) / rate(mongodb_ss_opLatencies_ops{op_type=\"reads\"}[5m]) / 1000", "legendFormat": "reads", "refId": "A" },
+        { "expr": "rate(mongodb_ss_opLatencies_latency{op_type=\"writes\"}[5m]) / rate(mongodb_ss_opLatencies_ops{op_type=\"writes\"}[5m]) / 1000", "legendFormat": "writes", "refId": "B" },
+        { "expr": "rate(mongodb_ss_opLatencies_latency{op_type=\"commands\"}[5m]) / rate(mongodb_ss_opLatencies_ops{op_type=\"commands\"}[5m]) / 1000", "legendFormat": "commands", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } }, "overrides": [] }
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "连接数（当前 / 可用）",
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "targets": [
+        { "expr": "mongodb_ss_connections{conn_type=\"current\"}", "legendFormat": "current", "refId": "A" },
+        { "expr": "mongodb_ss_connections{conn_type=\"available\"}", "legendFormat": "available", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } }, "overrides": [] }
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "常驻内存（serverStatus mem.resident，MB）",
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "targets": [{ "expr": "mongodb_ss_mem_resident", "legendFormat": "resident", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "decmbytes", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } }, "overrides": [] }
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "集合平均读延迟 Top 10（找慢集合，ms）",
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 17 },
+      "targets": [{ "expr": "topk(10, sum by (database, collection) (rate(mongodb_collstats_latencyStats_reads_latency[5m])) / sum by (database, collection) (rate(mongodb_collstats_latencyStats_reads_ops[5m])) / 1000)", "legendFormat": "{{database}}.{{collection}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "ms", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } }, "overrides": [] }
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "各库数据量 Top 10（dataSize）",
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 17 },
+      "targets": [{ "expr": "topk(10, mongodb_dbstats_dataSize)", "legendFormat": "{{database}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } }, "overrides": [] }
+    }
+  ]
+}

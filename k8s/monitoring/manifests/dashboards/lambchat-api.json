@@ -1,0 +1,100 @@
+{
+  "uid": "lambchat-api",
+  "title": "LambChat 接口性能 (Beyla eBPF)",
+  "tags": ["lambchat", "beyla"],
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "30s",
+  "editable": true,
+  "time": { "from": "now-3h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "API 总 QPS (5m)",
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "targets": [{ "expr": "sum(rate(http_server_request_duration_seconds_count[5m]))", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] }
+    },
+    {
+      "id": 2, "type": "stat", "title": "API p95 延迟",
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "targets": [{ "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket[5m])))", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "s", "decimals": 3 }, "overrides": [] }
+    },
+    {
+      "id": 3, "type": "stat", "title": "5xx 错误 QPS",
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "targets": [{ "expr": "sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\"}[5m]))", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] }
+    },
+    {
+      "id": 4, "type": "stat", "title": "DB 操作 QPS (Mongo+Redis)",
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "targets": [{ "expr": "sum(rate(db_client_operation_duration_seconds_count[5m]))", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] }
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "API 整体延迟分位 p50 / p95 / p99",
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 5 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_request_duration_seconds_bucket[5m])))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket[5m])))", "legendFormat": "p95", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_request_duration_seconds_bucket[5m])))", "legendFormat": "p99", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } }, "overrides": [] }
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "路由 QPS Top 10",
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 5 },
+      "targets": [{ "expr": "topk(10, sum by (http_route) (rate(http_server_request_duration_seconds_count[5m])))", "legendFormat": "{{http_route}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } }, "overrides": [] }
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "路由 p95 延迟 Top 10（最慢的路由）",
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 14 },
+      "targets": [{ "expr": "topk(10, histogram_quantile(0.95, sum by (http_route, le) (rate(http_server_request_duration_seconds_bucket[5m]))))", "legendFormat": "{{http_route}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } }, "overrides": [] }
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "4xx/5xx 错误 QPS（按路由）",
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 14 },
+      "targets": [{ "expr": "topk(10, sum by (http_route) (rate(http_server_request_duration_seconds_count{http_response_status_code=~\"[45]..\"}[5m])))", "legendFormat": "{{http_route}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } }, "overrides": [] }
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "DB 操作延迟 p95（Mongo vs Redis）",
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 23 },
+      "targets": [{ "expr": "histogram_quantile(0.95, sum by (db_system_name, le) (rate(db_client_operation_duration_seconds_bucket[5m])))", "legendFormat": "{{db_system_name}} p95", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } }, "overrides": [] }
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "DB 操作 QPS Top 10（按操作名）",
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 23 },
+      "targets": [{ "expr": "topk(10, sum by (db_system_name, db_operation_name) (rate(db_client_operation_duration_seconds_count[5m])))", "legendFormat": "{{db_system_name}}:{{db_operation_name}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } }, "overrides": [] }
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "出站 HTTP p95 延迟（LLM/对象存储等上游）",
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 32 },
+      "targets": [{ "expr": "topk(10, histogram_quantile(0.95, sum by (server_address, le) (rate(http_client_request_duration_seconds_bucket[5m]))))", "legendFormat": "{{server_address}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } }, "overrides": [] }
+    },
+    {
+      "id": 12, "type": "timeseries", "title": "出站 HTTP QPS（按目标主机）",
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 32 },
+      "targets": [{ "expr": "topk(10, sum by (server_address) (rate(http_client_request_duration_seconds_count[5m])))", "legendFormat": "{{server_address}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } }, "overrides": [] }
+    }
+  ]
+}

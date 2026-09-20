@@ -180,6 +180,21 @@ def test_update_tool_can_run_task_actions() -> None:
     assert "action" in fields
 
 
+def test_no_standalone_lifecycle_tool_duplicates() -> None:
+    """get/pause/resume/run 已合并进 list(task_id=...) 与 update(action=...)，
+    包与兼容层不得再出现未注册的同名独立工具，防止僵尸实现回潮。"""
+    import src.infra.tool.scheduled_task as pkg
+
+    for dead_name in (
+        "scheduled_task_get",
+        "scheduled_task_pause",
+        "scheduled_task_resume",
+        "scheduled_task_run",
+    ):
+        assert not hasattr(pkg, dead_name)
+        assert not hasattr(scheduled_task_tool, dead_name)
+
+
 # ── scheduled_task_create ──────────────────────────────────────
 
 
@@ -1013,11 +1028,9 @@ async def test_list_tasks_with_status_filter(monkeypatch: pytest.MonkeyPatch) ->
     list_mock.assert_called_once_with(owner_id="user-1", status=ScheduledTaskStatus.ACTIVE)
 
 
-# ── scheduled_task_get ──────────────────────────────────────────
-
-
 @pytest.mark.asyncio
-async def test_get_task(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_list_single_task_returns_details(monkeypatch: pytest.MonkeyPatch) -> None:
+    """list(task_id=...) 即单任务详情（原 scheduled_task_get 的行为归宿）。"""
     task = _task()
     get_mock = AsyncMock(return_value=task)
 
@@ -1029,7 +1042,7 @@ async def test_get_task(monkeypatch: pytest.MonkeyPatch) -> None:
 
     result = json.loads(
         await _call_tool(
-            scheduled_task_tool.scheduled_task_get,
+            scheduled_task_tool.scheduled_task_list,
             task_id="task-1",
             runtime=_Runtime("user-1"),
         )
@@ -1041,7 +1054,7 @@ async def test_get_task(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_task_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_list_single_task_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
     get_mock = AsyncMock(return_value=None)
 
     monkeypatch.setattr(
@@ -1052,7 +1065,7 @@ async def test_get_task_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
 
     result = json.loads(
         await _call_tool(
-            scheduled_task_tool.scheduled_task_get,
+            scheduled_task_tool.scheduled_task_list,
             task_id="nonexistent",
             runtime=_Runtime("user-1"),
         )
@@ -1063,7 +1076,7 @@ async def test_get_task_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_task_wrong_owner(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_list_single_task_wrong_owner(monkeypatch: pytest.MonkeyPatch) -> None:
     task = _task(owner_id="other-user")
     get_mock = AsyncMock(return_value=task)
 
@@ -1075,7 +1088,7 @@ async def test_get_task_wrong_owner(monkeypatch: pytest.MonkeyPatch) -> None:
 
     result = json.loads(
         await _call_tool(
-            scheduled_task_tool.scheduled_task_get,
+            scheduled_task_tool.scheduled_task_list,
             task_id="task-1",
             runtime=_Runtime("user-1"),
         )
@@ -1222,11 +1235,8 @@ async def test_update_task_wrong_owner(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "not found" in result["error"]
 
 
-# ── scheduled_task_pause ────────────────────────────────────────
-
-
 @pytest.mark.asyncio
-async def test_pause_task(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_update_task_action_pause(monkeypatch: pytest.MonkeyPatch) -> None:
     original = _task()
     paused = _task(status=ScheduledTaskStatus.PAUSED, enabled=False)
     get_mock = AsyncMock(return_value=original)
@@ -1240,22 +1250,21 @@ async def test_pause_task(monkeypatch: pytest.MonkeyPatch) -> None:
 
     result = json.loads(
         await _call_tool(
-            scheduled_task_tool.scheduled_task_pause,
+            scheduled_task_tool.scheduled_task_update,
             task_id="task-1",
+            action="pause",
             runtime=_Runtime("user-1"),
         )
     )
 
     assert result["success"] is True
     assert result["action"] == "paused"
+    assert result["name"] == "Daily Report"
     pause_mock.assert_called_once_with("task-1")
 
 
-# ── scheduled_task_resume ───────────────────────────────────────
-
-
 @pytest.mark.asyncio
-async def test_resume_task(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_update_task_action_resume(monkeypatch: pytest.MonkeyPatch) -> None:
     paused_task = _task(status=ScheduledTaskStatus.PAUSED, enabled=False)
     resumed = _task()
     get_mock = AsyncMock(return_value=paused_task)
@@ -1269,8 +1278,9 @@ async def test_resume_task(monkeypatch: pytest.MonkeyPatch) -> None:
 
     result = json.loads(
         await _call_tool(
-            scheduled_task_tool.scheduled_task_resume,
+            scheduled_task_tool.scheduled_task_update,
             task_id="task-1",
+            action="resume",
             runtime=_Runtime("user-1"),
         )
     )
@@ -1278,6 +1288,57 @@ async def test_resume_task(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result["success"] is True
     assert result["action"] == "resumed"
     resume_mock.assert_called_once_with("task-1")
+
+
+@pytest.mark.asyncio
+async def test_update_task_action_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    task = _task()
+    get_mock = AsyncMock(return_value=task)
+    run_mock = AsyncMock(return_value={"run_id": "run-1"})
+
+    monkeypatch.setattr(
+        scheduled_task_tool,
+        "ScheduledTaskService",
+        _fake_service_cls(get_task=get_mock, run_task_now=run_mock),
+    )
+
+    result = json.loads(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_update,
+            task_id="task-1",
+            action="run",
+            runtime=_Runtime("user-1"),
+        )
+    )
+
+    assert result["success"] is True
+    assert result["action"] == "triggered"
+    assert result["result"] == {"run_id": "run-1"}
+    run_mock.assert_called_once_with("task-1")
+
+
+@pytest.mark.asyncio
+async def test_update_task_action_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
+    task = _task()
+    get_mock = AsyncMock(return_value=task)
+
+    monkeypatch.setattr(
+        scheduled_task_tool,
+        "ScheduledTaskService",
+        _fake_service_cls(get_task=get_mock),
+    )
+
+    result = json.loads(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_update,
+            task_id="task-1",
+            action="explode",
+            runtime=_Runtime("user-1"),
+        )
+    )
+
+    assert "error" in result
+    assert "Invalid action" in result["error"]
 
 
 # ── scheduled_task_delete ───────────────────────────────────────
@@ -1329,58 +1390,7 @@ async def test_delete_task_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "error" in result
 
 
-# ── scheduled_task_run ──────────────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_run_task(monkeypatch: pytest.MonkeyPatch) -> None:
-    task = _task()
-    get_mock = AsyncMock(return_value=task)
-    run_mock = AsyncMock(return_value={"run_id": "run-1", "status": "pending"})
-
-    monkeypatch.setattr(
-        scheduled_task_tool,
-        "ScheduledTaskService",
-        _fake_service_cls(get_task=get_mock, run_task_now=run_mock),
-    )
-
-    result = json.loads(
-        await _call_tool(
-            scheduled_task_tool.scheduled_task_run,
-            task_id="task-1",
-            runtime=_Runtime("user-1"),
-        )
-    )
-
-    assert result["success"] is True
-    assert result["action"] == "triggered"
-    assert result["result"]["run_id"] == "run-1"
-    run_mock.assert_called_once_with("task-1")
-
-
 # ── Cross-cutting concerns ──────────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_pause_task_wrong_owner(monkeypatch: pytest.MonkeyPatch) -> None:
-    task = _task(owner_id="other-user")
-    get_mock = AsyncMock(return_value=task)
-
-    monkeypatch.setattr(
-        scheduled_task_tool,
-        "ScheduledTaskService",
-        _fake_service_cls(get_task=get_mock),
-    )
-
-    result = json.loads(
-        await _call_tool(
-            scheduled_task_tool.scheduled_task_pause,
-            task_id="task-1",
-            runtime=_Runtime("user-1"),
-        )
-    )
-
-    assert "error" in result
 
 
 @pytest.mark.asyncio

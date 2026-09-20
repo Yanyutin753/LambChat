@@ -1,4 +1,4 @@
-"""scheduled_task_update, scheduled_task_pause, scheduled_task_resume tool implementations."""
+"""scheduled_task_update tool implementation (lifecycle actions via action param)."""
 
 import sys
 from typing import TYPE_CHECKING, Annotated, Any, Literal
@@ -152,82 +152,5 @@ async def scheduled_task_update(
             "action": "updated",
             "task": resp.model_dump(mode="json"),
             "message": f"Task '{updated.name}' updated.",
-        }
-    )
-
-
-@tool
-async def scheduled_task_pause(
-    task_id: Annotated[str, "ID of the task to pause"],
-    runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> str:
-    """Pause a scheduled task. The task will not fire until resumed.
-    Configuration is preserved and the task can be resumed at any time."""
-    user_id = get_user_id_from_runtime(runtime)
-    if not user_id:
-        return _json({"error": "No user context available"})
-    error = await _permission_error(user_id, Permission.SCHEDULED_TASK_WRITE.value)
-    if error:
-        return _json(error)
-
-    service = ScheduledTaskService()
-    task = await service.get_task(task_id)
-    if task is None:
-        return _json({"error": f"Task '{task_id}' not found"})
-    if task.owner_id != user_id:
-        return _json({"error": f"Task '{task_id}' not found"})
-
-    try:
-        updated = await service.pause_task(task_id)
-    except Exception as e:
-        return _json({"error": f"Failed to pause task: {e}"})
-
-    if updated is None:
-        return _json({"error": f"Task '{task_id}' pause failed"})
-    return _json(
-        {
-            "success": True,
-            "action": "paused",
-            "task_id": task_id,
-            "name": updated.name,
-            "message": f"Task '{updated.name}' paused.",
-        }
-    )
-
-
-@tool
-async def scheduled_task_resume(
-    task_id: Annotated[str, "ID of the task to resume"],
-    runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> str:
-    """Resume a paused scheduled task. It will resume firing according to its schedule."""
-    user_id = get_user_id_from_runtime(runtime)
-    if not user_id:
-        return _json({"error": "No user context available"})
-    error = await _permission_error(user_id, Permission.SCHEDULED_TASK_WRITE.value)
-    if error:
-        return _json(error)
-
-    service = ScheduledTaskService()
-    task = await service.get_task(task_id)
-    if task is None:
-        return _json({"error": f"Task '{task_id}' not found"})
-    if task.owner_id != user_id:
-        return _json({"error": f"Task '{task_id}' not found"})
-
-    try:
-        updated = await service.resume_task(task_id)
-    except Exception as e:
-        return _json({"error": f"Failed to resume task: {e}"})
-
-    if updated is None:
-        return _json({"error": f"Task '{task_id}' resume failed"})
-    return _json(
-        {
-            "success": True,
-            "action": "resumed",
-            "task_id": task_id,
-            "name": updated.name,
-            "message": f"Task '{updated.name}' resumed.",
         }
     )

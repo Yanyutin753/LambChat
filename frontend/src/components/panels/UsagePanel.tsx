@@ -87,7 +87,7 @@ export function UsagePanel() {
   const pageSize = 20;
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [period, setPeriod] = useState<string>("all");
+  const [period, setPeriod] = useState<string>("week");
   const debouncedSearch = useDebounce(searchQuery, 300);
 
   const handleSearchQueryChange = useCallback((query: string) => {

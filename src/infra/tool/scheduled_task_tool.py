@@ -27,7 +27,7 @@ from src.infra.tool.scheduled_task.approval import (
     _send_scheduled_task_approval_event,
 )
 from src.infra.tool.scheduled_task.create import _parse_run_at_iso, scheduled_task_create
-from src.infra.tool.scheduled_task.delete import scheduled_task_delete, scheduled_task_run
+from src.infra.tool.scheduled_task.delete import scheduled_task_delete
 from src.infra.tool.scheduled_task.helpers import (
     _build_task_preview,
     _coerce_channel_delivery,
@@ -38,12 +38,8 @@ from src.infra.tool.scheduled_task.helpers import (
     _resolve_user,
     _strip_resolved_agent_options,
 )
-from src.infra.tool.scheduled_task.read import scheduled_task_get, scheduled_task_list
-from src.infra.tool.scheduled_task.update import (
-    scheduled_task_pause,
-    scheduled_task_resume,
-    scheduled_task_update,
-)
+from src.infra.tool.scheduled_task.read import scheduled_task_list
+from src.infra.tool.scheduled_task.update import scheduled_task_update
 from src.infra.utils.datetime import utc_now
 
 __all__ = [
@@ -69,12 +65,8 @@ __all__ = [
     "_parse_run_at_iso",
     "scheduled_task_create",
     "scheduled_task_list",
-    "scheduled_task_get",
     "scheduled_task_update",
-    "scheduled_task_pause",
-    "scheduled_task_resume",
     "scheduled_task_delete",
-    "scheduled_task_run",
     "get_scheduled_task_tools",
 ]
 

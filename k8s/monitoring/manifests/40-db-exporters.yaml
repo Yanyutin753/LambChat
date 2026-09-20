@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb-exporter
+  namespace: monitoring
+  labels:
+    app: mongodb-exporter
+spec:
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mongodb-exporter
+  template:
+    metadata:
+      labels:
+        app: mongodb-exporter
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: mongodb-exporter
+          image: percona/mongodb_exporter:0.53.0-amd64
+          args:
+            - --collect-all
+            - --web.listen-address=127.0.0.1:9216
+          env:
+            - name: MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: monitoring-db-auth
+                  key: MONGODB_URI
+          ports:
+            - containerPort: 9216
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-exporter
+  namespace: monitoring
+  labels:
+    app: redis-exporter
+spec:
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: redis-exporter
+  template:
+    metadata:
+      labels:
+        app: redis-exporter
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: redis-exporter
+          image: oliver006/redis_exporter:v1.91.1
+          args:
+            - -web.listen-address=127.0.0.1:9121
+          env:
+            - name: REDIS_ADDR
+              valueFrom:
+                secretKeyRef:
+                  name: monitoring-db-auth
+                  key: REDIS_ADDR
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: monitoring-db-auth
+                  key: REDIS_PASSWORD
+          ports:
+            - containerPort: 9121
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 128Mi

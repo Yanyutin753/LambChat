@@ -1,0 +1,137 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: monitoring
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prom
+        type: prometheus
+        access: proxy
+        url: http://127.0.0.1:9090
+        isDefault: true
+        editable: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: monitoring
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: default
+        orgId: 1
+        folder: ""
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards
+          foldersFromFilesStructure: false
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: monitoring
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 2Gi
+---
+# 看板 ConfigMap（dashboard-*）由 setup-dashboards.sh 生成，须先于本清单存在
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+spec:
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: grafana
+          image: grafana/grafana:13.0.9
+          env:
+            - name: GF_SERVER_HTTP_ADDR
+              value: "127.0.0.1"
+            - name: GF_SERVER_HTTP_PORT
+              value: "3300"
+            - name: GF_SECURITY_ADMIN_USER
+              value: "admin"
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: monitoring-grafana-auth
+                  key: admin-password
+            - name: GF_ANALYTICS_REPORTING
+              value: "false"
+            - name: GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES
+              value: "false"
+            - name: GF_ANALYTICS_CHECK_FOR_UPDATES
+              value: "false"
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+          ports:
+            - containerPort: 3300
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboards-custom
+              mountPath: /var/lib/grafana/dashboards/custom
+            - name: dashboards-node
+              mountPath: /var/lib/grafana/dashboards/node
+            - name: dashboards-redis
+              mountPath: /var/lib/grafana/dashboards/redis
+            - name: dashboards-mongodb
+              mountPath: /var/lib/grafana/dashboards/mongodb
+            - name: data
+              mountPath: /var/lib/grafana
+          resources:
+            requests:
+              cpu: 50m
+              memory: 150Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: dashboard-provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: dashboards-custom
+          configMap:
+            name: dashboard-lambchat-api
+        - name: dashboards-node
+          configMap:
+            name: dashboard-node-exporter
+        - name: dashboards-redis
+          configMap:
+            name: dashboard-redis
+        - name: dashboards-mongodb
+          configMap:
+            name: dashboard-lambchat-mongo
+        - name: data
+          persistentVolumeClaim:
+            claimName: grafana-data
