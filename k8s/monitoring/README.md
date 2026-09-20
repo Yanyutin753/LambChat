@@ -89,6 +89,20 @@ kubectl delete clusterrole beyla-monitoring clusterrolebinding beyla-monitoring
 
 Prometheus 数据保留 15 天（PVC 10Gi，local-path）。整套约 600Mi 内存 / 70m CPU。
 
+## 一键巡检
+
+```bash
+cd k8s/monitoring/scripts
+./patrol.sh              # 巡检最近 60 分钟，退出码 0=干净 / 1=有需关注项
+./patrol.sh 240          # 指定窗口（分钟）
+./patrol.sh --pyspy      # 追加 py-spy CPU 热点采样（worker+api 各 15s）
+```
+
+覆盖：Mongo 慢查询分类（COLLSCAN 告警）/ 僵尸 trace / 后端 ERROR 分布 /
+Redis 慢日志与碎片 / API QPS·p95·5xx / 监控栈自检 / pub-sub 通道隔离。
+Mongo/Redis 容器名按部署环境用 `MONGO_CONTAINER` / `REDIS_CONTAINER` 覆盖。
+适合接 cron 或外部告警（凭退出码）。
+
 ## 坑位备忘
 
 - **hostNetwork 单副本 Deployment 必须 `strategy: Recreate`**：默认 RollingUpdate

@@ -33,9 +33,9 @@ import { type EventHandlerContext } from "./useAgent/eventHandlers";
 import {
   connectToSSE,
   clearReconnectTimeout,
-  useSSEReconnect,
   type SSEConnectionContext,
 } from "./useAgent/sseConnection";
+import { useStreamReconcile } from "./useAgent/sseReconcile";
 import { createOptimisticMessagesForSend } from "./useAgent/optimisticMessages";
 import { startQueuePositionPolling } from "./useAgent/queuePolling";
 import {
@@ -135,6 +135,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
   // Current streaming message ID
   const streamingMessageIdRef = useRef<string | null>(null);
+
+  // 最近一次流事件（含 ping）时刻：回前台对账/看门狗的存活信号
+  const lastStreamActivityAtRef = useRef<number | null>(null);
 
   // 最新 loadHistory 的稳定引用：SSE 层发现「run 已终结但本地空壳」时
   // 拉起历史重载（定义在下方，渲染期回填，避免 useCallback 依赖环）
@@ -290,6 +293,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       reconnectTimeoutRef,
       retryCountRef,
       messagesRef,
+      lastStreamActivityAtRef,
     }),
     [createEventHandlerContext],
   );
@@ -1089,8 +1093,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     [],
   );
 
-  // Reconnect function (managed by useSSEReconnect hook)
-  const handleReconnectSSE = useSSEReconnect({
+  // Reconcile function (managed by useStreamReconcile hook):
+  // 回前台/网络恢复/静默看门狗对流对账；带 runId 时退化为原重连语义
+  const reconcileActiveRun = useStreamReconcile({
     createSSEContext,
     sessionIdRef,
     currentRunIdRef,
@@ -1098,6 +1103,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     streamingMessageIdRef,
     connectionStatus,
     setConnectionStatus,
+    isSendingRef,
+    isLoadingHistoryRef,
+    loadHistoryRef,
   });
 
   return {
@@ -1139,7 +1147,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     refreshAgents: fetchAgents,
     loadHistory,
     loadOlderHistory,
-    reconnectSSE: handleReconnectSSE,
+    reconnectSSE: reconcileActiveRun,
+    reconcileActiveRun,
     setPendingProjectId: (id: string | null) => {
       pendingProjectIdRef.current = id;
       autoExpandProjectIdRef.current = id;

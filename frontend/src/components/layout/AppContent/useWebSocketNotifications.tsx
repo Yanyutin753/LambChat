@@ -41,6 +41,13 @@ interface UseWebSocketNotificationsOptions {
     session_id: string;
     task_status: string;
   }) => void;
+  /** 当前打开会话的 run 完成/失败时触发：用于对流对账（落定气泡、
+   *  发现其他端推进过的新 run 时重载历史） */
+  onCurrentSessionTaskComplete?: (data: {
+    session_id: string;
+    run_id?: string;
+    status: string;
+  }) => void;
 }
 
 interface TaskCompleteDelivery {
@@ -63,6 +70,7 @@ export function useWebSocketNotifications({
   onSessionUnread,
   onRecommendQuestions,
   onSessionTaskStatus,
+  onCurrentSessionTaskComplete,
 }: UseWebSocketNotificationsOptions) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -73,6 +81,8 @@ export function useWebSocketNotifications({
   onRecommendQuestionsRef.current = onRecommendQuestions;
   const onSessionTaskStatusRef = useRef(onSessionTaskStatus);
   onSessionTaskStatusRef.current = onSessionTaskStatus;
+  const onCurrentSessionTaskCompleteRef = useRef(onCurrentSessionTaskComplete);
+  onCurrentSessionTaskCompleteRef.current = onCurrentSessionTaskComplete;
 
   const deliverTaskCompletion = useCallback(
     async (notification: TaskCompleteDelivery) => {
@@ -94,6 +104,16 @@ export function useWebSocketNotifications({
       if (dedupeKey) {
         if (hasTaskNotified(dedupeKey)) return;
         markTaskNotified(dedupeKey);
+      }
+
+      // 当前会话跑完（可能在本端断连窗口内、也可能在另一端推进）：
+      // 触发对流对账——落定气泡、必要时重载历史/接上新 run
+      if (session_id === sessionId) {
+        onCurrentSessionTaskCompleteRef.current?.({
+          session_id,
+          run_id,
+          status,
+        });
       }
 
       // 通知侧边栏更新 unread_count（仅非当前 session）

@@ -284,6 +284,10 @@
         "attachments": [],
         "agent_id": "default"
       }
+    },
+    {
+      "event": "ping",
+      "data": {}
     }
   ]
 }

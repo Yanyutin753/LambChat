@@ -58,7 +58,9 @@ _LIVE_STREAM_READ_TIMEOUT_SECONDS = 24 * 60 * 60
 # 单组 chunk 事件的最大重试次数：超过后判定为不可写事件（如含非法字段名），
 # 丢弃并告警，避免毒事件永久阻塞 flush 循环
 _CHUNK_WRITE_MAX_ATTEMPTS = 50
-_SSE_HEARTBEAT_INTERVAL_SECONDS = 15
+# 心跳与 xread block 同频 5s：空闲流每唤醒即发一次 ping；客户端按
+# 3 个周期（15s）无事件判定半开死连接并自愈，恢复时间 ~20s
+_SSE_HEARTBEAT_INTERVAL_SECONDS = 5
 _REDIS_XREAD_BLOCK_MS = 5000
 _REDIS_REPLAY_BATCH_SIZE = 500
 

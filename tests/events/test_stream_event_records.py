@@ -9,6 +9,9 @@ PRESENTER_PATH = REPO_ROOT / "src" / "infra" / "writer" / "presenter_events.py"
 NON_PRESENTER_STREAM_EVENTS = {
     "complete",
     "followup:questions",
+    # ping 是 SSE 传输层心跳（dual_writer 产出、路由层转成 event: ping），
+    # 不经过 presenter，但客户端会收到，须登记在 fixture 里
+    "ping",
     "queue_update",
     "user:cancel",
 }

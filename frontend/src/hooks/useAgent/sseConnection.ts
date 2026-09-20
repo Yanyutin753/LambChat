@@ -3,7 +3,6 @@
  * Handles SSE connection, reconnection, and stream management
  */
 
-import { useCallback, useEffect } from "react";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { uuid } from "../../utils/uuid";
 import { sessionApi } from "../../services/api";
@@ -19,7 +18,7 @@ import {
   assistantMessageHasContent,
   settleAssistantMessage,
 } from "./settleStream";
-import type { Message, ConnectionStatus } from "../../types";
+import type { Message } from "../../types";
 
 /**
  * SSE Connection context
@@ -34,6 +33,8 @@ export interface SSEConnectionContext extends EventHandlerContext {
   > | null>;
   retryCountRef: React.MutableRefObject<number>;
   messagesRef: React.MutableRefObject<Message[]>;
+  /** 最近一次收到流事件（含 ping）的时刻；回前台对账/看门狗的存活信号 */
+  lastStreamActivityAtRef: React.MutableRefObject<number | null>;
 }
 
 /**
@@ -89,6 +90,31 @@ export function isTerminalSSEEvent(eventType: string, data?: unknown): boolean {
   return false;
 }
 
+/**
+ * 服务端已终结的 run 在本地落定：断开态收尾、封存/移除空壳气泡；
+ * 本地内容缺失（断连窗口内完成/重放没挂上）时经 onStaleRunStateDetected
+ * 拉起一次历史重载。重连与回前台对账共用。
+ */
+export function settleRemotelyTerminatedRun(
+  ctx: SSEConnectionContext,
+  runId: string,
+  messageId: string | null,
+): void {
+  ctx.setConnectionStatus("disconnected");
+  ctx.setIsInitializingSandbox(false);
+  ctx.streamingMessageIdRef.current = null;
+  if (!messageId) return;
+  const target = ctx.messagesRef.current.find((m) => m.id === messageId);
+  const missingContent =
+    !target ||
+    target.isStreaming ||
+    (target.role === "assistant" && !assistantMessageHasContent(target));
+  ctx.setMessages((prev) => settleAssistantMessage(prev, messageId));
+  if (missingContent) {
+    ctx.onStaleRunStateDetected?.(runId);
+  }
+}
+
 export function getSSECloseAction({
   receivedTerminalEvent,
 }: {
@@ -113,6 +139,7 @@ export async function connectToSSE(
     sseGenerationRef,
     isConnectingRef,
     streamingMessageIdRef,
+    lastStreamActivityAtRef,
     setConnectionStatus,
     retryCountRef,
   } = ctx;
@@ -193,11 +220,13 @@ export async function connectToSSE(
             throw new Error(`HTTP error! status: ${response.status}`);
           }
           console.log("[SSE] Connection established");
+          lastStreamActivityAtRef.current = Date.now();
           setConnectionStatus("connected");
           retryCountRef.current = 0;
         },
         onmessage: (event) => {
           if (!isCurrentConnection()) return;
+          lastStreamActivityAtRef.current = Date.now();
           if (event.event === "ping") return;
           const eventId = event.id || uuid();
           let parsedData: Record<string, unknown>;
@@ -318,24 +347,7 @@ export async function reconnectSSE(
     const statusData = await sessionApi.getStatus(currentSessId, currentRId);
     if (statusData.status === "completed" || statusData.status === "error") {
       console.log("[SSE] Task already completed");
-      setConnectionStatus("disconnected");
-      ctx.setIsInitializingSandbox(false);
-      streamingMessageIdRef.current = null;
-      // Clear loading states on the message
-      if (currentMsgId) {
-        // 运行已在服务端终结：若本地目标仍在流式态或从未收到正文，
-        // 本地状态必然缺失（重放没挂上/断连窗口内完成）——落定并移除
-        // 空壳，同时拉起一次历史重载恢复存储端已有的内容。
-        const target = messagesRef.current.find((m) => m.id === currentMsgId);
-        const missingContent =
-          !target ||
-          target.isStreaming ||
-          (target.role === "assistant" && !assistantMessageHasContent(target));
-        ctx.setMessages((prev) => settleAssistantMessage(prev, currentMsgId));
-        if (missingContent) {
-          ctx.onStaleRunStateDetected?.(currentRId);
-        }
-      }
+      settleRemotelyTerminatedRun(ctx, currentRId, currentMsgId);
       return;
     }
   } catch (err) {
@@ -360,114 +372,4 @@ export async function reconnectSSE(
       }
     }
   }, delay);
-}
-
-/**
- * Options for the useSSEReconnect hook
- */
-export interface SSEReconnectOptions {
-  createSSEContext: () => SSEConnectionContext;
-  sessionIdRef: React.MutableRefObject<string | null>;
-  currentRunIdRef: React.MutableRefObject<string | null>;
-  isReconnectFromHistoryRef: React.MutableRefObject<boolean>;
-  streamingMessageIdRef: React.MutableRefObject<string | null>;
-  connectionStatus: ConnectionStatus;
-  setConnectionStatus: (status: ConnectionStatus) => void;
-}
-
-/**
- * Hook that manages SSE reconnection on visibility change and network events.
- * Returns a handleReconnectSSE function for manual use.
- */
-export function useSSEReconnect(
-  opts: SSEReconnectOptions,
-): (runId?: string | null) => Promise<void> {
-  const {
-    createSSEContext,
-    sessionIdRef,
-    currentRunIdRef,
-    isReconnectFromHistoryRef,
-    streamingMessageIdRef,
-    connectionStatus,
-    setConnectionStatus,
-  } = opts;
-
-  const handleReconnectSSE = useCallback(
-    async (runId?: string | null) => {
-      const ctx = {
-        ...createSSEContext(),
-        sessionIdRef,
-        currentRunIdRef,
-        isReconnectFromHistoryRef,
-      };
-      await reconnectSSE(ctx, runId);
-    },
-    [
-      createSSEContext,
-      sessionIdRef,
-      currentRunIdRef,
-      isReconnectFromHistoryRef,
-    ],
-  );
-
-  // Handle visibility change — reconnect when tab becomes visible
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (
-        document.visibilityState === "visible" &&
-        connectionStatus === "disconnected" &&
-        sessionIdRef.current &&
-        currentRunIdRef.current &&
-        streamingMessageIdRef.current
-      ) {
-        handleReconnectSSE();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [
-    connectionStatus,
-    handleReconnectSSE,
-    sessionIdRef,
-    currentRunIdRef,
-    streamingMessageIdRef,
-  ]);
-
-  // Handle network status changes — reconnect on online, mark disconnected on offline
-  useEffect(() => {
-    const handleOnline = () => {
-      if (
-        connectionStatus === "disconnected" &&
-        sessionIdRef.current &&
-        currentRunIdRef.current &&
-        streamingMessageIdRef.current
-      ) {
-        handleReconnectSSE();
-      }
-    };
-
-    const handleOffline = () => {
-      setConnectionStatus("disconnected");
-    };
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, [
-    connectionStatus,
-    handleReconnectSSE,
-    sessionIdRef,
-    currentRunIdRef,
-    streamingMessageIdRef,
-    setConnectionStatus,
-  ]);
-
-  return handleReconnectSSE;
 }

@@ -343,6 +343,9 @@ export interface UseAgentReturn {
   /** 加载更早一页历史（trace 窗口游标翻页），完成后前插重建消息 */
   loadOlderHistory: () => Promise<void>;
   reconnectSSE: (runId?: string | null) => Promise<void>;
+  /** 回前台/网络恢复/看门狗触发的对流对账（落定远端已终结的 run、
+   *  强制重连死亡传输层、发现其他端推进过的会话时重载历史） */
+  reconcileActiveRun: () => Promise<void>;
   setPendingProjectId: (id: string | null) => void;
   autoExpandProjectId: string | null;
   clearAutoExpandProjectId: (id?: string | null) => void;

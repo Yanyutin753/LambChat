@@ -195,6 +195,7 @@ export function ChatAppContent({
     clearAutoExpandProjectId,
     currentProjectId,
     reconnectSSE,
+    reconcileActiveRun,
   } = useAgent({
     onApprovalRequired: (approval) => {
       void appNotificationService.notify({
@@ -582,6 +583,9 @@ export function ChatAppContent({
       sidebarRef.current?.updateSessionMetadata(data.session_id, {
         task_status: data.task_status,
       });
+    },
+    onCurrentSessionTaskComplete: () => {
+      void reconcileActiveRun();
     },
   });
 

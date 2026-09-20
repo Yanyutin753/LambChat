@@ -724,10 +724,10 @@ async def session_stream(
                 session_id,
                 run_id=run_id,
             ):
-                # 心跳事件：发送 SSE 注释（: 开头的行被 EventSource 忽略）
-                # 这样能检测到客户端断开，同时不干扰前端逻辑
+                # 心跳事件：具名 ping（空数据）。客户端以其为存活信号判定
+                # 半开死连接；旧客户端跳过未知事件，不受影响。
                 if event["event_type"] == "heartbeat":
-                    yield ": heartbeat\n\n"
+                    yield "event: ping\ndata: {}\n\n"
                     continue
 
                 event_count += 1

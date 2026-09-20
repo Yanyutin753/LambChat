@@ -147,7 +147,7 @@ async def test_expired_stream_with_running_run_keeps_waiting(monkeypatch):
     )
     response = await session_stream("s1", run_id="r1", user=_user())
     body = await _collect(response)
-    assert ": heartbeat" in body
+    assert "event: ping" in body
     assert "event: done" not in body
     assert "event: error" not in body
     assert len(read_calls) == 1

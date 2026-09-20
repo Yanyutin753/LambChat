@@ -36,7 +36,9 @@ def test_dual_writer_live_stream_read_timeout_is_24_hours() -> None:
 
 
 def test_dual_writer_idle_xread_block_matches_heartbeat_interval() -> None:
-    assert dual_writer._SSE_HEARTBEAT_INTERVAL_SECONDS == 15
+    # 心跳 5s 与 xread block 5s 同频：空闲流每唤醒一次即发一次 ping，
+    # 客户端 15s 静默阈值（3 个周期）据此判定半开死连接
+    assert dual_writer._SSE_HEARTBEAT_INTERVAL_SECONDS == 5
     assert dual_writer._REDIS_XREAD_BLOCK_MS == 5_000
 
 
