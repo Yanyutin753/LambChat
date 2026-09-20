@@ -158,5 +158,9 @@ async def env_var_delete_all(
 
 
 def get_env_var_tools() -> list[BaseTool]:
-    """Return safe environment variable CRUD tools for the current user."""
-    return [env_var_list, env_var_set, env_var_delete]
+    """Return safe environment variable CRUD tools for the current user.
+
+    env_var_delete_all 随组返回但不在 internal_registry 的 inline 白名单，
+    自动落入 deferred 通道（经 search_tools 发现），与破坏性定位匹配。
+    """
+    return [env_var_list, env_var_set, env_var_delete, env_var_delete_all]

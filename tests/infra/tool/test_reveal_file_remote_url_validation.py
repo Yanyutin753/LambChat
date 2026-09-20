@@ -12,7 +12,7 @@ import json
 
 import pytest
 
-from src.infra.tool import reveal_file_tool
+from src.infra.tool import _reveal_file_support, reveal_file_tool
 
 _SELF_UPLOAD_URL = (
     "https://app.example.com/api/upload/file/generated-images/"
@@ -52,6 +52,7 @@ async def test_reveal_file_rejects_self_upload_url_with_missing_object(
         return storage
 
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _fake_get_storage)
+    monkeypatch.setattr(_reveal_file_support, "_get_storage", _fake_get_storage)
     monkeypatch.setattr(reveal_file_tool, "get_revealed_file_storage", lambda: index)
 
     result = json.loads(
@@ -79,6 +80,7 @@ async def test_reveal_file_passes_through_self_upload_url_with_existing_object(
         return storage
 
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _fake_get_storage)
+    monkeypatch.setattr(_reveal_file_support, "_get_storage", _fake_get_storage)
     monkeypatch.setattr(reveal_file_tool, "get_revealed_file_storage", lambda: _RecordingIndex())
 
     result = json.loads(
@@ -106,6 +108,7 @@ async def test_reveal_file_urlencodes_key_before_existence_check(
         return storage
 
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _fake_get_storage)
+    monkeypatch.setattr(_reveal_file_support, "_get_storage", _fake_get_storage)
 
     encoded_url = "https://app.example.com/api/upload/file/generated-images%2Fuser-1%2Fportrait.png"
 
@@ -127,6 +130,7 @@ async def test_reveal_file_self_upload_existence_check_failure_passes_through(
         return _BrokenStorage()
 
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _fake_get_storage)
+    monkeypatch.setattr(_reveal_file_support, "_get_storage", _fake_get_storage)
     monkeypatch.setattr(reveal_file_tool, "get_revealed_file_storage", lambda: _RecordingIndex())
 
     result = json.loads(
@@ -147,6 +151,7 @@ async def test_reveal_file_storage_init_failure_passes_through(
         raise RuntimeError("storage init failed")
 
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _broken_get_storage)
+    monkeypatch.setattr(_reveal_file_support, "_get_storage", _broken_get_storage)
     monkeypatch.setattr(reveal_file_tool, "get_revealed_file_storage", lambda: _RecordingIndex())
 
     result = json.loads(

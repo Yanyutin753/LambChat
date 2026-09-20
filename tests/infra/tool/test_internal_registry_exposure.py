@@ -103,6 +103,41 @@ async def test_conversation_history_tools_default_to_deferred_exposure(monkeypat
 
 
 @pytest.mark.asyncio
+async def test_env_var_tools_default_to_deferred_exposure(monkeypatch) -> None:
+    """env_var 四件套（含破坏性 env_var_delete_all）默认走延迟通道：
+    不在 inline 白名单，须经 search_tools 发现；delete_all 的显式确认
+    约束写在工具描述里。"""
+    monkeypatch.setattr(internal_registry.settings, "ENABLE_IMAGE_ANALYSIS", False)
+    monkeypatch.setattr(internal_registry.settings, "ENABLE_IMAGE_GENERATION", False)
+    monkeypatch.setattr(internal_registry.settings, "ENABLE_AUDIO_TRANSCRIPTION", False)
+    monkeypatch.setattr(internal_registry.settings, "ENABLE_SCHEDULED_TASK", False)
+    monkeypatch.setattr(internal_registry.settings, "ENABLE_WEB_SEARCH", False)
+    monkeypatch.setattr(internal_registry.settings, "ENABLE_WEB_FETCH", False)
+    monkeypatch.setattr(internal_registry, "get_persona_preset_tools", lambda: [])
+    monkeypatch.setattr(internal_registry, "get_team_tools", lambda: [])
+    monkeypatch.setattr(internal_registry, "get_conversation_history_tools", lambda: [])
+
+    async def no_policies():
+        return {}
+
+    monkeypatch.setattr(internal_registry, "get_internal_tool_policies", no_policies)
+
+    direct, deferred = await internal_registry.get_internal_tools_by_exposure_for_user(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+
+    assert [tool.name for tool in direct] == []
+    assert {tool.name for tool in deferred} == {
+        "env_var_list",
+        "env_var_set",
+        "env_var_delete",
+        "env_var_delete_all",
+    }
+
+
+@pytest.mark.asyncio
 async def test_web_tools_mount_by_default_as_system_tools(monkeypatch) -> None:
     """web_search/web_fetch 默认即挂载且 inline 直挂：无策略时进 direct
     暴露集（模型工具表直接可见），不再需要先经 tool_search 元工具发现；

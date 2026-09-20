@@ -1531,7 +1531,8 @@
       "openInNewTab": "在新标签页打开",
       "unfavorite": "取消收藏"
     },
-    "empty": "还没有展示过的文件",
+    "empty": "还没有文件",
+    "emptyAction": "去开启对话",
     "favorites": "我的收藏",
     "files": "个文件",
     "filter": {

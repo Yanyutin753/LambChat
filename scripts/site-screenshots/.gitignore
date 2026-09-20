@@ -1,0 +1,6 @@
+out/
+rv/
+auth*.json
+anon*.json
+shots*.yaml
+__pycache__/

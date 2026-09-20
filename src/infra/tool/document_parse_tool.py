@@ -192,11 +192,9 @@ async def document_parse(
     ] = None,
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
-    """Parse a document (PDF, DOCX, PPTX, DOC, PPT, ODT) into Markdown via the configured
-    document parsing providers (Mistral OCR, MinerU, Azure Document Intelligence, docling,
-    Tika, PaddleOCR-VL, or the local MarkItDown fallback), with embedded images uploaded
-    and inlined as image URLs. Use this to read user document attachments instead of
-    writing ad-hoc sandbox parsing code."""
+    """Parse a document (PDF, DOCX, PPTX, DOC, PPT, ODT) into Markdown with
+    embedded images uploaded and inlined as image URLs. Use this to read user
+    document attachments instead of writing ad-hoc sandbox parsing code."""
 
     resolved_url = _resolve_url(url, runtime)
 

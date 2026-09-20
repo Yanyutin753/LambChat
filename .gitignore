@@ -38,6 +38,8 @@ wheels/
 .env
 .env.local
 .env.*.tmp
+.env.*
+!.env.example
 
 # Logs
 *.log
@@ -114,6 +116,10 @@ YubbChat/
 !/scripts/e2e_local_sandbox.py
 !/scripts/generate_updater_manifest.py
 !/scripts/benchmark_memory_scope.py
+!/scripts/site-screenshots/
+!/scripts/site-screenshots/capture_all.py
+!/scripts/site-screenshots/make_auth.py
+!/scripts/site-screenshots/README.md
 docs/docs/.vitepress/
 k8s/lambchat-secret.yaml
 k8s/lambchat.yaml

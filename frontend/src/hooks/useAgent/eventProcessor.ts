@@ -458,7 +458,7 @@ export function processMessageEvent(
           messageId,
         );
       } else {
-        result.parts = [...parts, artifactPart];
+        result.parts = upsertArtifactPart(parts, artifactPart);
       }
       break;
     }
@@ -736,6 +736,30 @@ function isTransientAskHumanCancellation(text: string): boolean {
 /** Replace existing sandbox part or append if none exists.
  *  Preserves `startedAt` from the previous part so the original
  *  starting timestamp survives across status transitions. */
+/** Stable identity for an artifact part: the source path (workspace path or
+ *  remote URL) survives re-uploads, unlike id/previewKey which change with
+ *  every storage key. */
+function artifactStableKey(artifact: ArtifactPartArtifact): string {
+  if ("path" in artifact && artifact.path) return artifact.path;
+  return artifact.preview?.previewKey ?? artifact.id ?? "";
+}
+
+/** Upsert an artifact part by stable key: the same file re-delivered within
+ *  one message (edit race, re-reveal) replaces its card instead of stacking
+ *  duplicates. Different paths append normally. */
+function upsertArtifactPart(parts: MessagePart[], artifactPart: MessagePart): MessagePart[] {
+  if (artifactPart.type !== "artifact") return [...parts, artifactPart];
+  const stableKey = artifactStableKey(artifactPart.artifact);
+  if (!stableKey) return [...parts, artifactPart];
+  const existingIndex = parts.findIndex(
+    (p) => p.type === "artifact" && artifactStableKey(p.artifact) === stableKey,
+  );
+  if (existingIndex === -1) return [...parts, artifactPart];
+  const next = [...parts];
+  next[existingIndex] = artifactPart;
+  return next;
+}
+
 /** Replace existing memory-status part or append if none exists. */
 function upsertMemoryStatusPart(
   parts: MessagePart[],

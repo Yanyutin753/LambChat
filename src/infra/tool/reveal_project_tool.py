@@ -538,18 +538,19 @@ async def _upload_project_files_bounded(
 async def reveal_project(
     project_path: Annotated[
         str,
-        "项目/文件夹路径；单个文件用 reveal_file",
+        "Project or folder path; use reveal_file for a single file",
     ],
-    name: Annotated[Optional[str], "项目名；默认目录名"] = None,
-    description: Annotated[Optional[str], "可选项目说明"] = None,
+    name: Annotated[Optional[str], "Project name; defaults to the directory name"] = None,
+    description: Annotated[Optional[str], "Optional project caption"] = None,
     template: Annotated[
         Optional[ProjectTemplate],
-        "可选模板；默认自动检测",
+        "Optional template; auto-detected by default",
     ] = None,
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
-    """向用户展示整个项目或文件夹。前端目录返回 project 预览，非前端文件夹
-    返回 folder 文件树；单个文件使用 reveal_file。"""
+    """Show the user a whole project or folder. Frontend directories return a
+    project preview; other folders return a folder tree. Use reveal_file for a
+    single file."""
     storage = await _get_storage()
 
     backend = get_backend_from_runtime(runtime)

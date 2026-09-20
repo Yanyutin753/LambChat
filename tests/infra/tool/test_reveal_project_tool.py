@@ -17,11 +17,10 @@ def test_reveal_project_tool_description_mentions_folder_reveal() -> None:
         "description"
     ]
 
-    assert "文件夹" in description
-    assert "非前端" in description
     assert "folder" in description
+    assert "folder tree" in description
     assert "index.html 或 package.json" not in project_path_description
-    assert "文件夹" in project_path_description
+    assert "folder" in project_path_description
 
 
 def test_subagent_workflow_allows_folder_reveal() -> None:

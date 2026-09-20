@@ -1531,7 +1531,8 @@
       "openInNewTab": "Open in new tab",
       "unfavorite": "Remove from favorites"
     },
-    "empty": "No files revealed yet",
+    "empty": "No files yet",
+    "emptyAction": "Start a chat",
     "favorites": "Favorites",
     "files": "files",
     "filter": {

@@ -102,8 +102,8 @@ async def _execute_sandbox_download(backend, url: str, file_path: str) -> tuple[
 
 @tool
 async def upload_url_to_sandbox(
-    url: Annotated[str, "要下载的文件 URL"],
-    file_path: Annotated[str, "沙箱内的目标文件路径（绝对路径）"],
+    url: Annotated[str, "URL of the file to download."],
+    file_path: Annotated[str, "Absolute target file path inside the sandbox."],
     runtime: Annotated[ToolRuntime, InjectedToolArg],
 ) -> str:
     """Download a URL to a sandbox file path for use by shell commands and scripts."""

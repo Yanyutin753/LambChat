@@ -113,13 +113,17 @@ def test_get_env_var_tools_returns_safe_crud_tools() -> None:
 
     tools = get_env_var_tools()
 
+    # env_var_delete_all 必须随组返回：破坏性全清工具曾定义后从未挂载，
+    # 前端专属 Item 与 CI 基线却一直为它维护（死工具断点）。
     assert [tool.name for tool in tools] == [
         "env_var_list",
         "env_var_set",
         "env_var_delete",
+        "env_var_delete_all",
     ]
     assert tools[0].args == {}
     assert "runtime" not in tools[1].args
+    assert "explicitly asks" in (tools[3].description or "")
 
 
 @pytest.mark.asyncio

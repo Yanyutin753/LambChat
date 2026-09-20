@@ -9,6 +9,7 @@ import {
   LayoutGrid,
   List,
   FolderKanban,
+  ArrowUpDown,
 } from "lucide-react";
 import { FILE_TYPE_FILTERS, SORT_OPTIONS } from "../constants";
 import { useDropdownPos } from "../hooks/useDropdownPos";
@@ -257,9 +258,9 @@ export function Toolbar({
                 }}
                 className={`${btnBase} gap-1 px-2 @sm:px-2.5 ${btnDefault}`}
               >
-                <SortIcon
-                  order={sortOrder}
-                  className="text-theme-text-tertiary"
+                <ArrowUpDown
+                  size={16}
+                  className="text-theme-text-tertiary @sm:hidden"
                 />
                 <span className="max-w-[80px] truncate hidden @sm:inline">
                   {t(currentSortLabel ?? "fileLibrary.sort.newest")}

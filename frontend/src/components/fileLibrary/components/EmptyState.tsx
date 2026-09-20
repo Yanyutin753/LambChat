@@ -1,5 +1,7 @@
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { FolderSearch, Search } from "lucide-react";
+import { Button } from "../../common";
 import { FilesListSkeleton } from "../../skeletons";
 
 interface EmptyStateProps {
@@ -14,6 +16,7 @@ export function EmptyState({
   hasActiveFilters,
 }: EmptyStateProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   /* Loading skeleton — real Toolbar stays mounted, so only the list is skeletonized */
   if (isLoading) {
@@ -51,6 +54,12 @@ export function EmptyState({
             </p>
           )}
         </div>
+
+        {!hasActiveFilters && (
+          <Button variant="primary" onClick={() => navigate("/chat")}>
+            {t("fileLibrary.emptyAction")}
+          </Button>
+        )}
       </div>
     );
   }

@@ -93,13 +93,9 @@ Priority guidance:
 
 - Prefer memory that helps the next agent anticipate likely follow-up asks, avoid predictable
   user interruptions, and match the user's working style without being reminded.
-- Preference evidence that may save future user keystrokes is often more valuable than routine
-  procedural facts.
 - When inferring preferences, read much more into user messages than assistant messages.
   User requests, corrections, interruptions, redo instructions, and repeated narrowing are
   the primary evidence. Assistant summaries are secondary evidence about how the agent responded.
-- Pure discussion, brainstorming, and tentative design talk should usually stay in the
-  rollout summary unless there is clear evidence that the conclusion held.
 
 ============================================================
 HOW TO READ A ROLLOUT
@@ -171,8 +167,6 @@ Additional preference/failure heuristics:
   as high-signal preference evidence.
 - If the user discards, deletes, or asks to redo an artifact, do not treat the earlier
   attempt as a clean success.
-- If the user spends extra keystrokes specifying something the agent could reasonably have
-  anticipated, consider whether that should be a future default behavior.
 
 This classification should guide what you write. If fail/partial/uncertain, emphasize
 what did not work, pivots, and prevention rules, and write less about
@@ -224,8 +218,6 @@ Important judgment rules:
 - Preserve epistemic status when it matters. Make it clear whether something was verified,
   explicitly stated by the user, inferred from repeated user behavior, proposed by the
   assistant and accepted, or merely discussed without clear adoption.
-- Overindex on user messages and user-side steering. Underindex on assistant messages,
-  especially where the assistant may be proposing options rather than recording settled facts.
 - Prefer epistemically honest phrasing such as "the user said ...", "the user repeatedly
   asked ... indicating ...", or "the user agreed to ..." instead of unattributed facts.
 - When a conclusion is abstract, prefer an evidence -> implication -> future action shape.

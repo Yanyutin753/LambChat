@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.infra.tool import reveal_file_tool
+from src.infra.tool import _reveal_file_support, reveal_file_tool
 
 
 class _Runtime:
@@ -92,8 +92,10 @@ async def test_reveal_file_returns_remote_url_directly(
     )
 
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _get_storage)
+    monkeypatch.setattr(_reveal_file_support, "_get_storage", _get_storage)
     monkeypatch.setattr(reveal_file_tool, "get_backend_from_runtime", _get_backend_from_runtime)
     monkeypatch.setattr(reveal_file_tool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(_reveal_file_support, "run_blocking_io", fake_run_blocking_io)
 
     result = json.loads(
         await reveal_file_tool.reveal_file.coroutine(
@@ -138,6 +140,7 @@ async def test_reveal_file_indexes_remote_url_without_storage_or_backend(
     url = "https://cdn.example.com/generated-images/user-1/portrait.png"
 
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _get_storage)
+    monkeypatch.setattr(_reveal_file_support, "_get_storage", _get_storage)
     monkeypatch.setattr(reveal_file_tool, "get_backend_from_runtime", _get_backend_from_runtime)
     monkeypatch.setattr(reveal_file_tool, "get_revealed_file_storage", lambda: _FakeIndex())
 
@@ -185,8 +188,10 @@ async def test_reveal_file_backend_unavailable_offloads_result_json(
         return func(*args, **kwargs)
 
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _get_storage)
+    monkeypatch.setattr(_reveal_file_support, "_get_storage", _get_storage)
     monkeypatch.setattr(reveal_file_tool, "get_backend_from_runtime", lambda runtime: None)
     monkeypatch.setattr(reveal_file_tool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(_reveal_file_support, "run_blocking_io", fake_run_blocking_io)
 
     result = json.loads(
         await reveal_file_tool.reveal_file.coroutine(
@@ -214,15 +219,28 @@ async def test_upload_local_resource_skips_filesystem_fallback_when_disabled(
     monkeypatch.setattr(
         reveal_file_tool, "_download_file_from_backend", _download_file_from_backend
     )
+    monkeypatch.setattr(
+        _reveal_file_support, "_download_file_from_backend", _download_file_from_backend
+    )
     monkeypatch.setattr(reveal_file_tool, "_read_file_from_filesystem", _read_file_from_filesystem)
+    monkeypatch.setattr(
+        _reveal_file_support, "_read_file_from_filesystem", _read_file_from_filesystem
+    )
     monkeypatch.setattr(reveal_file_tool, "_is_sandbox_backend", lambda backend: False)
+    monkeypatch.setattr(_reveal_file_support, "_is_sandbox_backend", lambda backend: False)
     monkeypatch.setattr(
         reveal_file_tool,
         "settings",
         SimpleNamespace(ENABLE_LOCAL_FILESYSTEM_FALLBACK=False),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        _reveal_file_support,
+        "settings",
+        SimpleNamespace(ENABLE_LOCAL_FILESYSTEM_FALLBACK=False),
     )
 
-    result = await reveal_file_tool._upload_local_resource(
+    result = await _reveal_file_support._upload_local_resource(
         "./chart.png",
         "/workspace",
         backend=object(),
@@ -269,15 +287,28 @@ async def test_upload_local_resource_uses_filesystem_fallback_when_enabled(
     monkeypatch.setattr(
         reveal_file_tool, "_download_file_from_backend", _download_file_from_backend
     )
+    monkeypatch.setattr(
+        _reveal_file_support, "_download_file_from_backend", _download_file_from_backend
+    )
     monkeypatch.setattr(reveal_file_tool, "_read_file_from_filesystem", _read_file_from_filesystem)
+    monkeypatch.setattr(
+        _reveal_file_support, "_read_file_from_filesystem", _read_file_from_filesystem
+    )
     monkeypatch.setattr(reveal_file_tool, "_is_sandbox_backend", lambda backend: False)
+    monkeypatch.setattr(_reveal_file_support, "_is_sandbox_backend", lambda backend: False)
     monkeypatch.setattr(
         reveal_file_tool,
         "settings",
         SimpleNamespace(ENABLE_LOCAL_FILESYSTEM_FALLBACK=True),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        _reveal_file_support,
+        "settings",
+        SimpleNamespace(ENABLE_LOCAL_FILESYSTEM_FALLBACK=True),
     )
 
-    result = await reveal_file_tool._upload_local_resource(
+    result = await _reveal_file_support._upload_local_resource(
         "./chart.png",
         str(chart_path.parent),
         backend=object(),
@@ -310,15 +341,26 @@ async def test_upload_local_resource_uses_filesystem_upload_helper(
     monkeypatch.setattr(
         reveal_file_tool, "_download_file_from_backend", _download_file_from_backend
     )
+    monkeypatch.setattr(
+        _reveal_file_support, "_download_file_from_backend", _download_file_from_backend
+    )
     monkeypatch.setattr(reveal_file_tool, "_upload_filesystem_file", _upload_filesystem_file)
+    monkeypatch.setattr(_reveal_file_support, "_upload_filesystem_file", _upload_filesystem_file)
     monkeypatch.setattr(reveal_file_tool, "_is_sandbox_backend", lambda backend: False)
+    monkeypatch.setattr(_reveal_file_support, "_is_sandbox_backend", lambda backend: False)
     monkeypatch.setattr(
         reveal_file_tool,
         "settings",
         SimpleNamespace(ENABLE_LOCAL_FILESYSTEM_FALLBACK=True),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        _reveal_file_support,
+        "settings",
+        SimpleNamespace(ENABLE_LOCAL_FILESYSTEM_FALLBACK=True),
     )
 
-    result = await reveal_file_tool._upload_local_resource(
+    result = await _reveal_file_support._upload_local_resource(
         "./chart.png",
         str(chart_path.parent),
         backend=object(),
@@ -373,6 +415,9 @@ async def test_reveal_file_uploads_backend_content_as_file(
     monkeypatch.setattr(
         reveal_file_tool, "_download_file_from_backend", _download_file_from_backend
     )
+    monkeypatch.setattr(
+        _reveal_file_support, "_download_file_from_backend", _download_file_from_backend
+    )
 
     async def fake_run_blocking_io(func, *args, **kwargs):
         blocking_calls.append(func.__name__)
@@ -383,13 +428,16 @@ async def test_reveal_file_uploads_backend_content_as_file(
             monkeypatch.setattr(reveal_file_tool, "_inside_fake_blocking_io", False, raising=False)
 
     monkeypatch.setattr(reveal_file_tool, "SpooledTemporaryFile", _BlockingOnlySpooledFile)
+    monkeypatch.setattr(_reveal_file_support, "SpooledTemporaryFile", _BlockingOnlySpooledFile)
     monkeypatch.setattr(reveal_file_tool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(_reveal_file_support, "run_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(reveal_file_tool, "_inside_fake_blocking_io", False, raising=False)
 
     async def _get_storage():
         return _FakeStorage()
 
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _get_storage)
+    monkeypatch.setattr(_reveal_file_support, "_get_storage", _get_storage)
     monkeypatch.setattr(reveal_file_tool, "get_backend_from_runtime", lambda runtime: object())
     monkeypatch.setattr(
         reveal_file_tool,
@@ -413,7 +461,8 @@ async def test_reveal_file_uploads_backend_content_as_file(
         "content_type": "application/pdf",
         "skip_size_limit": True,
     }
-    assert blocking_calls == ["write", "seek", "dumps"]
+    # 内容哈希复用先于 spool（同内容跳过重传的判据），再走写盘上传
+    assert blocking_calls == ["_sha256_hex", "write", "seek", "dumps"]
 
 
 @pytest.mark.asyncio
@@ -448,11 +497,21 @@ async def test_reveal_file_rejects_known_oversize_backend_file_before_download(
         reveal_file_tool,
         "settings",
         SimpleNamespace(S3_INTERNAL_UPLOAD_MAX_SIZE=max_bytes),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        _reveal_file_support,
+        "settings",
+        SimpleNamespace(S3_INTERNAL_UPLOAD_MAX_SIZE=max_bytes),
     )
     monkeypatch.setattr(
         reveal_file_tool, "_download_file_from_backend", _download_file_from_backend
     )
+    monkeypatch.setattr(
+        _reveal_file_support, "_download_file_from_backend", _download_file_from_backend
+    )
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _get_storage)
+    monkeypatch.setattr(_reveal_file_support, "_get_storage", _get_storage)
     monkeypatch.setattr(reveal_file_tool, "get_backend_from_runtime", lambda runtime: backend)
 
     result = json.loads(
@@ -495,12 +554,23 @@ async def test_reveal_file_rejects_unknown_oversize_backend_file_after_download(
         reveal_file_tool,
         "settings",
         SimpleNamespace(S3_INTERNAL_UPLOAD_MAX_SIZE=max_bytes),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        _reveal_file_support,
+        "settings",
+        SimpleNamespace(S3_INTERNAL_UPLOAD_MAX_SIZE=max_bytes),
     )
     monkeypatch.setattr(
         reveal_file_tool, "_download_file_from_backend", _download_file_from_backend
     )
+    monkeypatch.setattr(
+        _reveal_file_support, "_download_file_from_backend", _download_file_from_backend
+    )
     monkeypatch.setattr(reveal_file_tool, "SpooledTemporaryFile", _FailSpooledFile)
+    monkeypatch.setattr(_reveal_file_support, "SpooledTemporaryFile", _FailSpooledFile)
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _get_storage)
+    monkeypatch.setattr(_reveal_file_support, "_get_storage", _get_storage)
     monkeypatch.setattr(reveal_file_tool, "get_backend_from_runtime", lambda runtime: object())
 
     result = json.loads(
@@ -567,7 +637,11 @@ async def test_reveal_file_releases_backend_buffer_before_upload_await(
     monkeypatch.setattr(
         reveal_file_tool, "_download_file_from_backend", _download_file_from_backend
     )
+    monkeypatch.setattr(
+        _reveal_file_support, "_download_file_from_backend", _download_file_from_backend
+    )
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _get_storage)
+    monkeypatch.setattr(_reveal_file_support, "_get_storage", _get_storage)
     monkeypatch.setattr(reveal_file_tool, "get_backend_from_runtime", lambda runtime: object())
     monkeypatch.setattr(
         reveal_file_tool,
@@ -625,7 +699,11 @@ async def test_reveal_file_indexes_upload_when_runtime_has_user_without_trace_co
     monkeypatch.setattr(
         reveal_file_tool, "_download_file_from_backend", _download_file_from_backend
     )
+    monkeypatch.setattr(
+        _reveal_file_support, "_download_file_from_backend", _download_file_from_backend
+    )
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _get_storage)
+    monkeypatch.setattr(_reveal_file_support, "_get_storage", _get_storage)
     monkeypatch.setattr(reveal_file_tool, "get_revealed_file_storage", lambda: _FakeIndex())
 
     result = json.loads(
@@ -653,6 +731,7 @@ async def test_reveal_file_indexes_upload_when_runtime_has_user_without_trace_co
                 "project_id": None,
                 "description": "monthly report",
                 "original_path": "/workspace/report.pdf",
+                "content_hash": "29d1283686193dc1461a7deac4f53d9bc5402a28b95d854f69e94986756fd0a9",
             },
         }
     ]
@@ -709,8 +788,15 @@ async def test_reveal_file_filesystem_fallback_streams_main_file(
     monkeypatch.setattr(
         reveal_file_tool, "_download_file_from_backend", _download_file_from_backend
     )
+    monkeypatch.setattr(
+        _reveal_file_support, "_download_file_from_backend", _download_file_from_backend
+    )
     monkeypatch.setattr(reveal_file_tool, "_read_file_from_filesystem", _read_file_from_filesystem)
+    monkeypatch.setattr(
+        _reveal_file_support, "_read_file_from_filesystem", _read_file_from_filesystem
+    )
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _get_storage)
+    monkeypatch.setattr(_reveal_file_support, "_get_storage", _get_storage)
     monkeypatch.setattr(reveal_file_tool, "get_backend_from_runtime", lambda runtime: object())
     monkeypatch.setattr(
         reveal_file_tool,
@@ -718,14 +804,22 @@ async def test_reveal_file_filesystem_fallback_streams_main_file(
         lambda runtime: "https://app.example.com",
     )
     monkeypatch.setattr(reveal_file_tool, "_is_sandbox_backend", lambda backend: False)
+    monkeypatch.setattr(_reveal_file_support, "_is_sandbox_backend", lambda backend: False)
 
     async def fake_run_blocking_io(func, *args, **kwargs):
         blocking_calls.append(func.__name__)
         return func(*args, **kwargs)
 
     monkeypatch.setattr(reveal_file_tool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(_reveal_file_support, "run_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(
         reveal_file_tool,
+        "settings",
+        SimpleNamespace(ENABLE_LOCAL_FILESYSTEM_FALLBACK=True),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        _reveal_file_support,
         "settings",
         SimpleNamespace(ENABLE_LOCAL_FILESYSTEM_FALLBACK=True),
     )
@@ -799,8 +893,15 @@ async def test_reveal_file_large_resolvable_filesystem_fallback_skips_ref_resolu
     monkeypatch.setattr(
         reveal_file_tool, "_download_file_from_backend", _download_file_from_backend
     )
+    monkeypatch.setattr(
+        _reveal_file_support, "_download_file_from_backend", _download_file_from_backend
+    )
     monkeypatch.setattr(reveal_file_tool, "_read_file_from_filesystem", _read_file_from_filesystem)
+    monkeypatch.setattr(
+        _reveal_file_support, "_read_file_from_filesystem", _read_file_from_filesystem
+    )
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _get_storage)
+    monkeypatch.setattr(_reveal_file_support, "_get_storage", _get_storage)
     monkeypatch.setattr(reveal_file_tool, "get_backend_from_runtime", lambda runtime: object())
     monkeypatch.setattr(
         reveal_file_tool,
@@ -808,9 +909,16 @@ async def test_reveal_file_large_resolvable_filesystem_fallback_skips_ref_resolu
         lambda runtime: "https://app.example.com",
     )
     monkeypatch.setattr(reveal_file_tool, "_is_sandbox_backend", lambda backend: False)
-    monkeypatch.setattr(reveal_file_tool, "_LOCAL_REF_RESOLUTION_MAX_BYTES", 8)
+    monkeypatch.setattr(_reveal_file_support, "_is_sandbox_backend", lambda backend: False)
+    monkeypatch.setattr(_reveal_file_support, "_LOCAL_REF_RESOLUTION_MAX_BYTES", 8)
     monkeypatch.setattr(
         reveal_file_tool,
+        "settings",
+        SimpleNamespace(ENABLE_LOCAL_FILESYSTEM_FALLBACK=True),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        _reveal_file_support,
         "settings",
         SimpleNamespace(ENABLE_LOCAL_FILESYSTEM_FALLBACK=True),
     )
@@ -840,9 +948,9 @@ async def test_read_file_from_filesystem_refuses_large_files(
 ) -> None:
     report_path = tmp_path / "large.md"
     report_path.write_bytes(b"x" * 16)
-    monkeypatch.setattr(reveal_file_tool, "_LOCAL_REF_RESOLUTION_MAX_BYTES", 8)
+    monkeypatch.setattr(_reveal_file_support, "_LOCAL_REF_RESOLUTION_MAX_BYTES", 8)
 
-    content = await reveal_file_tool._read_file_from_filesystem(str(report_path))
+    content = await _reveal_file_support._read_file_from_filesystem(str(report_path))
 
     assert content is None
 
@@ -865,10 +973,10 @@ async def test_resolve_local_references_caps_uploaded_resources(
         uploaded_refs.append(local_path)
         return f"https://app.example.com/{local_path.lstrip('./')}"
 
-    monkeypatch.setattr(reveal_file_tool, "_LOCAL_REF_UPLOAD_LIMIT", 2, raising=False)
-    monkeypatch.setattr(reveal_file_tool, "_upload_local_resource", _upload_local_resource)
+    monkeypatch.setattr(_reveal_file_support, "_LOCAL_REF_UPLOAD_LIMIT", 2, raising=False)
+    monkeypatch.setattr(_reveal_file_support, "_upload_local_resource", _upload_local_resource)
 
-    resolved = await reveal_file_tool._resolve_local_references(
+    resolved = await _reveal_file_support._resolve_local_references(
         markdown.encode(),
         "/workspace",
         backend=object(),
@@ -911,11 +1019,11 @@ async def test_resolve_local_references_uploads_with_bounded_overlap_and_isolate
             return None
         return f"https://app.example.com/{local_path.lstrip('./')}"
 
-    monkeypatch.setattr(reveal_file_tool, "_LOCAL_REF_UPLOAD_CONCURRENCY", 2, raising=False)
-    monkeypatch.setattr(reveal_file_tool, "_upload_local_resource", _upload_local_resource)
+    monkeypatch.setattr(_reveal_file_support, "_LOCAL_REF_UPLOAD_CONCURRENCY", 2, raising=False)
+    monkeypatch.setattr(_reveal_file_support, "_upload_local_resource", _upload_local_resource)
 
     resolve_task = asyncio.create_task(
-        reveal_file_tool._resolve_local_references(
+        _reveal_file_support._resolve_local_references(
             markdown.encode(),
             "/workspace",
             backend=object(),

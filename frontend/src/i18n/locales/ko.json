@@ -1532,6 +1532,7 @@
       "unfavorite": "즐겨찾기에서 제거"
     },
     "empty": "아직 파일이 없습니다",
+    "emptyAction": "대화 시작하기",
     "favorites": "즐겨찾기",
     "files": "파일",
     "filter": {

@@ -8,5 +8,3 @@ Fast Agent 系统提示 - 简洁高效
 from src.agents.core.prompt_policy import PERSISTENT_STORAGE_POLICY
 
 FAST_SYSTEM_PROMPT = PERSISTENT_STORAGE_POLICY
-
-DEFERRED_TOOL_GUIDE = ""

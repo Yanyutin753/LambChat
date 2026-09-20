@@ -419,7 +419,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             tools=filtered_tools,
             checkpointer=inner_checkpointer,
             store=store,  # 传递 PostgresStore
-            skills=None,  # 禁用 SkillsMiddleware，使用 build_skills_prompt 代替
+            skills=None,  # 技能清单由 SkillSearchTool 描述携带，不在 system prompt 注入
             subagents=custom_subagents,
             middleware=user_middleware,
         )

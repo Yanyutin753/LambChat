@@ -22,7 +22,9 @@ logger = get_logger(__name__)
 DEFERRED_TOOL_SEARCH_GUIDE = (
     "## Tool Search Guide\n\n"
     "Deferred MCP/system tool schemas are not loaded. If a listed tool helps, "
-    "call `search_tools` once, then call the loaded tool directly."
+    "call `search_tools` once, then call the loaded tool directly. Before "
+    "calling data or a tool unavailable, `search_tools` the domain (git, "
+    "filesystem, command execution, database) first."
 )
 
 

@@ -2,15 +2,18 @@
 
 from langchain.agents.middleware import TodoListMiddleware
 
-# 主 agent（fast/search/team）的 system prompt 不含 WORKFLOW/PROGRESS 政策，
-# Todo 触发指引必须经由此 system_prompt 随中间件注入；子代理会与
-# PROGRESS_POLICY 重复一次，同义强化，可接受。
+# Todo 触发指引的唯一系统级注入点：主 agent 与全部子代理的中间件栈都挂
+# 本中间件（见 test_todo_middleware_registration）；PROGRESS_POLICY 不再
+# 复读同一触发条件（曾双份近逐字注入每个请求）。
 TODO_SYSTEM_PROMPT = (
     "### Todo Planning\n"
     "For multi-step work (3+ steps or multiple tool calls), call `write_todos` "
     "with the plan before any tool call and keep statuses current. Explicit "
     "plan/checklist/`write_todos` requests: always call first. Skip trivial "
-    "one-step requests."
+    "one-step requests.\n"
+    "Act over endless reasoning: prefer a tool call or exact computation over "
+    "long mental reasoning; if you have reasoned at length without acting, "
+    "call a tool now."
 )
 
 TODO_TOOL_DESCRIPTION = (

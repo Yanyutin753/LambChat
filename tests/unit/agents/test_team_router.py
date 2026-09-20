@@ -133,7 +133,6 @@ def test_team_router_prompt_includes_tool_progress_guidance():
     lower_prompt = prompt.lower()
 
     assert "tool progress" in lower_prompt
-    assert "before any tool call" in lower_prompt
     assert "text/tool calls may interleave" in lower_prompt
     assert "never invent results" in lower_prompt
 

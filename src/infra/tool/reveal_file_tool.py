@@ -23,16 +23,11 @@ Reveal File 工具
 - 使用 asyncio.Lock 防止并发初始化
 """
 
-import asyncio
-import inspect
+import hashlib
 import json
-import mimetypes
 import os
-import re
-from contextvars import ContextVar
 from tempfile import SpooledTemporaryFile
-from typing import Annotated, Any, Literal, Optional
-from urllib.parse import unquote, urlparse
+from typing import Annotated, Any, Optional
 
 from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
@@ -41,6 +36,32 @@ from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
 from src.infra.logging.context import TraceContext
 from src.infra.revealed_file.storage import get_revealed_file_storage
+
+# 支撑层符号：IO/URL 工具与本地引用解析（测试对部分符号在本模块仍有绑定
+# 可 patch；仅支撑模块内部使用的读取以 _reveal_file_support 为准）
+from src.infra.tool._reveal_file_support import (  # noqa: F401
+    _UPLOAD_SPOOL_MEMORY_LIMIT,
+    FileCategory,
+    _can_resolve_local_filesystem_refs,
+    _download_file_from_backend,
+    _extract_self_upload_key,
+    _get_backend_file_size,
+    _get_filename_from_path,
+    _get_reveal_file_upload_max_bytes,
+    _get_storage,
+    _is_file_path,
+    _is_remote_url,
+    _is_sandbox_backend,
+    _local_filesystem_fallback_enabled,
+    _needs_local_ref_resolution,
+    _probe_download_error,
+    _read_file_from_filesystem,
+    _resolve_local_references,
+    _self_upload_url_missing,
+    _upload_filesystem_file,
+    get_file_category,
+    get_mime_type,
+)
 from src.infra.tool.backend_utils import (
     get_backend_from_runtime,
     get_base_url_from_runtime,
@@ -49,117 +70,12 @@ from src.infra.tool.backend_utils import (
     get_trace_id_from_runtime,
     get_user_id_from_runtime,
 )
-from src.kernel.config import settings
 
 logger = get_logger(__name__)
-
-# Task-local handoff from the download helper to the immediate error probe. This
-# is transient request state only; backend selection still comes from ToolRuntime.
-_last_backend_download_error: ContextVar[tuple[Any, str, str] | None] = ContextVar(
-    "reveal_file_last_backend_download_error", default=None
-)
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
     return await run_blocking_io(json.dumps, data, ensure_ascii=False)
-
-
-_UPLOAD_SPOOL_MEMORY_LIMIT = 2 * 1024 * 1024
-_LOCAL_REF_RESOLUTION_MAX_BYTES = 2 * 1024 * 1024
-_LOCAL_REF_UPLOAD_LIMIT = 20
-_LOCAL_REF_UPLOAD_CONCURRENCY = 4
-_DEFAULT_REVEAL_FILE_UPLOAD_MAX_BYTES = 1024 * 1024 * 1024
-
-# 文件类型分类
-FileCategory = Literal["image", "video", "audio", "document"]
-
-# MIME 类型到文件类别的映射
-MIME_TYPE_CATEGORIES: dict[str, FileCategory] = {
-    # 图片
-    "image/jpeg": "image",
-    "image/png": "image",
-    "image/gif": "image",
-    "image/webp": "image",
-    "image/svg+xml": "image",
-    "image/bmp": "image",
-    "image/x-icon": "image",
-    # 视频
-    "video/mp4": "video",
-    "video/mpeg": "video",
-    "video/webm": "video",
-    "video/quicktime": "video",
-    "video/x-msvideo": "video",
-    "video/x-ms-wmv": "video",
-    # 音频
-    "audio/mpeg": "audio",
-    "audio/wav": "audio",
-    "audio/ogg": "audio",
-    "audio/aac": "audio",
-    "audio/flac": "audio",
-    "audio/x-m4a": "audio",
-}
-
-
-def get_file_category(mime_type: str) -> FileCategory:
-    """根据 MIME 类型获取文件类别"""
-    if mime_type in MIME_TYPE_CATEGORIES:
-        return MIME_TYPE_CATEGORIES[mime_type]
-
-    if mime_type.startswith("image/"):
-        return "image"
-    if mime_type.startswith("video/"):
-        return "video"
-    if mime_type.startswith("audio/"):
-        return "audio"
-
-    return "document"
-
-
-def get_mime_type(filename: str) -> str:
-    """根据文件名获取 MIME 类型"""
-    mime_type, _ = mimetypes.guess_type(filename)
-    return mime_type or "application/octet-stream"
-
-
-def _is_sandbox_backend(backend: Any) -> bool:
-    """判断 backend 是否为沙箱类型（支持 shell 命令执行）"""
-    return hasattr(backend, "execute") or hasattr(backend, "aexecute")
-
-
-def _local_filesystem_fallback_enabled() -> bool:
-    """Whether non-sandbox reveal flows may read from the process filesystem."""
-    return bool(getattr(settings, "ENABLE_LOCAL_FILESYSTEM_FALLBACK", True))
-
-
-def _can_resolve_local_filesystem_refs(file_path: str) -> bool:
-    """Only materialize small local text files for best-effort reference rewriting."""
-    try:
-        return os.path.getsize(file_path) <= _LOCAL_REF_RESOLUTION_MAX_BYTES
-    except OSError:
-        return False
-
-
-def _get_local_ref_upload_limit() -> int:
-    return max(int(_LOCAL_REF_UPLOAD_LIMIT), 1)
-
-
-def _get_reveal_file_upload_max_bytes() -> int:
-    configured = getattr(
-        settings,
-        "S3_INTERNAL_UPLOAD_MAX_SIZE",
-        _DEFAULT_REVEAL_FILE_UPLOAD_MAX_BYTES,
-    )
-    return max(int(configured or _DEFAULT_REVEAL_FILE_UPLOAD_MAX_BYTES), 1)
-
-
-def _coerce_file_size(value: Any) -> int | None:
-    if isinstance(value, bool) or value is None:
-        return None
-    try:
-        size = int(value)
-    except (TypeError, ValueError):
-        return None
-    return size if size >= 0 else None
 
 
 async def _lookup_session_project_id(session_id: str | None) -> str | None:
@@ -192,6 +108,7 @@ async def _index_revealed_file(
     file_key: str,
     description: str,
     original_path: str,
+    content_hash: str | None = None,
 ) -> None:
     try:
         req_ctx = TraceContext.get_request_context()
@@ -219,6 +136,8 @@ async def _index_revealed_file(
             "description": description,
             "original_path": original_path,
         }
+        if content_hash:
+            data["content_hash"] = content_hash
         if delivery_source:
             data["delivery_source"] = delivery_source
 
@@ -235,493 +154,119 @@ async def _index_revealed_file(
         logger.warning(f"[reveal_file] Failed to index revealed file: {idx_err}")
 
 
-async def _get_backend_file_size(backend: Any, file_path: str) -> int | None:
-    async_method = getattr(backend, "aget_file_size", None)
-    if callable(async_method):
-        try:
-            size = async_method(file_path)
-            if inspect.isawaitable(size):
-                size = await size
-            return _coerce_file_size(size)
-        except Exception as e:
-            logger.debug(f"[reveal_file] aget_file_size failed for {file_path}: {e}")
-
-    sync_method = getattr(backend, "get_file_size", None)
-    if callable(sync_method):
-        try:
-            return _coerce_file_size(await run_blocking_io(sync_method, file_path))
-        except Exception as e:
-            logger.debug(f"[reveal_file] get_file_size failed for {file_path}: {e}")
-
-    private_method = getattr(backend, "_file_size", None)
-    if callable(private_method):
-        try:
-            return _coerce_file_size(await run_blocking_io(private_method, file_path))
-        except Exception as e:
-            logger.debug(f"[reveal_file] _file_size failed for {file_path}: {e}")
-
-    return None
-
-
-async def _get_storage():
-    """获取已初始化的 storage 服务（复用 upload 模块的初始化逻辑）"""
-    from src.infra.storage.s3.service import get_or_init_storage
-
-    return await get_or_init_storage()
-
-
-async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[bytes]:
-    """
-    通过 download_files 从 backend 获取原始文件内容。
-
-    沙箱（DaytonaBackend）和非沙箱（StateBackend/StoreBackend）均支持 download_files，
-    返回原始字节，不包含行号等格式化内容。
-
-    The structured ``error`` from a failed response is handed to the immediate
-    reveal-file probe via task-local transient state (issue #196).
-    """
-    logger.info(f"[reveal_file] Attempting to download: {file_path}")
-    _last_backend_download_error.set(None)
-
-    if hasattr(backend, "adownload_files"):
-        try:
-            responses = await backend.adownload_files([file_path])
-            if responses:
-                resp = responses[0]
-                logger.info(
-                    f"[reveal_file] adownload_files response: path={resp.path}, error={resp.error}, content_len={len(resp.content) if resp.content else 0}"
-                )
-                if resp.content:
-                    return resp.content
-                elif resp.error:
-                    logger.warning(f"[reveal_file] Download error: {resp.error}")
-                    _last_backend_download_error.set((backend, file_path, resp.error))
-                    return None
-        except Exception as e:
-            logger.warning(f"[reveal_file] adownload_files failed for {file_path}: {e}")
-
-    if hasattr(backend, "download_files"):
-        try:
-            responses = await run_blocking_io(backend.download_files, [file_path])
-            if responses:
-                resp = responses[0]
-                logger.info(
-                    f"[reveal_file] download_files response: path={resp.path}, error={resp.error}, content_len={len(resp.content) if resp.content else 0}"
-                )
-                if resp.content:
-                    return resp.content
-                elif resp.error:
-                    logger.warning(f"[reveal_file] Download error: {resp.error}")
-                    _last_backend_download_error.set((backend, file_path, resp.error))
-                    return None
-        except Exception as e:
-            logger.warning(f"[reveal_file] download_files failed for {file_path}: {e}")
-
-    return None
-
-
-async def _probe_download_error(backend: Any, file_path: str) -> Optional[str]:
-    """Probe the backend's structured download error for a path (issue #196).
-
-    Called after a download yields no content to tell a directory from a
-    missing file, so the caller can give the agent an actionable hint. The
-    immediately preceding structured error is reused task-locally; a read-only
-    probe is issued only when no such result is available.
-    """
-    cached = _last_backend_download_error.get()
-    if cached is not None and cached[0] is backend and cached[1] == file_path:
-        _last_backend_download_error.set(None)
-        return cached[2]
-
+def _reveal_user_id(runtime: ToolRuntime | None) -> str | None:
+    """索引/复用共用的 user_id 提取（请求上下文优先，回退 runtime）。"""
     try:
-        if hasattr(backend, "adownload_files"):
-            responses = await backend.adownload_files([file_path])
-        elif hasattr(backend, "download_files"):
-            responses = await run_blocking_io(backend.download_files, [file_path])
-        else:
-            return None
-        if responses:
-            return responses[0].error
-    except Exception as e:
-        logger.debug("[reveal_file] probe error for %s: %s", file_path, e)
-    return None
+        req_ctx = TraceContext.get_request_context()
+    except Exception:
+        req_ctx = None
+    user_id = getattr(req_ctx, "user_id", None) or get_user_id_from_runtime(runtime)
+    return user_id if isinstance(user_id, str) and user_id else None
 
 
-async def _read_file_from_filesystem(file_path: str) -> Optional[bytes]:
-    """非沙箱模式下的兜底：直接从本地文件系统读取文件内容"""
+def _sha256_hex(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()
+
+
+def _hash_local_file(file_path: str) -> str | None:
+    """流式哈希本地文件（不整读进内存）；失败返回 None（放弃复用直传）。"""
     try:
-
-        def _read_small_file() -> Optional[bytes]:
-            if not os.path.isfile(file_path):
-                return None
-            if os.path.getsize(file_path) > _LOCAL_REF_RESOLUTION_MAX_BYTES:
-                logger.warning(
-                    "[reveal_file] Skipping filesystem fallback read for large file: %s",
-                    file_path,
-                )
-                return None
-            with open(file_path, "rb") as file:
-                return file.read()
-
-        content = await run_blocking_io(_read_small_file)
-        if content is not None:
-            return content
-        logger.debug(f"[reveal_file] File not found on filesystem: {file_path}")
+        digest = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
     except Exception as e:
-        logger.warning(f"[reveal_file] Failed to read from filesystem: {file_path}: {e}")
-    return None
+        logger.debug(f"[reveal_file] Failed to hash local file {file_path}: {e}")
+        return None
 
 
-def _is_file_path(file_path: str) -> bool:
-    return os.path.isfile(file_path)
-
-
-async def _upload_filesystem_file(
-    file_path: str,
-    storage: Any,
-    filename: str,
+async def _try_reuse_upload(
+    user_id: str | None,
+    original_path: str,
+    content_hash: str | None,
     mime_type: str,
-):
-    """Upload a local file handle directly without materializing it as bytes."""
+    storage: Any | None = None,
+) -> Any | None:
+    """同路径同内容 → 复用既有存储对象，跳过重传（防存储孤儿累积）。
 
-    def _open_file():
-        return open(file_path, "rb")
-
-    file = await run_blocking_io(_open_file)
+    依赖文件库行的 content_hash（本特性起写入）；旧行无该字段即不命中，
+    安全回退为正常上传。命中要求行 file_key 是真实 storage key（非 URL），
+    且对象在存储中仍存在——行命中但对象已被删时放弃复用重传，upsert
+    顺带修复行（否则哈希永远命中死 key，产物永久 404）。存储不可用时
+    保持复用（与代理 URL 透传校验同策略：可用性故障不该拖死交付）。
+    """
+    if not user_id or not content_hash:
+        return None
     try:
-        return await storage.upload_file(
-            file=file,
-            folder="revealed_files",
-            filename=filename,
-            content_type=mime_type,
-            skip_size_limit=True,
+        row = await get_revealed_file_storage().find_by_original(
+            user_id, original_path, "reveal_file"
         )
-    finally:
-        await run_blocking_io(file.close)
-
-
-# ---------------------------------------------------------------------------
-# 本地资源引用检测与替换
-# ---------------------------------------------------------------------------
-
-# 需要处理的文件扩展名（这些文件类型可能引用本地资源）
-_RESOLVABLE_EXTENSIONS = {".md", ".markdown", ".html", ".htm", ".svg", ".xhtml"}
-
-# 可上传的资源扩展名（图片、视频、音频）
-_UPLOADABLE_EXTENSIONS = {
-    # 图片
-    ".png",
-    ".jpg",
-    ".jpeg",
-    ".gif",
-    ".webp",
-    ".svg",
-    ".bmp",
-    ".ico",
-    ".avif",
-    # 视频
-    ".mp4",
-    ".webm",
-    ".mov",
-    ".avi",
-    ".wmv",
-    ".mkv",
-    ".ogv",
-    # 音频
-    ".mp3",
-    ".wav",
-    ".ogg",
-    ".aac",
-    ".flac",
-    ".m4a",
-    ".opus",
-}
-
-# 正则模式
-_RE_MD_LINK = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")  # ![alt](path)
-_RE_HTML_SRC = re.compile(
-    r'<(img|video|audio|source|iframe)\b[^>]*(?:src|href)=["\']([^"\']+)["\']',
-    re.IGNORECASE,
-)
-_RE_CSS_URL = re.compile(r'url\(["\']?([^)"\']+)["\']?\)')  # CSS url()
-_RE_SVG_IMAGE = re.compile(r'<image\b[^>]*href=["\']([^"\']+)["\']', re.IGNORECASE)
-
-
-def _is_local_path(path: str) -> bool:
-    """判断路径是否为本地文件路径（非 http/https/data URL）"""
-    stripped = path.strip()
-    return (
-        not stripped.startswith("http://")
-        and not stripped.startswith("https://")
-        and not stripped.startswith("data:")
-        and not stripped.startswith("#")
-        and not stripped.startswith("blob:")
-        and not stripped.startswith("mailto:")
-    )
-
-
-def _is_remote_url(path: str) -> bool:
-    """判断路径是否为可直接返回的远程 URL"""
-    parsed = urlparse(path.strip())
-    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
-
-
-_UPLOAD_PROXY_URL_PREFIX = "/api/upload/file/"
-
-
-def _extract_self_upload_key(url: str) -> str | None:
-    """提取指向本站上传代理路由（/api/upload/file/<key>）形态 URL 的 storage key。
-
-    agent 常把 image_generate 等工具返回的长 URL 重新抄写后再传给
-    reveal_file，hex id 抄错一个字符即得到不存在的对象；此类 URL 必须
-    先校验存在性再透传。不含该路径前缀的远程 URL 返回 None，不校验。
-    """
-    parsed = urlparse(url.strip())
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        return None
-    path = unquote(parsed.path or "")
-    if _UPLOAD_PROXY_URL_PREFIX not in path:
-        return None
-    key = path.split(_UPLOAD_PROXY_URL_PREFIX, 1)[1].strip("/")
-    return key or None
-
-
-async def _self_upload_url_missing(key: str) -> bool | None:
-    """检查本站上传 key 是否存在；存储不可用（含初始化失败）时返回 None（保持透传可用性）。"""
-    try:
-        storage = await _get_storage()
-        return not await storage.file_exists(key)
     except Exception as e:
-        logger.warning(f"[reveal_file] Existence check failed for key {key}: {e}")
+        logger.debug(f"[reveal_file] Reuse lookup failed for {original_path}: {e}")
         return None
-
-
-def _get_filename_from_path(path: str) -> str:
-    """从本地路径或 URL 中提取文件名。"""
-    if _is_remote_url(path):
-        parsed = urlparse(path.strip())
-        candidate = os.path.basename(unquote(parsed.path))
-        if candidate:
-            return candidate
-
-    candidate = os.path.basename(path.rstrip("/"))
-    return candidate or path
-
-
-def _is_uploadable_resource(path: str) -> bool:
-    """判断路径是否指向可上传的资源文件"""
-    # 去掉 query string / fragment
-    clean = path.split("?")[0].split("#")[0]
-    ext = os.path.splitext(clean)[1].lower()
-    return ext in _UPLOADABLE_EXTENSIONS
-
-
-def _needs_local_ref_resolution(filename: str, mime_type: str) -> bool:
-    """判断文件是否需要做本地引用替换"""
-    ext = os.path.splitext(filename)[1].lower()
-    if ext in _RESOLVABLE_EXTENSIONS:
-        return True
-    if mime_type in ("text/markdown", "text/x-markdown", "text/html", "image/svg+xml"):
-        return True
-    return False
-
-
-async def _upload_local_resource(
-    local_path: str,
-    file_dir: str,
-    backend: Any,
-    storage: Any,
-    base_url: str,
-) -> Optional[str]:
-    """
-    尝试下载并上传一个本地资源文件到 S3，返回 proxy URL。
-    失败时返回 None。
-    """
-    try:
-        if os.path.isabs(local_path):
-            abs_path = local_path
-        else:
-            abs_path = os.path.normpath(os.path.join(file_dir, local_path))
-
-        content = await _download_file_from_backend(backend, abs_path)
-        if (
-            content is None
-            and not _is_sandbox_backend(backend)
-            and _local_filesystem_fallback_enabled()
-        ):
-            if not await run_blocking_io(_is_file_path, abs_path):
+    if not isinstance(row, dict) or row.get("content_hash") != content_hash:
+        return None
+    file_key = row.get("file_key")
+    if not isinstance(file_key, str) or not file_key or _is_remote_url(file_key):
+        return None
+    if storage is not None:
+        try:
+            if not await storage.file_exists(file_key):
+                logger.info(f"[reveal_file] Reuse hit but object missing, re-uploading: {file_key}")
                 return None
-            res_filename = os.path.basename(abs_path)
-            res_mime = get_mime_type(res_filename)
-            upload_result = await _upload_filesystem_file(
-                abs_path,
-                storage,
-                res_filename,
-                res_mime,
-            )
-            url = f"{base_url}/api/upload/file/{upload_result.key}"
-            logger.info(f"[reveal_file] Uploaded local resource {local_path} -> {url}")
-            return url
-        if content is None:
-            return None
+        except Exception as e:
+            logger.debug(f"[reveal_file] Reuse existence check failed for {file_key}: {e}")
+    raw_size = row.get("file_size")
+    raw_mime = row.get("mime_type")
+    raw_url = row.get("url")
+    file_size = raw_size if isinstance(raw_size, int) else 0
+    row_mime = raw_mime if isinstance(raw_mime, str) else None
+    row_url = raw_url if isinstance(raw_url, str) else ""
+    logger.info(f"[reveal_file] Reusing existing object for {original_path}: {file_key}")
+    return _ReusableUploadResult(
+        key=file_key, url=row_url, size=file_size, content_type=row_mime or mime_type
+    )
 
-        res_filename = os.path.basename(abs_path)
-        res_mime = get_mime_type(res_filename)
-        with SpooledTemporaryFile(
-            max_size=_UPLOAD_SPOOL_MEMORY_LIMIT,
-            mode="w+b",
-        ) as spooled:
-            await run_blocking_io(spooled.write, content)
-            del content
-            await run_blocking_io(spooled.seek, 0)
-            upload_result = await storage.upload_file(
-                file=spooled,
-                folder="revealed_files",
-                filename=res_filename,
-                content_type=res_mime,
-                skip_size_limit=True,
-            )
-        url = f"{base_url}/api/upload/file/{upload_result.key}"
-        logger.info(f"[reveal_file] Uploaded local resource {local_path} -> {url}")
-        return url
-    except Exception as e:
-        logger.warning(f"[reveal_file] Failed to upload local resource {local_path}: {e}")
+
+class _ReusableUploadResult:
+    """duck-typed UploadResult：reveal 主流程只消费 key/url/size/content_type。"""
+
+    def __init__(self, *, key: str, url: str, size: int, content_type: str) -> None:
+        self.key = key
+        self.url = url
+        self.size = size
+        self.content_type = content_type
+
+
+async def _reverse_map_self_upload_row(
+    user_id: str | None, file_path: str
+) -> dict[str, Any] | None:
+    """本站代理 URL → 反查文件库原始行（file_name/original_path/file_key）。
+
+    模型按 ARTIFACT_POLICY 复述 reveal 返回的 URL 时，该 URL 再进
+    reveal_file 按原始行归一索引，避免同一文件裂成 path:/url: 两行。
+    """
+    proxy_key = _extract_self_upload_key(file_path)
+    if not proxy_key or not user_id:
         return None
-
-
-async def _upload_local_references_bounded(
-    paths: list[str],
-    file_dir: str,
-    backend: Any,
-    storage: Any,
-    base_url: str,
-) -> list[Optional[str]]:
-    """Upload local references with a fixed-size worker pool and stable results."""
-    if not paths:
-        return []
-
-    results: list[Optional[str]] = [None] * len(paths)
-    next_index = 0
-    lock = asyncio.Lock()
-    worker_count = min(max(int(_LOCAL_REF_UPLOAD_CONCURRENCY), 1), len(paths))
-
-    async def _worker() -> None:
-        nonlocal next_index
-        while True:
-            async with lock:
-                if next_index >= len(paths):
-                    return
-                index = next_index
-                next_index += 1
-            results[index] = await _upload_local_resource(
-                paths[index],
-                file_dir,
-                backend,
-                storage,
-                base_url,
-            )
-
-    await asyncio.gather(*(_worker() for _ in range(worker_count)))
-    return results
-
-
-async def _resolve_local_references(
-    content: bytes,
-    file_dir: str,
-    backend: Any,
-    storage: Any,
-    base_url: str,
-) -> bytes:
-    """
-    检测并替换文本内容中的本地资源引用（图片、视频、音频）为 S3 URL。
-    支持 Markdown、HTML、SVG、CSS 等文件类型。
-
-    作为兜底机制：agent 提示词已要求它主动上传资源并使用 URL，
-    此函数用于捕获遗漏的本地引用。
-    """
     try:
-        text = content.decode("utf-8")
-    except UnicodeDecodeError:
-        return content
-
-    # 收集所有需要上传的本地资源路径（保持原始大小写用于替换，但去重时不区分）
-    seen_normalized = set()
-    unique_paths: list[str] = []
-
-    for pattern in (_RE_MD_LINK, _RE_HTML_SRC, _RE_SVG_IMAGE, _RE_CSS_URL):
-        for match in pattern.finditer(text):
-            # 不同 pattern 的路径在不同 group
-            path = (
-                match.group(2).strip()
-                if match.lastindex and match.lastindex >= 2
-                else match.group(1).strip()
-            )
-            if _is_local_path(path) and _is_uploadable_resource(path):
-                normalized = os.path.normpath(path)
-                if normalized not in seen_normalized:
-                    seen_normalized.add(normalized)
-                    unique_paths.append(path)
-
-    if not unique_paths:
-        return content
-    upload_limit = _get_local_ref_upload_limit()
-    if len(unique_paths) > upload_limit:
-        logger.warning(
-            "[reveal_file] Found %s local resource references; only uploading first %s",
-            len(unique_paths),
-            upload_limit,
-        )
-        unique_paths = unique_paths[:upload_limit]
-
-    logger.info(
-        f"[reveal_file] Found {len(unique_paths)} local resource reference(s), "
-        f"uploading to S3 as fallback"
-    )
-
-    # 批量上传
-    path_to_url: dict[str, str] = {}
-    urls = await _upload_local_references_bounded(
-        unique_paths,
-        file_dir,
-        backend,
-        storage,
-        base_url,
-    )
-    for ref_path, url in zip(unique_paths, urls):
-        if url:
-            path_to_url[ref_path] = url
-
-    if not path_to_url:
-        return content
-
-    # 替换所有匹配到的本地路径
-    def _replacer(match: re.Match) -> str:
-        original = match.group(0)
-        for group_idx in (1, 2):
-            if match.lastindex is not None and group_idx <= match.lastindex:
-                path = (
-                    match.group(group_idx).strip()
-                    if match.lastindex and match.lastindex >= group_idx
-                    else ""
-                )
-                if path in path_to_url:
-                    return original.replace(path, path_to_url[path], 1)
-        return original
-
-    for pattern in (_RE_MD_LINK, _RE_HTML_SRC, _RE_SVG_IMAGE, _RE_CSS_URL):
-        text = pattern.sub(_replacer, text)
-
-    return text.encode("utf-8")
+        return await get_revealed_file_storage().find_by_file_key(user_id, proxy_key)
+    except Exception as e:
+        logger.debug(f"[reveal_file] Reverse map lookup failed for {file_path}: {e}")
+        return None
 
 
 @tool
 async def reveal_file(
-    file_path: Annotated[str, "单个文件路径或 http(s) URL；目录用 reveal_project"],
-    description: Annotated[Optional[str], "可选的文件说明"] = None,
+    file_path: Annotated[
+        str, "Single file path or http(s) URL; use reveal_project for directories"
+    ],
+    description: Annotated[Optional[str], "Optional file caption"] = None,
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
-    """向用户实际展示一个可点击的单个文件或 URL；仅回复路径不够。
-    目录或多文件项目必须使用 reveal_project。"""
+    """Show the user one clickable file or URL; replying with a bare path is not
+    enough. Directories and multi-file projects must use reveal_project."""
     if _is_remote_url(file_path):
         self_upload_key = _extract_self_upload_key(file_path)
         if self_upload_key is not None:
@@ -761,16 +306,49 @@ async def reveal_file(
                 "source": "remote_url",
             },
         }
+        # URL echo 归一：本站代理 URL 反查原始行，索引并入原行（不裂第二行）；
+        # 并入时保留原行的真实元数据（尺寸/URL/mime），不得用 echo 的零值覆盖
+        index_file_name = filename
+        index_file_key: str = file_path
+        index_original_path = file_path
+        index_file_size = 0
+        index_url = file_path
+        index_mime_type = mime_type
+        origin_row = await _reverse_map_self_upload_row(_reveal_user_id(runtime), file_path)
+        if isinstance(origin_row, dict):
+            row_name = origin_row.get("file_name")
+            if isinstance(row_name, str) and row_name:
+                index_file_name = row_name
+            row_key = origin_row.get("file_key")
+            if isinstance(row_key, str) and row_key and not _is_remote_url(row_key):
+                index_file_key = row_key
+            row_path = origin_row.get("original_path")
+            if (
+                isinstance(row_path, str)
+                and row_path
+                and not _is_remote_url(row_path)
+                and not _extract_self_upload_key(row_path)
+            ):
+                index_original_path = row_path
+            row_size = origin_row.get("file_size")
+            if isinstance(row_size, int) and row_size > 0:
+                index_file_size = row_size
+            row_url = origin_row.get("url")
+            if isinstance(row_url, str) and row_url:
+                index_url = row_url
+            row_mime = origin_row.get("mime_type")
+            if isinstance(row_mime, str) and row_mime:
+                index_mime_type = row_mime
         await _index_revealed_file(
             runtime=runtime,
-            file_name=filename,
+            file_name=index_file_name,
             file_category=file_category,
-            mime_type=mime_type,
-            file_size=0,
-            url=file_path,
-            file_key=file_path,
+            mime_type=index_mime_type,
+            file_size=index_file_size,
+            url=index_url,
+            file_key=index_file_key,
             description=description or "",
-            original_path=file_path,
+            original_path=index_original_path,
         )
         return await _json_dumps_result(remote_result)
 
@@ -901,23 +479,39 @@ async def reveal_file(
             )
             use_filesystem_stream = False
 
+        # 同路径同内容 → 复用既有对象（内容哈希，防重复上传孤儿）
+        reuse_user_id = _reveal_user_id(runtime)
+        content_hash: str | None = None
+        upload_result = None
         if use_filesystem_stream:
-            upload_result = await _upload_filesystem_file(file_path, storage, filename, mime_type)
-        else:
-            with SpooledTemporaryFile(
-                max_size=_UPLOAD_SPOOL_MEMORY_LIMIT,
-                mode="w+b",
-            ) as spooled:
-                await run_blocking_io(spooled.write, file_content)
-                del file_content
-                await run_blocking_io(spooled.seek, 0)
-                upload_result = await storage.upload_file(
-                    file=spooled,
-                    folder="revealed_files",
-                    filename=filename,
-                    content_type=mime_type,
-                    skip_size_limit=True,
+            content_hash = await run_blocking_io(_hash_local_file, file_path)
+            upload_result = await _try_reuse_upload(
+                reuse_user_id, file_path, content_hash, mime_type, storage
+            )
+            if upload_result is None:
+                upload_result = await _upload_filesystem_file(
+                    file_path, storage, filename, mime_type
                 )
+        else:
+            content_hash = await run_blocking_io(_sha256_hex, file_content)
+            upload_result = await _try_reuse_upload(
+                reuse_user_id, file_path, content_hash, mime_type, storage
+            )
+            if upload_result is None:
+                with SpooledTemporaryFile(
+                    max_size=_UPLOAD_SPOOL_MEMORY_LIMIT,
+                    mode="w+b",
+                ) as spooled:
+                    await run_blocking_io(spooled.write, file_content)
+                    del file_content
+                    await run_blocking_io(spooled.seek, 0)
+                    upload_result = await storage.upload_file(
+                        file=spooled,
+                        folder="revealed_files",
+                        filename=filename,
+                        content_type=mime_type,
+                        skip_size_limit=True,
+                    )
 
         file_category = get_file_category(upload_result.content_type or mime_type)
 
@@ -947,6 +541,7 @@ async def reveal_file(
             file_key=upload_result.key,
             description=description or "",
             original_path=file_path,
+            content_hash=content_hash,
         )
 
         return await _json_dumps_result(reveal_result)

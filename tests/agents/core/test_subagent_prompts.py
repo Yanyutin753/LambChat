@@ -56,8 +56,6 @@ COMMON_WORKFLOW_MARKERS = (
     "external side effects",
     "privacy",
     "progress",
-    "todo",
-    "write_todos",
 )
 
 

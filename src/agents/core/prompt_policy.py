@@ -134,8 +134,11 @@ SAFETY_POLICY = """### Safety, Verification, and Privacy
 - Do not take destructive, irreversible, publishing, spending, or remote actions unless requested or confirmed.
 - Privacy-Safe Output: Do not repeat sensitive personal data unless explicitly required. Never print, log, or store access tokens, API keys, passwords, credentials, cookies, identifiers, contacts, addresses, or account values; redact them."""
 
-PROGRESS_POLICY = """### Tool Progress and Todo State
-For multi-step work (3+ steps or multiple tool calls), call `write_todos` with the plan before any tool call and keep statuses current. Explicit plan/`write_todos` requests: always call first. For complex/slow/uncertain/external work, give one-line phase updates. Text/tool calls may interleave; never invent results."""
+# Todo 触发指引（3+ steps / 显式请求 always call first）只由 TodoListMiddleware
+# 的 TODO_SYSTEM_PROMPT 注入：fast/search/team 的主 agent 与全部子代理中间件栈
+# 都挂该中间件，这里再复读一遍等于每个请求双份近逐字注入。
+PROGRESS_POLICY = """### Tool Progress
+For complex/slow/uncertain/external work, give one-line phase updates. Text/tool calls may interleave; never invent results."""
 
 WORKFLOW_POLICY = "\n\n".join(
     (

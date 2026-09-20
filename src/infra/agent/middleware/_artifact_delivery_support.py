@@ -98,6 +98,11 @@ class _ArtifactRunState:
     delivery_tasks: dict[str, asyncio.Task[Any]] = field(default_factory=dict)
     artifact_generations: dict[str, int] = field(default_factory=dict)
     suppressed_paths: dict[str, int] = field(default_factory=dict)
+    # 本轮开始前已存在的消息 id（aafter_agent 只扫本轮新增消息，历史里的
+    # 外部 URL 不逐轮重扫重发）；以及本轮已交付过的 reveal key/url 集合
+    # （模型按 ARTIFACT_POLICY 复述返回 URL 时不再按 URL key 二次交付）。
+    seen_message_ids: set[str] = field(default_factory=set)
+    delivered_reveal_keys: set[str] = field(default_factory=set)
     delivery_semaphore: asyncio.Semaphore = field(
         default_factory=lambda: asyncio.Semaphore(_ARTIFACT_DELIVERY_CONCURRENCY)
     )
@@ -106,6 +111,21 @@ class _ArtifactRunState:
     snapshot_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     baseline_snapshot_task: asyncio.Task[Any] | None = None
     last_snapshot: dict[str, tuple[int | None, str | None]] | None = None
+
+
+_UPLOAD_PROXY_KEY_PREFIX = "/api/upload/file/"
+
+
+def _extract_upload_proxy_key(url: str) -> str | None:
+    """提取本站上传代理 URL（/api/upload/file/<key>）的 storage key；非该形态返回 None。"""
+    parsed = urlparse(url.strip())
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return None
+    path = unquote(parsed.path or "")
+    if _UPLOAD_PROXY_KEY_PREFIX not in path:
+        return None
+    key = path.split(_UPLOAD_PROXY_KEY_PREFIX, 1)[1].strip("/")
+    return key or None
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:

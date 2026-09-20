@@ -116,9 +116,14 @@ export function MCPServerCard({
           </div>
         </div>
 
-        <div className="mt-2 text-12 font-mono text-stone-400 dark:text-stone-500 truncate">
-          {server.url || ""}
-        </div>
+        {server.url && (
+          <div
+            className="mt-2 text-12 font-mono text-stone-400 dark:text-stone-500 truncate"
+            title={server.url}
+          >
+            {server.url}
+          </div>
+        )}
 
         <div className="flex-1" />
 

@@ -22,8 +22,8 @@ def test_todo_middleware_factory_exposes_write_todos() -> None:
     middleware = create_todo_middleware()
 
     assert isinstance(middleware, TodoListMiddleware)
-    # system_prompt 非空：主 agent 的 system prompt 不含 PROGRESS 政策，
-    # Todo 触发指引必须随中间件注入（见 test_prompt_policy_planning）。
+    # system_prompt 非空：Todo 触发指引的唯一系统级通道就是本中间件
+    # （见 test_prompt_policy_planning）。
     assert middleware.system_prompt.strip()
     assert [tool.name for tool in middleware.tools] == ["write_todos"]
     assert "todos" in middleware.state_schema.__annotations__

@@ -27,6 +27,7 @@ from src.infra.agent.middleware._artifact_delivery_support import (
     _coerce_str,
     _content_to_text,
     _extract_file_urls_from_text,
+    _extract_upload_proxy_key,
     _file_info_value,
     _json_dumps_result,
     _list_backend_files,
@@ -91,7 +92,13 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
         return key, run
 
     async def abefore_agent(self, state: Any, runtime: Any) -> None:
-        del state
+        messages = state.get("messages") if isinstance(state, dict) else None
+        if isinstance(messages, list):
+            for message in messages:
+                message_id = getattr(message, "id", None)
+                if isinstance(message_id, str) and message_id:
+                    run = self._run_state(runtime)[1]
+                    run.seen_message_ids.add(message_id)
         _, run = self._run_state(runtime)
         if run.baseline_snapshot_task is None:
             run.baseline_snapshot_task = self._schedule_workspace_snapshot(
@@ -197,10 +204,17 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
         for message in messages:
             if getattr(message, "type", None) not in {"ai", "assistant"}:
                 continue
+            # 只扫本轮新增消息：checkpointer 让历史消息跨轮累积，全量重扫
+            # 会对旧 URL 每轮重发 artifact:result（重复卡 + 归属错误）。
+            message_id = getattr(message, "id", None)
+            if isinstance(message_id, str) and message_id in run.seen_message_ids:
+                continue
             content = _content_to_text(getattr(message, "content", ""))
             if not content:
                 continue
             for url in _extract_file_urls_from_text(content):
+                if self._already_delivered(run, url):
+                    continue
                 self._stage_path(
                     run,
                     url,
@@ -208,6 +222,25 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
                     description="External file linked by the agent",
                     priority="intermediate",
                 )
+
+    @staticmethod
+    def _already_delivered(run: _ArtifactRunState, url: str) -> bool:
+        """URL 本身或其代理 storage key 已在本轮交付过 → 跳过（同文件双卡）。"""
+        if url in run.delivered_reveal_keys:
+            return True
+        proxy_key = _extract_upload_proxy_key(url)
+        return proxy_key is not None and proxy_key in run.delivered_reveal_keys
+
+    @staticmethod
+    def _record_delivered_keys(run: _ArtifactRunState, parsed: dict[str, Any] | None) -> None:
+        if not isinstance(parsed, dict):
+            return
+        for value in (parsed.get("key"), parsed.get("url")):
+            if isinstance(value, str) and value:
+                run.delivered_reveal_keys.add(value)
+                proxy_key = _extract_upload_proxy_key(value)
+                if proxy_key:
+                    run.delivered_reveal_keys.add(proxy_key)
 
     @staticmethod
     def _explicit_path(args: dict[str, Any]) -> str | None:
@@ -295,6 +328,7 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
             return False
 
         normalized_path = _normalize_path(path)
+        self._record_delivered_keys(run, parsed)
         run.artifact_generations[normalized_path] = (
             run.artifact_generations.get(normalized_path, 0) + 1
         )
@@ -685,6 +719,7 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
                 delivered = self._failed_artifact_payload(artifact, error)
                 status = "error"
             else:
+                self._record_delivered_keys(run, parsed if isinstance(parsed, dict) else None)
                 delivered = self._artifact_payload_from_reveal_content(artifact, content, args)
                 status = "success"
         except Exception as exc:

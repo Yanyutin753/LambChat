@@ -175,6 +175,42 @@ class RevealedFileStorage:
     # - is_favorite: user's explicit bookmark, must survive re-reveals
     _PROTECTED_FIELDS = frozenset({"_id", "user_id", "is_favorite"})
 
+    async def find_by_original(
+        self, user_id: str, original_path: str, source: str
+    ) -> Optional[Dict[str, Any]]:
+        """Find one record by its originating path (same dedupe key upsert uses).
+
+        Used by reveal_file's content-hash reuse: an unchanged re-reveal of the
+        same path reuses the existing storage object instead of re-uploading.
+        """
+        await self.ensure_indexes_if_needed()
+        try:
+            dedupe_key = _build_dedupe_key(original_path, source, {"original_path": original_path})
+            return await self.collection.find_one(
+                {"user_id": user_id, "dedupe_key": dedupe_key, "source": source}
+            )
+        except Exception as e:
+            logger.warning(f"Failed to find revealed file by original path: {e}")
+            return None
+
+    async def find_by_file_key(
+        self, user_id: str, file_key: str, source: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Find the latest record stored under a storage key (created_at desc).
+
+        Used to reverse-map a self-upload proxy URL back to the original reveal
+        row so URL echoes merge into it instead of creating a second entry.
+        """
+        await self.ensure_indexes_if_needed()
+        try:
+            query: Dict[str, Any] = {"user_id": user_id, "file_key": file_key}
+            if source:
+                query["source"] = source
+            return await self.collection.find_one(query, sort=[("created_at", -1)])
+        except Exception as e:
+            logger.warning(f"Failed to find revealed file by file key: {e}")
+            return None
+
     async def upsert_by_name(
         self,
         user_id: str,

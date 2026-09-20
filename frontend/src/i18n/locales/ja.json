@@ -1532,6 +1532,7 @@
       "unfavorite": "お気に入りから削除"
     },
     "empty": "まだファイルがありません",
+    "emptyAction": "チャットを始める",
     "favorites": "お気に入り",
     "files": "ファイル",
     "filter": {

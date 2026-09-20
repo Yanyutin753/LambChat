@@ -321,7 +321,8 @@ async def image_analyze(
     ] = DEFAULT_IMAGE_ANALYSIS_PROMPT,
     runtime: Annotated[ToolRuntime | None, InjectedToolArg] = None,
 ) -> str:
-    """Analyze one or more images with the configured vision-language model."""
+    """Analyze one or more images with the configured vision-language model.
+    Returns JSON {success, analysis, model_id}."""
     try:
         model_reference = str(getattr(settings, "IMAGE_ANALYSIS_MODEL_ID", "") or "").strip()
         if not model_reference:

@@ -107,13 +107,10 @@ async def memory_retain(
     ] = None,
     scope: Annotated[
         Optional[str],
-        "Ownership scope: 'user' (cross-project personal preference), "
-        "'project' (bound to the current session's project), or 'reference' "
-        "(external docs/links). Default: project-bound when the context label "
-        "is project-* and the session has a project, otherwise 'user'. "
-        "Project ownership is inherited from the current session; when the "
-        "session has no project, project-scoped content is automatically "
-        "stored as 'user' scope (see result note).",
+        "Ownership scope: 'user' (cross-project personal preference), 'project' "
+        "(bound to the current session's project), or 'reference' (external "
+        "docs/links). Default: 'project' for project-* context when the session "
+        "has a project, otherwise 'user'.",
     ] = None,
     source_refs: Annotated[
         Optional[list[ConversationSourceRef]],

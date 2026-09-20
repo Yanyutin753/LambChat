@@ -131,7 +131,8 @@ async def video_analyze(
     ] = DEFAULT_VIDEO_ANALYSIS_PROMPT,
     runtime: Annotated[ToolRuntime | None, InjectedToolArg] = None,
 ) -> str:
-    """Analyze one or more videos with the configured vision-language model."""
+    """Analyze one or more videos with the configured vision-language model.
+    Returns JSON {success, analysis, model_id, videos, errors?}."""
     from src.infra.llm.client import LLMClient
     from src.infra.tool.image_analysis_tool import (
         _content_to_text,

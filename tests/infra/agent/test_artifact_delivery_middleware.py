@@ -328,6 +328,7 @@ async def test_artifact_delivery_indexes_auto_delivered_file_in_file_library(
                 "project_id": None,
                 "description": "File created by the agent",
                 "original_path": "/workspace/report.pdf",
+                "content_hash": "29d1283686193dc1461a7deac4f53d9bc5402a28b95d854f69e94986756fd0a9",
                 "delivery_source": "artifact_auto",
             },
         }
@@ -1848,3 +1849,105 @@ async def test_artifact_delivery_does_not_auto_stage_sensitive_external_urls() -
 
     assert reveal_calls == []
     assert update is None
+
+
+@pytest.mark.asyncio
+async def test_artifact_delivery_does_not_rescan_prior_turn_messages() -> None:
+    """跨 turn：aafter_agent 只扫本轮新增 AI 消息。
+
+    checkpointer 让 state["messages"] 跨 turn 累积——若每轮全量重扫，
+    历史消息里每个带文件扩展名的外部 URL 都会在「当前」消息上重复发
+    artifact:result（每轮多一张重复卡且归属错误）。本轮新消息的 URL
+    仍正常交付（改过/新链接的文件按轮展示是预期行为）。"""
+    reveal_calls: list[dict] = []
+
+    async def fake_reveal_file(**kwargs):
+        reveal_calls.append(kwargs)
+        return json.dumps({"_meta": {"path": kwargs["file_path"]}})
+
+    middleware = ArtifactDeliveryMiddleware(reveal_file=fake_reveal_file)
+    old_url = "https://cdn.example.com/assets/v1/image.png"
+
+    # 第 1 轮：本轮自己产出的消息 → 正常交付
+    runtime = SimpleNamespace(stream_writer=object(), config={})
+    await middleware.abefore_agent({"messages": []}, runtime)
+    await middleware.aafter_agent(
+        {"messages": [AIMessage(content=f"see {old_url}", id="msg-old")]},
+        runtime,
+    )
+    assert [call["file_path"] for call in reveal_calls] == [old_url]
+
+    # 第 2 轮：state 带全部历史 + 本轮新消息 → 旧 URL 不得重扫
+    new_url = "https://cdn.example.com/assets/v2/image.png"
+    runtime2 = SimpleNamespace(stream_writer=object(), config={})
+    await middleware.abefore_agent(
+        {"messages": [AIMessage(content=f"see {old_url}", id="msg-old")]},
+        runtime2,
+    )
+    await middleware.aafter_agent(
+        {
+            "messages": [
+                AIMessage(content=f"see {old_url}", id="msg-old"),
+                AIMessage(content=f"new {new_url}", id="msg-new"),
+            ]
+        },
+        runtime2,
+    )
+    assert [call["file_path"] for call in reveal_calls] == [old_url, new_url]
+
+
+@pytest.mark.asyncio
+async def test_artifact_delivery_skips_external_url_echo_of_delivered_key() -> None:
+    """run 内：显式 reveal 后模型按 ARTIFACT_POLICY 复述返回 URL，
+    aafter_agent 不得按 URL key 再次交付同一文件（同轮双卡）。"""
+    proxy_url = (
+        "https://app.example.com/api/upload/file/revealed_files/20260920_ab12cd34_report.png"
+    )
+    storage_key = "revealed_files/20260920_ab12cd34_report.png"
+    reveal_calls: list[dict] = []
+
+    async def fake_reveal_file(**kwargs):
+        reveal_calls.append(kwargs)
+        return json.dumps(
+            {
+                "key": storage_key,
+                "url": proxy_url,
+                "_meta": {"path": kwargs["file_path"]},
+            }
+        )
+
+    middleware = ArtifactDeliveryMiddleware(reveal_file=fake_reveal_file)
+    runtime = SimpleNamespace(stream_writer=object(), config={})
+    await middleware.abefore_agent({"messages": []}, runtime)
+
+    async def handler(_request):
+        return ToolMessage(
+            content=json.dumps(
+                {
+                    "key": storage_key,
+                    "url": proxy_url,
+                    "_meta": {"path": "/workspace/report.png"},
+                }
+            ),
+            tool_call_id="reveal-1",
+            name="reveal_file",
+        )
+
+    await middleware.awrap_tool_call(
+        SimpleNamespace(
+            tool_call={
+                "name": "reveal_file",
+                "id": "reveal-1",
+                "args": {"file_path": "/workspace/report.png"},
+            },
+            runtime=runtime,
+        ),
+        handler,
+    )
+    await middleware.aafter_agent(
+        {"messages": [AIMessage(content=f"report: {proxy_url}", id="m1")]},
+        runtime,
+    )
+
+    # 显式 reveal 走 handler 直返（不经 fake）；URL echo 不得再触发任何交付
+    assert reveal_calls == []

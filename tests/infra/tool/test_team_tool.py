@@ -59,14 +59,11 @@ def test_team_tool_descriptions_guide_llm_team_creation() -> None:
     assert "Pass `team_id` to update an existing team" in normalized_create_description
     assert "Optional existing Team id to update" in create_fields["team_id"].description
     assert "Always provide an emoji or avatar image URL" in create_fields["avatar"].description
-    assert "Do not invent persona_preset_id values" in create_fields["members"].description
+    assert "Never invent persona_preset_id" in create_fields["members"].description
     assert "agent_id" in create_fields["members"].description
-    assert "do not use 'team'" in create_fields["members"].description
+    assert "(not 'team')" in create_fields["members"].description
     assert "role_avatar" in create_fields["members"].description
-    assert "emoji or avatar image URL" in create_fields["members"].description
-    assert "Never use placeholder ids such as 'general-purpose'" in (
-        create_fields["members"].description
-    )
+    assert "placeholders like 'general-purpose'" in create_fields["members"].description
     assert "Researcher gathers evidence first" in create_fields["team_instructions"].description
     starter_description = create_fields["starter_prompts"].description
     assert (

@@ -10,7 +10,6 @@ from src.agents.core.prompt_policy import (
     WORKFLOW_READ_ONLY_POLICY,
     WORKSPACE_POLICY,
 )
-from src.kernel.config.base import settings
 
 FILE_WORKSPACE_GUIDE = WORKSPACE_POLICY
 FILE_REVEAL_GUIDE = ARTIFACT_POLICY
@@ -208,10 +207,4 @@ def build_role_subagent_prompt(
             role_instructions,
             task_objective,
         ),
-    )
-
-
-if settings.ENABLE_SCHEDULED_TASK:
-    MAIN_AGENT_PROMPT_SECTIONS += (
-        "Scheduled reminders/reports are supported through `scheduled_task_create` when requested.",
     )
