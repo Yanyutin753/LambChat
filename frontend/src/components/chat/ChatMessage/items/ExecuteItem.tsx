@@ -60,12 +60,14 @@ function ExecuteDetail({
 
   return (
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
-      <div className="group/args relative px-3.5 py-3 rounded-xl bg-theme-bg-elevated text-14 font-mono flex items-center gap-2.5 flex-wrap shadow-[var(--shadow-card)] ring-1 ring-theme-border transition-colors duration-200">
+      <div className="group/args relative px-3.5 py-3 rounded-xl bg-theme-bg-elevated text-14 font-mono flex items-baseline gap-2.5 shadow-[var(--shadow-card)] ring-1 ring-theme-border transition-colors duration-200">
         <Terminal size={13} className="shrink-0 text-theme-text-tertiary" />
-        <span className="text-emerald-500 dark:text-emerald-400 font-semibold">
+        <span className="shrink-0 text-emerald-500 dark:text-emerald-400 font-semibold">
           $
         </span>
-        <span className="text-theme-text break-all min-w-0">{command}</span>
+        <span className="text-theme-text break-all min-w-0 flex-1">
+          {command}
+        </span>
         {timeout && (
           <span className="shrink-0 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-secondary text-12 ring-1 ring-theme-border/50">
             {t("chat.message.toolTimeSeconds", { count: timeout })}
@@ -211,9 +213,9 @@ const ExecuteItem = memo(function ExecuteItem({
       >
         {canExpand && (
           <ToolInlineDetails>
-            <div className="group/args relative px-2 py-1.5 rounded-md bg-theme-bg-subtle text-12 text-theme-text-tertiary font-mono flex items-center gap-2 flex-wrap">
-              <span className="text-theme-text">$</span>
-              <span className="text-emerald-600 dark:text-emerald-400 break-all min-w-0">
+            <div className="group/args relative px-2 py-1.5 rounded-md bg-theme-bg-subtle text-12 text-theme-text-tertiary font-mono flex items-baseline gap-2">
+              <span className="shrink-0 text-theme-text">$</span>
+              <span className="text-emerald-600 dark:text-emerald-400 break-all min-w-0 flex-1">
                 {command}
               </span>
               {timeout && (

@@ -81,7 +81,7 @@ test("tool result header truncates long titles and subtitles on narrow screens",
   );
 
   expect(componentSource).toMatch(
-    /className="tool-console-title-row flex items-end gap-2 min-w-0 flex-1 overflow-hidden font-serif"/,
+    /className="tool-console-title-row flex items-baseline gap-2 min-w-0 flex-1 overflow-hidden font-serif"/,
   );
   // 无副标题时标题占满整行可用宽度（"General-purpose" 级别的名字不再被 40% 上限截断）
   expect(componentSource).toMatch(
@@ -90,20 +90,26 @@ test("tool result header truncates long titles and subtitles on narrow screens",
   expect(componentSource).not.toMatch(
     /className="tool-console-title min-w-0 max-w-\[40%\] truncate/,
   );
+  // 标题与副标题按文字基线对齐：副标题是普通截断 span（font-sans 覆盖行级
+  // font-serif），不再用 h-5/pb-[1px] 的贴底盒子制造基线错位
+  expect(componentSource).not.toMatch(
+    /tool-console-(?:title-row|subtitle-[a-z]+)\b[^"]*\bitems-end\b/,
+  );
+  expect(componentSource).not.toMatch(/pb-\[1px\]/);
   expect(componentSource).toMatch(
-    /className="tool-console-subtitle-pill inline-flex h-5 min-w-0 max-w-\[45vw\] sm:max-w-\[min\(32rem,52%\)\] items-end overflow-hidden px-0 pb-\[1px\] text-12 font-normal leading-none text-theme-text-tertiary"/,
+    /className="tool-console-subtitle-pill min-w-0 max-w-\[45vw\] sm:max-w-\[min\(32rem,52%\)\] truncate font-sans text-12 font-normal leading-none text-theme-text-tertiary"/,
   );
   expect(componentSource).toMatch(
-    /<span className="block min-w-0 truncate">\s*\{subtitle\}\s*<\/span>/s,
+    /title=\{subtitle\}\s*>\s*\{subtitle\}\s*<\/span>/s,
   );
   expect(componentSource).toMatch(
-    /className="tool-console-subtitle-list inline-flex items-end gap-1 min-w-0 max-w-\[45vw\] sm:max-w-\[min\(32rem,52%\)\] overflow-hidden"/,
+    /className="tool-console-subtitle-list flex items-baseline gap-1 min-w-0 max-w-\[45vw\] sm:max-w-\[min\(32rem,52%\)\] overflow-hidden"/,
   );
   expect(componentSource).toMatch(
-    /className="tool-console-subtitle-chip inline-flex items-end shrink-0 max-w-full px-0 h-5 pb-\[1px\] text-12 font-normal leading-none text-theme-text-tertiary"/,
+    /className="tool-console-subtitle-chip min-w-0 shrink-0 max-w-full truncate font-sans text-12 font-normal leading-none text-theme-text-tertiary"/,
   );
   expect(componentSource).toMatch(
-    /className="tool-console-subtitle-overflow inline-flex items-end shrink-0 h-5 pb-\[1px\] text-12 font-normal leading-none text-theme-text-tertiary tabular-nums"/,
+    /className="tool-console-subtitle-overflow shrink-0 font-sans text-12 font-normal leading-none text-theme-text-tertiary tabular-nums"/,
   );
   expect(componentSource).not.toMatch(
     /tool-console-command-pill|tool-console-command-text/,

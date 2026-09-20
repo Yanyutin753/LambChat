@@ -470,7 +470,7 @@ export function ToolResultPanel({
 
               {/* Title */}
               {title && (
-                <div className="tool-console-title-row flex items-end gap-2 min-w-0 flex-1 overflow-hidden font-serif">
+                <div className="tool-console-title-row flex items-baseline gap-2 min-w-0 flex-1 overflow-hidden font-serif">
                   <h3
                     id={titleId}
                     className={`tool-console-title min-w-0 truncate font-medium text-14 text-theme-text ${
@@ -489,12 +489,10 @@ export function ToolResultPanel({
                       if (!isTagList) {
                         return (
                           <span
-                            className="tool-console-subtitle-pill inline-flex h-5 min-w-0 max-w-[45vw] sm:max-w-[min(32rem,52%)] items-end overflow-hidden px-0 pb-[1px] text-12 font-normal leading-none text-theme-text-tertiary"
+                            className="tool-console-subtitle-pill min-w-0 max-w-[45vw] sm:max-w-[min(32rem,52%)] truncate font-sans text-12 font-normal leading-none text-theme-text-tertiary"
                             title={subtitle}
                           >
-                            <span className="block min-w-0 truncate">
-                              {subtitle}
-                            </span>
+                            {subtitle}
                           </span>
                         );
                       }
@@ -502,20 +500,18 @@ export function ToolResultPanel({
                       const visible = segments.slice(0, maxVisible);
                       const overflow = segments.length - maxVisible;
                       return (
-                        <div className="tool-console-subtitle-list inline-flex items-end gap-1 min-w-0 max-w-[45vw] sm:max-w-[min(32rem,52%)] overflow-hidden">
+                        <div className="tool-console-subtitle-list flex items-baseline gap-1 min-w-0 max-w-[45vw] sm:max-w-[min(32rem,52%)] overflow-hidden">
                           {visible.map((tag, i) => (
                             <span
                               key={i}
-                              className="tool-console-subtitle-chip inline-flex items-end shrink-0 max-w-full px-0 h-5 pb-[1px] text-12 font-normal leading-none text-theme-text-tertiary"
+                              className="tool-console-subtitle-chip min-w-0 shrink-0 max-w-full truncate font-sans text-12 font-normal leading-none text-theme-text-tertiary"
                               title={tag}
                             >
-                              <span className="block min-w-0 truncate">
-                                {tag}
-                              </span>
+                              {tag}
                             </span>
                           ))}
                           {overflow > 0 && (
-                            <span className="tool-console-subtitle-overflow inline-flex items-end shrink-0 h-5 pb-[1px] text-12 font-normal leading-none text-theme-text-tertiary tabular-nums">
+                            <span className="tool-console-subtitle-overflow shrink-0 font-sans text-12 font-normal leading-none text-theme-text-tertiary tabular-nums">
                               +{overflow}
                             </span>
                           )}
