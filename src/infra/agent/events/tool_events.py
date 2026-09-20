@@ -32,27 +32,37 @@ def _clip_tool_result_text(text: str) -> str:
     )
 
 
+def stable_tool_call_key(ns: str | None, name: Any, args: Any) -> str | None:
+    """interrupt/resume 稳定的工具调用键：checkpoint_ns + 工具名 + 参数摘要。
+
+    ns 是任务级命名空间，并行多工具共享同一任务 ns，故再拼工具名与参数
+    摘要保证唯一。None = 未携带 ns（旧包装器/异常路径），调用方自行回退。
+    供事件处理器与 middleware 拦截路径共用，保证两侧生成的键一致。
+    """
+    if not ns:
+        return None
+    digest = hashlib.md5()  # 稳定键用途，非安全哈希
+    digest.update(str(name or "").encode())
+    digest.update(b"\x00")
+    if isinstance(args, dict):
+        digest.update(json.dumps(args, sort_keys=True, ensure_ascii=False, default=str).encode())
+    return f"{ns}|{digest.hexdigest()[:12]}"
+
+
 def _stable_tool_call_id(event: StreamEvent) -> str | None:
     """interrupt/resume 稳定的工具调用键：checkpoint_ns + 工具名 + 参数摘要。
 
     langgraph 的 on_tool_start/end 每次执行尝试都换 run_id——确认门
     （ask_human / 沙箱确认）挂起后图以**同任务**重放，checkpoint_ns 不变
     而 run_id 变化，同一逻辑执行会渲染成两张卡（一张永远等不到 result）。
-    ns 是任务级命名空间，并行多工具共享同一任务 ns，故再拼工具名与参数
-    摘要保证唯一。None = 事件未携带 ns（旧包装器/异常路径），调用方回退
-    run_id 现状。
+    None = 事件未携带 ns（旧包装器/异常路径），调用方回退 run_id 现状。
     """
     metadata = event.get("metadata") or {}
     ns = metadata.get("langgraph_checkpoint_ns") or metadata.get("checkpoint_ns")
     if not ns:
         return None
     args = (event.get("data") or {}).get("input")
-    digest = hashlib.md5()  # 稳定键用途，非安全哈希
-    digest.update(str(event.get("name") or "").encode())
-    digest.update(b"\x00")
-    if isinstance(args, dict):
-        digest.update(json.dumps(args, sort_keys=True, ensure_ascii=False, default=str).encode())
-    return f"{ns}|{digest.hexdigest()[:12]}"
+    return stable_tool_call_key(ns, event.get("name"), args)
 
 
 def _parse_tool_result_json(raw: str) -> Any | None:

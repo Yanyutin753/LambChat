@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from langchain_core.messages import ToolMessage
 
 from src.infra.agent.middleware import tool_interception
 
@@ -522,6 +523,239 @@ async def test_read_file_binary_upload_checks_backend_size_before_download(
     assert message is None
     assert download_called is False
     assert storage_init_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_read_file_binary_interception_emits_tool_lifecycle_events(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """二进制 read_file 拦截路径必须补发 tool:start / tool:result。
+
+    拦截直接构造 ToolMessage 返回（不经真实工具执行），LangGraph 的
+    on_tool_start/on_tool_end 不会触发；不补发的话前端只收到流式参数，
+    「读取文件」卡片永远等不到结果（生产 8b08290d 会话实测）。
+    """
+    emitted: list[dict[str, Any]] = []
+
+    class _FakePresenter:
+        def present_tool_start(
+            self, tool_name, tool_input, tool_call_id=None, depth=0, agent_id=None
+        ):
+            return {
+                "event": "tool:start",
+                "data": {
+                    "tool": tool_name,
+                    "args": tool_input,
+                    "tool_call_id": tool_call_id,
+                    "depth": depth,
+                },
+            }
+
+        def present_tool_result(
+            self,
+            tool_name,
+            result,
+            tool_call_id=None,
+            success=True,
+            error=None,
+            depth=0,
+            agent_id=None,
+        ):
+            return {
+                "event": "tool:result",
+                "data": {
+                    "tool": tool_name,
+                    "result": result,
+                    "success": success,
+                    "tool_call_id": tool_call_id,
+                    "depth": depth,
+                },
+            }
+
+        async def emit(self, event):
+            emitted.append(event)
+
+    class _FakeBackend:
+        async def adownload_files(self, paths: list[str]):
+            assert paths == ["/workspace/chart.png"]
+            return [SimpleNamespace(content=b"png-data")]
+
+    class _FakeStorage:
+        async def upload_file(
+            self,
+            file,
+            folder: str,
+            filename: str,
+            content_type: str | None = None,
+            *,
+            skip_size_limit: bool = False,
+        ):
+            del file, skip_size_limit
+            return SimpleNamespace(key=f"{folder}/{filename}", content_type=content_type)
+
+    async def _fake_get_storage() -> _FakeStorage:
+        return _FakeStorage()
+
+    monkeypatch.setattr(
+        "src.infra.storage.s3.service.get_or_init_storage",
+        _fake_get_storage,
+    )
+    monkeypatch.setattr(
+        "src.infra.tool.backend_utils.get_backend_from_runtime",
+        lambda runtime: _FakeBackend(),
+    )
+
+    middleware = tool_interception.ToolResultBinaryMiddleware(base_url="https://app.example.com")
+    request = SimpleNamespace(
+        runtime=SimpleNamespace(
+            config={
+                "configurable": {
+                    "presenter": _FakePresenter(),
+                    "checkpoint_ns": "tools:task-1",
+                }
+            }
+        ),
+        tool_call={
+            "name": "read_file",
+            "id": "call-1",
+            "args": {"file_path": "/workspace/chart.png"},
+        },
+    )
+
+    async def _handler(_request: Any) -> Any:
+        raise AssertionError("binary read_file must be intercepted before the real handler")
+
+    result = await middleware.awrap_tool_call(request, _handler)
+
+    assert isinstance(result, ToolMessage)
+    assert [event["event"] for event in emitted] == ["tool:start", "tool:result"]
+    start_event, result_event = emitted
+    assert start_event["data"]["tool"] == "read_file"
+    assert start_event["data"]["args"] == {"file_path": "/workspace/chart.png"}
+    assert start_event["data"]["tool_call_id"].startswith("tools:task-1|")
+    assert result_event["data"]["tool"] == "read_file"
+    assert result_event["data"]["success"] is True
+    assert result_event["data"]["result"]["url"] == (
+        "https://app.example.com/api/upload/file/revealed_files/chart.png"
+    )
+    assert result_event["data"]["tool_call_id"] == start_event["data"]["tool_call_id"]
+
+
+@pytest.mark.asyncio
+async def test_read_file_binary_interception_survives_presenter_emit_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """事件发射异常不得影响工具链路：ToolMessage 照常返回。"""
+
+    class _ExplodingPresenter:
+        def present_tool_start(self, *args: Any, **kwargs: Any):
+            return {"event": "tool:start", "data": {}}
+
+        def present_tool_result(self, *args: Any, **kwargs: Any):
+            return {"event": "tool:result", "data": {}}
+
+        async def emit(self, event):
+            raise RuntimeError("presenter unavailable")
+
+    class _FakeBackend:
+        async def adownload_files(self, paths: list[str]):
+            return [SimpleNamespace(content=b"png-data")]
+
+    class _FakeStorage:
+        async def upload_file(
+            self, file, folder, filename, content_type=None, *, skip_size_limit=False
+        ):
+            del file, skip_size_limit
+            return SimpleNamespace(key=f"{folder}/{filename}", content_type=content_type)
+
+    async def _fake_get_storage() -> _FakeStorage:
+        return _FakeStorage()
+
+    monkeypatch.setattr(
+        "src.infra.storage.s3.service.get_or_init_storage",
+        _fake_get_storage,
+    )
+    monkeypatch.setattr(
+        "src.infra.tool.backend_utils.get_backend_from_runtime",
+        lambda runtime: _FakeBackend(),
+    )
+
+    middleware = tool_interception.ToolResultBinaryMiddleware(base_url="https://app.example.com")
+    request = SimpleNamespace(
+        runtime=SimpleNamespace(
+            config={
+                "configurable": {
+                    "presenter": _ExplodingPresenter(),
+                    "checkpoint_ns": "tools:task-1",
+                }
+            }
+        ),
+        tool_call={
+            "name": "read_file",
+            "id": "call-1",
+            "args": {"file_path": "/workspace/chart.png"},
+        },
+    )
+
+    async def _handler(_request: Any) -> Any:
+        raise AssertionError("binary read_file must be intercepted before the real handler")
+
+    result = await middleware.awrap_tool_call(request, _handler)
+
+    assert isinstance(result, ToolMessage)
+    assert json.loads(result.content)["url"] == (
+        "https://app.example.com/api/upload/file/revealed_files/chart.png"
+    )
+
+
+@pytest.mark.asyncio
+async def test_read_file_binary_interception_without_presenter_returns_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """无 presenter（非图上下文/旧调用方）时不发事件，拦截结果照常返回。"""
+
+    class _FakeBackend:
+        async def adownload_files(self, paths: list[str]):
+            return [SimpleNamespace(content=b"png-data")]
+
+    class _FakeStorage:
+        async def upload_file(
+            self, file, folder, filename, content_type=None, *, skip_size_limit=False
+        ):
+            del file, skip_size_limit
+            return SimpleNamespace(key=f"{folder}/{filename}", content_type=content_type)
+
+    async def _fake_get_storage() -> _FakeStorage:
+        return _FakeStorage()
+
+    monkeypatch.setattr(
+        "src.infra.storage.s3.service.get_or_init_storage",
+        _fake_get_storage,
+    )
+    monkeypatch.setattr(
+        "src.infra.tool.backend_utils.get_backend_from_runtime",
+        lambda runtime: _FakeBackend(),
+    )
+
+    middleware = tool_interception.ToolResultBinaryMiddleware(base_url="https://app.example.com")
+    request = SimpleNamespace(
+        runtime=SimpleNamespace(config={"configurable": {}}),
+        tool_call={
+            "name": "read_file",
+            "id": "call-1",
+            "args": {"file_path": "/workspace/chart.png"},
+        },
+    )
+
+    async def _handler(_request: Any) -> Any:
+        raise AssertionError("binary read_file must be intercepted before the real handler")
+
+    result = await middleware.awrap_tool_call(request, _handler)
+
+    assert isinstance(result, ToolMessage)
+    assert json.loads(result.content)["url"] == (
+        "https://app.example.com/api/upload/file/revealed_files/chart.png"
+    )
 
 
 @pytest.mark.asyncio

@@ -205,6 +205,25 @@ def _tool_accepts_runtime(tool: BaseTool) -> bool:
 # ---------------------------------------------------------------------------
 
 
+def _resolve_tool_event_context(runtime: Any) -> tuple[Any | None, int, str]:
+    """从 ToolRuntime.config 取 presenter 与事件深度。
+
+    depth 推导对齐 ``AgentEventProcessor._get_agent_context`` 与
+    ``summary_stats._resolve_presenter``：checkpoint_ns 含「|」视为子代理
+    （depth 1），否则主代理（depth 0）。返回 (presenter, depth, ns)，
+    无图上下文时 presenter 为 None。
+    """
+    config = getattr(runtime, "config", None)
+    if not isinstance(config, dict):
+        return None, 0, ""
+    configurable = config.get("configurable")
+    if not isinstance(configurable, dict):
+        return None, 0, ""
+    ns = str(configurable.get("checkpoint_ns") or "")
+    depth = 1 if "|" in ns else 0
+    return configurable.get("presenter"), depth, ns
+
+
 class ToolResultBinaryMiddleware(AgentMiddleware):
     """Upload base64 binary data and replace with URL before sending ToolMessage to LLM.
 
@@ -231,6 +250,7 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
             if file_path and self._is_binary_file(file_path):
                 uploaded = await self._handle_read_file_binary(request, file_path)
                 if uploaded is not None:
+                    await self._emit_read_file_binary_tool_events(request, uploaded)
                     return uploaded
 
         result = await handler(request)
@@ -431,6 +451,60 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
         except Exception as e:
             logger.warning("read_file binary upload failed: %s", e)
             return None
+
+    async def _emit_read_file_binary_tool_events(
+        self,
+        request: Any,
+        message: ToolMessage,
+    ) -> None:
+        """为二进制 read_file 拦截补发 tool:start / tool:result。
+
+        拦截直接构造 ToolMessage 返回，不经真实工具执行，LangGraph 的
+        on_tool_start/on_tool_end 回调不会触发——前端只收到流式参数，
+        「读取文件」卡片永远等不到 result。这里按事件处理器同款口径
+        （stable_tool_call_key + checkpoint_ns 推深度）补发一对事件；
+        发射失败仅记日志，绝不影响工具链路本身。
+        """
+        from src.infra.agent.events.tool_events import stable_tool_call_key
+
+        presenter, depth, ns = _resolve_tool_event_context(getattr(request, "runtime", None))
+        if presenter is None:
+            return
+
+        tool_args = request.tool_call.get("args")
+        if not isinstance(tool_args, dict):
+            tool_args = {}
+        tool_call_id = stable_tool_call_key(ns, "read_file", tool_args) or request.tool_call.get(
+            "id"
+        )
+        try:
+            payload = (
+                json.loads(message.content)
+                if isinstance(message.content, str)
+                else {"content": message.content}
+            )
+            await presenter.emit(
+                presenter.present_tool_start(
+                    "read_file",
+                    tool_args,
+                    tool_call_id=tool_call_id,
+                    depth=depth,
+                )
+            )
+            await presenter.emit(
+                presenter.present_tool_result(
+                    "read_file",
+                    payload,
+                    tool_call_id=tool_call_id,
+                    success=True,
+                    depth=depth,
+                )
+            )
+        except Exception:
+            logger.warning(
+                "read_file binary interception: failed to emit tool events",
+                exc_info=True,
+            )
 
     async def _upload_block(self, block: dict) -> str | None:
         """Upload a single binary block to storage, return the access URL."""
