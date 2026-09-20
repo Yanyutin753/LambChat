@@ -1,7 +1,7 @@
 import { memo, useMemo } from "react";
-import { FileText } from "lucide-react";
+import { FileText, ImageIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { CollapsiblePill } from "../../../common";
+import { CollapsiblePill, formatFileSize } from "../../../common";
 import { DeferredCodeMirrorViewer } from "../../../common/DeferredCodeMirrorViewer";
 import { useToolStreamingLabel } from "./useToolStreamingLabel";
 import {
@@ -22,9 +22,61 @@ import { ToolArgsBlock } from "./ToolArgsBlock";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolDurationFooter } from "./ToolDurationFooter";
+import { ImageWithSkeleton } from "../ImageWithSkeleton";
+import { useImagePreviewFallback } from "./imagePreviewFallback";
+import { extractReadFileImageResult } from "./readFileImageResult";
+import { buildChatThumbUrl } from "../../../../utils/chatThumbs";
+
+/**
+ * 二进制 read_file 拦截结果（图片）：面板内大图 + 文件名/大小落款，
+ * 点击进查看器；替代原先的裸 JSON 文本。
+ */
+function ReadFileImagePreview({
+  imageResult,
+  eager,
+  compact,
+  onOpen,
+}: {
+  imageResult: { url: string; name: string; size?: number };
+  eager?: boolean;
+  compact?: boolean;
+  onOpen: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <figure className="overflow-hidden rounded-lg border border-theme-border bg-theme-bg">
+      <button
+        type="button"
+        className="block w-full bg-theme-bg-elevated cursor-zoom-in"
+        onClick={onOpen}
+        aria-label={t("chat.message.openImage", "Open image")}
+      >
+        <ImageWithSkeleton
+          src={imageResult.url}
+          thumbSrc={buildChatThumbUrl(imageResult.url)}
+          alt={imageResult.name}
+          skipUrlResolve
+          loading={eager ? "eager" : "lazy"}
+          className={`mx-auto w-full object-contain ${compact ? "max-h-72" : "max-h-[70dvh]"}`}
+          wrapperClassName="!my-0 !shadow-none"
+        />
+      </button>
+      <figcaption className="flex items-center gap-2 border-t border-theme-border px-3 py-2 text-12 text-theme-text-secondary">
+        <ImageIcon size={14} className="shrink-0 text-theme-text-tertiary" />
+        <span className="min-w-0 flex-1 truncate">{imageResult.name}</span>
+        {imageResult.size != null && (
+          <span className="shrink-0 text-theme-text-tertiary">
+            {formatFileSize(imageResult.size)}
+          </span>
+        )}
+      </figcaption>
+    </figure>
+  );
+}
 
 /** 面板详情：独立于 pill 渲染，实时跟随 toolCallPanelStore 数据重建 */
 function ReadFileDetail({ args, result }: ToolDetailProps) {
+  const { openImage, viewer } = useImagePreviewFallback();
   const filePath = (args.file_path as string) || "";
   const offset = args.offset as number | undefined;
   const limit = args.limit as number | undefined;
@@ -32,10 +84,16 @@ function ReadFileDetail({ args, result }: ToolDetailProps) {
   const endLine = limit ? startLine + limit - 1 : undefined;
   const lineRange = readLineRangeLabel(offset, limit);
 
+  const imageResult = useMemo(
+    () => extractReadFileImageResult(result),
+    [result],
+  );
+
   const displayContent = useMemo(() => {
+    if (imageResult) return "";
     const raw = extractText(result);
     return raw ? stripLineNumbers(raw) : "";
-  }, [result]);
+  }, [result, imageResult]);
 
   // Detect image blocks in McpMultiModalResult format ({text, blocks})
   const imageBlocks = useMemo(() => {
@@ -70,6 +128,13 @@ function ReadFileDetail({ args, result }: ToolDetailProps) {
           <span className="shrink-0 text-theme-text-tertiary">{lineRange}</span>
         )}
       </ToolArgsBlock>
+      {imageResult && (
+        <ReadFileImagePreview
+          imageResult={imageResult}
+          eager
+          onOpen={() => openImage(imageResult.url, imageResult.name)}
+        />
+      )}
       {imageBlocks.length > 0 && (
         <div className="flex flex-wrap gap-3">
           {imageBlocks.map((block, i) => (
@@ -99,6 +164,7 @@ function ReadFileDetail({ args, result }: ToolDetailProps) {
           />
         </div>
       )}
+      {viewer}
     </div>
   );
 }
@@ -123,6 +189,7 @@ const ReadFileItem = memo(function ReadFileItem({
   completedAt?: string;
 }) {
   const { t } = useTranslation();
+  const { openImage, viewer } = useImagePreviewFallback();
   const durationFooter = (
     <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
   );
@@ -134,10 +201,16 @@ const ReadFileItem = memo(function ReadFileItem({
   const endLine = limit ? startLine + limit - 1 : undefined;
   const lineRange = readLineRangeLabel(offset, limit);
 
+  const imageResult = useMemo(
+    () => extractReadFileImageResult(result),
+    [result],
+  );
+
   const displayContent = useMemo(() => {
+    if (imageResult) return "";
     const raw = extractText(result);
     return raw ? stripLineNumbers(raw) : "";
-  }, [result]);
+  }, [result, imageResult]);
 
   const imageBlocks = useMemo(() => {
     if (
@@ -163,7 +236,8 @@ const ReadFileItem = memo(function ReadFileItem({
     return [];
   }, [result]);
 
-  const hasContent = !!displayContent || imageBlocks.length > 0;
+  const hasContent =
+    !!displayContent || imageBlocks.length > 0 || !!imageResult;
   // 参数生成中（无 result）也允许打开面板：实时等待读取结果
   const canOpenPanel = hasContent || isPending || !!filePath;
   const status = isPending
@@ -240,6 +314,13 @@ const ReadFileItem = memo(function ReadFileItem({
                 )}
               </ToolArgsBlock>
             )}
+            {imageResult && (
+              <ReadFileImagePreview
+                imageResult={imageResult}
+                compact
+                onOpen={() => openImage(imageResult.url, imageResult.name)}
+              />
+            )}
             {imageBlocks.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2">
                 {imageBlocks.map((block, i) => (
@@ -271,6 +352,7 @@ const ReadFileItem = memo(function ReadFileItem({
           </ToolInlineDetails>
         )}
       </CollapsiblePill>
+      {viewer}
     </>
   );
 });

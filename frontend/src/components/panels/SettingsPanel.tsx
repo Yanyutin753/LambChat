@@ -840,10 +840,16 @@ export function SettingsPanel() {
                                                         "settings.noFallbackModel",
                                                         "No fallback",
                                                       )
-                                                    : t(
-                                                        "settings.defaultModel",
-                                                        "Default model",
-                                                      ),
+                                                    : setting.key ===
+                                                        "VIDEO_ANALYSIS_MODEL_ID"
+                                                      ? t(
+                                                          "settings.fallbackToImageAnalysisModel",
+                                                          "Fallback to image analysis model",
+                                                        )
+                                                      : t(
+                                                          "settings.defaultModel",
+                                                          "Default model",
+                                                        ),
                                             },
                                             ...legacyModelOption,
                                             ...availableModels.map((model) => ({

@@ -1,5 +1,8 @@
 import { readFileSync } from "node:fs";
-import { extractGeneratedImageResults } from "../toolImageResults.ts";
+import {
+  extractGeneratedImageResults,
+  extractSingleImageResult,
+} from "../toolImageResults.ts";
 
 test("extracts generated image uploads from Image Generate tool results", () => {
   const result = {
@@ -91,4 +94,57 @@ test("image generation prompt can be copied from the detail panel", () => {
     /import\s+\{[^}]*CopyButton[^}]*\}\s+from\s+"..\/..\/..\/common"/s,
   );
   expect(source).toMatch(/<CopyButton[\s\S]*?\btext=\{prompt\}/);
+});
+
+test("extractSingleImageResult recognizes single image upload payloads", () => {
+  expect(
+    extractSingleImageResult({
+      url: "https://lambchat.com/api/upload/file/revealed_files/shot.png",
+      mime_type: "image/png",
+      size: 1024,
+    }),
+  ).toEqual({
+    url: "https://lambchat.com/api/upload/file/revealed_files/shot.png",
+    name: "shot.png",
+  });
+
+  expect(
+    extractSingleImageResult(
+      JSON.stringify({ url: "/api/upload/file/x/frame.jpg" }),
+      "https://chat.example.com/",
+    ),
+  ).toEqual({
+    url: "https://chat.example.com/api/upload/file/x/frame.jpg",
+    name: "frame.jpg",
+  });
+
+  // 非图片 / 非对象 / 缺 url 一律不识别
+  expect(
+    extractSingleImageResult({
+      url: "https://lambchat.com/api/upload/file/report.pdf",
+      mime_type: "application/pdf",
+    }),
+  ).toBeNull();
+  expect(extractSingleImageResult("plain text")).toBeNull();
+  expect(extractSingleImageResult({ url: "https://x.example.com/page" })).toBeNull();
+});
+
+test("generic tool results with a single image payload render the shared preview", () => {
+  const source = readFileSync(
+    new URL("../McpBlockPreview.tsx", import.meta.url),
+    "utf8",
+  );
+
+  expect(source).toMatch(/extractSingleImageResult/);
+});
+
+test("video analyze previews play inline instead of dumping URLs", () => {
+  const source = readFileSync(
+    new URL("../VideoAnalyzeItem.tsx", import.meta.url),
+    "utf8",
+  );
+
+  expect(source).toMatch(/<video/);
+  expect(source).toMatch(/mediaProxyFallbackSrc/);
+  expect(source).not.toMatch(/break-all">\{truncate\(url/);
 });

@@ -10,7 +10,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function fileNameFromUrl(url: string): string {
+export function fileNameFromUrl(url: string): string {
   try {
     const baseUrl =
       typeof window === "undefined"
@@ -64,4 +64,29 @@ export function extractGeneratedImageResults(
         contentType,
       };
     });
+}
+
+/**
+ * 识别「单个图片负载」形态的工具结果（如 `{url, mime_type, size}`），
+ * 供通用工具结果渲染直接出图而不是裸 JSON。要求 url 扩展名或
+ * mime/content_type 明确是图片，普通链接对象不会被误判。
+ */
+export function extractSingleImageResult(
+  result: unknown,
+  apiBase?: string,
+): GeneratedImageResult | null {
+  let parsed: unknown = result;
+  if (typeof result === "string") {
+    try {
+      parsed = JSON.parse(result);
+    } catch {
+      return null;
+    }
+  }
+  if (!isRecord(parsed)) return null;
+  if (typeof parsed.url !== "string" || !parsed.url) return null;
+  if (!isImageEntry(parsed)) return null;
+
+  const url = getFullUrl(parsed.url, apiBase) || parsed.url;
+  return { url, name: fileNameFromUrl(parsed.url) };
 }

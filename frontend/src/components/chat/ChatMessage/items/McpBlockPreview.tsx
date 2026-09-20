@@ -20,6 +20,7 @@ import { isMarkdownText, extractText } from "./toolUtils";
 import { ToolResultPanel } from "./ToolResultPanel";
 import {
   extractGeneratedImageResults,
+  extractSingleImageResult,
   type GeneratedImageResult,
 } from "./toolImageResults";
 import {
@@ -296,6 +297,12 @@ export function ToolResultContent({
       return [];
     }
   }, [result]);
+  // 单图片负载（如 {url, mime_type}）：直接出图，不裸奔 JSON
+  const singleImage = useMemo(
+    () =>
+      generatedImages.length > 0 ? null : extractSingleImageResult(result),
+    [result, generatedImages.length],
+  );
 
   // LangChain content blocks 数组: [{"type": "text", "text": "..."}, ...]
   if (isContentBlocksArray(result)) {
@@ -379,6 +386,10 @@ export function ToolResultContent({
 
   if (generatedImages.length > 0) {
     return <GeneratedImageResults images={generatedImages} />;
+  }
+
+  if (singleImage) {
+    return <GeneratedImageResults images={[singleImage]} />;
   }
 
   // 富文本结果：dict 含 title/url/content 结构

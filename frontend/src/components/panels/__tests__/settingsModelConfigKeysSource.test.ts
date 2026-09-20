@@ -12,6 +12,12 @@ test("image analysis model setting uses the model config selector", () => {
   );
 });
 
+test("video analysis model setting uses the model config selector", () => {
+  expect(constantsSource).toMatch(
+    /MODEL_CONFIG_SETTING_KEYS[\s\S]*"VIDEO_ANALYSIS_MODEL_ID"/,
+  );
+});
+
 test("global fallback model setting uses the model config selector", () => {
   expect(constantsSource).toMatch(
     /MODEL_CONFIG_SETTING_KEYS[\s\S]*"LLM_FALLBACK_MODEL"/,
