@@ -19,6 +19,10 @@ from langchain_core.language_models.model_profile import ModelProfile as LangCha
 from pydantic import SecretStr
 
 from src.infra.llm.anthropic_chat import LambChatAnthropicChatModel as ChatAnthropic
+from src.infra.llm.budget import (
+    ANTHROPIC_DEFAULT_MAX_TOKENS,
+    warn_if_input_budget_strangled,
+)
 from src.infra.llm.google_chat import LambChatGoogleChatModel as ChatGoogleGenerativeAI
 from src.infra.llm.httpx_pool import (
     _acquire_pooled_http_async_client,
@@ -532,12 +536,18 @@ class LLMClient:
             anthropic_thinking, effort, temperature_override = _resolve_anthropic_thinking(
                 model_name, thinking
             )
+            # 未配置 max_tokens 时注入显式默认：langchain-anthropic 会把 None
+            # 静默换成 4096（见 budget.ANTHROPIC_DEFAULT_MAX_TOKENS 注释）。
+            effective_max_tokens = (
+                max_tokens if max_tokens is not None else ANTHROPIC_DEFAULT_MAX_TOKENS
+            )
+            warn_if_input_budget_strangled(profile, effective_max_tokens, model_name)
             anthropic_kwargs: dict[str, Any] = {
                 "model_name": model_name,
                 "temperature": (
                     temperature_override if temperature_override is not None else temperature
                 ),
-                "max_tokens": max_tokens,  # type: ignore[arg-type]
+                "max_tokens": effective_max_tokens,
                 "thinking": anthropic_thinking,
                 "effort": effort,
                 "base_url": api_base or None,
@@ -579,6 +589,11 @@ class LLMClient:
         openai_kwargs: dict[str, Any] = {
             "model": model_name,
             "temperature": temperature,
+            # 配置了才发送：None 不进 payload（provider 默认接管）。历史上该
+            # 分支漏传 max_tokens，配置值被静默丢弃（"死配置"），现对齐
+            # 「配了就传、不配不传」语义；生产 openai 协议模型当前均为 null，
+            # 此修复不改变现有请求。
+            "max_tokens": max_tokens,
             "streaming": True,
             "api_key": api_key or "sk-placeholder",
             "base_url": api_base or None,
