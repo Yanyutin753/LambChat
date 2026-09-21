@@ -14,6 +14,7 @@ kubectl apply -f "$DIR/manifests/10-prometheus.yaml"
 kubectl apply -f "$DIR/manifests/20-grafana.yaml"
 kubectl apply -f "$DIR/manifests/30-node-exporter.yaml"
 kubectl apply -f "$DIR/manifests/40-db-exporters.yaml"
+kubectl apply -f "$DIR/manifests/41-postgres-exporter.yaml"
 kubectl apply -f "$DIR/manifests/50-beyla.yaml"
 
 echo "== 3. 等待 Pod 就绪 =="
@@ -22,6 +23,7 @@ kubectl -n monitoring wait --for=condition=ready pod -l app=grafana --timeout=30
 kubectl -n monitoring wait --for=condition=ready pod -l app=node-exporter --timeout=300s
 kubectl -n monitoring wait --for=condition=ready pod -l app=mongodb-exporter --timeout=300s
 kubectl -n monitoring wait --for=condition=ready pod -l app=redis-exporter --timeout=300s
+kubectl -n monitoring wait --for=condition=ready pod -l app=postgres-exporter --timeout=300s
 kubectl -n monitoring wait --for=condition=ready pod -l app=beyla --timeout=300s
 
 echo "== 完成 =="

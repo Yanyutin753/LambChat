@@ -110,6 +110,10 @@ async def test_pg_checkpointer_initializes_once_under_concurrency(
     saver_inputs = []
 
     class _FakePool:
+        # 真实 AsyncConnectionPool 的借出前 liveness 检查（check= 传的是这个
+        # 类属性），fake 需要暴露同名属性供构造参数引用
+        check_connection = staticmethod(lambda conn: None)
+
         def __init__(self, *args, **kwargs) -> None:
             self.args = args
             self.kwargs = kwargs
@@ -147,3 +151,4 @@ async def test_pg_checkpointer_initializes_once_under_concurrency(
     assert isinstance(saver_inputs[0], _FakePool)
     assert saver_inputs[0].kwargs["min_size"] == 1
     assert saver_inputs[0].kwargs["max_size"] == 3
+    assert saver_inputs[0].kwargs["check"] is _FakePool.check_connection

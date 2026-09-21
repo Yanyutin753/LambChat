@@ -94,6 +94,25 @@ PY
 
 python3 "$PYTMP" "$LAMBCHAT_NS" "$LAMBCHAT_SECRET" | kubectl apply -f -
 
+# PostgreSQL exporter DSN：monitor_exporter 只读角色的密码记于 .pg-mon-password
+# （root-only，仿 .grafana-admin-password 模式；重新生成本 secret 时保持 DSN 不漂移）。
+# 主 apply 只重建 Mongo/Redis 键，POSTGRES_DSN 用 patch 追加/刷新，其余键不受影响。
+if [[ -f "$DIR/.pg-mon-password" ]]; then
+  PG_PW=$(cat "$DIR/.pg-mon-password")
+else
+  PG_PW=$(python3 -c "import secrets, string; print(''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(20)))")
+  umask 077
+  echo "$PG_PW" > "$DIR/.pg-mon-password"
+  echo ">> 已生成 .pg-mon-password；需在 PostgreSQL 一次性建角色（密码见该文件）："
+  echo "   CREATE ROLE monitor_exporter LOGIN PASSWORD '<密码>' NOSUPERUSER;"
+  echo "   GRANT pg_monitor TO monitor_exporter;"
+  echo "   GRANT CONNECT ON DATABASE \"lamb-agent\" TO monitor_exporter;"
+  echo "   并启用 pg_stat_statements（shared_preload_libraries + CREATE EXTENSION）"
+fi
+kubectl -n monitoring patch secret monitoring-db-auth \
+  -p "{\"stringData\":{\"POSTGRES_DSN\":\"postgresql://monitor_exporter:${PG_PW}@127.0.0.1:5432/lamb-agent?sslmode=disable\"}}" >/dev/null
+echo ">> POSTGRES_DSN 已写入 monitoring-db-auth"
+
 # Grafana admin 密码只在首次生成：Grafana 落库后 GF_SECURITY_ADMIN_PASSWORD 不再生效，
 # 重复生成反而造成「secret/密码文件」与真实密码漂移。
 if ! kubectl -n monitoring get secret monitoring-grafana-auth >/dev/null 2>&1; then

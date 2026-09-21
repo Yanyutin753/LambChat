@@ -105,6 +105,8 @@ spec:
               mountPath: /var/lib/grafana/dashboards/redis
             - name: dashboards-mongodb
               mountPath: /var/lib/grafana/dashboards/mongodb
+            - name: dashboards-postgres
+              mountPath: /var/lib/grafana/dashboards/postgres
             - name: data
               mountPath: /var/lib/grafana
           resources:
@@ -132,6 +134,9 @@ spec:
         - name: dashboards-mongodb
           configMap:
             name: dashboard-lambchat-mongo
+        - name: dashboards-postgres
+          configMap:
+            name: dashboard-lambchat-pg
         - name: data
           persistentVolumeClaim:
             claimName: grafana-data

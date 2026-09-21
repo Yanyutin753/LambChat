@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-exporter
+  namespace: monitoring
+  labels:
+    app: postgres-exporter
+spec:
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: postgres-exporter
+  template:
+    metadata:
+      labels:
+        app: postgres-exporter
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: postgres-exporter
+          image: prometheuscommunity/postgres-exporter:v0.17.1
+          args:
+            - --web.listen-address=127.0.0.1:9187
+            - --collector.stat_statements
+            - --collector.long_running_transactions
+          env:
+            - name: DATA_SOURCE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: monitoring-db-auth
+                  key: POSTGRES_DSN
+          ports:
+            - containerPort: 9187
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              memory: 256Mi

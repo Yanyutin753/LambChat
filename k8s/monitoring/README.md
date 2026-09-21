@@ -43,8 +43,24 @@ ssh -L 3300:127.0.0.1:3300 <你的服务器>   # SSH 隧道
 |------|------|
 | **LambChat 接口性能 (Beyla eBPF)**（自建） | 路由级 QPS/p95/p99/错误率；Mongo+Redis 按操作名的延迟与 QPS；出站 HTTP 按目标主机延迟（LLM 上游、对象存储等） |
 | **LambChat MongoDB**（自建） | 操作速率、平均读/写/命令延迟、连接数、常驻内存、集合级读延迟 Top10、各库数据量 |
+| **LambChat PostgreSQL**（自建） | 状态/缓存命中率/库体积/死锁；事务速率；SQL 执行耗时与 IO；**慢 SQL Top10（pg_stat_statements，queryid 维度）**；顺序扫描计数（突增=丢索引嫌疑）；表 live/dead 行数 |
 | Node Exporter Full（社区 1860） | 主机全景 |
 | Redis Dashboard（社区 11835） | Redis 全景 |
+
+### PostgreSQL 监测前置（一次性）
+
+1. PG 侧启用 pg_stat_statements（需重启 PG）：
+   `ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements';`
+   `ALTER SYSTEM SET track_io_timing = on; ALTER SYSTEM SET pg_stat_statements.track = 'all';`
+   重启后在 `lamb-agent` 库 `CREATE EXTENSION pg_stat_statements;`
+2. 建只读监测角色（密码会记到部署目录 `.pg-mon-password`，root-only）：
+   `CREATE ROLE monitor_exporter LOGIN PASSWORD '...' NOSUPERUSER; GRANT pg_monitor TO monitor_exporter; GRANT CONNECT ON DATABASE "lamb-agent" TO monitor_exporter;`
+3. `gen-db-secret.sh` 会把 `POSTGRES_DSN` patch 进 `monitoring-db-auth`（重建 secret 不漂移）；
+   `41-postgres-exporter.yaml` 默认关着 `stat_statements`/`long_running_transactions` 两个
+   collector——本仓库部署形态已显式开启。
+
+checkpoint 数据治理见 `CHECKPOINT-RETENTION.md`（现状 6.1GB 活 fork 历史；磁盘余量充足，
+采用只监控不删策略，TTL 方案待产品确认）。
 
 指标命名注意：Beyla 3.x 用 OTel 语义命名，无 `beyla_` 前缀——
 `http_server_request_duration_seconds`（标签 `http_route`）、
@@ -99,9 +115,11 @@ cd k8s/monitoring/scripts
 ```
 
 覆盖：Mongo 慢查询分类（COLLSCAN 告警）/ 僵尸 trace / 后端 ERROR 分布 /
-Redis 慢日志与碎片 / API QPS·p95·5xx / 监控栈自检 / pub-sub 通道隔离。
-Mongo/Redis 容器名按部署环境用 `MONGO_CONTAINER` / `REDIS_CONTAINER` 覆盖。
-适合接 cron 或外部告警（凭退出码）。
+Redis 慢日志与碎片 / API QPS·p95·5xx / 监控栈自检 / pub-sub 通道隔离 /
+**PG 慢 SQL Top8（>20ms，pg_stat_statements）+ 库体积 + 顺序扫描 20s 突变**。
+Mongo/Redis 容器名按部署环境用 `MONGO_CONTAINER` / `REDIS_CONTAINER` 覆盖；
+PG 容器名用 `PG_CONTAINER` 覆盖（默认 1Panel-postgresql-8Oi4，巡检 SQL 在
+`pg-patrol.sql`）。适合接 cron 或外部告警（凭退出码）。
 
 ## 坑位备忘
 

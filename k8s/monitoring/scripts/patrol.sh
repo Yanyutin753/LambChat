@@ -15,6 +15,7 @@ DIR="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 WINDOW_MIN=${WINDOW_MIN:-60}
 MONGO_CONTAINER=${MONGO_CONTAINER:-1Panel-mongodb-4iZV}
 REDIS_CONTAINER=${REDIS_CONTAINER:-1Panel-redis-JWjW}
+PG_CONTAINER=${PG_CONTAINER:-1Panel-postgresql-8Oi4}
 BIN="$DIR/bin/py-spy"
 
 if [[ "${1:-}" == "--pyspy" ]]; then WITH_PYSPY=1; shift; else WITH_PYSPY=0; fi
@@ -110,9 +111,29 @@ echo "$CHANNELS" | sed 's/^/  /'
 BARE=$(echo "$CHANNELS" | grep -cE '^(task:cancel|settings:changed|model_config:changed|pricing:cache_invalidate|tool:cache:invalidate|mcp:cache:invalidate|memory:invalidated|channel:config:changed|approval:response|ws:deliver:)' || true)
 [[ "${BARE:-0}" != "0" ]] && flag "存在 ${BARE} 个未带环境前缀的 LambChat 裸通道（跨环境串台风险）"
 
-# ── 8. py-spy 热点（可选）──────────────────────────────────────
+
+# ── 8. PostgreSQL 慢 SQL / 体积（pg_stat_statements）───────────
+section "8. PostgreSQL 慢 SQL / 体积"
+PG_DSN=$(kubectl -n monitoring get secret monitoring-db-auth -o jsonpath="{.data.POSTGRES_DSN}" | base64 -d)
+PGSQL_FILE="$DIR/scripts/pg-patrol.sql"
+pg_q() { docker exec -i "$PG_CONTAINER" psql "$PG_DSN" -P pager=off -tA "$@"; }
+if [[ -n "$PG_DSN" ]]; then
+  docker exec -i "$PG_CONTAINER" psql "$PG_DSN" -P pager=off -f - < "$PGSQL_FILE" 2>/dev/null | sed "s/^/  /"
+  PG_SLOW=$(pg_q -c "SELECT count(*) FROM pg_stat_statements WHERE mean_exec_time > 100 AND query NOT LIKE '%pg_stat_%'")
+  [[ "${PG_SLOW:-0}" != "0" ]] && flag "PG 存在 ${PG_SLOW} 条平均 >100ms 的语句（详见上表）"
+  PG_SEQ1=$(pg_q -c "SELECT coalesce(sum(seq_scan),0) FROM pg_stat_user_tables")
+  sleep 20
+  PG_SEQ2=$(pg_q -c "SELECT coalesce(sum(seq_scan),0) FROM pg_stat_user_tables")
+  PG_SEQD=$((PG_SEQ2 - PG_SEQ1))
+  echo "  seq_scan 20s 增量: ${PG_SEQD}"
+  [[ "${PG_SEQD:-0}" -gt 100 ]] && flag "PG 顺序扫描 20s 内 +${PG_SEQD}（疑似丢索引/大表扫描）"
+else
+  flag "monitoring-db-auth 缺 POSTGRES_DSN，PG 巡检跳过"
+fi
+
+# ── 9. py-spy 热点（可选）──────────────────────────────────────
 if [[ "$WITH_PYSPY" == "1" ]]; then
-  section "8. py-spy CPU 热点采样（各 15s@50Hz）"
+  section "9. py-spy CPU 热点采样（各 15s@50Hz）"
   for tgt in w0 a; do
     case $tgt in
       w0) PID=$(pgrep -f "src.infra.task.worker_main" | head -1) ;;

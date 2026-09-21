@@ -3,3 +3,4 @@ downloaded-dashboards/
 profiles/
 bin/
 .grafana-admin-password
+.pg-mon-password

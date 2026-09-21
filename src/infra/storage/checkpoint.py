@@ -294,6 +294,10 @@ async def _create_pg_checkpointer() -> BaseCheckpointSaver[Any] | None:
                 "prepare_threshold": 0,
                 "row_factory": dict_row,
             },
+            # 借出前 liveness 检查（本机 ~0.1ms）：PG 重启/漂移后池内死连接
+            # 会被静默换掉，而不是把 "terminating connection" 抛给在途 run
+            # （2026-09-21 生产 PG 重启曾致 4 个 run 报错）。
+            check=AsyncConnectionPool.check_connection,
             open=False,
         )
         try:

@@ -1,0 +1,442 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "pg_up",
+          "legendFormat": "pg_up"
+        },
+        {
+          "expr": "pg_stat_activity_count{state=\"active\"}",
+          "legendFormat": "active sessions"
+        },
+        {
+          "expr": "pg_settings_max_connections",
+          "legendFormat": "max_connections"
+        }
+      ],
+      "title": "状态",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "thresholds": {
+          "mode": "absolute",
+          "steps": [
+            {
+              "color": "red",
+              "value": null
+            },
+            {
+              "color": "yellow",
+              "value": 0.9
+            },
+            {
+              "color": "green",
+              "value": 0.95
+            }
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "pg_stat_database_blks_hit{datname=\"lamb-agent\"} / (pg_stat_database_blks_hit{datname=\"lamb-agent\"} + pg_stat_database_blks_read{datname=\"lamb-agent\"})",
+          "legendFormat": "heap hit ratio"
+        }
+      ],
+      "title": "缓存命中率",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "pg_database_size_bytes{datname=\"lamb-agent\"}",
+          "legendFormat": "lamb-agent DB"
+        }
+      ],
+      "title": "库体积",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "pg_stat_database_deadlocks{datname=\"lamb-agent\"}",
+          "legendFormat": "deadlocks"
+        },
+        {
+          "expr": "pg_locks_count",
+          "legendFormat": "locks"
+        }
+      ],
+      "title": "死锁 / 锁",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "displayMode": "list"
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(pg_stat_database_xact_commit{datname=\"lamb-agent\"}[5m])",
+          "legendFormat": "commit/s"
+        },
+        {
+          "expr": "rate(pg_stat_database_xact_rollback{datname=\"lamb-agent\"}[5m])",
+          "legendFormat": "rollback/s"
+        }
+      ],
+      "title": "事务速率（commit/rollback）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "displayMode": "list"
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(pg_stat_statements_seconds_total{datname=\"lamb-agent\"}[10m])",
+          "legendFormat": "exec time/s (all)"
+        },
+        {
+          "expr": "rate(pg_stat_statements_block_read_seconds_total{datname=\"lamb-agent\"}[10m])",
+          "legendFormat": "io read/s"
+        },
+        {
+          "expr": "rate(pg_stat_statements_block_write_seconds_total{datname=\"lamb-agent\"}[10m])",
+          "legendFormat": "io write/s"
+        }
+      ],
+      "title": "SQL 执行耗时与 IO（全库）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "unit": "s"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "queryid"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "string"
+              },
+              {
+                "id": "custom.width",
+                "value": 220
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #calls"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "id": 7,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "topk(10, pg_stat_statements_seconds_total{datname=\"lamb-agent\"} / pg_stat_statements_calls_total{datname=\"lamb-agent\"} > 0.005)",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "expr": "topk(10, pg_stat_statements_calls_total{datname=\"lamb-agent\"})",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "title": "慢 SQL Top 10（平均执行耗时 > 5ms，queryid 维度）",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "job": true,
+              "instance": true,
+              "datname": true,
+              "user": true
+            },
+            "renameByName": {
+              "Value #A": "mean_exec_s",
+              "Value #B": "calls_total"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "displayMode": "list"
+        }
+      },
+      "targets": [
+        {
+          "expr": "pg_stat_user_tables_seq_scan{datname=\"lamb-agent\"}",
+          "legendFormat": "{{relname}} seq_scan"
+        }
+      ],
+      "title": "顺序扫描计数（突增=丢索引嫌疑）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "displayMode": "list"
+        }
+      },
+      "targets": [
+        {
+          "expr": "pg_stat_user_tables_n_live_tup{datname=\"lamb-agent\"}",
+          "legendFormat": "{{relname}} live"
+        },
+        {
+          "expr": "pg_stat_user_tables_n_dead_tup{datname=\"lamb-agent\"}",
+          "legendFormat": "{{relname}} dead"
+        }
+      ],
+      "title": "表行数（live/dead，dead 高=autovacuum 落后）",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "lambchat",
+    "postgres"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 2,
+        "name": "DS",
+        "query": "prometheus",
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "title": "LambChat PostgreSQL",
+  "uid": "lambchat-pg",
+  "version": 1
+}
