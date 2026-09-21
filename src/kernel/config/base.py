@@ -243,6 +243,8 @@ class Settings(BaseSettings):
     # Sandbox Settings
     ENABLE_SANDBOX: bool = True
     SANDBOX_PLATFORM: str = "daytona"
+    # 对话轮终态后无进行中对话需要沙箱时自动暂停云端沙箱（e2b/cubesandbox）
+    SANDBOX_PAUSE_WHEN_IDLE: bool = True
     SANDBOX_LOCAL_ACK_TIMEOUT: int = 30  # 本地沙箱 daemon ACK 超时（秒）
     SANDBOX_LOCAL_EXEC_TIMEOUT: int = 120  # 本地沙箱执行总超时（秒）
     # 本地沙箱流式传输（fs_download_stream）总超时（秒）：单个 chunked POST

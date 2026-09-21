@@ -436,7 +436,7 @@ LLM 模型通过 **Model Config UI** 配置，无需在环境变量中设置 API
 | 后端格式/类型 | `make lint` + `make typecheck` |
 | 跨栈变更 | `make check-all` |
 | 本地沙箱/daemon/传输链路 | `uv run python scripts/e2e_local_sandbox.py`（详见下方规矩） |
-| 云端沙箱暂停恢复（部署后，在可 kubectl 目标集群的机器上跑） | `python3 scripts/verify_sandbox_pause_heal.py --base-url <URL> --namespace <ns> --deployment <deploy> --user-id <uid>`（显式 pause→无感恢复；local 平台自动 SKIP；staging 可用 `--register` 一次性用户） |
+| 云端沙箱暂停恢复（部署后，在可 kubectl 目标集群的机器上跑） | `python3 scripts/verify_sandbox_pause_heal.py --base-url <URL> --namespace <ns> --deployment <deploy> --user-id <uid>`（显式 pause→无感恢复；local 平台自动 SKIP；staging 可用 `--register` 一次性用户）；跨对话补充：`python3 scripts/verify_sandbox_cross_session.py`（同用户双会话×暂停交织，验隔离/共享/不重建） |
 | 桌面端 Linux 更新链路 | `uv run python scripts/e2e_linux_update.py`（Rust 检测/下载单测 + 本机检测冒烟 + 前端契约） |
 | 文档变更 | 确认 Markdown 链接、命令和路径正确 |
 

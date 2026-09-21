@@ -2885,6 +2885,7 @@
     "ENABLE_WEB_SEARCH": "启用供 Agent 使用的网页搜索工具",
     "SANDBOX_LOCAL_EXEC_TIMEOUT": "本地沙箱命令执行超时（秒）：卡死命令到点自动击杀，改动即时生效于后续命令。",
     "SANDBOX_PLATFORM": "使用的沙箱平台",
+    "SANDBOX_PAUSE_WHEN_IDLE": "对话轮结束且无进行中的对话需要沙箱时，自动暂停云端沙箱以节省成本（下次使用自动恢复）",
     "SESSION_EVENT_CHUNK_DUAL_WRITE_LEGACY": "将分片 trace 事件同时写入旧 events 数组",
     "SESSION_EVENT_CHUNK_SIZE": "每个 trace event chunk 文档保存的最大事件数",
     "SESSION_EVENT_CHUNK_STORAGE_ENABLED": "将新 trace 事件存储到分片文档",

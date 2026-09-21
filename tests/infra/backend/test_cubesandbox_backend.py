@@ -84,7 +84,10 @@ def test_cubesandbox_backend_read_returns_v07_pagination_metadata() -> None:
     assert result.total_lines == 3
 
 
-def test_cubesandbox_backend_uses_cube_timeout(monkeypatch) -> None:
+def test_cubesandbox_default_command_timeout_not_clamped_by_platform_timeout(
+    monkeypatch,
+) -> None:
+    """单条命令默认超时保持 15 分钟下限，不被（较小的）平台空闲超时钳住。"""
     from src.infra.backend.cubesandbox import CubeSandboxBackend
 
     monkeypatch.setattr("src.infra.backend.cubesandbox.settings.CUBE_TIMEOUT", 77)
@@ -95,7 +98,7 @@ def test_cubesandbox_backend_uses_cube_timeout(monkeypatch) -> None:
 
     backend.execute("echo timeout")
 
-    assert sandbox.commands.calls[0]["timeout"] == 77
+    assert sandbox.commands.calls[0]["timeout"] == 900
 
 
 def test_cubesandbox_backend_caches_parent_dir_creation() -> None:

@@ -196,3 +196,71 @@ async def test_run_blocking_io_still_completes_after_settings_import() -> None:
     result = await run_blocking_io(lambda: "ok", timeout=1.0)
 
     assert result == "ok"
+
+
+async def test_long_lane_executes_and_returns_value() -> None:
+    from src.infra.async_utils.blocking import run_long_blocking_io
+
+    assert await run_long_blocking_io(lambda a, b: a + b, 1, 2) == 3
+
+
+async def test_long_lane_is_isolated_from_fast_lane_saturation() -> None:
+    """快道线程全部占住时：秒级调用排队超时，长命令车道照常执行。"""
+
+    from src.infra.async_utils import blocking as blocking_mod
+    from src.infra.async_utils.blocking import run_long_blocking_io
+
+    loop = asyncio.get_running_loop()
+    limiter = blocking_mod._get_submission_limiter(loop)
+    workers = max(1, int(getattr(blocking_mod._BLOCKING_IO_EXECUTOR, "_max_workers", 8)))
+    release = threading.Event()
+
+    def _hold() -> None:
+        release.wait(5)
+
+    futures = [blocking_mod._BLOCKING_IO_EXECUTOR.submit(_hold) for _ in range(workers)]
+    for _ in range(workers):
+        await limiter.acquire()
+
+    try:
+        with pytest.raises(asyncio.TimeoutError):
+            await blocking_mod.run_blocking_io(lambda: "fast", timeout=0.05)
+        assert await run_long_blocking_io(lambda: "long-lane-ok", timeout=5) == "long-lane-ok"
+    finally:
+        release.set()
+        for future in futures:
+            future.result()
+        for _ in range(workers):
+            limiter.release()
+
+
+async def test_e2b_aexecute_routes_to_long_lane(monkeypatch) -> None:
+    """沙箱命令派发走慢道：长命令不占快道线程。"""
+    from types import SimpleNamespace
+
+    import src.infra.backend.e2b as e2b_mod
+    from src.infra.backend.e2b import E2BBackend
+
+    routed: list[str] = []
+
+    async def fake_long_run(func, *args, timeout=None, **kwargs):
+        routed.append("long")
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(e2b_mod, "run_long_blocking_io", fake_long_run)
+
+    sandbox = SimpleNamespace(
+        sandbox_id="lane-test",
+        commands=SimpleNamespace(
+            run=lambda **kw: SimpleNamespace(stdout="ok\n", stderr="", exit_code=0)
+        ),
+        files=SimpleNamespace(),
+    )
+    sandbox.set_timeout = lambda t: None  # type: ignore[method-assign]
+    backend = E2BBackend(sandbox=sandbox, timeout=300)
+    backend.supports_async_sdk = False  # 线程路径（Cube 同款）验证慢道路由
+
+    result = await backend.aexecute("echo hi")
+
+    assert routed == ["long"]
+    assert result.exit_code == 0

@@ -2885,6 +2885,7 @@
     "ENABLE_WEB_SEARCH": "Enable web search tool for agents",
     "SANDBOX_LOCAL_EXEC_TIMEOUT": "Local sandbox command execution timeout (seconds): hung commands are killed at the deadline; changes apply to subsequent commands immediately.",
     "SANDBOX_PLATFORM": "Sandbox platform to use",
+    "SANDBOX_PAUSE_WHEN_IDLE": "Pause the cloud sandbox when a conversation turn ends and no in-progress conversation needs it (auto-resumes on next use)",
     "SESSION_EVENT_CHUNK_DUAL_WRITE_LEGACY": "Also write chunked trace events to the legacy events array",
     "SESSION_EVENT_CHUNK_SIZE": "Maximum events stored in each trace event chunk document",
     "SESSION_EVENT_CHUNK_STORAGE_ENABLED": "Store new trace events in chunk documents",

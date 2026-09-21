@@ -2885,6 +2885,7 @@
     "ENABLE_WEB_SEARCH": "Agent 用ウェブ検索ツールを有効化",
     "SANDBOX_LOCAL_EXEC_TIMEOUT": "ローカルサンドボックスのコマンド実行タイムアウト（秒）。ハングしたコマンドは期限で強制終了され、変更は以降のコマンドに即時反映されます。",
     "SANDBOX_PLATFORM": "使用するサンドボックスプラットフォーム",
+    "SANDBOX_PAUSE_WHEN_IDLE": "会話ターン終了後、進行中の会話がサンドボックスを必要としない場合、コスト削減のためクラウドサンドボックスを自動一時停止します（次回利用時に自動復帰）",
     "SESSION_EVENT_CHUNK_DUAL_WRITE_LEGACY": "分割保存した trace イベントを従来の events 配列にも書き込む",
     "SESSION_EVENT_CHUNK_SIZE": "各 trace event chunk ドキュメントに保存する最大イベント数",
     "SESSION_EVENT_CHUNK_STORAGE_ENABLED": "新しい trace イベントを chunk ドキュメントに保存する",

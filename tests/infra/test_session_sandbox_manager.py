@@ -851,3 +851,67 @@ async def test_cubesandbox_dead_binding_replacement_sets_startup_notice(
     notice = getattr(backend.default, "sandbox_startup_notice", None)
     assert notice is not None
     assert "replaced" in notice.lower() or "recycled" in notice.lower()
+
+
+@pytest.mark.asyncio
+async def test_e2b_stop_pauses_via_binding_when_cache_missed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """跨 pod 场景：stop 时本进程无缓存，回退按 binding 暂停沙箱。"""
+    collection = _MemoryBindingCollection()
+    collection.doc = {
+        "user_id": "user-1",
+        "sandbox_id": "bound-e2b-sandbox",
+        "sandbox_state": "running",
+    }
+    adapter = _FakeE2BAdapter()
+    adapter.stopped: list[object] = []
+    adapter.stop_sandbox = lambda sandbox: adapter.stopped.append(sandbox)
+    manager = sandbox_module.SessionSandboxManager()
+    manager._e2b_adapter = adapter
+    manager._cube_adapter = None
+
+    async def fake_run_blocking_io(func, *args, **kwargs):
+        del kwargs
+        return func(*args)
+
+    monkeypatch.setattr(
+        "src.infra.storage.mongodb.get_mongo_client",
+        lambda: _FakeMongoClient(collection),
+    )
+    monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "e2b")
+
+    # 缓存为空（模拟其它 pod 处理的对话）
+    assert "user-1" not in manager._cache
+
+    assert await manager.stop("user-1") is True
+    assert adapter.stopped == [object] or len(adapter.stopped) == 1
+    state = collection.doc["sandboxes"]["e2b"]["sandbox_state"]
+    assert state == "paused"
+
+
+@pytest.mark.asyncio
+async def test_e2b_stop_without_binding_returns_false(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collection = _MemoryBindingCollection()
+    adapter = _FakeE2BAdapter()
+    adapter.stopped: list[object] = []
+    adapter.stop_sandbox = lambda sandbox: adapter.stopped.append(sandbox)
+    manager = sandbox_module.SessionSandboxManager()
+    manager._e2b_adapter = adapter
+    manager._cube_adapter = None
+
+    async def fake_run_blocking_io(func, *args, **kwargs):
+        del kwargs
+        return func(*args)
+
+    monkeypatch.setattr(
+        "src.infra.storage.mongodb.get_mongo_client",
+        lambda: _FakeMongoClient(collection),
+    )
+    monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
+
+    assert await manager.stop("user-1") is False
+    assert adapter.stopped == []

@@ -35,6 +35,14 @@ SANDBOX_SETTING_DEFINITIONS: dict[str, dict] = {
         "depends_on": "ENABLE_SANDBOX",
         "options": ["daytona", "e2b", "cubesandbox"],
     },
+    "SANDBOX_PAUSE_WHEN_IDLE": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.SANDBOX,
+        "subcategory": "general",
+        "description": "settingDesc.SANDBOX_PAUSE_WHEN_IDLE",
+        "default": True,
+        "depends_on": "ENABLE_SANDBOX",
+    },
     "DAYTONA_API_KEY": {
         "type": SettingType.STRING,
         "category": SettingCategory.SANDBOX,

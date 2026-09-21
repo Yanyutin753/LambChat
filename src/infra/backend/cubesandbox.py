@@ -39,6 +39,23 @@ class CubeSandboxBackend(E2BBackend):
     behavior from ``E2BBackend`` while keeping lifecycle/configuration native.
     """
 
+    # Cube 的 wire 协议兼容 e2b SDK：异步命令共用 e2b async 客户端路径
+    # （零线程占用）；个别部署不兼容时 aexecute 自动回落线程慢道。
+    supports_async_sdk = True
+
+    def _async_connect_opts(self) -> dict:
+        """e2b async 客户端指向 Cube API（wire 兼容）。"""
+        opts: dict = {
+            "timeout": self._timeout,
+            "api_url": settings.CUBE_API_URL,
+            "domain": settings.CUBE_SANDBOX_DOMAIN,
+            "request_timeout": float(settings.CUBE_REQUEST_TIMEOUT),
+        }
+        api_key = os.environ.get("CUBE_API_KEY") or getattr(settings, "CUBE_API_KEY", "")
+        if api_key:
+            opts["api_key"] = api_key
+        return opts
+
     def __init__(
         self,
         sandbox,

@@ -115,6 +115,7 @@ YubbChat/
 !/scripts/backfill_memory_scope.py
 !/scripts/e2e_local_sandbox.py
 !/scripts/verify_sandbox_pause_heal.py
+!/scripts/verify_sandbox_cross_session.py
 !/scripts/generate_updater_manifest.py
 !/scripts/benchmark_memory_scope.py
 !/scripts/site-screenshots/

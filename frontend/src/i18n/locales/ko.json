@@ -2885,6 +2885,7 @@
     "ENABLE_WEB_SEARCH": "Agent용 웹 검색 도구 활성화",
     "SANDBOX_LOCAL_EXEC_TIMEOUT": "로컬 샌드박스 명령 실행 타임아웃(초). 멈춘 명령은 시한에 도달하면 강제 종료되며, 변경 사항은 이후 명령에 즉시 적용됩니다.",
     "SANDBOX_PLATFORM": "사용할 샌드박스 플랫폼",
+    "SANDBOX_PAUSE_WHEN_IDLE": "대화 턴이 끝나고 진행 중인 대화가 샌드박스를 필요로 하지 않으면 비용 절감을 위해 클라우드 샌드박스를 자동 일시 정지합니다(다음 사용 시 자동 재개)",
     "SESSION_EVENT_CHUNK_DUAL_WRITE_LEGACY": "분할 저장된 trace 이벤트를 기존 events 배열에도 쓰기",
     "SESSION_EVENT_CHUNK_SIZE": "각 trace event chunk 문서에 저장할 최대 이벤트 수",
     "SESSION_EVENT_CHUNK_STORAGE_ENABLED": "새 trace 이벤트를 chunk 문서에 저장",

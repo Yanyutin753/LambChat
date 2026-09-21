@@ -12,7 +12,7 @@ E2B 的沙箱 timeout 是绝对倒计时（Cube 是空闲计时），长任务 r
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from src.infra.logging import get_logger
 
@@ -139,6 +139,43 @@ class SandboxHeal:
     def _retry_after_wake(self, op: str, fn: Callable[[], _T]) -> _T:
         try:
             return fn()
+        except Exception:
+            self.consecutive_failures += 1
+            logger.error(
+                "sandbox op %s still failing after wake (consecutive=%d)",
+                op,
+                self.consecutive_failures,
+            )
+            raise
+
+    async def arun(self, op: str, fn: Callable[[], Any], wake: Callable[[], Any]) -> Any:
+        """async 版 run：协程调用同样享受唤醒 + 单次重试。"""
+        try:
+            result = await fn()
+        except Exception as exc:
+            if not is_retryable_sandbox_error(exc):
+                raise
+            logger.warning(
+                "sandbox op %s hit sandbox-level error (%s); waking sandbox %s and retrying once",
+                op,
+                type(exc).__name__,
+                self._describe_sandbox(),
+            )
+            try:
+                await wake()
+            except Exception as wake_exc:
+                logger.warning(
+                    "sandbox wake failed for %s: %s; retrying anyway",
+                    self._describe_sandbox(),
+                    wake_exc,
+                )
+            result = await self._aretry_after_wake(op, fn)
+        self.consecutive_failures = 0
+        return result
+
+    async def _aretry_after_wake(self, op: str, fn: Callable[[], Any]) -> Any:
+        try:
+            return await fn()
         except Exception:
             self.consecutive_failures += 1
             logger.error(
