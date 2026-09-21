@@ -1796,6 +1796,69 @@ async def test_execute_exports_lambchat_shared_env_beside_workspace() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("command", "rewritten"),
+    [
+        # 生产事故形态：模型把文件工具回报的 /workspace/{sid} 别名粘进 shell 命令
+        (
+            "cd /workspace/session-1 && pdftotext -layout resume.pdf resume.txt",
+            "cd /remote/home/sessions/session-1 && pdftotext -layout resume.pdf resume.txt",
+        ),
+        (
+            "cat /workspace/session-1/reports/summary.txt",
+            "cat /remote/home/sessions/session-1/reports/summary.txt",
+        ),
+        ("ls /workspace/.shared/skills", "ls /remote/home/shared/skills"),
+        (
+            "cp /workspace/.shared/tool.py /workspace/session-1/",
+            "cp /remote/home/shared/tool.py /remote/home/sessions/session-1/",
+        ),
+        # 别名之外保持原样：更长会话名、裸 /workspace 根、无关绝对路径
+        ("cat /workspace/session-10/report.txt", "cat /workspace/session-10/report.txt"),
+        ("ls /workspace/.shared-x", "ls /workspace/.shared-x"),
+        ("ls /workspace", "ls /workspace"),
+        ("cat /tmp/external.txt", "cat /tmp/external.txt"),
+        # 命令里出现别名一律指目录本身（与 F1 本地实现语义一致，不看引号上下文）
+        ("printf '/workspace/session-1'", "printf '/remote/home/sessions/session-1'"),
+        ("cd /workspace/session-1/", "cd /remote/home/sessions/session-1/"),
+    ],
+)
+async def test_execute_rewrites_public_workspace_alias_to_provider_path(
+    command: str,
+    rewritten: str,
+) -> None:
+    provider = _RecordingSandbox(work_dir="/remote/home/sessions/session-1")
+    backend = _lazy(_Manager(provider))
+
+    await backend.aexecute(command)
+
+    sent_command = provider.commands[-1][0]
+    assert sent_command == (
+        f"export LAMBCHAT_WORKSPACE=/remote/home/sessions/session-1; "
+        f"export LAMBCHAT_SHARED=/remote/home/shared; {rewritten}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_execute_offload_rewrites_public_workspace_alias_too() -> None:
+    provider = _RecordingSandbox(work_dir="/remote/home/sessions/session-1")
+    backend = _lazy(_Manager(provider))
+
+    await backend.aexecute_with_offload(
+        "cd /workspace/session-1 && python generate.py",
+        "/workspace/session-1/large_tool_results/tool-call-1",
+        max_inline_bytes=8,
+    )
+
+    sent_command = provider.offload_calls[-1][0]
+    assert sent_command == (
+        "export LAMBCHAT_WORKSPACE=/remote/home/sessions/session-1; "
+        "export LAMBCHAT_SHARED=/remote/home/shared; "
+        "cd /remote/home/sessions/session-1 && python generate.py"
+    )
+
+
+@pytest.mark.asyncio
 async def test_upload_and_download_map_shared_alias_paths() -> None:
     provider = _RecordingSandbox(work_dir="/remote/home/sessions/session-1")
     backend = _lazy(_Manager(provider))

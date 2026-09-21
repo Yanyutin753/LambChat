@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import os
 import shlex
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from deepagents.backends.utils import create_file_data, slice_read_response
 
@@ -55,6 +55,18 @@ class CubeSandboxBackend(E2BBackend):
             work_dir=work_dir,
         )
         self._ensured_parent_dirs: set[str] = set()
+
+    def _wake_sandbox(self) -> None:
+        """唤醒被空闲超时暂停的沙箱；Cube SDK 用显式 resume()（connect 亦可）。"""
+        # self._sandbox 运行时是 CubeSandbox（E2B 签名是继承带来的假象），
+        # resume 是 Cube 特有 API。
+        cast(Any, self._sandbox).resume(timeout=self._timeout)
+
+    def _files_read(self, path: str, format: Literal["text", "bytes"]) -> Any:
+        # Cube 的 files.read 没有 format 参数（恒返回 str），bytes 分支由
+        # 调用方处理；这里只保留 path。
+        del format
+        return self._sdk("files.read", lambda: self._sandbox.files.read(path))
 
     def get_info(self) -> dict[str, Any]:
         # cubesandbox>=0.7.0 的 SandboxInfo 是 dict 子类（dataclass），装的是
@@ -131,7 +143,7 @@ class CubeSandboxBackend(E2BBackend):
                         f"(limit {SANDBOX_READ_MAX_BYTES} bytes)"
                     )
                 )
-            content = self._sandbox.files.read(file_path)
+            content = self._files_read(file_path, "text")
             if isinstance(content, bytes):
                 try:
                     content = content.decode("utf-8")
@@ -147,7 +159,7 @@ class CubeSandboxBackend(E2BBackend):
         file_path = self._resolve_path(file_path)
         try:
             self._ensure_parent_dir(file_path)
-            self._sandbox.files.write(file_path, content)
+            self._files_write(file_path, content)
             return WriteResult(path=file_path)
         except Exception as e:
             logger.error("CubeSandbox files.write(%s) failed: %s", file_path, e)
@@ -165,7 +177,7 @@ class CubeSandboxBackend(E2BBackend):
                 continue
             try:
                 self._ensure_parent_dir(path)
-                self._sandbox.files.write(path, content)
+                self._files_write(path, content)
                 responses.append(FileUploadResponse(path=path, error=None))
             except Exception as e:
                 logger.error("CubeSandbox upload %s failed: %s", path, e)
@@ -189,7 +201,7 @@ class CubeSandboxBackend(E2BBackend):
                         file_download_response(path=path, content=None, error="file_not_found")
                     )
                     continue
-                raw_content = self._sandbox.files.read(path)
+                raw_content = self._files_read(path, "text")
                 content_bytes = (
                     raw_content.encode("utf-8")
                     if isinstance(raw_content, str)

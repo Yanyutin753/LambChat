@@ -177,9 +177,39 @@ class LazySandboxBackend(BaseSandbox):
     def _with_workspace_env(self, command: str) -> str:
         actual_work_dir = self._require_actual_work_dir()
         shared_dir = provider_shared_work_dir(actual_work_dir)
+        command = self._rewrite_public_aliases(command, actual_work_dir, shared_dir)
         return (
             f"export LAMBCHAT_WORKSPACE={shlex.quote(actual_work_dir)}; "
             f"export LAMBCHAT_SHARED={shlex.quote(shared_dir)}; {command}"
+        )
+
+    def _rewrite_public_aliases(
+        self,
+        command: str,
+        actual_work_dir: str,
+        shared_dir: str,
+    ) -> str:
+        """Rewrite public workspace aliases inside shell commands to provider paths.
+
+        File-tool results and the workspace policy speak the public
+        ``/workspace/{sid}`` namespace, and models paste those paths into shell
+        commands even when told not to — the alias does not exist inside the
+        sandbox shell, so the command fails with "No such file or directory"
+        and costs extra LLM round trips to recover (F1 fix parity with
+        WorkspaceAliasBackend for the local path). Boundary lookahead keeps
+        longer session ids (``/workspace/{sid}0``) and unrelated
+        ``/workspace/.shared-x`` paths untouched.
+        """
+        # lambda replacement avoids re.sub escape interpretation of provider dirs
+        command = re.sub(
+            re.escape(PUBLIC_SHARED_DIR) + r"(?![A-Za-z0-9_.-])",
+            lambda _match: shared_dir,
+            command,
+        )
+        return re.sub(
+            re.escape(self._public_work_dir) + r"(?![A-Za-z0-9_.-])",
+            lambda _match: actual_work_dir,
+            command,
         )
 
     def _to_public_file_info(self, info: FileInfo) -> FileInfo:

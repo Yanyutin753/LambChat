@@ -113,3 +113,56 @@ def test_cubesandbox_backend_caches_parent_dir_creation() -> None:
         if "mkdir -p /home/user/session-a/nested" in call["cmd"]
     ]
     assert len(mkdir_calls) == 1
+
+
+class _WakeRecordingSandbox(_FakeCubeSandbox):
+    def __init__(self) -> None:
+        super().__init__()
+        self.resume_calls: list[int | None] = []
+
+    def resume(self, timeout: int | None = None) -> None:
+        self.resume_calls.append(timeout)
+
+
+def test_cubesandbox_execute_wakes_via_resume_and_retries_paused_error() -> None:
+    from types import SimpleNamespace
+
+    from src.infra.backend.cubesandbox import CubeSandboxBackend
+
+    sandbox = _WakeRecordingSandbox()
+
+    def first_paused_then_ok(**kwargs):
+        sandbox.commands.calls.append(kwargs)
+        if len(sandbox.commands.calls) == 1:
+            raise RuntimeError("sandbox is paused")
+        return SimpleNamespace(stdout="resumed-ok\n", stderr="", exit_code=0)
+
+    sandbox.commands.run = first_paused_then_ok  # type: ignore[method-assign]
+    backend = CubeSandboxBackend(sandbox=sandbox, work_dir="/home/user/session-a")
+
+    result = backend.execute("task")
+
+    assert result.exit_code == 0
+    assert "resumed-ok" in (result.output or "")
+    assert sandbox.resume_calls  # 唤醒走的是 Cube 的 resume()
+
+
+def test_cubesandbox_execute_does_not_retry_timeouts() -> None:
+
+    from src.infra.backend.cubesandbox import CubeSandboxBackend
+
+    sandbox = _WakeRecordingSandbox()
+    calls: list[dict] = []
+
+    def always_timeout(**kwargs):
+        calls.append(kwargs)
+        raise RuntimeError("command timed out")
+
+    sandbox.commands.run = always_timeout  # type: ignore[method-assign]
+    backend = CubeSandboxBackend(sandbox=sandbox, work_dir="/home/user/session-a")
+
+    result = backend.execute("sleep 999")
+
+    assert result.exit_code == -1
+    assert len(calls) == 1
+    assert sandbox.resume_calls == []

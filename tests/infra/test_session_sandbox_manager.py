@@ -728,3 +728,126 @@ async def test_bindings_reuses_inflight_index_task_across_instances(
         await task
 
     assert collection.create_index_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_e2b_dead_binding_replacement_sets_startup_notice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """绑定沙箱已被平台回收时：重建新沙箱并挂模型可见的重建提示。"""
+    collection = _MemoryBindingCollection()
+    collection.doc = {
+        "user_id": "user-1",
+        "sandbox_id": "expired-e2b-sandbox",
+        "sandbox_state": "paused",
+    }
+    adapter = _FakeE2BAdapter()
+    adapter.get_sandbox = lambda sandbox_id: None  # connect 失败（沙箱已被回收）
+    manager = sandbox_module.SessionSandboxManager()
+    manager._e2b_adapter = adapter
+    manager._cube_adapter = None
+
+    async def fake_run_blocking_io(func, *args, **kwargs):
+        del kwargs
+        return func(*args)
+
+    async def fake_ensure_work_dir(*_args, **_kwargs) -> None:
+        return None
+
+    async def no_env_vars(_backend, _user_id) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "src.infra.storage.mongodb.get_mongo_client",
+        lambda: _FakeMongoClient(collection),
+    )
+    monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
+    monkeypatch.setattr("src.infra.sandbox._e2b_helpers.sync_sandbox_env_vars", no_env_vars)
+    monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "e2b")
+    monkeypatch.setattr(sandbox_module.settings, "E2B_TIMEOUT", 123)
+
+    backend, _work_dir = await manager._get_or_create_e2b("session-1", "user-1")
+
+    notice = getattr(backend.default, "sandbox_startup_notice", None)
+    assert notice is not None
+    assert "replaced" in notice.lower() or "recycled" in notice.lower()
+
+
+@pytest.mark.asyncio
+async def test_e2b_fresh_user_create_has_no_startup_notice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collection = _MemoryBindingCollection()
+    adapter = _FakeE2BAdapter()
+    manager = sandbox_module.SessionSandboxManager()
+    manager._e2b_adapter = adapter
+    manager._cube_adapter = None
+
+    async def fake_run_blocking_io(func, *args, **kwargs):
+        del kwargs
+        return func(*args)
+
+    async def fake_ensure_work_dir(*_args, **_kwargs) -> None:
+        return None
+
+    async def no_env_vars(_backend, _user_id) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "src.infra.storage.mongodb.get_mongo_client",
+        lambda: _FakeMongoClient(collection),
+    )
+    monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
+    monkeypatch.setattr("src.infra.sandbox._e2b_helpers.sync_sandbox_env_vars", no_env_vars)
+    monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "e2b")
+    monkeypatch.setattr(sandbox_module.settings, "E2B_TIMEOUT", 123)
+
+    backend, _work_dir = await manager._get_or_create_e2b("session-1", "user-1")
+
+    assert getattr(backend.default, "sandbox_startup_notice", None) is None
+
+
+@pytest.mark.asyncio
+async def test_cubesandbox_dead_binding_replacement_sets_startup_notice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collection = _MemoryBindingCollection()
+    collection.doc = {
+        "user_id": "user-1",
+        "sandbox_id": "expired-cube-sandbox",
+        "sandbox_state": "paused",
+    }
+    adapter = _FakeCubeAdapter()
+    adapter.get_sandbox = lambda sandbox_id: None
+    manager = sandbox_module.SessionSandboxManager()
+    manager._cube_adapter = adapter
+    manager._e2b_adapter = None
+
+    async def fake_run_blocking_io(func, *args, **kwargs):
+        del kwargs
+        return func(*args)
+
+    async def fake_ensure_work_dir(*_args, **_kwargs) -> None:
+        return None
+
+    async def no_env_vars(_backend, _user_id) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "src.infra.storage.mongodb.get_mongo_client",
+        lambda: _FakeMongoClient(collection),
+    )
+    monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
+    monkeypatch.setattr("src.infra.sandbox._cubesandbox_helpers.sync_sandbox_env_vars", no_env_vars)
+    monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "cubesandbox")
+    monkeypatch.setattr(sandbox_module.settings, "CUBE_TIMEOUT", 456, raising=False)
+
+    backend, _work_dir = await manager._get_or_create_cubesandbox("session-1", "user-1")
+    await asyncio.sleep(0)
+
+    notice = getattr(backend.default, "sandbox_startup_notice", None)
+    assert notice is not None
+    assert "replaced" in notice.lower() or "recycled" in notice.lower()
