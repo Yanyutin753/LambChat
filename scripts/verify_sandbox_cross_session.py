@@ -235,7 +235,14 @@ def main() -> int:
         )
         print(f"[B1] {status}")
         text, problems = run_text_and_problems(base, token, sid_b, rid)
-        check("B1 会话B零报错完成", status == "completed" and not problems, str(problems))
+        # B2 的隔离探测（cat sess-a.txt）按设计必然报 No such file——
+        # 那是隔离的证据而非异常，不计入 B1；其余失败仍判 B1 失败
+        unexpected = [p for p in problems if not ("sess-a.txt" in p and "No such file" in p)]
+        check(
+            "B1 会话B零报错完成（隔离探测除外）",
+            status == "completed" and not unexpected,
+            str(unexpected),
+        )
         check("B2 会话隔离（B 看不到 A 的 sess-a.txt）", "No such file" in text, text[:200])
         check("B3 跨会话共享目录可读", shared_marker in text, text[:200])
         check("B4 会话B可写入", marker_b in text, text[:200])
