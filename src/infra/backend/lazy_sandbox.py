@@ -212,7 +212,6 @@ class LazySandboxBackend(BaseSandbox):
             command,
         )
 
-
     def _to_public_file_info(self, info: FileInfo) -> FileInfo:
         return cast(FileInfo, {**info, "path": self._to_public_path(info["path"])})
 

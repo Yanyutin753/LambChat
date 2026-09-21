@@ -1809,7 +1809,10 @@ async def test_execute_exports_lambchat_shared_env_beside_workspace() -> None:
             "cat /remote/home/sessions/session-1/reports/summary.txt",
         ),
         ("ls /workspace/.shared/skills", "ls /remote/home/shared/skills"),
-        ("cp /workspace/.shared/tool.py /workspace/session-1/", "cp /remote/home/shared/tool.py /remote/home/sessions/session-1/"),
+        (
+            "cp /workspace/.shared/tool.py /workspace/session-1/",
+            "cp /remote/home/shared/tool.py /remote/home/sessions/session-1/",
+        ),
         # 别名之外保持原样：更长会话名、裸 /workspace 根、无关绝对路径
         ("cat /workspace/session-10/report.txt", "cat /workspace/session-10/report.txt"),
         ("ls /workspace/.shared-x", "ls /workspace/.shared-x"),
