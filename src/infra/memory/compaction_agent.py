@@ -402,7 +402,7 @@ class MemoryCompactionAgent:
                 "reason": "scan_lock_not_acquired",
             }
 
-        cursor = backend._collection.aggregate(
+        cursor = await backend._collection.aggregate(
             [
                 {"$match": {"source": {"$nin": _COMPACTION_EXCLUDED_SOURCES}}},
                 {"$group": {"_id": "$user_id", "count": {"$sum": 1}}},

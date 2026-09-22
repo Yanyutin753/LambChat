@@ -155,7 +155,7 @@ class _AsyncCursor:
         return doc
 
     def sort(self, key, direction=None):
-        # Mirror motor's sort: stable multi-key ordering, ascending by default.
+        # Mirror MongoDB sort: stable multi-key ordering, ascending by default.
         if isinstance(key, list):
             for field, sort_direction in reversed(key):
                 self._docs.sort(key=lambda doc: doc.get(field), reverse=sort_direction < 0)
@@ -285,7 +285,7 @@ class _ManyFilesCollection:
         self.cursors.append(cursor)
         return cursor
 
-    def aggregate(self, pipeline: list[dict[str, Any]]) -> _AsyncCursor:
+    async def aggregate(self, pipeline: list[dict[str, Any]]) -> _AsyncCursor:
         clauses = pipeline[0]["$match"]["$or"]
         per_skill_limit = pipeline[2]["$match"]["__skill_file_rank"]["$lte"]
         docs: list[dict[str, Any]] = []
@@ -450,7 +450,7 @@ async def test_batch_get_skill_files_uses_one_windowed_starvation_fallback(
                 )
             return _AsyncCursor(docs)
 
-        def aggregate(self, pipeline: list[dict[str, Any]]) -> _AsyncCursor:
+        async def aggregate(self, pipeline: list[dict[str, Any]]) -> _AsyncCursor:
             self.aggregate_calls.append(pipeline)
             clauses = pipeline[0]["$match"]["$or"]
             return _AsyncCursor(
@@ -486,7 +486,7 @@ class _AggregateSkillNameCollection:
     def __init__(self, docs: list[dict[str, Any]]) -> None:
         self.pipelines: list[list[dict[str, Any]]] = []
 
-    def aggregate(self, pipeline: list[dict[str, Any]]) -> _AsyncCursor:
+    async def aggregate(self, pipeline: list[dict[str, Any]]) -> _AsyncCursor:
         self.pipelines.append(pipeline)
         return _AsyncCursor(
             [

@@ -30,33 +30,34 @@ MARKETPLACE_TAG_LIST_LIMIT = 200
 
 
 if TYPE_CHECKING:
-    from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
+    from pymongo import AsyncMongoClient
+    from pymongo.asynchronous.collection import AsyncCollection
 
 
 class MarketplaceStorage:
     """商城 Skill 存储"""
 
     def __init__(self):
-        self._client: Optional["AsyncIOMotorClient"] = None
-        self._meta_collection: Optional["AsyncIOMotorCollection"] = None
-        self._files_collection: Optional["AsyncIOMotorCollection"] = None
-        self._users_collection: Optional["AsyncIOMotorCollection"] = None
+        self._client: Optional["AsyncMongoClient"] = None
+        self._meta_collection: Optional["AsyncCollection"] = None
+        self._files_collection: Optional["AsyncCollection"] = None
+        self._users_collection: Optional["AsyncCollection"] = None
 
-    def _get_meta_collection(self) -> "AsyncIOMotorCollection":
+    def _get_meta_collection(self) -> "AsyncCollection":
         if self._meta_collection is None:
             self._client = get_mongo_client()
             db = self._client[settings.MONGODB_DB]
             self._meta_collection = db[SKILL_MARKETPLACE_COLLECTION]
         return self._meta_collection
 
-    def _get_files_collection(self) -> "AsyncIOMotorCollection":
+    def _get_files_collection(self) -> "AsyncCollection":
         if self._files_collection is None:
             self._client = get_mongo_client()
             db = self._client[settings.MONGODB_DB]
             self._files_collection = db[SKILL_MARKETPLACE_FILES_COLLECTION]
         return self._files_collection
 
-    def _get_users_collection(self) -> "AsyncIOMotorCollection":
+    def _get_users_collection(self) -> "AsyncCollection":
         if self._users_collection is None:
             self._client = get_mongo_client()
             db = self._client[settings.MONGODB_DB]
@@ -193,7 +194,7 @@ class MarketplaceStorage:
         ]
 
         docs = []
-        async for doc in collection.aggregate(pipeline):  # type: ignore[arg-type]
+        async for doc in await collection.aggregate(pipeline):
             docs.append(doc)
 
         if not docs:

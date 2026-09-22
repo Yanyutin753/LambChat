@@ -363,7 +363,7 @@ class TraceStorage(
         )
 
         try:
-            async for event in self.collection.aggregate(pipeline):
+            async for event in await self.collection.aggregate(pipeline):
                 return event
             return None
         except Exception as e:
@@ -437,7 +437,7 @@ class TraceStorage(
         )
 
         try:
-            async for event in self.collection.aggregate(pipeline):
+            async for event in await self.collection.aggregate(pipeline):
                 return event
             return None
         except Exception as e:

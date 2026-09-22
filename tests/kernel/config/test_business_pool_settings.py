@@ -1,7 +1,7 @@
-"""Tests for the motor business connection-pool settings (P0-3).
+"""Tests for the MongoDB business connection-pool settings (P0-3).
 
 Covers: default values/types, UI exposure (no depends_on, unlike checkpoint),
-and restart-required registration. The motor client is an lru_cache singleton
+and restart-required registration. The AsyncMongoClient is an lru_cache singleton
 shared across 30+ storages, so a pool change only takes effect on restart.
 """
 
@@ -13,7 +13,7 @@ def test_business_pool_defaults_and_types() -> None:
 
     assert settings.MONGODB_POOL_MAX_SIZE == 20
     assert settings.MONGODB_POOL_MIN_SIZE == 2
-    # Type must be int — motor rejects non-int pool sizes.
+    # Type must be int — pymongo rejects non-int pool sizes.
     assert type(settings.MONGODB_POOL_MAX_SIZE) is int
     assert type(settings.MONGODB_POOL_MIN_SIZE) is int
 

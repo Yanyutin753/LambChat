@@ -1,8 +1,8 @@
 """Tests for get_mongo_client reading pool sizes from settings (P0-3).
 
 Seam under test: the ``get_mongo_client`` lru_cache singleton in
-``src.infra.storage.mongodb``. We inject a fake ``AsyncIOMotorClient`` to assert
-the pool-size kwargs come from settings, without exercising motor internals.
+``src.infra.storage.mongodb``. We inject a fake ``AsyncMongoClient`` to assert
+the pool-size kwargs come from settings, without exercising driver internals.
 Pattern follows the checkpointer pool test (test_mongo_checkpointer_pool.py).
 """
 
@@ -22,7 +22,7 @@ def _reset_mongo_client_cache() -> None:
 
 
 def _install_fake_motor(monkeypatch: pytest.MonkeyPatch, capture: dict) -> None:
-    """Replace motor's AsyncIOMotorClient constructor with a recording fake."""
+    """Replace pymongo's AsyncMongoClient constructor with a recording fake."""
 
     class _FakeMotorClient:
         def __init__(self, connection_string: str, **kwargs: object) -> None:
@@ -32,7 +32,7 @@ def _install_fake_motor(monkeypatch: pytest.MonkeyPatch, capture: dict) -> None:
         def close(self) -> None:
             capture["close_count"] = capture.get("close_count", 0) + 1
 
-    monkeypatch.setattr("motor.motor_asyncio.AsyncIOMotorClient", _FakeMotorClient)
+    monkeypatch.setattr("pymongo.AsyncMongoClient", _FakeMotorClient)
 
 
 def _plain_connection(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -41,7 +41,7 @@ class _FakeSkillFilesCollection:
     def __init__(self) -> None:
         self.aggregate_pipelines: list[list[dict[str, Any]]] = []
 
-    def aggregate(self, pipeline: list[dict[str, Any]]) -> _AsyncCursor:
+    async def aggregate(self, pipeline: list[dict[str, Any]]) -> _AsyncCursor:
         self.aggregate_pipelines.append(pipeline)
         return _AsyncCursor(
             [
@@ -112,7 +112,7 @@ class _FakeSkillMdCollection:
         self.cursor: _LimitableAsyncCursor | None = None
         self.find_calls: list[tuple[dict[str, Any], dict[str, int]]] = []
 
-    def aggregate(self, pipeline: list[dict[str, Any]]) -> _AsyncCursor:
+    async def aggregate(self, pipeline: list[dict[str, Any]]) -> _AsyncCursor:
         raise AssertionError(f"unexpected aggregate: {pipeline}")
 
     def find(self, query: dict[str, Any], projection: dict[str, int]) -> _LimitableAsyncCursor:

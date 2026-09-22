@@ -189,7 +189,7 @@ class Settings(BaseSettings):
     MONGODB_POOL_MIN_SIZE: int = 2
     MONGODB_POOL_MAX_SIZE: int = 20
     # Checkpointer independent MongoDB connection pool (physically isolated from
-    # the motor business pool so checkpoint writes cannot starve business ops).
+    # the PyMongo Async business pool so checkpoint writes cannot starve business ops).
     # Defaults align with CHECKPOINT_PG_POOL_*.
     CHECKPOINT_MONGO_POOL_MIN_SIZE: int = 2
     CHECKPOINT_MONGO_POOL_MAX_SIZE: int = 10

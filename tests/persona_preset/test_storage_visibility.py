@@ -72,7 +72,7 @@ async def test_list_visible_uses_bounded_aggregation_instead_of_materializing_fi
         def find(self, _query):
             raise AssertionError("list_visible should not materialize an unbounded find cursor")
 
-        def aggregate(self, pipeline):
+        async def aggregate(self, pipeline):
             pipelines.append(pipeline)
             return _Cursor(
                 [
@@ -124,7 +124,7 @@ async def test_list_visible_clamps_skip_and_limit_for_direct_storage_calls() -> 
             raise StopAsyncIteration
 
     class _Collection:
-        def aggregate(self, pipeline):
+        async def aggregate(self, pipeline):
             pipelines.append(pipeline)
             return _Cursor()
 
@@ -156,7 +156,7 @@ async def test_list_visible_bounds_large_user_preference_arrays() -> None:
             raise StopAsyncIteration
 
     class _Collection:
-        def aggregate(self, pipeline):
+        async def aggregate(self, pipeline):
             pipelines.append(pipeline)
             return _Cursor()
 
@@ -194,7 +194,7 @@ async def test_list_visible_reuses_preference_lookup_when_filtering_preferences(
             raise StopAsyncIteration
 
     class _Collection:
-        def aggregate(self, _pipeline):
+        async def aggregate(self, _pipeline):
             return _Cursor()
 
     class _UserCollection:

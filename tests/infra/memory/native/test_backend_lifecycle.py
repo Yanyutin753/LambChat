@@ -280,19 +280,16 @@ class _FakeVectorCollection:
             raise RuntimeError("mongot unavailable")
 
 
-def _fake_mongo_delegate(col):
+def _fake_mongo_sync_client(col):
     class _Db(dict):
         def __getitem__(self, name):
             return col
 
-    class _Delegate:
+    class _SyncClient:
         def __getitem__(self, name):
             return _Db()
 
-    class _Client:
-        delegate = _Delegate()
-
-    return _Client()
+    return _SyncClient()
 
 
 @pytest.mark.asyncio
@@ -302,7 +299,9 @@ async def test_vector_index_created_when_embedding_configured(
     col = _FakeVectorCollection(existing_names=[])
     backend = NativeMemoryBackend()
     backend._embedding_fn = lambda _text: [0.0]
-    monkeypatch.setattr(backend_module, "get_mongo_client", lambda: _fake_mongo_delegate(col))
+    monkeypatch.setattr(
+        backend_module, "get_mongo_sync_client", lambda: _fake_mongo_sync_client(col)
+    )
     monkeypatch.setattr(backend_module.settings, "NATIVE_MEMORY_EMBEDDING_DIMENSIONS", 1536)
 
     async def direct(func, *args, **kwargs):
@@ -329,7 +328,9 @@ async def test_vector_index_skipped_when_already_present(
     col = _FakeVectorCollection(existing_names=["native_mem_vector_idx"])
     backend = NativeMemoryBackend()
     backend._embedding_fn = lambda _text: [0.0]
-    monkeypatch.setattr(backend_module, "get_mongo_client", lambda: _fake_mongo_delegate(col))
+    monkeypatch.setattr(
+        backend_module, "get_mongo_sync_client", lambda: _fake_mongo_sync_client(col)
+    )
 
     async def direct(func, *args, **kwargs):
         return func(*args, **kwargs)
@@ -348,7 +349,9 @@ async def test_vector_index_skipped_without_embedding_fn(
     col = _FakeVectorCollection(existing_names=[])
     backend = NativeMemoryBackend()
     backend._embedding_fn = None
-    monkeypatch.setattr(backend_module, "get_mongo_client", lambda: _fake_mongo_delegate(col))
+    monkeypatch.setattr(
+        backend_module, "get_mongo_sync_client", lambda: _fake_mongo_sync_client(col)
+    )
 
     await backend._maybe_create_vector_index()
 
@@ -362,7 +365,9 @@ async def test_vector_index_failure_is_non_fatal(
     col = _FakeVectorCollection(existing_names=[], fail_create=True)
     backend = NativeMemoryBackend()
     backend._embedding_fn = lambda _text: [0.0]
-    monkeypatch.setattr(backend_module, "get_mongo_client", lambda: _fake_mongo_delegate(col))
+    monkeypatch.setattr(
+        backend_module, "get_mongo_sync_client", lambda: _fake_mongo_sync_client(col)
+    )
 
     async def direct(func, *args, **kwargs):
         return func(*args, **kwargs)

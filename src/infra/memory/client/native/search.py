@@ -483,7 +483,7 @@ async def vector_search(
             },
             {"$match": base},
         ]
-        cursor = backend._collection.aggregate(pipeline)
+        cursor = await backend._collection.aggregate(pipeline)
         docs = await cursor.to_list(length=ann_limit)
         if docs:
             return [format_memory(doc, doc.get("score", 1.0)) for doc in docs[:limit]]

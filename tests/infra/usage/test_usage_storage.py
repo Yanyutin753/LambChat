@@ -63,7 +63,7 @@ class _FakeCollection:
         self.count_queries.append(query)
         return 1
 
-    def aggregate(self, pipeline):
+    async def aggregate(self, pipeline):
         self.aggregate_pipelines.append(pipeline)
         return _FakeAggregateCursor(
             [
@@ -115,7 +115,7 @@ class _PagingFakeCollection:
     async def count_documents(self, query):
         return len(self.docs)
 
-    def aggregate(self, pipeline):
+    async def aggregate(self, pipeline):
         return _FakeAggregateCursor(
             [
                 {
@@ -458,7 +458,7 @@ class _DashboardFakeCollection:
     def __init__(self):
         self.aggregate_pipelines = []
 
-    def aggregate(self, pipeline):
+    async def aggregate(self, pipeline):
         self.aggregate_pipelines.append(pipeline)
         return _FakeAggregateCursor(
             [
@@ -613,7 +613,7 @@ async def test_get_usage_dashboard_returns_daily_and_rankings() -> None:
 class _ProviderQuirkFakeCollection:
     """provider 口径不一致：input_tokens 不含缓存 token，甚至 cache > input。"""
 
-    def aggregate(self, pipeline):
+    async def aggregate(self, pipeline):
         return _FakeAggregateCursor(
             [
                 {

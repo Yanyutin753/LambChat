@@ -75,7 +75,7 @@ class _Collection:
                 return doc
         return None
 
-    def aggregate(self, pipeline):
+    async def aggregate(self, pipeline):
         self.aggregate_pipelines.append(pipeline)
         return _CountCursor(
             [{"_id": user_id, "count": count} for user_id, count in self.counts.items()]

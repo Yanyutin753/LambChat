@@ -877,7 +877,7 @@ async def warmup_active_users_mcp(limit: int = 10) -> None:
             {"$limit": effective_limit},
         ]
 
-        cursor = traces_collection.aggregate(pipeline)
+        cursor = await traces_collection.aggregate(pipeline)
         user_ids: list[str] = []
         async for doc in cursor:
             user_ids.append(str(doc["_id"]))

@@ -47,7 +47,8 @@ logger = get_logger(__name__)
 
 
 if TYPE_CHECKING:
-    from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
+    from pymongo import AsyncMongoClient
+    from pymongo.asynchronous.collection import AsyncCollection
 
 
 class MCPStorage(StorageOperations):
@@ -59,12 +60,12 @@ class MCPStorage(StorageOperations):
     """
 
     def __init__(self):
-        self._client: Optional["AsyncIOMotorClient"] = None
-        self._system_collection: Optional["AsyncIOMotorCollection"] = None
-        self._user_collection: Optional["AsyncIOMotorCollection"] = None
-        self._preferences_collection: Optional["AsyncIOMotorCollection"] = None
-        self._tool_preferences_collection: Optional["AsyncIOMotorCollection"] = None
-        self._tool_policies_collection: Optional["AsyncIOMotorCollection"] = None
+        self._client: Optional["AsyncMongoClient"] = None
+        self._system_collection: Optional["AsyncCollection"] = None
+        self._user_collection: Optional["AsyncCollection"] = None
+        self._preferences_collection: Optional["AsyncCollection"] = None
+        self._tool_preferences_collection: Optional["AsyncCollection"] = None
+        self._tool_policies_collection: Optional["AsyncCollection"] = None
 
     async def _invalidate_user_cache(self, user_id: str) -> None:
         """Invalidate MCP tools cache for a specific user"""
@@ -85,7 +86,7 @@ class MCPStorage(StorageOperations):
             return await value
         return value
 
-    def _get_system_collection(self) -> "AsyncIOMotorCollection":
+    def _get_system_collection(self) -> "AsyncCollection":
         """Get system MCP servers collection lazily"""
         if self._system_collection is None:
             self._client = get_mongo_client()
@@ -93,7 +94,7 @@ class MCPStorage(StorageOperations):
             self._system_collection = db["system_mcp_servers"]
         return self._system_collection
 
-    def _get_user_collection(self) -> "AsyncIOMotorCollection":
+    def _get_user_collection(self) -> "AsyncCollection":
         """Get user MCP servers collection lazily"""
         if self._user_collection is None:
             self._client = get_mongo_client()
@@ -101,7 +102,7 @@ class MCPStorage(StorageOperations):
             self._user_collection = db["user_mcp_servers"]
         return self._user_collection
 
-    def _get_preferences_collection(self) -> "AsyncIOMotorCollection":
+    def _get_preferences_collection(self) -> "AsyncCollection":
         """Get user MCP preferences collection lazily"""
         if self._preferences_collection is None:
             self._client = get_mongo_client()
@@ -109,7 +110,7 @@ class MCPStorage(StorageOperations):
             self._preferences_collection = db["user_mcp_preferences"]
         return self._preferences_collection
 
-    def _get_tool_preferences_collection(self) -> "AsyncIOMotorCollection":
+    def _get_tool_preferences_collection(self) -> "AsyncCollection":
         """Get user MCP tool preferences collection lazily"""
         if self._tool_preferences_collection is None:
             self._client = get_mongo_client()
@@ -117,7 +118,7 @@ class MCPStorage(StorageOperations):
             self._tool_preferences_collection = db["user_mcp_tool_preferences"]
         return self._tool_preferences_collection
 
-    def _get_tool_policies_collection(self) -> "AsyncIOMotorCollection":
+    def _get_tool_policies_collection(self) -> "AsyncCollection":
         """Get admin-managed MCP tool policies collection lazily."""
         if self._tool_policies_collection is None:
             self._client = get_mongo_client()

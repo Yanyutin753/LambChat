@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, List, Optional
 
 from pydantic import BaseModel
 from pymongo import ReturnDocument
+from pymongo.asynchronous.collection import AsyncCollection
 
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
@@ -21,7 +22,7 @@ from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
 
 if TYPE_CHECKING:
-    from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
+    from pymongo import AsyncMongoClient, MongoClient
 
 logger = get_logger(__name__)
 MONGODB_STORAGE_KEYS_LIMIT = 1000
@@ -31,7 +32,7 @@ APPROVAL_RESPONSE_CHANNEL = "approval:response"
 def build_mongo_connection_string() -> str:
     """Construct a MongoDB connection string from current settings.
 
-    Shared by the motor async client and the synchronous checkpointer client so
+    Shared by the PyMongo async client and the synchronous checkpointer client so
     both resolve identical credentials / ``authSource`` / scheme handling. Pure
     function over ``settings`` — no IO — so it composes with any caller.
     """
@@ -59,14 +60,14 @@ def build_mongo_connection_string() -> str:
 
 
 @lru_cache
-def get_mongo_client() -> "AsyncIOMotorClient":
-    """获取 MongoDB 客户端（单例）- 使用 Motor 异步客户端"""
+def get_mongo_client() -> "AsyncMongoClient":
+    """获取 MongoDB 客户端（单例）- PyMongo 官方 AsyncMongoClient（Motor 已弃用）"""
     try:
-        from motor.motor_asyncio import AsyncIOMotorClient
+        from pymongo import AsyncMongoClient
 
         connection_string = build_mongo_connection_string()
 
-        client: AsyncIOMotorClient = AsyncIOMotorClient(
+        client: AsyncMongoClient = AsyncMongoClient(
             connection_string,
             maxPoolSize=settings.MONGODB_POOL_MAX_SIZE,
             minPoolSize=settings.MONGODB_POOL_MIN_SIZE,
@@ -77,7 +78,33 @@ def get_mongo_client() -> "AsyncIOMotorClient":
         )
         return client
     except ImportError:
-        raise ImportError("请安装 motor: pip install motor")
+        raise ImportError("请安装 pymongo>=4.13: pip install pymongo")
+
+
+_sync_client: Optional["MongoClient"] = None
+
+
+def get_mongo_sync_client() -> "MongoClient":
+    """独立同步 MongoClient（索引维护/同步 batch 等场景）。
+
+    PyMongo Async 客户端没有 Motor 的 ``.delegate`` 内部通道；需要同步
+    collection 的场合显式用独立同步客户端，与业务 Async 池物理隔离
+    （与 checkpointer 同款模式）。
+    """
+    global _sync_client
+    if _sync_client is None:
+        from pymongo import MongoClient
+
+        _sync_client = MongoClient(
+            build_mongo_connection_string(),
+            maxPoolSize=settings.MONGODB_POOL_MAX_SIZE,
+            minPoolSize=settings.MONGODB_POOL_MIN_SIZE,
+            connectTimeoutMS=5000,
+            serverSelectionTimeoutMS=10000,
+            tz_aware=True,
+            tzinfo=timezone.utc,
+        )
+    return _sync_client
 
 
 async def close_mongo_client() -> None:
@@ -86,7 +113,8 @@ async def close_mongo_client() -> None:
         if get_mongo_client.cache_info().currsize == 0:
             return
         client = get_mongo_client()
-        client.close()
+        # PyMongo Async 的 close() 是协程（Motor 时代是同步方法）
+        await client.close()
         get_mongo_client.cache_clear()
         logger.info("MongoDB client closed")
     except Exception as e:
@@ -100,7 +128,7 @@ class MongoDBStorage(StorageBase):
 
     def __init__(self, collection_name: str = "storage"):
         self.collection_name = collection_name
-        self._collection: "AsyncIOMotorCollection[Any] | None" = None
+        self._collection: "AsyncCollection[Any] | None" = None
 
     @property
     def collection(self):
@@ -196,7 +224,7 @@ class ApprovalStorage:
 
     def __init__(self, collection_name: str = "approvals"):
         self.collection_name = collection_name
-        self._collection: "AsyncIOMotorCollection[Any] | None" = None
+        self._collection: "AsyncCollection[Any] | None" = None
         self._indexes_created = False
 
     @property

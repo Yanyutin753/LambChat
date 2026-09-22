@@ -39,7 +39,7 @@ class _LifecycleCollection:
         self.delete_one_calls: list[dict] = []
         self.claim_results: list[dict | None] = []
 
-    def list_indexes(self):
+    async def list_indexes(self):
         return _IndexCursor(self.indexes)
 
     async def create_index(self, keys, **kwargs):

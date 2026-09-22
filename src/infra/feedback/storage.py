@@ -301,7 +301,7 @@ class FeedbackStorage:
             },
         ]
 
-        result = await self.collection.aggregate(pipeline).to_list(length=1)
+        result = await (await self.collection.aggregate(pipeline)).to_list(length=1)
 
         if not result:
             return FeedbackStats(total_count=0, up_count=0, down_count=0, up_percentage=0.0)

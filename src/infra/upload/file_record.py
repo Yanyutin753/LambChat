@@ -94,7 +94,7 @@ class FileRecordStorage:
             background=True,
         )
 
-        indexes = [index async for index in collection.list_indexes()]
+        indexes = [index async for index in await collection.list_indexes()]
         for index in indexes:
             key_pattern = list(index.get("key", {}).items())
             if key_pattern == [("hash", 1)] and index.get("unique") is True:

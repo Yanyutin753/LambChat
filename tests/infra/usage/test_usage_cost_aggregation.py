@@ -28,7 +28,7 @@ class _FakeAggregateCollection:
     async def count_documents(self, query):
         return 2
 
-    def aggregate(self, pipeline):
+    async def aggregate(self, pipeline):
         self.pipelines.append(pipeline)
         if self._stats_doc is not None:
             return _FakeAggregateCursor([self._stats_doc])

@@ -416,7 +416,7 @@ class ModelStorage:
                 }
             }
         ]
-        result = await self._get_collection().aggregate(pipeline).to_list(length=1)
+        result = await (await self._get_collection().aggregate(pipeline)).to_list(length=1)
         if result:
             facet = result[0]
             total = facet["total"][0]["count"] if facet["total"] else 0

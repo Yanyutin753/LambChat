@@ -314,7 +314,7 @@ class _FakeCollection:
         self.find_queries.append(query)
         return _FakeCursor(list(self.docs))
 
-    def aggregate(self, pipeline):
+    async def aggregate(self, pipeline):
         raise RuntimeError("aggregate unavailable in fake")
 
 
@@ -425,7 +425,7 @@ async def test_vector_search_atlas_scope_filter_empty_falls_back_to_cosine(monke
     visible = _mem_doc("a" * 32, "visible", embedding=[1.0, 0.0])
 
     class AtlasCollection(_FakeCollection):
-        def aggregate(self, pipeline):
+        async def aggregate(self, pipeline):
             return _FakeCursor([])  # cross-project ANN hits removed by $match
 
     col = AtlasCollection([visible])

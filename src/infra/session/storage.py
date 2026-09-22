@@ -525,7 +525,7 @@ class SessionStorage(SessionAttachmentOperationsMixin):
         ]
 
         counts: dict[str, int] = {}
-        async for item in self.collection.aggregate(pipeline):
+        async for item in await self.collection.aggregate(pipeline):
             task_id = item.get("_id")
             if isinstance(task_id, str):
                 counts[task_id] = int(item.get("unread_count") or 0)

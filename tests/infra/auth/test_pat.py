@@ -21,7 +21,7 @@ class _FakeCollection:
         return None
 
     def find(self, query: dict) -> "_FakeCursor":
-        # motor 的 find() 同步返回 cursor（仅 to_list 是 awaitable），fake 保持一致
+        # PyMongo Async 的 find() 同步返回 cursor（仅 to_list 是 awaitable），fake 保持一致
         return _FakeCursor([d for d in self.docs if all(d.get(k) == v for k, v in query.items())])
 
     async def update_one(self, query: dict, update: dict) -> None:

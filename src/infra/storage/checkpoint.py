@@ -50,7 +50,7 @@ _DISABLED_CHECKPOINT_BACKENDS = {"", "0", "false", "none", "off", "disabled"}
 
 # MongoDB Checkpointer 单例
 _mongo_checkpointer: Optional[BaseCheckpointSaver[Any]] = None
-# 独立同步 MongoClient（与业务 motor 池物理隔离）。checkpointer 持有它。
+# 独立同步 MongoClient（与业务 PyMongo Async 池物理隔离）。checkpointer 持有它。
 _mongo_checkpoint_client: Any = None
 
 # PostgreSQL Checkpointer 单例
@@ -164,9 +164,9 @@ def get_mongo_checkpointer(collection_name: str = "checkpoints") -> BaseCheckpoi
     获取 MongoDB checkpointer 单例
 
     使用一个**独立的同步 pymongo MongoClient**（独立 maxPoolSize/minPoolSize），
-    与业务请求的 motor 连接池物理隔离——checkpoint 写入不再抢占业务连接。
+    与业务请求的 PyMongo Async 连接池物理隔离——checkpoint 写入不再抢占业务连接。
 
-    连接串构造与超时/时区/认证参数与 motor 客户端保持一致（复用
+    连接串构造与超时/时区/认证参数与 AsyncMongoClient 保持一致（复用
     build_mongo_connection_string），仅池大小可独立配置。
 
     Args:

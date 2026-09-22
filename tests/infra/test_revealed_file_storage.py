@@ -138,7 +138,7 @@ class _FakeCollection:
         self.find_cursors.append(cursor)
         return cursor
 
-    def aggregate(self, pipeline):
+    async def aggregate(self, pipeline):
         self.aggregate_pipelines.append(pipeline)
         if any("$count" in stage for stage in pipeline):
             return _FakeAggregateResult(self.count_result)

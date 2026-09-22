@@ -90,7 +90,7 @@ class _FakeChunksCollection:
         self._aggregate_docs = aggregate_docs
         self.aggregate_calls: list[list[dict[str, Any]]] = []
 
-    def aggregate(self, pipeline):
+    async def aggregate(self, pipeline):
         self.aggregate_calls.append(pipeline)
         return _FakeAggregateCursor(self._aggregate_docs)
 

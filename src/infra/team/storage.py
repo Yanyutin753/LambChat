@@ -19,7 +19,7 @@ from src.kernel.schemas.team import (
 )
 
 if TYPE_CHECKING:
-    from motor.motor_asyncio import AsyncIOMotorCollection
+    from pymongo.asynchronous.collection import AsyncCollection
 
 TEAM_LIST_LIMIT_MAX = 200
 
@@ -32,11 +32,11 @@ class TeamStorage:
     """MongoDB storage for teams."""
 
     def __init__(self) -> None:
-        self._collection: "AsyncIOMotorCollection[Any] | None" = None
-        self._user_collection: "AsyncIOMotorCollection[Any] | None" = None
+        self._collection: "AsyncCollection[Any] | None" = None
+        self._user_collection: "AsyncCollection[Any] | None" = None
 
     @property
-    def collection(self) -> "AsyncIOMotorCollection[Any]":
+    def collection(self) -> "AsyncCollection[Any]":
         """Lazy MongoDB collection."""
         if self._collection is None:
             from src.infra.storage.mongodb import get_mongo_client
@@ -62,7 +62,7 @@ class TeamStorage:
             logger.error(f"Failed to create team storage indexes: {e}")
 
     @property
-    def user_collection(self) -> "AsyncIOMotorCollection[Any]":
+    def user_collection(self) -> "AsyncCollection[Any]":
         """Lazy MongoDB users collection for per-user team preferences."""
         if self._user_collection is None:
             from src.infra.storage.mongodb import get_mongo_client
@@ -450,7 +450,8 @@ class TeamStorage:
                 }
             },
         ]
-        result_docs = [doc async for doc in self.collection.aggregate(pipeline)]
+        cursor = await self.collection.aggregate(pipeline)
+        result_docs = [doc async for doc in cursor]
         result = result_docs[0] if result_docs else {}
         metadata = result.get("metadata") or []
         total = int(metadata[0].get("total", 0)) if metadata else 0

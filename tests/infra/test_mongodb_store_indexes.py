@@ -1,3 +1,4 @@
+import pytest
 from langgraph.store.base import PutOp
 
 from src.infra.storage import mongodb_store as store_module
@@ -30,15 +31,11 @@ def test_setup_removes_legacy_key_only_unique_index_before_compound_index(
         def __getitem__(self, name):
             return collection
 
-    class FakeDelegate:
+    class FakeSyncClient:
         def __getitem__(self, name):
             return FakeDatabase()
 
-    class FakeClient:
-        delegate = FakeDelegate()
-
-    fake_client = FakeClient()
-    monkeypatch.setattr(store_module, "get_mongo_client", lambda: fake_client)
+    monkeypatch.setattr(store_module, "get_mongo_sync_client", lambda: FakeSyncClient())
     store_module.MongoDBStore()._create_indexes_sync()
 
     assert collection.dropped == ["key_1"]
@@ -48,7 +45,9 @@ def test_setup_removes_legacy_key_only_unique_index_before_compound_index(
     )
 
 
-def test_repeated_put_updates_existing_namespace_key() -> None:
+def test_repeated_put_updates_existing_namespace_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     class FakeCollection:
         def __init__(self) -> None:
             self.docs: dict[tuple[tuple[str, ...], str], dict] = {}
@@ -72,7 +71,13 @@ def test_repeated_put_updates_existing_namespace_key() -> None:
         delegate = FakeDelegate()
 
     collection = FakeCollection()
-    store = store_module.MongoDBStore(client=FakeClient())
+
+    class FakeSyncClient:
+        def __getitem__(self, name):
+            return FakeDatabase()
+
+    monkeypatch.setattr(store_module, "get_mongo_sync_client", lambda: FakeSyncClient())
+    store = store_module.MongoDBStore()
     store.batch(
         [
             PutOp(("assistant", "workflow"), "/file.txt", {"content": "first"}),

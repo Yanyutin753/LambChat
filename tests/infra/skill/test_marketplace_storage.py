@@ -27,7 +27,7 @@ class _FakeMarketplaceCollection:
     def __init__(self) -> None:
         self.pipeline: list[dict[str, Any]] | None = None
 
-    def aggregate(self, pipeline: list[dict[str, Any]]) -> _AsyncCursor:
+    async def aggregate(self, pipeline: list[dict[str, Any]]) -> _AsyncCursor:
         self.pipeline = pipeline
         return _AsyncCursor(
             [

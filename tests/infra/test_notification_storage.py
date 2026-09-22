@@ -54,7 +54,7 @@ class _NotificationCollection:
         self.docs = docs
         self.pipeline: list[dict[str, Any]] | None = None
 
-    def aggregate(self, pipeline: list[dict[str, Any]]):
+    async def aggregate(self, pipeline: list[dict[str, Any]]):
         self.pipeline = pipeline
         return _AggregateCursor([dict(doc) for doc in self.docs])
 

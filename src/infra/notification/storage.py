@@ -190,7 +190,7 @@ class NotificationStorage:
             {"$limit": limit},
         ]
 
-        cursor = self.collection.aggregate(pipeline)
+        cursor = await self.collection.aggregate(pipeline)
         results = []
         async for doc in cursor:
             doc["id"] = str(doc.pop("_id"))

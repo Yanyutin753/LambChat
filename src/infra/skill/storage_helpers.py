@@ -102,7 +102,7 @@ async def batch_get_skill_files_from_collection(
         if fallback_clauses:
             for clause in fallback_clauses:
                 result[(clause["skill_name"], clause["user_id"])] = {}
-            fallback = collection.aggregate(
+            fallback = await collection.aggregate(
                 [
                     {
                         "$match": {

@@ -30,7 +30,8 @@ from src.infra.utils.datetime import utc_now_iso
 from src.kernel.config import settings
 
 if TYPE_CHECKING:
-    from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
+    from pymongo import AsyncMongoClient
+    from pymongo.asynchronous.collection import AsyncCollection
 
 logger = get_logger(__name__)
 
@@ -43,13 +44,13 @@ async def _parse_skill_md_offload(content: str) -> tuple[Optional[str], str, lis
 
 class SkillStorage:
     def __init__(self):
-        self._client: Optional["AsyncIOMotorClient"] = None
-        self._files_collection: Optional["AsyncIOMotorCollection"] = None
+        self._client: Optional["AsyncMongoClient"] = None
+        self._files_collection: Optional["AsyncCollection"] = None
 
     MAX_PINNED = 10
     MAX_FAVORITES = 100
 
-    def _get_files_collection(self) -> "AsyncIOMotorCollection":
+    def _get_files_collection(self) -> "AsyncCollection":
         if self._files_collection is None:
             self._client = get_mongo_client()
             db = self._client[settings.MONGODB_DB]
@@ -346,7 +347,7 @@ class SkillStorage:
                 }
             },
         ]
-        async for doc in collection.aggregate(pipeline):  # type: ignore[arg-type]
+        async for doc in await collection.aggregate(pipeline):
             return {
                 "file_count": doc["file_count"],
                 "created_at": doc.get("created_at"),
@@ -445,7 +446,7 @@ class SkillStorage:
             if paged_skill_names is None:
                 pipeline.extend([{"$skip": skip}, {"$limit": limit}])
         skill_stats: dict[str, dict] = {}
-        async for doc in collection.aggregate(pipeline):  # type: ignore[arg-type]
+        async for doc in await collection.aggregate(pipeline):
             skill_stats[doc["_id"]] = {
                 "file_count": doc["file_count"],
                 "file_paths": doc.get("file_paths", []),
@@ -599,7 +600,7 @@ class SkillStorage:
             {"$group": {"_id": "$skill_name"}},
             {"$count": "total"},
         ]
-        async for doc in collection.aggregate(pipeline):  # type: ignore[arg-type]
+        async for doc in await collection.aggregate(pipeline):
             return int(doc.get("total", 0))
         return 0
 
@@ -632,7 +633,7 @@ class SkillStorage:
             {"$group": {"_id": "$skill_name"}},
             {"$count": "total"},
         ]
-        async for doc in collection.aggregate(pipeline):  # type: ignore[arg-type]
+        async for doc in await collection.aggregate(pipeline):
             return int(doc.get("total", 0))
         return 0
 
@@ -904,7 +905,7 @@ class SkillStorage:
         effective_limit = SKILL_EFFECTIVE_LOAD_LIMIT if limit is None else limit
         bounded_limit = max(0, min(int(effective_limit), SKILL_EFFECTIVE_LOAD_LIMIT))
         pipeline.extend([{"$sort": {"_id": 1}}, {"$limit": bounded_limit}])
-        return [doc["_id"] async for doc in collection.aggregate(pipeline)]
+        return [doc["_id"] async for doc in await collection.aggregate(pipeline)]
 
     async def invalidate_user_cache(self, user_id: str) -> None:
         """失效用户缓存"""

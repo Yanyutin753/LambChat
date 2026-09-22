@@ -27,7 +27,7 @@ from src.infra.memory.client.native.summaries import (
 from src.infra.memory.client.types import MemoryType
 from src.infra.session.conversation_history import ConversationHistoryService
 from src.infra.session.conversation_history_index import merge_source_refs
-from src.infra.storage.mongodb import get_mongo_client
+from src.infra.storage.mongodb import get_mongo_client, get_mongo_sync_client
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
 from src.kernel.schemas.conversation_history import ConversationSourceRef
@@ -535,7 +535,7 @@ class NativeMemoryBackend(MemoryBackend):
         self._collection = db[COLLECTION_NAME]
 
     async def _create_indexes(self) -> None:
-        sync_col = get_mongo_client().delegate[settings.MONGODB_DB][COLLECTION_NAME]
+        sync_col = get_mongo_sync_client()[settings.MONGODB_DB][COLLECTION_NAME]
         await run_blocking_io(self._create_indexes_sync, sync_col)
 
     @staticmethod
@@ -591,7 +591,7 @@ class NativeMemoryBackend(MemoryBackend):
         if self._embedding_fn is None:
             return
         try:
-            sync_col = get_mongo_client().delegate[settings.MONGODB_DB][COLLECTION_NAME]
+            sync_col = get_mongo_sync_client()[settings.MONGODB_DB][COLLECTION_NAME]
             await run_blocking_io(self._create_vector_index_sync, sync_col)
         except Exception as e:
             logger.warning(f"[NativeMemory] Vector index setup skipped: {e}")

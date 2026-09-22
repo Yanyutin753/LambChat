@@ -53,7 +53,7 @@ class _FakeTraceCollection:
             raise AssertionError("get_run_error must not load the full trace events array")
         return _FakeFindCursor([{"metadata": {}}])
 
-    def aggregate(self, pipeline: list[dict[str, Any]]):
+    async def aggregate(self, pipeline: list[dict[str, Any]]):
         self.aggregate_pipelines.append(pipeline)
         return _FakeAggregateCursor(
             [{"event_type": "error", "data": {"error": "bounded error"}, "timestamp": "now"}]
@@ -70,7 +70,7 @@ async def test_get_run_error_fetches_single_error_event_without_full_events_proj
     async def _get_last_trace_event(trace_id: str, event_types: list[str]):
         assert trace_id == "trace-1"
         assert event_types == ["error"]
-        async for event in collection.aggregate(
+        async for event in await collection.aggregate(
             [
                 {"$match": {"trace_id": trace_id}},
                 {"$unwind": "$events"},

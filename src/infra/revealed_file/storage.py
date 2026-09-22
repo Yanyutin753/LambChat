@@ -134,7 +134,7 @@ class RevealedFileStorage:
                 },
                 {"$match": {"count": {"$gt": 1}}},
             ]
-            async for group in c.aggregate(pipeline):
+            async for group in await c.aggregate(pipeline):
                 duplicate_key = group["_id"]
                 result = await c.delete_many(
                     {
@@ -403,7 +403,7 @@ class RevealedFileStorage:
             {"$match": {"user_id": user_id}},
             {"$group": {"_id": "$file_type", "count": {"$sum": 1}}},
         ]
-        results = await self.collection.aggregate(pipeline).to_list(length=20)
+        results = await (await self.collection.aggregate(pipeline)).to_list(length=20)
         stats = {}
         for r in results:
             stats[r["_id"]] = r["count"]
@@ -531,14 +531,14 @@ class RevealedFileStorage:
         # Count distinct sessions (before skip/limit)
         count_pipeline = pipeline.copy()
         count_pipeline.append({"$count": "total"})
-        count_result = await self.collection.aggregate(count_pipeline).to_list(length=1)
+        count_result = await (await self.collection.aggregate(count_pipeline)).to_list(length=1)
         total_sessions = count_result[0]["total"] if count_result else 0
 
         # Paginate sessions
         pipeline.append({"$skip": skip})
         pipeline.append({"$limit": limit})
 
-        session_results = await self.collection.aggregate(pipeline).to_list(length=limit)
+        session_results = await (await self.collection.aggregate(pipeline)).to_list(length=limit)
         session_ids = [r["_id"] for r in session_results]
 
         if not session_ids:
@@ -643,7 +643,7 @@ class RevealedFileStorage:
             {"$sort": {"count": -1}},
             {"$limit": REVEALED_FILE_SESSION_LIST_LIMIT},
         ]
-        results = await self.collection.aggregate(pipeline).to_list(
+        results = await (await self.collection.aggregate(pipeline)).to_list(
             length=REVEALED_FILE_SESSION_LIST_LIMIT
         )
         session_ids = [r["_id"] for r in results]

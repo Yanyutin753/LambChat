@@ -172,7 +172,7 @@ class _FakeSessionEventsAggregationCollection:
             ]
         )
 
-    def aggregate(self, pipeline):
+    async def aggregate(self, pipeline):
         self.aggregate_calls.append(pipeline)
         return _FakeSessionEventsAggregationCursor(
             [
@@ -260,7 +260,7 @@ class _FakeTraceEventAggregationCollection:
             },
         ]
 
-    def aggregate(self, pipeline):
+    async def aggregate(self, pipeline):
         self.aggregate_calls.append(pipeline)
         return _FakeSessionEventsAggregationCursor(self._docs)
 

@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import AsyncMongoClient
 
 from src.infra.memory.client.native import search, vector_store
 from src.infra.memory.client.native.content import hydrate_memory_text_status
@@ -125,7 +125,7 @@ async def local_collection():
     from src.infra.storage.mongodb import build_mongo_connection_string
     from src.kernel.config import settings
 
-    client = AsyncIOMotorClient(build_mongo_connection_string(), serverSelectionTimeoutMS=3000)
+    client = AsyncMongoClient(build_mongo_connection_string(), serverSelectionTimeoutMS=3000)
     collection = client[settings.MONGODB_DB][f"test_recall_metadata_{uuid4().hex}"]
     try:
         await collection.insert_many(_documents())

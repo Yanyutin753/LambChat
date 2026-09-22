@@ -110,7 +110,7 @@ def _make_fake_collection():
         matches = [dict(d) for d in store if _matches_query(d, query)]
         return _Cursor(matches)
 
-    def aggregate(pipeline: list[dict]):
+    async def aggregate(pipeline: list[dict]):
         docs = [dict(d) for d in store]
         for stage in pipeline:
             if "$match" in stage:
@@ -531,7 +531,7 @@ async def test_list_teams_uses_one_facet_for_total_and_page() -> None:
         def count_documents(self, _query):
             raise AssertionError("list_teams should count inside the aggregation facet")
 
-        def aggregate(self, pipeline):
+        async def aggregate(self, pipeline):
             pipelines.append(pipeline)
             return _Cursor()
 
@@ -591,7 +591,7 @@ async def test_list_teams_uses_bounded_aggregation_instead_of_materializing_find
         def find(self, _query):
             raise AssertionError("list_teams should not materialize an unbounded find cursor")
 
-        def aggregate(self, pipeline):
+        async def aggregate(self, pipeline):
             pipelines.append(pipeline)
             return _Cursor(
                 [
@@ -646,7 +646,7 @@ async def test_list_teams_fetches_preferences_before_faceted_aggregation():
                 raise StopAsyncIteration
 
     class _Collection:
-        def aggregate(self, pipeline):
+        async def aggregate(self, pipeline):
             assert user_collection.find_one_started is True
             pipelines.append(pipeline)
             return _Cursor([{"metadata": [{"total": 1}], "items": []}])
@@ -691,7 +691,7 @@ async def test_list_teams_parses_empty_facet_result():
                 raise StopAsyncIteration
 
     class _Collection:
-        def aggregate(self, pipeline):
+        async def aggregate(self, pipeline):
             pipelines.append(pipeline)
             return _Cursor([{"metadata": [], "items": []}])
 
@@ -727,7 +727,7 @@ async def test_list_teams_clamps_storage_limit():
                 raise StopAsyncIteration
 
     class _Collection:
-        def aggregate(self, pipeline):
+        async def aggregate(self, pipeline):
             pipelines.append(pipeline)
             return _Cursor([{"metadata": [{"total": 500}], "items": []}])
 
@@ -763,7 +763,7 @@ async def test_list_teams_bounds_large_user_preference_arrays():
                 raise StopAsyncIteration
 
     class _Collection:
-        def aggregate(self, pipeline):
+        async def aggregate(self, pipeline):
             pipelines.append(pipeline)
             return _Cursor([{"metadata": [{"total": 1}], "items": []}])
 

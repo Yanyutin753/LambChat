@@ -579,7 +579,7 @@ async def test_warmup_active_users_iterates_cursor_without_unbounded_to_list(
             raise AssertionError("warmup should not materialize an unbounded cursor")
 
     class _FakeCollection:
-        def aggregate(self, pipeline):
+        async def aggregate(self, pipeline):
             assert {"$limit": 0} not in pipeline
             return _FakeCursor()
 
@@ -619,7 +619,7 @@ async def test_warmup_active_users_selects_recent_unique_trace_users(
                 raise StopAsyncIteration from exc
 
     class _FakeCollection:
-        def aggregate(self, pipeline):
+        async def aggregate(self, pipeline):
             captured_pipeline.extend(pipeline)
             return _FakeCursor()
 

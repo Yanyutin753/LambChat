@@ -39,11 +39,12 @@ from langgraph.store.base import (
 )
 
 if TYPE_CHECKING:
-    from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
+    from pymongo import AsyncMongoClient
+    from pymongo.asynchronous.collection import AsyncCollection
 
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
-from src.infra.storage.mongodb import get_mongo_client
+from src.infra.storage.mongodb import get_mongo_client, get_mongo_sync_client
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
 
@@ -206,17 +207,17 @@ class MongoDBStore(BaseStore):
 
     def __init__(
         self,
-        client: AsyncIOMotorClient | None = None,
+        client: AsyncMongoClient | None = None,
         db_name: str | None = None,
         collection_name: str = COLLECTION_NAME,
     ) -> None:
         self._client = client
         self._db_name = db_name or settings.MONGODB_DB
         self._collection_name = collection_name
-        self._collection: AsyncIOMotorCollection[Any] | None = None
+        self._collection: AsyncCollection[Any] | None = None
 
     @property
-    def collection(self) -> AsyncIOMotorCollection[Any]:
+    def collection(self) -> AsyncCollection[Any]:
         if self._collection is None:
             client = self._client or get_mongo_client()
             db = client[self._db_name]
@@ -233,8 +234,7 @@ class MongoDBStore(BaseStore):
 
     def _create_indexes_sync(self) -> None:
         """使用 pymongo 同步客户端创建索引（线程安全，一次性操作）。"""
-        client = self._client or get_mongo_client()
-        sync_col = client.delegate[self._db_name][self._collection_name]
+        sync_col = get_mongo_sync_client()[self._db_name][self._collection_name]
 
         # Older releases created a unique index on ``key`` alone.  That makes
         # otherwise valid files with the same name in different namespaces
@@ -270,8 +270,7 @@ class MongoDBStore(BaseStore):
 
     def _sync_collection(self):
         """获取同步 pymongo collection（用于 batch，避免事件循环冲突）。"""
-        client = self._client or get_mongo_client()
-        return client.delegate[self._db_name][self._collection_name]
+        return get_mongo_sync_client()[self._db_name][self._collection_name]
 
     def batch(self, ops: Iterable[Op]) -> list[Result]:
         """同步批量操作 — 使用 pymongo 同步客户端，与 motor 事件循环隔离。"""
@@ -372,7 +371,7 @@ class MongoDBStore(BaseStore):
     # Get
     # ------------------------------------------------------------------
 
-    async def _aget(self, col: AsyncIOMotorCollection[Any], op: GetOp) -> Item | None:
+    async def _aget(self, col: AsyncCollection[Any], op: GetOp) -> Item | None:
         doc = await col.find_one({"namespace": _ns_to_list(op.namespace), "key": op.key})
         return _doc_to_item(doc) if doc else None
 
@@ -380,7 +379,7 @@ class MongoDBStore(BaseStore):
     # Put (value=None means delete)
     # ------------------------------------------------------------------
 
-    async def _aput(self, col: AsyncIOMotorCollection[Any], op: PutOp) -> None:
+    async def _aput(self, col: AsyncCollection[Any], op: PutOp) -> None:
         ns = _ns_to_list(op.namespace)
         filter_ = {"namespace": ns, "key": op.key}
 
@@ -401,7 +400,7 @@ class MongoDBStore(BaseStore):
     # Search (namespace prefix + filter, no vector)
     # ------------------------------------------------------------------
 
-    async def _asearch(self, col: AsyncIOMotorCollection[Any], op: SearchOp) -> list[SearchItem]:
+    async def _asearch(self, col: AsyncCollection[Any], op: SearchOp) -> list[SearchItem]:
         ns_prefix = _ns_to_list(op.namespace_prefix)
         query: dict[str, Any] = _build_ns_prefix_query(ns_prefix)
 
@@ -420,7 +419,7 @@ class MongoDBStore(BaseStore):
     # ------------------------------------------------------------------
 
     async def _alist_namespaces(
-        self, col: AsyncIOMotorCollection[Any], op: ListNamespacesOp
+        self, col: AsyncCollection[Any], op: ListNamespacesOp
     ) -> list[tuple[str, ...]]:
         pipeline: list[dict[str, Any]] = []
 
@@ -440,7 +439,7 @@ class MongoDBStore(BaseStore):
         pipeline.append({"$skip": _clamp_query_offset(op.offset)})
         pipeline.append({"$limit": limit})
 
-        cursor = col.aggregate(pipeline)
+        cursor = await col.aggregate(pipeline)
         docs = await cursor.to_list(length=limit)
         return [_list_to_ns(doc["_id"]) for doc in docs]
 
@@ -453,11 +452,11 @@ class MongoDBStore(BaseStore):
 def create_mongodb_store() -> MongoDBStore:
     """创建 MongoDBStore 实例。
 
-    复用 motor 的全局连接池，与 checkpoint 共享同一个 MongoClient。
+    复用 PyMongo Async 的全局连接池，与 checkpoint 共享同一个 MongoClient。
     """
     store = MongoDBStore()
     store.setup()
-    logger.info("MongoDBStore created (reusing motor connection pool)")
+    logger.info("MongoDBStore created (reusing PyMongo Async connection pool)")
     return store
 
 
@@ -465,7 +464,7 @@ async def acreate_mongodb_store() -> MongoDBStore:
     """异步创建 MongoDBStore，避免在事件循环线程内同步建索引。"""
     store = MongoDBStore()
     await store.asetup()
-    logger.info("MongoDBStore created asynchronously (reusing motor connection pool)")
+    logger.info("MongoDBStore created asynchronously (reusing PyMongo Async connection pool)")
     return store
 
 

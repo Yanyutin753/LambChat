@@ -284,7 +284,7 @@ class TraceEventReadCompatMixin:
                     }
                 },
             ]
-            async for doc in self.chunks_collection.aggregate(pipeline):
+            async for doc in await self.chunks_collection.aggregate(pipeline):
                 chunks_by_trace[str(doc.get("_id"))] = list(doc.get("chunks") or [])
         except Exception as e:
             logger.error(f"Failed to batch read first trace events from chunks: {e}")

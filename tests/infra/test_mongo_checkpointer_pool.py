@@ -82,7 +82,7 @@ def test_mongo_checkpointer_creates_independent_client_with_pool_settings(
     assert client_kwargs["minPoolSize"] == 3
     assert client_kwargs["tz_aware"] is True
     assert client_kwargs["tzinfo"] is timezone.utc
-    # The saver must be built on the independent client, not a motor delegate.
+    # The saver must be built on the independent client, not the async business client.
     assert capture["saver_clients"][0] is capture["clients"][0]
 
 

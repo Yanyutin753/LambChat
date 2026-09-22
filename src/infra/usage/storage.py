@@ -518,7 +518,7 @@ class UsageStorage:
         ]
 
         try:
-            async for doc in self.collection.aggregate(pipeline):
+            async for doc in await self.collection.aggregate(pipeline):
                 return _format_dashboard(doc)
         except Exception as e:
             logger.error(f"Failed to aggregate usage dashboard: {e}")
@@ -613,7 +613,7 @@ class UsageStorage:
         stats["total_requests"] = total
 
         try:
-            async for doc in self.collection.aggregate(pipeline):
+            async for doc in await self.collection.aggregate(pipeline):
                 stats.update(
                     {
                         "total_input_tokens": doc.get("total_input_tokens", 0),
@@ -696,7 +696,7 @@ class UsageStorage:
 
         summary: Dict[str, Any] = {"total_requests": total}
         try:
-            async for doc in self.collection.aggregate(pipeline):
+            async for doc in await self.collection.aggregate(pipeline):
                 summary.update(
                     {
                         "total_input_tokens": doc.get("total_input_tokens", 0),

@@ -337,7 +337,7 @@ class PersonaPresetStorage:
             {"$skip": skip},
             {"$limit": limit},
         ]
-        return [self._to_model_dict(doc) async for doc in self.collection.aggregate(pipeline)]
+        return [self._to_model_dict(doc) async for doc in await self.collection.aggregate(pipeline)]
 
     async def count_visible(
         self,

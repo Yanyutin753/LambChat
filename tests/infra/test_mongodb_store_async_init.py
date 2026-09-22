@@ -200,7 +200,7 @@ async def test_abatch_clamps_search_and_namespace_limits() -> None:
         def find(self, *_args, **_kwargs):
             return self.find_cursor
 
-        def aggregate(self, pipeline):
+        async def aggregate(self, pipeline):
             self.aggregate_pipeline = pipeline
             return self.aggregate_cursor
 
