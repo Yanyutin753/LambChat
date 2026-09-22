@@ -24,10 +24,18 @@ spec:
       labels:
         app: lambchat
     spec:
+      # 须大于 uvicorn timeout_graceful_shutdown（默认 120s）：
+      # 30s（k8s 默认）会把 SSE 滚动更新变成硬断流
+      terminationGracePeriodSeconds: 150
       containers:
       - name: lambchat
         image: ghcr.io/yanyutin753/lambchat:latest
         imagePullPolicy: Always
+        lifecycle:
+          # 给 NodePort/iptables 规则收敛留缓冲，避免 SIGTERM 后仍接到新流量
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 10"]
         ports:
         - containerPort: 8000
         env:

@@ -16,13 +16,26 @@ unbounded growth of the default executor.
 
 所有车道共享饱和可观测性：等待超阈值告警（含车道名与排队深度），
 ``blocking_io_stats()`` 暴露 in_flight/pending/completed 供监控消费。
+
+设计参照（开源标杆对标）：
+- contextvars 传播：与 ``anyio.to_thread.run_sync`` / ``asyncio.to_thread``
+  一致——被卸载代码可读取调用方的请求上下文（TraceContext 等）。
+- 取消语义：调用方超时即放弃等待，车道槽位在线程完成后释放——等价于
+  anyio ``abandon_on_cancel=True`` + CapacityLimiter 的租约语义。
+- 按资源类分道：trio/anyio 推荐每个受限资源独占 CapacityLimiter；
+  本模块更严格——三类车道各自独立线程池（线程级隔离 + 命名线程可
+  调试），而非仅限流器分离。
+- 饱和统计：对标 trio ``CapacityLimiter.statistics()``。
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import functools
 import os
+import threading
+import weakref
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, TypeVar
 
@@ -62,9 +75,17 @@ _SHAPE_IO_EXECUTOR = ThreadPoolExecutor(
     max_workers=int(os.getenv("BLOCKING_IO_SHAPE_MAX_WORKERS", _DEFAULT_SHAPE_MAX_WORKERS)),
     thread_name_prefix="blocking-io-shape",
 )
-_LOOP_LIMITERS: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
-_LOOP_LONG_LIMITERS: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
-_LOOP_SHAPE_LIMITERS: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
+# 弱引用注册表（anyio 用 ContextVar 挂载规避同类问题）：已关闭的
+# loop 及其 semaphore 随 loop 回收，测试/内嵌场景大量短命 loop 不泄漏。
+_LOOP_LIMITERS: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]" = (
+    weakref.WeakKeyDictionary()
+)
+_LOOP_LONG_LIMITERS: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]" = (
+    weakref.WeakKeyDictionary()
+)
+_LOOP_SHAPE_LIMITERS: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]" = (
+    weakref.WeakKeyDictionary()
+)
 
 
 class _LaneStats:
@@ -91,6 +112,10 @@ class _LaneStats:
         }
 
 
+# 线程本地：当前线程正在执行哪个车道的任务（重入检测用，asgiref
+# deadlock_context 同思路——被卸载代码经 loop_bridge 回调同车道时防自死锁）
+_lane_thread_local = threading.local()
+
 _STATS: dict[str, _LaneStats] = {
     "fast": _LaneStats("fast"),
     "slow": _LaneStats("slow"),
@@ -105,7 +130,7 @@ def blocking_io_stats() -> dict[str, dict[str, float | int | str]]:
 
 def _ensure_limiter(
     loop: asyncio.AbstractEventLoop,
-    limiters: dict[asyncio.AbstractEventLoop, asyncio.Semaphore],
+    limiters: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]",
     executor: ThreadPoolExecutor,
     default_workers: int,
     max_pending: int,
@@ -169,6 +194,15 @@ async def _run_on_executor(
     **kwargs: Any,
 ) -> T:
     loop = asyncio.get_running_loop()
+    # 同车道重入防护：当前线程已在执行该车道任务（外层调用占住线程后经
+    # loop_bridge/asyncio.run 回调同车道），再走提交路径在线程占满时必然
+    # 自死锁——直接内联执行（本就已在池线程，不在主事件循环上）。
+    if getattr(_lane_thread_local, "current_lane", None) == lane:
+        logger.warning(
+            "blocking-io re-entrant submission to lane=%s detected; executing inline",
+            lane,
+        )
+        return func(*args, **kwargs)
     limiter = limiter_getter(loop)
     stats = _STATS[lane]
     start_time = loop.time()
@@ -190,9 +224,22 @@ async def _run_on_executor(
         )
     stats.in_flight += 1
 
+    # contextvars 传播进线程（anyio to_thread / asyncio.to_thread 同款）：
+    # 被卸载函数读 TraceContext/请求上下文不会静默拿到空值
     call = functools.partial(func, *args, **kwargs)
+    ctx = contextvars.copy_context()
+
+    def _run_with_lane() -> T:  # 记录器经 __lambchat_target__ 解包真实目标
+        _lane_thread_local.current_lane = lane
+        try:
+            return ctx.run(call)
+        finally:
+            _lane_thread_local.current_lane = None
+
+    _run_with_lane.__lambchat_target__ = func  # type: ignore[attr-defined]
+
     try:
-        future = executor.submit(call)
+        future = executor.submit(_run_with_lane)
     except Exception:
         stats.in_flight -= 1
         limiter.release()

@@ -52,7 +52,11 @@ async def test_run_blocking_io_keeps_slot_until_timed_out_call_finishes(
             self.submitted_names: list[str] = []
 
         def submit(self, fn, /, *args, **kwargs):
-            self.submitted_names.append(getattr(getattr(fn, "func", fn), "__name__", "unknown"))
+            # 层层包装（车道标记→contextvars）：经显式标记属性解包真实目标
+            target = getattr(fn, "__lambchat_target__", fn)
+            self.submitted_names.append(
+                getattr(getattr(target, "func", target), "__name__", "unknown")
+            )
             return super().submit(fn, *args, **kwargs)
 
     executor = _RecordingExecutor()
@@ -89,7 +93,11 @@ async def test_run_blocking_io_applies_pending_submission_backpressure(
             self.submitted_names: list[str] = []
 
         def submit(self, fn, /, *args, **kwargs):
-            self.submitted_names.append(getattr(getattr(fn, "func", fn), "__name__", "unknown"))
+            # 层层包装（车道标记→contextvars）：经显式标记属性解包真实目标
+            target = getattr(fn, "__lambchat_target__", fn)
+            self.submitted_names.append(
+                getattr(getattr(target, "func", target), "__name__", "unknown")
+            )
             return super().submit(fn, *args, **kwargs)
 
     executor = _RecordingExecutor()
@@ -339,3 +347,119 @@ async def test_lane_stats_counters_update() -> None:
     assert after["slow"]["completed"] >= before["slow"]["completed"] + 1
     assert after["fast"]["in_flight"] == 0
     assert after["slow"]["in_flight"] == 0
+
+
+async def test_all_lanes_propagate_contextvars() -> None:
+    """contextvars 必须传播进卸载线程（anyio to_thread 同款行为）。
+
+    被卸载函数读 TraceContext/请求上下文时不能静默拿到空值。
+    """
+    import contextvars
+
+    from src.infra.async_utils import blocking as blocking_mod
+    from src.infra.async_utils.blocking import run_long_blocking_io
+
+    var = contextvars.ContextVar("lane_probe")
+
+    def _read() -> str:
+        return var.get("MISSING")
+
+    var.set("from-loop")
+    fast_result = await blocking_mod.run_blocking_io(_read)
+    slow_result = await run_long_blocking_io(_read)
+    shape_result = await run_long_blocking_io(_read, urgent=True)
+
+    assert fast_result == "from-loop"
+    assert slow_result == "from-loop"
+    assert shape_result == "from-loop"
+
+
+def test_loop_limiter_registrations_do_not_leak_closed_loops() -> None:
+    """车道限流器注册表用弱引用：已关闭的事件循环不被强引用滞留。
+
+    测试与内嵌场景常有大量短命 loop，强引用会让 loop+semaphore 永不
+    回收（anyio 用 ContextVar 挂载规避，我们用 WeakKeyDictionary）。
+    """
+    import gc
+    import weakref
+
+    from src.infra.async_utils import blocking as blocking_mod
+
+    async def _touch() -> None:
+        await blocking_mod.run_blocking_io(lambda: 1)
+        await blocking_mod.run_long_blocking_io(lambda: 2)
+
+    loops: list[weakref.ref] = []
+
+    async def _touch_and_capture() -> None:
+        await blocking_mod.run_blocking_io(lambda: 1)
+        await blocking_mod.run_long_blocking_io(lambda: 2)
+        loops.append(weakref.ref(asyncio.get_running_loop()))
+
+    for _ in range(10):
+        asyncio.run(_touch_and_capture())
+    del _touch
+    gc.collect()
+    assert not any(ref() is not None for ref in loops), (
+        "用过车道的 loop 关闭后必须可回收（注册表不得强引用）"
+    )
+
+
+async def test_same_lane_reentrancy_executes_inline_with_warning(monkeypatch, caplog) -> None:
+    """同车道重入自死锁防护（asgiref deadlock_context 同思路）。
+
+    被卸载代码经 loop_bridge/asyncio.run 回调同车道时，若仍走提交
+    路径，车道线程池被外层占满即自死锁。重入必须直接内联执行并告警。
+    """
+    import logging
+
+    from src.infra.async_utils import blocking as blocking_mod
+    from src.infra.async_utils.blocking import run_long_blocking_io
+
+    submitted: list[str] = []
+    original_submit = blocking_mod._LONG_IO_EXECUTOR.submit
+
+    def _recording_submit(fn, /, *args, **kwargs):
+        submitted.append("slow")
+        return original_submit(fn, *args, **kwargs)
+
+    monkeypatch.setattr(blocking_mod._LONG_IO_EXECUTOR, "submit", _recording_submit)
+
+    # 模拟：当前线程已在慢道内（外层调用占住车道线程后经嵌套 loop 回调）
+    blocking_mod._lane_thread_local.current_lane = "slow"
+    try:
+        with caplog.at_level(logging.WARNING, logger="src.infra.async_utils.blocking"):
+            result = await run_long_blocking_io(lambda: "inline-ok")
+    finally:
+        blocking_mod._lane_thread_local.current_lane = None
+
+    assert result == "inline-ok"
+    assert submitted == []  # 未提交线程池——内联执行
+    assert any("re-entrant" in r.message.lower() or "重入" in r.message for r in caplog.records)
+
+
+async def test_cross_lane_reentrancy_still_submits() -> None:
+    """跨车道调用不受重入防护影响（快道内调慢道是合法的）。"""
+    from src.infra.async_utils import blocking as blocking_mod
+    from src.infra.async_utils.blocking import run_long_blocking_io
+
+    submitted: list[str] = []
+    original_submit = blocking_mod._LONG_IO_EXECUTOR.submit
+
+    def _recording_submit(fn, /, *args, **kwargs):
+        submitted.append("slow")
+        return original_submit(fn, *args, **kwargs)
+
+    monkeypatch_local = blocking_mod._lane_thread_local
+    monkeypatch_local.current_lane = "fast"
+    monkeypatch_exec = blocking_mod._LONG_IO_EXECUTOR
+    orig = monkeypatch_exec.submit
+    monkeypatch_exec.submit = _recording_submit
+    try:
+        result = await run_long_blocking_io(lambda: "submitted-ok")
+    finally:
+        monkeypatch_exec.submit = orig
+        monkeypatch_local.current_lane = None
+
+    assert result == "submitted-ok"
+    assert submitted == ["slow"]
