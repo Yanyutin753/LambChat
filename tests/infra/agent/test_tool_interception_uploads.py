@@ -113,6 +113,7 @@ async def test_binary_block_upload_offloads_decode_and_spool_writes(
     async def _fake_run_blocking_io(func, /, *args: Any, **kwargs: Any):
         nonlocal inside_blocking_io
         assert inside_blocking_io is False
+        kwargs.pop("urgent", None)
         inside_blocking_io = True
         try:
             return func(*args, **kwargs)
@@ -287,6 +288,7 @@ async def test_read_file_binary_upload_offloads_spool_writes(
     async def _fake_run_blocking_io(func, /, *args: Any, **kwargs: Any):
         nonlocal inside_blocking_io
         assert inside_blocking_io is False
+        kwargs.pop("urgent", None)
         inside_blocking_io = True
         try:
             return func(*args, **kwargs)
@@ -345,6 +347,7 @@ async def test_read_file_binary_upload_offloads_result_json_formatting(
 
     async def _fake_run_blocking_io(func, /, *args: Any, **kwargs: Any):
         calls.append(func)
+        kwargs.pop("urgent", None)
         return func(*args, **kwargs)
 
     monkeypatch.setattr(
@@ -766,6 +769,7 @@ async def test_binary_middleware_offloads_uploaded_block_json_formatting(
 
     async def _fake_run_blocking_io(func, /, *args: Any, **kwargs: Any):
         calls.append(func)
+        kwargs.pop("urgent", None)
         return func(*args, **kwargs)
 
     monkeypatch.setattr(tool_interception, "run_long_blocking_io", _fake_run_blocking_io)
@@ -799,6 +803,7 @@ async def test_tool_search_middleware_offloads_deferred_tool_dict_serialization(
 
     async def _fake_run_blocking_io(func, /, *args: Any, **kwargs: Any):
         calls.append(func)
+        kwargs.pop("urgent", None)
         return func(*args, **kwargs)
 
     class _DeferredTool:

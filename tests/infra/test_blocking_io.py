@@ -267,3 +267,75 @@ async def test_e2b_aexecute_routes_to_long_lane(monkeypatch) -> None:
 
     assert routed == ["long"]
     assert result.exit_code == 0
+
+
+async def test_fast_lane_applies_default_timeout_to_wedged_calls() -> None:
+    """快道默认超时：楔死的调用不能永久占用关键线程。"""
+    import threading
+
+    from src.infra.async_utils import blocking as blocking_mod
+
+    release = threading.Event()
+
+    def _wedged() -> str:
+        release.wait(30)
+        return "never"
+
+    try:
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(
+                blocking_mod.run_blocking_io(
+                    _wedged, timeout=blocking_mod._FAST_LANE_DEFAULT_TIMEOUT
+                ),
+                timeout=blocking_mod._FAST_LANE_DEFAULT_TIMEOUT + 5,
+            )
+    finally:
+        release.set()
+
+
+async def test_urgent_ops_use_isolated_shape_pool() -> None:
+    """urgent 慢道操作走独立形状子池：慢道被传输占满时照常执行。"""
+
+    from src.infra.async_utils import blocking as blocking_mod
+    from src.infra.async_utils.blocking import run_long_blocking_io
+
+    workers = max(
+        1,
+        int(getattr(blocking_mod._LONG_IO_EXECUTOR, "_max_workers", 64)),
+    )
+    release = threading.Event()
+
+    def _hold() -> str:
+        release.wait(10)
+        return "held"
+
+    # 占满整个慢道
+    holders = [asyncio.create_task(run_long_blocking_io(_hold)) for _ in range(workers)]
+    await asyncio.sleep(0.3)
+
+    try:
+        # urgent 操作（工具结果序列化类）必须在形状子池立即完成
+        result = await asyncio.wait_for(
+            run_long_blocking_io(lambda a, b: a + b, 1, 2, urgent=True, timeout=5),
+            timeout=5,
+        )
+        assert result == 3
+    finally:
+        release.set()
+        await asyncio.gather(*holders, return_exceptions=True)
+
+
+async def test_lane_stats_counters_update() -> None:
+    """车道统计：in_flight/completed 计数随调用更新，可被监控消费。"""
+    from src.infra.async_utils import blocking as blocking_mod
+    from src.infra.async_utils.blocking import blocking_io_stats, run_long_blocking_io
+
+    before = blocking_io_stats()
+    await blocking_mod.run_blocking_io(lambda: "x")
+    await run_long_blocking_io(lambda: "y")
+    after = blocking_io_stats()
+
+    assert after["fast"]["completed"] >= before["fast"]["completed"] + 1
+    assert after["slow"]["completed"] >= before["slow"]["completed"] + 1
+    assert after["fast"]["in_flight"] == 0
+    assert after["slow"]["in_flight"] == 0

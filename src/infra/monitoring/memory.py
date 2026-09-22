@@ -229,12 +229,15 @@ class MemoryMonitor:
         except (AttributeError, NotImplementedError):
             open_file_count = len(self._process.open_files())
 
+        from src.infra.async_utils.blocking import blocking_io_stats
+
         return {
             "timestamp": utc_now(),
             "rss_bytes": int(memory.rss),
             "vms_bytes": int(memory.vms),
             "thread_count": int(self._process.num_threads()),
             "open_file_count": int(open_file_count),
+            "blocking_io_lanes": blocking_io_stats(),
         }
 
     def _capture_diagnostics_snapshot(self) -> dict[str, Any]:

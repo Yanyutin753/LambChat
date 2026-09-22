@@ -1015,6 +1015,7 @@ async def test_tool_end_offloads_output_extraction(monkeypatch: pytest.MonkeyPat
 
     async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
+        kwargs.pop("urgent", None)
         return func(*args, **kwargs)
 
     monkeypatch.setattr(
@@ -1051,6 +1052,7 @@ async def test_tool_end_offloads_result_json_parsing(monkeypatch: pytest.MonkeyP
 
     async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
+        kwargs.pop("urgent", None)
         return func(*args, **kwargs)
 
     monkeypatch.setattr(

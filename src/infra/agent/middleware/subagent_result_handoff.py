@@ -72,11 +72,15 @@ class SubagentResultHandoffMiddleware(AgentMiddleware):
                     parts.append(str(block.get("text", "")))
                 else:
                     parts.append(
-                        await run_long_blocking_io(json.dumps, block, ensure_ascii=False, indent=2)
+                        await run_long_blocking_io(
+                            json.dumps, block, ensure_ascii=False, indent=2, urgent=True
+                        )
                     )
             return "\n".join(part for part in parts if part)
         if isinstance(content, (dict, tuple)):
-            return await run_long_blocking_io(json.dumps, content, ensure_ascii=False, indent=2)
+            return await run_long_blocking_io(
+                json.dumps, content, ensure_ascii=False, indent=2, urgent=True
+            )
         if content is None:
             return ""
         return str(content)

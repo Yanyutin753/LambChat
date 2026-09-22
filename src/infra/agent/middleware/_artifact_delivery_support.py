@@ -129,7 +129,7 @@ def _extract_upload_proxy_key(url: str) -> str | None:
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
-    return await run_long_blocking_io(json.dumps, data, ensure_ascii=False)
+    return await run_long_blocking_io(json.dumps, data, ensure_ascii=False, urgent=True)
 
 
 def _normalize_path(path: str) -> str:

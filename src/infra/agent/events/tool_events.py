@@ -191,8 +191,10 @@ class ToolEventMixin:
         out = data.get("output", "")
         tool_call_id = self._get_tool_call_id(event)
 
-        raw = await run_long_blocking_io(extract_tool_output, out)
-        is_error, error_message = await run_long_blocking_io(detect_tool_error, out, raw)
+        raw = await run_long_blocking_io(extract_tool_output, out, urgent=True)
+        is_error, error_message = await run_long_blocking_io(
+            detect_tool_error, out, raw, urgent=True
+        )
 
         result: Any = raw
         if (
@@ -201,7 +203,7 @@ class ToolEventMixin:
             and raw[0] in ("{", "[")
             and len(raw) <= _TOOL_RESULT_JSON_PARSE_MAX_CHARS
         ):
-            parsed_result = await run_long_blocking_io(_parse_tool_result_json, raw)
+            parsed_result = await run_long_blocking_io(_parse_tool_result_json, raw, urgent=True)
             if parsed_result is not None:
                 result = parsed_result
 

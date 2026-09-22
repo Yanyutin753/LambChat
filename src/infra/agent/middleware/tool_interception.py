@@ -181,10 +181,11 @@ async def _get_backend_file_size(backend: Any, file_path: str) -> int | None:
 
 
 async def _json_dumps_for_tool_message(value: Any) -> str:
-    # 工具结果可能含大段文件内容：慢道，不占快道
+    # 工具结果可能含大段文件内容：形状子池（大但延迟敏感），不占快道
     return await run_long_blocking_io(
         json.dumps,
         value,
+        urgent=True,
         ensure_ascii=False,
         default=str,
     )

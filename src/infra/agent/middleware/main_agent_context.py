@@ -183,7 +183,7 @@ def _message_role(message: Any) -> str:
 async def _json_dumps_for_context(value: Any) -> str:
     import json
 
-    return await run_long_blocking_io(json.dumps, value, ensure_ascii=False, indent=2)
+    return await run_long_blocking_io(json.dumps, value, ensure_ascii=False, indent=2, urgent=True)
 
 
 async def _message_content_to_text(content: Any) -> str:
