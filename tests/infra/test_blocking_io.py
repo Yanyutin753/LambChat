@@ -247,7 +247,10 @@ async def test_e2b_aexecute_routes_to_long_lane(monkeypatch) -> None:
         routed.append("long")
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(e2b_mod, "run_long_blocking_io", fake_long_run)
+    monkeypatch.setattr(e2b_mod, "run_long_blocking_io", fake_long_run, raising=False)
+    import src.infra.backend.e2b_async as e2b_async_mod
+
+    monkeypatch.setattr(e2b_async_mod, "run_long_blocking_io", fake_long_run)
 
     sandbox = SimpleNamespace(
         sandbox_id="lane-test",

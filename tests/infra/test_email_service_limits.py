@@ -34,7 +34,7 @@ async def test_get_accounts_offloads_account_json_parsing(monkeypatch) -> None:
         raising=False,
     )
 
-    async def fake_run_blocking_io(func, /, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, /, *args, **kwargs):
         nonlocal inside_blocking_io
         assert inside_blocking_io is False
         inside_blocking_io = True
@@ -49,7 +49,7 @@ async def test_get_accounts_offloads_account_json_parsing(monkeypatch) -> None:
         return [{"api_key": "re_key_1", "email_from": "noreply@example.com"}]
 
     monkeypatch.setattr(
-        email_service_module, "run_blocking_io", fake_run_blocking_io, raising=False
+        email_service_module, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
     )
     monkeypatch.setattr(email_service_module.json, "loads", fake_json_loads)
 

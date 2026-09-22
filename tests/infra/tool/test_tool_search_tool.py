@@ -79,11 +79,13 @@ async def test_search_tools_offloads_search_and_schema_formatting(
     manager = DeferredToolManager(all_deferred_tools=[tool], session_id="session-1")
     search_tool = ToolSearchTool(manager=manager, search_limit=5)
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(getattr(func, "__name__", "unknown"))
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(tool_search_tool, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        tool_search_tool, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
 
     result = await search_tool._arun("select:server:huge_schema")
 

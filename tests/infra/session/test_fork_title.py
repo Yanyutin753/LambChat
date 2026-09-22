@@ -256,11 +256,13 @@ async def test_clone_history_offloads_trace_document_cloning(
     manager._trace_storage = SimpleNamespace(collection=collection)
     offloaded: list[str] = []
 
-    async def fake_run_blocking_io(func, /, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, /, *args, **kwargs):
         offloaded.append(func.__name__)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(manager_module, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        manager_module, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
 
     cloned_docs = await manager._clone_history_to_session(
         source_session=Session(id="source", user_id="user"),
@@ -305,11 +307,13 @@ async def test_clone_history_offloads_checkpoint_message_rebuild(
     manager._trace_storage = SimpleNamespace(collection=collection)
     offloaded: list[str] = []
 
-    async def fake_run_blocking_io(func, /, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, /, *args, **kwargs):
         offloaded.append(func.__name__)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(manager_module, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        manager_module, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
 
     result = await manager._clone_history_to_session(
         source_session=Session(id="source", user_id="user"),

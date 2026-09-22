@@ -9,7 +9,7 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool, InjectedToolArg
 from pydantic import Field
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.session.conversation_history import (
     ConversationHistoryInvalidArgumentError,
@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 
 
 async def _json_result(result: dict[str, Any]) -> str:
-    return await run_blocking_io(json.dumps, result, ensure_ascii=False, default=str)
+    return await run_long_blocking_io(json.dumps, result, ensure_ascii=False, default=str)
 
 
 def _stable_error(error: Exception) -> str:

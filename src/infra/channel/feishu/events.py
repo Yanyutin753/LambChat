@@ -3,7 +3,7 @@
 import json
 from typing import Any
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.channel.feishu.approval import (
     EVENT_APPROVAL_REQUIRED,
     _extract_approval_result_status,
@@ -105,7 +105,7 @@ async def _process_events(
                     logger.info(f"[Feishu] reveal_file result type={type(result).__name__}")
                     if isinstance(result, str) and result:
                         try:
-                            file_info = await run_blocking_io(json.loads, result)
+                            file_info = await run_long_blocking_io(json.loads, result)
                             if (
                                 isinstance(file_info, dict)
                                 and "key" in file_info

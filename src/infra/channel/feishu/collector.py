@@ -6,7 +6,7 @@ import os
 from tempfile import NamedTemporaryFile
 from typing import Any, cast
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.channel.feishu import handler_helpers
 from src.infra.channel.feishu.approval import _build_approval_card_content
 from src.infra.channel.feishu.channel import FeishuChannel
@@ -38,7 +38,7 @@ async def _download_storage_object_to_file(
         FEISHU_REVEAL_LEGACY_DOWNLOAD_MAX_BYTES
     )
     handler_helpers.FEISHU_REVEAL_DOWNLOAD_MAX_BYTES = FEISHU_REVEAL_DOWNLOAD_MAX_BYTES
-    handler_helpers.run_blocking_io = run_blocking_io
+    handler_helpers.run_long_blocking_io = run_long_blocking_io
     return await handler_helpers._download_storage_object_to_file(
         backend,
         key,
@@ -465,7 +465,7 @@ class FeishuResponseCollector:
             elements.append({"tag": "div", "text": {"tag": "plain_text", "content": "(无内容)"}})
 
         card = {"config": {"wide_screen_mode": True}, "elements": elements}
-        return await run_blocking_io(json.dumps, card, ensure_ascii=False)
+        return await run_long_blocking_io(json.dumps, card, ensure_ascii=False)
 
     async def send_approval_card(self, approval: dict[str, Any]) -> bool:
         """Send a Feishu approval card and remember its message id for status updates."""

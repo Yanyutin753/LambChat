@@ -6,7 +6,7 @@ from collections import OrderedDict
 from tempfile import SpooledTemporaryFile
 from typing import Any
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 
@@ -73,7 +73,7 @@ class FeishuFileSenderMixin:
         if not self._client:
             return None
 
-        return await run_blocking_io(self._upload_file_sync, file_path, file_name)
+        return await run_long_blocking_io(self._upload_file_sync, file_path, file_name)
 
     def _upload_bytes_sync(self, file_data: bytes, file_name: str) -> str | None:
         """Upload file bytes and return file_key."""
@@ -134,7 +134,7 @@ class FeishuFileSenderMixin:
             )
             return None
 
-        return await run_blocking_io(self._upload_bytes_sync, file_data, file_name)
+        return await run_long_blocking_io(self._upload_bytes_sync, file_data, file_name)
 
     def _upload_image_file_sync(self, file_path: str) -> str | None:
         """Upload image file path to Feishu media library, return image_key."""
@@ -167,7 +167,7 @@ class FeishuFileSenderMixin:
         if not self._client:
             return None
 
-        return await run_blocking_io(self._upload_image_file_sync, file_path)
+        return await run_long_blocking_io(self._upload_image_file_sync, file_path)
 
     def _download_image_sync(self, image_key: str, message_id: str) -> bytes | None:
         """Download image from Feishu via GetMessageResourceRequest (sync, runs in executor)."""
@@ -294,7 +294,7 @@ class FeishuFileSenderMixin:
             storage = await get_or_init_storage()
             with SpooledTemporaryFile(max_size=2 * 1024 * 1024, mode="w+b") as spooled:
                 max_size = _get_upload_bytes_max_size()
-                size = await run_blocking_io(
+                size = await run_long_blocking_io(
                     self._download_resource_to_file_sync,
                     file_key,
                     message_id,
@@ -381,7 +381,7 @@ class FeishuFileSenderMixin:
             )
             return None
 
-        return await run_blocking_io(self._upload_image_sync, image_data)
+        return await run_long_blocking_io(self._upload_image_sync, image_data)
 
     def _get_chat_mode_sync(self, chat_id: str) -> str:
         """Get chat mode: 'group' (normal) or 'thread' (topic group) via GetChatRequest (sync)."""
@@ -404,7 +404,7 @@ class FeishuFileSenderMixin:
             self._chat_mode_cache.move_to_end(chat_id)
             return self._chat_mode_cache[chat_id]
 
-        mode = await run_blocking_io(self._get_chat_mode_sync, chat_id)
+        mode = await run_long_blocking_io(self._get_chat_mode_sync, chat_id)
         self._chat_mode_cache[chat_id] = mode
         # LRU eviction: keep at most 1000 entries
         while len(self._chat_mode_cache) > 1000:
@@ -543,7 +543,9 @@ class FeishuFileSenderMixin:
         if not file_key:
             return False
 
-        return await run_blocking_io(self._send_file_message_sync, chat_id, file_key, file_name)
+        return await run_long_blocking_io(
+            self._send_file_message_sync, chat_id, file_key, file_name
+        )
 
     async def send_file_by_key(
         self,
@@ -569,7 +571,7 @@ class FeishuFileSenderMixin:
         ext = file_name.lower().rsplit(".", 1)[-1] if "." in file_name else ""
         msg_type = "audio" if ext == "opus" else "media" if ext == "mp4" else "file"
 
-        return await run_blocking_io(
+        return await run_long_blocking_io(
             self._send_file_message_sync,
             chat_id,
             file_key,
@@ -588,7 +590,7 @@ class FeishuFileSenderMixin:
         if not self._client:
             return False
 
-        return await run_blocking_io(
+        return await run_long_blocking_io(
             self._send_image_message_sync,
             chat_id,
             image_key,

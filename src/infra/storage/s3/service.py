@@ -15,7 +15,7 @@ import uuid
 from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.storage.s3.backends import (
     AliyunOssBackend,
@@ -167,11 +167,11 @@ class S3StorageService:
     ) -> UploadResult:
         """Upload a file to storage with retry on transient failures."""
         # Check file size via current position
-        start_pos = await run_blocking_io(file.tell)
+        start_pos = await run_long_blocking_io(file.tell)
         if not skip_size_limit:
-            await run_blocking_io(file.seek, 0, 2)
-            file_size = await run_blocking_io(file.tell) - start_pos
-            await run_blocking_io(file.seek, start_pos)
+            await run_long_blocking_io(file.seek, 0, 2)
+            file_size = await run_long_blocking_io(file.tell) - start_pos
+            await run_long_blocking_io(file.seek, start_pos)
             if file_size > self._config.internal_max_upload_size:
                 max_mb = self._config.internal_max_upload_size / (1024 * 1024)
                 raise ValueError(
@@ -187,7 +187,7 @@ class S3StorageService:
         backend = self._get_backend()
 
         async def _upload_attempt() -> UploadResult:
-            await run_blocking_io(file.seek, start_pos)
+            await run_long_blocking_io(file.seek, start_pos)
             return await backend.upload(file, key, content_type, metadata)
 
         return await self._retry_async(
@@ -261,11 +261,11 @@ class S3StorageService:
         skip_size_limit: bool = False,
     ) -> UploadResult:
         """Upload a file-like object to a specific key without materializing it as bytes."""
-        start_pos = await run_blocking_io(file.tell)
+        start_pos = await run_long_blocking_io(file.tell)
         if not skip_size_limit:
-            await run_blocking_io(file.seek, 0, 2)
-            file_size = await run_blocking_io(file.tell) - start_pos
-            await run_blocking_io(file.seek, start_pos)
+            await run_long_blocking_io(file.seek, 0, 2)
+            file_size = await run_long_blocking_io(file.tell) - start_pos
+            await run_long_blocking_io(file.seek, start_pos)
             if file_size > self._config.internal_max_upload_size:
                 max_mb = self._config.internal_max_upload_size / (1024 * 1024)
                 raise ValueError(
@@ -276,7 +276,7 @@ class S3StorageService:
         backend = self._get_backend()
 
         async def _upload_attempt() -> UploadResult:
-            await run_blocking_io(file.seek, start_pos)
+            await run_long_blocking_io(file.seek, start_pos)
             return await backend.upload(file, key, content_type, metadata)
 
         result = await self._retry_async(
@@ -323,7 +323,7 @@ class S3StorageService:
                             for key in objects:
                                 client.remove_object(bucket_name=bucket, object_name=key)
 
-                        await run_blocking_io(_remove_objects)
+                        await run_long_blocking_io(_remove_objects)
                         deleted_count += len(objects)
 
                 return deleted_count

@@ -165,13 +165,13 @@ async def test_apple_user_info_offloads_token_header_decode(monkeypatch) -> None
     def fake_decode(_id_token: str, _jwk: dict, _client_id: str) -> dict:
         return {"sub": "apple-user-1", "email": "apple@example.com"}
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(getattr(func, "__name__", ""))
         return func(*args, **kwargs)
 
     monkeypatch.setattr(oauth_module.httpx, "AsyncClient", _FakeAsyncClient)
     monkeypatch.setattr(oauth_module, "_decode_apple_identity_token", fake_decode)
-    monkeypatch.setattr(oauth_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(oauth_module, "run_long_blocking_io", fake_run_long_blocking_io)
     monkeypatch.setattr(oauth_module.settings, "OAUTH_APPLE_CLIENT_ID", "com.example.web")
 
     user_info = await OAuthService()._get_apple_user_info({"id_token": id_token})

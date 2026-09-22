@@ -8,7 +8,7 @@ from typing import Annotated, Any
 from langchain.tools import tool
 from langchain_core.tools import BaseTool
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.tool.web_fetch_providers import execute_web_fetch
 
@@ -19,7 +19,7 @@ MAX_WEB_FETCH_CHARS = 262144
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
-    return await run_blocking_io(json.dumps, data, ensure_ascii=False)
+    return await run_long_blocking_io(json.dumps, data, ensure_ascii=False)
 
 
 @tool

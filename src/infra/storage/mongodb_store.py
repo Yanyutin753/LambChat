@@ -41,7 +41,7 @@ from langgraph.store.base import (
 if TYPE_CHECKING:
     from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.storage.mongodb import get_mongo_client
 from src.infra.utils.datetime import utc_now
@@ -225,7 +225,7 @@ class MongoDBStore(BaseStore):
 
     async def asetup(self) -> None:
         """异步创建索引（在异步上下文中通过线程池执行）。"""
-        await run_blocking_io(self._create_indexes_sync)
+        await run_long_blocking_io(self._create_indexes_sync)
 
     def setup(self) -> None:
         """创建索引。同步调用，如果在异步上下文中则直接执行（索引创建是幂等操作）。"""
@@ -531,7 +531,7 @@ async def acreate_store() -> BaseStore | None:
             try:
                 from src.infra.storage.postgres import create_postgres_store
 
-                _store_instance = await run_blocking_io(create_postgres_store)
+                _store_instance = await run_long_blocking_io(create_postgres_store)
                 logger.info("Store created asynchronously: PostgresStore")
                 return _store_instance
             except Exception as e:

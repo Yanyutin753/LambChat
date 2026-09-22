@@ -102,11 +102,11 @@ async def test_mcp_pool_offloads_server_hash_computation(
     client = _FakeClient()
     config = {"url": "https://example.test", "headers": {"token": "secret"}}
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(mcp_pool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(mcp_pool, "run_long_blocking_io", fake_run_long_blocking_io)
 
     await mcp_pool.add_pooled_connection("server-1", config, client, ["tool-1"])
     pooled_client, tools = await mcp_pool.get_pooled_connection("server-1", config)

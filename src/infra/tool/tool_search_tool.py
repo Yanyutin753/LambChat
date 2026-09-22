@@ -16,7 +16,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.tool.tool_search import ToolSearchResult, search_tools_with_keywords
 
@@ -97,7 +97,7 @@ class ToolSearchTool(BaseTool):
         if not all_tools:
             return "No deferred tools are available for search."
 
-        results, parts = await run_blocking_io(
+        results, parts = await run_long_blocking_io(
             _search_and_format_tool_results,
             query,
             discovered,

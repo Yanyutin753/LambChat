@@ -136,12 +136,14 @@ async def test_memory_recall_offloads_result_json(monkeypatch):
     async def fake_get_backend():
         return FakeBackend()
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
     monkeypatch.setattr(memory_tools, "_get_backend", fake_get_backend)
-    monkeypatch.setattr(memory_tools, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        memory_tools, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
 
     result = json.loads(
         await memory_tools.memory_recall.coroutine(
@@ -160,11 +162,13 @@ async def test_memory_retain_offloads_error_result_json(monkeypatch):
 
     calls: list[object] = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(memory_tools, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        memory_tools, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
 
     result = json.loads(
         await memory_tools.memory_retain.coroutine(

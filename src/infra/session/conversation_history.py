@@ -9,7 +9,7 @@ import json
 from datetime import datetime, timedelta
 from typing import Any, Literal, Sequence, TypeGuard
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.session.conversation_history_index import (
     CONVERSATION_SEARCH_INDEX_VERSION,
@@ -185,7 +185,7 @@ class ConversationHistoryService:
         if session is None or not session.user_id:
             return False
         events = await self.trace_storage.read_trace_events_compat(trace_id)
-        payload = await run_blocking_io(build_conversation_search_payload, events)
+        payload = await run_long_blocking_io(build_conversation_search_payload, events)
         if not payload.user_text and not payload.assistant_final_text:
             return False
         indexed_at = utc_now()
@@ -345,7 +345,7 @@ class ConversationHistoryService:
         turns: list[dict[str, Any]] = []
         for trace in reversed(selected):
             events = events_by_trace.get(str(trace.get("trace_id")), [])
-            turn = await run_blocking_io(extract_conversation_turn, events)
+            turn = await run_long_blocking_io(extract_conversation_turn, events)
             turns.append(
                 {
                     "run_id": trace.get("run_id"),

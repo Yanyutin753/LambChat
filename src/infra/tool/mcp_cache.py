@@ -20,7 +20,7 @@ from typing import Any, Optional, Set
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.storage.redis import get_redis_client
 from src.kernel.config import settings
@@ -291,7 +291,7 @@ async def get_cached_tools(
     Returns:
         tuple: (tools, client) - 工具列表和客户端
     """
-    current_hash = await run_blocking_io(compute_config_hash, config)
+    current_hash = await run_long_blocking_io(compute_config_hash, config)
     lock = _get_cache_lock(user_id)
 
     async with lock:

@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from typing import Any, Optional
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 
@@ -145,7 +145,7 @@ async def get_available_models() -> list[dict[str, Any]]:
         cached = await redis_client.get(_MODELS_CACHE_KEY)
         if cached:
             logger.debug("[LLMModels] Cache hit: Redis")
-            model_list = await run_blocking_io(json.loads, cached)
+            model_list = await run_long_blocking_io(json.loads, cached)
             set_memory_cache(model_list)
             return _memory_cache or []
     except Exception as e:
@@ -175,7 +175,7 @@ async def _write_to_caches(model_list: list[dict[str, Any]]) -> None:
 
         redis_client = get_redis_client()
         ttl = getattr(settings, "LLM_MODELS_CACHE_TTL", _MODELS_CACHE_TTL)
-        serialized = await run_blocking_io(json.dumps, stripped)
+        serialized = await run_long_blocking_io(json.dumps, stripped)
         await redis_client.set(_MODELS_CACHE_KEY, serialized, ex=ttl)
         logger.debug(f"[LLMModels] Cached {len(stripped)} models (TTL={ttl}s)")
     except Exception as e:

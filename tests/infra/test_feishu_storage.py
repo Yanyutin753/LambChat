@@ -82,11 +82,13 @@ async def test_get_config_offloads_secret_decryption(monkeypatch: pytest.MonkeyP
     storage = feishu_storage.FeishuStorage()
     monkeypatch.setattr(storage, "_get_collection", lambda: _FakeCollection([_config_doc()]))
 
-    async def _fake_run_blocking_io(func, /, *args: Any, **kwargs: Any):
+    async def _fake_run_long_blocking_io(func, /, *args: Any, **kwargs: Any):
         calls.append(func)
         return {"value": "plain-secret"}
 
-    monkeypatch.setattr(feishu_storage, "run_blocking_io", _fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        feishu_storage, "run_long_blocking_io", _fake_run_long_blocking_io, raising=False
+    )
 
     config = await storage.get_config("user-1")
 
@@ -104,13 +106,15 @@ async def test_create_config_offloads_secret_encryption_and_decryption(
     storage = feishu_storage.FeishuStorage()
     monkeypatch.setattr(storage, "_get_collection", lambda: collection)
 
-    async def _fake_run_blocking_io(func, /, *args: Any, **kwargs: Any):
+    async def _fake_run_long_blocking_io(func, /, *args: Any, **kwargs: Any):
         calls.append(func)
         if func is feishu_storage.encrypt_value:
             return {"encrypted": args[0]}
         return {"value": "plain-secret"}
 
-    monkeypatch.setattr(feishu_storage, "run_blocking_io", _fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        feishu_storage, "run_long_blocking_io", _fake_run_long_blocking_io, raising=False
+    )
 
     config = await storage.create_config(
         FeishuConfigCreate(
@@ -138,11 +142,13 @@ async def test_list_enabled_configs_offloads_each_secret_decryption(
         lambda: _FakeCollection([_config_doc("user-1"), _config_doc("user-2")]),
     )
 
-    async def _fake_run_blocking_io(func, /, *args: Any, **kwargs: Any):
+    async def _fake_run_long_blocking_io(func, /, *args: Any, **kwargs: Any):
         calls.append(func)
         return {"value": f"plain-{len(calls)}"}
 
-    monkeypatch.setattr(feishu_storage, "run_blocking_io", _fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        feishu_storage, "run_long_blocking_io", _fake_run_long_blocking_io, raising=False
+    )
 
     configs = await storage.list_enabled_configs()
 

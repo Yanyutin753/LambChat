@@ -32,7 +32,7 @@ from typing import Annotated, Any, Optional
 from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.logging.context import TraceContext
 from src.infra.revealed_file.storage import get_revealed_file_storage
@@ -75,7 +75,7 @@ logger = get_logger(__name__)
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
-    return await run_blocking_io(json.dumps, data, ensure_ascii=False)
+    return await run_long_blocking_io(json.dumps, data, ensure_ascii=False)
 
 
 async def _lookup_session_project_id(session_id: str | None) -> str | None:
@@ -421,7 +421,7 @@ async def reveal_file(
             logger.info(
                 f"[reveal_file] Backend download failed, trying filesystem fallback for {file_path}"
             )
-            use_filesystem_stream = await run_blocking_io(_is_file_path, file_path)
+            use_filesystem_stream = await run_long_blocking_io(_is_file_path, file_path)
 
         if file_content is None and not use_filesystem_stream:
             # Distinguish a directory from a missing file so the agent can stop
@@ -484,7 +484,7 @@ async def reveal_file(
         content_hash: str | None = None
         upload_result = None
         if use_filesystem_stream:
-            content_hash = await run_blocking_io(_hash_local_file, file_path)
+            content_hash = await run_long_blocking_io(_hash_local_file, file_path)
             upload_result = await _try_reuse_upload(
                 reuse_user_id, file_path, content_hash, mime_type, storage
             )
@@ -493,7 +493,7 @@ async def reveal_file(
                     file_path, storage, filename, mime_type
                 )
         else:
-            content_hash = await run_blocking_io(_sha256_hex, file_content)
+            content_hash = await run_long_blocking_io(_sha256_hex, file_content)
             upload_result = await _try_reuse_upload(
                 reuse_user_id, file_path, content_hash, mime_type, storage
             )
@@ -502,9 +502,9 @@ async def reveal_file(
                     max_size=_UPLOAD_SPOOL_MEMORY_LIMIT,
                     mode="w+b",
                 ) as spooled:
-                    await run_blocking_io(spooled.write, file_content)
+                    await run_long_blocking_io(spooled.write, file_content)
                     del file_content
-                    await run_blocking_io(spooled.seek, 0)
+                    await run_long_blocking_io(spooled.seek, 0)
                     upload_result = await storage.upload_file(
                         file=spooled,
                         folder="revealed_files",

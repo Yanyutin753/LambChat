@@ -86,7 +86,7 @@ async def test_feishu_json_offloads_request_body_serialization(
     calls: list[tuple[Any, tuple[Any, ...], dict[str, Any]]] = []
     captured: dict[str, Any] = {}
 
-    async def fake_run_blocking_io(func, *args: Any, **kwargs: Any):
+    async def fake_run_long_blocking_io(func, *args: Any, **kwargs: Any):
         calls.append((func, args, kwargs))
         return func(*args, **kwargs)
 
@@ -97,7 +97,7 @@ async def test_feishu_json_offloads_request_body_serialization(
             captured["kwargs"] = kwargs
             return _FakeHttpResponse({"code": 0, "data": {"ok": True}})
 
-    monkeypatch.setattr(sender_base, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(sender_base, "run_long_blocking_io", fake_run_long_blocking_io)
 
     dummy = _DummySender()
     dummy._tenant_access_token = "tenant-token"
@@ -128,7 +128,7 @@ async def test_create_stream_card_offloads_card_json_building(
     calls: list[str] = []
     captured_json_body: dict[str, Any] = {}
 
-    async def fake_run_blocking_io(func, *args: Any, **kwargs: Any):
+    async def fake_run_long_blocking_io(func, *args: Any, **kwargs: Any):
         calls.append(func.__name__)
         return func(*args, **kwargs)
 
@@ -139,7 +139,9 @@ async def test_create_stream_card_offloads_card_json_building(
             captured_json_body.update(kwargs["json_body"])
             return {"code": 0, "data": {"card_id": "card-1"}}
 
-    monkeypatch.setattr(sender_base, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        sender_base, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
 
     card_id = await _StreamDummySender().create_stream_card("x" * 20_000)
 
@@ -158,7 +160,7 @@ async def test_finalize_stream_card_offloads_card_json_building(
     calls: list[str] = []
     captured_json_body: dict[str, Any] = {}
 
-    async def fake_run_blocking_io(func, *args: Any, **kwargs: Any):
+    async def fake_run_long_blocking_io(func, *args: Any, **kwargs: Any):
         calls.append(func.__name__)
         return func(*args, **kwargs)
 
@@ -169,7 +171,9 @@ async def test_finalize_stream_card_offloads_card_json_building(
             captured_json_body.update(kwargs["json_body"])
             return {"code": 0}
 
-    monkeypatch.setattr(sender_base, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        sender_base, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
 
     result = await _StreamDummySender().finalize_stream_card("card-1", "x" * 20_000, 3)
 
@@ -188,7 +192,7 @@ async def test_send_card_by_id_offloads_content_json_serialization(
     calls: list[str] = []
     captured_json_body: dict[str, Any] = {}
 
-    async def fake_run_blocking_io(func, *args: Any, **kwargs: Any):
+    async def fake_run_long_blocking_io(func, *args: Any, **kwargs: Any):
         calls.append(getattr(func, "__name__", str(func)))
         return func(*args, **kwargs)
 
@@ -199,7 +203,9 @@ async def test_send_card_by_id_offloads_content_json_serialization(
             captured_json_body.update(kwargs["json_body"])
             return {"code": 0, "data": {"message_id": "message-1"}}
 
-    monkeypatch.setattr(sender_base, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        sender_base, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
 
     sent, message_id = await _StreamDummySender().send_card_by_id("oc_chat", "card-1")
 
@@ -218,7 +224,7 @@ async def test_send_card_by_id_retries_when_card_not_ready_then_succeeds(
 ) -> None:
     from src.infra.channel.feishu import sender_base
 
-    async def fake_run_blocking_io(func, *args: Any, **kwargs: Any):
+    async def fake_run_long_blocking_io(func, *args: Any, **kwargs: Any):
         return func(*args, **kwargs)
 
     payloads = [
@@ -236,7 +242,9 @@ async def test_send_card_by_id_retries_when_card_not_ready_then_succeeds(
     async def fake_sleep(delay: float) -> None:
         sleeps.append(delay)
 
-    monkeypatch.setattr(sender_base, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        sender_base, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
     monkeypatch.setattr(sender_base.asyncio, "sleep", fake_sleep)
 
     sent, message_id = await _RetrySender().send_card_by_id("oc_chat", "card-1")
@@ -253,7 +261,7 @@ async def test_send_card_by_id_gives_up_after_max_retries_when_card_still_not_re
 ) -> None:
     from src.infra.channel.feishu import sender_base
 
-    async def fake_run_blocking_io(func, *args: Any, **kwargs: Any):
+    async def fake_run_long_blocking_io(func, *args: Any, **kwargs: Any):
         return func(*args, **kwargs)
 
     feishu_calls: list[str] = []
@@ -267,7 +275,9 @@ async def test_send_card_by_id_gives_up_after_max_retries_when_card_still_not_re
     async def fake_sleep(delay: float) -> None:
         sleeps.append(delay)
 
-    monkeypatch.setattr(sender_base, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        sender_base, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
     monkeypatch.setattr(sender_base.asyncio, "sleep", fake_sleep)
 
     sent, message_id = await _AlwaysNotReadySender().send_card_by_id("oc_chat", "card-1")
@@ -288,7 +298,7 @@ async def test_send_card_by_id_does_not_retry_on_other_error_codes(
 ) -> None:
     from src.infra.channel.feishu import sender_base
 
-    async def fake_run_blocking_io(func, *args: Any, **kwargs: Any):
+    async def fake_run_long_blocking_io(func, *args: Any, **kwargs: Any):
         return func(*args, **kwargs)
 
     feishu_calls: list[str] = []
@@ -302,7 +312,9 @@ async def test_send_card_by_id_does_not_retry_on_other_error_codes(
     async def fake_sleep(delay: float) -> None:
         sleeps.append(delay)
 
-    monkeypatch.setattr(sender_base, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        sender_base, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
     monkeypatch.setattr(sender_base.asyncio, "sleep", fake_sleep)
 
     sent, message_id = await _OtherErrorSender().send_card_by_id("oc_chat", "card-1")
@@ -399,7 +411,7 @@ async def test_send_message_offloads_text_json_serialization(
 ) -> None:
     calls: list[str] = []
 
-    async def fake_run_blocking_io(func, *args: Any, **kwargs: Any):
+    async def fake_run_long_blocking_io(func, *args: Any, **kwargs: Any):
         calls.append(getattr(func, "__name__", str(func)))
         return func(*args, **kwargs)
 
@@ -417,7 +429,7 @@ async def test_send_message_offloads_text_json_serialization(
             self.sent_content = content
             return True
 
-    monkeypatch.setattr(sender_messages, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(sender_messages, "run_long_blocking_io", fake_run_long_blocking_io)
     dummy = _CaptureSender()
 
     assert await dummy.send_message("oc_chat", "长文本消息")
@@ -432,7 +444,7 @@ async def test_patch_message_offloads_fallback_json_only_after_update_fails(
 ) -> None:
     calls: list[str] = []
 
-    async def fake_run_blocking_io(func, *args: Any, **kwargs: Any):
+    async def fake_run_long_blocking_io(func, *args: Any, **kwargs: Any):
         calls.append(getattr(func, "__name__", str(func)))
         return func(*args, **kwargs)
 
@@ -451,7 +463,7 @@ async def test_patch_message_offloads_fallback_json_only_after_update_fails(
             self.patch_content = content
             return True
 
-    monkeypatch.setattr(sender_messages, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(sender_messages, "run_long_blocking_io", fake_run_long_blocking_io)
     dummy = _CaptureSender()
 
     assert await dummy.patch_message("om_1", "长文本消息")

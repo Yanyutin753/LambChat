@@ -119,7 +119,7 @@ async def test_transfer_path_offloads_final_result_json(
     root = "/workspace/project"
     calls: list[object] = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
@@ -136,7 +136,7 @@ async def test_transfer_path_offloads_final_result_json(
             assert files == [("/tmp/project/file.txt", b"hello")]
             return [SimpleNamespace(error=None)]
 
-    monkeypatch.setattr(transfer_file_tool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(transfer_file_tool, "run_long_blocking_io", fake_run_long_blocking_io)
 
     result = json.loads(
         await transfer_file_tool.transfer_path.coroutine(
@@ -156,11 +156,11 @@ async def test_transfer_file_offloads_error_result_json(
 ) -> None:
     calls: list[object] = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(transfer_file_tool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(transfer_file_tool, "run_long_blocking_io", fake_run_long_blocking_io)
 
     result = json.loads(
         await transfer_file_tool.transfer_file.coroutine(
@@ -181,11 +181,11 @@ async def test_transfer_path_offloads_error_result_json(
 ) -> None:
     calls: list[object] = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(transfer_file_tool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(transfer_file_tool, "run_long_blocking_io", fake_run_long_blocking_io)
 
     result = json.loads(
         await transfer_file_tool.transfer_path.coroutine(

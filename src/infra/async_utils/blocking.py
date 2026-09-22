@@ -22,7 +22,7 @@ from typing import Any, Callable, TypeVar
 T = TypeVar("T")
 
 _DEFAULT_MAX_WORKERS = 8
-_DEFAULT_LONG_MAX_WORKERS = 32
+_DEFAULT_LONG_MAX_WORKERS = 64
 _DEFAULT_MAX_PENDING = 16
 _MAX_PENDING_BLOCKING_IO = max(
     0,

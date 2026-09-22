@@ -81,7 +81,7 @@ async def test_spool_upload_file_limited_offloads_spooled_file_writes(
 ) -> None:
     calls: list[str] = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func.__name__)
         monkeypatch.setattr(upload_route, "_inside_fake_blocking_io", True, raising=False)
         try:
@@ -90,7 +90,7 @@ async def test_spool_upload_file_limited_offloads_spooled_file_writes(
             monkeypatch.setattr(upload_route, "_inside_fake_blocking_io", False, raising=False)
 
     monkeypatch.setattr(upload_route, "SpooledTemporaryFile", _BlockingOnlySpooledFile)
-    monkeypatch.setattr(upload_route, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(upload_route, "run_long_blocking_io", fake_run_long_blocking_io)
     monkeypatch.setattr(upload_route, "_inside_fake_blocking_io", False, raising=False)
 
     upload = ChunkedUpload([b"abc", b"def", b""])
@@ -248,13 +248,13 @@ async def test_local_file_proxy_checks_file_existence_in_blocking_executor(
     async def fake_get_or_init_storage():
         return _FakeStorage()
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         blocking_calls.append(func.__name__)
         return func(*args, **kwargs)
 
     monkeypatch.setattr(upload_route, "get_or_init_storage", fake_get_or_init_storage)
     monkeypatch.setattr(upload_route, "_file_record_storage", _FakeRecordStorage())
-    monkeypatch.setattr(upload_route, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(upload_route, "run_long_blocking_io", fake_run_long_blocking_io)
 
     response = await upload_route.get_file_proxy(
         "docs/report.txt",

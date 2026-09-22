@@ -114,7 +114,7 @@ async def test_search_persona_presets_offloads_result_json(
         return_value=[_preset(f"preset-{index}", f"Persona {index}") for index in range(5)]
     )
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
@@ -124,7 +124,7 @@ async def test_search_persona_presets_offloads_result_json(
         "_resolve_user",
         AsyncMock(return_value=SimpleNamespace(permissions=["team:read"])),
     )
-    monkeypatch.setattr(team_tool, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(team_tool, "run_long_blocking_io", fake_run_long_blocking_io, raising=False)
 
     result = json.loads(
         await team_tool.search_persona_presets.coroutine(
@@ -146,11 +146,11 @@ async def test_search_persona_presets_offloads_error_result_json(
 
     calls: list[object] = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(team_tool, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(team_tool, "run_long_blocking_io", fake_run_long_blocking_io, raising=False)
 
     result = json.loads(
         await team_tool.search_persona_presets.coroutine(

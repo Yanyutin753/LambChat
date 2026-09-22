@@ -82,7 +82,7 @@ async def test_reveal_file_returns_remote_url_directly(
     def _get_backend_from_runtime(runtime):
         raise AssertionError("remote URL reveal should not inspect backend")
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         blocking_calls.append(func)
         return func(*args, **kwargs)
 
@@ -94,8 +94,8 @@ async def test_reveal_file_returns_remote_url_directly(
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _get_storage)
     monkeypatch.setattr(_reveal_file_support, "_get_storage", _get_storage)
     monkeypatch.setattr(reveal_file_tool, "get_backend_from_runtime", _get_backend_from_runtime)
-    monkeypatch.setattr(reveal_file_tool, "run_blocking_io", fake_run_blocking_io)
-    monkeypatch.setattr(_reveal_file_support, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(reveal_file_tool, "run_long_blocking_io", fake_run_long_blocking_io)
+    monkeypatch.setattr(_reveal_file_support, "run_long_blocking_io", fake_run_long_blocking_io)
 
     result = json.loads(
         await reveal_file_tool.reveal_file.coroutine(
@@ -183,15 +183,15 @@ async def test_reveal_file_backend_unavailable_offloads_result_json(
     async def _get_storage():
         return object()
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         blocking_calls.append(func)
         return func(*args, **kwargs)
 
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _get_storage)
     monkeypatch.setattr(_reveal_file_support, "_get_storage", _get_storage)
     monkeypatch.setattr(reveal_file_tool, "get_backend_from_runtime", lambda runtime: None)
-    monkeypatch.setattr(reveal_file_tool, "run_blocking_io", fake_run_blocking_io)
-    monkeypatch.setattr(_reveal_file_support, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(reveal_file_tool, "run_long_blocking_io", fake_run_long_blocking_io)
+    monkeypatch.setattr(_reveal_file_support, "run_long_blocking_io", fake_run_long_blocking_io)
 
     result = json.loads(
         await reveal_file_tool.reveal_file.coroutine(
@@ -419,7 +419,7 @@ async def test_reveal_file_uploads_backend_content_as_file(
         _reveal_file_support, "_download_file_from_backend", _download_file_from_backend
     )
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         blocking_calls.append(func.__name__)
         monkeypatch.setattr(reveal_file_tool, "_inside_fake_blocking_io", True, raising=False)
         try:
@@ -429,8 +429,8 @@ async def test_reveal_file_uploads_backend_content_as_file(
 
     monkeypatch.setattr(reveal_file_tool, "SpooledTemporaryFile", _BlockingOnlySpooledFile)
     monkeypatch.setattr(_reveal_file_support, "SpooledTemporaryFile", _BlockingOnlySpooledFile)
-    monkeypatch.setattr(reveal_file_tool, "run_blocking_io", fake_run_blocking_io)
-    monkeypatch.setattr(_reveal_file_support, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(reveal_file_tool, "run_long_blocking_io", fake_run_long_blocking_io)
+    monkeypatch.setattr(_reveal_file_support, "run_long_blocking_io", fake_run_long_blocking_io)
     monkeypatch.setattr(reveal_file_tool, "_inside_fake_blocking_io", False, raising=False)
 
     async def _get_storage():
@@ -806,12 +806,12 @@ async def test_reveal_file_filesystem_fallback_streams_main_file(
     monkeypatch.setattr(reveal_file_tool, "_is_sandbox_backend", lambda backend: False)
     monkeypatch.setattr(_reveal_file_support, "_is_sandbox_backend", lambda backend: False)
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         blocking_calls.append(func.__name__)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(reveal_file_tool, "run_blocking_io", fake_run_blocking_io)
-    monkeypatch.setattr(_reveal_file_support, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(reveal_file_tool, "run_long_blocking_io", fake_run_long_blocking_io)
+    monkeypatch.setattr(_reveal_file_support, "run_long_blocking_io", fake_run_long_blocking_io)
     monkeypatch.setattr(
         reveal_file_tool,
         "settings",

@@ -842,11 +842,11 @@ async def test_feishu_collector_offloads_card_json_serialization(
 ) -> None:
     calls: list[tuple[Any, dict[str, Any]]] = []
 
-    async def _fake_run_blocking_io(func, /, *args, **kwargs):
+    async def _fake_run_long_blocking_io(func, /, *args, **kwargs):
         calls.append((func, kwargs))
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(feishu_handler, "run_blocking_io", _fake_run_blocking_io)
+    monkeypatch.setattr(feishu_handler, "run_long_blocking_io", _fake_run_long_blocking_io)
 
     collector = feishu_handler.FeishuResponseCollector(
         manager=_FakeStreamingManager(_FakeStreamingClient()),
@@ -1301,14 +1301,14 @@ async def test_download_storage_object_offloads_stream_file_writes(
 
     calls: list[tuple[str, tuple[Any, ...]]] = []
 
-    async def _fake_run_blocking_io(func, /, *args, **kwargs):
+    async def _fake_run_long_blocking_io(func, /, *args, **kwargs):
         calls.append((getattr(func, "__name__", repr(func)), args))
         return func(*args, **kwargs)
 
     monkeypatch.setattr(
         feishu_handler,
-        "run_blocking_io",
-        _fake_run_blocking_io,
+        "run_long_blocking_io",
+        _fake_run_long_blocking_io,
         raising=False,
     )
 
@@ -1813,7 +1813,7 @@ async def test_process_events_offloads_reveal_file_result_json_parse(
 
     calls: list[tuple[Any, tuple[Any, ...]]] = []
 
-    async def _fake_run_blocking_io(func, /, *args, **kwargs):
+    async def _fake_run_long_blocking_io(func, /, *args, **kwargs):
         calls.append((func, args))
         return func(*args, **kwargs)
 
@@ -1821,7 +1821,7 @@ async def test_process_events_offloads_reveal_file_result_json_parse(
         "src.infra.session.dual_writer.get_dual_writer",
         lambda: _FakeDualWriter(),
     )
-    monkeypatch.setattr(feishu_handler, "run_blocking_io", _fake_run_blocking_io)
+    monkeypatch.setattr(feishu_handler, "run_long_blocking_io", _fake_run_long_blocking_io)
 
     collector = _CaptureCollector()
     await feishu_handler._process_events(

@@ -3,14 +3,14 @@
 import json
 from typing import Any
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 
 logger = get_logger(__name__)
 
 
 async def _json_dumps_text_body(content: str) -> str:
-    return await run_blocking_io(json.dumps, {"text": content}, ensure_ascii=False)
+    return await run_long_blocking_io(json.dumps, {"text": content}, ensure_ascii=False)
 
 
 class FeishuMessageSenderMixin:
@@ -56,7 +56,7 @@ class FeishuMessageSenderMixin:
         if not self._client:
             return None
 
-        return await run_blocking_io(self._add_reaction_sync, message_id, emoji_type)
+        return await run_long_blocking_io(self._add_reaction_sync, message_id, emoji_type)
 
     def _delete_reaction_sync(self, message_id: str, reaction_id: str) -> bool:
         """Sync helper for deleting reaction."""
@@ -85,7 +85,7 @@ class FeishuMessageSenderMixin:
         if not self._client:
             return False
 
-        return await run_blocking_io(self._delete_reaction_sync, message_id, reaction_id)
+        return await run_long_blocking_io(self._delete_reaction_sync, message_id, reaction_id)
 
     def _send_message_sync(
         self, receive_id_type: str, receive_id: str, msg_type: str, content: str
@@ -125,7 +125,7 @@ class FeishuMessageSenderMixin:
         receive_id_type, receive_id = self._resolve_receive_id(chat_id)
         text_body = await _json_dumps_text_body(content)
 
-        return await run_blocking_io(
+        return await run_long_blocking_io(
             self._send_message_sync, receive_id_type, receive_id, "text", text_body
         )
 
@@ -170,7 +170,7 @@ class FeishuMessageSenderMixin:
         receive_id_type, receive_id = self._resolve_receive_id(chat_id)
         text_body = await _json_dumps_text_body(content)
 
-        return await run_blocking_io(
+        return await run_long_blocking_io(
             self._send_message_with_id_sync, receive_id_type, receive_id, "text", text_body
         )
 
@@ -300,7 +300,7 @@ class FeishuMessageSenderMixin:
         if not self._client:
             return False, None
 
-        return await run_blocking_io(
+        return await run_long_blocking_io(
             self._send_card_message_sync,
             receive_id_type,
             receive_id,
@@ -376,16 +376,16 @@ class FeishuMessageSenderMixin:
             return False
 
         # Try update API first (for text messages)
-        success = await run_blocking_io(self._update_text_message_sync, message_id, content)
+        success = await run_long_blocking_io(self._update_text_message_sync, message_id, content)
         if success:
             return True
 
         # Fall back to patch API (for card messages only)
         text_body = await _json_dumps_text_body(content)
-        return await run_blocking_io(self._patch_message_sync, message_id, text_body)
+        return await run_long_blocking_io(self._patch_message_sync, message_id, text_body)
 
     async def patch_card_message(self, message_id: str, card_content: str) -> bool:
         """Patch/update an existing interactive card message."""
         if not self._client:
             return False
-        return await run_blocking_io(self._patch_message_sync, message_id, card_content)
+        return await run_long_blocking_io(self._patch_message_sync, message_id, card_content)

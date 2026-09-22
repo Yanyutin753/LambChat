@@ -22,7 +22,7 @@ from src.agents.core.node_utils import (
     inline_image_attachments_as_data_urls,
 )
 from src.infra.agent.middleware.image_url import _append_proxy_direct_param
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.image_utils import compress_image_bytes_if_needed
 from src.infra.llm.client import LLMClient
 from src.infra.logging import get_logger
@@ -103,7 +103,7 @@ def _validate_attachment_data_urls(attachments: list[dict[str, Any]]) -> None:
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
-    return await run_blocking_io(json.dumps, data, ensure_ascii=False)
+    return await run_long_blocking_io(json.dumps, data, ensure_ascii=False)
 
 
 async def _resolve_model_config(reference: str) -> ModelConfig | None:
@@ -192,7 +192,7 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> bytes | N
 
     if hasattr(backend, "download_files"):
         try:
-            responses = await run_blocking_io(backend.download_files, [file_path])
+            responses = await run_long_blocking_io(backend.download_files, [file_path])
             if responses:
                 resp = responses[0]
                 if resp.content:
@@ -245,12 +245,12 @@ async def _inline_backend_image_paths(
             resolved.append(attachment)
             continue
 
-        compressed_content, compressed_mime_type = await run_blocking_io(
+        compressed_content, compressed_mime_type = await run_long_blocking_io(
             compress_image_bytes_if_needed,
             content,
             mime_type,
         )
-        encoded = await run_blocking_io(base64.b64encode, compressed_content)
+        encoded = await run_long_blocking_io(base64.b64encode, compressed_content)
         data_url = f"data:{compressed_mime_type};base64,{encoded.decode('ascii')}"
         resolved.append(
             {

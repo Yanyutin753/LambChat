@@ -13,7 +13,7 @@ import httpx
 from langchain_core.tools import BaseTool, InjectedToolArg
 from openai import AsyncOpenAI
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.tool.backend_utils import get_base_url_from_runtime
 from src.kernel.config import settings
@@ -44,7 +44,7 @@ def _json(data: dict[str, Any]) -> str:
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
-    return await run_blocking_io(json.dumps, data, ensure_ascii=False)
+    return await run_long_blocking_io(json.dumps, data, ensure_ascii=False)
 
 
 async def _maybe_await(value: Any) -> Any:
@@ -165,8 +165,8 @@ async def audio_transcribe(
                                         )
                                     }
                                 )
-                            await run_blocking_io(file_obj.write, chunk)
-                await run_blocking_io(file_obj.seek, 0)
+                            await run_long_blocking_io(file_obj.write, chunk)
+                await run_long_blocking_io(file_obj.seek, 0)
 
                 request: dict[str, Any] = {
                     "file": (filename, file_obj),

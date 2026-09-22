@@ -29,7 +29,7 @@ from typing import Annotated, Any, Optional
 from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.tool.backend_utils import get_backend_from_runtime
 
@@ -116,7 +116,7 @@ logger = get_logger(__name__)
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
-    return await run_blocking_io(json.dumps, data, ensure_ascii=False)
+    return await run_long_blocking_io(json.dumps, data, ensure_ascii=False)
 
 
 # ==========================================
@@ -256,7 +256,7 @@ async def _get_backend_file_size(backend: Any, file_path: str) -> int | None:
     sync_method = getattr(backend, "get_file_size", None)
     if callable(sync_method):
         try:
-            size = await run_blocking_io(sync_method, file_path)
+            size = await run_long_blocking_io(sync_method, file_path)
             return int(size) if size is not None else None
         except Exception as e:
             logger.debug(f"[transfer_file] get_file_size failed for {file_path}: {e}")
@@ -264,7 +264,7 @@ async def _get_backend_file_size(backend: Any, file_path: str) -> int | None:
     private_method = getattr(backend, "_file_size", None)
     if callable(private_method):
         try:
-            size = await run_blocking_io(private_method, file_path)
+            size = await run_long_blocking_io(private_method, file_path)
             return int(size) if size is not None else None
         except Exception as e:
             logger.debug(f"[transfer_file] _file_size failed for {file_path}: {e}")
@@ -289,7 +289,7 @@ async def _download_from_backend(backend: Any, file_path: str) -> Optional[bytes
 
     if hasattr(backend, "download_files"):
         try:
-            responses = await run_blocking_io(backend.download_files, [file_path])
+            responses = await run_long_blocking_io(backend.download_files, [file_path])
             if responses:
                 resp = responses[0]
                 if resp.content is not None:
@@ -317,7 +317,7 @@ async def _upload_to_backend(backend: Any, target_path: str, content: bytes) -> 
 
     if hasattr(backend, "upload_files"):
         try:
-            responses = await run_blocking_io(backend.upload_files, [(target_path, content)])
+            responses = await run_long_blocking_io(backend.upload_files, [(target_path, content)])
             if responses:
                 resp = responses[0]
                 if resp.error:
@@ -482,7 +482,7 @@ async def _list_dir_files(
                 raise RuntimeError(f"ls failed for {current_dir}: {e}") from e
         elif hasattr(backend, "ls"):
             try:
-                result = await run_blocking_io(backend.ls, current_dir)
+                result = await run_long_blocking_io(backend.ls, current_dir)
             except Exception as e:
                 raise RuntimeError(f"ls failed for {current_dir}: {e}") from e
         else:

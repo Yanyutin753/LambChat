@@ -135,7 +135,7 @@ async def test_mcp_tool_wrapper_returns_quota_error_without_calling_original(
             reset_at="2026-04-23T00:00:00+00:00",
         )
 
-    async def fake_run_blocking_io(func, /, *args: Any, **kwargs: Any):
+    async def fake_run_long_blocking_io(func, /, *args: Any, **kwargs: Any):
         dump_calls.append(func)
         return func(*args, **kwargs)
 
@@ -144,8 +144,8 @@ async def test_mcp_tool_wrapper_returns_quota_error_without_calling_original(
         fake_check_and_consume,
     )
     monkeypatch.setattr(
-        "src.infra.mcp.quota.run_blocking_io",
-        fake_run_blocking_io,
+        "src.infra.mcp.quota.run_long_blocking_io",
+        fake_run_long_blocking_io,
         raising=False,
     )
 

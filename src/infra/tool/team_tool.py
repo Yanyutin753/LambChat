@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 from langchain_core.tools import BaseTool, InjectedToolArg
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.persona_preset.manager import PersonaPresetManager
 from src.infra.role.storage import RoleStorage
 from src.infra.team.manager import TeamManager
@@ -32,7 +32,7 @@ from langchain.tools import tool  # noqa: E402
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
-    return await run_blocking_io(json.dumps, data, ensure_ascii=False, default=str)
+    return await run_long_blocking_io(json.dumps, data, ensure_ascii=False, default=str)
 
 
 async def _resolve_user(user_id: str) -> TokenPayload | None:

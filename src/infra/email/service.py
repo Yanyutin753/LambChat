@@ -12,7 +12,7 @@ from typing import Optional
 
 import httpx
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.email.template import EmailTemplate
 from src.infra.email.texts import get_texts
 from src.infra.logging import get_logger
@@ -106,7 +106,7 @@ class EmailService:
             if self._accounts_cache is not None and time.time() - self._config_loaded_at < 60:
                 return self._accounts_cache
 
-            self._accounts_cache = await run_blocking_io(self._parse_accounts)
+            self._accounts_cache = await run_long_blocking_io(self._parse_accounts)
             self._config_loaded_at = time.time()
 
             if self._accounts_cache:

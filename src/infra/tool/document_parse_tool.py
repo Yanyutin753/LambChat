@@ -25,7 +25,7 @@ from urllib.parse import unquote, urlparse
 import httpx
 from langchain_core.tools import BaseTool, InjectedToolArg
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.tool.backend_utils import (
     get_base_url_from_runtime,
@@ -77,7 +77,7 @@ _TRUNCATION_NOTICE = "\n\n...[truncated]"
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
-    return await run_blocking_io(json.dumps, data, ensure_ascii=False)
+    return await run_long_blocking_io(json.dumps, data, ensure_ascii=False)
 
 
 def _resolve_url(url: str, runtime: ToolRuntime | None) -> str:
@@ -150,8 +150,8 @@ async def _upload_image_to_storage(
     content_type = mime_type_from_image_id(image_id)
     spooled = SpooledTemporaryFile(max_size=_SPOOL_MAX_MEMORY_BYTES, mode="w+b")
     try:
-        await run_blocking_io(spooled.write, data)
-        await run_blocking_io(spooled.seek, 0)
+        await run_long_blocking_io(spooled.write, data)
+        await run_long_blocking_io(spooled.seek, 0)
         storage = await get_or_init_storage()
         result = await storage.upload_file(
             spooled,
@@ -174,7 +174,7 @@ async def _upload_image_to_storage(
         )
         return None
     finally:
-        await run_blocking_io(spooled.close)
+        await run_long_blocking_io(spooled.close)
 
 
 @tool
@@ -239,10 +239,10 @@ async def document_parse(
                             return await _json_dumps_result(
                                 {"error": (f"Document download exceeds {max_download_bytes} bytes")}
                             )
-                        await run_blocking_io(spooled.write, chunk)
+                        await run_long_blocking_io(spooled.write, chunk)
 
-                await run_blocking_io(spooled.seek, 0)
-                data = await run_blocking_io(spooled.read)
+                await run_long_blocking_io(spooled.seek, 0)
+                data = await run_long_blocking_io(spooled.read)
 
                 started_at = time.monotonic()
                 try:
@@ -278,7 +278,7 @@ async def document_parse(
                 if not ref or not raw:
                     continue
                 try:
-                    image_bytes = await run_blocking_io(base64.b64decode, raw)
+                    image_bytes = await run_long_blocking_io(base64.b64decode, raw)
                 except (binascii.Error, ValueError):
                     continue
                 image_name = PurePosixPath(ref).name or ref
@@ -316,7 +316,7 @@ async def document_parse(
         }
         return await _json_dumps_result(result)
     finally:
-        await run_blocking_io(spooled.close)
+        await run_long_blocking_io(spooled.close)
 
 
 def get_document_parse_tool() -> BaseTool:

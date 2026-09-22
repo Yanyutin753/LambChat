@@ -364,7 +364,7 @@ async def test_download_image_source_offloads_spooled_file_io(
         def stream(self, method: str, url: str):
             return _FakeStreamResponse()
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func.__name__)
         monkeypatch.setattr(image_generation_tool, "_inside_fake_blocking_io", True, raising=False)
         try:
@@ -379,7 +379,7 @@ async def test_download_image_source_offloads_spooled_file_io(
 
     monkeypatch.setattr(image_generation_tool.httpx, "AsyncClient", lambda **kwargs: _FakeClient())
     monkeypatch.setattr(image_generation_tool, "SpooledTemporaryFile", _BlockingOnlySpooledFile)
-    monkeypatch.setattr(image_generation_tool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(image_generation_tool, "run_long_blocking_io", fake_run_long_blocking_io)
     monkeypatch.setattr(image_generation_tool, "_inside_fake_blocking_io", False, raising=False)
 
     image_file, content_type, filename = await image_generation_tool._download_image_source(
@@ -404,11 +404,11 @@ async def test_image_generate_returns_error_when_api_key_missing(
 
     calls: list[object] = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(image_generation_tool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(image_generation_tool, "run_long_blocking_io", fake_run_long_blocking_io)
     monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_API_KEY", "")
 
     result = json.loads(
@@ -430,14 +430,14 @@ async def test_image_generate_offloads_exception_result_json(
 
     calls: list[object] = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
     async def fake_call_generation_api(**kwargs):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(image_generation_tool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(image_generation_tool, "run_long_blocking_io", fake_run_long_blocking_io)
     monkeypatch.setattr(image_generation_tool, "_call_generation_api", fake_call_generation_api)
 
     result = json.loads(
@@ -886,7 +886,7 @@ async def test_image_generate_keeps_original_edit_source_when_compression_is_not
     captured: dict[str, object] = {}
     blocking_calls: list[str] = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         blocking_calls.append(getattr(func, "__name__", repr(func)))
         return func(*args, **kwargs)
 
@@ -919,7 +919,7 @@ async def test_image_generate_keeps_original_edit_source_when_compression_is_not
         return {"url": "/generated.png"}
 
     monkeypatch.setattr(image_generation_tool, "_download_image_source", fake_download)
-    monkeypatch.setattr(image_generation_tool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(image_generation_tool, "run_long_blocking_io", fake_run_long_blocking_io)
     monkeypatch.setattr(
         image_generation_tool,
         "compress_image_bytes_if_needed",
@@ -1447,7 +1447,7 @@ async def test_image_generate_offloads_base64_result_spooled_file_io(
     async def fake_get_or_init_storage():
         return _FakeStorage()
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func.__name__)
         monkeypatch.setattr(image_generation_tool, "_inside_fake_blocking_io", True, raising=False)
         try:
@@ -1467,7 +1467,7 @@ async def test_image_generate_offloads_base64_result_spooled_file_io(
     )
     monkeypatch.setattr(image_generation_tool, "get_or_init_storage", fake_get_or_init_storage)
     monkeypatch.setattr(image_generation_tool, "SpooledTemporaryFile", _BlockingOnlySpooledFile)
-    monkeypatch.setattr(image_generation_tool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(image_generation_tool, "run_long_blocking_io", fake_run_long_blocking_io)
     monkeypatch.setattr(image_generation_tool, "_inside_fake_blocking_io", False, raising=False)
     monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_API_KEY", "sk-test")
     monkeypatch.setattr(

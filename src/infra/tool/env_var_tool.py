@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 from langchain_core.tools import BaseTool, InjectedToolArg
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.envvar.storage import EnvVarStorage
 from src.infra.envvar.sync import sync_envvar_change
 from src.infra.tool.backend_utils import get_backend_from_runtime, get_user_id_from_runtime
@@ -33,7 +33,7 @@ _ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
-    return await run_blocking_io(json.dumps, data, ensure_ascii=False, default=str)
+    return await run_long_blocking_io(json.dumps, data, ensure_ascii=False, default=str)
 
 
 def _get_user_id(runtime: ToolRuntime) -> str | None:

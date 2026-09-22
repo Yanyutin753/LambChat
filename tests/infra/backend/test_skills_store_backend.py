@@ -219,14 +219,16 @@ async def test_skills_store_backend_offloads_grep_content_scan(monkeypatch) -> N
                 }
             }
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         monkeypatch.setattr(search_module, "_inside_fake_blocking_io", True, raising=False)
         try:
             return func(*args, **kwargs)
         finally:
             monkeypatch.setattr(search_module, "_inside_fake_blocking_io", False, raising=False)
 
-    monkeypatch.setattr(search_module, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        search_module, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
     monkeypatch.setattr(search_module, "_inside_fake_blocking_io", False, raising=False)
 
     backend = SkillsStoreBackend(user_id="user-1", disabled_skills=[])
@@ -547,7 +549,7 @@ async def test_skills_store_backend_offloads_spooled_binary_read(monkeypatch) ->
     async def fake_get_or_init_storage():
         return _FakeStorageService()
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         monkeypatch.setattr(module, "_inside_fake_blocking_io", True, raising=False)
         try:
             return func(*args, **kwargs)
@@ -559,7 +561,7 @@ async def test_skills_store_backend_offloads_spooled_binary_read(monkeypatch) ->
         fake_get_or_init_storage,
     )
     monkeypatch.setattr(module, "SpooledTemporaryFile", _BlockingOnlySpooledFile)
-    monkeypatch.setattr(module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(module, "run_long_blocking_io", fake_run_long_blocking_io)
     monkeypatch.setattr(module, "_inside_fake_blocking_io", False, raising=False)
 
     backend = SkillsStoreBackend(user_id="user-1", disabled_skills=[])

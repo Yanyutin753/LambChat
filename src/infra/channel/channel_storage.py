@@ -9,7 +9,7 @@ import types
 import uuid
 from typing import Any, Optional
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.mcp.encryption import decrypt_value, encrypt_value
 from src.infra.storage.mongodb import get_mongo_client
@@ -404,7 +404,7 @@ class ChannelStorage:
         encrypted = {}
         for key, value in config.items():
             if key in SENSITIVE_FIELDS and isinstance(value, str) and value:
-                encrypted[key] = await run_blocking_io(encrypt_value, {"value": value})
+                encrypted[key] = await run_long_blocking_io(encrypt_value, {"value": value})
             else:
                 encrypted[key] = value
         return encrypted
@@ -419,7 +419,7 @@ class ChannelStorage:
                 if isinstance(value, dict):
                     # Encrypted value
                     try:
-                        dec = await run_blocking_io(decrypt_value, value)
+                        dec = await run_long_blocking_io(decrypt_value, value)
                         if isinstance(dec, dict):
                             decrypted[key] = dec.get("value", "")
                         else:

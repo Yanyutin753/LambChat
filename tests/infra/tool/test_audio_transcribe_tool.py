@@ -97,11 +97,11 @@ async def test_audio_transcribe_offloads_config_error_result_json(
 
     calls: list[object] = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(audio_transcribe_tool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(audio_transcribe_tool, "run_long_blocking_io", fake_run_long_blocking_io)
     monkeypatch.setattr(audio_transcribe_tool.settings, "AUDIO_TRANSCRIPTION_API_KEY", "")
 
     result = json.loads(
@@ -408,7 +408,7 @@ async def test_audio_transcribe_offloads_spooled_file_io(
         def stream(self, method: str, request_url: str):
             return _FakeResponse()
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func.__name__)
         monkeypatch.setattr(audio_transcribe_tool, "_inside_fake_blocking_io", True, raising=False)
         try:
@@ -429,7 +429,7 @@ async def test_audio_transcribe_offloads_spooled_file_io(
     )
     monkeypatch.setattr(audio_transcribe_tool, "SpooledTemporaryFile", _BlockingOnlySpooledFile)
     monkeypatch.setattr(
-        audio_transcribe_tool, "run_blocking_io", fake_run_blocking_io, raising=False
+        audio_transcribe_tool, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
     )
     monkeypatch.setattr(audio_transcribe_tool, "_inside_fake_blocking_io", False, raising=False)
     monkeypatch.setattr(audio_transcribe_tool.settings, "AUDIO_TRANSCRIPTION_API_KEY", "sk-test")

@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 
 logger = get_logger(__name__)
@@ -130,7 +130,7 @@ class FeishuBaseSenderMixin:
                 "params": params,
             }
             if json_body is not None:
-                request_kwargs["content"] = await run_blocking_io(
+                request_kwargs["content"] = await run_long_blocking_io(
                     json.dumps,
                     json_body,
                     ensure_ascii=False,
@@ -187,7 +187,7 @@ class FeishuBaseSenderMixin:
         )
 
     async def create_stream_card(self, initial_text: str = "...") -> str | None:
-        card_json = await run_blocking_io(self._build_stream_card_json, initial_text)
+        card_json = await run_long_blocking_io(self._build_stream_card_json, initial_text)
         payload = await self._feishu_json(
             "POST",
             "/cardkit/v1/cards",
@@ -205,7 +205,7 @@ class FeishuBaseSenderMixin:
         *,
         reply_to_id: str | None = None,
     ) -> tuple[bool, str | None]:
-        content = await run_blocking_io(
+        content = await run_long_blocking_io(
             json.dumps,
             {"type": "card", "data": {"card_id": card_id}},
             ensure_ascii=False,
@@ -306,7 +306,7 @@ class FeishuBaseSenderMixin:
         return True
 
     async def finalize_stream_card(self, card_id: str, content: str, sequence: int) -> bool:
-        card_json = await run_blocking_io(
+        card_json = await run_long_blocking_io(
             self._build_stream_card_json,
             content or " ",
             streaming=False,

@@ -147,7 +147,7 @@ async def test_upload_avatar_offloads_spooled_header_probe(monkeypatch: pytest.M
             *,
             skip_size_limit: bool = False,
         ):
-            data = await fake_run_blocking_io(file.read)
+            data = await fake_run_long_blocking_io(file.read)
             uploaded.update(
                 {
                     "data": data,
@@ -176,7 +176,7 @@ async def test_upload_avatar_offloads_spooled_header_probe(monkeypatch: pytest.M
     async def _get_or_init_storage():
         return _FakeStorage()
 
-    async def fake_run_blocking_io(func, /, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, /, *args, **kwargs):
         monkeypatch.setattr(upload_route, "_inside_fake_blocking_io", True, raising=False)
         try:
             return func(*args, **kwargs)
@@ -184,7 +184,7 @@ async def test_upload_avatar_offloads_spooled_header_probe(monkeypatch: pytest.M
             monkeypatch.setattr(upload_route, "_inside_fake_blocking_io", False, raising=False)
 
     monkeypatch.setattr(upload_route, "SpooledTemporaryFile", _BlockingOnlySpooledFile)
-    monkeypatch.setattr(upload_route, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(upload_route, "run_long_blocking_io", fake_run_long_blocking_io)
     monkeypatch.setattr(upload_route, "_inside_fake_blocking_io", False, raising=False)
     monkeypatch.setattr(upload_route, "get_or_init_storage", _get_or_init_storage)
     monkeypatch.setattr("src.infra.user.storage.UserStorage", lambda: _FakeUserStorage())

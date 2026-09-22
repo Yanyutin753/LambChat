@@ -14,7 +14,7 @@ import httpx
 import jwt
 from pydantic import BaseModel
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import utc_now
@@ -409,7 +409,7 @@ class OAuthService:
                 jwks_data = jwks_resp.json()
 
             # 解码 JWT header 获取 kid
-            header = await run_blocking_io(_decode_apple_token_header, id_token)
+            header = await run_long_blocking_io(_decode_apple_token_header, id_token)
             kid = header.get("kid")
 
             # 找到匹配的公钥
@@ -423,7 +423,7 @@ class OAuthService:
                 logger.error(f"Apple OAuth: No matching public key found for kid={kid}")
                 return None
 
-            claims = await run_blocking_io(
+            claims = await run_long_blocking_io(
                 _decode_apple_identity_token,
                 id_token,
                 jwk,

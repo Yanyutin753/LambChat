@@ -266,12 +266,12 @@ async def test_save_event_offloads_legacy_string_data_parse(monkeypatch) -> None
     writer = _FakeDualWriter()
     calls = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
     monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: writer)
-    monkeypatch.setattr(presenter_storage, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(presenter_storage, "run_long_blocking_io", fake_run_long_blocking_io)
     presenter = create_presenter(
         session_id="session-1",
         agent_id="search",

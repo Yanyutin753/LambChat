@@ -199,11 +199,13 @@ async def test_list_user_configs_offloads_sensitive_field_decryption(
     monkeypatch.setattr("src.infra.channel.channel_storage.get_mongo_client", lambda: client)
     monkeypatch.setattr(ChannelStorage, "_indexes_done", True, raising=False)
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return {"value": "plain-secret"}
 
-    monkeypatch.setattr(channel_storage, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        channel_storage, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
 
     storage = ChannelStorage()
     configs = await storage.list_user_configs("user-1")
@@ -222,13 +224,15 @@ async def test_create_config_offloads_sensitive_field_encryption_and_decryption(
     monkeypatch.setattr("src.infra.channel.channel_storage.get_mongo_client", lambda: client)
     monkeypatch.setattr(ChannelStorage, "_indexes_done", True, raising=False)
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         if func is channel_storage.encrypt_value:
             return {"encrypted": args[0]}
         return {"value": "plain-secret"}
 
-    monkeypatch.setattr(channel_storage, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        channel_storage, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
 
     storage = ChannelStorage()
     config = await storage.create_config(

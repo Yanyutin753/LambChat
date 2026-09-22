@@ -170,6 +170,7 @@ def test_e2b_download_files_skips_large_file_before_reading(monkeypatch) -> None
     from src.infra.backend.e2b import E2BBackend
 
     monkeypatch.setattr("src.infra.backend.e2b.SANDBOX_DOWNLOAD_MAX_BYTES", 8)
+    monkeypatch.setattr("src.infra.backend.e2b_async.SANDBOX_DOWNLOAD_MAX_BYTES", 8)
     files_api = _FakeDownloadFilesAPI(
         {
             "/home/user": [

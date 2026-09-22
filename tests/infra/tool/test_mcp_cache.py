@@ -137,7 +137,7 @@ async def test_get_cached_tools_offloads_config_hash_computation(
 ) -> None:
     calls = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
@@ -152,7 +152,7 @@ async def test_get_cached_tools_offloads_config_hash_computation(
         return ["tool-1"], _FakeClient()
 
     monkeypatch.setattr(mcp_cache, "get_redis_client", lambda: _FakeRedis())
-    monkeypatch.setattr(mcp_cache, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(mcp_cache, "run_long_blocking_io", fake_run_long_blocking_io)
 
     tools, client = await mcp_cache.get_cached_tools(
         "user-1",

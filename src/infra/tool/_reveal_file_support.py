@@ -16,7 +16,7 @@ from tempfile import SpooledTemporaryFile
 from typing import Any, Literal, Optional
 from urllib.parse import unquote, urlparse
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 
@@ -143,14 +143,14 @@ async def _get_backend_file_size(backend: Any, file_path: str) -> int | None:
     sync_method = getattr(backend, "get_file_size", None)
     if callable(sync_method):
         try:
-            return _coerce_file_size(await run_blocking_io(sync_method, file_path))
+            return _coerce_file_size(await run_long_blocking_io(sync_method, file_path))
         except Exception as e:
             logger.debug(f"[reveal_file] get_file_size failed for {file_path}: {e}")
 
     private_method = getattr(backend, "_file_size", None)
     if callable(private_method):
         try:
-            return _coerce_file_size(await run_blocking_io(private_method, file_path))
+            return _coerce_file_size(await run_long_blocking_io(private_method, file_path))
         except Exception as e:
             logger.debug(f"[reveal_file] _file_size failed for {file_path}: {e}")
 
@@ -196,7 +196,7 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[
 
     if hasattr(backend, "download_files"):
         try:
-            responses = await run_blocking_io(backend.download_files, [file_path])
+            responses = await run_long_blocking_io(backend.download_files, [file_path])
             if responses:
                 resp = responses[0]
                 logger.info(
@@ -231,7 +231,7 @@ async def _probe_download_error(backend: Any, file_path: str) -> Optional[str]:
         if hasattr(backend, "adownload_files"):
             responses = await backend.adownload_files([file_path])
         elif hasattr(backend, "download_files"):
-            responses = await run_blocking_io(backend.download_files, [file_path])
+            responses = await run_long_blocking_io(backend.download_files, [file_path])
         else:
             return None
         if responses:
@@ -257,7 +257,7 @@ async def _read_file_from_filesystem(file_path: str) -> Optional[bytes]:
             with open(file_path, "rb") as file:
                 return file.read()
 
-        content = await run_blocking_io(_read_small_file)
+        content = await run_long_blocking_io(_read_small_file)
         if content is not None:
             return content
         logger.debug(f"[reveal_file] File not found on filesystem: {file_path}")
@@ -281,7 +281,7 @@ async def _upload_filesystem_file(
     def _open_file():
         return open(file_path, "rb")
 
-    file = await run_blocking_io(_open_file)
+    file = await run_long_blocking_io(_open_file)
     try:
         return await storage.upload_file(
             file=file,
@@ -291,7 +291,7 @@ async def _upload_filesystem_file(
             skip_size_limit=True,
         )
     finally:
-        await run_blocking_io(file.close)
+        await run_long_blocking_io(file.close)
 
 
 # ---------------------------------------------------------------------------
@@ -443,7 +443,7 @@ async def _upload_local_resource(
             and not _is_sandbox_backend(backend)
             and _local_filesystem_fallback_enabled()
         ):
-            if not await run_blocking_io(_is_file_path, abs_path):
+            if not await run_long_blocking_io(_is_file_path, abs_path):
                 return None
             res_filename = os.path.basename(abs_path)
             res_mime = get_mime_type(res_filename)
@@ -465,9 +465,9 @@ async def _upload_local_resource(
             max_size=_UPLOAD_SPOOL_MEMORY_LIMIT,
             mode="w+b",
         ) as spooled:
-            await run_blocking_io(spooled.write, content)
+            await run_long_blocking_io(spooled.write, content)
             del content
-            await run_blocking_io(spooled.seek, 0)
+            await run_long_blocking_io(spooled.seek, 0)
             upload_result = await storage.upload_file(
                 file=spooled,
                 folder="revealed_files",

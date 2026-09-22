@@ -47,14 +47,14 @@ FEISHU_REVEAL_LEGACY_DOWNLOAD_MAX_BYTES = _collector_mod.FEISHU_REVEAL_LEGACY_DO
 FEISHU_STREAM_FIRST_PAINT_CHARS = _collector_mod.FEISHU_STREAM_FIRST_PAINT_CHARS
 FEISHU_STREAM_UPDATE_DEBOUNCE_SECONDS = _collector_mod.FEISHU_STREAM_UPDATE_DEBOUNCE_SECONDS
 _download_storage_object_to_file = _collector_mod._download_storage_object_to_file
-run_blocking_io = _collector_mod.run_blocking_io
+run_long_blocking_io = _collector_mod.run_long_blocking_io
 
 EVENT_MESSAGE_CHUNK = _events_mod.EVENT_MESSAGE_CHUNK
 EVENT_TOOL_RESULT = _events_mod.EVENT_TOOL_RESULT
 EVENT_TOOL_START = _events_mod.EVENT_TOOL_START
 
 _PATCH_TARGETS = {
-    "run_blocking_io": (_collector_mod, _events_mod),
+    "run_long_blocking_io": (_collector_mod, _events_mod),
     "FEISHU_STREAM_UPDATE_DEBOUNCE_SECONDS": (_collector_mod,),
     "FEISHU_STREAM_FIRST_PAINT_CHARS": (_collector_mod,),
     "FEISHU_REVEAL_LEGACY_DOWNLOAD_MAX_BYTES": (_collector_mod,),

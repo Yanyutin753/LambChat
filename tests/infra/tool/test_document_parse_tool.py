@@ -1006,10 +1006,10 @@ async def test_execute_document_parse_falls_back_to_next_provider(
 def _patch_common(monkeypatch: pytest.MonkeyPatch) -> None:
     from src.infra.tool import document_parse_tool
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(document_parse_tool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(document_parse_tool, "run_long_blocking_io", fake_run_long_blocking_io)
     _clear_provider_settings(monkeypatch)
     monkeypatch.setattr(document_parse_tool.settings, "DOCUMENT_PARSE_MISTRAL_API_KEY", "sk-ocr")
     monkeypatch.setattr(
@@ -1270,10 +1270,10 @@ async def test_upload_image_to_storage_uploads_under_user_folder(
 ) -> None:
     from src.infra.tool import document_parse_tool
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(document_parse_tool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(document_parse_tool, "run_long_blocking_io", fake_run_long_blocking_io)
 
     captured: dict[str, object] = {}
 

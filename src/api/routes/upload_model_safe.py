@@ -22,7 +22,7 @@ from src.api.routes.upload_cover import (
     _key_ext,
     _path_exists,
 )
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.image_utils import needs_model_safe_transcode, transcode_image_bytes
 from src.infra.logging import get_logger
 from src.kernel.errors import AppError, ErrorCode
@@ -59,7 +59,7 @@ async def get_model_safe_file_response(storage: Any, key: str) -> Response | Non
 
     if storage.is_local:
         file_path = storage.get_file_path(key)
-        if not await run_blocking_io(_path_exists, file_path):
+        if not await run_long_blocking_io(_path_exists, file_path):
             raise AppError(ErrorCode.FILE_NOT_FOUND)
 
         def _read_and_transcode() -> bytes:
@@ -68,7 +68,7 @@ async def get_model_safe_file_response(storage: Any, key: str) -> Response | Non
                 return transcoded
 
         try:
-            body = await run_blocking_io(_read_and_transcode)
+            body = await run_long_blocking_io(_read_and_transcode)
         except ValueError as exc:
             logger.error(f"Failed to transcode local image {key}: {exc}")
             raise AppError(ErrorCode.IMAGE_TRANSCODE_FAILED, args={"ext": _key_ext(key)})
@@ -129,7 +129,7 @@ async def _do_render_and_cache(storage: Any, key: str, cache_key: str) -> Respon
         raise AppError(ErrorCode.FILE_URL_FAILED)
 
     try:
-        body, _mime_type = await run_blocking_io(transcode_image_bytes, data)
+        body, _mime_type = await run_long_blocking_io(transcode_image_bytes, data)
     except ValueError as exc:
         logger.error(f"Failed to transcode image {key}: {exc}")
         raise AppError(ErrorCode.IMAGE_TRANSCODE_FAILED, args={"ext": _key_ext(key)})

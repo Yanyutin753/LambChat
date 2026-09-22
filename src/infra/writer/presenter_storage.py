@@ -11,7 +11,7 @@ import time
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Dict
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 
 if TYPE_CHECKING:
@@ -409,7 +409,7 @@ class StoragePresenterMixin:
             # 如果是 dict（来自优化后的 _build_event），已经 sanitize 过，直接使用
             if isinstance(data, str):
                 try:
-                    data = await run_blocking_io(json.loads, data)
+                    data = await run_long_blocking_io(json.loads, data)
                 except json.JSONDecodeError:
                     data = {"raw": data}
                 data = self._sanitize_for_json(data)  # type: ignore[attr-defined]

@@ -97,11 +97,11 @@ async def test_upload_url_to_sandbox_offloads_invalid_path_result_json(
 ) -> None:
     calls: list[object] = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(upload_url_tool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(upload_url_tool, "run_long_blocking_io", fake_run_long_blocking_io)
 
     result = json.loads(
         await upload_url_tool.upload_url_to_sandbox.coroutine(
@@ -336,11 +336,11 @@ async def test_upload_url_to_sandbox_prefers_sandbox_side_download(
         async def __aenter__(self):
             raise AssertionError("API process should not stream when sandbox can fetch URL")
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(upload_url_tool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(upload_url_tool, "run_long_blocking_io", fake_run_long_blocking_io)
     monkeypatch.setattr(
         upload_url_tool.httpx,
         "AsyncClient",
@@ -377,12 +377,12 @@ async def test_upload_url_to_sandbox_wraps_sync_execute_in_blocking_executor(
         async def aupload_files(self, files):
             raise AssertionError("sandbox-capable backends should download inside the sandbox")
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         del kwargs
-        calls.append(("run_blocking_io", ""))
+        calls.append(("run_long_blocking_io", ""))
         return func(*args)
 
-    monkeypatch.setattr(upload_url_tool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(upload_url_tool, "run_long_blocking_io", fake_run_long_blocking_io)
 
     result = json.loads(
         await upload_url_tool.upload_url_to_sandbox.coroutine(
@@ -393,7 +393,7 @@ async def test_upload_url_to_sandbox_wraps_sync_execute_in_blocking_executor(
     )
 
     assert result == {"success": True, "path": "/workspace/input.txt", "source": "sandbox"}
-    assert calls[0][0] == "run_blocking_io"
+    assert calls[0][0] == "run_long_blocking_io"
     assert calls[1][0] == "execute"
 
 
@@ -740,7 +740,7 @@ async def test_upload_url_to_sandbox_offloads_api_fallback_spool_io(
         def stream(self, method: str, request_url: str):
             return _FakeResponse()
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func.__name__)
         monkeypatch.setattr(upload_url_tool, "_inside_fake_blocking_io", True, raising=False)
         try:
@@ -749,7 +749,7 @@ async def test_upload_url_to_sandbox_offloads_api_fallback_spool_io(
             monkeypatch.setattr(upload_url_tool, "_inside_fake_blocking_io", False, raising=False)
 
     monkeypatch.setattr(upload_url_tool, "SpooledTemporaryFile", _BlockingOnlySpooledFile)
-    monkeypatch.setattr(upload_url_tool, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(upload_url_tool, "run_long_blocking_io", fake_run_long_blocking_io)
     monkeypatch.setattr(upload_url_tool, "_inside_fake_blocking_io", False, raising=False)
     monkeypatch.setattr(
         upload_url_tool.httpx,

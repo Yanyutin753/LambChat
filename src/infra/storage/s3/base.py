@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from typing import Optional, Protocol
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.storage.s3.types import UploadResult
 
 LIST_OBJECTS_LIMIT = 1000
@@ -93,9 +93,9 @@ class S3StorageBackend(ABC):
         """Download an object into a file-like sink without returning full bytes."""
         total_size = 0
         async for chunk in self.download_stream(key, chunk_size=chunk_size):
-            await run_blocking_io(file.write, chunk)
+            await run_long_blocking_io(file.write, chunk)
             total_size += len(chunk)
-        await run_blocking_io(file.seek, 0)
+        await run_long_blocking_io(file.seek, 0)
         return total_size
 
     async def download_range_stream(

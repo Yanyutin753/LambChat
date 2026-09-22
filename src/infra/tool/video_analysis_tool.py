@@ -19,7 +19,7 @@ from urllib.parse import unquote, urlsplit
 from langchain_core.tools import BaseTool, InjectedToolArg
 
 from src.agents.core.node_utils import build_human_message
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.tool.backend_utils import get_backend_from_runtime
 from src.kernel.config import settings
@@ -87,7 +87,7 @@ def _backend_path_from_video_reference(video_ref: str) -> str | None:
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
-    return await run_blocking_io(json.dumps, data, ensure_ascii=False)
+    return await run_long_blocking_io(json.dumps, data, ensure_ascii=False)
 
 
 async def _call_with_retries(llm: Any, messages: list[Any]) -> Any:
@@ -203,7 +203,7 @@ async def video_analyze(
                 errors.append({"url": ref, "error": "unsupported_video_format"})
                 continue
 
-            encoded = await run_blocking_io(base64.b64encode, content)
+            encoded = await run_long_blocking_io(base64.b64encode, content)
             data_url = f"data:{mime_type};base64,{encoded.decode('ascii')}"
             attachments.append(
                 {

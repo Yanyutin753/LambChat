@@ -13,7 +13,7 @@ from typing import Annotated, Any, Optional
 from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.memory.client.base import (
     MemoryBackend,
@@ -34,7 +34,7 @@ logger = get_logger(__name__)
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
-    return await run_blocking_io(json.dumps, data, ensure_ascii=False)
+    return await run_long_blocking_io(json.dumps, data, ensure_ascii=False)
 
 
 # Module-level cached backend (initialized lazily)

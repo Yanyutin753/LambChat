@@ -19,7 +19,7 @@ from langchain_core.runnables.config import var_child_runnable_config
 from langgraph.constants import CONFIG_KEY_CHECKPOINTER
 
 from src.infra.agent import AgentEventProcessor
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.image_utils import compress_image_bytes_if_needed
 from src.infra.logging import get_logger
 from src.infra.memory.control_frames import escape_control_frame_tags
@@ -363,14 +363,16 @@ async def _download_image_as_data_url(
         downloaded_size = await storage.download_to_file(str(key), spooled)
         if isinstance(downloaded_size, int) and downloaded_size > max_bytes:
             return None
-        await run_blocking_io(spooled.seek, 0)
-        content = await run_blocking_io(_read_binary_file, spooled)
+        await run_long_blocking_io(spooled.seek, 0)
+        content = await run_long_blocking_io(_read_binary_file, spooled)
         if len(content) > max_bytes:
             return None
     finally:
-        await run_blocking_io(spooled.close)
-    content, mime_type = await run_blocking_io(compress_image_bytes_if_needed, content, mime_type)
-    encoded = await run_blocking_io(_base64_encode_bytes, content)
+        await run_long_blocking_io(spooled.close)
+    content, mime_type = await run_long_blocking_io(
+        compress_image_bytes_if_needed, content, mime_type
+    )
+    encoded = await run_long_blocking_io(_base64_encode_bytes, content)
     return f"data:{mime_type};base64,{encoded}"
 
 
@@ -416,15 +418,17 @@ async def _download_image_url_as_data_url(
                     downloaded_size += len(chunk)
                     if downloaded_size > max_bytes:
                         return None
-                    await run_blocking_io(spooled.write, chunk)
-        await run_blocking_io(spooled.seek, 0)
-        content = await run_blocking_io(_read_binary_file, spooled)
+                    await run_long_blocking_io(spooled.write, chunk)
+        await run_long_blocking_io(spooled.seek, 0)
+        content = await run_long_blocking_io(_read_binary_file, spooled)
         if len(content) > max_bytes:
             return None
     finally:
-        await run_blocking_io(spooled.close)
-    content, mime_type = await run_blocking_io(compress_image_bytes_if_needed, content, mime_type)
-    encoded = await run_blocking_io(_base64_encode_bytes, content)
+        await run_long_blocking_io(spooled.close)
+    content, mime_type = await run_long_blocking_io(
+        compress_image_bytes_if_needed, content, mime_type
+    )
+    encoded = await run_long_blocking_io(_base64_encode_bytes, content)
     return f"data:{mime_type};base64,{encoded}"
 
 

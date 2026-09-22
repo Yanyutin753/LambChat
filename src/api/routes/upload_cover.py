@@ -22,7 +22,7 @@ from typing import Any
 
 from fastapi.responses import Response
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.storage.s3 import S3Provider
 from src.kernel.errors import AppError, ErrorCode
@@ -367,10 +367,10 @@ async def _get_rendered_cover_response(storage: Any, key: str, kind: str, render
 
     if storage.is_local:
         file_path = storage.get_file_path(key)
-        if not await run_blocking_io(_path_exists, file_path):
+        if not await run_long_blocking_io(_path_exists, file_path):
             raise AppError(ErrorCode.FILE_NOT_FOUND)
         try:
-            stat = await run_blocking_io(file_path.stat)
+            stat = await run_long_blocking_io(file_path.stat)
         except OSError:
             raise AppError(ErrorCode.FILE_NOT_FOUND)
         if stat.st_size > _RENDER_MAX_SOURCE_BYTES:
@@ -381,7 +381,7 @@ async def _get_rendered_cover_response(storage: Any, key: str, kind: str, render
                 return render(fh.read())
 
         try:
-            body = await run_blocking_io(_read_and_render)
+            body = await run_long_blocking_io(_read_and_render)
         except Exception as e:
             logger.error(f"Failed to render local {kind} cover for {key}: {e}")
             raise AppError(ErrorCode.COVER_RENDER_FAILED)
@@ -458,7 +458,7 @@ async def _do_render_and_cache(
         raise AppError(ErrorCode.FILE_URL_FAILED)
 
     try:
-        body = await run_blocking_io(render, data)
+        body = await run_long_blocking_io(render, data)
     except Exception as e:
         logger.error(f"Failed to render {kind} cover for {key}: {e}")
         raise AppError(ErrorCode.COVER_RENDER_FAILED)

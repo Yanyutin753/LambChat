@@ -16,7 +16,7 @@ import httpx
 from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool, InjectedToolArg
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.backend.lazy_sandbox import SandboxInitializationError
 from src.infra.logging import get_logger
 from src.infra.tool.backend_utils import get_backend_from_runtime, get_base_url_from_runtime
@@ -37,7 +37,7 @@ _FALLBACK_UPLOAD_MAX_BYTES = 2 * 1024 * 1024
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
-    return await run_blocking_io(json.dumps, data, ensure_ascii=False)
+    return await run_long_blocking_io(json.dumps, data, ensure_ascii=False)
 
 
 def _sandbox_download_command(url: str, file_path: str) -> str:
@@ -90,7 +90,7 @@ async def _execute_sandbox_download(backend, url: str, file_path: str) -> tuple[
     if hasattr(backend, "aexecute"):
         result = await backend.aexecute(command)
     elif hasattr(backend, "execute"):
-        result = await run_blocking_io(backend.execute, command)
+        result = await run_long_blocking_io(backend.execute, command)
     else:
         return False, "backend does not support execute"
 
@@ -173,9 +173,9 @@ async def upload_url_to_sandbox(
                                     ),
                                 }
                             )
-                        await run_blocking_io(spooled.write, chunk)
-                await run_blocking_io(spooled.seek, 0)
-                content = await run_blocking_io(spooled.read)
+                        await run_long_blocking_io(spooled.write, chunk)
+                await run_long_blocking_io(spooled.seek, 0)
+                content = await run_long_blocking_io(spooled.read)
     except httpx.HTTPStatusError as e:
         logger.warning(
             "[upload_url_to_sandbox] download_failed category=http_status status_code=%s",

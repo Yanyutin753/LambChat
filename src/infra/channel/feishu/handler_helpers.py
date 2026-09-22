@@ -6,7 +6,7 @@ import time
 from typing import Any
 from urllib.parse import quote, unquote, urlparse
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 
@@ -78,9 +78,9 @@ async def _download_storage_object_to_file(
                     f"Storage object too large for Feishu reveal download: {key} "
                     f"size>{FEISHU_REVEAL_DOWNLOAD_MAX_BYTES} bytes"
                 )
-            await run_blocking_io(file.write, chunk)
+            await run_long_blocking_io(file.write, chunk)
             total_size += len(chunk)
-        await run_blocking_io(file.seek, 0)
+        await run_long_blocking_io(file.seek, 0)
         return total_size
 
     data = await backend.download(key)
@@ -92,8 +92,8 @@ async def _download_storage_object_to_file(
             f"Storage object too large for legacy bytes download: {size} bytes "
             f"(max {FEISHU_REVEAL_LEGACY_DOWNLOAD_MAX_BYTES})"
         )
-    await run_blocking_io(file.write, data)
-    await run_blocking_io(file.seek, 0)
+    await run_long_blocking_io(file.write, data)
+    await run_long_blocking_io(file.seek, 0)
     return size
 
 

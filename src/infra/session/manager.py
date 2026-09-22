@@ -8,7 +8,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.session.storage import SessionStorage
 from src.infra.session.trace_storage import (
@@ -664,7 +664,7 @@ class SessionManager:
             clone_chunks = False
             if run_id == target["run_id"]:
                 if target["target_type"] == "user":
-                    cloned_doc = await run_blocking_io(
+                    cloned_doc = await run_long_blocking_io(
                         self._build_partial_user_trace_doc,
                         trace,
                         target["user_event"],
@@ -672,7 +672,7 @@ class SessionManager:
                         user_id,
                     )
                 elif target["target_type"] == "assistant":
-                    cloned_doc = await run_blocking_io(
+                    cloned_doc = await run_long_blocking_io(
                         self._build_cloned_trace_doc,
                         trace,
                         target_session.id,
@@ -681,7 +681,7 @@ class SessionManager:
                     clone_chunks = True
             elif target.get("completed_run_ids") is not None:
                 if run_id in target["completed_run_ids"]:
-                    cloned_doc = await run_blocking_io(
+                    cloned_doc = await run_long_blocking_io(
                         self._build_cloned_trace_doc,
                         trace,
                         target_session.id,
@@ -689,7 +689,7 @@ class SessionManager:
                     )
                     clone_chunks = True
             else:
-                cloned_doc = await run_blocking_io(
+                cloned_doc = await run_long_blocking_io(
                     self._build_cloned_trace_doc,
                     trace,
                     target_session.id,
@@ -721,7 +721,7 @@ class SessionManager:
                             source_events = []
                         if source_events:
                             docs_for_messages = [{**cloned_doc, "events": source_events}]
-                    checkpoint_messages = await run_blocking_io(
+                    checkpoint_messages = await run_long_blocking_io(
                         build_messages_from_trace_events,
                         docs_for_messages,
                     )

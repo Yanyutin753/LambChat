@@ -394,12 +394,14 @@ async def test_event_merger_offloads_cpu_merge_work(
 
     offloaded: list[str] = []
 
-    async def fake_run_blocking_io(func, /, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, /, *args, **kwargs):
         del kwargs
         offloaded.append(func.__name__)
         return func(*args)
 
-    monkeypatch.setattr(event_merger, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        event_merger, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
 
     merger = EventMerger(trace_storage=None)
     traces = [

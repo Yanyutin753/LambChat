@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.storage.redis import get_redis_client
 from src.kernel.schemas.mcp import MCPRoleQuota
@@ -289,4 +289,4 @@ async def quota_error_json_async(server_name: str, result: MCPQuotaResult) -> st
         "current": result.current,
         "reset_at": result.reset_at,
     }
-    return await run_blocking_io(json.dumps, payload, ensure_ascii=False)
+    return await run_long_blocking_io(json.dumps, payload, ensure_ascii=False)

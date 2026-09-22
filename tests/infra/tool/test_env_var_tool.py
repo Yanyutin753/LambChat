@@ -457,11 +457,13 @@ async def test_env_var_tool_requires_runtime_user(monkeypatch: pytest.MonkeyPatc
 
     calls: list[object] = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(env_var_tool, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        env_var_tool, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
 
     result = json.loads(await env_var_tool.env_var_list.coroutine(runtime=_Runtime(None)))
 

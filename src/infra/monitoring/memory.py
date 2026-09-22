@@ -10,7 +10,7 @@ from collections import Counter, deque
 from datetime import datetime
 from typing import Any
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
@@ -108,7 +108,7 @@ class MemoryMonitor:
     async def _run_monitor_blocking(
         self, func, *, timeout: float = _BLOCKING_SAMPLE_TIMEOUT_SECONDS
     ):
-        return await run_blocking_io(func, timeout=timeout)
+        return await run_long_blocking_io(func, timeout=timeout)
 
     async def start(self) -> None:
         """Start the background monitor if enabled."""

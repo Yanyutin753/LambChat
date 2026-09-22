@@ -92,7 +92,7 @@ async def test_save_persona_preset_creates_and_offloads_result_json(
         assert user_id == "admin-1"
         return _admin_user()
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
@@ -100,8 +100,8 @@ async def test_save_persona_preset_creates_and_offloads_result_json(
     monkeypatch.setattr(persona_preset_tool, "PersonaPresetManager", FakeManager)
     monkeypatch.setattr(
         persona_preset_tool,
-        "run_blocking_io",
-        fake_run_blocking_io,
+        "run_long_blocking_io",
+        fake_run_long_blocking_io,
         raising=False,
     )
 
@@ -127,14 +127,14 @@ async def test_save_persona_preset_offloads_error_result_json(
 
     calls: list[object] = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
     monkeypatch.setattr(
         persona_preset_tool,
-        "run_blocking_io",
-        fake_run_blocking_io,
+        "run_long_blocking_io",
+        fake_run_long_blocking_io,
         raising=False,
     )
 
@@ -184,7 +184,7 @@ async def test_save_persona_preset_promotes_named_user_preset_to_global(
         assert user_id == "admin-1"
         return _admin_user()
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         dump_calls.append(func)
         return func(*args, **kwargs)
 
@@ -192,8 +192,8 @@ async def test_save_persona_preset_promotes_named_user_preset_to_global(
     monkeypatch.setattr(persona_preset_tool, "PersonaPresetManager", FakeManager)
     monkeypatch.setattr(
         persona_preset_tool,
-        "run_blocking_io",
-        fake_run_blocking_io,
+        "run_long_blocking_io",
+        fake_run_long_blocking_io,
         raising=False,
     )
 

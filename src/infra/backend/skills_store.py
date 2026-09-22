@@ -23,7 +23,7 @@ from deepagents.backends.utils import (
 )
 from langgraph.config import get_config
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.backend._skills_path_utils import (
     SKILL_NAME_PATTERN,
     _get_cached_storage,
@@ -525,7 +525,7 @@ class SkillsStoreBackend(BackendProtocol):
                                     )
                                 )
                                 continue
-                            data = await run_blocking_io(spooled.read)
+                            data = await run_long_blocking_io(spooled.read)
                         results.append(
                             FileDownloadResponse(path=original_path, content=data, error=None)
                         )

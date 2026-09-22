@@ -30,7 +30,7 @@ from langgraph.checkpoint.base import (
     empty_checkpoint,
 )
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 
@@ -532,7 +532,7 @@ async def clone_checkpoints_for_fork(
             "checkpoint_ns": cfg.get("checkpoint_ns", ""),
         }
     }
-    checkpoint, metadata, channel_versions = await run_blocking_io(
+    checkpoint, metadata, channel_versions = await run_long_blocking_io(
         _copy_checkpoint_put_payload,
         boundary_tuple,
     )
@@ -555,7 +555,7 @@ async def seed_checkpoint_from_messages(
 
     target_saver = await get_async_checkpointer(thread_id=target_thread_id)
     checkpoint = empty_checkpoint()
-    copied_messages = await run_blocking_io(copy.deepcopy, messages)
+    copied_messages = await run_long_blocking_io(copy.deepcopy, messages)
     checkpoint["channel_values"] = {"messages": copied_messages}
     checkpoint["channel_versions"] = {"messages": "1"}
     checkpoint["versions_seen"] = {}
@@ -583,7 +583,7 @@ async def delete_checkpoints_for_thread(thread_id: str) -> None:
 
     sync_delete = getattr(saver, "delete_thread", None)
     if callable(sync_delete):
-        result = await run_blocking_io(sync_delete, thread_id)
+        result = await run_long_blocking_io(sync_delete, thread_id)
         if inspect.isawaitable(result):
             await result
         return

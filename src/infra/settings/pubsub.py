@@ -14,7 +14,7 @@ import json
 import uuid
 from typing import Any, Dict, Optional
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.pubsub_hub import get_pubsub_hub
 
@@ -63,7 +63,7 @@ class SettingsPubSub:
     async def _handle_message(self, message: Dict[str, Any]) -> None:
         """Handle an incoming settings change message."""
         try:
-            data = await run_blocking_io(json.loads, message["data"])
+            data = await run_long_blocking_io(json.loads, message["data"])
             key = data.get("key")
             # Skip messages published by this instance
             if data.get("instance_id") == self._instance_id:

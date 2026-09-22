@@ -271,12 +271,12 @@ async def test_local_storage_list_objects_checks_missing_prefix_in_blocking_exec
     )
     blocking_calls: list[str] = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         del args, kwargs
         blocking_calls.append(func.__name__)
         return func()
 
-    monkeypatch.setattr(local_backend_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(local_backend_module, "run_long_blocking_io", fake_run_long_blocking_io)
 
     objects = await backend.list_objects("missing")
 
@@ -438,7 +438,7 @@ async def test_storage_service_upload_stream_to_key_offloads_file_positioning(
             self.payloads: list[bytes] = []
 
         async def upload(self, file, key, content_type=None, metadata=None):
-            data = await fake_run_blocking_io(file.read)
+            data = await fake_run_long_blocking_io(file.read)
             self.payloads.append(data)
             from src.infra.storage.s3.types import UploadResult
 
@@ -455,7 +455,7 @@ async def test_storage_service_upload_stream_to_key_offloads_file_positioning(
         async def close(self) -> None:
             pass
 
-    async def fake_run_blocking_io(func, /, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, /, *args, **kwargs):
         nonlocal inside_blocking_io
         assert inside_blocking_io is False
         inside_blocking_io = True
@@ -464,7 +464,7 @@ async def test_storage_service_upload_stream_to_key_offloads_file_positioning(
         finally:
             inside_blocking_io = False
 
-    monkeypatch.setattr(s3_service_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(s3_service_module, "run_long_blocking_io", fake_run_long_blocking_io)
 
     storage = get_storage_service()
     backend = _GuardedUploadBackend()
@@ -575,7 +575,7 @@ async def test_default_backend_download_to_file_offloads_sink_writes(
             assert inside_blocking_io, "download_to_file sink seeks must be offloaded"
             return super().seek(pos, whence)
 
-    async def fake_run_blocking_io(func, /, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, /, *args, **kwargs):
         nonlocal inside_blocking_io
         assert inside_blocking_io is False
         inside_blocking_io = True
@@ -584,7 +584,7 @@ async def test_default_backend_download_to_file_offloads_sink_writes(
         finally:
             inside_blocking_io = False
 
-    monkeypatch.setattr(s3_base, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(s3_base, "run_long_blocking_io", fake_run_long_blocking_io, raising=False)
 
     target = _GuardedFile()
     size = await _DefaultStreamingBackend().download_to_file(
@@ -781,7 +781,7 @@ async def test_minio_upload_offloads_lazy_client_initialization(
 
     calls: list[str] = []
 
-    async def fake_run_blocking_io(func, /, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, /, *args, **kwargs):
         calls.append(getattr(func, "__name__", repr(func)))
         return func(*args, **kwargs)
 
@@ -793,7 +793,7 @@ async def test_minio_upload_offloads_lazy_client_initialization(
         def _get_client(self):
             return _FakeMinioClient()
 
-    monkeypatch.setattr(minio_backend_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(minio_backend_module, "run_long_blocking_io", fake_run_long_blocking_io)
 
     backend = _Backend(S3Config(provider=S3Provider.MINIO, bucket_name="bucket"))
     result = await backend.upload(io.BytesIO(b"abcd"), "documents/file.txt", "text/plain")
@@ -811,7 +811,7 @@ async def test_aliyun_upload_offloads_lazy_bucket_initialization(
 
     calls: list[str] = []
 
-    async def fake_run_blocking_io(func, /, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, /, *args, **kwargs):
         calls.append(getattr(func, "__name__", repr(func)))
         return func(*args, **kwargs)
 
@@ -824,7 +824,7 @@ async def test_aliyun_upload_offloads_lazy_bucket_initialization(
         def _get_bucket(self):
             return _FakeBucket()
 
-    monkeypatch.setattr(aliyun_backend_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(aliyun_backend_module, "run_long_blocking_io", fake_run_long_blocking_io)
 
     backend = _Backend(S3Config(provider=S3Provider.ALIYUN, bucket_name="bucket"))
     result = await backend.upload(io.BytesIO(b"abcd"), "documents/file.txt", "text/plain")

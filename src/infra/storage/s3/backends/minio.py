@@ -10,7 +10,7 @@ import io
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Optional
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.storage.s3.base import LIST_OBJECTS_LIMIT, BinaryReadFile, S3StorageBackend
 from src.infra.storage.s3.types import S3Config, S3Provider, UploadResult
@@ -78,9 +78,9 @@ class MinioS3Backend(S3StorageBackend):
             file.seek(current_pos)
             return file_size
 
-        file_size = await run_blocking_io(_measure_size)
+        file_size = await run_long_blocking_io(_measure_size)
 
-        client = await run_blocking_io(self._get_client)
+        client = await run_long_blocking_io(self._get_client)
 
         def _put_object():
             return client.put_object(
@@ -93,7 +93,7 @@ class MinioS3Backend(S3StorageBackend):
                 metadata=metadata or {},
             )
 
-        result = await run_blocking_io(_put_object)
+        result = await run_long_blocking_io(_put_object)
 
         return UploadResult(
             key=key,
@@ -114,9 +114,9 @@ class MinioS3Backend(S3StorageBackend):
         return await self.upload(io.BytesIO(data), key, content_type, metadata)
 
     async def download(self, key: str) -> bytes:
-        client = await run_blocking_io(self._get_client)
+        client = await run_long_blocking_io(self._get_client)
 
-        response = await run_blocking_io(
+        response = await run_long_blocking_io(
             lambda: client.get_object(
                 bucket_name=self.config.bucket_name,
                 object_name=key,
@@ -129,7 +129,7 @@ class MinioS3Backend(S3StorageBackend):
         )
 
     async def get_size(self, key: str) -> int:
-        client = await run_blocking_io(self._get_client)
+        client = await run_long_blocking_io(self._get_client)
 
         def _stat():
             stat = client.stat_object(
@@ -138,10 +138,10 @@ class MinioS3Backend(S3StorageBackend):
             )
             return stat.size
 
-        return await run_blocking_io(_stat)
+        return await run_long_blocking_io(_stat)
 
     async def download_range(self, key: str, start: int, end: int) -> bytes:
-        client = await run_blocking_io(self._get_client)
+        client = await run_long_blocking_io(self._get_client)
         length = end - start + 1
         if length > self.config.internal_max_upload_size:
             max_mb = self.config.internal_max_upload_size / (1024 * 1024)
@@ -150,7 +150,7 @@ class MinioS3Backend(S3StorageBackend):
                 f"internal download limit ({max_mb:.0f}MB)"
             )
 
-        response = await run_blocking_io(
+        response = await run_long_blocking_io(
             lambda: client.get_object(
                 bucket_name=self.config.bucket_name,
                 object_name=key,
@@ -169,7 +169,7 @@ class MinioS3Backend(S3StorageBackend):
         total_size = 0
         try:
             while True:
-                chunk = await run_blocking_io(lambda: response.read(chunk_size))
+                chunk = await run_long_blocking_io(lambda: response.read(chunk_size))
                 if not chunk:
                     break
                 total_size += len(chunk)
@@ -184,16 +184,16 @@ class MinioS3Backend(S3StorageBackend):
         finally:
             close = getattr(response, "close", None)
             if close is not None:
-                await run_blocking_io(close)
+                await run_long_blocking_io(close)
             release_conn = getattr(response, "release_conn", None)
             if release_conn is not None:
-                await run_blocking_io(release_conn)
+                await run_long_blocking_io(release_conn)
 
     async def download_stream(
         self, key: str, chunk_size: int = 1024 * 1024
     ) -> AsyncIterator[bytes]:
-        client = await run_blocking_io(self._get_client)
-        response = await run_blocking_io(
+        client = await run_long_blocking_io(self._get_client)
+        response = await run_long_blocking_io(
             lambda: client.get_object(
                 bucket_name=self.config.bucket_name,
                 object_name=key,
@@ -201,20 +201,20 @@ class MinioS3Backend(S3StorageBackend):
         )
         try:
             while True:
-                chunk = await run_blocking_io(lambda: response.read(chunk_size))
+                chunk = await run_long_blocking_io(lambda: response.read(chunk_size))
                 if not chunk:
                     break
                 yield chunk
         finally:
             close = getattr(response, "close", None)
             if close is not None:
-                await run_blocking_io(close)
+                await run_long_blocking_io(close)
             release_conn = getattr(response, "release_conn", None)
             if release_conn is not None:
-                await run_blocking_io(release_conn)
+                await run_long_blocking_io(release_conn)
 
     async def delete(self, key: str) -> bool:
-        client = await run_blocking_io(self._get_client)
+        client = await run_long_blocking_io(self._get_client)
 
         def _delete_object():
             client.remove_object(
@@ -223,10 +223,10 @@ class MinioS3Backend(S3StorageBackend):
             )
             return True
 
-        return await run_blocking_io(_delete_object)
+        return await run_long_blocking_io(_delete_object)
 
     async def exists(self, key: str) -> bool:
-        client = await run_blocking_io(self._get_client)
+        client = await run_long_blocking_io(self._get_client)
 
         def _stat_object():
             try:
@@ -238,7 +238,7 @@ class MinioS3Backend(S3StorageBackend):
             except Exception:
                 return False
 
-        return await run_blocking_io(_stat_object)
+        return await run_long_blocking_io(_stat_object)
 
     async def get_url(self, key: str) -> str:
         return self.config.get_public_url(key)
@@ -246,7 +246,7 @@ class MinioS3Backend(S3StorageBackend):
     async def get_presigned_url(
         self, key: str, expires: int = 3600, process: str | None = None
     ) -> str:
-        client = await run_blocking_io(self._get_client)
+        client = await run_long_blocking_io(self._get_client)
 
         def _presigned_url():
             from datetime import timedelta
@@ -257,10 +257,10 @@ class MinioS3Backend(S3StorageBackend):
                 expires=timedelta(seconds=expires),
             )
 
-        return await run_blocking_io(_presigned_url)
+        return await run_long_blocking_io(_presigned_url)
 
     async def list_objects(self, prefix: str = "") -> list[str]:
-        client = await run_blocking_io(self._get_client)
+        client = await run_long_blocking_io(self._get_client)
 
         def _list_objects():
             objects = []
@@ -274,7 +274,7 @@ class MinioS3Backend(S3StorageBackend):
                     break
             return objects
 
-        return await run_blocking_io(_list_objects)
+        return await run_long_blocking_io(_list_objects)
 
     async def close(self) -> None:
         self._client = None

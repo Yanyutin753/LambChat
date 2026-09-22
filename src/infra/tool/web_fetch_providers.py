@@ -26,7 +26,7 @@ from urllib.parse import urljoin, urlsplit
 
 import httpx
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.tool.web_search_providers import (
     COOLDOWN_RATE_LIMIT_SECONDS,
@@ -124,7 +124,7 @@ async def validate_public_http_url(
         if resolve is not None:
             addrs = [str(a) for a in resolve(host)]
         else:
-            addrs = await run_blocking_io(_resolve_sync, host)
+            addrs = await run_long_blocking_io(_resolve_sync, host)
     except (socket.gaierror, OSError) as exc:
         return False, f"web_fetch_ssrf_blocked: DNS resolution failed ({exc})"
     if not addrs:

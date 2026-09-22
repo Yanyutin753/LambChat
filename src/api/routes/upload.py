@@ -39,7 +39,7 @@ from src.api.routes.upload_signed_urls import (
     router as signed_url_router,
 )
 from src.api.routes.upload_thumb import get_file_thumb_response
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.async_utils.background_tasks import BestEffortTaskLimiter
 from src.infra.auth.rbac import check_permission
 from src.infra.image_utils import needs_model_safe_transcode, transcode_image_bytes
@@ -297,13 +297,13 @@ async def _spool_upload_file_limited(
             total_size += len(chunk)
             if total_size > max_size_bytes:
                 raise AppError(ErrorCode.FILE_TOO_LARGE, args={"max": max_size_mb})
-            await run_blocking_io(digest.update, chunk)
-            await run_blocking_io(spooled.write, chunk)
+            await run_long_blocking_io(digest.update, chunk)
+            await run_long_blocking_io(spooled.write, chunk)
 
         if total_size == 0:
             raise AppError(ErrorCode.EMPTY_FILE)
 
-        await run_blocking_io(spooled.seek, 0)
+        await run_long_blocking_io(spooled.seek, 0)
         return SpooledUpload(file=spooled, sha256_hex=digest.hexdigest(), size=total_size)
     except Exception:
         spooled.close()
@@ -326,20 +326,20 @@ async def _transcode_spooled_image(
     The replacement spool hashes the JPEG bytes so dedupe and the stored
     record describe what is actually uploaded.
     """
-    await run_blocking_io(spooled_upload.file.seek, 0)
-    content = await run_blocking_io(_read_all, spooled_upload.file)
+    await run_long_blocking_io(spooled_upload.file.seek, 0)
+    content = await run_long_blocking_io(_read_all, spooled_upload.file)
     try:
-        transcoded, _mime_type = await run_blocking_io(transcode_image_bytes, content)
+        transcoded, _mime_type = await run_long_blocking_io(transcode_image_bytes, content)
     except ValueError:
         raise AppError(ErrorCode.IMAGE_TRANSCODE_FAILED, args={"ext": source_ext})
     if len(transcoded) > max_size_bytes:
         raise AppError(ErrorCode.FILE_TOO_LARGE, args={"max": max_size_mb})
 
-    sha256_hex = await run_blocking_io(sha256_hexdigest, transcoded)
+    sha256_hex = await run_long_blocking_io(sha256_hexdigest, transcoded)
     replacement = SpooledTemporaryFile(max_size=UPLOAD_SPOOL_MEMORY_LIMIT, mode="w+b")
     try:
-        await run_blocking_io(replacement.write, transcoded)
-        await run_blocking_io(replacement.seek, 0)
+        await run_long_blocking_io(replacement.write, transcoded)
+        await run_long_blocking_io(replacement.seek, 0)
         new_upload = SpooledUpload(
             file=replacement,
             sha256_hex=sha256_hex,
@@ -723,9 +723,9 @@ async def upload_avatar(
     )
 
     try:
-        header = await run_blocking_io(spooled_upload.file.read, 12)
+        header = await run_long_blocking_io(spooled_upload.file.read, 12)
         content_type = _get_image_content_type(header)
-        await run_blocking_io(spooled_upload.file.seek, 0)
+        await run_long_blocking_io(spooled_upload.file.seek, 0)
     except Exception:
         spooled_upload.close()
         raise
@@ -935,7 +935,7 @@ async def get_file_proxy(
             return JSONResponse({"url": proxy_url})
         try:
             file_path = storage.get_file_path(key)
-            if not await run_blocking_io(_path_exists, file_path):
+            if not await run_long_blocking_io(_path_exists, file_path):
                 raise AppError(ErrorCode.FILE_NOT_FOUND)
 
             filename_for_disposition, content_type = await _get_file_response_metadata(key)

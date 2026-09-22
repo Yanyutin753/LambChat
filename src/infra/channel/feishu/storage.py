@@ -7,7 +7,7 @@ Stores user-level Feishu bot configurations with encrypted sensitive fields.
 from datetime import datetime
 from typing import Any, Optional
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.mcp.encryption import decrypt_value, encrypt_value
 from src.infra.storage.mongodb import get_mongo_client
@@ -188,7 +188,7 @@ class FeishuStorage:
         if not secret:
             return ""
         # Use the same encryption as MCP
-        return await run_blocking_io(encrypt_value, {"value": secret})
+        return await run_long_blocking_io(encrypt_value, {"value": secret})
 
     async def _decrypt_secret(self, encrypted: dict | str) -> str:
         """Decrypt a secret string"""
@@ -196,7 +196,7 @@ class FeishuStorage:
             return ""
         if isinstance(encrypted, str):
             return encrypted  # Legacy unencrypted
-        decrypted = await run_blocking_io(decrypt_value, encrypted)
+        decrypted = await run_long_blocking_io(decrypt_value, encrypted)
         if isinstance(decrypted, dict):
             return decrypted.get("value", "")
         return ""

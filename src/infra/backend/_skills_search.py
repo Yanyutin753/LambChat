@@ -8,7 +8,7 @@ import fnmatch
 
 from deepagents.backends.utils import compile_grep_include_glob
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.backend.protocol_compat import FileInfo, GrepMatch
 from src.infra.logging import get_logger
 
@@ -86,7 +86,7 @@ async def grep_single_skill(
     files_map = await storage.batch_get_skill_files([(skill_name, user_id)])
     files = files_map.get((skill_name, user_id), {})
 
-    return await run_blocking_io(
+    return await run_long_blocking_io(
         _grep_skill_files,
         pattern,
         skill_name,

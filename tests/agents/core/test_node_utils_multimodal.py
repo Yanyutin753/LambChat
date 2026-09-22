@@ -283,7 +283,7 @@ async def test_inline_image_attachments_offloads_base64_file_encoding(monkeypatc
     async def fake_get_or_init_storage():
         return storage
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(getattr(func, "__name__", repr(func)))
         return func(*args, **kwargs)
 
@@ -293,8 +293,8 @@ async def test_inline_image_attachments_offloads_base64_file_encoding(monkeypatc
     )
     monkeypatch.setattr(
         node_utils,
-        "run_blocking_io",
-        fake_run_blocking_io,
+        "run_long_blocking_io",
+        fake_run_long_blocking_io,
         raising=False,
     )
 
@@ -365,7 +365,7 @@ async def test_inline_image_attachments_skips_encoding_when_downloaded_file_exce
 
     encode_calls: list[str] = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         encode_calls.append(func.__name__)
         return "encoded-too-large"
 
@@ -373,7 +373,9 @@ async def test_inline_image_attachments_skips_encoding_when_downloaded_file_exce
         "src.infra.storage.s3.service.get_or_init_storage",
         fake_get_or_init_storage,
     )
-    monkeypatch.setattr(node_utils, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        node_utils, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
     monkeypatch.setattr(node_utils, "get_image_download_max_bytes", lambda: 8)
 
     attachment = image_attachment(url="")

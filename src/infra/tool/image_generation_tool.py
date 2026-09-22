@@ -18,7 +18,7 @@ from urllib.parse import urlparse, urlsplit
 import httpx
 from langchain_core.tools import BaseTool, InjectedToolArg
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.image_utils import compress_image_bytes_if_needed
 from src.infra.logging import get_logger
 from src.infra.storage.s3.service import get_or_init_storage
@@ -121,7 +121,7 @@ class _BackendImageNotFoundError(ValueError):
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
-    return await run_blocking_io(json.dumps, data, ensure_ascii=False)
+    return await run_long_blocking_io(json.dumps, data, ensure_ascii=False)
 
 
 def _strip_data_url_prefix(value: str) -> tuple[str, str]:
@@ -211,7 +211,7 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> bytes | N
 
     if hasattr(backend, "download_files"):
         try:
-            responses = await run_blocking_io(backend.download_files, [file_path])
+            responses = await run_long_blocking_io(backend.download_files, [file_path])
             if responses:
                 response = responses[0]
                 if response.content is not None:
@@ -259,7 +259,7 @@ async def _close_image_files(
     first_error: BaseException | None = None
     for image_file in image_files:
         try:
-            await run_blocking_io(image_file.close)
+            await run_long_blocking_io(image_file.close)
         except BaseException as exc:
             if first_error is None:
                 first_error = exc
@@ -275,18 +275,18 @@ async def _compress_image_source_if_needed(
     """Compress an edit source and transfer ownership of its file handle."""
     replacement: SpooledTemporaryFile | None = None
     try:
-        content = await run_blocking_io(_read_spooled_image, image_file)
-        compressed, compressed_type = await run_blocking_io(
+        content = await run_long_blocking_io(_read_spooled_image, image_file)
+        compressed, compressed_type = await run_long_blocking_io(
             compress_image_bytes_if_needed,
             content,
             content_type,
         )
         if compressed == content and compressed_type == content_type:
-            await run_blocking_io(image_file.seek, 0)
+            await run_long_blocking_io(image_file.seek, 0)
             return image_file, content_type, filename
 
-        replacement = await run_blocking_io(_spool_backend_image, compressed)
-        await run_blocking_io(image_file.close)
+        replacement = await run_long_blocking_io(_spool_backend_image, compressed)
+        await run_long_blocking_io(image_file.close)
         return replacement, compressed_type, _jpeg_filename(filename)
     except BaseException:
         files_to_close = [image_file]
@@ -311,7 +311,7 @@ async def _download_backend_image_source(
     if content is None:
         raise _BackendImageNotFoundError(f"Could not download backend image: {resolved_path}")
 
-    image_file = await run_blocking_io(_spool_backend_image, content)
+    image_file = await run_long_blocking_io(_spool_backend_image, content)
     filename = os.path.basename(file_path.rstrip("/")) or f"image-{index + 1}.png"
     return image_file, _guess_mime(filename), filename
 
@@ -438,7 +438,7 @@ async def _download_image_source(
 
     if resolved.startswith("data:"):
         mime, data = _strip_data_url_prefix(resolved)
-        decoded = await run_blocking_io(_decode_base64_to_spooled_file, data)
+        decoded = await run_long_blocking_io(_decode_base64_to_spooled_file, data)
         ext = (mimetypes.guess_extension(mime) or ".png").lstrip(".")
         return decoded, mime or "image/png", f"inline-image-{index + 1}.{ext}"
 
@@ -457,9 +457,9 @@ async def _download_image_source(
                         f"Image download too large: {total_size} bytes "
                         f"(max {_IMAGE_DOWNLOAD_MAX_BYTES})"
                     )
-                await run_blocking_io(spooled.write, chunk)
+                await run_long_blocking_io(spooled.write, chunk)
             content_type = response.headers.get("content-type", "") or _guess_mime(resolved)
-        await run_blocking_io(spooled.seek, 0)
+        await run_long_blocking_io(spooled.seek, 0)
         filename = _filename_from_url(resolved, index)
         return spooled, content_type, filename
     except Exception:
@@ -521,7 +521,7 @@ async def _upload_image_file(
     content_type: str,
 ) -> dict[str, Any]:
     storage = await get_or_init_storage()
-    size = await run_blocking_io(_file_size, file_obj)
+    size = await run_long_blocking_io(_file_size, file_obj)
     # 防御性冗余校验：与下载层一致的 20MB 上限。真正的流式卡口在
     # _download_image_source / _decode_base64_to_spooled_file，这里只是
     # 让已算出的 size 不再只是摆设，并兜住任何绕过下载层的异常输入。
@@ -529,7 +529,7 @@ async def _upload_image_file(
         raise ValueError(
             f"Generated image too large: {size} bytes (max {_IMAGE_DOWNLOAD_MAX_BYTES})"
         )
-    await run_blocking_io(file_obj.seek, 0)
+    await run_long_blocking_io(file_obj.seek, 0)
     result = await storage.upload_file(
         file_obj,
         folder=f"generated-images/{user_id}",
@@ -578,7 +578,7 @@ async def _convert_result_item(
     if not isinstance(payload, dict):
         raise ValueError("Image API response item is not an object")
 
-    image_file, mime = await run_blocking_io(_extract_image_payload, payload)
+    image_file, mime = await run_long_blocking_io(_extract_image_payload, payload)
     if image_file is None and isinstance(payload.get("url"), str):
         image_file, source_mime, _ = await _download_image_source(payload["url"], runtime)
         mime = source_mime
@@ -594,7 +594,7 @@ async def _convert_result_item(
             content_type=mime,
         )
     finally:
-        await run_blocking_io(image_file.close)
+        await run_long_blocking_io(image_file.close)
     base_url = get_base_url_from_runtime(runtime)
     proxy_url = (
         f"{base_url}/api/upload/file/{uploaded['key']}"

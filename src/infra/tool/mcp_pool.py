@@ -13,7 +13,7 @@ from typing import Any, Optional, Set
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 
@@ -132,7 +132,7 @@ async def get_pooled_connection(
     """
     # 定期清理过期连接
     await _maybe_cleanup()
-    current_hash = await run_blocking_io(_compute_server_hash, server_config)
+    current_hash = await run_long_blocking_io(_compute_server_hash, server_config)
 
     async with _pool_lock:
         # 检查连接池
@@ -169,7 +169,7 @@ async def add_pooled_connection(
     """
     to_close: list[MultiServerMCPClient] = []
     reuse_existing = False
-    config_hash = await run_blocking_io(_compute_server_hash, server_config)
+    config_hash = await run_long_blocking_io(_compute_server_hash, server_config)
     async with _pool_lock:
         # 如果已存在且未过期，不覆盖
         if server_name in _connection_pool:

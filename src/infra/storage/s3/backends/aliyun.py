@@ -10,7 +10,7 @@ from typing import Optional
 
 import oss2
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.storage.s3.base import LIST_OBJECTS_LIMIT, BinaryReadFile, S3StorageBackend
 from src.infra.storage.s3.types import S3Config, UploadResult
@@ -63,9 +63,9 @@ class AliyunOssBackend(S3StorageBackend):
             file.seek(current_pos)
             return file_size
 
-        file_size = await run_blocking_io(_measure_size)
+        file_size = await run_long_blocking_io(_measure_size)
 
-        bucket = await run_blocking_io(self._get_bucket)
+        bucket = await run_long_blocking_io(self._get_bucket)
 
         def _put_object():
             headers = {}
@@ -75,7 +75,7 @@ class AliyunOssBackend(S3StorageBackend):
                 headers.update(metadata)
             return bucket.put_object(key, file, headers=headers)
 
-        result = await run_blocking_io(_put_object)
+        result = await run_long_blocking_io(_put_object)
 
         return UploadResult(
             key=key,
@@ -96,9 +96,9 @@ class AliyunOssBackend(S3StorageBackend):
         return await self.upload(io.BytesIO(data), key, content_type, metadata)
 
     async def download(self, key: str) -> bytes:
-        bucket = await run_blocking_io(self._get_bucket)
+        bucket = await run_long_blocking_io(self._get_bucket)
 
-        oss_stream = await run_blocking_io(lambda: bucket.get_object(key))
+        oss_stream = await run_long_blocking_io(lambda: bucket.get_object(key))
         return await self._read_stream_chunks(
             oss_stream,
             DOWNLOAD_COMPAT_CHUNK_SIZE,
@@ -106,16 +106,16 @@ class AliyunOssBackend(S3StorageBackend):
         )
 
     async def get_size(self, key: str) -> int:
-        bucket = await run_blocking_io(self._get_bucket)
+        bucket = await run_long_blocking_io(self._get_bucket)
 
         def _head():
             head = bucket.head_object(key)
             return head.content_length
 
-        return await run_blocking_io(_head)
+        return await run_long_blocking_io(_head)
 
     async def download_range(self, key: str, start: int, end: int) -> bytes:
-        bucket = await run_blocking_io(self._get_bucket)
+        bucket = await run_long_blocking_io(self._get_bucket)
         length = end - start + 1
         if length > self.config.internal_max_upload_size:
             max_mb = self.config.internal_max_upload_size / (1024 * 1024)
@@ -124,7 +124,9 @@ class AliyunOssBackend(S3StorageBackend):
                 f"internal download limit ({max_mb:.0f}MB)"
             )
 
-        oss_stream = await run_blocking_io(lambda: bucket.get_object(key, byte_range=(start, end)))
+        oss_stream = await run_long_blocking_io(
+            lambda: bucket.get_object(key, byte_range=(start, end))
+        )
         return await self._read_stream_chunks(
             oss_stream,
             min(length, DOWNLOAD_COMPAT_CHUNK_SIZE),
@@ -136,7 +138,7 @@ class AliyunOssBackend(S3StorageBackend):
         total_size = 0
         try:
             while True:
-                chunk = await run_blocking_io(lambda: oss_stream.read(chunk_size))
+                chunk = await run_long_blocking_io(lambda: oss_stream.read(chunk_size))
                 if not chunk:
                     break
                 total_size += len(chunk)
@@ -149,54 +151,56 @@ class AliyunOssBackend(S3StorageBackend):
                 chunks.append(chunk)
             return b"".join(chunks)
         finally:
-            await run_blocking_io(oss_stream.close)
+            await run_long_blocking_io(oss_stream.close)
 
     async def download_stream(
         self, key: str, chunk_size: int = 1024 * 1024
     ) -> AsyncIterator[bytes]:
         """Stream download from OSS using chunked reads."""
-        bucket = await run_blocking_io(self._get_bucket)
-        oss_stream = await run_blocking_io(lambda: bucket.get_object(key))
+        bucket = await run_long_blocking_io(self._get_bucket)
+        oss_stream = await run_long_blocking_io(lambda: bucket.get_object(key))
         try:
             while True:
-                chunk = await run_blocking_io(lambda: oss_stream.read(chunk_size))
+                chunk = await run_long_blocking_io(lambda: oss_stream.read(chunk_size))
                 if not chunk:
                     break
                 yield chunk
         finally:
-            await run_blocking_io(oss_stream.close)
+            await run_long_blocking_io(oss_stream.close)
 
     async def download_range_stream(
         self, key: str, start: int, end: int, chunk_size: int = 256 * 1024
     ) -> AsyncIterator[bytes]:
         """Stream a byte range from OSS using chunked reads."""
-        bucket = await run_blocking_io(self._get_bucket)
-        oss_stream = await run_blocking_io(lambda: bucket.get_object(key, byte_range=(start, end)))
+        bucket = await run_long_blocking_io(self._get_bucket)
+        oss_stream = await run_long_blocking_io(
+            lambda: bucket.get_object(key, byte_range=(start, end))
+        )
         try:
             while True:
-                chunk = await run_blocking_io(lambda: oss_stream.read(chunk_size))
+                chunk = await run_long_blocking_io(lambda: oss_stream.read(chunk_size))
                 if not chunk:
                     break
                 yield chunk
         finally:
-            await run_blocking_io(oss_stream.close)
+            await run_long_blocking_io(oss_stream.close)
 
     async def delete(self, key: str) -> bool:
-        bucket = await run_blocking_io(self._get_bucket)
+        bucket = await run_long_blocking_io(self._get_bucket)
 
         def _delete_object():
             bucket.delete_object(key)
             return True
 
-        return await run_blocking_io(_delete_object)
+        return await run_long_blocking_io(_delete_object)
 
     async def exists(self, key: str) -> bool:
-        bucket = await run_blocking_io(self._get_bucket)
+        bucket = await run_long_blocking_io(self._get_bucket)
 
         def _exists():
             return bucket.object_exists(key)
 
-        return await run_blocking_io(_exists)
+        return await run_long_blocking_io(_exists)
 
     async def get_url(self, key: str) -> str:
         return self.config.get_public_url(key)
@@ -204,7 +208,7 @@ class AliyunOssBackend(S3StorageBackend):
     async def get_presigned_url(
         self, key: str, expires: int = 3600, process: str | None = None
     ) -> str:
-        bucket = await run_blocking_io(self._get_bucket)
+        bucket = await run_long_blocking_io(self._get_bucket)
 
         def _get_url():
             params = {"response-content-disposition": "inline"}
@@ -213,7 +217,7 @@ class AliyunOssBackend(S3StorageBackend):
                 params["x-oss-process"] = process
             return bucket.sign_url("GET", key, expires, params=params)
 
-        return await run_blocking_io(_get_url)
+        return await run_long_blocking_io(_get_url)
 
     async def sign_url_at(self, key: str, expires_at: int, process: str | None = None) -> str:
         """V1-signed GET URL with an ABSOLUTE expiry timestamp.
@@ -258,10 +262,10 @@ class AliyunOssBackend(S3StorageBackend):
                 f"&Signature={quote(signature, safe='')}"
             )
 
-        return await run_blocking_io(_sign)
+        return await run_long_blocking_io(_sign)
 
     async def list_objects(self, prefix: str = "") -> list[str]:
-        bucket = await run_blocking_io(self._get_bucket)
+        bucket = await run_long_blocking_io(self._get_bucket)
 
         def _list_objects():
             objects = []
@@ -271,7 +275,7 @@ class AliyunOssBackend(S3StorageBackend):
                     break
             return objects
 
-        return await run_blocking_io(_list_objects)
+        return await run_long_blocking_io(_list_objects)
 
     async def close(self) -> None:
         self._bucket = None

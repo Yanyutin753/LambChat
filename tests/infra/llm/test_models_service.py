@@ -150,12 +150,14 @@ async def test_get_available_models_offloads_redis_cache_json_parse(
     cached = '[{"id": "model-a", "value": "openai/gpt-a"}]'
     redis = _RecordingRedis(cached=cached)
 
-    async def _fake_run_blocking_io(func, /, *args: Any, **kwargs: Any):
+    async def _fake_run_long_blocking_io(func, /, *args: Any, **kwargs: Any):
         calls.append(func)
         return func(*args, **kwargs)
 
     monkeypatch.setattr(redis_storage, "get_redis_client", lambda: redis)
-    monkeypatch.setattr(models_service, "run_blocking_io", _fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        models_service, "run_long_blocking_io", _fake_run_long_blocking_io, raising=False
+    )
 
     result = await models_service.get_available_models()
 
@@ -170,12 +172,14 @@ async def test_write_to_caches_offloads_redis_cache_json_serialization(
     calls: list[Any] = []
     redis = _RecordingRedis()
 
-    async def _fake_run_blocking_io(func, /, *args: Any, **kwargs: Any):
+    async def _fake_run_long_blocking_io(func, /, *args: Any, **kwargs: Any):
         calls.append(func)
         return func(*args, **kwargs)
 
     monkeypatch.setattr(redis_storage, "get_redis_client", lambda: redis)
-    monkeypatch.setattr(models_service, "run_blocking_io", _fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        models_service, "run_long_blocking_io", _fake_run_long_blocking_io, raising=False
+    )
 
     await models_service._write_to_caches(
         [{"id": "model-a", "value": "openai/gpt-a", "api_key": "secret"}]

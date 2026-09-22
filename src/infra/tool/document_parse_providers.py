@@ -22,7 +22,7 @@ from typing import Any
 
 import httpx
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 
@@ -626,7 +626,7 @@ async def markitdown_parse(
         return str(getattr(result, "markdown", None) or result.text_content or "")
 
     try:
-        markdown = await run_blocking_io(_convert)
+        markdown = await run_long_blocking_io(_convert)
     except ImportError as exc:
         raise DocumentParseError(f"markitdown not installed: {exc}") from exc
     except Exception as exc:

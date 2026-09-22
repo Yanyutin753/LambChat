@@ -9,7 +9,7 @@ from typing import Any, Optional
 import redis.asyncio as redis
 from redis.asyncio import Redis
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.storage.base import StorageBase
 from src.kernel.config import settings
@@ -251,7 +251,7 @@ class RedisStorage(StorageBase):
         entries = await self.client.xrange(
             stream_key, min=actual_start, max=actual_end, count=count
         )
-        return await run_blocking_io(_parse_stream_entries_sync, entries)
+        return await run_long_blocking_io(_parse_stream_entries_sync, entries)
 
     async def xread(
         self,
@@ -294,7 +294,7 @@ class RedisStorage(StorageBase):
                 return []
             raise
 
-        return await run_blocking_io(_parse_stream_read_result_sync, result or [])
+        return await run_long_blocking_io(_parse_stream_read_result_sync, result or [])
 
     async def xdel(self, stream_key: str, entry_id: str) -> int:
         """Delete entry from stream"""

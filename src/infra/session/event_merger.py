@@ -27,7 +27,7 @@ Event Merger - 事件合并器
 import asyncio
 from typing import Any, Dict, List, Optional
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.storage.redis import create_redis_client
 from src.infra.utils.datetime import utc_now
@@ -533,7 +533,7 @@ class EventMerger:
                     if not events:
                         results.append((trace_id, [], [], trace))
                         continue
-                    merged_events = await run_blocking_io(self._merge_events, events)
+                    merged_events = await run_long_blocking_io(self._merge_events, events)
                     results.append((trace_id, events, merged_events, trace))
                 except Exception as exc:
                     results.append(exc)
