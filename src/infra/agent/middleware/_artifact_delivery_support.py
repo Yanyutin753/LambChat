@@ -13,7 +13,7 @@ from urllib.parse import unquote, urlparse
 
 from langchain_core.messages import ToolMessage
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 
 RevealTool = Callable[..., Awaitable[str]]
 
@@ -129,7 +129,7 @@ def _extract_upload_proxy_key(url: str) -> str | None:
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
-    return await run_blocking_io(json.dumps, data, ensure_ascii=False)
+    return await run_long_blocking_io(json.dumps, data, ensure_ascii=False)
 
 
 def _normalize_path(path: str) -> str:

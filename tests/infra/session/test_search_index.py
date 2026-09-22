@@ -626,13 +626,15 @@ async def test_rebuild_search_index_offloads_backfilled_index_build(
 
     offloaded: list[str] = []
 
-    async def fake_run_blocking_io(func, /, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, /, *args, **kwargs):
         offloaded.append(func.__name__)
         return func(*args, **kwargs)
 
     original_get_trace_storage = trace_storage_module.get_trace_storage
     trace_storage_module.get_trace_storage = lambda: _TraceStorage()
-    monkeypatch.setattr(storage_module, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        storage_module, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
     try:
         rebuilt = await storage.rebuild_search_index("session-1")
     finally:

@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from src.api.deps import require_permissions
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.skill.parser import parse_skill_md
 from src.infra.skill.storage import SkillStorage
@@ -334,10 +334,10 @@ async def fetch_github_file(
                 total_bytes += len(chunk)
                 if max_bytes is not None and total_bytes > max_bytes:
                     raise ValueError(_github_import_too_large_message())
-                text = await run_blocking_io(decoder.decode, chunk, False)
+                text = await run_long_blocking_io(decoder.decode, chunk, False)
                 text_buffer.write(text)
                 del chunk
-            text_buffer.write(await run_blocking_io(decoder.decode, b"", True))
+            text_buffer.write(await run_long_blocking_io(decoder.decode, b"", True))
             return text_buffer.getvalue()
 
 

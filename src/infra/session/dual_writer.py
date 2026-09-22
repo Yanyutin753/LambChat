@@ -20,7 +20,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from pymongo.errors import BulkWriteError
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.session.dual_writer_helpers import (
     MongoBufferItem,
@@ -485,7 +485,7 @@ class DualEventWriter:
                 async with self._mongo_lock:
                     self._mongo_buffer = failed_chunk_items + self._mongo_buffer
 
-        operations = await run_blocking_io(
+        operations = await run_long_blocking_io(
             _build_mongo_bulk_operations,
             batch,
             now=now,

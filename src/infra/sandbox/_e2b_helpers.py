@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Optional, cast
 from deepagents.backends import CompositeBackend
 
 from src.infra.async_utils import run_blocking_io as _run_blocking_io
+from src.infra.async_utils import run_long_blocking_io as _run_long_blocking_io
 from src.infra.backend.sandbox_heal import SANDBOX_REPLACED_NOTICE
 from src.infra.backend.skills_store import create_skills_backend
 from src.infra.envvar.sync import sync_sandbox_env_vars
@@ -28,6 +29,13 @@ def run_blocking_io(*args, **kwargs):
     from src.infra.sandbox import session_manager
 
     return getattr(session_manager, "run_blocking_io", _run_blocking_io)(*args, **kwargs)
+
+
+def run_long_blocking_io(*args, **kwargs):
+    """慢道间接层（沙箱 create/connect/stop 等秒级调用），测试可拦截。"""
+    from src.infra.sandbox import session_manager
+
+    return getattr(session_manager, "run_long_blocking_io", _run_long_blocking_io)(*args, **kwargs)
 
 
 class _E2BMixin:
@@ -107,7 +115,7 @@ class _E2BMixin:
             replaced_previous = bool(metadata_sandbox_id)
             if metadata_sandbox_id:
                 # Sandbox.connect() 会自动恢复暂停的沙箱
-                provider_obj = await run_blocking_io(
+                provider_obj = await run_long_blocking_io(
                     self._e2b_adapter.get_sandbox, metadata_sandbox_id
                 )
                 if provider_obj:
@@ -120,7 +128,7 @@ class _E2BMixin:
                         backend = self._build_composite_backend(provider_obj, user_id)
                         self._cache[user_id] = (metadata_sandbox_id, backend, provider_obj)
                         self._evict_if_needed()
-                        info = await run_blocking_io(
+                        info = await run_long_blocking_io(
                             self._e2b_adapter.get_sandbox_info,
                             provider_obj,
                         )
@@ -170,13 +178,13 @@ class _E2BMixin:
             )
             return composite, work_dir, adapter.get_sandbox_id(sandbox), sandbox
 
-        backend, work_dir, sandbox_id, provider_obj = await run_blocking_io(_sync_create)
+        backend, work_dir, sandbox_id, provider_obj = await run_long_blocking_io(_sync_create)
         try:
             await self._save_binding(user_id, sandbox_id, "running", is_new=True)
         except Exception as e:
             logger.error(f"[E2B] Created {sandbox_id} but failed to save binding: {e}")
             try:
-                await run_blocking_io(self._e2b_adapter.stop_sandbox, provider_obj)
+                await run_long_blocking_io(self._e2b_adapter.stop_sandbox, provider_obj)
             except Exception:
                 pass
             raise
@@ -223,12 +231,14 @@ class _E2BMixin:
                 binding = await self._get_binding(user_id)
                 sandbox_id = binding.get("sandbox_id") if binding else None
                 if sandbox_id:
-                    provider_obj = await run_blocking_io(self._e2b_adapter.get_sandbox, sandbox_id)
+                    provider_obj = await run_long_blocking_io(
+                        self._e2b_adapter.get_sandbox, sandbox_id
+                    )
             if not sandbox_id or provider_obj is None:
                 return False
             try:
                 # stop_sandbox 优先 pause（保留数据），失败则 kill
-                await run_blocking_io(self._e2b_adapter.stop_sandbox, provider_obj)
+                await run_long_blocking_io(self._e2b_adapter.stop_sandbox, provider_obj)
                 self._cache.pop(user_id, None)
                 await self._save_binding(user_id, sandbox_id, "paused")
                 logger.info(f"[E2B] Paused sandbox {sandbox_id} for user {user_id}")

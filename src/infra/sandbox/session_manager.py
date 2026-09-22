@@ -26,7 +26,10 @@ if TYPE_CHECKING:
 from deepagents.backends import CompositeBackend
 from deepagents.backends.protocol import SandboxBackendProtocol
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import (
+    run_blocking_io,
+    run_long_blocking_io,  # noqa: F401  # helpers 慢道 seam 目标
+)
 from src.infra.backend.daytona import DaytonaBackend
 from src.infra.backend.lazy_sandbox import provider_shared_work_dir
 from src.infra.backend.skills_store import create_skills_backend

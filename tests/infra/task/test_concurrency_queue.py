@@ -616,11 +616,13 @@ async def test_queue_task_offloads_queue_entry_json_serialization(
     limiter = UserConcurrencyLimiter()
     limiter._redis = redis
 
-    async def _fake_run_blocking_io(func, /, *args: Any, **kwargs: Any):
+    async def _fake_run_long_blocking_io(func, /, *args: Any, **kwargs: Any):
         calls.append(func)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(concurrency, "run_blocking_io", _fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        concurrency, "run_long_blocking_io", _fake_run_long_blocking_io, raising=False
+    )
 
     response = await limiter._queue_task_locked(
         user_id="user-1",
@@ -653,7 +655,7 @@ async def test_dequeue_offloads_queue_entry_json_parse(
     )
     redis = _DispatchRedis(entry)
 
-    async def _fake_run_blocking_io(func, /, *args: Any, **kwargs: Any):
+    async def _fake_run_long_blocking_io(func, /, *args: Any, **kwargs: Any):
         calls.append(func)
         return func(*args, **kwargs)
 
@@ -676,7 +678,9 @@ async def test_dequeue_offloads_queue_entry_json_parse(
             del user_id, session_id, queue_data
             self.dispatched.append(run_id)
 
-    monkeypatch.setattr(concurrency, "run_blocking_io", _fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        concurrency, "run_long_blocking_io", _fake_run_long_blocking_io, raising=False
+    )
     limiter = _Limiter()
     limiter._redis = redis
 

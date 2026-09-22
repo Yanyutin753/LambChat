@@ -2,7 +2,7 @@ import json
 import re
 from typing import TYPE_CHECKING, Any, Optional
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.skill.binary import (
     BINARY_REF_MARKER,
@@ -39,7 +39,7 @@ logger = get_logger(__name__)
 async def _parse_skill_md_offload(content: str) -> tuple[Optional[str], str, list[str]]:
     from src.infra.skill.parser import parse_skill_md
 
-    return await run_blocking_io(parse_skill_md, content)
+    return await run_long_blocking_io(parse_skill_md, content)
 
 
 class SkillStorage:
@@ -463,7 +463,7 @@ class SkillStorage:
                 {"skill_name": 1, "content": 1},
             ):
                 try:
-                    data = await run_blocking_io(json.loads, doc["content"])
+                    data = await run_long_blocking_io(json.loads, doc["content"])
                     meta_map[doc["skill_name"]] = SkillMeta(**data)
                 except Exception:
                     pass
@@ -730,7 +730,7 @@ class SkillStorage:
         if not doc:
             return None
         try:
-            data = await run_blocking_io(json.loads, doc["content"])
+            data = await run_long_blocking_io(json.loads, doc["content"])
             return SkillMeta(**data)
         except Exception:
             return None
@@ -751,7 +751,7 @@ class SkillStorage:
             created_at=now,
             updated_at=now,
         )
-        content = await run_blocking_io(json.dumps, meta.model_dump())
+        content = await run_long_blocking_io(json.dumps, meta.model_dump())
         await collection.update_one(
             {"skill_name": skill_name, "user_id": user_id, "file_path": "__meta__"},
             {
@@ -818,7 +818,7 @@ class SkillStorage:
             redis_client = get_redis_client()
             cached = await redis_client.get(cache_key)
             if cached:
-                return await run_blocking_io(json.loads, cached)
+                return await run_long_blocking_io(json.loads, cached)
         except Exception as e:
             logger.warning(f"[Skills Cache] Redis get failed: {e}")
 
@@ -866,7 +866,7 @@ class SkillStorage:
 
             redis_client = get_redis_client()
 
-            serialized = await run_blocking_io(json.dumps, result)
+            serialized = await run_long_blocking_io(json.dumps, result)
             await redis_client.set(cache_key, serialized, ex=SKILLS_CACHE_TTL)
         except Exception as e:
             logger.warning(f"[Skills Cache] Redis set failed: {e}")

@@ -15,7 +15,7 @@ from langchain_core.messages import ToolMessage
 from langgraph.types import Command
 
 from src.infra.agent.middleware.main_agent_context import write_subagent_handoff_file
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.memory.control_frames import escape_control_frame_tags
 
 logger = logging.getLogger(__name__)
@@ -72,11 +72,11 @@ class SubagentResultHandoffMiddleware(AgentMiddleware):
                     parts.append(str(block.get("text", "")))
                 else:
                     parts.append(
-                        await run_blocking_io(json.dumps, block, ensure_ascii=False, indent=2)
+                        await run_long_blocking_io(json.dumps, block, ensure_ascii=False, indent=2)
                     )
             return "\n".join(part for part in parts if part)
         if isinstance(content, (dict, tuple)):
-            return await run_blocking_io(json.dumps, content, ensure_ascii=False, indent=2)
+            return await run_long_blocking_io(json.dumps, content, ensure_ascii=False, indent=2)
         if content is None:
             return ""
         return str(content)

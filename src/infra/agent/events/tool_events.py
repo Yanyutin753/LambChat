@@ -17,7 +17,7 @@ from src.infra.agent.events.tool_outputs import (
     normalize_content,
 )
 from src.infra.agent.events.types import StreamEvent
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 
 _TOOL_RESULT_DISPLAY_MAX_CHARS = 100_000
 _TOOL_RESULT_JSON_PARSE_MAX_CHARS = _TOOL_RESULT_DISPLAY_MAX_CHARS
@@ -191,8 +191,8 @@ class ToolEventMixin:
         out = data.get("output", "")
         tool_call_id = self._get_tool_call_id(event)
 
-        raw = await run_blocking_io(extract_tool_output, out)
-        is_error, error_message = await run_blocking_io(detect_tool_error, out, raw)
+        raw = await run_long_blocking_io(extract_tool_output, out)
+        is_error, error_message = await run_long_blocking_io(detect_tool_error, out, raw)
 
         result: Any = raw
         if (
@@ -201,7 +201,7 @@ class ToolEventMixin:
             and raw[0] in ("{", "[")
             and len(raw) <= _TOOL_RESULT_JSON_PARSE_MAX_CHARS
         ):
-            parsed_result = await run_blocking_io(_parse_tool_result_json, raw)
+            parsed_result = await run_long_blocking_io(_parse_tool_result_json, raw)
             if parsed_result is not None:
                 result = parsed_result
 

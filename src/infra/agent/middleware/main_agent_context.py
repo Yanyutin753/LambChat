@@ -12,7 +12,7 @@ from typing import Any
 
 from langchain.agents.middleware.types import AgentMiddleware
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.llm.retry import ainvoke_with_retry
 from src.infra.memory.control_frames import escape_control_frame_tags
 
@@ -183,7 +183,7 @@ def _message_role(message: Any) -> str:
 async def _json_dumps_for_context(value: Any) -> str:
     import json
 
-    return await run_blocking_io(json.dumps, value, ensure_ascii=False, indent=2)
+    return await run_long_blocking_io(json.dumps, value, ensure_ascii=False, indent=2)
 
 
 async def _message_content_to_text(content: Any) -> str:

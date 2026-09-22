@@ -5,7 +5,10 @@ import uuid
 from datetime import timedelta
 from typing import Any, Callable, Optional, Sequence
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import (
+    run_blocking_io,  # noqa: F401  # 测试 seam 可拦截
+    run_long_blocking_io,
+)
 from src.infra.logging import get_logger
 from src.infra.memory.client.base import MemoryBackend
 from src.infra.memory.client.native.classification import (
@@ -103,7 +106,7 @@ class NativeMemoryBackend(MemoryBackend):
 
     async def initialize(self) -> None:
         """Ensure indexes exist; set up optional embedding function."""
-        await run_blocking_io(self._ensure_collection)
+        await run_long_blocking_io(self._ensure_collection)
         await self._create_indexes()
         self._setup_embedding_fn()
         await self._maybe_create_vector_index()
@@ -517,7 +520,11 @@ class NativeMemoryBackend(MemoryBackend):
         if not self._embedding_fn:
             return None
         try:
-            result = await run_blocking_io(self._embedding_fn, text)
+            # embedding fn 是 httpx.AsyncClient 协程：直接 await，零线程；
+            # 同步 fn 兜底才走慢道
+            if inspect.iscoroutinefunction(self._embedding_fn):
+                return await self._embedding_fn(text)
+            result = await run_long_blocking_io(self._embedding_fn, text)
             if inspect.isawaitable(result):
                 return await result
             return result
@@ -536,7 +543,7 @@ class NativeMemoryBackend(MemoryBackend):
 
     async def _create_indexes(self) -> None:
         sync_col = get_mongo_sync_client()[settings.MONGODB_DB][COLLECTION_NAME]
-        await run_blocking_io(self._create_indexes_sync, sync_col)
+        await run_long_blocking_io(self._create_indexes_sync, sync_col)
 
     @staticmethod
     def _create_indexes_sync(col: Any) -> None:
@@ -592,7 +599,7 @@ class NativeMemoryBackend(MemoryBackend):
             return
         try:
             sync_col = get_mongo_sync_client()[settings.MONGODB_DB][COLLECTION_NAME]
-            await run_blocking_io(self._create_vector_index_sync, sync_col)
+            await run_long_blocking_io(self._create_vector_index_sync, sync_col)
         except Exception as e:
             logger.warning(f"[NativeMemory] Vector index setup skipped: {e}")
 

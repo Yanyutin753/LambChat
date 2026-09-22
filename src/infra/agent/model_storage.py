@@ -10,7 +10,7 @@ from typing import Any, Optional
 
 from pymongo import UpdateOne
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.mcp.encryption import DecryptionError, decrypt_value, encrypt_value
 from src.infra.utils.datetime import utc_now, utc_now_iso
@@ -79,7 +79,7 @@ class ModelStorage:
         """加密 API Key（包装为 dict 后加密）"""
         if key is None:
             return None
-        return await run_blocking_io(encrypt_value, {"v": key})
+        return await run_long_blocking_io(encrypt_value, {"v": key})
 
     @staticmethod
     async def _decrypt_api_key(encrypted: Any) -> str | None:
@@ -87,7 +87,7 @@ class ModelStorage:
         if encrypted is None:
             return None
         try:
-            result = await run_blocking_io(decrypt_value, encrypted)
+            result = await run_long_blocking_io(decrypt_value, encrypted)
         except DecryptionError as exc:
             # A key encrypted with a previous/unknown application secret must not
             # make the entire model list endpoint fail.  Keep the model metadata

@@ -30,7 +30,7 @@ from src.infra.agent.middleware._helpers import (
     _normalize_prompt_text,
     _system_message_to_blocks,
 )
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_blocking_io, run_long_blocking_io
 from src.infra.tool.deferred_manager import DEFERRED_TOOL_SEARCH_GUIDE
 from src.kernel.config import settings
 
@@ -181,7 +181,8 @@ async def _get_backend_file_size(backend: Any, file_path: str) -> int | None:
 
 
 async def _json_dumps_for_tool_message(value: Any) -> str:
-    return await run_blocking_io(
+    # 工具结果可能含大段文件内容：慢道，不占快道
+    return await run_long_blocking_io(
         json.dumps,
         value,
         ensure_ascii=False,
@@ -375,9 +376,18 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
                 except Exception as e:
                     logger.debug("从沙箱后端下载文件失败 (adownload_files) %s: %s", file_path, e)
 
-            if file_bytes is None and hasattr(backend, "download_files"):
+            if file_bytes is None and hasattr(backend, "adownload_files"):
                 try:
-                    responses = await run_blocking_io(backend.download_files, [file_path])
+                    responses = await backend.adownload_files([file_path])
+                    if responses and responses[0].content:
+                        file_bytes = responses[0].content
+                    del responses
+                except Exception as e:
+                    logger.debug("从沙箱后端下载文件失败 (adownload_files) %s: %s", file_path, e)
+            elif file_bytes is None and hasattr(backend, "download_files"):
+                try:
+                    # 整文件下载是传输级时长：慢道，绝不占快道
+                    responses = await run_long_blocking_io(backend.download_files, [file_path])
                     if responses and responses[0].content:
                         file_bytes = responses[0].content
                     del responses
@@ -405,7 +415,7 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
                 max_size=_BINARY_UPLOAD_SPOOL_MEMORY_LIMIT,
                 mode="w+b",
             ) as spooled:
-                file_size = await run_blocking_io(_write_bytes_to_file, file_bytes, spooled)
+                file_size = await run_long_blocking_io(_write_bytes_to_file, file_bytes, spooled)
                 del file_bytes
                 upload_result = await storage.upload_file(
                     file=spooled,
@@ -538,7 +548,7 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
                 max_size=_BINARY_UPLOAD_SPOOL_MEMORY_LIMIT,
                 mode="w+b",
             ) as spooled:
-                size = await run_blocking_io(
+                size = await run_long_blocking_io(
                     _decode_base64_to_file,
                     b64_data,
                     spooled,

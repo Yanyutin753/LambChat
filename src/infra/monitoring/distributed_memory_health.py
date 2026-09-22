@@ -11,7 +11,7 @@ from datetime import date, datetime, timezone
 from hashlib import sha1
 from typing import Any, Mapping
 
-from src.infra.async_utils.blocking import run_blocking_io
+from src.infra.async_utils.blocking import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.storage.redis import get_redis_client
 from src.infra.utils.datetime import utc_now
@@ -78,11 +78,11 @@ def _normalize_snapshot_payload(snapshot: Mapping[str, Any]) -> dict[str, Any]:
 
 
 async def _json_dumps_snapshot(snapshot: Mapping[str, Any]) -> str:
-    return await run_blocking_io(json.dumps, snapshot)
+    return await run_long_blocking_io(json.dumps, snapshot)
 
 
 async def _json_loads_snapshot(raw_value: str) -> Any:
-    return await run_blocking_io(json.loads, raw_value)
+    return await run_long_blocking_io(json.loads, raw_value)
 
 
 def _captured_at_order_key(snapshot: Mapping[str, Any]) -> tuple[int, float, str]:

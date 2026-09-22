@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Any, Mapping
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 
 _ENABLED: bool | None = None
 _LOG_FILE: Any = None  # TextIO | None
@@ -127,9 +127,9 @@ async def debug_log_event(event: Any, context: Mapping[str, Any] | None = None) 
 
     try:
         if context:
-            await run_blocking_io(_write_event_sync, event, dict(context), timeout=1.0)
+            await run_long_blocking_io(_write_event_sync, event, dict(context), timeout=1.0)
         else:
-            await run_blocking_io(_write_event_sync, event, timeout=1.0)
+            await run_long_blocking_io(_write_event_sync, event, timeout=1.0)
     except Exception:
         # Debug logging is non-critical — must never kill the agent stream.
         pass

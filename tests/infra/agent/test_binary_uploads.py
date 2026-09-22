@@ -79,7 +79,7 @@ async def test_upload_binary_blocks_spools_decoded_bytes_to_storage_file(monkeyp
     async def fake_get_or_init_storage():
         return storage
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         blocking_calls.append(func.__name__)
         monkeypatch.setattr(binary_uploads, "_inside_fake_blocking_io", True, raising=False)
         try:
@@ -92,7 +92,7 @@ async def test_upload_binary_blocks_spools_decoded_bytes_to_storage_file(monkeyp
         fake_get_or_init_storage,
     )
     monkeypatch.setattr(binary_uploads, "SpooledTemporaryFile", _BlockingOnlySpooledFile)
-    monkeypatch.setattr(binary_uploads, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(binary_uploads, "run_long_blocking_io", fake_run_long_blocking_io)
     monkeypatch.setattr(binary_uploads, "_inside_fake_blocking_io", False, raising=False)
 
     result = {

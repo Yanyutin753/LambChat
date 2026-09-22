@@ -260,12 +260,14 @@ async def test_list_user_skills_offloads_meta_json_parsing(
     collection = _FakeSkillFilesCollection()
     storage = SkillStorage()
 
-    async def _fake_run_blocking_io(func, /, *args: Any, **kwargs: Any):
+    async def _fake_run_long_blocking_io(func, /, *args: Any, **kwargs: Any):
         calls.append(func)
         return func(*args, **kwargs)
 
     monkeypatch.setattr(storage, "_get_files_collection", lambda: collection)
-    monkeypatch.setattr(skill_storage, "run_blocking_io", _fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        skill_storage, "run_long_blocking_io", _fake_run_long_blocking_io, raising=False
+    )
 
     skills = await storage.list_user_skills("user-1", skip=0, limit=10)
 
@@ -280,12 +282,14 @@ async def test_get_skill_meta_offloads_meta_json_parsing(
     calls: list[Any] = []
     storage = SkillStorage()
 
-    async def _fake_run_blocking_io(func, /, *args: Any, **kwargs: Any):
+    async def _fake_run_long_blocking_io(func, /, *args: Any, **kwargs: Any):
         calls.append(func)
         return func(*args, **kwargs)
 
     monkeypatch.setattr(storage, "_get_files_collection", lambda: _FindOneMetaCollection())
-    monkeypatch.setattr(skill_storage, "run_blocking_io", _fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        skill_storage, "run_long_blocking_io", _fake_run_long_blocking_io, raising=False
+    )
 
     meta = await storage.get_skill_meta("planner", "user-1")
 
@@ -473,11 +477,13 @@ async def test_list_matching_skill_names_offloads_skill_md_parsing(
         ]
     )
 
-    async def _fake_run_blocking_io(func, /, *args: Any, **kwargs: Any):
+    async def _fake_run_long_blocking_io(func, /, *args: Any, **kwargs: Any):
         calls.append(func)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(skill_storage, "run_blocking_io", _fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        skill_storage, "run_long_blocking_io", _fake_run_long_blocking_io, raising=False
+    )
     storage = SkillStorage()
     monkeypatch.setattr(storage, "_get_files_collection", lambda: collection)
 

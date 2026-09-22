@@ -124,7 +124,7 @@ async def test_binary_block_upload_offloads_decode_and_spool_writes(
         _fake_get_storage,
     )
     monkeypatch.setattr(tool_interception, "SpooledTemporaryFile", _GuardedSpooledFile)
-    monkeypatch.setattr(tool_interception, "run_blocking_io", _fake_run_blocking_io)
+    monkeypatch.setattr(tool_interception, "run_long_blocking_io", _fake_run_blocking_io)
     monkeypatch.setattr(
         tool_interception.uuid,
         "uuid4",
@@ -302,7 +302,7 @@ async def test_read_file_binary_upload_offloads_spool_writes(
         lambda runtime: _FakeBackend(),
     )
     monkeypatch.setattr(tool_interception, "SpooledTemporaryFile", _GuardedSpooledFile)
-    monkeypatch.setattr(tool_interception, "run_blocking_io", _fake_run_blocking_io)
+    monkeypatch.setattr(tool_interception, "run_long_blocking_io", _fake_run_blocking_io)
 
     middleware = tool_interception.ToolResultBinaryMiddleware(base_url="https://app.example.com")
     request = SimpleNamespace(runtime=object(), tool_call={"id": "call-1"})
@@ -355,7 +355,7 @@ async def test_read_file_binary_upload_offloads_result_json_formatting(
         "src.infra.tool.backend_utils.get_backend_from_runtime",
         lambda runtime: _FakeBackend(),
     )
-    monkeypatch.setattr(tool_interception, "run_blocking_io", _fake_run_blocking_io)
+    monkeypatch.setattr(tool_interception, "run_long_blocking_io", _fake_run_blocking_io)
 
     middleware = tool_interception.ToolResultBinaryMiddleware(base_url="https://app.example.com")
     request = SimpleNamespace(runtime=object(), tool_call={"id": "call-1"})
@@ -768,7 +768,7 @@ async def test_binary_middleware_offloads_uploaded_block_json_formatting(
         calls.append(func)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(tool_interception, "run_blocking_io", _fake_run_blocking_io)
+    monkeypatch.setattr(tool_interception, "run_long_blocking_io", _fake_run_blocking_io)
 
     middleware = tool_interception.ToolResultBinaryMiddleware(base_url="https://app.example.com")
     payload = await middleware._format_uploaded_blocks_for_llm(
@@ -820,7 +820,7 @@ async def test_tool_search_middleware_offloads_deferred_tool_dict_serialization(
         def get_discovered_tools(self) -> list[Any]:
             return []
 
-    monkeypatch.setattr(tool_interception, "run_blocking_io", _fake_run_blocking_io)
+    monkeypatch.setattr(tool_interception, "run_long_blocking_io", _fake_run_blocking_io)
 
     middleware = tool_interception.ToolSearchMiddleware(
         deferred_manager=_DeferredManager(),

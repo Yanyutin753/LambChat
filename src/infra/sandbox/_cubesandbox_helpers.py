@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Optional, cast
 from deepagents.backends import CompositeBackend
 
 from src.infra.async_utils import run_blocking_io as _run_blocking_io
+from src.infra.async_utils import run_long_blocking_io as _run_long_blocking_io
 from src.infra.backend.sandbox_heal import SANDBOX_REPLACED_NOTICE
 from src.infra.backend.skills_store import create_skills_backend
 from src.infra.envvar.sync import sync_sandbox_env_vars
@@ -28,6 +29,13 @@ def run_blocking_io(*args, **kwargs):
     from src.infra.sandbox import session_manager
 
     return getattr(session_manager, "run_blocking_io", _run_blocking_io)(*args, **kwargs)
+
+
+def run_long_blocking_io(*args, **kwargs):
+    """慢道间接层（沙箱 create/connect/stop 等秒级调用），测试可拦截。"""
+    from src.infra.sandbox import session_manager
+
+    return getattr(session_manager, "run_long_blocking_io", _run_long_blocking_io)(*args, **kwargs)
 
 
 class _CubeSandboxMixin:
@@ -113,7 +121,7 @@ class _CubeSandboxMixin:
             # 重建的新沙箱需要挂一次性提示。
             replaced_previous = bool(metadata_sandbox_id)
             if metadata_sandbox_id:
-                provider_obj = await run_blocking_io(
+                provider_obj = await run_long_blocking_io(
                     self._cube_adapter.get_sandbox, metadata_sandbox_id
                 )
                 if provider_obj:
@@ -126,7 +134,7 @@ class _CubeSandboxMixin:
                         backend = self._build_cube_composite_backend(provider_obj, user_id)
                         self._cache[user_id] = (metadata_sandbox_id, backend, provider_obj)
                         self._evict_if_needed()
-                        info = await run_blocking_io(
+                        info = await run_long_blocking_io(
                             self._cube_adapter.get_sandbox_info,
                             provider_obj,
                         )
@@ -186,7 +194,7 @@ class _CubeSandboxMixin:
             sandbox_id = info.get("sandboxID")
             if not sandbox_id or sandbox_id in exclude_ids:
                 continue
-            provider_obj = await run_blocking_io(self._cube_adapter.get_sandbox, sandbox_id)
+            provider_obj = await run_long_blocking_io(self._cube_adapter.get_sandbox, sandbox_id)
             if not provider_obj:
                 continue
             try:
@@ -237,9 +245,11 @@ class _CubeSandboxMixin:
             if not sandbox_id or sandbox_id == keep_sandbox_id:
                 continue
             try:
-                provider_obj = await run_blocking_io(self._cube_adapter.get_sandbox, sandbox_id)
+                provider_obj = await run_long_blocking_io(
+                    self._cube_adapter.get_sandbox, sandbox_id
+                )
                 if provider_obj is not None:
-                    await run_blocking_io(self._cube_adapter.kill_sandbox, provider_obj)
+                    await run_long_blocking_io(self._cube_adapter.kill_sandbox, provider_obj)
                     logger.info(
                         f"[CubeSandbox] Cleaned duplicate sandbox {sandbox_id} for user {user_id}"
                     )
@@ -291,13 +301,13 @@ class _CubeSandboxMixin:
             composite = CompositeBackend(default=cube_backend, routes={"/skills/": skills_backend})
             return composite, work_dir, adapter.get_sandbox_id(sandbox), sandbox
 
-        backend, work_dir, sandbox_id, provider_obj = await run_blocking_io(_sync_create)
+        backend, work_dir, sandbox_id, provider_obj = await run_long_blocking_io(_sync_create)
         try:
             await self._save_binding(user_id, sandbox_id, "running", is_new=True)
         except Exception as e:
             logger.error(f"[CubeSandbox] Created {sandbox_id} but failed to save binding: {e}")
             try:
-                await run_blocking_io(self._cube_adapter.stop_sandbox, provider_obj)
+                await run_long_blocking_io(self._cube_adapter.stop_sandbox, provider_obj)
             except Exception:
                 pass
             raise
@@ -345,11 +355,13 @@ class _CubeSandboxMixin:
                 binding = await self._get_binding(user_id)
                 sandbox_id = binding.get("sandbox_id") if binding else None
                 if sandbox_id:
-                    provider_obj = await run_blocking_io(self._cube_adapter.get_sandbox, sandbox_id)
+                    provider_obj = await run_long_blocking_io(
+                        self._cube_adapter.get_sandbox, sandbox_id
+                    )
             if not sandbox_id or provider_obj is None:
                 return False
             try:
-                await run_blocking_io(self._cube_adapter.stop_sandbox, provider_obj)
+                await run_long_blocking_io(self._cube_adapter.stop_sandbox, provider_obj)
                 self._cache.pop(user_id, None)
                 await self._save_binding(user_id, sandbox_id, "paused")
                 logger.info(f"[CubeSandbox] Paused sandbox {sandbox_id} for user {user_id}")

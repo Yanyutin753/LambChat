@@ -1013,11 +1013,13 @@ async def test_tool_end_offloads_output_extraction(monkeypatch: pytest.MonkeyPat
     processor = AgentEventProcessor(presenter)
     calls: list[object] = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(tool_events, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        tool_events, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
 
     await processor.process_event(
         {
@@ -1047,11 +1049,13 @@ async def test_tool_end_offloads_result_json_parsing(monkeypatch: pytest.MonkeyP
     processor = AgentEventProcessor(presenter)
     calls: list[object] = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(tool_events, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        tool_events, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
 
     await processor.process_event(
         {

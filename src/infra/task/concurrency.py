@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, Optional, Tuple
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.session.storage import SessionUpdate
 from src.infra.storage.redis import get_redis_client
 from src.infra.task.constants import HEARTBEAT_TIMEOUT
@@ -105,11 +105,11 @@ return 0
 
 
 async def _queue_json_dumps(value: Any) -> str:
-    return await run_blocking_io(json.dumps, value, ensure_ascii=False)
+    return await run_long_blocking_io(json.dumps, value, ensure_ascii=False)
 
 
 async def _queue_json_loads(value: Any) -> Any:
-    return await run_blocking_io(json.loads, value)
+    return await run_long_blocking_io(json.loads, value)
 
 
 # ---------------------------------------------------------------------------
