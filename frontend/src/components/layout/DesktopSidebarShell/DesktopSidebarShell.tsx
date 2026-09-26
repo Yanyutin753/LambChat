@@ -23,9 +23,9 @@ import { useTranslation } from "react-i18next";
 import {
   CalendarClock,
   FolderOpen,
-  FolderTree,
   MessageSquarePlus,
   MessagesSquare,
+  Monitor,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
@@ -175,7 +175,7 @@ export function DesktopSidebarShell({
         />
         <RailButton
           label={t("workspacePanel.title", { defaultValue: "工作区" })}
-          icon={<FolderTree size={19} />}
+          icon={<Monitor size={19} />}
           active={!collapsed && view === "files"}
           onClick={() => (collapsed || view !== "files" ? switchView("files") : onToggleCollapsed(true))}
         />

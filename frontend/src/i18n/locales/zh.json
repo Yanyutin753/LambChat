@@ -511,6 +511,8 @@
     "resetTokenExpired": "重置令牌已过期",
     "roleNotFound": "角色不存在",
     "sandboxSessionNotLocal": "此会话运行在云端沙箱；浏览工作区文件需要本地沙箱会话",
+    "sandboxCloudNotCreated": "云端电脑尚未创建；在云端会话中发送消息后会自动创建",
+    "sandboxCloudRecycled": "云端电脑已被回收，文件未保留；发送消息将自动重建",
     "sessionAccessDenied": "无权访问此会话",
     "sessionNotFound": "会话不存在",
     "settingNotFound": "设置不存在",
@@ -3870,18 +3872,25 @@
     "close": "关闭"
   },
   "workspacePanel": {
-    "title": "工作区",
-    "viewChats": "会话",
+    "account": "账号",
+    "binaryFileHint": "（二进制文件，暂不支持内联预览）",
+    "cloudDisabled": "云端沙箱未启用",
+    "cloudNotCreated": "云端电脑尚未创建；在云端会话中发送消息后会自动创建",
+    "cloudPaused": "云端电脑 · 已暂停，打开时自动唤醒",
+    "cloudRunning": "云端电脑 · 运行中",
+    "cloudSession": "此会话使用云端沙箱，工作区文件在云端",
+    "copyPath": "复制路径",
+    "daemonOffline": "本地沙箱未连接，无法浏览工作区文件",
+    "emptyDir": "空工作区",
+    "noSession": "打开一个会话后即可浏览其工作区文件",
     "refresh": "刷新",
     "retry": "重试",
-    "daemonOffline": "本地沙箱未连接，无法浏览工作区文件",
-    "noSession": "打开一个会话后即可浏览其工作区文件",
-    "emptyDir": "空工作区",
-    "copyPath": "复制路径",
     "revealInFileManager": "在文件管理器中显示",
-    "binaryFileHint": "（二进制文件，暂不支持内联预览）",
     "settings": "设置",
-    "account": "账号",
-    "cloudSession": "此会话使用云端沙箱，工作区文件在云端"
+    "switchToCloud": "查看云端电脑 →",
+    "title": "电脑",
+    "viewChats": "会话",
+    "viewCloud": "云端电脑",
+    "viewLocal": "本地电脑"
   }
 }

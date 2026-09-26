@@ -663,15 +663,8 @@ async def _resolve_fs_target(user: TokenPayload, session_id: str) -> tuple[str, 
     转发到本地 daemon 只会误建本地空目录、展示与该会话无关的文件。
     """
     from src.infra.backend.workspace_selection import selected_workspace_id
-    from src.infra.session.manager import SessionManager
 
-    if not _SESSION_ID_RE.match(session_id or ""):
-        raise AppError(ErrorCode.SESSION_NOT_FOUND)
-    session = await SessionManager().get_session(session_id)
-    if session is None:
-        raise AppError(ErrorCode.SESSION_NOT_FOUND)
-    if session.user_id != user.sub:
-        raise AppError(ErrorCode.SESSION_ACCESS_DENIED)
+    session = await _owned_session_or_404(user, session_id)
     metadata = session.metadata or {}
     config = metadata.get("conversation_config")
     agent_options = config.get("agent_options") if isinstance(config, dict) else None
@@ -749,3 +742,127 @@ async def sandbox_fs_read(
         },
         machine_id,
     )
+
+
+# ---------------------------------------------------------------------------
+# 云端电脑文件浏览（桌面双栏「云端电脑」视图）：E2B/Daytona SDK 直连，
+# 与本地 daemon 中继（fs/list|read）并列、同前端契约。
+# ---------------------------------------------------------------------------
+
+
+async def _owned_session_or_404(user: TokenPayload, session_id: str):
+    """会话属主校验（形态门 + 存在性 + 归属），返回会话对象。"""
+    from src.infra.session.manager import SessionManager
+
+    if not _SESSION_ID_RE.match(session_id or ""):
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
+    session = await SessionManager().get_session(session_id)
+    if session is None:
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
+    if session.user_id != user.sub:
+        raise AppError(ErrorCode.SESSION_ACCESS_DENIED)
+    return session
+
+
+async def _owned_session(user: TokenPayload, session_id: str) -> None:
+    """云端视图的会话属主校验（不限制会话平台：本地会话也有云端子目录）。"""
+    await _owned_session_or_404(user, session_id)
+
+
+async def _cloud_backend(user: TokenPayload, session_id: str):
+    """取云端沙箱（只连不建）：无绑定/被回收分别转 404/410 引导码。"""
+    from src.infra.sandbox.session_manager import (
+        SandboxPeekError,
+        get_session_sandbox_manager,
+    )
+
+    try:
+        return await get_session_sandbox_manager().get_or_create(session_id, user.sub, create=False)
+    except SandboxPeekError as exc:
+        if exc.reason == "not_created":
+            raise AppError(ErrorCode.SANDBOX_CLOUD_NOT_CREATED) from exc
+        raise AppError(ErrorCode.SANDBOX_CLOUD_RECYCLED) from exc
+
+
+def _cloud_rel(path: str) -> str:
+    """前端相对路径（可带 ``./`` 前缀）→ backend 相对路径；空 = 根。"""
+    rel = (path or "").strip()
+    if rel.startswith("./"):
+        rel = rel[2:]
+    return rel or "."
+
+
+@router.get("/fs/cloud/status")
+async def sandbox_fs_cloud_status(
+    session_id: str = Query(...),
+    user: TokenPayload = Depends(get_current_user_pat_or_jwt),
+):
+    """云端电脑状态速览（零副作用，读绑定落库值，不唤醒沙箱）。
+
+    state: ``running`` / ``paused``（上次落库）/ ``not_created``（无绑定）/
+    ``disabled``（沙箱功能未启用或平台非云端）。
+    """
+    from src.infra.sandbox.session_manager import get_session_sandbox_manager
+
+    await _owned_session(user, session_id)
+    return await get_session_sandbox_manager().cloud_status(user.sub)
+
+
+@router.get("/fs/cloud/list")
+async def sandbox_fs_cloud_list(
+    session_id: str = Query(...),
+    path: str = Query("", description="会话云端工作区内相对路径；空 = 根"),
+    user: TokenPayload = Depends(get_current_user_pat_or_jwt),
+):
+    """列云端会话工作区目录（会话子目录 ``{base}/sessions/{sid}``）。
+
+    浏览即意图：paused 沙箱在此自动唤醒（E2B connect 语义）；无绑定/被
+    回收不新建（404/410 引导）。条目路径归一为与本地端点同构的相对串
+    （根层 ``./name``、子层 ``dir/name``）。
+    """
+    import posixpath
+
+    await _owned_session(user, session_id)
+    backend, _work_dir = await _cloud_backend(user, session_id)
+    rel = _cloud_rel(_sanitize_fs_path(path))
+    result = await backend.als(rel)
+    if result.get("error"):
+        return {"error": result["error"]}
+    entries = []
+    for entry in result.get("entries") or []:
+        entry_path = entry.get("path")
+        if not entry_path:
+            continue
+        name = entry_path.rstrip("/").rsplit("/", 1)[-1]
+        entries.append(
+            {
+                "path": posixpath.join(rel if rel != "." else ".", name),
+                "is_dir": entry.get("is_dir", False),
+            }
+        )
+    return {"entries": entries}
+
+
+@router.get("/fs/cloud/read")
+async def sandbox_fs_cloud_read(
+    session_id: str = Query(...),
+    path: str = Query(...),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(500, ge=1, le=_FS_READ_MAX_LINES),
+    user: TokenPayload = Depends(get_current_user_pat_or_jwt),
+):
+    """读云端会话工作区文件（行分页，FileData 契约与本地端点对齐）。"""
+    await _owned_session(user, session_id)
+    backend, _work_dir = await _cloud_backend(user, session_id)
+    result = await backend.aread(_cloud_rel(_sanitize_fs_path(path)), offset, limit)
+    if result.get("error"):
+        return {"error": result["error"]}
+    file_data = result.get("file_data") or {}
+    return {
+        "encoding": file_data.get("encoding"),
+        "content": file_data.get("content"),
+        "total_lines": result.get("total_lines"),
+        "start_line": result.get("start_line"),
+        "end_line": result.get("end_line"),
+        "next_offset": result.get("next_offset"),
+    }

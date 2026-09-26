@@ -1,12 +1,18 @@
-// 工作区文件树：本地沙箱目录的懒加载/刷新状态机（桌面双栏的文件面板数据源）。
+// 工作区文件树：本地/云端沙箱目录的懒加载/刷新状态机（桌面双栏「电脑」
+// 面板数据源）。
 //
-// 数据源是 /api/sandbox/fs/list（服务端把 fs_ls 中继到会话绑定的 daemon），
-// 因此树根随 sessionId 变化整体重置；目录按需装载（展开才 list），refresh
-// 保留 expanded 集合只重拉已见过目录——run 结束后的自动刷新靠这个语义
-// 保住用户的展开现场。同路径并发装载去重（in-flight 表），防止快速点击
-// 目录时发出重复请求。
+// 数据源默认 /api/sandbox/fs/list（本地 daemon 中继），可注入云端源
+// （/api/sandbox/fs/cloud/*，E2B/Daytona SDK 直连）——两者共用同一契约与
+// 状态机。树根随 resetKey（会话/平台/机器/绑定/视图）变化整体重置；目录
+// 按需装载（展开才 list），refresh 保留 expanded 集合只重拉已见过目录——
+// run 结束后的自动刷新靠这个语义保住用户的展开现场。同路径并发装载去重
+// （in-flight 表），防止快速点击目录时发出重复请求。
 import { useCallback, useEffect, useRef, useState } from "react";
-import { sandboxFsApi, type SandboxFsEntry } from "../services/api/sandboxFs";
+import {
+  sandboxFsApi,
+  type SandboxFsEntry,
+  type WorkspaceFsSource,
+} from "../services/api/sandboxFs";
 
 export interface WorkspaceTreeNode {
   /** 工作区内相对路径（posix；根目录条目为 "."）。 */
@@ -96,11 +102,17 @@ function findNode(nodes: WorkspaceTreeNode[], path: string): WorkspaceTreeNode |
 
 /**
  * @param sessionId 目标会话（API 调用与 cwd 解析依据；null = idle 不请求）
- * @param resetKey 重置键——会话、沙箱平台、目标机或目录绑定任一变化都会
- *   改变工作区内容，必须整树重置（否则展示上一个工作区的 stale 文件）。
- *   缺省等于 sessionId（只按会话重置）。
+ * @param resetKey 重置键——会话、沙箱平台、目标机、目录绑定或视图（本地/
+ *   云端）任一变化都会改变工作区内容，必须整树重置（否则展示上一个工作
+ *   区的 stale 文件）。缺省等于 sessionId（只按会话重置）。
+ * @param source 数据源：本地（daemon 中继，默认）或云端（E2B/Daytona SDK），
+ *   两者共用同一前端契约与状态机。
  */
-export function useWorkspaceTree(sessionId: string | null, resetKey?: string) {
+export function useWorkspaceTree(
+  sessionId: string | null,
+  resetKey?: string,
+  source: WorkspaceFsSource = sandboxFsApi,
+) {
   const effectiveResetKey = resetKey ?? sessionId ?? "";
   const [root, setRoot] = useState<WorkspaceTreeNode[]>([]);
   const [state, setState] = useState<WorkspaceTreeState>("idle");
@@ -120,7 +132,7 @@ export function useWorkspaceTree(sessionId: string | null, resetKey?: string) {
       const generation = generationRef.current;
       if (!replace) setRoot((prev) => markLoading(prev, path, true));
       try {
-        const result = await sandboxFsApi.list(sessionId, path === "." ? "" : path);
+        const result = await source.list(sessionId, path === "." ? "" : path);
         if (generation !== generationRef.current) return;
         if (result.error) {
           if (path === ".") {
@@ -143,7 +155,7 @@ export function useWorkspaceTree(sessionId: string | null, resetKey?: string) {
         if (!replace) setRoot((prev) => markLoading(prev, path, false));
       }
     },
-    [sessionId],
+    [sessionId, source],
   );
 
   // 工作区切换（会话/平台/机器/绑定）：整体重置（代际 +1 让在途结果作

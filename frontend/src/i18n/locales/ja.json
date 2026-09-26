@@ -511,6 +511,8 @@
     "resetTokenExpired": "リセットトークンの有効期限が切れています。",
     "roleNotFound": "ロールが見つかりません。",
     "sandboxSessionNotLocal": "このセッションはクラウドサンドボックスで実行されています。ワークスペースのファイル閲覧にはローカルサンドボックスセッションが必要です",
+    "sandboxCloudNotCreated": "クラウドコンピューターはまだ作成されていません。クラウドセッションでメッセージを送信すると自動作成されます",
+    "sandboxCloudRecycled": "クラウドコンピューターはリサイクルされ、ファイルは保持されていません。メッセージを送信すると再作成されます",
     "sessionAccessDenied": "このセッションにアクセスする権限がありません。",
     "sessionNotFound": "セッションが見つかりません。",
     "settingNotFound": "設定が見つかりません。",
@@ -3870,18 +3872,25 @@
     "close": "閉じる"
   },
   "workspacePanel": {
-    "title": "ワークスペース",
-    "viewChats": "チャット",
+    "account": "アカウント",
+    "binaryFileHint": "（バイナリファイル — インラインプレビュー非対応）",
+    "cloudDisabled": "クラウドサンドボックスは無効です",
+    "cloudNotCreated": "クラウドコンピューターはまだ作成されていません。クラウドセッションでメッセージを送信すると自動作成されます",
+    "cloudPaused": "クラウドPC · 一時停止中。開くと自動的に復帰します",
+    "cloudRunning": "クラウドPC · 実行中",
+    "cloudSession": "このセッションはクラウドサンドボックスを使用しています。ワークスペースのファイルはクラウドにあります",
+    "copyPath": "パスをコピー",
+    "daemonOffline": "ローカルサンドボックスが未接続のため、ワークスペースを参照できません",
+    "emptyDir": "空のワークスペース",
+    "noSession": "セッションを開くとワークスペースのファイルを参照できます",
     "refresh": "更新",
     "retry": "再試行",
-    "daemonOffline": "ローカルサンドボックスが未接続のため、ワークスペースを参照できません",
-    "noSession": "セッションを開くとワークスペースのファイルを参照できます",
-    "emptyDir": "空のワークスペース",
-    "copyPath": "パスをコピー",
     "revealInFileManager": "ファイルマネージャーで表示",
-    "binaryFileHint": "（バイナリファイル — インラインプレビュー非対応）",
     "settings": "設定",
-    "account": "アカウント",
-    "cloudSession": "このセッションはクラウドサンドボックスを使用しています。ワークスペースのファイルはクラウドにあります"
+    "switchToCloud": "クラウドPCを表示 →",
+    "title": "コンピューター",
+    "viewChats": "チャット",
+    "viewCloud": "クラウドPC",
+    "viewLocal": "このPC"
   }
 }

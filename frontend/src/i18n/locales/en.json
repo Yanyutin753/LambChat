@@ -511,6 +511,8 @@
     "resetTokenExpired": "Reset token has expired.",
     "roleNotFound": "Role not found.",
     "sandboxSessionNotLocal": "This session runs on the cloud sandbox; workspace file browsing requires a local sandbox session",
+    "sandboxCloudNotCreated": "No cloud computer yet; it is created automatically when you send a message in a cloud session",
+    "sandboxCloudRecycled": "The cloud computer was recycled and its files were not kept; send a message to recreate it",
     "sessionAccessDenied": "You do not have access to this session.",
     "sessionNotFound": "Session not found.",
     "settingNotFound": "Setting not found.",
@@ -3870,18 +3872,25 @@
     "close": "Close"
   },
   "workspacePanel": {
-    "title": "Workspace",
-    "viewChats": "Chats",
+    "account": "Account",
+    "binaryFileHint": "(Binary file — inline preview not supported)",
+    "cloudDisabled": "Cloud sandbox is disabled",
+    "cloudNotCreated": "No cloud computer yet; it is created automatically when you send a message in a cloud session",
+    "cloudPaused": "Cloud PC · paused, wakes up automatically when opened",
+    "cloudRunning": "Cloud PC · running",
+    "cloudSession": "This session uses the cloud sandbox; its workspace files live in the cloud",
+    "copyPath": "Copy path",
+    "daemonOffline": "Local sandbox offline — workspace files unavailable",
+    "emptyDir": "Empty workspace",
+    "noSession": "Open a session to browse its workspace files",
     "refresh": "Refresh",
     "retry": "Retry",
-    "daemonOffline": "Local sandbox offline — workspace files unavailable",
-    "noSession": "Open a session to browse its workspace files",
-    "emptyDir": "Empty workspace",
-    "copyPath": "Copy path",
     "revealInFileManager": "Reveal in file manager",
-    "binaryFileHint": "(Binary file — inline preview not supported)",
     "settings": "Settings",
-    "account": "Account",
-    "cloudSession": "This session uses the cloud sandbox; its workspace files live in the cloud"
+    "switchToCloud": "View cloud PC →",
+    "title": "Computer",
+    "viewChats": "Chats",
+    "viewCloud": "Cloud PC",
+    "viewLocal": "This PC"
   }
 }

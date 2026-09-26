@@ -61,3 +61,59 @@ export const sandboxFsApi = {
     );
   },
 };
+
+// ---------------------------------------------------------------------------
+// 云端电脑（E2B/Daytona SDK 直连）：与本地端点同契约，供「云端电脑」视图
+// ---------------------------------------------------------------------------
+
+export interface SandboxCloudStatus {
+  /** 当前云端平台（e2b/daytona/cubesandbox；沙箱未启用时 null）。 */
+  platform: string | null;
+  /** running | paused（上次落库值）| not_created | disabled */
+  state: string;
+}
+
+/** 树数据源抽象：本地（daemon 中继）与云端（SDK 直连）共用同一前端状态机。 */
+export interface WorkspaceFsSource {
+  list: (sessionId: string, path: string) => Promise<SandboxFsListResult>;
+  read: (
+    sessionId: string,
+    path: string,
+    offset?: number,
+    limit?: number,
+  ) => Promise<SandboxFsReadResult>;
+}
+
+export const sandboxCloudFsApi: WorkspaceFsSource = {
+  async list(sessionId, path = "") {
+    const query = new URLSearchParams({ session_id: sessionId });
+    if (path) {
+      query.set("path", path);
+    }
+    return authFetch<SandboxFsListResult>(
+      `${API_BASE}/api/sandbox/fs/cloud/list?${query.toString()}`,
+    );
+  },
+
+  async read(sessionId, path, offset = 0, limit = 500) {
+    const query = new URLSearchParams({
+      session_id: sessionId,
+      path,
+      offset: String(offset),
+      limit: String(limit),
+    });
+    return authFetch<SandboxFsReadResult>(
+      `${API_BASE}/api/sandbox/fs/cloud/read?${query.toString()}`,
+    );
+  },
+};
+
+export const sandboxFsCloudStatusApi = {
+  /** 云端电脑状态速览（零副作用，不唤醒沙箱）。 */
+  async status(sessionId: string): Promise<SandboxCloudStatus> {
+    const query = new URLSearchParams({ session_id: sessionId });
+    return authFetch<SandboxCloudStatus>(
+      `${API_BASE}/api/sandbox/fs/cloud/status?${query.toString()}`,
+    );
+  },
+};

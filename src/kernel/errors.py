@@ -121,6 +121,16 @@ class ErrorCode(Enum):
         409,
         "This session runs on the cloud sandbox; workspace file browsing requires a local sandbox session",
     )
+    SANDBOX_CLOUD_NOT_CREATED = (
+        "sandbox_cloud_not_created",
+        404,
+        "No cloud computer yet; it is created automatically when you send a message in a cloud session",
+    )
+    SANDBOX_CLOUD_RECYCLED = (
+        "sandbox_cloud_recycled",
+        410,
+        "The cloud computer was recycled and its files were not kept; send a message to recreate it",
+    )
     DAEMON_VERSION_UNSUPPORTED = (
         "daemon_version_unsupported",
         426,
