@@ -1,19 +1,16 @@
 /**
  * 桌面侧栏壳（仅 Tauri 桌面壳渲染；web/移动端原样透传 children）。
- * 排版对齐 ZCode 桌面端：单栏侧边栏（无图标导航栏）——
+ * 结构对齐 ZCode 桌面端：单栏侧边栏（无图标导航栏）——
  *
- *   [会话|电脑 tabs]      [搜索]     ← 顶部标签行
- *   ─────────────────────────────
- *   会话列表 / 电脑面板（工作区文件树） ← 滚动区
- *   ─────────────────────────────
- *   [用户胶囊]  [文件库][定时][设置]   ← 底部（ZCode 式 footer）
+ *   [会话|电脑 tabs]              ← 壳唯一的自有 chrome（视图切换）
+ *   原版 SessionSidebar 内容      ← 操作行/列表/底部用户区全部复用原版
+ *   ───────── 或 电脑面板（工作区文件树）
  *
- *   折叠/新建入口上移到自绘标题栏（事件桥，见 desktopShellPlatform）；
- *   宽度可拖拽调整（右缘手柄），localStorage 持久化。
+ *   折叠入口在自绘标题栏（事件桥）；宽度可拖拽调整（右缘手柄），
+ *   localStorage 持久化。
  *
  * 折叠状态复用 AppContent 的 sidebarCollapsed（与 web 端同一持久化语义）；
- * 当前视图（chat/files）独立持久化。搜索按钮经自定义事件交给
- * SessionSidebar（SearchDialog 状态归它管，⌘K 同一通路）。
+ * 当前视图（chat/files）独立持久化。
  */
 
 import {
@@ -26,22 +23,10 @@ import {
 } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import {
-  CalendarClock,
-  FolderOpen,
-  MessagesSquare,
-  Monitor,
-  Search,
-  Settings,
-} from "lucide-react";
+import { MessagesSquare, Monitor } from "lucide-react";
 import clsx from "clsx";
-import { Tooltip } from "../../common/Tooltip";
 import { WorkspacePanel } from "../../workspacePanel/WorkspacePanel";
-import { useAuth } from "../../../hooks/useAuth";
-import { Permission } from "../../../types/auth";
 import {
-  DESKTOP_SIDEBAR_NEW_SESSION_EVENT,
-  DESKTOP_SIDEBAR_OPEN_SEARCH_EVENT,
   DESKTOP_SIDEBAR_TOGGLE_EVENT,
   shouldUseDesktopShellGate,
   type DesktopSidebarView,
@@ -90,8 +75,6 @@ interface DesktopSidebarShellProps {
   machineId?: string | null;
   /** 会话 sandbox_workspace 的原样 JSON（reveal 用）。 */
   workspaceSelection?: string | null;
-  onNewSession: () => void;
-  onShowProfile: () => void;
   children: ReactNode;
 }
 
@@ -129,34 +112,27 @@ export function DesktopSidebarShell({
   sandboxMode,
   machineId,
   workspaceSelection,
-  onNewSession,
-  onShowProfile,
   children,
 }: DesktopSidebarShellProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user, hasPermission } = useAuth();
   const [view, setView] = useState<DesktopSidebarView>(readStoredView);
   const [width, setWidth] = useState(readStoredWidth);
   const [resizing, setResizing] = useState(false);
   const dragRef = useRef<{ startX: number; startW: number } | null>(null);
   // pointerup 闭包可能拿到过期渲染的 width（同批连发事件），以 ref 为准持久化
   const widthRef = useRef(width);
-  const canReadScheduledTasks = hasPermission(Permission.SCHEDULED_TASK_READ);
 
   useDesktopShellShortcuts(collapsed, onToggleCollapsed, navigate);
 
-  // 标题栏折叠按钮/新建对话按钮的事件桥（TitleBar 不持有这两份状态）
+  // 标题栏折叠按钮的事件桥（TitleBar 不持有折叠状态）
   useEffect(() => {
     const handleToggle = () => onToggleCollapsed(!collapsed);
-    const handleNewSession = () => onNewSession();
     window.addEventListener(DESKTOP_SIDEBAR_TOGGLE_EVENT, handleToggle);
-    window.addEventListener(DESKTOP_SIDEBAR_NEW_SESSION_EVENT, handleNewSession);
     return () => {
       window.removeEventListener(DESKTOP_SIDEBAR_TOGGLE_EVENT, handleToggle);
-      window.removeEventListener(DESKTOP_SIDEBAR_NEW_SESSION_EVENT, handleNewSession);
     };
-  }, [collapsed, onToggleCollapsed, onNewSession]);
+  }, [collapsed, onToggleCollapsed]);
 
   const switchView = useCallback(
     (next: DesktopSidebarView) => {
@@ -171,10 +147,6 @@ export function DesktopSidebarShell({
     },
     [onToggleCollapsed],
   );
-
-  const openSearch = useCallback(() => {
-    window.dispatchEvent(new CustomEvent(DESKTOP_SIDEBAR_OPEN_SEARCH_EVENT));
-  }, []);
 
   const handleResizeDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (collapsed) return;
@@ -228,8 +200,8 @@ export function DesktopSidebarShell({
         style={{ width: collapsed ? 0 : width }}
       >
         <div className="absolute inset-0 flex flex-col">
-          {/* 顶部标签行：会话|电脑 + 搜索（新建对话入口在标题栏） */}
-          <div className="flex h-11 shrink-0 items-center gap-1.5 px-2">
+          {/* 顶部标签行：会话|电脑（操作行/用户区沿用原版 SessionSidebar 内容） */}
+          <div className="flex h-10 shrink-0 items-center px-2">
             <div className="flex items-center gap-0.5 rounded-[10px] bg-[var(--theme-bg-subtle)] p-0.5">
               <button
                 type="button"
@@ -250,17 +222,6 @@ export function DesktopSidebarShell({
                 <span>{t("workspacePanel.title", { defaultValue: "电脑" })}</span>
               </button>
             </div>
-            <div className="min-w-0 flex-1" />
-            <Tooltip content={t("sidebar.searchSessions")}>
-              <button
-                type="button"
-                onClick={openSearch}
-                aria-label={t("sidebar.searchSessions")}
-                className="flex size-7 items-center justify-center rounded-lg text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-background-muted)] hover:text-[var(--color-text-primary)]"
-              >
-                <Search size={15} />
-              </button>
-            </Tooltip>
           </div>
 
           {/* 内容区（chat/files 常驻挂载保状态，仅切显隐） */}
@@ -289,63 +250,6 @@ export function DesktopSidebarShell({
               </div>
             </div>
           </div>
-
-          {/* 底部 footer（ZCode 式：用户胶囊 + 直达图标） */}
-          <footer className="flex shrink-0 items-center gap-1 border-t border-[var(--theme-border-faint)] px-2 py-2">
-            <button
-              type="button"
-              onClick={onShowProfile}
-              aria-label={user?.username || t("workspacePanel.account", { defaultValue: "账号" })}
-              className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-[10px] px-1.5 transition-colors hover:bg-[var(--color-background-muted)]"
-            >
-              {user?.avatar_url ? (
-                <img
-                  src={user.avatar_url}
-                  alt={user.username || "avatar"}
-                  className="size-6 shrink-0 rounded-full object-cover"
-                />
-              ) : (
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-stone-300 text-12 font-medium text-stone-700 dark:bg-stone-600 dark:text-stone-200">
-                  {(user?.username || "?").slice(0, 1).toUpperCase()}
-                </span>
-              )}
-              <span className="truncate text-left text-13 font-medium text-[var(--color-text-primary)]">
-                {user?.username || t("workspacePanel.account", { defaultValue: "账号" })}
-              </span>
-            </button>
-            <Tooltip content={t("fileLibrary.title")} placement="top">
-              <button
-                type="button"
-                onClick={() => navigate("/files")}
-                aria-label={t("fileLibrary.title")}
-                className="flex size-7 items-center justify-center rounded-lg text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-background-muted)] hover:text-[var(--color-text-primary)]"
-              >
-                <FolderOpen size={15} />
-              </button>
-            </Tooltip>
-            {canReadScheduledTasks && (
-              <Tooltip content={t("nav.scheduled-tasks")} placement="top">
-                <button
-                  type="button"
-                  onClick={() => navigate("/scheduled-tasks")}
-                  aria-label={t("nav.scheduled-tasks")}
-                  className="flex size-7 items-center justify-center rounded-lg text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-background-muted)] hover:text-[var(--color-text-primary)]"
-                >
-                  <CalendarClock size={15} />
-                </button>
-              </Tooltip>
-            )}
-            <Tooltip content={t("workspacePanel.settings", { defaultValue: "设置" })} placement="top">
-              <button
-                type="button"
-                onClick={() => navigate("/settings")}
-                aria-label={t("workspacePanel.settings", { defaultValue: "设置" })}
-                className="flex size-7 items-center justify-center rounded-lg text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-background-muted)] hover:text-[var(--color-text-primary)]"
-              >
-                <Settings size={15} />
-              </button>
-            </Tooltip>
-          </footer>
         </div>
 
         {/* 宽度拖拽手柄（右缘；折叠时不交互） */}

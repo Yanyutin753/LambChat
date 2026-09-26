@@ -789,8 +789,6 @@ export function ChatAppContent({
           sandboxMode={workspaceModeForShell}
           machineId={workspaceMachineForShell}
           workspaceSelection={workspaceSelectionForShell}
-          onNewSession={handleNewSessionWithReset}
-          onShowProfile={onShowProfile}
         >
           <SessionSidebar
             ref={sidebarRef}

@@ -379,14 +379,15 @@ export function SessionListContent({
         </Tooltip>
       </div>
       )}
-      {compactChrome && (
-        // 桌面壳：新建对话/搜索入口在标题栏与 tabs 行（ZCode 式），列表直接开始
-        <div className="h-2" />
-      )}
-
-      {/* Action buttons（桌面壳模式下入口在标题栏/tabs 行，不渲染） */}
-      {!compactChrome && (
-      <div className="flex flex-col gap-px px-2 mb-2 space-y-1">
+      {/* Action buttons（桌面壳也复用原版：新建/搜索/定时/文件库入口都在这里，
+          避免壳再造一份造成重复渲染；compactChrome 下仅补顶部间距替代品牌头） */}
+      <div
+        className={
+          compactChrome
+            ? "flex flex-col gap-px px-2 pt-2.5 mb-2 space-y-1"
+            : "flex flex-col gap-px px-2 mb-2 space-y-1"
+        }
+      >
         <button
           onClick={onNewSession}
           className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors group"
@@ -445,7 +446,6 @@ export function SessionListContent({
           </div>
         )}
       </div>
-      )}
 
       {/* Session list */}
       <div

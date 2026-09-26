@@ -4,7 +4,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
-  MessageSquarePlus,
   Minus,
   PanelLeft,
   Square,
@@ -19,18 +18,15 @@ import {
   toggleMaximizeWindow,
 } from "../../../services/tauri/windowControls";
 import type { UpdateState } from "../../../types";
-import {
-  DESKTOP_SIDEBAR_NEW_SESSION_EVENT,
-  DESKTOP_SIDEBAR_TOGGLE_EVENT,
-} from "../DesktopSidebarShell/desktopShellPlatform";
+import { DESKTOP_SIDEBAR_TOGGLE_EVENT } from "../DesktopSidebarShell/desktopShellPlatform";
 import type { DesktopOs } from "./titlebarPlatform";
 import { UpdateTitlebarIndicator } from "./UpdateTitlebarIndicator";
 
 /**
  * 桌面端自绘标题栏（Windows/Linux 全自绘；macOS Overlay 模式下只承担
- * 导航与更新指示，红绿灯为原生控件）。结构（ZCode 桌面端同款控制簇）：
+ * 导航与更新指示，红绿灯为原生控件）。结构：
  *
- * [羊头 logo + LambChat(非mac)] [◧ 侧栏] [← →] [＋ 新建] ······拖拽区······
+ * [羊头 logo + LambChat(非mac)] [◧ 侧栏] [← →] ······拖拽区······
  * [更新图标] [— □ ×(非mac)]
  */
 
@@ -221,17 +217,6 @@ export function TitleBar({
       >
         <ChevronRight size={16} strokeWidth={2} />
       </NavButton>
-
-      <TitleIconButton
-        label={t("sidebar.newChat")}
-        onClick={() =>
-          window.dispatchEvent(
-            new CustomEvent(DESKTOP_SIDEBAR_NEW_SESSION_EVENT),
-          )
-        }
-      >
-        <MessageSquarePlus size={16} strokeWidth={2} aria-hidden="true" />
-      </TitleIconButton>
 
       {/* 拖拽区：flex 弹性占位（双击最大化由 Tauri 运行时处理） */}
       <div

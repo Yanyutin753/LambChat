@@ -13,10 +13,6 @@ export const DESKTOP_SIDEBAR_OPEN_SEARCH_EVENT =
 /** TitleBar 折叠/展开按钮 → 桌面壳的事件桥（TitleBar 不感知折叠状态）。 */
 export const DESKTOP_SIDEBAR_TOGGLE_EVENT = "lambchat:desktop-sidebar-toggle";
 
-/** TitleBar 新建对话按钮 → 桌面壳的事件桥（复用 AppContent 的 onNewSession）。 */
-export const DESKTOP_SIDEBAR_NEW_SESSION_EVENT =
-  "lambchat:desktop-sidebar-new-session";
-
 export type DesktopSidebarView = "chat" | "files";
 
 /** Tauri 桌面壳环境（web/移动端 false）。 */

@@ -61,8 +61,6 @@ export function NonChatAppContent({
           collapsed={sidebarCollapsed}
           onToggleCollapsed={setSidebarCollapsed}
           sessionId={null}
-          onNewSession={handleNewSession}
-          onShowProfile={onShowProfile}
         >
           <SessionSidebar
             variant={isDesktopShell() ? "desktopShell" : "default"}
