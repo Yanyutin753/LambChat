@@ -3869,7 +3869,8 @@
     "minimize": "Свернуть",
     "maximize": "Развернуть",
     "restore": "Восстановить",
-    "close": "Закрыть"
+    "close": "Закрыть",
+    "toggleSidebar": "Переключить боковую панель"
   },
   "workspacePanel": {
     "account": "Аккаунт",

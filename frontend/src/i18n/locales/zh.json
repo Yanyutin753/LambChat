@@ -3869,7 +3869,8 @@
     "minimize": "最小化",
     "maximize": "最大化",
     "restore": "还原",
-    "close": "关闭"
+    "close": "关闭",
+    "toggleSidebar": "切换侧边栏"
   },
   "workspacePanel": {
     "account": "账号",

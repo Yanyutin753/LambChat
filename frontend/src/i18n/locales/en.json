@@ -3869,7 +3869,8 @@
     "minimize": "Minimize",
     "maximize": "Maximize",
     "restore": "Restore",
-    "close": "Close"
+    "close": "Close",
+    "toggleSidebar": "Toggle sidebar"
   },
   "workspacePanel": {
     "account": "Account",

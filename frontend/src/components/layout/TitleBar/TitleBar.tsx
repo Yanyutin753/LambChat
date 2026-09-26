@@ -4,7 +4,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
+  MessageSquarePlus,
   Minus,
+  PanelLeft,
   Square,
   X,
 } from "lucide-react";
@@ -17,14 +19,19 @@ import {
   toggleMaximizeWindow,
 } from "../../../services/tauri/windowControls";
 import type { UpdateState } from "../../../types";
+import {
+  DESKTOP_SIDEBAR_NEW_SESSION_EVENT,
+  DESKTOP_SIDEBAR_TOGGLE_EVENT,
+} from "../DesktopSidebarShell/desktopShellPlatform";
 import type { DesktopOs } from "./titlebarPlatform";
 import { UpdateTitlebarIndicator } from "./UpdateTitlebarIndicator";
 
 /**
  * 桌面端自绘标题栏（Windows/Linux 全自绘；macOS Overlay 模式下只承担
- * 导航与更新指示，红绿灯为原生控件）。结构：
+ * 导航与更新指示，红绿灯为原生控件）。结构（ZCode 桌面端同款控制簇）：
  *
- * [羊头 logo + LambChat] [← →] ·······拖拽区······· [更新图标] [— □ ×]
+ * [羊头 logo + LambChat(非mac)] [◧ 侧栏] [← →] [＋ 新建] ······拖拽区······
+ * [更新图标] [— □ ×(非mac)]
  */
 
 interface TitleBarProps {
@@ -32,6 +39,29 @@ interface TitleBarProps {
   updateState: UpdateState;
   onInstallUpdate: () => void;
   onSkipVersion: () => void;
+}
+
+function TitleIconButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={false}
+      aria-label={label}
+      title={label}
+      className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-background-muted)] hover:text-[var(--color-text-primary)]"
+    >
+      {children}
+    </button>
+  );
 }
 
 function NavButton({
@@ -166,6 +196,15 @@ export function TitleBar({
         </div>
       )}
 
+      <TitleIconButton
+        label={t("titlebar.toggleSidebar", "切换侧边栏")}
+        onClick={() =>
+          window.dispatchEvent(new CustomEvent(DESKTOP_SIDEBAR_TOGGLE_EVENT))
+        }
+      >
+        <PanelLeft size={16} strokeWidth={2} aria-hidden="true" />
+      </TitleIconButton>
+
       <NavButton
         direction="back"
         enabled={canBack}
@@ -182,6 +221,17 @@ export function TitleBar({
       >
         <ChevronRight size={16} strokeWidth={2} />
       </NavButton>
+
+      <TitleIconButton
+        label={t("sidebar.newChat")}
+        onClick={() =>
+          window.dispatchEvent(
+            new CustomEvent(DESKTOP_SIDEBAR_NEW_SESSION_EVENT),
+          )
+        }
+      >
+        <MessageSquarePlus size={16} strokeWidth={2} aria-hidden="true" />
+      </TitleIconButton>
 
       {/* 拖拽区：flex 弹性占位（双击最大化由 Tauri 运行时处理） */}
       <div
