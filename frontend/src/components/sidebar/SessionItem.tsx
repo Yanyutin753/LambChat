@@ -295,7 +295,7 @@ function SessionItemComponent({
           isSelected
             ? "hover:bg-stone-100 dark:hover:bg-stone-800/40"
             : isActive
-              ? "bg-stone-100 dark:bg-stone-800/60"
+              ? "bg-stone-100 dark:bg-stone-700/50"
               : "hover:bg-stone-100 dark:hover:bg-stone-800/40"
         } ${isDragging || isDraggingTouch ? "opacity-50 scale-95" : ""} ${
           selectionMode ? "pr-2" : ""

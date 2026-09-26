@@ -182,10 +182,10 @@ export function DesktopSidebarShell({
 
   const tabButtonClass = (active: boolean) =>
     clsx(
-      "flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-13 font-medium transition-colors",
+      "flex h-7 items-center gap-1.5 rounded-[10px] px-[9px] text-13 font-medium transition-colors",
       active
         ? "bg-[var(--theme-bg-card)] text-[var(--color-text-primary)] shadow-[var(--shadow-card)]"
-        : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
+        : "text-[var(--color-text-secondary)] hover:bg-[var(--theme-bg-subtle)] hover:text-[var(--color-text-primary)]",
     );
 
   return (
@@ -200,28 +200,27 @@ export function DesktopSidebarShell({
         style={{ width: collapsed ? 0 : width }}
       >
         <div className="absolute inset-0 flex flex-col">
-          {/* 顶部标签行：会话|电脑（操作行/用户区沿用原版 SessionSidebar 内容） */}
-          <div className="flex h-10 shrink-0 items-center px-2">
-            <div className="flex items-center gap-0.5 rounded-[10px] bg-[var(--theme-bg-subtle)] p-0.5">
-              <button
-                type="button"
-                onClick={() => switchView("chat")}
-                aria-pressed={view === "chat"}
-                className={tabButtonClass(view === "chat")}
-              >
-                <MessagesSquare size={14} className="shrink-0" />
-                <span>{t("workspacePanel.viewChats", { defaultValue: "会话" })}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => switchView("files")}
-                aria-pressed={view === "files"}
-                className={tabButtonClass(view === "files")}
-              >
-                <Monitor size={14} className="shrink-0" />
-                <span>{t("workspacePanel.title", { defaultValue: "电脑" })}</span>
-              </button>
-            </div>
+          {/* 顶部标签行：会话|电脑（操作行/用户区沿用原版 SessionSidebar 内容；
+              px-[9px] 与下方操作行按钮左缘/图标对齐同一节奏） */}
+          <div className="flex h-9 shrink-0 items-center gap-0.5 px-2">
+            <button
+              type="button"
+              onClick={() => switchView("chat")}
+              aria-pressed={view === "chat"}
+              className={tabButtonClass(view === "chat")}
+            >
+              <MessagesSquare size={15} className="shrink-0" />
+              <span>{t("workspacePanel.viewChats", { defaultValue: "会话" })}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => switchView("files")}
+              aria-pressed={view === "files"}
+              className={tabButtonClass(view === "files")}
+            >
+              <Monitor size={15} className="shrink-0" />
+              <span>{t("workspacePanel.title", { defaultValue: "电脑" })}</span>
+            </button>
           </div>
 
           {/* 内容区（chat/files 常驻挂载保状态，仅切显隐） */}

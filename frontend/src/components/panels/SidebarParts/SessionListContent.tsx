@@ -384,7 +384,7 @@ export function SessionListContent({
       <div
         className={
           compactChrome
-            ? "flex flex-col gap-px px-2 pt-2.5 mb-2 space-y-1"
+            ? "flex flex-col gap-px px-2 pt-2 mb-2 space-y-1"
             : "flex flex-col gap-px px-2 mb-2 space-y-1"
         }
       >

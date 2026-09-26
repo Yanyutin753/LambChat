@@ -333,8 +333,8 @@ export function WorkspacePanel({
 
   return (
     <div className="flex h-full flex-col bg-[var(--theme-bg-sidebar)]">
-      {/* 视图切换(图标式,主流桌面端样式)+ 状态徽标 + 刷新 */}
-      <div className="flex items-center justify-between gap-1 px-2 pt-2.5 pb-1.5">
+      {/* 视图切换(图标式,主流桌面端样式)+ 状态徽标 + 刷新（顶部节奏与会话视图操作行对齐） */}
+      <div className="flex items-center justify-between gap-1 px-2 pt-2 pb-1.5">
         <div className="flex items-center gap-0.5 rounded-lg bg-stone-200/60 p-0.5 dark:bg-stone-800/60">
           <Tooltip content={t("workspacePanel.viewLocal", { defaultValue: "本地电脑" })} placement="bottom">
             <button
