@@ -116,6 +116,11 @@ class ErrorCode(Enum):
         409,
         "Result submitted by machine '{{machine}}' does not match the machine this call was dispatched to",
     )
+    SANDBOX_SESSION_NOT_LOCAL = (
+        "sandbox_session_not_local",
+        409,
+        "This session runs on the cloud sandbox; workspace file browsing requires a local sandbox session",
+    )
     DAEMON_VERSION_UNSUPPORTED = (
         "daemon_version_unsupported",
         426,

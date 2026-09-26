@@ -510,6 +510,7 @@
     "repositoryOrBranchNotFound": "Repository or branch not found.",
     "resetTokenExpired": "Reset token has expired.",
     "roleNotFound": "Role not found.",
+    "sandboxSessionNotLocal": "This session runs on the cloud sandbox; workspace file browsing requires a local sandbox session",
     "sessionAccessDenied": "You do not have access to this session.",
     "sessionNotFound": "Session not found.",
     "settingNotFound": "Setting not found.",
@@ -3880,6 +3881,7 @@
     "revealInFileManager": "Reveal in file manager",
     "binaryFileHint": "(Binary file — inline preview not supported)",
     "settings": "Settings",
-    "account": "Account"
+    "account": "Account",
+    "cloudSession": "This session uses the cloud sandbox; its workspace files live in the cloud"
   }
 }

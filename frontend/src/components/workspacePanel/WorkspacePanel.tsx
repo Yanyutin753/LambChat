@@ -14,6 +14,7 @@ import {
   Copy,
   FolderClosed,
   FolderOpen,
+  Cloud,
   HardDrive,
   Loader2,
   RefreshCw,
@@ -32,10 +33,17 @@ import {
   isShellAvailable,
   revealWorkspacePath,
 } from "../../services/tauri/sandboxShell";
+import {
+  parseWorkspaceSelection,
+} from "../chat/workspaceSelection";
 import { copyToClipboard } from "../../utils/clipboard";
 
 interface WorkspacePanelProps {
   sessionId: string | null;
+  /** 会话沙箱模式（agent_options.sandbox，"local" | "cloud"）。 */
+  sandboxMode?: string | null;
+  /** 会话 sandbox_machine_id（未显式选机器时空，走默认机解析）。 */
+  machineId?: string | null;
   /** 会话 sandbox_workspace 的原样 JSON（reveal 用，Rust 侧与绑定文件比对）。 */
   workspaceSelection?: string | null;
 }
@@ -51,13 +59,31 @@ interface ContextMenuState {
   path: string;
 }
 
-export function WorkspacePanel({ sessionId, workspaceSelection }: WorkspacePanelProps) {
+export function WorkspacePanel({
+  sessionId,
+  sandboxMode,
+  machineId,
+  workspaceSelection,
+}: WorkspacePanelProps) {
   const { t } = useTranslation();
-  const { online } = useSandboxStatus();
+  const { machines, currentMachineId, defaultMachineId, online } = useSandboxStatus();
+  // 云端会话的工作区在 E2B：不发本地 fs 请求（后端同样拒绝，双保险）
+  const isCloud = sandboxMode === "cloud";
+  // 目标机解析对齐 SessionWorkspaceBar：显式选机 → 默认机 → 唯一在线机
+  const onlineMachines = machines.filter((item) => item.online);
+  const selection = parseWorkspaceSelection(workspaceSelection);
+  const selectedMachineId =
+    machineId || defaultMachineId || (onlineMachines.length === 1 ? onlineMachines[0].machine_id : "");
+  // reveal 只能打开本机磁盘路径；远程机的文件树可跨机浏览（fs 走中继），
+  // 但右键「在文件管理器中显示」仅本机工作区出现（Rust 侧再校验一次）
+  const isLocalMachineWorkspace =
+    !isCloud && online && !!currentMachineId && selectedMachineId === currentMachineId;
   // daemon 离线时置 null：树整体回到 idle，不发起注定失败的中继请求
-  const effectiveSessionId = online ? sessionId : null;
+  const effectiveSessionId = online && !isCloud ? sessionId : null;
+  // 平台/机器/绑定任一切换都整树重置（否则展示的是上一个工作区的 stale 文件）
+  const resetKey = `${sessionId ?? ""}|${isCloud ? "cloud" : "local"}|${selectedMachineId}|${selection?.id ?? ""}`;
   const { root, state, error, toggleDir, refresh, expandedPaths } =
-    useWorkspaceTree(effectiveSessionId);
+    useWorkspaceTree(effectiveSessionId, resetKey);
   const [preview, setPreview] = useState<PendingPreview | null>(null);
   const [openingPath, setOpeningPath] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -117,9 +143,9 @@ export function WorkspacePanel({ sessionId, workspaceSelection }: WorkspacePanel
   const handleReveal = useCallback(
     async (relPath: string) => {
       if (!sessionId) return;
-      await revealWorkspacePath(sessionId, relPath, workspaceSelection);
+      await revealWorkspacePath(sessionId, relPath, workspaceSelection, selectedMachineId);
     },
-    [sessionId, workspaceSelection],
+    [sessionId, workspaceSelection, selectedMachineId],
   );
 
   const renderNodes = (nodes: WorkspaceTreeNode[], depth: number) =>
@@ -200,7 +226,16 @@ export function WorkspacePanel({ sessionId, workspaceSelection }: WorkspacePanel
       </div>
 
       {/* 状态区 */}
-      {!online ? (
+      {isCloud ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+          <Cloud size={22} className="text-stone-400" />
+          <p className="text-12 text-stone-500 dark:text-stone-400">
+            {t("workspacePanel.cloudSession", {
+              defaultValue: "此会话使用云端沙箱，工作区文件在云端",
+            })}
+          </p>
+        </div>
+      ) : !online ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
           <HardDrive size={22} className="text-stone-400" />
           <p className="text-12 text-stone-500 dark:text-stone-400">
@@ -270,7 +305,7 @@ export function WorkspacePanel({ sessionId, workspaceSelection }: WorkspacePanel
             <Copy size={14} />
             {t("workspacePanel.copyPath", { defaultValue: "复制路径" })}
           </button>
-          {isShellAvailable() && (
+          {isShellAvailable() && isLocalMachineWorkspace && (
             <button
               onClick={() => {
                 void handleReveal(contextMenu.path);

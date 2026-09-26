@@ -510,6 +510,7 @@
     "repositoryOrBranchNotFound": "リポジトリまたはブランチが見つかりません。",
     "resetTokenExpired": "リセットトークンの有効期限が切れています。",
     "roleNotFound": "ロールが見つかりません。",
+    "sandboxSessionNotLocal": "このセッションはクラウドサンドボックスで実行されています。ワークスペースのファイル閲覧にはローカルサンドボックスセッションが必要です",
     "sessionAccessDenied": "このセッションにアクセスする権限がありません。",
     "sessionNotFound": "セッションが見つかりません。",
     "settingNotFound": "設定が見つかりません。",
@@ -3880,6 +3881,7 @@
     "revealInFileManager": "ファイルマネージャーで表示",
     "binaryFileHint": "（バイナリファイル — インラインプレビュー非対応）",
     "settings": "設定",
-    "account": "アカウント"
+    "account": "アカウント",
+    "cloudSession": "このセッションはクラウドサンドボックスを使用しています。ワークスペースのファイルはクラウドにあります"
   }
 }

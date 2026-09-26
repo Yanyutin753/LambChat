@@ -94,14 +94,21 @@ function findNode(nodes: WorkspaceTreeNode[], path: string): WorkspaceTreeNode |
   return null;
 }
 
-export function useWorkspaceTree(sessionId: string | null) {
+/**
+ * @param sessionId 目标会话（API 调用与 cwd 解析依据；null = idle 不请求）
+ * @param resetKey 重置键——会话、沙箱平台、目标机或目录绑定任一变化都会
+ *   改变工作区内容，必须整树重置（否则展示上一个工作区的 stale 文件）。
+ *   缺省等于 sessionId（只按会话重置）。
+ */
+export function useWorkspaceTree(sessionId: string | null, resetKey?: string) {
+  const effectiveResetKey = resetKey ?? sessionId ?? "";
   const [root, setRoot] = useState<WorkspaceTreeNode[]>([]);
   const [state, setState] = useState<WorkspaceTreeState>("idle");
   const [error, setError] = useState<string | null>(null);
   /** 展开集合（state 驱动渲染）；children 装载后常驻内存，折叠只收 UI。 */
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const inFlightRef = useRef<Set<string>>(new Set());
-  /** 会话代际：sessionId 切换后旧异步结果不再落 state。 */
+  /** 会话代际：resetKey 切换后旧异步结果不再落 state。 */
   const generationRef = useRef(0);
 
   const loadDir = useCallback(
@@ -139,7 +146,8 @@ export function useWorkspaceTree(sessionId: string | null) {
     [sessionId],
   );
 
-  // 会话切换：整体重置（代际 +1 让在途结果作废），根目录装载。
+  // 工作区切换（会话/平台/机器/绑定）：整体重置（代际 +1 让在途结果作
+  // 废），根目录装载。
   useEffect(() => {
     generationRef.current += 1;
     inFlightRef.current.clear();
@@ -152,7 +160,7 @@ export function useWorkspaceTree(sessionId: string | null) {
     }
     setState("loading");
     void loadDir(".", { replace: true });
-  }, [sessionId, loadDir]);
+  }, [sessionId, effectiveResetKey, loadDir]);
 
   const toggleDir = useCallback(
     (path: string) => {

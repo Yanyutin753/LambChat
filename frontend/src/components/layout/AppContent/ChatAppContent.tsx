@@ -293,7 +293,14 @@ export function ChatAppContent({
     getDefaultAgentOptions: () => agentOptionValues,
   });
 
-  // 桌面双栏「文件」面板 reveal 用：会话当前工作区绑定（原样 JSON 字符串）
+  // 桌面双栏「文件」面板：会话沙箱模式/选机/工作区绑定——任一切换都驱动
+  // 面板重新解析工作区（云端提示、reveal 菜单、树重置）
+  const workspaceModeForShell =
+    typeof agentOptionValues?.sandbox === "string" ? agentOptionValues.sandbox : null;
+  const workspaceMachineForShell =
+    typeof agentOptionValues?.sandbox_machine_id === "string"
+      ? agentOptionValues.sandbox_machine_id
+      : null;
   const workspaceSelectionForShell =
     typeof agentOptionValues?.[WORKSPACE_OPTION] === "string"
       ? (agentOptionValues[WORKSPACE_OPTION] as string)
@@ -779,6 +786,8 @@ export function ChatAppContent({
           collapsed={sidebarCollapsed}
           onToggleCollapsed={setSidebarCollapsed}
           sessionId={sessionId}
+          sandboxMode={workspaceModeForShell}
+          machineId={workspaceMachineForShell}
           workspaceSelection={workspaceSelectionForShell}
           onNewSession={handleNewSessionWithReset}
           onShowProfile={onShowProfile}

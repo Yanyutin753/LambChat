@@ -57,6 +57,10 @@ interface DesktopSidebarShellProps {
   collapsed: boolean;
   onToggleCollapsed: (collapsed: boolean) => void;
   sessionId?: string | null;
+  /** 会话沙箱模式（agent_options.sandbox，"local" | "cloud"）。 */
+  sandboxMode?: string | null;
+  /** 会话 sandbox_machine_id（未显式选机器时空）。 */
+  machineId?: string | null;
   /** 会话 sandbox_workspace 的原样 JSON（reveal 用）。 */
   workspaceSelection?: string | null;
   onNewSession: () => void;
@@ -124,6 +128,8 @@ export function DesktopSidebarShell({
   collapsed,
   onToggleCollapsed,
   sessionId,
+  sandboxMode,
+  machineId,
   workspaceSelection,
   onNewSession,
   onShowProfile,
@@ -257,6 +263,8 @@ export function DesktopSidebarShell({
               <div className="min-h-0 w-full flex-1">
                 <WorkspacePanel
                   sessionId={sessionId ?? null}
+                  sandboxMode={sandboxMode}
+                  machineId={machineId}
                   workspaceSelection={workspaceSelection}
                 />
               </div>

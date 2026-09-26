@@ -510,6 +510,7 @@
     "repositoryOrBranchNotFound": "仓库或分支不存在",
     "resetTokenExpired": "重置令牌已过期",
     "roleNotFound": "角色不存在",
+    "sandboxSessionNotLocal": "此会话运行在云端沙箱；浏览工作区文件需要本地沙箱会话",
     "sessionAccessDenied": "无权访问此会话",
     "sessionNotFound": "会话不存在",
     "settingNotFound": "设置不存在",
@@ -3880,6 +3881,7 @@
     "revealInFileManager": "在文件管理器中显示",
     "binaryFileHint": "（二进制文件，暂不支持内联预览）",
     "settings": "设置",
-    "account": "账号"
+    "account": "账号",
+    "cloudSession": "此会话使用云端沙箱，工作区文件在云端"
   }
 }

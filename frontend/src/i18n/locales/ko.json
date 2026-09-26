@@ -510,6 +510,7 @@
     "repositoryOrBranchNotFound": "저장소 또는 브랜치를 찾을 수 없습니다.",
     "resetTokenExpired": "재설정 토큰이 만료되었습니다.",
     "roleNotFound": "역할을 찾을 수 없습니다.",
+    "sandboxSessionNotLocal": "이 세션은 클라우드 샌드박스에서 실행 중입니다. 워크스페이스 파일 탐색에는 로컬 샌드박스 세션이 필요합니다",
     "sessionAccessDenied": "이 세션에 접근할 권한이 없습니다.",
     "sessionNotFound": "세션을 찾을 수 없습니다.",
     "settingNotFound": "설정을 찾을 수 없습니다.",
@@ -3880,6 +3881,7 @@
     "revealInFileManager": "파일 관리자에서 보기",
     "binaryFileHint": "(바이너리 파일 — 인라인 미리보기 미지원)",
     "settings": "설정",
-    "account": "계정"
+    "account": "계정",
+    "cloudSession": "이 세션은 클라우드 샌드박스를 사용합니다. 워크스페이스 파일은 클라우드에 있습니다"
   }
 }

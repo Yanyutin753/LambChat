@@ -30,7 +30,12 @@ def _bound_agent_options(machine_id="m1") -> dict:
 
 
 def _fake_session(user_id="u1", agent_options=None) -> SimpleNamespace:
-    metadata = {"conversation_config": {"agent_options": agent_options or {}}}
+    # 前端 useAgentOptions 总会显式写 sandbox 值；缺省回落全局 SANDBOX_PLATFORM
+    # （出厂 daytona=云端）的分支由专项用例锁定
+    options = {"sandbox": "local"}
+    if agent_options is not None:
+        options.update(agent_options)
+    metadata = {"conversation_config": {"agent_options": options}}
     return SimpleNamespace(user_id=user_id, metadata=metadata)
 
 
@@ -239,3 +244,39 @@ async def test_fs_list_falls_back_on_invalid_binding(monkeypatch, missing):
         resp = await client.get("/api/sandbox/fs/list", params={"session_id": "sess-1"})
     assert resp.status_code == 200
     assert dispatched[0]["payload"]["cwd"] == "/workspace/sess-1"
+
+
+async def test_fs_list_rejects_cloud_session(monkeypatch):
+    """云端会话（sandbox=cloud）拒绝：其工作区在 E2B，转发本地 daemon 只会
+    误建空目录、展示无关文件——409 sandbox_session_not_local 且不下发。"""
+    dispatched: list = []
+    async with _fs_app(
+        monkeypatch, _fake_session(agent_options={"sandbox": "cloud"}), dispatched
+    ) as client:
+        resp = await client.get("/api/sandbox/fs/list", params={"session_id": "sess-1"})
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "sandbox_session_not_local"
+    assert dispatched == []
+
+
+async def test_fs_list_platform_falls_back_to_global_default(monkeypatch):
+    """会话未显式选平台时回落全局 SANDBOX_PLATFORM（与 _resolve_sandbox_platform
+    同规则）：默认为 local 时放行；daytona/cloud 等非 local 平台一律拒绝。"""
+    dispatched: list = []
+
+    monkeypatch.setattr(sandbox_route.settings, "SANDBOX_PLATFORM", "local")
+    async with _fs_app(
+        monkeypatch, _fake_session(agent_options={"sandbox": None}), dispatched
+    ) as client:
+        resp = await client.get("/api/sandbox/fs/list", params={"session_id": "sess-1"})
+    assert resp.status_code == 200
+    assert len(dispatched) == 1
+
+    monkeypatch.setattr(sandbox_route.settings, "SANDBOX_PLATFORM", "daytona")
+    async with _fs_app(
+        monkeypatch, _fake_session(agent_options={"sandbox": None}), dispatched
+    ) as client:
+        resp2 = await client.get("/api/sandbox/fs/list", params={"session_id": "sess-1"})
+    assert resp2.status_code == 409
+    assert resp2.json()["detail"]["code"] == "sandbox_session_not_local"
+    assert len(dispatched) == 1

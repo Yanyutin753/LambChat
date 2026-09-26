@@ -657,6 +657,10 @@ async def _resolve_fs_target(user: TokenPayload, session_id: str) -> tuple[str, 
     绝不采信请求方传入的工作区/机器参数（前端只指定会话，绑定由库解析）。
     未绑定本地目录的会话回落默认工作区 ``/workspace/{sid}``，与
     search_agent 构造 WorkspaceAliasBackend 的分支语义一致。
+
+    云端会话（agent_options.sandbox=cloud，缺省回落全局 SANDBOX_PLATFORM，
+    与 _resolve_sandbox_platform 同规则）在此拒绝：其工作区在 E2B 云端，
+    转发到本地 daemon 只会误建本地空目录、展示与该会话无关的文件。
     """
     from src.infra.backend.workspace_selection import selected_workspace_id
     from src.infra.session.manager import SessionManager
@@ -672,6 +676,14 @@ async def _resolve_fs_target(user: TokenPayload, session_id: str) -> tuple[str, 
     config = metadata.get("conversation_config")
     agent_options = config.get("agent_options") if isinstance(config, dict) else None
     agent_options = agent_options if isinstance(agent_options, dict) else {}
+    platform_choice = agent_options.get("sandbox")
+    platform = (
+        platform_choice
+        if isinstance(platform_choice, str) and platform_choice in ("local", "cloud")
+        else settings.SANDBOX_PLATFORM.lower()
+    )
+    if platform != "local":
+        raise AppError(ErrorCode.SANDBOX_SESSION_NOT_LOCAL)
     workspace_id = selected_workspace_id(agent_options)
     cwd = f"/workspace/.selected/{workspace_id}" if workspace_id else f"/workspace/{session_id}"
     return cwd, agent_options.get("sandbox_machine_id") or None
