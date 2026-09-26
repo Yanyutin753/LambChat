@@ -140,6 +140,9 @@ export function WorkspacePanel({
       return undefined;
     }
     void refreshCloudStatus();
+    // 30s 对账：暂停/回收后徽标及时转黄（status 零副作用，不唤醒沙箱）
+    const timer = window.setInterval(() => void refreshCloudStatus(), 30_000);
+    return () => window.clearInterval(timer);
   }, [isCloudView, sessionId, refreshCloudStatus]);
 
   // 云端可浏览：已创建（running/paused——浏览即唤醒）；未创建/未启用显示空态

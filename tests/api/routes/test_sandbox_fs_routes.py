@@ -358,12 +358,24 @@ def _cloud_app(monkeypatch, session, manager, als_result=None, aread_result=None
 
 
 async def test_cloud_list_passes_create_false_and_normalizes_paths(monkeypatch):
-    """云端列表：只连不建（create=False）+ 条目路径归一为本地端点同构相对串。"""
+    """云端列表：只连不建（create=False）+ 条目路径归一为本地端点同构相对串
+    + 浏览租约被续（浏览保活 → 宽限回收链路接通）。"""
+    from src.infra.sandbox import idle_pause as idle_pause_module
+
+    lease_touched: list[str] = []
+
+    async def fake_touch(user_id: str) -> None:
+        lease_touched.append(user_id)
+
+    monkeypatch.setattr(idle_pause_module, "touch_browse_lease", fake_touch)
+    monkeypatch.setattr(idle_pause_module, "schedule_browse_reaper", lambda uid: None)
+
     client, calls = _cloud_app(monkeypatch, _fake_session(agent_options={"sandbox": "cloud"}), None)
     async with client as c:
         resp = await c.get("/api/sandbox/fs/cloud/list", params={"session_id": "sess-1"})
     assert resp.status_code == 200
     assert calls["get_or_create"] == [{"session_id": "sess-1", "create": False}]
+    assert lease_touched == ["u1"]
     entries = resp.json()["entries"]
     assert {e["path"] for e in entries} == {"./sub", "./hello.txt"}
     assert next(e for e in entries if e["path"] == "./sub")["is_dir"] is True

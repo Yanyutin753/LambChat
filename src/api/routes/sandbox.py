@@ -818,12 +818,17 @@ async def sandbox_fs_cloud_list(
 
     浏览即意图：paused 沙箱在此自动唤醒（E2B connect 语义）；无绑定/被
     回收不新建（404/410 引导）。条目路径归一为与本地端点同构的相对串
-    （根层 ``./name``、子层 ``dir/name``）。
+    （根层 ``./name``、子层 ``dir/name``）。浏览续租约 + 挂回收器
+    （唤醒后不再空跑：宽限窗过后自动暂停回去）。
     """
     import posixpath
 
+    from src.infra.sandbox.idle_pause import schedule_browse_reaper, touch_browse_lease
+
     await _owned_session(user, session_id)
     backend, _work_dir = await _cloud_backend(user, session_id)
+    await touch_browse_lease(user.sub)
+    schedule_browse_reaper(user.sub)
     rel = _cloud_rel(_sanitize_fs_path(path))
     result = await backend.als(rel)
     if result.get("error"):
@@ -851,9 +856,16 @@ async def sandbox_fs_cloud_read(
     limit: int = Query(500, ge=1, le=_FS_READ_MAX_LINES),
     user: TokenPayload = Depends(get_current_user_pat_or_jwt),
 ):
-    """读云端会话工作区文件（行分页，FileData 契约与本地端点对齐）。"""
+    """读云端会话工作区文件（行分页，FileData 契约与本地端点对齐）。
+
+    与 list 同样续浏览租约：文件预览期间沙箱保持可用。
+    """
+    from src.infra.sandbox.idle_pause import schedule_browse_reaper, touch_browse_lease
+
     await _owned_session(user, session_id)
     backend, _work_dir = await _cloud_backend(user, session_id)
+    await touch_browse_lease(user.sub)
+    schedule_browse_reaper(user.sub)
     result = await backend.aread(_cloud_rel(_sanitize_fs_path(path)), offset, limit)
     if result.get("error"):
         return {"error": result["error"]}
