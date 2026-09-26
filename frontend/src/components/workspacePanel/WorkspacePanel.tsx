@@ -333,35 +333,39 @@ export function WorkspacePanel({
 
   return (
     <div className="flex h-full flex-col bg-[var(--theme-bg-sidebar)]">
-      {/* 视图切换（本地电脑 / 云端电脑）+ 刷新 */}
-      <div className="flex items-center justify-between gap-1 px-2 pt-3 pb-2">
+      {/* 视图切换(图标式,主流桌面端样式)+ 状态徽标 + 刷新 */}
+      <div className="flex items-center justify-between gap-1 px-2 pt-2.5 pb-1.5">
         <div className="flex items-center gap-0.5 rounded-lg bg-stone-200/60 p-0.5 dark:bg-stone-800/60">
-          <button
-            onClick={() => switchView("local")}
-            aria-pressed={!isCloudView}
-            className={clsx(
-              "flex h-6 items-center gap-1 rounded-md px-2 text-12 transition-colors",
-              !isCloudView
-                ? "bg-white text-stone-800 shadow-sm dark:bg-stone-700 dark:text-stone-100"
-                : "text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200",
-            )}
-          >
-            <Monitor size={13} />
-            {t("workspacePanel.viewLocal", { defaultValue: "本地电脑" })}
-          </button>
-          <button
-            onClick={() => switchView("cloud")}
-            aria-pressed={isCloudView}
-            className={clsx(
-              "flex h-6 items-center gap-1 rounded-md px-2 text-12 transition-colors",
-              isCloudView
-                ? "bg-white text-stone-800 shadow-sm dark:bg-stone-700 dark:text-stone-100"
-                : "text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200",
-            )}
-          >
-            <Cloud size={13} />
-            {t("workspacePanel.viewCloud", { defaultValue: "云端电脑" })}
-          </button>
+          <Tooltip content={t("workspacePanel.viewLocal", { defaultValue: "本地电脑" })} placement="bottom">
+            <button
+              onClick={() => switchView("local")}
+              aria-pressed={!isCloudView}
+              aria-label={t("workspacePanel.viewLocal", { defaultValue: "本地电脑" })}
+              className={clsx(
+                "flex size-6 items-center justify-center rounded-md transition-colors",
+                !isCloudView
+                  ? "bg-white text-stone-800 shadow-sm dark:bg-stone-700 dark:text-stone-100"
+                  : "text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200",
+              )}
+            >
+              <Monitor size={14} />
+            </button>
+          </Tooltip>
+          <Tooltip content={t("workspacePanel.viewCloud", { defaultValue: "云端电脑" })} placement="bottom">
+            <button
+              onClick={() => switchView("cloud")}
+              aria-pressed={isCloudView}
+              aria-label={t("workspacePanel.viewCloud", { defaultValue: "云端电脑" })}
+              className={clsx(
+                "flex size-6 items-center justify-center rounded-md transition-colors",
+                isCloudView
+                  ? "bg-white text-stone-800 shadow-sm dark:bg-stone-700 dark:text-stone-100"
+                  : "text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200",
+              )}
+            >
+              <Cloud size={14} />
+            </button>
+          </Tooltip>
         </div>
         <div className="flex items-center gap-1.5">
           {cloudStateBadge}

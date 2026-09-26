@@ -379,7 +379,27 @@ export function SessionListContent({
         </Tooltip>
       </div>
       )}
-      {compactChrome && <div className="pt-3" />}
+      {compactChrome && (
+        // 桌面双栏:主流紧凑工具行(新建对话 + 搜索),列表直接开始
+        <div className="flex items-center gap-1.5 px-2 pt-2.5 pb-1.5">
+          <button
+            onClick={onNewSession}
+            className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-[10px] bg-stone-200/70 px-2.5 text-13 font-medium text-stone-700 transition-colors hover:bg-stone-300/70 dark:bg-stone-700/50 dark:text-stone-200 dark:hover:bg-stone-600/60"
+          >
+            <MessageSquarePlus size={16} className="shrink-0" />
+            <span className="truncate">{t("sidebar.newChat")}</span>
+          </button>
+          <Tooltip content={t("sidebar.searchSessions")}>
+            <button
+              onClick={onOpenSearch}
+              className="sidebar-nav-btn flex size-8 shrink-0 items-center justify-center rounded-[10px] transition-colors"
+              aria-label={t("sidebar.searchSessions")}
+            >
+              <Search size={16} />
+            </button>
+          </Tooltip>
+        </div>
+      )}
 
       {/* Action buttons（桌面双栏模式下入口在 ActivityRail，不渲染） */}
       {!compactChrome && (

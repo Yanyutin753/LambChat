@@ -158,11 +158,6 @@ export function DesktopSidebarShell({
     window.dispatchEvent(new CustomEvent(DESKTOP_SIDEBAR_OPEN_SEARCH_EVENT));
   }, []);
 
-  const title =
-    view === "chat"
-      ? t("workspacePanel.viewChats", { defaultValue: "会话" })
-      : t("workspacePanel.title", { defaultValue: "工作区" });
-
   return (
     <div className="hidden sm:flex h-full shrink-0">
       {/* ActivityRail */}
@@ -209,6 +204,11 @@ export function DesktopSidebarShell({
         <div className="flex-1" />
 
         <RailButton
+          label={collapsed ? t("sidebar.expandSidebar") : t("sidebar.collapseSidebar")}
+          icon={collapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}
+          onClick={() => onToggleCollapsed(!collapsed)}
+        />
+        <RailButton
           label={t("workspacePanel.settings", { defaultValue: "设置" })}
           icon={<Settings size={19} />}
           onClick={() => navigate("/settings")}
@@ -234,58 +234,27 @@ export function DesktopSidebarShell({
         </Tooltip>
       </div>
 
-      {/* 二级面板（折叠时收零；chat/files 内容都常驻挂载保状态，仅切显隐） */}
+      {/* 二级面板（折叠时收零；chat/files 内容都常驻挂载保状态，仅切显隐）。
+          主流桌面端排版：无面板标题头，内容自带紧凑工具行直接开始 */}
       <div
         className="relative h-full shrink-0 overflow-hidden transition-[width] duration-150 ease-in-out"
         style={{ width: collapsed ? 0 : "var(--sidebar-width)" }}
       >
-        {/* 面板头：当前视图名 + 折叠开关 */}
         <div className="absolute inset-0 flex flex-col">
-          <div className="flex h-9 shrink-0 items-center justify-between border-b border-stone-300/60 px-2 dark:border-stone-800/50">
-            <span className="truncate px-1 text-12 font-medium text-stone-500 dark:text-stone-400">
-              {title}
-            </span>
-            <Tooltip content={t("sidebar.collapseSidebar")}>
-              <button
-                onClick={() => onToggleCollapsed(true)}
-                className="flex size-7 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-200/60 dark:text-stone-400 dark:hover:bg-stone-700/40 transition-colors"
-                aria-label={t("sidebar.collapseSidebar")}
-              >
-                <PanelLeftClose size={15} />
-              </button>
-            </Tooltip>
+          <div className={clsx("min-h-0 flex-1", view === "chat" ? (collapsed ? "hidden" : "flex") : "hidden")}>
+            <div className="min-h-0 w-full flex-1">{children}</div>
           </div>
-          <div className="flex min-h-0 flex-1 flex-col">
-            <div className={clsx("min-h-0 flex-1", view === "chat" ? (collapsed ? "hidden" : "flex") : "hidden")}>
-              <div className="min-h-0 w-full flex-1">{children}</div>
-            </div>
-            <div className={clsx("min-h-0 flex-1", view === "files" && !collapsed ? "flex" : "hidden")}>
-              <div className="min-h-0 w-full flex-1">
-                <WorkspacePanel
-                  sessionId={sessionId ?? null}
-                  sandboxMode={sandboxMode}
-                  machineId={machineId}
-                  workspaceSelection={workspaceSelection}
-                />
-              </div>
+          <div className={clsx("min-h-0 flex-1", view === "files" && !collapsed ? "flex" : "hidden")}>
+            <div className="min-h-0 w-full flex-1">
+              <WorkspacePanel
+                sessionId={sessionId ?? null}
+                sandboxMode={sandboxMode}
+                machineId={machineId}
+                workspaceSelection={workspaceSelection}
+              />
             </div>
           </div>
         </div>
-
-        {/* 折叠态：面板头剩一个展开按钮贴 rail 右侧 */}
-        {collapsed && (
-          <div className="absolute inset-0 flex items-start justify-start pt-1.5 pl-1">
-            <Tooltip content={t("sidebar.expandSidebar")} placement="right">
-              <button
-                onClick={() => onToggleCollapsed(false)}
-                className="flex size-7 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-200/60 dark:text-stone-400 dark:hover:bg-stone-700/40 transition-colors"
-                aria-label={t("sidebar.expandSidebar")}
-              >
-                <PanelLeftOpen size={15} />
-              </button>
-            </Tooltip>
-          </div>
-        )}
       </div>
     </div>
   );
