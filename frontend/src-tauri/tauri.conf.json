@@ -5,7 +5,7 @@
   "identifier": "com.lambchat.app",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:5173",
+    "devUrl": "http://localhost:3001",
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm packaged:build"
   },
@@ -32,8 +32,12 @@
       "signingIdentity": "-",
       "hardenedRuntime": false
     },
-    "externalBin": ["binaries/lambchat-daemon"],
-    "resources": ["resources/python/"],
+    "externalBin": [
+      "binaries/lambchat-daemon"
+    ],
+    "resources": [
+      "resources/python/"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

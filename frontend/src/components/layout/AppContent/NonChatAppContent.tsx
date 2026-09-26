@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { SessionSidebar } from "../../panels/SessionSidebar";
 import { AppShell } from "./AppShell";
 import { TabContent } from "./TabContent";
+import { DesktopSidebarShellGate } from "../DesktopSidebarShell/DesktopSidebarShell";
+import { isDesktopShell } from "../DesktopSidebarShell/desktopShellPlatform";
 import type { TabType } from "./types";
 
 export interface NonChatAppContentProps {
@@ -55,16 +57,25 @@ export function NonChatAppContent({
       onNewSession={handleNewSession}
       onShowProfile={onShowProfile}
       sidebar={
-        <SessionSidebar
-          currentSessionId={null}
-          onSelectSession={handleSelectSession}
-          onNewSession={handleNewSession}
-          mobileOpen={mobileSidebarOpen}
-          onMobileClose={handleMobileClose}
-          isCollapsed={sidebarCollapsed}
+        <DesktopSidebarShellGate
+          collapsed={sidebarCollapsed}
           onToggleCollapsed={setSidebarCollapsed}
+          sessionId={null}
+          onNewSession={handleNewSession}
           onShowProfile={onShowProfile}
-        />
+        >
+          <SessionSidebar
+            variant={isDesktopShell() ? "desktopShell" : "default"}
+            currentSessionId={null}
+            onSelectSession={handleSelectSession}
+            onNewSession={handleNewSession}
+            mobileOpen={mobileSidebarOpen}
+            onMobileClose={handleMobileClose}
+            isCollapsed={sidebarCollapsed}
+            onToggleCollapsed={setSidebarCollapsed}
+            onShowProfile={onShowProfile}
+          />
+        </DesktopSidebarShellGate>
       }
     >
       <TabContent activeTab={activeTab} />

@@ -5,9 +5,6 @@ from __future__ import annotations
 from src.kernel.schemas.setting import SettingCategory, SettingType
 
 EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
-    # ============================================
-    # JWT Authentication Settings
-    # ============================================
     "JWT_ALGORITHM": {
         "type": SettingType.STRING,
         "category": SettingCategory.SECURITY,
@@ -31,7 +28,7 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
     },
     # ============================================
     # Web Push (VAPID) Settings
-    # ============================================
+    # ============================================,
     "VAPID_PUBLIC_KEY": {
         "type": SettingType.TEXT,
         "category": SettingCategory.SECURITY,
@@ -56,7 +53,7 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
     },
     # ============================================
     # Email Settings (Resend)
-    # ============================================
+    # ============================================,
     "EMAIL_ENABLED": {
         "type": SettingType.BOOLEAN,
         "category": SettingCategory.EMAIL,
@@ -84,7 +81,7 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
     },
     # ============================================
     # Cloudflare Turnstile (CAPTCHA) Settings
-    # ============================================
+    # ============================================,
     "TURNSTILE_ENABLED": {
         "type": SettingType.BOOLEAN,
         "category": SettingCategory.CAPTCHA,
@@ -140,7 +137,7 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
     },
     # ============================================
     # S3 Storage Settings
-    # ============================================
+    # ============================================,
     "S3_ENABLED": {
         "type": SettingType.BOOLEAN,
         "category": SettingCategory.S3,
@@ -251,7 +248,7 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
     },
     # ============================================
     # File Upload Limits
-    # ============================================
+    # ============================================,
     "LOCAL_STORAGE_PATH": {
         "type": SettingType.STRING,
         "category": SettingCategory.FILE_UPLOAD,
@@ -303,7 +300,7 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
     },
     # ============================================
     # Long-term Storage Settings (PostgreSQL)
-    # ============================================
+    # ============================================,
     "ENABLE_POSTGRES_STORAGE": {
         "type": SettingType.BOOLEAN,
         "category": SettingCategory.LONG_TERM_STORAGE,
@@ -371,7 +368,7 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
     },
     # ============================================
     # Checkpoint Backend Settings
-    # ============================================
+    # ============================================,
     "CHECKPOINT_BACKEND": {
         "type": SettingType.SELECT,
         "category": SettingCategory.CHECKPOINT,
@@ -467,7 +464,7 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
     },
     # ============================================
     # User Management Settings
-    # ============================================
+    # ============================================,
     "DEFAULT_USER_ROLE": {
         "type": SettingType.STRING,
         "category": SettingCategory.USER,
@@ -485,7 +482,7 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
     },
     # ============================================
     # OAuth Settings
-    # ============================================
+    # ============================================,
     "OAUTH_GOOGLE_ENABLED": {
         "type": SettingType.BOOLEAN,
         "category": SettingCategory.OAUTH,
@@ -579,7 +576,7 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
     },
     # ============================================
     # Memory Settings (Master Switch)
-    # ============================================
+    # ============================================,
     "ENABLE_MEMORY": {
         "type": SettingType.BOOLEAN,
         "category": SettingCategory.MEMORY,
@@ -598,7 +595,7 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
     },
     # ============================================
     # Memory Embedding Settings
-    # ============================================
+    # ============================================,
     "NATIVE_MEMORY_EMBEDDING_API_BASE": {
         "type": SettingType.STRING,
         "category": SettingCategory.MEMORY_EMBEDDING,
@@ -634,217 +631,7 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
     },
     # ============================================
     # Memory Search & Index Settings
-    # ============================================
-    "NATIVE_MEMORY_INDEX_ENABLED": {
-        "type": SettingType.BOOLEAN,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "index",
-        "description": "settingDesc.NATIVE_MEMORY_INDEX_ENABLED",
-        "default": True,
-        "depends_on": "ENABLE_MEMORY",
-        "frontend_visible": True,
-    },
-    "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED": {
-        "type": SettingType.BOOLEAN,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "query_context",
-        "description": "settingDesc.NATIVE_MEMORY_QUERY_CONTEXT_ENABLED",
-        "default": False,
-        "depends_on": "ENABLE_MEMORY",
-        "frontend_visible": True,
-    },
-    "NATIVE_MEMORY_QUERY_CONTEXT_TOP_K": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "query_context",
-        "description": "settingDesc.NATIVE_MEMORY_QUERY_CONTEXT_TOP_K",
-        "default": 3,
-        "depends_on": "ENABLE_MEMORY",
-        "frontend_visible": True,
-    },
-    "NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "query_context",
-        "description": "settingDesc.NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS",
-        "default": 1200,
-        "depends_on": "ENABLE_MEMORY",
-        "frontend_visible": True,
-    },
-    "NATIVE_MEMORY_SELF_EVOLVE_ENABLED": {
-        "type": SettingType.BOOLEAN,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "self_evolve",
-        "description": "settingDesc.NATIVE_MEMORY_SELF_EVOLVE_ENABLED",
-        "default": False,
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "NATIVE_MEMORY_SELF_EVOLVE_MAX_PER_NIGHT": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "self_evolve",
-        "description": "settingDesc.NATIVE_MEMORY_SELF_EVOLVE_MAX_PER_NIGHT",
-        "default": 3,
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "NATIVE_MEMORY_SELF_EVOLVE_INTERVAL_SECONDS": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "self_evolve",
-        "description": "settingDesc.NATIVE_MEMORY_SELF_EVOLVE_INTERVAL_SECONDS",
-        "default": 43200,
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "MEMORY_EXTRACTION_ENABLED": {
-        "type": SettingType.BOOLEAN,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "extraction",
-        "description": "settingDesc.MEMORY_EXTRACTION_ENABLED",
-        "default": True,
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "MEMORY_EXTRACTION_IDLE_SECONDS": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "extraction",
-        "description": "settingDesc.MEMORY_EXTRACTION_IDLE_SECONDS",
-        "default": 1800,
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "MEMORY_EXTRACTION_MAX_AGE_DAYS": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "extraction",
-        "description": "settingDesc.MEMORY_EXTRACTION_MAX_AGE_DAYS",
-        "default": 30,
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "MEMORY_EXTRACTION_MAX_SESSIONS_PER_PASS": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "extraction",
-        "description": "settingDesc.MEMORY_EXTRACTION_MAX_SESSIONS_PER_PASS",
-        "default": 3,
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "MEMORY_EXTRACTION_MAX_ATTEMPTS": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "extraction",
-        "description": "settingDesc.MEMORY_EXTRACTION_MAX_ATTEMPTS",
-        "default": 3,
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "MEMORY_EXTRACTION_TRANSCRIPT_MAX_CHARS": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "extraction",
-        "description": "settingDesc.MEMORY_EXTRACTION_TRANSCRIPT_MAX_CHARS",
-        "default": 24000,
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "MEMORY_EXTRACTION_INTERVAL_SECONDS": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "extraction",
-        "description": "settingDesc.MEMORY_EXTRACTION_INTERVAL_SECONDS",
-        "default": 900,
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "NATIVE_MEMORY_VECTOR_BACKEND": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "vector",
-        "description": "settingDesc.NATIVE_MEMORY_VECTOR_BACKEND",
-        "default": "mongo",
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "NATIVE_MEMORY_QDRANT_URL": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "vector",
-        "description": "settingDesc.NATIVE_MEMORY_QDRANT_URL",
-        "default": "http://127.0.0.1:6333",
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "NATIVE_MEMORY_QDRANT_API_KEY": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "vector",
-        "description": "settingDesc.NATIVE_MEMORY_QDRANT_API_KEY",
-        "default": "",
-        "is_sensitive": True,
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "NATIVE_MEMORY_INDEX_CACHE_TTL": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "index",
-        "description": "settingDesc.NATIVE_MEMORY_INDEX_CACHE_TTL",
-        "default": 300,
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "NATIVE_MEMORY_RERANK_MODEL": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "rerank",
-        "description": "settingDesc.NATIVE_MEMORY_RERANK_MODEL",
-        "default": "",
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "NATIVE_MEMORY_RERANK_API_BASE": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "rerank",
-        "description": "settingDesc.NATIVE_MEMORY_RERANK_API_BASE",
-        "default": "",
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "NATIVE_MEMORY_RERANK_API_KEY": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "rerank",
-        "description": "settingDesc.NATIVE_MEMORY_RERANK_API_KEY",
-        "default": "",
-        "is_sensitive": True,
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "NATIVE_MEMORY_MAX_TOKENS": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "limits",
-        "description": "settingDesc.NATIVE_MEMORY_MAX_TOKENS",
-        "default": 0,
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "NATIVE_MEMORY_INLINE_CONTENT_MAX_CHARS": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "limits",
-        "description": "settingDesc.NATIVE_MEMORY_INLINE_CONTENT_MAX_CHARS",
-        "default": 1200,
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "NATIVE_MEMORY_IMPORT_TOTAL_CONTENT_MAX_CHARS": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "limits",
-        "description": "settingDesc.NATIVE_MEMORY_IMPORT_TOTAL_CONTENT_MAX_CHARS",
-        "default": 2000000,
-        "depends_on": "ENABLE_MEMORY",
-        "frontend_visible": False,
-    },
-    "NATIVE_MEMORY_COMPACTION_CONTENT_MAX_CHARS": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "limits",
-        "description": "settingDesc.NATIVE_MEMORY_COMPACTION_CONTENT_MAX_CHARS",
-        "default": 4000,
-        "depends_on": "ENABLE_MEMORY",
-    },
-    # ============================================
-    # Memory Storage & Policy Settings
-    # ============================================
+    # ============================================,
     "NATIVE_MEMORY_MODEL": {
         "type": SettingType.STRING,
         "category": SettingCategory.MEMORY_STORAGE,

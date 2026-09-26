@@ -43,6 +43,7 @@ import { SearchDialog } from "./SearchDialog";
 import { ShareDialog } from "../share/ShareDialog";
 import { ShareProjectDialog } from "../share/ShareProjectDialog";
 import { NewProjectModal } from "./NewProjectModal";
+import { DESKTOP_SIDEBAR_OPEN_SEARCH_EVENT } from "../layout/DesktopSidebarShell/desktopShellPlatform";
 import {
   SessionListContent,
   SidebarRail,
@@ -68,6 +69,9 @@ interface SessionSidebarProps {
   isCollapsed?: boolean;
   onToggleCollapsed?: (collapsed: boolean) => void;
   onShowProfile?: () => void;
+  /** 嵌入形态：default = 独立桌面侧栏（自带宽度与折叠 rail）；desktopShell =
+   * 桌面双栏的聊天二级面板（宽度与折叠职责移交 DesktopSidebarShell）。 */
+  variant?: "default" | "desktopShell";
   onSetPendingProjectId?: (projectId: string | null) => void;
   /** Project ID to auto-expand after a new session is created in it */
   autoExpandProjectId?: string | null;
@@ -104,6 +108,7 @@ export const SessionSidebar = forwardRef<
     onMobileClose,
     isCollapsed: externalCollapsed,
     onToggleCollapsed,
+    variant = "default",
     onShowProfile,
     onSetPendingProjectId,
     autoExpandProjectId,
@@ -177,6 +182,15 @@ export const SessionSidebar = forwardRef<
     return () => window.removeEventListener("chats-collapsed-changed", handler);
   }, []);
 
+  // 桌面双栏 ActivityRail 的搜索按钮：SearchDialog 状态归本组件管，
+  // 壳经事件触发（与 ⌘K 同一归宿）
+  useEffect(() => {
+    const handler = () => setIsSearchOpen(true);
+    window.addEventListener(DESKTOP_SIDEBAR_OPEN_SEARCH_EVENT, handler);
+    return () =>
+      window.removeEventListener(DESKTOP_SIDEBAR_OPEN_SEARCH_EVENT, handler);
+  }, []);
+
   // Delete project confirmation (uses projectManager, stays here)
   const [deleteProjectConfirm, setDeleteProjectConfirm] = useState<{
     isOpen: boolean;
@@ -191,7 +205,11 @@ export const SessionSidebar = forwardRef<
     projectIcon?: string;
   }>({ isOpen: false, projectId: null, projectName: "" });
 
-  const isCollapsed = externalCollapsed ?? internalCollapsed;
+  // desktopShell：显隐与折叠由外层壳管理，本体恒展开（渲染宽度 100%）
+  const inDesktopShell = variant === "desktopShell";
+  const isCollapsed = inDesktopShell
+    ? false
+    : (externalCollapsed ?? internalCollapsed);
   const setIsCollapsed = onToggleCollapsed ?? setInternalCollapsed;
 
   // ─── Refs ────────────────────────────────────────────────────────
@@ -631,19 +649,22 @@ export const SessionSidebar = forwardRef<
       <div
         className="hidden sm:flex h-full relative shrink-0 overflow-hidden"
         style={{
-          width: isCollapsed
-            ? "var(--sidebar-rail-width)"
-            : "var(--sidebar-width)",
+          width: inDesktopShell
+            ? "100%"
+            : isCollapsed
+              ? "var(--sidebar-rail-width)"
+              : "var(--sidebar-width)",
         }}
       >
         <div
-          className={`h-full w-full flex flex-col bg-[var(--theme-bg-sidebar)] border-r border-stone-300/70 dark:border-stone-800/60 ${
-            isCollapsed ? "hidden" : ""
-          }`}
+          className={`h-full w-full flex flex-col bg-[var(--theme-bg-sidebar)] ${
+            inDesktopShell ? "" : "border-r border-stone-300/70 dark:border-stone-800/60"
+          } ${isCollapsed ? "hidden" : ""}`}
         >
           {!isMobile ? (
             <SessionListContent
               {...sessionListProps}
+              compactChrome={inDesktopShell}
               onCollapse={() => setIsCollapsed(true)}
             />
           ) : (
@@ -651,14 +672,15 @@ export const SessionSidebar = forwardRef<
           )}
         </div>
 
-        {/* Collapsed rail */}
-        <div
-          className={`absolute inset-0 ${
-            isCollapsed
-              ? "opacity-100 pointer-events-auto"
-              : "pointer-events-none opacity-0"
-          }`}
-        >
+        {/* Collapsed rail（desktopShell 下折叠职责在外层壳，不渲染） */}
+        {!inDesktopShell && (
+          <div
+            className={`absolute inset-0 ${
+              isCollapsed
+                ? "opacity-100 pointer-events-auto"
+                : "pointer-events-none opacity-0"
+            }`}
+          >
           <SidebarRail
             user={user}
             imgError={imgError}
@@ -681,6 +703,7 @@ export const SessionSidebar = forwardRef<
             unreadCount={totalUnreadCount}
           />
         </div>
+        )}
       </div>
 
       {/* Touch drag indicator */}

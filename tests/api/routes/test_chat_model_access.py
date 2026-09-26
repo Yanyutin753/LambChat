@@ -53,6 +53,13 @@ class _ModelStorage:
                 label="Blocked",
                 enabled=True,
             )
+        if model_id == "disabled-model":
+            return ModelConfig(
+                id=model_id,
+                value="openai/gpt-disabled",
+                label="Disabled",
+                enabled=False,
+            )
         return None
 
     async def get_by_value(self, value: str) -> ModelConfig | None:
@@ -327,3 +334,55 @@ async def test_default_model_branch_resolves_value_only_entry(
 
     assert agent_options["model_id"] == "value-only-1"
     assert agent_options["model"] == "by-value-only"
+
+
+@pytest.mark.asyncio
+async def test_validate_agent_model_access_missing_model_reports_not_found(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """显式选择的模型已被删除时报 model_not_found，而非误导性的 model_disabled。"""
+    monkeypatch.setattr(
+        "src.infra.agent.model_storage.get_model_storage",
+        lambda: _ModelStorage(),
+    )
+    monkeypatch.setattr(
+        "src.infra.agent.config_storage.get_agent_config_storage",
+        lambda: _AgentConfigStorage(),
+    )
+    monkeypatch.setattr(
+        "src.infra.role.manager.get_role_manager",
+        lambda: _RoleManager(),
+    )
+    user = TokenPayload(sub="user-1", username="tester", roles=["user"])
+
+    with pytest.raises(AuthorizationError, match="model_not_found"):
+        await validate_agent_model_access(
+            {"model_id": "deleted-model", "model": "openai/gpt-deleted"},
+            user,
+        )
+
+
+@pytest.mark.asyncio
+async def test_validate_agent_model_access_disabled_model_reports_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """模型存在但 enabled=False 时保持 model_disabled 语义不变。"""
+    monkeypatch.setattr(
+        "src.infra.agent.model_storage.get_model_storage",
+        lambda: _ModelStorage(),
+    )
+    monkeypatch.setattr(
+        "src.infra.agent.config_storage.get_agent_config_storage",
+        lambda: _AgentConfigStorage(),
+    )
+    monkeypatch.setattr(
+        "src.infra.role.manager.get_role_manager",
+        lambda: _RoleManager(),
+    )
+    user = TokenPayload(sub="user-1", username="tester", roles=["user"])
+
+    with pytest.raises(AuthorizationError, match="model_disabled"):
+        await validate_agent_model_access(
+            {"model_id": "disabled-model"},
+            user,
+        )

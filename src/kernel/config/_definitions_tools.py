@@ -535,6 +535,22 @@ TOOLS_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": True,
         "frontend_visible": True,
     },
+    "WEB_SEARCH_SYSTEMONE_MODE": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.TOOLS,
+        "subcategory": "web_search",
+        "description": "settingDesc.WEB_SEARCH_SYSTEMONE_MODE",
+        "default": "off",
+        "depends_on": "ENABLE_WEB_SEARCH",
+    },
+    "WEB_SEARCH_SYSTEMONE_RELEVANCE_THRESHOLD": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.TOOLS,
+        "subcategory": "web_search",
+        "description": "settingDesc.WEB_SEARCH_SYSTEMONE_RELEVANCE_THRESHOLD",
+        "default": 0.05,
+        "depends_on": "ENABLE_WEB_SEARCH",
+    },
     "WEB_SEARCH_PROVIDER": {
         "type": SettingType.SELECT,
         "category": SettingCategory.TOOLS,

@@ -5,7 +5,8 @@ This module assembles SETTING_DEFINITIONS from domain-grouped sub-modules:
   - _definitions_sandbox: Sandbox platform, Skills, Code Interpreter
   - _definitions_tools: MCP, Audio, Image Analysis, Image Generation, Scheduled Task
   - _definitions_infra: MongoDB, Redis, Task Backend, LangSmith Tracing
-  - _definitions_extra: Security, Storage, User, Memory (already existed)
+  - _definitions_extra: Security, Storage, User
+  - _definitions_memory: Memory search / extraction / dedup (split for the 1000-line guard)
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from __future__ import annotations
 from src.kernel.config._definitions_core import CORE_SETTING_DEFINITIONS
 from src.kernel.config._definitions_extra import EXTRA_SETTING_DEFINITIONS
 from src.kernel.config._definitions_infra import INFRA_SETTING_DEFINITIONS
+from src.kernel.config._definitions_memory import MEMORY_SETTING_DEFINITIONS
 from src.kernel.config._definitions_sandbox import SANDBOX_SETTING_DEFINITIONS
 from src.kernel.config._definitions_tools import TOOLS_SETTING_DEFINITIONS
 from src.kernel.schemas.setting import SettingCategory, SettingType
@@ -27,4 +29,5 @@ SETTING_DEFINITIONS: dict[str, dict] = {
     **TOOLS_SETTING_DEFINITIONS,
     **INFRA_SETTING_DEFINITIONS,
     **EXTRA_SETTING_DEFINITIONS,
+    **MEMORY_SETTING_DEFINITIONS,
 }

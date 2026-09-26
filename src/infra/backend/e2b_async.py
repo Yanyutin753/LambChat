@@ -141,7 +141,8 @@ class E2BAsyncMixin:
             sbx = await self._async_sandbox()
             await sbx.set_timeout(self._timeout)
         except Exception as e:  # noqa: BLE001
-            logger.warning("async keepalive set_timeout failed for %s: %s", self.id, e)
+            # 沙箱被回收后此处必报 not found，属生命周期正常事件，记 INFO
+            logger.info("async keepalive set_timeout failed for %s: %s", self.id, e)
             return
         self._last_timeout_extend = now
 

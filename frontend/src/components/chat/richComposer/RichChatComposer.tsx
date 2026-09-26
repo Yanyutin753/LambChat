@@ -22,6 +22,7 @@ import { FileReferenceNode } from "./nodes/FileReferenceNode";
 import { SkillReferenceNode } from "./nodes/SkillReferenceNode";
 import { RunModeReferenceNode } from "./nodes/RunModeReferenceNode";
 import { RichComposerPlugins } from "./RichComposerPlugins";
+import { isKeyboardEventDuringComposition } from "./keyboardComposition";
 import type { ComposerArrowDirection } from "./ArrowKeyPlugin";
 
 export interface LongTextPastePayload {
@@ -134,6 +135,8 @@ export const RichChatComposer = forwardRef<
   >(
     (event) => {
       if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+      // Arrow keys belong to the IME candidate window while composing.
+      if (isKeyboardEventDuringComposition(event.nativeEvent)) return;
       const direction = event.key === "ArrowUp" ? "up" : "down";
       if (!onArrowKey?.(direction, event.currentTarget)) return;
 

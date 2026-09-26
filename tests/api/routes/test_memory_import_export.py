@@ -18,10 +18,10 @@ def _user() -> TokenPayload:
 
 
 def test_memory_import_total_content_limit_setting_default() -> None:
-    from src.kernel.config._definitions_extra import EXTRA_SETTING_DEFINITIONS
     from src.kernel.config.base import Settings
+    from src.kernel.config.definitions import SETTING_DEFINITIONS
 
-    definition = EXTRA_SETTING_DEFINITIONS["NATIVE_MEMORY_IMPORT_TOTAL_CONTENT_MAX_CHARS"]
+    definition = SETTING_DEFINITIONS["NATIVE_MEMORY_IMPORT_TOTAL_CONTENT_MAX_CHARS"]
 
     assert Settings(_env_file=None).NATIVE_MEMORY_IMPORT_TOTAL_CONTENT_MAX_CHARS == 2_000_000
     assert definition["default"] == 2_000_000

@@ -13,7 +13,6 @@ from src.infra.logging import get_logger
 from src.infra.memory.client.base import MemoryBackend
 from src.infra.memory.client.native.classification import (
     find_existing_memory_match,
-    find_semantic_memory_match,
     is_manual_memory_worthy,
 )
 from src.infra.memory.client.native.content import (
@@ -292,10 +291,13 @@ class NativeMemoryBackend(MemoryBackend):
                 memory_type=memory_type,
             )
             if existing_match is None:
-                existing_match = await find_semantic_memory_match(
+                from src.infra.memory.dedup_arbiter import resolve_semantic_match
+
+                existing_match = await resolve_semantic_match(
                     fetch_candidates=fetch_semantic_candidates,
                     user_id=user_id,
                     query_embedding=embedding or [],
+                    query_summary=summary,
                     memory_type=memory_type,
                 )
             # fetch content fields for store cleanup if matched via similarity

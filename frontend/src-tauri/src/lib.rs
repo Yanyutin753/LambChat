@@ -200,6 +200,9 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         // dialog 插件：设置页"沙箱数据位置"目录选择（原生对话框）
         .plugin(tauri_plugin_dialog::init())
+        // window-state 插件：跨启动记住主窗口位置/大小（桌面原生感标配；
+        // 状态文件在 app data，随版本升级的 clean_on_version_upgrade 重置）
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
             // 沙箱根覆盖注入必须最先：此后所有 sandbox_home() 解析（PBS
             // 播种、daemon spawn、open_local_path 白名单）都跟随覆盖文件。
@@ -225,6 +228,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::workspace::sandbox_pick_workspace,
+            commands::workspace::reveal_workspace_path,
             daemon::save_pairing,
             daemon::write_confirm_policy,
             daemon::clear_pairing,
@@ -239,6 +243,17 @@ pub fn run() {
             linux_update::get_linux_install_source,
             linux_update::install_linux_package
         ])
+        // 关闭到托盘：主窗口点 × 隐藏驻留（常驻 AI 助手的桌面惯例，托盘
+        // Quit / cmd+Q / SIGTERM 才真正退出——两条路径都汇聚到 Exit 事件
+        // 停 daemon，生命周期语义不变）。
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .build(tauri::generate_context!())
         .expect("error while building LambChat desktop app")
         .run(|app_handle, event| {

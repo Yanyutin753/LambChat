@@ -113,6 +113,7 @@ YubbChat/
 !/scripts/cleanup_junk_memories.py
 !/scripts/sync_error_locales.py
 !/scripts/backfill_memory_scope.py
+!/scripts/eval_systemone_gate.py
 !/scripts/e2e_local_sandbox.py
 !/scripts/verify_sandbox_pause_heal.py
 !/scripts/verify_sandbox_cross_session.py

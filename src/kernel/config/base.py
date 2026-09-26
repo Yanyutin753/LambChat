@@ -464,6 +464,29 @@ class Settings(BaseSettings):
     MEMORY_EXTRACTION_MAX_ATTEMPTS: int = 3
     MEMORY_EXTRACTION_TRANSCRIPT_MAX_CHARS: int = 24_000
     MEMORY_EXTRACTION_INTERVAL_SECONDS: int = 900
+    # System One 决策模型（TypeSafe Jev / 自托管 von，/v1/systemone 协议）：
+    # 高频小判定独立客户端；base 为空 = 功能整体关闭。自托管 von 无鉴权可留空 key。
+    SYSTEMONE_API_BASE: str = ""
+    SYSTEMONE_API_KEY: str = ""
+    SYSTEMONE_MODEL: str = "jev-latest"
+    SYSTEMONE_TIMEOUT_SECONDS: float = 5.0
+    # 记忆提取预门：off=关闭（默认）；shadow=只记录判定不生效；gate=P(值得记忆)
+    # 低于阈值时跳过 LLM 提取（判定失败一律走 LLM，fail-open）
+    MEMORY_EXTRACTION_SYSTEMONE_MODE: str = "off"
+    MEMORY_EXTRACTION_SYSTEMONE_GATE_THRESHOLD: float = 0.35
+    # 提取时对 context 域做 System One 第二意见（只记日志不改写，攒纠偏 ground truth）
+    MEMORY_EXTRACTION_SYSTEMONE_CONTEXT_SHADOW: bool = False
+    # 写时语义去重仲裁：off=沿用 0.88 单阈值；shadow=只记录仲裁结果不生效；
+    # arbitrate=灰区 [gray_low, gray_high) 交给 System One 判同条，≥gray_high 直接
+    # 同条，<gray_low 直接新建；判定失败回退 0.88 规则
+    MEMORY_DEDUP_SYSTEMONE_MODE: str = "off"
+    MEMORY_DEDUP_SYSTEMONE_GRAY_LOW: float = 0.75
+    MEMORY_DEDUP_SYSTEMONE_GRAY_HIGH: float = 0.92
+    MEMORY_DEDUP_SYSTEMONE_SAME_THRESHOLD: float = 0.8
+    # web_search 结果 System One 相关性预筛：off=不过滤（默认）；shadow=只记录
+    # 判定分布；filter=相关性 < 阈值的结果丢弃（每调用至少保留最优一条）
+    WEB_SEARCH_SYSTEMONE_MODE: str = "off"
+    WEB_SEARCH_SYSTEMONE_RELEVANCE_THRESHOLD: float = 0.05
 
     # Audio transcription tool settings
     ENABLE_AUDIO_TRANSCRIPTION: bool = False

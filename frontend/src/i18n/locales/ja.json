@@ -2793,6 +2793,17 @@
     "MEMORY_EXTRACTION_ENABLED": "Codex 方式のアイドルセッション記憶抽出を有効にします。会話全体を出典参照付きの永続記憶に要約します。",
     "MEMORY_EXTRACTION_IDLE_SECONDS": "セッション終了後、記憶抽出の対象になるまで待機する秒数。",
     "MEMORY_EXTRACTION_INTERVAL_SECONDS": "記憶抽出待ちセッションをバックグラウンドで走査する間隔（秒）。",
+    "SYSTEMONE_API_BASE": "System One 決策モデル（TypeSafe Jev またはセルフホスト von）の API ベース URL。空欄で無効。",
+    "SYSTEMONE_API_KEY": "System One エンドポイントの API キー。認証なしのセルフホスト von は空欄可。",
+    "SYSTEMONE_MODEL": "System One 決策モデル名（例: jev-latest / von-1.1.0）。",
+    "SYSTEMONE_TIMEOUT_SECONDS": "System One 判定呼び出しのタイムアウト秒数。",
+    "MEMORY_EXTRACTION_SYSTEMONE_MODE": "記憶抽出プレゲートモード: off=無効、shadow=判定の記録のみ、gate=低価値セッションは LLM 抽出をスキップ。",
+    "MEMORY_EXTRACTION_SYSTEMONE_GATE_THRESHOLD": "ゲートモードのしきい値: 記憶価値の確率がこの値未満なら LLM 抽出をスキップ。",
+    "MEMORY_EXTRACTION_SYSTEMONE_CONTEXT_SHADOW": "抽出時の context 域について System One の第二意見をログに記録します（書き換えなし）。",
+    "MEMORY_DEDUP_SYSTEMONE_MODE": "書き込み時の意味重複仲裁: off=単一しきい値、shadow=記録のみ、arbitrate=グレーゾーンを System One が判定。",
+    "MEMORY_DEDUP_SYSTEMONE_GRAY_LOW": "グレーゾーン下限: この類似度未満は常に新規作成。",
+    "MEMORY_DEDUP_SYSTEMONE_GRAY_HIGH": "グレーゾーン上限: この類似度以上は仲裁なしで統合。",
+    "MEMORY_DEDUP_SYSTEMONE_SAME_THRESHOLD": "同一事実しきい値: P(同一事実) がこの値以上の場合のみ統合。",
     "MEMORY_EXTRACTION_MAX_AGE_DAYS": "終了後この日数以内のセッションのみ抽出します。",
     "MEMORY_EXTRACTION_MAX_ATTEMPTS": "1セッションの記憶抽出が失敗した場合の最大試行回数。",
     "MEMORY_EXTRACTION_MAX_SESSIONS_PER_PASS": "1回の抽出処理で取得して処理するセッションの上限。",
@@ -2883,6 +2894,8 @@
     "S3_SECRET_KEY": "S3シークレットキー",
     "SANDBOX_GREP_TIMEOUT": "サンドボックスgrepコマンドのタイムアウト（秒）",
     "ENABLE_WEB_SEARCH": "Agent 用ウェブ検索ツールを有効化",
+    "WEB_SEARCH_SYSTEMONE_MODE": "web_search 結果の System One 関連性プレフィルター: off=無効（既定）、shadow=記録のみ、filter=無関係な結果を破棄（最良の1件は必ず保持）。",
+    "WEB_SEARCH_SYSTEMONE_RELEVANCE_THRESHOLD": "保持しきい値: この関連性未満の結果は破棄されます。",
     "SANDBOX_LOCAL_EXEC_TIMEOUT": "ローカルサンドボックスのコマンド実行タイムアウト（秒）。ハングしたコマンドは期限で強制終了され、変更は以降のコマンドに即時反映されます。",
     "SANDBOX_PLATFORM": "使用するサンドボックスプラットフォーム",
     "SANDBOX_PAUSE_WHEN_IDLE": "会話ターン終了後、進行中の会話がサンドボックスを必要としない場合、コスト削減のためクラウドサンドボックスを自動一時停止します（次回利用時に自動復帰）",
@@ -3433,7 +3446,8 @@
     "storage": "ストレージ",
     "title": "タイトル生成",
     "turnstile": "Turnstile",
-    "webSearch": "ウェブ検索"
+    "webSearch": "ウェブ検索",
+    "dedup": "意味重複排除"
   },
   "systemHealth": {
     "fetchFailed": "ヘルスデータの取得に失敗",
@@ -3853,5 +3867,19 @@
     "maximize": "最大化",
     "restore": "元に戻す",
     "close": "閉じる"
+  },
+  "workspacePanel": {
+    "title": "ワークスペース",
+    "viewChats": "チャット",
+    "refresh": "更新",
+    "retry": "再試行",
+    "daemonOffline": "ローカルサンドボックスが未接続のため、ワークスペースを参照できません",
+    "noSession": "セッションを開くとワークスペースのファイルを参照できます",
+    "emptyDir": "空のワークスペース",
+    "copyPath": "パスをコピー",
+    "revealInFileManager": "ファイルマネージャーで表示",
+    "binaryFileHint": "（バイナリファイル — インラインプレビュー非対応）",
+    "settings": "設定",
+    "account": "アカウント"
   }
 }

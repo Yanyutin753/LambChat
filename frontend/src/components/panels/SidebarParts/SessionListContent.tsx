@@ -95,6 +95,11 @@ interface SessionListContentProps {
   imgError: boolean;
   onImgError: () => void;
   onCollapse: () => void;
+  /**
+   * 桌面双栏（DesktopSidebarShell）模式：隐藏品牌头部与操作行——入口已由
+   * ActivityRail 承接，二级面板只保留列表主体（列表区顶部补回 padding）。
+   */
+  compactChrome?: boolean;
   onNewSession: () => void;
   onOpenSearch: () => void;
   onShowProfile: () => void;
@@ -144,6 +149,7 @@ export function SessionListContent({
   imgError,
   onImgError: _onImgError,
   onCollapse,
+  compactChrome = false,
   onNewSession,
   onOpenSearch,
   onShowProfile,
@@ -336,7 +342,8 @@ export function SessionListContent({
 
   return (
     <>
-      {/* Header */}
+      {/* Header（桌面双栏模式下品牌与折叠由 ActivityRail 承接，不渲染） */}
+      {!compactChrome && (
       <div className="flex items-center justify-between px-3 pt-3 pb-2">
         <div className="flex size-7 items-center gap-1.5">
           <BrandLogo alt={APP_NAME} className="size-7 mb-1" />
@@ -371,8 +378,11 @@ export function SessionListContent({
           </button>
         </Tooltip>
       </div>
+      )}
+      {compactChrome && <div className="pt-3" />}
 
-      {/* Action buttons */}
+      {/* Action buttons（桌面双栏模式下入口在 ActivityRail，不渲染） */}
+      {!compactChrome && (
       <div className="flex flex-col gap-px px-2 mb-2 space-y-1">
         <button
           onClick={onNewSession}
@@ -432,6 +442,7 @@ export function SessionListContent({
           </div>
         )}
       </div>
+      )}
 
       {/* Session list */}
       <div

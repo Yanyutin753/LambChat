@@ -2793,6 +2793,17 @@
     "MEMORY_EXTRACTION_ENABLED": "启用 Codex 式空闲会话记忆提取。完整会话会被提炼为带来源引用的持久记忆。",
     "MEMORY_EXTRACTION_IDLE_SECONDS": "会话结束后等待多少秒再参与记忆提取。",
     "MEMORY_EXTRACTION_INTERVAL_SECONDS": "后台记忆提取器扫描待处理会话的间隔秒数。",
+    "SYSTEMONE_API_BASE": "System One 决策模型（TypeSafe Jev 或自托管 von）的 API 基础 URL。留空表示关闭。",
+    "SYSTEMONE_API_KEY": "System One 端点的 API 密钥。自托管 von 无鉴权时可留空。",
+    "SYSTEMONE_MODEL": "System One 决策模型名称（如 jev-latest 或 von-1.1.0）。",
+    "SYSTEMONE_TIMEOUT_SECONDS": "System One 判定调用的超时秒数。",
+    "MEMORY_EXTRACTION_SYSTEMONE_MODE": "记忆提取预门模式：off=关闭；shadow=只记录判定不生效；gate=低价值会话跳过 LLM 提取。",
+    "MEMORY_EXTRACTION_SYSTEMONE_GATE_THRESHOLD": "gate 模式阈值：P(值得记忆) 低于该值时跳过 LLM 提取。",
+    "MEMORY_EXTRACTION_SYSTEMONE_CONTEXT_SHADOW": "提取时对 context 域做 System One 第二意见（只记日志不改写，用于积累纠偏依据）。",
+    "MEMORY_DEDUP_SYSTEMONE_MODE": "写时语义去重仲裁：off=沿用单阈值；shadow=只记录仲裁结果；arbitrate=灰区交给 System One 判定是否同一条记忆。",
+    "MEMORY_DEDUP_SYSTEMONE_GRAY_LOW": "去重仲裁灰区下界：相似度低于该值直接新建记忆。",
+    "MEMORY_DEDUP_SYSTEMONE_GRAY_HIGH": "去重仲裁灰区上界：相似度不低于该值直接合并，无需仲裁。",
+    "MEMORY_DEDUP_SYSTEMONE_SAME_THRESHOLD": "灰区判同条阈值：P(同一事实) 不低于该值才合并。",
     "MEMORY_EXTRACTION_MAX_AGE_DAYS": "只提取最近多少天内结束的会话。",
     "MEMORY_EXTRACTION_MAX_ATTEMPTS": "单个会话记忆提取失败后的最大尝试次数。",
     "MEMORY_EXTRACTION_MAX_SESSIONS_PER_PASS": "每轮最多认领并处理的会话数。",
@@ -2883,6 +2894,8 @@
     "S3_SECRET_KEY": "S3 秘密密钥",
     "SANDBOX_GREP_TIMEOUT": "沙箱 grep 命令超时时间（秒）",
     "ENABLE_WEB_SEARCH": "启用供 Agent 使用的网页搜索工具",
+    "WEB_SEARCH_SYSTEMONE_MODE": "web_search 结果 System One 相关性预筛：off=不过滤（默认）；shadow=只记录判定；filter=丢弃无关结果（每调用至少保留最优一条）。",
+    "WEB_SEARCH_SYSTEMONE_RELEVANCE_THRESHOLD": "预筛保留阈值：相关性低于该值的结果被丢弃。",
     "SANDBOX_LOCAL_EXEC_TIMEOUT": "本地沙箱命令执行超时（秒）：卡死命令到点自动击杀，改动即时生效于后续命令。",
     "SANDBOX_PLATFORM": "使用的沙箱平台",
     "SANDBOX_PAUSE_WHEN_IDLE": "对话轮结束且无进行中的对话需要沙箱时，自动暂停云端沙箱以节省成本（下次使用自动恢复）",
@@ -3433,7 +3446,8 @@
     "storage": "存储",
     "title": "标题生成",
     "turnstile": "Turnstile",
-    "webSearch": "网页搜索"
+    "webSearch": "网页搜索",
+    "dedup": "语义去重"
   },
   "systemHealth": {
     "fetchFailed": "获取健康数据失败",
@@ -3853,5 +3867,19 @@
     "maximize": "最大化",
     "restore": "还原",
     "close": "关闭"
+  },
+  "workspacePanel": {
+    "title": "工作区",
+    "viewChats": "会话",
+    "refresh": "刷新",
+    "retry": "重试",
+    "daemonOffline": "本地沙箱未连接，无法浏览工作区文件",
+    "noSession": "打开一个会话后即可浏览其工作区文件",
+    "emptyDir": "空工作区",
+    "copyPath": "复制路径",
+    "revealInFileManager": "在文件管理器中显示",
+    "binaryFileHint": "（二进制文件，暂不支持内联预览）",
+    "settings": "设置",
+    "account": "账号"
   }
 }
