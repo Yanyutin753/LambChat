@@ -1,8 +1,9 @@
-"""本地沙箱中继：daemon SSE 通道、结果回传、在线状态。"""
+"""本地沙箱中继：daemon SSE 通道、结果回传、在线状态、桌面文件树只读端点。"""
 
 import asyncio
 import contextlib
 import json
+import re
 import socket
 import time
 import uuid
@@ -15,6 +16,7 @@ from pydantic import BaseModel, field_validator
 from src.api.deps import get_current_user_pat_or_jwt, require_pat_only
 from src.infra.logging import get_logger
 from src.infra.sandbox.relay import _frames
+from src.infra.sandbox.relay.dispatch import dispatch_local_call
 from src.infra.sandbox.relay.presence import publish_presence
 from src.infra.sandbox.relay.registry import (
     SandboxClientRegistry,
@@ -629,3 +631,109 @@ async def sandbox_offline(
         await registry.unregister(user.sub, active[0])
     await publish_presence(user.sub)
     return {"status": "offline"}
+
+
+# ---------------------------------------------------------------------------
+# 桌面文件树只读端点：前端工作区浏览（fs_ls/fs_read 经 dispatch 中继）
+# ---------------------------------------------------------------------------
+
+#: 目录列举/文本预览是快 op，远小于 exec 默认死线；超时主要防 daemon 半死挂请求
+_FS_OP_TIMEOUT = 10.0
+
+#: 会话 id 形态（自定义 id 或 ObjectId），先挡一层再查库；cwd 由服务端拼装，
+#: daemon map_workspace 仍是最终防线（sid 含 ``/``、空、``..`` 均拒绝）
+_SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+#: 相对路径长度上限（daemon 侧另有逃逸检查，这里只防明显滥用）
+_FS_PATH_MAX = 1024
+
+_FS_READ_MAX_LINES = 2000
+
+
+async def _resolve_fs_target(user: TokenPayload, session_id: str) -> tuple[str, str | None]:
+    """把会话解析成 (虚拟 cwd, machine_id)，供 fs op 下发。
+
+    cwd 权威来自会话存储的 ``metadata.conversation_config.agent_options``——
+    绝不采信请求方传入的工作区/机器参数（前端只指定会话，绑定由库解析）。
+    未绑定本地目录的会话回落默认工作区 ``/workspace/{sid}``，与
+    search_agent 构造 WorkspaceAliasBackend 的分支语义一致。
+    """
+    from src.infra.backend.workspace_selection import selected_workspace_id
+    from src.infra.session.manager import SessionManager
+
+    if not _SESSION_ID_RE.match(session_id or ""):
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
+    session = await SessionManager().get_session(session_id)
+    if session is None:
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
+    if session.user_id != user.sub:
+        raise AppError(ErrorCode.SESSION_ACCESS_DENIED)
+    metadata = session.metadata or {}
+    config = metadata.get("conversation_config")
+    agent_options = config.get("agent_options") if isinstance(config, dict) else None
+    agent_options = agent_options if isinstance(agent_options, dict) else {}
+    workspace_id = selected_workspace_id(agent_options)
+    cwd = f"/workspace/.selected/{workspace_id}" if workspace_id else f"/workspace/{session_id}"
+    return cwd, agent_options.get("sandbox_machine_id") or None
+
+
+def _sanitize_fs_path(path: str) -> str:
+    path = (path or "").strip()
+    if len(path) > _FS_PATH_MAX:
+        raise AppError(ErrorCode.VALIDATION_ERROR, args={"field": "path"})
+    return path
+
+
+async def _dispatch_fs(user: TokenPayload, op: str, payload: dict, machine_id: str | None) -> dict:
+    """下发 fs op 并抽取出结果体；文件级错误原样透传（前端按结果分支处理）。"""
+    resp = await dispatch_local_call(
+        user.sub, op, payload, timeout=_FS_OP_TIMEOUT, machine_id=machine_id
+    )
+    result = resp.get("result")
+    return result if isinstance(result, dict) else {"error": "unexpected_daemon_result"}
+
+
+@router.get("/fs/list")
+async def sandbox_fs_list(
+    session_id: str = Query(..., description="会话 id：工作区绑定与目标机的解析依据"),
+    path: str = Query("", description="工作区内相对路径；空 = 根目录"),
+    user: TokenPayload = Depends(get_current_user_pat_or_jwt),
+):
+    """列目录（桌面工作区文件树的懒加载源）。
+
+    只读 op（daemon 确认门只拦 WRITE_OPS）。返回 daemon 的 fs_ls 结果：
+    ``{entries: [{path, is_dir}]}``，文件级错误（``path_not_found`` 等）也在
+    200 里——与 daemon 契约一致，前端据此渲染空态/错误态。
+    """
+    cwd, machine_id = await _resolve_fs_target(user, session_id)
+    return await _dispatch_fs(
+        user, "fs_ls", {"cwd": cwd, "path": _sanitize_fs_path(path) or "."}, machine_id
+    )
+
+
+@router.get("/fs/read")
+async def sandbox_fs_read(
+    session_id: str = Query(...),
+    path: str = Query(...),
+    offset: int = Query(0, ge=0, description="起始行（0 基）"),
+    limit: int = Query(500, ge=1, le=_FS_READ_MAX_LINES, description="读取行数"),
+    user: TokenPayload = Depends(get_current_user_pat_or_jwt),
+):
+    """读文本/二进制预览（行分页语义与模型侧 read_file 完全同源）。
+
+    返回 daemon 的 fs_read 结果：文本 ``{encoding: "utf-8", content,
+    total_lines, next_offset, ...}``；二进制 ``{encoding: "base64", content}``
+    （上限 MAX_BINARY_BYTES，超限在 ``error`` 里）。
+    """
+    cwd, machine_id = await _resolve_fs_target(user, session_id)
+    return await _dispatch_fs(
+        user,
+        "fs_read",
+        {
+            "cwd": cwd,
+            "path": _sanitize_fs_path(path),
+            "offset": offset,
+            "limit": limit,
+        },
+        machine_id,
+    )

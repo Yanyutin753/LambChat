@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 
 vi.mock("../../../hooks/useAuth", () => ({
@@ -51,7 +51,16 @@ function moveCaretToEnd(editor: HTMLElement) {
   selection?.addRange(range);
 }
 
-test("ArrowUp and ArrowDown browse input history and restore the draft", async () => {
+function moveCaretToStart(editor: HTMLElement) {
+  const range = document.createRange();
+  range.selectNodeContents(editor);
+  range.collapse(true);
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
+
+test("ArrowUp with the caret away from the text start keeps the draft in place", async () => {
   localStorage.setItem("chatInputHistory", JSON.stringify(["first", "second"]));
   render(
     <ChatInput
@@ -66,6 +75,32 @@ test("ArrowUp and ArrowDown browse input history and restore the draft", async (
   await waitFor(() => expect(editor).toHaveTextContent("draft"));
   editor.focus();
   moveCaretToEnd(editor);
+
+  fireLexicalArrow(editor, "ArrowUp");
+
+  // Give React a tick so an errant history switch would have rendered.
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
+  expect(editor).toHaveTextContent("draft");
+  expect(editor).not.toHaveTextContent("second");
+});
+
+test("ArrowUp and ArrowDown browse input history and restore the draft", async () => {
+  localStorage.setItem("chatInputHistory", JSON.stringify(["first", "second"]));
+  render(
+    <ChatInput
+      onSend={vi.fn()}
+      onStop={vi.fn()}
+      isLoading={false}
+      pendingInput="draft"
+    />,
+  );
+
+  const editor = await screen.findByRole("textbox");
+  await waitFor(() => expect(editor).toHaveTextContent("draft"));
+  editor.focus();
+  moveCaretToStart(editor);
   const lexicalKeyDown = vi.fn();
   editor.addEventListener("keydown", lexicalKeyDown);
 
@@ -98,6 +133,7 @@ test("a sent message remains available after the chat input remounts", async () 
   const firstEditor = await screen.findByRole("textbox");
   await waitFor(() => expect(firstEditor).toHaveTextContent("persisted"));
   firstEditor.focus();
+  moveCaretToEnd(firstEditor);
   fireEvent.keyDown(firstEditor, {
     key: "Enter",
     code: "Enter",
@@ -111,6 +147,7 @@ test("a sent message remains available after the chat input remounts", async () 
   render(<ChatInput onSend={vi.fn()} onStop={vi.fn()} isLoading={false} />);
   const nextEditor = await screen.findByRole("textbox");
   nextEditor.focus();
+  moveCaretToStart(nextEditor);
   nextEditor.addEventListener("keydown", (event) => event.stopPropagation());
   fireLexicalArrow(nextEditor, "ArrowUp");
 

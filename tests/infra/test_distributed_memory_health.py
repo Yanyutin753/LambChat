@@ -344,11 +344,13 @@ async def test_publish_instance_snapshot_offloads_json_serialization(
         details={"top_growth": []},
     )
 
-    async def _fake_run_blocking_io(func, /, *args, **kwargs):
+    async def _fake_run_long_blocking_io(func, /, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(memory_health, "run_blocking_io", _fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        memory_health, "run_long_blocking_io", _fake_run_long_blocking_io, raising=False
+    )
 
     await memory_health.publish_instance_snapshot(
         snapshot,
@@ -371,11 +373,13 @@ async def test_load_cluster_snapshots_offloads_json_parse(
         "health:memory:instance:instance-a": json.dumps(instance_a),
     }
 
-    async def _fake_run_blocking_io(func, /, *args, **kwargs):
+    async def _fake_run_long_blocking_io(func, /, *args, **kwargs):
         calls.append(func)
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(memory_health, "run_blocking_io", _fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        memory_health, "run_long_blocking_io", _fake_run_long_blocking_io, raising=False
+    )
 
     loaded = await memory_health.load_cluster_snapshots(redis_client=redis_client)
 

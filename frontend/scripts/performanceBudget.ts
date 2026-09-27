@@ -155,11 +155,10 @@ export function combinePrecacheBudgetEntries(
   });
 }
 
-// 538KB：批量创建/导入模型对齐最新 ModelConfigCreate 结构（逐条添加补全
-// icon/价格覆盖/视觉开关/行级 API 覆盖 + JSON 导入文件上传与规范化，五语 8 键）
-// 把 eager JS 顶到约 537.3KB，沿 2KB 阶梯惯例累加抬档
-// （此前 #563/#565/#612/#613 及排队消息编辑的抬档史见 git log）。
-export const EAGER_JAVASCRIPT_BUDGET_BYTES = 538 * 1024;
+// 542KB：System One 决策模型接入（记忆提取预门/写时去重仲裁/context 影子
+// 二意见/web_search 预筛共 13 项设置，五语文案）把 eager JS 顶到约 541.0KB，
+// 沿 2KB 阶梯惯例累加抬档（此前 #563/#565/#612/#613 及 538KB 档抬档史见 git log）。
+export const EAGER_JAVASCRIPT_BUDGET_BYTES = 542 * 1024;
 export const PRECACHE_BUDGET_BYTES = 5 * 1024 * 1024;
 export const PRECACHE_ADDITIONAL_ENTRIES: PrecacheEntry[] = [];
 

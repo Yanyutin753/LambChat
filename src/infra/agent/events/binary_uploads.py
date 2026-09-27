@@ -5,7 +5,7 @@ import mimetypes
 import uuid
 from tempfile import SpooledTemporaryFile
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 
 logger = get_logger(__name__)
@@ -121,7 +121,7 @@ async def upload_binary_blocks(result: dict, base_url: str) -> None:
                 max_size=_SPOOL_MAX_MEMORY_BYTES,
                 mode="w+b",
             ) as spooled:
-                size = await run_blocking_io(
+                size = await run_long_blocking_io(
                     _decode_base64_to_file,
                     b64_data,
                     spooled,

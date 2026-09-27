@@ -150,11 +150,13 @@ async def test_get_offloads_api_key_decryption(monkeypatch: pytest.MonkeyPatch) 
     storage = ModelStorage()
     storage._collection = _CrudModelCollection(_model_doc())
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         return {"v": "plain-key"}
 
-    monkeypatch.setattr(model_storage, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        model_storage, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
 
     model = await storage.get("model-1")
 
@@ -173,7 +175,7 @@ async def test_get_returns_model_without_unrecoverable_api_key(
     async def failing_decrypt(_func, *_args, **_kwargs):
         raise DecryptionError("key mismatch")
 
-    monkeypatch.setattr(model_storage, "run_blocking_io", failing_decrypt, raising=False)
+    monkeypatch.setattr(model_storage, "run_long_blocking_io", failing_decrypt, raising=False)
 
     model = await storage.get("model-1")
 
@@ -191,13 +193,15 @@ async def test_create_offloads_api_key_encryption_and_decryption(
     collection = _CrudModelCollection()
     storage._collection = collection
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func)
         if func is model_storage.encrypt_value:
             return {"encrypted": args[0]}
         return {"v": "plain-key"}
 
-    monkeypatch.setattr(model_storage, "run_blocking_io", fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        model_storage, "run_long_blocking_io", fake_run_long_blocking_io, raising=False
+    )
 
     model = await storage.create(
         model_storage.ModelConfig(

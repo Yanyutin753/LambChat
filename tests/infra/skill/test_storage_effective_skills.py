@@ -101,12 +101,14 @@ async def test_get_effective_skills_offloads_cached_json_parse(
     calls: list[Any] = []
     redis = _RecordingRedis(cached='{"skills": {"planner": {"name": "planner"}}}')
 
-    async def _fake_run_blocking_io(func, /, *args: Any, **kwargs: Any):
+    async def _fake_run_long_blocking_io(func, /, *args: Any, **kwargs: Any):
         calls.append(func)
         return func(*args, **kwargs)
 
     monkeypatch.setattr(redis_storage, "get_redis_client", lambda: redis)
-    monkeypatch.setattr(skill_storage, "run_blocking_io", _fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        skill_storage, "run_long_blocking_io", _fake_run_long_blocking_io, raising=False
+    )
 
     storage = _EffectiveSkillStorage(["planner"])
     result = await storage.get_effective_skills("user-1", disabled_skills=[])
@@ -123,12 +125,14 @@ async def test_get_effective_skills_offloads_cache_json_serialization(
     calls: list[Any] = []
     redis = _RecordingRedis()
 
-    async def _fake_run_blocking_io(func, /, *args: Any, **kwargs: Any):
+    async def _fake_run_long_blocking_io(func, /, *args: Any, **kwargs: Any):
         calls.append(func)
         return func(*args, **kwargs)
 
     monkeypatch.setattr(redis_storage, "get_redis_client", lambda: redis)
-    monkeypatch.setattr(skill_storage, "run_blocking_io", _fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        skill_storage, "run_long_blocking_io", _fake_run_long_blocking_io, raising=False
+    )
 
     storage = _EffectiveSkillStorage(["planner"])
     result = await storage.get_effective_skills("user-1", disabled_skills=[])
@@ -213,12 +217,14 @@ async def test_set_skill_meta_offloads_meta_json_serialization(
     collection = _RecordingMetaCollection()
     storage = skill_storage.SkillStorage()
 
-    async def _fake_run_blocking_io(func, /, *args: Any, **kwargs: Any):
+    async def _fake_run_long_blocking_io(func, /, *args: Any, **kwargs: Any):
         calls.append(func)
         return func(*args, **kwargs)
 
     monkeypatch.setattr(storage, "_get_files_collection", lambda: collection)
-    monkeypatch.setattr(skill_storage, "run_blocking_io", _fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        skill_storage, "run_long_blocking_io", _fake_run_long_blocking_io, raising=False
+    )
 
     await storage.set_skill_meta(
         "planner",

@@ -14,7 +14,7 @@ from langchain_core.runnables import RunnableConfig
 
 from src.agents.core.base import get_presenter
 from src.agents.core.subagent_prompts import RESPONSE_LANGUAGE_NAMES
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.llm.retry import ainvoke_with_retry
 from src.infra.logging import get_logger
 from src.kernel.config import settings
@@ -439,7 +439,7 @@ async def _parse_questions(raw_text: str) -> list[str]:
         text = text[4:].strip()
 
     try:
-        parsed = await run_blocking_io(json.loads, text)
+        parsed = await run_long_blocking_io(json.loads, text)
     except json.JSONDecodeError:
         parsed = None
 
@@ -451,7 +451,7 @@ async def _parse_questions(raw_text: str) -> list[str]:
                 continue
             candidate = text[start : end + 1]
             try:
-                parsed = await run_blocking_io(json.loads, candidate)
+                parsed = await run_long_blocking_io(json.loads, candidate)
                 break
             except json.JSONDecodeError:
                 continue
@@ -480,7 +480,7 @@ async def generate_recommend_questions(
     """Generate likely next user questions using the same model config as session titles."""
     from src.infra.llm.client import LLMClient
 
-    prompt = await run_blocking_io(
+    prompt = await run_long_blocking_io(
         build_recommend_prompt,
         user_input,
         output_text,
@@ -562,7 +562,7 @@ def schedule_recommend_questions(
     async def run() -> None:
         if getattr(presenter, "recommend_questions_recorded", False):
             return
-        history_context = await run_blocking_io(
+        history_context = await run_long_blocking_io(
             format_history_from_messages,
             messages or [],
             current_user_input=user_input,
@@ -607,7 +607,7 @@ def schedule_recommend_questions_from_state(
         except Exception as exc:
             logger.debug("Failed to read recommendation state messages: %s", exc)
 
-        history_context = await run_blocking_io(
+        history_context = await run_long_blocking_io(
             format_history_from_messages,
             history_messages,
             current_user_input=user_input,

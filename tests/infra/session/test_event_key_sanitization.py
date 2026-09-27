@@ -170,7 +170,7 @@ async def test_redis_event_json_helpers_run_inline(monkeypatch: pytest.MonkeyPat
     async def _fail_run_blocking_io(func, *args, **kwargs):
         raise AssertionError(f"run_blocking_io must not be used for microsecond json calls: {func}")
 
-    monkeypatch.setattr(dual_writer_module, "run_blocking_io", _fail_run_blocking_io)
+    monkeypatch.setattr(dual_writer_module, "run_long_blocking_io", _fail_run_blocking_io)
 
     serialized = await dual_writer_module._serialize_event_data_for_redis({"a": "中文"})
     assert serialized == '{"a": "中文"}'

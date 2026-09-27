@@ -603,7 +603,7 @@ export const ChatInput = memo(function ChatInput({
       ) {
         return false;
       }
-      if (!isBrowsing && input.includes("\n")) {
+      if (!isBrowsing) {
         const boundary = getComposerCaretBoundary(editor);
         if (!(direction === "up" ? boundary.atStart : boundary.atEnd)) {
           return false;

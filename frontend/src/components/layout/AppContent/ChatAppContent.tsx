@@ -22,6 +22,7 @@ import {
   type PersonaPresetSnapshot,
 } from "../../../types";
 import { useDragAndDrop } from "./useDragAndDrop";
+import { WORKSPACE_OPTION } from "../../chat/workspaceSelection";
 import { useWebSocketNotifications } from "./useWebSocketNotifications";
 import { useAgentOptions } from "./useAgentOptions";
 import { useSessionSync } from "./useSessionSync";
@@ -38,6 +39,8 @@ import { getTeamRouteRequest } from "./teamRouteState";
 import { resolvePersonaAgentId } from "../../../hooks/useAgent/agentSelection";
 import { AppShell } from "./AppShell";
 import { ChatView } from "./ChatView";
+import { DesktopSidebarShellGate } from "../DesktopSidebarShell/DesktopSidebarShell";
+import { isDesktopShell } from "../DesktopSidebarShell/desktopShellPlatform";
 import { filterApprovalsBySession } from "../../../utils/approvals";
 import { shouldShowMessageOutline } from "./messageOutline";
 import { buildEffectiveSkills, countEnabledSkills } from "./skillAvailability";
@@ -289,6 +292,12 @@ export function ChatAppContent({
   } = useSessionConfig({
     getDefaultAgentOptions: () => agentOptionValues,
   });
+
+  // 桌面双栏「文件」面板 reveal 用：会话当前工作区绑定（原样 JSON 字符串）
+  const workspaceSelectionForShell =
+    typeof agentOptionValues?.[WORKSPACE_OPTION] === "string"
+      ? (agentOptionValues[WORKSPACE_OPTION] as string)
+      : null;
 
   const [currentModelId, setCurrentModelId] = useState<string>(() => {
     return localStorage.getItem("defaultModelId") || "";
@@ -766,21 +775,31 @@ export function ChatAppContent({
       showOutlineButton={shouldShowMessageOutline(messages)}
       onToggleOutline={handleToggleOutline}
       sidebar={
-        <SessionSidebar
-          ref={sidebarRef}
-          currentSessionId={sessionId}
-          onSelectSession={handleSelectSessionAndClose}
-          onNewSession={handleNewSessionAndClose}
-          onSetPendingProjectId={setPendingProjectId}
-          autoExpandProjectId={autoExpandProjectId}
-          onConsumeAutoExpandProjectId={clearAutoExpandProjectId}
-          newSession={newlyCreatedSession}
-          mobileOpen={mobileSidebarOpen}
-          onMobileClose={handleMobileClose}
-          isCollapsed={sidebarCollapsed}
+        <DesktopSidebarShellGate
+          collapsed={sidebarCollapsed}
           onToggleCollapsed={setSidebarCollapsed}
+          sessionId={sessionId}
+          workspaceSelection={workspaceSelectionForShell}
+          onNewSession={handleNewSessionWithReset}
           onShowProfile={onShowProfile}
-        />
+        >
+          <SessionSidebar
+            ref={sidebarRef}
+            variant={isDesktopShell() ? "desktopShell" : "default"}
+            currentSessionId={sessionId}
+            onSelectSession={handleSelectSessionAndClose}
+            onNewSession={handleNewSessionAndClose}
+            onSetPendingProjectId={setPendingProjectId}
+            autoExpandProjectId={autoExpandProjectId}
+            onConsumeAutoExpandProjectId={clearAutoExpandProjectId}
+            newSession={newlyCreatedSession}
+            mobileOpen={mobileSidebarOpen}
+            onMobileClose={handleMobileClose}
+            isCollapsed={sidebarCollapsed}
+            onToggleCollapsed={setSidebarCollapsed}
+            onShowProfile={onShowProfile}
+          />
+        </DesktopSidebarShellGate>
       }
     >
       <>

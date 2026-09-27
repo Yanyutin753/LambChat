@@ -49,6 +49,11 @@ async def web_search(
     except Exception as e:
         logger.error("[WebSearch] execute failed: %s", e, exc_info=True)
         result = {"success": False, "error": f"web_search_failed: {e}"}
+    else:
+        if isinstance(result, dict) and result.get("success") and result.get("results"):
+            from src.infra.tool.web_search_filter import filter_web_search_results
+
+            result["results"] = await filter_web_search_results(query, result["results"])
     return await _json_dumps_result(result)
 
 

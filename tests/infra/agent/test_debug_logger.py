@@ -24,7 +24,7 @@ async def test_debug_log_event_offloads_serialization_and_file_write(
 ) -> None:
     calls: list[str] = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func.__name__)
         return func(*args, **kwargs)
 
@@ -35,7 +35,7 @@ async def test_debug_log_event_offloads_serialization_and_file_write(
         assert event == {"event": "on_chain_stream"}
 
     monkeypatch.setattr(debug_logger, "_ENABLED", True)
-    monkeypatch.setattr(debug_logger, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(debug_logger, "run_long_blocking_io", fake_run_long_blocking_io)
     monkeypatch.setattr(debug_logger, "_sanitize", fail_sanitize)
     monkeypatch.setattr(debug_logger, "_write_event_sync", fake_write_event_sync)
 
@@ -50,12 +50,12 @@ async def test_debug_log_event_includes_processing_context(
 ) -> None:
     calls: list[tuple[str, dict]] = []
 
-    async def fake_run_blocking_io(func, *args, **kwargs):
+    async def fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append((func.__name__, args[1]))
         return None
 
     monkeypatch.setattr(debug_logger, "_ENABLED", True)
-    monkeypatch.setattr(debug_logger, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(debug_logger, "run_long_blocking_io", fake_run_long_blocking_io)
 
     await debug_logger.debug_log_event(
         {"event": "on_chat_model_stream"},

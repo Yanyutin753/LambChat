@@ -308,7 +308,10 @@ async def test_generate_recommend_questions_offloads_json_parsing(monkeypatch) -
         return func(*args, **kwargs)
 
     monkeypatch.setattr("src.infra.llm.client.LLMClient.get_model", fake_get_model)
-    monkeypatch.setattr("src.agents.core.recommendations.run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(
+        "src.agents.core.recommendations.run_long_blocking_io",
+        fake_run_blocking_io,
+    )
 
     questions = await generate_recommend_questions("如何准备半程马拉松？")
 
@@ -333,7 +336,10 @@ async def test_schedule_recommend_questions_offloads_history_formatting(monkeypa
         assert history_context
         return ["问题一？", "问题二？", "问题三？"]
 
-    monkeypatch.setattr("src.agents.core.recommendations.run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(
+        "src.agents.core.recommendations.run_long_blocking_io",
+        fake_run_blocking_io,
+    )
     monkeypatch.setattr(
         "src.agents.core.recommendations.generate_recommend_questions",
         fake_generate_recommend_questions,

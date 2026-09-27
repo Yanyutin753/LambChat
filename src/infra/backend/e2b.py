@@ -144,8 +144,9 @@ class E2BBackend(E2BAsyncMixin, BaseSandbox):
             # 测试替身或 SDK 差异；不阻塞命令本身
             return
         except Exception as e:
-            # 续期失败不阻塞当前命令；若沙箱已暂停，交给唤醒重试路径自愈
-            logger.warning("sandbox keepalive set_timeout failed for %s: %s", self.id, e)
+            # 续期失败不阻塞当前命令；若沙箱已暂停，交给唤醒重试路径自愈。
+            # 沙箱被回收后此处必报 not found，属生命周期正常事件，记 INFO。
+            logger.info("sandbox keepalive set_timeout failed for %s: %s", self.id, e)
             return
         self._last_timeout_extend = now
 
@@ -287,7 +288,14 @@ class E2BBackend(E2BAsyncMixin, BaseSandbox):
             val = getattr(e, attr, None)
             if val:
                 detail = f"{detail} | {attr}: {val}" if detail else val
-        logger.error(f"Command failed: {detail}")
+        exit_code = getattr(e, "exit_code", None)
+        if exit_code not in (None, 0):
+            # 命令非零退出（SDK 抛 CommandExitException）是 agent 正常语义：
+            # 写码-跑-修循环预期内，ERROR 会污染错误监控。完整输出仍进响应
+            # 给模型，日志只留退出码与命令摘要（stderr 可能含用户内容）。
+            logger.info(f"Command exited with code {exit_code}: {command[:100]}")
+        else:
+            logger.error(f"Command failed: {detail}")
         output = f"Command failed: {detail}"
         if self._heal.exhausted:
             output = f"{output}\n{UNAVAILABLE_GUIDANCE}"

@@ -2,3 +2,8 @@
 identifier = "allow-sandbox-pick-workspace"
 description = "Choose a local directory through the native picker and bind it to a session workspace."
 commands.allow = ["sandbox_pick_workspace"]
+
+[[permission]]
+identifier = "allow-reveal-workspace-path"
+description = "Reveal a session workspace file in the system file manager (Finder / Explorer)."
+commands.allow = ["reveal_workspace_path"]

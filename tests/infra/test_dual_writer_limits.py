@@ -125,7 +125,7 @@ async def test_write_event_inlines_redis_json_serialization_for_dict_data(
     async def _fail_run_blocking_io(func, *args, **kwargs):
         raise AssertionError("json.dumps should run inline, not via run_blocking_io")
 
-    monkeypatch.setattr(dual_writer, "run_blocking_io", _fail_run_blocking_io, raising=False)
+    monkeypatch.setattr(dual_writer, "run_long_blocking_io", _fail_run_blocking_io, raising=False)
 
     await writer.write_event(
         session_id="s1",
@@ -168,7 +168,7 @@ async def test_read_from_redis_inlines_replayed_event_json_parse(
     async def _fail_run_blocking_io(func, *args, **kwargs):
         raise AssertionError("json.loads should run inline, not via run_blocking_io")
 
-    monkeypatch.setattr(dual_writer, "run_blocking_io", _fail_run_blocking_io, raising=False)
+    monkeypatch.setattr(dual_writer, "run_long_blocking_io", _fail_run_blocking_io, raising=False)
 
     writer = dual_writer.DualEventWriter()
     writer._redis = _ReplayRedis()
@@ -463,7 +463,7 @@ async def test_flush_mongo_buffer_offloads_bulk_operation_building(
 ) -> None:
     calls: list[str] = []
 
-    async def _fake_run_blocking_io(func, *args, **kwargs):
+    async def _fake_run_long_blocking_io(func, *args, **kwargs):
         calls.append(func.__name__)
         return func(*args, **kwargs)
 
@@ -480,7 +480,9 @@ async def test_flush_mongo_buffer_offloads_bulk_operation_building(
         def __init__(self) -> None:
             self.collection = _FakeCollection()
 
-    monkeypatch.setattr(dual_writer, "run_blocking_io", _fake_run_blocking_io, raising=False)
+    monkeypatch.setattr(
+        dual_writer, "run_long_blocking_io", _fake_run_long_blocking_io, raising=False
+    )
 
     writer = dual_writer.DualEventWriter()
     writer._trace = _allow_trace_write_leases(_FakeTrace())

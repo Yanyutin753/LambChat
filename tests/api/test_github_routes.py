@@ -198,7 +198,7 @@ async def test_fetch_github_file_releases_download_chunks_between_reads(
         # 内联执行去掉测量噪声，只验证消费侧 del chunk 的释放纪律。
         return fn(*args)
 
-    monkeypatch.setattr(github, "run_blocking_io", _inline_blocking_io)
+    monkeypatch.setattr(github, "run_long_blocking_io", _inline_blocking_io)
 
     content = await github.fetch_github_file("owner", "repo", "main", "skill/SKILL.md")
 

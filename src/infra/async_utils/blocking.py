@@ -4,26 +4,57 @@ Use this helper for third-party SDK calls and filesystem work that do not have
 native async APIs. It keeps those calls off the FastAPI event loop and avoids
 unbounded growth of the default executor.
 
-两条车道（分池）：
-- run_blocking_io：秒级快道（生命周期调用：续期/connect/pause/小文件等），
-  小池保证低延迟；
-- run_long_blocking_io：长持驻慢道（沙箱命令执行、批量文件传输），独立
-  大池——长命令占满慢道时不拖累快道，其他沙箱的续租不会被饿死。
+车道模型（分池 + 隔离，防互相饿死）：
+- ``run_blocking_io``（快道，8 线程）：毫秒级关键路径——pubsub 控制消息、
+  密钥加解密、websocket 广播小 json、沙箱生命周期探针。带默认超时，
+  楔死调用不能永久占用关键线程。
+- ``run_long_blocking_io``（慢道，64 线程）：吞吐型长持驻——S3 传输、
+  文档解析、同步 SDK 兜底。可排队。
+- ``run_long_blocking_io(..., urgent=True)``（形状子池，16 线程）：
+  「大但延迟敏感」的当前 run 关键序列化——工具结果/子代理结果/上下文
+  json、base64 解码。与慢道物理隔离，大传输排满也不卡当前对话。
+
+所有车道共享饱和可观测性：等待超阈值告警（含车道名与排队深度），
+``blocking_io_stats()`` 暴露 in_flight/pending/completed 供监控消费。
+
+设计参照（开源标杆对标）：
+- contextvars 传播：与 ``anyio.to_thread.run_sync`` / ``asyncio.to_thread``
+  一致——被卸载代码可读取调用方的请求上下文（TraceContext 等）。
+- 取消语义：调用方超时即放弃等待，车道槽位在线程完成后释放——等价于
+  anyio ``abandon_on_cancel=True`` + CapacityLimiter 的租约语义。
+- 按资源类分道：trio/anyio 推荐每个受限资源独占 CapacityLimiter；
+  本模块更严格——三类车道各自独立线程池（线程级隔离 + 命名线程可
+  调试），而非仅限流器分离。
+- 饱和统计：对标 trio ``CapacityLimiter.statistics()``。
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import functools
 import os
+import threading
+import weakref
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, TypeVar
 
+from src.infra.logging import get_logger
+
 T = TypeVar("T")
+
+logger = get_logger(__name__)
 
 _DEFAULT_MAX_WORKERS = 8
 _DEFAULT_LONG_MAX_WORKERS = 64
+_DEFAULT_SHAPE_MAX_WORKERS = 16
 _DEFAULT_MAX_PENDING = 16
+# 快道默认超时：毫秒级调用的兜底上限，防楔死调用永久占用关键线程。
+_FAST_LANE_DEFAULT_TIMEOUT = 30.0
+# 等待告警阈值（秒）：快道 0.5s / 慢道与形状子池 2s。
+_FAST_WAIT_WARN_SECONDS = 0.5
+_SLOW_WAIT_WARN_SECONDS = 2.0
+
 _MAX_PENDING_BLOCKING_IO = max(
     0,
     int(os.getenv("BLOCKING_IO_MAX_PENDING", _DEFAULT_MAX_PENDING)),
@@ -40,13 +71,66 @@ _LONG_IO_EXECUTOR = ThreadPoolExecutor(
     max_workers=int(os.getenv("BLOCKING_IO_LONG_MAX_WORKERS", _DEFAULT_LONG_MAX_WORKERS)),
     thread_name_prefix="blocking-io-long",
 )
-_LOOP_LIMITERS: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
-_LOOP_LONG_LIMITERS: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
+_SHAPE_IO_EXECUTOR = ThreadPoolExecutor(
+    max_workers=int(os.getenv("BLOCKING_IO_SHAPE_MAX_WORKERS", _DEFAULT_SHAPE_MAX_WORKERS)),
+    thread_name_prefix="blocking-io-shape",
+)
+# 弱引用注册表（anyio 用 ContextVar 挂载规避同类问题）：已关闭的
+# loop 及其 semaphore 随 loop 回收，测试/内嵌场景大量短命 loop 不泄漏。
+_LOOP_LIMITERS: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]" = (
+    weakref.WeakKeyDictionary()
+)
+_LOOP_LONG_LIMITERS: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]" = (
+    weakref.WeakKeyDictionary()
+)
+_LOOP_SHAPE_LIMITERS: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]" = (
+    weakref.WeakKeyDictionary()
+)
+
+
+class _LaneStats:
+    """单车道计数（事件循环内更新，无需锁）。"""
+
+    __slots__ = ("name", "in_flight", "completed", "wait_warns", "total_wait_seconds")
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.in_flight = 0
+        self.completed = 0
+        self.wait_warns = 0
+        self.total_wait_seconds = 0.0
+
+    def snapshot(self) -> dict[str, float | int | str]:
+        return {
+            "name": self.name,
+            "in_flight": self.in_flight,
+            "completed": self.completed,
+            "wait_warns": self.wait_warns,
+            "avg_wait_seconds": round(self.total_wait_seconds / self.completed, 4)
+            if self.completed
+            else 0.0,
+        }
+
+
+# 线程本地：当前线程正在执行哪个车道的任务（重入检测用，asgiref
+# deadlock_context 同思路——被卸载代码经 loop_bridge 回调同车道时防自死锁）
+_lane_thread_local = threading.local()
+
+_STATS: dict[str, _LaneStats] = {
+    "fast": _LaneStats("fast"),
+    "slow": _LaneStats("slow"),
+    "shape": _LaneStats("shape"),
+}
+
+
+def blocking_io_stats() -> dict[str, dict[str, float | int | str]]:
+    """车道统计快照（in_flight/completed/等待告警数/平均等待），供监控消费。"""
+    return {lane: stats.snapshot() for lane, stats in _STATS.items()}
 
 
 def _ensure_limiter(
     loop: asyncio.AbstractEventLoop,
-    limiters: dict[asyncio.AbstractEventLoop, asyncio.Semaphore],
+    limiters: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]",
     executor: ThreadPoolExecutor,
     default_workers: int,
     max_pending: int,
@@ -82,6 +166,17 @@ def _get_long_submission_limiter(loop: asyncio.AbstractEventLoop) -> asyncio.Sem
     )
 
 
+def _get_shape_submission_limiter(loop: asyncio.AbstractEventLoop) -> asyncio.Semaphore:
+    """形状子池（大但延迟敏感的当前 run 关键序列化）提交限流器。"""
+    return _ensure_limiter(
+        loop,
+        _LOOP_SHAPE_LIMITERS,
+        _SHAPE_IO_EXECUTOR,
+        _DEFAULT_SHAPE_MAX_WORKERS,
+        _MAX_PENDING_LONG_IO,
+    )
+
+
 def _release_limiter(loop: asyncio.AbstractEventLoop, limiter: asyncio.Semaphore) -> None:
     if loop.is_closed():
         return
@@ -89,25 +184,64 @@ def _release_limiter(loop: asyncio.AbstractEventLoop, limiter: asyncio.Semaphore
 
 
 async def _run_on_executor(
+    lane: str,
     limiter_getter: Callable[[asyncio.AbstractEventLoop], asyncio.Semaphore],
     executor: ThreadPoolExecutor,
+    wait_warn_seconds: float,
     func: Callable[..., T],
     *args: Any,
     timeout: float | None = None,
     **kwargs: Any,
 ) -> T:
     loop = asyncio.get_running_loop()
+    # 同车道重入防护：当前线程已在执行该车道任务（外层调用占住线程后经
+    # loop_bridge/asyncio.run 回调同车道），再走提交路径在线程占满时必然
+    # 自死锁——直接内联执行（本就已在池线程，不在主事件循环上）。
+    if getattr(_lane_thread_local, "current_lane", None) == lane:
+        logger.warning(
+            "blocking-io re-entrant submission to lane=%s detected; executing inline",
+            lane,
+        )
+        return func(*args, **kwargs)
     limiter = limiter_getter(loop)
+    stats = _STATS[lane]
     start_time = loop.time()
     if timeout is not None:
         await asyncio.wait_for(limiter.acquire(), timeout=timeout)
     else:
         await limiter.acquire()
+    waited = loop.time() - start_time
+    stats.total_wait_seconds += waited
+    if waited > wait_warn_seconds:
+        stats.wait_warns += 1
+        logger.warning(
+            "blocking-io lane=%s saturated: waited %.2fs before submission "
+            "(in_flight=%d, completed=%d); check lane stats for the hog",
+            lane,
+            waited,
+            stats.in_flight,
+            stats.completed,
+        )
+    stats.in_flight += 1
 
+    # contextvars 传播进线程（anyio to_thread / asyncio.to_thread 同款）：
+    # 被卸载函数读 TraceContext/请求上下文不会静默拿到空值
     call = functools.partial(func, *args, **kwargs)
+    ctx = contextvars.copy_context()
+
+    def _run_with_lane() -> T:  # 记录器经 __lambchat_target__ 解包真实目标
+        _lane_thread_local.current_lane = lane
+        try:
+            return ctx.run(call)
+        finally:
+            _lane_thread_local.current_lane = None
+
+    _run_with_lane.__lambchat_target__ = func  # type: ignore[attr-defined]
+
     try:
-        future = executor.submit(call)
+        future = executor.submit(_run_with_lane)
     except Exception:
+        stats.in_flight -= 1
         limiter.release()
         raise
     future.add_done_callback(lambda _future: _release_limiter(loop, limiter))
@@ -118,11 +252,16 @@ async def _run_on_executor(
             remaining_timeout = timeout - (loop.time() - start_time)
             if remaining_timeout <= 0:
                 raise asyncio.TimeoutError
-            return await asyncio.wait_for(wrapped, timeout=remaining_timeout)
-        return await wrapped
+            result = await asyncio.wait_for(wrapped, timeout=remaining_timeout)
+        else:
+            result = await wrapped
+        stats.completed += 1
+        return result
     except asyncio.TimeoutError:
         future.cancel()
         raise
+    finally:
+        stats.in_flight -= 1
 
 
 async def run_blocking_io(
@@ -131,13 +270,24 @@ async def run_blocking_io(
     timeout: float | None = None,
     **kwargs: Any,
 ) -> T:
-    """Run a synchronous IO callable without blocking the current event loop."""
+    """Run a synchronous IO callable without blocking the current event loop.
+
+    快道带默认超时（``BLOCKING_IO_FAST_DEFAULT_TIMEOUT``，默认 30s）：
+    楔死的调用不能永久占用关键线程；确需更长的短调用显式传 timeout。
+    """
+    effective_timeout = (
+        timeout
+        if timeout is not None
+        else float(os.getenv("BLOCKING_IO_FAST_DEFAULT_TIMEOUT", _FAST_LANE_DEFAULT_TIMEOUT))
+    )
     return await _run_on_executor(
+        "fast",
         _get_submission_limiter,
         _BLOCKING_IO_EXECUTOR,
+        _FAST_WAIT_WARN_SECONDS,
         func,
         *args,
-        timeout=timeout,
+        timeout=effective_timeout,
         **kwargs,
     )
 
@@ -146,12 +296,32 @@ async def run_long_blocking_io(
     func: Callable[..., T],
     *args: Any,
     timeout: float | None = None,
+    urgent: bool = False,
     **kwargs: Any,
 ) -> T:
-    """长持驻阻塞调用专用车道（沙箱命令、批量传输），与快道分池。"""
+    """长持驻阻塞调用专用车道（沙箱命令、批量传输），与快道分池。
+
+    Args:
+        urgent: 「大但延迟敏感」的当前 run 关键操作（工具结果/子代理
+            结果/上下文序列化、base64 解码）。走独立形状子池，与慢道
+            大传输物理隔离——传输排满也不卡当前对话。
+    """
+    if urgent:
+        return await _run_on_executor(
+            "shape",
+            _get_shape_submission_limiter,
+            _SHAPE_IO_EXECUTOR,
+            _SLOW_WAIT_WARN_SECONDS,
+            func,
+            *args,
+            timeout=timeout,
+            **kwargs,
+        )
     return await _run_on_executor(
+        "slow",
         _get_long_submission_limiter,
         _LONG_IO_EXECUTOR,
+        _SLOW_WAIT_WARN_SECONDS,
         func,
         *args,
         timeout=timeout,
@@ -167,3 +337,4 @@ def shutdown_blocking_io_executor() -> None:
     """
     _BLOCKING_IO_EXECUTOR.shutdown(wait=False, cancel_futures=True)
     _LONG_IO_EXECUTOR.shutdown(wait=False, cancel_futures=True)
+    _SHAPE_IO_EXECUTOR.shutdown(wait=False, cancel_futures=True)

@@ -104,7 +104,8 @@ async def _collect_signal_user_ids(cutoff: datetime) -> list[str]:
     ]
     users: list[str] = []
     try:
-        async for d in _get_feedback_collection().aggregate(pipeline):
+        # PyMongo AsyncCollection.aggregate() 是协程，必须 await 后才能迭代（Motor 时代可直接 async for）
+        async for d in await _get_feedback_collection().aggregate(pipeline):
             uid = d.get("user_id")
             if uid:
                 users.append(str(uid))

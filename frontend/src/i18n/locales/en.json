@@ -2793,6 +2793,17 @@
     "MEMORY_EXTRACTION_ENABLED": "Enable Codex-style extraction from idle sessions. Complete conversations are distilled into durable memories with source references.",
     "MEMORY_EXTRACTION_IDLE_SECONDS": "Seconds to wait after a session ends before it becomes eligible for memory extraction.",
     "MEMORY_EXTRACTION_INTERVAL_SECONDS": "Seconds between background scans for sessions awaiting memory extraction.",
+    "SYSTEMONE_API_BASE": "API base URL of the System One decision model (TypeSafe Jev or self-hosted von). Empty disables it.",
+    "SYSTEMONE_API_KEY": "API key for the System One endpoint. Leave empty for self-hosted von without auth.",
+    "SYSTEMONE_MODEL": "System One decision model name (e.g. jev-latest or von-1.1.0).",
+    "SYSTEMONE_TIMEOUT_SECONDS": "Timeout in seconds for System One decision calls.",
+    "MEMORY_EXTRACTION_SYSTEMONE_MODE": "Memory extraction pre-gate mode: off = disabled; shadow = log decisions only; gate = skip LLM extraction for low-value sessions.",
+    "MEMORY_EXTRACTION_SYSTEMONE_GATE_THRESHOLD": "Gate-mode threshold: skip LLM extraction when P(memorable) is below this value.",
+    "MEMORY_EXTRACTION_SYSTEMONE_CONTEXT_SHADOW": "Log a System One second opinion on the extracted context family (log-only, no rewrite).",
+    "MEMORY_DEDUP_SYSTEMONE_MODE": "Write-time semantic dedup arbitration: off = single threshold; shadow = log-only; arbitrate = gray zone decided by System One.",
+    "MEMORY_DEDUP_SYSTEMONE_GRAY_LOW": "Gray-zone lower bound: below this similarity, always create a new memory.",
+    "MEMORY_DEDUP_SYSTEMONE_GRAY_HIGH": "Gray-zone upper bound: at or above this similarity, merge without arbitration.",
+    "MEMORY_DEDUP_SYSTEMONE_SAME_THRESHOLD": "Same-fact threshold: merge only when P(same fact) is at least this value.",
     "MEMORY_EXTRACTION_MAX_AGE_DAYS": "Only extract sessions that ended within this many days.",
     "MEMORY_EXTRACTION_MAX_ATTEMPTS": "Maximum extraction attempts after failures for one session.",
     "MEMORY_EXTRACTION_MAX_SESSIONS_PER_PASS": "Maximum sessions claimed and processed in one extraction pass.",
@@ -2883,6 +2894,8 @@
     "S3_SECRET_KEY": "S3 secret key",
     "SANDBOX_GREP_TIMEOUT": "Sandbox grep command timeout in seconds",
     "ENABLE_WEB_SEARCH": "Enable web search tool for agents",
+    "WEB_SEARCH_SYSTEMONE_MODE": "System One relevance prefilter for web_search results: off = no filtering (default); shadow = log only; filter = drop irrelevant results (always keep the best one).",
+    "WEB_SEARCH_SYSTEMONE_RELEVANCE_THRESHOLD": "Keep threshold: results scoring below this relevance are dropped.",
     "SANDBOX_LOCAL_EXEC_TIMEOUT": "Local sandbox command execution timeout (seconds): hung commands are killed at the deadline; changes apply to subsequent commands immediately.",
     "SANDBOX_PLATFORM": "Sandbox platform to use",
     "SANDBOX_PAUSE_WHEN_IDLE": "Pause the cloud sandbox when a conversation turn ends and no in-progress conversation needs it (auto-resumes on next use)",
@@ -3433,7 +3446,8 @@
     "storage": "Storage",
     "title": "Title Generation",
     "turnstile": "Turnstile",
-    "webSearch": "Web Search"
+    "webSearch": "Web Search",
+    "dedup": "Semantic dedup"
   },
   "systemHealth": {
     "fetchFailed": "Failed to fetch health data",
@@ -3853,5 +3867,19 @@
     "maximize": "Maximize",
     "restore": "Restore",
     "close": "Close"
+  },
+  "workspacePanel": {
+    "title": "Workspace",
+    "viewChats": "Chats",
+    "refresh": "Refresh",
+    "retry": "Retry",
+    "daemonOffline": "Local sandbox offline — workspace files unavailable",
+    "noSession": "Open a session to browse its workspace files",
+    "emptyDir": "Empty workspace",
+    "copyPath": "Copy path",
+    "revealInFileManager": "Reveal in file manager",
+    "binaryFileHint": "(Binary file — inline preview not supported)",
+    "settings": "Settings",
+    "account": "Account"
   }
 }

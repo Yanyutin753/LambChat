@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 from bson import ObjectId
 from pymongo import ReturnDocument
 
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.session.favorites import (
     is_session_favorite,
     normalize_session_metadata,
@@ -761,7 +761,7 @@ class SessionStorage(SessionAttachmentOperationsMixin):
             and data.get("content", "").strip()
         ]
 
-        payload = await run_blocking_io(
+        payload = await run_long_blocking_io(
             build_backfilled_search_index,
             session_name=existing_doc.get("name"),
             user_messages=user_messages,

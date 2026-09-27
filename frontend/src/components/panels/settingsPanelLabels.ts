@@ -51,6 +51,7 @@ export function buildSubcategoryLabels(t: Translate): Record<string, string> {
     video_analysis: t("subcategories.video_analysis"),
     code: t("subcategories.code"),
     cubesandbox: t("subcategories.cubesandbox"),
+    dedup: t("subcategories.dedup"),
     extraction: t("subcategories.extraction"),
     feishu: t("subcategories.feishu"),
     image_generation: t("subcategories.image_generation"),

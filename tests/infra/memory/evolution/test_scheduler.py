@@ -217,3 +217,105 @@ async def test_run_scheduled_evolution_releases_own_token(monkeypatch):
     refresh_token = fake.eval_calls[0][1]
     release_token = fake.eval_calls[1][1]
     assert refresh_token == release_token and release_token
+
+
+# ---------------------------------------------- _collect_signal_user_ids 扫描
+
+
+class _FakeAsyncAggCursor:
+    """模拟 await AsyncCollection.aggregate() 之后的异步命令游标。"""
+
+    def __init__(self, docs):
+        self._docs = list(docs)
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if not self._docs:
+            raise StopAsyncIteration
+        return self._docs.pop(0)
+
+
+class _FakeFeedbackCollection:
+    """按 PyMongo AsyncMongoClient 语义模拟：aggregate() 是协程，await 后才拿到游标。"""
+
+    def __init__(self, docs):
+        self._docs = list(docs)
+        self.aggregate_pipelines: list = []
+
+    async def aggregate(self, pipeline):
+        self.aggregate_pipelines.append(pipeline)
+        return _FakeAsyncAggCursor(self._docs)
+
+
+class _FakeTracesFindCursor:
+    def __init__(self, docs):
+        self._docs = list(docs)
+
+    def limit(self, _n):
+        return self
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if not self._docs:
+            raise StopAsyncIteration
+        return self._docs.pop(0)
+
+
+class _FakeTracesCollection:
+    """find() 直接返回 AsyncCursor（可链 .limit()），无需 await——与 aggregate 语义不同。"""
+
+    def __init__(self, docs):
+        self._docs = list(docs)
+
+    def find(self, _query, _projection=None):
+        return _FakeTracesFindCursor(self._docs)
+
+
+@pytest.mark.asyncio
+async def test_collect_signal_users_awaits_pymongo_style_aggregate(monkeypatch):
+    """feedback 扫描必须 await aggregate() 再迭代，否则 TypeError 被吞、扫描恒为空。"""
+    from datetime import datetime, timedelta, timezone
+
+    feedback = _FakeFeedbackCollection([{"user_id": "u1"}, {"user_id": "u2"}])
+    monkeypatch.setattr(
+        "src.infra.memory.evolution.reflector._get_feedback_collection",
+        lambda: feedback,
+    )
+    monkeypatch.setattr(
+        "src.infra.memory.evolution.reflector._get_traces_collection",
+        lambda: _FakeTracesCollection([]),
+    )
+
+    users = await scheduler._collect_signal_user_ids(
+        datetime.now(timezone.utc) - timedelta(hours=24)
+    )
+
+    assert users == ["u1", "u2"]
+    assert feedback.aggregate_pipelines, "aggregate pipeline should be executed"
+
+
+@pytest.mark.asyncio
+async def test_collect_signal_users_supplements_from_traces_deduped(monkeypatch):
+    """feedback 用户不足时从 error traces 补充，按 seen 去重且不超上限。"""
+    from datetime import datetime, timedelta, timezone
+
+    monkeypatch.setattr(
+        "src.infra.memory.evolution.reflector._get_feedback_collection",
+        lambda: _FakeFeedbackCollection([{"user_id": "u1"}]),
+    )
+    monkeypatch.setattr(
+        "src.infra.memory.evolution.reflector._get_traces_collection",
+        lambda: _FakeTracesCollection(
+            [{"user_id": "u2"}, {"user_id": "u2"}, {"user_id": "u1"}, {"user_id": "u3"}]
+        ),
+    )
+
+    users = await scheduler._collect_signal_user_ids(
+        datetime.now(timezone.utc) - timedelta(hours=24)
+    )
+
+    assert users == ["u1", "u2", "u3"]

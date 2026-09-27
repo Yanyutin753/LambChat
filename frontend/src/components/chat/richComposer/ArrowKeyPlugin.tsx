@@ -6,6 +6,7 @@ import {
   KEY_ARROW_UP_COMMAND,
 } from "lexical";
 import { useEffect } from "react";
+import { isKeyboardEventDuringComposition } from "./keyboardComposition";
 
 export type ComposerArrowDirection = "up" | "down";
 
@@ -22,6 +23,7 @@ export function ArrowKeyPlugin({
   useEffect(() => {
     const handleArrow =
       (direction: ComposerArrowDirection) => (event: KeyboardEvent) => {
+        if (isKeyboardEventDuringComposition(event)) return false;
         const rootElement = editor.getRootElement();
         if (!rootElement || !onArrowKey?.(direction, rootElement)) return false;
         event.preventDefault();

@@ -4,7 +4,7 @@
 
 import { memo, useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, Check, MoreHorizontal } from "lucide-react";
+import { AlertCircle, Check, MoreHorizontal, Pin } from "lucide-react";
 import toast from "react-hot-toast";
 import type { BackendSession } from "../../services/api/session";
 import type { Project } from "../../types";
@@ -346,9 +346,17 @@ function SessionItemComponent({
                   : isActive
                     ? "text-stone-800 dark:text-stone-100 font-medium"
                     : "text-stone-600 dark:text-stone-300 group-hover:text-stone-700 dark:group-hover:text-stone-200"
-              }`}
+              } flex items-center gap-1`}
             >
               {displayTitle}
+              {/* 置顶标识：排序由服务端 pinned-first 保证，这里只补视觉锚点 */}
+              {isPinned && !isEditing && (
+                <Pin
+                  size={11}
+                  className="shrink-0 text-stone-400 dark:text-stone-500"
+                  aria-label={t("sidebar.pinned", "已置顶")}
+                />
+              )}
             </div>
           )}
         </div>

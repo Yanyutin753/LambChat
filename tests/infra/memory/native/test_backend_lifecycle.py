@@ -143,7 +143,7 @@ async def test_maybe_embed_offloads_sync_embedding_function(
         return func(*args, **kwargs)
 
     backend._embedding_fn = sync_embedding
-    monkeypatch.setattr(backend_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(backend_module, "run_long_blocking_io", fake_run_blocking_io)
 
     result = await backend._maybe_embed("hello")
 
@@ -167,7 +167,7 @@ async def test_maybe_embed_awaits_future_returned_by_embedding_function(
         return func(*args, **kwargs)
 
     backend._embedding_fn = future_embedding
-    monkeypatch.setattr(backend_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(backend_module, "run_long_blocking_io", fake_run_blocking_io)
 
     result = await backend._maybe_embed("hello")
 

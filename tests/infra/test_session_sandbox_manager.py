@@ -180,6 +180,7 @@ async def test_cancelled_lazy_e2b_create_completes_manager_binding_and_cache(
 
     monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "e2b")
     monkeypatch.setattr(sandbox_module, "run_blocking_io", gated_run_blocking_io)
+    monkeypatch.setattr(sandbox_module, "run_long_blocking_io", gated_run_blocking_io)
     monkeypatch.setattr(manager, "_get_user_env_vars", no_user_env_vars)
     monkeypatch.setattr(manager, "_ensure_work_dir", no_async_side_effect)
     monkeypatch.setattr(
@@ -227,6 +228,7 @@ async def test_cancelled_lazy_cubesandbox_create_completes_manager_binding_and_c
 
     monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "cubesandbox")
     monkeypatch.setattr(sandbox_module, "run_blocking_io", gated_run_blocking_io)
+    monkeypatch.setattr(sandbox_module, "run_long_blocking_io", gated_run_blocking_io)
     monkeypatch.setattr(manager, "_get_user_env_vars", no_user_env_vars)
     monkeypatch.setattr(manager, "_ensure_work_dir", no_async_side_effect)
     monkeypatch.setattr(
@@ -284,6 +286,7 @@ async def test_cancelled_lazy_daytona_create_completes_manager_binding_and_cache
 
     monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "daytona")
     monkeypatch.setattr(sandbox_module, "run_blocking_io", gated_run_blocking_io)
+    monkeypatch.setattr(sandbox_module, "run_long_blocking_io", gated_run_blocking_io)
     monkeypatch.setattr(manager, "_get_user_env_vars", no_user_env_vars)
     monkeypatch.setattr(manager, "_ensure_work_dir", no_async_side_effect)
     monkeypatch.setattr(
@@ -379,6 +382,7 @@ async def test_e2b_reconnects_legacy_binding_without_creating_new_sandbox(
         lambda: _FakeMongoClient(collection),
     )
     monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(sandbox_module, "run_long_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
     monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "e2b")
     monkeypatch.setattr(sandbox_module.settings, "E2B_TIMEOUT", 123)
@@ -414,6 +418,7 @@ async def test_e2b_cache_hit_runs_sync_sdk_calls_in_blocking_executor(
         return None
 
     monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(sandbox_module, "run_long_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(manager, "_save_binding", fake_save_binding)
     monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
     monkeypatch.setattr(sandbox_module.settings, "E2B_TIMEOUT", 123)
@@ -449,6 +454,7 @@ async def test_cubesandbox_cache_hit_uses_cube_adapter(
         return None
 
     monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(sandbox_module, "run_long_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(manager, "_save_binding", fake_save_binding)
     monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
     monkeypatch.setattr(sandbox_module.settings, "CUBE_TIMEOUT", 456, raising=False)
@@ -494,6 +500,7 @@ async def test_cubesandbox_reuses_running_sandbox_found_by_user_metadata(
         return None
 
     monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(sandbox_module, "run_long_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(manager, "_get_binding", fake_get_binding)
     monkeypatch.setattr(manager, "_save_binding", fake_save_binding)
     monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
@@ -542,6 +549,7 @@ async def test_cubesandbox_create_cleans_other_user_sandboxes(
         return None
 
     monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(sandbox_module, "run_long_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(manager, "_save_binding", fake_save_binding)
     monkeypatch.setattr(manager, "_get_user_env_vars", fake_get_user_env_vars)
     monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
@@ -587,6 +595,7 @@ async def test_cubesandbox_reconnect_cleans_other_user_sandboxes(
         return None
 
     monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(sandbox_module, "run_long_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(manager, "_get_binding", fake_get_binding)
     monkeypatch.setattr(manager, "_save_binding", fake_save_binding)
     monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
@@ -762,6 +771,7 @@ async def test_e2b_dead_binding_replacement_sets_startup_notice(
         lambda: _FakeMongoClient(collection),
     )
     monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(sandbox_module, "run_long_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
     monkeypatch.setattr("src.infra.sandbox._e2b_helpers.sync_sandbox_env_vars", no_env_vars)
     monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "e2b")
@@ -799,6 +809,7 @@ async def test_e2b_fresh_user_create_has_no_startup_notice(
         lambda: _FakeMongoClient(collection),
     )
     monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(sandbox_module, "run_long_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
     monkeypatch.setattr("src.infra.sandbox._e2b_helpers.sync_sandbox_env_vars", no_env_vars)
     monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "e2b")
@@ -840,6 +851,7 @@ async def test_cubesandbox_dead_binding_replacement_sets_startup_notice(
         lambda: _FakeMongoClient(collection),
     )
     monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(sandbox_module, "run_long_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
     monkeypatch.setattr("src.infra.sandbox._cubesandbox_helpers.sync_sandbox_env_vars", no_env_vars)
     monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "cubesandbox")
@@ -880,6 +892,7 @@ async def test_e2b_stop_pauses_via_binding_when_cache_missed(
         lambda: _FakeMongoClient(collection),
     )
     monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(sandbox_module, "run_long_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "e2b")
 
     # 缓存为空（模拟其它 pod 处理的对话）
@@ -912,6 +925,7 @@ async def test_e2b_stop_without_binding_returns_false(
         lambda: _FakeMongoClient(collection),
     )
     monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
+    monkeypatch.setattr(sandbox_module, "run_long_blocking_io", fake_run_blocking_io)
 
     assert await manager.stop("user-1") is False
     assert adapter.stopped == []
