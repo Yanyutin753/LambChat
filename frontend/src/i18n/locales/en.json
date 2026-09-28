@@ -2945,6 +2945,7 @@
     "TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS": "Orphan task recovery scan interval (seconds)",
     "TASK_RUN_STALL_TIMEOUT": "Run heartbeat stall timeout (seconds)",
     "LLM_STREAM_IDLE_TIMEOUT": "Maximum idle seconds between consecutive streaming chunks; an upstream stall fails the call instead of hanging forever (0 or negative = disabled)",
+    "LLM_STREAM_GAP_WARN_TIMEOUT": "Warn in logs when consecutive streaming chunks are more than this many seconds apart; detects upstream stalls that may drop content (warning only, 0 or negative = disabled)",
     "ENABLE_WEB_FETCH": "Enable the web fetch tool: read public pages as markdown for the model (internal addresses always rejected).",
     "WEB_FETCH_PROVIDER": "Web fetch provider: direct = local; tavily = reuses search keys (first fallback for anti-bot); firecrawl = self-hostable; exa = cache+live crawl; jina = r.jina.ai; auto = direct → tavily → firecrawl → exa → jina.",
     "JINA_API_KEYS": "Jina Reader API keys, comma-separated for rotation (r.jina.ai: 20 RPM keyless, 200 RPM with key). Empty disables jina.",

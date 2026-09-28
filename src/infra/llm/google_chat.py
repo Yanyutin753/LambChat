@@ -20,6 +20,7 @@ class LambChatGoogleChatModel(ChatGoogleGenerativeAI):
     first_event_timeout: float | None = Field(default=None, exclude=True)
     non_streaming_timeout: float | None = Field(default=None, exclude=True)
     stream_idle_timeout: float | None = Field(default=None, exclude=True)
+    stream_gap_warn_timeout: float | None = Field(default=None, exclude=True)
 
     async def _astream(
         self,
@@ -34,6 +35,9 @@ class LambChatGoogleChatModel(ChatGoogleGenerativeAI):
             source,
             timeout=self.first_event_timeout,
             idle_timeout=self.stream_idle_timeout,
+            gap_warn_timeout=self.stream_gap_warn_timeout,
+            gap_warn_context=getattr(self, "model_name", "") or "",
+            gap_describe=lambda chunk: getattr(getattr(chunk, "message", None), "id", None) or "",
         ):
             yield chunk
 

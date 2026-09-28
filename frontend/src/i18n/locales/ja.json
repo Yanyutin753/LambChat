@@ -2945,6 +2945,7 @@
     "TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS": "孤立タスク回収スキャン間隔（秒）",
     "TASK_RUN_STALL_TIMEOUT": "実行ハートビート停滞タイムアウト（秒）",
     "LLM_STREAM_IDLE_TIMEOUT": "ストリーミングchunk間の最大アイドル秒数。上游の停滞で実行が固まるのを防ぐ（0以下で無効）",
+    "LLM_STREAM_GAP_WARN_TIMEOUT": "ストリーミングchunk間の間隔がこの秒数を超えるとログに警告を記録します。上流の停滞による内容欠落の検出用（警告のみ、0以下で無効）",
     "ENABLE_WEB_FETCH": "ウェブ取得ツールを有効化：公開ページの本文を Markdown として取得（内部アドレスは常に拒否）。",
     "WEB_FETCH_PROVIDER": "取得プロバイダー: direct=ローカル、tavily=検索キー共有、firecrawl=セルフホスト可、exa=キャッシュ+実クロール、jina=r.jina.ai、auto=順次フォールバック。",
     "JINA_API_KEYS": "Jina Reader API キー（カンマ区切りでローテーション）。空の場合 jina は無効。",

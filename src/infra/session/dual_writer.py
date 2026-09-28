@@ -208,6 +208,18 @@ class DualEventWriter:
         """
         # 统一时间戳，确保 Redis 和 MongoDB 使用相同的时间
         timestamp = utc_now()
+        # 健康链路里 present_text 的 content 恒为非空；空正文 chunk 只在上游
+        # 流被中断重接时出现（2026-09-17 run_20260917033552 事故的接缝痕迹），
+        # 落库前在此留痕，便于与 trace 的 text_id 对账。
+        if event_type == "message:chunk" and isinstance(data, dict) and not data.get("content"):
+            logger.warning(
+                "Empty message:chunk observed (session=%s, run=%s, trace=%s, data_keys=%s); "
+                "likely an upstream stream resync seam with possible content loss",
+                session_id,
+                run_id,
+                trace_id,
+                sorted(key for key in data.keys() if key != "timestamp"),
+            )
         # 外部工具输出可能携带 MongoDB pipeline 写不进去的字段名（含 '.'、
         # '$' 前缀、空键），先归一化避免事件永远写不进 traces/chunks
         data = _sanitize_event_data_for_mongo(data)
