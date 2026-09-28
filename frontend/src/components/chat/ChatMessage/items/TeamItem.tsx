@@ -32,13 +32,7 @@ function ToolAvatarImg({
   className?: string;
 }) {
   return (
-    <ImageWithSkeleton
-      src={src}
-      alt=""
-      skipUrlResolve
-      inline
-      className={className}
-    />
+    <ImageWithSkeleton src={src} alt="" inline className={className} />
   );
 }
 

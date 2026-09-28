@@ -1,4 +1,4 @@
-import { getFluentEmojiCDN } from "@lobehub/fluent-emoji";
+import { getEmojiAssetUrl } from "../../utils/emojiAssets";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
 
 // Legacy default icons → mapped to 💬
@@ -11,10 +11,9 @@ function renderEmojiIcon(
 ) {
   return (
     <ImageWithSkeleton
-      src={getFluentEmojiCDN(icon, { type: "3d" })}
+      src={getEmojiAssetUrl(icon, "3d")}
       alt={icon}
       className={className}
-      skipUrlResolve
       inline
       loading="eager"
       style={{
