@@ -401,7 +401,8 @@ class SkillsStoreBackend(BackendProtocol):
 
             if sub_path in paths:
                 content = await storage.get_skill_file(skill_name, sub_path, self._user_id)
-                size = len(content) if content is not None else 0
+                # FileInfo.size 契约按 deepagents 0.7.18 起明确为字节数
+                size = len(content.encode("utf-8")) if content is not None else 0
                 return LsResult(
                     entries=[
                         FileInfo(

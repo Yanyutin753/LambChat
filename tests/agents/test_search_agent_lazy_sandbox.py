@@ -196,8 +196,7 @@ class _ScriptedChatModel(BaseChatModel):
                             {
                                 "name": "task",
                                 "args": {
-                                    "description": "Inspect the workspace",
-                                    "prompt": "Return a short report without using tools.",
+                                    "description": "Inspect the workspace. Return a short report without using tools.",
                                     "subagent_type": "general-purpose",
                                 },
                                 "id": "task-1",
