@@ -8,11 +8,39 @@ from collections.abc import AsyncIterator
 
 from redis.exceptions import ResponseError
 
+from src.infra.logging import get_logger
 from src.infra.sandbox.relay import _frames as _frames_codec
 from src.infra.sandbox.relay.registry import SandboxClientRegistry
 from src.infra.storage.redis import get_binary_redis_client, get_redis_client
 from src.kernel.config import settings
 from src.kernel.errors import AppError, ErrorCode
+
+logger = get_logger(__name__)
+
+
+def _log_roundtrip(
+    op: str,
+    call_id: str,
+    outcome: str,
+    start: float,
+    ack_at: float | None,
+    repushes: int,
+) -> None:
+    """dispatch 往返耗时观测（结构化字段，不落命令内容——payload 可能含敏感命令）。"""
+    elapsed_ms = (time.monotonic() - start) * 1000
+    ack_ms = (ack_at - start) * 1000 if ack_at is not None else None
+    logger.info(
+        "sandbox_dispatch_roundtrip",
+        extra={
+            "op": op,
+            "call_id": call_id[:8],
+            "outcome": outcome,
+            "elapsed_ms": round(elapsed_ms, 1),
+            "ack_ms": round(ack_ms, 1) if ack_ms is not None else None,
+            "repushes": repushes,
+        },
+    )
+
 
 # 流式结果逐行消费的轮询：行粒度小、吞吐优先，比控制面轮询更密
 _STREAM_POLL_INTERVAL = 0.01
@@ -71,11 +99,13 @@ class _AckRepusher:
         self._queue = queue
         self._req = req
         self._pushed: list[str] = []
+        self.push_count = 0
 
     async def push(self) -> None:
         self._req["ts"] = time.time()
         payload = json.dumps(self._req)
         self._pushed.append(payload)
+        self.push_count += 1
         await self._redis.rpush(self._queue, payload)
 
     def next_due(self) -> float:
@@ -152,6 +182,8 @@ async def dispatch_local_call(
 
     start = time.monotonic()
     acked = False
+    ack_at: float | None = None
+    outcome = "error"
     ack_deadline = start + settings.SANDBOX_LOCAL_ACK_TIMEOUT
     exec_deadline = start + exec_timeout
     next_repush = repusher.next_due()
@@ -171,6 +203,7 @@ async def dispatch_local_call(
                     resp = None  # 他人结果，忽略
             if resp is not None and resp.get("stage") == "ack":
                 acked = True
+                ack_at = time.monotonic()
                 resp = None
             if resp is not None and resp.get("stage") == "done":
                 await redis.delete(resp_key)
@@ -184,18 +217,24 @@ async def dispatch_local_call(
                     # 内部异常）与 exec 的 daemon 级错误（expired/unsupported，无
                     # 结果字段）仍按中继失败上抛。
                     if op == "exec" and ("exit_code" in resp or "stdout" in resp):
+                        outcome = "done"
                         return resp
+                    outcome = "failed"
                     raise AppError(
                         ErrorCode.SANDBOX_EXEC_FAILED,
                         args={"detail": str(resp.get("error") or "local execution failed")},
                     )
+                outcome = "done"
                 return resp
             if not acked and time.monotonic() > ack_deadline:
+                outcome = "ack_timeout"
                 raise AppError(
                     ErrorCode.SANDBOX_TIMEOUT, args={"seconds": settings.SANDBOX_LOCAL_ACK_TIMEOUT}
                 )
+        outcome = "timeout"
         raise AppError(ErrorCode.SANDBOX_TIMEOUT, args={"seconds": int(exec_timeout)})
     finally:
+        _log_roundtrip(op, call_id, outcome, start, ack_at, max(repusher.push_count - 1, 0))
         try:
             await redis.delete(resp_key)
             await redis.delete(_assign_key(call_id))
@@ -257,6 +296,8 @@ async def dispatch_local_stream(
 
     start = time.monotonic()
     acked = False
+    ack_at: float | None = None
+    outcome = "error"
     ack_deadline = start + settings.SANDBOX_LOCAL_ACK_TIMEOUT
     exec_deadline = start + exec_timeout
     next_repush = repusher.next_due()
@@ -276,12 +317,14 @@ async def dispatch_local_stream(
             if resp is not None:
                 if resp.get("stage") == "ack":
                     acked = True
+                    ack_at = time.monotonic()
                     # 不 delete：队列语义下 ack 出队即消费，残留的 delete 会把
                     # 已入队的 done 连带清掉（背靠背回传时错误结局退化为超时）
                     resp = None
                 elif resp.get("stage") == "done":
                     await redis.delete(resp_key)
                     error = str(resp.get("error") or "local execution failed")
+                    outcome = "failed"
                     raise AppError(ErrorCode.SANDBOX_EXEC_FAILED, args={"detail": error})
             while True:
                 raw_item = await redis.lpop(stream_key)
@@ -298,21 +341,28 @@ async def dispatch_local_stream(
                     continue  # 残缺 item（不该发生）：跳过不炸消费器
                 ftype, frame_body, _rest = parsed
                 acked = True  # 首帧即存活证明
+                if ack_at is None:
+                    ack_at = time.monotonic()
                 if ftype == _frames_codec.FRAME_ERROR:
                     error = str(json.loads(frame_body).get("error") or "stream failed")
+                    outcome = "failed"
                     raise AppError(ErrorCode.SANDBOX_EXEC_FAILED, args={"detail": error})
                 if ftype == _frames_codec.FRAME_EOF:
+                    outcome = "done"
                     return
                 if ftype == _frames_codec.FRAME_DATA:
                     yield frame_body  # 裸字节：无 base64 解码开销
                 # FRAME_META：跳过（尺寸供上层核对，不在数据流里重复）
             if not acked and time.monotonic() > ack_deadline:
+                outcome = "ack_timeout"
                 raise AppError(
                     ErrorCode.SANDBOX_TIMEOUT, args={"seconds": settings.SANDBOX_LOCAL_ACK_TIMEOUT}
                 )
             await asyncio.sleep(_STREAM_POLL_INTERVAL)
+        outcome = "timeout"
         raise AppError(ErrorCode.SANDBOX_TIMEOUT, args={"seconds": int(exec_timeout)})
     finally:
+        _log_roundtrip(op, call_id, outcome, start, ack_at, max(repusher.push_count - 1, 0))
         for key in (resp_key, stream_key):
             try:
                 await redis.delete(key)
@@ -386,6 +436,8 @@ async def dispatch_local_stream_upload(
 
     start = time.monotonic()
     acked = False
+    ack_at: float | None = None
+    outcome = "error"
     done: dict | None = None
     try:
         deadline = start + exec_timeout
@@ -400,12 +452,14 @@ async def dispatch_local_stream_upload(
                 if raw is not None:
                     resp = json.loads(raw)
                     if resp.get("user_id") == user_id and resp.get("stage") == "done":
+                        outcome = "failed"
                         raise AppError(
                             ErrorCode.SANDBOX_EXEC_FAILED,
                             args={"detail": str(resp.get("error") or "upload stream failed")},
                         )
                 await asyncio.sleep(_UPBLOB_POLL_INTERVAL)
             else:
+                outcome = "timeout"
                 raise AppError(ErrorCode.SANDBOX_TIMEOUT, args={"seconds": int(exec_timeout)})
             await redis.rpush(blob_key, frame)
             await redis.expire(blob_key, 120)
@@ -417,6 +471,7 @@ async def dispatch_local_stream_upload(
             if resp is not None and resp.get("user_id") == user_id:
                 if resp.get("stage") == "ack":
                     acked = True
+                    ack_at = time.monotonic()
                     # 同 stream 路径：不 delete，防背靠背 done 被连带清掉
                 elif resp.get("stage") == "done":
                     done = resp
@@ -426,19 +481,24 @@ async def dispatch_local_stream_upload(
                 and not acked
                 and time.monotonic() > start + settings.SANDBOX_LOCAL_ACK_TIMEOUT
             ):
+                outcome = "ack_timeout"
                 raise AppError(
                     ErrorCode.SANDBOX_TIMEOUT, args={"seconds": settings.SANDBOX_LOCAL_ACK_TIMEOUT}
                 )
             if done is None:
                 await asyncio.sleep(_STREAM_POLL_INTERVAL)
         if done is None:
+            outcome = "timeout"
             raise AppError(ErrorCode.SANDBOX_TIMEOUT, args={"seconds": int(exec_timeout)})
         if done.get("status") != "ok":
+            outcome = "failed"
             raise AppError(
                 ErrorCode.SANDBOX_EXEC_FAILED,
                 args={"detail": str(done.get("error") or "local execution failed")},
             )
+        outcome = "done"
     finally:
+        _log_roundtrip("fs_upload_stream", call_id, outcome, start, ack_at, 0)
         for key in (resp_key, blob_key):
             try:
                 await redis.delete(key)
