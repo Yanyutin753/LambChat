@@ -250,6 +250,9 @@ class Settings(BaseSettings):
     SANDBOX_PAUSE_WHEN_IDLE: bool = True
     SANDBOX_LOCAL_ACK_TIMEOUT: int = 30  # 本地沙箱 daemon ACK 超时（秒）
     SANDBOX_LOCAL_EXEC_TIMEOUT: int = 120  # 本地沙箱执行总超时（秒）
+    # 工件自动投递（execute 前后快照 + 自动 reveal）：大工作区/低带宽场景可关，
+    # 关闭后 reveal_file/reveal_project 手动投递不受影响。
+    ENABLE_ARTIFACT_DELIVERY: bool = True
     # 本地沙箱流式传输（fs_download_stream）总超时（秒）：单个 chunked POST
     # 装下整个文件，大文件按带宽计而非按块计——120s 的 exec 超时对 100MB 慢
     # 上行不够（10Mbps ≈ 110s+），流式专用窗口放宽到 10 分钟。
