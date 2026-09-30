@@ -874,6 +874,8 @@
       "forkSuccess": "Форк создан в новой сессии",
       "generating": "Генерация",
       "generatingImage": "Генерация изображения",
+      "imageGalleryCount": "Изображений: {{count}}",
+      "imageGalleryToggle": "Развернуть или свернуть изображения",
       "interrupted": "Вы остановили этот ответ",
       "mermaidError": "Ошибка Mermaid",
       "model": "Модель",
