@@ -24,6 +24,6 @@ test("conversation sidebar controls use foreground feedback without hover fills"
     for (const rule of rules) expect(rule).not.toMatch(/background/);
   }
   expect(read("components/sidebar/SessionItem.tsx")).toContain(
-    '"bg-stone-100 dark:bg-stone-700/50"',
+    '"bg-theme-bg-subtle dark:bg-stone-700/50"',
   );
 });

@@ -409,7 +409,7 @@ export function SessionListContent({
             }}
             className={
               isPinnedDragOver || sessionActions.touchDropTarget === "pinned"
-                ? "rounded-[10px] bg-stone-200/60 dark:bg-stone-700/40 ring-1 ring-inset ring-stone-300 dark:ring-stone-600"
+                ? "rounded-[10px] bg-theme-border/60 dark:bg-stone-700/40 ring-1 ring-inset ring-theme-border-hover dark:ring-stone-600"
                 : undefined
             }
           >
