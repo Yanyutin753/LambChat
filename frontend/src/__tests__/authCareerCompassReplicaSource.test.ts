@@ -15,17 +15,15 @@ test("login page carries the LambChat-inspired compact auth layout markers", () 
   expect(authPage).toMatch(/auth-forgot-row/);
   expect(authPage).toMatch(/auth-social-provider/);
   expect(authPage).toMatch(/auth-illustration-panel/);
-  expect(authPage).toMatch(/auth-character-stage/);
-  expect(authPage).toMatch(/auth-mobile-spirit/);
-  expect(authPage).toMatch(/handleGlobalCharacterPointerMove/);
-  expect(authPage).toMatch(/window\.addEventListener\("pointermove"/);
-  expect(authPage).toMatch(/auth-lamb-feature-chip/);
-  expect(authPage).toMatch(/auth-character-mouth/);
+  expect(authPage).toMatch(/auth-brand-story/);
+  expect(authPage).toMatch(/auth-mobile-art/);
+  expect(authPage).toMatch(/auth-brand-workspace.webp/);
+  expect(authPage).not.toMatch(/handleGlobalCharacterPointerMove/);
   expect(authPage).not.toMatch(/auth-login-kicker/);
   expect(authPage).not.toMatch(/Agent workspace/);
   expect(authPage).toMatch(/auth-field-group/);
   expect(authPage).toMatch(/auth-submit-label/);
-  expect(authPage).toMatch(/prefers-reduced-motion: reduce/);
+  expect(authStyles).toMatch(/prefers-reduced-motion: reduce/);
 
   expect(authStyles).toMatch(/\.auth-lamb-shell/);
   expect(authStyles).toMatch(/\.auth-form-surface/);

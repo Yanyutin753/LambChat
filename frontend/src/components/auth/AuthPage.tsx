@@ -17,10 +17,6 @@ import {
   Mail,
   AlertCircle,
   AtSign,
-  Sparkles,
-  ShieldCheck,
-  Workflow,
-  Database,
   Loader2,
 } from "lucide-react";
 import { PasswordInput } from "./PasswordInput";
@@ -138,7 +134,6 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
   // Use ref to access current mode without adding it to deps
   const modeRef = useRef(mode);
   modeRef.current = mode;
-  const characterPanelRef = useRef<HTMLDivElement | null>(null);
   const redirectTimerRef = useRef<number | null>(null);
   const redirectFailsafeRef = useRef<number | null>(null);
 
@@ -373,79 +368,6 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
     setConfirmPassword("");
   }, [mode, registrationEnabled]);
 
-  // RAF-throttled character gaze: buffers pointer events and applies CSS
-  // custom properties only once per animation frame.
-  const rafRef = useRef<number>(0);
-  const pendingGazeRef = useRef({ x: 0, y: 0 });
-
-  const applyCharacterGaze = useCallback(() => {
-    const panel = characterPanelRef.current;
-    if (!panel) return;
-    const { x, y } = pendingGazeRef.current;
-    panel.style.setProperty("--eye-x", `${(x * 10).toFixed(2)}px`);
-    panel.style.setProperty("--eye-y", `${(y * 5).toFixed(2)}px`);
-    panel.style.setProperty("--pupil-x", `${(x * 3.5).toFixed(2)}px`);
-    panel.style.setProperty("--pupil-y", `${(y * 2.5).toFixed(2)}px`);
-    panel.style.setProperty("--mouth-x", `${(x * 4).toFixed(2)}px`);
-    panel.style.setProperty("--mouth-y", `${(y * 2).toFixed(2)}px`);
-    panel.style.setProperty("--mouth-rotate", `${(x * 2).toFixed(2)}deg`);
-    rafRef.current = 0;
-  }, []);
-
-  const setCharacterGaze = useCallback(
-    (xRatio: number, yRatio: number) => {
-      pendingGazeRef.current = { x: xRatio, y: yRatio };
-      if (!rafRef.current) {
-        rafRef.current = requestAnimationFrame(applyCharacterGaze);
-      }
-    },
-    [applyCharacterGaze],
-  );
-
-  const resetCharacterGaze = useCallback(() => {
-    pendingGazeRef.current = { x: 0, y: 0 };
-    if (!rafRef.current) {
-      rafRef.current = requestAnimationFrame(applyCharacterGaze);
-    }
-  }, [applyCharacterGaze]);
-
-  const handleGlobalCharacterPointerMove = useCallback(
-    (event: PointerEvent) => {
-      const viewportWidth = Math.max(window.innerWidth, 1);
-      const viewportHeight = Math.max(window.innerHeight, 1);
-      const xRatio = Math.max(
-        -1,
-        Math.min(1, (event.clientX / viewportWidth - 0.5) * 2.4),
-      );
-      const yRatio = Math.max(
-        -1,
-        Math.min(1, (event.clientY / viewportHeight - 0.5) * 2.2),
-      );
-      setCharacterGaze(xRatio, yRatio);
-    },
-    [setCharacterGaze],
-  );
-
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      return undefined;
-    }
-    window.addEventListener("pointermove", handleGlobalCharacterPointerMove, {
-      passive: true,
-    });
-    window.addEventListener("pointerleave", resetCharacterGaze);
-    window.addEventListener("blur", resetCharacterGaze);
-    return () => {
-      window.removeEventListener(
-        "pointermove",
-        handleGlobalCharacterPointerMove,
-      );
-      window.removeEventListener("pointerleave", resetCharacterGaze);
-      window.removeEventListener("blur", resetCharacterGaze);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [handleGlobalCharacterPointerMove, resetCharacterGaze]);
-
   if (isRedirecting) {
     return <AutoLoginSplash text={t("auth.completingLogin")} />;
   }
@@ -453,19 +375,6 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
   return (
     <div className="auth-shell auth-lamb-shell min-h-[calc(100svh-var(--titlebar-inset,0px))] min-h-[calc(100dvh-var(--titlebar-inset,0px))] overflow-y-auto overflow-x-hidden">
       <div className="auth-crosshatch" aria-hidden="true" />
-      <div className="auth-lamb-pattern" aria-hidden="true" />
-
-      {/* Atmospheric background with aurora glow orbs */}
-      <div className="auth-atmosphere" aria-hidden="true">
-        <div className="auth-glow-main absolute -top-24 left-1/2 -translate-x-1/2 w-[720px] h-[520px] bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.065)_0%,rgba(251,146,60,0.025)_42%,transparent_70%)] dark:bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.04)_0%,rgba(251,146,60,0.018)_42%,transparent_70%)]" />
-        <div className="auth-glow-blue absolute top-[34%] left-[4%] w-[360px] h-[360px] bg-[radial-gradient(circle,rgba(56,189,248,0.04)_0%,transparent_62%)] dark:bg-[radial-gradient(circle,rgba(56,189,248,0.028)_0%,transparent_62%)]" />
-        <div className="auth-glow-violet absolute bottom-[10%] right-[8%] w-[300px] h-[300px] bg-[radial-gradient(circle,rgba(168,85,247,0.035)_0%,transparent_60%)] dark:bg-[radial-gradient(circle,rgba(168,85,247,0.022)_0%,transparent_60%)]" />
-        {/* Floating light orbs */}
-        <div className="auth-light-orb auth-light-orb-amber absolute top-[18%] left-[6%] opacity-50" />
-        <div className="auth-light-orb auth-light-orb-blue absolute top-[52%] right-[4%] opacity-35" />
-        <div className="auth-light-orb auth-light-orb-violet absolute bottom-[18%] left-[28%] opacity-25" />
-      </div>
-
       {/* Mobile navbar */}
       <nav className="safe-area-top fixed top-0 inset-x-0 z-50 bg-theme-bg-card/90 dark:bg-stone-950/90 border-b border-theme-border-subtle/60 dark:border-stone-800/40 transition-shadow duration-300 lg:hidden">
         <div className="mx-auto flex h-16 max-w-full items-center justify-between px-4 sm:px-8">
@@ -481,7 +390,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
           </Link>
           <div className="flex items-center gap-1.5">
             <LanguageToggle />
-            <ThemeToggle />
+            <ThemeToggle className="auth-theme-control" />
           </div>
         </div>
       </nav>
@@ -494,9 +403,8 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
             : "items-center px-4 pt-[calc(5.5rem+var(--app-safe-area-top,0px))] pb-[calc(4.5rem+var(--app-safe-area-bottom,0px))] sm:px-6 sm:pt-[calc(6rem+var(--app-safe-area-top,0px))] sm:pb-[calc(5rem+var(--app-safe-area-bottom,0px))] lg:px-0 lg:py-0"
         }`}
       >
-        <div className="grid w-full max-w-[980px] items-center gap-8 lg:min-h-[calc(100svh-var(--titlebar-inset,0px))] lg:max-w-none lg:grid-cols-2 lg:gap-0">
+        <div className="auth-page-grid grid w-full max-w-[980px] items-center gap-8 lg:min-h-[calc(100svh-var(--titlebar-inset,0px))] lg:max-w-none lg:grid-cols-2 lg:gap-0">
           <div
-            ref={characterPanelRef}
             className="auth-illustration-panel hidden lg:flex"
           >
             <Link to="/" className="auth-illustration-brand">
@@ -507,50 +415,15 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
               />
             </Link>
 
-            <div className="auth-character-stage" aria-hidden="true">
-              <span className="auth-lamb-feature-chip auth-lamb-feature-chip-agents font-serif">
-                <Workflow size={13} />
-                {t("auth.featureAgents")}
-              </span>
-              <span className="auth-lamb-feature-chip auth-lamb-feature-chip-tools">
-                <ShieldCheck size={13} />
-                {t("auth.featureTools")}
-              </span>
-              <span className="auth-lamb-feature-chip auth-lamb-feature-chip-skills">
-                <Sparkles size={13} />
-                {t("auth.featureSkills")}
-              </span>
-              <span className="auth-lamb-feature-chip auth-lamb-feature-chip-memory">
-                <Database size={13} />
-                {t("auth.featureMemory")}
-              </span>
-              <div className="auth-character auth-character-purple">
-                <span className="auth-character-antenna auth-character-antenna-left" />
-                <span className="auth-character-antenna auth-character-antenna-right" />
-                <span className="auth-character-eye auth-character-eye-left" />
-                <span className="auth-character-eye auth-character-eye-right" />
-                <span className="auth-character-mouth" />
-              </div>
-              <div className="auth-character auth-character-black">
-                <span className="auth-character-antenna auth-character-antenna-left" />
-                <span className="auth-character-antenna auth-character-antenna-right" />
-                <span className="auth-character-eye auth-character-eye-left" />
-                <span className="auth-character-eye auth-character-eye-right" />
-                <span className="auth-character-mouth" />
-              </div>
-              <div className="auth-character auth-character-orange">
-                <span className="auth-character-eye auth-character-eye-left" />
-                <span className="auth-character-eye auth-character-eye-right" />
-                <span className="auth-character-cheek auth-character-cheek-left" />
-                <span className="auth-character-cheek auth-character-cheek-right" />
-                <span className="auth-character-mouth" />
-              </div>
-              <div className="auth-character auth-character-yellow">
-                <span className="auth-character-eye auth-character-eye-left" />
-                <span className="auth-character-eye auth-character-eye-right" />
-                <span className="auth-character-cheek auth-character-cheek-left" />
-                <span className="auth-character-cheek auth-character-cheek-right" />
-                <span className="auth-character-mouth" />
+            <div className="auth-brand-story">
+              <img src="/images/illustrations/auth-brand-workspace.webp" alt="" aria-hidden="true" className="auth-hero-art" width={1024} height={1280} decoding="async" />
+              <p className="auth-brand-eyebrow">{t("landing.badge")}</p>
+              <h2 className="font-serif">{t("auth.brandTitle")}</h2>
+              <p className="auth-brand-description font-serif">{t("landing.heroDescription")}</p>
+              <div className="auth-brand-capabilities">
+                <span>{t("auth.featureAgents")}</span>
+                <span>{t("auth.featureTools")}</span>
+                <span>{t("auth.featureMemory")}</span>
               </div>
             </div>
 
@@ -567,33 +440,14 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
           <div className="auth-form-side relative flex w-full justify-center lg:min-h-[calc(100svh-var(--titlebar-inset,0px))] lg:items-center">
             <div className="absolute right-6 top-6 hidden items-center gap-1.5 lg:flex">
               <LanguageToggle />
-              <ThemeToggle />
+              <ThemeToggle className="auth-theme-control" />
             </div>
-            <div className="auth-form-frame w-full max-w-[23.5rem] sm:max-w-[420px] lg:max-w-[520px]">
-              <div className="auth-mobile-spirit lg:hidden" aria-hidden="true">
-                <span className="auth-mobile-orbit" />
-                <span className="auth-mobile-spark auth-mobile-spark-one" />
-                <span className="auth-mobile-spark auth-mobile-spark-two" />
-                <span className="auth-mobile-character auth-mobile-character-tall">
-                  <span className="auth-mobile-eye auth-mobile-eye-left" />
-                  <span className="auth-mobile-eye auth-mobile-eye-right" />
-                  <span className="auth-mobile-smile" />
-                </span>
-                <span className="auth-mobile-character auth-mobile-character-wide">
-                  <span className="auth-mobile-eye auth-mobile-eye-left" />
-                  <span className="auth-mobile-eye auth-mobile-eye-right" />
-                  <span className="auth-mobile-smile" />
-                </span>
-                <span className="auth-mobile-character auth-mobile-character-round">
-                  <span className="auth-mobile-eye auth-mobile-eye-left" />
-                  <span className="auth-mobile-eye auth-mobile-eye-right" />
-                  <span className="auth-mobile-smile" />
-                </span>
-              </div>
+            <div className="auth-form-frame w-full">
+              <img src="/images/illustrations/auth-brand-workspace.webp" alt="" aria-hidden="true" className="auth-mobile-art lg:hidden" width={1024} height={1280} decoding="async" />
               {/* Form surface */}
               <div className="auth-form-surface">
                 <div className="auth-form-heading mb-7 text-center sm:mb-9">
-                  <h1 className="mb-1.5 text-[1.75rem] font-bold tracking-tight text-theme-text sm:text-30 dark:text-stone-50 font-serif">
+                  <h1 className="font-serif mb-1.5 text-[1.75rem] font-bold tracking-tight text-theme-text sm:text-30 dark:text-stone-50">
                     {mode === "login"
                       ? t("auth.welcomeBack")
                       : t("auth.register")}
@@ -693,12 +547,19 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
 
                   {/* Password */}
                   <div className="auth-field-group">
+                    <div className="auth-password-label-row">
                     <label
                       htmlFor={passwordInputId}
                       className="mb-1.5 block text-14 font-medium text-theme-text dark:text-stone-300 font-serif"
                     >
                       {t("auth.password")}
                     </label>
+                      {mode === "login" && (
+                        <Link to="/auth/reset-request" className="auth-forgot-row">
+                          {t("auth.forgotPassword")}
+                        </Link>
+                      )}
+                    </div>
                     <PasswordInput
                       id={passwordInputId}
                       value={password}
@@ -735,17 +596,6 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                     </div>
                   )}
 
-                  {mode === "login" && (
-                    <div className="auth-forgot-row flex justify-end text-14">
-                      <Link
-                        to="/auth/reset-request"
-                        className="shrink-0 font-medium text-theme-text-secondary transition-colors duration-200 hover:text-theme-text hover:underline underline-offset-4 dark:text-stone-400 dark:hover:text-stone-200 font-serif"
-                      >
-                        {t("auth.forgotPassword")}
-                      </Link>
-                    </div>
-                  )}
-
                   {/* Turnstile */}
                   {showTurnstile && (
                     <div className="flex justify-center overflow-hidden">
@@ -769,7 +619,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                   <button
                     type="submit"
                     disabled={isSubmitting || isRedirecting}
-                    className="auth-primary-button mt-1 min-h-12 w-full rounded-full py-3 text-16 font-medium transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50 font-serif"
+                    className="auth-primary-button mt-1 min-h-12 w-full rounded-full py-3 text-16 font-medium transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <span className="inline-flex items-center justify-center gap-2">
                       {isSubmitting && (

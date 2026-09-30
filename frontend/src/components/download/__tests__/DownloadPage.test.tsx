@@ -39,6 +39,10 @@ vi.mock("react-router-dom", () => ({
   useNavigate: () => vi.fn(),
 }));
 
+vi.mock("../../../contexts/ThemeContext", () => ({
+  useTheme: () => ({ theme: "light", toggleTheme: vi.fn() }),
+}));
+
 import { DownloadPage } from "../DownloadPage";
 
 const ASSETS = [

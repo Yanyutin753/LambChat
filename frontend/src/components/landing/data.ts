@@ -101,50 +101,18 @@ export const TECH_STACK = [
 ];
 
 export const MAIN_SHOTS: ScreenshotItem[] = [
-  { src: "/images/best-practice/login-page.webp", altKey: "loginPage" },
-  { src: "/images/best-practice/register-page.webp", altKey: "registerPage" },
-  {
-    src: "/images/best-practice/reset-request-page.webp",
-    altKey: "resetRequestPage",
-  },
-  {
-    src: "/images/best-practice/verify-email-page.webp",
-    altKey: "verifyEmailPage",
-  },
-  {
-    src: "/images/best-practice/registration-pending-page.webp",
-    altKey: "registrationPendingPage",
-  },
   { src: "/images/best-practice/chat-home.webp", altKey: "chatInterface" },
   {
     src: "/images/best-practice/chat-response.webp",
     altKey: "streamingResponse",
   },
-  { src: "/images/best-practice/share-dialog.webp", altKey: "shareDialog" },
 ];
 
 export const MGMT_SHOTS: ScreenshotItem[] = [
-  { src: "/images/best-practice/skills-page.webp", altKey: "skills" },
-  {
-    src: "/images/best-practice/marketplace-page.webp",
-    altKey: "marketplace",
-  },
-  { src: "/images/best-practice/mcp-page.webp", altKey: "mcp" },
-  { src: "/images/best-practice/agents-page.webp", altKey: "agents" },
   { src: "/images/best-practice/models-page.webp", altKey: "models" },
-  { src: "/images/best-practice/channels-page.webp", altKey: "channels" },
-  { src: "/images/best-practice/files-page.webp", altKey: "files" },
-  { src: "/images/best-practice/persona-page.webp", altKey: "persona" },
-  { src: "/images/best-practice/memory-page.webp", altKey: "memory" },
-  {
-    src: "/images/best-practice/notifications-page.webp",
-    altKey: "notifications",
-  },
-  { src: "/images/best-practice/settings-page.webp", altKey: "settings" },
-  { src: "/images/best-practice/feedback-page.webp", altKey: "feedback" },
-  { src: "/images/best-practice/shared-page.webp", altKey: "shared" },
+  { src: "/images/best-practice/mcp-page.webp", altKey: "mcp" },
+  { src: "/images/best-practice/skills-page.webp", altKey: "skills" },
   { src: "/images/best-practice/roles-page.webp", altKey: "roles" },
-  { src: "/images/best-practice/users-page.webp", altKey: "users" },
 ];
 
 export const RESPONSIVE_SHOTS: ScreenshotItem[] = [
