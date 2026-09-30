@@ -302,6 +302,7 @@ export function AppShell({
         {sidebar}
 
         <div
+          data-workspace-content=""
           className="relative z-0 flex flex-1 min-w-0 flex-col overflow-hidden"
           style={
             activeTab !== "chat"

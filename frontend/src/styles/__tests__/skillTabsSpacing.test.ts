@@ -47,3 +47,16 @@ test("inline switches do not receive the page inset twice", () => {
   );
   expect(panelsCss).not.toContain(".skills-hub-tabs");
 });
+
+test("skills hub header and search share the list spacing without stacked padding", () => {
+  const panelsCss = readFileSync(
+    new URL("../panels.css", import.meta.url),
+    "utf8",
+  );
+  expect(panelsCss).toMatch(
+    /\.skill-theme-shell > \.panel-header--section-switch\s*\{[^}]*padding-bottom:\s*0;/,
+  );
+  expect(panelsCss).toMatch(
+    /\.skill-theme-shell \.panel-header--search-only\s*\{[^}]*padding-block:\s*var\(--panel-gap\) 0;/,
+  );
+});

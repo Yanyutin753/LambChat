@@ -10,6 +10,7 @@ import {
   useMemo,
   type MutableRefObject,
 } from "react";
+import { isSessionPinned } from "../components/sidebar/sessionPin";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { sessionApi, type BackendSession } from "../services/api";
@@ -352,8 +353,21 @@ export function useSessionSidebarActions({
 
   // ─── Toggle pin ───────────────────────────────────────────────────
 
+  const pinRequests = useRef(new Set<string>());
   const handleTogglePin = useCallback(
-    async (sessionId: string) => {
+    async (sessionId: string, pinOnly = false) => {
+      if (pinRequests.current.has(sessionId)) return;
+      if (pinOnly) {
+        const session = [
+          ...uncategorizedList.sessions,
+          ...(pinnedList?.sessions ?? []),
+          ...Array.from(projectRefs.current.values()).flatMap(
+            (handle) => handle.sessions,
+          ),
+        ].find((item) => item.id === sessionId);
+        if (!session || isSessionPinned(session)) return;
+      }
+      pinRequests.current.add(sessionId);
       try {
         const response = await sessionApi.togglePin(sessionId);
         const updatedSession = response.session;
@@ -374,6 +388,8 @@ export function useSessionSidebarActions({
       } catch (err) {
         console.error("Failed to toggle pin:", err);
         toast.error(t("sidebar.pinToggleFailed", "置顶状态更新失败"));
+      } finally {
+        pinRequests.current.delete(sessionId);
       }
     },
     [pinnedList, projectRefs, t, uncategorizedList],

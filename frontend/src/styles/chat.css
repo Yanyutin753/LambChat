@@ -175,6 +175,17 @@ html[data-mobile-keyboard="true"]
   color: var(--theme-primary);
 }
 
+/* Composer icons use one box, including image and team avatars. */
+.chat-input-toolbar .chat-tool-btn svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.chat-input-toolbar .team-toolbar-avatar {
+  width: 1rem;
+  height: 1rem;
+}
+
 /* ─── Skill Chip Node ─── */
 .skill-chip-row {
   display: inline;

@@ -52,12 +52,95 @@ html:has([data-titlebar], [data-workspace-ui])
   box-shadow: none;
 }
 
-html:has([data-titlebar], [data-workspace-ui]) .sidebar-nav-btn:hover {
+/* Curve the content edge against the sidebar on wide layouts. */
+div:has(> [data-workspace-content]):has([data-desktop-activity-rail]) {
+  background-color: var(--theme-bg-sidebar) !important;
+}
+
+div:has([data-desktop-activity-rail]) > [data-workspace-content] {
+  background: var(--desktop-canvas-bg, var(--theme-bg));
+  border-left: 1px solid var(--theme-border-faint);
+  border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+}
+
+div:has(> [data-workspace-content])
+  :is([data-desktop-activity-rail], [data-desktop-sidebar]) {
+  border-right-width: 0;
+}
+
+/* A distinct rail surface also reveals the sidebar's curved left edge. */
+html:has([data-desktop-activity-rail]) {
+  --desktop-rail-bg: color-mix(
+    in srgb,
+    var(--theme-bg-sidebar) 94%,
+    var(--theme-text)
+  );
+}
+
+/* Lift navigation above the canvas without introducing a second palette. */
+html.dark:has([data-desktop-activity-rail]) {
+  --desktop-canvas-bg: color-mix(
+    in srgb,
+    var(--theme-bg) 97%,
+    var(--theme-text)
+  );
+  --theme-bg-card: color-mix(in srgb, var(--theme-bg) 88%, var(--theme-text));
+  --theme-bg-subtle: color-mix(in srgb, var(--theme-bg) 92%, var(--theme-text));
+  --theme-bg-elevated: color-mix(
+    in srgb,
+    var(--theme-bg) 90%,
+    var(--theme-text)
+  );
+  --theme-bg-sidebar: color-mix(
+    in srgb,
+    var(--theme-bg) 94%,
+    var(--theme-text)
+  );
+  --desktop-rail-bg: color-mix(
+    in srgb,
+    var(--theme-bg-sidebar) 96%,
+    var(--theme-text)
+  );
+}
+
+html.dark:has([data-desktop-activity-rail])
+  :is([data-workspace-content], .tool-console-panel, .editor-sidebar) {
+  --theme-bg: var(--desktop-canvas-bg);
+}
+
+html:has([data-desktop-activity-rail]) [data-titlebar] {
+  background: var(--desktop-rail-bg);
+}
+
+[data-desktop-sidebar-shell],
+[data-desktop-sidebar-shell] > [data-desktop-activity-rail] {
+  background: var(--desktop-rail-bg);
+}
+
+[data-desktop-activity-rail] {
+  --desktop-hover: color-mix(in srgb, var(--theme-text) 10%, transparent);
+  --desktop-selected: color-mix(in srgb, var(--theme-text) 14%, transparent);
+}
+
+[data-desktop-sidebar-shell] > [data-desktop-sidebar] {
+  border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+}
+
+[data-desktop-activity-rail] button:not(:disabled):hover {
   background: var(--desktop-hover);
+  color: var(--theme-text);
+}
+
+[data-desktop-activity-rail] button[aria-pressed="true"] {
+  background: var(--desktop-selected);
+  color: var(--theme-text);
+}
+
+html:has([data-titlebar], [data-workspace-ui]) .sidebar-nav-btn:hover {
+  color: var(--theme-text);
 }
 
 html:has([data-titlebar], [data-workspace-ui]) .sidebar-session-row {
-  height: 2.125rem;
   border-radius: var(--radius-lg);
 }
 
@@ -202,7 +285,7 @@ html:has([data-titlebar]) .editor-sidebar[data-panel-presentation="overlay"] {
   --right-sidebar-height: calc(100% - var(--titlebar-inset, 0px) - 1.5rem);
 }
 
-/* Docked panels share the workspace top edge and 48px title row. */
+/* Docked panels keep an even inset below the native titlebar. */
 html[data-right-panel-presentation="docked"]:has(
     [data-titlebar],
     [data-workspace-ui]
@@ -213,8 +296,8 @@ html[data-right-panel-presentation="docked"]:has(
   ) {
   top: var(--titlebar-inset, 0px);
   bottom: 0;
-  height: calc(100% - var(--titlebar-inset, 0px) - 0.5rem);
-  margin: 0 0.5rem 0.5rem;
+  height: calc(100% - var(--titlebar-inset, 0px) - 1rem);
+  margin: 0.5rem;
   width: calc(var(--right-panel-active-width) - 1rem) !important;
   max-width: calc(var(--right-panel-active-width) - 1rem) !important;
   border: 1px solid var(--theme-border);

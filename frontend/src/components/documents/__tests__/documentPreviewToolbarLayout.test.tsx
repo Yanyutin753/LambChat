@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { createRef, type ComponentProps } from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 import DocumentPreviewToolbar from "../DocumentPreviewToolbar";
 import { getFileTypeInfo } from "../utils";
@@ -52,7 +52,6 @@ test("document preview toolbar gives the file title flexible space and groups ac
   const fileInfoBlock = title.parentElement;
   const fileIcon = fileInfoBlock?.previousElementSibling;
   const actionGroup = fileInfoBlock?.nextElementSibling;
-  const toolbarIcons = toolbar?.querySelectorAll("button svg") ?? [];
 
   expect(toolbar).toBeInTheDocument();
   expect(toolbar).not.toHaveClass(
@@ -75,24 +74,17 @@ test("document preview toolbar gives the file title flexible space and groups ac
     "gap-1",
     "shrink-0",
   );
-  // View controls | file actions | close are separated by quiet dividers,
-  // not one undifferentiated wall of icon buttons.
-  const actionChildren = Array.from(actionGroup?.children ?? []);
+  expect(actionGroup?.querySelectorAll("button")).toHaveLength(4);
+  expect(screen.queryByTitle("Copy link")).toBeNull();
   expect(
-    actionChildren.filter(
-      (el) =>
-        el.tagName === "SPAN" &&
-        el.classList.contains("document-preview-toolbar-divider"),
-    ),
-  ).toHaveLength(2);
-  actionChildren
-    .filter((el) => el.tagName === "SPAN")
-    .forEach((divider) => {
-      expect(divider).toHaveAttribute("aria-hidden", "true");
-    });
-  expect(toolbarIcons).toHaveLength(8);
-  toolbarIcons.forEach((icon) => {
-    expect(icon).toHaveAttribute("width", "16");
-    expect(icon).toHaveAttribute("height", "16");
-  });
+    screen.getByRole("button", { name: "documents.source" }),
+  ).toHaveTextContent("documents.source");
+  fireEvent.click(screen.getByRole("button", { name: "documents.source" }));
+  expect(props.setViewSource).toHaveBeenCalledWith(true);
+  fireEvent.click(screen.getByTitle("documents.download"));
+  expect(props.handleDownload).toHaveBeenCalledOnce();
+  fireEvent.click(screen.getByRole("button", { name: "nav.more" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Center view" }));
+  expect(props.setViewMode).toHaveBeenCalledWith("center");
+  expect(screen.queryByRole("menu")).toBeNull();
 });

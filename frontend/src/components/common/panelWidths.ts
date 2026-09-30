@@ -3,6 +3,7 @@ export function observePanelWidths(root: HTMLElement): () => void {
   if (typeof ResizeObserver === "undefined") return () => {};
   const scopes = new Map<HTMLElement, HTMLElement>();
   const update = () => {
+    let maxGutter = 0;
     for (const [body, scope] of scopes) {
       const border = getComputedStyle(body);
       const gutter =
@@ -10,8 +11,10 @@ export function observePanelWidths(root: HTMLElement): () => void {
         body.clientWidth -
         (parseFloat(border.borderLeftWidth) || 0) -
         (parseFloat(border.borderRightWidth) || 0);
+      maxGutter = Math.max(maxGutter, gutter);
       scope.style.setProperty("--panel-scrollbar", `${Math.max(0, gutter)}px`);
     }
+    root.style.setProperty("--panel-scrollbar", `${maxGutter}px`);
   };
   const resize = new ResizeObserver(update);
   const sync = () => {
@@ -38,6 +41,7 @@ export function observePanelWidths(root: HTMLElement): () => void {
   return () => {
     mutations.disconnect();
     resize.disconnect();
+    root.style.removeProperty("--panel-scrollbar");
     for (const scope of scopes.values())
       scope.style.removeProperty("--panel-scrollbar");
   };

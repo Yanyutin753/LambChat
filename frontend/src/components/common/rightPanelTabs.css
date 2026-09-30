@@ -7,8 +7,9 @@
 .right-panel-tabs {
   display: flex;
   flex-shrink: 0;
-  /* Tabs shrink in-row down to min-width, then wrap: never a horizontal scrollbar. */
-  flex-wrap: wrap;
+  /* Keep browser-style tabs in one row; scroll only after reaching minimum width. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
   gap: 4px;
   min-width: 0;
   /* Aligns the first tab with the 0.75rem header padding below. */
@@ -22,7 +23,7 @@
   display: flex;
   flex: 0 1 208px;
   align-items: center;
-  min-width: 132px;
+  min-width: 80px;
   max-width: 240px;
   border: 1px solid transparent;
   border-bottom: 0;
@@ -118,8 +119,8 @@
   color: var(--theme-text);
 }
 .right-panel-tab button:focus-visible {
-  outline: 2px solid var(--theme-ring);
-  outline-offset: -4px;
+  outline: none;
+  box-shadow: inset 0 -2px color-mix(in srgb, var(--theme-ring) 65%, transparent);
 }
 
 @media (min-width: 640px) and (hover: hover) and (pointer: fine) {
@@ -130,6 +131,9 @@
   }
 }
 @media (pointer: coarse), (max-width: 639px) {
+  .right-panel-tab {
+    min-width: 96px;
+  }
   .right-panel-tab > button {
     min-height: 44px;
   }

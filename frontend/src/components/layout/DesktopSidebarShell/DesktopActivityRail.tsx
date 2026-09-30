@@ -48,7 +48,7 @@ export function DesktopActivityRail({
     (item) => item.show && !primaryPaths.includes(item.path),
   );
   const buttonClass =
-    "desktop-activity-button flex size-9 shrink-0 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]";
+    "desktop-activity-button flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-lg)] text-theme-text-secondary hover:bg-theme-bg-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]";
 
   return (
     <nav

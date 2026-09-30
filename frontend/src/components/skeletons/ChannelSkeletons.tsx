@@ -11,10 +11,13 @@ export function ChannelsGridSkeleton() {
         <div className="mx-auto max-w-full">
           <div className="grid auto-grid-cols gap-3">
             {Array.from({ length: PANEL_CARD_SKELETON_COUNT }).map((_, i) => (
-              <div key={i} className="scb flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] shadow-sm dark:border dark:border-[var(--theme-border)]">
+              <div
+                key={i}
+                className="scb flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] shadow-sm dark:border dark:border-[var(--theme-border)]"
+              >
                 {/* Banner */}
                 <div
-                  className="h-12 w-full shrink-0 relative"
+                  className="scb__banner h-12 w-full shrink-0 relative"
                   style={{
                     background: `linear-gradient(45deg, ${
                       [
@@ -80,7 +83,7 @@ export function ChannelsGridSkeleton() {
 export function ChannelConfigSkeleton() {
   return (
     <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
-      <PanelHeaderSkeleton hasSearch={false} />
+      <PanelHeaderSkeleton hasSearch={false} hasSubtitle />
       <div className="panel-body flex-1 min-h-0 overflow-y-auto">
         <div className="space-y-4">
           {/* Status card */}

@@ -4,7 +4,7 @@
 
 import { memo, useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, Check, MoreHorizontal, Pin } from "lucide-react";
+import { AlertCircle, Check, MoreHorizontal } from "lucide-react";
 import toast from "react-hot-toast";
 import type { BackendSession } from "../../services/api/session";
 import type { Project } from "../../types";
@@ -236,6 +236,7 @@ function SessionItemComponent({
       return;
     }
     e.dataTransfer.setData("text/plain", session.id);
+    e.dataTransfer.setData("application/x-lambchat-session", session.id);
     e.dataTransfer.effectAllowed = "move";
     setIsDragging(true);
     onDragStart?.(session);
@@ -292,12 +293,8 @@ function SessionItemComponent({
         style={
           isDragging ? { touchAction: "none" } : { touchAction: "manipulation" }
         }
-        className={`sidebar-session-row group relative flex cursor-pointer items-center gap-3 h-10 rounded-[10px] px-[9px] transition-colors ${
-          isSelected
-            ? "hover:bg-stone-100 dark:hover:bg-stone-800/40"
-            : isActive
-              ? "bg-stone-100 dark:bg-stone-700/50"
-              : "hover:bg-stone-100 dark:hover:bg-stone-800/40"
+        className={`sidebar-session-row sidebar-action-row group relative flex cursor-pointer items-center gap-2 h-8 max-sm:h-10 rounded-[10px] px-[9px] transition-colors ${
+          !isSelected && isActive ? "bg-stone-100 dark:bg-stone-700/50" : ""
         } ${isDragging || isDraggingTouch ? "opacity-50 scale-95" : ""} ${
           selectionMode ? "pr-2" : ""
         }`}
@@ -347,17 +344,9 @@ function SessionItemComponent({
                   : isActive
                     ? "text-stone-800 dark:text-stone-100 font-medium"
                     : "text-stone-600 dark:text-stone-300 group-hover:text-stone-700 dark:group-hover:text-stone-200"
-              } flex items-center gap-1`}
+              } min-w-0 flex items-center gap-1`}
             >
-              {displayTitle}
-              {/* 置顶标识：排序由服务端 pinned-first 保证，这里只补视觉锚点 */}
-              {isPinned && !isEditing && (
-                <Pin
-                  size={11}
-                  className="shrink-0 text-stone-400 dark:text-stone-500"
-                  aria-label={t("sidebar.pinned", "已置顶")}
-                />
-              )}
+              <span className="truncate">{displayTitle}</span>
             </div>
           )}
         </div>
@@ -407,8 +396,8 @@ function SessionItemComponent({
               ref={menuButtonRef}
               onClick={handleMenuClick}
               aria-label={t("sidebar.moreOptions")}
-              className="flex-shrink-0 rounded p-1 hover:bg-stone-200/60 dark:hover:bg-stone-700/60 transition-all opacity-0 group-hover:opacity-100 max-sm:opacity-100"
-              style={isTouched ? { opacity: 1 } : undefined}
+              className="sidebar-action-reveal flex h-8 w-8 shrink-0 items-center justify-center rounded-md max-sm:h-9 max-sm:w-9 focus-visible:outline focus-visible:outline-2"
+              style={isTouched || isMenuOpen ? { opacity: 1 } : undefined}
             >
               <MoreHorizontal
                 size={14}

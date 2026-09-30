@@ -1,13 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Bell,
-  Info,
-  CheckCircle,
-  AlertTriangle,
-  Wrench,
-  Check,
-} from "lucide-react";
+import { Info, CheckCircle, AlertTriangle, Wrench, Check } from "lucide-react";
 import { notificationApi } from "../../services/api/notification";
 import { surfaceAppAnnouncementNotifications } from "../../services/notifications/announcementNotifications";
 import {
@@ -16,6 +9,7 @@ import {
   SelectorModalShell,
 } from "../selectors/shared";
 import type { Notification, NotificationType } from "../../types/notification";
+import { SceneIllustration } from "../common/SceneIllustration";
 import { formatDateTimeShort } from "../../utils/datetime";
 
 const TYPE_CONFIG: Record<
@@ -101,34 +95,28 @@ export function NotificationDialog({
 
   return (
     <SelectorModalPortal open={isOpen} onClose={onClose}>
-      <SelectorModalShell>
+      <SelectorModalShell
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("nav.notifications")}
+      >
         <SelectorModalHeader
+          className="shrink-0"
           icon={
-            <Bell
-              size={16}
-              className="text-stone-500 dark:text-stone-400 sm:w-[18px] sm:h-[18px]"
+            <SceneIllustration
+              scene="notification"
+              className="notification-illustration"
             />
           }
-          title={t("nav.notifications")}
+          title={<span className="font-serif">{t("nav.notifications")}</span>}
           onClose={onClose}
         />
 
         {/* List */}
-        <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4 sm:p-5 space-y-2.5">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-1 sm:px-6 sm:py-2">
           {notifications.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3">
-              <div
-                className="flex h-12 w-12 items-center justify-center rounded-full"
-                style={{
-                  backgroundColor:
-                    "var(--theme-bg-secondary, rgba(0,0,0,0.04))",
-                }}
-              >
-                <Bell
-                  size={22}
-                  style={{ color: "var(--theme-text-secondary)" }}
-                />
-              </div>
+            <div className="flex min-h-48 flex-col items-center justify-center gap-3">
+              <SceneIllustration scene="message" />
               <p
                 className="text-14"
                 style={{ color: "var(--theme-text-secondary)" }}
@@ -156,15 +144,13 @@ export function NotificationDialog({
               return (
                 <div
                   key={n.id}
-                  className="group relative rounded-xl p-3.5 sm:p-4 transition-all"
+                  className="py-3"
                   style={{
-                    backgroundColor:
-                      "var(--theme-bg-secondary, rgba(0,0,0,0.02))",
-                    border: "1px solid var(--theme-border)",
+                    borderBottom: "1px solid var(--theme-border)",
                   }}
                 >
                   {/* Top row */}
-                  <div className="flex items-start sm:items-center justify-between gap-2 mb-2 flex-wrap">
+                  <div className="flex items-start sm:items-center justify-between gap-2 mb-1 flex-wrap">
                     <div className="flex items-center gap-2 min-w-0">
                       <span
                         className={`shrink-0 h-2 w-2 rounded-full ${config.dotClass}`}
@@ -179,7 +165,7 @@ export function NotificationDialog({
                     <button
                       onClick={() => handleDismiss(n.id)}
                       disabled={dismissingId === n.id}
-                      className="flex items-center gap-1 shrink-0 rounded-lg px-2 py-1 text-12 transition-all disabled:opacity-50"
+                      className="flex items-center gap-1 shrink-0 min-h-11 sm:min-h-6 rounded-lg px-3 text-12 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50"
                       style={{ color: "var(--theme-text-secondary)" }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.backgroundColor =
@@ -198,7 +184,7 @@ export function NotificationDialog({
                   </div>
                   {/* Title */}
                   <p
-                    className="font-semibold text-14 leading-snug break-words"
+                    className="font-serif font-semibold text-16 leading-relaxed [overflow-wrap:anywhere]"
                     style={{ color: "var(--theme-text)" }}
                   >
                     {title}
@@ -206,7 +192,7 @@ export function NotificationDialog({
                   {/* Content */}
                   {content && (
                     <p
-                      className="text-12 mt-1.5 leading-relaxed break-words"
+                      className="text-14 mt-1 leading-6 whitespace-pre-wrap [overflow-wrap:anywhere]"
                       style={{ color: "var(--theme-text-secondary)" }}
                     >
                       {content}

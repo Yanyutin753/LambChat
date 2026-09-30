@@ -36,8 +36,7 @@
 }
 
 .skill-content-area {
-  background:
-    radial-gradient(
+  background: radial-gradient(
       ellipse 80% 50% at 50% 0%,
       color-mix(in srgb, var(--theme-primary-light) 6%, transparent) 0%,
       transparent 100%
@@ -490,7 +489,7 @@
 
 .skill-callout {
   border-color: var(--skill-border);
-  background: var(--theme-bg);
+  background: var(--theme-bg-subtle);
   box-shadow: none;
 }
 

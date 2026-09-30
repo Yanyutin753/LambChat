@@ -33,3 +33,16 @@ test("compact file panels retain the view switch inside the sort menu", () => {
     /file-library-compact-view[\s\S]*?\{viewSwitcher\}/,
   );
 });
+
+test("header sizing leaves view switch buttons inside their own frame", () => {
+  const styles = readSource("../../../styles/components.css").replace(
+    /\s+/g,
+    " ",
+  );
+  expect(styles).toContain(
+    ".panel-header__actions > .flex:not(.file-library-view-switch) > :is(button, a, select)",
+  );
+  expect(styles).not.toContain(
+    ".panel-header__actions > .flex > :is(button, a, select)",
+  );
+});

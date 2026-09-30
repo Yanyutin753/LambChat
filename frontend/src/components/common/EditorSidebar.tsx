@@ -146,12 +146,12 @@ export function EditorSidebar({
               }}
             />
             <div
-              className="right-panel-resize-handle hidden sm:block absolute left-0 top-0 bottom-0 -translate-x-1/2 z-10 cursor-col-resize pointer-events-auto group"
+              className="workspace-resize-handle right-panel-resize-handle hidden sm:block absolute left-0 top-0 bottom-0 -translate-x-1/2 z-10 cursor-col-resize pointer-events-auto group"
               aria-label={resizeLabel}
               {...shell.resizeSeparatorProps}
               onMouseDown={shell.handleResizeStart}
             >
-              <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 rounded-full bg-transparent group-hover:bg-[var(--theme-primary)]/50 transition-colors duration-200" />
+              <div />
             </div>
           </>
         )}

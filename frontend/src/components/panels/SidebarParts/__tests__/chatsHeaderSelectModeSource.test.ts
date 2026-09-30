@@ -26,7 +26,7 @@ test("SidebarSectionHeader exports the shared section action styles", () => {
   );
 
   expect(source).toMatch(
-    /export const sectionRevealClass =\s*"[^"]*group-hover\/section:opacity-100[^"]*"/,
+    /export const sectionRevealClass =\s*"[^"]*sidebar-action-reveal[^"]*"/,
   );
   expect(source).toMatch(/export const sectionActionClass =\s*"/);
 });

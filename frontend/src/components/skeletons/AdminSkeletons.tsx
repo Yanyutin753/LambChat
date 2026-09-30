@@ -13,7 +13,7 @@ export function UsersPanelSkeleton() {
       <PanelHeaderSkeleton hasSubtitle />
       <div className="panel-body flex-1 min-h-0 overflow-y-auto">
         {/* Desktop table */}
-        <div className="hidden sm:block">
+        <div className="panel-table-view hidden sm:block">
           <div className="glass-card rounded-xl !p-0 overflow-hidden">
             {/* Table header */}
             <div
@@ -72,7 +72,7 @@ export function UsersPanelSkeleton() {
           </div>
         </div>
         {/* Mobile cards */}
-        <div className="space-y-3 sm:hidden">
+        <div className="panel-list-view space-y-3 sm:hidden">
           {Array.from({ length: PANEL_ROW_SKELETON_COUNT }).map((_, i) => (
             <div key={i} className="glass-card rounded-xl p-4">
               <div className="flex items-start gap-3">

@@ -23,7 +23,7 @@ export function SidebarUserRow({
       aria-label={user?.username || t("common.user")}
       title={compact ? user?.username || t("common.user") : undefined}
       onClick={onShowProfile}
-      className={`group flex shrink-0 items-center rounded-lg hover:bg-theme-bg-subtle transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] ${
+      className={`group flex shrink-0 items-center rounded-lg transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] ${
         compact ? "size-9 justify-center" : "py-3 px-2 w-full"
       }`}
     >

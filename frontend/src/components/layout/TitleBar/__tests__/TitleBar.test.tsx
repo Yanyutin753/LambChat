@@ -128,3 +128,23 @@ test("drag region spans the flexible middle area", () => {
   // 拖拽区必须是 flex 弹性占位，否则窗口抓不住
   expect(drag?.className).toContain("flex-1");
 });
+
+test("mac titlebar keeps navigation centered without CSS position compensation", () => {
+  const { container } = renderTitleBar("mac");
+  expect(container.querySelector("[data-titlebar]")?.className).not.toContain(
+    "pb-2",
+  );
+  expect(container.querySelector("[data-titlebar]")?.className).toContain(
+    "h-10",
+  );
+});
+
+test("mac navigation follows back, forward, sidebar order", () => {
+  const { container } = renderTitleBar("mac");
+  const buttons = [...container.querySelectorAll("[data-titlebar] > button")];
+  expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
+    "后退",
+    "前进",
+    "切换侧边栏",
+  ]);
+});
