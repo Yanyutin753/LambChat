@@ -38,7 +38,9 @@ async def aiter_with_first_event_timeout(
     ``gap_describe`` 返回停滞恢复后首个 chunk 的可读标识（如 message.id）。
     """
     idle = idle_timeout if (idle_timeout is not None and idle_timeout > 0) else None
-    warn_after = gap_warn_timeout if (gap_warn_timeout is not None and gap_warn_timeout > 0) else None
+    warn_after = (
+        gap_warn_timeout if (gap_warn_timeout is not None and gap_warn_timeout > 0) else None
+    )
     iterator = source.__aiter__()
     try:
         try:
