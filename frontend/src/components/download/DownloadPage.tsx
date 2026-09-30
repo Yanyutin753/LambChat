@@ -32,6 +32,8 @@ import {
   type DesktopPlatform,
 } from "../../utils/releaseAssets";
 import { GITHUB_URL } from "../../constants";
+import { ThemeToggle } from "../common/ThemeToggle";
+import { LanguageToggle } from "../common/LanguageToggle";
 import { BrandLogo } from "../common/BrandLogo";
 import { BrandWordmark } from "../common/BrandWordmark";
 import type { VersionInfo } from "../../types";
@@ -311,29 +313,22 @@ export function DownloadPage() {
               className="h-8 w-auto text-stone-900 dark:text-stone-100"
             />
           </Link>
-          <Link
-            to="/chat"
-            className="inline-flex items-center gap-1.5 rounded-full border border-stone-200/80 bg-white/55 px-4 py-2 text-14 font-medium text-stone-600 transition-all duration-300 hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md hover:shadow-stone-200/30 dark:border-stone-700/50 dark:bg-stone-800/35 dark:text-stone-300 dark:hover:border-stone-600 dark:hover:shadow-stone-900/30"
-          >
-            <ArrowLeft size={13} />
-            {t("download.back")}
-          </Link>
+          <div className="flex items-center gap-2">
+            <LanguageToggle />
+            <ThemeToggle />
+            <Link
+              to="/chat"
+              className="inline-flex items-center gap-1.5 rounded-full border border-stone-200/80 bg-white/55 px-4 py-2 text-14 font-medium text-stone-600 transition-all duration-300 hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md hover:shadow-stone-200/30 dark:border-stone-700/50 dark:bg-stone-800/35 dark:text-stone-300 dark:hover:border-stone-600 dark:hover:shadow-stone-900/30"
+            >
+              <ArrowLeft size={13} />
+              <span className="sr-only sm:not-sr-only">{t("download.back")}</span>
+            </Link>
+          </div>
         </div>
       </nav>
 
       {/* Hero */}
-      <section className="blog-hero relative flex min-h-[calc(100svh-var(--titlebar-inset,0px))] min-h-[calc(100dvh-var(--titlebar-inset,0px))] flex-col items-center justify-center overflow-hidden px-4 pb-20 pt-[calc(5rem+var(--app-safe-area-top,0px))] text-center sm:px-6 sm:pt-28">
-        {/* Atmospheric background */}
-        <div
-          className="pointer-events-none absolute inset-0 -z-10"
-          aria-hidden="true"
-        >
-          <div className="blog-crosshatch absolute inset-0" />
-          <div className="absolute left-1/2 top-0 h-[600px] w-[900px] -translate-x-1/2 bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.08)_0%,rgba(251,146,60,0.04)_40%,transparent_70%)] dark:bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.06)_0%,rgba(251,146,60,0.03)_40%,transparent_70%)]" />
-          <div className="absolute left-[10%] top-[40%] h-[400px] w-[400px] bg-[radial-gradient(circle,rgba(56,189,248,0.06)_0%,transparent_60%)] dark:bg-[radial-gradient(circle,rgba(56,189,248,0.04)_0%,transparent_60%)]" />
-          <div className="absolute bottom-[10%] right-[15%] h-[300px] w-[300px] bg-[radial-gradient(circle,rgba(168,85,247,0.04)_0%,transparent_60%)] dark:bg-[radial-gradient(circle,rgba(168,85,247,0.03)_0%,transparent_60%)]" />
-        </div>
-
+      <section className="public-brand-hero blog-hero relative flex min-h-[calc(100svh-var(--titlebar-inset,0px))] min-h-[calc(100dvh-var(--titlebar-inset,0px))] flex-col items-center justify-center overflow-hidden px-4 pb-20 pt-[calc(5rem+var(--app-safe-area-top,0px))] text-center sm:px-6 sm:pt-28">
         <div className="relative mx-auto w-full max-w-[22rem] sm:max-w-4xl lg:max-w-5xl">
           {/* Editorial tag */}
           <div
@@ -469,6 +464,13 @@ export function DownloadPage() {
             </div>
           )}
         </div>
+        <img
+          className="public-brand-art"
+          src="/images/illustrations/auth-brand-workspace.webp"
+          alt=""
+          aria-hidden="true"
+          fetchPriority="high"
+        />
       </section>
 
       <SectionDivider />

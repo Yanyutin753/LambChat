@@ -26,7 +26,7 @@ test("app shell reserves native mobile status bar safe area", () => {
   expect(tokens).not.toMatch(/--app-safe-area-bottom:\s*max\(/);
   expect(tokens).toMatch(/--app-fullscreen-safe-area-bottom:\s*0px/);
   expect(tokens).toMatch(
-    /@media \(display-mode: standalone\), \(display-mode: fullscreen\)\s*\{[\s\S]*--app-fullscreen-safe-area-top:\s*12px/,
+    /@media \(max-width: 767px\) and \(display-mode: standalone\),\s*\(max-width: 767px\) and \(display-mode: fullscreen\)\s*\{[\s\S]*--app-fullscreen-safe-area-top:\s*12px/,
   );
   expect(tokens).not.toMatch(/--app-fullscreen-safe-area-bottom:\s*12px/);
   expect(shell).toMatch(/boxSizing:\s*"content-box"/);

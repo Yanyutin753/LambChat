@@ -40,3 +40,10 @@ test("assistant heading preserves serif typography and a stable centered line bo
     /className="min-w-0 truncate[^"\n]*leading-none[^"\n]*font-serif"/,
   );
 });
+
+test("compact serif icon labels share an optical alignment correction", () => {
+  const css = readFileSync(resolve(import.meta.dirname, "../desktop.css"), "utf8");
+  expect(css).toMatch(
+    /\.chat-input-toolbar\s+\.font-serif,\s*\.chat-assistant-heading\s+\.font-serif\s*\{[^}]*position: relative;[^}]*top: 1px;/,
+  );
+});

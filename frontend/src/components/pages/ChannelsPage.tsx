@@ -391,7 +391,7 @@ export function ChannelsPage() {
 
         <div className="panel-body flex-1 overflow-y-auto">
           {channelInstances.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="flex h-full flex-col items-center justify-center py-8 text-center">
               <p className="text-14 text-[var(--theme-text-secondary)]">
                 {t("channel.noInstances", "No instances configured")}
               </p>
