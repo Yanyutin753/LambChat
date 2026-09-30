@@ -221,7 +221,9 @@
   --app-keyboard-inset: 0px;
 }
 
-@media (display-mode: standalone), (display-mode: fullscreen) {
+/* Narrow installed/fullscreen apps retain the mobile top inset. */
+@media (max-width: 767px) and (display-mode: standalone),
+  (max-width: 767px) and (display-mode: fullscreen) {
   :root {
     --app-fullscreen-safe-area-top: 12px;
   }

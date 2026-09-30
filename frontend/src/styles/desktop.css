@@ -216,6 +216,13 @@ html:has([data-titlebar], [data-workspace-ui])
   min-width: 0;
 }
 
+/* Serif glyphs sit optically high beside avatars; keep their full line boxes. */
+.chat-input-toolbar .font-serif,
+.chat-assistant-heading .font-serif {
+  position: relative;
+  top: 1px;
+}
+
 html:has([data-titlebar], [data-workspace-ui]) .chat-input-toolbar .font-serif {
   font-size: 0.8125rem;
   font-weight: 500;

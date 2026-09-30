@@ -115,7 +115,7 @@ export default function DocumentPreviewContent({
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 sm:py-20 gap-4">
+      <div className="flex min-h-full flex-col items-center justify-center py-8 gap-4">
         <div className="relative">
           <LoadingSpinner size="lg" color="text-[var(--theme-primary)]" />
           <div className="absolute inset-0 animate-ping">
@@ -135,7 +135,7 @@ export default function DocumentPreviewContent({
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 sm:py-20 gap-4 px-4">
+      <div className="flex min-h-full flex-col items-center justify-center py-8 gap-4 px-4">
         <SceneIllustration scene="files" />
         <div className="text-center">
           <p className="text-14 text-red-600 dark:text-red-400 font-medium mb-2">
