@@ -340,7 +340,6 @@
     "submit": "확인"
   },
   "auth": {
-    "brandTitle": "아이디어를 현실로.",
     "account": "계정",
     "backToLogin": "로그인으로 돌아가기",
     "checkInboxStep": "받은 편지함 확인 (스팸 폴더도 확인하세요)",

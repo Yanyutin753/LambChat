@@ -418,7 +418,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
             <div className="auth-brand-story">
               <img src="/images/illustrations/auth-brand-workspace.webp" alt="" aria-hidden="true" className="auth-hero-art" width={1024} height={1280} decoding="async" />
               <p className="auth-brand-eyebrow">{t("landing.badge")}</p>
-              <h2 className="font-serif">{t("auth.brandTitle")}</h2>
+              <h2 className="font-serif">{t("landing.ctaTitle")}</h2>
               <p className="auth-brand-description font-serif">{t("landing.heroDescription")}</p>
               <div className="auth-brand-capabilities">
                 <span>{t("auth.featureAgents")}</span>
