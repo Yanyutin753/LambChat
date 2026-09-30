@@ -89,6 +89,7 @@ interface UseProjectSessionListReturn {
 interface SessionListFilter {
   projectId?: string;
   favoritesOnly?: boolean;
+  pinnedOnly?: boolean;
 }
 
 export function useFilteredSessionList(
@@ -118,6 +119,7 @@ export function useFilteredSessionList(
     const requestKey = JSON.stringify({
       projectId: filter.projectId,
       favoritesOnly: filter.favoritesOnly,
+      pinnedOnly: filter.pinnedOnly,
       reset,
       skip: targetSkip,
     });
@@ -140,6 +142,7 @@ export function useFilteredSessionList(
           skip: targetSkip,
           status: "active",
           favorites_only: filter.favoritesOnly,
+          pinned_only: filter.pinnedOnly,
         });
 
         const fetchedSessions =
@@ -203,12 +206,12 @@ export function useFilteredSessionList(
     loadedCountRef.current = PAGE_SIZE;
     fetchSessions(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, filter.favoritesOnly, filter.projectId]);
+  }, [enabled, filter.favoritesOnly, filter.pinnedOnly, filter.projectId]);
 
   const refresh = useCallback(async () => {
     await fetchSessions(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, filter.favoritesOnly, filter.projectId]);
+  }, [enabled, filter.favoritesOnly, filter.pinnedOnly, filter.projectId]);
 
   const softRefresh = useCallback(async () => {
     if (!enabled) return;
@@ -223,6 +226,7 @@ export function useFilteredSessionList(
         skip: 0,
         status: "active",
         favorites_only: filter.favoritesOnly,
+        pinned_only: filter.pinnedOnly,
       });
       const newSessions =
         "sessions" in response
@@ -234,7 +238,10 @@ export function useFilteredSessionList(
         reconcileSessionList({
           previous: prev,
           latest: newSessions,
-          removeMissing: filter.favoritesOnly || filter.projectId !== undefined,
+          removeMissing:
+            filter.favoritesOnly ||
+            filter.pinnedOnly ||
+            filter.projectId !== undefined,
           excludedSessionIds: excludedSessionIdsRef.current,
         }),
       );
@@ -244,7 +251,7 @@ export function useFilteredSessionList(
     } catch {
       // silent — soft refresh is best-effort
     }
-  }, [enabled, filter.favoritesOnly, filter.projectId]);
+  }, [enabled, filter.favoritesOnly, filter.pinnedOnly, filter.projectId]);
 
   const prependSession = useCallback((session: BackendSession) => {
     excludedSessionIdsRef.current.delete(session.id);
@@ -290,6 +297,12 @@ export function useFavoriteSessionList(
   scrollRoot?: Element | null,
 ): UseProjectSessionListReturn {
   return useFilteredSessionList({ favoritesOnly: true }, scrollRoot);
+}
+
+export function usePinnedSessionList(
+  scrollRoot?: Element | null,
+): UseProjectSessionListReturn {
+  return useFilteredSessionList({ pinnedOnly: true }, scrollRoot);
 }
 
 // ─── Single session operations ──────────────────────────────────────

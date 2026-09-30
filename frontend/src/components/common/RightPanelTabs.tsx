@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import "./rightPanelTabs.css";
 import { PanelRight, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -17,13 +17,6 @@ export function RightPanelTabs() {
     getRightPanelSnapshot,
     getRightPanelSnapshot,
   );
-  const selectedRef = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    selectedRef.current?.scrollIntoView?.({
-      block: "nearest",
-      inline: "nearest",
-    });
-  }, [activeId]);
 
   return (
     <div
@@ -40,7 +33,6 @@ export function RightPanelTabs() {
             role="presentation"
             className="right-panel-tab"
             data-selected={selected}
-            ref={selected ? selectedRef : undefined}
           >
             <button
               type="button"

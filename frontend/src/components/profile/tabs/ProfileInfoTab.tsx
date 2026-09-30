@@ -288,7 +288,7 @@ export function ProfileInfoTab() {
           )}
         </div>
 
-        <div className="flex items-center justify-between py-3.5 border-b border-theme-border-subtle dark:border-stone-700/60 gap-3">
+        <div className="flex items-center justify-between py-3.5 border-b border-theme-border-subtle dark:border-stone-700/60 gap-3 font-serif">
           <span className="text-14 text-theme-text-secondary dark:text-stone-400 shrink-0">
             {t("profile.email")}
           </span>
@@ -297,7 +297,7 @@ export function ProfileInfoTab() {
           </span>
         </div>
         {user?.roles && user.roles.length > 0 && (
-          <div className="flex items-center justify-between py-3.5 gap-3">
+          <div className="flex items-center justify-between py-3.5 gap-3 font-serif">
             <span className="text-14 text-theme-text-secondary dark:text-stone-400 shrink-0">
               {t("profile.roles")}
             </span>
@@ -323,7 +323,7 @@ export function ProfileInfoTab() {
             {adminEmail && (
               <a
                 href={`mailto:${adminEmail}`}
-                className="flex items-center justify-between py-3.5 border-b border-theme-border-subtle dark:border-stone-700/60 gap-3 group"
+                className="flex items-center justify-between py-3.5 border-b border-theme-border-subtle dark:border-stone-700/60 gap-3 font-serif group"
               >
                 <span className="flex items-center gap-2 text-14 text-theme-text-secondary dark:text-stone-400 shrink-0">
                   <Mail size={14} />
@@ -339,7 +339,7 @@ export function ProfileInfoTab() {
                 href={adminUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-between py-3.5 gap-3 group"
+                className="flex items-center justify-between py-3.5 gap-3 font-serif group"
               >
                 <span className="flex items-center gap-2 text-14 text-theme-text-secondary dark:text-stone-400 shrink-0">
                   <ExternalLink size={14} />

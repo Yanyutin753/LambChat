@@ -6,6 +6,7 @@ import {
   MoreHorizontal,
   CalendarClock,
   FolderInput,
+  ListChecks,
   Tag,
   Trash2,
   X,
@@ -20,6 +21,7 @@ import { SkeletonList } from "../../skeletons";
 import { BrandWordmark } from "../../common/BrandWordmark";
 import { BrandLogo } from "../../common/BrandLogo";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
+import { sectionActionClass, sectionRevealClass } from "./SidebarSectionHeader";
 import { SidebarUserRow } from "./SidebarUserRow";
 import type { BackendSession } from "../../../services/api";
 import type { ProjectItemHandle } from "../../sidebar/ProjectItem";
@@ -28,7 +30,7 @@ import {
   type UnreadBySession,
 } from "../../sidebar/unreadCounts";
 import { MarkAllReadBadge } from "../../sidebar/MarkAllReadBadge";
-import { groupSessionsByTime } from "../sessionHelpers";
+import { groupSessionsForSidebar } from "../sessionHelpers";
 import { ProjectItem } from "../../sidebar/ProjectItem";
 import { SessionItem } from "../../sidebar/SessionItem";
 import { APP_NAME, GITHUB_URL } from "../../../constants";
@@ -99,6 +101,15 @@ interface SessionListContentProps {
   loadMoreRef: React.RefCallback<HTMLElement>;
   onSoftRefreshUncategorized: () => void;
   onUpdateUncategorizedSession: (s: BackendSession) => void;
+  /** 「置顶」分类：跨项目聚合的置顶会话 */
+  pinnedSessions: BackendSession[];
+  isPinnedLoading: boolean;
+  hasMorePinned: boolean;
+  isLoadingMorePinned: boolean;
+  pinnedLoadMoreRef: React.RefCallback<HTMLElement>;
+  onUpdatePinnedSession: (s: BackendSession) => void;
+  isPinnedCollapsed: boolean;
+  onTogglePinnedCollapsed: () => void;
   projects: Project[];
   favoritesProject: Project | undefined;
   currentSessionId: string | null;
@@ -145,6 +156,14 @@ export function SessionListContent({
   isLoadingMoreUncategorized,
   loadMoreRef,
   onUpdateUncategorizedSession,
+  pinnedSessions,
+  isPinnedLoading,
+  hasMorePinned,
+  isLoadingMorePinned,
+  pinnedLoadMoreRef,
+  onUpdatePinnedSession,
+  isPinnedCollapsed,
+  onTogglePinnedCollapsed,
   projects,
   favoritesProject,
   currentSessionId,
@@ -183,12 +202,14 @@ export function SessionListContent({
     unreadBySession,
   });
   const groupedUncategorized = useMemo(
-    () => groupSessionsByTime(visibleUncategorizedSessions, t),
+    () => groupSessionsForSidebar(visibleUncategorizedSessions, t),
     [visibleUncategorizedSessions, t],
   );
   const visibleUncategorizedIds = useMemo(
     () =>
-      visibleUncategorizedSessions.map((session) => session.id).filter(Boolean),
+      visibleUncategorizedSessions
+        .filter((session) => session.id && !isSessionPinned(session))
+        .map((session) => session.id),
     [visibleUncategorizedSessions],
   );
   const allVisibleSelected = isEveryVisibleSessionSelected(
@@ -468,6 +489,95 @@ export function SessionListContent({
               <div className="h-px bg-stone-200/60 dark:bg-stone-700/40 mx-2 my-1" />
             )}
 
+          {/* Pinned sessions (aggregated across projects) */}
+          {pinnedSessions.length > 0 || isPinnedLoading ? (
+            <>
+              <SidebarSectionHeader
+                label={t("sidebar.pinnedChats")}
+                collapsed={isPinnedCollapsed}
+                onToggle={onTogglePinnedCollapsed}
+                createLabel={t("sidebar.newChat")}
+                moreLabel={t("nav.more")}
+                menuItems={[
+                  {
+                    label: t(
+                      isPinnedCollapsed ? "common.expand" : "common.collapse",
+                    ),
+                    onClick: onTogglePinnedCollapsed,
+                  },
+                ]}
+              />
+              {!isPinnedCollapsed && (
+                <>
+                  {isPinnedLoading ? (
+                    <SkeletonList count={3} compact />
+                  ) : (
+                    <div className="flex flex-col gap-px">
+                      {pinnedSessions
+                        .filter((session) => session.id)
+                        .map((session) => (
+                          <SessionItem
+                            key={session.id}
+                            session={session}
+                            isActive={currentSessionId === session.id}
+                            projects={projects}
+                            onSelect={() =>
+                              sessionActions.onSelectSession(session.id)
+                            }
+                            onDelete={() =>
+                              sessionActions.onDeleteSession(session.id)
+                            }
+                            onMoveToProject={(projectId) =>
+                              sessionActions.onMoveSession(
+                                session.id,
+                                projectId,
+                              )
+                            }
+                            currentProjectId={
+                              (session.metadata?.project_id as
+                                | string
+                                | null
+                                | undefined) ?? null
+                            }
+                            onShare={() =>
+                              sessionActions.onShareSession(session.id)
+                            }
+                            onToggleFavorite={() =>
+                              sessionActions.onToggleFavorite(session.id)
+                            }
+                            onSessionUpdate={onUpdatePinnedSession}
+                            isFavorite={isSessionFavorite(session)}
+                            onTogglePin={() =>
+                              sessionActions.onTogglePin(session.id)
+                            }
+                            isPinned={isSessionPinned(session)}
+                            selectionMode={isSelectionMode}
+                            isSelected={selectedSessionIds.has(session.id)}
+                            onToggleSelected={() =>
+                              handleToggleSessionSelected(session.id)
+                            }
+                          />
+                        ))}
+                    </div>
+                  )}
+                  {hasMorePinned && (
+                    <div
+                      ref={pinnedLoadMoreRef}
+                      className="flex justify-center py-2"
+                    >
+                      {isLoadingMorePinned && (
+                        <div className="flex items-center gap-2 text-stone-400 dark:text-stone-500">
+                          <LoadingSpinner size="xs" />
+                          <span className="text-12">{t("common.loading")}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          ) : null}
+
           {/* Uncategorized sessions (by time) */}
           {groupedUncategorized.length > 0 || isUncategorizedLoading ? (
             <>
@@ -520,6 +630,16 @@ export function SessionListContent({
                       tooltip={t("sidebar.markAllRead")}
                     />
                   )}
+                  <Tooltip content={t("sidebar.selectMode")}>
+                    <button
+                      type="button"
+                      onClick={handleToggleSelectionMode}
+                      aria-label={t("sidebar.selectMode")}
+                      className={`${sectionActionClass} ${sectionRevealClass}`}
+                    >
+                      <ListChecks size={14} />
+                    </button>
+                  </Tooltip>
                 </SidebarSectionHeader>
               )}
 

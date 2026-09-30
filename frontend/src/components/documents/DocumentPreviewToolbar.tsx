@@ -16,7 +16,10 @@ import {
   Columns2,
   Share2,
 } from "lucide-react";
-import { formatFileSize as formatFileSizeUtil } from "./utils";
+import {
+  formatFileSize as formatFileSizeUtil,
+  shouldShowLanguageBadge,
+} from "./utils";
 import { getFullUrl } from "../../services/api/config";
 import type { DocumentPreviewState } from "./useDocumentPreviewState";
 
@@ -55,6 +58,16 @@ type ToolbarProps = Pick<
 >;
 
 const TOOLBAR_ICON_SIZE = 16;
+
+/** Quiet rule separating view controls / file actions / close in the header. */
+function ToolbarDivider() {
+  return (
+    <span
+      aria-hidden="true"
+      className="document-preview-toolbar-divider mx-1 h-4 w-px shrink-0 bg-[var(--theme-border)]"
+    />
+  );
+}
 
 export default function DocumentPreviewToolbar({
   t,
@@ -136,20 +149,20 @@ export default function DocumentPreviewToolbar({
         />
       )}
       <FileIcon icon={Icon} bg={fileInfo.bg} color={fileInfo.color} compact />
-      <div className="document-preview-file-info flex-[0_1_clamp(7rem,28%,12rem)] min-w-0 overflow-hidden">
+      <div className="document-preview-file-info flex-1 min-w-0 overflow-hidden">
         <h3
           className="text-13 sm:text-14 font-medium font-serif text-[var(--theme-text)] truncate"
           title={fileName}
         >
           {fileName}
         </h3>
-        <div className="flex items-center gap-1 sm:gap-1.5 text-12 text-[var(--theme-text-secondary)] mt-0.5">
-          {codeFile && (
-            <span className="px-1 py-0 sm:px-1.5 sm:py-0.5 rounded bg-[var(--theme-primary-light)] font-mono text-10 sm:text-12 shrink-0 font-serif">
+        <div className="flex items-center gap-1.5 text-12 text-[var(--theme-text-secondary)] mt-0.5">
+          {shouldShowLanguageBadge(codeFile, language, fileName) && (
+            <span className="px-1.5 py-0.5 rounded bg-[var(--theme-primary-light)] font-mono text-11 shrink-0 font-serif">
               {language}
             </span>
           )}
-          <span className="text-10 sm:text-12 truncate font-serif">
+          <span className="text-12 truncate font-serif">
             {hasTextContent
               ? t("documents.chars", { count: displaySize })
               : fileSize
@@ -224,6 +237,7 @@ export default function DocumentPreviewToolbar({
           externalImageUrl ||
           resolvedUrl) && (
           <>
+            <ToolbarDivider />
             <ToolbarIconButton
               onClick={() => {
                 handleDownload();
@@ -269,6 +283,7 @@ export default function DocumentPreviewToolbar({
             )}
           </>
         )}
+        <ToolbarDivider />
         <ToolbarIconButton
           onClick={() => {
             onClose();

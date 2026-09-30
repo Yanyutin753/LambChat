@@ -6,7 +6,7 @@ import { vi } from "vitest";
 import DocumentPreviewToolbar from "../DocumentPreviewToolbar";
 import { getFileTypeInfo } from "../utils";
 
-test("document preview toolbar enlarges mobile actions beside compressible file info", () => {
+test("document preview toolbar gives the file title flexible space and groups actions with dividers", () => {
   const fileName = "人工智能对大学生的影响（80页）.docx";
   const fileInfo = getFileTypeInfo(fileName);
   const props = {
@@ -61,17 +61,35 @@ test("document preview toolbar enlarges mobile actions beside compressible file 
   );
   expect(fileIcon).toHaveClass("size-8");
   expect(fileInfoBlock).toHaveClass(
-    "flex-[0_1_clamp(7rem,28%,12rem)]",
+    "document-preview-file-info",
+    "flex-1",
     "min-w-0",
     "overflow-hidden",
   );
-  expect(fileInfoBlock).not.toHaveClass("flex-1");
+  expect(fileInfoBlock).not.toHaveClass("flex-[0_1_clamp(7rem,28%,12rem)]");
+  // Meta line keeps a single stable size instead of a tiny mobile-only scale.
+  expect(fileInfoBlock?.querySelector(".text-10")).toBeNull();
   expect(actionGroup).toHaveClass(
     "document-preview-toolbar-actions",
     "ml-auto",
     "gap-1",
     "shrink-0",
   );
+  // View controls | file actions | close are separated by quiet dividers,
+  // not one undifferentiated wall of icon buttons.
+  const actionChildren = Array.from(actionGroup?.children ?? []);
+  expect(
+    actionChildren.filter(
+      (el) =>
+        el.tagName === "SPAN" &&
+        el.classList.contains("document-preview-toolbar-divider"),
+    ),
+  ).toHaveLength(2);
+  actionChildren
+    .filter((el) => el.tagName === "SPAN")
+    .forEach((divider) => {
+      expect(divider).toHaveAttribute("aria-hidden", "true");
+    });
   expect(toolbarIcons).toHaveLength(8);
   toolbarIcons.forEach((icon) => {
     expect(icon).toHaveAttribute("width", "16");

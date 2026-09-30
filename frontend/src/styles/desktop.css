@@ -136,7 +136,6 @@ html:has([data-titlebar], [data-workspace-ui])
 html:has([data-titlebar], [data-workspace-ui]) .chat-input-toolbar .font-serif {
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--theme-text-secondary);
 }
 
 html:has([data-titlebar], [data-workspace-ui]) .chat-tool-btn {

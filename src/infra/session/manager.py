@@ -427,6 +427,7 @@ class SessionManager:
         project_id: Optional[str] = None,
         search: Optional[str] = None,
         favorites_only: bool = False,
+        pinned_only: bool = False,
         favorites_project_id: str | None = None,
     ) -> tuple[list[Session], int]:
         """列出会话，返回 (sessions, total_count)"""
@@ -438,6 +439,7 @@ class SessionManager:
             project_id,
             search,
             favorites_only,
+            pinned_only,
             favorites_project_id,
         )
 

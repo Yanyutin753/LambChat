@@ -23,6 +23,7 @@ import type { BackendSession } from "../../services/api";
 import { authApi } from "../../services/api/auth";
 import { useAuth } from "../../hooks/useAuth";
 import { useProjectSessionList } from "../../hooks/useSession";
+import { usePinnedSessionList } from "../../hooks/useSession";
 import { useProjectManager } from "../../hooks/useProjectManager";
 import { useTouchDrag } from "../../hooks/useTouchDrag";
 import { useSessionSidebarActions } from "../../hooks/useSessionSidebarActions";
@@ -30,6 +31,7 @@ import { useMoreMenu } from "../../hooks/useMoreMenu";
 import { useSessionSidebarEffects } from "../../hooks/useSessionSidebarEffects";
 import {
   PROJECTS_COLLAPSED_STORAGE_KEY,
+  PINNED_COLLAPSED_STORAGE_KEY,
   CHATS_COLLAPSED_STORAGE_KEY,
 } from "../../hooks/userMetadataPreferences";
 import { ConfirmDialog } from "../common/ConfirmDialog";
@@ -132,6 +134,10 @@ export const SessionSidebar = forwardRef<
     return saved === "true";
   });
   const [isNavCollapsed, setIsNavCollapsed] = useState(false);
+  const [isPinnedCollapsed, setIsPinnedCollapsed] = useState(() => {
+    const saved = localStorage.getItem(PINNED_COLLAPSED_STORAGE_KEY);
+    return saved === "true";
+  });
   const [isChatsCollapsed, setIsChatsCollapsed] = useState(() => {
     const saved = localStorage.getItem(CHATS_COLLAPSED_STORAGE_KEY);
     return saved === "true";
@@ -165,6 +171,16 @@ export const SessionSidebar = forwardRef<
     };
     window.addEventListener("chats-collapsed-changed", handler);
     return () => window.removeEventListener("chats-collapsed-changed", handler);
+  }, []);
+
+  // Sync pinnedCollapsed from other tabs / metadata sync on login
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setIsPinnedCollapsed((e as CustomEvent).detail);
+    };
+    window.addEventListener("pinned-collapsed-changed", handler);
+    return () =>
+      window.removeEventListener("pinned-collapsed-changed", handler);
   }, []);
 
   // 桌面双栏 ActivityRail 的搜索按钮：SearchDialog 状态归本组件管，
@@ -226,6 +242,7 @@ export const SessionSidebar = forwardRef<
   // ─── Data hooks ──────────────────────────────────────────────────
 
   const uncategorizedList = useProjectSessionList("none", scrollEl);
+  const pinnedList = usePinnedSessionList(scrollEl);
   const projectManager = useProjectManager();
   const { projects } = projectManager;
   useEffect(() => {
@@ -236,6 +253,7 @@ export const SessionSidebar = forwardRef<
 
   const actions = useSessionSidebarActions({
     uncategorizedList,
+    pinnedList,
     projectRefs,
     scheduledTaskRefs,
     projects,
@@ -286,6 +304,16 @@ export const SessionSidebar = forwardRef<
         return;
       }
 
+      // Then the pinned section
+      const pinned = patchSession(pinnedList.sessions);
+      if (pinned) {
+        pinnedList.updateSession({
+          ...pinned,
+          metadata: { ...pinned.metadata, ...metadataPatch },
+        });
+        return;
+      }
+
       // Then check all project lists
       for (const [, handle] of projectRefs.current) {
         const found = patchSession(handle.sessions);
@@ -298,7 +326,7 @@ export const SessionSidebar = forwardRef<
         }
       }
     },
-    [uncategorizedList],
+    [uncategorizedList, pinnedList],
   );
 
   useImperativeHandle(
@@ -451,6 +479,14 @@ export const SessionSidebar = forwardRef<
       return next;
     });
   }, []);
+  const handleTogglePinnedCollapsed = useCallback(() => {
+    setIsPinnedCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(PINNED_COLLAPSED_STORAGE_KEY, String(next));
+      authApi.updateMetadata({ pinnedCollapsed: String(next) }).catch(() => {});
+      return next;
+    });
+  }, []);
   const handleToggleChatsCollapsed = useCallback(() => {
     setIsChatsCollapsed((prev) => {
       const next = !prev;
@@ -486,6 +522,14 @@ export const SessionSidebar = forwardRef<
       loadMoreRef: uncategorizedList.loadMoreRef,
       onSoftRefreshUncategorized: uncategorizedList.softRefresh,
       onUpdateUncategorizedSession: uncategorizedList.updateSession,
+      pinnedSessions: pinnedList.sessions,
+      isPinnedLoading: pinnedList.isLoading,
+      hasMorePinned: pinnedList.hasMore,
+      isLoadingMorePinned: pinnedList.isLoadingMore,
+      pinnedLoadMoreRef: pinnedList.loadMoreRef,
+      onUpdatePinnedSession: pinnedList.updateSession,
+      isPinnedCollapsed,
+      onTogglePinnedCollapsed: handleTogglePinnedCollapsed,
       projects,
       favoritesProject,
       currentSessionId,
@@ -527,6 +571,12 @@ export const SessionSidebar = forwardRef<
       uncategorizedList.loadMoreRef,
       uncategorizedList.softRefresh,
       uncategorizedList.updateSession,
+      pinnedList.sessions,
+      pinnedList.isLoading,
+      pinnedList.hasMore,
+      pinnedList.isLoadingMore,
+      pinnedList.loadMoreRef,
+      pinnedList.updateSession,
       projects,
       favoritesProject,
       currentSessionId,
@@ -535,6 +585,8 @@ export const SessionSidebar = forwardRef<
       projectActions,
       isProjectsCollapsed,
       handleToggleProjectsCollapsed,
+      isPinnedCollapsed,
+      handleTogglePinnedCollapsed,
       isChatsCollapsed,
       handleToggleChatsCollapsed,
       isNavCollapsed,

@@ -11,6 +11,7 @@ import {
 
 export const SIDEBAR_COLLAPSED_STORAGE_KEY = "lamb-sidebar-collapsed";
 export const PROJECTS_COLLAPSED_STORAGE_KEY = "lamb-projects-collapsed";
+export const PINNED_COLLAPSED_STORAGE_KEY = "lamb-pinned-collapsed";
 export const CHATS_COLLAPSED_STORAGE_KEY = "lamb-chats-collapsed";
 export const SCHEDULED_TASKS_COLLAPSED_STORAGE_KEY =
   "lamb-scheduled-tasks-collapsed";
@@ -26,6 +27,7 @@ type UserMetadataPreferences = {
   defaultThinkingLevel?: unknown;
   sidebarCollapsed?: unknown;
   projectsCollapsed?: unknown;
+  pinnedCollapsed?: unknown;
   chatsCollapsed?: unknown;
   scheduledTasksCollapsed?: unknown;
   defaultModelId?: unknown;
@@ -126,6 +128,16 @@ export function applyUserMetadataPreferences({
     dispatchEvent(
       new CustomEvent("projects-collapsed-changed", {
         detail: projectsCollapsed === "true",
+      }),
+    );
+  }
+
+  if (metadata.pinnedCollapsed !== undefined) {
+    const pinnedCollapsed = String(metadata.pinnedCollapsed);
+    localStorage.setItem(PINNED_COLLAPSED_STORAGE_KEY, pinnedCollapsed);
+    dispatchEvent(
+      new CustomEvent("pinned-collapsed-changed", {
+        detail: pinnedCollapsed === "true",
       }),
     );
   }

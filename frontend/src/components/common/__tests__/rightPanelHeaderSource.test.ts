@@ -19,10 +19,8 @@ test("editor, tool and document panels share fixed header geometry without works
     new URL("../rightPanelTabs.css", import.meta.url),
     "utf8",
   );
-  expect(tabs).toContain("scrollbar-width: none");
-  expect(tabs).toMatch(
-    /\.right-panel-tabs::-webkit-scrollbar\s*\{\s*display: none;/,
-  );
+  expect(tabs).toMatch(/\.right-panel-tabs\s*\{[^}]*flex-wrap: wrap;/);
+  expect(tabs).not.toContain("overflow-x: auto");
   expect(workspace).not.toContain("[&_.tool-console-header]");
 });
 

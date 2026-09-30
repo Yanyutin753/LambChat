@@ -6,6 +6,7 @@ import {
   isDxfFile,
   isFileLink,
   isPreviewableFile,
+  shouldShowLanguageBadge,
 } from "../index";
 
 Object.defineProperty(globalThis, "window", {
@@ -63,4 +64,17 @@ test("maps CAD files to a document-style file type", () => {
   const dwgInfo = getFileTypeInfo("site-plan.dwg");
   expect(dwgInfo.label).toBe("DWG");
   expect(dwgInfo.category).toBe("document");
+});
+
+test("language badge only appears when it says more than the file extension", () => {
+  expect(shouldShowLanguageBadge(true, "typescript", "main.ts")).toBe(true);
+  expect(shouldShowLanguageBadge(true, "python", "train.py")).toBe(true);
+  expect(
+    shouldShowLanguageBadge(true, "markdown", "News 各国领导联合声明.markdown"),
+  ).toBe(false);
+  expect(shouldShowLanguageBadge(true, "html", "news.zaobao world.html")).toBe(
+    false,
+  );
+  expect(shouldShowLanguageBadge(true, "", "main.ts")).toBe(false);
+  expect(shouldShowLanguageBadge(false, "typescript", "main.ts")).toBe(false);
 });

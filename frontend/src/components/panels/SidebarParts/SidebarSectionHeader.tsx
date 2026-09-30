@@ -3,9 +3,11 @@ import { Tooltip } from "../../common/Tooltip";
 import { ChevronDown, MoreHorizontal, Plus } from "lucide-react";
 import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosition";
 
-const revealClass =
+/** 分组头部动作的显隐节奏：hover/聚焦分组行时浮现，触屏设备常显。 */
+export const sectionRevealClass =
   "opacity-0 group-hover/section:opacity-100 group-focus-within/section:opacity-100 [@media(hover:none)]:opacity-100";
-const actionClass =
+/** 分组头部动作按钮（+、⋯、多选等）的统一样式。 */
+export const sectionActionClass =
   "inline-flex size-7 shrink-0 items-center justify-center rounded-md text-stone-500 hover:bg-stone-100 hover:text-stone-700 dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2";
 
 export function SidebarSectionHeader({
@@ -49,14 +51,14 @@ export function SidebarSectionHeader({
           size={14}
           aria-hidden="true"
           className={`shrink-0 transition-transform motion-reduce:transition-none ${
-            open ? "opacity-100" : revealClass
+            open ? "opacity-100" : sectionRevealClass
           } ${collapsed ? "-rotate-90" : ""}`}
         />
       </button>
       {children}
       <div
         className={`flex shrink-0 items-center gap-1 ${
-          open ? "opacity-100" : revealClass
+          open ? "opacity-100" : sectionRevealClass
         }`}
       >
         {onCreate && (
@@ -65,7 +67,7 @@ export function SidebarSectionHeader({
               type="button"
               onClick={onCreate}
               aria-label={createLabel}
-              className={actionClass}
+              className={sectionActionClass}
             >
               <Plus size={14} />
             </button>
@@ -77,7 +79,7 @@ export function SidebarSectionHeader({
             type="button"
             popoverTarget={menuId}
             aria-label={moreLabel}
-            className={actionClass}
+            className={sectionActionClass}
           >
             <MoreHorizontal size={14} />
           </button>

@@ -27,6 +27,7 @@ export {
   isPreviewableFile,
   isCodeFile,
   isMarkdownFile,
+  shouldShowLanguageBadge,
   isExcalidrawFile,
   isFileLink,
   getFileLinkInfo,
