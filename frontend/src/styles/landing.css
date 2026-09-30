@@ -65,7 +65,8 @@
 
 /* ── Hero ── */
 .blog-hero {
-  background: linear-gradient(
+  background:
+    linear-gradient(
       180deg,
       rgba(255, 255, 255, 0) 0%,
       rgba(255, 255, 255, 0.4) 100%
@@ -92,11 +93,8 @@
     );
 }
 html.dark .blog-hero {
-  background: linear-gradient(
-      180deg,
-      rgba(12, 10, 9, 0) 0%,
-      rgba(12, 10, 9, 0.3) 100%
-    ),
+  background:
+    linear-gradient(180deg, rgba(12, 10, 9, 0) 0%, rgba(12, 10, 9, 0.3) 100%),
     radial-gradient(
       ellipse 90% 55% at 65% 10%,
       rgba(251, 191, 36, 0.06) 0%,
@@ -124,10 +122,8 @@ html.dark .blog-hero {
   background-size: 48px 48px;
 }
 html.dark .blog-crosshatch {
-  background-image: linear-gradient(
-      rgba(255, 255, 255, 0.02) 1px,
-      transparent 1px
-    ),
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
 }
 
@@ -865,7 +861,8 @@ html.dark .blog-landing-container::after {
 
 /* ── Interface Section: Warm Amber & Sky ── */
 .blog-mesh-interface {
-  background-image: radial-gradient(
+  background-image:
+    radial-gradient(
       ellipse 80% 60% at 10% 25%,
       rgba(251, 191, 36, 0.07) 0%,
       transparent 65%
@@ -882,7 +879,8 @@ html.dark .blog-landing-container::after {
     );
 }
 html.dark .blog-mesh-interface {
-  background-image: radial-gradient(
+  background-image:
+    radial-gradient(
       ellipse 80% 60% at 10% 25%,
       rgba(251, 191, 36, 0.05) 0%,
       transparent 65%
@@ -901,7 +899,8 @@ html.dark .blog-mesh-interface {
 
 /* ── Features Section: Cool Indigo & Slate ── */
 .blog-mesh-features {
-  background-image: radial-gradient(
+  background-image:
+    radial-gradient(
       ellipse 60% 50% at 50% 10%,
       rgba(99, 102, 241, 0.06) 0%,
       transparent 55%
@@ -918,7 +917,8 @@ html.dark .blog-mesh-interface {
     );
 }
 html.dark .blog-mesh-features {
-  background-image: radial-gradient(
+  background-image:
+    radial-gradient(
       ellipse 60% 50% at 50% 10%,
       rgba(99, 102, 241, 0.045) 0%,
       transparent 55%
@@ -937,7 +937,8 @@ html.dark .blog-mesh-features {
 
 /* ── Architecture Section: Copper & Amber ── */
 .blog-mesh-architecture {
-  background-image: radial-gradient(
+  background-image:
+    radial-gradient(
       ellipse 70% 60% at 40% 40%,
       rgba(251, 191, 36, 0.06) 0%,
       transparent 55%
@@ -954,7 +955,8 @@ html.dark .blog-mesh-features {
     );
 }
 html.dark .blog-mesh-architecture {
-  background-image: radial-gradient(
+  background-image:
+    radial-gradient(
       ellipse 70% 60% at 40% 40%,
       rgba(251, 191, 36, 0.045) 0%,
       transparent 55%
@@ -973,7 +975,8 @@ html.dark .blog-mesh-architecture {
 
 /* ── Dashboard Section: Violet & Lavender ── */
 .blog-mesh-dashboard {
-  background-image: radial-gradient(
+  background-image:
+    radial-gradient(
       ellipse 60% 70% at 85% 15%,
       rgba(139, 92, 246, 0.06) 0%,
       transparent 55%
@@ -990,7 +993,8 @@ html.dark .blog-mesh-architecture {
     );
 }
 html.dark .blog-mesh-dashboard {
-  background-image: radial-gradient(
+  background-image:
+    radial-gradient(
       ellipse 60% 70% at 85% 15%,
       rgba(139, 92, 246, 0.045) 0%,
       transparent 55%
@@ -1009,7 +1013,8 @@ html.dark .blog-mesh-dashboard {
 
 /* ── Responsive Section: Rose & Peach ── */
 .blog-mesh-responsive {
-  background-image: radial-gradient(
+  background-image:
+    radial-gradient(
       ellipse 70% 50% at 50% 90%,
       rgba(251, 113, 133, 0.06) 0%,
       transparent 55%
@@ -1026,7 +1031,8 @@ html.dark .blog-mesh-dashboard {
     );
 }
 html.dark .blog-mesh-responsive {
-  background-image: radial-gradient(
+  background-image:
+    radial-gradient(
       ellipse 70% 50% at 50% 90%,
       rgba(251, 113, 133, 0.04) 0%,
       transparent 55%
@@ -1045,7 +1051,8 @@ html.dark .blog-mesh-responsive {
 
 /* ── CTA Section: Enhanced Amber & Fuchsia ── */
 .blog-mesh-cta {
-  background-image: radial-gradient(
+  background-image:
+    radial-gradient(
       ellipse 60% 50% at 30% 30%,
       rgba(251, 191, 36, 0.05) 0%,
       transparent 55%
@@ -1062,7 +1069,8 @@ html.dark .blog-mesh-responsive {
     );
 }
 html.dark .blog-mesh-cta {
-  background-image: radial-gradient(
+  background-image:
+    radial-gradient(
       ellipse 60% 50% at 30% 30%,
       rgba(251, 191, 36, 0.04) 0%,
       transparent 55%
@@ -1081,7 +1089,8 @@ html.dark .blog-mesh-cta {
 
 /* ── Footer: Warm Stone ── */
 .blog-mesh-footer {
-  background-image: radial-gradient(
+  background-image:
+    radial-gradient(
       ellipse 80% 40% at 30% 0%,
       rgba(251, 191, 36, 0.03) 0%,
       transparent 55%
@@ -1093,7 +1102,8 @@ html.dark .blog-mesh-cta {
     );
 }
 html.dark .blog-mesh-footer {
-  background-image: radial-gradient(
+  background-image:
+    radial-gradient(
       ellipse 80% 40% at 30% 0%,
       rgba(251, 191, 36, 0.02) 0%,
       transparent 55%
@@ -1470,3 +1480,163 @@ html.dark .blog-landing-container::after {
     animation: none !important;
   }
 }
+
+/* Public pages share the auth brand scene and quiet editorial hierarchy. */
+.blog-landing-container {
+  background: var(--theme-bg);
+  color: var(--theme-text);
+}
+.public-brand-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(32px, 5vw, 80px);
+  padding: 112px max(32px, calc((100vw - 1240px) / 2)) 64px;
+  text-align: left;
+  background: none;
+}
+.public-brand-hero > div {
+  min-width: 0;
+  max-width: 560px;
+}
+.public-brand-hero > div > div,
+.public-brand-hero > div > h1,
+.public-brand-hero > div > div > div {
+  justify-content: flex-start;
+}
+.public-brand-hero .blog-prose {
+  max-width: 520px;
+  margin: 0 0 32px;
+  font-size: 17px;
+  line-height: 1.85;
+}
+.public-brand-hero h1 {
+  margin-bottom: 28px;
+  font-size: clamp(36px, 4vw, 56px);
+  font-weight: 500;
+  color: var(--theme-text);
+  background: none;
+  -webkit-text-fill-color: currentColor;
+}
+.public-brand-hero h1 svg {
+  width: 100%;
+  max-width: 440px;
+}
+.public-brand-hero h1::after,
+.public-brand-hero .blog-pulse-dot {
+  display: none;
+}
+.public-brand-hero > div > div:first-child {
+  margin-bottom: 28px;
+}
+.public-brand-hero > div > div:last-child {
+  margin-top: 36px;
+}
+.public-brand-art {
+  width: 100%;
+  height: min(620px, 72vh);
+  object-fit: cover;
+  object-position: center 42%;
+  border-radius: var(--radius-page);
+}
+.blog-landing-container .blog-btn-primary,
+.blog-landing-container .blog-btn-ghost {
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+  min-height: 52px;
+  transform: none;
+}
+.blog-btn-primary::before,
+.blog-btn-primary::after {
+  display: none;
+}
+.blog-landing-container .blog-tech-pill {
+  background: none;
+  border: none;
+  padding-left: 0;
+}
+.blog-landing-container [class*="blog-mesh-"] {
+  background-image: none;
+}
+.blog-landing-container h2 {
+  font-weight: 500;
+}
+@media (max-width: 767px) {
+  .public-brand-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+    padding: calc(96px + var(--app-safe-area-top, 0px)) 24px 48px;
+    min-height: auto;
+  }
+  .public-brand-hero > div {
+    max-width: 100%;
+  }
+  .public-brand-hero .blog-prose {
+    font-size: 16px;
+  }
+  .public-brand-hero > div > div {
+    margin-left: 0;
+    max-width: 100%;
+  }
+  .public-brand-art {
+    height: 280px;
+    object-position: center 38%;
+  }
+}
+.public-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 32px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background-color 150ms;
+}
+.public-action-primary {
+  background: var(--theme-text);
+  color: var(--theme-bg);
+}
+.public-action-secondary {
+  border: 1px solid var(--theme-border);
+  color: var(--theme-text-secondary);
+}
+.public-action:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 4px;
+}
+@media (max-width: 639px) {
+  .public-action {
+    width: 100%;
+  }
+}
+html.dark .public-brand-hero {
+  background: none;
+}
+.landing-capability-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 64px;
+}
+.landing-capability {
+  display: flex;
+  gap: 24px;
+  padding: 28px 0;
+  border-top: 1px solid var(--theme-border);
+}
+.landing-capability-index {
+  flex: 0 0 24px;
+  color: var(--theme-text-muted);
+  font-size: 12px;
+  padding-top: 6px;
+  font-family: ui-monospace, monospace;
+}
+@media (max-width: 639px) {
+  .landing-capability-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .landing-capability {
+    gap: 16px;
+  }
+}
+#features { padding-block: 64px; }
+#features > div > div:first-child { margin-bottom: 36px; }

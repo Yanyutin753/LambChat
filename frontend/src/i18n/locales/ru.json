@@ -340,6 +340,7 @@
     "submit": "Отправить"
   },
   "auth": {
+    "brandTitle": "Воплощайте идеи в жизнь.",
     "account": "Аккаунт",
     "backToLogin": "Вернуться к входу",
     "checkInboxStep": "Проверьте входящие (также проверьте папку со спамом)",
@@ -359,7 +360,6 @@
     "enteringChat": "Открытие чата...",
     "featureAgents": "Агенты",
     "featureMemory": "Память",
-    "featureSkills": "Навыки",
     "featureTools": "Инструменты",
     "forgotPassword": "Забыли пароль",
     "forgotPasswordDesc": "Введите адрес эл. почты, и мы отправим вам ссылку для сброса пароля",

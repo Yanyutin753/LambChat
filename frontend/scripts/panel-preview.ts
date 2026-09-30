@@ -1080,6 +1080,71 @@ function response(url: URL, scenario: string): unknown {
       agent_id: "fast_agent",
     };
   if (path === "/api/channels") return { channels: [] };
+  if (path === "/api/share/public/preview-report") {
+    const history = response(
+      new URL("http://localhost/api/sessions/preview-report/events"),
+      scenario,
+    ) as { events: object[] };
+    return {
+      session: {
+        id: "preview-report",
+        name: "产品研究与交付计划",
+        agent_id: "fast_agent",
+        agent_name: "通用助手",
+        created_at: now,
+      },
+      events: history.events,
+      owner: { username: "LambChat Demo" },
+      share_type: "full",
+      share_scope: "session",
+    };
+  }
+  if (path === "/api/sessions/preview-report")
+    return {
+      id: "preview-report",
+      user_id: user.id,
+      agent_id: "fast_agent",
+      name: "产品研究与交付计划",
+      is_active: true,
+      created_at: now,
+      updated_at: now,
+      metadata: {},
+    };
+  if (path === "/api/sessions/preview-report/events")
+    return {
+      events: [
+        {
+          id: "preview-user-message",
+          event_type: "user:message",
+          run_id: "preview-run",
+          timestamp: now,
+          data: {
+            message_id: "preview-user-message",
+            content: "请整理新产品的研究发现，并给出下一阶段的交付计划。",
+            attachments: [],
+          },
+        },
+        {
+          id: "preview-answer",
+          event_type: "message:chunk",
+          run_id: "preview-run",
+          timestamp: now,
+          data: {
+            content:
+              "## 研究发现与交付计划\n\n已将需求归纳为三个重点：更清晰的工作入口、可追踪的执行过程，以及便于团队复用的成果。\n\n| 阶段 | 交付内容 | 验收方式 |\n| --- | --- | --- |\n| 需求确认 | 用户场景与优先级 | 团队评审 |\n| 原型验证 | 核心流程与交互原型 | 用户走查 |\n| 交付上线 | 功能实现与使用指南 | 多端验证 |\n\n### 下一步\n\n1. 确认目标用户和首要任务。\n2. 用原型验证关键路径。\n3. 将反馈整理为可执行的迭代清单。\n\n> 此会话为产品界面展示使用的演示数据。",
+          },
+        },
+        {
+          id: "preview-done",
+          event_type: "done",
+          run_id: "preview-run",
+          timestamp: now,
+          data: { status: "completed" },
+        },
+      ],
+      has_more_traces: false,
+    };
+  if (path === "/api/sessions/preview-report/runs") return { runs: [] };
   if (path === "/api/sessions")
     return { sessions: [], total: 0, has_more: false };
   if (path === "/api/projects") return [];
@@ -1094,7 +1159,12 @@ const token = `preview.${Buffer.from(
 ).toString("base64url")}.fixture`;
 const server = await createServer({
   root: process.cwd(),
-  server: { host: "127.0.0.1", port: 3002, strictPort: true, proxy: {} },
+  server: {
+    host: "127.0.0.1",
+    port: Number(process.env.PANEL_PREVIEW_PORT ?? 3002),
+    strictPort: true,
+    proxy: {},
+  },
   plugins: [
     {
       name: "panel-preview-fixtures",

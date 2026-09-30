@@ -21,7 +21,7 @@ export function DashboardSection({ onOpenViewer }: DashboardSectionProps) {
           title={t("landing.managementPanels")}
           description={t("landing.managementPanelsDesc")}
         />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
           {MGMT_SHOTS.map((s) => (
             <ScreenshotCard
               key={s.src}
