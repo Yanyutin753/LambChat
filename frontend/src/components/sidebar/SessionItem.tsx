@@ -294,7 +294,7 @@ function SessionItemComponent({
           isDragging ? { touchAction: "none" } : { touchAction: "manipulation" }
         }
         className={`sidebar-session-row sidebar-action-row group relative flex cursor-pointer items-center gap-2 h-8 max-sm:h-10 rounded-[10px] px-[9px] transition-colors ${
-          !isSelected && isActive ? "bg-stone-100 dark:bg-stone-700/50" : ""
+          !isSelected && isActive ? "bg-theme-bg-subtle dark:bg-stone-700/50" : ""
         } ${isDragging || isDraggingTouch ? "opacity-50 scale-95" : ""} ${
           selectionMode ? "pr-2" : ""
         }`}
@@ -314,8 +314,8 @@ function SessionItemComponent({
             }
             className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
               isSelected
-                ? "border-stone-700 bg-stone-700 text-white shadow-sm dark:border-stone-500 dark:bg-stone-600 dark:text-stone-100"
-                : "border-stone-300 bg-transparent text-transparent group-hover:border-stone-400 dark:border-stone-600 dark:group-hover:border-stone-500"
+                ? "border-theme-text bg-theme-text text-white shadow-sm dark:border-stone-500 dark:bg-stone-600 dark:text-stone-100"
+                : "border-theme-border-hover bg-transparent text-transparent group-hover:border-theme-ring dark:border-stone-600 dark:group-hover:border-stone-500"
             }`}
           >
             <Check size={11} strokeWidth={3} />
@@ -333,17 +333,17 @@ function SessionItemComponent({
               onKeyDown={handleKeyDown}
               onBlur={handleSaveTitle}
               disabled={isSaving}
-              className="w-full text-13 bg-transparent text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-500 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-stone-400"
+              className="w-full text-13 bg-transparent text-theme-text dark:text-stone-200 border border-theme-border-hover dark:border-stone-500 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-theme-ring"
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
             <div
               className={`truncate text-13 font-serif transition-colors ${
                 isSelected
-                  ? "text-stone-700 dark:text-stone-200"
+                  ? "text-theme-text dark:text-stone-200"
                   : isActive
-                    ? "text-stone-800 dark:text-stone-100 font-medium"
-                    : "text-stone-600 dark:text-stone-300 group-hover:text-stone-700 dark:group-hover:text-stone-200"
+                    ? "text-theme-text dark:text-stone-100 font-medium"
+                    : "text-theme-text-secondary dark:text-stone-300 group-hover:text-theme-text dark:group-hover:text-stone-200"
               } min-w-0 flex items-center gap-1`}
             >
               <span className="truncate">{displayTitle}</span>
@@ -401,7 +401,7 @@ function SessionItemComponent({
             >
               <MoreHorizontal
                 size={14}
-                className="text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300"
+                className="text-theme-text-tertiary hover:text-theme-text-secondary dark:text-stone-500 dark:hover:text-stone-300"
               />
             </button>
           </Tooltip>

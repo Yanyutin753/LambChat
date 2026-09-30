@@ -449,7 +449,7 @@ export const BatchCreateModal = ({
                     {batchRows.length > 1 && (
                       <button
                         onClick={() => removeBatchRow(row.id)}
-                        className="p-1.5 text-theme-text-secondary hover:text-red-500 rounded-lg transition-colors"
+                        className="p-1.5 text-theme-text-secondary hover:text-theme-error rounded-lg transition-colors"
                         title={t("common.delete")}
                       >
                         <Trash2 size={14} />
@@ -837,8 +837,8 @@ export const BatchCreateModal = ({
                 <div
                   className={`rounded-xl p-3 text-14 flex items-center gap-2 ${
                     importParse.kind === "ok"
-                      ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                      : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                      ? "bg-[color-mix(in_srgb,var(--theme-success)_12%,transparent)] text-theme-success dark:bg-green-900/30 dark:text-green-400"
+                      : "bg-[color-mix(in_srgb,var(--theme-error)_12%,transparent)] text-theme-error dark:bg-red-900/30 dark:text-red-400"
                   }`}
                 >
                   {importParse.kind === "ok" ? (
@@ -895,8 +895,8 @@ export const BatchCreateModal = ({
                 <div
                   className={`flex items-center gap-2 rounded-xl p-3 ${
                     importResult.success
-                      ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                      : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                      ? "bg-[color-mix(in_srgb,var(--theme-success)_12%,transparent)] text-theme-success dark:bg-green-900/30 dark:text-green-400"
+                      : "bg-[color-mix(in_srgb,var(--theme-error)_12%,transparent)] text-theme-error dark:bg-red-900/30 dark:text-red-400"
                   }`}
                 >
                   {importResult.success ? <Check size={20} /> : <X size={20} />}

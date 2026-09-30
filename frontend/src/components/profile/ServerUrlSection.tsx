@@ -65,14 +65,14 @@ export function ServerUrlSection() {
   };
 
   return (
-    <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
+    <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-theme-border/60 dark:border-stone-600/40">
       <div className="flex items-center gap-2 mb-3">
         <Globe size={13} className="text-amber-500 dark:text-amber-400" />
-        <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-stone-400 dark:text-stone-500">
+        <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-theme-text-tertiary dark:text-stone-500">
           {t("profile.serverUrl.title")}
         </h3>
       </div>
-      <p className="text-12 text-stone-500 dark:text-stone-400 leading-relaxed">
+      <p className="text-12 text-theme-text-secondary dark:text-stone-400 leading-relaxed">
         {t("profile.serverUrl.desc")}
       </p>
 
@@ -80,7 +80,7 @@ export function ServerUrlSection() {
         <div className="mt-3 space-y-2">
           <label
             htmlFor="server-url-input"
-            className="block text-12 font-medium text-stone-500 dark:text-stone-400"
+            className="block text-12 font-medium text-theme-text-secondary dark:text-stone-400"
           >
             {t("serverSetup.label")}
           </label>
@@ -95,15 +95,15 @@ export function ServerUrlSection() {
               if (e.key === "Enter") void handleConnect();
               if (e.key === "Escape") setEditing(false);
             }}
-            className="w-full rounded-xl border border-stone-200 dark:border-stone-600 bg-theme-bg-card dark:bg-stone-800 px-3 py-2 text-14 text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-1 focus:ring-amber-400"
+            className="w-full rounded-xl border border-theme-border dark:border-stone-600 bg-theme-bg-card dark:bg-stone-800 px-3 py-2 text-14 text-theme-text dark:text-stone-100 focus:outline-none focus:ring-1 focus:ring-amber-400"
           />
           {input.trim() !== "" && !normalized && (
-            <p className="text-12 text-red-500 dark:text-red-400">
+            <p className="text-12 text-theme-error dark:text-red-400">
               {t("serverSetup.invalid")}
             </p>
           )}
           {error && (
-            <p className="text-12 text-red-500 dark:text-red-400" role="alert">
+            <p className="text-12 text-theme-error dark:text-red-400" role="alert">
               {error}
             </p>
           )}
@@ -119,7 +119,7 @@ export function ServerUrlSection() {
             <button
               type="button"
               onClick={() => setEditing(false)}
-              className="rounded-xl border border-stone-200 dark:border-stone-600 px-3 py-2 text-14 text-stone-600 dark:text-stone-300 transition-colors hover:bg-stone-100 dark:hover:bg-stone-700/50"
+              className="rounded-xl border border-theme-border dark:border-stone-600 px-3 py-2 text-14 text-theme-text-secondary dark:text-stone-300 transition-colors hover:bg-theme-bg-subtle dark:hover:bg-stone-700/50"
             >
               {t("profile.serverUrl.cancel")}
             </button>
@@ -128,7 +128,7 @@ export function ServerUrlSection() {
       ) : (
         <div className="mt-2 flex items-center justify-between gap-2">
           <span
-            className="min-w-0 truncate font-mono text-14 text-stone-700 dark:text-stone-200"
+            className="min-w-0 truncate font-mono text-14 text-theme-text dark:text-stone-200"
             data-server-url-current
           >
             {current}
@@ -137,7 +137,7 @@ export function ServerUrlSection() {
             <button
               type="button"
               onClick={startEdit}
-              className="flex items-center gap-1 rounded-xl border border-stone-200 dark:border-stone-600 px-2.5 py-1.5 text-12 text-stone-600 dark:text-stone-300 transition-colors hover:bg-stone-100 dark:hover:bg-stone-700/50"
+              className="flex items-center gap-1 rounded-xl border border-theme-border dark:border-stone-600 px-2.5 py-1.5 text-12 text-theme-text-secondary dark:text-stone-300 transition-colors hover:bg-theme-bg-subtle dark:hover:bg-stone-700/50"
             >
               <Pencil size={12} className="opacity-60" />
               {t("profile.serverUrl.change")}
@@ -147,7 +147,7 @@ export function ServerUrlSection() {
                 type="button"
                 onClick={handleReset}
                 title={t("profile.serverUrl.resetTitle")}
-                className="flex items-center gap-1 rounded-xl border border-stone-200 dark:border-stone-600 px-2.5 py-1.5 text-12 text-stone-600 dark:text-stone-300 transition-colors hover:bg-stone-100 dark:hover:bg-stone-700/50"
+                className="flex items-center gap-1 rounded-xl border border-theme-border dark:border-stone-600 px-2.5 py-1.5 text-12 text-theme-text-secondary dark:text-stone-300 transition-colors hover:bg-theme-bg-subtle dark:hover:bg-stone-700/50"
               >
                 <RotateCcw size={12} className="opacity-60" />
                 {t("profile.serverUrl.reset")}

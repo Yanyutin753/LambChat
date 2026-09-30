@@ -275,7 +275,7 @@ export function SessionListContent({
               href={GITHUB_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-stone-800 dark:text-stone-100 hover:text-stone-900 dark:hover:text-stone-50 transition-colors"
+              className="text-theme-text dark:text-stone-100 hover:text-theme-text dark:hover:text-stone-50 transition-colors"
             >
               <BrandWordmark decorative className="size-7 w-auto mb-1" />
             </a>
@@ -283,14 +283,14 @@ export function SessionListContent({
           <Tooltip content={t("sidebar.collapseSidebar")}>
             <button
               onClick={onCollapse}
-              className="flex size-8 items-center justify-center rounded-lg text-stone-600 dark:text-stone-400 transition-colors cursor-w-resize rtl:cursor-e-resize"
+              className="flex size-8 items-center justify-center rounded-lg text-theme-text-secondary dark:text-stone-400 transition-colors cursor-w-resize rtl:cursor-e-resize"
               aria-label={t("sidebar.collapseSidebar")}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
-                className="size-5 text-stone-600 dark:text-stone-300"
+                className="size-5 text-theme-text-secondary dark:text-stone-300"
               >
                 <path
                   fillRule="evenodd"
@@ -317,7 +317,7 @@ export function SessionListContent({
         >
           <MessageSquarePlus size={20} />
           <span className="flex-1 text-left">{t("sidebar.newChat")}</span>
-          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-10 font-medium text-stone-400 dark:text-stone-500 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-10 font-medium text-theme-text-tertiary dark:text-stone-500 rounded opacity-0 group-hover:opacity-100 transition-opacity">
             {t("sidebar.newChatShortcut")}
           </kbd>
         </button>
@@ -488,7 +488,7 @@ export function SessionListContent({
                     className="flex justify-center py-2"
                   >
                     {isLoadingMorePinned && (
-                      <div className="flex items-center gap-2 text-stone-400 dark:text-stone-500">
+                      <div className="flex items-center gap-2 text-theme-text-tertiary dark:text-stone-500">
                         <LoadingSpinner size="xs" />
                         <span className="text-12">{t("common.loading")}</span>
                       </div>
@@ -606,7 +606,7 @@ export function SessionListContent({
             <>
               {isSelectionMode ? (
                 <div className="flex h-9 items-center justify-between gap-2 px-[9px]">
-                  <span className="text-13 font-medium text-stone-500 dark:text-stone-400">
+                  <span className="text-13 font-medium text-theme-text-secondary dark:text-stone-400">
                     {t("sidebar.selectedCount", { count: selectedCount })}
                   </span>
                   <div className="flex items-center gap-1">
@@ -721,7 +721,7 @@ export function SessionListContent({
                   {hasMoreUncategorized && (
                     <div ref={loadMoreRef} className="flex justify-center py-2">
                       {isLoadingMoreUncategorized && (
-                        <div className="flex items-center gap-2 text-stone-400 dark:text-stone-500">
+                        <div className="flex items-center gap-2 text-theme-text-tertiary dark:text-stone-500">
                           <LoadingSpinner size="xs" />
                           <span className="text-12">{t("common.loading")}</span>
                         </div>
@@ -736,11 +736,11 @@ export function SessionListContent({
       </div>
 
       {isSelectionMode && (
-        <div className="shrink-0 border-t border-stone-200/80 bg-[var(--theme-bg-sidebar)] px-2 py-2 dark:border-stone-800/70">
+        <div className="shrink-0 border-t border-theme-border/80 bg-[var(--theme-bg-sidebar)] px-2 py-2 dark:border-stone-800/70">
           <div className="relative">
             {isProjectPickerOpen && (
-              <div className="absolute bottom-12 left-0 right-0 z-30 overflow-hidden rounded-xl border border-stone-200 bg-stone-50 shadow-xl shadow-stone-900/10 dark:border-stone-700 dark:bg-stone-900 dark:shadow-black/30">
-                <div className="px-3 py-2 text-11 font-medium uppercase tracking-wide text-stone-400 dark:text-stone-500">
+              <div className="absolute bottom-12 left-0 right-0 z-30 overflow-hidden rounded-xl border border-theme-border bg-theme-bg-subtle shadow-xl shadow-stone-900/10 dark:border-stone-700 dark:bg-stone-900 dark:shadow-black/30">
+                <div className="px-3 py-2 text-11 font-medium uppercase tracking-wide text-theme-text-tertiary dark:text-stone-500">
                   {t("sidebar.moveSelectedToProject")}
                 </div>
                 <div className="max-h-56 overflow-y-auto p-1">
@@ -749,11 +749,11 @@ export function SessionListContent({
                       key={project.id}
                       type="button"
                       onClick={() => handleMoveSelected(project.id)}
-                      className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-13 font-medium text-stone-600 transition hover:text-stone-900 dark:text-stone-300 dark:hover:text-stone-50"
+                      className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-13 font-medium text-theme-text-secondary transition hover:text-theme-text dark:text-stone-300 dark:hover:text-stone-50"
                     >
                       <FolderInput
                         size={15}
-                        className="shrink-0 text-stone-400"
+                        className="shrink-0 text-theme-text-tertiary"
                       />
                       <span className="truncate font-serif">
                         {project.name}
@@ -763,9 +763,9 @@ export function SessionListContent({
                   <button
                     type="button"
                     onClick={() => handleMoveSelected(null)}
-                    className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-13 font-medium text-stone-600 transition hover:text-stone-900 dark:text-stone-300 dark:hover:text-stone-50"
+                    className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-13 font-medium text-theme-text-secondary transition hover:text-theme-text dark:text-stone-300 dark:hover:text-stone-50"
                   >
-                    <Tag size={15} className="shrink-0 text-stone-400" />
+                    <Tag size={15} className="shrink-0 text-theme-text-tertiary" />
                     <span className="truncate">
                       {t("sidebar.uncategorized")}
                     </span>
@@ -774,8 +774,8 @@ export function SessionListContent({
               </div>
             )}
 
-            <div className="flex items-center justify-between gap-2 rounded-[10px] bg-stone-100/85 p-1 ring-1 ring-inset ring-stone-200/80 dark:bg-stone-800/55 dark:ring-stone-700/70">
-              <div className="flex h-8 min-w-[72px] shrink-0 items-center justify-center rounded-lg bg-white/70 px-2 text-12 font-semibold text-stone-600 ring-1 ring-inset ring-stone-200/70 dark:bg-stone-900/45 dark:text-stone-300 dark:ring-stone-700/60">
+            <div className="flex items-center justify-between gap-2 rounded-[10px] bg-theme-bg-subtle/85 p-1 ring-1 ring-inset ring-theme-border/80 dark:bg-stone-800/55 dark:ring-stone-700/70">
+              <div className="flex h-8 min-w-[72px] shrink-0 items-center justify-center rounded-lg bg-theme-bg-card/70 px-2 text-12 font-semibold text-theme-text-secondary ring-1 ring-inset ring-theme-border/70 dark:bg-stone-900/45 dark:text-stone-300 dark:ring-stone-700/60">
                 {t("sidebar.selectedCount", {
                   count: selectedCount,
                   defaultValue: "已选 {{count}} 个",
@@ -788,7 +788,7 @@ export function SessionListContent({
                     disabled={selectedCount === 0}
                     onClick={() => setIsProjectPickerOpen((value) => !value)}
                     aria-label={t("sidebar.moveSelectedToProject")}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-stone-600 transition hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-45 dark:text-stone-300 dark:hover:text-stone-50"
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-theme-text-secondary transition hover:text-theme-text disabled:cursor-not-allowed disabled:opacity-45 dark:text-stone-300 dark:hover:text-stone-50"
                   >
                     <FolderInput size={14} />
                   </button>
@@ -799,7 +799,7 @@ export function SessionListContent({
                     disabled={selectedCount === 0}
                     onClick={handleRequestDeleteSelected}
                     aria-label={t("sidebar.deleteSelected")}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-red-600 transition hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-45 dark:text-red-400 dark:hover:text-red-300"
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-theme-error transition hover:text-theme-error disabled:cursor-not-allowed disabled:opacity-45 dark:text-red-400 dark:hover:text-red-300"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -809,7 +809,7 @@ export function SessionListContent({
                     type="button"
                     onClick={onClearSelection}
                     aria-label={t("common.cancel")}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-stone-500 transition hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-100"
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-theme-text-secondary transition hover:text-theme-text dark:text-stone-400 dark:hover:text-stone-100"
                   >
                     <X size={15} />
                   </button>
@@ -822,7 +822,7 @@ export function SessionListContent({
 
       {/* Footer */}
       {!compactChrome && (
-        <div className="shrink-0 px-2 py-1 border-t border-stone-300/70 dark:border-stone-800/60">
+        <div className="shrink-0 px-2 py-1 border-t border-theme-border-hover/70 dark:border-stone-800/60">
           <SidebarUserRow
             user={user}
             imgError={imgError}

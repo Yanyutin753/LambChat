@@ -127,21 +127,21 @@ export function ProfileToolsTab() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Wrench size={13} className="text-amber-500 dark:text-amber-400" />
-          <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-stone-400 dark:text-stone-500">
+          <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-theme-text-tertiary dark:text-stone-500">
             {t("profile.toolsManagement", "MCP Tools")}
           </h3>
         </div>
         <button
           onClick={fetchData}
           disabled={isLoading}
-          className="p-1 rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/60 transition-colors"
+          className="p-1 rounded-lg text-theme-text-tertiary hover:text-theme-text-secondary dark:hover:text-stone-300 hover:bg-theme-bg-subtle dark:hover:bg-stone-700/60 transition-colors"
           title={t("common.refresh", "Refresh")}
         >
           <RefreshCw size={13} className={isLoading ? "animate-spin" : ""} />
         </button>
       </div>
 
-      <p className="text-12 text-stone-400 dark:text-stone-500">
+      <p className="text-12 text-theme-text-tertiary dark:text-stone-500">
         {t(
           "profile.toolsManagementDesc",
           "Enable or disable tools for your MCP servers.",
@@ -153,13 +153,13 @@ export function ProfileToolsTab() {
           {Array.from({ length: 3 }).map((_, i) => (
             <div
               key={i}
-              className="rounded-xl border border-stone-200/60 dark:border-stone-600/40 bg-stone-50 dark:bg-stone-700/40 overflow-hidden"
+              className="rounded-xl border border-theme-border/60 dark:border-stone-600/40 bg-theme-bg-subtle dark:bg-stone-700/40 overflow-hidden"
             >
-              <div className="px-3 py-2 border-b border-stone-200/60 dark:border-stone-600/40 flex items-center justify-between bg-stone-100/60 dark:bg-stone-800/30">
+              <div className="px-3 py-2 border-b border-theme-border/60 dark:border-stone-600/40 flex items-center justify-between bg-theme-bg-subtle/60 dark:bg-stone-800/30">
                 <SkeletonLine width="w-32" />
                 <SkeletonLine width="w-8" className="!h-2" />
               </div>
-              <div className="divide-y divide-stone-200/40 dark:divide-stone-600/30">
+              <div className="divide-y divide-theme-border/40 dark:divide-stone-600/30">
                 {Array.from({ length: 2 + (i % 2) }).map((_, j) => (
                   <div key={j} className="flex items-center gap-2 px-3 py-2">
                     <SkeletonBlock
@@ -178,7 +178,7 @@ export function ProfileToolsTab() {
           ))}
         </div>
       ) : groupedByServer.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center text-stone-400 dark:text-stone-500">
+        <div className="flex flex-1 flex-col items-center justify-center text-theme-text-tertiary dark:text-stone-500">
           <SceneIllustration scene="reading" className="mb-4" />
           <p className="text-14">{t("tools.noTools", "No tools available")}</p>
         </div>
@@ -191,20 +191,20 @@ export function ProfileToolsTab() {
             return (
               <div
                 key={serverName}
-                className="rounded-xl border border-stone-200/60 dark:border-stone-600/40 bg-stone-50 dark:bg-stone-700/40 overflow-hidden"
+                className="rounded-xl border border-theme-border/60 dark:border-stone-600/40 bg-theme-bg-subtle dark:bg-stone-700/40 overflow-hidden"
               >
                 {/* Server header */}
-                <div className="px-3 py-2 border-b border-stone-200/60 dark:border-stone-600/40 flex items-center justify-between bg-stone-100/60 dark:bg-stone-800/30">
-                  <span className="text-12 font-semibold text-stone-600 dark:text-stone-300 truncate">
+                <div className="px-3 py-2 border-b border-theme-border/60 dark:border-stone-600/40 flex items-center justify-between bg-theme-bg-subtle/60 dark:bg-stone-800/30">
+                  <span className="text-12 font-semibold text-theme-text-secondary dark:text-stone-300 truncate">
                     {serverName}
                   </span>
-                  <span className="text-10 text-stone-400 dark:text-stone-500 tabular-nums shrink-0 ml-2">
+                  <span className="text-10 text-theme-text-tertiary dark:text-stone-500 tabular-nums shrink-0 ml-2">
                     {enabledCount}/{serverTools.length}
                   </span>
                 </div>
 
                 {/* Tool list */}
-                <div className="divide-y divide-stone-200/40 dark:divide-stone-600/30">
+                <div className="divide-y divide-theme-border/40 dark:divide-stone-600/30">
                   {serverTools.map((tool) => {
                     const isPending = toggling.has(tool.name);
                     const baseName = tool.name.includes(":")
@@ -218,7 +218,7 @@ export function ProfileToolsTab() {
                         className={`flex items-center gap-2 px-3 py-2 transition-colors ${
                           isUserDisabled
                             ? "opacity-50"
-                            : "hover:bg-stone-50 dark:hover:bg-stone-800/50"
+                            : "hover:bg-theme-bg-subtle dark:hover:bg-stone-800/50"
                         }`}
                       >
                         <button
@@ -234,28 +234,28 @@ export function ProfileToolsTab() {
                           {isPending ? (
                             <Loader2
                               size={16}
-                              className="animate-spin text-stone-400"
+                              className="animate-spin text-theme-text-tertiary"
                             />
                           ) : isUserDisabled ? (
                             <ToggleLeft
                               size={16}
-                              className="text-stone-400 dark:text-stone-500"
+                              className="text-theme-text-tertiary dark:text-stone-500"
                             />
                           ) : (
                             <ToggleRight
                               size={16}
-                              className="text-green-600 dark:text-green-500"
+                              className="text-theme-success dark:text-green-500"
                             />
                           )}
                         </button>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <code className="text-12 font-medium text-stone-700 dark:text-stone-200 truncate">
+                            <code className="text-12 font-medium text-theme-text dark:text-stone-200 truncate">
                               {baseName}
                             </code>
                           </div>
                           {tool.description && (
-                            <p className="text-11 text-stone-400 dark:text-stone-500 truncate mt-0.5">
+                            <p className="text-11 text-theme-text-tertiary dark:text-stone-500 truncate mt-0.5">
                               {tool.description}
                             </p>
                           )}

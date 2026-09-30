@@ -198,7 +198,7 @@ export function LocalSandboxSection({
               <div className="flex w-full items-center justify-between gap-2 py-3 first:pt-2 last:pb-0 text-left">
                 <span className="flex min-w-0 items-center gap-2 text-14 text-theme-text dark:text-stone-200">
                   <span
-                    className="h-2 w-2 rounded-full shrink-0 bg-green-500"
+                    className="h-2 w-2 rounded-full shrink-0 bg-theme-success"
                     data-sandbox-online={online}
                   />
                   {t("profile.localSandbox.statusOnline")}
@@ -408,7 +408,7 @@ export function LocalSandboxSection({
               <span
                 className={`h-2 w-2 rounded-full shrink-0 ${
                   online
-                    ? "bg-green-500"
+                    ? "bg-theme-success"
                     : "bg-theme-text-tertiary dark:bg-stone-500"
                 }`}
                 data-sandbox-online={online}
@@ -427,8 +427,8 @@ export function LocalSandboxSection({
             <span
               className={`shrink-0 rounded-full px-2 py-0.5 text-10 font-medium ${
                 processStatus === "running"
-                  ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                  : "bg-stone-500/10 dark:bg-stone-500/20 text-theme-text-secondary dark:text-stone-400"
+                    ? "bg-[color-mix(in_srgb,var(--theme-success)_10%,transparent)] text-theme-success dark:text-green-400"
+                  : "bg-theme-text-secondary/10 dark:bg-stone-500/20 text-theme-text-secondary dark:text-stone-400"
               }`}
             >
               {processStatus === "running"
@@ -551,7 +551,7 @@ export function LocalSandboxSection({
                 type="button"
                 onClick={handleUnpair}
                 disabled={unpairing}
-                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-12 text-theme-text-tertiary dark:text-stone-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-12 text-theme-text-tertiary dark:text-stone-500 transition-colors hover:bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)] dark:hover:bg-red-950/30 hover:text-theme-error dark:hover:text-red-400 disabled:opacity-50"
               >
                 <Link2Off size={12} />
                 {unpairing

@@ -502,10 +502,10 @@ export function SettingsPanel() {
               className="panel-avatar"
             />
             <div>
-              <h2 className="text-14 font-semibold text-stone-900 dark:text-stone-100">
+              <h2 className="text-14 font-semibold text-theme-text dark:text-stone-100">
                 {t("settings.title")}
               </h2>
-              <p className="text-12 text-stone-400 dark:text-stone-500">
+              <p className="text-12 text-theme-text-tertiary dark:text-stone-500">
                 {t("settings.navigation.subtitle")}
               </p>
             </div>
@@ -534,7 +534,7 @@ export function SettingsPanel() {
               <button
                 onClick={handleResetAll}
                 disabled={isLoading}
-                className="flex flex-1 items-center justify-center gap-1 rounded-lg py-1.5 text-12 font-medium text-red-500 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-900/20"
+                className="flex flex-1 items-center justify-center gap-1 rounded-lg py-1.5 text-12 font-medium text-theme-error hover:bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)] disabled:opacity-50 dark:hover:bg-red-900/20"
               >
                 <RotateCcw size={12} />
                 {t("common.resetAll")}
@@ -571,7 +571,7 @@ export function SettingsPanel() {
               <div className="relative flex-1">
                 <Search
                   size={18}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-text-tertiary dark:text-stone-500"
                 />
                 <PanelSearchInput
                   type="text"
@@ -616,7 +616,7 @@ export function SettingsPanel() {
 
           {/* Error */}
           {error && (
-            <div className="panel-notice flex items-center justify-between rounded-xl bg-red-50 p-3 text-14 text-red-600 dark:bg-red-900/30 dark:text-red-400">
+            <div className="panel-notice flex items-center justify-between rounded-xl bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)] p-3 text-14 text-theme-error dark:bg-red-900/30 dark:text-red-400">
               <span>{error}</span>
               <button
                 onClick={clearError}
@@ -635,25 +635,25 @@ export function SettingsPanel() {
             <div className="mb-6">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="mb-1 text-12 text-stone-500 dark:text-stone-400">
+                  <p className="mb-1 text-12 text-theme-text-secondary dark:text-stone-400">
                     {isSearching || !activeGroup
                       ? t("settings.navigation.allCategories")
                       : t(`settings.navigation.groups.${activeGroup.id}`)}
                   </p>
-                  <h2 className="text-18 font-semibold text-stone-900 dark:text-stone-100">
+                  <h2 className="text-18 font-semibold text-theme-text dark:text-stone-100">
                     {isSearching
                       ? t("settings.navigation.searchResults")
                       : CATEGORY_LABELS[activeCategory]}
                   </h2>
                   {!isSearching && activeGroup && (
-                    <p className="mt-1 text-12 text-stone-500 dark:text-stone-400">
+                    <p className="mt-1 text-12 text-theme-text-secondary dark:text-stone-400">
                       {t(`settings.navigation.descriptions.${activeGroup.id}`)}
                     </p>
                   )}
                 </div>
                 <span
                   role="status"
-                  className="text-12 tabular-nums text-stone-500 dark:text-stone-400"
+                  className="text-12 tabular-nums text-theme-text-secondary dark:text-stone-400"
                 >
                   {t("settings.navigation.resultCount", {
                     count: filteredSettings.length,
@@ -670,7 +670,7 @@ export function SettingsPanel() {
                 </Button>
               ) : (
                 subcategories.length > 1 && (
-                  <label className="mt-3 flex flex-wrap items-center gap-2 text-12 text-stone-600 dark:text-stone-400">
+                  <label className="mt-3 flex flex-wrap items-center gap-2 text-12 text-theme-text-secondary dark:text-stone-400">
                     <span>{t("settings.navigation.subcategory")}</span>
                     <select
                       value={activeSubcategory ?? "__all__"}
@@ -681,7 +681,7 @@ export function SettingsPanel() {
                             : event.target.value,
                         )
                       }
-                      className="h-10 min-w-0 max-w-full rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] px-3 text-14 text-stone-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] dark:text-stone-100"
+                      className="h-10 min-w-0 max-w-full rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] px-3 text-14 text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] dark:text-stone-100"
                     >
                       <option value="__all__">
                         {t("settings.navigation.allSubcategories")}
@@ -699,7 +699,7 @@ export function SettingsPanel() {
                   </label>
                 )
               )}
-              <p className="mt-2 text-12 text-stone-500 dark:text-stone-400">
+              <p className="mt-2 text-12 text-theme-text-secondary dark:text-stone-400">
                 {canManage
                   ? t("settings.navigation.saveHint")
                   : t("settings.readOnlyNotice")}
@@ -714,7 +714,7 @@ export function SettingsPanel() {
             {isLoading && !settings ? (
               <SettingsListSkeleton />
             ) : filteredSettings.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center text-stone-400 dark:text-stone-500">
+              <div className="flex h-full flex-col items-center justify-center text-theme-text-tertiary dark:text-stone-500">
                 <Search size={40} className="mb-2 opacity-30" />
                 <p className="text-14">
                   {isSearching
@@ -727,7 +727,7 @@ export function SettingsPanel() {
                 {groupedSettings.map((group) => (
                   <div key={group.subcategory} className="panel-stack">
                     {group.label && (
-                      <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-stone-500 dark:text-stone-400">
+                      <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-theme-text-secondary dark:text-stone-400">
                         {group.label}
                       </h3>
                     )}
@@ -782,7 +782,7 @@ export function SettingsPanel() {
                                     {CATEGORY_LABELS[setting.category]}
                                   </button>
                                 )}
-                                <code className="rounded-md bg-[var(--glass-bg-subtle)] px-2 py-0.5 text-12 font-medium text-stone-900 break-all dark:text-stone-100">
+                                <code className="rounded-md bg-[var(--glass-bg-subtle)] px-2 py-0.5 text-12 font-medium text-theme-text break-all dark:text-stone-100">
                                   {setting.key}
                                 </code>
                                 <span
@@ -793,7 +793,7 @@ export function SettingsPanel() {
                                   {setting.type}
                                 </span>
                               </div>
-                              <p className="mt-1 text-12 text-stone-500 sm:text-14 dark:text-stone-400">
+                              <p className="mt-1 text-12 text-theme-text-secondary sm:text-14 dark:text-stone-400">
                                 {t(setting.description)}
                               </p>
                             </div>
@@ -902,7 +902,7 @@ export function SettingsPanel() {
                                 }
                                 disabled={!canManage}
                                 rows={8}
-                                className="bg-[var(--theme-bg-card)] px-3 py-2 text-14 text-stone-900 disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100"
+                                className="bg-[var(--theme-bg-card)] px-3 py-2 text-14 text-theme-text disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100"
                               />
                             )}
                             {isJson && setting.json_schema && (
@@ -937,7 +937,7 @@ export function SettingsPanel() {
                                 }
                                 disabled={!canManage}
                                 rows={20}
-                                className="max-h-[45vh] overflow-y-auto bg-[var(--theme-bg-card)] px-3 py-2 font-mono text-12 text-stone-900 disabled:cursor-not-allowed disabled:opacity-60 sm:max-h-none sm:text-14 dark:text-stone-100"
+                                className="max-h-[45vh] overflow-y-auto bg-[var(--theme-bg-card)] px-3 py-2 font-mono text-12 text-theme-text disabled:cursor-not-allowed disabled:opacity-60 sm:max-h-none sm:text-14 dark:text-stone-100"
                               />
                             )}
                             {!isSelect &&
@@ -958,7 +958,7 @@ export function SettingsPanel() {
                                     )
                                   }
                                   disabled={!canManage}
-                                  className="bg-[var(--theme-bg-card)] px-3 py-2 text-14 text-stone-900 disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100"
+                                  className="bg-[var(--theme-bg-card)] px-3 py-2 text-14 text-theme-text disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100"
                                 />
                               )}
                           </div>
@@ -999,7 +999,7 @@ export function SettingsPanel() {
                             )}
 
                             {/* Default Value and Updated Info */}
-                            <div className="hidden text-12 text-stone-400 sm:block dark:text-stone-500 max-w-full truncate">
+                            <div className="hidden text-12 text-theme-text-tertiary sm:block dark:text-stone-500 max-w-full truncate">
                               {t("common.default")}:{" "}
                               {typeof setting.default_value === "object"
                                 ? JSON.stringify(setting.default_value)
@@ -1016,7 +1016,7 @@ export function SettingsPanel() {
 
                           {/* Read-only notice */}
                           {!canManage && (
-                            <div className="mt-2 rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-1.5 text-12 text-stone-400 dark:text-stone-500">
+                            <div className="mt-2 rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-1.5 text-12 text-theme-text-tertiary dark:text-stone-500">
                               {t("settings.readOnlyNotice")}
                             </div>
                           )}

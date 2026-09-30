@@ -90,14 +90,14 @@ function StatusBadge({
       className={clsx(
         "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-12 font-medium",
         isActive
-          ? "bg-[color-mix(in_srgb,#10b981_10%,var(--theme-bg-card))] text-emerald-700 dark:text-emerald-300 ring-1 ring-inset ring-[color-mix(in_srgb,#10b981_20%,transparent)]"
+          ? "bg-[color-mix(in_srgb,var(--theme-success)_10%,var(--theme-bg-card))] text-theme-success dark:text-emerald-300 ring-1 ring-inset ring-[color-mix(in_srgb,var(--theme-success)_20%,transparent)]"
           : "bg-theme-bg-subtle text-theme-text-tertiary ring-1 ring-inset ring-theme-border",
       )}
     >
       <span
         className={clsx(
           "w-1.5 h-1.5 rounded-full",
-          isActive ? "bg-emerald-500" : "bg-theme-text-tertiary",
+          isActive ? "bg-theme-success" : "bg-theme-text-tertiary",
         )}
       />
       {t(`scheduledTask.${status || "statusUnknown"}`)}
@@ -495,7 +495,7 @@ function ScheduledTaskDetail({ args, result }: ToolDetailProps) {
         <div className="flex items-center gap-2 text-12">
           <CheckCircle2
             size={13}
-            className="shrink-0 text-emerald-500 dark:text-emerald-400"
+            className="shrink-0 text-theme-success"
           />
           <span className="text-theme-text-tertiary">{resultMessage}</span>
         </div>
@@ -694,14 +694,14 @@ const ScheduledTaskItem = memo(function ScheduledTaskItem({
             className={clsx(
               "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-10",
               enabled
-                ? "bg-emerald-100/60 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
+                ? "bg-[color-mix(in_srgb,var(--theme-success)_15%,transparent)] dark:bg-emerald-900/20 text-theme-success dark:text-emerald-400"
                 : "bg-theme-bg-subtle text-theme-text-tertiary",
             )}
           >
             <span
               className={clsx(
                 "w-1 h-1 rounded-full",
-                enabled ? "bg-emerald-500" : "bg-theme-text-tertiary",
+                enabled ? "bg-theme-success" : "bg-theme-text-tertiary",
               )}
             />
             {status
@@ -718,7 +718,7 @@ const ScheduledTaskItem = memo(function ScheduledTaskItem({
         <div className="flex items-center gap-1.5 text-10">
           <CheckCircle2
             size={10}
-            className="shrink-0 text-emerald-500 dark:text-emerald-400"
+            className="shrink-0 text-theme-success"
           />
           <span className="text-theme-text-tertiary truncate min-w-0 flex-1 overflow-hidden">
             {resultMessage.length > 120

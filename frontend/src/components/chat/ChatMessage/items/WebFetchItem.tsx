@@ -27,7 +27,7 @@ function truncate(text: string, max: number): string {
 
 /** 供应商识别色点（对齐 WebSearchItem 的 PROVIDER_DOTS 语义） */
 const PROVIDER_DOTS: Record<string, string> = {
-  direct: "bg-emerald-400",
+  direct: "bg-theme-success",
   tavily: "bg-sky-400",
   firecrawl: "bg-orange-400",
   exa: "bg-teal-400",
@@ -130,7 +130,7 @@ function WebFetchDetail({ args, result }: ToolDetailProps) {
             text={summary.content}
             position="resultCompact"
             className="z-20 pointer-events-auto"
-            copyButtonClassName="bg-[var(--theme-bg-elevated)] shadow-sm ring-1 ring-stone-200/70 hover:bg-stone-100 dark:bg-stone-900/90 dark:ring-stone-700/70 dark:hover:bg-stone-800"
+            copyButtonClassName={"bg-[var(--theme-bg-elevated)] shadow-sm ring-1 ring-theme-border/70 hover:bg-theme-bg-subtle dark:bg-stone-900/90 dark:ring-stone-700/70 dark:hover:bg-stone-800"}
           />
           <pre className="whitespace-pre-wrap break-words font-mono text-12 leading-relaxed text-theme-text">
             {summary.content}
@@ -144,7 +144,7 @@ function WebFetchDetail({ args, result }: ToolDetailProps) {
             text={typeof result === "string" ? result : JSON.stringify(result)}
             position="resultCompact"
             className="z-20 pointer-events-auto"
-            copyButtonClassName="bg-[var(--theme-bg-elevated)] shadow-sm ring-1 ring-stone-200/70 hover:bg-stone-100 dark:bg-stone-900/90 dark:ring-stone-700/70 dark:hover:bg-stone-800"
+            copyButtonClassName={"bg-[var(--theme-bg-elevated)] shadow-sm ring-1 ring-theme-border/70 hover:bg-theme-bg-subtle dark:bg-stone-900/90 dark:ring-stone-700/70 dark:hover:bg-stone-800"}
           />
           <ToolResultContent result={result} hideCopyButton />
         </div>
@@ -283,7 +283,7 @@ const WebFetchItem = memo(function WebFetchItem({
                 }
                 position="resultCompact"
                 className="z-20 pointer-events-auto"
-                copyButtonClassName="bg-[var(--theme-bg-elevated)] shadow-sm ring-1 ring-stone-200/70 hover:bg-stone-100 dark:bg-stone-900/90 dark:ring-stone-700/70 dark:hover:bg-stone-800"
+                copyButtonClassName={"bg-[var(--theme-bg-elevated)] shadow-sm ring-1 ring-theme-border/70 hover:bg-theme-bg-subtle dark:bg-stone-900/90 dark:ring-stone-700/70 dark:hover:bg-stone-800"}
               />
               <ToolResultContent result={result} hideCopyButton />
             </div>
