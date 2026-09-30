@@ -318,6 +318,9 @@
     "previous": "上一项",
     "reject": "拒绝",
     "scheduledTask": {
+      "searchPlaceholder": "搜索任务名称或描述…",
+      "noResults": "没有匹配的定时任务",
+      "noResultsDesc": "试试其他关键词或调整状态筛选。",
       "agent": "智能体",
       "confirmCreation": "请确认创建此定时任务。",
       "effect": "创建后，智能体「{{agent}}」将按 {{schedule}} 执行。每次执行会启动一个新会话，并将以下提示发送给智能体：",
@@ -1571,6 +1574,7 @@
       "monthsAgo": "{{count}}个月前"
     },
     "title": "文件管理",
+    "subtitle": "管理上传和生成的文件",
     "tryDifferent": "尝试其他搜索关键词",
     "types": {
       "all": "全部",
@@ -2065,6 +2069,7 @@
     "taskCompleted": "任务已完成",
     "taskFailed": "任务失败",
     "title": "通知公告",
+    "subtitle": "查看和管理系统公告与消息",
     "titleLabel": "标题",
     "typeInfo": "信息",
     "typeLabel": "类型",
@@ -2460,6 +2465,9 @@
     }
   },
   "scheduledTask": {
+    "searchPlaceholder": "搜索任务名称或描述…",
+    "noResults": "没有匹配的定时任务",
+    "noResultsDesc": "试试其他关键词或调整状态筛选。",
     "active": "运行中",
     "agent": "Agent",
     "agentPlaceholder": "选择 Agent...",
@@ -2546,6 +2554,7 @@
     "timeout": "超时",
     "timeoutSeconds": "超时（秒）",
     "title": "定时任务",
+    "subtitle": "按计划自动执行任务，查看运行记录",
     "totalRuns": "总运行次数",
     "triggerType": "触发类型",
     "triggeredSuccess": "任务已触发",

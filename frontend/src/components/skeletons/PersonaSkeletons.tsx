@@ -7,15 +7,23 @@ import {
 
 export function PersonaPlazaSkeleton() {
   return (
-    <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
-      <PanelHeaderSkeleton hasSearch hasSubtitle hasSearchAccessory hasSearchActions />
+    <div className="glass-shell flex h-full min-w-0 flex-1 flex-col min-h-0 animate-fade-in">
+      <PanelHeaderSkeleton
+        hasSearch
+        hasSubtitle
+        hasSearchAccessory
+        hasSearchActions
+      />
       <div className="panel-body flex-1 min-h-0 overflow-y-auto skill-content-area">
         <div className="grid auto-grid-cols gap-4 sm:gap-5">
           {Array.from({ length: PANEL_CARD_SKELETON_COUNT }).map((_, i) => (
-            <div key={i} className="pps-card scb flex h-full flex-col overflow-hidden rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)]">
+            <div
+              key={i}
+              className="pps-card scb flex h-full flex-col overflow-hidden rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)]"
+            >
               {/* Banner */}
               <div
-                className="h-12 w-full shrink-0 relative"
+                className="scb__banner h-12 w-full shrink-0 relative"
                 style={{
                   background: `linear-gradient(135deg, ${
                     [
@@ -91,7 +99,7 @@ export function PersonaPlazaSkeleton() {
 
 export function PersonaPageSkeleton() {
   return (
-    <div className="flex h-full animate-fade-in">
+    <div className="flex h-full w-full min-w-0 animate-fade-in">
       <PersonaPlazaSkeleton />
     </div>
   );

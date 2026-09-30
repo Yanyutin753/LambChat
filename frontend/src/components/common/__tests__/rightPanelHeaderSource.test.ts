@@ -19,8 +19,9 @@ test("editor, tool and document panels share fixed header geometry without works
     new URL("../rightPanelTabs.css", import.meta.url),
     "utf8",
   );
-  expect(tabs).toMatch(/\.right-panel-tabs\s*\{[^}]*flex-wrap: wrap;/);
-  expect(tabs).not.toContain("overflow-x: auto");
+  expect(tabs).toMatch(/\.right-panel-tabs\s*\{[^}]*flex-wrap: nowrap;/);
+  expect(tabs).toContain("overflow-x: auto");
+  expect(tabs).toMatch(/\.right-panel-tab\s*\{[^}]*min-width: 80px;/);
   expect(workspace).not.toContain("[&_.tool-console-header]");
 });
 
@@ -29,15 +30,15 @@ test("compact document toolbars keep touch actions and close reachable without s
     new URL("../../../styles/components.css", import.meta.url),
     "utf8",
   );
-  expect(css).toMatch(/@media \(max-width: 1199px\), \(pointer: coarse\)/);
+  expect(css).toMatch(/@container document-toolbar \(max-width: 479px\)/);
   expect(css).toMatch(
-    /\.document-preview-toolbar button\s*\{[^}]*min-width: 2.75rem;[^}]*min-height: 2.75rem;/,
+    /\.document-preview-toolbar button\[type\]\s*\{[^}]*min-width: 2.75rem;[^}]*min-height: 2.75rem;/,
   );
   expect(css).toMatch(
-    /\.document-preview-toolbar-actions\s*\{[^}]*position: static;[^}]*flex-basis: 100%;/,
+    /\.document-preview-source-toggle span,\s*\.document-preview-language\s*\{[^}]*display: none;/,
   );
   expect(css).toMatch(
-    /\.document-preview-toolbar-actions > button:last-child\s*\{[^}]*position: absolute;/,
+    /\.document-preview-more-actions\s*\{[^}]*display: block;/,
   );
 });
 

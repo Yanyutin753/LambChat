@@ -15,21 +15,25 @@ const appSafeAreaBottom =
 export function ChatPageSkeleton() {
   return (
     <div
+      data-workspace-ui=""
       className="flex h-[100dvh] w-full overflow-hidden animate-fade-in"
       style={{
         backgroundColor: "var(--theme-bg)",
         boxSizing: "content-box",
         paddingTop: appSafeAreaTop,
         paddingBottom: appSafeAreaBottom,
-        height: `calc(100dvh - ${appSafeAreaTop} - ${appSafeAreaBottom})`,
+        height: `calc(100dvh - ${appSafeAreaTop} - ${appSafeAreaBottom} - var(--titlebar-inset, 0px))`,
       }}
     >
       <SidebarSkeleton />
 
       {/* Main area */}
-      <div className="relative flex flex-1 min-w-0 flex-col overflow-hidden">
+      <div
+        data-workspace-content=""
+        className="relative flex flex-1 min-w-0 flex-col overflow-hidden"
+      >
         {/* Header skeleton — matches real Header layout */}
-        <header className="relative z-50 flex items-center px-3 sm:px-5 py-3 shrink-0 rounded-bl-xl">
+        <header className="chat-header relative z-50 flex h-12 items-center px-3 sm:px-5 shrink-0">
           <div className="flex items-center gap-2 flex-shrink-0">
             {/* Mobile hamburger */}
             <div className="skeleton-line size-8 rounded-lg sm:hidden" />

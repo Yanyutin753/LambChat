@@ -33,6 +33,6 @@ test("chat-tool-btn 仅保留水平 padding，垂直居中交给固定高度", (
   expect(block).toMatch(/padding:\s*0 0\.5rem/);
 });
 
-test("用量 chip 字号保持 text-16 不缩水（高度修复在 CSS 层而非砍字号）", () => {
-  expect(usageChipSource).toMatch(/text-16 font-semibold/);
+test("用量 chip 与名称标签共用 text-14 和 20px 行高", () => {
+  expect(usageChipSource).toMatch(/text-14 leading-5 font-semibold/);
 });

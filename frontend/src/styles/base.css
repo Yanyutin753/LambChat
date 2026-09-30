@@ -5,14 +5,14 @@
   }
   html[data-right-panel-presentation="docked"],
   html[data-right-panel-presentation="docked"] body {
-    background: var(--theme-bg);
+    background: var(--desktop-canvas-bg, var(--theme-bg));
   }
   html[data-right-panel-presentation="docked"] body::before {
     content: "";
     position: fixed;
     inset: 0 0 0 auto;
     width: var(--right-panel-active-width, 0px);
-    background: var(--theme-bg);
+    background: var(--desktop-canvas-bg, var(--theme-bg));
     pointer-events: none;
     z-index: 199;
   }
@@ -279,10 +279,6 @@ html[data-mobile-keyboard="true"] #root {
   line-height: 1.25rem;
 }
 .sidebar-nav-btn:hover {
-  background-color: var(
-    --glass-bg-subtle,
-    color-mix(in srgb, var(--theme-bg) 80%, white)
-  );
   color: var(--theme-text);
 }
 

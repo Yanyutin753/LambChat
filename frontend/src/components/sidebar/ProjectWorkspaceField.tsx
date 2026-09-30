@@ -101,7 +101,7 @@ export function ProjectWorkspaceDetails({
         aria-label={t("projectWorkspace.details")}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="flex size-7 items-center justify-center rounded-md text-theme-text-tertiary hover:bg-theme-bg-subtle focus-visible:outline focus-visible:outline-2"
+        className="flex h-8 w-8 max-sm:h-9 max-sm:w-9 shrink-0 items-center justify-center rounded-md text-theme-text-tertiary focus-visible:outline focus-visible:outline-2"
       >
         <Info size={14} aria-hidden="true" />
       </button>

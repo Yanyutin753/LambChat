@@ -204,7 +204,7 @@ export const FeatureMenu = memo(function FeatureMenu({
         className="chat-tool-btn"
         aria-label={t("chat.features", "功能")}
       >
-        <Plus size={18} />
+        <Plus size={16} />
       </button>
 
       {isOpen &&

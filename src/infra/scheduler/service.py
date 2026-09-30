@@ -207,6 +207,7 @@ class ScheduledTaskService:
         created_by: Optional[str] = None,
         skip: int = 0,
         limit: int = 20,
+        search: Optional[str] = None,
     ) -> tuple[list[ScheduledTaskResponse], int]:
         """List tasks with pagination, scoped by owner_id."""
         storage = get_scheduled_task_storage()
@@ -217,6 +218,7 @@ class ScheduledTaskService:
             created_by=created_by,
             skip=skip,
             limit=limit,
+            search=search,
         )
         unread_counts = await SessionStorage().get_unread_counts_for_scheduled_tasks(
             user_id=owner_id,

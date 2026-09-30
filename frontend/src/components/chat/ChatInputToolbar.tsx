@@ -266,7 +266,7 @@ export function ChatInputToolbar({
           !selectedPersonaName &&
           !(currentAgent === "team" && onSelectTeam && selectedTeamId) && (
             <ToolbarChip
-              icon={<AgentIcon icon={agentIcon || "Bot"} size={18} />}
+              icon={<AgentIcon icon={agentIcon || "Bot"} size={16} />}
               label={agentName || t(`agents.${currentAgent}.name`) || ""}
               onClick={() => onActivePanelChange("agent")}
             />
@@ -285,7 +285,7 @@ export function ChatInputToolbar({
                       : personaAvatar.avatar
                   }
                   alt=""
-                  className="w-[18px] h-[18px] rounded-full object-cover group-hover:opacity-0 transition-opacity"
+                  className="w-4 h-4 rounded-full object-cover group-hover:opacity-0 transition-opacity"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = "none";
                   }}
@@ -294,7 +294,7 @@ export function ChatInputToolbar({
                 <PersonaAvatarIcon
                   avatar={personaAvatar?.avatar}
                   primaryTag={personaAvatar?.primaryTag ?? ""}
-                  size={18}
+                  size={16}
                   className="transition-transform duration-200 group-hover:opacity-0"
                 />
               )
@@ -317,7 +317,7 @@ export function ChatInputToolbar({
                 }
                 label={selectedTeamName ?? t("chat.teamSelected")}
                 className="team-toolbar-avatar transition-opacity group-hover:opacity-0"
-                iconSize={18}
+                iconSize={16}
               />
             }
             label={selectedTeamName ?? t("chat.teamSelected")}
@@ -334,7 +334,7 @@ export function ChatInputToolbar({
           <ToolbarChip
             icon={
               // 手机端档位文字隐藏，档位靠图标区分：云端=云图标，本地=显示器图标
-              sandboxChipLocal ? <Monitor size={18} /> : <Cloud size={18} />
+              sandboxChipLocal ? <Monitor size={16} /> : <Cloud size={16} />
             }
             label={sandboxLabel || ""}
             title={sandboxChipTitle}
@@ -415,7 +415,7 @@ export function ChatInputToolbar({
             }}
             title={t("chat.noPermission")}
           >
-            <Lock size={18} />
+            <Lock size={16} />
           </button>
         ) : sendBlocked ? (
           <button
@@ -428,7 +428,7 @@ export function ChatInputToolbar({
             }}
             title={t("chat.waitingForHuman", "等待人工确认后才能发送")}
           >
-            <ArrowUp size={18} />
+            <ArrowUp size={16} />
           </button>
         ) : isLoading &&
           hasDraft &&
@@ -459,7 +459,7 @@ export function ChatInputToolbar({
               "追加消息（当前任务结束后发送）",
             )}
           >
-            <ArrowUp size={18} />
+            <ArrowUp size={16} />
           </button>
         ) : isLoading ? (
           <button
@@ -504,7 +504,7 @@ export function ChatInputToolbar({
                 : t("chat.send")
             }
           >
-            <ArrowUp size={18} />
+            <ArrowUp size={16} />
           </button>
         )}
       </div>

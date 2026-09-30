@@ -421,6 +421,7 @@ export function NotificationPanel() {
       {/* Header */}
       <PanelHeader
         title={t("notification.title")}
+        subtitle={t("notification.subtitle")}
         illustration="panel-notifications"
         actions={
           <Button

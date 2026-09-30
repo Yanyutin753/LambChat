@@ -5,19 +5,34 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const frontendRoot = resolve(__dirname, "../../../../..");
 
-test("sidebar renders a standalone pinned section above the chats section", () => {
+test("session titles omit the pin icon while preserving the pin menu state", () => {
+  const source = readFileSync(
+    resolve(frontendRoot, "src/components/sidebar/SessionItem.tsx"),
+    "utf8",
+  );
+  expect(source).not.toMatch(/<Pin\s/);
+  expect(source).toMatch(/isPinned=\{isPinned\}/);
+});
+
+test("sidebar renders a standalone pinned section before projects and recent chats", () => {
   const source = readFileSync(
     resolve(__dirname, "../SessionListContent.tsx"),
     "utf8",
   );
 
   const pinnedHeader = source.indexOf('t("sidebar.pinnedChats")');
-  const chatsHeader = source.indexOf('t("sidebar.chats")');
+  const projectsHeader = source.indexOf('t("sidebar.projects")');
+  const chatsHeader = source.indexOf('t("sidebar.recentChats")');
   expect(pinnedHeader).toBeGreaterThan(-1);
-  expect(chatsHeader).toBeGreaterThan(pinnedHeader);
+  expect(projectsHeader).toBeGreaterThan(pinnedHeader);
+  expect(chatsHeader).toBeGreaterThan(projectsHeader);
 
-  // 置顶分类渲染会话条目（SessionItem），且未置顶时整个分类隐藏
-  expect(source).toMatch(/pinnedSessions\.length > 0 \|\| isPinnedLoading/);
+  // 没有置顶对话时仍保留拖放入口
+  expect(source).toMatch(/data-pinned-drop/);
+  expect(source).not.toMatch(
+    /pinnedSessions\.length > 0 \|\| isPinnedLoading \?/,
+  );
+  expect(source).toMatch(/sessionActions\.onPinSession\(sessionId\)/);
 });
 
 test("session api and list hook forward pinned_only to the backend", () => {
@@ -42,4 +57,45 @@ test("toggling pin refreshes the standalone pinned list", () => {
     "utf8",
   );
   expect(actionsSource).toMatch(/pinnedList\?\.softRefresh\(\)/);
+});
+
+test("collapsed sidebar sections do not retain standalone spacer rows", () => {
+  const source = readFileSync(
+    resolve(__dirname, "../SessionListContent.tsx"),
+    "utf8",
+  );
+  expect(source).not.toMatch(/<div className="mt-4" \/>/);
+});
+
+test("projects and pins default to collapsed while recent chats default to expanded", () => {
+  const source = readFileSync(
+    resolve(__dirname, "../../SessionSidebar.tsx"),
+    "utf8",
+  );
+  expect(source).toMatch(
+    /PROJECTS_COLLAPSED_STORAGE_KEY\);\s*return saved !== "false"/,
+  );
+  expect(source).toMatch(
+    /PINNED_COLLAPSED_STORAGE_KEY\);\s*return saved !== "false"/,
+  );
+  expect(source).toMatch(
+    /CHATS_COLLAPSED_STORAGE_KEY\);\s*return saved === "true"/,
+  );
+});
+
+test("touch drag supports pinned targets and cancels without dropping", () => {
+  const source = readFileSync(
+    resolve(frontendRoot, "src/hooks/useTouchDrag.ts"),
+    "utf8",
+  );
+  expect(source).toMatch(/data-pinned-drop/);
+  expect(source).toMatch(/touchcancel/);
+});
+test("pin drops request pinning without toggling existing pins", () => {
+  const source = readFileSync(
+    resolve(frontendRoot, "src/hooks/useSessionSidebarActions.ts"),
+    "utf8",
+  );
+  expect(source).toMatch(/pinOnly/);
+  expect(source).toMatch(/isSessionPinned/);
 });

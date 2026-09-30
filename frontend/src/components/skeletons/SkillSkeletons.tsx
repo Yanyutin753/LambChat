@@ -21,10 +21,13 @@ function SkillCardsSkeleton({
       }
     >
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="scb flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none dark:border dark:border-[var(--theme-border)]">
+        <div
+          key={i}
+          className="scb flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none dark:border dark:border-[var(--theme-border)]"
+        >
           {/* Banner — matches scb__banner h-12 with 45deg gradient */}
           <div
-            className="h-12 w-full shrink-0 relative"
+            className="scb__banner h-12 w-full shrink-0 relative"
             style={{
               background: `linear-gradient(45deg, ${
                 [
@@ -177,7 +180,12 @@ function SkillCardsSkeleton({
 export function SkillsListSkeleton() {
   return (
     <div className="flex h-full min-h-0 flex-col animate-fade-in">
-      <PanelHeaderSkeleton searchOnly hasSearchAccessory hasSearchActions hasActions={false} />
+      <PanelHeaderSkeleton
+        searchOnly
+        hasSearchAccessory
+        hasSearchActions
+        hasActions={false}
+      />
       <div className="panel-body flex-1 min-h-0 overflow-y-auto skill-content-area">
         <SkillCardsSkeleton />
       </div>
@@ -200,10 +208,20 @@ export function SkillsPanelSkeleton() {
 }
 
 /** Marketplace panel: card grid matching SkillBaseCard (.scb) structure */
-export function MarketplacePanelSkeleton({ embedded = false }: { embedded?: boolean }) {
+export function MarketplacePanelSkeleton({
+  embedded = false,
+}: {
+  embedded?: boolean;
+}) {
   return (
     <div className="skill-theme-shell flex h-full flex-col min-h-0 animate-fade-in">
-      <PanelHeaderSkeleton searchOnly={embedded} hasSubtitle={!embedded} hasSearchAccessory hasSearchActions={embedded} hasActions={!embedded} />
+      <PanelHeaderSkeleton
+        searchOnly={embedded}
+        hasSubtitle={!embedded}
+        hasSearchAccessory
+        hasSearchActions={embedded}
+        hasActions={!embedded}
+      />
       <div className="panel-body flex-1 min-h-0 overflow-y-auto skill-content-area">
         <SkillCardsSkeleton marketplace />
       </div>
@@ -213,17 +231,36 @@ export function MarketplacePanelSkeleton({ embedded = false }: { embedded?: bool
 }
 
 /** Route fallback includes the hub identity and tabs; embedded loaders do not. */
-export function SkillsHubSkeleton({ marketplace = false }: { marketplace?: boolean }) {
+export function SkillsHubSkeleton({
+  marketplace = false,
+}: {
+  marketplace?: boolean;
+}) {
   return (
     <div className="skill-theme-shell flex h-full min-h-0 flex-col">
-      <PanelHeaderSkeleton hasSearch={false} hasSubtitle hasActions={false} className="panel-header--desktop-identity" />
-      <div className="skills-hub-tabs font-serif" aria-hidden="true">
-        <div className="skills-hub-tabs__group">
-          {[0, 1].map(tab => <div key={tab} className="skills-hub-tabs__item"><div className="skeleton-line size-4 rounded" /><SkeletonLine width="w-16" /></div>)}
-        </div>
-      </div>
+      <PanelHeaderSkeleton
+        hasSearch={false}
+        hasSubtitle
+        className="panel-header--section-switch"
+        actions={
+          <div className="skills-hub-tabs font-serif" aria-hidden="true">
+            <div className="skills-hub-tabs__group">
+              {[0, 1].map((tab) => (
+                <div key={tab} className="skills-hub-tabs__item">
+                  <div className="skeleton-line size-4 rounded" />
+                  <SkeletonLine width="w-16" />
+                </div>
+              ))}
+            </div>
+          </div>
+        }
+      />
       <div className="min-h-0 flex-1 overflow-hidden">
-        {marketplace ? <MarketplacePanelSkeleton embedded /> : <SkillsListSkeleton />}
+        {marketplace ? (
+          <MarketplacePanelSkeleton embedded />
+        ) : (
+          <SkillsListSkeleton />
+        )}
       </div>
     </div>
   );

@@ -318,6 +318,9 @@
     "previous": "前の項目",
     "reject": "拒否",
     "scheduledTask": {
+      "searchPlaceholder": "タスク名や説明を検索…",
+      "noResults": "一致する定期タスクはありません",
+      "noResultsDesc": "別のキーワードを試すか、ステータスの絞り込みを変更してください。",
       "agent": "エージェント",
       "confirmCreation": "このスケジュールタスクの作成を確認してください。",
       "effect": "作成後、エージェント「{{agent}}」が {{schedule}} で実行されます。各実行で新しいセッションが開始され、以下のプロンプトがエージェントに送信されます：",
@@ -1571,6 +1574,7 @@
       "monthsAgo": "{{count}}ヶ月前"
     },
     "title": "ファイルライブラリ",
+    "subtitle": "アップロードしたファイルと生成されたファイルを管理",
     "tryDifferent": "別のキーワードで検索してください",
     "types": {
       "all": "すべて",
@@ -2065,6 +2069,7 @@
     "taskCompleted": "タスク完了",
     "taskFailed": "タスク失敗",
     "title": "お知らせ",
+    "subtitle": "お知らせとメッセージを確認・管理",
     "titleLabel": "タイトル",
     "typeInfo": "お知らせ",
     "typeLabel": "タイプ",
@@ -2460,6 +2465,9 @@
     }
   },
   "scheduledTask": {
+    "searchPlaceholder": "タスク名や説明を検索…",
+    "noResults": "一致する定期タスクはありません",
+    "noResultsDesc": "別のキーワードを試すか、ステータスの絞り込みを変更してください。",
     "active": "実行中",
     "agent": "エージェント",
     "agentPlaceholder": "エージェントを選択...",
@@ -2546,6 +2554,7 @@
     "timeout": "タイムアウト",
     "timeoutSeconds": "タイムアウト（秒）",
     "title": "定期タスク",
+    "subtitle": "タスクを自動実行し、実行履歴を確認",
     "totalRuns": "合計実行回数",
     "triggerType": "トリガータイプ",
     "triggeredSuccess": "タスクをトリガーしました",

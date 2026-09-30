@@ -10,7 +10,10 @@ function cssBlock(sourceText: string, selector: string): string {
   return match[1];
 }
 
-const componentsCss = source("../../../styles/components.css");
+const componentsCss = source("../../../styles/components.css").replace(
+  /\s+/g,
+  " ",
+);
 
 test("panel search inputs use an editing-safe shared input", () => {
   const panelHeader = source("../PanelHeader.tsx");
@@ -72,7 +75,7 @@ test("panel headers move mobile actions into a search-row overflow menu", () => 
   expect(componentsCss).toMatch(/\.panel-header__search-accessory/);
   expect(componentsCss).toMatch(/\.panel-header__mobile-menu-accessory/);
   expect(componentsCss).toMatch(
-    /\.panel-header__actions > :is\(button, a, select\),[\s\S]*?\.panel-header__search-actions > \.flex > :is\(button, a, select\)\s*\{[\s\S]*?height:\s*2\.5rem;[\s\S]*?min-height:\s*2\.5rem;/,
+    /\.panel-header__actions > :is\(button, a, select\),[\s\S]*?\.panel-header__search-actions > \.flex:not\(\.file-library-view-switch\) > :is\(button, a, select\)\s*\{[\s\S]*?height:\s*2\.5rem;[\s\S]*?min-height:\s*2\.5rem;/,
   );
   expect(componentsCss).toMatch(
     /\.panel-header__mobile-menu-accessory\s*>\s*:is\(\.relative, \.flex, \.panel-header-actions\),\s*\.panel-header__mobile-menu-item\s*>\s*:is\(\.relative, \.flex, \.panel-header-actions\)\s*\{[\s\S]*?display:\s*grid;[\s\S]*?width:\s*100%;[\s\S]*?gap:\s*0\.375rem;/,

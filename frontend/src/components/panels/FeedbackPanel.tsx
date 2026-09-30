@@ -42,7 +42,7 @@ function RatingSummary({ stats }: { stats: FeedbackStats }) {
   const upPct = stats.up_percentage;
 
   return (
-    <div className="panel-summary mb-4 p-4 rounded-2xl bg-gradient-to-br from-stone-50 via-white to-stone-50 dark:from-stone-800 dark:via-stone-800/80 dark:to-stone-900 border border-stone-200/60 dark:border-stone-700/50">
+    <div className="panel-summary mb-4 p-4 rounded-2xl bg-theme-bg-card border border-theme-border">
       <div className="flex items-center gap-5">
         {/* Left: big percentage */}
         <div className="flex flex-col items-center flex-shrink-0">

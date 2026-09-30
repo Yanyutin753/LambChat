@@ -318,6 +318,9 @@
     "previous": "이전 항목",
     "reject": "거부",
     "scheduledTask": {
+      "searchPlaceholder": "작업 이름 또는 설명 검색…",
+      "noResults": "일치하는 예약 작업이 없습니다",
+      "noResultsDesc": "다른 검색어를 입력하거나 상태 필터를 변경하세요.",
       "agent": "에이전트",
       "confirmCreation": "이 예약 작업의 생성을 확인해 주세요.",
       "effect": "생성 후 에이전트 '{{agent}}'이(가) {{schedule}}에 실행됩니다. 각 실행 시 새 세션이 시작되고 다음 프롬프트가 에이전트에 전송됩니다:",
@@ -1571,6 +1574,7 @@
       "monthsAgo": "{{count}}개월 전"
     },
     "title": "파일 라이브러리",
+    "subtitle": "업로드 및 생성된 파일을 관리하세요",
     "tryDifferent": "다른 검색어를 시도해보세요",
     "types": {
       "all": "전체",
@@ -2065,6 +2069,7 @@
     "taskCompleted": "작업 완료",
     "taskFailed": "작업 실패",
     "title": "알림",
+    "subtitle": "공지와 메시지를 확인하고 관리하세요",
     "titleLabel": "제목",
     "typeInfo": "정보",
     "typeLabel": "유형",
@@ -2460,6 +2465,9 @@
     }
   },
   "scheduledTask": {
+    "searchPlaceholder": "작업 이름 또는 설명 검색…",
+    "noResults": "일치하는 예약 작업이 없습니다",
+    "noResultsDesc": "다른 검색어를 입력하거나 상태 필터를 변경하세요.",
     "active": "실행 중",
     "agent": "에이전트",
     "agentPlaceholder": "에이전트 선택...",
@@ -2546,6 +2554,7 @@
     "timeout": "시간 초과",
     "timeoutSeconds": "타임아웃 (초)",
     "title": "예약 작업",
+    "subtitle": "작업을 예약하고 실행 기록을 확인하세요",
     "totalRuns": "총 실행 횟수",
     "triggerType": "트리거 유형",
     "triggeredSuccess": "작업이 트리거되었습니다",

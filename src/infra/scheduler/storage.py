@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from typing import Any, Optional
 
 from pymongo.errors import DuplicateKeyError
@@ -149,6 +150,7 @@ class ScheduledTaskStorage:
         created_by: Optional[str] = None,
         skip: int = 0,
         limit: int = 20,
+        search: Optional[str] = None,
     ) -> tuple[list[ScheduledTask], int]:
         """List tasks with pagination, scoped by owner_id."""
         query: dict[str, Any] = {"owner_id": owner_id}
@@ -160,6 +162,9 @@ class ScheduledTaskStorage:
             query["source_session_id"] = source_session_id
         if created_by:
             query["created_by"] = created_by
+        if search and search.strip():
+            pattern = {"$regex": re.escape(search.strip()), "$options": "i"}
+            query["$or"] = [{"name": pattern}, {"description": pattern}]
         collection = self._get_collection(_COLL_TASKS)
 
         async def _fetch_tasks() -> list[ScheduledTask]:

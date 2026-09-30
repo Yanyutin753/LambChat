@@ -11,7 +11,13 @@ import {
   useImperativeHandle,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { MoreHorizontal, Plus } from "lucide-react";
+import {
+  FolderClosed,
+  FolderOpen,
+  MoreHorizontal,
+  Plus,
+  Star,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import type { BackendSession } from "../../services/api/session";
 import type { Project } from "../../types";
@@ -22,7 +28,6 @@ import { ProjectMenu } from "./ProjectMenu";
 import { ProjectWorkspaceDetails } from "./ProjectWorkspaceField";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { Tooltip } from "../common/Tooltip";
-import { DynamicIcon } from "../common/DynamicIcon";
 import { isSessionFavorite } from "./sessionFavorites";
 import { isSessionPinned } from "./sessionPin";
 import { shouldAutoExpandProject } from "./autoExpandProject";
@@ -94,7 +99,6 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
       forceExpandProjectId,
       onConsumeAutoExpand,
       unreadBySession = new Map(),
-      onUpdateIcon,
       onUpdateWorkspace,
       scrollRoot,
       favoritesOnly = false,
@@ -187,22 +191,6 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
       setIsMenuOpen(false);
     };
 
-    const [isEditingIcon, setIsEditingIcon] = useState(false);
-    const [editIcon, setEditIcon] = useState("");
-
-    const handleStartIconEdit = () => {
-      setEditIcon(project.icon || "📁");
-      setIsEditingIcon(true);
-    };
-
-    const handleSaveIcon = () => {
-      const trimmedIcon = editIcon.trim() || "📁";
-      setIsEditingIcon(false);
-      if (trimmedIcon !== project.icon) {
-        onUpdateIcon?.(project.id, trimmedIcon);
-      }
-    };
-
     // Focus input when editing starts
     useEffect(() => {
       if (isEditing && inputRef.current) {
@@ -285,7 +273,11 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
 
     // Drag and drop handlers
     const handleDragOver = (e: React.DragEvent) => {
-      if (favoritesOnly) return;
+      if (
+        favoritesOnly ||
+        !e.dataTransfer.types.includes("application/x-lambchat-session")
+      )
+        return;
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
       setIsDragOver(true);
@@ -301,11 +293,17 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
     };
 
     const handleDrop = (e: React.DragEvent) => {
-      if (favoritesOnly) return;
+      if (
+        favoritesOnly ||
+        !e.dataTransfer.types.includes("application/x-lambchat-session")
+      )
+        return;
       e.preventDefault();
       setIsDragOver(false);
 
-      const sessionId = e.dataTransfer.getData("text/plain");
+      const sessionId = e.dataTransfer.getData(
+        "application/x-lambchat-session",
+      );
       if (sessionId) {
         onMoveSession(sessionId, project.id);
       }
@@ -321,44 +319,28 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
           onDrop={handleDrop}
           data-project-drop={favoritesOnly ? undefined : true}
           data-project-id={favoritesOnly ? undefined : project.id}
-          className={`group relative flex cursor-pointer items-center gap-3 h-10 rounded-[10px] px-[9px] transition-colors ${
+          className={`sidebar-action-row group relative flex cursor-pointer items-center gap-2 h-8 max-sm:h-10 rounded-[10px] px-[9px] transition-colors ${
             (!favoritesOnly && isDragOver) ||
             (!favoritesOnly && draggingSessionId)
               ? "bg-stone-200/60 dark:bg-stone-700/40 ring-1 ring-inset ring-stone-300 dark:ring-stone-600"
               : isExpanded
-                ? "bg-stone-100/60 dark:bg-stone-800/40"
-                : "hover:bg-stone-100 dark:hover:bg-stone-800/30"
+                ? "bg-stone-100 dark:bg-stone-700/50"
+                : ""
           }`}
         >
-          {/* Project icon - editable */}
-          {isEditingIcon ? (
-            <input
-              type="text"
-              value={editIcon}
-              onChange={(e) => setEditIcon(e.target.value)}
-              onBlur={handleSaveIcon}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSaveIcon();
-                if (e.key === "Escape") setIsEditingIcon(false);
-              }}
-              className="w-16 text-12 bg-white dark:bg-stone-700 border border-stone-300 dark:border-stone-500 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-stone-400"
-              autoFocus
-            />
-          ) : (
-            <Tooltip content={t("sidebar.clickToEditIcon")}>
-              <button
-                onClick={handleStartIconEdit}
-                aria-label={t("sidebar.clickToEditIcon")}
-                className="flex-shrink-0 hover:opacity-70 transition-opacity"
-              >
-                <DynamicIcon
-                  name={project.icon}
-                  size={20}
-                  className="text-primary text-20"
-                />
-              </button>
-            </Tooltip>
-          )}
+          {/* Project icon */}
+          <span
+            className="shrink-0 text-theme-text-secondary"
+            aria-hidden="true"
+          >
+            {isFavorites ? (
+              <Star size={16} />
+            ) : isExpanded ? (
+              <FolderOpen size={16} />
+            ) : (
+              <FolderClosed size={16} />
+            )}
+          </span>
 
           {/* Project name - editable or display */}
           <div className="min-w-0 flex-1">
@@ -379,25 +361,29 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
                 type="button"
                 onClick={handleToggle}
                 aria-expanded={isExpanded}
-                className="block h-10 w-full rounded text-left truncate text-13 font-serif text-stone-600 dark:text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-300 transition-colors motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
+                className="block h-8 max-sm:h-10 w-full rounded text-left truncate text-13 font-serif text-stone-700 dark:text-stone-300 group-hover:text-stone-700 dark:group-hover:text-stone-300 transition-colors motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
               >
                 {isFavorites ? t("sidebar.favorites") : project.name}
               </button>
             )}
           </div>
-          {!isEditing && project.workspace && (
-            <ProjectWorkspaceDetails value={project.workspace} />
-          )}
-
           {/* Project actions */}
-          <div className="flex shrink-0 items-center gap-1">
+          <div
+            className="flex shrink-0 items-center gap-1 sidebar-action-reveal"
+            style={isTouched || isMenuOpen ? { opacity: 1 } : undefined}
+          >
+            {!isEditing && project.workspace && (
+              <ProjectWorkspaceDetails value={project.workspace} />
+            )}
             {!isEditing && unreadCount > 0 && (
               <div className="flex h-8 w-8 shrink-0 items-center justify-center max-sm:h-9 max-sm:w-9">
                 <MarkAllReadBadge
                   count={unreadCount}
                   badgeId={`project-${project.id}`}
                   markingReadId={markingReadId ?? null}
-                  onMarkAllRead={() => onMarkAllRead?.({ projectId: project.id })}
+                  onMarkAllRead={() =>
+                    onMarkAllRead?.({ projectId: project.id })
+                  }
                   tooltip={t("sidebar.markAllRead")}
                 />
               </div>
@@ -405,7 +391,9 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
 
             {!isFavorites && !isEditing && onNewSessionInProject && (
               <Tooltip
-                content={t("sidebar.newChatInProject", { project: project.name })}
+                content={t("sidebar.newChatInProject", {
+                  project: project.name,
+                })}
               >
                 <button
                   type="button"
@@ -413,7 +401,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
                   aria-label={t("sidebar.newChatInProject", {
                     project: project.name,
                   })}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-stone-500 hover:bg-stone-200/60 hover:text-stone-700 dark:text-stone-400 dark:hover:bg-stone-700/60 dark:hover:text-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] max-sm:h-9 max-sm:w-9"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] max-sm:h-9 max-sm:w-9"
                 >
                   <Plus size={16} aria-hidden="true" />
                 </button>
@@ -427,8 +415,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
                   ref={menuButtonRef}
                   onClick={handleMenuClick}
                   aria-label={t("sidebar.moreOptions")}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center max-sm:h-9 max-sm:w-9 rounded p-0.5 hover:bg-stone-200/60 dark:hover:bg-stone-700/60 transition-all opacity-0 group-hover:opacity-100 [&:not(:placeholder-shown)]:opacity-100 max-sm:opacity-100"
-                  style={isTouched ? { opacity: 1 } : undefined}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center max-sm:h-9 max-sm:w-9 rounded p-0.5 transition-colors"
                 >
                   <MoreHorizontal
                     size={14}
@@ -442,7 +429,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
 
         {/* Expandable content - sessions list with independent pagination */}
         {isExpanded && (
-          <div className="ml-3 mt-0.5 flex flex-col gap-px">
+          <div className="ms-6 mt-0.5 mb-2 flex flex-col gap-px">
             {isLoading ? (
               <div className="flex justify-center py-4">
                 <LoadingSpinner size="sm" color="text-[var(--theme-primary)]" />
@@ -501,7 +488,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
               <button
                 type="button"
                 onClick={() => onNewSessionInProject(project.id)}
-                className="flex min-h-10 items-center gap-2 rounded-md px-3 text-left text-13 text-stone-500 hover:bg-stone-100 hover:text-stone-700 dark:text-stone-400 dark:hover:bg-stone-800/30 dark:hover:text-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
+                className="flex min-h-10 items-center gap-2 rounded-md px-3 text-left text-13 text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
               >
                 <Plus size={14} className="shrink-0" aria-hidden="true" />
                 {t("sidebar.startFirstChat")}

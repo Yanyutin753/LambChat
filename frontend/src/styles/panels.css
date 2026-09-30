@@ -64,17 +64,27 @@
   line-height: 1.5;
 }
 [data-panel] .panel-header__subtitle {
-  margin-top: 0.25rem;
+  margin-top: 0.125rem;
   font-size: 0.875rem;
   line-height: 1.5;
   white-space: normal;
   overflow-wrap: anywhere;
+}
+[data-panel] .panel-header.panel-header--has-search {
+  padding-bottom: 0;
 }
 [data-panel] .panel-header__search-row {
   margin-top: var(--panel-gap);
 }
 [data-panel] .panel-header--search-only .panel-header__search-row {
   margin-top: 0;
+}
+/* The skills hub splits its title and search across two headers. */
+[data-panel] .skill-theme-shell > .panel-header--section-switch {
+  padding-bottom: 0;
+}
+[data-panel] .skill-theme-shell .panel-header--search-only {
+  padding-block: var(--panel-gap) 0;
 }
 [data-panel] :is(.panel-stack, .panel-sections) {
   display: flex;
@@ -92,6 +102,13 @@
 }
 [data-panel] :is(.settings-toolbar, .file-library-toolbar) {
   padding-block: var(--panel-header-block);
+}
+/* Files split the search header across two rows; keep one gap at each boundary. */
+[data-panel="files"] .panel-header.panel-header--desktop-identity {
+  padding-bottom: 0;
+}
+[data-panel] .file-library-toolbar {
+  padding-block: var(--panel-gap) 0;
 }
 [data-panel] .settings-content {
   min-height: 0;

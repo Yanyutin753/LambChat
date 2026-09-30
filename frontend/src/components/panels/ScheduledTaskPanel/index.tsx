@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -76,8 +76,11 @@ export function ScheduledTaskPanel({
   const { taskId } = useParams<{ taskId?: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState("");
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const requestIdRef = useRef(0);
   const [total, setTotal] = useState(0);
   const [skip, setSkip] = useState(0);
   const [limit] = useState(20);
@@ -159,19 +162,27 @@ export function ScheduledTaskPanel({
 
   // Fetch tasks
   const fetchTasks = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     try {
-      const response = await scheduledTaskApi.list(skip, limit, statusFilter);
+      const response = await scheduledTaskApi.list(skip, limit, statusFilter, {
+        search: searchQuery,
+      });
+      if (requestId !== requestIdRef.current) return;
       setTasks(response.items);
       setTotal(response.total);
     } catch (error) {
+      if (requestId !== requestIdRef.current) return;
       const message =
         error instanceof Error ? error.message : t("common.loadFailed");
       toast.error(message);
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) {
+        setIsLoading(false);
+        setHasLoaded(true);
+      }
     }
-  }, [skip, limit, statusFilter, t]);
+  }, [skip, limit, statusFilter, searchQuery, t]);
 
   useEffect(() => {
     fetchTasks();
@@ -375,7 +386,7 @@ export function ScheduledTaskPanel({
   };
 
   // Show skeleton during initial data loading — consistent with other panels
-  if (isLoading && tasks.length === 0 && !taskId) {
+  if (isLoading && !hasLoaded && !taskId) {
     return <ScheduledTaskPanelSkeleton />;
   }
 
@@ -387,7 +398,14 @@ export function ScheduledTaskPanel({
         <>
           <PanelHeader
             title={t("scheduledTask.title")}
+            subtitle={t("scheduledTask.subtitle")}
             illustration="panel-schedule"
+            searchValue={searchQuery}
+            onSearchChange={(value) => {
+              setSearchQuery(value);
+              setSkip(0);
+            }}
+            searchPlaceholder={t("scheduledTask.searchPlaceholder")}
             actions={
               <PanelHeaderActions>
                 <StatusFilter value={statusFilter} onChange={setStatusFilter} />
@@ -414,10 +432,18 @@ export function ScheduledTaskPanel({
                   <Clock size={32} />
                 </div>
                 <p className="scheduled-task-empty-state__title font-serif">
-                  {t("scheduledTask.noTasks")}
+                  {t(
+                    searchQuery.trim()
+                      ? "scheduledTask.noResults"
+                      : "scheduledTask.noTasks",
+                  )}
                 </p>
                 <p className="scheduled-task-empty-state__body">
-                  {t("scheduledTask.noTasksDesc")}
+                  {t(
+                    searchQuery.trim()
+                      ? "scheduledTask.noResultsDesc"
+                      : "scheduledTask.noTasksDesc",
+                  )}
                 </p>
               </div>
             ) : (

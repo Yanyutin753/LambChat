@@ -149,6 +149,7 @@ export function Toolbar({
 
       <PanelHeader
         title={t("fileLibrary.title")}
+        subtitle={t("fileLibrary.subtitle")}
         illustration="panel-files"
         className="panel-header--desktop-identity"
         actions={viewSwitcher}

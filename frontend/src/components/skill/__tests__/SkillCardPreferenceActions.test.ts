@@ -11,6 +11,33 @@ vi.mock("react-i18next", async (original) => ({
 }));
 afterEach(cleanup);
 
+test("disabled skills keep the same card surface and retain their status", () => {
+  const toggle = vi.fn();
+  const { container } = render(
+    createElement(SkillCard, {
+      skill: {
+        name: "research",
+        description: "Research notes",
+        tags: [],
+        enabled: false,
+        source: "manual",
+        files: {},
+        file_count: 1,
+        installed_from: "manual",
+        is_published: false,
+        marketplace_is_active: true,
+      },
+      onToggle: toggle,
+      onEdit: vi.fn(),
+      onDelete: vi.fn(),
+    }),
+  );
+  expect(container.querySelector(".scb--muted")).toBeNull();
+  expect(screen.getByText("skills.card.disabled")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "skills.card.enable" }));
+  expect(toggle).toHaveBeenCalledWith("research");
+});
+
 test("favorite and pin actions preserve preferences without opening the editor", () => {
   const skill: SkillResponse = {
     name: "research",

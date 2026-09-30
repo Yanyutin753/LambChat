@@ -203,7 +203,10 @@ export function DesktopSidebarShell({
   };
 
   return (
-    <div className={wide ? "relative flex h-full shrink-0" : "contents"}>
+    <div
+      data-desktop-sidebar-shell={wide ? "" : undefined}
+      className={wide ? "relative flex h-full shrink-0" : "contents"}
+    >
       {wide && (
         <DesktopActivityRail
           collapsed={collapsed}
@@ -313,16 +316,10 @@ export function DesktopSidebarShell({
           aria-valuemin={MIN_WIDTH}
           aria-valuemax={clampWidth(MAX_WIDTH_CAP)}
           aria-valuenow={width}
-          className="group/sidebar-resize absolute inset-y-0 -right-[3px] z-10 flex w-[7px] touch-none cursor-col-resize items-stretch focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+          data-resizing={resizing || undefined}
+          className="workspace-resize-handle group/sidebar-resize absolute inset-y-0 -right-2 z-10 flex touch-none cursor-col-resize items-stretch"
         >
-          <div
-            className={clsx(
-              "mx-auto h-full w-px transition-colors",
-              resizing
-                ? "bg-[var(--theme-primary)]"
-                : "bg-transparent group-hover/sidebar-resize:bg-[var(--theme-border-hover)]",
-            )}
-          />
+          <div />
         </div>
       )}
     </div>

@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { createPortal } from "react-dom";
 import { MessageSquare, Star, Download, ExternalLink } from "lucide-react";
 import type { RevealedFileItem } from "../../../services/api";
 import { getFullUrl } from "../../../services/api";
@@ -76,10 +77,10 @@ export function FileContextMenu({
       : []),
   ];
 
-  return (
+  return createPortal(
     <div
       ref={menuRef}
-      className="fixed z-[999] bg-theme-bg-card shadow-xl rounded-xl border border-theme-border p-1 min-w-[240px]"
+      className="fixed z-[999] bg-theme-bg-card shadow-xl rounded-xl border border-theme-border p-1 w-max min-w-[240px] max-w-[calc(100vw-16px)] max-h-[calc(100dvh-16px)] overflow-auto"
       style={{ position: "fixed", top: menu.y, left: menu.x }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -92,9 +93,12 @@ export function FileContextMenu({
           <div className="size-5 flex items-center justify-center shrink-0">
             <item.icon size={16} className="text-theme-text-secondary" />
           </div>
-          <span className="flex-1 text-left">{item.label}</span>
+          <span className="flex-1 text-left whitespace-nowrap">
+            {item.label}
+          </span>
         </button>
       ))}
-    </div>
+    </div>,
+    document.body,
   );
 }

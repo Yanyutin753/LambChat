@@ -96,7 +96,7 @@ export function ZipUploadModal({
           className={`group relative flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-6 py-10 transition-all duration-200 ${
             isDragging
               ? "border-[var(--theme-primary)] bg-[var(--theme-primary-light)]/40 scale-[1.01]"
-              : "border-[var(--theme-border)] bg-[var(--theme-bg)]/60 hover:border-[var(--theme-primary)]/50 hover:bg-[var(--theme-bg)]/90"
+              : "border-[var(--theme-border)] bg-[var(--theme-bg-subtle)]/60 hover:border-[var(--theme-primary)]/50 hover:bg-[var(--theme-bg-subtle)]/90"
           } ${zipPreviewing ? "pointer-events-none opacity-60" : ""}`}
         >
           <input

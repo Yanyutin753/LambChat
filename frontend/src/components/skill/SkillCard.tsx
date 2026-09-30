@@ -68,7 +68,6 @@ export function SkillCard({
       descriptionMaxLines={2}
       gradient={gradient}
       icon={<CategoryIcon size={20} className="text-[var(--theme-primary)]" />}
-      muted={!skill.enabled}
       selected={selected}
       selectionMode={selectionMode}
       onSelect={onSelect ? () => onSelect(skill.name) : undefined}

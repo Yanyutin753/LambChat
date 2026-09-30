@@ -20,8 +20,10 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
   }, [content]);
 
   return (
-    <div className="markdown-preview overflow-auto h-full p-4 sm:p-6 lg:p-8">
-      <MarkdownContent content={displayContent} />
+    <div className="markdown-preview overflow-auto h-full">
+      <div className="document-reading-column">
+        <MarkdownContent content={displayContent} />
+      </div>
     </div>
   );
 });

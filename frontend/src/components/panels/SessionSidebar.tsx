@@ -131,12 +131,12 @@ export const SessionSidebar = forwardRef<
   const [internalCollapsed, setInternalCollapsed] = useState(true);
   const [isProjectsCollapsed, setIsProjectsCollapsed] = useState(() => {
     const saved = localStorage.getItem(PROJECTS_COLLAPSED_STORAGE_KEY);
-    return saved === "true";
+    return saved !== "false";
   });
   const [isNavCollapsed, setIsNavCollapsed] = useState(false);
   const [isPinnedCollapsed, setIsPinnedCollapsed] = useState(() => {
     const saved = localStorage.getItem(PINNED_COLLAPSED_STORAGE_KEY);
-    return saved === "true";
+    return saved !== "false";
   });
   const [isChatsCollapsed, setIsChatsCollapsed] = useState(() => {
     const saved = localStorage.getItem(CHATS_COLLAPSED_STORAGE_KEY);
@@ -390,9 +390,19 @@ export const SessionSidebar = forwardRef<
 
   // ─── Touch drag ───────────────────────────────────────────────────
 
-  const touchDrag = useTouchDrag([], (sessionId, projectId) => {
-    actions.handleMoveSessionRef.current(sessionId, projectId);
-  });
+  const touchDrag = useTouchDrag(
+    [
+      ...uncategorizedList.sessions,
+      ...pinnedList.sessions,
+      ...Array.from(projectRefs.current.values()).flatMap(
+        (handle) => handle.sessions,
+      ),
+    ],
+    (sessionId, projectId) => {
+      if (projectId === "pinned") void actions.handleTogglePin(sessionId, true);
+      else actions.handleMoveSessionRef.current(sessionId, projectId);
+    },
+  );
 
   // ─── Favorites project ───────────────────────────────────────────
 
@@ -415,6 +425,7 @@ export const SessionSidebar = forwardRef<
       onMoveSession: actions.handleMoveSession,
       onToggleFavorite: actions.handleToggleFavorite,
       onTogglePin: actions.handleTogglePin,
+      onPinSession: (id) => void actions.handleTogglePin(id, true),
       onShareSession: actions.handleShareSession,
       onRequestBatchMoveSessions: (ids, projectId) =>
         actions.setBatchMoveConfirm({

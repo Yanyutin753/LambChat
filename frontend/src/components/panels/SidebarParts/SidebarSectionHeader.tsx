@@ -4,11 +4,10 @@ import { ChevronDown, MoreHorizontal, Plus } from "lucide-react";
 import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosition";
 
 /** 分组头部动作的显隐节奏：hover/聚焦分组行时浮现，触屏设备常显。 */
-export const sectionRevealClass =
-  "opacity-0 group-hover/section:opacity-100 group-focus-within/section:opacity-100 [@media(hover:none)]:opacity-100";
+export const sectionRevealClass = "sidebar-action-reveal";
 /** 分组头部动作按钮（+、⋯、多选等）的统一样式。 */
 export const sectionActionClass =
-  "inline-flex size-7 shrink-0 items-center justify-center rounded-md text-stone-500 hover:bg-stone-100 hover:text-stone-700 dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2";
+  "inline-flex h-8 w-8 max-sm:h-9 max-sm:w-9 shrink-0 items-center justify-center rounded-md text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2";
 
 export function SidebarSectionHeader({
   label,
@@ -39,7 +38,7 @@ export function SidebarSectionHeader({
   }));
 
   return (
-    <div className="group/section flex h-9 items-center gap-1 px-[9px] select-none">
+    <div className="sidebar-action-row group/section flex h-8 max-sm:h-9 items-center gap-1 px-[9px] select-none">
       <button
         type="button"
         onClick={onToggle}

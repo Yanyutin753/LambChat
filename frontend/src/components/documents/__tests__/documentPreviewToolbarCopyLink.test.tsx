@@ -22,6 +22,7 @@ beforeEach(() => {
 
 function renderCopyLinkButton(
   overrides: Partial<ComponentProps<typeof DocumentPreviewToolbar>> = {},
+  openMenu = true,
 ) {
   const fileName = "2d1d8bc2b6d44047.docx";
   const fileInfo = getFileTypeInfo(fileName);
@@ -63,7 +64,9 @@ function renderCopyLinkButton(
   } satisfies ComponentProps<typeof DocumentPreviewToolbar>;
 
   render(<DocumentPreviewToolbar {...props} />);
-  return screen.getByTitle("Copy link");
+  if (!openMenu) return screen.getByRole("button", { name: "nav.more" });
+  fireEvent.click(screen.getByRole("button", { name: "nav.more" }));
+  return screen.getByRole("menuitem", { name: "Copy link" });
 }
 
 test("copy link writes an absolute URL when resolvedUrl is a relative upload path", async () => {
@@ -90,4 +93,23 @@ test("copy link keeps absolute URLs unchanged", async () => {
   });
 
   expect(writeText).toHaveBeenCalledWith("https://example.test/file.docx");
+});
+
+test("compact file actions stay available in the menu and Escape returns focus", () => {
+  renderCopyLinkButton(
+    { resolvedUrl: "https://example.test/file.docx" },
+    false,
+  );
+  const trigger = screen.getByRole("button", { name: "nav.more" });
+  fireEvent.click(trigger);
+  expect(
+    screen.getByRole("menuitem", { name: "Copy link" }),
+  ).toBeInTheDocument();
+  const closePanel = vi.fn();
+  document.addEventListener("keydown", closePanel);
+  fireEvent.keyDown(document, { key: "Escape" });
+  document.removeEventListener("keydown", closePanel);
+  expect(closePanel).not.toHaveBeenCalled();
+  expect(screen.queryByRole("menu")).toBeNull();
+  expect(trigger).toHaveFocus();
 });

@@ -193,7 +193,7 @@ export function SessionMenu({
           onRename();
           onClose();
         }}
-        className="flex w-full items-center gap-3 px-3 py-2.5 text-14 text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-subtle)] transition-colors"
+        className="flex w-full items-center gap-3 px-3 py-2.5 text-14 text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] transition-colors"
       >
         <Edit2 size={16} className="shrink-0" />
         <span>{t("sidebar.rename")}</span>
@@ -202,7 +202,7 @@ export function SessionMenu({
       {/* Move to project — navigates to sub-panel */}
       <button
         onClick={() => setSubPanel("project")}
-        className="flex w-full items-center gap-3 px-3 py-2.5 text-14 text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-subtle)] transition-colors"
+        className="flex w-full items-center gap-3 px-3 py-2.5 text-14 text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] transition-colors"
       >
         <FolderHeart size={16} className="shrink-0" />
         <span>{t("sidebar.moveToProject")}</span>
@@ -217,8 +217,8 @@ export function SessionMenu({
           }}
           className={`flex w-full items-center gap-3 px-3 py-2.5 text-14 transition-colors ${
             isFavorite
-              ? "text-amber-500 hover:bg-amber-500/10"
-              : "text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-subtle)]"
+              ? "text-amber-500 "
+              : "text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] "
           }`}
         >
           <Star
@@ -242,8 +242,8 @@ export function SessionMenu({
           }}
           className={`flex w-full items-center gap-3 px-3 py-2.5 text-14 transition-colors ${
             isPinned
-              ? "text-blue-500 hover:bg-blue-500/10"
-              : "text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-subtle)]"
+              ? "text-blue-500 "
+              : "text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] "
           }`}
         >
           <Pin
@@ -263,7 +263,7 @@ export function SessionMenu({
             onShare();
             onClose();
           }}
-          className="flex w-full items-center gap-3 px-3 py-2.5 text-14 text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-subtle)] transition-colors"
+          className="flex w-full items-center gap-3 px-3 py-2.5 text-14 text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] transition-colors"
         >
           <Share2 size={16} className="shrink-0" />
           <span>{t("sidebar.share")}</span>
@@ -282,7 +282,7 @@ export function SessionMenu({
           onDelete();
           onClose();
         }}
-        className="flex w-full items-center gap-3 px-3 py-2.5 text-14 text-red-500 hover:bg-red-500/10 transition-colors"
+        className="flex w-full items-center gap-3 px-3 py-2.5 text-14 text-red-500 transition-colors"
       >
         <Trash2 size={16} className="shrink-0" />
         <span>{t("common.delete")}</span>
@@ -296,7 +296,7 @@ export function SessionMenu({
       {/* Back header */}
       <button
         onClick={() => setSubPanel(null)}
-        className="flex w-full items-center gap-2 px-3 py-2.5 text-14 text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-subtle)] transition-colors"
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-14 text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] transition-colors"
       >
         <ChevronLeft size={16} className="shrink-0" />
         <span>{t("sidebar.moveToProject")}</span>
@@ -318,7 +318,7 @@ export function SessionMenu({
               className={`flex w-full items-center gap-2.5 px-2.5 py-2 text-14 rounded-lg transition-all duration-150 ${
                 isCurrent
                   ? "text-[var(--theme-text)] bg-[var(--theme-bg-subtle)] shadow-[inset_0_0_0_1.5px_var(--theme-border)]"
-                  : "text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-hover,rgba(0,0,0,0.04))]"
+                  : "text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] "
               }`}
             >
               <span
@@ -348,7 +348,7 @@ export function SessionMenu({
           className={`flex w-full items-center gap-2.5 px-2.5 py-2 text-14 rounded-lg transition-all duration-150 ${
             currentProjectId === null
               ? "text-[var(--theme-text)] bg-[var(--theme-bg-subtle)] shadow-[inset_0_0_0_1.5px_var(--theme-border)]"
-              : "text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-hover,rgba(0,0,0,0.04))]"
+              : "text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] "
           }`}
         >
           <span

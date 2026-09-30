@@ -58,3 +58,25 @@ test.each([
     expect(disconnect).toHaveBeenCalled();
   },
 );
+
+test("nested panel chrome shares the scroll gutter with its outer hub header", () => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+  const root = document.createElement("main");
+  root.innerHTML =
+    '<section><header></header><div><div class="panel-body overflow-y-auto"></div></div></section>';
+  document.body.append(root);
+  const body = root.querySelector(".panel-body")!;
+  Object.defineProperty(body, "offsetWidth", { value: 400 });
+  Object.defineProperty(body, "clientWidth", { value: 389 });
+  const stop = observePanelWidths(root);
+  expect(root.style.getPropertyValue("--panel-scrollbar")).toBe("11px");
+  stop();
+  expect(root.style.getPropertyValue("--panel-scrollbar")).toBe("");
+});

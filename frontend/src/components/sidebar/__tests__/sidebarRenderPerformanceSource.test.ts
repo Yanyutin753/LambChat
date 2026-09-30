@@ -27,6 +27,5 @@ test("memoizes session rows so parent sidebar renders do not redraw unchanged it
 test("memoizes expensive sidebar list derivations", () => {
   expect(sessionListSource).toMatch(/useMemo/);
   expect(sessionListSource).toMatch(/visibleUncategorizedSessions = useMemo/);
-  expect(sessionListSource).toMatch(/groupedUncategorized = useMemo/);
   expect(sessionListSource).toMatch(/customProjects = useMemo/);
 });

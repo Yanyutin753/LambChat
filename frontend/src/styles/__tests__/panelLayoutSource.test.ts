@@ -56,3 +56,18 @@ test("MCP form groups do not double their spacing with empty divider rows", () =
     'className="es-divider"',
   );
 });
+
+test("search headers leave the search-to-content gap to the panel body", () => {
+  expect(layout).toMatch(
+    /\[data-panel\] \.panel-header\.panel-header--has-search\s*\{\s*padding-bottom:\s*0;/,
+  );
+});
+
+test("file title and toolbar share the same search header spacing", () => {
+  expect(layout).toMatch(
+    /\[data-panel="files"\] \.panel-header\.panel-header--desktop-identity\s*\{\s*padding-bottom:\s*0;/,
+  );
+  expect(layout).toMatch(
+    /\[data-panel\] \.file-library-toolbar\s*\{\s*padding-block:\s*var\(--panel-gap\) 0;/,
+  );
+});

@@ -1,15 +1,18 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 
-const css = readFileSync(new URL("../chat.css", import.meta.url), "utf8");
+const read = (path: string) =>
+  readFileSync(new URL(path, import.meta.url), "utf8");
 
-test("composer text and leading mode chips share the directory content inset", () => {
-  expect(css).toMatch(
-    /\.rich-chat-composer__editor\s*\{[^}]*padding: 0\.65rem 0\.625rem/,
+test("composer labels share a fixed line box and icons share a 16px box", () => {
+  const chip = read("../../components/chat/ToolbarChip.tsx");
+  const toolbar = read("../../components/chat/ChatInputToolbar.tsx");
+  const usage = read("../../components/chat/ComposerUsageChip.tsx");
+  expect(chip).toContain("h-4 w-4");
+  expect(chip).toContain("text-14 leading-5");
+  expect(usage).toContain("text-14 leading-5");
+  expect(toolbar).not.toMatch(/size=\{18\}|\[18px\]/);
+  expect(read("../chat.css")).toMatch(
+    /\.chat-input-toolbar\s+\.chat-tool-btn\s+svg\s*\{[^}]*flex-shrink:\s*0/s,
   );
-  expect(css).toMatch(
-    /\.rich-chat-composer__placeholder\s*\{[^}]*left: 0\.625rem/,
-  );
-  expect(css).toMatch(/\.run-mode-chip-node\s*\{[^}]*margin: 0 0\.25em 0 0;/);
-  expect(css).toMatch(/\.run-mode-chip-node\s*\{[^}]*gap: 0\.5rem;/);
 });

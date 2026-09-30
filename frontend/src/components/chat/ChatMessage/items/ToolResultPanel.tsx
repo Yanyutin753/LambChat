@@ -423,12 +423,12 @@ export function ToolResultPanel({
             }}
           />
           <div
-            className="tool-console-resize-handle hidden sm:block absolute left-0 top-0 bottom-0 -translate-x-1/2 z-10 cursor-col-resize pointer-events-auto group"
+            className="workspace-resize-handle tool-console-resize-handle hidden sm:block absolute left-0 top-0 bottom-0 -translate-x-1/2 z-10 cursor-col-resize pointer-events-auto group"
             aria-label={t("common.resizePanel", "Resize panel")}
             {...resizeSeparatorProps}
             onMouseDown={handleResize}
           >
-            <div className="tool-console-resize-handle__rail absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 rounded-full bg-transparent transition-colors duration-200" />
+            <div className="tool-console-resize-handle__rail" />
           </div>
         </>
       )}

@@ -318,6 +318,9 @@
     "previous": "Previous item",
     "reject": "Reject",
     "scheduledTask": {
+      "searchPlaceholder": "Search task names or descriptions…",
+      "noResults": "No matching scheduled tasks",
+      "noResultsDesc": "Try another keyword or adjust the status filter.",
       "agent": "Agent",
       "confirmCreation": "Please confirm creation of this scheduled task.",
       "effect": "After creation, agent '{{agent}}' will run on {{schedule}}. Each run will start a new session and send this prompt to the agent:",
@@ -1571,6 +1574,7 @@
       "monthsAgo": "{{count}}mo ago"
     },
     "title": "File Library",
+    "subtitle": "Manage uploaded and generated files",
     "tryDifferent": "Try a different search term",
     "types": {
       "all": "All",
@@ -2065,6 +2069,7 @@
     "taskCompleted": "Task completed",
     "taskFailed": "Task failed",
     "title": "Notifications",
+    "subtitle": "View and manage announcements and messages",
     "titleLabel": "Title",
     "typeInfo": "Info",
     "typeLabel": "Type",
@@ -2460,6 +2465,9 @@
     }
   },
   "scheduledTask": {
+    "searchPlaceholder": "Search task names or descriptions…",
+    "noResults": "No matching scheduled tasks",
+    "noResultsDesc": "Try another keyword or adjust the status filter.",
     "active": "Active",
     "agent": "Agent",
     "agentPlaceholder": "Select an agent...",
@@ -2546,6 +2554,7 @@
     "timeout": "timeout",
     "timeoutSeconds": "Timeout (seconds)",
     "title": "Scheduled Tasks",
+    "subtitle": "Schedule automated tasks and review run history",
     "totalRuns": "Total Runs",
     "triggerType": "Trigger Type",
     "triggeredSuccess": "Task triggered successfully",
