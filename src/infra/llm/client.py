@@ -556,6 +556,7 @@ class LLMClient:
                 "first_event_timeout": _effective_timeout(settings.LLM_FIRST_EVENT_TIMEOUT),
                 "non_streaming_timeout": _effective_timeout(settings.LLM_REQUEST_TIMEOUT),
                 "stream_idle_timeout": _effective_timeout(settings.LLM_STREAM_IDLE_TIMEOUT),
+                "stream_gap_warn_timeout": _effective_timeout(settings.LLM_STREAM_GAP_WARN_TIMEOUT),
             }
             if api_key:
                 anthropic_kwargs["api_key"] = SecretStr(api_key)
@@ -579,6 +580,7 @@ class LLMClient:
                 "first_event_timeout": _effective_timeout(settings.LLM_FIRST_EVENT_TIMEOUT),
                 "non_streaming_timeout": _effective_timeout(settings.LLM_REQUEST_TIMEOUT),
                 "stream_idle_timeout": _effective_timeout(settings.LLM_STREAM_IDLE_TIMEOUT),
+                "stream_gap_warn_timeout": _effective_timeout(settings.LLM_STREAM_GAP_WARN_TIMEOUT),
             }
             if api_key:
                 google_kwargs["google_api_key"] = SecretStr(api_key)
@@ -603,6 +605,7 @@ class LLMClient:
             "first_event_timeout": _effective_timeout(settings.LLM_FIRST_EVENT_TIMEOUT),
             "non_streaming_timeout": _effective_timeout(settings.LLM_REQUEST_TIMEOUT),
             "stream_idle_timeout": _effective_timeout(settings.LLM_STREAM_IDLE_TIMEOUT),
+            "stream_gap_warn_timeout": _effective_timeout(settings.LLM_STREAM_GAP_WARN_TIMEOUT),
         }
         # Share one httpx connection pool across parameter variants of the
         # same endpoint (see _acquire_pooled_http_async_client).

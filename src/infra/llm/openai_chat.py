@@ -66,6 +66,7 @@ class LambChatOpenAIChatModel(ChatOpenAI):
     first_event_timeout: float | None = Field(default=None, exclude=True)
     non_streaming_timeout: float | None = Field(default=None, exclude=True)
     stream_idle_timeout: float | None = Field(default=None, exclude=True)
+    stream_gap_warn_timeout: float | None = Field(default=None, exclude=True)
 
     def _get_request_payload(
         self, input_: Any, *, stop: list[str] | None = None, **kwargs: Any
@@ -95,6 +96,9 @@ class LambChatOpenAIChatModel(ChatOpenAI):
             source,
             timeout=self.first_event_timeout,
             idle_timeout=self.stream_idle_timeout,
+            gap_warn_timeout=self.stream_gap_warn_timeout,
+            gap_warn_context=getattr(self, "model_name", "") or "",
+            gap_describe=lambda chunk: getattr(getattr(chunk, "message", None), "id", None) or "",
         ):
             yield chunk
 

@@ -87,6 +87,9 @@ class Settings(BaseSettings):
     LLM_REQUEST_TIMEOUT: float = 0.0  # 非流式完整响应总超时（秒；<=0 禁用）
     LLM_FIRST_EVENT_TIMEOUT: float = 30.0  # 流式首事件超时（秒；<=0 禁用）
     LLM_STREAM_IDLE_TIMEOUT: float = 120.0  # 流式 chunk 空闲超时（秒；<=0 禁用）
+    LLM_STREAM_GAP_WARN_TIMEOUT: float = (
+        10.0  # 流式 chunk 间隔告警阈值（秒；<=0 禁用，仅告警不干预）
+    )
     LLM_FALLBACK_MODEL: str | None = None  # 全局兜底模型（DB 未配置 fallback_model 时使用）
     LLM_OPENAI_API_FORMAT: str = (
         "chat_completions"  # OpenAI 协议线格式默认值（chat_completions | responses）
