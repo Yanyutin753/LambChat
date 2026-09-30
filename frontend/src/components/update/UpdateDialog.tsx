@@ -18,8 +18,7 @@ interface UpdateDialogProps {
   platform: "tauri" | "android" | "ios";
 }
 
-const ghostButtonClass =
-  "px-4 py-2 text-14 font-medium text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-600 rounded-lg hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors";
+const ghostButtonClass = "px-4 py-2 text-14 font-medium text-theme-text dark:text-stone-300 bg-theme-bg-card dark:bg-stone-800 border border-theme-border dark:border-stone-600 rounded-lg hover:bg-theme-bg-subtle dark:hover:bg-stone-700 transition-colors";
 
 export function UpdateDialog({
   state,
@@ -96,15 +95,15 @@ export function UpdateDialog({
       <div className="space-y-3">
         {/* 版本迁移行：当前 → 新版本 */}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="inline-flex items-center gap-1.5 font-mono text-14 text-stone-500 dark:text-stone-400">
+          <span className="inline-flex items-center gap-1.5 font-mono text-14 text-theme-text-secondary dark:text-stone-400">
             v{APP_VERSION}
             <ArrowRight size={14} className="opacity-60" aria-hidden="true" />
-            <span className="font-semibold text-stone-900 dark:text-stone-100">
+            <span className="font-semibold text-theme-text dark:text-stone-100">
               v{state.version ?? ""}
             </span>
           </span>
           {state.publishedAt && (
-            <span className="text-12 text-stone-400 dark:text-stone-500">
+            <span className="text-12 text-theme-text-tertiary dark:text-stone-500">
               {t("updatePublishedAt", {
                 date: new Date(state.publishedAt).toLocaleDateString(),
               })}
@@ -114,10 +113,10 @@ export function UpdateDialog({
 
         {state.releaseNotes && (
           <div className="space-y-1">
-            <p className="text-12 font-medium text-stone-600 dark:text-stone-300">
+            <p className="text-12 font-medium text-theme-text-secondary dark:text-stone-300">
               {t("updateReleaseNotes", "更新日志")}
             </p>
-            <div className="max-h-56 overflow-y-auto rounded-lg bg-stone-50 p-3 dark:bg-stone-900/50">
+            <div className="max-h-56 overflow-y-auto rounded-lg bg-theme-bg-subtle p-3 dark:bg-stone-900/50">
               <ReleaseNotesMarkdown content={state.releaseNotes} />
             </div>
           </div>
@@ -144,7 +143,7 @@ export function UpdateDialog({
         )}
 
         {state.error && (
-          <div className="flex items-center justify-between gap-2 rounded-lg bg-red-50 p-3 text-14 text-red-600 dark:bg-red-900/20 dark:text-red-400">
+          <div className="flex items-center justify-between gap-2 rounded-lg bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)] p-3 text-14 text-theme-error dark:bg-red-900/20 dark:text-red-400">
             <span className="break-words">{state.error}</span>
             {!state.downloading && (
               <button

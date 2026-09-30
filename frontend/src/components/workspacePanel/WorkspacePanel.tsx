@@ -313,12 +313,12 @@ export function WorkspacePanel({
               {node.loading ? (
                 <Loader2
                   size={15}
-                  className="shrink-0 animate-spin text-stone-400"
+                  className="shrink-0 animate-spin text-theme-text-tertiary"
                 />
               ) : expanded ? (
-                <FolderOpen size={15} className="shrink-0 text-stone-500" />
+                <FolderOpen size={15} className="shrink-0 text-theme-text-secondary" />
               ) : (
-                <FolderClosed size={15} className="shrink-0 text-stone-500" />
+                <FolderClosed size={15} className="shrink-0 text-theme-text-secondary" />
               )}
               <span className="truncate text-13 text-left">{node.name}</span>
             </button>
@@ -342,7 +342,7 @@ export function WorkspacePanel({
           {isLoading ? (
             <Loader2
               size={15}
-              className="shrink-0 animate-spin text-stone-400"
+              className="shrink-0 animate-spin text-theme-text-tertiary"
             />
           ) : (
             <Icon
@@ -367,7 +367,7 @@ export function WorkspacePanel({
             defaultValue: "云端电脑 · 运行中",
           })}
         >
-          <span className="size-1.5 rounded-full bg-emerald-500" />
+          <span className="size-1.5 rounded-full bg-theme-success" />
         </Tooltip>
       );
     }
@@ -456,8 +456,8 @@ export function WorkspacePanel({
       {!isCloudView ? (
         !online ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-            <HardDrive size={22} className="text-stone-400" />
-            <p className="text-12 text-stone-500 dark:text-stone-400">
+            <HardDrive size={22} className="text-theme-text-tertiary" />
+            <p className="text-12 text-theme-text-secondary dark:text-stone-400">
               {t("workspacePanel.daemonOffline", {
                 defaultValue: "本地沙箱未连接，无法浏览工作区文件",
               })}
@@ -465,7 +465,7 @@ export function WorkspacePanel({
           </div>
         ) : !sessionId ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-            <p className="text-12 text-stone-500 dark:text-stone-400">
+            <p className="text-12 text-theme-text-secondary dark:text-stone-400">
               {t("workspacePanel.noSession", {
                 defaultValue: "打开一个会话后即可浏览其工作区文件",
               })}
@@ -477,14 +477,14 @@ export function WorkspacePanel({
       {/* 云端视图空态（未创建/未启用）；会话缺省提示两视图共用 */}
       {isCloudView && cloudEmptyHint ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-          <Cloud size={22} className="text-stone-400" />
-          <p className="text-12 text-stone-500 dark:text-stone-400">
+          <Cloud size={22} className="text-theme-text-tertiary" />
+          <p className="text-12 text-theme-text-secondary dark:text-stone-400">
             {cloudEmptyHint}
           </p>
         </div>
       ) : isCloudView && !sessionId ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-          <p className="text-12 text-stone-500 dark:text-stone-400">
+          <p className="text-12 text-theme-text-secondary dark:text-stone-400">
             {t("workspacePanel.noSession", {
               defaultValue: "打开一个会话后即可浏览其工作区文件",
             })}
@@ -498,12 +498,12 @@ export function WorkspacePanel({
       !(isCloudView && !sessionId) ? (
         state === "error" ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-            <p className="text-12 text-stone-500 dark:text-stone-400">
+            <p className="text-12 text-theme-text-secondary dark:text-stone-400">
               {error}
             </p>
             <button
               onClick={handleRefresh}
-              className="text-12 text-stone-600 hover:underline dark:text-stone-300"
+              className="text-12 text-theme-text-secondary hover:underline dark:text-stone-300"
             >
               {t("workspacePanel.retry", { defaultValue: "重试" })}
             </button>
@@ -512,11 +512,11 @@ export function WorkspacePanel({
           <div className="min-h-0 flex-1 overflow-y-auto p-2">
             {state === "loading" && root.length === 0 ? (
               <div className="flex items-center justify-center pt-6">
-                <Loader2 size={16} className="animate-spin text-stone-400" />
+                <Loader2 size={16} className="animate-spin text-theme-text-tertiary" />
               </div>
             ) : root.length === 0 ? (
               state === "idle" ? null : (
-                <p className="pt-4 text-center text-12 text-stone-500 dark:text-stone-400">
+                <p className="pt-4 text-center text-12 text-theme-text-secondary dark:text-stone-400">
                   {t("workspacePanel.emptyDir", { defaultValue: "空工作区" })}
                 </p>
               )
@@ -531,7 +531,7 @@ export function WorkspacePanel({
       {contextMenu && (
         <div
           ref={menuRef}
-          className="fixed z-[350] w-56 overflow-hidden rounded-lg border border-stone-200 bg-white py-1 shadow-lg dark:border-stone-700 dark:bg-stone-800"
+          className="fixed z-[350] w-56 overflow-hidden rounded-lg border border-theme-border bg-theme-bg-card py-1 shadow-lg dark:border-stone-700 dark:bg-stone-800"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
           <button
@@ -539,7 +539,7 @@ export function WorkspacePanel({
               void copyToClipboard(contextMenu.path);
               setContextMenu(null);
             }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-13 text-stone-700 hover:bg-stone-100 dark:text-stone-200 dark:hover:bg-stone-700/60"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-13 text-theme-text hover:bg-theme-bg-subtle dark:text-stone-200 dark:hover:bg-stone-700/60"
           >
             <Copy size={14} />
             {t("workspacePanel.copyPath", { defaultValue: "复制路径" })}
@@ -550,7 +550,7 @@ export function WorkspacePanel({
                 void handleReveal(contextMenu.path);
                 setContextMenu(null);
               }}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-13 text-stone-700 hover:bg-stone-100 dark:text-stone-200 dark:hover:bg-stone-700/60"
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-13 text-theme-text hover:bg-theme-bg-subtle dark:text-stone-200 dark:hover:bg-stone-700/60"
             >
               <FolderOpen size={14} />
               {t("workspacePanel.revealInFileManager", {
