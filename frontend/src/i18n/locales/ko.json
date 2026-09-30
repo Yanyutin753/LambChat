@@ -340,6 +340,7 @@
     "submit": "확인"
   },
   "auth": {
+    "brandTitle": "아이디어를 현실로.",
     "account": "계정",
     "backToLogin": "로그인으로 돌아가기",
     "checkInboxStep": "받은 편지함 확인 (스팸 폴더도 확인하세요)",
@@ -359,7 +360,6 @@
     "enteringChat": "채팅을 여는 중...",
     "featureAgents": "에이전트",
     "featureMemory": "메모리",
-    "featureSkills": "스킬",
     "featureTools": "도구",
     "forgotPassword": "비밀번호 찾기",
     "forgotPasswordDesc": "이메일 주소를 입력하면 비밀번호 재설정 링크를 보냅니다",

@@ -35,3 +35,5 @@ URL 参数：`?theme=dark` 为深色；默认浅色。`?fixture=empty` 返回空
 继续验收时应检查：宽/窄屏的首页和末页、长标题、搜索后重置页码、空/错/加载状态、键盘焦点与深浅色对比。只读预览不验证保存、删除、真实服务权限或原生 App 安全区；这些需要连接测试后端及真机回归。
 
 Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此按 `DESIGN.md` 清单人工走查。
+
+截图更新可用 `PANEL_PREVIEW_PORT=3017 pnpm preview:panels` 避开已占用端口。`/chat/preview-report` 与 `/shared/preview-report` 提供只读演示会话；不会创建真实分享或请求真实模型。

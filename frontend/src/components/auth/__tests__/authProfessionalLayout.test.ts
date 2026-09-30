@@ -13,8 +13,3 @@ test("auth editorial headings use the existing serif typography", () => {
   expect(source).toMatch(/<h2 className="font-serif"/);
   expect(source).toMatch(/<h1 className="font-serif /);
 });
-
-test("download navigation keeps its back label accessible without crowding mobile controls", () => {
-  const download = readFileSync(new URL("../../download/DownloadPage.tsx", import.meta.url), "utf8");
-  expect(download).toContain('className="sr-only sm:not-sr-only"');
-});

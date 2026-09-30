@@ -368,6 +368,8 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
     setConfirmPassword("");
   }, [mode, registrationEnabled]);
 
+  // RAF-throttled character gaze: buffers pointer events and applies CSS
+  // custom properties only once per animation frame.
   if (isRedirecting) {
     return <AutoLoginSplash text={t("auth.completingLogin")} />;
   }
@@ -418,8 +420,8 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
             <div className="auth-brand-story">
               <img src="/images/illustrations/auth-brand-workspace.webp" alt="" aria-hidden="true" className="auth-hero-art" width={1024} height={1280} decoding="async" />
               <p className="auth-brand-eyebrow">{t("landing.badge")}</p>
-              <h2 className="font-serif">{t("landing.ctaTitle")}</h2>
-              <p className="auth-brand-description font-serif">{t("landing.heroDescription")}</p>
+              <h2 className="font-serif">{t("auth.brandTitle")}</h2>
+              <p className="auth-brand-description font-serif">{t("landing.mainInterfaceDesc")}</p>
               <div className="auth-brand-capabilities">
                 <span>{t("auth.featureAgents")}</span>
                 <span>{t("auth.featureTools")}</span>
@@ -452,7 +454,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                       ? t("auth.welcomeBack")
                       : t("auth.register")}
                   </h1>
-                  <p className="text-14 leading-relaxed text-theme-text-secondary dark:text-stone-400 font-serif">
+                  <p className="text-14 leading-relaxed text-theme-text-secondary dark:text-theme-text-tertiary">
                     {mode === "login"
                       ? t("auth.loginHint")
                       : t("auth.registerHint")}
@@ -477,7 +479,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                         error.includes("activate")) && (
                         <button
                           onClick={() => setContactAdminOpen(true)}
-                          className="mt-1.5 text-12 text-theme-text-tertiary transition-colors hover:text-theme-text-secondary dark:text-stone-500 dark:hover:text-stone-300"
+                          className="mt-1.5 text-12 text-theme-text-tertiary transition-colors hover:text-theme-text-secondary dark:text-stone-500 dark:hover:text-theme-text-tertiary"
                         >
                           {t("contactAdmin.supportLink")}
                         </button>
@@ -489,7 +491,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                   <div className="auth-field-group">
                     <label
                       htmlFor={accountInputId}
-                      className="mb-1.5 block text-14 font-medium text-theme-text dark:text-stone-300 font-serif"
+                      className="mb-1.5 block text-14 font-medium text-theme-text-secondary dark:text-theme-text-tertiary"
                     >
                       {mode === "login"
                         ? t("auth.emailOrUsername")
@@ -524,7 +526,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                     <div className="auth-field-group">
                       <label
                         htmlFor={emailInputId}
-                        className="mb-1.5 block text-14 font-medium text-theme-text dark:text-stone-300 font-serif"
+                        className="mb-1.5 block text-14 font-medium text-theme-text-secondary dark:text-theme-text-tertiary"
                       >
                         {t("auth.email")}
                       </label>
@@ -550,7 +552,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                     <div className="auth-password-label-row">
                     <label
                       htmlFor={passwordInputId}
-                      className="mb-1.5 block text-14 font-medium text-theme-text dark:text-stone-300 font-serif"
+                      className="mb-1.5 block text-14 font-medium text-theme-text-secondary dark:text-theme-text-tertiary"
                     >
                       {t("auth.password")}
                     </label>
@@ -579,7 +581,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                     <div className="auth-field-group">
                       <label
                         htmlFor={confirmPasswordInputId}
-                        className="mb-1.5 block text-14 font-medium text-theme-text dark:text-stone-300 font-serif"
+                        className="mb-1.5 block text-14 font-medium text-theme-text-secondary dark:text-theme-text-tertiary"
                       >
                         {t("auth.confirmPassword")}
                       </label>
@@ -648,7 +650,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                             type="button"
                             onClick={() => handleOAuthLogin(provider.id)}
                             disabled={oauthPendingProvider !== null}
-                            className="auth-oauth-btn auth-social-provider flex h-12 items-center justify-center gap-2 rounded-full px-6 text-16 font-semibold text-theme-text transition-all active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100 font-serif"
+                            className="auth-oauth-btn auth-social-provider flex h-12 items-center justify-center gap-2 rounded-full px-6 text-16 font-semibold text-theme-text transition-all active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100"
                           >
                             {oauthPendingProvider === provider.id && (
                               <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin sm:h-5 sm:w-5" />
@@ -713,7 +715,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                 )}
 
                 {/* Switch mode */}
-                <div className="auth-mode-switch mt-6 flex flex-wrap items-center justify-center gap-1.5 text-14 text-theme-text-secondary dark:text-stone-400 font-serif">
+                <div className="auth-mode-switch mt-6 flex flex-wrap items-center justify-center gap-1.5 text-14 text-theme-text-secondary dark:text-theme-text-tertiary">
                   {registrationEnabled ? (
                     <>
                       <span>
@@ -724,7 +726,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                       <button
                         type="button"
                         onClick={switchMode}
-                        className="font-medium text-theme-text underline-offset-4 transition-all duration-200 hover:text-theme-primary-hover hover:underline dark:text-white dark:hover:text-stone-200 font-serif"
+                        className="font-medium text-theme-text underline-offset-4 transition-all duration-200 hover:text-theme-text-secondary hover:underline dark:text-white dark:hover:text-stone-200"
                       >
                         {mode === "login"
                           ? t("auth.registerNow")
@@ -753,12 +755,12 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                   className="auth-footer-divider w-32 sm:w-40"
                   aria-hidden="true"
                 />
-                <div className="flex flex-wrap items-center justify-center gap-x-2 text-10 text-theme-text-tertiary dark:text-stone-500 sm:gap-x-3 sm:text-12 font-serif">
+                <div className="flex flex-wrap items-center justify-center gap-x-2 text-10 text-theme-text-tertiary dark:text-stone-500 sm:gap-x-3 sm:text-12">
                   <a
                     href={GITHUB_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 transition-colors hover:text-theme-text-secondary dark:hover:text-stone-300 sm:gap-1.5"
+                    className="inline-flex items-center gap-1 transition-colors hover:text-theme-text-secondary dark:hover:text-theme-text-tertiary sm:gap-1.5"
                   >
                     <svg
                       className="h-3 w-3 sm:h-3.5 sm:w-3.5"
@@ -769,19 +771,19 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                     </svg>
                     <span>GitHub</span>
                   </a>
-                  <span className="text-theme-text-tertiary dark:text-stone-600">·</span>
-                  <span className="text-theme-text-secondary dark:text-stone-400 font-serif transition-colors">
+                  <span className="text-theme-text-tertiary dark:text-theme-text-secondary">·</span>
+                  <span className="text-theme-text-secondary dark:text-theme-text-tertiary transition-colors">
                     {t("auth.poweredBy")}{" "}
                     <a
                       href={GITHUB_URL}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="hover:text-theme-text dark:hover:text-stone-200 font-serif transition-colors"
+                      className="hover:text-theme-text dark:hover:text-stone-200 transition-colors"
                     >
                       {APP_NAME}
                     </a>
                   </span>
-                  <span className="text-theme-text-tertiary dark:text-stone-600">·</span>
+                  <span className="text-theme-text-tertiary dark:text-theme-text-secondary">·</span>
                   <span>{CURRENT_YEAR}</span>
                 </div>
               </div>

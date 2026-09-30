@@ -1612,3 +1612,31 @@ html.dark .blog-landing-container::after {
 html.dark .public-brand-hero {
   background: none;
 }
+.landing-capability-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 64px;
+}
+.landing-capability {
+  display: flex;
+  gap: 24px;
+  padding: 28px 0;
+  border-top: 1px solid var(--theme-border);
+}
+.landing-capability-index {
+  flex: 0 0 24px;
+  color: var(--theme-text-muted);
+  font-size: 12px;
+  padding-top: 6px;
+  font-family: ui-monospace, monospace;
+}
+@media (max-width: 639px) {
+  .landing-capability-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .landing-capability {
+    gap: 16px;
+  }
+}
+#features { padding-block: 64px; }
+#features > div > div:first-child { margin-bottom: 36px; }

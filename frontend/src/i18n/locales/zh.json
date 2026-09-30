@@ -340,6 +340,7 @@
     "submit": "提交"
   },
   "auth": {
+    "brandTitle": "让想法，成为现实。",
     "account": "账号",
     "backToLogin": "返回登录",
     "checkInboxStep": "检查您的收件箱（也请检查垃圾邮件文件夹）",
@@ -359,7 +360,6 @@
     "enteringChat": "正在打开聊天...",
     "featureAgents": "智能体",
     "featureMemory": "记忆",
-    "featureSkills": "技能",
     "featureTools": "工具",
     "forgotPassword": "忘记密码",
     "forgotPasswordDesc": "输入您的邮箱地址，我们将发送密码重置链接",
