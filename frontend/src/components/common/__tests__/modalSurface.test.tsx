@@ -12,6 +12,22 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
 });
+test.each([{ isComposing: true }, { keyCode: 229 }])(
+  "Escape belongs to the IME candidate window during composition (%j)",
+  (composition) => {
+    const close = vi.fn();
+    render(
+      <ModalSurface open onClose={close} label="Edit">
+        <input aria-label="Name" />
+      </ModalSurface>,
+    );
+    const input = screen.getByRole("textbox", { name: "Name" });
+    fireEvent.keyDown(input, { key: "Escape", ...composition });
+    expect(close).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(close).toHaveBeenCalledOnce();
+  },
+);
 test("only the top modal receives Escape", () => {
   const first = vi.fn(),
     second = vi.fn();

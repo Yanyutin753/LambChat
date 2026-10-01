@@ -40,6 +40,26 @@ beforeEach(() => {
 
 const longDraft = "hello expanded composer ".repeat(10);
 
+test.each([{ isComposing: true }, { keyCode: 229 }])(
+  "cancelling IME composition keeps the expanded composer open (%j)",
+  async (composition) => {
+    render(
+      <ChatInput
+        onSend={vi.fn()}
+        onStop={vi.fn()}
+        isLoading={false}
+        pendingInput={longDraft}
+      />,
+    );
+    const editor = await screen.findByRole("textbox");
+    fireEvent.click(screen.getByRole("button", { name: /(expand|展开编辑)/i }));
+    fireEvent.keyDown(editor, { key: "Escape", ...composition });
+    expect(document.querySelector("[data-composer-expanded]")).not.toBeNull();
+    fireEvent.keyDown(editor, { key: "Escape" });
+    expect(document.querySelector("[data-composer-expanded]")).toBeNull();
+  },
+);
+
 test("directory header shares the composer boundary and follows expand and collapse", async () => {
   render(
     <ChatInput

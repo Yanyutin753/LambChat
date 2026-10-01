@@ -9,7 +9,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import {
   activateRightPanel,
@@ -47,6 +47,102 @@ beforeEach(() => {
   resetRightPanelCoordinator();
   localStorage.clear();
   installMatchMedia(1440);
+});
+afterEach(() => vi.restoreAllMocks());
+
+test("overlay Tab wraps visible controls instead of entering collapsed fields", async () => {
+  installMatchMedia(800);
+  vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([
+    {},
+  ] as DOMRectList);
+  render(
+    <EditorSidebar open onClose={vi.fn()} title="Editor">
+      <button>Last visible</button>
+      <div inert aria-hidden="true">
+        <input aria-label="Collapsed field" />
+      </div>
+    </EditorSidebar>,
+  );
+  await act(async () => {});
+  screen.getByRole("button", { name: "Last visible" }).focus();
+  const event = new KeyboardEvent("keydown", {
+    key: "Tab",
+    bubbles: true,
+    cancelable: true,
+  });
+  fireEvent(document.activeElement!, event);
+  expect(event.defaultPrevented).toBe(true);
+  expect(screen.getByRole("tab", { name: "Editor" })).toHaveFocus();
+});
+
+test.each([{ isComposing: true }, { keyCode: 229 }])(
+  "cancelling IME composition does not close the editor panel (%j)",
+  (composition) => {
+    installMatchMedia(390);
+    const close = vi.fn();
+    render(
+      <EditorSidebar open onClose={close} title="Editor">
+        <input aria-label="Name" />
+      </EditorSidebar>,
+    );
+    const input = screen.getByRole("textbox", { name: "Name" });
+    fireEvent.keyDown(input, { key: "Escape", ...composition });
+    expect(close).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(close).toHaveBeenCalledOnce();
+  },
+);
+
+test.each([390, 800])(
+  "closing a %ipx editor restores the original page scroll state",
+  (width) => {
+    installMatchMedia(width);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "auto";
+    const view = render(
+      <EditorSidebar open onClose={vi.fn()} title="Editor">
+        body
+      </EditorSidebar>,
+    );
+    try {
+      expect(document.body.style.overflow).toBe("hidden");
+      view.rerender(
+        <EditorSidebar open={false} onClose={vi.fn()} title="Editor">
+          body
+        </EditorSidebar>,
+      );
+      expect(document.body.style.overflow).toBe("auto");
+    } finally {
+      view.unmount();
+      document.body.style.overflow = previous;
+    }
+  },
+);
+
+test("closing an underlying panel keeps the page locked until the modal closes", () => {
+  installMatchMedia(800);
+  const previous = document.body.style.overflow;
+  document.body.style.overflow = "auto";
+  const content = (panel: boolean, modal: boolean) => (
+    <>
+      <EditorSidebar open={panel} onClose={vi.fn()} title="Editor">
+        body
+      </EditorSidebar>
+      <ModalSurface open={modal} onClose={vi.fn()} label="Confirm">
+        Confirm
+      </ModalSurface>
+    </>
+  );
+  const view = render(content(true, true));
+  try {
+    view.rerender(content(false, true));
+    expect(document.body.style.overflow).toBe("hidden");
+    view.rerender(content(false, false));
+    expect(document.body.style.overflow).toBe("auto");
+  } finally {
+    view.unmount();
+    document.body.style.overflow = previous;
+  }
 });
 
 test("Escape dismisses a modal above a docked panel without closing that panel", () => {

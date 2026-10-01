@@ -122,7 +122,7 @@ export function useRightPanelEntry({
 }
 
 const FOCUSABLE =
-  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[contenteditable="true"],[tabindex]:not([tabindex="-1"])';
 
 function restoreOpenerFocus(openerRef: RefObject<HTMLElement | null>): void {
   requestAnimationFrame(() => {
@@ -184,11 +184,20 @@ export function useRightPanelFocus({
     if (!active || presentation === "docked") return;
 
     const trapTab = (event: KeyboardEvent) => {
-      if (event.key !== "Tab") return;
+      if (event.key !== "Tab" || event.defaultPrevented) return;
+      const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+      if (dialogs[dialogs.length - 1] !== panelRef.current) return;
 
       const focusable = [
         ...(panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []),
-      ].filter((element) => !element.hidden && element.tabIndex >= 0);
+      ].filter(
+        (element) =>
+          element.getClientRects().length &&
+          !element.closest('[hidden],[inert],[aria-hidden="true"]') &&
+          (element.tabIndex >= 0 ||
+            (element.matches('[contenteditable="true"]') &&
+              !element.hasAttribute("tabindex"))),
+      );
       if (focusable.length === 0) return;
 
       const first = focusable[0];

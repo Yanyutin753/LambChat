@@ -50,7 +50,12 @@ export function ModalSurface({
     }
     const keyboard = (event: KeyboardEvent) => {
       const dialogs = document.querySelectorAll('[role="dialog"]');
-      if (dialogs[dialogs.length - 1] !== surface || event.defaultPrevented)
+      if (
+        dialogs[dialogs.length - 1] !== surface ||
+        event.defaultPrevented ||
+        event.isComposing ||
+        event.keyCode === 229
+      )
         return;
       if (event.key === "Escape" && dismissible) {
         event.preventDefault();
@@ -59,11 +64,14 @@ export function ModalSurface({
       if (event.key !== "Tab" || !surface) return;
       const controls = Array.from(
         surface.querySelectorAll<HTMLElement>(
-          'button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],[tabindex="0"]',
+          'button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],[contenteditable="true"],[tabindex]',
         ),
       ).filter(
         (el) =>
           el.getClientRects().length &&
+          (el.tabIndex >= 0 ||
+            (el.matches('[contenteditable="true"]') &&
+              !el.hasAttribute("tabindex"))) &&
           !el.closest('[inert],[aria-hidden="true"]'),
       );
       const first = controls[0],

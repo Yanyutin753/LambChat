@@ -19,6 +19,7 @@ import {
   type RightPanelPresentation,
 } from "./rightPanelLayout";
 import { notifyRightPanelWidthChanged } from "./rightPanelWidthEvents";
+import { useBodyScrollLock } from "./useBodyScrollLock";
 
 export interface SidebarPanelOptions {
   open: boolean;
@@ -69,7 +70,6 @@ export interface SidebarPanelReturn {
 
 const _compressCounts = new Map<string, number>();
 let _modalCount = 0;
-let _previousBodyOverflow = "";
 let _previousBodyPaddingRight = "";
 let _activeLayoutOwner: symbol | null = null;
 
@@ -130,6 +130,7 @@ export function useSidebarPanel({
       ? "fullscreen"
       : (presentationOverride ?? responsivePresentation);
   const isMobile = presentation === "fullscreen";
+  useBodyScrollLock(open && presentation !== "docked");
   const panelKind: RightPanelKind =
     kind ?? (dataAttr === "data-editor-sidebar" ? "editor" : "content");
 
@@ -276,13 +277,11 @@ export function useSidebarPanel({
     }
 
     if (_modalCount === 0) {
-      _previousBodyOverflow = document.body.style.overflow;
       _previousBodyPaddingRight = document.body.style.paddingRight;
       const scrollbarWidth = Math.max(
         0,
         window.innerWidth - document.documentElement.clientWidth,
       );
-      document.body.style.overflow = "hidden";
       if (scrollbarWidth > 0) {
         document.body.style.paddingRight = `${scrollbarWidth}px`;
       }
@@ -292,7 +291,6 @@ export function useSidebarPanel({
     return () => {
       _modalCount = Math.max(0, _modalCount - 1);
       if (_modalCount === 0) {
-        document.body.style.overflow = _previousBodyOverflow;
         document.body.style.paddingRight = _previousBodyPaddingRight;
       }
     };
@@ -302,7 +300,13 @@ export function useSidebarPanel({
     if (!open) return;
 
     const handleEscape = (event: KeyboardEvent) => {
-      if (document.fullscreenElement || event.defaultPrevented) return;
+      if (
+        document.fullscreenElement ||
+        event.defaultPrevented ||
+        event.isComposing ||
+        event.keyCode === 229
+      )
+        return;
       const dialogs = document.querySelectorAll(
         '[role="dialog"][aria-modal="true"]',
       );

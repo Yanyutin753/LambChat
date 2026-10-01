@@ -18,6 +18,8 @@ const overlaySources = [
   "../../components/common/DeleteProjectDialog.tsx",
   "../../components/common/ImageViewer.tsx",
   "../../components/common/VideoViewer.tsx",
+  "../../components/chat/ChatMessage/MermaidDiagram.tsx",
+  "../../components/documents/previews/ExcalidrawPreview.tsx",
   "../../components/profile/ProfileModal.tsx",
   "../../components/share/ShareDialog.tsx",
   "../../components/sidebar/SessionPreviewDialog.tsx",

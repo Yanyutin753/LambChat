@@ -520,6 +520,7 @@ export const ChatInput = memo(function ChatInput({
   });
   const handleComposerKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.nativeEvent.isComposing || event.keyCode === 229) return;
       if (mention.isActive) {
         if (event.key === "Enter" || event.key === "Tab") {
           event.preventDefault();
@@ -534,12 +535,11 @@ export const ChatInput = memo(function ChatInput({
         }
         if (event.key === "Escape") {
           event.preventDefault();
-          resetMention();
+          dismissMention();
           return;
         }
       }
       if (event.key === "Enter") {
-        if (event.nativeEvent.isComposing || event.keyCode === 229) return;
         handleEnterSubmit(
           event,
           {
@@ -563,6 +563,7 @@ export const ChatInput = memo(function ChatInput({
     [
       applyMentionSelection,
       applyTeamMentionSelection,
+      dismissMention,
       clearSteerDraft,
       hasFailedAttachment,
       hasUploadingAttachment,
@@ -574,7 +575,6 @@ export const ChatInput = memo(function ChatInput({
       mentionMode,
       mentionSearch.presets,
       onQueueFollowUp,
-      resetMention,
       sendBlocked,
       visibleAttachments,
       teamMentionSearch.teams,

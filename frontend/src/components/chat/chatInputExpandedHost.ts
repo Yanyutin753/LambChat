@@ -37,7 +37,13 @@ export function useExpandedComposerHost(
   useEffect(() => {
     if (!expanded) return;
     const collapseOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented || host?.inert)
+      if (
+        event.key !== "Escape" ||
+        event.defaultPrevented ||
+        event.isComposing ||
+        event.keyCode === 229 ||
+        host?.inert
+      )
         return;
       event.preventDefault();
       setExpanded(false);

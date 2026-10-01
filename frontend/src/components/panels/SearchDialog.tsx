@@ -164,7 +164,12 @@ export function SearchDialog({
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.isComposing || e.target !== inputRef.current)
+      if (
+        e.defaultPrevented ||
+        e.isComposing ||
+        e.keyCode === 229 ||
+        e.target !== inputRef.current
+      )
         return;
       if (e.key === "ArrowDown") {
         e.preventDefault();

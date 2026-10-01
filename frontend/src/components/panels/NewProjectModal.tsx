@@ -54,11 +54,14 @@ export function NewProjectModal({
             value={name}
             onChange={(e) => onNameChange(e.target.value)}
             onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing || e.keyCode === 229) return;
               if (e.key === "Enter") {
+                e.preventDefault();
                 onCreate();
                 onClose();
               }
               if (e.key === "Escape") {
+                e.preventDefault();
                 onClose();
                 onNameChange("");
               }
