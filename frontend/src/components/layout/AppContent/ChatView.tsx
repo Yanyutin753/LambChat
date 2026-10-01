@@ -14,7 +14,6 @@ import { WelcomePage } from "../../chat/WelcomePage";
 import { Virtuoso, type ListRange, type VirtuosoHandle } from "react-virtuoso";
 import { ApprovalPanel } from "../../panels/ApprovalPanel";
 import { setSteerCancelHandler } from "../../chat/steerCancelStore";
-import { SessionScheduledTasksButton } from "../../panels/ScheduledTaskPanel";
 import {
   ChatSkeleton,
   ChatSkeletonMessagesOnly,
@@ -77,6 +76,7 @@ const HISTORY_FIRST_ITEM_INDEX = 1_000_000;
 export function ChatView({
   messages,
   sessionId,
+  composerFocusRequest,
   currentRunId,
   isLoading,
   isLoadingHistory,
@@ -168,12 +168,6 @@ export function ChatView({
   const hasPendingAskHumanApproval = approvals.some(
     (approval) => approval.metadata?.mode === "interrupt",
   );
-  const scheduledTasksRefreshKey = [
-    sessionId ?? "",
-    currentRunId ?? "",
-    messages.length,
-    isLoading ? "loading" : "idle",
-  ].join(":");
   const hasVisibleStreamingMessage = messages.some(
     (message) => message.role === "assistant" && message.isStreaming,
   );
@@ -726,6 +720,7 @@ export function ChatView({
 
   // Shared ChatInput props to avoid duplication
   const chatInputProps = {
+    focusRequest: composerFocusRequest,
     onSend: handleStableSend,
     onStop: onStopGeneration,
     onSupplement: onSupplementFollowUpMessage,
@@ -884,11 +879,6 @@ export function ChatView({
             <div
               className={`absolute ${FLOATING_SCROLL_BUTTON_OFFSET_CLASS} right-2 z-50 flex flex-col gap-2 sm:right-4`}
             >
-              <SessionScheduledTasksButton
-                sessionId={sessionId}
-                refreshKey={scheduledTasksRefreshKey}
-                className="group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 text-theme-text-secondary transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--glass-bg-subtle)] hover:text-theme-text active:scale-95 sm:h-10 sm:w-10"
-              />
               <SessionBookmarksButton
                 sessionId={sessionId}
                 onNavigateToMessage={handleNavigateToBookmark}

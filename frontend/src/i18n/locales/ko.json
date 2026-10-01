@@ -318,6 +318,9 @@
     "previous": "이전 항목",
     "reject": "거부",
     "scheduledTask": {
+      "searchPlaceholder": "작업 이름 또는 설명 검색…",
+      "noResults": "일치하는 예약 작업이 없습니다",
+      "noResultsDesc": "다른 검색어를 입력하거나 상태 필터를 변경하세요.",
       "agent": "에이전트",
       "confirmCreation": "이 예약 작업의 생성을 확인해 주세요.",
       "effect": "생성 후 에이전트 '{{agent}}'이(가) {{schedule}}에 실행됩니다. 각 실행 시 새 세션이 시작되고 다음 프롬프트가 에이전트에 전송됩니다:",
@@ -337,6 +340,7 @@
     "submit": "확인"
   },
   "auth": {
+    "brandTitle": "아이디어를 현실로.",
     "account": "계정",
     "backToLogin": "로그인으로 돌아가기",
     "checkInboxStep": "받은 편지함 확인 (스팸 폴더도 확인하세요)",
@@ -356,7 +360,6 @@
     "enteringChat": "채팅을 여는 중...",
     "featureAgents": "에이전트",
     "featureMemory": "메모리",
-    "featureSkills": "스킬",
     "featureTools": "도구",
     "forgotPassword": "비밀번호 찾기",
     "forgotPasswordDesc": "이메일 주소를 입력하면 비밀번호 재설정 링크를 보냅니다",
@@ -510,6 +513,9 @@
     "repositoryOrBranchNotFound": "저장소 또는 브랜치를 찾을 수 없습니다.",
     "resetTokenExpired": "재설정 토큰이 만료되었습니다.",
     "roleNotFound": "역할을 찾을 수 없습니다.",
+    "sandboxSessionNotLocal": "이 세션은 클라우드 샌드박스에서 실행 중입니다. 워크스페이스 파일 탐색에는 로컬 샌드박스 세션이 필요합니다",
+    "sandboxCloudNotCreated": "클라우드 컴퓨터가 아직 없습니다. 클라우드 세션에서 메시지를 보내면 자동 생성됩니다",
+    "sandboxCloudRecycled": "클라우드 컴퓨터가 회수되어 파일이 보존되지 않았습니다. 메시지를 보내면 다시 생성됩니다",
     "sessionAccessDenied": "이 세션에 접근할 권한이 없습니다.",
     "sessionNotFound": "세션을 찾을 수 없습니다.",
     "settingNotFound": "설정을 찾을 수 없습니다.",
@@ -1132,6 +1138,9 @@
     "welcomeSuggestions": "추천"
   },
   "common": {
+    "panelTabs": "패널 탭",
+    "closePanelTab": "탭 닫기: {{title}}",
+    "paginationSummary": "총 {{total}}개 · 페이지당 {{pageSize}}개",
     "about": "정보",
     "accessDenied": "접근이 거부되었습니다",
     "add": "추가",
@@ -1177,6 +1186,8 @@
     "on": "켜짐",
     "operationFailed": "작업에 실패했습니다",
     "page": "{{page}}페이지",
+    "filtersAndActions": "필터 및 작업",
+    "pagination": "페이지 탐색",
     "permissionRequired": "권한이 필요합니다",
     "poweredBy": "Clivia 제공",
     "prev": "이전",
@@ -1563,6 +1574,7 @@
       "monthsAgo": "{{count}}개월 전"
     },
     "title": "파일 라이브러리",
+    "subtitle": "업로드 및 생성된 파일을 관리하세요",
     "tryDifferent": "다른 검색어를 시도해보세요",
     "types": {
       "all": "전체",
@@ -1921,7 +1933,6 @@
     "contentLabel": "내용",
     "contentPlaceholder": "메모리 내용을 입력하세요 (5자 이상)...",
     "contentRequired": "메모리 내용은 5자 이상이어야 합니다",
-    "contextFilterPlaceholder": "스코프 (예: project_constraint)",
     "createBtn": "메모리 추가",
     "createSuccess": "메모리가 생성되었습니다",
     "createTitle": "새 메모리",
@@ -1946,7 +1957,7 @@
     "searchMode": {
       "hybrid": "하이브리드"
     },
-    "searchPlaceholder": "메모리 검색...",
+    "searchPlaceholder": "제목, 요약, 태그 또는 분류 검색…",
     "selectAll": "모두 선택",
     "selectHint": "메모리를 선택하여 상세 보기",
     "source": {
@@ -2058,6 +2069,7 @@
     "taskCompleted": "작업 완료",
     "taskFailed": "작업 실패",
     "title": "알림",
+    "subtitle": "공지와 메시지를 확인하고 관리하세요",
     "titleLabel": "제목",
     "typeInfo": "정보",
     "typeLabel": "유형",
@@ -2453,6 +2465,9 @@
     }
   },
   "scheduledTask": {
+    "searchPlaceholder": "작업 이름 또는 설명 검색…",
+    "noResults": "일치하는 예약 작업이 없습니다",
+    "noResultsDesc": "다른 검색어를 입력하거나 상태 필터를 변경하세요.",
     "active": "실행 중",
     "agent": "에이전트",
     "agentPlaceholder": "에이전트 선택...",
@@ -2539,6 +2554,7 @@
     "timeout": "시간 초과",
     "timeoutSeconds": "타임아웃 (초)",
     "title": "예약 작업",
+    "subtitle": "작업을 예약하고 실행 기록을 확인하세요",
     "totalRuns": "총 실행 횟수",
     "triggerType": "트리거 유형",
     "triggeredSuccess": "작업이 트리거되었습니다",
@@ -2938,6 +2954,7 @@
     "TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS": "고아 태스크 복구 스캔 간격(초)",
     "TASK_RUN_STALL_TIMEOUT": "실행 하트비트 정체 타임아웃(초)",
     "LLM_STREAM_IDLE_TIMEOUT": "스트리밍 chunk 사이의 최대 유휴 시간(초). 업스트림 정체로 실행이 멈추는 것을 방지(0 이하는 비활성화)",
+    "LLM_STREAM_GAP_WARN_TIMEOUT": "스트리밍 chunk 사이 간격이 이 초를 초과하면 로그에 경고를 기록합니다. 상류 정체로 인한 내용 손실 감지용(경고만 기록, 0 이하 비활성화)",
     "ENABLE_WEB_FETCH": "웹 패치 도구 활성화: 공개 페이지 본문을 Markdown으로 읽어옵니다(내부 주소는 항상 거부).",
     "WEB_FETCH_PROVIDER": "패치 공급자: direct=로컬, tavily=검색 키 재사용, firecrawl=자체 호스팅 가능, exa=캐시+실크롤, jina=r.jina.ai, auto=순차 폴백.",
     "JINA_API_KEYS": "Jina Reader API 키, 쉼표로 구분하여 로테이션. 비워두면 jina 비활성화.",
@@ -3127,6 +3144,7 @@
     "send": "메시지 전송"
   },
   "sidebar": {
+    "noProjects": "프로젝트가 없습니다",
     "addToFavorites": "즐겨찾기에 추가",
     "batchDeleteConfirm": "선택한 {{count}}개의 세션을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
     "batchDeletePartialFailed": "{{count}}개 세션 삭제 실패",
@@ -3165,6 +3183,8 @@
     "navigate": "이동",
     "navigation": "탐색",
     "newChat": "새 채팅",
+    "newChatInProject": "{{project}}에서 새 대화 시작",
+    "startFirstChat": "첫 대화 시작하기",
     "newChatShortcut": "Ctrl+Shift+O",
     "newProject": "새 프로젝트",
     "noMatchingSessions": "일치하는 세션이 없습니다",
@@ -3177,6 +3197,7 @@
     "pinToTop": "고정",
     "pinToggleFailed": "고정 상태 업데이트 실패",
     "pinned": "고정됨",
+    "pinnedChats": "고정",
     "previous7Days": "지난 7일",
     "projectCreateFailed": "프로젝트 생성에 실패했습니다",
     "projectCreated": "프로젝트가 생성되었습니다",
@@ -3866,20 +3887,37 @@
     "minimize": "최소화",
     "maximize": "최대화",
     "restore": "이전 크기로",
-    "close": "닫기"
+    "close": "닫기",
+    "toggleSidebar": "사이드바 전환"
   },
   "workspacePanel": {
-    "title": "워크스페이스",
-    "viewChats": "채팅",
+    "account": "계정",
+    "binaryFileHint": "(바이너리 파일 — 인라인 미리보기 미지원)",
+    "cloudDisabled": "클라우드 샌드박스가 비활성화되어 있습니다",
+    "cloudNotCreated": "클라우드 컴퓨터가 아직 없습니다. 클라우드 세션에서 메시지를 보내면 자동 생성됩니다",
+    "cloudPaused": "클라우드 PC · 일시정지, 열면 자동으로 깨어납니다",
+    "cloudRunning": "클라우드 PC · 실행 중",
+    "cloudSession": "이 세션은 클라우드 샌드박스를 사용합니다. 워크스페이스 파일은 클라우드에 있습니다",
+    "copyPath": "경로 복사",
+    "daemonOffline": "로컬 샌드박스가 연결되지 않아 워크스페이스를 탐색할 수 없습니다",
+    "emptyDir": "빈 워크스페이스",
+    "noSession": "세션을 열면 워크스페이스 파일을 탐색할 수 있습니다",
     "refresh": "새로고침",
     "retry": "재시도",
-    "daemonOffline": "로컬 샌드박스가 연결되지 않아 워크스페이스를 탐색할 수 없습니다",
-    "noSession": "세션을 열면 워크스페이스 파일을 탐색할 수 있습니다",
-    "emptyDir": "빈 워크스페이스",
-    "copyPath": "경로 복사",
     "revealInFileManager": "파일 관리자에서 보기",
-    "binaryFileHint": "(바이너리 파일 — 인라인 미리보기 미지원)",
     "settings": "설정",
-    "account": "계정"
+    "switchToCloud": "클라우드 PC 보기 →",
+    "title": "대화 파일",
+    "viewChats": "채팅",
+    "viewCloud": "클라우드 PC",
+    "viewLocal": "이 PC"
+  },
+  "projectWorkspace": {
+    "details": "작업 공간 상세 정보",
+    "choose": "로컬 폴더 연결",
+    "clear": "폴더 연결 해제",
+    "inherits": "이 프로젝트의 새 채팅은 이 컴퓨터와 폴더를 사용합니다. 기존 채팅은 변경되지 않습니다.",
+    "optional": "선택 사항입니다. 새 채팅에서 이 폴더를 공유하며 파일은 컴퓨터에 보관됩니다.",
+    "privacy": "선택한 컴퓨터에서 파일을 처리합니다. 읽은 내용은 대화 모델로 전송될 수 있습니다."
   }
 }

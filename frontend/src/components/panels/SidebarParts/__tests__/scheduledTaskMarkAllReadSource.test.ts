@@ -1,16 +1,20 @@
 import { readFileSync } from "node:fs";
+
 const source = readFileSync(
   new URL("../SessionListContent.tsx", import.meta.url),
   "utf8",
 );
+const taskPanel = readFileSync(
+  new URL("../../ScheduledTaskPanel/index.tsx", import.meta.url),
+  "utf8",
+);
 
-test("scheduled task mark-all-read clears the task summary unread count after success", () => {
-  expect(source).toMatch(/handleScheduledTaskMarkAllRead/);
-  expect(source).toMatch(/await onMarkAllRead\(\{ scheduledTaskId \}\)/);
-  expect(source).toMatch(/setScheduledTasks\(\(prev\) =>/);
-  expect(source).toMatch(/task\.id === scheduledTaskId/);
-  expect(source).toMatch(/unread_count: 0/);
-  expect(source).toMatch(
-    /onMarkAllRead=\{\(\) =>\s+handleScheduledTaskMarkAllRead\(task\.id\)\s+\}/,
+test("scheduled tasks and execution sessions belong to the task page instead of the chat list", () => {
+  expect(source).not.toMatch(
+    /ScheduledTaskSidebarItem|scheduledTaskApi|isScheduledTasksCollapsed/,
   );
+  expect(source).toContain('navigate("/scheduled-tasks")');
+  expect(source).toContain("!session.metadata?.scheduled_task_id");
+  expect(taskPanel).toContain("scheduledTaskApi.list(");
+  expect(taskPanel).toContain("<TaskSessionList");
 });

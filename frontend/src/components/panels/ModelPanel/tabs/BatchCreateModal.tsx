@@ -115,7 +115,9 @@ export const BatchCreateModal = ({
   const [batchApiFormat, setBatchApiFormat] = useState<ApiFormat | "">("");
   const [batchRequestHeaders, setBatchRequestHeaders] = useState("");
   const [showBatchApiKey, setShowBatchApiKey] = useState(false);
-  const [batchRows, setBatchRows] = useState<BatchRow[]>([createEmptyBatchRow()]);
+  const [batchRows, setBatchRows] = useState<BatchRow[]>([
+    createEmptyBatchRow(),
+  ]);
   const [importJson, setImportJson] = useState("");
   const [importResult, setImportResult] = useState<{
     success: boolean;
@@ -209,15 +211,18 @@ export const BatchCreateModal = ({
     }
   }, [importJson]);
 
-  const readJsonFile = useCallback(async (file: File) => {
-    try {
-      const text = await file.text();
-      setImportJson(text);
-      setImportResult(null);
-    } catch {
-      toast.error(t("agentConfig.batchFileReadFailed"));
-    }
-  }, [t]);
+  const readJsonFile = useCallback(
+    async (file: File) => {
+      try {
+        const text = await file.text();
+        setImportJson(text);
+        setImportResult(null);
+      } catch {
+        toast.error(t("agentConfig.batchFileReadFailed"));
+      }
+    },
+    [t],
+  );
 
   const handleJsonImport = useCallback(async () => {
     if (importParse?.kind !== "ok") {
@@ -290,7 +295,10 @@ export const BatchCreateModal = ({
         </PanelFooterActions>
       }
     >
-      <div className="flex flex-col h-full" data-disable-global-file-drop="true">
+      <div
+        className="flex flex-col h-full"
+        data-disable-global-file-drop="true"
+      >
         {/* Tab bar */}
         <div
           className="flex border-b px-4 sm:px-6"
@@ -441,7 +449,7 @@ export const BatchCreateModal = ({
                     {batchRows.length > 1 && (
                       <button
                         onClick={() => removeBatchRow(row.id)}
-                        className="p-1.5 text-theme-text-secondary hover:text-red-500 rounded-lg transition-colors"
+                        className="p-1.5 text-theme-text-secondary hover:text-theme-error rounded-lg transition-colors"
                         title={t("common.delete")}
                       >
                         <Trash2 size={14} />
@@ -515,7 +523,9 @@ export const BatchCreateModal = ({
                           </label>
                           <ProviderSelect
                             value={row.provider}
-                            onChange={(v) => updateBatchRow(row.id, "provider", v)}
+                            onChange={(v) =>
+                              updateBatchRow(row.id, "provider", v)
+                            }
                             placeholder={t("agentConfig.providerAuto")}
                           />
                         </div>
@@ -558,7 +568,9 @@ export const BatchCreateModal = ({
                             onChange={(e) =>
                               updateBatchRow(row.id, "apiBase", e.target.value)
                             }
-                            placeholder={t("agentConfig.modelApiBasePlaceholder")}
+                            placeholder={t(
+                              "agentConfig.modelApiBasePlaceholder",
+                            )}
                             className="es-input"
                           />
                           <p className="es-hint">
@@ -627,7 +639,10 @@ export const BatchCreateModal = ({
                       </div>
                       <div className="es-field">
                         <label className="es-label">
-                          {t("agentConfig.pricingLabel", "价格覆盖（USD / 百万 tokens）")}
+                          {t(
+                            "agentConfig.pricingLabel",
+                            "价格覆盖（USD / 百万 tokens）",
+                          )}
                         </label>
                         <div className="grid grid-cols-2 gap-2">
                           <Input
@@ -730,7 +745,10 @@ export const BatchCreateModal = ({
                           />
                           <span>
                             <span className="block font-medium">
-                              {t("agentConfig.imageUrlToBase64", "图片链接转 base64")}
+                              {t(
+                                "agentConfig.imageUrlToBase64",
+                                "图片链接转 base64",
+                              )}
                             </span>
                             <span className="es-hint block">
                               {t(
@@ -819,8 +837,8 @@ export const BatchCreateModal = ({
                 <div
                   className={`rounded-xl p-3 text-14 flex items-center gap-2 ${
                     importParse.kind === "ok"
-                      ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                      : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                      ? "bg-[color-mix(in_srgb,var(--theme-success)_12%,transparent)] text-theme-success dark:bg-green-900/30 dark:text-green-400"
+                      : "bg-[color-mix(in_srgb,var(--theme-error)_12%,transparent)] text-theme-error dark:bg-red-900/30 dark:text-red-400"
                   }`}
                 >
                   {importParse.kind === "ok" ? (
@@ -877,8 +895,8 @@ export const BatchCreateModal = ({
                 <div
                   className={`flex items-center gap-2 rounded-xl p-3 ${
                     importResult.success
-                      ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                      : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                      ? "bg-[color-mix(in_srgb,var(--theme-success)_12%,transparent)] text-theme-success dark:bg-green-900/30 dark:text-green-400"
+                      : "bg-[color-mix(in_srgb,var(--theme-error)_12%,transparent)] text-theme-error dark:bg-red-900/30 dark:text-red-400"
                   }`}
                 >
                   {importResult.success ? <Check size={20} /> : <X size={20} />}

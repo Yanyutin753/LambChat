@@ -154,12 +154,12 @@ export function UsagePanelSkeleton() {
   return (
     <div className="glass-shell usage-panel flex h-full min-h-0 flex-col overflow-y-auto animate-fade-in">
       {/* 1. PanelHeader with search, subtitle */}
-      <PanelHeaderSkeleton hasSearch hasSubtitle />
+      <PanelHeaderSkeleton hasSearch hasSubtitle hasSearchAccessory hasSearchActions hasActions={false} />
 
       {/* 2. KPI grid — 6 StatMetric cards in single usage-surface: grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 */}
-      <div className="px-3 pt-3 pb-1 sm:px-6 sm:pb-2">
-        <div className="usage-surface grid grid-cols-2 overflow-hidden rounded-xl sm:grid-cols-3 xl:grid-cols-6">
-          {Array.from({ length: 6 }).map((_, i) => (
+      <div className="mx-auto w-full px-4 pt-5 pb-4 sm:px-6 sm:pt-6 sm:pb-5 lg:px-8">
+        <div className="usage-surface grid grid-cols-2 overflow-hidden rounded-xl md:grid-cols-4 xl:grid-cols-7">
+          {Array.from({ length: 7 }).map((_, i) => (
             <div
               key={i}
               className="group relative flex min-w-0 flex-col gap-2 border-r border-b border-[var(--usage-border)] px-3.5 py-3 sm:gap-2.5 sm:px-4 sm:py-4 xl:border-b-0"
@@ -196,7 +196,7 @@ export function UsagePanelSkeleton() {
       </div>
 
       {/* 3–9. Dashboard content area */}
-      <div className="flex-1 px-3 pt-1 pb-2 sm:px-6 sm:pt-2 sm:pb-4">
+      <div className="mx-auto w-full flex-1 px-4 pt-0 pb-4 sm:px-6 sm:pb-6 lg:px-8">
         {/* 3. Section header: "运营总览" with LayoutDashboard icon */}
         <div className="mb-3 flex items-center gap-2.5 sm:mb-4">
           <div className="skeleton-line size-[14px] rounded shrink-0" />
@@ -220,18 +220,18 @@ export function UsagePanelSkeleton() {
         </div>
 
         {/* 5. Chart + Rankings: two-column grid (xl:grid-cols-[1.5fr_1fr]) */}
-        <div className="mb-4 grid gap-3 sm:mb-5 xl:grid-cols-[1.5fr_1fr]">
+        <div className="mb-5 grid gap-5 sm:mb-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(24rem,0.95fr)]">
           {/* Left: MiniTrend chart card */}
           <MiniTrendSkeleton />
           {/* Right: 2 stacked RankingList cards */}
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+          <div className="grid gap-5 xl:grid-cols-1">
             <RankingCardSkeleton itemCount={3} />
             <RankingCardSkeleton itemCount={3} />
           </div>
         </div>
 
         {/* 6. Bottom ranking grid (grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4): 4 cards */}
-        <div className="mb-4 grid gap-3 grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 sm:mb-5">
+        <div className="mb-5 grid grid-cols-1 gap-5 sm:mb-6 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-4">
           <RankingCardSkeleton itemCount={3} />
           <RankingCardSkeleton itemCount={3} />
           <RankingCardSkeleton itemCount={3} />
@@ -525,8 +525,8 @@ export function UsagePanelSkeleton() {
         </>
 
         {/* 9. Pagination */}
-        <PanelPaginationSkeleton variant="wide" />
       </div>
+      <PanelPaginationSkeleton />
     </div>
   );
 }

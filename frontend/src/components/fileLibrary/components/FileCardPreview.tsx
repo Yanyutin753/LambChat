@@ -94,7 +94,7 @@ function PaperCanvas({
   return (
     <div
       className={clsx(
-        "relative h-full w-full overflow-hidden bg-stone-50 dark:bg-stone-900/60",
+        "relative h-full w-full overflow-hidden bg-theme-bg-subtle",
         className,
       )}
     >
@@ -496,7 +496,7 @@ function RenderedCover({
     : [];
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-stone-50 dark:bg-stone-900/60">
+    <div className="relative h-full w-full overflow-hidden bg-theme-bg-subtle">
       <SmartThumb
         sources={sources}
         alt={p.title}

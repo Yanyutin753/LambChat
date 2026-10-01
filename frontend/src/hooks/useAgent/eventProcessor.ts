@@ -112,6 +112,16 @@ export function processMessageEvent(
   const result: ProcessMessageEventResult = { parts, content, toolCalls };
   const agentId = data.agent_id;
 
+  // Todo tools update the existing checklist, including during history replay.
+  if (data.tool === "todo_write" || data.tool === "write_todos") {
+    if (eventType === "tool:start") {
+      eventType = "todo:updated";
+      data = { ...data, todos: data.args?.todos as EventData["todos"] };
+    } else if (eventType === "tool:args:chunk" || eventType === "tool:result") {
+      return result;
+    }
+  }
+
   switch (eventType) {
     // ---- Agent events ----
 

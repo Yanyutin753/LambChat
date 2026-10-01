@@ -49,6 +49,7 @@ from src.infra.agent.middleware._artifact_delivery_support import (
 from src.infra.agent.middleware._artifact_delivery_support import (
     _is_auto_deliverable_url as _is_auto_deliverable_url,
 )
+from src.kernel.config import settings
 
 logger = logging.getLogger(__name__)
 _ARTIFACT_BACKGROUND_DRAIN_TIMEOUT = 3.0
@@ -92,6 +93,8 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
         return key, run
 
     async def abefore_agent(self, state: Any, runtime: Any) -> None:
+        if not settings.ENABLE_ARTIFACT_DELIVERY:
+            return
         messages = state.get("messages") if isinstance(state, dict) else None
         if isinstance(messages, list):
             for message in messages:
@@ -112,13 +115,20 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
         request: Any,
         handler: Callable[[Any], Awaitable[Any]],
     ) -> Any:
+        if not settings.ENABLE_ARTIFACT_DELIVERY:
+            # 自动投递关闭：快照/staging/投递全部跳过（含 reveal 抑制记账——
+            # 没有自动投递就没有需要去重的对象），工具本体照常执行。
+            return await handler(request)
         _, run = self._run_state(request.runtime)
         before_snapshot_task = None
         tool_name = request.tool_call.get("name", "")
         tool_args = request.tool_call.get("args", {})
         if not isinstance(tool_args, dict):
             tool_args = {}
-        if tool_name == "execute":
+        if tool_name == "execute" and run.last_snapshot is None:
+            # 仅本 run 首条 execute 现拍 before 快照；后续复用 last_snapshot
+            # （上一条的 after 即本条的 before）——本地档下每次全工作区 glob
+            # 都是一次 daemon 往返，且与真实命令在同一串行队列上争用。
             before_snapshot_task = self._schedule_workspace_snapshot(
                 run,
                 request.runtime,
@@ -169,6 +179,8 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
         return result
 
     async def aafter_agent(self, state: Any, runtime: Any) -> dict[str, Any] | None:
+        if not settings.ENABLE_ARTIFACT_DELIVERY:
+            return None
         key, run = self._run_state(runtime)
         try:
             self._auto_stage_external_urls_from_state(run, state)
@@ -451,11 +463,13 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
         if before_task is not None:
             with contextlib.suppress(Exception):
                 before_snapshot = await before_task
+        if before_snapshot is None:
+            # 上一条 execute 的 after 快照即本条的 before 状态（更新鲜）；
+            # baseline（run 起点）只在其缺失时兜底。
+            before_snapshot = run.last_snapshot
         if before_snapshot is None and run.baseline_snapshot_task is not None:
             with contextlib.suppress(Exception):
                 before_snapshot = await run.baseline_snapshot_task
-        if before_snapshot is None:
-            before_snapshot = run.last_snapshot
 
         after_snapshot = await self._take_workspace_snapshot(run, runtime)
         if before_snapshot is None or after_snapshot is None:

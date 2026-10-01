@@ -236,7 +236,7 @@ export function ChatInputToolbar({
   const selectedTeamName = selectedTeam?.name ?? null;
 
   return (
-    <div className="flex max-w-full flex-nowrap justify-between gap-1 px-2 pb-3 pt-3 mx-0.5">
+    <div className="chat-input-toolbar flex max-w-full flex-nowrap justify-between gap-1 px-2 pb-3 pt-3 mx-0.5">
       {/* 左行不设横向滚动：滚动容器会在手机端裁切 chip（视觉上与右簇重叠），
           超宽时由 chip 的 shrink + truncate 优雅降级 */}
       <div className="flex min-h-10 min-w-0 flex-1 items-center gap-0.5 sm:gap-1.5">
@@ -266,7 +266,7 @@ export function ChatInputToolbar({
           !selectedPersonaName &&
           !(currentAgent === "team" && onSelectTeam && selectedTeamId) && (
             <ToolbarChip
-              icon={<AgentIcon icon={agentIcon || "Bot"} size={18} />}
+              icon={<AgentIcon icon={agentIcon || "Bot"} size={16} />}
               label={agentName || t(`agents.${currentAgent}.name`) || ""}
               onClick={() => onActivePanelChange("agent")}
             />
@@ -285,7 +285,7 @@ export function ChatInputToolbar({
                       : personaAvatar.avatar
                   }
                   alt=""
-                  className="w-[18px] h-[18px] rounded-full object-cover group-hover:opacity-0 transition-opacity"
+                  className="w-4 h-4 rounded-full object-cover group-hover:opacity-0 transition-opacity"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = "none";
                   }}
@@ -294,7 +294,7 @@ export function ChatInputToolbar({
                 <PersonaAvatarIcon
                   avatar={personaAvatar?.avatar}
                   primaryTag={personaAvatar?.primaryTag ?? ""}
-                  size={18}
+                  size={16}
                   className="transition-transform duration-200 group-hover:opacity-0"
                 />
               )
@@ -317,7 +317,7 @@ export function ChatInputToolbar({
                 }
                 label={selectedTeamName ?? t("chat.teamSelected")}
                 className="team-toolbar-avatar transition-opacity group-hover:opacity-0"
-                iconSize={18}
+                iconSize={16}
               />
             }
             label={selectedTeamName ?? t("chat.teamSelected")}
@@ -334,11 +334,11 @@ export function ChatInputToolbar({
           <ToolbarChip
             icon={
               // 手机端档位文字隐藏，档位靠图标区分：云端=云图标，本地=显示器图标
-              sandboxChipLocal ? <Monitor size={18} /> : <Cloud size={18} />
+              sandboxChipLocal ? <Monitor size={16} /> : <Cloud size={16} />
             }
             label={sandboxLabel || ""}
             title={sandboxChipTitle}
-            labelClassName="hidden sm:inline"
+            labelClassName="composer-sandbox-label hidden sm:inline max-w-40"
             onClick={() => onActivePanelChange("sandbox")}
             trailing={
               sandboxChipLocal ? (
@@ -415,7 +415,7 @@ export function ChatInputToolbar({
             }}
             title={t("chat.noPermission")}
           >
-            <Lock size={18} />
+            <Lock size={16} />
           </button>
         ) : sendBlocked ? (
           <button
@@ -428,7 +428,7 @@ export function ChatInputToolbar({
             }}
             title={t("chat.waitingForHuman", "等待人工确认后才能发送")}
           >
-            <ArrowUp size={18} />
+            <ArrowUp size={16} />
           </button>
         ) : isLoading &&
           hasDraft &&
@@ -459,7 +459,7 @@ export function ChatInputToolbar({
               "追加消息（当前任务结束后发送）",
             )}
           >
-            <ArrowUp size={18} />
+            <ArrowUp size={16} />
           </button>
         ) : isLoading ? (
           <button
@@ -504,7 +504,7 @@ export function ChatInputToolbar({
                 : t("chat.send")
             }
           >
-            <ArrowUp size={18} />
+            <ArrowUp size={16} />
           </button>
         )}
       </div>

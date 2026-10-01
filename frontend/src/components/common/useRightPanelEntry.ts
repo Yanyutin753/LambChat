@@ -1,9 +1,13 @@
 import {
+  createContext,
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
+  useId,
   useSyncExternalStore,
   type RefObject,
+  type ReactNode,
 } from "react";
 
 import type { RightPanelPresentation } from "../../hooks/rightPanelLayout";
@@ -16,29 +20,43 @@ import {
   type RightPanelKind,
 } from "./rightPanelCoordinator";
 
+// Keep imperative viewers mounted; only live subscriptions opt into visibility.
+export const RightPanelActiveContext = createContext(true);
+
+export const RightPanelOwnerContext = createContext<symbol | null>(null);
+
 export function useRightPanelEntry({
   open,
   onClose,
   kind,
   automatic = false,
+  title,
+  icon,
+  registryKey,
 }: {
   open: boolean;
   onClose: () => void;
   kind: RightPanelKind;
   automatic?: boolean;
+  title?: string;
+  icon?: ReactNode;
+  registryKey?: string;
 }) {
   const ownerId = useRef(Symbol(`right-panel:${kind}`)).current;
+  const panelId = useId();
+  const parentId = useContext(RightPanelOwnerContext);
   const openerRef = useRef<HTMLElement | null>(null);
   const closeRef = useRef(onClose);
   const automaticRef = useRef(automatic);
   closeRef.current = onClose;
   automaticRef.current = automatic;
 
-  const snapshot = useSyncExternalStore(
-    subscribeRightPanels,
-    getRightPanelSnapshot,
-    getRightPanelSnapshot,
-  );
+  // Subscribe to flags, so unrelated tab metadata cannot rerender hidden shells.
+  const getFlags = () => {
+    const current = getRightPanelSnapshot();
+    return (current.activeId === ownerId ? 1 : 0) | (current.depth > 1 ? 2 : 0);
+  };
+  const flags = useSyncExternalStore(subscribeRightPanels, getFlags, getFlags);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -53,14 +71,21 @@ export function useRightPanelEntry({
       automatic: automaticRef.current,
       close: () => closeRef.current(),
       opener: openerRef.current,
+      title,
+      icon,
+      panelId,
+      registryKey,
+      parentId,
     });
     if (!accepted) return;
 
     return () => unregisterRightPanel(ownerId);
+    // Metadata is updated separately without reordering or activating this tab.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, ownerId, kind]);
 
   useLayoutEffect(() => {
-    if (!open || snapshot.activeId !== ownerId) return;
+    if (!open) return;
 
     updateRightPanel({
       id: ownerId,
@@ -68,13 +93,29 @@ export function useRightPanelEntry({
       automatic,
       close: () => closeRef.current(),
       opener: openerRef.current,
+      title,
+      icon,
+      panelId,
+      registryKey,
+      parentId,
     });
-  }, [open, ownerId, kind, automatic, snapshot.activeId]);
+  }, [
+    open,
+    ownerId,
+    kind,
+    automatic,
+    title,
+    icon,
+    panelId,
+    registryKey,
+    parentId,
+  ]);
 
   return {
     ownerId,
-    active: open && snapshot.activeId === ownerId,
-    hasPrevious: open && snapshot.activeId === ownerId && snapshot.depth > 1,
+    panelId,
+    active: open && !!(flags & 1),
+    hasPrevious: open && !!(flags & 1) && !!(flags & 2),
     openerRef,
   };
 }
@@ -112,12 +153,15 @@ export function useRightPanelFocus({
     if (active && !wasActive.current && !automatic) {
       queueMicrotask(() => {
         const panel = panelRef.current;
-        const first = panel?.querySelector<HTMLElement>(FOCUSABLE);
+        const first =
+          panel?.querySelector<HTMLElement>(
+            '[role="tab"][aria-selected="true"]',
+          ) ?? panel?.querySelector<HTMLElement>(FOCUSABLE);
         (first ?? panel)?.focus({ preventScroll: true });
       });
     }
 
-    if (!open && wasOpen.current) {
+    if (!open && wasOpen.current && !getRightPanelSnapshot().activeId) {
       restoreOpenerFocus(openerRef);
     }
 
@@ -127,7 +171,7 @@ export function useRightPanelFocus({
 
   useEffect(
     () => () => {
-      if (!wasActive.current) return;
+      if (!wasActive.current || getRightPanelSnapshot().activeId) return;
       restoreOpenerFocus(openerRef);
     },
     [openerRef],

@@ -894,3 +894,43 @@ test("upserts artifact parts by path so one file shows once per message", () => 
   );
   expect(other.parts.filter((part) => part.type === "artifact")).toHaveLength(2);
 });
+
+test.each(["todo_write", "write_todos"])(
+  "%s updates the original todo block without displaying a tool call",
+  (tool) => {
+    const original: MessagePart[] = [
+      { type: "todo", items: [{ content: "起草正文", status: "pending" }] },
+      { type: "text", content: "正文" },
+    ];
+    const process = (
+      event: string,
+      data: Parameters<typeof processMessageEvent>[1],
+      parts = original,
+    ) =>
+      processMessageEvent(event, data, parts, "正文", [], 0, [], true, "todo-message");
+    expect(
+      process("tool:args:chunk", { tool, content: '{"todos":[' }).parts,
+    ).toEqual(original);
+    const updated = process("tool:start", {
+      tool,
+      tool_call_id: "todo-update",
+      args: { todos: [{ content: "起草正文", status: "completed" }] },
+    });
+    expect(updated.parts).toEqual([
+      {
+        type: "todo",
+        items: [{ content: "起草正文", status: "completed" }],
+        isStreaming: true,
+      },
+      original[1],
+    ]);
+    expect(updated.toolCalls).toEqual([]);
+    expect(
+      process(
+        "tool:result",
+        { tool, tool_call_id: "todo-update", result: "Updated" },
+        updated.parts,
+      ).parts,
+    ).toEqual(updated.parts);
+  },
+);

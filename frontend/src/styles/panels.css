@@ -1,0 +1,280 @@
+/* One layout rhythm across all panel pages; keep their original visual styles. */
+[data-panel] {
+  container-name: panel;
+  container-type: inline-size;
+  --panel-inset: 0.75rem;
+  --panel-header-block: 0.625rem;
+  --panel-gap: 0.75rem;
+  --panel-section-gap: 1.25rem;
+}
+@container panel (min-width: 640px) {
+  [data-panel] > div {
+    --panel-inset: 1.25rem;
+    --panel-header-block: 0.75rem;
+  }
+}
+@container panel (min-width: 1024px) {
+  [data-panel] > div {
+    --panel-inset: 1.75rem;
+  }
+}
+[data-panel] .panel-body {
+  min-width: 0;
+  min-height: 0;
+  padding: var(--panel-gap) var(--panel-inset);
+}
+[data-panel] .auto-grid-cols {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+  gap: var(--panel-gap);
+}
+[data-panel] .panel-pagination {
+  padding-inline: var(--panel-inset);
+  border-top: 0;
+  background: var(--theme-bg);
+}
+[data-panel] .auto-grid-cols > * {
+  min-width: 0;
+}
+[data-panel] .scb {
+  min-width: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-panel] .scb,
+  [data-panel] .scb::before {
+    animation: none;
+    transition: none;
+  }
+  [data-panel] .scb:hover {
+    transform: none;
+  }
+}
+
+/* Table and report layouts keep their structure but align with the same page edges. */
+[data-panel]
+  :where(.panel-inset, .usage-panel > .mx-auto, .usage-panel > div > .mx-auto) {
+  padding-inline: var(--panel-inset);
+}
+
+/* Shared text hierarchy and rhythm; keep specialized table/chart layouts. */
+[data-panel] .panel-header__identity {
+  flex: 1 1 12rem;
+}
+[data-panel] .panel-header__title {
+  font-size: 1.125rem;
+  line-height: 1.5;
+}
+[data-panel] .panel-header__subtitle {
+  margin-top: 0.125rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+[data-panel] .panel-header.panel-header--has-search {
+  padding-bottom: 0;
+}
+[data-panel] .panel-header__search-row {
+  margin-top: var(--panel-gap);
+}
+[data-panel] .panel-header--search-only .panel-header__search-row {
+  margin-top: 0;
+}
+/* The skills hub splits its title and search across two headers. */
+[data-panel] .skill-theme-shell > .panel-header--section-switch {
+  padding-bottom: 0;
+}
+[data-panel] .skill-theme-shell .panel-header--search-only {
+  padding-block: var(--panel-gap) 0;
+}
+[data-panel] :is(.panel-stack, .panel-sections) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--panel-gap);
+  min-width: 0;
+}
+[data-panel] .panel-sections {
+  gap: var(--panel-section-gap);
+}
+[data-panel] :is(.panel-notice, .panel-summary) {
+  margin-inline: var(--panel-inset);
+  margin-top: var(--panel-gap);
+  overflow-wrap: anywhere;
+}
+[data-panel] :is(.settings-toolbar, .file-library-toolbar) {
+  padding-block: var(--panel-header-block);
+}
+/* Files split the search header across two rows; keep one gap at each boundary. */
+[data-panel="files"] .panel-header.panel-header--desktop-identity {
+  padding-bottom: 0;
+}
+[data-panel] .file-library-toolbar {
+  padding-block: var(--panel-gap) 0;
+}
+[data-panel] .settings-content {
+  min-height: 0;
+}
+@container panel (max-width: 799px) {
+  [data-panel] .settings-sidebar {
+    display: none;
+  }
+  [data-panel] .settings-category-picker {
+    display: block;
+  }
+  [data-panel] .settings-mobile-actions {
+    display: flex;
+  }
+}
+@container panel (max-width: 639px) {
+  [data-panel] .panel-header__title {
+    font-size: 1rem;
+  }
+  [data-panel] .panel-header--has-search .panel-header__search-row {
+    margin-top: 0;
+  }
+  [data-panel]
+    :is(.settings-toolbar, .file-library-toolbar, .panel-header__mobile-menu)
+    :is(button, input, select) {
+    min-height: 2.75rem;
+  }
+  [data-panel] .panel-table-view {
+    display: none;
+  }
+  [data-panel] .panel-list-view {
+    display: block;
+  }
+}
+
+[data-panel] :is(.scb, .pps-card, .team-card, .mp-card) h3 {
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+/* Editor forms share page rhythm without inheriting the window's desktop inset. */
+.editor-sidebar {
+  container-name: editor-panel;
+  container-type: inline-size;
+  --panel-inset: 0.75rem;
+  --panel-gap: 0.75rem;
+}
+.editor-sidebar .editor-sidebar-header,
+.editor-sidebar .editor-sidebar-footer {
+  padding-inline: var(--panel-inset);
+}
+.editor-sidebar .es-form {
+  padding: var(--panel-gap) var(--panel-inset);
+  gap: 1.25rem;
+}
+.editor-sidebar .editor-sidebar-header {
+  border-bottom: 0;
+}
+@container editor-panel (min-width: 640px) {
+  .editor-sidebar-header,
+  .editor-sidebar-footer,
+  .editor-sidebar-body {
+    --panel-inset: 1.25rem;
+  }
+}
+
+[data-panel] .panel-body > :is(.space-y-3, .panel-list-view) > * + * {
+  margin-top: var(--panel-gap);
+}
+
+/* The scroll lane belongs to the content, so reserve its measured width in chrome. */
+[data-panel] :is(.panel-header, .panel-pagination, .panel-inset) {
+  padding-inline-end: calc(var(--panel-inset) + var(--panel-scrollbar, 0px));
+}
+[data-panel] :is(.panel-notice, .panel-summary) {
+  margin-inline-end: calc(var(--panel-inset) + var(--panel-scrollbar, 0px));
+}
+[data-panel] :is(.panel-body, .panel-scroll) {
+  --panel-scrollbar: 0px;
+}
+
+[data-panel] :is(.panel-body.overflow-y-auto, .panel-scroll, .usage-panel),
+.editor-sidebar-body {
+  scrollbar-gutter: stable;
+}
+.editor-sidebar .editor-sidebar-header,
+.editor-sidebar .editor-sidebar-footer {
+  padding-inline-end: calc(var(--panel-inset) + var(--panel-scrollbar, 0px));
+}
+.editor-sidebar-body {
+  --panel-scrollbar: 0px;
+}
+
+/* Search yields to filters on compact screens. */
+.file-library-toolbar__search-group {
+  flex: 1 1 0;
+  justify-content: flex-end;
+}
+.file-library-toolbar__search {
+  width: min(100%, 17.5rem);
+  min-width: 6rem;
+}
+@container panel (max-width: 639px) {
+  .file-library-toolbar button {
+    min-width: 2.75rem;
+  }
+  .file-library-toolbar__search {
+    height: 2.75rem;
+  }
+}
+
+.file-library-compact-view,
+.file-library-view-label {
+  display: none;
+}
+@container panel (max-width: 639px) {
+  .file-library-compact-view {
+    display: block;
+    border-top: 1px solid var(--theme-border);
+    margin-top: 0.25rem;
+    padding-top: 0.25rem;
+  }
+  .file-library-compact-view .file-library-view-switch {
+    flex-direction: column;
+    align-items: stretch;
+    height: auto;
+    border: 0;
+    background: transparent;
+  }
+  .file-library-compact-view .file-library-view-switch button {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    padding-inline: 0.75rem;
+  }
+  .file-library-compact-view .file-library-view-label {
+    display: inline;
+    position: relative;
+    z-index: 10;
+  }
+}
+
+.panel-header--section-switch .feedback-filter-tabs button {
+  min-height: 2.75rem;
+}
+@container panel (max-width: 639px) {
+  .feedback-filter-tabs button {
+    padding-inline: 0.5rem;
+    font-size: 0.75rem;
+  }
+  .feedback-filter-tabs {
+    max-width: calc(100cqw - 6rem);
+  }
+  .feedback-filter-tabs button {
+    min-width: 0;
+  }
+  .feedback-filter-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .feedback-filter-tabs button > span:not(.feedback-filter-label) {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .feedback-filter-tabs button {
+    transition: none;
+  }
+}

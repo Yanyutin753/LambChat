@@ -15,6 +15,12 @@ interface UseProjectManagerReturn {
   setNewProjectName: (name: string) => void;
   newProjectIcon: string;
   setNewProjectIcon: (icon: string) => void;
+  newProjectWorkspace: Project["workspace"];
+  setNewProjectWorkspace: (workspace: Project["workspace"]) => void;
+  handleUpdateWorkspace: (
+    id: string,
+    workspace: Project["workspace"],
+  ) => Promise<void>;
   showNewProjectModal: boolean;
   setShowNewProjectModal: (show: boolean) => void;
   handleCreateProject: () => Promise<void>;
@@ -35,6 +41,8 @@ export function useProjectManager(): UseProjectManagerReturn {
   const [projects, setProjects] = useState<Project[]>([]);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectIcon, setNewProjectIcon] = useState("📁");
+  const [newProjectWorkspace, setNewProjectWorkspace] =
+    useState<Project["workspace"]>(null);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
 
   const loadProjects = useCallback(async () => {
@@ -54,10 +62,12 @@ export function useProjectManager(): UseProjectManagerReturn {
       const newProject = await projectApi.create({
         name: trimmedName,
         icon: newProjectIcon || undefined,
+        workspace: newProjectWorkspace,
       });
       setProjects((prev) => [...prev, newProject]);
       setNewProjectName("");
       setNewProjectIcon("📁");
+      setNewProjectWorkspace(null);
       toast.success(t("sidebar.projectCreated"));
     } catch (err) {
       console.error("Failed to create project:", err);
@@ -119,6 +129,16 @@ export function useProjectManager(): UseProjectManagerReturn {
     }
   };
 
+  const handleUpdateWorkspace = async (
+    id: string,
+    workspace: Project["workspace"],
+  ) => {
+    const updated = await projectApi.update(id, { workspace });
+    setProjects((prev) =>
+      prev.map((project) => (project.id === id ? updated : project)),
+    );
+  };
+
   return {
     projects,
     loadProjects,
@@ -126,6 +146,9 @@ export function useProjectManager(): UseProjectManagerReturn {
     setNewProjectName,
     newProjectIcon,
     setNewProjectIcon,
+    newProjectWorkspace,
+    setNewProjectWorkspace,
+    handleUpdateWorkspace,
     showNewProjectModal,
     setShowNewProjectModal,
     handleCreateProject,

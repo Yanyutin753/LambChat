@@ -154,7 +154,7 @@ export function PersonaPresetSelector({
           style={{ borderColor: "var(--theme-border)" }}
         >
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-stone-100 dark:bg-stone-800">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-theme-bg-subtle dark:bg-stone-800">
               <UserRound size={18} style={{ color: "var(--theme-primary)" }} />
             </div>
             <div>
@@ -182,7 +182,7 @@ export function PersonaPresetSelector({
                   onOpenChange(false);
                   onManagePresets();
                 }}
-                className="inline-flex items-center gap-1.5 rounded-lg p-2 text-12 font-medium transition-colors hover:bg-stone-100 dark:hover:bg-stone-800 sm:px-2.5"
+                className="inline-flex items-center gap-1.5 rounded-lg p-2 text-12 font-medium transition-colors hover:bg-theme-bg-subtle dark:hover:bg-stone-800 sm:px-2.5"
                 style={{ color: "var(--theme-text-secondary)" }}
               >
                 <Settings2 size={18} className="shrink-0" />
@@ -193,7 +193,7 @@ export function PersonaPresetSelector({
             )}
             <button
               type="button"
-              className="rounded-lg p-2 hover:bg-stone-100 dark:hover:bg-stone-800"
+              className="rounded-lg p-2 hover:bg-theme-bg-subtle dark:hover:bg-stone-800"
               onClick={() => onOpenChange(false)}
             >
               <X size={18} />
@@ -201,12 +201,12 @@ export function PersonaPresetSelector({
           </div>
         </div>
 
-        <div className="space-y-3 border-b px-5 py-3 border-stone-200/70 dark:border-stone-700/70">
+        <div className="space-y-3 border-b px-5 py-3 border-theme-border/70 dark:border-stone-700/70">
           <div className="flex items-center gap-2">
             <div className="relative min-w-0 flex-1">
               <Search
                 size={15}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-text-tertiary"
               />
               <PanelSearchInput
                 value={query}
@@ -280,11 +280,11 @@ export function PersonaPresetSelector({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {isLoading ? (
-            <div className="py-10 text-center text-14 text-stone-500">
+            <div className="py-10 text-center text-14 text-theme-text-secondary">
               {t("common.loading", "加载中...")}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="py-10 text-center text-14 text-stone-500">
+            <div className="py-10 text-center text-14 text-theme-text-secondary">
               {t("personaPresets.empty", "暂无角色预设")}
             </div>
           ) : (

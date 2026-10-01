@@ -8,16 +8,18 @@ from src.infra.llm.streaming import aiter_with_first_event_timeout
 
 
 async def test_stream_timeout_does_not_limit_total_duration() -> None:
+    # sleep 取值需大于 Windows 默认定时器粒度（~15.6ms），否则首事件
+    # 在 timeout 到期前无法稳定送达，该测试在 Windows 上必挂。
     async def chunks():
         for value in range(4):
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.05)
             yield value
 
     started = asyncio.get_running_loop().time()
-    result = [item async for item in aiter_with_first_event_timeout(chunks(), timeout=0.025)]
+    result = [item async for item in aiter_with_first_event_timeout(chunks(), timeout=0.15)]
 
     assert result == [0, 1, 2, 3]
-    assert asyncio.get_running_loop().time() - started >= 0.04
+    assert asyncio.get_running_loop().time() - started >= 0.2
 
 
 async def test_stream_timeout_only_limits_wait_for_first_event() -> None:

@@ -15,8 +15,10 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
+import { Pagination } from "../common/Pagination";
+import { useClientPagination } from "../../hooks/useClientPagination";
 import { PanelHeader } from "../common/PanelHeader";
-import { PanelLoadingState } from "../common/PanelLoadingState";
+import { BookmarksListSkeleton } from "../skeletons";
 import { useBookmarks } from "../../hooks/useBookmarks";
 import {
   ensureBookmarksLoaded,
@@ -30,6 +32,9 @@ export function BookmarksPanel() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { status, items } = useBookmarks();
+  const { page, pageSize, setPage, slice } = useClientPagination({
+    total: items.length,
+  });
 
   const handleJump = useCallback(
     (bookmark: BookmarkItem) => {
@@ -59,17 +64,11 @@ export function BookmarksPanel() {
   }, []);
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <PanelHeader
         title={t("bookmarks.title")}
         subtitle={t("bookmarks.subtitle")}
-        icon={
-          <Bookmark
-            size={20}
-            className="text-stone-600 dark:text-stone-400"
-            fill="currentColor"
-          />
-        }
+        illustration="panel-bookmarks"
         actions={
           <button
             type="button"
@@ -83,9 +82,9 @@ export function BookmarksPanel() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto min-h-0 px-4 py-3 sm:p-6">
+      <div className="panel-body flex-1 overflow-y-auto min-h-0">
         {status === "loading" && items.length === 0 && (
-          <PanelLoadingState text={t("bookmarks.loading")} />
+          <BookmarksListSkeleton />
         )}
 
         {status === "error" && (
@@ -122,7 +121,7 @@ export function BookmarksPanel() {
 
         {items.length > 0 && (
           <div className="grid auto-grid-cols gap-3">
-            {items.map((bookmark) => (
+            {slice(items).map((bookmark) => (
               <div
                 key={bookmark.id}
                 role="button"
@@ -177,6 +176,14 @@ export function BookmarksPanel() {
             ))}
           </div>
         )}
+      </div>
+      <div className="panel-pagination empty:hidden">
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={items.length}
+          onChange={setPage}
+        />
       </div>
     </div>
   );

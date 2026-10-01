@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Cpu, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { Button } from "../../common";
@@ -172,7 +172,7 @@ export function ModelPanel() {
       <PanelHeader
         title={t("agentConfig.modelTitle")}
         subtitle={t("agentConfig.modelConfigDescription")}
-        icon={<Cpu size={24} className="text-stone-600 dark:text-stone-400" />}
+        illustration="panel-models"
         actions={
           <Button
             onClick={handleRefresh}
@@ -219,7 +219,7 @@ export function ModelPanel() {
       </div>
 
       {/* 内容 */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-5">
+      <div className="panel-body flex-1 overflow-y-auto">
         {activeTab === "model-config" ? (
           <ModelConfigTab models={dbModels} onReload={loadData} />
         ) : (

@@ -1,3 +1,4 @@
+import { PanelHeader } from "../common/PanelHeader";
 import { useEffect } from "react";
 import { Package, PackageX, ShoppingBag } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -76,34 +77,48 @@ export function SkillsHubPanel() {
 
   return (
     <div className="skill-theme-shell flex h-full min-h-0 flex-col">
-      {showTabSwitcher && (
-        <div
-          className="skills-hub-tabs font-serif"
-          role="tablist"
-          aria-label={t("skillsHub.title")}
-        >
-          <div className="skills-hub-tabs__group">
-            {hubTabs.map(({ key, label, icon: Icon, path }) => {
-              const isActive = visibleTab === key;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  onClick={() => navigate(path)}
-                  className={`skills-hub-tabs__item ${
-                    isActive ? "skills-hub-tabs__item--active" : ""
-                  }`}
-                >
-                  <Icon size={16} />
-                  <span>{label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      <PanelHeader
+        title={t(
+          visibleTab === "skills" ? "skills.title" : "marketplace.title",
+        )}
+        subtitle={t(
+          visibleTab === "skills" ? "skills.subtitle" : "marketplace.subtitle",
+        )}
+        illustration={
+          visibleTab === "skills" ? "panel-skills" : "panel-marketplace"
+        }
+        className="panel-header--section-switch"
+        actions={
+          showTabSwitcher && (
+            <div
+              className="skills-hub-tabs font-serif"
+              role="tablist"
+              aria-label={t("skillsHub.title")}
+            >
+              <div className="skills-hub-tabs__group">
+                {hubTabs.map(({ key, label, icon: Icon, path }) => {
+                  const isActive = visibleTab === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      onClick={() => navigate(path)}
+                      className={`skills-hub-tabs__item ${
+                        isActive ? "skills-hub-tabs__item--active" : ""
+                      }`}
+                    >
+                      <Icon size={16} />
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )
+        }
+      />
 
       <div className="min-h-0 flex-1 overflow-hidden">
         {visibleTab === "skills" ? (

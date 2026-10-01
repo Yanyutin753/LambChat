@@ -1,0 +1,265 @@
+/** @vitest-environment jsdom */
+import {
+  render as rtlRender,
+  screen,
+  fireEvent,
+  cleanup,
+  act,
+} from "@testing-library/react";
+import { expect, test, vi, afterEach } from "vitest";
+import { WorkspacePanel } from "../WorkspacePanel";
+import {
+  sandboxFsApi,
+  sandboxCloudFsApi,
+} from "../../../services/api/sandboxFs";
+import { type ReactNode } from "react";
+import { RevealPreviewHost } from "../../chat/ChatMessage/items/RevealPreviewHost";
+import {
+  clearRevealPreviewTabs,
+  getRevealPreviewTabs,
+  setActiveRevealPreviewState,
+} from "../../chat/ChatMessage/items/activeRevealPreviewStore";
+import { RightPanelActiveContext } from "../../common/useRightPanelEntry";
+const render: typeof rtlRender = (ui, options) =>
+  rtlRender(ui, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <>
+        {children}
+        <RevealPreviewHost
+          preview={null}
+          onClose={() => setActiveRevealPreviewState(null)}
+        />
+      </>
+    ),
+    ...options,
+  });
+afterEach(() => {
+  cleanup();
+  clearRevealPreviewTabs();
+  vi.useRealTimers();
+});
+const status = vi.hoisted(() => ({ online: true }));
+const read = vi.hoisted(() => vi.fn());
+const cloudStatus = vi.hoisted(() =>
+  vi.fn(async () => ({ state: "disabled" })),
+);
+const treeHook = vi.hoisted(() => vi.fn());
+const tree = vi.hoisted(() => ({
+  root: [] as { path: string; name: string; isDir: boolean }[],
+  state: "ready",
+  error: null,
+  expandedPaths: new Set(),
+  refresh: vi.fn(),
+}));
+vi.mock("../../documents/LazyDocumentPreview", () => ({
+  LazyDocumentPreview: ({
+    content,
+    onClose,
+  }: {
+    content: string;
+    onClose?: () => void;
+  }) => (
+    <div>
+      {content}
+      {onClose && <button onClick={onClose}>Back to files</button>}
+    </div>
+  ),
+}));
+vi.mock("react-i18next", async (original) => ({
+  ...(await original<typeof import("react-i18next")>()),
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+vi.mock("../../../hooks/useSandboxStatus", () => ({
+  useSandboxStatus: () => ({
+    machines: [],
+    currentMachineId: "mac",
+    online: status.online,
+  }),
+}));
+vi.mock("../../../hooks/useWorkspaceTree", () => ({
+  useWorkspaceTree: (...args: unknown[]) => {
+    treeHook(...args);
+    return tree;
+  },
+}));
+vi.mock("../../../services/api/sandboxFs", () => ({
+  sandboxFsApi: { read },
+  sandboxCloudFsApi: { read },
+  sandboxFsCloudStatusApi: { status: cloudStatus },
+}));
+
+test("files follow the conversation without local/cloud controls", () => {
+  const { rerender } = render(
+    <WorkspacePanel sessionId="s" sandboxMode="cloud" />,
+  );
+  expect(
+    screen.queryByRole("button", { name: "workspacePanel.viewCloud" }),
+  ).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "workspacePanel.viewLocal" }),
+  ).toBeNull();
+  expect(treeHook.mock.lastCall?.[2]).toBe(sandboxCloudFsApi);
+  rerender(<WorkspacePanel sessionId="s" sandboxMode="local" />);
+  expect(treeHook.mock.lastCall?.[2]).toBe(sandboxFsApi);
+});
+
+test("a legacy view preference cannot override the conversation default", () => {
+  localStorage.setItem("lambchat_workspace_view", "local");
+  render(<WorkspacePanel sessionId="s" />);
+  expect(treeHook.mock.lastCall?.[2]).toBe(sandboxCloudFsApi);
+  localStorage.removeItem("lambchat_workspace_view");
+});
+
+test("cloud files remain visible when no local daemon is online", () => {
+  status.online = false;
+  render(<WorkspacePanel sessionId="s" sandboxMode="cloud" />);
+  expect(screen.getByText("workspacePanel.emptyDir")).toBeVisible();
+  status.online = true;
+});
+
+test("failed file reads show a visible error", async () => {
+  tree.root = [{ path: "readme.md", name: "readme.md", isDir: false }];
+  read.mockResolvedValue({ error: "permission_denied" });
+  render(<WorkspacePanel sessionId="s" sandboxMode="local" />);
+  fireEvent.click(screen.getByRole("button", { name: "readme.md" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("documents.error");
+  tree.root = [];
+});
+
+test("a file read from the previous view cannot reopen a preview", async () => {
+  tree.root = [{ path: "readme.md", name: "readme.md", isDir: false }];
+  let finish!: (value: unknown) => void;
+  read.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const { rerender } = render(
+    <WorkspacePanel sessionId="s" sandboxMode="local" />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "readme.md" }));
+  rerender(<WorkspacePanel sessionId="s" sandboxMode="cloud" />);
+  await act(async () =>
+    finish({ encoding: "utf-8", content: "old workspace content" }),
+  );
+  expect(screen.queryByText("old workspace content")).toBeNull();
+  tree.root = [];
+});
+
+test("cloud status polling does not reset the file tree or wake paused sandboxes", async () => {
+  vi.useFakeTimers();
+  cloudStatus
+    .mockResolvedValueOnce({ state: "running" })
+    .mockResolvedValueOnce({ state: "paused" });
+  render(<WorkspacePanel sessionId="s" sandboxMode="cloud" />);
+  await act(async () => {});
+  const resetKey = treeHook.mock.lastCall?.[1];
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(30_000);
+  });
+  expect(treeHook.mock.lastCall?.[1]).toBe(resetKey);
+  vi.useRealTimers();
+});
+
+test("file previews provide a direct return to the conversation file list", async () => {
+  tree.root = [{ path: "readme.md", name: "readme.md", isDir: false }];
+  read.mockResolvedValue({ encoding: "utf-8", content: "preview content" });
+  render(<WorkspacePanel sessionId="s" sandboxMode="local" />);
+  fireEvent.click(screen.getByRole("button", { name: "readme.md" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Back to files" }));
+  expect(screen.queryByText("preview content")).toBeNull();
+  expect(screen.getByRole("button", { name: "readme.md" })).toBeVisible();
+  tree.root = [];
+});
+
+test("opening a second file retains the first preview and reopening does not read it again", async () => {
+  tree.root = [
+    { path: "a.txt", name: "a.txt", isDir: false },
+    { path: "b.txt", name: "b.txt", isDir: false },
+  ];
+  read.mockClear();
+  read.mockImplementation(async (_session, path) => ({
+    encoding: "utf-8",
+    content: `content of ${path}`,
+  }));
+  const { rerender } = render(
+    <WorkspacePanel sessionId="s" sandboxMode="local" />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "a.txt" }));
+  await screen.findByText("content of a.txt");
+  fireEvent.click(screen.getByRole("button", { name: "b.txt" }));
+  await screen.findByText("content of b.txt");
+  expect(screen.getByText("content of a.txt")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "a.txt" }));
+  expect(read).toHaveBeenCalledTimes(2);
+  rerender(<WorkspacePanel sessionId="other" sandboxMode="local" />);
+  expect(screen.queryByText("content of a.txt")).toBeNull();
+  expect(screen.queryByText("content of b.txt")).toBeNull();
+  tree.root = [];
+});
+
+test("closing the workspace keeps its file tabs open", async () => {
+  tree.root = [{ path: "keep.txt", name: "keep.txt", isDir: false }];
+  read.mockResolvedValue({ encoding: "utf-8", content: "retained file" });
+  const { rerender } = render(
+    <WorkspacePanel sessionId="s" sandboxMode="local" />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "keep.txt" }));
+  await screen.findByText("retained file");
+  rerender(<div>workspace closed</div>);
+  expect(screen.getByText("retained file")).toBeVisible();
+  expect(getRevealPreviewTabs()).toHaveLength(1);
+  tree.root = [];
+});
+
+test("hidden workspace pauses cloud polling and refreshes on return", async () => {
+  vi.useFakeTimers();
+  cloudStatus.mockClear();
+  const { rerender } = render(
+    <RightPanelActiveContext value={true}>
+      <WorkspacePanel sessionId="s" />
+    </RightPanelActiveContext>,
+  );
+  await act(async () => {});
+  rerender(
+    <RightPanelActiveContext value={false}>
+      <WorkspacePanel sessionId="s" />
+    </RightPanelActiveContext>,
+  );
+  const calls = cloudStatus.mock.calls.length;
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(60_000);
+  });
+  expect(cloudStatus).toHaveBeenCalledTimes(calls);
+  rerender(
+    <RightPanelActiveContext value={true}>
+      <WorkspacePanel sessionId="s" />
+    </RightPanelActiveContext>,
+  );
+  await act(async () => {});
+  expect(cloudStatus).toHaveBeenCalledTimes(calls + 1);
+});
+
+test("workspace refresh shares the title bar instead of adding a separate row", () => {
+  const header = document.createElement("header");
+  document.body.appendChild(header);
+  const view = render(
+    <WorkspacePanel
+      sessionId="s"
+      sandboxMode="local"
+      headerActionsTarget={header}
+    />,
+  );
+  const refresh = screen.getByRole("button", {
+    name: "workspacePanel.refresh",
+  });
+  expect(header.contains(refresh)).toBe(true);
+  expect(view.container.contains(refresh)).toBe(false);
+  tree.refresh.mockClear();
+  fireEvent.click(refresh);
+  expect(tree.refresh).toHaveBeenCalledOnce();
+  view.unmount();
+  expect(header.childElementCount).toBe(0);
+  header.remove();
+});

@@ -1,11 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
 import {
-  useEffect,
+  useCallback,
+  useContext,
+  useSyncExternalStore,
   useLayoutEffect,
   useRef,
-  useState,
   type ReactNode,
 } from "react";
+import { RightPanelActiveContext } from "../../../common/useRightPanelEntry";
 import type { CollapsibleStatus } from "../../../common/CollapsiblePill";
 import {
   openPersistentToolPanel,
@@ -71,19 +73,20 @@ export function ToolLivePanelContent({
   /** store 尚无该工具数据时（如历史消息缺 id）显示打开时刻的快照 */
   fallback?: ReactNode;
 }) {
-  const [, forceRender] = useState(0);
+  const active = useContext(RightPanelActiveContext);
   const hostRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const listener = () => forceRender((count) => count + 1);
-    return toolCallPanelStore.subscribe(toolCallId, listener);
-  }, [toolCallId]);
-
-  const data = toolCallPanelStore.get(toolCallId);
+  const subscribe = useCallback(
+    (listener: () => void) =>
+      active ? toolCallPanelStore.subscribe(toolCallId, listener) : () => {},
+    [active, toolCallId],
+  );
+  const data = useSyncExternalStore(subscribe, () =>
+    toolCallPanelStore.get(toolCallId),
+  );
 
   // 流式内容增长时贴底跟随；用户在面板内上滑后不再强行拉底
   useLayoutEffect(() => {
-    if (!data) return;
+    if (!active || !data) return;
     const scroller = hostRef.current?.closest<HTMLElement>(
       "[data-sidebar-snapshot-key='panel-body']",
     );
@@ -91,7 +94,7 @@ export function ToolLivePanelContent({
     if (shouldStickPanelOutputToBottom(scroller)) {
       scroller.scrollTop = scroller.scrollHeight;
     }
-  }, [data]);
+  }, [active, data]);
 
   return (
     <div ref={hostRef} className="flex min-h-full flex-col">

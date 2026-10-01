@@ -31,7 +31,7 @@ export function BrandWordmark({
       {!decorative && <title id={titleId}>{title}</title>}
       <text
         x="110"
-        y="36"
+        y="39"
         fontFamily="Georgia, 'Times New Roman', serif"
         fontSize="41"
         fontWeight="800"

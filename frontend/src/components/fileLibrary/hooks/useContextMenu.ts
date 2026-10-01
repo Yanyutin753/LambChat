@@ -1,4 +1,10 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+} from "react";
 import type { RevealedFileItem } from "../../../services/api";
 
 export function useContextMenu() {
@@ -26,14 +32,18 @@ export function useContextMenu() {
   }, [menu, hide]);
 
   // Reposition if overflowing viewport
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!menu || !menuRef.current) return;
     const rect = menuRef.current.getBoundingClientRect();
     const el = menuRef.current;
-    if (rect.right > window.innerWidth)
-      el.style.left = `${window.innerWidth - rect.width - 8}px`;
-    if (rect.bottom > window.innerHeight)
-      el.style.top = `${window.innerHeight - rect.height - 8}px`;
+    el.style.left = `${Math.max(
+      8,
+      Math.min(menu.x, window.innerWidth - rect.width - 8),
+    )}px`;
+    el.style.top = `${Math.max(
+      8,
+      Math.min(menu.y, window.innerHeight - rect.height - 8),
+    )}px`;
   }, [menu]);
 
   return { menu, menuRef, show, hide };

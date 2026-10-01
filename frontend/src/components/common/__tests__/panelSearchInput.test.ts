@@ -10,7 +10,10 @@ function cssBlock(sourceText: string, selector: string): string {
   return match[1];
 }
 
-const componentsCss = source("../../../styles/components.css");
+const componentsCss = source("../../../styles/components.css").replace(
+  /\s+/g,
+  " ",
+);
 
 test("panel search inputs use an editing-safe shared input", () => {
   const panelHeader = source("../PanelHeader.tsx");
@@ -34,17 +37,17 @@ test("panel headers use static mobile density instead of scroll compression", ()
   expect(panelHeader).not.toMatch(/panel-header--compact/);
   expect(componentsCss).not.toMatch(/\.panel-header\.panel-header--compact/);
   expect(componentsCss).toMatch(
-    /@media \(max-width:\s*639px\) \{[\s\S]*?\.panel-header\s*\{[\s\S]*?padding:\s*0\.5rem 1rem 0\.625rem;/,
+    /@container panel \(max-width:\s*639px\) \{[\s\S]*?\.panel-header\s*\{[\s\S]*?padding:\s*0\.5rem 1rem 0\.625rem;/,
   );
   expect(componentsCss).toMatch(
-    /@media \(max-width:\s*639px\) \{[\s\S]*?\.panel-header \.panel-header__icon\s*\{[\s\S]*?display:\s*none;/,
+    /@container panel \(max-width:\s*639px\) \{[\s\S]*?\.panel-header \.panel-header__icon\s*\{[\s\S]*?display:\s*none;/,
   );
   expect(componentsCss).toMatch(
-    /@media \(max-width:\s*639px\) \{[\s\S]*?\.panel-header \.panel-header__subtitle\s*\{[\s\S]*?display:\s*none;/,
+    /@container panel \(max-width:\s*639px\) \{[\s\S]*?\.panel-header \.panel-header__subtitle\s*\{[\s\S]*?display:\s*none;/,
   );
   expect(panelHeader).toMatch(/panel-header--has-search/);
-  expect(componentsCss).toMatch(
-    /@media \(max-width:\s*639px\) \{[\s\S]*?\.panel-header\.panel-header--has-search \.panel-header__top\s*\{[\s\S]*?display:\s*none;/,
+  expect(componentsCss).not.toMatch(
+    /@container panel \(max-width:\s*639px\) \{[\s\S]*?\.panel-header\.panel-header--has-search \.panel-header__top\s*\{[\s\S]*?display:\s*none;/,
   );
 });
 
@@ -72,7 +75,7 @@ test("panel headers move mobile actions into a search-row overflow menu", () => 
   expect(componentsCss).toMatch(/\.panel-header__search-accessory/);
   expect(componentsCss).toMatch(/\.panel-header__mobile-menu-accessory/);
   expect(componentsCss).toMatch(
-    /\.panel-header__actions > :is\(button, a, select\),[\s\S]*?\.panel-header__search-actions > \.flex > :is\(button, a, select\)\s*\{[\s\S]*?height:\s*2\.5rem;[\s\S]*?min-height:\s*2\.5rem;/,
+    /\.panel-header__actions > :is\(button, a, select\),[\s\S]*?\.panel-header__search-actions > \.flex:not\(\.file-library-view-switch\) > :is\(button, a, select\)\s*\{[\s\S]*?height:\s*2\.5rem;[\s\S]*?min-height:\s*2\.5rem;/,
   );
   expect(componentsCss).toMatch(
     /\.panel-header__mobile-menu-accessory\s*>\s*:is\(\.relative, \.flex, \.panel-header-actions\),\s*\.panel-header__mobile-menu-item\s*>\s*:is\(\.relative, \.flex, \.panel-header-actions\)\s*\{[\s\S]*?display:\s*grid;[\s\S]*?width:\s*100%;[\s\S]*?gap:\s*0\.375rem;/,
@@ -114,28 +117,28 @@ test("panel headers move mobile actions into a search-row overflow menu", () => 
     /\.panel-header__mobile-menu \.skill-filter-dropdown\s*\{[\s\S]*?position:\s*absolute;[\s\S]*?width:\s*100%;[\s\S]*?max-height:\s*min\(46dvh,\s*18rem\);[\s\S]*?overflow-y:\s*auto;/,
   );
   expect(componentsCss).toMatch(
-    /@media \(max-width:\s*639px\) \{[\s\S]*?\.panel-header__desktop-actions\s*\{[\s\S]*?display:\s*none;/,
+    /@container panel \(max-width:\s*639px\) \{[\s\S]*?\.panel-header__desktop-actions\s*\{[\s\S]*?display:\s*none;/,
   );
   expect(componentsCss).toMatch(
-    /@media \(max-width:\s*639px\) \{[\s\S]*?\.panel-header__mobile-actions\s*\{[\s\S]*?display:\s*flex;/,
+    /@container panel \(max-width:\s*639px\) \{[\s\S]*?\.panel-header__mobile-actions\s*\{[\s\S]*?display:\s*flex;/,
   );
   expect(componentsCss).toMatch(
-    /@media \(max-width:\s*639px\) \{[\s\S]*?\.panel-header \.panel-header__search-box\s*\{[\s\S]*?position:\s*relative;/,
+    /@container panel \(max-width:\s*639px\) \{[\s\S]*?\.panel-header \.panel-header__search-box\s*\{[\s\S]*?position:\s*relative;/,
   );
   expect(componentsCss).toMatch(
-    /@media \(max-width:\s*639px\) \{[\s\S]*?\.panel-header__mobile-actions--search\s*\{[\s\S]*?position:\s*absolute;[\s\S]*?inset:\s*0;[\s\S]*?transform:\s*none;/,
+    /@container panel \(max-width:\s*639px\) \{[\s\S]*?\.panel-header__mobile-actions--search\s*\{[\s\S]*?position:\s*absolute;[\s\S]*?inset:\s*0;[\s\S]*?transform:\s*none;/,
   );
   expect(componentsCss).toMatch(
-    /@media \(max-width:\s*639px\) \{[\s\S]*?\.panel-header__mobile-actions--search \.panel-header__mobile-more\s*\{[\s\S]*?position:\s*absolute;[\s\S]*?right:\s*0\.125rem;/,
+    /@container panel \(max-width:\s*639px\) \{[\s\S]*?\.panel-header__mobile-actions--search \.panel-header__mobile-more\s*\{[\s\S]*?position:\s*absolute;[\s\S]*?right:\s*0\.125rem;/,
   );
   expect(componentsCss).toMatch(
-    /@media \(max-width:\s*639px\) \{[\s\S]*?\.panel-header__mobile-actions--search \.panel-header__mobile-menu\s*\{[\s\S]*?left:\s*0;[\s\S]*?right:\s*0;[\s\S]*?width:\s*100%;[\s\S]*?max-height:\s*min\(70dvh,\s*26rem\);/,
+    /@container panel \(max-width:\s*639px\) \{[\s\S]*?\.panel-header__mobile-actions--search \.panel-header__mobile-menu\s*\{[\s\S]*?left:\s*0;[\s\S]*?right:\s*0;[\s\S]*?width:\s*100%;[\s\S]*?max-height:\s*min\(70dvh,\s*26rem\);/,
   );
   expect(componentsCss).toMatch(
     /\.panel-header__mobile-more--inline\s*\{[\s\S]*?border:\s*0;[\s\S]*?background:\s*transparent;/,
   );
   expect(componentsCss).toMatch(
-    /@media \(max-width:\s*639px\) \{[\s\S]*?\.panel-header \.panel-header__search-accessory\s*\{[\s\S]*?display:\s*none;/,
+    /@container panel \(max-width:\s*639px\) \{[\s\S]*?\.panel-header \.panel-header__search-accessory\s*\{[\s\S]*?display:\s*none;/,
   );
   expect(panelHeader).not.toMatch(
     /className="btn-secondary panel-header__mobile-more/,
@@ -207,10 +210,10 @@ test("notification panel header aligns with shared panel spacing", () => {
     /inline-flex items-center gap-2 rounded-xl bg-stone-900 px-4 py-2\.5/,
   );
   expect(notificationPanel).toMatch(
-    /className="flex-1 overflow-y-auto px-4 py-2 sm:p-6 lg:px-8"/,
+    /className="panel-body flex-1 overflow-y-auto/,
   );
   expect(notificationPanel).toMatch(
-    /className="glass-divider bg-transparent px-4 py-4 sm:px-6 lg:px-8"/,
+    /className="panel-pagination empty:hidden"/,
   );
 });
 

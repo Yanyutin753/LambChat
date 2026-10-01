@@ -233,11 +233,11 @@ const MermaidDiagram = memo(function MermaidDiagram({
 
   if (error) {
     return (
-      <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-        <p className="text-14 text-red-600 dark:text-red-400 font-medium mb-2">
+      <div className="p-4 rounded-lg bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)] dark:bg-red-900/20 border border-[color-mix(in_srgb,var(--theme-error)_25%,transparent)] dark:border-red-800">
+        <p className="text-14 text-theme-error dark:text-red-400 font-medium mb-2">
           Mermaid Error
         </p>
-        <pre className="mt-2 text-12 text-red-500 dark:text-red-300 overflow-auto">
+        <pre className="mt-2 text-12 text-theme-error dark:text-red-300 overflow-auto">
           {error}
         </pre>
       </div>
@@ -250,12 +250,12 @@ const MermaidDiagram = memo(function MermaidDiagram({
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <button
           onClick={handleCopyCode}
-          className="flex shrink-0 items-center gap-1 whitespace-nowrap px-3 py-1.5 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-12 font-medium text-stone-600 dark:text-stone-300 transition-colors"
+          className="flex shrink-0 items-center gap-1 whitespace-nowrap px-3 py-1.5 rounded-lg bg-theme-bg-subtle dark:bg-stone-800 hover:bg-theme-border/60 dark:hover:bg-stone-700 text-12 font-medium text-theme-text-secondary dark:text-stone-300 transition-colors"
         >
           {copied ? (
             <>
-              <Check size={14} className="text-green-500" />
-              <span className="text-green-500">{t("documents.copied")}</span>
+              <Check size={14} className="text-theme-success" />
+              <span className="text-theme-success">{t("documents.copied")}</span>
             </>
           ) : (
             <>
@@ -271,14 +271,14 @@ const MermaidDiagram = memo(function MermaidDiagram({
               e.stopPropagation();
               setShowDownloadMenu(!showDownloadMenu);
             }}
-            className="flex shrink-0 items-center gap-1 whitespace-nowrap px-3 py-1.5 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-12 font-medium text-stone-600 dark:text-stone-300 transition-colors"
+            className="flex shrink-0 items-center gap-1 whitespace-nowrap px-3 py-1.5 rounded-lg bg-theme-bg-subtle dark:bg-stone-800 hover:bg-theme-border/60 dark:hover:bg-stone-700 text-12 font-medium text-theme-text-secondary dark:text-stone-300 transition-colors"
           >
             <Download size={14} />
             <span>{t("documents.download")}</span>
             <ChevronDown size={12} />
           </button>
           {showDownloadMenu && (
-            <div className="absolute left-0 top-full mt-1 z-50 min-w-[100px] rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 shadow-lg overflow-hidden">
+            <div className="absolute left-0 top-full mt-1 z-50 min-w-[100px] rounded-lg border border-theme-border dark:border-stone-700 bg-theme-bg-elevated dark:bg-stone-800 shadow-lg overflow-hidden">
               <ViewerDropdownMenuItem
                 onClick={(e) => {
                   e.stopPropagation();
@@ -304,7 +304,7 @@ const MermaidDiagram = memo(function MermaidDiagram({
 
       {/* Diagram container - centered with zoom and drag */}
       <div
-        className={`mermaid-diagram flex items-center justify-center p-4 bg-white dark:bg-stone-800 rounded-lg overflow-hidden min-h-[200px] cursor-${
+        className={`mermaid-diagram flex items-center justify-center p-4 ${"bg-theme-bg-card"} dark:bg-stone-800 rounded-lg overflow-hidden min-h-[200px] cursor-${
           isDragging ? "grabbing" : "grab"
         }`}
         onWheel={handleWheel}

@@ -20,6 +20,7 @@ export const scheduledTaskApi = {
     options?: {
       sourceSessionId?: string;
       createdBy?: ScheduledTaskCreatedBy;
+      search?: string;
     },
   ): Promise<ScheduledTaskListResponse> {
     const params = new URLSearchParams({
@@ -28,6 +29,9 @@ export const scheduledTaskApi = {
     });
     if (status) {
       params.set("status", status);
+    }
+    if (options?.search?.trim()) {
+      params.set("search", options.search.trim());
     }
     if (options?.sourceSessionId) {
       params.set("source_session_id", options.sourceSessionId);

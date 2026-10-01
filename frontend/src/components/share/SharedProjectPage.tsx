@@ -5,6 +5,7 @@
  * Click a session to expand and view its messages, reusing ChatMessage.
  */
 
+import { SceneIllustration } from "../common/SceneIllustration";
 import {
   lazy,
   Suspense,
@@ -16,7 +17,6 @@ import {
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
-  AlertCircle,
   ChevronDown,
   ChevronRight,
   Coffee,
@@ -27,7 +27,6 @@ import {
   Sun,
 } from "lucide-react";
 import { useSharedPageTheme } from "./useSharedPageTheme";
-
 import { shareApi } from "../../services/api/share";
 import type {
   SharedContentResponse,
@@ -185,7 +184,7 @@ export function SharedProjectPage({
     return (
       <div className="min-h-dvh bg-theme-bg text-theme-text flex items-center justify-center p-4">
         <div className="bg-theme-bg-card rounded-2xl shadow-xl border border-theme-border px-8 py-10 max-w-md text-center">
-          <AlertCircle className="h-10 w-10 mx-auto mb-4 text-theme-text-secondary" />
+          <SceneIllustration scene="message" className="mx-auto mb-4" />
           <h1 className="text-20 font-semibold font-serif mb-2">
             {error === "not_project"
               ? "这不是一个项目分享链接"

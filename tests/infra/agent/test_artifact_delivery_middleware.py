@@ -1951,3 +1951,147 @@ async def test_artifact_delivery_skips_external_url_echo_of_delivered_key() -> N
 
     # 显式 reveal 走 handler 直返（不经 fake）；URL echo 不得再触发任何交付
     assert reveal_calls == []
+
+
+class _SequenceSnapshotBackend:
+    """按调用序吐出脚本化快照并记录每次 aglob；快照耗尽后再被调用即抛——
+    多打一次 glob 测试当场红（快照次数减半的核心断言载体）。"""
+
+    def __init__(self, snapshots: list[list[dict]]):
+        self._snapshots = list(snapshots)
+        self.calls: list[str] = []
+
+    async def aglob(self, pattern: str, path: str = "/") -> GlobResult:
+        self.calls.append(pattern)
+        assert pattern == "**/*"
+        if not self._snapshots:
+            raise AssertionError("unexpected extra aglob call beyond scripted snapshots")
+        return GlobResult(matches=self._snapshots.pop(0))
+
+
+async def _wait_until(predicate, timeout: float = 2.0) -> None:
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while not predicate():
+        assert loop.time() < deadline, "timed out waiting for background snapshot"
+        await asyncio.sleep(0.01)
+
+
+@pytest.mark.asyncio
+async def test_second_execute_reuses_last_snapshot_skipping_before_glob() -> None:
+    """第二条 execute 复用上一条的 after 快照作 before 状态：全工作区 glob
+    从每条 2 次降到首条 2 次 + 后续各 1 次（本地档下每次 glob 都是一次
+    daemon 往返，与真实命令在同一条串行队列上争用）。"""
+    backend = _SequenceSnapshotBackend(
+        [
+            [{"path": "/workspace/a.txt", "size": 1, "modified_at": "1"}],
+            [{"path": "/workspace/a.txt", "size": 1, "modified_at": "1"}],
+            [
+                {"path": "/workspace/a.txt", "size": 1, "modified_at": "1"},
+                {"path": "/workspace/new1.csv", "size": 2, "modified_at": "2"},
+            ],
+            [
+                {"path": "/workspace/a.txt", "size": 1, "modified_at": "1"},
+                {"path": "/workspace/new1.csv", "size": 2, "modified_at": "2"},
+                {"path": "/workspace/new2.csv", "size": 3, "modified_at": "3"},
+            ],
+        ]
+    )
+    reveal_paths: list[str] = []
+
+    async def reveal_file(**kwargs):
+        reveal_paths.append(kwargs["file_path"])
+        return json.dumps({"_meta": {"path": kwargs["file_path"]}})
+
+    middleware = ArtifactDeliveryMiddleware(
+        reveal_file=reveal_file,
+        workspace_path="/workspace",
+    )
+    runtime = SimpleNamespace(
+        config={"configurable": {"backend": backend, "presenter": RecordingPresenter()}}
+    )
+
+    async def handler(_request):
+        return ToolMessage(content="ok", tool_call_id="exec", name="execute")
+
+    await middleware.abefore_agent({"messages": []}, runtime)
+    await middleware.awrap_tool_call(
+        SimpleNamespace(
+            tool_call={"name": "execute", "id": "e1", "args": {"command": "build"}},
+            runtime=runtime,
+        ),
+        handler,
+    )
+    # baseline + before#1 + after#1 落地（after#1 完成后 last_snapshot 已写）
+    await _wait_until(lambda: len(backend.calls) >= 3)
+
+    await middleware.awrap_tool_call(
+        SimpleNamespace(
+            tool_call={"name": "execute", "id": "e2", "args": {"command": "build2"}},
+            runtime=runtime,
+        ),
+        handler,
+    )
+    await _wait_until(lambda: len(backend.calls) >= 4)
+
+    await middleware.aafter_agent({"messages": []}, runtime)
+
+    assert len(backend.calls) == 4
+    assert reveal_paths == ["/workspace/new1.csv", "/workspace/new2.csv"]
+
+
+@pytest.mark.asyncio
+async def test_artifact_delivery_disabled_skips_snapshots_staging_and_delivery(
+    monkeypatch,
+) -> None:
+    """ENABLE_ARTIFACT_DELIVERY=false：不拍快照、不自动 staging、不自动投递，
+    工具 handler 原样透传（reveal_file/reveal_project 手动工具不受影响）。"""
+    monkeypatch.setattr(artifact_delivery.settings, "ENABLE_ARTIFACT_DELIVERY", False)
+    backend = _SequenceSnapshotBackend([])
+    reveal_calls: list[dict] = []
+
+    async def reveal_file(**kwargs):
+        reveal_calls.append(kwargs)
+        return json.dumps({"_meta": {"path": kwargs["file_path"]}})
+
+    middleware = ArtifactDeliveryMiddleware(
+        reveal_file=reveal_file,
+        workspace_path="/workspace",
+    )
+    runtime = SimpleNamespace(
+        config={"configurable": {"backend": backend, "presenter": RecordingPresenter()}}
+    )
+
+    async def exec_handler(_request):
+        return ToolMessage(content="ok", tool_call_id="e1", name="execute")
+
+    result = await middleware.awrap_tool_call(
+        SimpleNamespace(
+            tool_call={"name": "execute", "id": "e1", "args": {"command": "build"}},
+            runtime=runtime,
+        ),
+        exec_handler,
+    )
+    assert result.content == "ok"
+
+    async def write_handler(_request):
+        return ToolMessage(content="ok", tool_call_id="w1", name="write_file")
+
+    await middleware.awrap_tool_call(
+        SimpleNamespace(
+            tool_call={
+                "name": "write_file",
+                "id": "w1",
+                "args": {"file_path": "/workspace/x.txt", "content": "hi"},
+            },
+            runtime=runtime,
+        ),
+        write_handler,
+    )
+
+    await middleware.abefore_agent({"messages": []}, runtime)
+    update = await middleware.aafter_agent({"messages": []}, runtime)
+
+    assert backend.calls == []
+    assert reveal_calls == []
+    assert update is None

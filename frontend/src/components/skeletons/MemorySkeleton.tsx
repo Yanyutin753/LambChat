@@ -1,12 +1,15 @@
 import { SkeletonLine } from "./primitives";
 import { PanelHeaderSkeleton } from "./PanelHeaderSkeleton";
-import { PANEL_CARD_SKELETON_COUNT } from "./PanelSkeletonHelpers";
+import {
+  PANEL_CARD_SKELETON_COUNT,
+  PanelPaginationSkeleton,
+} from "./PanelSkeletonHelpers";
 
 export function MemoryPanelSkeleton() {
   return (
     <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
-      <PanelHeaderSkeleton hasSearch hasSubtitle />
-      <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4 sm:p-6">
+      <PanelHeaderSkeleton hasSearch hasSubtitle hasSearchAccessory />
+      <div className="panel-body flex-1 min-h-0 overflow-y-auto">
         <div className="grid gap-3 auto-grid-cols">
           {Array.from({ length: PANEL_CARD_SKELETON_COUNT }).map((_, i) => (
             <div
@@ -47,7 +50,7 @@ export function MemoryPanelSkeleton() {
                 <SkeletonLine width="w-10" className="!h-5 !rounded-md" />
               </div>
 
-              <div className="mt-auto flex items-center gap-2 border-t border-[var(--glass-border)] pt-3">
+              <div className="mt-auto flex items-center gap-2 pt-3">
                 <SkeletonLine width="w-20" className="!h-5 !rounded-full" />
                 <div className="ml-auto" />
                 <div className="skeleton-line size-8 rounded-lg" />
@@ -57,6 +60,7 @@ export function MemoryPanelSkeleton() {
           ))}
         </div>
       </div>
+      <PanelPaginationSkeleton />
     </div>
   );
 }

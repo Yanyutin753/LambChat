@@ -628,7 +628,7 @@ export function ChannelPanel({
         <PanelHeader
           title={metadata.display_name}
           subtitle={t("channel.description")}
-          icon={getChannelIcon()}
+          illustration="panel-channels"
           actions={
             <Button
               onClick={() => navigate("/channels")}
@@ -638,9 +638,7 @@ export function ChannelPanel({
             </Button>
           }
         />
-        <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4">
-          {formContent}
-        </div>
+        <div className="panel-body flex-1 overflow-y-auto">{formContent}</div>
         <div className="border-t border-[var(--theme-border)] px-3 py-3 sm:px-4">
           {actionButtons}
         </div>

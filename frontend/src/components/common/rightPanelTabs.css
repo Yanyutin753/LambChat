@@ -1,0 +1,150 @@
+/* Author-level flex layouts override the UA hidden rule unless made explicit. */
+[data-right-panel-root][hidden],
+.editor-sidebar-overlay[hidden] {
+  display: none !important;
+}
+
+.right-panel-tabs {
+  display: flex;
+  flex-shrink: 0;
+  /* Keep browser-style tabs in one row; scroll only after reaching minimum width. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 4px;
+  min-width: 0;
+  /* Aligns the first tab with the 0.75rem header padding below. */
+  padding: 8px 0.75rem 0;
+  background: var(--theme-bg-subtle);
+  box-shadow: inset 0 -1px var(--theme-border);
+}
+
+.right-panel-tab {
+  position: relative;
+  display: flex;
+  flex: 0 1 208px;
+  align-items: center;
+  min-width: 80px;
+  max-width: 240px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  color: var(--theme-text-secondary);
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+/* Background tabs use a quiet divider instead of boxed borders. */
+.right-panel-tab:not([data-selected="true"]):not(:last-child)::after {
+  content: "";
+  position: absolute;
+  right: -3px;
+  top: 10px;
+  bottom: 10px;
+  width: 1px;
+  background: var(--theme-border);
+  pointer-events: none;
+}
+.right-panel-tab:has(+ [data-selected="true"])::after {
+  display: none;
+}
+.right-panel-tab:hover {
+  background: color-mix(in srgb, var(--theme-bg-card) 60%, transparent);
+  color: var(--theme-text);
+}
+.right-panel-tab[data-selected="true"] {
+  z-index: 1;
+  border-color: var(--theme-border);
+  background: var(--theme-bg-card);
+  color: var(--theme-text);
+}
+
+.right-panel-tab > button {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  font-size: 12px;
+  line-height: 1;
+}
+.right-panel-tab > [role="tab"] {
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 4px 0 12px;
+  border-radius: var(--radius-md) 0 0 0;
+  text-align: left;
+}
+.right-panel-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.right-panel-tab[data-selected="true"] .right-panel-tab-label {
+  font-weight: 500;
+}
+.right-panel-tab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+}
+.right-panel-tab-icon svg {
+  width: 14px;
+  height: 14px;
+}
+.right-panel-tab[data-selected="true"] .right-panel-tab-icon {
+  opacity: 1;
+}
+
+.right-panel-tab > .right-panel-tab-close {
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  padding: 0;
+  color: var(--theme-text-tertiary);
+}
+.right-panel-tab-close svg {
+  box-sizing: content-box;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+.right-panel-tab-close:hover svg {
+  background: var(--theme-bg-subtle);
+  color: var(--theme-text);
+}
+.right-panel-tab button:focus-visible {
+  outline: none;
+  box-shadow: inset 0 -2px color-mix(in srgb, var(--theme-ring) 65%, transparent);
+}
+
+@media (min-width: 640px) and (hover: hover) and (pointer: fine) {
+  .right-panel-tab:not([data-selected="true"]):not(:hover):not(:focus-within)
+    .right-panel-tab-close
+    svg {
+    opacity: 0;
+  }
+}
+@media (pointer: coarse), (max-width: 639px) {
+  .right-panel-tab {
+    min-width: 96px;
+  }
+  .right-panel-tab > button {
+    min-height: 44px;
+  }
+  .right-panel-tab > .right-panel-tab-close {
+    width: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-right-panel-root] *,
+  .editor-sidebar-overlay {
+    animation: none !important;
+    transition: none !important;
+  }
+}

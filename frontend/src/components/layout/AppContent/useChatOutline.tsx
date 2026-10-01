@@ -14,6 +14,7 @@ import {
   closePersistentToolPanel,
   openPersistentToolPanel,
   isPersistentToolPanelOpen,
+  isPersistentToolPanelActive,
   updatePersistentToolPanel,
   type PersistentToolPanelState,
 } from "../../chat/ChatMessage/items/persistentToolPanelState";
@@ -71,15 +72,15 @@ export function useChatOutline(
         }
       });
       requestAnimationFrame(() => {
-        closePersistentToolPanel();
+        closePersistentToolPanel("outline");
       });
     },
     [virtuosoRef],
   );
 
   const handleOpenOutline = useCallback(() => {
-    if (isPersistentToolPanelOpen("outline")) {
-      closePersistentToolPanel();
+    if (isPersistentToolPanelActive("outline")) {
+      closePersistentToolPanel("outline");
       return;
     }
     const isMobile = window.innerWidth < 640;

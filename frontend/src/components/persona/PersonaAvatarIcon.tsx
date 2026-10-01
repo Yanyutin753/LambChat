@@ -15,14 +15,8 @@ import {
   isPersonaImageAvatar,
   type PersonaAvatarIconKey,
 } from "./personaAvatar";
-import { getFluentEmojiCDN } from "@lobehub/fluent-emoji";
 import { getCategoryIcon } from "../panels/MarketplacePanel/constants";
 import { getFullUrl } from "../../services/api";
-
-const DEFAULT_AVATAR_EMOJI = "🤖";
-const DEFAULT_AVATAR_SRC = getFluentEmojiCDN(DEFAULT_AVATAR_EMOJI, {
-  type: "anim",
-});
 
 const ICONS: Record<PersonaAvatarIconKey, LucideIcon> = {
   sparkles: Sparkles,
@@ -43,7 +37,7 @@ export function PersonaAvatarIcon({
 }: {
   avatar?: string | null;
   primaryTag?: string;
-  size?: number;
+  size?: number | string;
   className?: string;
 }) {
   const builtIn = getPersonaAvatarIcon(avatar);
@@ -58,20 +52,22 @@ export function PersonaAvatarIcon({
     );
   }
 
-  const CategoryIcon = primaryTag ? getCategoryIcon(primaryTag) : null;
+  const CategoryIcon =
+    avatar && primaryTag ? getCategoryIcon(primaryTag) : null;
   if (CategoryIcon) {
     return <CategoryIcon size={size} className={className} />;
   }
 
   return (
     <ImageWithSkeleton
-      src={DEFAULT_AVATAR_SRC}
+      src="/images/illustrations/lamb-avatar.png"
       alt=""
-      className={className}
+      className={`persona-default-avatar ${className}`}
       skipUrlResolve
       inline
       loading="eager"
-      style={{ objectFit: "contain" }}
+      style={{ objectFit: "contain", width: size, height: size }}
+      errorFallback={<Sparkles size={size} />}
     />
   );
 }

@@ -74,10 +74,7 @@ export function MobileMoreMenuSheet({
           <span className="text-13 font-medium text-[var(--theme-text)]">
             {t("nav.more", "更多")}
           </span>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-full hover:bg-[var(--theme-bg-subtle)]"
-          >
+          <button onClick={onClose} className="p-1 rounded-full ">
             <X size={16} className="text-[var(--theme-text-secondary)]" />
           </button>
         </div>

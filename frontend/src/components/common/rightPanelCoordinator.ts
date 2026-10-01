@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 export type RightPanelKind = "editor" | "content";
 
 export interface RightPanelEntry {
@@ -6,9 +8,15 @@ export interface RightPanelEntry {
   automatic: boolean;
   close: () => void;
   opener: HTMLElement | null;
+  title?: string;
+  icon?: ReactNode;
+  panelId?: string;
+  registryKey?: string;
+  parentId?: symbol | null;
 }
 
 export interface RightPanelSnapshot {
+  entries: readonly RightPanelEntry[];
   activeId: symbol | null;
   activeKind: RightPanelKind | null;
   depth: number;
@@ -16,10 +24,12 @@ export interface RightPanelSnapshot {
 }
 
 let entries: RightPanelEntry[] = [];
-let closingId: symbol | null = null;
+let activeId: symbol | null = null;
+const closingIds = new Set<symbol>();
 const listeners = new Set<() => void>();
 
 let snapshot: RightPanelSnapshot = {
+  entries,
   activeId: null,
   activeKind: null,
   depth: 0,
@@ -27,8 +37,9 @@ let snapshot: RightPanelSnapshot = {
 };
 
 function emit(): void {
-  const active = entries.at(-1) ?? null;
+  const active = entries.find((entry) => entry.id === activeId) ?? null;
   snapshot = {
+    entries,
     activeId: active?.id ?? null,
     activeKind: active?.kind ?? null,
     depth: entries.length,
@@ -40,8 +51,11 @@ function emit(): void {
 export function registerRightPanel(entry: RightPanelEntry): boolean {
   const index = entries.findIndex((candidate) => candidate.id === entry.id);
   if (index >= 0) {
-    entries = [...entries.slice(0, index), ...entries.slice(index + 1), entry];
-    closingId = null;
+    entries = entries.map((candidate) =>
+      candidate.id === entry.id ? entry : candidate,
+    );
+    activeId = entry.id;
+    closingIds.delete(entry.id);
     emit();
     return true;
   }
@@ -55,7 +69,15 @@ export function registerRightPanel(entry: RightPanelEntry): boolean {
   }
 
   entries = [...entries, entry];
-  closingId = null;
+  if (
+    !entries.some(
+      (candidate) =>
+        candidate.id === activeId && candidate.parentId === entry.id,
+    )
+  ) {
+    activeId = entry.id;
+  }
+  closingIds.delete(entry.id);
   emit();
   return true;
 }
@@ -74,8 +96,13 @@ export function unregisterRightPanel(id: symbol): void {
   const next = entries.filter((entry) => entry.id !== id);
   if (next.length === entries.length) return;
 
+  const index = entries.findIndex((entry) => entry.id === id);
   entries = next;
-  if (closingId === id) closingId = null;
+  if (activeId === id) {
+    const adjacent = entries[Math.min(index, entries.length - 1)];
+    activeId = adjacent?.id ?? null;
+  }
+  closingIds.delete(id);
   emit();
 }
 
@@ -96,16 +123,43 @@ export function hasOpenRightPanel(): boolean {
   return getRightPanelSnapshot().depth > 0;
 }
 
-export function closeActiveRightPanel(): void {
-  const active = entries.at(-1);
-  if (!active || closingId === active.id) return;
+export function activateRightPanel(id: symbol): void {
+  const entry = entries.find((candidate) => candidate.id === id);
+  if (!entry || activeId === id) return;
+  const select = () => {
+    if (!entries.some((candidate) => candidate.id === id)) return;
+    activeId = id;
+    emit();
+  };
+  if (typeof document !== "undefined" && document.fullscreenElement) {
+    void document
+      .exitFullscreen()
+      .then(select)
+      .catch(() => {});
+  } else {
+    select();
+  }
+}
 
-  closingId = active.id;
-  active.close();
+export function activateRightPanelByKey(key: string): void {
+  const entry = entries.find((candidate) => candidate.registryKey === key);
+  if (entry) activateRightPanel(entry.id);
+}
+
+export function closeRightPanel(id: symbol): void {
+  const entry = entries.find((candidate) => candidate.id === id);
+  if (!entry || closingIds.has(id)) return;
+  closingIds.add(id);
+  entry.close();
+}
+
+export function closeActiveRightPanel(): void {
+  if (activeId) closeRightPanel(activeId);
 }
 
 export function resetRightPanelCoordinator(): void {
   entries = [];
-  closingId = null;
+  activeId = null;
+  closingIds.clear();
   emit();
 }

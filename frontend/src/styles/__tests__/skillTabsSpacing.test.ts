@@ -1,47 +1,62 @@
 import { readFileSync } from "node:fs";
+
 const skillCss = readFileSync(new URL("../skill.css", import.meta.url), "utf8");
+const hubSource = readFileSync(
+  new URL("../../components/panels/SkillsHubPanel.tsx", import.meta.url),
+  "utf8",
+);
 
-function cssRuleBody(selector: string): string {
-  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = skillCss.match(
-    new RegExp(`${escapedSelector}\\s*\\{([^}]*)\\}`),
+test("skills hub switch stays in the header action area on narrow and wide panels", () => {
+  expect(hubSource).toMatch(
+    /actions=\{[\s\S]*?showTabSwitcher[\s\S]*?skills-hub-tabs/,
   );
-  expect(match).toBeTruthy();
-  return match[1];
-}
+  expect(hubSource).toContain('className="panel-header--section-switch"');
+  expect(skillCss).toMatch(
+    /\.panel-header--section-switch \.panel-header__top\s*\{[^}]*flex-wrap:\s*nowrap;/,
+  );
+  expect(skillCss).toMatch(
+    /\.panel-header--section-switch \.panel-header__identity\s*\{[^}]*flex:\s*1 1 0;/,
+  );
+  expect(skillCss).toMatch(/\.skills-hub-tabs\s*\{[^}]*padding:\s*0;/);
+  expect(skillCss).toMatch(
+    /\.skills-hub-tabs__item\s*\{[^}]*min-height:\s*2\.75rem;/,
+  );
+  expect(skillCss).toMatch(
+    /@container panel \(max-width: 639px\)[\s\S]*?\.panel-header--section-switch \.panel-header__desktop-actions\s*\{[^}]*display:\s*flex;/,
+  );
+  expect(skillCss).toMatch(
+    /\.panel-header--section-switch \.panel-header__subtitle,[\s\S]*?display:\s*none;/,
+  );
+});
 
-test("skills hub tabs align with panels without adding a colored switch background", () => {
-  const tabsRule = cssRuleBody(".skills-hub-tabs");
-  const groupRule = cssRuleBody(".skills-hub-tabs__group");
-  const itemRule = cssRuleBody(".skills-hub-tabs__item");
-  const activeRule = cssRuleBody(".skills-hub-tabs__item--active");
+test("agent and model switch remains beside the title on compact panels", () => {
+  const source = readFileSync(
+    new URL(
+      "../../components/panels/AgentModelPanel/AgentModelPanel.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  expect(source).toContain('className="panel-header--section-switch"');
+});
 
-  expect(skillCss).toMatch(
-    /\.skills-hub-tabs\s*\{[\s\S]*?align-items:\s*center;[\s\S]*?padding:\s*0\.625rem 1rem 0\.5rem;/,
+test("inline switches do not receive the page inset twice", () => {
+  const panelsCss = readFileSync(
+    new URL("../panels.css", import.meta.url),
+    "utf8",
   );
-  expect(tabsRule).not.toMatch(/background:/);
-  expect(skillCss).toMatch(
-    /\.skills-hub-tabs__group\s*\{[\s\S]*?display:\s*inline-flex;[\s\S]*?width:\s*auto;[\s\S]*?padding:\s*0;/,
+  expect(panelsCss).not.toContain(".skills-hub-tabs");
+});
+
+test("skills hub header and search share the list spacing without stacked padding", () => {
+  const panelsCss = readFileSync(
+    new URL("../panels.css", import.meta.url),
+    "utf8",
   );
-  expect(groupRule).not.toMatch(/background:/);
-  expect(skillCss).toMatch(
-    /\.skills-hub-tabs__item\s*\{[\s\S]*?flex:\s*0 0 auto;[\s\S]*?min-height:\s*2rem;/,
+  expect(panelsCss).toMatch(
+    /\.skill-theme-shell > \.panel-header--section-switch\s*\{[^}]*padding-bottom:\s*0;/,
   );
-  expect(itemRule).not.toMatch(/background:/);
-  expect(activeRule).not.toMatch(/background:/);
-  expect(skillCss).toMatch(
-    /\.skills-hub-tabs__item--active::after\s*\{[\s\S]*?background:\s*var\(--theme-primary\);/,
-  );
-  expect(skillCss).toMatch(
-    /@media \(max-width:\s*639px\) \{[\s\S]*?\.skills-hub-tabs\s*\{[\s\S]*?padding:\s*0\.5rem 0\.75rem 0\.375rem;/,
-  );
-  expect(skillCss).toMatch(
-    /@media \(max-width:\s*639px\) \{[\s\S]*?\.skills-hub-tabs__group\s*\{[\s\S]*?width:\s*100%;/,
-  );
-  expect(skillCss).toMatch(
-    /@media \(min-width:\s*640px\) \{[\s\S]*?\.skills-hub-tabs\s*\{[\s\S]*?padding:\s*0\.875rem 1\.5rem 0\.625rem;/,
-  );
-  expect(skillCss).toMatch(
-    /@media \(min-width:\s*1024px\) \{[\s\S]*?\.skills-hub-tabs\s*\{[\s\S]*?padding:\s*1rem 2rem 0\.75rem;/,
+  expect(panelsCss).toMatch(
+    /\.skill-theme-shell \.panel-header--search-only\s*\{[^}]*padding-block:\s*var\(--panel-gap\) 0;/,
   );
 });

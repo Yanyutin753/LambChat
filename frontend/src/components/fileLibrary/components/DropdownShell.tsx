@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 
 interface DropdownShellProps {
   show: boolean;
@@ -24,18 +25,18 @@ export function DropdownShell({
   const isMobile = window.innerWidth < 640;
 
   const positionStyle: React.CSSProperties = isMobile
-    ? { position: "fixed", top: pos.top, left: 8, right: 8, zIndex: 50 }
+    ? { position: "fixed", top: pos.top, left: 8, right: 8, zIndex: 999 }
     : {
         position: "fixed",
         top: pos.top,
         [align]: align === "left" ? pos.left : pos.right,
-        zIndex: 50,
+        zIndex: 999,
       };
 
-  return (
+  return createPortal(
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 z-[1]" onClick={onClose} />
+      <div className="fixed inset-0 z-[998]" onClick={onClose} />
 
       {/* Menu */}
       <div
@@ -52,6 +53,7 @@ export function DropdownShell({
       >
         {children}
       </div>
-    </>
+    </>,
+    document.body,
   );
 }

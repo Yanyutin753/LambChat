@@ -1,3 +1,4 @@
+import { SceneIllustration } from "../common/SceneIllustration";
 import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -9,6 +10,7 @@ import { formatDateTimeShort } from "../../utils/datetime";
 import {
   closePersistentToolPanel,
   isPersistentToolPanelOpen,
+  isPersistentToolPanelActive,
   openPersistentToolPanel,
   updatePersistentToolPanel,
 } from "./ChatMessage/items/persistentToolPanelState";
@@ -39,9 +41,7 @@ export function SessionBookmarksPanelBody({
   if (bookmarks.length === 0) {
     return (
       <div className="scheduled-task-empty-state min-h-0 flex-1 px-6">
-        <div className="scheduled-task-empty-state__icon h-12 w-12">
-          <Bookmark size={24} />
-        </div>
+        <SceneIllustration scene="reading" className="mb-4" />
         <p className="scheduled-task-empty-state__body">
           {t("bookmarks.empty")}
         </p>
@@ -130,7 +130,7 @@ export function SessionBookmarksButton({
       <SessionBookmarksPanelBody
         bookmarks={sessionBookmarks}
         onJump={(messageId) => {
-          closePersistentToolPanel();
+          closePersistentToolPanel(SESSION_BOOKMARK_PANEL_KEY);
           onNavigateToMessage?.(messageId);
         }}
       />
@@ -158,8 +158,8 @@ export function SessionBookmarksButton({
   if (!sessionId || count === 0) return null;
 
   const togglePanel = () => {
-    if (isPersistentToolPanelOpen(SESSION_BOOKMARK_PANEL_KEY)) {
-      closePersistentToolPanel();
+    if (isPersistentToolPanelActive(SESSION_BOOKMARK_PANEL_KEY)) {
+      closePersistentToolPanel(SESSION_BOOKMARK_PANEL_KEY);
       return;
     }
     openPersistentToolPanel({

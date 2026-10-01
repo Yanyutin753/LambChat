@@ -1,6 +1,7 @@
+import { SceneIllustration } from "./SceneIllustration";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { ShieldCheck, Mail, ExternalLink, ArrowRight } from "lucide-react";
+import { Mail, ExternalLink, ArrowRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useSettings } from "../../hooks/useSettings";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
@@ -68,9 +69,7 @@ export function ContactAdminDialog({
         {/* Header illustration */}
         <div className="relative overflow-hidden rounded-t-2xl bg-gradient-to-b from-amber-50/80 to-white px-8 pb-7 pt-9 dark:from-amber-950/20 dark:to-stone-900">
           <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/40 to-transparent dark:via-amber-700/30" />
-          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm shadow-stone-900/5 ring-1 ring-stone-900/5 dark:bg-stone-800 dark:ring-stone-700/60 dark:shadow-none">
-            <ShieldCheck className="h-7 w-7 text-amber-500 dark:text-amber-400" />
-          </div>
+          <SceneIllustration scene="message" className="mx-auto mb-4" />
           <div className="text-center">
             <h3 className="text-16 font-semibold font-serif tracking-tight text-stone-900 dark:text-stone-50">
               {title}

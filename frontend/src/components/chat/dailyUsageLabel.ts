@@ -13,6 +13,6 @@ export function buildDailyUsageAmount(
   opts: DailyUsageAmountOpts,
 ): string | null {
   if (!stats) return null;
-  const amount = formatCostUsd(stats.total_cost_usd ?? 0, opts);
+  const amount = formatCostUsd(stats.total_cost_usd ?? 0, { ...opts, decimals: 3 });
   return (stats.unpriced_requests ?? 0) > 0 ? `${amount}+` : amount;
 }

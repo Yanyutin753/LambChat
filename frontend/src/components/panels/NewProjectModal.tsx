@@ -1,5 +1,7 @@
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import type { Project } from "../../types";
+import { ProjectWorkspaceField } from "../sidebar/ProjectWorkspaceField";
 
 interface NewProjectModalProps {
   icon: string;
@@ -8,6 +10,8 @@ interface NewProjectModalProps {
   onNameChange: (name: string) => void;
   onCreate: () => void;
   onClose: () => void;
+  workspace?: Project["workspace"];
+  onWorkspaceChange?: (workspace: Project["workspace"]) => void;
 }
 
 export function NewProjectModal({
@@ -17,6 +21,8 @@ export function NewProjectModal({
   onNameChange,
   onCreate,
   onClose,
+  workspace,
+  onWorkspaceChange,
 }: NewProjectModalProps) {
   const { t } = useTranslation();
 
@@ -27,7 +33,7 @@ export function NewProjectModal({
     >
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative bg-theme-bg-card dark:bg-stone-800 rounded-xl shadow-2xl p-5 w-[90vw] max-w-md space-y-3">
-        <h3 className="text-14 font-semibold font-serif text-stone-800 dark:text-stone-100">
+        <h3 className="text-14 font-semibold font-sans text-stone-800 dark:text-stone-100">
           {t("sidebar.newProject")}
         </h3>
         <p className="text-12 text-stone-400 dark:text-stone-500">
@@ -64,6 +70,12 @@ export function NewProjectModal({
             className="flex-1 text-14 bg-transparent text-stone-700 dark:text-stone-200 placeholder-stone-400 focus:outline-none"
           />
         </div>
+        {onWorkspaceChange && (
+          <ProjectWorkspaceField
+            value={workspace}
+            onChange={onWorkspaceChange}
+          />
+        )}
         <div className="flex justify-end gap-2 pt-1">
           <button
             onClick={() => {
@@ -81,7 +93,7 @@ export function NewProjectModal({
               onClose();
             }}
             disabled={!name.trim()}
-            className="px-4 py-2 text-14 font-medium bg-stone-700 dark:bg-stone-200 text-white dark:text-stone-900 rounded-lg hover:bg-stone-800 dark:hover:bg-stone-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {t("common.create")}
           </button>

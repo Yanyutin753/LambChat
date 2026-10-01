@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useEffect, useRef, useCallback, useId } from "react";
 import { createPortal } from "react-dom";
+import { RightPanelTabs } from "../../../common/RightPanelTabs";
 import { BackIcon } from "../../../common/BackIcon";
 import {
   X,
@@ -15,6 +16,8 @@ import {
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner, ToolbarIconButton } from "../../../common";
 import {
+  RightPanelOwnerContext,
+  RightPanelActiveContext,
   useRightPanelEntry,
   useRightPanelFocus,
 } from "../../../common/useRightPanelEntry";
@@ -144,6 +147,7 @@ export function ToolResultPanel({
     "sidebar" | "center"
   >(externalViewMode ?? "sidebar");
   const [internalIsFullscreen, setInternalIsFullscreen] = useState(false);
+  const [userInteracted, setUserInteracted] = useState(false);
   const [contentReady, setContentReady] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
 
@@ -176,9 +180,12 @@ export function ToolResultPanel({
 
   const entry = useRightPanelEntry({
     open,
-    onClose,
+    onClose: handleUserClose,
+    title,
+    icon,
+    registryKey,
     kind: "content",
-    automatic,
+    automatic: automatic && !userInteracted,
   });
 
   const effectiveOnBack =
@@ -278,7 +285,7 @@ export function ToolResultPanel({
     latestOnCloseRef.current = onClose;
   }, [onClose]);
 
-  // Register as the active panel (singleton — closes any previous panel)
+  // Register the active close target; other tabs stay mounted.
   useEffect(() => {
     if (!entry.active) return;
     return registerToolPanel(
@@ -363,11 +370,7 @@ export function ToolResultPanel({
               ? "h-full min-h-full min-w-full w-full overflow-hidden"
               : isCenter
                 ? `overflow-hidden h-full relative transition-all duration-300 ease-out ${"sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl sm:h-[80dvh] sm:rounded-2xl sm:my-auto"}`
-                : `h-full relative rounded-l-xl overflow-hidden shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.12)] dark:shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.4)] ${
-                    animateIn
-                      ? "animate-[slide-in-right_200ms_ease-out_backwards]"
-                      : ""
-                  }`
+                : `h-full relative rounded-l-xl overflow-hidden shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.12)] dark:shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.4)]`
       }`}
       data-tool-panel-mode={panelMode}
       ref={(el) => {
@@ -395,8 +398,14 @@ export function ToolResultPanel({
             }
           : undefined
       }
-      onPointerDown={() => onUserInteraction?.()}
-      onKeyDownCapture={() => onUserInteraction?.()}
+      onPointerDown={() => {
+        if (automatic) setUserInteracted(true);
+        onUserInteraction?.();
+      }}
+      onKeyDownCapture={() => {
+        if (automatic) setUserInteracted(true);
+        onUserInteraction?.();
+      }}
       onClick={(e) => e.stopPropagation()}
     >
       {/* Desktop resize handle (sidebar only, not when using custom panelClass) */}
@@ -414,16 +423,17 @@ export function ToolResultPanel({
             }}
           />
           <div
-            className="tool-console-resize-handle hidden sm:block absolute left-0 top-0 bottom-0 -translate-x-1/2 z-10 cursor-col-resize pointer-events-auto group"
+            className="workspace-resize-handle tool-console-resize-handle hidden sm:block absolute left-0 top-0 bottom-0 -translate-x-1/2 z-10 cursor-col-resize pointer-events-auto group"
             aria-label={t("common.resizePanel", "Resize panel")}
             {...resizeSeparatorProps}
             onMouseDown={handleResize}
           >
-            <div className="tool-console-resize-handle__rail absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 rounded-full bg-transparent transition-colors duration-200" />
+            <div className="tool-console-resize-handle__rail" />
           </div>
         </>
       )}
 
+      {entry.active && <RightPanelTabs />}
       {/* Header section — sidebar mode always; center/fullscreen mode; mobile always */}
       {(isSidebar || isMobile || isCenter || isFullscreen) && (
         <div
@@ -589,37 +599,46 @@ export function ToolResultPanel({
         </div>
       )}
 
-      {/* Content */}
-      <div
-        data-sidebar-snapshot-key="panel-body"
-        className={`tool-console-body relative flex-1 overflow-auto min-h-0 overscroll-contain ${
-          isCenter && !hasCustomHeader && !isMobile && !isFullscreen
-            ? "!overflow-hidden"
-            : ""
-        }`}
-        aria-busy={!contentReady}
-      >
-        <div
-          className={`tool-console-body__content h-full min-h-full transition-opacity duration-150 ${
-            contentReady ? "opacity-100" : "opacity-0"
-          }`}
-          aria-hidden={!contentReady}
-        >
-          {children}
-        </div>
-        {!contentReady && (
-          <div className="tool-console-body__loading absolute inset-0 z-[1] flex items-center justify-center">
-            <LoadingSpinner
-              size="md"
-              color="text-theme-text-tertiary"
-              className="shrink-0"
-            />
+      {/* Keep viewer instances and drafts intact while background live subscriptions pause. */}
+      <RightPanelOwnerContext value={entry.ownerId}>
+        <RightPanelActiveContext value={entry.active}>
+          <div
+            id={entry.panelId}
+            role="tabpanel"
+            aria-label={title || t("documents.preview")}
+            data-sidebar-snapshot-key="panel-body"
+            className={`tool-console-body relative flex-1 overflow-auto min-h-0 overscroll-contain ${
+              isCenter && !hasCustomHeader && !isMobile && !isFullscreen
+                ? "!overflow-hidden"
+                : ""
+            }`}
+            aria-busy={!contentReady}
+          >
+            <div
+              className={`tool-console-body__content h-full min-h-full transition-opacity duration-150 ${
+                contentReady ? "opacity-100" : "opacity-0"
+              }`}
+              aria-hidden={!contentReady}
+            >
+              {children}
+            </div>
+            {!contentReady && (
+              <div className="tool-console-body__loading absolute inset-0 z-[1] flex items-center justify-center">
+                <LoadingSpinner
+                  size="md"
+                  color="text-theme-text-tertiary"
+                  className="shrink-0"
+                />
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Footer */}
-      {footer && <div className="tool-console-footer shrink-0">{footer}</div>}
+          {/* Footer */}
+          {footer && (
+            <div className="tool-console-footer shrink-0">{footer}</div>
+          )}
+        </RightPanelActiveContext>
+      </RightPanelOwnerContext>
     </div>
   );
 
@@ -633,8 +652,12 @@ export function ToolResultPanel({
       inert={!entry.active ? true : undefined}
       role={presentation === "docked" ? "complementary" : "dialog"}
       aria-modal={presentation === "docked" ? undefined : true}
-      aria-labelledby={title ? titleId : undefined}
-      aria-label={title ? undefined : t("documents.preview", "Content preview")}
+      aria-labelledby={title && !hasCustomHeader ? titleId : undefined}
+      aria-label={
+        title && !hasCustomHeader
+          ? undefined
+          : title || t("documents.preview", "Content preview")
+      }
       className={`fixed inset-0 z-[200] flex flex-col safe-area-viewport-padding safe-area-x ${
         overlayClass
           ? overlayClass

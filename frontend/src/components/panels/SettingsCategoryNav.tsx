@@ -27,7 +27,7 @@ export function SettingsCategoryNav({
   const groups = buildSettingsNavigation(categories, navigation);
   if (mobile)
     return (
-      <label className="mb-3 block sm:hidden">
+      <label className="settings-category-picker mb-3 block sm:hidden">
         <span className="mb-1 block text-12 font-medium text-stone-500 dark:text-stone-400">
           {t("settings.navigation.browse")}
         </span>

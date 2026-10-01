@@ -546,7 +546,7 @@
   gap: 0.75rem;
   border-radius: 0.5rem;
   border: 1px solid var(--theme-border);
-  background: var(--theme-bg);
+  background: var(--theme-bg-subtle);
   padding: 0.625rem 0.75rem;
 }
 .team-editor-default strong {
@@ -905,7 +905,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--theme-bg);
+  background: var(--theme-bg-subtle);
   flex-shrink: 0;
 }
 .team-card__avatar-item + .team-card__avatar-item {
@@ -916,7 +916,7 @@
   height: 24px;
   border-radius: 50%;
   border: 2px solid var(--theme-bg-card);
-  background: var(--theme-bg);
+  background: var(--theme-bg-subtle);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1456,7 +1456,7 @@
   height: 2.125rem;
   font-size: 0.8125rem;
   border-radius: 0.375rem;
-  background: var(--theme-bg);
+  background: var(--theme-bg-subtle);
 }
 
 /* --- Textarea sizing for card context --- */
@@ -1464,7 +1464,7 @@
   min-height: 4.5rem;
   font-size: 0.8125rem;
   border-radius: 0.375rem;
-  background: var(--theme-bg);
+  background: var(--theme-bg-subtle);
 }
 
 /* --- Expand icon rotation --- */

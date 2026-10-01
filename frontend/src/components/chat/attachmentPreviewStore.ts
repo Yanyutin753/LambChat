@@ -1,10 +1,5 @@
 import type { MessageAttachment } from "../../types";
-import { createSingletonStore } from "./ChatMessage/items/createSingletonStore";
-import {
-  registerPanelCapture,
-  registerPanelDeactivate,
-  pushCurrentPanelToHistory,
-} from "./ChatMessage/items/sidebarHistoryStore";
+import { createPanelTabsStore } from "./ChatMessage/items/createPanelTabsStore";
 
 export type AttachmentPreviewSource = "chat-input" | "user-message";
 
@@ -13,39 +8,22 @@ export interface AttachmentPreviewState {
   source: AttachmentPreviewSource;
 }
 
-const store = createSingletonStore<AttachmentPreviewState | null>(null);
-
-registerPanelCapture(() => {
-  const state = store.get();
-  if (state) {
-    const captured = state;
-    return {
-      restore: () => store.set(captured),
-    };
-  }
-  return null;
-});
-
-registerPanelDeactivate(() => {
-  store.set(null);
-});
-
-export function getAttachmentPreviewState(): AttachmentPreviewState | null {
-  return store.get();
+export function attachmentPreviewKey(state: AttachmentPreviewState): string {
+  return `attachment-preview:${state.attachment.key}`;
 }
+const store =
+  createPanelTabsStore<AttachmentPreviewState>(attachmentPreviewKey);
+export const getAttachmentPreviewState = store.get;
+export const getAttachmentPreviewTabs = store.getAll;
+export const subscribeAttachmentPreview = store.subscribe;
+export const clearAttachmentPreviews = store.clear;
 
 export function openAttachmentPreview(
   attachment: MessageAttachment,
   source: AttachmentPreviewSource,
 ): void {
-  pushCurrentPanelToHistory();
-  store.set({ attachment, source });
+  store.open({ attachment, source });
 }
-
-export function closeAttachmentPreview(): void {
-  store.set(null);
-}
-
-export function subscribeAttachmentPreview(listener: () => void): () => void {
-  return store.subscribe(listener);
+export function closeAttachmentPreview(key?: string): void {
+  store.close(key);
 }

@@ -1,16 +1,25 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  memo,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import type { CollapsibleStatus } from "../../../common/CollapsiblePill";
-import { hasOpenRightPanel } from "../../../common/rightPanelCoordinator";
+import {
+  hasOpenRightPanel,
+  getRightPanelSnapshot,
+  subscribeRightPanels,
+} from "../../../common/rightPanelCoordinator";
 import {
   getRightPanelPresentation,
   shouldAllowAutomaticRightPanel,
 } from "../../../../hooks/rightPanelLayout";
 import { ToolResultPanel } from "./ToolResultPanel";
-import { closeCurrentToolPanel } from "./toolPanelRegistry";
-import { createSingletonStore } from "./createSingletonStore";
-import { setActiveRevealPreviewState } from "./activeRevealPreviewStore";
+import { createPanelTabsStore } from "./createPanelTabsStore";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import { toolCallPanelStore } from "../toolCallPanelStore";
 import {
@@ -18,12 +27,6 @@ import {
   createSubagentPanelFooter,
 } from "../subagentPanelState";
 import { subagentPanelStore } from "../subagentPanelStore";
-import {
-  registerPanelCapture,
-  registerPanelDeactivate,
-  pushCurrentPanelToHistory,
-} from "./sidebarHistoryStore";
-
 export interface PersistentToolPanelState {
   title: string;
   status: CollapsibleStatus;
@@ -47,31 +50,12 @@ export interface PersistentToolPanelState {
   isFullscreen?: boolean;
 }
 
-const panelStore = createSingletonStore<PersistentToolPanelState | null>(null);
-let panelOpen = false;
-
-registerPanelCapture(() => {
-  const panel = panelStore.get();
-  if (panel) {
-    const captured = panel;
-    return {
-      restore: () => {
-        setActiveRevealPreviewState(null);
-        openPersistentToolPanelDirect(captured);
-      },
-    };
-  }
-  return null;
-});
-
-registerPanelDeactivate(() => {
-  closePersistentToolPanel();
-});
-
-function openPersistentToolPanelDirect(panel: PersistentToolPanelState): void {
-  panelStore.set(panel);
-  panelOpen = true;
+function panelRegistryKey(panel: PersistentToolPanelState): string {
+  return `persistent:${panel.panelKey ?? panel.title}`;
 }
+const panelStore =
+  createPanelTabsStore<PersistentToolPanelState>(panelRegistryKey);
+export const closeAllPersistentToolPanels = panelStore.clear;
 
 export function getPersistentToolPanelState(): PersistentToolPanelState | null {
   return panelStore.get();
@@ -82,9 +66,17 @@ export function subscribePersistentToolPanel(listener: () => void): () => void {
 }
 
 export function isPersistentToolPanelOpen(panelKey?: string): boolean {
-  const currentPanel = panelStore.get();
-  if (!panelKey) return panelOpen;
-  return !!currentPanel && currentPanel.panelKey === panelKey;
+  if (!panelKey) return panelStore.getAll().length > 0;
+  return panelStore.getAll().some((panel) => panel.panelKey === panelKey);
+}
+
+export function isPersistentToolPanelActive(panelKey: string): boolean {
+  const snapshot = getRightPanelSnapshot();
+  return snapshot.entries.some(
+    (entry) =>
+      entry.id === snapshot.activeId &&
+      entry.registryKey === `persistent:${panelKey}`,
+  );
 }
 
 export function openPersistentToolPanel(panel: PersistentToolPanelState): void {
@@ -97,40 +89,29 @@ export function openPersistentToolPanel(panel: PersistentToolPanelState): void {
   ) {
     return;
   }
-  pushCurrentPanelToHistory();
-  closeCurrentToolPanel();
-  panelStore.set(panel);
-  panelOpen = true;
+  const existing = panelStore
+    .getAll()
+    .find((tab) => panelRegistryKey(tab) === panelRegistryKey(panel));
+  panelStore.open(
+    existing
+      ? {
+          ...panel,
+          viewMode: existing.viewMode ?? panel.viewMode,
+          isFullscreen: existing.isFullscreen ?? panel.isFullscreen,
+        }
+      : panel,
+  );
 }
 
 export function updatePersistentToolPanel(
   updater: (prev: PersistentToolPanelState) => PersistentToolPanelState,
   panelKey?: string,
 ): void {
-  const currentPanel = panelStore.get();
-  if (!currentPanel) return;
-  if (panelKey && currentPanel.panelKey !== panelKey) return;
-  panelStore.set(updater(currentPanel));
+  panelStore.update(updater, panelKey ? `persistent:${panelKey}` : undefined);
 }
 
-export function closePersistentToolPanel(): void {
-  if (!panelStore.get()) return;
-  panelStore.set(null);
-  panelOpen = false;
-}
-
-function usePersistentToolPanel() {
-  const [, forceRender] = useState(0);
-
-  useEffect(() => {
-    const listener = () => forceRender((count) => count + 1);
-    return subscribePersistentToolPanel(listener);
-  }, []);
-
-  return {
-    panel: panelStore.get(),
-    close: closePersistentToolPanel,
-  };
+export function closePersistentToolPanel(panelKey?: string): void {
+  panelStore.close(panelKey ? `persistent:${panelKey}` : undefined);
 }
 
 interface LivePanelChrome {
@@ -143,7 +124,10 @@ interface LivePanelChrome {
  * subagent- 前缀走 subagentPanelStore。两个 store 均由 ChatView 全量
  * 同步，面板刷新与消息虚拟化（滚动）无关。
  */
-function useLivePanelChrome(panelKey?: string): LivePanelChrome | null {
+function useLivePanelChrome(
+  active: boolean,
+  panelKey?: string,
+): LivePanelChrome | null {
   const toolCallId = panelKey?.startsWith("tool:")
     ? panelKey.slice("tool:".length)
     : null;
@@ -153,10 +137,11 @@ function useLivePanelChrome(panelKey?: string): LivePanelChrome | null {
   const [, forceRender] = useState(0);
 
   useEffect(() => {
+    if (!active) return;
     const listener = () => forceRender((count) => count + 1);
     if (toolCallId) return toolCallPanelStore.subscribe(toolCallId, listener);
     if (subagentId) return subagentPanelStore.subscribe(subagentId, listener);
-  }, [toolCallId, subagentId]);
+  }, [active, toolCallId, subagentId]);
 
   const toolData = toolCallId ? toolCallPanelStore.get(toolCallId) : undefined;
   if (toolData) {
@@ -185,9 +170,24 @@ function useLivePanelChrome(panelKey?: string): LivePanelChrome | null {
   return null;
 }
 
-export function PersistentToolPanelHost() {
-  const { panel, close } = usePersistentToolPanel();
-  const liveChrome = useLivePanelChrome(panel?.panelKey);
+const PersistentToolPanelTab = memo(function PersistentToolPanelTab({
+  panel,
+}: {
+  panel: PersistentToolPanelState;
+}) {
+  const close = useCallback(
+    () => panelStore.close(panelRegistryKey(panel)),
+    [panel],
+  );
+  const registryKey = panelRegistryKey(panel);
+  const active = useSyncExternalStore(subscribeRightPanels, () => {
+    const snapshot = getRightPanelSnapshot();
+    return snapshot.entries.some(
+      (entry) =>
+        entry.id === snapshot.activeId && entry.registryKey === registryKey,
+    );
+  });
+  const liveChrome = useLivePanelChrome(active, panel.panelKey);
 
   // viewMode/全屏完全受控并回写 store：面板历史返回后恢复用户当时的
   // 视图模式，也修掉同一面板实例在不同面板之间串台的问题
@@ -210,8 +210,6 @@ export function PersistentToolPanelHost() {
     },
     [activePanelKey],
   );
-
-  if (!panel) return null;
 
   return createPortal(
     <ToolResultPanel
@@ -240,4 +238,15 @@ export function PersistentToolPanelHost() {
     </ToolResultPanel>,
     document.body,
   );
+});
+
+export function PersistentToolPanelHost() {
+  const panels = useSyncExternalStore(
+    panelStore.subscribe,
+    panelStore.getAll,
+    panelStore.getAll,
+  );
+  return panels.map((panel) => (
+    <PersistentToolPanelTab key={panelRegistryKey(panel)} panel={panel} />
+  ));
 }

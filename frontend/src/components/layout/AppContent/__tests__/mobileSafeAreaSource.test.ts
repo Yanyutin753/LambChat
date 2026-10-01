@@ -3,6 +3,15 @@ function readSource(path: string): string {
   return readFileSync(new URL(path, import.meta.url), "utf8");
 }
 
+test("mobile navigation fits the workspace below the desktop titlebar", () => {
+  const sidebar = readSource("../../../panels/SessionSidebar.tsx");
+  const heights = [...sidebar.matchAll(/height:\s*\n?\s*"(calc\([^"\n]+)"/g)];
+  expect(heights).toHaveLength(2);
+  for (const [, height] of heights) {
+    expect(height).toContain("- var(--titlebar-inset, 0px)");
+  }
+});
+
 test("app shell reserves native mobile status bar safe area", () => {
   const shell = readSource("../AppShell.tsx");
   const tokens = readSource("../../../../styles/tokens.css");
@@ -17,7 +26,7 @@ test("app shell reserves native mobile status bar safe area", () => {
   expect(tokens).not.toMatch(/--app-safe-area-bottom:\s*max\(/);
   expect(tokens).toMatch(/--app-fullscreen-safe-area-bottom:\s*0px/);
   expect(tokens).toMatch(
-    /@media \(display-mode: standalone\), \(display-mode: fullscreen\)\s*\{[\s\S]*--app-fullscreen-safe-area-top:\s*12px/,
+    /@media \(max-width: 767px\) and \(display-mode: standalone\),\s*\(max-width: 767px\) and \(display-mode: fullscreen\)\s*\{[\s\S]*--app-fullscreen-safe-area-top:\s*12px/,
   );
   expect(tokens).not.toMatch(/--app-fullscreen-safe-area-bottom:\s*12px/);
   expect(shell).toMatch(/boxSizing:\s*"content-box"/);

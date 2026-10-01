@@ -1,4 +1,7 @@
-import { groupSessionsByTime } from "../sessionHelpers.ts";
+import {
+  groupSessionsByTime,
+  groupSessionsForSidebar,
+} from "../sessionHelpers.ts";
 import type { BackendSession } from "../../../services/api.ts";
 
 function makeSession(updatedAt: string): BackendSession {
@@ -11,6 +14,50 @@ function makeSession(updatedAt: string): BackendSession {
     metadata: {},
   };
 }
+
+function pinSession(session: BackendSession): BackendSession {
+  return { ...session, metadata: { ...session.metadata, is_pinned: true } };
+}
+
+const labelPassThrough = ((key: string) => key) as never;
+
+/** 后端时间戳格式（无时区，按 UTC 解析）：now 偏移 days 天。 */
+function backendTimestamp(daysAgo: number): string {
+  return new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 23);
+}
+
+test("groupSessionsForSidebar excludes pinned sessions from time groups", () => {
+  const pinnedOld = pinSession(makeSession(backendTimestamp(30)));
+  const pinnedRecent = pinSession(makeSession(backendTimestamp(0.1)));
+  const normalToday = makeSession(backendTimestamp(0));
+
+  const groups = groupSessionsForSidebar(
+    [pinnedRecent, normalToday, pinnedOld],
+    labelPassThrough,
+  );
+
+  // 置顶会话由独立「置顶」分类展示，时间分组不再出现
+  expect(groups).toHaveLength(1);
+  expect(groups[0]?.label).toBe("sidebar.today");
+  expect(groups[0]?.sessions).toEqual([normalToday]);
+});
+
+test("groupSessionsForSidebar keeps time grouping when nothing is pinned", () => {
+  const normalToday = makeSession(backendTimestamp(0));
+  const normalOld = makeSession(backendTimestamp(30));
+
+  const groups = groupSessionsForSidebar(
+    [normalToday, normalOld],
+    labelPassThrough,
+  );
+
+  expect(groups.map((group) => group.label)).toEqual([
+    "sidebar.today",
+    "sidebar.older",
+  ]);
+});
 
 test("groupSessionsByTime treats timezone-less backend timestamps as UTC", () => {
   const originalTimezone = process.env.TZ;

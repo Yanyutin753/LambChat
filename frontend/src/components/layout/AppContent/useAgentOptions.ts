@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { AgentInfo } from "../../../types";
+export const SANDBOX_ONLINE_CHANGED_EVENT = "sandbox-online-changed";
 
 export const DEFAULT_THINKING_LEVEL_STORAGE_KEY = "defaultThinkingLevel";
 
@@ -140,9 +141,6 @@ export function shouldAdoptLocalOnOnline(
   return currentSandbox !== "local";
 }
 
-/** daemon 首次上线（离线→在线翻转）时由沙箱状态层派发，默认本地档跟进。 */
-export const SANDBOX_ONLINE_CHANGED_EVENT = "sandbox-online-changed";
-
 type StorageLike = Pick<Storage, "getItem">;
 
 function applyStoredAgentOptionDefaults(
@@ -256,7 +254,11 @@ export function getAgentOptionSyncMode({
   return "preserve";
 }
 
-export function useAgentOptions(agents: AgentInfo[], currentAgent: string) {
+export function useAgentOptions(
+  agents: AgentInfo[],
+  currentAgent: string,
+  sandboxOnline = false,
+) {
   const [agentOptionValues, setAgentOptionValues] = useState<
     Record<string, boolean | string | number>
   >({});
@@ -304,7 +306,11 @@ export function useAgentOptions(agents: AgentInfo[], currentAgent: string) {
     }
 
     if (syncMode === "reset" || !prevJson) {
-      setAgentOptionValues(buildAgentOptionValues(options));
+      setAgentOptionValues(
+        buildAgentOptionValues(options, undefined, undefined, {
+          sandboxOnline,
+        }),
+      );
       return;
     }
 
@@ -322,7 +328,7 @@ export function useAgentOptions(agents: AgentInfo[], currentAgent: string) {
       }
       return rebuilt;
     });
-  }, [currentAgent, agents]);
+  }, [currentAgent, agents, sandboxOnline]);
 
   useEffect(() => {
     const handleThinkingPreferenceUpdated = () => {
@@ -393,15 +399,21 @@ export function useAgentOptions(agents: AgentInfo[], currentAgent: string) {
 
   // Reset to agent defaults (for new session)
   const resetAgentOptionDefaults = useCallback(() => {
+    sandboxTouchedRef.current = false;
+    pendingRestoredOptionsRef.current = null;
     const options = normalizeAgentOptions(
       agents.find((a) => a.id === currentAgent)?.options,
     );
-    setAgentOptionValues(buildAgentOptionValues(options));
-  }, [agents, currentAgent]);
+    setAgentOptionValues(
+      buildAgentOptionValues(options, undefined, undefined, { sandboxOnline }),
+    );
+  }, [agents, currentAgent, sandboxOnline]);
 
   // 从外部恢复配置
   const restoreAgentOptions = useCallback(
     (options: Record<string, boolean | string | number>) => {
+      // 恢复的会话不是新草稿；daemon 重连不能悄悄改写它的执行位置。
+      sandboxTouchedRef.current = true;
       const normalizedOptions = normalizeAgentOptionValues(options) || {};
       pendingRestoredOptionsRef.current = normalizedOptions;
       setAgentOptionValues(normalizedOptions);

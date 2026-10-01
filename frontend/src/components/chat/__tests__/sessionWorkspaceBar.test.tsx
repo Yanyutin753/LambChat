@@ -98,3 +98,25 @@ test("running sessions cannot change their execution directory", () => {
   );
   expect(screen.getByRole("button")).toBeDisabled();
 });
+
+test("web sessions show the inherited directory without exposing its full path or native controls", () => {
+  mocks.current = null;
+  render(
+    <SessionWorkspaceBar
+      values={{
+        sandbox: "local",
+        sandbox_machine_id: "m1",
+        sandbox_workspace: JSON.stringify({
+          id: `local-${"a".repeat(32)}`,
+          machineId: "m1",
+          path: "/Users/private/project",
+        }),
+      }}
+      onChange={vi.fn()}
+      disabled={false}
+    />,
+  );
+  expect(screen.getByText("project")).toBeVisible();
+  expect(screen.queryByText("/Users/private/project")).toBeNull();
+  expect(screen.queryByRole("button")).toBeNull();
+});

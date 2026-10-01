@@ -40,6 +40,55 @@ test("uses the latest assistant reply as the completed notification summary", ()
   });
 });
 
+test("uses the final output_text segment, not the interim text before tool calls", () => {
+  const notification = buildTaskNotificationCopy({
+    sessionName: "Deep Research",
+    status: "completed",
+    successLabel: "Task completed",
+    failureLabel: "Task failed",
+    fallbackMessage: "Generic completion message",
+    events: [
+      {
+        id: "1",
+        event_type: "user:message",
+        data: { content: "Summarize the findings." },
+        timestamp: "2026-04-25T10:00:00.000Z",
+        run_id: "run-1",
+      },
+      {
+        id: "2",
+        event_type: "message:chunk",
+        data: { content: "Sure, let me inspect the files first." },
+        timestamp: "2026-04-25T10:00:01.000Z",
+        run_id: "run-1",
+      },
+      {
+        id: "3",
+        event_type: "tool:start",
+        data: { tool: "read_file", tool_call_id: "call-1", args: {} },
+        timestamp: "2026-04-25T10:00:02.000Z",
+        run_id: "run-1",
+      },
+      {
+        id: "4",
+        event_type: "tool:result",
+        data: { tool: "read_file", tool_call_id: "call-1", success: true },
+        timestamp: "2026-04-25T10:00:03.000Z",
+        run_id: "run-1",
+      },
+      {
+        id: "5",
+        event_type: "message:chunk",
+        data: { content: "The final answer is 42." },
+        timestamp: "2026-04-25T10:00:04.000Z",
+        run_id: "run-1",
+      },
+    ],
+  });
+
+  expect(notification.body).toBe("The final answer is 42.");
+});
+
 test("falls back to the websocket message when no assistant summary is available", () => {
   const notification = buildTaskNotificationCopy({
     sessionName: "Bug Bash",

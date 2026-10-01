@@ -7,13 +7,7 @@ import {
   useEffect,
   useLayoutEffect,
 } from "react";
-import {
-  RefreshCw,
-  Sparkles,
-  UserRound,
-  ChevronRight,
-  Plus,
-} from "lucide-react";
+import { RefreshCw, Sparkles, ChevronRight, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ChatInput } from "./ChatInput";
@@ -21,7 +15,6 @@ import type { ChatInputProps } from "./ChatInput";
 import type { ActiveGoalSpec } from "../../hooks/useAgent/types";
 import { ContactAdminDialog } from "../common/ContactAdminDialog";
 import { NotificationBanner } from "../notification/NotificationBanner";
-import { ImageWithSkeleton } from "./ChatMessage/ImageWithSkeleton";
 import {
   getSelectedPersonaStarterPrompts,
   getSelectedTeamStarterPrompts,
@@ -51,8 +44,6 @@ import {
   settleTeamRequestSuccess,
   type TeamRequestState,
 } from "./welcomeReadyState";
-
-const WELCOME_ICON_SRC = "/images/lamb.webp";
 
 interface WelcomePageProps {
   greeting: string;
@@ -84,22 +75,23 @@ interface WelcomePageProps {
   onSelectTeam?: (teamId: string | null) => void;
 }
 
-function WelcomeIcon({
-  className,
-  label,
-}: {
-  className: string;
-  label?: string;
-}) {
+function WelcomeIcon({ className }: { className: string }) {
   return (
-    <ImageWithSkeleton
-      src={WELCOME_ICON_SRC}
-      alt={label ?? ""}
-      skipUrlResolve
-      inline
-      className={className}
-      style={{ objectFit: "contain" }}
-    />
+    <picture>
+      <source
+        media="(prefers-reduced-motion: reduce)"
+        srcSet="/images/illustrations/lamb-welcome.png"
+      />
+      <img
+        src="/images/lamb.webp"
+        alt=""
+        aria-hidden="true"
+        width={112}
+        height={112}
+        draggable={false}
+        className={`object-contain ${className}`}
+      />
+    </picture>
   );
 }
 
@@ -402,10 +394,7 @@ export const WelcomePage = memo(function WelcomePage({
       <div className="welcome-hero relative flex flex-col items-center mb-1 sm:mb-2 md:mb-2.5 xl:mb-3 2xl:mb-3 w-full sm:max-w-[44rem] md:max-w-[46rem] lg:max-w-[48rem] xl:max-w-[50rem] 2xl:max-w-[52rem]">
         {/* App icon (mobile only) */}
         <div className="sm:hidden relative mb-2">
-          <WelcomeIcon
-            label="LambChat"
-            className="welcome-icon relative size-12 object-contain rounded-full"
-          />
+          <WelcomeIcon className="welcome-icon relative size-12" />
         </div>
 
         {/* Greeting */}
@@ -413,7 +402,7 @@ export const WelcomePage = memo(function WelcomePage({
           className="welcome-greeting max-w-full text-[1.5rem] sm:text-[1.875rem] md:text-[2rem] lg:text-[2.25rem] xl:text-[2.35rem] 2xl:text-[2.5rem] font-semibold tracking-[-0.02em] leading-[1.2] text-center font-serif"
           style={{ color: "var(--theme-text)" }}
         >
-          <WelcomeIcon className="welcome-icon hidden sm:inline-block size-12 xl:size-14 2xl:size-16 mr-4 align-text-bottom object-contain rounded-full" />
+          <WelcomeIcon className="welcome-icon hidden sm:inline-block size-12 xl:size-14 2xl:size-16 mr-4 align-text-bottom" />
           {greeting}
         </h1>
         {/* Subtle subtitle prompt */}
@@ -709,7 +698,6 @@ export const WelcomePage = memo(function WelcomePage({
                         className="welcome-persona-avatar relative flex items-center justify-center size-11 rounded-xl shrink-0 overflow-hidden transition-transform duration-300 group-hover:scale-105"
                         imgClassName="h-full w-full object-cover"
                         iconSize={22}
-                        fallbackIcon={<UserRound size={22} />}
                         style={{
                           background:
                             "linear-gradient(135deg, var(--theme-primary-light) 0%, color-mix(in srgb, var(--theme-primary) 10%, var(--theme-bg-card)) 100%)",

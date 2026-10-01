@@ -78,6 +78,11 @@ export async function reconcileActiveStream(
   if (!currentSessId || !currentRId) return false;
   const currentMsgId = resolveStreamingMessageId(ctx) ?? currentRId;
 
+  const generation = ctx.sseGenerationRef.current;
+  const isCurrentRun = () =>
+    ctx.sseGenerationRef.current === generation &&
+    ctx.sessionIdRef.current === currentSessId &&
+    ctx.currentRunIdRef.current === currentRId;
   let remoteTerminal = false;
   try {
     const statusData = await sessionApi.getStatus(currentSessId, currentRId);
@@ -87,10 +92,12 @@ export async function reconcileActiveStream(
   } catch (err) {
     console.error("[SSE Reconcile] Failed to check task status:", err);
     // 状态探测失败（网络刚恢复等）：交给原指数退避重连路径
+    if (!isCurrentRun()) return true;
     await reconnectSSE(ctx);
     return true;
   }
 
+  if (!isCurrentRun()) return true;
   if (remoteTerminal) {
     console.log("[SSE Reconcile] Run finished remotely, settling locally");
     settleRemotelyTerminatedRun(ctx, currentRId, currentMsgId);

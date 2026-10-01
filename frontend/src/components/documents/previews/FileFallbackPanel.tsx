@@ -1,3 +1,4 @@
+import { SceneIllustration } from "../../common/SceneIllustration";
 import { type ElementType } from "react";
 import { Download } from "lucide-react";
 import type { TFunction } from "i18next";
@@ -45,10 +46,11 @@ export default function FileFallbackPanel({
     <div className="unsupported-file-fallback">
       <div className="unsupported-file-fallback__overlay">
         <div className="unsupported-file-fallback__panel">
+          <SceneIllustration scene="files" className="mx-auto mb-3" />
           <div
-            className={`mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl ${iconBg}`}
+            className={`mx-auto mb-3 flex size-8 items-center justify-center rounded-lg ${iconBg}`}
           >
-            <Icon size={30} className={iconColor} />
+            <Icon size={18} className={iconColor} />
           </div>
           <h3 className="mb-2 text-16 font-medium font-serif text-[var(--theme-text)]">
             {title}

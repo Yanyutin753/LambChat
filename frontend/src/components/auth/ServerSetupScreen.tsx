@@ -44,27 +44,27 @@ export function ServerSetupScreen() {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-var(--titlebar-inset,0px))] items-center justify-center bg-stone-100 p-6 dark:bg-stone-900">
-      <div className="w-full max-w-md rounded-3xl border border-stone-200/70 bg-white/90 p-8 shadow-xl backdrop-blur dark:border-stone-700/60 dark:bg-stone-800/90">
+    <div className="flex min-h-[calc(100vh-var(--titlebar-inset,0px))] items-center justify-center bg-theme-bg-sidebar p-6 dark:bg-stone-900">
+      <div className="w-full max-w-md rounded-3xl border border-theme-border/70 bg-theme-bg-card/90 p-8 shadow-xl backdrop-blur dark:border-stone-700/60 dark:bg-stone-800/90">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex size-11 items-center justify-center rounded-2xl bg-amber-500/10">
             <Server size={20} className="text-amber-600 dark:text-amber-400" />
           </div>
           <div>
-            <h1 className="text-18 font-semibold text-stone-800 dark:text-stone-100">
+            <h1 className="text-18 font-semibold text-theme-text dark:text-stone-100">
               {t("serverSetup.title")}
             </h1>
-            <p className="mt-0.5 text-12 text-stone-500 dark:text-stone-400">
+            <p className="mt-0.5 text-12 text-theme-text-secondary dark:text-stone-400">
               {t("serverSetup.desc")}
             </p>
           </div>
         </div>
 
-        <label className="block text-12 font-medium text-stone-500 dark:text-stone-400">
+        <label className="block text-12 font-medium text-theme-text-secondary dark:text-stone-400">
           {t("serverSetup.label")}
         </label>
-        <div className="mt-1.5 flex items-center gap-2 rounded-xl border border-stone-300/70 bg-white px-3 py-2.5 focus-within:border-amber-500/60 dark:border-stone-600/70 dark:bg-stone-900/60">
-          <Globe size={15} className="shrink-0 text-stone-400" />
+        <div className="mt-1.5 flex items-center gap-2 rounded-xl border border-theme-border-hover/70 bg-theme-bg-card px-3 py-2.5 focus-within:border-amber-500/60 dark:border-stone-600/70 dark:bg-stone-900/60">
+          <Globe size={15} className="shrink-0 text-theme-text-tertiary" />
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -74,16 +74,16 @@ export function ServerSetupScreen() {
             placeholder="https://chat.example.com"
             spellCheck={false}
             autoComplete="off"
-            className="w-full bg-transparent text-14 text-stone-800 outline-none placeholder:text-stone-400 dark:text-stone-100"
+            className="w-full bg-transparent text-14 text-theme-text outline-none placeholder:text-theme-text-tertiary dark:text-stone-100"
           />
         </div>
 
         {input && !normalized && (
-          <p className="mt-2 text-12 text-red-500">
+          <p className="mt-2 text-12 text-theme-error">
             {t("serverSetup.invalid")}
           </p>
         )}
-        {error && <p className="mt-2 text-12 text-red-500">{error}</p>}
+        {error && <p className="mt-2 text-12 text-theme-error">{error}</p>}
 
         <button
           type="button"

@@ -1,11 +1,13 @@
 import {
   closeAttachmentPreview,
+  clearAttachmentPreviews,
+  getAttachmentPreviewTabs,
   getAttachmentPreviewState,
   openAttachmentPreview,
 } from "../attachmentPreviewStore";
 
 test("attachment preview store preserves the selected attachment until explicitly closed", () => {
-  closeAttachmentPreview();
+  clearAttachmentPreviews();
 
   openAttachmentPreview(
     {
@@ -37,6 +39,9 @@ test("attachment preview store preserves the selected attachment until explicitl
   expect(getAttachmentPreviewState()?.source).toEqual("user-message");
   expect(getAttachmentPreviewState()?.attachment.key).toEqual("uploads/a2.txt");
 
+  expect(getAttachmentPreviewTabs()).toHaveLength(2);
+  closeAttachmentPreview();
+  expect(getAttachmentPreviewState()?.attachment.key).toBe("uploads/a1.txt");
   closeAttachmentPreview();
   expect(getAttachmentPreviewState()).toBe(null);
 });

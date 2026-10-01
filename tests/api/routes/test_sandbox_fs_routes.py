@@ -30,7 +30,12 @@ def _bound_agent_options(machine_id="m1") -> dict:
 
 
 def _fake_session(user_id="u1", agent_options=None) -> SimpleNamespace:
-    metadata = {"conversation_config": {"agent_options": agent_options or {}}}
+    # 前端 useAgentOptions 总会显式写 sandbox 值；缺省回落全局 SANDBOX_PLATFORM
+    # （出厂 daytona=云端）的分支由专项用例锁定
+    options = {"sandbox": "local"}
+    if agent_options is not None:
+        options.update(agent_options)
+    metadata = {"agent_options": options}
     return SimpleNamespace(user_id=user_id, metadata=metadata)
 
 
@@ -239,3 +244,217 @@ async def test_fs_list_falls_back_on_invalid_binding(monkeypatch, missing):
         resp = await client.get("/api/sandbox/fs/list", params={"session_id": "sess-1"})
     assert resp.status_code == 200
     assert dispatched[0]["payload"]["cwd"] == "/workspace/sess-1"
+
+
+async def test_fs_list_rejects_cloud_session(monkeypatch):
+    """云端会话（sandbox=cloud）拒绝：其工作区在 E2B，转发本地 daemon 只会
+    误建空目录、展示无关文件——409 sandbox_session_not_local 且不下发。"""
+    dispatched: list = []
+    async with _fs_app(
+        monkeypatch, _fake_session(agent_options={"sandbox": "cloud"}), dispatched
+    ) as client:
+        resp = await client.get("/api/sandbox/fs/list", params={"session_id": "sess-1"})
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "sandbox_session_not_local"
+    assert dispatched == []
+
+
+async def test_fs_list_platform_falls_back_to_global_default(monkeypatch):
+    """会话未显式选平台时回落全局 SANDBOX_PLATFORM（与 _resolve_sandbox_platform
+    同规则）：默认为 local 时放行；daytona/cloud 等非 local 平台一律拒绝。"""
+    dispatched: list = []
+
+    monkeypatch.setattr(sandbox_route.settings, "SANDBOX_PLATFORM", "local")
+    async with _fs_app(
+        monkeypatch, _fake_session(agent_options={"sandbox": None}), dispatched
+    ) as client:
+        resp = await client.get("/api/sandbox/fs/list", params={"session_id": "sess-1"})
+    assert resp.status_code == 200
+    assert len(dispatched) == 1
+
+    monkeypatch.setattr(sandbox_route.settings, "SANDBOX_PLATFORM", "daytona")
+    async with _fs_app(
+        monkeypatch, _fake_session(agent_options={"sandbox": None}), dispatched
+    ) as client:
+        resp2 = await client.get("/api/sandbox/fs/list", params={"session_id": "sess-1"})
+    assert resp2.status_code == 409
+    assert resp2.json()["detail"]["code"] == "sandbox_session_not_local"
+    assert len(dispatched) == 1
+
+
+# ---------------------------------------------------------------------------
+# 云端电脑浏览端点（fs/cloud/*）
+# ---------------------------------------------------------------------------
+
+
+def _cloud_app(monkeypatch, session, manager, als_result=None, aread_result=None):
+    """云端端点测试 app:SessionManager + 沙箱管理器/backend 打桩。"""
+    from src.api.routes import sandbox as route_module
+    from src.infra.sandbox import session_manager as sandbox_module
+    from src.infra.session import manager as session_manager_module
+
+    class _FakeSessionManager:
+        async def get_session(self, sid):
+            return session
+
+    monkeypatch.setattr(session_manager_module, "SessionManager", _FakeSessionManager)
+
+    calls: dict = {"get_or_create": [], "cloud_status": []}
+
+    from deepagents.backends.protocol import LsResult, ReadResult
+
+    class _FakeScopedBackend:
+        async def als(self, path):
+            calls.setdefault("als", []).append(path)
+            return (
+                als_result
+                if als_result is not None
+                else LsResult(
+                    entries=[
+                        {
+                            "path": f"/home/user/sessions/sess-1/{path.rstrip('/').lstrip('./') or '.'}/sub",
+                            "is_dir": True,
+                        },
+                        {
+                            "path": f"/home/user/sessions/sess-1/{path.rstrip('/').lstrip('./') or '.'}/hello.txt"
+                        },
+                    ]
+                )
+            )
+
+        async def aread(self, path, offset=0, limit=500):
+            calls.setdefault("aread", []).append((path, offset, limit))
+            return (
+                aread_result
+                if aread_result is not None
+                else ReadResult(
+                    file_data={"content": "cloud text", "encoding": "utf-8"},
+                    total_lines=1,
+                    start_line=1,
+                    end_line=1,
+                )
+            )
+
+    class _FakeManager:
+        async def get_or_create(self, session_id, user_id, *, create=True):
+            calls["get_or_create"].append({"session_id": session_id, "create": create})
+            if isinstance(manager, Exception):
+                raise manager
+            return _FakeScopedBackend(), "/home/user/sessions/sess-1"
+
+        async def cloud_status(self, user_id):
+            calls["cloud_status"].append(user_id)
+            return manager if isinstance(manager, dict) else {"platform": "e2b", "state": "paused"}
+
+    monkeypatch.setattr(sandbox_module, "get_session_sandbox_manager", lambda: _FakeManager())
+    monkeypatch.setattr(route_module, "__sandbox_manager__", _FakeManager(), raising=False)
+    # 路由内 from ... import get_session_sandbox_manager 走的是函数内导入,
+    # 打桩点在源模块命名空间即可生效
+
+    app = FastAPI()
+    register_error_handlers(app)
+    app.include_router(route_module.router, prefix="/api/sandbox", tags=["Sandbox"])
+    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_user
+    return AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver"), calls
+
+
+async def test_cloud_list_passes_create_false_and_normalizes_paths(monkeypatch):
+    """云端列表：只连不建（create=False）+ 条目路径归一为本地端点同构相对串
+    + 浏览租约被续（浏览保活 → 宽限回收链路接通）。"""
+    from src.infra.sandbox import idle_pause as idle_pause_module
+
+    lease_touched: list[str] = []
+
+    async def fake_touch(user_id: str) -> None:
+        lease_touched.append(user_id)
+
+    monkeypatch.setattr(idle_pause_module, "touch_browse_lease", fake_touch)
+    monkeypatch.setattr(idle_pause_module, "schedule_browse_reaper", lambda uid: None)
+
+    client, calls = _cloud_app(monkeypatch, _fake_session(agent_options={"sandbox": "cloud"}), None)
+    async with client as c:
+        resp = await c.get("/api/sandbox/fs/cloud/list", params={"session_id": "sess-1"})
+    assert resp.status_code == 200
+    assert calls["get_or_create"] == [{"session_id": "sess-1", "create": False}]
+    assert lease_touched == ["u1"]
+    entries = resp.json()["entries"]
+    assert {e["path"] for e in entries} == {"./sub", "./hello.txt"}
+    assert next(e for e in entries if e["path"] == "./sub")["is_dir"] is True
+
+
+async def test_cloud_list_not_created_and_recycled_map_to_codes(monkeypatch):
+    """PeekError 语义映射：无绑定 → 404 not_created；沙箱被回收 → 410 recycled。"""
+    from src.infra.sandbox.session_manager import SandboxPeekError
+
+    client, _ = _cloud_app(monkeypatch, _fake_session(), SandboxPeekError("not_created"))
+    async with client as c:
+        resp = await c.get("/api/sandbox/fs/cloud/list", params={"session_id": "sess-1"})
+    assert resp.status_code == 404
+    assert resp.json()["detail"]["code"] == "sandbox_cloud_not_created"
+
+    client2, _ = _cloud_app(monkeypatch, _fake_session(), SandboxPeekError("recycled"))
+    async with client2 as c:
+        resp2 = await c.get("/api/sandbox/fs/cloud/list", params={"session_id": "sess-1"})
+    assert resp2.status_code == 410
+    assert resp2.json()["detail"]["code"] == "sandbox_cloud_recycled"
+
+
+async def test_cloud_read_returns_filedata_contract(monkeypatch):
+    """云端读取：FileData{content, encoding} 直通,与本地端点契约对齐。"""
+    client, calls = _cloud_app(monkeypatch, _fake_session(), None)
+    async with client as c:
+        resp = await c.get(
+            "/api/sandbox/fs/cloud/read",
+            params={"session_id": "sess-1", "path": "./hello.txt", "offset": 0, "limit": 200},
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["encoding"] == "utf-8" and body["content"] == "cloud text"
+    assert calls["aread"][0] == ("hello.txt", 0, 200)
+
+
+async def test_cloud_status_zero_side_effect(monkeypatch):
+    """状态速览只读绑定（cloud_status），不触发 get_or_create。"""
+    client, calls = _cloud_app(
+        monkeypatch, _fake_session(), {"platform": "daytona", "state": "running"}
+    )
+    async with client as c:
+        resp = await c.get("/api/sandbox/fs/cloud/status", params={"session_id": "sess-1"})
+    assert resp.status_code == 200
+    assert resp.json() == {"platform": "daytona", "state": "running"}
+    assert calls["get_or_create"] == []
+
+
+async def test_cloud_endpoints_reject_foreign_session(monkeypatch):
+    """属主校验同样覆盖云端端点。"""
+    client, _ = _cloud_app(monkeypatch, _fake_session(user_id="other"), None)
+    async with client as c:
+        resp = await c.get("/api/sandbox/fs/cloud/list", params={"session_id": "sess-1"})
+    assert resp.status_code == 403
+
+
+@pytest.mark.parametrize("operation", ["list", "read"])
+async def test_cloud_files_preserve_backend_errors(monkeypatch, operation):
+    from deepagents.backends.protocol import LsResult, ReadResult
+
+    from src.infra.sandbox import idle_pause
+
+    async def touch(_user_id):
+        pass
+
+    monkeypatch.setattr(idle_pause, "touch_browse_lease", touch)
+    monkeypatch.setattr(idle_pause, "schedule_browse_reaper", lambda _uid: None)
+    client, _ = _cloud_app(
+        monkeypatch,
+        _fake_session(),
+        None,
+        als_result=LsResult(error="path_not_found"),
+        aread_result=ReadResult(error="path_not_found"),
+    )
+    async with client as c:
+        response = await c.get(
+            f"/api/sandbox/fs/cloud/{operation}",
+            params={"session_id": "sess-1", "path": "missing.txt"},
+        )
+    assert response.status_code == 200
+    assert response.json() == {"error": "path_not_found"}

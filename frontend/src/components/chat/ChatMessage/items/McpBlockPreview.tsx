@@ -7,7 +7,13 @@ import {
   File,
   Ban,
 } from "lucide-react";
-import { useState, useEffect, useMemo, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { MarkdownContent } from "../MarkdownContent";
@@ -25,31 +31,29 @@ import {
 } from "./toolImageResults";
 import {
   closeBlockPreview,
-  getBlockPreview,
+  getBlockPreviewTabs,
+  blockPreviewKey,
+  type BlockPreviewData,
   openBlockPreview,
   subscribeBlockPreview,
 } from "./blockPreviewStore";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 
-function useBlockPreview() {
-  const [, setCount] = useState(0);
-  useEffect(() => {
-    const fn = () => setCount((c) => c + 1);
-    return subscribeBlockPreview(fn);
-  }, []);
-  return { preview: getBlockPreview(), close: closeBlockPreview };
+/** All opened blocks stay keyed independently of virtualized message rows. */
+export function BlockPreviewPortal() {
+  const previews = useSyncExternalStore(
+    subscribeBlockPreview,
+    getBlockPreviewTabs,
+    getBlockPreviewTabs,
+  );
+  return previews.map((preview) => (
+    <BlockPreviewTab key={blockPreviewKey(preview)} preview={preview} />
+  ));
 }
 
-/** Standalone portal — render once at app level, survives any component tree changes */
-export function BlockPreviewPortal() {
+function BlockPreviewTab({ preview }: { preview: BlockPreviewData }) {
   const { t } = useTranslation();
-  const { preview, close } = useBlockPreview();
-
-  if (!preview) return null;
-
-  const previewIdentity =
-    preview.src ?? preview.url ?? preview.fileName ?? preview.text ?? "unknown";
-
+  const close = () => closeBlockPreview(blockPreviewKey(preview));
   let icon: React.ReactNode;
   let title: string;
   let content: React.ReactNode;
@@ -108,7 +112,7 @@ export function BlockPreviewPortal() {
     <ToolResultPanel
       open
       onClose={close}
-      registryKey={`block-preview:${preview.type}:${previewIdentity}`}
+      registryKey={blockPreviewKey(preview)}
       title={title}
       icon={icon}
       status="success"

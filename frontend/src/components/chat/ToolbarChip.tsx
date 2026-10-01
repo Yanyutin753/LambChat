@@ -32,11 +32,11 @@ export function ToolbarChip({
     >
       <div className="flex flex-row items-center gap-2 min-w-0">
         {icon && (
-          <span className="relative h-[18px] w-[18px] shrink-0 inline-flex items-center justify-center overflow-hidden">
+          <span className="relative h-4 w-4 shrink-0 inline-flex items-center justify-center overflow-hidden">
             {icon}
             {onClear && (
               <X
-                size={18}
+                size={16}
                 className="absolute inset-0 m-auto opacity-0 transition-opacity group-hover:opacity-100"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -50,7 +50,7 @@ export function ToolbarChip({
             空间够时完整显示；行内一挤它先收缩出 …（全链 min-w-0 传递）。
             按钮 overflow-hidden 兜底：链路再断也只裁自己，结构上杜绝重叠 */}
         <span
-          className={`min-w-0 truncate text-14 font-semibold text-blue-600 dark:text-blue-400 font-serif${
+          className={`min-w-0 truncate text-14 leading-5 font-semibold text-blue-600 dark:text-blue-400 font-serif${
             labelClassName ? ` ${labelClassName}` : ""
           }`}
         >

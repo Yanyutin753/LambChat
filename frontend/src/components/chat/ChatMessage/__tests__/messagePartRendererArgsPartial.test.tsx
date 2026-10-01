@@ -69,3 +69,18 @@ test("upgraded (non-partial) read_file renders via the dedicated item", () => {
   expect(screen.getByText(/notes\.md/)).toBeTruthy();
   expect(screen.queryByText(/\{"file_path/)).toBe(null);
 });
+
+test.each(["todo_write", "write_todos"])(
+  "%s stays hidden while generating arguments, running, and completed",
+  (name) => {
+    for (const state of [
+      { isPending: true, argsPartial: true, args: { partial: '{"todos":[' } },
+      { isPending: true, args: { todos: [] } },
+      { isPending: false, args: { todos: [] }, result: "Updated" },
+    ]) {
+      const { container, unmount } = renderPart({ ...basePart, name, ...state });
+      expect(container.childElementCount).toBe(0);
+      unmount();
+    }
+  },
+);

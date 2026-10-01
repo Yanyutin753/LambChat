@@ -31,7 +31,7 @@ test("returns null when stats are unavailable", () => {
 test("builds amount, requests and cache hit rate from today's stats", () => {
   const snap = buildTodayUsageSnapshot(stats(), { language: "zh", rates });
   expect(snap).not.toBeNull();
-  expect(snap!.amount).toBe("¥3.60");
+  expect(snap!.amount).toBe("¥3.600");
   expect(snap!.requests).toBe(3);
   // input_tokens 已包含 cache-read，口径与后端 dashboard/单消息一致。
   expect(snap!.cacheHitRate).toBeCloseTo(30 / 100, 5);

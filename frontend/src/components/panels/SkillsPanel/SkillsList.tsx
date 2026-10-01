@@ -1,14 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Plus,
-  Package,
-  FolderOpen,
-  Check,
-  Github,
-  Archive,
-  X,
-} from "lucide-react";
+import { FolderOpen, Plus, Check, Github, Archive, X } from "lucide-react";
 import { PanelHeader } from "../../common/PanelHeader";
 import { SkillsListSkeleton, SkillsPanelSkeleton } from "../../skeletons";
 import { Pagination } from "../../common/Pagination";
@@ -182,9 +174,7 @@ export function SkillsList({
         <PanelHeader
           title={t("skills.title")}
           subtitle={t("skills.subtitle")}
-          icon={
-            <Package size={20} className="text-stone-600 dark:text-stone-400" />
-          }
+          illustration="panel-skills"
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
           searchPlaceholder={t("skills.searchPlaceholder")}
@@ -207,7 +197,7 @@ export function SkillsList({
       )}
 
       {/* Skills List */}
-      <div className="skill-content-area flex-1 overflow-y-auto py-2 sm:py-4 px-4 lg:px-8 lg:py-8">
+      <div className="panel-body skill-content-area flex-1 overflow-y-auto">
         {filteredSkills.length === 0 ? (
           <EmptyState
             icon={<FolderOpen size={28} />}
@@ -261,16 +251,14 @@ export function SkillsList({
       </div>
 
       {/* Pagination */}
-      {total > pageSize && (
-        <div className="glass-divider px-3 py-3 sm:px-4">
-          <Pagination
-            page={page}
-            pageSize={pageSize}
-            total={total}
-            onChange={setPage}
-          />
-        </div>
-      )}
+      <div className="panel-pagination empty:hidden">
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onChange={setPage}
+        />
+      </div>
     </div>
   );
 }

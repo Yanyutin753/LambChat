@@ -182,3 +182,19 @@ test("reconnect keeps a settled answer and does not reload history", async () =>
   ]);
   expect(onStaleRunStateDetected).not.toHaveBeenCalled();
 });
+
+test("connecting a resumed stream restores the settled bubble's running state", async () => {
+  mocks.getValidAccessToken.mockResolvedValueOnce("token-a");
+  mocks.fetchEventSource.mockResolvedValueOnce(undefined);
+  const { ctx, readMessages } = createReconnectContext([
+    {
+      id: "assistant-a",
+      role: "assistant",
+      content: "partial",
+      timestamp: new Date(),
+      isStreaming: false,
+    },
+  ]);
+  await connectToSSE("session-a", "run-a", "assistant-a", ctx);
+  expect(readMessages()[0].isStreaming).toBe(true);
+});

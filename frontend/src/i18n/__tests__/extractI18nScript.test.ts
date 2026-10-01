@@ -2,14 +2,16 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const frontendRoot = resolve(currentDir, "../../..");
 const extractorPath = resolve(frontendRoot, "scripts/extract-i18n.ts");
 // Windows 下 .bin/tsx 是无扩展名 shell 脚本，execFileSync 直接 spawn 会 ENOENT；
-// 统一走 node + tsx CLI 入口，跨平台一致。
-const tsxPath = resolve(frontendRoot, "node_modules/tsx/dist/cli.mjs");
+// 直接加载 tsx loader，跨平台一致且无需 CLI 的 IPC 监听。
+const tsxPath = pathToFileURL(
+  resolve(frontendRoot, "node_modules/tsx/dist/loader.mjs"),
+).href;
 
 test("reports each newly extracted locale key once", () => {
   const fixtureDir = mkdtempSync(resolve(tmpdir(), "lambchat-i18n-extract-"));
@@ -26,10 +28,14 @@ test("reports each newly extracted locale key once", () => {
       writeFileSync(resolve(localesDir, `${locale}.json`), "{}\n");
     }
 
-    const output = execFileSync(process.execPath, [tsxPath, extractorPath], {
-      cwd: fixtureDir,
-      encoding: "utf8",
-    });
+    const output = execFileSync(
+      process.execPath,
+      ["--import", tsxPath, extractorPath],
+      {
+        cwd: fixtureDir,
+        encoding: "utf8",
+      },
+    );
 
     expect(
       output.match(/➕ Added to en\.json: example\.newKey/g) ?? [],
@@ -61,10 +67,14 @@ test("extracts keys from .ts hook files but skips __tests__ fixtures", () => {
       writeFileSync(resolve(localesDir, `${locale}.json`), "{}\n");
     }
 
-    const output = execFileSync(process.execPath, [tsxPath, extractorPath], {
-      cwd: fixtureDir,
-      encoding: "utf8",
-    });
+    const output = execFileSync(
+      process.execPath,
+      ["--import", tsxPath, extractorPath],
+      {
+        cwd: fixtureDir,
+        encoding: "utf8",
+      },
+    );
 
     expect(
       output.match(/➕ Added to en\.json: example\.fromTs/g) ?? [],

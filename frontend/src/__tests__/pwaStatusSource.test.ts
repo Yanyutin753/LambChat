@@ -40,3 +40,8 @@ test("PWA status toast bridge uses i18n for user-facing text", () => {
   expect(componentSource).not.toMatch(/Back online/);
   expect(componentSource).not.toMatch(/aria-label="Dismiss"/);
 });
+
+test("static PWA icon does not pull chat image handling into the entry bundle", () => {
+  expect(componentSource).not.toContain("ImageWithSkeleton");
+  expect(componentSource).toMatch(/<img[\s\S]*?src="\/icons\/icon.svg"/);
+});

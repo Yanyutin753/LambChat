@@ -1,0 +1,63 @@
+[data-panel] .panel-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  width: 100%;
+  flex: 0 0 auto;
+  background: var(--theme-bg);
+  padding: var(--panel-header-block) var(--panel-inset);
+  padding-inline-end: calc(var(--panel-inset) + var(--panel-scrollbar, 0px));
+  margin-bottom: 0;
+  isolation: isolate;
+}
+
+:where([data-panel]) .glass-shell .panel-header {
+  background: var(--theme-bg);
+}
+
+@container panel (max-width: 639px) {
+  :where([data-panel])
+    .panel-header.panel-header--has-search
+    .panel-header__top {
+    display: none;
+  }
+}
+
+:where([data-panel])
+  .panel-header-dropdown
+  :is(button, [role="menuitem"], .skill-tag-chip):focus-visible,
+:where([data-panel]) .panel-header__mobile-menu :is(button, a):focus-visible {
+  outline: 2px solid
+    color-mix(in srgb, var(--theme-text-secondary) 50%, transparent);
+  outline-offset: 2px;
+}
+:where([data-panel]) .panel-search {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid var(--theme-border);
+  background-color: var(--theme-bg-card);
+  padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+  font-size: 0.875rem;
+  color: var(--theme-text);
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.dark :where([data-panel]) .panel-search {
+  background-color: var(--theme-bg-card);
+}
+
+:where([data-panel]) .scb {
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where([data-panel]) *,
+  :where([data-panel]) *::before,
+  :where([data-panel]) *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

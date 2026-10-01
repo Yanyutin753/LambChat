@@ -2235,3 +2235,97 @@ html.dark .auth-footer-divider {
       0 3px 12px rgba(0, 0, 0, 0.18);
   }
 }
+
+/* Editorial authentication: a single artwork, restrained type and clear controls. */
+.auth-lamb-shell,
+html.dark .auth-lamb-shell { --auth-panel-bg: var(--theme-bg-card); background: var(--auth-panel-bg); }
+.auth-lamb-shell > .auth-crosshatch { display: none; }
+.auth-lamb-shell .auth-illustration-panel,
+html.dark .auth-lamb-shell .auth-illustration-panel {
+  background: #191917;
+  padding: clamp(2rem, 4vw, 4rem);
+  border: 0;
+}
+.auth-lamb-shell .auth-illustration-panel::before,
+.auth-lamb-shell .auth-illustration-panel::after,
+.auth-lamb-shell .auth-form-frame::before,
+.auth-lamb-shell .auth-form-frame::after { display: none; }
+.auth-lamb-shell .auth-illustration-brand,
+html.dark .auth-lamb-shell .auth-illustration-brand { color: #f5f5f4; }
+.auth-lamb-shell .auth-illustration-brand img { box-shadow: none; }
+.auth-brand-story { margin: auto 0; padding-top: 24rem; }
+.auth-hero-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 40%; z-index: 0; }
+.auth-brand-eyebrow,
+.auth-brand-story h2,
+.auth-brand-description,
+.auth-brand-capabilities { position: relative; z-index: 1; }
+.auth-brand-eyebrow { color: #d6d3d1; font-size: 11px; letter-spacing: .14em; margin-bottom: 1rem; }
+.auth-brand-story h2 { color: #fafaf9; font-size: clamp(32px, 3.1vw, 46px); font-weight: 500; line-height: 1.35; letter-spacing: -.045em; text-wrap: balance; }
+.auth-brand-description { font-size: 13px; line-height: 1.9; color: #d6d3d1; max-width: 25rem; margin-top: 1rem; text-wrap: balance; }
+.auth-brand-capabilities { display: flex; gap: 1.5rem; color: #a8a29e; font-size: 11px; margin-top: 1.75rem; }
+.auth-brand-capabilities span + span { border-left: 1px solid #57534e; padding-left: 1.5rem; }
+.auth-lamb-shell .auth-illustration-links,
+html.dark .auth-lamb-shell .auth-illustration-links { color: #d6d3d1; font-size: 11px; }
+.auth-lamb-shell .auth-form-side { padding: 6rem 2rem; background: var(--auth-panel-bg); }
+.auth-lamb-shell .auth-form-frame,
+html.dark .auth-lamb-shell .auth-form-frame { max-width: 380px !important; margin: 0; padding: 0; background: none; border: 0; box-shadow: none; border-radius: 0; }
+.auth-lamb-shell .auth-form-surface { width: 100%; max-width: none; padding: 0; background: none; border: 0; box-shadow: none; }
+.auth-lamb-shell .auth-form-heading { text-align: left; margin-bottom: 2.5rem; }
+.auth-lamb-shell .auth-form-heading h1 { font-size: 32px; line-height: 1.3; font-weight: 600; letter-spacing: -.035em; }
+.auth-lamb-shell .auth-form-heading p { color: var(--auth-muted); margin-top: .65rem; font-size: 13px; }
+.auth-lamb-shell .auth-field-group label { font-size: 13px; font-weight: 500; }
+.auth-lamb-shell .auth-input,
+html.dark .auth-lamb-shell .auth-input { height: 52px; border-radius: var(--radius-lg); background: color-mix(in srgb, var(--theme-bg-subtle) 30%, var(--auth-panel-bg)); border-color: var(--auth-line); box-shadow: none; font-size: 14px; }
+.auth-lamb-shell .auth-primary-button { min-height: 52px; border-radius: var(--radius-lg); background: var(--auth-ink); color: var(--auth-panel-bg); box-shadow: none; font-size: 13px; }
+.auth-lamb-shell .auth-primary-button::after { display: none; }
+.auth-lamb-shell .auth-primary-button:hover { background: color-mix(in srgb, var(--auth-ink) 90%, var(--auth-panel-bg)); transform: none; box-shadow: none; }
+.auth-lamb-shell .auth-oauth-btn { border-radius: 8px; background: var(--auth-panel-bg); border-color: var(--auth-line); box-shadow: none; }
+.auth-lamb-shell a:focus-visible,
+.auth-lamb-shell button:focus-visible { outline: 2px solid var(--auth-accent); outline-offset: 4px; }
+.auth-lamb-shell .auth-mobile-art { width: 100%; height: clamp(190px, 50vw, 210px); object-fit: cover; object-position: center 42%; margin-bottom: 2.25rem; border-radius: var(--radius-xl); }
+@media (min-width: 1024px) {
+  .auth-lamb-shell .auth-page-grid { grid-template-columns: 48% 52%; }
+  .auth-lamb-shell .auth-mobile-art { display: none; }
+}
+@media (max-width: 1023px) {
+  .auth-lamb-shell .auth-form-side { padding: 0; }
+  .auth-lamb-shell .auth-form-heading { margin-bottom: 2rem; }
+}
+@media (max-height: 700px) {
+  .auth-brand-story { padding-top: 14rem; }
+}
+@media (max-height: 600px) and (max-width: 1023px) {
+  .auth-lamb-shell .auth-mobile-art { display: none; }
+}
+@media (min-width: 1024px) {
+  .auth-lamb-shell .auth-illustration-panel {
+    margin: 16px;
+    min-height: calc(100svh - var(--titlebar-inset, 0px) - 32px);
+    border-radius: var(--radius-page);
+    padding: clamp(2rem, 3vw, 3rem);
+  }
+  .auth-hero-art { top: 0; height: 74%; object-fit: cover; object-position: center 40%; mask-image: linear-gradient(to bottom, black 75%, transparent 100%); }
+  .auth-brand-story { margin: auto 0 2.25rem; padding-top: max(24rem, 47vh); }
+}
+@media (max-height: 700px) and (min-width: 1024px) {
+  .auth-hero-art { top: 0; height: 70%; }
+  .auth-brand-story { padding-top: 17rem; margin-bottom: 1.5rem; }
+  .auth-brand-description { margin-top: .5rem; }
+  .auth-brand-capabilities { margin-top: 1rem; }
+}
+.auth-password-label-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .5rem; }
+.auth-password-label-row label { margin: 0; }
+.auth-password-label-row .auth-forgot-row { font-size: 12px; color: var(--auth-muted); text-underline-offset: 4px; }
+.auth-password-label-row .auth-forgot-row:hover { color: var(--auth-ink); text-decoration: underline; }
+.auth-theme-control { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 1px solid var(--auth-line); border-radius: 999px; background: var(--auth-panel-bg); color: var(--auth-ink); }
+.auth-theme-control:hover { background: color-mix(in srgb, var(--auth-ink) 5%, var(--auth-panel-bg)); }
+.auth-lamb-shell .auth-mode-switch button { min-height: 44px; }
+@media (prefers-reduced-motion: reduce) { .auth-lamb-shell * { scroll-behavior: auto; } }
+
+.auth-lamb-shell .auth-illustration-links a:hover { color: var(--auth-text-on-illustration, #f5f4ef); }
+.auth-lamb-shell nav { background: var(--auth-panel-bg); border-bottom: 0; }
+.auth-lamb-shell .auth-brand-description { max-width: 23rem; }
+@media (max-width: 1023px) {
+  .auth-lamb-shell .auth-input { font-size: 16px; }
+  .auth-lamb-shell .auth-primary-button { font-size: 14px; }
+}

@@ -630,6 +630,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setError(null);
       let finalAssistantMessageId = assistantMessageId;
       let submissionAccepted = false;
+      let sendStreamGeneration: number | null = null;
 
       try {
         // 用户发送消息时标记当前 session 为已读
@@ -827,12 +828,14 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
         isReconnectFromHistoryRef.current = false;
         const ctx = createSSEContext();
-        await connectToSSE(
+        const streamPromise = connectToSSE(
           streamSessionId,
           streamRunId,
           finalAssistantMessageId,
           ctx,
         );
+        sendStreamGeneration = sseGenerationRef.current;
+        await streamPromise;
       } catch (err) {
         if (!submissionAccepted) {
           notifySubmissionRejected(submissionCallbacks);
@@ -871,6 +874,14 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         // 收尾自己的乐观助手气泡：流被后续发送/停止顶掉时不会再收到
         // 终态事件，不落定会留下永久 isStreaming 的空气泡
         setMessages((prev) => {
+          // 前台重连接管同一气泡后，旧发送退出不得封存新流。
+          if (
+            sendStreamGeneration !== null &&
+            sendStreamGeneration !== sseGenerationRef.current &&
+            streamingMessageIdRef.current === finalAssistantMessageId
+          ) {
+            return prev;
+          }
           const target = prev.find(
             (m) => m.id === finalAssistantMessageId && m.isStreaming,
           );
@@ -1010,6 +1021,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   );
 
   const clearMessages = useCallback(() => {
+    pendingProjectIdRef.current = null;
+    setCurrentProjectId(null);
     loadHistoryRequestIdRef.current += 1;
     streamVersionRef.current += 1;
     sseGenerationRef.current += 1;
@@ -1047,6 +1060,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     setActiveGoal,
     setConnectionStatus,
     setCurrentRunId,
+    setCurrentProjectId,
     setError,
     setGoalModeEnabled,
     setGoalsByRunId,
@@ -1152,6 +1166,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     setPendingProjectId: (id: string | null) => {
       pendingProjectIdRef.current = id;
       autoExpandProjectIdRef.current = id;
+      setCurrentProjectId(id);
     },
     autoExpandProjectId: autoExpandProjectIdRef.current,
     clearAutoExpandProjectId: (id?: string | null) => {

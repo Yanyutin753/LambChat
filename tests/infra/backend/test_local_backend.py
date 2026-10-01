@@ -8,6 +8,7 @@ M4 T3 追加：文件命令生成的平台分支——posix 命令串逐字节�
 服务端 _cmd_quote 与 client platform.shell_quote 同组 torture 用例互锁。
 """
 
+import asyncio
 import base64
 import shlex
 import subprocess
@@ -1340,14 +1341,23 @@ async def test_win32_aglob_subroot_joins_virtual_root(monkeypatch, _default_daem
     assert [m["path"] for m in (result.matches or [])] == ["/workspace/s1/src/a.txt"]
 
 
-async def test_win32_agrep_payload_and_restore(monkeypatch, _default_daemon_platform):
-    _default_daemon_platform["platform"] = "win32"
+@pytest.mark.parametrize("platform", ["win32", "darwin"])
+@pytest.mark.parametrize("use_async", [True, False])
+async def test_native_grep_payload_and_restore(
+    monkeypatch, _default_daemon_platform, platform, use_async
+):
+    _default_daemon_platform["platform"] = platform
     dispatch = _fs_dispatch(
         {"matches": [{"path": "./a.txt", "line": 2, "text": "beta"}], "truncated": False}
     )
     monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
     backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
-    result = await backend.agrep("beta", path="/workspace/s1", glob="*.txt", max_count=5)
+    if use_async:
+        result = await backend.agrep("beta", path="/workspace/s1", glob="*.txt", max_count=5)
+    else:
+        result = await asyncio.to_thread(
+            backend.grep, "beta", path="/workspace/s1", glob="*.txt", max_count=5
+        )
     assert dispatch.calls == [
         (
             "fs_grep",

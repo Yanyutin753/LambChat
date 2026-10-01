@@ -1,11 +1,14 @@
 import {
   useCallback,
+  useContext,
+  useSyncExternalStore,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { RightPanelActiveContext } from "../../common/useRightPanelEntry";
 import { ArrowDown, Maximize2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner, CopyButton } from "../../common";
@@ -28,15 +31,16 @@ import {
   SUBAGENT_PARTS_PREVIEW_LIMIT,
 } from "./SidebarMarkdownContent";
 
-function useSubagentPanelData(agentId: string): SubagentPanelData | undefined {
-  const [, forceRender] = useState(0);
-
-  useEffect(() => {
-    const listener = () => forceRender((n) => n + 1);
-    return subagentPanelStore.subscribe(agentId, listener);
-  }, [agentId]);
-
-  return subagentPanelStore.get(agentId);
+function useSubagentPanelData(
+  agentId: string,
+  active: boolean,
+): SubagentPanelData | undefined {
+  const subscribe = useCallback(
+    (listener: () => void) =>
+      active ? subagentPanelStore.subscribe(agentId, listener) : () => {},
+    [active, agentId],
+  );
+  return useSyncExternalStore(subscribe, () => subagentPanelStore.get(agentId));
 }
 
 function extractPartsText(parts: MessagePart[]): string {
@@ -55,7 +59,8 @@ function extractPartsText(parts: MessagePart[]): string {
 
 export function SubagentPanelContent({ agentId }: { agentId: string }) {
   const { t } = useTranslation();
-  const data = useSubagentPanelData(agentId);
+  const active = useContext(RightPanelActiveContext);
+  const data = useSubagentPanelData(agentId, active);
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -87,8 +92,9 @@ export function SubagentPanelContent({ agentId }: { agentId: string }) {
   }, [markProgrammaticScroll, stopAutoScroll]);
 
   useEffect(() => {
+    if (!active) stopAutoScroll();
     return () => stopAutoScroll();
-  }, [stopAutoScroll]);
+  }, [active, stopAutoScroll]);
 
   const scrollToBottom = useCallback(() => {
     startAutoScroll();
@@ -111,6 +117,7 @@ export function SubagentPanelContent({ agentId }: { agentId: string }) {
   }, [stopAutoScroll]);
 
   useLayoutEffect(() => {
+    if (!active) return;
     if (
       !shouldAutoScrollSubagentPanel({
         scroller: scrollRef.current,
@@ -121,11 +128,11 @@ export function SubagentPanelContent({ agentId }: { agentId: string }) {
     }
 
     scrollToBottom();
-  }, [data, scrollToBottom]);
+  }, [active, data, scrollToBottom]);
 
   useEffect(() => {
     const scroller = scrollRef.current;
-    if (!scroller || typeof ResizeObserver === "undefined") {
+    if (!active || !scroller || typeof ResizeObserver === "undefined") {
       return;
     }
 
@@ -146,7 +153,7 @@ export function SubagentPanelContent({ agentId }: { agentId: string }) {
     }
 
     return () => observer.disconnect();
-  }, [startAutoScroll]);
+  }, [active, startAutoScroll]);
 
   // 面板历史返回时快照会恢复滚动位置（含 lazy 内容，~600ms 窗口）。
   // 窗口结束后固化滚动意图：恢复到非底部 → 视为用户已上滑，后续流式

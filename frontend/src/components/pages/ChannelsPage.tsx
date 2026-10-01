@@ -15,7 +15,7 @@ import { ChannelPanel } from "../panels/ChannelPanel";
 import { FeishuPanel } from "../panels/channel/feishu/FeishuPanel";
 import { PanelHeader } from "../common/PanelHeader";
 import { ChannelsGridSkeleton } from "../skeletons";
-import { SkillBaseCard } from "../common/SkillBaseCard";
+import type { SkillBaseCardProps } from "../common/SkillBaseCard";
 import { nameToGradient } from "../common/cardUtils";
 import type {
   ChannelMetadata,
@@ -36,6 +36,80 @@ const CHANNEL_ICONS: Record<string, React.FC<{ className?: string }>> = {
 function getChannelIcon(iconName: string, className?: string) {
   const IconComponent = CHANNEL_ICONS[iconName] || Bot;
   return <IconComponent className={className} />;
+}
+
+// Keep the original channel presentation separate from the redesigned skill cards.
+function ChannelCard({
+  title,
+  description,
+  gradient,
+  icon,
+  statusPills,
+  tags,
+  bannerOverlay,
+  onClick,
+  className,
+}: Pick<
+  SkillBaseCardProps,
+  | "title"
+  | "description"
+  | "gradient"
+  | "icon"
+  | "statusPills"
+  | "tags"
+  | "bannerOverlay"
+  | "onClick"
+  | "className"
+>) {
+  return (
+    <div
+      className={`scb group flex h-full flex-col overflow-hidden rounded-2xl bg-theme-bg-card shadow-sm dark:shadow-none ${
+        className ?? ""
+      }`}
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(event) => {
+        if (
+          event.target === event.currentTarget &&
+          (event.key === "Enter" || event.key === " ")
+        ) {
+          event.preventDefault();
+          event.currentTarget.click();
+        }
+      }}
+    >
+      {gradient && (
+        <div
+          className="scb__banner relative h-12 shrink-0"
+          style={{
+            background: `linear-gradient(45deg, ${gradient[0]}, ${gradient[1]}, ${gradient[2]})`,
+          }}
+        >
+          <div className="absolute inset-0 z-[3] flex items-start justify-end p-2">
+            {bannerOverlay}
+          </div>
+        </div>
+      )}
+      <div className="flex flex-1 flex-col p-4 -mt-3 pt-5">
+        <div className="flex items-start gap-3">
+          <div className="scb__icon-ring shrink-0">{icon}</div>
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-16 font-semibold font-serif text-theme-text leading-tight">
+              {title}
+            </h3>
+            {statusPills}
+          </div>
+        </div>
+        {description && (
+          <p className="mt-3 text-13 leading-relaxed text-theme-text-secondary line-clamp-2 min-h-[3.25em]">
+            {description}
+          </p>
+        )}
+        {tags && <div className="mt-3">{tags}</div>}
+      </div>
+    </div>
+  );
 }
 
 export function ChannelsPage() {
@@ -186,11 +260,9 @@ export function ChannelsPage() {
             "channel.description",
             `Connect your favorite chat platforms to ${APP_NAME}`,
           )}
-          icon={
-            <Radio size={24} className="text-[var(--theme-text-secondary)]" />
-          }
+          illustration="panel-channels"
         />
-        <div className="flex-1 overflow-y-auto py-4">
+        <div className="panel-body flex-1 overflow-y-auto">
           <div className="mx-auto max-w-full">
             {channelTypes.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center text-center">
@@ -211,7 +283,7 @@ export function ChannelsPage() {
                 </p>
               </div>
             ) : (
-              <div className="grid auto-grid-cols gap-4 p-3 sm:p-4">
+              <div className="grid auto-grid-cols gap-4">
                 {channelTypes.map((ct) => {
                   const channelInstances = instances[ct.channel_type] || [];
                   const instanceCount = channelInstances.length;
@@ -223,7 +295,7 @@ export function ChannelsPage() {
                   const gradient = nameToGradient(ct.display_name);
 
                   return (
-                    <SkillBaseCard
+                    <ChannelCard
                       key={ct.channel_type}
                       title={ct.display_name}
                       description={ct.description}
@@ -303,10 +375,7 @@ export function ChannelsPage() {
         <PanelHeader
           title={metadata?.display_name || selectedChannel!}
           subtitle={metadata?.description || ""}
-          icon={getChannelIcon(
-            metadata?.icon || selectedChannel!,
-            "h-6 w-6 text-[var(--theme-text-secondary)]",
-          )}
+          illustration="panel-channels"
           actions={
             canWrite && (
               <button
@@ -320,9 +389,9 @@ export function ChannelsPage() {
           }
         />
 
-        <div className="flex-1 overflow-y-auto py-4">
+        <div className="panel-body flex-1 overflow-y-auto">
           {channelInstances.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="flex h-full flex-col items-center justify-center py-8 text-center">
               <p className="text-14 text-[var(--theme-text-secondary)]">
                 {t("channel.noInstances", "No instances configured")}
               </p>
@@ -339,7 +408,7 @@ export function ChannelsPage() {
               )}
             </div>
           ) : (
-            <div className="mx-auto max-w-full space-y-3 p-3 sm:p-4">
+            <div className="panel-stack mx-auto max-w-full">
               {channelInstances.map((instance) => {
                 const status =
                   statuses[`${selectedChannel}:${instance.instance_id}`];

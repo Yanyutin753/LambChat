@@ -304,3 +304,31 @@ test("connectToSSE records stream activity for every event including ping", asyn
 
   expect(ctx.lastStreamActivityAtRef.current).toBeGreaterThan(0);
 });
+
+test("remote settlement invalidates and aborts the old stream before ending the bubble", async () => {
+  mocks.getStatus.mockResolvedValue({ status: "completed" });
+  const controller = new AbortController();
+  const { ctx } = createReconcileContext(streamingBubble(), {
+    abortControllerRef: { current: controller },
+    isConnectingRef: { current: true },
+  });
+  await reconcileActiveStream(ctx);
+  expect(controller.signal.aborted).toBe(true);
+  expect(ctx.sseGenerationRef.current).toBe(1);
+  expect(ctx.isConnectingRef.current).toBe(false);
+});
+
+test("a delayed terminal probe cannot settle a replacement stream", async () => {
+  let resolveStatus: (value: { status: string }) => void = () => undefined;
+  mocks.getStatus.mockReturnValueOnce(
+    new Promise((resolve) => {
+      resolveStatus = resolve;
+    }),
+  );
+  const { ctx, readMessages } = createReconcileContext(streamingBubble());
+  const probe = reconcileActiveStream(ctx);
+  ctx.sseGenerationRef.current += 1;
+  resolveStatus({ status: "completed" });
+  await probe;
+  expect(readMessages()[1].isStreaming).toBe(true);
+});

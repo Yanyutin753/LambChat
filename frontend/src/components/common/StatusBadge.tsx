@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 /**
  * Predefined semantic color tokens for StatusBadge.
- * Each token maps to (bg, text, dot) classes.
+ * Each token maps to a semantic dot color; label text stays neutral.
  *
  * Conventions used across the app:
  *   - stone  = neutral / inactive / paused
@@ -24,67 +24,27 @@ export interface StatusBadgeProps {
   color?: StatusColor;
   /** Status text to display (already translated by caller) */
   label: ReactNode;
-  /** Size variant */
+  /** Legacy size hint; status labels use a consistent 12px rhythm. */
   size?: "sm" | "md";
 }
 
-const COLOR_MAP: Record<
-  StatusColor,
-  { bg: string; text: string; dot: string }
-> = {
-  stone: {
-    bg: "bg-stone-100 dark:bg-stone-800",
-    text: "text-stone-500 dark:text-stone-400",
-    dot: "bg-stone-400",
-  },
-  emerald: {
-    bg: "bg-emerald-100 dark:bg-emerald-900/30",
-    text: "text-emerald-700 dark:text-emerald-400",
-    dot: "bg-emerald-500",
-  },
-  green: {
-    bg: "bg-green-100 dark:bg-green-900/40",
-    text: "text-green-700 dark:text-green-400",
-    dot: "bg-green-500",
-  },
-  blue: {
-    bg: "bg-blue-100 dark:bg-blue-900/30",
-    text: "text-blue-700 dark:text-blue-400",
-    dot: "bg-blue-500",
-  },
-  red: {
-    bg: "bg-red-100 dark:bg-red-900/30",
-    text: "text-red-700 dark:text-red-400",
-    dot: "bg-red-500",
-  },
-  amber: {
-    bg: "bg-amber-100 dark:bg-amber-900/30",
-    text: "text-amber-700 dark:text-amber-400",
-    dot: "bg-amber-500",
-  },
+const COLOR_MAP: Record<StatusColor, string> = {
+  stone: "bg-theme-text-tertiary",
+  emerald: "bg-theme-success",
+  green: "bg-theme-success",
+  blue: "bg-theme-info",
+  red: "bg-theme-error",
+  amber: "bg-theme-warning",
 };
 
-const SIZE_MAP = {
-  sm: "px-2 py-0.5",
-  md: "px-2.5 py-1",
-};
-
-/**
- * A reusable status pill with a colored dot indicator.
- * Replaces 6+ independent StatusBadge implementations across panels.
- */
-export function StatusBadge({
-  color = "stone",
-  label,
-  size = "md",
-}: StatusBadgeProps) {
-  const c = COLOR_MAP[color] ?? COLOR_MAP.stone;
-
+/** A text status with a decorative 8px semantic dot. */
+export function StatusBadge({ color = "stone", label }: StatusBadgeProps) {
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full ${SIZE_MAP[size]} text-12 font-medium ${c.bg} ${c.text}`}
-    >
-      <span className={`inline-block h-1.5 w-1.5 rounded-full ${c.dot}`} />
+    <span className="status-dot inline-flex shrink-0 items-center gap-1.5 text-12 text-theme-text-secondary">
+      <span
+        aria-hidden="true"
+        className={`inline-block size-2 shrink-0 rounded-full ${COLOR_MAP[color]}`}
+      />
       {label}
     </span>
   );

@@ -94,7 +94,7 @@ export function SkillFormNormal(a: SkillFormActions) {
               <label className="block text-12 font-medium text-[var(--theme-text-secondary)]">
                 {t("adminMarketplace.tags")}
               </label>
-              <div className="skill-tag-editor rounded-2xl bg-[var(--theme-bg)] p-3 shadow-sm">
+              <div className="skill-tag-editor rounded-2xl bg-[var(--theme-bg-subtle)] p-3 shadow-sm">
                 <div className="flex items-center gap-2 text-11 font-semibold uppercase tracking-[0.16em] text-[var(--theme-text-secondary)]/80">
                   <Tag size={12} className="text-[var(--theme-primary)]" />
                   {t("adminMarketplace.tags")}
@@ -140,7 +140,7 @@ export function SkillFormNormal(a: SkillFormActions) {
             </div>
 
             {/* Enabled toggle */}
-            <div className="skill-toggle-panel flex items-center justify-between rounded-2xl bg-[var(--theme-bg)] px-3 py-3">
+            <div className="skill-toggle-panel flex items-center justify-between rounded-2xl bg-[var(--theme-bg-subtle)] px-3 py-3">
               <div className="min-w-0 pr-3">
                 <p className="text-14 font-medium text-[var(--theme-text)]">
                   {t("skills.form.enabled")}
@@ -166,7 +166,7 @@ export function SkillFormNormal(a: SkillFormActions) {
         <div className="skill-form-editor flex flex-col overflow-hidden rounded-3xl shadow-sm">
           <div className="shrink-0 px-3 py-3 sm:px-4">
             <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between gap-3 font-serif">
+              <div className="flex items-center justify-between gap-3 font-sans">
                 <p className="text-11 font-semibold uppercase tracking-[0.18em] text-[var(--theme-text-secondary)]/80">
                   {t("skills.form.files", "Files")}
                 </p>
@@ -245,7 +245,7 @@ export function SkillFormNormal(a: SkillFormActions) {
               // Loading state
               if (a.loadingFilePath === currentPath) {
                 return (
-                  <div className="flex h-full min-h-[18rem] sm:min-h-[24rem] items-center justify-center rounded-2xl bg-[var(--theme-bg)]">
+                  <div className="flex h-full min-h-[18rem] sm:min-h-[24rem] items-center justify-center rounded-2xl bg-[var(--theme-bg-subtle)]">
                     <div className="flex flex-col items-center gap-3">
                       <svg
                         className="h-6 w-6 animate-spin text-[var(--theme-text-secondary)]"
@@ -286,7 +286,7 @@ export function SkillFormNormal(a: SkillFormActions) {
               }
               return (
                 <div
-                  className={`relative flex flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg)] transition-colors duration-150 ${
+                  className={`relative flex flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-subtle)] transition-colors duration-150 ${
                     a.errors.content
                       ? "ring-1 ring-red-300 dark:ring-red-700"
                       : ""

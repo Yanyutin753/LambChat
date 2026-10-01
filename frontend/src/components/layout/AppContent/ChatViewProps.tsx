@@ -109,6 +109,7 @@ function resolveChatAssistantIdentity({
 export interface ChatViewProps {
   messages: Message[];
   sessionId: string | null;
+  composerFocusRequest?: number;
   currentRunId: string | null;
   isLoading: boolean;
   isLoadingHistory: boolean;

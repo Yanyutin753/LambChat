@@ -3,12 +3,12 @@ import { join } from "node:path";
 
 const baseCss = readFileSync(join(import.meta.dirname, "../base.css"), "utf8");
 
-test("the active docked right-panel canvas inherits the active theme background", () => {
+test("the active docked right-panel canvas matches the workspace canvas in desktop and falls back to the active theme", () => {
   expect(baseCss).toMatch(
-    /html\[data-right-panel-presentation="docked"\],\s*html\[data-right-panel-presentation="docked"\] body\s*\{[\s\S]*?background:\s*var\(--theme-bg\);/,
+    /html\[data-right-panel-presentation="docked"\],\s*html\[data-right-panel-presentation="docked"\] body\s*\{[\s\S]*?background:\s*var\(--desktop-canvas-bg, var\(--theme-bg\)\);/,
   );
   expect(baseCss).toMatch(
-    /html\[data-right-panel-presentation="docked"\] body::before\s*\{[\s\S]*?width:\s*var\(--right-panel-active-width, 0px\);[\s\S]*?background:\s*var\(--theme-bg\);[\s\S]*?z-index:\s*199;/,
+    /html\[data-right-panel-presentation="docked"\] body::before\s*\{[\s\S]*?width:\s*var\(--right-panel-active-width, 0px\);[\s\S]*?background:\s*var\(--desktop-canvas-bg, var\(--theme-bg\)\);[\s\S]*?z-index:\s*199;/,
   );
 });
 

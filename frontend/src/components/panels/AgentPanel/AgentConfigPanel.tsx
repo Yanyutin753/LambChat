@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { Bot, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "../../../i18n";
 import toast from "react-hot-toast";
@@ -193,7 +193,7 @@ export function AgentConfigPanel() {
       <PanelHeader
         title={t("agentConfig.title")}
         subtitle={t("agentConfig.subtitle")}
-        icon={<Bot size={24} className="text-stone-600 dark:text-stone-400" />}
+        illustration="panel-agents"
         actions={
           <Button
             onClick={handleRefresh}
@@ -248,7 +248,7 @@ export function AgentConfigPanel() {
       )}
 
       {/* 内容 */}
-      <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+      <div className="panel-body flex-1 overflow-y-auto">
         {canManageAgents ? (
           activeTab === "global" ? (
             <GlobalAgentTab

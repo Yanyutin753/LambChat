@@ -46,7 +46,7 @@
   font-size: 0.8125rem;
   border-radius: 0.4375rem;
   border: 0.5px solid var(--theme-border);
-  background: var(--theme-bg);
+  background: var(--theme-bg-subtle);
   color: var(--theme-text);
   outline: none;
   transition:
@@ -235,7 +235,7 @@
   overflow: hidden;
   border: 2px solid
     color-mix(in srgb, var(--theme-text) 15%, var(--theme-border));
-  background: var(--theme-bg);
+  background: var(--theme-bg-subtle);
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease;
@@ -395,7 +395,7 @@
   font-size: 0.8125rem;
   border-radius: 0.4375rem;
   border: 0.5px solid var(--theme-border);
-  background: var(--theme-bg);
+  background: var(--theme-bg-subtle);
   color: var(--theme-text);
   cursor: pointer;
   text-align: left;
@@ -1095,7 +1095,7 @@
 }
 
 .ppe-btn-primary:hover {
-  opacity: 0.9;
+  background: var(--theme-primary-hover);
 }
 
 .ppe-btn-primary:disabled {
@@ -1104,7 +1104,12 @@
 }
 
 .dark .ppe-btn-primary {
-  color: #1c1917;
+  color: var(--theme-bg);
+}
+
+.ppe-btn-primary:focus-visible {
+  outline: 2px solid var(--theme-ring);
+  outline-offset: 2px;
 }
 
 /* ===== Stagger animation ===== */
@@ -1350,7 +1355,7 @@
 }
 
 .dark .pps-card__icon-action {
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--theme-bg-subtle);
   color: rgba(255, 255, 255, 0.74);
 }
 
@@ -1414,7 +1419,7 @@
   font-weight: 500;
   border-radius: 9999px;
   border: 1px solid var(--theme-border);
-  background: var(--theme-bg);
+  background: var(--theme-bg-subtle);
   color: var(--theme-text-secondary);
   transition:
     border-color 0.15s ease,
@@ -1424,7 +1429,7 @@
 
 .pps-card__tag--more {
   border-color: var(--theme-border);
-  background: var(--theme-bg);
+  background: var(--theme-bg-subtle);
   color: var(--theme-text-secondary);
 }
 

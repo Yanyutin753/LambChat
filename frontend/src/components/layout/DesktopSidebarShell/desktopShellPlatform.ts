@@ -6,11 +6,15 @@
 import { resolveTitlebarOs } from "../TitleBar/titlebarPlatform";
 import { isShellAvailable } from "../../../services/tauri/sandboxShell";
 
-/** ActivityRail 搜索按钮 → SessionSidebar 内 SearchDialog 的事件桥。 */
+/** 侧栏搜索按钮 → SessionSidebar 内 SearchDialog 的事件桥。 */
 export const DESKTOP_SIDEBAR_OPEN_SEARCH_EVENT =
   "lambchat:desktop-sidebar-open-search";
 
-export type DesktopSidebarView = "chat" | "files";
+/** TitleBar 折叠/展开按钮 → 桌面壳的事件桥（TitleBar 不感知折叠状态）。 */
+export const DESKTOP_SIDEBAR_TOGGLE_EVENT = "lambchat:desktop-sidebar-toggle";
+
+export const OPEN_NOTIFICATIONS_EVENT = "lambchat:open-notifications";
+export const NOTIFICATION_COUNT_EVENT = "lambchat:notification-count";
 
 /** Tauri 桌面壳环境（web/移动端 false）。 */
 export function isDesktopShell(): boolean {

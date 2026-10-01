@@ -211,7 +211,7 @@ export function PersonaPreviewSidebar({
               <button
                 type="button"
                 onClick={() => setViewSource(!viewSource)}
-                className="rounded-md p-1 transition-colors hover:bg-[var(--theme-bg)]/80"
+                className="rounded-md p-1 transition-colors hover:bg-[var(--theme-bg-subtle)]/80"
                 style={{ color: "var(--theme-text-secondary)" }}
                 title={
                   viewSource
@@ -224,12 +224,12 @@ export function PersonaPreviewSidebar({
               <CopyButton
                 text={preset.system_prompt}
                 size={14}
-                className="rounded-md p-1 transition-colors hover:bg-[var(--theme-bg)]/80"
+                className="rounded-md p-1 transition-colors hover:bg-[var(--theme-bg-subtle)]/80"
               />
             </div>
           </div>
           <div
-            className="rounded-lg bg-[var(--theme-bg)]/60 p-2 overflow-y-auto max-h-[40rem] text-13"
+            className="rounded-lg bg-[var(--theme-bg-subtle)]/60 p-2 overflow-y-auto max-h-[40rem] text-13"
             style={{ color: "var(--theme-text)" }}
           >
             {viewSource ? (

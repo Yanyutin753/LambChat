@@ -21,13 +21,13 @@ interface MCPServerCardProps {
 }
 
 const TRANSPORT_COLORS: Record<string, string> = {
-  sse: "bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:ring-emerald-800/60",
+  sse: "bg-[color-mix(in_srgb,var(--theme-success)_12%,transparent)] text-theme-success ring-1 ring-[color-mix(in_srgb,var(--theme-success)_25%,transparent)] dark:bg-emerald-950/40 dark:text-emerald-400 dark:ring-emerald-800/60",
   streamable_http:
     "bg-violet-50 text-violet-600 ring-1 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-400 dark:ring-violet-800/60",
 };
 
 const DEFAULT_TRANSPORT_COLOR =
-  "bg-stone-100 text-stone-500 ring-1 ring-stone-200 dark:bg-stone-800 dark:text-stone-400 dark:ring-stone-700";
+  "bg-theme-bg-subtle text-theme-text-secondary ring-1 ring-theme-border dark:bg-stone-800 dark:text-stone-400 dark:ring-stone-700";
 
 export function MCPServerCard({
   server,
@@ -91,11 +91,11 @@ export function MCPServerCard({
       <div className="flex flex-1 flex-col p-4 pt-5">
         <div className="flex items-start gap-3">
           <div className="scb__icon-ring shrink-0">
-            <Server size={16} className="text-stone-500 dark:text-stone-400" />
+            <Server size={16} className="text-theme-text-secondary dark:text-stone-400" />
           </div>
           <div className="min-w-0 flex-1">
             <h3
-              className="truncate text-16 font-semibold font-serif  text-[var(--theme-text)] leading-tight"
+              className="line-clamp-2 break-words text-16 font-semibold font-serif text-[var(--theme-text)] leading-tight"
               title={server.name}
             >
               {server.name}
@@ -118,7 +118,7 @@ export function MCPServerCard({
 
         {server.url && (
           <div
-            className="mt-2 text-12 font-mono text-stone-400 dark:text-stone-500 truncate"
+            className="mt-2 text-12 font-mono text-theme-text-tertiary dark:text-stone-500 truncate"
             title={server.url}
           >
             {server.url}
@@ -127,7 +127,7 @@ export function MCPServerCard({
 
         <div className="flex-1" />
 
-        <div className="mt-4 flex items-center justify-between gap-2 border-t border-[var(--theme-border)] pt-3">
+        <div className="scb__footer flex items-center justify-between gap-2">
           <div className="flex items-center gap-0.5">
             {server.can_edit && !server.is_internal && onEdit && (
               <IconButton
@@ -149,12 +149,17 @@ export function MCPServerCard({
                   e.stopPropagation();
                   onDelete(server.name, server.is_system);
                 }}
-                className="rounded-lg hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                className="rounded-lg hover:bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)] hover:text-theme-error dark:hover:bg-red-950/30 dark:hover:text-red-400"
                 title={t("mcp.card.delete")}
               />
             )}
           </div>
           <button
+            role="switch"
+            aria-checked={server.enabled}
+            aria-label={
+              server.enabled ? t("mcp.card.disable") : t("mcp.card.enable")
+            }
             onClick={(e) => {
               e.stopPropagation();
               onToggle(server.name);
@@ -168,7 +173,7 @@ export function MCPServerCard({
             {server.enabled ? (
               <ToggleRight
                 size={13}
-                className="text-emerald-500 dark:text-emerald-400"
+                className="text-theme-success"
               />
             ) : (
               <ToggleLeft size={13} />

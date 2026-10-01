@@ -7,9 +7,13 @@ import { CollapsibleSection } from "../../CollapsibleSection";
 import {
   openPersistentToolPanel,
   getPersistentToolPanelState,
-  closePersistentToolPanel,
+  closeAllPersistentToolPanels,
 } from "../persistentToolPanelState";
-import { openBlockPreview, getBlockPreview } from "../blockPreviewStore";
+import {
+  openBlockPreview,
+  getBlockPreview,
+  clearBlockPreviews,
+} from "../blockPreviewStore";
 import { clearSidebarHistory, goBackSidebar } from "../sidebarHistoryStore";
 import {
   clearSidebarPanelSnapshots,
@@ -19,7 +23,8 @@ import {
 
 afterEach(() => {
   cleanup();
-  closePersistentToolPanel();
+  closeAllPersistentToolPanels();
+  clearBlockPreviews();
   clearSidebarHistory();
   clearSidebarPanelSnapshots();
 });
@@ -38,7 +43,7 @@ test("CollapsibleSection exposes a stable snapshot key for history restore", () 
   expect(content.dataset.sidebarSnapshotKey).toBe("section:处理过程-content");
 });
 
-test("goBackSidebar tears down superseded preview stores to avoid stacking", () => {
+test("opening a block retains the tool as a separate tab without legacy history", () => {
   openPersistentToolPanel({
     title: "Tool A",
     status: "idle",
@@ -46,14 +51,14 @@ test("goBackSidebar tears down superseded preview stores to avoid stacking", () 
     panelKey: "tool:a",
   });
 
-  // 打开块预览会把当前工具面板推入历史
+  // 打开块预览保留工具标签，不再捕获旧式历史快照
   openBlockPreview({ type: "text", text: "block" });
   expect(getBlockPreview()).not.toBeNull();
 
-  expect(goBackSidebar()).toBe(true);
+  expect(goBackSidebar()).toBe(false);
 
-  // 恢复工具面板的同时，块预览被收起而非叠加显示
-  expect(getBlockPreview()).toBeNull();
+  // 两份内容同时保留，由协调器决定哪个可见
+  expect(getBlockPreview()).not.toBeNull();
   expect(getPersistentToolPanelState()?.panelKey).toBe("tool:a");
 });
 

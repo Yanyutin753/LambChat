@@ -33,7 +33,7 @@ test("returns null when stats are unavailable so the pill stays hidden", () => {
 test("converts today's USD cost into the display currency for zh", () => {
   expect(
     buildDailyUsageAmount(stats(), { language: "zh", rates: cnyRates }),
-  ).toBe("¥3.60");
+  ).toBe("¥3.600");
 });
 
 test("falls back to USD when fx rates are unavailable", () => {
@@ -42,7 +42,7 @@ test("falls back to USD when fx rates are unavailable", () => {
       language: "zh",
       rates: null,
     }),
-  ).toBe("US$1.25");
+  ).toBe("US$1.250");
 });
 
 test("appends a plus suffix when some requests are unpriced", () => {
@@ -51,13 +51,22 @@ test("appends a plus suffix when some requests are unpriced", () => {
       language: "zh",
       rates: cnyRates,
     }),
-  ).toBe("¥3.60+");
+  ).toBe("¥3.600+");
 });
 
-test("keeps precision for sub-unit amounts", () => {
+test("rounds sub-unit amounts to three decimal places", () => {
   expect(
     buildDailyUsageAmount(stats({ total_cost_usd: 0.000123 }), {
       language: "en",
     }),
-  ).toBe("$0.000123");
+  ).toBe("$0.000");
+});
+
+test("rounds the converted amount to three decimals before the plus suffix", () => {
+  expect(
+    buildDailyUsageAmount(
+      stats({ total_cost_usd: 0.53208 / 7.2, unpriced_requests: 1 }),
+      { language: "zh", rates: cnyRates },
+    ),
+  ).toBe("¥0.532+");
 });

@@ -1,12 +1,12 @@
 /** @vitest-environment jsdom */
 
 import { createRef, type ComponentProps } from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 import DocumentPreviewToolbar from "../DocumentPreviewToolbar";
 import { getFileTypeInfo } from "../utils";
 
-test("document preview toolbar enlarges mobile actions beside compressible file info", () => {
+test("document preview toolbar gives the file title flexible space and groups actions with dividers", () => {
   const fileName = "人工智能对大学生的影响（80页）.docx";
   const fileInfo = getFileTypeInfo(fileName);
   const props = {
@@ -52,7 +52,6 @@ test("document preview toolbar enlarges mobile actions beside compressible file 
   const fileInfoBlock = title.parentElement;
   const fileIcon = fileInfoBlock?.previousElementSibling;
   const actionGroup = fileInfoBlock?.nextElementSibling;
-  const toolbarIcons = toolbar?.querySelectorAll("button svg") ?? [];
 
   expect(toolbar).toBeInTheDocument();
   expect(toolbar).not.toHaveClass(
@@ -61,20 +60,31 @@ test("document preview toolbar enlarges mobile actions beside compressible file 
   );
   expect(fileIcon).toHaveClass("size-8");
   expect(fileInfoBlock).toHaveClass(
-    "flex-[0_1_clamp(7rem,28%,12rem)]",
+    "document-preview-file-info",
+    "flex-1",
     "min-w-0",
     "overflow-hidden",
   );
-  expect(fileInfoBlock).not.toHaveClass("flex-1");
+  expect(fileInfoBlock).not.toHaveClass("flex-[0_1_clamp(7rem,28%,12rem)]");
+  // Meta line keeps a single stable size instead of a tiny mobile-only scale.
+  expect(fileInfoBlock?.querySelector(".text-10")).toBeNull();
   expect(actionGroup).toHaveClass(
     "document-preview-toolbar-actions",
     "ml-auto",
     "gap-1",
     "shrink-0",
   );
-  expect(toolbarIcons).toHaveLength(8);
-  toolbarIcons.forEach((icon) => {
-    expect(icon).toHaveAttribute("width", "16");
-    expect(icon).toHaveAttribute("height", "16");
-  });
+  expect(actionGroup?.querySelectorAll("button")).toHaveLength(4);
+  expect(screen.queryByTitle("Copy link")).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "documents.source" }),
+  ).toHaveTextContent("documents.source");
+  fireEvent.click(screen.getByRole("button", { name: "documents.source" }));
+  expect(props.setViewSource).toHaveBeenCalledWith(true);
+  fireEvent.click(screen.getByTitle("documents.download"));
+  expect(props.handleDownload).toHaveBeenCalledOnce();
+  fireEvent.click(screen.getByRole("button", { name: "nav.more" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Center view" }));
+  expect(props.setViewMode).toHaveBeenCalledWith("center");
+  expect(screen.queryByRole("menu")).toBeNull();
 });

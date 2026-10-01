@@ -61,8 +61,8 @@ test("team builder list adopts shared panel and role-library presentation", () =
   );
   expect(wrapperSource).toMatch(/skill-content-area flex-1 overflow-y-auto/);
   expect(wrapperSource).toMatch(/TEAM_PAGE_SIZE/);
-  expect(wrapperSource).toMatch(/loadMoreRef/);
-  expect(wrapperSource).toMatch(/IntersectionObserver/);
+  expect(wrapperSource).toMatch(/<Pagination/);
+  expect(wrapperSource).not.toMatch(/IntersectionObserver/);
   expect(wrapperSource).toMatch(/className="team-card/);
   expect(wrapperSource).toMatch(/TeamAvatar/);
   expect(wrapperSource).toMatch(/getTeamFallbackAvatar/);

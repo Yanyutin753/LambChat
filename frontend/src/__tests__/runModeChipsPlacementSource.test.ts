@@ -71,7 +71,9 @@ test("身份 chip 自适应截断：空间足够完整显示，不足才出省�
 test("右簇沙箱 chip 手机端仅图标（与用量图标一致）", () => {
   const toolbar = readRepoFile("src/components/chat/ChatInputToolbar.tsx");
   // 档位文字与 daemon 状态点都在 sm 断点以下隐藏，只留档位图标
-  expect(toolbar).toMatch(/labelClassName="hidden sm:inline"/);
+  expect(toolbar).toMatch(
+    /labelClassName="composer-sandbox-label hidden sm:inline max-w-40"/,
+  );
   expect(toolbar).toMatch(
     /hidden sm:inline h-1\.5 w-1\.5 shrink-0 rounded-full/,
   );

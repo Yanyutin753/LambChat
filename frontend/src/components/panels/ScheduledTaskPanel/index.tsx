@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import i18n from "../../../i18n";
 import { resolveAgentDisplayName } from "../../agent/agentCatalog";
@@ -75,8 +75,12 @@ export function ScheduledTaskPanel({
   const canDelete = hasPermission(Permission.SCHEDULED_TASK_DELETE);
   const { taskId } = useParams<{ taskId?: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState("");
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const requestIdRef = useRef(0);
   const [total, setTotal] = useState(0);
   const [skip, setSkip] = useState(0);
   const [limit] = useState(20);
@@ -86,6 +90,15 @@ export function ScheduledTaskPanel({
   const [deleteTarget, setDeleteTarget] = useState<ScheduledTask | null>(null);
   const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  useEffect(() => {
+    if (canWrite && searchParams.get("create") === "1") {
+      setIsCreating(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete("create");
+      setSearchParams(next, { replace: true });
+    }
+  }, [canWrite, searchParams, setSearchParams]);
+
   const [agents, setAgents] = useState<AgentInfo[]>(providedAgents || []);
   const [personaPresets, setPersonaPresets] = useState<PersonaPreset[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -149,19 +162,27 @@ export function ScheduledTaskPanel({
 
   // Fetch tasks
   const fetchTasks = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     try {
-      const response = await scheduledTaskApi.list(skip, limit, statusFilter);
+      const response = await scheduledTaskApi.list(skip, limit, statusFilter, {
+        search: searchQuery,
+      });
+      if (requestId !== requestIdRef.current) return;
       setTasks(response.items);
       setTotal(response.total);
     } catch (error) {
+      if (requestId !== requestIdRef.current) return;
       const message =
         error instanceof Error ? error.message : t("common.loadFailed");
       toast.error(message);
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) {
+        setIsLoading(false);
+        setHasLoaded(true);
+      }
     }
-  }, [skip, limit, statusFilter, t]);
+  }, [skip, limit, statusFilter, searchQuery, t]);
 
   useEffect(() => {
     fetchTasks();
@@ -365,7 +386,7 @@ export function ScheduledTaskPanel({
   };
 
   // Show skeleton during initial data loading — consistent with other panels
-  if (isLoading && tasks.length === 0 && !taskId) {
+  if (isLoading && !hasLoaded && !taskId) {
     return <ScheduledTaskPanelSkeleton />;
   }
 
@@ -377,9 +398,14 @@ export function ScheduledTaskPanel({
         <>
           <PanelHeader
             title={t("scheduledTask.title")}
-            icon={
-              <Clock size={20} className="text-stone-600 dark:text-stone-400" />
-            }
+            subtitle={t("scheduledTask.subtitle")}
+            illustration="panel-schedule"
+            searchValue={searchQuery}
+            onSearchChange={(value) => {
+              setSearchQuery(value);
+              setSkip(0);
+            }}
+            searchPlaceholder={t("scheduledTask.searchPlaceholder")}
             actions={
               <PanelHeaderActions>
                 <StatusFilter value={statusFilter} onChange={setStatusFilter} />
@@ -399,17 +425,25 @@ export function ScheduledTaskPanel({
           />
 
           {/* Task List */}
-          <div className="flex-1 overflow-y-auto px-4 py-3 sm:p-6">
+          <div className="panel-body flex-1 overflow-y-auto">
             {tasks.length === 0 ? (
               <div className="scheduled-task-empty-state">
                 <div className="scheduled-task-empty-state__icon">
                   <Clock size={32} />
                 </div>
                 <p className="scheduled-task-empty-state__title font-serif">
-                  {t("scheduledTask.noTasks")}
+                  {t(
+                    searchQuery.trim()
+                      ? "scheduledTask.noResults"
+                      : "scheduledTask.noTasks",
+                  )}
                 </p>
                 <p className="scheduled-task-empty-state__body">
-                  {t("scheduledTask.noTasksDesc")}
+                  {t(
+                    searchQuery.trim()
+                      ? "scheduledTask.noResultsDesc"
+                      : "scheduledTask.noTasksDesc",
+                  )}
                 </p>
               </div>
             ) : (
@@ -492,7 +526,7 @@ export function ScheduledTaskPanel({
 
                       {/* Footer actions */}
                       <div
-                        className="mt-auto flex items-center gap-2 border-t border-[var(--glass-border)] pt-3"
+                        className="mt-auto flex items-center gap-2 pt-4"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="ml-auto" />
@@ -550,16 +584,14 @@ export function ScheduledTaskPanel({
           </div>
 
           {/* Pagination */}
-          {total > limit && (
-            <div className="glass-divider bg-transparent px-4 py-4 sm:px-6">
-              <Pagination
-                page={Math.floor(skip / limit) + 1}
-                pageSize={limit}
-                total={total}
-                onChange={(page) => setSkip((page - 1) * limit)}
-              />
-            </div>
-          )}
+          <div className="panel-pagination empty:hidden">
+            <Pagination
+              page={Math.floor(skip / limit) + 1}
+              pageSize={limit}
+              total={total}
+              onChange={(page) => setSkip((page - 1) * limit)}
+            />
+          </div>
 
           {/* Create Modal */}
           {isCreating && canWrite && (

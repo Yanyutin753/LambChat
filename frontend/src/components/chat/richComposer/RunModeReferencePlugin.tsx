@@ -18,9 +18,9 @@ export function RunModeReferencePlugin({
   onToggleRef.current = onToggle;
 
   useLayoutEffect(() => {
-    editor.update(
-      () => $reconcileRunModeChips({ auto: autoEnabled, goal: goalEnabled }),
-      { discrete: true },
+    // Let Lexical batch the commit outside React's lifecycle effects.
+    editor.update(() =>
+      $reconcileRunModeChips({ auto: autoEnabled, goal: goalEnabled }),
     );
   }, [editor, autoEnabled, goalEnabled]);
 

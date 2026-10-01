@@ -73,7 +73,7 @@ class _CubeSandboxMixin:
         async def _get_user_env_vars(self, user_id: str) -> dict[str, str]: ...
 
     async def _get_or_create_cubesandbox(
-        self, session_id: str, user_id: str
+        self, session_id: str, user_id: str, *, create: bool = True
     ) -> tuple[CompositeBackend, str]:
         assert self._cube_adapter is not None
         from src.kernel.config import settings
@@ -170,6 +170,11 @@ class _CubeSandboxMixin:
                 # 复用同用户的其他沙箱，数据保留，不算重建
                 return existing
 
+            # 浏览路径（create=False）只连不建（与 E2B 同语义）
+            if not create:
+                from src.infra.sandbox.session_manager import SandboxPeekError
+
+                raise SandboxPeekError("recycled" if replaced_previous else "not_created")
             return await self._create_and_bind_cubesandbox(
                 session_id, user_id, replaced_previous=replaced_previous
             )

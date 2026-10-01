@@ -19,8 +19,8 @@ const _STATUS_PILL_STYLES: Record<
   { pill: string; dot: string; labelKey: string }
 > = {
   ok: {
-    pill: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    dot: "bg-emerald-500 animate-[status-ok-pulse_2s_ease-in-out_infinite]",
+    pill: "bg-[color-mix(in_srgb,var(--theme-success)_10%,transparent)] text-theme-success dark:text-emerald-400",
+    dot: "bg-theme-success animate-[status-ok-pulse_2s_ease-in-out_infinite]",
     labelKey: "usage.statusOk",
   },
   cancelled: {
@@ -29,8 +29,8 @@ const _STATUS_PILL_STYLES: Record<
     labelKey: "usage.statusCancelled",
   },
   error: {
-    pill: "bg-red-500/10 text-red-500 dark:text-red-400",
-    dot: "bg-red-500",
+    pill: "bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)] text-theme-error dark:text-red-400",
+    dot: "bg-theme-error",
     labelKey: "usage.statusError",
   },
 };
@@ -190,7 +190,10 @@ function DesktopTable({
                     </div>
                   )}
                   <div className={textCellClass}>
-                    <span className="block truncate tabular-nums" title={log.model}>
+                    <span
+                      className="block truncate tabular-nums"
+                      title={log.model}
+                    >
                       {modelDisplayName(modelLabels, log.model) || "-"}
                     </span>
                   </div>
@@ -287,7 +290,7 @@ function TabletRow({
               className={`mt-1 truncate text-10 ${
                 usageStatusKind(log.status) === "cancelled"
                   ? "text-amber-600 dark:text-amber-400"
-                  : "text-red-500 dark:text-red-400"
+                  : "text-theme-error dark:text-red-400"
               }`}
               title={log.error_message}
             >
@@ -369,10 +372,10 @@ function MobileCard({
             <div
               className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
                 statusKind === "ok"
-                  ? "bg-emerald-500/[0.08] text-emerald-600 dark:text-emerald-400"
+                  ? "bg-[color-mix(in_srgb,var(--theme-success)_8%,transparent)] text-theme-success dark:text-emerald-400"
                   : statusKind === "cancelled"
                     ? "bg-amber-500/[0.08] text-amber-600 dark:text-amber-400"
-                    : "bg-red-500/[0.08] text-red-500 dark:text-red-400"
+                    : "bg-[color-mix(in_srgb,var(--theme-error)_8%,transparent)] text-theme-error dark:text-red-400"
               }`}
             >
               <Bot size={16} strokeWidth={2} />
@@ -399,7 +402,7 @@ function MobileCard({
                   className={`mt-2 truncate text-10 ${
                     statusKind === "cancelled"
                       ? "text-amber-600 dark:text-amber-400"
-                      : "text-red-500 dark:text-red-400"
+                      : "text-theme-error dark:text-red-400"
                   }`}
                   title={log.error_message}
                 >
@@ -510,7 +513,7 @@ export function UsageLogsTable({
         <p className="text-14 font-medium text-theme-text-secondary/60">
           {t("usage.noUsage")}
         </p>
-        <p className="mt-1.5 text-12 text-theme-text-tertiary/50">
+        <p className="mt-1.5 text-12 text-theme-text-secondary">
           {t("usage.noUsageHint")}
         </p>
       </div>

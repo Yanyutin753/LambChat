@@ -136,6 +136,7 @@ export const ChatInput = memo(function ChatInput({
   onAttachmentsChange: externalOnAttachmentsChange,
   onMentionQueryChange,
   pendingInput,
+  focusRequest,
   onPendingInputConsumed,
   className,
   activeGoal,
@@ -265,7 +266,6 @@ export const ChatInput = memo(function ChatInput({
     if (!onMentionQueryChange) return;
     onMentionQueryChange(mention.isActive ? mention.query : null);
   }, [mention.isActive, mention.query, onMentionQueryChange]);
-  // 一轮对话结束后通知工具栏用量 chip 刷新当日金额
   useNotifyTodayUsageRefresh(isLoading);
   // @人选定后把提及片段从草稿摘除并聚焦（人设/团队共用同一行为）
   useEffect(() => {
@@ -300,7 +300,6 @@ export const ChatInput = memo(function ChatInput({
       window.removeEventListener(SELECTION_ACTION_EVENT, handleSelectionAction);
     };
   }, []);
-  // Ctrl+T / Cmd+T -> open team picker
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isMac =
@@ -684,7 +683,7 @@ export const ChatInput = memo(function ChatInput({
   );
   return (
     <div
-      className="chat-input-shell px-2 sm:px-8 pb-3 sm:pb-5"
+      className="chat-input-shell px-2 sm:px-8 pb-3 sm:pb-2"
       style={{ backgroundColor: "var(--theme-bg)" }}
     >
       {composerExpanded
@@ -718,7 +717,7 @@ export const ChatInput = memo(function ChatInput({
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                className={`chat-input-container flex flex-col relative w-full rounded-3xl px-1 border transition-all duration-300 ${
+                className={`chat-input-container font-serif flex flex-col relative w-full rounded-3xl px-1 border transition-all duration-300 ${
                   isDraggingOver ? "data-drag-over" : ""
                 }`}
                 data-mention-active={mention.isActive || undefined}
@@ -828,6 +827,7 @@ export const ChatInput = memo(function ChatInput({
                     >
                       <RichChatComposer
                         ref={composerRef}
+                        focusRequest={focusRequest}
                         ariaLabel={t("chat.messageInput", "Message")}
                         initialPlainText={input}
                         placeholder={composerPlaceholder}

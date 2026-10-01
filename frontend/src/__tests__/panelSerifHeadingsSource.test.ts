@@ -35,7 +35,7 @@ test("team pane titles use font-serif like team member names", () => {
 test("shared dialog titles use font-serif", () => {
   const confirm = readComponent("common/ConfirmDialog.tsx");
   const contact = readComponent("common/ContactAdminDialog.tsx");
-  expect(confirm).toMatch(/text-16 font-semibold font-serif/);
+  expect(confirm).toMatch(/text-16 font-semibold font-sans/);
   expect(contact).toMatch(/text-16 font-semibold font-serif tracking-tight/);
 });
 
@@ -54,7 +54,7 @@ test("cad preview phase heading uses font-serif like its idle heading", () => {
   expect(source.match(/text-16 font-medium font-serif/g)?.length).toBe(2);
 });
 
-test("skill preview modal files heading uses font-serif", () => {
+test("skill preview modal files heading uses font-sans", () => {
   const source = readComponent("panels/MarketplacePanel/SkillPreviewModal.tsx");
-  expect(source).toMatch(/text-14 font-semibold font-serif/);
+  expect(source).toMatch(/text-13 font-medium font-sans/);
 });

@@ -102,6 +102,7 @@ async def list_sessions(
     project_id: Optional[str] = Query(None, description="项目过滤: 项目ID 或 'none'(未分类)"),
     search: Optional[str] = Query(None, description="搜索关键词，模糊匹配会话名称"),
     favorites_only: bool = Query(False, description="仅返回已收藏会话"),
+    pinned_only: bool = Query(False, description="仅返回已置顶会话"),
     user: TokenPayload = Depends(get_current_user_required),
 ):
     """
@@ -146,6 +147,7 @@ async def list_sessions(
                 project_id=project_id,
                 search=search,
                 favorites_only=favorites_only,
+                pinned_only=pinned_only,
                 favorites_project_id=favorites_project_id,
             )
         else:
@@ -159,6 +161,7 @@ async def list_sessions(
                     project_id=project_id,
                     search=search,
                     favorites_only=favorites_only,
+                    pinned_only=pinned_only,
                     favorites_project_id=None,
                 ),
             )

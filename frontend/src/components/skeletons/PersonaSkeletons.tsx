@@ -7,15 +7,23 @@ import {
 
 export function PersonaPlazaSkeleton() {
   return (
-    <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
-      <PanelHeaderSkeleton hasSearch />
-      <div className="skill-content-area flex-1 overflow-y-auto py-2 sm:py-4 px-4 sm:p-6 lg:px-8 lg:py-8">
+    <div className="glass-shell flex h-full min-w-0 flex-1 flex-col min-h-0 animate-fade-in">
+      <PanelHeaderSkeleton
+        hasSearch
+        hasSubtitle
+        hasSearchAccessory
+        hasSearchActions
+      />
+      <div className="panel-body flex-1 min-h-0 overflow-y-auto skill-content-area">
         <div className="grid auto-grid-cols gap-4 sm:gap-5">
           {Array.from({ length: PANEL_CARD_SKELETON_COUNT }).map((_, i) => (
-            <div key={i} className="scb">
+            <div
+              key={i}
+              className="pps-card scb flex h-full flex-col overflow-hidden rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)]"
+            >
               {/* Banner */}
               <div
-                className="h-12 w-full shrink-0 relative"
+                className="scb__banner h-12 w-full shrink-0 relative"
                 style={{
                   background: `linear-gradient(135deg, ${
                     [
@@ -27,16 +35,16 @@ export function PersonaPlazaSkeleton() {
                 }}
               >
                 {/* Banner overlay — status pill + pin/favorite buttons */}
-                <div className="absolute bottom-1.5 left-3">
+                <div className="absolute top-2 right-2">
                   <SkeletonLine width="w-10" className="!h-3.5 !rounded-full" />
                 </div>
-                <div className="absolute bottom-1.5 right-3 flex gap-1">
+                <div className="absolute top-2 left-2 flex gap-1.5">
                   <div className="skeleton-line size-5 rounded" />
                   <div className="skeleton-line size-5 rounded" />
                 </div>
               </div>
               {/* Card body */}
-              <div className="flex flex-1 flex-col -mt-3 pt-5 p-5">
+              <div className="flex flex-1 flex-col p-4 pt-5">
                 <div className="flex items-start gap-3">
                   <div className="scb__icon-ring shrink-0 skeleton-line" />
                   <div className="min-w-0 flex-1">
@@ -52,7 +60,7 @@ export function PersonaPlazaSkeleton() {
                     />
                   </div>
                 </div>
-                <div className="mt-3 space-y-1.5">
+                <div className="mt-3 min-h-[3.25em] space-y-1.5">
                   <SkeletonLine width="w-full" className="!h-3" />
                   <SkeletonLine
                     width={i % 2 === 0 ? "w-5/6" : "w-2/3"}
@@ -67,15 +75,15 @@ export function PersonaPlazaSkeleton() {
                 </div>
                 {/* Footer — skill count on left, action buttons on right */}
                 <div
-                  className="mt-4 flex items-center justify-between border-t pt-3"
+                  className="scb__footer flex items-center justify-between gap-2"
                   style={{ borderColor: "var(--theme-border)" }}
                 >
                   <SkeletonLine width="w-12" className="!h-3 !opacity-50" />
                   <div className="flex gap-1.5">
-                    <SkeletonLine width="w-12" className="!h-7 !rounded-lg" />
-                    <SkeletonLine width="w-12" className="!h-7 !rounded-lg" />
-                    <SkeletonLine width="w-12" className="!h-7 !rounded-lg" />
-                    <SkeletonLine width="w-12" className="!h-7 !rounded-lg" />
+                    <SkeletonLine width="w-7" className="!h-7 !rounded-lg" />
+                    <SkeletonLine width="w-7" className="!h-7 !rounded-lg" />
+                    <SkeletonLine width="w-7" className="!h-7 !rounded-lg" />
+                    <SkeletonLine width="w-7" className="!h-7 !rounded-lg" />
                   </div>
                 </div>
                 <div className="flex-1" />
@@ -83,16 +91,15 @@ export function PersonaPlazaSkeleton() {
             </div>
           ))}
         </div>
-        {/* Pagination placeholder */}
-        <PanelPaginationSkeleton />
       </div>
+      <PanelPaginationSkeleton />
     </div>
   );
 }
 
 export function PersonaPageSkeleton() {
   return (
-    <div className="flex h-full animate-fade-in">
+    <div className="flex h-full w-full min-w-0 animate-fade-in">
       <PersonaPlazaSkeleton />
     </div>
   );

@@ -33,7 +33,7 @@ test("mobile sidebar overlay starts below the iOS safe-area top inset", () => {
     /top:\s*"var\(--app-safe-area-top-active, var\(--app-safe-area-top, 0px\)\)"/,
   );
   expect(overlayBlock).toMatch(
-    /height:\s*"calc\(var\(--app-viewport-height, 100dvh\) - var\(--app-safe-area-top-active, var\(--app-safe-area-top, 0px\)\) - var\(--app-safe-area-bottom-active, var\(--app-safe-area-bottom, 0px\)\)\)"/,
+    /height:\s*"calc\(var\(--app-viewport-height, 100dvh\) - var\(--app-safe-area-top-active, var\(--app-safe-area-top, 0px\)\) - var\(--app-safe-area-bottom-active, var\(--app-safe-area-bottom, 0px\)\) - var\(--titlebar-inset, 0px\)\)"/,
   );
 });
 
@@ -45,7 +45,7 @@ test("mobile sidebar panel starts below the iOS safe-area top inset", () => {
     /top:\s*"var\(--app-safe-area-top-active, var\(--app-safe-area-top, 0px\)\)"/,
   );
   expect(panelBlock).toMatch(
-    /height:\s*"calc\(var\(--app-viewport-height, 100dvh\) - var\(--app-safe-area-top-active, var\(--app-safe-area-top, 0px\)\) - var\(--app-safe-area-bottom-active, var\(--app-safe-area-bottom, 0px\)\)\)"/,
+    /height:\s*"calc\(var\(--app-viewport-height, 100dvh\) - var\(--app-safe-area-top-active, var\(--app-safe-area-top, 0px\)\) - var\(--app-safe-area-bottom-active, var\(--app-safe-area-bottom, 0px\)\) - var\(--titlebar-inset, 0px\)\)"/,
   );
   expect(panelBlock).not.toMatch(/paddingTop:\s*"env\(safe-area-inset-top\)"/);
 });

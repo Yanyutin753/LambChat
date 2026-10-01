@@ -16,7 +16,7 @@ import re
 import shlex
 import threading
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Any, Optional, cast
+from typing import TYPE_CHECKING, Any, Literal, Optional, cast
 
 if TYPE_CHECKING:
     from cubesandbox import Sandbox as CubeSandbox
@@ -60,9 +60,25 @@ logger = get_logger(__name__)
 # Re-export for backward compatibility (tests access sandbox_module.BINDING_COLLECTION)
 __all__ = [
     "SessionSandboxManager",
+    "SandboxPeekError",
     "close_session_sandbox_manager",
     "get_session_sandbox_manager",
 ]
+
+
+class SandboxPeekError(Exception):
+    """``get_or_create(..., create=False)``（浏览路径）无法返回现有沙箱。
+
+    reason:
+    - ``not_created``：该用户从未创建过云端沙箱（无绑定）——浏览不应触发
+      新建（烧钱且展示空工作区会误导「文件丢了」）。
+    - ``recycled``：绑定的沙箱已被平台回收，文件未保留——由调用方转成
+      用户可读的引导（发送消息将自动重建）。
+    """
+
+    def __init__(self, reason: Literal["not_created", "recycled"]):
+        self.reason = reason
+        super().__init__(reason)
 
 
 class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
@@ -170,6 +186,23 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
     def _binding_platform(self) -> str:
         """Return the active sandbox platform used to scope persisted bindings."""
         return settings.SANDBOX_PLATFORM.lower()
+
+    async def cloud_status(self, user_id: str) -> dict:
+        """云端沙箱状态速览（零副作用，不触碰沙箱本体）。
+
+        供桌面「云端电脑」面板显示状态徽标：state 取自绑定落库值
+        （"running"/"paused"/…；None=从未创建）。真实存活态在浏览
+        （get_or_create(create=False)）时自然校验——E2B 的无副作用状态
+        查询不可得（connect 即 resume），这里只报记录值。
+        """
+        if not settings.ENABLE_SANDBOX:
+            return {"platform": None, "state": "disabled"}
+        platform = self._binding_platform()
+        if platform not in ("e2b", "daytona", "cubesandbox"):
+            return {"platform": platform, "state": "disabled"}
+        binding = await self._get_binding(user_id)
+        state = (binding or {}).get("sandbox_state") if binding else None
+        return {"platform": platform, "state": state or "not_created"}
 
     async def _get_binding(self, user_id: str) -> Optional[dict]:
         """从 MongoDB 获取当前平台的用户沙箱绑定"""
@@ -327,6 +360,8 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
         self,
         session_id: str,
         user_id: str,
+        *,
+        create: bool = True,
     ) -> tuple[CompositeBackend, str]:
         """
         获取或创建沙箱
@@ -346,6 +381,10 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
         Args:
             session_id: 当前会话 ID（仅用于日志追踪，不影响沙箱绑定）
             user_id: 用户 ID（沙箱绑定的实际维度）
+            create: False = 浏览路径「只连不建」——无绑定报
+                SandboxPeekError("not_created")、沙箱被回收报
+                SandboxPeekError("recycled")，绝不新建（run 路径保持默认 True）。
+                恢复 paused/stop 沙箱仍允许（用户点开浏览即明确意图）。
 
         Returns:
             tuple[CompositeBackend, str]: (composite_backend, work_dir)
@@ -357,9 +396,9 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
             )
 
         if self._e2b_adapter:
-            return await self._get_or_create_e2b(session_id, user_id)
+            return await self._get_or_create_e2b(session_id, user_id, create=create)
         if self._cube_adapter:
-            return await self._get_or_create_cubesandbox(session_id, user_id)
+            return await self._get_or_create_cubesandbox(session_id, user_id, create=create)
 
         lock = self._get_user_lock(user_id)
 
@@ -452,7 +491,10 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
                         f"[SessionSandboxManager] Sandbox {sandbox_id} is unavailable (state={state})"
                     )
 
-            # 5. 创建新沙箱并绑定
+            # 5. 创建新沙箱并绑定（浏览路径只连不建：无绑定=未创建，
+            #    有绑定但落到这里=沙箱不可用/被回收）
+            if not create:
+                raise SandboxPeekError("recycled" if metadata_sandbox_id else "not_created")
             return await self._create_and_bind(session_id, user_id)
 
     async def stop(self, user_id: str) -> bool:

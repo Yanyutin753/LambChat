@@ -102,7 +102,7 @@ export function ComposerUsageChip() {
       >
         <span className="flex items-center gap-2">
           <Activity size={16} className="shrink-0" />
-          <span className="hidden sm:inline max-w-40 sm:max-w-52 truncate text-16 font-semibold text-blue-600 dark:text-blue-400 font-serif tabular-nums">
+          <span className="composer-usage-amount hidden sm:inline max-w-40 sm:max-w-52 truncate text-14 leading-5 font-semibold text-blue-600 dark:text-blue-400 font-serif tabular-nums">
             {snapshot.amount}
           </span>
         </span>

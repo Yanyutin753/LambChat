@@ -46,3 +46,8 @@ test("files loading state inside the panel uses the toolbar-less skeleton", () =
   expect(emptyStateSource).not.toMatch(/FilesContentSkeleton/);
   expect(skeletonIndexSource).toMatch(/FilesListSkeleton/);
 });
+
+test("standalone files fallback supplies the panel spacing context", () => {
+  const body = exportedComponentBody(filesSkeletonSource, "FilesPageSkeleton");
+  expect(body).toMatch(/<main\s+data-panel="files"/);
+});

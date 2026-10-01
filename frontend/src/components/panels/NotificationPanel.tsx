@@ -1,3 +1,4 @@
+import { AlertCircle } from "lucide-react";
 /**
  * 通知管理面板 - Admin CRUD panel for notifications
  */
@@ -5,18 +6,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  Bell,
-  AlertCircle,
-  ChevronDown,
-  Save,
-} from "lucide-react";
+import { Plus, Pencil, Trash2, Bell, ChevronDown, Save } from "lucide-react";
 import { PanelHeader } from "../common/PanelHeader";
 import { ConfirmDialog } from "../common/ConfirmDialog";
-import { PanelLoadingState } from "../common/PanelLoadingState";
+import { NotificationsListSkeleton } from "../skeletons";
 import { Pagination } from "../common/Pagination";
 import { StatusBadge } from "../common/StatusBadge";
 import type { StatusColor } from "../common/StatusBadge";
@@ -428,7 +421,8 @@ export function NotificationPanel() {
       {/* Header */}
       <PanelHeader
         title={t("notification.title")}
-        icon={<Bell size={20} className="text-stone-600 dark:text-stone-400" />}
+        subtitle={t("notification.subtitle")}
+        illustration="panel-notifications"
         actions={
           <Button
             variant="primary"
@@ -441,9 +435,9 @@ export function NotificationPanel() {
       />
 
       {/* Notification List */}
-      <div className="flex-1 overflow-y-auto px-4 py-2 sm:p-6 lg:px-8">
+      <div className="panel-body flex-1 overflow-y-auto">
         {isLoading && notifications.length === 0 ? (
-          <PanelLoadingState />
+          <NotificationsListSkeleton />
         ) : !isLoading && notifications.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800">
@@ -555,10 +549,9 @@ export function NotificationPanel() {
 
                     {hasContent && (
                       <div
-                        className={`border-t px-4 pb-4 sm:px-5 sm:pb-5 ${
+                        className={`px-4 pb-4 sm:px-5 sm:pb-5 ${
                           isExpanded ? "pt-3 sm:pt-4" : "pt-0"
                         }`}
-                        style={{ borderColor: "var(--theme-border)" }}
                       >
                         <div
                           className={`overflow-hidden transition-all duration-200 ${
@@ -584,16 +577,14 @@ export function NotificationPanel() {
       </div>
 
       {/* Pagination */}
-      {total > limit && (
-        <div className="glass-divider bg-transparent px-4 py-4 sm:px-6 lg:px-8">
-          <Pagination
-            page={Math.floor(skip / limit) + 1}
-            pageSize={limit}
-            total={total}
-            onChange={(page) => setSkip((page - 1) * limit)}
-          />
-        </div>
-      )}
+      <div className="panel-pagination empty:hidden">
+        <Pagination
+          page={Math.floor(skip / limit) + 1}
+          pageSize={limit}
+          total={total}
+          onChange={(page) => setSkip((page - 1) * limit)}
+        />
+      </div>
 
       {/* Create Modal */}
       {isCreating && (

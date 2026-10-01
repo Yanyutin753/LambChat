@@ -9,6 +9,7 @@ import { Edit2, Trash2, MessageSquarePlus, Share2, X } from "lucide-react";
 import type { Project } from "../../types";
 import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
+import { ProjectWorkspaceField } from "./ProjectWorkspaceField";
 
 interface ProjectMenuProps {
   project: Project;
@@ -19,6 +20,7 @@ interface ProjectMenuProps {
   onShare?: () => void;
   onNewSessionInProject?: (projectId: string) => void;
   anchorEl: HTMLElement | null;
+  onWorkspaceChange?: (workspace: Project["workspace"]) => Promise<void>;
 }
 
 export function ProjectMenu({
@@ -30,6 +32,7 @@ export function ProjectMenu({
   onShare,
   onNewSessionInProject,
   anchorEl,
+  onWorkspaceChange,
 }: ProjectMenuProps) {
   // _project is available for future use (e.g., showing project info in menu)
   const { t } = useTranslation();
@@ -142,6 +145,12 @@ export function ProjectMenu({
 
           {/* Menu items */}
           <div className="px-2 pb-4">
+            {onWorkspaceChange && (
+              <ProjectWorkspaceField
+                value={_project.workspace}
+                onChange={onWorkspaceChange}
+              />
+            )}
             {/* New Session */}
             {onNewSessionInProject && (
               <button
@@ -209,6 +218,12 @@ export function ProjectMenu({
       style={menuStyle}
       className="w-48 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 shadow-lg py-1"
     >
+      {onWorkspaceChange && (
+        <ProjectWorkspaceField
+          value={_project.workspace}
+          onChange={onWorkspaceChange}
+        />
+      )}
       {/* Rename option */}
       <button
         onClick={() => {

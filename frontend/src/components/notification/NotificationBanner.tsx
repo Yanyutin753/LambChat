@@ -5,6 +5,7 @@ import { notificationApi } from "../../services/api/notification";
 import { surfaceAppAnnouncementNotifications } from "../../services/notifications/announcementNotifications";
 import { SelectorModalPortal, SelectorModalShell } from "../selectors/shared";
 import type { Notification } from "../../types/notification";
+import { SceneIllustration } from "../common/SceneIllustration";
 
 const AUTO_PLAY_INTERVAL = 5000;
 
@@ -136,23 +137,20 @@ export function NotificationBanner() {
         <div className="w-full sm:max-w-[44rem] md:max-w-[46rem] lg:max-w-[48rem] xl:max-w-[50rem] 2xl:max-w-[52rem] flex flex-col items-center pointer-events-auto">
           {/* Card */}
           <div className="relative group max-w-full">
-            {/* Close button — top-right, visible on hover */}
+            {/* Keep dismissal reachable by touch and keyboard. */}
             <button
+              type="button"
               onClick={() => handleDismiss(current.id)}
-              className="notification-dismiss-btn absolute top-[-11px] end-[-6px] z-10 size-5 flex items-center justify-center rounded-full invisible group-hover:visible hover:opacity-80 cursor-pointer transition-opacity duration-200"
-              style={{
-                backgroundColor:
-                  "var(--theme-text-tertiary, var(--theme-text-secondary))",
-              }}
+              className="notification-dismiss-btn absolute top-1/2 end-1 -translate-y-1/2 z-10 size-11 flex items-center justify-center rounded-lg text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] cursor-pointer transition-colors"
               aria-label={t("notification.dismiss", "关闭")}
             >
-              <X size={14} style={{ color: "#fff" }} />
+              <X size={14} />
             </button>
 
             {/* Content area — slides in/out */}
             <button
               type="button"
-              className={`notification-content w-[540px] max-w-full rounded-xl border cursor-pointer text-left transition-all duration-200 ${slideIn}`}
+              className={`notification-content w-[540px] max-w-full rounded-xl border cursor-pointer text-left transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] ${slideIn}`}
               style={{
                 backgroundColor: "var(--theme-bg-card)",
                 borderColor: "var(--theme-border)",
@@ -163,16 +161,11 @@ export function NotificationBanner() {
               onTouchEnd={onTouchEnd}
               onClick={openSelectedNotification}
             >
-              <div className="flex items-center gap-2 px-4 py-3">
-                <div
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-                  style={{
-                    backgroundColor:
-                      "color-mix(in srgb, var(--theme-primary) 12%, transparent)",
-                  }}
-                >
-                  <Bell size={16} style={{ color: "var(--theme-primary)" }} />
-                </div>
+              <div className="flex items-center gap-3 py-3 ps-4 pe-12">
+                <SceneIllustration
+                  scene="notification"
+                  className="notification-illustration"
+                />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <p
                     className="text-14 sm:text-15 font-semibold font-serif leading-[20px] truncate tracking-[-0.01em]"

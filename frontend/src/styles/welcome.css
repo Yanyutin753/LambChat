@@ -27,22 +27,6 @@
   flex-shrink: 0;
 }
 
-/* ── Icon subtle pulse ── */
-.welcome-icon {
-  animation: welcome-icon-pulse 3s ease-in-out infinite;
-}
-
-@keyframes welcome-icon-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-
-  50% {
-    transform: scale(1.04);
-  }
-}
-
 /* ── Refresh button ── */
 .welcome-refresh-btn {
   border-radius: 0.5rem;

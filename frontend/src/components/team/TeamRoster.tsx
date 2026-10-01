@@ -1,4 +1,5 @@
 import { Users } from "lucide-react";
+
 import { useTranslation } from "react-i18next";
 import type { TeamMember } from "../../types/team";
 import { TeamMemberCard } from "./TeamMemberCard";

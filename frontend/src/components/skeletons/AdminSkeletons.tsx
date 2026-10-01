@@ -10,10 +10,10 @@ import {
 export function UsersPanelSkeleton() {
   return (
     <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
-      <PanelHeaderSkeleton />
-      <div className="flex-1 overflow-y-auto min-h-0 py-2 sm:py-4 px-4">
+      <PanelHeaderSkeleton hasSubtitle />
+      <div className="panel-body flex-1 min-h-0 overflow-y-auto">
         {/* Desktop table */}
-        <div className="hidden sm:block">
+        <div className="panel-table-view hidden sm:block">
           <div className="glass-card rounded-xl !p-0 overflow-hidden">
             {/* Table header */}
             <div
@@ -72,7 +72,7 @@ export function UsersPanelSkeleton() {
           </div>
         </div>
         {/* Mobile cards */}
-        <div className="space-y-3 sm:hidden">
+        <div className="panel-list-view space-y-3 sm:hidden">
           {Array.from({ length: PANEL_ROW_SKELETON_COUNT }).map((_, i) => (
             <div key={i} className="glass-card rounded-xl p-4">
               <div className="flex items-start gap-3">
@@ -99,9 +99,8 @@ export function UsersPanelSkeleton() {
             </div>
           ))}
         </div>
-        {/* Pagination placeholder */}
-        <PanelPaginationSkeleton variant="wide" />
       </div>
+      <PanelPaginationSkeleton />
     </div>
   );
 }
@@ -110,8 +109,8 @@ export function UsersPanelSkeleton() {
 export function RolesPanelSkeleton() {
   return (
     <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
-      <PanelHeaderSkeleton />
-      <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4">
+      <PanelHeaderSkeleton hasSubtitle />
+      <div className="panel-body flex-1 min-h-0 overflow-y-auto">
         <div className="grid gap-3 auto-grid-cols">
           {Array.from({ length: PANEL_CARD_SKELETON_COUNT }).map((_, i) => (
             <div
@@ -154,7 +153,7 @@ export function RolesPanelSkeleton() {
               </div>
 
               {/* Footer actions — matches real border-t with edit/delete buttons */}
-              <div className="mt-auto flex items-center gap-2 border-t border-[var(--glass-border)] pt-3 mt-3.5">
+              <div className="mt-auto flex items-center gap-2 pt-3 mt-3.5">
                 <div className="ml-auto" />
                 <div className="skeleton-line size-8 rounded-lg" />
                 <div className="skeleton-line size-8 rounded-lg" />
@@ -162,9 +161,8 @@ export function RolesPanelSkeleton() {
             </div>
           ))}
         </div>
-        {/* Pagination placeholder */}
-        <PanelPaginationSkeleton />
       </div>
+      <PanelPaginationSkeleton />
     </div>
   );
 }

@@ -73,6 +73,10 @@ function getLatestAssistantSummary(
 
 function extractAssistantText(message: Message): string {
   if (message.parts?.length) {
+    const finalText = getFinalOutputText(message.parts);
+    if (finalText) {
+      return finalText;
+    }
     const partsText = collectPartText(message.parts);
     if (partsText) {
       return partsText;
@@ -80,6 +84,21 @@ function extractAssistantText(message: Message): string {
   }
 
   return message.content || "";
+}
+
+/**
+ * 最终正文（output_text）：与聊天气泡一致——一条消息穿插多段 text
+ * part 时只有最后一段是收尾正文，前面的是工具调用间的过渡说明，
+ * 通知预览不应从过渡语开头。
+ */
+function getFinalOutputText(parts: MessagePart[]): string {
+  for (let i = parts.length - 1; i >= 0; i -= 1) {
+    const part = parts[i];
+    if (part.type === "text" && part.content.trim()) {
+      return part.content;
+    }
+  }
+  return "";
 }
 
 function collectPartText(parts: MessagePart[]): string {

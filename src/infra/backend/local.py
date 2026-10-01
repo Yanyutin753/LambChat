@@ -16,7 +16,8 @@ edit/delete/glob/grep 命令是多行 POSIX 脚本（``2>/dev/null``、heredoc�
 ``rm -rf``），cmd.exe 跑不了——WorkspaceAliasBackend 在 daemon 平台为
 win32 时这些方法不走命令生成，改发 ``fs_*`` 结构化 op 由 daemon 原生执行
 （client fsops.py），返回 dict 构造成 protocol_compat 的对应 Result 类型；
-posix（含无平台信息）保持 super() 现状零变化。
+macOS 的 grep 也走 fs_grep，避免 BSD grep 与 GNU -Z 输出协议不同；
+其余 posix（含无平台信息）保持 super() 现状。
 
 注意（与 E2BBackend 相反的方向）：本后端的原生原语是异步的
 （dispatch_local_call 轮询 Redis），因此 aexecute 是主路径，同步
@@ -806,7 +807,9 @@ class WorkspaceAliasBackend(WorkspaceAliasTransferMixin, LocalSandboxBackend):
         *,
         max_count: int | None = None,
     ) -> GrepResult:
-        if self._daemon_platform_is_win32():
+        platform = _run_coro_sync(self._resolve_platform())
+        # BSD grep 的 -Z 不输出 GNU 的 NUL 文件名分隔符。
+        if _platform_ctx(platform).is_windows or platform == "darwin":
             data = self._fs_call("fs_grep", self._fs_grep_payload(pattern, path, glob, max_count))
             return self._fs_grep_result(data, path)
         result = super().grep(pattern, self._strip_path(path), glob, max_count=max_count)
@@ -820,7 +823,8 @@ class WorkspaceAliasBackend(WorkspaceAliasTransferMixin, LocalSandboxBackend):
         *,
         max_count: int | None = None,
     ) -> GrepResult:
-        if await self._adaemon_platform_is_win32():
+        platform = await self._resolve_platform()
+        if _platform_ctx(platform).is_windows or platform == "darwin":
             data = await self._afs_call(
                 "fs_grep", self._fs_grep_payload(pattern, path, glob, max_count)
             )

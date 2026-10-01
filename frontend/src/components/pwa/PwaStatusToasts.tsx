@@ -6,7 +6,6 @@ import {
   type LambChatPwaUpdateEventDetail,
   activateWaitingLambChatPwaUpdate,
 } from "../../pwa";
-import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
 import { PWA_UPDATE_AVAILABLE_EVENT } from "../../pwaGuards";
 import {
   PWA_OFFLINE_TOAST_ID,
@@ -44,11 +43,9 @@ function PwaStatusToast({
         {tone === "offline" ? (
           <WifiOff size={17} />
         ) : (
-          <ImageWithSkeleton
+          <img
             src="/icons/icon.svg"
             alt=""
-            skipUrlResolve
-            inline
             className="rounded"
             style={{ width: 18, height: 18 }}
           />

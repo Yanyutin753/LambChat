@@ -54,11 +54,11 @@ test("users panel skeleton renders serif usernames and role tags", () => {
   expect(source).toMatch(/mt-3 flex flex-wrap gap-1\.5 font-serif/);
 });
 
-test("segmented tabs skeleton mirrors serif tab labels", () => {
+test("segmented tabs skeleton mirrors sans tab labels", () => {
   const source = read("../PanelSkeletonHelpers.tsx");
   // 真实分段页签容器带 font-serif（AgentSection / ModelSection）
   expect(source).toMatch(
-    /inline-grid grid-cols-2 rounded-lg border border-\[var\(--glass-border\)\] bg-\[var\(--glass-bg-subtle\)\] p-1 my-3 font-serif/,
+    /inline-grid grid-cols-2 rounded-lg border border-\[var\(--glass-border\)\] bg-\[var\(--glass-bg-subtle\)\] p-1 my-3 font-sans/,
   );
 });
 

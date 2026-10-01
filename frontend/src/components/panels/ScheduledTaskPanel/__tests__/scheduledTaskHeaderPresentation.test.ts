@@ -26,3 +26,20 @@ test("scheduled task header uses shared panel action styling", () => {
     /className="scheduled-task-button scheduled-task-button--primary"/,
   );
 });
+
+test("sidebar create link opens the task form only with write permission", () => {
+  const source = readFileSync(new URL("../index.tsx", import.meta.url), "utf8");
+  expect(source).toMatch(/canWrite && searchParams\.get\("create"\) === "1"/);
+  expect(source).toMatch(/setIsCreating\(true\)/);
+  expect(source).toMatch(/next\.delete\("create"\)/);
+});
+
+test("scheduled task search uses shared header and resets pagination", () => {
+  expect(panelSource).toMatch(/searchValue={searchQuery}/);
+  expect(panelSource).toMatch(
+    /searchPlaceholder={t\("scheduledTask.searchPlaceholder"\)}/,
+  );
+  expect(panelSource).toMatch(/setSearchQuery\(value\);\s*setSkip\(0\)/);
+  expect(panelSource).toMatch(/search: searchQuery/);
+  expect(panelSource).toMatch(/scheduledTask.noResults/);
+});

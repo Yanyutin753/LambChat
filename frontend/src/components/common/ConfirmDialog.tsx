@@ -60,21 +60,16 @@ export function ConfirmDialog({
       icon: "text-red-500 dark:text-red-400",
       confirmButton:
         "bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700 text-white",
-      confirmIcon: AlertTriangle,
     },
     warning: {
-      icon: "text-amber-500 dark:text-amber-400",
-      confirmButton:
-        "bg-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700 text-white",
-      confirmIcon: AlertTriangle,
+      icon: "text-theme-warning",
+      confirmButton: "btn-primary",
     },
     info: {
       icon: "text-[var(--theme-primary)]",
       confirmButton: "btn-primary shadow-sm",
-      confirmIcon: AlertTriangle,
     },
   };
-  const ConfirmIcon = variantStyles[variant].confirmIcon;
 
   return createPortal(
     <div
@@ -98,7 +93,7 @@ export function ConfirmDialog({
               <AlertTriangle size={22} />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-16 font-semibold font-serif text-stone-900 dark:text-stone-100">
+              <h3 className="text-16 font-semibold font-sans text-stone-900 dark:text-stone-100">
                 {title}
               </h3>
               <p className="mt-1.5 text-14 text-stone-600 dark:text-stone-400 leading-relaxed">
@@ -128,7 +123,7 @@ export function ConfirmDialog({
                 <LoadingSpinner size="sm" color="text-current" />
               </span>
             ) : (
-              <ConfirmIcon size={16} className="shrink-0" />
+              <AlertTriangle size={16} className="shrink-0" />
             )}
             {confirmLabel}
           </button>

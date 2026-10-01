@@ -10,6 +10,7 @@ import {
   useMemo,
   type MutableRefObject,
 } from "react";
+import { isSessionPinned } from "../components/sidebar/sessionPin";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { sessionApi, type BackendSession } from "../services/api";
@@ -35,6 +36,8 @@ export interface SessionListHandle {
 
 interface UseSessionSidebarActionsParams {
   uncategorizedList: SessionListHandle;
+  /** 侧边栏「置顶」分类的列表；置顶/取消置顶、删除等操作需要联动刷新。 */
+  pinnedList?: SessionListHandle;
   projectRefs: MutableRefObject<Map<string, ProjectItemHandle>>;
   scheduledTaskRefs: MutableRefObject<Map<string, ScheduledTaskItemHandle>>;
   projects: Project[];
@@ -48,6 +51,7 @@ interface UseSessionSidebarActionsParams {
 
 export function useSessionSidebarActions({
   uncategorizedList,
+  pinnedList,
   projectRefs,
   scheduledTaskRefs,
   projects,
@@ -110,6 +114,10 @@ export function useSessionSidebarActions({
       if (session) {
         uncategorizedList.updateSession({ ...session, unread_count: count });
       }
+      const pinnedSession = pinnedList?.sessions.find((s) => s.id === sid);
+      if (pinnedSession) {
+        pinnedList?.updateSession({ ...pinnedSession, unread_count: count });
+      }
       for (const [, handle] of projectRefs.current) {
         const s = handle.sessions.find((s) => s.id === sid);
         if (s) {
@@ -123,7 +131,13 @@ export function useSessionSidebarActions({
         }
       }
     },
-    [uncategorizedList, projectRefs, scheduledTaskRefs, setUnreadBySession],
+    [
+      pinnedList,
+      uncategorizedList,
+      projectRefs,
+      scheduledTaskRefs,
+      setUnreadBySession,
+    ],
   );
 
   // ─── Move session ──────────────────────────────────────────────────
@@ -142,6 +156,8 @@ export function useSessionSidebarActions({
         handle.removeSession(sessionId);
       }
       uncategorizedList.removeSession(sessionId);
+      // 置顶分类跨项目聚合，移动项目后原条目仍是同一会话，原地更新即可
+      pinnedList?.updateSession(movedSession);
 
       if (movedProjectId) {
         getProjectRef(movedProjectId)?.prependSession(movedSession);
@@ -169,6 +185,7 @@ export function useSessionSidebarActions({
     },
     [
       getProjectRef,
+      pinnedList,
       projects,
       projectRefs,
       scheduledTaskRefs,
@@ -336,8 +353,21 @@ export function useSessionSidebarActions({
 
   // ─── Toggle pin ───────────────────────────────────────────────────
 
+  const pinRequests = useRef(new Set<string>());
   const handleTogglePin = useCallback(
-    async (sessionId: string) => {
+    async (sessionId: string, pinOnly = false) => {
+      if (pinRequests.current.has(sessionId)) return;
+      if (pinOnly) {
+        const session = [
+          ...uncategorizedList.sessions,
+          ...(pinnedList?.sessions ?? []),
+          ...Array.from(projectRefs.current.values()).flatMap(
+            (handle) => handle.sessions,
+          ),
+        ].find((item) => item.id === sessionId);
+        if (!session || isSessionPinned(session)) return;
+      }
+      pinRequests.current.add(sessionId);
       try {
         const response = await sessionApi.togglePin(sessionId);
         const updatedSession = response.session;
@@ -353,12 +383,16 @@ export function useSessionSidebarActions({
             handle.softRefresh();
           }
         }
+        // 置顶分类成员随置顶/取消置顶变化，必须重新拉取
+        pinnedList?.softRefresh();
       } catch (err) {
         console.error("Failed to toggle pin:", err);
         toast.error(t("sidebar.pinToggleFailed", "置顶状态更新失败"));
+      } finally {
+        pinRequests.current.delete(sessionId);
       }
     },
-    [projectRefs, t, uncategorizedList],
+    [pinnedList, projectRefs, t, uncategorizedList],
   );
 
   // ─── Mark all read ────────────────────────────────────────────────
@@ -469,6 +503,7 @@ export function useSessionSidebarActions({
         handle.removeSession(sessionId);
       }
       uncategorizedList.removeSession(sessionId);
+      pinnedList?.removeSession(sessionId);
       if (currentSessionId === sessionId) onNewSession();
       toast.success(t("sidebar.sessionDeleted"));
     } catch (err) {
@@ -481,6 +516,7 @@ export function useSessionSidebarActions({
     deleteConfirm,
     currentSessionId,
     onNewSession,
+    pinnedList,
     projectRefs,
     scheduledTaskRefs,
     uncategorizedList,
@@ -509,6 +545,7 @@ export function useSessionSidebarActions({
           handle.removeSession(sessionId);
         }
         uncategorizedList.removeSession(sessionId);
+        pinnedList?.removeSession(sessionId);
       }
 
       setUnreadBySession((prev) => {
@@ -547,6 +584,7 @@ export function useSessionSidebarActions({
     batchDeleteConfirm.sessionIds,
     currentSessionId,
     onNewSession,
+    pinnedList,
     projectRefs,
     scheduledTaskRefs,
     setUnreadBySession,

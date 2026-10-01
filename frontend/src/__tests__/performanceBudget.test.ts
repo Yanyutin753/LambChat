@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { resolve } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -292,4 +293,10 @@ describe("frontend performance budgets", () => {
       )([{ url: "assets/index.js", size: 5 * 1024 * 1024 + 1 }]),
     ).rejects.toThrow(/precache budget exceeded: 5242881 > 5242880 bytes/);
   });
+});
+
+test("selection actions load outside the eager application entry", () => {
+  const source = readFileSync(resolve(process.cwd(), "src/App.tsx"), "utf8");
+  expect(source).toMatch(/const SelectionActionPopover = lazy\(/);
+  expect(source).not.toMatch(/import \{ SelectionActionPopover \}/);
 });

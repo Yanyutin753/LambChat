@@ -105,6 +105,8 @@ export function MessagePartRenderer({
   }
 
   if (part.type === "tool") {
+    if (part.name === "todo_write" || part.name === "write_todos") return null;
+
     // 参数生成中（tool:args:chunk 建立的 argsPartial part）只携带 partial 原文；
     // 渐进解析出已完成的键与生成中的字符串值，让专属 Item 在流式期间就按
     // 定制样式渲染（路径/命令逐字增长）。tool:start 转正后与完整 args 无缝衔接。
@@ -686,7 +688,7 @@ export function MessagePartRenderer({
     }
 
     return (
-      <div className="flex flex-col gap-2.5">
+      <div className="chat-recommended-questions flex flex-col gap-2.5">
         {part.questions.map((question, index) => (
           <button
             key={`${question.content}-${index}`}

@@ -1195,6 +1195,7 @@ mod sandbox_home_override_tests {
         let _ = std::fs::remove_dir_all(&tmp);
         let old_root = tmp.join("old");
         let new_root = tmp.join("new");
+        std::fs::create_dir_all(&new_root).unwrap();
         std::fs::create_dir_all(old_root.join("audit")).unwrap();
         std::fs::write(old_root.join("audit").join("a.jsonl"), "log").unwrap();
         std::fs::write(old_root.join("sandbox.json"), "{}").unwrap();

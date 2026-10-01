@@ -4,6 +4,9 @@
  */
 
 import { useCallback } from "react";
+import toast from "react-hot-toast";
+import type { AgentInfo, Project } from "../../../types";
+import { saveSessionWorkspaceOption } from "../../../services/api/sessionWorkspace";
 import type {
   SkillResponse,
   SkillSource,
@@ -124,4 +127,59 @@ export function useSessionToggleCallbacks({
     effectiveToggleSkillCategory,
     effectiveToggleAllSkills,
   };
+}
+
+/** 工作区选项立即落库；项目只为新会话提供默认值。 */
+export function useWorkspaceOptionActions(
+  sessionId: string | null,
+  change: (key: string, value: boolean | string | number) => void,
+  setProject: (id: string | null) => void,
+  agentContext?: {
+    agents: AgentInfo[];
+    currentAgent: string;
+    switchAgent: (id: string) => void;
+    restoreAgentOptions: (
+      values: Record<string, boolean | string | number>,
+    ) => void;
+  },
+) {
+  const changeOption = useCallback(
+    (key: string, value: boolean | string | number) => {
+      if (sessionId) {
+        void saveSessionWorkspaceOption(sessionId, key, value).catch(
+          (error: unknown) => {
+            if (error instanceof Error) toast.error(error.message);
+          },
+        );
+      }
+      change(key, value);
+    },
+    [sessionId, change],
+  );
+  const selectProject = useCallback(
+    (id: string | null, workspace?: Project["workspace"]) => {
+      setProject(id);
+      if (workspace) {
+        const values = {
+          sandbox: "local",
+          sandbox_machine_id: workspace.machineId,
+          sandbox_workspace: JSON.stringify(workspace),
+        };
+        const current = agentContext?.agents.find(
+          (agent) => agent.id === agentContext.currentAgent,
+        );
+        const capable = agentContext?.agents.find(
+          (agent) => agent.supports_sandbox,
+        );
+        if (agentContext && !current?.supports_sandbox && capable) {
+          agentContext.switchAgent(capable.id);
+          agentContext.restoreAgentOptions(values);
+        } else {
+          Object.entries(values).forEach(([key, value]) => change(key, value));
+        }
+      }
+    },
+    [setProject, change, agentContext],
+  );
+  return { changeOption, selectProject };
 }

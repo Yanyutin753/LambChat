@@ -1,5 +1,6 @@
+import { SceneIllustration } from "./SceneIllustration";
 import { Component, ReactNode } from "react";
-import { AlertTriangle, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import clsx from "clsx";
 import i18n from "i18next";
 import {
@@ -42,9 +43,7 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="safe-area-viewport-padding min-h-[calc(100vh-var(--titlebar-inset,0px))] flex items-center justify-center bg-stone-50 dark:bg-stone-950 px-4">
           <div className="w-full max-w-[380px] sm:max-w-[420px] rounded-2xl border border-stone-200/80 dark:border-stone-800/60 bg-white/80 dark:bg-stone-900/80 p-8 sm:p-10 text-center shadow-[0_2px_12px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_16px_rgba(0,0,0,0.2)]">
-            <div className="mx-auto mb-5 w-14 h-14 rounded-full bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center">
-              <AlertTriangle className="w-7 h-7 text-amber-500 dark:text-amber-400" />
-            </div>
+            <SceneIllustration scene="message" className="mx-auto mb-4" />
             <h1 className="text-20 font-bold text-stone-900 dark:text-stone-100 font-serif tracking-tight mb-2">
               {isChunkError
                 ? t("errorBoundary.updatingTitle", "正在更新资源")

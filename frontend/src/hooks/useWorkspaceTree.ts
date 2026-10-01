@@ -1,12 +1,18 @@
-// 工作区文件树：本地沙箱目录的懒加载/刷新状态机（桌面双栏的文件面板数据源）。
+// 工作区文件树：本地/云端沙箱目录的懒加载/刷新状态机（桌面双栏「电脑」
+// 面板数据源）。
 //
-// 数据源是 /api/sandbox/fs/list（服务端把 fs_ls 中继到会话绑定的 daemon），
-// 因此树根随 sessionId 变化整体重置；目录按需装载（展开才 list），refresh
-// 保留 expanded 集合只重拉已见过目录——run 结束后的自动刷新靠这个语义
-// 保住用户的展开现场。同路径并发装载去重（in-flight 表），防止快速点击
-// 目录时发出重复请求。
+// 数据源默认 /api/sandbox/fs/list（本地 daemon 中继），可注入云端源
+// （/api/sandbox/fs/cloud/*，E2B/Daytona SDK 直连）——两者共用同一契约与
+// 状态机。树根随 resetKey（会话/平台/机器/绑定/视图）变化整体重置；目录
+// 按需装载（展开才 list），refresh 保留 expanded 集合只重拉已见过目录——
+// run 结束后的自动刷新靠这个语义保住用户的展开现场。同路径并发装载去重
+// （in-flight 表），防止快速点击目录时发出重复请求。
 import { useCallback, useEffect, useRef, useState } from "react";
-import { sandboxFsApi, type SandboxFsEntry } from "../services/api/sandboxFs";
+import {
+  sandboxFsApi,
+  type SandboxFsEntry,
+  type WorkspaceFsSource,
+} from "../services/api/sandboxFs";
 
 export interface WorkspaceTreeNode {
   /** 工作区内相对路径（posix；根目录条目为 "."）。 */
@@ -36,14 +42,29 @@ function attachLevel(
   path: string,
   entries: SandboxFsEntry[],
 ): WorkspaceTreeNode[] {
+  // Preserve loaded descendants when parent refreshes arrive after child refreshes.
+  const reconcile = (previous: WorkspaceTreeNode[]) => {
+    const byPath = new Map(previous.map((node) => [node.path, node]));
+    return entries
+      .slice()
+      .sort(compareEntries)
+      .map((entry) => {
+        const existing = byPath.get(entry.path);
+        return existing?.isDir === entry.is_dir ? existing : toNode(entry);
+      });
+  };
   if (path === "." || path === "") {
-    return entries.slice().sort(compareEntries).map(toNode);
+    return reconcile(nodes);
   }
   const walk = (list: WorkspaceTreeNode[]): WorkspaceTreeNode[] =>
     list.map((node) => {
       if (!node.isDir) return node;
       if (node.path === path) {
-        return { ...node, children: entries.slice().sort(compareEntries).map(toNode), loading: false };
+        return {
+          ...node,
+          children: reconcile(node.children ?? []),
+          loading: false,
+        };
       }
       if (path.startsWith(`${node.path}/`) && node.children) {
         return { ...node, children: walk(node.children) };
@@ -72,7 +93,10 @@ function markLoading(
 }
 
 /** 收集需要重拉的目录路径（根 + 所有已装载子目录）。 */
-function collectLoadedDirs(nodes: WorkspaceTreeNode[], acc: string[] = ["."]): string[] {
+function collectLoadedDirs(
+  nodes: WorkspaceTreeNode[],
+  acc: string[] = ["."],
+): string[] {
   for (const node of nodes) {
     if (node.isDir && node.children) {
       acc.push(node.path);
@@ -83,7 +107,10 @@ function collectLoadedDirs(nodes: WorkspaceTreeNode[], acc: string[] = ["."]): s
 }
 
 /** 按路径找节点（path "." = 根层不存在，返回 null）。 */
-function findNode(nodes: WorkspaceTreeNode[], path: string): WorkspaceTreeNode | null {
+function findNode(
+  nodes: WorkspaceTreeNode[],
+  path: string,
+): WorkspaceTreeNode | null {
   for (const node of nodes) {
     if (node.path === path) return node;
     if (path.startsWith(`${node.path}/`) && node.children) {
@@ -94,14 +121,27 @@ function findNode(nodes: WorkspaceTreeNode[], path: string): WorkspaceTreeNode |
   return null;
 }
 
-export function useWorkspaceTree(sessionId: string | null) {
+/**
+ * @param sessionId 目标会话（API 调用与 cwd 解析依据；null = idle 不请求）
+ * @param resetKey 重置键——会话、沙箱平台、目标机、目录绑定或视图（本地/
+ *   云端）任一变化都会改变工作区内容，必须整树重置（否则展示上一个工作
+ *   区的 stale 文件）。缺省等于 sessionId（只按会话重置）。
+ * @param source 数据源：本地（daemon 中继，默认）或云端（E2B/Daytona SDK），
+ *   两者共用同一前端契约与状态机。
+ */
+export function useWorkspaceTree(
+  sessionId: string | null,
+  resetKey?: string,
+  source: WorkspaceFsSource = sandboxFsApi,
+) {
+  const effectiveResetKey = resetKey ?? sessionId ?? "";
   const [root, setRoot] = useState<WorkspaceTreeNode[]>([]);
   const [state, setState] = useState<WorkspaceTreeState>("idle");
   const [error, setError] = useState<string | null>(null);
   /** 展开集合（state 驱动渲染）；children 装载后常驻内存，折叠只收 UI。 */
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const inFlightRef = useRef<Set<string>>(new Set());
-  /** 会话代际：sessionId 切换后旧异步结果不再落 state。 */
+  /** 会话代际：resetKey 切换后旧异步结果不再落 state。 */
   const generationRef = useRef(0);
 
   const loadDir = useCallback(
@@ -113,7 +153,7 @@ export function useWorkspaceTree(sessionId: string | null) {
       const generation = generationRef.current;
       if (!replace) setRoot((prev) => markLoading(prev, path, true));
       try {
-        const result = await sandboxFsApi.list(sessionId, path === "." ? "" : path);
+        const result = await source.list(sessionId, path === "." ? "" : path);
         if (generation !== generationRef.current) return;
         if (result.error) {
           if (path === ".") {
@@ -132,14 +172,17 @@ export function useWorkspaceTree(sessionId: string | null) {
           setState("error");
         }
       } finally {
-        inFlightRef.current.delete(key);
-        if (!replace) setRoot((prev) => markLoading(prev, path, false));
+        if (generation === generationRef.current) {
+          inFlightRef.current.delete(key);
+          if (!replace) setRoot((prev) => markLoading(prev, path, false));
+        }
       }
     },
-    [sessionId],
+    [sessionId, source],
   );
 
-  // 会话切换：整体重置（代际 +1 让在途结果作废），根目录装载。
+  // 工作区切换（会话/平台/机器/绑定）：整体重置（代际 +1 让在途结果作
+  // 废），根目录装载。
   useEffect(() => {
     generationRef.current += 1;
     inFlightRef.current.clear();
@@ -152,7 +195,7 @@ export function useWorkspaceTree(sessionId: string | null) {
     }
     setState("loading");
     void loadDir(".", { replace: true });
-  }, [sessionId, loadDir]);
+  }, [sessionId, effectiveResetKey, loadDir]);
 
   const toggleDir = useCallback(
     (path: string) => {

@@ -123,12 +123,17 @@ pub async fn sandbox_pick_workspace(
 /// `rel_path` 是工作区内相对路径；目标不存在时回退显示基目录（与 VS Code
 /// 的直觉一致）。逃逸防线：词法归一拒绝 `..` + canonicalize 后必须仍在
 /// 基目录之下（符号链接指向外部即拒，与 resolve_openable_path 同款手法）。
+///
+/// `machine_id` 是会话的目标机（sandbox_machine_id 或绑定的 machineId）：
+/// 非本机时直接拒绝——文件树可以跨机浏览（fs 经中继），但 reveal 只能
+/// 打开本机磁盘上的路径，静默回落本机目录会打开一个与树内容无关的位置。
 #[tauri::command]
 pub async fn reveal_workspace_path(
     app: tauri::AppHandle,
     session_id: String,
     rel_path: String,
     workspace_selection: Option<String>,
+    machine_id: Option<String>,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let home = crate::daemon::sandbox_home()?;
@@ -136,6 +141,12 @@ pub async fn reveal_workspace_path(
             &std::fs::read(home.join("sandbox.json")).map_err(|e| e.to_string())?,
         )
         .map_err(|e| e.to_string())?;
+        let local_machine = config["machine_id"].as_str().unwrap_or("");
+        if let Some(target) = machine_id.as_deref() {
+            if !target.is_empty() && target != local_machine {
+                return Err("workspace is on another machine; only local files can be revealed".into());
+            }
+        }
         let base = resolve_workspace_base(&home, &config, &session_id, &workspace_selection)?;
 
         let rel = rel_path.trim().trim_start_matches("./");

@@ -95,7 +95,7 @@ function ModelRowsSkeleton({ compact = false }: { compact?: boolean }) {
 
 export function AgentSectionSkeleton() {
   return (
-    <div className="animate-glass-enter px-4 py-5 sm:px-6 lg:px-7">
+    <div className="panel-body panel-stack animate-glass-enter">
       <PanelSegmentedTabsSkeleton
         activeWidth="w-16 sm:w-20"
         inactiveWidth="w-12 sm:w-16"
@@ -113,7 +113,7 @@ export function AgentSectionSkeleton() {
 
 export function ModelSectionSkeleton() {
   return (
-    <div className="animate-glass-enter px-4 py-5 sm:px-6 lg:px-7">
+    <div className="panel-body panel-stack animate-glass-enter">
       <PanelSegmentedTabsSkeleton
         activeWidth="w-14 sm:w-16"
         inactiveWidth="w-20 sm:w-28"
@@ -168,8 +168,27 @@ export function ModelSectionSkeleton() {
 export function AgentModelPanelSkeleton() {
   return (
     <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
-      <PanelHeaderSkeleton hasSearch={false} hasSubtitle />
-      <AgentSectionSkeleton />
+      <PanelHeaderSkeleton
+        hasSearch={false}
+        hasSubtitle
+        className="panel-header--section-switch"
+        actions={
+          <div className="agent-model-section-switcher inline-grid grid-cols-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 font-serif">
+            {[0, 1].map((tab) => (
+              <div
+                key={tab}
+                className="flex items-center justify-center gap-2 rounded-md px-3 py-2"
+              >
+                <div className="skeleton-line size-4 rounded" />
+                <SkeletonLine width="w-16" className="!h-4" />
+              </div>
+            ))}
+          </div>
+        }
+      />
+      <div className="panel-scroll min-h-0 flex-1 overflow-y-auto">
+        <AgentSectionSkeleton />
+      </div>
     </div>
   );
 }
@@ -178,7 +197,7 @@ export function AgentModelPanelSkeleton() {
 export function AgentPanelSkeleton() {
   return (
     <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
-      <PanelHeaderSkeleton hasSearch={false} />
+      <PanelHeaderSkeleton hasSearch={false} hasSubtitle />
       {/* Tab bar — segmented control */}
       <PanelSegmentedTabsSkeleton
         activeWidth="w-16 sm:w-20"
@@ -192,7 +211,7 @@ export function AgentPanelSkeleton() {
         />
       </div>
       {/* Agent list — plain container with divide-y (matches real layout) */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6">
+      <div className="panel-body flex-1 min-h-0 overflow-y-auto">
         <AgentListSkeletonRows />
       </div>
     </div>
@@ -203,13 +222,13 @@ export function AgentPanelSkeleton() {
 export function ModelPanelSkeleton() {
   return (
     <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
-      <PanelHeaderSkeleton hasSearch={false} />
+      <PanelHeaderSkeleton hasSearch={false} hasSubtitle />
       {/* Tab bar — segmented control */}
       <PanelSegmentedTabsSkeleton
         activeWidth="w-14 sm:w-16"
         inactiveWidth="w-20 sm:w-28"
       />
-      <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-5 space-y-3">
+      <div className="panel-body flex-1 min-h-0 overflow-y-auto">
         {/* Toolbar — description text + action buttons on right */}
         <div className="flex items-center justify-between gap-3 font-serif">
           <SkeletonLine
@@ -225,6 +244,76 @@ export function ModelPanelSkeleton() {
         </div>
         <ModelRowsSkeleton />
       </div>
+    </div>
+  );
+}
+
+export function SettingsPanelSkeleton() {
+  return (
+    <div
+      className="glass-shell flex h-full min-h-0 flex-col sm:flex-row"
+      aria-hidden="true"
+    >
+      <div className="settings-sidebar hidden w-60 shrink-0 flex-col border-r border-[var(--glass-border)] sm:flex">
+        <div className="flex items-center gap-2.5 px-5 py-4">
+          <div className="skeleton-line size-12 shrink-0 rounded-lg" />
+          <div className="min-w-0 flex-1">
+            <SkeletonLine width="w-20" className="!h-4" />
+            <SkeletonLine width="w-28" className="mt-2 !h-3" />
+          </div>
+        </div>
+        <div className="panel-stack p-3">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 p-3">
+              <div className="skeleton-line size-4 rounded" />
+              <SkeletonLine width="w-28" />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="settings-content flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="settings-toolbar panel-inset shrink-0">
+          <div className="settings-compact-identity mb-3 items-center gap-3">
+            <div className="skeleton-line size-12 rounded-lg" />
+            <SkeletonLine width="w-24" className="!h-4" />
+          </div>
+          <div className="settings-category-picker block sm:hidden mb-3">
+            <SkeletonLine width="w-16" className="mb-1" />
+            <div className="skeleton-line h-11 w-full rounded-lg" />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="skeleton-line h-10 min-w-0 flex-1 rounded-lg" />
+            <div className="skeleton-line size-10 rounded-lg" />
+            <div className="skeleton-line size-10 rounded-lg" />
+          </div>
+        </div>
+        <div className="panel-body min-h-0 flex-1 overflow-y-auto">
+          <div className="mb-6">
+            <SkeletonLine width="w-20" />
+            <SkeletonLine width="w-40" className="!h-[18px] mt-2" />
+          </div>
+          <SettingsListSkeleton />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function SettingsListSkeleton() {
+  return (
+    <div className="panel-sections">
+      {[0, 1, 2].map((section) => (
+        <div key={section} className="panel-stack">
+          <SkeletonLine width="w-28" className="!h-4" />
+          {[0, 1].map((row) => (
+            <div key={row} className="glass-card rounded-xl p-4">
+              <SkeletonLine width="w-1/3" className="!h-4" />
+              <SkeletonLine width="w-2/3" className="mt-2 !opacity-60" />
+              <div className="skeleton-line h-10 w-full rounded-lg mt-3" />
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

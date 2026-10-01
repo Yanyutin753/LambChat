@@ -256,7 +256,7 @@ export function MCPServerForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-4">
       {/* Name */}
       <div className="es-field">
         <label className="es-label">{t("mcp.form.serverName")}</label>
@@ -392,16 +392,12 @@ export function MCPServerForm({
         </div>
       )}
 
-      {isSystemServer && isEditing && <div className="es-divider" />}
-
       {isSystemServer && isEditing && (
         <MCPToolPolicyEditor
           serverName={server?.name ?? name}
           onChanged={onToolPoliciesChanged}
         />
       )}
-
-      {isSystemServer && isEditing && <div className="es-divider" />}
 
       {/* ── HTTP/SSE fields ── */}
       <>
@@ -477,7 +473,6 @@ export function MCPServerForm({
       </>
 
       {/* Actions */}
-      <div className="es-divider" />
       <div className="flex justify-end gap-2">
         <Button
           variant="secondary"

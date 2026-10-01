@@ -21,6 +21,7 @@ import type { MessagePart } from "../../../types";
 import {
   openPersistentToolPanel,
   isPersistentToolPanelOpen,
+  isPersistentToolPanelActive,
 } from "./items/persistentToolPanelState";
 import { subagentPanelStore } from "./subagentPanelStore";
 import type { SubagentPanelData } from "./subagentPanelStore";
@@ -105,7 +106,7 @@ export function openSubagentPanelByAgentId(agentId: string): boolean {
   const { panelStatus, subtitle, panelKey, formattedAgentName } =
     buildSubagentPanelState(data);
 
-  if (isPersistentToolPanelOpen(panelKey)) {
+  if (isPersistentToolPanelActive(panelKey)) {
     return true;
   }
 

@@ -126,3 +126,41 @@ test("asks the active owner to close once and waits for unregister", () => {
   expect(close).toHaveBeenCalledTimes(1);
   expect(getRightPanelSnapshot().activeId).toBe(id);
 });
+
+test("switching away from a native fullscreen tab exits fullscreen before selection", async () => {
+  const { activateRightPanel } = await import("../rightPanelCoordinator");
+  const first = Symbol("first");
+  const second = Symbol("second");
+  registerRightPanel({
+    id: first,
+    kind: "content",
+    automatic: false,
+    close: vi.fn(),
+    opener: null,
+  });
+  registerRightPanel({
+    id: second,
+    kind: "content",
+    automatic: false,
+    close: vi.fn(),
+    opener: null,
+  });
+  let exit!: () => void;
+  const exitFullscreen = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        exit = resolve;
+      }),
+  );
+  vi.stubGlobal("document", { fullscreenElement: {}, exitFullscreen });
+  try {
+    activateRightPanel(first);
+    expect(exitFullscreen).toHaveBeenCalledOnce();
+    expect(getRightPanelSnapshot().activeId).toBe(second);
+    exit();
+    await Promise.resolve();
+    expect(getRightPanelSnapshot().activeId).toBe(first);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});

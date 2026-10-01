@@ -13,7 +13,11 @@ import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { ChatPageSkeleton, FilesPageSkeleton } from "./components/skeletons";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
-import { SelectionActionPopover } from "./components/common/SelectionActionPopover.tsx";
+const SelectionActionPopover = lazy(() =>
+  import("./components/common/SelectionActionPopover").then((m) => ({
+    default: m.SelectionActionPopover,
+  })),
+);
 import { useSEO } from "./hooks/usePageTitle";
 import { resolveTitlebarOs } from "./components/layout/TitleBar/titlebarPlatform";
 import { GITHUB_URL } from "./constants";
@@ -490,7 +494,9 @@ function App() {
               />
             </Suspense>
           )}
-        <SelectionActionPopover />
+        <Suspense fallback={null}>
+          <SelectionActionPopover />
+        </Suspense>
         {(() => {
           const appRoutes = (
             <Suspense fallback={<ChatPageSkeleton />}>

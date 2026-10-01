@@ -8,19 +8,30 @@ export function SidebarUserRow({
   user,
   imgError,
   onShowProfile,
+  compact = false,
 }: {
   user: { username?: string; avatar_url?: string; roles?: string[] } | null;
   imgError: boolean;
   onShowProfile: () => void;
+  compact?: boolean;
 }) {
   const { t } = useTranslation();
 
   return (
-    <div
+    <button
+      type="button"
+      aria-label={user?.username || t("common.user")}
+      title={compact ? user?.username || t("common.user") : undefined}
       onClick={onShowProfile}
-      className="group flex items-center rounded-xl py-3 px-2 w-full hover:bg-stone-100 dark:hover:bg-stone-800/60 transition cursor-pointer"
+      className={`group flex shrink-0 items-center rounded-lg transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] ${
+        compact ? "size-9 justify-center" : "py-3 px-2 w-full"
+      }`}
     >
-      <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden ring-1 ring-stone-200 dark:ring-stone-700 group-hover:ring-[var(--theme-text-secondary)] transition mr-3">
+      <div
+        className={`shrink-0 w-8 h-8 rounded-full overflow-hidden ring-1 ring-stone-200 dark:ring-stone-700 group-hover:ring-[var(--theme-text-secondary)] transition ${
+          compact ? "" : "mr-3"
+        }`}
+      >
         {user?.avatar_url && !imgError ? (
           <ImageWithSkeleton
             src={getFullUrl(user.avatar_url) ?? user.avatar_url}
@@ -45,17 +56,21 @@ export function SidebarUserRow({
           </div>
         )}
       </div>
-      <div className="flex-1 text-left min-w-0">
-        <div className="text-14 font-medium font-serif text-stone-800 dark:text-stone-100 truncate">
-          {user?.username || t("common.user")}
-        </div>
-        <div className="text-12 text-stone-400 dark:text-stone-500 whitespace-nowrap font-serif">
-          {(user?.roles?.[0] || t("common.user")).replace(/^./, (c) =>
-            c.toUpperCase(),
-          )}
-        </div>
-      </div>
-      <ChevronsUpDown className="size-4 text-stone-400 shrink-0" />
-    </div>
+      {!compact && (
+        <>
+          <div className="flex-1 text-left min-w-0">
+            <div className="text-14 font-medium font-serif text-stone-800 dark:text-stone-100 truncate">
+              {user?.username || t("common.user")}
+            </div>
+            <div className="text-12 text-stone-400 dark:text-stone-500 whitespace-nowrap font-serif">
+              {(user?.roles?.[0] || t("common.user")).replace(/^./, (c) =>
+                c.toUpperCase(),
+              )}
+            </div>
+          </div>
+          <ChevronsUpDown className="size-4 text-stone-400 shrink-0" />
+        </>
+      )}
+    </button>
   );
 }

@@ -1,15 +1,6 @@
+import { FolderOpen } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
-import {
-  Plus,
-  X,
-  Download,
-  Upload,
-  FolderOpen,
-  Server,
-  Check,
-  Pencil,
-  Wrench,
-} from "lucide-react";
+import { Plus, X, Download, Upload, Check, Pencil, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../common/PanelHeader";
@@ -396,7 +387,7 @@ export function MCPPanel() {
       <PanelHeader
         title={t("mcp.title")}
         subtitle={t("mcp.subtitle")}
-        icon={<Server size={20} className="text-theme-text-secondary" />}
+        illustration="panel-mcp"
         searchValue={searchQuery}
         onSearchChange={handleSearchQueryChange}
         searchPlaceholder={t("mcp.searchPlaceholder")}
@@ -431,7 +422,7 @@ export function MCPPanel() {
 
       {/* Error */}
       {error && (
-        <div className="mx-4 mt-4 flex items-center justify-between rounded-xl bg-red-50 p-3 text-14 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+        <div className="panel-notice flex items-center justify-between rounded-xl bg-red-50 p-3 text-14 text-red-700 dark:bg-red-900/30 dark:text-red-400">
           <span>{error}</span>
           <IconButton
             aria-label={t("common.close")}
@@ -443,7 +434,7 @@ export function MCPPanel() {
       )}
 
       {/* Servers Grid */}
-      <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4">
+      <div className="panel-body flex-1 overflow-y-auto">
         {filteredServers.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-theme-text-secondary">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-stone-100 dark:bg-stone-800 mb-4">
@@ -482,16 +473,14 @@ export function MCPPanel() {
       </div>
 
       {/* Pagination */}
-      {total > pageSize && (
-        <div className="glass-divider px-3 py-3 sm:px-4">
-          <Pagination
-            page={page}
-            pageSize={pageSize}
-            total={total}
-            onChange={setPage}
-          />
-        </div>
-      )}
+      <div className="panel-pagination empty:hidden">
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onChange={setPage}
+        />
+      </div>
 
       {/* Form Sidebar */}
       <EditorSidebar

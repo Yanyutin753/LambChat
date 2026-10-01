@@ -3,26 +3,22 @@ import { SkeletonLine } from "./primitives";
 export const PANEL_CARD_SKELETON_COUNT = 24;
 export const PANEL_ROW_SKELETON_COUNT = 24;
 
-type PanelPaginationVariant = "default" | "wide" | "compact" | "transparent";
-
-const panelPaginationClasses: Record<PanelPaginationVariant, string> = {
-  default: "glass-divider px-3 py-3 sm:px-4 mt-2",
-  wide: "glass-divider px-3 py-3 sm:px-6 mt-2",
-  compact: "glass-divider px-3 py-3 mt-2",
-  transparent: "glass-divider bg-transparent px-4 py-4 sm:px-6 mt-2",
-};
-
-export function PanelPaginationSkeleton({
-  variant = "default",
-}: {
-  variant?: PanelPaginationVariant;
-}) {
+/** Uses the same footer and responsive controls as Pagination. */
+export function PanelPaginationSkeleton() {
   return (
-    <div className={panelPaginationClasses[variant]}>
-      <div className="flex items-center justify-center gap-2">
-        <div className="skeleton-line size-8 rounded-lg" />
-        <div className="skeleton-line w-32 sm:w-36 h-3" />
-        <div className="skeleton-line size-8 rounded-lg" />
+    <div className="panel-pagination" aria-hidden="true">
+      <div className="pagination-wrapper">
+        <div className="pagination-summary">
+          <SkeletonLine width="w-36" className="pagination-range !h-3" />
+          <SkeletonLine width="w-12" className="pagination-position !h-3" />
+        </div>
+        <div className="pagination-controls">
+          <div className="pagination-btn skeleton-line" />
+          {[0, 1, 2].map((page) => (
+            <div key={page} className="pagination-page skeleton-line" />
+          ))}
+          <div className="pagination-btn skeleton-line" />
+        </div>
       </div>
     </div>
   );
@@ -39,7 +35,7 @@ export function PanelSegmentedTabsSkeleton({
   inactiveWidth: string;
 }) {
   return (
-    <div className="inline-grid grid-cols-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 my-3 font-serif">
+    <div className="inline-grid grid-cols-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 my-3 font-sans">
       <div className={panelSegmentedTabItemClass}>
         <SkeletonLine width={activeWidth} className="!h-4" />
       </div>

@@ -698,12 +698,7 @@ export function FeishuPanel({
       <PanelHeader
         title={t("feishu.title", "Feishu/Lark Channel")}
         subtitle={t("feishu.description")}
-        icon={
-          <BotMessageSquare
-            size={20}
-            className="text-[#3370ff] dark:text-[#7aa2ff]"
-          />
-        }
+        illustration="panel-channels"
         actions={
           <button
             onClick={() => navigate("/channels")}
@@ -714,9 +709,7 @@ export function FeishuPanel({
           </button>
         }
       />
-      <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4">
-        {formContent}
-      </div>
+      <div className="panel-body flex-1 overflow-y-auto">{formContent}</div>
       <div className="border-t border-[var(--theme-border)] px-3 py-3 sm:px-4">
         {actionButtons}
       </div>

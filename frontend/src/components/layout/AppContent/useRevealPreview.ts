@@ -21,7 +21,9 @@ import {
 } from "../../chat/ChatMessage/autoPreviewEligibility";
 import { isFileLink } from "../../documents/utils";
 import { getFullUrl } from "../../../services/api/config";
-import { closePersistentToolPanel } from "../../chat/ChatMessage/items/persistentToolPanelState";
+import { closeAllPersistentToolPanels } from "../../chat/ChatMessage/items/persistentToolPanelState";
+import { clearAttachmentPreviews } from "../../chat/attachmentPreviewStore";
+import { clearBlockPreviews } from "../../chat/ChatMessage/items/blockPreviewStore";
 import { clearSidebarHistory } from "../../chat/ChatMessage/items/sidebarHistoryStore";
 import { isUserReadingHistory } from "../../chat/streamFollowSignal";
 import {
@@ -33,6 +35,7 @@ import {
   type RevealPreviewOpenSource,
 } from "../../chat/ChatMessage/items/revealPreviewState";
 import {
+  clearRevealPreviewTabs,
   getActiveRevealPreviewState,
   setActiveRevealPreviewState,
   subscribeActiveRevealPreviewState,
@@ -236,9 +239,17 @@ export function useRevealPreview(
     clearFileRevealAutoOpenState();
     clearProjectRevealAutoOpenState();
     clearSidebarHistory();
-    setActiveRevealPreviewState(null);
+    clearRevealPreviewTabs();
+    clearBlockPreviews();
+    clearAttachmentPreviews();
     externalPreviewActiveRef.current = false;
-    closePersistentToolPanel();
+    closeAllPersistentToolPanels();
+    return () => {
+      clearRevealPreviewTabs();
+      clearBlockPreviews();
+      clearAttachmentPreviews();
+      closeAllPersistentToolPanels();
+    };
   }, [sessionId]);
 
   useEffect(() => {

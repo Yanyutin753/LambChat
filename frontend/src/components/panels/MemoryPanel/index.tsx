@@ -47,7 +47,6 @@ export function MemoryPanel() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterSource, setFilterSource] = useState("");
-  const [filterContext, setFilterContext] = useState("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<MemoryItem | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -76,24 +75,6 @@ export function MemoryPanel() {
     setPage(1);
     setFilterSource(source);
   }, []);
-  const [debouncedContext, setDebouncedContext] = useState("");
-  const contextTimer = useRef<ReturnType<typeof setTimeout>>(null);
-  const handleFilterContextChange = useCallback((context: string) => {
-    setPage(1);
-    setFilterContext(context);
-  }, []);
-
-  useEffect(() => {
-    if (contextTimer.current) clearTimeout(contextTimer.current);
-    contextTimer.current = setTimeout(
-      () => setDebouncedContext(filterContext.trim()),
-      300,
-    );
-    return () => {
-      if (contextTimer.current) clearTimeout(contextTimer.current);
-    };
-  }, [filterContext]);
-
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(
@@ -107,7 +88,7 @@ export function MemoryPanel() {
 
   useEffect(() => {
     setCheckedIds(new Set());
-  }, [filterType, filterSource, debouncedSearch, debouncedContext, page]);
+  }, [filterType, filterSource, debouncedSearch, page]);
 
   const fetchMemories = useCallback(async () => {
     setIsLoading(true);
@@ -116,7 +97,6 @@ export function MemoryPanel() {
         memory_type: filterType || undefined,
         source: filterSource || undefined,
         search: debouncedSearch || undefined,
-        context: debouncedContext || undefined,
         limit: PAGE_SIZE,
         offset: (page - 1) * PAGE_SIZE,
       });
@@ -127,7 +107,7 @@ export function MemoryPanel() {
     } finally {
       setIsLoading(false);
     }
-  }, [filterType, filterSource, debouncedSearch, debouncedContext, page, t]);
+  }, [filterType, filterSource, debouncedSearch, page, t]);
 
   useEffect(() => {
     fetchMemories();
@@ -246,9 +226,7 @@ export function MemoryPanel() {
       <PanelHeader
         title={t("memory.title")}
         subtitle={t("memory.subtitle", { count: total })}
-        icon={
-          <Brain size={20} className="text-[var(--theme-text-secondary)]" />
-        }
+        illustration="panel-memory"
         searchValue={searchQuery}
         onSearchChange={handleSearchQueryChange}
         searchPlaceholder={t("memory.searchPlaceholder")}
@@ -258,8 +236,6 @@ export function MemoryPanel() {
             typeOnChange={handleFilterTypeChange}
             sourceValue={filterSource}
             sourceOnChange={handleFilterSourceChange}
-            contextValue={filterContext}
-            contextOnChange={handleFilterContextChange}
           />
         }
         actions={
@@ -331,14 +307,14 @@ export function MemoryPanel() {
       />
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4 sm:p-6">
+      <div className="panel-body flex-1 overflow-y-auto">
         {!isLoading && memories.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--glass-bg)]">
               <Brain size={32} className="text-[var(--theme-text-secondary)]" />
             </div>
             <p className="text-18 font-medium font-serif text-[var(--theme-text)]">
-              {searchQuery || filterType
+              {searchQuery || filterType || filterSource
                 ? t("memory.noResults")
                 : t("memory.empty")}
             </p>
@@ -423,7 +399,7 @@ export function MemoryPanel() {
                   )}
 
                   {/* Footer */}
-                  <div className="mt-auto flex items-center gap-2 border-t border-[var(--glass-border)] pt-3 mt-3.5">
+                  <div className="mt-auto flex items-center gap-2 pt-4">
                     <div className="inline-flex items-center gap-1.5 rounded-full bg-[var(--glass-bg)] px-2 py-0.5 text-11 text-[var(--theme-text-secondary)]">
                       <Eye size={12} />
                       {memory.access_count ?? 0} {t("memory.accesses")}
@@ -462,16 +438,14 @@ export function MemoryPanel() {
       </div>
 
       {/* Pagination */}
-      {total > PAGE_SIZE && (
-        <div className="glass-divider bg-transparent px-4 py-4 sm:px-6">
-          <Pagination
-            page={page}
-            pageSize={PAGE_SIZE}
-            total={total}
-            onChange={setPage}
-          />
-        </div>
-      )}
+      <div className="panel-pagination empty:hidden">
+        <Pagination
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={total}
+          onChange={setPage}
+        />
+      </div>
 
       {/* Detail modal */}
       {selected && (

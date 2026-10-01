@@ -59,6 +59,7 @@ async def create_scheduled_task(
 
 @router.get("/", response_model=ScheduledTaskListResponse)
 async def list_scheduled_tasks(
+    search: str | None = Query(None, max_length=200),
     status: ScheduledTaskStatus | None = None,
     source_session_id: str | None = None,
     created_by: str | None = Query(None, pattern="^(user|agent|api)$"),
@@ -70,6 +71,7 @@ async def list_scheduled_tasks(
     """List scheduled tasks owned by the current user, with pagination."""
     items, total = await service.list_tasks_paginated(
         owner_id=user.sub,
+        search=search,
         status=status,
         source_session_id=source_session_id,
         created_by=created_by,

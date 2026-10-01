@@ -100,6 +100,11 @@ export function settleRemotelyTerminatedRun(
   runId: string,
   messageId: string | null,
 ): void {
+  ctx.sseGenerationRef.current += 1;
+  clearReconnectTimeout(ctx.reconnectTimeoutRef);
+  ctx.abortControllerRef.current?.abort();
+  ctx.abortControllerRef.current = null;
+  ctx.isConnectingRef.current = false;
   ctx.setConnectionStatus("disconnected");
   ctx.setIsInitializingSandbox(false);
   ctx.streamingMessageIdRef.current = null;
@@ -164,6 +169,11 @@ export async function connectToSSE(
 
   const token = await getValidAccessToken();
   if (!isCurrentConnection()) return;
+  ctx.setMessages((prev) =>
+    prev.map((message) =>
+      message.id === messageId ? { ...message, isStreaming: true } : message,
+    ),
+  );
   const headers: Record<string, string> = {};
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -335,6 +345,11 @@ export async function reconnectSSE(
   }
 
   clearReconnectTimeout(reconnectTimeoutRef);
+  const generation = ++ctx.sseGenerationRef.current;
+  const isCurrentRun = () =>
+    ctx.sseGenerationRef.current === generation &&
+    sessionIdRef.current === currentSessId &&
+    currentRunIdRef.current === currentRId;
 
   if (abortControllerRef.current) {
     abortControllerRef.current.abort();
@@ -345,6 +360,7 @@ export async function reconnectSSE(
 
   try {
     const statusData = await sessionApi.getStatus(currentSessId, currentRId);
+    if (!isCurrentRun()) return;
     if (statusData.status === "completed" || statusData.status === "error") {
       console.log("[SSE] Task already completed");
       settleRemotelyTerminatedRun(ctx, currentRId, currentMsgId);
@@ -354,6 +370,7 @@ export async function reconnectSSE(
     console.error("[SSE] Failed to check task status:", err);
   }
 
+  if (!isCurrentRun()) return;
   setConnectionStatus("reconnecting");
 
   const delay = getReconnectDelay(retryCountRef.current);
@@ -363,6 +380,8 @@ export async function reconnectSSE(
   );
 
   reconnectTimeoutRef.current = setTimeout(async () => {
+    if (!isCurrentRun()) return;
+    reconnectTimeoutRef.current = null;
     if (currentMsgId) {
       const msgs = messagesRef.current;
       const lastMsg = msgs.find((m) => m.id === currentMsgId);

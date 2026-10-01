@@ -1,15 +1,29 @@
 /** @vitest-environment jsdom */
 
 import { useState, type ReactNode } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 
-import { resetRightPanelCoordinator } from "../rightPanelCoordinator";
+import {
+  activateRightPanel,
+  getRightPanelSnapshot,
+  resetRightPanelCoordinator,
+} from "../rightPanelCoordinator";
 import { useRightPanelEntry } from "../useRightPanelEntry";
 import { useSidebarPanel } from "../../../hooks/useSidebarPanel";
 import { ToolResultPanel } from "../../chat/ChatMessage/items/ToolResultPanel";
 import { EditorSidebar } from "../EditorSidebar";
+import {
+  RIGHT_PANEL_WIDTH_CHANGED_EVENT,
+  getRightPanelLayoutSnapshot,
+} from "../../../hooks/rightPanelWidthEvents";
 
 function installMatchMedia(width: number): void {
   Object.defineProperty(window, "innerWidth", {
@@ -168,7 +182,7 @@ function SidebarPanelHarness() {
   );
 }
 
-test("clamps an unsafe stored width and supports accessible keyboard resizing", () => {
+test("clamps an unsafe stored width and supports accessible keyboard resizing", async () => {
   installMatchMedia(1200);
   localStorage.setItem("test-right-panel-width", "75");
   render(<SidebarPanelHarness />);
@@ -197,6 +211,8 @@ test("clamps an unsafe stored width and supports accessible keyboard resizing", 
   fireEvent.keyDown(separator, { key: "Home" });
   expect(screen.getByTestId("panel")).toHaveAttribute("data-width", "48");
   expect(localStorage.getItem("test-right-panel-width")).toBe("48");
+  await act(async () => {});
+  expect(getRightPanelLayoutSnapshot()?.open).toBe(true);
 });
 
 test("editor uses complementary semantics when docked", () => {
@@ -212,6 +228,31 @@ test("editor uses complementary semantics when docked", () => {
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 
+test("an open preview follows viewport changes from fullscreen through overlay to docked", () => {
+  installMatchMedia(390);
+  render(
+    <ToolResultPanel open onClose={vi.fn()} title="Responsive preview">
+      body
+    </ToolResultPanel>,
+  );
+  expect(screen.getByRole("dialog")).toHaveAttribute(
+    "data-panel-presentation",
+    "fullscreen",
+  );
+  installMatchMedia(800);
+  fireEvent(window, new Event("resize"));
+  expect(screen.getByRole("dialog")).toHaveAttribute(
+    "data-panel-presentation",
+    "overlay",
+  );
+  installMatchMedia(1440);
+  fireEvent(window, new Event("resize"));
+  expect(screen.getByRole("complementary")).toHaveAttribute(
+    "data-panel-presentation",
+    "docked",
+  );
+});
+
 test("editor close is labelled and resize rail is keyboard accessible", () => {
   render(
     <EditorSidebar open onClose={vi.fn()} title="Model editor">
@@ -219,7 +260,7 @@ test("editor close is labelled and resize rail is keyboard accessible", () => {
     </EditorSidebar>,
   );
 
-  expect(screen.getByRole("button", { name: /close/i })).toBeVisible();
+  expect(screen.getByRole("button", { name: /^close$/i })).toBeVisible();
   expect(screen.getByRole("separator")).toHaveAttribute("aria-valuenow");
 });
 
@@ -268,7 +309,7 @@ test("manual close restores focus to the opening trigger", async () => {
   render(<Harness />);
   const trigger = screen.getByRole("button", { name: "Open editor" });
   await user.click(trigger);
-  await user.click(screen.getByRole("button", { name: /close/i }));
+  await user.click(screen.getByRole("button", { name: /^close$/i }));
 
   await waitFor(() => expect(trigger).toHaveFocus());
 });
@@ -391,4 +432,47 @@ test("Escape closes only the active panel and restores the prior panel", async (
   );
   expect(editorClose).not.toHaveBeenCalled();
   expect(screen.queryByText("active preview")).not.toBeInTheDocument();
+});
+
+test("tab switches hand off layout without reporting a closed sidebar", async () => {
+  const view = render(
+    <>
+      <EditorSidebar open onClose={() => {}} title="First">
+        first
+      </EditorSidebar>
+      <ToolResultPanel open onClose={() => {}} title="Second">
+        second
+      </ToolResultPanel>
+    </>,
+  );
+  const closed = vi.fn();
+  const listener = (event: Event) => {
+    if (!(event as CustomEvent).detail) closed();
+  };
+  window.addEventListener(RIGHT_PANEL_WIDTH_CHANGED_EVENT, listener);
+  try {
+    const entries = getRightPanelSnapshot().entries;
+    for (const entry of [entries[0], entries[1], entries[0]]) {
+      await act(async () => activateRightPanel(entry.id));
+      expect(getRightPanelLayoutSnapshot()?.open).toBe(true);
+      expect(closed).not.toHaveBeenCalled();
+    }
+    view.unmount();
+    await act(async () => {});
+    expect(getRightPanelLayoutSnapshot()).toBeNull();
+    expect(closed).toHaveBeenCalledTimes(1);
+  } finally {
+    window.removeEventListener(RIGHT_PANEL_WIDTH_CHANGED_EVENT, listener);
+  }
+});
+
+test("a sidebar is visible immediately without waiting for animation frames", () => {
+  render(
+    <EditorSidebar open onClose={() => {}} title="Immediate">
+      body
+    </EditorSidebar>,
+  );
+  expect(screen.getByRole("complementary", { name: "Immediate" })).toHaveClass(
+    "editor-sidebar--animate-in",
+  );
 });

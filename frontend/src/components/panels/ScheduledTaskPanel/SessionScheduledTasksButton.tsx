@@ -21,6 +21,7 @@ import { formatDateTimeShort } from "../../../utils/datetime";
 import {
   closePersistentToolPanel,
   isPersistentToolPanelOpen,
+  isPersistentToolPanelActive,
   openPersistentToolPanel,
   updatePersistentToolPanel,
 } from "../../chat/ChatMessage/items/persistentToolPanelState";
@@ -169,7 +170,7 @@ function SessionScheduledTaskPanelBody({
               <div className="scheduled-task-mini-card__actions">
                 <button
                   onClick={() => {
-                    closePersistentToolPanel();
+                    closePersistentToolPanel(SESSION_TASK_PANEL_KEY);
                     navigate(`/scheduled-tasks/${task.id}`);
                   }}
                   className="scheduled-task-button scheduled-task-button--secondary font-serif"
@@ -287,8 +288,8 @@ export function SessionScheduledTasksButton({
   if (!sessionId || !canRead || count === 0) return null;
 
   const togglePanel = () => {
-    if (isPersistentToolPanelOpen(SESSION_TASK_PANEL_KEY)) {
-      closePersistentToolPanel();
+    if (isPersistentToolPanelActive(SESSION_TASK_PANEL_KEY)) {
+      closePersistentToolPanel(SESSION_TASK_PANEL_KEY);
       return;
     }
     openPersistentToolPanel({

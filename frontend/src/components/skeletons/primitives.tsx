@@ -13,7 +13,7 @@ export function SkeletonLine({
   className = "",
 }: SkeletonLineProps) {
   return (
-    <div className={`skeleton-line h-3 rounded-full ${width} ${className}`} />
+    <div aria-hidden="true" className={`skeleton-line max-w-full h-3 rounded-full ${width} ${className}`} />
   );
 }
 

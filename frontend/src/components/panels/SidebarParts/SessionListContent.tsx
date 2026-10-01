@@ -1,15 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
-  ChevronDown,
-  Clock,
   Search,
-  FolderPlus,
   FolderOpen,
   MessageSquarePlus,
   MoreHorizontal,
   CalendarClock,
-  CheckSquare,
   FolderInput,
+  ListChecks,
   Tag,
   Trash2,
   X,
@@ -23,43 +20,35 @@ import { Tooltip } from "../../common/Tooltip";
 import { SkeletonList } from "../../skeletons";
 import { BrandWordmark } from "../../common/BrandWordmark";
 import { BrandLogo } from "../../common/BrandLogo";
+import { SidebarSectionHeader } from "./SidebarSectionHeader";
+import { sectionActionClass, sectionRevealClass } from "./SidebarSectionHeader";
 import { SidebarUserRow } from "./SidebarUserRow";
 import type { BackendSession } from "../../../services/api";
-import { scheduledTaskApi } from "../../../services/api/scheduledTask";
 import type { ProjectItemHandle } from "../../sidebar/ProjectItem";
 import {
   getUnreadCountForUncategorized,
   type UnreadBySession,
 } from "../../sidebar/unreadCounts";
 import { MarkAllReadBadge } from "../../sidebar/MarkAllReadBadge";
-import { groupSessionsByTime } from "../sessionHelpers";
 import { ProjectItem } from "../../sidebar/ProjectItem";
-import {
-  ScheduledTaskSidebarItem,
-  type ScheduledTaskItemHandle,
-} from "../../sidebar/ScheduledTaskSidebarItem";
 import { SessionItem } from "../../sidebar/SessionItem";
 import { APP_NAME, GITHUB_URL } from "../../../constants";
 import { isSessionFavorite } from "../../sidebar/sessionFavorites";
 import { isSessionPinned } from "../../sidebar/sessionPin";
 import type { Project } from "../../../types";
-import type { ScheduledTask } from "../../../types/scheduledTask";
 import { isSidebarProject } from "./projectFilters";
-import { subscribeScheduledTaskMutation } from "../../../stores/scheduledTaskMutationStore";
 import {
   isEveryVisibleSessionSelected,
   toggleAllVisibleSessions,
   toggleSessionSelection,
 } from "../../sidebar/sessionSelection";
 
-const sectionActionIconClass =
-  "text-stone-400 transition-colors group-hover/section:text-stone-700 dark:text-stone-500 dark:group-hover/section:text-stone-200";
-
 export interface SessionActions {
   onDeleteSession: (id: string) => void;
   onMoveSession: (id: string, projectId: string | null) => void;
   onToggleFavorite: (id: string) => void;
   onTogglePin: (id: string) => void;
+  onPinSession: (id: string) => void;
   onShareSession: (id: string) => void;
   onRequestBatchMoveSessions: (ids: string[], projectId: string | null) => void;
   onRequestBatchDeleteSessions: (ids: string[]) => void;
@@ -78,16 +67,13 @@ export interface ProjectActions {
   onDeleteProject: (id: string) => void;
   onShareProject?: (id: string) => void;
   onUpdateIcon: (id: string, icon: string) => void;
+  onUpdateWorkspace?: (
+    id: string,
+    workspace: Project["workspace"],
+  ) => Promise<void>;
   onOpenNewProjectModal: () => void;
   onNewSessionInProject: (projectId: string) => void;
   onSetProjectRef: (id: string, handle: ProjectItemHandle | null) => void;
-}
-
-export interface ScheduledTaskActions {
-  onSetScheduledTaskRef: (
-    id: string,
-    handle: ScheduledTaskItemHandle | null,
-  ) => void;
 }
 
 interface SessionListContentProps {
@@ -115,17 +101,23 @@ interface SessionListContentProps {
   loadMoreRef: React.RefCallback<HTMLElement>;
   onSoftRefreshUncategorized: () => void;
   onUpdateUncategorizedSession: (s: BackendSession) => void;
+  /** 「置顶」分类：跨项目聚合的置顶会话 */
+  pinnedSessions: BackendSession[];
+  isPinnedLoading: boolean;
+  hasMorePinned: boolean;
+  isLoadingMorePinned: boolean;
+  pinnedLoadMoreRef: React.RefCallback<HTMLElement>;
+  onUpdatePinnedSession: (s: BackendSession) => void;
+  isPinnedCollapsed: boolean;
+  onTogglePinnedCollapsed: () => void;
   projects: Project[];
   favoritesProject: Project | undefined;
   currentSessionId: string | null;
   unreadBySession: UnreadBySession;
   sessionActions: SessionActions;
   projectActions: ProjectActions;
-  scheduledTaskActions: ScheduledTaskActions;
   isProjectsCollapsed: boolean;
   onToggleProjectsCollapsed: () => void;
-  isScheduledTasksCollapsed: boolean;
-  onToggleScheduledTasksCollapsed: () => void;
   isNavCollapsed: boolean;
   onToggleNavCollapsed: () => void;
   isChatsCollapsed: boolean;
@@ -164,17 +156,22 @@ export function SessionListContent({
   isLoadingMoreUncategorized,
   loadMoreRef,
   onUpdateUncategorizedSession,
+  pinnedSessions,
+  isPinnedLoading,
+  hasMorePinned,
+  isLoadingMorePinned,
+  pinnedLoadMoreRef,
+  onUpdatePinnedSession,
+  isPinnedCollapsed,
+  onTogglePinnedCollapsed,
   projects,
   favoritesProject,
   currentSessionId,
   unreadBySession,
   sessionActions,
   projectActions,
-  scheduledTaskActions,
   isProjectsCollapsed,
   onToggleProjectsCollapsed,
-  isScheduledTasksCollapsed,
-  onToggleScheduledTasksCollapsed,
   isChatsCollapsed,
   onToggleChatsCollapsed,
   autoExpandProjectId,
@@ -191,62 +188,14 @@ export function SessionListContent({
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const canReadScheduledTasks = hasPermission(Permission.SCHEDULED_TASK_READ);
-  const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
-  const [scheduledTaskTotal, setScheduledTaskTotal] = useState(0);
-  const [isScheduledTasksLoading, setIsScheduledTasksLoading] = useState(false);
+  const [isPinnedDragOver, setIsPinnedDragOver] = useState(false);
   const [isProjectPickerOpen, setIsProjectPickerOpen] = useState(false);
-  const scheduledTaskUnreadByTaskRef = useRef(new Map<string, number>());
-
-  const loadScheduledTasks = useCallback(async () => {
-    setIsScheduledTasksLoading(true);
-    try {
-      const response = await scheduledTaskApi.list(0, 10);
-      setScheduledTasks(response.items);
-      setScheduledTaskTotal(response.total);
-    } catch {
-      setScheduledTasks([]);
-      setScheduledTaskTotal(0);
-    } finally {
-      setIsScheduledTasksLoading(false);
-    }
-  }, []);
-
-  // Re-fetch sidebar task list when a task is created/updated/deleted elsewhere
-  useEffect(() => {
-    return subscribeScheduledTaskMutation(() => {
-      if (canReadScheduledTasks && !isScheduledTasksCollapsed) {
-        void loadScheduledTasks();
-      }
-    });
-  }, [canReadScheduledTasks, isScheduledTasksCollapsed, loadScheduledTasks]);
-
-  useEffect(() => {
-    if (canReadScheduledTasks && !isScheduledTasksCollapsed) {
-      void loadScheduledTasks();
-    } else {
-      setScheduledTasks([]);
-      setScheduledTaskTotal(0);
-      scheduledTaskUnreadByTaskRef.current = new Map();
-    }
-  }, [canReadScheduledTasks, isScheduledTasksCollapsed, loadScheduledTasks]);
-
-  useEffect(() => {
-    const taskIds = new Set(scheduledTasks.map((task) => task.id));
-    const prev = scheduledTaskUnreadByTaskRef.current;
-    if (Array.from(prev.keys()).every((taskId) => taskIds.has(taskId))) {
-      return;
-    }
-    const next = new Map<string, number>();
-    for (const [taskId, unreadCount] of prev) {
-      if (taskIds.has(taskId)) next.set(taskId, unreadCount);
-    }
-    scheduledTaskUnreadByTaskRef.current = next;
-  }, [scheduledTasks]);
 
   const visibleUncategorizedSessions = useMemo(
     () =>
       uncategorizedSessions.filter(
-        (session) => !session.metadata?.scheduled_task_id,
+        (session) =>
+          !session.metadata?.scheduled_task_id && !isSessionPinned(session),
       ),
     [uncategorizedSessions],
   );
@@ -254,13 +203,11 @@ export function SessionListContent({
     loadedSessions: visibleUncategorizedSessions,
     unreadBySession,
   });
-  const groupedUncategorized = useMemo(
-    () => groupSessionsByTime(visibleUncategorizedSessions, t),
-    [visibleUncategorizedSessions, t],
-  );
   const visibleUncategorizedIds = useMemo(
     () =>
-      visibleUncategorizedSessions.map((session) => session.id).filter(Boolean),
+      visibleUncategorizedSessions
+        .filter((session) => session.id && !isSessionPinned(session))
+        .map((session) => session.id),
     [visibleUncategorizedSessions],
   );
   const allVisibleSelected = isEveryVisibleSessionSelected(
@@ -279,29 +226,6 @@ export function SessionListContent({
         .sort((a, b) => a.sort_order - b.sort_order),
     [projects],
   );
-  const handleScheduledTaskUnreadChange = useCallback(
-    (taskId: string, unreadCount: number) => {
-      const prev = scheduledTaskUnreadByTaskRef.current;
-      if (prev.get(taskId) === unreadCount) return;
-      const next = new Map(prev);
-      next.set(taskId, unreadCount);
-      scheduledTaskUnreadByTaskRef.current = next;
-    },
-    [],
-  );
-  const handleScheduledTaskMarkAllRead = useCallback(
-    async (scheduledTaskId: string) => {
-      await onMarkAllRead({ scheduledTaskId });
-      scheduledTaskUnreadByTaskRef.current.delete(scheduledTaskId);
-      setScheduledTasks((prev) =>
-        prev.map((task) =>
-          task.id === scheduledTaskId ? { ...task, unread_count: 0 } : task,
-        ),
-      );
-    },
-    [onMarkAllRead],
-  );
-
   const handleToggleSelectionMode = useCallback(() => {
     if (isSelectionMode) {
       onClearSelection();
@@ -344,74 +268,79 @@ export function SessionListContent({
     <>
       {/* Header（桌面双栏模式下品牌与折叠由 ActivityRail 承接，不渲染） */}
       {!compactChrome && (
-      <div className="flex items-center justify-between px-3 pt-3 pb-2">
-        <div className="flex size-7 items-center gap-1.5">
-          <BrandLogo alt={APP_NAME} className="size-7 mb-1" />
-          <a
-            href={GITHUB_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-stone-800 dark:text-stone-100 hover:text-stone-900 dark:hover:text-stone-50 transition-colors"
-          >
-            <BrandWordmark decorative className="size-7 w-auto mb-1" />
-          </a>
-        </div>
-        <Tooltip content={t("sidebar.collapseSidebar")}>
-          <button
-            onClick={onCollapse}
-            className="flex size-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800/60 transition-colors cursor-w-resize rtl:cursor-e-resize"
-            aria-label={t("sidebar.collapseSidebar")}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              className="size-5 text-stone-600 dark:text-stone-300"
+        <div className="flex items-center justify-between px-3 pt-3 pb-2">
+          <div className="flex size-7 items-center gap-1.5">
+            <BrandLogo alt={APP_NAME} className="size-7 mb-1" />
+            <a
+              href={GITHUB_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-theme-text dark:text-stone-100 hover:text-theme-text dark:hover:text-stone-50 transition-colors"
             >
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M8.85719 3H15.1428C16.2266 2.99999 17.1007 2.99998 17.8086 3.05782C18.5375 3.11737 19.1777 3.24318 19.77 3.54497C20.7108 4.02433 21.4757 4.78924 21.955 5.73005C22.2568 6.32234 22.3826 6.96253 22.4422 7.69138C22.5 8.39925 22.5 9.27339 22.5 10.3572V13.6428C22.5 14.7266 22.5 15.6008 22.4422 16.3086C22.3826 17.0375 22.2568 17.6777 21.955 18.27C21.4757 19.2108 20.7108 19.9757 19.77 20.455C19.1777 20.7568 18.5375 20.8826 17.8086 20.9422C17.1008 21 16.2266 21 15.1428 21H8.85717C7.77339 21 6.89925 21 6.19138 20.9422C5.46253 20.8826 4.82234 20.7568 4.23005 20.455C3.28924 19.9757 2.52433 19.2108 2.04497 18.27C1.74318 17.6777 1.61737 17.0375 1.55782 16.3086C1.49998 15.6007 1.49999 14.7266 1.5 13.6428V10.3572C1.49999 9.27341 1.49998 8.39926 1.55782 7.69138C1.61737 6.96253 1.74318 6.32234 2.04497 5.73005C2.52433 4.78924 3.28924 4.02433 4.23005 3.54497C4.82234 3.24318 5.46253 3.11737 6.19138 3.05782C6.89926 2.99998 7.77341 2.99999 8.85719 3ZM6.35424 5.05118C5.74907 5.10062 5.40138 5.19279 5.13803 5.32698C4.57354 5.6146 4.1146 6.07354 3.82698 6.63803C3.69279 6.90138 3.60062 7.24907 3.55118 7.85424C3.50078 8.47108 3.5 9.26339 3.5 10.4V13.6C3.5 14.7366 3.50078 15.5289 3.55118 16.1458C3.60062 16.7509 3.69279 17.0986 3.82698 17.362C4.1146 17.9265 4.57354 18.3854 5.13803 18.673C5.40138 18.8072 5.74907 18.8994 6.35424 18.9488C6.97108 18.9992 7.76339 19 8.9 19H9.5V5H8.9C7.76339 5 6.97108 5.00078 6.35424 5.05118ZM11.5 5V19H15.1C16.2366 19 17.0289 18.9992 17.6458 18.9488C18.2509 18.8994 18.5986 18.8072 18.862 18.673C19.4265 18.3854 19.8854 17.9265 20.173 17.362C20.3072 17.0986 20.3994 16.7509 20.4488 16.1458C20.4992 15.5289 20.5 14.7366 20.5 13.6V10.4C20.5 9.26339 20.4992 8.47108 20.4488 7.85424C20.3994 7.24907 20.3072 6.90138 20.173 6.63803C19.8854 6.57354 19.4265 6.1146 18.862 5.32698C18.5986 5.19279 18.2509 5.10062 17.6458 5.05118C17.0289 5.00078 16.2366 5 15.1 5H11.5ZM5 8.5C5 7.94772 5.44772 7.5 6 7.5H7C7.55229 7.5 8 7.94772 8 8.5C8 9.05229 7.55229 9.5 7 9.5H6C5.44772 9.5 5 9.05229 5 8.5ZM5 12C5 11.4477 5.44772 11 6 11H7C7.55229 11 8 11.4477 8 12C8 12.5523 7.55229 13 7 13H6C5.44772 13 5 12.4477 5 12Z"
-                fill="currentColor"
-              />
-            </svg>
-          </button>
-        </Tooltip>
-      </div>
+              <BrandWordmark decorative className="size-7 w-auto mb-1" />
+            </a>
+          </div>
+          <Tooltip content={t("sidebar.collapseSidebar")}>
+            <button
+              onClick={onCollapse}
+              className="flex size-8 items-center justify-center rounded-lg text-theme-text-secondary dark:text-stone-400 transition-colors cursor-w-resize rtl:cursor-e-resize"
+              aria-label={t("sidebar.collapseSidebar")}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                className="size-5 text-theme-text-secondary dark:text-stone-300"
+              >
+                <path
+                  fillRule="evenodd"
+                  clipRule="evenodd"
+                  d="M8.85719 3H15.1428C16.2266 2.99999 17.1007 2.99998 17.8086 3.05782C18.5375 3.11737 19.1777 3.24318 19.77 3.54497C20.7108 4.02433 21.4757 4.78924 21.955 5.73005C22.2568 6.32234 22.3826 6.96253 22.4422 7.69138C22.5 8.39925 22.5 9.27339 22.5 10.3572V13.6428C22.5 14.7266 22.5 15.6008 22.4422 16.3086C22.3826 17.0375 22.2568 17.6777 21.955 18.27C21.4757 19.2108 20.7108 19.9757 19.77 20.455C19.1777 20.7568 18.5375 20.8826 17.8086 20.9422C17.1008 21 16.2266 21 15.1428 21H8.85717C7.77339 21 6.89925 21 6.19138 20.9422C5.46253 20.8826 4.82234 20.7568 4.23005 20.455C3.28924 19.9757 2.52433 19.2108 2.04497 18.27C1.74318 17.6777 1.61737 17.0375 1.55782 16.3086C1.49998 15.6007 1.49999 14.7266 1.5 13.6428V10.3572C1.49999 9.27341 1.49998 8.39926 1.55782 7.69138C1.61737 6.96253 1.74318 6.32234 2.04497 5.73005C2.52433 4.78924 3.28924 4.02433 4.23005 3.54497C4.82234 3.24318 5.46253 3.11737 6.19138 3.05782C6.89926 2.99998 7.77341 2.99999 8.85719 3ZM6.35424 5.05118C5.74907 5.10062 5.40138 5.19279 5.13803 5.32698C4.57354 5.6146 4.1146 6.07354 3.82698 6.63803C3.69279 6.90138 3.60062 7.24907 3.55118 7.85424C3.50078 8.47108 3.5 9.26339 3.5 10.4V13.6C3.5 14.7366 3.50078 15.5289 3.55118 16.1458C3.60062 16.7509 3.69279 17.0986 3.82698 17.362C4.1146 17.9265 4.57354 18.3854 5.13803 18.673C5.40138 18.8072 5.74907 18.8994 6.35424 18.9488C6.97108 18.9992 7.76339 19 8.9 19H9.5V5H8.9C7.76339 5 6.97108 5.00078 6.35424 5.05118ZM11.5 5V19H15.1C16.2366 19 17.0289 18.9992 17.6458 18.9488C18.2509 18.8994 18.5986 18.8072 18.862 18.673C19.4265 18.3854 19.8854 17.9265 20.173 17.362C20.3072 17.0986 20.3994 16.7509 20.4488 16.1458C20.4992 15.5289 20.5 14.7366 20.5 13.6V10.4C20.5 9.26339 20.4992 8.47108 20.4488 7.85424C20.3994 7.24907 20.3072 6.90138 20.173 6.63803C19.8854 6.57354 19.4265 6.1146 18.862 5.32698C18.5986 5.19279 18.2509 5.10062 17.6458 5.05118C17.0289 5.00078 16.2366 5 15.1 5H11.5ZM5 8.5C5 7.94772 5.44772 7.5 6 7.5H7C7.55229 7.5 8 7.94772 8 8.5C8 9.05229 7.55229 9.5 7 9.5H6C5.44772 9.5 5 9.05229 5 8.5ZM5 12C5 11.4477 5.44772 11 6 11H7C7.55229 11 8 11.4477 8 12C8 12.5523 7.55229 13 7 13H6C5.44772 13 5 12.4477 5 12Z"
+                  fill="currentColor"
+                />
+              </svg>
+            </button>
+          </Tooltip>
+        </div>
       )}
-      {compactChrome && <div className="pt-3" />}
-
-      {/* Action buttons（桌面双栏模式下入口在 ActivityRail，不渲染） */}
-      {!compactChrome && (
-      <div className="flex flex-col gap-px px-2 mb-2 space-y-1">
+      {/* 桌面壳仅保留新建对话，其余入口由顶栏和最左侧导航承接。 */}
+      <div
+        className={
+          compactChrome
+            ? "flex flex-col gap-px ps-1 pe-0 pt-1 mb-2 space-y-1"
+            : "flex flex-col gap-px ps-1 pe-0 mb-2 space-y-1"
+        }
+      >
         <button
           onClick={onNewSession}
           className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors group"
         >
           <MessageSquarePlus size={20} />
           <span className="flex-1 text-left">{t("sidebar.newChat")}</span>
-          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-10 font-medium text-stone-400 dark:text-stone-500 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-10 font-medium text-theme-text-tertiary dark:text-stone-500 rounded opacity-0 group-hover:opacity-100 transition-opacity">
             {t("sidebar.newChatShortcut")}
           </kbd>
         </button>
 
-        <button
-          onClick={onOpenSearch}
-          className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors group"
-        >
-          <Search size={20} />
-          <span className="flex-1 text-left">
-            {t("sidebar.searchSessions")}
-          </span>
-          <kbd
-            className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-10 font-medium rounded opacity-0 group-hover:opacity-100 transition-opacity"
-            style={{ color: "var(--theme-text-tertiary)" }}
+        {!compactChrome && (
+          <button
+            onClick={onOpenSearch}
+            className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors group"
           >
-            ⌘K
-          </kbd>
-        </button>
+            <Search size={20} />
+            <span className="flex-1 text-left">
+              {t("sidebar.searchSessions")}
+            </span>
+            <kbd
+              className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-10 font-medium rounded opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{ color: "var(--theme-text-tertiary)" }}
+            >
+              ⌘K
+            </kbd>
+          </button>
+        )}
 
-        {canReadScheduledTasks && (
+        {!compactChrome && canReadScheduledTasks && (
           <button
             onClick={() => navigate("/scheduled-tasks")}
             className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors"
@@ -421,15 +350,17 @@ export function SessionListContent({
           </button>
         )}
 
-        <button
-          onClick={() => navigate("/files")}
-          className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors"
-        >
-          <FolderOpen size={20} />
-          <span>{t("fileLibrary.title")}</span>
-        </button>
+        {!compactChrome && (
+          <button
+            onClick={() => navigate("/files")}
+            className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors"
+          >
+            <FolderOpen size={20} />
+            <span>{t("fileLibrary.title")}</span>
+          </button>
+        )}
 
-        {hasMoreMenuItems && (
+        {!compactChrome && hasMoreMenuItems && (
           <div className="relative">
             <button
               ref={expandedMoreMenuBtnRef}
@@ -442,40 +373,149 @@ export function SessionListContent({
           </div>
         )}
       </div>
-      )}
 
       {/* Session list */}
       <div
         ref={onSetScrollEl}
         data-sidebar-scroll
-        className="flex-1 overflow-y-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex-1 overflow-y-auto ps-1 pe-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <div className="flex flex-col gap-px">
-          {/* Project section header */}
+          {/* Pinned sessions (aggregated across projects) */}
           <div
-            onClick={onToggleProjectsCollapsed}
-            className="flex items-center justify-between px-[9px] h-9 cursor-pointer select-none group/section"
+            data-pinned-drop
+            onDragOver={(event) => {
+              if (
+                !event.dataTransfer.types.includes(
+                  "application/x-lambchat-session",
+                )
+              )
+                return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+              setIsPinnedDragOver(true);
+            }}
+            onDragLeave={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node))
+                setIsPinnedDragOver(false);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              setIsPinnedDragOver(false);
+              const sessionId = event.dataTransfer.getData(
+                "application/x-lambchat-session",
+              );
+              if (sessionId) sessionActions.onPinSession(sessionId);
+            }}
+            className={
+              isPinnedDragOver || sessionActions.touchDropTarget === "pinned"
+                ? "rounded-[10px] bg-theme-border/60 dark:bg-stone-700/40 ring-1 ring-inset ring-theme-border-hover dark:ring-stone-600"
+                : undefined
+            }
           >
-            <span className="text-13 font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
-              {t("sidebar.projects")}
-            </span>
-            <ChevronDown
-              size={14}
-              className={`transition-transform duration-200 ${sectionActionIconClass} ${
-                isProjectsCollapsed ? "-rotate-90" : ""
-              }`}
+            <SidebarSectionHeader
+              label={t("sidebar.pinnedChats")}
+              collapsed={isPinnedCollapsed}
+              onToggle={onTogglePinnedCollapsed}
+              createLabel={t("sidebar.newChat")}
+              moreLabel={t("nav.more")}
+              menuItems={[
+                {
+                  label: t(
+                    isPinnedCollapsed ? "common.expand" : "common.collapse",
+                  ),
+                  onClick: onTogglePinnedCollapsed,
+                },
+              ]}
             />
+            {!isPinnedCollapsed && (
+              <>
+                {isPinnedLoading ? (
+                  <SkeletonList count={3} compact />
+                ) : (
+                  <div className="flex flex-col gap-px">
+                    {pinnedSessions
+                      .filter((session) => session.id)
+                      .map((session) => (
+                        <SessionItem
+                          key={session.id}
+                          session={session}
+                          isActive={currentSessionId === session.id}
+                          projects={projects}
+                          onSelect={() =>
+                            sessionActions.onSelectSession(session.id)
+                          }
+                          onDelete={() =>
+                            sessionActions.onDeleteSession(session.id)
+                          }
+                          onMoveToProject={(projectId) =>
+                            sessionActions.onMoveSession(session.id, projectId)
+                          }
+                          currentProjectId={
+                            (session.metadata?.project_id as
+                              | string
+                              | null
+                              | undefined) ?? null
+                          }
+                          onShare={() =>
+                            sessionActions.onShareSession(session.id)
+                          }
+                          onToggleFavorite={() =>
+                            sessionActions.onToggleFavorite(session.id)
+                          }
+                          onDragStartTouch={sessionActions.onDragStartTouch}
+                          isDraggingTouch={
+                            sessionActions.draggingSessionId === session.id
+                          }
+                          onSessionUpdate={onUpdatePinnedSession}
+                          isFavorite={isSessionFavorite(session)}
+                          onTogglePin={() =>
+                            sessionActions.onTogglePin(session.id)
+                          }
+                          isPinned={isSessionPinned(session)}
+                          selectionMode={isSelectionMode}
+                          isSelected={selectedSessionIds.has(session.id)}
+                          onToggleSelected={() =>
+                            handleToggleSessionSelected(session.id)
+                          }
+                        />
+                      ))}
+                  </div>
+                )}
+                {hasMorePinned && (
+                  <div
+                    ref={pinnedLoadMoreRef}
+                    className="flex justify-center py-2"
+                  >
+                    {isLoadingMorePinned && (
+                      <div className="flex items-center gap-2 text-theme-text-tertiary dark:text-stone-500">
+                        <LoadingSpinner size="xs" />
+                        <span className="text-12">{t("common.loading")}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
-          {!isProjectsCollapsed && (
-            <button
-              onClick={projectActions.onOpenNewProjectModal}
-              className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors cursor-pointer"
-            >
-              <FolderPlus size={20} />
-              <span>{t("sidebar.newProject")}</span>
-            </button>
-          )}
+          {/* Project section header */}
+          <SidebarSectionHeader
+            label={t("sidebar.projects")}
+            collapsed={isProjectsCollapsed}
+            onToggle={onToggleProjectsCollapsed}
+            createLabel={t("sidebar.newProject")}
+            onCreate={projectActions.onOpenNewProjectModal}
+            moreLabel={t("nav.more")}
+            menuItems={[
+              {
+                label: t(
+                  isProjectsCollapsed ? "common.expand" : "common.collapse",
+                ),
+                onClick: onToggleProjectsCollapsed,
+              },
+            ]}
+          />
 
           {/* Favorites project */}
           {!isProjectsCollapsed &&
@@ -534,6 +574,7 @@ export function SessionListContent({
                 onRenameProject={projectActions.onRenameProject}
                 onDeleteProject={projectActions.onDeleteProject}
                 onUpdateIcon={projectActions.onUpdateIcon}
+                onUpdateWorkspace={projectActions.onUpdateWorkspace}
                 scrollRoot={scrollEl}
                 draggingSessionId={
                   sessionActions.touchDropTarget === project.id
@@ -552,109 +593,58 @@ export function SessionListContent({
               />
             ))}
 
-          {!isProjectsCollapsed && (
-            <div className="h-px bg-stone-200/60 dark:bg-stone-700/40 mx-2 my-1" />
-          )}
+          {!isProjectsCollapsed &&
+            !favoritesProject &&
+            customProjects.length === 0 && (
+              <p className="px-[9px] py-2 text-12 text-theme-text-tertiary">
+                {t("sidebar.noProjects")}
+              </p>
+            )}
 
-          {canReadScheduledTasks && (
+          {/* Recent uncategorized sessions */}
+          {visibleUncategorizedSessions.length > 0 || isUncategorizedLoading ? (
             <>
-              {/* Scheduled tasks section */}
-              <div
-                onClick={onToggleScheduledTasksCollapsed}
-                className="flex items-center justify-between px-[9px] h-9 cursor-pointer select-none group/section"
-              >
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="text-13 font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
-                    {t("nav.scheduled-tasks")}
+              {isSelectionMode ? (
+                <div className="flex h-9 items-center justify-between gap-2 px-[9px]">
+                  <span className="text-13 font-medium text-theme-text-secondary dark:text-stone-400">
+                    {t("sidebar.selectedCount", { count: selectedCount })}
                   </span>
-                </div>
-                <ChevronDown
-                  size={14}
-                  className={`transition-transform duration-200 ${sectionActionIconClass} ${
-                    isScheduledTasksCollapsed ? "-rotate-90" : ""
-                  }`}
-                />
-              </div>
-
-              {!isScheduledTasksCollapsed && (
-                <>
-                  <button
-                    onClick={() => navigate("/scheduled-tasks")}
-                    className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors cursor-pointer"
-                  >
-                    <Clock size={20} />
-                    <span>{t("scheduledTask.create")}</span>
-                  </button>
-
-                  {isScheduledTasksLoading ? (
-                    <SkeletonList count={3} compact />
-                  ) : (
-                    scheduledTasks.map((task) => (
-                      <ScheduledTaskSidebarItem
-                        key={task.id}
-                        ref={(el) =>
-                          scheduledTaskActions.onSetScheduledTaskRef(
-                            task.id,
-                            el,
-                          )
-                        }
-                        task={task}
-                        currentSessionId={currentSessionId}
-                        allProjects={projects}
-                        onSelectSession={sessionActions.onSelectSession}
-                        onDeleteSession={sessionActions.onDeleteSession}
-                        onMoveSession={sessionActions.onMoveSession}
-                        onToggleFavorite={sessionActions.onToggleFavorite}
-                        onShareSession={sessionActions.onShareSession}
-                        onUnreadCountChange={handleScheduledTaskUnreadChange}
-                        scrollRoot={scrollEl}
-                        draggingSessionId={sessionActions.draggingSessionId}
-                        unreadBySession={unreadBySession}
-                        onMarkAllRead={() =>
-                          handleScheduledTaskMarkAllRead(task.id)
-                        }
-                        markingReadId={markingReadId}
-                        selectionMode={isSelectionMode}
-                        selectedSessionIds={selectedSessionIds}
-                        onToggleSessionSelected={handleToggleSessionSelected}
-                      />
-                    ))
-                  )}
-
-                  {scheduledTaskTotal > scheduledTasks.length && (
+                  <div className="flex items-center gap-1">
                     <button
-                      onClick={() => navigate("/scheduled-tasks")}
-                      className="w-full h-8 rounded-[10px] px-[9px] text-left text-13 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600 dark:text-stone-500 dark:hover:bg-stone-800/40 dark:hover:text-stone-300"
+                      type="button"
+                      onClick={handleToggleAllVisible}
+                      className="sidebar-nav-btn rounded-md px-2 py-1 text-12"
                     >
-                      {t("nav.more", "更多")}
+                      {allVisibleSelected
+                        ? t("sidebar.clearVisibleSelection")
+                        : t("sidebar.selectVisible")}
                     </button>
-                  )}
-                </>
-              )}
-
-              {!isScheduledTasksCollapsed && (
-                <div className="h-px bg-stone-200/60 dark:bg-stone-700/40 mx-2 my-1" />
-              )}
-            </>
-          )}
-
-          {/* Uncategorized sessions (by time) */}
-          {groupedUncategorized.length > 0 || isUncategorizedLoading ? (
-            <>
-              <div
-                onClick={isSelectionMode ? undefined : onToggleChatsCollapsed}
-                className="flex items-center justify-between px-[9px] h-9 cursor-pointer select-none group/section"
-              >
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="text-13 font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
-                    {isSelectionMode
-                      ? t("sidebar.selectedCount", {
-                          count: selectedCount,
-                          defaultValue: "已选 {{count}} 个",
-                        })
-                      : t("sidebar.chats")}
-                  </span>
-                  {!isSelectionMode && chatsUnreadCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleToggleSelectionMode}
+                      aria-label={t("common.cancel")}
+                      className="sidebar-nav-btn flex size-7 items-center justify-center rounded-md"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <SidebarSectionHeader
+                  label={t("sidebar.recentChats")}
+                  collapsed={isChatsCollapsed}
+                  onToggle={onToggleChatsCollapsed}
+                  createLabel={t("sidebar.newChat")}
+                  onCreate={onNewSession}
+                  moreLabel={t("nav.more")}
+                  menuItems={[
+                    {
+                      label: t("sidebar.selectMode"),
+                      onClick: handleToggleSelectionMode,
+                    },
+                  ]}
+                >
+                  {chatsUnreadCount > 0 && (
                     <MarkAllReadBadge
                       count={chatsUnreadCount}
                       badgeId="all"
@@ -663,123 +653,75 @@ export function SessionListContent({
                       tooltip={t("sidebar.markAllRead")}
                     />
                   )}
-                </div>
-                <div className="flex items-center gap-1">
-                  {isSelectionMode && (
+                  <Tooltip content={t("sidebar.selectMode")}>
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleToggleAllVisible();
-                      }}
-                      className="rounded-md px-2 py-1 text-12 font-medium text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-700 dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-200"
+                      onClick={handleToggleSelectionMode}
+                      aria-label={t("sidebar.selectMode")}
+                      className={`${sectionActionClass} ${sectionRevealClass}`}
                     >
-                      {allVisibleSelected
-                        ? t("sidebar.clearVisibleSelection")
-                        : t("sidebar.selectVisible")}
+                      <ListChecks size={14} />
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleToggleSelectionMode();
-                    }}
-                    className={`inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-stone-100 dark:hover:bg-stone-800/60 ${sectionActionIconClass}`}
-                    title={
-                      isSelectionMode
-                        ? t("common.cancel")
-                        : t("sidebar.selectMode")
-                    }
-                    aria-label={
-                      isSelectionMode
-                        ? t("common.cancel")
-                        : t("sidebar.selectMode")
-                    }
-                  >
-                    {isSelectionMode ? (
-                      <X size={14} />
-                    ) : (
-                      <CheckSquare size={14} />
-                    )}
-                  </button>
-                  {!isSelectionMode && (
-                    <ChevronDown
-                      size={14}
-                      className={`shrink-0 duration-200 ${sectionActionIconClass} ${
-                        isChatsCollapsed ? "-rotate-90" : ""
-                      }`}
-                    />
-                  )}
-                </div>
-              </div>
+                  </Tooltip>
+                </SidebarSectionHeader>
+              )}
 
               {(!isChatsCollapsed || isSelectionMode) && (
                 <>
                   {isUncategorizedLoading ? (
                     <SkeletonList count={5} compact />
                   ) : (
-                    groupedUncategorized.map((group) => (
-                      <div key={group.label}>
-                        <div className="px-[9px] h-8 flex items-center text-13 font-medium text-stone-400 dark:text-stone-500 select-none">
-                          {group.label}
-                        </div>
-                        <div className="flex flex-col gap-px">
-                          {group.sessions
-                            .filter((session) => session.id)
-                            .map((session) => (
-                              <SessionItem
-                                key={session.id}
-                                session={session}
-                                isActive={currentSessionId === session.id}
-                                projects={projects}
-                                onSelect={() =>
-                                  sessionActions.onSelectSession(session.id)
-                                }
-                                onDelete={() =>
-                                  sessionActions.onDeleteSession(session.id)
-                                }
-                                onMoveToProject={(projectId) =>
-                                  sessionActions.onMoveSession(
-                                    session.id,
-                                    projectId,
-                                  )
-                                }
-                                currentProjectId={null}
-                                onShare={() =>
-                                  sessionActions.onShareSession(session.id)
-                                }
-                                onToggleFavorite={() =>
-                                  sessionActions.onToggleFavorite(session.id)
-                                }
-                                onSessionUpdate={onUpdateUncategorizedSession}
-                                isFavorite={isSessionFavorite(session)}
-                                onTogglePin={() =>
-                                  sessionActions.onTogglePin(session.id)
-                                }
-                                isPinned={isSessionPinned(session)}
-                                onDragStartTouch={
-                                  sessionActions.onDragStartTouch
-                                }
-                                isDraggingTouch={
-                                  sessionActions.draggingSessionId ===
-                                  session.id
-                                }
-                                selectionMode={isSelectionMode}
-                                isSelected={selectedSessionIds.has(session.id)}
-                                onToggleSelected={() =>
-                                  handleToggleSessionSelected(session.id)
-                                }
-                              />
-                            ))}
-                        </div>
-                      </div>
-                    ))
+                    <div className="flex flex-col gap-px">
+                      {visibleUncategorizedSessions
+                        .filter((session) => session.id)
+                        .map((session) => (
+                          <SessionItem
+                            key={session.id}
+                            session={session}
+                            isActive={currentSessionId === session.id}
+                            projects={projects}
+                            onSelect={() =>
+                              sessionActions.onSelectSession(session.id)
+                            }
+                            onDelete={() =>
+                              sessionActions.onDeleteSession(session.id)
+                            }
+                            onMoveToProject={(projectId) =>
+                              sessionActions.onMoveSession(
+                                session.id,
+                                projectId,
+                              )
+                            }
+                            currentProjectId={null}
+                            onShare={() =>
+                              sessionActions.onShareSession(session.id)
+                            }
+                            onToggleFavorite={() =>
+                              sessionActions.onToggleFavorite(session.id)
+                            }
+                            onSessionUpdate={onUpdateUncategorizedSession}
+                            isFavorite={isSessionFavorite(session)}
+                            onTogglePin={() =>
+                              sessionActions.onTogglePin(session.id)
+                            }
+                            isPinned={isSessionPinned(session)}
+                            onDragStartTouch={sessionActions.onDragStartTouch}
+                            isDraggingTouch={
+                              sessionActions.draggingSessionId === session.id
+                            }
+                            selectionMode={isSelectionMode}
+                            isSelected={selectedSessionIds.has(session.id)}
+                            onToggleSelected={() =>
+                              handleToggleSessionSelected(session.id)
+                            }
+                          />
+                        ))}
+                    </div>
                   )}
                   {hasMoreUncategorized && (
                     <div ref={loadMoreRef} className="flex justify-center py-2">
                       {isLoadingMoreUncategorized && (
-                        <div className="flex items-center gap-2 text-stone-400 dark:text-stone-500">
+                        <div className="flex items-center gap-2 text-theme-text-tertiary dark:text-stone-500">
                           <LoadingSpinner size="xs" />
                           <span className="text-12">{t("common.loading")}</span>
                         </div>
@@ -794,11 +736,11 @@ export function SessionListContent({
       </div>
 
       {isSelectionMode && (
-        <div className="shrink-0 border-t border-stone-200/80 bg-[var(--theme-bg-sidebar)] px-2 py-2 dark:border-stone-800/70">
+        <div className="shrink-0 border-t border-theme-border/80 bg-[var(--theme-bg-sidebar)] px-2 py-2 dark:border-stone-800/70">
           <div className="relative">
             {isProjectPickerOpen && (
-              <div className="absolute bottom-12 left-0 right-0 z-30 overflow-hidden rounded-xl border border-stone-200 bg-stone-50 shadow-xl shadow-stone-900/10 dark:border-stone-700 dark:bg-stone-900 dark:shadow-black/30">
-                <div className="px-3 py-2 text-11 font-medium uppercase tracking-wide text-stone-400 dark:text-stone-500">
+              <div className="absolute bottom-12 left-0 right-0 z-30 overflow-hidden rounded-xl border border-theme-border bg-theme-bg-subtle shadow-xl shadow-stone-900/10 dark:border-stone-700 dark:bg-stone-900 dark:shadow-black/30">
+                <div className="px-3 py-2 text-11 font-medium uppercase tracking-wide text-theme-text-tertiary dark:text-stone-500">
                   {t("sidebar.moveSelectedToProject")}
                 </div>
                 <div className="max-h-56 overflow-y-auto p-1">
@@ -807,11 +749,11 @@ export function SessionListContent({
                       key={project.id}
                       type="button"
                       onClick={() => handleMoveSelected(project.id)}
-                      className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-13 font-medium text-stone-600 transition hover:bg-stone-200/60 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-stone-50"
+                      className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-13 font-medium text-theme-text-secondary transition hover:text-theme-text dark:text-stone-300 dark:hover:text-stone-50"
                     >
                       <FolderInput
                         size={15}
-                        className="shrink-0 text-stone-400"
+                        className="shrink-0 text-theme-text-tertiary"
                       />
                       <span className="truncate font-serif">
                         {project.name}
@@ -821,9 +763,9 @@ export function SessionListContent({
                   <button
                     type="button"
                     onClick={() => handleMoveSelected(null)}
-                    className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-13 font-medium text-stone-600 transition hover:bg-stone-200/60 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-stone-50"
+                    className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-13 font-medium text-theme-text-secondary transition hover:text-theme-text dark:text-stone-300 dark:hover:text-stone-50"
                   >
-                    <Tag size={15} className="shrink-0 text-stone-400" />
+                    <Tag size={15} className="shrink-0 text-theme-text-tertiary" />
                     <span className="truncate">
                       {t("sidebar.uncategorized")}
                     </span>
@@ -832,8 +774,8 @@ export function SessionListContent({
               </div>
             )}
 
-            <div className="flex items-center justify-between gap-2 rounded-[10px] bg-stone-100/85 p-1 ring-1 ring-inset ring-stone-200/80 dark:bg-stone-800/55 dark:ring-stone-700/70">
-              <div className="flex h-8 min-w-[72px] shrink-0 items-center justify-center rounded-lg bg-white/70 px-2 text-12 font-semibold text-stone-600 ring-1 ring-inset ring-stone-200/70 dark:bg-stone-900/45 dark:text-stone-300 dark:ring-stone-700/60">
+            <div className="flex items-center justify-between gap-2 rounded-[10px] bg-theme-bg-subtle/85 p-1 ring-1 ring-inset ring-theme-border/80 dark:bg-stone-800/55 dark:ring-stone-700/70">
+              <div className="flex h-8 min-w-[72px] shrink-0 items-center justify-center rounded-lg bg-theme-bg-card/70 px-2 text-12 font-semibold text-theme-text-secondary ring-1 ring-inset ring-theme-border/70 dark:bg-stone-900/45 dark:text-stone-300 dark:ring-stone-700/60">
                 {t("sidebar.selectedCount", {
                   count: selectedCount,
                   defaultValue: "已选 {{count}} 个",
@@ -846,7 +788,7 @@ export function SessionListContent({
                     disabled={selectedCount === 0}
                     onClick={() => setIsProjectPickerOpen((value) => !value)}
                     aria-label={t("sidebar.moveSelectedToProject")}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-stone-600 transition hover:bg-white/70 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-45 dark:text-stone-300 dark:hover:bg-stone-900/45 dark:hover:text-stone-50"
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-theme-text-secondary transition hover:text-theme-text disabled:cursor-not-allowed disabled:opacity-45 dark:text-stone-300 dark:hover:text-stone-50"
                   >
                     <FolderInput size={14} />
                   </button>
@@ -857,7 +799,7 @@ export function SessionListContent({
                     disabled={selectedCount === 0}
                     onClick={handleRequestDeleteSelected}
                     aria-label={t("sidebar.deleteSelected")}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-45 dark:text-red-400 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-theme-error transition hover:text-theme-error disabled:cursor-not-allowed disabled:opacity-45 dark:text-red-400 dark:hover:text-red-300"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -867,7 +809,7 @@ export function SessionListContent({
                     type="button"
                     onClick={onClearSelection}
                     aria-label={t("common.cancel")}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white/70 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-900/45 dark:hover:text-stone-100"
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-theme-text-secondary transition hover:text-theme-text dark:text-stone-400 dark:hover:text-stone-100"
                   >
                     <X size={15} />
                   </button>
@@ -879,13 +821,15 @@ export function SessionListContent({
       )}
 
       {/* Footer */}
-      <div className="shrink-0 px-2 py-1 border-t border-stone-300/70 dark:border-stone-800/60">
-        <SidebarUserRow
-          user={user}
-          imgError={imgError}
-          onShowProfile={onShowProfile}
-        />
-      </div>
+      {!compactChrome && (
+        <div className="shrink-0 px-2 py-1 border-t border-theme-border-hover/70 dark:border-stone-800/60">
+          <SidebarUserRow
+            user={user}
+            imgError={imgError}
+            onShowProfile={onShowProfile}
+          />
+        </div>
+      )}
     </>
   );
 }

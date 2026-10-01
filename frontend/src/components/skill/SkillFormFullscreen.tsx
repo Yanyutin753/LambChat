@@ -106,7 +106,7 @@ export function SkillFormFullscreen(a: SkillFormActions) {
                 // Loading state
                 if (a.loadingFilePath === currentPath) {
                   return (
-                    <div className="flex h-full items-center justify-center rounded-2xl bg-[var(--theme-bg)]">
+                    <div className="flex h-full items-center justify-center rounded-2xl bg-[var(--theme-bg-subtle)]">
                       <div className="flex flex-col items-center gap-3">
                         <svg
                           className="h-6 w-6 animate-spin text-[var(--theme-text-secondary)]"
@@ -147,7 +147,7 @@ export function SkillFormFullscreen(a: SkillFormActions) {
                 }
                 return (
                   <div
-                    className={`flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg)] transition-colors duration-150 ${
+                    className={`flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-subtle)] transition-colors duration-150 ${
                       a.errors.content
                         ? "ring-1 ring-red-300 dark:ring-red-700"
                         : ""

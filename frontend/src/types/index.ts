@@ -264,6 +264,7 @@ export interface Project {
   sort_order: number;
   created_at: string;
   updated_at: string;
+  workspace?: { id: string; machineId: string; path: string } | null;
 }
 
 export interface ProjectCreate {
@@ -271,12 +272,14 @@ export interface ProjectCreate {
   type?: "custom";
   icon?: string;
   sort_order?: number;
+  workspace?: Project["workspace"];
 }
 
 export interface ProjectUpdate {
   name?: string;
   icon?: string;
   sort_order?: number;
+  workspace?: Project["workspace"];
 }
 
 // ============================================

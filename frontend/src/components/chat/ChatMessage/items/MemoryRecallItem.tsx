@@ -272,12 +272,12 @@ function MemoryRecallDetail({ args, result }: ToolDetailProps) {
 
                     {/* Staleness warning */}
                     {mem.staleness_warning && (
-                      <div className="flex items-start gap-1.5 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-800/30">
+                      <div className="flex items-start gap-1.5 px-3 py-2 rounded-lg bg-theme-warning/10 border border-theme-warning/30">
                         <AlertTriangle
                           size={13}
-                          className="text-amber-500 dark:text-amber-400 shrink-0 mt-0.5"
+                          className="text-theme-warning shrink-0 mt-0.5"
                         />
-                        <span className="text-12 text-amber-700 dark:text-amber-300 leading-relaxed">
+                        <span className="text-12 text-theme-warning leading-relaxed">
                           {mem.staleness_warning}
                         </span>
                       </div>

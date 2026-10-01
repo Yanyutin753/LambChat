@@ -318,6 +318,9 @@
     "previous": "Previous item",
     "reject": "Reject",
     "scheduledTask": {
+      "searchPlaceholder": "Search task names or descriptions…",
+      "noResults": "No matching scheduled tasks",
+      "noResultsDesc": "Try another keyword or adjust the status filter.",
       "agent": "Agent",
       "confirmCreation": "Please confirm creation of this scheduled task.",
       "effect": "After creation, agent '{{agent}}' will run on {{schedule}}. Each run will start a new session and send this prompt to the agent:",
@@ -337,6 +340,7 @@
     "submit": "Submit"
   },
   "auth": {
+    "brandTitle": "Turn ideas into reality.",
     "account": "Account",
     "backToLogin": "Back to Login",
     "checkInboxStep": "Check your inbox (also check spam folder)",
@@ -356,7 +360,6 @@
     "enteringChat": "Opening chat...",
     "featureAgents": "Agents",
     "featureMemory": "Memory",
-    "featureSkills": "Skills",
     "featureTools": "Tools",
     "forgotPassword": "Forgot Password",
     "forgotPasswordDesc": "Enter your email address and we will send you a password reset link",
@@ -510,6 +513,9 @@
     "repositoryOrBranchNotFound": "Repository or branch not found.",
     "resetTokenExpired": "Reset token has expired.",
     "roleNotFound": "Role not found.",
+    "sandboxSessionNotLocal": "This session runs on the cloud sandbox; workspace file browsing requires a local sandbox session",
+    "sandboxCloudNotCreated": "No cloud computer yet; it is created automatically when you send a message in a cloud session",
+    "sandboxCloudRecycled": "The cloud computer was recycled and its files were not kept; send a message to recreate it",
     "sessionAccessDenied": "You do not have access to this session.",
     "sessionNotFound": "Session not found.",
     "settingNotFound": "Setting not found.",
@@ -1132,6 +1138,9 @@
     "welcomeSuggestions": "Suggestions"
   },
   "common": {
+    "panelTabs": "Panel tabs",
+    "closePanelTab": "Close tab: {{title}}",
+    "paginationSummary": "{{total}} items · {{pageSize}} per page",
     "about": "About",
     "accessDenied": "Access Denied",
     "add": "Add",
@@ -1177,6 +1186,8 @@
     "on": "On",
     "operationFailed": "Operation failed",
     "page": "Page {{page}}",
+    "filtersAndActions": "Filters and actions",
+    "pagination": "Pagination",
     "permissionRequired": "Permission required",
     "poweredBy": "Powered by Clivia",
     "prev": "Previous",
@@ -1563,6 +1574,7 @@
       "monthsAgo": "{{count}}mo ago"
     },
     "title": "File Library",
+    "subtitle": "Manage uploaded and generated files",
     "tryDifferent": "Try a different search term",
     "types": {
       "all": "All",
@@ -1921,7 +1933,6 @@
     "contentLabel": "Content",
     "contentPlaceholder": "Enter memory content (at least 5 characters)...",
     "contentRequired": "Memory content must be at least 5 characters",
-    "contextFilterPlaceholder": "Scope, e.g. project_constraint",
     "createBtn": "Add Memory",
     "createSuccess": "Memory created successfully",
     "createTitle": "New Memory",
@@ -1946,7 +1957,7 @@
     "searchMode": {
       "hybrid": "Hybrid"
     },
-    "searchPlaceholder": "Search memories...",
+    "searchPlaceholder": "Search titles, summaries, tags or context…",
     "selectAll": "Select all",
     "selectHint": "Select a memory to view details",
     "source": {
@@ -2058,6 +2069,7 @@
     "taskCompleted": "Task completed",
     "taskFailed": "Task failed",
     "title": "Notifications",
+    "subtitle": "View and manage announcements and messages",
     "titleLabel": "Title",
     "typeInfo": "Info",
     "typeLabel": "Type",
@@ -2453,6 +2465,9 @@
     }
   },
   "scheduledTask": {
+    "searchPlaceholder": "Search task names or descriptions…",
+    "noResults": "No matching scheduled tasks",
+    "noResultsDesc": "Try another keyword or adjust the status filter.",
     "active": "Active",
     "agent": "Agent",
     "agentPlaceholder": "Select an agent...",
@@ -2539,6 +2554,7 @@
     "timeout": "timeout",
     "timeoutSeconds": "Timeout (seconds)",
     "title": "Scheduled Tasks",
+    "subtitle": "Schedule automated tasks and review run history",
     "totalRuns": "Total Runs",
     "triggerType": "Trigger Type",
     "triggeredSuccess": "Task triggered successfully",
@@ -2938,6 +2954,7 @@
     "TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS": "Orphan task recovery scan interval (seconds)",
     "TASK_RUN_STALL_TIMEOUT": "Run heartbeat stall timeout (seconds)",
     "LLM_STREAM_IDLE_TIMEOUT": "Maximum idle seconds between consecutive streaming chunks; an upstream stall fails the call instead of hanging forever (0 or negative = disabled)",
+    "LLM_STREAM_GAP_WARN_TIMEOUT": "Warn in logs when consecutive streaming chunks are more than this many seconds apart; detects upstream stalls that may drop content (warning only, 0 or negative = disabled)",
     "ENABLE_WEB_FETCH": "Enable the web fetch tool: read public pages as markdown for the model (internal addresses always rejected).",
     "WEB_FETCH_PROVIDER": "Web fetch provider: direct = local; tavily = reuses search keys (first fallback for anti-bot); firecrawl = self-hostable; exa = cache+live crawl; jina = r.jina.ai; auto = direct → tavily → firecrawl → exa → jina.",
     "JINA_API_KEYS": "Jina Reader API keys, comma-separated for rotation (r.jina.ai: 20 RPM keyless, 200 RPM with key). Empty disables jina.",
@@ -3127,6 +3144,7 @@
     "send": "Send Message"
   },
   "sidebar": {
+    "noProjects": "No projects",
     "addToFavorites": "Add to Favorites",
     "batchDeleteConfirm": "Delete the {{count}} selected sessions? This action cannot be undone.",
     "batchDeletePartialFailed": "{{count}} session(s) failed to delete",
@@ -3165,6 +3183,8 @@
     "navigate": "navigate",
     "navigation": "Navigation",
     "newChat": "New Chat",
+    "newChatInProject": "New chat in {{project}}",
+    "startFirstChat": "Start your first chat",
     "newChatShortcut": "Ctrl+Shift+O",
     "newProject": "New Project",
     "noMatchingSessions": "No matching sessions found",
@@ -3177,6 +3197,7 @@
     "pinToTop": "Pin to top",
     "pinToggleFailed": "Failed to update pin status",
     "pinned": "Pinned",
+    "pinnedChats": "Pinned",
     "previous7Days": "Previous 7 Days",
     "projectCreateFailed": "Failed to create project",
     "projectCreated": "Project created",
@@ -3866,20 +3887,37 @@
     "minimize": "Minimize",
     "maximize": "Maximize",
     "restore": "Restore",
-    "close": "Close"
+    "close": "Close",
+    "toggleSidebar": "Toggle sidebar"
   },
   "workspacePanel": {
-    "title": "Workspace",
-    "viewChats": "Chats",
+    "account": "Account",
+    "binaryFileHint": "(Binary file — inline preview not supported)",
+    "cloudDisabled": "Cloud sandbox is disabled",
+    "cloudNotCreated": "No cloud computer yet; it is created automatically when you send a message in a cloud session",
+    "cloudPaused": "Cloud PC · paused, wakes up automatically when opened",
+    "cloudRunning": "Cloud PC · running",
+    "cloudSession": "This session uses the cloud sandbox; its workspace files live in the cloud",
+    "copyPath": "Copy path",
+    "daemonOffline": "Local sandbox offline — workspace files unavailable",
+    "emptyDir": "Empty workspace",
+    "noSession": "Open a session to browse its workspace files",
     "refresh": "Refresh",
     "retry": "Retry",
-    "daemonOffline": "Local sandbox offline — workspace files unavailable",
-    "noSession": "Open a session to browse its workspace files",
-    "emptyDir": "Empty workspace",
-    "copyPath": "Copy path",
     "revealInFileManager": "Reveal in file manager",
-    "binaryFileHint": "(Binary file — inline preview not supported)",
     "settings": "Settings",
-    "account": "Account"
+    "switchToCloud": "View cloud PC →",
+    "title": "Conversation files",
+    "viewChats": "Chats",
+    "viewCloud": "Cloud PC",
+    "viewLocal": "This PC"
+  },
+  "projectWorkspace": {
+    "details": "Workspace details",
+    "choose": "Bind local folder",
+    "clear": "Remove folder binding",
+    "inherits": "New chats in this project use this computer and folder. Existing chats keep their settings.",
+    "optional": "Optional. New chats share this folder; files stay on your computer.",
+    "privacy": "Files run on the selected computer; read content may be sent to the chat model."
   }
 }

@@ -12,14 +12,15 @@ import { useTools } from "../../../hooks/useTools";
 import { useSkills } from "../../../hooks/useSkills";
 import { personaPresetApi } from "../../../services/api";
 import { usePersonaPresets } from "../../../hooks/usePersonaPresets";
-import { useProjectManager } from "../../../hooks/useProjectManager";
 import { appNotificationService } from "../../../services/notifications/appNotificationService";
 import { promptAppNotificationPermissionOnce } from "./appNotificationPermissionPrompt";
 import { useSessionConfig } from "../../../hooks/useSessionConfig";
+import { useSandboxStatus } from "../../../hooks/useSandboxStatus";
 import {
   Permission,
   type PersonaPreset,
   type PersonaPresetSnapshot,
+  type Project,
 } from "../../../types";
 import { useDragAndDrop } from "./useDragAndDrop";
 import { WORKSPACE_OPTION } from "../../chat/workspaceSelection";
@@ -37,14 +38,17 @@ import {
 } from "./sessionState";
 import { getTeamRouteRequest } from "./teamRouteState";
 import { resolvePersonaAgentId } from "../../../hooks/useAgent/agentSelection";
+import { SessionWorkspaceButton } from "../../workspacePanel/SessionWorkspaceButton";
 import { AppShell } from "./AppShell";
 import { ChatView } from "./ChatView";
 import { DesktopSidebarShellGate } from "../DesktopSidebarShell/DesktopSidebarShell";
-import { isDesktopShell } from "../DesktopSidebarShell/desktopShellPlatform";
 import { filterApprovalsBySession } from "../../../utils/approvals";
 import { shouldShowMessageOutline } from "./messageOutline";
 import { buildEffectiveSkills, countEnabledSkills } from "./skillAvailability";
-import { useSessionToggleCallbacks } from "./sessionToggleCallbacks";
+import {
+  useSessionToggleCallbacks,
+  useWorkspaceOptionActions,
+} from "./sessionToggleCallbacks";
 import type { ChatAppContentProps } from "./types";
 const SCHEDULED_TASK_DEFAULTS_KEY = "lambchat_scheduled_task_defaults";
 const CHAT_SKILL_LIST_PARAMS = { limit: 100 };
@@ -130,14 +134,12 @@ export function ChatAppContent({
     enabled: canReadPersonaPresets,
     listParams: personaPresetListParams,
   });
-
   const handlePersonaPresetSearchChange = useCallback((query: string) => {
     setPersonaPresetQuery(query);
   }, []);
   const handlePersonaPresetTagChange = useCallback((tag: string | null) => {
     setPersonaPresetTag(tag);
   }, []);
-
   const hasMorePersonaPresets = personaPresets.length < personaPresetsTotal;
   const handleLoadMorePersonaPresets = useCallback(() => {
     if (!hasMorePersonaPresets || personaPresetsLoadingMore) return;
@@ -148,9 +150,8 @@ export function ChatAppContent({
     loadMorePersonaPresets,
     personaPresetListParams,
   ]);
-
-  const projectManager = useProjectManager();
-
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [composerFocusRequest, setComposerFocusRequest] = useState(0);
   const sessionConfigRef = useRef({
     disabledSkills: [] as string[],
     enabledSkills: undefined as string[] | undefined,
@@ -158,7 +159,6 @@ export function ChatAppContent({
     disabledMcpTools: [] as string[],
     agentOptions: {} as Record<string, boolean | string | number>,
   });
-
   const {
     messages,
     sessionId,
@@ -242,12 +242,10 @@ export function ChatAppContent({
       setTimeout(() => fetchSkills(), 500);
     },
   });
-
   ensureResumeStreamRef.current = (runId) => {
     void reconnectSSE(runId);
   };
   useEffect(() => void refreshApprovals(), [sessionId, refreshApprovals]);
-
   const switchToPersonaAgentMode = useCallback(() => {
     if (currentAgent !== "team") return;
     const nextAgentId = resolvePersonaAgentId(currentAgent, undefined, agents);
@@ -256,7 +254,6 @@ export function ChatAppContent({
     }
     selectTeam(null);
   }, [agents, currentAgent, selectTeam, switchAgent]);
-
   const prevAgentRef = useRef(currentAgent);
   useEffect(() => {
     if (prevAgentRef.current !== currentAgent) {
@@ -264,21 +261,27 @@ export function ChatAppContent({
       refreshToolsForAgent(currentAgent);
     }
   }, [currentAgent, refreshToolsForAgent]);
-
   const filteredModels = useMemo(() => {
     if (!availableModels) return null;
     if (agentAllowedModelIds === null) return availableModels;
     if (agentAllowedModelIds.length === 0) return [];
     return availableModels.filter((m) => agentAllowedModelIds.includes(m.id));
   }, [availableModels, agentAllowedModelIds]);
-
+  const { online: sandboxOnline } = useSandboxStatus();
   const {
     agentOptionValues,
     currentAgentOptions,
     handleToggleAgentOption,
     restoreAgentOptions,
     resetAgentOptionDefaults,
-  } = useAgentOptions(agents, currentAgent);
+  } = useAgentOptions(agents, currentAgent, sandboxOnline);
+
+  const { changeOption, selectProject } = useWorkspaceOptionActions(
+    sessionId,
+    handleToggleAgentOption,
+    setPendingProjectId,
+    { agents, currentAgent, switchAgent, restoreAgentOptions },
+  );
 
   const {
     config: sessionConfig,
@@ -293,7 +296,16 @@ export function ChatAppContent({
     getDefaultAgentOptions: () => agentOptionValues,
   });
 
-  // 桌面双栏「文件」面板 reveal 用：会话当前工作区绑定（原样 JSON 字符串）
+  // 右侧会话文件面板：沙箱模式/选机/工作区绑定——任一切换都驱动
+  // 面板重新解析工作区（云端提示、reveal 菜单、树重置）
+  const workspaceModeForShell =
+    typeof agentOptionValues?.sandbox === "string"
+      ? agentOptionValues.sandbox
+      : null;
+  const workspaceMachineForShell =
+    typeof agentOptionValues?.sandbox_machine_id === "string"
+      ? agentOptionValues.sandbox_machine_id
+      : null;
   const workspaceSelectionForShell =
     typeof agentOptionValues?.[WORKSPACE_OPTION] === "string"
       ? (agentOptionValues[WORKSPACE_OPTION] as string)
@@ -722,6 +734,7 @@ export function ChatAppContent({
     });
 
     handleNewSession();
+    setComposerFocusRequest((request) => request + 1);
     resetToDefaults();
 
     resetAgentOptionDefaults();
@@ -761,11 +774,19 @@ export function ChatAppContent({
   return (
     <AppShell
       activeTab="chat"
+      headerActions={
+        <SessionWorkspaceButton
+          sessionId={sessionId}
+          sandboxMode={workspaceModeForShell}
+          machineId={workspaceMachineForShell}
+          workspaceSelection={workspaceSelectionForShell}
+        />
+      }
       showProfileModal={showProfileModal}
       onCloseProfileModal={onCloseProfileModal}
       setMobileSidebarOpen={setMobileSidebarOpen}
       currentProjectId={currentProjectId}
-      projectManager={projectManager}
+      projectManager={{ projects }}
       onNewSession={handleNewSessionWithReset}
       onShowProfile={onShowProfile}
       availableModels={filteredModels}
@@ -776,20 +797,20 @@ export function ChatAppContent({
       onToggleOutline={handleToggleOutline}
       sidebar={
         <DesktopSidebarShellGate
+          mobileOpen={mobileSidebarOpen}
+          onToggleMobile={setMobileSidebarOpen}
+          onShowProfile={onShowProfile}
           collapsed={sidebarCollapsed}
           onToggleCollapsed={setSidebarCollapsed}
-          sessionId={sessionId}
-          workspaceSelection={workspaceSelectionForShell}
-          onNewSession={handleNewSessionWithReset}
-          onShowProfile={onShowProfile}
         >
           <SessionSidebar
             ref={sidebarRef}
-            variant={isDesktopShell() ? "desktopShell" : "default"}
+            variant="desktopShell"
             currentSessionId={sessionId}
             onSelectSession={handleSelectSessionAndClose}
             onNewSession={handleNewSessionAndClose}
-            onSetPendingProjectId={setPendingProjectId}
+            onSetPendingProjectId={selectProject}
+            onProjectsChange={setProjects}
             autoExpandProjectId={autoExpandProjectId}
             onConsumeAutoExpandProjectId={clearAutoExpandProjectId}
             newSession={newlyCreatedSession}
@@ -830,6 +851,7 @@ export function ChatAppContent({
         <ChatView
           messages={messages}
           sessionId={sessionId}
+          composerFocusRequest={sessionId ? undefined : composerFocusRequest}
           currentRunId={currentRunId}
           isLoading={isLoading}
           isLoadingHistory={isLoadingHistory}
@@ -880,7 +902,7 @@ export function ChatAppContent({
           canManagePersonaPresets={canManagePersonaPresets}
           agentOptions={currentAgentOptions}
           agentOptionValues={agentOptionValues}
-          onToggleAgentOption={handleToggleAgentOption}
+          onToggleAgentOption={changeOption}
           modelSupportsThinking={modelSupportsThinking}
           agents={agents}
           currentAgent={currentAgent}

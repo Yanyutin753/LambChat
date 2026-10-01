@@ -1,3 +1,4 @@
+import { SceneIllustration } from "../common/SceneIllustration";
 import { useMemo, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
@@ -183,10 +184,9 @@ export function BinaryFilePreview({
         {/* Audio preview */}
         {isAudio(mime_type) && (
           <div className="flex flex-col items-center justify-center gap-6 py-12 px-4 min-h-full">
-            <div
-              className={`flex items-center justify-center w-20 h-20 rounded-2xl ${iconBg}`}
-            >
-              <Music size={36} className={iconColor} />
+            <div className="flex flex-col items-center gap-2">
+              <SceneIllustration scene="files" />
+              <Music size={18} className={iconColor} />
             </div>
             <audio src={fullUrl} controls className="w-full max-w-md" />
           </div>
@@ -207,10 +207,9 @@ export function BinaryFilePreview({
           !isAudio(mime_type) &&
           !isPdf(mime_type) && (
             <div className="flex flex-col items-center justify-center gap-4 py-12 px-4 min-h-full">
-              <div
-                className={`flex items-center justify-center w-20 h-20 rounded-2xl ${iconBg}`}
-              >
-                <Icon size={36} className={iconColor} />
+              <div className="flex flex-col items-center gap-2">
+                <SceneIllustration scene="files" />
+                <Icon size={18} className={iconColor} />
               </div>
               <div className="text-center">
                 <p className="text-14 font-medium text-[var(--theme-text)] mb-1">

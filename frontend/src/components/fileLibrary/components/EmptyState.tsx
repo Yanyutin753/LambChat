@@ -1,6 +1,6 @@
+import { FolderSearch, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { FolderSearch, Search } from "lucide-react";
 import { Button } from "../../common";
 import { FilesListSkeleton } from "../../skeletons";
 

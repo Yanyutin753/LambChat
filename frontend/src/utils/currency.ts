@@ -75,6 +75,8 @@ export function formatCostUsd(
     rates?: FxRatesDoc | null;
     /** 小数位上限（换算后应用）；手机端窄格子用它截短小金额精度 */
     maxDecimals?: number;
+    /** 固定小数位（换算后应用）。 */
+    decimals?: number;
   },
 ): string {
   const language = opts.language;
@@ -87,6 +89,7 @@ export function formatCostUsd(
     max = Math.min(max, opts.maxDecimals);
     min = Math.min(min, max);
   }
+  if (typeof opts.decimals === "number") min = max = opts.decimals;
   try {
     return new Intl.NumberFormat(localeTag(language), {
       style: "currency",

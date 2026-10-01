@@ -7,7 +7,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { createRef } from "react";
+import { createRef, StrictMode } from "react";
 import { describe, expect, test, vi } from "vitest";
 import {
   RichChatComposer,
@@ -16,6 +16,69 @@ import {
 import { projectComposerSnapshot } from "../composerProjection";
 
 describe("rich composer run mode reference nodes", () => {
+  test("mode changes do not flush React during lifecycle effects", async () => {
+    const errors = vi.spyOn(console, "error");
+    try {
+      const composer = (autoEnabled: boolean) => (
+        <StrictMode>
+          <RichChatComposer
+            ariaLabel="message"
+            runModes={{ autoEnabled, goalEnabled: true, onToggle: vi.fn() }}
+          />
+        </StrictMode>
+      );
+      const { rerender } = render(composer(true));
+      await screen.findByRole("button", { name: "Auto" });
+      rerender(composer(false));
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("button", { name: "Auto" }),
+        ).not.toBeInTheDocument(),
+      );
+      expect(screen.getByRole("button", { name: "Goal" })).toBeVisible();
+      expect(
+        errors.mock.calls.filter((args) =>
+          args.some((arg) => String(arg).includes("flushSync")),
+        ),
+      ).toEqual([]);
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
+  test("new-chat focus requests place the caret after enabled mode chips", async () => {
+    const props = {
+      ariaLabel: "message",
+      runModes: { autoEnabled: true, goalEnabled: false, onToggle: vi.fn() },
+    };
+    const { rerender } = render(
+      <RichChatComposer {...props} focusRequest={0} />,
+    );
+    const editor = screen.getByRole("textbox", { name: "message" });
+    await screen.findByRole("button", { name: "Auto" });
+
+    for (const focusRequest of [1, 2]) {
+      editor.blur();
+      const selection = window.getSelection()!;
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+
+      rerender(<RichChatComposer {...props} focusRequest={focusRequest} />);
+      await waitFor(() => {
+        expect(editor).toHaveFocus();
+        const beforeCaret = document.createRange();
+        beforeCaret.selectNodeContents(editor);
+        beforeCaret.setEnd(selection.anchorNode!, selection.anchorOffset);
+        expect(
+          beforeCaret.cloneContents().querySelector(".run-mode-chip-node"),
+        ).not.toBeNull();
+      });
+    }
+  });
+
   test("renders inline skill-style chips at the start of the message", async () => {
     const handle = createRef<RichChatComposerHandle>();
     render(

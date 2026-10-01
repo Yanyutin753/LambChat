@@ -1,6 +1,7 @@
+import { SceneIllustration } from "../../common/SceneIllustration";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { AlertCircle, DraftingCompass } from "lucide-react";
+import { DraftingCompass } from "lucide-react";
 import { DxfViewer } from "dxf-viewer";
 import type { TFunction } from "i18next";
 import FileFallbackPanel from "./FileFallbackPanel";
@@ -126,9 +127,7 @@ export default function CadPreview(props: CadPreviewProps) {
           <div className="cad-preview__panel">
             {error ? (
               <>
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-100 dark:bg-red-900/30">
-                  <AlertCircle size={30} className="text-red-500" />
-                </div>
+                <SceneIllustration scene="files" className="mx-auto mb-4" />
                 <h3 className="mb-2 text-16 font-medium font-serif text-[var(--theme-text)]">
                   {error}
                 </h3>

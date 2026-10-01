@@ -1,6 +1,6 @@
+import { SceneIllustration } from "../common/SceneIllustration";
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Mail, CheckCircle, XCircle } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { authApi } from "../../services/api";
@@ -63,33 +63,13 @@ export function VerifyEmail() {
   }: {
     type: "loading" | "success" | "error" | "idle";
   }) => {
-    const config = {
-      loading: {
-        icon: <LoadingSpinner className="h-6 w-6" />,
-        bg: "bg-stone-100 dark:bg-stone-800/50",
-      },
-      success: {
-        icon: (
-          <CheckCircle className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-        ),
-        bg: "bg-emerald-50 dark:bg-emerald-900/20",
-      },
-      error: {
-        icon: <XCircle className="h-6 w-6 text-red-500 dark:text-red-400" />,
-        bg: "bg-red-50 dark:bg-red-900/20",
-      },
-      idle: {
-        icon: <Mail className="h-6 w-6 text-stone-500 dark:text-stone-400" />,
-        bg: "bg-stone-100 dark:bg-stone-800/50",
-      },
-    };
-    const c = config[type];
-    return (
-      <div
-        className={`auth-status-icon relative mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full ${c.bg}`}
-      >
-        {c.icon}
-      </div>
+    return type === "loading" ? (
+      <LoadingSpinner className="mx-auto mb-3 h-6 w-6" />
+    ) : (
+      <SceneIllustration
+        scene={type === "success" ? "welcome" : "message"}
+        className="mx-auto mb-3"
+      />
     );
   };
 

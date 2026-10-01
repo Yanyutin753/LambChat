@@ -4,7 +4,6 @@ import { SessionSidebar } from "../../panels/SessionSidebar";
 import { AppShell } from "./AppShell";
 import { TabContent } from "./TabContent";
 import { DesktopSidebarShellGate } from "../DesktopSidebarShell/DesktopSidebarShell";
-import { isDesktopShell } from "../DesktopSidebarShell/desktopShellPlatform";
 import type { TabType } from "./types";
 
 export interface NonChatAppContentProps {
@@ -58,14 +57,14 @@ export function NonChatAppContent({
       onShowProfile={onShowProfile}
       sidebar={
         <DesktopSidebarShellGate
+          mobileOpen={mobileSidebarOpen}
+          onToggleMobile={setMobileSidebarOpen}
+          onShowProfile={onShowProfile}
           collapsed={sidebarCollapsed}
           onToggleCollapsed={setSidebarCollapsed}
-          sessionId={null}
-          onNewSession={handleNewSession}
-          onShowProfile={onShowProfile}
         >
           <SessionSidebar
-            variant={isDesktopShell() ? "desktopShell" : "default"}
+            variant="desktopShell"
             currentSessionId={null}
             onSelectSession={handleSelectSession}
             onNewSession={handleNewSession}

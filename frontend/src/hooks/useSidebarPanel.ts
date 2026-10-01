@@ -123,8 +123,6 @@ export function useSidebarPanel({
       minMainPx,
     }),
   );
-  const [animateIn, setAnimateIn] = useState(false);
-  const layoutOwner = useRef(Symbol("right-panel-layout")).current;
 
   const responsivePresentation = getRightPanelPresentation(viewportWidth);
   const presentation =
@@ -172,6 +170,7 @@ export function useSidebarPanel({
   }, []);
 
   useEffect(() => {
+    if (!open) return;
     const handleViewportResize = () => {
       const nextViewportWidth = window.innerWidth;
       setViewportWidth(nextViewportWidth);
@@ -185,31 +184,32 @@ export function useSidebarPanel({
       );
     };
 
+    handleViewportResize();
     window.addEventListener("resize", handleViewportResize);
     return () => window.removeEventListener("resize", handleViewportResize);
-  }, [minMainPx, minPanelPx]);
+  }, [open, minMainPx, minPanelPx]);
 
-  useEffect(() => {
+  // A covered panel resumes with the width most recently chosen in this lane.
+  useLayoutEffect(() => {
     if (!open) return;
-
-    setAnimateIn(false);
-    let cancelled = false;
-    const firstFrame = requestAnimationFrame(() => {
-      const secondFrame = requestAnimationFrame(() => {
-        if (!cancelled) setAnimateIn(true);
-      });
-      if (cancelled) cancelAnimationFrame(secondFrame);
-    });
-
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(firstFrame);
-    };
-  }, [open, presentation]);
+    preferredWidthRef.current = sanitizePanelWidthPct(
+      localStorage.getItem(widthStorageKey),
+      defaultWidthPct,
+    );
+    setSidebarWidth(
+      clampPanelWidthPct({
+        requestedPct: preferredWidthRef.current,
+        viewportWidth: window.innerWidth,
+        minPanelPx,
+        minMainPx,
+      }),
+    );
+  }, [open, widthStorageKey, defaultWidthPct, minPanelPx, minMainPx]);
 
   useLayoutEffect(() => {
+    if (!open) return;
     document.documentElement.style.setProperty(widthCssVar, `${sidebarWidth}%`);
-  }, [sidebarWidth, widthCssVar]);
+  }, [open, sidebarWidth, widthCssVar]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -218,6 +218,7 @@ export function useSidebarPanel({
       presentation === "fullscreen"
         ? viewportWidth
         : Math.round((viewportWidth * sidebarWidth) / 100);
+    const layoutOwner = Symbol("right-panel-layout");
     _activeLayoutOwner = layoutOwner;
     document.documentElement.setAttribute(
       "data-right-panel-presentation",
@@ -238,14 +239,20 @@ export function useSidebarPanel({
 
     return () => {
       if (_activeLayoutOwner !== layoutOwner) return;
-      _activeLayoutOwner = null;
-      document.documentElement.removeAttribute("data-right-panel-presentation");
-      document.documentElement.style.removeProperty(
-        "--right-panel-active-width",
-      );
-      notifyRightPanelWidthChanged(null);
+      // Let the next tab claim the lane before announcing a real close.
+      queueMicrotask(() => {
+        if (_activeLayoutOwner !== layoutOwner) return;
+        _activeLayoutOwner = null;
+        document.documentElement.removeAttribute(
+          "data-right-panel-presentation",
+        );
+        document.documentElement.style.removeProperty(
+          "--right-panel-active-width",
+        );
+        notifyRightPanelWidthChanged(null);
+      });
     };
-  }, [layoutOwner, open, panelKind, presentation, sidebarWidth, viewportWidth]);
+  }, [open, panelKind, presentation, sidebarWidth, viewportWidth]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -432,7 +439,7 @@ export function useSidebarPanel({
   return {
     isMobile,
     presentation,
-    animateIn,
+    animateIn: true,
     sidebarWidth,
     panelRef,
     indicatorRef,

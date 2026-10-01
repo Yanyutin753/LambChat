@@ -146,12 +146,11 @@ const SESSION_PAGE_SIZE = 20;
 export interface UseRevealedFilesGroupedReturn {
   sessionGroups: SessionGroupItem[];
   totalSessions: number;
-  stats: Record<string, number>;
   isLoading: boolean;
-  isLoadingMore: boolean;
-  hasMore: boolean;
   error: string | null;
-  loadMoreRef: React.RefCallback<HTMLElement>;
+  page: number;
+  pageSize: number;
+  setPage: (page: number) => void;
   refresh: () => void;
   toggleFavorite: (fileId: string) => void;
 }
@@ -161,84 +160,45 @@ export function useRevealedFilesGrouped(
 ): UseRevealedFilesGroupedReturn {
   const [sessionGroups, setSessionGroups] = useState<SessionGroupItem[]>([]);
   const [totalSessions, setTotalSessions] = useState(0);
-  const [stats, setStats] = useState<Record<string, number>>({});
   const [page, setPage] = useState(1);
+  const [revision, setRevision] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const stableParams = JSON.stringify(params ?? {});
 
-  const { ref: loadMoreRef, inView } = useInView({ threshold: 0.1 });
-
-  const paramsRef = useRef(params);
-  paramsRef.current = params;
-  const stableParams = useMemo(() => JSON.stringify(params), [params]);
-
-  const fetchSessions = useCallback(
-    async (pageNum: number, append: boolean) => {
-      try {
-        if (append) setIsLoadingMore(true);
-        else setIsLoading(true);
-        setError(null);
-        const currentParams = paramsRef.current ?? {};
-        const result = await revealedFileApi.listGrouped({
-          ...currentParams,
-          page: pageNum,
-          page_size: SESSION_PAGE_SIZE,
-        });
-        setSessionGroups((prev) =>
-          append ? [...prev, ...result.sessions] : result.sessions,
-        );
+  useEffect(() => {
+    setPage(1);
+  }, [stableParams]);
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoading(true);
+    setError(null);
+    revealedFileApi
+      .listGrouped({
+        ...JSON.parse(stableParams),
+        page,
+        page_size: SESSION_PAGE_SIZE,
+      })
+      .then((result) => {
+        if (cancelled) return;
+        setSessionGroups(result.sessions);
         setTotalSessions(result.total_sessions);
-        setHasMore(
-          result.sessions.length === SESSION_PAGE_SIZE &&
-            result.total_sessions > pageNum * SESSION_PAGE_SIZE,
-        );
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : i18n.t("files.loadFailed", "加载文件失败"),
-        );
-      } finally {
-        setIsLoading(false);
-        setIsLoadingMore(false);
-      }
-    },
-    [],
-  );
+      })
+      .catch((err: unknown) => {
+        if (!cancelled)
+          setError(
+            err instanceof Error ? err.message : i18n.t("files.loadFailed"),
+          );
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, stableParams, revision]);
 
-  const fetchStats = useCallback(async () => {
-    try {
-      const s = await revealedFileApi.getStats();
-      setStats(s);
-    } catch {
-      // non-critical
-    }
-  }, []);
-
-  useEffect(() => {
-    setPage(1);
-    setSessionGroups([]);
-    fetchSessions(1, false);
-    fetchStats();
-  }, [stableParams, fetchSessions, fetchStats]);
-
-  useEffect(() => {
-    if (inView && hasMore && !isLoading && !isLoadingMore) {
-      const nextPage = page + 1;
-      setPage(nextPage);
-      fetchSessions(nextPage, true);
-    }
-  }, [inView, hasMore, isLoading, isLoadingMore, page, fetchSessions]);
-
-  const refresh = useCallback(() => {
-    setPage(1);
-    setSessionGroups([]);
-    fetchSessions(1, false);
-    fetchStats();
-  }, [fetchSessions, fetchStats]);
-
+  const refresh = useCallback(() => setRevision((value) => value + 1), []);
   const toggleFavorite = useCallback((fileId: string) => {
     revealedFileApi
       .toggleFavorite(fileId)
@@ -246,24 +206,28 @@ export function useRevealedFilesGrouped(
         setSessionGroups((prev) =>
           prev.map((group) => ({
             ...group,
-            files: group.files.map((f) =>
-              f.id === fileId ? { ...f, is_favorite: result.is_favorite } : f,
+            files: group.files.map((file) =>
+              file.id === fileId
+                ? { ...file, is_favorite: result.is_favorite }
+                : file,
             ),
           })),
         );
       })
-      .catch(() => {});
+      .catch((err: unknown) => {
+        setError(
+          err instanceof Error ? err.message : i18n.t("common.operationFailed"),
+        );
+      });
   }, []);
-
   return {
     sessionGroups,
     totalSessions,
-    stats,
     isLoading,
-    isLoadingMore,
-    hasMore,
     error,
-    loadMoreRef,
+    page,
+    pageSize: SESSION_PAGE_SIZE,
+    setPage,
     refresh,
     toggleFavorite,
   };

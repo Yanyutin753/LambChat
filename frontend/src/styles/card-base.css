@@ -230,7 +230,7 @@
 }
 
 .dark .scb__status-pill--installed {
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--theme-bg-subtle);
   color: #4ade80;
 }
 
@@ -241,7 +241,7 @@
 }
 
 .dark .scb__status-pill--inactive {
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--theme-bg-subtle);
   color: #d6d3d1;
 }
 
@@ -252,7 +252,7 @@
 }
 
 .dark .scb__status-pill--published {
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--theme-bg-subtle);
   color: #93c5fd;
 }
 
@@ -263,7 +263,7 @@
 }
 
 .dark .scb__status-pill--danger {
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--theme-bg-subtle);
   color: #f87171;
 }
 
@@ -274,7 +274,7 @@
 }
 
 .dark .scb__status-pill--disabled {
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--theme-bg-subtle);
   color: #a8a29e;
 }
 
@@ -298,7 +298,7 @@
   font-weight: 500;
   border-radius: 9999px;
   border: 1px solid var(--theme-border);
-  background: var(--theme-bg);
+  background: transparent;
   color: var(--theme-text-secondary);
   transition:
     border-color 0.15s ease,
@@ -337,7 +337,7 @@
   height: 2rem;
   border-radius: 0.5rem;
   border: 1px solid var(--theme-border);
-  background: var(--theme-bg);
+  background: transparent;
   color: var(--theme-text-secondary);
   transition:
     background-color 0.15s ease,
@@ -430,9 +430,7 @@
 
 /* --- Footer --- */
 .scb__footer {
-  margin-top: 1rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid color-mix(in srgb, var(--theme-border) 70%, transparent);
+  margin-top: var(--panel-gap, 1rem);
 }
 
 /* ═══════════════════════════════════════════
@@ -580,7 +578,7 @@
 }
 
 .dark .mp-card__status-pill--installed {
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--theme-bg-subtle);
   color: #86efac;
 }
 
@@ -590,7 +588,7 @@
 }
 
 .dark .mp-card__status-pill--inactive {
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--theme-bg-subtle);
   color: #d6d3d1;
 }
 
@@ -611,7 +609,7 @@
   font-weight: 500;
   border-radius: 9999px;
   border: 1px solid var(--theme-border);
-  background: var(--theme-bg);
+  background: transparent;
   color: var(--theme-text-secondary);
   transition:
     border-color 0.15s ease,
@@ -648,7 +646,7 @@
   height: 2rem;
   border-radius: 0.5rem;
   border: 1px solid var(--theme-border);
-  background: var(--theme-bg);
+  background: transparent;
   color: var(--theme-text-secondary);
   transition:
     background-color 0.15s ease,

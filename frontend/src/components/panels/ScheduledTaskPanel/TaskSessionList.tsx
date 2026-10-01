@@ -75,12 +75,7 @@ export function TaskSessionList({
       <PanelHeader
         title={taskName}
         subtitle={t("scheduledTask.sessionsSubtitle")}
-        icon={
-          <MessageSquare
-            size={20}
-            className="text-stone-600 dark:text-stone-400"
-          />
-        }
+        illustration="panel-schedule"
         actions={
           <button
             onClick={() => navigate("/scheduled-tasks", { replace: true })}
@@ -93,7 +88,7 @@ export function TaskSessionList({
       />
 
       {/* Session List */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 sm:p-6">
+      <div className="panel-body flex-1 overflow-y-auto">
         {sessions.length === 0 ? (
           <div className="scheduled-task-empty-state">
             <div className="scheduled-task-empty-state__icon">
@@ -182,16 +177,14 @@ export function TaskSessionList({
       </div>
 
       {/* Pagination */}
-      {total > limit && (
-        <div className="glass-divider bg-transparent px-4 py-4 sm:px-6">
-          <Pagination
-            page={Math.floor(skip / limit) + 1}
-            pageSize={limit}
-            total={total}
-            onChange={(page) => setSkip((page - 1) * limit)}
-          />
-        </div>
-      )}
+      <div className="panel-pagination empty:hidden">
+        <Pagination
+          page={Math.floor(skip / limit) + 1}
+          pageSize={limit}
+          total={total}
+          onChange={(page) => setSkip((page - 1) * limit)}
+        />
+      </div>
     </div>
   );
 }

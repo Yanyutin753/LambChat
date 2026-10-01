@@ -186,8 +186,20 @@ export function SkillCard({
               ))}
 
             {canManage && (
-              <div className="relative" data-mp-menu>
+              <div
+                className="relative"
+                data-mp-menu
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    e.stopPropagation();
+                    onOpenMenu(null);
+                    e.currentTarget.querySelector("button")?.focus();
+                  }
+                }}
+              >
                 <button
+                  aria-label={t("nav.more")}
+                  aria-expanded={openMenuName === skill.skill_name}
                   className="scb__action-btn scb__action-btn--ghost"
                   onClick={(e) => {
                     e.stopPropagation();

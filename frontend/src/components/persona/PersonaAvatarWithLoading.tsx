@@ -15,7 +15,6 @@ interface PersonaAvatarWithLoadingProps {
   className?: string;
   imgClassName?: string;
   iconSize?: number;
-  fallbackIcon?: React.ReactNode;
   style?: React.CSSProperties;
 }
 
@@ -24,7 +23,6 @@ export function PersonaAvatarWithLoading({
   className,
   imgClassName,
   iconSize = 14,
-  fallbackIcon,
   style,
 }: PersonaAvatarWithLoadingProps) {
   const isImage = isPersonaImageAvatar(preset.avatar);
@@ -84,7 +82,10 @@ export function PersonaAvatarWithLoading({
           size={iconSize}
         />
       ) : (
-        fallbackIcon
+        <PersonaAvatarIcon
+          size="100%"
+          className={imgClassName || "h-full w-full"}
+        />
       )}
     </div>
   );

@@ -3,6 +3,7 @@
  * 用于需要认证的页面
  */
 
+import { SceneIllustration } from "../common/SceneIllustration";
 import { type ReactNode, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -37,21 +38,7 @@ function NoPermission() {
   return (
     <div className="safe-area-viewport-padding flex min-h-[calc(100vh-var(--titlebar-inset,0px))] items-center justify-center bg-stone-50 dark:bg-stone-900">
       <div className="text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-          <svg
-            className="h-8 w-8 text-red-500 dark:text-red-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-            />
-          </svg>
-        </div>
+        <SceneIllustration scene="message" className="mx-auto mb-4" />
         <h2 className="mb-2 text-20 font-semibold text-stone-900 dark:text-stone-100">
           {t("errors.noPermissionTitle")}
         </h2>

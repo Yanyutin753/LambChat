@@ -21,10 +21,13 @@ function SkillCardsSkeleton({
       }
     >
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="scb">
+        <div
+          key={i}
+          className="scb flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none dark:border dark:border-[var(--theme-border)]"
+        >
           {/* Banner — matches scb__banner h-12 with 45deg gradient */}
           <div
-            className="h-12 w-full shrink-0 relative"
+            className="scb__banner h-12 w-full shrink-0 relative"
             style={{
               background: `linear-gradient(45deg, ${
                 [
@@ -78,7 +81,7 @@ function SkillCardsSkeleton({
             </div>
 
             {/* Description — matches mt-3 text-13 line-clamp-2 */}
-            <div className="mt-3 space-y-1.5">
+            <div className="mt-3 min-h-[3.25em] space-y-1.5">
               <SkeletonLine width="w-full" className="!h-2.5 sm:!h-3" />
               <SkeletonLine
                 width={i % 2 === 0 ? "w-5/6" : "w-2/3"}
@@ -177,11 +180,16 @@ function SkillCardsSkeleton({
 export function SkillsListSkeleton() {
   return (
     <div className="flex h-full min-h-0 flex-col animate-fade-in">
-      <PanelHeaderSkeleton hasSubtitle={false} />
-      <div className="skill-content-area flex-1 overflow-y-auto py-2 sm:py-4 px-4 lg:px-8 lg:py-8">
+      <PanelHeaderSkeleton
+        searchOnly
+        hasSearchAccessory
+        hasSearchActions
+        hasActions={false}
+      />
+      <div className="panel-body flex-1 min-h-0 overflow-y-auto skill-content-area">
         <SkillCardsSkeleton />
-        <PanelPaginationSkeleton />
       </div>
+      <PanelPaginationSkeleton />
     </div>
   );
 }
@@ -190,25 +198,69 @@ export function SkillsListSkeleton() {
 export function SkillsPanelSkeleton() {
   return (
     <div className="skill-theme-shell flex h-full flex-col min-h-0 animate-fade-in">
-      <PanelHeaderSkeleton />
-      <div className="skill-content-area flex-1 overflow-y-auto py-2 sm:py-4 px-4 lg:px-8 lg:py-8">
+      <PanelHeaderSkeleton hasSubtitle hasSearchAccessory />
+      <div className="panel-body flex-1 min-h-0 overflow-y-auto skill-content-area">
         <SkillCardsSkeleton />
-        {/* Pagination placeholder */}
-        <PanelPaginationSkeleton />
       </div>
+      <PanelPaginationSkeleton />
     </div>
   );
 }
 
 /** Marketplace panel: card grid matching SkillBaseCard (.scb) structure */
-export function MarketplacePanelSkeleton() {
+export function MarketplacePanelSkeleton({
+  embedded = false,
+}: {
+  embedded?: boolean;
+}) {
   return (
     <div className="skill-theme-shell flex h-full flex-col min-h-0 animate-fade-in">
-      <PanelHeaderSkeleton />
-      <div className="skill-content-area flex-1 overflow-y-auto py-2 sm:py-4 px-4 sm:p-6 lg:px-8 lg:py-8">
+      <PanelHeaderSkeleton
+        searchOnly={embedded}
+        hasSubtitle={!embedded}
+        hasSearchAccessory
+        hasSearchActions={embedded}
+        hasActions={!embedded}
+      />
+      <div className="panel-body flex-1 min-h-0 overflow-y-auto skill-content-area">
         <SkillCardsSkeleton marketplace />
-        {/* Pagination placeholder */}
-        <PanelPaginationSkeleton />
+      </div>
+      <PanelPaginationSkeleton />
+    </div>
+  );
+}
+
+/** Route fallback includes the hub identity and tabs; embedded loaders do not. */
+export function SkillsHubSkeleton({
+  marketplace = false,
+}: {
+  marketplace?: boolean;
+}) {
+  return (
+    <div className="skill-theme-shell flex h-full min-h-0 flex-col">
+      <PanelHeaderSkeleton
+        hasSearch={false}
+        hasSubtitle
+        className="panel-header--section-switch"
+        actions={
+          <div className="skills-hub-tabs font-serif" aria-hidden="true">
+            <div className="skills-hub-tabs__group">
+              {[0, 1].map((tab) => (
+                <div key={tab} className="skills-hub-tabs__item">
+                  <div className="skeleton-line size-4 rounded" />
+                  <SkeletonLine width="w-16" />
+                </div>
+              ))}
+            </div>
+          </div>
+        }
+      />
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {marketplace ? (
+          <MarketplacePanelSkeleton embedded />
+        ) : (
+          <SkillsListSkeleton />
+        )}
       </div>
     </div>
   );

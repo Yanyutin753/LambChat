@@ -20,3 +20,29 @@ test("sort trigger shows a single sort glyph, direction stays in the menu", () =
   expect(toolbarSource).not.toMatch(/<SortIcon\s+order=\{sortOrder\}/);
   expect(toolbarSource).toMatch(/ArrowUpDown/);
 });
+
+test("file library keeps filters and search below the title with only the view switch in the header", () => {
+  expect(toolbarSource).toMatch(/actions=\{viewSwitcher\}/);
+  expect(toolbarSource).toMatch(
+    /<PanelHeader[\s\S]*?\/>\s*<div className="file-library-toolbar panel-inset relative">/,
+  );
+});
+
+test("compact file panels retain the view switch inside the sort menu", () => {
+  expect(toolbarSource).toMatch(
+    /file-library-compact-view[\s\S]*?\{viewSwitcher\}/,
+  );
+});
+
+test("header sizing leaves view switch buttons inside their own frame", () => {
+  const styles = readSource("../../../styles/components.css").replace(
+    /\s+/g,
+    " ",
+  );
+  expect(styles).toContain(
+    ".panel-header__actions > .flex:not(.file-library-view-switch) > :is(button, a, select)",
+  );
+  expect(styles).not.toContain(
+    ".panel-header__actions > .flex > :is(button, a, select)",
+  );
+});

@@ -317,6 +317,11 @@
   .animate-glass-enter {
     animation: none !important;
   }
+  .skeleton-line,
+  .welcome-skeleton-line,
+  .welcome-skeleton-avatar {
+    animation: none !important;
+  }
   /* General utility animations */
   .animate-fade-in,
   .animate-slide-in-right,

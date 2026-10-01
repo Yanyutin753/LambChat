@@ -81,6 +81,9 @@ class ProjectStorage:
             "type": project_data.type,
             "icon": project_data.icon or "💬",
             "sort_order": project_data.sort_order,
+            "workspace": (
+                project_data.workspace.model_dump(by_alias=True) if project_data.workspace else None
+            ),
             "user_id": user_id,
             "created_at": now,
             "updated_at": now,
@@ -145,6 +148,11 @@ class ProjectStorage:
 
         if project_data.sort_order is not None:
             update_dict["sort_order"] = project_data.sort_order
+
+        if "workspace" in project_data.model_fields_set:
+            update_dict["workspace"] = (
+                project_data.workspace.model_dump(by_alias=True) if project_data.workspace else None
+            )
 
         try:
             result = await self.collection.find_one_and_update(

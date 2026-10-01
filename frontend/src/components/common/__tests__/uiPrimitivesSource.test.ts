@@ -454,9 +454,9 @@ test("small reusable panel controls use shared panel primitives where generic", 
   expect(memoryFilter).not.toMatch(/<Button[\s\S]*panel-filter-trigger/);
   expect(memoryFilter).not.toMatch(/className="btn-secondary[^"]*"/);
 
-  expect(mcpServerCard).toMatch(/import \{ IconButton \}/);
-  expect(mcpServerCard).toMatch(/<IconButton[\s\S]*onEdit\(server\)/);
-  expect(mcpServerCard).toMatch(/<IconButton[\s\S]*onDelete\(server\.name/);
+  expect(mcpServerCard).toMatch(/import \{ IconButton/);
+  expect(mcpServerCard).toMatch(/<IconButton[\s\S]*mcp\.card\.edit/);
+  expect(mcpServerCard).toMatch(/<IconButton[\s\S]*mcp\.card\.delete/);
   expect(mcpServerCard).not.toMatch(/className="btn-icon[^"]*"/);
 });
 

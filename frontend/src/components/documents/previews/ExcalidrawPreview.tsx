@@ -1,3 +1,4 @@
+import { SceneIllustration } from "../../common/SceneIllustration";
 import { memo, useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -8,7 +9,7 @@ import { ViewerTopBar } from "../../common/ViewerTopBar";
 import { ViewerToolbar } from "../../common/ViewerToolbar";
 import { ViewerTopBarButton } from "../../common/ViewerTopBarButton";
 import { downloadBlob } from "../../common/viewerDownload";
-import { AlertCircle, X, Download } from "lucide-react";
+import { X, Download } from "lucide-react";
 
 // Types for Excalidraw
 interface ExcalidrawElement {
@@ -133,9 +134,7 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
-        <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-red-100 dark:bg-red-900/30">
-          <AlertCircle size={28} className="text-red-500" />
-        </div>
+        <SceneIllustration scene="files" className="mx-auto mb-4" />
         <div className="text-center">
           <p className="text-14 text-red-600 dark:text-red-400 font-medium mb-2">
             {error}

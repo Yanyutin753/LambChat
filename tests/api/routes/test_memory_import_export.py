@@ -140,6 +140,7 @@ async def test_list_memories_escapes_search_regex(monkeypatch: pytest.MonkeyPatc
     result = await memory_routes.list_memories(
         memory_type=None,
         search="a+b(c)",
+        context=None,
         limit=50,
         offset=0,
         user=_user(),
@@ -149,6 +150,7 @@ async def test_list_memories_escapes_search_regex(monkeypatch: pytest.MonkeyPatc
     assert collection.find_query is not None
     regex = collection.find_query["$or"][0]["title"]["$regex"]
     assert regex == r"a\+b\(c\)"
+    assert {"context": {"$regex": regex, "$options": "i"}} in collection.find_query["$or"]
 
 
 @pytest.mark.asyncio
@@ -461,3 +463,27 @@ async def test_import_memories_rejects_oversized_total_content_before_writes(
     assert exc.value.error_code.code == "memory_import_too_large"
     assert exc.value.http_status == 400
     assert backend._collection.docs == []
+
+
+@pytest.mark.asyncio
+async def test_list_memories_filters_source_with_search(monkeypatch: pytest.MonkeyPatch):
+    collection = _ListCollection()
+
+    async def fake_get_backend():
+        return SimpleNamespace(_collection=collection)
+
+    monkeypatch.setattr(memory_routes, "_get_backend", fake_get_backend)
+    await memory_routes.list_memories(
+        memory_type="project",
+        search="constraint",
+        context=None,
+        source="manual",
+        limit=20,
+        offset=0,
+        user=_user(),
+    )
+    assert collection.find_query["user_id"] == "user-1"
+    assert collection.find_query["memory_type"] == "project"
+    assert collection.find_query["source"] == "manual"
+    assert "context" not in collection.find_query
+    assert len(collection.find_query["$or"]) == 4

@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { NavigationHistoryProvider } from "../../../hooks/useNavigationHistory";
+import { useAuth } from "../../../hooks/useAuth";
+import { useDesktopAutoPair } from "../../../hooks/useDesktopAutoPair";
 import type { UpdateState } from "../../../types";
 import type { DesktopOs } from "./titlebarPlatform";
 
@@ -25,6 +27,9 @@ export function DesktopTitlebarFrame({
   onSkipVersion: () => void;
   children: ReactNode;
 }) {
+  const { user } = useAuth();
+  useDesktopAutoPair(user?.id);
+
   useEffect(() => {
     document.documentElement.style.setProperty("--titlebar-inset", "40px");
     return () => {

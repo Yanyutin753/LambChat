@@ -1,7 +1,13 @@
-import { Suspense, lazy, type ReactNode } from "react";
+import { Suspense, lazy, useEffect, useRef, type ReactNode } from "react";
 import {
-  SkillsPanelSkeleton,
-  MarketplacePanelSkeleton,
+  SkillsHubSkeleton,
+  SettingsPanelSkeleton,
+  FilesContentSkeleton,
+  BookmarksPanelSkeleton,
+  PersonaPlazaSkeleton,
+  TeamPanelSkeleton,
+  NotificationsPanelSkeleton,
+  MemoryPanelSkeleton,
   UsersPanelSkeleton,
   RolesPanelSkeleton,
   MCPPanelSkeleton,
@@ -13,6 +19,7 @@ import {
 } from "../../skeletons";
 import { PanelLoadingState } from "../../common/PanelLoadingState";
 import type { TabType } from "./types";
+import { observePanelWidths } from "../../common/panelWidths";
 
 const SkillsHubPanel = lazy(() =>
   import("../../panels/SkillsHubPanel").then((m) => ({
@@ -111,8 +118,8 @@ const panelMap: Record<
 };
 
 const skeletonMap: Partial<Record<TabType, ReactNode>> = {
-  skills: <SkillsPanelSkeleton />,
-  marketplace: <MarketplacePanelSkeleton />,
+  skills: <SkillsHubSkeleton />,
+  marketplace: <SkillsHubSkeleton marketplace />,
   users: <UsersPanelSkeleton />,
   roles: <RolesPanelSkeleton />,
   mcp: <MCPPanelSkeleton />,
@@ -121,17 +128,33 @@ const skeletonMap: Partial<Record<TabType, ReactNode>> = {
   channels: <ChannelsGridSkeleton />,
   agents: <AgentModelPanelSkeleton />,
   usage: <UsagePanelSkeleton />,
+  settings: <SettingsPanelSkeleton />,
+  files: <FilesContentSkeleton />,
+  bookmarks: <BookmarksPanelSkeleton />,
+  persona: <PersonaPlazaSkeleton />,
+  team: <TeamPanelSkeleton />,
+  notifications: <NotificationsPanelSkeleton />,
+  memory: <MemoryPanelSkeleton />,
 };
 
 export function TabContent({ activeTab }: { activeTab: TabType }) {
+  const panelRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (panelRef.current) return observePanelWidths(panelRef.current);
+  }, [activeTab]);
+
   if (activeTab === "chat") return null;
 
   const Panel = panelMap[activeTab];
   if (!Panel) return null;
 
   return (
-    <main className="flex-1 overflow-hidden bg-[var(--theme-bg)]">
-      <div className="mx-auto w-full h-full flex flex-col overflow-hidden lg:max-w-[80rem] xl:max-w-[96rem] 2xl:max-w-[120rem] sm:px-4">
+    <main
+      ref={panelRef}
+      data-panel={activeTab}
+      className="min-w-0 min-h-0 flex-1 overflow-hidden bg-[var(--theme-bg)]"
+    >
+      <div className="mx-auto w-full h-full flex flex-col overflow-hidden lg:max-w-[80rem] xl:max-w-[96rem] 2xl:max-w-[120rem]">
         <Suspense fallback={skeletonMap[activeTab] ?? <PanelLoadingState />}>
           <Panel />
         </Suspense>

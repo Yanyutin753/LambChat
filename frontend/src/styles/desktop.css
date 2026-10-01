@@ -1,0 +1,395 @@
+/* Shared by native chrome and the web chat workspace, including portalled panels. */
+html:has([data-titlebar], [data-workspace-ui]) {
+  --workspace-header-height: 3rem;
+  --desktop-ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --desktop-hover: color-mix(in srgb, var(--theme-text) 6%, transparent);
+  --desktop-selected: color-mix(in srgb, var(--theme-text) 10%, transparent);
+  --radius-chat: 1rem;
+}
+
+html:has([data-titlebar], [data-workspace-ui])
+  :is(
+    [data-titlebar],
+    [data-desktop-sidebar],
+    .chat-header,
+    .tool-console-chrome
+  ) {
+  font-family: var(--desktop-ui-font);
+}
+
+html:has([data-titlebar], [data-workspace-ui])
+  :is([data-desktop-sidebar], .chat-header, .tool-console-chrome)
+  .font-serif {
+  font-family: var(--desktop-ui-font);
+}
+
+html:has([data-titlebar], [data-workspace-ui]) [data-titlebar] {
+  background: var(--theme-bg-sidebar);
+  border-color: var(--theme-border-faint);
+}
+
+html:has([data-titlebar], [data-workspace-ui])
+  [data-titlebar]
+  button:not(:disabled):hover {
+  background-color: var(--desktop-hover);
+}
+
+html:has([data-titlebar], [data-workspace-ui])
+  [data-window-controls]
+  button:last-child:hover {
+  background-color: var(--theme-error);
+}
+
+html:has([data-titlebar], [data-workspace-ui]) [data-desktop-sidebar] {
+  border-color: var(--theme-border-faint);
+}
+
+html:has([data-titlebar], [data-workspace-ui])
+  :is([data-desktop-sidebar], [data-desktop-activity-rail])
+  button[aria-pressed="true"] {
+  background: var(--desktop-selected);
+  color: var(--theme-text);
+  box-shadow: none;
+}
+
+/* Curve the content edge against the sidebar on wide layouts. */
+div:has(> [data-workspace-content]):has([data-desktop-activity-rail]) {
+  background-color: var(--theme-bg-sidebar) !important;
+}
+
+div:has([data-desktop-activity-rail]) > [data-workspace-content] {
+  background: var(--desktop-canvas-bg, var(--theme-bg));
+  border-left: 1px solid var(--theme-border-faint);
+  border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+}
+
+div:has(> [data-workspace-content])
+  :is([data-desktop-activity-rail], [data-desktop-sidebar]) {
+  border-right-width: 0;
+}
+
+/* A distinct rail surface also reveals the sidebar's curved left edge. */
+html:has([data-desktop-activity-rail]) {
+  --desktop-rail-bg: color-mix(
+    in srgb,
+    var(--theme-bg-sidebar) 94%,
+    var(--theme-text)
+  );
+}
+
+/* Lift navigation above the canvas without introducing a second palette. */
+html.dark:has([data-desktop-activity-rail]) {
+  --desktop-canvas-bg: color-mix(
+    in srgb,
+    var(--theme-bg) 97%,
+    var(--theme-text)
+  );
+  --theme-bg-card: color-mix(in srgb, var(--theme-bg) 88%, var(--theme-text));
+  --theme-bg-subtle: color-mix(in srgb, var(--theme-bg) 92%, var(--theme-text));
+  --theme-bg-elevated: color-mix(
+    in srgb,
+    var(--theme-bg) 90%,
+    var(--theme-text)
+  );
+  --theme-bg-sidebar: color-mix(
+    in srgb,
+    var(--theme-bg) 94%,
+    var(--theme-text)
+  );
+  --desktop-rail-bg: color-mix(
+    in srgb,
+    var(--theme-bg-sidebar) 96%,
+    var(--theme-text)
+  );
+}
+
+html.dark:has([data-desktop-activity-rail])
+  :is([data-workspace-content], .tool-console-panel, .editor-sidebar) {
+  --theme-bg: var(--desktop-canvas-bg);
+}
+
+html:has([data-desktop-activity-rail]) [data-titlebar] {
+  background: var(--desktop-rail-bg);
+}
+
+[data-desktop-sidebar-shell],
+[data-desktop-sidebar-shell] > [data-desktop-activity-rail] {
+  background: var(--desktop-rail-bg);
+}
+
+[data-desktop-activity-rail] {
+  --desktop-hover: color-mix(in srgb, var(--theme-text) 10%, transparent);
+  --desktop-selected: color-mix(in srgb, var(--theme-text) 14%, transparent);
+}
+
+[data-desktop-sidebar-shell] > [data-desktop-sidebar] {
+  border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+}
+
+[data-desktop-activity-rail] button:not(:disabled):hover {
+  background: var(--desktop-hover);
+  color: var(--theme-text);
+}
+
+[data-desktop-activity-rail] button[aria-pressed="true"] {
+  background: var(--desktop-selected);
+  color: var(--theme-text);
+}
+
+html:has([data-titlebar], [data-workspace-ui]) .sidebar-nav-btn:hover {
+  color: var(--theme-text);
+}
+
+html:has([data-titlebar], [data-workspace-ui]) .sidebar-session-row {
+  border-radius: var(--radius-lg);
+}
+
+html:has([data-titlebar], [data-workspace-ui])
+  .sidebar-session-row[aria-current="page"] {
+  background: var(--desktop-selected);
+}
+
+/* Keep the brand, conversation controls and first rail icon on one axis. */
+html:has([data-titlebar], [data-workspace-ui])
+  :is([data-sidebar-brand], .chat-header) {
+  height: var(--workspace-header-height);
+  min-height: var(--workspace-header-height);
+  align-items: center;
+}
+
+html:has([data-titlebar], [data-workspace-ui]) [data-desktop-activity-rail] {
+  padding-top: calc((var(--workspace-header-height) - 2.25rem) / 2);
+}
+
+html:has([data-titlebar], [data-workspace-ui]) .chat-header {
+  min-width: 0;
+  padding-block: 0;
+  margin-bottom: 0;
+  border-radius: 0;
+}
+
+html:has([data-titlebar], [data-workspace-ui]) .chat-header::after {
+  display: none;
+}
+
+html:has([data-titlebar], [data-workspace-ui])
+  .chat-input-container:not([data-composer-expanded]) {
+  border-radius: var(--radius-2xl);
+  box-shadow: 0 1px 3px var(--theme-shadow-sm);
+}
+
+html:has([data-titlebar], [data-workspace-ui]) .chat-input-container:hover {
+  border-color: var(--theme-border-hover);
+}
+
+html:has([data-titlebar], [data-workspace-ui])
+  .chat-input-container:focus-within {
+  border-color: var(--theme-border-hover);
+  outline: 2px solid color-mix(in srgb, var(--theme-ring) 35%, transparent);
+  outline-offset: 2px;
+}
+
+html:has([data-titlebar], [data-workspace-ui])
+  .chat-input-container[data-drag-over]:not([data-composer-expanded]) {
+  border-color: var(--theme-primary);
+  transform: none;
+}
+
+html:has([data-titlebar], [data-workspace-ui]) .chat-input-toolbar {
+  padding-block: 0.375rem;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+}
+
+/* Let names yield space while keeping all actions on one row. */
+html:has([data-titlebar], [data-workspace-ui])
+  .chat-input-toolbar
+  > div:first-child {
+  flex-basis: 0;
+}
+
+html:has([data-titlebar], [data-workspace-ui])
+  .chat-input-toolbar
+  > div:last-child {
+  margin-left: auto;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Serif glyphs sit optically high beside avatars; keep their full line boxes. */
+.chat-input-toolbar .font-serif,
+.chat-assistant-heading .font-serif {
+  position: relative;
+  top: 1px;
+}
+
+html:has([data-titlebar], [data-workspace-ui]) .chat-input-toolbar .font-serif {
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+html:has([data-titlebar], [data-workspace-ui]) .chat-tool-btn {
+  border-radius: var(--radius-md);
+}
+
+html:has([data-titlebar], [data-workspace-ui]) .chat-tool-btn:hover {
+  background: var(--desktop-hover);
+  box-shadow: none;
+}
+
+html:has([data-titlebar], [data-workspace-ui]) .user-message-bubble {
+  --shadow-low: none;
+  background: color-mix(in srgb, var(--theme-text) 5%, var(--theme-bg));
+  transform: none;
+}
+
+html:has([data-titlebar], [data-workspace-ui])
+  .chat-assistant-heading
+  .font-serif {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+html:has([data-titlebar], [data-workspace-ui])
+  .chat-recommended-questions
+  button {
+  font-family: var(--desktop-ui-font);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+  background: transparent;
+}
+
+html:has([data-titlebar], [data-workspace-ui])
+  .chat-recommended-questions
+  button:hover {
+  background: var(--desktop-hover);
+}
+
+html:has([data-titlebar], [data-workspace-ui])
+  :is(.collapsible-section-card--default, .tool-detail-section) {
+  box-shadow: none;
+  border-color: var(--theme-border);
+  border-radius: var(--radius-lg);
+}
+
+html:has([data-titlebar], [data-workspace-ui]) .tool-console-chrome {
+  background: var(--theme-bg-card);
+}
+
+html:has([data-titlebar], [data-workspace-ui]) .tool-console-chrome::after {
+  inset-inline: 0;
+  background: var(--theme-border);
+}
+
+/* Portalled modal panels must also leave the native titlebar unobstructed. */
+html:has([data-titlebar])
+  [data-right-panel-root]:not([data-panel-presentation="docked"]) {
+  top: var(--titlebar-inset, 0px);
+}
+
+html:has([data-titlebar]) .editor-sidebar[data-panel-presentation="overlay"] {
+  --right-sidebar-height: calc(100% - var(--titlebar-inset, 0px) - 1.5rem);
+}
+
+/* Docked panels keep an even inset below the native titlebar. */
+html[data-right-panel-presentation="docked"]:has(
+    [data-titlebar],
+    [data-workspace-ui]
+  )
+  :is(
+    .editor-sidebar--sidebar,
+    .tool-console-panel[data-tool-panel-mode="sidebar"]
+  ) {
+  top: var(--titlebar-inset, 0px);
+  bottom: 0;
+  height: calc(100% - var(--titlebar-inset, 0px) - 1rem);
+  margin: 0.5rem;
+  width: calc(var(--right-panel-active-width) - 1rem) !important;
+  max-width: calc(var(--right-panel-active-width) - 1rem) !important;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 2px 8px var(--theme-shadow-sm);
+}
+
+html:has([data-titlebar], [data-workspace-ui])
+  :is(
+    [data-titlebar],
+    [data-desktop-sidebar],
+    .chat-header,
+    .chat-input-toolbar
+  )
+  :is(button, [role="button"]):focus-visible {
+  outline: 2px solid var(--theme-ring);
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:has([data-titlebar], [data-workspace-ui])
+    :is(
+      [data-desktop-sidebar],
+      .chat-input-container,
+      .chat-tool-btn,
+      .sidebar-session-row,
+      .user-message-bubble
+    ) {
+    transition: none;
+  }
+}
+
+html[data-right-panel-presentation="docked"]:has(
+    [data-titlebar],
+    [data-workspace-ui]
+  )
+  :is(.document-preview-toolbar, .editor-sidebar-header, .tool-console-header) {
+  min-height: calc(3rem - 1px);
+  padding-block: 0.25rem;
+}
+
+html[data-right-panel-presentation="docked"]:has(
+    [data-titlebar],
+    [data-workspace-ui]
+  )
+  :is(.document-preview-toolbar h3, .editor-sidebar-header-title) {
+  line-height: 1.125rem;
+}
+
+html[data-right-panel-presentation="docked"]:has(
+    [data-titlebar],
+    [data-workspace-ui]
+  )
+  :is(
+    .document-preview-toolbar h3 + div,
+    .document-preview-toolbar h3 + div span,
+    .editor-sidebar-header-subtitle
+  ) {
+  line-height: 1rem;
+  padding-block: 0;
+}
+
+html[data-right-panel-presentation="docked"]:has(
+    [data-titlebar],
+    [data-workspace-ui]
+  )
+  .editor-sidebar-header-icon {
+  width: 2rem;
+  height: 2rem;
+}
+
+/* Container queries also cover narrow chat columns beside a docked preview. */
+.chat-input-container {
+  container-name: composer;
+  container-type: inline-size;
+}
+
+@container composer (max-width: 600px) {
+  .chat-input-toolbar .composer-sandbox-label {
+    display: none;
+  }
+}
+
+@container composer (max-width: 420px) {
+  .chat-input-toolbar .composer-usage-amount {
+    display: none;
+  }
+}

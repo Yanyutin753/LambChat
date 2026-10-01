@@ -374,18 +374,16 @@ class SessionStorage(SessionAttachmentOperationsMixin):
         project_id: Optional[str] = None,
         search: Optional[str] = None,
         favorites_only: bool = False,
+        pinned_only: bool = False,
         favorites_project_id: str | None = None,
     ) -> tuple[list[Session], int]:
         """列出会话，返回 (sessions, total_count)
 
         Args:
-            user_id: 用户ID，如果提供则只返回该用户的会话
-                     None 表示不过滤（仅管理员使用）
-            project_id: 项目ID过滤
-                       - None: 不过滤项目
-                       - "none": 只返回未分类的会话（没有project_id）
-                       - 其他值: 只返回该项目内的会话
+            user_id: 用户ID；None 表示不过滤（仅管理员使用）
+            project_id: None 不过滤；"none" 只返回未分类；其他值只返回该项目内会话
             search: 搜索关键词，模糊匹配会话名称
+            favorites_only / pinned_only: 仅返回已收藏 / 已置顶会话
         """
         await self.ensure_indexes_if_needed()
         skip = max(int(skip or 0), 0)
@@ -414,6 +412,8 @@ class SessionStorage(SessionAttachmentOperationsMixin):
         elif project_id is not None:
             query["metadata.project_id"] = project_id
 
+        if pinned_only:  # 侧边栏「置顶」分类：跨项目聚合已置顶会话
+            query["metadata.is_pinned"] = True
         if favorites_only:
             favorite_query: list[dict[str, Any]] = [{"metadata.is_favorite": True}]
             if favorites_project_id:

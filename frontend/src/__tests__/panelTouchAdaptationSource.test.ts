@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 /**
  * 移动端无 hover：面板/侧栏里 opacity-0 + group-hover:opacity-100 的
- * 交互元素必须带 max-sm:opacity-100 兜底，否则触屏上永远不可见。
+ * 交互元素必须带窄屏或无 hover 媒体查询兜底，否则触屏上永远不可见。
  */
 function readComponent(...segments: string[]): string {
   return readFileSync(
@@ -24,8 +24,22 @@ test.each(HOVER_REVEAL_FILES)(
   "%s keeps every hover-reveal visible on touch",
   (file) => {
     const source = readComponent(file);
+    if (source.includes("sidebar-action-reveal")) {
+      const css = readFileSync(
+        resolve(import.meta.dirname, "../styles/components.css"),
+        "utf8",
+      );
+      expect(css).toMatch(
+        /@media \(hover: none\)\s*\{\s*html:not\(:has\(\[data-titlebar\]\)\) \.sidebar-action-reveal\s*\{\s*opacity: 1/,
+      );
+      expect(source).not.toContain("max-sm:opacity-100");
+      return;
+    }
     const hoverReveals = source.match(/group-hover:opacity-100/g) ?? [];
-    const touchFallbacks = source.match(/max-sm:opacity-100/g) ?? [];
+    const touchFallbacks =
+      source.match(
+        /max-sm:opacity-100|\[@media\(hover:none\)\]:opacity-100/g,
+      ) ?? [];
     // 该文件内的每一处 hover 显隐都要有移动端可见兜底
     expect(touchFallbacks.length).toBe(hoverReveals.length);
     expect(hoverReveals.length).toBeGreaterThan(0);

@@ -1,7 +1,10 @@
 import { expect, test } from "vitest";
 
 import { RIGHT_PANEL_WIDTH_CHANGED_EVENT } from "../rightPanelAutoCollapse";
-import { shouldTemporarilyCollapseNavigation } from "../rightPanelAutoCollapse";
+import {
+  MINIMUM_WORKSPACE_WITH_NAVIGATION_PX,
+  shouldTemporarilyCollapseNavigation,
+} from "../rightPanelAutoCollapse";
 
 const docked = {
   open: true,
@@ -62,4 +65,16 @@ test("does not collapse navigation without an active panel", () => {
 
 test("exports a stable width-changed event name for layout sync", () => {
   expect(RIGHT_PANEL_WIDTH_CHANGED_EVENT).toBe("right-panel-width-changed");
+});
+
+test("keeps both sidebars open until workspace is genuinely cramped", () => {
+  for (const remainingWidth of [749, 680, 679]) {
+    expect(
+      shouldTemporarilyCollapseNavigation({
+        layout: { ...docked, widthPx: docked.viewportWidth - remainingWidth },
+        minimumWorkspaceWithNavigationPx: MINIMUM_WORKSPACE_WITH_NAVIGATION_PX,
+        userOverrode: false,
+      }),
+    ).toBe(remainingWidth < 680);
+  }
 });

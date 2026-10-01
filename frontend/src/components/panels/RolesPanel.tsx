@@ -641,7 +641,7 @@ export function RolesPanel() {
       <PanelHeader
         title={t("roles.title")}
         subtitle={t("roles.subtitle")}
-        icon={<Shield size={24} className="text-theme-text-secondary" />}
+        illustration="panel-roles"
         searchValue={searchQuery}
         onSearchChange={handleSearchQueryChange}
         searchPlaceholder={t("roles.searchPlaceholder")}
@@ -660,14 +660,14 @@ export function RolesPanel() {
 
       {/* 错误提示 */}
       {error && (
-        <div className="mx-4 mt-4 flex items-center gap-2 rounded-xl bg-red-50 p-3 text-14 text-red-600 dark:bg-red-900/30 dark:text-red-400 sm:mx-6">
+        <div className="panel-notice flex items-center gap-2 rounded-xl bg-red-50 p-3 text-14 text-red-600 dark:bg-red-900/30 dark:text-red-400">
           <AlertCircle size={18} />
           <span>{error}</span>
         </div>
       )}
 
       {/* 角色列表 */}
-      <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4">
+      <div className="panel-body flex-1 overflow-y-auto">
         {filteredRoles.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <Shield
@@ -736,7 +736,7 @@ export function RolesPanel() {
 
                 {/* Footer actions */}
                 {canManage && (
-                  <div className="mt-auto flex items-center gap-2 border-t border-[var(--glass-border)] pt-3 mt-3.5">
+                  <div className="mt-auto flex items-center gap-2 pt-4">
                     <div className="ml-auto" />
                     <IconButton
                       aria-label={t("common.edit")}
@@ -771,16 +771,14 @@ export function RolesPanel() {
       </div>
 
       {/* Pagination */}
-      {total > pageSize && (
-        <div className="glass-divider px-3 py-3 sm:px-4">
-          <Pagination
-            page={page}
-            pageSize={pageSize}
-            total={total}
-            onChange={setPage}
-          />
-        </div>
-      )}
+      <div className="panel-pagination empty:hidden">
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onChange={setPage}
+        />
+      </div>
 
       {/* 模态框 */}
       {showFormModal && (

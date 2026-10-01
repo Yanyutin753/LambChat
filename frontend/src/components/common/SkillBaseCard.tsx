@@ -50,6 +50,18 @@ export function SkillBaseCard({
 
   return (
     <div
+      role={onClick || (selectionMode && onSelect) ? "button" : undefined}
+      tabIndex={onClick || (selectionMode && onSelect) ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (
+          e.target === e.currentTarget &&
+          (e.key === "Enter" || e.key === " ") &&
+          (onClick || (selectionMode && onSelect))
+        ) {
+          e.preventDefault();
+          e.currentTarget.click();
+        }
+      }}
       className={`scb group flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none dark:border dark:border-[var(--theme-border)] ${
         muted ? "scb--muted" : ""
       } ${
@@ -73,11 +85,13 @@ export function SkillBaseCard({
           : onClick
       }
     >
-      {gradient && (
+      {(gradient || bannerLeadingOverlay || bannerOverlay) && (
         <div
           className="scb__banner relative h-12 shrink-0"
           style={{
-            background: `linear-gradient(45deg, ${gradient[0]}, ${gradient[1]}, ${gradient[2]})`,
+            background: gradient
+              ? `linear-gradient(45deg, ${gradient[0]}, ${gradient[1]}, ${gradient[2]})`
+              : undefined,
           }}
         >
           <div className="absolute inset-0 flex items-start justify-between px-2 py-2 z-[3]">
@@ -146,7 +160,10 @@ export function SkillBaseCard({
         <div className="flex items-start gap-3">
           {icon && <div className="scb__icon-ring shrink-0">{icon}</div>}
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-16 font-semibold font-serif  text-[var(--theme-text)] leading-tight">
+            <h3
+              title={title}
+              className="line-clamp-2 break-words text-16 font-semibold font-serif  text-[var(--theme-text)] leading-tight"
+            >
               {title}
             </h3>
             {statusPills}

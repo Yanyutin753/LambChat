@@ -208,7 +208,7 @@ export function PersonaPresetCard({
         <div className="flex-1" />
 
         {/* Meta & Actions */}
-        <div className="mt-4 flex items-center justify-between gap-2 border-t border-[var(--theme-border)] pt-3">
+        <div className="scb__footer flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-11 text-[var(--theme-text-secondary)]">
             {preset.skill_names.length > 0 && (
               <span className="inline-flex items-center gap-1">

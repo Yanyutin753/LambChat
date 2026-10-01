@@ -81,15 +81,15 @@ export function UserAgentPreferencePanel() {
   return (
     <div className="space-y-3">
       {error && (
-        <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-14">
+        <div className="flex items-center gap-2 p-3 rounded-xl bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)] dark:bg-red-900/30 text-theme-error dark:text-red-400 text-14">
           <AlertCircle size={16} className="shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      <div className="rounded-xl bg-stone-50 dark:bg-stone-700/50 p-3 sm:p-4">
+      <div className="rounded-xl bg-theme-bg-subtle dark:bg-stone-700/50 p-3 sm:p-4">
         {availableAgents.length === 0 ? (
-          <p className="text-14 text-stone-500 dark:text-stone-400 py-2">
+          <p className="text-14 text-theme-text-secondary dark:text-stone-400 py-2">
             {t("agentConfig.noAvailableAgents")}
           </p>
         ) : (
@@ -123,10 +123,10 @@ export function UserAgentPreferencePanel() {
                     className="shrink-0"
                   />
                   <span className="min-w-0 flex-1">
-                    <span className="block text-14 font-medium text-stone-900 dark:text-stone-100 truncate">
+                    <span className="block text-14 font-medium text-theme-text dark:text-stone-100 truncate">
                       {displayName}
                     </span>
-                    <span className="block text-12 text-stone-500 dark:text-stone-400 mt-0.5 truncate">
+                    <span className="block text-12 text-theme-text-secondary dark:text-stone-400 mt-0.5 truncate">
                       {displayDescription}
                     </span>
                   </span>
@@ -160,10 +160,10 @@ export function UserAgentPreferencePanel() {
       )}
 
       {currentPreference && !hasChanges && (
-        <div className="flex items-center gap-2 text-14 text-stone-500 dark:text-stone-400">
+        <div className="flex items-center gap-2 text-14 text-theme-text-secondary dark:text-stone-400">
           <Check
             size={16}
-            className="text-green-500 dark:text-green-400 shrink-0"
+            className="text-theme-success dark:text-green-400 shrink-0"
           />
           <span className="truncate">
             {t("agentConfig.currentPreference", {

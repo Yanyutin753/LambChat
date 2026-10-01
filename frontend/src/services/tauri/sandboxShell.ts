@@ -135,18 +135,20 @@ export function openLocalPath(path: string): Promise<void> {
  *
  * relPath 是工作区内相对路径；workspaceSelection 是会话 agent_options 里
  * sandbox_workspace 的原样 JSON 字符串（Rust 侧与 .selected 绑定文件比对
- * 防伪），缺省回落默认工作区 data_root/{sessionId}。失败静默（Rust 记
- * 日志），不打断浏览。
+ * 防伪），machineId 是会话目标机（Rust 校验非本机即拒——文件树可跨机
+ * 浏览，reveal 只能开本机路径）。失败静默（Rust 记日志），不打断浏览。
  */
 export function revealWorkspacePath(
   sessionId: string,
   relPath: string,
   workspaceSelection?: string | null,
+  machineId?: string | null,
 ): Promise<void> {
   return invokeInShell("reveal_workspace_path", {
     sessionId,
     relPath,
     workspaceSelection: workspaceSelection ?? null,
+    machineId: machineId ?? null,
   }).then(() => undefined);
 }
 

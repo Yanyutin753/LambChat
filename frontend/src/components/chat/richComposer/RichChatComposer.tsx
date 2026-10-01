@@ -6,7 +6,12 @@ import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $createParagraphNode, $createTextNode, $getRoot } from "lexical";
+import {
+  $createParagraphNode,
+  $createTextNode,
+  $getRoot,
+  SKIP_SCROLL_INTO_VIEW_TAG,
+} from "lexical";
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import type { SkillResponse } from "../../../types";
 import type { ChatInputSlashCommand } from "../chatInputSlashCommands";
@@ -71,6 +76,7 @@ export interface RichChatComposerHandle {
 
 export interface RichChatComposerProps {
   ariaLabel: string;
+  focusRequest?: number;
   placeholder?: string;
   initialPlainText?: string;
   className?: string;
@@ -90,9 +96,25 @@ export interface RichChatComposerProps {
   ) => boolean;
 }
 
-function EditablePlugin({ disabled }: { disabled: boolean }) {
+function EditablePlugin({
+  disabled,
+  focusRequest,
+}: {
+  disabled: boolean;
+  focusRequest?: number;
+}) {
   const [editor] = useLexicalComposerContext();
   useEffect(() => editor.setEditable(!disabled), [disabled, editor]);
+  useEffect(() => {
+    if (!focusRequest || disabled) return;
+    const frame = requestAnimationFrame(() => {
+      editor.getRootElement()?.focus({ preventScroll: true });
+      editor.update(() => $getRoot().selectEnd(), {
+        tag: SKIP_SCROLL_INTO_VIEW_TAG,
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [editor, disabled, focusRequest]);
   return null;
 }
 
@@ -102,6 +124,7 @@ export const RichChatComposer = forwardRef<
 >(function RichChatComposer(
   {
     ariaLabel,
+    focusRequest,
     placeholder,
     initialPlainText = "",
     className,
@@ -210,7 +233,7 @@ export const RichChatComposer = forwardRef<
           runModes={runModes}
           onArrowKey={onArrowKey}
         />
-        <EditablePlugin disabled={disabled} />
+        <EditablePlugin disabled={disabled} focusRequest={focusRequest} />
       </div>
     </LexicalComposer>
   );

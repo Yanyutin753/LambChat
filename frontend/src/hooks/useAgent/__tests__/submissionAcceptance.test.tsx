@@ -242,3 +242,31 @@ test("a local goal validation error rejects the staged draft", async () => {
   expect(onRejected).toHaveBeenCalledOnce();
   expect(submitChat).not.toHaveBeenCalled();
 });
+
+test("background reconnect keeps the active bubble streaming after the old send exits", async () => {
+  let releaseOldStream: () => void = () => undefined;
+  connectToSSE.mockImplementationOnce((_session, _run, messageId, ctx) => {
+    ctx.sseGenerationRef.current += 1;
+    ctx.streamingMessageIdRef.current = messageId;
+    return new Promise<void>((resolve) => {
+      releaseOldStream = () => {
+        ctx.sseGenerationRef.current += 1;
+        resolve();
+      };
+    });
+  });
+  const { result } = renderHook(() => useAgent());
+  await waitFor(() => expect(result.current.currentAgent).toBe("default"));
+  let sending: Promise<void>;
+  act(() => {
+    sending = result.current.sendMessage("hello");
+  });
+  await waitFor(() => expect(connectToSSE).toHaveBeenCalledOnce());
+  await act(async () => {
+    releaseOldStream();
+    await sending;
+  });
+  expect(
+    result.current.messages.find((message) => message.role === "assistant")?.isStreaming,
+  ).toBe(true);
+});

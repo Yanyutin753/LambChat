@@ -40,8 +40,8 @@
 
   /* ── Text ── */
   --theme-text: #1c1917;
-  --theme-text-secondary: #78716c;
-  --theme-text-tertiary: #a8a29e;
+  --theme-text-secondary: #57534e;
+  --theme-text-tertiary: #736b66;
 
   /* ── Overlays ── */
   --theme-overlay: rgba(0, 0, 0, 0.4);
@@ -221,7 +221,9 @@
   --app-keyboard-inset: 0px;
 }
 
-@media (display-mode: standalone), (display-mode: fullscreen) {
+/* Narrow installed/fullscreen apps retain the mobile top inset. */
+@media (max-width: 767px) and (display-mode: standalone),
+  (max-width: 767px) and (display-mode: fullscreen) {
   :root {
     --app-fullscreen-safe-area-top: 12px;
   }

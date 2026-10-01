@@ -741,13 +741,13 @@ export const ChatMessage = memo(function ChatMessage({
         {/* Content */}
         <div className="min-w-0 min-h-0 py-1 sm:py-2">
           {/* Header: Avatar + Role label + Stop button */}
-          <div className="mb-3 flex flex-nowrap items-center gap-2">
+          <div className="chat-assistant-heading mb-3 flex flex-nowrap items-center gap-2">
             <AssistantAvatar
               className="size-5 sm:size-6 shrink-0 rounded-full"
               personaAvatar={personaAvatar}
             />
             <span
-              className="min-w-0 truncate text-16 sm:text-18 font-semibold tracking-tight font-serif"
+              className="min-w-0 truncate text-16 sm:text-18 leading-none font-semibold tracking-tight font-serif"
               style={{ color: "var(--theme-text)" }}
             >
               {personaName || t("chat.message.assistant")}

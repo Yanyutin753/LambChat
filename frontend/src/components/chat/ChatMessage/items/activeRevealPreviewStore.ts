@@ -1,51 +1,31 @@
-import { createSingletonStore } from "./createSingletonStore";
 import type { ActiveRevealPreviewState } from "./revealPreviewState";
-import {
-  registerPanelCapture,
-  registerPanelDeactivate,
-  pushCurrentPanelToHistory,
-} from "./sidebarHistoryStore";
+import { createPanelTabsStore } from "./createPanelTabsStore";
 
-const store = createSingletonStore<ActiveRevealPreviewState | null>(null);
+const store = createPanelTabsStore<ActiveRevealPreviewState>(
+  (state) => `reveal-preview:${state.request.previewKey}`,
+);
+export const getRevealPreviewTabs = store.getAll;
+export const clearRevealPreviewTabs = store.clear;
+export const getActiveRevealPreviewState = store.get;
+export const subscribeActiveRevealPreviewState = store.subscribe;
 
-registerPanelCapture(() => {
-  const state = store.get();
-  if (state) {
-    const captured = state;
-    return { restore: () => store.set(captured) };
-  }
-  return null;
-});
-
-registerPanelDeactivate(() => {
-  store.set(null);
-});
-
-export function getActiveRevealPreviewState(): ActiveRevealPreviewState | null {
-  return store.get();
+export function closeRevealPreviewTab(key: string): void {
+  store.close(`reveal-preview:${key}`);
 }
-
 export function setActiveRevealPreviewState(
   next: ActiveRevealPreviewState | null,
 ): void {
-  if (next !== null) {
-    pushCurrentPanelToHistory();
-  }
-  store.set(next);
+  if (next) store.open(next);
+  else store.close();
 }
-
 export function updateActiveRevealPreviewState(
   updater: (
     current: ActiveRevealPreviewState | null,
   ) => ActiveRevealPreviewState | null,
 ): void {
-  store.set(updater(store.get()));
-}
-
-export function subscribeActiveRevealPreviewState(
-  listener: () => void,
-): () => void {
-  return store.subscribe(listener);
+  const next = updater(store.get());
+  if (next) store.update(() => next);
+  else store.close();
 }
 
 export {

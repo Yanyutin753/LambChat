@@ -109,6 +109,8 @@ export interface ChatInputProps {
   ) => void;
   onMentionQueryChange?: (query: string | null) => void;
   pendingInput?: string | null;
+  /** Increment after an explicit new-chat action to focus the composer. */
+  focusRequest?: number;
   onPendingInputConsumed?: () => void;
   className?: string;
 

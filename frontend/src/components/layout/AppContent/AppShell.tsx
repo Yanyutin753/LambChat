@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import "../../../styles/desktop.css";
 import { ProfileModal } from "../../profile/ProfileModal";
 import { Header } from "./Header";
 import {
@@ -49,6 +50,7 @@ function isStandaloneDisplayMode(): boolean {
 
 export interface AppShellProps {
   activeTab: TabType;
+  headerActions?: ReactNode;
   showProfileModal: boolean;
   onCloseProfileModal: () => void;
   setMobileSidebarOpen: (open: boolean) => void;
@@ -79,6 +81,7 @@ export interface AppShellProps {
 
 export function AppShell({
   activeTab,
+  headerActions,
   showProfileModal,
   onCloseProfileModal,
   setMobileSidebarOpen,
@@ -284,6 +287,7 @@ export function AppShell({
       />
 
       <div
+        data-workspace-ui={activeTab === "chat" ? "" : undefined}
         className="flex w-full overflow-hidden"
         style={{
           backgroundColor: "var(--theme-bg)",
@@ -297,9 +301,18 @@ export function AppShell({
       >
         {sidebar}
 
-        <div className="relative z-0 flex flex-1 min-w-0 flex-col overflow-hidden">
+        <div
+          data-workspace-content=""
+          className="relative z-0 flex flex-1 min-w-0 flex-col overflow-hidden"
+          style={
+            activeTab !== "chat"
+              ? { containerType: "inline-size", containerName: "panel-shell" }
+              : undefined
+          }
+        >
           <Header
             activeTab={activeTab}
+            headerActions={headerActions}
             setMobileSidebarOpen={setMobileSidebarOpen}
             currentProjectId={currentProjectId}
             projectManager={projectManager}

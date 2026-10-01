@@ -1,6 +1,7 @@
+import { SceneIllustration } from "../common/SceneIllustration";
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Mail, CheckCircle } from "lucide-react";
+import { Mail } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { authApi } from "../../services/api";
@@ -42,9 +43,7 @@ export function RegistrationPending() {
   return (
     <AuthLayout>
       <div className="mb-5 text-center">
-        <div className="auth-status-icon relative mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-900/20">
-          <CheckCircle className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-        </div>
+        <SceneIllustration scene="message" className="mx-auto mb-3" />
         <h1 className="text-20 font-bold text-stone-900 dark:text-stone-100 mb-1 font-serif">
           {t("auth.registrationSuccessTitle")}
         </h1>

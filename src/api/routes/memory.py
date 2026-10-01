@@ -167,8 +167,11 @@ def _json_iterencode_chunks(encoder: json.JSONEncoder, value: Any) -> list[str]:
 @router.get("/")
 async def list_memories(
     memory_type: Optional[str] = Query(None, description="Filter by memory type"),
-    search: Optional[str] = Query(None, description="Search query (matches title, summary, tags)"),
-    context: Optional[str] = Query(None, description="Filter by exact context scope"),
+    search: Optional[str] = Query(
+        None, description="Search query (matches title, summary, tags, context)"
+    ),
+    context: Optional[str] = Query(None, description="Filter by exact context label"),
+    source: Optional[str] = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     user: TokenPayload = Depends(get_current_user_required),
@@ -188,6 +191,8 @@ async def list_memories(
         query_filter["memory_type"] = memory_type
     if context:
         query_filter["context"] = context
+    if source:
+        query_filter["source"] = source
 
     if search:
         search_regex = {"$regex": re.escape(search), "$options": "i"}
@@ -195,6 +200,7 @@ async def list_memories(
             {"title": search_regex},
             {"summary": search_regex},
             {"tags": search_regex},
+            {"context": search_regex},
         ]
 
     collection = backend._collection

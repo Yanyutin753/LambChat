@@ -1,5 +1,5 @@
+import { SceneIllustration } from "../common/SceneIllustration";
 import { Suspense, lazy } from "react";
-import { AlertCircle } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { ImageViewer } from "../common/ImageViewer";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
@@ -15,7 +15,6 @@ const ExcelPreview = lazy(() => import("./previews/ExcelPreview"));
 const ExcalidrawPreview = lazy(() => import("./previews/ExcalidrawPreview"));
 const CadPreview = lazy(() => import("./previews/CadPreview"));
 const FileFallbackPanel = lazy(() => import("./previews/FileFallbackPanel"));
-
 import type { DocumentPreviewState } from "./useDocumentPreviewState";
 
 type ContentProps = Pick<
@@ -116,7 +115,7 @@ export default function DocumentPreviewContent({
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 sm:py-20 gap-4">
+      <div className="flex min-h-full flex-col items-center justify-center py-8 gap-4">
         <div className="relative">
           <LoadingSpinner size="lg" color="text-[var(--theme-primary)]" />
           <div className="absolute inset-0 animate-ping">
@@ -136,10 +135,8 @@ export default function DocumentPreviewContent({
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 sm:py-20 gap-4 px-4">
-        <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-red-100 dark:bg-red-900/30">
-          <AlertCircle size={28} className="text-red-500" />
-        </div>
+      <div className="flex min-h-full flex-col items-center justify-center py-8 gap-4 px-4">
+        <SceneIllustration scene="files" />
         <div className="text-center">
           <p className="text-14 text-red-600 dark:text-red-400 font-medium mb-2">
             {error}
@@ -232,10 +229,9 @@ export default function DocumentPreviewContent({
     return (
       <div className="flex items-center justify-center h-full min-h-[400px] p-4 sm:p-8">
         <div className="w-full max-w-lg mx-auto flex flex-col items-center gap-6">
-          <div
-            className={`flex items-center justify-center w-20 h-20 rounded-2xl ${fileInfo.bg}`}
-          >
-            <Icon size={36} className={fileInfo.color} />
+          <div className="flex flex-col items-center gap-2">
+            <SceneIllustration scene="files" />
+            <Icon size={18} className={fileInfo.color} />
           </div>
           <audio
             controls

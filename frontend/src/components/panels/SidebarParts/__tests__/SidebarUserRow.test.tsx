@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 import { SidebarUserRow } from "../SidebarUserRow";
 
@@ -23,6 +23,21 @@ const user = {
   avatar_url: undefined,
   roles: ["admin"],
 };
+
+test("compact profile shows only an accessible avatar button", () => {
+  const onShowProfile = vi.fn();
+  render(
+    <SidebarUserRow
+      compact
+      user={user}
+      imgError={false}
+      onShowProfile={onShowProfile}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "clivia.yang" }));
+  expect(onShowProfile).toHaveBeenCalledOnce();
+  expect(screen.queryByText("Admin")).not.toBeInTheDocument();
+});
 
 test("renders the username, capitalized role and affordance icon", () => {
   render(

@@ -433,7 +433,7 @@ export function UsersPanel() {
       <PanelHeader
         title={t("users.title")}
         subtitle={t("users.subtitle")}
-        icon={<Users size={24} className="text-theme-text-secondary" />}
+        illustration="panel-users"
         searchValue={searchQuery}
         onSearchChange={handleSearchQueryChange}
         searchPlaceholder={t("users.searchPlaceholder")}
@@ -452,14 +452,14 @@ export function UsersPanel() {
 
       {/* 错误提示 */}
       {error && (
-        <div className="mx-3 mt-4 flex items-center gap-2 rounded-xl bg-red-50 p-3 text-14 text-red-600 dark:bg-red-900/30 dark:text-red-400 sm:mx-6">
+        <div className="panel-notice flex items-center gap-2 rounded-xl bg-red-50 p-3 text-14 text-red-600 dark:bg-red-900/30 dark:text-red-400">
           <AlertCircle size={18} />
           <span>{error}</span>
         </div>
       )}
 
       {/* 用户列表 */}
-      <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4">
+      <div className="panel-body flex-1 overflow-y-auto">
         {users.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <Users
@@ -475,7 +475,7 @@ export function UsersPanel() {
         ) : (
           <>
             {/* Desktop table view */}
-            <div className="hidden overflow-x-auto glass-card rounded-xl sm:block">
+            <div className="panel-table-view hidden overflow-x-auto glass-card rounded-xl sm:block">
               <table className="min-w-full divide-y divide-[var(--glass-border)]">
                 <thead className="bg-[var(--glass-bg-subtle)]">
                   <tr>
@@ -579,7 +579,7 @@ export function UsersPanel() {
             </div>
 
             {/* Mobile card view */}
-            <div className="space-y-3 sm:hidden">
+            <div className="panel-list-view space-y-3 sm:hidden">
               {users.map((user) => (
                 <div key={user.id} className="panel-card">
                   {/* User info: avatar, username, email */}
@@ -658,16 +658,14 @@ export function UsersPanel() {
       </div>
 
       {/* Pagination */}
-      {total > pageSize && (
-        <div className="glass-divider px-3 py-3 sm:px-6">
-          <Pagination
-            page={page}
-            pageSize={pageSize}
-            total={total}
-            onChange={setPage}
-          />
-        </div>
-      )}
+      <div className="panel-pagination empty:hidden">
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onChange={setPage}
+        />
+      </div>
 
       {/* 模态框 */}
       {showFormModal && (

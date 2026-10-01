@@ -671,3 +671,62 @@ async def test_ack_timeout_cleans_repush_residue(fake, monkeypatch):
     assert exc.value.error_code == ErrorCode.SANDBOX_TIMEOUT
     # 队列残留被 lrem 清空：断联期间积累的重推帧不外泄
     assert fake.lists.get("sandbox:req:u1") in (None, [])
+
+
+async def test_dispatch_call_logs_roundtrip_metrics(fake, monkeypatch, caplog):
+    """往返耗时埋点：成功往返产出一条结构化日志（op/call_id/outcome/elapsed_ms/
+    ack_ms/repushes），且不落命令内容（payload 可能含敏感命令）。"""
+    import logging
+
+    monkeypatch.setattr(dispatch_module, "_BLPOP_TIMEOUT", 0.01)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 2)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_EXEC_TIMEOUT", 5)
+
+    async def daemon():
+        req = json.loads(await fake.lpop("sandbox:req:u1"))
+        await fake.rpush(
+            f"sandbox:resp:{req['call_id']}",
+            json.dumps({"user_id": "u1", "stage": "ack"}),
+        )
+        await fake.rpush(
+            f"sandbox:resp:{req['call_id']}",
+            json.dumps({"user_id": "u1", "stage": "done", "status": "ok", "stdout": "hi"}),
+        )
+
+    task = asyncio.create_task(daemon())
+    with caplog.at_level(logging.INFO, logger="src.infra.sandbox.relay.dispatch"):
+        result = await dispatch_local_call("u1", "exec", {"command": "echo secret-cmd-token"})
+    await task
+    assert result["stdout"] == "hi"
+
+    records = [
+        r
+        for r in caplog.records
+        if r.name == "src.infra.sandbox.relay.dispatch" and r.msg == "sandbox_dispatch_roundtrip"
+    ]
+    assert len(records) == 1
+    rec = records[0]
+    assert rec.op == "exec"
+    assert rec.outcome == "done"
+    assert rec.elapsed_ms >= 0
+    assert rec.ack_ms is not None and rec.ack_ms >= 0
+    assert rec.repushes == 0
+    assert "secret-cmd-token" not in rec.getMessage()
+    assert "secret-cmd-token" not in str(rec.__dict__)
+
+
+async def test_dispatch_call_logs_ack_timeout_outcome(fake, monkeypatch, caplog):
+    import logging
+
+    monkeypatch.setattr(dispatch_module, "_BLPOP_TIMEOUT", 0.01)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 0)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_EXEC_TIMEOUT", 1)
+
+    with caplog.at_level(logging.INFO, logger="src.infra.sandbox.relay.dispatch"):
+        with pytest.raises(AppError):
+            await dispatch_local_call("u1", "exec", {"command": "echo hi"}, timeout=1)
+
+    records = [r for r in caplog.records if getattr(r, "op", None) == "exec"]
+    assert len(records) == 1
+    assert records[0].outcome == "ack_timeout"
+    assert records[0].repushes == 0

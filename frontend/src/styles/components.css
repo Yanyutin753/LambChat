@@ -106,48 +106,61 @@
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
 }
 
-/* Panel header - sticky, blends with background */
+.panel-header__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.5rem;
+  background: var(--theme-bg-subtle);
+  color: var(--theme-text-secondary);
+  box-shadow: 0 0 0 1px var(--theme-border);
+}
+.panel-header__icon > svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+@media (min-width: 1024px) {
+  .panel-header__icon {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}
+
+.panel-header__icon.panel-header__illustration {
+  width: 3rem;
+  height: 3rem;
+  background: transparent;
+  box-shadow: none;
+}
+
+.panel-header__illustration > .scene-illustration {
+  width: 100%;
+  height: 100%;
+}
+
+/* Page identity sits directly on the page background. */
 .panel-header {
-  position: sticky;
-  top: 0;
+  margin-bottom: 0.75rem;
+  min-width: 0;
+  position: relative;
   z-index: 10;
   width: 100%;
   flex: 0 0 auto;
   background: var(--theme-bg);
-  border-bottom: 1px solid var(--theme-border);
-  padding: 0.75rem 1rem;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--theme-bg) 80%, transparent);
+  padding: 1rem 0 0;
   isolation: isolate;
 }
 
-.glass-shell .panel-header {
-  background: var(--theme-bg);
-  border-bottom-color: var(--glass-border, var(--theme-border));
-}
-
-@media (min-width: 640px) {
-  .panel-header {
-    padding: 1.25rem 1.5rem;
-  }
-}
-
-@media (min-width: 1024px) {
-  .panel-header {
-    padding: 1.5rem 2rem;
-  }
-}
-
-@media (max-width: 639px) {
+@container panel (max-width: 639px) {
   .panel-header {
     padding: 0.5rem 1rem 0.625rem;
   }
 
   .panel-header.panel-header--has-search {
     padding-top: 0.625rem;
-  }
-
-  .panel-header.panel-header--has-search .panel-header__top {
-    display: none;
   }
 
   .panel-header .panel-header__top {
@@ -204,8 +217,8 @@
   }
 
   .panel-header .panel-search {
-    height: 2.25rem;
-    padding-right: 2.5rem;
+    height: 2.75rem;
+    padding-right: 3rem;
   }
 }
 
@@ -214,9 +227,13 @@
 }
 
 .panel-header__actions > :is(button, a, select),
-.panel-header__actions > .flex > :is(button, a, select),
+.panel-header__actions
+  > .flex:not(.file-library-view-switch)
+  > :is(button, a, select),
 .panel-header__search-actions > :is(button, a, select),
-.panel-header__search-actions > .flex > :is(button, a, select) {
+.panel-header__search-actions
+  > .flex:not(.file-library-view-switch)
+  > :is(button, a, select) {
   height: 2.5rem;
   min-height: 2.5rem;
 }
@@ -406,8 +423,7 @@
 .panel-header-dropdown
   :is(button, [role="menuitem"], .skill-tag-chip):focus-visible,
 .panel-header__mobile-menu :is(button, a):focus-visible {
-  outline: 2px solid
-    color-mix(in srgb, var(--theme-text-secondary) 50%, transparent);
+  outline: 2px solid var(--theme-ring);
   outline-offset: 2px;
 }
 
@@ -752,7 +768,7 @@
   white-space: nowrap;
 }
 
-@media (max-width: 639px) {
+@container panel (max-width: 639px) {
   .panel-header__desktop-actions {
     display: none;
   }
@@ -768,8 +784,8 @@
   .panel-header__mobile-more {
     display: inline-flex;
     align-items: center;
-    height: 2rem;
-    width: 2rem;
+    height: 2.75rem;
+    width: 2.75rem;
     justify-content: center;
     border: 0;
     border-radius: 0.5rem;
@@ -801,8 +817,8 @@
   }
 
   .panel-header__mobile-more--inline {
-    width: 2.25rem;
-    height: 2.25rem;
+    width: 2.75rem;
+    height: 2.75rem;
     border: 0;
     background: transparent;
     color: var(--theme-text-tertiary);
@@ -843,7 +859,7 @@
   width: 100%;
   border-radius: 0.5rem;
   border: 1px solid var(--theme-border);
-  background-color: var(--theme-bg-card);
+  background-color: var(--theme-bg-subtle);
   padding: 0.5rem 0.75rem 0.5rem 2.25rem;
   font-size: 0.875rem;
   color: var(--theme-text);
@@ -864,7 +880,7 @@
 }
 
 .dark .panel-search {
-  background-color: var(--theme-bg-card);
+  background-color: var(--theme-bg-subtle);
 }
 
 /* Mobile bottom sheet modal */
@@ -1003,7 +1019,7 @@
 
 .dark .ui-button--primary,
 .dark .btn-primary {
-  color: #1c1917;
+  color: var(--theme-bg);
 }
 
 .ui-button--secondary,
@@ -1063,8 +1079,7 @@
 .ui-button:focus-visible,
 .btn-primary:focus-visible,
 .btn-secondary:focus-visible {
-  outline: 2px solid
-    color-mix(in srgb, var(--theme-text-secondary) 50%, transparent);
+  outline: 2px solid var(--theme-ring);
   outline-offset: 2px;
 }
 .btn-danger:focus-visible {
@@ -1107,7 +1122,7 @@
   justify-content: center;
   border-radius: 0.5rem;
   padding: 0.375rem;
-  color: #78716c;
+  color: var(--theme-text-secondary);
   transition:
     background-color 0.2s,
     color 0.2s;
@@ -1143,129 +1158,87 @@
   color: #d6d3d1;
 }
 
-/* Pagination */
+/* Shared panel pagination. Container queries also cover narrow desktop panels. */
 .pagination-wrapper {
+  container-type: inline-size;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.75rem;
   width: 100%;
+  min-width: 0;
 }
-
+.pagination-summary {
+  color: var(--theme-text-secondary);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+.pagination-position {
+  display: none;
+}
 .pagination-controls {
   display: flex;
   align-items: center;
   gap: 0.25rem;
   flex-shrink: 0;
 }
-
-.pagination-btn {
-  display: flex;
+.pagination-btn,
+.pagination-page,
+.pagination-ellipsis {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 0.375rem;
-  color: #78716c;
-  transition:
-    background-color 0.15s,
-    color 0.15s;
-  flex-shrink: 0;
-}
-
-.pagination-btn:hover:not(:disabled) {
-  background: #f5f5f4;
-  color: #44403c;
-}
-
-.pagination-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.dark .pagination-btn {
-  color: #d6d3d1;
-}
-
-.dark .pagination-btn:hover:not(:disabled) {
-  background: #44403c;
-  color: #e7e5e4;
-}
-
-.pagination-page {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  min-width: 1.75rem;
+  height: 1.75rem;
   border-radius: 0.375rem;
   font-size: 0.8125rem;
-  color: #78716c;
-  transition:
-    background-color 0.15s,
-    color 0.15s;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-text-secondary);
   flex-shrink: 0;
 }
-
+.pagination-btn:hover:not(:disabled),
 .pagination-page:hover:not(.pagination-page-active) {
-  background: #f5f5f4;
-  color: #44403c;
+  background: var(--theme-bg-subtle);
+  color: var(--theme-text);
 }
-
-.dark .pagination-page {
-  color: #d6d3d1;
+.pagination-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
-
-.dark .pagination-page:hover:not(.pagination-page-active) {
-  background: #44403c;
-  color: #e7e5e4;
-}
-
 .pagination-page-active {
-  background: #1c1917 !important;
-  color: white !important;
+  background: var(--theme-primary);
+  color: var(--theme-bg);
+  font-weight: 600;
 }
-
-.dark .pagination-page-active {
-  background: #f5f5f4 !important;
-  color: #1c1917 !important;
+.pagination-btn:focus-visible,
+.pagination-page:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
 }
-
-.pagination-ellipsis {
+@container (max-width: 30rem) {
+  .pagination-range,
+  .pagination-page,
+  .pagination-ellipsis {
+    display: none;
+  }
+  .pagination-position {
+    display: inline;
+  }
+  .pagination-btn {
+    min-width: 2.75rem;
+    height: 2.75rem;
+  }
+}
+.panel-pagination {
+  margin-top: 0;
+  min-width: 0;
+  min-height: 2.75rem;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  color: #a8a29e;
-  flex-shrink: 0;
-}
-
-.dark .pagination-ellipsis {
-  color: #d6d3d1;
-}
-
-/* Pagination mobile overrides */
-@media (max-width: 640px) {
-  .pagination-btn {
-    width: 1.75rem;
-    height: 1.75rem;
-  }
-
-  .pagination-page {
-    width: 1.75rem;
-    height: 1.75rem;
-    font-size: 0.75rem;
-  }
-
-  .pagination-ellipsis {
-    width: 1.5rem;
-    height: 1.75rem;
-  }
-
-  .pagination-controls {
-    gap: 0.125rem;
-  }
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--theme-border-subtle);
+  background: var(--theme-bg-card);
 }
 
 /* Session menu — shared item styles (mobile bottom sheet & desktop dropdown) */
@@ -1407,6 +1380,41 @@
 }
 
 /* --- Shared right sidebar chrome --- */
+/* Keep the content origin stable when switching between files, tools and editors. */
+[data-right-panel-root] {
+  --right-panel-header-height: 2.75rem;
+}
+
+[data-right-panel-root]
+  :is(.editor-sidebar-header, .tool-console-header, .document-preview-toolbar) {
+  box-sizing: border-box;
+  height: var(--right-panel-header-height);
+  min-height: var(--right-panel-header-height);
+  flex: 0 0 var(--right-panel-header-height);
+  padding: 0 0.75rem;
+}
+
+[data-right-panel-root] .editor-sidebar-header-icon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-md);
+}
+
+@media (max-width: 639px), (pointer: coarse) {
+  [data-right-panel-root] {
+    --right-panel-header-height: 3rem;
+  }
+
+  [data-right-panel-root]
+    :is(.tool-console-header, .editor-sidebar-header)
+    button {
+    width: 2.75rem;
+    height: 2.75rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
+
 :where(
     .editor-sidebar--sidebar,
     .tool-console-panel[data-tool-panel-mode="sidebar"]
@@ -1457,7 +1465,7 @@
 }
 
 .editor-sidebar--sidebar.editor-sidebar--animate-in {
-  animation: editor-sidebar-slide-in-right 200ms ease-out forwards;
+  transform: translateX(0);
 }
 
 .editor-sidebar--sidebar.editor-sidebar--wide {
@@ -1473,6 +1481,7 @@
   height: auto;
   max-height: none;
   border-radius: 0;
+  border-top: 1px solid var(--theme-border);
   box-shadow: none;
 }
 
@@ -1481,7 +1490,7 @@
 }
 
 .editor-sidebar--mobile.editor-sidebar--animate-in {
-  animation: editor-sidebar-slide-in-right 200ms ease-out backwards;
+  transform: translateX(0);
 }
 
 [data-right-panel-root][data-panel-presentation="fullscreen"]:not(
@@ -1830,7 +1839,7 @@
 }
 
 .ui-input {
-  background: var(--theme-bg);
+  background: var(--theme-bg-subtle);
   border: 1px solid var(--theme-border);
   color: var(--theme-text);
   transition:
@@ -1871,7 +1880,7 @@
 
 .ui-textarea {
   min-height: 5.5rem;
-  background: var(--theme-bg);
+  background: var(--theme-bg-subtle);
   border: 1px solid var(--theme-border);
   color: var(--theme-text);
   transition:
@@ -1909,7 +1918,7 @@
 
 .ui-select-trigger {
   border: 1px solid var(--theme-border);
-  background: var(--theme-bg);
+  background: var(--theme-bg-subtle);
   color: var(--theme-text);
   transition:
     border-color 0.18s ease,
@@ -2259,27 +2268,17 @@
   box-shadow: 0 0 0 0 #4ade80;
 }
 
-.es-callout--danger {
-  border-color: color-mix(in srgb, #fde68a 60%, transparent);
-  background: color-mix(in srgb, #fffbeb 25%, var(--theme-bg));
+.es-callout--danger,
+.dark .es-callout--danger {
+  border-color: color-mix(in srgb, var(--theme-warning) 30%, transparent);
+  background: color-mix(in srgb, var(--theme-warning) 10%, var(--theme-bg));
 }
 .es-callout--danger .es-callout-icon {
-  background: color-mix(in srgb, #f59e0b 12%, transparent);
-  color: #d97706;
+  background: color-mix(in srgb, var(--theme-warning) 10%, transparent);
+  color: var(--theme-warning);
 }
 .es-callout--danger .es-status-dot {
-  background: #f59e0b;
-}
-.dark .es-callout--danger {
-  border-color: color-mix(in srgb, #78350f 60%, transparent);
-  background: color-mix(in srgb, #451a03 20%, var(--theme-bg));
-}
-.dark .es-callout--danger .es-callout-icon {
-  background: color-mix(in srgb, #fbbf24 12%, transparent);
-  color: #fbbf24;
-}
-.dark .es-callout--danger .es-status-dot {
-  background: #fbbf24;
+  background: var(--theme-warning);
 }
 
 @keyframes callout-pulse {
@@ -2447,6 +2446,35 @@
   }
 }
 
+/* Avatar-derived spot art stays legible without a white tile in either theme. */
+.scene-illustration {
+  width: 7rem;
+  height: 7rem;
+  max-width: 100%;
+  flex-shrink: 0;
+  object-fit: contain;
+  user-select: none;
+  filter: drop-shadow(0 1px 1px var(--theme-border));
+}
+
+.dark .scene-illustration,
+.dark .persona-default-avatar img {
+  filter: brightness(0.92) drop-shadow(0 0 1px var(--theme-text-secondary));
+}
+
+@media (max-width: 639px) {
+  .scene-illustration {
+    width: 6rem;
+    height: 6rem;
+  }
+}
+
+/* Compact notices keep the same artwork and edge contrast in both themes. */
+.scene-illustration.notification-illustration {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
 /* Scheduled task panel polish */
 .scheduled-task-empty-state {
   display: flex;
@@ -2457,27 +2485,6 @@
   justify-content: center;
   padding: 2rem;
   text-align: center;
-}
-
-.scheduled-task-empty-state__icon {
-  margin-bottom: 1rem;
-  display: flex;
-  width: 4rem;
-  height: 4rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  background: radial-gradient(
-      circle at 35% 25%,
-      color-mix(in srgb, white 62%, transparent),
-      transparent 44%
-    ),
-    color-mix(in srgb, var(--theme-primary) 8%, var(--theme-bg-card));
-  color: var(--theme-primary);
-  box-shadow:
-    inset 0 0 0 1px
-      color-mix(in srgb, var(--theme-primary) 14%, var(--theme-border)),
-    0 18px 34px -28px color-mix(in srgb, var(--theme-primary) 46%, transparent);
 }
 
 .scheduled-task-empty-state__title {
@@ -3128,6 +3135,13 @@
   animation: notificationFadeIn 0.35s ease-out both;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .notification-content {
+    animation: none;
+    transition: none;
+  }
+}
+
 /* ═══════════════════════════════════════════
    Collapsible Section Cards — tool/subagent
    panel detail blocks
@@ -3297,8 +3311,7 @@
   min-height: 0;
 }
 
-.document-preview-toolbar > button,
-.document-preview-toolbar-actions > button {
+.document-preview-toolbar button[type] {
   width: 2rem;
   height: 2rem;
   min-width: 2rem;
@@ -3314,31 +3327,49 @@
     0 1px 2px color-mix(in srgb, var(--theme-shadow-sm) 70%, transparent);
 }
 
-.tool-console-resize-handle {
+/* Shared hit area and rail for sidebar, editor and tool panel separators. */
+.workspace-resize-handle {
   width: 1rem;
+  background: transparent;
+  box-shadow: none;
 }
 
-.tool-console-resize-handle__rail {
-  opacity: 0;
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--theme-primary) 18%, transparent),
-    0 8px 18px -12px var(--theme-primary);
-}
-
-.tool-console-resize-handle:hover .tool-console-resize-handle__rail {
+.workspace-resize-handle > div {
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1px;
+  margin: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
   opacity: 1;
-  background: color-mix(in srgb, var(--theme-primary) 54%, transparent);
+  box-shadow: none;
+  transition: background-color 150ms;
 }
 
-:where(.right-panel-resize-handle, .tool-console-resize-handle):focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--theme-primary) 72%, transparent);
+/* Retain the tool rail hook for existing consumers. */
+.tool-console-resize-handle__rail {
+  box-shadow: none;
+}
+
+.workspace-resize-handle:hover > div,
+.workspace-resize-handle:focus-visible > div,
+.workspace-resize-handle:active > div,
+.workspace-resize-handle[data-resizing] > div {
+  background: var(--theme-border-hover);
+}
+
+:where(.right-panel-resize-handle, .tool-console-resize-handle):focus-visible,
+.workspace-resize-handle:focus-visible {
+  outline: 1px solid var(--theme-ring);
   outline-offset: -2px;
 }
 
-.right-panel-resize-handle:focus-visible > div,
-.tool-console-resize-handle:focus-visible .tool-console-resize-handle__rail {
-  opacity: 1;
-  background: color-mix(in srgb, var(--theme-primary) 70%, transparent);
+@media (prefers-reduced-motion: reduce) {
+  .workspace-resize-handle > div {
+    transition: none;
+  }
 }
 
 .tool-console-title {
@@ -4308,5 +4339,207 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Compact artwork for custom panel toolbars and navigation headers. */
+.scene-illustration.panel-avatar {
+  width: 3rem;
+  height: 3rem;
+}
+
+.scene-illustration.panel-nav-avatar {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+@container panel-shell (min-width: 640px) {
+  .scene-illustration.panel-nav-avatar {
+    display: none;
+  }
+}
+
+@container panel (max-width: 639px) {
+  .scene-illustration.panel-avatar {
+    display: none;
+  }
+}
+
+.settings-compact-identity {
+  display: none;
+}
+@container panel (min-width: 640px) and (max-width: 799px) {
+  .settings-compact-identity {
+    display: flex;
+  }
+}
+
+/* A consistent avatar silhouette, including wide multi-character artwork. */
+.scene-illustration.panel-artwork {
+  box-sizing: border-box;
+  padding: 0.25rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 0.75rem;
+  background: var(--theme-bg-subtle);
+  filter: none;
+}
+.scene-illustration.panel-nav-avatar {
+  padding: 0.125rem;
+  border-radius: 0.5rem;
+}
+@container panel (max-width: 639px) {
+  .panel-header--desktop-identity {
+    display: none;
+  }
+}
+
+/* Overlay panels can use the workspace: they do not reserve a desktop lane. */
+.editor-sidebar[data-panel-presentation="overlay"],
+[data-right-panel-root][data-panel-presentation="overlay"]
+  .tool-console-panel[data-tool-panel-mode="sidebar"] {
+  width: min(40rem, calc(100vw - 1.5rem)) !important;
+  max-width: calc(100vw - 1.5rem) !important;
+}
+
+/* Document chrome stays quiet so the file is the focus. */
+[data-right-panel-root]:has(.document-preview-toolbar)
+  .right-panel-tabs:has(.right-panel-tab:only-child) {
+  display: none;
+}
+[data-right-panel-root] .document-preview-toolbar {
+  height: 4rem;
+  min-height: 4rem;
+  flex-basis: 4rem;
+  padding: 0.5rem 1rem;
+  border-bottom-color: var(--theme-border-faint);
+  background: var(--theme-bg);
+  gap: 0.75rem;
+}
+.document-preview-toolbar {
+  container-name: document-toolbar;
+  container-type: inline-size;
+}
+.document-preview-toolbar h3 {
+  line-height: 1.4;
+}
+.document-preview-more-actions {
+  display: block;
+}
+.document-preview-toolbar button.document-preview-source-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  width: auto;
+  padding-inline: 0.5rem;
+  border-radius: var(--radius-md);
+  color: var(--theme-text-secondary);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.document-preview-source-toggle:hover,
+.document-preview-source-toggle[aria-pressed="true"] {
+  background: var(--theme-hover);
+  color: var(--theme-text);
+}
+.document-preview-source-toggle:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+}
+@container document-toolbar (max-width: 479px) {
+  .document-preview-source-toggle span,
+  .document-preview-language {
+    display: none;
+  }
+}
+.document-preview-footer:empty {
+  display: none;
+}
+.document-preview-footer {
+  padding: 0.5rem 1rem;
+  color: var(--theme-text-tertiary);
+  font-size: 0.75rem;
+}
+.document-preview-path summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.document-preview-path > div {
+  padding-top: 0.5rem;
+  overflow-wrap: anywhere;
+  color: var(--theme-text-secondary);
+}
+.document-reading-column {
+  max-width: 48rem;
+  margin-inline: auto;
+  padding: clamp(1.5rem, 5cqi, 3rem) clamp(1rem, 5cqi, 3rem);
+  color: var(--theme-text);
+}
+.document-reading-column .ai-streaming-text {
+  font-size: 0.9375rem;
+  line-height: 1.8;
+}
+.document-reading-column :is(h1, h2, h3) {
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+}
+.document-reading-column h1 {
+  font-size: 1.75rem;
+}
+.document-reading-column > :first-child > :first-child {
+  margin-top: 0;
+}
+@media (max-width: 639px), (pointer: coarse) {
+  .document-preview-toolbar button[type] {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+  [data-right-panel-root] .document-preview-toolbar {
+    padding-inline: 0.75rem;
+    gap: 0.5rem;
+  }
+}
+
+.tool-console-panel:has(.document-preview-toolbar),
+.tool-console-panel:has(.document-preview-toolbar) .tool-console-body {
+  background: var(--theme-bg);
+}
+.tool-console-panel:has(.document-preview-toolbar) .tool-console-footer {
+  background: transparent;
+  border-top-color: var(--theme-border-faint);
+}
+.document-reading-column p {
+  margin-bottom: 1rem;
+  color: var(--theme-text-secondary);
+}
+.document-reading-column :is(h1, h2, h3) {
+  margin-bottom: 1rem;
+  margin-top: 1.75rem;
+}
+
+@container document-toolbar (max-width: 359px) {
+  .document-preview-toolbar > .size-8 {
+    display: none;
+  }
+}
+
+/* Reveal per row, independent of viewport width or ancestor Tailwind groups.
+   WKWebView can report hover:none on desktop; native chrome is still mouse UI. */
+.sidebar-action-reveal:where(:not(.opacity-100)) {
+  opacity: 0;
+}
+
+.sidebar-action-row:hover > .sidebar-action-reveal,
+.sidebar-action-row:focus-within > .sidebar-action-reveal,
+.sidebar-action-row:hover > button > .sidebar-action-reveal,
+.sidebar-action-row:focus-within > button > .sidebar-action-reveal,
+.sidebar-action-row:hover > span > .sidebar-action-reveal,
+.sidebar-action-row:focus-within > span > .sidebar-action-reveal {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  html:not(:has([data-titlebar])) .sidebar-action-reveal {
+    opacity: 1;
   }
 }

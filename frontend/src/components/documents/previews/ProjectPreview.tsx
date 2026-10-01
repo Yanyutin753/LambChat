@@ -1,3 +1,4 @@
+import { SceneIllustration } from "../../common/SceneIllustration";
 import { useMemo, useState } from "react";
 import {
   SandpackProvider,
@@ -14,7 +15,6 @@ import {
   FolderTree,
   ExternalLink,
   X,
-  AlertCircle,
   Download,
   PanelRight,
 } from "lucide-react";
@@ -150,7 +150,7 @@ export default function ProjectPreview({
   if (Object.keys(config.files).length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4">
-        <AlertCircle size={32} className="text-amber-500" />
+        <SceneIllustration scene="files" />
         <p className="text-14 text-stone-500 dark:text-stone-400">
           {t("project.noFiles", "没有可预览的文件")}
         </p>

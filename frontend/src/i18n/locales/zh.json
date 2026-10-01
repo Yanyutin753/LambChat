@@ -318,6 +318,9 @@
     "previous": "上一项",
     "reject": "拒绝",
     "scheduledTask": {
+      "searchPlaceholder": "搜索任务名称或描述…",
+      "noResults": "没有匹配的定时任务",
+      "noResultsDesc": "试试其他关键词或调整状态筛选。",
       "agent": "智能体",
       "confirmCreation": "请确认创建此定时任务。",
       "effect": "创建后，智能体「{{agent}}」将按 {{schedule}} 执行。每次执行会启动一个新会话，并将以下提示发送给智能体：",
@@ -337,6 +340,7 @@
     "submit": "提交"
   },
   "auth": {
+    "brandTitle": "让想法，成为现实。",
     "account": "账号",
     "backToLogin": "返回登录",
     "checkInboxStep": "检查您的收件箱（也请检查垃圾邮件文件夹）",
@@ -356,7 +360,6 @@
     "enteringChat": "正在打开聊天...",
     "featureAgents": "智能体",
     "featureMemory": "记忆",
-    "featureSkills": "技能",
     "featureTools": "工具",
     "forgotPassword": "忘记密码",
     "forgotPasswordDesc": "输入您的邮箱地址，我们将发送密码重置链接",
@@ -510,6 +513,9 @@
     "repositoryOrBranchNotFound": "仓库或分支不存在",
     "resetTokenExpired": "重置令牌已过期",
     "roleNotFound": "角色不存在",
+    "sandboxSessionNotLocal": "此会话运行在云端沙箱；浏览工作区文件需要本地沙箱会话",
+    "sandboxCloudNotCreated": "云端电脑尚未创建；在云端会话中发送消息后会自动创建",
+    "sandboxCloudRecycled": "云端电脑已被回收，文件未保留；发送消息将自动重建",
     "sessionAccessDenied": "无权访问此会话",
     "sessionNotFound": "会话不存在",
     "settingNotFound": "设置不存在",
@@ -1132,6 +1138,9 @@
     "welcomeSuggestions": "建议"
   },
   "common": {
+    "panelTabs": "侧栏标签",
+    "closePanelTab": "关闭标签：{{title}}",
+    "paginationSummary": "共 {{total}} 条 · 每页 {{pageSize}}",
     "about": "关于",
     "accessDenied": "访问被拒绝",
     "add": "添加",
@@ -1177,6 +1186,8 @@
     "on": "开",
     "operationFailed": "操作失败",
     "page": "第 {{page}} 页",
+    "filtersAndActions": "筛选与操作",
+    "pagination": "分页导航",
     "permissionRequired": "需要权限",
     "poweredBy": "由 Clivia 驱动",
     "prev": "上一页",
@@ -1563,6 +1574,7 @@
       "monthsAgo": "{{count}}个月前"
     },
     "title": "文件管理",
+    "subtitle": "管理上传和生成的文件",
     "tryDifferent": "尝试其他搜索关键词",
     "types": {
       "all": "全部",
@@ -1921,7 +1933,6 @@
     "contentLabel": "内容",
     "contentPlaceholder": "输入记忆内容（至少5个字符）...",
     "contentRequired": "记忆内容至少需要5个字符",
-    "contextFilterPlaceholder": "作用域，如 project_constraint",
     "createBtn": "添加记忆",
     "createSuccess": "记忆创建成功",
     "createTitle": "新建记忆",
@@ -1946,7 +1957,7 @@
     "searchMode": {
       "hybrid": "混合"
     },
-    "searchPlaceholder": "搜索记忆...",
+    "searchPlaceholder": "搜索标题、摘要、标签或分类…",
     "selectAll": "全选",
     "selectHint": "选择一条记忆查看详情",
     "source": {
@@ -2058,6 +2069,7 @@
     "taskCompleted": "任务已完成",
     "taskFailed": "任务失败",
     "title": "通知公告",
+    "subtitle": "查看和管理系统公告与消息",
     "titleLabel": "标题",
     "typeInfo": "信息",
     "typeLabel": "类型",
@@ -2453,6 +2465,9 @@
     }
   },
   "scheduledTask": {
+    "searchPlaceholder": "搜索任务名称或描述…",
+    "noResults": "没有匹配的定时任务",
+    "noResultsDesc": "试试其他关键词或调整状态筛选。",
     "active": "运行中",
     "agent": "Agent",
     "agentPlaceholder": "选择 Agent...",
@@ -2539,6 +2554,7 @@
     "timeout": "超时",
     "timeoutSeconds": "超时（秒）",
     "title": "定时任务",
+    "subtitle": "按计划自动执行任务，查看运行记录",
     "totalRuns": "总运行次数",
     "triggerType": "触发类型",
     "triggeredSuccess": "任务已触发",
@@ -2938,6 +2954,7 @@
     "TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS": "孤儿任务回收扫描间隔（秒）",
     "TASK_RUN_STALL_TIMEOUT": "运行心跳停滞判定超时（秒）",
     "LLM_STREAM_IDLE_TIMEOUT": "流式响应相邻 chunk 之间的最长空闲秒数，防止上游停滞导致运行挂死（0 或负数禁用）",
+    "LLM_STREAM_GAP_WARN_TIMEOUT": "流式响应相邻 chunk 间隔超过该秒数时记录告警日志，用于发现上游停滞导致的丢内容（仅告警不中断，0 或负数禁用）",
     "ENABLE_WEB_FETCH": "启用网页阅读工具：抓取公网页面正文并转为 Markdown 供模型阅读（内网地址一律拒绝）。",
     "WEB_FETCH_PROVIDER": "网页阅读供应商：direct 本机抓取提取；tavily 复用搜索 key（反爬页首选兜底）；firecrawl 可自建；exa 缓存+实爬；jina 走 r.jina.ai（JS 渲染页稳）；auto 按 direct → tavily → firecrawl → exa → jina 依次兜底。",
     "JINA_API_KEYS": "Jina Reader API keys，英文逗号分隔多 key 轮询（r.jina.ai 免 key 20 RPM，带 key 200 RPM）。留空则 jina 不启用。",
@@ -3127,6 +3144,7 @@
     "send": "发送消息"
   },
   "sidebar": {
+    "noProjects": "暂无项目",
     "addToFavorites": "添加到收藏",
     "batchDeleteConfirm": "确定要删除选中的 {{count}} 个会话吗？此操作无法撤销。",
     "batchDeletePartialFailed": "{{count}} 个会话删除失败",
@@ -3165,6 +3183,8 @@
     "navigate": "导航",
     "navigation": "导航",
     "newChat": "新建对话",
+    "newChatInProject": "在「{{project}}」中新建对话",
+    "startFirstChat": "开始第一个对话",
     "newChatShortcut": "Ctrl+Shift+O",
     "newProject": "新建项目",
     "noMatchingSessions": "没有找到匹配的会话",
@@ -3177,6 +3197,7 @@
     "pinToTop": "置顶",
     "pinToggleFailed": "置顶状态更新失败",
     "pinned": "已置顶",
+    "pinnedChats": "置顶",
     "previous7Days": "过去7天",
     "projectCreateFailed": "创建项目失败",
     "projectCreated": "项目已创建",
@@ -3866,20 +3887,37 @@
     "minimize": "最小化",
     "maximize": "最大化",
     "restore": "还原",
-    "close": "关闭"
+    "close": "关闭",
+    "toggleSidebar": "切换侧边栏"
   },
   "workspacePanel": {
-    "title": "工作区",
-    "viewChats": "会话",
+    "account": "账号",
+    "binaryFileHint": "（二进制文件，暂不支持内联预览）",
+    "cloudDisabled": "云端沙箱未启用",
+    "cloudNotCreated": "云端电脑尚未创建；在云端会话中发送消息后会自动创建",
+    "cloudPaused": "云端电脑 · 已暂停，打开时自动唤醒",
+    "cloudRunning": "云端电脑 · 运行中",
+    "cloudSession": "此会话使用云端沙箱，工作区文件在云端",
+    "copyPath": "复制路径",
+    "daemonOffline": "本地沙箱未连接，无法浏览工作区文件",
+    "emptyDir": "空工作区",
+    "noSession": "打开一个会话后即可浏览其工作区文件",
     "refresh": "刷新",
     "retry": "重试",
-    "daemonOffline": "本地沙箱未连接，无法浏览工作区文件",
-    "noSession": "打开一个会话后即可浏览其工作区文件",
-    "emptyDir": "空工作区",
-    "copyPath": "复制路径",
     "revealInFileManager": "在文件管理器中显示",
-    "binaryFileHint": "（二进制文件，暂不支持内联预览）",
     "settings": "设置",
-    "account": "账号"
+    "switchToCloud": "查看云端电脑 →",
+    "title": "会话文件",
+    "viewChats": "会话",
+    "viewCloud": "云端电脑",
+    "viewLocal": "本地电脑"
+  },
+  "projectWorkspace": {
+    "details": "工作区详情",
+    "choose": "绑定本地目录",
+    "clear": "解除目录绑定",
+    "inherits": "此项目的新会话默认使用这台电脑和目录，已有会话保持不变。",
+    "optional": "可选。绑定后，新会话共用此目录，文件保留在本机。",
+    "privacy": "在所选电脑操作文件；读取内容可能发送给对话模型。"
   }
 }

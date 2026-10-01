@@ -6,17 +6,20 @@ import { PANEL_CARD_SKELETON_COUNT } from "./PanelSkeletonHelpers";
 export function ChannelsGridSkeleton() {
   return (
     <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
-      <PanelHeaderSkeleton hasSearch={false} />
-      <div className="flex-1 overflow-y-auto py-4">
+      <PanelHeaderSkeleton hasSearch={false} hasSubtitle hasActions={false} />
+      <div className="panel-body flex-1 min-h-0 overflow-y-auto">
         <div className="mx-auto max-w-full">
-          <div className="grid auto-grid-cols gap-4 p-3 sm:p-4">
+          <div className="grid auto-grid-cols gap-3">
             {Array.from({ length: PANEL_CARD_SKELETON_COUNT }).map((_, i) => (
-              <div key={i} className="scb">
+              <div
+                key={i}
+                className="scb flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] shadow-sm dark:border dark:border-[var(--theme-border)]"
+              >
                 {/* Banner */}
                 <div
-                  className="h-12 w-full shrink-0 relative"
+                  className="scb__banner h-12 w-full shrink-0 relative"
                   style={{
-                    background: `linear-gradient(135deg, ${
+                    background: `linear-gradient(45deg, ${
                       [
                         "var(--theme-primary-light)",
                         "color-mix(in srgb, var(--theme-primary-light) 60%, var(--theme-bg))",
@@ -51,7 +54,7 @@ export function ChannelsGridSkeleton() {
                     />
                   </div>
                   {/* Description */}
-                  <div className="mt-3 space-y-1.5">
+                  <div className="mt-3 min-h-[3.25em] space-y-1.5">
                     <SkeletonLine width="w-full" className="!h-2.5 sm:!h-3" />
                     <SkeletonLine
                       width={i % 2 === 0 ? "w-5/6" : "w-2/3"}
@@ -80,8 +83,8 @@ export function ChannelsGridSkeleton() {
 export function ChannelConfigSkeleton() {
   return (
     <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
-      <PanelHeaderSkeleton hasSearch={false} />
-      <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4">
+      <PanelHeaderSkeleton hasSearch={false} hasSubtitle />
+      <div className="panel-body flex-1 min-h-0 overflow-y-auto">
         <div className="space-y-4">
           {/* Status card */}
           <div className="glass-card rounded-xl p-4">

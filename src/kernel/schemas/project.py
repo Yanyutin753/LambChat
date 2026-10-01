@@ -8,6 +8,14 @@ from pydantic import BaseModel, Field
 from src.infra.utils.datetime import utc_now
 
 
+class ProjectWorkspace(BaseModel):
+    """Native picker receipt; the path is display-only, daemon resolves the opaque ID."""
+
+    id: str = Field(pattern=r"^local-[0-9a-f]{32}$")
+    machine_id: str = Field(alias="machineId", min_length=1, max_length=256)
+    path: str = Field(min_length=1, max_length=4096)
+
+
 class ProjectBase(BaseModel):
     """Base project schema."""
 
@@ -15,6 +23,7 @@ class ProjectBase(BaseModel):
     type: str = "custom"  # "favorites" or "custom"
     icon: str = "💬"  # emoji or lucide-react icon name, e.g. "💬", "⭐", "🤖"
     sort_order: int = 0
+    workspace: ProjectWorkspace | None = None
 
 
 class ProjectCreate(ProjectBase):
@@ -29,6 +38,7 @@ class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     icon: Optional[str] = None
     sort_order: Optional[int] = None
+    workspace: ProjectWorkspace | None = None
 
 
 class Project(ProjectBase):

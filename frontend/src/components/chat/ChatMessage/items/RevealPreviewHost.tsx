@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { Code2, FolderTree } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -30,7 +37,13 @@ import {
   shouldReplaceProjectRevealFiles,
 } from "./projectRevealState";
 import { createActiveRevealPreviewState } from "./revealPreviewState";
-import { setActiveRevealPreviewState } from "./activeRevealPreviewStore";
+import {
+  setActiveRevealPreviewState,
+  getRevealPreviewTabs,
+  subscribeActiveRevealPreviewState,
+  closeRevealPreviewTab,
+  getActiveRevealPreviewState,
+} from "./activeRevealPreviewStore";
 import { FileTreeView } from "./FileTreeView";
 import type { TreeNode } from "./FileTreeView";
 
@@ -83,7 +96,7 @@ function ProjectRevealPreviewPanel({
   openInFullscreen?: boolean;
   onClose: () => void;
   onUserInteraction?: () => void;
-  registryKey?: string;
+  registryKey: string;
   footer?: React.ReactNode;
 }) {
   const { t } = useTranslation();
@@ -267,7 +280,7 @@ function ProjectRevealPreviewPanel({
       }
       const filePreview: RevealPreviewRequest = {
         kind: "file",
-        previewKey: `project-file:${node.path}`,
+        previewKey: `project-file:${registryKey}:${node.path}`,
         filePath: node.name,
         ...(node.isBinary
           ? { signedUrl: node.url }
@@ -278,7 +291,7 @@ function ProjectRevealPreviewPanel({
         createActiveRevealPreviewState(filePreview, "manual"),
       );
     },
-    [loadedFiles],
+    [loadedFiles, registryKey],
   );
 
   return (
@@ -386,7 +399,7 @@ function ProjectRevealPreviewPanel({
   );
 }
 
-export function RevealPreviewHost({
+function SingleRevealPreviewHost({
   preview,
   automatic = false,
   onClose,
@@ -433,4 +446,31 @@ export function RevealPreviewHost({
       automatic={automatic}
     />
   );
+}
+
+export function RevealPreviewHost(
+  props: Parameters<typeof SingleRevealPreviewHost>[0],
+) {
+  const tabs = useSyncExternalStore(
+    subscribeActiveRevealPreviewState,
+    getRevealPreviewTabs,
+    getRevealPreviewTabs,
+  );
+  if (!tabs.length) return <SingleRevealPreviewHost {...props} />;
+  return tabs.map((tab) => (
+    <SingleRevealPreviewHost
+      key={tab.request.previewKey}
+      preview={tab.request}
+      automatic={tab.source === "auto" && !tab.userInteracted}
+      onClose={() => {
+        if (
+          getActiveRevealPreviewState()?.request.previewKey ===
+          tab.request.previewKey
+        )
+          props.onClose();
+        else closeRevealPreviewTab(tab.request.previewKey);
+      }}
+      onUserInteraction={props.onUserInteraction}
+    />
+  ));
 }

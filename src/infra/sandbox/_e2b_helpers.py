@@ -73,9 +73,10 @@ class _E2BMixin:
         async def _get_user_env_vars(self, user_id: str) -> dict[str, str]: ...
 
     async def _get_or_create_e2b(
-        self, session_id: str, user_id: str
+        self, session_id: str, user_id: str, *, create: bool = True
     ) -> tuple[CompositeBackend, str]:
         assert self._e2b_adapter is not None
+        from src.infra.sandbox.session_manager import SandboxPeekError
         from src.kernel.config import settings
 
         lock = self._get_user_lock(user_id)
@@ -147,6 +148,10 @@ class _E2BMixin:
                     except Exception as e:
                         logger.warning(f"[E2B] Failed to reconnect {metadata_sandbox_id}: {e}")
 
+            # 浏览路径（create=False）只连不建：无绑定=未创建；有绑定但
+            # 无法连接=沙箱已被平台回收（文件未保留），交调用方引导重建。
+            if not create:
+                raise SandboxPeekError("recycled" if replaced_previous else "not_created")
             return await self._create_and_bind_e2b(
                 session_id, user_id, replaced_previous=replaced_previous
             )

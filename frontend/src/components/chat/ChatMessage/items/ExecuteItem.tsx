@@ -62,7 +62,7 @@ function ExecuteDetail({
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
       <div className="group/args relative px-3.5 py-3 rounded-xl bg-theme-bg-elevated text-14 font-mono flex items-baseline gap-2.5 shadow-[var(--shadow-card)] ring-1 ring-theme-border transition-colors duration-200">
         <Terminal size={13} className="shrink-0 text-theme-text-tertiary" />
-        <span className="shrink-0 text-emerald-500 dark:text-emerald-400 font-semibold">
+        <span className="shrink-0 text-theme-success font-semibold">
           $
         </span>
         <span className="text-theme-text break-all min-w-0 flex-1">
@@ -100,8 +100,8 @@ function ExecuteDetail({
           className={clsx(
             "flex items-center gap-2 text-14 px-3.5 py-2.5 rounded-xl ring-1",
             parsed.exitCode === 0
-              ? "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 ring-emerald-200/40 dark:ring-emerald-800/30"
-              : "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 ring-red-200/40 dark:ring-red-800/30",
+              ? "text-theme-success bg-[color-mix(in_srgb,var(--theme-success)_10%,transparent)] ring-[color-mix(in_srgb,var(--theme-success)_25%,transparent)] dark:text-emerald-400 dark:bg-emerald-950/30 dark:ring-emerald-800/30"
+              : "text-theme-error bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)] ring-[color-mix(in_srgb,var(--theme-error)_25%,transparent)] dark:text-red-400 dark:bg-red-950/30 dark:ring-red-800/30",
           )}
         >
           {parsed.exitCode === 0 ? (
@@ -117,7 +117,10 @@ function ExecuteDetail({
                 : t("chat.message.toolFailed")}
           </span>
           {parsed.truncated && (
-            <AlertTriangle size={14} className="shrink-0 ml-1 text-amber-500" />
+            <AlertTriangle
+              size={14}
+              className="shrink-0 ml-1 text-theme-warning"
+            />
           )}
         </div>
       )}
@@ -215,7 +218,7 @@ const ExecuteItem = memo(function ExecuteItem({
           <ToolInlineDetails>
             <div className="group/args relative px-2 py-1.5 rounded-md bg-theme-bg-subtle text-12 text-theme-text-tertiary font-mono flex items-baseline gap-2">
               <span className="shrink-0 text-theme-text">$</span>
-              <span className="text-emerald-600 dark:text-emerald-400 break-all min-w-0 flex-1">
+              <span className="text-theme-success break-all min-w-0 flex-1">
                 {command}
               </span>
               {timeout && (
@@ -249,8 +252,8 @@ const ExecuteItem = memo(function ExecuteItem({
                 className={clsx(
                   "flex items-center gap-1.5 text-12 px-2 py-1 rounded-md",
                   parsed.exitCode === 0
-                    ? "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30"
-                    : "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30",
+                    ? "text-theme-success bg-[color-mix(in_srgb,var(--theme-success)_10%,transparent)] dark:text-emerald-400 dark:bg-emerald-950/30"
+                    : "text-theme-error bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)] dark:text-red-400 dark:bg-red-950/30",
                 )}
               >
                 {parsed.exitCode === 0 ? (

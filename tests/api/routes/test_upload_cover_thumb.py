@@ -388,6 +388,7 @@ def test_ensure_cjk_fonts_copies_bundled_font_when_missing(tmp_path, monkeypatch
     empty_scan = tmp_path / "scan-empty"
     empty_scan.mkdir()
     install_dir = tmp_path / "install"
+    monkeypatch.setattr(cover.sys, "platform", "linux")
     monkeypatch.setattr(cover, "_cjk_fonts_ensured", False)
 
     ok = cover.ensure_cjk_fonts_available(scan_dirs=[str(empty_scan)], install_dir=install_dir)
@@ -405,6 +406,7 @@ def test_ensure_cjk_fonts_noop_when_system_font_present(tmp_path, monkeypatch):
     scan.mkdir()
     (scan / "NotoSansCJK-Bold.ttc").write_bytes(b"fake")
     install_dir = tmp_path / "install"
+    monkeypatch.setattr(cover.sys, "platform", "linux")
     monkeypatch.setattr(cover, "_cjk_fonts_ensured", False)
 
     ok = cover.ensure_cjk_fonts_available(scan_dirs=[str(scan)], install_dir=install_dir)
@@ -420,6 +422,7 @@ def test_ensure_cjk_fonts_warns_when_not_writable(tmp_path, monkeypatch):
     empty_scan.mkdir()
     blocked = tmp_path / "blocked"  # a FILE: mkdir will fail
     blocked.write_text("occupied")
+    monkeypatch.setattr(cover.sys, "platform", "linux")
     monkeypatch.setattr(cover, "_cjk_fonts_ensured", False)
 
     ok = cover.ensure_cjk_fonts_available(

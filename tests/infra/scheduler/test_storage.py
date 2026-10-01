@@ -324,3 +324,30 @@ def test_close_scheduled_task_storage_does_not_create_singleton_when_unused() ->
     storage_module.close_scheduled_task_storage()
 
     assert storage_module._storage is None
+
+
+@pytest.mark.asyncio
+async def test_task_search_uses_literal_text_for_rows_and_total() -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    storage = ScheduledTaskStorage()
+    collection = MagicMock()
+    cursor = collection.find.return_value.sort.return_value.skip.return_value.limit.return_value
+    cursor.__aiter__.return_value = []
+    collection.count_documents = AsyncMock(return_value=0)
+    storage._collections["scheduled_tasks"] = collection
+
+    await storage.list_tasks_paginated(
+        owner_id="user_1", status=ScheduledTaskStatus.PAUSED, search="  Daily.*  "
+    )
+
+    query = collection.find.call_args.args[0]
+    assert query == {
+        "owner_id": "user_1",
+        "status": ScheduledTaskStatus.PAUSED,
+        "$or": [
+            {"name": {"$regex": r"Daily\.\*", "$options": "i"}},
+            {"description": {"$regex": r"Daily\.\*", "$options": "i"}},
+        ],
+    }
+    collection.count_documents.assert_awaited_once_with(query)

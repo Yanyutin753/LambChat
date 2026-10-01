@@ -866,3 +866,385 @@ async def test_upload_url_to_sandbox_rejects_large_bytes_fallback(
 
     assert result["success"] is False
     assert "sandbox-side download" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# 存储直链解析：自己的代理 URL → 对象存储预签名直链
+# ---------------------------------------------------------------------------
+
+
+class _FakeStorageService:
+    def __init__(
+        self,
+        *,
+        is_local: bool = False,
+        presigned_url: str = "https://bucket.storage.example.com/signed?X=1",
+        error: Exception | None = None,
+    ) -> None:
+        self._is_local = is_local
+        self.presigned_url = presigned_url
+        self.error = error
+        self.presign_calls: list[tuple[str, int]] = []
+
+    @property
+    def is_local(self) -> bool:
+        return self._is_local
+
+    async def get_presigned_url(self, key: str, expires: int) -> str:
+        self.presign_calls.append((key, expires))
+        if self.error is not None:
+            raise self.error
+        return self.presigned_url
+
+
+def _patch_storage(monkeypatch: pytest.MonkeyPatch, storage: _FakeStorageService) -> None:
+    async def fake_get_or_init_storage():
+        return storage
+
+    monkeypatch.setattr(
+        "src.infra.storage.s3.service.get_or_init_storage", fake_get_or_init_storage
+    )
+
+
+@pytest.mark.asyncio
+async def test_upload_url_to_sandbox_resolves_own_proxy_url_to_storage_direct_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeStorageService()
+    _patch_storage(monkeypatch, storage)
+
+    class _FakeBackend:
+        def __init__(self) -> None:
+            self.commands: list[str] = []
+
+        async def aexecute(self, command: str):
+            self.commands.append(command)
+            return SimpleNamespace(exit_code=0, output="")
+
+        async def aupload_files(self, files):
+            raise AssertionError("sandbox-capable backends should download inside the sandbox")
+
+    backend = _FakeBackend()
+    result = json.loads(
+        await upload_url_tool.upload_url_to_sandbox.coroutine(
+            url="/api/upload/file/document/user-1/report.docx",
+            file_path="/workspace/report.docx",
+            runtime=_Runtime(backend),
+        )
+    )
+
+    assert result == {"success": True, "path": "/workspace/report.docx", "source": "sandbox"}
+    # 沙箱命令拿到的是存储直链，不再是绕 API 的代理 URL
+    assert storage.presigned_url in backend.commands[0]
+    assert "https://app.example.com/api/upload/file/" not in backend.commands[0]
+    assert storage.presign_calls == [("document/user-1/report.docx", 3600)]
+
+
+@pytest.mark.asyncio
+async def test_upload_url_to_sandbox_keeps_proxy_url_for_local_storage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeStorageService(is_local=True)
+    _patch_storage(monkeypatch, storage)
+
+    class _FakeBackend:
+        def __init__(self) -> None:
+            self.commands: list[str] = []
+
+        async def aexecute(self, command: str):
+            self.commands.append(command)
+            return SimpleNamespace(exit_code=0, output="")
+
+    backend = _FakeBackend()
+    result = json.loads(
+        await upload_url_tool.upload_url_to_sandbox.coroutine(
+            url="/api/upload/file/document/user-1/report.docx",
+            file_path="/workspace/report.docx",
+            runtime=_Runtime(backend),
+        )
+    )
+
+    assert result["success"] is True
+    assert (
+        "https://app.example.com/api/upload/file/document/user-1/report.docx" in backend.commands[0]
+    )
+    assert storage.presign_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "url",
+    [
+        # 外部域名的同形路径不动（可能是第三方文件）
+        "https://evil.example.com/api/upload/file/document/user-1/report.docx",
+        # 带查询参数的代理 URL 不动（thumb/cover 等变体语义不同）
+        "https://app.example.com/api/upload/file/document/user-1/report.docx?thumb=1",
+        # 其他本服务路径不动
+        "https://app.example.com/api/upload/signed/document/user-1/report.docx",
+    ],
+)
+async def test_upload_url_to_sandbox_leaves_non_plain_proxy_urls_alone(
+    monkeypatch: pytest.MonkeyPatch, url: str
+) -> None:
+    storage = _FakeStorageService()
+    _patch_storage(monkeypatch, storage)
+
+    class _FakeBackend:
+        def __init__(self) -> None:
+            self.commands: list[str] = []
+
+        async def aexecute(self, command: str):
+            self.commands.append(command)
+            return SimpleNamespace(exit_code=0, output="")
+
+    backend = _FakeBackend()
+    result = json.loads(
+        await upload_url_tool.upload_url_to_sandbox.coroutine(
+            url=url,
+            file_path="/workspace/report.docx",
+            runtime=_Runtime(backend),
+        )
+    )
+
+    assert result["success"] is True
+    assert url in backend.commands[0]
+    assert storage.presigned_url not in backend.commands[0]
+
+
+@pytest.mark.asyncio
+async def test_upload_url_to_sandbox_presign_failure_falls_back_to_proxy_url(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    storage = _FakeStorageService(error=RuntimeError("signing backend unavailable"))
+    _patch_storage(monkeypatch, storage)
+
+    class _FakeBackend:
+        def __init__(self) -> None:
+            self.commands: list[str] = []
+
+        async def aexecute(self, command: str):
+            self.commands.append(command)
+            return SimpleNamespace(exit_code=0, output="")
+
+    backend = _FakeBackend()
+    result = json.loads(
+        await upload_url_tool.upload_url_to_sandbox.coroutine(
+            url="/api/upload/file/document/user-1/report.docx",
+            file_path="/workspace/report.docx",
+            runtime=_Runtime(backend),
+        )
+    )
+
+    assert result["success"] is True
+    assert (
+        "https://app.example.com/api/upload/file/document/user-1/report.docx" in backend.commands[0]
+    )
+
+
+@pytest.mark.asyncio
+async def test_upload_url_to_sandbox_api_fallback_uses_resolved_direct_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeStorageService()
+    _patch_storage(monkeypatch, storage)
+
+    class _NoExecBackend:
+        async def aupload_files(self, files):
+            return [SimpleNamespace(error=None)]
+
+    requested_urls: list[str] = []
+
+    class _FakeResponse:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def raise_for_status(self) -> None:
+            return None
+
+        async def aiter_bytes(self):
+            yield b"content"
+
+    class _FakeHttpClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def stream(self, method: str, request_url: str):
+            requested_urls.append(request_url)
+            return _FakeResponse()
+
+    monkeypatch.setattr(
+        upload_url_tool.httpx,
+        "AsyncClient",
+        lambda **_kwargs: _FakeHttpClient(),
+    )
+
+    result = json.loads(
+        await upload_url_tool.upload_url_to_sandbox.coroutine(
+            url="/api/upload/file/document/user-1/report.docx",
+            file_path="/workspace/report.docx",
+            runtime=_Runtime(_NoExecBackend()),
+        )
+    )
+
+    assert result == {"success": True, "path": "/workspace/report.docx", "size": 7}
+    # API 侧回退下载也直连存储，不绕代理重定向
+    assert requested_urls == [storage.presigned_url]
+
+
+@pytest.mark.asyncio
+async def test_upload_url_to_sandbox_presigned_403_retries_with_original_url(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """预签名直链 403（过期/签名拒绝）时回落原代理 URL 重试——加速路径永不更差。"""
+    storage = _FakeStorageService()
+    _patch_storage(monkeypatch, storage)
+    original_url = "https://app.example.com/api/upload/file/document/user-1/report.docx"
+
+    class _NoExecBackend:
+        async def aupload_files(self, files):
+            return [SimpleNamespace(error=None)]
+
+    requested_urls: list[str] = []
+
+    class _ForbiddenResponse:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def raise_for_status(self) -> None:
+            request = upload_url_tool.httpx.Request("GET", storage.presigned_url)
+            response = upload_url_tool.httpx.Response(403, request=request)
+            raise upload_url_tool.httpx.HTTPStatusError(
+                "forbidden", request=request, response=response
+            )
+
+    class _OkResponse:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def raise_for_status(self) -> None:
+            return None
+
+        async def aiter_bytes(self):
+            yield b"content"
+
+    class _FakeHttpClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def stream(self, method: str, request_url: str):
+            requested_urls.append(request_url)
+            if request_url == storage.presigned_url:
+                return _ForbiddenResponse()
+            return _OkResponse()
+
+    monkeypatch.setattr(
+        upload_url_tool.httpx,
+        "AsyncClient",
+        lambda **_kwargs: _FakeHttpClient(),
+    )
+    caplog.set_level(logging.INFO)
+
+    result = json.loads(
+        await upload_url_tool.upload_url_to_sandbox.coroutine(
+            url="/api/upload/file/document/user-1/report.docx",
+            file_path="/workspace/report.docx",
+            runtime=_Runtime(_NoExecBackend()),
+        )
+    )
+
+    assert result == {"success": True, "path": "/workspace/report.docx", "size": 7}
+    assert requested_urls == [storage.presigned_url, original_url]
+    assert "presigned_url_403_retry_original=True" in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("output", "expected_category"),
+    [
+        (
+            "Traceback (most recent call last):\n  urllib.error.HTTPError: "
+            "HTTP Error 403: Forbidden\n",
+            "http_403",
+        ),
+        ("urllib.error.URLError: <urlopen error No address associated with hostname>", "dns"),
+        ("urllib.error.URLError: <urlopen error timed out>", "timeout"),
+        ("Traceback (most recent call last):\n  RuntimeError: boom", "python_exception"),
+        ("", "unknown"),
+    ],
+)
+async def test_upload_url_to_sandbox_failure_log_carries_error_category(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    output: str,
+    expected_category: str,
+) -> None:
+    secret_url = "https://app.example.com/api/upload/file/document/user-1/secret.docx"
+
+    class _FailingBackend:
+        async def aexecute(self, command: str):
+            del command
+            return SimpleNamespace(exit_code=1, output=output)
+
+        async def aupload_files(self, files):
+            return [SimpleNamespace(error=None)]
+
+    class _FakeResponse:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def raise_for_status(self) -> None:
+            return None
+
+        async def aiter_bytes(self):
+            yield b"content"
+
+    class _FakeHttpClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def stream(self, method: str, request_url: str):
+            del method, request_url
+            return _FakeResponse()
+
+    monkeypatch.setattr(
+        upload_url_tool.httpx,
+        "AsyncClient",
+        lambda **_kwargs: _FakeHttpClient(),
+    )
+
+    result = json.loads(
+        await upload_url_tool.upload_url_to_sandbox.coroutine(
+            url=secret_url,
+            file_path="/workspace/secret.docx",
+            runtime=_Runtime(_FailingBackend()),
+        )
+    )
+
+    assert result["success"] is True
+    assert f"Sandbox download failed (exit_code=1 category={expected_category})" in caplog.text
+    # 原始输出（含 URL/路径）不进日志
+    assert secret_url not in caplog.text
+    assert "secret.docx" not in caplog.text

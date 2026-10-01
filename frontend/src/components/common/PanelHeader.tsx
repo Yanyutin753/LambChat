@@ -13,16 +13,21 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { MoreHorizontal, Search } from "lucide-react";
+import { SceneIllustration, type IllustrationScene } from "./SceneIllustration";
 import { PanelSearchInput } from "./PanelSearchInput";
 
 interface PanelHeaderProps {
   /** 面板标题 */
   title: string;
+  count?: number;
   /** 副标题/描述 */
   subtitle?: string;
   /** 标题图标 */
   icon?: ReactNode;
+  /** 场景插图优先于标题图标 */
+  illustration?: IllustrationScene;
   /** 右侧操作按钮区域 */
   actions?: ReactNode;
   /** 搜索值 */
@@ -56,8 +61,10 @@ function flattenActionNodes(node: ReactNode): ReactNode[] {
 
 export function PanelHeader({
   title,
+  count,
   subtitle,
   icon,
+  illustration,
   actions,
   searchValue,
   onSearchChange,
@@ -68,6 +75,7 @@ export function PanelHeader({
   children,
   className,
 }: PanelHeaderProps) {
+  const { t } = useTranslation();
   const actionNodes = useMemo(() => flattenActionNodes(actions), [actions]);
   const searchActionNodes = useMemo(
     () => flattenActionNodes(searchActions),
@@ -100,8 +108,20 @@ export function PanelHeader({
       }
     };
 
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsMobileMenuOpen(false);
+        mobileMenuRef.current
+          ?.querySelector<HTMLButtonElement>("button")
+          ?.focus();
+      }
+    };
     document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [isMobileMenuOpen]);
 
   const rootClassName = [
@@ -113,20 +133,52 @@ export function PanelHeader({
     .filter(Boolean)
     .join(" ");
 
+  const mobileMenu = isMobileMenuOpen && (
+    <div className="panel-header__mobile-menu">
+      {searchAccessory && (
+        <div className="panel-header__mobile-menu-section panel-header__mobile-menu-accessory">
+          {searchAccessory}
+        </div>
+      )}
+      {mobileActionNodes.map((action, index) => (
+        <div
+          key={index}
+          className="panel-header__mobile-menu-item"
+          onClick={(e) => {
+            if ((e.target as Element).closest(".ui-select, [data-filter-menu]"))
+              return;
+            setIsMobileMenuOpen(false);
+          }}
+        >
+          {action}
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div className={rootClassName}>
       {!searchOnly && (
         <div className="panel-header__top flex flex-wrap items-center justify-between gap-3 lg:gap-4">
           <div className="panel-header__identity flex min-w-0 items-center gap-3 lg:gap-4">
-            {icon && (
-              <div className="panel-header__icon [&>svg]:size-5 flex size-10 flex-shrink-0 items-center justify-center rounded-lg bg-theme-bg-subtle text-theme-text-secondary ring-1 ring-[var(--theme-border)] lg:size-11">
-                {icon}
+            {illustration ? (
+              <div className="panel-header__icon panel-header__illustration">
+                <SceneIllustration scene={illustration} />
               </div>
+            ) : (
+              icon && <div className="panel-header__icon">{icon}</div>
             )}
             <div className="min-w-0">
-              <h1 className="panel-header__title truncate text-16 font-semibold text-theme-text lg:text-18 font-serif">
-                {title}
-              </h1>
+              <div className="flex min-w-0 items-center gap-2">
+                <h1 className="panel-header__title truncate text-16 font-semibold text-theme-text lg:text-18 font-serif">
+                  {title}
+                </h1>
+                {count !== undefined && (
+                  <span className="panel-header__count text-11 font-sans font-normal text-theme-text-tertiary">
+                    {count}
+                  </span>
+                )}
+              </div>
               {subtitle && (
                 <p className="panel-header__subtitle mt-0.5 truncate text-14 leading-snug text-theme-text-secondary lg:text-[0.85rem]">
                   {subtitle}
@@ -144,34 +196,14 @@ export function PanelHeader({
               <button
                 type="button"
                 className="panel-header__mobile-more"
-                title="筛选与操作"
-                aria-label="筛选与操作"
+                title={t("common.filtersAndActions")}
+                aria-label={t("common.filtersAndActions")}
                 aria-expanded={isMobileMenuOpen}
                 onClick={() => setIsMobileMenuOpen((prev) => !prev)}
               >
                 <MoreHorizontal size={22} />
               </button>
-              {isMobileMenuOpen && (
-                <div className="panel-header__mobile-menu">
-                  {searchAccessory && (
-                    <div className="panel-header__mobile-menu-section panel-header__mobile-menu-accessory">
-                      {searchAccessory}
-                    </div>
-                  )}
-                  {mobileActionNodes.map((action, index) => (
-                    <div
-                      key={index}
-                      className="panel-header__mobile-menu-item"
-                      onClick={(e) => {
-                        if ((e.target as Element).closest(".ui-select")) return;
-                        setIsMobileMenuOpen(false);
-                      }}
-                    >
-                      {action}
-                    </div>
-                  ))}
-                </div>
-              )}
+              {mobileMenu}
             </div>
           )}
         </div>
@@ -200,31 +232,14 @@ export function PanelHeader({
                 <button
                   type="button"
                   className="panel-header__mobile-more panel-header__mobile-more--inline"
-                  title="筛选与操作"
-                  aria-label="筛选与操作"
+                  title={t("common.filtersAndActions")}
+                  aria-label={t("common.filtersAndActions")}
                   aria-expanded={isMobileMenuOpen}
                   onClick={() => setIsMobileMenuOpen((prev) => !prev)}
                 >
                   <MoreHorizontal size={22} />
                 </button>
-                {isMobileMenuOpen && (
-                  <div className="panel-header__mobile-menu">
-                    {searchAccessory && (
-                      <div className="panel-header__mobile-menu-section panel-header__mobile-menu-accessory">
-                        {searchAccessory}
-                      </div>
-                    )}
-                    {mobileActionNodes.map((action, index) => (
-                      <div
-                        key={index}
-                        className="panel-header__mobile-menu-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        {action}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {mobileMenu}
               </div>
             )}
           </div>

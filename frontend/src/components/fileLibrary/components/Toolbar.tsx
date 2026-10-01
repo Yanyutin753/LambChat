@@ -1,3 +1,4 @@
+import { PanelHeader } from "../../common/PanelHeader";
 import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -102,6 +103,42 @@ export function Toolbar({
       : projects.find((p) => p.id === selectedProject)?.name
     : null;
 
+  const viewSwitcher = (
+    <div className="file-library-view-switch flex items-center rounded-lg border border-theme-border bg-theme-bg-subtle/50 h-9 p-px">
+      {(["grid", "list"] as const).map((mode) => {
+        const label =
+          mode === "grid"
+            ? t("fileLibrary.gridView")
+            : t("fileLibrary.listView");
+        return (
+          <button
+            key={mode}
+            onClick={() => {
+              onViewModeChange(mode);
+              setShowSort(false);
+            }}
+            title={label}
+            aria-label={label}
+            aria-pressed={viewMode === mode}
+            className={`relative z-10 flex items-center justify-center w-8 h-full rounded-md transition-colors duration-200 ${
+              viewMode === mode
+                ? "text-theme-text"
+                : "text-theme-text-tertiary hover:text-theme-text-secondary"
+            }`}
+          >
+            <span className="relative z-10">
+              {mode === "grid" ? <LayoutGrid size={16} /> : <List size={16} />}
+            </span>
+            <span className="file-library-view-label">{label}</span>
+            {viewMode === mode && (
+              <div className="absolute inset-0 bg-theme-bg-elevated rounded-md shadow-sm pointer-events-none" />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div className="sticky top-0 z-10">
       {/* Toolbar backdrop */}
@@ -109,9 +146,15 @@ export function Toolbar({
         className="absolute inset-0"
         style={{ backgroundColor: "var(--theme-bg)" }}
       />
-      <div className="absolute bottom-0 left-0 right-0 h-px bg-theme-border/60" />
 
-      <div className="relative px-3 @sm:px-4 @md:px-6 py-2 @md:py-3">
+      <PanelHeader
+        title={t("fileLibrary.title")}
+        subtitle={t("fileLibrary.subtitle")}
+        illustration="panel-files"
+        className="panel-header--desktop-identity"
+        actions={viewSwitcher}
+      />
+      <div className="file-library-toolbar panel-inset relative">
         <div className="flex items-center justify-between gap-2 @sm:gap-3 w-full font-serif">
           {/* ─── Left group: Filters ─── */}
           <div className="flex flex-wrap gap-1.5 @sm:gap-2 items-center min-w-0">
@@ -119,6 +162,7 @@ export function Toolbar({
             <div className="relative">
               <button
                 ref={filterDd.ref}
+                aria-expanded={showFilter}
                 onClick={() => {
                   closeAll();
                   setShowFilter(true);
@@ -167,6 +211,8 @@ export function Toolbar({
             {/* Favorites */}
             <button
               onClick={onFavoritesToggle}
+              aria-label={t("fileLibrary.favorites")}
+              aria-pressed={favoritesOnly}
               className={`${btnBase} w-9 h-9 p-0 flex items-center justify-center transition-all duration-150 ${
                 favoritesOnly
                   ? "border-amber-300/80 dark:border-amber-600/60 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 shadow-sm shadow-amber-100"
@@ -189,6 +235,7 @@ export function Toolbar({
               <div className="relative hidden @lg:block">
                 <button
                   ref={projectDd.ref}
+                  aria-expanded={showProject}
                   onClick={() => {
                     closeAll();
                     setShowProject(true);
@@ -251,6 +298,8 @@ export function Toolbar({
             <div className="relative">
               <button
                 ref={sortDd.ref}
+                aria-label={t(currentSortLabel ?? "fileLibrary.sort.newest")}
+                aria-expanded={showSort}
                 onClick={() => {
                   closeAll();
                   setShowSort(true);
@@ -310,14 +359,15 @@ export function Toolbar({
                     </div>
                   );
                 })}
+                <div className="file-library-compact-view">{viewSwitcher}</div>
               </DropdownShell>
             </div>
           </div>
 
           {/* ─── Right group: Search + View toggle ─── */}
-          <div className="flex items-center gap-1.5 @sm:gap-2 shrink-0">
+          <div className="file-library-toolbar__search-group flex items-center gap-1.5 min-w-0">
             {/* Search */}
-            <div className="group flex items-center h-9 w-[160px] @sm:w-[200px] @md:w-[280px] rounded-lg border border-theme-border bg-theme-bg-subtle/50 px-2 @sm:px-3 pl-9 relative focus-within:border-theme-border-hover focus-within:bg-theme-bg-elevated transition-all duration-150">
+            <div className="file-library-toolbar__search group flex items-center h-9 rounded-lg border border-theme-border bg-theme-bg-subtle/50 px-2 @sm:px-3 pl-9 relative focus-within:border-theme-border-hover focus-within:bg-theme-bg-elevated transition-all duration-150">
               <Search
                 size={16}
                 className="absolute left-2 @sm:left-3 top-1/2 -translate-y-1/2 text-theme-text-tertiary pointer-events-none"
@@ -332,46 +382,12 @@ export function Toolbar({
               {search && (
                 <button
                   onClick={() => onSearchChange("")}
+                  aria-label={t("common.clear")}
                   className="shrink-0 text-theme-text-tertiary hover:text-theme-text-secondary transition-colors rounded"
                 >
                   <X size={16} />
                 </button>
               )}
-            </div>
-
-            {/* View toggle */}
-            <div className="hidden @sm:block">
-              <div className="flex items-center rounded-lg border border-theme-border bg-theme-bg-subtle/50 h-9 p-px">
-                {(["grid", "list"] as const).map((mode) => {
-                  const label =
-                    mode === "grid"
-                      ? t("fileLibrary.gridView")
-                      : t("fileLibrary.listView");
-                  return (
-                    <button
-                      key={mode}
-                      onClick={() => onViewModeChange(mode)}
-                      title={label}
-                      className={`relative z-10 flex items-center justify-center w-8 h-full rounded-md transition-colors duration-200 ${
-                        viewMode === mode
-                          ? "text-theme-text"
-                          : "text-theme-text-tertiary hover:text-theme-text-secondary"
-                      }`}
-                    >
-                      <span className="relative z-10">
-                        {mode === "grid" ? (
-                          <LayoutGrid size={16} />
-                        ) : (
-                          <List size={16} />
-                        )}
-                      </span>
-                      {viewMode === mode && (
-                        <div className="absolute inset-0 bg-theme-bg-elevated rounded-md shadow-sm pointer-events-none" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
             </div>
           </div>
         </div>

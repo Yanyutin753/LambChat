@@ -318,6 +318,9 @@
     "previous": "前の項目",
     "reject": "拒否",
     "scheduledTask": {
+      "searchPlaceholder": "タスク名や説明を検索…",
+      "noResults": "一致する定期タスクはありません",
+      "noResultsDesc": "別のキーワードを試すか、ステータスの絞り込みを変更してください。",
       "agent": "エージェント",
       "confirmCreation": "このスケジュールタスクの作成を確認してください。",
       "effect": "作成後、エージェント「{{agent}}」が {{schedule}} で実行されます。各実行で新しいセッションが開始され、以下のプロンプトがエージェントに送信されます：",
@@ -337,6 +340,7 @@
     "submit": "確定"
   },
   "auth": {
+    "brandTitle": "アイデアを、かたちに。",
     "account": "アカウント",
     "backToLogin": "ログインに戻る",
     "checkInboxStep": "受信トレイを確認（スパムフォルダも確認してください）",
@@ -356,7 +360,6 @@
     "enteringChat": "チャットを開いています...",
     "featureAgents": "エージェント",
     "featureMemory": "メモリ",
-    "featureSkills": "スキル",
     "featureTools": "ツール",
     "forgotPassword": "パスワードを忘れた",
     "forgotPasswordDesc": "メールアドレスを入力すると、パスワードリセットリンクを送信します",
@@ -510,6 +513,9 @@
     "repositoryOrBranchNotFound": "リポジトリまたはブランチが見つかりません。",
     "resetTokenExpired": "リセットトークンの有効期限が切れています。",
     "roleNotFound": "ロールが見つかりません。",
+    "sandboxSessionNotLocal": "このセッションはクラウドサンドボックスで実行されています。ワークスペースのファイル閲覧にはローカルサンドボックスセッションが必要です",
+    "sandboxCloudNotCreated": "クラウドコンピューターはまだ作成されていません。クラウドセッションでメッセージを送信すると自動作成されます",
+    "sandboxCloudRecycled": "クラウドコンピューターはリサイクルされ、ファイルは保持されていません。メッセージを送信すると再作成されます",
     "sessionAccessDenied": "このセッションにアクセスする権限がありません。",
     "sessionNotFound": "セッションが見つかりません。",
     "settingNotFound": "設定が見つかりません。",
@@ -1132,6 +1138,9 @@
     "welcomeSuggestions": "おすすめ"
   },
   "common": {
+    "panelTabs": "パネルタブ",
+    "closePanelTab": "タブを閉じる：{{title}}",
+    "paginationSummary": "全 {{total}} 件 · 1ページ {{pageSize}} 件",
     "about": "について",
     "accessDenied": "アクセスが拒否されました",
     "add": "追加",
@@ -1177,6 +1186,8 @@
     "on": "オン",
     "operationFailed": "操作に失敗しました",
     "page": "{{page}}ページ",
+    "filtersAndActions": "フィルターと操作",
+    "pagination": "ページ切り替え",
     "permissionRequired": "権限が必要です",
     "poweredBy": "Clivia 搭載",
     "prev": "前へ",
@@ -1563,6 +1574,7 @@
       "monthsAgo": "{{count}}ヶ月前"
     },
     "title": "ファイルライブラリ",
+    "subtitle": "アップロードしたファイルと生成されたファイルを管理",
     "tryDifferent": "別のキーワードで検索してください",
     "types": {
       "all": "すべて",
@@ -1921,7 +1933,6 @@
     "contentLabel": "内容",
     "contentPlaceholder": "記憶の内容を入力（5文字以上）...",
     "contentRequired": "記憶の内容は5文字以上必要です",
-    "contextFilterPlaceholder": "スコープ（例: project_constraint）",
     "createBtn": "記憶を追加",
     "createSuccess": "記憶を作成しました",
     "createTitle": "新規記憶",
@@ -1946,7 +1957,7 @@
     "searchMode": {
       "hybrid": "ハイブリッド"
     },
-    "searchPlaceholder": "記憶を検索...",
+    "searchPlaceholder": "タイトル・概要・タグ・分類を検索…",
     "selectAll": "すべて選択",
     "selectHint": "記憶を選択して詳細を表示",
     "source": {
@@ -2058,6 +2069,7 @@
     "taskCompleted": "タスク完了",
     "taskFailed": "タスク失敗",
     "title": "お知らせ",
+    "subtitle": "お知らせとメッセージを確認・管理",
     "titleLabel": "タイトル",
     "typeInfo": "お知らせ",
     "typeLabel": "タイプ",
@@ -2453,6 +2465,9 @@
     }
   },
   "scheduledTask": {
+    "searchPlaceholder": "タスク名や説明を検索…",
+    "noResults": "一致する定期タスクはありません",
+    "noResultsDesc": "別のキーワードを試すか、ステータスの絞り込みを変更してください。",
     "active": "実行中",
     "agent": "エージェント",
     "agentPlaceholder": "エージェントを選択...",
@@ -2539,6 +2554,7 @@
     "timeout": "タイムアウト",
     "timeoutSeconds": "タイムアウト（秒）",
     "title": "定期タスク",
+    "subtitle": "タスクを自動実行し、実行履歴を確認",
     "totalRuns": "合計実行回数",
     "triggerType": "トリガータイプ",
     "triggeredSuccess": "タスクをトリガーしました",
@@ -2938,6 +2954,7 @@
     "TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS": "孤立タスク回収スキャン間隔（秒）",
     "TASK_RUN_STALL_TIMEOUT": "実行ハートビート停滞タイムアウト（秒）",
     "LLM_STREAM_IDLE_TIMEOUT": "ストリーミングchunk間の最大アイドル秒数。上游の停滞で実行が固まるのを防ぐ（0以下で無効）",
+    "LLM_STREAM_GAP_WARN_TIMEOUT": "ストリーミングchunk間の間隔がこの秒数を超えるとログに警告を記録します。上流の停滞による内容欠落の検出用（警告のみ、0以下で無効）",
     "ENABLE_WEB_FETCH": "ウェブ取得ツールを有効化：公開ページの本文を Markdown として取得（内部アドレスは常に拒否）。",
     "WEB_FETCH_PROVIDER": "取得プロバイダー: direct=ローカル、tavily=検索キー共有、firecrawl=セルフホスト可、exa=キャッシュ+実クロール、jina=r.jina.ai、auto=順次フォールバック。",
     "JINA_API_KEYS": "Jina Reader API キー（カンマ区切りでローテーション）。空の場合 jina は無効。",
@@ -3127,6 +3144,7 @@
     "send": "メッセージを送信"
   },
   "sidebar": {
+    "noProjects": "プロジェクトはありません",
     "addToFavorites": "お気に入りに追加",
     "batchDeleteConfirm": "選択した{{count}}件のセッションを削除しますか？この操作は取り消せません。",
     "batchDeletePartialFailed": "{{count}}件のセッションの削除に失敗しました",
@@ -3165,6 +3183,8 @@
     "navigate": "移動",
     "navigation": "ナビゲーション",
     "newChat": "新しいチャット",
+    "newChatInProject": "「{{project}}」で新しいチャット",
+    "startFirstChat": "最初のチャットを始める",
     "newChatShortcut": "Ctrl+Shift+O",
     "newProject": "新しいプロジェクト",
     "noMatchingSessions": "一致するセッションが見つかりません",
@@ -3177,6 +3197,7 @@
     "pinToTop": "ピン留め",
     "pinToggleFailed": "ピン留め状態の更新に失敗しました",
     "pinned": "ピン留めしました",
+    "pinnedChats": "ピン留め",
     "previous7Days": "過去7日間",
     "projectCreateFailed": "プロジェクトの作成に失敗しました",
     "projectCreated": "プロジェクトが作成されました",
@@ -3866,20 +3887,37 @@
     "minimize": "最小化",
     "maximize": "最大化",
     "restore": "元に戻す",
-    "close": "閉じる"
+    "close": "閉じる",
+    "toggleSidebar": "サイドバーを切り替え"
   },
   "workspacePanel": {
-    "title": "ワークスペース",
-    "viewChats": "チャット",
+    "account": "アカウント",
+    "binaryFileHint": "（バイナリファイル — インラインプレビュー非対応）",
+    "cloudDisabled": "クラウドサンドボックスは無効です",
+    "cloudNotCreated": "クラウドコンピューターはまだ作成されていません。クラウドセッションでメッセージを送信すると自動作成されます",
+    "cloudPaused": "クラウドPC · 一時停止中。開くと自動的に復帰します",
+    "cloudRunning": "クラウドPC · 実行中",
+    "cloudSession": "このセッションはクラウドサンドボックスを使用しています。ワークスペースのファイルはクラウドにあります",
+    "copyPath": "パスをコピー",
+    "daemonOffline": "ローカルサンドボックスが未接続のため、ワークスペースを参照できません",
+    "emptyDir": "空のワークスペース",
+    "noSession": "セッションを開くとワークスペースのファイルを参照できます",
     "refresh": "更新",
     "retry": "再試行",
-    "daemonOffline": "ローカルサンドボックスが未接続のため、ワークスペースを参照できません",
-    "noSession": "セッションを開くとワークスペースのファイルを参照できます",
-    "emptyDir": "空のワークスペース",
-    "copyPath": "パスをコピー",
     "revealInFileManager": "ファイルマネージャーで表示",
-    "binaryFileHint": "（バイナリファイル — インラインプレビュー非対応）",
     "settings": "設定",
-    "account": "アカウント"
+    "switchToCloud": "クラウドPCを表示 →",
+    "title": "会話のファイル",
+    "viewChats": "チャット",
+    "viewCloud": "クラウドPC",
+    "viewLocal": "このPC"
+  },
+  "projectWorkspace": {
+    "details": "ワークスペースの詳細",
+    "choose": "ローカルフォルダーを指定",
+    "clear": "フォルダーの指定を解除",
+    "inherits": "このプロジェクトの新しいチャットは、このコンピューターとフォルダーを使用します。既存のチャットは変更されません。",
+    "optional": "任意。新しいチャットでこのフォルダーを共有し、ファイルはこのコンピューターに保存されます。",
+    "privacy": "選択した端末でファイルを操作します。読んだ内容は会話モデルに送信される場合があります。"
   }
 }

@@ -72,7 +72,8 @@ export default {
             "color-mix(in srgb, var(--theme-bg-subtle) calc(<alpha-value> * 100%), transparent)",
           "bg-code":
             "color-mix(in srgb, var(--theme-bg-code) calc(<alpha-value> * 100%), transparent)",
-          border: "color-mix(in srgb, var(--theme-border) calc(<alpha-value> * 100%), transparent)",
+          border:
+            "color-mix(in srgb, var(--theme-border) calc(<alpha-value> * 100%), transparent)",
           "border-hover":
             "color-mix(in srgb, var(--theme-border-hover) calc(<alpha-value> * 100%), transparent)",
           "border-subtle":
@@ -91,7 +92,8 @@ export default {
           // 漏映射时 text-theme-error 之类会静默不生成（守卫测试盯这条）
           success:
             "color-mix(in srgb, var(--theme-success) calc(<alpha-value> * 100%), transparent)",
-          error: "color-mix(in srgb, var(--theme-error) calc(<alpha-value> * 100%), transparent)",
+          error:
+            "color-mix(in srgb, var(--theme-error) calc(<alpha-value> * 100%), transparent)",
           warning:
             "color-mix(in srgb, var(--theme-warning) calc(<alpha-value> * 100%), transparent)",
           info: "color-mix(in srgb, var(--theme-info) calc(<alpha-value> * 100%), transparent)",

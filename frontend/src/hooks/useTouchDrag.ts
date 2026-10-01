@@ -70,10 +70,14 @@ export function useTouchDrag(
         touchDragRef.current.clientY = touch.clientY;
         setDragIndicatorPos({ x: touch.clientX, y: touch.clientY });
         const el = document.elementFromPoint(touch.clientX, touch.clientY);
-        if (el) {
-          const projectHeader = el.closest("[data-project-drop]");
+        {
+          const projectHeader = el?.closest(
+            "[data-project-drop], [data-pinned-drop]",
+          );
           if (projectHeader) {
-            const projectId = projectHeader.getAttribute("data-project-id");
+            const projectId = projectHeader.hasAttribute("data-pinned-drop")
+              ? "pinned"
+              : projectHeader.getAttribute("data-project-id");
             touchDropTargetRef.current = projectId;
             setTouchDropTarget(projectId);
           } else {
@@ -82,9 +86,9 @@ export function useTouchDrag(
           }
         }
       };
-      const handleDocumentTouchEnd = () => {
+      const handleDocumentTouchEnd = (event: TouchEvent) => {
         const targetId = touchDropTargetRef.current;
-        if (targetId && touchDragRef.current) {
+        if (event.type !== "touchcancel" && targetId && touchDragRef.current) {
           onDropRef.current(touchDragRef.current.sessionId, targetId);
         }
         setDraggingSessionId(null);
@@ -94,11 +98,13 @@ export function useTouchDrag(
         touchDropTargetRef.current = null;
         document.removeEventListener("touchmove", handleDocumentTouchMove);
         document.removeEventListener("touchend", handleDocumentTouchEnd);
+        document.removeEventListener("touchcancel", handleDocumentTouchEnd);
       };
       document.addEventListener("touchmove", handleDocumentTouchMove, {
         passive: false,
       });
       document.addEventListener("touchend", handleDocumentTouchEnd);
+      document.addEventListener("touchcancel", handleDocumentTouchEnd);
     },
     [t],
   );

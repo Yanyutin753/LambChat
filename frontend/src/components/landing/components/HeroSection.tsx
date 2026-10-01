@@ -13,36 +13,7 @@ export function HeroSection({ onLogin }: HeroSectionProps) {
   const { t } = useTranslation();
 
   return (
-    <section className={getHeroSectionClassName()}>
-      {/* Atmospheric background */}
-      <div
-        className="pointer-events-none absolute inset-0 -z-10"
-        aria-hidden="true"
-      >
-        <div className="absolute inset-0 blog-crosshatch" />
-        <div className="blog-hero-glow-main absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[600px] bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.08)_0%,rgba(251,146,60,0.04)_40%,transparent_70%)] dark:bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.06)_0%,rgba(251,146,60,0.03)_40%,transparent_70%)]" />
-        <div className="blog-hero-glow-blue absolute top-[40%] left-[10%] w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(56,189,248,0.06)_0%,transparent_60%)] dark:bg-[radial-gradient(circle,rgba(56,189,248,0.04)_0%,transparent_60%)]" />
-        <div className="blog-hero-glow-violet absolute bottom-[10%] right-[15%] w-[300px] h-[300px] bg-[radial-gradient(circle,rgba(168,85,247,0.04)_0%,transparent_60%)] dark:bg-[radial-gradient(circle,rgba(168,85,247,0.03)_0%,transparent_60%)]" />
-        {/* Floating light orbs */}
-        <div className="blog-light-orb blog-light-orb-amber absolute top-[20%] left-[5%] opacity-60" />
-        <div className="blog-light-orb blog-light-orb-blue absolute top-[55%] right-[3%] opacity-40" />
-        <div className="blog-light-orb blog-light-orb-violet absolute bottom-[15%] left-[30%] opacity-30" />
-      </div>
-
-      {/* Floating decorative elements */}
-      <div
-        className="blog-hero-float absolute top-28 left-[7%] blog-float-line opacity-40"
-        aria-hidden="true"
-      />
-      <div
-        className="blog-hero-float absolute top-36 right-[9%] blog-float-line-short opacity-30"
-        aria-hidden="true"
-      />
-      <div
-        className="blog-hero-float absolute top-[60%] right-[6%] blog-float-dot opacity-20"
-        aria-hidden="true"
-      />
-
+    <section className={`${getHeroSectionClassName()} public-brand-hero`}>
       <div className="relative mx-auto w-full max-w-[22rem] sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl">
         {/* Editorial tag */}
         <div
@@ -86,7 +57,7 @@ export function HeroSection({ onLogin }: HeroSectionProps) {
         >
           <button
             onClick={onLogin}
-            className="blog-btn-primary min-h-12 w-full sm:w-auto group inline-flex items-center justify-center gap-2.5 rounded-full bg-stone-900 dark:bg-stone-50 px-8 py-3.5 sm:px-9 sm:py-4 text-14 font-semibold text-white dark:text-stone-900 transition-all duration-300 hover:-translate-y-0.5 hover:bg-stone-800 dark:hover:bg-white hover:shadow-xl hover:shadow-stone-900/12 dark:hover:shadow-stone-50/10 active:translate-y-0"
+            className="blog-btn-primary public-action public-action-primary group"
           >
             {t("landing.startUsing")}
             <span className="transition-transform duration-300 group-hover:translate-x-0.5">
@@ -97,7 +68,7 @@ export function HeroSection({ onLogin }: HeroSectionProps) {
             href={GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="blog-btn-ghost min-h-12 w-full sm:w-auto group inline-flex items-center justify-center gap-2.5 rounded-full border border-stone-200/80 dark:border-stone-700/50 bg-white/55 dark:bg-stone-800/35 px-8 py-3.5 sm:px-9 sm:py-4 text-14 font-medium text-stone-600 dark:text-stone-300 transition-all duration-300 hover:-translate-y-0.5 hover:border-stone-300 dark:hover:border-stone-600 hover:shadow-lg hover:shadow-stone-200/30 dark:hover:shadow-stone-900/30 active:translate-y-0"
+            className="blog-btn-ghost public-action public-action-secondary group"
           >
             <GitHubIcon />
             {t("landing.viewOnGitHub")}
@@ -125,6 +96,13 @@ export function HeroSection({ onLogin }: HeroSectionProps) {
           </div>
         </div>
       </div>
+      <img
+        className="public-brand-art"
+        src="/images/illustrations/auth-brand-workspace.webp"
+        alt=""
+        aria-hidden="true"
+        fetchPriority="high"
+      />
     </section>
   );
 }

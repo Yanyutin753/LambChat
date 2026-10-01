@@ -14,7 +14,7 @@ test("BrandWordmark renders an accessible scalable svg by default", () => {
   expect(html).toMatch(/data-wordmark-style="text-only"/);
   expect(html).toMatch(/<text[^>]*>LambChat<\/text>/);
   expect(html).toMatch(/x="110"/);
-  expect(html).toMatch(/y="36"/);
+  expect(html).toMatch(/y="39"/);
   expect(html).toMatch(/text-anchor="middle"/);
   expect(html).toMatch(/dominant-baseline="central"/);
   expect(html).not.toMatch(/<path/);

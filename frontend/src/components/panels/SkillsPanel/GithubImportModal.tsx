@@ -99,7 +99,7 @@ export function GithubImportModal({
       }
     >
       <div className="es-form">
-        <div className="skill-callout flex items-start gap-3 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg)]/85 px-4 py-4">
+        <div className="skill-callout flex items-start gap-3 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg-subtle)]/85 px-4 py-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--theme-primary-light)] text-[var(--theme-primary)]">
             <Sparkles size={18} />
           </div>

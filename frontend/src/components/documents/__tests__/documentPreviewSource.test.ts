@@ -5,6 +5,15 @@ const source = readFileSync(
   "utf8",
 );
 
+test("document preview keeps the selected mode independent of mobile viewport size", () => {
+  const preview = readFileSync(
+    new URL("../DocumentPreview.tsx", import.meta.url),
+    "utf8",
+  );
+  expect(preview).toContain("viewMode={state.viewMode}");
+  expect(preview).toContain("onViewModeChange={state.setViewMode}");
+});
+
 test("DocumentPreview resolves signed URLs before loading from storage", () => {
   expect(source).toMatch(/buildUploadProxyUrl/);
   expect(source).toMatch(/buildUploadProxyUrlFromKey/);

@@ -647,6 +647,20 @@ export function isMarkdownFile(fileName: string): boolean {
   return ext === "md" || ext === "markdown";
 }
 
+/**
+ * The preview toolbar's language chip only pays its way when it says more
+ * than the extension already visible in the file name (md → "markdown" or
+ * html → "html" would just repeat it).
+ */
+export function shouldShowLanguageBadge(
+  codeFile: boolean,
+  language: string,
+  fileName: string,
+): boolean {
+  if (!codeFile || !language) return false;
+  return language.toLowerCase() !== getFileExtension(fileName);
+}
+
 // Check if file is Excalidraw
 export function isExcalidrawFile(ext: string): boolean {
   return ext === "excalidraw" || ext === "exdraw";

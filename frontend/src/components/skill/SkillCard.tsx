@@ -68,7 +68,6 @@ export function SkillCard({
       descriptionMaxLines={2}
       gradient={gradient}
       icon={<CategoryIcon size={20} className="text-[var(--theme-primary)]" />}
-      muted={!skill.enabled}
       selected={selected}
       selectionMode={selectionMode}
       onSelect={onSelect ? () => onSelect(skill.name) : undefined}
@@ -80,6 +79,8 @@ export function SkillCard({
             <Tooltip content={t("personaPresets.pin", "置顶")}>
               <button
                 type="button"
+                aria-label={t("personaPresets.pin")}
+                aria-pressed={Boolean(skill.is_pinned)}
                 className={`pps-card__icon-action ${
                   skill.is_pinned ? "pps-card__icon-action--active-pin" : ""
                 }`}
@@ -96,6 +97,8 @@ export function SkillCard({
             <Tooltip content={t("personaPresets.favorite", "收藏")}>
               <button
                 type="button"
+                aria-label={t("personaPresets.favorite")}
+                aria-pressed={Boolean(skill.is_favorite)}
                 className={`pps-card__icon-action ${
                   skill.is_favorite ? "pps-card__icon-action--active-fav" : ""
                 }`}
@@ -178,6 +181,11 @@ export function SkillCard({
             }
           >
             <button
+              aria-label={
+                skill.enabled
+                  ? t("skills.card.disable")
+                  : t("skills.card.enable")
+              }
               onClick={(e) => {
                 e.stopPropagation();
                 onToggle(skill.name);
@@ -197,6 +205,7 @@ export function SkillCard({
 
           <Tooltip content={t("skills.card.edit")}>
             <button
+              aria-label={t("skills.card.edit")}
               onClick={(e) => {
                 e.stopPropagation();
                 onEdit(skill);
@@ -218,6 +227,11 @@ export function SkillCard({
                 }
               >
                 <button
+                  aria-label={
+                    isPublished
+                      ? t("skills.card.republish")
+                      : t("skills.card.publishToMarketplace")
+                  }
                   onClick={(e) => {
                     e.stopPropagation();
                     onPublish(skill);
@@ -239,6 +253,7 @@ export function SkillCard({
           {onExportZip && (
             <Tooltip content={t("skills.exportZip")}>
               <button
+                aria-label={t("skills.exportZip")}
                 onClick={(e) => {
                   e.stopPropagation();
                   onExportZip(skill.name);
@@ -254,6 +269,7 @@ export function SkillCard({
 
           <Tooltip content={t("skills.card.delete")}>
             <button
+              aria-label={t("skills.card.delete")}
               onClick={(e) => {
                 e.stopPropagation();
                 onDelete(skill.name);

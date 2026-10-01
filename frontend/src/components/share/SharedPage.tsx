@@ -3,24 +3,22 @@
  * ChatGPT-inspired design with theme support and mobile responsiveness
  */
 
+import { SceneIllustration } from "../common/SceneIllustration";
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
-  AlertCircle,
   MessageSquare,
   Sun,
   Moon,
   Coffee,
   ExternalLink,
-  Lock,
   Languages,
   MessageCircle,
   Check,
   Loader2,
   XCircle,
 } from "lucide-react";
-
 import { BackIcon } from "../common/BackIcon";
 import { getFullUrl } from "../../services/api";
 import { shareApi } from "../../services/api/share";
@@ -475,12 +473,7 @@ export function SharedPage({
         <div className="max-w-md w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="bg-theme-bg-card rounded-2xl shadow-xl shadow-stone-900/5 dark:shadow-black/30 border border-theme-border overflow-hidden">
             <div className="p-8 text-center">
-              <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
-                <Lock
-                  size={28}
-                  className="text-amber-500 dark:text-amber-400"
-                />
-              </div>
+              <SceneIllustration scene="message" className="mx-auto mb-4" />
               <h1 className="text-20 font-semibold text-theme-text font-serif mb-2 font-serif tracking-tight">
                 {t("share.loginRequired")}
               </h1>
@@ -508,12 +501,7 @@ export function SharedPage({
         <div className="max-w-md w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="bg-theme-bg-card rounded-2xl shadow-xl shadow-stone-900/5 dark:shadow-black/30 border border-theme-border overflow-hidden">
             <div className="p-8 text-center">
-              <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-red-50 dark:bg-red-900/20 flex items-center justify-center">
-                <AlertCircle
-                  size={28}
-                  className="text-red-500 dark:text-red-400"
-                />
-              </div>
+              <SceneIllustration scene="message" className="mx-auto mb-4" />
               <h1 className="text-20 font-semibold text-theme-text font-serif mb-2 font-serif tracking-tight">
                 {t("share.notFound")}
               </h1>
@@ -773,12 +761,7 @@ export function SharedPage({
             {/* Messages */}
             {messages.length === 0 ? (
               <div className="text-center pb-24 pt-12 sm:pb-32 sm:pt-16">
-                <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-stone-100 dark:bg-stone-800/60 flex items-center justify-center">
-                  <MessageSquare
-                    size={22}
-                    className="text-stone-300 dark:text-stone-600"
-                  />
-                </div>
+                <SceneIllustration scene="message" className="mx-auto mb-4" />
                 <p className="text-stone-400 dark:text-stone-500 text-14 font-serif">
                   {t("share.noMessages")}
                 </p>

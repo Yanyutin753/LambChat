@@ -125,7 +125,7 @@ export function SandboxDataLocationCard() {
             className={`shrink-0 rounded-full px-2 py-0.5 text-10 font-medium ${
               location.customized
                 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                : "bg-stone-500/10 dark:bg-stone-500/20 text-theme-text-secondary dark:text-stone-400"
+                : "bg-theme-text-secondary/10 dark:bg-stone-500/20 text-theme-text-secondary dark:text-stone-400"
             }`}
           >
             {location.customized
@@ -214,7 +214,7 @@ export function SandboxDataLocationCard() {
               type="button"
               onClick={handleReset}
               disabled={busy}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-12 text-theme-text-tertiary dark:text-stone-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-12 text-theme-text-tertiary dark:text-stone-500 transition-colors hover:bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)] dark:hover:bg-red-950/30 hover:text-theme-error dark:hover:text-red-400 disabled:opacity-50"
             >
               {t("profile.localSandbox.dataLocation.reset")}
             </button>

@@ -40,7 +40,23 @@ export function SessionWorkspaceBar({ values, onChange, disabled }: Props) {
     currentMachineId,
     machine?.online === true,
   );
-  if (!visible || !onChange) return null;
+  const name =
+    active?.path
+      .replace(/[\\/]+$/, "")
+      .split(/[\\/]/)
+      .pop() || active?.path;
+  if (!visible || !onChange) {
+    if (values.sandbox !== "local" || !active) return null;
+    return (
+      <div
+        className="session-workspace-bar flex min-w-0 items-center gap-2 px-1 py-1 text-14 text-theme-text-secondary"
+        title={t("sessionWorkspace.scope")}
+      >
+        <Folder size={16} className="shrink-0" aria-hidden="true" />
+        <span className="truncate">{name}</span>
+      </div>
+    );
+  }
 
   const choose = async () => {
     const initial = values;
@@ -65,15 +81,10 @@ export function SessionWorkspaceBar({ values, onChange, disabled }: Props) {
     }
   };
 
-  const name =
-    active?.path
-      .replace(/[\\/]+$/, "")
-      .split(/[\\/]/)
-      .pop() || active?.path;
   return (
     <div
       className="session-workspace-bar flex min-w-0 shrink-0 items-center gap-2 text-14"
-      style={{ color: "var(--theme-text-primary)" }}
+      style={{ color: "var(--theme-text-secondary)" }}
     >
       <button
         type="button"
