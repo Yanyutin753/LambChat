@@ -45,6 +45,16 @@ beforeEach(async () => {
   await i18n.changeLanguage("zh");
 });
 
+test("keyboard navigation scrolls the selected search result into view", async () => {
+  vi.mocked(sessionApi.list).mockResolvedValue(response("Keyboard result"));
+  render(<SearchDialog isOpen onClose={() => {}} onSelectSession={() => {}} />);
+  const result = await screen.findByRole("button", { name: "Keyboard result" });
+  const scroll = vi.fn();
+  result.scrollIntoView = scroll;
+  fireEvent.keyDown(screen.getByRole("textbox"), { key: "ArrowDown" });
+  expect(scroll).toHaveBeenCalledWith({ block: "nearest" });
+});
+
 test("retrying a failed next page preserves results and continues the same offset", async () => {
   const first = response("First result");
   first.has_more = true;

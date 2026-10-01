@@ -8,6 +8,7 @@ import {
 } from "react";
 import { useLocation, useNavigationType, useNavigate } from "react-router-dom";
 import { detectDesktopOs } from "../components/layout/TitleBar/titlebarPlatform";
+import { isEditableEventTarget } from "../utils/editableTarget";
 import {
   applyNavigation,
   canGoBack,
@@ -31,15 +32,6 @@ function readBrowserHistoryIndex(): number | null {
 
 function locationKey(pathname: string, search: string): string {
   return pathname + search;
-}
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    target.isContentEditable
-  );
 }
 
 export interface NavigationHistoryValue {
@@ -108,7 +100,7 @@ export function NavigationHistoryProvider({
         event.defaultPrevented ||
         event.isComposing ||
         event.shiftKey ||
-        isEditableTarget(event.target) ||
+        isEditableEventTarget(event.target) ||
         document.querySelector('[role="dialog"][aria-modal="true"]')
       )
         return;

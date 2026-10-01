@@ -28,6 +28,9 @@ function Page() {
         Forward
       </button>
       <input aria-label="Editor" />
+      <select aria-label="Language">
+        <option>English</option>
+      </select>
     </>
   );
 }
@@ -37,6 +40,15 @@ beforeEach(() => {
   vi.spyOn(navigator, "userAgent", "get").mockReturnValue(
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
   );
+});
+
+test("navigation preserves native select keyboard controls", () => {
+  setup();
+  const select = screen.getByRole("combobox");
+  expect(fireEvent.keyDown(select, { key: "ArrowLeft", altKey: true })).toBe(
+    true,
+  );
+  expect(screen.getByText("/settings")).toBeInTheDocument();
 });
 afterEach(() => {
   cleanup();

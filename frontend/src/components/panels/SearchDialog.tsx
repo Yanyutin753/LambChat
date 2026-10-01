@@ -65,7 +65,6 @@ export function SearchDialog({
   // ── Reset active index when results change ─────────────────────
   useEffect(() => {
     setActiveIndex(-1);
-    itemRefs.current.clear();
   }, [allSessions]);
 
   // ── Fetch sessions (search or initial) ─────────────────────────
