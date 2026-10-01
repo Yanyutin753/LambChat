@@ -147,7 +147,7 @@ test("portal dialogs and sheets reserve safe-area spacing", () => {
     "../components/sidebar/SessionPreviewDialog.tsx",
     "../components/chat/ChatInputShortcuts.tsx",
     // SelectRow（含 safe-area 弹层）已从 ProfilePreferencesTab 抽取为共享组件
-    "../components/profile/SelectRow.tsx",
+
     "../components/documents/LazyDocumentPreview.tsx",
     // NotificationPanel 的创建/编辑表单已改用共享 EditorSidebar（其 CSS 内建 safe-area inset）
     "../components/panels/FeedbackPanel.tsx",
@@ -164,7 +164,7 @@ test("portal dialogs and sheets reserve safe-area spacing", () => {
   // （逐文件的精确模式由 fullscreenOverlaysSafeAreaSource.test.ts 锁定）
   for (const path of safeViewportFiles) {
     expect(readSource(path)).toMatch(
-      /safe-area-viewport-padding\b|safe-area-bottom/,
+      /safe-area-viewport-padding\b|safe-area-bottom|<ModalSurface/,
     );
   }
 });
@@ -174,11 +174,10 @@ test("profile mobile sheet relies on the portal viewport safe area only", () => 
 
   // 外层只避让顶部系统栏；底部 inset 由 sheet 表面自己承担，
   // 不允许 padding-bottom 把 sheet 顶离屏幕底边（遮罩会露缝）
+  expect(profileModal).toMatch(/<ModalSurface/);
+  expect(readSource("../components/common/ModalSurface.tsx")).toMatch(/safe-area-viewport-padding-top/);
   expect(profileModal).toMatch(
-    /className="safe-area-viewport-padding-top fixed inset-0 z-\[300\] flex items-end/,
-  );
-  expect(profileModal).toMatch(
-    /sm:hidden relative z-10 w-full bg-theme-bg-card[^"]*safe-area-bottom/,
+    /profile-dialog safe-area-bottom/,
   );
   expect(profileModal).not.toMatch(
     /renderFooter\(\s*"[^"]*\bsafe-area-bottom\b/,

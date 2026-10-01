@@ -1,3 +1,4 @@
+import { ResourceCardTags } from "../common/ResourceCardTags";
 import {
   FileText,
   ToggleLeft,
@@ -6,7 +7,6 @@ import {
   Trash2,
   ShoppingBag,
   User,
-  Tag,
   Archive,
   Sparkles,
   Upload,
@@ -137,17 +137,7 @@ export function SkillCard({
       }
       tags={
         skill.tags.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {skill.tags.slice(0, 4).map((tag) => (
-              <span key={tag} className="skill-tag-chip skill-tag-chip--active">
-                <Tag size={11} />
-                {tag}
-              </span>
-            ))}
-            {skill.tags.length > 4 && (
-              <span className="skill-tag-chip">+{skill.tags.length - 4}</span>
-            )}
-          </div>
+          <ResourceCardTags tags={skill.tags} />
         ) : undefined
       }
       meta={
@@ -173,6 +163,78 @@ export function SkillCard({
             )}
         </div>
       }
+      actions={[
+        {
+          label: t(
+            skill.enabled ? "skills.card.disable" : "skills.card.enable",
+          ),
+          icon: skill.enabled ? (
+            <ToggleRight size={16} />
+          ) : (
+            <ToggleLeft size={16} />
+          ),
+          onClick: () => onToggle(skill.name),
+        },
+        ...(onTogglePreference
+          ? [
+              {
+                label: t(
+                  skill.is_pinned
+                    ? "sidebar.unpinFromTop"
+                    : "personaPresets.pin",
+                ),
+                icon: <Pin size={16} />,
+                onClick: () =>
+                  onTogglePreference(skill, { is_pinned: !skill.is_pinned }),
+              },
+              {
+                label: t(
+                  skill.is_favorite
+                    ? "fileLibrary.context.unfavorite"
+                    : "personaPresets.favorite",
+                ),
+                icon: <Star size={16} />,
+                onClick: () =>
+                  onTogglePreference(skill, {
+                    is_favorite: !skill.is_favorite,
+                  }),
+              },
+            ]
+          : []),
+        {
+          label: t("skills.card.edit"),
+          icon: <Edit3 size={16} />,
+          onClick: () => onEdit(skill),
+        },
+        ...(skill.source === "manual" && isPublished !== undefined && onPublish
+          ? [
+              {
+                label: t(
+                  isPublished
+                    ? "skills.card.republish"
+                    : "skills.card.publishToMarketplace",
+                ),
+                icon: <Upload size={16} />,
+                onClick: () => onPublish(skill),
+              },
+            ]
+          : []),
+        ...(onExportZip
+          ? [
+              {
+                label: t("skills.exportZip"),
+                icon: <Archive size={16} />,
+                onClick: () => onExportZip(skill.name),
+              },
+            ]
+          : []),
+        {
+          label: t("skills.card.delete"),
+          icon: <Trash2 size={16} />,
+          danger: true,
+          onClick: () => onDelete(skill.name),
+        },
+      ]}
       footer={
         <div className="flex items-center gap-1">
           <Tooltip
@@ -200,83 +262,6 @@ export function SkillCard({
               ) : (
                 <ToggleLeft size={15} />
               )}
-            </button>
-          </Tooltip>
-
-          <Tooltip content={t("skills.card.edit")}>
-            <button
-              aria-label={t("skills.card.edit")}
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit(skill);
-              }}
-              className="scb__action-btn scb__action-btn--ghost"
-            >
-              <Edit3 size={13} />
-            </button>
-          </Tooltip>
-
-          {skill.source === "manual" &&
-            isPublished !== undefined &&
-            onPublish && (
-              <Tooltip
-                content={
-                  isPublished
-                    ? t("skills.card.republish")
-                    : t("skills.card.publishToMarketplace")
-                }
-              >
-                <button
-                  aria-label={
-                    isPublished
-                      ? t("skills.card.republish")
-                      : t("skills.card.publishToMarketplace")
-                  }
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onPublish(skill);
-                  }}
-                  className="scb__action-btn scb__action-btn--ghost"
-                >
-                  <Upload
-                    size={13}
-                    className={
-                      isPublished
-                        ? "text-green-600 dark:text-green-500"
-                        : undefined
-                    }
-                  />
-                </button>
-              </Tooltip>
-            )}
-
-          {onExportZip && (
-            <Tooltip content={t("skills.exportZip")}>
-              <button
-                aria-label={t("skills.exportZip")}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onExportZip(skill.name);
-                }}
-                className="scb__action-btn scb__action-btn--ghost"
-              >
-                <Archive size={13} />
-              </button>
-            </Tooltip>
-          )}
-
-          <div className="ml-auto" />
-
-          <Tooltip content={t("skills.card.delete")}>
-            <button
-              aria-label={t("skills.card.delete")}
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(skill.name);
-              }}
-              className="scb__action-btn text-[var(--theme-text-secondary)] transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-            >
-              <Trash2 size={14} />
             </button>
           </Tooltip>
         </div>

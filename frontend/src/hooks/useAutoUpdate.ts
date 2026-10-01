@@ -463,9 +463,8 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         return false;
       }
       return true;
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
-    [],
+    [platform],
   );
 
   /** Start the update process */
@@ -604,7 +603,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         error: formatUpdateError(err, platform),
       }));
     }
-  }, []);
+  }, [platform]);
 
   /** Download APK and trigger Android install intent */
   const installAndroidUpdate = useCallback(async () => {

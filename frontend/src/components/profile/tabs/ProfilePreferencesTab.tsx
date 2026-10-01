@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Cloud, Container, RefreshCw, Settings } from "lucide-react";
+import { Cloud, Container, RefreshCw } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { isNativeAppRuntime } from "../../../services/api/config";
 import { useTheme } from "../../../contexts/ThemeContext";
@@ -294,19 +294,12 @@ export function ProfilePreferencesTab() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-theme-border dark:border-stone-600/40">
-        <div className="flex items-center gap-2 mb-3">
-          <Settings size={13} className="text-amber-500 dark:text-amber-400" />
-          <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-theme-text-tertiary dark:text-stone-500">
-            {t("profile.preferences")}
-          </h3>
-        </div>
-
+      <div className="profile-section">
         <div className="space-y-0">
           {enableMemory && (
             <button
               onClick={handleMemoryToggle}
-              className="flex w-full items-center justify-between py-3 first:pt-0 last:pb-0 text-left"
+              className="profile-setting-row"
             >
               <span className="text-14 text-theme-text dark:text-stone-200">
                 {t("profile.memoryToggle")}
@@ -425,10 +418,10 @@ export function ProfilePreferencesTab() {
 
       {/* 沙箱：云端 + 本地合并一张卡——平铺分区，分区之间用 hairline 分隔
           （不叠 tile 夹层）；本地分区仍懒加载（M4 T8 PWA 预算） */}
-      <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-theme-border dark:border-stone-600/40">
+      <div className="profile-section">
         <div className="flex items-center gap-2 mb-3">
           <Container size={13} className="text-amber-500 dark:text-amber-400" />
-          <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-theme-text-tertiary dark:text-stone-500">
+          <h3 className="profile-section-heading font-serif">
             {t("profile.sandbox")}
           </h3>
         </div>
@@ -440,7 +433,7 @@ export function ProfilePreferencesTab() {
               size={13}
               className="text-theme-text-tertiary dark:text-stone-500"
             />
-            <span className="font-medium font-serif text-14 text-theme-text dark:text-stone-100">
+            <span className="font-medium text-14 text-theme-text dark:text-stone-100">
               {t("profile.cloudSandbox")}
             </span>
           </div>
@@ -464,14 +457,14 @@ export function ProfilePreferencesTab() {
 
       {/* 关于：检查更新——仅原生客户端（桌面/移动）渲染；Web 随部署走刷新即更 */}
       {isNativeAppRuntime() && (
-        <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-theme-border dark:border-stone-600/40">
+        <div className="profile-section">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <RefreshCw
                 size={13}
                 className="text-amber-500 dark:text-amber-400"
               />
-              <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-theme-text-tertiary dark:text-stone-500">
+              <h3 className="profile-section-heading font-serif">
                 {t("update.aboutTitle", "关于")}
               </h3>
             </div>

@@ -53,10 +53,10 @@ export function ProfileNotificationTab() {
   return (
     <div className="space-y-3">
       {/* Browser Notification Setting */}
-      <div className="rounded-xl bg-theme-bg-subtle dark:bg-stone-700/50 p-3.5 sm:p-4">
+      <div className="profile-notification">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h4 className="font-medium font-serif text-14 text-theme-text dark:text-stone-100">
+            <h4 className="font-medium text-14 text-theme-text dark:text-stone-100">
               {t("profile.browserNotification")}
             </h4>
             <p className="text-12 text-theme-text-secondary dark:text-stone-400 mt-1 leading-relaxed">
@@ -75,7 +75,7 @@ export function ProfileNotificationTab() {
           ) : (
             <button
               onClick={requestPermission}
-              className="shrink-0 px-3 py-1.5 text-12 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors font-medium"
+              className="shrink-0 px-3 py-1.5 text-12 ui-button ui-button--primary rounded-lg transition-colors font-medium"
             >
               {permission === "denied"
                 ? t("profile.retry")
@@ -93,10 +93,10 @@ export function ProfileNotificationTab() {
       </div>
 
       {/* WebSocket Connection Status */}
-      <div className="rounded-xl bg-theme-bg-subtle dark:bg-stone-700/50 p-3.5 sm:p-4">
+      <div className="profile-notification">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h4 className="font-medium font-serif text-14 text-theme-text dark:text-stone-100">
+            <h4 className="font-medium text-14 text-theme-text dark:text-stone-100">
               {t("profile.realtimeNotification")}
             </h4>
             <p className="text-12 text-theme-text-secondary dark:text-stone-400 mt-1 leading-relaxed">
@@ -107,10 +107,10 @@ export function ProfileNotificationTab() {
       </div>
 
       {/* Web Push Notification */}
-      <div className="rounded-xl bg-theme-bg-subtle dark:bg-stone-700/50 p-3.5 sm:p-4">
+      <div className="profile-notification">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h4 className="font-medium font-serif text-14 text-theme-text dark:text-stone-100">
+            <h4 className="font-medium text-14 text-theme-text dark:text-stone-100">
               {t("profile.pushNotification")}
             </h4>
             <p className="text-12 text-theme-text-secondary dark:text-stone-400 mt-1 leading-relaxed">
@@ -121,7 +121,7 @@ export function ProfileNotificationTab() {
             <button
               onClick={unsubscribePush}
               disabled={isPushLoading}
-              className="shrink-0 px-3 py-1.5 text-12 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors font-medium disabled:opacity-50"
+              className="shrink-0 px-3 py-1.5 text-12 ui-button ui-button--danger rounded-lg transition-colors font-medium disabled:opacity-50"
             >
               {t("profile.pushDisabled")}
             </button>
@@ -135,7 +135,7 @@ export function ProfileNotificationTab() {
             <button
               onClick={handlePushSubscribe}
               disabled={isPushLoading}
-              className="shrink-0 px-3 py-1.5 text-12 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors font-medium disabled:opacity-50"
+              className="shrink-0 px-3 py-1.5 text-12 ui-button ui-button--primary rounded-lg transition-colors font-medium disabled:opacity-50"
             >
               {t("profile.pushEnabled")}
             </button>

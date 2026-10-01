@@ -1,14 +1,17 @@
 import { useEffect } from "react";
 
+let locks = 0;
+let previousOverflow = "";
+
 export function useBodyScrollLock(locked: boolean) {
   useEffect(() => {
     if (!locked) return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
+    if (locks++ === 0) {
+      previousOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+    }
     return () => {
-      document.body.style.overflow = previousOverflow;
+      if (--locks === 0) document.body.style.overflow = previousOverflow;
     };
   }, [locked]);
 }

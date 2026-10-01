@@ -14,6 +14,6 @@ test("mobile sidebar expand toggle matches the sidebar collapse icon color", () 
 
 test("header overflow menu trigger matches the sidebar collapse icon color", () => {
   expect(source).toMatch(
-    /className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-\[var\(--color-background-muted\)\] dark:text-stone-300 transition-colors"\s+title=\{t\("common\.menu"\)\}/,
+    /className="flex size-11 sm:size-8 items-center justify-center rounded-lg text-stone-600 hover:bg-\[var\(--color-background-muted\)\] dark:text-stone-300 transition-colors"\s+title=\{t\("common\.menu"\)\}/,
   );
 });

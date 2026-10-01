@@ -46,9 +46,10 @@ test("page chrome and resource card actions use spacing instead of repeated divi
   const footer = cards.match(/\.scb__footer\s*\{([^}]+)\}/)?.[1];
   expect(footer).not.toContain("border-top");
   expect(footer).not.toContain("padding-top");
-  expect(source("../../components/mcp/MCPServerCard.tsx")).toContain(
-    'className="scb__footer flex',
+  expect(source("../../components/common/SkillBaseCard.tsx")).toContain(
+    'className="scb__footer',
   );
+  expect(source("../../components/mcp/MCPServerCard.tsx")).toContain("footer={");
 });
 
 test("MCP form groups do not double their spacing with empty divider rows", () => {

@@ -160,7 +160,7 @@ export function ProfileInfoTab() {
   return (
     <>
       {/* Avatar */}
-      <div className="flex flex-col items-center mb-6">
+      <div className="profile-avatar">
         <div className="relative">
           {user?.avatar_url ? (
             <ImageWithSkeleton
@@ -168,18 +168,18 @@ export function ProfileInfoTab() {
               alt={t("profile.avatar", "头像")}
               skipUrlResolve
               inline
-              className="size-20 rounded-full border-4 border-theme-bg-card dark:border-stone-700 shadow-lg ring-2 ring-theme-border dark:ring-stone-600"
+              className="size-16 rounded-full border border-theme-border"
               errorFallback={
-                <div className="size-16 sm:size-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center border-4 border-theme-bg-card dark:border-stone-700 shadow-lg ring-2 ring-theme-border dark:ring-stone-600">
-                  <span className="text-30 font-bold text-white font-serif">
+                <div className="profile-avatar-fallback">
+                  <span className="text-24 font-semibold">
                     {user?.username?.charAt(0).toUpperCase() || "U"}
                   </span>
                 </div>
               }
             />
           ) : (
-            <div className="size-16 sm:size-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center border-4 border-theme-bg-card dark:border-stone-700 shadow-lg ring-2 ring-theme-border dark:ring-stone-600">
-              <span className="text-30 font-bold text-white font-serif">
+            <div className="profile-avatar-fallback">
+              <span className="text-24 font-semibold">
                 {user?.username?.charAt(0).toUpperCase() || "U"}
               </span>
             </div>
@@ -191,13 +191,13 @@ export function ProfileInfoTab() {
           )}
         </div>
         {canUploadAvatar && (
-          <div className="mt-3 flex items-center gap-2">
-            <label className="cursor-pointer rounded-lg bg-theme-bg-subtle dark:bg-stone-700 px-3 py-1.5 text-12 font-medium text-theme-text-secondary dark:text-stone-300 hover:bg-theme-border-hover hover:text-theme-text dark:hover:bg-stone-600 transition-colors">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="profile-avatar-upload cursor-pointer rounded-lg bg-theme-bg-subtle dark:bg-stone-700 px-3 py-1.5 text-12 font-medium text-theme-text-secondary dark:text-stone-300 hover:bg-theme-border-hover hover:text-theme-text dark:hover:bg-stone-600 transition-colors">
               {t("profile.changeAvatar")}
               <input
                 type="file"
                 accept="image/*"
-                className="hidden"
+                className="sr-only"
                 disabled={isUploading}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -264,7 +264,7 @@ export function ProfileInfoTab() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-between gap-3 font-serif">
+            <div className="flex items-center justify-between gap-3">
               <span className="text-14 text-theme-text-secondary dark:text-stone-400 shrink-0">
                 {t("profile.username")}
               </span>
@@ -288,7 +288,7 @@ export function ProfileInfoTab() {
           )}
         </div>
 
-        <div className="flex items-center justify-between py-3.5 border-b border-theme-border-subtle dark:border-stone-700/60 gap-3 font-serif">
+        <div className="flex items-center justify-between py-3.5 border-b border-theme-border-subtle dark:border-stone-700/60 gap-3">
           <span className="text-14 text-theme-text-secondary dark:text-stone-400 shrink-0">
             {t("profile.email")}
           </span>
@@ -297,7 +297,7 @@ export function ProfileInfoTab() {
           </span>
         </div>
         {user?.roles && user.roles.length > 0 && (
-          <div className="flex items-center justify-between py-3.5 gap-3 font-serif">
+          <div className="flex items-center justify-between py-3.5 gap-3">
             <span className="text-14 text-theme-text-secondary dark:text-stone-400 shrink-0">
               {t("profile.roles")}
             </span>
@@ -323,7 +323,7 @@ export function ProfileInfoTab() {
             {adminEmail && (
               <a
                 href={`mailto:${adminEmail}`}
-                className="flex items-center justify-between py-3.5 border-b border-theme-border-subtle dark:border-stone-700/60 gap-3 font-serif group"
+                className="flex items-center justify-between py-3.5 border-b border-theme-border-subtle dark:border-stone-700/60 gap-3 group"
               >
                 <span className="flex items-center gap-2 text-14 text-theme-text-secondary dark:text-stone-400 shrink-0">
                   <Mail size={14} />
@@ -339,7 +339,7 @@ export function ProfileInfoTab() {
                 href={adminUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-between py-3.5 gap-3 font-serif group"
+                className="flex items-center justify-between py-3.5 gap-3 group"
               >
                 <span className="flex items-center gap-2 text-14 text-theme-text-secondary dark:text-stone-400 shrink-0">
                   <ExternalLink size={14} />

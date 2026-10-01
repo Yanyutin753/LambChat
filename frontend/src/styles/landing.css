@@ -1582,7 +1582,7 @@ html.dark .public-brand-hero {
 .public-download-link { color: var(--theme-text); font-size: 13px; padding: 12px 14px; min-height: 44px; }
 .landing-nav-pill { min-height: 44px; }
 .landing-nav-pill::after { background: var(--theme-primary); }
-.landing-mobile-menu { top: calc(72px + var(--app-safe-area-top, 0px)); }
+.landing-mobile-menu { top: calc(72px + var(--app-safe-area-top, 0px) + var(--titlebar-inset, 0px)); }
 .blog-landing-container .landing-mobile-menu > div { height: auto; }
 .blog-landing-container > section[id] { padding-block: clamp(64px, 8vw, 112px); scroll-margin-top: 88px; background: none; }
 .blog-landing-container > section[id] > div { max-width: 1248px; padding-inline: 24px; }

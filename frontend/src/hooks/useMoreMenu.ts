@@ -1,6 +1,6 @@
 /**
  * Hook encapsulating the "More" menu state, feature items, positioning,
- * and side effects (click-outside, pathname-close, swipe-to-close).
+ * and side effects (desktop click-outside and pathname-close).
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -18,7 +18,6 @@ import { useLocation } from "react-router-dom";
 import { useAuth } from "./useAuth";
 import { useSettingsContext } from "../contexts/SettingsContext";
 import { Permission } from "../types";
-import { useSwipeToClose } from "./useSwipeToClose";
 
 interface UseMoreMenuParams {
   isCollapsed: boolean;
@@ -83,17 +82,10 @@ export function useMoreMenu({ isCollapsed, isMobile }: UseMoreMenuParams) {
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const moreMenuBtnRef = useRef<HTMLButtonElement>(null);
   const expandedMoreMenuBtnRef = useRef<HTMLButtonElement>(null);
-  const moreMenuDragHandleRef = useRef<HTMLDivElement>(null);
 
   const activeMoreMenuBtnRef = isCollapsed
     ? moreMenuBtnRef
     : expandedMoreMenuBtnRef;
-
-  const moreMenuSwipeRef = useSwipeToClose({
-    onClose: () => setIsMoreMenuOpen(false),
-    enabled: isMoreMenuOpen && isMobile,
-    dragHandleRef: moreMenuDragHandleRef,
-  });
 
   // Close menu on pathname change
   useEffect(() => {
@@ -103,7 +95,7 @@ export function useMoreMenu({ isCollapsed, isMobile }: UseMoreMenuParams) {
 
   // Click outside to close
   useEffect(() => {
-    if (!isMoreMenuOpen) return;
+    if (!isMoreMenuOpen || isMobile) return;
     const handleClickOutside = (e: MouseEvent) => {
       if (activeMoreMenuBtnRef.current?.contains(e.target as Node)) return;
       if (moreMenuRef.current?.contains(e.target as Node)) return;
@@ -119,7 +111,7 @@ export function useMoreMenu({ isCollapsed, isMobile }: UseMoreMenuParams) {
       document.removeEventListener("click", handleClickOutside);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMoreMenuOpen]);
+  }, [isMoreMenuOpen, isMobile]);
 
   // Position calculation
   const moreMenuPosition = useStickyDropdownPosition(
@@ -148,8 +140,6 @@ export function useMoreMenu({ isCollapsed, isMobile }: UseMoreMenuParams) {
     moreMenuRef,
     moreMenuBtnRef,
     expandedMoreMenuBtnRef,
-    moreMenuSwipeRef,
-    moreMenuDragHandleRef,
     moreMenuPosition,
   };
 }

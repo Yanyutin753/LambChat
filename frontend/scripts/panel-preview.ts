@@ -776,6 +776,14 @@ function response(url: URL, scenario: string): unknown {
   if (path.startsWith("/api/skills/"))
     return { ...skills[0], files: ["SKILL.md"] };
   if (path === "/api/mcp") return paginate(servers, "servers");
+  if (path === "/api/env-vars") return {
+    variables: all([{ key: "PROJECT_API_TOKEN", value: "********" }, { key: "RESEARCH_WORKSPACE_ACCESS_TOKEN_WITH_A_LONG_NAME", value: "********" }]),
+    count: scenario === "empty" ? 0 : 2,
+  };
+  if (path === "/api/tools") return { tools: all(servers.slice(0, 3).flatMap((server, index) => [
+    { name: `${server.name}:search_documents`, description: "检索项目知识库，返回相关文档与来源。", category: "mcp", server: server.name, user_disabled: false },
+    { name: `${server.name}:read_document`, description: "读取完整文档内容，保留结构和来源信息，支持项目内较长的文档名称与描述。", category: "mcp", server: server.name, user_disabled: index === 1 },
+  ])) };
   if (path.endsWith("/tools"))
     return {
       tools: [
@@ -1166,6 +1174,41 @@ function response(url: URL, scenario: string): unknown {
         content_type: "application/octet-stream",
       })),
     };
+  if (path === "/api/sandbox/fs/cloud/status")
+    return { state: "running", platform: "preview" };
+  if (path === "/api/sandbox/fs/cloud/list") {
+    const directory = url.searchParams.get("path") || "";
+    return {
+      entries:
+        directory && directory !== "."
+          ? [{ path: "研究资料/访谈笔记.md", is_dir: false }]
+          : [
+              { path: "研究资料", is_dir: true },
+              { path: "今天吃什么.py", is_dir: false },
+              { path: "随手记.txt", is_dir: false },
+              { path: "交付计划与下一阶段验证清单.md", is_dir: false },
+              { path: "品牌图标.png", is_dir: false },
+            ],
+    };
+  }
+  if (path === "/api/sandbox/fs/cloud/read") {
+    const file = url.searchParams.get("path") || "";
+    if (file.endsWith(".png"))
+      return {
+        encoding: "base64",
+        content:
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jF7sAAAAASUVORK5CYII=",
+      };
+    return {
+      encoding: "utf-8",
+      content: file.endsWith(".py")
+        ? '# 今天吃什么\nfrom random import choice\n\nmeals = ["番茄炒蛋", "牛肉面", "蔬菜沙拉"]\nprint(choice(meals))\n'
+        : file.endsWith(".md")
+          ? "# 交付计划\n\n先让文件浏览清晰，再让内容阅读舒适。\n\n## 验证清单\n\n- 桌面左右分栏\n- 手机返回文件列表\n- 深浅色与长文件名\n"
+          : "随手记\n\n今天整理了研究资料。\n下一步：核对交付清单，安排多端验证。\n",
+      next_offset: null,
+    };
+  }
   if (path.includes("sandbox")) return { machines: [], status: "offline" };
   if (path.includes("health")) return { status: "healthy" };
   return undefined;

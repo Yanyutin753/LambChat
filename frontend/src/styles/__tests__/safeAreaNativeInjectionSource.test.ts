@@ -10,6 +10,25 @@ const utilitiesSource = readSource("../utilities.css");
 const mainActivitySource = readSource(
   "../../../android/app/src/main/java/com/lambchat/app/MainActivity.java",
 );
+const manifestSource = readSource(
+  "../../../android/app/src/main/AndroidManifest.xml",
+);
+
+test("Android resizes the WebView above the IME and restores it on dismissal", () => {
+  expect(manifestSource).toMatch(/android:windowSoftInputMode="adjustResize"/);
+  expect(mainActivitySource).toMatch(
+    /WindowCompat\.setDecorFitsSystemWindows\(getWindow\(\), false\)/,
+  );
+  expect(mainActivitySource).toMatch(
+    /windowInsets\.getInsets\(WindowInsetsCompat\.Type\.ime\(\)\)\.bottom/,
+  );
+  expect(mainActivitySource).toMatch(
+    /container\.setPadding\(0, 0, 0, imeBottom\)/,
+  );
+  expect(mainActivitySource).toMatch(
+    /ViewCompat\.requestApplyInsets\(webView\)/,
+  );
+});
 
 // Android WebView 中 env(safe-area-inset-*) 恒为 0（即使 viewport-fit=cover），
 // 系统栏遮挡只能靠原生注入的 --app-native-safe-area-* 变量兜底，

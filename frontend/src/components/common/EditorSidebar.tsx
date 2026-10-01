@@ -1,11 +1,8 @@
-import { useCallback, useEffect, useId } from "react";
+import { useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
 
 import { useSidebarPanel } from "../../hooks/useSidebarPanel";
-import { BackIcon } from "./BackIcon";
-import { ToolbarIconButton } from "./ui/ToolbarIconButton";
 import {
   RightPanelOwnerContext,
   RightPanelActiveContext,
@@ -38,7 +35,6 @@ export function EditorSidebar({
   open,
   onClose,
   title,
-  subtitle,
   icon,
   children,
   footer,
@@ -47,7 +43,6 @@ export function EditorSidebar({
   widthStorageKey = STORAGE_KEY,
 }: EditorSidebarProps) {
   const { t } = useTranslation();
-  const titleId = useId();
   const entry = useRightPanelEntry({
     open,
     onClose,
@@ -89,8 +84,6 @@ export function EditorSidebar({
 
   const isDocked = shell.presentation === "docked";
   const isFullscreen = shell.presentation === "fullscreen";
-  const closeLabel = t("common.close", "Close");
-  const backLabel = t("common.back", "Back");
   const resizeLabel = t("common.resizePanel", "Resize panel");
 
   return createPortal(
@@ -116,7 +109,7 @@ export function EditorSidebar({
         inert={!entry.active ? true : undefined}
         role={isDocked ? "complementary" : "dialog"}
         aria-modal={isDocked ? undefined : true}
-        aria-labelledby={titleId}
+        aria-label={title}
         tabIndex={-1}
         className={`editor-sidebar right-panel-shell right-panel-shell--${
           shell.presentation
@@ -157,44 +150,6 @@ export function EditorSidebar({
         )}
 
         {entry.active && <RightPanelTabs />}
-        <div className="flex flex-col shrink-0 bg-gradient-to-r from-stone-50 to-white dark:from-stone-800 dark:to-[#292524]">
-          <div className="editor-sidebar-header">
-            <div className="editor-sidebar-header-left">
-              {entry.hasPrevious && (
-                <ToolbarIconButton
-                  variant="muted"
-                  onClick={onClose}
-                  aria-label={backLabel}
-                  title={backLabel}
-                  icon={<BackIcon size={16} />}
-                />
-              )}
-              {icon && <div className="editor-sidebar-header-icon">{icon}</div>}
-              <div className="min-w-0">
-                <div
-                  id={titleId}
-                  className="editor-sidebar-header-title font-sans"
-                >
-                  {title}
-                </div>
-                {subtitle && (
-                  <div className="editor-sidebar-header-subtitle">
-                    {subtitle}
-                  </div>
-                )}
-              </div>
-            </div>
-            <ToolbarIconButton
-              variant="muted"
-              onClick={onClose}
-              className="editor-sidebar-close-btn"
-              aria-label={closeLabel}
-              title={closeLabel}
-              icon={<X size={16} />}
-            />
-          </div>
-        </div>
-
         <RightPanelOwnerContext value={entry.ownerId}>
           <RightPanelActiveContext value={entry.active}>
             <div

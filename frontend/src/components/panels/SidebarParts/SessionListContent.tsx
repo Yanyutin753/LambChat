@@ -636,6 +636,7 @@ export function SessionListContent({
                   onToggle={onToggleChatsCollapsed}
                   createLabel={t("sidebar.newChat")}
                   onCreate={onNewSession}
+                  createIcon="compose"
                   moreLabel={t("nav.more")}
                   menuItems={[
                     {
@@ -644,15 +645,6 @@ export function SessionListContent({
                     },
                   ]}
                 >
-                  {chatsUnreadCount > 0 && (
-                    <MarkAllReadBadge
-                      count={chatsUnreadCount}
-                      badgeId="all"
-                      markingReadId={markingReadId}
-                      onMarkAllRead={() => onMarkAllRead()}
-                      tooltip={t("sidebar.markAllRead")}
-                    />
-                  )}
                   <Tooltip content={t("sidebar.selectMode")}>
                     <button
                       type="button"
@@ -663,6 +655,15 @@ export function SessionListContent({
                       <ListChecks size={14} />
                     </button>
                   </Tooltip>
+                  {chatsUnreadCount > 0 && (
+                    <MarkAllReadBadge
+                      count={chatsUnreadCount}
+                      badgeId="all"
+                      markingReadId={markingReadId}
+                      onMarkAllRead={() => onMarkAllRead()}
+                      tooltip={t("sidebar.markAllRead")}
+                    />
+                  )}
                 </SidebarSectionHeader>
               )}
 

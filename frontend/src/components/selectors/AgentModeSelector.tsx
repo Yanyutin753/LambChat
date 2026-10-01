@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Bot } from "lucide-react";
 import i18n from "../../i18n";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
-import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
+
 import { AgentIcon } from "../agent/AgentIcon";
 import {
   resolveAgentDescription,
@@ -46,25 +45,15 @@ export function AgentModeSelector({
   const currentName = current
     ? resolveAgentDisplayName(current, i18n.language, t)
     : "";
-  const sheetRef = useSwipeToClose({ onClose: () => setOpen(false) });
-  useBodyScrollLock(open);
 
   const handleClose = useCallback(() => setOpen(false), [setOpen]);
 
   // Close on Escape
-  useEffect(() => {
-    if (!open) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open, setOpen]);
 
   if (agents.length <= 1 || !onSelectAgent) return null;
 
   const renderModalContent = () => (
-    <SelectorModalShell ref={sheetRef as React.Ref<HTMLDivElement>}>
+    <SelectorModalShell>
       <SelectorModalHeader
         className="relative"
         icon={

@@ -141,7 +141,7 @@ test("uses the universal Dialog shell (common dialog component)", () => {
     resolve(import.meta.dirname, "../../common/Dialog.tsx"),
     "utf8",
   );
-  expect(dialogSource).toMatch(/items-end sm:items-center/);
+  expect(dialogSource).toMatch(/<ModalSurface/);
   expect(dialogSource).toMatch(/rounded-t-2xl/);
   expect(dialogSource).toMatch(/sm:rounded-xl/);
 });

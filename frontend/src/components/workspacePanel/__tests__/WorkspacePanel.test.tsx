@@ -55,12 +55,17 @@ vi.mock("../../documents/LazyDocumentPreview", () => ({
   LazyDocumentPreview: ({
     content,
     onClose,
+    signedUrl,
+    footer,
   }: {
     content: string;
+    signedUrl?: string;
+    footer?: ReactNode;
     onClose?: () => void;
   }) => (
     <div>
-      {content}
+      {content || signedUrl}
+      {footer}
       {onClose && <button onClick={onClose}>Back to files</button>}
     </div>
   ),
@@ -173,43 +178,26 @@ test("file previews provide a direct return to the conversation file list", asyn
   tree.root = [];
 });
 
-test("opening a second file retains the first preview and reopening does not read it again", async () => {
+test("opening another file reuses the workspace preview without creating global tabs", async () => {
   tree.root = [
     { path: "a.txt", name: "a.txt", isDir: false },
     { path: "b.txt", name: "b.txt", isDir: false },
   ];
-  read.mockClear();
   read.mockImplementation(async (_session, path) => ({
     encoding: "utf-8",
     content: `content of ${path}`,
   }));
-  const { rerender } = render(
-    <WorkspacePanel sessionId="s" sandboxMode="local" />,
-  );
+  render(<WorkspacePanel sessionId="s" sandboxMode="local" />);
   fireEvent.click(screen.getByRole("button", { name: "a.txt" }));
   await screen.findByText("content of a.txt");
+  expect(screen.getByRole("button", { name: "a.txt" })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
   fireEvent.click(screen.getByRole("button", { name: "b.txt" }));
   await screen.findByText("content of b.txt");
-  expect(screen.getByText("content of a.txt")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "a.txt" }));
-  expect(read).toHaveBeenCalledTimes(2);
-  rerender(<WorkspacePanel sessionId="other" sandboxMode="local" />);
   expect(screen.queryByText("content of a.txt")).toBeNull();
-  expect(screen.queryByText("content of b.txt")).toBeNull();
-  tree.root = [];
-});
-
-test("closing the workspace keeps its file tabs open", async () => {
-  tree.root = [{ path: "keep.txt", name: "keep.txt", isDir: false }];
-  read.mockResolvedValue({ encoding: "utf-8", content: "retained file" });
-  const { rerender } = render(
-    <WorkspacePanel sessionId="s" sandboxMode="local" />,
-  );
-  fireEvent.click(screen.getByRole("button", { name: "keep.txt" }));
-  await screen.findByText("retained file");
-  rerender(<div>workspace closed</div>);
-  expect(screen.getByText("retained file")).toBeVisible();
-  expect(getRevealPreviewTabs()).toHaveLength(1);
+  expect(getRevealPreviewTabs()).toHaveLength(0);
   tree.root = [];
 });
 
@@ -262,4 +250,38 @@ test("workspace refresh shares the title bar instead of adding a separate row", 
   view.unmount();
   expect(header.childElementCount).toBe(0);
   header.remove();
+});
+
+test("binary file bytes reach the document renderer through a downloadable URL", async () => {
+  tree.root = [{ path: "photo.png", name: "photo.png", isDir: false }];
+  read.mockResolvedValue({ encoding: "base64", content: "aGVsbG8=" });
+  render(<WorkspacePanel sessionId="s" sandboxMode="local" />);
+  fireEvent.click(screen.getByRole("button", { name: "photo.png" }));
+  expect(
+    await screen.findByText("data:application/octet-stream;base64,aGVsbG8="),
+  ).toBeVisible();
+  tree.root = [];
+});
+
+test("a paginated text read clearly identifies its partial preview", async () => {
+  tree.root = [{ path: "large.py", name: "large.py", isDir: false }];
+  read.mockResolvedValue({
+    encoding: "utf-8",
+    content: "first page",
+    next_offset: 2000,
+  });
+  render(<WorkspacePanel sessionId="s" sandboxMode="local" />);
+  fireEvent.click(screen.getByRole("button", { name: "large.py" }));
+  expect(await screen.findByText("documents.fileTooLargeLines")).toBeVisible();
+  tree.root = [];
+});
+
+test("the workspace root collapses the file tree", () => {
+  tree.root = [{ path: "notes.txt", name: "notes.txt", isDir: false }];
+  render(<WorkspacePanel sessionId="s" sandboxMode="local" />);
+  fireEvent.click(screen.getByRole("button", { name: "workspacePanel.root" }));
+  expect(
+    screen.getByRole("button", { name: "notes.txt", hidden: true }),
+  ).not.toBeVisible();
+  tree.root = [];
 });

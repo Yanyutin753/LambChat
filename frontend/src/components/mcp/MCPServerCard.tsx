@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { MCPServerResponse } from "../../types";
-import { IconButton } from "../common";
+import { SkillBaseCard } from "../common/SkillBaseCard";
 import { nameToGradient } from "../common/cardUtils";
 
 interface MCPServerCardProps {
@@ -51,125 +51,88 @@ export function MCPServerCard({
   const gradient = nameToGradient(server.name);
 
   return (
-    <div
-      className={`pps-card group flex h-full flex-col overflow-hidden rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none cursor-pointer transition-all duration-200 ${
-        !server.enabled ? "saturate-50" : "hover:shadow-md"
-      }`}
-      onClick={(e) => {
-        if (!(e.target as HTMLElement).closest("button")) {
-          onClick?.();
-        }
-      }}
-    >
-      <div
-        className="pps-card__banner relative h-12 shrink-0"
-        style={{
-          background: `linear-gradient(45deg, ${gradient[0]}, ${gradient[1]}, ${gradient[2]})`,
-        }}
-      >
-        <div className="absolute inset-0 flex items-center justify-end px-2 z-[3]">
-          <div className="flex gap-1.5">
-            {server.is_internal && (
-              <span className="scb__status-pill scb__status-pill--installed">
-                {t("mcp.card.internal", "Internal")}
-              </span>
-            )}
-            {server.is_system && !server.is_internal && (
-              <span className="scb__status-pill scb__status-pill--installed">
-                {t("mcp.card.system")}
-              </span>
-            )}
-            {!server.enabled && (
-              <span className="scb__status-pill scb__status-pill--danger">
-                {t("mcp.card.disabled")}
-              </span>
-            )}
-          </div>
+    <SkillBaseCard
+      title={server.name}
+      gradient={gradient}
+      className="pps-card cursor-pointer"
+      onClick={onClick ? () => onClick() : undefined}
+      icon={<Server size={20} className="text-theme-text-secondary" />}
+      statusPills={
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <span
+            className={`rounded-full px-2 py-0.5 text-11 font-medium tracking-wide ${transportColor}`}
+          >
+            {transportLabel}
+          </span>
+          {toolCount !== undefined && toolCount > 0 && (
+            <span className="inline-flex items-center gap-1 text-11 text-[var(--theme-text-secondary)]">
+              <Wrench size={11} />
+              {toolCount}
+            </span>
+          )}
         </div>
-      </div>
-
-      <div className="flex flex-1 flex-col p-4 pt-5">
-        <div className="flex items-start gap-3">
-          <div className="scb__icon-ring shrink-0">
-            <Server
-              size={16}
-              className="text-theme-text-secondary dark:text-stone-400"
-            />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3
-              className="line-clamp-2 break-words text-16 font-semibold font-serif text-[var(--theme-text)] leading-tight"
-              title={server.name}
-            >
-              {onClick ? (
-                <button
-                  type="button"
-                  className="text-left hover:underline underline-offset-4"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onClick();
-                  }}
-                >
-                  {server.name}
-                </button>
-              ) : (
-                server.name
-              )}
-            </h3>
-            <div className="mt-1 flex flex-wrap items-center gap-1.5">
-              <span
-                className={`rounded-full px-2 py-0.5 text-11 font-medium tracking-wide ${transportColor}`}
-              >
-                {transportLabel}
-              </span>
-              {toolCount !== undefined && toolCount > 0 && (
-                <span className="inline-flex items-center gap-1 text-11 text-[var(--theme-text-secondary)]">
-                  <Wrench size={11} />
-                  {toolCount}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {server.url && (
+      }
+      bannerOverlay={
+        <>
+          {server.is_internal && (
+            <span className="scb__status-pill scb__status-pill--installed">
+              {t("mcp.card.internal", "Internal")}
+            </span>
+          )}
+          {server.is_system && !server.is_internal && (
+            <span className="scb__status-pill scb__status-pill--installed">
+              {t("mcp.card.system")}
+            </span>
+          )}
+          {!server.enabled && (
+            <span className="scb__status-pill scb__status-pill--danger">
+              {t("mcp.card.disabled")}
+            </span>
+          )}
+        </>
+      }
+      extraContent={
+        server.url && (
           <div
-            className="mt-2 text-12 font-mono text-theme-text-tertiary dark:text-stone-500 truncate"
+            className="text-12 font-mono text-theme-text-tertiary truncate"
             title={server.url}
           >
             {server.url}
           </div>
-        )}
-
-        <div className="flex-1" />
-
-        <div className="scb__footer flex items-center justify-between gap-2">
-          <div className="flex items-center gap-0.5">
-            {server.can_edit && !server.is_internal && onEdit && (
-              <IconButton
-                aria-label={t("mcp.card.edit")}
-                icon={<Edit3 size={14} />}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit(server);
-                }}
-                className="rounded-lg"
-                title={t("mcp.card.edit")}
-              />
-            )}
-            {server.can_edit && !server.is_internal && onDelete && (
-              <IconButton
-                aria-label={t("mcp.card.delete")}
-                icon={<Trash2 size={14} />}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(server.name, server.is_system);
-                }}
-                className="rounded-lg hover:bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)] hover:text-theme-error dark:hover:bg-red-950/30 dark:hover:text-red-400"
-                title={t("mcp.card.delete")}
-              />
-            )}
-          </div>
+        )
+      }
+      actions={[
+        {
+          label: t(server.enabled ? "mcp.card.disable" : "mcp.card.enable"),
+          icon: server.enabled ? (
+            <ToggleRight size={16} />
+          ) : (
+            <ToggleLeft size={16} />
+          ),
+          onClick: () => onToggle(server.name),
+        },
+        ...(server.can_edit && !server.is_internal && onEdit
+          ? [
+              {
+                label: t("mcp.card.edit"),
+                icon: <Edit3 size={16} />,
+                onClick: () => onEdit(server),
+              },
+            ]
+          : []),
+        ...(server.can_edit && !server.is_internal && onDelete
+          ? [
+              {
+                label: t("mcp.card.delete"),
+                icon: <Trash2 size={16} />,
+                danger: true,
+                onClick: () => onDelete(server.name, server.is_system),
+              },
+            ]
+          : []),
+      ]}
+      footer={
+        <div className="flex items-center">
           <button
             role="switch"
             aria-checked={server.enabled}
@@ -191,10 +154,10 @@ export function MCPServerCard({
             ) : (
               <ToggleLeft size={13} />
             )}
-            {server.enabled ? t("mcp.card.enable") : t("mcp.card.disable")}
+            {server.enabled ? t("mcp.card.disable") : t("mcp.card.enable")}
           </button>
         </div>
-      </div>
-    </div>
+      }
+    />
   );
 }

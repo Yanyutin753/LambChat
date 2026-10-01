@@ -65,10 +65,10 @@ export function ServerUrlSection() {
   };
 
   return (
-    <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-theme-border/60 dark:border-stone-600/40">
+    <div className="profile-section">
       <div className="flex items-center gap-2 mb-3">
         <Globe size={13} className="text-amber-500 dark:text-amber-400" />
-        <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-theme-text-tertiary dark:text-stone-500">
+        <h3 className="profile-section-heading font-serif">
           {t("profile.serverUrl.title")}
         </h3>
       </div>

@@ -31,16 +31,23 @@ export function DesktopTitlebarFrame({
   useDesktopAutoPair(user?.id);
 
   useEffect(() => {
-    document.documentElement.style.setProperty("--titlebar-inset", "40px");
+    document.documentElement.style.setProperty(
+      "--titlebar-inset",
+      os === "mac" ? "36px" : "40px",
+    );
     return () => {
       document.documentElement.style.removeProperty("--titlebar-inset");
     };
-  }, []);
+  }, [os]);
 
   return (
     <NavigationHistoryProvider>
       <div className="flex h-full min-h-0 flex-col">
-        <Suspense fallback={<div className="h-10 shrink-0" />}>
+        <Suspense
+          fallback={
+            <div className={os === "mac" ? "h-9 shrink-0" : "h-10 shrink-0"} />
+          }
+        >
           <TitleBar
             os={os}
             updateState={updateState}

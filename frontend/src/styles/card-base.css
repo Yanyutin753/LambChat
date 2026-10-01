@@ -295,7 +295,7 @@
   gap: 0.25rem;
   padding: 0.2rem 0.55rem;
   font-size: 0.625rem;
-  font-weight: 500;
+  font-weight: 400;
   border-radius: 9999px;
   border: 1px solid var(--theme-border);
   background: transparent;
@@ -430,7 +430,7 @@
 
 /* --- Footer --- */
 .scb__footer {
-  margin-top: var(--panel-gap, 1rem);
+  margin-top: 0.625rem;
 }
 
 /* ═══════════════════════════════════════════

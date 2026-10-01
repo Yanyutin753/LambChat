@@ -15,8 +15,7 @@ import { Checkbox } from "../common/Checkbox";
 
 import type { SkillResponse, SkillSource } from "../../types";
 import { collectSkillTags, skillMatchesQuery } from "../../utils/skillFilters";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
-import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
+
 import { useClientPagination } from "../../hooks/useClientPagination";
 import { Pagination } from "../common/Pagination";
 import { PanelSearchInput } from "../common/PanelSearchInput";
@@ -81,12 +80,6 @@ export function SkillSelector({
   >(new Set(["marketplace", "manual"]));
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const swipeRef = useSwipeToClose({
-    onClose: () => setIsOpen(false),
-    enabled: isOpen,
-  });
-
-  useBodyScrollLock(isOpen);
 
   // 按来源分组 - 使用 useMemo 缓存计算结果
   const filteredSkills = useMemo(
@@ -178,7 +171,7 @@ export function SkillSelector({
   };
 
   const renderModalContent = () => (
-    <SelectorModalShell ref={swipeRef as React.RefObject<HTMLDivElement>}>
+    <SelectorModalShell>
       <SelectorModalHeader
         icon={
           <Sparkles

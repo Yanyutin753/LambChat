@@ -16,12 +16,8 @@ export function ProfileTermsTab() {
   const { t } = useTranslation();
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-14 font-semibold font-serif text-theme-text dark:text-stone-100">
-        {t("profile.termsTitle")}
-      </h3>
-
-      <div className="p-3 rounded-lg bg-amber-50/50 dark:bg-amber-500/[0.04]">
+    <div className="profile-terms">
+      <div>
         <span className="text-12 leading-relaxed text-theme-text-secondary dark:text-stone-300">
           <Trans
             i18nKey="profile.termsItem1"
@@ -30,7 +26,7 @@ export function ProfileTermsTab() {
         </span>
       </div>
 
-      <div className="p-3 rounded-lg bg-red-50/50 dark:bg-red-500/[0.04]">
+      <div>
         <span className="text-12 leading-relaxed text-theme-text-secondary dark:text-stone-300">
           <Trans
             i18nKey="profile.termsItem3"
@@ -39,12 +35,9 @@ export function ProfileTermsTab() {
         </span>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-4">
         {(["termsItem4", "termsItem5", "termsItem6"] as const).map((key) => (
-          <div
-            key={key}
-            className="p-2.5 rounded-lg bg-theme-bg-subtle/60 dark:bg-stone-800/40"
-          >
+          <div key={key}>
             <span className="text-12 leading-relaxed text-theme-text-secondary dark:text-stone-300">
               {t(`profile.${key}`)}
             </span>

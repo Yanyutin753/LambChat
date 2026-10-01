@@ -1,8 +1,7 @@
-import { useEffect, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { useId, type ReactNode } from "react";
+import { ModalSurface } from "./ModalSurface";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 
 /**
  * 通用弹窗组件：桌面居中卡片、移动端底部弹层（同一 DOM，sm 断点切换）。
@@ -43,44 +42,27 @@ export function Dialog({
   children,
 }: DialogProps) {
   const { t } = useTranslation();
-  useBodyScrollLock(open);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!open) return;
-      if (e.key === "Escape" && dismissible) {
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open, onClose, dismissible]);
-
-  if (!open) return null;
-
-  return createPortal(
-    <div
-      data-yields-sidebar
-      className="safe-area-viewport-padding fixed inset-0 z-[300] flex items-end sm:items-center sm:justify-center"
+  const titleId = useId();
+  return (
+    <ModalSurface
+      className={`modal-size-${size}`}
+      open={open}
+      onClose={onClose}
+      dismissible={dismissible}
+      labelledBy={title !== undefined ? titleId : undefined}
     >
-      {/* Backdrop */}
-      <div
-        data-dialog-backdrop
-        className="absolute inset-0 bg-black/50"
-        onClick={dismissible ? onClose : undefined}
-      />
-
       {/* 移动端底部弹层 / 桌面居中卡片 */}
       <div
-        role="dialog"
-        aria-modal="true"
         className={`relative z-10 flex max-h-[92dvh] w-full flex-col overflow-hidden bg-theme-bg-card shadow-xl dark:bg-stone-800 sm:mx-4 sm:rounded-xl sm:border sm:border-theme-border sm:dark:border-stone-700 ${SIZE_CLASSES[size]} rounded-t-2xl border-x border-t border-theme-border/80 dark:border-stone-700/60 animate-slide-up-sheet duration-200 sm:animate-in sm:fade-in sm:zoom-in-95`}
       >
         {title !== undefined && (
           <div className="flex items-center justify-between gap-2 px-5 pt-5 pb-3">
             <div className="flex min-w-0 items-center gap-2">
               {icon}
-              <h3 className="truncate text-16 font-semibold font-sans text-theme-text dark:text-stone-100">
+              <h3
+                id={titleId}
+                className="truncate text-16 font-semibold font-sans text-theme-text dark:text-stone-100"
+              >
                 {title}
               </h3>
             </div>
@@ -106,7 +88,6 @@ export function Dialog({
           </div>
         )}
       </div>
-    </div>,
-    document.body,
+    </ModalSurface>
   );
 }

@@ -1,3 +1,4 @@
+import { ModalSurface } from "../common/ModalSurface";
 /**
  * 反馈管理面板 — 电商平台评价风格
  *
@@ -364,17 +365,11 @@ function FeedbackDetailModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-black/40" onClick={onClose} />
-      <div className="safe-area-viewport-padding-top fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center">
+      <ModalSurface open onClose={onClose}>
         <div
           className="w-full sm:max-w-lg bg-white dark:bg-stone-800 sm:rounded-2xl rounded-t-2xl shadow-2xl border-t sm:border border-stone-200/50 dark:border-stone-700/50 max-h-[85vh] flex flex-col animate-slide-up-sheet sm:animate-in sm:fade-in sm:zoom-in-95 sm:duration-200 safe-area-bottom"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Handle (mobile) */}
-          <div className="sm:hidden flex justify-center pt-3 pb-1">
-            <div className="w-8 h-1 rounded-full bg-stone-300 dark:bg-stone-600" />
-          </div>
-
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-stone-100 dark:border-stone-700/60 flex-shrink-0">
             <div className="flex items-center gap-3">
@@ -497,12 +492,11 @@ function FeedbackDetailModal({
             </div>
           </div>
         </div>
-      </div>
-
+      </ModalSurface>
       {viewerSrc && (
         <ImageViewer
           src={viewerSrc}
-          isOpen={!!viewerSrc}
+          isOpen
           onClose={() => setViewerSrc(null)}
         />
       )}

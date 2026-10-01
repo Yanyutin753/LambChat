@@ -135,7 +135,7 @@ test("mac titlebar keeps navigation centered without CSS position compensation",
     "pb-2",
   );
   expect(container.querySelector("[data-titlebar]")?.className).toContain(
-    "h-10",
+    "h-9",
   );
 });
 

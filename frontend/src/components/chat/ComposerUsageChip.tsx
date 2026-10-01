@@ -112,11 +112,11 @@ export function ComposerUsageChip() {
         createPortal(
           <div
             id="composer-usage-popover"
-            className="feature-menu-dropdown"
+            className="feature-menu-dropdown font-serif"
             style={position}
           >
             {/* ── 头部：今日用量 + 金额 ── */}
-            <div className="flex items-center justify-between gap-3 px-3 pt-3">
+            <div className="flex items-baseline justify-between gap-3 px-3 pt-3">
               <span
                 className="text-12 font-medium"
                 style={{ color: "var(--theme-text-secondary)" }}
@@ -154,20 +154,20 @@ export function ComposerUsageChip() {
               </div>
               <div className="mt-2 flex flex-col gap-1">
                 {snapshot.shares.map((s) => (
-                  <div key={s.key} className="flex items-center gap-2 text-12">
+                  <div key={s.key} className="grid grid-cols-[0.375rem_minmax(0,1fr)_auto_2.25rem] items-center gap-2 text-12">
                     <span
                       className={`size-1.5 shrink-0 rounded-full ${
                         SEGMENT_STYLE[s.key].color
                       }`}
                     />
                     <span
-                      className="flex-1"
+                      className="min-w-0"
                       style={{ color: "var(--theme-text-secondary)" }}
                     >
                       {t(SEGMENT_STYLE[s.key].labelKey)}
                     </span>
                     <span
-                      className="tabular-nums"
+                      className="text-right tabular-nums"
                       style={{ color: "var(--theme-text-tertiary)" }}
                     >
                       {s.tokens.toLocaleString()}
@@ -188,19 +188,19 @@ export function ComposerUsageChip() {
               className="flex items-center justify-between gap-2 border-t px-3 py-2 text-12"
               style={{ borderColor: "var(--theme-border)" }}
             >
-              <span style={{ color: "var(--theme-text-secondary)" }}>
+              <span className="inline-flex items-baseline gap-1.5" style={{ color: "var(--theme-text-secondary)" }}>
                 {t("usage.requestsCount")}
                 <span
-                  className="ml-1.5 font-medium tabular-nums"
+                  className="font-medium tabular-nums"
                   style={{ color: "var(--theme-text)" }}
                 >
                   {snapshot.requests}
                 </span>
               </span>
-              <span style={{ color: "var(--theme-text-secondary)" }}>
+              <span className="inline-flex items-baseline gap-1.5" style={{ color: "var(--theme-text-secondary)" }}>
                 {t("usage.cacheHitRate")}
                 <span
-                  className="ml-1.5 font-medium tabular-nums"
+                  className="font-medium tabular-nums"
                   style={{ color: "var(--theme-text)" }}
                 >
                   {snapshot.cacheHitRate === null

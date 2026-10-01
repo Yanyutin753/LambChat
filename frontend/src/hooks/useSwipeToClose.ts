@@ -40,6 +40,7 @@ export function useSwipeToClose({
       if (!(target instanceof Node && dragHandleRef.current.contains(target)))
         return;
 
+      if (e.touches.length !== 1) return;
       const touch = e.touches[0];
       startY.current = touch.clientY;
       currentY.current = touch.clientY;
@@ -67,17 +68,21 @@ export function useSwipeToClose({
     if (!isDragging.current || !elementRef.current) return;
 
     const deltaY = currentY.current - startY.current;
-    const deltaTime = Date.now() - startTime.current;
+    const deltaTime = Math.max(1, Date.now() - startTime.current);
     const velocity = deltaY / deltaTime;
 
-    elementRef.current.style.transition = "transform 0.3s ease-out";
+    const duration = window.matchMedia?.("(prefers-reduced-motion: reduce)")
+      .matches
+      ? 0
+      : 300;
+    elementRef.current.style.transition = `transform ${duration}ms ease-out`;
 
-    if (deltaY > threshold || velocity > velocityThreshold) {
+    if (deltaY > threshold || (deltaY > 20 && velocity > velocityThreshold)) {
       elementRef.current.style.transform = `translateY(100%)`;
       closeTimerRef.current = setTimeout(() => {
         closeTimerRef.current = null;
         onCloseRef.current();
-      }, 300);
+      }, duration);
     } else {
       elementRef.current.style.transform = "translateY(0)";
     }
@@ -92,11 +97,45 @@ export function useSwipeToClose({
     const element = elementRef.current;
     if (!element) return;
 
+    const cancel = () => {
+      isDragging.current = false;
+      element.style.transform = "";
+      element.style.transition = "";
+    };
+    const pointerStart = (event: PointerEvent) => {
+      if (event.pointerType !== "mouse" || event.button !== 0) return;
+      handleTouchStart({
+        target: event.target,
+        touches: [event],
+      } as unknown as TouchEvent);
+      if (isDragging.current) element.setPointerCapture?.(event.pointerId);
+    };
+    const pointerMove = (event: PointerEvent) => {
+      if (event.pointerType !== "mouse") return;
+      handleTouchMove({
+        touches: [event],
+        preventDefault: () => event.preventDefault(),
+      } as unknown as TouchEvent);
+    };
+    const pointerEnd = (event: PointerEvent) => {
+      if (event.pointerType === "mouse") handleTouchEnd();
+    };
+    element.addEventListener("pointerdown", pointerStart);
+    element.addEventListener("pointermove", pointerMove);
+    element.addEventListener("pointerup", pointerEnd);
+    element.addEventListener("pointercancel", cancel);
+    element.addEventListener("touchcancel", cancel);
     element.addEventListener("touchstart", handleTouchStart, { passive: true });
     element.addEventListener("touchmove", handleTouchMove, { passive: false }); // passive: false to allow preventDefault
     element.addEventListener("touchend", handleTouchEnd, { passive: true });
 
     return () => {
+      element.removeEventListener("pointerdown", pointerStart);
+      element.removeEventListener("pointermove", pointerMove);
+      element.removeEventListener("pointerup", pointerEnd);
+      element.removeEventListener("pointercancel", cancel);
+      element.removeEventListener("touchcancel", cancel);
+      cancel();
       element.removeEventListener("touchstart", handleTouchStart);
       element.removeEventListener("touchmove", handleTouchMove);
       element.removeEventListener("touchend", handleTouchEnd);

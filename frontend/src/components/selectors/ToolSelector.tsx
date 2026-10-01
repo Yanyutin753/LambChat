@@ -15,8 +15,7 @@ import {
 } from "lucide-react";
 import { Checkbox } from "../common/Checkbox";
 import type { ToolState, ToolCategory, ToolParamInfo } from "../../types";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
-import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
+
 import { useClientPagination } from "../../hooks/useClientPagination";
 import { matchTool } from "../../utils/pinyinSearch";
 import { Pagination } from "../common/Pagination";
@@ -70,10 +69,6 @@ export function ToolSelector({
     Set<ToolCategory>
   >(new Set(["mcp"]));
   const [searchQuery, setSearchQuery] = useState("");
-  const swipeRef = useSwipeToClose({
-    onClose: () => setIsOpen(false),
-    enabled: isOpen,
-  });
 
   const filteredTools = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -86,8 +81,6 @@ export function ToolSelector({
     total: filteredTools.length,
     resetKey: searchQuery,
   });
-
-  useBodyScrollLock(isOpen);
 
   const { fullGroups: sortedGroupedTools, pagedGroups: pagedGroupedTools } =
     useMemo(
@@ -128,7 +121,7 @@ export function ToolSelector({
   };
 
   const renderModalContent = () => (
-    <SelectorModalShell ref={swipeRef as React.RefObject<HTMLDivElement>}>
+    <SelectorModalShell>
       <SelectorModalHeader
         icon={
           <Wrench
