@@ -2322,6 +2322,7 @@ html.dark .auth-lamb-shell .auth-input { height: 52px; border-radius: var(--radi
 .auth-lamb-shell .auth-mode-switch button { min-height: 44px; }
 @media (prefers-reduced-motion: reduce) { .auth-lamb-shell * { scroll-behavior: auto; } }
 
+.auth-lamb-shell .auth-illustration-links a:hover { color: var(--auth-text-on-illustration, #f5f4ef); }
 .auth-lamb-shell nav { background: var(--auth-panel-bg); border-bottom: 0; }
 .auth-lamb-shell .auth-brand-description { max-width: 23rem; }
 @media (max-width: 1023px) {

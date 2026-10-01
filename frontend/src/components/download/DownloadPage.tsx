@@ -321,7 +321,7 @@ export function DownloadPage() {
               className="inline-flex items-center gap-1.5 rounded-full border border-stone-200/80 bg-white/55 px-4 py-2 text-14 font-medium text-stone-600 transition-all duration-300 hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md hover:shadow-stone-200/30 dark:border-stone-700/50 dark:bg-stone-800/35 dark:text-stone-300 dark:hover:border-stone-600 dark:hover:shadow-stone-900/30"
             >
               <ArrowLeft size={13} />
-              <span className="sr-only sm:not-sr-only">{t("download.back")}</span>
+              {t("download.back")}
             </Link>
           </div>
         </div>

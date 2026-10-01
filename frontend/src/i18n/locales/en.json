@@ -340,6 +340,7 @@
     "submit": "Submit"
   },
   "auth": {
+    "brandTitle": "Turn ideas into reality.",
     "account": "Account",
     "backToLogin": "Back to Login",
     "checkInboxStep": "Check your inbox (also check spam folder)",
@@ -359,7 +360,6 @@
     "enteringChat": "Opening chat...",
     "featureAgents": "Agents",
     "featureMemory": "Memory",
-    "featureSkills": "Skills",
     "featureTools": "Tools",
     "forgotPassword": "Forgot Password",
     "forgotPasswordDesc": "Enter your email address and we will send you a password reset link",

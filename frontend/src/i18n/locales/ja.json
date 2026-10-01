@@ -340,6 +340,7 @@
     "submit": "確定"
   },
   "auth": {
+    "brandTitle": "アイデアを、かたちに。",
     "account": "アカウント",
     "backToLogin": "ログインに戻る",
     "checkInboxStep": "受信トレイを確認（スパムフォルダも確認してください）",
@@ -359,7 +360,6 @@
     "enteringChat": "チャットを開いています...",
     "featureAgents": "エージェント",
     "featureMemory": "メモリ",
-    "featureSkills": "スキル",
     "featureTools": "ツール",
     "forgotPassword": "パスワードを忘れた",
     "forgotPasswordDesc": "メールアドレスを入力すると、パスワードリセットリンクを送信します",

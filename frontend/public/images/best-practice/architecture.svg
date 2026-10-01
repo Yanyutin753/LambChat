@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#f5f4ef"/>
+  <g font-family="Georgia, serif" fill="#252521">
+    <text x="80" y="95" font-size="36">LambChat</text>
+    <text x="80" y="127" font-family="Arial, sans-serif" font-size="14" fill="#75756e">React · Tauri · Capacitor</text>
+  </g>
+  <g fill="none" stroke="#b7b7aa" stroke-width="2">
+    <path d="M300 350H430 M690 350H760 M760 160V520 M690 350H760V580H690 M430 350H370V580H430"/>
+    <path d="M760 160H840 M760 280H840 M760 400H840 M760 520H840"/>
+  </g>
+  <g fill="#fffefa" stroke="#d6d6cb">
+    <rect x="80" y="288" width="220" height="124" rx="12"/>
+    <rect x="430" y="245" width="260" height="210" rx="12"/>
+    <rect x="430" y="540" width="260" height="80" rx="12"/>
+    <rect x="840" y="120" width="360" height="80" rx="12"/>
+    <rect x="840" y="240" width="360" height="80" rx="12"/>
+    <rect x="840" y="480" width="360" height="80" rx="12"/>
+  </g>
+  <g fill="#eceee5" stroke="#d6d6cb"><rect x="840" y="360" width="360" height="80" rx="12"/></g>
+  <g text-anchor="middle" fill="#252521" font-family="Georgia, serif" font-size="24">
+    <text x="190" y="337">FastAPI</text>
+    <text x="560" y="307">LangGraph</text>
+    <text x="1020" y="158">Models</text>
+    <text x="1020" y="289">MCP</text>
+    <text x="1020" y="409">Skills</text>
+    <text x="1020" y="529">Sandbox</text>
+    <text x="560" y="588" font-size="22">MongoDB / Redis</text>
+  </g>
+  <g text-anchor="middle" fill="#75756e" font-family="Arial, sans-serif" font-size="12">
+    <text x="190" y="367">SSE / WebSocket</text>
+    <text x="1020" y="182">OpenAI · Anthropic · Gemini</text>
+    <text x="560" y="335">deepagents</text>
+  </g>
+  <g fill="#9ba48c"><circle cx="506" cy="392" r="8"/><circle cx="560" cy="372" r="8"/><circle cx="614" cy="392" r="8"/></g>
+  <path d="M514 389L552 375M568 375L606 389" stroke="#9ba48c" stroke-width="2" fill="none"/>
+</svg>
