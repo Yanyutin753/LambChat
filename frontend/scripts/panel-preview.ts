@@ -1598,8 +1598,12 @@ const server = await createServer({
           const isRead = req.method === "GET";
           const channelConfigFailure =
             isRead &&
-            ((failureTarget === "agent-role" &&
-              /^\/api\/agent\/config\/roles\/[^/]+$/.test(url.pathname)) ||
+            ((failureTarget === "model-role" &&
+              /^\/api\/agent\/config\/roles\/[^/]+\/models$/.test(
+                url.pathname,
+              )) ||
+              (failureTarget === "agent-role" &&
+                /^\/api\/agent\/config\/roles\/[^/]+$/.test(url.pathname)) ||
               (failureTarget === "channel-config" &&
                 /^\/api\/channels\/[^/]+\/instance-[^/]+$/.test(
                   url.pathname,

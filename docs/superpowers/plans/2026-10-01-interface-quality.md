@@ -329,3 +329,24 @@ Feishu 扫码/手填和策略使用原生按钮与 pressed，长文案自然换�
 截图：agent-roles-320-ru-dark-before.png / after.png、agent-role-load-error-320-ru-dark.png、agent-role-select-320-ru-dark.png、agent-role-save-error-320-ru-dark.png、agent-roles-390-ru-light-after.png、agent-roles-768-ru-sepia-after.png、agent-roles-1440-ru-light-after.png。浏览器 viewport 已恢复，原用户 tab 未操作。
 
 继续优先：ModelSection / RolesModelTab 的相同读取失败与跨角色草稿风险，以及助手/模型顶级切换导致 section 卸载的草稿；审查所有 profile/user menu 的 Escape（本次 UI 在 profile 按钮按 Escape 后菜单仍可见，需定位实际 handler 与操作焦点）。继续此前欢迎无匹配/真实空态、复制失败、工具/图片、文件下载及其他格式、绘图大图与内嵌图片、资源导入发布和剩余语言。真实移动触屏/软键盘、认证/写入/对话与扫码端到端尚未验证。整体目标保持进行中，Impeccable 仍按已确认不可用环境使用 DESIGN.md 人工检查。
+
+### 当前执行：模型角色分配与跨区草稿
+
+- [x] 先补 RED：ModelSection / ModelPanel 读取失败不可当空配置，重试焦点；配置 None / [] 语义保持，删除全部模型后无旧数据；保存错误持久、跨角色草稿、等待锁定、分页、展开按钮与 label 分离。
+- [x] 手机分配说明与批量操作分层，移除重计数 pill，复用共有控件、主题和间距；长模型名允许两行，保存操作在长列表可达；助手/模型和模型子区切换保留草稿，首次按需加载。
+- [x] 四宽度/三主题实屏、长列表勾选/分页/失败保存、完整门禁和独立复核。权限只验证本地 fixture / mock，不写入真实服务。
+
+
+本批记录：ModelSection 与仍导出的 ModelPanel 不再吞掉角色模型 GET 错误，完整读取成功后才同步模型列表与映射；configured=false 保持默认全模型语义，configured=true 的 [] 保持不允许任何模型语义。空模型刷新不保留旧列表。角色草稿仅清理已保存角色，保存期间锁定角色/勾选/批量动作，失败持续显示并保留选择。顶级助手/模型首次按需加载，访问后使用 hidden 保持状态；模型配置/角色子区同样保持挂载，后台读取用 inert 阻止编辑、稳定根容器接管焦点，读取失败隐藏编辑区，重试恢复原草稿。
+
+手机分配说明独占主行，计数降为次级文字，批量动作相邻；移除多余蓝色 pill 和 List 图标，长模型名允许两行，详情展开按钮从 label 分离。原生实屏发现共享 .ui-button 的规则覆盖 min-h-11，当前模型批量/保存和助手角色保存以局部 !min-h-11 确保 44px；未改变全局按钮体系。模型保存栏粘在底部，错误与 Save 在同一可见区；分页位于保存栏之后，避免错误展开覆盖分页。320 长列表底部实际点击 Next 成功且前一页草稿保留。
+
+独立复核发现两个 P2 并关闭：后台刷新卸载角色草稿（两项 delayed refresh / successful config mutation 明确 RED 2 failed 13 passed，再到 GREEN），以及独立模型编辑器保持打开时切到 hidden 分区，关闭后原 opener 不可聚焦。后一问题实屏 1440 复现 BODY，并用真实 EditorSidebar hidden/inert 两项 RED 2 failed 22 passed 后修共享焦点恢复；下一帧重新检查新 right-panel owner、可见 modal 和已有页面焦点，opener 不可见或 focus 失败时回到邻近可见分区按钮。原生顶级 Assistants 和子区 Models 两条路径修复后均聚焦可见 BUTTON。最终独立只读复核未发现新增 P1/P2。
+
+新增共 19 项行为回归，None/[] 和跨页 bulk 保留原正确语义；错误标签 Select All 改为 locale 实际 Select all，hidden 配置区重复空态按可见容器判断，不把这些测试定位错误当成逻辑 RED。最终生产代码后：pnpm test 740 文件 / 3563 测试通过；pnpm run lint 零错误零警告；pnpm run build（含 tsc）与体积门禁通过，eager JS 559080 / 559104 bytes，precache 5017663 / 5242880 bytes，未新增依赖或提高预算，保留既有 chunk-size 提示。git diff --check 通过。
+
+八项自检：排版保留 serif 实体名、长名称两行；正文留白沿用 panel-body / panel-stack，不整体收紧；页头分区、角色、分配说明、计数和批量操作分层；三套主题沿用已有 token，无新增品牌色；无新装饰动效，切换/展开/行反馈尊重 reduced-motion；微交互核对整行勾选、展开不勾选、分页、跨角色/顶级/子区草稿、持续错误、重试和焦点；实屏 320 dark、390 light、768 sepia、1440 light 及 dark 的俄语/长中文名称，无整页横向溢出，触控按钮约 44px；原创性保留 LambChat 羊场景和原产品视觉语言。ArrowDown 打开后应从实际聚焦的 option 按 Escape，菜单关闭且焦点回触发器；把工具 press 目标强制指回 trigger 的一次操作未当作正确键盘验证。
+
+只读 fixture 新增 failure=model-role 首次角色模型 GET 失败，原生320 验证阻止编辑并重试恢复，focus=DIV/tabIndex=-1。保存 fixture 返回 405；真实权限更新未执行，成功 config mutation 的后台刷新由 mock 回归覆盖。截图：model-roles-320-ru-dark-before.png / after.png、model-roles-320-ru-dark-load-error.png、model-roles-320-ru-dark-save-error.png、model-roles-390-ru-light-after.png、model-roles-768-ru-sepia-after.png、model-roles-1440-ru-dark-after.png / light-after.png。viewport 已恢复，用户原 tab 未操作。Impeccable 仍按已确认不可用环境使用 DESIGN.md 人工清单。
+
+下一批继续：profile/user menu Escape、欢迎无匹配与真实空态、复制失败、工具/图片、文件下载和其他格式、绘图大图与内嵌图片、资源导入发布、其余语言。真实触屏/软键盘、认证/写入/对话、扫码 E2E 尚未验证，整体目标保持进行中。

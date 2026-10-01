@@ -17,6 +17,8 @@ export function AgentModelPanel() {
   const { t } = useTranslation();
   const [activeSection, setActiveSection] = useState<SectionType>("agents");
 
+  const [modelsVisited, setModelsVisited] = useState(false);
+
   const sections: {
     id: SectionType;
     label: string;
@@ -36,7 +38,10 @@ export function AgentModelPanel() {
             key={section.id}
             type="button"
             aria-pressed={isActive}
-            onClick={() => setActiveSection(section.id)}
+            onClick={() => {
+              if (section.id === "models") setModelsVisited(true);
+              setActiveSection(section.id);
+            }}
             className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-14 font-medium transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] ${
               isActive
                 ? "bg-white text-stone-950 shadow-sm ring-1 ring-[var(--glass-border)] dark:bg-stone-800 dark:text-stone-50"
@@ -64,7 +69,14 @@ export function AgentModelPanel() {
       />
 
       <div className="panel-scroll min-h-0 flex-1 overflow-y-auto">
-        {activeSection === "agents" ? <AgentSection /> : <ModelSection />}
+        <div hidden={activeSection !== "agents"}>
+          <AgentSection />
+        </div>
+        {modelsVisited && (
+          <div hidden={activeSection !== "models"}>
+            <ModelSection />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -127,9 +127,39 @@ const FOCUSABLE =
 
 function restoreOpenerFocus(openerRef: RefObject<HTMLElement | null>): void {
   requestAnimationFrame(() => {
-    if (openerRef.current?.isConnected) {
-      openerRef.current.focus({ preventScroll: true });
+    if (getRightPanelSnapshot().activeId || topmostVisibleModalDialog()) return;
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLElement &&
+      active !== document.body &&
+      active.isConnected &&
+      !active.closest('[hidden],[inert],[aria-hidden="true"]')
+    )
+      return;
+    const opener = openerRef.current;
+    if (
+      opener?.isConnected &&
+      !opener.closest('[hidden],[inert],[aria-hidden="true"]')
+    ) {
+      opener.focus({ preventScroll: true });
+      if (document.activeElement === opener) return;
     }
+    const region = opener?.closest('[data-panel],main,[role="main"]');
+    const page = region?.isConnected
+      ? region
+      : document.querySelector('main,[role="main"]');
+    const visible = (element: HTMLElement) =>
+      element.getClientRects().length > 0 &&
+      !element.closest('[hidden],[inert],[aria-hidden="true"]');
+    const selected = [
+      ...(page?.querySelectorAll<HTMLElement>(
+        'button[aria-pressed="true"],[role="tab"][aria-selected="true"]',
+      ) ?? []),
+    ].find(visible);
+    const fallback =
+      selected ??
+      [...(page?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])].find(visible);
+    fallback?.focus({ preventScroll: true });
   });
 }
 

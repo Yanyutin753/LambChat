@@ -191,7 +191,7 @@ export function RolesAgentTab({
                 onClick={handleSave}
                 loading={isSaving}
                 leftIcon={<Save size={16} />}
-                className="min-h-11"
+                className="!min-h-11"
               >
                 {t("common.save")}
               </Button>

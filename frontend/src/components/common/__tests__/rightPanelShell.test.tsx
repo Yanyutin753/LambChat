@@ -614,3 +614,51 @@ test("editor uses one tab title without a duplicate header", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Close tab: Edit team" }));
   expect(onClose).toHaveBeenCalledOnce();
 });
+
+test.each(["hidden", "inert"])(
+  "closing a docked editor returns to the visible section when its opener is %s",
+  async (state) => {
+    vi.spyOn(HTMLElement.prototype, "getClientRects").mockImplementation(
+      function (this: HTMLElement) {
+        return (this.closest('[hidden],[inert],[aria-hidden="true"]')
+          ? []
+          : [{}]) as unknown as DOMRectList;
+      },
+    );
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      const [models, setModels] = useState(true);
+      return (
+        <main>
+          <button aria-pressed={!models} onClick={() => setModels(false)}>
+            Assistants
+          </button>
+          <button aria-pressed={models} onClick={() => setModels(true)}>
+            Models
+          </button>
+          <div
+            hidden={state === "hidden" && !models}
+            inert={state === "inert" && !models ? true : undefined}
+          >
+            <button onClick={() => setOpen(true)}>Add model</button>
+          </div>
+          <EditorSidebar
+            open={open}
+            onClose={() => setOpen(false)}
+            title="Model editor"
+          >
+            body
+          </EditorSidebar>
+        </main>
+      );
+    }
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Add model" }));
+    await user.click(screen.getByRole("button", { name: "Assistants" }));
+    await user.click(screen.getByRole("button", { name: /^Close tab:/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Assistants" })).toHaveFocus(),
+    );
+  },
+);
