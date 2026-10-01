@@ -9,6 +9,7 @@ from arq import Retry
 
 from src.infra.task import arq_worker
 from src.infra.task.exceptions import TaskInterruptedError
+from src.infra.task.status import TaskStatus
 
 
 class _FakePayloadStore:
@@ -78,6 +79,22 @@ class _InterruptedTaskExecutor:
     async def run_task(self, **kwargs) -> None:
         self.run_calls.append(kwargs)
         raise TaskInterruptedError("Task interrupted: run_id=run-1")
+
+
+class _HangingTaskExecutor:
+    """run_task that never finishes until cancelled (simulates an LLM hang)."""
+
+    def __init__(self) -> None:
+        self.run_calls: list[dict] = []
+        self.status_calls: list[tuple] = []
+
+    async def run_task(self, **kwargs):
+        self.run_calls.append(kwargs)
+        await asyncio.Event().wait()
+        return False
+
+    async def _update_session_status(self, *args, **kwargs) -> None:
+        self.status_calls.append((args, kwargs))
 
 
 class _GenericFailingTaskExecutor:
@@ -828,6 +845,59 @@ async def test_run_agent_task_deletes_payload_after_task_interrupted(
     assert task_executor.run_calls
     assert payload_store.deleted == ["run-1"]
     assert limiter.release_calls == [("user-1", "run-1", True)]
+
+
+@pytest.mark.asyncio
+async def test_run_agent_task_marks_failed_and_deletes_payload_when_watchdog_times_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "session_id": "session-1",
+        "run_id": "run-1",
+        "trace_id": "trace-1",
+        "agent_id": "search",
+        "message": "hello",
+        "display_message": "hello display",
+        "user_id": "user-1",
+        "executor_key": "agent_stream",
+        "user_message_written": True,
+    }
+    payload_store = _FakePayloadStore(payload)
+    task_executor = _HangingTaskExecutor()
+    limiter = _FakeLimiter()
+    task_manager = SimpleNamespace(
+        _run_info={},
+        _ensure_executor=lambda: task_executor,
+    )
+
+    async def _executor_fn(*args, **kwargs):
+        if False:
+            yield None
+
+    monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
+    monkeypatch.setattr(arq_worker, "get_registered_executor", lambda key: _executor_fn)
+    monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)
+    monkeypatch.setattr(arq_worker, "_run_watchdog_timeout", lambda: 0.05)
+
+    await arq_worker.run_agent_task({"payload_store": payload_store}, "run-1")
+
+    assert task_executor.run_calls
+    failed_calls = [call for call in task_executor.status_calls if call[0][1] is TaskStatus.FAILED]
+    assert failed_calls, task_executor.status_calls
+    assert "watchdog" in str(failed_calls[0])
+    assert payload_store.deleted == ["run-1"]
+    assert limiter.release_calls == [("user-1", "run-1", True)]
+
+
+@pytest.mark.asyncio
+async def test_run_watchdog_timeout_returns_none_when_config_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(arq_worker.settings, "TASK_RUN_WATCHDOG_TIMEOUT", 0.0, raising=False)
+    assert arq_worker._run_watchdog_timeout() is None
+
+    monkeypatch.setattr(arq_worker.settings, "TASK_RUN_WATCHDOG_TIMEOUT", 120.0, raising=False)
+    assert arq_worker._run_watchdog_timeout() == 120.0
 
 
 @pytest.mark.asyncio

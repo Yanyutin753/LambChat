@@ -10,6 +10,7 @@ import type { Project } from "../types";
 import type { ProjectItemHandle } from "../components/sidebar/ProjectItem";
 import type { ScheduledTaskItemHandle } from "../components/sidebar/ScheduledTaskSidebarItem";
 import { isSessionFavorite } from "../components/sidebar/sessionFavorites";
+import { isEditableEventTarget } from "../utils/editableTarget";
 
 /** Subset of useProjectSessionList return used by effects. */
 export interface SessionListHandle {
@@ -135,6 +136,8 @@ export function useSessionSidebarEffects({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // 正在输入框/弹窗内打字时忽略新建会话快捷键，避免误触跳回首页（issue #158）
+      if (isEditableEventTarget(e.target)) return;
       const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
       const modifier = isMac ? e.metaKey : e.ctrlKey;
       if (modifier && e.key === "k") {

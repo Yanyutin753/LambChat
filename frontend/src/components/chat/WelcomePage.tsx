@@ -40,6 +40,7 @@ import { WelcomeSkeleton } from "../skeletons/ChatSkeletons";
 import {
   beginTeamRequest,
   isWelcomeContentReady,
+  shouldRenderWelcomeSkeleton,
   settleTeamRequestFailure,
   settleTeamRequestSuccess,
   type TeamRequestState,
@@ -380,8 +381,19 @@ export const WelcomePage = memo(function WelcomePage({
     personaPresetsLoaded,
     teamRequestSettled: teamCardsLoaded,
   });
+  // 骨架只覆盖首次加载：一旦内容就绪过，后续 refetch 不再卸载整个页面
+  // （WelcomePage 里挂着 ChatInput 和打开中的弹窗状态，issue #158）。
+  const hasEverBeenReadyRef = useRef(false);
+  if (welcomeContentReady) {
+    hasEverBeenReadyRef.current = true;
+  }
 
-  if (!welcomeContentReady) {
+  if (
+    shouldRenderWelcomeSkeleton(
+      welcomeContentReady,
+      hasEverBeenReadyRef.current,
+    )
+  ) {
     return <WelcomeSkeleton />;
   }
 

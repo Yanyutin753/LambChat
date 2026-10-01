@@ -880,6 +880,8 @@
       "forkSuccess": "Forked to new session",
       "generating": "Generating",
       "generatingImage": "Generating image",
+      "imageGalleryCount": "{{count}} images",
+      "imageGalleryToggle": "Expand or collapse images",
       "interrupted": "You stopped this response",
       "mermaidError": "Mermaid Error",
       "model": "Model",
