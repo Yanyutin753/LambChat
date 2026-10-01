@@ -247,3 +247,21 @@ Header More 复用 ResourceCardMenu，删除局部菜单、语言弹层和重复
 最终 728 文件 / 3483 项测试通过，lint 无警告，build/类型与体积门禁通过：eager JS 558783 / 559104 字节，precache 5015083 / 5242880 字节。独立复核两次无新增 P1/P2，git diff --check 通过。
 
 继续待查：欢迎页 @ 搜索无匹配与真实空状态的语义、消息复制失败反馈、其他工具过程和图片；通用文件下载失败、其他格式、绘图内嵌图片与大图；资源导入发布、助手/批量/渠道编辑器和剩余语言组合。真实服务认证/写入/聊天及原生触屏/软键盘仍未验证，目标保持进行中，本批不是全界面验收完成。
+
+### 2026-10-02：助手与批量模型编辑器
+
+同步远端并确认 origin/develop b5a8930a 已在当前隔离分支历史中。助手编辑器原有语言与图标入口约 22px，字段没有关联可见标签。本批复用 Button、Input、Textarea 与 useId，手机语言/图标入口 44px，语言组按容器自然换行，排序、名称和描述都有可读取标签；切换语言保留各自草稿。选中语言和图标使用已有 secondary 按钮样式，避免 ghost 样式覆盖局部背景，默认 Bot/空图标与实际渲染的机器人选项一致。
+
+图标选择复用 ModalSurface，删除局部 outside-click 弹层和动画 emoji，沿用既有静态 3D 图标。实屏发现默认 300 层被 fullscreen editor 的 1000 层遮挡，先补回归再改用已有 1200 层。手机关闭按钮 44px、网格按钮约 46px；Escape 与选择均返回入口，外层编辑器保留。桌面亦确认 Escape 返回入口。
+
+批量编辑复用 useId 关联共享字段与独立行字段，每行用编号命名 group；四种价格有持续可见标签。删除、添加、高级 disclosure 使用现有控件或原生 summary，手机删除入口 44px，删除行前聚焦仍保留的相邻行输入框。文件选择由可点击 div 改为原生 button，hidden input 放在按钮外；JSON 输入补 invalid/describedBy，解析反馈为 status。原导入 payload helpers 和共享配置补齐语义保留。俄语实屏发现旧 Base64 键缺失，改复用单模型编辑器已有五语键。
+
+保存和导入失败保留草稿并可重试，批量校验/读取/API 错误统一进入现有 callout。实屏滚到底部后 body 顶部错误不可见，已改放固定 footer，在按钮上方。独立复核指出限高 callout 的垂直居中可能裁掉长文字开头，共享 owner 改顶部对齐和长词换行；受限错误支持键盘聚焦与原生滚动。只读 fixture 新增 editor-long-error，非 GET 仍返回 405，不保存或转发请求。1139 字符错误在 320px 下 top 481.71、文字 top 493.70，scrollTop 0 可读开头，128px 容器内 scrollHeight 763；PageDown 实际滚到 111.58px，底部按钮保持可见，整页横向溢出为 0。
+
+TDD 先失败后通过：字段标签、语言草稿、图标 Escape/选择/默认状态、弹层层级、行分组/价格/删除焦点、持续保存与导入错误、footer 可见边界、无效 headers 不发送请求、JSON 文件键盘入口与解析状态、长错误顶部对齐。最后目标检查 5 文件 / 14 项通过，全量 732 文件 / 3492 项通过；lint 无警告，build/类型与体积门禁通过：eager JS 558787 / 559104 字节，precache 88 项 5015107 / 5242880 字节。独立复核的问题已修正，后续复核无新增 P1/P2；git diff --check 通过。
+
+实屏截图：agent-editor-320-dark-after、agent-icon-320-dark-after、agent-editor-320-ru-dark、agent-long-error-320-ru-dark、batch-editor-320-dark-after、batch-editor-320-ru-dark、batch-long-error-320-ru-dark、batch-json-invalid-320-ru-dark、batch-editor-390-ru-light、batch-advanced-390-ru-light、batch-editor-768-ru-sepia、batch-editor-1440-ru-light、agent-editor-1440-ru-light、agent-editor-390-zh-light-final。320/390/768/1440px 与深色/浅色/护眼均无整页横向溢出；最终 390px 实屏再次确认语言选中背景/边框与默认图标状态。增删行保留已填价格 1.5，保存失败实屏保留本地草稿；成功重试由 API mock 测试覆盖，不据只读 fixture 声称真实保存成功。
+
+八项自检：可见字段标签与标题层级清晰；正文和卡片留白保留；选中/加载/失败/可重试状态明确；控件和焦点环复用主题 token；去掉局部动画 emoji，弹窗沿用 reduced-motion；原生文件入口、键盘、Escape、焦点返回与错误滚动验证；上述宽度、主题、中俄语言检查；延续 LambChat 品牌和既有图标，无新依赖或装饰体系。Impeccable 按已确认不可用的环境使用 DESIGN.md 人工清单。
+
+下一批优先：1440px 同时打开 docked 编辑器时，外层模型配置工具栏挤压说明文字，需按实际内容容器响应；助手全局/角色分配入口和 coarse pointer、角色分配保存路径；Feishu 与通用渠道编辑器字段/开关/QR/错误状态。其他待查仍包括欢迎页无匹配/真实空状态、复制失败、工具和图片、文件下载失败及其他格式、绘图内嵌图片与大图、资源导入发布及剩余语言。真实服务认证/写入/聊天和原生触屏/软键盘未验证，本批不代表全界面验收完成，目标保持进行中。

@@ -1594,7 +1594,9 @@ const server = await createServer({
                       detail: {
                         code: "preview_only",
                         message: !isRead
-                          ? "Preview is read-only"
+                          ? failureTarget === "editor-long-error"
+                            ? `Preview is read-only. ${"The configuration could not be saved; your draft is still available. ".repeat(12)}https://preview.example.test/${"configuration".repeat(20)}`
+                            : "Preview is read-only"
                           : "Preview fixture unavailable",
                       },
                     },
