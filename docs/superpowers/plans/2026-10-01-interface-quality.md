@@ -199,3 +199,17 @@ FeatureMenu 折叠分组 inert/aria-hidden，切换按钮 expanded/controls；�
 最终全量 725 个测试文件 / 3458 项测试通过，lint 无警告，build/类型与体积门禁通过；eager JS 558776 / 559104 字节，precache 5018694 / 5242880 字节。代码和布局补充两次独立复核无新增 P1/P2。
 
 继续待查：文件下载失败反馈、更多预览格式、Excalidraw 导出与大图表状态；主聊天欢迎/更多/流式状态；资源导入发布、助手/批量/渠道编辑器及其余语言组合。原生触屏/软键盘、真实认证/写入/对话尚未验证。目标继续进行，本批不代表全界面验收完成。
+
+### 2026-10-02：绘图预览、恢复与导出
+
+同步 origin/develop 至 b5a8930a 并 rebase 当前隔离分支；主 checkout 未修改。沿实际文件卡片调用链检查 ExcalidrawDirectViewer、ExcalidrawPreview 及两类缩略图。全屏的加载、错误、成功共用原有 ViewerTopBar / ViewerToolbar 与 useDialogFocus，补命名 dialog、键盘入口、IME Escape 边界和焦点归还。下载菜单改用 ResourceCardMenu；手机/coarse pointer 顶栏按钮 44px，底部继续复用此前共享的 44px/gap 0 规则，桌面底部仍 32px。内容和卡片留白保留。
+
+实际发现成功后仍显示骨架的 imgLoading 条件反转，已修复。直接请求失败提供原位重试，重试先把焦点交给仍存在的关闭按钮；图片成功加载后骨架消失。ExcalidrawPreview 和 Thumbnail 用每次 effect 的取消标志屏蔽旧导出，缩略图及文件卡在 URL 切换时清空旧图。PNG 解码、canvas 或编码失败使用现有五语 downloadFailed 提示，临时 URL 在 finally 释放；不新增依赖或文案。九条组件回归测试均先观察失败，再转绿。
+
+只读 fixture 增加真实三节点研究/设计/验证图，文件数更新为 196；failure=excalidraw 让缩略图和直接预览首次失败，实屏点击重试恢复。320px 深色、390px 浅色、768px 护眼和 1440px 浅色均截图，无整页横向溢出。实际操作菜单 ArrowDown、Escape、全屏 Tab 循环/关闭、重试、放大、旋转和重置；菜单 44px 且在视口内。SVG 当次本地文件 XML 有三个中文节点，PNG 1040×200 已查看，图形完整。加载未完成时的关闭由组件 pending-request 测试验证，未宣称实屏慢网或真机验证。
+
+截图：excalidraw-320-dark-before / after / error、excalidraw-390-light、excalidraw-768-sepia、excalidraw-1440-light。八项自检：正文排版与阅读留白保持；主次操作及错误恢复清楚；内联表面复用主题 token，图形保留文件原色；过渡补 reduced motion；键盘入口、菜单、重试及导出已复核；四宽度三主题实际检查；沿用 LambChat 的组件和品牌结构，无另建装饰系统。Impeccable 沿已确认不可用的状态，按 DESIGN.md 清单人工检查。
+
+最终全量 726 文件 / 3467 项测试通过，lint 无警告，build/类型与体积门禁通过：eager JS 558774 / 559104 字节，precache 5018820 / 5242880 字节。首次全量的 direct-viewer 安全区源码断言更新为共享 fullscreen owner；同轮既有搜索 IME 用例不稳定，单独复测及最终全量通过，未改搜索代码或该用例。独立代码审查未发现新增 P1/P2。
+
+继续待查：通用文件下载失败反馈、其他预览格式、绘图内嵌图片和大图状态；主聊天欢迎/更多/流式状态；资源导入发布、助手/批量/渠道编辑器和剩余语言组合。真实服务认证/保存/聊天、原生触屏和软键盘尚未验证。目标保持进行中，不将本批作为全界面验收。

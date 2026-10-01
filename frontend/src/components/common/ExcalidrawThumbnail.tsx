@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, useRef } from "react";
+import { memo, useEffect, useState } from "react";
 import { buildUploadProxyUrl, getFullUrl } from "../../services/api/config";
 import { fetchDocumentText } from "../documents/documentFetchCache";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
@@ -41,10 +41,11 @@ export const ExcalidrawThumbnail = memo(function ExcalidrawThumbnail({
 }: ExcalidrawThumbnailProps) {
   const [svgBlobUrl, setSvgBlobUrl] = useState<string | null>(null);
   const [hasError, setHasError] = useState(false);
-  const mountedRef = useRef(true);
 
   useEffect(() => {
-    mountedRef.current = true;
+    let cancelled = false;
+    setSvgBlobUrl(null);
+    setHasError(false);
     const fullUrl = getFullUrl(url) ?? url;
     const readUrl = buildUploadProxyUrl(url) ?? fullUrl;
 
@@ -52,6 +53,7 @@ export const ExcalidrawThumbnail = memo(function ExcalidrawThumbnail({
       try {
         // Fetch excalidraw file content
         const raw = await fetchDocumentText(readUrl);
+        if (cancelled) return;
 
         // Parse excalidraw JSON
         const parsed = JSON.parse(raw);
@@ -67,6 +69,7 @@ export const ExcalidrawThumbnail = memo(function ExcalidrawThumbnail({
           const mod = await import("@excalidraw/excalidraw");
           exportToSvgFunc = mod.exportToSvg;
         }
+        if (cancelled) return;
 
         const exportFn = exportToSvgFunc;
         if (!exportFn) throw new Error("Export function unavailable");
@@ -75,26 +78,23 @@ export const ExcalidrawThumbnail = memo(function ExcalidrawThumbnail({
           elements,
           appState: { ...appState, exportWithDarkMode: false },
         });
+        if (cancelled) return;
 
         // Serialize to blob URL for <img> rendering
         const svgString = new XMLSerializer().serializeToString(svg);
         const blob = new Blob([svgString], { type: "image/svg+xml" });
         const blobUrl = URL.createObjectURL(blob);
 
-        if (mountedRef.current) {
-          setSvgBlobUrl(blobUrl);
-        } else {
-          URL.revokeObjectURL(blobUrl);
-        }
+        setSvgBlobUrl(blobUrl);
       } catch {
-        if (mountedRef.current) setHasError(true);
+        if (!cancelled) setHasError(true);
       }
     };
 
     load();
 
     return () => {
-      mountedRef.current = false;
+      cancelled = true;
     };
   }, [url]);
 

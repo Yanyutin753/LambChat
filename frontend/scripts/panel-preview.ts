@@ -1028,9 +1028,23 @@ function response(url: URL, scenario: string): unknown {
     const groups = all(files).map((file, i) => ({
       session_id: file.session_id,
       session_name: file.session_name,
-      file_count: 3,
+      file_count: i === 0 ? 4 : 3,
       files: [
         file,
+        ...(i === 0
+          ? [
+              {
+                ...file,
+                id: "preview-drawing",
+                file_name: "研究流程.excalidraw",
+                file_key: "preview/workflow.excalidraw",
+                original_path: "/workspace/研究流程.excalidraw",
+                url: "/preview-document.excalidraw",
+                mime_type: "application/json",
+                card_preview: null,
+              },
+            ]
+          : []),
         {
           ...file,
           id: `${file.id}-code`,
@@ -1293,6 +1307,7 @@ const token = `preview.${Buffer.from(
   JSON.stringify({ sub: user.id, exp: 4102444800 }),
 ).toString("base64url")}.fixture`;
 const failedDocumentRequests = new Set<string>();
+const failedDrawingRequests = new Map<string, number>();
 const server = await createServer({
   root: process.cwd(),
   cacheDir: "node_modules/.vite-panel-preview",
@@ -1325,6 +1340,20 @@ const server = await createServer({
             req.headers.referer ?? "http://localhost",
           ).searchParams;
           if (
+            url.pathname === "/preview-document.excalidraw" &&
+            previewParams.get("fixture") === "error" &&
+            previewParams.get("failure") === "excalidraw"
+          ) {
+            const key = `${req.headers.referer}:${url.pathname}`;
+            const attempts = failedDrawingRequests.get(key) ?? 0;
+            if (attempts < 2) {
+              failedDrawingRequests.set(key, attempts + 1);
+              res.statusCode = 503;
+              res.end("Preview drawing temporarily unavailable");
+              return;
+            }
+          }
+          if (
             url.pathname.startsWith("/preview-document.") &&
             previewParams.get("fixture") === "error" &&
             previewParams.get("failure") === "document"
@@ -1340,6 +1369,66 @@ const server = await createServer({
           if (url.pathname === "/preview-document.md") {
             res.end(
               '# 项目交付报告\n\n研究结果与后续计划。保持舒适的阅读宽度与清楚的信息层级。\n\n## 验证清单\n\n- 手机工具栏与长文件名\n- 代码与表格横向滚动\n- 深浅色与护眼主题\n\n```mermaid\ngraph LR\n  A[研究] --> B[设计] --> C[验证]\n```\n\n| 项目 | 负责人 | 阶段 | 交付成果 | 验证方法 | 下一步 |\n| --- | --- | --- | --- | --- | --- |\n| 响应式界面 | 产品设计团队 | 验收中 | 跨端界面与交互规范 | 手机、平板、桌面逐页走查 | 核对触屏和键盘焦点 |\n\n```python\nreport = summarize(source="quarterly_business_metrics.csv", columns=["month", "delivery_count", "completion_rate", "owner"])\n```\n',
+            );
+            return;
+          }
+          if (url.pathname === "/preview-document.excalidraw") {
+            res.setHeader("Content-Type", "application/json");
+            res.end(
+              JSON.stringify({
+                type: "excalidraw",
+                version: 2,
+                appState: { viewBackgroundColor: "#ffffff" },
+                elements: ["研究", "设计", "验证"].flatMap((text, i) => {
+                  const common = {
+                    x: i * 180,
+                    y: 0,
+                    width: 140,
+                    height: 80,
+                    angle: 0,
+                    strokeColor: "#1e1e1e",
+                    backgroundColor: "#f5f5f4",
+                    fillStyle: "solid",
+                    strokeWidth: 1,
+                    strokeStyle: "solid",
+                    roughness: 0,
+                    opacity: 100,
+                    groupIds: [],
+                    frameId: null,
+                    roundness: null,
+                    seed: i + 1,
+                    version: 1,
+                    versionNonce: i + 1,
+                    isDeleted: false,
+                    boundElements: null,
+                    updated: 1,
+                    link: null,
+                    locked: false,
+                  };
+                  return [
+                    { ...common, id: `box-${i}`, type: "rectangle" },
+                    {
+                      ...common,
+                      id: `label-${i}`,
+                      type: "text",
+                      x: i * 180 + 44,
+                      y: 28,
+                      width: 52,
+                      height: 24,
+                      text,
+                      originalText: text,
+                      fontSize: 20,
+                      fontFamily: 2,
+                      textAlign: "left",
+                      verticalAlign: "top",
+                      containerId: null,
+                      autoResize: true,
+                      lineHeight: 1.2,
+                    },
+                  ];
+                }),
+                files: {},
+              }),
             );
             return;
           }

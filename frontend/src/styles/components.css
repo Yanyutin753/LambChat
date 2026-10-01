@@ -4589,6 +4589,7 @@
 
 .mermaid-inline-actions button:focus-visible,
 .viewer-toolbar button:focus-visible,
+.excalidraw-viewer-topbar button:focus-visible,
 .mermaid-viewer-actions button:focus-visible {
   outline: 2px solid var(--theme-primary);
   outline-offset: 2px;
@@ -4597,6 +4598,7 @@
 @media (max-width: 639px), (pointer: coarse) {
   .mermaid-inline-actions button,
   .mermaid-viewer-actions button,
+  .excalidraw-viewer-topbar button,
   .viewer-toolbar button {
     min-width: 2.75rem;
     min-height: 2.75rem;
@@ -4610,6 +4612,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .mermaid-diagram *,
+  .excalidraw-preview *,
+  .excalidraw-viewer *,
   .mermaid-viewer * {
     transition: none !important;
   }

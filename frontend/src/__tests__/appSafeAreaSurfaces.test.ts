@@ -123,7 +123,7 @@ test("sidebars, fullscreen editors, and media viewers use vertical safe-area spa
   expect(excalidrawPreview).toMatch(/<ViewerTopBar[\s>]/);
   expect(excalidrawPreview).not.toMatch(/safe-area-bottom/);
   expect(excalidrawDirectViewer).toMatch(
-    /safe-area-viewport-padding fixed inset-0/,
+    /<ExcalidrawFullscreenViewer[\s>]/,
   );
   expect(mermaidViewer).toMatch(/<ViewerTopBar[\s>]/);
   expect(mermaidViewer).not.toMatch(/safe-area-bottom/);

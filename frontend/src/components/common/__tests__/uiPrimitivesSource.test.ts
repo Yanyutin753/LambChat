@@ -229,7 +229,7 @@ test("diagram viewers share blob download behavior", () => {
     /import \{[\s\S]*ViewerDropdownMenuItem/,
   );
   expect(excalidrawViewer).toMatch(/import \{ downloadBlob \}/);
-  expect(excalidrawViewer).toMatch(/import \{[\s\S]*ViewerDropdownMenuItem/);
+  expect(excalidrawViewer).toMatch(/import \{ ResourceCardMenu \}/);
   expect(mermaidViewer).toMatch(/downloadBlob\([^)]*"diagram\.svg"/);
   expect(mermaidViewer).toMatch(/downloadBlob\([^)]*"diagram\.png"/);
   expect(mermaidViewer).toMatch(/downloadBlob\([^)]*"mermaid\.svg"/);
@@ -245,12 +245,8 @@ test("diagram viewers share blob download behavior", () => {
   expect(excalidrawViewer).toMatch(
     /downloadBlob\([^)]*"excalidraw-diagram\.png"/,
   );
-  expect(excalidrawViewer).toMatch(
-    /<ViewerDropdownMenuItem[\s\S]*variant="dark"[\s\S]*SVG/,
-  );
-  expect(excalidrawViewer).toMatch(
-    /<ViewerDropdownMenuItem[\s\S]*variant="dark"[\s\S]*PNG/,
-  );
+  expect(excalidrawViewer).toMatch(/<ResourceCardMenu[\s\S]*label: "SVG"/);
+  expect(excalidrawViewer).toMatch(/<ResourceCardMenu[\s\S]*label: "PNG"/);
   expect(
     [mermaidViewer, documentMermaidViewer, excalidrawViewer].join("\n"),
   ).not.toMatch(
