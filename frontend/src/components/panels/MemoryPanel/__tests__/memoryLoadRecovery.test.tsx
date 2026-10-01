@@ -27,10 +27,10 @@ test("a failed memory load shows a persistent error and can retry into a real em
     .mockResolvedValueOnce({ memories: [], total: 0 });
   render(<MemoryPanel />);
   expect(await screen.findByRole("alert")).toHaveTextContent(
-    "memory.fetchError",
+    "common.loadFailed",
   );
   expect(screen.queryByText("memory.empty")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "common.retry" }));
+  fireEvent.click(screen.getAllByRole("button", { name: "common.refresh" })[0]);
   await waitFor(() =>
     expect(screen.getByText("memory.empty")).toBeInTheDocument(),
   );
@@ -59,9 +59,9 @@ test("a failed refresh keeps the previous memories available through named butto
   expect(
     await screen.findByRole("button", { name: "Research notes" }),
   ).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "common.refresh" }));
+  fireEvent.click(screen.getAllByRole("button", { name: "common.refresh" })[0]);
   expect(await screen.findByRole("alert")).toHaveTextContent(
-    "memory.fetchError",
+    "common.loadFailed",
   );
   expect(
     screen.getByRole("button", { name: "Research notes" }),

@@ -803,7 +803,7 @@ export function SettingsPanel() {
                           <div className="mt-3">
                             {isSelect && (
                               <Select
-                                ariaLabel={t(setting.description)}
+                                ariaLabel={setting.key}
                                 value={displayValue}
                                 onChange={(v) =>
                                   handleValueChange(
@@ -893,7 +893,7 @@ export function SettingsPanel() {
                             )}
                             {setting.type === "text" && (
                               <Textarea
-                                aria-label={t(setting.description)}
+                                aria-label={setting.key}
                                 value={getDisplayValue(setting)}
                                 onChange={(e) =>
                                   handleValueChange(
@@ -929,7 +929,7 @@ export function SettingsPanel() {
                             )}
                             {isJson && !setting.json_schema && (
                               <Textarea
-                                aria-label={t(setting.description)}
+                                aria-label={setting.key}
                                 value={getDisplayValue(setting)}
                                 onChange={(e) =>
                                   handleValueChange(
@@ -947,7 +947,7 @@ export function SettingsPanel() {
                               setting.type !== "text" &&
                               !isJson && (
                                 <Input
-                                  aria-label={t(setting.description)}
+                                  aria-label={setting.key}
                                   type={
                                     setting.type === "number"
                                       ? "number"

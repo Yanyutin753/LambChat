@@ -54,11 +54,14 @@ export function Checkbox({
           type="checkbox"
           checked={checked}
           disabled={disabled}
+          tabIndex={disabled ? -1 : 0}
           aria-label={ariaLabel}
           aria-busy={pending || undefined}
           className="absolute inset-0 z-10 m-0 h-full w-full cursor-inherit opacity-0"
           onClick={(event) => event.stopPropagation()}
-          onChange={() => onChange()}
+          onChange={() => {
+            if (!disabled) onChange();
+          }}
           onKeyDown={(event) => {
             if (event.key !== " " && event.key !== "Enter") return;
             event.preventDefault();
