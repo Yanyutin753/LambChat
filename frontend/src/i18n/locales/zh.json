@@ -729,6 +729,7 @@
     "document_parse": "文档解析"
   },
   "channel": {
+    "statusUnavailable": "状态暂不可用",
     "addFirstInstance": "添加第一个实例",
     "addInstance": "添加实例",
     "agent": "助手",
@@ -761,7 +762,6 @@
     "loadTypesError": "加载可用渠道失败",
     "model": "模型",
     "modelHint": "选择此渠道使用的模型，将使用该模型配置的接口和密钥",
-    "moreOptions": "更多选项",
     "nameRequired": "实例名称为必填项",
     "newInstance": "新实例",
     "noChannels": "暂无可用渠道",

@@ -729,6 +729,7 @@
     "document_parse": "ドキュメント解析"
   },
   "channel": {
+    "statusUnavailable": "状態を取得できません",
     "addFirstInstance": "最初のインスタンスを追加",
     "addInstance": "インスタンスを追加",
     "agent": "エージェント",
@@ -761,7 +762,6 @@
     "loadTypesError": "利用可能なチャンネルの読み込みに失敗しました",
     "model": "モデル",
     "modelHint": "このチャンネルで使用するモデルを選択。モデルの設定済みプロバイダーとAPIキーを使用します。",
-    "moreOptions": "その他のオプション",
     "nameRequired": "インスタンス名は必須です",
     "newInstance": "新しいインスタンス",
     "noChannels": "利用可能なチャンネルがありません",

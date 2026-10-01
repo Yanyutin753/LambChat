@@ -729,6 +729,7 @@
     "document_parse": "Document Parsing"
   },
   "channel": {
+    "statusUnavailable": "Status unavailable",
     "addFirstInstance": "Add First Instance",
     "addInstance": "Add Instance",
     "agent": "Agent",
@@ -761,7 +762,6 @@
     "loadTypesError": "Failed to load available channels",
     "model": "Model",
     "modelHint": "Select which model this channel uses. Uses the model's configured provider and API key.",
-    "moreOptions": "More options",
     "nameRequired": "Instance name is required",
     "newInstance": "New Instance",
     "noChannels": "No channels available",

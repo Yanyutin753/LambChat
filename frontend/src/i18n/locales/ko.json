@@ -729,6 +729,7 @@
     "document_parse": "문서 파싱"
   },
   "channel": {
+    "statusUnavailable": "상태를 확인할 수 없습니다",
     "addFirstInstance": "첫 번째 인스턴스 추가",
     "addInstance": "인스턴스 추가",
     "agent": "에이전트",
@@ -761,7 +762,6 @@
     "loadTypesError": "사용 가능한 채널을 불러오지 못했습니다",
     "model": "모델",
     "modelHint": "이 채널에서 사용할 모델을 선택합니다. 모델에 구성된 프로바이더와 API 키를 사용합니다.",
-    "moreOptions": "더 많은 옵션",
     "nameRequired": "인스턴스 이름은 필수입니다",
     "newInstance": "새 인스턴스",
     "noChannels": "사용 가능한 채널이 없습니다",

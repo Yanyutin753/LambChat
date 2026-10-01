@@ -298,3 +298,17 @@ Feishu 扫码/手填和策略使用原生按钮与 pressed，长文案自然换�
 八项人工检查：排版使用原有标题和正文；留白保留正文节奏并居中错误态；视觉层级为关闭入口、错误说明、重试；色彩沿用主题和既有错误 callout；动效不新增，使用现有 reduced-motion 规则；微交互覆盖持续错误、重新尝试、焦点及迟到请求；响应式实屏核对 320 / 390 / 768 / 1440 CSS px 和 light / dark / sepia，俄语长文案没有横向溢出；原创性沿用 LambChat 自有羊角色场景。320 / 390 的重试实测约 44px，加载恢复后焦点位于持久面板容器。
 
 截图在本地 interface-quality 目录：channel-load-error-320-ru-light-final.png、channel-test-error-320-ru-light-final.png、feishu-load-error-390-ru-dark-final.png、feishu-register-error-390-ru-dark-final.png、channel-load-error-768-ru-sepia-final.png、feishu-load-error-1440-ru-light-final.png、feishu-recovered-1440-ru-light-final.png。预览的失败注册请求由 405 拦截，不等同真实扫码端到端；软键盘、原生触屏和真实认证/写入未验证。ChannelsPage 列表失败/状态未知仍待下一批，未与编辑器恢复混作已完成。Impeccable 检查器在该环境不可用，按 DESIGN.md 交付清单人工检查。
+
+### 当前执行：渠道列表与实例入口
+
+- [x] 用测试区分实例列表 loading / empty / failed / recovered；目录失败在选中渠道也可恢复，避免重复初始化请求和迟到结果。
+- [x] 未收到状态不标为禁用；状态失败可单独重试。保持渠道原有 banner，实例以原生链接支持键盘和新标签，窄屏名称与状态分层。
+- [x] 只读预览故障恢复，四宽度/三主题实屏复查、完整测试/lint/build和独立复核后提交；助手角色项仍需继续。
+
+本批 11 个行为测试都有 RED→GREEN 证据：初轮 5 个、目录刷新焦点 1 个、状态请求 pending 1 个、禁用摘要 1 个、后续导航读取 1 个、关闭刷新焦点 1 个、移动背景 inert 焦点恢复 1 个。保留后续选择渠道时刷新，仅跳过首轮重复读取；关闭编辑器刷新实例，详情路由退出后在下一帧检查当前焦点及新面板接管情况，再把空焦点恢复至持久页面；避免移动背景尚为 inert 时焦点被拒绝。Feishu 编辑器自行读取配置，父列表不再传可重复覆盖草稿的 initialConfig/status；1440 原生浏览器在只读 fixture 输入 cli_draft_preview 后刷新父列表状态，App ID 草稿未被覆盖。真实凭据、创建、删除和注册均未执行。
+
+最终完整验证：pnpm test 738 文件 / 3534 测试通过；pnpm run lint 零错误/零警告；pnpm run build（含 tsc）通过，eager JS 559079 / 559104 bytes，precache 5016665 / 5242880 bytes；保留既有 chunk-size 提示。初轮 build 超预算 1 byte，删除五语已无引用的 channel.moreOptions 后恢复预算，未提高阈值。独立复核发现的再次导航不刷新问题已修复并覆盖；最后移动关闭焦点修复也有实屏与回归证据：320 下 #root.inert 由 true 变 false，最终 activeElement 为 DIV、tabIndex=-1、connected=true；独立复核最后未发现新增 P1/P2。git diff --check 通过。
+
+八项自检：排版保留原有字体，实例名称独占主行；留白沿用 panel-body / panel-stack，正文没有整体压缩；层级把状态和创建时间降到次行；色彩为连接/断开/禁用/不可用提供文字区分并沿用主题；无新增动画，保留 reduced-motion；微交互覆盖链接键盘进入、关闭、失败持续展示、重试和草稿；响应式核对 320 light 列表失败/恢复、390 dark 状态失败/恢复、768 sepia 渠道卡片失败/恢复、1440 light 实例列表及 sepia 编辑草稿，均无横向溢出；原创性保留原渠道 banner 和 LambChat 羊角色场景。截图：channel-instance-list-320-ru-light-before.png / after.png、channel-instance-list-error-320-ru-light.png、channel-status-error-390-ru-dark.png、channel-catalog-error-768-ru-sepia.png、channel-instance-list-1440-ru-light-after.png、feishu-list-status-retry-preserves-draft-1440-ru-sepia.png、channel-mobile-close-focus-320-ru.png。
+
+下一批：AgentSection / RolesAgentTab 的角色分配读取失败、持续保存反馈、tab 语义与触屏可用性；继续此前欢迎、文件/图片/工具、资源导入发布及剩余语言项目。真实移动触屏/软键盘、认证/写入/对话与扫码端到端未验证，整体目标保持进行中。Impeccable 仍不可用，本批按 DESIGN.md 清单人工检查。

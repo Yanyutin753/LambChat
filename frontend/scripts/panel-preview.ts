@@ -1386,7 +1386,7 @@ const failedDocumentRequests = new Set<string>();
 const failedDrawingRequests = new Map<string, number>();
 const completedPreviewStreams = new Set<string>();
 const failedWelcomeRequests = new Set<string>();
-const failedChannelConfigRequests = new Set<string>();
+const failedChannelRequests = new Set<string>();
 const server = await createServer({
   root: process.cwd(),
   cacheDir: "node_modules/.vite-panel-preview",
@@ -1597,15 +1597,23 @@ const server = await createServer({
                 : response(url, scenario, chatState);
           const isRead = req.method === "GET";
           const channelConfigFailure =
-            failureTarget === "channel-config" &&
             isRead &&
-            /^\/api\/channels\/[^/]+\/instance-[^/]+$/.test(url.pathname);
+            ((failureTarget === "channel-config" &&
+              /^\/api\/channels\/[^/]+\/instance-[^/]+$/.test(url.pathname)) ||
+              (failureTarget === "channel-list" &&
+                /^\/api\/channels\/(feishu|slack|telegram)$/.test(
+                  url.pathname,
+                )) ||
+              (failureTarget === "channel-status" &&
+                /^\/api\/channels\/[^/]+\/instance-[^/]+\/status$/.test(
+                  url.pathname,
+                )));
           const channelConfigKey = `${streamKey}:${url.pathname}`;
           const firstChannelConfigFailure =
             channelConfigFailure &&
-            !failedChannelConfigRequests.has(channelConfigKey);
+            !failedChannelRequests.has(channelConfigKey);
           if (firstChannelConfigFailure)
-            failedChannelConfigRequests.add(channelConfigKey);
+            failedChannelRequests.add(channelConfigKey);
           const welcomeFailure =
             scenario === "error" &&
             isRead &&
