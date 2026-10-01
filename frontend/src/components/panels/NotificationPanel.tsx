@@ -282,6 +282,7 @@ export function NotificationPanel() {
   const { hasPermission } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [total, setTotal] = useState(0);
   const [skip, setSkip] = useState(0);
   const [limit] = useState(20);
@@ -295,18 +296,17 @@ export function NotificationPanel() {
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(false);
     try {
       const response = await notificationApi.list(skip, limit);
       setNotifications(response.items);
       setTotal(response.total);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : t("common.loadFailed");
-      toast.error(message);
+    } catch {
+      setLoadError(true);
     } finally {
       setIsLoading(false);
     }
-  }, [skip, limit, t]);
+  }, [skip, limit]);
 
   // Initial load
   useEffect(() => {
@@ -439,9 +439,20 @@ export function NotificationPanel() {
 
       {/* Notification List */}
       <div className="panel-body flex-1 overflow-y-auto">
+        {loadError && (
+          <div
+            role="alert"
+            className="p-4 text-center text-theme-text-secondary"
+          >
+            <p>{t("common.loadFailed")}</p>
+            <Button className="mt-3" onClick={fetchNotifications}>
+              {t("common.refresh")}
+            </Button>
+          </div>
+        )}
         {isLoading && notifications.length === 0 ? (
           <NotificationsListSkeleton />
-        ) : !isLoading && notifications.length === 0 ? (
+        ) : !loadError && !isLoading && notifications.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800">
               <Bell size={32} className="text-stone-400 dark:text-stone-500" />

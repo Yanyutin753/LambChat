@@ -346,7 +346,6 @@ export function UsersPanel() {
     } catch (err) {
       const errorMsg = (err as Error).message || t("users.loadFailed");
       setError(errorMsg);
-      toast.error(errorMsg);
     }
 
     // 角色列表单独加载,失败不影响用户列表
@@ -452,15 +451,19 @@ export function UsersPanel() {
 
       {/* 错误提示 */}
       {error && (
-        <div className="panel-notice flex items-center gap-2 rounded-xl bg-red-50 p-3 text-14 text-red-600 dark:bg-red-900/30 dark:text-red-400">
-          <AlertCircle size={18} />
-          <span>{error}</span>
+        <div
+          role="alert"
+          className="panel-notice flex flex-wrap items-center gap-2 rounded-xl bg-red-50 p-3 text-14 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+        >
+          <AlertCircle size={18} className="shrink-0" />
+          <span className="min-w-0 flex-1 break-words">{error}</span>
+          <Button onClick={loadData}>{t("common.refresh")}</Button>
         </div>
       )}
 
       {/* 用户列表 */}
       <div className="panel-body flex-1 overflow-y-auto">
-        {users.length === 0 ? (
+        {!error && users.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <Users
               size={48}

@@ -24,6 +24,7 @@ import {
 import toast from "react-hot-toast";
 import { SkeletonList } from "../skeletons";
 import { Checkbox } from "../common/Checkbox";
+import { IconButton } from "../common/ui";
 import { shareApi } from "../../services/api/share";
 import { sessionApi } from "../../services/api/session";
 import type { SharedSession, ShareType, ShareVisibility } from "../../types";
@@ -193,19 +194,20 @@ export function ShareProjectDialog({
     <ModalSurface open={isOpen} onClose={onClose} dismissible={true}>
       <div className="relative z-10 w-full sm:max-w-xl sm:mx-4 sm:pointer-events-auto bg-white dark:bg-stone-800 sm:rounded-xl rounded-t-xl shadow-xl border border-stone-200 dark:border-stone-700 overflow-hidden duration-300 max-h-[90vh] max-h-[90dvh] flex flex-col animate-slide-up-sheet sm:animate-in sm:fade-in sm:zoom-in-95 sm:duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-200 dark:border-stone-700">
+        <div className="flex items-center justify-between px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-stone-700">
           <div className="flex items-center gap-2 pt-2 sm:pt-0">
             <Share2 size={20} className="text-stone-500 dark:text-stone-400" />
             <h3 className="text-18 font-semibold font-serif text-stone-900 dark:text-stone-100">
               {t("sidebar.shareProject")}
             </h3>
           </div>
-          <button
+          <IconButton
+            aria-label={t("common.close")}
+            size="lg"
+            icon={<X size={20} />}
             onClick={onClose}
-            className="p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
-          >
-            <X size={20} className="text-stone-500 dark:text-stone-400" />
-          </button>
+            className="sm:!size-7"
+          />
         </div>
 
         {/* Content */}
@@ -232,8 +234,9 @@ export function ShareProjectDialog({
             </label>
             <div className="flex gap-3">
               <button
+                aria-pressed={shareType === "full"}
                 onClick={() => setShareType("full")}
-                className={`flex-1 px-4 py-2.5 rounded-lg border text-14 font-medium transition-colors ${
+                className={`min-h-11 flex-1 px-4 py-2.5 rounded-lg border text-14 font-medium transition-colors ${
                   shareType === "full"
                     ? "border-stone-500 bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-200"
                     : "border-stone-200 dark:border-stone-600 text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700"
@@ -242,8 +245,9 @@ export function ShareProjectDialog({
                 {t("share.fullProject", "完整项目")}
               </button>
               <button
+                aria-pressed={shareType === "partial"}
                 onClick={() => setShareType("partial")}
-                className={`flex-1 px-4 py-2.5 rounded-lg border text-14 font-medium transition-colors ${
+                className={`min-h-11 flex-1 px-4 py-2.5 rounded-lg border text-14 font-medium transition-colors ${
                   shareType === "partial"
                     ? "border-stone-500 bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-200"
                     : "border-stone-200 dark:border-stone-600 text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700"
@@ -338,6 +342,7 @@ export function ShareProjectDialog({
             </label>
             <div className="space-y-2">
               <button
+                aria-pressed={visibility === "public"}
                 onClick={() => setVisibility("public")}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
                   visibility === "public"
@@ -363,6 +368,7 @@ export function ShareProjectDialog({
                 </div>
               </button>
               <button
+                aria-pressed={visibility === "authenticated"}
                 onClick={() => setVisibility("authenticated")}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
                   visibility === "authenticated"
@@ -463,7 +469,7 @@ export function ShareProjectDialog({
         </div>
 
         {/* Footer */}
-        <div className="safe-area-bottom flex items-center justify-end gap-2 px-5 pt-4 [--safe-area-bottom-extra:1rem] bg-stone-50 dark:bg-stone-900/50 border-t border-stone-100 dark:border-stone-700">
+        <div className="safe-area-bottom flex flex-wrap items-center justify-end gap-2 px-5 pt-4 [--safe-area-bottom-extra:1rem] [&>button]:min-h-11 bg-stone-50 dark:bg-stone-900/50 border-t border-stone-100 dark:border-stone-700">
           <button
             onClick={onClose}
             className="px-4 py-2 text-14 font-medium text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-600 rounded-lg hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors"

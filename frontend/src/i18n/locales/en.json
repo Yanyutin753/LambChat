@@ -3816,7 +3816,7 @@
   },
   "bookmarks": {
     "empty": "No bookmarks yet",
-    "emptyHint": "Hover over any message and click the bookmark icon to save outlines, summaries and other important replies",
+    "emptyHint": "Use the bookmark icon below any message to save outlines, summaries and other important replies",
     "loadFailed": "Failed to load bookmarks",
     "loading": "Loading bookmarks…",
     "refresh": "Refresh",

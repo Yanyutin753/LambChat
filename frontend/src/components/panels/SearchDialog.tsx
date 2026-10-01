@@ -6,12 +6,14 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { flushSync } from "react-dom";
 import { ModalSurface } from "../common/ModalSurface";
 import { useInView } from "react-intersection-observer";
 import { useTranslation } from "react-i18next";
 import { Search, X, Hash } from "lucide-react";
 import { sessionApi, type BackendSession } from "../../services/api";
 import { PanelSearchInput } from "../common/PanelSearchInput";
+import { Button, IconButton } from "../common/ui";
 import { getSessionTitle } from "./sessionHelpers";
 import { SkeletonList } from "../skeletons";
 
@@ -170,6 +172,7 @@ export function SearchDialog({
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target !== inputRef.current) return;
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setActiveIndex((prev) => {
@@ -209,10 +212,14 @@ export function SearchDialog({
   if (!isOpen) return null;
 
   return (
-    <ModalSurface open={isOpen} onClose={onClose}>
+    <ModalSurface
+      open={isOpen}
+      onClose={onClose}
+      label={t("sidebar.searchSessions")}
+    >
       <div className="relative w-[92vw] max-w-lg bg-theme-bg-card dark:bg-stone-900 rounded-2xl shadow-[0_25px_60px_-12px_rgba(0,0,0,0.25)] dark:shadow-[0_25px_60px_-12px_rgba(0,0,0,0.5)] border border-stone-200/60 dark:border-stone-700/40 overflow-hidden ">
         {/* Search input */}
-        <div className="flex items-center gap-3 px-4 py-3.5">
+        <div className="flex items-center gap-2 sm:gap-3 px-4 py-3.5">
           <Search
             size={16}
             strokeWidth={2}
@@ -226,14 +233,28 @@ export function SearchDialog({
             placeholder={t("sidebar.searchSessions") + "..."}
             className="flex-1 min-w-0 text-15 bg-transparent text-stone-800 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none"
           />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded-full text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-all"
+          <div className="flex shrink-0 items-center gap-0">
+            {searchQuery && (
+              <IconButton
+                aria-label={t("common.clear")}
+                size="lg"
+                icon={<X size={12} strokeWidth={2.5} />}
+                onClick={() => {
+                  flushSync(() => setSearchQuery(""));
+                  inputRef.current?.focus();
+                }}
+                className="sm:!size-5"
+              />
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="!min-h-11 sm:hidden"
             >
-              <X size={12} strokeWidth={2.5} />
-            </button>
-          )}
+              {t("common.cancel")}
+            </Button>
+          </div>
           <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-10 font-medium font-serif text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-800 rounded-md border border-stone-200/80 dark:border-stone-700/60">
             ESC
           </kbd>

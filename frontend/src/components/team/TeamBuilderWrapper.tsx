@@ -578,7 +578,7 @@ export function TeamBuilderWrapper() {
 
         {loading ? (
           <TeamListSkeleton />
-        ) : teams.length === 0 ? (
+        ) : !loadError && teams.length === 0 ? (
           <EmptyState
             icon={<Users size={28} />}
             title={

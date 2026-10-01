@@ -39,6 +39,8 @@ export function PersonaPlazaPanel() {
   const {
     presets,
     isLoading,
+    error,
+    refresh,
     isMutating,
     canWrite,
     canAdmin,
@@ -90,8 +92,7 @@ export function PersonaPlazaPanel() {
   const isInitialLoading =
     isLoading && presets.length === 0 && !hasActiveFilters;
 
-  if (isInitialLoading)
-    return <PersonaPlazaSkeleton />;
+  if (isInitialLoading) return <PersonaPlazaSkeleton />;
 
   return (
     <div className="skill-theme-shell flex h-full min-h-0 flex-col">
@@ -231,27 +232,44 @@ export function PersonaPlazaPanel() {
       />
 
       <div className="panel-body skill-content-area flex-1 overflow-y-auto">
+        {error && (
+          <div
+            role="alert"
+            className="p-4 text-center text-theme-text-secondary"
+          >
+            <p>{t("common.loadFailed")}</p>
+            <button
+              type="button"
+              className="btn-secondary mt-3"
+              onClick={() => void refresh()}
+            >
+              {t("common.refresh")}
+            </button>
+          </div>
+        )}
         {filtered.length === 0 ? (
-          <EmptyState
-            icon={<UserRound size={28} />}
-            title={
-              query || activeTag
-                ? t("personaPresets.noMatch", "没有匹配的角色")
-                : t("personaPresets.empty", "暂无角色预设")
-            }
-            description={
-              query || activeTag
-                ? t("personaPresets.tryOtherFilters", "试试其他搜索条件")
-                : t("personaPresets.emptyHint", "管理员可以创建官方角色预设")
-            }
-            action={
-              hasActiveFilters ? (
-                <button onClick={clearFilters} className="btn-secondary">
-                  {t("personaPresets.clearFilters", "清除筛选")}
-                </button>
-              ) : undefined
-            }
-          />
+          !error && (
+            <EmptyState
+              icon={<UserRound size={28} />}
+              title={
+                query || activeTag
+                  ? t("personaPresets.noMatch", "没有匹配的角色")
+                  : t("personaPresets.empty", "暂无角色预设")
+              }
+              description={
+                query || activeTag
+                  ? t("personaPresets.tryOtherFilters", "试试其他搜索条件")
+                  : t("personaPresets.emptyHint", "管理员可以创建官方角色预设")
+              }
+              action={
+                hasActiveFilters ? (
+                  <button onClick={clearFilters} className="btn-secondary">
+                    {t("personaPresets.clearFilters", "清除筛选")}
+                  </button>
+                ) : undefined
+              }
+            />
+          )
         ) : (
           <div className="grid auto-grid-cols gap-4 sm:gap-5">
             {paged.map((preset, index) => (
