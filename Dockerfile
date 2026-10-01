@@ -16,6 +16,11 @@ WORKDIR /app/frontend
 # 安装脚本（Rust 字体切割内核），缺失会导致 pnpm run build 失败
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml frontend/.npmrc ./
 
+# patches/：cn-font-split 的 patchedDependencies 补丁（postinstall 钉版
+# 7.6.8 直连 GitHub Releases，绕开 ungh.cc 限流导致的 404），install 期
+# 就要读，须先于 pnpm install COPY 进镜像
+COPY frontend/patches ./patches
+
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 

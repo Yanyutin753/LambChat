@@ -165,6 +165,12 @@ async def _release_concurrency_slot(user_id: str | None, run_id: str, *, dequeue
         logger.warning("Failed to release arq concurrency slot: %s", e)
 
 
+def _run_watchdog_timeout() -> float | None:
+    """Run-level watchdog deadline; None disables the watchdog."""
+    timeout = getattr(settings, "TASK_RUN_WATCHDOG_TIMEOUT", 0.0)
+    return timeout if timeout and timeout > 0 else None
+
+
 async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
     """Run a previously persisted LambChat task from an arq worker."""
     payload_store: TaskArqPayloadStore = ctx.get("payload_store") or TaskArqPayloadStore()
@@ -260,7 +266,7 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
     }
 
     try:
-        suspended = await task_executor.run_task(
+        run_kwargs = dict(
             session_id=payload["session_id"],
             run_id=run_id,
             agent_id=payload["agent_id"],
@@ -287,6 +293,12 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
             interrupted_resume=interrupted_resume,
             base_url=str(payload.get("base_url") or ""),
         )
+        watchdog_timeout = _run_watchdog_timeout()
+        if watchdog_timeout is None:
+            suspended = await task_executor.run_task(**run_kwargs)
+        else:
+            async with asyncio.timeout(watchdog_timeout):
+                suspended = await task_executor.run_task(**run_kwargs)
     except TaskInterruptedError:
         await payload_store.delete(dispatch_id)
         await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=True)
@@ -305,6 +317,22 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
         await payload_store.delete(dispatch_id)
         await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=False)
         raise
+    except TimeoutError:
+        # Watchdog 触发：run_task 内部的取消处理已终结 trace，这里确保
+        # session 终态是 FAILED（而非 CANCELLED），并清理 payload 不重试。
+        error_message = f"Task run exceeded watchdog timeout ({watchdog_timeout}s)"
+        logger.error("arq run watchdog timeout: run_id=%s", run_id)
+        try:
+            await task_executor._update_session_status(
+                payload["session_id"],
+                TaskStatus.FAILED,
+                error_message,
+                run_id=run_id,
+            )
+        except Exception as e:
+            logger.warning("Failed to mark watchdog timeout status: run_id=%s: %s", run_id, e)
+        await payload_store.delete(dispatch_id)
+        await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=True)
     except Exception:
         logger.warning("Keeping arq task payload for retry: run_id=%s", run_id)
         raise

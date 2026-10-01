@@ -100,9 +100,13 @@ test("welcome page invalidates team cards before paint and gates content on read
   );
   expect(welcomePageSource).toMatch(/useLayoutEffect\([\s\S]*beginTeamRequest/);
   expect(welcomePageSource).toMatch(/isWelcomeContentReady\(/);
+  // 骨架只覆盖首次加载（issue #158）：一旦内容就绪过，背景 refetch
+  // 不得把欢迎页重新落回骨架（否则弹窗状态随整页卸载丢失）。
+  expect(welcomePageSource).toMatch(/hasEverBeenReadyRef\.current = true;/);
   expect(welcomePageSource).toMatch(
-    /if \(!welcomeContentReady\) \{\s*return <WelcomeSkeleton \/>;\s*\}/,
+    /shouldRenderWelcomeSkeleton\(\s*welcomeContentReady,\s*hasEverBeenReadyRef\.current,\s*\)/,
   );
+  expect(welcomePageSource).toMatch(/return <WelcomeSkeleton \/>;/);
 });
 
 test("welcome page does not treat an unresolved agent as persona mode", () => {

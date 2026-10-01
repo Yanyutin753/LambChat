@@ -24,12 +24,14 @@ import { PersonaPreviewSidebar } from "./PersonaPreviewSidebar";
 import { Pagination } from "../common/Pagination";
 import { PanelSearchInput } from "../common/PanelSearchInput";
 
-const PAGE_SIZE = 20;
+const LOCAL_PAGE_SIZE = 20;
 
 interface PersonaPresetSelectorProps {
   presets: PersonaPreset[];
   total?: number;
   page?: number;
+  /** Items per page; must match the parent's remote fetch limit when remote filtering is used. */
+  pageSize?: number;
   selectedPresetId?: string | null;
   isOpen: boolean;
   isLoading?: boolean;
@@ -53,6 +55,7 @@ export function PersonaPresetSelector({
   presets,
   total,
   page: controlledPage,
+  pageSize: pageSizeProp,
   selectedPresetId,
   isOpen,
   isLoading = false,
@@ -78,6 +81,7 @@ export function PersonaPresetSelector({
     null,
   );
   const [page, setPage] = useState(1);
+  const pageSize = pageSizeProp ?? LOCAL_PAGE_SIZE;
   const currentPage = controlledPage ?? page;
   const usesRemoteFiltering = !!onSearchChange || !!onTagChange;
 
@@ -114,9 +118,9 @@ export function PersonaPresetSelector({
 
   const paged = useMemo(() => {
     if (usesRemoteFiltering) return filtered;
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return filtered.slice(start, start + PAGE_SIZE);
-  }, [currentPage, filtered, usesRemoteFiltering]);
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [currentPage, filtered, pageSize, usesRemoteFiltering]);
 
   const totalItems = total ?? filtered.length;
   const handleUsePreset = async (preset: PersonaPreset) => {
@@ -491,14 +495,14 @@ export function PersonaPresetSelector({
           )}
         </div>
 
-        {totalItems > PAGE_SIZE && (
+        {totalItems > pageSize && (
           <div
             className="border-t px-5 py-3"
             style={{ borderColor: "var(--theme-border)" }}
           >
             <Pagination
               page={currentPage}
-              pageSize={PAGE_SIZE}
+              pageSize={pageSize}
               total={totalItems}
               onChange={handlePageChange}
             />
