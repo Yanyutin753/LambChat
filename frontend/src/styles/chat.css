@@ -1088,6 +1088,24 @@ html[data-mobile-keyboard="true"]
   }
 }
 
+.chat-cancelled-retry > .ui-button__label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.run-steps-collapse > button:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+}
+
+@media (max-width: 639px), (pointer: coarse) {
+  .run-steps-collapse > button,
+  .chat-cancelled-retry {
+    min-height: 2.75rem;
+    align-items: center;
+  }
+}
+
 /* ─── Message Action Buttons — focus-visible ring ─── */
 .chat-message-actions button:focus-visible {
   outline: none;

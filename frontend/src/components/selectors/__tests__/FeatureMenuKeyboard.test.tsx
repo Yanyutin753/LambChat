@@ -1,5 +1,11 @@
 /** @vitest-environment jsdom */
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
 import { FeatureMenu } from "../FeatureMenu";
@@ -11,6 +17,27 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+test("IME confirmation does not dismiss the feature popup", async () => {
+  render(
+    <FeatureMenu
+      activePanel={null}
+      onOpen={vi.fn()}
+      enabledToolsCount={0}
+      totalToolsCount={0}
+      enabledSkillsCount={0}
+      totalSkillsCount={0}
+      uploadCategories={["image"]}
+      onUploadFiles={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "chat.features" }));
+  const upload = screen.getByRole("button", { name: "featureMenu.upload" });
+  fireEvent.keyDown(upload, { key: "Escape", isComposing: true });
+  expect(upload).toBeInTheDocument();
+  fireEvent.keyDown(upload, { key: "Escape", keyCode: 229 });
+  expect(upload).toBeInTheDocument();
 });
 
 test("collapsed feature groups are hidden from assistive technology and Escape restores the trigger", async () => {

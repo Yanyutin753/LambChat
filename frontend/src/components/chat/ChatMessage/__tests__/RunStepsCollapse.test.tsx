@@ -3,6 +3,7 @@
 import { describe, expect, test, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { RunStepsCollapse } from "../RunStepsCollapse";
+import { readFileSync } from "node:fs";
 
 // Mock i18next with simple {{var}} interpolation
 vi.mock("react-i18next", () => ({
@@ -41,6 +42,37 @@ function WorkingRowText() {
 }
 
 describe("RunStepsCollapse", () => {
+  test("active work has a named status without announcing every timer tick", () => {
+    render(
+      <RunStepsCollapse
+        active
+        steps={0}
+        durationMs={null}
+        renderExpanded={() => null}
+      />,
+    );
+    expect(screen.getByRole("status", { name: "Working…" })).toHaveAttribute(
+      "aria-live",
+      "off",
+    );
+    expect(screen.getByText("Working…")).toHaveClass(
+      "text-theme-text-secondary",
+    );
+  });
+
+  test("finished process toggles keep touch targets and visible keyboard focus", () => {
+    const css = readFileSync("src/styles/chat.css", "utf8");
+    expect(css).toMatch(
+      /@media \(max-width: 639px\), \(pointer: coarse\)[\s\S]*\.run-steps-collapse > button[\s\S]*min-height:\s*2\.75rem/,
+    );
+    expect(css).toMatch(/\.run-steps-collapse > button:focus-visible/);
+    expect(css).toMatch(
+      /\.chat-cancelled-retry > \.ui-button__label\s*\{[^}]*white-space:\s*normal/,
+    );
+    expect(css).toMatch(
+      /@media \(max-width: 639px\), \(pointer: coarse\)[\s\S]*\.chat-cancelled-retry[\s\S]*min-height:\s*2\.75rem/,
+    );
+  });
   test("renders the duration in the summary row", () => {
     render(
       <RunStepsCollapse
@@ -174,7 +206,7 @@ describe("RunStepsCollapse", () => {
     expect((row as HTMLButtonElement).disabled).toBe(false);
   });
 
-  test("summary row text uses the body text color in both states", () => {
+  test("summary row uses the secondary theme text color in both states", () => {
     const { unmount } = render(
       <RunStepsCollapse
         steps={2}
@@ -183,9 +215,7 @@ describe("RunStepsCollapse", () => {
       />,
     );
     const span = SummaryRow().querySelector("span");
-    expect(span?.className).toContain("text-gray-700");
-    expect(span?.className).toContain("dark:text-gray-300");
-    expect(span?.className).not.toContain("text-theme-text-secondary");
+    expect(span?.className).toContain("text-theme-text-secondary");
     unmount();
 
     render(
@@ -197,9 +227,7 @@ describe("RunStepsCollapse", () => {
       />,
     );
     const workingSpan = WorkingRowText();
-    expect(workingSpan.className).toContain("text-gray-700");
-    expect(workingSpan.className).toContain("dark:text-gray-300");
-    expect(workingSpan.className).not.toContain("text-theme-text-secondary");
+    expect(workingSpan.className).toContain("text-theme-text-secondary");
   });
 
   test("summary row matches the markdown body font size", () => {

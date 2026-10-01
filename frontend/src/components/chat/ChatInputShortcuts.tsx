@@ -1,5 +1,6 @@
 import { ModalSurface } from "../common/ModalSurface";
 import { X } from "lucide-react";
+import { IconButton } from "../common/ui/IconButton";
 import { useTranslation } from "react-i18next";
 import {
   getSendShortcutDisplay,
@@ -53,7 +54,12 @@ export function ShortcutDialog({
   if (!open) return null;
 
   return (
-    <ModalSurface open={open} onClose={onClose} className="modal-size-md">
+    <ModalSurface
+      open={open}
+      onClose={onClose}
+      className="modal-size-md"
+      label={t("chat.keyboardShortcuts")}
+    >
       <div
         className="relative w-full max-w-md mx-4 rounded-2xl p-5 shadow-xl"
         style={{
@@ -69,21 +75,12 @@ export function ShortcutDialog({
           >
             {t("chat.keyboardShortcuts", "键盘快捷键")}
           </h3>
-          <button
-            type="button"
+          <IconButton
+            size="lg"
+            aria-label={t("common.close")}
             onClick={onClose}
-            className="p-1 rounded-lg transition-colors cursor-pointer"
-            style={{ color: "var(--theme-text-secondary)" }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor =
-                "var(--theme-bg-hover, rgba(128,128,128,0.08))";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-            }}
-          >
-            <X size={16} />
-          </button>
+            icon={<X size={16} />}
+          />
         </div>
         <div
           className="space-y-3 text-13"
@@ -93,7 +90,6 @@ export function ShortcutDialog({
             className="pb-2 mb-1 text-11 font-medium uppercase tracking-wider"
             style={{
               color: "var(--theme-text-secondary)",
-              opacity: 0.5,
             }}
           >
             {t("shortcut.categoryChat", "对话")}
@@ -115,7 +111,6 @@ export function ShortcutDialog({
             className="pt-2 pb-2 mt-1 text-11 font-medium uppercase tracking-wider"
             style={{
               color: "var(--theme-text-secondary)",
-              opacity: 0.5,
             }}
           >
             {t("shortcut.categoryGeneral", "通用")}
@@ -148,7 +143,6 @@ export function ShortcutDialog({
             className="pt-2 pb-2 mt-1 text-11 font-medium uppercase tracking-wider"
             style={{
               color: "var(--theme-text-secondary)",
-              opacity: 0.5,
             }}
           >
             {t("shortcut.categoryDialog", "弹窗")}

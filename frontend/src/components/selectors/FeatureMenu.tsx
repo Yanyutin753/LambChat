@@ -236,6 +236,12 @@ export const FeatureMenu = memo(function FeatureMenu({
             role="group"
             aria-label={t("chat.features", "功能")}
             onKeyDown={(event) => {
+              if (
+                event.defaultPrevented ||
+                event.nativeEvent.isComposing ||
+                event.keyCode === 229
+              )
+                return;
               if (event.key === "Escape") {
                 event.preventDefault();
                 event.stopPropagation();

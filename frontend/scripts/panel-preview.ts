@@ -708,7 +708,11 @@ const settings = {
   },
 };
 
-function response(url: URL, scenario: string): unknown {
+function response(
+  url: URL,
+  scenario: string,
+  chatState = "completed",
+): unknown {
   const path = url.pathname.replace(/\/$/, "");
   const q = url.searchParams;
   const pageSize = Number(q.get("limit") ?? q.get("page_size") ?? 20);
@@ -1139,6 +1143,7 @@ function response(url: URL, scenario: string): unknown {
     const history = response(
       new URL("http://localhost/api/sessions/preview-report/events"),
       scenario,
+      "completed",
     ) as { events: object[] };
     return {
       session: {
@@ -1163,10 +1168,22 @@ function response(url: URL, scenario: string): unknown {
       is_active: true,
       created_at: now,
       updated_at: now,
-      metadata: {},
+      metadata: { current_run_id: "preview-run" },
     };
-  if (path === "/api/sessions/preview-report/events")
+  if (path === "/api/chat/sessions/preview-report/status")
     return {
+      session_id: "preview-report",
+      run_id: "preview-run",
+      status: ["working", "streaming"].includes(chatState)
+        ? "running"
+        : chatState === "error"
+          ? "error"
+          : "completed",
+    };
+  if (path === "/api/sessions/preview-report/events") {
+    const active = ["working", "streaming"].includes(chatState);
+    return {
+      stream_run_id: active ? "preview-run" : null,
       events: [
         {
           id: "preview-user-message",
@@ -1179,26 +1196,53 @@ function response(url: URL, scenario: string): unknown {
             attachments: [],
           },
         },
-        {
-          id: "preview-answer",
-          event_type: "message:chunk",
-          run_id: "preview-run",
-          timestamp: now,
-          data: {
-            content:
-              "## 研究发现与交付计划\n\n已将需求归纳为三个重点：更清晰的工作入口、可追踪的执行过程，以及便于团队复用的成果。\n\n| 阶段 | 交付内容 | 验收方式 |\n| --- | --- | --- |\n| 需求确认 | 用户场景与优先级 | 团队评审 |\n| 原型验证 | 核心流程与交互原型 | 用户走查 |\n| 交付上线 | 功能实现与使用指南 | 多端验证 |\n\n### 下一步\n\n1. 确认目标用户和首要任务。\n2. 用原型验证关键路径。\n3. 将反馈整理为可执行的迭代清单。\n\n> 此会话为产品界面展示使用的演示数据。",
-          },
-        },
+        ...(!active
+          ? [
+              {
+                id: "preview-thinking",
+                event_type: "thinking",
+                run_id: "preview-run",
+                timestamp: now,
+                data: {
+                  content:
+                    "正在整理研究资料、核对证据，并按优先级组织交付计划。",
+                },
+              },
+            ]
+          : []),
+        ...(!active && chatState === "completed"
+          ? [
+              {
+                id: "preview-answer",
+                event_type: "message:chunk",
+                run_id: "preview-run",
+                timestamp: now,
+                data: {
+                  content:
+                    "## 研究发现与交付计划\n\n已将需求归纳为三个重点：更清晰的工作入口、可追踪的执行过程，以及便于团队复用的成果。\n\n| 阶段 | 交付内容 | 验收方式 |\n| --- | --- | --- |\n| 需求确认 | 用户场景与优先级 | 团队评审 |\n| 原型验证 | 核心流程与交互原型 | 用户走查 |\n| 交付上线 | 功能实现与使用指南 | 多端验证 |\n\n### 下一步\n\n1. 确认目标用户和首要任务。\n2. 用原型验证关键路径。\n3. 将反馈整理为可执行的迭代清单。\n\n> 此会话为产品界面展示使用的演示数据。",
+                },
+              },
+            ]
+          : []),
         {
           id: "preview-done",
-          event_type: "done",
+          event_type:
+            chatState === "error"
+              ? "error"
+              : chatState === "cancelled"
+                ? "user:cancel"
+                : "done",
           run_id: "preview-run",
           timestamp: now,
-          data: { status: "completed" },
+          data:
+            chatState === "error"
+              ? { error: "请求超时", type: "task_error", status: "error" }
+              : { status: "completed" },
         },
-      ],
+      ].filter((event) => !active || event.id === "preview-user-message"),
       has_more_traces: false,
     };
+  }
   if (path === "/api/sessions/preview-report/runs") {
     const runs = all(
       rows((i, name) => ({
@@ -1308,6 +1352,7 @@ const token = `preview.${Buffer.from(
 ).toString("base64url")}.fixture`;
 const failedDocumentRequests = new Set<string>();
 const failedDrawingRequests = new Map<string, number>();
+const completedPreviewStreams = new Set<string>();
 const server = await createServer({
   root: process.cwd(),
   cacheDir: "node_modules/.vite-panel-preview",
@@ -1451,7 +1496,64 @@ const server = await createServer({
             return next();
           const scenario = previewParams.get("fixture") ?? "populated";
           const failureTarget = previewParams.get("failure");
-          const data = response(url, scenario);
+          const streamKey = req.headers.referer ?? "";
+          const chatState = completedPreviewStreams.has(streamKey)
+            ? "completed"
+            : (previewParams.get("chat-state") ?? "completed");
+          if (
+            req.method === "GET" &&
+            url.pathname === "/api/chat/sessions/preview-report/stream" &&
+            ["working", "streaming"].includes(chatState)
+          ) {
+            res.setHeader("Content-Type", "text/event-stream");
+            res.setHeader("Cache-Control", "no-cache");
+            res.flushHeaders();
+            const sendEvent = (event: string, data: object, id: string) =>
+              res.write(
+                `id: ${id}\nevent: ${event}\ndata: ${JSON.stringify({ ...data, run_id: "preview-run", _timestamp: new Date().toISOString() })}\n\n`,
+              );
+            const ping = setInterval(
+              () => sendEvent("ping", {}, "preview-ping"),
+              2000,
+            );
+            const timers: ReturnType<typeof setTimeout>[] = [];
+            if (chatState === "streaming") {
+              [
+                "## 研究发现与交付计划\n\n",
+                "已将需求归纳为三个重点：更清晰的工作入口、可追踪的执行过程，以及便于团队复用的成果。",
+                "\n\n### 下一步\n\n1. 确认目标用户和首要任务。\n2. 用原型验证关键路径。\n3. 将反馈整理为可执行的迭代清单。",
+              ].forEach((content, index) => {
+                timers.push(
+                  setTimeout(
+                    () =>
+                      sendEvent(
+                        "message:chunk",
+                        { content },
+                        `preview-stream-${index}`,
+                      ),
+                    6000 * (index + 1),
+                  ),
+                );
+              });
+              timers.push(
+                setTimeout(() => {
+                  completedPreviewStreams.add(streamKey);
+                  sendEvent(
+                    "done",
+                    { status: "completed" },
+                    "preview-stream-done",
+                  );
+                  res.end();
+                }, 24000),
+              );
+            }
+            res.on("close", () => {
+              clearInterval(ping);
+              timers.forEach(clearTimeout);
+            });
+            return;
+          }
+          const data = response(url, scenario, chatState);
           const isRead = req.method === "GET";
           const fault =
             scenario === "error" &&

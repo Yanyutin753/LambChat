@@ -180,12 +180,6 @@
   -webkit-box-orient: vertical;
   line-clamp: 2;
   -webkit-line-clamp: 2;
-  opacity: 0.72;
-  transition: opacity 0.2s ease;
-}
-
-.welcome-persona-card:hover .welcome-persona-description {
-  opacity: 1;
 }
 
 .welcome-persona-skeleton {
@@ -435,7 +429,6 @@
     -webkit-line-clamp: 2;
     line-clamp: 2;
     margin-top: 0.25rem;
-    opacity: 0.55;
   }
 
   .welcome-persona-skeleton {
@@ -533,7 +526,6 @@
     -webkit-line-clamp: 1;
     line-clamp: 1;
     margin-top: 0.25rem;
-    opacity: 0.55;
   }
 
   html[data-mobile-keyboard="true"] .welcome-card,
@@ -585,5 +577,36 @@
   40% {
     opacity: 1;
     transform: scale(1.1);
+  }
+}
+
+.welcome-suggestions button:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+}
+
+@media (max-width: 639px), (pointer: coarse) {
+  .welcome-suggestions-header button,
+  .welcome-suggestion-pill {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-root *,
+  .welcome-root *::before {
+    animation: none !important;
+    transition: none !important;
+  }
+  .welcome-root button:active,
+  .welcome-root button:hover * {
+    transform: none !important;
+  }
+  .welcome-persona-gallery {
+    scroll-snap-type: none;
+  }
+  .welcome-card-shimmer {
+    display: none;
   }
 }

@@ -213,3 +213,21 @@ FeatureMenu 折叠分组 inert/aria-hidden，切换按钮 expanded/controls；�
 最终全量 726 文件 / 3467 项测试通过，lint 无警告，build/类型与体积门禁通过：eager JS 558774 / 559104 字节，precache 5018820 / 5242880 字节。首次全量的 direct-viewer 安全区源码断言更新为共享 fullscreen owner；同轮既有搜索 IME 用例不稳定，单独复测及最终全量通过，未改搜索代码或该用例。独立代码审查未发现新增 P1/P2。
 
 继续待查：通用文件下载失败反馈、其他预览格式、绘图内嵌图片和大图状态；主聊天欢迎/更多/流式状态；资源导入发布、助手/批量/渠道编辑器和剩余语言组合。真实服务认证/保存/聊天、原生触屏和软键盘尚未验证。目标保持进行中，不将本批作为全界面验收。
+
+### 2026-10-02：欢迎页辅助操作、快捷键与聊天终态
+
+开工 fetch origin，origin/develop 保持 b5a8930a，确认是隔离分支祖先。手机主聊天的顶部与输入栏原本已为 44px/gap 0，未继续压缩正文或卡片。欢迎页帮助入口实测约 22px、管理入口约 26px，改为共享按钮及手机/coarse pointer 的 44px；角色说明去掉叠加于主题次级文字上的额外 opacity，保留卡片留白和字号。推荐操作补主题焦点环；欢迎页在 reduced motion 下停用入场、悬停位移、滚动吸附与 shimmer。
+
+帮助菜单复用 ResourceCardMenu，删除局部鼠标悬停与关闭实现。共享菜单增加原生 anchor 分支，帮助文档保留链接行为；箭头、IME、Escape/Tab、视口约束和焦点归还继续共用。快捷键弹窗补名称、具名 44px 关闭按钮，分类去掉额外淡化。320px 中文与俄语实际打开，长标签换行；俄语底部 goal 行经真实滚动可达，关闭后焦点回帮助。FeatureMenu 补 IME/defaultPrevented guard，避免候选确认 Escape 误关功能层。
+
+RunStepsCollapse 工作行补稳定名称的 status，aria-live=off 避免每秒播报计时；工作和已完成文字均使用主题次级色。完成后的展开入口手机/coarse pointer 为 44px，有主题焦点环，桌面原密度保持。停止状态的重新回答改用共享 Button，容器可换行；独立复核指出内部 ui-button__label 的 nowrap 仍会截断，已对该入口的 label 补 normal/anywhere。320px 俄语实测重试 44px、内部 white-space normal、label 和整页溢出均为 0；未执行真实重试生成写操作。
+
+只读 preview 新增 chat-state=working/streaming/error/cancelled；streaming 使用本机 GET SSE，6/12/18 秒逐段输出、24 秒结束，连接关闭清理定时器，API 写请求仍 405。实际观察等待→首段→完整正文→停止按钮恢复发送入口。错误样例揭示已有思考/工具 parts 时 message.content 的错误文字被渲染忽略，修复流式/历史共用 eventProcessor，追加去重的可见 text part，既有过程保留、取消分支保持。先失败后通过的测试覆盖两条共用路径和重复终态；浏览器失败态从只剩步骤变为显示请求超时。
+
+截图：welcome-320-light-before/after、chat-help-320-light-after、chat-shortcuts-320-light-final、chat-shortcuts-320-ru-light/scrolled、chat-working-320-dark、chat-streaming-320-dark、chat-stream-complete-320-dark、chat-error-320-dark-after、chat-cancelled-320-ru-light、chat-report-390-light/768-sepia/1440-light。四种宽度与三主题整页横向溢出为 0，正文阅读与卡片留白保留；平板触屏规则由 CSS 契约覆盖，不据浏览器视口声称原生触屏验证。
+
+八项自检：实体标题、正文、次级说明层级维持；内容留白保留；任务等待/完成/失败/停止可区分；次级文字与按钮复用主题 token；欢迎页 reduced motion 补齐、去掉局部重试旋转；原生链接、菜单导航、IME、焦点、滚动与状态反馈验证；上述宽度、主题与俄语实屏检查；沿用 LambChat 品牌与既有组件，无新装饰体系或依赖。Impeccable 按已确认不可用的环境状态使用 DESIGN.md 人工清单。
+
+最终 727 文件 / 3477 项测试通过，lint 无警告，build/类型与体积门禁通过：eager JS 558790 / 559104 字节，precache 5017183 / 5242880 字节。独立复核的长标签 P2 已修正，最后复核无新增 P1/P2。
+
+继续待查：欢迎页资源请求错误/空状态、Header More 的完整语义和关闭交互、消息内表格/代码辅助按钮的手机尺寸、其他工具过程及图片状态；通用文件下载失败、其他格式、绘图内嵌图片与大图；资源导入发布、助手/批量/渠道编辑器及剩余语言组合。真实服务认证/写入/聊天和原生触屏/软键盘尚未验证，目标继续进行，本批不代表全界面验收完成。

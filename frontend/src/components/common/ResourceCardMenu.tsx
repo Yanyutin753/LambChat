@@ -1,12 +1,14 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-export interface ResourceCardAction {
+export type ResourceCardAction = {
   label: string;
   icon?: ReactNode;
-  onClick: () => void;
   danger?: boolean;
-}
+} & (
+  | { href: string; onClick?: () => void }
+  | { href?: undefined; onClick: () => void }
+);
 
 interface ResourceCardMenuProps {
   id: string;
@@ -47,7 +49,7 @@ export function ResourceCardMenu({
         ),
       ),
     });
-    menu.querySelector<HTMLButtonElement>("button")?.focus();
+    menu.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
     const outside = (event: PointerEvent) => {
       const trigger = (event.target as Element).closest?.(
         '[aria-haspopup="menu"]',
@@ -110,11 +112,9 @@ export function ResourceCardMenu({
         )
           return;
         const buttons = Array.from(
-          ref.current!.querySelectorAll<HTMLButtonElement>("button"),
+          ref.current!.querySelectorAll<HTMLElement>('[role="menuitem"]'),
         );
-        const index = buttons.indexOf(
-          document.activeElement as HTMLButtonElement,
-        );
+        const index = buttons.indexOf(document.activeElement as HTMLElement);
         const next =
           event.key === "ArrowDown"
             ? (index + 1) % buttons.length
@@ -131,22 +131,28 @@ export function ResourceCardMenu({
         }
       }}
     >
-      {actions.map((action) => (
-        <button
-          key={action.label}
-          type="button"
-          role="menuitem"
-          tabIndex={-1}
-          className={`flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-13 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] ${action.danger ? "text-theme-error hover:bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)]" : "text-theme-text hover:bg-theme-bg-subtle"}`}
-          onClick={() => {
-            onClose(true);
-            action.onClick();
-          }}
-        >
-          {action.icon}
-          <span className="min-w-0 break-words">{action.label}</span>
-        </button>
-      ))}
+      {actions.map((action) => {
+        const Item = action.href ? "a" : "button";
+        return (
+          <Item
+            key={action.label}
+            type={action.href ? undefined : "button"}
+            href={action.href}
+            target={action.href ? "_blank" : undefined}
+            rel={action.href ? "noopener noreferrer" : undefined}
+            role="menuitem"
+            tabIndex={-1}
+            className={`flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-13 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] ${action.danger ? "text-theme-error hover:bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)]" : "text-theme-text hover:bg-theme-bg-subtle"}`}
+            onClick={() => {
+              onClose(true);
+              action.onClick?.();
+            }}
+          >
+            {action.icon}
+            <span className="min-w-0 break-words">{action.label}</span>
+          </Item>
+        );
+      })}
     </div>,
     document.body,
   );

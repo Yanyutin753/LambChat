@@ -1,6 +1,42 @@
 import type { MessagePart } from "../../../types";
 import { processMessageEvent } from "../eventProcessor.ts";
 
+test.each([true, false])(
+  "failures remain visible after process parts (streaming: %s)",
+  (isStreaming) => {
+    const parts: MessagePart[] = [
+      { type: "thinking", content: "Checking evidence" },
+      { type: "text", content: "Partial answer" },
+    ];
+    const result = processMessageEvent(
+      "error",
+      { error: "Request timed out", type: "task_error" },
+      parts,
+      "Partial answer",
+      [],
+      0,
+      [],
+      isStreaming,
+    );
+    expect(result.parts).toEqual([
+      ...parts,
+      { type: "text", content: result.content },
+    ]);
+    expect(result.content).toContain("Request timed out");
+    const replay = processMessageEvent(
+      "error",
+      { error: "Request timed out", type: "task_error" },
+      result.parts,
+      result.content,
+      [],
+      0,
+      [],
+      isStreaming,
+    );
+    expect(replay.parts).toEqual(result.parts);
+  },
+);
+
 test("keeps legacy ask-human GraphInterrupt results pending", () => {
   const started = processMessageEvent(
     "tool:start",
@@ -872,16 +908,24 @@ test("upserts artifact parts by path so one file shows once per message", () => 
     "message-1",
   );
 
-  const artifactParts = updated.parts.filter((part) => part.type === "artifact");
+  const artifactParts = updated.parts.filter(
+    (part) => part.type === "artifact",
+  );
   expect(artifactParts).toHaveLength(1);
   if (artifactParts[0].type !== "artifact") return;
-  expect(artifactParts[0].artifact.id).toBe("file:revealed_files/v2_report.png");
+  expect(artifactParts[0].artifact.id).toBe(
+    "file:revealed_files/v2_report.png",
+  );
 
   // 不同 path 的产物正常追加，互不挤掉
   const other = processMessageEvent(
     "artifact:result",
     {
-      artifact: { ...baseArtifact, id: "file:chart", path: "/workspace/chart.png" },
+      artifact: {
+        ...baseArtifact,
+        id: "file:chart",
+        path: "/workspace/chart.png",
+      },
       success: true,
     },
     updated.parts,
@@ -892,7 +936,9 @@ test("upserts artifact parts by path so one file shows once per message", () => 
     true,
     "message-1",
   );
-  expect(other.parts.filter((part) => part.type === "artifact")).toHaveLength(2);
+  expect(other.parts.filter((part) => part.type === "artifact")).toHaveLength(
+    2,
+  );
 });
 
 test.each(["todo_write", "write_todos"])(
@@ -907,7 +953,17 @@ test.each(["todo_write", "write_todos"])(
       data: Parameters<typeof processMessageEvent>[1],
       parts = original,
     ) =>
-      processMessageEvent(event, data, parts, "正文", [], 0, [], true, "todo-message");
+      processMessageEvent(
+        event,
+        data,
+        parts,
+        "正文",
+        [],
+        0,
+        [],
+        true,
+        "todo-message",
+      );
     expect(
       process("tool:args:chunk", { tool, content: '{"todos":[' }).parts,
     ).toEqual(original);
