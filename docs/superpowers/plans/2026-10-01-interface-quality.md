@@ -350,3 +350,26 @@ Feishu 扫码/手填和策略使用原生按钮与 pressed，长文案自然换�
 只读 fixture 新增 failure=model-role 首次角色模型 GET 失败，原生320 验证阻止编辑并重试恢复，focus=DIV/tabIndex=-1。保存 fixture 返回 405；真实权限更新未执行，成功 config mutation 的后台刷新由 mock 回归覆盖。截图：model-roles-320-ru-dark-before.png / after.png、model-roles-320-ru-dark-load-error.png、model-roles-320-ru-dark-save-error.png、model-roles-390-ru-light-after.png、model-roles-768-ru-sepia-after.png、model-roles-1440-ru-dark-after.png / light-after.png。viewport 已恢复，用户原 tab 未操作。Impeccable 仍按已确认不可用环境使用 DESIGN.md 人工清单。
 
 下一批继续：profile/user menu Escape、欢迎无匹配与真实空态、复制失败、工具/图片、文件下载和其他格式、绘图大图与内嵌图片、资源导入发布、其余语言。真实触屏/软键盘、认证/写入/对话、扫码 E2E 尚未验证，整体目标保持进行中。
+
+
+### 当前执行：头像菜单与页头弹层
+
+- [x] 先补 RED：头像触发器命名/展开状态与桌面菜单语义；方向键、Escape/Tab、IME 保护及焦点归还；手机关闭按钮与独立 Profile 弹层交接；权限过滤、页面导航和 resize 清理。
+- [x] UserMenu 桌面复用 ResourceCardMenu 的 portal、视口限制和键盘；共享菜单支持已有界面的分隔/分组标题，手机保持 ModalSurface，点击区域至少44px，分组文字沿用主题并改善可读性，动效尊重 reduced-motion。
+- [ ] 四宽度/三主题及短屏实屏复查，核对头像与更多菜单互斥、遮挡/滚动和焦点；全量测试、lint、build 与独立复核后提交。继续整体界面审查，真实 logout/权限写入不执行。
+
+本批 UserMenu 移除重复桌面 portal、click-outside 和遮罩，复用 ResourceCardMenu 的视口限制、语义、键盘与焦点。共享 action 支持现有账号菜单的组标题、分隔和当前页面；权限过滤与导航保持原语义。手机仍复用 ModalSurface，增加 sticky 账号/Close 区域，按钮44px，分组由10px低透明文字改为12px主题次级文字；移除重复入场动画，保留共享 reduced-motion。
+
+最初命名缺失阻止10项行为测试进入后续路径；补最小ARIA后再运行，9失败/1通过明确后续行为RED。共享分组独立RED 1失败/9通过。实测 resize 触发非Node target的 contains TypeError，独立RED后以 instanceof Node 修共享owner。独立复核指出 resize 焦点掉到 BODY，增加仅原菜单持有焦点时归还（新对话控件已聚焦时不抢焦点），3项RED后GREEN。窗口resize capture监听先于响应式owner的bubble卸载，flushSync回归RED 1失败/12通过后修，目标套件24项GREEN。
+
+原生手机 Profile→个人设置→关闭曾返回BODY：最初jsdom缺少inert边界误通过，随后沿用 modalSurface 测试的native inert模拟，确见RED 1失败/10通过。Profile action下一帧先解除sheet背景锁，再聚焦稳定头像并打开新dialog，测试与原生390验证关闭后焦点均回头像。Tab按浏览器默认顺序进入下一页面控件，不要求停留头像；手机fireEvent opener先明确focus，修正这两项测试期望，不当作生产故障。
+
+实屏覆盖320 light、390 dark、768 sepia和1440 light；390×480手机短屏内部滚动约116px，Close仍可见，所有动作约44px、整页横向溢出0。768×360桌面菜单视口内限高344px，End使退出项完整可见并聚焦，仅按Escape退出而未执行Logout。1440方向键、Home/End、Escape，More→头像及头像→More均只保留一个menu；390 More→头像交接与关闭焦点通过。before桌面截图文件名含1440，但当时实际CSS视口1347×757，不能当成1440证据。原生 pressKey(null)曾使菜单消失/焦点BODY，之后从实际聚焦menuitem用locator press完成正确键盘验证。
+
+浏览器 viewport API 的1440→768操作仍在关闭菜单后呈现BODY焦点；capture顺序修正与临时BODY恢复探测都未改变该工具结果，BODY探测已移除，不做猜测补丁。这条原生焦点验证未通过，后续需区分viewport API的焦点重置和实际窗口resize；目前行为测试证明菜单有焦点时归还、新dialog已有焦点时不抢、owner卸载前处理。用户原tab未操作，临时viewport已reset。
+
+八项自检：保留serif账号与14px动作、组标题12px；正文和卡片留白不整体压缩；个人/管理/系统/危险操作分层、当前页柔和高亮；light/dark/sepia沿用主题token；无新增装饰动画、尊重reduced-motion；操作名/aria-expanded/aria-controls、键盘、IME、菜单互斥、滚动和modal交接已核对；四宽度及两种短屏无横向溢出；沿用LambChat头像与视觉语言，无新增依赖/品牌体系。Impeccable按已确认不可用环境使用DESIGN.md人工清单。
+
+截图位于既有interface-quality目录：user-menu-320-ru-light-before.png / after.png、user-menu-390-ru-dark-after.png、user-menu-390-short-dark-top.png / scrolled.png、user-menu-768-short-sepia-after.png / end.png、user-menu-1440-ru-light-after.png。继续欢迎无匹配/真实空态、复制失败、工具/图片、文件下载与其他格式、绘图大图/内嵌图片、资源导入发布和其余语言；真实触屏/软键盘、认证/写入/对话与扫码E2E尚未验证。整体目标保持进行中。
+
+最终生产修改后验证：pnpm test 741文件/3578项通过（新增15项）；pnpm run lint零错误零警告；pnpm run build含tsc与体积门禁通过，eager JS 559076/559104 bytes、precache 5018025/5242880 bytes，未提高预算，保留既有chunk-size提示。git diff --check通过。独立只读复核关闭resize焦点与Profile交接问题，最后capture监听/cleanup成对及flushSync回归未发现新增P1/P2；明确不把测试证明等同原生viewport操作焦点通过。继续整体审查，当前第三项因这条验证边界保持未全勾选。

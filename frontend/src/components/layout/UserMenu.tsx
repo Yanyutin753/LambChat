@@ -1,6 +1,12 @@
 import { ModalSurface } from "../common/ModalSurface";
-import { useRef, useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import {
+  Fragment,
+  useCallback,
+  useId,
+  useRef,
+  useEffect,
+  useState,
+} from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -13,12 +19,17 @@ import {
   Bell,
   Settings,
   BarChart3,
+  X,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
 import { clearSessionSelectionGuard } from "../../utils/sessionSelectionGuard";
 
-import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
+import {
+  ResourceCardMenu,
+  type ResourceCardAction,
+} from "../common/ResourceCardMenu";
+import { IconButton } from "../common";
 import { getFullUrl } from "../../services/api";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
 
@@ -35,7 +46,17 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
     () => typeof window !== "undefined" && window.innerWidth < 640,
   );
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const menuId = useId();
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+  const closeMenu = useCallback((restoreFocus = false) => {
+    setShowMenu(false);
+    if (restoreFocus) buttonRef.current?.focus({ preventScroll: true });
+  }, []);
+  const openMenu = () => {
+    const rect = buttonRef.current!.getBoundingClientRect();
+    setMenuPosition({ x: rect.right - 224, y: rect.bottom + 4 });
+    setShowMenu(true);
+  };
   const location = useLocation();
 
   const canManageUsers = hasAnyPermission([
@@ -54,45 +75,13 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
 
   // Reactive mobile detection
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 640);
+      setShowMenu(false);
+    };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
-
-  // Position dropdown once on open, never recalculate (desktop only)
-  const menuPosition = useStickyDropdownPosition(
-    buttonRef,
-    showMenu && !isMobile,
-    (rect) => ({
-      top: rect.bottom + 8,
-      right: window.innerWidth - rect.right,
-    }),
-  );
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(target) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(target)
-      ) {
-        setShowMenu(false);
-      }
-    };
-    if (showMenu) {
-      const timer = setTimeout(() => {
-        document.addEventListener("click", handleClickOutside);
-      }, 0);
-      return () => {
-        clearTimeout(timer);
-        document.removeEventListener("click", handleClickOutside);
-      };
-    }
-  }, [showMenu, isMobile]);
-
-  // Lock body scroll on mobile when menu is open
 
   useEffect(() => {
     if (showMenu) {
@@ -103,7 +92,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
   }, [location.pathname]);
 
   const menuItemClass =
-    "flex w-full items-center gap-3 px-4 py-2.5 text-left text-14 transition-all duration-150 rounded-lg text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] active:scale-[0.98]";
+    "flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-14 transition-colors duration-150 motion-reduce:transition-none rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle hover:text-theme-text focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]";
 
   const navigateTo = (path: string) => {
     setShowMenu(false);
@@ -160,165 +149,146 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
     },
   ].filter((i) => i.show);
 
-  const hasAdminSection = adminItems.length > 0;
-  const hasSysSection = sysItems.length > 0;
-
-  const renderMenuContent = () => (
-    <>
-      <div className="py-1.5">
-        {/* Personal section */}
-        <button
-          onClick={() => {
-            onShowProfile();
-            setShowMenu(false);
-          }}
-          className={menuItemClass}
-        >
-          <User size={16} strokeWidth={1.8} />
-          <span>{t("users.user")}</span>
-        </button>
-
-        {/* Admin section */}
-        {hasAdminSection && (
-          <>
-            <div className="mx-4 my-1.5 border-t border-[var(--theme-border)]" />
-            <div className="px-4 pt-1 pb-1">
-              <span className="text-10 font-semibold uppercase tracking-widest text-[var(--theme-text-secondary)] opacity-40">
-                {t("nav.groupAdmin")}
-              </span>
-            </div>
-            {adminItems.map((item) => (
-              <button
-                key={item.path}
-                onClick={() => navigateTo(item.path)}
-                className={`${menuItemClass} ${
-                  location.pathname === item.path
-                    ? "text-[var(--theme-text)] font-medium"
-                    : ""
-                }`}
-              >
-                <item.icon size={16} strokeWidth={1.8} />
-                <span>{item.label}</span>
-              </button>
-            ))}
-          </>
-        )}
-
-        {/* System section */}
-        {hasSysSection && (
-          <>
-            <div className="mx-4 my-1.5 border-t border-[var(--theme-border)]" />
-            <div className="px-4 pt-1 pb-1">
-              <span className="text-10 font-semibold uppercase tracking-widest text-[var(--theme-text-secondary)] opacity-40">
-                {t("nav.groupSystem")}
-              </span>
-            </div>
-            {sysItems.map((item) => (
-              <button
-                key={item.path}
-                onClick={() => navigateTo(item.path)}
-                className={`${menuItemClass} ${
-                  location.pathname === item.path
-                    ? "text-[var(--theme-text)] font-medium"
-                    : ""
-                }`}
-              >
-                <item.icon size={16} strokeWidth={1.8} />
-                <span>{item.label}</span>
-              </button>
-            ))}
-          </>
-        )}
-
-        <div className="mx-4 my-1.5 border-t border-[var(--theme-border)]" />
-        <button
-          onClick={() => {
-            logout();
-            setShowMenu(false);
-          }}
-          className={`${menuItemClass} text-red-500/70 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10`}
-        >
-          <LogOut size={16} strokeWidth={1.8} />
-          <span>{t("auth.logout")}</span>
-        </button>
-      </div>
-    </>
-  );
+  const navigationActions = (
+    items: typeof adminItems,
+    groupLabel: string,
+  ): ResourceCardAction[] =>
+    items.map((item, index) => ({
+      label: item.label,
+      icon: <item.icon size={16} strokeWidth={1.8} />,
+      onClick: () => navigateTo(item.path),
+      current: location.pathname === item.path,
+      separatorBefore: index === 0,
+      groupLabel: index === 0 ? groupLabel : undefined,
+    }));
+  const actions: ResourceCardAction[] = [
+    {
+      label: t("users.user"),
+      icon: <User size={16} strokeWidth={1.8} />,
+      onClick: () => {
+        // Wait for the sheet to unlock its background before the new dialog captures its opener.
+        requestAnimationFrame(() => {
+          closeMenu(true);
+          onShowProfile();
+        });
+      },
+    },
+    ...navigationActions(adminItems, t("nav.groupAdmin")),
+    ...navigationActions(sysItems, t("nav.groupSystem")),
+    {
+      label: t("auth.logout"),
+      icon: <LogOut size={16} strokeWidth={1.8} />,
+      onClick: logout,
+      separatorBefore: true,
+      danger: true,
+    },
+  ];
 
   return (
-    <>
-      <div className="relative">
-        <button
-          ref={buttonRef}
-          onClick={() => setShowMenu(!showMenu)}
-          className="flex size-11 sm:size-8 items-center justify-center rounded-lg transition-all hover:ring-2 hover:ring-[var(--theme-primary-light)] active:scale-95 overflow-hidden"
-        >
-          {user?.avatar_url ? (
-            <ImageWithSkeleton
-              src={getFullUrl(user.avatar_url) ?? user.avatar_url}
-              alt={user?.username || t("common.user")}
-              skipUrlResolve
-              inline
-              className="size-5 rounded-full"
-              errorFallback={
-                <div className="flex size-5 items-center justify-center bg-gradient-to-br from-amber-400 to-orange-500 rounded-full">
-                  <span className="text-12 font-semibold text-white font-serif">
-                    {user?.username?.charAt(0).toUpperCase() || "U"}
-                  </span>
-                </div>
-              }
-            />
-          ) : (
-            <div className="flex size-5 items-center justify-center bg-gradient-to-br from-amber-400 to-orange-500 rounded-full">
-              <span className="text-12 font-semibold text-white font-serif">
-                {user?.username?.charAt(0).toUpperCase() || "U"}
-              </span>
-            </div>
-          )}
-        </button>
+    <div className="relative">
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-label={t("profile.title")}
+        aria-haspopup={isMobile ? "dialog" : "menu"}
+        aria-expanded={showMenu}
+        aria-controls={showMenu ? menuId : undefined}
+        onClick={() => (showMenu ? closeMenu() : openMenu())}
+        onKeyDown={(event) => {
+          if (
+            !showMenu &&
+            (event.key === "ArrowDown" || event.key === "ArrowUp")
+          ) {
+            event.preventDefault();
+            openMenu();
+          }
+        }}
+        className="flex size-11 sm:size-8 items-center justify-center rounded-lg transition-colors duration-150 motion-reduce:transition-none hover:ring-2 hover:ring-[var(--theme-primary-light)] focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] overflow-hidden"
+      >
+        {user?.avatar_url ? (
+          <ImageWithSkeleton
+            src={getFullUrl(user.avatar_url) ?? user.avatar_url}
+            alt={user?.username || t("common.user")}
+            skipUrlResolve
+            inline
+            className="size-5 rounded-full"
+            errorFallback={
+              <div className="flex size-5 items-center justify-center bg-gradient-to-br from-amber-400 to-orange-500 rounded-full">
+                <span className="text-12 font-semibold text-white font-serif">
+                  {user?.username?.charAt(0).toUpperCase() || "U"}
+                </span>
+              </div>
+            }
+          />
+        ) : (
+          <div className="flex size-5 items-center justify-center bg-gradient-to-br from-amber-400 to-orange-500 rounded-full">
+            <span className="text-12 font-semibold text-white font-serif">
+              {user?.username?.charAt(0).toUpperCase() || "U"}
+            </span>
+          </div>
+        )}
+      </button>
 
-        {showMenu &&
-          createPortal(
-            isMobile ? (
-              <ModalSurface
-                open
-                onClose={() => setShowMenu(false)}
-                label={t("profile.title")}
-              >
-                <div
-                  ref={menuRef}
-                  className="safe-area-bottom rounded-t-2xl shadow-2xl max-h-[85dvh] overflow-y-auto animate-slide-up-sheet"
-                  style={{ backgroundColor: "var(--theme-bg-card)" }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {renderMenuContent()}
-                </div>
-              </ModalSurface>
-            ) : (
-              // Desktop: positioned dropdown
-              <>
-                <div
-                  className="fixed inset-0 z-[300]"
-                  onClick={() => setShowMenu(false)}
+      {showMenu &&
+        (isMobile ? (
+          <ModalSurface open onClose={closeMenu} label={t("profile.title")}>
+            <div
+              id={menuId}
+              className="safe-area-bottom max-h-[85dvh] overflow-y-auto bg-theme-bg-card"
+            >
+              <div className="sticky top-0 z-10 flex items-center justify-between gap-3 bg-theme-bg-card px-4 py-1">
+                <span className="min-w-0 truncate text-14 font-medium font-serif text-theme-text">
+                  {user?.username || t("common.user")}
+                </span>
+                <IconButton
+                  size="lg"
+                  aria-label={t("common.close")}
+                  icon={<X size={18} />}
+                  onClick={() => closeMenu()}
                 />
-                <div
-                  ref={menuRef}
-                  className="fixed z-[301] w-56 rounded-xl shadow-xl border overflow-hidden animate-scale-in"
-                  style={{
-                    top: `${menuPosition.top}px`,
-                    right: `${menuPosition.right}px`,
-                    backgroundColor: "var(--theme-bg-card)",
-                    borderColor: "var(--theme-border)",
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {renderMenuContent()}
-                </div>
-              </>
-            ),
-            document.body,
-          )}
-      </div>
-    </>
+              </div>
+              <div className="pb-1.5">
+                {actions.map((action) => (
+                  <Fragment key={action.label}>
+                    {action.separatorBefore && (
+                      <div
+                        role="separator"
+                        className="mx-4 my-1.5 border-t border-theme-border"
+                      />
+                    )}
+                    {action.groupLabel && (
+                      <div className="px-4 pt-2 pb-1 text-12 font-medium text-theme-text-secondary">
+                        {action.groupLabel}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      aria-current={action.current ? "page" : undefined}
+                      className={`${menuItemClass} ${action.current ? "bg-theme-bg-subtle font-medium" : ""} ${action.danger ? "!text-theme-error hover:bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)]" : ""}`}
+                      onClick={() => {
+                        closeMenu();
+                        action.onClick?.();
+                      }}
+                    >
+                      {action.icon}
+                      <span className="min-w-0 break-words">
+                        {action.label}
+                      </span>
+                    </button>
+                  </Fragment>
+                ))}
+              </div>
+            </div>
+          </ModalSurface>
+        ) : (
+          <ResourceCardMenu
+            id={menuId}
+            title={t("profile.title")}
+            actions={actions}
+            position={menuPosition}
+            onClose={closeMenu}
+          />
+        ))}
+    </div>
   );
 }

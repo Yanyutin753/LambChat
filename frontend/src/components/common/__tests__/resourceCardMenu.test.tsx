@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { SkillBaseCard } from "../SkillBaseCard";
 import { ResourceCardMenu } from "../ResourceCardMenu";
+import { flushSync } from "react-dom";
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -190,4 +191,104 @@ test("card primary action is separate from its nested controls", () => {
     screen.getByRole("button", { name: "Research", exact: true }),
   );
   expect(activate).toHaveBeenCalledTimes(1);
+});
+
+test("section headings and separators preserve the action focus order", () => {
+  render(
+    <ResourceCardMenu
+      id="grouped-menu"
+      title="Account"
+      position={{ x: 10, y: 10 }}
+      onClose={vi.fn()}
+      actions={[
+        { label: "Profile", onClick: vi.fn() },
+        {
+          label: "Users",
+          onClick: vi.fn(),
+          separatorBefore: true,
+          groupLabel: "Administration",
+        },
+        {
+          label: "Usage",
+          onClick: vi.fn(),
+          separatorBefore: true,
+          groupLabel: "System",
+        },
+        {
+          label: "Sign out",
+          onClick: vi.fn(),
+          separatorBefore: true,
+          danger: true,
+        },
+      ]}
+    />,
+  );
+  expect(screen.getByText("Administration")).toBeTruthy();
+  expect(screen.getByText("System")).toBeTruthy();
+  expect(screen.getAllByRole("separator")).toHaveLength(3);
+  expect(screen.getByRole("menuitem", { name: "Profile" })).toHaveFocus();
+  fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+  expect(screen.getByRole("menuitem", { name: "Users" })).toHaveFocus();
+});
+
+test("window resize dismisses a menu without treating the window as a DOM node", () => {
+  const close = vi.fn();
+  render(
+    <ResourceCardMenu
+      id="resizing-menu"
+      title="Actions"
+      position={{ x: 10, y: 10 }}
+      onClose={close}
+      actions={[{ label: "Edit", onClick: vi.fn() }]}
+    />,
+  );
+  fireEvent(window, new Event("resize"));
+  expect(close).toHaveBeenCalledOnce();
+  expect(close).toHaveBeenCalledWith(true);
+});
+
+test("viewport dismissal preserves focus already claimed by a new dialog", () => {
+  const close = vi.fn();
+  render(
+    <>
+      <ResourceCardMenu
+        id="old-menu"
+        title="Actions"
+        position={{ x: 10, y: 10 }}
+        onClose={close}
+        actions={[{ label: "Edit", onClick: vi.fn() }]}
+      />
+      <div role="dialog" aria-modal="true">
+        <button>New dialog action</button>
+      </div>
+    </>,
+  );
+  screen.getByRole("button", { name: "New dialog action" }).focus();
+  fireEvent(window, new Event("resize"));
+  expect(close).toHaveBeenCalledWith(false);
+  expect(
+    screen.getByRole("button", { name: "New dialog action" }),
+  ).toHaveFocus();
+});
+
+test("resize returns menu focus before its owner updates the responsive layout", () => {
+  const close = vi.fn();
+  let unmount = () => {};
+  const ownerResize = () => flushSync(() => unmount());
+  window.addEventListener("resize", ownerResize);
+  try {
+    ({ unmount } = render(
+      <ResourceCardMenu
+        id="responsive-menu"
+        title="Actions"
+        position={{ x: 10, y: 10 }}
+        onClose={close}
+        actions={[{ label: "Edit", onClick: vi.fn() }]}
+      />,
+    ));
+    fireEvent(window, new Event("resize"));
+    expect(close).toHaveBeenCalledWith(true);
+  } finally {
+    window.removeEventListener("resize", ownerResize);
+  }
 });
