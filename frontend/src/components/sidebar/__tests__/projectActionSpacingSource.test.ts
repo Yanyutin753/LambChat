@@ -15,7 +15,7 @@ test("project header actions share equal slots and a single gap", () => {
   expect(actions.match(/max-sm:h-9 max-sm:w-9/g)).toHaveLength(3);
 });
 
-test("project actions reveal on hover or keyboard focus and remain visible on touch", () => {
+test("project actions reveal on hover or keyboard focus and reveal on touch", () => {
   const source = readFileSync(
     new URL("../ProjectItem.tsx", import.meta.url),
     "utf8",

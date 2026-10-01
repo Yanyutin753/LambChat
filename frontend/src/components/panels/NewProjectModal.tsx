@@ -1,4 +1,5 @@
-import { createPortal } from "react-dom";
+import { ModalSurface } from "../common/ModalSurface";
+
 import { useTranslation } from "react-i18next";
 import type { Project } from "../../types";
 import { ProjectWorkspaceField } from "../sidebar/ProjectWorkspaceField";
@@ -26,12 +27,8 @@ export function NewProjectModal({
 }: NewProjectModalProps) {
   const { t } = useTranslation();
 
-  return createPortal(
-    <div
-      data-yields-sidebar
-      className="safe-area-viewport-padding fixed inset-0 z-[300] flex items-center justify-center"
-    >
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+  return (
+    <ModalSurface open={true} onClose={onClose} dismissible={true}>
       <div className="relative bg-theme-bg-card dark:bg-stone-800 rounded-xl shadow-2xl p-5 w-[90vw] max-w-md space-y-3">
         <h3 className="text-14 font-semibold font-sans text-stone-800 dark:text-stone-100">
           {t("sidebar.newProject")}
@@ -99,7 +96,6 @@ export function NewProjectModal({
           </button>
         </div>
       </div>
-    </div>,
-    document.body,
+    </ModalSurface>
   );
 }

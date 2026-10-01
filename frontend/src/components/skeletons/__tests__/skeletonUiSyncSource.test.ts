@@ -14,14 +14,14 @@ test("chat input toolbar skeleton mirrors current toolbar layout", () => {
   const toolbar = read("../../chat/ChatInputToolbar.tsx");
   const skeleton = read("../ChatSkeletons.tsx");
 
-  // 真实工具栏：外层 gap-1、左簇 gap-0.5 sm:gap-1.5、右簇同轴居中 gap-1 sm:gap-1.5
-  expect(toolbar).toMatch(/justify-between gap-1 px-2 pb-3 pt-3 mx-0\.5/);
-  expect(toolbar).toMatch(/flex-1 items-center gap-0\.5 sm:gap-1\.5/);
-  expect(toolbar).toMatch(/items-center gap-1 sm:gap-1\.5 self-center/);
+  // 真实工具栏与骨架统一使用 gap-1.5，右簇同轴居中
+  expect(toolbar).toMatch(/justify-between gap-1\.5 px-2 pb-3 pt-3 mx-0\.5/);
+  expect(toolbar).toMatch(/flex-1 items-center gap-1\.5/);
+  expect(toolbar).toMatch(/items-center gap-1\.5 self-center/);
 
-  expect(skeleton).toMatch(/justify-between gap-1 px-2 pb-3 pt-3 mx-0\.5/);
-  expect(skeleton).toMatch(/flex-1 items-center gap-0\.5 sm:gap-1\.5/);
-  expect(skeleton).toMatch(/items-center gap-1 sm:gap-1\.5 self-center/);
+  expect(skeleton).toMatch(/justify-between gap-1\.5 px-2 pb-3 pt-3 mx-0\.5/);
+  expect(skeleton).toMatch(/flex-1 items-center gap-1\.5/);
+  expect(skeleton).toMatch(/items-center gap-1\.5 self-center/);
   // 左簇不再设横向滚动容器（真实组件已移除，滚动会裁切 chip）
   expect(skeleton).not.toMatch(/overflow-x-auto/);
 });

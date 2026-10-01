@@ -39,7 +39,10 @@ test("restored card keeps use, edit and pin actions available", () => {
   );
   fireEvent.click(screen.getByRole("button", { name: "personaPresets.use" }));
   expect(onUse).toHaveBeenCalledWith(preset);
-  fireEvent.click(screen.getByRole("button", { name: "personaPresets.edit" }));
+  fireEvent.click(screen.getByRole("button", { name: "common.moreOptions" }));
+  fireEvent.click(
+    screen.getByRole("menuitem", { name: "personaPresets.edit" }),
+  );
   expect(onEdit).toHaveBeenCalledWith(preset);
   fireEvent.click(screen.getByRole("button", { name: "personaPresets.pin" }));
   expect(onTogglePreference).toHaveBeenCalledWith(preset, { is_pinned: true });

@@ -1,5 +1,6 @@
-import { createPortal } from "react-dom";
-import { useState, useEffect, useRef } from "react";
+import { ModalSurface } from "../common/ModalSurface";
+import { Select } from "../common/ui/Select";
+import { useState, useEffect, useRef, useId } from "react";
 import { useTranslation } from "react-i18next";
 import {
   X,
@@ -23,18 +24,15 @@ import { ProfileEnvVarsTab } from "./tabs/ProfileEnvVarsTab";
 import { ProfileToolsTab } from "./tabs/ProfileToolsTab";
 import { ProfileModelsTab } from "./tabs/ProfileModelsTab";
 import { ProfileTermsTab } from "./tabs/ProfileTermsTab";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
-import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
+
+import "./profile.css";
 
 interface ProfileModalProps {
   showProfileModal: boolean;
   onCloseProfileModal: () => void;
 }
 
-const TAB_ICONS: Record<
-  string,
-  React.FC<{ size?: number; className?: string }>
-> = {
+const TAB_ICONS = {
   info: User,
   notification: Bell,
   preferences: Settings,
@@ -43,6 +41,7 @@ const TAB_ICONS: Record<
   models: Cpu,
   terms: Scale,
 };
+type ProfileTab = keyof typeof TAB_ICONS;
 
 export function ProfileModal({
   showProfileModal,
@@ -50,268 +49,121 @@ export function ProfileModal({
 }: ProfileModalProps) {
   const { t } = useTranslation();
   const { logout } = useAuth();
-
-  const [activeTab, setActiveTab] = useState<
-    | "info"
-    | "notification"
-    | "preferences"
-    | "envvars"
-    | "tools"
-    | "models"
-    | "terms"
-  >("info");
-
-  const mobileTabsRef = useRef<HTMLDivElement>(null);
-  const activeTabRef = useRef<HTMLButtonElement>(null);
-  const swipeRef = useSwipeToClose({
-    onClose: onCloseProfileModal,
-    enabled: showProfileModal,
-  });
-  useBodyScrollLock(showProfileModal);
-
-  // Auto-scroll to active tab on mobile
-  useEffect(() => {
-    activeTabRef.current?.scrollIntoView({
-      behavior: "smooth",
-      inline: "center",
-      block: "nearest",
-    });
-  }, [activeTab]);
-
-  // Reset tab when modal opens
+  const [activeTab, setActiveTab] = useState<ProfileTab>("info");
+  const contentRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   useEffect(() => {
     if (showProfileModal) setActiveTab("info");
   }, [showProfileModal]);
 
-  // ESC key to close
   useEffect(() => {
-    if (!showProfileModal) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCloseProfileModal();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [showProfileModal, onCloseProfileModal]);
-
+    if (contentRef.current) contentRef.current.scrollTop = 0;
+  }, [activeTab]);
   if (!showProfileModal) return null;
 
-  const tabs: { key: typeof activeTab; label: string }[] = [
+  const tabs: { key: ProfileTab; label: string }[] = [
     { key: "info", label: t("profile.title") },
     { key: "notification", label: t("profile.notifications") },
     { key: "preferences", label: t("profile.preferences") },
     { key: "envvars", label: t("envVars.title") },
-    { key: "tools", label: t("profile.toolsTab", "Tools") },
+    { key: "tools", label: t("profile.toolsTab") },
     { key: "models", label: t("profile.modelIntro") },
     { key: "terms", label: t("profile.termsTab") },
   ];
-
-  const renderTabContent = () => (
-    <div className="animate-fade-in">
-      {activeTab === "info" && <ProfileInfoTab />}
-      {activeTab === "notification" && <ProfileNotificationTab />}
-      {activeTab === "preferences" && <ProfilePreferencesTab />}
-      {activeTab === "envvars" && <ProfileEnvVarsTab />}
-      {activeTab === "tools" && <ProfileToolsTab />}
-      {activeTab === "models" && <ProfileModelsTab />}
-      {activeTab === "terms" && <ProfileTermsTab />}
-    </div>
-  );
-
-  const renderCloseButton = (className?: string) => (
+  const logoutButton = (
     <button
-      onClick={onCloseProfileModal}
-      className={`p-1.5 rounded-lg text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-subtle dark:text-stone-500 dark:hover:text-stone-300 dark:hover:bg-stone-700/60 transition-all ${
-        className ?? ""
-      }`}
+      type="button"
+      className="profile-logout"
+      onClick={() => {
+        logout();
+        onCloseProfileModal();
+      }}
     >
-      <X size={18} />
+      <LogOut size={16} />
+      {t("auth.logout")}
     </button>
   );
 
-  const renderFooter = (className?: string) => (
-    <div
-      className={`px-4 sm:px-5 py-2.5 sm:py-3 border-t border-theme-border-subtle dark:border-stone-700/50 flex items-center justify-between bg-theme-bg-subtle dark:bg-stone-900/30 whitespace-nowrap ${
-        className ?? ""
-      }`}
+  return (
+    <ModalSurface
+      open={showProfileModal}
+      onClose={onCloseProfileModal}
+      labelledBy={titleId}
+      className="profile-modal-surface"
     >
-      <a
-        href="https://github.com/Yanyutin753/LambChat"
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(e) => e.stopPropagation()}
-        className="text-11 text-theme-text-tertiary dark:text-stone-500 tabular-nums hover:text-theme-text-secondary dark:hover:text-stone-300 transition-colors flex items-center gap-1 leading-none"
-      >
-        <BrandWordmark
-          decorative
-          className="inline-block h-4 w-auto text-theme-text-secondary dark:text-stone-400"
-        />
-        {/* 客户端自身版本（打包进 bundle），不是所连服务端的版本 */}
-        <span className="opacity-70 font-serif leading-none">
-          v{APP_VERSION}
-        </span>
-      </a>
-      <a
-        href="https://github.com/Yanyutin753/LambChat"
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(e) => e.stopPropagation()}
-        className="px-1.5 sm:px-2 text-11 font-medium text-theme-text-tertiary dark:text-stone-500 hover:text-theme-text-secondary dark:hover:text-stone-300 transition-colors py-1 rounded-md hover:bg-theme-bg-subtle dark:hover:bg-stone-700/60 shrink-0 font-serif leading-none"
-      >
-        {t("common.poweredBy")}
-      </a>
-    </div>
-  );
-
-  return createPortal(
-    <div
-      data-yields-sidebar
-      className="safe-area-viewport-padding-top fixed inset-0 z-[300] flex items-end sm:items-center sm:justify-center"
-      onClick={() => onCloseProfileModal()}
-    >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 animate-fade-in" />
-
-      {/* ===== Mobile: bottom sheet ===== */}
-      <div
-        ref={swipeRef as React.RefObject<HTMLDivElement>}
-        className="sm:hidden relative z-10 w-full bg-theme-bg-card dark:bg-stone-800 rounded-t-2xl shadow-2xl shadow-black/20 dark:shadow-black/50 border-x border-t border-theme-border dark:border-stone-700/60 overflow-hidden max-h-[90dvh] flex flex-col animate-slide-up-sheet safe-area-bottom"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-9 h-1 bg-theme-border-hover dark:bg-stone-600 rounded-full" />
-        </div>
-
-        {/* Header */}
-        <div className="px-4 py-2.5 flex items-center justify-between">
-          <h3 className="text-15 font-semibold text-theme-text dark:text-stone-100 tracking-tight font-serif">
-            {t("profile.title")}
-          </h3>
-          {renderCloseButton()}
-        </div>
-
-        {/* Mobile Tabs */}
-        <div className="px-3 pb-1">
-          <div
-            ref={mobileTabsRef}
-            className="flex gap-1 overflow-x-auto scrollbar-none scroll-smooth"
-            style={{ scrollSnapType: "x mandatory" }}
+      <div className="profile-dialog safe-area-bottom">
+        <header className="profile-header">
+          <h2 id={titleId} className="font-serif">
+            {t("nav.settings")}
+          </h2>
+          <button
+            type="button"
+            className="profile-icon-button"
+            aria-label={t("common.close")}
+            onClick={onCloseProfileModal}
           >
-            {tabs.map((tab) => {
-              const Icon = TAB_ICONS[tab.key];
-              const isActive = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  ref={isActive ? activeTabRef : undefined}
-                  onClick={() => setActiveTab(tab.key)}
-                  style={{ scrollSnapAlign: "start" }}
-                  className={`relative shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-12 font-medium transition-all whitespace-nowrap ${
-                    isActive
-                      ? "bg-theme-text text-theme-bg-card dark:bg-stone-100 dark:text-stone-900"
-                      : "text-theme-text-secondary dark:text-stone-400 hover:bg-theme-bg-subtle dark:hover:bg-stone-700/50"
-                  }`}
-                >
-                  {Icon && <Icon size={14} />}
-                  {tab.label}
-                </button>
-              );
-            })}
-            <button
-              onClick={() => {
-                logout();
-                onCloseProfileModal();
-              }}
-              className="relative shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-12 font-medium transition-all whitespace-nowrap text-theme-error dark:text-red-400 hover:bg-[color-mix(in_srgb,var(--theme-error)_12%,transparent)] dark:hover:bg-red-900/20"
-            >
-              <LogOut size={14} />
-              {t("auth.logout")}
-            </button>
+            <X size={18} />
+          </button>
+        </header>
+        <div className="profile-body">
+          <nav className="profile-nav" aria-label={t("profile.preferences")}>
+            <div className="profile-nav-items">
+              {tabs.map((tab) => {
+                const Icon = TAB_ICONS[tab.key];
+                return (
+                  <button
+                    type="button"
+                    key={tab.key}
+                    aria-current={activeTab === tab.key ? "page" : undefined}
+                    onClick={() => setActiveTab(tab.key)}
+                  >
+                    <Icon size={16} />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {logoutButton}
+          </nav>
+          <div className="profile-category">
+            <Select
+              value={activeTab}
+              onChange={(value) => setActiveTab(value as ProfileTab)}
+              ariaLabel={t("profile.preferences")}
+              options={tabs.map((tab) => ({
+                value: tab.key,
+                label: tab.label,
+              }))}
+            />
+            {logoutButton}
           </div>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4">
-          {renderTabContent()}
-        </div>
-
-        {/* Footer */}
-        {renderFooter()}
-      </div>
-
-      {/* ===== Desktop: centered with sidebar ===== */}
-      <div
-        className="hidden sm:flex relative z-10 w-[80vw] max-w-[680px] h-[75dvh] max-h-[640px] bg-theme-bg-card dark:bg-stone-800 rounded-2xl shadow-2xl shadow-stone-900/10 dark:shadow-black/40 border border-theme-border dark:border-stone-700/50 overflow-hidden flex-col animate-scale-in"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-5 py-4 flex items-center justify-between border-b border-theme-border-subtle dark:border-stone-700/50">
-          <div>
-            <h3 className="text-14 font-semibold font-serif text-theme-text dark:text-stone-100 tracking-tight">
-              {t("profile.title")}
-            </h3>
-            <p className="text-11 text-theme-text-tertiary dark:text-stone-500 mt-0.5">
-              {t("profile.title")}
-            </p>
-          </div>
-          {renderCloseButton()}
-        </div>
-
-        {/* Body: left sidebar tabs + right content */}
-        <div className="flex flex-1 min-h-0">
-          {/* Left sidebar tabs */}
-          <div className="w-[152px] shrink-0 border-r border-theme-border-subtle dark:border-stone-700/50 py-2 px-2 space-y-0.5 bg-theme-bg-subtle dark:bg-stone-900/20">
-            {tabs.map((tab) => {
-              const Icon = TAB_ICONS[tab.key];
-              const isActive = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`w-full text-left flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-12 font-medium transition-all ${
-                    isActive
-                      ? "bg-theme-bg-card dark:bg-stone-800 text-theme-text dark:text-stone-100 shadow-sm border border-theme-border dark:border-stone-700/60"
-                      : "text-theme-text-secondary dark:text-stone-400 hover:text-theme-text dark:hover:text-stone-200 hover:bg-theme-bg-card dark:hover:bg-stone-800/60 border border-transparent"
-                  }`}
-                >
-                  {Icon && (
-                    <Icon
-                      size={15}
-                      className={
-                        isActive
-                          ? "text-amber-500 dark:text-amber-400"
-                          : "opacity-60"
-                      }
-                    />
-                  )}
-                  {tab.label}
-                </button>
-              );
-            })}
-            <div className="!mt-3 pt-3 border-t border-theme-border dark:border-stone-700/50">
-              <button
-                onClick={() => {
-                  logout();
-                  onCloseProfileModal();
-                }}
-                className="w-full text-left flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-12 font-medium transition-all text-theme-error dark:text-red-400 hover:opacity-80 dark:hover:text-red-300 hover:bg-[color-mix(in_srgb,var(--theme-error)_12%,transparent)] dark:hover:bg-red-900/20 border border-transparent"
-              >
-                <LogOut size={15} className="opacity-70" />
-                {t("auth.logout")}
-              </button>
+          <div ref={contentRef} className="profile-content">
+            <div key={activeTab} className="profile-page">
+              <h2 className="profile-page-title font-serif">
+                {tabs.find((tab) => tab.key === activeTab)?.label}
+              </h2>
+              {activeTab === "info" && <ProfileInfoTab />}
+              {activeTab === "notification" && <ProfileNotificationTab />}
+              {activeTab === "preferences" && <ProfilePreferencesTab />}
+              {activeTab === "envvars" && <ProfileEnvVarsTab />}
+              {activeTab === "tools" && <ProfileToolsTab />}
+              {activeTab === "models" && <ProfileModelsTab />}
+              {activeTab === "terms" && <ProfileTermsTab />}
             </div>
           </div>
-
-          {/* Right content */}
-          <div className="flex-1 overflow-y-auto p-5 sm:p-8">
-            {renderTabContent()}
-          </div>
         </div>
-
-        {/* Footer */}
-        {renderFooter()}
+        <footer className="profile-footer">
+          <a
+            href="https://github.com/Yanyutin753/LambChat"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <BrandWordmark decorative className="h-4 w-auto" />
+            <span>v{APP_VERSION}</span>
+          </a>
+          <span>{t("common.poweredBy")}</span>
+        </footer>
       </div>
-    </div>,
-    document.body,
+    </ModalSurface>
   );
 }

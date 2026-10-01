@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 
-test("macOS positions native controls beside the centered 40px toolbar", () => {
+test("macOS positions native controls beside the centered 36px toolbar", () => {
   const config = JSON.parse(
     readFileSync(
       new URL(
@@ -11,11 +11,12 @@ test("macOS positions native controls beside the centered 40px toolbar", () => {
       "utf8",
     ),
   );
+  // Native controls share the 17.5px center of the 36px row above its border.
   expect(config.app.windows[0]).toMatchObject({
     decorations: true,
     titleBarStyle: "Overlay",
     hiddenTitle: true,
-    trafficLightPosition: { x: 16, y: 18 },
+    trafficLightPosition: { x: 12, y: 19.5 },
   });
 });
 
@@ -24,6 +25,6 @@ test("desktop frame reserves the platform titlebar height during loading", () =>
     new URL("../DesktopTitlebarFrame.tsx", import.meta.url),
     "utf8",
   );
-  expect(frame).toContain('"40px"');
-  expect(frame).toContain('className="h-10 shrink-0"');
+  expect(frame).toContain('os === "mac" ? "36px" : "40px"');
+  expect(frame).toContain('os === "mac" ? "h-9 shrink-0" : "h-10 shrink-0"');
 });

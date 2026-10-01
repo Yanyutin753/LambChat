@@ -1,3 +1,4 @@
+import { ModalSurface } from "../common/ModalSurface";
 /**
  * Session context menu component for session actions
  */
@@ -20,7 +21,7 @@ import {
 import type { BackendSession } from "../../services/api/session";
 import type { Project } from "../../types";
 import { DynamicIcon } from "../common/DynamicIcon";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
+
 import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 import { isSidebarProject } from "../panels/SidebarParts/projectFilters";
 
@@ -130,11 +131,6 @@ export function SessionMenu({
     return window.innerWidth < 640;
   });
 
-  const swipeRef = useSwipeToClose({
-    onClose,
-    enabled: isOpen && isMobile,
-  });
-
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 640);
     window.addEventListener("resize", handleResize);
@@ -145,6 +141,7 @@ export function SessionMenu({
   useEffect(() => {
     if (!isOpen) return;
     const handleClickOutside = (event: MouseEvent) => {
+      if (isMobile) return;
       if (
         menuRef.current &&
         !menuRef.current.contains(event.target as Node) &&
@@ -155,12 +152,13 @@ export function SessionMenu({
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen, onClose, anchorEl]);
+  }, [isOpen, onClose, anchorEl, isMobile]);
 
   // Close on escape key
   useEffect(() => {
     if (!isOpen) return;
     const handleEscape = (event: KeyboardEvent) => {
+      if (isMobile) return;
       if (event.key === "Escape") {
         if (subPanel) setSubPanel(null);
         else onClose();
@@ -168,7 +166,7 @@ export function SessionMenu({
     };
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
-  }, [isOpen, onClose, subPanel]);
+  }, [isOpen, onClose, subPanel, isMobile]);
 
   // Reset sub-panel when menu closes
   useEffect(() => {
@@ -376,26 +374,12 @@ export function SessionMenu({
   // ── Mobile: bottom sheet ──────────────────────────────────────────
   if (isMobile) {
     return (
-      <>
+      <ModalSurface open onClose={onClose} label={t("sidebar.sessionOptions")}>
         <div
-          className="fixed inset-0 z-40 bg-black/50 sm:hidden"
-          onClick={onClose}
-        />
-        <div
-          ref={(el) => {
-            menuRef.current = el;
-            swipeRef.current = el;
-          }}
-          className="safe-area-x safe-area-bottom fixed bottom-0 left-0 right-0 z-50 sm:hidden rounded-t-2xl shadow-xl max-h-[70dvh] overflow-y-auto animate-in fade-in slide-in-from-bottom-4 duration-200"
+          ref={menuRef}
+          className="safe-area-x safe-area-bottom rounded-t-2xl shadow-xl max-h-[70dvh] overflow-y-auto animate-in fade-in slide-in-from-bottom-4 duration-200"
           style={{ backgroundColor: "var(--theme-bg-card)" }}
         >
-          <div className="flex justify-center py-2">
-            <div
-              className="w-10 h-1 rounded-full"
-              style={{ background: "var(--theme-border)" }}
-            />
-          </div>
-
           <div
             className="flex items-center justify-between px-4 pb-2"
             style={{ color: "var(--theme-text)" }}
@@ -416,7 +400,7 @@ export function SessionMenu({
             {subPanel ? projectSubPanel : mainMenu}
           </div>
         </div>
-      </>
+      </ModalSurface>
     );
   }
 

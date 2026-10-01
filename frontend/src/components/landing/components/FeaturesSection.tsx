@@ -36,10 +36,10 @@ export function FeaturesSection() {
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <div>
-                  <h3 className="font-serif text-20 text-theme-text mb-3">
+                  <h3 className="font-serif text-24 text-theme-text mb-3">
                     {t(`landing.${feature.titleKey}`)}
                   </h3>
-                  <p className="text-14 leading-[1.8] text-theme-text-secondary">
+                  <p className="text-15 leading-[1.8] text-theme-text-secondary">
                     {t(`landing.${feature.descKey}`)}
                   </p>
                   <p className="mt-4 text-12 text-theme-text-muted">

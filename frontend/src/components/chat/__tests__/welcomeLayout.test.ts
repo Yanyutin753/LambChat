@@ -150,9 +150,10 @@ test("keeps chat input skeleton structure 1:1 with real ChatInput", () => {
   expect(chatSkeletonsSource).toMatch(
     /className="bg-transparent w-full pt-\[10px\] text-15 leading-relaxed min-h-\[40px\] sm:min-h-\[44px\]"/,
   );
-  expect(chatSkeletonsSource).toMatch(
-    /className="flex max-w-full flex-nowrap justify-between gap-1 px-2 pb-3 pt-3 mx-0\.5"/,
-  );
+  const toolbarSource = readFileSync(resolve(currentDir, "../ChatInputToolbar.tsx"), "utf8");
+  const toolbarClasses = toolbarSource.match(/className="chat-input-toolbar ([^"]+)"/)?.[1];
+  expect(toolbarClasses).toBeTruthy();
+  expect(chatSkeletonsSource).toContain(`className="${toolbarClasses}"`);
   expect(chatSkeletonsSource).toMatch(
     /className="chat-tool-btn group shrink min-w-0 overflow-hidden pointer-events-none"/,
   );

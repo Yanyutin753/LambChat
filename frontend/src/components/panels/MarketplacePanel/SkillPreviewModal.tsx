@@ -1,5 +1,6 @@
+import { ModalSurface } from "../../common/ModalSurface";
 import { useState } from "react";
-import { createPortal } from "react-dom";
+
 import {
   FileText,
   ShoppingBag,
@@ -130,7 +131,7 @@ export function SkillPreviewModal({
                 {previewFiles.files.map((filePath) => {
                   const isLoaded = Boolean(
                     previewFileContent[filePath] ||
-                      previewBinaryFiles[filePath],
+                    previewBinaryFiles[filePath],
                   );
                   const isLoadingFile = previewFileLoading === filePath;
 
@@ -182,66 +183,64 @@ export function SkillPreviewModal({
         </div>
       </EditorSidebar>
 
-      {previewFilePath &&
-        createPortal(
+      {previewFilePath && (
+        <ModalSurface
+          layer={1200}
+          className="modal-wide"
+          open
+          onClose={() => setPreviewFilePath(null)}
+        >
           <div
-            role="dialog"
-            aria-modal="true"
-            className="safe-area-viewport-padding fixed inset-0 z-[1200] flex items-center justify-center bg-black/45 p-3 sm:p-6"
-            onClick={() => setPreviewFilePath(null)}
+            className="flex h-[min(84dvh,880px)] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-[0_24px_80px_-32px_rgba(0,0,0,0.55)]"
+            onClick={(event) => event.stopPropagation()}
           >
-            <div
-              className="flex h-[min(84dvh,880px)] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-[0_24px_80px_-32px_rgba(0,0,0,0.55)]"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="flex min-h-0 items-center gap-2.5 border-b border-[var(--theme-border)] bg-[var(--theme-bg-card)] px-3 py-2 sm:px-4">
-                <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-[var(--theme-primary-light)] text-[var(--theme-primary)]">
-                  <FileText size={13} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-14 font-medium text-[var(--theme-text)]">
-                    {previewFilePath}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  aria-label={t("marketplace.closePreview")}
-                  title={t("marketplace.closePreview")}
-                  onClick={() => setPreviewFilePath(null)}
-                  className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-[var(--theme-text-secondary)] transition-colors hover:bg-[var(--theme-bg-subtle)] hover:text-[var(--theme-text)]"
-                >
-                  <X size={15} />
-                </button>
+            <div className="flex min-h-0 items-center gap-2.5 border-b border-[var(--theme-border)] bg-[var(--theme-bg-card)] px-3 py-2 sm:px-4">
+              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-[var(--theme-primary-light)] text-[var(--theme-primary)]">
+                <FileText size={13} />
               </div>
-
-              <div className="min-h-0 flex-1 overflow-hidden bg-[var(--theme-bg)]">
-                {isPreviewLoading ? (
-                  <div className="flex h-full items-center justify-center gap-2 text-14 text-[var(--theme-text-secondary)]">
-                    <LoadingSpinner size="sm" />
-                    <span>{t("marketplace.loadingFiles")}</span>
-                  </div>
-                ) : previewBinaryInfo ? (
-                  <BinaryFilePreview
-                    url={previewBinaryInfo.url}
-                    mime_type={previewBinaryInfo.mime_type}
-                    size={previewBinaryInfo.size}
-                    fileName={previewFilePath}
-                  />
-                ) : (
-                  <SkillEditor
-                    value={previewTextContent ?? ""}
-                    onChange={() => undefined}
-                    filePath={previewFilePath}
-                    readOnly
-                    lineWrapping={false}
-                    className="flex-1 min-h-0"
-                  />
-                )}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-14 font-medium text-[var(--theme-text)]">
+                  {previewFilePath}
+                </div>
               </div>
+              <button
+                type="button"
+                aria-label={t("marketplace.closePreview")}
+                title={t("marketplace.closePreview")}
+                onClick={() => setPreviewFilePath(null)}
+                className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-[var(--theme-text-secondary)] transition-colors hover:bg-[var(--theme-bg-subtle)] hover:text-[var(--theme-text)]"
+              >
+                <X size={15} />
+              </button>
             </div>
-          </div>,
-          document.body,
-        )}
+
+            <div className="min-h-0 flex-1 overflow-hidden bg-[var(--theme-bg)]">
+              {isPreviewLoading ? (
+                <div className="flex h-full items-center justify-center gap-2 text-14 text-[var(--theme-text-secondary)]">
+                  <LoadingSpinner size="sm" />
+                  <span>{t("marketplace.loadingFiles")}</span>
+                </div>
+              ) : previewBinaryInfo ? (
+                <BinaryFilePreview
+                  url={previewBinaryInfo.url}
+                  mime_type={previewBinaryInfo.mime_type}
+                  size={previewBinaryInfo.size}
+                  fileName={previewFilePath}
+                />
+              ) : (
+                <SkillEditor
+                  value={previewTextContent ?? ""}
+                  onChange={() => undefined}
+                  filePath={previewFilePath}
+                  readOnly
+                  lineWrapping={false}
+                  className="flex-1 min-h-0"
+                />
+              )}
+            </div>
+          </div>
+        </ModalSurface>
+      )}
     </>
   );
 }

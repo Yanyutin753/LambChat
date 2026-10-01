@@ -19,16 +19,6 @@ test("content beside the activity rail has curved left corners on every page", (
   );
 });
 
-test("dark workspace gives the sidebar its own theme-derived surface", () => {
-  const css = readFileSync(new URL("../desktop.css", import.meta.url), "utf8")
-    .replace(/\s+/g, " ")
-    .replace(/\(\s+/g, "(")
-    .replace(/\s+\)/g, ")");
-  expect(css).toMatch(
-    /html\.dark:has\(\[data-desktop-activity-rail\]\)\s*\{[^}]*--theme-bg-sidebar: color-mix\(in srgb, var\(--theme-bg\) 94%, var\(--theme-text\)\)/,
-  );
-});
-
 test("activity rail surface takes priority over its utility background", () => {
   const css = readFileSync(new URL("../desktop.css", import.meta.url), "utf8")
     .replace(/\s+/g, " ")
@@ -39,43 +29,11 @@ test("activity rail surface takes priority over its utility background", () => {
   );
 });
 
-test("dark desktop canvas and cards share a restrained theme palette", () => {
-  const css = readFileSync(new URL("../desktop.css", import.meta.url), "utf8")
-    .replace(/\s+/g, " ")
-    .replace(/\(\s+/g, "(")
-    .replace(/\s+\)/g, ")");
-  expect(css).toContain(
-    "--desktop-canvas-bg: color-mix(in srgb, var(--theme-bg) 97%, var(--theme-text))",
-  );
-  expect(css).toContain(
-    "--theme-bg-card: color-mix(in srgb, var(--theme-bg) 88%, var(--theme-text))",
-  );
-  expect(css).toContain(
-    "background: var(--desktop-canvas-bg, var(--theme-bg))",
-  );
-});
-
-test("nested composer and fade surfaces inherit the desktop canvas color", () => {
-  const css = readFileSync(new URL("../desktop.css", import.meta.url), "utf8")
-    .replace(/\s+/g, " ")
-    .replace(/\(\s+/g, "(")
-    .replace(/\s+\)/g, ")");
-  expect(css).toMatch(
-    /:is\(\[data-workspace-content\], \.tool-console-panel, \.editor-sidebar\)\s*\{[^}]*--theme-bg: var\(--desktop-canvas-bg\)/,
-  );
-});
-
-test("portalled previews share the workspace canvas and neutral chrome", () => {
-  const css = readFileSync(new URL("../desktop.css", import.meta.url), "utf8")
-    .replace(/\s+/g, " ")
-    .replace(/\(\s+/g, "(")
-    .replace(/\s+\)/g, ")");
-  expect(css).toContain(
-    ":is([data-workspace-content], .tool-console-panel, .editor-sidebar)",
-  );
-  expect(css).toContain(
-    "--theme-bg-subtle: color-mix(in srgb, var(--theme-bg) 92%, var(--theme-text))",
-  );
+test("desktop rail keeps its original distinct tint without recursive theme aliases", () => {
+  const css = readFileSync(new URL("../desktop.css", import.meta.url), "utf8");
+  expect(css).not.toMatch(/--theme-bg(?:-card|-subtle|-elevated|-sidebar)?:/);
+  expect(css).not.toContain("--desktop-canvas-bg:");
+  expect(css.replace(/\s+/g, " ")).toMatch(/--desktop-rail-bg: color-mix\( in srgb, var\(--theme-bg-sidebar\) 94%, var\(--theme-text\) \)/);
 });
 
 test("file paper previews use the shared surface instead of a fixed stone color", () => {

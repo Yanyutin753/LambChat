@@ -1,3 +1,4 @@
+import { ModalSurface } from "../common/ModalSurface";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -52,14 +53,7 @@ export function ShortcutDialog({
   if (!open) return null;
 
   return (
-    <div
-      className="safe-area-viewport-padding fixed inset-0 z-[100] flex items-center justify-center"
-      onClick={onClose}
-    >
-      <div
-        className="absolute inset-0"
-        style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
-      />
+    <ModalSurface open={open} onClose={onClose} className="modal-size-md">
       <div
         className="relative w-full max-w-md mx-4 rounded-2xl p-5 shadow-xl"
         style={{
@@ -174,6 +168,6 @@ export function ShortcutDialog({
           />
         </div>
       </div>
-    </div>
+    </ModalSurface>
   );
 }

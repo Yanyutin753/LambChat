@@ -1138,6 +1138,7 @@
     "welcomeSuggestions": "おすすめ"
   },
   "common": {
+    "moreOptions": "その他の操作",
     "panelTabs": "パネルタブ",
     "closePanelTab": "タブを閉じる：{{title}}",
     "paginationSummary": "全 {{total}} 件 · 1ページ {{pageSize}} 件",
@@ -1363,7 +1364,9 @@
     "fetchValueFailed": "値の取得に失敗しました",
     "hide": "値を非表示",
     "invalidKey": "キーは英字またはアンダースコアで始まり、英字、数字、アンダースコアのみ使用できます",
+    "keyLabel": "変数名",
     "keyPlaceholder": "KEY",
+    "valueLabel": "シークレット値",
     "newValuePlaceholder": "上書きする新しい値を入力",
     "reveal": "値を表示",
     "title": "環境変数",
@@ -3891,6 +3894,10 @@
     "toggleSidebar": "サイドバーを切り替え"
   },
   "workspacePanel": {
+    "root": "ワークスペース",
+    "searchFiles": "ファイルを検索",
+    "selectFile": "ファイルを選択してプレビュー",
+    "fileActions": "{{name}} の操作",
     "account": "アカウント",
     "binaryFileHint": "（バイナリファイル — インラインプレビュー非対応）",
     "cloudDisabled": "クラウドサンドボックスは無効です",

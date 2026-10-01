@@ -11,7 +11,7 @@ export function useActiveSection(ids: string[]) {
           return;
         }
       }
-      setActive(ids[0]);
+      setActive("");
     };
     window.addEventListener("scroll", h, { passive: true });
     h();

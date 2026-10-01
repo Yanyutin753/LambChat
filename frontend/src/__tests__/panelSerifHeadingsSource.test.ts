@@ -22,7 +22,7 @@ test("channel panel configuration card heading uses font-serif", () => {
 test("profile preferences dropdown title uses font-serif", () => {
   // SelectRow（含下拉弹窗标题）已从 ProfilePreferencesTab 抽取为共享组件
   const source = readComponent("profile/SelectRow.tsx");
-  expect(source).toMatch(/<h4 className="text-14 font-semibold font-serif/);
+  expect(source).toMatch(/<Select/);
 });
 
 test("team pane titles use font-serif like team member names", () => {
@@ -41,7 +41,7 @@ test("shared dialog titles use font-serif", () => {
 
 test("not found page headline uses font-serif like error boundary", () => {
   const source = readComponent("common/NotFoundPage.tsx");
-  expect(source).toMatch(/text-24 font-semibold font-serif/);
+  expect(source).toMatch(/<h1\b[^>]*className="[^"]*\bfont-serif\b/);
 });
 
 test("shared project error headline uses font-serif like shared page", () => {

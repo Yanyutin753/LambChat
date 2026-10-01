@@ -166,7 +166,7 @@ export function LocalSandboxSection({
           size={13}
           className="text-theme-text-tertiary dark:text-stone-500 shrink-0"
         />
-        <span className="font-medium font-serif text-14 text-theme-text dark:text-stone-100">
+        <span className="font-medium text-14 text-theme-text dark:text-stone-100">
           {t("profile.localSandbox.title")}
         </span>
       </div>
@@ -177,7 +177,7 @@ export function LocalSandboxSection({
   ) : (
     <div className="flex items-center gap-2 mb-3">
       <Monitor size={13} className="text-amber-500 dark:text-amber-400" />
-      <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-theme-text-tertiary dark:text-stone-500">
+      <h3 className="profile-section-heading font-serif">
         {t("profile.localSandbox.title")}
       </h3>
     </div>
@@ -245,7 +245,7 @@ export function LocalSandboxSection({
       );
     }
     return (
-      <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-theme-border dark:border-stone-600/40">
+      <div className="profile-section">
         {webBody}
       </div>
     );
@@ -576,7 +576,7 @@ export function LocalSandboxSection({
     );
   }
   return (
-    <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-theme-border dark:border-stone-600/40">
+    <div className="profile-section">
       {body}
     </div>
   );

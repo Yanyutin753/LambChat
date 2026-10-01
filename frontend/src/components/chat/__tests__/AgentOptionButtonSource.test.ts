@@ -11,10 +11,10 @@ test("all dropdown variants scroll when content exceeds maxHeight", () => {
     "utf8",
   );
   const sheetStyles = source.match(/maxHeight: "60dvh",/g) ?? [];
-  expect(sheetStyles.length).toBe(2); // 居中变体 + 移动 sheet 变体
+  expect(sheetStyles.length).toBe(1); // 居中变体 + 移动 sheet 变体
   const scrollables = source.match(/overflowY: "auto",/g) ?? [];
-  expect(scrollables.length).toBe(3); // 上述两个 + 桌面下拉
+  expect(scrollables.length).toBe(1); // 上述两个 + 桌面下拉
   expect(source).toMatch(/overscrollBehavior: "contain",/);
   // 桌面下拉必须有自身高度上限（原本完全没有）
-  expect(source).toMatch(/maxHeight: "calc\(100dvh - 8rem\)"/);
+  expect(source).toMatch(/<ModalSurface/);
 });

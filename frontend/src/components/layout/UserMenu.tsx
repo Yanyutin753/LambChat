@@ -1,3 +1,4 @@
+import { ModalSurface } from "../common/ModalSurface";
 import { useRef, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -16,7 +17,7 @@ import {
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
 import { clearSessionSelectionGuard } from "../../utils/sessionSelectionGuard";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
+
 import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 import { getFullUrl } from "../../services/api";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
@@ -36,10 +37,6 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
-  const swipeRef = useSwipeToClose({
-    onClose: () => setShowMenu(false),
-    enabled: showMenu && isMobile,
-  });
 
   const canManageUsers = hasAnyPermission([
     Permission.USER_READ,
@@ -93,17 +90,9 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
         document.removeEventListener("click", handleClickOutside);
       };
     }
-  }, [showMenu]);
+  }, [showMenu, isMobile]);
 
   // Lock body scroll on mobile when menu is open
-  useEffect(() => {
-    if (showMenu && isMobile) {
-      document.body.style.overflow = "hidden";
-      return () => {
-        document.body.style.overflow = "";
-      };
-    }
-  }, [showMenu, isMobile]);
 
   useEffect(() => {
     if (showMenu) {
@@ -262,7 +251,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
         <button
           ref={buttonRef}
           onClick={() => setShowMenu(!showMenu)}
-          className="flex h-8 w-8 items-center justify-center rounded-lg transition-all hover:ring-2 hover:ring-[var(--theme-primary-light)] active:scale-95 overflow-hidden"
+          className="flex size-11 sm:size-8 items-center justify-center rounded-lg transition-all hover:ring-2 hover:ring-[var(--theme-primary-light)] active:scale-95 overflow-hidden"
         >
           {user?.avatar_url ? (
             <ImageWithSkeleton
@@ -291,28 +280,20 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
         {showMenu &&
           createPortal(
             isMobile ? (
-              // Mobile: bottom sheet with backdrop
-              <div
-                className="fixed inset-0 z-[100] sm:hidden"
-                onClick={() => setShowMenu(false)}
+              <ModalSurface
+                open
+                onClose={() => setShowMenu(false)}
+                label={t("profile.title")}
               >
-                <div className="fixed inset-0 bg-black/40 animate-fade-in" />
                 <div
-                  ref={(el) => {
-                    menuRef.current = el;
-                    swipeRef.current = el;
-                  }}
-                  className="safe-area-bottom fixed inset-x-0 bottom-0 z-[101] rounded-t-2xl shadow-2xl max-h-[85dvh] overflow-y-auto animate-slide-up-sheet"
+                  ref={menuRef}
+                  className="safe-area-bottom rounded-t-2xl shadow-2xl max-h-[85dvh] overflow-y-auto animate-slide-up-sheet"
                   style={{ backgroundColor: "var(--theme-bg-card)" }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  {/* Drag handle */}
-                  <div className="flex justify-center pt-3 pb-1">
-                    <div className="w-9 h-1 rounded-full bg-[var(--theme-text-secondary)] opacity-25" />
-                  </div>
                   {renderMenuContent()}
                 </div>
-              </div>
+              </ModalSurface>
             ) : (
               // Desktop: positioned dropdown
               <>

@@ -21,7 +21,9 @@ function DocumentPreviewFallback() {
 
 export function LazyDocumentPreview(props: LazyDocumentPreviewProps) {
   return (
-    <Suspense fallback={<DocumentPreviewFallback />}>
+    <Suspense
+      fallback={props.embedded ? <Loading /> : <DocumentPreviewFallback />}
+    >
       <DocumentPreviewContent {...props} />
     </Suspense>
   );

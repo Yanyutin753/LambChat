@@ -82,7 +82,7 @@ test("右簇沙箱 chip 手机端仅图标（与用量图标一致）", () => {
 test("工具栏右簇与左行图标同轴居中，不再贴底错位", () => {
   const toolbar = readRepoFile("src/components/chat/ChatInputToolbar.tsx");
   expect(toolbar).toMatch(
-    /flex shrink-0 items-center gap-1 sm:gap-1\.5 self-center/,
+    /flex shrink-0 items-center gap-1\.5 self-center/,
   );
   expect(toolbar).not.toMatch(/self-end/);
 });
@@ -97,7 +97,7 @@ test("工具栏左行不再横向滚动，手机端超宽靠 chip 截断降级",
 test("沙箱 chip 归入右簇与用量监控同组，不混入左侧身份 chip 行", () => {
   const toolbar = readRepoFile("src/components/chat/ChatInputToolbar.tsx");
   const clusterIdx = toolbar.indexOf(
-    "flex shrink-0 items-center gap-1 sm:gap-1.5 self-center",
+    "flex shrink-0 items-center gap-1.5 self-center",
   );
   const sandboxIdx = toolbar.indexOf("data-sandbox-status-dot");
   const usageIdx = toolbar.indexOf("<ComposerUsageChip");

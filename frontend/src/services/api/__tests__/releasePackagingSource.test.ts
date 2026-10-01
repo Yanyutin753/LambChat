@@ -181,7 +181,7 @@ test("desktop package script bundles the frontend before Tauri packaging", () =>
   expect(script).not.toMatch(/spawnSync\(pnpmCommand, \["build"\]/);
   expect(script).not.toMatch(/spawnSync\(pnpmCommand, \["packaged:build"\]/);
   expect(script).toMatch(/tauriCliPackage = "@tauri-apps\/cli@2\.11\.2"/);
-  expect(script).toMatch(/"icon", "public\/icons\/icon-512\.png"/);
+  expect(script).toMatch(/"icon", "resources\/native-icon\.png"/);
   expect(script).toMatch(/TAURI_TARGET/);
   expect(script).toMatch(/"--target", target/);
   expect(script).toMatch(/TAURI_BUNDLES/);

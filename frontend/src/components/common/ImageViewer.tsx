@@ -43,6 +43,7 @@ export function ImageViewer({
   const [isImageLoading, setIsImageLoading] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(
     null,
@@ -66,8 +67,38 @@ export function ImageViewer({
 
   useEffect(() => {
     if (!isOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    dialog?.focus();
     const handleKeyDown = (e: KeyboardEvent) => {
+      const dialogs = document.querySelectorAll('[role="dialog"]');
+      if (dialogs[dialogs.length - 1] !== dialog || e.defaultPrevented) return;
+      if (e.key === "Tab" && dialog) {
+        const controls = Array.from(
+          dialog.querySelectorAll<HTMLElement>(
+            'button:not(:disabled),a[href],[tabindex="0"]',
+          ),
+        ).filter((el) => el.getClientRects().length);
+        const first = controls[0],
+          last = controls[controls.length - 1];
+        if (!first) e.preventDefault();
+        else if (
+          e.shiftKey &&
+          (document.activeElement === first ||
+            document.activeElement === dialog)
+        ) {
+          e.preventDefault();
+          last.focus();
+        } else if (
+          !e.shiftKey &&
+          (document.activeElement === last || document.activeElement === dialog)
+        ) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
       if (e.key === "Escape") {
+        e.preventDefault();
         onClose();
         return;
       }
@@ -82,7 +113,10 @@ export function ImageViewer({
       }
     };
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previous?.focus();
+    };
   }, [canGoNext, canGoPrevious, isOpen, onClose, onNext, onPrevious]);
 
   useEffect(() => {
@@ -222,6 +256,11 @@ export function ImageViewer({
   return createPortal(
     <div
       data-yields-sidebar
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={alt || t("documents.preview")}
+      tabIndex={-1}
       className="safe-area-x fixed inset-0 z-[300] flex flex-col bg-black/90"
       style={{
         height: "var(--app-viewport-height, 100dvh)",

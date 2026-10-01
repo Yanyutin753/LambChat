@@ -21,14 +21,8 @@ const consumers = [
 
 test("selector modals share the portal overlay and viewport wrapper", () => {
   expect(modalSource).toMatch(/export function SelectorModalPortal\(/);
-  expect(modalSource).toMatch(
-    /className="fixed inset-0 z-\[300\] bg-black\/50 animate-fade-in"/,
-  );
-  // 容器不再用 viewport padding 把 sheet 顶离屏幕底边，
-  // 底部 inset 由 SelectorModalShell 表面自己承担
-  expect(modalSource).toMatch(
-    /className="safe-area-x fixed z-\[301\] sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4 inset-x-0 bottom-0 animate-slide-up sm:animate-scale-in"/,
-  );
+  expect(modalSource).toMatch(/<ModalSurface/);
+  expect(readSource("../../common/ModalSurface.tsx")).toMatch(/safe-area-viewport-padding-top/);
 
   for (const relativePath of consumers) {
     const source = readSource(relativePath);

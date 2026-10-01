@@ -1,9 +1,9 @@
 import { useId, useRef, useState, type ReactNode } from "react";
 import { Tooltip } from "../../common/Tooltip";
-import { ChevronDown, MoreHorizontal, Plus } from "lucide-react";
+import { ChevronDown, MoreHorizontal, Plus, SquarePen } from "lucide-react";
 import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosition";
 
-/** 分组头部动作的显隐节奏：hover/聚焦分组行时浮现，触屏设备常显。 */
+/** 分组头部动作的显隐节奏：hover/聚焦分组行时浮现，触屏点击分组后显示。 */
 export const sectionRevealClass = "sidebar-action-reveal";
 /** 分组头部动作按钮（+、⋯、多选等）的统一样式。 */
 export const sectionActionClass =
@@ -15,6 +15,7 @@ export function SidebarSectionHeader({
   onToggle,
   createLabel,
   onCreate,
+  createIcon = "plus",
   moreLabel,
   menuItems,
   children,
@@ -24,6 +25,7 @@ export function SidebarSectionHeader({
   onToggle: () => void;
   createLabel: string;
   onCreate?: () => void;
+  createIcon?: "plus" | "compose";
   moreLabel: string;
   menuItems: { label: string; onClick: () => void }[];
   children?: ReactNode;
@@ -43,7 +45,7 @@ export function SidebarSectionHeader({
         type="button"
         onClick={onToggle}
         aria-expanded={!collapsed}
-        className="flex min-w-0 flex-1 items-center gap-2 self-stretch text-13 font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+        className="flex min-w-0 flex-1 items-center gap-2 self-stretch text-14 font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
       >
         <span className="truncate">{label}</span>
         <ChevronDown
@@ -54,24 +56,11 @@ export function SidebarSectionHeader({
           } ${collapsed ? "-rotate-90" : ""}`}
         />
       </button>
-      {children}
       <div
         className={`flex shrink-0 items-center gap-1 ${
           open ? "opacity-100" : sectionRevealClass
         }`}
       >
-        {onCreate && (
-          <Tooltip content={createLabel}>
-            <button
-              type="button"
-              onClick={onCreate}
-              aria-label={createLabel}
-              className={sectionActionClass}
-            >
-              <Plus size={14} />
-            </button>
-          </Tooltip>
-        )}
         <Tooltip content={moreLabel}>
           <button
             ref={triggerRef}
@@ -83,7 +72,24 @@ export function SidebarSectionHeader({
             <MoreHorizontal size={14} />
           </button>
         </Tooltip>
+        {onCreate && (
+          <Tooltip content={createLabel}>
+            <button
+              type="button"
+              onClick={onCreate}
+              aria-label={createLabel}
+              className={sectionActionClass}
+            >
+              {createIcon === "compose" ? (
+                <SquarePen size={14} />
+              ) : (
+                <Plus size={14} />
+              )}
+            </button>
+          </Tooltip>
+        )}
       </div>
+      {children}
       <div
         ref={menuRef}
         id={menuId}

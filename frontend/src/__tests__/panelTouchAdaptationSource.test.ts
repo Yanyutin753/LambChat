@@ -21,7 +21,7 @@ const HOVER_REVEAL_FILES = [
 ];
 
 test.each(HOVER_REVEAL_FILES)(
-  "%s keeps every hover-reveal visible on touch",
+  "%s keeps hover actions accessible on touch",
   (file) => {
     const source = readComponent(file);
     if (source.includes("sidebar-action-reveal")) {
@@ -29,10 +29,12 @@ test.each(HOVER_REVEAL_FILES)(
         resolve(import.meta.dirname, "../styles/components.css"),
         "utf8",
       );
-      expect(css).toMatch(
+      expect(css).not.toMatch(
         /@media \(hover: none\)\s*\{\s*html:not\(:has\(\[data-titlebar\]\)\) \.sidebar-action-reveal\s*\{\s*opacity: 1/,
       );
       expect(source).not.toContain("max-sm:opacity-100");
+      expect(source).toContain("setIsTouched(true)");
+      expect(source).toContain("isTouched || isMenuOpen");
       return;
     }
     const hoverReveals = source.match(/group-hover:opacity-100/g) ?? [];

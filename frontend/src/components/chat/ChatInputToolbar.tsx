@@ -236,10 +236,10 @@ export function ChatInputToolbar({
   const selectedTeamName = selectedTeam?.name ?? null;
 
   return (
-    <div className="chat-input-toolbar flex max-w-full flex-nowrap justify-between gap-1 px-2 pb-3 pt-3 mx-0.5">
+    <div className="chat-input-toolbar flex max-w-full flex-nowrap justify-between gap-1.5 px-2 pb-3 pt-3 mx-0.5">
       {/* 左行不设横向滚动：滚动容器会在手机端裁切 chip（视觉上与右簇重叠），
           超宽时由 chip 的 shrink + truncate 优雅降级 */}
-      <div className="flex min-h-10 min-w-0 flex-1 items-center gap-0.5 sm:gap-1.5">
+      <div className="flex min-h-10 min-w-0 flex-1 items-center gap-1.5">
         <input
           ref={fileInputRef}
           type="file"
@@ -329,7 +329,7 @@ export function ChatInputToolbar({
 
       {/* 右簇与左行同轴居中：避免贴底对齐造成发送键相对左行图标错位。
           簇内间距整体收紧（沙箱/用量/模式/发送四枚图标）。 */}
-      <div className="flex shrink-0 items-center gap-1 sm:gap-1.5 self-center">
+      <div className="flex shrink-0 items-center gap-1.5 self-center">
         {showSandboxEntry && (
           <ToolbarChip
             icon={

@@ -1,5 +1,6 @@
+import { ModalSurface } from "../common/ModalSurface";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { createPortal } from "react-dom";
+
 import { useTranslation } from "react-i18next";
 import { Plus, Search, Settings2, Sparkles, UsersRound, X } from "lucide-react";
 import { nameToGradient } from "../panels/MarketplacePanel/constants";
@@ -7,7 +8,7 @@ import { teamApi } from "../../services/api/team";
 import type { Team } from "../../types/team";
 import { TeamAvatar } from "./TeamAvatar";
 import { getTeamFallbackAvatar, getTeamFallbackTag } from "./teamAvatarUtils";
-import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
+
 import { PanelSearchInput } from "../common/PanelSearchInput";
 import { subscribeTeamsChanged } from "../../hooks/teamEvents";
 
@@ -32,7 +33,6 @@ export function TeamPickerModal({
   const [teams, setTeams] = useState<Team[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  useBodyScrollLock(isOpen);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -61,15 +61,6 @@ export function TeamPickerModal({
         .catch((err) => console.error("Failed to refresh teams:", err));
     });
   }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
 
   const filteredTeams = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -107,11 +98,12 @@ export function TeamPickerModal({
 
   if (!isOpen) return null;
 
-  return createPortal(
-    <div
-      data-yields-sidebar
-      className="safe-area-viewport-padding-top fixed inset-0 z-[290] flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-6"
-      onClick={onClose}
+  return (
+    <ModalSurface
+      className="modal-wide"
+      open={isOpen}
+      onClose={onClose}
+      dismissible={true}
     >
       <div
         className="flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-2xl shadow-2xl sm:max-w-3xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl sm:rounded-2xl safe-area-bottom"
@@ -345,7 +337,6 @@ export function TeamPickerModal({
           )}
         </div>
       </div>
-    </div>,
-    document.body,
+    </ModalSurface>
   );
 }

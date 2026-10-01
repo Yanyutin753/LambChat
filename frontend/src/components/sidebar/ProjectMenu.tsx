@@ -1,3 +1,4 @@
+import { ModalSurface } from "../common/ModalSurface";
 /**
  * Project context menu component for project actions
  */
@@ -7,7 +8,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { Edit2, Trash2, MessageSquarePlus, Share2, X } from "lucide-react";
 import type { Project } from "../../types";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
+
 import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 import { ProjectWorkspaceField } from "./ProjectWorkspaceField";
 
@@ -53,11 +54,6 @@ export function ProjectMenu({
     return window.innerWidth < 640;
   });
 
-  const swipeRef = useSwipeToClose({
-    onClose,
-    enabled: isOpen && isMobile,
-  });
-
   // Update isMobile on resize
   useEffect(() => {
     const handleResize = () => {
@@ -71,6 +67,7 @@ export function ProjectMenu({
   // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      if (isMobile) return;
       if (
         menuRef.current &&
         !menuRef.current.contains(event.target as Node) &&
@@ -87,11 +84,12 @@ export function ProjectMenu({
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isOpen, onClose, anchorEl]);
+  }, [isOpen, onClose, anchorEl, isMobile]);
 
   // Close on escape key
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
+      if (isMobile) return;
       if (event.key === "Escape") {
         onClose();
       }
@@ -104,32 +102,18 @@ export function ProjectMenu({
     return () => {
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, isMobile]);
 
   if (!isOpen || !anchorEl) return null;
 
   // Mobile: bottom sheet style
   if (isMobile) {
     return (
-      <>
-        {/* Backdrop */}
+      <ModalSurface open onClose={onClose} label={t("sidebar.projectOptions")}>
         <div
-          className="fixed inset-0 z-40 bg-black/50 sm:hidden"
-          onClick={onClose}
-        />
-        {/* Bottom sheet */}
-        <div
-          ref={(el) => {
-            menuRef.current = el;
-            swipeRef.current = el;
-          }}
-          className="safe-area-bottom fixed bottom-0 left-0 right-0 z-50 sm:hidden bg-white dark:bg-stone-800 rounded-t-2xl shadow-xl max-h-[70dvh] overflow-y-auto"
+          ref={menuRef}
+          className="safe-area-bottom bg-white dark:bg-stone-800 rounded-t-2xl shadow-xl max-h-[70dvh] overflow-y-auto"
         >
-          {/* Handle bar */}
-          <div className="flex justify-center py-2">
-            <div className="w-10 h-1 rounded-full bg-stone-300 dark:bg-stone-600" />
-          </div>
-
           {/* Header */}
           <div className="flex items-center justify-between px-4 pb-1.5">
             <span className="text-13 font-medium text-[var(--theme-text)]">
@@ -207,7 +191,7 @@ export function ProjectMenu({
             </button>
           </div>
         </div>
-      </>
+      </ModalSurface>
     );
   }
 

@@ -52,6 +52,8 @@ import {
 
 export interface DocumentPreviewProps {
   path: string;
+  /** Render inside an existing browser instead of registering another panel. */
+  embedded?: boolean;
   content?: string;
   s3Key?: string;
   signedUrl?: string;

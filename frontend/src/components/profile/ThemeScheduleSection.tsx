@@ -38,7 +38,7 @@ export function ThemeScheduleSection() {
     <>
       <button
         onClick={() => update({ enabled: !schedule.enabled })}
-        className="flex w-full items-center justify-between py-3 first:pt-0 last:pb-0 text-left"
+        className="profile-setting-row"
       >
         <span className="text-14 text-theme-text dark:text-stone-200">
           {t("profile.themeScheduleToggle")}

@@ -52,15 +52,6 @@ export function NotificationBanner() {
     };
   }, [resetTimer]);
 
-  useEffect(() => {
-    if (!selectedNotification) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setSelectedNotification(null);
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [selectedNotification]);
-
   // Keep index in bounds when visible changes
   useEffect(() => {
     if (visible.length === 0) setCurrentIndex(0);
@@ -192,8 +183,6 @@ export function NotificationBanner() {
       {selectedNotification && (
         <SelectorModalPortal open onClose={closeSelectedNotification}>
           <SelectorModalShell
-            role="dialog"
-            aria-modal="true"
             aria-labelledby="notification-banner-detail-title"
             className="notification-banner-detail"
           >

@@ -2,5 +2,8 @@
 include ':capacitor-android'
 project(':capacitor-android').projectDir = new File('../node_modules/.pnpm/@capacitor+android@7.6.5_@capacitor+core@7.6.5/node_modules/@capacitor/android/capacitor')
 
+include ':capacitor-filesystem'
+project(':capacitor-filesystem').projectDir = new File('../node_modules/.pnpm/@capacitor+filesystem@7.1.8_@capacitor+core@7.6.5/node_modules/@capacitor/filesystem/android')
+
 include ':capacitor-local-notifications'
-project(':capacitor-local-notifications').projectDir = new File('../node_modules/.pnpm/@capacitor+local-notifications@7.0.6_@capacitor+core@7.6.5/node_modules/@capacitor/local-notifications/android')
+project(':capacitor-local-notifications').projectDir = new File('../node_modules/.pnpm/@capacitor+local-notifications@7.0.7_@capacitor+core@7.6.5/node_modules/@capacitor/local-notifications/android')

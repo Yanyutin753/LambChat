@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Cpu, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { ModelIconImg } from "../../agent/modelIcon.tsx";
 
@@ -13,27 +13,19 @@ export function ProfileModelsTab() {
     setExpanded((prev) => (prev === id ? null : id));
 
   return (
-    <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-theme-border/60 dark:border-stone-600/40">
-      <div className="flex items-center gap-2 mb-3">
-        <Cpu size={13} className="text-amber-500 dark:text-amber-400" />
-        <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-theme-text-tertiary dark:text-stone-500">
-          {t("profile.modelIntro")}
-        </h3>
-      </div>
-
+    <div className="space-y-3">
       {!availableModels || availableModels.length === 0 ? (
-        <p className="text-14 text-theme-text-tertiary dark:text-stone-500 py-4 text-center">
-          {t("profile.noModels")}
-        </p>
+        <p className="text-14 profile-empty">{t("profile.noModels")}</p>
       ) : (
         <div className="space-y-1.5">
           {availableModels.map((model) => (
-            <div
-              key={model.id}
-              className="rounded-lg bg-theme-bg-card dark:bg-stone-800/60 border border-theme-border-subtle dark:border-stone-700/50 overflow-hidden"
-            >
+            <div key={model.id} className="profile-model">
               <button
                 onClick={() => toggle(model.id)}
+                aria-expanded={
+                  model.description ? expanded === model.id : undefined
+                }
+                disabled={!model.description}
                 className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-theme-bg-subtle dark:hover:bg-stone-700/30 transition-colors"
               >
                 <ModelIconImg
@@ -46,7 +38,7 @@ export function ProfileModelsTab() {
                   {model.label}
                 </span>
                 {model.provider && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-10 font-medium font-serif capitalize bg-theme-bg-subtle dark:bg-stone-700 text-theme-text-secondary dark:text-stone-400 shrink-0">
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-10 font-medium capitalize bg-theme-bg-subtle dark:bg-stone-700 text-theme-text-secondary dark:text-stone-400 shrink-0">
                     {model.provider}
                   </span>
                 )}
@@ -60,7 +52,7 @@ export function ProfileModelsTab() {
                 )}
               </button>
               {expanded === model.id && model.description && (
-                <div className="px-3 pb-2.5 pt-0">
+                <div className="profile-model-description">
                   <p className="text-12 text-theme-text-secondary dark:text-stone-400 leading-relaxed">
                     {model.description}
                   </p>

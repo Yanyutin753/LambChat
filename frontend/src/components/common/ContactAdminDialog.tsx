@@ -1,10 +1,10 @@
+import { ModalSurface } from "./ModalSurface";
 import { SceneIllustration } from "./SceneIllustration";
 import { useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+
 import { Mail, ExternalLink, ArrowRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useSettings } from "../../hooks/useSettings";
-import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 
 interface ContactAdminDialogProps {
   isOpen: boolean;
@@ -20,7 +20,6 @@ export function ContactAdminDialog({
   const { t } = useTranslation();
   const { getSettingValue } = useSettings();
   const closeRef = useRef<HTMLButtonElement>(null);
-  useBodyScrollLock(isOpen);
 
   const adminEmail = getSettingValue("ADMIN_CONTACT_EMAIL") as string | null;
   const adminUrl = getSettingValue("ADMIN_CONTACT_URL") as string | null;
@@ -30,14 +29,6 @@ export function ContactAdminDialog({
       closeRef.current?.focus();
     }
   }, [isOpen]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (isOpen && e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -59,12 +50,8 @@ export function ContactAdminDialog({
 
   const hasContact = adminEmail || adminUrl;
 
-  return createPortal(
-    <div
-      data-yields-sidebar
-      className="safe-area-viewport-padding fixed inset-0 z-[300] flex items-center justify-center p-4"
-    >
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+  return (
+    <ModalSurface open={isOpen} onClose={onClose} dismissible={true}>
       <div className="relative z-10 w-full max-w-[420px] rounded-2xl border border-stone-200/60 bg-theme-bg-card shadow-2xl shadow-stone-900/8 dark:border-stone-700/50 dark:bg-stone-900 dark:shadow-stone-950/40 animate-in fade-in zoom-in-95 duration-200">
         {/* Header illustration */}
         <div className="relative overflow-hidden rounded-t-2xl bg-gradient-to-b from-amber-50/80 to-white px-8 pb-7 pt-9 dark:from-amber-950/20 dark:to-stone-900">
@@ -142,7 +129,6 @@ export function ContactAdminDialog({
           </button>
         </div>
       </div>
-    </div>,
-    document.body,
+    </ModalSurface>
   );
 }

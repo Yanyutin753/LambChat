@@ -1,7 +1,33 @@
 import {
   installMobileViewportResetHandlers,
   resetMobileViewport,
+  isMobileDevice,
 } from "../mobile.ts";
+
+test("iPad desktop browser identification still enables mobile input handling", () => {
+  const originalNavigator = globalThis.navigator;
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: { userAgent: "Macintosh", platform: "MacIntel", maxTouchPoints: 5 },
+  });
+  const originalWindow = globalThis.window;
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {},
+  });
+  try {
+    expect(isMobileDevice()).toBe(true);
+  } finally {
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: originalNavigator,
+    });
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: originalWindow,
+    });
+  }
+});
 
 test("resetMobileViewport preserves the current page scroll position", async () => {
   const originalWindow = globalThis.window;

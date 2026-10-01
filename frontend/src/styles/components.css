@@ -4537,9 +4537,3 @@
 .sidebar-action-row:focus-within > span > .sidebar-action-reveal {
   opacity: 1;
 }
-
-@media (hover: none) {
-  html:not(:has([data-titlebar])) .sidebar-action-reveal {
-    opacity: 1;
-  }
-}

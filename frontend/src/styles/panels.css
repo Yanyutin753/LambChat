@@ -278,3 +278,21 @@
     transition: none;
   }
 }
+
+/* Keep dense settings and permission cards on one quiet plane. */
+[data-panel] .glass-card,
+[data-panel] .glass-card:hover { box-shadow: none; }
+@container panel (max-width: 639px) {
+  [data-panel] .ui-icon-button { min-width: 2.75rem; min-height: 2.75rem; }
+  [data-panel] .role-card-title { min-height: 2.75rem; }
+}
+@container panel (max-width: 639px) {
+  [data-panel] .notification-card-row { flex-direction: column; }
+  [data-panel] .notification-card-row > div:first-child { width: 100%; }
+  [data-panel] .notification-card-heading { flex-wrap: wrap; }
+  [data-panel] .notification-card-title { order: 1; flex-basis: 100%; }
+  [data-panel] .notification-card-actions { align-self: flex-end; }
+}
+@container panel (max-width: 639px) {
+  [data-panel="settings"] .settings-content :is(button, select, input:not([type="checkbox"])) { min-height: 2.75rem; }
+}

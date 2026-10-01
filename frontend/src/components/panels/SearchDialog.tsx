@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { createPortal } from "react-dom";
+import { ModalSurface } from "../common/ModalSurface";
 import { useInView } from "react-intersection-observer";
 import { useTranslation } from "react-i18next";
 import { Search, X, Hash } from "lucide-react";
@@ -37,8 +37,6 @@ export function SearchDialog({
   const inputRef = useRef<HTMLInputElement>(null);
   const itemRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
   const [activeIndex, setActiveIndex] = useState(-1);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [visible, setVisible] = useState(false);
 
   // ── Session state (independent pagination) ────────────────────
   const [allSessions, setAllSessions] = useState<SearchResult[]>([]);
@@ -58,22 +56,12 @@ export function SearchDialog({
   // ── Entrance / exit animation ──────────────────────────────────
   useEffect(() => {
     if (isOpen) {
-      setIsAnimating(true);
-      requestAnimationFrame(() => {
-        setVisible(true);
-      });
       // Reset & fetch on open
       setAllSessions([]);
       setSkip(0);
       setHasMore(false);
-    } else {
-      setVisible(false);
     }
   }, [isOpen]);
-
-  const handleTransitionEnd = useCallback(() => {
-    if (!visible) setIsAnimating(false);
-  }, [visible]);
 
   // ── Focus input on open ────────────────────────────────────────
   useEffect(() => {
@@ -124,8 +112,7 @@ export function SearchDialog({
           session: s,
           projectName:
             ((s.metadata as Record<string, unknown>)?.project_name as
-              | string
-              | null) ?? null,
+              string | null) ?? null,
         }));
 
         if (reset) {
@@ -183,11 +170,6 @@ export function SearchDialog({
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-        return;
-      }
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setActiveIndex((prev) => {
@@ -224,32 +206,11 @@ export function SearchDialog({
 
   const hasQuery = searchQuery.trim().length > 0;
 
-  if (!isAnimating) return null;
+  if (!isOpen) return null;
 
-  return createPortal(
-    <div
-      data-yields-sidebar
-      className={`safe-area-viewport-padding fixed inset-0 z-[300] flex items-center justify-center transition-all duration-200 ease-out ${
-        visible ? "visible" : "invisible"
-      }`}
-    >
-      {/* Backdrop */}
-      <div
-        className={`absolute inset-0 bg-black/30 transition-opacity duration-200 ${
-          visible ? "opacity-100" : "opacity-0"
-        }`}
-        onClick={onClose}
-      />
-
-      {/* Dialog panel — scale + fade */}
-      <div
-        onTransitionEnd={handleTransitionEnd}
-        className={`relative w-[92vw] max-w-lg bg-theme-bg-card dark:bg-stone-900 rounded-2xl shadow-[0_25px_60px_-12px_rgba(0,0,0,0.25)] dark:shadow-[0_25px_60px_-12px_rgba(0,0,0,0.5)] border border-stone-200/60 dark:border-stone-700/40 overflow-hidden transition-all duration-200 ease-out origin-top ${
-          visible
-            ? "opacity-100 scale-100 translate-y-0"
-            : "opacity-0 scale-[0.97] -translate-y-2"
-        }`}
-      >
+  return (
+    <ModalSurface open={isOpen} onClose={onClose}>
+      <div className="relative w-[92vw] max-w-lg bg-theme-bg-card dark:bg-stone-900 rounded-2xl shadow-[0_25px_60px_-12px_rgba(0,0,0,0.25)] dark:shadow-[0_25px_60px_-12px_rgba(0,0,0,0.5)] border border-stone-200/60 dark:border-stone-700/40 overflow-hidden ">
         {/* Search input */}
         <div className="flex items-center gap-3 px-4 py-3.5">
           <Search
@@ -426,7 +387,6 @@ export function SearchDialog({
           </>
         )}
       </div>
-    </div>,
-    document.body,
+    </ModalSurface>
   );
 }

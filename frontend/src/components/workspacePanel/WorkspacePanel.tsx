@@ -19,18 +19,17 @@ import {
   HardDrive,
   Loader2,
   RefreshCw,
+  MoreHorizontal,
+  Search,
+  FolderTree,
 } from "lucide-react";
 import clsx from "clsx";
 import { ToolbarIconButton } from "../common/ui/ToolbarIconButton";
 import { Tooltip } from "../common/Tooltip";
-import { activateRightPanelByKey } from "../common/rightPanelCoordinator";
 import { RightPanelActiveContext } from "../common/useRightPanelEntry";
-import {
-  closeRevealPreviewTab,
-  getRevealPreviewTabs,
-  setActiveRevealPreviewState,
-} from "../chat/ChatMessage/items/activeRevealPreviewStore";
-import { createActiveRevealPreviewState } from "../chat/ChatMessage/items/revealPreviewState";
+import { LazyDocumentPreview } from "../documents/LazyDocumentPreview";
+import type { DocumentPreviewProps } from "../documents/useDocumentPreviewState";
+import "./workspacePanel.css";
 import { getFileTypeInfo } from "../documents/utils";
 import { useSandboxStatus } from "../../hooks/useSandboxStatus";
 import {
@@ -155,6 +154,15 @@ export function WorkspacePanel({
   const { root, state, error, toggleDir, refresh, expandedPaths } =
     useWorkspaceTree(effectiveSessionId, resetKey, source);
 
+  const [preview, setPreview] = useState<Pick<
+    DocumentPreviewProps,
+    "path" | "content" | "signedUrl" | "footer"
+  > | null>(null);
+  const [query, setQuery] = useState("");
+  const [showFiles, setShowFiles] = useState(true);
+  const [rootExpanded, setRootExpanded] = useState(true);
+  const [explorerCollapsed, setExplorerCollapsed] = useState(false);
+  const selectedButtonRef = useRef<HTMLButtonElement>(null);
   const previewPrefix = `workspace:${JSON.stringify([
     resetKey,
     workspaceSelection,
@@ -167,11 +175,10 @@ export function WorkspacePanel({
 
   useEffect(() => {
     previewRequest.current += 1;
-    for (const tab of getRevealPreviewTabs()) {
-      const key = tab.request.previewKey;
-      if (key.startsWith("workspace:") && !key.startsWith(previewPrefix))
-        closeRevealPreviewTab(key);
-    }
+    setPreview(null);
+    setQuery("");
+    setShowFiles(true);
+    setRootExpanded(true);
     setPreviewError(null);
     setOpeningPath(null);
     setContextMenu(null);
@@ -182,11 +189,26 @@ export function WorkspacePanel({
 
   useEffect(() => {
     if (!contextMenu) return undefined;
+    menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
     const close = () => setContextMenu(null);
     const keydown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.stopPropagation();
         close();
+        selectedButtonRef.current?.focus();
+      }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const buttons = Array.from(
+          menuRef.current?.querySelectorAll<HTMLButtonElement>("button") ?? [],
+        );
+        const current = buttons.indexOf(
+          document.activeElement as HTMLButtonElement,
+        );
+        buttons[
+          (current + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) %
+            buttons.length
+        ]?.focus();
       }
     };
     document.addEventListener("keydown", keydown, true);
@@ -206,15 +228,6 @@ export function WorkspacePanel({
   const openFile = useCallback(
     async (path: string) => {
       if (!sessionId) return;
-      const previewKey = `${previewPrefix}${path}`;
-      if (
-        getRevealPreviewTabs().some(
-          (tab) => tab.request.previewKey === previewKey,
-        )
-      ) {
-        activateRightPanelByKey(`reveal-preview:${previewKey}`);
-        return;
-      }
       const request = ++previewRequest.current;
       setOpeningPath(path);
       setPreviewError(null);
@@ -222,26 +235,25 @@ export function WorkspacePanel({
         const result = await source.read(sessionId, path, 0, 2000);
         if (request !== previewRequest.current) return;
         if (result.error) throw new Error(result.error);
-        if (result.encoding === "utf-8" || result.encoding === "base64") {
-          // Binary reads keep the existing placeholder until a URL channel is available.
-          const content =
-            result.encoding === "utf-8"
-              ? result.content ?? ""
-              : t("workspacePanel.binaryFileHint", {
-                  defaultValue: "（二进制文件，暂不支持内联预览）",
-                });
-          setActiveRevealPreviewState(
-            createActiveRevealPreviewState(
-              {
-                kind: "file",
-                previewKey,
-                filePath: path,
-                content,
-              },
-              "manual",
-            ),
-          );
-        }
+        if (result.encoding !== "utf-8" && result.encoding !== "base64")
+          throw new Error("Missing file content");
+        setPreview({
+          path,
+          footer:
+            result.next_offset != null ? (
+              <p>
+                {t("documents.fileTooLargeLines", {
+                  count: result.next_offset,
+                })}
+              </p>
+            ) : undefined,
+          ...(result.encoding === "base64"
+            ? {
+                signedUrl: `data:application/octet-stream;base64,${result.content ?? ""}`,
+              }
+            : { content: result.content ?? "" }),
+        });
+        setShowFiles(false);
       } catch {
         if (request === previewRequest.current)
           setPreviewError(t("documents.error"));
@@ -249,7 +261,7 @@ export function WorkspacePanel({
         if (request === previewRequest.current) setOpeningPath(null);
       }
     },
-    [sessionId, source, t, previewPrefix],
+    [sessionId, source, t],
   );
 
   const handleContextMenu = useCallback(
@@ -289,72 +301,106 @@ export function WorkspacePanel({
     refresh();
   }, [isCloudView, refreshCloudStatus, refresh]);
 
+  const backToFiles = () => {
+    setShowFiles(true);
+    requestAnimationFrame(() => selectedButtonRef.current?.focus());
+  };
+
   const renderNodes = (nodes: WorkspaceTreeNode[], depth: number) =>
-    nodes.map((node) => {
-      const padding = 6 + depth * 12;
-      if (node.isDir) {
-        const expanded = expandedPaths.has(node.path);
-        return (
-          <div key={node.path}>
-            <button
-              onClick={() => toggleDir(node.path)}
-              aria-expanded={expanded}
-              title={node.path}
-              className="sidebar-nav-btn w-full min-h-11 sm:min-h-8 rounded-md flex items-center gap-1.5 pr-2 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
-              style={{ paddingLeft: padding }}
-            >
-              <ChevronRight
-                size={13}
-                className={clsx(
-                  "shrink-0 text-theme-text-muted transition-transform duration-150 motion-reduce:transition-none",
-                  expanded && "rotate-90",
-                )}
-              />
-              {node.loading ? (
-                <Loader2
-                  size={15}
-                  className="shrink-0 animate-spin text-theme-text-tertiary"
+    nodes
+      .filter(
+        (node) =>
+          node.isDir ||
+          node.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
+      )
+      .map((node) => {
+        const padding = 12 + depth * 12;
+        if (node.isDir) {
+          const expanded = expandedPaths.has(node.path);
+          return (
+            <div key={node.path}>
+              <button
+                onClick={() => toggleDir(node.path)}
+                aria-expanded={expanded}
+                title={node.path}
+                className="workspace-file-row"
+                style={{ paddingLeft: padding }}
+              >
+                <ChevronRight
+                  size={13}
+                  className={clsx(
+                    "shrink-0 text-theme-text-muted transition-transform duration-150 motion-reduce:transition-none",
+                    expanded && "rotate-90",
+                  )}
                 />
-              ) : expanded ? (
-                <FolderOpen size={15} className="shrink-0 text-theme-text-secondary" />
+                {node.loading ? (
+                  <Loader2
+                    size={16}
+                    className="shrink-0 animate-spin text-theme-text-tertiary"
+                  />
+                ) : expanded ? (
+                  <FolderOpen
+                    size={16}
+                    className="shrink-0 text-theme-text-secondary"
+                  />
+                ) : (
+                  <FolderClosed
+                    size={16}
+                    className="shrink-0 text-theme-text-secondary"
+                  />
+                )}
+                <span className="truncate text-13 text-left">{node.name}</span>
+              </button>
+              {expanded &&
+                node.children &&
+                renderNodes(node.children, depth + 1)}
+            </div>
+          );
+        }
+        const info = getFileTypeInfo(node.name);
+        const Icon = info.icon;
+        const isLoading = openingPath === node.path;
+        return (
+          <div
+            className="workspace-file"
+            key={node.path}
+            data-selected={preview?.path === node.path}
+          >
+            <button
+              ref={preview?.path === node.path ? selectedButtonRef : undefined}
+              onClick={() => void openFile(node.path)}
+              title={node.path}
+              aria-label={node.name}
+              aria-current={preview?.path === node.path ? "true" : undefined}
+              aria-busy={isLoading}
+              onContextMenu={(e) => handleContextMenu(e, node.path)}
+              className="workspace-file-row"
+              style={{ paddingLeft: padding + 21 }}
+            >
+              {isLoading ? (
+                <Loader2
+                  size={18}
+                  className="shrink-0 animate-spin motion-reduce:animate-none"
+                />
               ) : (
-                <FolderClosed size={15} className="shrink-0 text-theme-text-secondary" />
+                <Icon
+                  size={16}
+                  className="shrink-0 text-theme-text-secondary"
+                />
               )}
-              <span className="truncate text-13 text-left">{node.name}</span>
+              <span className="workspace-file-name">{node.name}</span>
             </button>
-            {expanded && node.children && renderNodes(node.children, depth + 1)}
+            <button
+              className="workspace-file-menu"
+              aria-label={t("workspacePanel.fileActions", { name: node.name })}
+              onClick={(event) => handleContextMenu(event, node.path)}
+              aria-haspopup="menu"
+            >
+              <MoreHorizontal size={16} />
+            </button>
           </div>
         );
-      }
-      const info = getFileTypeInfo(node.name);
-      const Icon = info.icon;
-      const isLoading = openingPath === node.path;
-      return (
-        <button
-          key={node.path}
-          onClick={() => void openFile(node.path)}
-          title={node.path}
-          aria-busy={isLoading}
-          onContextMenu={(e) => handleContextMenu(e, node.path)}
-          className="sidebar-nav-btn w-full min-h-11 sm:min-h-8 rounded-md flex items-center gap-1.5 pr-2 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
-          style={{ paddingLeft: padding + 13 + 6 }}
-        >
-          {isLoading ? (
-            <Loader2
-              size={15}
-              className="shrink-0 animate-spin text-theme-text-tertiary"
-            />
-          ) : (
-            <Icon
-              size={15}
-              className="shrink-0"
-              style={{ color: info.color }}
-            />
-          )}
-          <span className="truncate text-13 text-left">{node.name}</span>
-        </button>
-      );
-    });
+      });
 
   // 云端状态徽标（云端视图头部）：running 绿 / paused 黄（打开时自动唤醒）
   const cloudStateBadge = useMemo(() => {
@@ -402,8 +448,32 @@ export function WorkspacePanel({
 
   const localViewBlocked = !isCloudView && (!online || !sessionId);
   const toolbar = (
-    <div className="flex items-center gap-1.5">
-      {cloudStateBadge}
+    <div className="workspace-header-actions flex items-center">
+      {cloudStateBadge && (
+        <span
+          className="workspace-cloud-status"
+          role="status"
+          aria-label={t(
+            cloudStatus?.state === "paused"
+              ? "workspacePanel.cloudPaused"
+              : "workspacePanel.cloudRunning",
+          )}
+        >
+          {cloudStateBadge}
+        </span>
+      )}
+      <ToolbarIconButton
+        variant="muted"
+        className="workspace-explorer-toggle"
+        aria-label={t("project.toggleExplorer")}
+        title={t("project.toggleExplorer")}
+        aria-expanded={!explorerCollapsed}
+        onClick={() => {
+          setExplorerCollapsed(!explorerCollapsed);
+          setShowFiles(true);
+        }}
+        icon={<FolderTree size={16} />}
+      />
       <ToolbarIconButton
         variant="muted"
         onClick={handleRefresh}
@@ -426,7 +496,12 @@ export function WorkspacePanel({
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-theme-bg text-theme-text">
+    <div
+      className="workspace-panel font-sans flex h-full min-h-0 flex-col bg-theme-bg text-theme-text"
+      data-preview={!!preview}
+      data-show-files={showFiles}
+      data-explorer-collapsed={explorerCollapsed}
+    >
       {headerActionsTarget
         ? createPortal(toolbar, headerActionsTarget)
         : headerActionsTarget === undefined && (
@@ -435,131 +510,193 @@ export function WorkspacePanel({
             </div>
           )}
 
-      {!isCloudView && selection && (
-        <div
-          className="shrink-0 truncate border-b border-theme-border px-3 py-2 text-12 text-theme-text-secondary"
-          title={selection.path}
+      <div className="workspace-browser">
+        <section
+          className="workspace-explorer"
+          aria-label={t("workspacePanel.title")}
         >
-          {selection.path}
-        </div>
-      )}
-      {previewError && (
-        <p
-          role="alert"
-          className="shrink-0 px-3 py-2 text-12 text-theme-text-secondary"
-        >
-          {previewError}
-        </p>
-      )}
-
-      {/* 本地视图状态区 */}
-      {!isCloudView ? (
-        !online ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-            <HardDrive size={22} className="text-theme-text-tertiary" />
-            <p className="text-12 text-theme-text-secondary dark:text-stone-400">
-              {t("workspacePanel.daemonOffline", {
-                defaultValue: "本地沙箱未连接，无法浏览工作区文件",
-              })}
-            </p>
+          <div className="workspace-search">
+            <Search size={16} aria-hidden="true" />
+            <input
+              aria-label={t("workspacePanel.searchFiles")}
+              placeholder={t("workspacePanel.searchFiles")}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
           </div>
-        ) : !sessionId ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-            <p className="text-12 text-theme-text-secondary dark:text-stone-400">
-              {t("workspacePanel.noSession", {
-                defaultValue: "打开一个会话后即可浏览其工作区文件",
-              })}
-            </p>
-          </div>
-        ) : null
-      ) : null}
-
-      {/* 云端视图空态（未创建/未启用）；会话缺省提示两视图共用 */}
-      {isCloudView && cloudEmptyHint ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-          <Cloud size={22} className="text-theme-text-tertiary" />
-          <p className="text-12 text-theme-text-secondary dark:text-stone-400">
-            {cloudEmptyHint}
-          </p>
-        </div>
-      ) : isCloudView && !sessionId ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-          <p className="text-12 text-theme-text-secondary dark:text-stone-400">
-            {t("workspacePanel.noSession", {
-              defaultValue: "打开一个会话后即可浏览其工作区文件",
-            })}
-          </p>
-        </div>
-      ) : null}
-
-      {/* 文件树（本地/云端共用） */}
-      {!localViewBlocked &&
-      !(isCloudView && cloudEmptyHint) &&
-      !(isCloudView && !sessionId) ? (
-        state === "error" ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-            <p className="text-12 text-theme-text-secondary dark:text-stone-400">
-              {error}
-            </p>
-            <button
-              onClick={handleRefresh}
-              className="text-12 text-theme-text-secondary hover:underline dark:text-stone-300"
+          <button
+            className="workspace-root"
+            aria-expanded={rootExpanded}
+            onClick={() => setRootExpanded(!rootExpanded)}
+          >
+            <ChevronRight
+              size={12}
+              className={rootExpanded ? "rotate-90" : undefined}
+            />
+            {t("workspacePanel.root")}
+          </button>
+          {!isCloudView && selection && (
+            <div
+              className="shrink-0 truncate border-b border-theme-border px-3 py-2 text-12 text-theme-text-secondary"
+              title={selection.path}
             >
-              {t("workspacePanel.retry", { defaultValue: "重试" })}
-            </button>
-          </div>
-        ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto p-2">
-            {state === "loading" && root.length === 0 ? (
-              <div className="flex items-center justify-center pt-6">
-                <Loader2 size={16} className="animate-spin text-theme-text-tertiary" />
-              </div>
-            ) : root.length === 0 ? (
-              state === "idle" ? null : (
-                <p className="pt-4 text-center text-12 text-theme-text-secondary dark:text-stone-400">
-                  {t("workspacePanel.emptyDir", { defaultValue: "空工作区" })}
+              {selection.path}
+            </div>
+          )}
+          {previewError && (
+            <p
+              role="alert"
+              className="shrink-0 px-3 py-2 text-12 text-theme-text-secondary"
+            >
+              {previewError}
+            </p>
+          )}
+
+          {/* 本地视图状态区 */}
+          {!isCloudView ? (
+            !online ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+                <HardDrive size={22} className="text-theme-text-tertiary" />
+                <p className="text-12 text-theme-text-secondary dark:text-stone-400">
+                  {t("workspacePanel.daemonOffline", {
+                    defaultValue: "本地沙箱未连接，无法浏览工作区文件",
+                  })}
                 </p>
-              )
+              </div>
+            ) : !sessionId ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+                <p className="text-12 text-theme-text-secondary dark:text-stone-400">
+                  {t("workspacePanel.noSession", {
+                    defaultValue: "打开一个会话后即可浏览其工作区文件",
+                  })}
+                </p>
+              </div>
+            ) : null
+          ) : null}
+
+          {/* 云端视图空态（未创建/未启用）；会话缺省提示两视图共用 */}
+          {isCloudView && cloudEmptyHint ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+              <Cloud size={22} className="text-theme-text-tertiary" />
+              <p className="text-12 text-theme-text-secondary dark:text-stone-400">
+                {cloudEmptyHint}
+              </p>
+            </div>
+          ) : isCloudView && !sessionId ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+              <p className="text-12 text-theme-text-secondary dark:text-stone-400">
+                {t("workspacePanel.noSession", {
+                  defaultValue: "打开一个会话后即可浏览其工作区文件",
+                })}
+              </p>
+            </div>
+          ) : null}
+
+          {/* 文件树（本地/云端共用） */}
+          {!localViewBlocked &&
+          !(isCloudView && cloudEmptyHint) &&
+          !(isCloudView && !sessionId) ? (
+            state === "error" ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+                <p className="text-12 text-theme-text-secondary dark:text-stone-400">
+                  {error}
+                </p>
+                <button
+                  onClick={handleRefresh}
+                  className="text-12 text-theme-text-secondary hover:underline dark:text-stone-300"
+                >
+                  {t("workspacePanel.retry", { defaultValue: "重试" })}
+                </button>
+              </div>
             ) : (
-              <div className="flex flex-col gap-px">{renderNodes(root, 0)}</div>
-            )}
-          </div>
-        )
-      ) : null}
+              <div
+                hidden={!rootExpanded}
+                className="workspace-file-list min-h-0 flex-1 overflow-y-auto"
+              >
+                {state === "loading" && root.length === 0 ? (
+                  <div className="flex items-center justify-center pt-6">
+                    <Loader2
+                      size={16}
+                      className="animate-spin text-theme-text-tertiary"
+                    />
+                  </div>
+                ) : root.length === 0 ? (
+                  state === "idle" ? null : (
+                    <p className="pt-4 text-center text-12 text-theme-text-secondary dark:text-stone-400">
+                      {t("workspacePanel.emptyDir", {
+                        defaultValue: "空工作区",
+                      })}
+                    </p>
+                  )
+                ) : (
+                  <div className="flex flex-col">{renderNodes(root, 0)}</div>
+                )}
+              </div>
+            )
+          ) : null}
+        </section>
+        <section
+          className="workspace-preview"
+          aria-label={t("documents.preview")}
+        >
+          {preview ? (
+            <LazyDocumentPreview
+              key={preview.path}
+              {...preview}
+              embedded
+              onBack={backToFiles}
+              onClose={() => {
+                setPreview(null);
+                backToFiles();
+              }}
+            />
+          ) : (
+            <div className="workspace-preview-empty">
+              <FolderOpen size={28} strokeWidth={1.5} aria-hidden="true" />
+              <p>{t("workspacePanel.selectFile")}</p>
+            </div>
+          )}
+        </section>
+      </div>
 
       {/* 右键菜单（复制路径 / 在系统文件管理器中显示——仅本地视图本机工作区） */}
-      {contextMenu && (
-        <div
-          ref={menuRef}
-          className="fixed z-[350] w-56 overflow-hidden rounded-lg border border-theme-border bg-theme-bg-card py-1 shadow-lg dark:border-stone-700 dark:bg-stone-800"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-        >
-          <button
-            onClick={() => {
-              void copyToClipboard(contextMenu.path);
-              setContextMenu(null);
-            }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-13 text-theme-text hover:bg-theme-bg-subtle dark:text-stone-200 dark:hover:bg-stone-700/60"
+      {contextMenu &&
+        createPortal(
+          <div
+            role="menu"
+            ref={menuRef}
+            className="fixed z-[350] w-56 overflow-hidden rounded-lg border border-theme-border bg-theme-bg-card py-1 shadow-lg dark:border-stone-700 dark:bg-stone-800"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
           >
-            <Copy size={14} />
-            {t("workspacePanel.copyPath", { defaultValue: "复制路径" })}
-          </button>
-          {isShellAvailable() && isLocalMachineWorkspace && (
             <button
+              role="menuitem"
               onClick={() => {
-                void handleReveal(contextMenu.path);
+                void copyToClipboard(contextMenu.path);
                 setContextMenu(null);
               }}
               className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-13 text-theme-text hover:bg-theme-bg-subtle dark:text-stone-200 dark:hover:bg-stone-700/60"
             >
-              <FolderOpen size={14} />
-              {t("workspacePanel.revealInFileManager", {
-                defaultValue: "在文件管理器中显示",
-              })}
+              <Copy size={14} />
+              {t("workspacePanel.copyPath", { defaultValue: "复制路径" })}
             </button>
-          )}
-        </div>
-      )}
+            {isShellAvailable() && isLocalMachineWorkspace && (
+              <button
+                role="menuitem"
+                onClick={() => {
+                  void handleReveal(contextMenu.path);
+                  setContextMenu(null);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-13 text-theme-text hover:bg-theme-bg-subtle dark:text-stone-200 dark:hover:bg-stone-700/60"
+              >
+                <FolderOpen size={14} />
+                {t("workspacePanel.revealInFileManager", {
+                  defaultValue: "在文件管理器中显示",
+                })}
+              </button>
+            )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

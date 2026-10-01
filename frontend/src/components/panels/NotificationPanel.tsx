@@ -462,9 +462,9 @@ export function NotificationPanel() {
                   className="glass-card overflow-hidden rounded-xl transition-colors hover:border-stone-300 dark:hover:border-stone-600"
                 >
                   <div className="flex flex-col">
-                    <div className="flex items-start justify-between gap-3 p-4 sm:p-5">
+                    <div className="notification-card-row flex items-start justify-between gap-3 p-4 sm:p-5">
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-nowrap items-center gap-2 sm:gap-3">
+                        <div className="notification-card-heading flex flex-nowrap items-center gap-2 sm:gap-3">
                           <span
                             className={`inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-11 font-semibold uppercase leading-none ${
                               notification.type === "info"
@@ -483,7 +483,7 @@ export function NotificationPanel() {
                               }`,
                             )}
                           </span>
-                          <p className="min-w-0 flex-1 truncate text-14 font-medium leading-6 text-stone-900 dark:text-stone-100 sm:text-15">
+                          <p className="notification-card-title min-w-0 flex-1 line-clamp-2 break-words text-14 font-medium leading-6 text-theme-text sm:text-15">
                             {getLocalizedTitle(notification)}
                           </p>
                           <StatusBadge
@@ -499,7 +499,7 @@ export function NotificationPanel() {
                         </div>
                       </div>
 
-                      <div className="flex flex-shrink-0 items-center gap-1">
+                      <div className="notification-card-actions flex flex-shrink-0 items-center gap-1">
                         {hasContent && (
                           <IconButton
                             aria-label={

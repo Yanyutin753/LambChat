@@ -15,38 +15,40 @@ export function ScreenshotCard({
   label,
 }: ScreenshotCardProps) {
   return (
-    <div
+    <button
+      type="button"
+      aria-label={alt}
       data-reveal-scale
-      className="blog-screenshot-card group relative rounded-2xl overflow-hidden cursor-pointer bg-white/80 dark:bg-stone-900/40 transition-all duration-500 hover:-translate-y-1.5"
+      className="blog-screenshot-card public-preview group relative rounded-2xl overflow-hidden cursor-pointer bg-white/80 dark:bg-stone-900/40 transition-all duration-500 hover:-translate-y-1.5"
       onClick={onClick}
     >
-      <div className="relative aspect-[4/3] bg-stone-50 dark:bg-stone-800/20 overflow-hidden">
+      <div className="relative aspect-video bg-stone-50 dark:bg-stone-800/20 overflow-hidden">
         <ImageWithSkeleton
           src={src}
           alt={alt}
           skipUrlResolve
           inline
-          className="w-full h-full object-cover object-top transition-all duration-700 ease-out group-hover:scale-[1.04]"
+          className="w-full h-full object-cover object-top transition-all duration-700 ease-out group-hover:scale-[1.015]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="opacity-0 group-hover:opacity-100 transition-all duration-500 scale-75 group-hover:scale-100 w-11 h-11 rounded-full bg-white/90 dark:bg-stone-800/90 shadow-xl shadow-black/10 dark:shadow-black/40 flex items-center justify-center text-stone-500 dark:text-stone-400 ring-1 ring-white/20 dark:ring-white/10">
+          <div className="opacity-0 group-hover:opacity-100 transition-all duration-500 scale-75 group-hover:scale-100 w-11 h-11 rounded-full bg-white/90 dark:bg-stone-800/90 shadow-xl shadow-black/10 dark:shadow-black/40 flex items-center justify-center text-theme-text-secondary dark:text-theme-text-secondary ring-1 ring-white/20 dark:ring-white/10">
             <ZoomIcon />
           </div>
         </div>
       </div>
       <div className="px-4 py-3 border-t border-stone-100/40 dark:border-stone-800/20">
         <div className="flex items-center justify-between">
-          <span className="text-11 font-medium text-stone-400 dark:text-stone-500 truncate">
+          <span className="text-11 font-medium text-theme-text-secondary dark:text-theme-text-secondary truncate">
             {alt}
           </span>
           {label && (
-            <span className="text-9 text-stone-300 dark:text-stone-600 font-semibold tracking-[0.1em] uppercase shrink-0 ml-3">
+            <span className="text-9 text-theme-text-tertiary dark:text-theme-text-secondary font-semibold tracking-[0.1em] uppercase shrink-0 ml-3">
               {label}
             </span>
           )}
         </div>
       </div>
-    </div>
+    </button>
   );
 }

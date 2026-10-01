@@ -173,8 +173,8 @@ export function TitleBar({
   return (
     <div
       data-titlebar
-      className={`sticky top-0 z-[300] flex h-10 select-none items-center border-b border-[var(--theme-border)] bg-[var(--theme-bg)] ${
-        isMac ? "gap-1.5 pl-[88px] pr-2" : "gap-1 px-2"
+      className={`sticky top-0 z-[300] flex select-none items-center border-b border-[var(--theme-border)] bg-[var(--theme-bg)] ${
+        isMac ? "h-9 gap-1.5 pl-[82px] pr-2" : "h-10 gap-1 px-2"
       }`}
     >
       {!isMac && (
@@ -199,7 +199,7 @@ export function TitleBar({
         onClick={back}
         label={t("titlebar.back", "后退")}
       >
-        <ChevronLeft size={16} strokeWidth={2} />
+        <ChevronLeft size={isMac ? 14 : 16} strokeWidth={2} />
       </NavButton>
       <NavButton
         direction="forward"
@@ -207,7 +207,7 @@ export function TitleBar({
         onClick={forward}
         label={t("titlebar.forward", "前进")}
       >
-        <ChevronRight size={16} strokeWidth={2} />
+        <ChevronRight size={isMac ? 14 : 16} strokeWidth={2} />
       </NavButton>
 
       <TitleIconButton
@@ -216,7 +216,7 @@ export function TitleBar({
           window.dispatchEvent(new CustomEvent(DESKTOP_SIDEBAR_TOGGLE_EVENT))
         }
       >
-        <PanelLeft size={16} strokeWidth={2} aria-hidden="true" />
+        <PanelLeft size={isMac ? 14 : 16} strokeWidth={2} aria-hidden="true" />
       </TitleIconButton>
 
       {/* 拖拽区：flex 弹性占位（双击最大化由 Tauri 运行时处理） */}

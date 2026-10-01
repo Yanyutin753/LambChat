@@ -27,7 +27,7 @@ import {
 import { getFullUrl } from "../../services/api/config";
 import type { DocumentPreviewState } from "./useDocumentPreviewState";
 
-type ToolbarProps = Pick<
+type ToolbarProps = { embedded?: boolean } & Pick<
   DocumentPreviewState,
   | "t"
   | "data"
@@ -64,6 +64,7 @@ type ToolbarProps = Pick<
 const TOOLBAR_ICON_SIZE = 16;
 
 export default function DocumentPreviewToolbar({
+  embedded = false,
   t,
   data,
   copied,
@@ -127,29 +128,33 @@ export default function DocumentPreviewToolbar({
   }, [fileUrl, t]);
 
   const fileActions = [
-    {
-      title: isSidebar
-        ? t("documents.centerView", "Center view")
-        : t("documents.sidebarView", "Sidebar view"),
-      icon: isSidebar ? (
-        <Columns2 size={TOOLBAR_ICON_SIZE} />
-      ) : (
-        <PanelRight size={TOOLBAR_ICON_SIZE} />
-      ),
-      onClick: () => {
-        onUserInteraction?.();
-        setViewMode(isSidebar ? "center" : "sidebar");
-      },
-    },
-    {
-      title: t("documents.fullscreen"),
-      icon: <Expand size={TOOLBAR_ICON_SIZE} />,
-      onClick: () => {
-        onUserInteraction?.();
-        if (isSidebar) setViewMode("center");
-        handleFullscreenToggle();
-      },
-    },
+    ...(!embedded
+      ? [
+          {
+            title: isSidebar
+              ? t("documents.centerView", "Center view")
+              : t("documents.sidebarView", "Sidebar view"),
+            icon: isSidebar ? (
+              <Columns2 size={TOOLBAR_ICON_SIZE} />
+            ) : (
+              <PanelRight size={TOOLBAR_ICON_SIZE} />
+            ),
+            onClick: () => {
+              onUserInteraction?.();
+              setViewMode(isSidebar ? "center" : "sidebar");
+            },
+          },
+          {
+            title: t("documents.fullscreen"),
+            icon: <Expand size={TOOLBAR_ICON_SIZE} />,
+            onClick: () => {
+              onUserInteraction?.();
+              if (isSidebar) setViewMode("center");
+              handleFullscreenToggle();
+            },
+          },
+        ]
+      : []),
     ...(fileUrl
       ? [
           {
@@ -209,7 +214,11 @@ export default function DocumentPreviewToolbar({
           icon={<BackIcon size={TOOLBAR_ICON_SIZE} />}
         />
       )}
-      <FileIcon icon={Icon} bg={fileInfo.bg} color={fileInfo.color} compact />
+      {embedded ? (
+        <Icon size={16} className="shrink-0 text-theme-text-secondary" />
+      ) : (
+        <FileIcon icon={Icon} bg={fileInfo.bg} color={fileInfo.color} compact />
+      )}
       <div className="document-preview-file-info flex-1 min-w-0 overflow-hidden">
         <h3
           className="text-13 sm:text-14 font-medium font-sans text-[var(--theme-text)] truncate"
@@ -217,20 +226,22 @@ export default function DocumentPreviewToolbar({
         >
           {fileName}
         </h3>
-        <div className="flex items-center gap-1.5 text-12 text-[var(--theme-text-secondary)] mt-0.5">
-          {shouldShowLanguageBadge(codeFile, language, fileName) && (
-            <span className="document-preview-language font-mono text-11 shrink-0">
-              {language}
+        {!embedded && (
+          <div className="flex items-center gap-1.5 text-12 text-[var(--theme-text-secondary)] mt-0.5">
+            {shouldShowLanguageBadge(codeFile, language, fileName) && (
+              <span className="document-preview-language font-mono text-11 shrink-0">
+                {language}
+              </span>
+            )}
+            <span className="text-12 truncate font-sans">
+              {hasTextContent
+                ? t("documents.chars", { count: displaySize })
+                : fileSize
+                  ? formatFileSizeUtil(fileSize)
+                  : t(fileInfo.label, fileInfo.label)}
             </span>
-          )}
-          <span className="text-12 truncate font-sans">
-            {hasTextContent
-              ? t("documents.chars", { count: displaySize })
-              : fileSize
-                ? formatFileSizeUtil(fileSize)
-                : t(fileInfo.label, fileInfo.label)}
-          </span>
-        </div>
+          </div>
+        )}
       </div>
       <div className="document-preview-toolbar-actions ml-auto flex items-center gap-1 relative z-10 shrink-0">
         {markdownFile && data?.content && (
