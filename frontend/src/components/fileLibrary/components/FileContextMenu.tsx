@@ -1,12 +1,13 @@
 import { useTranslation } from "react-i18next";
-import { createPortal } from "react-dom";
+import { ResourceCardMenu } from "../../common/ResourceCardMenu";
 import { MessageSquare, Star, Download, ExternalLink } from "lucide-react";
 import type { RevealedFileItem } from "../../../services/api";
 import { getFullUrl } from "../../../services/api";
 
 interface FileContextMenuProps {
   menu: { x: number; y: number; file: RevealedFileItem } | null;
-  menuRef: React.RefObject<HTMLDivElement | null>;
+  menuId: string;
+  onClose: (restoreFocus?: boolean) => void;
   file: RevealedFileItem;
   onGoToSession: (sessionId: string, file?: RevealedFileItem) => void;
   onToggleFavorite: (file: RevealedFileItem) => void;
@@ -14,7 +15,8 @@ interface FileContextMenuProps {
 
 export function FileContextMenu({
   menu,
-  menuRef,
+  menuId,
+  onClose,
   file,
   onGoToSession,
   onToggleFavorite,
@@ -77,28 +79,19 @@ export function FileContextMenu({
       : []),
   ];
 
-  return createPortal(
-    <div
-      ref={menuRef}
-      className="fixed z-[999] bg-theme-bg-card shadow-xl rounded-xl border border-theme-border p-1 w-max min-w-[240px] max-w-[calc(100vw-16px)] max-h-[calc(100dvh-16px)] overflow-auto"
-      style={{ position: "fixed", top: menu.y, left: menu.x }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {items.map((item) => (
-        <button
-          key={item.label}
-          onClick={item.action}
-          className="flex items-center gap-2 w-full p-2 rounded-lg hover:bg-theme-bg-subtle cursor-pointer text-13 text-theme-text transition-colors"
-        >
-          <div className="size-5 flex items-center justify-center shrink-0">
-            <item.icon size={16} className="text-theme-text-secondary" />
-          </div>
-          <span className="flex-1 text-left whitespace-nowrap">
-            {item.label}
-          </span>
-        </button>
-      ))}
-    </div>,
-    document.body,
+  return (
+    <ResourceCardMenu
+      id={menuId}
+      title={file.file_name}
+      position={menu}
+      onClose={onClose}
+      actions={items.map((item) => ({
+        label: item.label,
+        onClick: item.action,
+        icon: (
+          <item.icon size={16} className="shrink-0 text-theme-text-secondary" />
+        ),
+      }))}
+    />
   );
 }

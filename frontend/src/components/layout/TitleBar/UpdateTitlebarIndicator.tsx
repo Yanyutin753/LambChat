@@ -14,6 +14,7 @@ import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosit
 import { APP_VERSION } from "../../../utils/appVersion";
 import type { UpdateState } from "../../../types";
 import { updateIndicatorPhase } from "./updateIndicatorPhase";
+import { getTopDialog } from "../../../utils/dialogStack";
 
 /**
  * 标题栏更新指示器：桌面端更新流程的唯一常驻入口。
@@ -106,7 +107,7 @@ export function UpdateTitlebarIndicator({
         e.key === "Escape" &&
         !e.defaultPrevented &&
         !e.isComposing &&
-        !document.querySelector('[aria-modal="true"]')
+        getTopDialog() === panelRef.current
       ) {
         e.preventDefault();
         setOpen(false);

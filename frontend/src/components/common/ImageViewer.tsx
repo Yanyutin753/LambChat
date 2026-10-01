@@ -7,6 +7,7 @@ import { ViewerTopBar } from "./ViewerTopBar";
 import { ViewerTopBarButton } from "./ViewerTopBarButton";
 import { downloadUrl } from "./viewerDownload";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
+import { getTopDialog } from "../../utils/dialogStack";
 
 interface ImageViewerProps {
   src: string;
@@ -74,8 +75,7 @@ export function ImageViewer({
     if (!isOpen) return;
     const dialog = dialogRef.current;
     const handleKeyDown = (e: KeyboardEvent) => {
-      const dialogs = document.querySelectorAll('[role="dialog"]');
-      if (dialogs[dialogs.length - 1] !== dialog || e.defaultPrevented) return;
+      if (getTopDialog() !== dialog || e.defaultPrevented) return;
       if (e.key === "Tab" && dialog) {
         const controls = Array.from(
           dialog.querySelectorAll<HTMLElement>(

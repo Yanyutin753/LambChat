@@ -19,6 +19,7 @@ import {
   type RightPanelPresentation,
 } from "./rightPanelLayout";
 import { notifyRightPanelWidthChanged } from "./rightPanelWidthEvents";
+import { getTopDialog } from "../utils/dialogStack";
 
 export interface SidebarPanelOptions {
   open: boolean;
@@ -303,11 +304,12 @@ export function useSidebarPanel({
 
     const handleEscape = (event: KeyboardEvent) => {
       if (document.fullscreenElement || event.defaultPrevented) return;
-      const dialogs = document.querySelectorAll(
-        '[role="dialog"][aria-modal="true"]',
-      );
-      const topDialog = dialogs[dialogs.length - 1];
-      if (topDialog && topDialog !== panelRef.current) return;
+      const topDialog = getTopDialog();
+      if (
+        topDialog &&
+        topDialog !== panelRef.current?.closest('[role="dialog"]')
+      )
+        return;
       if (event.key === "Escape") {
         event.preventDefault();
         onClose();

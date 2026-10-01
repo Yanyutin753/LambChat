@@ -9,6 +9,7 @@ import {
 import { useLocation, useNavigationType, useNavigate } from "react-router-dom";
 import { detectDesktopOs } from "../components/layout/TitleBar/titlebarPlatform";
 import { isEditableEventTarget } from "../utils/editableTarget";
+import { getTopDialog } from "../utils/dialogStack";
 import {
   applyNavigation,
   canGoBack,
@@ -101,7 +102,7 @@ export function NavigationHistoryProvider({
         event.isComposing ||
         event.shiftKey ||
         isEditableEventTarget(event.target) ||
-        document.querySelector('[role="dialog"][aria-modal="true"]')
+        getTopDialog()
       )
         return;
       const altArrow =

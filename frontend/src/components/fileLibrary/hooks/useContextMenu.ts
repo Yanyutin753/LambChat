@@ -1,10 +1,4 @@
-import {
-  useState,
-  useCallback,
-  useRef,
-  useEffect,
-  useLayoutEffect,
-} from "react";
+import { useState, useCallback, useRef, useId } from "react";
 import type { RevealedFileItem } from "../../../services/api";
 
 export function useContextMenu() {
@@ -13,38 +7,30 @@ export function useContextMenu() {
     y: number;
     file: RevealedFileItem;
   } | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const menuId = useId();
+  const openerRef = useRef<HTMLElement | null>(null);
 
-  const show = useCallback((e: React.MouseEvent, file: RevealedFileItem) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setMenu({ x: e.clientX, y: e.clientY, file });
+  const show = useCallback(
+    (e: React.MouseEvent | React.KeyboardEvent, file: RevealedFileItem) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openerRef.current = e.currentTarget as HTMLElement;
+      const rect = openerRef.current.getBoundingClientRect();
+      const keyboard =
+        e.type === "keydown" || (e.type === "click" && e.detail === 0);
+      setMenu({
+        x: keyboard || !("clientX" in e) ? rect.left : e.clientX,
+        y: keyboard || !("clientY" in e) ? rect.bottom : e.clientY,
+        file,
+      });
+    },
+    [],
+  );
+
+  const hide = useCallback((restoreFocus = false) => {
+    setMenu(null);
+    if (restoreFocus) openerRef.current?.focus();
   }, []);
 
-  const hide = useCallback(() => setMenu(null), []);
-
-  // Close on click outside
-  useEffect(() => {
-    if (!menu) return;
-    const handler = () => hide();
-    document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
-  }, [menu, hide]);
-
-  // Reposition if overflowing viewport
-  useLayoutEffect(() => {
-    if (!menu || !menuRef.current) return;
-    const rect = menuRef.current.getBoundingClientRect();
-    const el = menuRef.current;
-    el.style.left = `${Math.max(
-      8,
-      Math.min(menu.x, window.innerWidth - rect.width - 8),
-    )}px`;
-    el.style.top = `${Math.max(
-      8,
-      Math.min(menu.y, window.innerHeight - rect.height - 8),
-    )}px`;
-  }, [menu]);
-
-  return { menu, menuRef, show, hide };
+  return { menu, menuId, show, hide };
 }

@@ -1,5 +1,4 @@
 /** @vitest-environment jsdom */
-import { createRef } from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { FileContextMenu } from "../components/FileContextMenu";
@@ -17,23 +16,21 @@ test("file actions escape the grid and preview stacking context", () => {
     session_id: "session",
     file_name: "report.md",
   } as RevealedFileItem;
-  const menuRef = createRef<HTMLDivElement>();
   const { container } = render(
     <div className="auto-grid-cols overflow-hidden">
       <FileContextMenu
         menu={{ x: 500, y: 200, file }}
-        menuRef={menuRef}
+        menuId="file-menu"
+        onClose={vi.fn()}
         file={file}
         onGoToSession={vi.fn()}
         onToggleFavorite={vi.fn()}
       />
     </div>,
   );
-  expect(menuRef.current?.parentElement).toBe(document.body);
-  expect(container.contains(menuRef.current)).toBe(false);
-  expect(
-    screen.getByText("fileLibrary.context.goToSession").className,
-  ).toContain("whitespace-nowrap");
+  const menu = screen.getByRole("menu", { name: "report.md" });
+  expect(menu.parentElement).toBe(document.body);
+  expect(container.contains(menu)).toBe(false);
 });
 
 test("file toolbar dropdown escapes its clipping panel", () => {

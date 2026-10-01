@@ -30,9 +30,21 @@ export function ListCard({
   return (
     <>
       <div
+        role="group"
+        aria-label={file.file_name}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return;
+          if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey))
+            ctx.show(e, file);
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onPreview(file);
+          }
+        }}
         onClick={() => onPreview(file)}
         onContextMenu={(e) => ctx.show(e, file)}
-        className="group/card relative flex items-center gap-3.5 px-4 py-3 rounded-xl bg-theme-bg-card border border-theme-border cursor-pointer select-none transition-all duration-150 hover:bg-theme-bg-subtle hover:border-theme-border-hover hover:shadow-sm"
+        className="group/card relative flex items-center gap-3.5 px-4 py-3 rounded-xl bg-theme-bg-card border border-theme-border cursor-pointer select-none transition-all duration-150 hover:bg-theme-bg-subtle hover:border-theme-border-hover hover:shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
       >
         {/* Icon / thumbnail */}
         <div className="shrink-0">
@@ -43,9 +55,16 @@ export function ListCard({
 
         {/* Name + meta */}
         <div className="flex-1 min-w-0">
-          <p className="text-13 font-medium text-theme-text truncate leading-snug">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPreview(file);
+            }}
+            className="block max-w-full text-left text-13 font-medium text-theme-text truncate leading-snug focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+          >
             {file.file_name}
-          </p>
+          </button>
           <p className="mt-0.5 text-11 text-theme-text-tertiary truncate font-serif">
             {meta}
           </p>
@@ -53,11 +72,16 @@ export function ListCard({
 
         {/* More button */}
         <button
+          type="button"
+          aria-label={t("common.moreOptions")}
+          aria-haspopup="menu"
+          aria-expanded={!!ctx.menu}
+          aria-controls={ctx.menu ? ctx.menuId : undefined}
           onClick={(e) => {
             e.stopPropagation();
             ctx.show(e, file);
           }}
-          className="shrink-0 p-1.5 rounded-md text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-subtle transition-all"
+          className="flex size-11 sm:size-7 items-center justify-center shrink-0 rounded-md text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-subtle transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
         >
           <MoreHorizontal size={16} />
         </button>
@@ -65,7 +89,8 @@ export function ListCard({
 
       <FileContextMenu
         menu={ctx.menu}
-        menuRef={ctx.menuRef}
+        menuId={ctx.menuId}
+        onClose={ctx.hide}
         file={file}
         onGoToSession={onGoToSession}
         onToggleFavorite={onToggleFavorite}

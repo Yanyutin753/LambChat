@@ -21,6 +21,8 @@ import { useSidebarPanel } from "../../../hooks/useSidebarPanel";
 import { ToolResultPanel } from "../../chat/ChatMessage/items/ToolResultPanel";
 import { EditorSidebar } from "../EditorSidebar";
 import { ModalSurface } from "../ModalSurface";
+import { UpdateTitlebarIndicator } from "../../layout/TitleBar/UpdateTitlebarIndicator";
+import type { UpdateState } from "../../../types";
 import {
   RIGHT_PANEL_WIDTH_CHANGED_EVENT,
   getRightPanelLayoutSnapshot,
@@ -65,6 +67,70 @@ test("Escape dismisses a modal above a docked panel without closing that panel",
   fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
   expect(closeModal).toHaveBeenCalledOnce();
   expect(closePanel).not.toHaveBeenCalled();
+});
+
+test.each([410, 800])(
+  "Escape closes the active tool preview at %ipx",
+  (width) => {
+    installMatchMedia(width);
+    const close = vi.fn();
+    render(
+      <ToolResultPanel open onClose={close} title="Preview">
+        body
+      </ToolResultPanel>,
+    );
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(close).toHaveBeenCalledOnce();
+  },
+);
+
+test("hidden preview dialogs do not consume the active editor Escape", () => {
+  installMatchMedia(800);
+  const closeEditor = vi.fn();
+  const closePreview = vi.fn();
+  render(
+    <>
+      <EditorSidebar open onClose={closeEditor} title="Editor">
+        draft
+      </EditorSidebar>
+      <ToolResultPanel open onClose={closePreview} title="Preview">
+        preview
+      </ToolResultPanel>
+    </>,
+  );
+  const editorId = getRightPanelSnapshot().entries.find(
+    (entry) => entry.kind === "editor",
+  )!.id;
+  act(() => activateRightPanel(editorId));
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(closeEditor).toHaveBeenCalledOnce();
+  expect(closePreview).not.toHaveBeenCalled();
+});
+
+test("Escape closes an update popover without closing its background editor", () => {
+  const close = vi.fn();
+  const update = {
+    available: true,
+    version: "99",
+    releaseAssets: [],
+    downloading: false,
+  } as UpdateState;
+  render(
+    <>
+      <EditorSidebar open onClose={close} title="Editor">
+        draft
+      </EditorSidebar>
+      <UpdateTitlebarIndicator
+        state={update}
+        onInstall={() => {}}
+        onSkipVersion={() => {}}
+      />
+    </>,
+  );
+  fireEvent.click(document.querySelector('button[aria-haspopup="dialog"]')!);
+  fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+  expect(close).not.toHaveBeenCalled();
+  expect(screen.queryByRole("dialog")).toBeNull();
 });
 
 function TestPanel({

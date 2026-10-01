@@ -17,6 +17,7 @@ import { BrandWordmark } from "../../common/BrandWordmark";
 import { APP_NAME } from "../../../constants";
 import { DesktopActivityRail } from "./DesktopActivityRail";
 import { isEditableEventTarget } from "../../../utils/editableTarget";
+import { getTopDialog } from "../../../utils/dialogStack";
 import {
   DESKTOP_SIDEBAR_TOGGLE_EVENT,
   DESKTOP_SIDEBAR_OPEN_SEARCH_EVENT,
@@ -79,7 +80,7 @@ function useDesktopShellShortcuts(
         e.altKey ||
         e.shiftKey ||
         isEditableEventTarget(e.target) ||
-        document.querySelector('[role="dialog"][aria-modal="true"]')
+        getTopDialog()
       )
         return;
       const isMac = navigator.platform.toUpperCase().includes("MAC");

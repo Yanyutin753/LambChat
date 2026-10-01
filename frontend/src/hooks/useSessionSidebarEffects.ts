@@ -11,6 +11,7 @@ import type { ProjectItemHandle } from "../components/sidebar/ProjectItem";
 import type { ScheduledTaskItemHandle } from "../components/sidebar/ScheduledTaskSidebarItem";
 import { isSessionFavorite } from "../components/sidebar/sessionFavorites";
 import { isEditableEventTarget } from "../utils/editableTarget";
+import { getTopDialog } from "../utils/dialogStack";
 
 /** Subset of useProjectSessionList return used by effects. */
 export interface SessionListHandle {
@@ -141,7 +142,7 @@ export function useSessionSidebarEffects({
         e.isComposing ||
         e.altKey ||
         isEditableEventTarget(e.target) ||
-        document.querySelector('[role="dialog"][aria-modal="true"]')
+        getTopDialog()
       )
         return;
       const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;

@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import { useSwipeToClose } from "../../hooks/useSwipeToClose";
+import { getTopDialog } from "../../utils/dialogStack";
 import "./modalSurface.css";
 
 /** Shared positioning, dismissal and mobile gesture boundary for modal content. */
@@ -49,9 +50,7 @@ export function ModalSurface({
       surface.setAttribute("aria-labelledby", heading.id);
     }
     const keyboard = (event: KeyboardEvent) => {
-      const dialogs = document.querySelectorAll('[role="dialog"]');
-      if (dialogs[dialogs.length - 1] !== surface || event.defaultPrevented)
-        return;
+      if (getTopDialog() !== surface || event.defaultPrevented) return;
       if (event.key === "Escape" && dismissible) {
         event.preventDefault();
         closeRef.current();
