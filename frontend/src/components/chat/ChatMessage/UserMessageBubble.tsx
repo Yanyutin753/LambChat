@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { clsx } from "clsx";
-import { Copy, Check, GitBranch, Clock, X } from "lucide-react";
+import { GitBranch, Clock, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { AttachmentCard, ImageViewer } from "../../common";
 import type { MessageAttachment } from "../../../types";
@@ -8,7 +8,7 @@ import { getFullUrl } from "../../../services/api";
 import { MarkdownContent } from "./MarkdownContent";
 import { openAttachmentPreview } from "../attachmentPreviewStore";
 import { getUserMessageActionButtonVisibilityClass } from "./userMessageBubbleState";
-import { copyToClipboard } from "../../../utils/clipboard";
+import { CopyButton } from "../../common/CopyButton";
 import { useSessionImageGallery } from "./sessionImageGallery";
 import { SkillChip } from "../SkillChip";
 import { RunModeChip } from "../richComposer/RunModeChip";
@@ -48,16 +48,8 @@ export function UserMessageBubble({
   extraActions?: ReactNode;
 }) {
   const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
   const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
   const sessionImageGallery = useSessionImageGallery();
-
-  const handleCopy = async () => {
-    if (!content) return;
-    await copyToClipboard(content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   const handleOpenAttachment = (attachment: MessageAttachment) => {
     const isImage = attachment.mimeType?.startsWith("image/") && attachment.url;
@@ -212,20 +204,13 @@ export function UserMessageBubble({
               </button>
             )}
             {extraActions}
-            <button
-              onClick={handleCopy}
-              className={clsx(
-                "p-1.5 rounded-lg transition-colors duration-200",
-                getUserMessageActionButtonVisibilityClass(isLastMessage),
-                "hover:bg-black/5 dark:hover:bg-white/5",
-                copied
-                  ? "text-emerald-500 dark:text-emerald-400"
-                  : "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
+            <CopyButton
+              text={content ?? ""}
+              size={16}
+              className={getUserMessageActionButtonVisibilityClass(
+                isLastMessage,
               )}
-              title={copied ? t("chat.message.copied") : t("chat.message.copy")}
-            >
-              {copied ? <Check size={16} /> : <Copy size={16} />}
-            </button>
+            />
           </div>
         </div>
       </div>

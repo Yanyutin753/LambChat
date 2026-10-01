@@ -134,6 +134,7 @@ export const WelcomePage = memo(function WelcomePage({
   const [contactAdminOpen, setContactAdminOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [pendingInput, setPendingInput] = useState<string | null>(null);
+  const [composerFocusRequest, setComposerFocusRequest] = useState(0);
   const [teamRequestState, setTeamRequestState] = useState<
     TeamRequestState<Team>
   >({ requestId: 0, cards: [], isLoading: false, isSettled: false });
@@ -303,6 +304,7 @@ export const WelcomePage = memo(function WelcomePage({
     if (!onSelectTeam) return;
     setIsRefreshing(true);
     onSelectTeam?.(null);
+    setComposerFocusRequest((request) => request + 1);
     handleMentionQueryChange(null);
     setAnimKey((k) => k + 1);
     setTimeout(() => setIsRefreshing(false), 400);
@@ -318,7 +320,9 @@ export const WelcomePage = memo(function WelcomePage({
 
   const handleTeamClick = useCallback(
     (team: Team) => {
+      if (!onSelectTeam) return;
       onSelectTeam?.(team.id);
+      setComposerFocusRequest((request) => request + 1);
     },
     [onSelectTeam],
   );
@@ -466,6 +470,9 @@ export const WelcomePage = memo(function WelcomePage({
       <div className="welcome-input flex w-full flex-col mx-auto sm:max-w-[44rem] md:max-w-[46rem] lg:max-w-[48rem] xl:max-w-[50rem] 2xl:max-w-[52rem]">
         <ChatInput
           {...chatInputProps}
+          focusRequest={
+            (chatInputProps.focusRequest ?? 0) + composerFocusRequest
+          }
           onMentionQueryChange={
             shouldProjectMentionsToWelcome
               ? handleMentionQueryChange

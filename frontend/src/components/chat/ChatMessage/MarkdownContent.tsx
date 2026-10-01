@@ -4,7 +4,7 @@ import remarkBreaks from "remark-breaks";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import React, { memo, useState } from "react";
-import { Copy, Check, Download, Table2, Code2, X, Minus } from "lucide-react";
+import { Check, Download, Table2, Code2, X, Minus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
 import { getFullUrl } from "../../../services/api/config";
@@ -22,6 +22,7 @@ import { buildChatThumbUrl } from "../../../utils/chatThumbs";
 import { useSessionImageGallery } from "./sessionImageGallery";
 import { ImageWithSkeleton } from "./ImageWithSkeleton";
 import { normalizeMarkdownCodeFences } from "./markdownCodeFences";
+import { CopyButton } from "../../common/CopyButton";
 
 function extractNodeText(node: React.ReactNode): string {
   if (typeof node === "string" || typeof node === "number") {
@@ -100,17 +101,9 @@ function CodeBlock({
   isStreaming?: boolean;
 }) {
   const { t } = useTranslation();
-  const [copied, setCopied] = React.useState(false);
   const match = /language-(\w+)/.exec(className || "");
   const language = match ? match[1] : "";
   const codeString = String(children).replace(/\n$/, "");
-
-  const handleCopy = async () => {
-    await copyToClipboard(codeString);
-    setCopied(true);
-    toast.success(t("chat.message.copied"));
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   // Handle mermaid diagrams
   if (language === "mermaid") {
@@ -151,34 +144,11 @@ function CodeBlock({
           </span>
         </div>
         {/* Copy button */}
-        <button
-          onClick={handleCopy}
-          className={clsx(
-            "ai-code-block__copy flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all touch-manipulation",
-            "min-h-[32px] min-w-[32px]",
-            copied
-              ? "text-green-600 dark:text-green-400"
-              : "text-stone-500 hover:text-stone-700 hover:bg-stone-300/50 dark:text-stone-400 dark:hover:text-stone-200 dark:hover:bg-stone-700/50",
-          )}
-          aria-label={
-            copied ? t("chat.message.copied") : t("chat.message.copyCode")
-          }
-          title={copied ? t("chat.message.copied") : t("chat.message.copyCode")}
-        >
-          {copied ? (
-            <>
-              <Check size={14} />
-              <span className="hidden xs:inline">
-                {t("chat.message.copied")}
-              </span>
-            </>
-          ) : (
-            <>
-              <Copy size={14} />
-              <span className="hidden xs:inline">{t("chat.message.copy")}</span>
-            </>
-          )}
-        </button>
+        <CopyButton
+          text={codeString}
+          label={t("chat.message.copyCode")}
+          className="ai-code-block__copy"
+        />
       </div>
 
       {/* Code content */}
@@ -198,7 +168,6 @@ function CodeBlock({
 // Table block with copy & export toolbar
 function TableBlock({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
-  const [copied, setCopied] = React.useState(false);
   const tableRef = React.useRef<HTMLTableElement>(null);
 
   const extractData = (): string[][] => {
@@ -211,9 +180,9 @@ function TableBlock({ children }: { children: React.ReactNode }) {
     );
   };
 
-  const handleCopy = async () => {
+  const handleCopy = () => {
     const data = extractData();
-    if (data.length === 0) return;
+    if (data.length === 0) return "";
 
     const colWidths = data[0].map((_, colIdx) =>
       Math.max(...data.map((row) => (row[colIdx] || "").length)),
@@ -232,11 +201,7 @@ function TableBlock({ children }: { children: React.ReactNode }) {
           "| " + row.map((c, i) => pad(c, colWidths[i])).join(" | ") + " |",
       );
 
-    const markdown = [header, separator, ...rows].join("\n");
-    await copyToClipboard(markdown);
-    setCopied(true);
-    toast.success(t("chat.message.copied"));
-    setTimeout(() => setCopied(false), 2000);
+    return [header, separator, ...rows].join("\n");
   };
 
   const handleExport = () => {
@@ -270,22 +235,12 @@ function TableBlock({ children }: { children: React.ReactNode }) {
           {t("chat.message.table", "Table")}
         </span>
         <div className="ai-data-table__actions flex items-center gap-0.5">
-          <button
-            onClick={handleCopy}
-            className={clsx(
-              "ai-data-table__action flex items-center gap-1 rounded px-1.5 py-0.5 text-11 sm:text-12 font-medium transition-colors",
-              copied
-                ? "ai-data-table__action--copied"
-                : "text-stone-500 dark:text-stone-400",
-            )}
-            aria-label={
-              copied ? t("chat.message.copied") : t("chat.message.copy")
-            }
-            title={copied ? t("chat.message.copied") : t("chat.message.copy")}
-          >
-            {copied ? <Check size={12} /> : <Copy size={12} />}
-            {copied ? t("chat.message.copied") : t("chat.message.copy")}
-          </button>
+          <CopyButton
+            text={handleCopy}
+            size={12}
+            showLabel
+            className="ai-data-table__action !gap-1 !px-1.5 !text-11 sm:!text-12"
+          />
           <button
             onClick={handleExport}
             className="ai-data-table__action flex items-center gap-1 rounded px-1.5 py-0.5 text-11 sm:text-12 font-medium text-stone-500 dark:text-stone-400 transition-colors"

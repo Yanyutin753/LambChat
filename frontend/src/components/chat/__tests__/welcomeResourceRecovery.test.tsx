@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { MemoryRouter, useLocation } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
 import { WelcomePage } from "../WelcomePage";
 import type { ChatInputProps } from "../ChatInput";
 import type { PersonaPreset } from "../../../types";
@@ -23,19 +24,28 @@ vi.mock("../../../contexts/SettingsContext", () => ({
 vi.mock("../ChatInput", () => ({
   ChatInput: ({
     onMentionQueryChange,
+    focusRequest,
   }: {
     onMentionQueryChange?: (query: string | null) => void;
-  }) => (
-    <div
-      role="textbox"
-      contentEditable
-      aria-label="Composer"
-      onInput={(event) => {
-        const value = event.currentTarget.textContent || "";
-        onMentionQueryChange?.(value.startsWith("@") ? value.slice(1) : null);
-      }}
-    />
-  ),
+    focusRequest?: number;
+  }) => {
+    const ref = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+      if (focusRequest) ref.current?.focus();
+    }, [focusRequest]);
+    return (
+      <div
+        ref={ref}
+        role="textbox"
+        contentEditable
+        aria-label="Composer"
+        onInput={(event) => {
+          const value = event.currentTarget.textContent || "";
+          onMentionQueryChange?.(value.startsWith("@") ? value.slice(1) : null);
+        }}
+      />
+    );
+  },
 }));
 vi.mock("../../common/ContactAdminDialog", () => ({
   ContactAdminDialog: () => null,
@@ -216,4 +226,39 @@ test("a selected team without starter prompts keeps the team heading and change 
   expect(screen.getByText("team.plaza")).toBeInTheDocument();
   expect(screen.queryByText("personaPresets.title")).toBeNull();
   expect(screen.getByRole("button", { name: "team.change" })).toBeEnabled();
+});
+
+test("selecting and changing teams requests composer focus without replacing the draft", async () => {
+  listTeams.mockResolvedValueOnce({
+    teams: [{ id: "research", name: "Research", members: [] }],
+  });
+  function Welcome() {
+    const [selectedTeamId, onSelectTeam] = useState<string | null>(null);
+    return (
+      <WelcomePage
+        {...props}
+        currentAgent="team"
+        selectedTeamId={selectedTeamId}
+        onSelectTeam={onSelectTeam}
+      />
+    );
+  }
+  render(
+    <MemoryRouter>
+      <Welcome />
+    </MemoryRouter>,
+  );
+  const composer = await screen.findByRole("textbox", { name: "Composer" });
+  fireEvent.input(composer, { target: { textContent: "Keep this draft" } });
+  const team = await screen.findByRole("button", { name: /Research/ });
+  team.focus();
+  fireEvent.click(team);
+  await waitFor(() => expect(composer).toHaveFocus());
+  expect(composer).toHaveTextContent("Keep this draft");
+  const change = screen.getByRole("button", { name: "team.change" });
+  change.focus();
+  fireEvent.click(change);
+  await waitFor(() => expect(composer).toHaveFocus());
+  expect(screen.getByRole("textbox", { name: "Composer" })).toBe(composer);
+  expect(composer).toHaveTextContent("Keep this draft");
 });

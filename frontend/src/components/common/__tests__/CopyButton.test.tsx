@@ -34,7 +34,9 @@ test("failed copying stays retryable and never reports success", async () => {
   render(<CopyButton text="Keep this result" label="Copy result" />);
   fireEvent.click(screen.getByRole("button", { name: "Copy result" }));
   await waitFor(() =>
-    expect(mocks.error).toHaveBeenCalledWith("chat.message.copyFailed"),
+    expect(mocks.error).toHaveBeenCalledWith("chat.message.copyFailed", {
+      id: expect.any(String),
+    }),
   );
   expect(mocks.success).not.toHaveBeenCalled();
   expect(screen.getByRole("button", { name: "Copy result" })).toBeEnabled();
@@ -122,4 +124,32 @@ test("confirmed copy expires and unmounting clears its feedback timer", async ()
   expect(vi.getTimerCount()).toBe(1);
   view.unmount();
   expect(vi.getTimerCount()).toBe(0);
+});
+
+test("labelled copying reads current content only when activated", async () => {
+  let currentText = "Old table";
+  const readText = vi.fn(() => currentText);
+  mocks.copy.mockResolvedValue(undefined);
+  render(<CopyButton text={readText} label="Copy table" showLabel />);
+  expect(screen.getByText("chat.message.copy")).toBeVisible();
+  expect(readText).not.toHaveBeenCalled();
+  currentText = "Updated table";
+  fireEvent.click(screen.getByRole("button", { name: "Copy table" }));
+  await screen.findByRole("button", { name: "chat.message.copied" });
+  expect(mocks.copy).toHaveBeenCalledWith("Updated table");
+  expect(readText).toHaveBeenCalledOnce();
+});
+
+test("retry replaces its earlier failure feedback instead of stacking conflicting toasts", async () => {
+  mocks.copy
+    .mockRejectedValueOnce(new Error("Permission denied"))
+    .mockResolvedValueOnce(undefined);
+  render(<CopyButton text="Keep this result" />);
+  fireEvent.click(screen.getByRole("button"));
+  await waitFor(() => expect(mocks.error).toHaveBeenCalledOnce());
+  fireEvent.click(screen.getByRole("button"));
+  await waitFor(() => expect(mocks.success).toHaveBeenCalledOnce());
+  const errorId = mocks.error.mock.calls[0][1]?.id;
+  expect(errorId).toEqual(expect.any(String));
+  expect(mocks.success.mock.calls[0][1]?.id).toBe(errorId);
 });

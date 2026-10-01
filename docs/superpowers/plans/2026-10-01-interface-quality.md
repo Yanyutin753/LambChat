@@ -420,3 +420,25 @@ TDD：核心失败/重复/legacy清理及团队标题5项行为RED后GREEN；参
 截图在既有interface-quality目录：copy-320-light-failed-final.png、copy-390-dark-final.png、copy-768-sepia-final.png / keyboard-final.png、copy-1440-light-final.png、welcome-390-dark-selected-team-final.png。早期copy-390-dark-success.png曾记录首次失败，不能当成功证据；最终截图以上述final文件及实际clipboard布尔结果为准。临时viewport已reset，用户原tab未操作；原clipboard为空项数组，write([])接口拒绝后以空文本恢复空内容，未输出用户clipboard。
 
 继续：欢迎团队选择/更换后的编辑焦点、独立消息/代码/表格/绘图复制及文件路径/分享的失败反馈；其余图片、下载、格式、大图/内嵌图片、资源导入发布、语言与真实触屏/软键盘、认证/写入/对话、扫码E2E。原生viewport API关闭菜单后的BODY焦点边界仍未证实。整体目标保持进行中。
+
+### 当前执行：团队编辑焦点与消息、代码、表格复制
+
+- [x] RED：选择/更换团队保留草稿并请求编辑焦点；用户/助手消息、代码块、表格等待实际复制，失败可重试；同一按钮重试替换旧错误反馈。
+- [x] 复用已有 Lexical focusRequest 与 CopyButton，删除四处重复状态、timer 和乐观成功反馈；复用 Button 支持表格文字标签与点击时读取内容，保持正文留白及原复制格式。
+- [x] 手机、平板、桌面实屏与键盘/剪贴板核对，完整门禁、独立复核后提交，继续行内代码、绘图、文档、文件路径与分享等剩余入口。
+
+本批完成：WelcomePage 的本地 composerFocusRequest 与既有外部计数相加，选/换团队沿用 RichChatComposer 的实际 Lexical selectEnd 路径，不重新挂载或清空草稿。用户/助手消息、Markdown 代码块和表格改用共享 CopyButton，确认成功后才反馈、pending 禁止重复、失败可重试；删除四处复制状态与 timer。共享组件复用 Button，图标形态保留 ui-icon-button，表格 showLabel 保留文字和11/12px层级；表格 getter 仅在激活时读取 DOM 并保留原 Markdown 序列化，代码仍去掉尾部换行。新增 useId 对每个按钮的 Toast 单独更新：同一按钮成功重试替换旧失败提示，其他入口不互相清除。
+
+TDD：首轮两个测试因 i18n mock 缺 initReactI18next 与 Welcome 尚处 skeleton 而失败，修测试环境并等待实际 composer 后，明确团队焦点和用户/助手 pending 三项行为 RED；代码块/表格 pending 与延迟内容 getter 三项 RED；实屏发现重试后旧失败提示仍与成功共存，新增同一 Toast 更新契约一项 RED 后修。新增七项，原 action-order 源码守卫随真实 CopyButton 入口更新，顺序不变。Welcome 行为测试使用模拟 composer 的 focusRequest 契约，真实 Lexical 光标由下述原生证据补充，未把模拟 focus 当 selection 证明。
+
+原生：旧临时 tab 7 的 CDP focus 命令超时，按浏览器文档创建同一浏览器内独立 tab 8 后继续，未借用其他控制方式或操作用户原 tab。390 dark 选择/更换团队均保留“保留这段待发送草稿”，焦点为 textbox、DOM selection collapsed 且 offset=9、位于真实编辑器内；从实际 :focus 继续输入得到“保留这段待发送草稿，继续”。1440 light 以 Enter 选/换团队，offset=6 并续写得到“保留桌面草稿继续”。320 light、390 dark、768 sepia、1440 light 整页横向溢出均0，手机复制约44px；768/1440 fine pointer 图标按钮约32px，768 Enter 复制时 focus-visible=true。真实 coarse pointer/软键盘没有验证。
+
+390 表格首次失败后 aria-description 清除，随后按已观测实际 class 定位，不把 selector timeout 当复制失败；此前格式化产生 HMR，但没有证明这次状态重置的原因。重试实际剪贴板与整张对齐 Markdown 精确匹配，代码完整精确匹配，用户消息原文精确匹配，助手复制保留 Markdown 标题、表格和完整代码围栏。320 首次代码失败后 Enter 重试实际代码匹配；最初两个 Toast 同时出现，修 useId 后重新加载，实屏只剩一个“Скопировано!” status。一次紧邻 press 的 snapshot 仍含旧文案，但之后同次只读 DOM 与最终截图已是单一成功状态，不以早期 snapshot 当最终结果。390 几何检查的下方两个 hit=false 位于视口外，实际点击会滚入可见区域；320 当前可见代码按钮中心 hit=true，不称所有离屏元素点击命中。
+
+八项自检：保留正文与 serif 层级、表格小字和代码图标；不整体压缩卡片/正文留白；图标行动、表格动作和状态分层；沿用 light/dark/sepia token 及已有五语文案；无新增装饰动效、沿用 reduced-motion；真实复制失败/重试、提示更新、Enter、团队焦点/续写；四宽度无横向页面溢出，手机44px与桌面32px；保留 LambChat 视觉语言，没有引入新品牌、依赖或组件体系。Impeccable 沿用已确认不可用环境的 DESIGN.md 人工检查。
+
+最终修改后门禁：pnpm test 746文件/3610项通过；pnpm run lint 零错误零警告；pnpm run build 含 tsc 与预算通过，eager JS 558778/559104 bytes、precache 5017922/5242880 bytes、91 entries，未提高预算，保留既有 chunk-size 提示。初次构建发现误删了比较单元格仍使用的 Check import，恢复后重新构建；最终 useId 修改后全量三门重新运行并通过。独立两次只读复核未发现本批剩余 P1/P2，复核者未重复执行原生/全量门禁，边界明确。git diff --check 通过。
+
+截图位于既有 interface-quality 目录：team-focus-390-dark-after.png、team-focus-1440-light-after.png；message-copy-320-light-failed-final.png / retry-final.png、message-copy-390-dark-final.png、message-copy-768-sepia-keyboard-final.png、message-copy-1440-light-final.png。早期 message-copy-390-dark-failed.png / code.png / user.png 与 message-copy-320-light-failed.png 在 Toast ID 修正前，不能当最终提示更新证明。剪贴板在确认仍是本批写入的代码后恢复测试前内容；临时 viewport 已 reset，tab 8 保留供继续检查。旧临时 tab 7 的关闭尝试仍在 CDP focus 超时，未声称已关闭，也不再重复操作。
+
+继续：行内代码、绘图、文档、文件路径与分享复制；图片、下载与其他格式、大图/内嵌图片、资源导入发布、其余语言和真实触屏/软键盘、认证/写入/对话、扫码 E2E。原生 viewport API 关闭菜单后的 BODY 焦点边界仍未证实。整体目标保持进行中。

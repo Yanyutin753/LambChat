@@ -1,16 +1,7 @@
 import { clsx } from "clsx";
 import { useEffect, useRef, useState, memo } from "react";
 import { createPortal } from "react-dom";
-import toast from "react-hot-toast";
-import {
-  Check,
-  ChevronDown,
-  Copy,
-  GitBranch,
-  Info,
-  Loader2,
-  Target,
-} from "lucide-react";
+import { ChevronDown, GitBranch, Info, Loader2, Target } from "lucide-react";
 import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosition";
 import type {
   Message,
@@ -65,7 +56,7 @@ import type { RevealPreviewOpenSource } from "./items/revealPreviewState";
 import type { ActiveGoalSpec } from "../../../hooks/useAgent/types";
 import { createMessageAnchorId } from "../../layout/AppContent/messageOutline";
 import { formatDateTime, formatDateTimeShort } from "../../../utils/datetime";
-import { copyToClipboard } from "../../../utils/clipboard";
+import { CopyButton } from "../../common/CopyButton";
 import { shouldShowGoalDetailsForMessage } from "../goalVisibility";
 import { areChatMessagePropsEqual } from "./messageMemo";
 import { hasPendingAskHuman } from "../../../hooks/useAgent/messageParts";
@@ -619,7 +610,6 @@ export const ChatMessage = memo(function ChatMessage({
   const fxRates = useFxRates();
   const isUser = message.role === "user";
   const isStreaming = message.isStreaming && !message.content;
-  const [copied, setCopied] = useState(false);
   const [isForking, setIsForking] = useState(false);
   const modelDetails = resolveTokenUsageModelDetails({
     modelId: message.tokenUsage?.model_id,
@@ -834,34 +824,7 @@ export const ChatMessage = memo(function ChatMessage({
         {/* Copy button and Token button - same line at bottom, show on message hover (only after message completes) */}
         {!message.isStreaming && !isWaitingForHuman && (
           <div className="chat-message-actions flex items-center gap-1 pb-2">
-            <Tooltip
-              content={
-                copied ? t("chat.message.copied") : t("chat.message.copy")
-              }
-            >
-              <button
-                onClick={() => {
-                  const textContent = getAssistantTextContent();
-                  if (textContent) {
-                    copyToClipboard(textContent);
-                    setCopied(true);
-                    toast.success(t("chat.message.copied"));
-                    setTimeout(() => setCopied(false), 2000);
-                  }
-                }}
-                aria-label={
-                  copied ? t("chat.message.copied") : t("chat.message.copy")
-                }
-                className={clsx(
-                  "p-1.5 rounded-md transition-colors",
-                  copied
-                    ? "text-emerald-500 dark:text-emerald-400"
-                    : "hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
-                )}
-              >
-                {copied ? <Check size={16} /> : <Copy size={16} />}
-              </button>
-            </Tooltip>
+            <CopyButton text={getAssistantTextContent()} size={16} />
             {isAuthenticated && sessionId && (
               <BookmarkButton
                 sessionId={sessionId}
