@@ -11,6 +11,7 @@ import { RefreshCw, Sparkles, ChevronRight, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ChatInput } from "./ChatInput";
+import { Button } from "../common/ui/Button";
 import type { ChatInputProps } from "./ChatInput";
 import type { ActiveGoalSpec } from "../../hooks/useAgent/types";
 import { ContactAdminDialog } from "../common/ContactAdminDialog";
@@ -62,6 +63,8 @@ interface WelcomePageProps {
   selectedPersonaPresetId?: string | null;
   selectedPersonaSnapshot?: PersonaPresetSnapshot | null;
   personaPresetsLoading?: boolean;
+  personaPresetsError?: string | null;
+  onRetryPersonaPresets?: () => void;
   personaPresetsMutating?: boolean;
   currentAgent?: string;
   selectedTeamId?: string | null;
@@ -111,6 +114,8 @@ export const WelcomePage = memo(function WelcomePage({
   selectedPersonaPresetId,
   selectedPersonaSnapshot,
   personaPresetsLoading = false,
+  personaPresetsError,
+  onRetryPersonaPresets,
   personaPresetsMutating = false,
   currentAgent,
   selectedTeamId,
@@ -133,6 +138,7 @@ export const WelcomePage = memo(function WelcomePage({
     TeamRequestState<Team>
   >({ requestId: 0, cards: [], isLoading: false, isSettled: false });
   const teamRequestIdRef = useRef(0);
+  const [teamRetryKey, setTeamRetryKey] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const galleryRef = useRef<HTMLDivElement>(null);
 
@@ -181,7 +187,7 @@ export const WelcomePage = memo(function WelcomePage({
     const requestId = teamRequestIdRef.current + 1;
     teamRequestIdRef.current = requestId;
     setTeamRequestState((state) => beginTeamRequest(state, requestId));
-  }, [currentAgent]);
+  }, [currentAgent, teamRetryKey]);
 
   useEffect(() => {
     if (currentAgent !== "team") return;
@@ -199,7 +205,7 @@ export const WelcomePage = memo(function WelcomePage({
           settleTeamRequestFailure(state, requestId),
         );
       });
-  }, [currentAgent]);
+  }, [currentAgent, teamRetryKey]);
 
   const filteredCards = useMemo(() => {
     if (!mentionQuery) return roleCards;
@@ -364,11 +370,29 @@ export const WelcomePage = memo(function WelcomePage({
     shouldShowTeamSkeletons,
     displayTeamCards.length,
   );
+  const galleryError = showTeamCards
+    ? teamRequestState.hasError
+      ? t("common.loadFailed")
+      : null
+    : showPersonaCards
+      ? personaPresetsError
+      : null;
+  const retryGallery = () => {
+    rootRef.current?.querySelector<HTMLElement>('[role="textbox"]')?.focus();
+    if (showTeamCards) setTeamRetryKey((key) => key + 1);
+    else onRetryPersonaPresets?.();
+  };
   // Whether data has loaded but is empty
   const isTeamEmpty =
-    showTeamCards && !teamCardsLoading && displayTeamCards.length === 0;
+    showTeamCards &&
+    !galleryError &&
+    !teamCardsLoading &&
+    displayTeamCards.length === 0;
   const isPersonaEmpty =
-    showPersonaCards && !personaPresetsLoading && displayCards.length === 0;
+    showPersonaCards &&
+    !galleryError &&
+    !personaPresetsLoading &&
+    displayCards.length === 0;
   // Whether to show the choice-card gallery section (persona or team).
   const showGallerySection = showPersonaCards || showTeamCards;
   // Whether the gallery has real card content (used for container width variant)
@@ -561,6 +585,19 @@ export const WelcomePage = memo(function WelcomePage({
               )}
             </div>
           </div>
+          {galleryError && (
+            <div
+              role="alert"
+              className="flex flex-col items-center gap-3 py-3 text-center text-14 text-theme-text-secondary"
+            >
+              <p className="max-w-full break-words">{galleryError}</p>
+              {(showTeamCards || onRetryPersonaPresets) && (
+                <Button size="lg" onClick={retryGallery}>
+                  {t("common.retry")}
+                </Button>
+              )}
+            </div>
+          )}
           <div
             key={animKey}
             ref={showGallerySection ? galleryRef : undefined}

@@ -114,7 +114,8 @@ test("background refetches never bring the skeleton back", () => {
   expect(shouldRenderWelcomeSkeleton(true, true)).toBe(false);
 });
 
-test("starting a new team request clears settled cards before its outcome", () => {  expect(beginTeamRequest(settledTeamState, 2)).toEqual({
+test("starting a new team request clears settled cards before its outcome", () => {
+  expect(beginTeamRequest(settledTeamState, 2)).toEqual({
     requestId: 2,
     cards: [],
     isLoading: true,
@@ -141,6 +142,7 @@ test("a matching team request clears cards when it fails", () => {
     cards: [],
     isLoading: false,
     isSettled: true,
+    hasError: true,
   });
 });
 

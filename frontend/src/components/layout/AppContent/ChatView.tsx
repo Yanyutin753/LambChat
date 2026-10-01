@@ -830,6 +830,8 @@ export function ChatView({
                 selectedPersonaPresetId={selectedPersonaPresetId}
                 selectedPersonaSnapshot={selectedPersonaSnapshot}
                 personaPresetsLoading={personaPresetsLoading}
+                personaPresetsError={personaPresetsError}
+                onRetryPersonaPresets={onRetryPersonaPresets}
                 personaPresetsMutating={personaPresetsMutating}
                 currentAgent={currentAgent}
                 selectedTeamId={selectedTeamId}

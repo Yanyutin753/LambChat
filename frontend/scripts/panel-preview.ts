@@ -1219,7 +1219,7 @@ function response(
                 timestamp: now,
                 data: {
                   content:
-                    "## 研究发现与交付计划\n\n已将需求归纳为三个重点：更清晰的工作入口、可追踪的执行过程，以及便于团队复用的成果。\n\n| 阶段 | 交付内容 | 验收方式 |\n| --- | --- | --- |\n| 需求确认 | 用户场景与优先级 | 团队评审 |\n| 原型验证 | 核心流程与交互原型 | 用户走查 |\n| 交付上线 | 功能实现与使用指南 | 多端验证 |\n\n### 下一步\n\n1. 确认目标用户和首要任务。\n2. 用原型验证关键路径。\n3. 将反馈整理为可执行的迭代清单。\n\n> 此会话为产品界面展示使用的演示数据。",
+                    '## 研究发现与交付计划\n\n已将需求归纳为三个重点：更清晰的工作入口、可追踪的执行过程，以及便于团队复用的成果。\n\n| 阶段 | 交付内容 | 验收方式 |\n| --- | --- | --- |\n| 需求确认 | 用户场景与优先级 | 团队评审 |\n| 原型验证 | 核心流程与交互原型 | 用户走查 |\n| 交付上线 | 功能实现与使用指南 | 多端验证 |\n\n### 下一步\n\n1. 确认目标用户和首要任务。\n2. 用原型验证关键路径。\n3. 将反馈整理为可执行的迭代清单。\n\n> 此会话为产品界面展示使用的演示数据。\n\n```python\nreport = summarize(source="quarterly_business_metrics.csv", columns=["month", "delivery_count", "completion_rate", "owner"])\n```',
                 },
               },
             ]
@@ -1353,6 +1353,7 @@ const token = `preview.${Buffer.from(
 const failedDocumentRequests = new Set<string>();
 const failedDrawingRequests = new Map<string, number>();
 const completedPreviewStreams = new Set<string>();
+const failedWelcomeRequests = new Set<string>();
 const server = await createServer({
   root: process.cwd(),
   cacheDir: "node_modules/.vite-panel-preview",
@@ -1553,13 +1554,28 @@ const server = await createServer({
             });
             return;
           }
-          const data = response(url, scenario, chatState);
+          const data =
+            failureTarget === "welcome-teams" && url.pathname === "/api/agents"
+              ? { agents, count: agents.length, default_agent: "team" }
+              : response(url, scenario, chatState);
           const isRead = req.method === "GET";
-          const fault =
+          const welcomeFailure =
             scenario === "error" &&
-            (!failureTarget ||
-              url.pathname.replace(/\/$/, "") === `/api/${failureTarget}`) &&
-            !/auth|settings|agent\/models/.test(url.pathname);
+            isRead &&
+            ((failureTarget === "welcome-personas" &&
+              url.pathname.replace(/\/$/, "") === "/api/persona-presets") ||
+              (failureTarget === "welcome-teams" &&
+                url.pathname.replace(/\/$/, "") === "/api/teams"));
+          const welcomeKey = `${streamKey}:${url.pathname}`;
+          const firstWelcomeFailure =
+            welcomeFailure && !failedWelcomeRequests.has(welcomeKey);
+          if (firstWelcomeFailure) failedWelcomeRequests.add(welcomeKey);
+          const fault =
+            firstWelcomeFailure ||
+            (scenario === "error" &&
+              (!failureTarget ||
+                url.pathname.replace(/\/$/, "") === `/api/${failureTarget}`) &&
+              !/auth|settings|agent\/models/.test(url.pathname));
           res.statusCode = !isRead
             ? 405
             : fault

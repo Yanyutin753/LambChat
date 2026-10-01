@@ -640,7 +640,7 @@
    Toast 全局样式
    ======================================== */
 
-@media (max-width: 639px) {
+@media (max-width: 639px), (pointer: coarse) {
   .ai-code-block__copy,
   .ai-data-table__action {
     min-width: 2.75rem;

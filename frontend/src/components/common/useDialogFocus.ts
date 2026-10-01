@@ -77,8 +77,13 @@ export function useDialogFocus({
     document.addEventListener("keydown", keyboard);
     return () => {
       document.removeEventListener("keydown", keyboard);
-      if (previous?.isConnected)
-        restoreOpenerFocusUnclaimed(previous, surface);
+      const restore = () => {
+        if (previous?.isConnected)
+          restoreOpenerFocusUnclaimed(previous, surface);
+      };
+      // The background lock cleans up after this effect; native inert blocks focus.
+      if (previous?.closest("[inert]")) queueMicrotask(restore);
+      else restore();
     };
   }, [open, surfaceRef]);
 }
