@@ -1181,3 +1181,30 @@ html[data-mobile-keyboard="true"]
   opacity: 0;
   pointer-events: none;
 }
+
+/* Contiguous phone controls keep six composer actions within 320px. */
+@media (max-width: 639px) {
+  .chat-input-toolbar,
+  .chat-input-toolbar > div,
+  .chat-message-actions {
+    gap: 0;
+  }
+  .chat-input-toolbar button,
+  .chat-message-actions button,
+  .chat-scroll-actions button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+  .chat-message-actions {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 359px) {
+  .chat-input-toolbar .chat-tool-btn > div {
+    gap: 0;
+  }
+  .chat-input-toolbar .chat-tool-btn > div > span:nth-child(2) {
+    display: none;
+  }
+}

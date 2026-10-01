@@ -23,6 +23,30 @@ test("only the top modal receives Escape", () => {
   expect(second).toHaveBeenCalledOnce();
   expect(first).not.toHaveBeenCalled();
 });
+
+test("the dialog has its heading name before receiving initial focus", () => {
+  const names: string[] = [];
+  const focused = (event: FocusEvent) => {
+    const el = event.target as HTMLElement;
+    if (el.getAttribute("role") === "dialog") {
+      names.push(
+        document.getElementById(el.getAttribute("aria-labelledby") ?? "")
+          ?.textContent ?? "",
+      );
+    }
+  };
+  document.addEventListener("focusin", focused);
+  try {
+    render(
+      <ModalSurface open onClose={() => {}}>
+        <h2>Navigation details</h2>
+      </ModalSurface>,
+    );
+    expect(names).toEqual(["Navigation details"]);
+  } finally {
+    document.removeEventListener("focusin", focused);
+  }
+});
 test("dragging content never dismisses, dragging the handle does", () => {
   vi.useFakeTimers();
   const close = vi.fn();
