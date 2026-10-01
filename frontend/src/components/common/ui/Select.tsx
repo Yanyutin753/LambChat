@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
@@ -52,21 +52,45 @@ export function Select({
   );
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownId = useId();
+  const labelId = useId();
 
   const dropdownStyle = useStickyDropdownPosition(ref, open, (rect) => {
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const width = Math.max(rect.width, 160);
-    const left = Math.max(16, Math.min(rect.left, viewportWidth - width - 16));
-    const spaceBelow = viewportHeight - rect.bottom - 16;
-    const spaceAbove = rect.top - 16;
+    const viewport = window.visualViewport;
+    const viewportLeft = viewport?.offsetLeft ?? 0;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportWidth = viewport?.width ?? window.innerWidth;
+    const viewportBottom =
+      viewportTop + (viewport?.height ?? window.innerHeight);
+    const width = Math.min(
+      Math.max(rect.width, 160),
+      Math.max(0, viewportWidth - 32),
+    );
+    const left = Math.max(
+      viewportLeft + 16,
+      Math.min(rect.left, viewportLeft + viewportWidth - width - 16),
+    );
+    const anchorTop = Math.max(
+      viewportTop + 16,
+      Math.min(rect.top, viewportBottom - 16),
+    );
+    const anchorBottom = Math.max(
+      viewportTop + 16,
+      Math.min(rect.bottom, viewportBottom - 16),
+    );
+    const spaceBelow = viewportBottom - anchorBottom - 16;
+    const spaceAbove = anchorTop - viewportTop - 16;
     const preferBelow = spaceBelow >= 200 || spaceBelow >= spaceAbove;
     return {
       position: "fixed",
-      top: preferBelow ? rect.bottom + 4 : undefined,
-      bottom: preferBelow ? undefined : viewportHeight - rect.top + 4,
+      top: preferBelow ? anchorBottom + 4 : undefined,
+      bottom: preferBelow ? undefined : window.innerHeight - anchorTop + 4,
       left,
       width,
+      maxHeight: Math.max(
+        0,
+        Math.min(224, (preferBelow ? spaceBelow : spaceAbove) - 4),
+      ),
       zIndex: 9999,
     };
   });
@@ -113,6 +137,7 @@ export function Select({
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={open ? dropdownId : undefined}
         onKeyDown={(event) => {
           if (event.key === "ArrowDown" || event.key === "ArrowUp") {
             event.preventDefault();
@@ -122,6 +147,7 @@ export function Select({
         onClick={() => !disabled && setOpen(!open)}
       >
         <span
+          id={labelId}
           className={
             selected
               ? "ui-select-trigger__label"
@@ -141,9 +167,11 @@ export function Select({
         createPortal(
           <div
             ref={dropdownRef}
+            id={dropdownId}
             className={cx("ui-select-dropdown", dropdownClassName)}
             role="listbox"
             aria-label={ariaLabel}
+            aria-labelledby={ariaLabel ? undefined : labelId}
             onKeyDown={(event) => {
               if (event.key === "Escape" || event.key === "Tab") {
                 event.stopPropagation();

@@ -2074,6 +2074,25 @@
   pointer-events: none;
 }
 
+@media (max-width: 639px) {
+  .ui-select-trigger,
+  .glass-input.es-select-btn,
+  .ui-select-option,
+  .glass-select-option {
+    min-height: 2.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-select-dropdown,
+  .glass-select-dropdown {
+    animation: none;
+  }
+  .ui-select-trigger__icon {
+    transition: none;
+  }
+}
+
 .channel-persona-select__dropdown {
   max-height: 18rem;
   overflow: hidden;
@@ -4536,4 +4555,44 @@
 .sidebar-action-row:hover > span > .sidebar-action-reveal,
 .sidebar-action-row:focus-within > span > .sidebar-action-reveal {
   opacity: 1;
+}
+
+/* Header icons share a compact rail while keeping independent touch targets. */
+@media (max-width: 639px) {
+  .chat-header__identity > button {
+    min-width: 2.75rem;
+    flex-shrink: 0;
+  }
+  .chat-header__identity > button,
+  .chat-header__identity > .relative > button {
+    min-height: 2.75rem;
+  }
+  .chat-header__identity > .relative {
+    min-width: 0;
+  }
+  .chat-header__identity > .relative > button {
+    max-width: 100%;
+  }
+  .chat-header__identity > .relative > button > span {
+    min-width: 0;
+  }
+  .chat-header__identity > .relative > button > svg {
+    flex-shrink: 0;
+  }
+  .tool-console-actions,
+  .document-preview-toolbar-actions {
+    gap: 0;
+  }
+
+  .model-config-toolbar {
+    gap: 0.25rem;
+  }
+  .model-card-actions {
+    gap: 0;
+  }
+  .model-config-toolbar > button,
+  .model-card-actions > button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
 }

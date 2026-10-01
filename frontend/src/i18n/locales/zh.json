@@ -445,7 +445,8 @@
     "verifyEmailSuccessTitle": "邮箱已验证",
     "verifyingEmail": "正在验证邮箱...",
     "welcomeBack": "欢迎回来！",
-    "whatToDoNext": "接下来该做什么？"
+    "whatToDoNext": "接下来该做什么？",
+    "requestNewResetLink": "重新获取重置链接"
   },
   "backendErrors": {
     "accountInactive": "账户未激活，请验证邮箱后登录",
@@ -1222,7 +1223,8 @@
     "timeWeeksAgo": "{{count}}周前",
     "toggleVisibility": "切换可见性",
     "user": "用户",
-    "you": "你"
+    "you": "你",
+    "retry": "重试"
   },
   "contactAdmin": {
     "emailActivationDesc": "您的邮箱尚未验证或验证链接已过期，请联系管理员获取帮助。",
@@ -3816,7 +3818,7 @@
   },
   "bookmarks": {
     "empty": "还没有书签",
-    "emptyHint": "把鼠标悬停在任意消息上，点书签图标即可收藏大纲、总结等重要内容",
+    "emptyHint": "点击消息下方的书签图标，即可收藏大纲、总结等重要内容",
     "loadFailed": "书签加载失败",
     "loading": "正在加载书签…",
     "refresh": "刷新",

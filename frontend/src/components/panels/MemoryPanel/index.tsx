@@ -44,6 +44,7 @@ export function MemoryPanel() {
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterSource, setFilterSource] = useState("");
@@ -92,6 +93,7 @@ export function MemoryPanel() {
 
   const fetchMemories = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(false);
     try {
       const res = await memoryApi.list({
         memory_type: filterType || undefined,
@@ -103,11 +105,11 @@ export function MemoryPanel() {
       setMemories(res.memories);
       setTotal(res.total);
     } catch {
-      toast.error(t("memory.fetchError"));
+      setLoadError(true);
     } finally {
       setIsLoading(false);
     }
-  }, [filterType, filterSource, debouncedSearch, page, t]);
+  }, [filterType, filterSource, debouncedSearch, page]);
 
   useEffect(() => {
     fetchMemories();
@@ -225,7 +227,9 @@ export function MemoryPanel() {
     <div className="glass-shell flex h-full flex-col min-h-0">
       <PanelHeader
         title={t("memory.title")}
-        subtitle={t("memory.subtitle", { count: total })}
+        subtitle={
+          loadError ? undefined : t("memory.subtitle", { count: total })
+        }
         illustration="panel-memory"
         searchValue={searchQuery}
         onSearchChange={handleSearchQueryChange}
@@ -274,7 +278,13 @@ export function MemoryPanel() {
             >
               <span className="hidden sm:inline">{t("memory.export")}</span>
             </Button>
-            <Button onClick={toggleAll} leftIcon={<Check size={16} />}>
+            <Button
+              aria-label={
+                allChecked ? t("common.deselectAll") : t("common.selectAll")
+              }
+              onClick={toggleAll}
+              leftIcon={<Check size={16} />}
+            >
               <span className="hidden sm:inline">
                 {allChecked ? t("common.deselectAll") : t("common.selectAll")}
               </span>
@@ -282,6 +292,7 @@ export function MemoryPanel() {
             <Button
               variant="primary"
               onClick={fetchMemories}
+              aria-label={t("common.refresh")}
               disabled={isLoading}
               leftIcon={
                 <RefreshCw
@@ -308,7 +319,18 @@ export function MemoryPanel() {
 
       {/* List */}
       <div className="panel-body flex-1 overflow-y-auto">
-        {!isLoading && memories.length === 0 ? (
+        {loadError && (
+          <div
+            role="alert"
+            className="p-4 text-center text-theme-text-secondary"
+          >
+            <p>{t("common.loadFailed")}</p>
+            <Button className="mt-3" onClick={fetchMemories}>
+              {t("common.refresh")}
+            </Button>
+          </div>
+        )}
+        {!loadError && !isLoading && memories.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--glass-bg)]">
               <Brain size={32} className="text-[var(--theme-text-secondary)]" />
@@ -339,6 +361,7 @@ export function MemoryPanel() {
                     }`}
                   >
                     <Checkbox
+                      ariaLabel={memory.title}
                       size="lg"
                       checked={checked}
                       onChange={() => toggleCheck(memory.memory_id)}
@@ -374,7 +397,17 @@ export function MemoryPanel() {
                     </div>
 
                     <h4 className="truncate text-16 font-semibold font-serif  text-[var(--theme-text)] pr-8">
-                      {memory.title}
+                      <button
+                        type="button"
+                        className="block w-full truncate text-left"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (selectionMode) toggleCheck(memory.memory_id);
+                          else setSelected(memory);
+                        }}
+                      >
+                        {memory.title}
+                      </button>
                     </h4>
 
                     <p className="mt-1 text-14 leading-relaxed text-[var(--theme-text-secondary)] line-clamp-2">

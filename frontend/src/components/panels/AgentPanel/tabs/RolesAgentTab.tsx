@@ -132,6 +132,7 @@ export function RolesAgentTab({
                   style={{ animationDelay: `${index * 30}ms` }}
                 >
                   <Checkbox
+                    ariaLabel={agent.name}
                     checked={isSelected}
                     onChange={() => toggleAgent(agent.id)}
                     size="sm"

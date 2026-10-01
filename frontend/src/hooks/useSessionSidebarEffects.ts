@@ -1,3 +1,4 @@
+import { hasVisibleModalDialog } from "../utils/modalDialog";
 /**
  * Hook encapsulating side effects for SessionSidebar:
  * mobile media query, auto-expand, project loading, session refresh,
@@ -101,8 +102,7 @@ export function useSessionSidebarEffects({
       ].join(":");
       if (lastAppliedNewSessionKeyRef.current === sessionKey) return;
       const scheduledTaskId = newSession.metadata?.scheduled_task_id as
-        | string
-        | undefined;
+        string | undefined;
       const projectId = newSession.metadata?.project_id as string | undefined;
       const list = scheduledTaskId
         ? scheduledTaskRefs.current.get(scheduledTaskId)
@@ -137,14 +137,21 @@ export function useSessionSidebarEffects({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // 正在输入框/弹窗内打字时忽略新建会话快捷键，避免误触跳回首页（issue #158）
-      if (isEditableEventTarget(e.target)) return;
+      if (
+        e.defaultPrevented ||
+        e.isComposing ||
+        e.altKey ||
+        isEditableEventTarget(e.target) ||
+        hasVisibleModalDialog()
+      )
+        return;
       const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
       const modifier = isMac ? e.metaKey : e.ctrlKey;
-      if (modifier && e.key === "k") {
+      if (modifier && !e.shiftKey && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setIsSearchOpen(true);
       }
-      if (modifier && e.key === "n") {
+      if (modifier && !e.shiftKey && e.key.toLowerCase() === "n") {
         e.preventDefault();
         onNewSession();
       }

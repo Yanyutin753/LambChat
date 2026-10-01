@@ -639,3 +639,14 @@
 /* ========================================
    Toast 全局样式
    ======================================== */
+
+@media (max-width: 639px) {
+  .ai-code-block__copy,
+  .ai-data-table__action {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+  .ai-data-table__actions {
+    gap: 0;
+  }
+}

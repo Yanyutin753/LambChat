@@ -58,7 +58,12 @@ export function MobileMoreMenuSheet({
           <span className="text-13 font-medium text-[var(--theme-text)]">
             {t("nav.more", "更多")}
           </span>
-          <button onClick={onClose} className="p-1 rounded-full ">
+          <button
+            type="button"
+            aria-label={t("common.close")}
+            onClick={onClose}
+            className="flex size-11 items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+          >
             <X size={16} className="text-[var(--theme-text-secondary)]" />
           </button>
         </div>

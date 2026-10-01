@@ -52,6 +52,38 @@ test("renders nothing while no update is available", () => {
   expect(container).toBeEmptyDOMElement();
 });
 
+test("opening by keyboard focuses the popover and Escape returns to its trigger", () => {
+  renderIndicator(makeState());
+  const trigger = screen.getByRole("button", { name: /发现新版本/ });
+  trigger.focus();
+  fireEvent.click(trigger);
+  const dialog = screen.getByRole("dialog");
+  expect(dialog.contains(document.activeElement)).toBe(true);
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(trigger).toHaveFocus();
+});
+
+test("an update becoming unavailable closes its old popover", () => {
+  const { rerender } = renderIndicator(makeState());
+  fireEvent.click(screen.getByRole("button", { name: /发现新版本/ }));
+  rerender(
+    <UpdateTitlebarIndicator
+      state={makeState({ available: false })}
+      onInstall={() => {}}
+      onSkipVersion={() => {}}
+    />,
+  );
+  rerender(
+    <UpdateTitlebarIndicator
+      state={makeState({ version: "100.0.0" })}
+      onInstall={() => {}}
+      onSkipVersion={() => {}}
+    />,
+  );
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
 test("clicking the icon opens a popover with version transition and notes", () => {
   renderIndicator(makeState());
   fireEvent.click(screen.getByRole("button", { name: /发现新版本/ }));

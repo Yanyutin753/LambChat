@@ -8,6 +8,15 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+test.each(["UsersPanel", "RolesPanel"])(
+  "%s exposes inline retry instead of a false empty state after failure",
+  (panel) => {
+    const file = source(`../../panels/${panel}.tsx`);
+    expect(file).toMatch(/role="alert"[\s\S]*?onClick=\{loadData\}/);
+    expect(file).toMatch(/!error && (users|filteredRoles)\.length === 0/);
+  },
+);
+
 test("remote paginated panel searches reset pagination in their change handlers", () => {
   const cases = [
     {
@@ -84,4 +93,10 @@ test("remote paginated panel searches reset pagination in their change handlers"
     expect(file).toMatch(item.prop);
     expect(file).not.toMatch(item.staleEffect);
   }
+});
+
+test("team load failure does not also claim there are no teams", () => {
+  expect(source("../../team/TeamBuilderWrapper.tsx")).toMatch(
+    /!loadError && teams\.length === 0/,
+  );
 });

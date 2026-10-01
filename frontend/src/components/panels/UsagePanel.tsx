@@ -2,7 +2,7 @@
  * Usage Details Panel — Token consumption tracking
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Zap,
   ArrowUpFromLine,
@@ -20,7 +20,6 @@ import {
   Coins,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import toast from "react-hot-toast";
 import { useFxRates } from "../../hooks/useFxRates";
 import { effectivePromptInput } from "../chat/todayUsageSnapshot";
 import { fmtCostUsd } from "./UsagePanel/formatters";
@@ -29,7 +28,7 @@ import {
   withModelDisplayNames,
 } from "./UsagePanel/modelDisplay";
 import { PanelHeader } from "../common/PanelHeader";
-import { PanelFilterSelect } from "../common";
+import { Button, PanelFilterSelect } from "../common";
 import { Pagination } from "../common/Pagination";
 import { UsagePanelSkeleton } from "../skeletons";
 import {
@@ -83,6 +82,7 @@ export function UsagePanel() {
     null,
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [total, setTotal] = useState(0);
 
   const [skip, setSkip] = useState(0);
@@ -118,9 +118,6 @@ export function UsagePanel() {
     return {};
   }, []);
 
-  const tRef = useRef(t);
-  tRef.current = t;
-
   // Fetch logs independently
   const fetchLogs = useCallback(async () => {
     const dateRange = computeDateRange(period);
@@ -155,10 +152,11 @@ export function UsagePanel() {
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(false);
     try {
       await fetchLogs();
-    } catch (err) {
-      toast.error((err as Error).message || tRef.current("usage.loadFailed"));
+    } catch {
+      setLoadError(true);
     } finally {
       setIsLoading(false);
     }
@@ -455,15 +453,28 @@ export function UsagePanel() {
         )}
 
         {/* Logs */}
-        <UsageLogsTable
-          logs={logs}
-          total={total}
-          page={page}
-          pageSize={pageSize}
-          isAdmin={isAdmin}
-          hasAnyCache={hasAnyCache}
-          modelLabels={modelLabels}
-        />
+        {loadError && (
+          <div
+            role="alert"
+            className="p-4 text-center text-theme-text-secondary"
+          >
+            <p>{t("common.loadFailed")}</p>
+            <Button className="mt-3" onClick={fetchData}>
+              {t("common.refresh")}
+            </Button>
+          </div>
+        )}
+        {(!loadError || logs.length > 0) && (
+          <UsageLogsTable
+            logs={logs}
+            total={total}
+            page={page}
+            pageSize={pageSize}
+            isAdmin={isAdmin}
+            hasAnyCache={hasAnyCache}
+            modelLabels={modelLabels}
+          />
+        )}
       </div>
 
       {/* Pagination */}

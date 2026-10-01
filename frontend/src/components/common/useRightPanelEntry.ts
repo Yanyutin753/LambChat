@@ -1,3 +1,4 @@
+import { topmostVisibleModalDialog } from "../../utils/modalDialog";
 import {
   createContext,
   useContext,
@@ -10,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import type { RightPanelPresentation } from "../../hooks/rightPanelLayout";
 import {
   getRightPanelSnapshot,
@@ -121,7 +123,7 @@ export function useRightPanelEntry({
 }
 
 const FOCUSABLE =
-  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[contenteditable="true"],[tabindex]:not([tabindex="-1"])';
 
 function restoreOpenerFocus(openerRef: RefObject<HTMLElement | null>): void {
   requestAnimationFrame(() => {
@@ -177,19 +179,25 @@ export function useRightPanelFocus({
     [openerRef],
   );
 
+  useBodyScrollLock(active && presentation !== "docked", true);
+
   useEffect(() => {
     if (!active || presentation === "docked") return;
 
-    const root = document.getElementById("root");
-    const previousInert = root?.inert ?? false;
-    if (root) root.inert = true;
-
     const trapTab = (event: KeyboardEvent) => {
-      if (event.key !== "Tab") return;
+      if (event.key !== "Tab" || event.defaultPrevented) return;
+      if (topmostVisibleModalDialog() !== panelRef.current) return;
 
       const focusable = [
         ...(panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []),
-      ].filter((element) => !element.hidden && element.tabIndex >= 0);
+      ].filter(
+        (element) =>
+          element.getClientRects().length &&
+          !element.closest('[hidden],[inert],[aria-hidden="true"]') &&
+          (element.tabIndex >= 0 ||
+            (element.matches('[contenteditable="true"]') &&
+              !element.hasAttribute("tabindex"))),
+      );
       if (focusable.length === 0) return;
 
       const first = focusable[0];
@@ -206,7 +214,6 @@ export function useRightPanelFocus({
     document.addEventListener("keydown", trapTab);
     return () => {
       document.removeEventListener("keydown", trapTab);
-      if (root) root.inert = previousInert;
     };
   }, [active, presentation, panelRef]);
 }

@@ -315,6 +315,7 @@ export function TaskFormModal({
               {t("scheduledTask.name")} *
             </label>
             <Input
+              aria-label={t("scheduledTask.name")}
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -329,6 +330,7 @@ export function TaskFormModal({
               {t("scheduledTask.description")}
             </label>
             <Textarea
+              aria-label={t("scheduledTask.description")}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
@@ -343,6 +345,7 @@ export function TaskFormModal({
               {t("scheduledTask.agent")} *
             </label>
             <Select
+              ariaLabel={t("scheduledTask.agent")}
               value={agentId}
               onChange={(v) => {
                 setAgentId(v);
@@ -372,6 +375,7 @@ export function TaskFormModal({
               <span>{personaOrTeamIconLabel}</span>
             </label>
             <Select
+              ariaLabel={personaOrTeamIconLabel}
               value={isTeamAgent ? teamId : personaPresetId}
               onChange={isTeamAgent ? setTeamId : setPersonaPresetId}
               triggerClassName={inputClass}
@@ -411,6 +415,7 @@ export function TaskFormModal({
               {t("scheduledTask.model")}
             </label>
             <Select
+              ariaLabel={t("scheduledTask.model")}
               value={modelId}
               onChange={(v) => {
                 const nextModel = availableModels?.find(
@@ -441,6 +446,7 @@ export function TaskFormModal({
                 <button
                   key={tt}
                   type="button"
+                  aria-pressed={triggerType === tt}
                   onClick={() => setTriggerType(tt)}
                   className={`scheduled-task-segment ${
                     triggerType === tt ? "scheduled-task-segment--active" : ""
@@ -464,6 +470,7 @@ export function TaskFormModal({
                 {t("scheduledTask.intervalSeconds")} *
               </label>
               <Input
+                aria-label={t("scheduledTask.intervalSeconds")}
                 type="number"
                 min={1}
                 value={intervalSeconds}
@@ -477,6 +484,7 @@ export function TaskFormModal({
                 {t("scheduledTask.runDate")} *
               </label>
               <Input
+                aria-label={t("scheduledTask.runDate")}
                 type="datetime-local"
                 value={runDate}
                 onChange={(e) => setRunDate(e.target.value)}
@@ -530,6 +538,7 @@ export function TaskFormModal({
                     {label}
                   </label>
                   <Input
+                    aria-label={label}
                     type="text"
                     value={value}
                     onChange={(e) => set(e.target.value)}
@@ -547,6 +556,7 @@ export function TaskFormModal({
               {t("scheduledTask.inputPayload")}
             </label>
             <Textarea
+              aria-label={t("scheduledTask.inputPayload")}
               value={inputPayload}
               onChange={(e) => {
                 setInputPayload(e.target.value);
@@ -646,6 +656,7 @@ export function TaskFormModal({
                 {t("scheduledTask.maxRetries")}
               </label>
               <Input
+                aria-label={t("scheduledTask.maxRetries")}
                 type="number"
                 min={0}
                 max={10}
@@ -659,6 +670,7 @@ export function TaskFormModal({
                 {t("scheduledTask.timeoutSeconds")}
               </label>
               <Input
+                aria-label={t("scheduledTask.timeoutSeconds")}
                 type="number"
                 min={10}
                 max={3600}

@@ -5,6 +5,7 @@ type CheckboxProps = {
   onChange?: () => void;
   pending?: boolean;
   disabled?: boolean;
+  ariaLabel?: string;
   /** "sm" (18px), "md" (20px, default), "lg" (24px) */
   size?: "sm" | "md" | "lg";
   className?: string;
@@ -27,17 +28,18 @@ export function Checkbox({
   onChange,
   pending,
   disabled,
+  ariaLabel,
   size = "md",
   className = "",
 }: CheckboxProps) {
   const cls = [
-    "flex items-center justify-center rounded-[5px] shrink-0 transition-all duration-200",
+    "ui-checkbox relative flex items-center justify-center rounded-[5px] shrink-0 transition-colors duration-150 motion-reduce:transition-none focus-within:!opacity-100 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--theme-ring)]",
     sizeClasses[size],
     pending
-      ? "border-2 border-amber-500/40 bg-amber-500/[0.08]"
+      ? "border-2 border-[var(--theme-primary)] bg-[var(--theme-bg-subtle)]"
       : checked
-        ? "border-2 border-amber-500 bg-amber-500 shadow-[0_0_8px_color-mix(in_srgb,#f59e0b_30%,transparent)]"
-        : "",
+        ? "border-2 border-[var(--theme-primary)] bg-[var(--theme-primary)]"
+        : "border-2 border-[var(--theme-border)] bg-[var(--theme-bg-card)]",
     disabled && "opacity-50 cursor-not-allowed",
     onChange && !disabled && "cursor-pointer",
     className,
@@ -45,32 +47,43 @@ export function Checkbox({
     .filter(Boolean)
     .join(" ");
 
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!disabled) {
-      onChange?.();
-    }
-  };
-
   return (
-    <div
-      className={cls}
-      onClick={handleClick}
-      role="checkbox"
-      aria-checked={checked}
-    >
+    <span className={cls} aria-hidden={!onChange || undefined}>
+      {onChange && (
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          tabIndex={disabled ? -1 : 0}
+          aria-label={ariaLabel}
+          aria-busy={pending || undefined}
+          className="absolute inset-0 z-10 m-0 h-full w-full cursor-inherit opacity-0"
+          onClick={(event) => event.stopPropagation()}
+          onChange={() => {
+            if (!disabled) onChange();
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== " " && event.key !== "Enter") return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (!disabled && !event.repeat) onChange();
+          }}
+        />
+      )}
       {pending ? (
         <LoaderCircle
           size={iconSizes[size]}
-          className="animate-spin text-amber-500"
+          aria-hidden="true"
+          className="animate-spin text-[var(--theme-primary)] motion-reduce:animate-none"
         />
       ) : checked ? (
         <Check
           size={iconSizes[size]}
           strokeWidth={3}
-          className="text-white animate-[check-pop_200ms_ease-out]"
+          aria-hidden="true"
+          className="text-white dark:text-[var(--theme-bg)]"
         />
       ) : null}
-    </div>
+    </span>
   );
 }

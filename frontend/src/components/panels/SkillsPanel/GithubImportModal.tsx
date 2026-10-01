@@ -199,6 +199,7 @@ export function GithubImportModal({
                     }`}
                   >
                     <Checkbox
+                      ariaLabel={skill.name}
                       size="sm"
                       checked={selected}
                       onChange={() => onGithubSkillToggle(skill.name)}

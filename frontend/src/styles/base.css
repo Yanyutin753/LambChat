@@ -281,6 +281,15 @@ html[data-mobile-keyboard="true"] #root {
 .sidebar-nav-btn:hover {
   color: var(--theme-text);
 }
+.sidebar-nav-btn:focus-visible {
+  outline: 2px solid var(--theme-ring);
+  outline-offset: -2px;
+}
+@media (max-width: 639px) {
+  .sidebar-nav-btn {
+    min-height: 44px;
+  }
+}
 
 /* Sidebar rail button — theme-aware hover */
 .sidebar-rail-btn {

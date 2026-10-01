@@ -149,6 +149,7 @@ test("viewer top bar buttons keep overlay actions fixed and non-wrapping", () =>
   expect(source).toMatch(/flex shrink-0/);
   expect(source).toMatch(/whitespace-nowrap/);
   expect(source).toMatch(/w-10 h-10/);
+  expect(source).toMatch(/min-h-11 min-w-11 sm:min-h-0 sm:min-w-0/);
   expect(source).toMatch(/px-3 h-10/);
   expect(source).toMatch(/disabled:opacity-50 disabled:cursor-not-allowed/);
 
@@ -351,24 +352,19 @@ test("mcp server form uses shared icon buttons for generic icon actions", () => 
 });
 
 test("custom admin pickers reuse shared picker trigger and input primitives", () => {
-  const providerSelect = readSource(
+  const shared = readSource(
+    "../../panels/ModelPanel/tabs/ModelBrandPicker.tsx",
+  );
+  for (const path of [
     "../../panels/AgentPanel/shared/ProviderSelect.tsx",
-  );
-  const modelIconSelect = readSource(
     "../../panels/ModelPanel/tabs/ModelIconSelect.tsx",
-  );
-  const source = [providerSelect, modelIconSelect].join("\n");
-
-  expect(source).toMatch(/import \{[\s\S]*Input[\s\S]*PickerTrigger/);
-  expect(providerSelect).toMatch(
-    /<PickerTrigger[\s\S]*selected=\{!!selected\}/,
-  );
-  expect(modelIconSelect).toMatch(
-    /<PickerTrigger[\s\S]*selected=\{!!selected\}/,
-  );
-  expect(source).toMatch(/<PanelSearchInput[\s\S]*searchRef/);
-  expect(source).not.toMatch(/className="glass-input/);
-  expect(source).not.toMatch(/<input[\s\S]*searchRef/);
+  ]) {
+    expect(readSource(path)).toContain("<ModelBrandPicker");
+  }
+  expect(shared).toMatch(/import \{[\s\S]*Input[\s\S]*PickerTrigger/);
+  expect(shared).toMatch(/<PickerTrigger[\s\S]*selected=\{!!selected\}/);
+  expect(shared).toMatch(/<PanelSearchInput[\s\S]*searchRef/);
+  expect(shared).not.toMatch(/className="glass-input/);
 });
 
 test("normal skill form uses shared primitives for generic form controls", () => {

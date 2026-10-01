@@ -115,9 +115,17 @@ export function ResetPassword() {
                 : t("auth.resetPasswordFailedDesc")}
             </p>
           </div>
+          {type === "error" && (
+            <Link
+              to="/auth/reset-request"
+              className="blog-btn-primary auth-primary-button mb-3 flex min-h-12 w-full items-center justify-center rounded-full py-3 text-14 font-medium"
+            >
+              {t("auth.requestNewResetLink")}
+            </Link>
+          )}
           <button
             onClick={handleBackToLogin}
-            className="blog-btn-primary auth-primary-button min-h-12 w-full rounded-full py-3 text-14 font-medium transition-all"
+            className={`${type === "error" ? "blog-btn-ghost auth-secondary-button" : "blog-btn-primary auth-primary-button"} min-h-12 w-full rounded-full py-3 text-14 font-medium transition-all`}
           >
             {t("auth.goToLogin")}
           </button>

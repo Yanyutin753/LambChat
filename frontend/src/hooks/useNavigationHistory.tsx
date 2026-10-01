@@ -1,3 +1,4 @@
+import { hasVisibleModalDialog } from "../utils/modalDialog";
 import {
   createContext,
   useContext,
@@ -7,6 +8,8 @@ import {
   type ReactNode,
 } from "react";
 import { useLocation, useNavigationType, useNavigate } from "react-router-dom";
+import { detectDesktopOs } from "../components/layout/TitleBar/titlebarPlatform";
+import { isEditableEventTarget } from "../utils/editableTarget";
 import {
   applyNavigation,
   canGoBack,
@@ -30,15 +33,6 @@ function readBrowserHistoryIndex(): number | null {
 
 function locationKey(pathname: string, search: string): string {
   return pathname + search;
-}
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    target.isContentEditable
-  );
 }
 
 export interface NavigationHistoryValue {
@@ -100,16 +94,32 @@ export function NavigationHistoryProvider({
     },
   };
 
-  // Alt+←/→：桌面 WebView 与浏览器一致的导航快捷键。
-  // 跳过可编辑目标（macOS Option+方向键是逐词移动光标）。
+  // Preserve editor/IME shortcuts; macOS also uses Command+[ / Command+].
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) {
+      if (
+        event.defaultPrevented ||
+        event.isComposing ||
+        event.shiftKey ||
+        isEditableEventTarget(event.target) ||
+        hasVisibleModalDialog()
+      )
+        return;
+      const altArrow =
+        event.altKey &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        (event.key === "ArrowLeft" || event.key === "ArrowRight");
+      const macBracket =
+        detectDesktopOs(navigator.userAgent) === "mac" &&
+        event.metaKey &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        (event.key === "[" || event.key === "]");
+      if (!altArrow && !macBracket) {
         return;
       }
-      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-      if (isEditableTarget(event.target)) return;
-      if (event.key === "ArrowLeft") {
+      if (event.key === "ArrowLeft" || event.key === "[") {
         if (!canGoBack(stackRef.current)) return;
         event.preventDefault();
         navigate(-1);

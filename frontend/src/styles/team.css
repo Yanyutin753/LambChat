@@ -380,7 +380,8 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.625rem;
   border-bottom: 1px solid var(--theme-border);
-  background: linear-gradient(
+  background:
+    linear-gradient(
       180deg,
       color-mix(in srgb, var(--theme-text-secondary) 20%, transparent),
       transparent
@@ -1292,6 +1293,11 @@
   opacity: 1;
   color: var(--theme-text);
 }
+.team-member-card__expand-btn:focus-visible,
+.team-member-card__toggle-button:focus-visible {
+  outline: 2px solid var(--theme-ring);
+  outline-offset: 2px;
+}
 /* --- Identity header: name + tags on one line --- */
 .team-member-card__identity-header {
   display: flex;
@@ -1423,6 +1429,14 @@
 }
 .team-member-card__collapse--open {
   grid-template-rows: 1fr;
+}
+@media (prefers-reduced-motion: reduce) {
+  .team-member-card__collapse,
+  .team-member-card__expand-icon,
+  .team-member-card .team-toggle,
+  .team-member-card .team-toggle::after {
+    transition: none;
+  }
 }
 .team-member-card__collapse > .list-item-card__instructions {
   overflow: hidden;
@@ -1637,6 +1651,22 @@
 }
 
 @media (max-width: 639px) {
+  .team-member-card .list-item-card__identity {
+    flex-basis: calc(100% - 2.5rem);
+  }
+  .team-member-card .list-item-card__actions {
+    gap: 0;
+  }
+  .team-member-card__select-trigger {
+    min-height: 2.75rem;
+  }
+  .team-member-card__action-btn,
+  .team-member-card__expand-btn {
+    width: 2.75rem;
+    height: 2.75rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
   .team-editor-commandbar,
   .team-editor-main__bar {
     padding: 0.75rem;

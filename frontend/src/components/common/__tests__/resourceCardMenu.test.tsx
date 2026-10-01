@@ -6,6 +6,16 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 afterEach(cleanup);
+test("large resource lists cap their entrance delay", () => {
+  const { container } = render(
+    <SkillBaseCard title="Last skill" animated animationDelay={1140} />,
+  );
+  expect(
+    Number.parseFloat(
+      container.querySelector<HTMLElement>(".scb")!.style.animationDelay,
+    ),
+  ).toBeLessThanOrEqual(200);
+});
 test("right click and more button open the same actions without activating the card", () => {
   const edit = vi.fn();
   const activate = vi.fn();

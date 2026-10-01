@@ -34,7 +34,7 @@ export function ResponsiveSection({ onOpenViewer }: ResponsiveSectionProps) {
                 alt={t(`landing.${s.altKey}`)}
                 loading="lazy"
                 referrerPolicy="no-referrer"
-                className="w-auto max-w-full max-h-44 sm:max-h-72 lg:max-h-80 object-contain rounded-xl"
+                className="mx-auto w-auto max-w-full max-h-44 sm:max-h-72 lg:max-h-80 object-contain rounded-xl"
               />
             </button>
           ))}

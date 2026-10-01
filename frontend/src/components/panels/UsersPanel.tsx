@@ -2,7 +2,7 @@
  * 用户管理页面组件
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useId } from "react";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
 import {
   Users,
@@ -85,6 +85,9 @@ function useDebounce<T>(value: T, delay: number): T {
 interface UserFormModalProps {
   user?: UserType | null;
   roles: Role[];
+  rolesLoading: boolean;
+  rolesLoadError: boolean;
+  onRetryRoles: () => void;
   onSave: (data: UserCreate | UserUpdate) => Promise<void>;
   onClose: () => void;
   isLoading: boolean;
@@ -93,11 +96,15 @@ interface UserFormModalProps {
 function UserFormModal({
   user,
   roles,
+  rolesLoading,
+  rolesLoadError,
+  onRetryRoles,
   onSave,
   onClose,
   isLoading,
 }: UserFormModalProps) {
   const { t } = useTranslation();
+  const formId = useId();
   const [username, setUsername] = useState(user?.username || "");
   const [email, setEmail] = useState(user?.email || "");
   const [password, setPassword] = useState("");
@@ -206,8 +213,11 @@ function UserFormModal({
 
         {/* 用户名 */}
         <div className="es-field">
-          <label className="es-label">{t("users.username")}</label>
+          <label htmlFor={`${formId}-username`} className="es-label">
+            {t("users.username")}
+          </label>
           <Input
+            id={`${formId}-username`}
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -219,8 +229,11 @@ function UserFormModal({
 
         {/* 邮箱 */}
         <div className="es-field">
-          <label className="es-label">{t("users.email")}</label>
+          <label htmlFor={`${formId}-email`} className="es-label">
+            {t("users.email")}
+          </label>
           <Input
+            id={`${formId}-email`}
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -232,10 +245,11 @@ function UserFormModal({
 
         {/* 密码 */}
         <div className="es-field">
-          <label className="es-label">
+          <label htmlFor={`${formId}-password`} className="es-label">
             {t("users.password")} {isEditing && t("users.passwordHint")}
           </label>
           <Input
+            id={`${formId}-password`}
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -253,16 +267,31 @@ function UserFormModal({
         <div className="es-field">
           <label className="es-label">{t("users.roles")}</label>
           <div className="es-section">
-            {roles.length === 0 ? (
+            {rolesLoading ? (
+              <p className="es-hint" role="status">
+                {t("common.loading")}
+              </p>
+            ) : rolesLoadError ? (
+              <div
+                role="alert"
+                className="flex flex-wrap items-center justify-between gap-2 text-12 text-theme-text-secondary"
+              >
+                <span>{t("common.loadFailed")}</span>
+                <Button onClick={onRetryRoles} size="sm">
+                  {t("common.refresh")}
+                </Button>
+              </div>
+            ) : roles.length === 0 ? (
               <p className="es-hint">{t("users.noRolesAvailable")}</p>
             ) : (
               <div className="space-y-1">
                 {roles.map((role) => (
                   <label
                     key={role.id}
-                    className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-bg-subtle)]"
+                    className="group flex min-h-11 sm:min-h-0 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-bg-subtle)]"
                   >
                     <Checkbox
+                      ariaLabel={role.name}
                       size="sm"
                       checked={selectedRoles.includes(role.name)}
                       onChange={() => toggleRole(role.name)}
@@ -283,6 +312,7 @@ function UserFormModal({
           <div className="es-field">
             <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-bg-subtle)]">
               <Checkbox
+                ariaLabel={t("users.enableAccount")}
                 size="sm"
                 checked={isActive}
                 onChange={() => setIsActive(!isActive)}
@@ -302,6 +332,8 @@ export function UsersPanel() {
   const { hasPermission } = useAuth();
   const [users, setUsers] = useState<UserType[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(true);
+  const [rolesLoadError, setRolesLoadError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -330,6 +362,19 @@ export function UsersPanel() {
   const canEdit = hasPermission(Permission.USER_WRITE);
   const canDelete = hasPermission(Permission.USER_DELETE);
 
+  const loadRoles = useCallback(async () => {
+    setRolesLoading(true);
+    setRolesLoadError(false);
+    try {
+      const response = await roleApi.list({ limit: 200 });
+      setRoles(response.roles);
+    } catch {
+      setRolesLoadError(true);
+    } finally {
+      setRolesLoading(false);
+    }
+  }, []);
+
   // 加载数据
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -346,20 +391,12 @@ export function UsersPanel() {
     } catch (err) {
       const errorMsg = (err as Error).message || t("users.loadFailed");
       setError(errorMsg);
-      toast.error(errorMsg);
     }
 
-    // 角色列表单独加载,失败不影响用户列表
-    try {
-      const rolesData = await roleApi.list({ limit: 200 });
-      setRoles(rolesData.roles);
-    } catch (err) {
-      console.error("Failed to load roles:", err);
-      // 角色加载失败不显示错误,只是角色列表为空
-    }
+    await loadRoles();
 
     setIsLoading(false);
-  }, [page, debouncedSearch, t]);
+  }, [page, debouncedSearch, t, loadRoles]);
 
   useEffect(() => {
     loadData();
@@ -452,15 +489,19 @@ export function UsersPanel() {
 
       {/* 错误提示 */}
       {error && (
-        <div className="panel-notice flex items-center gap-2 rounded-xl bg-red-50 p-3 text-14 text-red-600 dark:bg-red-900/30 dark:text-red-400">
-          <AlertCircle size={18} />
-          <span>{error}</span>
+        <div
+          role="alert"
+          className="panel-notice flex flex-wrap items-center gap-2 rounded-xl bg-red-50 p-3 text-14 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+        >
+          <AlertCircle size={18} className="shrink-0" />
+          <span className="min-w-0 flex-1 break-words">{error}</span>
+          <Button onClick={loadData}>{t("common.refresh")}</Button>
         </div>
       )}
 
       {/* 用户列表 */}
       <div className="panel-body flex-1 overflow-y-auto">
-        {users.length === 0 ? (
+        {!error && users.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <Users
               size={48}
@@ -672,6 +713,9 @@ export function UsersPanel() {
         <UserFormModal
           user={editingUser}
           roles={roles}
+          rolesLoading={rolesLoading}
+          rolesLoadError={rolesLoadError}
+          onRetryRoles={loadRoles}
           onSave={handleSaveUser}
           onClose={closeFormModal}
           isLoading={isSaving}

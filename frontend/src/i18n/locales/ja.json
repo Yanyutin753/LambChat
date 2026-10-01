@@ -445,7 +445,8 @@
     "verifyEmailSuccessTitle": "メール確認完了",
     "verifyingEmail": "メールを確認中...",
     "welcomeBack": "おかえりなさい！",
-    "whatToDoNext": "次に行うこと"
+    "whatToDoNext": "次に行うこと",
+    "requestNewResetLink": "再設定リンクを再取得"
   },
   "backendErrors": {
     "accountInactive": "アカウントが有効化されていません。メール認証後にログインしてください。",
@@ -1222,7 +1223,8 @@
     "timeWeeksAgo": "{{count}}週間前",
     "toggleVisibility": "表示切替",
     "user": "ユーザー",
-    "you": "あなた"
+    "you": "あなた",
+    "retry": "再試行"
   },
   "contactAdmin": {
     "emailActivationDesc": "メールアドレスが未認証か、認証リンクの有効期限が切れています。管理者にお問い合わせください。",
@@ -3816,7 +3818,7 @@
   },
   "bookmarks": {
     "empty": "ブックマークはまだありません",
-    "emptyHint": "メッセージにカーソルを合わせ、ブックマークアイコンをクリックするとアウトラインやまとめなどを保存できます",
+    "emptyHint": "メッセージ下のブックマークアイコンを押すと、アウトラインやまとめなどを保存できます",
     "loadFailed": "ブックマークの読み込みに失敗しました",
     "loading": "ブックマークを読み込み中…",
     "refresh": "更新",

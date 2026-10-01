@@ -31,7 +31,11 @@ export function GridCard({
   return (
     <>
       <div
-        onClick={() => onPreview(file)}
+        role="group"
+        aria-label={file.file_name}
+        onClick={(event) => {
+          if (!(event.target as Element).closest("button")) onPreview(file);
+        }}
         onContextMenu={(e) => ctx.show(e, file)}
         className="group/card relative flex cursor-pointer flex-col overflow-hidden rounded-xl border border-theme-border bg-theme-bg-card transition-all duration-200 hover:shadow-lg hover:border-theme-border-hover"
       >
@@ -48,19 +52,27 @@ export function GridCard({
             />
           </div>
           <div className="flex-1 min-w-0">
-            <p
-              className="text-13 text-theme-text truncate leading-tight font-serif"
+            <button
+              type="button"
+              onClick={() => onPreview(file)}
+              className="block w-full text-left text-13 text-theme-text truncate leading-tight font-serif focus-visible:outline focus-visible:outline-2 focus-visible:outline-theme-primary"
               title={file.file_name}
             >
               {file.file_name}
-            </p>
+            </button>
           </div>
           <button
+            type="button"
+            aria-label={`${t("common.moreOptions")}: ${file.file_name}`}
+            aria-haspopup="menu"
+            aria-expanded={Boolean(ctx.menu)}
+            aria-controls={ctx.menu ? ctx.menuId : undefined}
             onClick={(e) => {
               e.stopPropagation();
-              ctx.show(e, file);
+              if (ctx.menu) ctx.hide(true);
+              else ctx.show(e, file);
             }}
-            className="shrink-0 flex items-center justify-center w-7 h-7 rounded-md hover:bg-theme-bg-subtle transition-colors"
+            className="shrink-0 flex items-center justify-center min-h-11 min-w-11 sm:min-h-7 sm:min-w-7 rounded-md hover:bg-theme-bg-subtle transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-theme-primary"
           >
             <MoreHorizontal size={15} className="text-theme-text-tertiary" />
           </button>
@@ -81,7 +93,8 @@ export function GridCard({
 
       <FileContextMenu
         menu={ctx.menu}
-        menuRef={ctx.menuRef}
+        id={ctx.menuId}
+        onClose={ctx.hide}
         file={file}
         onGoToSession={onGoToSession}
         onToggleFavorite={onToggleFavorite}

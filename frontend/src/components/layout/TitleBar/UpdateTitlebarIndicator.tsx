@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { hasVisibleModalDialog } from "../../../utils/modalDialog";
 import {
   ArrowDownCircle,
   ArrowRight,
@@ -68,6 +69,14 @@ export function UpdateTitlebarIndicator({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    if (!state.available) setOpen(false);
+  }, [state.available]);
+
+  useEffect(() => {
+    if (open) panelRef.current?.focus();
+  }, [open]);
+
   const phase = updateIndicatorPhase(state);
 
   const menuPosition = useStickyDropdownPosition(
@@ -94,16 +103,34 @@ export function UpdateTitlebarIndicator({
       setOpen(false);
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (
+        e.key === "Escape" &&
+        !e.defaultPrevented &&
+        !e.isComposing &&
+        !hasVisibleModalDialog()
+      ) {
+        e.preventDefault();
+        setOpen(false);
+        buttonRef.current?.focus();
+      }
+    };
+    const onFocus = (e: FocusEvent) => {
+      if (
+        !panelRef.current?.contains(e.target as Node) &&
+        !buttonRef.current?.contains(e.target as Node)
+      )
+        setOpen(false);
     };
     const timer = window.setTimeout(() => {
       document.addEventListener("mousedown", onPointerDown);
     }, 0);
     document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("focusin", onFocus);
     return () => {
       window.clearTimeout(timer);
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("focusin", onFocus);
     };
   }, [open]);
 
@@ -157,8 +184,9 @@ export function UpdateTitlebarIndicator({
           <div
             ref={panelRef}
             role="dialog"
+            tabIndex={-1}
             aria-label={t("update.availableTitle", "发现新版本")}
-            className="fixed z-[302] w-80 rounded-xl border shadow-xl animate-scale-in"
+            className="fixed z-[302] w-80 max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-var(--titlebar-inset,40px)-1rem)] overflow-y-auto rounded-xl border shadow-xl animate-scale-in outline-none"
             style={{
               ...menuPosition,
               backgroundColor: "var(--theme-bg-card)",
