@@ -1447,7 +1447,7 @@ const server = await createServer({
           }
           if (url.pathname === "/preview-document.md") {
             res.end(
-              '# 项目交付报告\n\n研究结果与后续计划。保持舒适的阅读宽度与清楚的信息层级。\n\n## 验证清单\n\n- 手机工具栏与长文件名\n- 代码与表格横向滚动\n- 深浅色与护眼主题\n\n```mermaid\ngraph LR\n  A[研究] --> B[设计] --> C[验证]\n```\n\n| 项目 | 负责人 | 阶段 | 交付成果 | 验证方法 | 下一步 |\n| --- | --- | --- | --- | --- | --- |\n| 响应式界面 | 产品设计团队 | 验收中 | 跨端界面与交互规范 | 手机、平板、桌面逐页走查 | 核对触屏和键盘焦点 |\n\n```python\nreport = summarize(source="quarterly_business_metrics.csv", columns=["month", "delivery_count", "completion_rate", "owner"])\n```\n',
+              '# 项目交付报告\n\n研究结果与后续计划。保持舒适的阅读宽度与清楚的信息层级。 使用 `delivery_count` 核对交付次数。\n\n## 验证清单\n\n- 手机工具栏与长文件名\n- 代码与表格横向滚动\n- 深浅色与护眼主题\n\n```mermaid\ngraph LR\n  A[研究] --> B[设计] --> C[验证]\n```\n\n| 项目 | 负责人 | 阶段 | 交付成果 | 验证方法 | 下一步 |\n| --- | --- | --- | --- | --- | --- |\n| 响应式界面 | 产品设计团队 | 验收中 | 跨端界面与交互规范 | 手机、平板、桌面逐页走查 | 核对触屏和键盘焦点 |\n\n```python\nreport = summarize(source="quarterly_business_metrics.csv", columns=["month", "delivery_count", "completion_rate", "owner"])\n```\n',
             );
             return;
           }

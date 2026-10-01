@@ -130,3 +130,36 @@ test.each([
     expect(mocks.success).toHaveBeenCalledOnce();
   },
 );
+
+test("inline code is a keyboard accessible copy action that waits for confirmation", async () => {
+  let complete!: () => void;
+  mocks.copy.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        complete = resolve;
+      }),
+  );
+  render(<MarkdownContent content="Use `delivery_count` here." />);
+  const button = screen.getByRole("button", { name: "chat.message.copyCode" });
+  expect(button).toHaveAttribute("type", "button");
+  expect(button.querySelector("code")).toHaveTextContent("delivery_count");
+  expect(button).toHaveAccessibleDescription("delivery_count");
+  fireEvent.click(button);
+  expect(button).toBeDisabled();
+  expect(mocks.success).not.toHaveBeenCalled();
+  await act(async () => complete());
+  expect(mocks.copy).toHaveBeenCalledWith("delivery_count");
+  mocks.copy.mockRejectedValueOnce(new Error("Unavailable"));
+  fireEvent.click(screen.getByRole("button", { name: "chat.message.copied" }));
+  await waitFor(() => expect(mocks.error).toHaveBeenCalledOnce());
+  expect(
+    screen.getByRole("button", { name: "chat.message.copyCode" }),
+  ).toHaveAccessibleDescription("delivery_count chat.message.copyFailed");
+  mocks.copy.mockResolvedValueOnce(undefined);
+  fireEvent.click(
+    screen.getByRole("button", { name: "chat.message.copyCode" }),
+  );
+  expect(
+    await screen.findByRole("button", { name: "chat.message.copied" }),
+  ).toBeEnabled();
+});

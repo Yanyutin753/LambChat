@@ -442,3 +442,28 @@ TDD：首轮两个测试因 i18n mock 缺 initReactI18next 与 Welcome 尚处 sk
 截图位于既有 interface-quality 目录：team-focus-390-dark-after.png、team-focus-1440-light-after.png；message-copy-320-light-failed-final.png / retry-final.png、message-copy-390-dark-final.png、message-copy-768-sepia-keyboard-final.png、message-copy-1440-light-final.png。早期 message-copy-390-dark-failed.png / code.png / user.png 与 message-copy-320-light-failed.png 在 Toast ID 修正前，不能当最终提示更新证明。剪贴板在确认仍是本批写入的代码后恢复测试前内容；临时 viewport 已 reset，tab 8 保留供继续检查。旧临时 tab 7 的关闭尝试仍在 CDP focus 超时，未声称已关闭，也不再重复操作。
 
 继续：行内代码、绘图、文档、文件路径与分享复制；图片、下载与其他格式、大图/内嵌图片、资源导入发布、其余语言和真实触屏/软键盘、认证/写入/对话、扫码 E2E。原生 viewport API 关闭菜单后的 BODY 焦点边界仍未证实。整体目标保持进行中。
+
+### 当前执行：绘图、文档与行内代码复制
+
+- [x] RED：文档链接与绘图等待确认时禁止重复；行内代码可通过原生按钮操作；失败反馈保留重试。
+- [x] 提取已存在的复制状态处理供实际入口复用，保留菜单/全屏工具栏语义及正文留白。
+- [x] 实屏、键盘、剪贴板和响应式核对，完成测试/lint/build 与独立复核后提交；整体目标继续。
+
+
+本批完成：把既有 CopyButton 的复制请求、反馈、失败、timer 与旧请求忽略逻辑原样提取为 useClipboardCopy，供实际文档正文、文档链接、行内代码和 Mermaid 全屏复用；普通/streaming/错误 Mermaid 复用 CopyButton，删除原重复状态与 handler。菜单复制等待时 disabled，失败可重试，链接使用共享 clipboard helper 保留绝对 URL 与 legacy 路径。行内代码改原生 button，保持正文中的小尺寸和阅读节奏；useId/aria-describedby 保留实际代码值，失败同时追加可读错误。真实文档 Markdown 经过共享 chat MarkdownContent/MermaidDiagram；旧 documents/previews/MermaidDiagram 无生产 caller，本批没有修这个死副本或将其源码守卫当实际视觉证明。
+
+TDD：文档链接 pending、普通/全屏绘图 pending、行内按钮四项明确 RED→GREEN；补三项链接/绘图失败恢复，共享 CopyButton 原七项继续保护生命周期。独立复核发现行内 aria-label 覆盖代码值，补 accessible description 断言明确 RED 后修；后续 retry 的即时断言失败是测试未等待 async completion，改 findByRole 后通过，未将此当生产问题。原生发现 sepia 默认 Mermaid 紫色，与产品暖底不协调，新增 palette 行为一项 RED→GREEN；真实共享 Mermaid 使用 base 主题并读取现有 card/text/border/secondary/cluster tokens，background 继续 themeExportBackground，darkMode 随主题。已有 chat theme source 守卫更新到真实 token 契约，未修改死副本守卫。新增8项测试，未新增依赖或提高预算。
+
+原生：旧临时 tab8 CDP focus 超时，按文档用同一浏览器新 tab9 继续，未操作用户原 tab。为新增行内样例重启已确认的 preview session85826；当前运行 session35138，3002 只读 fixture。首次聊天文件正文读取的是已有精简样例，其复制实际成功；早期截图已改名 document-content-390-dark-early-success.png，不当失败证明。含绘图样例在文件库实际 Markdown 卡片，未把相似路径的精简样例当同一内容。
+
+390 dark 行内 Enter 首次失败，aria-describedby 同时保留 delivery_count 与错误；Space 重试实际 clipboard 精确 delivery_count，单一成功 status。390 绘图全屏 Enter 复制实际原 chart 精确匹配，Escape 保留父文档并返回 fullscreen 入口；320 light 全屏首次失败，aria-description 确认错误后 Enter 重试原 chart 精确匹配；普通绘图复制同样精确。320 文档链接为 http://127.0.0.1:3002/preview-document.md 精确匹配；768 sepia 链接首次失败后键盘重试精确匹配、单一链接成功 status、焦点返回 More。1440 light 正文首次失败后重试与完整447字符 Markdown 精确匹配，保留标题、行内 token、表格、两段代码围栏；焦点返回 More。桌面预览实际为 complementary，第一次沿用手机 dialog selector 超时后从新 DOM 纠正，不当加载失败。
+
+最终 palette 后重新实屏：320 light、390 dark、768 sepia、1440 light 整页横向溢出均0。手机顶部 source/download/more/close 与绘图动作约44px，间隔沿用紧凑 gap；行内代码约28px高且宽130px，属于正文内文本行动，保持阅读节奏。768 sepia 节点实际 fill rgb(250,246,234)、stroke rgb(221,210,184)；390 dark fill rgb(30,27,24)、stroke rgb(61,56,53)，不再套默认紫色。主题修改 HMR 重置了预览面板，按实际卡片重新打开并等代码加载后保留最终截图。
+
+八项自检：正文 serif 与层级、14px 行内代码和小动作字保留；正文/卡片留白不统一压缩；标题/辅助 metadata/动作与复制反馈分层；三主题节点沿用 token，失败/成功状态可辨；无新增装饰动效并沿用 reduced-motion；Enter/Space、失败/重试、单一提示和 Escape/focus 证实；四宽度无整页溢出、长行/宽表格局部滚动沿用；保留 LambChat 品牌语言，未新造设计系统。Impeccable 沿用已确认不可用环境的 DESIGN.md 人工检查。不同 Mermaid 图形类型、大图阅读/缩放、PNG/SVG 导出以及真机触摸/软键盘仍待后续验证，未由三节点样例推断全部通过。
+
+最终配色修改后门禁：pnpm test 746文件/3618项通过；pnpm run lint 零错误零警告；pnpm run build 含 tsc、Vite、PWA 与体积门禁通过，eager JS 558771/559104 bytes，precache 5017151/5242880 bytes、91 entries，未提高预算，保留既有 chunk-size 提示。独立最后两轮复核已关闭行内 P2，最终复制链路和追加主题 diff 未发现剩余 P1/P2；复核者只读核对实际库实现和调用链，不声称运行原生或全量门禁。git diff --check通过。
+
+最终截图沿用 interface-quality 目录：document-copy-320-light-final.png、document-copy-390-dark-final.png、document-copy-768-sepia-final.png、document-copy-1440-light-final.png；inline-copy-390-dark-failed.png；mermaid-copy-320-light-failed.png / retry-final.png、mermaid-copy-390-dark-final.png；document-link-768-sepia-failed.png、document-content-1440-light-failed.png。复制流程截图在节点 palette 调整前，最终页面 screenshot 在配色后；不混同两者。剪贴板在确认仍是本批完整 Markdown 后恢复测试前内容，临时 viewport reset，tab9 handoff 供继续。旧 tab8 仍有 CDP focus 问题，不重复操作、不声称已清理。
+
+继续：文件路径和分享复制、图片/下载/格式、大图与内嵌图片、资源导入发布、其余语言、真机触屏/软键盘、认证/写入/真实对话、扫码 E2E；小屏大图缩放与节点文字可读性需继续检查。整体目标保持进行中，不以本批复制和三节点主题样例宣称全界面没有可提升之处。

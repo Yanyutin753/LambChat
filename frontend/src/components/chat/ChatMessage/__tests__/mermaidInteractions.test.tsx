@@ -1,6 +1,14 @@
 /** @vitest-environment jsdom */
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import mermaid from "mermaid";
 import { MermaidDiagram } from "../MermaidDiagram";
 import { ModalSurface } from "../../../common/ModalSurface";
 
@@ -22,6 +30,7 @@ vi.mock("mermaid", () => ({
 }));
 
 beforeEach(() => {
+  vi.clearAllMocks();
   vi.stubGlobal("matchMedia", () => ({
     matches: false,
     addEventListener: vi.fn(),
@@ -86,4 +95,109 @@ test("fullscreen diagram captures focus and only its own Escape closes it", asyn
   expect(screen.getByRole("dialog", { name: "Document" })).toBeInTheDocument();
   expect(close).not.toHaveBeenCalled();
   expect(opener).toHaveFocus();
+});
+
+const clipboard = vi.hoisted(() => ({
+  copy: vi.fn(),
+  success: vi.fn(),
+  error: vi.fn(),
+}));
+vi.mock("../../../../utils/clipboard", () => ({
+  copyToClipboard: clipboard.copy,
+}));
+vi.mock("react-hot-toast", () => ({
+  default: { success: clipboard.success, error: clipboard.error },
+}));
+
+test.each([false, true])(
+  "diagram copy waits for confirmation (fullscreen=%s)",
+  async (fullscreen) => {
+    let complete!: () => void;
+    clipboard.copy.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          complete = resolve;
+        }),
+    );
+    render(<MermaidDiagram chart="graph LR; A-->B" />);
+    await screen.findByRole("button", { name: "imageViewer.fullscreen" });
+    if (fullscreen)
+      fireEvent.click(
+        screen.getByRole("button", { name: "imageViewer.fullscreen" }),
+      );
+    const scope = fullscreen
+      ? within(screen.getByRole("dialog", { name: "chat.mermaidDiagram" }))
+      : screen;
+    const button = scope.getByRole("button", { name: "chat.message.copyCode" });
+    fireEvent.click(button);
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-busy", "true");
+    await act(async () => complete());
+    expect(
+      scope.getByRole("button", { name: "chat.message.copied" }),
+    ).toBeEnabled();
+  },
+);
+
+test.each([false, true])(
+  "diagram copy recovers from failure (fullscreen=%s)",
+  async (fullscreen) => {
+    clipboard.copy
+      .mockRejectedValueOnce(new Error("Unavailable"))
+      .mockResolvedValueOnce(undefined);
+    render(<MermaidDiagram chart="graph LR; A-->B" />);
+    await screen.findByRole("button", { name: "imageViewer.fullscreen" });
+    if (fullscreen)
+      fireEvent.click(
+        screen.getByRole("button", { name: "imageViewer.fullscreen" }),
+      );
+    const scope = fullscreen
+      ? within(screen.getByRole("dialog", { name: "chat.mermaidDiagram" }))
+      : screen;
+    fireEvent.click(
+      scope.getByRole("button", { name: "chat.message.copyCode" }),
+    );
+    await waitFor(() => expect(clipboard.error).toHaveBeenCalledOnce());
+    const retry = scope.getByRole("button", { name: "chat.message.copyCode" });
+    expect(retry).toHaveAttribute(
+      "aria-description",
+      "chat.message.copyFailed",
+    );
+    expect(clipboard.success).not.toHaveBeenCalled();
+    fireEvent.click(retry);
+    await scope.findByRole("button", { name: "chat.message.copied" });
+    expect(clipboard.copy).toHaveBeenLastCalledWith("graph LR; A-->B");
+    expect(clipboard.success.mock.calls[0][1].id).toBe(
+      clipboard.error.mock.calls[0][1].id,
+    );
+  },
+);
+
+test("diagram nodes and lines follow the application palette", async () => {
+  const colors = {
+    "--theme-bg-card": "#faf6ea",
+    "--theme-text": "#342d22",
+    "--theme-border": "#d8ccb3",
+    "--theme-text-secondary": "#796b56",
+  };
+  for (const [name, value] of Object.entries(colors))
+    document.documentElement.style.setProperty(name, value);
+  try {
+    render(<MermaidDiagram chart="graph LR; A-->B" />);
+    await screen.findByRole("button", { name: "imageViewer.fullscreen" });
+    expect(mermaid.initialize).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        theme: "base",
+        themeVariables: expect.objectContaining({
+          primaryColor: colors["--theme-bg-card"],
+          primaryTextColor: colors["--theme-text"],
+          primaryBorderColor: colors["--theme-border"],
+          lineColor: colors["--theme-text-secondary"],
+        }),
+      }),
+    );
+  } finally {
+    for (const name of Object.keys(colors))
+      document.documentElement.style.removeProperty(name);
+  }
 });

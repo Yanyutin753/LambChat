@@ -44,7 +44,7 @@ import {
   getFileTypeInfo,
   detectLanguage,
 } from "./utils";
-import { copyToClipboard } from "../../utils/clipboard";
+import { useClipboardCopy } from "../../hooks/useClipboardCopy";
 import {
   isProjectPreviewFullscreen,
   requestProjectPreviewFullscreen,
@@ -103,7 +103,12 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
-  const [copied, setCopied] = useState(false);
+  const {
+    copied,
+    copying,
+    failed: copyFailed,
+    copy: handleCopy,
+  } = useClipboardCopy(data?.content || "");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pptUrl, setPptUrl] = useState<string | null>(null);
@@ -492,14 +497,6 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
   }, [cadUrl, htmlUrl, pdfUrl, imageUrl]);
 
   // Action handlers
-  const handleCopy = async () => {
-    if (data?.content) {
-      await copyToClipboard(data.content);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
   const handleDownload = async () => {
     const downloadUrl =
       getFullUrl(signedUrl) ||
@@ -565,6 +562,8 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
     loading,
     error,
     copied,
+    copying,
+    copyFailed,
     imageUrl,
     pdfUrl,
     pptUrl,

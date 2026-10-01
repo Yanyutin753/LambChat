@@ -8,9 +8,9 @@ const source = readFileSync(
 test("chat mermaid follows the active theme instead of hardcoding the default theme", () => {
   expect(source).toMatch(/useAppThemeMode\(\)/);
   expect(source).not.toMatch(/theme: "default"/);
-  expect(source).toMatch(/themeMode === "sepia"/);
-  // sepia 暖底对齐米黄卡片底
-  expect(source).toMatch(/background: "#faf6ea"/);
+  expect(source).toMatch(/theme: "base"/);
+  expect(source).toMatch(/background: themeExportBackground\(themeMode\)/);
+  expect(source).toMatch(/getPropertyValue\("--theme-bg-card"\)/);
 });
 
 test("chat mermaid PNG export paints the background per current theme", () => {

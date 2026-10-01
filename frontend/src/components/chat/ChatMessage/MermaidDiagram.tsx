@@ -7,7 +7,16 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { Check, Copy, Download, Code, Eye, X, Maximize2 } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  Copy,
+  Download,
+  Code,
+  Eye,
+  X,
+  Maximize2,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   prepareFullscreenMermaidSvg,
@@ -19,7 +28,8 @@ import { ViewerTopBar } from "../../common/ViewerTopBar";
 import { ViewerToolbar } from "../../common/ViewerToolbar";
 import { ViewerTopBarButton } from "../../common/ViewerTopBarButton";
 import { downloadBlob } from "../../common/viewerDownload";
-import { copyToClipboard } from "../../../utils/clipboard";
+import { useClipboardCopy } from "../../../hooks/useClipboardCopy";
+import { CopyButton } from "../../common/CopyButton";
 import { useAppThemeMode } from "../../../hooks/useAppThemeMode";
 import { themeExportBackground } from "../../../utils/themeDom";
 import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
@@ -60,7 +70,7 @@ export function MermaidDiagram({
   const ref = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+
   const [scale, setScale] = useState(1);
   const [downloadPosition, setDownloadPosition] = useState<{
     x: number;
@@ -173,13 +183,26 @@ export function MermaidDiagram({
       try {
         const mermaid = await import("mermaid");
 
-        // Initialize mermaid — follow the active theme; sepia keeps the light
-        // palette but repaints the canvas onto the beige card background
-        const isSepia = themeMode === "sepia";
+        const palette = getComputedStyle(document.documentElement);
+        const card = palette.getPropertyValue("--theme-bg-card").trim();
+        const border = palette.getPropertyValue("--theme-border").trim();
         mermaid.default.initialize({
           startOnLoad: false,
-          theme: themeMode === "dark" ? "dark" : "default",
-          ...(isSepia ? { themeVariables: { background: "#faf6ea" } } : {}),
+          theme: "base",
+          themeVariables: {
+            darkMode: themeMode === "dark",
+            background: themeExportBackground(themeMode),
+            primaryColor: card,
+            primaryTextColor: palette.getPropertyValue("--theme-text").trim(),
+            primaryBorderColor: border,
+            lineColor: palette
+              .getPropertyValue("--theme-text-secondary")
+              .trim(),
+            secondaryColor: card,
+            tertiaryColor: card,
+            clusterBkg: palette.getPropertyValue("--theme-bg-subtle").trim(),
+            clusterBorder: border,
+          },
           securityLevel: "strict",
         });
 
@@ -224,12 +247,6 @@ export function MermaidDiagram({
 
     renderDiagram();
   }, [chart, t, shouldRenderDiagram, themeMode]);
-
-  const handleCopyCode = async () => {
-    await copyToClipboard(chart);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   const handleDownloadSVG = () => {
     if (!svg) return;
@@ -311,30 +328,7 @@ export function MermaidDiagram({
           <span className="text-12 font-medium text-theme-text-secondary dark:text-stone-400">
             mermaid
           </span>
-          <button
-            type="button"
-            onClick={handleCopyCode}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all min-h-[32px] min-w-[32px] touch-manipulation"
-          >
-            {copied ? (
-              <>
-                <Check size={14} className="text-theme-success" />
-                <span className="text-theme-success">
-                  {t("chat.message.copied")}
-                </span>
-              </>
-            ) : (
-              <>
-                <Copy
-                  size={14}
-                  className="text-theme-text-secondary dark:text-stone-400"
-                />
-                <span className="text-theme-text-secondary dark:text-stone-400">
-                  {t("chat.message.copy")}
-                </span>
-              </>
-            )}
-          </button>
+          <CopyButton text={chart} label={t("chat.message.copyCode")} />
         </div>
         <pre className="p-3 bg-theme-bg-subtle dark:bg-stone-800 overflow-x-auto max-h-64 overflow-y-auto text-12 text-theme-text-secondary dark:text-stone-300 font-mono">
           {chart}
@@ -350,25 +344,7 @@ export function MermaidDiagram({
           <span className="text-12 font-medium text-theme-text-secondary dark:text-stone-400">
             mermaid
           </span>
-          <button
-            type="button"
-            onClick={handleCopyCode}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all min-h-[32px] min-w-[32px] touch-manipulation"
-          >
-            {copied ? (
-              <>
-                <Check size={14} className="text-theme-success" />
-                <span className="text-theme-success">
-                  {t("chat.message.copied")}
-                </span>
-              </>
-            ) : (
-              <>
-                <Copy size={14} />
-                <span>{t("chat.message.copyCode")}</span>
-              </>
-            )}
-          </button>
+          <CopyButton text={chart} label={t("chat.message.copyCode")} />
         </div>
         <pre className="p-3 bg-theme-bg-subtle dark:bg-stone-800 overflow-x-auto max-h-64 overflow-y-auto text-12 text-theme-text-secondary dark:text-stone-300 font-mono">
           {chart}
@@ -398,36 +374,7 @@ export function MermaidDiagram({
             </span>
           </div>
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={handleCopyCode}
-              aria-label={
-                copied ? t("chat.message.copied") : t("chat.message.copyCode")
-              }
-              className="flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all min-h-[32px] min-w-[32px] touch-manipulation"
-              title={
-                copied ? t("chat.message.copied") : t("chat.message.copyCode")
-              }
-            >
-              {copied ? (
-                <>
-                  <Check size={14} className="text-theme-success" />
-                  <span className="hidden xs:inline text-theme-success">
-                    {t("chat.message.copied")}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <Copy
-                    size={14}
-                    className="text-theme-text-secondary dark:text-stone-400"
-                  />
-                  <span className="hidden xs:inline text-theme-text-secondary dark:text-stone-400">
-                    {t("chat.message.copy")}
-                  </span>
-                </>
-              )}
-            </button>
+            <CopyButton text={chart} label={t("chat.message.copyCode")} />
             {/* Download dropdown */}
             <div className="relative">
               <button
@@ -565,7 +512,12 @@ function MermaidViewer({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [imgLoading, setImgLoading] = useState(true);
   const [showCode, setShowCode] = useState(initialShowCode);
-  const [copied, setCopied] = useState(false);
+  const {
+    copied,
+    failed,
+    copying,
+    copy: handleCopyCode,
+  } = useClipboardCopy(chart);
   const containerRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   useDialogFocus({ open: true, onClose, surfaceRef });
@@ -686,12 +638,6 @@ function MermaidViewer({
     };
   }, [isDragging, dragStart]);
 
-  const handleCopyCode = async () => {
-    await copyToClipboard(chart);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   const toggleCode = () => {
     const next = !showCode;
     setShowCode(next);
@@ -746,9 +692,17 @@ function MermaidViewer({
           {/* Copy code */}
           <ViewerTopBarButton
             onClick={handleCopyCode}
-            aria-label={t("chat.message.copyCode")}
+            disabled={copying}
+            aria-busy={copying || undefined}
+            aria-description={failed ? t("chat.message.copyFailed") : undefined}
+            title={failed ? t("chat.message.copyFailed") : undefined}
+            aria-label={t(
+              copied ? "chat.message.copied" : "chat.message.copyCode",
+            )}
             icon={
-              copied ? (
+              failed ? (
+                <AlertCircle size={18} className="text-theme-error" />
+              ) : copied ? (
                 <Check size={18} className="text-green-400" />
               ) : (
                 <Copy size={18} className="text-white/70" />

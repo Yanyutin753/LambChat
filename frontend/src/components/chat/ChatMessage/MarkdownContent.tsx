@@ -1,9 +1,8 @@
 import ReactMarkdown from "react-markdown";
-import toast from "react-hot-toast";
 import remarkBreaks from "remark-breaks";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import React, { memo, useState } from "react";
+import React, { memo, useState, useId } from "react";
 import { Check, Download, Table2, Code2, X, Minus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
@@ -17,7 +16,7 @@ import { getFileLinkInfo } from "../../documents/utils";
 import { setActiveRevealPreviewState } from "./items/activeRevealPreviewStore";
 import { createActiveRevealPreviewState } from "./items/revealPreviewState";
 import { shouldInterceptFilePreviewLink } from "./items/revealPreviewLinks";
-import { copyToClipboard } from "../../../utils/clipboard";
+import { useClipboardCopy } from "../../../hooks/useClipboardCopy";
 import { buildChatThumbUrl } from "../../../utils/chatThumbs";
 import { useSessionImageGallery } from "./sessionImageGallery";
 import { ImageWithSkeleton } from "./ImageWithSkeleton";
@@ -88,6 +87,35 @@ function getHeadingAnchorId({
   });
 }
 
+function InlineCode({ children }: { children: React.ReactNode }) {
+  const codeId = useId();
+  const { t } = useTranslation();
+  const { copied, failed, copying, copy } = useClipboardCopy(String(children));
+  const label = t(copied ? "chat.message.copied" : "chat.message.copyCode");
+  return (
+    <button
+      type="button"
+      className="rounded bg-theme-bg-code px-1.5 py-0.5 text-14 text-theme-text font-mono cursor-pointer hover:bg-theme-bg-hover transition-colors"
+      disabled={copying}
+      aria-busy={copying || undefined}
+      aria-label={label}
+      aria-describedby={failed ? `${codeId} ${codeId}-error` : codeId}
+      title={failed ? t("chat.message.copyFailed") : label}
+      onClick={(event) => {
+        event.stopPropagation();
+        void copy();
+      }}
+    >
+      <code id={codeId}>{children}</code>
+      {failed && (
+        <span id={`${codeId}-error`} className="sr-only">
+          {t("chat.message.copyFailed")}
+        </span>
+      )}
+    </button>
+  );
+}
+
 // Code block component with copy button and enhanced styling
 function CodeBlock({
   className,
@@ -110,20 +138,7 @@ function CodeBlock({
     return <MermaidDiagram chart={codeString} isStreaming={isStreaming} />;
   }
 
-  if (inline) {
-    return (
-      <code
-        className="rounded bg-stone-200 dark:bg-stone-700 px-1.5 py-0.5 text-14 text-stone-800 dark:text-stone-200 font-mono cursor-pointer hover:bg-stone-300 dark:hover:bg-stone-600 transition-colors"
-        onClick={() => {
-          copyToClipboard(String(children));
-          toast.success(t("chat.message.copied"));
-        }}
-        title={t("chat.message.copyCode")}
-      >
-        {children}
-      </code>
-    );
-  }
+  if (inline) return <InlineCode>{children}</InlineCode>;
 
   return (
     <div

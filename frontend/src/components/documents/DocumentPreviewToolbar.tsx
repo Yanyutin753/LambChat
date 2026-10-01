@@ -1,5 +1,5 @@
 import { useState, useCallback, useId, useRef } from "react";
-import toast from "react-hot-toast";
+import { useClipboardCopy } from "../../hooks/useClipboardCopy";
 import { BackIcon } from "../common/BackIcon";
 import { FileIcon } from "../common/FileIcon";
 import { FloatingIconButton, ToolbarIconButton } from "../common";
@@ -7,6 +7,7 @@ import {
   X,
   Copy,
   Check,
+  AlertCircle,
   Download,
   Expand,
   Code2,
@@ -28,6 +29,8 @@ type ToolbarProps = { embedded?: boolean } & Pick<
   | "t"
   | "data"
   | "copied"
+  | "copying"
+  | "copyFailed"
   | "viewSource"
   | "isSidebar"
   | "isFullscreen"
@@ -64,6 +67,8 @@ export default function DocumentPreviewToolbar({
   t,
   data,
   copied,
+  copying,
+  copyFailed,
   viewSource,
   isSidebar,
   isFullscreen,
@@ -91,7 +96,6 @@ export default function DocumentPreviewToolbar({
   setViewMode,
   handleFullscreenToggle,
 }: ToolbarProps) {
-  const [linkCopied, setLinkCopied] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{
     x: number;
     y: number;
@@ -108,14 +112,12 @@ export default function DocumentPreviewToolbar({
     getFullUrl(signedUrl) ||
     getFullUrl(externalImageUrl);
 
-  const handleCopyLink = useCallback(() => {
-    if (!fileUrl) return;
-    navigator.clipboard.writeText(fileUrl).then(() => {
-      setLinkCopied(true);
-      toast.success(t("documents.linkCopied", "Link copied"));
-      setTimeout(() => setLinkCopied(false), 2000);
-    });
-  }, [fileUrl, t]);
+  const {
+    copied: linkCopied,
+    failed: linkFailed,
+    copying: linkCopying,
+    copy: handleCopyLink,
+  } = useClipboardCopy(fileUrl || "", t("documents.linkCopied", "Link copied"));
 
   const fileActions = [
     ...(!embedded
@@ -149,7 +151,10 @@ export default function DocumentPreviewToolbar({
       ? [
           {
             label: t("documents.copyLink", "Copy link"),
-            icon: linkCopied ? (
+            disabled: linkCopying,
+            icon: linkFailed ? (
+              <AlertCircle size={TOOLBAR_ICON_SIZE} />
+            ) : linkCopied ? (
               <Check size={TOOLBAR_ICON_SIZE} />
             ) : (
               <Share2 size={TOOLBAR_ICON_SIZE} />
@@ -162,7 +167,10 @@ export default function DocumentPreviewToolbar({
       ? [
           {
             label: t("documents.copy"),
-            icon: copied ? (
+            disabled: copying,
+            icon: copyFailed ? (
+              <AlertCircle size={TOOLBAR_ICON_SIZE} />
+            ) : copied ? (
               <Check size={TOOLBAR_ICON_SIZE} />
             ) : (
               <Copy size={TOOLBAR_ICON_SIZE} />
