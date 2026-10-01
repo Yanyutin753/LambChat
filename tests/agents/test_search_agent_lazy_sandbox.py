@@ -821,6 +821,16 @@ async def test_search_stream_subagent_receives_public_workspace_before_handoff_i
     assert model.tool_sets, "expected bound tool sets to be recorded"
     assert any("/workspace/session-1" in tool_set for tool_set in model.tool_sets)
     assert any("<sandbox_workspace_context>" in tool_set for tool_set in model.tool_sets)
+    # 慢沙箱先答概念指引：每个含 execute 的工具绑定都必须带指引帧——
+    # 主 agent 与子代理都要收到（子代理 system prompt 被 harness profile
+    # 替换，工具描述是其唯一强信号通道）。
+    execute_bindings = [
+        tool_set
+        for tool_set in model.tool_sets
+        if tool_set.startswith("execute:") or "\nexecute:" in tool_set
+    ]
+    assert execute_bindings, "expected execute tool in bound tool sets"
+    assert all("<slow_sandbox_run_guidance>" in tool_set for tool_set in execute_bindings)
     artifact_workspaces = [
         item for item in graph_timeline if item.startswith("artifact-workspace:")
     ]

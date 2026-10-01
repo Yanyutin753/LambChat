@@ -138,7 +138,8 @@ SAFETY_POLICY = """### Safety, Verification, and Privacy
 # 的 TODO_SYSTEM_PROMPT 注入：fast/search/team 的主 agent 与全部子代理中间件栈
 # 都挂该中间件，这里再复读一遍等于每个请求双份近逐字注入。
 PROGRESS_POLICY = """### Tool Progress
-For complex/slow/uncertain/external work, give one-line phase updates. Text/tool calls may interleave; never invent results."""
+For complex/slow/uncertain/external work, give one-line phase updates. Text/tool calls may interleave; never invent results.
+When slow sandbox work (installs, training, long builds) will verify or demo a conceptual answer, state the key concepts in text first, then run and append results."""
 
 WORKFLOW_POLICY = "\n\n".join(
     (

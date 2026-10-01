@@ -20,6 +20,7 @@ from src.infra.agent.middleware.retry import (
     create_retry_middleware,
 )
 from src.infra.agent.middleware.sandbox_confirm import SandboxConfirmMiddleware
+from src.infra.agent.middleware.sandbox_slow_run import SandboxSlowRunMiddleware
 from src.infra.agent.middleware.sandbox_workspace import SandboxWorkspaceMiddleware
 from src.infra.agent.middleware.steer import SteerMiddleware
 from src.infra.agent.middleware.subagent_activity import SubagentActivityMiddleware
@@ -43,6 +44,7 @@ __all__ = [
     "MainAgentContextMiddleware",
     "MemoryRecallIndexMiddleware",
     "ModelFallbackMiddleware",
+    "SandboxSlowRunMiddleware",
     "SandboxWorkspaceMiddleware",
     "SectionPromptMiddleware",
     "SteerMiddleware",

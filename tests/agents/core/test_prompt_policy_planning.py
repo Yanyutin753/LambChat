@@ -14,6 +14,29 @@ def test_progress_policy_defers_todo_trigger_to_middleware() -> None:
     assert "never invent results" in PROGRESS_POLICY
 
 
+def test_progress_policy_answers_concepts_before_slow_sandbox_runs() -> None:
+    """产品要求：概念性问题（如"AdamW 是什么"）须先输出概念文字讲解，
+    再启动可能耗时的沙箱验证/演示（装包、训练、长构建）。规则正典归属地
+    是 PROGRESS_POLICY——主 agent 与 fork 子代理经 WORKFLOW_POLICY 收到；
+    非 fork 子代理的系统提示词被 harness profile 替换，只能看到 persona
+    行为引导与 execute 工具描述（各有独立守卫）。"""
+    from src.agents.core.subagent_prompts import MAIN_AGENT_PROMPT_SECTIONS
+
+    phrase = "state the key concepts in text first"
+    assert phrase in PROGRESS_POLICY
+    assert any(phrase in section for section in MAIN_AGENT_PROMPT_SECTIONS)
+
+
+def test_behavior_guide_answers_conceptually_before_slow_sandbox_runs() -> None:
+    """persona 行为引导经 deepagents harness profile 成为非 fork 子代理唯一
+    能看到的系统提示词，慢沙箱先答概念的规则必须在这里出现；同时原
+    "Explain an approach first only when asked" 对先解释的全面压制必须放宽。"""
+    from src.agents.core.persona import _build_behavior_guide
+
+    guide = _build_behavior_guide()
+    assert "before slow sandbox runs, give the conceptual answer first" in guide
+
+
 def test_todo_trigger_phrases_live_in_middleware_system_prompt() -> None:
     # 阈值具体化：模型对"multi-step"主观跳过，需要可判定的触发条件；
     # 显式要求计划/清单/write_todos 时必须遵守（staging 实测会被模型忽略）。
