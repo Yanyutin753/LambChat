@@ -1304,9 +1304,15 @@ const server = await createServer({
       transformIndexHtml(html) {
         return html.replace(
           "<head>",
+<<<<<<< HEAD
           `<head><script>const params=new URLSearchParams(location.search);if(params.get("guest")==="1")localStorage.removeItem("access_token");else localStorage.setItem("access_token",${JSON.stringify(
             token,
           )});localStorage.setItem("lambchat-theme",params.get("theme")||"light");</script>`,
+=======
+          `<head><script>const params=new URLSearchParams(location.search);if(params.has("guest")){localStorage.removeItem("access_token");localStorage.removeItem("refresh_token");}else{localStorage.setItem("access_token",${JSON.stringify(
+            token,
+          )});}localStorage.setItem("lambchat-theme",params.get("theme")||"light");</script>`,
+>>>>>>> codex/ux-page-audit
         );
       },
       configureServer(vite) {

@@ -712,6 +712,7 @@ export const BatchCreateModal = ({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <label className="flex items-start gap-2 text-14 text-theme-text cursor-pointer">
                           <Checkbox
+                            ariaLabel={t("agentConfig.supportsVision")}
                             checked={row.supportsVision}
                             onChange={() =>
                               updateBatchRow(
@@ -733,6 +734,7 @@ export const BatchCreateModal = ({
                         </label>
                         <label className="flex items-start gap-2 text-14 text-theme-text cursor-pointer">
                           <Checkbox
+                            ariaLabel={t("agentConfig.imageUrlToBase64")}
                             checked={row.imageUrlToBase64}
                             onChange={() =>
                               updateBatchRow(

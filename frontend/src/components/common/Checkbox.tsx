@@ -5,10 +5,10 @@ type CheckboxProps = {
   onChange?: () => void;
   pending?: boolean;
   disabled?: boolean;
+  ariaLabel?: string;
   /** "sm" (18px), "md" (20px, default), "lg" (24px) */
   size?: "sm" | "md" | "lg";
   className?: string;
-  ariaLabel?: string;
 };
 
 const sizeClasses = {
@@ -28,12 +28,12 @@ export function Checkbox({
   onChange,
   pending,
   disabled,
+  ariaLabel,
   size = "md",
   className = "",
-  ariaLabel,
 }: CheckboxProps) {
   const cls = [
-    "relative flex items-center justify-center rounded-[5px] shrink-0 transition-colors duration-150 motion-reduce:transition-none focus-within:!opacity-100 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--theme-ring)]",
+    "ui-checkbox relative flex items-center justify-center rounded-[5px] shrink-0 transition-colors duration-150 motion-reduce:transition-none focus-within:!opacity-100 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--theme-ring)]",
     sizeClasses[size],
     pending
       ? "border-2 border-[var(--theme-primary)] bg-[var(--theme-bg-subtle)]"
@@ -59,6 +59,12 @@ export function Checkbox({
           className="absolute inset-0 z-10 m-0 h-full w-full cursor-inherit opacity-0"
           onClick={(event) => event.stopPropagation()}
           onChange={() => onChange()}
+          onKeyDown={(event) => {
+            if (event.key !== " " && event.key !== "Enter") return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (!disabled && !event.repeat) onChange();
+          }}
         />
       )}
       {pending ? (

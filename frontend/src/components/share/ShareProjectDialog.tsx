@@ -314,6 +314,7 @@ export function ShareProjectDialog({
                       }`}
                     >
                       <Checkbox
+                        ariaLabel={session.name || t("share.untitledSession")}
                         checked={selectedSessionIds.includes(
                           session.session_id,
                         )}

@@ -693,8 +693,8 @@ export function ChatView({
   );
 
   useEffect(() => {
-    setSteerCancelHandler(
-      (content, messageId) => onCancelSteer?.(content, messageId),
+    setSteerCancelHandler((content, messageId) =>
+      onCancelSteer?.(content, messageId),
     );
     return () => setSteerCancelHandler(null);
   }, [onCancelSteer]);
@@ -886,6 +886,10 @@ export function ChatView({
               />
               <button
                 onClick={scrollToTop}
+                type="button"
+                aria-label={t("common.scrollToTop")}
+                aria-hidden={isNearTop}
+                disabled={isNearTop}
                 className="group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 sm:h-10 sm:w-10"
                 style={{
                   opacity: isNearTop ? 0 : 1,
@@ -908,6 +912,10 @@ export function ChatView({
               </button>
               <button
                 onClick={scrollToBottom}
+                type="button"
+                aria-label={t("common.scrollToBottom")}
+                aria-hidden={isNearBottom}
+                disabled={isNearBottom}
                 className={`group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 sm:h-10 sm:w-10 ${
                   hasVisibleStreamingMessage ? "scroll-btn-glow" : ""
                 }`}

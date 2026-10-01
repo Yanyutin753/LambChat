@@ -183,6 +183,7 @@ function FormFieldRenderer({
       return (
         <label className="flex items-center gap-2.5 cursor-pointer group">
           <Checkbox
+            ariaLabel={field.label}
             checked={(value as boolean) ?? false}
             onChange={() => {
               interact();

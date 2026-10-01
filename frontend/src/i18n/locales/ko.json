@@ -445,7 +445,8 @@
     "verifyEmailSuccessTitle": "이메일 인증 완료",
     "verifyingEmail": "이메일 인증 중...",
     "welcomeBack": "다시 오셨군요!",
-    "whatToDoNext": "다음 단계"
+    "whatToDoNext": "다음 단계",
+    "requestNewResetLink": "재설정 링크 다시 받기"
   },
   "backendErrors": {
     "accountInactive": "계정이 활성화되지 않았습니다. 이메일 인증 후 로그인하세요.",
@@ -1222,7 +1223,8 @@
     "timeWeeksAgo": "{{count}}주 전",
     "toggleVisibility": "표시 전환",
     "user": "사용자",
-    "you": "나"
+    "you": "나",
+    "retry": "다시 시도"
   },
   "contactAdmin": {
     "emailActivationDesc": "이메일이 인증되지 않았거나 인증 링크가 만료되었습니다. 관리자에게 문의해 주세요.",

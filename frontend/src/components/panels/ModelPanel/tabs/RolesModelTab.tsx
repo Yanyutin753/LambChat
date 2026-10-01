@@ -194,6 +194,7 @@ export function RolesModelTab({
                   >
                     <label className="flex min-h-14 cursor-pointer items-center gap-3 px-3.5 py-3 sm:px-4 sm:gap-3.5">
                       <Checkbox
+                        ariaLabel={model.label}
                         checked={isSelected}
                         onChange={() => toggleModel(model.id)}
                         size="sm"

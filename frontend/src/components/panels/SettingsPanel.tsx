@@ -884,10 +884,10 @@ export function SettingsPanel() {
                                                 ),
                                               },
                                             ]
-                                          : setting.options?.map((opt) => ({
+                                          : (setting.options?.map((opt) => ({
                                               value: opt,
                                               label: opt,
-                                            })) ?? []
+                                            })) ?? [])
                                 }
                               />
                             )}

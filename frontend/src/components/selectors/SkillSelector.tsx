@@ -412,6 +412,7 @@ export function SkillSelector({
                               </p>
                             </div>
                             <Checkbox
+                              ariaLabel={skill.name}
                               checked={skill.enabled}
                               pending={pendingSet.has(skill.name)}
                               disabled={personaControlled || isMutating}

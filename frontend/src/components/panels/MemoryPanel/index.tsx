@@ -227,7 +227,9 @@ export function MemoryPanel() {
     <div className="glass-shell flex h-full flex-col min-h-0">
       <PanelHeader
         title={t("memory.title")}
-        subtitle={t("memory.subtitle", { count: total })}
+        subtitle={
+          loadError ? undefined : t("memory.subtitle", { count: total })
+        }
         illustration="panel-memory"
         searchValue={searchQuery}
         onSearchChange={handleSearchQueryChange}
@@ -276,7 +278,13 @@ export function MemoryPanel() {
             >
               <span className="hidden sm:inline">{t("memory.export")}</span>
             </Button>
-            <Button onClick={toggleAll} leftIcon={<Check size={16} />}>
+            <Button
+              aria-label={
+                allChecked ? t("common.deselectAll") : t("common.selectAll")
+              }
+              onClick={toggleAll}
+              leftIcon={<Check size={16} />}
+            >
               <span className="hidden sm:inline">
                 {allChecked ? t("common.deselectAll") : t("common.selectAll")}
               </span>
@@ -284,6 +292,7 @@ export function MemoryPanel() {
             <Button
               variant="primary"
               onClick={fetchMemories}
+              aria-label={t("common.refresh")}
               disabled={isLoading}
               leftIcon={
                 <RefreshCw
@@ -388,7 +397,17 @@ export function MemoryPanel() {
                     </div>
 
                     <h4 className="truncate text-16 font-semibold font-serif  text-[var(--theme-text)] pr-8">
-                      {memory.title}
+                      <button
+                        type="button"
+                        className="block w-full truncate text-left"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (selectionMode) toggleCheck(memory.memory_id);
+                          else setSelected(memory);
+                        }}
+                      >
+                        {memory.title}
+                      </button>
                     </h4>
 
                     <p className="mt-1 text-14 leading-relaxed text-[var(--theme-text-secondary)] line-clamp-2">

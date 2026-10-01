@@ -361,6 +361,7 @@ export function ShareDialog({
                       }`}
                     >
                       <Checkbox
+                        ariaLabel={`${t("share.run")} ${index + 1}`}
                         checked={selectedRunIds.includes(run.run_id)}
                         size="sm"
                       />
