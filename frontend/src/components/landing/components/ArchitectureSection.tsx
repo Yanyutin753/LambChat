@@ -25,9 +25,11 @@ export function ArchitectureSection({
           description={t("landing.architectureDesc")}
         />
         <div className="blog-dot-pattern rounded-2xl p-1">
-          <div
+          <button
+            type="button"
+            aria-label={t("landing.architecture")}
             data-reveal-scale
-            className="blog-arch-frame blog-arch-card blog-glass-inner-glow group relative rounded-xl overflow-hidden cursor-pointer bg-white/80 dark:bg-stone-900/30 transition-all duration-500 hover:-translate-y-1.5 hover:shadow-2xl"
+            className="public-preview blog-arch-frame blog-arch-card blog-glass-inner-glow group relative rounded-xl overflow-hidden cursor-pointer bg-white/80 dark:bg-stone-900/30 transition-all duration-500 hover:-translate-y-1.5 hover:shadow-2xl"
             onClick={() =>
               onOpenViewer(
                 "/images/best-practice/architecture.webp",
@@ -42,7 +44,7 @@ export function ArchitectureSection({
               inline
               className="w-full transition-all duration-700"
             />
-          </div>
+          </button>
         </div>
 
         {/* Stats */}
@@ -61,7 +63,7 @@ export function ArchitectureSection({
               <div className="text-30 sm:text-36 font-extrabold font-serif tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-stone-900 via-stone-800 to-stone-500 dark:from-stone-50 dark:via-stone-200 dark:to-stone-400 leading-none mb-2.5">
                 <AnimatedNumber value={s.num} />
               </div>
-              <div className="text-11 sm:text-12 font-medium text-stone-400 dark:text-stone-500 leading-snug">
+              <div className="text-11 sm:text-12 font-medium text-theme-text-secondary dark:text-theme-text-secondary leading-snug">
                 {t(`landing.${s.key}`, s.key)}
               </div>
             </div>

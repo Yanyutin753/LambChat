@@ -36,7 +36,6 @@ export function SelectorModalHeader({
       className={cx(SELECTOR_MODAL_HEADER_CLASS, className)}
       style={{ borderColor: "var(--theme-border)" }}
     >
-      <div className={SELECTOR_MODAL_DRAG_HANDLE_CLASS} />
       <div className="flex min-w-0 items-center gap-3 mt-2 sm:mt-0">
         <div className={SELECTOR_MODAL_ICON_TILE_CLASS}>{icon}</div>
         <div className="min-w-0">

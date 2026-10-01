@@ -35,6 +35,7 @@ const ServerSetupScreen = lazy(() =>
     default: m.ServerSetupScreen,
   })),
 );
+import { useAppViewport } from "./hooks/useAppViewport";
 import { useAutoUpdate } from "./hooks/useAutoUpdate";
 
 // 更新对话框懒加载（M4 T8 PWA 预算）：移动端专属 UI（安装需用户确认），
@@ -363,6 +364,7 @@ function AuthPageWrapper({
 
 // Main App Component
 function App() {
+  useAppViewport();
   const { t } = useTranslation();
   const navigate = useNavigate();
 

@@ -880,6 +880,8 @@
       "forkSuccess": "Forked to new session",
       "generating": "Generating",
       "generatingImage": "Generating image",
+      "imageGalleryCount": "{{count}} images",
+      "imageGalleryToggle": "Expand or collapse images",
       "interrupted": "You stopped this response",
       "mermaidError": "Mermaid Error",
       "model": "Model",
@@ -1138,6 +1140,7 @@
     "welcomeSuggestions": "Suggestions"
   },
   "common": {
+    "moreOptions": "More options",
     "panelTabs": "Panel tabs",
     "closePanelTab": "Close tab: {{title}}",
     "paginationSummary": "{{total}} items · {{pageSize}} per page",
@@ -1363,7 +1366,9 @@
     "fetchValueFailed": "Failed to get value",
     "hide": "Hide value",
     "invalidKey": "Key must start with a letter or underscore, and contain only letters, digits, and underscores",
+    "keyLabel": "Variable name",
     "keyPlaceholder": "KEY",
+    "valueLabel": "Secret value",
     "newValuePlaceholder": "Enter new value to overwrite",
     "reveal": "Show value",
     "title": "Environment Variables",
@@ -3891,6 +3896,10 @@
     "toggleSidebar": "Toggle sidebar"
   },
   "workspacePanel": {
+    "root": "WORKSPACE",
+    "searchFiles": "Search files",
+    "selectFile": "Select a file to preview",
+    "fileActions": "Actions for {{name}}",
     "account": "Account",
     "binaryFileHint": "(Binary file — inline preview not supported)",
     "cloudDisabled": "Cloud sandbox is disabled",

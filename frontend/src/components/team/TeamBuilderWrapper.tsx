@@ -1,3 +1,5 @@
+import { ResourceCardTags } from "../common/ResourceCardTags";
+import { SkillBaseCard } from "../common/SkillBaseCard";
 import { TeamListSkeleton } from "../skeletons";
 import {
   useState,
@@ -611,19 +613,38 @@ export function TeamBuilderWrapper() {
               const colors = nameToGradient(team.name);
               const activeCount = team.members.filter((m) => m.enabled).length;
               return (
-                <div
+                <SkillBaseCard
                   key={team.id}
-                  className="team-card scb group flex h-full flex-col overflow-hidden border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none"
+                  title={team.name}
+                  className="team-card"
                   style={{ "--team-accent": colors[0] } as React.CSSProperties}
-                >
-                  {/* Gradient Banner */}
-                  <div
-                    className="scb__banner relative h-12 shrink-0"
-                    style={{
-                      background: `linear-gradient(45deg, ${colors[0]}, ${colors[1]}, ${colors[2]})`,
-                    }}
-                  >
-                    <div className="absolute left-2 top-2 flex gap-1.5">
+                  gradient={colors}
+                  description={team.description || t("team.coordinatedDesc")}
+                  iconClassName=""
+                  icon={
+                    <TeamAvatar
+                      avatar={team.avatar}
+                      fallbackAvatar={getTeamFallbackAvatar(team)}
+                      fallbackTag={getTeamFallbackTag(team)}
+                      label={team.name}
+                      className="team-card__identity-avatar"
+                      imgClassName="scb__avatar-img"
+                      iconSize={20}
+                    />
+                  }
+                  statusPills={
+                    <div className="mt-1.5 flex items-center gap-2 text-11 text-[var(--theme-text-secondary)]">
+                      <span>
+                        {t("team.memberCount_one", {
+                          count: team.members.length,
+                        })}
+                      </span>
+                      <span className="inline-block h-1 w-1 rounded-full bg-[var(--theme-border)]" />
+                      <span>{t("team.active", { count: activeCount })}</span>
+                    </div>
+                  }
+                  bannerLeadingOverlay={
+                    <div className="flex gap-1.5">
                       <button
                         type="button"
                         className={`pps-card__icon-action ${
@@ -657,85 +678,84 @@ export function TeamBuilderWrapper() {
                         <Star size={12} />
                       </button>
                     </div>
-                    <div className="absolute top-2 right-2 flex gap-1.5">
-                      <span className="scb__status-pill scb__status-pill--installed">
-                        {t("team.activeStatus", { count: activeCount })}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Card Body */}
-                  <div className="flex flex-1 flex-col p-4 pt-5">
-                    {/* Title row with avatar */}
-                    <div className="flex items-start gap-3">
-                      <TeamAvatar
-                        avatar={team.avatar}
-                        fallbackAvatar={getTeamFallbackAvatar(team)}
-                        fallbackTag={getTeamFallbackTag(team)}
-                        label={team.name}
-                        className="team-card__identity-avatar"
-                        imgClassName="scb__avatar-img"
-                        iconSize={20}
+                  }
+                  bannerOverlay={
+                    <span className="scb__status-pill scb__status-pill--installed">
+                      {t("team.activeStatus", { count: activeCount })}
+                    </span>
+                  }
+                  tags={
+                    (team.tags ?? []).length > 0 ? (
+                      <ResourceCardTags
+                        tags={team.tags ?? []}
+                        activeTag={activeTag}
+                        onToggle={toggleTag}
                       />
-                      <div className="min-w-0 flex-1">
-                        <h3
-                          className="truncate text-16 font-semibold font-serif  text-[var(--theme-text)] leading-tight"
-                          title={team.name}
-                        >
-                          {team.name}
-                        </h3>
-                        <div className="mt-1.5 flex items-center gap-2 text-11 text-[var(--theme-text-secondary)]">
-                          <span>
-                            {t("team.memberCount_one", {
-                              count: team.members.length,
-                            })}
-                          </span>
-                          <span className="inline-block h-1 w-1 rounded-full bg-[var(--theme-border)]" />
-                          <span>
-                            {t("team.active", { count: activeCount })}
-                          </span>
+                    ) : undefined
+                  }
+                  extraContent={
+                    <>
+                      {team.members.length > 0 && (
+                        <div className="team-card__avatars">
+                          {team.members.slice(0, 5).map(renderMemberAvatar)}
+                          {team.members.length > 5 && (
+                            <span className="team-card__avatar-overflow">
+                              +{team.members.length - 5}
+                            </span>
+                          )}
                         </div>
-                      </div>
-                    </div>
-
-                    {/* Description */}
-                    <p className="mt-3 text-13 leading-relaxed text-[var(--theme-text-secondary)] line-clamp-2 min-h-[3.25em]">
-                      {team.description || t("team.coordinatedDesc")}
-                    </p>
-
-                    {/* Member avatars */}
-                    {team.members.length > 0 && (
-                      <div className="team-card__avatars mt-3">
-                        {team.members.slice(0, 5).map(renderMemberAvatar)}
-                        {team.members.length > 5 && (
-                          <span className="team-card__avatar-overflow">
-                            +{team.members.length - 5}
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    {(team.tags ?? []).length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {(team.tags ?? []).slice(0, 4).map((tag) => (
-                          <button
-                            key={tag}
-                            type="button"
-                            className={`skill-tag-chip ${
-                              activeTag === tag ? "skill-tag-chip--active" : ""
-                            }`}
-                            onClick={() => toggleTag(tag)}
-                          >
-                            {tag}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="flex-1" />
-
-                    {/* Meta & Actions */}
-                    <div className="scb__footer flex items-center justify-between gap-2">
+                      )}
+                    </>
+                  }
+                  actions={[
+                    {
+                      label: t("team.use"),
+                      icon: <Sparkles size={16} />,
+                      onClick: () => handleUseTeam(team),
+                    },
+                    {
+                      label: t(
+                        team.is_pinned
+                          ? "sidebar.unpinFromTop"
+                          : "personaPresets.pin",
+                      ),
+                      icon: <Pin size={16} />,
+                      onClick: () =>
+                        handleTogglePreference(team, {
+                          is_pinned: !team.is_pinned,
+                        }),
+                    },
+                    {
+                      label: t(
+                        team.is_favorite
+                          ? "fileLibrary.context.unfavorite"
+                          : "personaPresets.favorite",
+                      ),
+                      icon: <Star size={16} />,
+                      onClick: () =>
+                        handleTogglePreference(team, {
+                          is_favorite: !team.is_favorite,
+                        }),
+                    },
+                    {
+                      label: t("team.edit"),
+                      icon: <Pencil size={16} />,
+                      onClick: () => handleEditTeam(team.id),
+                    },
+                    {
+                      label: t("team.clone"),
+                      icon: <Copy size={16} />,
+                      onClick: () => handleCloneTeam(team.id),
+                    },
+                    {
+                      label: t("team.delete"),
+                      icon: <Trash2 size={16} />,
+                      danger: true,
+                      onClick: () => setDeleteConfirmId(team.id),
+                    },
+                  ]}
+                  footer={
+                    <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 text-11 text-[var(--theme-text-secondary)]">
                         <span className="inline-flex items-center gap-1">
                           <Users size={11} />
@@ -750,31 +770,10 @@ export function TeamBuilderWrapper() {
                         >
                           <Sparkles size={16} />
                         </button>
-                        <button
-                          onClick={() => handleEditTeam(team.id)}
-                          className="scb__action-btn scb__action-btn--ghost"
-                          title={t("team.edit")}
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleCloneTeam(team.id)}
-                          className="scb__action-btn scb__action-btn--ghost"
-                          title={t("team.clone")}
-                        >
-                          <Copy size={16} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirmId(team.id)}
-                          className="scb__action-btn scb__action-btn--ghost team-card__delete-action"
-                          title={t("team.delete")}
-                        >
-                          <Trash2 size={16} />
-                        </button>
                       </div>
                     </div>
-                  </div>
-                </div>
+                  }
+                />
               );
             })}
           </div>

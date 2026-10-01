@@ -43,3 +43,28 @@ test("server switch exposes its state and toggles without opening the card", () 
       .getAttribute("aria-checked"),
   ).toBe("true");
 });
+
+test("server title exposes a native detail action without toggling its state", () => {
+  const onClick = vi.fn();
+  const onToggle = vi.fn();
+  render(
+    <MCPServerCard
+      server={{
+        name: "Research",
+        transport: "sse",
+        enabled: false,
+        is_system: false,
+        can_edit: true,
+        allowed_roles: [],
+        role_quotas: {},
+      }}
+      onToggle={onToggle}
+      onClick={onClick}
+    />,
+  );
+  const title = screen.getByRole("button", { name: "Research" });
+  expect(title.getAttribute("type")).toBe("button");
+  fireEvent.click(title);
+  expect(onClick).toHaveBeenCalledTimes(1);
+  expect(onToggle).not.toHaveBeenCalled();
+});

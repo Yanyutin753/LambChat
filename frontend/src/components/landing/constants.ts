@@ -19,8 +19,8 @@ export const SECTION_ID_BY_ROUTE: Record<string, string> = Object.fromEntries(
 );
 
 export const NAV_ITEMS = [
-  { id: "interface", labelKey: "mainInterface" },
-  { id: "features", labelKey: "coreFeatures" },
-  { id: "architecture", labelKey: "architecture" },
-  { id: "dashboard", labelKey: "managementPanels" },
+  { id: "interface", labelKey: "sectionLabelInterface" },
+  { id: "features", labelKey: "sectionLabelFeatures" },
+  { id: "architecture", labelKey: "sectionLabelArchitecture" },
+  { id: "dashboard", labelKey: "sectionLabelDashboard" },
 ];

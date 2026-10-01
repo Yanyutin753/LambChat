@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
@@ -11,6 +11,9 @@ export interface SelectOption {
 }
 
 export interface SelectProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  ariaLabel?: string;
   value: string;
   onChange: (value: string) => void;
   options: SelectOption[];
@@ -27,6 +30,9 @@ function cx(...classes: Array<string | false | null | undefined>): string {
 
 export function Select({
   value,
+  open: controlledOpen,
+  onOpenChange,
+  ariaLabel,
   onChange,
   options,
   disabled = false,
@@ -35,7 +41,15 @@ export function Select({
   triggerClassName,
   dropdownClassName,
 }: SelectProps) {
-  const [open, setOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen ?? localOpen;
+  const setOpen = useCallback(
+    (next: boolean) => {
+      setLocalOpen(next);
+      onOpenChange?.(next);
+    },
+    [onOpenChange],
+  );
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -76,6 +90,18 @@ export function Select({
 
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
+  }, [open, setOpen]);
+
+  useEffect(() => {
+    if (open)
+      (
+        dropdownRef.current?.querySelector<HTMLButtonElement>(
+          '[aria-selected="true"]:not(:disabled)',
+        ) ??
+        dropdownRef.current?.querySelector<HTMLButtonElement>(
+          "button:not(:disabled)",
+        )
+      )?.focus();
   }, [open]);
 
   return (
@@ -84,9 +110,16 @@ export function Select({
         type="button"
         disabled={disabled}
         className={cx("ui-select-trigger", triggerClassName)}
+        aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
-        onClick={() => !disabled && setOpen((current) => !current)}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
+        onClick={() => !disabled && setOpen(!open)}
       >
         <span
           className={
@@ -110,6 +143,36 @@ export function Select({
             ref={dropdownRef}
             className={cx("ui-select-dropdown", dropdownClassName)}
             role="listbox"
+            aria-label={ariaLabel}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" || event.key === "Tab") {
+                event.stopPropagation();
+                setOpen(false);
+                ref.current?.querySelector("button")?.focus();
+                if (event.key === "Escape") event.preventDefault();
+              }
+              if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key))
+                return;
+              event.preventDefault();
+              const buttons = Array.from(
+                event.currentTarget.querySelectorAll<HTMLButtonElement>(
+                  "button:not(:disabled)",
+                ),
+              );
+              const index = buttons.indexOf(
+                document.activeElement as HTMLButtonElement,
+              );
+              const next =
+                event.key === "Home"
+                  ? 0
+                  : event.key === "End"
+                    ? buttons.length - 1
+                    : (index +
+                        (event.key === "ArrowDown" ? 1 : -1) +
+                        buttons.length) %
+                      buttons.length;
+              buttons[next]?.focus();
+            }}
             style={dropdownStyle}
           >
             {options.map((option) => (
@@ -126,8 +189,9 @@ export function Select({
                 )}
                 onClick={() => {
                   if (option.disabled) return;
-                  onChange(option.value);
                   setOpen(false);
+                  onChange(option.value);
+                  ref.current?.querySelector("button")?.focus();
                 }}
               >
                 {option.value === value && (

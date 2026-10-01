@@ -4,3 +4,5 @@ approveBuilds: esbuild,es5-ext
 onlyBuiltDependencies:
   - cn-font-split
   - koffi
+patchedDependencies:
+  cn-font-split@7.4.3: patches/cn-font-split@7.4.3.patch

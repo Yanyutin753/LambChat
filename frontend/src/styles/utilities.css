@@ -56,6 +56,29 @@
   box-sizing: border-box;
 }
 
+/* Body portals sit outside the resized app shell on iOS and mobile browsers. */
+html[data-mobile-keyboard="true"]
+  :is(.safe-area-viewport-padding, .safe-area-viewport-padding-top).fixed {
+  top: var(--app-viewport-offset-top, 0px);
+  bottom: var(--app-keyboard-inset, 0px);
+  max-height: var(--app-viewport-height, 100dvh);
+  overflow-y: auto;
+}
+
+html[data-mobile-keyboard="true"] .editor-sidebar--mobile {
+  bottom: calc(
+    var(--app-keyboard-inset, 0px) + var(--app-safe-area-bottom-active, 0px)
+  );
+}
+
+/* Tall dialogs must start within the scrollable area instead of overflowing above it. */
+html[data-mobile-keyboard="true"] .safe-area-viewport-padding.items-center {
+  align-items: safe center;
+}
+html[data-mobile-keyboard="true"] .safe-area-viewport-padding-top.items-end {
+  align-items: safe flex-end;
+}
+
 .safe-area-viewport-height {
   height: calc(
     var(--app-viewport-height, 100dvh) -

@@ -1,11 +1,6 @@
-import { useEffect, lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
-
-import {
-  closeRevealPreviewTab,
-  getRevealPreviewTabs,
-} from "../chat/ChatMessage/items/activeRevealPreviewStore";
 
 const ToolResultPanel = lazy(() =>
   import("../chat/ChatMessage/items/ToolResultPanel").then((module) => ({
@@ -35,21 +30,6 @@ function WorkspaceButton(props: Props) {
   const [open, setOpen] = useState(false);
   const [headerActionsTarget, setHeaderActionsTarget] =
     useState<HTMLDivElement | null>(null);
-  useEffect(
-    () => () => {
-      // A closed workspace tab does not own its files; changing conversation/backend does.
-      for (const tab of getRevealPreviewTabs()) {
-        if (tab.request.previewKey.startsWith("workspace:"))
-          closeRevealPreviewTab(tab.request.previewKey);
-      }
-    },
-    [
-      props.sessionId,
-      props.sandboxMode,
-      props.machineId,
-      props.workspaceSelection,
-    ],
-  );
   return (
     <>
       <button
@@ -69,7 +49,7 @@ function WorkspaceButton(props: Props) {
             onClose={() => setOpen(false)}
             title={t("workspacePanel.title")}
             icon={<FolderOpen size={16} />}
-            hideViewToggle
+            mobileFillViewport
             headerActions={
               <div
                 ref={setHeaderActionsTarget}

@@ -880,6 +880,8 @@
       "forkSuccess": "Форк создан в новой сессии",
       "generating": "Генерация",
       "generatingImage": "Генерация изображения",
+      "imageGalleryCount": "Изображений: {{count}}",
+      "imageGalleryToggle": "Развернуть или свернуть изображения",
       "interrupted": "Вы остановили этот ответ",
       "mermaidError": "Ошибка Mermaid",
       "model": "Модель",
@@ -1138,6 +1140,7 @@
     "welcomeSuggestions": "Предложения"
   },
   "common": {
+    "moreOptions": "Дополнительные действия",
     "panelTabs": "Вкладки панели",
     "closePanelTab": "Закрыть вкладку: {{title}}",
     "paginationSummary": "Всего {{total}} · По {{pageSize}} на странице",
@@ -1363,7 +1366,9 @@
     "fetchValueFailed": "Ошибка получения значения",
     "hide": "Скрыть значение",
     "invalidKey": "Ключ должен начинаться с буквы или подчёркивания и содержать только буквы, цифры и подчёркивания",
+    "keyLabel": "Имя переменной",
     "keyPlaceholder": "KEY",
+    "valueLabel": "Секретное значение",
     "newValuePlaceholder": "Введите новое значение",
     "reveal": "Показать значение",
     "title": "Переменные окружения",
@@ -3891,6 +3896,10 @@
     "toggleSidebar": "Переключить боковую панель"
   },
   "workspacePanel": {
+    "root": "РАБОЧАЯ ОБЛАСТЬ",
+    "searchFiles": "Поиск файлов",
+    "selectFile": "Выберите файл для просмотра",
+    "fileActions": "Действия для {{name}}",
     "account": "Аккаунт",
     "binaryFileHint": "(Бинарный файл — встроенный просмотр не поддерживается)",
     "cloudDisabled": "Облачная песочница отключена",

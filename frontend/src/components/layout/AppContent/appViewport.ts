@@ -83,12 +83,14 @@ export function getAppViewportState({
   visualViewportOffsetTop,
   windowInnerHeight,
   editableFocused,
+  layoutViewportResized = false,
   preferVisibleViewportHeight = false,
 }: {
   visualViewportHeight?: number | null;
   visualViewportOffsetTop?: number | null;
   windowInnerHeight?: number | null;
   editableFocused: boolean;
+  layoutViewportResized?: boolean;
   preferVisibleViewportHeight?: boolean;
 }): AppViewportState {
   const vvHeight = visualViewportHeight ?? null;
@@ -96,10 +98,11 @@ export function getAppViewportState({
   const wHeight = windowInnerHeight ?? null;
   const keyboardOpen =
     editableFocused &&
-    isKeyboardViewport({
-      visualViewportHeight: vvHeight,
-      windowInnerHeight: wHeight,
-    });
+    (layoutViewportResized ||
+      isKeyboardViewport({
+        visualViewportHeight: vvHeight,
+        windowInnerHeight: wHeight,
+      }));
 
   if (!keyboardOpen || !vvHeight || !wHeight) {
     const visibleViewportHeightCssValue = getAppViewportHeightCssValue({

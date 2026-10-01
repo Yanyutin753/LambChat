@@ -16,11 +16,13 @@ const teamPickerSource = readFileSync(
 );
 
 test("persona picker overlay sits above the expanded composer band", () => {
-  expect(personaSelectorSource).toContain("z-[290]");
+  expect(personaSelectorSource).toContain("<ModalSurface");
   expect(personaSelectorSource).not.toContain("z-[250]");
 });
 
 test("team picker overlay sits above the expanded composer band", () => {
-  expect(teamPickerSource).toContain("z-[290]");
+  expect(teamPickerSource).toContain("<ModalSurface");
   expect(teamPickerSource).not.toContain("z-[250]");
 });
+
+test("shared modal layer sits above the expanded composer", () => {expect(readFileSync(join(import.meta.dirname,"../../common/modalSurface.css"),"utf8")).toMatch(/z-index:\s*300/);});

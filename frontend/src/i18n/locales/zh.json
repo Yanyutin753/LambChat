@@ -880,6 +880,8 @@
       "forkSuccess": "已分叉到新会话",
       "generating": "生成中",
       "generatingImage": "正在生成图片",
+      "imageGalleryCount": "{{count}} 张图片",
+      "imageGalleryToggle": "展开或收起图片",
       "interrupted": "你已终止本次回答",
       "mermaidError": "Mermaid 错误",
       "model": "模型",
@@ -1138,6 +1140,7 @@
     "welcomeSuggestions": "建议"
   },
   "common": {
+    "moreOptions": "更多操作",
     "panelTabs": "侧栏标签",
     "closePanelTab": "关闭标签：{{title}}",
     "paginationSummary": "共 {{total}} 条 · 每页 {{pageSize}}",
@@ -1363,7 +1366,9 @@
     "fetchValueFailed": "获取环境变量值失败",
     "hide": "隐藏值",
     "invalidKey": "变量名只能包含字母、数字和下划线，且不能以数字开头",
+    "keyLabel": "变量名",
     "keyPlaceholder": "KEY",
+    "valueLabel": "加密值",
     "newValuePlaceholder": "输入新值以覆盖",
     "reveal": "显示值",
     "title": "环境变量",
@@ -3891,6 +3896,10 @@
     "toggleSidebar": "切换侧边栏"
   },
   "workspacePanel": {
+    "root": "工作区",
+    "searchFiles": "搜索文件",
+    "selectFile": "选择文件以预览内容",
+    "fileActions": "{{name}} 的操作",
     "account": "账号",
     "binaryFileHint": "（二进制文件，暂不支持内联预览）",
     "cloudDisabled": "云端沙箱未启用",

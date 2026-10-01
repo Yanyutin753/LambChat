@@ -6,6 +6,22 @@ import {
   shouldUpdateAppViewportHeight,
 } from "../appViewport.ts";
 
+test("native resize activates compact keyboard layout without applying the inset twice", () => {
+  expect(
+    getAppViewportState({
+      visualViewportHeight: 420,
+      windowInnerHeight: 420,
+      editableFocused: true,
+      layoutViewportResized: true,
+    }),
+  ).toEqual({
+    heightCssValue: "420px",
+    offsetTopCssValue: null,
+    keyboardInsetCssValue: "0px",
+    keyboardOpen: true,
+  });
+});
+
 test("uses visual viewport height only when the keyboard has reduced the viewport", () => {
   expect(
     getAppViewportHeightCssValue({

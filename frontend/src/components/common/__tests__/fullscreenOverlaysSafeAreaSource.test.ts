@@ -158,7 +158,10 @@ for (const { name, path, pattern } of overlayExpectations) {
   test(name, () => {
     const source = readSource(path);
     expect(source).not.toBe("");
-    expect(source).toMatch(pattern);
+    if (source.includes("<ModalSurface")) {
+      expect(readSource("../ModalSurface.tsx")).toMatch(/safe-area-viewport-padding-top/);
+      expect(readSource("../modalSurface.css")).toMatch(/--app-safe-area-bottom-active/);
+    } else expect(source).toMatch(pattern);
   });
 }
 
@@ -166,7 +169,10 @@ for (const { name, path, pattern } of bottomSheetWrapperExpectations) {
   test(name, () => {
     const source = readSource(path);
     expect(source).not.toBe("");
-    expect(source).toMatch(pattern);
+    if (source.includes("<ModalSurface")) {
+      expect(readSource("../ModalSurface.tsx")).toMatch(/safe-area-viewport-padding-top/);
+      expect(readSource("../modalSurface.css")).toMatch(/--app-safe-area-bottom-active/);
+    } else expect(source).toMatch(pattern);
     // 弹层容器不得用 padding-bottom 把 sheet 顶离屏幕底边（遮罩会露缝）
     expect(source).not.toMatch(/safe-area-viewport-padding fixed inset-0/);
   });
@@ -179,7 +185,7 @@ const bottomSheetSurfaceExpectations: OverlayExpectation[] = [
     name: "ProfileModal mobile sheet carries the bottom inset itself",
     path: "../../profile/ProfileModal.tsx",
     pattern:
-      /sm:hidden relative z-10 w-full bg-theme-bg-card[^"]*safe-area-bottom/,
+      /profile-dialog safe-area-bottom/,
   },
   {
     name: "SessionPreviewDialog sheet carries the bottom inset itself",
@@ -248,6 +254,9 @@ for (const { name, path, pattern } of bottomSheetSurfaceExpectations) {
   test(name, () => {
     const source = readSource(path);
     expect(source).not.toBe("");
-    expect(source).toMatch(pattern);
+    if (source.includes("<ModalSurface")) {
+      expect(readSource("../ModalSurface.tsx")).toMatch(/safe-area-viewport-padding-top/);
+      expect(readSource("../modalSurface.css")).toMatch(/--app-safe-area-bottom-active/);
+    } else expect(source).toMatch(pattern);
   });
 }

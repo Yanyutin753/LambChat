@@ -661,8 +661,6 @@ export const SessionSidebar = forwardRef<
           isOpen={moreMenu.isMoreMenuOpen}
           onClose={() => moreMenu.setIsMoreMenuOpen(false)}
           menuRef={moreMenu.moreMenuRef}
-          swipeRef={moreMenu.moreMenuSwipeRef}
-          dragHandleRef={moreMenu.moreMenuDragHandleRef}
         />
       </div>
 

@@ -44,10 +44,10 @@ export function RegistrationPending() {
     <AuthLayout>
       <div className="mb-5 text-center">
         <SceneIllustration scene="message" className="mx-auto mb-3" />
-        <h1 className="text-20 font-bold text-stone-900 dark:text-stone-100 mb-1 font-serif">
+        <h1 className="text-20 font-bold text-theme-text mb-1 font-serif">
           {t("auth.registrationSuccessTitle")}
         </h1>
-        <p className="text-14 text-stone-400 dark:text-stone-500">
+        <p className="text-14 text-theme-text-tertiary">
           {t("auth.registrationSuccessDesc")}
         </p>
       </div>
@@ -58,10 +58,10 @@ export function RegistrationPending() {
             <Mail className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <p className="text-12 font-medium text-stone-700 dark:text-stone-300">
+            <p className="text-12 font-medium text-theme-text-secondary">
               {t("auth.verificationEmailSentTo")}
             </p>
-            <p className="text-12 text-stone-400 dark:text-stone-500 truncate">
+            <p className="text-12 text-theme-text-tertiary break-all">
               {email}
             </p>
           </div>
@@ -69,10 +69,10 @@ export function RegistrationPending() {
       </div>
 
       <div className="auth-muted-panel mb-3 rounded-xl p-3">
-        <h2 className="mb-2 text-12 font-medium text-stone-700 dark:text-stone-300">
+        <h2 className="mb-2 text-12 font-medium text-theme-text-secondary">
           {t("auth.whatToDoNext")}
         </h2>
-        <ol className="space-y-1.5 text-12 text-stone-500 dark:text-stone-400">
+        <ol className="space-y-1.5 text-12 text-theme-text-secondary">
           <li className="flex items-start gap-2">
             <span className="auth-accent-badge mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-10 font-medium">
               1
@@ -120,7 +120,7 @@ export function RegistrationPending() {
 
       <button
         onClick={() => setContactAdminOpen(true)}
-        className="mt-2 w-full text-center text-12 text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
+        className="mt-2 min-h-11 w-full text-center text-12 text-theme-text-tertiary hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
       >
         {t("contactAdmin.supportLink", "联系管理员")}
       </button>

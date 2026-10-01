@@ -31,7 +31,7 @@ if (!hasCommand("rustc") || !hasCommand("cargo")) {
 
 const iconResult = spawnSync(
   pnpmCommand,
-  ["dlx", tauriCliPackage, "icon", "public/icons/icon-512.png"],
+  ["dlx", tauriCliPackage, "icon", "resources/native-icon.png"],
   {
     stdio: "inherit",
     shell: process.platform === "win32",

@@ -1,8 +1,21 @@
-import { type ReactNode } from "react";
+import {
+  useCallback,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import { MoreHorizontal } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { ResourceCardMenu, type ResourceCardAction } from "./ResourceCardMenu";
 import { Checkbox } from "./Checkbox";
 
 export interface SkillBaseCardProps {
   title: string;
+  actions?: ResourceCardAction[];
+  style?: CSSProperties;
+  iconClassName?: string;
   description?: string;
   descriptionMaxLines?: 2 | 3;
   gradient?: string[];
@@ -21,11 +34,14 @@ export interface SkillBaseCardProps {
   animated?: boolean;
   animationDelay?: number;
   className?: string;
-  onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onClick?: (e: React.MouseEvent<HTMLElement>) => void;
 }
 
 export function SkillBaseCard({
   title,
+  actions = [],
+  style,
+  iconClassName = "scb__icon-ring",
   description,
   descriptionMaxLines = 2,
   gradient,
@@ -46,13 +62,48 @@ export function SkillBaseCard({
   className = "",
   onClick,
 }: SkillBaseCardProps) {
+  const { t } = useTranslation();
+  const menuId = useId();
+  const focusReturn = useRef<HTMLElement | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const closeMenu = useCallback((restoreFocus = false) => {
+    setMenuPosition(null);
+    if (restoreFocus) focusReturn.current?.focus();
+  }, []);
   const lineClamp = descriptionMaxLines === 3 ? "line-clamp-3" : "line-clamp-2";
 
   return (
     <div
-      role={onClick || (selectionMode && onSelect) ? "button" : undefined}
-      tabIndex={onClick || (selectionMode && onSelect) ? 0 : undefined}
+      role="group"
+      aria-label={title}
+      tabIndex={
+        onClick || (selectionMode && onSelect) || actions.length ? 0 : undefined
+      }
+      onContextMenu={
+        actions.length
+          ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              focusReturn.current = e.currentTarget;
+              setMenuPosition({ x: e.clientX, y: e.clientY });
+            }
+          : undefined
+      }
       onKeyDown={(e) => {
+        if (
+          e.target === e.currentTarget &&
+          actions.length &&
+          (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey))
+        ) {
+          e.preventDefault();
+          focusReturn.current = e.currentTarget;
+          const rect = e.currentTarget.getBoundingClientRect();
+          setMenuPosition({ x: rect.left, y: rect.top + 48 });
+          return;
+        }
         if (
           e.target === e.currentTarget &&
           (e.key === "Enter" || e.key === " ") &&
@@ -62,7 +113,7 @@ export function SkillBaseCard({
           e.currentTarget.click();
         }
       }}
-      className={`scb group flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none dark:border dark:border-[var(--theme-border)] ${
+      className={`scb relative group flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none dark:border dark:border-[var(--theme-border)] ${
         muted ? "scb--muted" : ""
       } ${
         selected
@@ -70,20 +121,21 @@ export function SkillBaseCard({
           : ""
       } ${animated ? "scb--animated" : ""} ${
         selectionMode && onSelect ? "cursor-pointer" : ""
-      } ${className}`}
-      style={animated ? { animationDelay: `${animationDelay}ms` } : undefined}
-      onClick={
-        selectionMode && onSelect
-          ? (e) => {
-              if (
-                !(e.target as HTMLElement).closest("button") &&
-                !(e.target as HTMLElement).closest('[role="checkbox"]')
-              ) {
-                onSelect();
-              }
-            }
-          : onClick
-      }
+      } ${actions.length ? "focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]" : ""} ${className}`}
+      style={{
+        ...style,
+        ...(animated ? { animationDelay: `${animationDelay}ms` } : {}),
+      }}
+      onClick={(e) => {
+        if (
+          (e.target as HTMLElement).closest(
+            'button, a, input, select, textarea, [role="checkbox"], [role="switch"], [role="menu"]',
+          )
+        )
+          return;
+        if (selectionMode && onSelect) onSelect();
+        else onClick?.(e);
+      }}
     >
       {(gradient || bannerLeadingOverlay || bannerOverlay) && (
         <div
@@ -153,18 +205,29 @@ export function SkillBaseCard({
       )}
 
       <div
-        className={`flex flex-1 flex-col p-4 ${
-          gradient ? "-mt-3 pt-5" : "sm:p-5"
-        }`}
+        className={`flex flex-1 flex-col p-3.5 ${gradient ? "-mt-3 pt-4" : ""}`}
       >
-        <div className="flex items-start gap-3">
-          {icon && <div className="scb__icon-ring shrink-0">{icon}</div>}
+        <div className="flex items-start gap-2.5">
+          {icon && <div className={`${iconClassName} shrink-0`}>{icon}</div>}
           <div className="min-w-0 flex-1">
             <h3
               title={title}
-              className="line-clamp-2 break-words text-16 font-semibold font-serif  text-[var(--theme-text)] leading-tight"
+              className="line-clamp-2 break-words text-16 font-medium font-serif text-[var(--theme-text-secondary)] leading-tight"
             >
-              {title}
+              {onClick && !selectionMode ? (
+                <button
+                  type="button"
+                  className="w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClick(e);
+                  }}
+                >
+                  {title}
+                </button>
+              ) : (
+                title
+              )}
             </h3>
             {statusPills}
           </div>
@@ -172,22 +235,57 @@ export function SkillBaseCard({
 
         {description && (
           <p
-            className={`mt-3 text-13 leading-relaxed text-[var(--theme-text-secondary)] ${lineClamp} min-h-[3.25em]`}
+            className={`mt-2.5 text-13 leading-relaxed text-[var(--theme-text-secondary)] ${lineClamp}`}
           >
             {description}
           </p>
         )}
 
-        {tags && <div className="mt-3">{tags}</div>}
+        {tags && <div className="mt-2.5">{tags}</div>}
 
-        {extraContent && <div className="mt-3">{extraContent}</div>}
+        {extraContent && <div className="mt-2.5">{extraContent}</div>}
 
         <div className="flex-1" />
 
-        {meta && <div className="mt-4">{meta}</div>}
+        {meta && <div className="mt-3">{meta}</div>}
 
-        {footer && <div className="scb__footer">{footer}</div>}
+        {(footer || actions.length > 0) && (
+          <div className="scb__footer flex items-center gap-2">
+            {footer && <div className="min-w-0 flex-1">{footer}</div>}
+            {actions.length > 0 && (
+              <button
+                type="button"
+                aria-label={t("common.moreOptions")}
+                aria-haspopup="menu"
+                aria-expanded={Boolean(menuPosition)}
+                aria-controls={menuPosition ? menuId : undefined}
+                className="scb__action-btn scb__action-btn--ghost ml-auto min-h-11 min-w-11 shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (menuPosition) {
+                    closeMenu(true);
+                    return;
+                  }
+                  focusReturn.current = e.currentTarget;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setMenuPosition({ x: rect.right - 224, y: rect.bottom + 4 });
+                }}
+              >
+                <MoreHorizontal size={16} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
+      {menuPosition && actions.length > 0 && (
+        <ResourceCardMenu
+          id={menuId}
+          title={title}
+          actions={actions}
+          position={menuPosition}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   );
 }

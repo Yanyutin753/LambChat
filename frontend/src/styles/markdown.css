@@ -438,22 +438,6 @@
   content: none;
 }
 
-/* Mobile-friendly tap targets */
-@media (max-width: 640px) {
-  button,
-  [role="button"] {
-    min-height: 44px;
-    min-width: 44px;
-  }
-
-  /* Allow smaller buttons in button groups */
-  .flex button,
-  .flex [role="button"] {
-    min-height: auto;
-    min-width: auto;
-  }
-}
-
 /* Prevent zoom on input focus (iOS) - removed to maintain consistent font sizes */
 
 /* Smooth scrolling for mobile */

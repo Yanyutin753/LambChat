@@ -38,7 +38,7 @@ export function CTASection({ onLogin }: CTASectionProps) {
         <p
           data-reveal
           data-reveal-delay="1"
-          className="blog-prose text-stone-400 dark:text-stone-500 mb-12 sm:mb-14 text-14 sm:text-15 max-w-md mx-auto leading-[1.8] px-2"
+          className="blog-prose text-theme-text-secondary dark:text-theme-text-secondary mb-12 sm:mb-14 text-14 sm:text-15 max-w-md mx-auto leading-[1.8] px-2"
         >
           {t("landing.ctaDescription")}
         </p>
@@ -60,7 +60,7 @@ export function CTASection({ onLogin }: CTASectionProps) {
             href={GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="blog-btn-ghost w-full sm:w-auto group inline-flex items-center justify-center gap-2.5 rounded-full border border-stone-200/80 dark:border-stone-700/50 bg-white/50 dark:bg-stone-800/30 px-8 py-4 sm:px-9 sm:py-4 text-14 font-medium text-stone-600 dark:text-stone-300 transition-all duration-300 hover:-translate-y-0.5 hover:border-stone-300 dark:hover:border-stone-600 hover:shadow-lg hover:shadow-stone-200/30 dark:hover:shadow-stone-900/30 active:translate-y-0"
+            className="blog-btn-ghost w-full sm:w-auto group inline-flex items-center justify-center gap-2.5 rounded-full border border-stone-200/80 dark:border-stone-700/50 bg-white/50 dark:bg-stone-800/30 px-8 py-4 sm:px-9 sm:py-4 text-14 font-medium text-theme-text-secondary dark:text-theme-text-tertiary transition-all duration-300 hover:-translate-y-0.5 hover:border-stone-300 dark:hover:border-stone-600 hover:shadow-lg hover:shadow-stone-200/30 dark:hover:shadow-stone-900/30 active:translate-y-0"
           >
             <GitHubIcon />
             {t("landing.viewOnGitHub")}

@@ -67,15 +67,6 @@ export function NotificationDialog({
     fetchNotifications();
   }, [isOpen, fetchNotifications]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [isOpen, onClose]);
-
   const handleDismiss = async (id: string) => {
     setDismissingId(id);
     setNotifications((prev) => prev.filter((n) => n.id !== id));
@@ -95,11 +86,7 @@ export function NotificationDialog({
 
   return (
     <SelectorModalPortal open={isOpen} onClose={onClose}>
-      <SelectorModalShell
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("nav.notifications")}
-      >
+      <SelectorModalShell aria-label={t("nav.notifications")}>
         <SelectorModalHeader
           className="shrink-0"
           icon={

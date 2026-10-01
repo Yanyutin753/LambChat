@@ -1,8 +1,9 @@
+import { ModalSurface } from "./ModalSurface";
 import { useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+
 import { useTranslation } from "react-i18next";
 import { Trash2, FolderInput, X } from "lucide-react";
-import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
+
 import { LoadingSpinner } from "./LoadingSpinner";
 
 interface DeleteProjectDialogProps {
@@ -22,7 +23,6 @@ export function DeleteProjectDialog({
 }: DeleteProjectDialogProps) {
   const { t } = useTranslation();
   const cancelRef = useRef<HTMLButtonElement>(null);
-  useBodyScrollLock(isOpen);
 
   useEffect(() => {
     if (isOpen) {
@@ -30,27 +30,10 @@ export function DeleteProjectDialog({
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isOpen || loading) return;
-      if (e.key === "Escape") onCancel();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onCancel, loading]);
-
   if (!isOpen) return null;
 
-  return createPortal(
-    <div
-      data-yields-sidebar
-      className="safe-area-viewport-padding fixed inset-0 z-[300] flex items-center justify-center"
-    >
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={loading ? undefined : onCancel}
-      />
-
+  return (
+    <ModalSurface open={isOpen} onClose={onCancel} dismissible={!loading}>
       <div
         className="relative z-10 w-full max-w-md mx-4 rounded-xl shadow-xl border overflow-hidden animate-in fade-in zoom-in-95 duration-200"
         style={{
@@ -156,7 +139,6 @@ export function DeleteProjectDialog({
           </button>
         </div>
       </div>
-    </div>,
-    document.body,
+    </ModalSurface>
   );
 }

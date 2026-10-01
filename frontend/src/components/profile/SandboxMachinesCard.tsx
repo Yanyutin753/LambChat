@@ -106,7 +106,7 @@ export function SandboxMachinesCard() {
           size={13}
           className="text-theme-text-tertiary dark:text-stone-500 shrink-0"
         />
-        <span className="font-medium font-serif text-14 text-theme-text dark:text-stone-100">
+        <span className="font-medium text-14 text-theme-text dark:text-stone-100">
           {t("profile.localSandbox.machines")}
         </span>
       </div>

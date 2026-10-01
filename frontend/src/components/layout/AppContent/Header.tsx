@@ -237,14 +237,14 @@ export function Header({
         <div className="flex-1" />
 
         {/* Right */}
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-          {headerActions}
+        <div className="flex items-center gap-2 flex-shrink-0">
           {/* Overflow menu (unified for all screen sizes) */}
           <div className="relative">
             <button
               ref={mobileMenuBtnRef}
+              aria-label={t("common.menu")}
               onClick={() => setMobileMenuOpen((v) => !v)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-[var(--color-background-muted)] dark:text-stone-300 transition-colors"
+              className="flex size-11 sm:size-8 items-center justify-center rounded-lg text-stone-600 hover:bg-[var(--color-background-muted)] dark:text-stone-300 transition-colors"
               title={t("common.menu")}
             >
               <MoreHorizontal size={20} />
@@ -413,6 +413,7 @@ export function Header({
               document.body,
             )}
 
+          {headerActions}
           <UserMenu onShowProfile={onShowProfile} />
         </div>
       </header>

@@ -40,12 +40,16 @@ test("弹窗外壳与下拉弹层表面走 theme token", () => {
     new URL("../ProfileModal.tsx", import.meta.url),
     "utf8",
   );
-  // 移动端抽屉 + 桌面弹窗两处壳，加桌面侧栏激活项，共三处同款表面
-  expect(modal.match(/bg-theme-bg-card dark:bg-stone-800/g)?.length).toBe(3);
+  // One responsive surface now serves both desktop and mobile.
+  expect(modal).toMatch(/profile-dialog/);
+  const styles = readFileSync(new URL("../profile.css", import.meta.url), "utf8");
+  expect(styles).toMatch(/background: var\(--theme-bg-card\)/);
   // SelectRow 选中项：accent-light 亮色值即 amber-50，sepia 下暖米黄
   const selectRow = readFileSync(
     new URL("../SelectRow.tsx", import.meta.url),
     "utf8",
   );
-  expect(selectRow).toMatch(/bg-theme-accent-light dark:bg-amber-900\/20/);
+  expect(selectRow).toMatch(/<Select/);
+  const commonStyles = readFileSync(new URL("../../../styles/components.css", import.meta.url), "utf8");
+  expect(commonStyles).toMatch(/\.ui-select-option--active/);
 });

@@ -708,8 +708,17 @@ export function RolesPanel() {
                 </div>
 
                 {/* Title & description */}
-                <h4 className="truncate text-16 font-semibold font-serif  text-[var(--theme-text)]">
-                  {role.name}
+                <h4 className="text-16 font-semibold font-serif text-theme-text">
+                  <button
+                    type="button"
+                    className="role-card-title text-left line-clamp-2 hover:underline underline-offset-4"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelectedRole(role);
+                    }}
+                  >
+                    {role.name}
+                  </button>
                 </h4>
                 {role.description && (
                   <p className="mt-1 text-14 leading-relaxed text-[var(--theme-text-secondary)] line-clamp-2">

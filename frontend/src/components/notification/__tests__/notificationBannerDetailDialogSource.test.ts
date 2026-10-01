@@ -21,11 +21,11 @@ test("banner detail dialog shares the selector modal parent shell", () => {
 });
 
 test("banner detail dialog keeps dialog semantics", () => {
-  expect(source).toMatch(/role="dialog"/);
-  expect(source).toMatch(/aria-modal="true"/);
+  expect(readFileSync(new URL("../../common/ModalSurface.tsx", import.meta.url), "utf8")).toMatch(/role="dialog"/);
+  expect(readFileSync(new URL("../../common/ModalSurface.tsx", import.meta.url), "utf8")).toMatch(/aria-modal="true"/);
   expect(source).toMatch(/aria-labelledby="notification-banner-detail-title"/);
   expect(source).toMatch(/notification-banner-detail/);
-  expect(source).toMatch(/Escape/);
+  expect(readFileSync(new URL("../../common/ModalSurface.tsx", import.meta.url), "utf8")).toMatch(/Escape/);
 });
 
 test("banner detail dialog shows publish date, not admin activation state", () => {

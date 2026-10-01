@@ -1,47 +1,31 @@
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { Home } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePageTitle } from "../../hooks/usePageTitle";
+import { SceneIllustration } from "./SceneIllustration";
 
 export function NotFoundPage() {
   usePageTitle("404");
   const { t } = useTranslation();
-  const navigate = useNavigate();
 
   return (
-    <div className="safe-area-viewport-padding flex h-[calc(100vh-var(--titlebar-inset,0px))] w-full flex-col items-center justify-center bg-theme-bg dark:bg-stone-900 px-4">
-      <div className="flex flex-col items-center max-w-md text-center">
-        {/* Title */}
-        <h1 className="text-24 font-semibold font-serif text-stone-900 dark:text-stone-100 mb-2">
+    <main className="safe-area-viewport-padding flex min-h-[calc(100dvh-var(--titlebar-inset,0px))] w-full items-center justify-center bg-theme-bg px-6 py-16">
+      <div className="flex max-w-md flex-col items-center text-center">
+        <SceneIllustration scene="message" className="mb-6" />
+        <h1 className="mb-4 text-30 font-medium font-serif leading-snug text-theme-text">
           {t("errors.pageNotFound")}
         </h1>
-
-        {/* Description */}
-        <p className="text-stone-500 dark:text-stone-400 mb-8 leading-relaxed">
+        <p className="mb-8 text-15 leading-relaxed text-theme-text-secondary">
           {t("errors.pageNotFoundDesc")}
         </p>
-
-        {/* Button */}
-        <button
-          onClick={() => navigate("/chat")}
-          className="inline-flex items-center gap-2 px-6 py-4 bg-stone-900 dark:bg-stone-100 hover:bg-stone-800 dark:hover:bg-stone-200 text-white dark:text-stone-900 text-14 font-medium rounded-full transition-colors"
+        <Link
+          to="/chat"
+          className="inline-flex min-h-12 items-center gap-2 rounded-lg bg-theme-text px-6 py-3 text-14 font-medium text-theme-bg transition-colors hover:bg-theme-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-theme-primary"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={2}
-            stroke="currentColor"
-            className="size-5"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"
-            />
-          </svg>
+          <Home size={18} aria-hidden="true" />
           {t("errors.backToHome")}
-        </button>
+        </Link>
       </div>
-    </div>
+    </main>
   );
 }

@@ -260,7 +260,7 @@ test("editor close is labelled and resize rail is keyboard accessible", () => {
     </EditorSidebar>,
   );
 
-  expect(screen.getByRole("button", { name: /^close$/i })).toBeVisible();
+  expect(screen.getByRole("button", { name: /^Close tab:/i })).toBeVisible();
   expect(screen.getByRole("separator")).toHaveAttribute("aria-valuenow");
 });
 
@@ -309,7 +309,7 @@ test("manual close restores focus to the opening trigger", async () => {
   render(<Harness />);
   const trigger = screen.getByRole("button", { name: "Open editor" });
   await user.click(trigger);
-  await user.click(screen.getByRole("button", { name: /^close$/i }));
+  await user.click(screen.getByRole("button", { name: /^Close tab:/i }));
 
   await waitFor(() => expect(trigger).toHaveFocus());
 });
@@ -475,4 +475,22 @@ test("a sidebar is visible immediately without waiting for animation frames", ()
   expect(screen.getByRole("complementary", { name: "Immediate" })).toHaveClass(
     "editor-sidebar--animate-in",
   );
+});
+
+test("editor uses one tab title without a duplicate header", async () => {
+  const onClose = vi.fn();
+  render(
+    <EditorSidebar open onClose={onClose} title="Edit team" subtitle="Build roles">
+      <div>Team form</div>
+    </EditorSidebar>,
+  );
+  await waitFor(() =>
+    expect(screen.getByRole("tab", { name: "Edit team" })).toBeTruthy(),
+  );
+  expect(screen.getAllByText("Edit team")).toHaveLength(1);
+  expect(screen.queryByText("Build roles")).toBeNull();
+  expect(document.querySelector(".editor-sidebar-header")).toBeNull();
+  expect(screen.getByRole("complementary", { name: "Edit team" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Close tab: Edit team" }));
+  expect(onClose).toHaveBeenCalledOnce();
 });

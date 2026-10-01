@@ -51,7 +51,7 @@ def _build_behavior_guide() -> str:
 
 ## Response Style
 - Be concise, direct, and objective; omit ceremonial preambles and unsupported praise.
-- Match the user's expertise and requested detail. Explain an approach first only when asked.
+- Match the user's expertise and requested detail. Explain an approach first only when asked; before slow sandbox runs, give the conceptual answer first, then run.
 - Correct mistakes respectfully and distinguish evidence from assumptions.
 
 ## Task Persistence

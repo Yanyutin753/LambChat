@@ -16,6 +16,7 @@ test("section toggle, add and more actions stay independent", () => {
       onToggle={toggle}
       createLabel="New chat"
       onCreate={create}
+      createIcon="compose"
       moreLabel="More"
       menuItems={[{ label: "Select chats", onClick: select }]}
     />,
@@ -28,6 +29,8 @@ test("section toggle, add and more actions stay independent", () => {
   expect(create).toHaveBeenCalledOnce();
   expect(toggle).toHaveBeenCalledOnce();
   const more = screen.getByRole("button", { name: "More" });
+  expect(more.compareDocumentPosition(screen.getByRole("button", { name: "New chat" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.getByRole("button", { name: "New chat" }).querySelector(".lucide-square-pen")).not.toBeNull();
   fireEvent.click(more);
   const popover = document.getElementById(more.getAttribute("popovertarget")!);
   expect(popover?.getAttribute("popover")).toBe("auto");

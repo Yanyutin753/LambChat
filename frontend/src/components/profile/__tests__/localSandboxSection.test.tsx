@@ -260,7 +260,7 @@ test("paired view shows status line and policy change writes config only (no PAT
   expect(screen.getByText("Running")).toBeInTheDocument();
 
   // 策略切换：writeConfirmPolicy（新策略）→ restartDaemon；绝不重铸 PAT
-  fireEvent.click(screen.getByText("Confirmation policy"));
+  fireEvent.click(screen.getByRole("button", {name:"Confirmation policy"}));
   fireEvent.click(await screen.findByText("Confirm commands only"));
 
   await waitFor(() => expect(mocks.restartDaemon).toHaveBeenCalled());

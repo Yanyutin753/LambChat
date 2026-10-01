@@ -1,6 +1,7 @@
 import {
   beginTeamRequest,
   isWelcomeContentReady,
+  shouldRenderWelcomeSkeleton,
   settleTeamRequestFailure,
   settleTeamRequestSuccess,
   type TeamRequestState,
@@ -101,8 +102,19 @@ test("waits for the active team request and settles on success or failure", () =
   ).toBe(true);
 });
 
-test("starting a new team request clears settled cards before its outcome", () => {
-  expect(beginTeamRequest(settledTeamState, 2)).toEqual({
+test("shows the skeleton only before the welcome content has ever been ready", () => {
+  expect(shouldRenderWelcomeSkeleton(false, false)).toBe(true);
+  expect(shouldRenderWelcomeSkeleton(true, false)).toBe(false);
+});
+
+test("background refetches never bring the skeleton back", () => {
+  // issue #158: 换页/搜索触发 persona presets refetch 时，
+  // 已就绪的欢迎页不能重新落回骨架（否则弹窗状态随整页卸载丢失）。
+  expect(shouldRenderWelcomeSkeleton(false, true)).toBe(false);
+  expect(shouldRenderWelcomeSkeleton(true, true)).toBe(false);
+});
+
+test("starting a new team request clears settled cards before its outcome", () => {  expect(beginTeamRequest(settledTeamState, 2)).toEqual({
     requestId: 2,
     cards: [],
     isLoading: true,

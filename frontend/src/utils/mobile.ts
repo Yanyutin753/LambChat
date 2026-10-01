@@ -7,8 +7,11 @@
  */
 export function isMobileDevice(): boolean {
   if (typeof window === "undefined") return false;
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent,
+  return (
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent,
+    ) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
   );
 }
 
@@ -59,6 +62,11 @@ export function scrollFocusedInputIntoView(): void {
 
   [80, 280].forEach((delay) => {
     window.setTimeout(() => {
+      if (
+        document.activeElement !== activeElement ||
+        !activeElement.isConnected
+      )
+        return;
       activeElement.scrollIntoView({
         block: "nearest",
         inline: "nearest",

@@ -201,3 +201,13 @@ test("usage card labels are defined in every locale", () => {
     expect(messages.usage.todayShort).toContain("{{amount}}");
   }
 });
+
+test("usage card uses serif text and aligns metric columns and baselines", async () => {
+  getStatsMock.mockResolvedValue(todayStats());
+  render(<ComposerUsageChip />);
+  fireEvent.click(await screen.findByRole("button", { name: /今日 ¥3\.60/ }));
+  expect(document.getElementById("composer-usage-popover")).toHaveClass("font-serif");
+  expect(screen.getByText("输入").parentElement).toHaveClass("grid");
+  expect(screen.getByText("输入").parentElement!.children[2]).toHaveClass("text-right", "tabular-nums");
+  expect(screen.getByText("3").parentElement).toHaveClass("inline-flex", "items-baseline");
+});

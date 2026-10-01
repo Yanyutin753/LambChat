@@ -21,10 +21,12 @@ export function ResponsiveSection({ onOpenViewer }: ResponsiveSectionProps) {
         />
         <div className="flex flex-col sm:flex-row items-center justify-center gap-5 sm:gap-8">
           {RESPONSIVE_SHOTS.map((s) => (
-            <div
+            <button
+              type="button"
+              aria-label={t(`landing.${s.altKey}`)}
               key={s.src}
               data-reveal-scale
-              className="blog-screenshot-card group relative rounded-2xl overflow-hidden cursor-pointer bg-theme-bg-card dark:bg-stone-900/50 p-3 sm:p-4 transition-all duration-500 hover:-translate-y-1.5"
+              className="public-preview blog-screenshot-card group relative rounded-2xl overflow-hidden cursor-pointer bg-theme-bg-card dark:bg-stone-900/50 p-3 sm:p-4 transition-all duration-500 hover:-translate-y-1.5"
               onClick={() => onOpenViewer(s.src, t(`landing.${s.altKey}`))}
             >
               <img
@@ -34,7 +36,7 @@ export function ResponsiveSection({ onOpenViewer }: ResponsiveSectionProps) {
                 referrerPolicy="no-referrer"
                 className="w-auto max-w-full max-h-44 sm:max-h-72 lg:max-h-80 object-contain rounded-xl"
               />
-            </div>
+            </button>
           ))}
         </div>
       </div>

@@ -127,14 +127,14 @@ export function ProfileToolsTab() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Wrench size={13} className="text-amber-500 dark:text-amber-400" />
-          <h3 className="text-12 font-semibold font-serif uppercase tracking-wider text-theme-text-tertiary dark:text-stone-500">
+          <h3 className="profile-section-heading font-serif">
             {t("profile.toolsManagement", "MCP Tools")}
           </h3>
         </div>
         <button
           onClick={fetchData}
           disabled={isLoading}
-          className="p-1 rounded-lg text-theme-text-tertiary hover:text-theme-text-secondary dark:hover:text-stone-300 hover:bg-theme-bg-subtle dark:hover:bg-stone-700/60 transition-colors"
+          className="profile-icon-button"
           title={t("common.refresh", "Refresh")}
         >
           <RefreshCw size={13} className={isLoading ? "animate-spin" : ""} />
@@ -151,11 +151,8 @@ export function ProfileToolsTab() {
       {isLoading && tools.length === 0 ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div
-              key={i}
-              className="rounded-xl border border-theme-border/60 dark:border-stone-600/40 bg-theme-bg-subtle dark:bg-stone-700/40 overflow-hidden"
-            >
-              <div className="px-3 py-2 border-b border-theme-border/60 dark:border-stone-600/40 flex items-center justify-between bg-theme-bg-subtle/60 dark:bg-stone-800/30">
+            <div key={i} className="profile-tool-group">
+              <div className="profile-tool-heading">
                 <SkeletonLine width="w-32" />
                 <SkeletonLine width="w-8" className="!h-2" />
               </div>
@@ -189,12 +186,9 @@ export function ProfileToolsTab() {
               (t) => !t.user_disabled && !t.system_disabled,
             ).length;
             return (
-              <div
-                key={serverName}
-                className="rounded-xl border border-theme-border/60 dark:border-stone-600/40 bg-theme-bg-subtle dark:bg-stone-700/40 overflow-hidden"
-              >
+              <div key={serverName} className="profile-tool-group">
                 {/* Server header */}
-                <div className="px-3 py-2 border-b border-theme-border/60 dark:border-stone-600/40 flex items-center justify-between bg-theme-bg-subtle/60 dark:bg-stone-800/30">
+                <div className="profile-tool-heading">
                   <span className="text-12 font-semibold text-theme-text-secondary dark:text-stone-300 truncate">
                     {serverName}
                   </span>
@@ -215,7 +209,7 @@ export function ProfileToolsTab() {
                     return (
                       <div
                         key={tool.name}
-                        className={`flex items-center gap-2 px-3 py-2 transition-colors ${
+                        className={`profile-tool-row transition-colors ${
                           isUserDisabled
                             ? "opacity-50"
                             : "hover:bg-theme-bg-subtle dark:hover:bg-stone-800/50"
@@ -224,7 +218,9 @@ export function ProfileToolsTab() {
                         <button
                           onClick={() => handleToggleTool(tool)}
                           disabled={isPending}
-                          className="flex-shrink-0"
+                          className="profile-icon-button"
+                          role="switch"
+                          aria-checked={!isUserDisabled}
                           title={
                             isUserDisabled
                               ? t("mcp.card.enableTool", "Enable tool")
@@ -255,7 +251,7 @@ export function ProfileToolsTab() {
                             </code>
                           </div>
                           {tool.description && (
-                            <p className="text-11 text-theme-text-tertiary dark:text-stone-500 truncate mt-0.5">
+                            <p className="text-12 text-theme-text-secondary mt-0.5">
                               {tool.description}
                             </p>
                           )}

@@ -1,8 +1,9 @@
+import { ModalSurface } from "./ModalSurface";
 import { useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+
 import { AlertTriangle } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
+
 import { LoadingSpinner } from "./LoadingSpinner";
 
 interface ConfirmDialogProps {
@@ -30,7 +31,6 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const { t } = useTranslation();
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
-  useBodyScrollLock(isOpen);
 
   // Use default values from translations if not provided
   const confirmLabel = confirmText || t("common.confirm");
@@ -41,17 +41,6 @@ export function ConfirmDialog({
       confirmButtonRef.current?.focus();
     }
   }, [isOpen]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isOpen) return;
-      if (e.key === "Escape" && !loading) {
-        onCancel();
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onCancel, loading]);
 
   if (!isOpen) return null;
 
@@ -71,18 +60,8 @@ export function ConfirmDialog({
     },
   };
 
-  return createPortal(
-    <div
-      data-yields-sidebar
-      className="safe-area-viewport-padding fixed inset-0 z-[300] flex items-center justify-center"
-    >
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={loading ? undefined : onCancel}
-      />
-
-      {/* Dialog */}
+  return (
+    <ModalSurface open={isOpen} onClose={onCancel} dismissible={!loading}>
       <div className="relative z-10 w-full max-w-sm mx-4 bg-theme-bg-card dark:bg-stone-800 rounded-xl shadow-xl border border-stone-200 dark:border-stone-700 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Content */}
         <div className="p-5">
@@ -129,7 +108,6 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>,
-    document.body,
+    </ModalSurface>
   );
 }
