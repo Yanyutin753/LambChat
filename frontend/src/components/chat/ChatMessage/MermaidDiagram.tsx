@@ -14,6 +14,7 @@ import { downloadBlob } from "../../common/viewerDownload";
 import { copyToClipboard } from "../../../utils/clipboard";
 import { useAppThemeMode } from "../../../hooks/useAppThemeMode";
 import { themeExportBackground } from "../../../utils/themeDom";
+import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
 
 // Fix common AI-generated mermaid syntax issues:
 // - subgraph 🎯 ["title"] → subgraph S1["🎯 title"]
@@ -576,12 +577,7 @@ function MermaidViewer({
     return () => URL.revokeObjectURL(svgBlobUrl);
   }, [svgBlobUrl]);
 
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, []);
+  useBodyScrollLock(true);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

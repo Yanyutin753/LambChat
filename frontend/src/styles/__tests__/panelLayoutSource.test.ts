@@ -7,6 +7,12 @@ const layout = source("../panels.css");
 const chrome = source("../legacy-panels.css");
 const components = source("../components.css");
 
+test("mobile editor inputs and disclosure controls keep 44px touch targets", () => {
+  expect(layout).toMatch(
+    /@media \(max-width: 639px\)\s*\{[\s\S]*?\.editor-sidebar :is\([^)]*input\.ui-input[^)]*summary[^)]*\)[^{]*\{\s*min-height:\s*2\.75rem;/,
+  );
+});
+
 test("panel spacing and compact header follow available panel width", () => {
   expect(layout).toMatch(/container-name:\s*panel;/);
   expect(layout).toMatch(/@container panel \(min-width: 640px\)/);
@@ -49,7 +55,9 @@ test("page chrome and resource card actions use spacing instead of repeated divi
   expect(source("../../components/common/SkillBaseCard.tsx")).toContain(
     'className="scb__footer',
   );
-  expect(source("../../components/mcp/MCPServerCard.tsx")).toContain("footer={");
+  expect(source("../../components/mcp/MCPServerCard.tsx")).toContain(
+    "footer={",
+  );
 });
 
 test("MCP form groups do not double their spacing with empty divider rows", () => {

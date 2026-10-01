@@ -718,3 +718,20 @@
   opacity: 0.5;
   cursor: wait;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .scb,
+  .mp-card {
+    animation: none !important;
+    transition: none;
+  }
+  .scb:hover,
+  .mp-card:hover,
+  .scb:hover .scb__icon-ring {
+    transform: none;
+  }
+  .scb__banner::after,
+  .mp-card__banner::after {
+    content: none;
+  }
+}

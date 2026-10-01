@@ -18,6 +18,8 @@ const overlaySources = [
   "../../components/common/DeleteProjectDialog.tsx",
   "../../components/common/ImageViewer.tsx",
   "../../components/common/VideoViewer.tsx",
+  "../../components/chat/ChatMessage/MermaidDiagram.tsx",
+  "../../components/documents/previews/ExcalidrawPreview.tsx",
   "../../components/profile/ProfileModal.tsx",
   "../../components/share/ShareDialog.tsx",
   "../../components/sidebar/SessionPreviewDialog.tsx",
@@ -37,16 +39,24 @@ test("useBodyScrollLock preserves and restores the previous body overflow value"
 
 test("selector modals use the shared body scroll lock hook", () => {
   for (const source of selectorSources) {
-    expect(source).toMatch(/useBodyScrollLock|<ModalSurface|<SelectorModalPortal/);
+    expect(source).toMatch(
+      /useBodyScrollLock|<ModalSurface|<SelectorModalPortal/,
+    );
     expect(source).not.toMatch(/document\.body\.style\.overflow = "hidden"/);
   }
 });
 
 test("shared overlay surfaces use the shared body scroll lock hook", () => {
   for (const source of overlaySources) {
-    expect(source).toMatch(/useBodyScrollLock|<ModalSurface|<SelectorModalPortal/);
+    expect(source).toMatch(
+      /useBodyScrollLock|<ModalSurface|<SelectorModalPortal/,
+    );
     expect(source).not.toMatch(/document\.body\.style\.overflow = "hidden"/);
   }
 });
 
-test("modal parent owns the body scroll lock", () => {expect(readSource("../../components/common/ModalSurface.tsx")).toMatch(/useBodyScrollLock\(open\)/);});
+test("modal parent owns the body scroll lock", () => {
+  expect(readSource("../../components/common/ModalSurface.tsx")).toMatch(
+    /useBodyScrollLock\(open(?:,\s*true)?\)/,
+  );
+});

@@ -285,7 +285,7 @@ export function ChatInputToolbar({
                       : personaAvatar.avatar
                   }
                   alt=""
-                  className="w-4 h-4 rounded-full object-cover group-hover:opacity-0 transition-opacity"
+                  className="w-4 h-4 rounded-full object-cover  transition-opacity"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = "none";
                   }}
@@ -295,7 +295,7 @@ export function ChatInputToolbar({
                   avatar={personaAvatar?.avatar}
                   primaryTag={personaAvatar?.primaryTag ?? ""}
                   size={16}
-                  className="transition-transform duration-200 group-hover:opacity-0"
+                  className="transition-transform duration-200 "
                 />
               )
             }
@@ -316,7 +316,7 @@ export function ChatInputToolbar({
                   selectedTeam ? getTeamFallbackTag(selectedTeam) : ""
                 }
                 label={selectedTeamName ?? t("chat.teamSelected")}
-                className="team-toolbar-avatar transition-opacity group-hover:opacity-0"
+                className="team-toolbar-avatar transition-opacity "
                 iconSize={16}
               />
             }

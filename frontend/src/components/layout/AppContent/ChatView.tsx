@@ -693,8 +693,8 @@ export function ChatView({
   );
 
   useEffect(() => {
-    setSteerCancelHandler(
-      (content, messageId) => onCancelSteer?.(content, messageId),
+    setSteerCancelHandler((content, messageId) =>
+      onCancelSteer?.(content, messageId),
     );
     return () => setSteerCancelHandler(null);
   }, [onCancelSteer]);
@@ -877,7 +877,7 @@ export function ChatView({
         {messages.length > 0 && (
           <div className="relative">
             <div
-              className={`absolute ${FLOATING_SCROLL_BUTTON_OFFSET_CLASS} right-2 z-50 flex flex-col gap-2 sm:right-4`}
+              className={`chat-scroll-actions absolute ${FLOATING_SCROLL_BUTTON_OFFSET_CLASS} right-2 z-50 flex flex-col gap-2 sm:right-4`}
             >
               <SessionBookmarksButton
                 sessionId={sessionId}
@@ -885,6 +885,10 @@ export function ChatView({
                 className="group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 text-theme-text-secondary transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--glass-bg-subtle)] hover:text-theme-text active:scale-95 sm:h-10 sm:w-10"
               />
               <button
+                type="button"
+                aria-label={t("common.scrollToTop")}
+                disabled={isNearTop}
+                aria-hidden={isNearTop}
                 onClick={scrollToTop}
                 className="group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 sm:h-10 sm:w-10"
                 style={{
@@ -907,6 +911,10 @@ export function ChatView({
                 </svg>
               </button>
               <button
+                type="button"
+                aria-label={t("common.scrollToBottom")}
+                disabled={isNearBottom}
+                aria-hidden={isNearBottom}
                 onClick={scrollToBottom}
                 className={`group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 sm:h-10 sm:w-10 ${
                   hasVisibleStreamingMessage ? "scroll-btn-glow" : ""

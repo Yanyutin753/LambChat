@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Pencil, Save } from "lucide-react";
 import toast from "react-hot-toast";
@@ -32,6 +32,7 @@ export function MemoryEditor({
   relativeTime: (dateStr: string | null) => string;
 }) {
   const { t } = useTranslation();
+  const formId = useId();
   const isEdit = !!memory;
 
   const [title, setTitle] = useState(memory?.title ?? "");
@@ -162,8 +163,13 @@ export function MemoryEditor({
     >
       <div className="es-form">
         <div className="es-section">
-          <FormField label={t("memory.titleLabel")} className="es-field">
+          <FormField
+            label={t("memory.titleLabel")}
+            htmlFor={`${formId}-title`}
+            className="es-field"
+          >
             <Input
+              id={`${formId}-title`}
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -173,8 +179,13 @@ export function MemoryEditor({
             />
           </FormField>
 
-          <FormField label={t("memory.summaryLabel")} className="es-field">
+          <FormField
+            label={t("memory.summaryLabel")}
+            htmlFor={`${formId}-summary`}
+            className="es-field"
+          >
             <Input
+              id={`${formId}-summary`}
               type="text"
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
@@ -195,8 +206,9 @@ export function MemoryEditor({
                   <button
                     key={opt.value}
                     type="button"
+                    aria-pressed={selected}
                     onClick={() => setMemoryType(opt.value)}
-                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-11 font-medium transition-all ${
+                    className={`inline-flex min-h-11 sm:min-h-0 items-center gap-1 rounded-full border px-2 py-1 text-11 font-medium transition-all ${
                       selected
                         ? `${
                             TYPE_STYLES[opt.value]
@@ -226,8 +238,9 @@ export function MemoryEditor({
                     <button
                       key={opt.value}
                       type="button"
+                      aria-pressed={selected}
                       onClick={() => setSource(opt.value)}
-                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-11 font-medium transition-all ${
+                      className={`inline-flex min-h-11 sm:min-h-0 items-center gap-1 rounded-full border px-2 py-1 text-11 font-medium transition-all ${
                         selected
                           ? `${
                               SOURCE_STYLES[opt.value]
@@ -250,7 +263,9 @@ export function MemoryEditor({
         </div>
 
         <div className="es-section">
-          <label className="es-label">{t("memory.contentLabel")}</label>
+          <label htmlFor={`${formId}-content`} className="es-label">
+            {t("memory.contentLabel")}
+          </label>
           {loadingContent ? (
             <div className="flex min-h-48 items-center justify-center rounded-lg border border-dashed border-[var(--glass-border)] bg-[var(--glass-bg-subtle)]">
               <svg
@@ -275,6 +290,7 @@ export function MemoryEditor({
             </div>
           ) : (
             <Textarea
+              id={`${formId}-content`}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder={t("memory.contentPlaceholder")}
@@ -286,9 +302,11 @@ export function MemoryEditor({
 
         <FormField
           label={t("memory.tagsLabel")}
+          htmlFor={`${formId}-tags`}
           className="es-section es-field"
         >
           <Input
+            id={`${formId}-tags`}
             type="text"
             value={tagsInput}
             onChange={(e) => setTagsInput(e.target.value)}

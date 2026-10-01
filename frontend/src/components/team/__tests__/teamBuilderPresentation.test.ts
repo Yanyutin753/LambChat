@@ -68,6 +68,15 @@ test("team builder list adopts shared panel and role-library presentation", () =
   expect(wrapperSource).toMatch(/getTeamFallbackAvatar/);
 });
 
+test("team cards show active member status once", () => {
+  expect(wrapperSource).toMatch(
+    /t\("team.activeStatus", \{ count: activeCount \}\)/,
+  );
+  expect(wrapperSource).not.toMatch(
+    /t\("team.active", \{ count: activeCount \}\)/,
+  );
+});
+
 test("team builder relies on shared panel header mobile density", () => {
   expect(wrapperSource).toMatch(/<PanelHeader/);
   expect(wrapperSource).toMatch(/className="skill-panel-header"/);

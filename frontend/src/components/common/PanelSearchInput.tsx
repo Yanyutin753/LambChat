@@ -44,6 +44,7 @@ export const PanelSearchInput = forwardRef<
 ) {
   const [draftValue, setDraftValue] = useState(value);
   const isEditingRef = useRef(false);
+  const isComposingRef = useRef(false);
 
   useEffect(() => {
     if (!isEditingRef.current) {
@@ -54,7 +55,7 @@ export const PanelSearchInput = forwardRef<
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextValue = event.currentTarget.value;
     setDraftValue(nextValue);
-    onValueChange(nextValue);
+    if (!isComposingRef.current) onValueChange(nextValue);
   };
 
   const handleFocus = (event: FocusEvent<HTMLInputElement>) => {
@@ -74,11 +75,13 @@ export const PanelSearchInput = forwardRef<
     event: CompositionEvent<HTMLInputElement>,
   ) => {
     isEditingRef.current = true;
+    isComposingRef.current = true;
     onCompositionStart?.(event);
   };
 
   const handleCompositionEnd = (event: CompositionEvent<HTMLInputElement>) => {
     const nextValue = event.currentTarget.value;
+    isComposingRef.current = false;
     setDraftValue(nextValue);
     onValueChange(nextValue);
     onCompositionEnd?.(event);
@@ -87,6 +90,10 @@ export const PanelSearchInput = forwardRef<
   return (
     <InputComponent
       {...props}
+      aria-label={
+        props["aria-label"] ??
+        (props["aria-labelledby"] ? undefined : props.placeholder)
+      }
       ref={ref}
       value={draftValue}
       onChange={handleChange}

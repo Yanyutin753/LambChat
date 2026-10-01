@@ -1,17 +1,18 @@
 /**
  * Search dialog for finding sessions across all projects.
  *
- * Features: fade+scale entrance, keyboard navigation
- * (↑/↓/Enter/Escape), infinite scroll, smooth scrolling.
+ * Keyboard navigation (↑/↓/Enter/Escape) and paginated results.
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { flushSync } from "react-dom";
 import { ModalSurface } from "../common/ModalSurface";
 import { useInView } from "react-intersection-observer";
 import { useTranslation } from "react-i18next";
 import { Search, X, Hash } from "lucide-react";
 import { sessionApi, type BackendSession } from "../../services/api";
 import { PanelSearchInput } from "../common/PanelSearchInput";
+import { Button, IconButton } from "../common/ui";
 import { getSessionTitle } from "./sessionHelpers";
 import { SkeletonList } from "../skeletons";
 
@@ -45,23 +46,15 @@ export function SearchDialog({
   const [hasMore, setHasMore] = useState(false);
   const [skip, setSkip] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
-  const [skeletonVisible, setSkeletonVisible] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const requestIdRef = useRef(0);
+  const retryResetRef = useRef(true);
 
   // Infinite scroll sentinel
   const { ref: sentinelRef, inView } = useInView({
     threshold: 0,
     rootMargin: "200px",
   });
-
-  // ── Entrance / exit animation ──────────────────────────────────
-  useEffect(() => {
-    if (isOpen) {
-      // Reset & fetch on open
-      setAllSessions([]);
-      setSkip(0);
-      setHasMore(false);
-    }
-  }, [isOpen]);
 
   // ── Focus input on open ────────────────────────────────────────
   useEffect(() => {
@@ -74,7 +67,6 @@ export function SearchDialog({
   // ── Reset active index when results change ─────────────────────
   useEffect(() => {
     setActiveIndex(-1);
-    itemRefs.current.clear();
   }, [allSessions]);
 
   // ── Fetch sessions (search or initial) ─────────────────────────
@@ -82,10 +74,11 @@ export function SearchDialog({
     async (reset = false) => {
       const targetSkip = reset ? 0 : skip;
       if (!reset && (isLoadingMore || !hasMore)) return;
+      const requestId = ++requestIdRef.current;
+      setHasError(false);
 
       if (reset) {
         setIsLoading(true);
-        setSkeletonVisible(true);
       } else {
         setIsLoadingMore(true);
       }
@@ -98,6 +91,7 @@ export function SearchDialog({
           status: "active",
           ...(q ? { search: q } : {}),
         });
+        if (requestId !== requestIdRef.current) return;
 
         const newSessions =
           "sessions" in response
@@ -124,52 +118,59 @@ export function SearchDialog({
         }
         setHasMore(newSessions.length > 0 ? newHasMore : false);
       } catch {
-        // silently fail
+        if (requestId === requestIdRef.current) {
+          retryResetRef.current = reset;
+          setHasError(true);
+        }
       } finally {
-        setIsLoading(false);
-        setIsLoadingMore(false);
-        if (reset) {
-          requestAnimationFrame(() => setSkeletonVisible(false));
+        if (requestId === requestIdRef.current) {
+          setIsLoading(false);
+          setIsLoadingMore(false);
         }
       }
     },
     [searchQuery, skip, isLoadingMore, hasMore],
   );
 
-  // ── Fetch on open (initial load) ───────────────────────────────
+  // Invalidate old queries immediately, including the debounce window and close.
   useEffect(() => {
-    if (isOpen) {
-      fetchSessions(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
-
-  // ── Debounced search ───────────────────────────────────────────
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
-  useEffect(() => {
+    const requests = requestIdRef;
+    ++requests.current;
     if (!isOpen) return;
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    debounceTimerRef.current = setTimeout(() => {
+    setIsLoading(true);
+    setIsLoadingMore(false);
+    setHasError(false);
+    setAllSessions([]);
+    setHasMore(false);
+    const timer = setTimeout(() => {
       fetchSessions(true);
     }, 200);
     return () => {
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      clearTimeout(timer);
+      ++requests.current;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery]);
+  }, [isOpen, searchQuery]);
 
   // ── Infinite scroll trigger ────────────────────────────────────
   useEffect(() => {
-    if (inView && hasMore && !isLoadingMore && !isLoading) {
+    if (inView && hasMore && !isLoadingMore && !isLoading && !hasError) {
       fetchSessions(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inView, hasMore, isLoadingMore, isLoading]);
+  }, [inView, hasMore, isLoadingMore, isLoading, hasError]);
 
   // ── Keyboard navigation ────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.defaultPrevented ||
+        e.isComposing ||
+        e.keyCode === 229 ||
+        e.target !== inputRef.current
+      )
+        return;
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setActiveIndex((prev) => {
@@ -209,10 +210,14 @@ export function SearchDialog({
   if (!isOpen) return null;
 
   return (
-    <ModalSurface open={isOpen} onClose={onClose}>
+    <ModalSurface
+      open={isOpen}
+      onClose={onClose}
+      label={t("sidebar.searchSessions")}
+    >
       <div className="relative w-[92vw] max-w-lg bg-theme-bg-card dark:bg-stone-900 rounded-2xl shadow-[0_25px_60px_-12px_rgba(0,0,0,0.25)] dark:shadow-[0_25px_60px_-12px_rgba(0,0,0,0.5)] border border-stone-200/60 dark:border-stone-700/40 overflow-hidden ">
         {/* Search input */}
-        <div className="flex items-center gap-3 px-4 py-3.5">
+        <div className="flex items-center gap-2 sm:gap-3 px-4 py-3.5">
           <Search
             size={16}
             strokeWidth={2}
@@ -221,19 +226,34 @@ export function SearchDialog({
           <PanelSearchInput
             ref={inputRef}
             type="text"
+            aria-label={t("sidebar.searchSessions")}
             value={searchQuery}
             onValueChange={setSearchQuery}
             placeholder={t("sidebar.searchSessions") + "..."}
             className="flex-1 min-w-0 text-15 bg-transparent text-stone-800 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none"
           />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded-full text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-all"
+          <div className="flex shrink-0 items-center gap-0">
+            {searchQuery && (
+              <IconButton
+                aria-label={t("common.clear")}
+                size="lg"
+                icon={<X size={12} strokeWidth={2.5} />}
+                onClick={() => {
+                  flushSync(() => setSearchQuery(""));
+                  inputRef.current?.focus();
+                }}
+                className="sm:!size-5"
+              />
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="!min-h-11 sm:hidden"
             >
-              <X size={12} strokeWidth={2.5} />
-            </button>
-          )}
+              {t("common.cancel")}
+            </Button>
+          </div>
           <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-10 font-medium font-serif text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-800 rounded-md border border-stone-200/80 dark:border-stone-700/60">
             ESC
           </kbd>
@@ -244,7 +264,8 @@ export function SearchDialog({
 
         {/* Results list */}
         <div
-          className="h-[50dvh] overflow-y-auto scroll-smooth py-2"
+          className="max-h-[50dvh] overflow-y-auto py-2"
+          aria-busy={isLoading || isLoadingMore}
           style={{
             scrollbarWidth: "thin",
             scrollbarColor: "transparent transparent",
@@ -258,38 +279,28 @@ export function SearchDialog({
               "transparent transparent";
           }}
         >
-          {/* Results area — grid stacking prevents height jump during crossfade */}
-          <div className="grid h-full">
-            {/* Loading state — fades out when results arrive */}
-            <div
-              className={`[grid-area:1/1] h-full transition-opacity duration-150 ease-out ${
-                skeletonVisible
-                  ? "opacity-100"
-                  : "opacity-0 pointer-events-none"
-              }`}
-            >
-              <SkeletonList
-                count={12}
-                className="h-full flex flex-col py-2"
-                compact
-              />
-            </div>
-
-            {/* Session items — fades in when skeleton fades out */}
-            <div
-              className={`[grid-area:1/1] pb-4 transition-opacity duration-150 ease-out ${
-                !isLoading ? "opacity-100" : "opacity-0 pointer-events-none"
-              }`}
-            >
+          {isLoading ? (
+            <SkeletonList count={5} className="py-2" compact />
+          ) : (
+            <div>
               {/* Empty search results */}
-              {hasQuery && allSessions.length === 0 && (
-                <div className="flex h-full flex-col items-center justify-center px-4 text-center">
-                  <p className="text-14 text-stone-400 dark:text-stone-500">
-                    {t("sidebar.noSearchResults")}
+              {!hasError && allSessions.length === 0 && (
+                <div
+                  role="status"
+                  className="flex flex-col items-center justify-center px-4 py-8 text-center"
+                >
+                  <p className="text-14 text-theme-text-secondary">
+                    {t(
+                      hasQuery
+                        ? "sidebar.noSearchResults"
+                        : "sidebar.noSessions",
+                    )}
                   </p>
-                  <p className="mt-1 text-12 text-stone-300 dark:text-stone-600">
-                    &quot;{searchQuery}&quot;
-                  </p>
+                  {hasQuery && (
+                    <p className="mt-1 max-w-full break-words text-12 text-theme-text-tertiary">
+                      &quot;{searchQuery}&quot;
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -343,8 +354,28 @@ export function SearchDialog({
                 );
               })}
 
+              {hasError && (
+                <div
+                  role="alert"
+                  className="flex flex-col items-center gap-3 px-4 py-6 text-center"
+                >
+                  <p className="text-14 text-theme-text-secondary">
+                    {t("session.loadFailed")}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      inputRef.current?.focus();
+                      void fetchSessions(retryResetRef.current);
+                    }}
+                    className="min-h-11 rounded-lg px-4 text-14 text-theme-text hover:bg-theme-bg-elevated focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+                  >
+                    {t("sidebar.retry")}
+                  </button>
+                </div>
+              )}
               {/* Infinite scroll sentinel */}
-              {hasMore && (
+              {hasMore && !hasError && (
                 <div ref={sentinelRef} className="flex justify-center py-3">
                   {isLoadingMore && (
                     <div className="relative w-4 h-4">
@@ -355,7 +386,7 @@ export function SearchDialog({
                 </div>
               )}
             </div>
-          </div>
+          )}
         </div>
 
         {/* Bottom hint bar */}

@@ -84,12 +84,13 @@ export function useMentionState(
   enabled: boolean,
 ) {
   const [highlightedIndex, setHighlightedIndex] = useState(0);
-  const dismissedAtRef = useRef<DismissedMention | null>(null);
+  const [dismissedMention, setDismissedMention] =
+    useState<DismissedMention | null>(null);
   const resultCountRef = useRef(0);
 
   useEffect(() => {
     if (!findMentionMatch(input, cursorPosition)) {
-      dismissedAtRef.current = null;
+      setDismissedMention(null);
     }
   }, [input, cursorPosition]);
 
@@ -100,9 +101,9 @@ export function useMentionState(
         cursorPosition,
         enabled,
         highlightedIndex,
-        dismissedMention: dismissedAtRef.current,
+        dismissedMention,
       }),
-    [input, cursorPosition, enabled, highlightedIndex],
+    [input, cursorPosition, enabled, highlightedIndex, dismissedMention],
   );
 
   const moveHighlight = useCallback((direction: "up" | "down") => {
@@ -123,7 +124,7 @@ export function useMentionState(
   const dismissMention = useCallback(() => {
     const match = findMentionMatch(input, cursorPosition);
     if (match) {
-      dismissedAtRef.current = { input, atIndex: match.atIndex };
+      setDismissedMention({ input, atIndex: match.atIndex });
     }
     setHighlightedIndex(0);
   }, [input, cursorPosition]);

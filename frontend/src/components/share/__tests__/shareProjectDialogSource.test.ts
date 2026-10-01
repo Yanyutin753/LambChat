@@ -16,3 +16,15 @@ test("explains the capped bulk selection for projects over the limit", () => {
   expect(source).toContain("sessions.length > PROJECT_SHARE_SESSION_LIMIT");
   expect(source).toContain('t("share.selectUpToLimit"');
 });
+
+test.each(["ShareDialog.tsx", "ShareProjectDialog.tsx"])(
+  "%s exposes share choices and a named close action",
+  (file) => {
+    const dialog = readFileSync(resolve(currentDir, "..", file), "utf8");
+    expect(dialog).toContain('aria-label={t("common.close")}');
+    expect(dialog).toContain('aria-pressed={shareType === "full"}');
+    expect(dialog).toContain('aria-pressed={shareType === "partial"}');
+    expect(dialog).toContain('aria-pressed={visibility === "public"}');
+    expect(dialog).toContain('aria-pressed={visibility === "authenticated"}');
+  },
+);

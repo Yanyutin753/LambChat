@@ -182,7 +182,7 @@ export const ChatInput = memo(function ChatInput({
   const [contactAdminOpen, setContactAdminOpen] = useState(false);
   const [composerExpanded, setComposerExpanded] = useState(false);
   const { host: composerHost, slotRef: composerSlotRef } =
-    useExpandedComposerHost(composerExpanded);
+    useExpandedComposerHost(composerExpanded, setComposerExpanded);
   const formRef = useRef<HTMLFormElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [cursorPosition, setCursorPosition] = useState(0);
@@ -316,16 +316,6 @@ export const ChatInput = memo(function ChatInput({
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [currentAgent, onSelectTeam]);
-  useEffect(() => {
-    if (!composerExpanded) return;
-    const collapseOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setComposerExpanded(false);
-    };
-    document.addEventListener("keydown", collapseOnEscape);
-    return () => document.removeEventListener("keydown", collapseOnEscape);
-  }, [composerExpanded]);
   useEffect(() => {
     if (!mention.isActive) {
       setMentionPopupPlacement(null);
@@ -530,6 +520,7 @@ export const ChatInput = memo(function ChatInput({
   });
   const handleComposerKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.nativeEvent.isComposing || event.keyCode === 229) return;
       if (mention.isActive) {
         if (event.key === "Enter" || event.key === "Tab") {
           event.preventDefault();
@@ -544,12 +535,11 @@ export const ChatInput = memo(function ChatInput({
         }
         if (event.key === "Escape") {
           event.preventDefault();
-          resetMention();
+          dismissMention();
           return;
         }
       }
       if (event.key === "Enter") {
-        if (event.nativeEvent.isComposing || event.keyCode === 229) return;
         handleEnterSubmit(
           event,
           {
@@ -573,6 +563,7 @@ export const ChatInput = memo(function ChatInput({
     [
       applyMentionSelection,
       applyTeamMentionSelection,
+      dismissMention,
       clearSteerDraft,
       hasFailedAttachment,
       hasUploadingAttachment,
@@ -584,7 +575,6 @@ export const ChatInput = memo(function ChatInput({
       mentionMode,
       mentionSearch.presets,
       onQueueFollowUp,
-      resetMention,
       sendBlocked,
       visibleAttachments,
       teamMentionSearch.teams,

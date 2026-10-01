@@ -445,7 +445,8 @@
     "verifyEmailSuccessTitle": "Email Verified",
     "verifyingEmail": "Verifying Email...",
     "welcomeBack": "Welcome back!",
-    "whatToDoNext": "What to do next?"
+    "whatToDoNext": "What to do next?",
+    "requestNewResetLink": "Request a new reset link"
   },
   "backendErrors": {
     "accountInactive": "Your account is inactive. Please verify your email before signing in.",
@@ -1222,7 +1223,8 @@
     "timeWeeksAgo": "{{count}}w ago",
     "toggleVisibility": "Toggle visibility",
     "user": "User",
-    "you": "You"
+    "you": "You",
+    "retry": "Retry"
   },
   "contactAdmin": {
     "emailActivationDesc": "Your email has not been verified or the verification link has expired. Please contact the administrator for assistance.",
@@ -3816,7 +3818,7 @@
   },
   "bookmarks": {
     "empty": "No bookmarks yet",
-    "emptyHint": "Hover over any message and click the bookmark icon to save outlines, summaries and other important replies",
+    "emptyHint": "Use the bookmark icon below any message to save outlines, summaries and other important replies",
     "loadFailed": "Failed to load bookmarks",
     "loading": "Loading bookmarks…",
     "refresh": "Refresh",

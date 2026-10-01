@@ -69,7 +69,7 @@ export function Dialog({
             {dismissible && (
               <button
                 onClick={onClose}
-                className="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-theme-text-tertiary transition-colors hover:bg-theme-bg-subtle dark:hover:bg-stone-700"
+                className="inline-flex size-11 sm:size-7 shrink-0 items-center justify-center rounded-full text-theme-text-tertiary transition-colors hover:bg-theme-bg-subtle dark:hover:bg-stone-700"
                 aria-label={t("common.dismiss", "关闭")}
               >
                 <X size={14} />

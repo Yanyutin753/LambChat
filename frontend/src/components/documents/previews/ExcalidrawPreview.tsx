@@ -10,6 +10,7 @@ import { ViewerToolbar } from "../../common/ViewerToolbar";
 import { ViewerTopBarButton } from "../../common/ViewerTopBarButton";
 import { downloadBlob } from "../../common/viewerDownload";
 import { X, Download } from "lucide-react";
+import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
 
 // Types for Excalidraw
 interface ExcalidrawElement {
@@ -223,13 +224,7 @@ export function ExcalidrawFullscreenViewer({
     return () => URL.revokeObjectURL(svgBlobUrl);
   }, [svgBlobUrl]);
 
-  // Body scroll lock
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, []);
+  useBodyScrollLock(true);
 
   // Escape to close
   useEffect(() => {

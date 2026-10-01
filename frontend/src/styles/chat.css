@@ -175,6 +175,13 @@ html[data-mobile-keyboard="true"]
   color: var(--theme-primary);
 }
 
+@media (max-width: 639px) {
+  .chat-input-toolbar button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
+
 /* Composer icons use one box, including image and team avatars. */
 .chat-input-toolbar .chat-tool-btn svg {
   display: block;
@@ -1180,4 +1187,31 @@ html[data-mobile-keyboard="true"]
 .mention-popup-avatar--loaded::after {
   opacity: 0;
   pointer-events: none;
+}
+
+/* Contiguous phone controls keep six composer actions within 320px. */
+@media (max-width: 639px) {
+  .chat-input-toolbar,
+  .chat-input-toolbar > div,
+  .chat-message-actions {
+    gap: 0;
+  }
+  .chat-input-toolbar button,
+  .chat-message-actions button,
+  .chat-scroll-actions button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+  .chat-message-actions {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 359px) {
+  .chat-input-toolbar .chat-tool-btn > div {
+    gap: 0;
+  }
+  .chat-input-toolbar .chat-tool-btn > div > span:nth-child(2) {
+    display: none;
+  }
 }

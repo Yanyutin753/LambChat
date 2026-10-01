@@ -776,14 +776,39 @@ function response(url: URL, scenario: string): unknown {
   if (path.startsWith("/api/skills/"))
     return { ...skills[0], files: ["SKILL.md"] };
   if (path === "/api/mcp") return paginate(servers, "servers");
-  if (path === "/api/env-vars") return {
-    variables: all([{ key: "PROJECT_API_TOKEN", value: "********" }, { key: "RESEARCH_WORKSPACE_ACCESS_TOKEN_WITH_A_LONG_NAME", value: "********" }]),
-    count: scenario === "empty" ? 0 : 2,
-  };
-  if (path === "/api/tools") return { tools: all(servers.slice(0, 3).flatMap((server, index) => [
-    { name: `${server.name}:search_documents`, description: "检索项目知识库，返回相关文档与来源。", category: "mcp", server: server.name, user_disabled: false },
-    { name: `${server.name}:read_document`, description: "读取完整文档内容，保留结构和来源信息，支持项目内较长的文档名称与描述。", category: "mcp", server: server.name, user_disabled: index === 1 },
-  ])) };
+  if (path === "/api/env-vars")
+    return {
+      variables: all([
+        { key: "PROJECT_API_TOKEN", value: "********" },
+        {
+          key: "RESEARCH_WORKSPACE_ACCESS_TOKEN_WITH_A_LONG_NAME",
+          value: "********",
+        },
+      ]),
+      count: scenario === "empty" ? 0 : 2,
+    };
+  if (path === "/api/tools")
+    return {
+      tools: all(
+        servers.slice(0, 3).flatMap((server, index) => [
+          {
+            name: `${server.name}:search_documents`,
+            description: "检索项目知识库，返回相关文档与来源。",
+            category: "mcp",
+            server: server.name,
+            user_disabled: false,
+          },
+          {
+            name: `${server.name}:read_document`,
+            description:
+              "读取完整文档内容，保留结构和来源信息，支持项目内较长的文档名称与描述。",
+            category: "mcp",
+            server: server.name,
+            user_disabled: index === 1,
+          },
+        ]),
+      ),
+    };
   if (path.endsWith("/tools"))
     return {
       tools: [
@@ -951,7 +976,7 @@ function response(url: URL, scenario: string): unknown {
       })),
     };
   if (path === "/api/scheduled-tasks") return paginate(tasks);
-  if (path.endsWith("/runs"))
+  if (path.startsWith("/api/scheduled-tasks/") && path.endsWith("/runs"))
     return paginate(
       rows((i) => ({
         id: `run-${i}`,
@@ -992,7 +1017,10 @@ function response(url: URL, scenario: string): unknown {
   if (path.startsWith("/api/agent/config/"))
     return { agents, available_agents: agents.map((a) => a.id) };
   if (path === "/api/agent/models/providers/list")
-    return { providers: ["openai", "anthropic"] };
+    return [
+      { value: "openai", protocol: "openai", prefixes: ["gpt-", "o3", "o4"] },
+      { value: "anthropic", protocol: "anthropic", prefixes: ["claude-"] },
+    ];
   if (path.startsWith("/api/agent/models"))
     return { models, total: models.length, default_model_id: "model-0" };
   if (path === "/api/files/revealed/stats") return { all: 65, document: 65 };
@@ -1152,10 +1180,52 @@ function response(url: URL, scenario: string): unknown {
       ],
       has_more_traces: false,
     };
-  if (path === "/api/sessions/preview-report/runs") return { runs: [] };
+  if (path === "/api/sessions/preview-report/runs") {
+    const runs = all(
+      rows((i, name) => ({
+        run_id: i === 0 ? "preview-run" : `preview-run-${i}`,
+        trace_id: `preview-trace-${i}`,
+        started_at: now,
+        completed_at: now,
+        status: "completed",
+        event_count: 3,
+        user_message: name,
+      })),
+    );
+    return { session_id: "preview-report", runs, count: runs.length };
+  }
+  if (
+    path.startsWith("/api/share/session/") ||
+    path.startsWith("/api/share/project/")
+  )
+    return [];
   if (path === "/api/sessions")
-    return { sessions: [], total: 0, has_more: false };
-  if (path === "/api/projects") return [];
+    return paginate(
+      rows((i, name) => ({
+        id: i === 0 ? "preview-report" : `preview-session-${i}`,
+        user_id: user.id,
+        name,
+        project_id: "preview-project",
+        agent_id: "fast_agent",
+        is_active: true,
+        metadata: {},
+        unread_count: 0,
+      })),
+      "sessions",
+    );
+  if (path === "/api/projects")
+    return all([
+      {
+        id: "preview-project",
+        user_id: user.id,
+        name: "跨部门项目协作与长期计划复盘",
+        type: "custom",
+        icon: "",
+        sort_order: 0,
+        created_at: now,
+        updated_at: now,
+      },
+    ]);
   if (path === "/api/version")
     return {
       current_version: "2.13.0",
@@ -1237,9 +1307,9 @@ const server = await createServer({
       transformIndexHtml(html) {
         return html.replace(
           "<head>",
-          `<head><script>localStorage.setItem("access_token",${JSON.stringify(
+          `<head><script>const params=new URLSearchParams(location.search);if(params.has("guest")){localStorage.removeItem("access_token");localStorage.removeItem("refresh_token");}else{localStorage.setItem("access_token",${JSON.stringify(
             token,
-          )});const params=new URLSearchParams(location.search);localStorage.setItem("lambchat-theme",params.get("theme")||"light");</script>`,
+          )});}localStorage.setItem("lambchat-theme",params.get("theme")||"light");</script>`,
         );
       },
       configureServer(vite) {
@@ -1287,7 +1357,8 @@ const server = await createServer({
                     },
               ),
             );
-          if (scenario === "loading") setTimeout(send, 8000);
+          if (scenario === "loading" && !url.pathname.startsWith("/api/auth/"))
+            setTimeout(send, 8000);
           else send();
           if (data === undefined && isRead)
             console.log("Missing fixture:", url.pathname);

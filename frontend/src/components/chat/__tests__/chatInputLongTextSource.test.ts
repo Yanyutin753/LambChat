@@ -51,7 +51,9 @@ test("long text conversion keeps local original text for restore only", () => {
 test("expanded mode preserves the mounted rich editor and supports Esc", () => {
   expect(chatInputSource).toMatch(/data-composer-expanded/);
   expect(chatInputSource).toMatch(/useBodyScrollLock\(composerExpanded\)/);
-  expect(chatInputSource).toMatch(/event\.key !== "Escape"/);
+  expect(readSource("../chatInputExpandedHost.ts")).toMatch(
+    /event\.key !== "Escape"/,
+  );
   expect(chatInputSource).toMatch(/enabled: !composerExpanded/);
   expect(chatInputSource.match(/<RichChatComposer\s/g)).toHaveLength(1);
 });

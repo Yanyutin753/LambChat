@@ -1,9 +1,10 @@
 import { SceneIllustration } from "../../common/SceneIllustration";
 import { useState, useRef, useEffect } from "react";
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
+import { hasVisibleModalDialog } from "../../../utils/modalDialog";
 import {
   Share2,
   MoreHorizontal,
@@ -87,6 +88,25 @@ export function Header({
   const [activeNotifCount, setActiveNotifCount] = useState(0);
   const mobileMenuBtnRef = useRef<HTMLButtonElement>(null);
   const mobileMenuPanelRef = useRef<HTMLDivElement>(null);
+  const langMenuPanelRef = useRef<HTMLDivElement>(null);
+  const langMenuBtnRef = useRef<HTMLButtonElement>(null);
+  const wasLangMenuOpen = useRef(false);
+
+  useEffect(() => {
+    if (langMenuOpen) {
+      langMenuPanelRef.current
+        ?.querySelector<HTMLButtonElement>("button")
+        ?.focus();
+    } else if (mobileMenuOpen) {
+      const target = wasLangMenuOpen.current
+        ? langMenuBtnRef.current
+        : mobileMenuPanelRef.current?.querySelector<HTMLButtonElement>(
+            "button",
+          );
+      target?.focus();
+    }
+    wasLangMenuOpen.current = langMenuOpen;
+  }, [mobileMenuOpen, langMenuOpen]);
 
   const menuPosition = useStickyDropdownPosition(
     mobileMenuBtnRef,
@@ -118,26 +138,42 @@ export function Header({
 
   // Close mobile menu on outside click
   useEffect(() => {
-    if (!mobileMenuOpen) return;
+    if (!mobileMenuOpen && !langMenuOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
       if (
-        mobileMenuPanelRef.current &&
-        !mobileMenuPanelRef.current.contains(target) &&
-        mobileMenuBtnRef.current &&
-        !mobileMenuBtnRef.current.contains(target)
+        !mobileMenuPanelRef.current?.contains(target) &&
+        !langMenuPanelRef.current?.contains(target) &&
+        !mobileMenuBtnRef.current?.contains(target)
       ) {
         setMobileMenuOpen(false);
+        setLangMenuOpen(false);
       }
     };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key !== "Escape" ||
+        e.defaultPrevented ||
+        e.isComposing ||
+        e.keyCode === 229 ||
+        hasVisibleModalDialog()
+      )
+        return;
+      e.preventDefault();
+      setLangMenuOpen(false);
+      setMobileMenuOpen(false);
+      mobileMenuBtnRef.current?.focus();
+    };
+    document.addEventListener("keydown", handleKeyDown);
     const timer = setTimeout(() => {
       document.addEventListener("click", handleClickOutside);
     }, 0);
     return () => {
       clearTimeout(timer);
       document.removeEventListener("click", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [mobileMenuOpen]);
+  }, [mobileMenuOpen, langMenuOpen]);
 
   const hasSharePermission = user?.permissions?.includes(
     Permission.SESSION_SHARE,
@@ -150,7 +186,7 @@ export function Header({
   return (
     <>
       <header className="chat-header relative z-50 flex items-center px-3 sm:px-5 py-3 -mb-2 shrink-0 rounded-bl-xl after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-2 after:bg-[linear-gradient(to_bottom,var(--theme-bg),transparent)]">
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="chat-header__identity flex min-w-0 items-center gap-2 flex-shrink">
           <button
             type="button"
             onClick={() => setMobileSidebarOpen(true)}
@@ -237,19 +273,25 @@ export function Header({
         <div className="flex-1" />
 
         {/* Right */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="chat-header__actions flex items-center gap-0 sm:gap-1 flex-shrink-0">
           {/* Overflow menu (unified for all screen sizes) */}
           <div className="relative">
             <button
               ref={mobileMenuBtnRef}
+              type="button"
               aria-label={t("common.menu")}
-              onClick={() => setMobileMenuOpen((v) => !v)}
+              aria-expanded={mobileMenuOpen || langMenuOpen}
+              onClick={() => {
+                setMobileMenuOpen((v) => !v);
+                setLangMenuOpen(false);
+              }}
               className="flex size-11 sm:size-8 items-center justify-center rounded-lg text-stone-600 hover:bg-[var(--color-background-muted)] dark:text-stone-300 transition-colors"
               title={t("common.menu")}
             >
               <MoreHorizontal size={20} />
             </button>
             {mobileMenuOpen &&
+              !langMenuOpen &&
               createPortal(
                 <div
                   ref={mobileMenuPanelRef}
@@ -340,7 +382,10 @@ export function Header({
                             : t("theme.switchToLight")}
                       </span>
                     </HeaderMenuItem>
-                    <HeaderMenuItem onClick={() => setLangMenuOpen(true)}>
+                    <HeaderMenuItem
+                      ref={langMenuBtnRef}
+                      onClick={() => setLangMenuOpen(true)}
+                    >
                       <HeaderMenuIcon>
                         <Languages size={16} />
                       </HeaderMenuIcon>
@@ -355,6 +400,7 @@ export function Header({
           {langMenuOpen &&
             createPortal(
               <div
+                ref={langMenuPanelRef}
                 className="fixed z-[302] w-56 rounded-xl shadow-xl border overflow-hidden animate-scale-in"
                 style={{
                   ...menuPosition,
@@ -394,6 +440,7 @@ export function Header({
                             .catch(() => {});
                           setLangMenuOpen(false);
                           setMobileMenuOpen(false);
+                          mobileMenuBtnRef.current?.focus();
                         }}
                         className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-14 transition-colors ${
                           isActive
@@ -437,14 +484,18 @@ export function Header({
 }
 
 function HeaderMenuItem({
+  ref,
   onClick,
   children,
 }: {
+  ref?: Ref<HTMLButtonElement>;
   onClick: () => void;
   children: ReactNode;
 }) {
   return (
     <button
+      ref={ref}
+      type="button"
       onClick={onClick}
       className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-14 transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-subtle)]"
     >

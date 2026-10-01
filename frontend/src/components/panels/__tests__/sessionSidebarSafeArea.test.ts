@@ -57,3 +57,15 @@ test("mobile sidebar panel uses a fixed drawer width", () => {
   expect(panelClass).toMatch(/\bw-64\b/);
   expect(panelClass).toMatch(/\brounded-r-lg\b/);
 });
+
+test("closed mobile navigation and inactive desktop rail cannot receive focus", () => {
+  const mobile = source.slice(
+    source.indexOf("{/* Mobile drawer */}"),
+    source.indexOf("{/* Desktop sidebar */}"),
+  );
+  expect(mobile).toContain("inert={!mobileOpen}");
+  expect(mobile).toContain("aria-hidden={!mobileOpen}");
+  expect(mobile).toContain('role="dialog"');
+  expect(source).toContain("inert={!isCollapsed}");
+  expect(source).toContain("useDialogFocus(");
+});

@@ -248,8 +248,7 @@ test("selector search fields share editing-safe input behavior", () => {
     "../../panels/SearchDialog.tsx",
     "../../panels/channel/ChannelPersonaSelect.tsx",
     "../../fileLibrary/components/Toolbar.tsx",
-    "../../panels/ModelPanel/tabs/ModelIconSelect.tsx",
-    "../../panels/AgentPanel/shared/ProviderSelect.tsx",
+    "../../panels/ModelPanel/tabs/ModelBrandPicker.tsx",
   ]) {
     const file = source(path);
     expect(file).toMatch(/PanelSearchInput/);

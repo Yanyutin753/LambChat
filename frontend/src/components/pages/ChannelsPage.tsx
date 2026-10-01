@@ -5,7 +5,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { BotMessageSquare, Bot, Radio, Plus, MoreVertical } from "lucide-react";
-import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
@@ -14,6 +13,7 @@ import { channelApi } from "../../services/api/channel";
 import { ChannelPanel } from "../panels/ChannelPanel";
 import { FeishuPanel } from "../panels/channel/feishu/FeishuPanel";
 import { PanelHeader } from "../common/PanelHeader";
+import { Button } from "../common/ui";
 import { ChannelsGridSkeleton } from "../skeletons";
 import type { SkillBaseCardProps } from "../common/SkillBaseCard";
 import { nameToGradient } from "../common/cardUtils";
@@ -132,6 +132,7 @@ export function ChannelsPage() {
     {},
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -147,17 +148,15 @@ export function ChannelsPage() {
 
   const loadData = async () => {
     setIsLoading(true);
+    setLoadError(false);
     try {
       const types = await channelApi.getTypes();
       setChannelTypes(types);
 
       // Load instances for all channel types in parallel
       await Promise.all(types.map((ct) => loadInstances(ct.channel_type)));
-    } catch (error) {
-      console.error("Failed to load channel types:", error);
-      toast.error(
-        t("channel.loadTypesError", "Failed to load available channels"),
-      );
+    } catch {
+      setLoadError(true);
     } finally {
       setIsLoading(false);
     }
@@ -263,8 +262,19 @@ export function ChannelsPage() {
           illustration="panel-channels"
         />
         <div className="panel-body flex-1 overflow-y-auto">
+          {loadError && (
+            <div
+              role="alert"
+              className="p-4 text-center text-theme-text-secondary"
+            >
+              <p>{t("common.loadFailed")}</p>
+              <Button className="mt-3" onClick={loadData}>
+                {t("common.refresh")}
+              </Button>
+            </div>
+          )}
           <div className="mx-auto max-w-full">
-            {channelTypes.length === 0 ? (
+            {!loadError && channelTypes.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center text-center">
                 <div className="relative">
                   <div className="absolute inset-0 rounded-full bg-[var(--theme-primary)]/20" />

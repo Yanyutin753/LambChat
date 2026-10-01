@@ -24,7 +24,7 @@ import { PanelHeader } from "../common/PanelHeader";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { FeedbackListSkeleton } from "../skeletons";
 import { Pagination } from "../common/Pagination";
-import { ImageViewer } from "../common";
+import { Button, ImageViewer } from "../common";
 import { feedbackApi } from "../../services/api/feedback";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
@@ -512,6 +512,7 @@ export function FeedbackPanel() {
   const [feedbackList, setFeedbackList] = useState<Feedback[]>([]);
   const [stats, setStats] = useState<FeedbackStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [total, setTotal] = useState(0);
   const [skip, setSkip] = useState(0);
   const [limit] = useState(20);
@@ -543,19 +544,18 @@ export function FeedbackPanel() {
 
   const fetchFeedback = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(false);
     try {
       const response = await feedbackApi.list(skip, limit, ratingFilter);
       setFeedbackList(response.items);
       setStats(response.stats);
       setTotal(response.total);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : t("common.loadFailed");
-      toast.error(message);
+    } catch {
+      setLoadError(true);
     } finally {
       setIsLoading(false);
     }
-  }, [skip, limit, ratingFilter, t]);
+  }, [skip, limit, ratingFilter]);
 
   useEffect(() => {
     fetchFeedback();
@@ -613,9 +613,20 @@ export function FeedbackPanel() {
 
       {/* Feedback list */}
       <div className="panel-scroll min-h-0 flex-1 overflow-y-auto">
+        {loadError && (
+          <div
+            role="alert"
+            className="p-4 text-center text-theme-text-secondary"
+          >
+            <p>{t("common.loadFailed")}</p>
+            <Button className="mt-3" onClick={fetchFeedback}>
+              {t("common.refresh")}
+            </Button>
+          </div>
+        )}
         {isLoading && feedbackList.length === 0 ? (
           <FeedbackListSkeleton />
-        ) : !isLoading && feedbackList.length === 0 ? (
+        ) : !loadError && !isLoading && feedbackList.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-stone-100 dark:bg-stone-800">
               <ThumbsUp size={24} className="text-theme-text-tertiary" />

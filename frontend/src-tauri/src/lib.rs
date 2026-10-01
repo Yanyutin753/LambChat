@@ -257,6 +257,9 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building LambChat desktop app")
         .run(|app_handle, event| {
+            if should_restore_main_window(&event) {
+                tray::show_main_window(app_handle);
+            }
             // 退出路径：托管 kill daemon（窗口关闭 / 托盘退出 / app.exit 均会走到）。
             if let tauri::RunEvent::Exit = event {
                 daemon::stop(app_handle);
@@ -264,9 +267,24 @@ pub fn run() {
         });
 }
 
+fn should_restore_main_window(event: &tauri::RunEvent) -> bool {
+    match event {
+        // Reopen also covers a minimized window; don't gate on visible windows.
+        #[cfg(target_os = "macos")]
+        tauri::RunEvent::Reopen { .. } => true,
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ordinary_run_events_do_not_restore_the_window() {
+        assert!(!should_restore_main_window(&tauri::RunEvent::Ready));
+        assert!(!should_restore_main_window(&tauri::RunEvent::Exit));
+    }
 
     /// PBS 归档定位：平台子目录布局优先，扁平布局回退（M4 T9 对齐
     /// fetch-pbs.py 产物随 bundle.resources 保相对结构分发的真实链路）。
