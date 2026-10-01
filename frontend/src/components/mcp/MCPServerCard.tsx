@@ -53,7 +53,7 @@ export function MCPServerCard({
   return (
     <div
       className={`pps-card group flex h-full flex-col overflow-hidden rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none cursor-pointer transition-all duration-200 ${
-        !server.enabled ? "opacity-50 saturate-50" : "hover:shadow-md"
+        !server.enabled ? "saturate-50" : "hover:shadow-md"
       }`}
       onClick={(e) => {
         if (!(e.target as HTMLElement).closest("button")) {
@@ -91,14 +91,30 @@ export function MCPServerCard({
       <div className="flex flex-1 flex-col p-4 pt-5">
         <div className="flex items-start gap-3">
           <div className="scb__icon-ring shrink-0">
-            <Server size={16} className="text-theme-text-secondary dark:text-stone-400" />
+            <Server
+              size={16}
+              className="text-theme-text-secondary dark:text-stone-400"
+            />
           </div>
           <div className="min-w-0 flex-1">
             <h3
               className="line-clamp-2 break-words text-16 font-semibold font-serif text-[var(--theme-text)] leading-tight"
               title={server.name}
             >
-              {server.name}
+              {onClick ? (
+                <button
+                  type="button"
+                  className="text-left hover:underline underline-offset-4"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onClick();
+                  }}
+                >
+                  {server.name}
+                </button>
+              ) : (
+                server.name
+              )}
             </h3>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               <span
@@ -171,10 +187,7 @@ export function MCPServerCard({
             }`}
           >
             {server.enabled ? (
-              <ToggleRight
-                size={13}
-                className="text-theme-success"
-              />
+              <ToggleRight size={13} className="text-theme-success" />
             ) : (
               <ToggleLeft size={13} />
             )}

@@ -338,18 +338,6 @@ export function ChannelsPage() {
                           </span>
                         ) : undefined
                       }
-                      bannerOverlay={
-                        instanceCount > 0 &&
-                        (hasAnyConnected ? (
-                          <span className="rounded-full bg-green-400/30 px-2 py-0.5 text-12 font-medium text-green-50 dark:bg-green-400/20 dark:text-green-100">
-                            {t("channel.connected", "Connected")}
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-amber-400/30 px-2 py-0.5 text-12 font-medium text-amber-50 dark:bg-amber-400/20 dark:text-amber-100">
-                            {t("channel.disconnected", "Disconnected")}
-                          </span>
-                        ))
-                      }
                       onClick={() => navigate(`/channels/${ct.channel_type}`)}
                       className="cursor-pointer"
                     />

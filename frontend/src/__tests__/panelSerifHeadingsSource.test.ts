@@ -41,7 +41,7 @@ test("shared dialog titles use font-serif", () => {
 
 test("not found page headline uses font-serif like error boundary", () => {
   const source = readComponent("common/NotFoundPage.tsx");
-  expect(source).toMatch(/text-24 font-semibold font-serif/);
+  expect(source).toMatch(/<h1\b[^>]*className="[^"]*\bfont-serif\b/);
 });
 
 test("shared project error headline uses font-serif like shared page", () => {

@@ -43,7 +43,7 @@ export function ForgotPassword() {
   };
 
   return (
-    <div className="auth-shell min-h-[calc(100svh-var(--titlebar-inset,0px))] min-h-[calc(100dvh-var(--titlebar-inset,0px))] overflow-y-auto overflow-x-hidden">
+    <div className="auth-shell auth-support-shell min-h-[calc(100svh-var(--titlebar-inset,0px))] min-h-[calc(100dvh-var(--titlebar-inset,0px))] overflow-y-auto overflow-x-hidden">
       <div className="auth-crosshatch" aria-hidden="true" />
       <div className="auth-atmosphere" aria-hidden="true">
         <div className="auth-glow-main absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.05)_0%,rgba(251,146,60,0.02)_40%,transparent_70%)] dark:bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.03)_0%,rgba(251,146,60,0.015)_40%,transparent_70%)]" />
@@ -111,7 +111,10 @@ export function ForgotPassword() {
               <div className="auth-panel rounded-[1.35rem] p-4 sm:rounded-2xl sm:p-6">
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
-                    <label className="mb-1.5 block text-13 font-medium text-theme-text-secondary dark:text-stone-400">
+                    <label
+                      htmlFor="recovery-email"
+                      className="mb-1.5 block text-13 font-medium text-theme-text-secondary dark:text-stone-400"
+                    >
                       {t("auth.email")}
                     </label>
                     <div className="relative">
@@ -119,6 +122,8 @@ export function ForgotPassword() {
                         <Mail size={16} />
                       </div>
                       <input
+                        id="recovery-email"
+                        autoComplete="email"
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}

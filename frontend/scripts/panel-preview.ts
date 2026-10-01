@@ -282,8 +282,8 @@ const settings = {
     frontend: [
       {
         key: "DEFAULT_AGENT",
-        value: "fast",
-        default_value: "fast",
+        value: "fast_agent",
+        default_value: "fast_agent",
         type: "string",
         category: "frontend",
         subcategory: "display",
@@ -1148,7 +1148,24 @@ function response(url: URL, scenario: string): unknown {
   if (path === "/api/sessions")
     return { sessions: [], total: 0, has_more: false };
   if (path === "/api/projects") return [];
-  if (path === "/api/version") return { version: "2.13.0" };
+  if (path === "/api/version")
+    return {
+      current_version: "2.13.0",
+      latest_version: "2.13.0",
+      has_update: false,
+      release_assets: [
+        "LambChat-v2.13.0-macOS.dmg",
+        "LambChat-v2.13.0-Windows.msi",
+        "LambChat-v2.13.0-Linux-x86_64.AppImage",
+        "lambchat-daemon-x86_64-unknown-linux-gnu",
+        "lambchat-daemon-aarch64-apple-darwin",
+      ].map((name) => ({
+        name,
+        url: "https://example.test/preview-only",
+        size: 64000000,
+        content_type: "application/octet-stream",
+      })),
+    };
   if (path.includes("sandbox")) return { machines: [], status: "offline" };
   if (path.includes("health")) return { status: "healthy" };
   return undefined;
@@ -1159,6 +1176,7 @@ const token = `preview.${Buffer.from(
 ).toString("base64url")}.fixture`;
 const server = await createServer({
   root: process.cwd(),
+  cacheDir: "node_modules/.vite-panel-preview",
   server: {
     host: "127.0.0.1",
     port: Number(process.env.PANEL_PREVIEW_PORT ?? 3002),

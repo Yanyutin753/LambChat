@@ -446,79 +446,10 @@ html.dark .blog-feature-card:hover {
 }
 
 /* ── Screenshot Card ── */
-.blog-screenshot-card {
-  transition:
-    transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1),
-    border-color 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.03),
-    0 16px 48px rgba(120, 113, 108, 0.05);
-  border: 1px solid rgba(231, 229, 228, 0.45);
-}
-.blog-screenshot-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.35),
-    transparent 32%,
-    transparent 68%,
-    rgba(251, 191, 36, 0.1)
-  );
-  opacity: 0.7;
-  transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.blog-screenshot-card:hover::before {
-  opacity: 1;
-}
-html.dark .blog-screenshot-card::before {
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.1),
-    transparent 34%,
-    transparent 70%,
-    rgba(251, 191, 36, 0.07)
-  );
-}
-.blog-screenshot-card:hover {
-  box-shadow:
-    0 28px 72px rgba(0, 0, 0, 0.1),
-    0 8px 24px rgba(0, 0, 0, 0.05),
-    0 0 0 1px rgba(251, 191, 36, 0.06);
-  border-color: rgba(231, 229, 228, 0.8);
-  transform: translateY(-6px);
-}
-
-.blog-screenshot-card > div:last-child {
-  position: relative;
-  z-index: 2;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.85),
-    rgba(255, 255, 255, 0.6)
-  );
-}
-
-html.dark .blog-screenshot-card > div:last-child {
-  background: linear-gradient(
-    180deg,
-    rgba(28, 25, 23, 0.7),
-    rgba(28, 25, 23, 0.5)
-  );
-}
-html.dark .blog-screenshot-card:hover {
-  box-shadow:
-    0 24px 64px rgba(0, 0, 0, 0.4),
-    0 8px 24px rgba(0, 0, 0, 0.25),
-    0 0 32px rgba(251, 191, 36, 0.05),
-    0 0 0 1px rgba(251, 191, 36, 0.08);
-  border-color: rgba(68, 64, 60, 0.5);
-}
+/* Native preview controls keep imagery readable and keyboard accessible. */
+.blog-screenshot-card { border: 1px solid var(--theme-border-subtle); background: var(--theme-bg-card); text-align: left; transition: border-color 180ms, transform 180ms; }
+.blog-screenshot-card:hover { border-color: var(--theme-border); transform: translateY(-2px); }
+.blog-screenshot-card > div:last-child { background: var(--theme-bg-card); }
 
 /* ── Architecture Card ── */
 .blog-arch-card {
@@ -1489,8 +1420,8 @@ html.dark .blog-landing-container::after {
 .public-brand-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: clamp(32px, 5vw, 80px);
-  padding: 112px max(32px, calc((100vw - 1240px) / 2)) 64px;
+  gap: clamp(40px, 6vw, 96px);
+  padding: 112px max(32px, calc((100vw - 1200px) / 2)) 72px;
   text-align: left;
   background: none;
 }
@@ -1504,9 +1435,10 @@ html.dark .blog-landing-container::after {
   justify-content: flex-start;
 }
 .public-brand-hero .blog-prose {
-  max-width: 520px;
+  text-align: left;
+  max-width: 480px;
   margin: 0 0 32px;
-  font-size: 17px;
+  font-size: 18px;
   line-height: 1.85;
 }
 .public-brand-hero h1 {
@@ -1533,7 +1465,7 @@ html.dark .blog-landing-container::after {
 }
 .public-brand-art {
   width: 100%;
-  height: min(620px, 72vh);
+  height: clamp(440px, 58vw, 640px);
   object-fit: cover;
   object-position: center 42%;
   border-radius: var(--radius-page);
@@ -1638,5 +1570,66 @@ html.dark .public-brand-hero {
     gap: 16px;
   }
 }
-#features { padding-block: 64px; }
-#features > div > div:first-child { margin-bottom: 36px; }
+
+
+/* Shared public-page rhythm: expressive titles, calm content, clear controls. */
+.blog-landing-container nav { background: var(--theme-bg); border-color: var(--theme-border-subtle); }
+.blog-landing-container nav > div { max-width: 1400px; padding-inline: clamp(20px, 3vw, 48px); height: 72px; }
+.blog-landing-container nav, .blog-tech-pill, .public-action, .public-eyebrow { font-family: 'Source Sans 3', system-ui, sans-serif; }
+.public-brand-link { flex-shrink: 0; min-height: 44px; }
+.public-nav-links { position: static; transform: none; }
+.public-nav-actions > button { width: 44px; height: 44px; }
+.public-download-link { color: var(--theme-text); font-size: 13px; padding: 12px 14px; min-height: 44px; }
+.landing-nav-pill { min-height: 44px; }
+.landing-nav-pill::after { background: var(--theme-primary); }
+.landing-mobile-menu { top: calc(72px + var(--app-safe-area-top, 0px)); }
+.blog-landing-container .landing-mobile-menu > div { height: auto; }
+.blog-landing-container > section[id] { padding-block: clamp(64px, 8vw, 112px); scroll-margin-top: 88px; background: none; }
+.blog-landing-container > section[id] > div { max-width: 1248px; padding-inline: 24px; }
+.blog-section-divider { display: none; }
+.public-section-heading { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: end; margin-bottom: 48px; text-align: left; }
+.public-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--theme-text-secondary); margin-bottom: 20px; }
+.public-section-heading h2 { font-size: clamp(30px, 3.2vw, 44px); font-weight: 500; line-height: 1.3; letter-spacing: -.025em; color: var(--theme-text); text-wrap: balance; }
+.public-section-heading > p { max-width: 500px; font-size: 16px; line-height: 1.9; color: var(--theme-text-secondary); text-wrap: pretty; }
+.public-preview { display: block; width: 100%; border-radius: var(--radius-xl); text-align: left; }
+.public-preview:focus-visible, .blog-landing-container :is(a, button):focus-visible { outline: 2px solid var(--theme-primary); outline-offset: 4px; }
+.blog-landing-container .blog-dot-pattern { background: none; padding: 0; }
+.blog-landing-container .blog-arch-card { box-shadow: none; border: 1px solid var(--theme-border); transform: none; }
+.blog-landing-container .blog-stat-card { background: none; border: 0; border-radius: 0; box-shadow: none; padding-inline: 12px; transform: none; }
+.blog-landing-container .blog-stat-card > div:first-child { background: none; color: var(--theme-text); -webkit-text-fill-color: currentColor; font-weight: 500; }
+.blog-landing-container .blog-tech-pill { color: var(--theme-text-secondary); font-size: 11px; }
+.public-action { transition: background-color 160ms, color 160ms, border-color 160ms; }
+.public-action-primary:hover { background: var(--theme-text-secondary); }
+.public-action-secondary:hover { background: var(--theme-bg-subtle); color: var(--theme-text); }
+.blog-landing-container .landing-progress-bar { background: var(--theme-primary); height: 2px; }
+.blog-landing-container footer { background: var(--theme-bg); border-color: var(--theme-border-subtle); }
+.public-download > section:not(.public-brand-hero) { padding-block: clamp(64px, 8vw, 112px); }
+.public-download .blog-feature-card:not(.public-terminal) { box-shadow: none; border-color: var(--theme-border); background: var(--theme-bg-card); }
+@media (max-width: 767px) {
+ .public-section-heading { grid-template-columns: 1fr; gap: 20px; margin-bottom: 32px; }
+ .public-section-heading > p { font-size: 15px; }
+ .public-eyebrow { margin-bottom: 16px; }
+ .public-brand-art { height: 320px; }
+ .blog-landing-container nav > div { padding-inline: 16px; }
+ .public-download-link { padding-inline: 8px; }
+ .landing-capability { padding-block: 24px; }
+}
+@media (hover: none) { .public-preview:hover { transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+ .blog-landing-container *, .blog-landing-container *::before, .blog-landing-container *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+ [data-reveal], [data-reveal-scale] { opacity: 1 !important; transform: none !important; }
+}
+
+html.dark .blog-landing-container > nav, .blog-landing-container .landing-mobile-menu { background: var(--theme-bg); }
+@media (max-width: 359px) { .public-nav-actions > .public-download-link { display: none; } }
+
+html.dark .blog-landing-container .blog-tech-pill { background: none; border: 0; }
+
+.blog-landing-container .blog-tech-pill:hover { transform: none; box-shadow: none; }
+
+@media (min-width: 768px) and (max-width: 1023px) {
+ .public-brand-hero { min-height: auto; padding-top: 144px; }
+}
+
+.public-nav-actions button[aria-haspopup="menu"] { width: 44px; height: 44px; }
+.blog-landing-container footer :is(button, a) { display: inline-flex; min-height: 44px; align-items: center; }

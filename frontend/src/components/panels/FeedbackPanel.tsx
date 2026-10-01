@@ -77,7 +77,7 @@ function RatingSummary({ stats }: { stats: FeedbackStats }) {
               </span>
             </div>
           </div>
-          <span className="mt-1.5 text-10 text-stone-400 dark:text-stone-500 font-medium">
+          <span className="mt-1.5 text-10 text-theme-text-tertiary font-medium">
             {t("feedback.positiveRate")}
           </span>
         </div>
@@ -85,7 +85,7 @@ function RatingSummary({ stats }: { stats: FeedbackStats }) {
         {/* Right: distribution bars */}
         <div className="flex-1 space-y-2.5 min-w-0">
           <div className="flex items-center gap-2.5">
-            <span className="w-7 text-11 text-stone-500 dark:text-stone-400 flex-shrink-0">
+            <span className="w-7 text-11 text-theme-text-secondary flex-shrink-0">
               {t("feedback.positive")}
             </span>
             <div className="flex-1 h-2 rounded-full bg-stone-100 dark:bg-stone-700 overflow-hidden">
@@ -102,7 +102,7 @@ function RatingSummary({ stats }: { stats: FeedbackStats }) {
             </span>
           </div>
           <div className="flex items-center gap-2.5">
-            <span className="w-7 text-11 text-stone-500 dark:text-stone-400 flex-shrink-0">
+            <span className="w-7 text-11 text-theme-text-secondary flex-shrink-0">
               {t("feedback.negative")}
             </span>
             <div className="flex-1 h-2 rounded-full bg-stone-100 dark:bg-stone-700 overflow-hidden">
@@ -119,7 +119,7 @@ function RatingSummary({ stats }: { stats: FeedbackStats }) {
             </span>
           </div>
           <div className="pt-1">
-            <span className="text-11 text-stone-400 dark:text-stone-500">
+            <span className="text-11 text-theme-text-tertiary">
               {t("feedback.totalCount")}&nbsp;
               <span className="font-semibold text-stone-600 dark:text-stone-300">
                 {stats.total_count}
@@ -166,7 +166,7 @@ function FilterTabs({
             className={`relative flex items-center gap-1.5 px-3.5 py-[7px] rounded-lg text-13 font-medium whitespace-nowrap transition-all duration-200 ${
               isActive
                 ? "bg-stone-900 text-white dark:bg-white dark:text-stone-900 shadow-sm"
-                : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-white/5"
+                : "text-theme-text-secondary hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-white/5"
             }`}
           >
             <span className="feedback-filter-label">{tab.label}</span>
@@ -174,7 +174,7 @@ function FilterTabs({
               className={`min-w-[20px] text-center px-1 py-0.5 rounded-full text-10 font-semibold tabular-nums ${
                 isActive
                   ? "bg-white/20 dark:bg-stone-900/20 text-inherit"
-                  : "bg-stone-100 dark:bg-stone-700 text-stone-400 dark:text-stone-500"
+                  : "bg-stone-100 dark:bg-stone-700 text-theme-text-tertiary"
               }`}
             >
               {tab.count}
@@ -233,7 +233,7 @@ function ReviewImageGrid({
             flex items-center justify-center flex-shrink-0
             hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
         >
-          <span className="text-12 font-semibold text-stone-500 dark:text-stone-400">
+          <span className="text-12 font-semibold text-theme-text-secondary">
             +{remaining}
           </span>
         </button>
@@ -285,13 +285,13 @@ function FeedbackCard({
             className={`inline-flex items-center gap-1 text-11 font-medium select-none ${
               isUp
                 ? "text-amber-600 dark:text-amber-400"
-                : "text-stone-400 dark:text-stone-500"
+                : "text-theme-text-tertiary"
             }`}
           >
             {isUp ? <ThumbsUp size={12} /> : <ThumbsDown size={12} />}
             {isUp ? t("feedback.positive") : t("feedback.negative")}
           </span>
-          <span className="text-11 text-stone-300 dark:text-stone-600 tabular-nums">
+          <span className="text-11 text-theme-text-tertiary tabular-nums">
             {formatDateTimeShort(feedback.created_at)}
           </span>
         </div>
@@ -318,7 +318,7 @@ function FeedbackCard({
       <div className="flex items-center justify-between mt-2.5 pt-0">
         <button
           onClick={onViewDetail}
-          className="flex items-center gap-0.5 text-11 text-stone-400 dark:text-stone-500
+          className="flex min-h-11 items-center gap-0.5 text-12 text-theme-text-tertiary
             hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
         >
           <span>{t("feedback.viewDetail", "查看详情")}</span>
@@ -331,7 +331,7 @@ function FeedbackCard({
               e.stopPropagation();
               onDelete();
             }}
-            className="flex items-center gap-1 text-11 text-stone-300 dark:text-stone-600
+            className="flex min-h-11 items-center gap-1 text-12 text-theme-text-tertiary
               hover:text-red-500 dark:hover:text-red-400 transition-colors"
             title={t("feedback.delete")}
           >
@@ -389,14 +389,14 @@ function FeedbackDetailModal({
                 <p className="text-14 font-medium text-stone-900 dark:text-stone-100">
                   {feedback.username}
                 </p>
-                <p className="text-11 text-stone-400 dark:text-stone-500">
+                <p className="text-11 text-theme-text-tertiary">
                   {formatDateTime(feedback.created_at)}
                 </p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="flex h-7 w-7 items-center justify-center rounded-full text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
+              className="flex h-11 w-11 items-center justify-center rounded-full text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
             >
               <svg
                 className="h-4 w-4"
@@ -459,10 +459,10 @@ function FeedbackDetailModal({
             {/* Session & Run IDs */}
             <div className="pt-3 mt-1 border-t border-stone-100 dark:border-stone-700/50 space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-10 uppercase tracking-wider text-stone-400 dark:text-stone-500 flex-shrink-0 w-[58px]">
+                <span className="text-10 uppercase tracking-wider text-theme-text-tertiary flex-shrink-0 w-[58px]">
                   Session
                 </span>
-                <code className="flex-1 text-11 text-stone-400 dark:text-stone-500 font-mono truncate bg-stone-50 dark:bg-stone-900/50 rounded px-2 py-1">
+                <code className="flex-1 text-11 text-theme-text-tertiary font-mono truncate bg-stone-50 dark:bg-stone-900/50 rounded px-2 py-1">
                   {feedback.session_id}
                 </code>
                 <button
@@ -477,10 +477,10 @@ function FeedbackDetailModal({
                 </button>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-10 uppercase tracking-wider text-stone-400 dark:text-stone-500 flex-shrink-0 w-[58px]">
+                <span className="text-10 uppercase tracking-wider text-theme-text-tertiary flex-shrink-0 w-[58px]">
                   Run
                 </span>
-                <code className="flex-1 text-11 text-stone-400 dark:text-stone-500 font-mono truncate bg-stone-50 dark:bg-stone-900/50 rounded px-2 py-1">
+                <code className="flex-1 text-11 text-theme-text-tertiary font-mono truncate bg-stone-50 dark:bg-stone-900/50 rounded px-2 py-1">
                   {feedback.run_id}
                 </code>
                 <button
@@ -624,12 +624,9 @@ export function FeedbackPanel() {
         ) : !isLoading && feedbackList.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-stone-100 dark:bg-stone-800">
-              <ThumbsUp
-                size={24}
-                className="text-stone-300 dark:text-stone-600"
-              />
+              <ThumbsUp size={24} className="text-theme-text-tertiary" />
             </div>
-            <p className="text-14 font-medium text-stone-500 dark:text-stone-400">
+            <p className="text-14 font-medium text-theme-text-secondary">
               {t("feedback.noFeedback")}
             </p>
             <p className="mt-1 text-12 text-stone-400 dark:text-stone-600">

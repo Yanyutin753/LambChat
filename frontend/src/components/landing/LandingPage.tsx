@@ -50,7 +50,6 @@ export function LandingPage() {
   const activeSection = useActiveSection(SECTION_IDS);
   const [showBackTop, setShowBackTop] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(true);
-  const [showNav, setShowNav] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
@@ -96,7 +95,6 @@ export function LandingPage() {
       const y = window.scrollY;
       const max = document.documentElement.scrollHeight - window.innerHeight;
       setShowBackTop(y > 600);
-      setShowNav(y > 300);
       setShowScrollBottom(y < max - 600);
       setScrolled(y > 10);
     };
@@ -105,7 +103,7 @@ export function LandingPage() {
   }, []);
 
   useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
+    const mq = window.matchMedia("(min-width: 1280px)");
     const h = (e: MediaQueryListEvent) => {
       if (e.matches) setMobileMenuOpen(false);
     };
@@ -142,7 +140,7 @@ export function LandingPage() {
       if (route && window.location.pathname !== route) {
         navigate(route, { replace: false });
       }
-      document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+      document.getElementById(id)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
     },
     [navigate],
   );
@@ -158,7 +156,7 @@ export function LandingPage() {
   }, [currentSectionId]);
 
   const scrollToTop = useCallback(
-    () => window.scrollTo({ top: 0, behavior: "smooth" }),
+    () => window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }),
     [],
   );
 
@@ -166,7 +164,7 @@ export function LandingPage() {
     () =>
       window.scrollTo({
         top: document.documentElement.scrollHeight,
-        behavior: "smooth",
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
       }),
     [],
   );
@@ -196,7 +194,6 @@ export function LandingPage() {
 
       <Navbar
         activeSection={activeSection}
-        showNav={showNav}
         scrolled={scrolled}
         mobileMenuOpen={mobileMenuOpen}
         onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}

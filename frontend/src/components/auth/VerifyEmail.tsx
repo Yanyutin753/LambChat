@@ -86,14 +86,15 @@ export function VerifyEmail() {
     <AuthLayout>
       <div className="mb-5 text-center">
         <StatusIcon type={status} />
-        <h1 className="text-20 font-bold text-stone-900 dark:text-stone-100 mb-1 font-serif">
+        <h1 className="text-20 font-bold text-theme-text mb-1 font-serif">
           {status === "loading" && t("auth.verifyingEmail")}
           {status === "success" && t("auth.verifyEmailSuccessTitle")}
           {status === "error" && t("auth.verifyEmailFailed")}
           {status === "idle" && t("auth.verifyEmail")}
         </h1>
-        <p className="text-14 text-stone-400 dark:text-stone-500">
-          {(status === "loading" || status === "idle") && t("auth.pleaseWait")}
+        <p className="text-14 text-theme-text-tertiary">
+          {status === "loading" && t("auth.pleaseWait")}
+          {status === "idle" && t("auth.verifyEmailFailedDesc")}
           {status === "success" && t("auth.verifyEmailSuccessDesc")}
           {status === "error" && t("auth.verifyEmailFailedDesc")}
         </p>

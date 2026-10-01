@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ThemeToggle } from "../../common/ThemeToggle";
 import { LanguageToggle } from "../../common/LanguageToggle";
 import { BrandWordmark } from "../../common/BrandWordmark";
@@ -9,7 +9,6 @@ import { CloseIcon, MenuIcon } from "./Icons";
 
 interface NavbarProps {
   activeSection: string;
-  showNav: boolean;
   scrolled: boolean;
   mobileMenuOpen: boolean;
   onToggleMobileMenu: () => void;
@@ -18,14 +17,12 @@ interface NavbarProps {
 
 export function Navbar({
   activeSection,
-  showNav,
   scrolled,
   mobileMenuOpen,
   onToggleMobileMenu,
   onScrollToSection,
 }: NavbarProps) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
 
   return (
     <nav
@@ -34,33 +31,29 @@ export function Navbar({
       }`}
     >
       <div className="max-w-full mx-auto px-4 sm:px-8 h-14 flex items-center justify-between">
-        <div
-          className="flex items-center cursor-pointer group gap-1.5"
-          onClick={() => navigate("/")}
+        <Link
+          to="/"
+          aria-label="LambChat"
+          className="public-brand-link flex items-center group gap-1.5"
         >
           <BrandLogo className="size-8 transition-transform duration-300 group-hover:scale-105" />
           <BrandWordmark
             decorative
             className="w-auto text-stone-900 dark:text-stone-100 h-8"
           />
-        </div>
+        </Link>
 
         {/* Desktop nav links */}
-        <div
-          className={`hidden md:flex items-center gap-0.5 absolute left-1/2 -translate-x-1/2 transition-all duration-500 ${
-            showNav
-              ? "opacity-100 translate-y-0"
-              : "opacity-0 -translate-y-1.5 pointer-events-none"
-          }`}
-        >
+        <div className="public-nav-links hidden xl:flex items-center gap-0.5">
           {NAV_ITEMS.map((item) => (
             <button
               key={item.id}
+              aria-current={activeSection === item.id ? "location" : undefined}
               onClick={() => onScrollToSection(item.id)}
               className={`landing-nav-pill px-3.5 py-1.5 rounded-lg text-13 font-medium transition-colors ${
                 activeSection === item.id
                   ? "active text-stone-900 dark:text-stone-100"
-                  : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200"
+                  : "text-theme-text-secondary dark:text-theme-text-secondary hover:text-theme-text-secondary dark:hover:text-stone-200"
               }`}
             >
               {t(`landing.${item.labelKey}`)}
@@ -68,11 +61,17 @@ export function Navbar({
           ))}
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="public-nav-actions flex items-center gap-1.5">
+          <Link className="public-download-link" to="/download">
+            {t("imageViewer.download")}
+          </Link>
           <LanguageToggle />
           <ThemeToggle />
           <button
-            className="md:hidden ml-0.5 flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
+            id="public-menu-toggle"
+            aria-expanded={mobileMenuOpen}
+            aria-controls="public-mobile-menu"
+            className="xl:hidden ml-0.5 flex h-8 w-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-stone-100 dark:text-theme-text-tertiary dark:hover:bg-stone-800 transition-colors"
             onClick={onToggleMobileMenu}
             aria-label={t("landing.toggleMenu")}
           >
