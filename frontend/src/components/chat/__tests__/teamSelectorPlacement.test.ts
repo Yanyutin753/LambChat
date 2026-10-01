@@ -63,7 +63,7 @@ test("team selector uses the persona selector interaction surfaces", () => {
     /hasPersonaSelector=\{hasPersonaSelector && currentAgent !== "team"\}/,
   );
   expect(toolbarSource).toMatch(/onSelectTeam\?\.\(null\)/);
-  expect(toolbarSource).toMatch(/group-hover:opacity-0/);
+  expect(toolbarSource).not.toMatch(/group-hover:opacity-0/);
   expect(featureMenuSource).toMatch(/hasTeamSelector/);
   expect(featureMenuSource).toMatch(
     /label=\{t\("featureMenu\.team", "团队"\)\}/,

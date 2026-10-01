@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface ToolbarChipProps {
   icon?: ReactNode;
@@ -23,41 +24,49 @@ export function ToolbarChip({
   onClick,
   onClear,
 }: ToolbarChipProps) {
+  const { t } = useTranslation();
   return (
-    <button
-      type="button"
-      className="chat-tool-btn group shrink min-w-0 overflow-hidden"
-      onClick={onClick}
-      title={title ?? label}
-    >
-      <div className="flex flex-row items-center gap-2 min-w-0">
-        {icon && (
-          <span className="relative h-4 w-4 shrink-0 inline-flex items-center justify-center overflow-hidden">
-            {icon}
-            {onClear && (
-              <X
-                size={16}
-                className="absolute inset-0 m-auto opacity-0 transition-opacity group-hover:opacity-100"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onClear();
-                }}
-              />
-            )}
-          </span>
-        )}
-        {/* Tailwind 截断正解：标签保持自然宽度（basis auto + shrink 1），
+    <div className="group relative flex min-w-0 shrink">
+      <button
+        type="button"
+        className="chat-tool-btn shrink min-w-0 overflow-hidden"
+        onClick={onClick}
+        aria-label={title ?? label}
+        title={title ?? label}
+      >
+        <div className="flex flex-row items-center gap-2 min-w-0">
+          {icon && (
+            <span
+              aria-hidden="true"
+              className={`relative h-4 w-4 shrink-0 inline-flex items-center justify-center overflow-hidden${onClear ? " sm:group-hover:opacity-0 sm:group-focus-within:opacity-0" : ""}`}
+            >
+              {icon}
+            </span>
+          )}
+          {/* Tailwind 截断正解：标签保持自然宽度（basis auto + shrink 1），
             空间够时完整显示；行内一挤它先收缩出 …（全链 min-w-0 传递）。
             按钮 overflow-hidden 兜底：链路再断也只裁自己，结构上杜绝重叠 */}
-        <span
-          className={`min-w-0 truncate text-14 leading-5 font-semibold text-blue-600 dark:text-blue-400 font-serif${
-            labelClassName ? ` ${labelClassName}` : ""
-          }`}
+          <span
+            className={`min-w-0 truncate text-14 leading-5 font-semibold text-blue-600 dark:text-blue-400 font-serif${
+              labelClassName ? ` ${labelClassName}` : ""
+            }`}
+          >
+            {label}
+          </span>
+          {trailing}
+        </div>
+      </button>
+      {onClear && (
+        <button
+          type="button"
+          aria-label={`${t("common.clear")} ${label}`}
+          title={`${t("common.clear")} ${label}`}
+          onClick={onClear}
+          className="chat-tool-btn absolute left-0 top-0 hidden h-9 w-8 sm:flex opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
         >
-          {label}
-        </span>
-        {trailing}
-      </div>
-    </button>
+          <X size={16} />
+        </button>
+      )}
+    </div>
   );
 }

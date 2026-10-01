@@ -4,20 +4,43 @@
  * Inactive right-panel tabs stay in the DOM carrying `hidden`/`inert`/
  * `aria-hidden`, so a bare `[aria-modal="true"]` query treats them as the
  * topmost overlay and suppresses Escape/Tab handling for the visible panel.
+ * Visibility is filtered in JS: jsdom's selector engine rejects chained
+ * `:not()` compound selectors.
  */
-const VISIBLE_MODAL_SELECTOR =
-  '[role="dialog"][aria-modal="true"]:not([hidden]):not([inert]):not([aria-hidden="true"])';
+function isVisibleDialog(el: Element): el is HTMLElement {
+  return (
+    !(el as HTMLElement).hidden &&
+    !el.hasAttribute("inert") &&
+    el.getAttribute("aria-hidden") !== "true"
+  );
+}
 
-export function visibleModalDialogs(): NodeListOf<HTMLElement> {
-  return document.querySelectorAll<HTMLElement>(VISIBLE_MODAL_SELECTOR);
+export function visibleModalDialogs(): HTMLElement[] {
+  return Array.from(
+    document.querySelectorAll<HTMLElement>(
+      '[role="dialog"][aria-modal="true"]',
+    ),
+  ).filter(isVisibleDialog);
 }
 
 export function hasVisibleModalDialog(): boolean {
-  return document.querySelector(VISIBLE_MODAL_SELECTOR) !== null;
+  return visibleModalDialogs().length > 0;
 }
 
 export function topmostVisibleModalDialog(): HTMLElement | null {
   const dialogs = visibleModalDialogs();
+  return dialogs.length > 0 ? dialogs[dialogs.length - 1] : null;
+}
+
+/**
+ * Like {@link topmostVisibleModalDialog} but includes non-modal dialogs
+ * (mobile drawers use `role="dialog"` without `aria-modal`); hidden panels
+ * stay excluded so inactive tabs never shadow the active layer.
+ */
+export function topmostVisibleDialog(): HTMLElement | null {
+  const dialogs = Array.from(
+    document.querySelectorAll<HTMLElement>('[role="dialog"]'),
+  ).filter(isVisibleDialog);
   return dialogs.length > 0 ? dialogs[dialogs.length - 1] : null;
 }
 

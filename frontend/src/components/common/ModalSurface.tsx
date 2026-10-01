@@ -2,10 +2,7 @@ import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import { useSwipeToClose } from "../../hooks/useSwipeToClose";
-import {
-  restoreOpenerFocusUnclaimed,
-  topmostVisibleModalDialog,
-} from "../../utils/modalDialog";
+import { useDialogFocus } from "./useDialogFocus";
 import "./modalSurface.css";
 
 /** Shared positioning, dismissal and mobile gesture boundary for modal content. */
@@ -29,8 +26,6 @@ export function ModalSurface({
   layer?: number;
 }) {
   const titleId = useId();
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
   const handleRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useSwipeToClose({
     onClose,
@@ -39,67 +34,14 @@ export function ModalSurface({
   });
   useEffect(() => {
     if (!open) return;
-    const previous = document.activeElement as HTMLElement | null;
-    const surface = surfaceRef.current;
-    if (!surface?.contains(document.activeElement)) surface?.focus();
-    return () =>
-      queueMicrotask(() => restoreOpenerFocusUnclaimed(previous, surface));
-  }, [open, surfaceRef]);
-  useEffect(() => {
-    if (!open) return;
     const surface = surfaceRef.current;
     const heading = surface?.querySelector<HTMLElement>("h1,h2,h3");
     if (!label && !labelledBy && heading && surface) {
       heading.id ||= titleId;
       surface.setAttribute("aria-labelledby", heading.id);
     }
-    const keyboard = (event: KeyboardEvent) => {
-      if (
-        topmostVisibleModalDialog() !== surface ||
-        event.defaultPrevented ||
-        event.isComposing ||
-        event.keyCode === 229
-      )
-        return;
-      if (event.key === "Escape" && dismissible) {
-        event.preventDefault();
-        closeRef.current();
-      }
-      if (event.key !== "Tab" || !surface) return;
-      const controls = Array.from(
-        surface.querySelectorAll<HTMLElement>(
-          'button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],[contenteditable="true"],[tabindex]',
-        ),
-      ).filter(
-        (el) =>
-          el.getClientRects().length &&
-          (el.tabIndex >= 0 ||
-            (el.matches('[contenteditable="true"]') &&
-              !el.hasAttribute("tabindex"))) &&
-          !el.closest('[inert],[aria-hidden="true"]'),
-      );
-      const first = controls[0],
-        last = controls[controls.length - 1];
-      if (!first) event.preventDefault();
-      else if (
-        event.shiftKey &&
-        (document.activeElement === first || document.activeElement === surface)
-      ) {
-        event.preventDefault();
-        last.focus();
-      } else if (
-        !event.shiftKey &&
-        (document.activeElement === last || document.activeElement === surface)
-      ) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", keyboard);
-    return () => {
-      document.removeEventListener("keydown", keyboard);
-    };
-  }, [open, dismissible, surfaceRef, label, labelledBy, titleId]);
+  }, [open, surfaceRef, label, labelledBy, titleId]);
+  useDialogFocus({ open, onClose, surfaceRef, dismissible });
   useBodyScrollLock(open, true);
   if (!open) return null;
   return createPortal(

@@ -4560,7 +4560,12 @@
 /* Header icons share a compact rail while keeping independent touch targets. */
 @media (max-width: 639px) {
   .chat-header__identity > button {
+    min-width: 2.75rem;
     flex-shrink: 0;
+  }
+  .chat-header__identity > button,
+  .chat-header__identity > .relative > button {
+    min-height: 2.75rem;
   }
   .chat-header__identity > .relative {
     min-width: 0;
