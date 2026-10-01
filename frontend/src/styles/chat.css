@@ -175,6 +175,13 @@ html[data-mobile-keyboard="true"]
   color: var(--theme-primary);
 }
 
+@media (max-width: 639px) {
+  .chat-input-toolbar button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
+
 /* Composer icons use one box, including image and team avatars. */
 .chat-input-toolbar .chat-tool-btn svg {
   display: block;

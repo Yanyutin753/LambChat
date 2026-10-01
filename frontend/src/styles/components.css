@@ -2074,6 +2074,25 @@
   pointer-events: none;
 }
 
+@media (max-width: 639px) {
+  .ui-select-trigger,
+  .glass-input.es-select-btn,
+  .ui-select-option,
+  .glass-select-option {
+    min-height: 2.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-select-dropdown,
+  .glass-select-dropdown {
+    animation: none;
+  }
+  .ui-select-trigger__icon {
+    transition: none;
+  }
+}
+
 .channel-persona-select__dropdown {
   max-height: 18rem;
   overflow: hidden;

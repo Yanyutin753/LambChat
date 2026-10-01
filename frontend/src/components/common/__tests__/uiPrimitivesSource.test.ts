@@ -149,6 +149,7 @@ test("viewer top bar buttons keep overlay actions fixed and non-wrapping", () =>
   expect(source).toMatch(/flex shrink-0/);
   expect(source).toMatch(/whitespace-nowrap/);
   expect(source).toMatch(/w-10 h-10/);
+  expect(source).toMatch(/min-h-11 min-w-11 sm:min-h-0 sm:min-w-0/);
   expect(source).toMatch(/px-3 h-10/);
   expect(source).toMatch(/disabled:opacity-50 disabled:cursor-not-allowed/);
 
