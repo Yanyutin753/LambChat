@@ -4,7 +4,7 @@
  * Dynamically renders channel configuration based on metadata from the backend.
  * Supports multiple channel types (Feishu, WeChat, DingTalk, etc.)
  */
-import { useState, useEffect, useMemo, useId } from "react";
+import { useState, useEffect, useMemo, useId, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { BackIcon } from "../common/BackIcon";
 import {
@@ -27,6 +27,7 @@ import { EditorSidebar } from "../common/EditorSidebar";
 import { Button, Input, PanelFooterActions, Select } from "../common";
 import { ToggleSwitch } from "./AgentPanel/shared";
 import { ConfigPanelErrorCallout } from "./ConfigPanelErrorCallout";
+import { EmptyState } from "../common/EmptyState";
 import { ChannelAgentSelect } from "./channel/ChannelAgentSelect";
 import { channelApi } from "../../services/api/channel";
 import type {
@@ -53,6 +54,11 @@ export function ChannelPanel({
   const { t } = useTranslation();
   const formId = useId();
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const loadGeneration = useRef(0);
+  const pageRef = useRef<HTMLDivElement>(null);
+  const [statusRefreshError, setStatusRefreshError] = useState(false);
+  const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
 
@@ -76,7 +82,12 @@ export function ChannelPanel({
   const [agentId, setAgentId] = useState<string | null>(null);
 
   const loadConfig = async () => {
+    const generation = ++loadGeneration.current;
     setIsLoading(true);
+    setLoadError(false);
+    setSaveError(null);
+    setStatusRefreshError(false);
+    setIsRefreshingStatus(false);
     try {
       if (isNewInstance) {
         // New instance - don't load anything
@@ -97,6 +108,7 @@ export function ChannelPanel({
         channelApi.get(channelType, instanceId),
         channelApi.getStatus(channelType, instanceId),
       ]);
+      if (generation !== loadGeneration.current) return;
 
       if (configResponse) {
         setConfig(configResponse);
@@ -121,17 +133,19 @@ export function ChannelPanel({
       setStatus(statusResponse);
     } catch (error) {
       console.error(`Failed to load ${channelType} config:`, error);
-      toast.error(
-        t("channel.loadError", "Failed to load channel configuration"),
-      );
+      if (generation === loadGeneration.current) setLoadError(true);
     } finally {
-      setIsLoading(false);
+      if (generation === loadGeneration.current) setIsLoading(false);
     }
   };
 
   // Load config on mount
   useEffect(() => {
+    const generationRef = loadGeneration;
     loadConfig();
+    return () => {
+      generationRef.current++;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelType, instanceId]);
 
@@ -232,8 +246,7 @@ export function ChannelPanel({
 
       toast.success(t("channel.saveSuccess", "Configuration saved"));
 
-      const newStatus = await channelApi.getStatus(channelType, instanceId);
-      setStatus(newStatus);
+      await refreshStatus();
     } catch (error) {
       console.error(`Failed to save ${channelType} config:`, error);
       const errorMessage =
@@ -243,6 +256,21 @@ export function ChannelPanel({
       setSaveError(errorMessage);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const refreshStatus = async () => {
+    const generation = loadGeneration.current;
+    setIsRefreshingStatus(true);
+    try {
+      const nextStatus = await channelApi.getStatus(channelType, instanceId);
+      if (generation !== loadGeneration.current) return;
+      setStatus(nextStatus);
+      setStatusRefreshError(false);
+    } catch {
+      if (generation === loadGeneration.current) setStatusRefreshError(true);
+    } finally {
+      if (generation === loadGeneration.current) setIsRefreshingStatus(false);
     }
   };
 
@@ -263,6 +291,7 @@ export function ChannelPanel({
 
   const handleTest = async () => {
     setIsTesting(true);
+    setSaveError(null);
     try {
       const result = await channelApi.test(channelType, instanceId);
       if (result.success) {
@@ -270,13 +299,13 @@ export function ChannelPanel({
           result.message || t("channel.testSuccess", "Connection successful"),
         );
       } else {
-        toast.error(
+        setSaveError(
           result.message || t("channel.testFailed", "Connection failed"),
         );
       }
     } catch (error) {
       console.error(`Failed to test ${channelType} connection:`, error);
-      toast.error(t("channel.testError", "Failed to test connection"));
+      setSaveError(t("channel.testError", "Failed to test connection"));
     } finally {
       setIsTesting(false);
     }
@@ -416,12 +445,31 @@ export function ChannelPanel({
     }
   };
 
-  if (isLoading) {
-    return <PanelLoadingState text={t("common.loading", "加载中...")} />;
-  }
-
   // Form content shared between both modes
-  const formContent = (
+  const formContent = isLoading ? (
+    <PanelLoadingState text={t("common.loading")} />
+  ) : loadError ? (
+    <div role="alert" className="flex min-h-full items-center justify-center">
+      <EmptyState
+        illustration="panel-channels"
+        title={t("channel.loadError")}
+        action={
+          <Button
+            onClick={(event) => {
+              (
+                event.currentTarget.closest<HTMLElement>(
+                  "[data-right-panel-root]",
+                ) ?? pageRef.current
+              )?.focus();
+              void loadConfig();
+            }}
+          >
+            {t("common.retry")}
+          </Button>
+        }
+      />
+    </div>
+  ) : (
     <div className="space-y-4">
       {/* Status Card */}
       {hasExistingConfig && status && (
@@ -569,8 +617,29 @@ export function ChannelPanel({
   );
 
   // Action buttons
-  const actionButtons = (
+  const actionButtons = !isLoading && !loadError && (
     <>
+      {statusRefreshError && (
+        <div className="flex items-start gap-2">
+          <ConfigPanelErrorCallout
+            message={t("common.loadFailed")}
+            className="min-w-0 flex-1"
+          />
+          <Button
+            onClick={(event) => {
+              (
+                event.currentTarget.closest<HTMLElement>(
+                  "[data-right-panel-root]",
+                ) ?? pageRef.current
+              )?.focus();
+              void refreshStatus();
+            }}
+            loading={isRefreshingStatus}
+          >
+            {t("common.retry")}
+          </Button>
+        </div>
+      )}
       {saveError && (
         <ConfigPanelErrorCallout
           message={saveError}
@@ -633,9 +702,9 @@ export function ChannelPanel({
           open={true}
           onClose={onClose}
           title={
-            hasExistingConfig
-              ? instanceName || metadata.display_name
-              : t("channel.newInstance", "New Instance")
+            isNewInstance
+              ? t("channel.newInstance", "New Instance")
+              : instanceName || metadata.display_name
           }
           subtitle={metadata.description}
           icon={getChannelIcon()}
@@ -651,7 +720,11 @@ export function ChannelPanel({
   // Full-page mode (backward compatible)
   return (
     <>
-      <div className="glass-shell flex h-full flex-col min-h-0">
+      <div
+        ref={pageRef}
+        tabIndex={-1}
+        className="glass-shell flex h-full flex-col min-h-0"
+      >
         {/* Header */}
         <PanelHeader
           title={metadata.display_name}

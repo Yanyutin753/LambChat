@@ -1166,7 +1166,7 @@ function response(
       name: "项目协作渠道",
       user_id: user.id,
       enabled: true,
-      config: {},
+      config: { app_id: "cli_preview_only", workspace: "Preview workspace" },
       capabilities: ["send_message"],
       agent_id: "fast",
     };
@@ -1386,6 +1386,7 @@ const failedDocumentRequests = new Set<string>();
 const failedDrawingRequests = new Map<string, number>();
 const completedPreviewStreams = new Set<string>();
 const failedWelcomeRequests = new Set<string>();
+const failedChannelConfigRequests = new Set<string>();
 const server = await createServer({
   root: process.cwd(),
   cacheDir: "node_modules/.vite-panel-preview",
@@ -1587,10 +1588,24 @@ const server = await createServer({
             return;
           }
           const data =
-            failureTarget === "welcome-teams" && url.pathname === "/api/agents"
-              ? { agents, count: agents.length, default_agent: "team" }
-              : response(url, scenario, chatState);
+            failureTarget === "channel-config" &&
+            url.pathname === "/api/channels/feishu"
+              ? { channels: [] }
+              : failureTarget === "welcome-teams" &&
+                  url.pathname === "/api/agents"
+                ? { agents, count: agents.length, default_agent: "team" }
+                : response(url, scenario, chatState);
           const isRead = req.method === "GET";
+          const channelConfigFailure =
+            failureTarget === "channel-config" &&
+            isRead &&
+            /^\/api\/channels\/[^/]+\/instance-[^/]+$/.test(url.pathname);
+          const channelConfigKey = `${streamKey}:${url.pathname}`;
+          const firstChannelConfigFailure =
+            channelConfigFailure &&
+            !failedChannelConfigRequests.has(channelConfigKey);
+          if (firstChannelConfigFailure)
+            failedChannelConfigRequests.add(channelConfigKey);
           const welcomeFailure =
             scenario === "error" &&
             isRead &&
@@ -1604,6 +1619,7 @@ const server = await createServer({
           if (firstWelcomeFailure) failedWelcomeRequests.add(welcomeKey);
           const fault =
             firstWelcomeFailure ||
+            firstChannelConfigFailure ||
             (scenario === "error" &&
               (!failureTarget ||
                 url.pathname.replace(/\/$/, "") === `/api/${failureTarget}`) &&

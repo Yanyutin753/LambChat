@@ -283,3 +283,18 @@ Feishu 扫码/手填和策略使用原生按钮与 pressed，长文案自然换�
 所有新行为均观察 RED→GREEN。最终全量 736 文件 / 3508 项测试通过，lint 无警告，build/类型与体积门禁通过：eager JS 559051 / 559104 字节，precache 88 项 5016620 / 5242880 字节。初次全量的旧 mobile CSS 正则仅匹配单一屏宽 media，更新为 narrow/coarse 联合契约后通过；二维码终态补充后重新完成全量。首次新增五语翻译超过 eager 门禁，确认无代码调用后删除原已弃用的六个表情及两个飞书翻译键，未提高预算或删除在用翻译。终态 P2 修正后独立复核无新增 P1/P2；git diff --check 通过。
 
 下一批优先：通用渠道与 Feishu 加载失败、连接测试/注册状态的持续反馈；助手全局/角色分配入口及 coarse pointer、角色分配保存路径。其他待查包括欢迎页无匹配/真实空状态、复制失败、工具和图片、文件下载失败及其他格式、绘图内嵌图片与大图、资源导入发布和剩余语言。真实服务认证/写入/对话、扫码注册端到端、原生触屏与软键盘尚未验证。目标保持进行中，本批不代表全界面达到验收标准。
+
+### 当前执行：渠道请求恢复与状态反馈
+
+- [x] ChannelPanel / FeishuPanel：已有配置加载失败不显示空白新建表单或写入按钮，保留 EditorSidebar 关闭路径，复用 EmptyState / panel-channels 场景与 Retry；测试先 RED 再 GREEN。
+- [x] 两类连接测试失败使用既有持续 callout，可再次尝试；保存后的 status 请求独立处理，不把已完成的更新报告为保存失败。保留 credential payload 与五语文案，测试覆盖拒绝和恢复。
+- [x] 只读 panel-preview 加首请求失败/重试恢复的配置 fixture，所有非 GET 仍 405。实屏检查手机、平板、桌面/三主题，错误、恢复、长文本和焦点；全量测试/lint/build、独立代码复核后提交。
+- [ ] 继续助手角色入口及其他明确待查项，全界面完成仍需独立验收证据。
+
+本批复核记录：加载请求和保存后状态刷新以现有实例加载代次保护；重试在按钮卸载前把焦点交给既有面板 root 或全页持久容器；扫码轮询忽略已完成/已清理请求的迟到结果。新增 15 个行为测试，初轮 10 个 RED，复核追加 5 个 RED，状态重试焦点追加 2 个 RED 后修复。独立复核最后未发现本批新增 P1/P2。
+
+最终生产代码后验证：pnpm test 737 文件 / 3523 测试全部通过；pnpm run lint 零错误/零警告；pnpm run build（含 tsc）通过。Eager JS 559056 / 559104 bytes，precache 5016623 / 5242880 bytes；保留原有 chunk-size 提示，未提升预算。git diff --check 通过。没有新增依赖或文案，复用五种语言现有 key。
+
+八项人工检查：排版使用原有标题和正文；留白保留正文节奏并居中错误态；视觉层级为关闭入口、错误说明、重试；色彩沿用主题和既有错误 callout；动效不新增，使用现有 reduced-motion 规则；微交互覆盖持续错误、重新尝试、焦点及迟到请求；响应式实屏核对 320 / 390 / 768 / 1440 CSS px 和 light / dark / sepia，俄语长文案没有横向溢出；原创性沿用 LambChat 自有羊角色场景。320 / 390 的重试实测约 44px，加载恢复后焦点位于持久面板容器。
+
+截图在本地 interface-quality 目录：channel-load-error-320-ru-light-final.png、channel-test-error-320-ru-light-final.png、feishu-load-error-390-ru-dark-final.png、feishu-register-error-390-ru-dark-final.png、channel-load-error-768-ru-sepia-final.png、feishu-load-error-1440-ru-light-final.png、feishu-recovered-1440-ru-light-final.png。预览的失败注册请求由 405 拦截，不等同真实扫码端到端；软键盘、原生触屏和真实认证/写入未验证。ChannelsPage 列表失败/状态未知仍待下一批，未与编辑器恢复混作已完成。Impeccable 检查器在该环境不可用，按 DESIGN.md 交付清单人工检查。

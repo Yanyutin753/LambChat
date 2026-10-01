@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import QRCode from "qrcode";
 import { BackIcon } from "../../../common/BackIcon";
@@ -10,6 +10,7 @@ import { Permission } from "../../../../types";
 import { PanelHeader } from "../../../common/PanelHeader";
 import { Button, PanelFooterActions } from "../../../common";
 import { ConfigPanelErrorCallout } from "../../ConfigPanelErrorCallout";
+import { EmptyState } from "../../../common/EmptyState";
 import { ChannelConfigSkeleton } from "../../../skeletons";
 import { EditorSidebar } from "../../../common/EditorSidebar";
 import { channelApi } from "../../../../services/api/channel";
@@ -44,6 +45,11 @@ export function FeishuPanel({
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const loadGeneration = useRef(0);
+  const pageRef = useRef<HTMLDivElement>(null);
+  const [statusRefreshError, setStatusRefreshError] = useState(false);
+  const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
 
   // Form state
@@ -86,22 +92,26 @@ export function FeishuPanel({
 
   // Load config - use external data if provided, otherwise fetch from API
   useEffect(() => {
-    if (externalIsLoading) {
-      return;
+    const generationRef = loadGeneration;
+    generationRef.current++;
+    if (!externalIsLoading) {
+      if (initialConfig || initialStatus) {
+        initializeFromExternalData();
+      } else {
+        void loadConfig();
+      }
     }
-
-    // Use external data if available
-    if (initialConfig || initialStatus) {
-      initializeFromExternalData();
-      return;
-    }
-
-    // Otherwise fetch from API
-    loadConfig();
+    return () => {
+      generationRef.current++;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [externalIsLoading, initialConfig, initialStatus]);
+  }, [instanceId, externalIsLoading, initialConfig, initialStatus]);
 
   const initializeFromExternalData = () => {
+    setLoadError(false);
+    setSaveError(null);
+    setStatusRefreshError(false);
+    setIsRefreshingStatus(false);
     if (initialConfig) {
       const feishuConfig = initialConfig.config as unknown as
         FeishuConfigResponse | undefined;
@@ -173,7 +183,12 @@ export function FeishuPanel({
   };
 
   const loadConfig = async () => {
+    const generation = ++loadGeneration.current;
     setIsLoading(true);
+    setLoadError(false);
+    setSaveError(null);
+    setStatusRefreshError(false);
+    setIsRefreshingStatus(false);
     try {
       // For new instances, just set defaults without calling API
       if (instanceId === "new") {
@@ -205,6 +220,7 @@ export function FeishuPanel({
         channelApi.get("feishu", instanceId!),
         channelApi.getStatus("feishu", instanceId!),
       ]);
+      if (generation !== loadGeneration.current) return;
 
       if (configResponse) {
         const feishuConfig = configResponse.config as FeishuConfigResponse;
@@ -273,9 +289,9 @@ export function FeishuPanel({
       setStatus(statusResponse);
     } catch (error) {
       console.error("Failed to load Feishu config:", error);
-      toast.error(t("feishu.loadError", "Failed to load Feishu configuration"));
+      if (generation === loadGeneration.current) setLoadError(true);
     } finally {
-      setIsLoading(false);
+      if (generation === loadGeneration.current) setIsLoading(false);
     }
   };
 
@@ -305,11 +321,14 @@ export function FeishuPanel({
     }
 
     let completed = false;
+    let stopped = false;
     const interval = window.setInterval(async () => {
+      if (completed || stopped) return;
       try {
         const result = await channelApi.getFeishuRegistration(
           registrationSessionId,
         );
+        if (completed || stopped) return;
         setRegistrationStatus(result.status);
         setRegistrationQrUrl(result.qr_url || null);
 
@@ -326,19 +345,22 @@ export function FeishuPanel({
           completed = true;
           setIsRegistering(false);
           setRegistrationSessionId(null);
-          toast.error(
+          setSaveError(
             result.error ||
               t("feishu.registrationFailed", "Feishu registration failed"),
           );
         }
       } catch (error) {
+        if (completed || stopped) return;
         console.error("Failed to poll Feishu registration:", error);
         setIsRegistering(false);
         setRegistrationSessionId(null);
+        setSaveError(t("feishu.registrationFailed"));
       }
     }, 2000);
 
     return () => {
+      stopped = true;
       window.clearInterval(interval);
       if (!completed) {
         void channelApi
@@ -384,6 +406,7 @@ export function FeishuPanel({
   }, [registrationQrUrl]);
 
   const handleStartRegistration = async () => {
+    setSaveError(null);
     setCredentialMode("scan");
     setIsRegistering(true);
     setRegistrationQrUrl(null);
@@ -397,7 +420,9 @@ export function FeishuPanel({
     } catch (error) {
       console.error("Failed to start Feishu registration:", error);
       setIsRegistering(false);
-      toast.error(t("feishu.registrationFailed", "Feishu registration failed"));
+      setSaveError(
+        t("feishu.registrationFailed", "Feishu registration failed"),
+      );
     }
   };
 
@@ -503,8 +528,7 @@ export function FeishuPanel({
 
       // Only fetch status for existing instances
       if (hasExistingConfig) {
-        const newStatus = await channelApi.getStatus("feishu", instanceId);
-        setStatus(newStatus);
+        await refreshStatus();
       }
     } catch (error) {
       console.error("Failed to save Feishu config:", error);
@@ -515,6 +539,21 @@ export function FeishuPanel({
       setSaveError(errorMessage);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const refreshStatus = async () => {
+    const generation = loadGeneration.current;
+    setIsRefreshingStatus(true);
+    try {
+      const nextStatus = await channelApi.getStatus("feishu", instanceId);
+      if (generation !== loadGeneration.current) return;
+      setStatus(nextStatus);
+      setStatusRefreshError(false);
+    } catch {
+      if (generation === loadGeneration.current) setStatusRefreshError(true);
+    } finally {
+      if (generation === loadGeneration.current) setIsRefreshingStatus(false);
     }
   };
 
@@ -564,6 +603,7 @@ export function FeishuPanel({
 
   const handleTest = async () => {
     setIsTesting(true);
+    setSaveError(null);
     try {
       const result = await channelApi.test("feishu", instanceId);
       if (result.success) {
@@ -571,23 +611,42 @@ export function FeishuPanel({
           result.message || t("feishu.testSuccess", "Connection successful"),
         );
       } else {
-        toast.error(
+        setSaveError(
           result.message || t("feishu.testFailed", "Connection failed"),
         );
       }
     } catch (error) {
       console.error("Failed to test Feishu connection:", error);
-      toast.error(t("feishu.testError", "Failed to test connection"));
+      setSaveError(t("feishu.testError", "Failed to test connection"));
     } finally {
       setIsTesting(false);
     }
   };
 
-  if (isLoading) {
-    return <ChannelConfigSkeleton />;
-  }
-
-  const formContent = (
+  const formContent = isLoading ? (
+    <ChannelConfigSkeleton />
+  ) : loadError ? (
+    <div role="alert" className="flex min-h-full items-center justify-center">
+      <EmptyState
+        illustration="panel-channels"
+        title={t("feishu.loadError")}
+        action={
+          <Button
+            onClick={(event) => {
+              (
+                event.currentTarget.closest<HTMLElement>(
+                  "[data-right-panel-root]",
+                ) ?? pageRef.current
+              )?.focus();
+              void loadConfig();
+            }}
+          >
+            {t("common.retry")}
+          </Button>
+        }
+      />
+    </div>
+  ) : (
     <FeishuPanelForm
       t={t}
       hasExistingConfig={hasExistingConfig}
@@ -640,8 +699,29 @@ export function FeishuPanel({
   );
 
   // Action buttons
-  const actionButtons = (
+  const actionButtons = !isLoading && !loadError && (
     <>
+      {statusRefreshError && (
+        <div className="flex items-start gap-2">
+          <ConfigPanelErrorCallout
+            message={t("common.loadFailed")}
+            className="min-w-0 flex-1"
+          />
+          <Button
+            onClick={(event) => {
+              (
+                event.currentTarget.closest<HTMLElement>(
+                  "[data-right-panel-root]",
+                ) ?? pageRef.current
+              )?.focus();
+              void refreshStatus();
+            }}
+            loading={isRefreshingStatus}
+          >
+            {t("common.retry")}
+          </Button>
+        </div>
+      )}
       {saveError && (
         <ConfigPanelErrorCallout
           message={saveError}
@@ -685,9 +765,9 @@ export function FeishuPanel({
         open={true}
         onClose={onClose}
         title={
-          hasExistingConfig
-            ? instanceName || t("feishu.title", "Feishu/Lark Channel")
-            : t("feishu.newInstance", "New Feishu Instance")
+          instanceId === "new"
+            ? t("feishu.newInstance", "New Feishu Instance")
+            : instanceName || t("feishu.title", "Feishu/Lark Channel")
         }
         subtitle={t("feishu.description")}
         icon={
@@ -705,7 +785,11 @@ export function FeishuPanel({
 
   // Full-page mode (backward compatible)
   return (
-    <div className="glass-shell flex h-full flex-col min-h-0">
+    <div
+      ref={pageRef}
+      tabIndex={-1}
+      className="glass-shell flex h-full flex-col min-h-0"
+    >
       <PanelHeader
         title={t("feishu.title", "Feishu/Lark Channel")}
         subtitle={t("feishu.description")}
