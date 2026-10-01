@@ -1,4 +1,16 @@
 import { readFileSync } from "node:fs";
+test("editor controls keep touch targets at tablet and landscape widths", () => {
+  const styles = readFileSync(
+    new URL("../../../styles/panels.css", import.meta.url),
+    "utf8",
+  );
+  expect(styles).toMatch(
+    /@media \(max-width: 639px\), \(pointer: coarse\) \{[\s\S]*?\.editor-sidebar :is\(/,
+  );
+  expect(styles).toMatch(
+    /\.editor-sidebar \[role="switch"\] \{\s*min-height: 2\.75rem/,
+  );
+});
 function readSource(path: string): string {
   return readFileSync(new URL(path, import.meta.url), "utf8");
 }

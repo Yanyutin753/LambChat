@@ -8,7 +8,8 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../../../../hooks/useAuth";
 import { Permission } from "../../../../types";
 import { PanelHeader } from "../../../common/PanelHeader";
-import { LoadingSpinner } from "../../../common/LoadingSpinner";
+import { Button, PanelFooterActions } from "../../../common";
+import { ConfigPanelErrorCallout } from "../../ConfigPanelErrorCallout";
 import { ChannelConfigSkeleton } from "../../../skeletons";
 import { EditorSidebar } from "../../../common/EditorSidebar";
 import { channelApi } from "../../../../services/api/channel";
@@ -42,6 +43,7 @@ export function FeishuPanel({
   const [status, setStatus] = useState<FeishuConfigStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState(false);
 
   // Form state
@@ -102,8 +104,7 @@ export function FeishuPanel({
   const initializeFromExternalData = () => {
     if (initialConfig) {
       const feishuConfig = initialConfig.config as unknown as
-        | FeishuConfigResponse
-        | undefined;
+        FeishuConfigResponse | undefined;
       setConfig(feishuConfig ?? null);
       setHasExistingConfig(true);
       setInstanceName(initialConfig.name || "");
@@ -401,26 +402,27 @@ export function FeishuPanel({
   };
 
   const handleSave = async () => {
+    setSaveError(null);
     // Validate instance name for new instances
     if (!hasExistingConfig && !instanceName.trim()) {
-      toast.error(
+      setSaveError(
         t("feishu.instanceNameRequired", "Instance name is required"),
       );
       return;
     }
 
     if (!appId.trim()) {
-      toast.error(t("feishu.appIdRequired", "App ID is required"));
+      setSaveError(t("feishu.appIdRequired", "App ID is required"));
       return;
     }
 
     if (!hasExistingConfig && !appSecret.trim()) {
-      toast.error(t("feishu.appSecretRequired", "App Secret is required"));
+      setSaveError(t("feishu.appSecretRequired", "App Secret is required"));
       return;
     }
 
     if (useCustomEmoji && !customEmoji.trim()) {
-      toast.error(
+      setSaveError(
         t(
           "feishu.customEmojiRequired",
           "Custom emoji is required when selected",
@@ -510,7 +512,7 @@ export function FeishuPanel({
         error instanceof Error
           ? error.message
           : t("feishu.saveError", "Failed to save Feishu configuration");
-      toast.error(errorMessage);
+      setSaveError(errorMessage);
     } finally {
       setIsSaving(false);
     }
@@ -639,32 +641,41 @@ export function FeishuPanel({
 
   // Action buttons
   const actionButtons = (
-    <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between">
-      {canDelete && (
-        <button
-          onClick={handleDelete}
-          disabled={!hasExistingConfig}
-          className="btn-danger"
-        >
-          <Trash2 size={16} />
-          {t("common.delete")}
-        </button>
+    <>
+      {saveError && (
+        <ConfigPanelErrorCallout
+          message={saveError}
+          tabIndex={0}
+          className="max-h-32 overflow-y-auto"
+        />
       )}
-      {canWrite && (
-        <button
-          onClick={handleSave}
-          disabled={isSaving || !appId.trim()}
-          className="btn-primary"
-        >
-          {isSaving ? (
-            <LoadingSpinner size="sm" color="text-white" />
-          ) : (
-            <Save size={16} />
-          )}
-          {t("common.save")}
-        </button>
-      )}
-    </div>
+      <PanelFooterActions
+        align={canDelete ? "between" : "end"}
+        className="pt-2"
+      >
+        {canDelete && (
+          <Button
+            variant="danger"
+            onClick={handleDelete}
+            disabled={!hasExistingConfig}
+            leftIcon={<Trash2 size={16} />}
+          >
+            {t("common.delete")}
+          </Button>
+        )}
+        {canWrite && (
+          <Button
+            variant="primary"
+            onClick={handleSave}
+            disabled={!appId.trim()}
+            loading={isSaving}
+            leftIcon={<Save size={16} />}
+          >
+            {t("common.save")}
+          </Button>
+        )}
+      </PanelFooterActions>
+    </>
   );
 
   // Sidebar mode: render inside EditorSidebar

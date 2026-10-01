@@ -6,6 +6,7 @@ export type ResourceCardAction = {
   icon?: ReactNode;
   danger?: boolean;
   checked?: boolean;
+  disabled?: boolean;
 } & (
   | { href: string; onClick?: () => void }
   | { href?: undefined; onClick: () => void }
@@ -53,7 +54,13 @@ export function ResourceCardMenu({
       ),
     });
     const items = menu.querySelectorAll<HTMLElement>('[role^="menuitem"]');
-    items[initialFocusIndex]?.focus();
+    const initial = items[initialFocusIndex];
+    (initial?.getAttribute("aria-disabled") !== "true"
+      ? initial
+      : Array.from(items).find(
+          (item) => item.getAttribute("aria-disabled") !== "true",
+        )
+    )?.focus();
     const outside = (event: PointerEvent) => {
       const trigger = (event.target as Element).closest?.(
         '[aria-haspopup="menu"]',
@@ -116,8 +123,11 @@ export function ResourceCardMenu({
         )
           return;
         const buttons = Array.from(
-          ref.current!.querySelectorAll<HTMLElement>('[role^="menuitem"]'),
+          ref.current!.querySelectorAll<HTMLElement>(
+            '[role^="menuitem"]:not([aria-disabled="true"])',
+          ),
         );
+        if (!buttons.length) return;
         const index = buttons.indexOf(document.activeElement as HTMLElement);
         const next =
           event.key === "ArrowDown"
@@ -141,14 +151,20 @@ export function ResourceCardMenu({
           <Item
             key={action.label}
             type={action.href ? undefined : "button"}
-            href={action.href}
+            href={action.disabled ? undefined : action.href}
             target={action.href ? "_blank" : undefined}
             rel={action.href ? "noopener noreferrer" : undefined}
             role={action.checked === undefined ? "menuitem" : "menuitemradio"}
             aria-checked={action.checked}
+            aria-disabled={action.disabled || undefined}
+            disabled={action.href ? undefined : action.disabled}
             tabIndex={-1}
-            className={`flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-13 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] ${action.danger ? "text-theme-error hover:bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)]" : "text-theme-text hover:bg-theme-bg-subtle"}`}
-            onClick={() => {
+            className={`flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-13 aria-disabled:opacity-40 aria-disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] ${action.danger ? "text-theme-error hover:bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)]" : "text-theme-text hover:bg-theme-bg-subtle"}`}
+            onClick={(event) => {
+              if (action.disabled) {
+                event.preventDefault();
+                return;
+              }
               onClose(true);
               action.onClick?.();
             }}

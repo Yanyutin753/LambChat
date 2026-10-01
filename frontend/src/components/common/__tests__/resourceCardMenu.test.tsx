@@ -2,10 +2,64 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { SkillBaseCard } from "../SkillBaseCard";
+import { ResourceCardMenu } from "../ResourceCardMenu";
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 afterEach(cleanup);
+test("disabled links stay inert and keyboard focus skips them", () => {
+  const run = vi.fn();
+  const close = vi.fn();
+  render(
+    <ResourceCardMenu
+      id="disabled-link-menu"
+      title="Actions"
+      position={{ x: 0, y: 0 }}
+      onClose={close}
+      actions={[
+        {
+          label: "Unavailable link",
+          href: "https://example.test",
+          onClick: run,
+          disabled: true,
+        },
+        { label: "Edit", onClick: vi.fn() },
+      ]}
+    />,
+  );
+  expect(screen.getByRole("menuitem", { name: "Edit" })).toHaveFocus();
+  expect(
+    screen.getByRole("menuitem", { name: "Unavailable link" }),
+  ).not.toHaveAttribute("href");
+  expect(
+    fireEvent.click(screen.getByRole("menuitem", { name: "Unavailable link" })),
+  ).toBe(false);
+  expect(run).not.toHaveBeenCalled();
+  expect(close).not.toHaveBeenCalled();
+});
+test("disabled menu actions cannot run and keyboard navigation skips them", () => {
+  const disabled = vi.fn();
+  render(
+    <ResourceCardMenu
+      id="disabled-menu"
+      title="Actions"
+      position={{ x: 0, y: 0 }}
+      onClose={vi.fn()}
+      actions={[
+        { label: "Unavailable", onClick: disabled, disabled: true },
+        { label: "Edit", onClick: vi.fn() },
+        { label: "Busy", onClick: disabled, disabled: true },
+        { label: "Delete", onClick: vi.fn() },
+      ]}
+    />,
+  );
+  const edit = screen.getByRole("menuitem", { name: "Edit" });
+  expect(edit).toHaveFocus();
+  fireEvent.keyDown(edit, { key: "ArrowDown" });
+  expect(screen.getByRole("menuitem", { name: "Delete" })).toHaveFocus();
+  fireEvent.click(screen.getByRole("menuitem", { name: "Unavailable" }));
+  expect(disabled).not.toHaveBeenCalled();
+});
 test("large resource lists cap their entrance delay", () => {
   const { container } = render(
     <SkillBaseCard title="Last skill" animated animationDelay={1140} />,

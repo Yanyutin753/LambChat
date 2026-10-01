@@ -265,3 +265,21 @@ TDD 先失败后通过：字段标签、语言草稿、图标 Escape/选择/默�
 八项自检：可见字段标签与标题层级清晰；正文和卡片留白保留；选中/加载/失败/可重试状态明确；控件和焦点环复用主题 token；去掉局部动画 emoji，弹窗沿用 reduced-motion；原生文件入口、键盘、Escape、焦点返回与错误滚动验证；上述宽度、主题、中俄语言检查；延续 LambChat 品牌和既有图标，无新依赖或装饰体系。Impeccable 按已确认不可用的环境使用 DESIGN.md 人工清单。
 
 下一批优先：1440px 同时打开 docked 编辑器时，外层模型配置工具栏挤压说明文字，需按实际内容容器响应；助手全局/角色分配入口和 coarse pointer、角色分配保存路径；Feishu 与通用渠道编辑器字段/开关/QR/错误状态。其他待查仍包括欢迎页无匹配/真实空状态、复制失败、工具和图片、文件下载失败及其他格式、绘图内嵌图片与大图、资源导入发布及剩余语言。真实服务认证/写入/聊天和原生触屏/软键盘未验证，本批不代表全界面验收完成，目标保持进行中。
+
+### 2026-10-02：模型工具栏与渠道编辑器
+
+开工 fetch origin，确认 origin/develop b5a8930a 已在当前隔离分支历史中。模型配置的六个辅助动作占据桌面并列编辑器外层大量宽度，本批保留主动作添加，将导出/导入/批量/同步价格/重算费用放入现有 ResourceCardMenu。按实际 panel 容器响应说明与工具栏，正文和模型卡留白保留。共享菜单新增 disabled，禁用按钮不参与键盘导航，禁用链接移除 href 防止中键/右键打开；原先可用项的 initialFocusIndex 语义保留，无可用项时安全退出导航。同步与重算保留既有 API/结果/成功反馈，失败持续显示 callout，避免手机巨大重复 toast 遮挡操作。
+
+Feishu 与通用渠道表单字段用 useId 关联可见标签，Select 和 shared ToggleSwitch 有可读取名称与状态，显式 false 和空串保留，缺失值按原 metadata default 显示。密码的留空保留提示移到输入框下并用 aria-describedby 关联，修复 320px 俄语提示挤压 App Secret 标签。保存失败保留草稿，复用 footer ConfigPanelErrorCallout；长错误顶部可读、限高可键盘滚动，不重复错误 toast，原成功提示保持。已有配置的空 secret 仍不发送，新配置必填验证与请求组装保留。Feishu 删除/保存复用 PanelFooterActions，手机保持单行 44px；原 native 删除确认未触发。
+
+Feishu 扫码/手填和策略使用原生按钮与 pressed，长文案自然换行，表情使用共享 Button。固定 4 列手机/8 列宽编辑器避免 5 列布局的孤立末项，16 个按钮均至少 44px。补齐原来缺失的十个表情标签与音频提示词标签五语；扫码创建入口改共享 Button，loading/disabled 保留，320px 俄语实测从 36px、侵入卡片内边距改为 44px、完整落在卡片内。二维码保持正方形且受容器宽度约束。注册状态复核发现终态保留 QR 图时仍显示 Preparing QR，四条 success/error/expired/cancelled 测试先失败后修复：注册中按是否已有图显示等待扫码/准备二维码，结束后显示既有成功/失败翻译。未启动真实扫码注册。
+
+共享 editor-sidebar 的 44px 规则覆盖 narrow 与 pointer:coarse；横屏/平板粗指针契约测试通过，Mac fine pointer 宽屏尺寸保持。只读 preview 增加通用渠道 text/password/select/toggle metadata，所有非 GET 仍返回 405、无转发或保存。实屏检查：模型 1440px 中俄并列编辑器、320px 俄语 More→Import JSON→关闭并返回 More 焦点、768px 俄语工具栏；Feishu 320px 中俄浅/深色、390px 俄语浅色、768px 俄语护眼、1440px 俄语深色；通用渠道 320px 俄语深色 Select/开关/失败保存。整页横向溢出均为 0。128px footer 错误容器内 763px 长文，PageDown 实际滚到 111.58px，按钮保持可见；成功重试由组件 API mock 覆盖，不把只读失败样例当作真实保存成功。
+
+主要截图：model-toolbar-docked-before/after/menu-after、model-toolbar-1440-ru-light-final、model-toolbar-menu-320-ru-light-final、model-toolbar-320-ru-light-final、model-toolbar-768-ru-light-final、feishu-long-error-320-zh-dark-final、feishu-editor-390-ru-light-final、feishu-editor-768-ru-sepia-after、feishu-editor-1440-ru-dark-after、feishu-scan-320-ru-dark-before/after、channel-long-error-320-ru-dark-after。feishu-reaction-320-ru-dark-after 的文件名含 dark，但 HMR 后实际截图为浅色，不作为深色证据。
+
+八项自检：可见标签/密码说明与说明文字排版清楚；正文/卡片留白保留；主动作/More、选中/禁用/等待/终态/可重试层级明确；复用主题 token 与已有 Button 变体；原有 reduced-motion 保持、策略切换补 reduced-motion；键盘菜单、焦点归还、状态命名、独立错误滚动与草稿保留验证；上述四宽度三主题和中俄实屏，五语标签契约验证；延续 LambChat 品牌及现有组件，无新增依赖或装饰体系。Impeccable 按已确认不可用的环境使用 DESIGN.md 人工清单。
+
+所有新行为均观察 RED→GREEN。最终全量 736 文件 / 3508 项测试通过，lint 无警告，build/类型与体积门禁通过：eager JS 559051 / 559104 字节，precache 88 项 5016620 / 5242880 字节。初次全量的旧 mobile CSS 正则仅匹配单一屏宽 media，更新为 narrow/coarse 联合契约后通过；二维码终态补充后重新完成全量。首次新增五语翻译超过 eager 门禁，确认无代码调用后删除原已弃用的六个表情及两个飞书翻译键，未提高预算或删除在用翻译。终态 P2 修正后独立复核无新增 P1/P2；git diff --check 通过。
+
+下一批优先：通用渠道与 Feishu 加载失败、连接测试/注册状态的持续反馈；助手全局/角色分配入口及 coarse pointer、角色分配保存路径。其他待查包括欢迎页无匹配/真实空状态、复制失败、工具和图片、文件下载失败及其他格式、绘图内嵌图片与大图、资源导入发布和剩余语言。真实服务认证/写入/对话、扫码注册端到端、原生触屏与软键盘尚未验证。目标保持进行中，本批不代表全界面达到验收标准。

@@ -1109,7 +1109,39 @@ function response(
         requires_webhook: false,
         requires_websocket: true,
         setup_guide: ["填写渠道配置并测试连接"],
-        config_fields: [],
+        config_fields:
+          channel_type === "feishu"
+            ? []
+            : [
+                {
+                  name: "workspace",
+                  type: "text",
+                  title: "Workspace",
+                  required: true,
+                },
+                {
+                  name: "token",
+                  type: "password",
+                  title: "Bot token",
+                  sensitive: true,
+                },
+                {
+                  name: "reply_mode",
+                  type: "select",
+                  title: "Reply mode",
+                  default: "thread",
+                  options: [
+                    { value: "thread", label: "Thread" },
+                    { value: "channel", label: "Channel" },
+                  ],
+                },
+                {
+                  name: "stream",
+                  type: "toggle",
+                  title: "Streaming",
+                  default: true,
+                },
+              ],
       })),
     };
   if (path.startsWith("/api/channels/") && path.endsWith("/status"))

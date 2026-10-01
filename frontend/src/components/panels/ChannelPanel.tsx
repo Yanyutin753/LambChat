@@ -4,7 +4,7 @@
  * Dynamically renders channel configuration based on metadata from the backend.
  * Supports multiple channel types (Feishu, WeChat, DingTalk, etc.)
  */
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useId } from "react";
 import { useNavigate } from "react-router-dom";
 import { BackIcon } from "../common/BackIcon";
 import {
@@ -25,6 +25,8 @@ import { ConfirmDialog } from "../common/ConfirmDialog";
 import { PanelLoadingState } from "../common/PanelLoadingState";
 import { EditorSidebar } from "../common/EditorSidebar";
 import { Button, Input, PanelFooterActions, Select } from "../common";
+import { ToggleSwitch } from "./AgentPanel/shared";
+import { ConfigPanelErrorCallout } from "./ConfigPanelErrorCallout";
 import { ChannelAgentSelect } from "./channel/ChannelAgentSelect";
 import { channelApi } from "../../services/api/channel";
 import type {
@@ -49,6 +51,8 @@ export function ChannelPanel({
   onClose,
 }: ChannelPanelProps) {
   const { t } = useTranslation();
+  const formId = useId();
+  const [saveError, setSaveError] = useState<string | null>(null);
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
 
@@ -151,7 +155,11 @@ export function ChannelPanel({
       const value = formValues[field.name];
       if (value === undefined || value === "" || value === null) {
         if (hasExistingConfig && field.sensitive) continue;
-        toast.error(t("channel.fieldRequired", `${field.title} is required`));
+        const message = t(
+          "channel.fieldRequired",
+          `${field.title} is required`,
+        );
+        setSaveError(message);
         return false;
       }
     }
@@ -159,6 +167,7 @@ export function ChannelPanel({
   };
 
   const handleSave = async () => {
+    setSaveError(null);
     if (!validateForm()) return;
 
     setIsSaving(true);
@@ -188,7 +197,11 @@ export function ChannelPanel({
         setFormValues(cleared);
       } else {
         if (!instanceName.trim()) {
-          toast.error(t("channel.nameRequired", "Instance name is required"));
+          const message = t(
+            "channel.nameRequired",
+            "Instance name is required",
+          );
+          setSaveError(message);
           setIsSaving(false);
           return;
         }
@@ -227,7 +240,7 @@ export function ChannelPanel({
         error instanceof Error
           ? error.message
           : t("channel.saveError", "Failed to save configuration");
-      toast.error(errorMessage);
+      setSaveError(errorMessage);
     } finally {
       setIsSaving(false);
     }
@@ -274,14 +287,14 @@ export function ChannelPanel({
   };
 
   const renderField = (field: ConfigField) => {
-    const value = formValues[field.name] ?? "";
+    const value = formValues[field.name] ?? field.default ?? "";
 
     switch (field.type) {
       case "toggle":
         return (
           <div
             key={field.name}
-            className="flex items-center justify-between rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-2.5"
+            className="flex items-center justify-between gap-3 rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-2.5"
           >
             <div>
               <span className="text-14 font-medium font-serif text-stone-700 dark:text-stone-200">
@@ -293,20 +306,11 @@ export function ChannelPanel({
                 </p>
               )}
             </div>
-            <button
-              onClick={() => updateFormField(field.name, !value)}
-              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 ${
-                value
-                  ? "bg-amber-500 shadow-sm shadow-amber-500/25"
-                  : "bg-stone-200 dark:bg-stone-700"
-              }`}
-            >
-              <span
-                className={`pointer-events-none inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                  value ? "translate-x-[18px]" : "translate-x-[3px]"
-                }`}
-              />
-            </button>
+            <ToggleSwitch
+              enabled={Boolean(value)}
+              onToggle={() => updateFormField(field.name, !value)}
+              ariaLabel={field.title}
+            />
           </div>
         );
 
@@ -317,6 +321,7 @@ export function ChannelPanel({
               {field.title}
             </label>
             <Select
+              ariaLabel={field.title}
               value={String(value)}
               onChange={(v) => updateFormField(field.name, v)}
               options={(field.options ?? []).map((opt) => ({
@@ -330,19 +335,23 @@ export function ChannelPanel({
       case "password":
         return (
           <div key={field.name}>
-            <label className="mb-1 block text-14 font-medium font-serif text-stone-700 dark:text-stone-200">
+            <label
+              htmlFor={`${formId}-${field.name}`}
+              className="mb-1 block text-14 font-medium font-serif text-stone-700 dark:text-stone-200"
+            >
               {field.title}{" "}
               {field.required && !hasExistingConfig && (
                 <span className="text-red-500">*</span>
               )}
-              {hasExistingConfig && field.sensitive && (
-                <span className="ml-1 text-12 text-stone-400">
-                  ({t("channel.leaveEmpty")})
-                </span>
-              )}
             </label>
             <Input
+              id={`${formId}-${field.name}`}
               type="password"
+              aria-describedby={
+                hasExistingConfig && field.sensitive
+                  ? `${formId}-${field.name}-hint`
+                  : undefined
+              }
               value={String(value)}
               onChange={(e) => updateFormField(field.name, e.target.value)}
               placeholder={
@@ -351,19 +360,31 @@ export function ChannelPanel({
               }
               className="px-3 py-2 text-14 text-stone-900 placeholder-stone-400 focus:border-stone-500 dark:text-stone-100 dark:placeholder-stone-500"
             />
+            {hasExistingConfig && field.sensitive && (
+              <p
+                id={`${formId}-${field.name}-hint`}
+                className="mt-1 text-12 text-theme-text-secondary"
+              >
+                {t("channel.leaveEmpty")}
+              </p>
+            )}
           </div>
         );
 
       default:
         return (
           <div key={field.name}>
-            <label className="mb-1 block text-14 font-medium font-serif text-stone-700 dark:text-stone-200">
+            <label
+              htmlFor={`${formId}-${field.name}`}
+              className="mb-1 block text-14 font-medium font-serif text-stone-700 dark:text-stone-200"
+            >
               {field.title}
               {field.required && (!hasExistingConfig || !field.sensitive) && (
                 <span className="text-red-500"> *</span>
               )}
             </label>
             <Input
+              id={`${formId}-${field.name}`}
               type="text"
               value={String(value)}
               onChange={(e) => updateFormField(field.name, e.target.value)}
@@ -449,7 +470,7 @@ export function ChannelPanel({
                 size={16}
                 className="flex-shrink-0 text-red-500 dark:text-red-400"
               />
-              <span className="text-14 text-red-700 dark:text-red-300">
+              <span className="min-w-0 [overflow-wrap:anywhere] text-14 text-red-700 dark:text-red-300">
                 {status.error_message}
               </span>
             </div>
@@ -467,11 +488,15 @@ export function ChannelPanel({
           {/* Instance Name - only show for new instances */}
           {isNewInstance && (
             <div>
-              <label className="mb-1 block text-14 font-medium font-serif text-stone-700 dark:text-stone-200">
+              <label
+                htmlFor={`${formId}-instanceName`}
+                className="mb-1 block text-14 font-medium font-serif text-stone-700 dark:text-stone-200"
+              >
                 {t("channel.instanceName", "Instance Name")}{" "}
                 <span className="text-red-500">*</span>
               </label>
               <Input
+                id={`${formId}-instanceName`}
                 type="text"
                 value={instanceName}
                 onChange={(e) => setInstanceName(e.target.value)}
@@ -497,7 +522,7 @@ export function ChannelPanel({
           )}
 
           {/* Enable Toggle */}
-          <div className="flex items-center justify-between rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-2.5">
+          <div className="flex items-center justify-between gap-3 rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-2.5">
             <div>
               <span className="text-14 font-medium font-serif text-stone-700 dark:text-stone-200">
                 {t("channel.enabled", "Enable Channel")}
@@ -506,20 +531,11 @@ export function ChannelPanel({
                 {t("channel.enabledDesc", "Enable or disable this channel")}
               </p>
             </div>
-            <button
-              onClick={() => setEnabled(!enabled)}
-              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 ${
-                enabled
-                  ? "bg-amber-500 shadow-sm shadow-amber-500/25"
-                  : "bg-stone-200 dark:bg-stone-700"
-              }`}
-            >
-              <span
-                className={`pointer-events-none inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                  enabled ? "translate-x-[18px]" : "translate-x-[3px]"
-                }`}
-              />
-            </button>
+            <ToggleSwitch
+              enabled={enabled}
+              onToggle={() => setEnabled(!enabled)}
+              ariaLabel={t("channel.enabled")}
+            />
           </div>
 
           {/* Dynamic Fields */}
@@ -554,28 +570,40 @@ export function ChannelPanel({
 
   // Action buttons
   const actionButtons = (
-    <PanelFooterActions align={canDelete ? "between" : "end"} className="pt-2">
-      {canDelete && (
-        <Button
-          variant="danger"
-          onClick={handleDeleteClick}
-          disabled={!hasExistingConfig}
-          leftIcon={<Trash2 size={16} />}
-        >
-          {t("common.delete")}
-        </Button>
+    <>
+      {saveError && (
+        <ConfigPanelErrorCallout
+          message={saveError}
+          tabIndex={0}
+          className="max-h-32 overflow-y-auto"
+        />
       )}
-      {canWrite && (
-        <Button
-          variant="primary"
-          onClick={handleSave}
-          loading={isSaving}
-          leftIcon={<Save size={16} />}
-        >
-          {t("common.save")}
-        </Button>
-      )}
-    </PanelFooterActions>
+      <PanelFooterActions
+        align={canDelete ? "between" : "end"}
+        className="pt-2"
+      >
+        {canDelete && (
+          <Button
+            variant="danger"
+            onClick={handleDeleteClick}
+            disabled={!hasExistingConfig}
+            leftIcon={<Trash2 size={16} />}
+          >
+            {t("common.delete")}
+          </Button>
+        )}
+        {canWrite && (
+          <Button
+            variant="primary"
+            onClick={handleSave}
+            loading={isSaving}
+            leftIcon={<Save size={16} />}
+          >
+            {t("common.save")}
+          </Button>
+        )}
+      </PanelFooterActions>
+    </>
   );
 
   const deleteDialog = (
