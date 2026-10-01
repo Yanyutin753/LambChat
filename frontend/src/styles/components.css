@@ -4587,6 +4587,34 @@
   }
 }
 
+.mermaid-inline-actions button:focus-visible,
+.viewer-toolbar button:focus-visible,
+.mermaid-viewer-actions button:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+}
+
+@media (max-width: 639px), (pointer: coarse) {
+  .mermaid-inline-actions button,
+  .mermaid-viewer-actions button,
+  .viewer-toolbar button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+  .mermaid-inline-actions > div:last-child,
+  .mermaid-viewer-actions,
+  .viewer-toolbar {
+    gap: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mermaid-diagram *,
+  .mermaid-viewer * {
+    transition: none !important;
+  }
+}
+
 /* Header icons share a compact rail while keeping independent touch targets. */
 @media (max-width: 639px) {
   .chat-header__identity > button {

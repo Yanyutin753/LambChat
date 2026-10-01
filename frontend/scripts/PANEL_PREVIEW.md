@@ -32,6 +32,8 @@ URL 参数：`?theme=dark` 为深色；默认浅色。`?fixture=empty` 返回空
 
 选择器单独走查可用 `?fixture=error&failure=teams` 或 `?fixture=error&failure=persona-presets`，仅让对应列表请求失败，保留聊天与模式入口。演示助手标识与后端注册一致（`fast`、`search`、`team`），团队模式的功能菜单可打开团队选择器。
 
+`?fixture=error&failure=document` 仅让文档样例首次请求失败，点击重试恢复；更换页面查询参数或重启预览可重新检查失败状态。Markdown 内含 Mermaid 图表，可检查导出菜单及嵌套全屏焦点。
+
 文件库的 Markdown、Python、CSV 卡片分别读取对应格式的只读样例。样例包含长代码行、多列表格和中文内容，可验证预览中的横向滚动与编码；不再让代码、CSV 卡片读取同一份 Markdown。
 
 公开主页和认证页使用 `?guest=1`，以访客状态走查，避免演示登录自动跳到聊天页。仅影响此只读预览的 3002 origin。

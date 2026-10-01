@@ -223,7 +223,7 @@ test("diagram viewers share blob download behavior", () => {
   expect(menuItem).toMatch(/whitespace-nowrap/);
 
   expect(mermaidViewer).toMatch(/import \{ downloadBlob \}/);
-  expect(mermaidViewer).toMatch(/import \{[\s\S]*ViewerDropdownMenuItem/);
+  expect(mermaidViewer).toMatch(/import \{ ResourceCardMenu \}/);
   expect(documentMermaidViewer).toMatch(/import \{ downloadBlob \}/);
   expect(documentMermaidViewer).toMatch(
     /import \{[\s\S]*ViewerDropdownMenuItem/,
@@ -233,8 +233,8 @@ test("diagram viewers share blob download behavior", () => {
   expect(mermaidViewer).toMatch(/downloadBlob\([^)]*"diagram\.svg"/);
   expect(mermaidViewer).toMatch(/downloadBlob\([^)]*"diagram\.png"/);
   expect(mermaidViewer).toMatch(/downloadBlob\([^)]*"mermaid\.svg"/);
-  expect(mermaidViewer).toMatch(/<ViewerDropdownMenuItem[\s\S]*SVG/);
-  expect(mermaidViewer).toMatch(/<ViewerDropdownMenuItem[\s\S]*PNG/);
+  expect(mermaidViewer).toMatch(/<ResourceCardMenu[\s\S]*label: "SVG"/);
+  expect(mermaidViewer).toMatch(/<ResourceCardMenu[\s\S]*label: "PNG"/);
   expect(documentMermaidViewer).toMatch(/downloadBlob\([^)]*"diagram\.svg"/);
   expect(documentMermaidViewer).toMatch(/downloadBlob\([^)]*"diagram\.png"/);
   expect(documentMermaidViewer).toMatch(/<ViewerDropdownMenuItem[\s\S]*SVG/);

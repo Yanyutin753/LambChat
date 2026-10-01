@@ -1,6 +1,7 @@
 import { SceneIllustration } from "../common/SceneIllustration";
 import { Suspense, lazy } from "react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
+import { Button } from "../common/ui/Button";
 import { ImageViewer } from "../common/ImageViewer";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
 import { mediaProxyFallbackSrc } from "./documentFetchCache";
@@ -23,6 +24,7 @@ type ContentProps = Pick<
   | "data"
   | "loading"
   | "error"
+  | "retryLoad"
   | "imageUrl"
   | "pdfUrl"
   | "pptUrl"
@@ -68,6 +70,7 @@ export default function DocumentPreviewContent({
   data,
   loading,
   error,
+  retryLoad,
   imageUrl,
   pdfUrl,
   pptUrl,
@@ -126,7 +129,10 @@ export default function DocumentPreviewContent({
             />
           </div>
         </div>
-        <p className="text-14 text-stone-500 dark:text-stone-400 font-medium">
+        <p
+          role="status"
+          className="text-14 text-theme-text-secondary font-medium"
+        >
           {t("documents.loadingFileContent")}
         </p>
       </div>
@@ -137,14 +143,17 @@ export default function DocumentPreviewContent({
     return (
       <div className="flex min-h-full flex-col items-center justify-center py-8 gap-4 px-4">
         <SceneIllustration scene="files" />
-        <div className="text-center">
-          <p className="text-14 text-red-600 dark:text-red-400 font-medium mb-2">
-            {error}
-          </p>
-          <p className="text-12 text-stone-400 dark:text-stone-500">
+        <div role="alert" className="text-center max-w-md break-words">
+          <p className="text-14 text-theme-error font-medium mb-2">{error}</p>
+          <p className="text-12 text-theme-text-secondary">
             {t("documents.unableToLoadContent")}
           </p>
         </div>
+        {retryLoad && (
+          <Button size="lg" onClick={retryLoad}>
+            {t("common.retry")}
+          </Button>
+        )}
       </div>
     );
   }

@@ -102,6 +102,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [copied, setCopied] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -168,6 +169,10 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const retryLoad = useCallback(() => {
+    setLoadAttempt((attempt) => attempt + 1);
+    toolbarRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+  }, []);
 
   // Mobile detection
   useEffect(() => {
@@ -255,8 +260,11 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
 
   // Content loading
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setError(null);
+    setData(null);
+    setDocUrl(null);
     setImageUrl(null);
     setPdfUrl(null);
     setPptUrl(null);
@@ -326,6 +334,8 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
                 (await uploadApi.getSignedUrl(s3Key))
               : null);
 
+          if (cancelled) return;
+
           if (!url) {
             throw new Error("No URL available");
           }
@@ -337,8 +347,11 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
             // 走应用代理兜底取 blob（与下载按钮一致），失败则退回原始 URL 交给 <img>
             try {
               const response = await fetchUploadFile(readUrl);
-              setImageUrl(URL.createObjectURL(await response.blob()));
+              const blob = await response.blob();
+              if (cancelled) return;
+              setImageUrl(URL.createObjectURL(blob));
             } catch {
+              if (cancelled) return;
               setImageUrl(url);
             }
             setData({ content: "", path });
@@ -348,6 +361,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
 
           if (resolvedPdfFile) {
             const buffer = await fetchDocumentArrayBuffer(readUrl);
+            if (cancelled) return;
             const blob = new Blob([buffer], { type: "application/pdf" });
             const previewUrl = URL.createObjectURL(blob);
             setPdfUrl(previewUrl);
@@ -373,6 +387,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
           if (cadFile) {
             // dxf-viewer 内部裸 fetch 该 URL——先经代理兜底取 blob，OSS 不可达也能渲染
             const cadBuffer = await fetchDocumentArrayBuffer(readUrl);
+            if (cancelled) return;
             setCadUrl(URL.createObjectURL(new Blob([cadBuffer])));
             setCadKind(dxfFile ? "dxf" : "dwg");
             setData({ content: "", path });
@@ -382,6 +397,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
 
           if (pptFile) {
             const buffer = await fetchDocumentArrayBuffer(readUrl);
+            if (cancelled) return;
             setPptxBuffer(buffer);
             setData({ content: "", path });
             setLoading(false);
@@ -389,13 +405,10 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
           }
 
           if (htmlFile) {
+            const text = await fetchDocumentText(readUrl);
+            if (cancelled) return;
             setHtmlUrl(url);
-            try {
-              const text = await fetchDocumentText(readUrl);
-              setHtmlContent(text);
-            } catch (e) {
-              console.error("Failed to fetch HTML content:", e);
-            }
+            setHtmlContent(text);
             setData({ content: "", path });
             setLoading(false);
             return;
@@ -403,6 +416,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
 
           if (excalidrawFile) {
             const text = await fetchDocumentText(readUrl);
+            if (cancelled) return;
             setExcalidrawData(text);
             setData({ content: "", path });
             setLoading(false);
@@ -422,14 +436,17 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
             setData({ content: "", path });
           } else if (wordPreviewFile || excelFile) {
             const buffer = await fetchDocumentArrayBuffer(readUrl);
+            if (cancelled) return;
             setArrayBuffer(buffer);
             setData({ content: "", path });
           } else {
             const text = await fetchDocumentText(readUrl);
+            if (cancelled) return;
             setData({ content: text, path });
           }
           setLoading(false);
         } catch (err) {
+          if (cancelled) return;
           console.error("Failed to load file from S3:", err);
           setError(t("documents.failedToLoadFromS3", "从存储加载文件失败"));
           setLoading(false);
@@ -442,8 +459,19 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
     };
 
     loadContent();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [path, content, s3Key, signedUrl, externalImageUrl, mimeType]);
+  }, [
+    path,
+    content,
+    s3Key,
+    signedUrl,
+    externalImageUrl,
+    mimeType,
+    loadAttempt,
+  ]);
 
   // Blob URL cleanup
   useEffect(() => {
@@ -588,6 +616,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
     effectiveOnBack,
     handleCopy,
     handleDownload,
+    retryLoad: s3Key || signedUrl ? retryLoad : undefined,
 
     // Setters
     setShowImageViewer,

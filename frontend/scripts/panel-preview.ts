@@ -1292,6 +1292,7 @@ function response(url: URL, scenario: string): unknown {
 const token = `preview.${Buffer.from(
   JSON.stringify({ sub: user.id, exp: 4102444800 }),
 ).toString("base64url")}.fixture`;
+const failedDocumentRequests = new Set<string>();
 const server = await createServer({
   root: process.cwd(),
   cacheDir: "node_modules/.vite-panel-preview",
@@ -1320,9 +1321,25 @@ const server = await createServer({
       configureServer(vite) {
         vite.middlewares.use((req, res, next) => {
           const url = new URL(req.url ?? "/", "http://127.0.0.1:3002");
+          const previewParams = new URL(
+            req.headers.referer ?? "http://localhost",
+          ).searchParams;
+          if (
+            url.pathname.startsWith("/preview-document.") &&
+            previewParams.get("fixture") === "error" &&
+            previewParams.get("failure") === "document"
+          ) {
+            const key = `${req.headers.referer}:${url.pathname}`;
+            if (!failedDocumentRequests.has(key)) {
+              failedDocumentRequests.add(key);
+              res.statusCode = 503;
+              res.end("Preview document temporarily unavailable");
+              return;
+            }
+          }
           if (url.pathname === "/preview-document.md") {
             res.end(
-              '# 项目交付报告\n\n研究结果与后续计划。保持舒适的阅读宽度与清楚的信息层级。\n\n## 验证清单\n\n- 手机工具栏与长文件名\n- 代码与表格横向滚动\n- 深浅色与护眼主题\n\n| 项目 | 负责人 | 阶段 | 交付成果 | 验证方法 | 下一步 |\n| --- | --- | --- | --- | --- | --- |\n| 响应式界面 | 产品设计团队 | 验收中 | 跨端界面与交互规范 | 手机、平板、桌面逐页走查 | 核对触屏和键盘焦点 |\n\n```python\nreport = summarize(source="quarterly_business_metrics.csv", columns=["month", "delivery_count", "completion_rate", "owner"])\n```\n',
+              '# 项目交付报告\n\n研究结果与后续计划。保持舒适的阅读宽度与清楚的信息层级。\n\n## 验证清单\n\n- 手机工具栏与长文件名\n- 代码与表格横向滚动\n- 深浅色与护眼主题\n\n```mermaid\ngraph LR\n  A[研究] --> B[设计] --> C[验证]\n```\n\n| 项目 | 负责人 | 阶段 | 交付成果 | 验证方法 | 下一步 |\n| --- | --- | --- | --- | --- | --- |\n| 响应式界面 | 产品设计团队 | 验收中 | 跨端界面与交互规范 | 手机、平板、桌面逐页走查 | 核对触屏和键盘焦点 |\n\n```python\nreport = summarize(source="quarterly_business_metrics.csv", columns=["month", "delivery_count", "completion_rate", "owner"])\n```\n',
             );
             return;
           }
@@ -1343,9 +1360,6 @@ const server = await createServer({
             !url.pathname.startsWith("/ws")
           )
             return next();
-          const previewParams = new URL(
-            req.headers.referer ?? "http://localhost",
-          ).searchParams;
           const scenario = previewParams.get("fixture") ?? "populated";
           const failureTarget = previewParams.get("failure");
           const data = response(url, scenario);

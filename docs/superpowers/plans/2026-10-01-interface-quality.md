@@ -183,3 +183,19 @@ FeatureMenu 折叠分组 inert/aria-hidden，切换按钮 expanded/controls；�
 最终全量 723 个文件 / 3450 项测试通过，lint 无警告，build/类型与体积门禁通过；eager JS 558788 / 559104 字节，precache 5018613 / 5242880 字节。独立审查的编码 P2 已修正，最终复核无新增 P1/P2。
 
 继续待查：文件/文档下载错误恢复、更多格式和图表导出菜单；主聊天欢迎/更多/流式状态；资源导入发布、助手/批量/渠道编辑器，以及剩余语言/选择器状态组合。原生触屏/软键盘和真实认证/写入/对话尚未验证。目标保持进行中，本批不是全界面验收结论。
+
+### 2026-10-02：文档恢复与图表菜单、全屏触控
+
+开工 fetch origin，origin/develop 保持 23715d9d，确认是当前分支祖先。文档加载错误在原有全高居中状态内提供重试，复用 common.retry 与 Button；手机实测 44px。HTML 请求失败不再被内部 catch 吞掉，旧文件异步请求在 cleanup 后失效，不能覆盖后来打开的文档或分配过期 blob。没有可读取来源的内联文档不提供无效重试。四条真实组件测试先失败后通过；Markdown 和 HTML 均可原位恢复，重试把焦点交给仍然存在的下载入口。
+
+追踪 MarkdownRenderer 的实际调用链后修改 chat/ChatMessage/MermaidDiagram；documents/previews/MermaidDiagram 当前没有生产调用，未据文件名修改未使用组件。图表导出复用 ResourceCardMenu，portal 防裁切，首项聚焦、方向键、IME、Escape 和焦点归还沿共享实现。全屏复用 useDialogFocus，补 dialog 名称与 modal 语义；实际浏览器验证 Tab/Shift+Tab 留在全屏，Escape 仅关闭图表并回到原入口，文档保持打开。两个交互测试先红后绿。
+
+手机图表动作 44px/gap 0，正文与卡片留白不改。视觉复查发现两个实际遗漏：内层 flex item min-width:auto 与 SVG inline max-width 使 320px 初始图表两端裁切；共享 ViewerToolbar 底部按钮仍只有 32px。补内层 min-width:0/max-width:100%，共享 SVG 样式优先约束实际容器宽度；初始 320px 画布 284px、SVG 252px，无图表自身横向溢出。共享 ViewerToolbar 手机/coarse pointer 的旋转、缩放、重置均 44px/gap 0，320px 控件整组约 290px，位于视口内；桌面实测仍 32px。保留手动缩放与拖动，图表过渡尊重 reduced motion。两条布局契约测试先红后绿，独立复核无新增 P1/P2。
+
+只读 fixture 增加 failure=document：每个页面查询组合的文档首次请求 503，重试恢复；Markdown 样例包含真实 Mermaid 图表。浏览器标签页在预览服务重启后失去连接，使用同一浏览器的新检查页完成验证，没有把超时算作视觉证明。SVG 下载事件等待超时，但随后在本机找到当次生成的 diagram.svg，XML 有研究/设计/验证三个节点；PNG 当次文件为 787×139，实际查看确认三个节点与护眼背景完整。下载测试仅使用本机只读样例。
+
+截图证据：document-error-320-dark-final、document-recovery-320-dark-final、mermaid-menu-320-dark-final、mermaid-fullscreen-320-dark-final、mermaid-inline-390-light-final、mermaid-inline-768-sepia-final、mermaid-menu-768-sepia-final、mermaid-inline-1440-light-final。上述四宽度与三主题整页横向溢出均为 0。八项自检：标题/正文/次级说明层级维持；内容留白保持；错误和恢复动作清楚；复用主题 token 与现有图表主题；保留原交互并补 reduced motion；菜单键盘、焦点边界、重试与实际导出核实；手机/平板/桌面实测；延续 LambChat 羊场景与既有视觉语言，无新增依赖或装饰体系。Impeccable 沿此前确认的不可用状态，按 DESIGN.md 清单人工检查。
+
+最终全量 725 个测试文件 / 3458 项测试通过，lint 无警告，build/类型与体积门禁通过；eager JS 558776 / 559104 字节，precache 5018694 / 5242880 字节。代码和布局补充两次独立复核无新增 P1/P2。
+
+继续待查：文件下载失败反馈、更多预览格式、Excalidraw 导出与大图表状态；主聊天欢迎/更多/流式状态；资源导入发布、助手/批量/渠道编辑器及其余语言组合。原生触屏/软键盘、真实认证/写入/对话尚未验证。目标继续进行，本批不代表全界面验收完成。
