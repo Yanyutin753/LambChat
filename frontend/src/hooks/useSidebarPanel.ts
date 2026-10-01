@@ -1,3 +1,4 @@
+import { topmostVisibleModalDialog } from "../utils/modalDialog";
 import {
   useCallback,
   useEffect,
@@ -307,10 +308,7 @@ export function useSidebarPanel({
         event.keyCode === 229
       )
         return;
-      const dialogs = document.querySelectorAll(
-        '[role="dialog"][aria-modal="true"]',
-      );
-      const topDialog = dialogs[dialogs.length - 1];
+      const topDialog = topmostVisibleModalDialog();
       if (topDialog && topDialog !== panelRef.current) return;
       if (event.key === "Escape") {
         event.preventDefault();

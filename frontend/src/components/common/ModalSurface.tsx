@@ -2,6 +2,10 @@ import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import { useSwipeToClose } from "../../hooks/useSwipeToClose";
+import {
+  restoreOpenerFocusUnclaimed,
+  topmostVisibleModalDialog,
+} from "../../utils/modalDialog";
 import "./modalSurface.css";
 
 /** Shared positioning, dismissal and mobile gesture boundary for modal content. */
@@ -36,9 +40,10 @@ export function ModalSurface({
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
-    if (!surfaceRef.current?.contains(document.activeElement))
-      surfaceRef.current?.focus();
-    return () => queueMicrotask(() => previous?.focus());
+    const surface = surfaceRef.current;
+    if (!surface?.contains(document.activeElement)) surface?.focus();
+    return () =>
+      queueMicrotask(() => restoreOpenerFocusUnclaimed(previous, surface));
   }, [open, surfaceRef]);
   useEffect(() => {
     if (!open) return;
@@ -49,9 +54,8 @@ export function ModalSurface({
       surface.setAttribute("aria-labelledby", heading.id);
     }
     const keyboard = (event: KeyboardEvent) => {
-      const dialogs = document.querySelectorAll('[role="dialog"]');
       if (
-        dialogs[dialogs.length - 1] !== surface ||
+        topmostVisibleModalDialog() !== surface ||
         event.defaultPrevented ||
         event.isComposing ||
         event.keyCode === 229

@@ -1,3 +1,4 @@
+import { hasVisibleModalDialog } from "../../../utils/modalDialog";
 /** 左侧导航壳：会话列表、全局导航和可调整宽度。会话文件由右侧面板承载。 */
 
 import {
@@ -79,7 +80,7 @@ function useDesktopShellShortcuts(
         e.altKey ||
         e.shiftKey ||
         isEditableEventTarget(e.target) ||
-        document.querySelector('[role="dialog"][aria-modal="true"]')
+        hasVisibleModalDialog()
       )
         return;
       const isMac = navigator.platform.toUpperCase().includes("MAC");

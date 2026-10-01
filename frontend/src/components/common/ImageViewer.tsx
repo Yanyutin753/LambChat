@@ -7,6 +7,10 @@ import { ViewerTopBar } from "./ViewerTopBar";
 import { ViewerTopBarButton } from "./ViewerTopBarButton";
 import { downloadUrl } from "./viewerDownload";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
+import {
+  restoreOpenerFocusUnclaimed,
+  topmostVisibleModalDialog,
+} from "../../utils/modalDialog";
 
 interface ImageViewerProps {
   src: string;
@@ -67,15 +71,16 @@ export function ImageViewer({
   useEffect(() => {
     if (!isOpen) return;
     const previous = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
     dialogRef.current?.focus();
-    return () => queueMicrotask(() => previous?.focus());
+    return () =>
+      queueMicrotask(() => restoreOpenerFocusUnclaimed(previous, dialog));
   }, [isOpen]);
   useEffect(() => {
     if (!isOpen) return;
     const dialog = dialogRef.current;
     const handleKeyDown = (e: KeyboardEvent) => {
-      const dialogs = document.querySelectorAll('[role="dialog"]');
-      if (dialogs[dialogs.length - 1] !== dialog || e.defaultPrevented) return;
+      if (topmostVisibleModalDialog() !== dialog || e.defaultPrevented) return;
       if (e.key === "Tab" && dialog) {
         const controls = Array.from(
           dialog.querySelectorAll<HTMLElement>(

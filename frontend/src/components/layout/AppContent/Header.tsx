@@ -4,6 +4,7 @@ import type { ReactNode, Ref } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
+import { hasVisibleModalDialog } from "../../../utils/modalDialog";
 import {
   Share2,
   MoreHorizontal,
@@ -150,7 +151,14 @@ export function Header({
       }
     };
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      if (
+        e.key !== "Escape" ||
+        e.defaultPrevented ||
+        e.isComposing ||
+        e.keyCode === 229 ||
+        hasVisibleModalDialog()
+      )
+        return;
       e.preventDefault();
       setLangMenuOpen(false);
       setMobileMenuOpen(false);

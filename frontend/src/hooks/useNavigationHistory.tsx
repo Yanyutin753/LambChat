@@ -1,3 +1,4 @@
+import { hasVisibleModalDialog } from "../utils/modalDialog";
 import {
   createContext,
   useContext,
@@ -101,7 +102,7 @@ export function NavigationHistoryProvider({
         event.isComposing ||
         event.shiftKey ||
         isEditableEventTarget(event.target) ||
-        document.querySelector('[role="dialog"][aria-modal="true"]')
+        hasVisibleModalDialog()
       )
         return;
       const altArrow =

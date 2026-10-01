@@ -1,3 +1,4 @@
+import { topmostVisibleModalDialog } from "../../utils/modalDialog";
 import {
   createContext,
   useContext,
@@ -185,8 +186,7 @@ export function useRightPanelFocus({
 
     const trapTab = (event: KeyboardEvent) => {
       if (event.key !== "Tab" || event.defaultPrevented) return;
-      const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
-      if (dialogs[dialogs.length - 1] !== panelRef.current) return;
+      if (topmostVisibleModalDialog() !== panelRef.current) return;
 
       const focusable = [
         ...(panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []),

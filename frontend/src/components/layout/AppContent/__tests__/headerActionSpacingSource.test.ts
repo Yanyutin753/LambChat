@@ -19,6 +19,9 @@ test("header title can yield width to touch controls on narrow phones", () => {
 
 test("header menu exposes open state and restores focus on Escape", () => {
   expect(source).toContain('aria-expanded={mobileMenuOpen || langMenuOpen}');
-  expect(source).toContain('if (e.key !== "Escape") return;');
+  // Escape yields to foreground modal dialogs and IME composition.
+  expect(source).toContain('e.key !== "Escape" ||');
+  expect(source).toContain("e.isComposing ||");
+  expect(source).toContain("hasVisibleModalDialog()");
   expect(source).toContain('mobileMenuBtnRef.current?.focus();');
 });

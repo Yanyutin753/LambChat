@@ -1,3 +1,4 @@
+import { hasVisibleModalDialog } from "../utils/modalDialog";
 /**
  * Hook encapsulating side effects for SessionSidebar:
  * mobile media query, auto-expand, project loading, session refresh,
@@ -141,7 +142,7 @@ export function useSessionSidebarEffects({
         e.isComposing ||
         e.altKey ||
         isEditableEventTarget(e.target) ||
-        document.querySelector('[role="dialog"][aria-modal="true"]')
+        hasVisibleModalDialog()
       )
         return;
       const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
