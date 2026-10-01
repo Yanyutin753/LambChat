@@ -339,6 +339,7 @@ export function MemoryPanel() {
                     }`}
                   >
                     <Checkbox
+                      ariaLabel={memory.title}
                       size="lg"
                       checked={checked}
                       onChange={() => toggleCheck(memory.memory_id)}

@@ -193,6 +193,8 @@ export function ZipUploadModal({
                     }`}
                   >
                     <Checkbox
+                      ariaLabel={skill.name}
+                      disabled={skill.already_exists}
                       size="sm"
                       checked={selected}
                       onChange={() =>

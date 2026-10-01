@@ -284,6 +284,7 @@ function RoleFormModal({
           <label className="es-label">{t("roles.roleName")}</label>
           <Input
             type="text"
+            aria-label={t("roles.roleName")}
             value={name}
             onChange={(e) => setName(e.target.value)}
             disabled={isSystem}
@@ -296,6 +297,7 @@ function RoleFormModal({
         <div className="es-field">
           <label className="es-label">{t("roles.description")}</label>
           <Textarea
+            aria-label={t("roles.description")}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
@@ -309,6 +311,7 @@ function RoleFormModal({
           <label className="es-label">{t("roles.maxChannels")}</label>
           <Input
             type="number"
+            aria-label={t("roles.maxChannels")}
             min="0"
             value={maxChannels}
             onChange={(e) =>
@@ -334,6 +337,7 @@ function RoleFormModal({
               </label>
               <Input
                 type="number"
+                aria-label={t("roles.maxConcurrentChats")}
                 min="0"
                 value={maxConcurrentChats}
                 onChange={(e) =>
@@ -349,6 +353,7 @@ function RoleFormModal({
               <label className="es-label">{t("roles.maxQueuedChats")}</label>
               <Input
                 type="number"
+                aria-label={t("roles.maxQueuedChats")}
                 min="0"
                 value={maxQueuedChats}
                 onChange={(e) =>
@@ -413,6 +418,7 @@ function RoleFormModal({
                   <label className="es-label">{t(`roles.${label}`)}</label>
                   <Input
                     type="number"
+                    aria-label={t(`roles.${label}`)}
                     min="0"
                     value={value}
                     onChange={(e) =>

@@ -1237,9 +1237,9 @@ const server = await createServer({
       transformIndexHtml(html) {
         return html.replace(
           "<head>",
-          `<head><script>localStorage.setItem("access_token",${JSON.stringify(
+          `<head><script>const params=new URLSearchParams(location.search);if(params.get("guest")==="1")localStorage.removeItem("access_token");else localStorage.setItem("access_token",${JSON.stringify(
             token,
-          )});const params=new URLSearchParams(location.search);localStorage.setItem("lambchat-theme",params.get("theme")||"light");</script>`,
+          )});localStorage.setItem("lambchat-theme",params.get("theme")||"light");</script>`,
         );
       },
       configureServer(vite) {

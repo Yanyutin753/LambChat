@@ -8,7 +8,7 @@ import { ModelPanelSkeleton } from "../../../skeletons";
 import { RoleSelector } from "../../AgentPanel/shared/RoleSelector";
 import { ModelIconImg } from "../../../agent/modelIcon.tsx";
 import { Checkbox } from "../../../common/Checkbox";
-import { Button } from "../../../common";
+import { Button, IconButton } from "../../../common";
 import { EmptyState } from "../../../common/EmptyState";
 import type { ModelOption } from "../../../../services/api/model";
 import type { Role } from "../../../../types";
@@ -216,21 +216,23 @@ export function RolesModelTab({
                         {model.value}
                       </span>
                       {hasDesc && (
-                        <button
-                          type="button"
+                        <IconButton
+                          aria-label={`${t(expandedModel === model.id ? "common.collapse" : "common.expand")} ${model.label}`}
+                          aria-expanded={expandedModel === model.id}
                           onClick={(e) => {
                             e.preventDefault();
                             toggleExpand(model.id);
                           }}
-                          className="shrink-0 p-0.5 rounded-md text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
-                        >
-                          <ChevronDown
-                            size={14}
-                            className={`transition-transform duration-200 ${
-                              expandedModel === model.id ? "rotate-180" : ""
-                            }`}
-                          />
-                        </button>
+                          className="shrink-0"
+                          icon={
+                            <ChevronDown
+                              size={14}
+                              className={`transition-transform duration-200 ${
+                                expandedModel === model.id ? "rotate-180" : ""
+                              }`}
+                            />
+                          }
+                        />
                       )}
                     </label>
                     {expandedModel === model.id && hasDesc && (

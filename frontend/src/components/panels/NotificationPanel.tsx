@@ -214,6 +214,7 @@ function NotificationFormModal({
                 <button
                   key={nt}
                   type="button"
+                  aria-pressed={notifType === nt}
                   onClick={() => setNotifType(nt)}
                   className={`rounded-lg border px-3 py-2 text-12 font-medium transition-all ${
                     notifType === nt
@@ -244,6 +245,7 @@ function NotificationFormModal({
             <label className="es-label">{t("notification.startTime")}</label>
             <Input
               type="datetime-local"
+              aria-label={t("notification.startTime")}
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
             />
@@ -252,6 +254,7 @@ function NotificationFormModal({
             <label className="es-label">{t("notification.endTime")}</label>
             <Input
               type="datetime-local"
+              aria-label={t("notification.endTime")}
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
             />
@@ -502,6 +505,7 @@ export function NotificationPanel() {
                       <div className="notification-card-actions flex flex-shrink-0 items-center gap-1">
                         {hasContent && (
                           <IconButton
+                            aria-expanded={isExpanded}
                             aria-label={
                               isExpanded
                                 ? t("notification.collapse")
@@ -510,7 +514,7 @@ export function NotificationPanel() {
                             icon={
                               <ChevronDown
                                 size={16}
-                                className={`transition-transform duration-200 ${
+                                className={`transition-transform duration-200 motion-reduce:transition-none ${
                                   isExpanded ? "rotate-180" : ""
                                 }`}
                               />
@@ -549,14 +553,16 @@ export function NotificationPanel() {
 
                     {hasContent && (
                       <div
-                        className={`px-4 pb-4 sm:px-5 sm:pb-5 ${
-                          isExpanded ? "pt-3 sm:pt-4" : "pt-0"
+                        className={`px-4 sm:px-5 ${
+                          isExpanded ? "pb-4 pt-3 sm:pb-5 sm:pt-4" : ""
                         }`}
                       >
                         <div
-                          className={`overflow-hidden transition-all duration-200 ${
+                          aria-hidden={!isExpanded}
+                          inert={!isExpanded}
+                          className={`overflow-hidden transition-all duration-200 motion-reduce:transition-none ${
                             isExpanded
-                              ? "max-h-96 opacity-100"
+                              ? "max-h-96 overflow-y-auto opacity-100"
                               : "max-h-0 opacity-0"
                           }`}
                         >

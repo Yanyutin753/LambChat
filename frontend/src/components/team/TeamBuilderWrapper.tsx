@@ -639,8 +639,6 @@ export function TeamBuilderWrapper() {
                           count: team.members.length,
                         })}
                       </span>
-                      <span className="inline-block h-1 w-1 rounded-full bg-[var(--theme-border)]" />
-                      <span>{t("team.active", { count: activeCount })}</span>
                     </div>
                   }
                   bannerLeadingOverlay={

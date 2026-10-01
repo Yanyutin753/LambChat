@@ -1,10 +1,10 @@
 /* Scroll-reveal animation for landing page */
 [data-reveal] {
   opacity: 0;
-  transform: translateY(28px) scale(0.98);
+  transform: translateY(12px);
   transition:
-    opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
 }
 [data-reveal].revealed {
   opacity: 1;
@@ -13,31 +13,31 @@
 
 /* Stagger delay helpers */
 [data-reveal-delay="1"] {
-  transition-delay: 0.07s;
+  transition-delay: 0.03s;
 }
 [data-reveal-delay="2"] {
-  transition-delay: 0.14s;
+  transition-delay: 0.06s;
 }
 [data-reveal-delay="3"] {
-  transition-delay: 0.21s;
+  transition-delay: 0.09s;
 }
 [data-reveal-delay="4"] {
-  transition-delay: 0.28s;
+  transition-delay: 0.12s;
 }
 [data-reveal-delay="5"] {
-  transition-delay: 0.35s;
+  transition-delay: 0.15s;
 }
 [data-reveal-delay="6"] {
-  transition-delay: 0.42s;
+  transition-delay: 0.18s;
 }
 
 /* Scale reveal variant */
 [data-reveal-scale] {
   opacity: 0;
-  transform: translateY(24px) scale(0.96);
+  transform: translateY(12px);
   transition:
-    opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
 }
 [data-reveal-scale].revealed {
   opacity: 1;

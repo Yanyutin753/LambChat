@@ -349,6 +349,7 @@ export function ShareDialog({
                       key={run.run_id}
                       type="button"
                       onClick={() => handleRunClick(run.run_id)}
+                      aria-pressed={selectedRunIds.includes(run.run_id)}
                       className={`w-full grid grid-cols-[auto_4rem_1fr] items-center gap-2 px-3 py-2 rounded-lg text-14 transition-colors ${
                         selectedRunIds.includes(run.run_id)
                           ? "bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-200"
@@ -358,7 +359,6 @@ export function ShareDialog({
                       <Checkbox
                         checked={selectedRunIds.includes(run.run_id)}
                         size="sm"
-                        onChange={() => handleRunClick(run.run_id)}
                       />
                       <span className="flex items-center gap-0.5 whitespace-nowrap">
                         <span>{t("share.run")}</span>

@@ -300,6 +300,9 @@ export function ShareProjectDialog({
                       key={session.session_id}
                       type="button"
                       onClick={() => toggleSession(session.session_id)}
+                      aria-pressed={selectedSessionIds.includes(
+                        session.session_id,
+                      )}
                       className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-14 transition-colors ${
                         selectedSessionIds.includes(session.session_id)
                           ? "bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-200"
@@ -311,7 +314,6 @@ export function ShareProjectDialog({
                           session.session_id,
                         )}
                         size="sm"
-                        onChange={() => toggleSession(session.session_id)}
                       />
                       <span className="flex-1 min-w-0 truncate text-left">
                         {session.name ||

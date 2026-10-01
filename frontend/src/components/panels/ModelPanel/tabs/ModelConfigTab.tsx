@@ -261,9 +261,12 @@ const ModelCard = React.memo(function ModelCard({
             )}
           </div>
         )}
-        <div className="flex items-center gap-1 justify-end -mr-1">
+        <div className="model-card-actions flex items-center gap-1 justify-end -mr-1">
           {hasDetails && (
             <button
+              type="button"
+              aria-label={`${t(isExpanded ? "common.collapse" : "common.expand")} ${model.label}`}
+              aria-expanded={isExpanded}
               onClick={handleExpand}
               className="p-2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
             >
@@ -326,9 +329,12 @@ const ModelCard = React.memo(function ModelCard({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="model-card-actions flex items-center gap-1.5 flex-shrink-0">
             {hasDetails && (
               <button
+                type="button"
+                aria-label={`${t(isExpanded ? "common.collapse" : "common.expand")} ${model.label}`}
+                aria-expanded={isExpanded}
                 onClick={handleExpand}
                 className="p-2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
               >
@@ -549,8 +555,9 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
           <p className="text-14 text-stone-500 dark:text-stone-400 hidden sm:block">
             {t("agentConfig.modelConfigDescription")}
           </p>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="model-config-toolbar flex flex-wrap items-center gap-2 flex-shrink-0">
             <button
+              aria-label={t("agentConfig.exportModels")}
               onClick={handleExportModels}
               disabled={models.length === 0}
               className="flex items-center gap-1.5 px-3 py-2 text-14 rounded-lg border border-[var(--glass-border)] text-stone-700 dark:text-stone-300 hover:bg-[var(--glass-bg-subtle)] transition-colors disabled:opacity-40"
@@ -561,6 +568,7 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
               </span>
             </button>
             <button
+              aria-label={t("agentConfig.importModels")}
               onClick={() => {
                 setBatchInitialTab("jsonImport");
                 setShowBatchModal(true);
@@ -573,6 +581,7 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
               </span>
             </button>
             <button
+              aria-label={t("agentConfig.batchCreate")}
               onClick={() => {
                 setBatchInitialTab("addOneByOne");
                 setShowBatchModal(true);
@@ -585,6 +594,7 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
               </span>
             </button>
             <button
+              aria-label={t("agentConfig.pricingSync")}
               onClick={async () => {
                 setIsSyncingPrices(true);
                 try {
@@ -625,6 +635,7 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
               </span>
             </button>
             <button
+              aria-label={t("agentConfig.pricingBackfill")}
               onClick={async () => {
                 setIsBackfillingCosts(true);
                 try {
@@ -667,6 +678,7 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
             </button>
             <Button
               variant="primary"
+              aria-label={t("agentConfig.addModel")}
               onClick={() => setIsCreating(true)}
               leftIcon={<Plus size={16} />}
               className="px-3 py-2 text-14 hover:shadow-lg hover:shadow-stone-500/10 sm:px-4"
