@@ -32,6 +32,7 @@ vi.mock("../SessionWorkspaceBar", () => ({
 }));
 
 import { ChatInput } from "../ChatInput";
+import { ModalSurface } from "../../common/ModalSurface";
 
 beforeEach(() => {
   localStorage.clear();
@@ -159,4 +160,39 @@ test("Enter still submits from the body-level expanded composer", async () => {
   });
 
   expect(onSend).toHaveBeenCalled();
+});
+
+test("Escape closes the foreground modal and keeps the expanded draft in place", async () => {
+  const close = vi.fn();
+  const view = (modal: boolean) => (
+    <div id="root">
+      <ChatInput
+        onSend={vi.fn()}
+        onStop={vi.fn()}
+        isLoading={false}
+        pendingInput={longDraft}
+      />
+      <ModalSurface open={modal} onClose={close} label="Search">
+        <input aria-label="Search" />
+      </ModalSurface>
+    </div>
+  );
+  const { rerender } = render(view(false));
+  await screen.findByRole("textbox");
+  fireEvent.click(screen.getByRole("button", { name: /(expand|展开编辑)/i }));
+  rerender(view(true));
+  expect(
+    (document.querySelector("body > [data-chat-composer-host]") as HTMLElement)
+      .inert,
+  ).toBe(true);
+  fireEvent.keyDown(screen.getByRole("textbox", { name: "Search" }), {
+    key: "Escape",
+  });
+  expect(close).toHaveBeenCalledOnce();
+  expect(document.querySelector("[data-composer-expanded]")).not.toBeNull();
+  rerender(view(false));
+  expect(
+    (document.querySelector("body > [data-chat-composer-host]") as HTMLElement)
+      .inert,
+  ).toBe(false);
 });

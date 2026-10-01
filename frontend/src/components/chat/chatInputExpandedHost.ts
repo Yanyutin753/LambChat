@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /**
  * Renders the expanded composer at body level without remounting it.
@@ -15,10 +15,16 @@ import { useLayoutEffect, useRef, useState } from "react";
  * the subtree — keeps the rich composer mounted, preserving the draft (text,
  * file references, undo history) across expand/collapse.
  */
-export function useExpandedComposerHost(expanded: boolean) {
-  const [host] = useState<HTMLDivElement | null>(() =>
-    typeof document === "undefined" ? null : document.createElement("div"),
-  );
+export function useExpandedComposerHost(
+  expanded: boolean,
+  setExpanded: (expanded: boolean) => void,
+) {
+  const [host] = useState<HTMLDivElement | null>(() => {
+    if (typeof document === "undefined") return null;
+    const element = document.createElement("div");
+    element.dataset.chatComposerHost = "";
+    return element;
+  });
   const slotRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     if (!host) return;
@@ -28,5 +34,16 @@ export function useExpandedComposerHost(expanded: boolean) {
     if (target && host.parentNode !== target) target.appendChild(host);
   });
   useLayoutEffect(() => () => host?.remove(), [host]);
+  useEffect(() => {
+    if (!expanded) return;
+    const collapseOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || host?.inert)
+        return;
+      event.preventDefault();
+      setExpanded(false);
+    };
+    document.addEventListener("keydown", collapseOnEscape);
+    return () => document.removeEventListener("keydown", collapseOnEscape);
+  }, [expanded, host, setExpanded]);
   return { host, slotRef };
 }

@@ -20,6 +20,7 @@ import { useRightPanelEntry } from "../useRightPanelEntry";
 import { useSidebarPanel } from "../../../hooks/useSidebarPanel";
 import { ToolResultPanel } from "../../chat/ChatMessage/items/ToolResultPanel";
 import { EditorSidebar } from "../EditorSidebar";
+import { ModalSurface } from "../ModalSurface";
 import {
   RIGHT_PANEL_WIDTH_CHANGED_EVENT,
   getRightPanelLayoutSnapshot,
@@ -46,6 +47,24 @@ beforeEach(() => {
   resetRightPanelCoordinator();
   localStorage.clear();
   installMatchMedia(1440);
+});
+
+test("Escape dismisses a modal above a docked panel without closing that panel", () => {
+  const closePanel = vi.fn();
+  const closeModal = vi.fn();
+  render(
+    <>
+      <EditorSidebar open onClose={closePanel} title="Editor">
+        body
+      </EditorSidebar>
+      <ModalSurface open onClose={closeModal} label="Confirm">
+        Confirm
+      </ModalSurface>
+    </>,
+  );
+  fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+  expect(closeModal).toHaveBeenCalledOnce();
+  expect(closePanel).not.toHaveBeenCalled();
 });
 
 function TestPanel({
@@ -480,7 +499,12 @@ test("a sidebar is visible immediately without waiting for animation frames", ()
 test("editor uses one tab title without a duplicate header", async () => {
   const onClose = vi.fn();
   render(
-    <EditorSidebar open onClose={onClose} title="Edit team" subtitle="Build roles">
+    <EditorSidebar
+      open
+      onClose={onClose}
+      title="Edit team"
+      subtitle="Build roles"
+    >
       <div>Team form</div>
     </EditorSidebar>,
   );

@@ -128,7 +128,7 @@ export function useSidebarPanel({
   const presentation =
     responsivePresentation === "fullscreen"
       ? "fullscreen"
-      : presentationOverride ?? responsivePresentation;
+      : (presentationOverride ?? responsivePresentation);
   const isMobile = presentation === "fullscreen";
   const panelKind: RightPanelKind =
     kind ?? (dataAttr === "data-editor-sidebar" ? "editor" : "content");
@@ -302,8 +302,16 @@ export function useSidebarPanel({
     if (!open) return;
 
     const handleEscape = (event: KeyboardEvent) => {
-      if (document.fullscreenElement) return;
-      if (event.key === "Escape") onClose();
+      if (document.fullscreenElement || event.defaultPrevented) return;
+      const dialogs = document.querySelectorAll(
+        '[role="dialog"][aria-modal="true"]',
+      );
+      const topDialog = dialogs[dialogs.length - 1];
+      if (topDialog && topDialog !== panelRef.current) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
     };
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);

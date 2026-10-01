@@ -9,7 +9,29 @@ import { DESKTOP_SIDEBAR_TOGGLE_EVENT } from "../desktopShellPlatform";
 vi.mock("../../../workspacePanel/WorkspacePanel", () => ({
   WorkspacePanel: () => null,
 }));
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
+
+test("closed mobile sidebar disables offscreen controls and restores them when opened", () => {
+  vi.spyOn(window, "innerWidth", "get").mockReturnValue(410);
+  const shell = (mobileOpen: boolean) => (
+    <MemoryRouter>
+      <DesktopSidebarShell
+        collapsed={false}
+        mobileOpen={mobileOpen}
+        onToggleCollapsed={() => {}}
+      >
+        <button>Mobile chat</button>
+      </DesktopSidebarShell>
+    </MemoryRouter>
+  );
+  const { rerender, getByText } = render(shell(false));
+  expect(getByText("Mobile chat").closest("[inert]")).not.toBeNull();
+  rerender(shell(true));
+  expect(getByText("Mobile chat").closest("[inert]")).toBeNull();
+});
 
 test("collapsed sidebar disables its hidden controls and restores them on expansion", () => {
   const shell = (collapsed: boolean) => (

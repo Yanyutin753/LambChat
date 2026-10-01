@@ -16,6 +16,7 @@ import { BrandLogo } from "../../common/BrandLogo";
 import { BrandWordmark } from "../../common/BrandWordmark";
 import { APP_NAME } from "../../../constants";
 import { DesktopActivityRail } from "./DesktopActivityRail";
+import { isEditableEventTarget } from "../../../utils/editableTarget";
 import {
   DESKTOP_SIDEBAR_TOGGLE_EVENT,
   DESKTOP_SIDEBAR_OPEN_SEARCH_EVENT,
@@ -72,6 +73,15 @@ function useDesktopShellShortcuts(
   useEffect(() => {
     if (!isDesktopShell()) return;
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.defaultPrevented ||
+        e.isComposing ||
+        e.altKey ||
+        e.shiftKey ||
+        isEditableEventTarget(e.target) ||
+        document.querySelector('[role="dialog"][aria-modal="true"]')
+      )
+        return;
       const isMac = navigator.platform.toUpperCase().includes("MAC");
       const modifier = isMac ? e.metaKey : e.ctrlKey;
       if (modifier && (e.key === "b" || e.key === "B")) {
@@ -216,7 +226,7 @@ export function DesktopSidebarShell({
       )}
       <div
         data-desktop-sidebar={wide ? "" : undefined}
-        inert={wide && collapsed}
+        inert={navigationCollapsed}
         className={
           wide
             ? clsx(

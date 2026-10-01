@@ -182,7 +182,7 @@ export const ChatInput = memo(function ChatInput({
   const [contactAdminOpen, setContactAdminOpen] = useState(false);
   const [composerExpanded, setComposerExpanded] = useState(false);
   const { host: composerHost, slotRef: composerSlotRef } =
-    useExpandedComposerHost(composerExpanded);
+    useExpandedComposerHost(composerExpanded, setComposerExpanded);
   const formRef = useRef<HTMLFormElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [cursorPosition, setCursorPosition] = useState(0);
@@ -316,16 +316,6 @@ export const ChatInput = memo(function ChatInput({
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [currentAgent, onSelectTeam]);
-  useEffect(() => {
-    if (!composerExpanded) return;
-    const collapseOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setComposerExpanded(false);
-    };
-    document.addEventListener("keydown", collapseOnEscape);
-    return () => document.removeEventListener("keydown", collapseOnEscape);
-  }, [composerExpanded]);
   useEffect(() => {
     if (!mention.isActive) {
       setMentionPopupPlacement(null);

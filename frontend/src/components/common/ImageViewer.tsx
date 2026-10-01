@@ -54,7 +54,6 @@ export function ImageViewer({
   const [initialScale, setInitialScale] = useState(1);
   const canGoPrevious = hasPrevious && !!onPrevious;
   const canGoNext = hasNext && !!onNext;
-  useBodyScrollLock(isOpen);
 
   useEffect(() => {
     if (isOpen) {
@@ -68,8 +67,12 @@ export function ImageViewer({
   useEffect(() => {
     if (!isOpen) return;
     const previous = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
+    return () => queueMicrotask(() => previous?.focus());
+  }, [isOpen]);
+  useEffect(() => {
+    if (!isOpen) return;
     const dialog = dialogRef.current;
-    dialog?.focus();
     const handleKeyDown = (e: KeyboardEvent) => {
       const dialogs = document.querySelectorAll('[role="dialog"]');
       if (dialogs[dialogs.length - 1] !== dialog || e.defaultPrevented) return;
@@ -115,9 +118,9 @@ export function ImageViewer({
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      previous?.focus();
     };
   }, [canGoNext, canGoPrevious, isOpen, onClose, onNext, onPrevious]);
+  useBodyScrollLock(isOpen, true);
 
   useEffect(() => {
     if (!isOpen) return;
