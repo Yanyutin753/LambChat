@@ -10,6 +10,7 @@ import { vi } from "vitest";
 import { SettingsPanel } from "../SettingsPanel";
 
 const mocks = vi.hoisted(() => ({
+  pending: false,
   resetAll: vi.fn(async () => true),
   hasPermission: () => true,
   navigation: undefined as { id: string; categories: never[] }[] | undefined,
@@ -23,34 +24,36 @@ vi.mock("../../../hooks/useAuth", () => ({
 }));
 vi.mock("../../../contexts/SettingsContext", () => ({
   useSettingsContext: () => ({
-    settings: {
-      navigation: mocks.navigation,
-      settings: {
-        frontend: [
-          {
-            key: "THEME",
-            category: "frontend",
-            subcategory: "display",
-            description: "Theme",
-            type: "string",
-            value: "light",
-            default_value: "light",
+    settings: mocks.pending
+      ? null
+      : {
+          navigation: mocks.navigation,
+          settings: {
+            frontend: [
+              {
+                key: "THEME",
+                category: "frontend",
+                subcategory: "display",
+                description: "Theme",
+                type: "string",
+                value: "light",
+                default_value: "light",
+              },
+            ],
+            llm: [
+              {
+                key: "MODEL",
+                category: "llm",
+                subcategory: "general",
+                description: "Model",
+                type: "string",
+                value: "default",
+                default_value: "default",
+              },
+            ],
           },
-        ],
-        llm: [
-          {
-            key: "MODEL",
-            category: "llm",
-            subcategory: "general",
-            description: "Model",
-            type: "string",
-            value: "default",
-            default_value: "default",
-          },
-        ],
-      },
-    },
-    isLoading: false,
+        },
+    isLoading: mocks.pending,
     error: null,
     savingKeys: new Set(),
     resetAllSettings: mocks.resetAll,
@@ -68,6 +71,7 @@ vi.mock("../../common", async () => import("../../common/ui"));
 vi.mock("react-hot-toast", () => ({ default: { success: vi.fn() } }));
 
 beforeEach(() => {
+  mocks.pending = false;
   mocks.navigation = undefined;
   mocks.resetAll.mockReset().mockResolvedValue(true);
   Element.prototype.scrollTo = vi.fn();
@@ -77,6 +81,15 @@ afterEach(cleanup);
 test("each setting input is named by its configuration key", () => {
   render(<SettingsPanel />);
   expect(screen.getByRole("textbox", { name: "THEME" })).toBeTruthy();
+});
+
+test("pending settings announce loading instead of a zero result count", async () => {
+  mocks.pending = true;
+  render(<SettingsPanel />);
+  await waitFor(() =>
+    expect(screen.getByRole("status")).toHaveTextContent("common.loading"),
+  );
+  expect(screen.queryByText("settings.navigation.resultCount")).toBeNull();
 });
 
 test("empty navigation does not expose missing translation keys", () => {

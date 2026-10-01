@@ -1657,6 +1657,9 @@
   .team-member-card .list-item-card__actions {
     gap: 0;
   }
+  .team-member-card__select-trigger {
+    min-height: 2.75rem;
+  }
   .team-member-card__action-btn,
   .team-member-card__expand-btn {
     width: 2.75rem;

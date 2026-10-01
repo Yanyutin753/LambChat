@@ -8,6 +8,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
 import { MarketplacePanel } from "./MarketplacePanel";
 import { SkillsPanel } from "./SkillsPanel";
+import { SkillsHubSkeleton } from "../skeletons";
 import { resolveSkillsHubTab, type SkillsHubTab } from "./SkillsHubPanel/state";
 
 const TAB_PATHS: Record<SkillsHubTab, string> = {
@@ -20,7 +21,7 @@ export function SkillsHubPanel() {
   const location = useLocation();
   const navigate = useNavigate();
   const { hasAnyPermission } = useAuth();
-  const { enableSkills } = useSettingsContext();
+  const { enableSkills, settings, isLoading, error } = useSettingsContext();
 
   const canReadSkills = hasAnyPermission([Permission.SKILL_READ]);
   const canReadMarketplace = hasAnyPermission([Permission.MARKETPLACE_READ]);
@@ -54,6 +55,10 @@ export function SkillsHubPanel() {
       navigate(targetPath, { replace: true });
     }
   }, [location.pathname, navigate, visibleTab]);
+
+  if (!settings && (isLoading || !error)) {
+    return <SkillsHubSkeleton marketplace={requestedTab === "marketplace"} />;
+  }
 
   if (!enableSkills) {
     return (

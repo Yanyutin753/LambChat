@@ -166,6 +166,19 @@
 .editor-sidebar .editor-sidebar-header {
   border-bottom: 0;
 }
+@media (max-width: 639px) {
+  .editor-sidebar :is(.ui-button, .ui-select-trigger, input.ui-input, summary),
+  .editor-sidebar .editor-sidebar-footer button {
+    min-height: 2.75rem;
+  }
+  .editor-sidebar .ui-icon-button {
+    min-width: 2.75rem;
+  }
+  .editor-sidebar .chat-tool-btn {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
 @container editor-panel (min-width: 640px) {
   .editor-sidebar-header,
   .editor-sidebar-footer,

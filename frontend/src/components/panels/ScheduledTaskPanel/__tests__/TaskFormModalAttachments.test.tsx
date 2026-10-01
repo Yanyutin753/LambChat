@@ -2,12 +2,14 @@
 
 import {
   fireEvent,
+  cleanup,
   render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
-import { expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
+import i18n from "../../../../i18n";
 import type { ScheduledTask } from "../../../../types/scheduledTask";
 
 const { cancelUpload } = vi.hoisted(() => ({ cancelUpload: vi.fn() }));
@@ -46,6 +48,7 @@ vi.mock("../../../common/EditorSidebar", () => ({
 }));
 
 import { TaskFormModal } from "../TaskFormModal";
+afterEach(cleanup);
 
 const task: ScheduledTask = {
   id: "task-1",
@@ -117,4 +120,48 @@ test("scheduled-task uploaded attachment removal is local and omitted on save", 
   expect(onSave.mock.calls[0]?.[0].input_payload).not.toHaveProperty(
     "attachments",
   );
+});
+
+test("task configuration fields and trigger choices have accessible names and states", async () => {
+  render(
+    <TaskFormModal
+      task={task}
+      agents={[]}
+      availableModels={null}
+      onSave={vi.fn()}
+      onClose={vi.fn()}
+    />,
+  );
+  await screen.findByText("scheduled.pdf");
+  for (const key of [
+    "name",
+    "description",
+    "intervalSeconds",
+    "inputPayload",
+    "maxRetries",
+    "timeoutSeconds",
+  ]) {
+    expect(screen.getByLabelText(i18n.t(`scheduledTask.${key}`))).toBeTruthy();
+  }
+  for (const key of ["agent", "persona", "model"]) {
+    expect(
+      screen.getByRole("button", { name: i18n.t(`scheduledTask.${key}`) }),
+    ).toBeTruthy();
+  }
+  const cron = screen.getByRole("button", {
+    name: i18n.t("scheduledTask.cron"),
+    exact: true,
+  });
+  fireEvent.click(cron);
+  expect(cron.getAttribute("aria-pressed")).toBe("true");
+  for (const key of [
+    "cronHour",
+    "cronMinute",
+    "cronSecond",
+    "cronDay",
+    "cronMonth",
+    "cronDayOfWeek",
+  ]) {
+    expect(screen.getByLabelText(i18n.t(`scheduledTask.${key}`))).toBeTruthy();
+  }
 });

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
 import { Plus, Trash2, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Permission } from "../../types";
@@ -85,6 +85,7 @@ export function MCPServerForm({
   isSystemServer = false,
 }: MCPServerFormProps) {
   const { t } = useTranslation();
+  const formId = useId();
   const isEditing = !!server;
 
   const allTransports: {
@@ -259,8 +260,11 @@ export function MCPServerForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Name */}
       <div className="es-field">
-        <label className="es-label">{t("mcp.form.serverName")}</label>
+        <label htmlFor={`${formId}-name`} className="es-label">
+          {t("mcp.form.serverName")}
+        </label>
         <Input
+          id={`${formId}-name`}
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -285,6 +289,7 @@ export function MCPServerForm({
       <div className="es-field">
         <label className="es-label">{t("mcp.form.transportType")}</label>
         <Select
+          ariaLabel={t("mcp.form.transportType")}
           value={transport}
           onChange={(v) => setTransport(v as MCPTransport)}
           options={availableTransports.map((tr) => ({
@@ -354,6 +359,7 @@ export function MCPServerForm({
                           {t("mcp.form.dailyLimit")}
                         </label>
                         <Input
+                          aria-label={`${t("mcp.form.dailyLimit")}: ${role}`}
                           type="number"
                           min="0"
                           value={quota.daily_limit}
@@ -369,6 +375,7 @@ export function MCPServerForm({
                           {t("mcp.form.weeklyLimit")}
                         </label>
                         <Input
+                          aria-label={`${t("mcp.form.weeklyLimit")}: ${role}`}
                           type="number"
                           min="0"
                           value={quota.weekly_limit}
@@ -403,8 +410,11 @@ export function MCPServerForm({
       <>
         {/* URL field */}
         <div className="es-field">
-          <label className="es-label">{t("mcp.form.url")}</label>
+          <label htmlFor={`${formId}-url`} className="es-label">
+            {t("mcp.form.url")}
+          </label>
           <Input
+            id={`${formId}-url`}
             type="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
@@ -440,6 +450,7 @@ export function MCPServerForm({
             {headers.map((header) => (
               <div key={header.id} className="flex gap-1.5">
                 <Input
+                  aria-label={t("mcp.form.headerNamePlaceholder")}
                   type="text"
                   value={header.key}
                   onChange={(e) =>
@@ -449,6 +460,7 @@ export function MCPServerForm({
                   className="es-input font-mono"
                 />
                 <Input
+                  aria-label={t("mcp.form.valuePlaceholder")}
                   type="text"
                   value={header.value}
                   onChange={(e) =>
