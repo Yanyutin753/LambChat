@@ -1017,7 +1017,10 @@ function response(url: URL, scenario: string): unknown {
   if (path.startsWith("/api/agent/config/"))
     return { agents, available_agents: agents.map((a) => a.id) };
   if (path === "/api/agent/models/providers/list")
-    return { providers: ["openai", "anthropic"] };
+    return [
+      { value: "openai", protocol: "openai", prefixes: ["gpt-", "o3", "o4"] },
+      { value: "anthropic", protocol: "anthropic", prefixes: ["claude-"] },
+    ];
   if (path.startsWith("/api/agent/models"))
     return { models, total: models.length, default_model_id: "model-0" };
   if (path === "/api/files/revealed/stats") return { all: 65, document: 65 };

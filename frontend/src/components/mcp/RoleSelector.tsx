@@ -1,197 +1,210 @@
-import { useState, useEffect, useRef } from "react";
-import { ChevronDown, X, Search, Shield } from "lucide-react";
+import { useState, useEffect, useRef, useCallback, useId } from "react";
+import { createPortal } from "react-dom";
+import { ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { roleApi } from "../../services/api/role";
+import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 import { PanelSearchInput } from "../common/PanelSearchInput";
+import { Button, Checkbox } from "../common";
 import { McpSelectorEmptyState } from "./McpSelectorEmptyState";
 
 interface RoleSelectorProps {
   selectedRoles: string[];
   onChange: (roles: string[]) => void;
 }
-
 interface RoleInfo {
   name: string;
   description?: string;
   is_system: boolean;
 }
-
 export function RoleSelector({ selectedRoles, onChange }: RoleSelectorProps) {
   const { t } = useTranslation();
-
   const [availableRoles, setAvailableRoles] = useState<RoleInfo[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
+  const labelId = useId();
+  const loadRoles = useCallback(() => {
     setLoading(true);
+    setLoadError(false);
     roleApi
       .list({ limit: 200 })
-      .then((response) => {
-        setAvailableRoles(
-          response.roles.map((r) => ({
-            name: r.name,
-            description: r.description,
-            is_system: r.is_system,
-          })),
-        );
-      })
-      .catch(() => setAvailableRoles([]))
+      .then((response) => setAvailableRoles(response.roles))
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, []);
-
+  useEffect(loadRoles, [loadRoles]);
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
+    if (!isOpen) return;
+    const outside = (event: MouseEvent) => {
+      const target = event.target as Node;
       if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
+        !triggerRef.current?.contains(target) &&
+        !dropdownRef.current?.contains(target)
       ) {
         setIsOpen(false);
         setSearch("");
       }
-    }
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    };
+    document.addEventListener("mousedown", outside);
+    return () => document.removeEventListener("mousedown", outside);
   }, [isOpen]);
-
-  const filteredRoles = search
-    ? availableRoles.filter((r) =>
-        r.name.toLowerCase().includes(search.toLowerCase()),
-      )
-    : availableRoles;
-
-  const toggleRole = (name: string) => {
-    if (selectedRoles.includes(name)) {
-      onChange(selectedRoles.filter((r) => r !== name));
-    } else {
-      onChange([...selectedRoles, name]);
-    }
-  };
-
-  const removeRole = (name: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    onChange(selectedRoles.filter((r) => r !== name));
-  };
-
+  const dropdownStyle = useStickyDropdownPosition(
+    triggerRef,
+    isOpen,
+    (rect) => {
+      const height = window.visualViewport?.height ?? window.innerHeight;
+      const offsetTop = window.visualViewport?.offsetTop ?? 0;
+      const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+      const below = offsetTop + height - rect.bottom - 16;
+      const above = rect.top - offsetTop - 16;
+      const openBelow = below >= 240 || below >= above;
+      const width = Math.min(rect.width, viewportWidth - 24);
+      return {
+        position: "fixed",
+        top: openBelow ? rect.bottom + 4 : undefined,
+        bottom: openBelow ? undefined : window.innerHeight - rect.top + 4,
+        left: Math.max(12, Math.min(rect.left, viewportWidth - width - 12)),
+        width,
+        maxHeight: Math.min(320, Math.max(0, openBelow ? below : above)),
+        zIndex: 9999,
+      };
+    },
+  );
+  const filteredRoles = availableRoles.filter((role) =>
+    role.name.toLowerCase().includes(search.toLowerCase()),
+  );
   return (
-    <div ref={dropdownRef} className="relative">
-      {/* Selected roles as chips */}
-      <div
+    <div className="ui-select">
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={t("mcp.form.allowedRoles")}
+        aria-describedby={labelId}
+        aria-expanded={isOpen}
+        className="ui-select-trigger min-h-11 sm:min-h-[38px]"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full min-h-[38px] rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-14 cursor-pointer flex flex-wrap items-center gap-1 focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
       >
-        {selectedRoles.length === 0 ? (
-          <span className="text-stone-400 dark:text-stone-500 text-12">
-            {loading ? "..." : t("mcp.form.allRoles")}
-          </span>
-        ) : (
-          selectedRoles.map((name) => (
-            <span
-              key={name}
-              className="inline-flex items-center gap-0.5 rounded bg-blue-100 dark:bg-blue-900/50 px-1.5 py-0.5 text-12 text-blue-700 dark:text-blue-300"
-            >
-              <Shield size={10} />
-              {name}
-              <button
-                type="button"
-                onClick={(e) => removeRole(name, e)}
-                className="ml-0.5 rounded hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-400 hover:text-blue-600 dark:hover:text-blue-200"
-              >
-                <X size={12} />
-              </button>
-            </span>
-          ))
-        )}
-        <ChevronDown
-          size={14}
-          className={`ml-auto text-stone-400 dark:text-stone-500 transition-transform ${
-            isOpen ? "rotate-180" : ""
-          }`}
-        />
-      </div>
-
-      {/* Dropdown */}
-      {isOpen && (
-        <div className="absolute z-10 mt-1 w-full rounded-lg border border-stone-200 bg-white shadow-lg dark:border-stone-700 dark:bg-stone-800">
-          {/* Search */}
-          <div className="p-2 border-b border-stone-100 dark:border-stone-700">
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-stone-50 dark:bg-stone-700/50">
-              <Search
-                size={12}
-                className="text-stone-400 dark:text-stone-500"
-              />
-              <PanelSearchInput
-                type="text"
-                value={search}
-                onValueChange={setSearch}
-                placeholder={t("mcp.form.searchRoles")}
-                className="flex-1 bg-transparent text-12 text-stone-700 dark:text-stone-200 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none"
-                autoFocus
-              />
-            </div>
-          </div>
-
-          {/* Options */}
-          <div className="max-h-48 overflow-y-auto p-1">
-            {loading ? (
-              <McpSelectorEmptyState>...</McpSelectorEmptyState>
-            ) : availableRoles.length === 0 ? (
-              <McpSelectorEmptyState>
-                {t("mcp.form.noRoles")}
-              </McpSelectorEmptyState>
-            ) : filteredRoles.length === 0 ? (
-              <McpSelectorEmptyState>
-                {t("mcp.form.noMatchingRoles")}
-              </McpSelectorEmptyState>
-            ) : (
-              filteredRoles.map((role) => (
-                <label
-                  key={role.name}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-stone-50 dark:hover:bg-stone-700/50"
+        <span id={labelId} className="min-w-0 flex-1 truncate text-left">
+          {selectedRoles.length
+            ? selectedRoles.join(", ")
+            : t("mcp.form.allRoles")}
+        </span>
+        <ChevronDown size={15} className="ui-select-trigger__icon" />
+      </button>
+      {isOpen &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            role="group"
+            aria-label={t("mcp.form.allowedRoles")}
+            className="ui-select-dropdown flex flex-col overflow-hidden"
+            style={dropdownStyle}
+            onKeyDown={(event) => {
+              if (event.key === "Tab") {
+                const controls = [
+                  ...event.currentTarget.querySelectorAll<HTMLElement>(
+                    "input:not(:disabled),button:not(:disabled)",
+                  ),
+                ];
+                const boundary = event.shiftKey ? controls[0] : controls.at(-1);
+                if (document.activeElement !== boundary) return;
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+              } else return;
+              event.stopPropagation();
+              setIsOpen(false);
+              setSearch("");
+              triggerRef.current?.focus();
+            }}
+          >
+            <PanelSearchInput
+              value={search}
+              onValueChange={setSearch}
+              aria-label={t("mcp.form.searchRoles")}
+              placeholder={t("mcp.form.searchRoles")}
+              className="ui-input !min-h-11 shrink-0"
+              autoFocus
+            />
+            <div className="min-h-0 flex-1 overflow-y-auto py-1">
+              {loading ? (
+                <McpSelectorEmptyState>
+                  {t("common.loading")}
+                </McpSelectorEmptyState>
+              ) : loadError ? (
+                <div
+                  role="alert"
+                  className="flex flex-wrap items-center justify-between gap-2 p-2 text-12 text-theme-text-secondary"
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedRoles.includes(role.name)}
-                    onChange={() => toggleRole(role.name)}
-                    className="rounded border-stone-300 dark:border-stone-600 text-amber-500 focus:ring-amber-400"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <span className="text-12 font-medium text-stone-700 dark:text-stone-200">
-                      {role.name}
+                  <span>{t("common.loadFailed")}</span>
+                  <Button size="sm" onClick={loadRoles} className="!min-h-11">
+                    {t("common.refresh")}
+                  </Button>
+                </div>
+              ) : !availableRoles.length ? (
+                <McpSelectorEmptyState>
+                  {t("mcp.form.noRoles")}
+                </McpSelectorEmptyState>
+              ) : !filteredRoles.length ? (
+                <McpSelectorEmptyState>
+                  {t("mcp.form.noMatchingRoles")}
+                </McpSelectorEmptyState>
+              ) : (
+                filteredRoles.map((role) => (
+                  <label
+                    key={role.name}
+                    className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-2 py-2 hover:bg-[var(--theme-bg-subtle)]"
+                  >
+                    <Checkbox
+                      size="sm"
+                      ariaLabel={role.name}
+                      checked={selectedRoles.includes(role.name)}
+                      onChange={() =>
+                        onChange(
+                          selectedRoles.includes(role.name)
+                            ? selectedRoles.filter((name) => name !== role.name)
+                            : [...selectedRoles, role.name],
+                        )
+                      }
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block break-words text-12 font-medium text-theme-text">
+                        {role.name}
+                      </span>
+                      {role.description && (
+                        <span className="block truncate text-10 text-theme-text-muted">
+                          {role.description}
+                        </span>
+                      )}
                     </span>
-                    {role.description && (
-                      <span className="ml-1.5 text-10 text-stone-400 dark:text-stone-500 truncate">
-                        {role.description}
+                    {role.is_system && (
+                      <span className="shrink-0 text-10 text-theme-text-muted">
+                        {t("mcp.card.system")}
                       </span>
                     )}
-                  </div>
-                  {role.is_system && (
-                    <span className="text-9 px-1 py-0.5 rounded bg-stone-100 dark:bg-stone-700 text-stone-400 dark:text-stone-500">
-                      {t("mcp.card.system")}
-                    </span>
-                  )}
-                </label>
-              ))
-            )}
-          </div>
-
-          {selectedRoles.length > 0 && (
-            <div className="border-t border-stone-100 dark:border-stone-700 p-2">
-              <button
-                type="button"
-                onClick={() => onChange([])}
-                className="w-full text-center text-12 text-stone-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                  </label>
+                ))
+              )}
+            </div>
+            {selectedRoles.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="!min-h-11 shrink-0"
+                onClick={() => {
+                  onChange([]);
+                  dropdownRef.current?.querySelector("input")?.focus();
+                }}
               >
                 {t("mcp.form.clearAll")}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+              </Button>
+            )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

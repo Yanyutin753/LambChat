@@ -655,9 +655,11 @@ export function SettingsPanel() {
                   role="status"
                   className="text-12 tabular-nums text-theme-text-secondary dark:text-stone-400"
                 >
-                  {t("settings.navigation.resultCount", {
-                    count: filteredSettings.length,
-                  })}
+                  {isLoading && !settings
+                    ? t("common.loading")
+                    : t("settings.navigation.resultCount", {
+                        count: filteredSettings.length,
+                      })}
                 </span>
               </div>
               {isSearching ? (
@@ -884,10 +886,10 @@ export function SettingsPanel() {
                                                 ),
                                               },
                                             ]
-                                          : setting.options?.map((opt) => ({
+                                          : (setting.options?.map((opt) => ({
                                               value: opt,
                                               label: opt,
-                                            })) ?? []
+                                            })) ?? [])
                                 }
                               />
                             )}
