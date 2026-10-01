@@ -445,7 +445,8 @@
     "verifyEmailSuccessTitle": "Эл. почта подтверждена",
     "verifyingEmail": "Подтверждение эл. почты...",
     "welcomeBack": "С возвращением!",
-    "whatToDoNext": "Что делать дальше?"
+    "whatToDoNext": "Что делать дальше?",
+    "requestNewResetLink": "Получить новую ссылку для сброса"
   },
   "backendErrors": {
     "accountInactive": "Аккаунт не активирован. Подтвердите email перед входом.",
@@ -1222,7 +1223,8 @@
     "timeWeeksAgo": "{{count}}нед назад",
     "toggleVisibility": "Переключить видимость",
     "user": "Пользователь",
-    "you": "Вы"
+    "you": "Вы",
+    "retry": "Повторить"
   },
   "contactAdmin": {
     "emailActivationDesc": "Ваш email не подтверждён или ссылка подтверждения истекла. Обратитесь к администратору за помощью.",

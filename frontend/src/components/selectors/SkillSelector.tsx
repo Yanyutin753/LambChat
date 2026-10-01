@@ -336,6 +336,7 @@ export function SkillSelector({
                     </span>
                   </div>
                   <Checkbox
+                    ariaLabel={t(`skillSelector.sources.${cat}`)}
                     checked={allEnabled}
                     pending={categoryPending}
                     disabled={
@@ -410,6 +411,7 @@ export function SkillSelector({
                               </p>
                             </div>
                             <Checkbox
+                              ariaLabel={skill.name}
                               checked={skill.enabled}
                               pending={pendingSet.has(skill.name)}
                               disabled={personaControlled || isMutating}

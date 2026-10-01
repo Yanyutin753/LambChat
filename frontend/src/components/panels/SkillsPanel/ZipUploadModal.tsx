@@ -193,6 +193,7 @@ export function ZipUploadModal({
                     }`}
                   >
                     <Checkbox
+                      ariaLabel={skill.name}
                       size="sm"
                       checked={selected}
                       onChange={() =>

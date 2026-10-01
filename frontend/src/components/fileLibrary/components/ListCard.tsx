@@ -30,7 +30,11 @@ export function ListCard({
   return (
     <>
       <div
-        onClick={() => onPreview(file)}
+        role="group"
+        aria-label={file.file_name}
+        onClick={(event) => {
+          if (!(event.target as Element).closest("button")) onPreview(file);
+        }}
         onContextMenu={(e) => ctx.show(e, file)}
         className="group/card relative flex items-center gap-3.5 px-4 py-3 rounded-xl bg-theme-bg-card border border-theme-border cursor-pointer select-none transition-all duration-150 hover:bg-theme-bg-subtle hover:border-theme-border-hover hover:shadow-sm"
       >
@@ -43,9 +47,13 @@ export function ListCard({
 
         {/* Name + meta */}
         <div className="flex-1 min-w-0">
-          <p className="text-13 font-medium text-theme-text truncate leading-snug">
+          <button
+            type="button"
+            onClick={() => onPreview(file)}
+            className="block w-full text-left text-13 font-medium text-theme-text truncate leading-snug focus-visible:outline focus-visible:outline-2 focus-visible:outline-theme-primary"
+          >
             {file.file_name}
-          </p>
+          </button>
           <p className="mt-0.5 text-11 text-theme-text-tertiary truncate font-serif">
             {meta}
           </p>
@@ -53,11 +61,17 @@ export function ListCard({
 
         {/* More button */}
         <button
+          type="button"
+          aria-label={`${t("common.moreOptions")}: ${file.file_name}`}
+          aria-haspopup="menu"
+          aria-expanded={Boolean(ctx.menu)}
+          aria-controls={ctx.menu ? ctx.menuId : undefined}
           onClick={(e) => {
             e.stopPropagation();
-            ctx.show(e, file);
+            if (ctx.menu) ctx.hide(true);
+            else ctx.show(e, file);
           }}
-          className="shrink-0 p-1.5 rounded-md text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-subtle transition-all"
+          className="shrink-0 flex min-h-11 min-w-11 sm:min-h-7 sm:min-w-7 items-center justify-center p-1.5 rounded-md text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-subtle transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-theme-primary"
         >
           <MoreHorizontal size={16} />
         </button>
@@ -65,7 +79,8 @@ export function ListCard({
 
       <FileContextMenu
         menu={ctx.menu}
-        menuRef={ctx.menuRef}
+        id={ctx.menuId}
+        onClose={ctx.hide}
         file={file}
         onGoToSession={onGoToSession}
         onToggleFavorite={onToggleFavorite}

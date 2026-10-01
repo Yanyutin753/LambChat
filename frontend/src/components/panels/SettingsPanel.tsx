@@ -803,6 +803,7 @@ export function SettingsPanel() {
                           <div className="mt-3">
                             {isSelect && (
                               <Select
+                                ariaLabel={setting.key}
                                 value={displayValue}
                                 onChange={(v) =>
                                   handleValueChange(
@@ -883,15 +884,16 @@ export function SettingsPanel() {
                                                 ),
                                               },
                                             ]
-                                          : setting.options?.map((opt) => ({
+                                          : (setting.options?.map((opt) => ({
                                               value: opt,
                                               label: opt,
-                                            })) ?? []
+                                            })) ?? [])
                                 }
                               />
                             )}
                             {setting.type === "text" && (
                               <Textarea
+                                aria-label={setting.key}
                                 value={getDisplayValue(setting)}
                                 onChange={(e) =>
                                   handleValueChange(
@@ -927,6 +929,7 @@ export function SettingsPanel() {
                             )}
                             {isJson && !setting.json_schema && (
                               <Textarea
+                                aria-label={setting.key}
                                 value={getDisplayValue(setting)}
                                 onChange={(e) =>
                                   handleValueChange(
@@ -944,6 +947,7 @@ export function SettingsPanel() {
                               setting.type !== "text" &&
                               !isJson && (
                                 <Input
+                                  aria-label={setting.key}
                                   type={
                                     setting.type === "number"
                                       ? "number"

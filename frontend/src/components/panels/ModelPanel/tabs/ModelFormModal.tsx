@@ -626,6 +626,7 @@ export const ModelFormModal = ({
             <div className="es-field">
               <label className="flex items-start gap-2 text-14 text-theme-text cursor-pointer">
                 <Checkbox
+                  ariaLabel={t("agentConfig.supportsVision")}
                   checked={formSupportsVision}
                   onChange={() => setFormSupportsVision((checked) => !checked)}
                   className="mt-1"
@@ -641,13 +642,18 @@ export const ModelFormModal = ({
               </label>
             </div>
             <div className="es-field">
-              <label className="es-label">{t("agentConfig.imageUrlMode")}</label>
+              <label className="es-label">
+                {t("agentConfig.imageUrlMode")}
+              </label>
               <Select
                 value={formImageUrlMode}
                 onChange={(v) => setFormImageUrlMode(v as ImageUrlMode)}
                 options={[
                   { value: "url", label: t("agentConfig.imageUrlModeUrl") },
-                  { value: "base64", label: t("agentConfig.imageUrlModeBase64") },
+                  {
+                    value: "base64",
+                    label: t("agentConfig.imageUrlModeBase64"),
+                  },
                   {
                     value: "proxy_direct",
                     label: t("agentConfig.imageUrlModeProxyDirect"),

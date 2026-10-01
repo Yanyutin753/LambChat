@@ -5,6 +5,7 @@ type CheckboxProps = {
   onChange?: () => void;
   pending?: boolean;
   disabled?: boolean;
+  ariaLabel?: string;
   /** "sm" (18px), "md" (20px, default), "lg" (24px) */
   size?: "sm" | "md" | "lg";
   className?: string;
@@ -27,11 +28,12 @@ export function Checkbox({
   onChange,
   pending,
   disabled,
+  ariaLabel,
   size = "md",
   className = "",
 }: CheckboxProps) {
   const cls = [
-    "flex items-center justify-center rounded-[5px] shrink-0 transition-all duration-200",
+    "ui-checkbox flex items-center justify-center rounded-[5px] shrink-0 transition-all duration-200",
     sizeClasses[size],
     pending
       ? "border-2 border-amber-500/40 bg-amber-500/[0.08]"
@@ -46,6 +48,7 @@ export function Checkbox({
     .join(" ");
 
   const handleClick = (e: React.MouseEvent) => {
+    if (!onChange) return;
     e.stopPropagation();
     if (!disabled) {
       onChange?.();
@@ -56,7 +59,17 @@ export function Checkbox({
     <div
       className={cls}
       onClick={handleClick}
-      role="checkbox"
+      tabIndex={onChange && !disabled ? 0 : -1}
+      onKeyDown={(event) => {
+        if (event.key !== " " && event.key !== "Enter") return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (!disabled && !event.repeat) onChange?.();
+      }}
+      role={onChange ? "checkbox" : undefined}
+      aria-hidden={!onChange || undefined}
+      aria-label={ariaLabel}
+      aria-disabled={disabled || undefined}
       aria-checked={checked}
     >
       {pending ? (

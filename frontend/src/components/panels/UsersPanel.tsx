@@ -263,6 +263,7 @@ function UserFormModal({
                     className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-bg-subtle)]"
                   >
                     <Checkbox
+                      ariaLabel={role.name}
                       size="sm"
                       checked={selectedRoles.includes(role.name)}
                       onChange={() => toggleRole(role.name)}
@@ -283,6 +284,7 @@ function UserFormModal({
           <div className="es-field">
             <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-bg-subtle)]">
               <Checkbox
+                ariaLabel={t("users.enableAccount")}
                 size="sm"
                 checked={isActive}
                 onChange={() => setIsActive(!isActive)}

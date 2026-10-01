@@ -4537,3 +4537,9 @@
 .sidebar-action-row:focus-within > span > .sidebar-action-reveal {
   opacity: 1;
 }
+
+.ui-checkbox:focus-visible {
+  opacity: 1 !important;
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+}

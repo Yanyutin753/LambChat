@@ -219,6 +219,7 @@ export function ToolSelector({
                     </span>
                   </div>
                   <Checkbox
+                    ariaLabel={t(`tools.categories.${cat}`)}
                     checked={allEnabled}
                     onChange={() => onToggleCategory(cat, !allEnabled)}
                   />
@@ -292,6 +293,7 @@ export function ToolSelector({
                                 </p>
                               </div>
                               <Checkbox
+                                ariaLabel={tool.name}
                                 checked={tool.enabled}
                                 onChange={() => onToggleTool(tool.name)}
                                 disabled={tool.system_disabled}

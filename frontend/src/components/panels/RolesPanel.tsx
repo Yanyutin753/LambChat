@@ -438,6 +438,7 @@ function RoleFormModal({
                 {/* 组标题 */}
                 <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-bg-subtle)]">
                   <Checkbox
+                    ariaLabel={group.name}
                     size="sm"
                     checked={isGroupChecked(group.permissions)}
                     onChange={() =>
@@ -459,6 +460,9 @@ function RoleFormModal({
                       className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-bg-subtle)]"
                     >
                       <Checkbox
+                        ariaLabel={
+                          permissionLabels[permission.value] || permission.label
+                        }
                         size="sm"
                         checked={selectedPermissions.includes(permission.value)}
                         onChange={() => togglePermission(permission.value)}

@@ -74,6 +74,11 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+test("each setting input is named by its configuration key", () => {
+  render(<SettingsPanel />);
+  expect(screen.getByRole("textbox", { name: "THEME" })).toBeTruthy();
+});
+
 test("empty navigation does not expose missing translation keys", () => {
   mocks.navigation = [];
   render(<SettingsPanel />);
