@@ -197,3 +197,23 @@ test("team failures recover without remounting the composer", async () => {
   expect(listTeams).toHaveBeenCalledTimes(2);
   expect(screen.getByRole("textbox", { name: "Composer" })).toBe(composer);
 });
+
+test("a selected team without starter prompts keeps the team heading and change action", async () => {
+  listTeams.mockResolvedValueOnce({
+    teams: [{ id: "research", name: "Research", members: [] }],
+  });
+  render(
+    <MemoryRouter>
+      <WelcomePage
+        {...props}
+        currentAgent="team"
+        selectedTeamId="research"
+        onSelectTeam={vi.fn()}
+      />
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(listTeams).toHaveBeenCalledOnce());
+  expect(screen.getByText("team.plaza")).toBeInTheDocument();
+  expect(screen.queryByText("personaPresets.title")).toBeNull();
+  expect(screen.getByRole("button", { name: "team.change" })).toBeEnabled();
+});

@@ -309,7 +309,7 @@ export function useSidebarPanel({
       )
         return;
       const topDialog = topmostVisibleModalDialog();
-      if (topDialog && topDialog !== panelRef.current) return;
+      if (topDialog && !topDialog.contains(panelRef.current)) return;
       if (event.key === "Escape") {
         event.preventDefault();
         onClose();

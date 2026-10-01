@@ -322,7 +322,7 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
         />
       </div>
       {copyable && (
-        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute top-2 right-2 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
           <CopyButton
             text={value}
             size={14}

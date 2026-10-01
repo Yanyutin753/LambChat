@@ -652,6 +652,7 @@ export function ToolResultPanel({
       inert={!entry.active ? true : undefined}
       role={presentation === "docked" ? "complementary" : "dialog"}
       aria-modal={presentation === "docked" ? undefined : true}
+      tabIndex={-1}
       aria-labelledby={title && !hasCustomHeader ? titleId : undefined}
       aria-label={
         title && !hasCustomHeader

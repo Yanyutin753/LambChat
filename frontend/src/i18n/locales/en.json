@@ -859,6 +859,8 @@
       "complete": "complete",
       "consoleOutput": "Console output",
       "copied": "Copied!",
+      "copyFailed": "Copy failed. Please try again.",
+      "copyArgument": "Copy argument {{name}}",
       "copy": "Copy",
       "copyCode": "Copy code",
       "costDetail": "Cost breakdown",

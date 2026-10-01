@@ -1409,7 +1409,7 @@ const server = await createServer({
           "<head>",
           `<head><script>const params=new URLSearchParams(location.search);if(params.has("guest")){localStorage.removeItem("access_token");localStorage.removeItem("refresh_token");}else{localStorage.setItem("access_token",${JSON.stringify(
             token,
-          )});}localStorage.setItem("lambchat-theme",params.get("theme")||"light");</script>`,
+          )});}localStorage.setItem("lambchat-theme",params.get("theme")||"light");if(params.get("failure")==="clipboard"&&navigator.clipboard){const write=navigator.clipboard.writeText.bind(navigator.clipboard);let failed=false;navigator.clipboard.writeText=(text)=>{if(!failed){failed=true;return Promise.reject(new DOMException("Preview clipboard unavailable","NotAllowedError"));}return write(text);};}</script>`,
         );
       },
       configureServer(vite) {
@@ -1595,6 +1595,46 @@ const server = await createServer({
                   url.pathname === "/api/agents"
                 ? { agents, count: agents.length, default_agent: "team" }
                 : response(url, scenario, chatState);
+          if (
+            url.pathname === "/api/sessions/preview-report/events" &&
+            previewParams.has("tools")
+          ) {
+            const history = data as { events: object[] };
+            history.events.splice(
+              2,
+              0,
+              {
+                id: "preview-tool-start",
+                event_type: "tool:start",
+                run_id: "preview-run",
+                timestamp: now,
+                data: {
+                  tool: "preview_analyze",
+                  tool_call_id: "preview-tool",
+                  args: {
+                    query: "Quarterly delivery quality and accessibility",
+                    options: {
+                      fields: ["month", "owner", "completion_rate"],
+                      include_archived: false,
+                    },
+                  },
+                },
+              },
+              {
+                id: "preview-tool-result",
+                event_type: "tool:result",
+                run_id: "preview-run",
+                timestamp: now,
+                data: {
+                  tool: "preview_analyze",
+                  tool_call_id: "preview-tool",
+                  result:
+                    "Completed analysis. Keep touch controls distinct, preserve readable content spacing, and report errors truthfully.",
+                  success: true,
+                },
+              },
+            );
+          }
           const isRead = req.method === "GET";
           const channelConfigFailure =
             isRead &&

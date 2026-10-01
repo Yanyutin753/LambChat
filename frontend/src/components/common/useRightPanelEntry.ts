@@ -216,7 +216,8 @@ export function useRightPanelFocus({
 
     const trapTab = (event: KeyboardEvent) => {
       if (event.key !== "Tab" || event.defaultPrevented) return;
-      if (topmostVisibleModalDialog() !== panelRef.current) return;
+      const dialog = topmostVisibleModalDialog();
+      if (!panelRef.current || !dialog?.contains(panelRef.current)) return;
 
       const focusable = [
         ...(panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []),
@@ -232,7 +233,10 @@ export function useRightPanelFocus({
 
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+      if (document.activeElement === dialog) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {

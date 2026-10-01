@@ -396,3 +396,27 @@ Feishu 扫码/手填和策略使用原生按钮与 pressed，长文案自然换�
 截图保存在既有interface-quality目录：welcome-320-dark-start.png、welcome-320-dark-no-match-before.png/after.png、welcome-320-dark-toolbar-after.png、welcome-320-light-empty-before.png、welcome-390-light-empty-after.png、welcome-390-light-team-empty.png、welcome-390-light-long-name-after.png、welcome-768-sepia-error.png/recovered.png、welcome-1440-dark-after.png/no-match.png、welcome-640-light-toolbar-after.png。320/390/640截图在最后placeholder调整后重拍；768截图记录读取失败和恢复时状态，不能当作最后placeholder单行变化的截图。viewport已恢复，用户原tab未操作。
 
 继续整体审查：选定团队无starter prompts时欢迎区标题仍回退“角色”而非团队（现有路径，下一批修）；复制失败、工具/图片、文件下载和其他格式、大图/内嵌图片、资源导入发布及其余语言。原生viewport API关闭菜单后的BODY焦点边界仍未证实；真实触屏/软键盘、认证/写入/对话、扫码E2E仍未验证。整体目标保持进行中。Impeccable沿用已确认不可用环境的DESIGN.md人工清单。
+
+
+### 当前执行：共享复制反馈与工具参数操作
+
+- [x] RED：失败不显示已复制且可重试、pending不重复、legacy失败清理/焦点；工具参数复制与展开分离、undefined保留；选定无starter prompts团队标题。
+- [x] 复用共享CopyButton与IconButton，删除重复参数复制handler；手机44px与键盘可见，沿用主题、五语反馈；预览只读clipboard首次失败和tools样例。
+- [x] 四宽度/三主题复制失败/重试、参数展开和键盘、团队路径实屏；最终全量测试/lint/build、独立复核、清理后提交，继续独立消息/代码/表格复制和其他整体事项。
+
+
+本批完成：共享 CopyButton 复用 IconButton，确认 clipboard 成功后才显示已复制；失败保留可重试按钮、五语短提示和 aria-description，pending 阻止重复，text 改变/卸载忽略旧请求并清 timer。legacy execCommand false/throw 均拒绝 Promise，finally 删除 textarea 并恢复键盘焦点。ToolArgsBlock/ToolArgsDisplay 删除重复 handler，复杂参数改展开 button 与 CopyButton 并列，undefined 保留；手机和 coarse pointer 44px，桌面 hover/focus 可见，参数复制图标12px。ToolHoverCopyButton/CodeMirrorViewer 的 hover 容器同时支持 focus-within；选定无starter prompts团队仍显示团队标题。
+
+TDD：核心失败/重复/legacy清理及团队标题5项行为RED后GREEN；参数命名/键盘展开分离/undefined与本地化3项RED后GREEN；补3项旧请求、卸载、timer覆盖。完整套件原snapshot路径断言因新的独立button层级失败，改为真实收起后恢复行为，未削弱恢复契约。第一次Toaster测试缺matchMedia只是环境失败，补stub后明确inert祖先断言RED再修，不计环境失败为行为RED。
+
+原生发现Toaster在inert root内，提示虽可见但AX忽略；把既有Toaster提取为lazy AppToaster并portal到body，沿用sidebar offset，默认反馈使用主题token、14px正文和共享关闭按钮44px，自定义toast保留原路径。实际inert RED→GREEN。鼠标关闭Toast原会抢焦点，1秒卸载后落BODY：onMouseDown保留当前操作，键盘关闭时归还当前顶层modal。独立复核与原生继续发现ToolResultPanel外dialog不可focus且内panelRef使Tab/Escape equality守卫不生效；外层加tabIndex=-1，共享Tab/Escape改contains关系，surface Tab/ShiftTab进入first/last。真实ToolResultPanel focus1项、Tab2项、Escape/嵌套2项分别RED后GREEN，IME/defaultPrevented/fullscreen守卫保留。
+
+实屏：320×673 light、390×844 dark、768×1024 sepia、1440×900 light均整页横向溢出0。320/390三个工具copy均约44×44；768/1440当前fine pointer约32×32，768键盘focus-visible opacity=1。320/390/768首次失败与重试实际clipboard匹配query JSON字符串/compact options JSON；第一次把显示的pretty JSON当复制格式导致校验false，复核源码后以原compact契约确认true，不当作复制失败。390键盘关闭Toast→focus=dialog，ShiftTab→末copy，末copy Tab→selected tab；鼠标关闭Toast保持原copy焦点。320 Escape关闭工具且返回原工具入口；嵌套弹层边界由行为测试覆盖，未声称原生嵌套通过。390本地团队选择/更换均保留草稿，标题为Площадка команд；两次操作焦点仍落BODY，这条后续继续处理。未执行真实API写入或模型请求。
+
+八项自检：参数原有排版/serif保留、copy图标12及提示14；正文卡片留白不整体压缩；参数/结果/失败反馈层级清晰；三套主题及五语沿用token；无新增装饰动效，沿用reduced-motion；复制成功/失败、重试、展开、焦点与键盘边界实际核对；四宽度无横向溢出，触屏规则44px但真实触摸/软键盘未验证；保持LambChat视觉语言，无新依赖/品牌体系。Impeccable沿用已确认不可用环境的DESIGN.md人工清单。
+
+最终生产修改（含14px Toast文字）后：pnpm test 745文件/3603项通过（新增19项）；pnpm run lint零错误零警告；pnpm run build含tsc与体积门禁通过，eager JS 558782/559104 bytes、precache 5019661/5242880 bytes，未提高预算，保留既有chunk-size提示。独立最后只读复核未发现剩余P1/P2，未把源码复核当原生或全量验证。git diff --check通过。首次构建559271超限，精简重复提示/clipboard语法后仍559188超限；共享Toaster独立lazy owner后回到预算内，未绕过门禁。
+
+截图在既有interface-quality目录：copy-320-light-failed-final.png、copy-390-dark-final.png、copy-768-sepia-final.png / keyboard-final.png、copy-1440-light-final.png、welcome-390-dark-selected-team-final.png。早期copy-390-dark-success.png曾记录首次失败，不能当成功证据；最终截图以上述final文件及实际clipboard布尔结果为准。临时viewport已reset，用户原tab未操作；原clipboard为空项数组，write([])接口拒绝后以空文本恢复空内容，未输出用户clipboard。
+
+继续：欢迎团队选择/更换后的编辑焦点、独立消息/代码/表格/绘图复制及文件路径/分享的失败反馈；其余图片、下载、格式、大图/内嵌图片、资源导入发布、语言与真实触屏/软键盘、认证/写入/对话、扫码E2E。原生viewport API关闭菜单后的BODY焦点边界仍未证实。整体目标保持进行中。

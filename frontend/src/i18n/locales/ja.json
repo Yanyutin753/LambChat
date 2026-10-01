@@ -859,6 +859,8 @@
       "complete": "完了",
       "consoleOutput": "コンソール出力",
       "copied": "コピーしました！",
+      "copyFailed": "コピーできませんでした。再試行してください。",
+      "copyArgument": "引数 {{name}} をコピー",
       "copy": "コピー",
       "copyCode": "コードをコピー",
       "costDetail": "費用の内訳",

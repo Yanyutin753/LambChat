@@ -502,7 +502,7 @@ export const WelcomePage = memo(function WelcomePage({
                 className="opacity-60 sm:w-3.5 sm:h-3.5 xl:w-4 xl:h-4 2xl:w-4 2xl:h-4"
               />
               <span>
-                {showTeamCards
+                {showTeamCards || (canChangeTeam && !showTeamStarterPrompts)
                   ? t("team.plaza", "团队广场")
                   : showStarterPrompts || showTeamStarterPrompts
                     ? starterPromptsLabel ||

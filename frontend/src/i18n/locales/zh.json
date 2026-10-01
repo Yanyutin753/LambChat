@@ -859,6 +859,8 @@
       "complete": "完成",
       "consoleOutput": "控制台输出",
       "copied": "已复制!",
+      "copyFailed": "复制失败，请重试。",
+      "copyArgument": "复制参数 {{name}}",
       "copy": "复制",
       "copyCode": "复制代码",
       "costDetail": "费用明细",

@@ -1,6 +1,5 @@
-import { type ReactNode, useCallback, useState } from "react";
-import { Check, Copy } from "lucide-react";
-import { copyToClipboard } from "../../../../utils/clipboard";
+import { type ReactNode } from "react";
+import { CopyButton } from "../../../common/CopyButton";
 
 type ToolArgsBlockSize = "detail" | "compact";
 
@@ -25,20 +24,6 @@ export function ToolArgsBlock({
   /** When provided, a copy button appears on hover to copy this text. */
   copyText?: string;
 }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (!copyText) return;
-      copyToClipboard(copyText).then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      });
-    },
-    [copyText],
-  );
-
   return (
     <div
       className={[sizeClasses[size], wrap ? "flex-wrap" : "", className]
@@ -47,21 +32,11 @@ export function ToolArgsBlock({
     >
       <span className="min-w-0 flex-1 overflow-x-auto">{children}</span>
       {copyText && (
-        <button
-          type="button"
-          onClick={handleCopy}
-          title={copied ? "Copied!" : "Copy"}
-          className="shrink-0 grid place-items-center w-5 h-5 rounded-[var(--radius-inner)] opacity-0 group-hover/args:opacity-100 focus-visible:opacity-100 transition-all duration-[var(--duration-fast)] text-[var(--theme-text-tertiary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-elevated)] active:scale-90"
-        >
-          {copied ? (
-            <Check
-              size={size === "detail" ? 12 : 10}
-              className="text-[var(--color-icon-green)]"
-            />
-          ) : (
-            <Copy size={size === "detail" ? 12 : 10} />
-          )}
-        </button>
+        <CopyButton
+          text={copyText}
+          size={size === "detail" ? 12 : 10}
+          className="sm:opacity-0 sm:group-hover/args:opacity-100 focus-visible:opacity-100"
+        />
       )}
     </div>
   );

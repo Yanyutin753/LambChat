@@ -50,6 +50,86 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
+test.each(["last", "surface"])(
+  "tool overlay wraps Tab from its %s into its own controls",
+  async (from) => {
+    installMatchMedia(390);
+    vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([
+      {},
+    ] as DOMRectList);
+    render(
+      <ToolResultPanel open onClose={vi.fn()} title="Tool">
+        <button>Last tool action</button>
+      </ToolResultPanel>,
+    );
+    const last = await screen.findByRole("button", {
+      name: "Last tool action",
+    });
+    const dialog = screen.getByRole("dialog", { name: "Tool" });
+    (from === "last" ? last : dialog).focus();
+    const event = new KeyboardEvent("keydown", {
+      key: "Tab",
+      shiftKey: from === "surface",
+      bubbles: true,
+      cancelable: true,
+    });
+    fireEvent(document.activeElement!, event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(
+      from === "last" ? screen.getByRole("tab", { name: "Tool" }) : last,
+    ).toHaveFocus();
+  },
+);
+
+test("mobile tool Escape closes the overlay after IME composition ends", async () => {
+  installMatchMedia(390);
+  const close = vi.fn();
+  render(
+    <ToolResultPanel open onClose={close} title="Tool">
+      <button>Tool action</button>
+    </ToolResultPanel>,
+  );
+  const action = await screen.findByRole("button", { name: "Tool action" });
+  action.focus();
+  fireEvent.keyDown(action, { key: "Escape", isComposing: true });
+  fireEvent.keyDown(action, { key: "Escape", keyCode: 229 });
+  expect(close).not.toHaveBeenCalled();
+  fireEvent.keyDown(action, { key: "Escape" });
+  expect(close).toHaveBeenCalledOnce();
+});
+
+test("nested details receive Escape before the underlying mobile tool", async () => {
+  installMatchMedia(390);
+  const toolClose = vi.fn();
+  function Harness() {
+    const [details, setDetails] = useState(false);
+    return (
+      <>
+        <ToolResultPanel open onClose={toolClose} title="Tool">
+          <button onClick={() => setDetails(true)}>Open details</button>
+        </ToolResultPanel>
+        <ModalSurface
+          open={details}
+          onClose={() => setDetails(false)}
+          label="Details"
+        >
+          <input aria-label="Detail field" />
+        </ModalSurface>
+      </>
+    );
+  }
+  const user = userEvent.setup();
+  render(<Harness />);
+  await user.click(await screen.findByRole("button", { name: "Open details" }));
+  fireEvent.keyDown(screen.getByRole("textbox", { name: "Detail field" }), {
+    key: "Escape",
+  });
+  expect(screen.queryByRole("dialog", { name: "Details" })).toBeNull();
+  expect(toolClose).not.toHaveBeenCalled();
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(toolClose).toHaveBeenCalledOnce();
+});
+
 test("overlay Tab wraps visible controls instead of entering collapsed fields", async () => {
   installMatchMedia(800);
   vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([
