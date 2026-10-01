@@ -95,6 +95,6 @@ test("shows the empty hint when there are no bookmarks", () => {
 
   expect(screen.getByText("No bookmarks yet")).toBeInTheDocument();
   expect(
-    screen.getByText(/bookmark icon to save outlines/i),
+    screen.getByText(/bookmark icon below any message/i),
   ).toBeInTheDocument();
 });

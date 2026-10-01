@@ -46,6 +46,7 @@ export function TeamMemberCard({
 }: TeamMemberCardProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(!!member.role_instructions);
+  const roleName = member.role_name || t("team.unnamedRole");
 
   const selectedModel = member.model_id
     ? availableModels.find((model) => model.id === member.model_id)
@@ -84,7 +85,7 @@ export function TeamMemberCard({
 
   return (
     <div
-      className={`list-item-card ${
+      className={`team-member-card list-item-card ${
         expanded ? "list-item-card--expanded" : ""
       } ${member.enabled ? "" : "list-item-card--disabled"}`}
     >
@@ -120,7 +121,7 @@ export function TeamMemberCard({
           <div className="list-item-card__identity">
             <div className="team-member-card__identity-header">
               <span className="list-item-card__name font-serif">
-                {member.role_name || t("team.unnamedRole")}
+                {roleName}
               </span>
               {member.role_tags.length > 0 && (
                 <span className="team-member-card__tags">
@@ -151,6 +152,8 @@ export function TeamMemberCard({
               content={isDefault ? t("team.defaultRole") : t("team.setDefault")}
             >
               <IconButton
+                aria-label={`${t(isDefault ? "team.defaultRole" : "team.setDefault")} ${roleName}`}
+                aria-pressed={isDefault}
                 onClick={onSetDefault}
                 icon={
                   <Star size={14} fill={isDefault ? "currentColor" : "none"} />
@@ -166,6 +169,7 @@ export function TeamMemberCard({
             </Tooltip>
             <Tooltip content={t("team.remove")}>
               <IconButton
+                aria-label={`${t("team.remove")} ${roleName}`}
                 onClick={onRemove}
                 icon={<Trash2 size={14} />}
                 variant="ghost"
@@ -178,17 +182,25 @@ export function TeamMemberCard({
           {/* Toggle */}
           <button
             onClick={onToggleEnabled}
-            className={`team-toggle ${member.enabled ? "team-toggle--on" : ""}`}
+            className="team-member-card__toggle-button flex size-11 shrink-0 items-center justify-center rounded-md sm:h-5 sm:w-9"
+            aria-label={`${t(member.enabled ? "team.disableRole" : "team.enableRole")} ${roleName}`}
             title={
               member.enabled ? t("team.disableRole") : t("team.enableRole")
             }
             type="button"
             role="switch"
             aria-checked={member.enabled}
-          />
+          >
+            <span
+              aria-hidden="true"
+              className={`team-toggle ${member.enabled ? "team-toggle--on" : ""}`}
+            />
+          </button>
 
           {/* Expand chevron */}
           <button
+            aria-label={`${t(expanded ? "common.collapse" : "common.expand")} ${roleName}`}
+            aria-expanded={expanded}
             onClick={() => setExpanded(!expanded)}
             className="team-member-card__expand-btn"
             type="button"
@@ -204,6 +216,8 @@ export function TeamMemberCard({
 
         {/* Collapsible instructions with smooth animation */}
         <div
+          inert={!expanded}
+          aria-hidden={!expanded}
           className={`team-member-card__collapse ${
             expanded ? "team-member-card__collapse--open" : ""
           }`}
@@ -216,6 +230,7 @@ export function TeamMemberCard({
                 {t("team.memberMode", "成员模式")}
               </label>
               <Select
+                ariaLabel={`${t("team.memberMode")} ${roleName}`}
                 value={member.agent_id ?? ""}
                 onChange={(v) => onAgentChange?.(v || null)}
                 options={agentOptions}
@@ -230,6 +245,7 @@ export function TeamMemberCard({
                 {t("team.memberModel", "成员模型")}
               </label>
               <Select
+                ariaLabel={`${t("team.memberModel")} ${roleName}`}
                 value={member.model_id ?? ""}
                 onChange={(v) => onModelChange?.(v || null)}
                 options={modelOptions}
@@ -258,6 +274,7 @@ export function TeamMemberCard({
                 {t("team.roleInstructions", "角色专属指令")}
               </label>
               <Textarea
+                aria-label={`${t("team.roleInstructions")} ${roleName}`}
                 value={member.role_instructions}
                 onChange={(e) => onInstructionsChange(e.target.value)}
                 placeholder={t("team.roleInstructionsPlaceholder")}

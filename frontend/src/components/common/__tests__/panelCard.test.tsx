@@ -2,6 +2,14 @@
 import { render, screen } from "@testing-library/react";
 import { expect, test } from "vitest";
 import { SkillBaseCard } from "../SkillBaseCard";
+test("cards remain promptly available late in a staggered list", () => {
+  const { container } = render(
+    <SkillBaseCard title="Last result" animated animationDelay={1140} />,
+  );
+  expect(
+    (container.querySelector(".scb") as HTMLElement).style.animationDelay,
+  ).toBe("180ms");
+});
 test("restores the original banner while keeping management actions", () => {
   const { container } = render(
     <SkillBaseCard

@@ -295,4 +295,5 @@
 }
 @container panel (max-width: 639px) {
   [data-panel="settings"] .settings-content :is(button, select, input:not([type="checkbox"])) { min-height: 2.75rem; }
+  [data-panel] [role="alert"] button { min-width: 2.75rem; min-height: 2.75rem; }
 }

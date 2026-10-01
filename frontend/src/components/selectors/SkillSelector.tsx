@@ -336,6 +336,7 @@ export function SkillSelector({
                     </span>
                   </div>
                   <Checkbox
+                    ariaLabel={t(`skillSelector.sources.${cat}`)}
                     checked={allEnabled}
                     pending={categoryPending}
                     disabled={
@@ -372,6 +373,7 @@ export function SkillSelector({
                           {/* Skill Row */}
                           <button
                             type="button"
+                            aria-pressed={skill.enabled}
                             disabled={personaControlled || isMutating}
                             className={`flex w-full items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2.5 rounded-xl transition-all duration-200 disabled:cursor-not-allowed ${
                               skill.enabled
@@ -413,13 +415,6 @@ export function SkillSelector({
                               checked={skill.enabled}
                               pending={pendingSet.has(skill.name)}
                               disabled={personaControlled || isMutating}
-                              onChange={async () => {
-                                if (personaControlled || isMutating) {
-                                  return;
-                                }
-                                const ok = await onToggleSkill(skill.name);
-                                showSingleToggleToast(!skill.enabled, ok);
-                              }}
                             />
                           </button>
                         </div>

@@ -124,7 +124,9 @@ export function SkillBaseCard({
       } ${actions.length ? "focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]" : ""} ${className}`}
       style={{
         ...style,
-        ...(animated ? { animationDelay: `${animationDelay}ms` } : {}),
+        ...(animated
+          ? { animationDelay: `${Math.min(animationDelay, 180)}ms` }
+          : {}),
       }}
       onClick={(e) => {
         if (
@@ -158,6 +160,7 @@ export function SkillBaseCard({
                   }`}
                 >
                   <Checkbox
+                    ariaLabel={title}
                     size="lg"
                     checked={selected}
                     onChange={() => onSelect()}
@@ -176,6 +179,7 @@ export function SkillBaseCard({
                   }`}
                 >
                   <Checkbox
+                    ariaLabel={title}
                     size="lg"
                     checked={selected}
                     onChange={() => onSelect()}
@@ -196,6 +200,7 @@ export function SkillBaseCard({
           }`}
         >
           <Checkbox
+            ariaLabel={title}
             size="lg"
             checked={selected}
             onChange={() => onSelect()}

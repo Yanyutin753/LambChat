@@ -116,6 +116,7 @@ export function usePersonaPlaza() {
     isLoading,
     isMutating,
     error,
+    fetchPresets,
     usePreset: activatePreset,
     updatePreference,
     copyPreset,
@@ -439,6 +440,8 @@ export function usePersonaPlaza() {
 
   return {
     isLoading,
+    error,
+    refresh: () => fetchPresets(listParams),
     isMutating,
     presets,
     canRead,

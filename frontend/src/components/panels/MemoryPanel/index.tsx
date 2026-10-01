@@ -44,6 +44,7 @@ export function MemoryPanel() {
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterSource, setFilterSource] = useState("");
@@ -92,6 +93,7 @@ export function MemoryPanel() {
 
   const fetchMemories = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(false);
     try {
       const res = await memoryApi.list({
         memory_type: filterType || undefined,
@@ -103,11 +105,11 @@ export function MemoryPanel() {
       setMemories(res.memories);
       setTotal(res.total);
     } catch {
-      toast.error(t("memory.fetchError"));
+      setLoadError(true);
     } finally {
       setIsLoading(false);
     }
-  }, [filterType, filterSource, debouncedSearch, page, t]);
+  }, [filterType, filterSource, debouncedSearch, page]);
 
   useEffect(() => {
     fetchMemories();
@@ -308,7 +310,18 @@ export function MemoryPanel() {
 
       {/* List */}
       <div className="panel-body flex-1 overflow-y-auto">
-        {!isLoading && memories.length === 0 ? (
+        {loadError && (
+          <div
+            role="alert"
+            className="p-4 text-center text-theme-text-secondary"
+          >
+            <p>{t("common.loadFailed")}</p>
+            <Button className="mt-3" onClick={fetchMemories}>
+              {t("common.refresh")}
+            </Button>
+          </div>
+        )}
+        {!loadError && !isLoading && memories.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--glass-bg)]">
               <Brain size={32} className="text-[var(--theme-text-secondary)]" />
@@ -339,6 +352,7 @@ export function MemoryPanel() {
                     }`}
                   >
                     <Checkbox
+                      ariaLabel={memory.title}
                       size="lg"
                       checked={checked}
                       onChange={() => toggleCheck(memory.memory_id)}

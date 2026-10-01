@@ -578,7 +578,7 @@ export function TeamBuilderWrapper() {
 
         {loading ? (
           <TeamListSkeleton />
-        ) : teams.length === 0 ? (
+        ) : !loadError && teams.length === 0 ? (
           <EmptyState
             icon={<Users size={28} />}
             title={
@@ -639,8 +639,6 @@ export function TeamBuilderWrapper() {
                           count: team.members.length,
                         })}
                       </span>
-                      <span className="inline-block h-1 w-1 rounded-full bg-[var(--theme-border)]" />
-                      <span>{t("team.active", { count: activeCount })}</span>
                     </div>
                   }
                   bannerLeadingOverlay={

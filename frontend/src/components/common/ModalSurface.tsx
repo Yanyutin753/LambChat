@@ -61,7 +61,11 @@ export function ModalSurface({
         surface.querySelectorAll<HTMLElement>(
           'button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],[tabindex="0"]',
         ),
-      ).filter((el) => el.getClientRects().length);
+      ).filter(
+        (el) =>
+          el.getClientRects().length &&
+          !el.closest('[inert],[aria-hidden="true"]'),
+      );
       const first = controls[0],
         last = controls[controls.length - 1];
       if (!first) event.preventDefault();
