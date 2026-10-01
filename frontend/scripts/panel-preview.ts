@@ -1598,8 +1598,12 @@ const server = await createServer({
           const isRead = req.method === "GET";
           const channelConfigFailure =
             isRead &&
-            ((failureTarget === "channel-config" &&
-              /^\/api\/channels\/[^/]+\/instance-[^/]+$/.test(url.pathname)) ||
+            ((failureTarget === "agent-role" &&
+              /^\/api\/agent\/config\/roles\/[^/]+$/.test(url.pathname)) ||
+              (failureTarget === "channel-config" &&
+                /^\/api\/channels\/[^/]+\/instance-[^/]+$/.test(
+                  url.pathname,
+                )) ||
               (failureTarget === "channel-list" &&
                 /^\/api\/channels\/(feishu|slack|telegram)$/.test(
                   url.pathname,

@@ -30,6 +30,8 @@
 
 URL 参数：`?theme=dark` 为深色；默认浅色。`?fixture=empty` 返回空列表，`?fixture=error` 模拟加载失败，`?fixture=loading` 延迟响应；可组合 `?theme=dark&fixture=empty`。设置和认证保持可用，以便继续导航。
 
+助手角色读取恢复可用 `/agents?failure=agent-role`：角色分配首次读取失败，编辑被阻止，点击 Retry 后恢复。角色切换使用共享选择器，可验证键盘、长列表及草稿保留。保存仍返回 405，不改变真实权限。
+
 选择器单独走查可用 `?fixture=error&failure=teams` 或 `?fixture=error&failure=persona-presets`，仅让对应列表请求失败，保留聊天与模式入口。演示助手标识与后端注册一致（`fast`、`search`、`team`），团队模式的功能菜单可打开团队选择器。
 
 欢迎页可用 `/chat?fixture=error&failure=welcome-personas` 或 `failure=welcome-teams`：每个页面查询组合的对应列表首次请求失败，重试恢复；团队场景默认进入团队助手。更换查询参数或重启预览可重放。已完成的聊天样例包含宽表格与长 Python 行，可检查消息内复制、CSV 导出和局部横向滚动。

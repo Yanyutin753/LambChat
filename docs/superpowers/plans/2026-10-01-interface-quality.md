@@ -312,3 +312,20 @@ Feishu 扫码/手填和策略使用原生按钮与 pressed，长文案自然换�
 八项自检：排版保留原有字体，实例名称独占主行；留白沿用 panel-body / panel-stack，正文没有整体压缩；层级把状态和创建时间降到次行；色彩为连接/断开/禁用/不可用提供文字区分并沿用主题；无新增动画，保留 reduced-motion；微交互覆盖链接键盘进入、关闭、失败持续展示、重试和草稿；响应式核对 320 light 列表失败/恢复、390 dark 状态失败/恢复、768 sepia 渠道卡片失败/恢复、1440 light 实例列表及 sepia 编辑草稿，均无横向溢出；原创性保留原渠道 banner 和 LambChat 羊角色场景。截图：channel-instance-list-320-ru-light-before.png / after.png、channel-instance-list-error-320-ru-light.png、channel-status-error-390-ru-dark.png、channel-catalog-error-768-ru-sepia.png、channel-instance-list-1440-ru-light-after.png、feishu-list-status-retry-preserves-draft-1440-ru-sepia.png、channel-mobile-close-focus-320-ru.png。
 
 下一批：AgentSection / RolesAgentTab 的角色分配读取失败、持续保存反馈、tab 语义与触屏可用性；继续此前欢迎、文件/图片/工具、资源导入发布及剩余语言项目。真实移动触屏/软键盘、认证/写入/对话与扫码端到端未验证，整体目标保持进行中。Impeccable 仍不可用，本批按 DESIGN.md 清单人工检查。
+
+### 当前执行：助手角色分配与窄屏入口
+
+- [x] 先补行为回归：角色读取失败阻止编辑并可重试；保存失败保留草稿，保存一个角色不覆盖其他角色草稿，切换全局/角色不丢编辑；选择器键盘/焦点。
+- [x] 复用共享 Select、Button、Checkbox、错误和空态，保留正文间距；长标题不被页头切换器挤掉，分配说明自然换行、移除无目的闪烁。
+- [x] 四宽度/三主题实屏与只读保存失败、完整测试/lint/build、独立复核后提交。真实权限写入不在预览执行。
+
+
+本批完成记录：角色分配读取异常不再转换为 []，AgentSection 与仍导出的 AgentConfigPanel 均阻止编辑，复用持续 callout / Retry；读取完整性以整区恢复保证，未把失败请求当作权限空值。加载代次和卸载清理阻止迟到结果，语言切换不再重新读取并清空草稿。RolesAgentTab 只持有修改过的角色草稿，保存仅清理当前角色，其他角色保持；保存期间禁用勾选和角色切换，失败持续显示、重试保留草稿，成功/失败的焦点均转至稳定容器。AgentSection 的全局/角色内容以原生 hidden 保持状态并从焦点/可访问树排除非活动内容。RoleSelector 删除 60 行自建菜单，改复用共享 Select，助手/模型两处都获得 portal、视口限制、方向键、Escape 和焦点归还；共享 Select 有 ariaLabel 时用原有可见值 id 提供 accessible description。
+
+测试先看到 9 条角色恢复/保存/切换/选择器/空态 RED，再修复；页头布局 1 条 RED、共享选择器当前值描述 1 条 RED、matching skeleton 1 条 RED 后修复。初轮角色 tab 测试使用了错误的英文单数 label，改为 locale 的实际 Role Assignments 后验证通过；不将错误标签引发的失败作为相关逻辑缺陷证据。独立复核提出的当前角色读屏 P2 已关闭，最终未发现新增 P1/P2。最终生产代码之后全量 739 文件 / 3544 项测试通过、lint 零错误零警告、build（含 tsc）及体积门禁通过：eager JS 559079 / 559104 bytes，precache 5016888 / 5242880 bytes；保留既有 chunk-size 提示，未新增依赖或提高预算。git diff --check 通过。
+
+八项自检：排版让助手页手机长标题完整显示、角色分配说明自然换行；正文留白沿用 panel-stack 与原有列表行，不全局压缩；页头/分配选择/状态/保存分层；主题沿用既有 token 和共享 primitive；移除角色草稿无目的闪烁与无效 animationDelay，切换尊重 reduced-motion；微交互覆盖整行 label 勾选、失败恢复、持久草稿、键盘和稳定焦点；实屏 320 dark、390 light、768 sepia、1440 light 的俄语和长中文角色名，无整页横向溢出；原创性保留 LambChat 羊角色场景及 serif 实体名，不加入无目的装饰。320/390 控件约 44px，整行勾选约 65px。1440 同时验证模型角色共用选择器的 ArrowDown / Escape；preview 保存请求返回 405，截图中失败不代表真实权限更新已验证。
+
+截图：agent-roles-320-ru-dark-before.png / after.png、agent-role-load-error-320-ru-dark.png、agent-role-select-320-ru-dark.png、agent-role-save-error-320-ru-dark.png、agent-roles-390-ru-light-after.png、agent-roles-768-ru-sepia-after.png、agent-roles-1440-ru-light-after.png。浏览器 viewport 已恢复，原用户 tab 未操作。
+
+继续优先：ModelSection / RolesModelTab 的相同读取失败与跨角色草稿风险，以及助手/模型顶级切换导致 section 卸载的草稿；审查所有 profile/user menu 的 Escape（本次 UI 在 profile 按钮按 Escape 后菜单仍可见，需定位实际 handler 与操作焦点）。继续此前欢迎无匹配/真实空态、复制失败、工具/图片、文件下载及其他格式、绘图大图与内嵌图片、资源导入发布和剩余语言。真实移动触屏/软键盘、认证/写入/对话与扫码端到端尚未验证。整体目标保持进行中，Impeccable 仍按已确认不可用环境使用 DESIGN.md 人工检查。

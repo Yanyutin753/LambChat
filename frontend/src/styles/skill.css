@@ -36,7 +36,8 @@
 }
 
 .skill-content-area {
-  background: radial-gradient(
+  background:
+    radial-gradient(
       ellipse 80% 50% at 50% 0%,
       color-mix(in srgb, var(--theme-primary-light) 6%, transparent) 0%,
       transparent 100%
@@ -132,6 +133,27 @@
 }
 
 @container panel (max-width: 639px) {
+  .panel-header--agent-model .panel-header__top {
+    flex-wrap: wrap;
+  }
+
+  [data-panel] .panel-header--agent-model .panel-header__identity {
+    flex: 1 1 100%;
+  }
+
+  .panel-header--agent-model .panel-header__title {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .panel-header--agent-model .panel-header__desktop-actions {
+    width: 100%;
+  }
+
+  .panel-header--agent-model .agent-model-section-switcher {
+    width: 100%;
+  }
+
   .panel-header--section-switch .panel-header__desktop-actions {
     display: flex;
   }

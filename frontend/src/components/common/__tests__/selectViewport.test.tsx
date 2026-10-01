@@ -49,3 +49,22 @@ test("select listbox inherits the visible selection name when no label is suppli
   const listbox = screen.getByRole("listbox", { name: "General agent" });
   expect(trigger.getAttribute("aria-controls")).toBe(listbox.id);
 });
+
+test("labelled select describes its current value after it changes", () => {
+  const props = {
+    onChange: vi.fn(),
+    ariaLabel: "Role",
+    options: [
+      { value: "a", label: "Alpha" },
+      { value: "b", label: "Beta" },
+    ],
+  };
+  const view = render(<Select {...props} value="a" />);
+  expect(
+    screen.getByRole("button", { name: "Role", description: "Alpha" }),
+  ).toBeTruthy();
+  view.rerender(<Select {...props} value="b" />);
+  expect(
+    screen.getByRole("button", { name: "Role", description: "Beta" }),
+  ).toBeTruthy();
+});

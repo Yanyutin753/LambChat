@@ -14,7 +14,8 @@ function readComponent(...segments: string[]): string {
 
 test("role selectors render role names with font-serif", () => {
   const selector = readComponent("panels/AgentPanel/shared/RoleSelector.tsx");
-  expect(selector).toMatch(/flex items-center gap-2 font-serif/);
+  expect(selector).toMatch(/<Select/);
+  expect(selector).toMatch(/triggerClassName="[^"]*font-serif/);
   expect(selector).toMatch(
     /<span className="font-serif">\{role\.name\}<\/span>/,
   );

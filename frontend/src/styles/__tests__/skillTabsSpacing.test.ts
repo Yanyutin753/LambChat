@@ -29,7 +29,7 @@ test("skills hub switch stays in the header action area on narrow and wide panel
   );
 });
 
-test("agent and model switch remains beside the title on compact panels", () => {
+test("agent and model switch gives long compact titles their own row", () => {
   const source = readFileSync(
     new URL(
       "../../components/panels/AgentModelPanel/AgentModelPanel.tsx",
@@ -37,7 +37,18 @@ test("agent and model switch remains beside the title on compact panels", () => 
     ),
     "utf8",
   );
-  expect(source).toContain('className="panel-header--section-switch"');
+  expect(source).toMatch(
+    /className="panel-header--section-switch panel-header--agent-model"/,
+  );
+  expect(skillCss).toMatch(
+    /@container panel \(max-width: 639px\)[\s\S]*?\.panel-header--agent-model \.panel-header__top\s*\{[^}]*flex-wrap:\s*wrap;/,
+  );
+  expect(skillCss).toMatch(
+    /\.panel-header--agent-model \.panel-header__identity\s*\{[^}]*flex:\s*1 1 100%;/,
+  );
+  expect(skillCss).toMatch(
+    /\.panel-header--agent-model \.panel-header__title\s*\{[^}]*white-space:\s*normal;/,
+  );
 });
 
 test("inline switches do not receive the page inset twice", () => {
