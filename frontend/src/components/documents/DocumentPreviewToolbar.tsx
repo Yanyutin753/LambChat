@@ -1,13 +1,8 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useId, useRef } from "react";
 import toast from "react-hot-toast";
 import { BackIcon } from "../common/BackIcon";
 import { FileIcon } from "../common/FileIcon";
-import {
-  FilterDropdown,
-  FloatingIconButton,
-  ToolbarIconButton,
-  ViewerDropdownMenuItem,
-} from "../common";
+import { FloatingIconButton, ToolbarIconButton } from "../common";
 import {
   X,
   Copy,
@@ -24,6 +19,7 @@ import {
   formatFileSize as formatFileSizeUtil,
   shouldShowLanguageBadge,
 } from "./utils";
+import { ResourceCardMenu } from "../common/ResourceCardMenu";
 import { getFullUrl } from "../../services/api/config";
 import type { DocumentPreviewState } from "./useDocumentPreviewState";
 
@@ -96,22 +92,16 @@ export default function DocumentPreviewToolbar({
   handleFullscreenToggle,
 }: ToolbarProps) {
   const [linkCopied, setLinkCopied] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        setMenuOpen(false);
-        menuRef.current?.querySelector("button")?.focus();
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown, true);
-    return () => document.removeEventListener("keydown", handleKeyDown, true);
-  }, [menuOpen]);
+  const menuId = useId();
+  const closeMenu = useCallback((restoreFocus = false) => {
+    setMenuPosition(null);
+    if (restoreFocus) menuRef.current?.querySelector("button")?.focus();
+  }, []);
 
   const fileUrl =
     getFullUrl(resolvedUrl) ||
@@ -131,7 +121,7 @@ export default function DocumentPreviewToolbar({
     ...(!embedded
       ? [
           {
-            title: isSidebar
+            label: isSidebar
               ? t("documents.centerView", "Center view")
               : t("documents.sidebarView", "Sidebar view"),
             icon: isSidebar ? (
@@ -145,7 +135,7 @@ export default function DocumentPreviewToolbar({
             },
           },
           {
-            title: t("documents.fullscreen"),
+            label: t("documents.fullscreen"),
             icon: <Expand size={TOOLBAR_ICON_SIZE} />,
             onClick: () => {
               onUserInteraction?.();
@@ -158,7 +148,7 @@ export default function DocumentPreviewToolbar({
     ...(fileUrl
       ? [
           {
-            title: t("documents.copyLink", "Copy link"),
+            label: t("documents.copyLink", "Copy link"),
             icon: linkCopied ? (
               <Check size={TOOLBAR_ICON_SIZE} />
             ) : (
@@ -171,7 +161,7 @@ export default function DocumentPreviewToolbar({
     ...(data?.content && !unsupportedPreviewFile
       ? [
           {
-            title: t("documents.copy"),
+            label: t("documents.copy"),
             icon: copied ? (
               <Check size={TOOLBAR_ICON_SIZE} />
             ) : (
@@ -270,34 +260,31 @@ export default function DocumentPreviewToolbar({
           />
         )}
         <div className="document-preview-more-actions" ref={menuRef}>
-          <FilterDropdown
-            open={menuOpen}
-            onOpenChange={setMenuOpen}
-            trigger={
-              <ToolbarIconButton
-                title={t("nav.more")}
-                aria-label={t("nav.more")}
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-                onClick={() => setMenuOpen(!menuOpen)}
-                icon={<MoreHorizontal size={TOOLBAR_ICON_SIZE} />}
-              />
-            }
-          >
-            {fileActions.map((action) => (
-              <ViewerDropdownMenuItem
-                key={action.title}
-                role="menuitem"
-                onClick={() => {
-                  setMenuOpen(false);
-                  action.onClick();
-                }}
-              >
-                {action.icon}
-                {action.title}
-              </ViewerDropdownMenuItem>
-            ))}
-          </FilterDropdown>
+          <ToolbarIconButton
+            title={t("nav.more")}
+            aria-label={t("nav.more")}
+            aria-haspopup="menu"
+            aria-expanded={Boolean(menuPosition)}
+            aria-controls={menuPosition ? menuId : undefined}
+            onClick={(event) => {
+              if (menuPosition) {
+                closeMenu(true);
+                return;
+              }
+              const rect = event.currentTarget.getBoundingClientRect();
+              setMenuPosition({ x: rect.left, y: rect.bottom + 4 });
+            }}
+            icon={<MoreHorizontal size={TOOLBAR_ICON_SIZE} />}
+          />
+          {menuPosition && (
+            <ResourceCardMenu
+              id={menuId}
+              title={t("nav.more")}
+              position={menuPosition}
+              onClose={closeMenu}
+              actions={fileActions}
+            />
+          )}
         </div>
         <ToolbarIconButton
           onClick={() => {

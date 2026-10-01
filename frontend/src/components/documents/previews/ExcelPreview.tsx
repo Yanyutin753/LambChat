@@ -114,7 +114,16 @@ const ExcelPreview = memo(function ExcelPreview({
       setHoveredCell(null);
       try {
         const XLSX = await import("xlsx");
-        const workbook = XLSX.read(arrayBuffer, { type: "array" });
+        let codepage: number | undefined;
+        if (/\.(csv|tsv)$/i.test(fileName)) {
+          try {
+            new TextDecoder("utf-8", { fatal: true }).decode(arrayBuffer);
+            codepage = 65001;
+          } catch {
+            // Preserve the parser's existing fallback for legacy CSV encodings.
+          }
+        }
+        const workbook = XLSX.read(arrayBuffer, { type: "array", codepage });
         let imagesBySheet = new Map<string, ExcelEmbeddedImage[]>();
         try {
           imagesBySheet = await extractExcelEmbeddedImages(
@@ -237,10 +246,7 @@ const ExcelPreview = memo(function ExcelPreview({
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <LoadingSpinner
-          size="lg"
-          className="text-stone-400 dark:text-stone-500"
-        />
+        <LoadingSpinner size="lg" className="text-theme-text-muted" />
       </div>
     );
   }
@@ -248,8 +254,8 @@ const ExcelPreview = memo(function ExcelPreview({
   if (error) {
     return (
       <div className="flex min-h-full items-center justify-center p-4 sm:p-6">
-        <div className="w-full max-w-md p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-          <p className="text-14 text-red-600 dark:text-red-400 font-medium break-words">
+        <div className="w-full max-w-md p-4 rounded-lg bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)] border border-theme-border">
+          <p className="text-14 text-theme-error font-medium break-words">
             {t("documents.excelPreviewError")}: {error}
           </p>
         </div>
@@ -272,19 +278,19 @@ const ExcelPreview = memo(function ExcelPreview({
   const displayRows = totalRows; // includes header
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-stone-950">
+    <div className="flex flex-col h-full bg-theme-bg-card">
       {/* Formula bar */}
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-stone-50 dark:bg-stone-900 border-b border-stone-200 dark:border-stone-700 shrink-0">
-        <span className="text-11 font-bold text-stone-600 dark:text-stone-400 w-8 text-center shrink-0 italic">
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-theme-bg-subtle border-b border-theme-border shrink-0">
+        <span className="text-11 font-bold text-theme-text-secondary w-8 text-center shrink-0 italic">
           fx
         </span>
-        <span className="text-12 text-stone-500 dark:text-stone-400 truncate font-mono min-w-[3rem]">
+        <span className="text-12 text-theme-text-secondary truncate font-mono min-w-[3rem]">
           {hoveredCell
-            ? `${colLabel(hoveredCell.col)}${hoveredCell.row + 1}`
+            ? `${colLabel(hoveredCell.col)}${Math.max(1, hoveredCell.row + 1)}`
             : "A1"}
         </span>
-        <span className="h-4 w-px bg-stone-300 dark:bg-stone-600 shrink-0" />
-        <span className="text-12 text-stone-700 dark:text-stone-300 truncate">
+        <span className="h-4 w-px bg-theme-border shrink-0" />
+        <span className="text-12 text-theme-text truncate">
           {hoveredCell
             ? getCellValue(hoveredCell.row, hoveredCell.col)
             : headerRow.length > 0
@@ -294,12 +300,13 @@ const ExcelPreview = memo(function ExcelPreview({
       </div>
 
       {/* Sheet tabs */}
-      <div className="flex items-center gap-0.5 px-1 py-0 bg-stone-100 dark:bg-stone-900 border-b border-stone-300 dark:border-stone-700 shrink-0">
+      <div className="excel-preview-sheet-nav flex items-center gap-0.5 px-1 py-0 bg-theme-bg-subtle border-b border-theme-border shrink-0">
         <button
           type="button"
+          aria-label={t("common.previous")}
           onClick={() => setActiveSheet((p) => Math.max(0, p - 1))}
           disabled={activeSheet === 0}
-          className="p-1 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 disabled:opacity-30 disabled:cursor-default transition-colors"
+          className="p-1 text-theme-text-muted hover:text-theme-text disabled:opacity-30 disabled:cursor-default transition-colors"
         >
           <svg
             width="14"
@@ -318,11 +325,13 @@ const ExcelPreview = memo(function ExcelPreview({
           {sheets.map((sheet: SheetData, index) => (
             <button
               key={sheet.name}
+              type="button"
+              aria-pressed={activeSheet === index}
               onClick={() => setActiveSheet(index)}
               className={`px-3 py-0.5 text-11 font-medium rounded-sm whitespace-nowrap transition-all ${
                 activeSheet === index
-                  ? "bg-theme-bg-card dark:bg-stone-800 text-stone-800 dark:text-stone-100 shadow-sm border border-stone-300 dark:border-stone-600"
-                  : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200/50 dark:hover:bg-stone-800/50"
+                  ? "bg-theme-bg-card text-theme-text shadow-sm border border-theme-border"
+                  : "text-theme-text-secondary hover:text-theme-text hover:bg-theme-bg-subtle"
               }`}
             >
               {sheet.name}
@@ -331,11 +340,12 @@ const ExcelPreview = memo(function ExcelPreview({
         </div>
         <button
           type="button"
+          aria-label={t("common.next")}
           onClick={() =>
             setActiveSheet((p) => Math.min(sheets.length - 1, p + 1))
           }
           disabled={activeSheet === sheets.length - 1}
-          className="p-1 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 disabled:opacity-30 disabled:cursor-default transition-colors"
+          className="p-1 text-theme-text-muted hover:text-theme-text disabled:opacity-30 disabled:cursor-default transition-colors"
         >
           <svg
             width="14"
@@ -355,7 +365,7 @@ const ExcelPreview = memo(function ExcelPreview({
       {/* Spreadsheet grid */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-auto relative overscroll-x-contain [-webkit-overflow-scrolling:touch] excel-preview-scroll border-x border-stone-300 dark:border-stone-600"
+        className="flex-1 overflow-auto relative overscroll-x-contain [-webkit-overflow-scrolling:touch] excel-preview-scroll border-x border-theme-border"
       >
         <div ref={gridSurfaceRef} className="relative w-max min-w-full">
           <table className="border-collapse w-max min-w-full text-13">
@@ -363,15 +373,15 @@ const ExcelPreview = memo(function ExcelPreview({
             <thead>
               <tr className="sticky top-0 z-10">
                 {/* Top-left corner */}
-                <th className="sticky left-0 z-20 w-8 sm:w-10 min-w-[2rem] sm:min-w-[2.5rem] max-w-[2rem] sm:max-w-[2.5rem] px-0 py-0 text-center text-11 text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 border-r border-b border-stone-300 dark:border-stone-600 select-none" />
+                <th className="sticky left-0 z-20 w-8 sm:w-10 min-w-[2rem] sm:min-w-[2.5rem] max-w-[2rem] sm:max-w-[2.5rem] px-0 py-0 text-center text-11 text-theme-text-secondary bg-theme-bg-subtle border-r border-b border-theme-border select-none" />
                 {/* Column letters */}
                 {Array.from({ length: totalCols }, (_, i) => (
                   <th
                     key={i}
                     data-excel-column-index={i}
-                    className={`min-w-[60px] sm:min-w-[80px] h-6 px-0 py-0 text-center text-11 font-normal text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-600 select-none leading-6 ${
+                    className={`min-w-[60px] sm:min-w-[80px] h-6 px-0 py-0 text-center text-11 font-normal text-theme-text-secondary bg-theme-bg-subtle border border-theme-border select-none leading-6 ${
                       hoveredCell?.col === i
-                        ? "bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300"
+                        ? "bg-theme-bg-subtle text-theme-text"
                         : ""
                     }`}
                   >
@@ -394,12 +404,12 @@ const ExcelPreview = memo(function ExcelPreview({
                     {/* Row number */}
                     <td
                       data-excel-row-index={rawRowIndex}
-                      className={`sticky left-0 z-10 w-8 sm:w-10 min-w-[2rem] sm:min-w-[2.5rem] max-w-[2rem] sm:max-w-[2.5rem] px-0 py-0 text-center text-11 bg-stone-100 dark:bg-stone-800 border-r border-b border-stone-300 dark:border-stone-600 select-none tabular-nums leading-6 touch-none [box-shadow:2px_0_4px_-1px_rgba(0,0,0,0.06)] dark:[box-shadow:2px_0_4px_-1px_rgba(0,0,0,0.3)] ${
+                      className={`sticky left-0 z-10 w-8 sm:w-10 min-w-[2rem] sm:min-w-[2.5rem] max-w-[2rem] sm:max-w-[2.5rem] px-0 py-0 text-center text-11 bg-theme-bg-subtle border-r border-b border-theme-border select-none tabular-nums leading-6 touch-none [box-shadow:2px_0_4px_-1px_rgba(0,0,0,0.06)] dark:[box-shadow:2px_0_4px_-1px_rgba(0,0,0,0.3)] ${
                         isHeader
-                          ? "text-stone-400 dark:text-stone-500"
+                          ? "text-theme-text-muted"
                           : isRowHovered
-                            ? "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/40"
-                            : "text-stone-500 dark:text-stone-400"
+                            ? "text-theme-primary bg-theme-bg-subtle"
+                            : "text-theme-text-secondary"
                       }`}
                     >
                       {isHeader ? "" : rawRowIndex}
@@ -419,11 +429,11 @@ const ExcelPreview = memo(function ExcelPreview({
                         return (
                           <th
                             key={colIndex}
-                            onMouseEnter={() => handleCellHover(0, colIndex)}
+                            onMouseEnter={() => handleCellHover(-1, colIndex)}
                             onMouseLeave={handleCellLeave}
-                            className={`min-h-[24px] min-w-[60px] sm:min-w-[80px] px-2 py-0 text-13 leading-6 border border-stone-300 dark:border-stone-600 whitespace-nowrap text-left font-semibold text-stone-700 dark:text-stone-300 bg-stone-50 dark:bg-stone-800/60 ${
+                            className={`min-h-[24px] min-w-[60px] sm:min-w-[80px] px-2 py-0 text-13 leading-6 border border-theme-border whitespace-nowrap text-left font-semibold text-theme-text bg-theme-bg-subtle ${
                               isCellHovered
-                                ? "!outline outline-2 outline-stone-500 dark:outline-stone-400 outline-offset-[-1px] bg-stone-100/60 dark:bg-stone-800/40 !border-stone-400 dark:!border-stone-500"
+                                ? "!outline outline-2 outline-[var(--theme-primary)] outline-offset-[-1px] bg-theme-bg-subtle !border-theme-text-muted"
                                 : ""
                             }`}
                           >
@@ -439,15 +449,15 @@ const ExcelPreview = memo(function ExcelPreview({
                             handleCellHover(rawRowIndex - 1, colIndex)
                           }
                           onMouseLeave={handleCellLeave}
-                          className={`min-h-[24px] min-w-[60px] sm:min-w-[80px] px-2 py-0 text-13 leading-6 border border-stone-200 dark:border-stone-700/80 whitespace-nowrap text-stone-800 dark:text-stone-200 ${
+                          className={`min-h-[24px] min-w-[60px] sm:min-w-[80px] px-2 py-0 text-13 leading-6 border border-theme-border whitespace-nowrap text-theme-text ${
                             num
                               ? "text-right tabular-nums font-mono"
                               : "text-left"
                           } ${
                             isCellHovered
-                              ? "!outline outline-2 outline-stone-500 dark:outline-stone-400 outline-offset-[-1px] bg-stone-100/60 dark:bg-stone-800/40 !border-stone-400 dark:!border-stone-500"
+                              ? "!outline outline-2 outline-[var(--theme-primary)] outline-offset-[-1px] bg-theme-bg-subtle !border-theme-text-muted"
                               : isRowHovered
-                                ? "bg-stone-50/70 dark:bg-stone-800/30"
+                                ? "bg-theme-bg-subtle"
                                 : ""
                           }`}
                         >
@@ -492,7 +502,7 @@ const ExcelPreview = memo(function ExcelPreview({
 
         {/* Empty state */}
         {totalRows === 0 && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-stone-400 dark:text-stone-500">
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-theme-text-muted">
             <p className="text-14">{t("documents.noData") || "No data"}</p>
           </div>
         )}
@@ -500,9 +510,9 @@ const ExcelPreview = memo(function ExcelPreview({
         {/* Scroll progress indicator */}
         {hasOverflow && (
           <div className="absolute bottom-0 left-0 right-0 h-1 z-30 pointer-events-none">
-            <div className="h-full bg-stone-300/40 dark:bg-stone-600/40" />
+            <div className="h-full bg-theme-border" />
             <div
-              className="absolute top-0 h-full bg-stone-400 dark:bg-stone-500 transition-[left] duration-75"
+              className="absolute top-0 h-full bg-theme-text-muted transition-[left] duration-75"
               style={{
                 width: `${Math.max(10, (1 - progress) * 100)}%`,
                 left: `${progress * 100}%`,
@@ -513,10 +523,10 @@ const ExcelPreview = memo(function ExcelPreview({
       </div>
 
       {/* Status bar */}
-      <div className="flex items-center justify-between px-3 py-1 text-11 text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 border-t border-stone-300 dark:border-stone-600 shrink-0">
+      <div className="flex items-center justify-between px-3 py-1 text-11 text-theme-text-secondary bg-theme-bg-subtle border-t border-theme-border shrink-0">
         <span className="tabular-nums">
           {sheets.length > 1 && (
-            <span className="mr-2 text-stone-400 dark:text-stone-500">
+            <span className="mr-2 text-theme-text-muted">
               {currentSheet?.name}
             </span>
           )}
@@ -527,12 +537,12 @@ const ExcelPreview = memo(function ExcelPreview({
         </span>
         <div className="flex items-center gap-3">
           {hoveredCell && (
-            <span className="px-1.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 font-mono">
+            <span className="px-1.5 rounded bg-theme-bg-subtle text-theme-text-secondary font-mono">
               {colLabel(hoveredCell.col)}
-              {hoveredCell.row + 1}
+              {Math.max(1, hoveredCell.row + 1)}
             </span>
           )}
-          <span className="text-stone-400 dark:text-stone-500">
+          <span className="text-theme-text-muted">
             {t("documents.excelReady")}
           </span>
         </div>

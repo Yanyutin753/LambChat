@@ -1035,6 +1035,9 @@ function response(url: URL, scenario: string): unknown {
           ...file,
           id: `${file.id}-code`,
           file_name: `数据清洗-${i + 1}.py`,
+          file_key: `preview/${i}.py`,
+          original_path: `/workspace/数据清洗-${i + 1}.py`,
+          url: "/preview-document.py",
           file_type: "code",
           mime_type: "text/x-python",
           card_preview: {
@@ -1056,6 +1059,10 @@ function response(url: URL, scenario: string): unknown {
           ...file,
           id: `${file.id}-sheet`,
           file_name: `项目指标-${i + 1}.csv`,
+          file_key: `preview/${i}.csv`,
+          original_path: `/workspace/项目指标-${i + 1}.csv`,
+          url: "/preview-document.csv",
+          mime_type: "text/csv",
           card_preview: {
             kind: "text",
             title: "项目指标",
@@ -1314,7 +1321,21 @@ const server = await createServer({
         vite.middlewares.use((req, res, next) => {
           const url = new URL(req.url ?? "/", "http://127.0.0.1:3002");
           if (url.pathname === "/preview-document.md") {
-            res.end("# 项目交付报告\n\n研究结果与后续计划。");
+            res.end(
+              '# 项目交付报告\n\n研究结果与后续计划。保持舒适的阅读宽度与清楚的信息层级。\n\n## 验证清单\n\n- 手机工具栏与长文件名\n- 代码与表格横向滚动\n- 深浅色与护眼主题\n\n| 项目 | 负责人 | 阶段 | 交付成果 | 验证方法 | 下一步 |\n| --- | --- | --- | --- | --- | --- |\n| 响应式界面 | 产品设计团队 | 验收中 | 跨端界面与交互规范 | 手机、平板、桌面逐页走查 | 核对触屏和键盘焦点 |\n\n```python\nreport = summarize(source="quarterly_business_metrics.csv", columns=["month", "delivery_count", "completion_rate", "owner"])\n```\n',
+            );
+            return;
+          }
+          if (url.pathname === "/preview-document.py") {
+            res.end(
+              'import pandas as pd\n\ndef summarize(data):\n    clean = data.dropna()\n    return clean.groupby("month").sum()\n\nreport = summarize(pd.read_csv("quarterly_business_metrics_with_delivery_counts_and_completion_rates.csv"))\n',
+            );
+            return;
+          }
+          if (url.pathname === "/preview-document.csv") {
+            res.end(
+              "月份,交付数量,完成率,负责人,交付成果,验证方法,下一步\n六月,128,92%,产品设计团队,跨端界面与交互规范,手机平板桌面逐页走查,核对触屏和键盘焦点\n七月,156,96%,前端开发团队,文档阅读和文件预览,长文件名与表格验证,完成深浅色回归\n八月,182,98%,质量验证团队,异常恢复与发布验收,自动化检查和人工复核,整理验证结果\n",
+            );
             return;
           }
           if (

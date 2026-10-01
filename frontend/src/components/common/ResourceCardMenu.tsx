@@ -59,8 +59,13 @@ export function ResourceCardMenu({
         onClose();
     };
     const dismiss = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229)
+        return;
       if (event.key === "Escape" || event.key === "Tab") {
-        if (event.key === "Escape") event.preventDefault();
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
         onClose(true);
       }
     };
@@ -98,6 +103,12 @@ export function ResourceCardMenu({
       }}
       onKeyDown={(event) => {
         event.stopPropagation();
+        if (
+          event.defaultPrevented ||
+          event.nativeEvent.isComposing ||
+          event.keyCode === 229
+        )
+          return;
         const buttons = Array.from(
           ref.current!.querySelectorAll<HTMLButtonElement>("button"),
         );

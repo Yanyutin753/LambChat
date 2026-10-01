@@ -165,3 +165,21 @@ FeatureMenu 折叠分组 inert/aria-hidden，切换按钮 expanded/controls；�
 最终全量 723 文件 / 3444 项测试通过，lint 无警告，build/类型检查和体积门禁通过；eager JS 558787 / 559104 字节，precache 5018791 / 5242880 字节。中途一次全量出现既有 projectAndSearchComposition IME 测试不稳定，单独复查及之后两次全量均通过，未改该测试或搜索实现。三个独立代码复核未发现新 P1/P2；最终分页补充有两条先失败后通过的回归测试。
 
 继续待查：主聊天欢迎/更多/流式状态；文件卡片、代码/CSV/文档多主题与错误恢复；资源导入发布、助手/批量/渠道编辑器，以及其余语言与选择器状态组合。原生设备/软键盘、真实写入/认证/对话未验证，目标保持进行中，不以本批代替全部界面验收。
+
+### 2026-10-02：文件预览菜单、表格编码与主题
+
+开工 fetch origin，origin/develop 保持 23715d9d，确认是当前分支祖先；仅在隔离 worktree 修改。手机文件库和预览工具栏本来已为 44px/gap 0，未再次压缩正文或卡片。实际发现 DocumentPreviewToolbar 的 More 菜单只有约 36px、无名称、打开焦点留在入口且方向键无效。复用现有 ResourceCardMenu，移除本地菜单 Escape 实现；共享菜单补默认已处理事件/IME guard，并消费 Escape，避免关闭上层预览。实测首项聚焦、方向键切换、Escape 只关闭菜单并回入口、Tab 到相邻关闭按钮；文件卡片菜单 Escape 同样回 More 入口。
+
+修正只读 preview 的代码/CSV 卡片：分别提供对应文件 key、路径、URL 与内容，不再全部读取 Markdown。Markdown 样例增加多列表格、长代码和正文，Python 与 CSV 有实际长行/中文。真实浏览器代码、CSV 横向滚动均达到约 337px，整页横向溢出为 0。未用滚动容器存在冒充已操作滚动；未执行收藏、写入、下载或真实对话。
+
+实际 CSV 中文乱码由 XLSX.read 的默认非 UTF-8 文本解析引起。先用真实组件测试观察失败，再对有效 UTF-8 的 csv/tsv 指定 65001。独立复核发现初版强制编码会回归 Windows-1252；增加旧编码 Résumé 字节用例，原生 TextDecoder fatal 检查无效 UTF-8 时保留原解析默认。UTF-8 无 BOM/有 BOM、旧编码、空 CSV、真实带图片 XLSX 均通过。空工作表不再由无范围/全空文本生成假空行，图片的网格范围仍单独保留。表头悬停内容栏由错误首数据行改为表头值，地址不再显示 A0；对应测试先失败后通过。
+
+表格工作表切换补名称、pressed、原生 type、主题焦点环；手机/coarse pointer 控件至少 44px、按钮组 gap 0，桌面密度保持。768px 护眼主题实际发现表格大片纯白背景，ExcelPreview 与滚动条全部换用现有主题 token；深色同步复核。未改非交互表格的字号/行距。只读样例范围与编码验证用途补入 PANEL_PREVIEW.md。
+
+视觉证据：document-more-320-dark-final、document-code-320-dark-scroll-final、document-csv-320-dark-final、document-md-390-light-final、document-csv-768-sepia-final、document-md-768-sepia-final、document-more-768-sepia-final、document-md-1440-light-final。上述手机/平板/桌面与三主题无整页横向溢出；390px 工具栏按钮约 44px、gap 0，桌面仍约 32px。长标题按现有 truncate 保留 title，阅读列和正文留白未改。
+
+八项自检：标题/正文/元数据层级保留；阅读与卡片留白未压缩；主要动作与菜单分工明确；表格复用全部主题色；保留已有动效/reduced-motion，移除自定义滚动条过渡；原生菜单焦点、IME、Escape/Tab、表头反馈与错误编码补齐；上述四宽度/三主题实际检查；延续 LambChat 品牌与现有视觉语言，无新装饰体系/依赖。Impeccable 检查器沿先前不可用状态按 DESIGN.md 人工清单执行。
+
+最终全量 723 个文件 / 3450 项测试通过，lint 无警告，build/类型与体积门禁通过；eager JS 558788 / 559104 字节，precache 5018613 / 5242880 字节。独立审查的编码 P2 已修正，最终复核无新增 P1/P2。
+
+继续待查：文件/文档下载错误恢复、更多格式和图表导出菜单；主聊天欢迎/更多/流式状态；资源导入发布、助手/批量/渠道编辑器，以及剩余语言/选择器状态组合。原生触屏/软键盘和真实认证/写入/对话尚未验证。目标保持进行中，本批不是全界面验收结论。

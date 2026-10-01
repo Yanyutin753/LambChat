@@ -92,6 +92,30 @@ test("clicking more again closes its menu", () => {
   fireEvent.click(more);
   expect(screen.queryByRole("menu")).toBeNull();
 });
+
+test("menu ignores IME navigation and consumes Escape before a parent overlay", () => {
+  render(
+    <SkillBaseCard
+      title="Research"
+      actions={[
+        { label: "Edit", onClick: vi.fn() },
+        { label: "Delete", onClick: vi.fn() },
+      ]}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "common.moreOptions" }));
+  const edit = screen.getByRole("menuitem", { name: "Edit" });
+  fireEvent.keyDown(edit, { key: "ArrowDown", isComposing: true });
+  expect(edit).toHaveFocus();
+  fireEvent.keyDown(edit, { key: "Escape", keyCode: 229 });
+  expect(screen.getByRole("menu")).toBeInTheDocument();
+  const parentClose = vi.fn();
+  document.addEventListener("keydown", parentClose);
+  fireEvent.keyDown(edit, { key: "Escape" });
+  document.removeEventListener("keydown", parentClose);
+  expect(parentClose).not.toHaveBeenCalled();
+  expect(screen.queryByRole("menu")).toBeNull();
+});
 test("card primary action is separate from its nested controls", () => {
   const activate = vi.fn();
   const { container } = render(

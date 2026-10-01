@@ -113,3 +113,15 @@ test("compact file actions stay available in the menu and Escape returns focus",
   expect(screen.queryByRole("menu")).toBeNull();
   expect(trigger).toHaveFocus();
 });
+
+test("preview menu is named, focuses its first action and supports arrow navigation", () => {
+  renderCopyLinkButton({ resolvedUrl: "https://example.test/file.docx" });
+  expect(screen.getByRole("menu", { name: "nav.more" })).toBeInTheDocument();
+  expect(screen.getByRole("menuitem", { name: "Center view" })).toHaveFocus();
+  fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+  expect(
+    screen.getByRole("menuitem", { name: "documents.fullscreen" }),
+  ).toHaveFocus();
+  fireEvent.keyDown(document.activeElement!, { key: "End" });
+  expect(screen.getByRole("menuitem", { name: "Copy link" })).toHaveFocus();
+});
