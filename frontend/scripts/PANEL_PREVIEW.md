@@ -30,6 +30,8 @@
 
 URL 参数：`?theme=dark` 为深色；默认浅色。`?fixture=empty` 返回空列表，`?fixture=error` 模拟加载失败，`?fixture=loading` 延迟响应；可组合 `?theme=dark&fixture=empty`。设置和认证保持可用，以便继续导航。
 
+选择器单独走查可用 `?fixture=error&failure=teams` 或 `?fixture=error&failure=persona-presets`，仅让对应列表请求失败，保留聊天与模式入口。演示助手标识与后端注册一致（`fast`、`search`、`team`），团队模式的功能菜单可打开团队选择器。
+
 公开主页和认证页使用 `?guest=1`，以访客状态走查，避免演示登录自动跳到聊天页。仅影响此只读预览的 3002 origin。
 
 聊天侧栏提供 65 条会话及一个长标题项目；`/chat/preview-report` 的分享选择有 65 个轮次。项目分享可检查长列表与 50 条上限。`loading` 延迟资源与设置响应 8 秒，认证 fixture 保持即时，以便检查各页面骨架；`empty` 仅清空已支持的列表，助手/渠道目录及用量汇总可能仍有样例。上述数据均不代表真实分享或项目。

@@ -24,6 +24,7 @@ import { PersonaAvatarIcon, PersonaAvatarImage } from "./PersonaAvatarIcon";
 import { PersonaPreviewSidebar } from "./PersonaPreviewSidebar";
 import { Pagination } from "../common/Pagination";
 import { PanelSearchInput } from "../common/PanelSearchInput";
+import { ResourceCardTags } from "../common/ResourceCardTags";
 
 const LOCAL_PAGE_SIZE = 20;
 
@@ -36,6 +37,8 @@ interface PersonaPresetSelectorProps {
   selectedPresetId?: string | null;
   isOpen: boolean;
   isLoading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   isMutating?: boolean;
   canManagePresets?: boolean;
   onOpenChange: (open: boolean) => void;
@@ -60,6 +63,8 @@ export function PersonaPresetSelector({
   selectedPresetId,
   isOpen,
   isLoading = false,
+  error,
+  onRetry,
   isMutating = false,
   canManagePresets = false,
   onOpenChange,
@@ -150,12 +155,12 @@ export function PersonaPresetSelector({
       onClose={() => onOpenChange(false)}
     >
       <div
-        className="flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-2xl shadow-2xl sm:max-w-3xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl sm:rounded-2xl safe-area-bottom"
+        className="resource-picker flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-2xl shadow-2xl sm:max-w-3xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl sm:rounded-2xl safe-area-bottom"
         style={{ background: "var(--theme-bg-card)" }}
         onClick={(event) => event.stopPropagation()}
       >
         <div
-          className="flex items-center justify-between border-b px-5 py-4"
+          className="resource-picker-header flex items-center justify-between border-b px-5 py-4"
           style={{ borderColor: "var(--theme-border)" }}
         >
           <div className="flex items-center gap-3">
@@ -199,6 +204,7 @@ export function PersonaPresetSelector({
             <button
               type="button"
               className="rounded-lg p-2 hover:bg-theme-bg-subtle dark:hover:bg-stone-800"
+              aria-label={t("common.close")}
               onClick={() => onOpenChange(false)}
             >
               <X size={18} />
@@ -206,7 +212,7 @@ export function PersonaPresetSelector({
           </div>
         </div>
 
-        <div className="space-y-3 border-b px-5 py-3 border-theme-border/70 dark:border-stone-700/70">
+        <div className="resource-picker-toolbar space-y-3 border-b px-5 py-3 border-theme-border/70 dark:border-stone-700/70">
           <div className="flex items-center gap-2">
             <div className="relative min-w-0 flex-1">
               <Search
@@ -217,6 +223,7 @@ export function PersonaPresetSelector({
                 value={query}
                 onValueChange={setQuery}
                 placeholder={t("personaPresets.search", "搜索角色")}
+                maxLength={100}
                 className="h-10 w-full rounded-lg border bg-transparent pl-9 pr-3 text-14 outline-none"
                 style={{
                   borderColor: "var(--theme-border)",
@@ -246,6 +253,7 @@ export function PersonaPresetSelector({
             <div className="flex gap-2 overflow-x-auto pb-1">
               <button
                 type="button"
+                aria-pressed={activeTag === null}
                 onClick={() => setActiveTag(null)}
                 className="shrink-0 rounded-full border px-3 py-1 text-12"
                 style={{
@@ -263,6 +271,7 @@ export function PersonaPresetSelector({
                 <button
                   key={tag}
                   type="button"
+                  aria-pressed={activeTag === tag}
                   onClick={() => setActiveTag(tag)}
                   className="shrink-0 rounded-full border px-3 py-1 text-12"
                   style={{
@@ -284,13 +293,33 @@ export function PersonaPresetSelector({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          {error && (
+            <div
+              role="alert"
+              className="mb-4 text-center text-14 text-theme-text-secondary"
+            >
+              <p>{error}</p>
+              {onRetry && (
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  className="btn-secondary mt-3"
+                  onClick={onRetry}
+                >
+                  {t("common.retry")}
+                </button>
+              )}
+            </div>
+          )}
           {isLoading ? (
             <div className="py-10 text-center text-14 text-theme-text-secondary">
               {t("common.loading", "加载中...")}
             </div>
-          ) : filtered.length === 0 ? (
+          ) : !error && filtered.length === 0 ? (
             <div className="py-10 text-center text-14 text-theme-text-secondary">
-              {t("personaPresets.empty", "暂无角色预设")}
+              {query.trim() || activeTag
+                ? t("personaPresets.noMatch")
+                : t("personaPresets.empty", "暂无角色预设")}
             </div>
           ) : (
             <div className="grid auto-grid-cols gap-3">
@@ -303,7 +332,7 @@ export function PersonaPresetSelector({
                   <div
                     key={preset.id}
                     className="pps-card group flex h-full flex-col overflow-hidden rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none"
-                    style={{ animationDelay: `${index * 50}ms` }}
+                    style={{ animationDelay: `${Math.min(index * 30, 180)}ms` }}
                     onClick={() => setPreviewPreset(preset)}
                   >
                     {/* Gradient Banner */}
@@ -328,6 +357,7 @@ export function PersonaPresetSelector({
                                 : ""
                             }`}
                             title={t("personaPresets.pin", "置顶")}
+                            aria-pressed={!!preset.is_pinned}
                             onClick={(event) => {
                               event.stopPropagation();
                               void onTogglePreference(preset, {
@@ -345,6 +375,7 @@ export function PersonaPresetSelector({
                                 : ""
                             }`}
                             title={t("personaPresets.favorite", "收藏")}
+                            aria-pressed={!!preset.is_favorite}
                             onClick={(event) => {
                               event.stopPropagation();
                               void onTogglePreference(preset, {
@@ -388,11 +419,20 @@ export function PersonaPresetSelector({
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h3
-                            className="truncate text-16 font-semibold font-serif  text-[var(--theme-text)] leading-tight"
-                            title={preset.name}
-                          >
-                            {preset.name}
+                          <h3 className="text-16 font-semibold font-serif text-theme-text leading-tight">
+                            <button
+                              type="button"
+                              className="pps-card__title w-full text-left"
+                              title={preset.name}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setPreviewPreset(preset);
+                              }}
+                            >
+                              <span className="line-clamp-2">
+                                {preset.name}
+                              </span>
+                            </button>
                           </h3>
                           <div className="mt-1.5 flex items-center gap-2 text-11 text-[var(--theme-text-secondary)]">
                             <span>
@@ -418,33 +458,16 @@ export function PersonaPresetSelector({
                         {preset.description || preset.system_prompt}
                       </p>
 
-                      {/* Tags */}
                       {preset.tags.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          {preset.tags.slice(0, 3).map((tag) => (
-                            <span
-                              key={tag}
-                              className="scb__mini-tag"
-                              style={{ cursor: "default" }}
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                          {preset.tags.length > 3 && (
-                            <span
-                              className="scb__mini-tag"
-                              style={{ cursor: "default", opacity: 0.7 }}
-                            >
-                              +{preset.tags.length - 3}
-                            </span>
-                          )}
+                        <div className="mt-3">
+                          <ResourceCardTags tags={preset.tags} />
                         </div>
                       )}
 
                       <div className="flex-1" />
 
                       {/* Actions */}
-                      <div className="mt-4 flex items-center justify-between gap-2 border-t border-[var(--theme-border)] pt-3">
+                      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--theme-border)] pt-3">
                         <button
                           type="button"
                           disabled={isMutating || isUsingPreset}
@@ -496,19 +519,17 @@ export function PersonaPresetSelector({
           )}
         </div>
 
-        {totalItems > pageSize && (
-          <div
-            className="border-t px-5 py-3"
-            style={{ borderColor: "var(--theme-border)" }}
-          >
-            <Pagination
-              page={currentPage}
-              pageSize={pageSize}
-              total={totalItems}
-              onChange={handlePageChange}
-            />
-          </div>
-        )}
+        <div
+          className="border-t px-5 py-3 empty:hidden"
+          style={{ borderColor: "var(--theme-border)" }}
+        >
+          <Pagination
+            page={currentPage}
+            pageSize={pageSize}
+            total={totalItems}
+            onChange={handlePageChange}
+          />
+        </div>
       </div>
     </ModalSurface>
   );

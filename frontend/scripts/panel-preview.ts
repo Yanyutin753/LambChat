@@ -35,7 +35,7 @@ const user = {
   created_at: now,
   updated_at: now,
 };
-const agents = ["fast_agent", "search_agent", "team_agent"].map((id, i) => ({
+const agents = ["fast", "search", "team"].map((id, i) => ({
   id,
   name: ["通用助手", "研究助手", "团队助手"][i],
   description: "完成研究、分析和内容交付任务",
@@ -138,7 +138,7 @@ const tasks = rows((i, name) => ({
   id: `task-${i}`,
   name,
   description: "收集近期进展并生成项目周报",
-  agent_id: "fast_agent",
+  agent_id: "fast",
   trigger_type: "cron",
   trigger_config: { cron: "0 9 * * 1", expression: "0 9 * * 1" },
   timezone: "Asia/Shanghai",
@@ -282,8 +282,8 @@ const settings = {
     frontend: [
       {
         key: "DEFAULT_AGENT",
-        value: "fast_agent",
-        default_value: "fast_agent",
+        value: "fast",
+        default_value: "fast",
         type: "string",
         category: "frontend",
         subcategory: "display",
@@ -879,21 +879,19 @@ function response(url: URL, scenario: string): unknown {
         failed_requests: i % 3,
         tool_calls: 32 + i * 5,
       })),
-      top_agents: ["fast_agent", "search_agent", "team_agent"].map(
-        (name, i) => ({
-          id: name,
-          name,
-          requests: 40 - i * 9,
-          tokens: 68000 - i * 12000,
-          cost_usd: 2.8 - i * 0.6,
-          duration: 850 - i * 150,
-          input_tokens: 45000,
-          cache_creation_tokens: 3200,
-          cache_read_tokens: 16000,
-          cache_read_share: 0.35,
-          zero_cache_requests: 4,
-        }),
-      ),
+      top_agents: ["fast", "search", "team"].map((name, i) => ({
+        id: name,
+        name,
+        requests: 40 - i * 9,
+        tokens: 68000 - i * 12000,
+        cost_usd: 2.8 - i * 0.6,
+        duration: 850 - i * 150,
+        input_tokens: 45000,
+        cache_creation_tokens: 3200,
+        cache_read_tokens: 16000,
+        cache_read_share: 0.35,
+        zero_cache_requests: 4,
+      })),
       top_teams: ["研究分析团队", "内容工作室", "产品研发组"].map(
         (name, i) => ({
           id: name,
@@ -981,7 +979,7 @@ function response(url: URL, scenario: string): unknown {
       rows((i) => ({
         id: `run-${i}`,
         task_id: "task-0",
-        agent_id: "fast_agent",
+        agent_id: "fast",
         trigger_type: "cron",
         status: i % 4 ? "success" : "failed",
         session_id: `session-${i}`,
@@ -999,7 +997,7 @@ function response(url: URL, scenario: string): unknown {
       rows((i, name) => ({
         id: `session-${i}`,
         name,
-        agent_id: "fast_agent",
+        agent_id: "fast",
         is_active: true,
         metadata: {},
         unread_count: i % 3,
@@ -1008,7 +1006,7 @@ function response(url: URL, scenario: string): unknown {
   if (path.startsWith("/api/scheduled-tasks/"))
     return tasks.find((t) => path.endsWith(t.id)) ?? tasks[0];
   if (path === "/api/agents")
-    return { agents, count: agents.length, default_agent: "fast_agent" };
+    return { agents, count: agents.length, default_agent: "fast" };
   if (path.startsWith("/api/agent/config/roles/"))
     return {
       allowed_agents: agents.map((a) => a.id),
@@ -1101,7 +1099,7 @@ function response(url: URL, scenario: string): unknown {
         enabled: i % 4 !== 0,
         config: {},
         capabilities: ["send_message"],
-        agent_id: "fast_agent",
+        agent_id: "fast",
       })).slice(0, 5),
     };
   if (path.startsWith("/api/channels/"))
@@ -1113,7 +1111,7 @@ function response(url: URL, scenario: string): unknown {
       enabled: true,
       config: {},
       capabilities: ["send_message"],
-      agent_id: "fast_agent",
+      agent_id: "fast",
     };
   if (path === "/api/channels") return { channels: [] };
   if (path === "/api/share/public/preview-report") {
@@ -1125,7 +1123,7 @@ function response(url: URL, scenario: string): unknown {
       session: {
         id: "preview-report",
         name: "产品研究与交付计划",
-        agent_id: "fast_agent",
+        agent_id: "fast",
         agent_name: "通用助手",
         created_at: now,
       },
@@ -1139,7 +1137,7 @@ function response(url: URL, scenario: string): unknown {
     return {
       id: "preview-report",
       user_id: user.id,
-      agent_id: "fast_agent",
+      agent_id: "fast",
       name: "产品研究与交付计划",
       is_active: true,
       created_at: now,
@@ -1206,7 +1204,7 @@ function response(url: URL, scenario: string): unknown {
         user_id: user.id,
         name,
         project_id: "preview-project",
-        agent_id: "fast_agent",
+        agent_id: "fast",
         is_active: true,
         metadata: {},
         unread_count: 0,
@@ -1324,14 +1322,17 @@ const server = await createServer({
             !url.pathname.startsWith("/ws")
           )
             return next();
-          const scenario =
-            new URL(req.headers.referer ?? "http://localhost").searchParams.get(
-              "fixture",
-            ) ?? "populated";
+          const previewParams = new URL(
+            req.headers.referer ?? "http://localhost",
+          ).searchParams;
+          const scenario = previewParams.get("fixture") ?? "populated";
+          const failureTarget = previewParams.get("failure");
           const data = response(url, scenario);
           const isRead = req.method === "GET";
           const fault =
             scenario === "error" &&
+            (!failureTarget ||
+              url.pathname.replace(/\/$/, "") === `/api/${failureTarget}`) &&
             !/auth|settings|agent\/models/.test(url.pathname);
           res.statusCode = !isRead
             ? 405
