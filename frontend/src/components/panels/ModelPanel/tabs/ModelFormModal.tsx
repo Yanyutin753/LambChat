@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useId } from "react";
 import { Eye, EyeOff, Save, Plus, Pencil } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -51,6 +51,7 @@ export const ModelFormModal = ({
 }: ModelFormModalProps) => {
   const { t } = useTranslation();
   const isEditing = model !== null;
+  const formId = useId();
 
   const [formValue, setFormValue] = useState(model?.value || "");
   const [formLabel, setFormLabel] = useState(model?.label || "");
@@ -329,10 +330,11 @@ export const ModelFormModal = ({
       <div className="es-form">
         {/* Basic Info */}
         <div className="es-field">
-          <label className="es-label">
+          <label htmlFor={`${formId}-modelValue`} className="es-label">
             {t("agentConfig.modelValue")} <span className="es-required">*</span>
           </label>
           <Input
+            id={`${formId}-modelValue`}
             type="text"
             value={formValue}
             onChange={(e) => setFormValue(e.target.value)}
@@ -350,10 +352,11 @@ export const ModelFormModal = ({
           </p>
         </div>
         <div className="es-field">
-          <label className="es-label">
+          <label htmlFor={`${formId}-modelLabel`} className="es-label">
             {t("agentConfig.modelLabel")} <span className="es-required">*</span>
           </label>
           <Input
+            id={`${formId}-modelLabel`}
             type="text"
             value={formLabel}
             onChange={(e) => setFormLabel(e.target.value)}
@@ -369,10 +372,14 @@ export const ModelFormModal = ({
           </label>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="es-hint mb-1 block">
+              <label
+                htmlFor={`${formId}-pricingInput`}
+                className="es-hint mb-1 block"
+              >
                 {t("agentConfig.pricingInput", "输入")}
               </label>
               <Input
+                id={`${formId}-pricingInput`}
                 type="text"
                 inputMode="decimal"
                 value={formPriceInput}
@@ -382,10 +389,14 @@ export const ModelFormModal = ({
               />
             </div>
             <div>
-              <label className="es-hint mb-1 block">
+              <label
+                htmlFor={`${formId}-pricingOutput`}
+                className="es-hint mb-1 block"
+              >
                 {t("agentConfig.pricingOutput", "输出")}
               </label>
               <Input
+                id={`${formId}-pricingOutput`}
                 type="text"
                 inputMode="decimal"
                 value={formPriceOutput}
@@ -395,10 +406,14 @@ export const ModelFormModal = ({
               />
             </div>
             <div>
-              <label className="es-hint mb-1 block">
+              <label
+                htmlFor={`${formId}-pricingCacheRead`}
+                className="es-hint mb-1 block"
+              >
                 {t("agentConfig.pricingCacheRead", "缓存读")}
               </label>
               <Input
+                id={`${formId}-pricingCacheRead`}
                 type="text"
                 inputMode="decimal"
                 value={formPriceCacheRead}
@@ -408,10 +423,14 @@ export const ModelFormModal = ({
               />
             </div>
             <div>
-              <label className="es-hint mb-1 block">
+              <label
+                htmlFor={`${formId}-pricingCacheWrite`}
+                className="es-hint mb-1 block"
+              >
                 {t("agentConfig.pricingCacheWrite", "缓存写")}
               </label>
               <Input
+                id={`${formId}-pricingCacheWrite`}
                 type="text"
                 inputMode="decimal"
                 value={formPriceCacheWrite}
@@ -460,10 +479,14 @@ export const ModelFormModal = ({
             style={{ borderColor: "var(--glass-border)" }}
           >
             <div className="es-field">
-              <label className="es-label">
+              <label
+                htmlFor={`${formId}-modelDescription`}
+                className="es-label"
+              >
                 {t("agentConfig.modelDescription")}
               </label>
               <Input
+                id={`${formId}-modelDescription`}
                 type="text"
                 value={formDescription}
                 onChange={(e) => setFormDescription(e.target.value)}
@@ -496,6 +519,7 @@ export const ModelFormModal = ({
                 {t("agentConfig.fallbackModel", "Fallback Model")}
               </label>
               <Select
+                ariaLabel={t("agentConfig.fallbackModel")}
                 value={formFallbackModel}
                 onChange={setFormFallbackModel}
                 placeholder={t("agentConfig.noFallback", "None")}
@@ -514,8 +538,11 @@ export const ModelFormModal = ({
               </p>
             </div>
             <div className="es-field">
-              <label className="es-label">{t("agentConfig.modelApiKey")}</label>
+              <label htmlFor={`${formId}-modelApiKey`} className="es-label">
+                {t("agentConfig.modelApiKey")}
+              </label>
               <Input
+                id={`${formId}-modelApiKey`}
                 type={showApiKey ? "text" : "password"}
                 value={formApiKey}
                 onChange={(e) => setFormApiKey(e.target.value)}
@@ -537,10 +564,11 @@ export const ModelFormModal = ({
               </p>
             </div>
             <div className="es-field">
-              <label className="es-label">
+              <label htmlFor={`${formId}-modelApiBase`} className="es-label">
                 {t("agentConfig.modelApiBase")}
               </label>
               <Input
+                id={`${formId}-modelApiBase`}
                 type="text"
                 value={formApiBase}
                 onChange={(e) => setFormApiBase(e.target.value)}
@@ -554,6 +582,7 @@ export const ModelFormModal = ({
                   {t("agentConfig.modelApiFormat")}
                 </label>
                 <Select
+                  ariaLabel={t("agentConfig.modelApiFormat")}
                   value={formApiFormat}
                   onChange={(v) => setFormApiFormat(v as ApiFormat | "")}
                   options={[
@@ -569,10 +598,14 @@ export const ModelFormModal = ({
               </div>
             )}
             <div className="es-field">
-              <label className="es-label">
+              <label
+                htmlFor={`${formId}-modelRequestHeaders`}
+                className="es-label"
+              >
                 {t("agentConfig.modelRequestHeaders")}
               </label>
               <Textarea
+                id={`${formId}-modelRequestHeaders`}
                 value={formRequestHeaders}
                 onChange={(e) => setFormRequestHeaders(e.target.value)}
                 placeholder={t("agentConfig.modelRequestHeadersPlaceholder")}
@@ -586,10 +619,11 @@ export const ModelFormModal = ({
             </div>
             <div className="es-row es-row-3">
               <div className="es-field">
-                <label className="es-label">
+                <label htmlFor={`${formId}-temperature`} className="es-label">
                   {t("agentConfig.temperature")}
                 </label>
                 <Input
+                  id={`${formId}-temperature`}
                   type="number"
                   step="0.1"
                   min="0"
@@ -601,8 +635,11 @@ export const ModelFormModal = ({
                 />
               </div>
               <div className="es-field">
-                <label className="es-label">{t("agentConfig.maxTokens")}</label>
+                <label htmlFor={`${formId}-maxTokens`} className="es-label">
+                  {t("agentConfig.maxTokens")}
+                </label>
                 <Input
+                  id={`${formId}-maxTokens`}
                   type="number"
                   value={formMaxTokens}
                   onChange={(e) => setFormMaxTokens(e.target.value)}
@@ -611,10 +648,14 @@ export const ModelFormModal = ({
                 />
               </div>
               <div className="es-field">
-                <label className="es-label">
+                <label
+                  htmlFor={`${formId}-maxInputTokens`}
+                  className="es-label"
+                >
                   {t("agentConfig.maxInputTokens")}
                 </label>
                 <Input
+                  id={`${formId}-maxInputTokens`}
                   type="number"
                   value={formMaxInputTokens}
                   onChange={(e) => setFormMaxInputTokens(e.target.value)}
@@ -641,13 +682,19 @@ export const ModelFormModal = ({
               </label>
             </div>
             <div className="es-field">
-              <label className="es-label">{t("agentConfig.imageUrlMode")}</label>
+              <label className="es-label">
+                {t("agentConfig.imageUrlMode")}
+              </label>
               <Select
+                ariaLabel={t("agentConfig.imageUrlMode")}
                 value={formImageUrlMode}
                 onChange={(v) => setFormImageUrlMode(v as ImageUrlMode)}
                 options={[
                   { value: "url", label: t("agentConfig.imageUrlModeUrl") },
-                  { value: "base64", label: t("agentConfig.imageUrlModeBase64") },
+                  {
+                    value: "base64",
+                    label: t("agentConfig.imageUrlModeBase64"),
+                  },
                   {
                     value: "proxy_direct",
                     label: t("agentConfig.imageUrlModeProxyDirect"),

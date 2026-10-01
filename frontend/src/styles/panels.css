@@ -167,7 +167,7 @@
   border-bottom: 0;
 }
 @media (max-width: 639px) {
-  .editor-sidebar :is(.ui-button, .ui-select-trigger),
+  .editor-sidebar :is(.ui-button, .ui-select-trigger, input.ui-input, summary),
   .editor-sidebar .editor-sidebar-footer button {
     min-height: 2.75rem;
   }
