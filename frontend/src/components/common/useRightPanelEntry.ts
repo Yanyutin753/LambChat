@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import type { RightPanelPresentation } from "../../hooks/rightPanelLayout";
 import {
   getRightPanelSnapshot,
@@ -177,12 +178,10 @@ export function useRightPanelFocus({
     [openerRef],
   );
 
+  useBodyScrollLock(active && presentation !== "docked", true);
+
   useEffect(() => {
     if (!active || presentation === "docked") return;
-
-    const root = document.getElementById("root");
-    const previousInert = root?.inert ?? false;
-    if (root) root.inert = true;
 
     const trapTab = (event: KeyboardEvent) => {
       if (event.key !== "Tab") return;
@@ -206,7 +205,6 @@ export function useRightPanelFocus({
     document.addEventListener("keydown", trapTab);
     return () => {
       document.removeEventListener("keydown", trapTab);
-      if (root) root.inert = previousInert;
     };
   }, [active, presentation, panelRef]);
 }

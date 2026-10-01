@@ -33,17 +33,21 @@ export function ModalSurface({
     enabled: open && dismissible,
     dragHandleRef: handleRef,
   });
-  useBodyScrollLock(open);
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
+    if (!surfaceRef.current?.contains(document.activeElement))
+      surfaceRef.current?.focus();
+    return () => queueMicrotask(() => previous?.focus());
+  }, [open, surfaceRef]);
+  useEffect(() => {
+    if (!open) return;
     const surface = surfaceRef.current;
     const heading = surface?.querySelector<HTMLElement>("h1,h2,h3");
     if (!label && !labelledBy && heading && surface) {
       heading.id ||= titleId;
       surface.setAttribute("aria-labelledby", heading.id);
     }
-    if (!surface?.contains(document.activeElement)) surface?.focus();
     const keyboard = (event: KeyboardEvent) => {
       const dialogs = document.querySelectorAll('[role="dialog"]');
       if (dialogs[dialogs.length - 1] !== surface || event.defaultPrevented)
@@ -78,9 +82,9 @@ export function ModalSurface({
     document.addEventListener("keydown", keyboard);
     return () => {
       document.removeEventListener("keydown", keyboard);
-      previous?.focus();
     };
   }, [open, dismissible, surfaceRef, label, labelledBy, titleId]);
+  useBodyScrollLock(open, true);
   if (!open) return null;
   return createPortal(
     <div
