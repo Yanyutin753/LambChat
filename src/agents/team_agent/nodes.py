@@ -67,6 +67,8 @@ from src.infra.agent.middleware import (
     EnvVarPromptMiddleware,
     MainAgentContextMiddleware,
     MemoryRecallIndexMiddleware,
+    SandboxSlowRunMiddleware,
+    SandboxWorkspaceMiddleware,
     SectionPromptMiddleware,
     SteerMiddleware,
     SubagentActivityMiddleware,
@@ -532,11 +534,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         if sandbox_backend:
             mw.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
             if subagent_runtime_section:
-                from src.infra.agent.middleware import SandboxWorkspaceMiddleware
-
                 mw.append(SandboxWorkspaceMiddleware(policy_text=subagent_runtime_section))
-            from src.infra.agent.middleware import SandboxSlowRunMiddleware
-
             mw.append(SandboxSlowRunMiddleware())
         append_memory_recall_middleware(
             mw, settings.ENABLE_MEMORY, context.user_id, session_id, active_goal
@@ -793,15 +791,11 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     if sandbox_backend:
         user_middleware.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
         if sandbox_work_dir:
-            from src.infra.agent.middleware import SandboxWorkspaceMiddleware
-
             user_middleware.append(
                 SandboxWorkspaceMiddleware(
                     policy_text=TEAM_SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir)
                 )
             )
-        from src.infra.agent.middleware import SandboxSlowRunMiddleware
-
         user_middleware.append(SandboxSlowRunMiddleware())
 
     if context.deferred_manager is not None:

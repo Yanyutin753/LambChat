@@ -830,9 +830,7 @@ async def test_search_stream_subagent_receives_public_workspace_before_handoff_i
         if tool_set.startswith("execute:") or "\nexecute:" in tool_set
     ]
     assert execute_bindings, "expected execute tool in bound tool sets"
-    assert all(
-        "<slow_sandbox_run_guidance>" in tool_set for tool_set in execute_bindings
-    )
+    assert all("<slow_sandbox_run_guidance>" in tool_set for tool_set in execute_bindings)
     artifact_workspaces = [
         item for item in graph_timeline if item.startswith("artifact-workspace:")
     ]
