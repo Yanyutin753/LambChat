@@ -652,6 +652,8 @@ html[data-mobile-keyboard="true"]
 }
 
 /* 键盘焦点环 */
+.feature-menu-dropdown .feature-menu-item:focus-visible,
+.feature-menu-dropdown .feature-menu-group-header:focus-visible,
 #run-mode-popover .feature-menu-item:focus-visible,
 #run-mode-popover .feature-menu-group-header:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--theme-primary) 60%, transparent);

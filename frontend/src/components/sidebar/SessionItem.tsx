@@ -79,6 +79,8 @@ function SessionItemComponent({
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<HTMLButtonElement>(null);
+  const returnTitleFocusRef = useRef(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const wasDraggingRef = useRef(false);
 
@@ -95,6 +97,7 @@ function SessionItemComponent({
 
   // Start editing
   const handleStartEdit = () => {
+    returnTitleFocusRef.current = false;
     setEditTitle(getSessionTitle(session));
     setIsEditing(true);
     setIsMenuOpen(false);
@@ -105,6 +108,14 @@ function SessionItemComponent({
     if (isEditing && inputRef.current) {
       inputRef.current.focus();
       inputRef.current.select();
+    } else {
+      if (
+        returnTitleFocusRef.current &&
+        document.activeElement === document.body
+      ) {
+        titleRef.current?.focus();
+      }
+      returnTitleFocusRef.current = false;
     }
   }, [isEditing]);
 
@@ -146,9 +157,11 @@ function SessionItemComponent({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
+      returnTitleFocusRef.current = true;
       handleSaveTitle();
     } else if (e.key === "Escape") {
       e.preventDefault();
+      returnTitleFocusRef.current = true;
       handleCancelEdit();
     }
   };
@@ -261,57 +274,45 @@ function SessionItemComponent({
       )
     : null;
 
+  const activate = () => {
+    if (wasDraggingRef.current) {
+      wasDraggingRef.current = false;
+      return;
+    }
+    if (shouldBlockSessionSelection(window.location.pathname)) return;
+    if (selectionMode) onToggleSelected?.();
+    else if (!isEditing) onSelect();
+  };
+
   return (
     <>
       <div
+        role="group"
+        aria-label={displayTitle}
         draggable={!selectionMode}
-        aria-current={isActive ? "page" : undefined}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onTouchStart={handleItemTouchStart}
         onTouchMove={handleItemTouchMove}
         onTouchEnd={handleItemTouchEnd}
         onContextMenu={handleContextMenu}
-        onClick={() => {
-          if (wasDraggingRef.current) {
-            wasDraggingRef.current = false;
-            return;
-          }
-          if (shouldBlockSessionSelection(window.location.pathname)) {
-            return;
-          }
-          if (selectionMode) {
-            onToggleSelected?.();
-            return;
-          }
-          if (!isEditing) {
-            onSelect();
-          }
-        }}
+        onClick={activate}
         // Keep taps on mobile as normal activation gestures; the long-press
         // handlers below still own drag initiation once movement is detected.
         style={
           isDragging ? { touchAction: "none" } : { touchAction: "manipulation" }
         }
         className={`sidebar-session-row sidebar-action-row group relative flex cursor-pointer items-center gap-2 h-8 max-sm:h-10 rounded-[10px] px-[9px] transition-colors ${
-          !isSelected && isActive ? "bg-theme-bg-subtle dark:bg-stone-700/50" : ""
+          !isSelected && isActive
+            ? "bg-theme-bg-subtle dark:bg-stone-700/50"
+            : ""
         } ${isDragging || isDraggingTouch ? "opacity-50 scale-95" : ""} ${
           selectionMode ? "pr-2" : ""
         }`}
       >
         {selectionMode && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleSelected?.();
-            }}
-            aria-pressed={isSelected}
-            aria-label={
-              isSelected
-                ? t("sidebar.unselectSession")
-                : t("sidebar.selectSession")
-            }
+          <span
+            aria-hidden="true"
             className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
               isSelected
                 ? "border-theme-text bg-theme-text text-white shadow-sm dark:border-stone-500 dark:bg-stone-600 dark:text-stone-100"
@@ -319,7 +320,7 @@ function SessionItemComponent({
             }`}
           >
             <Check size={11} strokeWidth={3} />
-          </button>
+          </span>
         )}
 
         {/* Title - editable or display */}
@@ -328,6 +329,7 @@ function SessionItemComponent({
             <input
               ref={inputRef}
               type="text"
+              aria-label={`${t("sidebar.rename")} ${displayTitle}`}
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -337,17 +339,25 @@ function SessionItemComponent({
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <div
+            <button
+              ref={titleRef}
+              type="button"
+              aria-current={isActive ? "page" : undefined}
+              aria-pressed={selectionMode ? isSelected : undefined}
+              onClick={(e) => {
+                e.stopPropagation();
+                activate();
+              }}
               className={`truncate text-13 font-serif transition-colors ${
                 isSelected
                   ? "text-theme-text dark:text-stone-200"
                   : isActive
                     ? "text-theme-text dark:text-stone-100 font-medium"
                     : "text-theme-text-secondary dark:text-stone-300 group-hover:text-theme-text dark:group-hover:text-stone-200"
-              } min-w-0 flex items-center gap-1`}
+              } min-w-0 w-full h-8 max-sm:h-11 rounded text-left flex items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]`}
             >
               <span className="truncate">{displayTitle}</span>
-            </div>
+            </button>
           )}
         </div>
 
@@ -393,6 +403,7 @@ function SessionItemComponent({
         {!selectionMode && !isEditing && (
           <Tooltip content={t("sidebar.moreOptions")}>
             <button
+              type="button"
               ref={menuButtonRef}
               onClick={handleMenuClick}
               aria-label={t("sidebar.moreOptions")}

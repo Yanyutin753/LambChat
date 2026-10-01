@@ -348,6 +348,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
               <input
                 ref={inputRef}
                 type="text"
+                aria-label={`${t("sidebar.rename")} ${project.name}`}
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -369,7 +370,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
           </div>
           {/* Project actions */}
           <div
-            className="flex shrink-0 items-center gap-1 sidebar-action-reveal"
+            className="flex shrink-0 items-center gap-1 sidebar-action-reveal sidebar-action-controls"
             style={isTouched || isMenuOpen ? { opacity: 1 } : undefined}
           >
             {!isEditing && project.workspace && (

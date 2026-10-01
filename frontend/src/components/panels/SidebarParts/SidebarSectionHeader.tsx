@@ -57,7 +57,7 @@ export function SidebarSectionHeader({
         />
       </button>
       <div
-        className={`flex shrink-0 items-center gap-1 ${
+        className={`flex shrink-0 items-center gap-1 sidebar-action-controls ${
           open ? "opacity-100" : sectionRevealClass
         }`}
       >

@@ -4557,6 +4557,36 @@
   opacity: 1;
 }
 
+.sidebar-session-menu button:focus-visible,
+.sidebar-mobile-menu button:focus-visible {
+  outline: 2px solid var(--theme-ring);
+  outline-offset: -2px;
+}
+
+@media (max-width: 639px) {
+  .session-sidebar-drawer .sidebar-action-row,
+  .sidebar-nav-btn {
+    min-height: 2.75rem;
+  }
+  .session-sidebar-drawer button,
+  .sidebar-mobile-menu button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+  .sidebar-action-controls {
+    gap: 0;
+  }
+  .session-sidebar-drawer input {
+    min-height: 2.75rem;
+    font-size: 1rem;
+  }
+  .session-sidebar-drawer a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+  }
+}
+
 /* Header icons share a compact rail while keeping independent touch targets. */
 @media (max-width: 639px) {
   .chat-header__identity > button {
