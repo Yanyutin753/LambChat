@@ -695,6 +695,8 @@ export const ChatMessage = memo(function ChatMessage({
         <MessageImageGallery
           key={`gallery-${group.startPartIndex}`}
           images={group.images}
+          defaultExpanded={message.isStreaming}
+          stateKey={`${message.id}:gallery-${group.startPartIndex}`}
         />
       ) : (
         <MessagePartRenderer
