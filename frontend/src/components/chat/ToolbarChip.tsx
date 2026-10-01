@@ -26,7 +26,7 @@ export function ToolbarChip({
 }: ToolbarChipProps) {
   const { t } = useTranslation();
   return (
-    <div className="group relative flex min-w-0 shrink">
+    <div className="composer-toolbar-chip group relative flex min-w-0 shrink">
       <button
         type="button"
         className="chat-tool-btn shrink min-w-0 overflow-hidden"
@@ -43,9 +43,7 @@ export function ToolbarChip({
               {icon}
             </span>
           )}
-          {/* Tailwind 截断正解：标签保持自然宽度（basis auto + shrink 1），
-            空间够时完整显示；行内一挤它先收缩出 …（全链 min-w-0 传递）。
-            按钮 overflow-hidden 兜底：链路再断也只裁自己，结构上杜绝重叠 */}
+          {/* 名称在空间不足时截断；手机端外层仍保留完整点击区域。 */}
           <span
             className={`min-w-0 truncate text-14 leading-5 font-semibold text-blue-600 dark:text-blue-400 font-serif${
               labelClassName ? ` ${labelClassName}` : ""
@@ -62,7 +60,7 @@ export function ToolbarChip({
           aria-label={`${t("common.clear")} ${label}`}
           title={`${t("common.clear")} ${label}`}
           onClick={onClear}
-          className="chat-tool-btn absolute left-0 top-0 hidden h-9 w-8 sm:flex opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
+          className="chat-tool-btn absolute left-0 top-0 !hidden h-9 w-8 sm:!flex opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
         >
           <X size={16} />
         </button>

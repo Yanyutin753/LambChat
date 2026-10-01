@@ -300,6 +300,10 @@ html[data-mobile-keyboard="true"]
   position: absolute;
   top: 0.65rem;
   left: 0.625rem;
+  right: 0.625rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--theme-text-tertiary);
   pointer-events: none;
   user-select: none;
@@ -890,14 +894,16 @@ html[data-mobile-keyboard="true"]
   );
   border: 1px solid color-mix(in srgb, var(--theme-primary) 10%, transparent);
   overflow: hidden;
-  box-shadow: 0 1px 4px -1px color-mix(in srgb, var(--theme-primary) 12%, transparent);
+  box-shadow: 0 1px 4px -1px
+    color-mix(in srgb, var(--theme-primary) 12%, transparent);
   transition:
     box-shadow 0.2s ease,
     transform 0.2s ease;
 }
 
 .mention-popup-item:hover .mention-popup-avatar {
-  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--theme-primary) 18%, transparent);
+  box-shadow: 0 2px 8px -2px
+    color-mix(in srgb, var(--theme-primary) 18%, transparent);
   transform: scale(1.04);
 }
 
@@ -1209,8 +1215,18 @@ html[data-mobile-keyboard="true"]
   pointer-events: none;
 }
 
-/* Contiguous phone controls keep six composer actions within 320px. */
+/* Keep phone controls distinct; wrap groups when the composer is narrower than their touch targets. */
 @media (max-width: 639px) {
+  .chat-input-container .chat-input-toolbar {
+    flex-wrap: wrap;
+    gap: 0;
+  }
+  .chat-input-toolbar > div:first-child {
+    min-width: 5.5rem;
+  }
+  .composer-toolbar-chip {
+    min-width: 2.75rem;
+  }
   .chat-input-toolbar,
   .chat-input-toolbar > div,
   .chat-message-actions {

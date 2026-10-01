@@ -373,3 +373,26 @@ Feishu 扫码/手填和策略使用原生按钮与 pressed，长文案自然换�
 截图位于既有interface-quality目录：user-menu-320-ru-light-before.png / after.png、user-menu-390-ru-dark-after.png、user-menu-390-short-dark-top.png / scrolled.png、user-menu-768-short-sepia-after.png / end.png、user-menu-1440-ru-light-after.png。继续欢迎无匹配/真实空态、复制失败、工具/图片、文件下载与其他格式、绘图大图/内嵌图片、资源导入发布和其余语言；真实触屏/软键盘、认证/写入/对话与扫码E2E尚未验证。整体目标保持进行中。
 
 最终生产修改后验证：pnpm test 741文件/3578项通过（新增15项）；pnpm run lint零错误零警告；pnpm run build含tsc与体积门禁通过，eager JS 559076/559104 bytes、precache 5018025/5242880 bytes，未提高预算，保留既有chunk-size提示。git diff --check通过。独立只读复核关闭resize焦点与Profile交接问题，最后capture监听/cleanup成对及flushSync回归未发现新增P1/P2；明确不把测试证明等同原生viewport操作焦点通过。继续整体审查，当前第三项因这条验证边界保持未全勾选。
+
+### 当前执行：欢迎页无匹配与真实空态
+
+- [x] RED：persona/team 搜索无匹配不可称真实空库、保留draft与composer；成功空库以status反馈，loading/error不伪空；入口管理导航。
+- [x] 复用既有五语文本和Button；管理入口合并重复分支，筛选时保留gallery区域/宽度使编辑位置稳定，真实空库紧凑展示；不清空用户草稿、不新增组件或依赖。
+- [x] 四宽度/三主题、匹配/无匹配/空库/错误/恢复实屏和焦点，完整门禁与独立复核后提交；记录移动键盘/原生viewport焦点等未验证边界，继续整体目标。
+
+
+本批完成：空库判断改用已加载完整persona/team集合，筛选结果为空独立展示既有五语no-match和筛选提示；成功空库以status展示，loading/error不伪装空库。管理入口合并四个重复分支并复用Button，导航到原资源管理页，移除没有打开创建流程的“New”暗示。筛选开始时记录实际gallery高度，以min(40dvh, prior height)维持区域，清空查询/更换资源/停止welcome投影时清理记录；输入草稿与focus保持，单行小集合不被强制撑成两行。删除无内容prompt-grid，gallery宽度不因筛选归零切换。
+
+先看到四项persona/team空库与无匹配行为RED（4失败/2通过）再修复；现有管理导航source断言改为两个真实MemoryRouter路由行为测试，共新增六项。目标5文件55项通过。fill空字符串未清Lexical实际状态，改用真实Meta+A/Backspace确认清空，不把工具清空失败当逻辑回归。
+
+原生320发现共享ToolbarChip外层缩到约10px但内部button44px：Agent中心点击实际命中Sandbox，真实选择器也打开Sandbox。修包装器最小44px与左组两目标88px底线，整组空间不足则换行；桌面html:has(workspace) nowrap覆盖手机规则，现仅640px起应用。独立复核指出min-content会锁住长名称，改固定两个目标底线，让label照常truncate；390选“跨部门项目协作与长期计划复盘 06”后六主按钮同一行、各在composer内、无交叠。Clear hidden被chat-tool-btn display:flex覆盖，改!hidden sm:!flex，手机AX移除该不可见入口、display:none/rect0；更换入口仍可达。
+
+继续640断点时，侧栏留下211px composer，发现按钮中心hit虽正确但实际区域部分重叠；已有composer容器查询max320px新增组换行和72/36px桌面底线，手机后加载保留88/44。修后640 pairwise overlaps=[]且全在容器内，1440仍nowrap；原composerSingleRowSource全局禁止wrap断言先失败，更新为宽栏单行/窄容器换行，不把旧断言失败当行为RED。窄栏绝对placeholder换三行超出45.6px editor并覆盖toolbar，共享提示加右内距、单行ellipsis；实际draft仍多行，修后placeholderBottom370.82 < toolbarTop380.43。
+
+最终生产修改后：pnpm test 741文件/3584项通过；pnpm run lint零错误零警告；pnpm run build含tsc及体积门禁通过，eager JS 559065/559104 bytes、precache 5017991/5242880 bytes。未新增依赖或提高预算，保留既有chunk-size提示；git diff --check通过。独立只读复核关闭长名称P2，容器查询与提示文字最后复核未发现新增P1/P2；未把源码复核当原生验证。
+
+八项自检：排版保留serif及14px状态，提示截断不改变输入内容；正文/卡片留白沿用原有节奏，仅工具栏间距收紧和必要换行；资源标题/管理入口/无匹配说明分层；三套主题使用原token和已有五语；无新装饰动效，保留reduced-motion；微交互实点Agent、团队选择、更换入口、无匹配恢复、失败retry及composer焦点；320 dark/390 light/768 sepia/1440 dark和640 light断点无整页横向溢出，320主按钮约44px且pairwise overlaps=[]；保留LambChat羊角色场景，无新增品牌体系。768 persona失败retry后20卡片恢复、focus=textbox；390真实persona/team空库分别status=Нет персон/Нет команд；1440 persona无匹配保持focus=textbox，320 team无匹配输入top206.97不变。一次persona卡片选择被只读fixture拒绝，不当成真实persona选择成功；long-name采用本地team选择路径验证。
+
+截图保存在既有interface-quality目录：welcome-320-dark-start.png、welcome-320-dark-no-match-before.png/after.png、welcome-320-dark-toolbar-after.png、welcome-320-light-empty-before.png、welcome-390-light-empty-after.png、welcome-390-light-team-empty.png、welcome-390-light-long-name-after.png、welcome-768-sepia-error.png/recovered.png、welcome-1440-dark-after.png/no-match.png、welcome-640-light-toolbar-after.png。320/390/640截图在最后placeholder调整后重拍；768截图记录读取失败和恢复时状态，不能当作最后placeholder单行变化的截图。viewport已恢复，用户原tab未操作。
+
+继续整体审查：选定团队无starter prompts时欢迎区标题仍回退“角色”而非团队（现有路径，下一批修）；复制失败、工具/图片、文件下载和其他格式、大图/内嵌图片、资源导入发布及其余语言。原生viewport API关闭菜单后的BODY焦点边界仍未证实；真实触屏/软键盘、认证/写入/对话、扫码E2E仍未验证。整体目标保持进行中。Impeccable沿用已确认不可用环境的DESIGN.md人工清单。
