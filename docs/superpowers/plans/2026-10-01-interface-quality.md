@@ -891,3 +891,12 @@ IAB独立3018：390×844深色首次503时入口具名“选择模式·加载失
 全界面目标保持进行中。下一阶段重点：AuthProvider已开始的refreshUser在账号切换后的响应归属（本批只保护尚未启动的刷新）；服务地址/本地沙箱设置、标题栏语言保存及其它未完成状态矩阵，随后验证真实服务和设备。不得将本批预览、门禁或局部修复视为全站完成。
 
 最终390深色删除重试成功后alert=0、焦点仍头像DIV、overflow0；已回收本轮3018服务和临时标签页、恢复视口。用户3017服务及主checkout的.v2c/.video_agent未跟踪目录保留。
+
+
+## 2026-10-02 文件预览原生查找统一
+
+根据最新请求，先处理文件预览搜索。正式DocumentPreview已复用页头按钮和原生浮层，但普通CodeMirrorViewer及市场只读SkillEditor仍会在打开查找时占一行。共享只读Viewer默认启用既有simple/overlay样式；只读SkillEditor浮动按钮及查找框，编辑态保留完整原生查找/替换。复用@codemirror/search，无自制搜索、依赖、文案或token。两项回归先RED（缺少紧凑浮层class）后GREEN，补真实原生匹配高亮/下一个行为；独立复核无确定P1/P2。
+
+IAB实际市场SKILL.md文件：桌面展开前后cm-content top均107.59375px；320深色查找框280px、按钮44px，Escape只关闭查找并回SKILL.md，Cmd/Ctrl+F重新打开；390浅色框280px、匹配1处、页面横向overflow0。文件库Python预览同样无额外工具行，原生匹配2处。截图存仓库外interface-quality/native-file-find-mobile-dark.png、native-file-find-mobile-light.png、native-file-find-desktop-dark.png。该证据是响应式浏览器预览，不代表真机软键盘。
+
+沿DESIGN.md人工检查排版、留白、层级、主题、动效、焦点、响应式与现有组件一致性；无新增动效，已有reduced-motion规则保留。全量781文件/3837测试、lint、build（含tsc、Vite、PWA）通过；eager JS559727/561152、precache5027071/5242880、91项，未提高预算。仅提交本次文件预览改动。未完成的auth刷新测试暂存仓库外/tmp/lambchat-authRefreshOwnership-paused-20261002.test.tsx，后续继续原有全站目标；本批不能视为全站完成。

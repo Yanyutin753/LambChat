@@ -95,9 +95,9 @@ export function SkillEditor({
       onKeyDownCapture={guardCodeMirrorSearchComposition}
       className={`${
         className || ""
-      } code-editor h-full min-h-0 flex flex-col overflow-hidden [&_.cm-theme]:h-full [&_.cm-editor]:h-full [&_.cm-editor]:min-h-0 [&_.cm-scroller]:flex-1 [&_.cm-scroller]:min-h-0 [&_.cm-scroller]:overflow-auto`}
+      } code-editor ${readOnly ? "code-editor--simple-search code-editor--overlay-search" : ""} h-full min-h-0 flex flex-col overflow-hidden [&_.cm-theme]:h-full [&_.cm-editor]:h-full [&_.cm-editor]:min-h-0 [&_.cm-scroller]:flex-1 [&_.cm-scroller]:min-h-0 [&_.cm-scroller]:overflow-auto`}
     >
-      <CodeMirrorSearchToolbar viewRef={viewRef} />
+      <CodeMirrorSearchToolbar viewRef={viewRef} floating={readOnly} />
       <CodeMirror
         value={value}
         onChange={onChange}
