@@ -1,5 +1,20 @@
 import { buildSkillFilesPayload } from "../SkillForm.utils.tsx";
 
+test("buildSkillFilesPayload never writes loaded binary preview placeholders as text", () => {
+  expect(
+    buildSkillFilesPayload({
+      files: [
+        { path: "SKILL.md", content: "# Instructions" },
+        { path: "assets/image.png", content: "[Binary: image/png, 1KB]" },
+      ],
+      syncedSkillMarkdown: "# Instructions",
+      isEditing: true,
+      loadedFilePaths: new Set(["SKILL.md", "assets/image.png"]),
+      binaryPaths: new Set(["assets/image.png"]),
+    }),
+  ).toEqual({ "SKILL.md": "# Instructions" });
+});
+
 test("buildSkillFilesPayload skips unloaded lazy files while editing", () => {
   const files = buildSkillFilesPayload({
     files: [

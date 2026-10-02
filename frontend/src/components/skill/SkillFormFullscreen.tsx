@@ -4,6 +4,7 @@ import { FileTreeItem } from "./FileTreeItem";
 import { FileTabs } from "./FileTabs";
 import { SkillEditor } from "./SkillEditor";
 import { BinaryFilePreview } from "./BinaryFilePreview";
+import { SkillFileLoadState } from "./SkillFileLoadState";
 import { buildFileTree } from "./SkillForm.utils";
 import { ToolbarIconButton } from "../common";
 import type { SkillFormActions } from "./SkillForm.types";
@@ -46,14 +47,16 @@ export function SkillFormFullscreen(a: SkillFormActions) {
                 <Plus size={13} />
                 {t("skills.form.addFile")}
               </button>
-              <button
-                type="button"
-                onClick={a.addBinaryFile}
-                className="w-full flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-14 text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-white/5 transition-colors"
-              >
-                <Upload size={13} />
-                {t("skills.form.addBinaryFile", "Upload binary file")}
-              </button>
+              {a.allowBinaryUploads && (
+                <button
+                  type="button"
+                  onClick={a.addBinaryFile}
+                  className="w-full flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-14 text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-white/5 transition-colors"
+                >
+                  <Upload size={13} />
+                  {t("skills.form.addBinaryFile", "Upload binary file")}
+                </button>
+              )}
             </div>
           </div>
 
@@ -83,13 +86,15 @@ export function SkillFormFullscreen(a: SkillFormActions) {
                 title={t("skills.form.addFile")}
                 className="sm:hidden"
               />
-              <ToolbarIconButton
-                onClick={a.addBinaryFile}
-                icon={<Upload size={15} />}
-                aria-label={t("skills.form.addBinaryFile")}
-                title={t("skills.form.addBinaryFile")}
-                className="sm:hidden"
-              />
+              {a.allowBinaryUploads && (
+                <ToolbarIconButton
+                  onClick={a.addBinaryFile}
+                  icon={<Upload size={15} />}
+                  aria-label={t("skills.form.addBinaryFile")}
+                  title={t("skills.form.addBinaryFile")}
+                  className="sm:hidden"
+                />
+              )}
               <ToolbarIconButton
                 onClick={() => a.toggleFullscreen(false)}
                 icon={<Shrink size={18} />}
@@ -104,35 +109,13 @@ export function SkillFormFullscreen(a: SkillFormActions) {
                 const currentPath = a.files[a.activeFileIndex]?.path || "";
                 const binaryInfo = a.binaryFiles?.[currentPath];
 
-                // Loading state
-                if (a.loadingFilePath === currentPath) {
+                if (a.loadingFilePath === currentPath || a.fileLoadError) {
                   return (
-                    <div className="flex h-full items-center justify-center rounded-2xl bg-[var(--theme-bg-subtle)]">
-                      <div className="flex flex-col items-center gap-3">
-                        <svg
-                          className="h-6 w-6 animate-spin text-[var(--theme-text-secondary)]"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                            fill="none"
-                          />
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                          />
-                        </svg>
-                        <span className="text-14 text-[var(--theme-text-secondary)]">
-                          {currentPath.split("/").pop()}
-                        </span>
-                      </div>
-                    </div>
+                    <SkillFileLoadState
+                      path={currentPath}
+                      error={a.fileLoadError}
+                      onRetry={() => a.loadFileContent(a.activeFileIndex)}
+                    />
                   );
                 }
 
@@ -161,6 +144,7 @@ export function SkillFormFullscreen(a: SkillFormActions) {
                       }
                       className="flex-1 min-h-0"
                       filePath={a.files[a.activeFileIndex]?.path}
+                      readOnly={a.isLoading}
                     />
                   </div>
                 );

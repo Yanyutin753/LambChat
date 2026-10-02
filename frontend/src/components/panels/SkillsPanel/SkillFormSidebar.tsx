@@ -9,8 +9,11 @@ interface SkillFormSidebarProps {
   isCreating: boolean;
   editingSkill: SkillResponse | null;
   isLoading: boolean;
+  isNameLocked?: boolean;
+  allowBinaryUploads?: boolean;
   onSave: (data: SkillCreate) => Promise<boolean>;
   onCancel: () => void;
+  onComplete: () => void;
   createTitle?: string;
   subtitle?: string;
 }
@@ -20,8 +23,11 @@ export function SkillFormSidebar({
   isCreating,
   editingSkill,
   isLoading,
+  isNameLocked,
+  allowBinaryUploads,
   onSave,
   onCancel,
+  onComplete,
   createTitle,
   subtitle,
 }: SkillFormSidebarProps) {
@@ -43,6 +49,9 @@ export function SkillFormSidebar({
         skill={editingSkill}
         onSave={onSave}
         onCancel={onCancel}
+        onComplete={onComplete}
+        isNameLocked={isNameLocked}
+        allowBinaryUploads={allowBinaryUploads}
         isLoading={isLoading}
       />
     </EditorSidebar>
