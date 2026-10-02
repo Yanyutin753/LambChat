@@ -32,6 +32,9 @@ interface SettingsContextValue {
   error: string | null;
   savingKeys: Set<string>;
   availableModels: AvailableModel[] | null;
+  modelsLoading: boolean;
+  modelsError: boolean;
+  reloadModels: () => void;
   systemDefaultModelId: string;
   defaultModel: string;
   pinnedModelIds: string[];
@@ -68,7 +71,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     importSettings,
   } = useSettings();
 
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, token } = useAuth();
 
   // 从 DB 的 model_configs 读取可用模型
   const [dbModels, setDbModels] = useState<AvailableModel[] | null>(null);
@@ -77,10 +80,33 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   // 置顶模型 ID
   const [pinnedModelIds, setPinnedModelIds] = useState<string[]>([]);
 
-  const fetchModels = useCallback(() => {
+  const [modelsLoading, setModelsLoading] = useState(isAuthenticated);
+  const [modelsError, setModelsError] = useState(false);
+  const [modelsAttempt, setModelsAttempt] = useState(0);
+  const reloadModels = useCallback(
+    () => setModelsAttempt((attempt) => attempt + 1),
+    [],
+  );
+
+  useEffect(() => {
+    setDbModels(null);
+    setAdminDefaultModelId("");
+    setPinnedModelIds([]);
+  }, [isAuthenticated, token]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setModelsLoading(false);
+      setModelsError(false);
+      return;
+    }
+    let cancelled = false;
+    setModelsLoading(true);
+    setModelsError(false);
     modelApi
       .listAvailable()
       .then((data) => {
+        if (cancelled) return;
         setAdminDefaultModelId(data.default_model_id || "");
         if (data.models && data.models.length > 0) {
           setDbModels(
@@ -100,24 +126,29 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         }
       })
       .catch(() => {
-        setAdminDefaultModelId("");
-        setDbModels(null);
+        if (!cancelled) setModelsError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setModelsLoading(false);
       });
-  }, []);
-
-  const fetchPinnedModels = useCallback(() => {
-    modelApi
-      .getPinnedModelIds()
-      .then(setPinnedModelIds)
-      .catch(() => {});
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, token, modelsAttempt]);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchModels();
-      fetchPinnedModels();
-    }
-  }, [isAuthenticated, fetchModels, fetchPinnedModels]);
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    modelApi
+      .getPinnedModelIds()
+      .then((ids) => {
+        if (!cancelled) setPinnedModelIds(ids);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, token]);
 
   const togglePinnedModel = useCallback((modelId: string) => {
     setPinnedModelIds((prev) => {
@@ -165,6 +196,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     enableSkills: getBooleanSetting("ENABLE_SKILLS"),
     enableMemory: getBooleanSetting("ENABLE_MEMORY"),
     availableModels,
+    modelsLoading,
+    modelsError,
+    reloadModels,
     systemDefaultModelId: adminDefaultModelId,
     defaultModel,
     pinnedModelIds: cleanedPinnedIds,

@@ -93,6 +93,13 @@
   will-change: transform;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .spinner-rotate {
+    animation: none;
+    will-change: auto;
+  }
+}
+
 /* Panel card - modern style without borders */
 .panel-card {
   background-color: var(--theme-bg-card);

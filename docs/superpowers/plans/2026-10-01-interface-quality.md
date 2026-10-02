@@ -833,3 +833,17 @@ IAB独立3018：390深色实际编辑已有团队、长名称草稿、打开成�
 最终全量773文件/3791项测试通过，lint零错误零警告，最后生产修改后build含tsc/Vite/PWA/性能预算通过：eager JavaScript559140/561152 bytes、precache5018660/5242880 bytes、91 entries。全量中一次userMenu的profile action transfers focus into the new dialog instead of the avatar失败，独立11项通过；其findByRole只等DOM出现而非focus effect，用waitFor保持相同焦点要求后最终全量通过，未改生产焦点逻辑。未提高预算。
 
 整体目标保持进行中。下一阶段核查团队及其它配置中的助手/模型目录加载失败（TeamBuilder仍把目录异常转为空数组）、剩余表单/弹层/长语言与空/错/加载组合，并完成全部执行清单对应证据。不能据本批门禁与截图宣告全界面完成。
+
+## 2026-10-02 模型、助手目录与个人偏好恢复
+
+继续隔离 worktree，开工 fetch/rebase 确认 origin/develop 5523922d，基线6e82fc61；主 checkout 保留。文件预览当前已使用 CodeMirror 原生浮动查找、showToolbar=false，未另建搜索界面。320/390px查找条280×46px、桌面正文打开前后top140px/height554.40625px不变；choice两个实际匹配、Escape回代码、Cmd+F可重新打开，相关16项测试通过。
+
+SettingsContext 显式提供模型加载、失败、重试状态，失败刷新保留已知模型和系统默认；账号/token变化清空旧目录与置顶，取消归属拒绝迟到模型/置顶响应。TeamBuilder 有provider时复用其状态，不再因null重复请求；无provider的读取和助手读取失败保留现有选择，禁用对应选择器并显示一次紧凑反馈，团队名称及指导仍可编辑。成员显式但未知的模型/模式ID继续可读。个人模型页区分加载、失败和成功空目录，个人偏好同时读取助手列表与已存偏好，偏好失败不伪造系统默认。共用CatalogStatus用现有Button/token/i18n，重试先聚焦稳定容器；桌面32px、手机及粗指针44px。聊天标题栏采用既有图标入口，重试先回稳定菜单按钮。原生走查发现个人偏好懒加载主题分区会令整个应用闪空，增加局部Suspense边界保留其它设置；共享spinner响应prefers-reduced-motion。无新依赖、主题token、资产、API或翻译键。
+
+新增12项测试，包含失败/成功空结果、重试、失败刷新保留、账号切换及迟到响应、provider避免重复请求、团队草稿和显式选择保留、已存偏好失败、稳定焦点、冷加载局部边界及减弱动效。行为先RED再GREEN；最后全量中CSS源码守卫因jsdom的import.meta.url不是file协议失败，改用仓库既有cwd相对文件读取后最终777文件/3803项全部通过。独立复核指出重试焦点与手机按钮两个P2，修复后复核无剩余确定P1/P2；主题分区增量复核通过。
+
+IAB独立3018最终视觉与操作证据：390×844深色团队模型503，成员指导/名称草稿保留，44px重试后模型恢复、焦点FORM；320×740浅色个人模型503，44px重试后目录恢复、焦点稳定DIV；834×1112深色个人偏好503，默认助手禁用，32px重试恢复已存偏好；1440×900浅色聊天标题模型重试32×32px，恢复后焦点菜单；320×740暖色团队助手503，44px重试恢复；320×740浅色俄语个人模型错误长文案与44px重试无溢出。上述页面及弹层横向overflow0。截图在仓库外interface-quality目录：catalog-team-390-dark-error-final、catalog-profile-models-320-light-error-final、catalog-preferences-834-dark-error-final、catalog-header-1440-light-error-final、catalog-team-320-sepia-agents-error-final、catalog-profile-models-320-light-ru-error-final。最后CSS热更新后尝试的team-recovered截图已因编辑器关闭失去预期内容，不作为证据。临时语言已恢复中文、临时视口及标签页回收、3018停止；3017与用户页面保留。只读fixture不证明真实认证、保存、存储、真机触屏或软键盘。
+
+八项人工自检：保留表单字体与标签尺度；紧凑状态不铺满新卡片且分组留白保留；标题/字段/状态/重试层级清楚；复用深浅及暖色主题；spinner支持减弱动态且无新增装饰动画；失败、重试、焦点、禁用、草稿与迟到响应可验证；320/390/834/1440和俄语长文案无本批溢出；沿用LambChat组件与原生编辑器。Impeccable未安装，按DESIGN.md同一清单人工检查。最终lint零错误零警告；build含tsc/Vite/PWA/性能预算通过，eager JavaScript559229/561152 bytes、precache5021068/5242880 bytes、91 entries，未提高预算。最后生产修改后的全量测试与build已完成。
+
+全界面目标继续进行。剩余聊天助手目录失败、个人偏好及其它表单写入恢复、选择器/弹层/长语言与空错加载组合，以及真实服务和设备证据继续核查，不以本批门禁宣告整体完成。
