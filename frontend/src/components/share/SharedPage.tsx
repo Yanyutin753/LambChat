@@ -47,6 +47,7 @@ import {
 import { reconstructMessagesFromEvents } from "../../hooks/useAgent/historyLoader";
 import { APP_NAME, GITHUB_URL } from "../../constants";
 import { BrandWordmark } from "../common/BrandWordmark";
+import { IconButton } from "../common/ui/IconButton";
 import { formatDate, formatDateTimeShort } from "../../utils/datetime";
 import { getModelIconUrl, isMonochromeIcon } from "../agent/modelIcon";
 import { ScrollButtons } from "../landing/components/ScrollButtons";
@@ -117,12 +118,6 @@ export function SharedPage({
       top: document.documentElement.scrollHeight,
       behavior: "smooth",
     });
-  }, []);
-
-  // Enable page-level scrolling (global CSS sets overflow:hidden on html/body/#root)
-  useEffect(() => {
-    document.documentElement.classList.add("allow-scroll");
-    return () => document.documentElement.classList.remove("allow-scroll");
   }, []);
 
   useEffect(() => {
@@ -481,16 +476,16 @@ export function SharedPage({
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <Link
               to="/"
-              className="flex items-center justify-center w-9 h-9 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300 transition-all duration-200 hover:scale-105 active:scale-95"
+              className="ui-button ui-button--ghost ui-button--lg ui-icon-button"
               title={t("share.goToChat")}
               aria-label={t("share.goToChat")}
             >
               <MessageCircle size={18} />
             </Link>
             <LanguageToggle sync={false} />
-            <button
+            <IconButton
+              size="lg"
               onClick={toggleTheme}
-              className="flex items-center justify-center w-9 h-9 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 transition-all duration-200 hover:scale-105 active:scale-95"
               title={t(
                 theme === "light"
                   ? "theme.switchToDark"
@@ -498,18 +493,19 @@ export function SharedPage({
                     ? "theme.switchToSepia"
                     : "theme.switchToLight",
               )}
-            >
-              {theme === "light" ? (
-                <Moon
-                  size={18}
-                  className="text-stone-600 dark:text-stone-300"
-                />
-              ) : theme === "dark" ? (
-                <Coffee size={18} className="text-amber-400" />
-              ) : (
-                <Sun size={18} className="text-amber-500" />
-              )}
-            </button>
+              icon={
+                theme === "light" ? (
+                  <Moon
+                    size={18}
+                    className="text-stone-600 dark:text-stone-300"
+                  />
+                ) : theme === "dark" ? (
+                  <Coffee size={18} className="text-amber-400" />
+                ) : (
+                  <Sun size={18} className="text-amber-500" />
+                )
+              }
+            />
           </div>
         </div>
       </header>

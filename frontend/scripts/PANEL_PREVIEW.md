@@ -48,6 +48,8 @@ URL 参数：`?theme=dark` 为深色；默认浅色。`?fixture=empty` 返回空
 
 公开主页和认证页使用 `?guest=1`，以访客状态走查，避免演示登录自动跳到聊天页。仅影响此只读预览的 3002 origin。
 
+公开分享入口可用 `/shared/preview-report?failure=share-content`：首次内容读取返回503，点击重试后恢复；换一个 `run` 参数可重放。`share-status=401|404` 分别检查登录提示和失效链接，`scope=project` 返回空项目 manifest。可组合三主题及 `fixture=loading`（读取等待8秒）；语言通过分享页已有菜单切换。仅模拟 GET 结果，不创建分享、不验证真实访问权限或认证。
+
 聊天侧栏提供 65 条会话及一个长标题项目；`/chat/preview-report` 的分享选择有 65 个轮次。项目分享可检查长列表与 50 条上限。`loading` 延迟资源与设置响应 8 秒，认证 fixture 保持即时，以便检查各页面骨架；`empty` 仅清空已支持的列表，助手/渠道目录及用量汇总可能仍有样例。上述数据均不代表真实分享或项目。
 
 `/chat/preview-report?chat-state=working|streaming|error|cancelled` 可检查等待、流式、失败和停止状态；默认 `completed` 包含思考过程与完整正文。`streaming` 使用本机 GET SSE，在 6/12/18 秒追加正文，24 秒结束；`working` 只维持等待，离开页面会清理所有定时器。已完成的流式场景在本次预览进程内按页面查询组合记住，换一个查询参数或重启可重放。公开分享始终返回已完成样例，API 写请求仍为 405，不请求真实模型，停止/重试生成等写操作需要测试后端验证。

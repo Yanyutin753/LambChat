@@ -35,6 +35,7 @@ import type {
 } from "../../types";
 import { APP_NAME, GITHUB_URL } from "../../constants";
 import { BrandWordmark } from "../common/BrandWordmark";
+import { IconButton } from "../common/ui/IconButton";
 import { formatDate } from "../../utils/datetime";
 import { reconstructMessagesFromEvents } from "../../hooks/useAgent/historyLoader";
 import { computeProjectHasMore } from "./sharedProjectPageState";
@@ -45,15 +46,6 @@ const ChatMessage = lazy(() =>
 
 // 项目分享 manifest 单次分页大小（后端上限 SHARE_PROJECT_SESSIONS_LIMIT = 50）
 const SESSION_PAGE_SIZE = 50;
-
-// Enable page-level scrolling (global CSS sets overflow:hidden on html/body/#root),
-// so expanded sessions can scroll the page.
-function useAllowScroll() {
-  useEffect(() => {
-    document.documentElement.classList.add("allow-scroll");
-    return () => document.documentElement.classList.remove("allow-scroll");
-  }, []);
-}
 
 function isEmojiIcon(icon?: string): boolean {
   if (!icon) return false;
@@ -69,7 +61,6 @@ export function SharedProjectPage({
   const { shareId } = useParams<{ shareId: string }>();
   const { t } = useTranslation();
   const { theme, toggleTheme } = useSharedPageTheme();
-  useAllowScroll();
 
   const [manifest, setManifest] = useState<SharedProjectContentResponse | null>(
     initialManifest ?? null,
@@ -206,10 +197,9 @@ export function SharedProjectPage({
       <header className="safe-area-top sticky top-0 z-40 border-b border-theme-border bg-[color-mix(in_srgb,var(--theme-bg-card)_82%,transparent)] backdrop-blur">
         <div className="max-w-4xl lg:max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3 font-serif">
           <BrandWordmark decorative className="h-7 w-auto text-theme-text" />
-          <button
-            type="button"
+          <IconButton
+            size="lg"
             onClick={toggleTheme}
-            className="p-2 rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle hover:text-theme-text transition-colors"
             aria-label={t(
               theme === "light"
                 ? "theme.switchToDark"
@@ -217,15 +207,16 @@ export function SharedProjectPage({
                   ? "theme.switchToSepia"
                   : "theme.switchToLight",
             )}
-          >
-            {theme === "light" ? (
-              <Moon size={18} />
-            ) : theme === "dark" ? (
-              <Coffee size={18} />
-            ) : (
-              <Sun size={18} />
-            )}
-          </button>
+            icon={
+              theme === "light" ? (
+                <Moon size={18} />
+              ) : theme === "dark" ? (
+                <Coffee size={18} />
+              ) : (
+                <Sun size={18} />
+              )
+            }
+          />
         </div>
       </header>
 

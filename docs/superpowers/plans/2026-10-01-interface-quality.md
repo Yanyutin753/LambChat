@@ -1020,3 +1020,17 @@ LocalSandboxSection复用usePreferenceWrites统一配对、策略、重启和取
 3019独立 fixture 实测390深色等待/失败/重试，Retry44px、overflow0；320×600浅色俄语 Tab 到Retry，main.scrollTop308、top367.8125/bottom411.8125/height44、overflow0，重试恢复。日志等待中关闭/重开无旧错误。834与1440护眼色俄语错误清楚，main宽768px、overflow0。截图位于仓库外interface-quality，前缀sandbox-directory-feedback，分别记录390-dark-loading、390-dark-error、320-light-ru-reopened、320-short-light-ru-error、834-sepia-ru-error、1440-sepia-ru-error。fixture新增显式native-flow的open-*等待/首次失败/恢复，仅模拟结果，不打开系统文件管理器、桥或真实目录。
 
 八项人工检查：沿用文字尺度与分组留白；行动及状态层级清楚且闲置不占行；三主题token；无新增动效且沿用reduced-motion；重复点击、Retry、关闭与焦点经组件和实屏核对；320/390/834/1440及长文案无溢出；保留LambChat控件与视觉语言。Impeccable命令当前不可用，按DESIGN.md等价检查。全站清单未改为完成：跨实例原生动作、账号token/资料过渡窗口、独立WebView重载、真实Tauri与真机仍需继续；主界面、剩余弹层和全部状态矩阵仍按原目标覆盖。
+
+### 2026-10-02：公开分享入口的恢复与触控操作
+
+上一回合用14项文件查找测试及320/390px实屏确认原生查找不独占一行，提供了新证据，分类为progress。本轮继续主界面与公开分享范围。真实fixture复现503被旧入口二次请求后解释成分享不存在；入口现在一次读取，按结构化HTTP状态区分登录、失效与可重试故障。shareId作为loader key，切换链接时立即隐藏上一份内容并取消旧响应归属；失败/项目分流清理SSR预览，普通会话成功沿用已有淡出。重试聚焦稳定根节点，等待有status。全部复用既有五语文案、插图及按钮，无新依赖。
+
+七项实际组件回归覆盖等待、503不自动重复请求/显式重试、401/404状态分类、链接切换、SSR错误清理及滚动生命周期。此前六项先RED；本轮滚动测试再RED（1 failed/6 passed），将allow-scroll统一放到入口并删除两个子页重复控制后，关联13文件54项GREEN。浏览器320×240实际复现底部按钮被裁切；修复后中文Tab到返回，scrollY66、按钮top164.39/bottom208.39/height44；俄语两行操作scrollY118、scrollHeight358，按钮同样完整可达，overflow0。
+
+390深色实测503持续重试提示，点击恢复会话；834护眼俄语404及1440浅色俄语503均有清晰行动、44px操作、overflow0。390项目空manifest分流正常，保留项目空状态并可滚动。额外发现会话/项目主题按钮原为36/34px；复用IconButton lg，会话开始对话Link使用同一按钮规范，三个页头操作实测均44×44、同y6；项目主题切换到sepia正常。视觉修改以实屏尺寸前后验证，不增加镜像CSS断言。截图在仓库外interface-quality，前缀shared-entry；使用只读GET故障和项目manifest替身，不证明真实登录/权限/分享创建、服务端SSR输出、模型对话或真机。
+
+按八项交付清单检查：既有衬线标题、正文字号与有限宽度；单层留白、错误与行动层级；三主题token；未增加动效，按钮沿用共享reduced-motion处理；status/alert、Retry焦点、路由响应归属和键盘滚动；320/390/834/1440以及俄语折行；保留LambChat插图和控件。实际运行npx impeccable update返回No impeccable skill folders found；按DESIGN.md人工检查，不以此代替门禁。
+
+全站目标仍未完成。项目会话展开的等待/错误/重复请求及分页失败反馈、项目长元数据折行、剩余主界面和弹层矩阵、真实账号/原生端边界继续检查；不把本轮入口与触控修复等同全站验收。预览3017/3018及既有结果保持，本轮3019及临时标签在核对归属后回收。
+
+最终全量784文件3915项通过，lint零错误零警告；build含tsc/Vite/PWA及预算通过，保留既有异步大块500kB提示。eager JS560327/561152 bytes、precache5033069/5242880 bytes（93项），未放宽预算。独立只读审查确认短屏P2关闭，最终无新增确定P1/P2。git diff --check通过。

@@ -1953,6 +1953,25 @@ const server = await createServer({
               } : {}),
             };
           }
+          if (
+            url.pathname === "/api/share/public/preview-report" &&
+            previewParams.get("scope") === "project"
+          ) {
+            data = {
+              share_scope: "project",
+              share_type: "full",
+              project: {
+                id: "preview-project",
+                name: "产品研究与长期项目交付计划",
+                icon: "Folder",
+              },
+              sessions: [],
+              owner: { username: "LambChat Demo" },
+              visibility: "public",
+              sessions_total: 0,
+              has_more: false,
+            };
+          }
           if (url.pathname === "/api/agents") {
             if (previewParams.get("agents") === "empty")
               data = { agents: [], count: 0 };
@@ -2178,6 +2197,8 @@ const server = await createServer({
             isRead &&
             ((failureTarget === "catalog-models" &&
               url.pathname === "/api/agent/models/available") ||
+              (failureTarget === "share-content" &&
+                url.pathname === "/api/share/public/preview-report") ||
               (failureTarget === "catalog-agents" &&
                 url.pathname === "/api/agents") ||
               (failureTarget === "catalog-preference" &&
@@ -2244,11 +2265,17 @@ const server = await createServer({
               !/auth|settings|agent\/models/.test(url.pathname));
           res.statusCode = !isRead
             ? 405
-            : fault
-              ? 503
-              : data === undefined
+            : url.pathname === "/api/share/public/preview-report" &&
+                previewParams.get("share-status") === "401"
+              ? 401
+              : url.pathname === "/api/share/public/preview-report" &&
+                  previewParams.get("share-status") === "404"
                 ? 404
-                : 200;
+                : fault
+                  ? 503
+                  : data === undefined
+                    ? 404
+                    : 200;
           res.setHeader("Content-Type", "application/json");
           res.setHeader("Cache-Control", "no-store");
           const send = () =>
