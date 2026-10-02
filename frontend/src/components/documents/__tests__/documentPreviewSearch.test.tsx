@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import {
   act,
+  waitFor,
   cleanup,
   fireEvent,
   render,
@@ -117,7 +118,9 @@ test.each([false, true])(
     );
     await screen.findByRole("textbox", { name: "代码预览" }, { timeout: 8000 });
     expect(container.querySelector(".code-editor-toolbar")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "搜索" }));
+    const eachSearchButton = screen.getByRole("button", { name: "搜索" });
+    await waitFor(() => expect(eachSearchButton).toBeEnabled(), { timeout: 8000 });
+    fireEvent.click(eachSearchButton);
     const field = await screen.findByRole(
       "textbox",
       { name: "查找" },
@@ -149,7 +152,11 @@ test("HTML source search shares its existing source toolbar",
   fireEvent.click(screen.getByRole("button", { name: "源码" }));
   await screen.findByRole("textbox", { name: "代码预览" }, { timeout: 8000 });
   expect(container.querySelector(".code-editor-toolbar")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "搜索" }));
+  // The search trigger stays disabled until the lazy editor mounts; wait for
+  // it to become enabled or the click is a silent no-op on slow CI runners.
+  const searchButton = screen.getByRole("button", { name: "搜索" });
+  await waitFor(() => expect(searchButton).toBeEnabled(), { timeout: 8000 });
+  fireEvent.click(searchButton);
   expect(
     await screen.findByRole(
       "textbox",
