@@ -76,3 +76,7 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 视频走查：`/chat/preview-report?videos=1` 提供固定404的视频，可检查错误说明与同 URL 重试。需要实际播放时，用 `PANEL_PREVIEW_VIDEO=/absolute/path/sample.webm pnpm preview:panels` 启动，页面额外提供此本机样例；文件只由预览服务读取，不加入生产资源或提交仓库。本轮使用 [MDN 的示例视频](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/video)（[flower.webm](https://developer.mozilla.org/shared-assets/videos/flower.webm)）验证播放、暂停、原生控件 Tab 顺序和下载内容。原生视频全屏、旧 iOS WebView 回退及真实触屏仍需对应设备验证。
 
 技能导入走查：`/skills?imports=1` 仅为 `/api/github/preview` 和 `/api/skills/upload/preview` 两个只读 POST 返回 24 个预设候选；上传内容丢弃、不解析或存储，不连接 GitHub 或真实 API。可组合 `failure=skill-preview` 首次失败后 Retry 恢复，`fixture=empty` 空候选，`fixture=loading` 延迟8秒。安装与发布等其他写请求仍405；此入口只证明表单、文件选择和候选交互，不证明真实 ZIP 解析或导入成功。
+
+技能文件读取走查：`/skills?file-flow=1&failure=skill-file` 提供三个不同正文的文本文件，每个文件首次 GET 返回503，重试恢复。新增页面查询参数（例如 `run=2`）可重放。可验证普通/全屏错误提示、重试焦点、文件路径重复提示和未命名草稿；保存及二进制上传仍返回405，不改变真实技能。并发请求、删除期间的响应归属由组件测试覆盖。
+
+技能附件走查：`/skills?file-flow=1&binary=1` 提供一个已有公开图标的二进制读取/预览；可在表单选择其它公开测试文件。显式加 `save-flow=1&failure=skill-upload` 时，仅用户技能文件 PUT 返回模拟保存结果，二进制上传等待2秒、首次503、重试200；请求字节丢弃，不存储文件、更新真实列表或转发 API。可检查等待焦点、底部错误/重试、草稿保留与完成后关闭。其它写请求仍405；此模式不证明真实保存、存储、权限或发布成功。真实部分上传后的文件清单、仅重试未完成项和删除恢复由集成测试验证。

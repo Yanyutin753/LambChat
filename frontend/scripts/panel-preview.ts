@@ -829,6 +829,26 @@ function response(
       count: 1,
     };
   if (path === "/api/marketplace/tags") return { tags };
+  if (/^\/api\/marketplace\/[^/]+\/files$/.test(path))
+    return { files: ["SKILL.md", "assets/icon-192.png"] };
+  if (/^\/api\/marketplace\/[^/]+\/files\//.test(path)) {
+    if (decodeURIComponent(path.split("/files/")[1]) === "assets/icon-192.png")
+      return {
+        content: JSON.stringify({
+          _binary_ref: true,
+          storage_key: "preview-icon",
+          mime_type: "image/png",
+          size: 41245,
+        }),
+        is_binary: true,
+        url: "/icons/icon-192.png",
+        mime_type: "image/png",
+        size: 41245,
+      };
+    return { content: "# 专业研究工作流\n\n保留技能商店已有文件与附件。" };
+  }
+  if (/^\/api\/marketplace\/[^/]+$/.test(path))
+    return { ...skills[0], version: "1.2.0", is_active: true };
   if (path === "/api/marketplace")
     return all(
       skills.map((s, i) => ({
@@ -1566,6 +1586,40 @@ const server = await createServer({
           const failureTarget = previewParams.get("failure");
           const streamKey = req.headers.referer ?? "";
           if (
+            previewParams.get("save-flow") === "1" &&
+            req.method === "PUT" &&
+            /^\/api\/skills\/[^/]+\/(files|binary-files)\//.test(url.pathname)
+          ) {
+            // UI-only save simulation: discard bytes, never store or forward them.
+            req.resume();
+            const binary = url.pathname.includes("/binary-files/");
+            const key = `skill-binary:${streamKey}:${url.pathname}`;
+            const failed =
+              binary &&
+              failureTarget === "skill-upload" &&
+              !failedChannelRequests.has(key);
+            if (failed) failedChannelRequests.add(key);
+            const send = () => {
+              res.statusCode = failed ? 503 : 200;
+              res.setHeader("Content-Type", "application/json");
+              res.end(
+                JSON.stringify(
+                  failed
+                    ? { detail: "Fixture upload unavailable" }
+                    : {
+                        message: "Simulated save",
+                        url: "/icons/icon-192.png",
+                        mime_type: "image/png",
+                        size: 41245,
+                      },
+                ),
+              );
+            };
+            if (binary) setTimeout(send, 2000);
+            else send();
+            return;
+          }
+          if (
             previewParams.get("imports") === "1" &&
             req.method === "POST" &&
             ["/api/github/preview", "/api/skills/upload/preview"].includes(
@@ -1586,7 +1640,7 @@ const server = await createServer({
                     name:
                       i === 0
                         ? "跨部门研究与交付验证工作流-长名称样例"
-                  : `${labels[i % labels.length]}-${i + 1}`,
+                        : `${labels[i % labels.length]}-${i + 1}`,
                     path: `skills/workflow-${i + 1}`,
                     description:
                       "整理研究证据、团队协作步骤与交付验证清单，保持可读的长说明和明确的操作。",
@@ -1622,7 +1676,7 @@ const server = await createServer({
           }
           const chatState = completedPreviewStreams.has(streamKey)
             ? "completed"
-            : (previewParams.get("chat-state") ?? "completed");
+            : previewParams.get("chat-state") ?? "completed";
           if (
             req.method === "GET" &&
             url.pathname === "/api/chat/sessions/preview-report/stream" &&
@@ -1633,7 +1687,11 @@ const server = await createServer({
             res.flushHeaders();
             const sendEvent = (event: string, data: object, id: string) =>
               res.write(
-                `id: ${id}\nevent: ${event}\ndata: ${JSON.stringify({ ...data, run_id: "preview-run", _timestamp: new Date().toISOString() })}\n\n`,
+                `id: ${id}\nevent: ${event}\ndata: ${JSON.stringify({
+                  ...data,
+                  run_id: "preview-run",
+                  _timestamp: new Date().toISOString(),
+                })}\n\n`,
               );
             const ping = setInterval(
               () => sendEvent("ping", {}, "preview-ping"),
@@ -1676,7 +1734,7 @@ const server = await createServer({
             });
             return;
           }
-          const data =
+          let data =
             failureTarget === "channel-config" &&
             url.pathname === "/api/channels/feishu"
               ? { channels: [] }
@@ -1684,6 +1742,41 @@ const server = await createServer({
                   url.pathname === "/api/agents"
                 ? { agents, count: agents.length, default_agent: "team" }
                 : response(url, scenario, chatState);
+          if (
+            previewParams.has("file-flow") &&
+            /^\/api\/skills\/[^/]+$/.test(url.pathname)
+          ) {
+            data = { ...(data as object), files: ["SKILL.md", "a.md", "b.md"] };
+            if (previewParams.has("binary"))
+              data = {
+                ...(data as object),
+                files: ["SKILL.md", "assets/icon-192.png"],
+              };
+          }
+          if (
+            previewParams.has("file-flow") &&
+            url.pathname.includes("/files/") &&
+            url.pathname.startsWith("/api/skills/")
+          ) {
+            const filePath = decodeURIComponent(
+              url.pathname.split("/files/")[1],
+            );
+            data = {
+              content: `# ${filePath}\n\n专业研究工作流：明确问题、收集证据、输出结论。`,
+            };
+            if (
+              previewParams.has("binary") &&
+              filePath === "assets/icon-192.png"
+            ) {
+              data = {
+                content: "",
+                is_binary: true,
+                url: "/icons/icon-192.png",
+                mime_type: "image/png",
+                size: 41245,
+              };
+            }
+          }
           if (
             url.pathname === "/api/sessions/preview-report/events" &&
             previewParams.has("tools")
@@ -1862,10 +1955,12 @@ const server = await createServer({
           const isRead = req.method === "GET";
           const channelConfigFailure =
             isRead &&
-            ((failureTarget === "model-role" &&
-              /^\/api\/agent\/config\/roles\/[^/]+\/models$/.test(
-                url.pathname,
-              )) ||
+            ((failureTarget === "skill-file" &&
+              /^\/api\/skills\/[^/]+\/files\//.test(url.pathname)) ||
+              (failureTarget === "model-role" &&
+                /^\/api\/agent\/config\/roles\/[^/]+\/models$/.test(
+                  url.pathname,
+                )) ||
               (failureTarget === "agent-role" &&
                 /^\/api\/agent\/config\/roles\/[^/]+$/.test(url.pathname)) ||
               (failureTarget === "channel-config" &&
@@ -1923,7 +2018,11 @@ const server = await createServer({
                         code: "preview_only",
                         message: !isRead
                           ? failureTarget === "editor-long-error"
-                            ? `Preview is read-only. ${"The configuration could not be saved; your draft is still available. ".repeat(12)}https://preview.example.test/${"configuration".repeat(20)}`
+                            ? `Preview is read-only. ${"The configuration could not be saved; your draft is still available. ".repeat(
+                                12,
+                              )}https://preview.example.test/${"configuration".repeat(
+                                20,
+                              )}`
                             : "Preview is read-only"
                           : "Preview fixture unavailable",
                       },
