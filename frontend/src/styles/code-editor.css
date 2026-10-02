@@ -1,4 +1,5 @@
 .code-editor {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -24,6 +25,21 @@
 
 .code-editor-toolbar button {
   color: var(--theme-text-secondary);
+}
+
+.code-editor-toolbar--floating {
+  position: absolute;
+  top: 4px;
+  right: 44px;
+  z-index: 2;
+  padding: 0;
+  background: transparent;
+}
+
+@media (max-width: 639px), (pointer: coarse) {
+  .code-editor-toolbar--floating {
+    right: 56px;
+  }
 }
 
 .code-editor .code-editor-toolbar .ui-icon-button:hover {

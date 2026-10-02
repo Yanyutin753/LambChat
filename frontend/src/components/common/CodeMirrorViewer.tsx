@@ -340,6 +340,7 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
     >
       {showToolbar && (
         <CodeMirrorSearchToolbar
+          floating={!toolbarLabel && !copyable}
           viewRef={viewRef}
           copyText={copyable ? value : undefined}
           copyLabel={copyLabel}

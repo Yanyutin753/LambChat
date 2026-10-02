@@ -13,15 +13,19 @@ export function CodeMirrorSearchToolbar({
   copyText,
   copyLabel,
   label,
+  floating = false,
 }: {
   viewRef: RefObject<EditorView | null>;
   copyText?: string;
   copyLabel?: string;
   label?: ReactNode;
+  floating?: boolean;
 }) {
   const { t } = useTranslation();
   return (
-    <div className="code-editor-toolbar">
+    <div
+      className={`code-editor-toolbar${floating ? " code-editor-toolbar--floating" : ""}`}
+    >
       {label && <div className="min-w-0 flex-1">{label}</div>}
       <IconButton
         size="sm"
