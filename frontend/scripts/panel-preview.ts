@@ -1416,7 +1416,12 @@ function response(
         scenario === "empty"
           ? []
           : directory && directory !== "."
-          ? [{ path: "研究资料/访谈笔记.md", is_dir: false }]
+          ? directory === "研究资料"
+            ? [
+                { path: "研究资料/访谈记录", is_dir: true },
+                { path: "研究资料/访谈笔记.md", is_dir: false },
+              ]
+            : [{ path: `${directory}/会议记录.txt`, is_dir: false }]
           : [
               { path: "研究资料", is_dir: true },
               { path: "今天吃什么.py", is_dir: false },
@@ -2270,6 +2275,9 @@ const server = await createServer({
                 url.pathname === "/api/share/public/preview-report") ||
               (failureTarget === "workspace-list" &&
                 url.pathname === "/api/sandbox/fs/cloud/list") ||
+              (failureTarget === "workspace-child" &&
+                url.pathname === "/api/sandbox/fs/cloud/list" &&
+                url.searchParams.has("path")) ||
               (failureTarget === "workspace-read" &&
                 url.pathname === "/api/sandbox/fs/cloud/read") ||
               (failureTarget === "project-page" &&

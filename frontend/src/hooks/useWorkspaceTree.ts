@@ -21,6 +21,7 @@ export interface WorkspaceTreeNode {
   isDir: boolean;
   children?: WorkspaceTreeNode[];
   loading?: boolean;
+  error?: string;
 }
 
 export type WorkspaceTreeState = "idle" | "loading" | "ready" | "error";
@@ -64,6 +65,7 @@ function attachLevel(
           ...node,
           children: reconcile(node.children ?? []),
           loading: false,
+          error: undefined,
         };
       }
       if (path.startsWith(`${node.path}/`) && node.children) {
@@ -74,16 +76,16 @@ function attachLevel(
   return walk(nodes);
 }
 
-/** 标记/清除 path 目录的 loading 位（展开转圈用）。 */
-function markLoading(
+/** 更新单个目录的读取状态，保留已装载内容。 */
+function updateDirectory(
   nodes: WorkspaceTreeNode[],
   path: string,
-  loading: boolean,
+  status: Pick<WorkspaceTreeNode, "loading" | "error">,
 ): WorkspaceTreeNode[] {
   const walk = (list: WorkspaceTreeNode[]): WorkspaceTreeNode[] =>
     list.map((node) => {
       if (!node.isDir) return node;
-      if (node.path === path) return { ...node, loading };
+      if (node.path === path) return { ...node, ...status };
       if (path.startsWith(`${node.path}/`) && node.children) {
         return { ...node, children: walk(node.children) };
       }
@@ -92,15 +94,15 @@ function markLoading(
   return walk(nodes);
 }
 
-/** 收集需要重拉的目录路径（根 + 所有已装载子目录）。 */
+/** 收集需要重拉的目录路径（根 + 已装载或读取失败的子目录）。 */
 function collectLoadedDirs(
   nodes: WorkspaceTreeNode[],
   acc: string[] = ["."],
 ): string[] {
   for (const node of nodes) {
-    if (node.isDir && node.children) {
+    if (node.isDir && (node.children || node.error)) {
       acc.push(node.path);
-      collectLoadedDirs(node.children, acc);
+      if (node.children) collectLoadedDirs(node.children, acc);
     }
   }
   return acc;
@@ -145,13 +147,16 @@ export function useWorkspaceTree(
   const generationRef = useRef(0);
 
   const loadDir = useCallback(
-    async (path: string, { replace }: { replace: boolean }) => {
+    async (path: string) => {
       if (!sessionId) return;
       const key = `${sessionId}\u0000${path}`;
       if (inFlightRef.current.has(key)) return;
       inFlightRef.current.add(key);
       const generation = generationRef.current;
-      if (!replace) setRoot((prev) => markLoading(prev, path, true));
+      if (path !== ".")
+        setRoot((prev) =>
+          updateDirectory(prev, path, { loading: true, error: undefined }),
+        );
       try {
         const result = await source.list(sessionId, path === "." ? "" : path);
         if (generation !== generationRef.current) return;
@@ -159,22 +164,33 @@ export function useWorkspaceTree(
           if (path === ".") {
             setError(result.error);
             setState("error");
-          }
+          } else
+            setRoot((prev) =>
+              updateDirectory(prev, path, { error: result.error }),
+            );
           return;
         }
-        setError(null);
         setRoot((prev) => attachLevel(prev, path, result.entries ?? []));
-        if (path === ".") setState("ready");
+        if (path === ".") {
+          setError(null);
+          setState("ready");
+        }
       } catch (err) {
         if (generation !== generationRef.current) return;
         if (path === ".") {
           setError(err instanceof Error ? err.message : String(err));
           setState("error");
-        }
+        } else
+          setRoot((prev) =>
+            updateDirectory(prev, path, {
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          );
       } finally {
         if (generation === generationRef.current) {
           inFlightRef.current.delete(key);
-          if (!replace) setRoot((prev) => markLoading(prev, path, false));
+          if (path !== ".")
+            setRoot((prev) => updateDirectory(prev, path, { loading: false }));
         }
       }
     },
@@ -194,7 +210,7 @@ export function useWorkspaceTree(
       return;
     }
     setState("loading");
-    void loadDir(".", { replace: true });
+    void loadDir(".");
   }, [sessionId, effectiveResetKey, loadDir]);
 
   const toggleDir = useCallback(
@@ -210,7 +226,7 @@ export function useWorkspaceTree(
       }
       setExpanded((prev) => new Set(prev).add(path));
       const node = findNode(root, path);
-      if (!node?.children) void loadDir(path, { replace: false });
+      if (!node?.children || node.error) void loadDir(path);
     },
     [expanded, root, loadDir],
   );
@@ -221,11 +237,19 @@ export function useWorkspaceTree(
     setError(null);
     // 重拉根 + 已装载目录：attachLevel 原地替换，展开现场保留。
     const dirs = collectLoadedDirs(root);
-    void loadDir(".", { replace: true });
+    void loadDir(".");
     for (const dir of dirs) {
-      if (dir !== ".") void loadDir(dir, { replace: true });
+      if (dir !== ".") void loadDir(dir);
     }
   }, [sessionId, state, root, loadDir]);
 
-  return { root, state, error, toggleDir, refresh, expandedPaths: expanded };
+  return {
+    root,
+    state,
+    error,
+    toggleDir,
+    refresh,
+    retryDir: loadDir,
+    expandedPaths: expanded,
+  };
 }

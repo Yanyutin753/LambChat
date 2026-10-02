@@ -1082,3 +1082,15 @@ LocalSandboxSection复用usePreferenceWrites统一配对、策略、重启和取
 按DESIGN八项复核：排版/留白/层级沿用文件浏览与文档工具栏，不加重复卡片或工具行；三主题文字与反馈可读；减少动效沿用shared LoadingSpinner；焦点与返回/恢复微交互经真实DOM和组件验证；320/390/834/1440响应式；复用LambChat视觉语言、不引入装饰或平行系统。Impeccable offline update仍报告未安装技能文件，使用项目人工清单。最终788文件3934项全量测试、lint零错误警告、tsc/Vite/PWA/build和体积门禁通过：eager560325/561152、precache93项5033774/5242880，无预算提高。首轮全量既有projectAndSearchComposition.test.tsx的legacy IME用例失败，单独3项及最终完整运行通过；未改此模块，保留间歇性失败作为后续核查项。日志/tmp/workspace-preview-delivery-*.log。
 
 目标保持进行中。深层目录展开失败、文件读取失败后的明确恢复、跨预览/导航/缩放焦点、剩余编辑与五语全状态矩阵、真实Tauri/手机与服务端权限/会话尚未全部验收，不据局部绿门禁声称全站完成。
+
+### 2026-10-02：文件与多层目录读取恢复
+
+上一目标回合属于progress：同步最新文件原生查找到3017并取得320/390px实际定位与快捷键证据。本轮继续interface-state工作树，fetch确认最新origin/develop是HEAD祖先；保留其它工作树和主checkout的未跟踪目录。修复展开子目录响应error/异常被忽略、看起来像空目录的问题：每个目录记录读取错误并就地提示和Retry，aria-busy、reduced-motion loader及稳定目录焦点；成功清除本目录错误，保留展开及缓存。全局刷新重读从未成功加载的失败目录；子目录成功不再清除根目录错误。文件读取失败显示准确路径并直接重试，等待保持浏览region焦点，成功转到具名预览，返回恢复原文件和多层目录。
+
+首批6项实际WorkspacePanel/useWorkspaceTree回归先RED后GREEN，覆盖响应/网络失败、文件读取、缓存子目录刷新、根错/子成功顺序和未加载失败目录的全局恢复。只读复核发现原生Reveal错误仍使用旧字符串状态契约，补action read/reveal分派、同代次守卫及准确重试：另2项先RED（空错误、旧工作区失败落新视图）后GREEN，验证不误调用read且Reveal参数准确；再次复核无确定剩余P1/P2。相关5文件39项通过。原生桥调用由边界mock模拟，不能视为真实Finder/Tauri验收。
+
+只读fixture增加首次子目录失败与两层目录内容，保持GET恢复、其他写请求拒绝。IAB 390深色俄语子目录错误可见；320深色Retry44px、目录busy/expanded=true且焦点在原目录，恢复后进一步展开访谈记录和会议记录.txt、无横向溢出。320浅色深路径文件错误完整可读，Retry44px、读取等待焦点在文件浏览region、成功在预览region；返回准确聚焦会议记录.txt并保留三个展开入口。834浅色侧栏宽638px使用单栏预览；1440浅色居中宽1137px，文件树220px+预览917px且选中原文件；1440暖色目录错误在220px树内换行，Retry32px，834暖色重试保留原目录焦点和展开。截图在仓库外workspace-file-recovery目录，不证明真实服务权限、设备软键盘或原生文件管理器。
+
+八项自检：排版复用既有12/13px文件层级；留白和行距沿用共享文件树/文档工具栏；路径、原因、Retry分层；三主题沿用token可读；无新动效且loader遵循reduced-motion；焦点/缓存/迟到结果/重试动作经组件验证；320/390/834/1440无本批溢出；保持LambChat组件语言，没有新依赖、素材、主题或装饰。复用五种locale现有文案，无新字符串。npx --offline impeccable update仍报告未安装skill folders，按DESIGN清单完成人工检查。全量788文件3942项、lint零错误警告、tsc/Vite/PWA/build与体积门禁通过：eager560322/561152、precache93项5033774/5242880，无提高预算。日志/tmp/workspace-recovery-*-final.log。
+
+全站目标保持进行中。下一轮继续主聊天搜索IME间歇性失败与跨预览/导航/缩放焦点；剩余编辑流程、五语全状态矩阵以及真实服务/桌面和移动设备证据仍未闭合，不据本批局部修复和门禁声称全站完成。

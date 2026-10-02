@@ -128,3 +128,5 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 同一入口加 `reopen=1` 可关闭/重新挂载实际设置组件，保留页面和共享store。可检查迁移等待中重新进入、保存后新路径与待重启入口保留，以及 `custom=1` 恢复默认后的说明；`failure=relaunch` 可检查重启失败/Retry。刷新整个页面会重置模块内存，模拟重启不会真的刷新；该入口只证明同一WebView生命周期内的状态连续性，不证明独立WebView重载、原生迁移或应用重启。
 
 会话分享阅读走查：`/shared/preview-report?share-long=1` 提供无空格的长标题、作者/助手/模型名和长中文角色名；叠加 `share-avatar=1` 检查作者头像、角色与模型图标的固定尺寸。`fixture=empty` 在会话分享中返回无事件内容；可组合三主题，使用已有语言菜单检查俄语长文案。仅 GET fixture，不验证真实分享权限、模型执行或真机键盘。
+
+子目录恢复走查：`/chat/preview-report?failure=workspace-child&workspace-flow=1` 保持根目录正常，首次读取子目录 GET 等待2秒后503，重试返回研究资料内的访谈记录目录和访谈笔记；进一步展开访谈记录可读会议记录.txt。新的 `run` 参数重放失败，可组合三主题。目录失败就地提示，Retry 保留展开状态、稳定焦点及缓存；全局刷新也重新读取失败目录。`failure=workspace-read` 可检查深层文件路径、读取失败、直接Retry及移动端返回原文件。仅只读fixture，不证明真实沙箱权限、原生文件管理器或设备行为。
