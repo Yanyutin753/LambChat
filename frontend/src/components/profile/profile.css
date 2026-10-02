@@ -423,3 +423,29 @@
 .profile-setting-row .ui-select {
   max-width: 55%;
 }
+.profile-data-location {
+  container: sandbox-data / inline-size;
+}
+
+.profile-data-location .ui-button {
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+}
+
+.profile-data-location .ui-button__label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@container sandbox-data (max-width: 639px) {
+  .profile-data-location .ui-button {
+    min-height: 44px;
+  }
+}
+
+@media (pointer: coarse) {
+  .profile-data-location .ui-button {
+    min-height: 44px;
+  }
+}

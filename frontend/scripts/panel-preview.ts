@@ -1,6 +1,7 @@
 /** Local-only UI fixture server. No requests are forwarded to a real API. */
 import { createServer } from "vite";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { Permission, type PermissionsResponse } from "../src/types/auth";
 
 const now = "2026-09-30T08:00:00Z";
@@ -1472,7 +1473,24 @@ const server = await createServer({
       configResolved(config) {
         config.server.proxy = {};
       },
+      resolveId(source, importer) {
+        if (
+          importer?.endsWith("/components/profile/SandboxDataLocationCard.tsx") &&
+          (source === "../../services/tauri/sandboxShell" ||
+            source === "@tauri-apps/plugin-process")
+        ) {
+          return fileURLToPath(
+            new URL("./sandbox-location-fixture.ts", import.meta.url),
+          );
+        }
+      },
       transformIndexHtml(html, context) {
+        if (context.originalUrl?.split("?")[0] === "/sandbox-data-preview") {
+          html = html.replace(
+            "/src/main.tsx",
+            "/scripts/sandbox-data-preview.tsx",
+          );
+        }
         if (context.originalUrl?.split("?")[0] === "/server-connection-preview") {
           html = html.replace(
             "/src/main.tsx",

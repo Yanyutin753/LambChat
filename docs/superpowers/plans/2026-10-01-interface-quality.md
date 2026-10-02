@@ -928,3 +928,21 @@ IAB独立3018：390深色Header错误说明可读，原语言保留，重试显�
 八项人工自检：沿用serif标题及正文尺度、字段留白；平面层级突出内容与连接反馈；全部theme token及现有五语；无新增动画，既有spinner/reduced-motion；取消/超时/重试/IME/焦点经行为测试；320/390/834/1440和300px短屏实测；复用LambChat控件并保持克制视觉。按DESIGN.md交付检查，Impeccable环境沿用人工清单。最终17项针对性、全量783文件/3860项测试通过，lint零警告零错误，build含tsc/Vite/PWA通过；eager JS560133/561152、precache5029787/5242880、93项，未提高预算。git diff --check通过。
 
 本轮3019服务和临时标签页回收，视口恢复；上轮3018结果及用户3017保留。全站目标继续：本地沙箱设置/数据位置读取失败、保存恢复和窄屏操作布局，剩余异步归属及状态组合、真实服务和设备证据尚未完成，不据本批门禁宣告全站完成。
+
+## 2026-10-02 沙箱数据位置错误恢复与响应式
+
+上一回合核对了用户3017文件预览：原生CodeMirror查找已浮动、展开/关闭正文位置不变，17项相关测试通过，没有重复实现。此次继续interface-state worktree，fetch确认origin/develop仍为349e2f08，主checkout和用户3017保持。
+
+数据位置读取、目录选择、保存、恢复默认、重启复用usePreferenceWrites与CatalogStatus。读取失败保留标题和重试；保存失败保留所选目录、迁移选择和原生错误原因；保存期间冻结checkbox与Cancel，稳定section承接本区焦点，卸载忽略迟到成功toast。新增discard仅清失败请求，拒绝清在途请求；取消或改迁移选择清旧快照，新操作启动前清另一个失败槽，避免picker与reset的旧Retry交叉执行。7项恢复回归先RED再GREEN；交叉reset→picker回归先RED，修复并补反向deferred覆盖。独立复核交叉P2已关闭，增量无确定P1/P2。
+
+追到实际Rust响应，SandboxDataLocation没有camelCase serde重命名，原来的桥却直接断言overrideConfigured，导致真实壳“恢复默认”消失。替换不真实的既有fixture为override_configured原生格式，true/false两项先RED，再在共享服务桥显式映射后GREEN；没有改Rust命令、迁移或覆盖文件语义。
+
+布局改为标题/状态、完整根路径、说明、所选路径、迁移选择和操作顺序，去掉重复嵌套卡片及独立硬编码深色。复用Button和主题token，当前卡片以sandbox-data容器宽度控制44px触控，长标签允许换行；原生checkbox保持具名语义且整行可点。没有新增文案、字体、依赖或动画。
+
+3019独立fixture渲染真实组件，仅预览服务器替换此组件的native服务与process插件；所有操作等待1.2秒、指定首次失败后恢复，不调用原生桥、不访问或迁移文件、不重启应用。320浅色俄语读取错误可读、Retry44px、重试焦点DIV、等待aria-busy=true；恢复后的长路径和目录确认无横向溢出，两个按钮44px。390深色保存等待checkbox/Cancel/Save禁用、焦点DIV；错误保留所选目录并显示持久alert，Retry后展示“已保存/需重启”。834深色恢复布局宽576px、overflow0；1440暖色俄语reset失败可重试，恢复后完整说明数据留在原处。320×300暖色俄语Tab可达重启按钮，底边283.77px在300px视口内、overflow0。390浅色relaunch失败保留已保存状态，Retry仅重启、恢复启用。截图保存仓库外interface-quality：sandbox-location-320-light-ru-read-error-final、sandbox-location-320-light-ru-confirm-final、sandbox-location-390-dark-save-error-final、sandbox-location-390-dark-saved-final、sandbox-location-1440-sepia-ru-reset-error-final、sandbox-location-1440-sepia-ru-reset-recovered-final、sandbox-location-320-short-ru-reset-final、sandbox-location-390-light-relaunch-error-final；优化前证据sandbox-location-320-dark-before。
+
+按DESIGN.md八项人工检查：沿用标题/正文尺度，保留分组留白；完整路径、迁移决策、错误与完成状态层级明确；现有深浅/暖色token；无新动效、已有spinner遵循reduced-motion；禁用、重试、键盘焦点与卸载经行为验证；320/390/834/1440及俄语短屏实测；复用LambChat组件，不引入并行视觉系统。Impeccable检查器未安装，使用项目交付清单。最终全量783文件/3869项测试、lint零警告零错误、build含tsc/Vite/PWA通过；eager JS560212/561152、precache5030472/5242880、93项，未提高预算。git diff --check通过。
+
+另外以8019独立临时后端运行uv本地沙箱全量E2E，44/44 PASS，MongoDB/Redis使用本机既有服务，一次性用户与测试目录由脚本回收。临时.env symlink及8019后端已回收，未发布配置或凭据。此E2E证明现有本地daemon执行、传输、skills虚拟挂载、转移整树与下线链路，不证明Tauri数据根真实迁移或实际重启。3019及临时走查标签页回收，视口恢复；3018已交付预览及用户3017保留。
+
+全站目标仍进行中。下一阶段继续LocalSandboxSection配对表单、四列快捷按钮在手机/长语言的布局、状态读取错误被当离线，以及原生数据位置在关闭重开设置/多实例/迁移在途时的状态与待重启提示持久性；还需真实原生窗口、目录迁移和设备证据。不得将本批门禁或fixture视为全部界面完成。

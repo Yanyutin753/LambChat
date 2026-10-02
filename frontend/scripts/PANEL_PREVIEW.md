@@ -28,6 +28,8 @@
 
 ## 状态与走查
 
+桌面端数据位置可用独立入口 `/sandbox-data-preview?theme=dark&custom=1`；`lang=ru` 检查长文案，`failure=read|pick|save|reset|relaunch` 让指定操作等待1.2秒后首次失败、重试恢复。该入口渲染真实 `SandboxDataLocationCard`，预览服务只将此组件的原生服务模块与 process 插件替换为本地 fixture，选择/保存/恢复/重启均不访问真实文件或原生桥。可检查读取错误、路径折行、迁移选项锁定、重试和重启提示；不能证明真实数据迁移、覆盖文件、跨窗口状态或应用重启。
+
 URL 参数：`?theme=dark` 为深色；默认浅色。`?fixture=empty` 返回空列表，`?fixture=error` 模拟加载失败，`?fixture=loading` 延迟响应；可组合 `?theme=dark&fixture=empty`。设置和认证保持可用，以便继续导航。
 
 助手角色读取恢复可用 `/agents?failure=agent-role`：角色分配首次读取失败，编辑被阻止，点击 Retry 后恢复。角色切换使用共享选择器，可验证键盘、长列表及草稿保留。保存仍返回 405，不改变真实权限。
