@@ -268,7 +268,7 @@ html:has([data-titlebar]) .editor-sidebar[data-panel-presentation="overlay"] {
   --right-sidebar-height: calc(100% - var(--titlebar-inset, 0px) - 1.5rem);
 }
 
-/* Docked panels start on the same edge as the workspace. */
+/* Docked panels keep an even inset around the surface. */
 html[data-right-panel-presentation="docked"]:has(
     [data-titlebar],
     [data-workspace-ui]
@@ -279,8 +279,8 @@ html[data-right-panel-presentation="docked"]:has(
   ) {
   top: var(--titlebar-inset, 0px);
   bottom: 0;
-  height: calc(100% - var(--titlebar-inset, 0px));
-  margin: 0 0.5rem;
+  height: calc(100% - var(--titlebar-inset, 0px) - 1rem);
+  margin: 0.5rem;
   width: calc(var(--right-panel-active-width) - 1rem) !important;
   max-width: calc(var(--right-panel-active-width) - 1rem) !important;
   border: 1px solid var(--theme-border);

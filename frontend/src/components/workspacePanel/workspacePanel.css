@@ -266,18 +266,12 @@
 [data-right-panel-root]:has(.workspace-panel) .tool-console-header button,
 .workspace-document
   .document-preview-toolbar
-  button[type]:not(.document-preview-source-toggle):not([role="menuitem"]) {
+  button[type]:not([role="menuitem"]) {
   width: var(--workspace-action-size);
   height: var(--workspace-action-size);
   min-width: var(--workspace-action-size);
   min-height: var(--workspace-action-size);
   padding: 0;
-  border-radius: var(--radius-sm);
-}
-.workspace-document .document-preview-toolbar .document-preview-source-toggle {
-  height: var(--workspace-action-size);
-  min-height: var(--workspace-action-size);
-  min-width: var(--workspace-action-size);
   border-radius: var(--radius-sm);
 }
 [data-right-panel-root]:has(.workspace-panel) .tool-console-header button:hover,

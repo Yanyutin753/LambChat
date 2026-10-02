@@ -4481,29 +4481,11 @@
 .document-preview-more-actions {
   display: block;
 }
-.document-preview-toolbar button.document-preview-source-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.375rem;
-  width: auto;
-  padding-inline: 0.5rem;
-  border-radius: var(--radius-md);
-  color: var(--theme-text-secondary);
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-.document-preview-source-toggle:hover,
 .document-preview-source-toggle[aria-pressed="true"] {
   background: var(--theme-hover);
   color: var(--theme-text);
 }
-.document-preview-source-toggle:focus-visible {
-  outline: 2px solid var(--theme-primary);
-  outline-offset: 2px;
-}
 @container document-toolbar (max-width: 479px) {
-  .document-preview-source-toggle span,
   .document-preview-language {
     display: none;
   }
