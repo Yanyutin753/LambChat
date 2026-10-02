@@ -467,3 +467,25 @@ TDD：文档链接 pending、普通/全屏绘图 pending、行内按钮四项明
 最终截图沿用 interface-quality 目录：document-copy-320-light-final.png、document-copy-390-dark-final.png、document-copy-768-sepia-final.png、document-copy-1440-light-final.png；inline-copy-390-dark-failed.png；mermaid-copy-320-light-failed.png / retry-final.png、mermaid-copy-390-dark-final.png；document-link-768-sepia-failed.png、document-content-1440-light-failed.png。复制流程截图在节点 palette 调整前，最终页面 screenshot 在配色后；不混同两者。剪贴板在确认仍是本批完整 Markdown 后恢复测试前内容，临时 viewport reset，tab9 handoff 供继续。旧 tab8 仍有 CDP focus 问题，不重复操作、不声称已清理。
 
 继续：文件路径和分享复制、图片/下载/格式、大图与内嵌图片、资源导入发布、其余语言、真机触屏/软键盘、认证/写入/真实对话、扫码 E2E；小屏大图缩放与节点文字可读性需继续检查。整体目标保持进行中，不以本批复制和三节点主题样例宣称全界面没有可提升之处。
+
+### 当前执行：分享复制与文件路径菜单
+
+- [x] RED：会话/项目分享等待复制且失败可重试；创建已成功时复制失败不误报创建失败；路径菜单等待、返回实际入口与 IME Escape 边界。
+- [x] 复用 CopyButton、useClipboardCopy 和 ResourceCardMenu，紧凑动作保持触屏尺寸、列表文字不挤压。
+- [x] 实际四宽度三主题、键盘和 clipboard 核对，完整门禁与只读复核后提交；保留全界面后续范围。
+
+本批完成：会话/项目分享列表删除重复复制状态，复用 CopyButton；会话创建已成功但自动复制失败时只报告复制失败并刷新实际列表，保留真正创建失败的外层错误分支。手机 metadata 与右侧动作分行，保留 p-3 正文空间和 gap-1 紧凑动作；编辑/删除复用 ToolbarIconButton，手机44px、桌面32px。WorkspacePanel 路径菜单复用 ResourceCardMenu，删除独立键盘/外部点击实现，键盘 More 用按钮几何定位，右键保留指针定位；独立 copyPath 保留关菜单期间的复制请求，同路径重开等待状态，切换路径/工作区则忽略旧结果，关闭返回真正触发菜单的按钮。
+
+TDD：分享和路径5项先明确 RED；初次 green 的分享 pending 偶发失败后，额外用父 layout effect 在子按钮挂载时激活复制，稳定复现 passive reset 清除 pending 的共享生命周期问题，明确 RED 后把 useClipboardCopy 初始化改 useLayoutEffect。初次偶发失败不当作已证明唯一原因；受控回归独立证明这个共享时序漏洞。实屏与只读复核发现新增 IconButton sm 仍32px，手机尺寸契约2项明确 RED 后改已有 ToolbarIconButton，再26项目标测试全绿。完整测试新增6项，无新依赖/新组件体系/预算提高。
+
+原生：旧 tab9 的 goto CDP focus 超时，按文档复用同一浏览器建 tab10 继续，未操作用户原页；新只读现有分享 fixture 需重启确认运行中的 preview session35138，当前 session86494/3002。现有分享是演示链接，所有写入仍405，未创建、删除或扩大真实访问。390 dark 会话分享首复制失败后 Enter 重试真实 clipboard 精确为 http://127.0.0.1:3002/shared/preview-report；Escape 返回“Поделиться сессией”。HMR 关闭分享窗口一次，按新 DOM 重开后复制/编辑/删除实测均43.9967px。320 light 路径首复制失败，关闭返回对应长文件名 More，Enter 重开后重试 clipboard 精确为交付计划与下一阶段验证清单.md，菜单项44px；Escape 返回同一 More；无页面横向溢出。IME Escape 由目标组件测试保护，未声称真机输入法验证。
+
+768 sepia 项目分享真实链接复制成功，稳定布局无横向 dialog 溢出，桌面操作32px；1440 light 会话分享列表动作32px、文字完整、无 dialog 溢出。项目分享从桌面临时 resize 手机后，立即几何读数曾14px且 overflow=true；下一次稳定 DOM 读数320px dialog client/scroll均320、copy/delete均44px，不把 resize 中间帧当稳定最终结果或声称瞬时布局全部通过。320 light 项目现有链接也实际复制成功，footer 长俄文按钮自然分行。已确认 clipboard 仍是本批演示链接后恢复测试前内容，viewport reset，tab10 handoff；旧 tab9 未声称已关闭。
+
+八项自检：保留 serif 标题与正文/metadata层级；只调整动作和小屏分行，不统一压缩正文留白；链接说明、访问选择和动作主次明确；沿用已有 light/dark/sepia 色彩与五语文案；无新增装饰动画，沿用共享 reduced-motion；真实复制失败/重试、焦点返回和键盘可达；320/390/768/1440稳定结果无本批溢出、手机44px与桌面32px；保留 LambChat 视觉语言。Impeccable 沿用已确认不可用环境的 DESIGN.md 人工清单。sepia 分享主体仍沿用既有白色 modal，主题覆盖留待后续整体复查，不以局部暖色截图称所有色彩已最优。
+
+最终门禁：pnpm test 747文件/3624项全通过；pnpm run lint 零错误零警告；pnpm run build 含 tsc/Vite/PWA/预算通过，eager JS 558775/559104 bytes，precache 5016271/5242880 bytes、91 entries，保留既有 chunk-size 提示。最终改按钮后完整三门重跑通过；只读复核关闭手机尺寸 P2，无新增 P1/P2，复核者未重复原生或全量门禁。git diff --check 通过。
+
+截图沿用 interface-quality 目录：share-copy-390-dark-final.png、workspace-path-320-light.png、project-share-320-light-final.png、project-share-768-sepia.png、share-1440-light.png；早期 share-copy-390-dark-failed.png / share-copy-390-dark.png 在 ToolbarIconButton 修正前，不作为最终三个手机动作尺寸证明。
+
+继续：实际聊天产物文件树仍有嵌套 span 下载/复制、乐观复制反馈，需要沿真实 caller 逐项修；图片/下载/格式、大图/内嵌图片、资源导入发布、其余语言、真机触屏/软键盘、认证/写入/真实对话、扫码 E2E 等保持待完成。整体目标进行中，不由本批分享、路径和演示数据推断全部界面无明显可提升之处。

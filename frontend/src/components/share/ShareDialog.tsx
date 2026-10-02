@@ -8,20 +8,19 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Share2,
-  Copy,
   Trash2,
   Pencil,
   Globe,
   Lock,
   Loader2,
-  Check,
   X,
   AlertTriangle,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { SkeletonList, SkeletonCard } from "../skeletons";
 import { Checkbox } from "../common/Checkbox";
-import { IconButton } from "../common/ui";
+import { CopyButton } from "../common/CopyButton";
+import { IconButton, ToolbarIconButton } from "../common/ui";
 import { shareApi } from "../../services/api/share";
 import type {
   ShareType,
@@ -66,7 +65,6 @@ export function ShareDialog({
   const [hasLoadedRuns, setHasLoadedRuns] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [editingShare, setEditingShare] = useState<SharedSession | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const loadExistingShares = useCallback(async () => {
     setIsLoading(true);
@@ -157,8 +155,12 @@ export function ShareDialog({
       // Copy link to clipboard
       const shareUrl =
         getFullUrl(response.url) || `${window.location.origin}${response.url}`;
-      await copyToClipboard(shareUrl);
-      toast.success(t("share.linkCopied"));
+      try {
+        await copyToClipboard(shareUrl);
+        toast.success(t("share.linkCopied"));
+      } catch {
+        toast.error(t("chat.message.copyFailed"));
+      }
 
       // Refresh shares list
       await loadExistingShares();
@@ -206,16 +208,6 @@ export function ShareDialog({
     setShareType("full");
     setVisibility("public");
     setSelectedRunIds([]);
-  };
-
-  const handleCopyLink = async (shareId: string) => {
-    const shareUrl =
-      getFullUrl(`/shared/${shareId}`) ||
-      `${window.location.origin}/shared/${shareId}`;
-    await copyToClipboard(shareUrl);
-    setCopiedId(shareId);
-    toast.success(t("share.linkCopied"));
-    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const handleDeleteShare = async (shareId: string) => {
@@ -476,9 +468,9 @@ export function ShareDialog({
                 {existingShares.map((share) => (
                   <div
                     key={share.id}
-                    className="flex items-center justify-between p-3 bg-stone-50 dark:bg-stone-900/50 rounded-lg border border-stone-200 dark:border-stone-700"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-stone-50 dark:bg-stone-900/50 rounded-lg border border-stone-200 dark:border-stone-700"
                   >
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
                       {share.visibility === "public" ? (
                         <Globe
                           size={14}
@@ -501,45 +493,27 @@ export function ShareDialog({
                         )
                       </span>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleCopyLink(share.share_id)}
-                        className="p-1.5 rounded hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
-                        title={t("share.copyLink")}
-                      >
-                        {copiedId === share.share_id ? (
-                          <Check size={14} className="text-green-500" />
-                        ) : (
-                          <Copy
-                            size={14}
-                            className="text-stone-400 dark:text-stone-500"
-                          />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleEditShare(share)}
-                        className="p-1.5 rounded hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
+                    <div className="flex items-center justify-end gap-1 shrink-0">
+                      <CopyButton
+                        text={
+                          getFullUrl(`/shared/${share.share_id}`) ||
+                          `${window.location.origin}/shared/${share.share_id}`
+                        }
+                        label={t("share.copyLink")}
+                      />
+                      <ToolbarIconButton
+                        aria-label={t("share.editShare")}
                         title={t("share.editShare")}
-                      >
-                        <Pencil
-                          size={14}
-                          className={
-                            editingShare?.id === share.id
-                              ? "text-stone-700 dark:text-stone-200"
-                              : "text-stone-400 dark:text-stone-500"
-                          }
-                        />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteShare(share.id)}
-                        className="p-1.5 rounded hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
+                        onClick={() => handleEditShare(share)}
+                        icon={<Pencil size={14} />}
+                      />
+                      <ToolbarIconButton
+                        aria-label={t("share.deleteShare")}
                         title={t("share.deleteShare")}
-                      >
-                        <Trash2
-                          size={14}
-                          className="text-stone-400 hover:text-red-500 dark:text-stone-500 dark:hover:text-red-400"
-                        />
-                      </button>
+                        onClick={() => handleDeleteShare(share.id)}
+                        icon={<Trash2 size={14} />}
+                        className="hover:text-theme-error"
+                      />
                     </div>
                   </div>
                 ))}

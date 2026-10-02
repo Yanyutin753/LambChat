@@ -8,6 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { useLayoutEffect, useRef } from "react";
 import { CopyButton } from "../CopyButton";
 const mocks = vi.hoisted(() => ({
   copy: vi.fn(),
@@ -152,4 +153,32 @@ test("retry replaces its earlier failure feedback instead of stacking conflictin
   const errorId = mocks.error.mock.calls[0][1]?.id;
   expect(errorId).toEqual(expect.any(String));
   expect(mocks.success.mock.calls[0][1]?.id).toBe(errorId);
+});
+
+test("a copy activated on mount stays pending until the clipboard confirms", async () => {
+  let complete!: () => void;
+  mocks.copy.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        complete = resolve;
+      }),
+  );
+  function AutoCopy() {
+    const ref = useRef<HTMLDivElement>(null);
+    useLayoutEffect(() => {
+      ref.current?.querySelector("button")?.click();
+    }, []);
+    return (
+      <div ref={ref}>
+        <CopyButton text="Mounted report" />
+      </div>
+    );
+  }
+  render(<AutoCopy />);
+  expect(screen.getByRole("button")).toBeDisabled();
+  expect(mocks.success).not.toHaveBeenCalled();
+  await act(async () => complete());
+  expect(
+    await screen.findByRole("button", { name: "chat.message.copied" }),
+  ).toBeEnabled();
 });

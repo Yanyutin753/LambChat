@@ -1293,7 +1293,22 @@ function response(
     path.startsWith("/api/share/session/") ||
     path.startsWith("/api/share/project/")
   )
-    return [];
+    return [
+      {
+        id: "preview-share",
+        share_id: "preview-report",
+        session_id: "preview-report",
+        project_id: "preview-project",
+        share_scope: path.startsWith("/api/share/project/")
+          ? "project"
+          : "session",
+        share_type: "full",
+        visibility: "public",
+        name: "产品研究与交付计划",
+        created_at: now,
+        updated_at: now,
+      },
+    ];
   if (path === "/api/sessions")
     return paginate(
       rows((i, name) => ({

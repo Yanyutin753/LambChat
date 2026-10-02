@@ -5,6 +5,7 @@ import {
   fireEvent,
   cleanup,
   act,
+  waitFor,
 } from "@testing-library/react";
 import { expect, test, vi, afterEach } from "vitest";
 import { WorkspacePanel } from "../WorkspacePanel";
@@ -284,4 +285,73 @@ test("the workspace root collapses the file tree", () => {
     screen.getByRole("button", { name: "notes.txt", hidden: true }),
   ).not.toBeVisible();
   tree.root = [];
+});
+
+const clipboard = vi.hoisted(() => ({
+  copy: vi.fn(),
+  success: vi.fn(),
+  error: vi.fn(),
+}));
+vi.mock("../../../utils/clipboard", () => ({
+  copyToClipboard: clipboard.copy,
+}));
+vi.mock("react-hot-toast", () => ({
+  default: { success: clipboard.success, error: clipboard.error },
+}));
+
+test("file action Escape returns focus to its actual trigger and ignores IME", () => {
+  tree.root = [{ path: "notes.txt", name: "notes.txt", isDir: false }];
+  try {
+    render(<WorkspacePanel sessionId="s" sandboxMode="local" />);
+    const trigger = screen.getByRole("button", {
+      name: "workspacePanel.fileActions",
+    });
+    fireEvent.click(trigger);
+    const item = screen.getByRole("menuitem", {
+      name: "workspacePanel.copyPath",
+    });
+    fireEvent.keyDown(item, { key: "Escape", isComposing: true });
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    fireEvent.keyDown(item, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(trigger).toHaveFocus();
+  } finally {
+    tree.root = [];
+  }
+});
+
+test("pending path copy survives menu dismissal and reports confirmed success", async () => {
+  clipboard.copy.mockClear();
+  clipboard.success.mockClear();
+  let complete!: () => void;
+  clipboard.copy.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        complete = resolve;
+      }),
+  );
+  tree.root = [{ path: "notes.txt", name: "notes.txt", isDir: false }];
+  try {
+    render(<WorkspacePanel sessionId="s" sandboxMode="local" />);
+    const trigger = screen.getByRole("button", {
+      name: "workspacePanel.fileActions",
+    });
+    fireEvent.click(trigger);
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "workspacePanel.copyPath" }),
+    );
+    fireEvent.click(trigger);
+    expect(
+      screen.getByRole("menuitem", { name: "workspacePanel.copyPath" }),
+    ).toBeDisabled();
+    expect(clipboard.success).not.toHaveBeenCalled();
+    await act(async () => complete());
+    await waitFor(() => expect(clipboard.success).toHaveBeenCalledOnce());
+    expect(clipboard.copy).toHaveBeenCalledWith("notes.txt");
+    expect(
+      screen.getByRole("menuitem", { name: "workspacePanel.copyPath" }),
+    ).toBeEnabled();
+  } finally {
+    tree.root = [];
+  }
 });

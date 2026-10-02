@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useId } from "react";
+import { useState, useCallback, useLayoutEffect, useRef, useId } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { copyToClipboard } from "../utils/clipboard";
@@ -17,7 +17,7 @@ export function useClipboardCopy(
   );
   const request = useRef(0);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const version = request.current;
     setCopied(false);
     setFailed(false);
