@@ -117,7 +117,7 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 
 本地沙箱设置走查：同一入口加 `shell=unpaired|paired|web` 渲染实际LocalSandboxSection；`failure=process` 首次进程读取失败、重试/下一次轮询恢复，`shell=web&failure=status` 检查网页状态错误与重试。可组合三主题及 `lang=ru` 检查完整路径、两列手机快捷按钮、完整确认策略值、字段标签、44px按钮及16px输入。默认所有配对、PAT、策略、目录打开、重启与取消配对命令等待后拒绝执行；只填写公开演示占位符，不提供真实凭据。这些状态替身仅用于此独立入口，常规面板使用实际全局状态hook和GET fixture。不能证明真实登录、PAT持久化、原生进程操作或真机软键盘。
 
-分步恢复走查：显式加 `native-flow=1`，可用 `failure=pair-login|pair-create|pair-save|pair-restart|policy-server|policy-save|policy-restart|restart|unpair` 使对应模拟步骤首次失败、重试恢复。配对回执使用公开占位符，账号字段不被解析或转发；模拟保存/策略/启动仅更新预览模块内存，不访问原生桥、文件系统或真实 API。可检查回执确认后收起凭据表单、重启失败的准确说明、只继续失败步骤，以及策略保存失败后点击 Restart 仍继续原保存。目录打开始终拒绝；刷新页面重置模拟流程。此入口不证明真实凭据落盘、服务端写入、进程重启或真实设备行为。
+分步恢复走查：显式加 `native-flow=1`，可用 `failure=pair-login|pair-create|pair-save|pair-restart|policy-server|policy-save|policy-restart|restart|unpair|open-workspaces|open-audit|open-logs` 使对应模拟步骤首次失败、重试恢复。配对回执使用公开占位符，账号字段不被解析或转发；模拟保存/策略/启动仅更新预览模块内存，不访问原生桥、文件系统或真实 API。可检查回执确认后收起凭据表单、重启失败的准确说明、只继续失败步骤，以及策略保存失败后点击 Restart 仍继续原保存。目录打开只模拟等待、首次失败和恢复，不会打开系统文件管理器；未启用 `native-flow=1` 时仍拒绝。刷新页面重置模拟流程。此入口不证明真实凭据落盘、服务端写入、目录打开、进程重启或真实设备行为。
 
 连接与目录互锁走查：`shell=paired&failure=status` 同时保留原生“运行中”与连接读取错误，Retry 等待1.2秒后恢复；`shell=web&failure=status` 同样有等待反馈。`shell=paired&native-flow=1&failure=save` 可检查选目录、确认、保存重试与待应用重启期间暂停原生操作；`failure=restart` 可检查原生重启等待禁用目录修改，随后选目录也禁用原生错误中的Retry。只读读取重试仍可用。互锁当前限同一设置分区，预览不调用原生桥、迁移文件或重启应用，不证明多实例协调或真实迁移。
 

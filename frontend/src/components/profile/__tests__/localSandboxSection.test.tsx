@@ -86,6 +86,78 @@ import { LocalSandboxSection } from "../LocalSandboxSection";
 import { getSandboxStatusStoreState } from "../../../stores/sandboxStatusStore";
 import { sandboxDataLocationStore } from "../../../stores/sandboxDataLocationStore";
 
+test.each([
+  ["Open workspaces", "workspaces"],
+  ["Open audit log", "audit"],
+  ["Open logs", "logs"],
+])(
+  "%s failure remains visible and retries the selected directory",
+  async (label, path) => {
+    mocks.isShellAvailable.mockReturnValue(true);
+    mocks.daemonProcessStatus.mockResolvedValue("running");
+    mocks.getStatus.mockResolvedValue({ online: true });
+    mocks.openLocalPath
+      .mockRejectedValueOnce(new Error("file manager unavailable"))
+      .mockResolvedValue(undefined);
+    const { container } = render(<LocalSandboxSection />);
+    fireEvent.click(await screen.findByRole("button", { name: label }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(label);
+    fireEvent.click(screen.getByRole("button", { name: `Retry: ${label}` }));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(container.querySelector(".local-sandbox-section")).toHaveFocus();
+    expect(mocks.openLocalPath.mock.calls).toEqual([[path], [path]]);
+    expect(mocks.restartDaemon).not.toHaveBeenCalled();
+  },
+);
+
+test("opening a directory announces progress and prevents duplicate native actions", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({ online: true });
+  let finish!: () => void;
+  mocks.openLocalPath.mockImplementation(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  render(<LocalSandboxSection />);
+  const open = await screen.findByRole("button", { name: "Open workspaces" });
+  fireEvent.click(open);
+  fireEvent.click(open);
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    /open workspaces.*loading/i,
+  );
+  expect(screen.getByRole("button", { name: "Restart daemon" })).toBeDisabled();
+  expect(
+    screen.getByRole("button", { name: "Change location" }),
+  ).toBeDisabled();
+  expect(open).toBeDisabled();
+  await act(async () => finish());
+  await waitFor(() => expect(open).toBeEnabled());
+  expect(mocks.openLocalPath).toHaveBeenCalledTimes(1);
+});
+
+test("a directory failure after closing settings does not leak a late error toast", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({ online: true });
+  let fail!: (error: Error) => void;
+  mocks.openLocalPath.mockImplementation(
+    () =>
+      new Promise<void>((_, reject) => {
+        fail = reject;
+      }),
+  );
+  const { unmount } = render(<LocalSandboxSection />);
+  fireEvent.click(await screen.findByRole("button", { name: "Open logs" }));
+  await waitFor(() => expect(fail).toBeDefined());
+  unmount();
+  await act(async () => fail(new Error("file manager unavailable")));
+  const { toast } = await import("react-hot-toast");
+  expect(toast.error).not.toHaveBeenCalled();
+});
+
 test("failed native retry waits while the directory picker is open", async () => {
   mocks.isShellAvailable.mockReturnValue(true);
   mocks.daemonProcessStatus.mockResolvedValue("running");
@@ -941,7 +1013,13 @@ test("paired view opens whitelisted local folders via logical names", async () =
 
   await screen.findByText("Online");
   fireEvent.click(screen.getByRole("button", { name: /open workspaces/i }));
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: /open audit/i })).toBeEnabled(),
+  );
   fireEvent.click(screen.getByRole("button", { name: /open audit/i }));
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: /open logs/i })).toBeEnabled(),
+  );
   fireEvent.click(screen.getByRole("button", { name: /open logs/i }));
 
   await waitFor(() => expect(mocks.openLocalPath).toHaveBeenCalledTimes(3));

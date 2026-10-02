@@ -53,6 +53,11 @@ const CONFIRM_POLICY_OPTIONS = [
 
 type ConfirmPolicy = (typeof CONFIRM_POLICY_OPTIONS)[number]["key"];
 type SandboxAction = "current" | "other" | "policy" | "restart" | "unpair";
+const PATH_LABELS = {
+  workspaces: "profile.localSandbox.openWorkspaces",
+  audit: "profile.localSandbox.openAudit",
+  logs: "profile.localSandbox.openLogs",
+} as const;
 
 /** daemon 连接的服务端地址：运行时配置（打包壳首启设置）优先，构建期
  * API_BASE 次之；同源部署回退 origin。 */
@@ -100,13 +105,16 @@ export function LocalSandboxSection({
   const operationError = useRef("");
   const { states, save, retry, discard } = usePreferenceWrites("local-sandbox");
   const [action, setAction] = useState<SandboxAction | null>(null);
+  const [pathAction, setPathAction] =
+    useState<keyof typeof PATH_LABELS>("workspaces");
   const [pairPrepared, setPairPrepared] = useState(false);
   const [locationBusy, setLocationBusy] = useState(false);
   const [policyDraft, setPolicyDraft] = useState(false);
   const busy = states.native === "saving";
+  const pathBusy = states.path === "saving";
   const pairing = action === "other" && busy;
   const pairingCurrent = action === "current" && busy;
-  const blocked = busy || pairPrepared || locationBusy;
+  const blocked = busy || pathBusy || pairPrepared || locationBusy;
   const pairBusy = blocked;
   const unpairing = action === "unpair" && busy;
   const [username, setUsername] = useState("");
@@ -332,7 +340,7 @@ export function LocalSandboxSection({
     onSaved?: () => void,
     errorText: () => string = () => t("common.operationFailed"),
   ) => {
-    if (locationBusy) return false;
+    if (locationBusy || pathBusy) return false;
     const generation = operationGeneration.current;
     const isCurrent = () => generation === operationGeneration.current;
     const accepted = save(
@@ -493,14 +501,13 @@ export function LocalSandboxSection({
     });
   };
 
-  const handleOpenLocalPath = (
-    logicalName: "workspaces" | "audit" | "logs",
-  ) => {
+  const handleOpenLocalPath = (logicalName: keyof typeof PATH_LABELS) => {
     if (blocked) return;
-    openLocalPath(logicalName).catch((err) => {
-      console.warn("[LocalSandboxSection] open path failed:", err);
-      toast.error(t("common.operationFailed"));
-    });
+    if (save("path", () => openLocalPath(logicalName))) {
+      setPathAction(logicalName);
+      if (sectionRef.current?.contains(document.activeElement))
+        sectionRef.current?.focus({ preventScroll: true });
+    }
   };
 
   const body = (
@@ -567,7 +574,7 @@ export function LocalSandboxSection({
 
         {/* 数据位置（配对态无关）：当前根 + 更改/恢复默认 + 重启引导 */}
         <SandboxDataLocationCard
-          disabled={busy || pairPrepared}
+          disabled={busy || pathBusy || pairPrepared}
           onBusyChange={setLocationBusy}
         />
 
@@ -586,9 +593,9 @@ export function LocalSandboxSection({
               loading={busy}
               error={states.native === "error"}
               errorText={operationError.current}
-              disabled={locationBusy}
+              disabled={locationBusy || pathBusy}
               onRetry={() => {
-                if (!locationBusy) retry("native");
+                if (!locationBusy && !pathBusy) retry("native");
               }}
               focusTargetRef={sectionRef}
             />
@@ -679,11 +686,10 @@ export function LocalSandboxSection({
                     <FolderOpen size={14} className="shrink-0 opacity-60" />
                   }
                   onClick={() => handleOpenLocalPath(path)}
+                  loading={pathBusy && pathAction === path}
                   disabled={blocked}
                 >
-                  {t(
-                    `profile.localSandbox.${path === "workspaces" ? "openWorkspaces" : path === "audit" ? "openAudit" : "openLogs"}`,
-                  )}
+                  {t(PATH_LABELS[path])}
                 </Button>
               ))}
               <Button
@@ -698,6 +704,21 @@ export function LocalSandboxSection({
                 {t("profile.localSandbox.restartDaemon")}
               </Button>
             </div>
+            {states.path && (
+              <div className="mt-2" aria-busy={pathBusy}>
+                <CatalogStatus
+                  label={t(PATH_LABELS[pathAction])}
+                  loading={pathBusy}
+                  error={states.path === "error"}
+                  errorText={t("common.operationFailed")}
+                  disabled={blocked}
+                  onRetry={() => {
+                    if (!blocked) retry("path");
+                  }}
+                  focusTargetRef={sectionRef}
+                />
+              </div>
+            )}
             <div className="mt-3 flex justify-end">
               <Button
                 variant="ghost"

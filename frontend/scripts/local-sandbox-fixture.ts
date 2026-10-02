@@ -46,7 +46,7 @@ export async function restartDaemon() {
   reportedPolicy = policy;
   restartContext = null;
 }
-export const openLocalPath = rejectMutation;
+export const openLocalPath = (path: string) => run(`open-${path}`);
 export async function clearPairing() {
   await run("unpair");
   running = false;

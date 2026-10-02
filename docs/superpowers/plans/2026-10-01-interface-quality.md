@@ -1010,3 +1010,13 @@ LocalSandboxSection复用usePreferenceWrites统一配对、策略、重启和取
 八项按DESIGN.md检查：沿用既有字号与分组留白；目标路径、迁移等待、待重启和错误分层且不重复嵌套；三主题token与五语既有文案；无新增动效、保留reduced-motion；同步锁、关闭重开、Retry、焦点与迟到通知由行为/实屏覆盖；320/390/834/1440与300px短屏核对；复用LambChat组件，保持克制视觉。Impeccable沿用已确认不可用的环境，按项目交付清单人工检查。
 
 全站目标仍进行中。多实例数据状态已共享，但配对/策略/重启等原生写入本身仍按设置实例管理，跨实例协调、账号切换归属、目录打开迟到错误、WebView独立重载后的待重启状态、真实Tauri迁移/重启及真机仍待继续；不据本批局部门禁宣告全站完成。回收经PID/cwd核对的本轮3019和临时标签，视口恢复；3018结果与用户3017保持。
+
+### 2026-10-02：目录打开的反馈与关闭归属
+
+当前唯一生产调用是 LocalSandboxSection。三个目录动作原本只有失败 toast，等待无反馈/重复请求保护，卸载后仍可能提示旧错误。复用 usePreferenceWrites 的独立 path 槽及 CatalogStatus，补 loading、持续错误、原目录 Retry 和稳定 section 焦点；等待期间与原生操作、数据位置互锁，不覆盖 native 槽的分步恢复闭包。不新增依赖、文案或主题 token。普通账号切换已由 ProfilePreferencesTab 的 user.id key 卸载设置；登录 token 更新至用户资料返回之间的归属窗口仍未证明，无猜测性 auth 改动。
+
+五项组件回归先 RED（5 failed / 43 passed）再 GREEN；旧目录白名单测试改为等待前一动作结束再点下一项，仍验证三个原始逻辑路径。关联2文件68项、全量783文件3908项通过，lint零警告零错误；build含tsc/Vite/PWA与预算通过，保留既有异步大块的500kB提示。eager JS560329/561152 bytes、precache5032069/5242880 bytes、93项，未提高预算。独立只读审查无确定P1/P2。
+
+3019独立 fixture 实测390深色等待/失败/重试，Retry44px、overflow0；320×600浅色俄语 Tab 到Retry，main.scrollTop308、top367.8125/bottom411.8125/height44、overflow0，重试恢复。日志等待中关闭/重开无旧错误。834与1440护眼色俄语错误清楚，main宽768px、overflow0。截图位于仓库外interface-quality，前缀sandbox-directory-feedback，分别记录390-dark-loading、390-dark-error、320-light-ru-reopened、320-short-light-ru-error、834-sepia-ru-error、1440-sepia-ru-error。fixture新增显式native-flow的open-*等待/首次失败/恢复，仅模拟结果，不打开系统文件管理器、桥或真实目录。
+
+八项人工检查：沿用文字尺度与分组留白；行动及状态层级清楚且闲置不占行；三主题token；无新增动效且沿用reduced-motion；重复点击、Retry、关闭与焦点经组件和实屏核对；320/390/834/1440及长文案无溢出；保留LambChat控件与视觉语言。Impeccable命令当前不可用，按DESIGN.md等价检查。全站清单未改为完成：跨实例原生动作、账号token/资料过渡窗口、独立WebView重载、真实Tauri与真机仍需继续；主界面、剩余弹层和全部状态矩阵仍按原目标覆盖。
