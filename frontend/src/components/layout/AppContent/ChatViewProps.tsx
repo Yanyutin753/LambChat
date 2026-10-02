@@ -188,6 +188,9 @@ export interface ChatViewProps {
   modelSupportsThinking?: boolean;
   // Agent mode selector
   agents: AgentInfo[];
+  agentsLoading?: boolean;
+  agentsError?: boolean;
+  onRetryAgents?: () => void;
   currentAgent: string;
   onSelectAgent: (id: string) => void;
   // Team picker

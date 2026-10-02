@@ -1,9 +1,10 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Bot } from "lucide-react";
 import i18n from "../../i18n";
 
 import { AgentIcon } from "../agent/AgentIcon";
+import { CatalogStatus } from "../common/CatalogStatus";
 import {
   resolveAgentDescription,
   resolveAgentDisplayName,
@@ -24,6 +25,9 @@ interface AgentModeSelectorProps {
     labels?: AgentCatalogLabels;
   }[];
   currentAgent: string;
+  isLoading?: boolean;
+  error?: boolean;
+  onRetry?: () => void;
   onSelectAgent?: (id: string) => void;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -32,6 +36,9 @@ interface AgentModeSelectorProps {
 export function AgentModeSelector({
   agents,
   currentAgent,
+  isLoading = false,
+  error = false,
+  onRetry,
   onSelectAgent,
   isOpen: externalIsOpen,
   onOpenChange: externalOnOpenChange,
@@ -40,6 +47,7 @@ export function AgentModeSelector({
   const [internalOpen, setInternalOpen] = useState(false);
   const open = externalIsOpen ?? internalOpen;
   const setOpen = externalOnOpenChange ?? setInternalOpen;
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const current = agents.find((a) => a.id === currentAgent);
   const currentName = current
@@ -50,10 +58,10 @@ export function AgentModeSelector({
 
   // Close on Escape
 
-  if (agents.length <= 1 || !onSelectAgent) return null;
+  if (!onSelectAgent) return null;
 
   const renderModalContent = () => (
-    <SelectorModalShell>
+    <SelectorModalShell className="!min-h-0 sm:!w-full">
       <SelectorModalHeader
         className="relative"
         icon={
@@ -69,7 +77,24 @@ export function AgentModeSelector({
       />
 
       {/* Agent list */}
-      <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4 space-y-1.5">
+      <div
+        ref={contentRef}
+        tabIndex={-1}
+        aria-busy={isLoading}
+        className="flex-1 overflow-y-auto py-2 sm:py-4 px-4 space-y-1.5 outline-none"
+      >
+        <CatalogStatus
+          focusTargetRef={contentRef}
+          label={t("agent.selectMode")}
+          loading={isLoading}
+          error={error}
+          onRetry={onRetry ?? (() => {})}
+        />
+        {!isLoading && !error && agents.length === 0 && (
+          <p className="py-4 text-14 text-theme-text-secondary">
+            {t("common.noResults")}
+          </p>
+        )}
         {agents.map((agent) => {
           const isActive = agent.id === currentAgent;
           const displayName = resolveAgentDisplayName(agent, i18n.language, t);
@@ -82,7 +107,9 @@ export function AgentModeSelector({
             <button
               key={agent.id}
               type="button"
-              className={`flex w-full items-center gap-3 px-3 sm:px-3.5 py-3 sm:py-3.5 rounded-xl text-left transition-all duration-200 ${
+              disabled={isLoading || error}
+              aria-pressed={isActive}
+              className={`flex w-full items-center gap-3 px-3 sm:px-3.5 py-3 sm:py-3.5 rounded-xl text-left transition-colors duration-200 disabled:opacity-50 ${
                 isActive
                   ? "bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/15"
                   : "hover:bg-stone-50 dark:hover:bg-stone-700/30 active:bg-stone-100/80 dark:active:bg-stone-600/40"
@@ -114,7 +141,7 @@ export function AgentModeSelector({
                   {displayName}
                 </span>
                 {agent.description && (
-                  <p className="text-12 text-stone-400 dark:text-stone-500 truncate mt-0.5 leading-relaxed text-left">
+                  <p className="text-12 text-theme-text-secondary mt-0.5 leading-relaxed text-left [overflow-wrap:anywhere]">
                     {displayDescription}
                   </p>
                 )}
@@ -146,7 +173,11 @@ export function AgentModeSelector({
   // When controlled externally, only render the modal — no trigger button
   if (externalOnOpenChange) {
     return (
-      <SelectorModalPortal open={open} onClose={handleClose}>
+      <SelectorModalPortal
+        open={open}
+        onClose={handleClose}
+        className="modal-size-md"
+      >
         {renderModalContent()}
       </SelectorModalPortal>
     );
@@ -159,12 +190,18 @@ export function AgentModeSelector({
         onClick={() => setOpen(true)}
         className="chat-tool-btn"
         title={currentName}
+        aria-label={currentName || t("agent.selectMode")}
+        aria-expanded={open}
       >
         <AgentIcon icon={current?.icon || "Bot"} size={18} />
       </button>
 
       {open && (
-        <SelectorModalPortal open={open} onClose={handleClose}>
+        <SelectorModalPortal
+          open={open}
+          onClose={handleClose}
+          className="modal-size-md"
+        >
           {renderModalContent()}
         </SelectorModalPortal>
       )}
