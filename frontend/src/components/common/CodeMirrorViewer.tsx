@@ -2,7 +2,14 @@ import {
   codeMirrorSearchExtensions,
   guardCodeMirrorSearchComposition,
 } from "./codeMirrorSearchExtensions";
-import { memo, useEffect, useMemo, useRef, useCallback } from "react";
+import {
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+  type ReactNode,
+} from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import {
   EditorView,
@@ -101,8 +108,13 @@ export interface CodeMirrorViewerProps {
   startLine?: number;
   /** Highlight a range of lines with a subtle background */
   highlightLineRange?: HighlightLineRange;
-  /** Show a copy button overlay on hover (default: false) */
+  /** Show a copy button in the toolbar (default: false) */
   copyable?: boolean;
+  /** Optional file/language label at the start of the toolbar. */
+  toolbarLabel?: ReactNode;
+  copyLabel?: string;
+  /** Keep only keyword and previous/next controls in the search panel. */
+  simpleSearch?: boolean;
 }
 
 /** ViewPlugin that decorates highlighted lines with a background color */
@@ -171,12 +183,21 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
   startLine,
   highlightLineRange,
   copyable,
+  toolbarLabel,
+  copyLabel,
+  simpleSearch,
 }: CodeMirrorViewerProps) {
   const { t } = useTranslation();
   const themeMode = useAppThemeMode();
   const isDark = themeMode === "dark";
   const viewRef = useRef<EditorView | null>(null);
-  const wrapperClassName = ["h-full", className].filter(Boolean).join(" ");
+  const wrapperClassName = [
+    "h-full",
+    simpleSearch && "code-editor--simple-search",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   const handleCreateEditor = useCallback(
     (view: EditorView) => {
@@ -317,6 +338,8 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
       <CodeMirrorSearchToolbar
         viewRef={viewRef}
         copyText={copyable ? value : undefined}
+        copyLabel={copyLabel}
+        label={toolbarLabel}
       />
       <CodeMirror
         className="h-full"

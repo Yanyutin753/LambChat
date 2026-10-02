@@ -617,3 +617,22 @@ TDD新增9项实际CodeMirror行为测试：入口/焦点、真实全部替换�
 八项自检：沿用产品字体、代码等宽和16px移动输入；保留正文阅读留白、收紧动作gap；工具栏/查找/正文层级明确且复制不遮代码；light/dark/sepia主题与匹配高亮使用token；无新增装饰动效、尊重reduced-motion；查找替换、只读、Tab/Escape、焦点与IME测试；四档原生布局核对但非全宽度×主题矩阵，真实触屏/软键盘/候选窗口未验证；保持LambChat视觉语言，无新生产资产。Impeccable依此前确认不可用环境，按DESIGN.md人工清单检查。
 
 最终生产修改后门禁：pnpm test 759文件/3683项全部通过；lint零错误零警告；build含tsc/Vite/PWA/预算通过，eager JS559066/559104 bytes，precache5016622/5242880 bytes、91 entries；保留既有chunk-size提示。git diff --check通过。继续聊天代码预览重建、技能懒加载错误/竞态、二进制保存恢复及真机/真实写入；整体目标保持进行中。
+
+### 当前执行：聊天代码工具栏与正文交互状态
+
+- [x] Python 与搜索、复制合并为同一工具栏，垂直居中，动作gap4px；删除重复外层header。
+- [x] 聊天代码块复用原生查找，仅显示关键词、下一处、上一处和关闭。手机保持单行，按钮44px，输入随剩余空间缩放；文件编辑器保留完整搜索能力。
+- [x] ReactMarkdown renderer 提到模块级，用Context读取当前流式状态、标题锚点和图片动作；正文追加和流式完成不再重建编辑器、丢失查找状态。
+- [x] 表格复制读取实时DOM，稳定getter和回调身份；无关正文更新不会取消尚未完成的复制反馈。
+
+TDD新增3项真实Markdown/CodeMirror行为测试：工具栏语言与搜索/复制同组、追加正文及流式完成保留查找节点/关键词/焦点、延迟表格复制在正文更新后仍保持pending并完成。均先明确RED后GREEN；原复制测试移除CodeMirror mock，结构守卫更新为真实共享toolbar，补jsdom缺失的Range.getClientRects几何接口。旧图片、锚点与文件行为保持。独立只读复核关闭表格pending与coarse label触控尺寸P2，最终无新增确定P1/P2；复核者未重复全量或原生检查。
+
+原生IAB最终简化模式：320×568深色实际summarize匹配一处，AX仅有查找、下一个、上一个和关闭；输入138×44px、三动作44×44px，工具栏搜索/复制44×44px、gap4px，Python与按钮中心差0.008px，页面横向溢出0。320→430×844保留关键词与匹配，单行无溢出。1440×900浅色实际匹配一处，Escape关闭并将焦点还给代码正文，页面溢出0。原先hidden测试tab13默认1280，viewport未应用到该页，因此不将其误记为手机证明；改用独立可见tab14得到上述实际尺寸。用户tab12的输入、语言及匹配偏好未修改。
+
+截图在仓库外interface-quality：code-search-basic-320-dark-final.png、code-search-basic-430-dark-final.png、code-search-basic-1440-light-final.png。之前full选项截图仅作中间基线，不能代表最终基本搜索。临时viewport已reset，测试tab13/14已关闭，用户tab12保留。没有真实SSE追加代码的浏览器E2E，状态保留由真实组件测试证明；真实触屏、软键盘、旧iOS及剩余宽度/主题组合未验证。
+
+八项自检：保留等宽正文与既有字号、语言光学对齐；收紧动作和查找留白而保留阅读节奏；语言/动作/查找/正文层级清楚，去掉聊天高级选项；沿用深浅色和匹配token；无新增动效，保留reduced-motion；原生匹配与关闭焦点、复制pending和流式状态测试；实际320/430/1440无本批溢出，手机44px；沿用LambChat视觉语言与已安装原生搜索，无新依赖或资产。Impeccable按此前确认不可用环境的DESIGN.md清单人工检查。
+
+最终生产修改后门禁：pnpm test 760文件/3686项全部通过；pnpm run lint零错误零警告；pnpm run build含tsc/Vite/PWA/预算通过，eager JS559075/559104 bytes、precache5017021/5242880 bytes、91 entries，未提高预算，保留既有chunk-size提示。中途全量出现一次Mermaid fullscreen复制用例初始化颜色异常，相关用例随后通过，最终全量也全部通过；未改Mermaid，不声称修复该瞬态异常。最后门禁后仅文档与原生检查，无生产代码变化。
+
+继续：技能懒加载错误/竞态、二进制保存恢复、未覆盖界面、真机与真实写入/对话。整体目标保持进行中，不以本批搜索截图称全部界面无明显提升空间。

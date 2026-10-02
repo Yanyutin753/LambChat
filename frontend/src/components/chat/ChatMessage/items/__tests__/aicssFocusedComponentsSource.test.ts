@@ -40,10 +40,10 @@ describe("focused AIcss-inspired component upgrade", () => {
 
   test("uses a quiet framed header for Markdown code blocks", () => {
     expect(markdownSource).toContain("ai-code-block");
-    expect(markdownSource).toContain("ai-code-block__header");
-    expect(markdownSource).toContain("ai-code-block__copy");
+    expect(markdownSource).toContain("toolbarLabel={");
+    expect(markdownSource).toContain('copyLabel={t("chat.message.copyCode")}');
     expect(markdownCss).toContain(".ai-code-block");
-    expect(markdownCss).toContain(".ai-code-block__header");
+    expect(markdownCss).toContain(".ai-code-block .code-editor-toolbar");
   });
 
   test("shows a single lightweight caret only while Markdown is streaming", () => {

@@ -1,8 +1,15 @@
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import React, { memo, useState, useId } from "react";
+import React, {
+  createContext,
+  useContext,
+  useCallback,
+  memo,
+  useState,
+  useId,
+} from "react";
 import { Check, Download, Table2, Code2, X, Minus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
@@ -22,6 +29,16 @@ import { useSessionImageGallery } from "./sessionImageGallery";
 import { ImageWithSkeleton } from "./ImageWithSkeleton";
 import { normalizeMarkdownCodeFences } from "./markdownCodeFences";
 import { CopyButton } from "../../common/CopyButton";
+
+type MarkdownContextValue = {
+  isStreaming?: boolean;
+  headingAnchorContext?: { messageId: string; partIndex: number };
+  openImage: (src: string) => void;
+};
+
+const MarkdownContext = createContext<MarkdownContextValue>({
+  openImage: () => {},
+});
 
 function extractNodeText(node: React.ReactNode): string {
   if (typeof node === "string" || typeof node === "number") {
@@ -177,27 +194,6 @@ function CodeBlock({
       className="ai-code-block group relative my-2 sm:my-3 max-w-full overflow-hidden rounded-xl border border-stone-200 dark:border-stone-700"
       data-streaming={isStreaming || undefined}
     >
-      {/* Header bar - always visible on touch, hover on desktop */}
-      <div className="ai-code-block__header flex items-center justify-between px-3 sm:px-4 py-2 bg-stone-200/70 dark:bg-stone-800/50 font-serif">
-        <div className="ai-code-block__file flex items-center gap-2 min-w-0">
-          <Code2
-            size={14}
-            className="ai-code-block__icon shrink-0"
-            aria-hidden="true"
-          />
-          {/* Language label */}
-          <span className="ai-code-block__language text-12 font-medium text-stone-500 dark:text-stone-400 truncate">
-            {language || "text"}
-          </span>
-        </div>
-        {/* Copy button */}
-        <CopyButton
-          text={codeString}
-          label={t("chat.message.copyCode")}
-          className="ai-code-block__copy"
-        />
-      </div>
-
       {/* Code content */}
       <div className="ai-code-block__body bg-theme-bg-code [&_.cm-line]:leading-5 [&_.cm-gutterElement]:leading-5 overflow-hidden rounded-b-xl">
         <DeferredCodeMirrorViewer
@@ -206,6 +202,21 @@ function CodeBlock({
           lineNumbers={true}
           fontSize="0.75rem"
           className="[&_.cm-editor]:rounded-none [&_.cm-gutters]:border-r-0"
+          copyable
+          simpleSearch
+          copyLabel={t("chat.message.copyCode")}
+          toolbarLabel={
+            <div className="ai-code-block__file flex items-center gap-2 min-w-0">
+              <Code2
+                size={14}
+                className="ai-code-block__icon shrink-0"
+                aria-hidden="true"
+              />
+              <span className="ai-code-block__language text-12 font-medium truncate">
+                {language || "text"}
+              </span>
+            </div>
+          }
         />
       </div>
     </div>
@@ -217,7 +228,7 @@ function TableBlock({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
   const tableRef = React.useRef<HTMLTableElement>(null);
 
-  const extractData = (): string[][] => {
+  const extractData = useCallback((): string[][] => {
     if (!tableRef.current) return [];
     const rows = tableRef.current.querySelectorAll("tr");
     return Array.from(rows).map((row) =>
@@ -225,9 +236,9 @@ function TableBlock({ children }: { children: React.ReactNode }) {
         (cell) => cell.textContent?.trim() || "",
       ),
     );
-  };
+  }, []);
 
-  const handleCopy = () => {
+  const handleCopy = useCallback(() => {
     const data = extractData();
     if (data.length === 0) return "";
 
@@ -249,7 +260,7 @@ function TableBlock({ children }: { children: React.ReactNode }) {
       );
 
     return [header, separator, ...rows].join("\n");
-  };
+  }, [extractData]);
 
   const handleExport = () => {
     const data = extractData();
@@ -309,6 +320,263 @@ function TableBlock({ children }: { children: React.ReactNode }) {
   );
 }
 
+// Stable node components preserve interactive state while Markdown grows.
+const markdownComponents: Components = {
+  // Headings with anchor links
+  h1: function Heading1({ children }) {
+    const { headingAnchorContext } = useContext(MarkdownContext);
+    const id = getHeadingAnchorId({ children, headingAnchorContext });
+    return (
+      <h1
+        id={id}
+        data-outline-anchor="true"
+        data-outline-id={id}
+        className="text-24 font-bold text-stone-900 dark:text-stone-100 mt-4 mb-3 first:mt-0 group/head scroll-mt-4"
+      >
+        <a
+          href={`#${id}`}
+          className="no-underline text-inherit hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+        >
+          {children}
+        </a>
+      </h1>
+    );
+  },
+  h2: function Heading2({ children }) {
+    const { headingAnchorContext } = useContext(MarkdownContext);
+    const id = getHeadingAnchorId({ children, headingAnchorContext });
+    return (
+      <h2
+        id={id}
+        data-outline-anchor="true"
+        data-outline-id={id}
+        className="text-20 font-bold text-stone-900 dark:text-stone-100 mt-3 mb-2 group/head scroll-mt-4"
+      >
+        <a
+          href={`#${id}`}
+          className="no-underline text-inherit hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+        >
+          {children}
+        </a>
+      </h2>
+    );
+  },
+  h3: function Heading3({ children }) {
+    const { headingAnchorContext } = useContext(MarkdownContext);
+    const id = getHeadingAnchorId({ children, headingAnchorContext });
+    return (
+      <h3
+        id={id}
+        data-outline-anchor="true"
+        data-outline-id={id}
+        className="text-18 font-semibold text-stone-900 dark:text-stone-100 mt-2 mb-1.5 group/head scroll-mt-4"
+      >
+        <a
+          href={`#${id}`}
+          className="no-underline text-inherit hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+        >
+          {children}
+        </a>
+      </h3>
+    );
+  },
+  h4: function Heading4({ children }) {
+    const { headingAnchorContext } = useContext(MarkdownContext);
+    const id = getHeadingAnchorId({ children, headingAnchorContext });
+    return (
+      <h4
+        id={id}
+        data-outline-anchor="true"
+        data-outline-id={id}
+        className="text-16 font-semibold text-stone-800 dark:text-stone-200 mt-2 mb-1 group/head scroll-mt-4"
+      >
+        <a
+          href={`#${id}`}
+          className="no-underline text-inherit hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+        >
+          {children}
+        </a>
+      </h4>
+    );
+  },
+  // Paragraphs
+  p: ({ children }) => (
+    <p className="text-gray-700 dark:text-gray-300 leading-[1.75] mb-2 last:mb-0">
+      {children}
+    </p>
+  ),
+  // Lists with better styling
+  ul: ({ children }) => (
+    <ul className="list-disc space-y-1.5 mb-3 pl-5 marker:text-amber-500 dark:marker:text-amber-400 marker:text-[0.6em]">
+      {children}
+    </ul>
+  ),
+  ol: ({ children }) => (
+    <ol className="list-decimal list-inside space-y-1.5 mb-3 pl-5 marker:text-stone-500 dark:marker-stone-400 marker:font-semibold">
+      {children}
+    </ol>
+  ),
+  li: ({ children }) => (
+    <li className="text-gray-700 dark:text-gray-300 leading-[1.75]">
+      {children}
+    </li>
+  ),
+  // Blockquotes with elegant styling
+  blockquote: ({ children }) => (
+    <blockquote
+      className="my-3 pl-4 pr-3 py-2 border-l-[5px] border-amber-400 bg-amber-50 dark:bg-amber-900/20"
+      style={{ borderRadius: "4px" }}
+    >
+      <div className="text-stone-600 dark:text-stone-300 text-14 [&>p]:italic [&>p:first-child]:italic">
+        {children}
+      </div>
+    </blockquote>
+  ),
+  // Links with hover effects
+  a: ({ href, children }) => {
+    const linkChildren = renderLinkedImages(children);
+    if (href) {
+      const fileLinkInfo = getFileLinkInfo(href, extractNodeText(children));
+      if (fileLinkInfo.isFile && shouldInterceptFilePreviewLink(href)) {
+        return (
+          <a
+            href={href}
+            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition-colors cursor-pointer"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const fullUrl = getFullUrl(href) || href;
+              setActiveRevealPreviewState(
+                createActiveRevealPreviewState(
+                  {
+                    kind: "file",
+                    previewKey: fullUrl,
+                    filePath: fileLinkInfo.fileName,
+                    signedUrl: fullUrl,
+                  },
+                  "manual",
+                ),
+              );
+            }}
+          >
+            {linkChildren}
+          </a>
+        );
+      }
+    }
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition-colors"
+      >
+        {linkChildren}
+      </a>
+    );
+  },
+  // Horizontal rule
+  hr: () => (
+    <hr className="my-4 border-0 h-px bg-gradient-to-r from-transparent via-stone-300 to-transparent dark:via-stone-600" />
+  ),
+  // Strong and emphasis
+  strong: ({ children }) => (
+    <strong className="font-bold text-stone-900 dark:text-stone-100">
+      {children}
+    </strong>
+  ),
+  em: ({ children }) => (
+    <em className="italic text-stone-600 dark:text-stone-400">{children}</em>
+  ),
+  // Code blocks
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  code: function MarkdownCode(props: any) {
+    const { isStreaming } = useContext(MarkdownContext);
+    const { className, children, isInPre } = props;
+    const hasLanguage = className && /language-/.test(className);
+    const isInline = !isInPre && !hasLanguage;
+
+    return (
+      <CodeBlock
+        className={className}
+        inline={isInline}
+        isStreaming={isStreaming}
+      >
+        {children}
+      </CodeBlock>
+    );
+  },
+  pre: ({ children }) => {
+    if (React.isValidElement(children)) {
+      return React.cloneElement(
+        children as React.ReactElement<{ isInPre?: boolean }>,
+        { isInPre: true },
+      );
+    }
+    return <>{children}</>;
+  },
+  // Tables with copy & export toolbar
+  table: ({ children }) => <TableBlock>{children}</TableBlock>,
+  thead: ({ children }) => (
+    <thead className="ai-data-table__head">{children}</thead>
+  ),
+  tbody: ({ children }) => (
+    <tbody className="ai-data-table__body">{children}</tbody>
+  ),
+  tr: ({ children }) => <tr className="ai-data-table__row">{children}</tr>,
+  th: ({ children }) => (
+    <th className="ai-data-table__header-cell">{children}</th>
+  ),
+  td: ({ children }) => {
+    const cellText = extractNodeText(children).trim();
+    const comparisonState = getComparisonCellState(cellText);
+    const ComparisonIcon =
+      comparisonState === "included"
+        ? Check
+        : comparisonState === "excluded"
+          ? X
+          : Minus;
+
+    return (
+      <td
+        className="ai-data-table__cell"
+        data-comparison-state={comparisonState || undefined}
+      >
+        {comparisonState ? (
+          <span className="ai-comparison-value">
+            <ComparisonIcon size={13} strokeWidth={2.25} aria-hidden="true" />
+            <span className="sr-only">{cellText}</span>
+          </span>
+        ) : (
+          children
+        )}
+      </td>
+    );
+  },
+  // Images — click to preview with ImageViewer
+  img: function MarkdownImage({ src, alt }) {
+    const { openImage } = useContext(MarkdownContext);
+    const sessionImageGallery = useSessionImageGallery();
+    const resolvedSrc = getFullUrl(src);
+    return (
+      <ImageWithSkeleton
+        src={resolvedSrc}
+        thumbSrc={buildChatThumbUrl(resolvedSrc)}
+        alt={alt}
+        loading="eager"
+        className="max-w-lg h-auto rounded-lg shadow hover:opacity-90 transition-opacity cursor-zoom-in"
+        onClick={() => {
+          if (!resolvedSrc) return;
+          sessionImageGallery?.openImage(resolvedSrc, alt || undefined);
+          if (!sessionImageGallery) {
+            openImage(resolvedSrc);
+          }
+        }}
+      />
+    );
+  },
+};
+
 // Markdown content rendering component - styled version
 export const MarkdownContent = memo(function MarkdownContent({
   content,
@@ -320,287 +588,35 @@ export const MarkdownContent = memo(function MarkdownContent({
   headingAnchorContext?: { messageId: string; partIndex: number };
 }) {
   const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
-  const sessionImageGallery = useSessionImageGallery();
-
   return (
-    <span
-      className="ai-streaming-text markdown-preview block my-1 pl-0.5"
-      data-streaming={isStreaming || undefined}
-      aria-busy={isStreaming || undefined}
+    <MarkdownContext.Provider
+      value={{
+        isStreaming,
+        headingAnchorContext,
+        openImage: setImageViewerSrc,
+      }}
     >
-      <ReactMarkdown
-        remarkPlugins={[...cjkGfmRemarkPlugins, remarkBreaks, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
-        components={{
-          // Headings with anchor links
-          h1: ({ children }) => {
-            const id = getHeadingAnchorId({ children, headingAnchorContext });
-            return (
-              <h1
-                id={id}
-                data-outline-anchor="true"
-                data-outline-id={id}
-                className="text-24 font-bold text-stone-900 dark:text-stone-100 mt-4 mb-3 first:mt-0 group/head scroll-mt-4"
-              >
-                <a
-                  href={`#${id}`}
-                  className="no-underline text-inherit hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
-                >
-                  {children}
-                </a>
-              </h1>
-            );
-          },
-          h2: ({ children }) => {
-            const id = getHeadingAnchorId({ children, headingAnchorContext });
-            return (
-              <h2
-                id={id}
-                data-outline-anchor="true"
-                data-outline-id={id}
-                className="text-20 font-bold text-stone-900 dark:text-stone-100 mt-3 mb-2 group/head scroll-mt-4"
-              >
-                <a
-                  href={`#${id}`}
-                  className="no-underline text-inherit hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
-                >
-                  {children}
-                </a>
-              </h2>
-            );
-          },
-          h3: ({ children }) => {
-            const id = getHeadingAnchorId({ children, headingAnchorContext });
-            return (
-              <h3
-                id={id}
-                data-outline-anchor="true"
-                data-outline-id={id}
-                className="text-18 font-semibold text-stone-900 dark:text-stone-100 mt-2 mb-1.5 group/head scroll-mt-4"
-              >
-                <a
-                  href={`#${id}`}
-                  className="no-underline text-inherit hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
-                >
-                  {children}
-                </a>
-              </h3>
-            );
-          },
-          h4: ({ children }) => {
-            const id = getHeadingAnchorId({ children, headingAnchorContext });
-            return (
-              <h4
-                id={id}
-                data-outline-anchor="true"
-                data-outline-id={id}
-                className="text-16 font-semibold text-stone-800 dark:text-stone-200 mt-2 mb-1 group/head scroll-mt-4"
-              >
-                <a
-                  href={`#${id}`}
-                  className="no-underline text-inherit hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
-                >
-                  {children}
-                </a>
-              </h4>
-            );
-          },
-          // Paragraphs
-          p: ({ children }) => (
-            <p className="text-gray-700 dark:text-gray-300 leading-[1.75] mb-2 last:mb-0">
-              {children}
-            </p>
-          ),
-          // Lists with better styling
-          ul: ({ children }) => (
-            <ul className="list-disc space-y-1.5 mb-3 pl-5 marker:text-amber-500 dark:marker:text-amber-400 marker:text-[0.6em]">
-              {children}
-            </ul>
-          ),
-          ol: ({ children }) => (
-            <ol className="list-decimal list-inside space-y-1.5 mb-3 pl-5 marker:text-stone-500 dark:marker-stone-400 marker:font-semibold">
-              {children}
-            </ol>
-          ),
-          li: ({ children }) => (
-            <li className="text-gray-700 dark:text-gray-300 leading-[1.75]">
-              {children}
-            </li>
-          ),
-          // Blockquotes with elegant styling
-          blockquote: ({ children }) => (
-            <blockquote
-              className="my-3 pl-4 pr-3 py-2 border-l-[5px] border-amber-400 bg-amber-50 dark:bg-amber-900/20"
-              style={{ borderRadius: "4px" }}
-            >
-              <div className="text-stone-600 dark:text-stone-300 text-14 [&>p]:italic [&>p:first-child]:italic">
-                {children}
-              </div>
-            </blockquote>
-          ),
-          // Links with hover effects
-          a: ({ href, children }) => {
-            const linkChildren = renderLinkedImages(children);
-            if (href) {
-              const fileLinkInfo = getFileLinkInfo(
-                href,
-                extractNodeText(children),
-              );
-              if (fileLinkInfo.isFile && shouldInterceptFilePreviewLink(href)) {
-                return (
-                  <a
-                    href={href}
-                    className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition-colors cursor-pointer"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      const fullUrl = getFullUrl(href) || href;
-                      setActiveRevealPreviewState(
-                        createActiveRevealPreviewState(
-                          {
-                            kind: "file",
-                            previewKey: fullUrl,
-                            filePath: fileLinkInfo.fileName,
-                            signedUrl: fullUrl,
-                          },
-                          "manual",
-                        ),
-                      );
-                    }}
-                  >
-                    {linkChildren}
-                  </a>
-                );
-              }
-            }
-            return (
-              <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition-colors"
-              >
-                {linkChildren}
-              </a>
-            );
-          },
-          // Horizontal rule
-          hr: () => (
-            <hr className="my-4 border-0 h-px bg-gradient-to-r from-transparent via-stone-300 to-transparent dark:via-stone-600" />
-          ),
-          // Strong and emphasis
-          strong: ({ children }) => (
-            <strong className="font-bold text-stone-900 dark:text-stone-100">
-              {children}
-            </strong>
-          ),
-          em: ({ children }) => (
-            <em className="italic text-stone-600 dark:text-stone-400">
-              {children}
-            </em>
-          ),
-          // Code blocks
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          code: (props: any) => {
-            const { className, children, isInPre } = props;
-            const hasLanguage = className && /language-/.test(className);
-            const isInline = !isInPre && !hasLanguage;
-
-            return (
-              <CodeBlock
-                className={className}
-                inline={isInline}
-                isStreaming={isStreaming}
-              >
-                {children}
-              </CodeBlock>
-            );
-          },
-          pre: ({ children }) => {
-            if (React.isValidElement(children)) {
-              return React.cloneElement(
-                children as React.ReactElement<{ isInPre?: boolean }>,
-                { isInPre: true },
-              );
-            }
-            return <>{children}</>;
-          },
-          // Tables with copy & export toolbar
-          table: ({ children }) => <TableBlock>{children}</TableBlock>,
-          thead: ({ children }) => (
-            <thead className="ai-data-table__head">{children}</thead>
-          ),
-          tbody: ({ children }) => (
-            <tbody className="ai-data-table__body">{children}</tbody>
-          ),
-          tr: ({ children }) => (
-            <tr className="ai-data-table__row">{children}</tr>
-          ),
-          th: ({ children }) => (
-            <th className="ai-data-table__header-cell">{children}</th>
-          ),
-          td: ({ children }) => {
-            const cellText = extractNodeText(children).trim();
-            const comparisonState = getComparisonCellState(cellText);
-            const ComparisonIcon =
-              comparisonState === "included"
-                ? Check
-                : comparisonState === "excluded"
-                  ? X
-                  : Minus;
-
-            return (
-              <td
-                className="ai-data-table__cell"
-                data-comparison-state={comparisonState || undefined}
-              >
-                {comparisonState ? (
-                  <span className="ai-comparison-value">
-                    <ComparisonIcon
-                      size={13}
-                      strokeWidth={2.25}
-                      aria-hidden="true"
-                    />
-                    <span className="sr-only">{cellText}</span>
-                  </span>
-                ) : (
-                  children
-                )}
-              </td>
-            );
-          },
-          // Images — click to preview with ImageViewer
-          img: ({ src, alt }) => {
-            const resolvedSrc = getFullUrl(src);
-            return (
-              <ImageWithSkeleton
-                src={resolvedSrc}
-                thumbSrc={buildChatThumbUrl(resolvedSrc)}
-                alt={alt}
-                loading="eager"
-                className="max-w-lg h-auto rounded-lg shadow hover:opacity-90 transition-opacity cursor-zoom-in"
-                onClick={() => {
-                  if (!resolvedSrc) return;
-                  sessionImageGallery?.openImage(resolvedSrc, alt || undefined);
-                  if (!sessionImageGallery) {
-                    setImageViewerSrc(resolvedSrc);
-                  }
-                }}
-              />
-            );
-          },
-        }}
+      <span
+        className="ai-streaming-text markdown-preview block my-1 pl-0.5"
+        data-streaming={isStreaming || undefined}
+        aria-busy={isStreaming || undefined}
       >
-        {normalizeMarkdownCodeFences(content)}
-      </ReactMarkdown>
+        <ReactMarkdown
+          remarkPlugins={[...cjkGfmRemarkPlugins, remarkBreaks, remarkMath]}
+          rehypePlugins={[rehypeKatex]}
+          components={markdownComponents}
+        >
+          {normalizeMarkdownCodeFences(content)}
+        </ReactMarkdown>
 
-      {/* Image preview lightbox */}
-      <ImageViewer
-        src={imageViewerSrc || ""}
-        isOpen={!!imageViewerSrc}
-        onClose={() => setImageViewerSrc(null)}
-      />
-    </span>
+        {/* Image preview lightbox */}
+        <ImageViewer
+          src={imageViewerSrc || ""}
+          isOpen={!!imageViewerSrc}
+          onClose={() => setImageViewerSrc(null)}
+        />
+      </span>
+    </MarkdownContext.Provider>
   );
 });
 

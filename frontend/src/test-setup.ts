@@ -3,9 +3,12 @@
 if (typeof document !== "undefined") {
   await import("@testing-library/jest-dom/vitest");
 
-  // jsdom does not implement range geometry, but Lexical measures the active
-  // caret after focused editor updates to keep it in view.
+  // Lexical and CodeMirror measure range geometry after focused updates.
   if (typeof Range.prototype.getBoundingClientRect !== "function") {
     Range.prototype.getBoundingClientRect = () => new DOMRect();
+  }
+  if (typeof Range.prototype.getClientRects !== "function") {
+    Range.prototype.getClientRects = () =>
+      Object.assign([], { item: () => null });
   }
 }
