@@ -1191,3 +1191,17 @@ UI-only /dialog-preview增加真实About/useVersion的GET边界：2秒等待、�
 实际/settings 390px浅色俄语打开关于、Escape归还“关于”入口；打开“重置所有”确认，默认焦点modal，关闭/取消/主操作44px，Escape回重置入口，未执行重置。截图在仓库外common-dialogs目录：about-320-dark-ru-ready、about-390-light-zh-check-error、about-834-sepia-ko、about-1440-dark-en-current、about-320-short-light-ja-focused、confirm-320-short-ru-long-actions、confirm-320-short-light-zh、confirm-390-dark-ja、confirm-320-dark-ko-warning、confirm-834-sepia-ru-long-actions、confirm-1440-light-en、settings-about-390-light-ru、settings-confirm-390-light-ru。俄语long-actions截图已替换为最终flex-auto版本，英语current截图已替换为相同客户端/latest版本。
 
 八项自检：沿用版本等宽排版、标题规范与主题；减去重复容器但保留阅读留白；当前/最新/状态/操作层级清楚；主操作正确使用主题前景、危险操作现有danger；无新增动效，沿用reduced-motion；错误持续、重试、禁用、焦点与原生链接均有行为/实屏；手机、短屏、平板、桌面与五语组合覆盖；使用LambChat现有视觉组件，未另造设计系统。本批两个弹窗完成不等于全站完成，主清单仍保持未验证项。下一轮优先查游客联系管理员的公开配置路径，以及剩余真实页面状态与跨页弹层/键盘流；真实认证、存储写入、服务对话和原生设备验证尚未闭合。
+
+### 2026-10-02：游客联系管理员的公开配置与恢复
+
+上一目标回合属于 progress：当前3017文件预览已使用原生紧凑查找，320px实屏证明不新增内容行、命中高亮及关闭归还代码焦点，14项相关测试通过，无重复生产修改。本轮继续interface-state既有隔离分支；fetch后暂存本批既有TDD测试、rebase确认当前分支已包含最新origin/develop，再恢复测试。uv自动改写的项目版本锁文件已恢复，不夹带无关改动；主checkout和用户3017保持原状态。
+
+游客基线：/dialog-preview?view=contact&guest=1不发读取、直接显示“暂无管理员联系方式”；根因为useSettings无token不会读取受保护settings。改用现有公开认证配置GET /api/auth/oauth/providers，仅增加明确白名单admin_contact.email/url；原受保护settings不开放。两项配置加入既有允许空字符串的运行时刷新集合，管理员清空后不再保留旧联系值。弹窗仅打开时读取，提供status、持久alert/Retry、成功空状态，关闭/卸载中止请求并隔离迟到成功/失败；204空响应按读取失败处理。重试将焦点保持在共享modal；复用既有Dialog、按钮、illustration、token和五语文案，无新依赖。
+
+TDD先见前端5 failed/1 passed、后端4 failed/13 passed，原因分别是未读取公开配置/无loading与error/无abort以及缺少公开字段/空值刷新失效，再最小实现GREEN。最终前端全量794文件3993项通过，lint无错误或警告，build含tsc/Vite/PWA及预算通过：eager560455/561152 bytes、92条precache5027133/5242880 bytes，未提高预算。后端认证/设置/配置相关114项通过，Ruff全仓通过、Mypy全src共520文件通过；后端两条既有Pydantic class-config弃用警告，build保留既有大chunk提示。日志/tmp/public-contact-tests-all.log、public-contact-lint.log、public-contact-build.log、public-contact-backend-all-related.log、public-contact-ruff-all.log、public-contact-mypy-all.log。独立只读审查未发现确定P1/P2。
+
+只读preview更新为同一公开配置路径，2秒等待、首次503后Retry、空/长邮箱，旧contact-settings参数保留为fixture别名；guest=1移除预览origin token。真实RegistrationPending入口/auth/pending?email=preview@example.test&guest=1&contact-flow=1也可重复走查，未调用resend、注册或真实写入。IAB实屏：320×568深色俄语失败→Retry→联系链接，关闭/Retry44px、焦点modal；320×300浅色日语长邮箱换行，Tab到支持链接实际滚动正文148px，链接bottom283.73、关闭bottom104，无整页横溢；834×1112 sepia韩语成功空状态；1440×900深色英语权限原因与长邮箱；390×844浅色中文实际注册待验证页支持按钮→loading→503→Retry→邮箱/支持链接→Escape，焦点回原支持按钮。邮箱/外链只检查属性，不激活邮件客户端或外站。截图在仓库外visualizations/public-contact目录，包括pending-contact-390-light-zh-ready/error、contact-320-dark-ru-ready、contact-320-short-light-ja-long、contact-834-sepia-ko-empty、contact-1440-dark-en-long。开发时注释HMR曾使页面重挂载，最终实际入口流程使用新run重新完整验证，错误截图已替换为稳定终态证据。
+
+八项自检：沿用原字号/标题层级，联系方式自然折行；保留必要阅读留白和单层modal；说明、读取状态和支持动作层级独立；沿用三主题及错误token；无新增动效，已有reduced-motion保留；等待/重试/关闭/焦点有行为和实屏证据；手机、短屏、平板、桌面及五语组合可用；继续LambChat羊场景与既有视觉语言。npm exec --offline -- impeccable update报告没有已安装skill folders，按DESIGN清单人工复核。
+
+全站目标保持进行中，主清单未勾选项不改为完成。本批证明公开配置契约/真实AuthMiddleware匿名保护与组件生命周期，以及fixture上的真实支持入口；不证明部署后跨实例配置广播、生产认证、邮件支持、真实持久化/聊天或原生触屏/软键盘。下一批优先核对未闭合的资源导入/发布与批量操作状态、剩余预览格式和跨页键盘组合，再继续真实服务和设备验收；不会用本批绿门禁替代全站验收。

@@ -1,6 +1,7 @@
 import { Mail, ExternalLink } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSettings } from "../../hooks/useSettings";
+import { authApi } from "../../services/api/auth";
 import { Dialog } from "./Dialog";
 import { SceneIllustration } from "./SceneIllustration";
 import { LoadingSpinner } from "./LoadingSpinner";
@@ -19,9 +20,39 @@ export function ContactAdminDialog({
   reason = "noPermission",
 }: ContactAdminDialogProps) {
   const { t } = useTranslation();
-  const { getSettingValue, isLoading, error, fetchSettings } = useSettings();
-  const adminEmail = getSettingValue("ADMIN_CONTACT_EMAIL") as string | null;
-  const adminUrl = getSettingValue("ADMIN_CONTACT_URL") as string | null;
+  const [result, setResult] = useState<{
+    email?: string;
+    url?: string;
+    error?: string;
+  } | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    setResult(null);
+    if (!isOpen) return;
+    const controller = new AbortController();
+    authApi.getOAuthProviders(controller.signal).then(
+      (data) => {
+        if (!controller.signal.aborted)
+          setResult(
+            data
+              ? (data.admin_contact ?? {})
+              : { error: t("settings.loadFailed") },
+          );
+      },
+      (error: unknown) => {
+        if (!controller.signal.aborted)
+          setResult({
+            error:
+              error instanceof Error ? error.message : t("settings.loadFailed"),
+          });
+      },
+    );
+    return () => controller.abort();
+  }, [isOpen, attempt, t]);
+  const isLoading = result === null;
+  const adminEmail = result?.email;
+  const adminUrl = result?.url;
+  const error = result?.error;
   const title = t(
     reason === "emailActivation"
       ? "contactAdmin.emailActivationTitle"
@@ -70,7 +101,7 @@ export function ContactAdminDialog({
                 event.currentTarget
                   .closest<HTMLElement>("[data-modal-surface]")
                   ?.focus();
-                void fetchSettings(true);
+                setAttempt((value) => value + 1);
               }}
             >
               {t("common.retry")}

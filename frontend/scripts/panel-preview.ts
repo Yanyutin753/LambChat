@@ -764,6 +764,22 @@ function response(
   };
   const all = (items: object[]) => (scenario === "empty" ? [] : items);
   if (["/api/auth/me", "/api/auth/profile"].includes(path)) return user;
+  if (path === "/api/auth/oauth/providers")
+    return {
+      providers: [],
+      registration_enabled: true,
+      admin_contact: {
+        email: "support@example.test",
+        url: "https://example.test/support",
+      },
+      turnstile: {
+        enabled: false,
+        site_key: "",
+        require_on_login: false,
+        require_on_register: false,
+        require_on_password_change: false,
+      },
+    };
   if (path === "/api/pricing/rates")
     return { base: "USD", rates: { USD: 1 }, synced_at: now };
   if (path === "/api/upload/config")
@@ -1987,10 +2003,7 @@ const server = await createServer({
                   url.pathname === "/api/agents"
                 ? { agents, count: agents.length, default_agent: "team" }
                 : response(url, scenario, chatState);
-          if (
-            url.pathname.replace(/\/$/, "") === "/api/settings" &&
-            previewParams.get("view") === "contact"
-          ) {
+          if (url.pathname === "/api/auth/oauth/providers") {
             const email =
               previewParams.get("contact") === "empty"
                 ? ""
@@ -1998,18 +2011,10 @@ const server = await createServer({
                   ? `${"research-support-".repeat(8)}@example.test`
                   : "support@example.test";
             data = {
-              ...settings,
-              settings: {
-                ...settings.settings,
-                frontend: settings.settings.frontend.map((item) => ({
-                  ...item,
-                  value:
-                    item.key === "ADMIN_CONTACT_EMAIL"
-                      ? email
-                      : item.key === "ADMIN_CONTACT_URL" && email
-                        ? "https://example.test/support"
-                        : item.value,
-                })),
+              ...(data as object),
+              admin_contact: {
+                email,
+                url: email ? "https://example.test/support" : "",
               },
             };
           }
@@ -2377,8 +2382,9 @@ const server = await createServer({
               (failureTarget === "about-check" &&
                 url.pathname === "/api/version" &&
                 url.searchParams.has("force_refresh")) ||
-              (failureTarget === "contact-settings" &&
-                url.pathname.replace(/\/$/, "") === "/api/settings") ||
+              ((failureTarget === "contact-config" ||
+                failureTarget === "contact-settings") &&
+                url.pathname === "/api/auth/oauth/providers") ||
               (failureTarget === "share-content" &&
                 url.pathname === "/api/share/public/preview-report") ||
               (failureTarget === "workspace-list" &&
@@ -2508,8 +2514,9 @@ const server = await createServer({
             setTimeout(send, 2000);
           else if (
             isRead &&
-            previewParams.get("view") === "contact" &&
-            url.pathname.replace(/\/$/, "") === "/api/settings"
+            (previewParams.get("view") === "contact" ||
+              previewParams.has("contact-flow")) &&
+            url.pathname === "/api/auth/oauth/providers"
           )
             setTimeout(send, 2000);
           else if (

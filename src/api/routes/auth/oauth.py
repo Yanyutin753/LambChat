@@ -36,7 +36,7 @@ async def get_oauth_providers():
     """
     获取可用的 OAuth 提供商列表和认证设置
 
-    返回已启用的 OAuth 登录选项以及注册是否启用。
+    返回已启用的 OAuth 登录选项、公开认证设置和管理员联系方式。
     """
     providers: list[dict[str, str]] = []
     try:
@@ -60,6 +60,10 @@ async def get_oauth_providers():
     return {
         "providers": providers,
         "registration_enabled": settings.ENABLE_REGISTRATION,
+        "admin_contact": {
+            "email": settings.ADMIN_CONTACT_EMAIL,
+            "url": settings.ADMIN_CONTACT_URL,
+        },
         "turnstile": {
             "enabled": turnstile_service.is_enabled,
             "site_key": turnstile_service.site_key,
