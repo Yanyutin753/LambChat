@@ -5,13 +5,15 @@ export function SelectorModalPortal({
   open,
   onClose,
   children,
+  className,
 }: {
   open: boolean;
   onClose: () => void;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <ModalSurface open={open} onClose={onClose}>
+    <ModalSurface open={open} onClose={onClose} className={className}>
       {children}
     </ModalSurface>
   );

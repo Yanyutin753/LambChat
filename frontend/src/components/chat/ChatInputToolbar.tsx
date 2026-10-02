@@ -1,5 +1,13 @@
 import { useRef, useCallback, useState, useEffect } from "react";
-import { ArrowUp, Cloud, Monitor, Settings2, Square, Lock } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowUp,
+  Cloud,
+  Monitor,
+  Settings2,
+  Square,
+  Lock,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { FeatureMenu, type FeaturePanel } from "../selectors/FeatureMenu";
 import { getFileAccept } from "./fileAccept";
@@ -17,6 +25,7 @@ import {
   getTeamFallbackTag,
 } from "../team/teamAvatarUtils";
 import { ToolbarChip } from "./ToolbarChip";
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { AgentIcon } from "../agent/AgentIcon";
 import { subscribeTeamsChanged } from "../../hooks/teamEvents";
 import { RunModePopover } from "./RunModePopover";
@@ -52,6 +61,8 @@ export interface ChatInputToolbarProps {
   personaName?: string | null;
   totalPersonaCount?: number;
   hasAgentSelector: boolean;
+  agentsLoading?: boolean;
+  agentsError?: boolean;
   agentName?: string;
   agentIcon?: string;
   hasThinkingOption: boolean;
@@ -96,6 +107,8 @@ export function ChatInputToolbar({
   personaName,
   totalPersonaCount,
   hasAgentSelector,
+  agentsLoading = false,
+  agentsError = false,
   agentName,
   agentIcon,
   hasThinkingOption,
@@ -266,8 +279,21 @@ export function ChatInputToolbar({
           !selectedPersonaName &&
           !(currentAgent === "team" && onSelectTeam && selectedTeamId) && (
             <ToolbarChip
-              icon={<AgentIcon icon={agentIcon || "Bot"} size={16} />}
+              icon={
+                agentsLoading ? (
+                  <LoadingSpinner size="sm" />
+                ) : agentsError ? (
+                  <AlertCircle size={16} className="text-theme-error" />
+                ) : (
+                  <AgentIcon icon={agentIcon || "Bot"} size={16} />
+                )
+              }
               label={agentName || t(`agents.${currentAgent}.name`) || ""}
+              title={
+                agentsLoading || agentsError
+                  ? `${agentName || t("agent.selectMode")} · ${t(agentsLoading ? "common.loading" : "common.loadFailed")}`
+                  : undefined
+              }
               onClick={() => onActivePanelChange("agent")}
             />
           )}

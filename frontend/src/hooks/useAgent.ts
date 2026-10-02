@@ -308,6 +308,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     currentAgent,
     setCurrentAgent,
     agentsLoading,
+    agentsError,
     allowedModelIds,
     fetchAgents,
   } = useAgentList(hasActiveMessages);
@@ -1135,6 +1136,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     agents,
     currentAgent,
     agentsLoading,
+    agentsError,
     allowedModelIds,
     isReconnecting: connectionStatus === "reconnecting",
     connectionStatus,

@@ -291,6 +291,7 @@ export interface UseAgentReturn {
   agents: AgentInfo[];
   currentAgent: string;
   agentsLoading: boolean;
+  agentsError: boolean;
   allowedModelIds: string[] | null;
   isReconnecting: boolean;
   connectionStatus: ConnectionStatus;
