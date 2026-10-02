@@ -129,10 +129,7 @@ export function BinaryFilePreview({
       <div className="flex-1 min-h-0 overflow-auto">
         {/* Image preview */}
         {isImage(mime_type) && (
-          <div
-            className="relative flex items-center justify-center p-4 sm:p-6 min-h-full cursor-zoom-in"
-            onClick={() => imageLoaded && setViewerOpen(true)}
-          >
+          <div className="relative flex items-center justify-center p-4 sm:p-6 min-h-full cursor-zoom-in">
             {!imageLoaded && (
               <div className="absolute inset-0 flex items-center justify-center bg-[var(--theme-bg-card)]/50 rounded-lg">
                 <div className="flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2 text-12 text-stone-500 shadow-sm dark:bg-stone-800/80 dark:text-stone-400">
@@ -146,6 +143,7 @@ export function BinaryFilePreview({
               alt={fileName}
               skipUrlResolve
               inline
+              onClick={() => imageLoaded && setViewerOpen(true)}
               className="max-w-full max-h-[60dvh] rounded-lg shadow-md"
               style={{ objectFit: "contain" }}
               onLoad={() => setImageLoaded(true)}

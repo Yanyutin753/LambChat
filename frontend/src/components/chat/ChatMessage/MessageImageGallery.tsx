@@ -77,7 +77,7 @@ export function MessageImageGallery({
         aria-expanded={expanded}
         aria-label={t("chat.message.imageGalleryToggle")}
         onClick={toggleExpanded}
-        className="group/imgtoggle flex w-full cursor-pointer items-center gap-1.5 border-b border-theme-border pb-1.5 text-left"
+        className="group/imgtoggle flex w-full max-sm:min-h-11 cursor-pointer items-center gap-1.5 border-b border-theme-border pb-1.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)]"
       >
         <ImageWithSkeleton
           src={firstImage.src}
@@ -115,8 +115,10 @@ export function MessageImageGallery({
                       : "break-inside-avoid"
                 }
               >
-                <div
-                  className="group/img relative cursor-pointer rounded-xl border overflow-hidden transition-shadow hover:shadow-lg border-theme-border bg-theme-bg-card dark:bg-theme-bg"
+                <button
+                  type="button"
+                  aria-label={image.fileName}
+                  className="group/img relative block w-full text-left cursor-pointer rounded-xl border overflow-hidden transition-shadow hover:shadow-lg border-theme-border bg-theme-bg-card dark:bg-theme-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)]"
                   onClick={() => handleImageClick(image)}
                 >
                   <ImageWithSkeleton
@@ -129,20 +131,26 @@ export function MessageImageGallery({
                     loading="lazy"
                   />
                   {/* Hover overlay — top-right icon */}
-                  <div className="absolute top-2 right-2 opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-none z-[2]">
+                  <div
+                    className="absolute top-2 right-2 opacity-0 group-hover/img:opacity-100 group-focus-visible/img:opacity-100 transition-opacity pointer-events-none z-[2]"
+                    aria-hidden="true"
+                  >
                     <div className="p-1.5 rounded-lg bg-black/40 shadow pointer-events-auto">
                       <ExternalLink size={14} className="text-white" />
                     </div>
                   </div>
                   {/* File name label on hover */}
-                  <div className="absolute bottom-0 left-0 right-0 opacity-0 group-hover/img:opacity-100 transition-opacity">
+                  <div
+                    className="absolute bottom-0 left-0 right-0 opacity-0 group-hover/img:opacity-100 group-focus-visible/img:opacity-100 transition-opacity"
+                    aria-hidden="true"
+                  >
                     <div className="px-2 py-1 bg-gradient-to-t from-black/60 to-transparent">
                       <span className="text-11 text-white/90 truncate block">
                         {image.fileName}
                       </span>
                     </div>
                   </div>
-                </div>
+                </button>
               </div>
             );
           })}

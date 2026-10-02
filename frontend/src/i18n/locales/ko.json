@@ -1663,6 +1663,7 @@
     "resources": "리소스"
   },
   "imageViewer": {
+    "loadFailed": "이미지를 불러오지 못했습니다",
     "download": "다운로드",
     "fullscreen": "전체 화면",
     "hint": "스크롤/핀치로 확대 · 드래그/스와이프로 이동 · ESC로 닫기",

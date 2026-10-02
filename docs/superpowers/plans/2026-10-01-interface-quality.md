@@ -509,3 +509,23 @@ TDD：先完成8项失败行为，随后受控证明两个目录恢复测试 RED
 最终生产修改后门禁：pnpm test 748文件/3639项通过；pnpm run lint 零错误零警告；pnpm run build 含 tsc/Vite/PWA/预算通过，eager JS 558782/559104 bytes、precache 5016819/5242880 bytes、91 entries，未提高预算，保留既有 chunk-size 提示。最后 fixture 数据格式修正不改变生产代码。独立只读复核先发现并关闭快照 P2，最后UTF-8与触屏媒体条件检查无新增P1/P2；复核者未重复原生或全量门禁。git diff --check通过。
 
 截图：artifact-tree-390-dark-final.png、project-files-390-dark-final.png、project-files-320-light-final.png、artifact-tree-768-sepia-final.png、artifact-tree-1440-light-final.png；artifact-tree-390-dark-before.png和artifact-copy-390-dark-failed.png记录原布局与复制失败。320/768截图在最后触屏媒体条件微调前，fine pointer视觉行为不变；最终390已核对最新生产代码。继续图片/下载其他格式、大图/内嵌图片、资源导入发布、其余语言与真机/认证/写入/真实对话/扫码E2E，整体目标保持进行中。
+
+### 当前执行：图片预览、错误恢复与全屏隔离
+
+- [x] 原生图片入口支持键盘；失败提示、同 URL 重试与切换恢复，消失控件不会把焦点丢到 body。
+- [x] 图片链接只保留链接操作，避免链接里嵌按钮；普通图片、图片组和二进制文件预览沿用共享入口。
+- [x] 四宽度三主题核对、真实图片下载、桌面右面板打开时完整全屏与原生焦点恢复；完整门禁及只读复核。
+
+本批完成：ImageWithSkeleton 的可操作入口采用原生 button，无操作时仍为 div；MessageImageGallery 图片入口和 BinaryFilePreview 复用此语义。图片组手机展开入口至少44px且有键盘焦点环，正文/卡片留白不统一压缩。Markdown 图片链接通过现有 React children 处理保留单一链接，包括嵌在 strong 中的图片和文件链接；普通图片继续打开灯箱。ImageViewer 失败时隐藏坏图、展示既有 files 羊场景与五语错误、禁用下载并收起无效变换控件，Retry remount 同 URL，未修改签名链接。消失的 Next/Retry 控件焦点回到当前顶层预览；layout effect 捕获真实 opener，关闭沿用已有防抢焦点恢复。
+
+TDD：加载失败、重试、错误切换、两种共享图片入口、图片组和二进制预览均先 RED；消失 Next 的焦点断言独立 RED。只读复核发现图片链接嵌套控件 P2，外链/文件链接两项真实 Markdown 渲染 RED 后修，裸图片回归通过。首次全量仅旧 fileLibrary 源码守卫不接受 multiline load/error handler，更新到保留 loading 并追加 error 的实际契约后通过。桌面实屏发现 data-yields-sidebar 将灯箱压成半屏，no-yield 断言明确 RED 后删除标记；AX 继续发现右面板 portal 留在背景树，隔离/还原用例 RED 后仅在 ImageViewer 内记录并还原 body 直属 right-panel inert，先捕获 opener 再隔离。关闭同步解除 inert，microtask 返回入口；没有扩大通用 modal 的侧栏策略。
+
+实屏：images=1 使用两个现有 WebP 与明确404的坏图，所有 API 写入405。390 dark 基线坏图仅显示破图且变换/下载仍启用；改后失败提示和 Retry 可达，Space 重试固定404仍诚实失败，Next 切换成功，焦点为新的 dialog。390实际图片125%及90°旋转；坏图在图片组不再高度0。实际下载 mobile-view.webp 为18678 bytes，RIFF/WEBP 且与仓库源文件逐字节相同，保存 image-download-verified.webp 后清理本批测试下载。关闭回原图片按钮，focus-visible=true。320 light toolbar left15/right305、查看器控件44px、Tab从最后控件回首控件；320 sepia 最终展开入口约44px且焦点环可见。768 sepia 125%变换、toolbar left253/right515，键盘焦点可见。四宽度页面横向溢出均0；1440 light 最后右面板 docked 时灯箱 left0/right1440，右侧命中灯箱，背景 AX 不再包含面板。实际从文件面板图片 Enter 打开、Escape 关闭，inert true→false 且 focus 回面板原图片入口。桌面 topbar40px、变换控件32px、切换44px，不混称统一32px。
+
+八项自检：保持现有字体与正文层级；阅读留白不整体压缩；错误/主操作/变换层级明确；沿用 light/dark/sepia 与五语；图片与灯箱 transition 纳入既有 reduced-motion，未声称原生 OS 该模式已测试；Enter/Space/Tab/Escape、焦点恢复、链接单操作、失败与下载实际验证；320/390/768/1440无本批页面溢出，真实触摸/软键盘未验证；沿用 LambChat 羊场景与视觉语言，无新依赖/品牌体系。Impeccable 继续按已确认不可用环境的 DESIGN.md 人工清单核对。
+
+最终修改后：pnpm test 751文件/3649项通过（本批新增10项），pnpm run lint 零错误零警告，pnpm run build 含 tsc/Vite/PWA/预算通过；eager JS 558811/559104 bytes，precache 5019539/5242880 bytes、91 entries，未提高预算，保留既有 chunk-size 提示。最后只读复核关闭图片链接 P2，后续 fullscreen/inert 两轮无新增 P1/P2；复核者未重复原生或全量门禁。git diff --check通过。最后格式化用此前已安装缓存中的 Prettier；dlx 网络 ECONNRESET 后停止该确认运行的安装会话，未新增依赖。
+
+截图沿用 interface-quality 目录：image-viewer-390-dark-before.png；image-viewer-320-light-final.png、image-gallery-320-sepia-final.png、image-viewer-390-dark-error-final.png / final.png、image-viewer-768-sepia-final.png、image-viewer-1440-light-final.png。1440 半屏旧截图已改名 before-fullscreen，最终1440在最后 inert 修正后重新保存；320/390/768在最后仅影响已开右面板隔离的修改前，不作为该隔离证明。临时 viewport reset，tab10 handoff；用户原tab和剪贴板未操作。
+
+继续：其他下载格式、大图/内嵌图片、绘图与视频全屏的侧栏关系、资源导入发布、其余语言、真实触屏/软键盘、认证/写入/真实对话与扫码 E2E。整体目标保持进行中，不以本批图片样例推断全部界面已无明显提升空间。

@@ -1433,6 +1433,11 @@ const server = await createServer({
           const previewParams = new URL(
             req.headers.referer ?? "http://localhost",
           ).searchParams;
+          if (url.pathname === "/preview-missing-image.webp") {
+            res.statusCode = 404;
+            res.end();
+            return;
+          }
           if (
             url.pathname === "/preview-document.excalidraw" &&
             previewParams.get("fixture") === "error" &&
@@ -1648,6 +1653,51 @@ const server = await createServer({
                   success: true,
                 },
               },
+            );
+          }
+          if (
+            url.pathname === "/api/sessions/preview-report/events" &&
+            previewParams.has("images")
+          ) {
+            const history = data as { events: object[] };
+            const images = [
+              ["桌面工作区.webp", "/images/best-practice/chat-home.webp"],
+              ["暂不可用的图片.webp", "/preview-missing-image.webp"],
+              ["移动端工作区.webp", "/images/best-practice/mobile-view.webp"],
+            ];
+            history.events.splice(
+              history.events.length - 1,
+              0,
+              ...images.flatMap(([name, imageUrl], index) => [
+                {
+                  id: `preview-image-start-${index}`,
+                  event_type: "tool:start",
+                  run_id: "preview-run",
+                  timestamp: now,
+                  data: {
+                    tool: "reveal_file",
+                    tool_call_id: `preview-image-${index}`,
+                    args: { path: name },
+                  },
+                },
+                {
+                  id: `preview-image-result-${index}`,
+                  event_type: "tool:result",
+                  run_id: "preview-run",
+                  timestamp: now,
+                  data: {
+                    tool: "reveal_file",
+                    tool_call_id: `preview-image-${index}`,
+                    result: {
+                      key: `preview-image-${index}`,
+                      url: imageUrl,
+                      name,
+                      type: "image",
+                    },
+                    success: true,
+                  },
+                },
+              ]),
             );
           }
           if (

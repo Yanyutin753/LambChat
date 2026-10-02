@@ -1663,6 +1663,7 @@
     "resources": "Resources"
   },
   "imageViewer": {
+    "loadFailed": "Failed to load image",
     "download": "Download",
     "fullscreen": "Fullscreen",
     "hint": "Scroll/Pinch to zoom · Drag/Swipe to move · ESC to close",

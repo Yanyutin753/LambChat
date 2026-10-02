@@ -1663,6 +1663,7 @@
     "resources": "リソース"
   },
   "imageViewer": {
+    "loadFailed": "画像を読み込めませんでした",
     "download": "ダウンロード",
     "fullscreen": "全画面",
     "hint": "スクロール/ピンチでズーム · ドラッグ/スワイプで移動 · ESCで閉じる",

@@ -39,6 +39,38 @@ function extractNodeText(node: React.ReactNode): string {
   return "";
 }
 
+function renderLinkedImages(children: React.ReactNode): React.ReactNode {
+  return React.Children.map(children, (child) => {
+    if (
+      !React.isValidElement<{
+        node?: { tagName?: string };
+        src?: string;
+        alt?: string;
+        children?: React.ReactNode;
+      }>(child)
+    )
+      return child;
+    if (child.props.node?.tagName === "img") {
+      const src = getFullUrl(child.props.src);
+      return (
+        <ImageWithSkeleton
+          key={child.key}
+          src={src}
+          thumbSrc={buildChatThumbUrl(src)}
+          alt={child.props.alt}
+          loading="eager"
+          className="max-w-lg h-auto rounded-lg shadow hover:opacity-90 transition-opacity"
+        />
+      );
+    }
+    return child.props.children === undefined
+      ? child
+      : React.cloneElement(child, {
+          children: renderLinkedImages(child.props.children),
+        });
+  });
+}
+
 type ComparisonCellState = "included" | "excluded" | "neutral";
 
 function getComparisonCellState(value: string): ComparisonCellState | null {
@@ -408,6 +440,7 @@ export const MarkdownContent = memo(function MarkdownContent({
           ),
           // Links with hover effects
           a: ({ href, children }) => {
+            const linkChildren = renderLinkedImages(children);
             if (href) {
               const fileLinkInfo = getFileLinkInfo(
                 href,
@@ -435,7 +468,7 @@ export const MarkdownContent = memo(function MarkdownContent({
                       );
                     }}
                   >
-                    {children}
+                    {linkChildren}
                   </a>
                 );
               }
@@ -447,7 +480,7 @@ export const MarkdownContent = memo(function MarkdownContent({
                 rel="noopener noreferrer"
                 className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition-colors"
               >
-                {children}
+                {linkChildren}
               </a>
             );
           },

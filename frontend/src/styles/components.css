@@ -4617,6 +4617,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .image-viewer *,
+  .image-with-skeleton *,
   .mermaid-diagram *,
   .excalidraw-preview *,
   .excalidraw-viewer *,
