@@ -44,6 +44,7 @@ import { Pagination } from "../common/Pagination";
 import { PanelHeader } from "../common/PanelHeader";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { EmptyState } from "../common/EmptyState";
+import { ConfigPanelErrorCallout } from "../panels/ConfigPanelErrorCallout";
 import { PersonaScopeDropdown } from "../persona/PersonaScopeDropdown";
 import { PersonaTagFilterDropdown } from "../persona/PersonaTagFilterDropdown";
 import type { ScopeFilter } from "../persona/usePersonaPlaza";
@@ -210,6 +211,8 @@ export function TeamBuilderWrapper() {
     uploadingAvatar: false,
     existingTeamId: null,
     hasTeamName: false,
+    canSave: false,
+    saveError: false,
   });
   const formRef = useRef<TeamBuilderHandle>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -799,24 +802,29 @@ export function TeamBuilderWrapper() {
         defaultWidthPct={30}
         widthStorageKey="team-editor-sidebar-width"
         footer={
-          <PanelFooterActions>
-            <Button onClick={handleClose}>{t("common.cancel")}</Button>
-            <Button
-              variant="primary"
-              onClick={() => formRef.current?.handleSave()}
-              disabled={
-                footerState.saving ||
-                footerState.uploadingAvatar ||
-                !footerState.hasTeamName
-              }
-              loading={footerState.saving}
-              leftIcon={<Save size={14} />}
-            >
-              <span role={footerState.saving ? "status" : undefined}>
-                {footerState.saving ? t("team.saving") : t("team.save")}
-              </span>
-            </Button>
-          </PanelFooterActions>
+          <div className="flex flex-col gap-3">
+            {footerState.saveError && (
+              <ConfigPanelErrorCallout message={t("team.saveFailed")} />
+            )}
+            <PanelFooterActions>
+              <Button onClick={handleClose}>{t("common.cancel")}</Button>
+              <Button
+                variant="primary"
+                onClick={() => formRef.current?.handleSave()}
+                disabled={!footerState.canSave}
+                loading={footerState.saving}
+                leftIcon={<Save size={14} />}
+              >
+                <span role={footerState.saving ? "status" : undefined}>
+                  {footerState.saving
+                    ? t("team.saving")
+                    : footerState.saveError
+                      ? t("common.retry")
+                      : t("team.save")}
+                </span>
+              </Button>
+            </PanelFooterActions>
+          </div>
         }
       >
         <TeamBuilder

@@ -796,3 +796,21 @@ TDD：5 项团队可观察行为先全部失败，再通过，覆盖命名/键�
 八项人工自检：共用字段/标签排版；保持正文分组留白并删除重复控件；头像、草稿、主操作层级清楚；使用深浅主题/错误/焦点token；图标静态且既有过渡尊重reduced-motion；等待、失败、重试、键盘和迟到上传行为有验证；手机/平板/桌面与长名称已走查；沿用LambChat组件与已有资源。Impeccable未安装，按DESIGN.md交付清单人工复核。临时3018服务与本轮标签页回收，临时视口恢复；用户3017、原3002及标签页保留。
 
 整体目标继续进行。团队详情读取/保存请求归属、成员操作、其余编辑器/弹层、长语言及空/错/加载组合仍需下一阶段继续核对，不据本轮局部门禁宣告全界面完成。
+
+## 2026-10-02 团队详情、保存状态与请求归属
+
+继续隔离 worktree，本阶段已 fetch/rebase 到 origin/develop 4ed77d7e，基线 e8013d6d，保留主 checkout。上一用户反馈的文件原生查找浮层补充验证：320px 宽查找条280px，页面横向overflow0，choice两个真实匹配，Escape回代码焦点；桌面打开前后正文top140px、height554.40625px均不变，相关20项测试通过。未另建搜索 UI。
+
+TeamBuilder 详情读取期间不再展示可编辑的空表单，保存保持禁用；失败显示既有错误组件和紧凑44px重试入口，不把既有记录当作新建。重试聚焦稳定表单，错误态aria-busy为false。读取、保存、克隆和删除均记录当前编辑会话，切换记录或卸载使旧请求的状态、toast、关闭回调失效。同步ref阻止重复提交，保存期间原生fieldset冻结字段，焦点保持表单且取消路径保留。失败不丢草稿，Wrapper固定页脚持续提示并显示Retry；克隆切换编辑身份时清除旧保存错误和头像重试文件。
+
+成员模式/模型的门户Select显式禁用；共用Select在disabled时立即隐藏并关闭已展开选项，不对本来关闭的控件发出多余onOpenChange。既有controlled调用方SelectRow已核对，角色编辑器生命周期与选择器恢复回归通过。新增16项行为覆盖详情等待/失败重试、迟到读取、同步双提交、字段冻结/焦点、保存失败保留、旧保存resolve/reject不干扰新保存、卸载关闭、门户选项关闭、真实Wrapper页脚重试、迟到克隆/删除与克隆头像错误隔离。边界测试先见RED再GREEN，相关13文件/77项通过。独立只读复核未发现确定新增P1/P2；lint对cleanup读取ref的通用警告改为以本effect的owner+1失效，最后门禁重跑。
+
+预览复用已有显式模拟分支，增加team-flow=1：团队创建POST和单个团队PUT等待2秒，failure=team-save首次503、重试200；单条详情GET同样延迟，failure=team-detail首次503、重试恢复。请求字节丢弃，无解析、存储、真实列表更新或API转发，其余写请求仍405。PANEL_PREVIEW.md已同步说明。
+
+IAB独立3018：390深色实际编辑已有团队、长名称草稿、打开成员模型门户后保存；等待字段全部禁用、焦点FORM、门户0、整页overflow0。首次503后长名称/成员指导保留、错误和Retry固定页脚可见、页脚overflow0；Retry模拟200后编辑器退出。320浅色详情加载/失败时Save禁用，失败aria-busy=false、重试62.56×44px、整页overflow0；重试期间焦点FORM，恢复原团队名称并启用Save。834浅色页脚638px、1440浅色侧栏432px/页脚430px，整页及页脚overflow0。截图在仓库外interface-quality目录：team-detail-loading-320-light-final、team-detail-error-320-light-final、team-detail-recovered-320-light-final、team-detail-recovered-834-light-final、team-detail-recovered-1440-light-final、team-save-390-dark-pending-final、team-save-390-dark-error-final、team-save-390-dark-error-draft-final。
+
+八项自检：沿用现有表单排版与标签字体；保持分组阅读留白，错误重试不铺满宽度；详情/草稿/固定页脚状态层级清楚；既有深浅主题与错误/焦点token；无新增动效；等待、禁用、失败、重试、取消和迟到响应有测试及实际交互；320/390/834/1440检查无本批横向溢出、手机动作44px；复用LambChat组件及已有模拟机制，无新依赖、资产、API或翻译键。Impeccable未安装，沿用DESIGN.md人工清单。
+
+最后生产修改后全量773文件/3783项测试通过，lint零错误零警告，build含tsc/Vite/PWA与性能预算通过：eager JavaScript559143/561152 bytes，precache5017989/5242880 bytes、91 entries，未提高预算，保留既有chunk-size提示。git diff --check通过。临时3018服务与测试标签页已回收、视口恢复，用户3017/3002及其标签保留。本批模拟响应/浏览器尺寸不证明真实团队存储、权限写入、真机触屏或软键盘。
+
+整体目标保持进行中。此次实际手机截图仍显示多个成员默认展开形成很长的配置列表；下一阶段继续检查成员卡片信息密度、目录失败/长列表，以及其余编辑器、长语言和空/错/加载组合，不以局部门禁作为全界面完成依据。
