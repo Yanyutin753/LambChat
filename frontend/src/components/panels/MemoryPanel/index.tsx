@@ -483,6 +483,7 @@ export function MemoryPanel() {
       {/* Detail modal */}
       {selected && (
         <DetailModal
+          key={selected.memory_id}
           memory={selected}
           onClose={() => setSelected(null)}
           onDelete={setDeleteId}
@@ -497,6 +498,7 @@ export function MemoryPanel() {
       {/* Memory editor (create / edit) */}
       {editingMemory !== undefined && (
         <MemoryEditor
+          key={editingMemory?.memory_id ?? "new"}
           memory={editingMemory}
           onClose={() => setEditingMemory(undefined)}
           onSaved={fetchMemories}

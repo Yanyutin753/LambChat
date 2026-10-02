@@ -709,3 +709,24 @@ useMarketplace 为每次详情使用独立 session 对象，关闭、重开、�
 fixture 新增仅 GET 的 marketplace-files/marketplace-file 首次503并Retry恢复，其它写仍405；未安装、发布或写真实技能。最终修改后门禁：766文件/3715测试通过；lint零错误零警告；build含tsc/Vite/PWA/预算通过，eager JS559137/561152 bytes、precache5017396/5242880 bytes、91 entries，未提高预算，保留既有chunk-size提示。diff --check通过，最后门禁后仅文档/原生走查/预览清理。
 
 继续检查其它侧栏元数据调用、剩余界面/语言组合、真机和真实服务边界。整体目标保持进行中；本批不声称全界面或真实安装/发布端到端完成。
+
+## 2026-10-02 记忆详情与编辑器完整内容恢复
+
+- [x] 详情与编辑器共用同一全文读取状态：列表的 `has_full_content` 表示内容另存，GET失败不再显示片段或恢复保存；持续错误可重试，loading有status文字。
+- [x] 重试聚焦稳定内容容器，完整内容与摘要读取成功后才能编辑；用户修改的标题、类型、来源与标签保留。切换卡片按memory_id重建草稿，旧读取取消，旧保存不能关闭新编辑器。
+- [x] 保存期间冻结字段，使用共享Button loading；失败在固定footer保留错误和Retry，不重复toast，不丢草稿。
+- [x] 详情类型、来源、时间、访问与标签集中为元信息组，删除额外margin与正文卡片边框；长元信息、标签和正文支持换行。编辑更新时间移到正文，保留单个tab标题，不恢复被忽略的subtitle重复header。
+
+开工fetch/rebase确认origin/develop35af6aff，当前隔离分支基线8bb24f26；未动主checkout未提交内容。沿用Loading、ConfigPanelErrorCallout、Button、主题token与五语已有键，无新依赖、生产资产或翻译键。仅增加两处实际全文调用共享的本地hook，不另建读取/搜索引擎。
+
+六项真实组件行为均见RED→GREEN：全文失败不伪成功并Retry；编辑器失败不可保存、Retry保留标题并提交全文；详情切换隔离；卡片编辑切换隔离；pending保存冻结草稿且迟到成功不关闭新编辑器；失败保存持续提示并重试同一payload。保留真实EditorSidebar/表单，API调用模拟。记忆目标5文件12项通过，独立两次只读复核未发现确定P1/P2。
+
+原生IAB独立3017：390深色GET首次503后明确错误，Retry44px，页面overflow0；Retry实际200恢复完整正文及长URL，focus=DIV/connected、overflow0。320×568浅色编辑器失败时Save禁用，Retry后全文恢复、已修改标题保留、focus=DIV/connected、overflow0。1440×900浅色详情侧栏489.59px，正文长URL换行、overflow0，关闭回原卡片标题。320深色延迟全文读取实际status与Save禁用；在只读fixture尝试保存得到405，保存中fieldset禁用、focus保持，失败后底部error/Retry持续可见，字段与全文保留、overflow0。未点击真实API保存，浏览器中的成功保存未验证。
+
+截图位于仓库外interface-quality：memory-detail-390-dark-before、memory-detail-390-dark-failure-before为基线；memory-detail-390-dark-error-final、memory-detail-390-dark-recovered-final、memory-editor-320-light-error-final、memory-editor-320-light-recovered-final、memory-detail-1440-light-final、memory-editor-320-dark-loading-content-final、memory-editor-320-dark-save-error-final。前面读状态截图早于底部保存错误补充，读取与排版未再改变；最后save-error为最终实现。
+
+八项自检：沿用既有标题/表单/正文尺度；收整元信息留白且保留20px独立分组；tab→元信息→正文→固定操作层级；既有深浅色和error/focus token；无新增动效，使用既有reduced-motion加载样式并移除保存pulse；可读status/error、Retry焦点及旧响应隔离；实际320/390/1440无本批溢出、手机操作44px；沿用LambChat视觉语言和原生字段，不增加装饰或资产。Impeccable仍按此前不可用环境的DESIGN.md清单人工检查。
+
+最后生产修改后的门禁：767文件/3721项测试通过，lint零错误零警告；build含tsc/Vite/PWA/预算通过，eager JS559147/561152 bytes、precache5017375/5242880 bytes、91 entries。没有提高预算，保留既有chunk-size提示。git diff --check通过；门禁之后只补文档和原生证据，不再次重复已通过的检查。
+
+继续检查Persona/Role侧栏有意义元信息、源码长行、其它表单与剩余语言/界面组合；真实存储、服务对话、触屏与软键盘待验。整体目标保持进行中，不以本批截图或门禁宣告全部界面完成。

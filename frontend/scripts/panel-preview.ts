@@ -870,8 +870,18 @@ function response(
   if (path.startsWith("/api/teams/"))
     return teams.find((p) => path.endsWith(p.id)) ?? teams[0];
   if (path === "/api/memory") return paginate(memories, "memories");
-  if (path.startsWith("/api/memory/"))
-    return memories.find((p) => path.endsWith(p.memory_id)) ?? memories[0];
+  if (path.startsWith("/api/memory/")) {
+    const memory =
+      memories.find((p) => path.endsWith(p.memory_id)) ?? memories[0];
+    return {
+      ...memory,
+      content: `${
+        memory.content
+      }\n\n完整执行约束：保留资料来源与验收记录。\nhttps://example.com/research/${"delivery-context-".repeat(
+        18,
+      )}`,
+    };
+  }
   if (path === "/api/bookmarks")
     return { items: all(bookmarks), total: all(bookmarks).length };
   if (path === "/api/notifications/active") return [];
@@ -1957,6 +1967,8 @@ const server = await createServer({
             isRead &&
             ((failureTarget === "skill-file" &&
               /^\/api\/skills\/[^/]+\/files\//.test(url.pathname)) ||
+              (failureTarget === "memory-detail" &&
+                /^\/api\/memory\/[^/]+$/.test(url.pathname)) ||
               (failureTarget === "marketplace-files" &&
                 /^\/api\/marketplace\/[^/]+\/files$/.test(url.pathname)) ||
               (failureTarget === "marketplace-file" &&
