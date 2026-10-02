@@ -15,7 +15,7 @@ import {
   FolderClosed,
   FolderOpen,
   MoreHorizontal,
-  Plus,
+  SquarePen,
   Star,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -404,7 +404,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
                   })}
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] max-sm:h-9 max-sm:w-9"
                 >
-                  <Plus size={16} aria-hidden="true" />
+                  <SquarePen size={16} aria-hidden="true" />
                 </button>
               </Tooltip>
             )}
@@ -491,7 +491,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
                 onClick={() => onNewSessionInProject(project.id)}
                 className="flex min-h-10 items-center gap-2 rounded-md px-3 text-left text-13 text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
               >
-                <Plus size={14} className="shrink-0" aria-hidden="true" />
+                <SquarePen size={14} className="shrink-0" aria-hidden="true" />
                 {t("sidebar.startFirstChat")}
               </button>
             ) : null}

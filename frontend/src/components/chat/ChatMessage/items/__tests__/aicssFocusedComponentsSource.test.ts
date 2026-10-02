@@ -69,6 +69,12 @@ describe("focused AIcss-inspired component upgrade", () => {
     expect(markdownCss).toContain(".ai-data-table__row");
   });
 
+  test("keeps table toolbar labels on one horizontal line", () => {
+    expect(markdownCss).toMatch(
+      /\.ai-data-table__title,\s*\.ai-data-table__action\s*\{[^}]*line-height:\s*1rem;[^}]*white-space:\s*nowrap;/,
+    );
+  });
+
   test("renders comparison values with accessible icon states", () => {
     expect(markdownSource).toContain("getComparisonCellState");
     expect(markdownSource).toContain("data-comparison-state={comparisonState");

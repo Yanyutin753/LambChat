@@ -10,7 +10,7 @@ import {
 import {
   Share2,
   MoreHorizontal,
-  MessageSquarePlus,
+  SquarePen,
   Bell,
   Languages,
   Sun,
@@ -152,7 +152,7 @@ export function Header({
       ? [
           {
             label: t("sidebar.newChat"),
-            icon: <MessageSquarePlus size={16} />,
+            icon: <SquarePen size={16} />,
             onClick: onNewSession,
           },
         ]

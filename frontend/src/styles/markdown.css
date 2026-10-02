@@ -178,6 +178,12 @@
   border-block-end: 1px solid var(--theme-border);
 }
 
+.ai-data-table__title,
+.ai-data-table__action {
+  line-height: 1rem;
+  white-space: nowrap;
+}
+
 .ai-data-table__title {
   color: var(--theme-text-tertiary);
 }
