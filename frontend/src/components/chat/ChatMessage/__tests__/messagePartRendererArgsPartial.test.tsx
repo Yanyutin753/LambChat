@@ -1,12 +1,28 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, expect, test } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, expect, test, vi } from "vitest";
 
 import type { ToolPart } from "../../../../types";
 import { MessagePartRenderer } from "../MessagePartRenderer";
 
 afterEach(cleanup);
+
+test("stopped answers use the shared retry button with long-label wrapping", () => {
+  const retry = vi.fn();
+  render(
+    <MessagePartRenderer
+      part={{ type: "cancelled" }}
+      isLast
+      onRetryCancelled={retry}
+    />,
+  );
+  const button = screen.getByRole("button");
+  expect(button).toHaveClass("ui-button", "chat-cancelled-retry");
+  expect(button.parentElement).toHaveClass("flex-wrap", "max-w-full");
+  fireEvent.click(button);
+  expect(retry).toHaveBeenCalledOnce();
+});
 
 const basePart = {
   type: "tool" as const,
@@ -78,7 +94,11 @@ test.each(["todo_write", "write_todos"])(
       { isPending: true, args: { todos: [] } },
       { isPending: false, args: { todos: [] }, result: "Updated" },
     ]) {
-      const { container, unmount } = renderPart({ ...basePart, name, ...state });
+      const { container, unmount } = renderPart({
+        ...basePart,
+        name,
+        ...state,
+      });
       expect(container.childElementCount).toBe(0);
       unmount();
     }

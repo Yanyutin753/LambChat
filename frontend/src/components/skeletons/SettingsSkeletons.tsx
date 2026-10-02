@@ -171,7 +171,7 @@ export function AgentModelPanelSkeleton() {
       <PanelHeaderSkeleton
         hasSearch={false}
         hasSubtitle
-        className="panel-header--section-switch"
+        className="panel-header--section-switch panel-header--agent-model"
         actions={
           <div className="agent-model-section-switcher inline-grid grid-cols-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 font-serif">
             {[0, 1].map((tab) => (

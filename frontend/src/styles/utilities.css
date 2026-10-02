@@ -166,7 +166,7 @@ html[data-mobile-keyboard="true"] .safe-area-viewport-padding-top.items-end {
 
 /* Auto-fill grid columns based on available container width */
 .auto-grid-cols {
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
 }
 
 /* 隐藏滚动条但保持可滚动（横向 tab 条等） */

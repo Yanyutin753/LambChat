@@ -21,6 +21,19 @@ test("cycles the theme on Ctrl+Shift+L", () => {
   expect(onCycle).toHaveBeenCalledTimes(1);
 });
 
+test("theme shortcuts yield to composing and consumed keyboard events", () => {
+  const onCycle = vi.fn();
+  const { unmount } = renderHook(() => useThemeShortcut(onCycle));
+  window.dispatchEvent(
+    keydown({ ctrlKey: true, shiftKey: true, isComposing: true }),
+  );
+  const consumed = keydown({ ctrlKey: true, shiftKey: true, cancelable: true });
+  consumed.preventDefault();
+  window.dispatchEvent(consumed);
+  expect(onCycle).not.toHaveBeenCalled();
+  unmount();
+});
+
 test("does not cycle when focus is in an editable target", () => {
   const onCycle = vi.fn();
   renderHook(() => useThemeShortcut(onCycle));

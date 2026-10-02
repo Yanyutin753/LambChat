@@ -1,0 +1,17 @@
+{
+  "next": "次の一致",
+  "previous": "前の一致",
+  "find": "検索",
+  "replace": "置換",
+  "replaceAll": "すべて置換",
+  "matchCase": "大文字と小文字を区別",
+  "regexp": "正規表現",
+  "wholeWord": "単語単位",
+  "goToLine": "行に移動",
+  "go": "移動",
+  "currentMatch": "現在の一致",
+  "onLine": "行",
+  "replacedMatch": "行 $ の一致を置換しました",
+  "replacedMatches": "$ 件を置換しました",
+  "preview": "コードプレビュー"
+}

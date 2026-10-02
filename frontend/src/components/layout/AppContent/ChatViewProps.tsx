@@ -158,6 +158,8 @@ export interface ChatViewProps {
   selectedPersonaSnapshot: PersonaPresetSnapshot | null;
   personaSkillsControlled: boolean;
   personaPresetsLoading: boolean;
+  personaPresetsError?: string | null;
+  onRetryPersonaPresets?: () => void;
   personaPresetsMutating: boolean;
   onUsePersonaPreset: (
     preset: PersonaPreset,

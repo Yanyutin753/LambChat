@@ -1,4 +1,7 @@
-import { topmostVisibleModalDialog } from "../../utils/modalDialog";
+import {
+  topmostVisibleDialog,
+  topmostVisibleModalDialog,
+} from "../../utils/modalDialog";
 import {
   createContext,
   useContext,
@@ -127,9 +130,39 @@ const FOCUSABLE =
 
 function restoreOpenerFocus(openerRef: RefObject<HTMLElement | null>): void {
   requestAnimationFrame(() => {
-    if (openerRef.current?.isConnected) {
-      openerRef.current.focus({ preventScroll: true });
+    if (getRightPanelSnapshot().activeId || topmostVisibleModalDialog()) return;
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLElement &&
+      active !== document.body &&
+      active.isConnected &&
+      !active.closest('[hidden],[inert],[aria-hidden="true"]')
+    )
+      return;
+    const opener = openerRef.current;
+    if (
+      opener?.isConnected &&
+      !opener.closest('[hidden],[inert],[aria-hidden="true"]')
+    ) {
+      opener.focus({ preventScroll: true });
+      if (document.activeElement === opener) return;
     }
+    const region = opener?.closest('[data-panel],main,[role="main"]');
+    const page = region?.isConnected
+      ? region
+      : document.querySelector('main,[role="main"]');
+    const visible = (element: HTMLElement) =>
+      element.getClientRects().length > 0 &&
+      !element.closest('[hidden],[inert],[aria-hidden="true"]');
+    const selected = [
+      ...(page?.querySelectorAll<HTMLElement>(
+        'button[aria-pressed="true"],[role="tab"][aria-selected="true"]',
+      ) ?? []),
+    ].find(visible);
+    const fallback =
+      selected ??
+      [...(page?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])].find(visible);
+    fallback?.focus({ preventScroll: true });
   });
 }
 
@@ -186,7 +219,16 @@ export function useRightPanelFocus({
 
     const trapTab = (event: KeyboardEvent) => {
       if (event.key !== "Tab" || event.defaultPrevented) return;
-      if (topmostVisibleModalDialog() !== panelRef.current) return;
+      const panel = panelRef.current;
+      if (!panel) return;
+      // Same ownership rule as useDialogFocus: the panel keeps the Tab cycle
+      // when the topmost visible dialog (modal or not) contains it.
+      const top = topmostVisibleDialog();
+      const topModal = topmostVisibleModalDialog();
+      if (
+        !(top?.contains(panel) || topModal?.contains(panel))
+      )
+        return;
 
       const focusable = [
         ...(panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []),
@@ -202,7 +244,12 @@ export function useRightPanelFocus({
 
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+      const panelHost =
+        panelRef.current?.closest<HTMLElement>('[role="dialog"]') ?? null;
+      if (document.activeElement === panelHost) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {

@@ -78,6 +78,17 @@ test("registers the active tool panel as the sidebar snapshot target", async () 
   });
 });
 
+test("an overlay tool dialog accepts focus when a transient notice closes", async () => {
+  const view = render(
+    <ToolResultPanel open viewMode="center" onClose={vi.fn()} title="Tool A">
+      <button>Copy result</button>
+    </ToolResultPanel>,
+  );
+  const dialog = await view.findByRole("dialog", { name: "Tool A" });
+  dialog.focus();
+  expect(dialog).toHaveFocus();
+});
+
 test("restores a history snapshot before revealing panel content", async () => {
   const snapshot: SidebarPanelSnapshot = {
     panelKey: "panel:a",

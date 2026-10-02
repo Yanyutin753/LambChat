@@ -1,11 +1,34 @@
 /** @vitest-environment jsdom */
 
 import { fireEvent, render, screen } from "@testing-library/react";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { ImageWithSkeleton } from "../ImageWithSkeleton";
 
 const FULL_SRC = "https://app.example/api/upload/file/abc/hero.jpg";
 const THUMB_SRC = "https://app.example/api/upload/file/abc/hero.jpg?thumb=1";
+
+test.each([false, true])(
+  "clickable image is a native preview button in inline=%s mode, including its error fallback",
+  (inline) => {
+    const preview = vi.fn();
+    render(
+      <ImageWithSkeleton
+        src={FULL_SRC}
+        alt="hero"
+        onClick={preview}
+        inline={inline}
+      />,
+    );
+    const button = screen.getByRole("button", { name: "hero", exact: true });
+    expect(button.tagName).toBe("BUTTON");
+    expect(button).toHaveAttribute("type", "button");
+    fireEvent.click(button);
+    expect(preview).toHaveBeenCalledOnce();
+    fireEvent.error(screen.getByAltText("hero"));
+    fireEvent.click(button);
+    expect(preview).toHaveBeenCalledTimes(2);
+  },
+);
 
 function currentImgSrc(): string {
   const img = screen.getByAltText("hero") as HTMLImageElement;

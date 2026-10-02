@@ -13,7 +13,7 @@ test("copy is the rightmost action in the user message action row", () => {
 
   const actionRow = source.slice(rowStart);
   const extraActionsIndex = actionRow.indexOf("{extraActions}");
-  const copyIndex = actionRow.indexOf("onClick={handleCopy}");
+  const copyIndex = actionRow.indexOf("<CopyButton");
 
   expect(extraActionsIndex).toBeGreaterThan(-1);
   expect(copyIndex).toBeGreaterThan(extraActionsIndex);

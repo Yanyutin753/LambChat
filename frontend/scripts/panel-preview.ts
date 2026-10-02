@@ -1,8 +1,12 @@
 /** Local-only UI fixture server. No requests are forwarded to a real API. */
 import { createServer } from "vite";
+import { readFileSync } from "node:fs";
 import { Permission, type PermissionsResponse } from "../src/types/auth";
 
 const now = "2026-09-30T08:00:00Z";
+const previewVideo = process.env.PANEL_PREVIEW_VIDEO
+  ? readFileSync(process.env.PANEL_PREVIEW_VIDEO)
+  : null;
 const labels = [
   "季度业务分析",
   "产品研究与洞察",
@@ -35,7 +39,7 @@ const user = {
   created_at: now,
   updated_at: now,
 };
-const agents = ["fast_agent", "search_agent", "team_agent"].map((id, i) => ({
+const agents = ["fast", "search", "team"].map((id, i) => ({
   id,
   name: ["通用助手", "研究助手", "团队助手"][i],
   description: "完成研究、分析和内容交付任务",
@@ -138,7 +142,7 @@ const tasks = rows((i, name) => ({
   id: `task-${i}`,
   name,
   description: "收集近期进展并生成项目周报",
-  agent_id: "fast_agent",
+  agent_id: "fast",
   trigger_type: "cron",
   trigger_config: { cron: "0 9 * * 1", expression: "0 9 * * 1" },
   timezone: "Asia/Shanghai",
@@ -282,8 +286,8 @@ const settings = {
     frontend: [
       {
         key: "DEFAULT_AGENT",
-        value: "fast_agent",
-        default_value: "fast_agent",
+        value: "fast",
+        default_value: "fast",
         type: "string",
         category: "frontend",
         subcategory: "display",
@@ -708,7 +712,11 @@ const settings = {
   },
 };
 
-function response(url: URL, scenario: string): unknown {
+function response(
+  url: URL,
+  scenario: string,
+  chatState = "completed",
+): unknown {
   const path = url.pathname.replace(/\/$/, "");
   const q = url.searchParams;
   const pageSize = Number(q.get("limit") ?? q.get("page_size") ?? 20);
@@ -879,21 +887,19 @@ function response(url: URL, scenario: string): unknown {
         failed_requests: i % 3,
         tool_calls: 32 + i * 5,
       })),
-      top_agents: ["fast_agent", "search_agent", "team_agent"].map(
-        (name, i) => ({
-          id: name,
-          name,
-          requests: 40 - i * 9,
-          tokens: 68000 - i * 12000,
-          cost_usd: 2.8 - i * 0.6,
-          duration: 850 - i * 150,
-          input_tokens: 45000,
-          cache_creation_tokens: 3200,
-          cache_read_tokens: 16000,
-          cache_read_share: 0.35,
-          zero_cache_requests: 4,
-        }),
-      ),
+      top_agents: ["fast", "search", "team"].map((name, i) => ({
+        id: name,
+        name,
+        requests: 40 - i * 9,
+        tokens: 68000 - i * 12000,
+        cost_usd: 2.8 - i * 0.6,
+        duration: 850 - i * 150,
+        input_tokens: 45000,
+        cache_creation_tokens: 3200,
+        cache_read_tokens: 16000,
+        cache_read_share: 0.35,
+        zero_cache_requests: 4,
+      })),
       top_teams: ["研究分析团队", "内容工作室", "产品研发组"].map(
         (name, i) => ({
           id: name,
@@ -981,7 +987,7 @@ function response(url: URL, scenario: string): unknown {
       rows((i) => ({
         id: `run-${i}`,
         task_id: "task-0",
-        agent_id: "fast_agent",
+        agent_id: "fast",
         trigger_type: "cron",
         status: i % 4 ? "success" : "failed",
         session_id: `session-${i}`,
@@ -999,7 +1005,7 @@ function response(url: URL, scenario: string): unknown {
       rows((i, name) => ({
         id: `session-${i}`,
         name,
-        agent_id: "fast_agent",
+        agent_id: "fast",
         is_active: true,
         metadata: {},
         unread_count: i % 3,
@@ -1008,7 +1014,7 @@ function response(url: URL, scenario: string): unknown {
   if (path.startsWith("/api/scheduled-tasks/"))
     return tasks.find((t) => path.endsWith(t.id)) ?? tasks[0];
   if (path === "/api/agents")
-    return { agents, count: agents.length, default_agent: "fast_agent" };
+    return { agents, count: agents.length, default_agent: "fast" };
   if (path.startsWith("/api/agent/config/roles/"))
     return {
       allowed_agents: agents.map((a) => a.id),
@@ -1030,13 +1036,30 @@ function response(url: URL, scenario: string): unknown {
     const groups = all(files).map((file, i) => ({
       session_id: file.session_id,
       session_name: file.session_name,
-      file_count: 3,
+      file_count: i === 0 ? 4 : 3,
       files: [
         file,
+        ...(i === 0
+          ? [
+              {
+                ...file,
+                id: "preview-drawing",
+                file_name: "研究流程.excalidraw",
+                file_key: "preview/workflow.excalidraw",
+                original_path: "/workspace/研究流程.excalidraw",
+                url: "/preview-document.excalidraw",
+                mime_type: "application/json",
+                card_preview: null,
+              },
+            ]
+          : []),
         {
           ...file,
           id: `${file.id}-code`,
           file_name: `数据清洗-${i + 1}.py`,
+          file_key: `preview/${i}.py`,
+          original_path: `/workspace/数据清洗-${i + 1}.py`,
+          url: "/preview-document.py",
           file_type: "code",
           mime_type: "text/x-python",
           card_preview: {
@@ -1058,6 +1081,10 @@ function response(url: URL, scenario: string): unknown {
           ...file,
           id: `${file.id}-sheet`,
           file_name: `项目指标-${i + 1}.csv`,
+          file_key: `preview/${i}.csv`,
+          original_path: `/workspace/项目指标-${i + 1}.csv`,
+          url: "/preview-document.csv",
+          mime_type: "text/csv",
           card_preview: {
             kind: "text",
             title: "项目指标",
@@ -1086,7 +1113,39 @@ function response(url: URL, scenario: string): unknown {
         requires_webhook: false,
         requires_websocket: true,
         setup_guide: ["填写渠道配置并测试连接"],
-        config_fields: [],
+        config_fields:
+          channel_type === "feishu"
+            ? []
+            : [
+                {
+                  name: "workspace",
+                  type: "text",
+                  title: "Workspace",
+                  required: true,
+                },
+                {
+                  name: "token",
+                  type: "password",
+                  title: "Bot token",
+                  sensitive: true,
+                },
+                {
+                  name: "reply_mode",
+                  type: "select",
+                  title: "Reply mode",
+                  default: "thread",
+                  options: [
+                    { value: "thread", label: "Thread" },
+                    { value: "channel", label: "Channel" },
+                  ],
+                },
+                {
+                  name: "stream",
+                  type: "toggle",
+                  title: "Streaming",
+                  default: true,
+                },
+              ],
       })),
     };
   if (path.startsWith("/api/channels/") && path.endsWith("/status"))
@@ -1101,7 +1160,7 @@ function response(url: URL, scenario: string): unknown {
         enabled: i % 4 !== 0,
         config: {},
         capabilities: ["send_message"],
-        agent_id: "fast_agent",
+        agent_id: "fast",
       })).slice(0, 5),
     };
   if (path.startsWith("/api/channels/"))
@@ -1111,21 +1170,22 @@ function response(url: URL, scenario: string): unknown {
       name: "项目协作渠道",
       user_id: user.id,
       enabled: true,
-      config: {},
+      config: { app_id: "cli_preview_only", workspace: "Preview workspace" },
       capabilities: ["send_message"],
-      agent_id: "fast_agent",
+      agent_id: "fast",
     };
   if (path === "/api/channels") return { channels: [] };
   if (path === "/api/share/public/preview-report") {
     const history = response(
       new URL("http://localhost/api/sessions/preview-report/events"),
       scenario,
+      "completed",
     ) as { events: object[] };
     return {
       session: {
         id: "preview-report",
         name: "产品研究与交付计划",
-        agent_id: "fast_agent",
+        agent_id: "fast",
         agent_name: "通用助手",
         created_at: now,
       },
@@ -1139,15 +1199,27 @@ function response(url: URL, scenario: string): unknown {
     return {
       id: "preview-report",
       user_id: user.id,
-      agent_id: "fast_agent",
+      agent_id: "fast",
       name: "产品研究与交付计划",
       is_active: true,
       created_at: now,
       updated_at: now,
-      metadata: {},
+      metadata: { current_run_id: "preview-run" },
     };
-  if (path === "/api/sessions/preview-report/events")
+  if (path === "/api/chat/sessions/preview-report/status")
     return {
+      session_id: "preview-report",
+      run_id: "preview-run",
+      status: ["working", "streaming"].includes(chatState)
+        ? "running"
+        : chatState === "error"
+          ? "error"
+          : "completed",
+    };
+  if (path === "/api/sessions/preview-report/events") {
+    const active = ["working", "streaming"].includes(chatState);
+    return {
+      stream_run_id: active ? "preview-run" : null,
       events: [
         {
           id: "preview-user-message",
@@ -1160,26 +1232,53 @@ function response(url: URL, scenario: string): unknown {
             attachments: [],
           },
         },
-        {
-          id: "preview-answer",
-          event_type: "message:chunk",
-          run_id: "preview-run",
-          timestamp: now,
-          data: {
-            content:
-              "## 研究发现与交付计划\n\n已将需求归纳为三个重点：更清晰的工作入口、可追踪的执行过程，以及便于团队复用的成果。\n\n| 阶段 | 交付内容 | 验收方式 |\n| --- | --- | --- |\n| 需求确认 | 用户场景与优先级 | 团队评审 |\n| 原型验证 | 核心流程与交互原型 | 用户走查 |\n| 交付上线 | 功能实现与使用指南 | 多端验证 |\n\n### 下一步\n\n1. 确认目标用户和首要任务。\n2. 用原型验证关键路径。\n3. 将反馈整理为可执行的迭代清单。\n\n> 此会话为产品界面展示使用的演示数据。",
-          },
-        },
+        ...(!active
+          ? [
+              {
+                id: "preview-thinking",
+                event_type: "thinking",
+                run_id: "preview-run",
+                timestamp: now,
+                data: {
+                  content:
+                    "正在整理研究资料、核对证据，并按优先级组织交付计划。",
+                },
+              },
+            ]
+          : []),
+        ...(!active && chatState === "completed"
+          ? [
+              {
+                id: "preview-answer",
+                event_type: "message:chunk",
+                run_id: "preview-run",
+                timestamp: now,
+                data: {
+                  content:
+                    '## 研究发现与交付计划\n\n已将需求归纳为三个重点：更清晰的工作入口、可追踪的执行过程，以及便于团队复用的成果。\n\n| 阶段 | 交付内容 | 验收方式 |\n| --- | --- | --- |\n| 需求确认 | 用户场景与优先级 | 团队评审 |\n| 原型验证 | 核心流程与交互原型 | 用户走查 |\n| 交付上线 | 功能实现与使用指南 | 多端验证 |\n\n### 下一步\n\n1. 确认目标用户和首要任务。\n2. 用原型验证关键路径。\n3. 将反馈整理为可执行的迭代清单。\n\n> 此会话为产品界面展示使用的演示数据。\n\n```python\nreport = summarize(source="quarterly_business_metrics.csv", columns=["month", "delivery_count", "completion_rate", "owner"])\n```',
+                },
+              },
+            ]
+          : []),
         {
           id: "preview-done",
-          event_type: "done",
+          event_type:
+            chatState === "error"
+              ? "error"
+              : chatState === "cancelled"
+                ? "user:cancel"
+                : "done",
           run_id: "preview-run",
           timestamp: now,
-          data: { status: "completed" },
+          data:
+            chatState === "error"
+              ? { error: "请求超时", type: "task_error", status: "error" }
+              : { status: "completed" },
         },
-      ],
+      ].filter((event) => !active || event.id === "preview-user-message"),
       has_more_traces: false,
     };
+  }
   if (path === "/api/sessions/preview-report/runs") {
     const runs = all(
       rows((i, name) => ({
@@ -1198,7 +1297,22 @@ function response(url: URL, scenario: string): unknown {
     path.startsWith("/api/share/session/") ||
     path.startsWith("/api/share/project/")
   )
-    return [];
+    return [
+      {
+        id: "preview-share",
+        share_id: "preview-report",
+        session_id: "preview-report",
+        project_id: "preview-project",
+        share_scope: path.startsWith("/api/share/project/")
+          ? "project"
+          : "session",
+        share_type: "full",
+        visibility: "public",
+        name: "产品研究与交付计划",
+        created_at: now,
+        updated_at: now,
+      },
+    ];
   if (path === "/api/sessions")
     return paginate(
       rows((i, name) => ({
@@ -1206,7 +1320,7 @@ function response(url: URL, scenario: string): unknown {
         user_id: user.id,
         name,
         project_id: "preview-project",
-        agent_id: "fast_agent",
+        agent_id: "fast",
         is_active: true,
         metadata: {},
         unread_count: 0,
@@ -1287,6 +1401,12 @@ function response(url: URL, scenario: string): unknown {
 const token = `preview.${Buffer.from(
   JSON.stringify({ sub: user.id, exp: 4102444800 }),
 ).toString("base64url")}.fixture`;
+const failedDocumentRequests = new Set<string>();
+const failedDrawingRequests = new Map<string, number>();
+const completedPreviewStreams = new Set<string>();
+const failedWelcomeRequests = new Set<string>();
+const failedChannelRequests = new Set<string>();
+const failedSkillPreviews = new Set<string>();
 const server = await createServer({
   root: process.cwd(),
   cacheDir: "node_modules/.vite-panel-preview",
@@ -1309,14 +1429,132 @@ const server = await createServer({
           "<head>",
           `<head><script>const params=new URLSearchParams(location.search);if(params.has("guest")){localStorage.removeItem("access_token");localStorage.removeItem("refresh_token");}else{localStorage.setItem("access_token",${JSON.stringify(
             token,
-          )});}localStorage.setItem("lambchat-theme",params.get("theme")||"light");</script>`,
+          )});}localStorage.setItem("lambchat-theme",params.get("theme")||"light");if(params.get("failure")==="clipboard"&&navigator.clipboard){const write=navigator.clipboard.writeText.bind(navigator.clipboard);let failed=false;navigator.clipboard.writeText=(text)=>{if(!failed){failed=true;return Promise.reject(new DOMException("Preview clipboard unavailable","NotAllowedError"));}return write(text);};}</script>`,
         );
       },
       configureServer(vite) {
         vite.middlewares.use((req, res, next) => {
           const url = new URL(req.url ?? "/", "http://127.0.0.1:3002");
+          const previewParams = new URL(
+            req.headers.referer ?? "http://localhost",
+          ).searchParams;
+          if (
+            url.pathname === "/preview-missing-image.webp" ||
+            url.pathname === "/preview-missing-video.webm"
+          ) {
+            res.statusCode = 404;
+            res.end();
+            return;
+          }
+          if (url.pathname === "/preview-video.webm") {
+            res.statusCode = previewVideo ? 200 : 404;
+            res.setHeader("Content-Type", "video/webm");
+            res.end(previewVideo);
+            return;
+          }
+          if (
+            url.pathname === "/preview-document.excalidraw" &&
+            previewParams.get("fixture") === "error" &&
+            previewParams.get("failure") === "excalidraw"
+          ) {
+            const key = `${req.headers.referer}:${url.pathname}`;
+            const attempts = failedDrawingRequests.get(key) ?? 0;
+            if (attempts < 2) {
+              failedDrawingRequests.set(key, attempts + 1);
+              res.statusCode = 503;
+              res.end("Preview drawing temporarily unavailable");
+              return;
+            }
+          }
+          if (
+            url.pathname.startsWith("/preview-document.") &&
+            previewParams.get("fixture") === "error" &&
+            previewParams.get("failure") === "document"
+          ) {
+            const key = `${req.headers.referer}:${url.pathname}`;
+            if (!failedDocumentRequests.has(key)) {
+              failedDocumentRequests.add(key);
+              res.statusCode = 503;
+              res.end("Preview document temporarily unavailable");
+              return;
+            }
+          }
           if (url.pathname === "/preview-document.md") {
-            res.end("# 项目交付报告\n\n研究结果与后续计划。");
+            res.end(
+              '# 项目交付报告\n\n研究结果与后续计划。保持舒适的阅读宽度与清楚的信息层级。 使用 `delivery_count` 核对交付次数。\n\n## 验证清单\n\n- 手机工具栏与长文件名\n- 代码与表格横向滚动\n- 深浅色与护眼主题\n\n```mermaid\ngraph LR\n  A[研究] --> B[设计] --> C[验证]\n```\n\n| 项目 | 负责人 | 阶段 | 交付成果 | 验证方法 | 下一步 |\n| --- | --- | --- | --- | --- | --- |\n| 响应式界面 | 产品设计团队 | 验收中 | 跨端界面与交互规范 | 手机、平板、桌面逐页走查 | 核对触屏和键盘焦点 |\n\n```python\nreport = summarize(source="quarterly_business_metrics.csv", columns=["month", "delivery_count", "completion_rate", "owner"])\n```\n',
+            );
+            return;
+          }
+          if (url.pathname === "/preview-document.excalidraw") {
+            res.setHeader("Content-Type", "application/json");
+            res.end(
+              JSON.stringify({
+                type: "excalidraw",
+                version: 2,
+                appState: { viewBackgroundColor: "#ffffff" },
+                elements: ["研究", "设计", "验证"].flatMap((text, i) => {
+                  const common = {
+                    x: i * 180,
+                    y: 0,
+                    width: 140,
+                    height: 80,
+                    angle: 0,
+                    strokeColor: "#1e1e1e",
+                    backgroundColor: "#f5f5f4",
+                    fillStyle: "solid",
+                    strokeWidth: 1,
+                    strokeStyle: "solid",
+                    roughness: 0,
+                    opacity: 100,
+                    groupIds: [],
+                    frameId: null,
+                    roundness: null,
+                    seed: i + 1,
+                    version: 1,
+                    versionNonce: i + 1,
+                    isDeleted: false,
+                    boundElements: null,
+                    updated: 1,
+                    link: null,
+                    locked: false,
+                  };
+                  return [
+                    { ...common, id: `box-${i}`, type: "rectangle" },
+                    {
+                      ...common,
+                      id: `label-${i}`,
+                      type: "text",
+                      x: i * 180 + 44,
+                      y: 28,
+                      width: 52,
+                      height: 24,
+                      text,
+                      originalText: text,
+                      fontSize: 20,
+                      fontFamily: 2,
+                      textAlign: "left",
+                      verticalAlign: "top",
+                      containerId: null,
+                      autoResize: true,
+                      lineHeight: 1.2,
+                    },
+                  ];
+                }),
+                files: {},
+              }),
+            );
+            return;
+          }
+          if (url.pathname === "/preview-document.py") {
+            res.end(
+              'import pandas as pd\n\ndef summarize(data):\n    clean = data.dropna()\n    return clean.groupby("month").sum()\n\nreport = summarize(pd.read_csv("quarterly_business_metrics_with_delivery_counts_and_completion_rates.csv"))\n',
+            );
+            return;
+          }
+          if (url.pathname === "/preview-document.csv") {
+            res.end(
+              "月份,交付数量,完成率,负责人,交付成果,验证方法,下一步\n六月,128,92%,产品设计团队,跨端界面与交互规范,手机平板桌面逐页走查,核对触屏和键盘焦点\n七月,156,96%,前端开发团队,文档阅读和文件预览,长文件名与表格验证,完成深浅色回归\n八月,182,98%,质量验证团队,异常恢复与发布验收,自动化检查和人工复核,整理验证结果\n",
+            );
             return;
           }
           if (
@@ -1324,15 +1562,348 @@ const server = await createServer({
             !url.pathname.startsWith("/ws")
           )
             return next();
-          const scenario =
-            new URL(req.headers.referer ?? "http://localhost").searchParams.get(
-              "fixture",
-            ) ?? "populated";
-          const data = response(url, scenario);
+          const scenario = previewParams.get("fixture") ?? "populated";
+          const failureTarget = previewParams.get("failure");
+          const streamKey = req.headers.referer ?? "";
+          if (
+            previewParams.get("imports") === "1" &&
+            req.method === "POST" &&
+            ["/api/github/preview", "/api/skills/upload/preview"].includes(
+              url.pathname,
+            )
+          ) {
+            // Read-only canned previews: consume the request, never fetch or install its resources.
+            req.resume();
+            const key = `${streamKey}:${url.pathname}`;
+            const failed =
+              failureTarget === "skill-preview" &&
+              !failedSkillPreviews.has(key);
+            if (failed) failedSkillPreviews.add(key);
+            const skills =
+              scenario === "empty"
+                ? []
+                : Array.from({ length: 24 }, (_, i) => ({
+                    name:
+                      i === 0
+                        ? "跨部门研究与交付验证工作流-长名称样例"
+                  : `${labels[i % labels.length]}-${i + 1}`,
+                    path: `skills/workflow-${i + 1}`,
+                    description:
+                      "整理研究证据、团队协作步骤与交付验证清单，保持可读的长说明和明确的操作。",
+                    file_count: i + 2,
+                    files: ["SKILL.md", "guide.md"],
+                    already_exists:
+                      url.pathname.includes("/upload/") && i % 3 === 0,
+                  }));
+            res.statusCode = failed ? 503 : 200;
+            res.setHeader("Content-Type", "application/json");
+            res.setHeader("Cache-Control", "no-store");
+            const send = () =>
+              res.end(
+                JSON.stringify(
+                  failed
+                    ? {
+                        detail: {
+                          code: "preview_only",
+                          message: "Skill preview unavailable",
+                        },
+                      }
+                    : {
+                        repo_url: "https://github.com/example/preview-skills",
+                        branch: "main",
+                        skills,
+                        skill_count: skills.length,
+                      },
+                ),
+              );
+            if (scenario === "loading") setTimeout(send, 8000);
+            else send();
+            return;
+          }
+          const chatState = completedPreviewStreams.has(streamKey)
+            ? "completed"
+            : (previewParams.get("chat-state") ?? "completed");
+          if (
+            req.method === "GET" &&
+            url.pathname === "/api/chat/sessions/preview-report/stream" &&
+            ["working", "streaming"].includes(chatState)
+          ) {
+            res.setHeader("Content-Type", "text/event-stream");
+            res.setHeader("Cache-Control", "no-cache");
+            res.flushHeaders();
+            const sendEvent = (event: string, data: object, id: string) =>
+              res.write(
+                `id: ${id}\nevent: ${event}\ndata: ${JSON.stringify({ ...data, run_id: "preview-run", _timestamp: new Date().toISOString() })}\n\n`,
+              );
+            const ping = setInterval(
+              () => sendEvent("ping", {}, "preview-ping"),
+              2000,
+            );
+            const timers: ReturnType<typeof setTimeout>[] = [];
+            if (chatState === "streaming") {
+              [
+                "## 研究发现与交付计划\n\n",
+                "已将需求归纳为三个重点：更清晰的工作入口、可追踪的执行过程，以及便于团队复用的成果。",
+                "\n\n### 下一步\n\n1. 确认目标用户和首要任务。\n2. 用原型验证关键路径。\n3. 将反馈整理为可执行的迭代清单。",
+              ].forEach((content, index) => {
+                timers.push(
+                  setTimeout(
+                    () =>
+                      sendEvent(
+                        "message:chunk",
+                        { content },
+                        `preview-stream-${index}`,
+                      ),
+                    6000 * (index + 1),
+                  ),
+                );
+              });
+              timers.push(
+                setTimeout(() => {
+                  completedPreviewStreams.add(streamKey);
+                  sendEvent(
+                    "done",
+                    { status: "completed" },
+                    "preview-stream-done",
+                  );
+                  res.end();
+                }, 24000),
+              );
+            }
+            res.on("close", () => {
+              clearInterval(ping);
+              timers.forEach(clearTimeout);
+            });
+            return;
+          }
+          const data =
+            failureTarget === "channel-config" &&
+            url.pathname === "/api/channels/feishu"
+              ? { channels: [] }
+              : failureTarget === "welcome-teams" &&
+                  url.pathname === "/api/agents"
+                ? { agents, count: agents.length, default_agent: "team" }
+                : response(url, scenario, chatState);
+          if (
+            url.pathname === "/api/sessions/preview-report/events" &&
+            previewParams.has("tools")
+          ) {
+            const history = data as { events: object[] };
+            history.events.splice(
+              2,
+              0,
+              {
+                id: "preview-tool-start",
+                event_type: "tool:start",
+                run_id: "preview-run",
+                timestamp: now,
+                data: {
+                  tool: "preview_analyze",
+                  tool_call_id: "preview-tool",
+                  args: {
+                    query: "Quarterly delivery quality and accessibility",
+                    options: {
+                      fields: ["month", "owner", "completion_rate"],
+                      include_archived: false,
+                    },
+                  },
+                },
+              },
+              {
+                id: "preview-tool-result",
+                event_type: "tool:result",
+                run_id: "preview-run",
+                timestamp: now,
+                data: {
+                  tool: "preview_analyze",
+                  tool_call_id: "preview-tool",
+                  result:
+                    "Completed analysis. Keep touch controls distinct, preserve readable content spacing, and report errors truthfully.",
+                  success: true,
+                },
+              },
+            );
+          }
+          if (
+            url.pathname === "/api/sessions/preview-report/events" &&
+            (previewParams.has("images") || previewParams.has("videos"))
+          ) {
+            const history = data as { events: object[] };
+            const media = [
+              ...(previewParams.has("images")
+                ? [
+                    [
+                      "桌面工作区.webp",
+                      "/images/best-practice/chat-home.webp",
+                      "image",
+                    ],
+                    [
+                      "暂不可用的图片.webp",
+                      "/preview-missing-image.webp",
+                      "image",
+                    ],
+                    [
+                      "移动端工作区.webp",
+                      "/images/best-practice/mobile-view.webp",
+                      "image",
+                    ],
+                  ]
+                : []),
+              ...(previewParams.has("videos")
+                ? [
+                    [
+                      "暂不可用的视频.webm",
+                      "/preview-missing-video.webm",
+                      "video",
+                    ],
+                    ...(previewVideo
+                      ? [["视频预览.webm", "/preview-video.webm", "video"]]
+                      : []),
+                  ]
+                : []),
+            ];
+            history.events.splice(
+              history.events.length - 1,
+              0,
+              ...media.flatMap(([name, mediaUrl, type], index) => [
+                {
+                  id: `preview-image-start-${index}`,
+                  event_type: "tool:start",
+                  run_id: "preview-run",
+                  timestamp: now,
+                  data: {
+                    tool: "reveal_file",
+                    tool_call_id: `preview-image-${index}`,
+                    args: { path: name },
+                  },
+                },
+                {
+                  id: `preview-image-result-${index}`,
+                  event_type: "tool:result",
+                  run_id: "preview-run",
+                  timestamp: now,
+                  data: {
+                    tool: "reveal_file",
+                    tool_call_id: `preview-image-${index}`,
+                    result: {
+                      key: `preview-image-${index}`,
+                      url: mediaUrl,
+                      name,
+                      type,
+                    },
+                    success: true,
+                  },
+                },
+              ]),
+            );
+          }
+          if (
+            url.pathname === "/api/sessions/preview-report/events" &&
+            previewParams.has("artifacts")
+          ) {
+            const history = data as { events: object[] };
+            const files = [
+              ["交付计划与下一阶段验证清单.md", "/preview-document.md", 731],
+              ["季度交付数据.csv", "/preview-document.csv", 421],
+            ];
+            const artifacts = files.map(([name, signedUrl, fileSize]) => ({
+              kind: "file",
+              id: `preview-artifact:${name}`,
+              name,
+              path: `/交付资料/${name}`,
+              fileSize,
+              preview: {
+                kind: "file",
+                previewKey: name,
+                filePath: name,
+                signedUrl,
+              },
+            }));
+            history.events.splice(
+              2,
+              0,
+              ...[
+                ...artifacts,
+                {
+                  kind: "project",
+                  id: "preview-artifact:project",
+                  name: "研究资料与交付计划",
+                  mode: "folder",
+                  fileCount: 2,
+                  template: "static",
+                  preview: {
+                    kind: "project",
+                    previewKey: "preview-artifact:project",
+                    project: {
+                      version: 1,
+                      name: "研究资料与交付计划",
+                      mode: "folder",
+                      path: "/研究资料与交付计划",
+                      template: "static",
+                      fileCount: 2,
+                      files: {
+                        "/交付资料/交付计划与下一阶段验证清单.md":
+                          "# 交付计划\n\n确认需求、验证原型、记录验收结果。",
+                        "/交付资料/下一阶段数据.csv":
+                          "阶段,完成率\n需求确认,100%\n原型验证,85%",
+                      },
+                    },
+                  },
+                },
+              ].map((artifact, index) => ({
+                id: `preview-artifact-${index}`,
+                event_type: "artifact:result",
+                run_id: "preview-run",
+                timestamp: now,
+                data: { artifact, success: true },
+              })),
+            );
+          }
           const isRead = req.method === "GET";
-          const fault =
+          const channelConfigFailure =
+            isRead &&
+            ((failureTarget === "model-role" &&
+              /^\/api\/agent\/config\/roles\/[^/]+\/models$/.test(
+                url.pathname,
+              )) ||
+              (failureTarget === "agent-role" &&
+                /^\/api\/agent\/config\/roles\/[^/]+$/.test(url.pathname)) ||
+              (failureTarget === "channel-config" &&
+                /^\/api\/channels\/[^/]+\/instance-[^/]+$/.test(
+                  url.pathname,
+                )) ||
+              (failureTarget === "channel-list" &&
+                /^\/api\/channels\/(feishu|slack|telegram)$/.test(
+                  url.pathname,
+                )) ||
+              (failureTarget === "channel-status" &&
+                /^\/api\/channels\/[^/]+\/instance-[^/]+\/status$/.test(
+                  url.pathname,
+                )));
+          const channelConfigKey = `${streamKey}:${url.pathname}`;
+          const firstChannelConfigFailure =
+            channelConfigFailure &&
+            !failedChannelRequests.has(channelConfigKey);
+          if (firstChannelConfigFailure)
+            failedChannelRequests.add(channelConfigKey);
+          const welcomeFailure =
             scenario === "error" &&
-            !/auth|settings|agent\/models/.test(url.pathname);
+            isRead &&
+            ((failureTarget === "welcome-personas" &&
+              url.pathname.replace(/\/$/, "") === "/api/persona-presets") ||
+              (failureTarget === "welcome-teams" &&
+                url.pathname.replace(/\/$/, "") === "/api/teams"));
+          const welcomeKey = `${streamKey}:${url.pathname}`;
+          const firstWelcomeFailure =
+            welcomeFailure && !failedWelcomeRequests.has(welcomeKey);
+          if (firstWelcomeFailure) failedWelcomeRequests.add(welcomeKey);
+          const fault =
+            firstWelcomeFailure ||
+            firstChannelConfigFailure ||
+            (scenario === "error" &&
+              (!failureTarget ||
+                url.pathname.replace(/\/$/, "") === `/api/${failureTarget}`) &&
+              !/auth|settings|agent\/models/.test(url.pathname));
           res.statusCode = !isRead
             ? 405
             : fault
@@ -1351,7 +1922,9 @@ const server = await createServer({
                       detail: {
                         code: "preview_only",
                         message: !isRead
-                          ? "Preview is read-only"
+                          ? failureTarget === "editor-long-error"
+                            ? `Preview is read-only. ${"The configuration could not be saved; your draft is still available. ".repeat(12)}https://preview.example.test/${"configuration".repeat(20)}`
+                            : "Preview is read-only"
                           : "Preview fixture unavailable",
                       },
                     },

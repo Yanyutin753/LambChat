@@ -118,6 +118,8 @@ export function ChatView({
   selectedPersonaSnapshot,
   personaSkillsControlled,
   personaPresetsLoading,
+  personaPresetsError,
+  onRetryPersonaPresets,
   personaPresetsMutating,
   onUsePersonaPreset,
   onTogglePersonaPreference,
@@ -757,6 +759,8 @@ export function ChatView({
     selectedPersonaName,
     personaSkillsControlled,
     personaPresetsLoading,
+    personaPresetsError,
+    onRetryPersonaPresets,
     personaPresetsMutating,
     onUsePersonaPreset,
     onTogglePersonaPreference,
@@ -826,6 +830,8 @@ export function ChatView({
                 selectedPersonaPresetId={selectedPersonaPresetId}
                 selectedPersonaSnapshot={selectedPersonaSnapshot}
                 personaPresetsLoading={personaPresetsLoading}
+                personaPresetsError={personaPresetsError}
+                onRetryPersonaPresets={onRetryPersonaPresets}
                 personaPresetsMutating={personaPresetsMutating}
                 currentAgent={currentAgent}
                 selectedTeamId={selectedTeamId}

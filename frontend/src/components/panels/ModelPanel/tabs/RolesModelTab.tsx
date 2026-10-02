@@ -1,14 +1,15 @@
 import { Cpu } from "lucide-react";
 import { Pagination } from "../../../common/Pagination";
 import { useClientPagination } from "../../../../hooks/useClientPagination";
-import { useState, useEffect, useMemo } from "react";
-import { Save, List, ChevronDown } from "lucide-react";
+import { useState, useEffect, useRef, useId } from "react";
+import { Save, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ModelPanelSkeleton } from "../../../skeletons";
 import { RoleSelector } from "../../AgentPanel/shared/RoleSelector";
 import { ModelIconImg } from "../../../agent/modelIcon.tsx";
 import { Checkbox } from "../../../common/Checkbox";
 import { Button, IconButton } from "../../../common";
+import { ConfigPanelErrorCallout } from "../../ConfigPanelErrorCallout";
 import { EmptyState } from "../../../common/EmptyState";
 import type { ModelOption } from "../../../../services/api/model";
 import type { Role } from "../../../../types";
@@ -36,33 +37,24 @@ export function RolesModelTab({
     total: availableModels.length,
     resetKey: selectedRole,
   });
-  const [localRoleModels, setLocalRoleModels] =
-    useState<Record<string, string[]>>(roleModelsMap);
+  const [localRoleModels, setLocalRoleModels] = useState<
+    Record<string, string[]>
+  >({});
   const [isSaving, setIsSaving] = useState(false);
   const [expandedModel, setExpandedModel] = useState<string | null>(null);
 
   const toggleExpand = (id: string) =>
     setExpandedModel((prev) => (prev === id ? null : id));
 
-  useEffect(() => {
-    setLocalRoleModels(roleModelsMap);
-  }, [roleModelsMap]);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const descriptionId = useId();
 
   useEffect(() => {
-    if (selectedRole && !roles.find((r) => r.id === selectedRole)) {
+    if (!roles.find((r) => r.id === selectedRole)) {
       setSelectedRole(roles.length > 0 ? roles[0].id : null);
     }
   }, [roles, selectedRole]);
-
-  const hasChanges = useMemo(() => {
-    if (!selectedRole) return false;
-    const local = localRoleModels[selectedRole];
-    const original = roleModelsMap[selectedRole];
-    if (!local && !original) return false;
-    if (!local || !original) return true;
-    if (local.length !== original.length) return true;
-    return local.some((v, i) => v !== original[i]);
-  }, [selectedRole, localRoleModels, roleModelsMap]);
 
   if (isLoading) {
     return <ModelPanelSkeleton />;
@@ -79,13 +71,13 @@ export function RolesModelTab({
   }
 
   const currentRoleModels = selectedRole
-    ? localRoleModels[selectedRole] || []
+    ? (localRoleModels[selectedRole] ?? roleModelsMap[selectedRole] ?? [])
     : [];
 
   const toggleModel = (modelId: string) => {
-    if (!selectedRole) return;
+    if (!selectedRole || isSaving) return;
     setLocalRoleModels((prev) => {
-      const current = prev[selectedRole] || [];
+      const current = prev[selectedRole] ?? roleModelsMap[selectedRole] ?? [];
       if (current.includes(modelId)) {
         return {
           ...prev,
@@ -97,7 +89,7 @@ export function RolesModelTab({
   };
 
   const handleSelectAll = () => {
-    if (!selectedRole) return;
+    if (!selectedRole || isSaving) return;
     setLocalRoleModels((prev) => ({
       ...prev,
       [selectedRole]: availableModels.map((m) => m.id),
@@ -105,7 +97,7 @@ export function RolesModelTab({
   };
 
   const handleClearAll = () => {
-    if (!selectedRole) return;
+    if (!selectedRole || isSaving) return;
     setLocalRoleModels((prev) => ({
       ...prev,
       [selectedRole]: [],
@@ -113,12 +105,19 @@ export function RolesModelTab({
   };
 
   const handleSave = async () => {
-    if (!selectedRole) return;
+    if (!selectedRole || isSaving) return;
+    rootRef.current?.focus({ preventScroll: true });
+    setSaveError(null);
     setIsSaving(true);
     try {
-      await onUpdate(selectedRole, localRoleModels[selectedRole] || []);
+      await onUpdate(selectedRole, currentRoleModels);
+      setLocalRoleModels((prev) => {
+        const next = { ...prev };
+        delete next[selectedRole];
+        return next;
+      });
     } catch (err) {
-      console.error("Failed to save role models:", err);
+      setSaveError((err as Error).message || t("agentConfig.saveFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -126,8 +125,24 @@ export function RolesModelTab({
 
   const selectedRoleData = roles.find((r) => r.id === selectedRole);
 
+  const hasChanges = selectedRole
+    ? currentRoleModels.length !== (roleModelsMap[selectedRole] ?? []).length ||
+      currentRoleModels.some(
+        (id) => !(roleModelsMap[selectedRole] ?? []).includes(id),
+      )
+    : false;
+  if (roles.length === 0)
+    return (
+      <EmptyState illustration="panel-models" title={t("roles.noRoles")} />
+    );
+
   return (
-    <div className="space-y-4 animate-glass-enter">
+    <div
+      ref={rootRef}
+      tabIndex={-1}
+      aria-busy={isSaving}
+      className="panel-stack focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+    >
       <p className="hidden px-1 text-14 leading-relaxed text-stone-500 sm:block dark:text-stone-400">
         {t("agentConfig.modelsDescription")}
       </p>
@@ -135,46 +150,48 @@ export function RolesModelTab({
       <RoleSelector
         roles={roles}
         selectedRoleId={selectedRole}
-        onSelectRole={setSelectedRole}
+        onSelectRole={(id) => {
+          setSelectedRole(id);
+          setSaveError(null);
+        }}
+        disabled={isSaving}
       />
 
       {selectedRole && (
         <>
           <div className="agent-config-list overflow-hidden rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] divide-y divide-[var(--glass-border)]">
             {/* Header row */}
-            <div className="flex items-center justify-between gap-3 font-serif bg-[var(--glass-bg-subtle)] px-3.5 py-2.5 sm:px-4">
-              <h4 className="min-w-0 truncate text-12 font-medium uppercase tracking-wider text-stone-500 dark:text-stone-400">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-serif bg-[var(--glass-bg-subtle)] px-3.5 py-2.5 sm:px-4">
+              <h4 className="min-w-0 basis-full text-12 font-medium leading-relaxed text-theme-text-secondary [overflow-wrap:anywhere] sm:flex-1 sm:basis-auto">
                 {t("agentConfig.selectModelsForRole", {
                   roleName: selectedRoleData?.name,
                 })}
               </h4>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={handleSelectAll}
-                  className="text-12 px-2 py-1 rounded-md text-stone-500 hover:text-stone-700 hover:bg-white/50 dark:text-stone-400 dark:hover:text-stone-200 dark:hover:bg-stone-700/40 transition-colors duration-150"
-                >
-                  {t("agentConfig.selectAll")}
-                </button>
-                <span className="text-stone-300 dark:text-stone-600">|</span>
-                <button
-                  onClick={handleClearAll}
-                  className="text-12 px-2 py-1 rounded-md text-stone-500 hover:text-stone-700 hover:bg-white/50 dark:text-stone-400 dark:hover:text-stone-200 dark:hover:bg-stone-700/40 transition-colors duration-150"
-                >
-                  {t("agentConfig.clearAll")}
-                </button>
-              </div>
-            </div>
-
-            {/* Status pill */}
-            <div className="px-3.5 py-2 sm:px-4">
-              <div className="glass-pill glass-pill--info">
-                <List size={14} />
-                <span>
+              <div className="flex flex-wrap items-center gap-1 text-12 text-theme-text-secondary">
+                <span className="basis-full sm:basis-auto sm:mr-1">
                   {t("agentConfig.selectedModelsCount", {
                     count: currentRoleModels.length,
                     total: availableModels.length,
                   })}
                 </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSelectAll}
+                  disabled={isSaving}
+                  className="!min-h-11 !text-12"
+                >
+                  {t("agentConfig.selectAll")}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearAll}
+                  disabled={isSaving}
+                  className="!min-h-11 !text-12"
+                >
+                  {t("agentConfig.clearAll")}
+                </Button>
               </div>
             </div>
 
@@ -186,58 +203,66 @@ export function RolesModelTab({
                 return (
                   <div
                     key={model.id}
-                    className={`transition-colors duration-150 ${
+                    className={`transition-colors duration-150 motion-reduce:transition-none ${
                       isSelected
                         ? "bg-[var(--glass-bg-subtle)]"
                         : "hover:bg-[var(--glass-bg-hover)]"
                     }`}
                   >
-                    <label className="flex min-h-14 cursor-pointer items-center gap-3 px-3.5 py-3 sm:px-4 sm:gap-3.5">
-                      <Checkbox
-                        ariaLabel={model.label}
-                        checked={isSelected}
-                        onChange={() => toggleModel(model.id)}
-                        size="sm"
-                      />
-                      <ModelIconImg
-                        model={model.value}
-                        provider={model.provider}
-                        icon={model.icon}
-                        size={20}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-14 font-medium font-serif text-stone-950 dark:text-stone-100">
-                          {model.label}
+                    <div className="flex min-h-14 items-center gap-3 px-3.5 py-3 sm:px-4 sm:gap-3.5">
+                      <label className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-3 sm:gap-3.5">
+                        <Checkbox
+                          ariaLabel={model.label}
+                          disabled={isSaving}
+                          checked={isSelected}
+                          onChange={() => toggleModel(model.id)}
+                          size="sm"
+                        />
+                        <ModelIconImg
+                          model={model.value}
+                          provider={model.provider}
+                          icon={model.icon}
+                          size={20}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="line-clamp-2 text-14 font-medium font-serif text-theme-text [overflow-wrap:anywhere]">
+                            {model.label}
+                          </div>
+                          <div className="text-12 font-mono text-stone-400 dark:text-stone-500 truncate sm:hidden mt-0.5">
+                            {model.value}
+                          </div>
                         </div>
-                        <div className="text-12 font-mono text-stone-400 dark:text-stone-500 truncate sm:hidden mt-0.5">
+                        <span className="text-12 font-mono text-stone-400 dark:text-stone-500 truncate max-w-[140px] hidden sm:inline">
                           {model.value}
-                        </div>
-                      </div>
-                      <span className="text-12 font-mono text-stone-400 dark:text-stone-500 truncate max-w-[140px] hidden sm:inline">
-                        {model.value}
-                      </span>
+                        </span>
+                      </label>
                       {hasDesc && (
                         <IconButton
                           aria-label={`${t(expandedModel === model.id ? "common.collapse" : "common.expand")} ${model.label}`}
                           aria-expanded={expandedModel === model.id}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            toggleExpand(model.id);
-                          }}
+                          aria-controls={
+                            expandedModel === model.id
+                              ? `${descriptionId}-${model.id}`
+                              : undefined
+                          }
+                          onClick={() => toggleExpand(model.id)}
                           className="shrink-0"
                           icon={
                             <ChevronDown
                               size={14}
-                              className={`transition-transform duration-200 ${
+                              className={`transition-transform duration-200 motion-reduce:transition-none ${
                                 expandedModel === model.id ? "rotate-180" : ""
                               }`}
                             />
                           }
                         />
                       )}
-                    </label>
+                    </div>
                     {expandedModel === model.id && hasDesc && (
-                      <div className="px-3.5 pb-3 pl-[3.25rem] pt-0 sm:px-4 sm:pl-[3.75rem]">
+                      <div
+                        id={`${descriptionId}-${model.id}`}
+                        className="px-3.5 pb-3 pl-[3.25rem] pt-0 sm:px-4 sm:pl-[3.75rem] [overflow-wrap:anywhere]"
+                      >
                         <p className="text-12 text-stone-500 dark:text-stone-400 leading-relaxed">
                           {model.description}
                         </p>
@@ -249,6 +274,27 @@ export function RolesModelTab({
             </div>
           </div>
 
+          {hasChanges && (
+            <div className="sticky bottom-0 z-10 panel-stack bg-theme-bg py-2">
+              {saveError && (
+                <ConfigPanelErrorCallout
+                  message={saveError}
+                  className="max-h-32 overflow-y-auto"
+                />
+              )}
+              <div className="flex justify-end">
+                <Button
+                  variant="primary"
+                  onClick={handleSave}
+                  loading={isSaving}
+                  leftIcon={<Save size={16} />}
+                  className="!min-h-11"
+                >
+                  {t("common.save")}
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="panel-pagination empty:hidden">
             <Pagination
               page={page}
@@ -257,19 +303,6 @@ export function RolesModelTab({
               onChange={setPage}
             />
           </div>
-          {hasChanges && (
-            <div className="flex items-center justify-end">
-              <Button
-                variant="primary"
-                onClick={handleSave}
-                loading={isSaving}
-                leftIcon={<Save size={16} />}
-                className="px-5 py-2.5 text-14"
-              >
-                {t("common.save")}
-              </Button>
-            </div>
-          )}
         </>
       )}
     </div>

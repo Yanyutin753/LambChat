@@ -8,12 +8,10 @@ import { render } from "@testing-library/react";
 afterEach(cleanup);
 
 function setup() {
-  window.matchMedia = vi
-    .fn()
-    .mockReturnValue({
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    });
+  window.matchMedia = vi.fn().mockReturnValue({
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  });
   const onNewSession = vi.fn();
   const setIsSearchOpen = vi.fn();
   renderHook(() =>

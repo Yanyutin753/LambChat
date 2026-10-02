@@ -7,9 +7,9 @@ const layout = source("../panels.css");
 const chrome = source("../legacy-panels.css");
 const components = source("../components.css");
 
-test("mobile editor inputs and disclosure controls keep 44px touch targets", () => {
+test("narrow and coarse-pointer editor controls keep 44px touch targets", () => {
   expect(layout).toMatch(
-    /@media \(max-width: 639px\)\s*\{[\s\S]*?\.editor-sidebar :is\([^)]*input\.ui-input[^)]*summary[^)]*\)[^{]*\{\s*min-height:\s*2\.75rem;/,
+    /@media \(max-width: 639px\), \(pointer: coarse\)\s*\{[\s\S]*?\.editor-sidebar :is\([^)]*input\.ui-input[^)]*summary[^)]*\)[^{]*\{\s*min-height:\s*2\.75rem;/,
   );
 });
 

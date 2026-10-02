@@ -112,7 +112,9 @@ describe("SessionItem more-options button tooltip", () => {
   it("reveals the more-options button itself on touch, without popping its bubble", () => {
     // The i18n mock returns the key itself when no in-code fallback exists
     const { row } = renderSessionItem({});
-    const moreButton = row.querySelector("button");
+    const moreButton = within(row).getByRole("button", {
+      name: "sidebar.moreOptions",
+    });
     expect(moreButton).not.toHaveAttribute("title");
     expect(moreButton).toHaveAttribute("aria-label", "sidebar.moreOptions");
     touchRow(row);

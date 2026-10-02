@@ -21,6 +21,8 @@ import { useSidebarPanel } from "../../../hooks/useSidebarPanel";
 import { ToolResultPanel } from "../../chat/ChatMessage/items/ToolResultPanel";
 import { EditorSidebar } from "../EditorSidebar";
 import { ModalSurface } from "../ModalSurface";
+import { UpdateTitlebarIndicator } from "../../layout/TitleBar/UpdateTitlebarIndicator";
+import type { UpdateState } from "../../../types";
 import {
   RIGHT_PANEL_WIDTH_CHANGED_EVENT,
   getRightPanelLayoutSnapshot,
@@ -49,6 +51,86 @@ beforeEach(() => {
   installMatchMedia(1440);
 });
 afterEach(() => vi.restoreAllMocks());
+
+test.each(["last", "surface"])(
+  "tool overlay wraps Tab from its %s into its own controls",
+  async (from) => {
+    installMatchMedia(390);
+    vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([
+      {},
+    ] as DOMRectList);
+    render(
+      <ToolResultPanel open onClose={vi.fn()} title="Tool">
+        <button>Last tool action</button>
+      </ToolResultPanel>,
+    );
+    const last = await screen.findByRole("button", {
+      name: "Last tool action",
+    });
+    const dialog = screen.getByRole("dialog", { name: "Tool" });
+    (from === "last" ? last : dialog).focus();
+    const event = new KeyboardEvent("keydown", {
+      key: "Tab",
+      shiftKey: from === "surface",
+      bubbles: true,
+      cancelable: true,
+    });
+    fireEvent(document.activeElement!, event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(
+      from === "last" ? screen.getByRole("tab", { name: "Tool" }) : last,
+    ).toHaveFocus();
+  },
+);
+
+test("mobile tool Escape closes the overlay after IME composition ends", async () => {
+  installMatchMedia(390);
+  const close = vi.fn();
+  render(
+    <ToolResultPanel open onClose={close} title="Tool">
+      <button>Tool action</button>
+    </ToolResultPanel>,
+  );
+  const action = await screen.findByRole("button", { name: "Tool action" });
+  action.focus();
+  fireEvent.keyDown(action, { key: "Escape", isComposing: true });
+  fireEvent.keyDown(action, { key: "Escape", keyCode: 229 });
+  expect(close).not.toHaveBeenCalled();
+  fireEvent.keyDown(action, { key: "Escape" });
+  expect(close).toHaveBeenCalledOnce();
+});
+
+test("nested details receive Escape before the underlying mobile tool", async () => {
+  installMatchMedia(390);
+  const toolClose = vi.fn();
+  function Harness() {
+    const [details, setDetails] = useState(false);
+    return (
+      <>
+        <ToolResultPanel open onClose={toolClose} title="Tool">
+          <button onClick={() => setDetails(true)}>Open details</button>
+        </ToolResultPanel>
+        <ModalSurface
+          open={details}
+          onClose={() => setDetails(false)}
+          label="Details"
+        >
+          <input aria-label="Detail field" />
+        </ModalSurface>
+      </>
+    );
+  }
+  const user = userEvent.setup();
+  render(<Harness />);
+  await user.click(await screen.findByRole("button", { name: "Open details" }));
+  fireEvent.keyDown(screen.getByRole("textbox", { name: "Detail field" }), {
+    key: "Escape",
+  });
+  expect(screen.queryByRole("dialog", { name: "Details" })).toBeNull();
+  expect(toolClose).not.toHaveBeenCalled();
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(toolClose).toHaveBeenCalledOnce();
+});
 
 test("overlay Tab wraps visible controls instead of entering collapsed fields", async () => {
   installMatchMedia(800);
@@ -161,6 +243,70 @@ test("Escape dismisses a modal above a docked panel without closing that panel",
   fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
   expect(closeModal).toHaveBeenCalledOnce();
   expect(closePanel).not.toHaveBeenCalled();
+});
+
+test.each([410, 800])(
+  "Escape closes the active tool preview at %ipx",
+  (width) => {
+    installMatchMedia(width);
+    const close = vi.fn();
+    render(
+      <ToolResultPanel open onClose={close} title="Preview">
+        body
+      </ToolResultPanel>,
+    );
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(close).toHaveBeenCalledOnce();
+  },
+);
+
+test("hidden preview dialogs do not consume the active editor Escape", () => {
+  installMatchMedia(800);
+  const closeEditor = vi.fn();
+  const closePreview = vi.fn();
+  render(
+    <>
+      <EditorSidebar open onClose={closeEditor} title="Editor">
+        draft
+      </EditorSidebar>
+      <ToolResultPanel open onClose={closePreview} title="Preview">
+        preview
+      </ToolResultPanel>
+    </>,
+  );
+  const editorId = getRightPanelSnapshot().entries.find(
+    (entry) => entry.kind === "editor",
+  )!.id;
+  act(() => activateRightPanel(editorId));
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(closeEditor).toHaveBeenCalledOnce();
+  expect(closePreview).not.toHaveBeenCalled();
+});
+
+test("Escape closes an update popover without closing its background editor", () => {
+  const close = vi.fn();
+  const update = {
+    available: true,
+    version: "99",
+    releaseAssets: [],
+    downloading: false,
+  } as UpdateState;
+  render(
+    <>
+      <EditorSidebar open onClose={close} title="Editor">
+        draft
+      </EditorSidebar>
+      <UpdateTitlebarIndicator
+        state={update}
+        onInstall={() => {}}
+        onSkipVersion={() => {}}
+      />
+    </>,
+  );
+  fireEvent.click(document.querySelector('button[aria-haspopup="dialog"]')!);
+  fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+  expect(close).not.toHaveBeenCalled();
+  expect(screen.queryByRole("dialog")).toBeNull();
 });
 
 function TestPanel({
@@ -614,3 +760,51 @@ test("editor uses one tab title without a duplicate header", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Close tab: Edit team" }));
   expect(onClose).toHaveBeenCalledOnce();
 });
+
+test.each(["hidden", "inert"])(
+  "closing a docked editor returns to the visible section when its opener is %s",
+  async (state) => {
+    vi.spyOn(HTMLElement.prototype, "getClientRects").mockImplementation(
+      function (this: HTMLElement) {
+        return (this.closest('[hidden],[inert],[aria-hidden="true"]')
+          ? []
+          : [{}]) as unknown as DOMRectList;
+      },
+    );
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      const [models, setModels] = useState(true);
+      return (
+        <main>
+          <button aria-pressed={!models} onClick={() => setModels(false)}>
+            Assistants
+          </button>
+          <button aria-pressed={models} onClick={() => setModels(true)}>
+            Models
+          </button>
+          <div
+            hidden={state === "hidden" && !models}
+            inert={state === "inert" && !models ? true : undefined}
+          >
+            <button onClick={() => setOpen(true)}>Add model</button>
+          </div>
+          <EditorSidebar
+            open={open}
+            onClose={() => setOpen(false)}
+            title="Model editor"
+          >
+            body
+          </EditorSidebar>
+        </main>
+      );
+    }
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Add model" }));
+    await user.click(screen.getByRole("button", { name: "Assistants" }));
+    await user.click(screen.getByRole("button", { name: /^Close tab:/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Assistants" })).toHaveFocus(),
+    );
+  },
+);

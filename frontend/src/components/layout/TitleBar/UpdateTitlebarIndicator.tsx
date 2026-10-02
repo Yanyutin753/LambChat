@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { hasVisibleModalDialog } from "../../../utils/modalDialog";
+import { topmostVisibleDialog } from "../../../utils/modalDialog";
 import {
   ArrowDownCircle,
   ArrowRight,
@@ -107,7 +107,7 @@ export function UpdateTitlebarIndicator({
         e.key === "Escape" &&
         !e.defaultPrevented &&
         !e.isComposing &&
-        !hasVisibleModalDialog()
+        topmostVisibleDialog() === panelRef.current
       ) {
         e.preventDefault();
         setOpen(false);

@@ -29,7 +29,8 @@ export function worksheetToDisplayRows(
   sheet: WorkSheet,
   utils: ExcelUtils,
 ): ExcelDisplayRows {
-  const range = utils.decode_range(sheet["!ref"] ?? "A1:A0");
+  if (!sheet["!ref"]) return [];
+  const range = utils.decode_range(sheet["!ref"]);
   if (range.e.r < range.s.r || range.e.c < range.s.c) return [];
 
   const rows: ExcelDisplayRows = [];
@@ -42,5 +43,5 @@ export function worksheetToDisplayRows(
     }
     rows.push(values);
   }
-  return rows;
+  return rows.some((row) => row.some((value) => value !== "")) ? rows : [];
 }

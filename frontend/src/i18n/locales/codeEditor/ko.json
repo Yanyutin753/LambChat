@@ -1,0 +1,17 @@
+{
+  "next": "다음 항목",
+  "previous": "이전 항목",
+  "find": "찾기",
+  "replace": "바꾸기",
+  "replaceAll": "모두 바꾸기",
+  "matchCase": "대소문자 구분",
+  "regexp": "정규식",
+  "wholeWord": "단어 단위",
+  "goToLine": "줄로 이동",
+  "go": "이동",
+  "currentMatch": "현재 일치 항목",
+  "onLine": "줄",
+  "replacedMatch": "줄 $의 일치 항목을 바꿨습니다",
+  "replacedMatches": "$개 항목을 바꿨습니다",
+  "preview": "코드 미리보기"
+}

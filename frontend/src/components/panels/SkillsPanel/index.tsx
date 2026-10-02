@@ -112,6 +112,8 @@ export function SkillsPanel({ embedded = false }: SkillsPanelProps) {
         zipFile={actions.zipFile}
         zipUploading={actions.zipUploading}
         zipPreviewing={actions.zipPreviewing}
+        zipError={actions.zipError}
+        onZipRetry={actions.handleZipRetry}
         zipSkills={actions.zipSkills}
         selectedZipSkills={actions.selectedZipSkills}
         zipInputRef={actions.zipInputRef}
@@ -136,11 +138,11 @@ export function SkillsPanel({ embedded = false }: SkillsPanelProps) {
         selectedGithubSkills={actions.selectedGithubSkills}
         githubLoading={actions.githubLoading}
         githubInstalling={actions.githubInstalling}
-        githubExporting={actions.githubExporting}
+        githubError={actions.githubError}
+        githubPreviewed={actions.githubPreviewed}
         onGithubPreview={actions.handleGithubPreview}
         onGithubSkillToggle={actions.handleGithubSkillToggle}
         onGithubInstall={actions.handleGithubInstall}
-        onGithubExport={actions.handleGithubExport}
         setSelectedGithubSkills={actions.setSelectedGithubSkills}
       />
 
@@ -173,6 +175,7 @@ export function SkillsPanel({ embedded = false }: SkillsPanelProps) {
         publishConfirm={actions.publishConfirm}
         setPublishConfirm={actions.setPublishConfirm}
         onConfirm={actions.confirmPublish}
+        isPublishing={actions.isPublishing}
       />
     </div>
   );

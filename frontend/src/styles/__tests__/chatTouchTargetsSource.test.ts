@@ -14,10 +14,10 @@ test("mobile composer and message actions use contiguous 44px touch targets", ()
   expect(css).toMatch(/\.chat-message-actions\s*\{\s*flex-wrap:\s*wrap;/);
 });
 
-test("mobile code and table actions keep content padding and enlarge only controls", () => {
+test("mobile and coarse-pointer code and table actions retain content padding", () => {
   const css = read("../markdown.css");
   expect(css).toMatch(
-    /@media \(max-width: 639px\)\s*\{\s*\.ai-code-block__copy,\s*\.ai-data-table__action\s*\{[^}]*min-width:\s*2\.75rem;[^}]*min-height:\s*2\.75rem;/,
+    /@media \(max-width: 639px\), \(pointer: coarse\)\s*\{\s*\.ai-code-block__copy,\s*\.ai-data-table__action\s*\{[^}]*min-width:\s*2\.75rem;[^}]*min-height:\s*2\.75rem;/,
   );
   expect(css).toMatch(/\.ai-data-table__actions\s*\{\s*gap:\s*0;/);
 });

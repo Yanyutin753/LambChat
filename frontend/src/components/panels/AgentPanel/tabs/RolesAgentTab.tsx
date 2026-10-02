@@ -1,15 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "../../../../i18n";
 import { AgentIcon } from "../../../agent/AgentIcon";
 import { AgentPanelSkeleton } from "../../../skeletons";
-import { Button } from "../../../common";
+import { Button, EmptyState } from "../../../common";
 import { Checkbox } from "../../../common/Checkbox";
 import {
   resolveAgentDescription,
   resolveAgentDisplayName,
 } from "../../../agent/agentCatalog";
+import { ConfigPanelErrorCallout } from "../../ConfigPanelErrorCallout";
 import { RoleSelector } from "../shared/RoleSelector";
 import type { Role, AgentInfo } from "../../../../types";
 
@@ -32,17 +33,17 @@ export function RolesAgentTab({
   const [selectedRole, setSelectedRole] = useState<string | null>(
     roles.length > 0 ? roles[0].id : null,
   );
-  const [localRoleAgents, setLocalRoleAgents] =
-    useState<Record<string, string[]>>(roleAgentsMap);
+  const [localRoleAgents, setLocalRoleAgents] = useState<
+    Record<string, string[]>
+  >({});
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    setLocalRoleAgents(roleAgentsMap);
-  }, [roleAgentsMap]);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   // Reset selectedRole if it no longer exists in the roles list
   useEffect(() => {
-    if (selectedRole && !roles.find((r) => r.id === selectedRole)) {
+    if (!roles.find((r) => r.id === selectedRole)) {
       setSelectedRole(roles.length > 0 ? roles[0].id : null);
     }
   }, [roles, selectedRole]);
@@ -52,13 +53,13 @@ export function RolesAgentTab({
   }
 
   const currentRoleAgents = selectedRole
-    ? localRoleAgents[selectedRole] || []
+    ? (localRoleAgents[selectedRole] ?? roleAgentsMap[selectedRole] ?? [])
     : [];
 
   const toggleAgent = (agentId: string) => {
-    if (!selectedRole) return;
+    if (!selectedRole || isSaving) return;
     setLocalRoleAgents((prev) => {
-      const current = prev[selectedRole] || [];
+      const current = prev[selectedRole] ?? roleAgentsMap[selectedRole] ?? [];
       if (current.includes(agentId)) {
         return {
           ...prev,
@@ -70,12 +71,19 @@ export function RolesAgentTab({
   };
 
   const handleSave = async () => {
-    if (!selectedRole) return;
+    if (!selectedRole || isSaving) return;
+    rootRef.current?.focus({ preventScroll: true });
+    setSaveError(null);
     setIsSaving(true);
     try {
-      await onUpdate(selectedRole, localRoleAgents[selectedRole] || []);
+      await onUpdate(selectedRole, currentRoleAgents);
+      setLocalRoleAgents((prev) => {
+        const next = { ...prev };
+        delete next[selectedRole];
+        return next;
+      });
     } catch (err) {
-      console.error("Failed to save role agents:", err);
+      setSaveError((err as Error).message || t("agentConfig.saveFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -83,12 +91,25 @@ export function RolesAgentTab({
 
   const selectedRoleData = roles.find((r) => r.id === selectedRole);
   const hasChanges = selectedRole
-    ? JSON.stringify(localRoleAgents[selectedRole]) !==
-      JSON.stringify(roleAgentsMap[selectedRole])
+    ? currentRoleAgents.length !== (roleAgentsMap[selectedRole] ?? []).length ||
+      currentRoleAgents.some(
+        (id) => !(roleAgentsMap[selectedRole] ?? []).includes(id),
+      )
     : false;
 
+  if (roles.length === 0)
+    return (
+      <EmptyState illustration="panel-agents" title={t("roles.noRoles")} />
+    );
+
   return (
-    <div className="space-y-4">
+    <div
+      ref={rootRef}
+      tabIndex={-1}
+      aria-busy={isSaving}
+      className="panel-stack focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+    >
+      {saveError && <ConfigPanelErrorCallout message={saveError} />}
       <p className="hidden px-1 text-14 leading-relaxed text-theme-text-secondary sm:block">
         {t("agentConfig.rolesDescription")}
       </p>
@@ -96,20 +117,27 @@ export function RolesAgentTab({
       <RoleSelector
         roles={roles}
         selectedRoleId={selectedRole}
-        onSelectRole={setSelectedRole}
+        onSelectRole={(roleId) => {
+          setSelectedRole(roleId);
+          setSaveError(null);
+        }}
+        disabled={isSaving}
       />
 
       {selectedRole && (
         <>
           <div className="glass-card divide-y divide-[var(--glass-border)] overflow-hidden rounded-xl">
             <div className="bg-[var(--glass-bg-subtle)] px-4 py-2.5 font-serif">
-              <h4 className="truncate text-12 font-medium uppercase tracking-wider text-theme-text-secondary">
+              <h4 className="text-12 font-medium leading-relaxed text-theme-text-secondary [overflow-wrap:anywhere]">
                 {t("agentConfig.selectAgentsForRole", {
                   roleName: selectedRoleData?.name,
                 })}
               </h4>
             </div>
-            {availableAgents.map((agent, index) => {
+            {availableAgents.length === 0 && (
+              <EmptyState title={t("agentConfig.noAvailableAgents")} />
+            )}
+            {availableAgents.map((agent) => {
               const isSelected = currentRoleAgents.includes(agent.id);
               const displayName = resolveAgentDisplayName(
                 agent,
@@ -124,15 +152,15 @@ export function RolesAgentTab({
               return (
                 <label
                   key={agent.id}
-                  className={`flex cursor-pointer items-center gap-3.5 px-4 py-3.5 transition-colors duration-150 ${
+                  className={`flex min-h-11 cursor-pointer items-center gap-3.5 px-4 py-3.5 transition-colors duration-150 motion-reduce:transition-none ${
                     isSelected
                       ? "bg-[var(--glass-bg-subtle)]"
                       : "hover:bg-[var(--glass-bg-hover)]"
                   }`}
-                  style={{ animationDelay: `${index * 30}ms` }}
                 >
                   <Checkbox
-                    ariaLabel={agent.name}
+                    ariaLabel={displayName}
+                    disabled={isSaving}
                     checked={isSelected}
                     onChange={() => toggleAgent(agent.id)}
                     size="sm"
@@ -156,7 +184,6 @@ export function RolesAgentTab({
           {hasChanges && (
             <div className="glass-divider mt-4 flex items-center justify-between pt-4">
               <span className="flex items-center gap-1.5 text-12 text-theme-text-tertiary">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
                 {currentRoleAgents.length} / {availableAgents.length}
               </span>
               <Button
@@ -164,7 +191,7 @@ export function RolesAgentTab({
                 onClick={handleSave}
                 loading={isSaving}
                 leftIcon={<Save size={16} />}
-                className="px-5 py-2.5 text-14"
+                className="!min-h-11"
               >
                 {t("common.save")}
               </Button>

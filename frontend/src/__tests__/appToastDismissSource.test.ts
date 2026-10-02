@@ -1,9 +1,15 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const appSource = readFileSync(resolve(import.meta.dirname, "../App.tsx"), {
-  encoding: "utf8",
-});
+const appSource = readFileSync(
+  resolve(
+    import.meta.dirname,
+    "../components/layout/AppContent/AppToaster.tsx",
+  ),
+  {
+    encoding: "utf8",
+  },
+);
 
 test("global toaster gives default toasts a dismiss button without wrapping custom toasts", () => {
   expect(appSource).toMatch(/ToastBar/);

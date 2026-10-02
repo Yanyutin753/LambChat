@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-import { isEditableEventTarget } from "../components/panels/askHumanKeyboardGuard";
+import { isEditableEventTarget } from "../utils/editableTarget";
 import { isThemeCycleShortcut } from "../utils/themeDom";
 
 /**
@@ -10,6 +10,7 @@ import { isThemeCycleShortcut } from "../utils/themeDom";
 export function useThemeShortcut(cycleTheme: () => void): void {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.altKey) return;
       if (!isThemeCycleShortcut(event)) return;
       if (isEditableEventTarget(event.target)) return;
       event.preventDefault();

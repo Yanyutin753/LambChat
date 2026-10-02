@@ -1,9 +1,15 @@
-import { useMemo } from "react";
+import {
+  codeMirrorSearchExtensions,
+  guardCodeMirrorSearchComposition,
+} from "../common/codeMirrorSearchExtensions";
+import { useMemo, useRef } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { EditorView } from "@codemirror/view";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { useAppThemeMode } from "../../hooks/useAppThemeMode";
 import { getLangSupport } from "../common/getLangSupport";
+import { useTranslation } from "react-i18next";
+import { CodeMirrorSearchToolbar } from "../common/CodeMirrorSearch";
 
 export function SkillEditor({
   value,
@@ -20,15 +26,22 @@ export function SkillEditor({
   readOnly?: boolean;
   lineWrapping?: boolean;
 }) {
+  const { t } = useTranslation();
   const themeMode = useAppThemeMode();
   const isDark = themeMode === "dark";
+  const viewRef = useRef<EditorView | null>(null);
 
   const extensions = useMemo(() => {
     const langSupport = getLangSupport(undefined, filePath);
 
     return [
+      ...codeMirrorSearchExtensions(t),
       ...(langSupport ? [langSupport] : []),
       ...(lineWrapping ? [EditorView.lineWrapping] : []),
+      EditorView.contentAttributes.of({
+        "aria-label": filePath || t("skills.form.untitled"),
+        tabindex: "0",
+      }),
       EditorView.theme({
         "&": {
           height: "100%",
@@ -75,21 +88,27 @@ export function SkillEditor({
         },
       }),
     ];
-  }, [filePath, isDark, lineWrapping]);
+  }, [filePath, isDark, lineWrapping, t]);
 
   return (
     <div
+      onKeyDownCapture={guardCodeMirrorSearchComposition}
       className={`${
         className || ""
-      } h-full min-h-0 flex flex-col overflow-hidden [&_.cm-theme]:h-full [&_.cm-editor]:h-full [&_.cm-editor]:min-h-0 [&_.cm-scroller]:flex-1 [&_.cm-scroller]:min-h-0 [&_.cm-scroller]:overflow-auto`}
+      } code-editor h-full min-h-0 flex flex-col overflow-hidden [&_.cm-theme]:h-full [&_.cm-editor]:h-full [&_.cm-editor]:min-h-0 [&_.cm-scroller]:flex-1 [&_.cm-scroller]:min-h-0 [&_.cm-scroller]:overflow-auto`}
     >
+      <CodeMirrorSearchToolbar viewRef={viewRef} />
       <CodeMirror
         value={value}
         onChange={onChange}
+        onCreateEditor={(view) => {
+          viewRef.current = view;
+        }}
         theme={isDark ? oneDark : undefined}
         extensions={extensions}
         readOnly={readOnly}
         editable={!readOnly}
+        indentWithTab={false}
         basicSetup={{
           lineNumbers: true,
           highlightActiveLineGutter: true,

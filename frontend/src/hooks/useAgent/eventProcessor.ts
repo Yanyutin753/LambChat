@@ -668,6 +668,13 @@ export function processMessageEvent(
       result.cancelled = isCancelled;
       if (!isCancelled) {
         result.content = i18n.t("chat.errorPrefix", { error: errorMsg });
+        const lastPart = nextParts.at(-1);
+        if (lastPart?.type !== "text" || lastPart.content !== result.content) {
+          result.parts = [
+            ...nextParts,
+            { type: "text", content: result.content },
+          ];
+        }
       }
       break;
     }
@@ -757,7 +764,10 @@ function artifactStableKey(artifact: ArtifactPartArtifact): string {
 /** Upsert an artifact part by stable key: the same file re-delivered within
  *  one message (edit race, re-reveal) replaces its card instead of stacking
  *  duplicates. Different paths append normally. */
-function upsertArtifactPart(parts: MessagePart[], artifactPart: MessagePart): MessagePart[] {
+function upsertArtifactPart(
+  parts: MessagePart[],
+  artifactPart: MessagePart,
+): MessagePart[] {
   if (artifactPart.type !== "artifact") return [...parts, artifactPart];
   const stableKey = artifactStableKey(artifactPart.artifact);
   if (!stableKey) return [...parts, artifactPart];

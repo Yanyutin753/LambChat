@@ -76,6 +76,7 @@ export function useSkillsActions() {
     previewGitHubSkills,
     installGitHubSkills,
     publishToMarketplace,
+    isPublishing,
     clearError,
   } = useSkills({ listParams });
 
@@ -146,6 +147,8 @@ export function useSkillsActions() {
   const [zipFile, setZipFile] = useState<File | null>(null);
   const [zipUploading, setZipUploading] = useState(false);
   const [zipPreviewing, setZipPreviewing] = useState(false);
+  const [zipError, setZipError] = useState<string | null>(null);
+  const zipRequest = useRef(0);
   const [zipSkills, setZipSkills] = useState<ZipSkillPreview[]>([]);
   const [selectedZipSkills, setSelectedZipSkills] = useState<string[]>([]);
   const zipInputRef = useRef<HTMLInputElement>(null);
@@ -161,7 +164,34 @@ export function useSkillsActions() {
   );
   const [githubLoading, setGithubLoading] = useState(false);
   const [githubInstalling, setGithubInstalling] = useState(false);
-  const [githubExporting, setGithubExporting] = useState(false);
+  const [githubError, setGithubError] = useState<string | null>(null);
+  const [githubPreviewed, setGithubPreviewed] = useState(false);
+  const githubRequest = useRef(0);
+
+  useEffect(() => {
+    const request = githubRequest;
+    request.current++;
+    setGithubSkills([]);
+    setSelectedGithubSkills([]);
+    setGithubError(null);
+    setGithubPreviewed(false);
+    setGithubLoading(false);
+    setGithubInstalling(false);
+    return () => {
+      request.current++;
+    };
+  }, [githubUrl, githubBranch, showGithubModal]);
+  useEffect(() => {
+    const request = zipRequest;
+    if (!showZipModal) {
+      request.current++;
+      setZipPreviewing(false);
+      setZipUploading(false);
+    }
+    return () => {
+      request.current++;
+    };
+  }, [showZipModal]);
 
   // CRUD handlers
   const handleCreate = () => {
@@ -320,7 +350,7 @@ export function useSkillsActions() {
 
   // Publish handler
   const confirmPublish = async () => {
-    if (!publishConfirm) return;
+    if (!publishConfirm || isPublishing) return;
     const { localSkillName, marketplaceSkillName, description } =
       publishConfirm;
 
@@ -376,10 +406,12 @@ export function useSkillsActions() {
     setZipSkills([]);
     setSelectedZipSkills([]);
     setIsDragging(false);
+    setZipError(null);
     setShowZipModal(true);
   };
 
   const processZipFile = (file: File) => {
+    if (zipUploading || zipPreviewing) return;
     if (!file.name.endsWith(".zip")) {
       toast.error(t("skills.invalidZipFile"));
       return;
@@ -396,19 +428,27 @@ export function useSkillsActions() {
   };
 
   const handleZipPreviewWithFile = async (file: File) => {
+    const request = ++zipRequest.current;
     setZipPreviewing(true);
+    setZipError(null);
     setZipSkills([]);
     setSelectedZipSkills([]);
     try {
       const result = await previewZipSkills(file);
+      if (request !== zipRequest.current) return;
       if (result && result.skills) {
         setZipSkills(result.skills);
         setSelectedZipSkills(
           result.skills.filter((s) => !s.already_exists).map((s) => s.name),
         );
+      } else {
+        setZipError(t("skills.previewZipFailed"));
       }
+    } catch {
+      if (request === zipRequest.current)
+        setZipError(t("skills.previewZipFailed"));
     } finally {
-      setZipPreviewing(false);
+      if (request === zipRequest.current) setZipPreviewing(false);
     }
   };
 
@@ -443,19 +483,51 @@ export function useSkillsActions() {
   };
 
   const handleZipUpload = async () => {
-    if (!zipFile || selectedZipSkills.length === 0) return;
+    if (
+      !zipFile ||
+      selectedZipSkills.length === 0 ||
+      zipUploading ||
+      zipPreviewing
+    )
+      return;
+    const request = zipRequest.current;
     setZipUploading(true);
+    setZipError(null);
     try {
       const result = await uploadSkill(zipFile, selectedZipSkills);
-      if (result && result.created.length > 0) {
+      if (request !== zipRequest.current) return;
+      if (result && result.created.length > 0 && result.errors.length === 0) {
         setShowZipModal(false);
         setZipFile(null);
         setZipSkills([]);
         setSelectedZipSkills([]);
+      } else {
+        const created = new Set(
+          result?.created.map((skill) => skill.name) ?? [],
+        );
+        setSelectedZipSkills((prev) =>
+          prev.filter((name) => !created.has(name)),
+        );
+        setZipSkills((prev) =>
+          prev.map((skill) =>
+            created.has(skill.name)
+              ? { ...skill, already_exists: true }
+              : skill,
+          ),
+        );
+        setZipError(t("skills.uploadFailed"));
       }
+    } catch {
+      if (request === zipRequest.current) setZipError(t("skills.uploadFailed"));
     } finally {
-      setZipUploading(false);
+      if (request === zipRequest.current) setZipUploading(false);
     }
+  };
+
+  const handleZipRetry = () => {
+    if (zipSkills.length > 0 && selectedZipSkills.length > 0)
+      void handleZipUpload();
+    else if (zipFile) void handleZipPreviewWithFile(zipFile);
   };
 
   // GitHub import handlers
@@ -468,17 +540,27 @@ export function useSkillsActions() {
   };
 
   const handleGithubPreview = async () => {
-    if (!githubUrl.trim()) return;
+    if (!githubUrl.trim() || githubLoading || githubInstalling) return;
+    const request = ++githubRequest.current;
     setGithubLoading(true);
+    setGithubError(null);
+    setGithubPreviewed(false);
     setGithubSkills([]);
     setSelectedGithubSkills([]);
     try {
       const result = await previewGitHubSkills(githubUrl, githubBranch);
+      if (request !== githubRequest.current) return;
       if (result && result.skills) {
         setGithubSkills(result.skills);
+        setGithubPreviewed(true);
+      } else {
+        setGithubError(t("skills.previewGitHubFailed"));
       }
+    } catch {
+      if (request === githubRequest.current)
+        setGithubError(t("skills.previewGitHubFailed"));
     } finally {
-      setGithubLoading(false);
+      if (request === githubRequest.current) setGithubLoading(false);
     }
   };
 
@@ -489,48 +571,41 @@ export function useSkillsActions() {
   };
 
   const handleGithubInstall = async () => {
-    if (selectedGithubSkills.length === 0) return;
+    if (
+      selectedGithubSkills.length === 0 ||
+      githubLoading ||
+      githubInstalling ||
+      !githubPreviewed
+    )
+      return;
+    const request = githubRequest.current;
     setGithubInstalling(true);
+    setGithubError(null);
     try {
       const result = await installGitHubSkills(
         githubUrl,
         selectedGithubSkills,
         githubBranch,
       );
-      if (result) {
+      if (request !== githubRequest.current) return;
+      if (result && result.errors.length === 0) {
         setShowGithubModal(false);
         setGithubSkills([]);
         setSelectedGithubSkills([]);
+      } else {
+        setSelectedGithubSkills((prev) =>
+          prev.filter((name) => !result?.installed.includes(name)),
+        );
+        setGithubSkills((prev) =>
+          prev.filter((skill) => !result?.installed.includes(skill.name)),
+        );
+        setGithubError(t("skills.installGitHubFailed"));
       }
-    } finally {
-      setGithubInstalling(false);
-    }
-  };
-
-  const handleGithubExport = async () => {
-    if (selectedGithubSkills.length === 0) return;
-    setGithubExporting(true);
-    try {
-      const result = await installGitHubSkills(
-        githubUrl,
-        selectedGithubSkills,
-        githubBranch,
-      );
-      if (!result?.installed?.length) {
-        toast.error(t("skills.exportFailed"));
-        return;
-      }
-      const installedSkill = await getFullSkill(result.installed[0]);
-      if (!installedSkill) {
-        toast.error(t("skills.exportFailed"));
-        return;
-      }
-      await exportProjectZip(installedSkill.files, installedSkill.name);
-      toast.success(t("skills.exportSuccess"));
     } catch {
-      toast.error(t("skills.exportFailed"));
+      if (request === githubRequest.current)
+        setGithubError(t("skills.installGitHubFailed"));
     } finally {
-      setGithubExporting(false);
+      if (request === githubRequest.current) setGithubInstalling(false);
     }
   };
 
@@ -582,6 +657,7 @@ export function useSkillsActions() {
     publishConfirm,
     setPublishConfirm,
     confirmPublish,
+    isPublishing,
 
     // Batch
     selectedNames,
@@ -599,6 +675,8 @@ export function useSkillsActions() {
     zipFile,
     zipUploading,
     zipPreviewing,
+    zipError,
+    handleZipRetry,
     zipSkills,
     selectedZipSkills,
     zipInputRef,
@@ -623,12 +701,12 @@ export function useSkillsActions() {
     selectedGithubSkills,
     githubLoading,
     githubInstalling,
-    githubExporting,
+    githubError,
+    githubPreviewed,
     handleGithubClick,
     handleGithubPreview,
     handleGithubSkillToggle,
     setSelectedGithubSkills,
     handleGithubInstall,
-    handleGithubExport,
   };
 }

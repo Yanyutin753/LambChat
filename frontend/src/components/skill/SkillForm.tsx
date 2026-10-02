@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import toast from "react-hot-toast";
 import { sanitizeSkillName } from "../../utils/skillFilters";
 import {
   buildSkillFilesPayload,
@@ -14,6 +13,8 @@ import type { BinaryFileInfo } from "../../types/skill";
 import { skillApi } from "../../services/api/skill";
 import { SkillFormFullscreen } from "./SkillFormFullscreen";
 import { SkillFormNormal } from "./SkillFormNormal";
+import { useDialogFocus } from "../common/useDialogFocus";
+import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 
 export function SkillForm({
   skill,
@@ -31,9 +32,34 @@ export function SkillForm({
   const [enabled, setEnabled] = useState(skill?.enabled ?? true);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const wasFullscreen = useRef(false);
 
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [activeFileIndex, setActiveFileIndex] = useState<number>(0);
+  const focusAfterRemoval = useRef(false);
+  useEffect(() => {
+    if (!focusAfterRemoval.current) return;
+    focusAfterRemoval.current = false;
+    const controls = Array.from(
+      formRef.current?.querySelectorAll<HTMLElement>("[data-file-select]") ??
+        [],
+    ).filter((button) => button.getClientRects().length);
+    (
+      controls.find(
+        (button) => button.getAttribute("aria-pressed") === "true",
+      ) ??
+      controls[0] ??
+      formRef.current
+    )?.focus();
+  }, [files, activeFileIndex]);
+  useEffect(() => {
+    if (Object.keys(errors).length) {
+      formRef.current
+        ?.querySelector<HTMLElement>('[aria-invalid="true"]:not(:disabled)')
+        ?.focus();
+    }
+  }, [errors]);
   const [binaryFiles, setBinaryFiles] = useState<
     Record<string, BinaryFileInfo>
   >({});
@@ -52,15 +78,8 @@ export function SkillForm({
     (fs: boolean) => {
       setIsFullscreen(fs);
       onFullscreenChange?.(fs);
-      if (fs && window.innerWidth >= 640) {
-        toast(t("skills.form.fullscreenHint", "按 Esc 退出全屏"), {
-          duration: 2000,
-          position: "top-center",
-          style: { borderRadius: "10px", background: "#1c1917", color: "#fff" },
-        });
-      }
     },
-    [onFullscreenChange, t],
+    [onFullscreenChange],
   );
 
   // Initialize files from skill prop
@@ -126,13 +145,20 @@ export function SkillForm({
     setErrors({});
   }, [skill]);
 
+  useDialogFocus({
+    open: isFullscreen,
+    onClose: () => toggleFullscreen(false),
+    surfaceRef: formRef,
+  });
+  useBodyScrollLock(isFullscreen, true, true);
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isFullscreen) toggleFullscreen(false);
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [isFullscreen, toggleFullscreen]);
+    if (!isFullscreen && wasFullscreen.current) {
+      formRef.current
+        ?.querySelector<HTMLElement>("[data-fullscreen-trigger]")
+        ?.focus();
+    }
+    wasFullscreen.current = isFullscreen;
+  }, [isFullscreen]);
 
   // Load a single file's content on demand
   const loadFileContent = useCallback(
@@ -307,6 +333,7 @@ export function SkillForm({
     const removedPath = files[index]?.path ?? "";
     const next = files.filter((_, i) => i !== index);
     setFiles(next);
+    focusAfterRemoval.current = true;
     loadedFilePaths.current.delete(removedPath);
     // Clean up pending binary entry and revoke preview URL
     setPendingBinaryFiles((prev) => {
@@ -321,7 +348,9 @@ export function SkillForm({
       delete next[removedPath];
       return next;
     });
-    if (activeFileIndex >= next.length) setActiveFileIndex(next.length - 1);
+    setActiveFileIndex((current) =>
+      Math.min(index < current ? current - 1 : current, next.length - 1),
+    );
   };
 
   const updateFilePath = (index: number, path: string) => {
@@ -345,6 +374,7 @@ export function SkillForm({
   };
 
   const removeTag = (targetTag: string) => {
+    formRef.current?.querySelector<HTMLElement>("[data-skill-tags]")?.focus();
     setTagsInput(
       normalizeTags(tagsInput)
         .filter((tag) => tag !== targetTag)
@@ -450,6 +480,11 @@ export function SkillForm({
 
   const formElement = (
     <form
+      ref={formRef}
+      role={isFullscreen ? "dialog" : undefined}
+      aria-modal={isFullscreen ? true : undefined}
+      aria-label={isFullscreen ? t("skills.form.fullscreenEditor") : undefined}
+      tabIndex={isFullscreen ? -1 : undefined}
       onSubmit={handleSubmit}
       className={
         isFullscreen

@@ -17,8 +17,10 @@ interface ViewerToolbarProps {
   className?: string;
 }
 
-interface ViewerToolbarButtonProps
-  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
+interface ViewerToolbarButtonProps extends Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "children"
+> {
   icon: ReactNode;
 }
 
@@ -60,7 +62,7 @@ export function ViewerToolbar({
   return (
     <div
       className={clsx(
-        "absolute bottom-[calc(1rem+var(--app-safe-area-bottom,0px))] sm:bottom-[calc(2rem+var(--app-safe-area-bottom,0px))] left-1/2 -translate-x-1/2 flex items-center gap-0.5 sm:gap-1 rounded-2xl bg-black/70 px-1.5 sm:px-2 py-1.5 sm:py-2 [--app-safe-area-bottom-active:0px] [--safe-area-bottom-extra:0px]",
+        "viewer-toolbar absolute bottom-[calc(1rem+var(--app-safe-area-bottom,0px))] sm:bottom-[calc(2rem+var(--app-safe-area-bottom,0px))] left-1/2 -translate-x-1/2 flex items-center gap-0.5 sm:gap-1 rounded-2xl bg-black/70 px-1.5 sm:px-2 py-1.5 sm:py-2 [--app-safe-area-bottom-active:0px] [--safe-area-bottom-extra:0px]",
         className,
       )}
     >

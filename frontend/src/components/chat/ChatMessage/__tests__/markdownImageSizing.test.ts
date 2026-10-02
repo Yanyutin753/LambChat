@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 describe("MarkdownContent image sizing", () => {
   // Find the img override section in the react-markdown components prop
-  const imgStart = "img: ({ src, alt })";
+  const imgStart = "img: function MarkdownImage({ src, alt })";
   const source = readFileSync(
     new URL("../MarkdownContent.tsx", import.meta.url),
     "utf8",

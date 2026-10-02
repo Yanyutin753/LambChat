@@ -11,6 +11,20 @@ const IMAGE = {
   fileName: "img-1.png",
 };
 
+test("gallery image has a native keyboard reachable preview control", () => {
+  render(<MessageImageGallery images={[IMAGE]} />);
+  const preview = screen.getByRole("button", {
+    name: "img-1.png",
+    exact: true,
+  });
+  expect(preview.tagName).toBe("BUTTON");
+  expect(preview).toHaveAttribute("type", "button");
+  fireEvent.click(preview);
+  expect(
+    screen.getByRole("dialog", { name: "img-1.png", exact: true }),
+  ).toBeInTheDocument();
+});
+
 test("opens a local lightbox fallback when session gallery context is absent", () => {
   // 分享页未挂 SessionImageGalleryProvider，此时点击不能是静默 no-op
   render(<MessageImageGallery images={[IMAGE]} />);

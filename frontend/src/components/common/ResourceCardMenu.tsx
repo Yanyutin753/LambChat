@@ -1,12 +1,26 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Fragment,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
+import { topmostVisibleDialog } from "../../utils/modalDialog";
 
-export interface ResourceCardAction {
+export type ResourceCardAction = {
   label: string;
   icon?: ReactNode;
-  onClick: () => void;
   danger?: boolean;
-}
+  checked?: boolean;
+  disabled?: boolean;
+  separatorBefore?: boolean;
+  groupLabel?: string;
+  current?: boolean;
+} & (
+  | { href: string; onClick?: () => void }
+  | { href?: undefined; onClick: () => void }
+);
 
 interface ResourceCardMenuProps {
   id: string;
@@ -14,6 +28,7 @@ interface ResourceCardMenuProps {
   actions: ResourceCardAction[];
   position: { x: number; y: number };
   onClose: (restoreFocus?: boolean) => void;
+  initialFocusIndex?: number;
 }
 
 export function ResourceCardMenu({
@@ -22,6 +37,7 @@ export function ResourceCardMenu({
   actions,
   position,
   onClose,
+  initialFocusIndex = 0,
 }: ResourceCardMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [fitted, setFitted] = useState(position);
@@ -47,7 +63,14 @@ export function ResourceCardMenu({
         ),
       ),
     });
-    menu.querySelector<HTMLButtonElement>("button")?.focus();
+    const items = menu.querySelectorAll<HTMLElement>('[role^="menuitem"]');
+    const initial = items[initialFocusIndex];
+    (initial?.getAttribute("aria-disabled") !== "true"
+      ? initial
+      : Array.from(items).find(
+          (item) => item.getAttribute("aria-disabled") !== "true",
+        )
+    )?.focus();
     const outside = (event: PointerEvent) => {
       const trigger = (event.target as Element).closest?.(
         '[aria-haspopup="menu"]',
@@ -59,29 +82,41 @@ export function ResourceCardMenu({
         onClose();
     };
     const dismiss = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229)
+        return;
       if (event.key === "Escape" || event.key === "Tab") {
-        if (event.key === "Escape") event.preventDefault();
+        // When focus has moved into a newer foreground overlay, this menu
+        // must not swallow its Escape/Tab from the document capture phase.
+        if (!menu.contains(document.activeElement)) {
+          const top = topmostVisibleDialog();
+          if (top && !top.contains(menu)) return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
         onClose(true);
       }
     };
     const reposition = (event: Event) => {
-      if (!menu.contains(event.target as Node)) onClose();
+      if (!(event.target instanceof Node) || !menu.contains(event.target))
+        onClose(menu.contains(document.activeElement));
     };
     document.addEventListener("pointerdown", outside);
     document.addEventListener("keydown", dismiss, true);
-    window.addEventListener("resize", reposition);
+    window.addEventListener("resize", reposition, true);
     window.addEventListener("scroll", reposition, true);
     viewport?.addEventListener("resize", reposition);
     viewport?.addEventListener("scroll", reposition);
     return () => {
       document.removeEventListener("pointerdown", outside);
       document.removeEventListener("keydown", dismiss, true);
-      window.removeEventListener("resize", reposition);
+      window.removeEventListener("resize", reposition, true);
       window.removeEventListener("scroll", reposition, true);
       viewport?.removeEventListener("resize", reposition);
       viewport?.removeEventListener("scroll", reposition);
     };
-  }, [position, onClose, id]);
+  }, [position, onClose, id, initialFocusIndex]);
 
   return createPortal(
     <div
@@ -98,12 +133,19 @@ export function ResourceCardMenu({
       }}
       onKeyDown={(event) => {
         event.stopPropagation();
+        if (
+          event.defaultPrevented ||
+          event.nativeEvent.isComposing ||
+          event.keyCode === 229
+        )
+          return;
         const buttons = Array.from(
-          ref.current!.querySelectorAll<HTMLButtonElement>("button"),
+          ref.current!.querySelectorAll<HTMLElement>(
+            '[role^="menuitem"]:not([aria-disabled="true"])',
+          ),
         );
-        const index = buttons.indexOf(
-          document.activeElement as HTMLButtonElement,
-        );
+        if (!buttons.length) return;
+        const index = buttons.indexOf(document.activeElement as HTMLElement);
         const next =
           event.key === "ArrowDown"
             ? (index + 1) % buttons.length
@@ -120,22 +162,48 @@ export function ResourceCardMenu({
         }
       }}
     >
-      {actions.map((action) => (
-        <button
-          key={action.label}
-          type="button"
-          role="menuitem"
-          tabIndex={-1}
-          className={`flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-13 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] ${action.danger ? "text-theme-error hover:bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)]" : "text-theme-text hover:bg-theme-bg-subtle"}`}
-          onClick={() => {
-            onClose(true);
-            action.onClick();
-          }}
-        >
-          {action.icon}
-          <span className="min-w-0 break-words">{action.label}</span>
-        </button>
-      ))}
+      {actions.map((action) => {
+        const Item = action.href ? "a" : "button";
+        return (
+          <Fragment key={action.label}>
+            {action.separatorBefore && (
+              <div
+                role="separator"
+                className="mx-3 my-1 border-t border-theme-border"
+              />
+            )}
+            {action.groupLabel && (
+              <div className="px-3 pt-2 pb-1 text-12 font-medium text-theme-text-secondary">
+                {action.groupLabel}
+              </div>
+            )}
+            <Item
+              type={action.href ? undefined : "button"}
+              href={action.disabled ? undefined : action.href}
+              target={action.href ? "_blank" : undefined}
+              rel={action.href ? "noopener noreferrer" : undefined}
+              role={action.checked === undefined ? "menuitem" : "menuitemradio"}
+              aria-checked={action.checked}
+              aria-current={action.current ? "page" : undefined}
+              aria-disabled={action.disabled || undefined}
+              disabled={action.href ? undefined : action.disabled}
+              tabIndex={-1}
+              className={`flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-13 aria-disabled:opacity-40 aria-disabled:cursor-not-allowed aria-[current=page]:bg-theme-bg-subtle aria-[current=page]:font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] ${action.danger ? "text-theme-error hover:bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)]" : "text-theme-text hover:bg-theme-bg-subtle"}`}
+              onClick={(event) => {
+                if (action.disabled) {
+                  event.preventDefault();
+                  return;
+                }
+                onClose(true);
+                action.onClick?.();
+              }}
+            >
+              {action.icon}
+              <span className="min-w-0 break-words">{action.label}</span>
+            </Item>
+          </Fragment>
+        );
+      })}
     </div>,
     document.body,
   );

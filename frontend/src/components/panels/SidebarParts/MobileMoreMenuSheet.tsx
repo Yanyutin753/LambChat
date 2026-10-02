@@ -51,7 +51,7 @@ export function MobileMoreMenuSheet({
     <ModalSurface open onClose={onClose} label={t("nav.more")}>
       <div
         ref={menuRef}
-        className="safe-area-x safe-area-bottom rounded-t-2xl shadow-xl max-h-[70dvh] overflow-y-auto"
+        className="sidebar-mobile-menu safe-area-x safe-area-bottom rounded-t-2xl shadow-xl max-h-[70dvh] overflow-y-auto"
         style={{ backgroundColor: "var(--theme-bg-card)" }}
       >
         <div className="flex items-center justify-between px-4 pb-1.5">

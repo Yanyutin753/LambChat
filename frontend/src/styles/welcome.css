@@ -69,12 +69,14 @@
 .welcome-card:hover {
   border-color: color-mix(in srgb, var(--theme-text) 12%, var(--theme-border));
   background-color: var(--theme-bg) !important;
-  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--theme-text) 4%, transparent);
+  box-shadow: 0 2px 8px -2px
+    color-mix(in srgb, var(--theme-text) 4%, transparent);
 }
 
 .dark .welcome-card:hover {
   border-color: color-mix(in srgb, var(--theme-text) 15%, var(--theme-border));
-  box-shadow: 0 2px 10px -2px color-mix(in srgb, var(--theme-text-secondary) 8%, transparent);
+  box-shadow: 0 2px 10px -2px
+    color-mix(in srgb, var(--theme-text-secondary) 8%, transparent);
 }
 
 .welcome-card:active {
@@ -144,14 +146,16 @@
 .welcome-persona-card:hover {
   border-color: color-mix(in srgb, var(--theme-text) 12%, var(--theme-border));
   box-shadow:
-    0 4px 12px -4px color-mix(in srgb, var(--theme-text-secondary) 12%, transparent),
+    0 4px 12px -4px
+      color-mix(in srgb, var(--theme-text-secondary) 12%, transparent),
     0 1px 3px color-mix(in srgb, var(--theme-text) 6%, transparent);
 }
 
 .welcome-persona-avatar {
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--theme-text-secondary) 6%, transparent),
-    0 2px 8px -2px color-mix(in srgb, var(--theme-text-secondary) 10%, transparent);
+    0 2px 8px -2px
+      color-mix(in srgb, var(--theme-text-secondary) 10%, transparent);
   transition:
     box-shadow 0.3s ease,
     transform 0.3s ease;
@@ -160,7 +164,8 @@
 .welcome-persona-card:hover .welcome-persona-avatar {
   box-shadow:
     0 0 0 1.5px color-mix(in srgb, var(--theme-text-secondary) 12%, transparent),
-    0 4px 14px -2px color-mix(in srgb, var(--theme-text-secondary) 16%, transparent);
+    0 4px 14px -2px
+      color-mix(in srgb, var(--theme-text-secondary) 16%, transparent);
 }
 
 .welcome-persona-name-row {
@@ -180,12 +185,6 @@
   -webkit-box-orient: vertical;
   line-clamp: 2;
   -webkit-line-clamp: 2;
-  opacity: 0.72;
-  transition: opacity 0.2s ease;
-}
-
-.welcome-persona-card:hover .welcome-persona-description {
-  opacity: 1;
 }
 
 .welcome-persona-skeleton {
@@ -330,13 +329,15 @@
 .dark .welcome-persona-avatar {
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--theme-text-secondary) 8%, transparent),
-    0 2px 10px -2px color-mix(in srgb, var(--theme-text-secondary) 12%, transparent);
+    0 2px 10px -2px
+      color-mix(in srgb, var(--theme-text-secondary) 12%, transparent);
 }
 
 .dark .welcome-persona-card:hover .welcome-persona-avatar {
   box-shadow:
     0 0 0 1.5px color-mix(in srgb, var(--theme-text-secondary) 14%, transparent),
-    0 4px 16px -2px color-mix(in srgb, var(--theme-text-secondary) 18%, transparent);
+    0 4px 16px -2px
+      color-mix(in srgb, var(--theme-text-secondary) 18%, transparent);
 }
 
 @media (max-width: 639px) {
@@ -409,8 +410,8 @@
     width: 2.375rem;
     height: 2.375rem;
     border-radius: 0.625rem;
-    box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--theme-text-secondary)
-          12%, transparent);
+    box-shadow: 0 2px 8px -2px
+      color-mix(in srgb, var(--theme-text-secondary) 12%, transparent);
   }
 
   .welcome-persona-info {
@@ -435,7 +436,6 @@
     -webkit-line-clamp: 2;
     line-clamp: 2;
     margin-top: 0.25rem;
-    opacity: 0.55;
   }
 
   .welcome-persona-skeleton {
@@ -533,7 +533,6 @@
     -webkit-line-clamp: 1;
     line-clamp: 1;
     margin-top: 0.25rem;
-    opacity: 0.55;
   }
 
   html[data-mobile-keyboard="true"] .welcome-card,
@@ -585,5 +584,45 @@
   40% {
     opacity: 1;
     transform: scale(1.1);
+  }
+}
+
+.welcome-suggestions button:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+}
+
+.welcome-persona-gallery--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-mask-image: none;
+  mask-image: none;
+  scroll-snap-type: none;
+}
+
+@media (max-width: 639px), (pointer: coarse) {
+  .welcome-suggestions-header button,
+  .welcome-suggestion-pill {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-root *,
+  .welcome-root *::before {
+    animation: none !important;
+    transition: none !important;
+  }
+  .welcome-root button:active,
+  .welcome-root button:hover * {
+    transform: none !important;
+  }
+  .welcome-persona-gallery {
+    scroll-snap-type: none;
+  }
+  .welcome-card-shimmer {
+    display: none;
   }
 }

@@ -16,6 +16,8 @@ test("document preview toolbar gives the file title flexible space and groups ac
     >["t"],
     data: { content: "preview content", path: fileName },
     copied: false,
+    copying: false,
+    copyFailed: false,
     viewSource: false,
     isSidebar: true,
     isFullscreen: false,
