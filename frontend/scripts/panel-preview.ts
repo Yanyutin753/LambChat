@@ -2037,8 +2037,11 @@ const server = await createServer({
           const isRead = req.method === "GET";
           const channelConfigFailure =
             isRead &&
-            ((failureTarget === "team-detail" &&
-              /^\/api\/teams\/[^/]+$/.test(url.pathname)) ||
+            ((failureTarget === "team-roles" &&
+              url.pathname.replace(/\/$/, "") === "/api/persona-presets" &&
+              url.searchParams.get("limit") === "20") ||
+              (failureTarget === "team-detail" &&
+                /^\/api\/teams\/[^/]+$/.test(url.pathname)) ||
               (failureTarget === "persona-bindings" &&
                 url.pathname.replace(/\/$/, "") === "/api/mcp") ||
               (failureTarget === "persona-skill-list" &&

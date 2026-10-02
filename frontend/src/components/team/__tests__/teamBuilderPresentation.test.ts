@@ -30,6 +30,24 @@ function assertCssDeclaration(
   );
 }
 
+test("member default and destructive states remain visible over shared icon styles", () => {
+  const memberSource = readFileSync(
+    new URL("../TeamMemberCard.tsx", import.meta.url),
+    "utf8",
+  );
+  expect(memberSource).not.toMatch(/variant=\{isDefault \? "primary"/);
+  assertCssDeclaration(
+    ".team-member-card .team-member-card__action-btn--active",
+    "color",
+    "var\\(--theme-primary\\)",
+  );
+  assertCssDeclaration(
+    ".team-member-card .team-member-card__action-btn--danger:hover",
+    "color",
+    "var\\(--theme-error\\)",
+  );
+});
+
 test("team selected member cards fill the team member picker width", () => {
   assertCssDeclaration(".team-form-selected__list", "width", "100%");
   expect(teamCss).toMatch(
