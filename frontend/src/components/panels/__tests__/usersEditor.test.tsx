@@ -42,7 +42,9 @@ beforeEach(() =>
 test("user fields have labels and the role label toggles its native checkbox", async () => {
   render(<UsersPanel />);
   fireEvent.click(
-    await screen.findByRole("button", { name: i18n.t("users.createUser") }),
+    (
+      await screen.findAllByRole("button", { name: i18n.t("users.createUser") })
+    )[0],
   );
   for (const key of ["username", "email", "password"])
     expect(screen.getByLabelText(i18n.t(`users.${key}`))).toBeTruthy();
@@ -54,7 +56,9 @@ test("failed roles can be retried without losing the user draft", async () => {
   roles.mockRejectedValueOnce(new Error("Offline"));
   render(<UsersPanel />);
   fireEvent.click(
-    await screen.findByRole("button", { name: i18n.t("users.createUser") }),
+    (
+      await screen.findAllByRole("button", { name: i18n.t("users.createUser") })
+    )[0],
   );
   const username = screen.getByPlaceholderText(
     i18n.t("users.usernamePlaceholder"),

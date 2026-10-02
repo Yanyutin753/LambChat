@@ -90,6 +90,7 @@ interface SessionListContentProps {
   onOpenSearch: () => void;
   onShowProfile: () => void;
   hasMoreMenuItems: boolean;
+  singleMoreMenuItem?: { label: string; icon: typeof MoreHorizontal };
   onToggleMoreMenu: () => void;
   expandedMoreMenuBtnRef: React.RefObject<HTMLButtonElement | null>;
   scrollEl: HTMLDivElement | null;
@@ -146,6 +147,7 @@ export function SessionListContent({
   onOpenSearch,
   onShowProfile,
   hasMoreMenuItems,
+  singleMoreMenuItem,
   onToggleMoreMenu,
   expandedMoreMenuBtnRef,
   scrollEl,
@@ -185,6 +187,8 @@ export function SessionListContent({
   onClearSelection,
 }: SessionListContentProps) {
   const { t } = useTranslation();
+  const MoreIcon = singleMoreMenuItem?.icon ?? MoreHorizontal;
+  const moreLabel = singleMoreMenuItem?.label ?? t("nav.more", "更多");
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const canReadScheduledTasks = hasPermission(Permission.SCHEDULED_TASK_READ);
@@ -369,8 +373,8 @@ export function SessionListContent({
               onClick={onToggleMoreMenu}
               className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors"
             >
-              <MoreHorizontal size={20} />
-              <span className="flex-1 text-left">{t("nav.more", "更多")}</span>
+              <MoreIcon size={20} />
+              <span className="flex-1 text-left">{moreLabel}</span>
             </button>
           </div>
         )}
@@ -420,15 +424,6 @@ export function SessionListContent({
               collapsed={isPinnedCollapsed}
               onToggle={onTogglePinnedCollapsed}
               createLabel={t("sidebar.newChat")}
-              moreLabel={t("nav.more")}
-              menuItems={[
-                {
-                  label: t(
-                    isPinnedCollapsed ? "common.expand" : "common.collapse",
-                  ),
-                  onClick: onTogglePinnedCollapsed,
-                },
-              ]}
             />
             {!isPinnedCollapsed && (
               <>
@@ -455,9 +450,7 @@ export function SessionListContent({
                           }
                           currentProjectId={
                             (session.metadata?.project_id as
-                              | string
-                              | null
-                              | undefined) ?? null
+                              string | null | undefined) ?? null
                           }
                           onShare={() =>
                             sessionActions.onShareSession(session.id)
@@ -508,15 +501,6 @@ export function SessionListContent({
             onToggle={onToggleProjectsCollapsed}
             createLabel={t("sidebar.newProject")}
             onCreate={projectActions.onOpenNewProjectModal}
-            moreLabel={t("nav.more")}
-            menuItems={[
-              {
-                label: t(
-                  isProjectsCollapsed ? "common.expand" : "common.collapse",
-                ),
-                onClick: onToggleProjectsCollapsed,
-              },
-            ]}
           />
 
           {/* Favorites project */}
@@ -639,13 +623,6 @@ export function SessionListContent({
                   createLabel={t("sidebar.newChat")}
                   onCreate={onNewSession}
                   createIcon="compose"
-                  moreLabel={t("nav.more")}
-                  menuItems={[
-                    {
-                      label: t("sidebar.selectMode"),
-                      onClick: handleToggleSelectionMode,
-                    },
-                  ]}
                 >
                   <Tooltip content={t("sidebar.selectMode")}>
                     <button
@@ -768,7 +745,10 @@ export function SessionListContent({
                     onClick={() => handleMoveSelected(null)}
                     className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-13 font-medium text-theme-text-secondary transition hover:text-theme-text dark:text-stone-300 dark:hover:text-stone-50"
                   >
-                    <Tag size={15} className="shrink-0 text-theme-text-tertiary" />
+                    <Tag
+                      size={15}
+                      className="shrink-0 text-theme-text-tertiary"
+                    />
                     <span className="truncate">
                       {t("sidebar.uncategorized")}
                     </span>

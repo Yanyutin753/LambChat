@@ -47,6 +47,7 @@ export function DesktopActivityRail({
   const moreItems = menu.moreMenuFeatureItems.filter(
     (item) => item.show && !primaryPaths.includes(item.path),
   );
+  const SingleMoreIcon = moreItems[0]?.icon;
   const buttonClass =
     "desktop-activity-button flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-lg)] text-theme-text-secondary hover:bg-theme-bg-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]";
 
@@ -85,18 +86,31 @@ export function DesktopActivityRail({
             <item.icon size={19} />
           </button>
         ))}
-        {moreItems.length > 0 && (
+        {moreItems.length === 1 ? (
           <button
             type="button"
-            ref={menu.moreMenuBtnRef}
             className={buttonClass}
-            title={t("nav.more")}
-            aria-label={t("nav.more")}
-            aria-expanded={menu.isMoreMenuOpen}
-            onClick={() => menu.setIsMoreMenuOpen((open) => !open)}
+            title={moreItems[0].label}
+            aria-label={moreItems[0].label}
+            aria-pressed={pathname === moreItems[0].path}
+            onClick={() => navigate(moreItems[0].path)}
           >
-            <MoreHorizontal size={19} />
+            {SingleMoreIcon && <SingleMoreIcon size={19} />}
           </button>
+        ) : (
+          moreItems.length > 1 && (
+            <button
+              type="button"
+              ref={menu.moreMenuBtnRef}
+              className={buttonClass}
+              title={t("nav.more")}
+              aria-label={t("nav.more")}
+              aria-expanded={menu.isMoreMenuOpen}
+              onClick={() => menu.setIsMoreMenuOpen((open) => !open)}
+            >
+              <MoreHorizontal size={19} />
+            </button>
+          )
         )}
       </div>
       <SidebarUserRow

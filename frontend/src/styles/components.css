@@ -781,6 +781,30 @@
     display: none;
   }
 
+  .panel-header--single-action:not(.panel-header--has-search)
+    .panel-header__desktop-actions,
+  .panel-header--single-action .panel-header__search-accessory {
+    display: flex;
+  }
+
+  .panel-header--single-action
+    :is(
+      .panel-header__desktop-actions,
+      .panel-header__mobile-direct,
+      .panel-header__search-accessory
+    )
+    :is(button, a) {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+
+  .panel-header--single-action
+    :is(.panel-header__desktop-actions, .panel-header__mobile-direct)
+    button
+    span.hidden {
+    display: inline;
+  }
+
   .panel-header__mobile-actions {
     position: relative;
     display: flex;

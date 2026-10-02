@@ -78,7 +78,10 @@ test("right click and more button open the same actions without activating the c
     <SkillBaseCard
       title="Research"
       onClick={activate}
-      actions={[{ label: "Edit", onClick: edit }]}
+      actions={[
+        { label: "Edit", onClick: edit },
+        { label: "Delete", onClick: vi.fn() },
+      ]}
     />,
   );
   fireEvent.contextMenu(container.querySelector(".scb")!, {
@@ -124,7 +127,10 @@ test("outside click closes the menu and nested controls do not activate the card
       title="Research"
       onClick={activate}
       footer={<button>Toggle</button>}
-      actions={[{ label: "Edit", onClick: vi.fn() }]}
+      actions={[
+        { label: "Edit", onClick: vi.fn() },
+        { label: "Delete", onClick: vi.fn() },
+      ]}
     />,
   );
   fireEvent.click(screen.getByRole("button", { name: "Toggle" }));
@@ -138,7 +144,10 @@ test("clicking more again closes its menu", () => {
   render(
     <SkillBaseCard
       title="Research"
-      actions={[{ label: "Edit", onClick: vi.fn() }]}
+      actions={[
+        { label: "Edit", onClick: vi.fn() },
+        { label: "Delete", onClick: vi.fn() },
+      ]}
     />,
   );
   const more = screen.getByRole("button", { name: "common.moreOptions" });
@@ -239,7 +248,10 @@ test("window resize dismisses a menu without treating the window as a DOM node",
       title="Actions"
       position={{ x: 10, y: 10 }}
       onClose={close}
-      actions={[{ label: "Edit", onClick: vi.fn() }]}
+      actions={[
+        { label: "Edit", onClick: vi.fn() },
+        { label: "Delete", onClick: vi.fn() },
+      ]}
     />,
   );
   fireEvent(window, new Event("resize"));
@@ -291,4 +303,68 @@ test("resize returns menu focus before its owner updates the responsive layout",
   } finally {
     window.removeEventListener("resize", ownerResize);
   }
+});
+
+test("a single card action runs directly without activating the card", () => {
+  const edit = vi.fn();
+  const activate = vi.fn();
+  render(
+    <SkillBaseCard
+      title="Research"
+      onClick={activate}
+      actions={[{ label: "Edit", icon: <span>E</span>, onClick: edit }]}
+    />,
+  );
+  expect(
+    screen.queryByRole("button", { name: "common.moreOptions" }),
+  ).toBeNull();
+  const button = screen.getByRole("button", { name: "Edit" });
+  expect(button).not.toHaveAttribute("aria-haspopup");
+  fireEvent.click(button);
+  expect(edit).toHaveBeenCalledOnce();
+  expect(activate).not.toHaveBeenCalled();
+  expect(screen.queryByRole("menu")).toBeNull();
+});
+
+test("single disabled and link actions retain their semantics", () => {
+  const run = vi.fn();
+  const { rerender } = render(
+    <SkillBaseCard
+      title="Research"
+      actions={[
+        { label: "Delete", danger: true, disabled: true, onClick: run },
+      ]}
+    />,
+  );
+  const button = screen.getByRole("button", { name: "Delete" });
+  expect(button).toBeDisabled();
+  expect(button).toHaveClass("!text-theme-error");
+  fireEvent.click(button);
+  expect(run).not.toHaveBeenCalled();
+  rerender(
+    <SkillBaseCard
+      title="Research"
+      actions={[{ label: "Open", href: "https://example.test" }]}
+    />,
+  );
+  expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute(
+    "href",
+    "https://example.test",
+  );
+  rerender(
+    <SkillBaseCard
+      title="Research"
+      actions={[
+        {
+          label: "Open",
+          href: "https://example.test",
+          disabled: true,
+          onClick: run,
+        },
+      ]}
+    />,
+  );
+  expect(screen.getByLabelText("Open")).not.toHaveAttribute("href");
+  fireEvent.click(screen.getByLabelText("Open"));
+  expect(run).not.toHaveBeenCalled();
 });

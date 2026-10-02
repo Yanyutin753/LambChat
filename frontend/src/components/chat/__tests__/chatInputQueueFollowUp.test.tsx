@@ -149,9 +149,6 @@ test("queue chip edit button loads that message into the composer", async () => 
   );
 
   const editor = await screen.findByRole("textbox");
-  fireEvent.click(
-    screen.getByRole("button", { name: i18n.t("chat.queueMore") }),
-  );
   fireEvent.click(screen.getByTestId("queue-edit-trigger"));
 
   expect(editor).toHaveTextContent("要改的追加");

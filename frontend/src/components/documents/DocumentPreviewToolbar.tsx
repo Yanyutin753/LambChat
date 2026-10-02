@@ -305,33 +305,45 @@ export default function DocumentPreviewToolbar({
             onClick={handleDownload}
           />
         )}
-        <div className="document-preview-more-actions" ref={menuRef}>
+        {fileActions.length === 1 ? (
           <ToolbarIconButton
-            title={t("nav.more")}
-            aria-label={t("nav.more")}
-            aria-haspopup="menu"
-            aria-expanded={Boolean(menuPosition)}
-            aria-controls={menuPosition ? menuId : undefined}
-            onClick={(event) => {
-              if (menuPosition) {
-                closeMenu(true);
-                return;
-              }
-              const rect = event.currentTarget.getBoundingClientRect();
-              setMenuPosition({ x: rect.left, y: rect.bottom + 4 });
-            }}
-            icon={<MoreHorizontal size={TOOLBAR_ICON_SIZE} />}
+            title={fileActions[0].label}
+            aria-label={fileActions[0].label}
+            icon={fileActions[0].icon}
+            disabled={fileActions[0].disabled}
+            onClick={fileActions[0].onClick}
           />
-          {menuPosition && (
-            <ResourceCardMenu
-              id={menuId}
-              title={t("nav.more")}
-              position={menuPosition}
-              onClose={closeMenu}
-              actions={fileActions}
-            />
-          )}
-        </div>
+        ) : (
+          fileActions.length > 1 && (
+            <div className="document-preview-more-actions" ref={menuRef}>
+              <ToolbarIconButton
+                title={t("nav.more")}
+                aria-label={t("nav.more")}
+                aria-haspopup="menu"
+                aria-expanded={Boolean(menuPosition)}
+                aria-controls={menuPosition ? menuId : undefined}
+                onClick={(event) => {
+                  if (menuPosition) {
+                    closeMenu(true);
+                    return;
+                  }
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  setMenuPosition({ x: rect.left, y: rect.bottom + 4 });
+                }}
+                icon={<MoreHorizontal size={TOOLBAR_ICON_SIZE} />}
+              />
+              {menuPosition && (
+                <ResourceCardMenu
+                  id={menuId}
+                  title={t("nav.more")}
+                  position={menuPosition}
+                  onClose={closeMenu}
+                  actions={fileActions}
+                />
+              )}
+            </div>
+          )
+        )}
         <ToolbarIconButton
           onClick={() => {
             onClose();
