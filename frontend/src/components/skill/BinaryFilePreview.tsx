@@ -1,5 +1,5 @@
 import { SceneIllustration } from "../common/SceneIllustration";
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
 import {
@@ -9,10 +9,10 @@ import {
   Film,
   Music,
   FileArchive,
-  Loader2,
 } from "lucide-react";
 import { getFullUrl } from "../../services/api/config";
-import { ImageViewer, ToolbarIconButton } from "../common";
+import { Button, ImageViewer, ToolbarIconButton } from "../common";
+import { SkillFileLoadState } from "./SkillFileLoadState";
 
 interface BinaryFilePreviewProps {
   url: string;
@@ -77,8 +77,22 @@ export function BinaryFilePreview({
   const { t } = useTranslation();
   const fullUrl = useMemo(() => getFullUrl(url) || url, [url]);
   const [viewerOpen, setViewerOpen] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [videoLoaded, setVideoLoaded] = useState(false);
+  const [loadedImage, setLoadedImage] = useState<string>();
+  const [failedSource, setFailedSource] = useState<string>();
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const hasError = failedSource === fullUrl;
+  useEffect(() => {
+    setFailedSource(undefined);
+    setLoadedImage(undefined);
+    setRetryAttempt(0);
+    setViewerOpen(false);
+  }, [fullUrl, mime_type]);
+  const handleError = () => {
+    if (contentRef.current?.contains(document.activeElement))
+      contentRef.current.focus();
+    setFailedSource(fullUrl);
+  };
 
   const Icon = getFileIcon(mime_type);
   const iconColor = getIconColor(mime_type);
@@ -108,7 +122,10 @@ export function BinaryFilePreview({
           <p className="text-14 font-medium text-[var(--theme-text)] truncate">
             {fileName}
           </p>
-          <p className="text-11 text-[var(--theme-text-secondary)]">
+          <p
+            className="truncate text-11 text-[var(--theme-text-secondary)]"
+            title={`${mime_type} · ${formatSize(size)}`}
+          >
             {mime_type} · {formatSize(size)}
           </p>
         </div>
@@ -121,106 +138,126 @@ export function BinaryFilePreview({
       </div>
 
       {/* Content area */}
-      <div className="flex-1 min-h-0 overflow-auto">
-        {/* Image preview */}
-        {isImage(mime_type) && (
-          <div className="relative flex items-center justify-center p-4 sm:p-6 min-h-full cursor-zoom-in">
-            {!imageLoaded && (
-              <div className="absolute inset-0 flex items-center justify-center bg-[var(--theme-bg-card)]/50 rounded-lg">
-                <div className="flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2 text-12 text-stone-500 shadow-sm dark:bg-stone-800/80 dark:text-stone-400">
-                  <Loader2 size={14} className="animate-spin" />
-                  <span>{t("documents.loadingImage")}</span>
-                </div>
-              </div>
+      <div
+        ref={contentRef}
+        tabIndex={-1}
+        className="flex-1 min-h-0 overflow-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--theme-primary)]/50"
+      >
+        {hasError ? (
+          <SkillFileLoadState
+            path={fileName}
+            error={t(
+              isImage(mime_type)
+                ? "imageViewer.loadFailed"
+                : isVideo(mime_type)
+                  ? "documents.videoLoadFailed"
+                  : "files.loadFailed",
             )}
-            <ImageWithSkeleton
-              src={fullUrl}
-              alt={fileName}
-              skipUrlResolve
-              inline
-              onClick={() => imageLoaded && setViewerOpen(true)}
-              className="max-w-full max-h-[60dvh] rounded-lg shadow-md"
-              style={{ objectFit: "contain" }}
-              onLoad={() => setImageLoaded(true)}
-              onError={() => setImageLoaded(true)}
-            />
-          </div>
-        )}
-
-        {/* Video preview */}
-        {isVideo(mime_type) && (
-          <div className="relative flex items-center justify-center bg-gradient-to-b from-stone-900 to-stone-950 p-4 sm:p-8 min-h-full">
-            {!videoLoaded && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-12 text-white/60 shadow-sm">
-                  <Loader2 size={14} className="animate-spin" />
-                  <span>{t("documents.loadingVideo")}</span>
-                </div>
-              </div>
-            )}
-            <video
-              src={fullUrl}
-              controls
-              preload="metadata"
-              autoPlay={false}
-              onLoadedData={() => setVideoLoaded(true)}
-              onError={() => setVideoLoaded(true)}
-              className={`w-full max-w-4xl max-h-[60dvh] rounded-xl shadow-2xl ring-1 ring-white/10 transition-opacity duration-300 ${
-                videoLoaded ? "opacity-100" : "opacity-0"
-              }`}
-            >
-              <track kind="captions" />
-            </video>
-          </div>
-        )}
-
-        {/* Audio preview */}
-        {isAudio(mime_type) && (
-          <div className="flex flex-col items-center justify-center gap-6 py-12 px-4 min-h-full">
-            <div className="flex flex-col items-center gap-2">
-              <SceneIllustration scene="files" />
-              <Music size={18} className={iconColor} />
-            </div>
-            <audio src={fullUrl} controls className="w-full max-w-md" />
-          </div>
-        )}
-
-        {/* PDF preview */}
-        {isPdf(mime_type) && (
-          <iframe
-            src={fullUrl}
-            className="w-full h-full min-h-[400px] border-0"
-            title={fileName}
+            onRetry={() => {
+              contentRef.current?.focus();
+              setFailedSource(undefined);
+              setLoadedImage(undefined);
+              setRetryAttempt((attempt) => attempt + 1);
+            }}
           />
-        )}
+        ) : (
+          <>
+            {/* Image preview */}
+            {isImage(mime_type) && (
+              <div className="relative flex items-center justify-center p-4 sm:p-6 min-h-full">
+                <ImageWithSkeleton
+                  key={`${fullUrl}:${retryAttempt}`}
+                  src={fullUrl}
+                  alt={fileName}
+                  skipUrlResolve
+                  onClick={() => loadedImage === fullUrl && setViewerOpen(true)}
+                  wrapperClassName="w-full max-w-4xl"
+                  className="max-w-full max-h-[60dvh] rounded-lg shadow-md"
+                  style={{ objectFit: "contain" }}
+                  onLoad={() => setLoadedImage(fullUrl)}
+                  onError={handleError}
+                />
+              </div>
+            )}
 
-        {/* Generic binary file (non-previewable) */}
-        {!isImage(mime_type) &&
-          !isVideo(mime_type) &&
-          !isAudio(mime_type) &&
-          !isPdf(mime_type) && (
-            <div className="flex flex-col items-center justify-center gap-4 py-12 px-4 min-h-full">
-              <div className="flex flex-col items-center gap-2">
-                <SceneIllustration scene="files" />
-                <Icon size={18} className={iconColor} />
+            {/* Video preview */}
+            {isVideo(mime_type) && (
+              <div className="relative flex items-center justify-center bg-[var(--theme-bg-subtle)] p-4 sm:p-6 min-h-full">
+                <video
+                  key={`${fullUrl}:${retryAttempt}`}
+                  src={fullUrl}
+                  controls
+                  preload="metadata"
+                  autoPlay={false}
+                  playsInline
+                  aria-label={fileName}
+                  onError={handleError}
+                  className="w-full max-w-4xl max-h-[60dvh] rounded-lg"
+                >
+                  <track kind="captions" />
+                </video>
               </div>
-              <div className="text-center">
-                <p className="text-14 font-medium text-[var(--theme-text)] mb-1">
-                  {t("skills.binaryPreview.title")}
-                </p>
-                <p className="text-12 text-[var(--theme-text-secondary)] max-w-xs">
-                  {t("skills.binaryPreview.unsupportedHint")}
-                </p>
+            )}
+
+            {/* Audio preview */}
+            {isAudio(mime_type) && (
+              <div className="flex flex-col items-center justify-center gap-6 py-12 px-4 min-h-full">
+                <div className="flex flex-col items-center gap-2">
+                  <SceneIllustration scene="files" />
+                  <Music size={18} className={iconColor} />
+                </div>
+                <audio
+                  key={`${fullUrl}:${retryAttempt}`}
+                  src={fullUrl}
+                  controls
+                  preload="metadata"
+                  aria-label={fileName}
+                  onError={handleError}
+                  className="w-full max-w-md"
+                />
               </div>
-              <button
-                onClick={handleDownload}
-                className="mt-2 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--theme-primary)] text-white text-14 font-medium hover:opacity-90 transition-all active:scale-95 cursor-pointer"
-              >
-                <Download size={16} />
-                {t("skills.binaryPreview.download")}
-              </button>
-            </div>
-          )}
+            )}
+
+            {/* PDF preview */}
+            {isPdf(mime_type) && (
+              <iframe
+                src={fullUrl}
+                className="w-full h-full min-h-[400px] border-0"
+                title={fileName}
+              />
+            )}
+
+            {/* Generic binary file (non-previewable) */}
+            {!isImage(mime_type) &&
+              !isVideo(mime_type) &&
+              !isAudio(mime_type) &&
+              !isPdf(mime_type) && (
+                <div className="flex flex-col items-center justify-center gap-4 py-12 px-4 min-h-full">
+                  <div className="flex flex-col items-center gap-2">
+                    <SceneIllustration scene="files" />
+                    <Icon size={18} className={iconColor} />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-14 font-medium text-[var(--theme-text)] mb-1">
+                      {t("skills.binaryPreview.title")}
+                    </p>
+                    <p className="text-12 text-[var(--theme-text-secondary)] max-w-xs">
+                      {t("skills.binaryPreview.unsupportedHint")}
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleDownload}
+                    variant="primary"
+                    size="lg"
+                    leftIcon={<Download size={16} />}
+                    className="mt-2"
+                  >
+                    {t("skills.binaryPreview.download")}
+                  </Button>
+                </div>
+              )}
+          </>
+        )}
       </div>
 
       {/* ImageViewer modal */}

@@ -1,5 +1,5 @@
 import { ModalSurface } from "../../common/ModalSurface";
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 import {
   FileText,
@@ -14,6 +14,9 @@ import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { EditorSidebar } from "../../common/EditorSidebar";
 import { BinaryFilePreview } from "../../skill/BinaryFilePreview";
 import { SkillEditor } from "../../skill/SkillEditor";
+import { SkillFileLoadState } from "../../skill/SkillFileLoadState";
+import { Button, ToolbarIconButton } from "../../common";
+import { ConfigPanelErrorCallout } from "../ConfigPanelErrorCallout";
 import type {
   MarketplaceSkillResponse,
   MarketplaceSkillFilesResponse,
@@ -23,32 +26,38 @@ interface SkillPreviewModalProps {
   previewSkill: MarketplaceSkillResponse;
   previewFiles: MarketplaceSkillFilesResponse | null;
   previewLoading: boolean;
+  previewError?: string;
+  previewFileErrors: Record<string, string>;
   previewFileContent: Record<string, string>;
   previewBinaryFiles: Record<
     string,
     { url: string; mime_type: string; size: number }
   >;
-  previewFileLoading: string | null;
+  previewFileLoading: ReadonlySet<string>;
   onClose: () => void;
   onReadFile: (skillName: string, filePath: string) => void;
-  onSetFileContent: React.Dispatch<
-    React.SetStateAction<Record<string, string>>
-  >;
+  onRetryFiles: () => void;
 }
 
 export function SkillPreviewModal({
   previewSkill,
   previewFiles,
   previewLoading,
+  previewError,
+  previewFileErrors,
   previewFileContent,
   previewBinaryFiles,
   previewFileLoading,
   onClose,
   onReadFile,
+  onRetryFiles,
 }: SkillPreviewModalProps) {
   const { t } = useTranslation();
   const [isDescExpanded, setIsDescExpanded] = useState(false);
   const [previewFilePath, setPreviewFilePath] = useState<string | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const hasLongDescription = (previewSkill.description?.length || 0) > 80;
 
   const previewBinaryInfo = previewFilePath
     ? previewBinaryFiles[previewFilePath]
@@ -58,8 +67,8 @@ export function SkillPreviewModal({
     : undefined;
   const isPreviewLoading =
     !!previewFilePath &&
-    previewFileLoading === previewFilePath &&
-    !previewTextContent &&
+    previewFileLoading.has(previewFilePath) &&
+    previewTextContent === undefined &&
     !previewBinaryInfo;
 
   return (
@@ -68,39 +77,38 @@ export function SkillPreviewModal({
         open={true}
         onClose={onClose}
         title={previewSkill.skill_name}
-        subtitle={
-          <span className="inline-flex items-center gap-1.5">
-            <span className="skill-meta-pill text-10 sm:text-12">
-              v{previewSkill.version}
-            </span>
-            <button
-              type="button"
-              onClick={() => setIsDescExpanded((v) => !v)}
-              className="text-left text-11 leading-relaxed text-[var(--theme-text-secondary)]"
-            >
-              <span className={!isDescExpanded ? "line-clamp-1" : ""}>
-                {previewSkill.description || t("marketplace.noDescription")}
-              </span>
-              {(previewSkill.description?.length || 0) > 80 && (
-                <span className="ml-1 inline-flex items-center gap-0.5 text-10 text-[var(--theme-primary)]">
-                  {isDescExpanded
-                    ? t("marketplace.previewCollapse")
-                    : t("marketplace.previewExpand")}
-                  <ChevronDown
-                    size={10}
-                    className={`transition-transform ${
-                      isDescExpanded ? "rotate-180" : ""
-                    }`}
-                  />
-                </span>
-              )}
-            </button>
-          </span>
-        }
         icon={<ShoppingBag size={16} />}
         width="wide"
       >
-        <div className="es-form">
+        <div ref={listRef} tabIndex={-1} className="es-form">
+          <div className="space-y-2">
+            <span className="font-mono text-12 text-[var(--theme-text-secondary)]">
+              v{previewSkill.version}
+            </span>
+            <p
+              className={`text-13 leading-relaxed text-[var(--theme-text-secondary)] ${
+                hasLongDescription && !isDescExpanded ? "line-clamp-3" : ""
+              }`}
+            >
+              {previewSkill.description || t("marketplace.noDescription")}
+            </p>
+            {hasLongDescription && (
+              <button
+                type="button"
+                aria-expanded={isDescExpanded}
+                onClick={() => setIsDescExpanded((value) => !value)}
+                className="inline-flex min-h-11 items-center gap-1 text-12 text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)]"
+              >
+                {isDescExpanded
+                  ? t("marketplace.previewCollapse")
+                  : t("marketplace.previewExpand")}
+                <ChevronDown
+                  size={14}
+                  className={isDescExpanded ? "rotate-180" : ""}
+                />
+              </button>
+            )}
+          </div>
           {/* Tags */}
           {previewSkill.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
@@ -121,7 +129,20 @@ export function SkillPreviewModal({
               <LoadingSpinner size="sm" />
               <span>{t("marketplace.loadingFiles")}</span>
             </div>
-          ) : previewFiles ? (
+          ) : previewError ? (
+            <div className="flex flex-col items-start gap-3">
+              <ConfigPanelErrorCallout message={previewError} />
+              <Button
+                size="lg"
+                onClick={() => {
+                  listRef.current?.focus();
+                  onRetryFiles();
+                }}
+              >
+                {t("common.retry")}
+              </Button>
+            </div>
+          ) : previewFiles?.files.length ? (
             <div>
               <h3 className="mb-3 flex items-center gap-2 text-13 font-medium font-sans text-[var(--theme-text)]">
                 <FileText size={16} className="text-[var(--theme-primary)]" />
@@ -130,10 +151,10 @@ export function SkillPreviewModal({
               <div className="space-y-2">
                 {previewFiles.files.map((filePath) => {
                   const isLoaded = Boolean(
-                    previewFileContent[filePath] ||
-                    previewBinaryFiles[filePath],
+                    previewFileContent[filePath] !== undefined ||
+                      previewBinaryFiles[filePath],
                   );
-                  const isLoadingFile = previewFileLoading === filePath;
+                  const isLoadingFile = previewFileLoading.has(filePath);
 
                   return (
                     <div
@@ -188,6 +209,7 @@ export function SkillPreviewModal({
           layer={1200}
           className="modal-wide"
           open
+          label={previewFilePath}
           onClose={() => setPreviewFilePath(null)}
         >
           <div
@@ -203,23 +225,28 @@ export function SkillPreviewModal({
                   {previewFilePath}
                 </div>
               </div>
-              <button
-                type="button"
+              <ToolbarIconButton
                 aria-label={t("marketplace.closePreview")}
                 title={t("marketplace.closePreview")}
                 onClick={() => setPreviewFilePath(null)}
-                className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-[var(--theme-text-secondary)] transition-colors hover:bg-[var(--theme-bg-subtle)] hover:text-[var(--theme-text)]"
-              >
-                <X size={15} />
-              </button>
+                icon={<X size={16} />}
+              />
             </div>
 
-            <div className="min-h-0 flex-1 overflow-hidden bg-[var(--theme-bg)]">
-              {isPreviewLoading ? (
-                <div className="flex h-full items-center justify-center gap-2 text-14 text-[var(--theme-text-secondary)]">
-                  <LoadingSpinner size="sm" />
-                  <span>{t("marketplace.loadingFiles")}</span>
-                </div>
+            <div
+              ref={contentRef}
+              tabIndex={-1}
+              className="min-h-0 flex-1 overflow-hidden bg-[var(--theme-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--theme-primary)]/50"
+            >
+              {isPreviewLoading || previewFileErrors[previewFilePath] ? (
+                <SkillFileLoadState
+                  path={previewFilePath}
+                  error={previewFileErrors[previewFilePath]}
+                  onRetry={() => {
+                    contentRef.current?.focus();
+                    onReadFile(previewSkill.skill_name, previewFilePath);
+                  }}
+                />
               ) : previewBinaryInfo ? (
                 <BinaryFilePreview
                   url={previewBinaryInfo.url}
