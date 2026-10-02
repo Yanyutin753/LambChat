@@ -1,4 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
 import { HardDrive, RotateCw } from "lucide-react";
@@ -6,6 +12,10 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { usePreferenceWrites } from "../../hooks/usePreferenceWrites";
 import { CatalogStatus } from "../common/CatalogStatus";
 import { Button } from "../common/ui/Button";
+import {
+  sandboxDataLocationStore,
+  updateSandboxDataLocation,
+} from "../../stores/sandboxDataLocationStore";
 import {
   clearSandboxDataLocation,
   pickSandboxDirectory,
@@ -28,8 +38,13 @@ export function SandboxDataLocationCard({
   const [location, setLocation] = useState<SandboxDataLocation | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [migrate, setMigrate] = useState(true);
-  const [pendingRestart, setPendingRestart] = useState<"set" | "reset" | null>(
-    null,
+  const {
+    saving: sharedSaving,
+    pendingRestart,
+    root: savedRoot,
+  } = useSyncExternalStore(
+    sandboxDataLocationStore.subscribe,
+    sandboxDataLocationStore.get,
   );
   const { states, save, retry, discard } = usePreferenceWrites(
     "sandbox-data-location",
@@ -38,13 +53,19 @@ export function SandboxDataLocationCard({
   const picking = states.pick === "saving";
   const restarting = states.relaunch === "saving";
   const busy =
-    applying || picking || restarting || !!confirming || !!pendingRestart;
+    applying ||
+    sharedSaving ||
+    picking ||
+    restarting ||
+    !!confirming ||
+    !!pendingRestart;
   useLayoutEffect(() => {
     onBusyChange?.(busy);
   }, [busy, onBusyChange]);
   useLayoutEffect(() => () => onBusyChange?.(false), [onBusyChange]);
 
   useEffect(() => {
+    if (sharedSaving || pendingRestart) return;
     let next: SandboxDataLocation;
     save(
       "read",
@@ -53,7 +74,7 @@ export function SandboxDataLocationCard({
       },
       () => setLocation(next),
     );
-  }, [save]);
+  }, [save, sharedSaving, pendingRestart]);
 
   const focusSection = () => {
     if (sectionRef.current?.contains(document.activeElement)) {
@@ -61,7 +82,14 @@ export function SandboxDataLocationCard({
     }
   };
   const handlePick = () => {
-    if (disabled || applying || pendingRestart || !discard("location")) return;
+    if (
+      disabled ||
+      sharedSaving ||
+      applying ||
+      pendingRestart ||
+      !discard("location")
+    )
+      return;
     let picked: string | null;
     if (
       save(
@@ -81,7 +109,7 @@ export function SandboxDataLocationCard({
       focusSection();
   };
   const handleApply = () => {
-    if (disabled || !confirming || pendingRestart) return;
+    if (disabled || sharedSaving || !confirming || pendingRestart) return;
     const path = confirming;
     if (
       save(
@@ -89,14 +117,17 @@ export function SandboxDataLocationCard({
         async () => {
           locationError.current = "";
           try {
-            await setSandboxDataLocation(path, migrate);
+            await updateSandboxDataLocation(
+              "set",
+              () => setSandboxDataLocation(path, migrate),
+              path,
+            );
           } catch (error) {
             locationError.current = String(error);
             throw error;
           }
         },
         () => {
-          setPendingRestart("set");
           setConfirming(null);
           toast.success(
             t("profile.localSandbox.dataLocation.savedRestartPending"),
@@ -107,21 +138,27 @@ export function SandboxDataLocationCard({
       focusSection();
   };
   const handleReset = () => {
-    if (disabled || picking || pendingRestart || !discard("pick")) return;
+    if (
+      disabled ||
+      sharedSaving ||
+      picking ||
+      pendingRestart ||
+      !discard("pick")
+    )
+      return;
     if (
       save(
         "location",
         async () => {
           locationError.current = "";
           try {
-            await clearSandboxDataLocation();
+            await updateSandboxDataLocation("reset", clearSandboxDataLocation);
           } catch (error) {
             locationError.current = String(error);
             throw error;
           }
         },
         () => {
-          setPendingRestart("reset");
           toast.success(
             t("profile.localSandbox.dataLocation.resetRestartPending"),
           );
@@ -135,7 +172,13 @@ export function SandboxDataLocationCard({
     <div
       ref={sectionRef}
       tabIndex={-1}
-      aria-busy={applying || picking || restarting || states.read === "saving"}
+      aria-busy={
+        sharedSaving ||
+        applying ||
+        picking ||
+        restarting ||
+        states.read === "saving"
+      }
       className="profile-data-location border-t border-theme-border pt-3 mt-3 outline-none"
       data-sandbox-data-location
     >
@@ -146,31 +189,31 @@ export function SandboxDataLocationCard({
           aria-hidden="true"
         />
         <span>{t("profile.localSandbox.dataLocation.title")}</span>
-        {location && (
+        {(location || pendingRestart) && (
           <span className="text-12 text-theme-text-secondary">
-            {location.customized
+            {(pendingRestart ? pendingRestart === "set" : location?.customized)
               ? t("profile.localSandbox.dataLocation.customizedBadge")
               : t("profile.localSandbox.dataLocation.defaultBadge")}
           </span>
         )}
       </div>
-      {location && (
+      {(savedRoot || (location && !pendingRestart && !sharedSaving)) && (
         <p
           className="mt-1 text-12 text-theme-text-secondary [overflow-wrap:anywhere]"
-          title={location.root}
+          title={savedRoot ?? location?.root}
         >
-          {location.root}
+          {savedRoot ?? location?.root}
         </p>
       )}
       <p className="mt-1 text-12 text-theme-text-secondary leading-relaxed">
         {t("profile.localSandbox.dataLocation.desc")}
       </p>
 
-      {!location ? (
+      {!pendingRestart && ((sharedSaving && !applying) || !location) ? (
         <div className="mt-2">
           <CatalogStatus
             label={t("profile.localSandbox.dataLocation.title")}
-            loading={states.read !== "error"}
+            loading={sharedSaving || states.read !== "error"}
             error={states.read === "error"}
             onRetry={() => retry("read")}
             focusTargetRef={sectionRef}
@@ -288,7 +331,7 @@ export function SandboxDataLocationCard({
             focusTargetRef={sectionRef}
           />
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {location.overrideConfigured && (
+            {location?.overrideConfigured && (
               <Button
                 variant="ghost"
                 size="sm"

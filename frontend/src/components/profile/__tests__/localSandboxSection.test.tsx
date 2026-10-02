@@ -84,6 +84,7 @@ vi.mock("react-hot-toast", () => ({
 
 import { LocalSandboxSection } from "../LocalSandboxSection";
 import { getSandboxStatusStoreState } from "../../../stores/sandboxStatusStore";
+import { sandboxDataLocationStore } from "../../../stores/sandboxDataLocationStore";
 
 test("failed native retry waits while the directory picker is open", async () => {
   mocks.isShellAvailable.mockReturnValue(true);
@@ -590,6 +591,11 @@ test("unpair retry continues local cleanup without repeating server revocation",
 beforeEach(async () => {
   await i18n.changeLanguage("en");
   vi.resetAllMocks();
+  sandboxDataLocationStore.set({
+    saving: false,
+    pendingRestart: null,
+    root: null,
+  });
   // 默认：非事件模式（resolve null → 组件回退轮询，与旧行为同构）
   mocks.subscribeDaemonStatus.mockImplementation(() => Promise.resolve(null));
   // 数据位置交互另有测试，这里提供真实形状的稳定读取。

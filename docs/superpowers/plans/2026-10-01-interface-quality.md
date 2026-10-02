@@ -996,3 +996,17 @@ LocalSandboxSection复用usePreferenceWrites统一配对、策略、重启和取
 八项按DESIGN.md人工检查：沿用文字尺度和分组留白；连接/进程/目录状态各自准确、行动层级清楚；三主题token；无新增动效、保留reduced-motion；禁用、取消、重试、焦点及卸载经行为与实屏验证；320/390/834/1440及短屏实际核对；保持LambChat现有控件和视觉语言。pnpm exec impeccable确认检查器不可用，按项目交付清单检查。最终全量783文件3898项测试、lint零错误零警告、build含tsc/Vite/PWA通过；eager JS560326/561152 bytes、precache5032069/5242880 bytes、93项，预算未提高，git diff --check通过。
 
 全站目标继续。本次互锁仅同一设置分区；两个实例、关闭重开时待重启状态持久性、账号切换在途操作归属、目录打开迟到错误、真实Tauri迁移/重启和手机设备仍缺验证，不能据本批门禁宣告全部界面完成。最终回收经过PID/cwd核对的本轮3019及临时标签，恢复视口，既有3018结果和用户3017保留。
+
+## 2026-10-02 数据位置关闭重开与迁移状态连续性
+
+上一目标回合提交f02da0ef，状态反馈/跨区互锁有真实修改及实屏证据，分类为progress。继续interface-state，HTTPS fetch确认origin/develop仍349e2f08且为HEAD祖先，开工现场干净；主checkout、mobile-density及用户3017保持。读取daemon.rs实际契约确认：成功set即时修改进程LAMBCHAT_HOME，clear移除覆盖与变量，但仍须重启应用；原UI却保留旧根路径、在组件卸载时丢待重启提示。
+
+复用createSingletonStore与useSyncExternalStore共享迁移在途、已保存操作类型和目标路径。已开始的原生命令不因设置卸载停止，成功结果仍记录共享状态，旧实例的usePreferenceWrites继续抑制迟到toast；失败释放迁移锁，原确认/Retry保留。重新进入或第二实例显示同一等待/待重启状态，不能继续另一目录写入；新路径优先于旧读取结果，恢复默认隐藏旧自定义根并沿用准确说明。此状态只共享同一WebView生命周期，独立WebView重载仍需原生pending标记，源码明确记录该边界；原生命令、文件迁移协议及凭据逻辑未改。
+
+五项真实组件回归先RED（5failed/15pass）再GREEN：保存后重开、正确新根、迁移中重开、第二实例跟随、恢复默认重开。关联2文件63项通过，独立只读增量复核无确定P1/P2。全量783文件3903项测试通过，lint最初一条预览入口Fast Refresh警告，经仅导出预览组件后复跑零警告零错误；build含tsc/Vite/PWA通过。eager JS560317/561152 bytes、precache5032069/5242880 bytes、93项，未提高预算；git diff --check通过。
+
+预览新增可选reopen=1，按钮仅在独立入口挂载/卸载实际组件，不在生产路由。390深色实测迁移中关闭/重新进入仍为数据位置Loading，完成后新根、自定义标识及Restart保留；保存后再次重开同样保留，原生动作锁定。重启首次失败保留alert与Retry，恢复后仍保留待重启提示（fixture不真的重启）。320×300 Tab到Restart：main.scrollTop242、buttonTop180.05/bottom224.05/height44，overflow0。834暖色俄语恢复默认后重开，旧根不再显示、准确说明保留、宿主720px与overflow0；1440浅色俄语保存显示完整新根，overflow0。截图位于仓库外interface-quality：sandbox-location-continuity-390-dark-reopened-saving-final、390-dark-reopened-final、320-short-dark-relaunch-final、834-sepia-ru-reset-reopened-final、1440-light-ru-saved-final。fixture命令仅等待与内存替身，不迁移真实文件、访问原生桥、写真实API或重启应用；热刷新预览入口会重置模块，因此最后证据均在入口修改完成后重新采集。
+
+八项按DESIGN.md检查：沿用既有字号与分组留白；目标路径、迁移等待、待重启和错误分层且不重复嵌套；三主题token与五语既有文案；无新增动效、保留reduced-motion；同步锁、关闭重开、Retry、焦点与迟到通知由行为/实屏覆盖；320/390/834/1440与300px短屏核对；复用LambChat组件，保持克制视觉。Impeccable沿用已确认不可用的环境，按项目交付清单人工检查。
+
+全站目标仍进行中。多实例数据状态已共享，但配对/策略/重启等原生写入本身仍按设置实例管理，跨实例协调、账号切换归属、目录打开迟到错误、WebView独立重载后的待重启状态、真实Tauri迁移/重启及真机仍待继续；不据本批局部门禁宣告全站完成。回收经PID/cwd核对的本轮3019和临时标签，视口恢复；3018结果与用户3017保持。

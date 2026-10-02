@@ -120,3 +120,5 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 分步恢复走查：显式加 `native-flow=1`，可用 `failure=pair-login|pair-create|pair-save|pair-restart|policy-server|policy-save|policy-restart|restart|unpair` 使对应模拟步骤首次失败、重试恢复。配对回执使用公开占位符，账号字段不被解析或转发；模拟保存/策略/启动仅更新预览模块内存，不访问原生桥、文件系统或真实 API。可检查回执确认后收起凭据表单、重启失败的准确说明、只继续失败步骤，以及策略保存失败后点击 Restart 仍继续原保存。目录打开始终拒绝；刷新页面重置模拟流程。此入口不证明真实凭据落盘、服务端写入、进程重启或真实设备行为。
 
 连接与目录互锁走查：`shell=paired&failure=status` 同时保留原生“运行中”与连接读取错误，Retry 等待1.2秒后恢复；`shell=web&failure=status` 同样有等待反馈。`shell=paired&native-flow=1&failure=save` 可检查选目录、确认、保存重试与待应用重启期间暂停原生操作；`failure=restart` 可检查原生重启等待禁用目录修改，随后选目录也禁用原生错误中的Retry。只读读取重试仍可用。互锁当前限同一设置分区，预览不调用原生桥、迁移文件或重启应用，不证明多实例协调或真实迁移。
+
+同一入口加 `reopen=1` 可关闭/重新挂载实际设置组件，保留页面和共享store。可检查迁移等待中重新进入、保存后新路径与待重启入口保留，以及 `custom=1` 恢复默认后的说明；`failure=relaunch` 可检查重启失败/Retry。刷新整个页面会重置模块内存，模拟重启不会真的刷新；该入口只证明同一WebView生命周期内的状态连续性，不证明独立WebView重载、原生迁移或应用重启。

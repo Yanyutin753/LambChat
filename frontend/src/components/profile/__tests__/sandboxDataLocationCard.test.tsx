@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 import i18n from "../../../i18n";
@@ -36,6 +37,7 @@ vi.mock("react-hot-toast", () => ({
 }));
 
 import { SandboxDataLocationCard } from "../SandboxDataLocationCard";
+import { sandboxDataLocationStore } from "../../../stores/sandboxDataLocationStore";
 
 const DEFAULT_LOCATION = {
   root: "C:\\Users\\dev\\.lambchat",
@@ -52,6 +54,130 @@ const CUSTOMIZED_LOCATION = {
 beforeEach(async () => {
   await i18n.changeLanguage("en");
   vi.resetAllMocks();
+  sandboxDataLocationStore.set({
+    saving: false,
+    pendingRestart: null,
+    root: null,
+  });
+});
+
+test("saved location retains the restart action when settings reopen", async () => {
+  mocks.readSandboxDataLocation.mockResolvedValue(DEFAULT_LOCATION);
+  mocks.pickSandboxDirectory.mockResolvedValue("E:\\sandbox");
+  mocks.setSandboxDataLocation.mockResolvedValue(undefined);
+  const view = render(<SandboxDataLocationCard />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /change location/i }),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: /save and move/i }),
+  );
+  await screen.findByRole("button", { name: /restart now/i });
+  view.unmount();
+  render(<SandboxDataLocationCard />);
+  expect(
+    await screen.findByRole("button", { name: /restart now/i }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: /change location/i }),
+  ).not.toBeInTheDocument();
+});
+
+test("saved location displays its new root instead of the previous path", async () => {
+  mocks.readSandboxDataLocation.mockResolvedValue(DEFAULT_LOCATION);
+  mocks.pickSandboxDirectory.mockResolvedValue("E:\\sandbox");
+  mocks.setSandboxDataLocation.mockResolvedValue(undefined);
+  render(<SandboxDataLocationCard />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /change location/i }),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: /save and move/i }),
+  );
+  await screen.findByRole("button", { name: /restart now/i });
+  expect(screen.getByText("E:\\sandbox")).toBeVisible();
+  expect(screen.queryByText(DEFAULT_LOCATION.root)).not.toBeInTheDocument();
+  expect(screen.getByText("Custom")).toBeVisible();
+});
+
+test("reopening during migration waits for the same save and retains its result", async () => {
+  mocks.readSandboxDataLocation.mockResolvedValue(DEFAULT_LOCATION);
+  mocks.pickSandboxDirectory.mockResolvedValue("E:\\sandbox");
+  let complete!: () => void;
+  mocks.setSandboxDataLocation.mockImplementation(
+    () =>
+      new Promise<void>((resolve) => {
+        complete = resolve;
+      }),
+  );
+  const view = render(<SandboxDataLocationCard />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /change location/i }),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: /save and move/i }),
+  );
+  await waitFor(() => expect(complete).toBeDefined());
+  view.unmount();
+  render(<SandboxDataLocationCard />);
+  await act(async () => {});
+  expect(
+    screen.queryByRole("button", { name: /change location/i }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("status")).toHaveTextContent(
+    /data location.*loading/i,
+  );
+  await act(async () => complete());
+  expect(
+    await screen.findByRole("button", { name: /restart now/i }),
+  ).toBeVisible();
+  expect(mocks.toastSuccess).not.toHaveBeenCalled();
+});
+
+test("a second location card follows the first card's saved restart state", async () => {
+  mocks.readSandboxDataLocation.mockResolvedValue(DEFAULT_LOCATION);
+  mocks.pickSandboxDirectory.mockResolvedValue("E:\\sandbox");
+  mocks.setSandboxDataLocation.mockResolvedValue(undefined);
+  const view = render(
+    <>
+      <section aria-label="first">
+        <SandboxDataLocationCard />
+      </section>
+      <section aria-label="second">
+        <SandboxDataLocationCard />
+      </section>
+    </>,
+  );
+  const first = within(view.getByRole("region", { name: "first" }));
+  const second = within(view.getByRole("region", { name: "second" }));
+  fireEvent.click(
+    await first.findByRole("button", { name: /change location/i }),
+  );
+  fireEvent.click(await first.findByRole("button", { name: /save and move/i }));
+  await first.findByRole("button", { name: /restart now/i });
+  expect(
+    await second.findByRole("button", { name: /restart now/i }),
+  ).toBeVisible();
+  expect(
+    second.queryByRole("button", { name: /change location/i }),
+  ).not.toBeInTheDocument();
+});
+
+test("reset restart guidance survives reopening and does not show the old custom root", async () => {
+  mocks.readSandboxDataLocation.mockResolvedValue(CUSTOMIZED_LOCATION);
+  mocks.clearSandboxDataLocation.mockResolvedValue(undefined);
+  const view = render(<SandboxDataLocationCard />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /reset to default/i }),
+  );
+  await screen.findByRole("button", { name: /restart now/i });
+  view.unmount();
+  render(<SandboxDataLocationCard />);
+  expect(
+    await screen.findByText(/existing data stays where it is/i),
+  ).toBeVisible();
+  expect(screen.queryByText(CUSTOMIZED_LOCATION.root)).not.toBeInTheDocument();
+  expect(screen.getByText("Default")).toBeVisible();
 });
 
 test("failed location read keeps the section and can recover", async () => {
