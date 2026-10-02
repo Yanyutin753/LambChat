@@ -48,7 +48,10 @@ export function SkillsPanel({ embedded = false }: SkillsPanelProps) {
   }
 
   return (
-    <div className="skill-theme-shell flex h-full min-h-0 flex-col">
+    <div
+      data-batch-panel
+      className="skill-theme-shell flex h-full min-h-0 flex-col"
+    >
       <SkillsList
         embedded={embedded}
         searchQuery={actions.searchQuery}
@@ -148,10 +151,12 @@ export function SkillsPanel({ embedded = false }: SkillsPanelProps) {
         setSelectedGithubSkills={actions.setSelectedGithubSkills}
       />
 
-      {actions.selectionMode && (
+      {(actions.selectionMode || actions.batchLoading) && (
         <BatchActionBar
           selectedCount={actions.selectedNames.size}
           batchLoading={actions.batchLoading}
+          error={actions.batchError}
+          onRetry={actions.canBatchRetry ? actions.handleBatchRetry : undefined}
           onBatchToggle={actions.handleBatchToggle}
           onBatchDelete={actions.handleBatchDelete}
           onClearSelection={actions.clearSelection}

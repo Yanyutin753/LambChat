@@ -1205,3 +1205,19 @@ TDD先见前端5 failed/1 passed、后端4 failed/13 passed，原因分别是未
 八项自检：沿用原字号/标题层级，联系方式自然折行；保留必要阅读留白和单层modal；说明、读取状态和支持动作层级独立；沿用三主题及错误token；无新增动效，已有reduced-motion保留；等待/重试/关闭/焦点有行为和实屏证据；手机、短屏、平板、桌面及五语组合可用；继续LambChat羊场景与既有视觉语言。npm exec --offline -- impeccable update报告没有已安装skill folders，按DESIGN清单人工复核。
 
 全站目标保持进行中，主清单未勾选项不改为完成。本批证明公开配置契约/真实AuthMiddleware匿名保护与组件生命周期，以及fixture上的真实支持入口；不证明部署后跨实例配置广播、生产认证、邮件支持、真实持久化/聊天或原生触屏/软键盘。下一批优先核对未闭合的资源导入/发布与批量操作状态、剩余预览格式和跨页键盘组合，再继续真实服务和设备验收；不会用本批绿门禁替代全站验收。
+
+### 2026-10-02：共享批量工具栏与技能部分失败恢复
+
+上一目标回合属于 progress：用户3017文件预览已是CodeMirror原生浮动查找，本轮再次在独立3019核对，不重复实现。interface-state开工fetch后确认最新origin/develop已是HEAD祖先，保留既有批量工作和测试；主checkout、用户3017及其他工作树未修改。
+
+共享BatchActionBar由浮动工具条改为列表后的正常布局，保留现有Button/IconButton、主题和间距；按组件可用宽度显示文字或图标，按钮至少44px且具有名称。Memory不再传空的启用/禁用回调，只提供删除和清除。等待状态保持工具栏、具名status和焦点，阻止重复操作及Escape清除。技能列表短屏最小页头/分页超过可用高度时由列表自身滚动并裁切，局部取消该列表页头的sticky，避免滚动后的页头遮住分页；不改变其他面板。
+
+原批量回调把详细API结果作为布尔成功，导致部分失败清除全部选择并显示成功；批量toggle的乐观反转也会覆盖实际混合状态。改为按deleted/updated处理成功项、保留未完成选择，刷新权威列表；部分/全部失败在工具栏显示持久alert和Retry，删除重复全页写入错误。Retry只请求原未完成且仍被选中的项，不把等待期间新选项目带入；无可重试交集不显示无效按钮。即时请求锁与卸载失效守卫保留。成功/清除后用既有restoreOpenerFocusUnclaimed归还当前搜索框，提交后的微任务重新查询，覆盖Skeleton刷新导致搜索重挂载且不抢走其他已拥有焦点。
+
+TDD新增11项，真实useSkillsActions/useSkills/skillApi，仅模拟fetch边界，并覆盖实际SkillsList、MemoryPanel与Toaster。先观察请求失败、部分返回、Memory无效操作、重复错误、Retry误带新项目、列表重挂载丢焦点、无效Retry按钮等RED，再GREEN。三轮只读复核找到三个P2并全部闭合，最终未发现其他确定P1/P2。最终全量795文件4004项通过，lint无错误/警告，tsc/Vite/PWA/build与预算通过：eager560453/561152 bytes，precache92项5026887/5242880 bytes，未放宽预算；git diff --check通过。日志/tmp/skill-batch-tests-final.log、skill-batch-lint-final.log、skill-batch-build-final.log，11项相关GREEN日志skill-batch-green-final-reviewed.log。共享按钮、状态、成功/错误文案在zh/en/ja/ko/ru均存在。
+
+实际IAB：中文320×568深色正常/失败；320×300失败时Tab到下一页使列表滚动，分页136–180px、工具栏188–300px、页头static，整页无横溢；Escape清除后焦点回搜索。俄语390×844浅色仅图标且四个动作44×44px、534×700断点文字完整、834×1112 sepia及1440×900浅色文字工具栏，无横溢。Memory390浅色俄语只有删除/清除，两者44px。8秒延迟fixture的真实批量启用等待：aria-busy=true、四个按钮禁用、status为Обработка...、焦点group，Escape不丢失状态；405后持续错误和Retry。只读preview全部写请求405，不证明真实批量持久化或设备触控。834俄语页头搜索被同排长操作挤窄是新发现的既有问题，列入下一批，不以工具栏通过代替整页完成。
+
+再次按用户文件预览要求实测390/320px：搜索仅在现有标题动作中一个入口，原生查找浮层280×46px，打开前后代码top141px，choice命中两处，Escape返回代码预览，正文不新增搜索行、无横溢。截图在仓库外visualizations/skill-batch，包括390-file-native-find、320-file-native-find、320-short-dark-retry、390-light-ru、1440-light-ru、834-sepia-ru、390-memory-light-ru、390-dark-ru-pending/error。测试语言已通过UI恢复中文，未保存管理员设置或执行真实写入。
+
+八项自检：复用现有排版和间距、保留阅读留白；计数/操作/错误层级分明；三主题token，无新渐变或装饰；无新增动效、沿用reduced-motion；等待/Retry/键盘/焦点有测试和实屏；手机短屏/平板/桌面可用；继续现有LambChat视觉系统，不新增依赖。npm exec --offline -- impeccable update仍报告未安装skill folders，使用DESIGN人工清单。全站目标保持进行中，主清单未闭合项保持未勾选；下一批优先处理技能页头长文案搜索空间、剩余导入发布/预览格式/跨页键盘组合，再补真实服务和原生设备验收。

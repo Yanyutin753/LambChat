@@ -127,6 +127,16 @@ export function useSkillsActions() {
   // Batch selection state
   const [selectedNames, setSelectedNames] = useState<Set<string>>(new Set());
   const [batchLoading, setBatchLoading] = useState(false);
+  const [batchError, setBatchError] = useState<string | null>(null);
+  const batchRequest = useRef<symbol | null>(null);
+  const lastBatchAction = useRef<"delete" | "enable" | "disable">("delete");
+  const lastBatchNames = useRef<string[]>([]);
+  useEffect(
+    () => () => {
+      batchRequest.current = null;
+    },
+    [],
+  );
 
   // Delete confirmation
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
@@ -317,6 +327,7 @@ export function useSkillsActions() {
   const selectionMode = selectedNames.size > 0;
 
   const handleSelectSkill = (name: string) => {
+    setBatchError(null);
     setSelectedNames((prev) => {
       const next = new Set(prev);
       if (next.has(name)) next.delete(name);
@@ -326,6 +337,7 @@ export function useSkillsActions() {
   };
 
   const handleSelectAll = () => {
+    setBatchError(null);
     if (selectedNames.size === filteredSkills.length) {
       setSelectedNames(new Set());
     } else {
@@ -333,41 +345,93 @@ export function useSkillsActions() {
     }
   };
 
-  const clearSelection = () => setSelectedNames(new Set());
+  const clearSelection = () => {
+    if (batchRequest.current) return;
+    setBatchError(null);
+    setSelectedNames(new Set());
+  };
 
-  const handleBatchDelete = async () => {
-    if (selectedNames.size === 0) return;
+  const handleBatchAction = async (
+    action: "delete" | "enable" | "disable",
+    names = Array.from(selectedNames),
+  ) => {
+    if (names.length === 0 || batchRequest.current) return;
+    const request = Symbol();
+    batchRequest.current = request;
+    lastBatchAction.current = action;
+    lastBatchNames.current = names;
     setBatchLoading(true);
+    setBatchError(null);
     try {
-      await batchDeleteSkills(Array.from(selectedNames));
-      clearSelection();
-      toast.success(
-        t("skills.batchDeleteSuccess", { count: selectedNames.size }),
+      const result =
+        action === "delete"
+          ? await batchDeleteSkills(names)
+          : await batchToggleSkills(names, action === "enable");
+      if (batchRequest.current !== request) return;
+      const completed = result
+        ? "deleted" in result
+          ? result.deleted
+          : result.updated
+        : [];
+      lastBatchNames.current = names.filter(
+        (name) => !completed.includes(name),
       );
+      setSelectedNames(
+        (previous) =>
+          new Set(
+            Array.from(previous).filter(
+              (name) => !names.includes(name) || !completed.includes(name),
+            ),
+          ),
+      );
+      if (
+        result &&
+        result.errors.length === 0 &&
+        completed.length === names.length
+      )
+        toast.success(
+          t(
+            action === "delete"
+              ? "skills.batchDeleteSuccess"
+              : action === "enable"
+                ? "skills.batchEnableSuccess"
+                : "skills.batchDisableSuccess",
+            { count: completed.length },
+          ),
+        );
+      else
+        setBatchError(
+          t(
+            action === "delete"
+              ? "skills.batchDeleteFailed"
+              : "skills.batchToggleFailed",
+          ),
+        );
     } catch {
-      toast.error(t("skills.batchDeleteFailed"));
+      if (batchRequest.current === request)
+        setBatchError(
+          t(
+            action === "delete"
+              ? "skills.batchDeleteFailed"
+              : "skills.batchToggleFailed",
+          ),
+        );
     } finally {
-      setBatchLoading(false);
+      if (batchRequest.current === request) {
+        batchRequest.current = null;
+        setBatchLoading(false);
+      }
     }
   };
 
-  const handleBatchToggle = async (enabled: boolean) => {
-    if (selectedNames.size === 0) return;
-    setBatchLoading(true);
-    try {
-      await batchToggleSkills(Array.from(selectedNames), enabled);
-      clearSelection();
-      toast.success(
-        enabled
-          ? t("skills.batchEnableSuccess", { count: selectedNames.size })
-          : t("skills.batchDisableSuccess", { count: selectedNames.size }),
-      );
-    } catch {
-      toast.error(t("skills.batchToggleFailed"));
-    } finally {
-      setBatchLoading(false);
-    }
-  };
+  const handleBatchDelete = () => handleBatchAction("delete");
+  const handleBatchToggle = (enabled: boolean) =>
+    handleBatchAction(enabled ? "enable" : "disable");
+  const handleBatchRetry = () =>
+    handleBatchAction(
+      lastBatchAction.current,
+      lastBatchNames.current.filter((name) => selectedNames.has(name)),
+    );
 
   // Publish handler
   const confirmPublish = async () => {
@@ -686,6 +750,11 @@ export function useSkillsActions() {
     selectedNames,
     selectionMode,
     batchLoading,
+    batchError,
+    handleBatchRetry,
+    canBatchRetry: lastBatchNames.current.some((name) =>
+      selectedNames.has(name),
+    ),
     handleSelectSkill,
     handleSelectAll,
     clearSelection,
