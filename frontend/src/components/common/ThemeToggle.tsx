@@ -1,4 +1,5 @@
-import { Sun, Moon, Coffee } from "lucide-react";
+import { Sun, Moon, Coffee, AlertCircle } from "lucide-react";
+import { LoadingSpinner } from "./LoadingSpinner";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../contexts/ThemeContext";
 import type { Theme } from "../../utils/themeDom";
@@ -15,19 +16,35 @@ const NEXT_THEME_LABEL_KEY: Record<Theme, string> = {
 };
 
 export function ThemeToggle({ className }: ThemeToggleProps) {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, appearanceState, retryAppearance } = useTheme();
   const { t } = useTranslation();
+  const saving = appearanceState === "saving";
+  const failed = appearanceState === "error";
+  const label = failed
+    ? `${t("common.retry")}: ${t("profile.theme")}`
+    : saving
+      ? t("common.saving")
+      : `${t(NEXT_THEME_LABEL_KEY[theme])} · ${t("theme.cycleShortcut")}`;
 
   return (
     <button
-      onClick={toggleTheme}
+      type="button"
+      onClick={failed ? retryAppearance : toggleTheme}
+      disabled={saving}
+      aria-busy={saving || undefined}
+      aria-label={label}
+      aria-description={failed ? t("profile.preferenceSyncFailed") : undefined}
       className={
         className ??
         "flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
       }
-      title={`${t(NEXT_THEME_LABEL_KEY[theme])} · ${t("theme.cycleShortcut")}`}
+      title={label}
     >
-      {theme === "light" ? (
+      {saving ? (
+        <LoadingSpinner size="sm" />
+      ) : failed ? (
+        <AlertCircle size={20} className="text-theme-error" />
+      ) : theme === "light" ? (
         <Moon size={20} className="text-[var(--theme-text-secondary)]" />
       ) : theme === "dark" ? (
         <Coffee size={20} className="text-amber-400" />

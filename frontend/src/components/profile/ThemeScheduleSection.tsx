@@ -25,7 +25,8 @@ const DEFAULT_SCHEDULE: ThemeSchedule = {
 /** 按时段自动切换主题的配置分区；手动切主题由 ThemeProvider 负责退出自动模式 */
 export function ThemeScheduleSection() {
   const { t } = useTranslation();
-  const { themeSchedule, setThemeSchedule } = useTheme();
+  const { themeSchedule, setThemeSchedule, appearanceState } = useTheme();
+  const saving = appearanceState === "saving";
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   const schedule = themeSchedule ?? DEFAULT_SCHEDULE;
@@ -37,6 +38,11 @@ export function ThemeScheduleSection() {
   return (
     <>
       <button
+        type="button"
+        role="switch"
+        aria-checked={schedule.enabled}
+        aria-label={t("profile.themeScheduleToggle")}
+        disabled={saving}
         onClick={() => update({ enabled: !schedule.enabled })}
         className="profile-setting-row"
       >
@@ -49,9 +55,7 @@ export function ThemeScheduleSection() {
               ? "bg-amber-500"
               : "bg-theme-border-hover dark:bg-stone-600"
           }`}
-          role="switch"
-          aria-checked={schedule.enabled}
-          aria-label={t("profile.themeScheduleToggle")}
+          aria-hidden="true"
         >
           <span
             className={`absolute top-0.5 h-4 w-4 rounded-full bg-theme-toggle-knob transition-all ${
@@ -83,9 +87,10 @@ export function ThemeScheduleSection() {
             </span>
             <input
               type="time"
+              disabled={saving}
               value={schedule.start}
               onChange={(e) => update({ start: e.target.value })}
-              className="rounded-lg border border-theme-border bg-theme-bg-card px-2 py-1 text-13 text-theme-text dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200"
+              className="max-sm:min-h-11 [@media(pointer:coarse)]:min-h-11 rounded-lg border border-theme-border bg-theme-bg-card px-2 py-1 text-13 text-theme-text dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200"
             />
           </label>
           <label className="flex w-full items-center justify-between py-2 text-left">
@@ -94,14 +99,16 @@ export function ThemeScheduleSection() {
             </span>
             <input
               type="time"
+              disabled={saving}
               value={schedule.end}
               onChange={(e) => update({ end: e.target.value })}
-              className="rounded-lg border border-theme-border bg-theme-bg-card px-2 py-1 text-13 text-theme-text dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200"
+              className="max-sm:min-h-11 [@media(pointer:coarse)]:min-h-11 rounded-lg border border-theme-border bg-theme-bg-card px-2 py-1 text-13 text-theme-text dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200"
             />
           </label>
           <SelectRow
             label={t("profile.themeScheduleNightTheme")}
             value={schedule.nightTheme}
+            loading={saving}
             options={NIGHT_THEME_OPTIONS}
             open={openDropdown === "nightTheme"}
             onToggle={() =>

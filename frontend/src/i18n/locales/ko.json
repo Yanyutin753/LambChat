@@ -2221,6 +2221,7 @@
     "viewSource": "소스 보기"
   },
   "profile": {
+    "preferenceSyncFailed": "이 기기에 적용되었습니다. 클라우드 동기화에 실패했습니다.",
     "appearance": "외관",
     "avatar": "아바타",
     "avatarDeleted": "아바타가 삭제되었습니다",
