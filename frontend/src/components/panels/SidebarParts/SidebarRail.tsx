@@ -31,6 +31,7 @@ interface SidebarRailProps {
   onOpenBookmarks: () => void;
   onOpenScheduledTasks: () => void;
   hasMoreMenuItems: boolean;
+  singleMoreMenuItem?: { label: string; icon: typeof MoreHorizontal };
   onToggleMoreMenu: () => void;
   moreMenuBtnRef: React.RefObject<HTMLButtonElement | null>;
   recentChatsBtnRef: React.RefObject<HTMLButtonElement | null>;
@@ -50,6 +51,7 @@ export function SidebarRail({
   onOpenBookmarks,
   onOpenScheduledTasks,
   hasMoreMenuItems,
+  singleMoreMenuItem,
   onToggleMoreMenu,
   moreMenuBtnRef,
   recentChatsBtnRef,
@@ -57,6 +59,8 @@ export function SidebarRail({
   unreadCount = 0,
 }: SidebarRailProps) {
   const { t } = useTranslation();
+  const MoreIcon = singleMoreMenuItem?.icon ?? MoreHorizontal;
+  const moreLabel = singleMoreMenuItem?.label ?? t("nav.more", "更多");
   const { hasPermission } = useAuth();
   const canReadScheduledTasks = hasPermission(Permission.SCHEDULED_TASK_READ);
 
@@ -173,15 +177,15 @@ export function SidebarRail({
           </button>
         </Tooltip>
         {hasMoreMenuItems && (
-          <Tooltip content={t("nav.more", "更多")}>
+          <Tooltip content={moreLabel}>
             <button
               type="button"
               ref={moreMenuBtnRef}
               onClick={onToggleMoreMenu}
               className={railBtn}
-              aria-label={t("nav.more", "更多")}
+              aria-label={moreLabel}
             >
-              <MoreHorizontal size={20} />
+              <MoreIcon size={20} />
             </button>
           </Tooltip>
         )}

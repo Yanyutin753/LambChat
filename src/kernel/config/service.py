@@ -21,6 +21,8 @@ _settings_service: Optional["SettingsService"] = None
 _settings_cache: dict[str, Any] = {}
 
 _ALLOW_EMPTY_STRING_SETTINGS = {
+    "ADMIN_CONTACT_EMAIL",
+    "ADMIN_CONTACT_URL",
     "DEFAULT_MODEL_ID",
     "NATIVE_MEMORY_COMPACTION_MODEL_ID",
     "LLM_FALLBACK_MODEL",

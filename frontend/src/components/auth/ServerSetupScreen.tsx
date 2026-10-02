@@ -6,94 +6,133 @@
  * Web/PWA 永不渲染此屏（同源部署无此概念）。
  */
 
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Globe, Server } from "lucide-react";
 
-import {
-  normalizeServerUrl,
-  setStoredServerUrl,
-} from "../../services/api/serverConfig";
+import { normalizeServerUrl } from "../../services/api/serverConfig";
+import { useServerConnection } from "../../hooks/useServerConnection";
+import { Button } from "../common/ui/Button";
+import { Input } from "../common/ui/Input";
 
 export function ServerSetupScreen() {
   const { t } = useTranslation();
   const [input, setInput] = useState("");
-  const [testing, setTesting] = useState(false);
-  const [error, setError] = useState("");
+  const { testing, error, connect, cancel } = useServerConnection();
+  const id = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const wasTesting = useRef(false);
+  useEffect(() => {
+    const active = document.activeElement;
+    if (testing) formRef.current?.focus();
+    else if (
+      wasTesting.current &&
+      (formRef.current?.contains(active) ||
+        active === document.body ||
+        !active?.isConnected ||
+        active.matches(":disabled"))
+    )
+      inputRef.current?.focus();
+    wasTesting.current = testing;
+  }, [testing]);
 
   const normalized = normalizeServerUrl(input);
 
-  const handleConnect = async () => {
-    if (!normalized || testing) return;
-    setTesting(true);
-    setError("");
-    try {
-      // 直连绝对地址探测（此刻网络改写尚未安装/未指向新地址）
-      const resp = await fetch(`${normalized}/health`, { method: "GET" });
-      if (!resp.ok) {
-        setError(t("serverSetup.fail", { status: String(resp.status) }));
-        return;
-      }
-      setStoredServerUrl(normalized);
-      window.location.reload();
-    } catch {
-      setError(t("serverSetup.unreachable"));
-    } finally {
-      setTesting(false);
-    }
-  };
-
   return (
-    <div className="flex min-h-[calc(100vh-var(--titlebar-inset,0px))] items-center justify-center bg-theme-bg-sidebar p-6 dark:bg-stone-900">
-      <div className="w-full max-w-md rounded-3xl border border-theme-border/70 bg-theme-bg-card/90 p-8 shadow-xl backdrop-blur dark:border-stone-700/60 dark:bg-stone-800/90">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex size-11 items-center justify-center rounded-2xl bg-amber-500/10">
-            <Server size={20} className="text-amber-600 dark:text-amber-400" />
-          </div>
-          <div>
-            <h1 className="text-18 font-semibold text-theme-text dark:text-stone-100">
-              {t("serverSetup.title")}
-            </h1>
-            <p className="mt-0.5 text-12 text-theme-text-secondary dark:text-stone-400">
-              {t("serverSetup.desc")}
-            </p>
-          </div>
-        </div>
+    <main className="flex h-[calc(100svh-var(--titlebar-inset,0px))] h-[calc(100dvh-var(--titlebar-inset,0px))] overflow-y-auto bg-theme-bg-card px-4 py-8 sm:px-6">
+      <form
+        ref={formRef}
+        tabIndex={-1}
+        aria-label={t("serverSetup.title")}
+        aria-busy={testing}
+        className="m-auto w-full max-w-md shrink-0 outline-none"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void connect(input);
+        }}
+      >
+        <header className="mb-6">
+          <Server
+            size={24}
+            className="mb-4 text-theme-text-secondary"
+            aria-hidden="true"
+          />
+          <h1 className="text-24 font-serif font-semibold text-theme-text">
+            {t("serverSetup.title")}
+          </h1>
+          <p className="mt-2 text-14 leading-relaxed text-theme-text-secondary">
+            {t("serverSetup.desc")}
+          </p>
+        </header>
 
-        <label className="block text-12 font-medium text-theme-text-secondary dark:text-stone-400">
+        <label
+          htmlFor={id}
+          className="mb-2 block text-13 font-medium text-theme-text-secondary"
+        >
           {t("serverSetup.label")}
         </label>
-        <div className="mt-1.5 flex items-center gap-2 rounded-xl border border-theme-border-hover/70 bg-theme-bg-card px-3 py-2.5 focus-within:border-amber-500/60 dark:border-stone-600/70 dark:bg-stone-900/60">
-          <Globe size={15} className="shrink-0 text-theme-text-tertiary" />
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void handleConnect();
-            }}
-            placeholder="https://chat.example.com"
-            spellCheck={false}
-            autoComplete="off"
-            className="w-full bg-transparent text-14 text-theme-text outline-none placeholder:text-theme-text-tertiary dark:text-stone-100"
-          />
-        </div>
+        <Input
+          id={id}
+          ref={inputRef}
+          inputMode="url"
+          autoCapitalize="none"
+          leadingIcon={<Globe size={16} aria-hidden="true" />}
+          value={input}
+          disabled={testing}
+          onChange={(e) => {
+            cancel();
+            setInput(e.target.value);
+          }}
+          onKeyDown={(e) => {
+            if (
+              e.key === "Enter" &&
+              (e.nativeEvent.isComposing || e.keyCode === 229)
+            )
+              e.preventDefault();
+          }}
+          placeholder="https://chat.example.com"
+          spellCheck={false}
+          autoComplete="off"
+          aria-describedby={
+            error || (input.trim() && !normalized) ? `${id}-error` : undefined
+          }
+          error={Boolean(error || (input.trim() && !normalized))}
+          className="!min-h-11 max-sm:!text-16 [@media(pointer:coarse)]:!text-16"
+        />
 
-        {input && !normalized && (
-          <p className="mt-2 text-12 text-theme-error">
+        {input.trim() && !normalized && (
+          <p id={`${id}-error`} className="mt-2 text-12 text-theme-error">
             {t("serverSetup.invalid")}
           </p>
         )}
-        {error && <p className="mt-2 text-12 text-theme-error">{error}</p>}
+        {error && (
+          <p
+            id={`${id}-error`}
+            role="alert"
+            className="mt-2 text-12 text-theme-error"
+          >
+            {error}
+          </p>
+        )}
 
-        <button
-          type="button"
-          disabled={!normalized || testing}
-          onClick={() => void handleConnect()}
-          className="mt-5 w-full rounded-xl bg-amber-600 px-4 py-2.5 text-14 font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {testing ? t("serverSetup.testing") : t("serverSetup.connect")}
-        </button>
-      </div>
-    </div>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Button
+            type="submit"
+            variant="primary"
+            loading={testing}
+            disabled={!normalized || testing}
+            className="!min-h-11 min-w-0 flex-1 [&_.ui-button__label]:!whitespace-normal"
+          >
+            {testing ? t("serverSetup.testing") : t("serverSetup.connect")}
+          </Button>
+          {testing && (
+            <Button onClick={cancel} className="!min-h-11">
+              {t("common.cancel")}
+            </Button>
+          )}
+        </div>
+      </form>
+    </main>
   );
 }

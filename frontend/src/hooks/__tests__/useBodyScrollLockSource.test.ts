@@ -47,9 +47,10 @@ test("selector modals use the shared body scroll lock hook", () => {
 });
 
 test("shared overlay surfaces use the shared body scroll lock hook", () => {
+  expect(readSource("../../components/common/Dialog.tsx")).toMatch(/<ModalSurface\b/);
   for (const source of overlaySources) {
     expect(source).toMatch(
-      /useBodyScrollLock|<ModalSurface|<SelectorModalPortal/,
+      /useBodyScrollLock|<ModalSurface|<SelectorModalPortal|<Dialog\b/,
     );
     expect(source).not.toMatch(/document\.body\.style\.overflow = "hidden"/);
   }

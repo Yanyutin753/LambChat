@@ -19,21 +19,30 @@ export function UpdateProgressBar({
 }: UpdateProgressBarProps) {
   const { t } = useTranslation();
 
-  const percent = Math.min(Math.round(progress), 100);
+  const percent = Number.isFinite(progress)
+    ? Math.max(0, Math.min(Math.round(progress), 100))
+    : 0;
   const downloadedStr = formatBytes(downloaded);
   const totalStr = contentLength > 0 ? formatBytes(contentLength) : "?";
 
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center justify-between text-12 text-stone-500 dark:text-stone-400">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-12 text-theme-text-secondary">
         <span>{t("updateDownloading", "正在下载...")}</span>
         <span>
           {downloadedStr} / {totalStr} — {percent}%
         </span>
       </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-stone-200 dark:bg-stone-700">
+      <div
+        role="progressbar"
+        aria-label={t("updateDownloading", "正在下载...")}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+        className="h-2 w-full overflow-hidden rounded-full bg-theme-border"
+      >
         <div
-          className="h-full rounded-full bg-[var(--theme-primary)] transition-all duration-300 ease-out"
+          className="h-full rounded-full bg-[var(--theme-primary)] transition-[width] duration-300 ease-out motion-reduce:transition-none"
           style={{ width: `${percent}%` }}
         />
       </div>

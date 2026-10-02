@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useStickyDropdownPosition } from "./useStickyDropdownPosition";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./useAuth";
 import { useSettingsContext } from "../contexts/SettingsContext";
 import { Permission } from "../types";
@@ -29,6 +29,7 @@ export function useMoreMenu({ isCollapsed, isMobile }: UseMoreMenuParams) {
   const { hasAnyPermission } = useAuth();
   const { enableMemory } = useSettingsContext();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const canReadMCP = hasAnyPermission([Permission.MCP_READ]);
   const canReadChannels = hasAnyPermission([Permission.CHANNEL_READ]);
@@ -75,7 +76,10 @@ export function useMoreMenu({ isCollapsed, isMobile }: UseMoreMenuParams) {
     },
   ];
 
-  const hasMoreMenuItems = moreMenuFeatureItems.some((i) => i.show);
+  const visibleItems = moreMenuFeatureItems.filter((item) => item.show);
+  const hasMoreMenuItems = visibleItems.length > 0;
+  const singleMoreMenuItem =
+    visibleItems.length === 1 ? visibleItems[0] : undefined;
 
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
 
@@ -135,6 +139,11 @@ export function useMoreMenu({ isCollapsed, isMobile }: UseMoreMenuParams) {
   return {
     moreMenuFeatureItems,
     hasMoreMenuItems,
+    singleMoreMenuItem,
+    toggleMoreMenu: () => {
+      if (singleMoreMenuItem) navigate(singleMoreMenuItem.path);
+      else setIsMoreMenuOpen((open) => !open);
+    },
     isMoreMenuOpen,
     setIsMoreMenuOpen,
     moreMenuRef,

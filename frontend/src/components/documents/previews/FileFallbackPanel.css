@@ -1,17 +1,13 @@
 .unsupported-file-fallback {
   position: relative;
   height: 100%;
-  min-height: 400px;
-  background: linear-gradient(rgba(148, 163, 184, 0.09) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.09) 1px, transparent 1px),
-    var(--theme-bg-card);
-  background-size: 32px 32px;
-  overflow: hidden;
+  min-height: 0;
+  background: var(--theme-bg-subtle);
+  overflow: auto;
 }
 
 .unsupported-file-fallback__overlay {
-  position: absolute;
-  inset: 0;
+  min-height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -20,10 +16,7 @@
 
 .unsupported-file-fallback__panel {
   width: min(100%, 420px);
-  border: 1px solid var(--theme-border);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--theme-bg-card) 94%, transparent);
-  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18);
-  padding: 20px;
+  flex-shrink: 0;
+  overflow-wrap: anywhere;
   text-align: center;
 }

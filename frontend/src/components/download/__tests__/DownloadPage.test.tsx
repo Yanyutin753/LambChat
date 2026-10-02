@@ -1,9 +1,12 @@
 /** @vitest-environment jsdom */
 // 站内下载页：动态跟随 /api/version 返回的最新 release 资产
 // （桌面端安装包 + 独立 daemon 二进制 + 配对教程），失败兜底 GitHub Releases。
-import { render, screen } from "@testing-library/react";
+import { render as renderBase, screen } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 import i18n from "../../../i18n";
+import { LanguagePreferenceProvider } from "../../../hooks/useLanguagePreference";
+import type { ReactNode } from "react";
+vi.mock("../../../hooks/useAuth", () => ({ useAuth: () => ({ user: null }) }));
 
 // jsdom 无 IntersectionObserver：给落地页同款 reveal 动画 hook 打桩
 class MockIntersectionObserver {
@@ -266,3 +269,7 @@ test("android visitors get a direct apk download in the hero and a mobile sectio
     });
   }
 });
+
+function render(children: ReactNode) {
+  return renderBase(children, { wrapper: LanguagePreferenceProvider });
+}

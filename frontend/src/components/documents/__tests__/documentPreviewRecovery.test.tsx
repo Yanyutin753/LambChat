@@ -7,6 +7,7 @@ import {
 } from "../useDocumentPreviewState";
 import DocumentPreviewContent from "../DocumentPreviewContent";
 import DocumentPreviewToolbar from "../DocumentPreviewToolbar";
+import DocumentPreview from "../DocumentPreview";
 import { clearDocumentFetchCaches } from "../documentFetchCache";
 
 vi.mock("react-i18next", async (importOriginal) => ({
@@ -100,3 +101,30 @@ test("unavailable inline content does not offer a retry with no data source", as
   );
   expect(screen.queryByRole("button", { name: "common.retry" })).toBeNull();
 });
+
+test.each<[string, string | null]>([
+  ["report.md", null],
+  ["/deliverables/plans/report.md", "deliverables / plans"],
+])(
+  "embedded preview shows %s once and keeps only parent directories",
+  async (path, parent) => {
+    render(
+      <DocumentPreview
+        embedded
+        path={path}
+        content="Document body"
+        onClose={vi.fn()}
+      />,
+    );
+    expect(await screen.findByText("Document body")).toBeInTheDocument();
+    expect(screen.getAllByText("report.md")).toHaveLength(1);
+    const breadcrumb = screen.queryByLabelText("documents.path");
+    if (parent) {
+      expect(breadcrumb).toHaveTextContent(parent);
+      expect(breadcrumb).not.toHaveTextContent("report.md");
+      expect(breadcrumb).toHaveAttribute("title", path);
+    } else {
+      expect(breadcrumb).toBeNull();
+    }
+  },
+);

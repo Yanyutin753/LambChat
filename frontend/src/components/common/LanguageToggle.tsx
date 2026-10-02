@@ -1,101 +1,108 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useCallback, useId } from "react";
 import { useTranslation } from "react-i18next";
-import { Languages, Check } from "lucide-react";
-import { authApi } from "../../services/api";
+import { Languages, Check, AlertCircle } from "lucide-react";
+import { useLanguagePreference } from "../../hooks/useLanguagePreference";
+import { ResourceCardMenu } from "./ResourceCardMenu";
+import { IconButton } from "./ui/IconButton";
+import { LoadingSpinner } from "./LoadingSpinner";
 
 const LANGUAGES = [
-  { code: "en", name: "English", nativeName: "English" },
-  { code: "zh", name: "Chinese", nativeName: "中文" },
-  { code: "ja", name: "Japanese", nativeName: "日本語" },
-  { code: "ko", name: "Korean", nativeName: "한국어" },
-  { code: "ru", name: "Russian", nativeName: "Русский" },
+  { code: "en", nativeName: "English" },
+  { code: "zh", nativeName: "中文" },
+  { code: "ja", nativeName: "日本語" },
+  { code: "ko", nativeName: "한국어" },
+  { code: "ru", nativeName: "Русский" },
 ];
-
-interface LanguageToggleProps {
+export function LanguageToggle({
+  className,
+  sync = true,
+}: {
   className?: string;
-}
-
-export function LanguageToggle({ className }: LanguageToggleProps) {
+  sync?: boolean;
+}) {
   const { i18n, t } = useTranslation();
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const selectLanguage = useCallback(
-    (code: string) => {
-      i18n.changeLanguage(code);
-      localStorage.setItem("language", code);
-      setIsOpen(false);
-      authApi.updateMetadata({ language: code }).catch(() => {});
-    },
-    [i18n],
+  const { languageState, selectLanguage, retryLanguage } =
+    useLanguagePreference(sync);
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(
+    null,
   );
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const id = useId();
+  const close = useCallback((restoreFocus = false) => {
+    setPosition(null);
+    if (restoreFocus) triggerRef.current?.querySelector("button")?.focus();
   }, []);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && isOpen) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen]);
-
   return (
-    <div className="relative" ref={dropdownRef}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={
-          className ??
-          "flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
+    <div ref={triggerRef}>
+      <IconButton
+        size="sm"
+        icon={
+          languageState === "saving" ? (
+            <LoadingSpinner size="sm" />
+          ) : languageState === "error" ? (
+            <AlertCircle size={18} className="text-theme-error" />
+          ) : (
+            <Languages size={18} />
+          )
         }
+        className={`max-sm:!min-h-11 max-sm:!min-w-11 [@media(pointer:coarse)]:!min-h-11 [@media(pointer:coarse)]:!min-w-11 ${className ?? ""}`}
         title={t("common.language")}
         aria-label={t("common.language")}
-        aria-expanded={isOpen}
-        aria-haspopup="true"
-      >
-        <Languages size={20} />
-      </button>
-
-      {isOpen && (
-        <div
-          className="absolute right-0 mt-2 w-40 rounded-lg bg-theme-bg-card dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 py-1 z-50"
-          role="menu"
-        >
-          {LANGUAGES.map((lang) => (
-            <button
-              key={lang.code}
-              onClick={() => selectLanguage(lang.code)}
-              className={`w-full px-4 py-2 text-left text-14 flex items-center justify-between transition-colors ${
-                i18n.language === lang.code
-                  ? "bg-stone-100 dark:bg-stone-700 text-stone-900 dark:text-stone-100"
-                  : "text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700/50"
-              }`}
-              role="menuitem"
-              aria-selected={i18n.language === lang.code}
-            >
-              <span>{lang.nativeName}</span>
-              {i18n.language === lang.code && (
-                <Check
-                  size={16}
-                  className="text-stone-700 dark:text-stone-200"
-                />
-              )}
-            </button>
-          ))}
-        </div>
+        aria-description={
+          languageState === "error"
+            ? t("profile.preferenceSyncFailed")
+            : undefined
+        }
+        aria-busy={languageState === "saving"}
+        aria-expanded={Boolean(position)}
+        aria-haspopup="menu"
+        aria-controls={position ? id : undefined}
+        onClick={(event) => {
+          if (position) {
+            close(true);
+            return;
+          }
+          const rect = event.currentTarget.getBoundingClientRect();
+          setPosition({ x: rect.right - 224, y: rect.bottom + 4 });
+        }}
+      />
+      {position && (
+        <ResourceCardMenu
+          id={id}
+          title={t("common.language")}
+          position={position}
+          onClose={close}
+          actions={[
+            ...(languageState === "error"
+              ? [
+                  {
+                    label: `${t("common.retry")}: ${t("common.language")}`,
+                    groupLabel: t("profile.preferenceSyncFailed"),
+                    icon: <AlertCircle size={16} />,
+                    onClick: retryLanguage,
+                  },
+                ]
+              : []),
+            ...LANGUAGES.map((lang) => {
+              const checked = i18n.language.split("-")[0] === lang.code;
+              return {
+                label: lang.nativeName,
+                checked,
+                disabled: languageState === "saving",
+                icon: (
+                  <Check
+                    size={16}
+                    className={checked ? "" : "invisible"}
+                    aria-hidden="true"
+                  />
+                ),
+                onClick: () => {
+                  selectLanguage(lang.code);
+                },
+              };
+            }),
+          ]}
+        />
       )}
     </div>
   );

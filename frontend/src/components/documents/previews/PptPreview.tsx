@@ -107,18 +107,20 @@ const PptPreview = memo(function PptPreview({
 
   if (!loading && textSlides.length > 0) {
     return (
-      <div className="h-full min-h-[400px] w-full overflow-auto bg-stone-100 px-4 py-5 dark:bg-stone-950 sm:px-6">
+      <div
+        className="h-full min-h-0 w-full overflow-auto bg-theme-bg-subtle px-4 py-5 sm:px-6 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--theme-ring)]"
+        tabIndex={0}
+        aria-label={`PowerPoint - ${fileName}`}
+      >
         <div className="mx-auto flex max-w-3xl flex-col gap-4">
           {textSlides.map((slide) => (
             <section
               key={slide.index}
               className="rounded-lg bg-white p-5 shadow-sm ring-1 ring-black/5 dark:bg-stone-900 dark:ring-white/10"
             >
-              <div className="mb-3 text-12 font-medium uppercase tracking-wide text-stone-400 dark:text-stone-500">
-                {t("documents.pptSlideLabel", "幻灯片 {{count}}", {
-                  count: slide.index,
-                })}
-              </div>
+              <h3 className="mb-3 text-12 font-medium text-theme-text-secondary">
+                {t("documents.pptSlideLabel", "幻灯片")} {slide.index}
+              </h3>
               <p className="whitespace-pre-wrap text-14 leading-6 text-stone-700 dark:text-stone-200">
                 {slide.text}
               </p>

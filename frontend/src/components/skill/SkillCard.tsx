@@ -22,13 +22,13 @@ import { formatDate } from "../../utils/datetime";
 
 interface SkillCardProps {
   skill: SkillResponse;
-  onToggle: (name: string) => void;
+  onToggle?: (name: string) => void;
   onTogglePreference?: (
     skill: SkillResponse,
     preference: { is_favorite?: boolean; is_pinned?: boolean },
   ) => void;
-  onEdit: (skill: SkillResponse) => void;
-  onDelete: (name: string) => void;
+  onEdit?: (skill: SkillResponse) => void;
+  onDelete?: (name: string) => void;
   onExportZip?: (name: string) => void;
   onPublish?: (skill: SkillResponse) => void;
   isPublished?: boolean;
@@ -164,17 +164,21 @@ export function SkillCard({
         </div>
       }
       actions={[
-        {
-          label: t(
-            skill.enabled ? "skills.card.disable" : "skills.card.enable",
-          ),
-          icon: skill.enabled ? (
-            <ToggleRight size={16} />
-          ) : (
-            <ToggleLeft size={16} />
-          ),
-          onClick: () => onToggle(skill.name),
-        },
+        ...(onToggle
+          ? [
+              {
+                label: t(
+                  skill.enabled ? "skills.card.disable" : "skills.card.enable",
+                ),
+                icon: skill.enabled ? (
+                  <ToggleRight size={16} />
+                ) : (
+                  <ToggleLeft size={16} />
+                ),
+                onClick: () => onToggle(skill.name),
+              },
+            ]
+          : []),
         ...(onTogglePreference
           ? [
               {
@@ -201,11 +205,15 @@ export function SkillCard({
               },
             ]
           : []),
-        {
-          label: t("skills.card.edit"),
-          icon: <Edit3 size={16} />,
-          onClick: () => onEdit(skill),
-        },
+        ...(onEdit
+          ? [
+              {
+                label: t("skills.card.edit"),
+                icon: <Edit3 size={16} />,
+                onClick: () => onEdit(skill),
+              },
+            ]
+          : []),
         ...(skill.source === "manual" && isPublished !== undefined && onPublish
           ? [
               {
@@ -228,43 +236,51 @@ export function SkillCard({
               },
             ]
           : []),
-        {
-          label: t("skills.card.delete"),
-          icon: <Trash2 size={16} />,
-          danger: true,
-          onClick: () => onDelete(skill.name),
-        },
+        ...(onDelete
+          ? [
+              {
+                label: t("skills.card.delete"),
+                icon: <Trash2 size={16} />,
+                danger: true,
+                onClick: () => onDelete(skill.name),
+              },
+            ]
+          : []),
       ]}
       footer={
-        <div className="flex items-center gap-1">
-          <Tooltip
-            content={
-              skill.enabled ? t("skills.card.disable") : t("skills.card.enable")
-            }
-          >
-            <button
-              aria-label={
+        onToggle ? (
+          <div className="flex items-center gap-1">
+            <Tooltip
+              content={
                 skill.enabled
                   ? t("skills.card.disable")
                   : t("skills.card.enable")
               }
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggle(skill.name);
-              }}
-              className="scb__action-btn scb__action-btn--ghost"
             >
-              {skill.enabled ? (
-                <ToggleRight
-                  size={15}
-                  className="text-green-600 dark:text-green-500"
-                />
-              ) : (
-                <ToggleLeft size={15} />
-              )}
-            </button>
-          </Tooltip>
-        </div>
+              <button
+                aria-label={
+                  skill.enabled
+                    ? t("skills.card.disable")
+                    : t("skills.card.enable")
+                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggle(skill.name);
+                }}
+                className="scb__action-btn scb__action-btn--ghost"
+              >
+                {skill.enabled ? (
+                  <ToggleRight
+                    size={15}
+                    className="text-green-600 dark:text-green-500"
+                  />
+                ) : (
+                  <ToggleLeft size={15} />
+                )}
+              </button>
+            </Tooltip>
+          </div>
+        ) : undefined
       }
     />
   );

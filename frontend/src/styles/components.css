@@ -161,6 +161,30 @@
   isolation: isolate;
 }
 
+/* Keep search readable when translated actions need another row. */
+.panel-header__search-row {
+  flex-wrap: wrap;
+}
+
+.panel-header__search-box {
+  min-width: min(16rem, 100%);
+}
+
+.panel-header__actions,
+.panel-header__actions > .flex:not(.file-library-view-switch),
+.panel-header__search-actions,
+.panel-header__search-actions > .flex {
+  flex-wrap: wrap;
+  max-width: 100%;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.panel-header__actions,
+.panel-header__search-actions {
+  margin-left: auto;
+}
+
 @container panel (max-width: 639px) {
   .panel-header {
     padding: 0.5rem 1rem 0.625rem;
@@ -426,6 +450,13 @@
 
 .panel-header-dropdown :is(button, [role="menuitem"], .skill-tag-chip) {
   min-height: 2rem;
+}
+
+@media (max-width: 639px), (pointer: coarse) {
+  .panel-header-dropdown :is(button, [role="menuitem"], .skill-tag-chip) {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
 }
 
 .panel-header-dropdown
@@ -779,6 +810,30 @@
 @container panel (max-width: 639px) {
   .panel-header__desktop-actions {
     display: none;
+  }
+
+  .panel-header--single-action:not(.panel-header--has-search)
+    .panel-header__desktop-actions,
+  .panel-header--single-action .panel-header__search-accessory {
+    display: flex;
+  }
+
+  .panel-header--single-action
+    :is(
+      .panel-header__desktop-actions,
+      .panel-header__mobile-direct,
+      .panel-header__search-accessory
+    )
+    :is(button, a) {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+
+  .panel-header--single-action
+    :is(.panel-header__desktop-actions, .panel-header__mobile-direct)
+    button
+    span.hidden {
+    display: inline;
   }
 
   .panel-header__mobile-actions {
@@ -3350,15 +3405,6 @@
   min-height: 2rem;
 }
 
-.tool-console-header-icon {
-  border-radius: 0.5rem;
-  background: color-mix(in srgb, var(--theme-primary-light) 68%, transparent);
-  color: var(--theme-text-secondary);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--theme-border) 70%, transparent),
-    0 1px 2px color-mix(in srgb, var(--theme-shadow-sm) 70%, transparent);
-}
-
 /* Shared hit area and rail for sidebar, editor and tool panel separators. */
 .workspace-resize-handle {
   width: 1rem;
@@ -4457,29 +4503,11 @@
 .document-preview-more-actions {
   display: block;
 }
-.document-preview-toolbar button.document-preview-source-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.375rem;
-  width: auto;
-  padding-inline: 0.5rem;
-  border-radius: var(--radius-md);
-  color: var(--theme-text-secondary);
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-.document-preview-source-toggle:hover,
 .document-preview-source-toggle[aria-pressed="true"] {
   background: var(--theme-hover);
   color: var(--theme-text);
 }
-.document-preview-source-toggle:focus-visible {
-  outline: 2px solid var(--theme-primary);
-  outline-offset: 2px;
-}
 @container document-toolbar (max-width: 479px) {
-  .document-preview-source-toggle span,
   .document-preview-language {
     display: none;
   }

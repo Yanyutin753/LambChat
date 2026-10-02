@@ -1,17 +1,12 @@
-import { ModalSurface } from "./ModalSurface";
-
-import {
-  X,
-  RefreshCw,
-  ExternalLink,
-  ArrowDownCircle,
-  Github,
-} from "lucide-react";
+import { RefreshCw, ExternalLink, ArrowDownCircle, Github } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useVersion } from "../../hooks/useVersion";
 import { APP_NAME } from "../../constants";
 import { APP_VERSION } from "../../utils/appVersion";
-import { SkeletonBlock, SkeletonLine } from "../skeletons";
+import { Dialog } from "./Dialog";
+import { Button } from "./ui/Button";
+import { LoadingSpinner } from "./LoadingSpinner";
+import { ConfigPanelErrorCallout } from "../panels/ConfigPanelErrorCallout";
 
 interface AboutDialogProps {
   isOpen: boolean;
@@ -21,175 +16,106 @@ interface AboutDialogProps {
 export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
   const { t } = useTranslation();
   const { versionInfo, isLoading, error, checkForUpdates } = useVersion();
-
-  if (!isOpen) return null;
-
-  const handleCheckUpdates = async () => {
-    await checkForUpdates();
-  };
-
-  const handleGoToRelease = () => {
-    if (versionInfo?.release_url) {
-      window.open(versionInfo.release_url, "_blank");
-    }
-  };
-
-  const handleGoToGitHub = () => {
-    if (versionInfo?.github_url) {
-      window.open(versionInfo.github_url, "_blank");
-    }
-  };
+  const actionClass =
+    "max-w-full !min-h-11 sm:!min-h-9 [@media(pointer:coarse)]:!min-h-11 [&>span]:!whitespace-normal";
+  const linkClass = `ui-button ui-button--secondary ui-button--md w-full ${actionClass}`;
 
   return (
-    <ModalSurface open={isOpen} onClose={onClose} dismissible={true}>
-      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-stone-800">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <h2 className="text-18 font-semibold font-serif text-stone-900 dark:text-stone-100 font-serif">
-              {t("about.title", APP_NAME)}
-            </h2>
+    <Dialog
+      open={isOpen}
+      onClose={onClose}
+      size="md"
+      title={
+        <span className="font-serif tracking-tight">
+          {t("about.title", APP_NAME)}
+        </span>
+      }
+      footer={
+        <Button
+          variant="primary"
+          className={`w-full sm:w-auto ${actionClass}`}
+          loading={isLoading}
+          aria-busy={isLoading}
+          leftIcon={<RefreshCw size={16} aria-hidden="true" />}
+          onClick={(event) => {
+            event.currentTarget
+              .closest<HTMLElement>("[data-modal-surface]")
+              ?.focus();
+            void checkForUpdates();
+          }}
+        >
+          {t(error ? "common.retry" : "about.checkUpdate")}
+        </Button>
+      }
+    >
+      <div className="space-y-4">
+        <dl className="space-y-3">
+          <div>
+            <dt className="text-12 text-theme-text-secondary">
+              {t("about.currentVersion")}
+            </dt>
+            <dd className="mt-1 font-mono text-24 font-semibold text-theme-text [overflow-wrap:anywhere]">
+              {APP_VERSION}
+            </dd>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-700 dark:hover:text-stone-300"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="space-y-3">
-          {isLoading ? (
-            <div className="space-y-3 py-2">
-              <div className="flex items-center justify-between rounded-lg bg-stone-50 p-4 dark:bg-stone-700/50">
-                <div className="space-y-2">
-                  <SkeletonLine width="w-24" className="!h-2" />
-                  <SkeletonBlock width="w-20" height="h-7" />
-                </div>
-                <SkeletonBlock
-                  width="w-24"
-                  height="h-9"
-                  className="!rounded-lg"
-                />
-              </div>
-              <div className="rounded-lg bg-stone-50 p-4 dark:bg-stone-700/50">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <SkeletonBlock
-                      width="w-5"
-                      height="h-5"
-                      className="!rounded-full"
-                    />
-                    <SkeletonLine width="w-24" className="!h-2" />
-                  </div>
-                  <SkeletonBlock width="w-16" height="h-5" />
-                </div>
-              </div>
-              <SkeletonBlock
-                width="w-full"
-                height="h-11"
-                className="!rounded-lg"
-              />
+          {versionInfo?.latest_version && (
+            <div>
+              <dt className="text-12 text-theme-text-secondary">
+                {t("about.latestVersion")}
+              </dt>
+              <dd className="mt-1 font-mono text-16 text-theme-text [overflow-wrap:anywhere]">
+                {versionInfo.latest_version}
+              </dd>
             </div>
-          ) : error ? (
-            <div className="rounded-lg bg-red-50 p-3 text-14 text-red-700 dark:bg-red-900/30 dark:text-red-400">
-              {error}
-            </div>
-          ) : versionInfo ? (
-            <>
-              {/* App Version（客户端自身版本，打包进 bundle——客户端是什么
-                  版本就显示什么，与服务端版本无关） */}
-              <div className="flex items-center justify-between rounded-lg bg-stone-50 p-4 dark:bg-stone-700/50">
-                <div>
-                  <div className="text-12 text-stone-500 dark:text-stone-400">
-                    {t("about.currentVersion", "Current Version")}
-                  </div>
-                  <div className="font-mono text-24 font-bold text-stone-900 dark:text-stone-100">
-                    {APP_VERSION}
-                  </div>
-                </div>
-                <button
-                  onClick={handleCheckUpdates}
-                  disabled={isLoading}
-                  className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-14 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                >
-                  <RefreshCw
-                    className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
-                  />
-                  {t("about.checkUpdate", "Check Update")}
-                </button>
-              </div>
-
-              {/* Latest Version */}
-              {versionInfo.latest_version && (
-                <div className="rounded-lg bg-stone-50 p-4 dark:bg-stone-700/50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <ArrowDownCircle className="h-5 w-5 text-stone-400 dark:text-stone-500" />
-                      <span className="text-14 text-stone-500 dark:text-stone-400">
-                        {t("about.latestVersion", "Latest Version")}
-                      </span>
-                    </div>
-                    <span className="font-mono text-18 font-bold text-stone-900 dark:text-stone-100">
-                      {versionInfo.latest_version}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Update Available Banner */}
-              {versionInfo.has_update && (
-                <div className="flex items-center justify-between rounded-lg bg-green-50 p-4 dark:bg-green-900/30">
-                  <div className="flex items-center gap-2">
-                    <ArrowDownCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-                    <div>
-                      <div className="text-14 font-medium text-green-800 dark:text-green-200">
-                        {t("about.updateAvailable", "New version available!")}
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleGoToRelease}
-                    className="flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-14 font-medium text-white hover:bg-green-700"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    {t("about.viewUpdate", "Update")}
-                  </button>
-                </div>
-              )}
-
-              {/* No Update Message */}
-              {versionInfo.latest_version && !versionInfo.has_update && (
-                <div className="rounded-lg bg-green-50 p-3 text-center text-14 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                  {t("about.upToDate", "You're up to date!")}
-                </div>
-              )}
-
-              {/* GitHub Link */}
-              {versionInfo.github_url && (
-                <button
-                  onClick={handleGoToGitHub}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-stone-200 p-3 text-14 font-medium text-stone-600 hover:bg-stone-50 dark:border-stone-600 dark:text-stone-400 dark:hover:bg-stone-700"
-                >
-                  <Github className="h-4 w-4" />
-                  {t("about.viewOnGitHub", "View on GitHub")}
-                </button>
-              )}
-            </>
-          ) : null}
-        </div>
-
-        {/* Footer */}
-        <div className="mt-6 flex justify-end">
-          <button
-            onClick={onClose}
-            className="rounded-lg bg-stone-100 px-4 py-2 text-14 font-medium text-stone-700 hover:bg-stone-200 dark:bg-stone-700 dark:text-stone-300 dark:hover:bg-stone-600"
+          )}
+        </dl>
+        {isLoading && (
+          <div
+            role="status"
+            className="flex items-center gap-2 text-14 text-theme-text-secondary"
           >
-            {t("common.close", "Close")}
-          </button>
-        </div>
+            <LoadingSpinner size="sm" />
+            {t("common.loading")}
+          </div>
+        )}
+        {error && <ConfigPanelErrorCallout message={error} />}
+        {versionInfo?.latest_version && (
+          <p className="flex items-start gap-2 text-14 text-theme-text-secondary">
+            <ArrowDownCircle
+              size={16}
+              className="mt-0.5 shrink-0"
+              aria-hidden="true"
+            />
+            {t(
+              versionInfo.has_update
+                ? "about.updateAvailable"
+                : "about.upToDate",
+            )}
+          </p>
+        )}
+        {versionInfo?.has_update && versionInfo.release_url && (
+          <a
+            href={versionInfo.release_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={linkClass}
+          >
+            <ExternalLink size={16} className="shrink-0" aria-hidden="true" />
+            <span className="ui-button__label">{t("about.viewUpdate")}</span>
+          </a>
+        )}
+        {versionInfo?.github_url && (
+          <a
+            href={versionInfo.github_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={linkClass}
+          >
+            <Github size={16} className="shrink-0" aria-hidden="true" />
+            <span className="ui-button__label">{t("about.viewOnGitHub")}</span>
+          </a>
+        )}
       </div>
-    </ModalSurface>
+    </Dialog>
   );
 }

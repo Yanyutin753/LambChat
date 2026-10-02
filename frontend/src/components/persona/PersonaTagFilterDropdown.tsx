@@ -1,7 +1,6 @@
 import { createPortal } from "react-dom";
-import { useEffect, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
-import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
+import { usePanelFilterMenu } from "../../hooks/usePanelFilterMenu";
 
 interface PersonaTagFilterDropdownProps {
   isOpen: boolean;
@@ -12,26 +11,6 @@ interface PersonaTagFilterDropdownProps {
   onToggleTag: (tag: string) => void;
   onClearFilters: () => void;
   onClose: () => void;
-}
-
-const DROPDOWN_GUTTER = 12;
-const TAG_DROPDOWN_WIDTH = 288;
-
-function getDropdownPosition(rect: DOMRect, width: number): CSSProperties {
-  const availableWidth = window.innerWidth - DROPDOWN_GUTTER * 2;
-  const renderedWidth = Math.min(width, availableWidth);
-  const left = Math.min(
-    Math.max(DROPDOWN_GUTTER, rect.right - renderedWidth),
-    window.innerWidth - renderedWidth - DROPDOWN_GUTTER,
-  );
-  const top = rect.bottom + 8;
-
-  return {
-    top,
-    left,
-    width: renderedWidth,
-    maxHeight: `calc(100dvh - ${top + DROPDOWN_GUTTER}px)`,
-  };
 }
 
 export function PersonaTagFilterDropdown({
@@ -46,33 +25,24 @@ export function PersonaTagFilterDropdown({
 }: PersonaTagFilterDropdownProps) {
   const { t } = useTranslation();
 
-  useEffect(() => {
-    if (!isOpen) return;
+  const { menuRef, dropdownStyle, ready, onKeyDown, closeMenu } =
+    usePanelFilterMenu(tagBtnRef, isOpen, 288, onClose);
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
-
-  // Compute style before any early return — hooks must not be called conditionally
-  const dropdownStyle = useStickyDropdownPosition(tagBtnRef, isOpen, (rect) =>
-    getDropdownPosition(rect, TAG_DROPDOWN_WIDTH),
-  );
-
-  if (!isOpen) return null;
+  if (!ready) return null;
 
   return createPortal(
     <div
       className="fixed inset-0 z-[999]"
       data-panel-header-dropdown
-      onPointerDown={onClose}
+      onPointerDown={closeMenu}
     >
       <div
-        className="skill-filter-dropdown panel-header-dropdown fixed overflow-hidden rounded-2xl border bg-[var(--skill-surface)] p-3 shadow-lg"
+        className="skill-filter-dropdown panel-header-dropdown fixed overflow-y-auto rounded-2xl border bg-[var(--skill-surface)] p-3 shadow-lg"
+        ref={menuRef}
+        tabIndex={-1}
+        onKeyDown={onKeyDown}
         role="menu"
+        aria-label={t("personaPresets.tags")}
         style={dropdownStyle}
         onPointerDown={(e) => e.stopPropagation()}
       >
@@ -83,7 +53,11 @@ export function PersonaTagFilterDropdown({
           {hasActiveFilters && (
             <button
               type="button"
-              onClick={onClearFilters}
+              role="menuitem"
+              onClick={() => {
+                menuRef.current?.focus();
+                onClearFilters();
+              }}
               className="text-12 text-[var(--theme-text-secondary)] transition-colors hover:text-[var(--theme-primary)]"
             >
               {t("personaPresets.clearFilters", "清除筛选")}
@@ -96,7 +70,8 @@ export function PersonaTagFilterDropdown({
               key={tag}
               type="button"
               onClick={() => onToggleTag(tag)}
-              aria-pressed={activeTag === tag}
+              role="menuitemradio"
+              aria-checked={activeTag === tag}
               className={`skill-tag-chip ${
                 activeTag === tag ? "skill-tag-chip--active" : ""
               }`}

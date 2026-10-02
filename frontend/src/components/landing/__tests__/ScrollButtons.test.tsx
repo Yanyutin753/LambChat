@@ -24,6 +24,9 @@ test("hidden scroll actions leave the accessibility tree and keyboard sequence",
   expect(
     screen.queryByRole("button", { name: "common.scrollToTop" }),
   ).toBeNull();
+  expect(screen.getByLabelText("common.scrollToTop")).toHaveStyle({
+    display: "none",
+  });
   await user.tab();
   expect(
     screen.getByRole("button", { name: "common.scrollToBottom" }),
@@ -45,4 +48,7 @@ test("hidden scroll actions leave the accessibility tree and keyboard sequence",
   expect(
     screen.getByRole("button", { name: "common.scrollToTop" }),
   ).toBeEnabled();
+  expect(screen.getByLabelText("common.scrollToBottom")).toHaveStyle({
+    display: "none",
+  });
 });

@@ -11,12 +11,13 @@ test("macOS positions native controls beside the centered 36px toolbar", () => {
       "utf8",
     ),
   );
-  // Native controls share the 17.5px center of the 36px row above its border.
+  // Tao's y is a titlebar container inset, not the painted control center.
+  // Keep the native position paired with the 36px toolbar height.
   expect(config.app.windows[0]).toMatchObject({
     decorations: true,
     titleBarStyle: "Overlay",
     hiddenTitle: true,
-    trafficLightPosition: { x: 12, y: 19.5 },
+    trafficLightPosition: { x: 12, y: 21.5 },
   });
 });
 

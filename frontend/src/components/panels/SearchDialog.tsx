@@ -4,7 +4,14 @@
  * Keyboard navigation (↑/↓/Enter/Escape) and paginated results.
  */
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useId,
+  type KeyboardEvent,
+} from "react";
 import { flushSync } from "react-dom";
 import { ModalSurface } from "../common/ModalSurface";
 import { useInView } from "react-intersection-observer";
@@ -15,6 +22,7 @@ import { PanelSearchInput } from "../common/PanelSearchInput";
 import { Button, IconButton } from "../common/ui";
 import { getSessionTitle } from "./sessionHelpers";
 import { SkeletonList } from "../skeletons";
+import { LoadingSpinner } from "../common/LoadingSpinner";
 
 const PAGE_SIZE = 30;
 
@@ -38,6 +46,8 @@ export function SearchDialog({
   const inputRef = useRef<HTMLInputElement>(null);
   const itemRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
   const [activeIndex, setActiveIndex] = useState(-1);
+  const resultsId = useId();
+  const [resultsRoot, setResultsRoot] = useState<HTMLDivElement | null>(null);
 
   // ── Session state (independent pagination) ────────────────────
   const [allSessions, setAllSessions] = useState<SearchResult[]>([]);
@@ -52,6 +62,7 @@ export function SearchDialog({
 
   // Infinite scroll sentinel
   const { ref: sentinelRef, inView } = useInView({
+    root: resultsRoot,
     threshold: 0,
     rootMargin: "200px",
   });
@@ -63,11 +74,6 @@ export function SearchDialog({
       return () => clearTimeout(timer);
     }
   }, [isOpen]);
-
-  // ── Reset active index when results change ─────────────────────
-  useEffect(() => {
-    setActiveIndex(-1);
-  }, [allSessions]);
 
   // ── Fetch sessions (search or initial) ─────────────────────────
   const fetchSessions = useCallback(
@@ -141,6 +147,7 @@ export function SearchDialog({
     setIsLoadingMore(false);
     setHasError(false);
     setAllSessions([]);
+    setActiveIndex(-1);
     setHasMore(false);
     const timer = setTimeout(() => {
       fetchSessions(true);
@@ -161,49 +168,32 @@ export function SearchDialog({
   }, [inView, hasMore, isLoadingMore, isLoading, hasError]);
 
   // ── Keyboard navigation ────────────────────────────────────────
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.defaultPrevented ||
-        e.isComposing ||
-        e.keyCode === 229 ||
-        e.target !== inputRef.current
-      )
-        return;
-      if (e.key === "ArrowDown") {
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.defaultPrevented || e.nativeEvent.isComposing || e.keyCode === 229)
+      return;
+    if (!allSessions.length) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const next = activeIndex < allSessions.length - 1 ? activeIndex + 1 : 0;
+      setActiveIndex(next);
+      itemRefs.current.get(next)?.scrollIntoView({ block: "nearest" });
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const next = Math.max(-1, activeIndex - 1);
+      setActiveIndex(next);
+      itemRefs.current.get(next)?.scrollIntoView({ block: "nearest" });
+      return;
+    }
+    if (e.key === "Enter") {
+      if (activeIndex >= 0 && activeIndex < allSessions.length) {
         e.preventDefault();
-        setActiveIndex((prev) => {
-          const next = prev < allSessions.length - 1 ? prev + 1 : 0;
-          itemRefs.current.get(next)?.scrollIntoView({ block: "nearest" });
-          return next;
-        });
-        return;
+        onSelectSession(allSessions[activeIndex].session.id);
       }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setActiveIndex((prev) => {
-          if (prev <= 0) {
-            inputRef.current?.focus();
-            return -1;
-          }
-          const next = prev - 1;
-          itemRefs.current.get(next)?.scrollIntoView({ block: "nearest" });
-          return next;
-        });
-        return;
-      }
-      if (e.key === "Enter") {
-        if (activeIndex >= 0 && activeIndex < allSessions.length) {
-          e.preventDefault();
-          onSelectSession(allSessions[activeIndex].session.id);
-        }
-        return;
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, activeIndex, allSessions, onClose, onSelectSession]);
+      return;
+    }
+  };
 
   const hasQuery = searchQuery.trim().length > 0;
 
@@ -214,70 +204,77 @@ export function SearchDialog({
       open={isOpen}
       onClose={onClose}
       label={t("sidebar.searchSessions")}
+      className="modal-size-lg"
     >
-      <div className="relative w-[92vw] max-w-lg bg-theme-bg-card dark:bg-stone-900 rounded-2xl shadow-[0_25px_60px_-12px_rgba(0,0,0,0.25)] dark:shadow-[0_25px_60px_-12px_rgba(0,0,0,0.5)] border border-stone-200/60 dark:border-stone-700/40 overflow-hidden ">
+      <div className="relative flex min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-theme-border bg-theme-bg-card shadow-xl">
         {/* Search input */}
-        <div className="flex items-center gap-2 sm:gap-3 px-4 py-3.5">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3 px-4 py-3">
           <Search
             size={16}
             strokeWidth={2}
-            className="flex-shrink-0 text-stone-400 dark:text-stone-500"
+            className="shrink-0 text-theme-text-tertiary"
+            aria-hidden="true"
           />
           <PanelSearchInput
             ref={inputRef}
             type="text"
+            role="combobox"
             aria-label={t("sidebar.searchSessions")}
+            aria-autocomplete="list"
+            aria-expanded="true"
+            aria-controls={resultsId}
+            aria-activedescendant={
+              allSessions[activeIndex]
+                ? `${resultsId}-${activeIndex}`
+                : undefined
+            }
+            autoComplete="off"
             value={searchQuery}
             onValueChange={setSearchQuery}
+            onKeyDown={handleKeyDown}
             placeholder={t("sidebar.searchSessions") + "..."}
-            className="flex-1 min-w-0 text-15 bg-transparent text-stone-800 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none"
+            className="flex-1 min-w-0 min-h-11 sm:min-h-8 [@media(pointer:coarse)]:min-h-11 rounded-sm text-16 sm:text-15 bg-transparent text-theme-text placeholder:text-theme-text-tertiary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-ring)]"
           />
           <div className="flex shrink-0 items-center gap-0">
             {searchQuery && (
               <IconButton
                 aria-label={t("common.clear")}
-                size="lg"
-                icon={<X size={12} strokeWidth={2.5} />}
+                size="sm"
+                icon={<X size={14} aria-hidden="true" />}
                 onClick={() => {
+                  inputRef.current?.blur();
                   flushSync(() => setSearchQuery(""));
                   inputRef.current?.focus();
                 }}
-                className="sm:!size-5"
+                className="!size-11 sm:!size-8 [@media(pointer:coarse)]:!size-11"
               />
             )}
             <Button
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="!min-h-11 sm:hidden"
+              className="!min-h-11 sm:!hidden"
             >
               {t("common.cancel")}
             </Button>
           </div>
-          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-10 font-medium font-serif text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-800 rounded-md border border-stone-200/80 dark:border-stone-700/60">
+          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-10 font-medium font-serif text-theme-text-tertiary bg-theme-bg-subtle rounded-md border border-theme-border">
             ESC
           </kbd>
         </div>
 
         {/* Divider */}
-        <div className="mx-4 h-px bg-stone-100 dark:bg-stone-800/60" />
+        <div className="mx-4 h-px shrink-0 bg-theme-border" />
 
         {/* Results list */}
         <div
-          className="max-h-[50dvh] overflow-y-auto py-2"
+          ref={setResultsRoot}
+          id={resultsId}
+          role="listbox"
+          aria-label={t("sidebar.searchSessions")}
+          className="min-h-0 max-h-[50dvh] overflow-y-auto py-2"
           aria-busy={isLoading || isLoadingMore}
-          style={{
-            scrollbarWidth: "thin",
-            scrollbarColor: "transparent transparent",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLDivElement).style.scrollbarColor =
-              "rgba(168,162,158,0.3) transparent";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLDivElement).style.scrollbarColor =
-              "transparent transparent";
-          }}
+          style={{ scrollbarWidth: "thin" }}
         >
           {isLoading ? (
             <SkeletonList count={5} className="py-2" compact />
@@ -316,6 +313,11 @@ export function SearchDialog({
                 return (
                   <button
                     key={session.id}
+                    id={`${resultsId}-${index}`}
+                    type="button"
+                    role="option"
+                    aria-selected={isActive}
+                    tabIndex={-1}
                     ref={(el) => {
                       if (el) {
                         itemRefs.current.set(index, el);
@@ -325,31 +327,40 @@ export function SearchDialog({
                     }}
                     onClick={() => onSelectSession(session.id)}
                     onMouseEnter={() => setActiveIndex(index)}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-75 group ${
+                    className={`w-full min-h-11 flex items-center gap-3 px-4 py-2.5 text-left transition-colors duration-75 motion-reduce:transition-none ${
                       isActive
-                        ? "bg-stone-100 dark:bg-stone-800/60"
-                        : "hover:bg-stone-50 dark:hover:bg-stone-800/30"
+                        ? "bg-theme-bg-elevated"
+                        : "hover:bg-theme-bg-subtle"
                     }`}
                   >
                     <span className="flex-1 min-w-0">
-                      <span className="block text-14 font-serif text-stone-700 dark:text-stone-200 truncate leading-snug">
+                      <span
+                        title={getSessionTitle(session, t)}
+                        className="block text-14 font-serif text-theme-text truncate leading-snug"
+                      >
                         {getSessionTitle(session, t)}
                       </span>
                       {searchMatch && (
                         <span
                           title={searchMatch}
-                          className="mt-0.5 block text-12 text-stone-400 dark:text-stone-500 truncate leading-relaxed"
+                          className="mt-0.5 block text-12 text-theme-text-secondary truncate leading-relaxed"
                         >
                           {searchMatch}
                         </span>
                       )}
+                      {projectName && (
+                        <span className="mt-1 flex min-w-0 items-center gap-1 text-11 font-serif text-theme-text-tertiary">
+                          <Hash
+                            size={11}
+                            className="shrink-0"
+                            aria-hidden="true"
+                          />
+                          <span className="truncate" title={projectName}>
+                            {projectName}
+                          </span>
+                        </span>
+                      )}
                     </span>
-                    {projectName && (
-                      <span className="flex-shrink-0 flex items-center gap-1 text-11 font-serif text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-800/50 px-1.5 py-0.5 rounded-md">
-                        <Hash size={9} strokeWidth={2} />
-                        {projectName}
-                      </span>
-                    )}
                   </button>
                 );
               })}
@@ -378,9 +389,11 @@ export function SearchDialog({
               {hasMore && !hasError && (
                 <div ref={sentinelRef} className="flex justify-center py-3">
                   {isLoadingMore && (
-                    <div className="relative w-4 h-4">
-                      <div className="absolute inset-0 rounded-full border-2 border-stone-200 dark:border-stone-700" />
-                      <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-stone-500 dark:border-t-stone-400 animate-spin will-change-transform" />
+                    <div role="status" aria-label={t("common.loading")}>
+                      <LoadingSpinner
+                        size="sm"
+                        color="text-theme-text-secondary"
+                      />
                     </div>
                   )}
                 </div>
@@ -392,23 +405,23 @@ export function SearchDialog({
         {/* Bottom hint bar */}
         {!isLoading && hasQuery && allSessions.length > 0 && (
           <>
-            <div className="mx-4 h-px bg-stone-100 dark:bg-stone-800/60" />
-            <div className="flex items-center justify-between px-4 py-2 text-11 text-stone-400 dark:text-stone-500">
+            <div className="mx-4 h-px shrink-0 bg-theme-border" />
+            <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 text-11 text-theme-text-tertiary">
               <span>
                 {allSessions.length} {hasMore ? "..." : ""}
               </span>
-              <div className="flex items-center gap-2">
+              <div className="hidden sm:flex items-center gap-2">
                 <span className="flex items-center gap-0.5">
-                  <kbd className="px-1 py-0.5 rounded bg-stone-100 dark:bg-stone-800 border border-stone-200/60 dark:border-stone-700/50 text-10">
+                  <kbd className="px-1 py-0.5 rounded bg-theme-bg-subtle border border-theme-border text-10">
                     ↑
                   </kbd>
-                  <kbd className="px-1 py-0.5 rounded bg-stone-100 dark:bg-stone-800 border border-stone-200/60 dark:border-stone-700/50 text-10">
+                  <kbd className="px-1 py-0.5 rounded bg-theme-bg-subtle border border-theme-border text-10">
                     ↓
                   </kbd>
                   <span className="ml-0.5">{t("sidebar.navigate")}</span>
                 </span>
                 <span className="flex items-center gap-0.5">
-                  <kbd className="px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 border border-stone-200/60 dark:border-stone-700/50 text-10">
+                  <kbd className="px-1.5 py-0.5 rounded bg-theme-bg-subtle border border-theme-border text-10">
                     ↵
                   </kbd>
                   <span className="ml-0.5">{t("sidebar.open")}</span>

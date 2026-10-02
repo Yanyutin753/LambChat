@@ -1,7 +1,9 @@
 import { ArrowRight, Download, ExternalLink, RefreshCw } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Dialog } from "../common/Dialog";
-import { LoadingSpinner } from "../common/LoadingSpinner";
+import { Button } from "../common/ui/Button";
+import { ConfigPanelErrorCallout } from "../panels/ConfigPanelErrorCallout";
 import { ReleaseNotesMarkdown } from "./ReleaseNotesMarkdown";
 import { UpdateProgressBar } from "./UpdateProgressBar";
 import { APP_VERSION } from "../../utils/appVersion";
@@ -18,7 +20,8 @@ interface UpdateDialogProps {
   platform: "tauri" | "android" | "ios";
 }
 
-const ghostButtonClass = "px-4 py-2 text-14 font-medium text-theme-text dark:text-stone-300 bg-theme-bg-card dark:bg-stone-800 border border-theme-border dark:border-stone-600 rounded-lg hover:bg-theme-bg-subtle dark:hover:bg-stone-700 transition-colors";
+const actionClass =
+  "!min-h-11 sm:!min-h-9 [@media(pointer:coarse)]:!min-h-11 [&>span]:!whitespace-normal min-w-0 flex-1 self-stretch sm:flex-none";
 
 export function UpdateDialog({
   state,
@@ -30,6 +33,15 @@ export function UpdateDialog({
   platform,
 }: UpdateDialogProps) {
   const { t } = useTranslation();
+  const contentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!isOpen || !state.error) return;
+    const content = contentRef.current;
+    const surface = content?.closest("[data-modal-surface]");
+    if (surface?.contains(document.activeElement)) {
+      content?.querySelector<HTMLElement>('[role="alert"]')?.focus();
+    }
+  }, [isOpen, state.error]);
 
   // Linux 安装来源分流文案：deb/rpm=下载并安装（pkexec），unknown=前往下载
   // （无法判定安装方式不盲装），appimage/非 Linux 保持 updater 语义
@@ -41,42 +53,57 @@ export function UpdateDialog({
 
   const footer = (
     <>
+      {state.downloading && (
+        <div className="w-full min-w-0">
+          <UpdateProgressBar
+            progress={state.progress}
+            downloaded={state.downloaded}
+            contentLength={state.contentLength}
+          />
+        </div>
+      )}
       {!state.downloading && (
-        <button onClick={onSkipVersion} className={ghostButtonClass}>
+        <Button onClick={onSkipVersion} variant="ghost" className={actionClass}>
           {t("update.skipVersion", "跳过此版本")}
-        </button>
+        </Button>
       )}
       {!state.downloading && (
-        <button onClick={onSkip} className={ghostButtonClass}>
+        <Button onClick={onSkip} className={actionClass}>
           {t("updateSkip", "以后再说")}
-        </button>
+        </Button>
       )}
-      <button
-        onClick={onUpgrade}
-        disabled={state.downloading}
-        className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--theme-primary)] px-4 py-2 text-14 font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+      <Button
+        onClick={(event) => {
+          event.currentTarget
+            .closest<HTMLElement>("[data-modal-surface]")
+            ?.focus();
+          onUpgrade();
+        }}
+        loading={state.downloading}
+        variant="primary"
+        className={`${actionClass} basis-full sm:basis-auto`}
+        leftIcon={
+          isGoToDownload ? (
+            <ExternalLink size={16} />
+          ) : isLinuxPackage ? (
+            <Download size={16} />
+          ) : (
+            <RefreshCw size={16} />
+          )
+        }
       >
-        {state.downloading ? (
-          <span className="inline-flex h-4 w-4 items-center justify-center">
-            <LoadingSpinner size="sm" color="text-current" />
-          </span>
-        ) : isGoToDownload ? (
-          <ExternalLink size={16} />
-        ) : isLinuxPackage ? (
-          <Download size={16} />
-        ) : (
-          <RefreshCw size={16} />
-        )}
         {state.downloading
           ? t("updateDownloading", "正在下载...")
-          : isGoToDownload
-            ? t("updateGoToDownload", "前往下载")
-            : isLinuxPackage
-              ? t("updateDownloadAndInstall", "下载并安装")
-              : state.readyToInstall
-                ? t("update.updateRelaunchInstall", "重启并安装")
-                : t("updateDownload", "立即升级")}
-      </button>
+          : state.error
+            ? t("updateRetry", "重试")
+            : isGoToDownload
+              ? t("updateGoToDownload", "前往下载")
+              : isLinuxPackage
+                ? t("updateDownloadAndInstall", "下载并安装")
+                : state.readyToInstall
+                  ? t("update.updateRelaunchInstall", "重启并安装")
+                  : t("updateDownload", "立即升级")}
+      </Button>
     </>
   );
 
@@ -92,13 +119,16 @@ export function UpdateDialog({
       }
       footer={footer}
     >
-      <div className="space-y-3">
+      <div ref={contentRef} className="space-y-3">
+        {state.error && (
+          <ConfigPanelErrorCallout message={state.error} tabIndex={-1} />
+        )}
         {/* 版本迁移行：当前 → 新版本 */}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="inline-flex items-center gap-1.5 font-mono text-14 text-theme-text-secondary dark:text-stone-400">
+          <span className="flex min-w-0 flex-wrap items-center gap-1.5 font-mono text-14 text-theme-text-secondary dark:text-stone-400">
             v{APP_VERSION}
             <ArrowRight size={14} className="opacity-60" aria-hidden="true" />
-            <span className="font-semibold text-theme-text dark:text-stone-100">
+            <span className="min-w-0 [overflow-wrap:anywhere] font-semibold text-theme-text dark:text-stone-100">
               v{state.version ?? ""}
             </span>
           </span>
@@ -116,9 +146,7 @@ export function UpdateDialog({
             <p className="text-12 font-medium text-theme-text-secondary dark:text-stone-300">
               {t("updateReleaseNotes", "更新日志")}
             </p>
-            <div className="max-h-56 overflow-y-auto rounded-lg bg-theme-bg-subtle p-3 dark:bg-stone-900/50">
-              <ReleaseNotesMarkdown content={state.releaseNotes} />
-            </div>
+            <ReleaseNotesMarkdown content={state.releaseNotes} />
           </div>
         )}
 
@@ -127,33 +155,11 @@ export function UpdateDialog({
             href={state.releaseUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-12 text-blue-600 hover:underline dark:text-blue-400"
+            className="inline-flex min-h-11 sm:min-h-0 [@media(pointer:coarse)]:min-h-11 items-center gap-1 text-12 text-blue-600 hover:underline dark:text-blue-400"
           >
             <ExternalLink size={12} />
             {t("update.viewFullNotes", "查看完整更新日志")}
           </a>
-        )}
-
-        {state.downloading && (
-          <UpdateProgressBar
-            progress={state.progress}
-            downloaded={state.downloaded}
-            contentLength={state.contentLength}
-          />
-        )}
-
-        {state.error && (
-          <div className="flex items-center justify-between gap-2 rounded-lg bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)] p-3 text-14 text-theme-error dark:bg-red-900/20 dark:text-red-400">
-            <span className="break-words">{state.error}</span>
-            {!state.downloading && (
-              <button
-                onClick={onUpgrade}
-                className="shrink-0 font-medium underline underline-offset-2 hover:opacity-80"
-              >
-                {t("updateRetry", "重试")}
-              </button>
-            )}
-          </div>
         )}
       </div>
     </Dialog>
