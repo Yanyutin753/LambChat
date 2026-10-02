@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Bot, ChevronDown, Cpu, Star, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "../../i18n";
@@ -47,7 +47,9 @@ export function TeamMemberCard({
   onAgentChange,
 }: TeamMemberCardProps) {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(!!member.role_instructions);
+  const [expanded, setExpanded] = useState(false);
+  const settingsId = useId();
+  const summaryRef = useRef<HTMLButtonElement>(null);
   const roleName = member.role_name || t("team.unnamedRole");
 
   const selectedModel = member.model_id
@@ -94,59 +96,74 @@ export function TeamMemberCard({
       <div className="list-item-card__body">
         {/* Main row: avatar + name + tags + actions */}
         <div className="list-item-card__top">
-          <div className="team-member-card__avatar-btn">
-            {isPersonaImageAvatar(member.role_avatar) ||
-            isEmojiAvatar(member.role_avatar) ? (
-              <div className="team-member-card__avatar">
-                <PersonaAvatarImage
-                  avatar={
-                    isEmojiAvatar(member.role_avatar)
-                      ? getEmojiAvatarUrl(member.role_avatar)
-                      : member.role_avatar
-                  }
-                  alt=""
-                  className="team-member-card__avatar-img"
-                />
-              </div>
-            ) : (
-              <div className="team-member-card__avatar team-member-card__avatar--icon">
-                <PersonaAvatarIcon
-                  avatar={member.role_avatar}
-                  primaryTag={member.role_tags[0]}
-                  size={18}
-                  className="text-[var(--theme-primary)]"
-                />
-              </div>
-            )}
-          </div>
-
-          <div className="list-item-card__identity">
-            <div className="team-member-card__identity-header">
-              <span className="list-item-card__name font-serif">
-                {roleName}
-              </span>
-              {member.role_tags.length > 0 && (
-                <span className="team-member-card__tags">
-                  {member.role_tags.slice(0, 3).map((tag) => (
-                    <span key={tag} className="team-member-card__tag">
-                      {tag}
-                    </span>
-                  ))}
+          <button
+            ref={summaryRef}
+            type="button"
+            disabled={disabled}
+            className="team-member-card__summary"
+            aria-label={`${t(expanded ? "common.collapse" : "common.expand")} ${roleName}`}
+            aria-expanded={expanded}
+            aria-controls={settingsId}
+            onClick={() => setExpanded(!expanded)}
+          >
+            <span className="team-member-card__avatar-btn">
+              {isPersonaImageAvatar(member.role_avatar) ||
+              isEmojiAvatar(member.role_avatar) ? (
+                <span className="team-member-card__avatar">
+                  <PersonaAvatarImage
+                    avatar={
+                      isEmojiAvatar(member.role_avatar)
+                        ? getEmojiAvatarUrl(member.role_avatar)
+                        : member.role_avatar
+                    }
+                    alt=""
+                    className="team-member-card__avatar-img"
+                  />
+                </span>
+              ) : (
+                <span className="team-member-card__avatar team-member-card__avatar--icon">
+                  <PersonaAvatarIcon
+                    avatar={member.role_avatar}
+                    primaryTag={member.role_tags[0]}
+                    size={18}
+                    className="text-[var(--theme-primary)]"
+                  />
                 </span>
               )}
-            </div>
-            <span className="team-member-card__meta-row">
-              <span className="team-member-card__model" title={agentLabel}>
-                <Bot size={11} />
-                <span className="font-serif">{agentLabel}</span>
+            </span>
+
+            <span className="list-item-card__identity">
+              <span className="team-member-card__identity-header">
+                <span className="list-item-card__name font-serif">
+                  {roleName}
+                </span>
+                {member.role_tags.length > 0 && (
+                  <span className="team-member-card__tags">
+                    {member.role_tags.slice(0, 3).map((tag) => (
+                      <span key={tag} className="team-member-card__tag">
+                        {tag}
+                      </span>
+                    ))}
+                  </span>
+                )}
               </span>
-              <span className="team-member-card__model-sep" />
-              <span className="team-member-card__model" title={modelLabel}>
-                <Cpu size={11} />
-                <span className="font-serif">{modelLabel}</span>
+              <span className="team-member-card__meta-row">
+                <span className="team-member-card__model" title={agentLabel}>
+                  <Bot size={11} />
+                  <span className="font-serif">{agentLabel}</span>
+                </span>
+                <span className="team-member-card__model" title={modelLabel}>
+                  <Cpu size={11} />
+                  <span className="font-serif">{modelLabel}</span>
+                </span>
               </span>
             </span>
-          </div>
+            <ChevronDown
+              size={14}
+              aria-hidden="true"
+              className={`team-member-card__expand-icon ${expanded ? "team-member-card__expand-icon--open" : ""}`}
+            />
+          </button>
 
           {/* Inline actions */}
           <div className="list-item-card__actions">
@@ -161,7 +178,7 @@ export function TeamMemberCard({
                 icon={
                   <Star size={14} fill={isDefault ? "currentColor" : "none"} />
                 }
-                variant={isDefault ? "primary" : "ghost"}
+                variant="ghost"
                 size="sm"
                 className={
                   isDefault
@@ -181,49 +198,40 @@ export function TeamMemberCard({
                 className="team-member-card__action-btn team-member-card__action-btn--danger"
               />
             </Tooltip>
+            {/* Toggle */}
+            <button
+              disabled={disabled}
+              onClick={onToggleEnabled}
+              className="team-member-card__toggle-button flex size-11 shrink-0 items-center justify-center rounded-md sm:h-5 sm:w-9"
+              aria-label={`${t(member.enabled ? "team.disableRole" : "team.enableRole")} ${roleName}`}
+              title={
+                member.enabled ? t("team.disableRole") : t("team.enableRole")
+              }
+              type="button"
+              role="switch"
+              aria-checked={member.enabled}
+            >
+              <span
+                aria-hidden="true"
+                className={`team-toggle ${member.enabled ? "team-toggle--on" : ""}`}
+              />
+            </button>
           </div>
-
-          {/* Toggle */}
-          <button
-            disabled={disabled}
-            onClick={onToggleEnabled}
-            className="team-member-card__toggle-button flex size-11 shrink-0 items-center justify-center rounded-md sm:h-5 sm:w-9"
-            aria-label={`${t(member.enabled ? "team.disableRole" : "team.enableRole")} ${roleName}`}
-            title={
-              member.enabled ? t("team.disableRole") : t("team.enableRole")
-            }
-            type="button"
-            role="switch"
-            aria-checked={member.enabled}
-          >
-            <span
-              aria-hidden="true"
-              className={`team-toggle ${member.enabled ? "team-toggle--on" : ""}`}
-            />
-          </button>
-
-          {/* Expand chevron */}
-          <button
-            disabled={disabled}
-            aria-label={`${t(expanded ? "common.collapse" : "common.expand")} ${roleName}`}
-            aria-expanded={expanded}
-            onClick={() => setExpanded(!expanded)}
-            className="team-member-card__expand-btn"
-            type="button"
-          >
-            <ChevronDown
-              size={13}
-              className={`team-member-card__expand-icon ${
-                expanded ? "team-member-card__expand-icon--open" : ""
-              }`}
-            />
-          </button>
         </div>
 
         {/* Collapsible instructions with smooth animation */}
         <div
+          id={settingsId}
           inert={!expanded}
           aria-hidden={!expanded}
+          onKeyDown={(event) => {
+            if (event.key !== "Escape") return;
+            event.stopPropagation();
+            if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+            event.preventDefault();
+            setExpanded(false);
+            summaryRef.current?.focus();
+          }}
           className={`team-member-card__collapse ${
             expanded ? "team-member-card__collapse--open" : ""
           }`}
@@ -240,7 +248,7 @@ export function TeamMemberCard({
                 value={member.agent_id ?? ""}
                 onChange={(v) => onAgentChange?.(v || null)}
                 options={agentOptions}
-                disabled={disabled || !onAgentChange}
+                disabled={disabled || !expanded || !onAgentChange}
                 placeholder={t("team.followTeamMode", "跟随团队模式")}
                 triggerClassName="team-member-card__select-trigger"
               />
@@ -255,7 +263,7 @@ export function TeamMemberCard({
                 value={member.model_id ?? ""}
                 onChange={(v) => onModelChange?.(v || null)}
                 options={modelOptions}
-                disabled={disabled || !onModelChange}
+                disabled={disabled || !expanded || !onModelChange}
                 placeholder={t("team.followSessionModel", "跟随会话模型")}
                 triggerClassName="team-member-card__select-trigger"
               />
@@ -280,7 +288,7 @@ export function TeamMemberCard({
                 {t("team.roleInstructions", "角色专属指令")}
               </label>
               <Textarea
-                disabled={disabled}
+                disabled={disabled || !expanded}
                 aria-label={`${t("team.roleInstructions")} ${roleName}`}
                 value={member.role_instructions}
                 onChange={(e) => onInstructionsChange(e.target.value)}

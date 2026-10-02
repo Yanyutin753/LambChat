@@ -12,6 +12,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import i18n from "../../../i18n";
 import type { Team } from "../../../types/team";
+import type { PersonaPreset } from "../../../types";
 import { TeamBuilder, type TeamBuilderHandle } from "../TeamBuilder";
 import { TeamBuilderWrapper } from "../TeamBuilderWrapper";
 import { resetRightPanelCoordinator } from "../../common/rightPanelCoordinator";
@@ -26,6 +27,7 @@ const api = vi.hoisted(() => ({
   delete: vi.fn(),
   list: vi.fn(),
   toast: vi.fn(),
+  listPresets: vi.fn(),
 }));
 vi.mock("../../../services/api/team", () => ({
   teamApi: {
@@ -39,7 +41,7 @@ vi.mock("../../../services/api/team", () => ({
 }));
 vi.mock("../../../services/api/personaPreset", () => ({
   personaPresetApi: {
-    list: vi.fn().mockResolvedValue({ presets: [], total: 0 }),
+    list: api.listPresets,
   },
 }));
 vi.mock("../../../services/api/model", () => ({
@@ -98,6 +100,7 @@ function editor(teamId: string | null = team.id) {
 }
 beforeEach(() => {
   resetRightPanelCoordinator();
+  api.listPresets.mockReset().mockResolvedValue({ presets: [], total: 0 });
   api.get.mockReset().mockImplementation(async (id: string) => ({
     ...team,
     id,
@@ -477,6 +480,11 @@ test("saving closes portalled member choices and keeps them closed after complet
     ],
   });
   const view = editor();
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: `${i18n.t("common.expand")} Researcher`,
+    }),
+  );
   const trigger = await screen.findByRole("button", {
     name: `${i18n.t("team.memberModel")} Researcher`,
   });
@@ -585,5 +593,130 @@ test("cloning resets errors and avatar retries belonging to the previous draft",
   expect(screen.queryByRole("alert")).toBeNull();
   expect(
     screen.queryByRole("button", { name: i18n.t("common.retry"), exact: true }),
+  ).toBeNull();
+});
+
+const catalogRole = {
+  id: "role-1",
+  name: "Catalog researcher",
+  description: "Research guidance",
+  tags: [],
+  avatar: null,
+} as PersonaPreset;
+
+test("role catalog failures are retriable and keep the team's draft", async () => {
+  api.listPresets
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockResolvedValue({ presets: [catalogRole], total: 1 });
+  const view = editor(null);
+  const name = screen.getByRole("textbox", { name: i18n.t("team.teamName") });
+  fireEvent.change(name, { target: { value: "Keep my draft" } });
+  fireEvent.click(
+    screen.getByRole("button", { name: i18n.t("team.addRoles"), exact: true }),
+  );
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    i18n.t("common.loadFailed"),
+  );
+  expect(screen.queryByText(i18n.t("team.noRolesFound"))).toBeNull();
+  screen
+    .getByRole("button", { name: i18n.t("common.retry"), exact: true })
+    .focus();
+  fireEvent.click(
+    screen.getByRole("button", { name: i18n.t("common.retry"), exact: true }),
+  );
+  expect(
+    screen.getByRole("textbox", { name: i18n.t("team.searchRoles") }),
+  ).toHaveFocus();
+  fireEvent.click(
+    await screen.findByRole("button", { name: /Catalog researcher/ }),
+  );
+  expect(name).toHaveValue("Keep my draft");
+  await act(async () => view.ref.current?.handleSave());
+  expect(api.create).toHaveBeenCalledWith(
+    expect.objectContaining({
+      name: "Keep my draft",
+      members: [expect.objectContaining({ persona_preset_id: catalogRole.id })],
+    }),
+  );
+});
+
+test("role catalog waits visibly and never offers stale choices while loading", async () => {
+  const request = deferred<{ presets: PersonaPreset[]; total: number }>();
+  api.listPresets.mockReturnValueOnce(request.promise);
+  editor(null);
+  fireEvent.click(
+    screen.getByRole("button", { name: i18n.t("team.addRoles"), exact: true }),
+  );
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    i18n.t("team.loadingRoles"),
+  );
+  expect(screen.queryByText(i18n.t("team.noRolesFound"))).toBeNull();
+  await act(async () => request.resolve({ presets: [catalogRole], total: 1 }));
+  expect(
+    await screen.findByRole("button", { name: /Catalog researcher/ }),
+  ).toBeEnabled();
+});
+
+test("role catalog paginates on the server and searches beyond the first page", async () => {
+  api.listPresets.mockImplementation(async ({ skip, q }) => ({
+    presets: [
+      {
+        ...catalogRole,
+        id: `${skip}`,
+        name: q ? "Role beyond 100" : `Role ${skip}`,
+      },
+    ],
+    total: q ? 1 : 125,
+  }));
+  editor(null);
+  fireEvent.click(
+    screen.getByRole("button", { name: i18n.t("team.addRoles"), exact: true }),
+  );
+  await screen.findByRole("button", { name: /Role 0/ });
+  expect(api.listPresets).toHaveBeenLastCalledWith(
+    expect.objectContaining({ skip: 0, limit: 20 }),
+  );
+  screen
+    .getByRole("button", { name: i18n.t("common.next"), exact: true })
+    .focus();
+  fireEvent.click(
+    screen.getByRole("button", { name: i18n.t("common.next"), exact: true }),
+  );
+  expect(
+    screen.getByRole("textbox", { name: i18n.t("team.searchRoles") }),
+  ).toHaveFocus();
+  await screen.findByRole("button", { name: /Role 20/ });
+  fireEvent.change(
+    screen.getByRole("textbox", { name: i18n.t("team.searchRoles") }),
+    { target: { value: "Beyond" } },
+  );
+  await screen.findByRole("button", { name: /Role beyond 100/ });
+  expect(api.listPresets).toHaveBeenLastCalledWith({
+    skip: 0,
+    limit: 20,
+    q: "Beyond",
+  });
+});
+
+test("a delayed catalog response cannot replace the current search results", async () => {
+  const old = deferred<{ presets: PersonaPreset[]; total: number }>();
+  api.listPresets.mockReturnValueOnce(old.promise).mockResolvedValue({
+    presets: [{ ...catalogRole, name: "Current result" }],
+    total: 1,
+  });
+  editor(null);
+  fireEvent.click(
+    screen.getByRole("button", { name: i18n.t("team.addRoles"), exact: true }),
+  );
+  await waitFor(() => expect(api.listPresets).toHaveBeenCalledOnce());
+  fireEvent.change(
+    screen.getByRole("textbox", { name: i18n.t("team.searchRoles") }),
+    { target: { value: "Current" } },
+  );
+  await screen.findByRole("button", { name: /Current result/ });
+  await act(async () => old.resolve({ presets: [catalogRole], total: 1 }));
+  expect(screen.getByRole("button", { name: /Current result/ })).toBeTruthy();
+  expect(
+    screen.queryByRole("button", { name: /Catalog researcher/ }),
   ).toBeNull();
 });

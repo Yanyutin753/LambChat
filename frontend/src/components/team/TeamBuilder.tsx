@@ -2,7 +2,6 @@ import {
   useState,
   useEffect,
   useCallback,
-  useMemo,
   useRef,
   useId,
   forwardRef,
@@ -10,9 +9,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Bot,
   ChevronDown,
-  Cpu,
   MessageSquareText,
   Plus,
   Search,
@@ -32,6 +29,7 @@ import { personaPresetApi } from "../../services/api/personaPreset";
 import toast from "react-hot-toast";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { Button } from "../common/ui";
+import { Pagination } from "../common/Pagination";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { ConfigPanelErrorCallout } from "../panels/ConfigPanelErrorCallout";
 import {
@@ -88,6 +86,8 @@ function inputToTags(value: string): string[] {
   return result;
 }
 
+const ROLE_PAGE_SIZE = 20;
+
 export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
   function TeamBuilder(
     { teamId, onSave, onClose, surface = "page", onFormStateChange },
@@ -99,6 +99,12 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
     const settingsContext = useOptionalSettingsContext();
     const [presets, setPresets] = useState<PersonaPreset[]>([]);
     const [presetsLoading, setPresetsLoading] = useState(true);
+    const [presetsError, setPresetsError] = useState(false);
+    const [presetsTotal, setPresetsTotal] = useState(0);
+    const [presetsPage, setPresetsPage] = useState(1);
+    const [presetsAttempt, setPresetsAttempt] = useState(0);
+    const roleListRef = useRef<HTMLDivElement>(null);
+    const roleSearchRef = useRef<HTMLInputElement>(null);
     const [fallbackModels, setFallbackModels] = useState<ModelOption[] | null>(
       null,
     );
@@ -178,16 +184,38 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
     ]);
 
     useEffect(() => {
-      personaPresetApi
-        .list({ limit: 100 })
-        .then((res) => {
-          setPresets(res.presets);
-          setPresetsLoading(false);
-        })
-        .catch(() => {
-          setPresetsLoading(false);
-        });
-    }, []);
+      if (!rolePickerOpen) return;
+      let cancelled = false;
+      setPresetsLoading(true);
+      setPresetsError(false);
+      const timer = window.setTimeout(
+        () => {
+          void personaPresetApi
+            .list({
+              skip: (presetsPage - 1) * ROLE_PAGE_SIZE,
+              limit: ROLE_PAGE_SIZE,
+              q: searchQuery.trim() || undefined,
+            })
+            .then((res) => {
+              if (cancelled) return;
+              setPresets(res.presets);
+              setPresetsTotal(res.total);
+              roleListRef.current?.scrollTo?.({ top: 0 });
+            })
+            .catch(() => {
+              if (!cancelled) setPresetsError(true);
+            })
+            .finally(() => {
+              if (!cancelled) setPresetsLoading(false);
+            });
+        },
+        searchQuery.trim() ? 200 : 0,
+      );
+      return () => {
+        cancelled = true;
+        window.clearTimeout(timer);
+      };
+    }, [rolePickerOpen, searchQuery, presetsPage, presetsAttempt]);
 
     useEffect(() => {
       if (settingsContext?.availableModels) {
@@ -489,16 +517,6 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
     const configuredMemberCount = members.filter((member) =>
       member.role_instructions.trim(),
     ).length;
-    const filteredPresets = useMemo(() => {
-      if (!searchQuery.trim()) return presets;
-      const q = searchQuery.toLowerCase();
-      return presets.filter(
-        (preset) =>
-          preset.name.toLowerCase().includes(q) ||
-          preset.description.toLowerCase().includes(q) ||
-          preset.tags.some((tag) => tag.toLowerCase().includes(q)),
-      );
-    }, [presets, searchQuery]);
     const defaultMember = members.find(
       (member) => member.member_id === defaultMemberId,
     );
@@ -667,14 +685,6 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
                       <span className="tmb-stat__dot" />
                       {t("team.configured", { count: configuredMemberCount })}
                     </span>
-                    <span className="tmb-stat">
-                      <Bot size={11} />
-                      {t("team.memberModes", "成员模式")}
-                    </span>
-                    <span className="tmb-stat">
-                      <Cpu size={11} />
-                      {t("team.memberModels", "成员模型")}
-                    </span>
                   </div>
                 </div>
 
@@ -687,6 +697,7 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
                     onClick={() => {
                       setRolePickerOpen((v) => !v);
                       setSearchQuery("");
+                      setPresetsPage(1);
                     }}
                     className={`team-role-picker-trigger ${
                       rolePickerOpen ? "team-role-picker-trigger--open" : ""
@@ -731,9 +742,13 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
                           className="team-role-picker-dropdown__search-icon"
                         />
                         <PanelSearchInput
+                          ref={roleSearchRef}
                           type="text"
                           value={searchQuery}
-                          onValueChange={setSearchQuery}
+                          onValueChange={(query) => {
+                            setSearchQuery(query);
+                            setPresetsPage(1);
+                          }}
                           aria-label={t("team.searchRoles")}
                           placeholder={t("team.searchRoles")}
                           className="ppe-input"
@@ -741,35 +756,74 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
                           autoFocus
                         />
                       </div>
-                      <div className="team-role-picker-dropdown__list">
+                      <div
+                        ref={roleListRef}
+                        aria-busy={presetsLoading}
+                        className="team-role-picker-dropdown__list"
+                      >
                         {presetsLoading && (
-                          <div className="team-form-empty">
+                          <div
+                            role="status"
+                            className="team-form-empty flex items-center justify-center gap-2"
+                          >
+                            <LoadingSpinner size="sm" />
                             {t("team.loadingRoles")}
                           </div>
                         )}
-                        {!presetsLoading && filteredPresets.length === 0 && (
-                          <div className="team-form-empty">
-                            {t("team.noRolesFound")}
+                        {!presetsLoading && presetsError && (
+                          <div className="flex flex-col gap-2">
+                            <ConfigPanelErrorCallout
+                              message={t("common.loadFailed")}
+                            />
+                            <Button
+                              className="self-start"
+                              onClick={() => {
+                                roleSearchRef.current?.focus();
+                                setPresetsAttempt((attempt) => attempt + 1);
+                              }}
+                            >
+                              {t("common.retry")}
+                            </Button>
                           </div>
                         )}
-                        {filteredPresets.map((preset) => (
-                          <button
-                            key={preset.id}
-                            type="button"
-                            className="team-form-role-option"
-                            onClick={() => handleAddRole(preset)}
-                          >
-                            <span className="team-form-role-option__name font-serif">
-                              {preset.name}
-                            </span>
-                            {preset.description && (
-                              <span className="team-form-role-option__desc">
-                                {preset.description}
+                        {!presetsLoading &&
+                          !presetsError &&
+                          presets.length === 0 && (
+                            <div className="team-form-empty">
+                              {t("team.noRolesFound")}
+                            </div>
+                          )}
+                        {!presetsLoading &&
+                          !presetsError &&
+                          presets.map((preset) => (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              className="team-form-role-option"
+                              onClick={() => handleAddRole(preset)}
+                            >
+                              <span className="team-form-role-option__name font-serif">
+                                {preset.name}
                               </span>
-                            )}
-                          </button>
-                        ))}
+                              {preset.description && (
+                                <span className="team-form-role-option__desc">
+                                  {preset.description}
+                                </span>
+                              )}
+                            </button>
+                          ))}
                       </div>
+                      {!presetsLoading && !presetsError && (
+                        <Pagination
+                          page={presetsPage}
+                          pageSize={ROLE_PAGE_SIZE}
+                          total={presetsTotal}
+                          onChange={(page) => {
+                            roleSearchRef.current?.focus();
+                            setPresetsPage(page);
+                          }}
+                        />
+                      )}
                     </div>
                   )}
                 </div>
