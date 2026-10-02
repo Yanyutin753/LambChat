@@ -12,13 +12,9 @@ import {
 import { useTranslation } from "react-i18next";
 import { EditorSidebar } from "../common/EditorSidebar";
 import { CopyButton } from "../common/CopyButton";
+import { IconButton } from "../common";
 import { MarkdownContent } from "../chat/ChatMessage/MarkdownContent";
-import { PersonaAvatarIcon, PersonaAvatarImage } from "./PersonaAvatarIcon";
-import {
-  isPersonaImageAvatar,
-  isEmojiAvatar,
-  getEmojiAvatarUrl,
-} from "./personaAvatar";
+import { PersonaAvatarWithLoading } from "./PersonaAvatarWithLoading";
 import { nameToGradient } from "../panels/MarketplacePanel/constants";
 import type { PersonaPreset } from "../../types";
 
@@ -44,52 +40,22 @@ export function PersonaPreviewSidebar({
   const { t } = useTranslation();
   const [viewSource, setViewSource] = useState(false);
   const gradient = nameToGradient(preset.name);
-  const primaryTag = preset.tags[0];
 
   return (
     <EditorSidebar
       open={true}
       onClose={onClose}
       title={preset.name}
-      subtitle={`${
-        preset.scope === "global"
-          ? t("personaPresets.official", "官方")
-          : t("personaPresets.mine", "我的")
-      }${
-        preset.usage_count > 0
-          ? ` · ${preset.usage_count}${t(
-              "personaPresets.usageCount",
-              "次使用",
-            )}`
-          : ""
-      }`}
       icon={
-        <div
+        <PersonaAvatarWithLoading
+          key={preset.avatar}
+          preset={preset}
           className="flex h-7 w-7 items-center justify-center rounded-lg"
+          imgClassName="h-5 w-5 rounded object-cover"
           style={{
             background: `linear-gradient(135deg, ${gradient[0]}, ${gradient[1]})`,
           }}
-        >
-          {isPersonaImageAvatar(preset.avatar) ||
-          isEmojiAvatar(preset.avatar) ? (
-            <PersonaAvatarImage
-              avatar={
-                isEmojiAvatar(preset.avatar)
-                  ? getEmojiAvatarUrl(preset.avatar)
-                  : preset.avatar
-              }
-              alt=""
-              className="h-5 w-5 rounded object-cover"
-            />
-          ) : (
-            <PersonaAvatarIcon
-              avatar={preset.avatar}
-              primaryTag={primaryTag}
-              size={14}
-              className="text-white"
-            />
-          )}
-        </div>
+        />
       }
       footer={
         <div className="flex items-center gap-2">
@@ -130,41 +96,30 @@ export function PersonaPreviewSidebar({
       }
     >
       <div className="es-form">
-        {/* Hero banner with avatar overlay */}
-        <div className="relative -mx-5 -mt-2 sm:-mx-6 sm:-mt-2">
-          <div
-            className="h-28"
-            style={{
-              background: `linear-gradient(135deg, ${gradient[0]}, ${gradient[1]}, ${gradient[2]})`,
-            }}
+        <div className="flex min-w-0 items-center gap-3">
+          <PersonaAvatarWithLoading
+            key={preset.avatar}
+            preset={preset}
+            className="pps-card__avatar !h-14 !w-14 shrink-0"
+            imgClassName="pps-card__avatar-img"
+            iconSize={28}
           />
-          <div className="absolute -bottom-7 left-5 sm:left-6 flex items-end gap-3">
-            <div className="pps-card__avatar relative z-10 !w-14 !h-14 !rounded-2xl !border-[2.5px] border-white dark:border-[var(--theme-bg-card)] shadow-lg">
-              {isPersonaImageAvatar(preset.avatar) ||
-              isEmojiAvatar(preset.avatar) ? (
-                <PersonaAvatarImage
-                  avatar={
-                    isEmojiAvatar(preset.avatar)
-                      ? getEmojiAvatarUrl(preset.avatar)
-                      : preset.avatar
-                  }
-                  alt=""
-                  className="pps-card__avatar-img"
-                />
-              ) : (
-                <PersonaAvatarIcon
-                  avatar={preset.avatar}
-                  primaryTag={primaryTag}
-                  size={28}
-                  className="pps-card__avatar-icon"
-                />
-              )}
-            </div>
+          <div className="min-w-0 flex flex-col gap-1 text-13 text-theme-text-secondary">
+            <span>
+              {preset.scope === "global"
+                ? t("personaPresets.official")
+                : t("personaPresets.mine")}
+            </span>
+            {preset.usage_count > 0 && (
+              <span className="text-12">
+                {preset.usage_count} {t("personaPresets.usageCount")}
+              </span>
+            )}
           </div>
         </div>
 
         {/* Description */}
-        <div className="pt-9">
+        <div className="min-w-0 [overflow-wrap:anywhere]">
           {preset.description ? (
             <p
               className="text-13 leading-relaxed"
@@ -174,7 +129,7 @@ export function PersonaPreviewSidebar({
             </p>
           ) : (
             <p
-              className="text-13 italic"
+              className="text-13"
               style={{
                 color:
                   "var(--theme-text-tertiary, var(--theme-text-secondary))",
@@ -187,14 +142,17 @@ export function PersonaPreviewSidebar({
 
         {/* Tags section */}
         {preset.tags.length > 0 && (
-          <div className="es-section">
-            <div className="es-section-title">
-              <Tag />
+          <div className="es-field">
+            <h3 className="es-label flex items-center gap-1.5">
+              <Tag size={14} className="shrink-0" />
               {t("personaPresets.tags", "标签")}
-            </div>
+            </h3>
             <div className="flex flex-wrap gap-1.5">
               {preset.tags.map((tag) => (
-                <span key={tag} className="es-chip">
+                <span
+                  key={tag}
+                  className="es-chip max-w-full [overflow-wrap:anywhere]"
+                >
                   {tag}
                 </span>
               ))}
@@ -203,37 +161,38 @@ export function PersonaPreviewSidebar({
         )}
 
         {/* System Prompt section */}
-        <div className="es-section">
-          <div className="es-section-title">
-            <FileText />
-            {t("personaPresets.systemPrompt", "系统提示词")}
-            <div className="ml-auto flex items-center gap-1">
-              <button
-                type="button"
+        <div className="es-field min-w-0">
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <h3 className="es-label min-w-0 flex items-center gap-1.5 [overflow-wrap:anywhere]">
+              <FileText size={14} className="shrink-0" />
+              {t("personaPresets.systemPrompt", "系统提示词")}
+            </h3>
+            <div className="flex shrink-0 items-center gap-1">
+              <IconButton
+                icon={viewSource ? <Eye size={14} /> : <Code2 size={14} />}
                 onClick={() => setViewSource(!viewSource)}
-                className="rounded-md p-1 transition-colors hover:bg-[var(--theme-bg-subtle)]/80"
-                style={{ color: "var(--theme-text-secondary)" }}
+                size="sm"
+                aria-pressed={viewSource}
+                aria-label={
+                  viewSource
+                    ? t("personaPresets.previewMarkdown")
+                    : t("personaPresets.viewSource")
+                }
                 title={
                   viewSource
                     ? t("personaPresets.previewMarkdown", "预览 Markdown")
                     : t("personaPresets.viewSource", "查看原文")
                 }
-              >
-                {viewSource ? <Eye size={14} /> : <Code2 size={14} />}
-              </button>
-              <CopyButton
-                text={preset.system_prompt}
-                size={14}
-                className="rounded-md p-1 transition-colors hover:bg-[var(--theme-bg-subtle)]/80"
               />
+              <CopyButton text={preset.system_prompt} size={14} />
             </div>
           </div>
           <div
-            className="rounded-lg bg-[var(--theme-bg-subtle)]/60 p-2 overflow-y-auto max-h-[40rem] text-13"
+            className="min-w-0 rounded-lg bg-[var(--theme-bg-subtle)]/60 p-3 text-13"
             style={{ color: "var(--theme-text)" }}
           >
             {viewSource ? (
-              <pre className="font-mono text-12 leading-[1.6]">
+              <pre className="whitespace-pre-wrap [overflow-wrap:anywhere] font-mono text-12 leading-[1.6]">
                 {preset.system_prompt}
               </pre>
             ) : (
@@ -244,19 +203,21 @@ export function PersonaPreviewSidebar({
 
         {/* Skills section */}
         {preset.skill_names.length > 0 && (
-          <div className="es-section">
-            <div className="es-section-title">
-              <Zap />
+          <div className="es-field">
+            <h3 className="es-label flex items-center gap-1.5">
+              <Zap size={14} />
               {t("personaPresets.skills", "技能")}
               <span className="ml-auto font-mono text-10 opacity-60">
                 {preset.skill_names.length}
               </span>
-            </div>
+            </h3>
             <div className="flex flex-wrap gap-1.5">
               {preset.skill_names.map((name) => (
-                <span key={name} className="es-chip">
-                  <Sparkles size={10} className="opacity-50" />
-                  {name}
+                <span key={name} className="es-chip min-w-0 max-w-full">
+                  <Sparkles size={10} className="shrink-0 opacity-50" />
+                  <span className="min-w-0 [overflow-wrap:anywhere]">
+                    {name}
+                  </span>
                 </span>
               ))}
             </div>

@@ -77,7 +77,6 @@ export function RoleDetailSidebar({
       open={true}
       onClose={onClose}
       title={role.name}
-      subtitle={role.is_system ? t("roles.systemRole") : undefined}
       icon={<Eye size={16} />}
       footer={
         <PanelFooterActions align="between">
@@ -106,10 +105,15 @@ export function RoleDetailSidebar({
       }
     >
       <div className="es-form">
+        {role.is_system && (
+          <p className="text-12 text-theme-text-secondary">
+            {t("roles.systemRole")}
+          </p>
+        )}
         {/* 描述 */}
         {role.description && (
           <>
-            <p className="text-14 text-theme-text-secondary leading-relaxed">
+            <p className="text-14 text-theme-text-secondary leading-relaxed [overflow-wrap:anywhere]">
               {role.description}
             </p>
             <hr className="es-divider" />
@@ -118,11 +122,16 @@ export function RoleDetailSidebar({
 
         {/* 权限列表 */}
         <div className="es-field">
-          <label className="es-label flex items-center gap-1.5">
-            <Shield size={14} className="text-theme-text-secondary" />
+          <h3 className="es-label flex items-center gap-1.5">
+            <Shield size={14} className="shrink-0 text-theme-text-secondary" />
             {t("roles.permissions")}
-          </label>
-          <div className="es-section space-y-3">
+          </h3>
+          <div className="es-section">
+            {role.permissions.length === 0 && (
+              <p className="text-13 text-theme-text-secondary">
+                {t("roles.permissionCount", { count: 0 })}
+              </p>
+            )}
             {groupedPermissions.map((group) => (
               <div key={group.name}>
                 <p className="text-12 font-medium text-theme-text-secondary mb-1.5">
@@ -130,7 +139,10 @@ export function RoleDetailSidebar({
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {group.permissions.map((p) => (
-                    <span key={p.value} className="es-chip">
+                    <span
+                      key={p.value}
+                      className="es-chip max-w-full [overflow-wrap:anywhere]"
+                    >
                       {permissionLabels[p.value] || p.label}
                     </span>
                   ))}
@@ -141,7 +153,10 @@ export function RoleDetailSidebar({
               <div>
                 <div className="flex flex-wrap gap-1.5">
                   {ungroupedPermissions.map((p) => (
-                    <span key={p} className="es-chip">
+                    <span
+                      key={p}
+                      className="es-chip max-w-full [overflow-wrap:anywhere]"
+                    >
                       {permissionLabels[p] || p}
                     </span>
                   ))}
@@ -156,24 +171,29 @@ export function RoleDetailSidebar({
           <>
             <hr className="es-divider" />
             <div className="es-field">
-              <label className="es-label flex items-center gap-1.5">
-                <Lock size={14} className="text-theme-text-secondary" />
+              <h3 className="es-label flex items-center gap-1.5">
+                <Lock
+                  size={14}
+                  className="shrink-0 text-theme-text-secondary"
+                />
                 {t("roles.uploadLimitsTitle")}
-              </label>
+              </h3>
               <div className="es-section">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                <dl className="grid auto-grid-cols gap-x-4 gap-y-2">
                   {limitEntries.map(({ label, value }) => (
                     <div
                       key={label}
-                      className="flex items-center justify-between text-14"
+                      className="flex min-w-0 items-baseline justify-between gap-3 text-14"
                     >
-                      <span className="text-theme-text-secondary">{label}</span>
-                      <span className="font-medium text-theme-text">
+                      <dt className="min-w-0 text-theme-text-secondary [overflow-wrap:anywhere]">
+                        {label}
+                      </dt>
+                      <dd className="shrink-0 font-medium tabular-nums text-theme-text">
                         {value}
-                      </span>
+                      </dd>
                     </div>
                   ))}
-                </div>
+                </dl>
               </div>
             </div>
           </>
@@ -181,13 +201,14 @@ export function RoleDetailSidebar({
 
         {/* 时间信息 */}
         <hr className="es-divider" />
-        <div className="flex items-center gap-1.5 text-12 text-theme-text-secondary">
-          <Clock size={12} />
-          <span>
-            {t("roles.created")}: {formatDate(role.created_at)}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-12 text-theme-text-secondary">
+          <span className="flex min-w-0 items-center gap-1.5 [overflow-wrap:anywhere]">
+            <Clock size={12} className="shrink-0" />
+            <span>
+              {t("roles.created")}: {formatDate(role.created_at)}
+            </span>
           </span>
-          <span className="mx-1">·</span>
-          <span>
+          <span className="min-w-0 [overflow-wrap:anywhere]">
             {t("roles.updated")}: {formatDate(role.updated_at)}
           </span>
         </div>

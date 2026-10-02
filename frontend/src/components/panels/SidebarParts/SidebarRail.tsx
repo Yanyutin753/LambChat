@@ -1,5 +1,5 @@
 import {
-  MessageSquarePlus,
+  SquarePen,
   Search,
   CalendarClock,
   History,
@@ -107,7 +107,7 @@ export function SidebarRail({
             className={railBtn}
             aria-label={t("sidebar.newChat")}
           >
-            <MessageSquarePlus size={20} />
+            <SquarePen size={20} />
           </button>
         </Tooltip>
         <Tooltip content={t("sidebar.searchSessions")}>

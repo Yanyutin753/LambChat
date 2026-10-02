@@ -130,7 +130,9 @@ const FOCUSABLE =
 
 function restoreOpenerFocus(openerRef: RefObject<HTMLElement | null>): void {
   requestAnimationFrame(() => {
-    if (getRightPanelSnapshot().activeId || topmostVisibleModalDialog()) return;
+    if (getRightPanelSnapshot().activeId) return;
+    const modal = topmostVisibleModalDialog();
+    if (modal && !modal.contains(openerRef.current)) return;
     const active = document.activeElement;
     if (
       active instanceof HTMLElement &&
@@ -148,9 +150,11 @@ function restoreOpenerFocus(openerRef: RefObject<HTMLElement | null>): void {
       if (document.activeElement === opener) return;
     }
     const region = opener?.closest('[data-panel],main,[role="main"]');
-    const page = region?.isConnected
-      ? region
-      : document.querySelector('main,[role="main"]');
+    const page =
+      modal ??
+      (region?.isConnected
+        ? region
+        : document.querySelector('main,[role="main"]'));
     const visible = (element: HTMLElement) =>
       element.getClientRects().length > 0 &&
       !element.closest('[hidden],[inert],[aria-hidden="true"]');
@@ -162,7 +166,7 @@ function restoreOpenerFocus(openerRef: RefObject<HTMLElement | null>): void {
     const fallback =
       selected ??
       [...(page?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])].find(visible);
-    fallback?.focus({ preventScroll: true });
+    (fallback ?? modal)?.focus({ preventScroll: true });
   });
 }
 
@@ -225,10 +229,7 @@ export function useRightPanelFocus({
       // when the topmost visible dialog (modal or not) contains it.
       const top = topmostVisibleDialog();
       const topModal = topmostVisibleModalDialog();
-      if (
-        !(top?.contains(panel) || topModal?.contains(panel))
-      )
-        return;
+      if (!(top?.contains(panel) || topModal?.contains(panel))) return;
 
       const focusable = [
         ...(panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []),
