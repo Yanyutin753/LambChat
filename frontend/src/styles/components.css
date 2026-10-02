@@ -170,13 +170,17 @@
   min-width: min(16rem, 100%);
 }
 
+.panel-header__actions,
+.panel-header__actions > .flex:not(.file-library-view-switch),
 .panel-header__search-actions,
 .panel-header__search-actions > .flex {
   flex-wrap: wrap;
   max-width: 100%;
   min-width: 0;
+  justify-content: flex-end;
 }
 
+.panel-header__actions,
 .panel-header__search-actions {
   margin-left: auto;
 }

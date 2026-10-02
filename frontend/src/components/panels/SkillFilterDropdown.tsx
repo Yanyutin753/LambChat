@@ -1,14 +1,7 @@
 import { createPortal } from "react-dom";
-import {
-  useEffect,
-  useId,
-  useRef,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+import { useId, useRef, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
-import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
-import { restoreOpenerFocusUnclaimed } from "../../utils/modalDialog";
+import { usePanelFilterMenu } from "../../hooks/usePanelFilterMenu";
 
 export interface SkillFilterOption<T extends string> {
   value: T;
@@ -32,41 +25,6 @@ interface SkillFilterDropdownProps<T extends string> {
   onClearFilters: () => void;
 }
 
-const DROPDOWN_GUTTER = 12;
-const FILTER_DROPDOWN_WIDTH = 288;
-
-function getViewportBounds() {
-  const visualViewport = window.visualViewport;
-  return {
-    width: visualViewport?.width ?? window.innerWidth,
-    height: visualViewport?.height ?? window.innerHeight,
-    offsetTop: visualViewport?.offsetTop ?? 0,
-    offsetLeft: visualViewport?.offsetLeft ?? 0,
-  };
-}
-
-function getDropdownPosition(rect: DOMRect, width: number): CSSProperties {
-  const viewport = getViewportBounds();
-  const availableWidth = viewport.width - DROPDOWN_GUTTER * 2;
-  const renderedWidth = Math.min(width, availableWidth);
-  const minLeft = viewport.offsetLeft + DROPDOWN_GUTTER;
-  const maxLeft =
-    viewport.offsetLeft + viewport.width - renderedWidth - DROPDOWN_GUTTER;
-  const left = Math.min(Math.max(minLeft, rect.right - renderedWidth), maxLeft);
-  const below =
-    viewport.offsetTop + viewport.height - rect.bottom - 8 - DROPDOWN_GUTTER;
-  const above = rect.top - viewport.offsetTop - 8 - DROPDOWN_GUTTER;
-  const preferBelow = below >= 160 || below >= above;
-
-  return {
-    top: preferBelow ? rect.bottom + 8 : undefined,
-    bottom: preferBelow ? undefined : window.innerHeight - rect.top + 8,
-    left,
-    width: renderedWidth,
-    maxHeight: Math.max(0, preferBelow ? below : above),
-  };
-}
-
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -88,36 +46,18 @@ export function SkillFilterDropdown<T extends string>({
   onClearFilters,
 }: SkillFilterDropdownProps<T>) {
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
   const menuId = useId();
   const hasActiveFilters = activeCount > 0;
 
-  const dropdownStyle = useStickyDropdownPosition(triggerRef, isOpen, (rect) =>
-    getDropdownPosition(rect, FILTER_DROPDOWN_WIDTH),
-  );
-
-  const ready = isOpen && Object.keys(dropdownStyle).length > 0;
-  useEffect(() => {
-    if (!ready) return;
-    const menu = menuRef.current;
-    const trigger = triggerRef.current;
-    (
-      menu?.querySelector<HTMLButtonElement>(
-        '[role="menuitemradio"][aria-checked="true"]',
-      ) ?? menu?.querySelector<HTMLButtonElement>("button")
-    )?.focus();
-    return () => {
-      if (menu?.contains(document.activeElement))
-        queueMicrotask(() => restoreOpenerFocusUnclaimed(trigger, menu));
-    };
-  }, [ready]);
+  const { menuRef, dropdownStyle, ready, onKeyDown, closeMenu } =
+    usePanelFilterMenu(triggerRef, isOpen, 288, () => onOpenChange(false));
 
   const panel = ready
     ? createPortal(
         <div
           className="fixed inset-0 z-[999]"
           data-panel-header-dropdown
-          onPointerDown={() => onOpenChange(false)}
+          onPointerDown={closeMenu}
         >
           <div
             ref={menuRef}
@@ -128,49 +68,7 @@ export function SkillFilterDropdown<T extends string>({
             tabIndex={-1}
             style={dropdownStyle}
             onPointerDown={(event) => event.stopPropagation()}
-            onKeyDown={(event) => {
-              if (
-                event.defaultPrevented ||
-                event.nativeEvent.isComposing ||
-                event.keyCode === 229
-              )
-                return;
-              event.stopPropagation();
-              if (event.key === "Escape" || event.key === "Tab") {
-                if (event.key === "Escape") event.preventDefault();
-                restoreOpenerFocusUnclaimed(
-                  triggerRef.current,
-                  menuRef.current,
-                );
-                onOpenChange(false);
-                return;
-              }
-              const items = Array.from(
-                menuRef.current?.querySelectorAll<HTMLButtonElement>(
-                  "button:not(:disabled)",
-                ) ?? [],
-              );
-              if (!items.length) return;
-              const index = items.indexOf(
-                document.activeElement as HTMLButtonElement,
-              );
-              const next =
-                event.key === "ArrowDown"
-                  ? (index + 1) % items.length
-                  : event.key === "ArrowUp"
-                    ? index <= 0
-                      ? items.length - 1
-                      : index - 1
-                    : event.key === "Home"
-                      ? 0
-                      : event.key === "End"
-                        ? items.length - 1
-                        : -1;
-              if (next >= 0) {
-                event.preventDefault();
-                items[next].focus();
-              }
-            }}
+            onKeyDown={onKeyDown}
           >
             {options && options.length > 0 && value && onValueChange && (
               <div className="skill-filter-segment mb-3">

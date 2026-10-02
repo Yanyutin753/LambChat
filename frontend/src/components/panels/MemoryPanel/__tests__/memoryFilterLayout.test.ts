@@ -77,8 +77,12 @@ test("tag filter dropdowns opt into stable mobile filter-menu behavior", () => {
     /skill-filter-dropdown panel-header-dropdown/,
   );
   expect(skillFilterDropdownSource).toMatch(/role="menu"/);
-  expect(skillFilterDropdownSource).toMatch(/getDropdownPosition/);
-  expect(skillFilterDropdownSource).toMatch(/window\.visualViewport/);
+  expect(skillFilterDropdownSource).toMatch(/usePanelFilterMenu/);
+  const filterMenuSource = readFileSync(
+    new URL("../../../../hooks/usePanelFilterMenu.ts", import.meta.url),
+    "utf8",
+  );
+  expect(filterMenuSource).toMatch(/window\.visualViewport/);
   expect(skillFilterDropdownSource).toMatch(/skill-filter-segment/);
   expect(skillFilterDropdownSource).toMatch(/skill-tag-chip/);
   expect(skillFilterDropdownSource).toMatch(/aria-haspopup="menu"/);

@@ -1231,3 +1231,15 @@ SkillFilterDropdown 两个调用方（技能列表/商店）共用原生 menu �
 IAB证据：320×568深色俄语筛选、分层Escape/Tab/清空；390×844浅色俄语商店筛选与发布编辑器关闭归还More；834×1112 sepia俄语搜索、1440×900浅色俄语单行。截图位于仓库外 visualizations/resource-header。语言通过UI恢复中文；fixture写请求405，不证明实际发布、保存或设备触控。用户当前3017文件预览再次核对已有 CodeMirror 原生浮动查找，无重复生产修改；390px正文打开前后top141px/height678.40625px一致，浮层280×46px，320px无横溢，Escape回代码。文件预览相关17项测试通过。
 
 八项人工检查沿用现有字号、阅读留白、状态层级、主题token和reduced-motion；无新增装饰/依赖，实际键盘和窄屏布局有证据。Impeccable未安装skill folders，按DESIGN清单人工验收。全站目标仍进行中：剩余Persona筛选的焦点/短屏边界、技能写权限入口、其他格式与真实服务/原生设备验收尚待核对，不把本批当作全站完成。
+
+### 2026-10-03：角色与团队筛选的短屏和键盘闭环
+
+上一回合为 progress（32d410d3），文件原生查找已有实现且再次验实，不重复生产修改。本轮开工 clean，fetch/rebase确认最新origin/develop已包含；保留主checkout及用户3017。IAB320px复现角色标签打开后焦点仍在入口，Escape同时关闭子筛选和父操作菜单；PersonaScopeDropdown/PersonaTagFilterDropdown各由角色页和团队页两处调用。两组件复用SkillFilterDropdown已验证的布局和导航，提取usePanelFilterMenu供三个真实组件共用，保留useStickyDropdownPosition、主题与现有尺寸。选中项初始焦点，单选menuitemradio/多选menuitemcheckbox，箭头/Home/End，分层Escape、原生Tab；选择与外部关闭前同步保留trigger焦点，清空先聚焦稳定root，输入法按键保留。visualViewport定位按上下可用空间翻转并可滚动，角色/团队标签根菜单取消裁切。
+
+8项真实组件测试先8failed后GREEN，scope选择失焦的中间失败促使closeMenu在卸载前归还焦点。实际834px俄语进一步发现页头主操作组775.02px宽，发布按钮right848.02px超过viewport834；共享CSS让主操作组及普通flex子组受宽度约束、自然换行、每行右对齐，文件视图切换组排除。独立source测试先1failed13passed，再GREEN；最终按钮right814（20px页边），桌面保持单行。旧source断言迁移到共享hook与正确radio语义，不减去viewport覆盖。新增9项检查，相关29项通过。三轮独立只读复核（筛选、换行、最后对齐）未发现确定P1/P2。
+
+最终797文件4023测试通过、lint零错误/警告、tsc/Vite/PWA/build通过，预算未放宽：eager560462/561152 bytes、92条precache5027462/5242880 bytes；git diff --check通过。日志/tmp/persona-filter-tests-final.log、persona-filter-lint-final.log、persona-filter-build-final.log、persona-filter-related-final.log。Impeccable仍无已安装skill folders，按DESIGN清单人工复核；新菜单名称使用五语已有scope/tags key，无新增文案。
+
+实屏：320×568中文深色角色标签选择→清空稳定root→Escape回标签且父More仍开；范围End/Enter选择回trigger。320×300范围向上至top12/bottom123、111px可滚动区、选中项可见，五项控件44px；标签75.81–173px，Tab回导出，父More保持。390×844中文浅色团队范围/标签，标签宽高≥44px。834×1112俄语sepia角色菜单及主操作换行完整；1440×900俄语深色团队菜单；390俄语浅色技能菜单共享hook回归，Escape回Filter且父More保持。所有抽检整页横溢0。截图在仓库外visualizations/resource-header：persona-320-short-scope、team-390-light-tags、persona-834-sepia-ru-scope（最终右对齐）、team-1440-dark-ru-tags。语言通过UI恢复中文，临时viewport/tab已清理；只读fixture写请求405，不证明保存、权限写入或真机软键盘。
+
+八项自检：原字号和阅读留白保留、长动作换行而不裁切；页头/搜索/菜单层级明确；三主题复用token；无新增装饰/动效/依赖，沿用reduced-motion；真实焦点/选择/关闭/Tab证据；手机短屏、平板和桌面边界可用；继续现有LambChat视觉语言。全站目标仍进行中，未闭合主清单不勾选；下一批优先核对技能写权限入口、剩余预览格式与编辑选择器组合，再补真实服务和原生设备验收。

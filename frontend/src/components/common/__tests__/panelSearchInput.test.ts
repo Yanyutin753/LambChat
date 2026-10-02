@@ -15,6 +15,12 @@ const componentsCss = source("../../../styles/components.css").replace(
   " ",
 );
 
+test("long title-row actions stay within the panel instead of being clipped", () => {
+  expect(componentsCss).toMatch(
+    /\.panel-header__actions, \.panel-header__actions > \.flex:not\(\.file-library-view-switch\),[^{]*\{[^}]*flex-wrap:\s*wrap;[^}]*max-width:\s*100%;[^}]*min-width:\s*0;[^}]*justify-content:\s*flex-end;/,
+  );
+});
+
 test("long panel actions wrap before squeezing search below a usable width", () => {
   expect(cssBlock(componentsCss, ".panel-header__search-row")).toMatch(
     /flex-wrap:\s*wrap;/,
@@ -190,18 +196,22 @@ test("panel header dropdown portals are viewport-aware and do not collapse the p
 
   for (const file of [scopeDropdown, tagDropdown]) {
     expect(file).toMatch(/data-panel-header-dropdown/);
-    expect(file).toMatch(/getDropdownPosition/);
-    expect(file).toMatch(/DROPDOWN_GUTTER/);
-    expect(file).toMatch(/window\.innerWidth/);
-    expect(file).toMatch(/onPointerDown=\{onClose\}/);
+    expect(file).toMatch(/usePanelFilterMenu/);
+    expect(file).toMatch(/onKeyDown=\{onKeyDown\}/);
+    expect(file).toMatch(/onPointerDown=\{closeMenu\}/);
     expect(file).toMatch(/onPointerDown=\{\(e\) => e\.stopPropagation\(\)\}/);
-    expect(file).toMatch(/event\.key === "Escape"/);
     expect(file).toMatch(/role="menu"/);
   }
 
   expect(scopeDropdown).toMatch(/role="menuitemradio"/);
   expect(scopeDropdown).toMatch(/aria-checked=\{scopeFilter === key\}/);
-  expect(tagDropdown).toMatch(/aria-pressed=\{activeTag === tag\}/);
+  expect(tagDropdown).toMatch(/role="menuitemradio"/);
+  expect(tagDropdown).toMatch(/aria-checked=\{activeTag === tag\}/);
+  const filterMenu = source("../../../hooks/usePanelFilterMenu.ts");
+  expect(filterMenu).toMatch(/useStickyDropdownPosition/);
+  expect(filterMenu).toMatch(/window\.visualViewport/);
+  expect(filterMenu).toMatch(/DROPDOWN_GUTTER/);
+  expect(filterMenu).toMatch(/event\.key === "Escape"/);
 
   for (const file of [teamPanel, personaPanel]) {
     expect(file).toMatch(/aria-haspopup="menu"/);
