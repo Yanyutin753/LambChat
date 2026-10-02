@@ -38,6 +38,7 @@ const POLL_WS_DOWN_MS = 10 * 1000;
 export interface SandboxStatusStoreState {
   status: SandboxStatus | null;
   statusError: SandboxStatusError;
+  refreshing: boolean;
   machines: SandboxMachine[];
   defaultMachineId: string | null;
   /** 本机 machine_id（壳内读 ~/.lambchat/sandbox.json）；web 端/未配对为 null。 */
@@ -49,6 +50,7 @@ export interface SandboxStatusStoreState {
 const store = createSingletonStore<SandboxStatusStoreState>({
   status: null,
   statusError: null,
+  refreshing: false,
   machines: [],
   defaultMachineId: null,
   currentMachineId: null,
@@ -95,6 +97,7 @@ export async function refreshSandboxStatus(): Promise<void> {
     return;
   }
   inFlight = true;
+  store.set({ ...store.get(), refreshing: true });
   try {
     // 已知本机 machine_id 时显式指定：默认机失效+多机在线时缺省解析
     // 返回 None，daemon_confirm_policy 会恒为 null（偏好设置不再跟随）
@@ -132,6 +135,7 @@ export async function refreshSandboxStatus(): Promise<void> {
     void syncCurrentMachineId();
   } finally {
     inFlight = false;
+    store.set({ ...store.get(), refreshing: false });
     if (pendingRefresh) {
       pendingRefresh = false;
       void refreshSandboxStatus();
@@ -297,6 +301,7 @@ export function _resetSandboxStatusStoreForTests(): void {
   store.set({
     status: null,
     statusError: null,
+    refreshing: false,
     machines: [],
     defaultMachineId: null,
     currentMachineId: null,

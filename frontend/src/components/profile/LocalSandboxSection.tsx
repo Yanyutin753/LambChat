@@ -88,7 +88,7 @@ export function LocalSandboxSection({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const shell = isShellAvailable();
-  const { status, statusError, online, refresh, currentMachineId } =
+  const { status, statusError, refreshing, online, refresh, currentMachineId } =
     useSandboxStatus();
   const [processStatus, setProcessStatus] = useState("");
   const [policy, setPolicy] = useState<ConfirmPolicy>("all");
@@ -101,11 +101,13 @@ export function LocalSandboxSection({
   const { states, save, retry, discard } = usePreferenceWrites("local-sandbox");
   const [action, setAction] = useState<SandboxAction | null>(null);
   const [pairPrepared, setPairPrepared] = useState(false);
+  const [locationBusy, setLocationBusy] = useState(false);
   const [policyDraft, setPolicyDraft] = useState(false);
   const busy = states.native === "saving";
   const pairing = action === "other" && busy;
   const pairingCurrent = action === "current" && busy;
-  const pairBusy = busy || pairPrepared;
+  const blocked = busy || pairPrepared || locationBusy;
+  const pairBusy = blocked;
   const unpairing = action === "unpair" && busy;
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -211,6 +213,10 @@ export function LocalSandboxSection({
       statusError === "unauthorized") &&
     !(states.native && action !== "current" && action !== "other");
   const loading = processStatus === "";
+  const connectionPending = status === null && statusError === null;
+  const connectionFailed = statusError === "failed";
+  const connectionLoading =
+    connectionPending || (connectionFailed && refreshing);
 
   // 分区头：独立形态是卡片大标题（同其他卡）；嵌入形态是 tile 内的软标题
   // （同通知页 h4 语言），带一句说明文案
@@ -241,7 +247,7 @@ export function LocalSandboxSection({
   if (!shell) {
     // 纯 web：daemon 在线（桌面端/CLI 已配对连接）→ 状态行 + 机器列表；
     // 离线 → 配对引导；首帧状态未回 → 骨架（不闪现引导提示）
-    const statusLoading = status === null && statusError === null;
+    const statusLoading = connectionLoading;
     const webBody = (
       <>
         {header}
@@ -326,6 +332,7 @@ export function LocalSandboxSection({
     onSaved?: () => void,
     errorText: () => string = () => t("common.operationFailed"),
   ) => {
+    if (locationBusy) return false;
     const generation = operationGeneration.current;
     const isCurrent = () => generation === operationGeneration.current;
     const accepted = save(
@@ -422,7 +429,7 @@ export function LocalSandboxSection({
   const handlePairWithCurrentAccount = () => startPairing("current");
 
   const handlePolicyChange = (next: ConfirmPolicy) => {
-    if (busy || pairPrepared) return;
+    if (blocked) return;
     const machineId = currentMachineId;
     let serverSaved = false;
     let localSaved = false;
@@ -449,7 +456,7 @@ export function LocalSandboxSection({
   };
 
   const handleUnpair = () => {
-    if (busy || pairPrepared) return;
+    if (blocked) return;
     let revocationAttempted = false;
     startOperation(
       "unpair",
@@ -474,7 +481,7 @@ export function LocalSandboxSection({
   };
 
   const handleRestart = () => {
-    if (busy || pairPrepared) return;
+    if (blocked) return;
     if (states.native === "error" && action === "policy") {
       if (sectionRef.current?.contains(document.activeElement))
         sectionRef.current?.focus({ preventScroll: true });
@@ -489,6 +496,7 @@ export function LocalSandboxSection({
   const handleOpenLocalPath = (
     logicalName: "workspaces" | "audit" | "logs",
   ) => {
+    if (blocked) return;
     openLocalPath(logicalName).catch((err) => {
       console.warn("[LocalSandboxSection] open path failed:", err);
       toast.error(t("common.operationFailed"));
@@ -511,26 +519,38 @@ export function LocalSandboxSection({
           />
         ) : (
           <div className="flex w-full items-center justify-between gap-2 py-3 first:pt-2 last:pb-0 text-left">
-            <span className="flex min-w-0 items-center gap-2 text-14 text-theme-text dark:text-stone-200">
-              <span
-                className={`h-2 w-2 rounded-full shrink-0 ${
-                  online
-                    ? "bg-theme-success"
-                    : "bg-theme-text-tertiary dark:bg-stone-500"
-                }`}
-                data-sandbox-online={online}
-              />
-              {online
-                ? t("profile.localSandbox.statusOnline")
-                : t("profile.localSandbox.statusOffline")}
-              {status?.daemon_version && (
-                <span className="truncate text-12 text-theme-text-secondary dark:text-stone-400">
-                  {t("profile.localSandbox.version", {
-                    version: status.daemon_version,
-                  })}
-                </span>
-              )}
-            </span>
+            {connectionLoading || connectionFailed ? (
+              <div className="min-w-0 flex-1">
+                <CatalogStatus
+                  label={t("profile.localSandbox.title")}
+                  loading={connectionLoading}
+                  error={connectionFailed}
+                  onRetry={refresh}
+                  focusTargetRef={sectionRef}
+                />
+              </div>
+            ) : (
+              <span className="flex min-w-0 items-center gap-2 text-14 text-theme-text dark:text-stone-200">
+                <span
+                  className={`h-2 w-2 rounded-full shrink-0 ${
+                    online
+                      ? "bg-theme-success"
+                      : "bg-theme-text-tertiary dark:bg-stone-500"
+                  }`}
+                  data-sandbox-online={online}
+                />
+                {online
+                  ? t("profile.localSandbox.statusOnline")
+                  : t("profile.localSandbox.statusOffline")}
+                {status?.daemon_version && (
+                  <span className="truncate text-12 text-theme-text-secondary dark:text-stone-400">
+                    {t("profile.localSandbox.version", {
+                      version: status.daemon_version,
+                    })}
+                  </span>
+                )}
+              </span>
+            )}
             <span
               className={`shrink-0 rounded-full px-2 py-0.5 text-10 font-medium ${
                 processStatus === "running"
@@ -546,7 +566,10 @@ export function LocalSandboxSection({
         )}
 
         {/* 数据位置（配对态无关）：当前根 + 更改/恢复默认 + 重启引导 */}
-        <SandboxDataLocationCard />
+        <SandboxDataLocationCard
+          disabled={busy || pairPrepared}
+          onBusyChange={setLocationBusy}
+        />
 
         {states.native && (
           <div className="mt-2" aria-busy={busy}>
@@ -563,7 +586,10 @@ export function LocalSandboxSection({
               loading={busy}
               error={states.native === "error"}
               errorText={operationError.current}
-              onRetry={() => retry("native")}
+              disabled={locationBusy}
+              onRetry={() => {
+                if (!locationBusy) retry("native");
+              }}
               focusTargetRef={sectionRef}
             />
           </div>
@@ -641,7 +667,7 @@ export function LocalSandboxSection({
               open={policyOpen}
               onToggle={() => setPolicyOpen((v) => !v)}
               onSelect={handlePolicyChange}
-              loading={busy || pairPrepared}
+              loading={blocked || connectionPending || connectionFailed}
             />
 
             <div className="local-sandbox-actions">
@@ -653,7 +679,7 @@ export function LocalSandboxSection({
                     <FolderOpen size={14} className="shrink-0 opacity-60" />
                   }
                   onClick={() => handleOpenLocalPath(path)}
-                  disabled={busy || pairPrepared}
+                  disabled={blocked}
                 >
                   {t(
                     `profile.localSandbox.${path === "workspaces" ? "openWorkspaces" : path === "audit" ? "openAudit" : "openLogs"}`,
@@ -667,7 +693,7 @@ export function LocalSandboxSection({
                 }
                 onClick={handleRestart}
                 loading={action === "restart" && busy}
-                disabled={busy || pairPrepared}
+                disabled={blocked}
               >
                 {t("profile.localSandbox.restartDaemon")}
               </Button>
@@ -678,7 +704,7 @@ export function LocalSandboxSection({
                 size="sm"
                 leftIcon={<Link2Off size={14} />}
                 loading={unpairing}
-                disabled={busy || pairPrepared}
+                disabled={blocked}
                 onClick={handleUnpair}
               >
                 {t("profile.localSandbox.unpair")}

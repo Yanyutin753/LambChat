@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
 import { HardDrive, RotateCw } from "lucide-react";
@@ -15,7 +15,13 @@ import {
 } from "../../services/tauri/sandboxShell";
 
 /** Native data location: pick, confirm migration, then restart to fully apply. */
-export function SandboxDataLocationCard() {
+export function SandboxDataLocationCard({
+  disabled = false,
+  onBusyChange,
+}: {
+  disabled?: boolean;
+  onBusyChange?: (busy: boolean) => void;
+}) {
   const { t } = useTranslation();
   const sectionRef = useRef<HTMLDivElement>(null);
   const locationError = useRef("");
@@ -31,6 +37,12 @@ export function SandboxDataLocationCard() {
   const applying = states.location === "saving";
   const picking = states.pick === "saving";
   const restarting = states.relaunch === "saving";
+  const busy =
+    applying || picking || restarting || !!confirming || !!pendingRestart;
+  useLayoutEffect(() => {
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
+  useLayoutEffect(() => () => onBusyChange?.(false), [onBusyChange]);
 
   useEffect(() => {
     let next: SandboxDataLocation;
@@ -49,7 +61,7 @@ export function SandboxDataLocationCard() {
     }
   };
   const handlePick = () => {
-    if (applying || pendingRestart || !discard("location")) return;
+    if (disabled || applying || pendingRestart || !discard("location")) return;
     let picked: string | null;
     if (
       save(
@@ -69,7 +81,7 @@ export function SandboxDataLocationCard() {
       focusSection();
   };
   const handleApply = () => {
-    if (!confirming || pendingRestart) return;
+    if (disabled || !confirming || pendingRestart) return;
     const path = confirming;
     if (
       save(
@@ -95,7 +107,7 @@ export function SandboxDataLocationCard() {
       focusSection();
   };
   const handleReset = () => {
-    if (picking || pendingRestart || !discard("pick")) return;
+    if (disabled || picking || pendingRestart || !discard("pick")) return;
     if (
       save(
         "location",
@@ -178,6 +190,7 @@ export function SandboxDataLocationCard() {
             label={t("profile.localSandbox.dataLocation.relaunchNow")}
             error={states.relaunch === "error"}
             errorText={t("common.operationFailed")}
+            disabled={disabled}
             onRetry={() => retry("relaunch")}
             focusTargetRef={sectionRef}
           />
@@ -186,9 +199,10 @@ export function SandboxDataLocationCard() {
               variant="primary"
               size="sm"
               loading={restarting}
+              disabled={disabled}
               leftIcon={<RotateCw size={14} />}
               onClick={() => {
-                if (save("relaunch", relaunch)) focusSection();
+                if (!disabled && save("relaunch", relaunch)) focusSection();
               }}
               data-sandbox-location-relaunch
             >
@@ -210,7 +224,7 @@ export function SandboxDataLocationCard() {
             <input
               type="checkbox"
               checked={migrate}
-              disabled={applying}
+              disabled={disabled || applying}
               onChange={(e) => {
                 if (discard("location")) setMigrate(e.target.checked);
               }}
@@ -223,6 +237,7 @@ export function SandboxDataLocationCard() {
             label={t("profile.localSandbox.dataLocation.title")}
             error={states.location === "error"}
             errorText={`${t("common.operationFailed")} · ${locationError.current}`}
+            disabled={disabled}
             onRetry={() => retry("location")}
             focusTargetRef={sectionRef}
           />
@@ -230,7 +245,7 @@ export function SandboxDataLocationCard() {
             <Button
               variant="ghost"
               size="sm"
-              disabled={applying}
+              disabled={disabled || applying}
               onClick={() => {
                 if (discard("location")) {
                   focusSection();
@@ -244,6 +259,7 @@ export function SandboxDataLocationCard() {
               variant="primary"
               size="sm"
               loading={applying}
+              disabled={disabled}
               onClick={handleApply}
               data-sandbox-location-apply
             >
@@ -259,6 +275,7 @@ export function SandboxDataLocationCard() {
             label={t("profile.localSandbox.dataLocation.change")}
             error={states.pick === "error"}
             errorText={t("common.operationFailed")}
+            disabled={disabled}
             onRetry={() => retry("pick")}
             focusTargetRef={sectionRef}
           />
@@ -266,6 +283,7 @@ export function SandboxDataLocationCard() {
             label={t("profile.localSandbox.dataLocation.reset")}
             error={states.location === "error"}
             errorText={`${t("common.operationFailed")} · ${locationError.current}`}
+            disabled={disabled}
             onRetry={() => retry("location")}
             focusTargetRef={sectionRef}
           />
@@ -274,7 +292,7 @@ export function SandboxDataLocationCard() {
               <Button
                 variant="ghost"
                 size="sm"
-                disabled={applying || picking}
+                disabled={disabled || applying || picking}
                 onClick={handleReset}
               >
                 {t("profile.localSandbox.dataLocation.reset")}
@@ -283,7 +301,7 @@ export function SandboxDataLocationCard() {
             <Button
               size="sm"
               loading={picking}
-              disabled={applying}
+              disabled={disabled || applying}
               onClick={handlePick}
               data-sandbox-location-change
             >

@@ -1,5 +1,5 @@
 /** Preview-only shell/status seam. No real native actions or API writes. */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSandboxStatus as useRealSandboxStatus } from "../src/hooks/useSandboxStatus";
 const params = new URLSearchParams(location.search);
 const nativeFixture = location.pathname === "/sandbox-data-preview";
@@ -81,14 +81,28 @@ function usePreviewSandboxStatus() {
   const [ready, setReady] = useState(false);
   const [, setVersion] = useState(0);
   const [failed, setFailed] = useState(params.get("failure") === "status");
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     const timer = setTimeout(() => setReady(true), 800);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    };
   }, []);
   const refresh = useCallback(() => {
-    setFailed(false);
-    setVersion((value) => value + 1);
-  }, []);
+    if (!failed) {
+      setVersion((value) => value + 1);
+      return;
+    }
+    if (refreshTimer.current) return;
+    setRefreshing(true);
+    refreshTimer.current = setTimeout(() => {
+      refreshTimer.current = null;
+      setFailed(false);
+      setRefreshing(false);
+    }, 1200);
+  }, [failed]);
   const online = ready && !failed && running;
   return {
     status:
@@ -99,7 +113,8 @@ function usePreviewSandboxStatus() {
             daemon_confirm_policy: reportedPolicy,
           }
         : null,
-    statusError: ready && failed ? "error" : null,
+    statusError: ready && failed ? "failed" : null,
+    refreshing,
     online,
     refresh,
     currentMachineId: nativeFlow ? "preview-only-machine" : null,

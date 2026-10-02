@@ -85,6 +85,178 @@ vi.mock("react-hot-toast", () => ({
 import { LocalSandboxSection } from "../LocalSandboxSection";
 import { getSandboxStatusStoreState } from "../../../stores/sandboxStatusStore";
 
+test("failed native retry waits while the directory picker is open", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({ online: true });
+  mocks.restartDaemon.mockRejectedValueOnce(new Error("restart unavailable"));
+  mocks.pickSandboxDirectory.mockReturnValue(new Promise(() => {}));
+  render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /restart daemon/i }),
+  );
+  const retry = await screen.findByRole("button", {
+    name: /retry: restart daemon/i,
+  });
+  fireEvent.click(screen.getByRole("button", { name: /change location/i }));
+  expect(retry).toBeDisabled();
+  fireEvent.click(retry);
+  expect(mocks.restartDaemon).toHaveBeenCalledTimes(1);
+});
+
+test("directory retry cannot bypass a pending native restart", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({ online: true });
+  mocks.pickSandboxDirectory.mockRejectedValueOnce(
+    new Error("picker unavailable"),
+  );
+  mocks.restartDaemon.mockReturnValue(new Promise(() => {}));
+  render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /change location/i }),
+  );
+  const retry = await screen.findByRole("button", {
+    name: /retry: change location/i,
+  });
+  fireEvent.click(screen.getByRole("button", { name: /restart daemon/i }));
+  expect(retry).toBeDisabled();
+  fireEvent.click(retry);
+  expect(mocks.pickSandboxDirectory).toHaveBeenCalledTimes(1);
+});
+
+test("native connection failure keeps process state and retries without claiming offline", async () => {
+  let recover!: (status: { online: boolean }) => void;
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus
+    .mockRejectedValueOnce(new Error("service unavailable"))
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          recover = resolve;
+        }),
+    );
+  const { container } = render(<LocalSandboxSection />);
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    /local sandbox.*failed/i,
+  );
+  expect(screen.getByText("Running")).toBeVisible();
+  expect(screen.queryByText("Offline")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Confirmation policy" }),
+  ).toBeDisabled();
+  fireEvent.click(
+    screen.getByRole("button", { name: /retry: local sandbox/i }),
+  );
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    /local sandbox.*loading/i,
+  );
+  expect(container.querySelector(".local-sandbox-section")).toHaveFocus();
+  await waitFor(() => expect(recover).toBeDefined());
+  await act(async () => recover({ online: true }));
+  expect(await screen.findByText("Online")).toBeVisible();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Confirmation policy" }),
+  ).toBeEnabled();
+});
+
+test("native process readiness does not announce offline while connection status is pending", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockReturnValue(new Promise(() => {}));
+  render(<LocalSandboxSection />);
+  await screen.findByText("Running");
+  expect(screen.getByText(/local sandbox.*loading/i)).toHaveAttribute(
+    "role",
+    "status",
+  );
+  expect(screen.queryByText("Offline")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Confirmation policy" }),
+  ).toBeDisabled();
+});
+
+test("directory selection locks native actions until it is cancelled", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({ online: true });
+  let picked!: (value: string) => void;
+  mocks.pickSandboxDirectory.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        picked = resolve;
+      }),
+  );
+  render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /change location/i }),
+  );
+  expect(
+    screen.getByRole("button", { name: /restart daemon/i }),
+  ).toBeDisabled();
+  expect(screen.getByRole("button", { name: /^unpair$/i })).toBeDisabled();
+  expect(
+    screen.getByRole("button", { name: "Confirmation policy" }),
+  ).toBeDisabled();
+  await waitFor(() => expect(picked).toBeDefined());
+  await act(async () => picked("/Volumes/preview"));
+  expect(
+    screen.getByRole("button", { name: /restart daemon/i }),
+  ).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+  expect(screen.getByRole("button", { name: /restart daemon/i })).toBeEnabled();
+  expect(mocks.restartDaemon).not.toHaveBeenCalled();
+});
+
+test("saved location keeps native actions locked until the app restarts", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({ online: true });
+  mocks.pickSandboxDirectory.mockResolvedValue("/Volumes/preview");
+  mocks.setSandboxDataLocation.mockResolvedValue(undefined);
+  render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /change location/i }),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: /save and move/i }),
+  );
+  await screen.findByText(/restart the app to apply/i);
+  expect(
+    screen.getByRole("button", { name: /restart daemon/i }),
+  ).toBeDisabled();
+  expect(screen.getByRole("button", { name: /^unpair$/i })).toBeDisabled();
+  expect(
+    screen.getByRole("button", { name: "Confirmation policy" }),
+  ).toBeDisabled();
+});
+
+test("native restart prevents changing the data directory until it settles", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({ online: true });
+  let done!: () => void;
+  mocks.restartDaemon.mockImplementation(
+    () =>
+      new Promise<void>((resolve) => {
+        done = resolve;
+      }),
+  );
+  render(<LocalSandboxSection />);
+  const change = await screen.findByRole("button", {
+    name: /change location/i,
+  });
+  fireEvent.click(screen.getByRole("button", { name: /restart daemon/i }));
+  expect(change).toBeDisabled();
+  fireEvent.click(change);
+  expect(mocks.pickSandboxDirectory).not.toHaveBeenCalled();
+  await waitFor(() => expect(done).toBeDefined());
+  await act(async () => done());
+  expect(change).toBeEnabled();
+});
+
 test("policy save keeps focus in the section while its select is disabled", async () => {
   mocks.isShellAvailable.mockReturnValue(true);
   mocks.daemonProcessStatus.mockResolvedValue("running");

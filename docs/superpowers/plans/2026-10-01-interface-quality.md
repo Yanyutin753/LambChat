@@ -982,3 +982,17 @@ LocalSandboxSection复用usePreferenceWrites统一配对、策略、重启和取
 全站目标继续。下一步需服务端status失败但进程可读时的明确反馈、数据位置与原生操作的跨区互锁、数据位置关闭重开/多实例/待重启持久性、账号切换时在途操作归属、目录打开迟到错误，以及真实Tauri和手机设备验证。PAT创建响应失败的服务端幂等性也不由本UI改动证明；不将fixture或局部门禁宣告为全部界面完成。
 
 最终桌面/平板截图重新等待数据位置读取完成再保存；回收本轮3019服务及临时标签，浏览器尺寸恢复，既有3018结果标签保留。仅停止经过PID和cwd核对的本轮preview进程，用户3017保持。
+
+## 2026-10-02 沙箱连接反馈与数据位置操作互锁
+
+上一目标回合实测用户3017文件预览：原生查找按钮已在标题工具栏，320/390/1280px无额外工具行或横向溢出，原生匹配2处，17项相关测试通过，提供新证据，分类为progress。此次接续interface-state未提交工作，HTTPS fetch确认origin/develop仍349e2f08且为HEAD祖先；主checkout、mobile-density及用户3017保持。
+
+共享sandboxStatusStore增加refreshing，保留既有缓存、错误和刷新去重。原生进程可读但连接未就绪/失败时，左侧展示CatalogStatus加载/错误与Retry，右侧保留实际Running/Stopped；不能据进程运行断言连接在线或离线。失败重试显示等待，策略选择等连接恢复后再开放；网页分支复用等待状态。没有新轮询、依赖、文案或主题token。
+
+数据位置组件向所属LocalSandboxSection报告选择、确认、保存、重启及待应用重启状态；此期间暂停配对、策略、目录打开、daemon重启、取消配对及原生mutation Retry。反向原生写入也禁用目录修改、确认及mutation Retry，读取Retry仍可用，卸载释放本分区busy。复用既有usePreferenceWrites与CatalogStatus，没有全局协调器。七项新增回归先RED（7failed/36pass）后GREEN，相关4文件76项通过；独立只读增量复核无确定P1/P2。
+
+3019独立fixture实测：390深色连接错误仍有运行徽章、策略禁用，Retry期间loading与section焦点稳定，恢复后Online与策略可用；选目录/确认暂停原生动作，Cancel解锁。保存首次错误保留选择与迁移checkbox，Retry成功后待重启提示与原生锁保留。320浅色俄语重启等待禁用Change，失败后Change恢复，点击Change禁用原生错误Retry；320×300 Tab到Save，main.scrollTop300、buttonTop128.42/bottom172.42/height44、overflow0。834暖色与1440浅色俄语状态错误清晰、宿主宽720px、overflow0。截图位于仓库外interface-quality目录：local-sandbox-cross-390-dark-status-error-final、390-dark-status-recovered-final、390-dark-confirm-final、390-dark-pending-restart-final、320-short-light-ru-confirm-final、834-sepia-status-error-final、1440-light-ru-status-error-final。fixture只模拟公开占位符和内存步骤，不调用真实桥、API写入、文件迁移或应用重启。
+
+八项按DESIGN.md人工检查：沿用文字尺度和分组留白；连接/进程/目录状态各自准确、行动层级清楚；三主题token；无新增动效、保留reduced-motion；禁用、取消、重试、焦点及卸载经行为与实屏验证；320/390/834/1440及短屏实际核对；保持LambChat现有控件和视觉语言。pnpm exec impeccable确认检查器不可用，按项目交付清单检查。最终全量783文件3898项测试、lint零错误零警告、build含tsc/Vite/PWA通过；eager JS560326/561152 bytes、precache5032069/5242880 bytes、93项，预算未提高，git diff --check通过。
+
+全站目标继续。本次互锁仅同一设置分区；两个实例、关闭重开时待重启状态持久性、账号切换在途操作归属、目录打开迟到错误、真实Tauri迁移/重启和手机设备仍缺验证，不能据本批门禁宣告全部界面完成。最终回收经过PID/cwd核对的本轮3019及临时标签，恢复视口，既有3018结果和用户3017保留。
