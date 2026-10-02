@@ -1255,3 +1255,13 @@ IAB证据：320×568深色俄语筛选、分层Escape/Tab/清空；390×844浅�
 再次核对用户3017文件预览要求：390px原生查找浮层280×46px，展开前后代码top141px、height678.40625px不变；320px浮层left32/right312，无横溢，Cmd+F打开，choice匹配2处，Escape回代码预览。已有原生实现满足要求，不重复生产修改。截图file-native-find-390-dark.jpg；临时检查tab已关闭，用户tab未改。
 
 八项检查沿用排版/留白/层级、三主题token与reduced-motion，无新增装饰、动效或依赖；权限入口简化且触控尺寸保留，键盘恢复有真实组件测试与UI证据。npm exec --offline -- impeccable update仍报告未安装skill folders，按DESIGN清单人工验收。全站目标保持进行中；剩余预览格式、编辑选择器组合及真实服务/原生设备验收仍未闭合。
+
+### 2026-10-03：共享文档短屏高度与能力选择器导航
+
+上一 goal 回合为 progress（重新验证用户3017文件原生查找和手机尺寸，14项相关测试通过；已有实现不重复生产修改），此前未提交工作继续收尾。当前 fetch 确认 HEAD 含最新 origin/develop，主 checkout 的两个未跟踪目录与用户3017保持。技能/MCP 两个真实调用共享 PersonaEditorBindingSelector，搜索框 ArrowUp 原先留在搜索，现在进入最后一项；两项真实 userEvent 检查先2failed13passed再15passed，多选项分别覆盖技能API边界与直接MCP目录，不改选中草稿或Tab路径。
+
+共享 PDF/正常 Word/PPT DocumentViewerFrame 与 DocumentPreviewContent 的 PDF/PPT/CAD/HTML 外层取消固定400px最小高度，采用现有主题背景及 min-h-0，保持原生滚动与 fit-relative zoom。注意取消 CAD 外层并不代表内部 CAD 已适配。新增本地两页 PDF 样例由实际 PDF.js worker 渲染；320×300原缩放栏bottom449超出视口的真实断言RED，调整后bottom284，按钮44px，放大120%/还原100%正常。复核指出错误态居中裁掉顶部：损坏PDF在320×180标题top62.92小于内容top65，断言RED；改外层滚动、内层min-h-full自然增长后标题top89，scrollTop0，Tab到44px打开链接可见于135.77–179.77。错误语义alert、文案/颜色沿用五语与主题，链接未激活。独立复核关闭P2，最终无其他确定P1/P2。
+
+真实预览：390深色正常两页/适配；834×1112 sepia两页且toolbarbottom1067；1440×900浅色两页且toolbarbottom855，整页横溢0。能力选择器390深色ArrowUp使最后选项自动滚入list可见范围。截图在仓库外visualizations/resource-header，包含pdf-320-short-dark-zoom、pdf-390-dark-fit、pdf-834-sepia、pdf-1440-light及错误页截图。仅本地PDF实际渲染，不证明真实Word/PPT、认证、写入或原生设备触控/软键盘。
+
+最终全量798文件4032测试通过，lint零错误/警告，tsc/Vite/PWA/build通过（既有大chunk提示保留），预算未提高：eager560438/561152 bytes、92条precache5027235/5242880 bytes。日志/tmp/document-short-tests-final.log、document-short-lint-final.log、document-short-build-final.log；相关初次6文件35项通过，git diff --check通过。Impeccable无已安装skill folders，按DESIGN人工完成八项检查：字号/阅读留白保留，状态与操作层级明确，三主题token复用，无新装饰/依赖/动效，沿用reduced-motion，原生滚动、焦点和响应式有实际证据。全站目标保持 active，主清单未闭合项不勾选；下一批处理 FileFallback/CAD内部与PPT文本回退的固定高度，再继续剩余状态矩阵与真实服务/原生设备验收。

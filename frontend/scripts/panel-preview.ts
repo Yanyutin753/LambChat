@@ -1101,7 +1101,7 @@ function response(
     const groups = all(files).map((file, i) => ({
       session_id: file.session_id,
       session_name: file.session_name,
-      file_count: i === 0 ? 4 : 3,
+      file_count: i === 0 ? 5 : 3,
       files: [
         file,
         ...(i === 0
@@ -1114,6 +1114,17 @@ function response(
                 original_path: "/workspace/研究流程.excalidraw",
                 url: "/preview-document.excalidraw",
                 mime_type: "application/json",
+                card_preview: null,
+              },
+              {
+                ...file,
+                id: "preview-pdf",
+                file_size: 2439,
+                file_name: "研究与交付计划.pdf",
+                file_key: "preview/delivery-plan.pdf",
+                original_path: "/workspace/研究与交付计划.pdf",
+                url: "/preview-document.pdf",
+                mime_type: "application/pdf",
                 card_preview: null,
               },
             ]
@@ -1601,6 +1612,17 @@ const server = await createServer({
               res.end("Preview document temporarily unavailable");
               return;
             }
+          }
+          if (url.pathname === "/preview-document.pdf") {
+            res.setHeader("Content-Type", "application/pdf");
+            if (previewParams.get("failure") === "pdf-render") {
+              res.end("Invalid PDF fixture");
+              return;
+            }
+            res.end(
+              readFileSync(new URL("./fixtures/preview-document.pdf", import.meta.url)),
+            );
+            return;
           }
           if (url.pathname === "/preview-document.md") {
             res.end(

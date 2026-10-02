@@ -111,7 +111,7 @@ export default function DocumentPreviewContent({
   setShowImageViewer,
 }: ContentProps) {
   const suspenseFallback = (
-    <div className="flex items-center justify-center h-full min-h-[400px]">
+    <div className="flex items-center justify-center h-full min-h-0">
       <LoadingSpinner size="lg" />
     </div>
   );
@@ -204,7 +204,7 @@ export default function DocumentPreviewContent({
   if (resolvedPdfFile) {
     return (
       <Suspense fallback={suspenseFallback}>
-        <div className="h-full min-h-[400px]">
+        <div className="h-full min-h-0">
           {pdfUrl && <PdfPreview url={pdfUrl} />}
         </div>
       </Suspense>
@@ -261,7 +261,7 @@ export default function DocumentPreviewContent({
   if (cadKind) {
     return (
       <Suspense fallback={suspenseFallback}>
-        <div className="h-full min-h-[400px]">
+        <div className="h-full min-h-0">
           <CadPreview fileName={fileName} kind={cadKind} url={cadUrl} t={t} />
         </div>
       </Suspense>
@@ -271,7 +271,7 @@ export default function DocumentPreviewContent({
   if (pptFile && (pptUrl || pptxBuffer)) {
     return (
       <Suspense fallback={suspenseFallback}>
-        <div className="h-full min-h-[400px]">
+        <div className="h-full min-h-0">
           <PptPreview
             url={resolvedUrl || signedUrl || pptUrl || ""}
             arrayBuffer={pptxBuffer}
@@ -285,7 +285,7 @@ export default function DocumentPreviewContent({
 
   if (htmlFile && htmlUrl) {
     return (
-      <div className="h-full min-h-[400px]">
+      <div className="h-full min-h-0">
         <HtmlPreview content={htmlContent} />
       </div>
     );
