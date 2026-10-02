@@ -10,26 +10,26 @@ export type { DocumentPreviewProps };
 
 export default function DocumentPreview(props: DocumentPreviewProps) {
   const state = useDocumentPreviewState(props);
+  const parentSegments = state.path.split("/").filter(Boolean).slice(0, -1);
 
   if (props.embedded) {
     return (
       <div ref={state.panelRef} className="workspace-document">
         <DocumentPreviewToolbar {...state} embedded />
-        <div
-          className="workspace-document-breadcrumb"
-          title={state.path}
-          aria-label={state.t("documents.path")}
-        >
-          {state.path
-            .split("/")
-            .filter(Boolean)
-            .map((segment, index) => (
+        {parentSegments.length > 0 && (
+          <div
+            className="workspace-document-breadcrumb"
+            title={state.path}
+            aria-label={state.t("documents.path")}
+          >
+            {parentSegments.map((segment, index) => (
               <span key={index}>
                 {index > 0 && <span aria-hidden="true"> / </span>}
                 {segment}
               </span>
             ))}
-        </div>
+          </div>
+        )}
         <div className="workspace-document-content">
           <DocumentPreviewContent {...state} />
         </div>

@@ -12,6 +12,7 @@ import {
   Download,
   Expand,
   Code2,
+  BookOpen,
   PanelRight,
   Columns2,
   Share2,
@@ -281,18 +282,22 @@ export default function DocumentPreviewToolbar({
           />
         )}
         {markdownFile && data?.content && (
-          <button
-            type="button"
+          <ToolbarIconButton
             className="document-preview-source-toggle"
             aria-pressed={viewSource}
             title={viewSource ? t("documents.preview") : t("documents.source")}
+            aria-label={
+              viewSource ? t("documents.preview") : t("documents.source")
+            }
             onClick={() => setViewSource(!viewSource)}
-          >
-            <Code2 size={TOOLBAR_ICON_SIZE} aria-hidden="true" />
-            <span>
-              {viewSource ? t("documents.preview") : t("documents.source")}
-            </span>
-          </button>
+            icon={
+              viewSource ? (
+                <BookOpen size={TOOLBAR_ICON_SIZE} />
+              ) : (
+                <Code2 size={TOOLBAR_ICON_SIZE} />
+              )
+            }
+          />
         )}
         {(data?.content ||
           s3Key ||
