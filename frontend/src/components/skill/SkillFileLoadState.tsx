@@ -28,7 +28,7 @@ export function SkillFileLoadState({
       {error ? (
         <>
           <ConfigPanelErrorCallout message={error} />
-          <Button onClick={onRetry} className="min-h-11">
+          <Button onClick={onRetry} size="lg">
             {t("common.retry")}
           </Button>
         </>

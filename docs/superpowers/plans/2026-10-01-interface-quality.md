@@ -677,3 +677,17 @@ TDD本批新增8项：1项payload回归、5项实际SkillForm/useSkillsActions�
 补充原生商店走查：390浅色直接读取商店全文件并打开图片，普通/全屏均无错误的上传入口；全屏已有图片可预览、download44px、overflow0（skill-binary-08-390-light-marketplace-final）。预览先遇到缺少商店详情GET的fixture404，补齐纯读取样例后重新实测；未将此fixture缺失记为生产读取故障。商店保存没有模拟成功或真实发布。
 
 最终生产修改后的门禁：pnpm test 765文件/3705项通过；pnpm run lint零错误零警告；pnpm run build含tsc/Vite/PWA/预算通过，eager JS559136/561152 bytes，precache5017360/5242880 bytes，91 entries，保留既有chunk-size提示。本批未修改预算；origin/develop rebase后既有预算上限为561152。全量中一次与本批无关的SearchDialog legacy IME断言失败，相关文件单独重跑及最终全量均通过；未改该实现、不声称修复此瞬态异常。diff --check通过，最后只读复核无确定P1/P2。最后门禁后仅文档与临时预览清理。
+
+### 当前执行：技能媒体预览失败恢复
+
+开工 fetch origin 完成，当前 HEAD 已包含最新 origin/develop。先以公开资产构造无法解码的本机临时图片、视频和音频，在真实 SkillForm 普通/全屏入口复现：失败图片仅显示文件名，视频剩不可用原生播放器，没有重试。所有文件仅进入临时表单草稿，未提交、上传或保存真实技能。
+
+BinaryFilePreview 的图片、视频、音频失败统一复用 SkillFileLoadState，使用已有五语错误和 Retry；同 URL 重试重新创建媒体元素，换文件清理失败、图片加载和查看器状态。重试前聚焦稳定内容容器，媒体失败时保留已有区域内的焦点；焦点环使用主题 token。图片直接复用 ImageWithSkeleton 的加载状态，删除第二套 spinner；视频使用原生加载/播放控件，支持 playsInline，去掉渐变、阴影和自定义透明度等待。长 MIME 元数据截断。通用下载复用 Button，type=button 避免提交父表单。
+
+四项新增行为测试先 RED 后 GREEN：图片、视频、音频失败提示、同 URL 重试元素替换/焦点、切换另一文件及返回的状态清理（三项参数化测试）；通用下载确实触发下载而不提交技能表单。独立复核发现商店独立 ModalSurface 不受技能表单的触控兜底保护，min-h-11 会被共享 md 样式覆盖；下载与 SkillFileLoadState Retry 改为共享 size=lg，直接保证44px。最终只读增量复核无确定 P1/P2。
+
+原生 IAB 使用独立3017：390深色记录普通与全屏视频失败基线（skill-media-01/02）；320×568深色图片、视频、音频错误均明确显示 Retry（03/04/05），下载44×44px，最终Retry高44px、宽68.6px，整页横向溢出0。Enter 重试后 focus=DIV 且 connected，无法解码的样例仍显示失败，未伪称重试成功。切换已有公开图标可正常预览/打开 ImageViewer，关闭归还图片按钮焦点。已有本机 MDN flower.webm 样例 readyState4/duration5.059，320下 Space 实际 paused=false/time前进，原生播放控件可用（06）。1440×900浅色通用下载 type=button、高44px、overflow0（07）；390×844浅色 Enter Retry 后同样保留稳定焦点、高44px、overflow0（08）。截图在仓库外 interface-quality，04/07/08 为最终尺寸修复后的证据；03/05 是中间尺寸版本。viewport已reset，临时tab/预览进程清理，用户3002页面和输入保持。
+
+八项自检：保留既有文件标题/等宽路径/元数据字号；图片只保留单套加载层、媒体维持阅读空间；标题、格式、内容及错误恢复层级明确；沿用深浅主题与既有错误色；删除自定义视频动效，无新增动画，既有 skeleton reduced-motion 规则保留；原生播放键盘、图片关闭焦点、Retry稳定焦点和表单下载语义有实测/测试；320/390/1440实际布局和44px按钮覆盖；复用既有插画、primitive及浏览器媒体控件，无新依赖或视觉体系。Impeccable按此前不可用环境的 DESIGN.md 清单人工检查。
+
+最后生产调整后门禁：pnpm test 765文件/3709项通过；lint零错误零警告；build含tsc/Vite/PWA/预算通过，eager JS559147/561152 bytes、precache5017396/5242880 bytes、91 entries，未提高预算，保留既有chunk-size提示。diff --check通过。真实存储写入、所有媒体格式、音频成功播放、移动系统全屏与真机软键盘/触屏仍待验；这批不扩大既有搜索功能，也不据此宣告全部界面完成。
