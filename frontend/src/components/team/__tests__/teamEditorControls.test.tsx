@@ -28,6 +28,19 @@ const api = vi.hoisted(() => ({
   list: vi.fn(),
   toast: vi.fn(),
   listPresets: vi.fn(),
+  listModels: vi.fn(),
+  listAgents: vi.fn(),
+  settings: undefined as
+    | undefined
+    | {
+        availableModels: null;
+        modelsLoading: boolean;
+        modelsError: boolean;
+        reloadModels: () => void;
+      },
+}));
+vi.mock("../../../contexts/SettingsContext", () => ({
+  useOptionalSettingsContext: () => api.settings,
 }));
 vi.mock("../../../services/api/team", () => ({
   teamApi: {
@@ -45,10 +58,10 @@ vi.mock("../../../services/api/personaPreset", () => ({
   },
 }));
 vi.mock("../../../services/api/model", () => ({
-  modelApi: { listAvailable: vi.fn().mockResolvedValue({ models: [] }) },
+  modelApi: { listAvailable: api.listModels },
 }));
 vi.mock("../../../services/api/agent", () => ({
-  agentApi: { list: vi.fn().mockResolvedValue({ agents: [] }) },
+  agentApi: { list: api.listAgents },
 }));
 vi.mock("../../../services/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../services/api")>()),
@@ -100,6 +113,9 @@ function editor(teamId: string | null = team.id) {
 }
 beforeEach(() => {
   resetRightPanelCoordinator();
+  api.settings = undefined;
+  api.listModels.mockReset().mockResolvedValue({ models: [] });
+  api.listAgents.mockReset().mockResolvedValue({ agents: [] });
   api.listPresets.mockReset().mockResolvedValue({ presets: [], total: 0 });
   api.get.mockReset().mockImplementation(async (id: string) => ({
     ...team,
@@ -719,4 +735,112 @@ test("a delayed catalog response cannot replace the current search results", asy
   expect(
     screen.queryByRole("button", { name: /Catalog researcher/ }),
   ).toBeNull();
+});
+
+test("catalog failure preserves member choices, disables only selectors and retries", async () => {
+  api.get.mockResolvedValue({
+    ...team,
+    members: [
+      {
+        member_id: "one",
+        persona_preset_id: "role",
+        role_name: "Researcher",
+        role_instructions: "Retain guidance",
+        role_tags: [],
+        position: 0,
+        enabled: true,
+        model_id: "keep",
+        agent_id: "fast",
+      },
+    ],
+  });
+  api.listModels
+    .mockRejectedValueOnce(new Error("Offline"))
+    .mockResolvedValue({
+      models: [{ id: "keep", value: "keep", label: "Retained model" }],
+    });
+  api.listAgents
+    .mockRejectedValueOnce(new Error("Offline"))
+    .mockResolvedValue({ agents: [{ id: "fast", name: "Fast" }] });
+  const view = editor();
+  fireEvent.change(await screen.findByDisplayValue("Research"), {
+    target: { value: "Unsaved draft" },
+  });
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: `${i18n.t("common.expand")} Researcher`,
+    }),
+  );
+  const mode = screen.getByRole("button", {
+    name: `${i18n.t("team.memberMode")} Researcher`,
+  });
+  const model = screen.getByRole("button", {
+    name: `${i18n.t("team.memberModel")} Researcher`,
+  });
+  expect(mode).toBeDisabled();
+  expect(model).toBeDisabled();
+  expect(model).toHaveTextContent("keep");
+  expect(mode).toHaveTextContent("fast");
+  expect(screen.getByDisplayValue("Retain guidance")).toBeEnabled();
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: `${i18n.t("common.retry")}: ${i18n.t("team.memberModels")}`,
+    }),
+  );
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: `${i18n.t("common.retry")}: ${i18n.t("team.memberModes")}`,
+    }),
+  );
+  await waitFor(() => expect(model).toBeEnabled());
+  await waitFor(() => expect(mode).toBeEnabled());
+  expect(model).toHaveTextContent("Retained model");
+  expect(screen.getByDisplayValue("Unsaved draft")).toHaveValue(
+    "Unsaved draft",
+  );
+  await act(async () => view.ref.current!.handleSave());
+  expect(api.update).toHaveBeenCalledWith(
+    team.id,
+    expect.objectContaining({
+      members: [
+        expect.objectContaining({
+          model_id: "keep",
+          agent_id: "fast",
+          role_instructions: "Retain guidance",
+        }),
+      ],
+    }),
+  );
+});
+
+test("the team editor retries the shared failed catalog without making a competing request", async () => {
+  const retry = vi.fn();
+  api.settings = {
+    availableModels: null,
+    modelsLoading: false,
+    modelsError: true,
+    reloadModels: retry,
+  };
+  api.get.mockResolvedValue({
+    ...team,
+    members: [
+      {
+        member_id: "one",
+        persona_preset_id: "role",
+        role_name: "Researcher",
+        role_instructions: "",
+        role_tags: [],
+        position: 0,
+        enabled: true,
+      },
+    ],
+  });
+  editor();
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: `${i18n.t("common.retry")}: ${i18n.t("team.memberModels")}`,
+    }),
+  );
+  expect(retry).toHaveBeenCalledOnce();
+  expect(api.listModels).not.toHaveBeenCalled();
 });

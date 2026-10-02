@@ -65,3 +65,12 @@ test("nested async session restoration rechecks the active load", () => {
     /getActiveLoadId:\s*\(\)\s*=>\s*activeSessionLoadRef\.current\?\.loadId/,
   );
 });
+
+test("chat keeps a compact retry action for model catalog failures", () => {
+  const header = readFileSync(resolve(__dirname, "../Header.tsx"), "utf8");
+  expect(header).toMatch(/modelsError/);
+  expect(header).toMatch(
+    /mobileMenuBtnRef.current\?\.focus[\s\S]*reloadModels\(\)/,
+  );
+  expect(header).toMatch(/modelsLoading/);
+});

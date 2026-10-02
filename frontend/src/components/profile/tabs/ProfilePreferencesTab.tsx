@@ -1,4 +1,11 @@
-import { lazy, Suspense, useState, useEffect, useCallback } from "react";
+import {
+  lazy,
+  Suspense,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { Cloud, Container, RefreshCw } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -9,6 +16,7 @@ import { useAuth } from "../../../hooks/useAuth";
 import { authApi, agentConfigApi, agentApi } from "../../../services/api";
 import { DEFAULT_THINKING_LEVEL_STORAGE_KEY } from "../../layout/AppContent/useAgentOptions";
 import { resolveAgentDisplayName } from "../../agent/agentCatalog";
+import { CatalogStatus } from "../../common/CatalogStatus";
 import { SelectRow } from "../SelectRow";
 // 定时主题分区懒加载：仅启用定时切换的用户展开渲染，避免顶高 eager 预算
 const ThemeScheduleSection = lazy(() => import("../ThemeScheduleSection"));
@@ -89,8 +97,15 @@ const THINKING_LEVEL_OPTIONS: { key: ThinkingLevel; labelKey: string }[] = [
 
 export function ProfilePreferencesTab() {
   const { t, i18n } = useTranslation();
+  const contentRef = useRef<HTMLDivElement>(null);
   const { theme, setTheme } = useTheme();
-  const { availableModels, defaultModel } = useSettingsContext();
+  const {
+    availableModels,
+    defaultModel,
+    modelsLoading,
+    modelsError,
+    reloadModels,
+  } = useSettingsContext();
   const { enableMemory } = useSettingsContext();
   const { user } = useAuth();
   const [memoryEnabled, setMemoryEnabled] = useState(
@@ -166,32 +181,33 @@ export function ProfilePreferencesTab() {
   const [currentAgentPref, setCurrentAgentPref] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<string>("");
   const [agentsLoading, setAgentsLoading] = useState(true);
+  const [agentsError, setAgentsError] = useState(false);
+  const [agentsAttempt, setAgentsAttempt] = useState(0);
   const [agentsSaving, setAgentsSaving] = useState(false);
 
-  const loadAgents = useCallback(async () => {
-    setAgentsLoading(true);
-    try {
-      const [agentsRes, prefRes] = await Promise.all([
-        agentApi.list(),
-        agentConfigApi
-          .getUserPreference()
-          .catch(() => ({ default_agent_id: null })),
-      ]);
-      setAgents(agentsRes.agents || []);
-      setCurrentAgentPref(prefRes.default_agent_id);
-      setSelectedAgent(
-        prefRes.default_agent_id || agentsRes.default_agent || "",
-      );
-    } catch {
-      // silent — dropdown will show empty
-    } finally {
-      setAgentsLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    loadAgents();
-  }, [loadAgents]);
+    let cancelled = false;
+    setAgentsLoading(true);
+    setAgentsError(false);
+    Promise.all([agentApi.list(), agentConfigApi.getUserPreference()])
+      .then(([agentsRes, prefRes]) => {
+        if (cancelled) return;
+        setAgents(agentsRes.agents || []);
+        setCurrentAgentPref(prefRes.default_agent_id);
+        setSelectedAgent(
+          prefRes.default_agent_id || agentsRes.default_agent || "",
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setAgentsError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setAgentsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [agentsAttempt, user?.id]);
 
   // Handlers
   const handleLanguageChange = (code: string) => {
@@ -293,7 +309,7 @@ export function ProfilePreferencesTab() {
   };
 
   return (
-    <div className="space-y-4">
+    <div ref={contentRef} tabIndex={-1} className="space-y-4 outline-none">
       <div className="profile-section">
         <div className="space-y-0">
           {enableMemory && (
@@ -347,7 +363,9 @@ export function ProfilePreferencesTab() {
             onSelect={handleThemeChange}
           />
 
-          <ThemeScheduleSection />
+          <Suspense fallback={null}>
+            <ThemeScheduleSection />
+          </Suspense>
 
           <SelectRow
             label={t("profile.fontSize")}
@@ -365,14 +383,29 @@ export function ProfilePreferencesTab() {
             open={openDropdown === "agent"}
             onToggle={() => toggle("agent")}
             onSelect={handleAgentChange}
-            loading={agentsLoading || agentsSaving}
+            loading={agentsLoading || agentsError || agentsSaving}
             renderLabel={renderAgentLabel}
+          />
+          <CatalogStatus
+            focusTargetRef={contentRef}
+            label={t("agentConfig.defaultAgent")}
+            loading={agentsLoading}
+            error={agentsError}
+            onRetry={() => setAgentsAttempt((attempt) => attempt + 1)}
+          />
+          <CatalogStatus
+            focusTargetRef={contentRef}
+            label={t("profile.defaultModel")}
+            loading={modelsLoading}
+            error={modelsError}
+            onRetry={reloadModels}
           />
 
           {availableModels && availableModels.length > 0 && (
             <SelectRow
               label={t("profile.defaultModel")}
               value={selectedModelId}
+              loading={modelsLoading || modelsError}
               options={availableModels.map((m) => ({
                 key: m.id,
                 labelKey: "",

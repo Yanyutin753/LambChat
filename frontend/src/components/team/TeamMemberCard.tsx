@@ -27,6 +27,8 @@ interface TeamMemberCardProps {
   onSetDefault: () => void;
   onToggleEnabled: () => void;
   onInstructionsChange: (text: string) => void;
+  modelsUnavailable?: boolean;
+  agentsUnavailable?: boolean;
   availableModels?: ModelOption[];
   onModelChange?: (modelId: string | null) => void;
   availableAgents?: AgentInfo[];
@@ -41,6 +43,8 @@ export function TeamMemberCard({
   onSetDefault,
   onToggleEnabled,
   onInstructionsChange,
+  modelsUnavailable = false,
+  agentsUnavailable = false,
   availableModels = [],
   onModelChange,
   availableAgents = [],
@@ -248,8 +252,10 @@ export function TeamMemberCard({
                 value={member.agent_id ?? ""}
                 onChange={(v) => onAgentChange?.(v || null)}
                 options={agentOptions}
-                disabled={disabled || !expanded || !onAgentChange}
-                placeholder={t("team.followTeamMode", "跟随团队模式")}
+                disabled={
+                  disabled || agentsUnavailable || !expanded || !onAgentChange
+                }
+                placeholder={agentLabel}
                 triggerClassName="team-member-card__select-trigger"
               />
             </div>
@@ -263,8 +269,10 @@ export function TeamMemberCard({
                 value={member.model_id ?? ""}
                 onChange={(v) => onModelChange?.(v || null)}
                 options={modelOptions}
-                disabled={disabled || !expanded || !onModelChange}
-                placeholder={t("team.followSessionModel", "跟随会话模型")}
+                disabled={
+                  disabled || modelsUnavailable || !expanded || !onModelChange
+                }
+                placeholder={modelLabel}
                 triggerClassName="team-member-card__select-trigger"
               />
             </div>

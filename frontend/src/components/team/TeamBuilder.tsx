@@ -30,6 +30,7 @@ import toast from "react-hot-toast";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { Button } from "../common/ui";
 import { Pagination } from "../common/Pagination";
+import { CatalogStatus } from "../common/CatalogStatus";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { ConfigPanelErrorCallout } from "../panels/ConfigPanelErrorCallout";
 import {
@@ -108,6 +109,12 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
     const [fallbackModels, setFallbackModels] = useState<ModelOption[] | null>(
       null,
     );
+    const [fallbackModelsLoading, setFallbackModelsLoading] = useState(true);
+    const [fallbackModelsError, setFallbackModelsError] = useState(false);
+    const [modelsAttempt, setModelsAttempt] = useState(0);
+    const [agentsLoading, setAgentsLoading] = useState(true);
+    const [agentsError, setAgentsError] = useState(false);
+    const [agentsAttempt, setAgentsAttempt] = useState(0);
     const [availableAgents, setAvailableAgents] = useState<AgentInfo[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
 
@@ -150,7 +157,19 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
     }, []);
     const rolePickerTriggerRef = useRef<HTMLButtonElement>(null);
     const rolePickerRef = useRef<HTMLDivElement>(null);
-    const availableModels = settingsContext?.availableModels ?? fallbackModels;
+    const availableModels = settingsContext
+      ? settingsContext.availableModels
+      : fallbackModels;
+    const hasSettingsContext = Boolean(settingsContext);
+    const modelsLoading = settingsContext
+      ? settingsContext.modelsLoading
+      : fallbackModelsLoading;
+    const modelsError = settingsContext
+      ? settingsContext.modelsError
+      : fallbackModelsError;
+    const reloadModels = settingsContext
+      ? settingsContext.reloadModels
+      : () => setModelsAttempt((attempt) => attempt + 1);
 
     useImperativeHandle(ref, () => ({
       handleSave,
@@ -218,26 +237,30 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
     }, [rolePickerOpen, searchQuery, presetsPage, presetsAttempt]);
 
     useEffect(() => {
-      if (settingsContext?.availableModels) {
-        setFallbackModels(null);
-        return;
-      }
+      if (hasSettingsContext) return;
       let cancelled = false;
+      setFallbackModelsLoading(true);
+      setFallbackModelsError(false);
       modelApi
         .listAvailable()
         .then((res) => {
           if (!cancelled) setFallbackModels(res.models ?? []);
         })
         .catch(() => {
-          if (!cancelled) setFallbackModels([]);
+          if (!cancelled) setFallbackModelsError(true);
+        })
+        .finally(() => {
+          if (!cancelled) setFallbackModelsLoading(false);
         });
       return () => {
         cancelled = true;
       };
-    }, [settingsContext?.availableModels]);
+    }, [hasSettingsContext, modelsAttempt]);
 
     useEffect(() => {
       let cancelled = false;
+      setAgentsLoading(true);
+      setAgentsError(false);
       agentApi
         .list()
         .then((res) => {
@@ -248,12 +271,15 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
           }
         })
         .catch(() => {
-          if (!cancelled) setAvailableAgents([]);
+          if (!cancelled) setAgentsError(true);
+        })
+        .finally(() => {
+          if (!cancelled) setAgentsLoading(false);
         });
       return () => {
         cancelled = true;
       };
-    }, []);
+    }, [agentsAttempt]);
 
     useEffect(() => {
       if (!rolePickerOpen) return;
@@ -829,6 +855,24 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
                 </div>
 
                 {members.length > 0 && (
+                  <>
+                    <CatalogStatus
+                      focusTargetRef={formRef}
+                      label={t("team.memberModels")}
+                      loading={modelsLoading}
+                      error={modelsError}
+                      onRetry={reloadModels}
+                    />
+                    <CatalogStatus
+                      focusTargetRef={formRef}
+                      label={t("team.memberModes")}
+                      loading={agentsLoading}
+                      error={agentsError}
+                      onRetry={() => setAgentsAttempt((attempt) => attempt + 1)}
+                    />
+                  </>
+                )}
+                {members.length > 0 && (
                   <div className="team-form-selected__list">
                     {members.map((member) => (
                       <TeamMemberCard
@@ -846,6 +890,8 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
                         onInstructionsChange={(text) =>
                           handleInstructionsChange(member.member_id, text)
                         }
+                        modelsUnavailable={modelsLoading || modelsError}
+                        agentsUnavailable={agentsLoading || agentsError}
                         availableModels={availableModels ?? []}
                         onModelChange={(modelId) =>
                           handleModelChange(member.member_id, modelId)

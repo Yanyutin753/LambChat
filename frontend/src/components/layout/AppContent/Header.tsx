@@ -19,7 +19,10 @@ import {
   Check,
   ChevronLeft,
   ListTree,
+  RefreshCw,
 } from "lucide-react";
+import { ToolbarIconButton } from "../../common/ui/ToolbarIconButton";
+import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { ModelSelector } from "../../agent/ModelSelector";
 import { UserMenu } from "../UserMenu";
 import { ShareDialog } from "../../share/ShareDialog";
@@ -81,7 +84,13 @@ export function Header({
   const navigate = useNavigate();
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { pinnedModelIds, togglePinnedModel } = useSettingsContext();
+  const {
+    pinnedModelIds,
+    togglePinnedModel,
+    modelsLoading,
+    modelsError,
+    reloadModels,
+  } = useSettingsContext();
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [notifDialogOpen, setNotifDialogOpen] = useState(false);
   const [activeNotifCount, setActiveNotifCount] = useState(0);
@@ -258,6 +267,24 @@ export function Header({
           </button>
           {activeTab === "chat" ? (
             <>
+              {onSelectModel && (modelsLoading || modelsError) && (
+                <ToolbarIconButton
+                  disabled={modelsLoading}
+                  aria-label={`${t("nav.models")} · ${t(modelsLoading ? "common.loading" : "common.loadFailed")}${modelsLoading ? "" : ` · ${t("common.retry")}`}`}
+                  title={`${t("nav.models")} · ${t(modelsLoading ? "common.loading" : "common.loadFailed")}`}
+                  onClick={() => {
+                    mobileMenuBtnRef.current?.focus({ preventScroll: true });
+                    reloadModels();
+                  }}
+                  icon={
+                    modelsLoading ? (
+                      <LoadingSpinner size="sm" />
+                    ) : (
+                      <RefreshCw size={16} aria-hidden="true" />
+                    )
+                  }
+                />
+              )}
               {availableModels &&
                 availableModels.length > 0 &&
                 onSelectModel && (
