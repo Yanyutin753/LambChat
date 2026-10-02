@@ -8,17 +8,21 @@ import {
   Input,
   Textarea,
 } from "../common";
+import { ConfigPanelErrorCallout } from "../panels/ConfigPanelErrorCallout";
 import { FileTabs } from "./FileTabs";
 import { SkillEditor } from "./SkillEditor";
 import { BinaryFilePreview } from "./BinaryFilePreview";
+import { SkillFileLoadState } from "./SkillFileLoadState";
 import { normalizeTags } from "./SkillForm.utils";
 import type { SkillFormActions } from "./SkillForm.types";
 
 export function SkillFormNormal(a: SkillFormActions) {
   const { t } = useTranslation();
-  const submitLabel = a.isEditing
-    ? t("skills.form.saveChanges")
-    : t("skills.form.createSkill");
+  const submitLabel = a.errors.save
+    ? t("common.retry")
+    : a.isEditing
+      ? t("skills.form.saveChanges")
+      : t("skills.form.createSkill");
 
   return (
     <>
@@ -128,16 +132,21 @@ export function SkillFormNormal(a: SkillFormActions) {
                     variant="muted"
                     title={t("skills.form.addFile", "Add file")}
                   />
-                  <ToolbarIconButton
-                    aria-label={t(
-                      "skills.form.addBinaryFile",
-                      "Upload binary file",
-                    )}
-                    onClick={a.addBinaryFile}
-                    icon={<Upload size={15} />}
-                    variant="muted"
-                    title={t("skills.form.addBinaryFile", "Upload binary file")}
-                  />
+                  {a.allowBinaryUploads && (
+                    <ToolbarIconButton
+                      aria-label={t(
+                        "skills.form.addBinaryFile",
+                        "Upload binary file",
+                      )}
+                      onClick={a.addBinaryFile}
+                      icon={<Upload size={15} />}
+                      variant="muted"
+                      title={t(
+                        "skills.form.addBinaryFile",
+                        "Upload binary file",
+                      )}
+                    />
+                  )}
                   <ToolbarIconButton
                     aria-label={t("skills.form.fullscreenEditor")}
                     data-fullscreen-trigger
@@ -160,10 +169,15 @@ export function SkillFormNormal(a: SkillFormActions) {
               </div>
 
               <div className="skill-file-path rounded-2xl px-3 py-2.5">
-                <FormField label={t("skills.form.filePath")}>
+                <FormField
+                  label={t("skills.form.filePath")}
+                  error={a.errors.files}
+                >
                   <Input
                     type="text"
                     value={a.files[a.activeFileIndex]?.path || ""}
+                    disabled={!a.isCurrentFileLoaded}
+                    error={!!a.errors.files}
                     onChange={(e) =>
                       a.updateFilePath(a.activeFileIndex, e.target.value)
                     }
@@ -181,35 +195,14 @@ export function SkillFormNormal(a: SkillFormActions) {
               const currentPath = a.files[a.activeFileIndex]?.path || "";
               const binaryInfo = a.binaryFiles?.[currentPath];
 
-              // Loading state
-              if (a.loadingFilePath === currentPath) {
+              if (a.loadingFilePath === currentPath || a.fileLoadError) {
                 return (
-                  <div className="flex h-full min-h-[18rem] sm:min-h-[24rem] items-center justify-center rounded-2xl bg-[var(--theme-bg-subtle)]">
-                    <div className="flex flex-col items-center gap-3">
-                      <svg
-                        className="h-6 w-6 animate-spin text-[var(--theme-text-secondary)]"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                          fill="none"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                        />
-                      </svg>
-                      <span className="text-14 text-[var(--theme-text-secondary)]">
-                        {currentPath.split("/").pop()}
-                      </span>
-                    </div>
-                  </div>
+                  <SkillFileLoadState
+                    path={currentPath}
+                    error={a.fileLoadError}
+                    onRetry={() => a.loadFileContent(a.activeFileIndex)}
+                    className="min-h-40"
+                  />
                 );
               }
 
@@ -253,22 +246,24 @@ export function SkillFormNormal(a: SkillFormActions) {
                 </div>
               );
             })()}
-            {(a.errors.content || a.errors.files) && (
-              <p className="mt-2 text-12 text-red-500">
-                {a.errors.content || a.errors.files}
-              </p>
+            {a.errors.content && (
+              <p className="mt-2 text-12 text-red-500">{a.errors.content}</p>
             )}
           </div>
         </div>
       </div>
 
       {/* Bottom action bar */}
-      <div className="skill-action-bar shrink-0 flex items-center justify-end gap-2 px-1 pt-3">
+      <div className="skill-action-bar shrink-0 flex flex-wrap items-center justify-end gap-2 px-1 pt-3">
+        {a.errors.save && (
+          <ConfigPanelErrorCallout message={a.errors.save} className="w-full" />
+        )}
         <Button variant="ghost" onClick={a.onCancel} disabled={a.isLoading}>
           {t("common.cancel")}
         </Button>
         <Button
           type="submit"
+          data-save-submit
           variant="primary"
           loading={a.isLoading}
           leftIcon={<Save size={16} />}

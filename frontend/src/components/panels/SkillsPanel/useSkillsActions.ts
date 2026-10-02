@@ -78,6 +78,7 @@ export function useSkillsActions() {
     publishToMarketplace,
     isPublishing,
     clearError,
+    fetchSkills,
   } = useSkills({ listParams });
 
   // Client-side enabled/disabled filter on top of server results
@@ -120,6 +121,8 @@ export function useSkillsActions() {
   const [editingSkill, setEditingSkill] = useState<SkillResponse | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [savedSkillName, setSavedSkillName] = useState<string | null>(null);
+  const formSession = useRef(0);
 
   // Batch selection state
   const [selectedNames, setSelectedNames] = useState<Set<string>>(new Set());
@@ -195,46 +198,55 @@ export function useSkillsActions() {
 
   // CRUD handlers
   const handleCreate = () => {
+    formSession.current++;
+    setSavedSkillName(null);
     setIsCreating(true);
     setEditingSkill(null);
     setShowModal(true);
   };
 
   const handleEdit = async (skill: SkillResponse) => {
+    const request = ++formSession.current;
+    setShowModal(false);
+    setSavedSkillName(null);
     const fullSkill = await getSkill(skill.name);
+    if (formSession.current !== request) return;
     setEditingSkill(fullSkill || skill);
     setIsCreating(false);
     setShowModal(true);
   };
 
   const handleSave = async (data: SkillCreate): Promise<boolean> => {
+    const request = formSession.current;
     let success = false;
     try {
-      if (isCreating) {
+      if (isCreating && !savedSkillName) {
         success = await createSkill(data);
-      } else if (editingSkill) {
+      } else if (editingSkill || savedSkillName) {
+        // A retry reads the actual manifest, including completed binary uploads.
+        const current = savedSkillName
+          ? await getSkill(savedSkillName)
+          : editingSkill;
+        if (!current || formSession.current !== request) return false;
         // Use filePaths (lazy-load mode) when available, fallback to files keys
-        const oldFiles = editingSkill.filePaths?.length
-          ? editingSkill.filePaths
-          : Object.keys(editingSkill.files);
+        const oldFiles = current.filePaths?.length
+          ? current.filePaths
+          : Object.keys(current.files);
         const newFiles = data.filePaths?.length
           ? data.filePaths
           : data.files
             ? Object.keys(data.files)
             : [];
         const deletedFiles = oldFiles.filter((f) => !newFiles.includes(f));
-        success = await updateSkill(editingSkill.name, {
+        success = await updateSkill(current.name, {
           description: data.description,
           content: data.content,
           files: data.files,
           deletedFiles,
         });
       }
-      if (success) {
-        setShowModal(false);
-        setEditingSkill(null);
-        setIsCreating(false);
-      }
+      if (formSession.current !== request) return false;
+      if (success) setSavedSkillName(data.name);
     } catch {
       success = false;
     }
@@ -242,9 +254,18 @@ export function useSkillsActions() {
   };
 
   const handleCancel = () => {
+    formSession.current++;
+    setSavedSkillName(null);
     setShowModal(false);
     setEditingSkill(null);
     setIsCreating(false);
+  };
+
+  const activeFormSession = formSession.current;
+  const handleComplete = () => {
+    if (formSession.current !== activeFormSession) return;
+    handleCancel();
+    void fetchSkills();
   };
 
   const handleExportZip = async (name: string) => {
@@ -635,10 +656,12 @@ export function useSkillsActions() {
     editingSkill,
     isCreating,
     showModal,
+    isNameLocked: !!savedSkillName,
     handleCreate,
     handleEdit,
     handleSave,
     handleCancel,
+    handleComplete,
 
     // CRUD
     handleExportZip,

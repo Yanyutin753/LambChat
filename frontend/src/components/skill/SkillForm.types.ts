@@ -20,6 +20,9 @@ export interface SkillFormProps {
   skill?: SkillResponse | null;
   onSave: (data: SkillCreate) => Promise<boolean>;
   onCancel: () => void;
+  onComplete?: () => void;
+  isNameLocked?: boolean;
+  allowBinaryUploads?: boolean;
   isLoading?: boolean;
   onFullscreenChange?: (fullscreen: boolean) => void;
 }
@@ -32,10 +35,13 @@ export interface SkillFormActions {
   errors: Record<string, string>;
   isEditing: boolean;
   isLoading: boolean;
+  allowBinaryUploads: boolean;
   files: FileEntry[];
   activeFileIndex: number;
   binaryFiles: Record<string, BinaryFileInfo>;
   loadingFilePath: string | null; // kept for backwards compat in form views
+  fileLoadError?: string;
+  isCurrentFileLoaded: boolean;
   setName: (v: string) => void;
   setDescription: (v: string) => void;
   setEnabled: (v: boolean) => void;

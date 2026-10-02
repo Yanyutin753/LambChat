@@ -79,7 +79,6 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
     skills: userSkills,
     fetchSkills: fetchUserSkills,
     isLoading: userSkillsLoading,
-    getSkill,
   } = useSkills();
   const canWrite = hasAnyPermission([Permission.MARKETPLACE_PUBLISH]);
   const canAdmin = hasAnyPermission([Permission.MARKETPLACE_ADMIN]);
@@ -196,13 +195,10 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
   };
 
   const handleEdit = async (skillName: string) => {
-    let fullSkill = await getSkill(skillName);
+    const fullSkill = await loadMarketplaceSkillForEdit(skillName);
     if (!fullSkill) {
-      fullSkill = await loadMarketplaceSkillForEdit(skillName);
-      if (!fullSkill) {
-        toast.error(t("marketplace.loadFailed"));
-        return;
-      }
+      toast.error(t("marketplace.loadFailed"));
+      return;
     }
     setEditingSkill(fullSkill);
     setIsCreating(false);
@@ -226,18 +222,23 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
           files: data.files || { "SKILL.md": data.content },
         });
       } else if (editingSkill) {
+        const retainedFiles = Object.fromEntries(
+          Object.entries(editingSkill.files).filter(
+            ([path]) => data.filePaths?.includes(path),
+          ),
+        );
         success = await updateMarketplaceSkill(editingSkill.name, {
           skill_name: editingSkill.name,
           description: data.description,
           tags: data.tags,
           version: "1.0.0",
-          files: data.files || { "SKILL.md": data.content },
+          files: {
+            ...retainedFiles,
+            ...(data.files || { "SKILL.md": data.content }),
+          },
         });
       }
       if (success) {
-        setEditingSkill(null);
-        setIsCreating(false);
-        setShowCreateModal(false);
         await fetchSkills();
         await fetchUserSkills();
         toast.success(
@@ -475,6 +476,8 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
         isLoading={isLoading}
         onSave={handleSave}
         onCancel={handleFormCancel}
+        onComplete={handleFormCancel}
+        allowBinaryUploads={false}
         createTitle={t("marketplace.createTitle")}
         subtitle={t("marketplace.createHint")}
       />
