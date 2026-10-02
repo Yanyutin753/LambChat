@@ -478,7 +478,7 @@ export const SessionSidebar = forwardRef<
   const handleImgError = useCallback(() => setImgError(true), []);
   const handleOpenSearch = useCallback(() => setIsSearchOpen(true), []);
   const handleToggleMoreMenu = useCallback(
-    () => moreMenu.setIsMoreMenuOpen((prev) => !prev),
+    () => moreMenu.toggleMoreMenu(),
     [moreMenu],
   );
   const handleToggleProjectsCollapsed = useCallback(() => {
@@ -523,6 +523,7 @@ export const SessionSidebar = forwardRef<
       onOpenSearch: handleOpenSearch,
       onShowProfile: onShowProfile!,
       hasMoreMenuItems: moreMenu.hasMoreMenuItems,
+      singleMoreMenuItem: moreMenu.singleMoreMenuItem,
       onToggleMoreMenu: handleToggleMoreMenu,
       expandedMoreMenuBtnRef: moreMenu.expandedMoreMenuBtnRef,
       scrollEl,
@@ -572,6 +573,7 @@ export const SessionSidebar = forwardRef<
       handleOpenSearch,
       onShowProfile,
       moreMenu.hasMoreMenuItems,
+      moreMenu.singleMoreMenuItem,
       handleToggleMoreMenu,
       moreMenu.expandedMoreMenuBtnRef,
       scrollEl,
@@ -734,9 +736,8 @@ export const SessionSidebar = forwardRef<
               onOpenBookmarks={() => navigate("/bookmarks")}
               onOpenScheduledTasks={() => navigate("/scheduled-tasks")}
               hasMoreMenuItems={moreMenu.hasMoreMenuItems}
-              onToggleMoreMenu={() =>
-                moreMenu.setIsMoreMenuOpen((prev) => !prev)
-              }
+              singleMoreMenuItem={moreMenu.singleMoreMenuItem}
+              onToggleMoreMenu={handleToggleMoreMenu}
               moreMenuBtnRef={moreMenu.moreMenuBtnRef}
               recentChatsBtnRef={recentChatsBtnRef}
               onShowProfile={onShowProfile!}

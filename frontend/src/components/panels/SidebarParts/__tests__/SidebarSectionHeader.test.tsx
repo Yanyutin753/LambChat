@@ -5,10 +5,9 @@ import { SidebarSectionHeader } from "../SidebarSectionHeader";
 
 afterEach(cleanup);
 
-test("section toggle, add and more actions stay independent", () => {
+test("section toggle and create remain available without a duplicate menu", () => {
   const toggle = vi.fn();
   const create = vi.fn();
-  const select = vi.fn();
   render(
     <SidebarSectionHeader
       label="Chats"
@@ -17,8 +16,6 @@ test("section toggle, add and more actions stay independent", () => {
       createLabel="New chat"
       onCreate={create}
       createIcon="compose"
-      moreLabel="More"
-      menuItems={[{ label: "Select chats", onClick: select }]}
     />,
   );
   const heading = screen.getByRole("button", { name: "Chats" });
@@ -28,15 +25,5 @@ test("section toggle, add and more actions stay independent", () => {
   fireEvent.click(screen.getByRole("button", { name: "New chat" }));
   expect(create).toHaveBeenCalledOnce();
   expect(toggle).toHaveBeenCalledOnce();
-  const more = screen.getByRole("button", { name: "More" });
-  expect(more.compareDocumentPosition(screen.getByRole("button", { name: "New chat" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(screen.getByRole("button", { name: "New chat" }).querySelector(".lucide-square-pen")).not.toBeNull();
-  fireEvent.click(more);
-  const popover = document.getElementById(more.getAttribute("popovertarget")!);
-  expect(popover?.getAttribute("popover")).toBe("auto");
-  fireEvent.click(
-    screen.getByRole("button", { name: "Select chats", hidden: true }),
-  );
-  expect(select).toHaveBeenCalledOnce();
-  expect(toggle).toHaveBeenCalledOnce();
+  expect(screen.queryByRole("button", { name: "More" })).toBeNull();
 });

@@ -175,8 +175,10 @@ export function WorkspacePanel({
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const menuId = useId();
-  const [copyPath, setCopyPath] = useState("");
-  const { copying, copy } = useClipboardCopy(copyPath);
+  const canReveal = isShellAvailable() && isLocalMachineWorkspace;
+  const copyPath = useRef("");
+  const getCopyPath = useCallback(() => copyPath.current, []);
+  const { copying, copy } = useClipboardCopy(getCopyPath);
   const closeMenu = useCallback((restoreFocus = false) => {
     setContextMenu(null);
     if (restoreFocus) menuTriggerRef.current?.focus();
@@ -191,7 +193,7 @@ export function WorkspacePanel({
     setPreviewError(null);
     setOpeningPath(null);
     setContextMenu(null);
-    setCopyPath("");
+    copyPath.current = "";
     return () => {
       previewRequest.current += 1;
     };
@@ -241,7 +243,7 @@ export function WorkspacePanel({
       event.preventDefault();
       event.stopPropagation();
       menuTriggerRef.current = event.currentTarget;
-      setCopyPath(path);
+      copyPath.current = path;
       const rect = event.currentTarget.getBoundingClientRect();
       const pointer =
         event.type === "contextmenu" && (event.clientX || event.clientY);
@@ -367,22 +369,40 @@ export function WorkspacePanel({
               )}
               <span className="workspace-file-name">{node.name}</span>
             </button>
-            <button
-              className="workspace-file-menu"
-              aria-label={t("workspacePanel.fileActions", { name: node.name })}
-              onClick={(event) =>
-                contextMenu?.path === node.path
-                  ? closeMenu(true)
-                  : handleContextMenu(event, node.path)
-              }
-              aria-haspopup="menu"
-              aria-expanded={contextMenu?.path === node.path}
-              aria-controls={
-                contextMenu?.path === node.path ? menuId : undefined
-              }
-            >
-              <MoreHorizontal size={16} />
-            </button>
+            {canReveal ? (
+              <button
+                className="workspace-file-menu"
+                aria-label={t("workspacePanel.fileActions", {
+                  name: node.name,
+                })}
+                onClick={(event) =>
+                  contextMenu?.path === node.path
+                    ? closeMenu(true)
+                    : handleContextMenu(event, node.path)
+                }
+                aria-haspopup="menu"
+                aria-expanded={contextMenu?.path === node.path}
+                aria-controls={
+                  contextMenu?.path === node.path ? menuId : undefined
+                }
+              >
+                <MoreHorizontal size={16} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="workspace-file-menu"
+                aria-label={t("workspacePanel.copyPath")}
+                title={t("workspacePanel.copyPath")}
+                disabled={copying}
+                onClick={() => {
+                  copyPath.current = node.path;
+                  void copy();
+                }}
+              >
+                <Copy size={16} />
+              </button>
+            )}
           </div>
         );
       });
@@ -657,7 +677,7 @@ export function WorkspacePanel({
               disabled: copying,
               onClick: copy,
             },
-            ...(isShellAvailable() && isLocalMachineWorkspace
+            ...(canReveal
               ? [
                   {
                     label: t("workspacePanel.revealInFileManager"),

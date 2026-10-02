@@ -36,14 +36,19 @@ test("attachment-only messages display the queued filenames", () => {
   expect(screen.getByText("report.pdf")).toBeInTheDocument();
 });
 
-test("more menu supports keyboard dismissal and restores trigger focus", () => {
-  render(<ChatInputSteerQueue items={[item]} onEdit={vi.fn()} />);
-  const trigger = screen.getByRole("button", { name: "chat.queueMore" });
-  fireEvent.click(trigger);
-  expect(screen.getByRole("menuitem")).toHaveFocus();
-  fireEvent.keyDown(screen.getByRole("menuitem"), { key: "Escape" });
-  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-  expect(trigger).toHaveFocus();
+test("queued messages expose editing directly", () => {
+  const onEdit = vi.fn();
+  render(<ChatInputSteerQueue items={[item]} onEdit={onEdit} />);
+  expect(screen.queryByRole("button", { name: "chat.queueMore" })).toBeNull();
+  fireEvent.click(
+    screen.getByRole("button", { name: "chat.message.queueEdit" }),
+  );
+  expect(onEdit).toHaveBeenCalledExactlyOnceWith(
+    item.content,
+    item.id,
+    undefined,
+  );
+  expect(screen.queryByRole("menu")).toBeNull();
 });
 
 test("messages already being delivered cannot be guided again", () => {
@@ -82,6 +87,7 @@ test("failed messages remain visible and editable", () => {
     />,
   );
   expect(screen.getByRole("status")).toHaveTextContent("chat.steerFailedRetry");
-  fireEvent.click(screen.getByRole("button", { name: "chat.queueMore" }));
-  expect(screen.getByRole("menuitem")).toBeEnabled();
+  expect(
+    screen.getByRole("button", { name: "chat.message.queueEdit" }),
+  ).toBeEnabled();
 });

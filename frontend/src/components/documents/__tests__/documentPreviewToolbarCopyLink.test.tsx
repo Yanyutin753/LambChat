@@ -75,7 +75,7 @@ function renderCopyLinkButton(
   } satisfies ComponentProps<typeof DocumentPreviewToolbar>;
 
   render(<DocumentPreviewToolbar {...props} />);
-  if (!openMenu) return screen.getByRole("button", { name: "nav.more" });
+  if (!openMenu) return;
   fireEvent.click(screen.getByRole("button", { name: "nav.more" }));
   return screen.getByRole("menuitem", { name: "Copy link" });
 }
@@ -167,4 +167,21 @@ test("copy link reports rejection and retries the same absolute URL", async () =
   fireEvent.click(screen.getByRole("menuitem", { name: "Copy link" }));
   await waitFor(() => expect(toast.success).toHaveBeenCalledOnce());
   expect(writeText).toHaveBeenLastCalledWith("https://example.test/file.docx");
+});
+
+test("embedded previews expose a lone copy link directly and hide empty actions", async () => {
+  renderCopyLinkButton(
+    { embedded: true, resolvedUrl: "https://example.test/file.docx" },
+    false,
+  );
+  expect(screen.queryByRole("button", { name: "nav.more" })).toBeNull();
+  await act(async () =>
+    fireEvent.click(screen.getByRole("button", { name: "Copy link" })),
+  );
+  expect(writeText).toHaveBeenCalledWith("https://example.test/file.docx");
+});
+
+test("embedded previews hide an empty overflow menu", () => {
+  renderCopyLinkButton({ embedded: true }, false);
+  expect(screen.queryByRole("button", { name: "nav.more" })).toBeNull();
 });
