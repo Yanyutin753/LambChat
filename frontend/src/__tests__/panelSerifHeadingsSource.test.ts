@@ -35,7 +35,8 @@ test("team pane titles use font-serif like team member names", () => {
 test("shared dialog titles use font-serif", () => {
   const confirm = readComponent("common/ConfirmDialog.tsx");
   const contact = readComponent("common/ContactAdminDialog.tsx");
-  expect(confirm).toMatch(/text-16 font-semibold font-sans/);
+  expect(confirm).toMatch(/<Dialog/);
+  expect(readComponent("common/Dialog.tsx")).toMatch(/text-16 font-semibold font-sans/);
   expect(contact).toMatch(/text-16 font-semibold font-serif tracking-tight/);
 });
 

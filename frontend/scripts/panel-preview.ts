@@ -2350,11 +2350,33 @@ const server = await createServer({
               })),
             );
           }
+          if (
+            url.pathname === "/api/version" &&
+            previewParams.get("view") === "about" &&
+            data &&
+            typeof data === "object"
+          ) {
+            Object.assign(data, {
+              latest_version: previewParams.get("state") === "current"
+                ? url.searchParams.get("client_version") || "2.13.2"
+                : previewParams.has("long")
+                  ? `99.0.0-${"preview".repeat(15)}`
+                  : "99.0.0",
+              has_update: previewParams.get("state") !== "current",
+              release_url: "https://example.test/release",
+              github_url: "https://example.test/source",
+            });
+          }
           const isRead = req.method === "GET";
           const channelConfigFailure =
             isRead &&
             ((failureTarget === "catalog-models" &&
               url.pathname === "/api/agent/models/available") ||
+              (failureTarget === "about-version" &&
+                url.pathname === "/api/version") ||
+              (failureTarget === "about-check" &&
+                url.pathname === "/api/version" &&
+                url.searchParams.has("force_refresh")) ||
               (failureTarget === "contact-settings" &&
                 url.pathname.replace(/\/$/, "") === "/api/settings") ||
               (failureTarget === "share-content" &&
@@ -2478,6 +2500,12 @@ const server = await createServer({
             );
           if (scenario === "loading" && !url.pathname.startsWith("/api/auth/"))
             setTimeout(send, 8000);
+          else if (
+            isRead &&
+            previewParams.get("view") === "about" &&
+            url.pathname === "/api/version"
+          )
+            setTimeout(send, 2000);
           else if (
             isRead &&
             previewParams.get("view") === "contact" &&

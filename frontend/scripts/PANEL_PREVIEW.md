@@ -139,3 +139,5 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 系统弹窗走查：`/dialog-preview?theme=dark&lang=ru` 直接渲染实际 UpdateDialog；支持 `state=downloading|error|ready`、`long=1` 长版本号/日志/表格、`platform=ios|tauri`（默认 android）和 `source=unknown`。升级按钮只模拟等待2秒、首次失败、重试后待安装、确认后关闭，不调用原生 updater、下载、安装、重启或真实写 API。
 
 联系管理员走查：同一路由加 `view=contact` 渲染实际 ContactAdminDialog；默认邮箱验证原因，`reason=permission` 切换权限说明，`contact=empty` 为空联系方式，`long=1` 是公开占位长邮箱。设置 GET 等待2秒，`failure=contact-settings` 首次503、Retry恢复；新的 `run` 查询可重放。保留实际 mailto/外链语义，走查仅检查链接、不激活邮件客户端或发送消息。`guest=1` 使用真实 Hook 的无 token 路径，不读取受保护 settings；此入口不证明公开配置获取、真实支持发送或原生设备行为。
+
+关于与确认弹窗：`/dialog-preview?view=about` 使用真实 useVersion 与只读版本 GET，等待2秒；`failure=about-version` 让初次读取503后 Retry 恢复，`failure=about-check` 只让强制检查首次503，已读版本保持可见。`long=1` 返回长版本号，`state=current` 显示已更新状态。`view=confirm` 仅模拟确认等待2秒后关闭，没有删除或写请求；`long=1` 添加长正文，`long-actions=1` 使用长操作文案检查按钮换行，`variant=warning|info` 检查主题变体。可组合 `theme=light|dark|sepia` 与 `lang=zh|en|ja|ko|ru`。外链为 example.test 占位，不证明真实更新下载、删除或手机软键盘。

@@ -1173,3 +1173,21 @@ UI-only /dialog-preview显式模拟更新等待2秒、首次失败、重试待�
 截图在仓库外system-dialogs目录：320-dark-update-error、320-short-downloading、320-short-contact-focused、390-light-update、320-light-update-error-ko、320-light-contact-ko、834-sepia-update-ready-ja、834-sepia-contact-ja、1440-dark-update-ios-en、1440-dark-contact-empty-en等。834-sepia-update-ready-ja已替换为最终均分表格版本。按八项自检：正文/标题与日志层级清楚、删除重复容器且保留共享留白；复用三主题token并修正主操作对比；无新增装饰动效、减少动效覆盖进度；加载/恢复/焦点实测；窄屏、短屏、平板、桌面可用；沿用LambChat羊场景/衬线/组件规范。Impeccable offline update仍报告未安装skill folders，按DESIGN清单人工复核。
 
 全站目标保持进行中。完整跨页状态/五语矩阵、真实认证/保存/聊天与原生桌面/手机仍未闭合。游客真实useSettings没有token不读取受保护配置，联系管理员公开获取路径未由此fixture证明；下一批核对认证支持/公开配置与尚未完整验收的确认、关于及其他弹层流程，不以本批两个弹窗及绿门禁代替全站验收。
+
+### 2026-10-02：关于与共享确认弹窗
+
+上一目标回合属于 progress：重新核对用户3017文件预览的标题栏入口、CodeMirror原生浮层、320/390px、高亮、快捷键与15项相关检查，避免重复实现已经合入的搜索。本轮回到interface-state，开工clean，fetch/rebase确认最新origin/develop已是HEAD祖先；用户3017与主checkout保持原状态。
+
+基线实际320px俄语：关于读取失败仅剩关闭、无Retry；关闭28px、底部38.39px，当前客户端版本也被隐藏。确认默认聚焦删除；长正文随整体滚动把标题隐藏，取消40.39px/确认38.39px。两者复用既有Dialog、Button、主题与文案，删除重复卡片、骨架和孤立硬编码色。关于始终显示打包APP_VERSION，读取/检查显示status，持久alert及Retry；再次检查保留已读版本与外链，先将焦点交还modal再禁用操作。外链使用原生a、noopener noreferrer，无window.open；没有新增依赖或文案。确认保留所有回调/variant/loading约定，初始焦点留在具名modal；确认等待aria-busy/status、拒绝Escape/背景关闭，底部操作不因长正文滚出。移动/coarse至少44px，正文/版本自然换行，标题沿用现有衬线/无衬线约定。
+
+TDD新增7项：初次版本等待/失败恢复/再次检查保留与焦点/原生外链，以及确认初始安全焦点/等待关闭守卫/取消返回入口；先见6 failed/1 passed，再全部GREEN。相关5文件20项通过。独立只读复核发现Tailwind将ui-button__label中的双下划线解成空格，换行未命中；真实320px长按钮scrollWidth161/539对client102，修正为既有[&>span]并改flex-auto，让长caption按需成为整行。320×300最终长操作44/78px、主操作bottom288，留白12px，无横向溢出。第二处P2为sm:flex-none下长操作宽573.33px超过footer382px；max-w-full后342px恰为footer减两侧20px。最终独立复核无确定剩余P1/P2。
+
+最终生产修改后全量794文件3990项通过；lint零错误/警告，build含tsc/Vite/PWA及预算通过：eager560448/561152 bytes，precache92项5026754/5242880 bytes，未提高预算。日志/tmp/about-confirm-tests-complete.log、/tmp/about-confirm-lint-final-checked.log、/tmp/about-confirm-build-verified.log，git diff --check通过。Impeccable offline update仍报告未安装skill folders，按DESIGN八项人工检查。
+
+UI-only /dialog-preview增加真实About/useVersion的GET边界：2秒等待、初次读取或force_refresh首次503后Retry恢复；current fixture按请求中的客户端版本返回相同latest，long返回长版本。Confirm只模拟2秒等待后关闭，不调用删除或写API；long-actions用既有长文案测试响应式换行。PANEL_PREVIEW说明已补。没有激活外部链接、原生更新、下载、真实删除、重置或保存。
+
+实际IAB证据：关于320×568深色俄语读取失败→Retry恢复、长版本完整折行；390×844浅色中文强制检查失败→Retry，已读99.0.0与当前2.13.2全程保留；834×1112 sepia韩语长版本；1440×900深色英语已更新状态；320×300浅色日语Tab到GitHub自动滚动正文122px，链接在170.75–214.75px、关闭bottom104、主操作bottom288，均可见。确认320×300俄语长操作、中文长正文（内滚动115/380px且标题top69.20、操作bottom288）；390×844深色日语长正文；320×568深色韩语warning；834×1112 sepia俄语长操作；1440×900浅色英语info。均无整页横向溢出。韩语模拟确认等待时Escape无效，结束实际关闭、焦点回Open dialog。中文短屏直接滚轮操作未改变scrollTop，不将其计为成功滚动；日语Tab实际滚动提供正文可达证据。浏览器fine视口不证明真机触屏/软键盘。
+
+实际/settings 390px浅色俄语打开关于、Escape归还“关于”入口；打开“重置所有”确认，默认焦点modal，关闭/取消/主操作44px，Escape回重置入口，未执行重置。截图在仓库外common-dialogs目录：about-320-dark-ru-ready、about-390-light-zh-check-error、about-834-sepia-ko、about-1440-dark-en-current、about-320-short-light-ja-focused、confirm-320-short-ru-long-actions、confirm-320-short-light-zh、confirm-390-dark-ja、confirm-320-dark-ko-warning、confirm-834-sepia-ru-long-actions、confirm-1440-light-en、settings-about-390-light-ru、settings-confirm-390-light-ru。俄语long-actions截图已替换为最终flex-auto版本，英语current截图已替换为相同客户端/latest版本。
+
+八项自检：沿用版本等宽排版、标题规范与主题；减去重复容器但保留阅读留白；当前/最新/状态/操作层级清楚；主操作正确使用主题前景、危险操作现有danger；无新增动效，沿用reduced-motion；错误持续、重试、禁用、焦点与原生链接均有行为/实屏；手机、短屏、平板、桌面与五语组合覆盖；使用LambChat现有视觉组件，未另造设计系统。本批两个弹窗完成不等于全站完成，主清单仍保持未验证项。下一轮优先查游客联系管理员的公开配置路径，以及剩余真实页面状态与跨页弹层/键盘流；真实认证、存储写入、服务对话和原生设备验证尚未闭合。

@@ -5,6 +5,8 @@ import i18n from "../src/i18n";
 import { applyThemeToDocument, isTheme } from "../src/utils/themeDom";
 import { UpdateDialog } from "../src/components/update/UpdateDialog";
 import { ContactAdminDialog } from "../src/components/common/ContactAdminDialog";
+import { AboutDialog } from "../src/components/common/AboutDialog";
+import { ConfirmDialog } from "../src/components/common/ConfirmDialog";
 import { Button } from "../src/components/common/ui/Button";
 import type { UpdateState } from "../src/types";
 import "../src/fonts.css";
@@ -22,6 +24,7 @@ await i18n.changeLanguage(params.get("lang") || "zh");
 
 export function DialogPreview() {
   const [open, setOpen] = useState(true);
+  const [confirming, setConfirming] = useState(false);
   const attempts = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [state, setState] = useState<UpdateState>({
@@ -60,7 +63,44 @@ export function DialogPreview() {
   return (
     <main style={{ height: "100dvh", padding: 16 }}>
       <Button onClick={() => setOpen(true)}>Open dialog</Button>
-      {params.get("view") === "contact" ? (
+      {params.get("view") === "about" ? (
+        <AboutDialog isOpen={open} onClose={close} />
+      ) : params.get("view") === "confirm" ? (
+        <ConfirmDialog
+          isOpen={open}
+          title={i18n.t("team.confirmDelete")}
+          message={
+            i18n.t("team.confirmDeleteMessage") +
+            (params.has("long")
+              ? ` https://example.test/${"long-file-name".repeat(35)}`
+              : "")
+          }
+          confirmText={
+            params.has("long-actions")
+              ? i18n.t("team.confirmDeleteMessage")
+              : i18n.t("common.delete")
+          }
+          cancelText={
+            params.has("long-actions") ? i18n.t("about.checkUpdate") : undefined
+          }
+          loading={confirming}
+          variant={
+            params.get("variant") === "warning"
+              ? "warning"
+              : params.get("variant") === "info"
+                ? "info"
+                : "danger"
+          }
+          onCancel={close}
+          onConfirm={() => {
+            setConfirming(true);
+            timer.current = setTimeout(() => {
+              setConfirming(false);
+              setOpen(false);
+            }, 2000);
+          }}
+        />
+      ) : params.get("view") === "contact" ? (
         <ContactAdminDialog
           isOpen={open}
           onClose={close}
