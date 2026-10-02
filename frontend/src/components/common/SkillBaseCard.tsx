@@ -1,6 +1,7 @@
 import {
   useCallback,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -10,6 +11,7 @@ import { MoreHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ResourceCardMenu, type ResourceCardAction } from "./ResourceCardMenu";
 import { Checkbox } from "./Checkbox";
+import { restoreOpenerFocusUnclaimed } from "../../utils/modalDialog";
 
 export interface SkillBaseCardProps {
   title: string;
@@ -64,6 +66,13 @@ export function SkillBaseCard({
 }: SkillBaseCardProps) {
   const { t } = useTranslation();
   const menuId = useId();
+  const cardRef = useRef<HTMLDivElement>(null);
+  const focusedControl = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const control = focusedControl.current;
+    if (control && !control.isConnected)
+      restoreOpenerFocusUnclaimed(cardRef.current, control);
+  });
   const focusReturn = useRef<HTMLElement | null>(null);
   const [menuPosition, setMenuPosition] = useState<{
     x: number;
@@ -77,7 +86,11 @@ export function SkillBaseCard({
 
   return (
     <div
+      ref={cardRef}
       role="group"
+      onFocusCapture={(event) => {
+        focusedControl.current = event.target as HTMLElement;
+      }}
       aria-label={title}
       tabIndex={
         onClick || (selectionMode && onSelect) || actions.length ? 0 : undefined

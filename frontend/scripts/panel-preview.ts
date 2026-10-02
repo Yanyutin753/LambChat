@@ -2048,6 +2048,21 @@ const server = await createServer({
                 roles: ["project-administrator-with-long-role-name", "research", "engineering"],
               } : {}),
             };
+            const skillAccess = previewParams.get("skill-access");
+            if (["read", "write", "delete", "publish"].includes(skillAccess ?? "")) {
+              const skillPermissions = {
+                write: Permission.SKILL_WRITE,
+                delete: Permission.SKILL_DELETE,
+                publish: Permission.MARKETPLACE_PUBLISH,
+              };
+              data = {
+                ...(data as object),
+                permissions: user.permissions.filter(permission =>
+                  !Object.values(skillPermissions).includes(permission) ||
+                  permission === skillPermissions[skillAccess as keyof typeof skillPermissions],
+                ),
+              };
+            }
           }
           if (
             url.pathname === "/api/share/public/preview-report" &&

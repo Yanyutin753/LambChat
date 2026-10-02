@@ -751,6 +751,7 @@ export function useSkillsActions() {
     selectionMode,
     batchLoading,
     batchError,
+    batchAction: lastBatchAction.current,
     handleBatchRetry,
     canBatchRetry: lastBatchNames.current.some((name) =>
       selectedNames.has(name),

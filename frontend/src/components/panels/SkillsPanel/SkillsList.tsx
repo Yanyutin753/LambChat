@@ -40,6 +40,7 @@ interface SkillsListProps {
   error: string | null;
   clearError: () => void;
   canWrite: boolean;
+  canDelete: boolean;
   canPublish: boolean;
   selectedNames: Set<string>;
   onToggle: (name: string) => void;
@@ -78,6 +79,7 @@ export function SkillsList({
   error,
   clearError,
   canWrite,
+  canDelete,
   canPublish,
   selectedNames,
   onToggle,
@@ -128,9 +130,10 @@ export function SkillsList({
     />
   );
 
+  const canSelect = canWrite || canDelete;
   const headerActions = (
     <div className="flex items-center gap-2">
-      {filteredSkills.length > 0 && (
+      {canSelect && filteredSkills.length > 0 && (
         <Button variant="secondary" onClick={onSelectAll} className="h-10">
           <Check size={16} />
           <span className="hidden sm:inline">
@@ -141,18 +144,22 @@ export function SkillsList({
           </span>
         </Button>
       )}
-      <Button variant="secondary" onClick={onGithubClick} className="h-10">
-        <Github size={16} />
-        <span className="hidden sm:inline">{t("skills.github")}</span>
-      </Button>
-      <Button variant="secondary" onClick={onZipClick} className="h-10">
-        <Archive size={16} />
-        <span className="hidden sm:inline">{t("skills.uploadZip")}</span>
-      </Button>
-      <Button variant="primary" onClick={onCreate} className="h-10">
-        <Plus size={16} />
-        <span className="hidden sm:inline">{t("skills.newSkill")}</span>
-      </Button>
+      {canWrite && (
+        <>
+          <Button variant="secondary" onClick={onGithubClick} className="h-10">
+            <Github size={16} />
+            <span className="hidden sm:inline">{t("skills.github")}</span>
+          </Button>
+          <Button variant="secondary" onClick={onZipClick} className="h-10">
+            <Archive size={16} />
+            <span className="hidden sm:inline">{t("skills.uploadZip")}</span>
+          </Button>
+          <Button variant="primary" onClick={onCreate} className="h-10">
+            <Plus size={16} />
+            <span className="hidden sm:inline">{t("skills.newSkill")}</span>
+          </Button>
+        </>
+      )}
     </div>
   );
 
@@ -207,7 +214,11 @@ export function SkillsList({
                 : t("skills.noSkills")
             }
             description={
-              hasActiveFilters ? t("skills.subtitle") : t("skills.createFirst")
+              hasActiveFilters
+                ? t("skills.subtitle")
+                : canWrite
+                  ? t("skills.createFirst")
+                  : undefined
             }
             action={
               !hasActiveFilters && canWrite ? (
@@ -232,18 +243,18 @@ export function SkillsList({
               <SkillCard
                 key={skill.name}
                 skill={skill}
-                onToggle={onToggle}
+                onToggle={canWrite ? onToggle : undefined}
                 onTogglePreference={onTogglePreference}
-                onEdit={onEdit}
-                onDelete={onDelete}
+                onEdit={canWrite ? onEdit : undefined}
+                onDelete={canDelete ? onDelete : undefined}
                 onExportZip={onExportZip}
                 onPublish={
                   canPublish ? (s: SkillResponse) => onPublish?.(s) : undefined
                 }
                 isPublished={skill.is_published}
-                selected={selectedNames.has(skill.name)}
-                onSelect={onSelectSkill}
-                selectionMode={true}
+                selected={canSelect && selectedNames.has(skill.name)}
+                onSelect={canSelect ? onSelectSkill : undefined}
+                selectionMode={canSelect}
               />
             ))}
           </div>

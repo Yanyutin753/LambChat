@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { PackageX } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
@@ -23,9 +24,15 @@ export function SkillsPanel({ embedded = false }: SkillsPanelProps) {
 
   const canRead = hasAnyPermission([Permission.SKILL_READ]);
   const canWrite = hasAnyPermission([Permission.SKILL_WRITE]);
+  const canDelete = hasAnyPermission([Permission.SKILL_DELETE]);
+  const canSelect = canWrite || canDelete;
   const canPublish = hasAnyPermission([Permission.MARKETPLACE_PUBLISH]);
 
   const actions = useSkillsActions();
+  const { selectionMode, batchLoading, clearSelection } = actions;
+  useEffect(() => {
+    if (!canSelect && selectionMode && !batchLoading) clearSelection();
+  }, [canSelect, selectionMode, batchLoading, clearSelection]);
 
   if (!canRead) {
     return (
@@ -72,6 +79,7 @@ export function SkillsPanel({ embedded = false }: SkillsPanelProps) {
         error={actions.error}
         clearError={actions.clearError}
         canWrite={canWrite}
+        canDelete={canDelete}
         canPublish={canPublish}
         selectedNames={actions.selectedNames}
         onToggle={actions.handleToggle}
@@ -101,7 +109,7 @@ export function SkillsPanel({ embedded = false }: SkillsPanelProps) {
       />
 
       <SkillFormSidebar
-        showModal={actions.showModal}
+        showModal={canWrite && actions.showModal}
         isCreating={actions.isCreating}
         editingSkill={actions.editingSkill}
         isLoading={actions.isLoading}
@@ -112,7 +120,7 @@ export function SkillsPanel({ embedded = false }: SkillsPanelProps) {
       />
 
       <ZipUploadModal
-        showZipModal={actions.showZipModal}
+        showZipModal={canWrite && actions.showZipModal}
         setShowZipModal={actions.setShowZipModal}
         zipFile={actions.zipFile}
         zipUploading={actions.zipUploading}
@@ -133,7 +141,7 @@ export function SkillsPanel({ embedded = false }: SkillsPanelProps) {
       />
 
       <GithubImportModal
-        showGithubModal={actions.showGithubModal}
+        showGithubModal={canWrite && actions.showGithubModal}
         setShowGithubModal={actions.setShowGithubModal}
         githubUrl={actions.githubUrl}
         setGithubUrl={actions.setGithubUrl}
@@ -151,20 +159,25 @@ export function SkillsPanel({ embedded = false }: SkillsPanelProps) {
         setSelectedGithubSkills={actions.setSelectedGithubSkills}
       />
 
-      {(actions.selectionMode || actions.batchLoading) && (
+      {((canSelect && actions.selectionMode) || actions.batchLoading) && (
         <BatchActionBar
           selectedCount={actions.selectedNames.size}
           batchLoading={actions.batchLoading}
           error={actions.batchError}
-          onRetry={actions.canBatchRetry ? actions.handleBatchRetry : undefined}
-          onBatchToggle={actions.handleBatchToggle}
-          onBatchDelete={actions.handleBatchDelete}
+          onRetry={
+            actions.canBatchRetry &&
+            (actions.batchAction === "delete" ? canDelete : canWrite)
+              ? actions.handleBatchRetry
+              : undefined
+          }
+          onBatchToggle={canWrite ? actions.handleBatchToggle : undefined}
+          onBatchDelete={canDelete ? actions.handleBatchDelete : undefined}
           onClearSelection={actions.clearSelection}
         />
       )}
 
       <ConfirmDialog
-        isOpen={actions.isDeleteConfirmOpen}
+        isOpen={canDelete && actions.isDeleteConfirmOpen}
         title={t("skills.confirmDelete", {
           name: actions.deleteConfirmData?.name || "",
         })}
@@ -179,7 +192,7 @@ export function SkillsPanel({ embedded = false }: SkillsPanelProps) {
       />
 
       <PublishDialog
-        publishConfirm={actions.publishConfirm}
+        publishConfirm={canPublish ? actions.publishConfirm : null}
         setPublishConfirm={actions.setPublishConfirm}
         onConfirm={actions.confirmPublish}
         isPublishing={actions.isPublishing}

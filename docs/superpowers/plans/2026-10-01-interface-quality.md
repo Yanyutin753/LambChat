@@ -1243,3 +1243,15 @@ IAB证据：320×568深色俄语筛选、分层Escape/Tab/清空；390×844浅�
 实屏：320×568中文深色角色标签选择→清空稳定root→Escape回标签且父More仍开；范围End/Enter选择回trigger。320×300范围向上至top12/bottom123、111px可滚动区、选中项可见，五项控件44px；标签75.81–173px，Tab回导出，父More保持。390×844中文浅色团队范围/标签，标签宽高≥44px。834×1112俄语sepia角色菜单及主操作换行完整；1440×900俄语深色团队菜单；390俄语浅色技能菜单共享hook回归，Escape回Filter且父More保持。所有抽检整页横溢0。截图在仓库外visualizations/resource-header：persona-320-short-scope、team-390-light-tags、persona-834-sepia-ru-scope（最终右对齐）、team-1440-dark-ru-tags。语言通过UI恢复中文，临时viewport/tab已清理；只读fixture写请求405，不证明保存、权限写入或真机软键盘。
 
 八项自检：原字号和阅读留白保留、长动作换行而不裁切；页头/搜索/菜单层级明确；三主题复用token；无新增装饰/动效/依赖，沿用reduced-motion；真实焦点/选择/关闭/Tab证据；手机短屏、平板和桌面边界可用；继续现有LambChat视觉语言。全站目标仍进行中，未闭合主清单不勾选；下一批优先核对技能写权限入口、剩余预览格式与编辑选择器组合，再补真实服务和原生设备验收。
+
+### 2026-10-03：技能权限入口与撤权焦点
+
+上一回合为 progress（985ec6d7）。开工 fetch/rebase 已确认最新 origin/develop；主 checkout、用户3017与其他预览保持不变。沿真实后端契约核对：skill:read 支持列表、文件、个人置顶/收藏；skill:write 管创建、导入、编辑、启停；skill:delete 与 marketplace:publish 各自独立。SkillsPanel/SkillsList/本地 SkillCard 按独立权限提供回调与入口，批量工具栏删除变为可选，Memory 原调用不变。只读保留搜索、筛选、偏好及 ZIP 导出入口，不再提供创建邀请、勾选或无权限编辑/启停/删除；没有新增只读详情页。弹层也由对应权限收敛；撤权且请求结束后清空旧选择，Retry 根据原失败操作权限提供，等待状态保持。
+
+7项真实组件/Hook/API边界测试先7failed后GREEN，覆盖读/写/删/发布独立组合、撤权清选择、失去写权限后的失败Retry及只读空状态。只读复核发现两个P2：持焦点Retry被撤权卸载、持焦点卡片checkbox被卸载。分别以实际 userEvent Tab/click 观察1failed6passed，再在 BatchActionBar 与共享 SkillBaseCard 记录持焦点控件，仅其断开时用既有 restoreOpenerFocusUnclaimed 恢复存活栏/卡片，保留其他控件或新弹层已拥有的焦点。最终复核未发现确定P1/P2，6个相关文件39项通过。最终全量798文件4030项通过、lint零错误/警告、tsc/Vite/PWA/build通过，预算未放宽：eager560463/561152 bytes、92条precache5027462/5242880 bytes。日志 /tmp/skill-permissions-tests-reviewed.log、skill-permissions-lint-reviewed.log、skill-permissions-build-reviewed.log；git diff --check通过。
+
+预览增加 skill-access=read|write|delete|publish，只限制技能域，其余域权限保留，不修改真实账号。IAB：390深色只读菜单只有取消置顶/取消收藏/导出；320×568浅色只读空状态无创建提示；390浅色写权限页头保留全选/GitHub/ZIP/新建，批量只有启用/禁用/清除且44×44px；320×300深色删除权限菜单无编辑/启停，批量仅删除/清除且44px，栏位240–300px；834 sepia发布权限菜单独立提供更新商店，无checkbox；1440浅色只读布局。抽检横溢0。截图在仓库外visualizations/resource-header。ZIP入口点击后IAB下载等待超时且无控制台错误，未取得下载文件证据，不宣称真实导出/写入已验收；fixture写请求405，不证明服务端持久化或设备触控。
+
+再次核对用户3017文件预览要求：390px原生查找浮层280×46px，展开前后代码top141px、height678.40625px不变；320px浮层left32/right312，无横溢，Cmd+F打开，choice匹配2处，Escape回代码预览。已有原生实现满足要求，不重复生产修改。截图file-native-find-390-dark.jpg；临时检查tab已关闭，用户tab未改。
+
+八项检查沿用排版/留白/层级、三主题token与reduced-motion，无新增装饰、动效或依赖；权限入口简化且触控尺寸保留，键盘恢复有真实组件测试与UI证据。npm exec --offline -- impeccable update仍报告未安装skill folders，按DESIGN清单人工验收。全站目标保持进行中；剩余预览格式、编辑选择器组合及真实服务/原生设备验收仍未闭合。

@@ -89,6 +89,7 @@ function Skills({ realList = false }: { realList?: boolean }) {
         <SkillsList
           {...a}
           canWrite
+          canDelete
           canPublish={false}
           onPublish={undefined}
           onToggle={a.handleToggle}

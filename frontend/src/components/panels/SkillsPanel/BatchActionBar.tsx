@@ -12,7 +12,7 @@ interface BatchActionBarProps {
   error?: string | null;
   onRetry?: () => void;
   onBatchToggle?: (enabled: boolean) => void;
-  onBatchDelete: () => void;
+  onBatchDelete?: () => void;
   onClearSelection: () => void;
 }
 
@@ -27,6 +27,12 @@ export function BatchActionBar({
 }: BatchActionBarProps) {
   const { t } = useTranslation();
   const barRef = useRef<HTMLDivElement>(null);
+  const focusedAction = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const action = focusedAction.current;
+    if (action && !action.isConnected)
+      restoreOpenerFocusUnclaimed(barRef.current, action);
+  });
   useLayoutEffect(() => {
     const bar = barRef.current;
     const panel = bar?.closest("[data-batch-panel]");
@@ -57,6 +63,9 @@ export function BatchActionBar({
       aria-label={`${t("skills.batchSelected")} ${selectedCount}`}
       aria-busy={batchLoading}
       tabIndex={-1}
+      onFocusCapture={(event) => {
+        focusedAction.current = event.target as HTMLElement;
+      }}
       onKeyDown={(event) => {
         if (
           event.key === "Escape" &&
@@ -129,19 +138,21 @@ export function BatchActionBar({
             </Button>
           </>
         )}
-        <Button
-          variant="danger"
-          size="sm"
-          aria-label={t("common.delete")}
-          title={t("common.delete")}
-          leftIcon={<Trash2 size={16} aria-hidden="true" />}
-          disabled={batchLoading}
-          onClick={() => run(onBatchDelete)}
-        >
-          <span className="resource-batch-bar__label">
-            {t("common.delete")}
-          </span>
-        </Button>
+        {onBatchDelete && (
+          <Button
+            variant="danger"
+            size="sm"
+            aria-label={t("common.delete")}
+            title={t("common.delete")}
+            leftIcon={<Trash2 size={16} aria-hidden="true" />}
+            disabled={batchLoading}
+            onClick={() => run(onBatchDelete)}
+          >
+            <span className="resource-batch-bar__label">
+              {t("common.delete")}
+            </span>
+          </Button>
+        )}
         <IconButton
           aria-label={t("common.clear")}
           title={t("common.clear")}
