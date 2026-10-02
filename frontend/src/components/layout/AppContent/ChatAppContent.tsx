@@ -134,12 +134,6 @@ export function ChatAppContent({
     enabled: canReadPersonaPresets,
     listParams: personaPresetListParams,
   });
-  const handlePersonaPresetSearchChange = useCallback((query: string) => {
-    setPersonaPresetQuery(query);
-  }, []);
-  const handlePersonaPresetTagChange = useCallback((tag: string | null) => {
-    setPersonaPresetTag(tag);
-  }, []);
   const hasMorePersonaPresets = personaPresets.length < personaPresetsTotal;
   const handleLoadMorePersonaPresets = useCallback(() => {
     if (!hasMorePersonaPresets || personaPresetsLoadingMore) return;
@@ -171,6 +165,9 @@ export function ChatAppContent({
     loadOlderHistory,
     agents,
     currentAgent,
+    agentsLoading,
+    agentsError,
+    refreshAgents,
     allowedModelIds: agentAllowedModelIds,
     connectionStatus,
     newlyCreatedSession,
@@ -884,8 +881,8 @@ export function ChatAppContent({
           onLoadMorePersonaPresets={handleLoadMorePersonaPresets}
           personaPresetsPage={personaPresetPage}
           onPersonaPresetsPageChange={setPersonaPresetPage}
-          onPersonaPresetsSearchChange={handlePersonaPresetSearchChange}
-          onPersonaPresetsTagChange={handlePersonaPresetTagChange}
+          onPersonaPresetsSearchChange={setPersonaPresetQuery}
+          onPersonaPresetsTagChange={setPersonaPresetTag}
           selectedPersonaPresetId={sessionConfig.personaPresetId}
           selectedPersonaName={sessionConfig.personaSnapshot?.name || null}
           selectedPersonaSnapshot={sessionConfig.personaSnapshot}
@@ -907,6 +904,9 @@ export function ChatAppContent({
           onToggleAgentOption={changeOption}
           modelSupportsThinking={modelSupportsThinking}
           agents={agents}
+          agentsLoading={agentsLoading}
+          agentsError={agentsError}
+          onRetryAgents={refreshAgents}
           currentAgent={currentAgent}
           onSelectAgent={switchAgent}
           selectedTeamId={selectedTeamId}

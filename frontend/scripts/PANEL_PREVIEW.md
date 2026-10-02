@@ -98,3 +98,5 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 团队成员目录走查：`/team?failure=team-roles` 仅让编辑器角色目录的20项分页首次 GET 503，重试恢复；搜索沿用服务端 `q`，翻页后查询回第一页。新的 `run` 参数可重放，可检查成员默认摘要、长名称、局部 Escape、搜索加载/空结果/失败重试，以及翻页和重试回到搜索框的焦点。其它写操作仍405；添加或调整成员仅修改本页草稿，不写真实团队，也不证明真机触屏或软键盘。
 
 模型与助手目录走查：`/team?failure=catalog-models` 或 `failure=catalog-agents` 分别让可用模型 GET、助手目录 GET 首次503，重试恢复。`/chat/preview-report?failure=catalog-models` 可检查标题栏和个人设置的模型目录；`failure=catalog-preference` 让个人偏好中的已保存助手偏好 GET 首次503，重试恢复。新的 `run` 参数可重放。可检查紧凑错误反馈、手机44px重试、焦点保留和现有草稿/选择不被失败清空；其它写操作仍405，不证明真实保存、认证或设备行为。
+
+聊天助手模式走查：`/chat/preview-report?failure=catalog-agents&agent-flow=1` 让助手目录读取等待2秒、首次503、重试恢复；模式入口保持可见，等待期间显示紧凑状态并保持焦点。`agents=empty` / `agents=single` 分别返回成功空目录和单助手，可检查空提示、选择和关闭。可组合三主题与新的 `run` 参数；只修改 GET fixture，写请求仍405，没有真实对话或偏好保存。

@@ -847,3 +847,19 @@ IAB独立3018最终视觉与操作证据：390×844深色团队模型503，成�
 八项人工自检：保留表单字体与标签尺度；紧凑状态不铺满新卡片且分组留白保留；标题/字段/状态/重试层级清楚；复用深浅及暖色主题；spinner支持减弱动态且无新增装饰动画；失败、重试、焦点、禁用、草稿与迟到响应可验证；320/390/834/1440和俄语长文案无本批溢出；沿用LambChat组件与原生编辑器。Impeccable未安装，按DESIGN.md同一清单人工检查。最终lint零错误零警告；build含tsc/Vite/PWA/性能预算通过，eager JavaScript559229/561152 bytes、precache5021068/5242880 bytes、91 entries，未提高预算。最后生产修改后的全量测试与build已完成。
 
 全界面目标继续进行。剩余聊天助手目录失败、个人偏好及其它表单写入恢复、选择器/弹层/长语言与空错加载组合，以及真实服务和设备证据继续核查，不以本批门禁宣告整体完成。
+
+## 2026-10-02 聊天助手模式目录与紧凑状态
+
+上一目标回合完成模型/偏好读取恢复并提交，本回合属于实际进展。继续现有隔离worktree，fetch/rebase到最新origin/develop f03e8f88，上一提交rebase为bb983504；主checkout与用户3017服务保留。追踪真实调用链发现AgentSelector已无实际使用，聊天使用ChatInputToolbar→ChatInputSelectors→AgentModeSelector；未改闲置组件。useAgentList原来目录失败只console.error、入口按条数消失；普通刷新和偏好刷新重复实现且迟到响应会覆盖新选择/提前结束loading。
+
+合并两条读取路径，显式加载/失败状态，经useAgent→ChatAppContent→ChatView→ChatInput透传。每次读取记录请求序号，旧请求不能覆盖目录、模型访问范围、当前选择或等待/错误状态，卸载失效；失败保留已知数据。偏好刷新在响应落地时只于无消息状态应用新默认，普通重试保留原选择。模式入口在初始失败、空目录和单助手状态保持可达，加载/错误沿用既有spinner和AlertCircle及已翻译的title；选择器复用CatalogStatus，等待/错误时禁用原选项，重试聚焦稳定内容容器。成功空目录使用现有common.noResults，不伪造失败或空白。选中按钮增加aria-pressed；未知模式入口有具名标签。说明使用现有次级文字token、自然换行，删除truncate与transition-all。沿用共享弹层并复用modal-size-md，外层和可见内容统一448px，取消40vh的空白最小高度；手机保持全宽与已有安全区、手势/焦点/关闭机制。无新API、写入、依赖、素材、主题token或翻译键。
+
+5项新增行为测试先全部RED，再GREEN，覆盖失败刷新保留选择及model access、竞争响应与loading归属、偏好切默认边界、无目录重试恢复稳定焦点、成功空目录与Escape回入口。初轮build揭示ChatView类型/透传缺失，补齐真实中间层后原生错误入口得到正确状态。全量揭示ChatInput及ChatAppContent既有行数门禁越界，删除两层只调用React setter的回调、直接传稳定setter/refreshAgents，将重复agents.find/IIFE提为当前助手信息，i18n使用现有hook返回值；两个门禁保持原阈值并恢复通过，未为预算另建抽象。独立只读复核及两次增量复核无确定P1/P2。
+
+IAB独立3018：390×844深色首次503时入口具名“选择模式·加载失败”，错误sheet紧凑、Retry高44px，输入草稿“目录恢复后保留这段草稿”在重试及Escape后仍在，恢复焦点为稳定DIV，Escape回快速助手入口。320×740浅色2秒重试等待aria-busy=true、焦点DIV、overflow0；恢复选项可用。320×740暖色成功空目录显示未找到结果，sheet181.17px、Escape可关闭。1440×900及834×1112浅色单助手面板448×194.875px、overflow0，仍有可用关闭/选中入口。320×300深色俄语sheet在top16px内、height284px，说明换行，内容344px在173px区域滚动，Tab到最后团队选项时自动滚入可见范围，Escape回原入口；390×844俄语长说明全部可读。临时语言恢复中文，最终390深色普通三选项sheet337.67px、overflow0。截图保存在仓库外interface-quality目录：chat-modes-390-dark-error-final、chat-modes-390-dark-recovered-final、chat-modes-320-light-error-final、chat-modes-320-light-loading-final、chat-modes-320-sepia-empty-final、chat-modes-1440-light-single-final、chat-modes-834-light-single-final、chat-modes-320-dark-ru-short-final、chat-modes-390-dark-ru-final、chat-modes-390-dark-options-complete。早期834/1440宽外壳截图不作为最终尺寸证据。预览只扩展GET等待/空/单助手，其他写请求仍405；不证明真实认证、偏好写入、模型对话、真机触屏或软键盘。
+
+八项人工自检：保持现有标题/衬线模式名称/正文尺度；错误与少量选项按内容收高、保留分组留白；标题、当前模式、说明、重试层级明确；使用当前三主题与次级文字token；无新动画，已有modal/spinner尊重reduced-motion；错误、重试、禁用、选择、焦点、Tab与迟到响应有验证；320/390/834/1440及俄语短屏无本批溢出；复用LambChat组件与既有标准尺寸。沿用Impeccable不可用环境的DESIGN.md交付清单。最后生产修改后779文件/3808项前端测试通过，lint零错误零警告，build含tsc/Vite/PWA/预算通过：eager JavaScript559234/561152 bytes、precache5022200/5242880 bytes、91 entries。git diff --check通过，未提高行数或性能预算。
+
+本轮临时3018服务和走查标签页已回收、视口恢复；原checkout仍只有既有.v2c/.video_agent未跟踪目录，用户3017服务PID92955与其页面保留。
+
+全界面目标保持进行中；个人偏好保存失败、个人资料及其它表单写入恢复、剩余选择器/弹层/长语言/空错加载组合，以及真实服务和设备证据仍需继续，不据本批门禁宣告整体完成。

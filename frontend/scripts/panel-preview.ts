@@ -1824,6 +1824,16 @@ const server = await createServer({
                   url.pathname === "/api/agents"
                 ? { agents, count: agents.length, default_agent: "team" }
                 : response(url, scenario, chatState);
+          if (url.pathname === "/api/agents") {
+            if (previewParams.get("agents") === "empty")
+              data = { agents: [], count: 0 };
+            else if (previewParams.get("agents") === "single")
+              data = {
+                agents: agents.slice(0, 1),
+                count: 1,
+                default_agent: "fast",
+              };
+          }
           if (
             previewParams.has("file-flow") &&
             /^\/api\/skills\/[^/]+$/.test(url.pathname)
@@ -2135,6 +2145,12 @@ const server = await createServer({
             );
           if (scenario === "loading" && !url.pathname.startsWith("/api/auth/"))
             setTimeout(send, 8000);
+          else if (
+            previewParams.has("agent-flow") &&
+            isRead &&
+            url.pathname === "/api/agents"
+          )
+            setTimeout(send, 2000);
           else if (
             previewParams.get("team-flow") === "1" &&
             isRead &&

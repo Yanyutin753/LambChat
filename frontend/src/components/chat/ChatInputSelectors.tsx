@@ -87,6 +87,9 @@ export interface ChatInputSelectorsProps {
   canManagePersonaPresets?: boolean;
   // Agent mode
   agents?: AgentInfo[];
+  agentsLoading?: boolean;
+  agentsError?: boolean;
+  onRetryAgents?: () => void;
   currentAgent?: string;
   onSelectAgent?: (id: string) => void;
   selectedTeamId?: string | null;
@@ -137,6 +140,9 @@ export function ChatInputSelectors({
   onClearPersonaPreset,
   canManagePersonaPresets = false,
   agents = [],
+  agentsLoading = false,
+  agentsError = false,
+  onRetryAgents,
   currentAgent,
   onSelectAgent,
   selectedTeamId,
@@ -389,6 +395,9 @@ export function ChatInputSelectors({
       )}
       <AgentModeSelector
         agents={agents}
+        isLoading={agentsLoading}
+        error={agentsError}
+        onRetry={onRetryAgents}
         currentAgent={currentAgent || ""}
         onSelectAgent={onSelectAgent}
         isOpen={activePanel === "agent"}
