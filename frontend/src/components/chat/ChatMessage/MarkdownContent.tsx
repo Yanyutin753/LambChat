@@ -7,8 +7,10 @@ import React, {
   useContext,
   useCallback,
   memo,
-  useState,
+  useEffect,
   useId,
+  useRef,
+  useState,
 } from "react";
 import { Check, Download, Table2, Code2, X, Minus } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -141,8 +143,23 @@ function InlineCode({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
   const { copied, failed, copying, copy } = useClipboardCopy(String(children));
   const label = t(copied ? "chat.message.copied" : "chat.message.copyCode");
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [insideLink, setInsideLink] = useState(false);
+  useEffect(() => {
+    // A copy <button> nested in an <a> is invalid HTML and double-interactive;
+    // inline code inside links stays a plain, non-interactive <code>.
+    setInsideLink(!!buttonRef.current?.closest("a"));
+  }, []);
+  if (insideLink) {
+    return (
+      <code className="rounded bg-theme-bg-code px-1.5 py-0.5 text-14 text-theme-text font-mono">
+        {children}
+      </code>
+    );
+  }
   return (
     <button
+      ref={buttonRef}
       type="button"
       className="rounded bg-theme-bg-code px-1.5 py-0.5 text-14 text-theme-text font-mono cursor-pointer hover:bg-theme-bg-hover transition-colors"
       disabled={copying}

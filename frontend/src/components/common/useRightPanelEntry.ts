@@ -1,4 +1,7 @@
-import { topmostVisibleModalDialog } from "../../utils/modalDialog";
+import {
+  topmostVisibleDialog,
+  topmostVisibleModalDialog,
+} from "../../utils/modalDialog";
 import {
   createContext,
   useContext,
@@ -216,8 +219,16 @@ export function useRightPanelFocus({
 
     const trapTab = (event: KeyboardEvent) => {
       if (event.key !== "Tab" || event.defaultPrevented) return;
-      const dialog = topmostVisibleModalDialog();
-      if (!panelRef.current || !dialog?.contains(panelRef.current)) return;
+      const panel = panelRef.current;
+      if (!panel) return;
+      // Same ownership rule as useDialogFocus: the panel keeps the Tab cycle
+      // when the topmost visible dialog (modal or not) contains it.
+      const top = topmostVisibleDialog();
+      const topModal = topmostVisibleModalDialog();
+      if (
+        !(top?.contains(panel) || topModal?.contains(panel))
+      )
+        return;
 
       const focusable = [
         ...(panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []),
@@ -233,7 +244,9 @@ export function useRightPanelFocus({
 
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
-      if (document.activeElement === dialog) {
+      const panelHost =
+        panelRef.current?.closest<HTMLElement>('[role="dialog"]') ?? null;
+      if (document.activeElement === panelHost) {
         event.preventDefault();
         (event.shiftKey ? last : first).focus();
       } else if (event.shiftKey && document.activeElement === first) {

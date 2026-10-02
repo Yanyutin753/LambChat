@@ -79,7 +79,8 @@ export function ListCard({
           aria-controls={ctx.menu ? ctx.menuId : undefined}
           onClick={(e) => {
             e.stopPropagation();
-            ctx.show(e, file);
+            if (ctx.menu) ctx.hide(true);
+            else ctx.show(e, file);
           }}
           className="flex size-11 sm:size-7 items-center justify-center shrink-0 rounded-md text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-subtle transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
         >

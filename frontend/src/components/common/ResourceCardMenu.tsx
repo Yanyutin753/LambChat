@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { topmostVisibleDialog } from "../../utils/modalDialog";
 
 export type ResourceCardAction = {
   label: string;
@@ -84,6 +85,12 @@ export function ResourceCardMenu({
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229)
         return;
       if (event.key === "Escape" || event.key === "Tab") {
+        // When focus has moved into a newer foreground overlay, this menu
+        // must not swallow its Escape/Tab from the document capture phase.
+        if (!menu.contains(document.activeElement)) {
+          const top = topmostVisibleDialog();
+          if (top && !top.contains(menu)) return;
+        }
         if (event.key === "Escape") {
           event.preventDefault();
           event.stopImmediatePropagation();
