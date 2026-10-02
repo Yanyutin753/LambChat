@@ -1112,3 +1112,17 @@ LocalSandboxSection复用usePreferenceWrites统一配对、策略、重启和取
 最终789文件3950项测试、lint零错误警告、tsc/Vite/PWA/build与预算通过；eager560324/561152 bytes、precache93项5032728/5242880 bytes，未放宽预算。日志/tmp/session-search-*-delivery.log，git diff --check通过。
 
 全站目标仍进行中。跨断点实屏确认新缺口：834桌面搜索缩到390后查询和选中项保留，Escape关闭却退到BODY，因为桌面opener已卸载。下一轮优先修复共享弹层在opener消失后的焦点归还，并继续其余编辑流程和五语状态矩阵；真实服务及原生设备保留为未验证边界，不据本批门禁宣称全站完成。
+
+### 2026-10-02：跨断点弹层与编辑器的焦点归还
+
+上一目标回合提供文件原生搜索的当前渲染与21项相关检查，属于 progress。本轮继续原全站目标，interface-state 开工 clean，fetch 确认最新 origin/develop 为 HEAD 祖先；未修改主 checkout、mobile-density 或用户3017。
+
+复用侧面板已有的焦点回退顺序，在 modalDialog 统一实现：优先恢复可用原入口；入口卸载、隐藏或禁用时，回到仍打开的弹层、原面板选中控件或可见页面导航。过滤隐藏/inert/aria-hidden祖先与CSS隐藏，不进入已关闭的手机抽屉；保留其他任务或新弹层已经获得的焦点，恢复使用 preventScroll。useDialogFocus 在原入口消失或原焦点为BODY时等待背景inert清理。侧面板删除重复回退代码并调用共享函数。富文本编辑器保留隐式焦点能力；没有控件的header不能中断后续main回退。
+
+10项新增行为回归分别先RED再GREEN：首批5项失败；富文本、未聚焦原入口、无控件header各1项失败；嵌套编辑器原入口卸载且有/无剩余控件2项失败。真实ModalSurface/EditorSidebar与平台边界验证背景解锁、关闭/新打开归属、所选页签及父弹层焦点。相关8文件73项通过。独立只读审查发现ES2023 findLast与已卸载嵌套入口提前返回两个P2，分别改用ES2020 reverse/find和仅对仍连接入口执行范围守卫；最终复核确认两项关闭，无其他确定P1/P2。
+
+3018真实IAB检查：834桌面搜索缩到390/320后查询与输入焦点保留，Escape返回“展开侧边栏”；320×600按钮44×44、focus-visible=true、页面溢出0。390手机搜索放大到834时输入和查询保留，关闭返回可见页头控件。手机抽屉内关闭搜索先回到搜索入口，再Escape关闭抽屉回到展开按钮；文件侧面板关闭回到会话文件入口。1440浅色技能编辑器缩到390为fullscreen，关闭返回当前“技能中心”页签（44px高），无横向溢出。截图与JSON在仓库外responsive-dialog-focus目录；没有执行保存、创建或真实设备输入。旧86标签观察两次超时，保留原标签和服务，用同一浏览器新87/88标签取得实屏证据，未重启现有运行时。
+
+八项自检：排版、留白、层级及色彩保持现有组件/token；无新增动效，继续现有reduced-motion处理；微交互改善关闭与返回且不抢焦点；320/390/834/1440真实响应式检查；沿用LambChat视觉语言而不增加装饰、依赖或另一套控件。无新增文案，五语沿用现有名称。npx --offline impeccable update仍报告未安装skill folders，按DESIGN清单人工检查。最终789文件3960项全量测试、lint零错误警告、tsc/Vite/PWA/build与体积预算通过：eager560322/561152 bytes、precache93项5032890/5242880 bytes，保留既有异步块500kB提示，未提高预算。日志/tmp/responsive-focus-*-final.log，git diff --check通过。
+
+全站目标保持进行中。继续剩余编辑流程的完整窄屏布局、键盘与空错加载反馈及五语矩阵；本轮共享焦点修复不等于全部页面完成验收。真实服务、原生桌面/手机与软键盘证据仍未闭合。
