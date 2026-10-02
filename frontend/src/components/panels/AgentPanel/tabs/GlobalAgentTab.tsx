@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useId } from "react";
 import { Pencil, Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "../../../../i18n";
@@ -13,6 +13,7 @@ import {
   resolveAgentDisplayName,
 } from "../../../agent/agentCatalog";
 import { ToggleSwitch } from "../shared/ToggleSwitch";
+import { ConfigPanelErrorCallout } from "../../ConfigPanelErrorCallout";
 import type { AgentConfig, AgentCatalogLabels } from "../../../../types";
 
 interface GlobalAgentTabProps {
@@ -29,8 +30,10 @@ export function GlobalAgentTab({
   isSaving,
 }: GlobalAgentTabProps) {
   const { t } = useTranslation();
+  const formId = useId();
   const [localAgents, setLocalAgents] = useState<AgentConfig[]>(agents);
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [activeLocale, setActiveLocale] = useState<string>(
     i18n.language?.split("-")[0] || "zh",
   );
@@ -78,10 +81,11 @@ export function GlobalAgentTab({
   const hasChanges = JSON.stringify(localAgents) !== JSON.stringify(agents);
 
   const handleSave = async () => {
+    setSaveError(null);
     try {
       await onUpdate(localAgents);
     } catch (err) {
-      console.error("Failed to save:", err);
+      setSaveError((err as Error).message || t("agentConfig.saveFailed"));
     }
   };
 
@@ -91,6 +95,9 @@ export function GlobalAgentTab({
 
   return (
     <div className="space-y-4">
+      {saveError && !editingAgent && (
+        <ConfigPanelErrorCallout message={saveError} />
+      )}
       <p className="hidden px-1 text-14 leading-relaxed text-theme-text-secondary sm:block">
         {t("agentConfig.globalDescription")}
       </p>
@@ -114,7 +121,8 @@ export function GlobalAgentTab({
                 <button
                   type="button"
                   onClick={() => setEditingAgentId(agent.id)}
-                  className="flex min-w-0 flex-1 items-center gap-3.5 text-left"
+                  aria-label={displayName}
+                  className="flex min-h-11 min-w-0 flex-1 items-center gap-3.5 rounded-lg text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-ring)]"
                 >
                   <div className="flex size-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[var(--glass-bg-subtle)] text-theme-text-secondary ring-1 ring-[var(--glass-border)] transition-all duration-200 group-hover:bg-[var(--glass-bg-hover)]">
                     <AgentIcon icon={agent.icon || "Bot"} size={20} />
@@ -178,20 +186,29 @@ export function GlobalAgentTab({
           icon={<AgentIcon icon={editingAgent.icon || "Bot"} size={18} />}
           footer={
             hasChanges ? (
-              <PanelFooterActions>
-                <Button onClick={() => setEditingAgentId(null)}>
-                  {t("common.cancel")}
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={handleSave}
-                  loading={isSaving}
-                  leftIcon={<Save size={16} />}
-                  className="px-5 py-2.5 text-14"
-                >
-                  {t("common.save")}
-                </Button>
-              </PanelFooterActions>
+              <div className="space-y-2">
+                {saveError && (
+                  <ConfigPanelErrorCallout
+                    message={saveError}
+                    tabIndex={0}
+                    className="max-h-32 overflow-y-auto"
+                  />
+                )}
+                <PanelFooterActions>
+                  <Button onClick={() => setEditingAgentId(null)}>
+                    {t("common.cancel")}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={handleSave}
+                    loading={isSaving}
+                    leftIcon={<Save size={16} />}
+                    className="px-5 py-2.5 text-14"
+                  >
+                    {t("common.save")}
+                  </Button>
+                </PanelFooterActions>
+              </div>
             ) : undefined
           }
         >
@@ -200,9 +217,9 @@ export function GlobalAgentTab({
             <div className="es-section">
               <div className="es-row">
                 <div className="es-field">
-                  <label className="es-label">
+                  <span className="es-label">
                     {t("agentConfig.agentIcon", "图标")}
-                  </label>
+                  </span>
                   <AgentIconSelect
                     value={editingAgent.icon || ""}
                     onChange={(value) => updateEditingAgent({ icon: value })}
@@ -215,10 +232,11 @@ export function GlobalAgentTab({
                   </p>
                 </div>
                 <div className="es-field">
-                  <label className="es-label">
+                  <label className="es-label" htmlFor={`${formId}-sort`}>
                     {t("agentConfig.sortOrder", "排序")}
                   </label>
                   <Input
+                    id={`${formId}-sort`}
                     type="number"
                     value={editingAgent.sort_order ?? 100}
                     onChange={(event) =>
@@ -234,24 +252,24 @@ export function GlobalAgentTab({
 
             {/* Localized Content */}
             <div className="es-section">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="es-section-title">
                   {t("agentConfig.localeContent", "多语言内容")}
                 </div>
                 <div className="flex gap-0.5">
                   {AGENT_CATALOG_LOCALES.map((locale) => (
-                    <button
+                    <Button
                       key={locale.code}
-                      type="button"
+                      size="sm"
+                      variant={
+                        activeLocale === locale.code ? "secondary" : "ghost"
+                      }
+                      aria-pressed={activeLocale === locale.code}
                       onClick={() => setActiveLocale(locale.code)}
-                      className={`rounded px-1.5 py-0.5 text-11 font-medium transition-colors duration-150 ${
-                        activeLocale === locale.code
-                          ? "bg-[var(--theme-bg-subtle)] text-[var(--theme-text)]"
-                          : "text-theme-text-secondary hover:text-[var(--theme-primary)]"
-                      }`}
+                      className="min-w-11 text-12"
                     >
                       {locale.code.toUpperCase()}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -262,40 +280,53 @@ export function GlobalAgentTab({
                 )}
               </p>
 
-              <Input
-                type="text"
-                value={editingAgent.labels?.[activeLocale]?.name || ""}
-                onChange={(event) =>
-                  updateEditingAgentLabel(
-                    activeLocale,
-                    "name",
-                    event.target.value,
-                  )
-                }
-                placeholder={t("agentConfig.displayName", {
-                  lng: activeLocale,
-                  defaultValue:
-                    activeLocale === "zh" ? "显示名称" : "Display Name",
-                })}
-                className="es-input"
-              />
+              <div className="es-field">
+                <label className="es-label" htmlFor={`${formId}-name`}>
+                  {t("agentConfig.displayName", { lng: activeLocale })}
+                </label>
+                <Input
+                  id={`${formId}-name`}
+                  type="text"
+                  value={editingAgent.labels?.[activeLocale]?.name || ""}
+                  onChange={(event) =>
+                    updateEditingAgentLabel(
+                      activeLocale,
+                      "name",
+                      event.target.value,
+                    )
+                  }
+                  placeholder={t("agentConfig.displayName", {
+                    lng: activeLocale,
+                    defaultValue:
+                      activeLocale === "zh" ? "显示名称" : "Display Name",
+                  })}
+                  className="es-input"
+                />
+              </div>
 
-              <Textarea
-                value={editingAgent.labels?.[activeLocale]?.description || ""}
-                onChange={(event) =>
-                  updateEditingAgentLabel(
-                    activeLocale,
-                    "description",
-                    event.target.value,
-                  )
-                }
-                placeholder={t("agentConfig.displayDescription", {
-                  lng: activeLocale,
-                  defaultValue: activeLocale === "zh" ? "描述" : "Description",
-                })}
-                rows={2}
-                className="es-textarea resize-y"
-              />
+              <div className="es-field">
+                <label className="es-label" htmlFor={`${formId}-description`}>
+                  {t("agentConfig.displayDescription", { lng: activeLocale })}
+                </label>
+                <Textarea
+                  id={`${formId}-description`}
+                  value={editingAgent.labels?.[activeLocale]?.description || ""}
+                  onChange={(event) =>
+                    updateEditingAgentLabel(
+                      activeLocale,
+                      "description",
+                      event.target.value,
+                    )
+                  }
+                  placeholder={t("agentConfig.displayDescription", {
+                    lng: activeLocale,
+                    defaultValue:
+                      activeLocale === "zh" ? "描述" : "Description",
+                  })}
+                  rows={2}
+                  className="es-textarea resize-y"
+                />
+              </div>
             </div>
           </div>
         </EditorSidebar>

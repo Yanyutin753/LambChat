@@ -12,24 +12,22 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Share2,
-  Copy,
   Trash2,
   Globe,
   Lock,
   Loader2,
-  Check,
   X,
   AlertTriangle,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { SkeletonList } from "../skeletons";
 import { Checkbox } from "../common/Checkbox";
-import { IconButton } from "../common/ui";
+import { CopyButton } from "../common/CopyButton";
+import { IconButton, ToolbarIconButton } from "../common/ui";
 import { shareApi } from "../../services/api/share";
 import { sessionApi } from "../../services/api/session";
 import type { SharedSession, ShareType, ShareVisibility } from "../../types";
 
-import { copyToClipboard } from "../../utils/clipboard";
 import { getFullUrl } from "../../services/api/config";
 import {
   PROJECT_SHARE_SESSION_LIMIT,
@@ -69,7 +67,6 @@ export function ShareProjectDialog({
   const [isLoadingShares, setIsLoadingShares] = useState(false);
   const [hasLoadedShares, setHasLoadedShares] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const loadExistingShares = useCallback(async () => {
     setIsLoadingShares(true);
@@ -147,12 +144,6 @@ export function ShareProjectDialog({
     } finally {
       setIsCreating(false);
     }
-  };
-
-  const handleCopy = async (shareId: string) => {
-    await copyToClipboard(getFullUrl(`/shared/${shareId}`) ?? "");
-    setCopiedId(shareId);
-    setTimeout(() => setCopiedId(null), 1500);
   };
 
   const handleDelete = async (shareDbId: string) => {
@@ -411,9 +402,9 @@ export function ShareProjectDialog({
                 {existingShares.map((share) => (
                   <div
                     key={share.id}
-                    className="flex items-center justify-between p-3 bg-stone-50 dark:bg-stone-900/50 rounded-lg border border-stone-200 dark:border-stone-700"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-stone-50 dark:bg-stone-900/50 rounded-lg border border-stone-200 dark:border-stone-700"
                   >
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
                       {share.visibility === "public" ? (
                         <Globe
                           size={14}
@@ -436,31 +427,21 @@ export function ShareProjectDialog({
                         )
                       </span>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleCopy(share.share_id)}
-                        className="p-1.5 rounded hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
-                        title={t("share.copyLink")}
-                      >
-                        {copiedId === share.share_id ? (
-                          <Check size={14} className="text-green-500" />
-                        ) : (
-                          <Copy
-                            size={14}
-                            className="text-stone-400 dark:text-stone-500"
-                          />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(share.id)}
-                        className="p-1.5 rounded hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
+                    <div className="flex items-center justify-end gap-1 shrink-0">
+                      <CopyButton
+                        text={
+                          getFullUrl(`/shared/${share.share_id}`) ||
+                          `${window.location.origin}/shared/${share.share_id}`
+                        }
+                        label={t("share.copyLink")}
+                      />
+                      <ToolbarIconButton
+                        aria-label={t("share.deleteShare")}
                         title={t("share.deleteShare")}
-                      >
-                        <Trash2
-                          size={14}
-                          className="text-stone-400 hover:text-red-500 dark:text-stone-500 dark:hover:text-red-400"
-                        />
-                      </button>
+                        onClick={() => handleDelete(share.id)}
+                        icon={<Trash2 size={14} />}
+                        className="hover:text-theme-error"
+                      />
                     </div>
                   </div>
                 ))}

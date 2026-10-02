@@ -1,53 +1,66 @@
-import { useState, useCallback } from "react";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, AlertCircle } from "lucide-react";
 import { clsx } from "clsx";
 import { useTranslation } from "react-i18next";
-import toast from "react-hot-toast";
-import { copyToClipboard } from "../../utils/clipboard";
+import { useClipboardCopy } from "../../hooks/useClipboardCopy";
+import { Button } from "./ui/Button";
 
 export function CopyButton({
   text,
   size = 14,
   className,
   label,
+  showLabel = false,
 }: {
-  text: string;
+  text: string | (() => string);
   size?: number;
   className?: string;
   label?: string;
+  showLabel?: boolean;
 }) {
   const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
+  const { copied, failed, copying, copy } = useClipboardCopy(text);
 
-  const handleCopy = useCallback(async () => {
-    if (!text) return;
-    await copyToClipboard(text);
-    setCopied(true);
-    toast.success(t("chat.message.copied"));
-    setTimeout(() => setCopied(false), 2000);
-  }, [text, t]);
-
+  const actionLabel = copied
+    ? t("chat.message.copied")
+    : label || t("chat.message.copy");
   return (
-    <button
-      onClick={handleCopy}
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={(event) => {
+        event.stopPropagation();
+        void copy();
+      }}
+      disabled={copying || (typeof text === "string" && !text)}
+      aria-label={actionLabel}
+      aria-description={failed ? t("chat.message.copyFailed") : undefined}
+      aria-busy={copying || undefined}
+      title={failed ? t("chat.message.copyFailed") : actionLabel}
       className={clsx(
-        "grid place-items-center w-7 h-7 rounded-md transition-all touch-manipulation shrink-0",
-        copied
-          ? "text-green-600 dark:text-green-400"
-          : "text-stone-400 hover:text-stone-600 hover:bg-stone-200/50 dark:text-stone-500 dark:hover:text-stone-300 dark:hover:bg-stone-700/50",
+        "copy-button touch-manipulation shrink-0",
+        !showLabel && "ui-icon-button",
         className,
       )}
-      title={
-        label
-          ? copied
-            ? t("chat.message.copied")
-            : label
-          : copied
-            ? t("chat.message.copied")
-            : t("chat.message.copy")
+      style={{
+        color: copied
+          ? "var(--theme-success)"
+          : failed
+            ? "var(--theme-error)"
+            : undefined,
+      }}
+      leftIcon={
+        copied ? (
+          <Check size={size} aria-hidden="true" />
+        ) : failed ? (
+          <AlertCircle size={size} aria-hidden="true" />
+        ) : (
+          <Copy size={size} aria-hidden="true" />
+        )
       }
     >
-      {copied ? <Check size={size} /> : <Copy size={size} />}
-    </button>
+      {showLabel
+        ? t(copied ? "chat.message.copied" : "chat.message.copy")
+        : undefined}
+    </Button>
   );
 }

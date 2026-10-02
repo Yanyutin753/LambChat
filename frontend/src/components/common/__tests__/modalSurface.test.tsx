@@ -10,7 +10,41 @@ import { afterEach, expect, test, vi } from "vitest";
 import { ModalSurface } from "../ModalSurface";
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.useRealTimers();
+});
+
+test("closing a modal unlocks its background before returning focus", async () => {
+  const nativeFocus = HTMLElement.prototype.focus;
+  vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(function (
+    this: HTMLElement,
+    options,
+  ) {
+    if (!this.closest("[inert]")) nativeFocus.call(this, options);
+  });
+  const view = (open: boolean) => (
+    <div id="root">
+      <button>Background opener</button>
+      <ModalSurface open={open} onClose={() => {}} label="Details">
+        Details
+      </ModalSurface>
+    </div>
+  );
+  const { rerender } = render(view(false));
+  const root = document.getElementById("root")!;
+  // jsdom does not implement native inert reflection or its focus boundary.
+  Object.defineProperty(root, "inert", {
+    configurable: true,
+    get: () => root.hasAttribute("inert"),
+    set: (value) => root.toggleAttribute("inert", value),
+  });
+  const opener = screen.getByRole("button", { name: "Background opener" });
+  opener.focus();
+  rerender(view(true));
+  expect(screen.getByRole("dialog")).toHaveFocus();
+  await act(async () => rerender(view(false)));
+  expect(root.inert).toBe(false);
+  expect(opener).toHaveFocus();
 });
 test.each([{ isComposing: true }, { keyCode: 229 }])(
   "Escape belongs to the IME candidate window during composition (%j)",

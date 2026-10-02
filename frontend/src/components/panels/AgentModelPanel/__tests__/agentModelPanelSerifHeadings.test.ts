@@ -51,7 +51,7 @@ test("agent list item names use font-serif", () => {
 
 test("model list item names use font-serif", () => {
   expect(rolesModelTabSource).toMatch(
-    /<div className="truncate text-14 font-medium font-serif/,
+    /<div className="line-clamp-2 text-14 font-medium font-serif/,
   );
   expect(modelConfigTabSource).toMatch(
     /<h4 className="text-14 font-semibold font-serif/,
@@ -59,7 +59,9 @@ test("model list item names use font-serif", () => {
 });
 
 test("roles agent tab section header row uses font-serif like roles model tab", () => {
-  expect(rolesModelTabSource).toMatch(/justify-between gap-3 font-serif/);
+  expect(rolesModelTabSource).toMatch(
+    /justify-between gap-x-3 gap-y-1 font-serif/,
+  );
   expect(rolesAgentTabSource).toMatch(
     /glass-bg-subtle\)\] px-4 py-2\.5 font-serif/,
   );

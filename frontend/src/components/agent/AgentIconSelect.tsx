@@ -1,9 +1,9 @@
-import { getFluentEmojiCDN } from "@lobehub/fluent-emoji";
-import { Smile } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AgentIcon } from "./AgentIcon";
-import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
+import { ModalSurface } from "../common/ModalSurface";
+import { Button, IconButton } from "../common";
 
 const AGENT_ICON_EMOJIS: { emoji: string; labelKey: string }[] = [
   { emoji: "✨", labelKey: "personaPresets.emojiSparkles" },
@@ -35,63 +35,60 @@ export const AgentIconSelect = React.memo(function AgentIconSelect({
 }: AgentIconSelectProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (event: MouseEvent) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
+  const icon = value.trim();
+  const selectedIcon = !icon || icon === "Bot" ? "🤖" : icon;
 
   return (
-    <div ref={containerRef} className="relative">
-      <button
-        type="button"
-        className="ppe-avatar-hint-btn"
+    <>
+      <Button
+        size="sm"
+        aria-label={t("personaPresets.pickIcon")}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        leftIcon={<AgentIcon icon={value || undefined} size={16} />}
         onClick={() => setOpen((current) => !current)}
       >
-        <span className="relative inline-flex h-4 w-4 overflow-hidden">
-          <AgentIcon icon={value || undefined} size={16} />
-        </span>
-        <Smile size={12} />
         {t("personaPresets.pickIcon", "选择图标")}
-      </button>
+      </Button>
 
-      {open && (
-        <div className="ppe-icon-picker">
-          {AGENT_ICON_EMOJIS.map((item) => (
-            <button
-              key={item.emoji}
-              type="button"
-              className="ppe-icon-picker-item"
-              onClick={() => {
-                onChange(item.emoji);
-                setOpen(false);
-              }}
-              title={t(item.labelKey)}
-            >
-              <span className="relative inline-flex size-5">
-                <ImageWithSkeleton
-                  src={getFluentEmojiCDN(item.emoji, { type: "anim" })}
-                  alt={t(item.labelKey)}
-                  skipUrlResolve
-                  inline
-                  className="rounded-md"
-                  style={{ width: 20, height: 20, objectFit: "contain" }}
-                />
-              </span>
-            </button>
-          ))}
+      <ModalSurface
+        layer={1200}
+        open={open}
+        onClose={() => setOpen(false)}
+        label={t("personaPresets.pickIcon")}
+        className="modal-size-sm"
+      >
+        <div className="w-full rounded-2xl bg-theme-bg-card p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-16 font-semibold text-theme-text">
+              {t("personaPresets.pickIcon")}
+            </h2>
+            <IconButton
+              size="lg"
+              aria-label={t("common.close")}
+              icon={<X size={18} />}
+              onClick={() => setOpen(false)}
+            />
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {AGENT_ICON_EMOJIS.map((item) => (
+              <Button
+                key={item.emoji}
+                variant={selectedIcon === item.emoji ? "secondary" : "ghost"}
+                size="lg"
+                aria-label={t(item.labelKey)}
+                aria-pressed={selectedIcon === item.emoji}
+                onClick={() => {
+                  onChange(item.emoji);
+                  setOpen(false);
+                }}
+              >
+                <AgentIcon icon={item.emoji} size={24} />
+              </Button>
+            ))}
+          </div>
         </div>
-      )}
-    </div>
+      </ModalSurface>
+    </>
   );
 });

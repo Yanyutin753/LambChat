@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
-import { Button } from "../../common";
+import { Button, LoadingSpinner } from "../../common";
 import { PanelHeader } from "../../common/PanelHeader";
 import { ModelPanelSkeleton } from "../../skeletons";
 import { agentConfigApi, roleApi, modelApi } from "../../../services/api";
@@ -31,6 +31,8 @@ export function ModelPanel() {
   const [activeTab, setActiveTab] = useState<ModelTabType>("roles");
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const loadGeneration = useRef(0);
   const [error, setError] = useState<string | null>(null);
 
   // 数据状态
@@ -56,11 +58,15 @@ export function ModelPanel() {
 
   // 加载数据
   const loadData = useCallback(async () => {
+    const generation = ++loadGeneration.current;
     if (!canManageModels) {
       setIsLoading(false);
       return;
     }
 
+    if (rootRef.current?.contains(document.activeElement)) {
+      rootRef.current.focus({ preventScroll: true });
+    }
     setIsLoading(true);
     setError(null);
 
@@ -72,77 +78,71 @@ export function ModelPanel() {
       ]);
 
       // 加载 DB 中的模型配置
-      if (modelData) {
-        setDbModels(modelData.models || []);
-        // 如果 DB 有模型，优先使用 DB 的模型给 role-model assignment 用
-        if (modelData.models && modelData.models.length > 0) {
-          setAvailableModels(
-            modelData.models.map((m: ModelConfig) => ({
-              id: m.id || "",
-              value: m.value,
-              provider: m.provider,
-              icon: m.icon,
-              label: m.label,
-              description: m.description,
-            })),
-          );
-        }
-      }
-
-      // 设置角色列表
-      setRoles(roleList.roles || []);
-
+      if (generation !== loadGeneration.current) return;
       // 加载角色-models 映射
       const allModelIds = (modelData.models || [])
         .map((model: ModelConfig) => model.id || "")
         .filter(Boolean);
       const roleModelPromises = (roleList.roles || []).map(async (role) => {
-        try {
-          const assignment = await agentConfigApi.getRoleModels(role.id);
-          return {
-            roleId: role.id,
-            models:
-              assignment.configured === false
-                ? allModelIds
-                : assignment.allowed_models,
-          };
-        } catch {
-          return { roleId: role.id, models: [] };
-        }
+        const assignment = await agentConfigApi.getRoleModels(role.id);
+        return {
+          roleId: role.id,
+          models:
+            assignment.configured === false
+              ? allModelIds
+              : assignment.allowed_models,
+        };
       });
       const roleModelResults = await Promise.all(roleModelPromises);
+      if (generation !== loadGeneration.current) return;
+      setDbModels(modelData.models || []);
+      setAvailableModels(
+        (modelData.models || []).map((m: ModelConfig) => ({
+          id: m.id || "",
+          value: m.value,
+          provider: m.provider,
+          icon: m.icon,
+          label: m.label,
+          description: m.description,
+        })),
+      );
+
+      // 设置角色列表
+      setRoles(roleList.roles || []);
+
       const modelMap: Record<string, string[]> = {};
       roleModelResults.forEach(({ roleId, models }) => {
         modelMap[roleId] = models;
       });
       setRoleModelsMap(modelMap);
     } catch (err) {
+      if (generation !== loadGeneration.current) return;
       const errorMsg =
         (err as Error).message || tRef.current("agentConfig.loadFailed");
       setError(errorMsg);
-      toast.error(errorMsg);
     } finally {
-      setIsLoading(false);
-      setHasLoaded(true);
+      if (generation === loadGeneration.current) {
+        setIsLoading(false);
+        setHasLoaded(true);
+      }
     }
   }, [canManageModels]);
 
   useEffect(() => {
+    const requests = loadGeneration;
     loadData();
+    return () => {
+      requests.current++;
+    };
   }, [loadData]);
 
   // 更新角色模型配置
   const handleUpdateRoleModels = useCallback(
     async (roleId: string, modelValues: string[]) => {
       if (!canManageModels) return;
-      try {
-        await agentConfigApi.updateRoleModels(roleId, modelValues);
-        setRoleModelsMap((prev) => ({ ...prev, [roleId]: modelValues }));
-        toast.success(t("agentConfig.saveSuccess"));
-      } catch (err) {
-        toast.error((err as Error).message || t("agentConfig.saveFailed"));
-        throw err;
-      }
+      await agentConfigApi.updateRoleModels(roleId, modelValues);
+      setRoleModelsMap((prev) => ({ ...prev, [roleId]: modelValues }));
+      toast.success(t("agentConfig.saveSuccess"));
     },
     [canManageModels, t],
   );
@@ -167,7 +167,12 @@ export function ModelPanel() {
   }
 
   return (
-    <div className="glass-shell flex h-full flex-col min-h-0">
+    <div
+      ref={rootRef}
+      tabIndex={-1}
+      aria-busy={isLoading}
+      className="glass-shell flex h-full flex-col min-h-0 focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+    >
       {/* 头部 */}
       <PanelHeader
         title={t("agentConfig.modelTitle")}
@@ -176,6 +181,7 @@ export function ModelPanel() {
         actions={
           <Button
             onClick={handleRefresh}
+            disabled={isLoading}
             leftIcon={<RefreshCw size={16} />}
             aria-label={t("common.refresh")}
           >
@@ -186,51 +192,76 @@ export function ModelPanel() {
         }
       />
 
-      {/* 错误提示 */}
       {error && (
-        <ConfigPanelErrorCallout
-          message={error}
-          className="mx-4 mt-4 sm:mx-6"
-        />
+        <div className="panel-body panel-stack">
+          <ConfigPanelErrorCallout message={error} />
+          <Button
+            onClick={() => {
+              rootRef.current?.focus({ preventScroll: true });
+              void loadData();
+            }}
+          >
+            {t("common.retry")}
+          </Button>
+        </div>
       )}
-
-      {/* Tab 切换 */}
-      <div className="inline-grid grid-cols-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 my-3">
-        <button
-          onClick={() => setActiveTab("roles")}
-          className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-14 font-medium transition-all duration-150 ${
-            activeTab === "roles"
-              ? "bg-white text-stone-950 shadow-sm ring-1 ring-[var(--glass-border)] dark:bg-stone-800 dark:text-stone-50"
-              : "text-stone-500 hover:bg-white/60 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-100"
-          }`}
+      {isLoading && (
+        <div
+          role="status"
+          className="panel-body flex items-center gap-2 text-14 text-theme-text-secondary"
         >
-          {t("agentConfig.modelsTab")}
-        </button>
-        <button
-          onClick={() => setActiveTab("model-config")}
-          className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-14 font-medium transition-all duration-150 ${
-            activeTab === "model-config"
-              ? "bg-white text-stone-950 shadow-sm ring-1 ring-[var(--glass-border)] dark:bg-stone-800 dark:text-stone-50"
-              : "text-stone-500 hover:bg-white/60 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-100"
-          }`}
-        >
-          {t("agentConfig.modelConfigTab")}
-        </button>
-      </div>
+          <LoadingSpinner size="sm" />
+          {t("common.loading")}
+        </div>
+      )}
+      <div
+        hidden={Boolean(error)}
+        inert={isLoading || undefined}
+        className={error ? "hidden" : "flex min-h-0 flex-1 flex-col"}
+      >
+        {/* Tab 切换 */}
+        <div className="inline-grid grid-cols-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 my-3">
+          <button
+            type="button"
+            aria-pressed={activeTab === "roles"}
+            onClick={() => setActiveTab("roles")}
+            className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-14 font-medium min-h-11 transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] ${
+              activeTab === "roles"
+                ? "bg-white text-stone-950 shadow-sm ring-1 ring-[var(--glass-border)] dark:bg-stone-800 dark:text-stone-50"
+                : "text-stone-500 hover:bg-white/60 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-100"
+            }`}
+          >
+            {t("agentConfig.modelsTab")}
+          </button>
+          <button
+            type="button"
+            aria-pressed={activeTab === "model-config"}
+            onClick={() => setActiveTab("model-config")}
+            className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-14 font-medium min-h-11 transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] ${
+              activeTab === "model-config"
+                ? "bg-white text-stone-950 shadow-sm ring-1 ring-[var(--glass-border)] dark:bg-stone-800 dark:text-stone-50"
+                : "text-stone-500 hover:bg-white/60 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-100"
+            }`}
+          >
+            {t("agentConfig.modelConfigTab")}
+          </button>
+        </div>
 
-      {/* 内容 */}
-      <div className="panel-body flex-1 overflow-y-auto">
-        {activeTab === "model-config" ? (
-          <ModelConfigTab models={dbModels} onReload={loadData} />
-        ) : (
-          <RolesModelTab
-            roles={roles}
-            roleModelsMap={roleModelsMap}
-            availableModels={availableModels}
-            onUpdate={handleUpdateRoleModels}
-            isLoading={isLoading}
-          />
-        )}
+        {/* 内容 */}
+        <div className="panel-body flex-1 overflow-y-auto">
+          <div hidden={activeTab !== "model-config"}>
+            <ModelConfigTab models={dbModels} onReload={loadData} />
+          </div>
+          <div hidden={activeTab !== "roles"}>
+            <RolesModelTab
+              roles={roles}
+              roleModelsMap={roleModelsMap}
+              availableModels={availableModels}
+              onUpdate={handleUpdateRoleModels}
+              isLoading={false}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

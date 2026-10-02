@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useId,
 } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -47,7 +48,8 @@ import {
   revealWorkspacePath,
 } from "../../services/tauri/sandboxShell";
 import { parseWorkspaceSelection } from "../chat/workspaceSelection";
-import { copyToClipboard } from "../../utils/clipboard";
+import { useClipboardCopy } from "../../hooks/useClipboardCopy";
+import { ResourceCardMenu } from "../common/ResourceCardMenu";
 
 interface WorkspacePanelProps {
   sessionId: string | null;
@@ -171,7 +173,14 @@ export function WorkspacePanel({
   const [previewError, setPreviewError] = useState<string | null>(null);
   const previewRequest = useRef(0);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuId = useId();
+  const [copyPath, setCopyPath] = useState("");
+  const { copying, copy } = useClipboardCopy(copyPath);
+  const closeMenu = useCallback((restoreFocus = false) => {
+    setContextMenu(null);
+    if (restoreFocus) menuTriggerRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     previewRequest.current += 1;
@@ -182,48 +191,11 @@ export function WorkspacePanel({
     setPreviewError(null);
     setOpeningPath(null);
     setContextMenu(null);
+    setCopyPath("");
     return () => {
       previewRequest.current += 1;
     };
   }, [previewPrefix]);
-
-  useEffect(() => {
-    if (!contextMenu) return undefined;
-    menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
-    const close = () => setContextMenu(null);
-    const keydown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.stopPropagation();
-        close();
-        selectedButtonRef.current?.focus();
-      }
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault();
-        const buttons = Array.from(
-          menuRef.current?.querySelectorAll<HTMLButtonElement>("button") ?? [],
-        );
-        const current = buttons.indexOf(
-          document.activeElement as HTMLButtonElement,
-        );
-        buttons[
-          (current + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) %
-            buttons.length
-        ]?.focus();
-      }
-    };
-    document.addEventListener("keydown", keydown, true);
-    // click 在菜单项 onClick 冒泡后到达，下一拍再挂避免立即自关闭
-    const timer = window.setTimeout(() => {
-      document.addEventListener("click", close);
-      document.addEventListener("contextmenu", close);
-    }, 0);
-    return () => {
-      document.removeEventListener("keydown", keydown, true);
-      window.clearTimeout(timer);
-      document.removeEventListener("click", close);
-      document.removeEventListener("contextmenu", close);
-    };
-  }, [contextMenu]);
 
   const openFile = useCallback(
     async (path: string) => {
@@ -265,12 +237,17 @@ export function WorkspacePanel({
   );
 
   const handleContextMenu = useCallback(
-    (event: React.MouseEvent, path: string) => {
+    (event: React.MouseEvent<HTMLButtonElement>, path: string) => {
       event.preventDefault();
       event.stopPropagation();
+      menuTriggerRef.current = event.currentTarget;
+      setCopyPath(path);
+      const rect = event.currentTarget.getBoundingClientRect();
+      const pointer =
+        event.type === "contextmenu" && (event.clientX || event.clientY);
       setContextMenu({
-        x: Math.max(8, Math.min(event.clientX, window.innerWidth - 240)),
-        y: Math.max(8, Math.min(event.clientY, window.innerHeight - 100)),
+        x: pointer ? event.clientX : rect.left,
+        y: pointer ? event.clientY : rect.bottom + 4,
         path,
       });
     },
@@ -393,8 +370,16 @@ export function WorkspacePanel({
             <button
               className="workspace-file-menu"
               aria-label={t("workspacePanel.fileActions", { name: node.name })}
-              onClick={(event) => handleContextMenu(event, node.path)}
+              onClick={(event) =>
+                contextMenu?.path === node.path
+                  ? closeMenu(true)
+                  : handleContextMenu(event, node.path)
+              }
               aria-haspopup="menu"
+              aria-expanded={contextMenu?.path === node.path}
+              aria-controls={
+                contextMenu?.path === node.path ? menuId : undefined
+              }
             >
               <MoreHorizontal size={16} />
             </button>
@@ -659,44 +644,33 @@ export function WorkspacePanel({
         </section>
       </div>
 
-      {/* 右键菜单（复制路径 / 在系统文件管理器中显示——仅本地视图本机工作区） */}
-      {contextMenu &&
-        createPortal(
-          <div
-            role="menu"
-            ref={menuRef}
-            className="fixed z-[350] w-56 overflow-hidden rounded-lg border border-theme-border bg-theme-bg-card py-1 shadow-lg dark:border-stone-700 dark:bg-stone-800"
-            style={{ left: contextMenu.x, top: contextMenu.y }}
-          >
-            <button
-              role="menuitem"
-              onClick={() => {
-                void copyToClipboard(contextMenu.path);
-                setContextMenu(null);
-              }}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-13 text-theme-text hover:bg-theme-bg-subtle dark:text-stone-200 dark:hover:bg-stone-700/60"
-            >
-              <Copy size={14} />
-              {t("workspacePanel.copyPath", { defaultValue: "复制路径" })}
-            </button>
-            {isShellAvailable() && isLocalMachineWorkspace && (
-              <button
-                role="menuitem"
-                onClick={() => {
-                  void handleReveal(contextMenu.path);
-                  setContextMenu(null);
-                }}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-13 text-theme-text hover:bg-theme-bg-subtle dark:text-stone-200 dark:hover:bg-stone-700/60"
-              >
-                <FolderOpen size={14} />
-                {t("workspacePanel.revealInFileManager", {
-                  defaultValue: "在文件管理器中显示",
-                })}
-              </button>
-            )}
-          </div>,
-          document.body,
-        )}
+      {contextMenu && (
+        <ResourceCardMenu
+          id={menuId}
+          title={t("workspacePanel.fileActions", { name: contextMenu.path })}
+          position={contextMenu}
+          onClose={closeMenu}
+          actions={[
+            {
+              label: t("workspacePanel.copyPath"),
+              icon: <Copy size={14} />,
+              disabled: copying,
+              onClick: copy,
+            },
+            ...(isShellAvailable() && isLocalMachineWorkspace
+              ? [
+                  {
+                    label: t("workspacePanel.revealInFileManager"),
+                    icon: <FolderOpen size={14} />,
+                    onClick: () => {
+                      void handleReveal(contextMenu.path);
+                    },
+                  },
+                ]
+              : []),
+          ]}
+        />
+      )}
     </div>
   );
 }

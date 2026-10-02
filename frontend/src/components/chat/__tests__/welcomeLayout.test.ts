@@ -33,6 +33,21 @@ test("keeps every welcome persona card reachable on mobile", () => {
   expect(className.includes("hidden sm:flex")).toBe(false);
 });
 
+test("welcome descriptions keep theme contrast instead of fading already secondary text", () => {
+  const blocks = [
+    ...welcomeCss.matchAll(/(?:\.welcome-persona-description)\s*\{([^}]*)\}/g),
+  ].map((match) => match[1]);
+  for (const block of blocks) expect(block).not.toMatch(/opacity:\s*0\./);
+});
+
+test("welcome management and suggestions have touch and keyboard feedback", () => {
+  expect(welcomeCss).toMatch(
+    /@media \(max-width: 639px\), \(pointer: coarse\)[\s\S]*\.welcome-suggestions-header button[\s\S]*min-height:\s*2\.75rem/,
+  );
+  expect(welcomeCss).toMatch(/\.welcome-suggestions button:focus-visible/);
+  expect(welcomeCss).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
+});
+
 test("keeps later starter prompt pills reachable on narrow screens", () => {
   const className = getWelcomeSuggestionButtonClass(2);
 
@@ -150,8 +165,13 @@ test("keeps chat input skeleton structure 1:1 with real ChatInput", () => {
   expect(chatSkeletonsSource).toMatch(
     /className="bg-transparent w-full pt-\[10px\] text-15 leading-relaxed min-h-\[40px\] sm:min-h-\[44px\]"/,
   );
-  const toolbarSource = readFileSync(resolve(currentDir, "../ChatInputToolbar.tsx"), "utf8");
-  const toolbarClasses = toolbarSource.match(/className="chat-input-toolbar ([^"]+)"/)?.[1];
+  const toolbarSource = readFileSync(
+    resolve(currentDir, "../ChatInputToolbar.tsx"),
+    "utf8",
+  );
+  const toolbarClasses = toolbarSource.match(
+    /className="chat-input-toolbar ([^"]+)"/,
+  )?.[1];
   expect(toolbarClasses).toBeTruthy();
   expect(chatSkeletonsSource).toContain(`className="${toolbarClasses}"`);
   expect(chatSkeletonsSource).toMatch(

@@ -499,10 +499,10 @@
 }
 
 .mermaid-diagram svg {
-  max-width: 100%;
+  max-width: 100% !important;
   height: auto;
   display: block;
-  min-width: 200px;
+  min-width: min(200px, 100%);
   min-height: 100px;
 }
 
@@ -640,7 +640,7 @@
    Toast 全局样式
    ======================================== */
 
-@media (max-width: 639px) {
+@media (max-width: 639px), (pointer: coarse) {
   .ai-code-block__copy,
   .ai-data-table__action {
     min-width: 2.75rem;

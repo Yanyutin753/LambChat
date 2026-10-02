@@ -1,4 +1,16 @@
 import { readFileSync } from "node:fs";
+test("editor controls keep touch targets at tablet and landscape widths", () => {
+  const styles = readFileSync(
+    new URL("../../../styles/panels.css", import.meta.url),
+    "utf8",
+  );
+  expect(styles).toMatch(
+    /@media \(max-width: 639px\), \(pointer: coarse\) \{[\s\S]*?\.editor-sidebar :is\(/,
+  );
+  expect(styles).toMatch(
+    /\.editor-sidebar \[role="switch"\] \{\s*min-height: 2\.75rem/,
+  );
+});
 function readSource(path: string): string {
   return readFileSync(new URL(path, import.meta.url), "utf8");
 }
@@ -112,7 +124,8 @@ test("floating icon button centralizes fullscreen overlay icon actions", () => {
   expect(floatingIconButton).toMatch(/w-11 h-11 rounded-xl bg-black\/80/);
 
   expect(documentToolbar).toMatch(/import \{[\s\S]*FloatingIconButton/);
-  expect(skillFullscreen).toMatch(/import \{ FloatingIconButton \}/);
+  expect(skillFullscreen).toMatch(/import \{ ToolbarIconButton \}/);
+  expect(skillFullscreen).toMatch(/<ToolbarIconButton[\s\S]*exitFullscreen/);
   expect(documentToolbar).not.toMatch(/w-11 h-11 rounded-xl bg-black\/80/);
   expect(skillFullscreen).not.toMatch(/w-11 h-11 rounded-xl bg-black\/80/);
 });
@@ -223,18 +236,18 @@ test("diagram viewers share blob download behavior", () => {
   expect(menuItem).toMatch(/whitespace-nowrap/);
 
   expect(mermaidViewer).toMatch(/import \{ downloadBlob \}/);
-  expect(mermaidViewer).toMatch(/import \{[\s\S]*ViewerDropdownMenuItem/);
+  expect(mermaidViewer).toMatch(/import \{ ResourceCardMenu \}/);
   expect(documentMermaidViewer).toMatch(/import \{ downloadBlob \}/);
   expect(documentMermaidViewer).toMatch(
     /import \{[\s\S]*ViewerDropdownMenuItem/,
   );
   expect(excalidrawViewer).toMatch(/import \{ downloadBlob \}/);
-  expect(excalidrawViewer).toMatch(/import \{[\s\S]*ViewerDropdownMenuItem/);
+  expect(excalidrawViewer).toMatch(/import \{ ResourceCardMenu \}/);
   expect(mermaidViewer).toMatch(/downloadBlob\([^)]*"diagram\.svg"/);
   expect(mermaidViewer).toMatch(/downloadBlob\([^)]*"diagram\.png"/);
   expect(mermaidViewer).toMatch(/downloadBlob\([^)]*"mermaid\.svg"/);
-  expect(mermaidViewer).toMatch(/<ViewerDropdownMenuItem[\s\S]*SVG/);
-  expect(mermaidViewer).toMatch(/<ViewerDropdownMenuItem[\s\S]*PNG/);
+  expect(mermaidViewer).toMatch(/<ResourceCardMenu[\s\S]*label: "SVG"/);
+  expect(mermaidViewer).toMatch(/<ResourceCardMenu[\s\S]*label: "PNG"/);
   expect(documentMermaidViewer).toMatch(/downloadBlob\([^)]*"diagram\.svg"/);
   expect(documentMermaidViewer).toMatch(/downloadBlob\([^)]*"diagram\.png"/);
   expect(documentMermaidViewer).toMatch(/<ViewerDropdownMenuItem[\s\S]*SVG/);
@@ -245,12 +258,8 @@ test("diagram viewers share blob download behavior", () => {
   expect(excalidrawViewer).toMatch(
     /downloadBlob\([^)]*"excalidraw-diagram\.png"/,
   );
-  expect(excalidrawViewer).toMatch(
-    /<ViewerDropdownMenuItem[\s\S]*variant="dark"[\s\S]*SVG/,
-  );
-  expect(excalidrawViewer).toMatch(
-    /<ViewerDropdownMenuItem[\s\S]*variant="dark"[\s\S]*PNG/,
-  );
+  expect(excalidrawViewer).toMatch(/<ResourceCardMenu[\s\S]*label: "SVG"/);
+  expect(excalidrawViewer).toMatch(/<ResourceCardMenu[\s\S]*label: "PNG"/);
   expect(
     [mermaidViewer, documentMermaidViewer, excalidrawViewer].join("\n"),
   ).not.toMatch(
@@ -379,10 +388,10 @@ test("normal skill form uses shared primitives for generic form controls", () =>
   );
   expect(source).toMatch(/<Input[\s\S]*adminMarketplace\.tagsPlaceholder/);
   expect(source).toMatch(/<Input[\s\S]*skills\.form\.filePathPlaceholder/);
-  expect(source).toMatch(/<IconButton[\s\S]*addFile/);
-  expect(source).toMatch(/<IconButton[\s\S]*editFullscreen/);
-  expect(source).toMatch(/icon=\{<Pencil size=\{15\} \/>/);
-  expect(source).toMatch(/<IconButton[\s\S]*toggleFullscreen\(true\)/);
+  expect(source).toMatch(/<ToolbarIconButton[\s\S]*addFile/);
+  expect(source).toMatch(/<ToolbarIconButton[\s\S]*toggleFullscreen\(true\)/);
+  expect(source).toMatch(/<FormField[\s\S]*skills\.form\.name/);
+  expect(source).toMatch(/<ToggleSwitch[\s\S]*ariaLabel=/);
   expect(source).toMatch(/<Button[\s\S]*type="submit"/);
   expect(source).not.toMatch(
     /<input[\s\S]*(a\.name|a\.tagsInput|updateFilePath)/,

@@ -1,10 +1,9 @@
 import ReactMarkdown from "react-markdown";
-import toast from "react-hot-toast";
 import remarkBreaks from "remark-breaks";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import React, { memo, useState } from "react";
-import { Copy, Check, Download, Table2, Code2, X, Minus } from "lucide-react";
+import React, { memo, useState, useId } from "react";
+import { Check, Download, Table2, Code2, X, Minus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
 import { getFullUrl } from "../../../services/api/config";
@@ -17,11 +16,12 @@ import { getFileLinkInfo } from "../../documents/utils";
 import { setActiveRevealPreviewState } from "./items/activeRevealPreviewStore";
 import { createActiveRevealPreviewState } from "./items/revealPreviewState";
 import { shouldInterceptFilePreviewLink } from "./items/revealPreviewLinks";
-import { copyToClipboard } from "../../../utils/clipboard";
+import { useClipboardCopy } from "../../../hooks/useClipboardCopy";
 import { buildChatThumbUrl } from "../../../utils/chatThumbs";
 import { useSessionImageGallery } from "./sessionImageGallery";
 import { ImageWithSkeleton } from "./ImageWithSkeleton";
 import { normalizeMarkdownCodeFences } from "./markdownCodeFences";
+import { CopyButton } from "../../common/CopyButton";
 
 function extractNodeText(node: React.ReactNode): string {
   if (typeof node === "string" || typeof node === "number") {
@@ -37,6 +37,38 @@ function extractNodeText(node: React.ReactNode): string {
   }
 
   return "";
+}
+
+function renderLinkedImages(children: React.ReactNode): React.ReactNode {
+  return React.Children.map(children, (child) => {
+    if (
+      !React.isValidElement<{
+        node?: { tagName?: string };
+        src?: string;
+        alt?: string;
+        children?: React.ReactNode;
+      }>(child)
+    )
+      return child;
+    if (child.props.node?.tagName === "img") {
+      const src = getFullUrl(child.props.src);
+      return (
+        <ImageWithSkeleton
+          key={child.key}
+          src={src}
+          thumbSrc={buildChatThumbUrl(src)}
+          alt={child.props.alt}
+          loading="eager"
+          className="max-w-lg h-auto rounded-lg shadow hover:opacity-90 transition-opacity"
+        />
+      );
+    }
+    return child.props.children === undefined
+      ? child
+      : React.cloneElement(child, {
+          children: renderLinkedImages(child.props.children),
+        });
+  });
 }
 
 type ComparisonCellState = "included" | "excluded" | "neutral";
@@ -87,6 +119,35 @@ function getHeadingAnchorId({
   });
 }
 
+function InlineCode({ children }: { children: React.ReactNode }) {
+  const codeId = useId();
+  const { t } = useTranslation();
+  const { copied, failed, copying, copy } = useClipboardCopy(String(children));
+  const label = t(copied ? "chat.message.copied" : "chat.message.copyCode");
+  return (
+    <button
+      type="button"
+      className="rounded bg-theme-bg-code px-1.5 py-0.5 text-14 text-theme-text font-mono cursor-pointer hover:bg-theme-bg-hover transition-colors"
+      disabled={copying}
+      aria-busy={copying || undefined}
+      aria-label={label}
+      aria-describedby={failed ? `${codeId} ${codeId}-error` : codeId}
+      title={failed ? t("chat.message.copyFailed") : label}
+      onClick={(event) => {
+        event.stopPropagation();
+        void copy();
+      }}
+    >
+      <code id={codeId}>{children}</code>
+      {failed && (
+        <span id={`${codeId}-error`} className="sr-only">
+          {t("chat.message.copyFailed")}
+        </span>
+      )}
+    </button>
+  );
+}
+
 // Code block component with copy button and enhanced styling
 function CodeBlock({
   className,
@@ -100,37 +161,16 @@ function CodeBlock({
   isStreaming?: boolean;
 }) {
   const { t } = useTranslation();
-  const [copied, setCopied] = React.useState(false);
   const match = /language-(\w+)/.exec(className || "");
   const language = match ? match[1] : "";
   const codeString = String(children).replace(/\n$/, "");
-
-  const handleCopy = async () => {
-    await copyToClipboard(codeString);
-    setCopied(true);
-    toast.success(t("chat.message.copied"));
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   // Handle mermaid diagrams
   if (language === "mermaid") {
     return <MermaidDiagram chart={codeString} isStreaming={isStreaming} />;
   }
 
-  if (inline) {
-    return (
-      <code
-        className="rounded bg-stone-200 dark:bg-stone-700 px-1.5 py-0.5 text-14 text-stone-800 dark:text-stone-200 font-mono cursor-pointer hover:bg-stone-300 dark:hover:bg-stone-600 transition-colors"
-        onClick={() => {
-          copyToClipboard(String(children));
-          toast.success(t("chat.message.copied"));
-        }}
-        title={t("chat.message.copyCode")}
-      >
-        {children}
-      </code>
-    );
-  }
+  if (inline) return <InlineCode>{children}</InlineCode>;
 
   return (
     <div
@@ -151,34 +191,11 @@ function CodeBlock({
           </span>
         </div>
         {/* Copy button */}
-        <button
-          onClick={handleCopy}
-          className={clsx(
-            "ai-code-block__copy flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all touch-manipulation",
-            "min-h-[32px] min-w-[32px]",
-            copied
-              ? "text-green-600 dark:text-green-400"
-              : "text-stone-500 hover:text-stone-700 hover:bg-stone-300/50 dark:text-stone-400 dark:hover:text-stone-200 dark:hover:bg-stone-700/50",
-          )}
-          aria-label={
-            copied ? t("chat.message.copied") : t("chat.message.copyCode")
-          }
-          title={copied ? t("chat.message.copied") : t("chat.message.copyCode")}
-        >
-          {copied ? (
-            <>
-              <Check size={14} />
-              <span className="hidden xs:inline">
-                {t("chat.message.copied")}
-              </span>
-            </>
-          ) : (
-            <>
-              <Copy size={14} />
-              <span className="hidden xs:inline">{t("chat.message.copy")}</span>
-            </>
-          )}
-        </button>
+        <CopyButton
+          text={codeString}
+          label={t("chat.message.copyCode")}
+          className="ai-code-block__copy"
+        />
       </div>
 
       {/* Code content */}
@@ -198,7 +215,6 @@ function CodeBlock({
 // Table block with copy & export toolbar
 function TableBlock({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
-  const [copied, setCopied] = React.useState(false);
   const tableRef = React.useRef<HTMLTableElement>(null);
 
   const extractData = (): string[][] => {
@@ -211,9 +227,9 @@ function TableBlock({ children }: { children: React.ReactNode }) {
     );
   };
 
-  const handleCopy = async () => {
+  const handleCopy = () => {
     const data = extractData();
-    if (data.length === 0) return;
+    if (data.length === 0) return "";
 
     const colWidths = data[0].map((_, colIdx) =>
       Math.max(...data.map((row) => (row[colIdx] || "").length)),
@@ -232,11 +248,7 @@ function TableBlock({ children }: { children: React.ReactNode }) {
           "| " + row.map((c, i) => pad(c, colWidths[i])).join(" | ") + " |",
       );
 
-    const markdown = [header, separator, ...rows].join("\n");
-    await copyToClipboard(markdown);
-    setCopied(true);
-    toast.success(t("chat.message.copied"));
-    setTimeout(() => setCopied(false), 2000);
+    return [header, separator, ...rows].join("\n");
   };
 
   const handleExport = () => {
@@ -270,22 +282,12 @@ function TableBlock({ children }: { children: React.ReactNode }) {
           {t("chat.message.table", "Table")}
         </span>
         <div className="ai-data-table__actions flex items-center gap-0.5">
-          <button
-            onClick={handleCopy}
-            className={clsx(
-              "ai-data-table__action flex items-center gap-1 rounded px-1.5 py-0.5 text-11 sm:text-12 font-medium transition-colors",
-              copied
-                ? "ai-data-table__action--copied"
-                : "text-stone-500 dark:text-stone-400",
-            )}
-            aria-label={
-              copied ? t("chat.message.copied") : t("chat.message.copy")
-            }
-            title={copied ? t("chat.message.copied") : t("chat.message.copy")}
-          >
-            {copied ? <Check size={12} /> : <Copy size={12} />}
-            {copied ? t("chat.message.copied") : t("chat.message.copy")}
-          </button>
+          <CopyButton
+            text={handleCopy}
+            size={12}
+            showLabel
+            className="ai-data-table__action !gap-1 !px-1.5 !text-11 sm:!text-12"
+          />
           <button
             onClick={handleExport}
             className="ai-data-table__action flex items-center gap-1 rounded px-1.5 py-0.5 text-11 sm:text-12 font-medium text-stone-500 dark:text-stone-400 transition-colors"
@@ -438,6 +440,7 @@ export const MarkdownContent = memo(function MarkdownContent({
           ),
           // Links with hover effects
           a: ({ href, children }) => {
+            const linkChildren = renderLinkedImages(children);
             if (href) {
               const fileLinkInfo = getFileLinkInfo(
                 href,
@@ -465,7 +468,7 @@ export const MarkdownContent = memo(function MarkdownContent({
                       );
                     }}
                   >
-                    {children}
+                    {linkChildren}
                   </a>
                 );
               }
@@ -477,7 +480,7 @@ export const MarkdownContent = memo(function MarkdownContent({
                 rel="noopener noreferrer"
                 className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition-colors"
               >
-                {children}
+                {linkChildren}
               </a>
             );
           },

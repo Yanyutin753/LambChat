@@ -135,6 +135,7 @@ export function Select({
         disabled={disabled}
         className={cx("ui-select-trigger", triggerClassName)}
         aria-label={ariaLabel}
+        aria-describedby={ariaLabel ? labelId : undefined}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? dropdownId : undefined}

@@ -72,6 +72,8 @@ export interface ChatInputSelectorsProps {
   onPersonaPresetsTagChange?: (tag: string | null) => void;
   selectedPersonaPresetId?: string | null;
   personaPresetsLoading?: boolean;
+  personaPresetsError?: string | null;
+  onRetryPersonaPresets?: () => void;
   personaPresetsMutating?: boolean;
   onUsePersonaPreset?: (
     preset: PersonaPreset,
@@ -126,6 +128,8 @@ export function ChatInputSelectors({
   onPersonaPresetsTagChange,
   selectedPersonaPresetId,
   personaPresetsLoading = false,
+  personaPresetsError,
+  onRetryPersonaPresets,
   personaPresetsMutating = false,
   onUsePersonaPreset,
   onTogglePersonaPreference,
@@ -365,6 +369,8 @@ export function ChatInputSelectors({
           selectedPresetId={selectedPersonaPresetId}
           isOpen={activePanel === "persona"}
           isLoading={personaPresetsLoading}
+          error={personaPresetsError}
+          onRetry={onRetryPersonaPresets}
           isMutating={personaPresetsMutating}
           canManagePresets={canManagePersonaPresets}
           onOpenChange={(open) => onActivePanelChange(open ? "persona" : null)}

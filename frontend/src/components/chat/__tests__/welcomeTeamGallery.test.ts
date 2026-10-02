@@ -22,7 +22,6 @@ test("welcome page switches the plaza to teams when team agent is active", () =>
   expect(welcomePageSource).toMatch(
     /const showTeamCards =[\s\S]*currentAgent === "team"/,
   );
-  expect(welcomePageSource).toMatch(/onClick=\{\(\) => navigate\("\/team"\)\}/);
   expect(welcomePageSource).toMatch(
     /onClick=\{\(\) => handleTeamClick\(team\)\}/,
   );

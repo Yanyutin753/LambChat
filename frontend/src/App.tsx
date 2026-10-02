@@ -6,8 +6,6 @@ import {
   useNavigate,
   Navigate,
 } from "react-router-dom";
-import { Toaster, ToastBar, toast } from "react-hot-toast";
-import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { ChatPageSkeleton, FilesPageSkeleton } from "./components/skeletons";
@@ -26,7 +24,11 @@ import {
   getCachedSessionTitle,
   listenSessionTitleUpdated,
 } from "./utils/sessionTitleEvents";
-import { APP_TOASTER_CLASS_NAME } from "./components/layout/AppContent/appToastLayout";
+const AppToaster = lazy(() =>
+  import("./components/layout/AppContent/AppToaster").then((m) => ({
+    default: m.AppToaster,
+  })),
+);
 import { PwaStatusToasts } from "./components/pwa/PwaStatusToasts";
 import { appNotificationService } from "./services/notifications/appNotificationService";
 import { needsServerSetup } from "./services/api/serverConfig";
@@ -421,65 +423,9 @@ function App() {
   return (
     <ThemeProvider>
       <ErrorBoundary>
-        <Toaster
-          position="top-center"
-          containerClassName={APP_TOASTER_CLASS_NAME}
-          containerStyle={{
-            top: "calc(56px + var(--app-safe-area-top, 0px) + var(--titlebar-inset, 0px))",
-          }}
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: "#333",
-              color: "#fff",
-              borderRadius: "8px",
-              padding: "12px 16px",
-              minWidth: "280px",
-            },
-            success: {
-              duration: 3000,
-              iconTheme: {
-                primary: "#22c55e",
-                secondary: "#fff",
-              },
-            },
-            error: {
-              duration: 5000,
-              iconTheme: {
-                primary: "#ef4444",
-                secondary: "#fff",
-              },
-            },
-          }}
-        >
-          {(currentToast) => {
-            if (currentToast.type === "custom") {
-              return <ToastBar toast={currentToast} />;
-            }
-
-            return (
-              <ToastBar toast={currentToast}>
-                {({ icon, message }) => (
-                  <div className="flex w-full items-center gap-3 text-left">
-                    <span className="flex shrink-0 items-center">{icon}</span>
-                    <div className="min-w-0 flex-1 leading-snug">{message}</div>
-                    <button
-                      type="button"
-                      className="-mr-1 inline-flex size-7 shrink-0 items-center justify-center rounded-full text-white/60 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/30"
-                      aria-label={t("common.dismiss", "关闭")}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        toast.dismiss(currentToast.id);
-                      }}
-                    >
-                      <X size={14} aria-hidden="true" />
-                    </button>
-                  </div>
-                )}
-              </ToastBar>
-            );
-          }}
-        </Toaster>
+        <Suspense fallback={null}>
+          <AppToaster />
+        </Suspense>
         <PwaStatusToasts />
         {(updatePlatform === "android" || updatePlatform === "ios") &&
           showUpdateDialog &&

@@ -40,7 +40,11 @@ export function ToolHoverCopyButton({
 }) {
   return (
     <div
-      className={clsx(positionClasses[position], className)}
+      className={clsx(
+        positionClasses[position],
+        "focus-within:opacity-100",
+        className,
+      )}
       onClick={(event) => event.stopPropagation()}
     >
       {!hidden && (

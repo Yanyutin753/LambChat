@@ -14,6 +14,13 @@ Object.defineProperty(globalThis, "window", {
   configurable: true,
 });
 
+test.each(["constructor", "report.constructor", "report.__proto__"])(
+  "unknown filename %s keeps the default file icon",
+  (name) => {
+    expect(getFileTypeInfo(name)).toEqual(getFileTypeInfo("unknown.unknown"));
+  },
+);
+
 test("recognizes CAD file extensions", () => {
   expect(isCadFile("dxf")).toBe(true);
   expect(isCadFile("dwg")).toBe(true);

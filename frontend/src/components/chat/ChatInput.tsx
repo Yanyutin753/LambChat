@@ -117,6 +117,8 @@ export const ChatInput = memo(function ChatInput({
   selectedPersonaName,
   personaSkillsControlled = false,
   personaPresetsLoading = false,
+  personaPresetsError,
+  onRetryPersonaPresets,
   personaPresetsMutating = false,
   onUsePersonaPreset,
   onCopyPersonaPreset,
@@ -954,6 +956,8 @@ export const ChatInput = memo(function ChatInput({
         onPersonaPresetsTagChange={onPersonaPresetsTagChange}
         selectedPersonaPresetId={selectedPersonaPresetId}
         personaPresetsLoading={personaPresetsLoading}
+        personaPresetsError={personaPresetsError}
+        onRetryPersonaPresets={onRetryPersonaPresets}
         personaPresetsMutating={personaPresetsMutating}
         onUsePersonaPreset={onUsePersonaPreset}
         onCopyPersonaPreset={onCopyPersonaPreset}

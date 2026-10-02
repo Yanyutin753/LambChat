@@ -2,6 +2,7 @@ import { clsx } from "clsx";
 import { RotateCcw, Square } from "lucide-react";
 import type { MessagePart } from "../../../types";
 import { useTranslation } from "react-i18next";
+import { Button } from "../../common/ui/Button";
 import { MarkdownContent } from "./MarkdownContent";
 import {
   ToolCallItem,
@@ -711,7 +712,7 @@ export function MessagePartRenderer({
   if (part.type === "cancelled") {
     return (
       <div
-        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-13 font-medium"
+        className="inline-flex max-w-full flex-wrap items-center gap-2 px-4 py-2 rounded-xl text-13 font-medium"
         style={{
           background:
             "color-mix(in srgb, var(--theme-primary) 8%, transparent)",
@@ -723,23 +724,14 @@ export function MessagePartRenderer({
         <Square size={10} fill="currentColor" className="shrink-0" />
         <span>{t("chat.message.interrupted")}</span>
         {onRetryCancelled && (
-          <button
-            type="button"
+          <Button
+            size="sm"
             onClick={onRetryCancelled}
-            className={clsx(
-              "ml-0.5 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-12 font-medium",
-              "bg-[var(--theme-overlay-panel)]",
-              "border border-white/40 dark:border-white/10",
-              "transition-all duration-150 ease-out",
-              "hover:bg-[var(--theme-bg-elevated)] dark:hover:bg-white/12",
-              "active:scale-[0.97]",
-              "[&>svg]:transition-transform [&>svg]:duration-300",
-              "hover:[&>svg]:-rotate-180",
-            )}
+            className="chat-cancelled-retry max-w-full whitespace-normal"
+            leftIcon={<RotateCcw size={12} className="shrink-0" />}
           >
-            <RotateCcw size={11} className="shrink-0" />
             {t("chat.message.retryAnswer")}
-          </button>
+          </Button>
         )}
       </div>
     );

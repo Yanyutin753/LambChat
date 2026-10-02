@@ -33,7 +33,7 @@ export function Pagination({
   const changePage = (nextPage: number) => {
     onChange(Math.max(1, Math.min(nextPage, totalPages)));
     const panel = navigationRef.current?.closest(
-      "[data-panel], .glass-shell, .skill-theme-shell",
+      "[data-panel], .glass-shell, .skill-theme-shell, .modal-surface",
     );
     panel?.querySelectorAll<HTMLElement>(".overflow-y-auto").forEach((area) => {
       area.scrollTop = 0;

@@ -1,16 +1,15 @@
 import { useTranslation } from "react-i18next";
-import { Archive, Upload, Sparkles, Github } from "lucide-react";
-import { LoadingSpinner } from "../../common/LoadingSpinner";
+import { Github, Upload } from "lucide-react";
 import { EditorSidebar } from "../../common/EditorSidebar";
 import { Checkbox } from "../../common/Checkbox";
-import { Button, Input } from "../../common";
+import { Button, FormField, Input } from "../../common";
+import { ConfigPanelErrorCallout } from "../ConfigPanelErrorCallout";
 
 interface GitHubSkill {
   name: string;
   path: string;
   description: string;
 }
-
 interface GithubImportModalProps {
   showGithubModal: boolean;
   setShowGithubModal: (show: boolean) => void;
@@ -22,11 +21,11 @@ interface GithubImportModalProps {
   selectedGithubSkills: string[];
   githubLoading: boolean;
   githubInstalling: boolean;
-  githubExporting: boolean;
+  githubPreviewed: boolean;
+  githubError: string | null;
   onGithubPreview: () => void;
   onGithubSkillToggle: (name: string) => void;
   onGithubInstall: () => void;
-  onGithubExport: () => void;
   setSelectedGithubSkills: (skills: string[]) => void;
 }
 
@@ -41,25 +40,23 @@ export function GithubImportModal({
   selectedGithubSkills,
   githubLoading,
   githubInstalling,
-  githubExporting,
+  githubPreviewed,
+  githubError,
   onGithubPreview,
   onGithubSkillToggle,
   onGithubInstall,
-  onGithubExport,
   setSelectedGithubSkills,
 }: GithubImportModalProps) {
   const { t } = useTranslation();
-
   return (
     <EditorSidebar
       open={showGithubModal}
       onClose={() => setShowGithubModal(false)}
       title={t("skills.importFromGitHub")}
-      subtitle={t("skills.subtitle")}
       icon={<Github size={16} />}
       width="wide"
       footer={
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-wrap justify-end gap-1">
           <Button
             variant="secondary"
             onClick={() => setShowGithubModal(false)}
@@ -68,161 +65,129 @@ export function GithubImportModal({
             {t("common.cancel")}
           </Button>
           <Button
-            variant="secondary"
-            onClick={onGithubExport}
-            disabled={githubExporting || selectedGithubSkills.length === 0}
-          >
-            {githubExporting ? (
-              <LoadingSpinner size="sm" color="text-[var(--theme-primary)]" />
-            ) : (
-              <Archive size={16} />
-            )}
-            <span className="hidden sm:inline">{t("skills.exportZip")}</span>
-          </Button>
-          <Button
             variant="primary"
             onClick={onGithubInstall}
-            disabled={githubInstalling || selectedGithubSkills.length === 0}
+            loading={githubInstalling}
+            leftIcon={<Upload size={16} />}
+            disabled={githubLoading || selectedGithubSkills.length === 0}
           >
-            {githubInstalling ? (
-              <LoadingSpinner size="sm" color="text-white" />
-            ) : (
-              <Upload size={16} />
-            )}
-            <span className="hidden sm:inline">
-              {t("skills.installSelected", {
-                count: selectedGithubSkills.length,
-              })}
-            </span>
+            {t("skills.installSelected", {
+              count: selectedGithubSkills.length,
+            })}
           </Button>
         </div>
       }
     >
       <div className="es-form">
-        <div className="skill-callout flex items-start gap-3 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg-subtle)]/85 px-4 py-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--theme-primary-light)] text-[var(--theme-primary)]">
-            <Sparkles size={18} />
-          </div>
-          <div>
-            <p className="text-14 font-medium text-[var(--theme-text)]">
-              {t("skills.importFromGitHub")}
-            </p>
-            <p className="mt-1 text-12 leading-5 text-[var(--theme-text-secondary)]">
-              {t("skills.importFromGitHubTitle")}
-            </p>
-          </div>
-        </div>
-
-        {/* URL Input */}
-        <div className="es-field">
-          <label className="es-label">{t("skills.githubRepoUrl")}</label>
-          <div className="skill-github-import flex flex-col gap-2 sm:flex-row">
-            <div className="skill-github-import__field skill-github-import__field--repo">
-              <Input
-                type="text"
-                value={githubUrl}
-                onChange={(e) => setGithubUrl(e.target.value)}
-                placeholder="https://github.com/owner/repo"
-                className="skill-github-import__input"
-              />
-            </div>
-            <div className="skill-github-import__field skill-github-import__field--branch">
-              <Input
-                type="text"
-                value={githubBranch}
-                onChange={(e) => setGithubBranch(e.target.value)}
-                placeholder="main"
-                className="skill-github-import__input"
-              />
-            </div>
+        <FormField label={t("skills.githubRepoUrl")}>
+          <Input
+            value={githubUrl}
+            onChange={(e) => setGithubUrl(e.target.value)}
+            disabled={githubInstalling}
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="https://github.com/owner/repo"
+          />
+        </FormField>
+        <FormField label={t("skills.githubBranch")}>
+          <Input
+            value={githubBranch}
+            onChange={(e) => setGithubBranch(e.target.value)}
+            disabled={githubInstalling}
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="main"
+          />
+        </FormField>
+        <Button
+          variant="secondary"
+          onClick={onGithubPreview}
+          loading={githubLoading}
+          disabled={githubInstalling || !githubUrl.trim()}
+        >
+          {t("skills.preview")}
+        </Button>
+        {githubError && (
+          <div className="space-y-2">
+            <ConfigPanelErrorCallout message={githubError} />
             <Button
-              variant="secondary"
-              onClick={onGithubPreview}
-              disabled={githubLoading || !githubUrl.trim()}
-              className="skill-github-import__button"
+              onClick={(event) => {
+                event.currentTarget
+                  .closest<HTMLElement>("[data-right-panel-root]")
+                  ?.focus();
+                if (githubPreviewed) onGithubInstall();
+                else onGithubPreview();
+              }}
+              disabled={
+                githubLoading ||
+                githubInstalling ||
+                (githubPreviewed && selectedGithubSkills.length === 0)
+              }
             >
-              <span className="inline-flex items-center justify-center gap-2">
-                <span className="inline-flex h-4 w-4 items-center justify-center">
-                  {githubLoading ? (
-                    <LoadingSpinner
-                      size="sm"
-                      color="text-[var(--theme-primary)]"
-                    />
-                  ) : (
-                    <Sparkles size={16} />
-                  )}
-                </span>
-                <span>{t("skills.preview")}</span>
-              </span>
+              {t("common.retry")}
             </Button>
           </div>
-        </div>
-
+        )}
+        {githubPreviewed &&
+          !githubLoading &&
+          !githubError &&
+          githubSkills.length === 0 && (
+            <p role="status" className="text-14 text-theme-text-secondary">
+              {t("backendErrors.noSkillsFoundInRepository")}
+            </p>
+          )}
         {githubSkills.length > 0 && (
           <div className="es-section space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <label className="text-14 font-medium text-[var(--theme-text)]">
-                  {t("skills.selectSkillsToInstall")}
-                </label>
-                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--theme-primary)]/10 px-1.5 text-11 font-semibold text-[var(--theme-primary)]">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-14 font-medium text-theme-text">
+                {t("skills.selectSkillsToInstall")}{" "}
+                <span className="text-12 text-theme-text-secondary tabular-nums">
                   {selectedGithubSkills.length}/{githubSkills.length}
                 </span>
-              </div>
-              <button
-                onClick={() => {
-                  const allNames = githubSkills.map((s) => s.name);
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={githubInstalling || githubLoading}
+                onClick={() =>
                   setSelectedGithubSkills(
-                    selectedGithubSkills.length === allNames.length
+                    selectedGithubSkills.length === githubSkills.length
                       ? []
-                      : allNames,
-                  );
-                }}
-                className="rounded-md px-2 py-1 text-12 font-medium text-[var(--theme-primary)] transition-colors hover:bg-[var(--theme-primary)]/8"
+                      : githubSkills.map((s) => s.name),
+                  )
+                }
               >
                 {selectedGithubSkills.length === githubSkills.length
                   ? t("common.deselectAll")
                   : t("common.selectAll")}
-              </button>
+              </Button>
             </div>
-            <div className="space-y-1.5 max-h-60 overflow-y-auto rounded-xl p-1">
-              {githubSkills.map((skill) => {
-                const selected = selectedGithubSkills.includes(skill.name);
-                return (
-                  <div
-                    key={skill.name}
-                    onClick={() => onGithubSkillToggle(skill.name)}
-                    className={`group flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-150 ${
-                      selected
-                        ? "bg-[var(--theme-primary)]/8"
-                        : "hover:bg-[var(--theme-primary)]/4"
-                    }`}
-                  >
-                    <Checkbox
-                      ariaLabel={skill.name}
-                      size="sm"
-                      checked={selected}
-                      onChange={() => onGithubSkillToggle(skill.name)}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p
-                        className={`text-14 font-medium truncate transition-colors ${
-                          selected
-                            ? "text-[var(--theme-primary)]"
-                            : "text-[var(--theme-text)]"
-                        }`}
-                      >
-                        {skill.name}
+            <div className="space-y-1.5">
+              {githubSkills.map((skill) => (
+                <label
+                  key={skill.name}
+                  className={`flex cursor-pointer items-start gap-3 rounded-lg px-3 py-3 ${selectedGithubSkills.includes(skill.name) ? "bg-theme-primary-light" : "hover:bg-theme-bg-subtle"}`}
+                >
+                  <Checkbox
+                    ariaLabel={skill.name}
+                    size="sm"
+                    checked={selectedGithubSkills.includes(skill.name)}
+                    disabled={githubInstalling || githubLoading}
+                    onChange={() => onGithubSkillToggle(skill.name)}
+                    className="mt-0.5"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-14 font-medium text-theme-text [overflow-wrap:anywhere]">
+                      {skill.name}
+                    </p>
+                    {skill.description && (
+                      <p className="mt-0.5 text-12 text-theme-text-secondary [overflow-wrap:anywhere]">
+                        {skill.description}
                       </p>
-                      {skill.description && (
-                        <p className="mt-0.5 text-12 text-[var(--theme-text-secondary)] truncate">
-                          {skill.description}
-                        </p>
-                      )}
-                    </div>
+                    )}
                   </div>
-                );
-              })}
+                </label>
+              ))}
             </div>
           </div>
         )}

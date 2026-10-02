@@ -1,0 +1,206 @@
+.code-editor {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  container: code-editor / inline-size;
+}
+
+.code-editor > .cm-theme,
+.code-editor .cm-scroller {
+  flex: 1;
+  min-height: 0;
+}
+
+.code-editor-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--theme-bg-card);
+}
+
+.code-editor-toolbar button {
+  color: var(--theme-text-secondary);
+}
+
+.code-editor .cm-panels {
+  color: var(--theme-text);
+  background: var(--theme-bg-card) !important;
+  border-color: var(--theme-border) !important;
+}
+
+.code-editor .cm-panel.cm-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 8px 48px 8px 12px;
+  max-height: min(24rem, 60vh);
+  overflow: auto;
+  font:
+    400 13px/1.4 Inter,
+    system-ui,
+    sans-serif;
+}
+
+.code-editor .cm-panel.cm-search :is(input, button, label) {
+  margin: 0;
+}
+
+.code-editor .cm-panel.cm-search :is(button, .cm-textfield) {
+  box-sizing: border-box;
+  min-height: 32px;
+  min-width: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-sm);
+  color: var(--theme-text);
+  background: var(--theme-bg-subtle);
+  font: inherit;
+}
+
+.code-editor .cm-panel.cm-search .cm-textfield {
+  width: 14rem;
+  background: var(--theme-bg-card);
+}
+
+.code-editor .cm-panel.cm-search button:hover {
+  background: var(--theme-bg-elevated);
+  border-color: var(--theme-border-hover);
+}
+
+.code-editor .cm-panel.cm-search label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  font: inherit;
+  white-space: normal;
+  cursor: pointer;
+}
+
+.code-editor .cm-panel.cm-search input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--theme-primary);
+}
+
+.code-editor .cm-panel.cm-search br {
+  flex-basis: 100%;
+}
+
+.code-editor .cm-panel.cm-search [name="close"] {
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  padding: 0;
+  font-size: 20px;
+}
+
+.code-editor .cm-panel.cm-search :is(button, input):focus-visible,
+.code-editor .cm-panel.cm-search label:has(:focus-visible) {
+  outline: 2px solid var(--theme-ring);
+  outline-offset: 2px;
+}
+
+.code-editor .cm-editor .cm-searchMatch {
+  background: color-mix(in srgb, var(--theme-warning) 22%, transparent);
+}
+
+.code-editor .cm-editor .cm-searchMatch-selected {
+  background: color-mix(in srgb, var(--theme-info) 28%, transparent);
+  outline: 1px solid var(--theme-info);
+}
+
+@container code-editor (max-width: 639px) {
+  .code-editor-toolbar button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .code-editor .cm-panel.cm-search {
+    display: flex;
+    align-items: stretch;
+    gap: 8px 4px;
+    padding: 12px;
+  }
+
+  .code-editor .cm-panel.cm-search :is(button, .cm-textfield, label) {
+    min-height: 44px;
+    min-width: 0;
+  }
+
+  .code-editor .cm-panel.cm-search :is(button, .cm-textfield) {
+    padding: 8px;
+  }
+
+  .code-editor .cm-panel.cm-search button {
+    padding-inline: 4px;
+  }
+
+  .code-editor .cm-panel.cm-search .cm-textfield {
+    width: 100%;
+    font-size: 16px;
+  }
+
+  .code-editor .cm-panel.cm-search [name="search"] {
+    flex: 0 0 calc(100% - 48px);
+  }
+
+  .code-editor .cm-panel.cm-search [name="close"] {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 44px;
+  }
+
+  .code-editor
+    .cm-panel.cm-search
+    :is([name="next"], [name="prev"], [name="select"], label) {
+    flex: 1 1 calc((100% - 8px) / 3);
+  }
+
+  .code-editor .cm-panel.cm-search label {
+    display: block;
+    padding: 4px;
+    font-size: 12px;
+  }
+
+  .code-editor .cm-panel.cm-search input[type="checkbox"] {
+    margin-right: 6px;
+  }
+
+  .code-editor .cm-panel.cm-search [name="replace"]:is(input) {
+    flex: 0 0 100%;
+  }
+
+  .code-editor
+    .cm-panel.cm-search
+    :is(button[name="replace"], [name="replaceAll"]) {
+    flex: 1;
+  }
+
+  .code-editor .cm-panel.cm-search br {
+    display: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .code-editor-toolbar button,
+  .code-editor .cm-panel.cm-search :is(button, .cm-textfield, label) {
+    min-height: 44px;
+  }
+
+  .code-editor-toolbar button,
+  .code-editor .cm-panel.cm-search button {
+    min-width: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-editor-toolbar button {
+    transition: none;
+    transform: none;
+  }
+}

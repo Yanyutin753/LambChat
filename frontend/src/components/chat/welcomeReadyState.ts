@@ -41,6 +41,7 @@ export interface TeamRequestState<T> {
   cards: T[];
   isLoading: boolean;
   isSettled: boolean;
+  hasError?: boolean;
 }
 
 export function beginTeamRequest<T>(
@@ -64,5 +65,11 @@ export function settleTeamRequestFailure<T>(
   requestId: number,
 ): TeamRequestState<T> {
   if (state.requestId !== requestId) return state;
-  return { requestId, cards: [], isLoading: false, isSettled: true };
+  return {
+    requestId,
+    cards: [],
+    isLoading: false,
+    isSettled: true,
+    hasError: true,
+  };
 }

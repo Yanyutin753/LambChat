@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ChevronDown, FolderOpen, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { TreeNode } from "./SkillForm.types";
 import { getFileIcon } from "./SkillForm.utils";
 
@@ -18,6 +19,7 @@ export function FileTreeItem({
   onRemove: (i: number) => void;
   canRemove: boolean;
 }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(true);
   const indent = 10 + depth * 16;
 
@@ -27,6 +29,7 @@ export function FileTreeItem({
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
+          aria-expanded={expanded}
           className="w-full flex items-center gap-1.5 py-[4px] text-13 text-left text-stone-500 dark:text-stone-400 hover:bg-stone-100/80 dark:hover:bg-white/5 transition-colors duration-100 select-none"
           style={{ paddingLeft: `${indent}px`, paddingRight: "8px" }}
         >
@@ -60,10 +63,8 @@ export function FileTreeItem({
 
   const isActive = node.fileIndex === activeFileIndex;
   return (
-    <button
-      type="button"
-      onClick={() => node.fileIndex !== undefined && onSelect(node.fileIndex)}
-      className={`w-full flex items-center gap-2 py-[5px] text-13 text-left group transition-colors duration-100 ${
+    <div
+      className={`skill-file-tree-row w-full flex items-center gap-2 text-13 text-left group transition-colors duration-100 ${
         isActive
           ? "bg-[var(--theme-primary)]/10 text-[var(--theme-text)] font-medium"
           : "text-stone-600 dark:text-stone-400 hover:bg-stone-100/80 dark:hover:bg-white/5"
@@ -82,24 +83,32 @@ export function FileTreeItem({
             }
       }
     >
-      {getFileIcon(node.name)}
-      <span className="truncate flex-1" title={node.name}>
-        {node.name}
-      </span>
+      <button
+        type="button"
+        onClick={() => node.fileIndex !== undefined && onSelect(node.fileIndex)}
+        aria-pressed={isActive}
+        data-file-select
+        className="flex min-w-0 flex-1 items-center gap-2 py-[5px] text-left focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+      >
+        {getFileIcon(node.name)}
+        <span className="truncate flex-1" title={node.name}>
+          {node.name}
+        </span>
+      </button>
       {canRemove && node.fileIndex !== undefined && (
-        <span
-          role="button"
-          onClick={(e) => {
-            e.stopPropagation();
+        <button
+          type="button"
+          aria-label={`${t("common.remove")}: ${node.name}`}
+          onClick={() => {
             if (node.fileIndex !== undefined) {
               onRemove(node.fileIndex);
             }
           }}
-          className="hidden group-hover:inline-flex items-center justify-center h-4 w-4 rounded hover:bg-stone-300/60 dark:hover:bg-stone-600/60 text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300 transition-colors"
+          className="skill-file-remove flex shrink-0 items-center justify-center rounded-lg text-[var(--theme-text-secondary)] hover:bg-[var(--theme-bg-subtle)] focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
         >
           <X size={10} />
-        </span>
+        </button>
       )}
-    </button>
+    </div>
   );
 }

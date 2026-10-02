@@ -91,12 +91,17 @@ export function RunStepsCollapse({
         ? t("chat.message.runStepsSummary", { duration: durationLabel })
         : t("chat.message.runStepsCount", { count: steps });
   const statusClass =
-    "min-w-0 truncate leading-6 text-[0.9375rem] max-sm:text-16 text-gray-700 dark:text-gray-300";
+    "min-w-0 truncate leading-6 text-[0.9375rem] max-sm:text-16 text-theme-text-secondary";
 
   if (active) {
     return (
       <div className="run-steps-collapse">
-        <div className="flex w-full items-baseline gap-1.5 border-b border-theme-border pb-1.5">
+        <div
+          role="status"
+          aria-label={t("chat.message.runStepsWorkingNoTimer")}
+          aria-live="off"
+          className="flex w-full items-baseline gap-1.5 border-b border-theme-border pb-1.5"
+        >
           <span className={statusClass}>{statusText}</span>
         </div>
         <div className="space-y-3 pt-2">{renderExpanded()}</div>
