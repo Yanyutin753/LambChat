@@ -161,6 +161,26 @@
   isolation: isolate;
 }
 
+/* Keep search readable when translated actions need another row. */
+.panel-header__search-row {
+  flex-wrap: wrap;
+}
+
+.panel-header__search-box {
+  min-width: min(16rem, 100%);
+}
+
+.panel-header__search-actions,
+.panel-header__search-actions > .flex {
+  flex-wrap: wrap;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.panel-header__search-actions {
+  margin-left: auto;
+}
+
 @container panel (max-width: 639px) {
   .panel-header {
     padding: 0.5rem 1rem 0.625rem;
@@ -426,6 +446,13 @@
 
 .panel-header-dropdown :is(button, [role="menuitem"], .skill-tag-chip) {
   min-height: 2rem;
+}
+
+@media (max-width: 639px), (pointer: coarse) {
+  .panel-header-dropdown :is(button, [role="menuitem"], .skill-tag-chip) {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
 }
 
 .panel-header-dropdown

@@ -83,7 +83,8 @@ test("tag filter dropdowns opt into stable mobile filter-menu behavior", () => {
   expect(skillFilterDropdownSource).toMatch(/skill-tag-chip/);
   expect(skillFilterDropdownSource).toMatch(/aria-haspopup="menu"/);
   expect(skillFilterDropdownSource).toMatch(/aria-expanded=\{isOpen\}/);
+  expect(skillFilterDropdownSource).toMatch(/role="menuitemcheckbox"/);
   expect(skillFilterDropdownSource).toMatch(
-    /aria-pressed=\{selectedTags\.includes\(tag\)\}/,
+    /aria-checked=\{selectedTags\.includes\(tag\)\}/,
   );
 });

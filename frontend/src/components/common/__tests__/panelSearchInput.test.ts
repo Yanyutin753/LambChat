@@ -15,6 +15,24 @@ const componentsCss = source("../../../styles/components.css").replace(
   " ",
 );
 
+test("long panel actions wrap before squeezing search below a usable width", () => {
+  expect(cssBlock(componentsCss, ".panel-header__search-row")).toMatch(
+    /flex-wrap:\s*wrap;/,
+  );
+  expect(cssBlock(componentsCss, ".panel-header__search-box")).toMatch(
+    /min-width:\s*min\(16rem,\s*100%\);/,
+  );
+  expect(componentsCss).toMatch(
+    /\.panel-header__search-actions, \.panel-header__search-actions > \.flex\s*\{[^}]*flex-wrap:\s*wrap;[^}]*max-width:\s*100%;/,
+  );
+});
+
+test("portal panel filters keep phone and touch targets at least 44px", () => {
+  expect(componentsCss).toMatch(
+    /@media \(max-width:\s*639px\), \(pointer:\s*coarse\) \{\s*\.panel-header-dropdown :is\(button, \[role="menuitem"\], \.skill-tag-chip\) \{[^}]*min-height:\s*2\.75rem;[^}]*min-width:\s*2\.75rem;/,
+  );
+});
+
 test("panel search inputs use an editing-safe shared input", () => {
   const panelHeader = source("../PanelHeader.tsx");
   const searchInput = source("../PanelSearchInput.tsx");

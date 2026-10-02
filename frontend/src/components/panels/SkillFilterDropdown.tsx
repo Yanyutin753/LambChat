@@ -1,7 +1,14 @@
 import { createPortal } from "react-dom";
-import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { ChevronDown } from "lucide-react";
 import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
+import { restoreOpenerFocusUnclaimed } from "../../utils/modalDialog";
 
 export interface SkillFilterOption<T extends string> {
   value: T;
@@ -46,17 +53,17 @@ function getDropdownPosition(rect: DOMRect, width: number): CSSProperties {
   const maxLeft =
     viewport.offsetLeft + viewport.width - renderedWidth - DROPDOWN_GUTTER;
   const left = Math.min(Math.max(minLeft, rect.right - renderedWidth), maxLeft);
-  const top = viewport.offsetTop + rect.bottom + 8;
-  const maxHeight = Math.max(
-    160,
-    viewport.offsetTop + viewport.height - top - DROPDOWN_GUTTER,
-  );
+  const below =
+    viewport.offsetTop + viewport.height - rect.bottom - 8 - DROPDOWN_GUTTER;
+  const above = rect.top - viewport.offsetTop - 8 - DROPDOWN_GUTTER;
+  const preferBelow = below >= 160 || below >= above;
 
   return {
-    top,
+    top: preferBelow ? rect.bottom + 8 : undefined,
+    bottom: preferBelow ? undefined : window.innerHeight - rect.top + 8,
     left,
     width: renderedWidth,
-    maxHeight,
+    maxHeight: Math.max(0, preferBelow ? below : above),
   };
 }
 
@@ -81,95 +88,155 @@ export function SkillFilterDropdown<T extends string>({
   onClearFilters,
 }: SkillFilterDropdownProps<T>) {
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuId = useId();
   const hasActiveFilters = activeCount > 0;
 
   const dropdownStyle = useStickyDropdownPosition(triggerRef, isOpen, (rect) =>
     getDropdownPosition(rect, FILTER_DROPDOWN_WIDTH),
   );
 
+  const ready = isOpen && Object.keys(dropdownStyle).length > 0;
   useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onOpenChange(false);
+    if (!ready) return;
+    const menu = menuRef.current;
+    const trigger = triggerRef.current;
+    (
+      menu?.querySelector<HTMLButtonElement>(
+        '[role="menuitemradio"][aria-checked="true"]',
+      ) ?? menu?.querySelector<HTMLButtonElement>("button")
+    )?.focus();
+    return () => {
+      if (menu?.contains(document.activeElement))
+        queueMicrotask(() => restoreOpenerFocusUnclaimed(trigger, menu));
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onOpenChange]);
+  }, [ready]);
 
-  const panel =
-    isOpen && Object.keys(dropdownStyle).length > 0
-      ? createPortal(
+  const panel = ready
+    ? createPortal(
+        <div
+          className="fixed inset-0 z-[999]"
+          data-panel-header-dropdown
+          onPointerDown={() => onOpenChange(false)}
+        >
           <div
-            className="fixed inset-0 z-[999]"
-            data-panel-header-dropdown
-            onPointerDown={() => onOpenChange(false)}
+            ref={menuRef}
+            id={menuId}
+            className="skill-filter-dropdown panel-header-dropdown fixed overflow-y-auto rounded-2xl border bg-[var(--skill-surface)] p-3 shadow-lg"
+            role="menu"
+            aria-label={label}
+            tabIndex={-1}
+            style={dropdownStyle}
+            onPointerDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (
+                event.defaultPrevented ||
+                event.nativeEvent.isComposing ||
+                event.keyCode === 229
+              )
+                return;
+              event.stopPropagation();
+              if (event.key === "Escape" || event.key === "Tab") {
+                if (event.key === "Escape") event.preventDefault();
+                restoreOpenerFocusUnclaimed(
+                  triggerRef.current,
+                  menuRef.current,
+                );
+                onOpenChange(false);
+                return;
+              }
+              const items = Array.from(
+                menuRef.current?.querySelectorAll<HTMLButtonElement>(
+                  "button:not(:disabled)",
+                ) ?? [],
+              );
+              if (!items.length) return;
+              const index = items.indexOf(
+                document.activeElement as HTMLButtonElement,
+              );
+              const next =
+                event.key === "ArrowDown"
+                  ? (index + 1) % items.length
+                  : event.key === "ArrowUp"
+                    ? index <= 0
+                      ? items.length - 1
+                      : index - 1
+                    : event.key === "Home"
+                      ? 0
+                      : event.key === "End"
+                        ? items.length - 1
+                        : -1;
+              if (next >= 0) {
+                event.preventDefault();
+                items[next].focus();
+              }
+            }}
           >
-            <div
-              className="skill-filter-dropdown panel-header-dropdown fixed overflow-hidden rounded-2xl border bg-[var(--skill-surface)] p-3 shadow-lg"
-              role="menu"
-              style={dropdownStyle}
-              onPointerDown={(event) => event.stopPropagation()}
-            >
-              {options && options.length > 0 && value && onValueChange && (
-                <div className="skill-filter-segment mb-3">
-                  {options.map((option) => (
+            {options && options.length > 0 && value && onValueChange && (
+              <div className="skill-filter-segment mb-3">
+                {options.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={value === option.value}
+                    onClick={() => onValueChange(option.value)}
+                    className={cx(
+                      "skill-filter-segment__item",
+                      value === option.value &&
+                        "skill-filter-segment__item--active",
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {tags.length > 0 && (
+              <>
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-12 font-semibold uppercase tracking-[0.16em] text-[var(--theme-text-secondary)]">
+                    {tagsLabel}
+                  </p>
+                  {hasActiveFilters && (
                     <button
-                      key={option.value}
                       type="button"
-                      aria-pressed={value === option.value}
-                      onClick={() => onValueChange(option.value)}
+                      role="menuitem"
+                      onClick={() => {
+                        menuRef.current?.focus();
+                        onClearFilters();
+                      }}
+                      className="text-12 text-[var(--theme-text-secondary)] transition-colors hover:text-[var(--theme-primary)]"
+                    >
+                      {clearLabel}
+                    </button>
+                  )}
+                </div>
+                <div className="flex max-h-56 flex-wrap gap-2 overflow-y-auto">
+                  {tags.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      role="menuitemcheckbox"
+                      aria-checked={selectedTags.includes(tag)}
+                      onClick={() => onToggleTag(tag)}
                       className={cx(
-                        "skill-filter-segment__item",
-                        value === option.value &&
-                          "skill-filter-segment__item--active",
+                        "skill-tag-chip",
+                        selectedTags.includes(tag) && "skill-tag-chip--active",
                       )}
                     >
-                      {option.label}
+                      {tag}
                     </button>
                   ))}
                 </div>
-              )}
-
-              {tags.length > 0 && (
-                <>
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="text-12 font-semibold uppercase tracking-[0.16em] text-[var(--theme-text-secondary)]">
-                      {tagsLabel}
-                    </p>
-                    {hasActiveFilters && (
-                      <button
-                        type="button"
-                        onClick={onClearFilters}
-                        className="text-12 text-[var(--theme-text-secondary)] transition-colors hover:text-[var(--theme-primary)]"
-                      >
-                        {clearLabel}
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex max-h-56 flex-wrap gap-2 overflow-y-auto">
-                    {tags.map((tag) => (
-                      <button
-                        key={tag}
-                        type="button"
-                        aria-pressed={selectedTags.includes(tag)}
-                        onClick={() => onToggleTag(tag)}
-                        className={cx(
-                          "skill-tag-chip",
-                          selectedTags.includes(tag) &&
-                            "skill-tag-chip--active",
-                        )}
-                      >
-                        {tag}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>,
-          document.body,
-        )
-      : null;
+              </>
+            )}
+          </div>
+        </div>,
+        document.body,
+      )
+    : null;
 
   return (
     <>
@@ -177,6 +244,7 @@ export function SkillFilterDropdown<T extends string>({
         ref={triggerRef}
         type="button"
         aria-haspopup="menu"
+        aria-controls={isOpen ? menuId : undefined}
         aria-expanded={isOpen}
         onClick={() => onOpenChange(!isOpen)}
         className={cx(

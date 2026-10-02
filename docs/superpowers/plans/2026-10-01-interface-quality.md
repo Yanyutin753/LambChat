@@ -1221,3 +1221,13 @@ TDD新增11项，真实useSkillsActions/useSkills/skillApi，仅模拟fetch边�
 再次按用户文件预览要求实测390/320px：搜索仅在现有标题动作中一个入口，原生查找浮层280×46px，打开前后代码top141px，choice命中两处，Escape返回代码预览，正文不新增搜索行、无横溢。截图在仓库外visualizations/skill-batch，包括390-file-native-find、320-file-native-find、320-short-dark-retry、390-light-ru、1440-light-ru、834-sepia-ru、390-memory-light-ru、390-dark-ru-pending/error。测试语言已通过UI恢复中文，未保存管理员设置或执行真实写入。
 
 八项自检：复用现有排版和间距、保留阅读留白；计数/操作/错误层级分明；三主题token，无新渐变或装饰；无新增动效、沿用reduced-motion；等待/Retry/键盘/焦点有测试和实屏；手机短屏/平板/桌面可用；继续现有LambChat视觉系统，不新增依赖。npm exec --offline -- impeccable update仍报告未安装skill folders，使用DESIGN人工清单。全站目标保持进行中，主清单未闭合项保持未勾选；下一批优先处理技能页头长文案搜索空间、剩余导入发布/预览格式/跨页键盘组合，再补真实服务和原生设备验收。
+
+### 2026-10-02：资源搜索空间与筛选键盘闭环
+
+上一回合为 progress（8d4948cd）。开工 fetch/rebase 确认 origin/develop 已包含；主 checkout 与用户3017保留。共享页头使用原生 flex 换行，搜索最低可读宽度16rem，长操作移到下一行并右对齐：834px俄语搜索从53.78px恢复638.05px，1440px仍一行。手机动作打开真实 EditorSidebar/ModalSurface 前使用既有焦点 helper 保留 More，动作已主动转移焦点时不抢焦点。
+
+SkillFilterDropdown 两个调用方（技能列表/商店）共用原生 menu 语义、选中项初始焦点、箭头/Home/End、多选保持、分层 Escape 与原生 Tab。清空会先聚焦稳定菜单避免移除按钮后落到 BODY；短屏向上翻转、按真实可用高度滚动。手机/coarse portal 控件宽高至少44px。只读审查发现清空失焦与短标签宽度两项P2，均单独RED后修复，最终未发现其他确定P1/P2。共10项新检查，相关22项通过；旧 Memory 源码断言迁移到 menuitemcheckbox/aria-checked。最终796文件4014测试通过，lint零警告，tsc/Vite/PWA/build通过，预算未提高：eager560452/561152、precache92项5027281/5242880 bytes，git diff --check通过。日志 /tmp/resource-header-*-reviewed.log。
+
+IAB证据：320×568深色俄语筛选、分层Escape/Tab/清空；390×844浅色俄语商店筛选与发布编辑器关闭归还More；834×1112 sepia俄语搜索、1440×900浅色俄语单行。截图位于仓库外 visualizations/resource-header。语言通过UI恢复中文；fixture写请求405，不证明实际发布、保存或设备触控。用户当前3017文件预览再次核对已有 CodeMirror 原生浮动查找，无重复生产修改；390px正文打开前后top141px/height678.40625px一致，浮层280×46px，320px无横溢，Escape回代码。文件预览相关17项测试通过。
+
+八项人工检查沿用现有字号、阅读留白、状态层级、主题token和reduced-motion；无新增装饰/依赖，实际键盘和窄屏布局有证据。Impeccable未安装skill folders，按DESIGN清单人工验收。全站目标仍进行中：剩余Persona筛选的焦点/短屏边界、技能写权限入口、其他格式与真实服务/原生设备验收尚待核对，不把本批当作全站完成。
