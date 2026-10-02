@@ -1432,7 +1432,7 @@
     "paginationInfo": "Показано {{start}}–{{end}} из {{total}}",
     "positive": "Положительный",
     "positiveRate": "Доля положительных",
-    "pressEnter": "Нажмите Enter для отправки",
+    "pressEnter": "Ctrl / ⌘ + Enter для отправки",
     "skipAndSubmit": "Пропустить и отправить",
     "submit": "Отправить",
     "submitFailed": "Не удалось отправить отзыв",

@@ -1432,7 +1432,7 @@
     "paginationInfo": "Showing {{start}}-{{end}} of {{total}}",
     "positive": "Positive",
     "positiveRate": "Positive Rate",
-    "pressEnter": "Press Enter to submit",
+    "pressEnter": "Press Ctrl / ⌘ + Enter to submit",
     "skipAndSubmit": "Skip & Submit",
     "submit": "Submit",
     "submitFailed": "Failed to submit feedback",

@@ -1432,7 +1432,7 @@
     "paginationInfo": "显示第 {{start}}-{{end}} 条，共 {{total}} 条",
     "positive": "好评",
     "positiveRate": "好评率",
-    "pressEnter": "⌘+Enter 发送",
+    "pressEnter": "按 Ctrl / ⌘ + Enter 提交",
     "skipAndSubmit": "跳过并提交",
     "submit": "提交",
     "submitFailed": "反馈提交失败",

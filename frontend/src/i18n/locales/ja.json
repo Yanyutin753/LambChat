@@ -1432,7 +1432,7 @@
     "paginationInfo": "{{total}}件中{{start}}〜{{end}}件を表示",
     "positive": "ポジティブ",
     "positiveRate": "ポジティブ率",
-    "pressEnter": "⌘+Enterで送信",
+    "pressEnter": "Ctrl / ⌘ + Enterで送信",
     "skipAndSubmit": "スキップして送信",
     "submit": "送信",
     "submitFailed": "フィードバックの送信に失敗しました",

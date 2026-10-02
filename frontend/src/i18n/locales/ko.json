@@ -1432,7 +1432,7 @@
     "paginationInfo": "{{total}}개 중 {{start}}-{{end}} 표시",
     "positive": "긍정",
     "positiveRate": "긍정율",
-    "pressEnter": "⌘+Enter로 보내기",
+    "pressEnter": "Ctrl / ⌘ + Enter로 제출",
     "skipAndSubmit": "건너뛰고 제출",
     "submit": "제출",
     "submitFailed": "피드백 제출에 실패했습니다",

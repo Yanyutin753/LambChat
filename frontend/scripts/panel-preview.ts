@@ -1739,6 +1739,41 @@ const server = await createServer({
             return;
           }
           if (
+            previewParams.get("feedback-flow") === "1" &&
+            req.method === "POST" &&
+            ["/api/feedback/", "/api/upload/file"].includes(url.pathname)
+          ) {
+            // UI-only feedback: discard bytes; never parse, store or forward them.
+            req.resume();
+            const upload = url.pathname === "/api/upload/file";
+            const key = `feedback-flow:${streamKey}:${url.pathname}`;
+            const failed =
+              failureTarget === (upload ? "feedback-upload" : "feedback-save") &&
+              !failedChannelRequests.has(key);
+            if (failed) failedChannelRequests.add(key);
+            setTimeout(() => {
+              res.statusCode = failed ? 503 : 200;
+              res.setHeader("Content-Type", "application/json");
+              res.end(
+                JSON.stringify(
+                  failed
+                    ? { detail: "Fixture feedback unavailable" }
+                    : upload
+                      ? {
+                          key: "preview-feedback",
+                          url: "/icons/icon-192.png",
+                          name: "preview-feedback.png",
+                          type: "image",
+                          mime_type: "image/png",
+                          size: 41245,
+                        }
+                      : feedback[0],
+                ),
+              );
+            }, 2000);
+            return;
+          }
+          if (
             (previewParams.get("persona-flow") === "1" &&
               ((req.method === "POST" &&
                 ["/api/persona-presets/", "/api/upload/file"].includes(

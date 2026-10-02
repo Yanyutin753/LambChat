@@ -128,6 +128,7 @@ test("sidebars, fullscreen editors, and media viewers use vertical safe-area spa
 });
 
 test("portal dialogs and sheets reserve safe-area spacing", () => {
+  expect(readSource("../components/common/Dialog.tsx")).toMatch(/<ModalSurface\b/);
   const safeViewportFiles = [
     "../components/common/AboutDialog.tsx",
     "../components/common/ConfirmDialog.tsx",
@@ -162,7 +163,7 @@ test("portal dialogs and sheets reserve safe-area spacing", () => {
   // （逐文件的精确模式由 fullscreenOverlaysSafeAreaSource.test.ts 锁定）
   for (const path of safeViewportFiles) {
     expect(readSource(path)).toMatch(
-      /safe-area-viewport-padding\b|safe-area-bottom|<ModalSurface/,
+      /safe-area-viewport-padding\b|safe-area-bottom|<ModalSurface|<Dialog\b/,
     );
   }
 });

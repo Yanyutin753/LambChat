@@ -83,7 +83,7 @@ export function Dialog({
         </div>
 
         {footer !== undefined && (
-          <div className="safe-area-bottom flex items-center justify-end gap-2 border-t border-theme-border-subtle bg-theme-bg-subtle px-5 py-3 dark:border-stone-700 dark:bg-stone-900/50">
+          <div className="safe-area-bottom flex flex-wrap items-center justify-end gap-2 border-t border-theme-border-subtle bg-theme-bg-subtle px-5 py-3 [--safe-area-bottom-extra:0.75rem] dark:border-stone-700 dark:bg-stone-900/50">
             {footer}
           </div>
         )}

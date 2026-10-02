@@ -1140,3 +1140,17 @@ LocalSandboxSection复用usePreferenceWrites统一配对、策略、重启和取
 八项自检：标题和代码沿用现有排版；删除重复搜索行而保持既有留白；文件、搜索、状态分层；浅/深色沿用token；无新增动效且遵循已有reduced motion；命名、校验、Enter、Escape及焦点实测；手机/平板/桌面和短屏可用；复用LambChat组件而不增加装饰。npx --offline impeccable update仍报告未安装skill folders，按DESIGN清单人工检查。最终790文件3965项、lint零错误警告、tsc/Vite/PWA/build及预算通过：eager560406/561152 bytes，precache93项5033357/5242880 bytes；未放宽预算。日志/tmp/skill-editor-*-final.log，git diff --check通过。
 
 全站目标保持进行中。继续剩余编辑流程与五语完整状态矩阵，真实服务写入、原生桌面/手机及软键盘仍需独立证据；本批不宣称全站验收完成。
+
+### 2026-10-02：聊天评价弹层与上传、提交恢复
+
+继续同一全站目标，interface-state 开工 clean，fetch 确认 origin/develop 为 HEAD 祖先。此前技能普通编辑、长文件路径与加载等已有走查记录，本轮转向尚未完整验收的聊天评价弹层。320×568 深色俄语实际复现：关闭28px，跳过40.39px，提交38.39px；Add Image 是不可键盘操作的 div，评论缺少显式标签，附件删除仅20px且依赖 hover。复用现有 Dialog、Button、LoadingSpinner、ConfigPanelErrorCallout 与 ui-textarea：手机关闭、附件删除、Add Image、重试至少44px，评论16px，正文可滚动、页脚保持可达。长俄语操作等宽且可折行，桌面保留既有尺寸；标题沿用衬线与主题，不新增组件体系或依赖。共享 Dialog 的 safe-area-bottom 原覆盖 py-3 底部为0，补已有 --safe-area-bottom-extra:0.75rem 约定后底部保留12px加原生安全区，更新弹层同时受益。
+
+上传批次复用现有 UploadHandle.abort，关闭/卸载取消并隔离压缩和上传的迟到响应；拒绝重复选择/拖入，保留部分成功附件与失败原文件，错误持续显示并可 Retry。提交期间冻结表单并拒绝关闭，错误保留评论/附件且主操作转 Retry；父级卸载不再应用旧提交结果。Ctrl/Cmd+Enter 提交，普通 Enter 换行，现代/旧 IME 不误触提交；五语提示同步。删除附件前聚焦稳定评论，避免控件卸载后失焦。初始10项用户行为先RED后GREEN；独立审查指出删除焦点P2，另1项先RED后GREEN；底部留白断言先RED（1 failed/36 passed）后GREEN。相关6文件73项通过；旧安全区与滚动锁源码断言改为追踪 Dialog→ModalSurface，保留共享owner约束。最终独立只读复核无确定剩余P1/P2。
+
+3019 UI-only feedback-flow fixture 显式模拟 POST 等待2秒、首次503、重试200，丢弃请求字节且不解析/保存/转发，其它写入仍405；已更新 PANEL_PREVIEW 指南。实际320俄语浅/深色验证44px控件、长文案完整显示、无横向溢出；上传先失败再重试返回公开图标，键盘 Enter 打开文件选择器，附件删除后焦点回评论。提交等待时 Escape 无效、评论冻结，首次失败持续 alert 且 Mobile feedback sample 保留，Retry 后关闭并显示已评价状态。safe-area 修后操作底边556px，距568px屏底12px。最终截图在仓库外 chat-feedback 目录；320-dark-russian 是补底部12px前的布局记录，320-light-submit-error 包含最终底部留白。
+
+再次核对用户文件预览要求：390与320px搜索按钮在现有标题工具栏、内部重复工具栏0个；CodeMirror原生简洁查找浮层280×46px，打开前后代码top始终141px，choice命中2处，Escape返回代码，整页溢出0。截图390-file-native-find与320-file-native-find。没有用独立搜索行或撑满正文。尝试保留的3017旧标签69只读观察时浏览器超时，独立3019上再做834主题/视口切换及reset也超时；没有重启用户服务或把这些平板检查列为通过。保留已取得的手机实屏证据，原生触控/软键盘、桌面与暖色最终验证仍为下一轮边界。
+
+按DESIGN八项自检：复用排版/间距与单层共享弹层，主次操作清楚、长文案完整；浅深色token可读，无装饰性动效，沿用减少动效控件；原文件重试、提交恢复、删除/关闭焦点有测试和实屏；手机布局与原生查找不挤正文；沿用LambChat视觉语言。npx --offline impeccable update报告未安装skill folders，按项目人工清单检查。最终791文件3977项、lint零错误警告、tsc/Vite/PWA/build及预算通过：eager560447/561152 bytes，precache93项5032401/5242880 bytes，无预算提高。日志/tmp/feedback-*-final-delivery.log；git diff --check通过。首轮全量4项源码断言失败由共享Dialog迁移引起，修复上述owner追踪后完整通过。
+
+全站目标保持进行中。未将fixture成功称为真实反馈/存储，未宣称真机输入或全站完成。下一轮优先恢复独立浏览器验证的平板/桌面与短屏证据，并继续尚未完整覆盖的更新/联系管理员及其余五语完整状态。
