@@ -27,7 +27,7 @@ export function getFileTypeInfo(
   if (mimeType) {
     const normalizedMime = mimeType.toLowerCase();
     const ext = MIME_TO_EXT[normalizedMime];
-    if (ext && FILE_TYPE_MAP[ext]) {
+    if (ext && Object.hasOwn(FILE_TYPE_MAP, ext)) {
       return { ...FILE_TYPE_MAP[ext] };
     }
 
@@ -57,7 +57,7 @@ export function getFileTypeInfo(
 
   // 2. 从文件名/路径获取扩展名
   const ext = getFileExtension(input);
-  if (ext && FILE_TYPE_MAP[ext]) {
+  if (ext && Object.hasOwn(FILE_TYPE_MAP, ext)) {
     return { ...FILE_TYPE_MAP[ext] };
   }
 

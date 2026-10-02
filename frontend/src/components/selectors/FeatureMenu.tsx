@@ -1,4 +1,11 @@
-import { useState, useRef, useEffect, memo, type ReactNode } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useId,
+  memo,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
@@ -54,11 +61,14 @@ function MenuGroup({
   children: ReactNode;
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const bodyId = useId();
   return (
     <div className="feature-menu-group" role="group">
       <button
         type="button"
         className="feature-menu-group-header"
+        aria-expanded={expanded}
+        aria-controls={bodyId}
         onClick={() => setExpanded((v) => !v)}
       >
         <span className="feature-menu-group-icon">{icon}</span>
@@ -70,6 +80,9 @@ function MenuGroup({
         />
       </button>
       <div
+        id={bodyId}
+        inert={!expanded}
+        aria-hidden={!expanded}
         className="feature-menu-group-body"
         data-expanded={expanded ? "" : undefined}
       >
@@ -125,6 +138,7 @@ export const FeatureMenu = memo(function FeatureMenu({
 }: FeatureMenuProps) {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
+  const dropdownId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   // Auto-reopen the FeatureMenu after a full-screen selector modal closes,
@@ -159,6 +173,10 @@ export const FeatureMenu = memo(function FeatureMenu({
         bottom: window.innerHeight - rect.top + 8,
         left,
         width: dropdownW,
+        maxHeight: Math.max(
+          44,
+          rect.top - (window.visualViewport?.offsetTop ?? 0) - 16,
+        ),
         zIndex: 9999,
       };
     },
@@ -166,6 +184,7 @@ export const FeatureMenu = memo(function FeatureMenu({
 
   useEffect(() => {
     if (!isOpen) return;
+    dropdownRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
     const handleClickOutside = (e: MouseEvent) => {
       if (triggerRef.current?.contains(e.target as Node)) return;
       if (dropdownRef.current?.contains(e.target as Node)) return;
@@ -203,6 +222,8 @@ export const FeatureMenu = memo(function FeatureMenu({
         style={isOpen ? { position: "relative", zIndex: 10000 } : undefined}
         className="chat-tool-btn"
         aria-label={t("chat.features", "功能")}
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? dropdownId : undefined}
       >
         <Plus size={16} />
       </button>
@@ -211,6 +232,37 @@ export const FeatureMenu = memo(function FeatureMenu({
         createPortal(
           <div
             ref={dropdownRef}
+            id={dropdownId}
+            role="group"
+            aria-label={t("chat.features", "功能")}
+            onKeyDown={(event) => {
+              if (
+                event.defaultPrevented ||
+                event.nativeEvent.isComposing ||
+                event.keyCode === 229
+              )
+                return;
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                setIsOpen(false);
+                triggerRef.current?.focus();
+              }
+              if (event.key !== "Tab") return;
+              const controls = Array.from(
+                dropdownRef.current?.querySelectorAll<HTMLButtonElement>(
+                  "button:not(:disabled)",
+                ) ?? [],
+              ).filter((el) => !el.closest('[inert],[aria-hidden="true"]'));
+              if (
+                (event.shiftKey && document.activeElement === controls[0]) ||
+                (!event.shiftKey &&
+                  document.activeElement === controls[controls.length - 1])
+              ) {
+                setIsOpen(false);
+                triggerRef.current?.focus();
+              }
+            }}
             className="feature-menu-dropdown"
             style={{
               ...dropdownStyle,

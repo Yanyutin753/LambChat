@@ -4,8 +4,6 @@ import {
   Code2,
   ChevronRight,
   Download,
-  Copy,
-  Check,
   Loader2,
 } from "lucide-react";
 import clsx from "clsx";
@@ -14,6 +12,8 @@ import { useTranslation } from "react-i18next";
 import type { MessagePart } from "../../../types";
 import { getFileTypeInfo, isImageFile } from "../../documents/utils";
 import { ImageViewer } from "../../common";
+import { CopyButton } from "../../common/CopyButton";
+import { Button, ToolbarIconButton } from "../../common/ui";
 import { Tooltip } from "../../common/Tooltip";
 import { openPersistentToolPanel } from "./items/persistentToolPanelState";
 import type { RevealPreviewOpenSource } from "./items/revealPreviewState";
@@ -28,7 +28,6 @@ import {
   type RevealArtifactTreeFile,
 } from "./revealArtifacts";
 import { ImageWithSkeleton } from "./ImageWithSkeleton";
-import { copyToClipboard } from "../../../utils/clipboard";
 import { exportProjectZip } from "../../../utils/exportProjectZip";
 
 function FolderIcon({
@@ -137,85 +136,65 @@ function TreeFileRow({
   onOpenImagePreview?: (artifact: RevealArtifact & { kind: "file" }) => void;
 }) {
   const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
   const ext = node.artifact.name.split(".").pop()?.toLowerCase() || "";
   const imageSrc = isImageFile(ext) ? node.artifact.preview.signedUrl : null;
 
   return (
-    <button
-      type="button"
-      onClick={() => {
-        if (imageSrc && onOpenImagePreview) {
-          onOpenImagePreview(node.artifact);
-          return;
-        }
-        onOpenPreview?.(node.artifact.preview, "manual");
-      }}
-      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-stone-50 dark:hover:bg-stone-800/60 transition-colors group cursor-pointer"
-    >
-      {imageSrc ? (
-        <ImageWithSkeleton
-          src={imageSrc}
-          alt={node.artifact.name}
-          skipUrlResolve
-          inline
-          className="w-9 h-9 rounded-lg object-cover shrink-0 bg-stone-100 dark:bg-stone-800"
-        />
-      ) : (
-        getFileIcon(node.artifact.name)
-      )}
-      <div className="flex-1 min-w-0 text-left">
-        <div className="text-14 text-stone-700 dark:text-stone-300 truncate">
-          {node.artifact.name}
-        </div>
-        <div className="text-12 text-stone-400 dark:text-stone-500 mt-0.5">
-          {node.artifact.fileSize
-            ? formatSize(node.artifact.fileSize)
-            : node.artifact.description || node.artifact.path}
-        </div>
-      </div>
-      <Tooltip content={t("project.exportZip")}>
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={(e) => {
-            e.stopPropagation();
-            downloadFile(node.artifact.name, node.artifact.preview.signedUrl);
+    <div className="group flex min-w-0 max-w-full items-center gap-1 w-full px-3 py-2.5 rounded-xl hover:bg-theme-bg-subtle transition-colors">
+      <Tooltip content={node.artifact.name}>
+        <button
+          type="button"
+          aria-label={node.artifact.name}
+          onClick={() => {
+            if (imageSrc && onOpenImagePreview) {
+              onOpenImagePreview(node.artifact);
+              return;
+            }
+            onOpenPreview?.(node.artifact.preview, "manual");
           }}
-          aria-label={t("project.exportZip")}
-          className="shrink-0 p-1.5 rounded-lg text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700 opacity-0 group-hover:opacity-100 transition-all"
+          className="flex min-w-0 min-h-[44px] flex-1 items-center gap-3 text-left cursor-pointer rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
         >
-          <Download size={20} />
-        </span>
-      </Tooltip>
-      <Tooltip
-        content={copied ? t("chat.message.copied") : t("chat.message.copy")}
-      >
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={(e) => {
-            e.stopPropagation();
-            copyToClipboard(
-              node.artifact.preview.signedUrl || node.artifact.path,
-            );
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-          }}
-          aria-label={
-            copied ? t("chat.message.copied") : t("chat.message.copy")
-          }
-          className={clsx(
-            "shrink-0 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100",
-            copied
-              ? "text-emerald-500 dark:text-emerald-400"
-              : "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700",
+          {imageSrc ? (
+            <ImageWithSkeleton
+              src={imageSrc}
+              alt={node.artifact.name}
+              skipUrlResolve
+              inline
+              className="w-9 h-9 rounded-lg object-cover shrink-0 bg-stone-100 dark:bg-stone-800"
+            />
+          ) : (
+            getFileIcon(node.artifact.name)
           )}
-        >
-          {copied ? <Check size={20} /> : <Copy size={20} />}
-        </span>
+          <div className="flex-1 min-w-0 text-left">
+            <div className="text-14 text-theme-text-secondary line-clamp-2 break-all text-balance">
+              {node.artifact.name}
+            </div>
+            <div className="text-12 text-theme-text-tertiary mt-0.5 truncate">
+              {node.artifact.fileSize
+                ? formatSize(node.artifact.fileSize)
+                : node.artifact.description || node.artifact.path}
+            </div>
+          </div>
+        </button>
       </Tooltip>
-    </button>
+      <div className="flex shrink-0 items-center gap-1 opacity-100 sm:[@media(hover:hover)_and_(pointer:fine)]:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+        <Tooltip content={t("documents.downloadFile")}>
+          <ToolbarIconButton
+            variant="muted"
+            disabled={!node.artifact.preview.signedUrl}
+            onClick={() => {
+              downloadFile(node.artifact.name, node.artifact.preview.signedUrl);
+            }}
+            aria-label={`${t("documents.downloadFile")}: ${node.artifact.name}`}
+            icon={<Download size={18} />}
+          />
+        </Tooltip>
+        <CopyButton
+          text={node.artifact.preview.signedUrl || node.artifact.path}
+          size={18}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -244,7 +223,7 @@ function TreeDirRow({
     [node],
   );
   const hasDownloadableFiles = Object.keys(binaryFiles).length > 0;
-  const toggleExpanded = () => setExpanded((value) => !value);
+  const toggleExpanded = () => setExpanded(!expanded);
   const toggleLabel = `${t(expanded ? "common.collapse" : "common.expand")}: ${
     node.name
   }`;
@@ -256,7 +235,7 @@ function TreeDirRow({
           type="button"
           aria-expanded={expanded}
           onClick={toggleExpanded}
-          className="flex !min-w-0 flex-1 items-center gap-3 text-left"
+          className="flex !min-w-0 min-h-[44px] flex-1 items-center gap-3 text-left rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
         >
           <FolderIcon size={36} className="shrink-0" />
           <div className="flex-1 min-w-0">
@@ -272,8 +251,8 @@ function TreeDirRow({
         </button>
         {hasDownloadableFiles && (
           <Tooltip content={t("project.exportZip")}>
-            <button
-              type="button"
+            <ToolbarIconButton
+              variant="muted"
               aria-label={`${t("project.exportZip")}: ${node.name}`}
               aria-busy={isDownloading}
               disabled={isDownloading}
@@ -304,32 +283,33 @@ function TreeDirRow({
                   setIsDownloading(false);
                 }
               }}
-              className="shrink-0 rounded-lg p-1.5 text-stone-400 opacity-100 transition-all hover:bg-stone-100 hover:text-stone-600 disabled:pointer-events-none disabled:opacity-50 dark:hover:bg-stone-700 dark:hover:text-stone-300 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
-            >
-              {isDownloading ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <Download size={18} />
-              )}
-            </button>
+              className="disabled:opacity-50 opacity-100 sm:[@media(hover:hover)_and_(pointer:fine)]:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+              icon={
+                isDownloading ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Download size={18} />
+                )
+              }
+            />
           </Tooltip>
         )}
         <Tooltip content={toggleLabel}>
-          <button
-            type="button"
+          <ToolbarIconButton
+            variant="muted"
             aria-expanded={expanded}
             aria-label={toggleLabel}
             onClick={toggleExpanded}
-            className="shrink-0 rounded-lg p-1.5 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-700 dark:hover:text-stone-300"
-          >
-            <ChevronRight
-              size={18}
-              className={clsx(
-                "transition-transform duration-200",
-                expanded && "rotate-90",
-              )}
-            />
-          </button>
+            icon={
+              <ChevronRight
+                size={18}
+                className={clsx(
+                  "transition-transform duration-200",
+                  expanded && "rotate-90",
+                )}
+              />
+            }
+          />
         </Tooltip>
       </div>
       {expanded && (
@@ -489,8 +469,9 @@ function DownloadAllButton({ artifacts }: { artifacts: RevealArtifact[] }) {
   if (Object.keys(binaryFiles).length === 0) return null;
 
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      size="sm"
       onClick={async () => {
         if (isDownloading) return;
         if (skippedCount > 0) {
@@ -524,7 +505,7 @@ function DownloadAllButton({ artifacts }: { artifacts: RevealArtifact[] }) {
       disabled={isDownloading}
       aria-busy={isDownloading}
       aria-label={t("chat.message.downloadAll", "下载全部")}
-      className="flex items-center gap-1 rounded-md px-2 py-0.5 text-11 font-medium text-[var(--theme-text-secondary)] hover:bg-[var(--theme-bg-subtle)] transition-colors disabled:opacity-50"
+      className="!min-h-[44px] sm:!min-h-0 text-11"
     >
       {isDownloading ? (
         <Loader2 size={12} className="animate-spin" />
@@ -532,7 +513,7 @@ function DownloadAllButton({ artifacts }: { artifacts: RevealArtifact[] }) {
         <Download size={12} />
       )}
       {t("chat.message.downloadAll", "下载全部")}
-    </button>
+    </Button>
   );
 }
 

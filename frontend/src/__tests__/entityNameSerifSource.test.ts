@@ -14,7 +14,8 @@ function readComponent(...segments: string[]): string {
 
 test("role selectors render role names with font-serif", () => {
   const selector = readComponent("panels/AgentPanel/shared/RoleSelector.tsx");
-  expect(selector).toMatch(/flex items-center gap-2 font-serif/);
+  expect(selector).toMatch(/<Select/);
+  expect(selector).toMatch(/triggerClassName="[^"]*font-serif/);
   expect(selector).toMatch(
     /<span className="font-serif">\{role\.name\}<\/span>/,
   );
@@ -49,7 +50,7 @@ test("subagent and team tool results render member names with font-serif", () =>
     /text-12 text-theme-text font-semibold font-serif truncate/,
   );
   const picker = readComponent("team/TeamPickerModal.tsx");
-  expect(picker).toMatch(/scb__mini-tag font-serif/);
+  expect(picker).toMatch(/className="mt-3 font-serif">\s*<ResourceCardTags/);
 });
 
 test("channel selects render entity names with font-serif", () => {

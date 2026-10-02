@@ -263,6 +263,12 @@ export function Tooltip({
     clearTimeout(longPressTimer.current);
   }, []);
 
+  const handleActivate = useCallback(() => {
+    clearTimeout(longPressTimer.current);
+    clearTimeout(touchHideTimer.current);
+    setShow(false);
+  }, []);
+
   // Bind events directly to child element (display:contents wrapper can't receive events)
   useEffect(() => {
     const el = getChild();
@@ -274,6 +280,7 @@ export function Tooltip({
     el.addEventListener("touchmove", handleTouchMove, { passive: true });
     el.addEventListener("touchend", handleTouchEnd, { passive: true });
     el.addEventListener("touchcancel", handleTouchCancel, { passive: true });
+    el.addEventListener("click", handleActivate);
 
     return () => {
       el.removeEventListener("mouseenter", handleMouseEnter);
@@ -282,6 +289,7 @@ export function Tooltip({
       el.removeEventListener("touchmove", handleTouchMove);
       el.removeEventListener("touchend", handleTouchEnd);
       el.removeEventListener("touchcancel", handleTouchCancel);
+      el.removeEventListener("click", handleActivate);
     };
   }, [
     getChild,
@@ -291,6 +299,7 @@ export function Tooltip({
     handleTouchMove,
     handleTouchEnd,
     handleTouchCancel,
+    handleActivate,
   ]);
 
   // Close on outside click

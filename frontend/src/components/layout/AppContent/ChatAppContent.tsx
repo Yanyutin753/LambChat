@@ -105,8 +105,6 @@ export function ChatAppContent({
   const [personaPresetPage, setPersonaPresetPage] = useState(1);
   const [personaPresetQuery, setPersonaPresetQuery] = useState("");
   const [personaPresetTag, setPersonaPresetTag] = useState<string | null>(null);
-  // 与 PersonaPresetSelector 的 PAGE_SIZE 保持一致：弹窗页码窗口与取数窗口
-  // 错位会漏行并让页码标注失真（issue #158）
   const personaPresetPageSize = 20;
   const personaPresetListParams = useMemo(
     () => ({
@@ -121,6 +119,8 @@ export function ChatAppContent({
     presets: personaPresets,
     total: personaPresetsTotal,
     isLoading: personaPresetsLoading,
+    error: personaPresetsError,
+    fetchPresets,
     isLoadingMore: personaPresetsLoadingMore,
     isMutating: personaPresetsMutating,
     hasLoaded: personaPresetsLoaded,
@@ -463,9 +463,7 @@ export function ChatAppContent({
     [],
   );
 
-  // Sync ref synchronously during render so getAgentOptions always has
-  // the latest model_id — useEffect introduces a one-tick delay that
-  // can cause model_id to be missing when using the default model.
+  // Keep model_id current during render; an effect leaves a one-tick gap.
   sessionConfigRef.current = {
     ...sessionConfig,
     enabledSkills: sessionConfig.personaSnapshot
@@ -893,6 +891,10 @@ export function ChatAppContent({
           selectedPersonaSnapshot={sessionConfig.personaSnapshot}
           personaSkillsControlled={false}
           personaPresetsLoading={personaPresetsLoading}
+          personaPresetsError={personaPresetsError}
+          onRetryPersonaPresets={() =>
+            void fetchPresets(personaPresetListParams)
+          }
           personaPresetsMutating={personaPresetsMutating}
           onUsePersonaPreset={handleUsePersonaPreset}
           onTogglePersonaPreference={handleTogglePersonaPreference}

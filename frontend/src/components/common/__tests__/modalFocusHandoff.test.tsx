@@ -17,7 +17,15 @@ function dialogFor(text: string): HTMLElement {
 
 test("closing one dialog while opening another keeps focus with the new dialog", async () => {
   const opener = document.createElement("button");
-  document.body.append(opener);
+  const root = document.createElement("div");
+  root.id = "root";
+  Object.defineProperty(root, "inert", {
+    configurable: true,
+    get: () => root.hasAttribute("inert"),
+    set: (value) => root.toggleAttribute("inert", value),
+  });
+  root.append(opener);
+  document.body.append(root);
   opener.focus();
 
   const { rerender } = render(
@@ -43,9 +51,7 @@ test("closing one dialog while opening another keeps focus with the new dialog",
     </>,
   );
   expect(dialogFor("dialog-a")).toBeInTheDocument();
-  expect(
-    dialogFor("dialog-a").contains(document.activeElement),
-  ).toBe(true);
+  expect(dialogFor("dialog-a").contains(document.activeElement)).toBe(true);
 
   // Close A and open B in the same update: B owns focus, A's cleanup must
   // not steal it back after the microtask queue flushes.
@@ -63,8 +69,6 @@ test("closing one dialog while opening another keeps focus with the new dialog",
     await Promise.resolve();
   });
 
-  expect(
-    dialogFor("dialog-b").contains(document.activeElement),
-  ).toBe(true);
-  opener.remove();
+  expect(dialogFor("dialog-b").contains(document.activeElement)).toBe(true);
+  root.remove();
 });

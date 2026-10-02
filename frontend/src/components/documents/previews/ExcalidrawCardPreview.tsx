@@ -16,6 +16,7 @@ export function ExcalidrawCardPreview({ url }: { url: string }) {
     const fullUrl = getFullUrl(url) ?? url;
     const readUrl = buildUploadProxyUrl(url) ?? fullUrl;
     let cancelled = false;
+    setImgSrc(null);
 
     const load = async () => {
       try {

@@ -6,7 +6,7 @@ const source = readFileSync(new URL("../Header.tsx", import.meta.url), "utf8");
 test("mobile sidebar opener is available before the chat-only header content", () => {
   const opener = source.indexOf("onClick={() => setMobileSidebarOpen(true)}");
   expect(opener).toBeGreaterThan(-1);
-  expect(opener).toBeLessThan(source.indexOf('activeTab === "chat" ?'));
+  expect(opener).toBeLessThan(source.indexOf('activeTab === "chat" ?', opener));
   expect(source.slice(opener, source.indexOf("</button>", opener))).toContain(
     'aria-label={t("sidebar.expandSidebar")}',
   );

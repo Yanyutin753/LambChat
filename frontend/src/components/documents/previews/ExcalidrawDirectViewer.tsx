@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { buildUploadProxyUrl, getFullUrl } from "../../../services/api/config";
 import { fetchDocumentText } from "../documentFetchCache";
 import { ExcalidrawFullscreenViewer } from "./ExcalidrawPreview";
-import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { useTranslation } from "react-i18next";
 
 /**
@@ -20,11 +19,14 @@ export function ExcalidrawDirectViewer({
   const { t } = useTranslation();
   const [svgContent, setSvgContent] = useState<string | null>(null);
   const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const fullUrl = getFullUrl(url) ?? url;
     const readUrl = buildUploadProxyUrl(url) ?? fullUrl;
     let cancelled = false;
+    setSvgContent(null);
+    setError(false);
 
     const load = async () => {
       try {
@@ -59,36 +61,15 @@ export function ExcalidrawDirectViewer({
     return () => {
       cancelled = true;
     };
-  }, [url]);
-
-  if (error) {
-    return (
-      <div className="safe-area-viewport-padding fixed inset-0 z-[300] flex items-center justify-center bg-black/90">
-        <div className="flex flex-col items-center gap-3">
-          <p className="text-14 text-white/70">
-            {t("documents.excalidrawRenderFailed", "Failed to render diagram")}
-          </p>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg px-4 py-2 text-14 text-white/70 hover:bg-white/10 transition-colors"
-          >
-            {t("common.close", "Close")}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!svgContent) {
-    return (
-      <div className="safe-area-viewport-padding fixed inset-0 z-[300] flex items-center justify-center bg-black/90">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
+  }, [url, attempt]);
 
   return (
-    <ExcalidrawFullscreenViewer svgContent={svgContent} onClose={onClose} />
+    <ExcalidrawFullscreenViewer
+      svgContent={svgContent}
+      onClose={onClose}
+      loading={!svgContent && !error}
+      error={error ? t("documents.excalidrawRenderFailed") : undefined}
+      onRetry={() => setAttempt((current) => current + 1)}
+    />
   );
 }

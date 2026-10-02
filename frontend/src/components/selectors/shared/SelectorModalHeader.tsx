@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
 import { X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export const SELECTOR_MODAL_HEADER_CLASS =
   "flex items-center justify-between gap-4 px-4 sm:px-6 py-4 sm:py-5 border-b bg-white/85 dark:bg-stone-900/70";
 export const SELECTOR_MODAL_DRAG_HANDLE_CLASS =
   "absolute left-1/2 -translate-x-1/2 top-2 w-10 h-1 rounded-full bg-stone-300/80 dark:bg-stone-600 sm:hidden";
 export const SELECTOR_MODAL_CLOSE_BUTTON_CLASS =
-  "p-2 rounded-full border border-stone-200/80 bg-white/80 text-stone-500 shadow-sm hover:bg-stone-100 hover:text-stone-800 active:bg-stone-200 dark:border-stone-700/80 dark:bg-stone-800/80 dark:text-stone-400 dark:hover:bg-stone-700 dark:hover:text-stone-100 transition-colors";
+  "flex size-11 shrink-0 items-center justify-center rounded-full border border-stone-200/80 bg-white/80 text-stone-500 shadow-sm hover:bg-stone-100 hover:text-stone-800 active:bg-stone-200 dark:border-stone-700/80 dark:bg-stone-800/80 dark:text-stone-400 dark:hover:bg-stone-700 dark:hover:text-stone-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-ring";
 export const SELECTOR_MODAL_ICON_TILE_CLASS =
   "size-10 sm:size-11 rounded-2xl bg-white dark:bg-stone-800 flex items-center justify-center shadow-sm ring-1 ring-stone-200/80 dark:ring-stone-700/80";
 
@@ -31,6 +32,7 @@ export function SelectorModalHeader({
   className,
   subtitleClassName = "text-12 sm:text-12 text-stone-500 dark:text-stone-400",
 }: SelectorModalHeaderProps) {
+  const { t } = useTranslation();
   return (
     <div
       className={cx(SELECTOR_MODAL_HEADER_CLASS, className)}
@@ -45,7 +47,12 @@ export function SelectorModalHeader({
           {subtitle && <p className={subtitleClassName}>{subtitle}</p>}
         </div>
       </div>
-      <button onClick={onClose} className={SELECTOR_MODAL_CLOSE_BUTTON_CLASS}>
+      <button
+        type="button"
+        aria-label={t("common.close")}
+        onClick={onClose}
+        className={SELECTOR_MODAL_CLOSE_BUTTON_CLASS}
+      >
         <X size={18} />
       </button>
     </div>

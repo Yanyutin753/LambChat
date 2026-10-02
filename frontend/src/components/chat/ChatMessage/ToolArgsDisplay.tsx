@@ -1,5 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
-import { Check, ChevronDown, Copy } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { CopyButton } from "../../common/CopyButton";
 
 /**
  * Renders tool-call arguments as a styled key-value list instead of raw JSON.
@@ -42,28 +44,17 @@ function ArgRow({
   value: unknown;
   compact: boolean;
 }) {
-  const [copied, setCopied] = useState(false);
+  const { t } = useTranslation();
   const isComplex =
     value !== null && typeof value === "object" && !(value instanceof Date);
 
   const copyText = useMemo(() => {
     try {
-      return JSON.stringify(value);
+      return JSON.stringify(value) ?? String(value);
     } catch {
       return String(value);
     }
   }, [value]);
-
-  const handleCopy = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      navigator.clipboard.writeText(copyText).then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      });
-    },
-    [copyText],
-  );
 
   if (!isComplex) {
     return (
@@ -79,7 +70,12 @@ function ArgRow({
         <span className="min-w-0 flex-1 text-[var(--theme-text-secondary)] break-all">
           <FormattedValue value={value} />
         </span>
-        <CopyButtonInline copied={copied} onClick={handleCopy} />
+        <CopyButton
+          text={copyText}
+          label={t("chat.message.copyArgument", { name })}
+          size={12}
+          className="sm:opacity-0 sm:group-hover/arg:opacity-100 focus-visible:opacity-100"
+        />
       </div>
     );
   }
@@ -88,8 +84,7 @@ function ArgRow({
     <ComplexArgRow
       name={name}
       value={value}
-      copied={copied}
-      onCopy={handleCopy}
+      copyText={copyText}
       compact={compact}
     />
   );
@@ -98,16 +93,15 @@ function ArgRow({
 function ComplexArgRow({
   name,
   value,
-  copied,
-  onCopy,
+  copyText,
   compact,
 }: {
   name: string;
   value: object;
-  copied: boolean;
-  onCopy: (e: React.MouseEvent) => void;
+  copyText: string;
   compact: boolean;
 }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const preview = useMemo(() => {
     try {
@@ -129,38 +123,37 @@ function ComplexArgRow({
   return (
     <div>
       <div
-        role="button"
-        tabIndex={0}
-        aria-expanded={expanded}
         className={`group/arg flex items-center gap-2 rounded-[var(--radius-sm)] px-2 transition-colors duration-[var(--duration-fast)] cursor-pointer ${
           expanded
             ? "bg-[var(--theme-bg-elevated)]"
             : "bg-[var(--theme-bg-subtle)] hover:bg-[var(--theme-bg-elevated)]"
         } ${compact ? "py-1 text-11" : "py-1.5 text-12"}`}
-        onClick={() => setExpanded((v) => !v)}
-        onKeyDown={(event) => {
-          if (event.key !== "Enter" && event.key !== " ") return;
-          event.preventDefault();
-          setExpanded((value) => !value);
-        }}
       >
         <button
           type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            setExpanded((value) => !value);
-          }}
-          className="shrink-0 text-[var(--theme-text-tertiary)] transition-transform duration-[var(--duration-fast)]"
-          style={{ transform: expanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+          aria-label={`${t(expanded ? "common.collapse" : "common.expand")} ${name}`}
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+          className="tool-arg-expand flex min-w-0 flex-1 items-center gap-2 text-left"
         >
-          <ChevronDown size={compact ? 10 : 12} />
+          <ChevronDown
+            size={compact ? 10 : 12}
+            className="shrink-0"
+            style={{ transform: expanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+            aria-hidden="true"
+          />
+          <ArgKey name={name} compact={compact} />
+          <ArgSeparator />
+          <span className="min-w-0 flex-1 text-[var(--theme-text-tertiary)] break-all opacity-60 group-hover/arg:opacity-100 transition-opacity">
+            {expanded ? null : preview}
+          </span>
         </button>
-        <ArgKey name={name} compact={compact} />
-        <ArgSeparator />
-        <span className="min-w-0 flex-1 text-[var(--theme-text-tertiary)] break-all opacity-60 group-hover/arg:opacity-100 transition-opacity">
-          {expanded ? null : preview}
-        </span>
-        <CopyButtonInline copied={copied} onClick={onCopy} />
+        <CopyButton
+          text={copyText}
+          label={t("chat.message.copyArgument", { name })}
+          size={12}
+          className="sm:opacity-0 sm:group-hover/arg:opacity-100 focus-visible:opacity-100"
+        />
       </div>
 
       {expanded && (
@@ -199,33 +192,6 @@ function ArgKey({ name, compact }: { name: string; compact: boolean }) {
 function ArgSeparator() {
   return (
     <span className="shrink-0 w-px self-stretch bg-[var(--theme-border)]" />
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Tiny inline copy button (appears on hover)                         */
-/* ------------------------------------------------------------------ */
-
-function CopyButtonInline({
-  copied,
-  onClick,
-}: {
-  copied: boolean;
-  onClick: (e: React.MouseEvent) => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={copied ? "Copied!" : "Copy value"}
-      className="shrink-0 grid place-items-center w-5 h-5 rounded-[var(--radius-inner)] opacity-0 group-hover/arg:opacity-100 focus-visible:opacity-100 transition-all duration-[var(--duration-fast)] text-[var(--theme-text-tertiary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-elevated)] active:scale-90"
-    >
-      {copied ? (
-        <Check size={10} className="text-[var(--color-icon-green)]" />
-      ) : (
-        <Copy size={10} />
-      )}
-    </button>
   );
 }
 

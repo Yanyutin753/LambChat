@@ -1,12 +1,15 @@
 import { useCallback, useMemo, useState } from "react";
-import { Download, ChevronRight, Copy, Check, Loader2 } from "lucide-react";
+import { Download, ChevronRight, Loader2 } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from "react-i18next";
 import { getFileTypeInfo, isImageFile } from "../../../documents/utils";
 import { exportProjectZip } from "../../../../utils/exportProjectZip";
-import { copyToClipboard } from "../../../../utils/clipboard";
+import toast from "react-hot-toast";
+import { CopyButton } from "../../../common/CopyButton";
+import { Button, ToolbarIconButton } from "../../../common/ui";
 import { countProjectRevealFiles } from "./projectRevealState";
 import { ImageWithSkeleton } from "../ImageWithSkeleton";
+import { Tooltip } from "../../../common/Tooltip";
 
 export interface TreeNode {
   name: string;
@@ -33,15 +36,18 @@ function buildFileTree(
       const childPath = "/" + parts.slice(0, i + 1).join("/");
       let child = current.children.find((c) => c.name === part);
       if (!child) {
-        const isBinary = !isFile ? false : childPath in binaryFiles;
+        const isBinary = isFile && Object.hasOwn(binaryFiles, filePath);
         child = {
           name: part,
-          path: childPath,
+          path: isFile ? filePath : childPath,
           isDir: !isFile,
           children: [],
-          size: isFile && !isBinary ? files[childPath]?.length : undefined,
+          size:
+            isFile && !isBinary
+              ? new TextEncoder().encode(files[filePath] ?? "").byteLength
+              : undefined,
           isBinary,
-          url: isBinary ? binaryFiles[childPath] : undefined,
+          url: isBinary ? binaryFiles[filePath] : undefined,
         };
         current.children.push(child);
       }
@@ -165,12 +171,11 @@ function FileTreeNode({
   files: Record<string, string>;
   depth: number;
   expandedDirs: Set<string>;
-  toggleDir: (path: string) => void;
+  toggleDir: (path: string, expanded: boolean) => void;
   onFileClick?: (node: TreeNode) => void;
 }) {
   const { t } = useTranslation();
   const [isDownloading, setIsDownloading] = useState(false);
-  const [copied, setCopied] = useState(false);
   const { textFiles, binFiles } = useMemo(
     () => collectSubtreeFiles(node, files),
     [node, files],
@@ -183,60 +188,84 @@ function FileTreeNode({
     const hasFiles =
       Object.keys(textFiles).length + Object.keys(binFiles).length > 0;
     return (
-      <div>
-        <button
-          type="button"
-          onClick={() => toggleDir(node.path)}
-          aria-expanded={expanded}
-          data-sidebar-snapshot-key={`file-tree:${node.path}`}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-theme-bg-subtle transition-colors group"
-        >
-          <FolderIcon size={36} className="shrink-0" />
-          <div className="flex-1 min-w-0 text-left">
-            <div className="text-14 font-medium text-theme-text truncate">
-              {node.name}
-            </div>
-            {expanded && dirSize > 0 && (
-              <div className="text-12 text-theme-text-tertiary mt-0.5">
-                {formatSize(dirSize)}
-              </div>
-            )}
-          </div>
-          {hasFiles && (
-            <span
-              onClick={async (e) => {
-                e.stopPropagation();
-                if (isDownloading) return;
-                try {
-                  setIsDownloading(true);
-                  await exportProjectZip(textFiles, node.name, binFiles);
-                } finally {
-                  setIsDownloading(false);
-                }
-              }}
-              title={t("project.downloadFolder")}
-              className={clsx(
-                "shrink-0 p-1.5 rounded-lg text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-subtle opacity-0 group-hover:opacity-100 transition-all",
-                isDownloading && "opacity-50 pointer-events-none",
-              )}
+      <div className="min-w-0 max-w-full">
+        <div className="group flex min-w-0 max-w-full items-center gap-1 w-full px-3 py-2.5 rounded-xl hover:bg-theme-bg-subtle transition-colors">
+          <Tooltip content={node.name}>
+            <button
+              type="button"
+              onClick={() => toggleDir(node.path, !expanded)}
+              aria-expanded={expanded}
+              data-sidebar-snapshot-key={`file-tree:${node.path}`}
+              aria-label={node.name}
+              className="flex min-w-0 min-h-[44px] flex-1 items-center gap-3 text-left rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
             >
-              {isDownloading ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <Download size={18} />
-              )}
-            </span>
+              <FolderIcon size={36} className="shrink-0" />
+              <div className="flex-1 min-w-0 text-left">
+                <div className="text-14 font-medium text-theme-text truncate">
+                  {node.name}
+                </div>
+                {expanded && dirSize > 0 && (
+                  <div className="text-12 text-theme-text-tertiary mt-0.5">
+                    {formatSize(dirSize)}
+                  </div>
+                )}
+              </div>
+            </button>
+          </Tooltip>
+          {hasFiles && (
+            <Tooltip content={t("project.downloadFolder")}>
+              <ToolbarIconButton
+                variant="muted"
+                disabled={isDownloading}
+                aria-busy={isDownloading}
+                aria-label={`${t("project.downloadFolder")}: ${node.name}`}
+                onClick={async () => {
+                  if (isDownloading) return;
+                  try {
+                    setIsDownloading(true);
+                    await exportProjectZip(textFiles, node.name, binFiles, {
+                      failOnBinaryError: true,
+                    });
+                  } catch {
+                    toast.error(t("chat.message.downloadFailed"));
+                  } finally {
+                    setIsDownloading(false);
+                  }
+                }}
+                className="disabled:opacity-50 opacity-100 sm:[@media(hover:hover)_and_(pointer:fine)]:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+                icon={
+                  isDownloading ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <Download size={18} />
+                  )
+                }
+              />
+            </Tooltip>
           )}
-          <ChevronRight
-            size={18}
-            className={clsx(
-              "shrink-0 text-theme-text-tertiary transition-transform duration-200",
-              expanded && "rotate-90",
-            )}
+          <ToolbarIconButton
+            variant="muted"
+            aria-label={`${t(expanded ? "common.collapse" : "common.expand")}: ${node.name}`}
+            aria-expanded={expanded}
+            onClick={() => toggleDir(node.path, !expanded)}
+            icon={
+              <ChevronRight
+                size={18}
+                className={clsx(
+                  "transition-transform duration-200",
+                  expanded && "rotate-90",
+                )}
+              />
+            }
           />
-        </button>
+        </div>
         {expanded && (
-          <div className={clsx(depth === 0 ? "pl-2" : "pl-4")}>
+          <div
+            className={clsx(
+              "min-w-0 max-w-full",
+              depth === 0 ? "pl-2" : "pl-4",
+            )}
+          >
             {node.children.map((child) => (
               <FileTreeNode
                 key={child.path}
@@ -266,64 +295,57 @@ function FileTreeNode({
     : null;
 
   return (
-    <button
-      onClick={() => onFileClick?.(node)}
-      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-theme-bg-subtle transition-colors group cursor-pointer"
-    >
-      {imageSrc ? (
-        <ImageWithSkeleton
-          src={imageSrc}
-          alt={node.name}
-          skipUrlResolve
-          inline
-          className="w-9 h-9 rounded-lg object-cover shrink-0 bg-theme-bg-subtle"
-        />
-      ) : (
-        getFileIcon(node.name)
-      )}
-      <div className="flex-1 min-w-0 text-left">
-        <div className="text-14 text-theme-text-secondary truncate">
-          {node.name}
-        </div>
-        <div className="text-12 text-theme-text-tertiary mt-0.5">
-          {node.isBinary ? "Binary" : formatSize(node.size)}
-        </div>
-      </div>
-      <span
-        onClick={(e) => {
-          e.stopPropagation();
-          downloadFile(
-            node.name,
-            files[node.path] || "",
-            node.isBinary,
-            node.url,
-          );
-        }}
-        className="shrink-0 p-1.5 rounded-lg text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-subtle opacity-0 group-hover:opacity-100 transition-all"
-        title={t("project.exportZip")}
-      >
-        <Download size={20} />
-      </span>
-      {!node.isBinary && files[node.path] && (
-        <span
-          onClick={(e) => {
-            e.stopPropagation();
-            copyToClipboard(files[node.path]);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-          }}
-          className={clsx(
-            "shrink-0 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100",
-            copied
-              ? "text-emerald-500 dark:text-emerald-400"
-              : "text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-subtle",
-          )}
-          title={copied ? t("chat.message.copied") : t("chat.message.copy")}
+    <div className="group flex min-w-0 max-w-full items-center gap-1 w-full px-3 py-2.5 rounded-xl hover:bg-theme-bg-subtle transition-colors">
+      <Tooltip content={node.name}>
+        <button
+          type="button"
+          aria-label={node.name}
+          onClick={() => onFileClick?.(node)}
+          className="flex min-w-0 min-h-[44px] flex-1 items-center gap-3 text-left cursor-pointer rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
         >
-          {copied ? <Check size={20} /> : <Copy size={20} />}
-        </span>
-      )}
-    </button>
+          {imageSrc ? (
+            <ImageWithSkeleton
+              src={imageSrc}
+              alt={node.name}
+              skipUrlResolve
+              inline
+              className="w-9 h-9 rounded-lg object-cover shrink-0 bg-theme-bg-subtle"
+            />
+          ) : (
+            getFileIcon(node.name)
+          )}
+          <div className="flex-1 min-w-0 text-left">
+            <div className="text-14 text-theme-text-secondary line-clamp-2 break-all text-balance">
+              {node.name}
+            </div>
+            <div className="text-12 text-theme-text-tertiary mt-0.5">
+              {node.isBinary ? t("documents.binary") : formatSize(node.size)}
+            </div>
+          </div>
+        </button>
+      </Tooltip>
+      <div className="flex shrink-0 items-center gap-1 opacity-100 sm:[@media(hover:hover)_and_(pointer:fine)]:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+        <Tooltip content={t("documents.downloadFile")}>
+          <ToolbarIconButton
+            variant="muted"
+            disabled={node.isBinary ? !node.url : files[node.path] == null}
+            aria-label={`${t("documents.downloadFile")}: ${node.name}`}
+            onClick={() => {
+              downloadFile(
+                node.name,
+                files[node.path] || "",
+                node.isBinary,
+                node.url,
+              );
+            }}
+            icon={<Download size={18} />}
+          />
+        </Tooltip>
+        {!node.isBinary && files[node.path] != null && (
+          <CopyButton text={files[node.path]} size={18} />
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -341,6 +363,7 @@ export function FileTreeView({
   showHeader?: boolean;
 }) {
   const { t } = useTranslation();
+  const [isDownloading, setIsDownloading] = useState(false);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(
     () => new Set(),
   );
@@ -354,17 +377,17 @@ export function FileTreeView({
     [files, binaryFiles],
   );
 
-  const toggleDir = useCallback((path: string) => {
+  const toggleDir = useCallback((path: string, expanded: boolean) => {
     setExpandedDirs((prev) => {
       const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
+      if (expanded) next.add(path);
+      else next.delete(path);
       return next;
     });
   }, []);
 
   return (
-    <div className="flex flex-col h-full bg-theme-bg-card">
+    <div className="flex min-h-0 min-w-0 max-w-full flex-col h-full bg-theme-bg-card">
       {showHeader && (
         <div className="flex items-center justify-between px-3 py-2 border-b border-theme-border shrink-0">
           <span className="text-12 text-theme-text-tertiary">
@@ -372,18 +395,35 @@ export function FileTreeView({
               count: fileCount,
             })}
           </span>
-          <button
-            onClick={() =>
-              exportProjectZip(files, projectName || "project", binaryFiles)
-            }
-            className="flex items-center gap-1 px-2 py-1 rounded-md text-12 font-medium text-theme-text-tertiary hover:bg-theme-bg-subtle transition-colors"
+          <Button
+            variant="ghost"
+            size="sm"
+            loading={isDownloading}
+            aria-busy={isDownloading}
+            onClick={async () => {
+              if (isDownloading) return;
+              try {
+                setIsDownloading(true);
+                await exportProjectZip(
+                  files,
+                  projectName || "project",
+                  binaryFiles,
+                  { failOnBinaryError: true },
+                );
+              } catch {
+                toast.error(t("chat.message.downloadFailed"));
+              } finally {
+                setIsDownloading(false);
+              }
+            }}
+            className="!min-h-[44px] sm:!min-h-0 text-12"
           >
             <Download size={16} />
             {t("project.exportZip")}
-          </button>
+          </Button>
         </div>
       )}
-      <div className="flex-1 overflow-y-auto p-1.5">
+      <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto p-1.5">
         {tree.children.map((child) => (
           <FileTreeNode
             key={child.path}

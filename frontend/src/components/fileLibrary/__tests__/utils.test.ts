@@ -197,8 +197,12 @@ test("ImageViewer shows a loading affordance while switched images load", () => 
 
   expect(source).toMatch(/isImageLoading/);
   expect(source).toMatch(/setIsImageLoading\(true\)/);
-  expect(source).toMatch(/onLoad=\{\(\) => setIsImageLoading\(false\)\}/);
-  expect(source).toMatch(/onError=\{\(\) => setIsImageLoading\(false\)\}/);
+  expect(source).toMatch(
+    /onLoad=\{\(\) => \{\s*setIsImageLoading\(false\);\s*setHasImageError\(false\);/,
+  );
+  expect(source).toMatch(
+    /onError=\{\(\) => \{\s*setIsImageLoading\(false\);\s*setHasImageError\(true\);/,
+  );
   expect(source).toMatch(/skeleton-line/);
   expect(source).toMatch(/opacity: isImageLoading \? 0\.45 : 1/);
 });

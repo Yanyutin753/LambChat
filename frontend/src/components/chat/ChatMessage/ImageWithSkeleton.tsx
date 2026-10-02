@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { getFullUrl } from "../../../services/api/config";
 
 /** Tracks URLs that have already loaded — skip skeleton for cached images */
@@ -59,6 +60,8 @@ export function ImageWithSkeleton({
   onLoad: onExternalLoad,
   onError: onExternalError,
 }: ImageWithSkeletonProps) {
+  const { t } = useTranslation();
+  const Container = onClick ? "button" : "div";
   const resolvedSrc = skipUrlResolve ? src : getFullUrl(src);
   const [srcUsed, setSrcUsed] = useState<string | undefined>(
     () => thumbSrc ?? resolvedSrc,
@@ -97,18 +100,24 @@ export function ImageWithSkeleton({
   // Inline mode: skeleton sits behind the img in the same space, no extra wrapper
   if (inline) {
     return (
-      <div className={`relative overflow-hidden ${className ?? ""}`}>
+      <Container
+        type={onClick ? "button" : undefined}
+        aria-label={onClick ? alt || t("documents.preview") : undefined}
+        onClick={onClick}
+        style={hasError ? { aspectRatio } : undefined}
+        className={`relative overflow-hidden image-with-skeleton ${className ?? ""} ${onClick ? "block text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)]" : ""}`}
+      >
         {!isLoaded && !hasError && (
           <div className="absolute inset-0 skeleton-line rounded-[inherit]" />
         )}
         {hasError ? (
-          errorFallback ?? (
+          (errorFallback ?? (
             <div className="absolute inset-0 flex items-center justify-center bg-stone-100 dark:bg-stone-800 rounded-[inherit]">
               <span className="text-12 text-stone-400 truncate px-1">
                 {alt || "…"}
               </span>
             </div>
-          )
+          ))
         ) : (
           <img
             src={srcUsed}
@@ -116,7 +125,6 @@ export function ImageWithSkeleton({
             loading={loading}
             onLoad={handleLoad}
             onError={handleError}
-            onClick={onClick}
             referrerPolicy="no-referrer"
             style={{
               opacity: isLoaded ? 1 : 0,
@@ -128,16 +136,19 @@ export function ImageWithSkeleton({
             }}
           />
         )}
-      </div>
+      </Container>
     );
   }
 
   // Block mode: full wrapper with skeleton, error state
   return (
-    <div
+    <Container
+      type={onClick ? "button" : undefined}
+      aria-label={onClick ? alt || t("documents.preview") : undefined}
+      onClick={onClick}
       className={`relative my-2 overflow-hidden rounded-lg shadow ${
         wrapperClassName ?? ""
-      }`}
+      } image-with-skeleton ${onClick ? "block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)]" : ""}`}
     >
       {/* Skeleton placeholder */}
       {!isLoaded && !hasError && (
@@ -155,7 +166,6 @@ export function ImageWithSkeleton({
           loading={loading}
           onLoad={handleLoad}
           onError={handleError}
-          onClick={onClick}
           className={`${
             !isLoaded ? "absolute inset-0 pointer-events-none" : ""
           } ${className ?? ""}`}
@@ -186,6 +196,6 @@ export function ImageWithSkeleton({
             <span>{alt || "Image failed to load"}</span>
           </div>
         ))}
-    </div>
+    </Container>
   );
 }

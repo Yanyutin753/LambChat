@@ -1273,7 +1273,7 @@
 
 .pps-card {
   animation: pps-card-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-  min-width: 320px;
+  min-width: 0;
   transition:
     transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
     box-shadow 0.25s ease;
@@ -1489,4 +1489,68 @@
 .pps-card__action--loading:disabled {
   opacity: 0.72;
   cursor: wait;
+}
+
+/* Shared plaza pickers retain body spacing; phone actions use adjacent touch targets. */
+.resource-picker button:focus-visible {
+  outline: 2px solid var(--theme-ring);
+  outline-offset: 2px;
+}
+
+.resource-picker-header > div:first-child {
+  min-width: 0;
+}
+.resource-picker-header > div:last-child {
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pps-card,
+  .pps-card__banner::after {
+    animation: none;
+    transition: none;
+  }
+  .pps-card:hover,
+  .pps-card:hover .pps-card__banner::after,
+  .resource-picker .pps-card__action:hover,
+  .resource-picker .pps-card__icon-action:active {
+    transform: none;
+  }
+}
+
+@media (max-width: 639px), (pointer: coarse) {
+  .resource-picker button {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+  .resource-picker input {
+    min-height: 2.75rem;
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 639px) {
+  .resource-picker-header > div:first-child > div:first-child {
+    display: none;
+  }
+  .resource-picker-header > div:last-child {
+    gap: 0;
+  }
+  .resource-picker-toolbar > div:first-child {
+    flex-wrap: wrap;
+  }
+  .resource-picker-toolbar .relative.min-w-0 {
+    flex-basis: 8rem;
+  }
+  .resource-picker .pps-card__banner > div {
+    top: 2px;
+    gap: 0;
+  }
+  .resource-picker .pps-card__title {
+    min-height: auto;
+  }
+}
+
+.resource-picker .pps-card__action {
+  max-width: 100%;
 }

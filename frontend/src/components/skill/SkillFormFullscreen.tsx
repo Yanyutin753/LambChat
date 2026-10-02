@@ -5,7 +5,7 @@ import { FileTabs } from "./FileTabs";
 import { SkillEditor } from "./SkillEditor";
 import { BinaryFilePreview } from "./BinaryFilePreview";
 import { buildFileTree } from "./SkillForm.utils";
-import { FloatingIconButton } from "../common";
+import { ToolbarIconButton } from "../common";
 import type { SkillFormActions } from "./SkillForm.types";
 
 export function SkillFormFullscreen(a: SkillFormActions) {
@@ -13,18 +13,9 @@ export function SkillFormFullscreen(a: SkillFormActions) {
 
   return (
     <>
-      {/* Top-right floating exit button — always visible, prominent */}
-      <FloatingIconButton
-        onClick={() => a.toggleFullscreen(false)}
-        style={{
-          top: "calc(1rem + var(--app-safe-area-top-active, var(--app-safe-area-top, 0px)))",
-        }}
-        title={t("skills.form.exitFullscreen")}
-        icon={<Shrink size={18} />}
-      />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Editor area — sidebar + editor, full-screen focused */}
-        <div className="skill-form-editor flex flex-1 min-h-0 overflow-hidden">
+        <div className="skill-form-editor flex flex-1 min-w-0 min-h-0 overflow-hidden">
           {/* Desktop sidebar */}
           <div className="skill-file-sidebar hidden w-52 shrink-0 flex-col sm:flex lg:w-60">
             <div className="flex items-center justify-between px-3 py-1.5">
@@ -67,10 +58,16 @@ export function SkillFormFullscreen(a: SkillFormActions) {
           </div>
 
           {/* Right: editor only */}
-          <div className="flex flex-1 flex-col min-h-0">
+          <div className="flex flex-1 flex-col min-w-0 min-h-0">
             {/* Mobile header: tabs + actions */}
-            <div className="shrink-0 flex items-center gap-1 px-3 py-2 sm:hidden">
-              <div className="flex-1 min-w-0">
+            <div className="shrink-0 flex items-center gap-1 px-3 py-2">
+              <p
+                className="hidden min-w-0 flex-1 truncate font-mono text-12 text-[var(--theme-text-secondary)] sm:block"
+                title={a.files[a.activeFileIndex]?.path}
+              >
+                {a.files[a.activeFileIndex]?.path || t("skills.form.untitled")}
+              </p>
+              <div className="flex-1 min-w-0 sm:hidden">
                 <FileTabs
                   files={a.files}
                   activeFileIndex={a.activeFileIndex}
@@ -79,22 +76,26 @@ export function SkillFormFullscreen(a: SkillFormActions) {
                   untitledLabel={t("skills.form.untitled")}
                 />
               </div>
-              <button
-                type="button"
+              <ToolbarIconButton
                 onClick={a.addFile}
-                className="shrink-0 flex items-center justify-center h-9 w-9 rounded-xl text-stone-400 transition-colors duration-150 hover:bg-[var(--theme-bg-card)] hover:text-[var(--theme-text)]"
-                title={t("skills.form.addFile", "Add file")}
-              >
-                <Plus size={15} />
-              </button>
-              <button
-                type="button"
+                icon={<Plus size={15} />}
+                aria-label={t("skills.form.addFile")}
+                title={t("skills.form.addFile")}
+                className="sm:hidden"
+              />
+              <ToolbarIconButton
                 onClick={a.addBinaryFile}
-                className="shrink-0 flex items-center justify-center h-9 w-9 rounded-xl text-stone-400 transition-colors duration-150 hover:bg-[var(--theme-bg-card)] hover:text-[var(--theme-text)]"
-                title={t("skills.form.addBinaryFile", "Upload binary file")}
-              >
-                <Upload size={15} />
-              </button>
+                icon={<Upload size={15} />}
+                aria-label={t("skills.form.addBinaryFile")}
+                title={t("skills.form.addBinaryFile")}
+                className="sm:hidden"
+              />
+              <ToolbarIconButton
+                onClick={() => a.toggleFullscreen(false)}
+                icon={<Shrink size={18} />}
+                aria-label={t("skills.form.exitFullscreen")}
+                title={t("skills.form.exitFullscreen")}
+              />
             </div>
 
             {/* Editor / Binary Preview */}

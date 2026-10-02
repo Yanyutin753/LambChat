@@ -1,11 +1,24 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useRef,
+} from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { X, Download, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  X,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
+} from "lucide-react";
 import { ViewerToolbar } from "./ViewerToolbar";
 import { ViewerTopBar } from "./ViewerTopBar";
 import { ViewerTopBarButton } from "./ViewerTopBarButton";
 import { downloadUrl } from "./viewerDownload";
+import { SceneIllustration } from "./SceneIllustration";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import {
   restoreOpenerFocusUnclaimed,
@@ -45,6 +58,8 @@ export function ImageViewer({
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [isImageLoading, setIsImageLoading] = useState(false);
+  const [hasImageError, setHasImageError] = useState(false);
+  const [retryAttempt, setRetryAttempt] = useState(0);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -65,10 +80,12 @@ export function ImageViewer({
       setRotation(0);
       setPosition({ x: 0, y: 0 });
       setIsImageLoading(true);
+      setHasImageError(false);
+      setRetryAttempt(0);
     }
   }, [isOpen, src]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isOpen) return;
     const previous = document.activeElement as HTMLElement | null;
     const dialog = dialogRef.current;
@@ -76,6 +93,15 @@ export function ImageViewer({
     return () =>
       queueMicrotask(() => restoreOpenerFocusUnclaimed(previous, dialog));
   }, [isOpen]);
+  useLayoutEffect(() => {
+    if (
+      isOpen &&
+      document.activeElement === document.body &&
+      topmostVisibleModalDialog() === dialogRef.current
+    ) {
+      dialogRef.current?.focus();
+    }
+  }, [isOpen, src, hasImageError, canGoPrevious, canGoNext]);
   useEffect(() => {
     if (!isOpen) return;
     const dialog = dialogRef.current;
@@ -125,7 +151,7 @@ export function ImageViewer({
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [canGoNext, canGoPrevious, isOpen, onClose, onNext, onPrevious]);
-  useBodyScrollLock(isOpen, true);
+  useBodyScrollLock(isOpen, true, true);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -263,13 +289,12 @@ export function ImageViewer({
 
   return createPortal(
     <div
-      data-yields-sidebar
       ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label={alt || t("documents.preview")}
       tabIndex={-1}
-      className="safe-area-x fixed inset-0 z-[300] flex flex-col bg-black/90"
+      className="safe-area-x fixed inset-0 z-[300] flex flex-col bg-black/90 image-viewer"
       style={{
         height: "var(--app-viewport-height, 100dvh)",
         transform: "translate3d(0, var(--app-viewport-offset-top, 0px), 0)",
@@ -293,6 +318,7 @@ export function ImageViewer({
 
         <ViewerTopBarButton
           onClick={() => downloadUrl(src)}
+          disabled={hasImageError}
           aria-label={t("imageViewer.download")}
           icon={<Download size={18} className="text-white/70" />}
         >
@@ -309,6 +335,7 @@ export function ImageViewer({
           }}
         >
           <img
+            key={`${src}:${retryAttempt}`}
             src={src}
             alt={alt}
             referrerPolicy="no-referrer"
@@ -316,13 +343,20 @@ export function ImageViewer({
             style={{
               transform: `translate(${position.x}px, ${position.y}px) scale(${scale}) rotate(${rotation}deg)`,
               opacity: isImageLoading ? 0.45 : 1,
+              visibility: hasImageError ? "hidden" : undefined,
               transition: isDragging
                 ? "none"
                 : "transform 0.1s ease-out, opacity 0.15s ease-out",
               touchAction: "none",
             }}
-            onLoad={() => setIsImageLoading(false)}
-            onError={() => setIsImageLoading(false)}
+            onLoad={() => {
+              setIsImageLoading(false);
+              setHasImageError(false);
+            }}
+            onError={() => {
+              setIsImageLoading(false);
+              setHasImageError(true);
+            }}
             onMouseDown={handleMouseDown}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
@@ -334,6 +368,25 @@ export function ImageViewer({
         {isImageLoading && (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
             <div className="skeleton-line w-[70vw] h-[55vh] max-w-[60rem] max-h-[45rem] rounded-lg" />
+          </div>
+        )}
+
+        {hasImageError && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-14 text-center text-white/80">
+            <SceneIllustration scene="files" />
+            <p role="alert" className="text-14">
+              {t("imageViewer.loadFailed")}
+            </p>
+            <ViewerTopBarButton
+              icon={<RefreshCw size={18} />}
+              onClick={() => {
+                setHasImageError(false);
+                setIsImageLoading(true);
+                setRetryAttempt((attempt) => attempt + 1);
+              }}
+            >
+              {t("common.retry")}
+            </ViewerTopBarButton>
           </div>
         )}
 
@@ -364,16 +417,18 @@ export function ImageViewer({
           </>
         )}
 
-        <ViewerToolbar
-          scale={scale}
-          minScale={MIN_SCALE}
-          maxScale={MAX_SCALE}
-          onZoomIn={zoomIn}
-          onZoomOut={zoomOut}
-          onRotateLeft={rotateLeft}
-          onRotateRight={rotateRight}
-          onReset={reset}
-        />
+        {!hasImageError && (
+          <ViewerToolbar
+            scale={scale}
+            minScale={MIN_SCALE}
+            maxScale={MAX_SCALE}
+            onZoomIn={zoomIn}
+            onZoomOut={zoomOut}
+            onRotateLeft={rotateLeft}
+            onRotateRight={rotateRight}
+            onReset={reset}
+          />
+        )}
       </div>
     </div>,
     document.body,

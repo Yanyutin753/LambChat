@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useId } from "react";
 import {
   Eye,
   EyeOff,
@@ -23,6 +23,7 @@ import {
   Select,
   Textarea,
 } from "../../../common";
+import { ConfigPanelErrorCallout } from "../../ConfigPanelErrorCallout";
 import { ProviderSelect } from "../../AgentPanel/shared";
 import { modelApi } from "../../../../services/api/model";
 import type {
@@ -109,6 +110,7 @@ export const BatchCreateModal = ({
   onSaved,
 }: BatchCreateModalProps) => {
   const { t } = useTranslation();
+  const formId = useId();
   const [batchActiveTab, setBatchActiveTab] = useState(initialTab);
   const [batchApiKey, setBatchApiKey] = useState("");
   const [batchApiBase, setBatchApiBase] = useState("");
@@ -119,18 +121,23 @@ export const BatchCreateModal = ({
     createEmptyBatchRow(),
   ]);
   const [importJson, setImportJson] = useState("");
-  const [importResult, setImportResult] = useState<{
-    success: boolean;
-    message: string;
-  } | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
   const [batchSaving, setBatchSaving] = useState(false);
   const [isDraggingJson, setIsDraggingJson] = useState(false);
   const jsonFileInputRef = useRef<HTMLInputElement | null>(null);
+  const reportError = useCallback((message: string) => {
+    setImportError(message);
+    toast.error(message);
+  }, []);
 
   const addBatchRow = () =>
     setBatchRows((prev) => [...prev, createEmptyBatchRow()]);
-  const removeBatchRow = (rowId: string) =>
+  const removeBatchRow = (rowId: string) => {
+    const index = batchRows.findIndex((row) => row.id === rowId);
+    const next = batchRows[index + 1] ?? batchRows[index - 1];
+    if (next) document.getElementById(`${formId}-${next.id}-value`)?.focus();
     setBatchRows((prev) => prev.filter((r) => r.id !== rowId));
+  };
   const updateBatchRow = <K extends keyof BatchModelRow>(
     rowId: string,
     field: K,
@@ -163,12 +170,12 @@ export const BatchCreateModal = ({
 
   const handleBatchCreateRows = useCallback(async () => {
     if (validBatchRows.length === 0) {
-      toast.error(t("agentConfig.batchNoModels"));
+      reportError(t("agentConfig.batchNoModels"));
       return;
     }
     const parsedShared = parseSharedConfig();
     if (!parsedShared.ok) {
-      toast.error(
+      reportError(
         parsedShared.error === "invalidHeaders"
           ? t("agentConfig.requestHeadersInvalidJson")
           : t("agentConfig.requestHeadersNotObject"),
@@ -179,12 +186,13 @@ export const BatchCreateModal = ({
     for (const row of validBatchRows) {
       const built = buildModelCreateFromRow(row, parsedShared.shared);
       if (!built.ok) {
-        toast.error(t(`agentConfig.${built.error}`));
+        reportError(t(`agentConfig.${built.error}`));
         return;
       }
       models.push(built.model);
     }
     setBatchSaving(true);
+    setImportError(null);
     try {
       await modelApi.importModels(models);
       toast.success(
@@ -192,11 +200,12 @@ export const BatchCreateModal = ({
       );
       onSaved();
     } catch (err) {
-      toast.error((err as Error).message || t("agentConfig.batchCreateFailed"));
+      const msg = (err as Error).message || t("agentConfig.batchCreateFailed");
+      reportError(msg);
     } finally {
       setBatchSaving(false);
     }
-  }, [validBatchRows, parseSharedConfig, t, onSaved]);
+  }, [validBatchRows, parseSharedConfig, t, onSaved, reportError]);
 
   const importParse = useMemo<ImportParseState>(() => {
     if (!importJson.trim()) return null;
@@ -216,22 +225,23 @@ export const BatchCreateModal = ({
       try {
         const text = await file.text();
         setImportJson(text);
-        setImportResult(null);
+        setImportError(null);
       } catch {
-        toast.error(t("agentConfig.batchFileReadFailed"));
+        const msg = t("agentConfig.batchFileReadFailed");
+        reportError(msg);
       }
     },
-    [t],
+    [t, reportError],
   );
 
   const handleJsonImport = useCallback(async () => {
     if (importParse?.kind !== "ok") {
-      toast.error(t("agentConfig.importInvalidFormat"));
+      reportError(t("agentConfig.importInvalidFormat"));
       return;
     }
     const parsedShared = parseSharedConfig();
     if (!parsedShared.ok) {
-      toast.error(
+      reportError(
         parsedShared.error === "invalidHeaders"
           ? t("agentConfig.requestHeadersInvalidJson")
           : t("agentConfig.requestHeadersNotObject"),
@@ -242,7 +252,7 @@ export const BatchCreateModal = ({
       mergeSharedIntoImported(m, parsedShared.shared),
     );
     setBatchSaving(true);
-    setImportResult(null);
+    setImportError(null);
     try {
       await modelApi.importModels(models);
       toast.success(
@@ -251,12 +261,11 @@ export const BatchCreateModal = ({
       onSaved();
     } catch (err) {
       const msg = (err as Error).message || t("agentConfig.batchCreateFailed");
-      setImportResult({ success: false, message: msg });
-      toast.error(msg);
+      reportError(msg);
     } finally {
       setBatchSaving(false);
     }
-  }, [importParse, parseSharedConfig, t, onSaved]);
+  }, [importParse, parseSharedConfig, t, onSaved, reportError]);
 
   return (
     <EditorSidebar
@@ -267,32 +276,41 @@ export const BatchCreateModal = ({
       icon={<ListPlus size={16} />}
       width="wide"
       footer={
-        <PanelFooterActions>
-          <Button onClick={onClose}>{t("common.cancel")}</Button>
-          {batchActiveTab === "addOneByOne" ? (
-            <Button
-              variant="primary"
-              onClick={handleBatchCreateRows}
-              disabled={batchSaving || validBatchRows.length === 0}
-              loading={batchSaving}
-              leftIcon={<Upload size={16} />}
-            >
-              {t("agentConfig.batchCreateBtn", {
-                count: validBatchRows.length,
-              })}
-            </Button>
-          ) : (
-            <Button
-              variant="primary"
-              onClick={handleJsonImport}
-              disabled={batchSaving || importParse?.kind !== "ok"}
-              loading={batchSaving}
-              leftIcon={<Upload size={16} />}
-            >
-              {t("agentConfig.batchImportBtn")}
-            </Button>
+        <div className="space-y-2">
+          {importError && (
+            <ConfigPanelErrorCallout
+              message={importError}
+              tabIndex={0}
+              className="max-h-32 overflow-y-auto"
+            />
           )}
-        </PanelFooterActions>
+          <PanelFooterActions>
+            <Button onClick={onClose}>{t("common.cancel")}</Button>
+            {batchActiveTab === "addOneByOne" ? (
+              <Button
+                variant="primary"
+                onClick={handleBatchCreateRows}
+                disabled={batchSaving || validBatchRows.length === 0}
+                loading={batchSaving}
+                leftIcon={<Upload size={16} />}
+              >
+                {t("agentConfig.batchCreateBtn", {
+                  count: validBatchRows.length,
+                })}
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                onClick={handleJsonImport}
+                disabled={batchSaving || importParse?.kind !== "ok"}
+                loading={batchSaving}
+                leftIcon={<Upload size={16} />}
+              >
+                {t("agentConfig.batchImportBtn")}
+              </Button>
+            )}
+          </PanelFooterActions>
+        </div>
       }
     >
       <div
@@ -305,11 +323,13 @@ export const BatchCreateModal = ({
           style={{ borderColor: "var(--glass-border)" }}
         >
           <button
+            type="button"
+            aria-pressed={batchActiveTab === "addOneByOne"}
             onClick={() => {
               setBatchActiveTab("addOneByOne");
-              setImportResult(null);
+              setImportError(null);
             }}
-            className={`px-4 py-3 text-14 font-medium border-b-2 transition-colors ${
+            className={`min-h-11 min-w-0 flex-1 px-3 py-3 text-14 focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] motion-reduce:transition-none font-medium border-b-2 transition-colors ${
               batchActiveTab === "addOneByOne"
                 ? "border-theme-border text-theme-text"
                 : "border-transparent text-theme-text-secondary hover:text-theme-text"
@@ -318,11 +338,13 @@ export const BatchCreateModal = ({
             {t("agentConfig.batchTabAddOneByOne")}
           </button>
           <button
+            type="button"
+            aria-pressed={batchActiveTab === "jsonImport"}
             onClick={() => {
               setBatchActiveTab("jsonImport");
-              setImportResult(null);
+              setImportError(null);
             }}
-            className={`px-4 py-3 text-14 font-medium border-b-2 transition-colors ${
+            className={`min-h-11 min-w-0 flex-1 px-3 py-3 text-14 focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] motion-reduce:transition-none font-medium border-b-2 transition-colors ${
               batchActiveTab === "jsonImport"
                 ? "border-theme-border text-theme-text"
                 : "border-transparent text-theme-text-secondary hover:text-theme-text"
@@ -332,7 +354,7 @@ export const BatchCreateModal = ({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto es-form">
+        <div className="min-h-0 flex-1 overflow-y-auto es-form">
           {/* Shared Config — 两个 Tab 共用：只补齐各模型缺失的连接信息 */}
           <div className="es-section">
             <div className="flex items-center gap-2">
@@ -351,10 +373,11 @@ export const BatchCreateModal = ({
             </p>
             <div className="es-row es-row-2">
               <div className="es-field">
-                <label className="es-label">
+                <label className="es-label" htmlFor={`${formId}-base`}>
                   {t("agentConfig.modelApiBase")}
                 </label>
                 <Input
+                  id={`${formId}-base`}
                   type="text"
                   value={batchApiBase}
                   onChange={(e) => setBatchApiBase(e.target.value)}
@@ -363,10 +386,11 @@ export const BatchCreateModal = ({
                 />
               </div>
               <div className="es-field">
-                <label className="es-label">
+                <span className="es-label">
                   {t("agentConfig.modelApiFormat")}
-                </label>
+                </span>
                 <Select
+                  ariaLabel={t("agentConfig.modelApiFormat")}
                   value={batchApiFormat}
                   onChange={(v) => setBatchApiFormat(v as ApiFormat | "")}
                   options={[
@@ -381,10 +405,11 @@ export const BatchCreateModal = ({
                 <p className="es-hint">{t("agentConfig.modelApiFormatHint")}</p>
               </div>
               <div className="es-field">
-                <label className="es-label">
+                <label className="es-label" htmlFor={`${formId}-key`}>
                   {t("agentConfig.modelApiKey")}
                 </label>
                 <Input
+                  id={`${formId}-key`}
                   type={showBatchApiKey ? "text" : "password"}
                   value={batchApiKey}
                   onChange={(e) => setBatchApiKey(e.target.value)}
@@ -408,10 +433,11 @@ export const BatchCreateModal = ({
               </div>
             </div>
             <div className="es-field">
-              <label className="es-label">
+              <label className="es-label" htmlFor={`${formId}-headers`}>
                 {t("agentConfig.modelRequestHeaders")}
               </label>
               <Textarea
+                id={`${formId}-headers`}
                 value={batchRequestHeaders}
                 onChange={(e) => setBatchRequestHeaders(e.target.value)}
                 placeholder={t("agentConfig.modelRequestHeadersPlaceholder")}
@@ -440,29 +466,37 @@ export const BatchCreateModal = ({
               {batchRows.map((row, index) => (
                 <div
                   key={row.id}
+                  role="group"
+                  aria-labelledby={`${formId}-${row.id}-title`}
                   className="glass-card-subtle rounded-xl p-3 sm:p-4 space-y-2"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-11 text-theme-text-secondary font-mono">
+                    <span
+                      id={`${formId}-${row.id}-title`}
+                      className="text-12 text-theme-text-secondary font-mono"
+                    >
                       #{index + 1}
                     </span>
                     {batchRows.length > 1 && (
-                      <button
+                      <IconButton
                         onClick={() => removeBatchRow(row.id)}
-                        className="p-1.5 text-theme-text-secondary hover:text-theme-error rounded-lg transition-colors"
-                        title={t("common.delete")}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                        icon={<Trash2 size={16} />}
+                        aria-label={`${t("common.delete")} #${index + 1}`}
+                      />
                     )}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div className="es-field">
-                      <label className="es-label">
+                      <label
+                        className="es-label"
+                        htmlFor={`${formId}-${row.id}-value`}
+                      >
                         {t("agentConfig.modelValue")}{" "}
                         <span className="es-required">*</span>
                       </label>
                       <Input
+                        id={`${formId}-${row.id}-value`}
+                        aria-required="true"
                         type="text"
                         value={row.value}
                         onChange={(e) =>
@@ -473,11 +507,16 @@ export const BatchCreateModal = ({
                       />
                     </div>
                     <div className="es-field">
-                      <label className="es-label">
+                      <label
+                        className="es-label"
+                        htmlFor={`${formId}-${row.id}-label`}
+                      >
                         {t("agentConfig.modelLabel")}{" "}
                         <span className="es-required">*</span>
                       </label>
                       <Input
+                        id={`${formId}-${row.id}-label`}
+                        aria-required="true"
                         type="text"
                         value={row.label}
                         onChange={(e) =>
@@ -489,7 +528,7 @@ export const BatchCreateModal = ({
                     </div>
                   </div>
                   <details className="group">
-                    <summary className="text-12 text-theme-text-secondary cursor-pointer select-none hover:text-theme-text transition-colors">
+                    <summary className="min-h-11 content-center rounded-lg focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] motion-reduce:transition-none text-12 text-theme-text-secondary cursor-pointer select-none hover:text-theme-text transition-colors">
                       {t("agentConfig.advancedConfig", "高级配置")}
                     </summary>
                     <div
@@ -498,10 +537,14 @@ export const BatchCreateModal = ({
                     >
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div className="es-field">
-                          <label className="es-label">
+                          <label
+                            className="es-label"
+                            htmlFor={`${formId}-${row.id}-description`}
+                          >
                             {t("agentConfig.modelDescription")}
                           </label>
                           <Input
+                            id={`${formId}-${row.id}-description`}
                             type="text"
                             value={row.description}
                             onChange={(e) =>
@@ -518,9 +561,9 @@ export const BatchCreateModal = ({
                           />
                         </div>
                         <div className="es-field">
-                          <label className="es-label">
+                          <span className="es-label">
                             {t("agentConfig.modelProvider")}
-                          </label>
+                          </span>
                           <ProviderSelect
                             value={row.provider}
                             onChange={(v) =>
@@ -531,9 +574,9 @@ export const BatchCreateModal = ({
                         </div>
                       </div>
                       <div className="es-field">
-                        <label className="es-label">
+                        <span className="es-label">
                           {t("agentConfig.modelIcon")}
-                        </label>
+                        </span>
                         <ModelIconSelect
                           value={row.icon}
                           onChange={(v) => updateBatchRow(row.id, "icon", v)}
@@ -542,10 +585,14 @@ export const BatchCreateModal = ({
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div className="es-field">
-                          <label className="es-label">
+                          <label
+                            className="es-label"
+                            htmlFor={`${formId}-${row.id}-apiKey`}
+                          >
                             {t("agentConfig.modelApiKey")}
                           </label>
                           <Input
+                            id={`${formId}-${row.id}-apiKey`}
                             type="text"
                             value={row.apiKey}
                             onChange={(e) =>
@@ -559,10 +606,14 @@ export const BatchCreateModal = ({
                           </p>
                         </div>
                         <div className="es-field">
-                          <label className="es-label">
+                          <label
+                            className="es-label"
+                            htmlFor={`${formId}-${row.id}-apiBase`}
+                          >
                             {t("agentConfig.modelApiBase")}
                           </label>
                           <Input
+                            id={`${formId}-${row.id}-apiBase`}
                             type="text"
                             value={row.apiBase}
                             onChange={(e) =>
@@ -580,10 +631,14 @@ export const BatchCreateModal = ({
                       </div>
                       <div className="es-row es-row-3">
                         <div className="es-field">
-                          <label className="es-label">
+                          <label
+                            className="es-label"
+                            htmlFor={`${formId}-${row.id}-temperature`}
+                          >
                             {t("agentConfig.temperature")}
                           </label>
                           <Input
+                            id={`${formId}-${row.id}-temperature`}
                             type="number"
                             step="0.1"
                             min="0"
@@ -601,10 +656,14 @@ export const BatchCreateModal = ({
                           />
                         </div>
                         <div className="es-field">
-                          <label className="es-label">
+                          <label
+                            className="es-label"
+                            htmlFor={`${formId}-${row.id}-maxTokens`}
+                          >
                             {t("agentConfig.maxTokens")}
                           </label>
                           <Input
+                            id={`${formId}-${row.id}-maxTokens`}
                             type="number"
                             value={row.maxTokens}
                             onChange={(e) =>
@@ -619,10 +678,14 @@ export const BatchCreateModal = ({
                           />
                         </div>
                         <div className="es-field">
-                          <label className="es-label">
+                          <label
+                            className="es-label"
+                            htmlFor={`${formId}-${row.id}-maxInputTokens`}
+                          >
                             {t("agentConfig.maxInputTokens")}
                           </label>
                           <Input
+                            id={`${formId}-${row.id}-maxInputTokens`}
                             type="number"
                             value={row.maxInputTokens}
                             onChange={(e) =>
@@ -638,75 +701,40 @@ export const BatchCreateModal = ({
                         </div>
                       </div>
                       <div className="es-field">
-                        <label className="es-label">
+                        <span className="es-label">
                           {t(
                             "agentConfig.pricingLabel",
                             "价格覆盖（USD / 百万 tokens）",
                           )}
-                        </label>
+                        </span>
                         <div className="grid grid-cols-2 gap-2">
-                          <Input
-                            type="text"
-                            inputMode="decimal"
-                            value={row.priceInput}
-                            onChange={(e) =>
-                              updateBatchRow(
-                                row.id,
-                                "priceInput",
-                                e.target.value,
-                              )
-                            }
-                            placeholder={t("agentConfig.pricingInput", "输入")}
-                            className="es-input"
-                          />
-                          <Input
-                            type="text"
-                            inputMode="decimal"
-                            value={row.priceOutput}
-                            onChange={(e) =>
-                              updateBatchRow(
-                                row.id,
-                                "priceOutput",
-                                e.target.value,
-                              )
-                            }
-                            placeholder={t("agentConfig.pricingOutput", "输出")}
-                            className="es-input"
-                          />
-                          <Input
-                            type="text"
-                            inputMode="decimal"
-                            value={row.priceCacheRead}
-                            onChange={(e) =>
-                              updateBatchRow(
-                                row.id,
-                                "priceCacheRead",
-                                e.target.value,
-                              )
-                            }
-                            placeholder={t(
-                              "agentConfig.pricingCacheRead",
-                              "缓存读",
-                            )}
-                            className="es-input"
-                          />
-                          <Input
-                            type="text"
-                            inputMode="decimal"
-                            value={row.priceCacheWrite}
-                            onChange={(e) =>
-                              updateBatchRow(
-                                row.id,
-                                "priceCacheWrite",
-                                e.target.value,
-                              )
-                            }
-                            placeholder={t(
-                              "agentConfig.pricingCacheWrite",
-                              "缓存写",
-                            )}
-                            className="es-input"
-                          />
+                          {(
+                            [
+                              ["priceInput", "pricingInput"],
+                              ["priceOutput", "pricingOutput"],
+                              ["priceCacheRead", "pricingCacheRead"],
+                              ["priceCacheWrite", "pricingCacheWrite"],
+                            ] as const
+                          ).map(([field, labelKey]) => (
+                            <div key={field} className="es-field">
+                              <label
+                                className="es-label"
+                                htmlFor={`${formId}-${row.id}-${field}`}
+                              >
+                                {t(`agentConfig.${labelKey}`)}
+                              </label>
+                              <Input
+                                id={`${formId}-${row.id}-${field}`}
+                                type="text"
+                                inputMode="decimal"
+                                value={row[field]}
+                                onChange={(e) =>
+                                  updateBatchRow(row.id, field, e.target.value)
+                                }
+                                className="es-input"
+                              />
+                            </div>
+                          ))}
                         </div>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -734,7 +762,7 @@ export const BatchCreateModal = ({
                         </label>
                         <label className="flex items-start gap-2 text-14 text-theme-text cursor-pointer">
                           <Checkbox
-                            ariaLabel={t("agentConfig.imageUrlToBase64")}
+                            ariaLabel={t("agentConfig.imageUrlModeBase64")}
                             checked={row.imageUrlToBase64}
                             onChange={() =>
                               updateBatchRow(
@@ -747,16 +775,10 @@ export const BatchCreateModal = ({
                           />
                           <span>
                             <span className="block font-medium">
-                              {t(
-                                "agentConfig.imageUrlToBase64",
-                                "图片链接转 base64",
-                              )}
+                              {t("agentConfig.imageUrlModeBase64")}
                             </span>
                             <span className="es-hint block">
-                              {t(
-                                "agentConfig.imageUrlToBase64Hint",
-                                "发给模型前把 image_url 自动转成 data URL",
-                              )}
+                              {t("agentConfig.imageUrlModeHint")}
                             </span>
                           </span>
                         </label>
@@ -765,20 +787,22 @@ export const BatchCreateModal = ({
                   </details>
                 </div>
               ))}
-              <button
+              <Button
+                variant="ghost"
+                leftIcon={<Plus size={16} />}
                 onClick={addBatchRow}
                 className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 text-14 text-theme-text-secondary hover:text-theme-text border border-dashed border-theme-border hover:border-theme-text-secondary rounded-xl transition-colors"
               >
-                <Plus size={16} />
                 {t("agentConfig.batchAddRow")}
-              </button>
+              </Button>
             </div>
           )}
 
           {/* Tab 2: JSON / File Import */}
           {batchActiveTab === "jsonImport" && (
             <div className="space-y-4">
-              <div
+              <button
+                type="button"
                 onDragOver={(e) => {
                   e.preventDefault();
                   setIsDraggingJson(true);
@@ -791,42 +815,48 @@ export const BatchCreateModal = ({
                   if (file) void readJsonFile(file);
                 }}
                 onClick={() => jsonFileInputRef.current?.click()}
-                className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-6 transition-colors ${
+                className={`w-full flex cursor-pointer flex-col focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] motion-reduce:transition-none items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-6 transition-colors ${
                   isDraggingJson
                     ? "border-[var(--theme-primary)] bg-[var(--theme-primary-light)]/40"
                     : "border-[var(--glass-border)] hover:border-theme-text-secondary"
                 }`}
               >
-                <input
-                  ref={jsonFileInputRef}
-                  type="file"
-                  accept=".json,application/json"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void readJsonFile(file);
-                    e.target.value = "";
-                  }}
-                  className="hidden"
-                />
                 <FileJson size={20} className="text-theme-text-secondary" />
-                <p className="text-14 text-theme-text">
+                <span className="text-14 text-theme-text">
                   {isDraggingJson
                     ? t("agentConfig.batchDropzoneActive")
                     : t("agentConfig.batchDropzoneTitle")}
-                </p>
-                <p className="text-12 text-theme-text-secondary">
+                </span>
+                <span className="text-12 text-theme-text-secondary">
                   {t("agentConfig.batchDropzoneHint")}
-                </p>
-              </div>
+                </span>
+              </button>
+              <input
+                ref={jsonFileInputRef}
+                type="file"
+                aria-label={t("agentConfig.batchDropzoneTitle")}
+                accept=".json,application/json"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void readJsonFile(file);
+                  e.target.value = "";
+                }}
+                className="hidden"
+              />
               <div className="es-field">
-                <label className="es-label">
+                <label className="es-label" htmlFor={`${formId}-json`}>
                   {t("agentConfig.batchJsonLabel")}
                 </label>
                 <Textarea
+                  id={`${formId}-json`}
+                  aria-invalid={importParse?.kind === "invalid"}
+                  aria-describedby={
+                    importParse ? `${formId}-json-status` : undefined
+                  }
                   value={importJson}
                   onChange={(e) => {
                     setImportJson(e.target.value);
-                    setImportResult(null);
+                    setImportError(null);
                   }}
                   rows={10}
                   placeholder={JSON_PLACEHOLDER}
@@ -837,6 +867,8 @@ export const BatchCreateModal = ({
               </div>
               {importParse && (
                 <div
+                  id={`${formId}-json-status`}
+                  role="status"
                   className={`rounded-xl p-3 text-14 flex items-center gap-2 ${
                     importParse.kind === "ok"
                       ? "bg-[color-mix(in_srgb,var(--theme-success)_12%,transparent)] text-theme-success dark:bg-green-900/30 dark:text-green-400"
@@ -891,20 +923,6 @@ export const BatchCreateModal = ({
                       })}
                     </div>
                   )}
-                </div>
-              )}
-              {importResult && (
-                <div
-                  className={`flex items-center gap-2 rounded-xl p-3 ${
-                    importResult.success
-                      ? "bg-[color-mix(in_srgb,var(--theme-success)_12%,transparent)] text-theme-success dark:bg-green-900/30 dark:text-green-400"
-                      : "bg-[color-mix(in_srgb,var(--theme-error)_12%,transparent)] text-theme-error dark:bg-red-900/30 dark:text-red-400"
-                  }`}
-                >
-                  {importResult.success ? <Check size={20} /> : <X size={20} />}
-                  <span className="whitespace-pre-wrap text-14">
-                    {importResult.message}
-                  </span>
                 </div>
               )}
             </div>

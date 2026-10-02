@@ -1,10 +1,12 @@
 import { SceneIllustration } from "../../common/SceneIllustration";
-import { useState, useRef, useEffect } from "react";
-import type { ReactNode, Ref } from "react";
+import { useState, useRef, useEffect, useCallback, useId } from "react";
+import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { createPortal } from "react-dom";
-import { hasVisibleModalDialog } from "../../../utils/modalDialog";
+import {
+  ResourceCardMenu,
+  type ResourceCardAction,
+} from "../../common/ResourceCardMenu";
 import {
   Share2,
   MoreHorizontal,
@@ -24,7 +26,6 @@ import { ShareDialog } from "../../share/ShareDialog";
 import { useAuth } from "../../../hooks/useAuth";
 import { useTheme } from "../../../contexts/ThemeContext";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
-import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosition";
 import { authApi } from "../../../services/api";
 import { notificationApi } from "../../../services/api/notification";
 import { useSessionTitle } from "../../../hooks/useSessionTitle";
@@ -82,40 +83,30 @@ export function Header({
   const { theme, toggleTheme } = useTheme();
   const { pinnedModelIds, togglePinnedModel } = useSettingsContext();
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [notifDialogOpen, setNotifDialogOpen] = useState(false);
   const [activeNotifCount, setActiveNotifCount] = useState(0);
   const mobileMenuBtnRef = useRef<HTMLButtonElement>(null);
-  const mobileMenuPanelRef = useRef<HTMLDivElement>(null);
-  const langMenuPanelRef = useRef<HTMLDivElement>(null);
-  const langMenuBtnRef = useRef<HTMLButtonElement>(null);
-  const wasLangMenuOpen = useRef(false);
-
-  useEffect(() => {
-    if (langMenuOpen) {
-      langMenuPanelRef.current
-        ?.querySelector<HTMLButtonElement>("button")
-        ?.focus();
-    } else if (mobileMenuOpen) {
-      const target = wasLangMenuOpen.current
-        ? langMenuBtnRef.current
-        : mobileMenuPanelRef.current?.querySelector<HTMLButtonElement>(
-            "button",
-          );
-      target?.focus();
-    }
-    wasLangMenuOpen.current = langMenuOpen;
-  }, [mobileMenuOpen, langMenuOpen]);
-
-  const menuPosition = useStickyDropdownPosition(
-    mobileMenuBtnRef,
-    mobileMenuOpen || langMenuOpen,
-    (rect) => ({
-      top: rect.bottom + 4,
-      right: window.innerWidth - rect.right,
-    }),
-  );
+  const menuId = useId();
+  const [menu, setMenu] = useState<{
+    mode: "main" | "language";
+    position: { x: number; y: number };
+    returningFromLanguage: boolean;
+  } | null>(null);
+  const closeMenu = useCallback((restoreFocus = false) => {
+    setMenu(null);
+    if (restoreFocus) mobileMenuBtnRef.current?.focus();
+  }, []);
+  const openMenu = (
+    mode: "main" | "language",
+    returningFromLanguage = false,
+  ) => {
+    const rect = mobileMenuBtnRef.current!.getBoundingClientRect();
+    setMenu({
+      mode,
+      position: { x: rect.right - 224, y: rect.bottom + 4 },
+      returningFromLanguage,
+    });
+  };
 
   const refreshNotifCount = () => {
     notificationApi
@@ -131,49 +122,13 @@ export function Header({
 
   useEffect(() => {
     refreshNotifCount();
-    const open = () => setNotifDialogOpen(true);
+    const open = () => {
+      closeMenu();
+      setNotifDialogOpen(true);
+    };
     window.addEventListener(OPEN_NOTIFICATIONS_EVENT, open);
     return () => window.removeEventListener(OPEN_NOTIFICATIONS_EVENT, open);
-  }, []);
-
-  // Close mobile menu on outside click
-  useEffect(() => {
-    if (!mobileMenuOpen && !langMenuOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (
-        !mobileMenuPanelRef.current?.contains(target) &&
-        !langMenuPanelRef.current?.contains(target) &&
-        !mobileMenuBtnRef.current?.contains(target)
-      ) {
-        setMobileMenuOpen(false);
-        setLangMenuOpen(false);
-      }
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.key !== "Escape" ||
-        e.defaultPrevented ||
-        e.isComposing ||
-        e.keyCode === 229 ||
-        hasVisibleModalDialog()
-      )
-        return;
-      e.preventDefault();
-      setLangMenuOpen(false);
-      setMobileMenuOpen(false);
-      mobileMenuBtnRef.current?.focus();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    const timer = setTimeout(() => {
-      document.addEventListener("click", handleClickOutside);
-    }, 0);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("click", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [mobileMenuOpen, langMenuOpen]);
+  }, [closeMenu]);
 
   const hasSharePermission = user?.permissions?.includes(
     Permission.SESSION_SHARE,
@@ -182,6 +137,99 @@ export function Header({
   const sessionTitle = useSessionTitle(sessionId, {
     enabled: showShareButton,
   });
+
+  const mainActions: ResourceCardAction[] = [
+    ...(showOutlineButton && onToggleOutline
+      ? [
+          {
+            label: t("chat.outline"),
+            icon: <ListTree size={16} />,
+            onClick: onToggleOutline,
+          },
+        ]
+      : []),
+    ...(activeTab === "chat"
+      ? [
+          {
+            label: t("sidebar.newChat"),
+            icon: <MessageSquarePlus size={16} />,
+            onClick: onNewSession,
+          },
+        ]
+      : []),
+    ...(showShareButton
+      ? [
+          {
+            label: t("share.title"),
+            icon: <Share2 size={16} strokeWidth={1.8} />,
+            onClick: () => setShareDialogOpen(true),
+          },
+        ]
+      : []),
+    {
+      label:
+        t("nav.notifications") +
+        (activeNotifCount > 0
+          ? ` (${activeNotifCount > 99 ? "99+" : activeNotifCount})`
+          : ""),
+      icon: <Bell size={16} />,
+      onClick: () => setNotifDialogOpen(true),
+    },
+    {
+      label:
+        theme === "light"
+          ? t("theme.switchToDark")
+          : theme === "dark"
+            ? t("theme.switchToSepia")
+            : t("theme.switchToLight"),
+      icon:
+        theme === "light" ? (
+          <Moon size={16} />
+        ) : theme === "dark" ? (
+          <Coffee size={16} />
+        ) : (
+          <Sun size={16} />
+        ),
+      onClick: toggleTheme,
+    },
+    {
+      label: t("common.language"),
+      icon: <Languages size={16} />,
+      onClick: () => openMenu("language"),
+    },
+  ];
+  const languageActions: ResourceCardAction[] = [
+    {
+      label: t("common.back"),
+      icon: <ChevronLeft size={16} />,
+      onClick: () => openMenu("main", true),
+    },
+    ...[
+      { code: "en", name: "English" },
+      { code: "zh", name: "中文" },
+      { code: "ja", name: "日本語" },
+      { code: "ko", name: "한국어" },
+      { code: "ru", name: "Русский" },
+    ].map((lang) => {
+      const checked = i18n.language?.split("-")[0] === lang.code;
+      return {
+        label: lang.name,
+        checked,
+        icon: (
+          <Check
+            size={16}
+            aria-hidden="true"
+            className={checked ? "" : "invisible"}
+          />
+        ),
+        onClick: () => {
+          i18n.changeLanguage(lang.code);
+          localStorage.setItem("language", lang.code);
+          authApi.updateMetadata({ language: lang.code }).catch(() => {});
+        },
+      };
+    }),
+  ];
 
   return (
     <>
@@ -280,185 +328,35 @@ export function Header({
               ref={mobileMenuBtnRef}
               type="button"
               aria-label={t("common.menu")}
-              aria-expanded={mobileMenuOpen || langMenuOpen}
+              aria-haspopup="menu"
+              aria-expanded={!!menu}
+              aria-controls={menu ? `${menuId}-${menu.mode}` : undefined}
               onClick={() => {
-                setMobileMenuOpen((v) => !v);
-                setLangMenuOpen(false);
+                if (menu) closeMenu();
+                else openMenu("main");
               }}
               className="flex size-11 sm:size-8 items-center justify-center rounded-lg text-stone-600 hover:bg-[var(--color-background-muted)] dark:text-stone-300 transition-colors"
               title={t("common.menu")}
             >
               <MoreHorizontal size={20} />
             </button>
-            {mobileMenuOpen &&
-              !langMenuOpen &&
-              createPortal(
-                <div
-                  ref={mobileMenuPanelRef}
-                  className="fixed z-[301] w-56 rounded-xl shadow-xl border overflow-hidden animate-scale-in"
-                  style={{
-                    ...menuPosition,
-                    backgroundColor: "var(--theme-bg-card)",
-                    borderColor: "var(--theme-border)",
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="py-1">
-                    {showOutlineButton && onToggleOutline && (
-                      <HeaderMenuItem
-                        onClick={() => {
-                          onToggleOutline();
-                          setMobileMenuOpen(false);
-                        }}
-                      >
-                        <HeaderMenuIcon>
-                          <ListTree size={16} />
-                        </HeaderMenuIcon>
-                        <span className="truncate">{t("chat.outline")}</span>
-                      </HeaderMenuItem>
-                    )}
-                    {activeTab === "chat" && (
-                      <HeaderMenuItem
-                        onClick={() => {
-                          onNewSession();
-                          setMobileMenuOpen(false);
-                        }}
-                      >
-                        <HeaderMenuIcon>
-                          <MessageSquarePlus size={16} />
-                        </HeaderMenuIcon>
-                        <span className="truncate">{t("sidebar.newChat")}</span>
-                      </HeaderMenuItem>
-                    )}
-                    {showShareButton && (
-                      <HeaderMenuItem
-                        onClick={() => {
-                          setShareDialogOpen(true);
-                          setMobileMenuOpen(false);
-                        }}
-                      >
-                        <HeaderMenuIcon>
-                          <Share2 size={16} strokeWidth={1.8} />
-                        </HeaderMenuIcon>
-                        <span className="truncate">{t("share.title")}</span>
-                      </HeaderMenuItem>
-                    )}
-                    <HeaderMenuItem
-                      onClick={() => {
-                        setNotifDialogOpen(true);
-                        setMobileMenuOpen(false);
-                      }}
-                    >
-                      <HeaderMenuIcon>
-                        <Bell size={16} />
-                      </HeaderMenuIcon>
-                      <span className="truncate">{t("nav.notifications")}</span>
-                      {activeNotifCount > 0 && (
-                        <span className="ml-auto flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-red-500 px-1 text-9 font-bold text-white leading-none">
-                          {activeNotifCount > 99 ? "99+" : activeNotifCount}
-                        </span>
-                      )}
-                    </HeaderMenuItem>
-                    <HeaderMenuItem
-                      onClick={() => {
-                        toggleTheme();
-                        setMobileMenuOpen(false);
-                      }}
-                    >
-                      <HeaderMenuIcon>
-                        {theme === "light" ? (
-                          <Moon size={16} />
-                        ) : theme === "dark" ? (
-                          <Coffee size={16} />
-                        ) : (
-                          <Sun size={16} />
-                        )}
-                      </HeaderMenuIcon>
-                      <span className="truncate">
-                        {theme === "light"
-                          ? t("theme.switchToDark")
-                          : theme === "dark"
-                            ? t("theme.switchToSepia")
-                            : t("theme.switchToLight")}
-                      </span>
-                    </HeaderMenuItem>
-                    <HeaderMenuItem
-                      ref={langMenuBtnRef}
-                      onClick={() => setLangMenuOpen(true)}
-                    >
-                      <HeaderMenuIcon>
-                        <Languages size={16} />
-                      </HeaderMenuIcon>
-                      <span className="truncate">{t("common.language")}</span>
-                    </HeaderMenuItem>
-                  </div>
-                </div>,
-                document.body,
-              )}
-          </div>
-
-          {langMenuOpen &&
-            createPortal(
-              <div
-                ref={langMenuPanelRef}
-                className="fixed z-[302] w-56 rounded-xl shadow-xl border overflow-hidden animate-scale-in"
-                style={{
-                  ...menuPosition,
-                  backgroundColor: "var(--theme-bg-card)",
-                  borderColor: "var(--theme-border)",
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button
-                  onClick={() => setLangMenuOpen(false)}
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-14 text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-subtle)] transition-colors"
-                >
-                  <ChevronLeft size={16} className="shrink-0" />
-                  <span>{t("common.language")}</span>
-                </button>
-                <div
-                  className="h-px mx-2"
-                  style={{ backgroundColor: "var(--theme-border)" }}
-                />
-                <div className="py-1">
-                  {[
-                    { code: "en", name: "English" },
-                    { code: "zh", name: "中文" },
-                    { code: "ja", name: "日本語" },
-                    { code: "ko", name: "한국어" },
-                    { code: "ru", name: "Русский" },
-                  ].map((lang) => {
-                    const isActive = i18n.language?.split("-")[0] === lang.code;
-                    return (
-                      <button
-                        key={lang.code}
-                        onClick={() => {
-                          i18n.changeLanguage(lang.code);
-                          localStorage.setItem("language", lang.code);
-                          authApi
-                            .updateMetadata({ language: lang.code })
-                            .catch(() => {});
-                          setLangMenuOpen(false);
-                          setMobileMenuOpen(false);
-                          mobileMenuBtnRef.current?.focus();
-                        }}
-                        className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-14 transition-colors ${
-                          isActive
-                            ? "text-[var(--theme-text)] bg-[var(--theme-bg-subtle)]"
-                            : "text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-subtle)]"
-                        }`}
-                      >
-                        <span className="truncate">{lang.name}</span>
-                        {isActive && (
-                          <Check size={14} className="ml-auto shrink-0" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>,
-              document.body,
+            {menu && (
+              <ResourceCardMenu
+                id={`${menuId}-${menu.mode}`}
+                title={t(
+                  menu.mode === "language" ? "common.language" : "common.menu",
+                )}
+                position={menu.position}
+                onClose={closeMenu}
+                actions={
+                  menu.mode === "language" ? languageActions : mainActions
+                }
+                initialFocusIndex={
+                  menu.returningFromLanguage ? mainActions.length - 1 : 0
+                }
+              />
             )}
+          </div>
 
           {headerActions}
           <UserMenu onShowProfile={onShowProfile} />
@@ -480,34 +378,5 @@ export function Header({
         onDismissed={refreshNotifCount}
       />
     </>
-  );
-}
-
-function HeaderMenuItem({
-  ref,
-  onClick,
-  children,
-}: {
-  ref?: Ref<HTMLButtonElement>;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      ref={ref}
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-14 transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-subtle)]"
-    >
-      {children}
-    </button>
-  );
-}
-
-function HeaderMenuIcon({ children }: { children: ReactNode }) {
-  return (
-    <span className="flex items-center justify-center w-5 shrink-0">
-      {children}
-    </span>
   );
 }

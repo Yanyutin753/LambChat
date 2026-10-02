@@ -12,7 +12,7 @@ test("batch create delegates payload building to the shared pure helpers", () =>
 
 test("batch rows support the latest model config structure", () => {
   expect(source).toMatch(/<ModelIconSelect/);
-  expect(source).toMatch(/row\.priceInput/);
+  expect(source).toMatch(/"priceInput"/);
   expect(source).toMatch(/checked=\{row\.supportsVision\}/);
   expect(source).toMatch(/checked=\{row\.imageUrlToBase64\}/);
   // 行级 API 凭据可覆盖共享配置

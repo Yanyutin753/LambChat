@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { fireEvent, render } from "@testing-library/react";
+import { act, fireEvent, render } from "@testing-library/react";
 import { afterEach, expect, test } from "vitest";
 
 import { ToolArgsDisplay } from "../../ToolArgsDisplay";
@@ -9,6 +9,8 @@ import {
   captureActiveSidebarPanelSnapshot,
   clearSidebarPanelSnapshots,
   registerActiveSidebarSnapshotTarget,
+  queueSidebarPanelSnapshot,
+  restorePendingSidebarPanelSnapshot,
 } from "../sidebarPanelSnapshot";
 
 afterEach(() => {
@@ -16,20 +18,26 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-test("captures expanded nested object arguments", () => {
+test("restores expanded nested object arguments", async () => {
   const view = render(<ToolArgsDisplay args={{ config: { mode: "safe" } }} />);
   registerActiveSidebarSnapshotTarget("panel:args", view.container);
-  const configLabel = view.getByText("Config");
-  const row = configLabel.parentElement;
-
-  expect(row).not.toBeNull();
-  if (!row) return;
+  const row = view.getByRole("button", { expanded: false });
   fireEvent.click(row);
 
   expect(row).toHaveAttribute("aria-expanded", "true");
-  expect(captureActiveSidebarPanelSnapshot()?.expanded).toEqual([
-    { locator: { path: [0, 0, 0] }, expanded: true },
-  ]);
+  const snapshot = captureActiveSidebarPanelSnapshot();
+  expect(snapshot?.expanded).toHaveLength(1);
+  expect(snapshot?.expanded[0].expanded).toBe(true);
+  fireEvent.click(row);
+  expect(row).toHaveAttribute("aria-expanded", "false");
+  queueSidebarPanelSnapshot(snapshot);
+  await act(async () => {
+    expect(
+      await restorePendingSidebarPanelSnapshot("panel:args", view.container),
+    ).toBe(true);
+  });
+  expect(row).toHaveAttribute("aria-expanded", "true");
+  expect(view.getByText(/"mode": "safe"/)).toBeVisible();
 });
 
 test("captures every expanded project directory by stable path", () => {

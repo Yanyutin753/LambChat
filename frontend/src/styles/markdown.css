@@ -81,7 +81,8 @@
     0 6px 18px -18px color-mix(in srgb, var(--theme-text) 24%, transparent);
 }
 
-.ai-code-block__header {
+.ai-code-block__header,
+.ai-code-block .code-editor-toolbar {
   min-height: 2.5rem;
   border-bottom: 1px solid var(--theme-border);
   background: color-mix(
@@ -105,16 +106,19 @@
   letter-spacing: 0.01em;
 }
 
-.ai-code-block__copy {
+.ai-code-block__copy,
+.ai-code-block .code-editor-toolbar .copy-button {
   color: var(--theme-text-tertiary);
 }
 
-.ai-code-block__copy:hover {
+.ai-code-block__copy:hover,
+.ai-code-block .code-editor-toolbar .copy-button:hover {
   color: var(--theme-text);
   background: color-mix(in srgb, var(--theme-text) 6%, transparent);
 }
 
-.ai-code-block__copy:focus-visible {
+.ai-code-block__copy:focus-visible,
+.ai-code-block .code-editor-toolbar .copy-button:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--theme-primary) 55%, transparent);
   outline-offset: 1px;
 }
@@ -499,10 +503,10 @@
 }
 
 .mermaid-diagram svg {
-  max-width: 100%;
+  max-width: 100% !important;
   height: auto;
   display: block;
-  min-width: 200px;
+  min-width: min(200px, 100%);
   min-height: 100px;
 }
 
@@ -640,7 +644,7 @@
    Toast 全局样式
    ======================================== */
 
-@media (max-width: 639px) {
+@media (max-width: 639px), (pointer: coarse) {
   .ai-code-block__copy,
   .ai-data-table__action {
     min-width: 2.75rem;

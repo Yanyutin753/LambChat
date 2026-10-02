@@ -272,6 +272,7 @@ export function SessionListContent({
           <div className="flex size-7 items-center gap-1.5">
             <BrandLogo alt={APP_NAME} className="size-7 mb-1" />
             <a
+              aria-label={APP_NAME}
               href={GITHUB_URL}
               target="_blank"
               rel="noopener noreferrer"
@@ -282,6 +283,7 @@ export function SessionListContent({
           </div>
           <Tooltip content={t("sidebar.collapseSidebar")}>
             <button
+              type="button"
               onClick={onCollapse}
               className="flex size-8 items-center justify-center rounded-lg text-theme-text-secondary dark:text-stone-400 transition-colors cursor-w-resize rtl:cursor-e-resize"
               aria-label={t("sidebar.collapseSidebar")}
@@ -307,8 +309,8 @@ export function SessionListContent({
       <div
         className={
           compactChrome
-            ? "flex flex-col gap-px ps-1 pe-0 pt-1 mb-2 space-y-1"
-            : "flex flex-col gap-px ps-1 pe-0 mb-2 space-y-1"
+            ? "flex flex-col gap-0 sm:gap-px ps-1 pe-0 pt-1 mb-2 space-y-0 sm:space-y-1"
+            : "flex flex-col gap-0 sm:gap-px ps-1 pe-0 mb-2 space-y-0 sm:space-y-1"
         }
       >
         <button
@@ -605,7 +607,7 @@ export function SessionListContent({
           {visibleUncategorizedSessions.length > 0 || isUncategorizedLoading ? (
             <>
               {isSelectionMode ? (
-                <div className="flex h-9 items-center justify-between gap-2 px-[9px]">
+                <div className="flex h-9 max-sm:h-11 items-center justify-between gap-2 px-[9px]">
                   <span className="text-13 font-medium text-theme-text-secondary dark:text-stone-400">
                     {t("sidebar.selectedCount", { count: selectedCount })}
                   </span>

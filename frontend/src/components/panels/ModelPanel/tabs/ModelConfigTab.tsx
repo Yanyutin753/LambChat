@@ -1,7 +1,7 @@
 import { Cpu } from "lucide-react";
 import { Pagination } from "../../../common/Pagination";
 import { useClientPagination } from "../../../../hooks/useClientPagination";
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useId } from "react";
 import {
   Plus,
   Trash2,
@@ -13,11 +13,14 @@ import {
   ChevronDown,
   RefreshCw,
   History,
+  MoreHorizontal,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { LoadingSpinner } from "../../../common/LoadingSpinner";
-import { Button, ConfirmDialog } from "../../../common";
+import { Button, IconButton, ConfirmDialog } from "../../../common";
+import { ResourceCardMenu } from "../../../common/ResourceCardMenu";
+import { ConfigPanelErrorCallout } from "../../ConfigPanelErrorCallout";
 import { EmptyState } from "../../../common/EmptyState";
 import { ToggleSwitch } from "../../AgentPanel/shared";
 import { ModelIconImg } from "../../../agent/modelIcon.tsx";
@@ -548,147 +551,157 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
     setShowBatchModal(false);
   }, []);
 
+  const menuId = useId();
+  const menuTrigger = useRef<HTMLButtonElement | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const closeMenu = useCallback((restoreFocus = false) => {
+    setMenuPosition(null);
+    if (restoreFocus) menuTrigger.current?.focus();
+  }, []);
+  const handleSyncPrices = async () => {
+    setIsSyncingPrices(true);
+    setActionError(null);
+    try {
+      const result = await pricingApi.sync();
+      if (result.error) {
+        const message = t("agentConfig.pricingSyncPartial", {
+          defaultValue: "同步完成（部分失败：{{error}}）",
+          error: result.error,
+        });
+        setActionError(message);
+      } else {
+        toast.success(
+          t("agentConfig.pricingSyncSuccess", {
+            defaultValue: "价格已同步（{{count}} 个模型）",
+            count: result.prices.entry_count,
+          }),
+        );
+      }
+    } catch (err) {
+      const message =
+        (err as Error).message ||
+        t("agentConfig.pricingSyncFailed", "同步价格失败");
+      setActionError(message);
+    } finally {
+      setIsSyncingPrices(false);
+    }
+  };
+  const handleBackfillCosts = async () => {
+    setIsBackfillingCosts(true);
+    setActionError(null);
+    try {
+      const result = await pricingApi.backfillUsage();
+      const base = t("agentConfig.pricingBackfillSuccess", {
+        defaultValue: "补算完成：{{priced}}/{{scanned}} 条",
+        priced: result.priced,
+        scanned: result.scanned,
+      });
+      toast.success(
+        result.still_unpriced > 0
+          ? `${base} · ${t("agentConfig.pricingBackfillUnpriced", {
+              defaultValue: "{{count}} 条未计价",
+              count: result.still_unpriced,
+            })}`
+          : base,
+      );
+    } catch (err) {
+      const message =
+        (err as Error).message ||
+        t("agentConfig.pricingBackfillFailed", "补算历史费用失败");
+      setActionError(message);
+    } finally {
+      setIsBackfillingCosts(false);
+    }
+  };
+
   return (
     <>
       <div className="flex flex-col gap-4 h-full">
-        <div className="flex items-center justify-between gap-3 font-serif">
-          <p className="text-14 text-stone-500 dark:text-stone-400 hidden sm:block">
+        <div className="model-config-heading">
+          <p className="text-14 text-theme-text-secondary">
             {t("agentConfig.modelConfigDescription")}
           </p>
-          <div className="model-config-toolbar flex flex-wrap items-center gap-2 flex-shrink-0">
-            <button
-              aria-label={t("agentConfig.exportModels")}
-              onClick={handleExportModels}
-              disabled={models.length === 0}
-              className="flex items-center gap-1.5 px-3 py-2 text-14 rounded-lg border border-[var(--glass-border)] text-stone-700 dark:text-stone-300 hover:bg-[var(--glass-bg-subtle)] transition-colors disabled:opacity-40"
-            >
-              <Download size={16} />
-              <span className="hidden sm:inline">
-                {t("agentConfig.exportModels")}
-              </span>
-            </button>
-            <button
-              aria-label={t("agentConfig.importModels")}
-              onClick={() => {
-                setBatchInitialTab("jsonImport");
-                setShowBatchModal(true);
-              }}
-              className="flex items-center gap-1.5 px-3 py-2 text-14 rounded-lg border border-[var(--glass-border)] text-stone-700 dark:text-stone-300 hover:bg-[var(--glass-bg-subtle)] transition-colors"
-            >
-              <FileJson size={16} />
-              <span className="hidden sm:inline">
-                {t("agentConfig.importModels")}
-              </span>
-            </button>
-            <button
-              aria-label={t("agentConfig.batchCreate")}
-              onClick={() => {
-                setBatchInitialTab("addOneByOne");
-                setShowBatchModal(true);
-              }}
-              className="flex items-center gap-1.5 px-3 py-2 text-14 rounded-lg border border-[var(--glass-border)] text-stone-700 dark:text-stone-300 hover:bg-[var(--glass-bg-subtle)] transition-colors"
-            >
-              <Layers size={16} />
-              <span className="hidden sm:inline">
-                {t("agentConfig.batchCreate")}
-              </span>
-            </button>
-            <button
-              aria-label={t("agentConfig.pricingSync")}
-              onClick={async () => {
-                setIsSyncingPrices(true);
-                try {
-                  const result = await pricingApi.sync();
-                  if (result.error) {
-                    toast.error(
-                      t("agentConfig.pricingSyncPartial", {
-                        defaultValue: "同步完成（部分失败：{{error}}）",
-                        error: result.error,
-                      }),
-                    );
-                  } else {
-                    toast.success(
-                      t("agentConfig.pricingSyncSuccess", {
-                        defaultValue: "价格已同步（{{count}} 个模型）",
-                        count: result.prices.entry_count,
-                      }),
-                    );
-                  }
-                } catch (err) {
-                  toast.error(
-                    (err as Error).message ||
-                      t("agentConfig.pricingSyncFailed", "同步价格失败"),
-                  );
-                } finally {
-                  setIsSyncingPrices(false);
-                }
-              }}
-              disabled={isSyncingPrices}
-              className="flex items-center gap-1.5 px-3 py-2 text-14 rounded-lg border border-[var(--glass-border)] text-stone-700 dark:text-stone-300 hover:bg-[var(--glass-bg-subtle)] transition-colors disabled:opacity-50"
-            >
-              <RefreshCw
-                size={16}
-                className={isSyncingPrices ? "animate-spin" : ""}
-              />
-              <span className="hidden sm:inline">
-                {t("agentConfig.pricingSync", "同步价格")}
-              </span>
-            </button>
-            <button
-              aria-label={t("agentConfig.pricingBackfill")}
-              onClick={async () => {
-                setIsBackfillingCosts(true);
-                try {
-                  const result = await pricingApi.backfillUsage();
-                  const base = t("agentConfig.pricingBackfillSuccess", {
-                    defaultValue: "补算完成：{{priced}}/{{scanned}} 条",
-                    priced: result.priced,
-                    scanned: result.scanned,
-                  });
-                  toast.success(
-                    result.still_unpriced > 0
-                      ? `${base} · ${t("agentConfig.pricingBackfillUnpriced", {
-                          defaultValue: "{{count}} 条未计价",
-                          count: result.still_unpriced,
-                        })}`
-                      : base,
-                  );
-                } catch (err) {
-                  toast.error(
-                    (err as Error).message ||
-                      t(
-                        "agentConfig.pricingBackfillFailed",
-                        "补算历史费用失败",
-                      ),
-                  );
-                } finally {
-                  setIsBackfillingCosts(false);
-                }
-              }}
-              disabled={isBackfillingCosts}
-              className="flex items-center gap-1.5 px-3 py-2 text-14 rounded-lg border border-[var(--glass-border)] text-stone-700 dark:text-stone-300 hover:bg-[var(--glass-bg-subtle)] transition-colors disabled:opacity-50"
-            >
-              <History
-                size={16}
-                className={isBackfillingCosts ? "animate-spin" : ""}
-              />
-              <span className="hidden sm:inline">
-                {t("agentConfig.pricingBackfill", "补算历史费用")}
-              </span>
-            </button>
+          <div className="model-config-toolbar flex items-center gap-1 shrink-0">
             <Button
               variant="primary"
-              aria-label={t("agentConfig.addModel")}
               onClick={() => setIsCreating(true)}
               leftIcon={<Plus size={16} />}
-              className="px-3 py-2 text-14 hover:shadow-lg hover:shadow-stone-500/10 sm:px-4"
             >
-              <span className="hidden sm:inline">
-                {t("agentConfig.addModel")}
-              </span>
+              {t("agentConfig.addModel")}
             </Button>
+            <IconButton
+              icon={
+                isSyncingPrices || isBackfillingCosts ? (
+                  <LoadingSpinner size="sm" />
+                ) : (
+                  <MoreHorizontal size={18} />
+                )
+              }
+              aria-label={t("common.moreOptions")}
+              title={t("common.moreOptions")}
+              aria-haspopup="menu"
+              aria-expanded={!!menuPosition}
+              aria-controls={menuPosition ? menuId : undefined}
+              onClick={(event) => {
+                menuTrigger.current = event.currentTarget;
+                if (menuPosition) closeMenu(true);
+                else {
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  setMenuPosition({ x: rect.right - 224, y: rect.bottom + 4 });
+                }
+              }}
+            />
+            {menuPosition && (
+              <ResourceCardMenu
+                id={menuId}
+                title={t("common.moreOptions")}
+                position={menuPosition}
+                onClose={closeMenu}
+                actions={[
+                  {
+                    label: t("agentConfig.exportModels"),
+                    icon: <Download size={16} />,
+                    disabled: !models.length,
+                    onClick: handleExportModels,
+                  },
+                  {
+                    label: t("agentConfig.importModels"),
+                    icon: <FileJson size={16} />,
+                    onClick: () => {
+                      setBatchInitialTab("jsonImport");
+                      setShowBatchModal(true);
+                    },
+                  },
+                  {
+                    label: t("agentConfig.batchCreate"),
+                    icon: <Layers size={16} />,
+                    onClick: () => {
+                      setBatchInitialTab("addOneByOne");
+                      setShowBatchModal(true);
+                    },
+                  },
+                  {
+                    label: t("agentConfig.pricingSync"),
+                    icon: <RefreshCw size={16} />,
+                    disabled: isSyncingPrices,
+                    onClick: handleSyncPrices,
+                  },
+                  {
+                    label: t("agentConfig.pricingBackfill"),
+                    icon: <History size={16} />,
+                    disabled: isBackfillingCosts,
+                    onClick: handleBackfillCosts,
+                  },
+                ]}
+              />
+            )}
           </div>
         </div>
+        {actionError && <ConfigPanelErrorCallout message={actionError} />}
 
         {models.length === 0 ? (
           <EmptyState

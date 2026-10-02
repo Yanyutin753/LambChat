@@ -648,7 +648,7 @@ export const SessionSidebar = forwardRef<
         aria-hidden={!mobileOpen}
         inert={!mobileOpen}
         tabIndex={-1}
-        className={`rounded-r-lg fixed left-0 z-[70] w-64 max-w-full flex flex-col sm:hidden bg-[var(--theme-bg-sidebar)] transition-transform duration-300 ease-in-out ${
+        className={`session-sidebar-drawer rounded-r-lg fixed left-0 z-[70] w-64 max-w-full flex flex-col sm:hidden bg-[var(--theme-bg-sidebar)] transition-transform duration-300 ease-in-out ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         style={{

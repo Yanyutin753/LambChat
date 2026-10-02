@@ -14,7 +14,7 @@ const componentSource = readIfExists(
 
 test("App mounts the PWA status toast bridge near the global toaster", () => {
   expect(appSource).toMatch(/PwaStatusToasts/);
-  expect(appSource).toMatch(/<Toaster/);
+  expect(appSource).toMatch(/<AppToaster/);
 });
 
 test("PWA status toast bridge handles update, offline, and restored-online events", () => {

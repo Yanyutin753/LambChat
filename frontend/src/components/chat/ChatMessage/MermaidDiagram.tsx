@@ -1,17 +1,35 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
-import { Check, Copy, Download, Code, Eye, X, Maximize2 } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  Copy,
+  Download,
+  Code,
+  Eye,
+  X,
+  Maximize2,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   prepareFullscreenMermaidSvg,
   stripResponsiveWidthAttribute,
 } from "./mermaidSvgUtils";
-import { ViewerDropdownMenuItem } from "../../common";
+import { ResourceCardMenu } from "../../common/ResourceCardMenu";
+import { useDialogFocus } from "../../common/useDialogFocus";
 import { ViewerTopBar } from "../../common/ViewerTopBar";
 import { ViewerToolbar } from "../../common/ViewerToolbar";
 import { ViewerTopBarButton } from "../../common/ViewerTopBarButton";
 import { downloadBlob } from "../../common/viewerDownload";
-import { copyToClipboard } from "../../../utils/clipboard";
+import { useClipboardCopy } from "../../../hooks/useClipboardCopy";
+import { CopyButton } from "../../common/CopyButton";
 import { useAppThemeMode } from "../../../hooks/useAppThemeMode";
 import { themeExportBackground } from "../../../utils/themeDom";
 import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
@@ -52,9 +70,18 @@ export function MermaidDiagram({
   const ref = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+
   const [scale, setScale] = useState(1);
-  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [downloadPosition, setDownloadPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const downloadTriggerRef = useRef<HTMLButtonElement>(null);
+  const downloadMenuId = useId();
+  const closeDownloadMenu = useCallback((restoreFocus = false) => {
+    setDownloadPosition(null);
+    if (restoreFocus) downloadTriggerRef.current?.focus();
+  }, []);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showCode, setShowCode] = useState(false);
   const idRef = useRef<string>(
@@ -156,13 +183,26 @@ export function MermaidDiagram({
       try {
         const mermaid = await import("mermaid");
 
-        // Initialize mermaid — follow the active theme; sepia keeps the light
-        // palette but repaints the canvas onto the beige card background
-        const isSepia = themeMode === "sepia";
+        const palette = getComputedStyle(document.documentElement);
+        const card = palette.getPropertyValue("--theme-bg-card").trim();
+        const border = palette.getPropertyValue("--theme-border").trim();
         mermaid.default.initialize({
           startOnLoad: false,
-          theme: themeMode === "dark" ? "dark" : "default",
-          ...(isSepia ? { themeVariables: { background: "#faf6ea" } } : {}),
+          theme: "base",
+          themeVariables: {
+            darkMode: themeMode === "dark",
+            background: themeExportBackground(themeMode),
+            primaryColor: card,
+            primaryTextColor: palette.getPropertyValue("--theme-text").trim(),
+            primaryBorderColor: border,
+            lineColor: palette
+              .getPropertyValue("--theme-text-secondary")
+              .trim(),
+            secondaryColor: card,
+            tertiaryColor: card,
+            clusterBkg: palette.getPropertyValue("--theme-bg-subtle").trim(),
+            clusterBorder: border,
+          },
           securityLevel: "strict",
         });
 
@@ -207,21 +247,6 @@ export function MermaidDiagram({
 
     renderDiagram();
   }, [chart, t, shouldRenderDiagram, themeMode]);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    if (!showDownloadMenu) return;
-
-    const handleClickOutside = () => setShowDownloadMenu(false);
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, [showDownloadMenu]);
-
-  const handleCopyCode = async () => {
-    await copyToClipboard(chart);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   const handleDownloadSVG = () => {
     if (!svg) return;
@@ -299,36 +324,11 @@ export function MermaidDiagram({
   if (isStreaming) {
     return (
       <div className="my-2 sm:my-3 max-w-full overflow-hidden rounded-xl border border-theme-border dark:border-stone-700">
-        <div className="flex items-center justify-between px-3 sm:px-4 py-2 bg-theme-border/70 dark:bg-stone-800/50">
+        <div className="mermaid-inline-actions flex items-center justify-between px-3 sm:px-4 py-2 bg-theme-border/70 dark:bg-stone-800/50">
           <span className="text-12 font-medium text-theme-text-secondary dark:text-stone-400">
             mermaid
           </span>
-          <button
-            onClick={handleCopyCode}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all min-h-[32px] min-w-[32px] touch-manipulation"
-          >
-            {copied ? (
-              <>
-                <Check
-                  size={14}
-                  className="text-theme-success"
-                />
-                <span className="text-theme-success">
-                  {t("chat.message.copied")}
-                </span>
-              </>
-            ) : (
-              <>
-                <Copy
-                  size={14}
-                  className="text-theme-text-secondary dark:text-stone-400"
-                />
-                <span className="text-theme-text-secondary dark:text-stone-400">
-                  {t("chat.message.copy")}
-                </span>
-              </>
-            )}
-          </button>
+          <CopyButton text={chart} label={t("chat.message.copyCode")} />
         </div>
         <pre className="p-3 bg-theme-bg-subtle dark:bg-stone-800 overflow-x-auto max-h-64 overflow-y-auto text-12 text-theme-text-secondary dark:text-stone-300 font-mono">
           {chart}
@@ -340,31 +340,11 @@ export function MermaidDiagram({
   if (error) {
     return (
       <div className="my-2 sm:my-3 max-w-full overflow-hidden rounded-xl border border-theme-border dark:border-stone-700">
-        <div className="flex items-center justify-between px-3 sm:px-4 py-2 bg-theme-border/70 dark:bg-stone-800/50">
+        <div className="mermaid-inline-actions flex items-center justify-between px-3 sm:px-4 py-2 bg-theme-border/70 dark:bg-stone-800/50">
           <span className="text-12 font-medium text-theme-text-secondary dark:text-stone-400">
             mermaid
           </span>
-          <button
-            onClick={handleCopyCode}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all min-h-[32px] min-w-[32px] touch-manipulation"
-          >
-            {copied ? (
-              <>
-                <Check
-                  size={14}
-                  className="text-theme-success"
-                />
-                <span className="text-theme-success">
-                  {t("chat.message.copied")}
-                </span>
-              </>
-            ) : (
-              <>
-                <Copy size={14} />
-                <span>{t("chat.message.copyCode")}</span>
-              </>
-            )}
-          </button>
+          <CopyButton text={chart} label={t("chat.message.copyCode")} />
         </div>
         <pre className="p-3 bg-theme-bg-subtle dark:bg-stone-800 overflow-x-auto max-h-64 overflow-y-auto text-12 text-theme-text-secondary dark:text-stone-300 font-mono">
           {chart}
@@ -387,48 +367,30 @@ export function MermaidDiagram({
     <>
       <div className="my-2 sm:my-3 max-w-full overflow-hidden rounded-xl border border-theme-border dark:border-stone-700">
         {/* Header bar with action buttons */}
-        <div className="flex items-center justify-between px-3 sm:px-4 py-2 bg-theme-border/70 dark:bg-stone-800/50">
+        <div className="mermaid-inline-actions flex items-center justify-between px-3 sm:px-4 py-2 bg-theme-border/70 dark:bg-stone-800/50">
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-12 font-medium text-theme-text-secondary dark:text-stone-400">
               mermaid
             </span>
           </div>
           <div className="flex items-center gap-1">
-            <button
-              onClick={handleCopyCode}
-              className="flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all min-h-[32px] min-w-[32px] touch-manipulation"
-              title={
-                copied ? t("chat.message.copied") : t("chat.message.copyCode")
-              }
-            >
-              {copied ? (
-                <>
-                  <Check
-                    size={14}
-                    className="text-theme-success"
-                  />
-                  <span className="hidden xs:inline text-theme-success">
-                    {t("chat.message.copied")}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <Copy
-                    size={14}
-                    className="text-theme-text-secondary dark:text-stone-400"
-                  />
-                  <span className="hidden xs:inline text-theme-text-secondary dark:text-stone-400">
-                    {t("chat.message.copy")}
-                  </span>
-                </>
-              )}
-            </button>
+            <CopyButton text={chart} label={t("chat.message.copyCode")} />
             {/* Download dropdown */}
             <div className="relative">
               <button
+                type="button"
+                ref={downloadTriggerRef}
+                aria-haspopup="menu"
+                aria-expanded={downloadPosition !== null}
+                aria-controls={downloadPosition ? downloadMenuId : undefined}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowDownloadMenu(!showDownloadMenu);
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setDownloadPosition(
+                    downloadPosition
+                      ? null
+                      : { x: rect.right - 224, y: rect.bottom + 4 },
+                  );
                 }}
                 className="flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all hover:bg-theme-border-hover/50 dark:hover:bg-stone-700/50 min-h-[32px] min-w-[32px] touch-manipulation"
                 title={t("documents.download")}
@@ -438,31 +400,22 @@ export function MermaidDiagram({
                   className="text-theme-text-secondary dark:text-stone-400"
                 />
               </button>
-              {showDownloadMenu && (
-                <div className="absolute right-0 top-full mt-1 z-50 min-w-[100px] rounded-lg border border-theme-border dark:border-stone-700 bg-theme-bg-card dark:bg-stone-800 shadow-lg overflow-hidden">
-                  <ViewerDropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDownloadSVG();
-                      setShowDownloadMenu(false);
-                    }}
-                  >
-                    SVG
-                  </ViewerDropdownMenuItem>
-                  <ViewerDropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDownloadPNG();
-                      setShowDownloadMenu(false);
-                    }}
-                  >
-                    PNG
-                  </ViewerDropdownMenuItem>
-                </div>
+              {downloadPosition && (
+                <ResourceCardMenu
+                  id={downloadMenuId}
+                  title={t("documents.download")}
+                  position={downloadPosition}
+                  onClose={closeDownloadMenu}
+                  actions={[
+                    { label: "SVG", onClick: handleDownloadSVG },
+                    { label: "PNG", onClick: handleDownloadPNG },
+                  ]}
+                />
               )}
             </div>
             {/* Preview code button */}
             <button
+              type="button"
               onClick={() => {
                 setShowCode(true);
                 setIsFullscreen(true);
@@ -470,13 +423,17 @@ export function MermaidDiagram({
               className="flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all hover:bg-theme-border-hover/50 dark:hover:bg-stone-700/50 min-h-[32px] min-w-[32px] touch-manipulation"
               title={t("mermaidViewer.showCode")}
             >
-              <Code size={14} className="text-theme-text-secondary dark:text-stone-400" />
+              <Code
+                size={14}
+                className="text-theme-text-secondary dark:text-stone-400"
+              />
               <span className="hidden xs:inline text-theme-text-secondary dark:text-stone-400">
                 {t("mermaidViewer.showCode")}
               </span>
             </button>
             {/* Fullscreen button */}
             <button
+              type="button"
               onClick={() => setIsFullscreen(true)}
               className="flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all hover:bg-theme-border-hover/50 dark:hover:bg-stone-700/50 min-h-[32px] min-w-[32px] touch-manipulation"
               title={t("imageViewer.fullscreen", "Fullscreen")}
@@ -505,6 +462,7 @@ export function MermaidDiagram({
         >
           <div
             ref={ref}
+            className="min-w-0 max-w-full"
             style={{
               transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
               transformOrigin: "center center",
@@ -554,8 +512,15 @@ function MermaidViewer({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [imgLoading, setImgLoading] = useState(true);
   const [showCode, setShowCode] = useState(initialShowCode);
-  const [copied, setCopied] = useState(false);
+  const {
+    copied,
+    failed,
+    copying,
+    copy: handleCopyCode,
+  } = useClipboardCopy(chart);
   const containerRef = useRef<HTMLDivElement>(null);
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  useDialogFocus({ open: true, onClose, surfaceRef });
 
   const MIN_SCALE = 0.1;
   const MAX_SCALE = 20;
@@ -577,15 +542,7 @@ function MermaidViewer({
     return () => URL.revokeObjectURL(svgBlobUrl);
   }, [svgBlobUrl]);
 
-  useBodyScrollLock(true);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  useBodyScrollLock(true, true, true);
 
   const handleWheel = useCallback((event: React.WheelEvent) => {
     if (!event.ctrlKey && !event.metaKey) return;
@@ -681,12 +638,6 @@ function MermaidViewer({
     };
   }, [isDragging, dragStart]);
 
-  const handleCopyCode = async () => {
-    await copyToClipboard(chart);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   const toggleCode = () => {
     const next = !showCode;
     setShowCode(next);
@@ -695,8 +646,12 @@ function MermaidViewer({
 
   return createPortal(
     <div
-      data-yields-sidebar
-      className="safe-area-x fixed inset-0 z-[300] flex flex-col bg-black/90"
+      ref={surfaceRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("chat.mermaidDiagram")}
+      tabIndex={-1}
+      className="mermaid-viewer safe-area-x fixed inset-0 z-[300] flex flex-col bg-black/90"
     >
       {/* Top bar - close + code actions */}
       <ViewerTopBar>
@@ -707,57 +662,66 @@ function MermaidViewer({
           iconOnly
         />
 
-        <div className="flex items-center gap-1">
+        <div className="mermaid-viewer-actions flex items-center gap-1">
           {/* Toggle code view */}
-          <button
-            type="button"
+          <ViewerTopBarButton
             onClick={toggleCode}
-            className={`flex items-center gap-1.5 rounded-lg px-3 h-10 text-14 font-medium transition-colors cursor-pointer ${
-              showCode
-                ? "bg-white/20 text-white/70"
-                : "hover:bg-white/10 text-white/70"
-            }`}
+            className={showCode ? "bg-white/20" : undefined}
+            aria-pressed={showCode}
+            icon={
+              showCode ? (
+                <Eye size={18} className="text-white/70" />
+              ) : (
+                <Code size={18} className="text-white/70" />
+              )
+            }
             aria-label={
               showCode
                 ? t("mermaidViewer.hideCode", "Hide code")
                 : t("mermaidViewer.showCode", "Show code")
             }
           >
-            {showCode ? (
-              <Eye size={18} className="text-white/70" />
-            ) : (
-              <Code size={18} className="text-white/70" />
-            )}
             <span className="hidden sm:inline">
               {showCode
                 ? t("mermaidViewer.hideCode", "Hide code")
                 : t("mermaidViewer.showCode", "Show code")}
             </span>
-          </button>
+          </ViewerTopBarButton>
 
           {/* Copy code */}
-          <button
-            type="button"
+          <ViewerTopBarButton
             onClick={handleCopyCode}
-            className="flex items-center gap-1 rounded-lg px-3 h-10 text-14 font-medium transition-colors cursor-pointer hover:bg-white/10"
-            aria-label={t("chat.message.copyCode")}
+            disabled={copying}
+            aria-busy={copying || undefined}
+            aria-description={failed ? t("chat.message.copyFailed") : undefined}
+            title={failed ? t("chat.message.copyFailed") : undefined}
+            aria-label={t(
+              copied ? "chat.message.copied" : "chat.message.copyCode",
+            )}
+            icon={
+              failed ? (
+                <AlertCircle size={18} className="text-theme-error" />
+              ) : copied ? (
+                <Check size={18} className="text-green-400" />
+              ) : (
+                <Copy size={18} className="text-white/70" />
+              )
+            }
           >
             {copied ? (
               <>
-                <Check size={18} className="text-green-400" />
                 <span className="text-green-400 hidden sm:inline">
                   {t("chat.message.copied")}
                 </span>
               </>
             ) : (
               <>
-                <Copy size={18} className="text-white/70" />
                 <span className="text-white/70 hidden sm:inline">
                   {t("chat.message.copy")}
                 </span>
               </>
             )}
-          </button>
+          </ViewerTopBarButton>
 
           {/* Download SVG */}
           <ViewerTopBarButton

@@ -95,6 +95,56 @@
 [data-panel] .panel-sections {
   gap: var(--panel-section-gap);
 }
+.model-config-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--panel-gap, 0.75rem);
+}
+.model-config-heading > p {
+  min-width: 0;
+}
+.feishu-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(2.75rem, 1fr));
+  gap: 0.25rem;
+}
+.feishu-emoji-button.ui-button {
+  padding-inline: 0.25rem;
+  font-size: 1.125rem;
+}
+.feishu-mode-button.ui-button,
+.feishu-mode-button .ui-button__label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.feishu-mode-button.ui-button {
+  padding-inline: 0.5rem;
+}
+.feishu-policy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 0.5rem;
+}
+@container editor-panel (min-width: 480px) {
+  .feishu-emoji-grid {
+    grid-template-columns: repeat(8, minmax(2.75rem, 1fr));
+  }
+}
+@container panel (min-width: 640px) {
+  .feishu-emoji-grid {
+    grid-template-columns: repeat(8, minmax(2.75rem, 1fr));
+  }
+}
+@container panel (max-width: 799px) {
+  .model-config-heading {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .model-config-toolbar {
+    align-self: flex-end;
+  }
+}
 [data-panel] :is(.panel-notice, .panel-summary) {
   margin-inline: var(--panel-inset);
   margin-top: var(--panel-gap);
@@ -166,7 +216,7 @@
 .editor-sidebar .editor-sidebar-header {
   border-bottom: 0;
 }
-@media (max-width: 639px) {
+@media (max-width: 639px), (pointer: coarse) {
   .editor-sidebar :is(.ui-button, .ui-select-trigger, input.ui-input, summary),
   .editor-sidebar .editor-sidebar-footer button {
     min-height: 2.75rem;
@@ -176,6 +226,9 @@
   }
   .editor-sidebar .chat-tool-btn {
     min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+  .editor-sidebar [role="switch"] {
     min-height: 2.75rem;
   }
 }
@@ -294,19 +347,44 @@
 
 /* Keep dense settings and permission cards on one quiet plane. */
 [data-panel] .glass-card,
-[data-panel] .glass-card:hover { box-shadow: none; }
-@container panel (max-width: 639px) {
-  [data-panel] .ui-icon-button { min-width: 2.75rem; min-height: 2.75rem; }
-  [data-panel] .role-card-title { min-height: 2.75rem; }
+[data-panel] .glass-card:hover {
+  box-shadow: none;
 }
 @container panel (max-width: 639px) {
-  [data-panel] .notification-card-row { flex-direction: column; }
-  [data-panel] .notification-card-row > div:first-child { width: 100%; }
-  [data-panel] .notification-card-heading { flex-wrap: wrap; }
-  [data-panel] .notification-card-title { order: 1; flex-basis: 100%; }
-  [data-panel] .notification-card-actions { align-self: flex-end; }
+  [data-panel] .ui-icon-button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+  [data-panel] .role-card-title {
+    min-height: 2.75rem;
+  }
 }
 @container panel (max-width: 639px) {
-  [data-panel="settings"] .settings-content :is(button, select, input:not([type="checkbox"])) { min-height: 2.75rem; }
-  [data-panel] [role="alert"] button { min-width: 2.75rem; min-height: 2.75rem; }
+  [data-panel] .notification-card-row {
+    flex-direction: column;
+  }
+  [data-panel] .notification-card-row > div:first-child {
+    width: 100%;
+  }
+  [data-panel] .notification-card-heading {
+    flex-wrap: wrap;
+  }
+  [data-panel] .notification-card-title {
+    order: 1;
+    flex-basis: 100%;
+  }
+  [data-panel] .notification-card-actions {
+    align-self: flex-end;
+  }
+}
+@container panel (max-width: 639px) {
+  [data-panel="settings"]
+    .settings-content
+    :is(button, select, input:not([type="checkbox"])) {
+    min-height: 2.75rem;
+  }
+  [data-panel] [role="alert"] button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
 }

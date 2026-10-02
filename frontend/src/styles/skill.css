@@ -36,7 +36,8 @@
 }
 
 .skill-content-area {
-  background: radial-gradient(
+  background:
+    radial-gradient(
       ellipse 80% 50% at 50% 0%,
       color-mix(in srgb, var(--theme-primary-light) 6%, transparent) 0%,
       transparent 100%
@@ -132,6 +133,27 @@
 }
 
 @container panel (max-width: 639px) {
+  .panel-header--agent-model .panel-header__top {
+    flex-wrap: wrap;
+  }
+
+  [data-panel] .panel-header--agent-model .panel-header__identity {
+    flex: 1 1 100%;
+  }
+
+  .panel-header--agent-model .panel-header__title {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .panel-header--agent-model .panel-header__desktop-actions {
+    width: 100%;
+  }
+
+  .panel-header--agent-model .agent-model-section-switcher {
+    width: 100%;
+  }
+
   .panel-header--section-switch .panel-header__desktop-actions {
     display: flex;
   }
@@ -498,203 +520,6 @@
   box-shadow: var(--skill-glow);
 }
 
-.skill-github-import {
-  align-items: stretch;
-}
-
-.skill-github-import__field {
-  position: relative;
-  height: 3rem;
-  border: 1px solid color-mix(in srgb, var(--theme-border) 84%, white 16%);
-  background: linear-gradient(
-    180deg,
-    rgb(255 255 255 / 0.96),
-    rgb(250 250 249 / 0.92)
-  );
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.72),
-    0 12px 24px -22px rgb(28 25 23 / 0.3);
-  transition:
-    border-color 0.18s ease,
-    box-shadow 0.18s ease,
-    transform 0.18s ease,
-    background-color 0.18s ease;
-}
-
-.skill-github-import__field:focus-within {
-  border-color: color-mix(in srgb, var(--theme-primary) 44%, white 56%);
-  box-shadow:
-    0 0 0 4px color-mix(in srgb, var(--theme-primary) 14%, transparent),
-    0 20px 30px -24px color-mix(in srgb, var(--theme-primary) 28%, transparent);
-  transform: translateY(-1px);
-}
-
-.skill-github-import__field--repo {
-  flex: 1 1 auto;
-  border-radius: 1rem;
-}
-
-.skill-github-import__field--branch {
-  flex: 0 0 auto;
-  width: 100%;
-  border-radius: 1rem;
-}
-
-.skill-github-import__input {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  background: transparent;
-  padding: 0.8rem 0.95rem;
-  color: var(--theme-text);
-  outline: none;
-  box-shadow: none !important;
-}
-
-.skill-github-import__input::placeholder {
-  color: color-mix(in srgb, var(--theme-text-secondary) 78%, white 22%);
-}
-
-.skill-github-import__button {
-  justify-content: center;
-  height: 3rem;
-  padding-block: 0.8rem;
-  border-radius: 1rem;
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 22%,
-    var(--theme-border)
-  );
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--theme-bg-card) 82%, white 18%),
-    color-mix(in srgb, var(--theme-primary-light) 68%, white 32%)
-  );
-  padding-inline: 1.15rem;
-  color: color-mix(in srgb, var(--theme-text) 78%, var(--theme-primary) 22%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.72),
-    0 12px 24px -24px color-mix(in srgb, var(--theme-primary) 34%, transparent);
-  transition:
-    transform 0.18s ease,
-    border-color 0.18s ease,
-    background-color 0.18s ease,
-    box-shadow 0.18s ease,
-    color 0.18s ease;
-}
-
-.skill-github-import__button:hover:not(:disabled) {
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 34%,
-    var(--theme-border)
-  );
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--theme-bg-card) 70%, white 30%),
-    color-mix(in srgb, var(--theme-primary-light) 82%, white 18%)
-  );
-  color: var(--theme-text);
-  box-shadow:
-    0 0 0 4px color-mix(in srgb, var(--theme-primary) 9%, transparent),
-    0 18px 28px -24px color-mix(in srgb, var(--theme-primary) 38%, transparent);
-  transform: translateY(-1px);
-}
-
-.skill-github-import__button:focus-visible {
-  outline: none;
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 42%,
-    var(--theme-border)
-  );
-  box-shadow:
-    0 0 0 4px color-mix(in srgb, var(--theme-primary) 16%, transparent),
-    0 18px 28px -24px color-mix(in srgb, var(--theme-primary) 38%, transparent);
-}
-
-.skill-github-import__button:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow:
-    inset 0 1px 2px rgb(0 0 0 / 0.08),
-    0 10px 20px -22px color-mix(in srgb, var(--theme-primary) 30%, transparent);
-}
-
-.skill-github-import__button:disabled {
-  cursor: not-allowed;
-  opacity: 0.62;
-  transform: none;
-  box-shadow: none;
-}
-
-.dark .skill-github-import__field {
-  border-color: color-mix(in srgb, var(--theme-border) 82%, black 18%);
-  background: linear-gradient(
-    180deg,
-    rgb(41 37 36 / 0.94),
-    rgb(28 25 23 / 0.92)
-  );
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.03),
-    0 16px 28px -24px rgb(0 0 0 / 0.6);
-}
-
-.dark .skill-github-import__field:focus-within {
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 58%,
-    var(--theme-border)
-  );
-  box-shadow:
-    0 0 0 4px color-mix(in srgb, var(--theme-primary) 14%, transparent),
-    0 20px 34px -24px rgb(0 0 0 / 0.65);
-}
-
-.dark .skill-github-import__input::placeholder {
-  color: color-mix(in srgb, var(--theme-text-secondary) 86%, black 14%);
-}
-
-.dark .skill-github-import__button {
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 26%,
-    var(--theme-border)
-  );
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--theme-bg-card) 82%, white 18%),
-    color-mix(in srgb, var(--theme-primary-light) 88%, black 12%)
-  );
-  color: color-mix(in srgb, var(--theme-text) 84%, var(--theme-primary) 16%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.04),
-    0 16px 28px -24px rgb(0 0 0 / 0.6);
-}
-
-.dark .skill-github-import__button:hover:not(:disabled) {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--theme-bg-card) 88%, white 12%),
-    color-mix(in srgb, var(--theme-primary-light) 94%, black 6%)
-  );
-  color: var(--theme-text);
-}
-
-.skill-github-import__button {
-  width: 100%;
-}
-
-@media (min-width: 640px) {
-  .skill-github-import__field--branch {
-    width: 7rem;
-  }
-
-  .skill-github-import__button {
-    min-width: 8.5rem;
-    width: auto;
-  }
-}
-
 /* Status tag styles */
 .tag {
   display: inline-flex;
@@ -770,6 +595,40 @@
 
 .skill-form {
   color: var(--theme-text);
+}
+
+.skill-file-remove {
+  width: 1.75rem;
+  height: 1.75rem;
+  opacity: 0;
+}
+
+:is(.skill-file-tab, .skill-file-tree-row):is(:hover, :focus-within)
+  .skill-file-remove {
+  opacity: 1;
+}
+
+@media (max-width: 639px), (pointer: coarse) {
+  .skill-form button {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+  .skill-file-remove {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skill-form,
+  .skill-form-card {
+    animation: none !important;
+  }
+  .skill-form * {
+    transition: none !important;
+  }
+  .skill-form button {
+    transform: none !important;
+  }
 }
 
 /* Form card entrance animation */
@@ -1040,18 +899,5 @@
 @media (max-width: 639px) {
   .editor-sidebar .skill-form-editor .relative[style] {
     min-height: 160px;
-  }
-}
-
-/* Fullscreen button hidden inside sidebar (already full-height) */
-.editor-sidebar .skill-form-editor [title="skills.form.fullscreenEditor"],
-.editor-sidebar .skill-form-editor [title="skills.form.editFullscreen"] {
-  display: none;
-}
-
-@media (max-width: 639px) {
-  .sfe-panel .skill-form-editor [title="skills.form.fullscreenEditor"],
-  .sfe-panel .skill-form-editor [title="skills.form.editFullscreen"] {
-    display: flex;
   }
 }

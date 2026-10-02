@@ -139,7 +139,7 @@ test("agent model fallback reserves the section switcher in its header", async (
   const { container } = render(<AgentModelPanelSkeleton />);
   expect(
     container.querySelector(
-      ".panel-header--section-switch .agent-model-section-switcher",
+      ".panel-header--agent-model .agent-model-section-switcher",
     ),
   ).not.toBeNull();
 });

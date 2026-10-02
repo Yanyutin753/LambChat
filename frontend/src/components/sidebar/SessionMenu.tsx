@@ -154,19 +154,10 @@ export function SessionMenu({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen, onClose, anchorEl, isMobile]);
 
-  // Close on escape key
   useEffect(() => {
-    if (!isOpen) return;
-    const handleEscape = (event: KeyboardEvent) => {
-      if (isMobile) return;
-      if (event.key === "Escape") {
-        if (subPanel) setSubPanel(null);
-        else onClose();
-      }
-    };
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [isOpen, onClose, subPanel, isMobile]);
+    if (!isOpen || isMobile || !anchorEl) return;
+    menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+  }, [isOpen, subPanel, isMobile, anchorEl]);
 
   // Reset sub-panel when menu closes
   useEffect(() => {
@@ -187,6 +178,7 @@ export function SessionMenu({
     <>
       {/* Rename */}
       <button
+        type="button"
         onClick={() => {
           onRename();
           onClose();
@@ -199,6 +191,7 @@ export function SessionMenu({
 
       {/* Move to project — navigates to sub-panel */}
       <button
+        type="button"
         onClick={() => setSubPanel("project")}
         className="flex w-full items-center gap-3 px-3 py-2.5 text-14 text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] transition-colors"
       >
@@ -209,6 +202,7 @@ export function SessionMenu({
       {/* Favorite */}
       {onToggleFavorite && (
         <button
+          type="button"
           onClick={() => {
             onToggleFavorite();
             onClose();
@@ -234,6 +228,7 @@ export function SessionMenu({
       {/* Pin */}
       {onTogglePin && (
         <button
+          type="button"
           onClick={() => {
             onTogglePin();
             onClose();
@@ -257,6 +252,7 @@ export function SessionMenu({
       {/* Share */}
       {onShare && (
         <button
+          type="button"
           onClick={() => {
             onShare();
             onClose();
@@ -276,6 +272,7 @@ export function SessionMenu({
 
       {/* Delete */}
       <button
+        type="button"
         onClick={() => {
           onDelete();
           onClose();
@@ -293,6 +290,7 @@ export function SessionMenu({
     <>
       {/* Back header */}
       <button
+        type="button"
         onClick={() => setSubPanel(null)}
         className="flex w-full items-center gap-2 px-3 py-2.5 text-14 text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] transition-colors"
       >
@@ -311,7 +309,9 @@ export function SessionMenu({
           const isCurrent = currentProjectId === project.id;
           return (
             <button
+              type="button"
               key={project.id}
+              aria-pressed={isCurrent}
               onClick={() => handleSelectProject(project.id)}
               className={`flex w-full items-center gap-2.5 px-2.5 py-2 text-14 rounded-lg transition-all duration-150 ${
                 isCurrent
@@ -342,6 +342,8 @@ export function SessionMenu({
 
         {/* Uncategorized */}
         <button
+          type="button"
+          aria-pressed={currentProjectId === null}
           onClick={() => handleSelectProject(null)}
           className={`flex w-full items-center gap-2.5 px-2.5 py-2 text-14 rounded-lg transition-all duration-150 ${
             currentProjectId === null
@@ -377,7 +379,7 @@ export function SessionMenu({
       <ModalSurface open onClose={onClose} label={t("sidebar.sessionOptions")}>
         <div
           ref={menuRef}
-          className="safe-area-x safe-area-bottom rounded-t-2xl shadow-xl max-h-[70dvh] overflow-y-auto animate-in fade-in slide-in-from-bottom-4 duration-200"
+          className="sidebar-mobile-menu safe-area-x safe-area-bottom rounded-t-2xl shadow-xl max-h-[70dvh] overflow-y-auto animate-in fade-in slide-in-from-bottom-4 duration-200"
           style={{ backgroundColor: "var(--theme-bg-card)" }}
         >
           <div
@@ -388,6 +390,8 @@ export function SessionMenu({
               {t("sidebar.sessionOptions")}
             </span>
             <button
+              type="button"
+              aria-label={t("common.close")}
               onClick={onClose}
               className="p-1 rounded-full transition-colors"
               style={{ color: "var(--theme-text-secondary)" }}
@@ -408,12 +412,37 @@ export function SessionMenu({
   return createPortal(
     <div
       ref={menuRef}
+      role="group"
+      aria-label={t("sidebar.sessionOptions")}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          if (subPanel) setSubPanel(null);
+          else {
+            onClose();
+            anchorEl.focus();
+          }
+        }
+        if (event.key !== "Tab") return;
+        const buttons = menuRef.current?.querySelectorAll(
+          "button:not(:disabled)",
+        );
+        if (
+          (event.shiftKey && document.activeElement === buttons?.[0]) ||
+          (!event.shiftKey &&
+            document.activeElement === buttons?.[buttons.length - 1])
+        ) {
+          onClose();
+          anchorEl.focus();
+        }
+      }}
       style={{
         ...menuStyle,
         backgroundColor: "var(--theme-bg-card)",
         borderColor: "var(--theme-border)",
       }}
-      className="py-1 w-56 rounded-xl border shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 origin-top-right"
+      className="sidebar-session-menu py-1 w-56 rounded-xl border shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 origin-top-right"
     >
       {subPanel ? projectSubPanel : mainMenu}
     </div>,
