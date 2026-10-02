@@ -12,7 +12,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { getFullUrl } from "../../services/api/config";
-import { ImageViewer } from "../common";
+import { ImageViewer, ToolbarIconButton } from "../common";
 
 interface BinaryFilePreviewProps {
   url: string;
@@ -112,17 +112,12 @@ export function BinaryFilePreview({
             {mime_type} · {formatSize(size)}
           </p>
         </div>
-        <button
-          type="button"
+        <ToolbarIconButton
           onClick={handleDownload}
-          className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-12 font-medium text-[var(--theme-text-secondary)] hover:bg-[var(--theme-bg-card)] transition-colors cursor-pointer"
+          icon={<Download size={16} />}
+          aria-label={t("documents.download")}
           title={t("documents.download")}
-        >
-          <Download size={14} />
-          <span className="hidden sm:inline">
-            {t("documents.download", "下载")}
-          </span>
-        </button>
+        />
       </div>
 
       {/* Content area */}

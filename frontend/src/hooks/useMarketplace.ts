@@ -307,10 +307,18 @@ export function useMarketplace() {
       ]);
 
       const fileContents: Record<string, string> = {};
+      const binaryFiles: Record<string, BinaryFileInfo> = {};
       await Promise.all(
         filesResp.files.map(async (path) => {
           const resp = await marketplaceApi.getFile(skillName, path);
           fileContents[path] = resp.content;
+          if (resp.is_binary && resp.url) {
+            binaryFiles[path] = {
+              url: resp.url,
+              mime_type: resp.mime_type || "application/octet-stream",
+              size: resp.size || 0,
+            };
+          }
         }),
       );
 
@@ -320,6 +328,7 @@ export function useMarketplace() {
         tags: skillDetail.tags,
         content: fileContents["SKILL.md"] || "",
         files: fileContents,
+        binaryFiles,
         enabled: true,
         source: "marketplace" as const,
         file_count: filesResp.files.length,

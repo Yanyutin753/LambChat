@@ -8,6 +8,7 @@ import {
   Input,
   Textarea,
 } from "../common";
+import { ConfigPanelErrorCallout } from "../panels/ConfigPanelErrorCallout";
 import { FileTabs } from "./FileTabs";
 import { SkillEditor } from "./SkillEditor";
 import { BinaryFilePreview } from "./BinaryFilePreview";
@@ -17,9 +18,11 @@ import type { SkillFormActions } from "./SkillForm.types";
 
 export function SkillFormNormal(a: SkillFormActions) {
   const { t } = useTranslation();
-  const submitLabel = a.isEditing
-    ? t("skills.form.saveChanges")
-    : t("skills.form.createSkill");
+  const submitLabel = a.errors.save
+    ? t("common.retry")
+    : a.isEditing
+      ? t("skills.form.saveChanges")
+      : t("skills.form.createSkill");
 
   return (
     <>
@@ -129,16 +132,21 @@ export function SkillFormNormal(a: SkillFormActions) {
                     variant="muted"
                     title={t("skills.form.addFile", "Add file")}
                   />
-                  <ToolbarIconButton
-                    aria-label={t(
-                      "skills.form.addBinaryFile",
-                      "Upload binary file",
-                    )}
-                    onClick={a.addBinaryFile}
-                    icon={<Upload size={15} />}
-                    variant="muted"
-                    title={t("skills.form.addBinaryFile", "Upload binary file")}
-                  />
+                  {a.allowBinaryUploads && (
+                    <ToolbarIconButton
+                      aria-label={t(
+                        "skills.form.addBinaryFile",
+                        "Upload binary file",
+                      )}
+                      onClick={a.addBinaryFile}
+                      icon={<Upload size={15} />}
+                      variant="muted"
+                      title={t(
+                        "skills.form.addBinaryFile",
+                        "Upload binary file",
+                      )}
+                    />
+                  )}
                   <ToolbarIconButton
                     aria-label={t("skills.form.fullscreenEditor")}
                     data-fullscreen-trigger
@@ -246,12 +254,16 @@ export function SkillFormNormal(a: SkillFormActions) {
       </div>
 
       {/* Bottom action bar */}
-      <div className="skill-action-bar shrink-0 flex items-center justify-end gap-2 px-1 pt-3">
+      <div className="skill-action-bar shrink-0 flex flex-wrap items-center justify-end gap-2 px-1 pt-3">
+        {a.errors.save && (
+          <ConfigPanelErrorCallout message={a.errors.save} className="w-full" />
+        )}
         <Button variant="ghost" onClick={a.onCancel} disabled={a.isLoading}>
           {t("common.cancel")}
         </Button>
         <Button
           type="submit"
+          data-save-submit
           variant="primary"
           loading={a.isLoading}
           leftIcon={<Save size={16} />}

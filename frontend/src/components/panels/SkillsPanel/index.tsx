@@ -103,7 +103,9 @@ export function SkillsPanel({ embedded = false }: SkillsPanelProps) {
         editingSkill={actions.editingSkill}
         isLoading={actions.isLoading}
         onSave={actions.handleSave}
+        isNameLocked={actions.isNameLocked}
         onCancel={actions.handleCancel}
+        onComplete={actions.handleComplete}
       />
 
       <ZipUploadModal

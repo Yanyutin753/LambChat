@@ -655,3 +655,25 @@ fixture在独立3017预览进程，file-flow=1提供三个文本文件，failure
 继续：二进制预览/保存及部分失败恢复、剩余界面/语言组合、真机与真实服务写入。整体目标保持进行中；本批文件读取缺陷关闭，不据此宣告全界面完成。
 
 最终生产修改后门禁：pnpm test 761文件/3692项全部通过；pnpm run lint零错误零警告；pnpm run build含tsc/Vite/PWA/预算通过，eager JS559076/559104 bytes、precache5017048/5242880 bytes、91 entries，未提高预算，保留既有chunk-size提示。此前lint的一项effect cleanup ref警告改为捕获该次effect的requests变量后重跑全部门禁通过。git diff --check通过。最后独立只读复核无确定P1/P2，未重复门禁。仅文档/预览清理留在最后门禁之后。
+
+### 当前执行：技能附件保存与部分失败恢复
+
+已同步并rebase最新origin/develop。先在390深色真实表单选择仓库公开图标，记录普通/全屏基线；不连接真实技能写入。追踪发现读取过的二进制占位文字会进入文本payload，父层文本保存成功即关闭，后续附件失败静默丢失恢复入口。
+
+计划：先用实际SkillForm与useSkillsActions的集成测试复现；文本成功与整个保存完成分离，全部附件完成后关闭；部分失败保留草稿，仅重试未完成附件，新建成功后的重试按更新处理。二进制路径暂保持只读（后端没有移动接口），同名选择拒绝覆盖；复用已有错误提示与手机工具栏按钮。最后运行全量测试、lint、build、独立复核及宽窄/深浅色预览，明确真实写入与真机的证据边界。
+
+已完成：所有已知binary路径排除文本payload；onComplete只在全部上传完成后关闭，逐项移除成功上传的pending条目，失败路径与Retry保留在sticky操作栏。提交先focus稳定form，fieldset禁用期间维持焦点，CM正文只读。新建的文本保存完成后锁定名称；重试按更新并读取真实清单，避免删除从未上传成功的文件。form submission与父层session同时隔离关闭/切换期间的迟到响应；切换Edit立即卸载旧form。二进制路径只读，同名附件整批拒绝覆盖；blob URL删除、换技能及卸载均清理。下载复用ToolbarIconButton，桌面32px/手机44px。
+
+补齐全部调用后发现商店直接创建/更新接口仅接受文本，原通用上传会写入错误的用户技能命名空间。商店普通/全屏不再提供此入口，入口函数也受能力约束；商店编辑读取完整商店文件，保留原始binary引用与metadata，保存按当前filePaths合并未改文件，不混入本地副本或删除附件。没有扩张后端权限、增加上传接口或发布能力。两个商店集成测试先RED再GREEN。
+
+TDD本批新增8项：1项payload回归、5项实际SkillForm/useSkillsActions集成、2项商店父层/实际表单集成。关键RED包括loaded binary混入文本、父层提前关闭、允许binary改名、部分失败删除不存在项、关闭后的旧文本请求锁定新草稿、旧upload抢占新Edit、商店误读本地副本及不支持的上传入口；新增的等待焦点与立即卸载断言也先RED再修。独立只读复核的两项焦点/归属P2已关闭，最终增量无确定P1/P2；复核未重复门禁或浏览器操作。
+
+原生IAB步骤：390深色选公开图标记录普通/全屏基线（skill-binary-01/02）；独立3017的320深色读取已有图片，选另一个公开图标，提交模拟保存。等待时focus=FORM/aria-busy=true，首次上传503后草稿保持、Retry可用并获焦点。错误移入sticky footer后实际y457.6/h46.4，Retry高44px、整页overflow0（skill-binary-03/04）；Enter重试，等待焦点再次FORM，模拟200后编辑器关闭（skill-binary-05）。1440浅色full preview与文件树、390浅色同一图片预览均overflow0；download分别32×32和44×44（skill-binary-06/07）。截图在仓库外interface-quality目录。HMR期间焦点重置不作为产品行为证明。
+
+八项自检：沿用路径等宽/正文与元数据字号；保持预览阅读空间、收紧统一工具栏；状态、失败路径和恢复动作层级明确且底部始终可见；主题/错误token、现有五语common.saveFailed/skills.uploadFailed/common.retry，未加单语文案；未加动效，既有组件reduced-motion规则保留但OS偏好未实测；键盘等待/错误/重试焦点与并发归属有实测/测试；320/390/1440和深浅色覆盖，44px触控；使用LambChat已有组件与公开资产，无新依赖或另设视觉体系。Impeccable继续按此前不可用环境的DESIGN.md清单人工检查。
+
+证据边界：save-flow=1仅消费/丢弃字节并返回模拟200/503，没有持久化或真实权限/发布；其它写请求仍405。真实部分成功清单与重试只覆盖外部API模拟的集成测试。技能商店补只读详情/文件/图片fixture，真实存储、设备软键盘/触屏、媒体格式、剩余宽度/语言/主题组合待验。整体目标仍进行中，不据此宣告全部界面无可提升之处。
+
+补充原生商店走查：390浅色直接读取商店全文件并打开图片，普通/全屏均无错误的上传入口；全屏已有图片可预览、download44px、overflow0（skill-binary-08-390-light-marketplace-final）。预览先遇到缺少商店详情GET的fixture404，补齐纯读取样例后重新实测；未将此fixture缺失记为生产读取故障。商店保存没有模拟成功或真实发布。
+
+最终生产修改后的门禁：pnpm test 765文件/3705项通过；pnpm run lint零错误零警告；pnpm run build含tsc/Vite/PWA/预算通过，eager JS559136/561152 bytes，precache5017360/5242880 bytes，91 entries，保留既有chunk-size提示。本批未修改预算；origin/develop rebase后既有预算上限为561152。全量中一次与本批无关的SearchDialog legacy IME断言失败，相关文件单独重跑及最终全量均通过；未改该实现、不声称修复此瞬态异常。diff --check通过，最后只读复核无确定P1/P2。最后门禁后仅文档与临时预览清理。

@@ -47,14 +47,16 @@ export function SkillFormFullscreen(a: SkillFormActions) {
                 <Plus size={13} />
                 {t("skills.form.addFile")}
               </button>
-              <button
-                type="button"
-                onClick={a.addBinaryFile}
-                className="w-full flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-14 text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-white/5 transition-colors"
-              >
-                <Upload size={13} />
-                {t("skills.form.addBinaryFile", "Upload binary file")}
-              </button>
+              {a.allowBinaryUploads && (
+                <button
+                  type="button"
+                  onClick={a.addBinaryFile}
+                  className="w-full flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-14 text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-white/5 transition-colors"
+                >
+                  <Upload size={13} />
+                  {t("skills.form.addBinaryFile", "Upload binary file")}
+                </button>
+              )}
             </div>
           </div>
 
@@ -84,13 +86,15 @@ export function SkillFormFullscreen(a: SkillFormActions) {
                 title={t("skills.form.addFile")}
                 className="sm:hidden"
               />
-              <ToolbarIconButton
-                onClick={a.addBinaryFile}
-                icon={<Upload size={15} />}
-                aria-label={t("skills.form.addBinaryFile")}
-                title={t("skills.form.addBinaryFile")}
-                className="sm:hidden"
-              />
+              {a.allowBinaryUploads && (
+                <ToolbarIconButton
+                  onClick={a.addBinaryFile}
+                  icon={<Upload size={15} />}
+                  aria-label={t("skills.form.addBinaryFile")}
+                  title={t("skills.form.addBinaryFile")}
+                  className="sm:hidden"
+                />
+              )}
               <ToolbarIconButton
                 onClick={() => a.toggleFullscreen(false)}
                 icon={<Shrink size={18} />}
@@ -140,6 +144,7 @@ export function SkillFormFullscreen(a: SkillFormActions) {
                       }
                       className="flex-1 min-h-0"
                       filePath={a.files[a.activeFileIndex]?.path}
+                      readOnly={a.isLoading}
                     />
                   </div>
                 );

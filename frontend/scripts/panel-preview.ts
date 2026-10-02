@@ -829,6 +829,26 @@ function response(
       count: 1,
     };
   if (path === "/api/marketplace/tags") return { tags };
+  if (/^\/api\/marketplace\/[^/]+\/files$/.test(path))
+    return { files: ["SKILL.md", "assets/icon-192.png"] };
+  if (/^\/api\/marketplace\/[^/]+\/files\//.test(path)) {
+    if (decodeURIComponent(path.split("/files/")[1]) === "assets/icon-192.png")
+      return {
+        content: JSON.stringify({
+          _binary_ref: true,
+          storage_key: "preview-icon",
+          mime_type: "image/png",
+          size: 41245,
+        }),
+        is_binary: true,
+        url: "/icons/icon-192.png",
+        mime_type: "image/png",
+        size: 41245,
+      };
+    return { content: "# 专业研究工作流\n\n保留技能商店已有文件与附件。" };
+  }
+  if (/^\/api\/marketplace\/[^/]+$/.test(path))
+    return { ...skills[0], version: "1.2.0", is_active: true };
   if (path === "/api/marketplace")
     return all(
       skills.map((s, i) => ({
@@ -1566,6 +1586,40 @@ const server = await createServer({
           const failureTarget = previewParams.get("failure");
           const streamKey = req.headers.referer ?? "";
           if (
+            previewParams.get("save-flow") === "1" &&
+            req.method === "PUT" &&
+            /^\/api\/skills\/[^/]+\/(files|binary-files)\//.test(url.pathname)
+          ) {
+            // UI-only save simulation: discard bytes, never store or forward them.
+            req.resume();
+            const binary = url.pathname.includes("/binary-files/");
+            const key = `skill-binary:${streamKey}:${url.pathname}`;
+            const failed =
+              binary &&
+              failureTarget === "skill-upload" &&
+              !failedChannelRequests.has(key);
+            if (failed) failedChannelRequests.add(key);
+            const send = () => {
+              res.statusCode = failed ? 503 : 200;
+              res.setHeader("Content-Type", "application/json");
+              res.end(
+                JSON.stringify(
+                  failed
+                    ? { detail: "Fixture upload unavailable" }
+                    : {
+                        message: "Simulated save",
+                        url: "/icons/icon-192.png",
+                        mime_type: "image/png",
+                        size: 41245,
+                      },
+                ),
+              );
+            };
+            if (binary) setTimeout(send, 2000);
+            else send();
+            return;
+          }
+          if (
             previewParams.get("imports") === "1" &&
             req.method === "POST" &&
             ["/api/github/preview", "/api/skills/upload/preview"].includes(
@@ -1693,6 +1747,11 @@ const server = await createServer({
             /^\/api\/skills\/[^/]+$/.test(url.pathname)
           ) {
             data = { ...(data as object), files: ["SKILL.md", "a.md", "b.md"] };
+            if (previewParams.has("binary"))
+              data = {
+                ...(data as object),
+                files: ["SKILL.md", "assets/icon-192.png"],
+              };
           }
           if (
             previewParams.has("file-flow") &&
@@ -1705,6 +1764,18 @@ const server = await createServer({
             data = {
               content: `# ${filePath}\n\n专业研究工作流：明确问题、收集证据、输出结论。`,
             };
+            if (
+              previewParams.has("binary") &&
+              filePath === "assets/icon-192.png"
+            ) {
+              data = {
+                content: "",
+                is_binary: true,
+                url: "/icons/icon-192.png",
+                mime_type: "image/png",
+                size: 41245,
+              };
+            }
           }
           if (
             url.pathname === "/api/sessions/preview-report/events" &&
