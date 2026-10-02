@@ -26,6 +26,7 @@ export function StarterPromptsEditor({
         {prompts.map((prompt, index) => (
           <div key={index} className="ppe-starter-row">
             <input
+              aria-label={`${t("personaPresets.starterIcon")} ${index + 1}`}
               value={prompt.icon}
               onChange={(e) =>
                 onChange((prev) =>
@@ -38,6 +39,7 @@ export function StarterPromptsEditor({
               placeholder={t("personaPresets.starterIcon", "图标")}
             />
             <input
+              aria-label={`${t("personaPresets.starterPrompts")} ${index + 1}`}
               value={prompt.text}
               onChange={(e) =>
                 onChange((prev) =>
@@ -58,6 +60,9 @@ export function StarterPromptsEditor({
               onClick={() =>
                 onChange((prev) => prev.filter((_, i) => i !== index))
               }
+              aria-label={`${t("common.delete")} ${t(
+                "personaPresets.starterPrompts",
+              )} ${index + 1}`}
               title={t("common.delete", "删除")}
             >
               <X size={14} />

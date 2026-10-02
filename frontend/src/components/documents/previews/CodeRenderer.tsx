@@ -39,6 +39,8 @@ const CodeRenderer = memo(function CodeRenderer({
         lineNumbers={true}
         fontSize="0.875rem"
         className="h-full"
+        showToolbar={false}
+        simpleSearch
         startLine={initialLine}
         highlightLineRange={
           initialLine ? { from: initialLine, to: initialLine + 10 } : undefined

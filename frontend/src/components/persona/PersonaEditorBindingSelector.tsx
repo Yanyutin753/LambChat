@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronDown, Loader2, Plus, X } from "lucide-react";
+import { Check, ChevronDown, Loader2, Plus, Search, X } from "lucide-react";
+import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 import { PanelSearchInput } from "../common/PanelSearchInput";
+import { Button, IconButton } from "../common/ui";
 
 export interface BindingOption {
   name: string;
@@ -20,13 +23,16 @@ interface BindingSelectorProps {
   searchPlaceholderKey: string;
   emptyKey: string;
   loading?: boolean;
+  disabled?: boolean;
+  error?: boolean;
+  onRetry?: () => void;
+  searchValue?: string;
+  onSearchChange?: (query: string) => void;
+  onScroll?: React.UIEventHandler<HTMLDivElement>;
   triggerClassName?: string;
 }
 
-/**
- * 角色（persona）能力绑定选择器：插件绑定 / MCP server 绑定共用。
- * 交互与视觉对齐 PersonaEditorSkillSelector 的 chip + dropdown 模式。
- */
+/** Shared capability picker for persona skills and MCP bindings. */
 export function PersonaEditorBindingSelector({
   options,
   selected,
@@ -39,65 +45,132 @@ export function PersonaEditorBindingSelector({
   searchPlaceholderKey,
   emptyKey,
   loading = false,
+  disabled = false,
+  error = false,
+  onRetry,
+  searchValue,
+  onSearchChange,
+  onScroll,
   triggerClassName = "",
 }: BindingSelectorProps) {
   const { t } = useTranslation();
-  const [search, setSearch] = useState("");
+  const [localSearch, setLocalSearch] = useState("");
+  const search = searchValue ?? localSearch;
+  const setSearch = onSearchChange ?? setLocalSearch;
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (
-        open &&
-        dropdownRef.current &&
-        !dropdownRef.current.contains(target)
-      ) {
-        onOpenChange(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open, onOpenChange]);
+  const listId = useId();
 
   useEffect(() => {
     if (!open) {
       setSearch("");
+      return;
     }
-  }, [open]);
-
-  const keyword = search.trim().toLowerCase();
-  const filtered = keyword
-    ? options.filter(
-        (option) =>
-          option.name.toLowerCase().includes(keyword) ||
-          (option.description ?? "").toLowerCase().includes(keyword),
+    const outside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        !triggerRef.current?.contains(target) &&
+        !dropdownRef.current?.contains(target)
       )
-    : options;
-  const displayed = [...filtered].sort((a, b) => {
-    const aSel = selected.includes(a.name) ? 0 : 1;
-    const bSel = selected.includes(b.name) ? 0 : 1;
-    return aSel - bSel || a.name.localeCompare(b.name);
+        onOpenChange(false);
+    };
+    document.addEventListener("mousedown", outside);
+    return () => document.removeEventListener("mousedown", outside);
+  }, [open, onOpenChange, setSearch]);
+
+  const dropdownStyle = useStickyDropdownPosition(triggerRef, open, (rect) => {
+    const viewport = window.visualViewport;
+    const leftEdge = viewport?.offsetLeft ?? 0;
+    const topEdge = viewport?.offsetTop ?? 0;
+    const viewportWidth = viewport?.width ?? window.innerWidth;
+    const viewportBottom = topEdge + (viewport?.height ?? window.innerHeight);
+    const width = Math.min(
+      Math.max(rect.width, 280),
+      Math.max(0, viewportWidth - 24),
+    );
+    const anchorTop = Math.max(
+      topEdge + 12,
+      Math.min(rect.top, viewportBottom - 12),
+    );
+    const anchorBottom = Math.max(
+      topEdge + 12,
+      Math.min(rect.bottom, viewportBottom - 12),
+    );
+    const below = viewportBottom - anchorBottom - 12;
+    const above = anchorTop - topEdge - 12;
+    const openBelow = below >= 240 || below >= above;
+    if (Math.max(below, above) < 240) {
+      return {
+        position: "fixed",
+        top: topEdge + 12,
+        left: leftEdge + 12,
+        width: Math.max(0, viewportWidth - 24),
+        maxHeight: Math.max(0, viewportBottom - topEdge - 24),
+        zIndex: 9999,
+      };
+    }
+    return {
+      position: "fixed",
+      top: openBelow ? anchorBottom + 4 : undefined,
+      bottom: openBelow ? undefined : window.innerHeight - anchorTop + 4,
+      left: Math.max(
+        leftEdge + 12,
+        Math.min(rect.left, leftEdge + viewportWidth - width - 12),
+      ),
+      width,
+      maxHeight: Math.min(400, Math.max(0, openBelow ? below : above)),
+      zIndex: 9999,
+    };
   });
 
-  const toggle = (name: string) => {
-    onChange((prev) =>
-      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
-    );
+  const keyword = search.trim().toLowerCase();
+  // Server-backed skills already filter the query; local MCP options filter here.
+  const filtered =
+    onSearchChange || !keyword
+      ? options
+      : options.filter(
+          (option) =>
+            option.name.toLowerCase().includes(keyword) ||
+            (option.description ?? "").toLowerCase().includes(keyword),
+        );
+  const displayed = [...filtered].sort(
+    (a, b) =>
+      Number(selected.includes(b.name)) - Number(selected.includes(a.name)) ||
+      a.name.localeCompare(b.name),
+  );
+  const close = () => {
+    onOpenChange(false);
+    triggerRef.current?.focus();
   };
 
-  const remove = (name: string) => {
-    onChange((prev) => prev.filter((n) => n !== name));
-  };
-
-  return (
-    <div ref={dropdownRef} className="relative">
+  const selectedChips = selected.map((name) => (
+    <span key={name} className="ppe-skill-chip">
+      <span className="ppe-skill-chip__name">{name}</span>
       <button
         type="button"
+        className="ppe-skill-chip-remove"
+        aria-label={`${t("common.remove")} ${name}`}
+        onClick={() => {
+          (open ? searchInputRef.current : triggerRef.current)?.focus();
+          onChange((prev) => prev.filter((n) => n !== name));
+        }}
+      >
+        <X size={11} aria-hidden="true" />
+      </button>
+    </span>
+  ));
+
+  return (
+    <div className="relative min-w-0">
+      <button
+        ref={triggerRef}
+        type="button"
+        disabled={disabled}
         onClick={() => onOpenChange(!open)}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={open ? listId : undefined}
         className={`ppe-skill-trigger ${
           open ? "ppe-skill-trigger--open" : ""
         } ${triggerClassName}`}
@@ -114,105 +187,201 @@ export function PersonaEditorBindingSelector({
         )}
         <ChevronDown
           size={14}
+          aria-hidden="true"
           className={`ppe-skill-trigger__chevron ${open ? "rotate-180" : ""}`}
         />
       </button>
-
       {selected.length > 0 && !open && (
-        <div className="ppe-skill-selected-area">
-          {selected.map((name) => (
-            <span key={name} className="ppe-skill-chip">
-              {name}
-              <X
-                size={11}
-                className="ppe-skill-chip-remove"
-                onClick={() => remove(name)}
-              />
-            </span>
-          ))}
-        </div>
+        <div className="ppe-skill-selected-area">{selectedChips}</div>
       )}
-
-      {open && (
-        <div className="ppe-skill-dropdown">
-          <div className="ppe-skill-dropdown__header">
-            <div className="ppe-skill-dropdown__search-wrap">
-              <PanelSearchInput
-                ref={searchInputRef}
-                type="text"
-                value={search}
-                onValueChange={setSearch}
-                placeholder={t(searchPlaceholderKey)}
-                className="ppe-skill-search"
-                autoFocus
-                role="combobox"
-                aria-expanded={open}
+      {open &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            className="ppe-skill-dropdown"
+            style={dropdownStyle}
+            onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing || event.keyCode === 229) {
+                event.stopPropagation();
+                return;
+              }
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                close();
+                return;
+              }
+              if (event.key === "Tab") {
+                const controls = [
+                  ...event.currentTarget.querySelectorAll<HTMLElement>(
+                    "input:not(:disabled), button:not(:disabled)",
+                  ),
+                ];
+                if (
+                  document.activeElement ===
+                  (event.shiftKey ? controls[0] : controls.at(-1))
+                ) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  close();
+                }
+                return;
+              }
+              const options = [
+                ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
+                  '[role="option"]',
+                ),
+              ];
+              const index = options.indexOf(
+                document.activeElement as HTMLButtonElement,
+              );
+              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+                event.stopPropagation();
+                const next =
+                  event.key === "ArrowDown"
+                    ? options[(index + 1) % options.length]
+                    : options[index - 1];
+                (next ?? searchInputRef.current)?.focus();
+              } else if (
+                index >= 0 &&
+                (event.key === "Home" || event.key === "End")
+              ) {
+                event.preventDefault();
+                options[event.key === "Home" ? 0 : options.length - 1]?.focus();
+              }
+            }}
+          >
+            <div className="ppe-skill-dropdown__header">
+              <div className="ppe-skill-dropdown__search-wrap">
+                <Search
+                  size={14}
+                  className="ppe-skill-dropdown__search-icon"
+                  aria-hidden="true"
+                />
+                <PanelSearchInput
+                  ref={searchInputRef}
+                  value={search}
+                  onValueChange={setSearch}
+                  placeholder={t(searchPlaceholderKey)}
+                  className="ppe-skill-search"
+                  autoFocus
+                  role="combobox"
+                  aria-expanded={open}
+                  aria-controls={listId}
+                />
+              </div>
+              {selected.length > 0 && (
+                <button
+                  type="button"
+                  className="ppe-skill-dropdown__clear-all"
+                  onClick={() => {
+                    searchInputRef.current?.focus();
+                    onChange(() => []);
+                  }}
+                >
+                  {t("common.clearAll", "清除全部")}
+                </button>
+              )}
+              <IconButton
+                size="sm"
+                icon={<X size={14} aria-hidden="true" />}
+                aria-label={t("common.close")}
+                title={t("common.close")}
+                onClick={close}
               />
             </div>
-            {selected.length > 0 && (
-              <button
-                type="button"
-                className="ppe-skill-dropdown__clear-all"
-                onClick={() => onChange(() => [])}
-              >
-                {t("common.clearAll", "清除全部")}
-              </button>
+            {selected.length > 0 && Number(dropdownStyle.maxHeight) >= 280 && (
+              <div className="ppe-skill-selected-bar">{selectedChips}</div>
             )}
-          </div>
-
-          <div className="ppe-skill-dropdown__list" role="listbox">
-            {displayed.length > 0 ? (
-              displayed.map((option) => {
+            <div
+              className="ppe-skill-dropdown__list"
+              role="listbox"
+              id={listId}
+              aria-label={t(placeholderKey)}
+              aria-multiselectable="true"
+              aria-busy={loading}
+              onScroll={onScroll}
+            >
+              {displayed.map((option) => {
                 const isSelected = selected.includes(option.name);
                 return (
                   <button
                     key={option.name}
                     type="button"
-                    onClick={() => toggle(option.name)}
+                    role="option"
+                    aria-selected={isSelected}
                     className={`ppe-skill-option ${
                       isSelected ? "ppe-skill-option--selected" : ""
                     }`}
-                    role="option"
-                    aria-selected={isSelected}
+                    onClick={() =>
+                      onChange((prev) =>
+                        prev.includes(option.name)
+                          ? prev.filter((n) => n !== option.name)
+                          : [...prev, option.name],
+                      )
+                    }
                   >
                     <div className="ppe-skill-option__check-ring">
                       {isSelected ? (
                         <Check
                           size={12}
                           className="ppe-skill-option__check-icon"
+                          aria-hidden="true"
                         />
                       ) : (
                         <Plus
                           size={12}
                           className="ppe-skill-option__plus-icon"
+                          aria-hidden="true"
                         />
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate font-serif text-14 font-medium">
+                      <div className="break-words [overflow-wrap:anywhere] font-serif text-14 font-medium">
                         {option.name}
                       </div>
                       {option.description && (
-                        <div className="mt-0.5 truncate text-11 text-[var(--theme-text-secondary)]">
+                        <div className="mt-0.5 truncate text-11 text-theme-text-secondary">
                           {option.description}
                         </div>
                       )}
                     </div>
                   </button>
                 );
-              })
-            ) : (
-              <div className="ppe-skill-dropdown__empty">
-                {loading ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <span>{t(emptyKey)}</span>
-                )}
+              })}
+            </div>
+            {loading ? (
+              <div className="ppe-skill-dropdown__loading" role="status">
+                <Loader2
+                  size={14}
+                  className="animate-spin"
+                  aria-hidden="true"
+                />
+                <span>{t("common.loading")}</span>
               </div>
+            ) : error ? (
+              <div role="alert" className="ppe-skill-dropdown__loading">
+                <span>{t("common.loadFailed")}</span>
+                <Button
+                  size="sm"
+                  className="!min-h-11"
+                  onClick={() => {
+                    searchInputRef.current?.focus();
+                    onRetry?.();
+                  }}
+                >
+                  {t("common.retry")}
+                </Button>
+              </div>
+            ) : (
+              displayed.length === 0 && (
+                <div className="ppe-skill-dropdown__empty">{t(emptyKey)}</div>
+              )
             )}
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

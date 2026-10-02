@@ -748,3 +748,21 @@ IAB独立3017实测：390深色、320浅色Persona原文及正文内部横向ove
 最后生产修改后门禁：769文件/3730项测试通过；lint零错误零警告；build含tsc/Vite/PWA/预算通过，eager JS559135/561152 bytes、precache5016770/5242880 bytes、91 entries，未提高预算，保留既有chunk-size提示。首轮全量唯一失败是已替换布局的旧sm:grid-cols-2源码断言，更新为容器适配约束后最终全量通过。git diff --check通过。门禁后仅文档/只读原生证据与清理。
 
 这批仅GET fixture和模拟Clipboard行为，不证明真实角色保存、权限写入、服务对话、手机软键盘或触屏。继续其它表单/选择器与剩余语言和状态组合；整体目标保持进行中，不据此宣告全部界面完成。
+
+## 2026-10-02 Persona 编辑器、能力选择器与代码查找
+
+开工 fetch/rebase 确认最新 origin/develop 89f1fbf0，基线 05a7a88d；继续隔离 worktree，保留主 checkout 未提交内容。Persona 字段补齐原生 label、必填语义和范围提示，Select 使用已有命名接口。技能和 MCP 复用 PersonaEditorBindingSelector，保留 useSkills 的远端搜索与分页，删除重复选择器界面；门户定位使用既有 viewport hook。Escape 仅关闭选择器并归还入口，IME 不退出，箭头使用实际选项焦点，Enter/Space 保持原生激活；移除芯片为可命名的原生按钮。目录失败可重试并保留草稿，等待成功读取后才判断缺失，跨页绑定不误报；待加载的 MCP 入口禁用。
+
+手机字段、移除、搜索、清除和关闭操作补齐 44px；长名称折行。狭短可见 viewport 使用内部滚动弹层，省去重复的已选芯片区，避免裁切可操作内容；正常高度的芯片区不收缩。新增 13 项真实编辑器/选择器行为测试均见 RED→GREEN，含失效目录、分页绑定、IME、Escape、键盘删除和短 viewport。更新旧源码断言指向共享选择器，独立复核发现的待加载 MCP 焦点与短 viewport 问题均关闭。
+
+按用户本轮明确反馈，聊天代码搜索使用和复制相同的 IconButton；悬停仅在 24px 图标周围显示轻底色，按钮本身不铺底色。原生 CodeMirror 查找收成右对齐小条，桌面 280×34px、手机最大 280×46px；单层 1px 边框，输入框不再重复描边。继续使用 CodeMirror 已安装搜索能力，聊天和文件阅读保留关键词、前后命中及关闭，不另建搜索引擎。
+
+文件和 HTML 源码预览隐藏代码组件重复的搜索工具栏，将搜索按钮放回已有工具栏；全屏仍保留搜索入口。原生 Cmd/Ctrl+F、匹配高亮和关闭后回代码焦点均保留。搜索 helper 通过动态 import 保持 CodeMirror lazy 边界；首次加载前禁用搜索，以共用 DOM readiness hook 监听真实编辑器挂载，退出时清理。延迟 Suspense 测试见 RED→GREEN，新增文件搜索 4 项验证普通/全屏、HTML 源码和首次加载状态。HTML 手机切换按钮只有图标，保留 aria-label/pressed、44×44px 与 reduced-motion。
+
+IAB 3017：Persona 390 深浅色最终已选区 127px、不收缩、弹层 400px、整页/弹层横向 overflow 0；本批此前 390 深色失败重试、320 浅色失败恢复、320×260 狭短 viewport 与 1440 浅色锚定/键盘关闭验证正常。聊天代码 1105 深色悬停反馈 24px、查找条 280×34px；390 深色查找 280×46px，report 实际命中；320 深色几何 268×46px，整页/查找 overflow 0。文件 390 深色标题和搜索/下载/更多/关闭同一行、无 .code-editor-toolbar，操作 44px、横向 overflow 0；choice 两个实际匹配、一个选中，Escape 回代码，Cmd+F 重新打开。独立文件预览的 CSS 全屏模式也能搜索，最终查找条 top65px、关闭按钮 bottom60px，保留5px间隔。此处为浏览器 viewport 和只读 fixture，不证明真机触屏、软键盘、真实保存或服务对话。
+
+八项人工自检：既有表单与等宽正文排版；保留阅读分组、减去重复搜索行；标题/动作/正文层级；深浅主题 token；无新增动效且 HTML 尊重 reduced-motion；实际焦点/错误/重试/加载有行为测试；手机尺寸和长名称无本批溢出；复用 LambChat 组件与 CodeMirror，无新依赖或资产。沿用此前 Impeccable 不可用环境的 DESIGN.md 人工清单。
+
+最终生产修改后门禁：771 文件 / 3748 项前端测试通过；lint 零错误零警告；build 含 tsc/Vite/PWA/预算通过，eager JavaScript 559140/561152 bytes，precache 5017684/5242880 bytes / 91 entries。未提高预算。最后 gate 后仅补文档及只读视觉证据。
+
+头像上传生命周期、Persona 保存请求归属与其余页面/状态/语言组合继续检查；整体目标保持进行中，不据本批门禁宣告所有界面完成。3017 已被用户采用，继续保留预览和用户标签页；原 3002 服务与用户草稿未操作。

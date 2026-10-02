@@ -1,5 +1,6 @@
 import { useState, useCallback, useId, useRef } from "react";
 import { useClipboardCopy } from "../../hooks/useClipboardCopy";
+import { useCodeMirrorReady } from "../../hooks/useCodeMirrorReady";
 import { BackIcon } from "../common/BackIcon";
 import { FileIcon } from "../common/FileIcon";
 import { FloatingIconButton, ToolbarIconButton } from "../common";
@@ -15,6 +16,7 @@ import {
   Columns2,
   Share2,
   MoreHorizontal,
+  Search,
 } from "lucide-react";
 import {
   formatFileSize as formatFileSizeUtil,
@@ -54,6 +56,7 @@ type ToolbarProps = { embedded?: boolean } & Pick<
   | "handleCopy"
   | "handleDownload"
   | "toolbarRef"
+  | "panelRef"
   | "setViewSource"
   | "setViewMode"
   | "handleFullscreenToggle"
@@ -92,6 +95,7 @@ export default function DocumentPreviewToolbar({
   handleCopy,
   handleDownload,
   toolbarRef,
+  panelRef,
   setViewSource,
   setViewMode,
   handleFullscreenToggle,
@@ -181,20 +185,45 @@ export default function DocumentPreviewToolbar({
       : []),
   ];
 
+  const searchable = hasTextContent && (!markdownFile || viewSource);
+  const searchReady = useCodeMirrorReady(panelRef, searchable);
+  const handleSearch = () => {
+    const editor = panelRef.current?.querySelector<HTMLElement>(".cm-editor");
+    if (!editor) return;
+    void import("../common/codeMirrorSearchExtensions").then(
+      ({ openCodeMirrorSearch }) => openCodeMirrorSearch(editor),
+    );
+  };
+
   // Fullscreen: floating exit button — matches SkillFormFullscreen style
   if (isFullscreen) {
     return (
-      <FloatingIconButton
-        onClick={(e) => {
-          e.stopPropagation();
-          onClose();
-        }}
-        style={{
-          top: "calc(1rem + var(--app-safe-area-top-active, var(--app-safe-area-top, 0px)))",
-        }}
-        title={t("common.close")}
-        icon={<X size={18} />}
-      />
+      <>
+        {searchable && (
+          <FloatingIconButton
+            onClick={handleSearch}
+            disabled={!searchReady}
+            style={{
+              top: "calc(1rem + var(--app-safe-area-top-active, var(--app-safe-area-top, 0px)))",
+              right: "4.25rem",
+            }}
+            aria-label={t("common.search")}
+            title={t("common.search")}
+            icon={<Search size={18} />}
+          />
+        )}
+        <FloatingIconButton
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          style={{
+            top: "calc(1rem + var(--app-safe-area-top-active, var(--app-safe-area-top, 0px)))",
+          }}
+          title={t("common.close")}
+          icon={<X size={18} />}
+        />
+      </>
     );
   }
 
@@ -242,6 +271,15 @@ export default function DocumentPreviewToolbar({
         )}
       </div>
       <div className="document-preview-toolbar-actions ml-auto flex items-center gap-1 relative z-10 shrink-0">
+        {searchable && (
+          <ToolbarIconButton
+            disabled={!searchReady}
+            title={t("common.search")}
+            aria-label={t("common.search")}
+            icon={<Search size={TOOLBAR_ICON_SIZE} />}
+            onClick={handleSearch}
+          />
+        )}
         {markdownFile && data?.content && (
           <button
             type="button"

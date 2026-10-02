@@ -66,6 +66,7 @@ function renderCopyLinkButton(
     handleCopy: vi.fn(),
     handleDownload: vi.fn(),
     toolbarRef: createRef<HTMLDivElement>(),
+    panelRef: createRef<HTMLDivElement>(),
     setViewSource: vi.fn(),
     setViewMode: vi.fn(),
     handleFullscreenToggle: vi.fn(),
