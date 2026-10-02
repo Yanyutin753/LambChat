@@ -74,7 +74,15 @@ test("file search waits for the lazy viewer instead of accepting a silent no-op"
   await screen.findByRole("textbox", { name: "代码预览" });
   expect(screen.getByRole("button", { name: "搜索" })).toBeEnabled();
   fireEvent.click(screen.getByRole("button", { name: "搜索" }));
-  expect(await screen.findByRole("textbox", { name: "查找" })).toHaveFocus();
+  expect(
+    await screen.findByRole(
+      "textbox",
+      { name: "查找" },
+      // CI runners load the search extension module cold; the default 1s
+      // findByRole budget times out there while local runs stay warm.
+      { timeout: 8000 },
+    ),
+  ).toHaveFocus();
 });
 afterEach(() => {
   cleanup();
@@ -130,5 +138,13 @@ test("HTML source search shares its existing source toolbar", async () => {
   await screen.findByRole("textbox", { name: "代码预览" });
   expect(container.querySelector(".code-editor-toolbar")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "搜索" }));
-  expect(await screen.findByRole("textbox", { name: "查找" })).toHaveFocus();
+  expect(
+    await screen.findByRole(
+      "textbox",
+      { name: "查找" },
+      // CI runners load the search extension module cold; the default 1s
+      // findByRole budget times out there while local runs stay warm.
+      { timeout: 8000 },
+    ),
+  ).toHaveFocus();
 });
