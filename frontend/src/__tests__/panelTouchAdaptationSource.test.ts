@@ -48,9 +48,10 @@ test.each(HOVER_REVEAL_FILES)(
   },
 );
 
-test("role detail upload limits stack on narrow screens", () => {
+test("role detail upload limits adapt to their container width", () => {
   const source = readComponent("panels/RoleDetailSidebar.tsx");
-  expect(source).toMatch(/grid grid-cols-1 sm:grid-cols-2 gap-x-4/);
+  expect(source).toMatch(/grid auto-grid-cols gap-x-4/);
+  expect(source).not.toMatch(/sm:grid-cols-2/);
 });
 
 test("notification create action text follows hidden sm:inline convention", () => {
