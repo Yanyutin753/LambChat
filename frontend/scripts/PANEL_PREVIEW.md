@@ -104,3 +104,5 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 聊天助手模式走查：`/chat/preview-report?failure=catalog-agents&agent-flow=1` 让助手目录读取等待2秒、首次503、重试恢复；模式入口保持可见，等待期间显示紧凑状态并保持焦点。`agents=empty` / `agents=single` 分别返回成功空目录和单助手，可检查空提示、选择和关闭。可组合三主题与新的 `run` 参数；只修改 GET fixture，写请求仍405，没有真实对话或偏好保存。
 
 个人偏好保存走查：`/chat/preview-report?preferences-flow=1&failure=preference-save` 显式启用个人元数据及默认助手 PUT 的2秒模拟等待，各路径首次503、重试200；请求字节丢弃，不解析、存储、更新真实偏好或转发。新的 `run` 参数可重放，其它写请求仍405。用于检查失败后选择保留、本机应用与云端同步错误的区分、逐字段禁用、原请求重试、移动端44px及稳定焦点。不证明真实云端持久化、认证、真机触屏或软键盘；账号切换及跨外观操作失败恢复由组件测试验证。
+
+个人信息写入走查：`/chat/preview-report?profile-flow=1&failure=profile-save` 显式启用用户名 POST 和头像 POST/DELETE 的2秒模拟等待，各方法/路径首次503、重试200。请求字节丢弃，不解析、存储或转发；成功返回静态fixture，用户名和头像不会真实改变，其他写请求仍405。`profile-avatar=1` 给资料 GET 加现有公开头像，`profile-long=1` 返回长用户名/邮箱/角色；新的 `run` 可重放失败。用于检查用户名冻结、错误保留、Enter提交、Escape局部取消和焦点恢复，以及头像上传/删除等待与原文件重试。不证明真实持久化、认证、手机软键盘；旧请求隔离、压缩回退与2MB约束由集成测试验证。
