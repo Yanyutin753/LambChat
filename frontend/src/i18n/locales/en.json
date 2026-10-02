@@ -3423,7 +3423,8 @@
     "uploadZip": "Upload ZIP",
     "uploadZipTitle": "Upload Skill ZIP",
     "uploading": "Uploading...",
-    "userSkillVisible": "User Skill (only visible to you)"
+    "userSkillVisible": "User Skill (only visible to you)",
+    "githubBranch": "Branch"
   },
   "skillsHub": {
     "subtitle": "Manage local skills and explore the marketplace",

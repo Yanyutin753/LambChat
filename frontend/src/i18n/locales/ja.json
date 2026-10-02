@@ -3423,7 +3423,8 @@
     "uploadZip": "ZIPアップロード",
     "uploadZipTitle": "スキルZIPをアップロード",
     "uploading": "アップロード中...",
-    "userSkillVisible": "ユーザースキル（自分のみに表示）"
+    "userSkillVisible": "ユーザースキル（自分のみに表示）",
+    "githubBranch": "ブランチ"
   },
   "skillsHub": {
     "subtitle": "ローカルスキルを管理し、マーケットプレイスを探索",

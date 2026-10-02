@@ -1406,6 +1406,7 @@ const failedDrawingRequests = new Map<string, number>();
 const completedPreviewStreams = new Set<string>();
 const failedWelcomeRequests = new Set<string>();
 const failedChannelRequests = new Set<string>();
+const failedSkillPreviews = new Set<string>();
 const server = await createServer({
   root: process.cwd(),
   cacheDir: "node_modules/.vite-panel-preview",
@@ -1564,6 +1565,61 @@ const server = await createServer({
           const scenario = previewParams.get("fixture") ?? "populated";
           const failureTarget = previewParams.get("failure");
           const streamKey = req.headers.referer ?? "";
+          if (
+            previewParams.get("imports") === "1" &&
+            req.method === "POST" &&
+            ["/api/github/preview", "/api/skills/upload/preview"].includes(
+              url.pathname,
+            )
+          ) {
+            // Read-only canned previews: consume the request, never fetch or install its resources.
+            req.resume();
+            const key = `${streamKey}:${url.pathname}`;
+            const failed =
+              failureTarget === "skill-preview" &&
+              !failedSkillPreviews.has(key);
+            if (failed) failedSkillPreviews.add(key);
+            const skills =
+              scenario === "empty"
+                ? []
+                : Array.from({ length: 24 }, (_, i) => ({
+                    name:
+                      i === 0
+                        ? "跨部门研究与交付验证工作流-长名称样例"
+                  : `${labels[i % labels.length]}-${i + 1}`,
+                    path: `skills/workflow-${i + 1}`,
+                    description:
+                      "整理研究证据、团队协作步骤与交付验证清单，保持可读的长说明和明确的操作。",
+                    file_count: i + 2,
+                    files: ["SKILL.md", "guide.md"],
+                    already_exists:
+                      url.pathname.includes("/upload/") && i % 3 === 0,
+                  }));
+            res.statusCode = failed ? 503 : 200;
+            res.setHeader("Content-Type", "application/json");
+            res.setHeader("Cache-Control", "no-store");
+            const send = () =>
+              res.end(
+                JSON.stringify(
+                  failed
+                    ? {
+                        detail: {
+                          code: "preview_only",
+                          message: "Skill preview unavailable",
+                        },
+                      }
+                    : {
+                        repo_url: "https://github.com/example/preview-skills",
+                        branch: "main",
+                        skills,
+                        skill_count: skills.length,
+                      },
+                ),
+              );
+            if (scenario === "loading") setTimeout(send, 8000);
+            else send();
+            return;
+          }
           const chatState = completedPreviewStreams.has(streamKey)
             ? "completed"
             : (previewParams.get("chat-state") ?? "completed");

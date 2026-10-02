@@ -3423,7 +3423,8 @@
     "uploadZip": "ZIP 上传",
     "uploadZipTitle": "上传技能 ZIP",
     "uploading": "上传中...",
-    "userSkillVisible": "用户技能（仅对自己可见）"
+    "userSkillVisible": "用户技能（仅对自己可见）",
+    "githubBranch": "分支"
   },
   "skillsHub": {
     "subtitle": "管理本地技能并浏览技能商店",

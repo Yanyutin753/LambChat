@@ -555,3 +555,25 @@ TDD：视频 dialog/error、嵌套 fullscreen 面板计数、两种绘图 no-yie
 继续：其他格式下载、大图与内嵌图片、资源导入发布、其余语言、旧 iOS/真实触屏/软键盘、原生视频全屏、认证/写入/真实对话与扫码E2E。整体目标保持进行中，不以本批演示数据和媒体路径称全界面已无明显提升空间。
 
 最终修改后门禁：pnpm test 754文件/3655项全通过；pnpm run lint 零错误零警告；pnpm run build 含 tsc/Vite/PWA/预算通过，eager JS559004/559104 bytes、precache5022614/5242880 bytes、91 entries，未提高预算，保留既有chunk-size提示。最终pause行只读复核无新增P1/P2，git diff --check通过。构建首次动态div/dialog ref类型失败已修为明确类型callback后重跑通过。截图与验证资产在仓库外；临时viewport reset，tab10 handoff，用户原tab及剪贴板未操作。
+
+### 当前执行：技能导入与发布表单
+
+- [x] GitHub 与 ZIP 复用共享表单和按钮，字段有标签，手机安装按钮显示数量，长名称与说明换行，候选使用原生 label/Checkbox，移除列表内部第二滚动条。
+- [x] 发布移除重复装饰卡片，保留原生 form 提交，正文独立滚动，手机操作44px，标签复用单行+N，真实 isPublishing 接入编辑/关闭/取消/重复提交边界。
+- [x] 错误留在表单可重试；旧预览不能污染新仓库/分支/关闭表单，部分成功只重试剩余候选，pending ZIP 禁止换文件。
+
+GitHub 删除197行未使用的渐变/自定义控件CSS，复用 Input/FormField/Button/ConfigPanelErrorCallout；分支标签同步五语。原GitHub“导出”实际先安装选中项后只导出第一项，移除此误导入口，已安装技能菜单的ZIP导出保留，未新增远程导出API。ZIP chooser改原生按钮，文件计数复用 project.fileCount。发布沿用 ModalSurface 与主题/字体，滚动body与固定footer；原生测到 min-h 类被primitive覆盖，改important类，手机三按钮均44px。提交前focus共享modal surface，失败后ShiftTab由既有trap接管，避免聚焦内部form后越界。
+
+TDD：交互4项与恢复5项先RED后GREEN；复核三项P2（Retry焦点卸载、部分GitHub成功重新全选重复提交、上传中drop新ZIP使busy永久保留）对应4失败先RED再修复。发布禁用后焦点与失败恢复反向Tab另1项RED，最终共11项新增行为测试。动态disabled选择器在jsdom的末项与浏览器不同，测试断言按键被拦截且焦点回弹窗内控件；真实IAB1440提交405失败后ShiftTab实际回末尾发布按钮。最后只读复核无新增P1/P2，复核者未重复原生或全量门禁。
+
+原生IAB：390×844深色GitHub首次503后Retry得到24长名称候选，focus稳定panel root，Space仅选一次；滚动后安装按钮仍可用且44px。320×568浅色ZIP原生filechooser选择本批/tmp生成样例，首次503后Retry保留同文件并恢复24候选，8已安装禁选、16新项自动选中，页面无横向溢出；俄语长按钮短屏换为两行footer，每按钮44px且未挤出。320浅色发布长标签+2、405失败与正文滚动验证；390深色8秒延迟发布，busy=true、close/cancel/submit disabled且44px，Escape不关闭，失败恢复编辑。768档请求实际CSS769×905暖色发布，1440×900浅色GitHub停靠489.6px，页面横向溢出均0。已安装菜单仍有ZIP导出。
+
+imports=1仅为两个只读POST返回预设数据，消费并丢弃上传body，不存储、不连接GitHub或真实API；安装/发布仍405。不声称真实ZIP解析、GitHub抓取、安装或公开发布成功。服务器重启时旧agent tab10陷入连接错误页，用同浏览器新tab11恢复，未绕过安全警告，用户原tab及剪贴板未操作。
+
+八项自检：保留正文可读性/衬线标题；收紧动作gap并移除冗余卡片，未整体压缩正文；数量、错误恢复、已安装状态分层；沿用light/dark/sepia与五语；共享transition/reduced-motion无装饰动效，OS偏好未实测；Space/chooser/Retry/提交等待/ShiftTab原生验证；320/390/769/1440无本批横向溢出，触屏/软键盘未验证；沿用LambChat视觉语言无新生产资产或依赖。Impeccable按已确认不可用环境的DESIGN.md清单人工检查。
+
+截图在仓库外interface-quality目录：github-import-390-dark-before.png/after.png、github-import-1440-light-after.png、zip-import-320-light-after.png、skill-publish-390-dark-before.png/after.png/pending.png、skill-publish-320-light-after.png、skill-publish-768-sepia-after.png、skill-publish-1440-light-after.png。pending截图在最后focus目标改surface前，仅作busy/禁用/尺寸证据；最后桌面ShiftTab在修正后。
+
+继续：真实导入/发布、其余语言、触屏/软键盘、旧iOS/原生媒体全屏、认证/写入/真实对话和其他下载格式。整体目标保持进行中，不以本批fixture推断全界面已无明显提升空间。
+
+最终门禁：pnpm test 756文件/3666项全通过；pnpm run lint零错误零警告；pnpm run build含tsc/Vite/PWA/预算通过，eager JS559085/559104 bytes、precache5017943/5242880 bytes、91 entries，未提高预算，保留既有chunk-size提示。最后390深色失败恢复后ShiftTab实际回发布按钮，重拍最终手机截图；最后只读复核无新增P1/P2，git diff --check通过。临时viewport已恢复，tab11 handoff，用户原tab和剪贴板未操作。

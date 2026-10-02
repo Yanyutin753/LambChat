@@ -3423,7 +3423,8 @@
     "uploadZip": "ZIP 업로드",
     "uploadZipTitle": "스킬 ZIP 업로드",
     "uploading": "업로드 중...",
-    "userSkillVisible": "사용자 스킬 (나에게만 표시)"
+    "userSkillVisible": "사용자 스킬 (나에게만 표시)",
+    "githubBranch": "브랜치"
   },
   "skillsHub": {
     "subtitle": "로컬 스킬을 관리하고 마켓플레이스를 탐색하세요",

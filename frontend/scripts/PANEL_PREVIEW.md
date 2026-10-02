@@ -1,6 +1,6 @@
 # Panel 本地预览
 
-在 `frontend` 目录运行 `pnpm preview:panels`，访问 http://127.0.0.1:3002/files 。使用真实前端组件和独立的只读 API fixture，无需后端。仅绑定本机；模拟登录只写入 3002 origin，API 写请求返回 405，不连接真实 API。
+在 `frontend` 目录运行 `pnpm preview:panels`，访问 http://127.0.0.1:3002/files 。使用真实前端组件和独立的只读 API fixture，无需后端。仅绑定本机；模拟登录只写入 3002 origin，API 写请求返回 405，不连接真实 API（下述技能导入只读预览 POST 除外）。
 
 主要列表各有 65 条记录，文件有 65 个会话、196 个文件，覆盖 Markdown、代码、CSV、Excalidraw；用量包含趋势、排行和日志，设置包含九类配置。数据仅用于展示，不代表真实经营指标。
 
@@ -74,3 +74,5 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 图片走查：`/chat/preview-report?images=1` 添加已有桌面/手机截图及一个固定404的图片到实际 `reveal_file` 画廊，可检查键盘打开、失败重试、切换恢复、缩放旋转与下载。404保持失败；同一图片重试成功由组件测试覆盖。图片来自仓库已有公开演示资产，不创建或上传真实文件。
 
 视频走查：`/chat/preview-report?videos=1` 提供固定404的视频，可检查错误说明与同 URL 重试。需要实际播放时，用 `PANEL_PREVIEW_VIDEO=/absolute/path/sample.webm pnpm preview:panels` 启动，页面额外提供此本机样例；文件只由预览服务读取，不加入生产资源或提交仓库。本轮使用 [MDN 的示例视频](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/video)（[flower.webm](https://developer.mozilla.org/shared-assets/videos/flower.webm)）验证播放、暂停、原生控件 Tab 顺序和下载内容。原生视频全屏、旧 iOS WebView 回退及真实触屏仍需对应设备验证。
+
+技能导入走查：`/skills?imports=1` 仅为 `/api/github/preview` 和 `/api/skills/upload/preview` 两个只读 POST 返回 24 个预设候选；上传内容丢弃、不解析或存储，不连接 GitHub 或真实 API。可组合 `failure=skill-preview` 首次失败后 Retry 恢复，`fixture=empty` 空候选，`fixture=loading` 延迟8秒。安装与发布等其他写请求仍405；此入口只证明表单、文件选择和候选交互，不证明真实 ZIP 解析或导入成功。
