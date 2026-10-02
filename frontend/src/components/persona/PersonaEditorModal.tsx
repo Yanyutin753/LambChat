@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { GlassSelect } from "../common/GlassSelect";
+import { Button, Select } from "../common/ui";
 import {
   Plus,
   Pencil,
@@ -46,6 +46,8 @@ export function PersonaEditorModal({
   onClose,
 }: PersonaEditorModalProps) {
   const { t } = useTranslation();
+  const fieldId = useId();
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const [editorScope, setEditorScope] = useState<"user" | "global">(
     initialScope,
   );
@@ -68,37 +70,50 @@ export function PersonaEditorModal({
   const [mcpDropdownOpen, setMcpDropdownOpen] = useState(false);
   const [mcpOptions, setMcpOptions] = useState<BindingOption[]>([]);
   const [installedSkillNames, setInstalledSkillNames] = useState<string[]>([]);
-  const [bindingsLoading, setBindingsLoading] = useState(false);
+  const [bindingsLoading, setBindingsLoading] = useState(true);
+  const [bindingsError, setBindingsError] = useState(false);
+  const [bindingsAttempt, setBindingsAttempt] = useState(0);
+  const [bindingsReady, setBindingsReady] = useState(false);
+  const [loadedPreset, setLoadedPreset] = useState<typeof editingPreset>();
 
   useEffect(() => {
     if (!showModal) return;
     let cancelled = false;
     setBindingsLoading(true);
+    setBindingsError(false);
+    setBindingsReady(false);
     void (async () => {
       try {
-        // 技能列表只为「缺失提示」服务：编辑的预设没有技能绑定时直接跳过请求
-        const needSkills = (editingPreset?.skill_names ?? []).length > 0;
-        const [mcpList, skillList] = await Promise.all([
+        const declaredSkills = editingPreset?.skill_names ?? [];
+        const readSkills = async () => {
+          const names: string[] = [];
+          let skip = 0;
+          while (
+            !cancelled &&
+            declaredSkills.some((name) => !names.includes(name))
+          ) {
+            const page = await skillApi.list({ skip, limit: 100 });
+            names.push(...page.skills.map((skill) => skill.skill_name));
+            skip += page.skills.length;
+            if (!page.skills.length || skip >= page.total) break;
+          }
+          return names;
+        };
+        const [mcpList, skillNames] = await Promise.all([
           mcpApi.list(),
-          needSkills ? skillApi.list({ limit: 100 }) : Promise.resolve(null),
+          readSkills(),
         ]);
         if (cancelled) return;
         setMcpOptions(
           (mcpList.servers ?? [])
             .filter((server) => server.enabled)
-            .map((server) => ({
-              name: server.name,
-              description: null,
-            })),
+            .map((server) => ({ name: server.name, description: null })),
         );
-        setInstalledSkillNames(
-          (skillList?.skills ?? []).map((skill) => skill.skill_name),
-        );
+        setInstalledSkillNames(skillNames);
+        setLoadedPreset(editingPreset);
+        setBindingsReady(true);
       } catch {
-        if (!cancelled) {
-          setMcpOptions([]);
-          setInstalledSkillNames([]);
-        }
+        if (!cancelled) setBindingsError(true);
       } finally {
         if (!cancelled) setBindingsLoading(false);
       }
@@ -106,7 +121,9 @@ export function PersonaEditorModal({
     return () => {
       cancelled = true;
     };
-  }, [showModal, t, editingPreset]);
+  }, [showModal, editingPreset, bindingsAttempt]);
+
+  const canCheckBindings = bindingsReady && loadedPreset === editingPreset;
 
   // 编辑既有预设时，绑定里当前用户不可用的部分（技能未安装 / MCP 不可见）
   const missingSkills = computeMissingBindings(
@@ -140,6 +157,7 @@ export function PersonaEditorModal({
         ] as string[],
       });
       setSkillDropdownOpen(false);
+      setMcpDropdownOpen(false);
     }
   }, [showModal, editingPreset, initialScope]);
 
@@ -252,17 +270,25 @@ export function PersonaEditorModal({
       }
     >
       <div className="es-form">
+        <p className="text-12 leading-relaxed text-theme-text-secondary">
+          {subtitle}
+        </p>
         {/* Profile: Avatar + Name + Description */}
         <div className="ppe-profile-section">
           <AvatarSection draft={draft} onDraftChange={setDraft} />
 
           <div className="ppe-profile-fields">
             <div className="ppe-field">
-              <label className="ppe-label">
+              <label className="ppe-label" htmlFor={`${fieldId}-name`}>
                 {t("personaPresets.name", "名称")}
-                <span className="ppe-required">*</span>
+                <span className="ppe-required" aria-hidden="true">
+                  *
+                </span>
               </label>
               <input
+                id={`${fieldId}-name`}
+                ref={nameInputRef}
+                required
                 value={draft.name}
                 onChange={(e) =>
                   setDraft((prev) => ({ ...prev, name: e.target.value }))
@@ -275,10 +301,11 @@ export function PersonaEditorModal({
               />
             </div>
             <div className="ppe-field">
-              <label className="ppe-label">
+              <label className="ppe-label" htmlFor={`${fieldId}-description`}>
                 {t("personaPresets.description", "简介")}
               </label>
               <input
+                id={`${fieldId}-description`}
                 value={draft.description}
                 onChange={(e) =>
                   setDraft((prev) => ({ ...prev, description: e.target.value }))
@@ -304,7 +331,10 @@ export function PersonaEditorModal({
                 <label className="ppe-label">
                   {t("personaPresets.scope", "范围")}
                 </label>
-                <GlassSelect
+                <Select
+                  ariaLabel={t("personaPresets.scope")}
+                  triggerClassName="glass-input es-select-btn"
+                  dropdownClassName="glass-select-dropdown"
                   value={editorScope}
                   onChange={(v) => setEditorScope(v as "user" | "global")}
                   options={[
@@ -324,7 +354,10 @@ export function PersonaEditorModal({
                   <label className="ppe-label">
                     {t("personaPresets.status", "状态")}
                   </label>
-                  <GlassSelect
+                  <Select
+                    ariaLabel={t("personaPresets.status")}
+                    triggerClassName="glass-input es-select-btn"
+                    dropdownClassName="glass-select-dropdown"
                     value={editorStatus}
                     onChange={(v) => setEditorStatus(v as PersonaPresetStatus)}
                     options={[
@@ -350,13 +383,17 @@ export function PersonaEditorModal({
 
         {/* System Prompt */}
         <div className="ppe-field">
-          <label className="ppe-label">
+          <label className="ppe-label" htmlFor={`${fieldId}-system_prompt`}>
             <MessageSquare size={13} className="ppe-label-icon" />
             {t("personaPresets.systemPrompt", "系统提示词")}
-            <span className="ppe-required">*</span>
+            <span className="ppe-required" aria-hidden="true">
+              *
+            </span>
           </label>
           <div className="ppe-textarea-wrap">
             <textarea
+              id={`${fieldId}-system_prompt`}
+              required
               value={draft.system_prompt}
               onChange={(e) =>
                 setDraft((prev) => ({ ...prev, system_prompt: e.target.value }))
@@ -383,14 +420,34 @@ export function PersonaEditorModal({
           }
         />
 
+        {bindingsError && (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center justify-between gap-2 text-12 text-theme-text-secondary"
+          >
+            <span>{t("common.loadFailed")}</span>
+            <Button
+              size="sm"
+              className="!min-h-11"
+              onClick={() => {
+                nameInputRef.current?.focus();
+                setBindingsAttempt((attempt) => attempt + 1);
+              }}
+            >
+              {t("common.retry")}
+            </Button>
+          </div>
+        )}
+
         {/* Tags + Skills */}
         <div className="ppe-meta-grid">
           <div className="ppe-field">
-            <label className="ppe-label">
+            <label className="ppe-label" htmlFor={`${fieldId}-tags`}>
               <Tag size={13} className="ppe-label-icon" />
               {t("personaPresets.tagsInput", "标签")}
             </label>
             <input
+              id={`${fieldId}-tags`}
               value={draft.tags}
               onChange={(e) =>
                 setDraft((prev) => ({ ...prev, tags: e.target.value }))
@@ -432,7 +489,7 @@ export function PersonaEditorModal({
               open={skillDropdownOpen}
               onOpenChange={setSkillDropdownOpen}
             />
-            {!bindingsLoading && missingSkills.length > 0 && (
+            {canCheckBindings && missingSkills.length > 0 && (
               <p className="mt-1.5 flex items-start gap-1 text-11 leading-relaxed text-amber-600/90 dark:text-amber-400/90">
                 <TriangleAlert
                   size={11}
@@ -467,8 +524,9 @@ export function PersonaEditorModal({
               searchPlaceholderKey="personaPresets.mcpSearchPlaceholder"
               emptyKey="personaPresets.noMcpServers"
               loading={bindingsLoading}
+              disabled={!canCheckBindings}
             />
-            {!bindingsLoading && missingMcpServers.length > 0 && (
+            {canCheckBindings && missingMcpServers.length > 0 && (
               <p className="mt-1.5 flex items-start gap-1 text-11 leading-relaxed text-amber-600/90 dark:text-amber-400/90">
                 <TriangleAlert
                   size={11}

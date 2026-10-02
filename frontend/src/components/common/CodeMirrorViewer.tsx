@@ -115,6 +115,8 @@ export interface CodeMirrorViewerProps {
   copyLabel?: string;
   /** Keep only keyword and previous/next controls in the search panel. */
   simpleSearch?: boolean;
+  /** Hide the local toolbar when its parent provides the search action. */
+  showToolbar?: boolean;
 }
 
 /** ViewPlugin that decorates highlighted lines with a background color */
@@ -186,6 +188,7 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
   toolbarLabel,
   copyLabel,
   simpleSearch,
+  showToolbar = true,
 }: CodeMirrorViewerProps) {
   const { t } = useTranslation();
   const themeMode = useAppThemeMode();
@@ -335,12 +338,14 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
       className={`code-editor ${wrapperClassName}`}
       onKeyDownCapture={guardCodeMirrorSearchComposition}
     >
-      <CodeMirrorSearchToolbar
-        viewRef={viewRef}
-        copyText={copyable ? value : undefined}
-        copyLabel={copyLabel}
-        label={toolbarLabel}
-      />
+      {showToolbar && (
+        <CodeMirrorSearchToolbar
+          viewRef={viewRef}
+          copyText={copyable ? value : undefined}
+          copyLabel={copyLabel}
+          label={toolbarLabel}
+        />
+      )}
       <CodeMirror
         className="h-full"
         height="100%"
