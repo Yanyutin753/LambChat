@@ -37,11 +37,14 @@ import {
 import type { Team, TeamCreateRequest, TeamMember } from "../../types/team";
 import type { LocalizedText, PersonaStarterPrompt } from "../../types";
 import { EditorSidebar } from "../common/EditorSidebar";
+import { Button } from "../common/ui";
+import { PanelFooterActions } from "../common/PanelControls";
 import { nameToGradient } from "../common/cardUtils";
 import { Pagination } from "../common/Pagination";
 import { PanelHeader } from "../common/PanelHeader";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { EmptyState } from "../common/EmptyState";
+import { ConfigPanelErrorCallout } from "../panels/ConfigPanelErrorCallout";
 import { PersonaScopeDropdown } from "../persona/PersonaScopeDropdown";
 import { PersonaTagFilterDropdown } from "../persona/PersonaTagFilterDropdown";
 import type { ScopeFilter } from "../persona/usePersonaPlaza";
@@ -205,8 +208,11 @@ export function TeamBuilderWrapper() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [footerState, setFooterState] = useState<TeamBuilderFooterState>({
     saving: false,
+    uploadingAvatar: false,
     existingTeamId: null,
     hasTeamName: false,
+    canSave: false,
+    saveError: false,
   });
   const formRef = useRef<TeamBuilderHandle>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -796,23 +802,28 @@ export function TeamBuilderWrapper() {
         defaultWidthPct={30}
         widthStorageKey="team-editor-sidebar-width"
         footer={
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={handleClose}
-              className="btn-secondary"
-            >
-              {t("common.cancel")}
-            </button>
-            <button
-              type="button"
-              onClick={() => formRef.current?.handleSave()}
-              disabled={footerState.saving || !footerState.hasTeamName}
-              className="btn-primary disabled:opacity-50"
-            >
-              <Save size={16} />
-              {footerState.saving ? t("team.saving") : t("team.save")}
-            </button>
+          <div className="flex flex-col gap-3">
+            {footerState.saveError && (
+              <ConfigPanelErrorCallout message={t("team.saveFailed")} />
+            )}
+            <PanelFooterActions>
+              <Button onClick={handleClose}>{t("common.cancel")}</Button>
+              <Button
+                variant="primary"
+                onClick={() => formRef.current?.handleSave()}
+                disabled={!footerState.canSave}
+                loading={footerState.saving}
+                leftIcon={<Save size={14} />}
+              >
+                <span role={footerState.saving ? "status" : undefined}>
+                  {footerState.saving
+                    ? t("team.saving")
+                    : footerState.saveError
+                      ? t("common.retry")
+                      : t("team.save")}
+                </span>
+              </Button>
+            </PanelFooterActions>
           </div>
         }
       >

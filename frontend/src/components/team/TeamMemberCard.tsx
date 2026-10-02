@@ -21,6 +21,7 @@ import { Tooltip } from "../common/Tooltip";
 
 interface TeamMemberCardProps {
   member: TeamMember;
+  disabled?: boolean;
   isDefault: boolean;
   onRemove: () => void;
   onSetDefault: () => void;
@@ -34,6 +35,7 @@ interface TeamMemberCardProps {
 
 export function TeamMemberCard({
   member,
+  disabled = false,
   isDefault,
   onRemove,
   onSetDefault,
@@ -152,6 +154,7 @@ export function TeamMemberCard({
               content={isDefault ? t("team.defaultRole") : t("team.setDefault")}
             >
               <IconButton
+                disabled={disabled}
                 aria-label={`${t(isDefault ? "team.defaultRole" : "team.setDefault")} ${roleName}`}
                 aria-pressed={isDefault}
                 onClick={onSetDefault}
@@ -169,6 +172,7 @@ export function TeamMemberCard({
             </Tooltip>
             <Tooltip content={t("team.remove")}>
               <IconButton
+                disabled={disabled}
                 aria-label={`${t("team.remove")} ${roleName}`}
                 onClick={onRemove}
                 icon={<Trash2 size={14} />}
@@ -181,6 +185,7 @@ export function TeamMemberCard({
 
           {/* Toggle */}
           <button
+            disabled={disabled}
             onClick={onToggleEnabled}
             className="team-member-card__toggle-button flex size-11 shrink-0 items-center justify-center rounded-md sm:h-5 sm:w-9"
             aria-label={`${t(member.enabled ? "team.disableRole" : "team.enableRole")} ${roleName}`}
@@ -199,6 +204,7 @@ export function TeamMemberCard({
 
           {/* Expand chevron */}
           <button
+            disabled={disabled}
             aria-label={`${t(expanded ? "common.collapse" : "common.expand")} ${roleName}`}
             aria-expanded={expanded}
             onClick={() => setExpanded(!expanded)}
@@ -234,7 +240,7 @@ export function TeamMemberCard({
                 value={member.agent_id ?? ""}
                 onChange={(v) => onAgentChange?.(v || null)}
                 options={agentOptions}
-                disabled={!onAgentChange}
+                disabled={disabled || !onAgentChange}
                 placeholder={t("team.followTeamMode", "跟随团队模式")}
                 triggerClassName="team-member-card__select-trigger"
               />
@@ -249,7 +255,7 @@ export function TeamMemberCard({
                 value={member.model_id ?? ""}
                 onChange={(v) => onModelChange?.(v || null)}
                 options={modelOptions}
-                disabled={!onModelChange}
+                disabled={disabled || !onModelChange}
                 placeholder={t("team.followSessionModel", "跟随会话模型")}
                 triggerClassName="team-member-card__select-trigger"
               />
@@ -274,6 +280,7 @@ export function TeamMemberCard({
                 {t("team.roleInstructions", "角色专属指令")}
               </label>
               <Textarea
+                disabled={disabled}
                 aria-label={`${t("team.roleInstructions")} ${roleName}`}
                 value={member.role_instructions}
                 onChange={(e) => onInstructionsChange(e.target.value)}

@@ -87,5 +87,5 @@ test("document code preview relies on the shared viewer fill behavior", () => {
   expect(source).not.toMatch(/\[&_\.cm-editor\]:h-full/);
   expect(source).not.toMatch(/\[&_\.cm-scroller\]:!overflow-auto/);
   expect(source).toMatch(/bg-theme-bg-code/);
-  expect(source).toMatch(/className="h-full"/);
+  expect(source).toMatch(/className="h-full code-editor--overlay-search"/);
 });

@@ -42,7 +42,8 @@ export function Select({
   dropdownClassName,
 }: SelectProps) {
   const [localOpen, setLocalOpen] = useState(false);
-  const open = controlledOpen ?? localOpen;
+  const requestedOpen = controlledOpen ?? localOpen;
+  const open = requestedOpen && !disabled;
   const setOpen = useCallback(
     (next: boolean) => {
       setLocalOpen(next);
@@ -50,6 +51,9 @@ export function Select({
     },
     [onOpenChange],
   );
+  useEffect(() => {
+    if (disabled && requestedOpen) setOpen(false);
+  }, [disabled, requestedOpen, setOpen]);
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dropdownId = useId();

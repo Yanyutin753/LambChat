@@ -38,7 +38,7 @@ const CodeRenderer = memo(function CodeRenderer({
         filePath={filePath}
         lineNumbers={true}
         fontSize="0.875rem"
-        className="h-full"
+        className="h-full code-editor--overlay-search"
         showToolbar={false}
         simpleSearch
         startLine={initialLine}

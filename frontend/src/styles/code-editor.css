@@ -316,6 +316,20 @@
   flex-shrink: 0;
 }
 
+.code-editor.code-editor--overlay-search .cm-panels {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  left: auto;
+  width: min(17.5rem, calc(100% - 1rem));
+  z-index: 6;
+}
+
+.code-editor.code-editor--overlay-search .cm-panel.cm-search {
+  width: 100%;
+  margin: 0;
+}
+
 @media (pointer: coarse) {
   .code-editor-toolbar button,
   .code-editor .cm-panel.cm-search :is(button, .cm-textfield, label) {
