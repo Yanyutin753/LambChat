@@ -20,6 +20,7 @@ import {
   ChevronLeft,
   ListTree,
   RefreshCw,
+  AlertCircle,
 } from "lucide-react";
 import { ToolbarIconButton } from "../../common/ui/ToolbarIconButton";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
@@ -83,7 +84,7 @@ export function Header({
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, appearanceState, retryAppearance } = useTheme();
   const {
     pinnedModelIds,
     togglePinnedModel,
@@ -186,20 +187,29 @@ export function Header({
     },
     {
       label:
-        theme === "light"
-          ? t("theme.switchToDark")
-          : theme === "dark"
-            ? t("theme.switchToSepia")
-            : t("theme.switchToLight"),
+        appearanceState === "error"
+          ? `${t("common.retry")}: ${t("profile.theme")}`
+          : appearanceState === "saving"
+            ? t("common.saving")
+            : theme === "light"
+              ? t("theme.switchToDark")
+              : theme === "dark"
+                ? t("theme.switchToSepia")
+                : t("theme.switchToLight"),
       icon:
-        theme === "light" ? (
+        appearanceState === "error" ? (
+          <AlertCircle size={16} className="text-theme-error" />
+        ) : appearanceState === "saving" ? (
+          <LoadingSpinner size="sm" />
+        ) : theme === "light" ? (
           <Moon size={16} />
         ) : theme === "dark" ? (
           <Coffee size={16} />
         ) : (
           <Sun size={16} />
         ),
-      onClick: toggleTheme,
+      disabled: appearanceState === "saving",
+      onClick: appearanceState === "error" ? retryAppearance : toggleTheme,
     },
     {
       label: t("common.language"),

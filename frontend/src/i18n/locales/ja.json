@@ -2221,6 +2221,7 @@
     "viewSource": "ソースを表示"
   },
   "profile": {
+    "preferenceSyncFailed": "このデバイスに適用済み。クラウド同期に失敗しました。",
     "appearance": "外観",
     "avatar": "アバター",
     "avatarDeleted": "アバターが削除されました",
