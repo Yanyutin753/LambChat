@@ -1957,6 +1957,30 @@ const server = await createServer({
             url.pathname === "/api/share/public/preview-report" &&
             previewParams.get("scope") === "project"
           ) {
+            const projectSessions =
+              scenario === "empty"
+                ? []
+                : [
+                    {
+                      id: "project-session-1",
+                      name: "产品研究与跨部门协作的长期交付计划",
+                      agent_name: "研究助手",
+                      updated_at: now,
+                    },
+                    {
+                      id: "project-session-2",
+                      name: "空会话与下一步行动",
+                      agent_name: "快速助手",
+                      updated_at: now,
+                    },
+                    {
+                      id: "project-session-3",
+                      name: "发布前验证与交付记录",
+                      agent_name: "工程助手",
+                      updated_at: now,
+                    },
+                  ];
+            const skip = Number(url.searchParams.get("session_skip") ?? 0);
             data = {
               share_scope: "project",
               share_type: "full",
@@ -1965,11 +1989,31 @@ const server = await createServer({
                 name: "产品研究与长期项目交付计划",
                 icon: "Folder",
               },
-              sessions: [],
-              owner: { username: "LambChat Demo" },
+              sessions: projectSessions.slice(skip, skip + 2),
+              owner: {
+                username:
+                  previewParams.get("profile") === "long"
+                    ? "跨部门产品研究与长期项目交付负责人".repeat(3)
+                    : "LambChat Demo",
+              },
               visibility: "public",
-              sessions_total: 0,
-              has_more: false,
+              sessions_total: projectSessions.length,
+              has_more: skip + 2 < projectSessions.length,
+            };
+          }
+          if (
+            /^\/api\/share\/public\/preview-report\/sessions\/project-session-[123]$/.test(url.pathname)
+          ) {
+            const session = response(
+              new URL("http://localhost/api/share/public/preview-report"),
+              "populated",
+            ) as { session: object; events: object[] };
+            data = {
+              ...session,
+              session: { ...session.session, id: url.pathname.split("/").pop() },
+              events: url.pathname.endsWith("project-session-2")
+                ? []
+                : session.events,
             };
           }
           if (url.pathname === "/api/agents") {
@@ -2199,6 +2243,13 @@ const server = await createServer({
               url.pathname === "/api/agent/models/available") ||
               (failureTarget === "share-content" &&
                 url.pathname === "/api/share/public/preview-report") ||
+              (failureTarget === "project-page" &&
+                url.pathname === "/api/share/public/preview-report" &&
+                url.searchParams.has("session_skip")) ||
+              (failureTarget === "project-session" &&
+                url.pathname.includes(
+                  "/api/share/public/preview-report/sessions/",
+                )) ||
               (failureTarget === "catalog-agents" &&
                 url.pathname === "/api/agents") ||
               (failureTarget === "catalog-preference" &&
@@ -2301,6 +2352,14 @@ const server = await createServer({
             );
           if (scenario === "loading" && !url.pathname.startsWith("/api/auth/"))
             setTimeout(send, 8000);
+          else if (
+            isRead &&
+            previewParams.get("scope") === "project" &&
+            (url.pathname.includes("/api/share/public/preview-report/sessions/") ||
+              (url.pathname === "/api/share/public/preview-report" &&
+                url.searchParams.has("session_skip")))
+          )
+            setTimeout(send, 2000);
           else if (
             previewParams.has("agent-flow") &&
             isRead &&

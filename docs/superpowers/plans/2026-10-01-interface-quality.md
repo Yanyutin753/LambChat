@@ -1036,3 +1036,21 @@ LocalSandboxSection复用usePreferenceWrites统一配对、策略、重启和取
 最终全量784文件3915项通过，lint零错误零警告；build含tsc/Vite/PWA及预算通过，保留既有异步大块500kB提示。eager JS560327/561152 bytes、precache5033069/5242880 bytes（93项），未放宽预算。独立只读审查确认短屏P2关闭，最终无新增确定P1/P2。git diff --check通过。
 
 回收结果：本轮3019的PID80934已核对cwd后停止，端口确认仅3017/3018保留，工作树提交后干净。3019临时标签已关闭；旧3018临时标签65的close发生CDP观察超时，随后视口reset也超时，未确认这两项成功，未重启现有浏览器或服务。已保存截图与完成门禁不受影响，后续继续用同一浏览器新标签走查；保留标签标记也须下一轮核对。
+
+### 2026-10-02：项目分享展开、分页恢复与阅读布局
+
+上一回合直接核对用户3017的文件原生查找，17项相关测试与320/390px实屏提供新证据，分类为progress；未重复实现已有功能。本轮继续interface-state，HTTPS fetch确认origin/develop为HEAD祖先。主checkout的.v2c/.video_agent及mobile-density保持，未推送、合并或部署。
+
+390深色俄语实际复现：子会话首次503后没有展开或错误反馈，长分享者将数量及单位挤成多行。SharedProjectPage将展开状态与内容缓存、在途读取分开：点击立即展开具名region/status，收起/重开复用同一在途请求；已加载内容保留，迟到响应仅更新缓存而不重新展开。失败有本会话alert和44px Retry，重试焦点留在稳定region。兄弟会话可独立加载。分页失败保留原列表并重试同一offset，等待禁用；完成后仅当分页容器仍拥有焦点才交接给首个新增会话，正常滚动使其可见。SharedEntry是唯一生产caller且按shareId卸载旧实例，项目页删除重复初始读取及不可达的硬编码错误页。
+
+阅读布局保留衬线标题与现有主题：标题text-balance避免手机孤字行，卡片标题最多两行；数量/单位作为完整信息组，长分享者另行自然换行；手机封面图标44px、分组留白24px，正文继续保留空间。页头品牌成为44px高返回入口，语言及主题按钮均44×44。项目页补齐公开会话已有LanguageToggle sync=false，复用五语、原生菜单关闭与焦点归还，不写已登录账号的云端偏好。空消息改用已有share.noMessages；去掉消息包装层无目的入场动效，等待复用LoadingSpinner。
+
+7项真实组件回归先后RED：展开/重试/迟到及分页5failed；最后一页焦点1failed/5passed；语言入口1failed/6passed。接入真实LanguagePreferenceProvider后关联15文件65项通过，语言测试包含已登录用户不调用metadata写入。首次全量发现旧字体源码断言仍指向删除的死错误分支，改为检查真实SharedEntry的h1。最终785文件3922项通过，lint零错误零警告；build含tsc/Vite/PWA及体积预算通过，保留既有异步大块500kB提示。eager JS560334/561152 bytes、precache5034266/5242880 bytes、93项，未放宽预算。两次只读独立审查无确定P1/P2，git diff --check通过。
+
+只读3019 fixture新增3个项目会话（初始2个）、空消息、下一页及2秒等待，子会话/分页首次503后恢复；profile=long检查长分享者，fixture=empty保留空项目。仅GET替身，非GET仍405，不创建分享或证明真实权限、认证、模型对话、SSR服务端或原生设备。320俄语数量行高22.39px、overflow0；390 Retry焦点region、等待可见，收起后的晚到会话保持aria-expanded=false，空兄弟会话正确显示俄语空消息，缓存重开后富消息可读、overflow0。320×300浅色俄语分页错误Retry44px且完整可见；键盘重试后3个会话保留，新增首个按钮top109.08/bottom181.86在300px内，焦点未落BODY。834护眼及1440浅色无横向溢出，桌面阅读列1024px。最终320中文、390中文和俄语空项目、834护眼中文、1440浅色中文均复查；项目语言菜单切换后关闭并归还语言按钮焦点。
+
+截图保存在仓库外/Users/clivia/.codex/visualizations/interface-quality-project-share，包含390-dark-zh-session-error-final、320-light-zh-session-error-final、834-sepia-zh-session-error-final、1440-light-zh-session-error-final、390-dark-ru-empty-project-final、320-short-light-ru-page-error及page-recovered等。八项自检：沿用文字刻度和品牌衬线；保留正文留白，仅调整手机封面与操作；项目/数量/分享者/会话/错误层级清晰；三主题token；无新装饰动效、保留reduced-motion；加载、Retry、缓存、分页焦点及本机语言经行为与实屏验证；320/390/834/1440、长语言及短屏；复用LambChat组件，不增加依赖或平行设计系统。npx --offline impeccable update仍报告No impeccable skill folders found，按DESIGN.md人工清单检查。
+
+本轮临时标签70已关闭，视口reset成功。3019进程在检查PID84585及cwd后停止，确认3017/3018保持；保留既有结果标签及文件查找标签69。新标签清单已无旧临时65，不再沿用上轮未确认清理状态。
+
+全站目标仍进行中：主界面、剩余弹层及全部状态矩阵未全部验收；分享页的真实认证/权限、真实会话、原生与手机设备也未证明。继续核查公开阅读页及主聊天导航/预览的完整交互、长文案与空错加载，不据本轮项目页与局部门禁宣告全站完成。

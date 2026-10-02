@@ -5,23 +5,23 @@
  * Click a session to expand and view its messages, reusing ChatMessage.
  */
 
-import { SceneIllustration } from "../common/SceneIllustration";
 import {
   lazy,
   Suspense,
   useCallback,
-  useEffect,
+  useId,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   ChevronDown,
   ChevronRight,
   Coffee,
   Folder,
-  Loader2,
   MessageSquare,
   Moon,
   Sun,
@@ -31,11 +31,13 @@ import { shareApi } from "../../services/api/share";
 import type {
   SharedContentResponse,
   SharedProjectContentResponse,
-  SharedProjectSessionItem,
 } from "../../types";
 import { APP_NAME, GITHUB_URL } from "../../constants";
 import { BrandWordmark } from "../common/BrandWordmark";
 import { IconButton } from "../common/ui/IconButton";
+import { Button } from "../common/ui/Button";
+import { LoadingSpinner } from "../common/LoadingSpinner";
+import { LanguageToggle } from "../common/LanguageToggle";
 import { formatDate } from "../../utils/datetime";
 import { reconstructMessagesFromEvents } from "../../hooks/useAgent/historyLoader";
 import { computeProjectHasMore } from "./sharedProjectPageState";
@@ -56,138 +58,91 @@ function isEmojiIcon(icon?: string): boolean {
 export function SharedProjectPage({
   initialManifest,
 }: {
-  initialManifest?: SharedProjectContentResponse;
-} = {}) {
+  initialManifest: SharedProjectContentResponse;
+}) {
   const { shareId } = useParams<{ shareId: string }>();
   const { t } = useTranslation();
   const { theme, toggleTheme } = useSharedPageTheme();
 
-  const [manifest, setManifest] = useState<SharedProjectContentResponse | null>(
-    initialManifest ?? null,
-  );
-  const [isLoading, setIsLoading] = useState(!initialManifest);
-  const [error, setError] = useState<string | null>(null);
-
-  // 展开的子会话：sessionId -> 内容
-  const [expanded, setExpanded] = useState<
-    Record<string, SharedContentResponse>
+  const [manifest, setManifest] = useState(initialManifest);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [sessionContent, setSessionContent] = useState<
+    Record<string, SharedContentResponse | "loading" | "error">
   >({});
+  const pendingSessions = useRef(new Set<string>());
+  const panelPrefix = useId();
+  const paginationRef = useRef<HTMLDivElement>(null);
+  const nextSessionFocus = useRef<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-
+  const [moreError, setMoreError] = useState(false);
   const hasMore = computeProjectHasMore(manifest);
 
   const loadMore = useCallback(async () => {
-    if (!shareId || !manifest || loadingMore || !hasMore) return;
+    if (!shareId || loadingMore || !hasMore) return;
     const skip = manifest.sessions.length;
+    paginationRef.current?.focus({ preventScroll: true });
     setLoadingMore(true);
+    setMoreError(false);
     try {
       const page = await shareApi.getSharedContent(shareId, {
         sessionSkip: skip,
         sessionLimit: SESSION_PAGE_SIZE,
       });
-      if (!("sessions" in page)) return;
-      setManifest((prev) =>
-        prev
-          ? {
-              ...prev,
-              sessions: [...prev.sessions, ...page.sessions],
-              has_more: page.has_more,
-            }
-          : prev,
-      );
+      if (!("sessions" in page)) throw new Error("Unexpected share scope");
+      nextSessionFocus.current = page.sessions[0]?.id ?? null;
+      setManifest((prev) => ({
+        ...prev,
+        sessions: [...prev.sessions, ...page.sessions],
+        sessions_total: page.sessions_total,
+        has_more: page.has_more,
+      }));
     } catch {
-      // 单页加载失败不打断整体，用户可重试
+      setMoreError(true);
     } finally {
       setLoadingMore(false);
     }
   }, [shareId, manifest, loadingMore, hasMore]);
 
-  useEffect(() => {
-    if (initialManifest) {
-      setManifest(initialManifest);
-      setIsLoading(false);
-      return;
+  useLayoutEffect(() => {
+    if (
+      nextSessionFocus.current &&
+      document.activeElement === paginationRef.current
+    ) {
+      document
+        .getElementById(`${panelPrefix}-${nextSessionFocus.current}-title`)
+        ?.closest<HTMLButtonElement>("button")
+        ?.focus();
     }
-    let cancelled = false;
-    const load = async () => {
-      if (!shareId) return;
-      setIsLoading(true);
-      setError(null);
-      try {
-        const data = await shareApi.getSharedContent(shareId, {
-          sessionLimit: SESSION_PAGE_SIZE,
-        });
-        if (cancelled) return;
-        if (!("sessions" in data)) {
-          setError("not_project");
-          return;
-        }
-        setManifest(data);
-      } catch {
-        if (!cancelled) setError("load_failed");
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    };
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [shareId, initialManifest]);
+    nextSessionFocus.current = null;
+  }, [manifest, panelPrefix]);
 
-  const toggleSession = useCallback(
-    async (session: SharedProjectSessionItem) => {
-      if (!shareId) return;
-      // 已展开则收起
-      if (expanded[session.id]) {
-        setExpanded((prev) => {
-          const next = { ...prev };
-          delete next[session.id];
-          return next;
-        });
-        return;
-      }
-      // 展开并加载该子会话事件（展开态期间 content 为空，自动显示加载占位）
+  const loadSession = useCallback(
+    async (sessionId: string) => {
+      if (!shareId || pendingSessions.current.has(sessionId)) return;
+      pendingSessions.current.add(sessionId);
+      setSessionContent((prev) => ({ ...prev, [sessionId]: "loading" }));
       try {
         const content = await shareApi.getSessionContentInProject(
           shareId,
-          session.id,
+          sessionId,
         );
-        setExpanded((prev) => ({ ...prev, [session.id]: content }));
+        setSessionContent((prev) => ({ ...prev, [sessionId]: content }));
       } catch {
-        // 单个子会话加载失败不阻断整体
+        setSessionContent((prev) => ({ ...prev, [sessionId]: "error" }));
+      } finally {
+        pendingSessions.current.delete(sessionId);
       }
     },
-    [shareId, expanded],
+    [shareId],
   );
 
-  const owner = manifest?.owner;
-
-  if (isLoading) {
-    return (
-      <div className="min-h-dvh bg-theme-bg text-theme-text flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-theme-text-secondary" />
-      </div>
-    );
-  }
-
-  if (error || !manifest) {
-    return (
-      <div className="min-h-dvh bg-theme-bg text-theme-text flex items-center justify-center p-4">
-        <div className="bg-theme-bg-card rounded-2xl shadow-xl border border-theme-border px-8 py-10 max-w-md text-center">
-          <SceneIllustration scene="message" className="mx-auto mb-4" />
-          <h1 className="text-20 font-semibold font-serif mb-2">
-            {error === "not_project"
-              ? "这不是一个项目分享链接"
-              : "分享不存在或已失效"}
-          </h1>
-          <p className="text-theme-text-secondary text-14">
-            {t("share.pageUnavailable", "链接可能已删除或无访问权限。")}
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const toggleSession = (sessionId: string) => {
+    setExpanded((prev) => ({ ...prev, [sessionId]: !prev[sessionId] }));
+    if (!expanded[sessionId] && !sessionContent[sessionId]) {
+      void loadSession(sessionId);
+    }
+  };
+  const owner = manifest.owner;
 
   const projectIcon = manifest.project.icon;
 
@@ -196,35 +151,44 @@ export function SharedProjectPage({
       {/* Header */}
       <header className="safe-area-top sticky top-0 z-40 border-b border-theme-border bg-[color-mix(in_srgb,var(--theme-bg-card)_82%,transparent)] backdrop-blur">
         <div className="max-w-4xl lg:max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3 font-serif">
-          <BrandWordmark decorative className="h-7 w-auto text-theme-text" />
-          <IconButton
-            size="lg"
-            onClick={toggleTheme}
-            aria-label={t(
-              theme === "light"
-                ? "theme.switchToDark"
-                : theme === "dark"
-                  ? "theme.switchToSepia"
-                  : "theme.switchToLight",
-            )}
-            icon={
-              theme === "light" ? (
-                <Moon size={18} />
-              ) : theme === "dark" ? (
-                <Coffee size={18} />
-              ) : (
-                <Sun size={18} />
-              )
-            }
-          />
+          <Link
+            to="/"
+            aria-label={t("share.goToChat")}
+            className="inline-flex min-h-11 items-center rounded focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--theme-ring)]"
+          >
+            <BrandWordmark decorative className="h-7 w-auto text-theme-text" />
+          </Link>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <LanguageToggle sync={false} className="!min-h-11 !min-w-11" />
+            <IconButton
+              size="lg"
+              onClick={toggleTheme}
+              aria-label={t(
+                theme === "light"
+                  ? "theme.switchToDark"
+                  : theme === "dark"
+                    ? "theme.switchToSepia"
+                    : "theme.switchToLight",
+              )}
+              icon={
+                theme === "light" ? (
+                  <Moon size={18} />
+                ) : theme === "dark" ? (
+                  <Coffee size={18} />
+                ) : (
+                  <Sun size={18} />
+                )
+              }
+            />
+          </div>
         </div>
       </header>
 
       {/* Project cover */}
       <section className="border-b border-theme-border">
-        <div className="max-w-4xl lg:max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-          <div className="flex items-start gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-theme-bg-subtle border border-theme-border text-24">
+        <div className="max-w-4xl lg:max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="flex h-11 w-11 sm:h-14 sm:w-14 shrink-0 items-center justify-center rounded-xl bg-theme-bg-subtle border border-theme-border text-24">
               {isEmojiIcon(projectIcon) ? (
                 <span>{projectIcon || "📁"}</span>
               ) : (
@@ -235,19 +199,23 @@ export function SharedProjectPage({
               <p className="text-12 uppercase tracking-wider text-theme-text-secondary mb-1">
                 {t("share.sharedProject", "分享的项目")}
               </p>
-              <h1 className="text-24 sm:text-30 font-serif tracking-tight font-semibold break-words">
+              <h1 className="text-24 sm:text-30 font-serif tracking-tight font-semibold text-balance [overflow-wrap:anywhere]">
                 {manifest.project.name}
               </h1>
-              <div className="mt-2 flex items-center gap-2 text-14 text-theme-text-secondary">
-                <MessageSquare size={14} />
-                <span>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-14 text-theme-text-secondary">
+                <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+                  <MessageSquare size={14} aria-hidden="true" />
                   {manifest.sessions_total} {t("share.conversations", "个会话")}
                 </span>
                 {owner ? (
-                  <>
-                    <span className="opacity-50">·</span>
-                    <span>{owner.username}</span>
-                  </>
+                  <span className="flex max-w-full min-w-0 items-start gap-2">
+                    <span aria-hidden="true" className="shrink-0 opacity-50">
+                      ·
+                    </span>
+                    <span className="min-w-0 [overflow-wrap:anywhere]">
+                      {owner.username}
+                    </span>
+                  </span>
                 ) : null}
               </div>
             </div>
@@ -261,7 +229,9 @@ export function SharedProjectPage({
           <ul className="space-y-2">
             {manifest.sessions.map((session) => {
               const isExpanded = !!expanded[session.id];
-              const content = expanded[session.id];
+              const content = sessionContent[session.id];
+              const panelId = `${panelPrefix}-${session.id}`;
+              const titleId = `${panelId}-title`;
               return (
                 <li
                   key={session.id}
@@ -269,8 +239,10 @@ export function SharedProjectPage({
                 >
                   <button
                     type="button"
-                    onClick={() => toggleSession(session)}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-theme-bg-subtle transition-colors"
+                    onClick={() => toggleSession(session.id)}
+                    aria-expanded={isExpanded}
+                    aria-controls={isExpanded ? panelId : undefined}
+                    className="w-full flex items-center gap-3 px-3 sm:px-4 py-3.5 text-left hover:bg-theme-bg-subtle transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--theme-ring)]"
                   >
                     <span className="text-theme-text-secondary shrink-0">
                       {isExpanded ? (
@@ -280,7 +252,10 @@ export function SharedProjectPage({
                       )}
                     </span>
                     <span className="flex-1 min-w-0">
-                      <span className="block font-medium truncate">
+                      <span
+                        id={titleId}
+                        className="block font-medium line-clamp-2 [overflow-wrap:anywhere]"
+                      >
                         {session.name ||
                           t("share.untitledSession", "未命名会话")}
                       </span>
@@ -294,12 +269,45 @@ export function SharedProjectPage({
                   </button>
 
                   {isExpanded && (
-                    <div className="border-t border-theme-border bg-theme-bg px-4 sm:px-6 py-4">
-                      {content ? (
+                    <div
+                      id={panelId}
+                      role="region"
+                      aria-labelledby={titleId}
+                      tabIndex={-1}
+                      className="border-t border-theme-border bg-theme-bg px-3 sm:px-6 py-4 outline-none"
+                    >
+                      {content === "error" ? (
+                        <div className="flex flex-col items-center gap-3 py-4 text-center">
+                          <p
+                            role="alert"
+                            className="text-14 text-theme-text-secondary"
+                          >
+                            {t("share.loadFailed")}
+                          </p>
+                          <Button
+                            size="lg"
+                            onClick={(event) => {
+                              event.currentTarget
+                                .closest<HTMLElement>('[role="region"]')
+                                ?.focus({ preventScroll: true });
+                              void loadSession(session.id);
+                            }}
+                          >
+                            {t("common.retry")}
+                          </Button>
+                        </div>
+                      ) : content && content !== "loading" ? (
                         <SessionMessages content={content} />
                       ) : (
-                        <div className="flex items-center justify-center py-8">
-                          <Loader2 className="h-6 w-6 animate-spin text-theme-text-secondary" />
+                        <div
+                          role="status"
+                          className="flex items-center justify-center gap-2 py-6 text-14 text-theme-text-secondary"
+                        >
+                          <LoadingSpinner
+                            size="sm"
+                            color="text-theme-text-secondary"
+                          />
+                          {t("common.loading")}
                         </div>
                       )}
                     </div>
@@ -309,21 +317,28 @@ export function SharedProjectPage({
             })}
           </ul>
 
-          {hasMore ? (
-            <div className="flex justify-center pt-4">
-              <button
-                type="button"
-                onClick={loadMore}
-                disabled={loadingMore}
-                className="inline-flex items-center gap-2 rounded-lg border border-theme-border bg-theme-bg-card px-4 py-2 text-14 font-medium text-theme-text hover:bg-theme-bg-subtle transition-colors disabled:opacity-60"
-              >
-                {loadingMore ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : null}
-                {t("share.loadMore", "加载更多")}
-              </button>
-            </div>
-          ) : null}
+          <div ref={paginationRef} tabIndex={-1} className="outline-none">
+            {hasMore && (
+              <div className="flex flex-col items-center gap-3 pt-4">
+                {moreError && (
+                  <p
+                    role="alert"
+                    className="text-center text-14 text-theme-text-secondary"
+                  >
+                    {t("share.loadFailed")}
+                  </p>
+                )}
+                {loadingMore && (
+                  <span role="status" className="sr-only">
+                    {t("common.loading")}
+                  </span>
+                )}
+                <Button size="lg" onClick={loadMore} loading={loadingMore}>
+                  {moreError ? t("common.retry") : t("share.loadMore")}
+                </Button>
+              </div>
+            )}
+          </div>
 
           {manifest.sessions.length === 0 ? (
             <div className="text-center py-16 text-theme-text-secondary">
@@ -341,7 +356,7 @@ export function SharedProjectPage({
             href={GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-theme-text transition-colors"
+            className="inline-flex min-h-11 items-center rounded hover:text-theme-text transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--theme-ring)]"
           >
             GitHub
           </a>
@@ -352,6 +367,7 @@ export function SharedProjectPage({
 }
 
 function SessionMessages({ content }: { content: SharedContentResponse }) {
+  const { t } = useTranslation();
   const messages = useMemo(() => {
     if (!content?.events) return [];
     return reconstructMessagesFromEvents(content.events, new Set(), {
@@ -362,7 +378,7 @@ function SessionMessages({ content }: { content: SharedContentResponse }) {
   if (messages.length === 0) {
     return (
       <p className="text-center text-theme-text-secondary py-6 text-14">
-        暂无消息
+        {t("share.noMessages")}
       </p>
     );
   }
@@ -370,14 +386,18 @@ function SessionMessages({ content }: { content: SharedContentResponse }) {
   return (
     <Suspense
       fallback={
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-theme-text-secondary" />
+        <div
+          role="status"
+          className="flex items-center justify-center gap-2 py-6 text-14 text-theme-text-secondary"
+        >
+          <LoadingSpinner size="sm" color="text-theme-text-secondary" />
+          {t("common.loading")}
         </div>
       }
     >
       <div className="space-y-2">
         {messages.map((message, index) => (
-          <div key={message.id} className="animate-in fade-in">
+          <div key={message.id}>
             <ChatMessage
               message={message}
               sessionId={content.session.id}

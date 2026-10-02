@@ -44,9 +44,9 @@ test("not found page headline uses font-serif like error boundary", () => {
   expect(source).toMatch(/<h1\b[^>]*className="[^"]*\bfont-serif\b/);
 });
 
-test("shared project error headline uses font-serif like shared page", () => {
-  const source = readComponent("share/SharedProjectPage.tsx");
-  expect(source).toMatch(/<h1 className="text-20 font-semibold font-serif/);
+test("shared entry error headline uses font-serif like shared page", () => {
+  const source = readComponent("share/SharedEntry.tsx");
+  expect(source).toMatch(/<h1\b[^>]*className="[^"]*\bfont-serif\b/);
 });
 
 test("cad preview phase heading uses font-serif like its idle heading", () => {
