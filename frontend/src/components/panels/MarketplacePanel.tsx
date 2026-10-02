@@ -61,13 +61,14 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
     previewSkill,
     previewFiles,
     previewLoading,
+    previewError,
+    previewFileErrors,
     previewFileContent,
     previewBinaryFiles,
     previewFileLoading,
     openPreview,
     readPreviewFile,
     closePreview,
-    setPreviewFileContent,
   } = useMarketplace();
 
   const { page, pageSize, setPage, slice } = useClientPagination({
@@ -456,15 +457,18 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
       {/* Skill Preview Modal */}
       {previewSkill && (
         <SkillPreviewModal
+          key={previewSkill.skill_name}
           previewSkill={previewSkill}
           previewFiles={previewFiles}
           previewLoading={previewLoading}
+          previewError={previewError}
+          previewFileErrors={previewFileErrors}
           previewFileContent={previewFileContent}
           previewBinaryFiles={previewBinaryFiles}
           previewFileLoading={previewFileLoading}
           onClose={closePreview}
           onReadFile={readPreviewFile}
-          onSetFileContent={setPreviewFileContent}
+          onRetryFiles={() => openPreview(previewSkill)}
         />
       )}
 

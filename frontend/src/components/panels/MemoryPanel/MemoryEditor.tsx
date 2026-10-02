@@ -1,4 +1,4 @@
-import { useState, useEffect, useId } from "react";
+import { useState, useRef, useId, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Pencil, Save } from "lucide-react";
 import toast from "react-hot-toast";
@@ -11,6 +11,9 @@ import {
   Textarea,
 } from "../../common";
 import { memoryApi, type MemoryItem } from "../../../services/api/memory";
+import { Loading } from "../../common/LoadingSpinner";
+import { ConfigPanelErrorCallout } from "../ConfigPanelErrorCallout";
+import { useMemoryContent } from "./useMemoryContent";
 import {
   TYPE_OPTIONS_LIST,
   TYPE_STYLES,
@@ -36,43 +39,38 @@ export function MemoryEditor({
   const isEdit = !!memory;
 
   const [title, setTitle] = useState(memory?.title ?? "");
-  const [content, setContent] = useState(memory?.content ?? "");
-  const [summary, setSummary] = useState(memory?.summary ?? "");
+  const [contentDraft, setContent] = useState<string | null>(null);
+  const [summaryDraft, setSummary] = useState<string | null>(null);
   const [memoryType, setMemoryType] = useState(memory?.memory_type ?? "user");
   const [source, setSource] = useState(memory?.source ?? "manual");
   const [tagsInput, setTagsInput] = useState(memory?.tags?.join(", ") ?? "");
   const [saving, setSaving] = useState(false);
-  const [loadingContent, setLoadingContent] = useState(
-    isEdit && !!memory?.has_full_content,
-  );
-  const typeStyle = TYPE_STYLES[memoryType] ?? TYPE_STYLES.user;
-  const sourceStyle = SOURCE_STYLES[source] ?? SOURCE_STYLES.manual;
-
+  const [saveError, setSaveError] = useState(false);
+  const {
+    full,
+    loading: loadingContent,
+    error: loadError,
+    retry,
+  } = useMemoryContent(memory);
+  const content = contentDraft ?? full?.content ?? "";
+  const summary = summaryDraft ?? full?.summary ?? memory?.summary ?? "";
+  const contentRef = useRef<HTMLDivElement>(null);
+  const mounted = useRef(true);
   useEffect(() => {
-    if (!memory?.has_full_content) return;
-    let cancelled = false;
-    memoryApi
-      .get(memory.memory_id)
-      .then((full) => {
-        if (!cancelled) {
-          setContent(full.content);
-          setSummary(full.summary ?? full.content);
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoadingContent(false);
-      });
+    mounted.current = true;
     return () => {
-      cancelled = true;
+      mounted.current = false;
     };
-  }, [memory]);
+  }, []);
 
   const handleSave = async () => {
+    if (saving || loadingContent || loadError) return;
     if (!content.trim() || content.trim().length < 5) {
       toast.error(t("memory.contentRequired"));
       return;
     }
+    contentRef.current?.focus({ preventScroll: true });
+    setSaveError(false);
     setSaving(true);
     try {
       const tags = tagsInput
@@ -101,11 +99,11 @@ export function MemoryEditor({
         toast.success(t("memory.createSuccess"));
       }
       onSaved();
-      onClose();
+      if (mounted.current) onClose();
     } catch {
-      toast.error(t("memory.saveError"));
+      if (mounted.current) setSaveError(true);
     } finally {
-      setSaving(false);
+      if (mounted.current) setSaving(false);
     }
   };
 
@@ -114,54 +112,36 @@ export function MemoryEditor({
       open={true}
       onClose={onClose}
       title={isEdit ? t("memory.editTitle") : t("memory.createTitle")}
-      subtitle={
-        isEdit ? (
-          <>
-            <span
-              className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-10 font-medium leading-none ${typeStyle}`}
-            >
-              <span
-                className={`h-1 w-1 rounded-full ${
-                  TYPE_DOTS[memoryType] ?? TYPE_DOTS.user
-                }`}
-              />
-              {t(`memory.type.${memoryType}`)}
-            </span>
-            <span
-              className={`ml-1 inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-10 font-medium ${sourceStyle}`}
-            >
-              <span
-                className={`h-1 w-1 rounded-full ${
-                  SOURCE_DOTS[source] ?? SOURCE_DOTS.manual
-                }`}
-              />
-              {t(`memory.source.${source}`, source)}
-            </span>
-            <span className="ml-1.5 text-10 text-theme-text-secondary">
-              {relativeTime(memory?.updated_at ?? null)}
-            </span>
-          </>
-        ) : undefined
-      }
       icon={isEdit ? <Pencil size={16} /> : <Plus size={16} />}
       footer={
-        <PanelFooterActions align="between">
-          <Button onClick={onClose}>{t("common.cancel")}</Button>
-          <span className="panel-footer-actions__spacer" />
-          <Button
-            variant="primary"
-            onClick={handleSave}
-            disabled={saving || loadingContent}
-            leftIcon={
-              <Save size={14} className={saving ? "animate-pulse" : ""} />
-            }
-          >
-            {saving ? t("memory.saving") : t("common.save")}
-          </Button>
-        </PanelFooterActions>
+        <div className="flex flex-col gap-3">
+          {saveError && (
+            <ConfigPanelErrorCallout message={t("memory.saveError")} />
+          )}
+          <PanelFooterActions align="between">
+            <Button onClick={onClose}>{t("common.cancel")}</Button>
+            <span className="panel-footer-actions__spacer" />
+            <Button
+              variant="primary"
+              onClick={handleSave}
+              disabled={saving || loadingContent || loadError}
+              loading={saving}
+              leftIcon={<Save size={14} />}
+            >
+              {saving
+                ? t("memory.saving")
+                : saveError
+                  ? t("common.retry")
+                  : t("common.save")}
+            </Button>
+          </PanelFooterActions>
+        </div>
       }
     >
-      <div className="es-form">
+      <fieldset disabled={saving} className="es-form min-w-0">
+        {memory?.updated_at && (
+          <p className="es-hint">{relativeTime(memory.updated_at)}</p>
+        )}
         <div className="es-section">
           <FormField
             label={t("memory.titleLabel")}
@@ -188,6 +168,7 @@ export function MemoryEditor({
               id={`${formId}-summary`}
               type="text"
               value={summary}
+              disabled={loadingContent || loadError || saving}
               onChange={(e) => setSummary(e.target.value)}
               placeholder={t("memory.summaryPlaceholder")}
               className="es-input"
@@ -262,36 +243,40 @@ export function MemoryEditor({
           )}
         </div>
 
-        <div className="es-section">
+        <div
+          ref={contentRef}
+          tabIndex={-1}
+          className="es-section focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+        >
           <label htmlFor={`${formId}-content`} className="es-label">
             {t("memory.contentLabel")}
           </label>
           {loadingContent ? (
-            <div className="flex min-h-48 items-center justify-center rounded-lg border border-dashed border-[var(--glass-border)] bg-[var(--glass-bg-subtle)]">
-              <svg
-                className="h-5 w-5 animate-spin text-theme-text-secondary"
-                viewBox="0 0 24 24"
-                fill="none"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
-              </svg>
+            <div
+              role="status"
+              className="flex min-h-48 items-center justify-center"
+            >
+              <Loading text={t("common.loading")} size="sm" />
             </div>
+          ) : loadError ? (
+            <>
+              <ConfigPanelErrorCallout message={t("common.loadFailed")} />
+              <Button
+                size="lg"
+                className="self-start"
+                onClick={() => {
+                  contentRef.current?.focus();
+                  retry();
+                }}
+              >
+                {t("common.retry")}
+              </Button>
+            </>
           ) : (
             <Textarea
               id={`${formId}-content`}
               value={content}
+              disabled={saving}
               onChange={(e) => setContent(e.target.value)}
               placeholder={t("memory.contentPlaceholder")}
               className="es-textarea min-h-48"
@@ -328,7 +313,7 @@ export function MemoryEditor({
             </div>
           )}
         </FormField>
-      </div>
+      </fieldset>
     </EditorSidebar>
   );
 }

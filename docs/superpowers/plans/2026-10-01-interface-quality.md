@@ -677,3 +677,56 @@ TDD本批新增8项：1项payload回归、5项实际SkillForm/useSkillsActions�
 补充原生商店走查：390浅色直接读取商店全文件并打开图片，普通/全屏均无错误的上传入口；全屏已有图片可预览、download44px、overflow0（skill-binary-08-390-light-marketplace-final）。预览先遇到缺少商店详情GET的fixture404，补齐纯读取样例后重新实测；未将此fixture缺失记为生产读取故障。商店保存没有模拟成功或真实发布。
 
 最终生产修改后的门禁：pnpm test 765文件/3705项通过；pnpm run lint零错误零警告；pnpm run build含tsc/Vite/PWA/预算通过，eager JS559136/561152 bytes，precache5017360/5242880 bytes，91 entries，保留既有chunk-size提示。本批未修改预算；origin/develop rebase后既有预算上限为561152。全量中一次与本批无关的SearchDialog legacy IME断言失败，相关文件单独重跑及最终全量均通过；未改该实现、不声称修复此瞬态异常。diff --check通过，最后只读复核无确定P1/P2。最后门禁后仅文档与临时预览清理。
+
+### 当前执行：技能媒体预览失败恢复
+
+开工 fetch origin 完成，当前 HEAD 已包含最新 origin/develop。先以公开资产构造无法解码的本机临时图片、视频和音频，在真实 SkillForm 普通/全屏入口复现：失败图片仅显示文件名，视频剩不可用原生播放器，没有重试。所有文件仅进入临时表单草稿，未提交、上传或保存真实技能。
+
+BinaryFilePreview 的图片、视频、音频失败统一复用 SkillFileLoadState，使用已有五语错误和 Retry；同 URL 重试重新创建媒体元素，换文件清理失败、图片加载和查看器状态。重试前聚焦稳定内容容器，媒体失败时保留已有区域内的焦点；焦点环使用主题 token。图片直接复用 ImageWithSkeleton 的加载状态，删除第二套 spinner；视频使用原生加载/播放控件，支持 playsInline，去掉渐变、阴影和自定义透明度等待。长 MIME 元数据截断。通用下载复用 Button，type=button 避免提交父表单。
+
+四项新增行为测试先 RED 后 GREEN：图片、视频、音频失败提示、同 URL 重试元素替换/焦点、切换另一文件及返回的状态清理（三项参数化测试）；通用下载确实触发下载而不提交技能表单。独立复核发现商店独立 ModalSurface 不受技能表单的触控兜底保护，min-h-11 会被共享 md 样式覆盖；下载与 SkillFileLoadState Retry 改为共享 size=lg，直接保证44px。最终只读增量复核无确定 P1/P2。
+
+原生 IAB 使用独立3017：390深色记录普通与全屏视频失败基线（skill-media-01/02）；320×568深色图片、视频、音频错误均明确显示 Retry（03/04/05），下载44×44px，最终Retry高44px、宽68.6px，整页横向溢出0。Enter 重试后 focus=DIV 且 connected，无法解码的样例仍显示失败，未伪称重试成功。切换已有公开图标可正常预览/打开 ImageViewer，关闭归还图片按钮焦点。已有本机 MDN flower.webm 样例 readyState4/duration5.059，320下 Space 实际 paused=false/time前进，原生播放控件可用（06）。1440×900浅色通用下载 type=button、高44px、overflow0（07）；390×844浅色 Enter Retry 后同样保留稳定焦点、高44px、overflow0（08）。截图在仓库外 interface-quality，04/07/08 为最终尺寸修复后的证据；03/05 是中间尺寸版本。viewport已reset，临时tab/预览进程清理，用户3002页面和输入保持。
+
+八项自检：保留既有文件标题/等宽路径/元数据字号；图片只保留单套加载层、媒体维持阅读空间；标题、格式、内容及错误恢复层级明确；沿用深浅主题与既有错误色；删除自定义视频动效，无新增动画，既有 skeleton reduced-motion 规则保留；原生播放键盘、图片关闭焦点、Retry稳定焦点和表单下载语义有实测/测试；320/390/1440实际布局和44px按钮覆盖；复用既有插画、primitive及浏览器媒体控件，无新依赖或视觉体系。Impeccable按此前不可用环境的 DESIGN.md 清单人工检查。
+
+最后生产调整后门禁：pnpm test 765文件/3709项通过；lint零错误零警告；build含tsc/Vite/PWA/预算通过，eager JS559147/561152 bytes、precache5017396/5242880 bytes、91 entries，未提高预算，保留既有chunk-size提示。diff --check通过。真实存储写入、所有媒体格式、音频成功播放、移动系统全屏与真机软键盘/触屏仍待验；这批不扩大既有搜索功能，也不据此宣告全部界面完成。
+
+### 当前执行：商店详情与文件预览
+
+fetch/rebase 最新 origin/develop（6f10c1af）后继续。390深色只读 fixture 首次文件 GET 503，真实 SkillPreviewModal 显示空白编辑器，关闭仅28×28px，独立 modal 没有可读名称（marketplace-preview-01）。文件清单失败也被当作无文件；hook 的单一 loading path 和无请求归属会让迟到响应污染其它技能或清除其它文件加载状态。
+
+useMarketplace 为每次详情使用独立 session 对象，关闭、重开、换技能和卸载均失效旧请求；每文件 Map 请求与 Set loading 防重复读取并保持并发状态。清单/文件失败显示已有五语错误，Retry 可恢复；空文本以 undefined 区分已加载与未加载，不反复请求。SkillPreviewModal 复用 SkillFileLoadState、Button 和 ToolbarIconButton，预览以完整路径命名，手机关闭44px、桌面32px。列表和文件重试先 focus 稳定容器；父层按技能名 key 重置当前文件。删除不再使用的外部缓存 setter prop/导出，避免绕过请求归属。
+
+追踪渲染发现 EditorSidebar 不使用 subtitle，原版本与说明实际未显示。将既有元数据移至正文，版本12px、说明13px；短说明完整显示，长说明可展开/收起并有 aria-expanded。独立复核指出79个中文字符在320px也可能超过三行却无展开入口，改为同一 hasLongDescription 同时控制三行限制与展开入口，不再截断无恢复入口的短说明。未新设颜色/字体/间距体系或新增文案。
+
+6项实际 hook+modal 集成测试均看到关键 RED 再 GREEN：清单失败重试；文件失败重试与空文本缓存；旧技能清单迟到隔离；一个文件完成不清除另一 pending；关闭后旧文件不污染新技能；版本与说明可见。外部 API 模拟，真实 EditorSidebar/ModalSurface/CodeMirror 保留。原有 source 测试和商店编辑保存回归同时通过。最后只读复核关闭说明截断 P2，无本批剩余确定 P1/P2；不将源码审查当作真机证明。
+
+原生 IAB 独立3017：390深色首次读取失败明确错误、Retry/close均44px、dialog名SKILL.md、overflow0（02）；Enter Retry 正文恢复，focus=DIV/connected，Escape关闭回SKILL.md文件按钮（03）。320×568浅色清单失败与44pxRetry（04），Retry后列表恢复且焦点在稳定正文；独立二进制modal加载公开图标，关闭/下载均44px，路径名称正确。320浅色最终详情显示版本、完整短说明、标签、文件列表（05）。1440×900浅色侧栏与独立文件预览同时可读，close32px、dialog名SKILL.md、overflow0（06）。截图在仓库外 interface-quality；02/03/04早于元数据补回，预览恢复/尺寸逻辑未改变，05/06是元数据最终布局。HMR重载不当作运行时状态保持证据。
+
+八项自检：既有标题/等宽路径/版本与正文尺度；详情恢复必要说明留白，预览动作保留紧凑比例；元数据→标签→文件→读取状态层级清楚；深浅色和错误/焦点主题token；无新增动效，既有加载组件保留 reduced-motion；原生关闭/Retry焦点、可读名称、aria-expanded和并发归属；320/390/1440实测无本批横向溢出、手机44px；复用产品既有组件与插画，无新依赖或生产资产。Impeccable按此前不可用环境的 DESIGN.md 清单人工检查。
+
+fixture 新增仅 GET 的 marketplace-files/marketplace-file 首次503并Retry恢复，其它写仍405；未安装、发布或写真实技能。最终修改后门禁：766文件/3715测试通过；lint零错误零警告；build含tsc/Vite/PWA/预算通过，eager JS559137/561152 bytes、precache5017396/5242880 bytes、91 entries，未提高预算，保留既有chunk-size提示。diff --check通过，最后门禁后仅文档/原生走查/预览清理。
+
+继续检查其它侧栏元数据调用、剩余界面/语言组合、真机和真实服务边界。整体目标保持进行中；本批不声称全界面或真实安装/发布端到端完成。
+
+## 2026-10-02 记忆详情与编辑器完整内容恢复
+
+- [x] 详情与编辑器共用同一全文读取状态：列表的 `has_full_content` 表示内容另存，GET失败不再显示片段或恢复保存；持续错误可重试，loading有status文字。
+- [x] 重试聚焦稳定内容容器，完整内容与摘要读取成功后才能编辑；用户修改的标题、类型、来源与标签保留。切换卡片按memory_id重建草稿，旧读取取消，旧保存不能关闭新编辑器。
+- [x] 保存期间冻结字段，使用共享Button loading；失败在固定footer保留错误和Retry，不重复toast，不丢草稿。
+- [x] 详情类型、来源、时间、访问与标签集中为元信息组，删除额外margin与正文卡片边框；长元信息、标签和正文支持换行。编辑更新时间移到正文，保留单个tab标题，不恢复被忽略的subtitle重复header。
+
+开工fetch/rebase确认origin/develop35af6aff，当前隔离分支基线8bb24f26；未动主checkout未提交内容。沿用Loading、ConfigPanelErrorCallout、Button、主题token与五语已有键，无新依赖、生产资产或翻译键。仅增加两处实际全文调用共享的本地hook，不另建读取/搜索引擎。
+
+六项真实组件行为均见RED→GREEN：全文失败不伪成功并Retry；编辑器失败不可保存、Retry保留标题并提交全文；详情切换隔离；卡片编辑切换隔离；pending保存冻结草稿且迟到成功不关闭新编辑器；失败保存持续提示并重试同一payload。保留真实EditorSidebar/表单，API调用模拟。记忆目标5文件12项通过，独立两次只读复核未发现确定P1/P2。
+
+原生IAB独立3017：390深色GET首次503后明确错误，Retry44px，页面overflow0；Retry实际200恢复完整正文及长URL，focus=DIV/connected、overflow0。320×568浅色编辑器失败时Save禁用，Retry后全文恢复、已修改标题保留、focus=DIV/connected、overflow0。1440×900浅色详情侧栏489.59px，正文长URL换行、overflow0，关闭回原卡片标题。320深色延迟全文读取实际status与Save禁用；在只读fixture尝试保存得到405，保存中fieldset禁用、focus保持，失败后底部error/Retry持续可见，字段与全文保留、overflow0。未点击真实API保存，浏览器中的成功保存未验证。
+
+截图位于仓库外interface-quality：memory-detail-390-dark-before、memory-detail-390-dark-failure-before为基线；memory-detail-390-dark-error-final、memory-detail-390-dark-recovered-final、memory-editor-320-light-error-final、memory-editor-320-light-recovered-final、memory-detail-1440-light-final、memory-editor-320-dark-loading-content-final、memory-editor-320-dark-save-error-final。前面读状态截图早于底部保存错误补充，读取与排版未再改变；最后save-error为最终实现。
+
+八项自检：沿用既有标题/表单/正文尺度；收整元信息留白且保留20px独立分组；tab→元信息→正文→固定操作层级；既有深浅色和error/focus token；无新增动效，使用既有reduced-motion加载样式并移除保存pulse；可读status/error、Retry焦点及旧响应隔离；实际320/390/1440无本批溢出、手机操作44px；沿用LambChat视觉语言和原生字段，不增加装饰或资产。Impeccable仍按此前不可用环境的DESIGN.md清单人工检查。
+
+最后生产修改后的门禁：767文件/3721项测试通过，lint零错误零警告；build含tsc/Vite/PWA/预算通过，eager JS559147/561152 bytes、precache5017375/5242880 bytes、91 entries。没有提高预算，保留既有chunk-size提示。git diff --check通过；门禁之后只补文档和原生证据，不再次重复已通过的检查。
+
+继续检查Persona/Role侧栏有意义元信息、源码长行、其它表单与剩余语言/界面组合；真实存储、服务对话、触屏与软键盘待验。整体目标保持进行中，不以本批截图或门禁宣告全部界面完成。
