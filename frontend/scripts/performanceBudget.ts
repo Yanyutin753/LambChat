@@ -155,11 +155,10 @@ export function combinePrecacheBudgetEntries(
   });
 }
 
-// 546KB：品牌公开页刷新（#717）新增 auth 品牌标题五语文案，并与 #716
-// 品牌布局改回合流后 gzip 合计增长约 150B；同内容不同构建环境 gzip 抖动
-// 实测 ±13B，544KB 门限下合并树构建 557060B 超限。沿既有 2KB 阶梯上调，
-// 不放宽 5MB 预缓存门限；文案仍在既有路由懒加载边界内。
-export const EAGER_JAVASCRIPT_BUDGET_BYTES = 546 * 1024;
+// 548KB：代码查找功能（interface-quality 批次）引入 @codemirror/search
+// 6.7.0，随 CodeMirror 查看器进入首屏 eager 边界，实测 559128B（超 546KB
+// 门限 24B）。沿既有 2KB 阶梯上调，不放宽 5MB 预缓存门限。
+export const EAGER_JAVASCRIPT_BUDGET_BYTES = 548 * 1024;
 export const PRECACHE_BUDGET_BYTES = 5 * 1024 * 1024;
 export const PRECACHE_ADDITIONAL_ENTRIES: PrecacheEntry[] = [];
 

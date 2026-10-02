@@ -1,4 +1,4 @@
-import { topmostVisibleModalDialog } from "../utils/modalDialog";
+import { topmostVisibleDialog } from "../utils/modalDialog";
 import {
   useCallback,
   useEffect,
@@ -308,7 +308,9 @@ export function useSidebarPanel({
         event.keyCode === 229
       )
         return;
-      const topDialog = topmostVisibleModalDialog();
+      // Layer ownership must consider every visible dialog — update popovers
+      // and mobile drawers use role="dialog" without aria-modal.
+      const topDialog = topmostVisibleDialog();
       if (topDialog && !topDialog.contains(panelRef.current)) return;
       if (event.key === "Escape") {
         event.preventDefault();
