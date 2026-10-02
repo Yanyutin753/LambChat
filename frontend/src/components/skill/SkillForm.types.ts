@@ -36,6 +36,8 @@ export interface SkillFormActions {
   activeFileIndex: number;
   binaryFiles: Record<string, BinaryFileInfo>;
   loadingFilePath: string | null; // kept for backwards compat in form views
+  fileLoadError?: string;
+  isCurrentFileLoaded: boolean;
   setName: (v: string) => void;
   setDescription: (v: string) => void;
   setEnabled: (v: boolean) => void;

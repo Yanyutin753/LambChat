@@ -636,3 +636,22 @@ TDD新增3项真实Markdown/CodeMirror行为测试：工具栏语言与搜索/�
 最终生产修改后门禁：pnpm test 760文件/3686项全部通过；pnpm run lint零错误零警告；pnpm run build含tsc/Vite/PWA/预算通过，eager JS559075/559104 bytes、precache5017021/5242880 bytes、91 entries，未提高预算，保留既有chunk-size提示。中途全量出现一次Mermaid fullscreen复制用例初始化颜色异常，相关用例随后通过，最终全量也全部通过；未改Mermaid，不声称修复该瞬态异常。最后门禁后仅文档与原生检查，无生产代码变化。
 
 继续：技能懒加载错误/竞态、二进制保存恢复、未覆盖界面、真机与真实写入/对话。整体目标保持进行中，不以本批搜索截图称全部界面无明显提升空间。
+
+### 当前执行：技能文件读取与草稿恢复
+
+- [x] 普通与全屏文件读取失败持续显示已翻译的错误与重试，避免空白可编辑内容冒充读取成功。两视图共享 SkillFileLoadState，复用 LoadingSpinner、ConfigPanelErrorCallout 和 Button。
+- [x] 请求按唯一文件路径回写；Map中的请求Symbol隔离旧技能、删除文件及后续请求，活动文件loading从Set派生。未读取成功的文件路径保持禁用。
+- [x] 重试先聚焦稳定form，加载及恢复后不会落BODY；描述等元数据保留。文件路径与已有路径冲突时立即保留原路径和草稿，错误关联原生输入字段。
+- [x] 删除或改名未命名草稿时，只清理没有剩余条目使用的loaded marker；连续新增两个草稿再删除一个，其余仍可命名并进入保存payload。
+
+走查步骤与证据：①390深色进入普通编辑器，文件操作和固定底部清晰（skill-file-01-390-dark-before）；②同宽全屏文件首次503显示空白可编辑正文且无重试，确定静默失败（skill-file-02-390-dark-failure-before）；③修后390深色和320浅色明确显示路径、错误与44px重试（skill-file-03-390-dark-error-final、skill-file-04-320-light-error-final）；④320浅色Enter重试成功，focus=FORM且connected，退出后描述草稿仍在（skill-file-05-320-light-recovered-final）；⑤320浅色新增两个草稿、移除一项后成功命名new.md，同名b.md被拒绝，原路径不变、aria-invalid=true、aria-describedby指向错误（skill-file-06-320-light-path-final）；⑥1440浅色b.md首次读取失败，文件树与重试可用；768浅色Enter重试恢复，focus=FORM（skill-file-07-1440-light-error-final、skill-file-08-768-light-recovered-final）。实际上述视口无本批整页横向溢出。
+
+TDD最终新增6项真实SkillForm/CodeMirror行为测试：失败恢复普通/全屏两项、移除其他文件后响应归属、旧技能响应隔离、同名路径即时拒绝并保留两个文件正文、未命名草稿删除后命名及两文件进入payload。前三类四测试先RED后GREEN；独立审查的Retry焦点、非空同名路径共享状态、空路径loaded marker三项P2均有明确RED再修，最终只读复核无剩余确定P1/P2。中间试用原条目对象回写使换技能初始化拿到旧条目，原测试失败后收敛为路径唯一性约束；不保留这套身份实现。
+
+八项自检：沿用等宽路径和正文、既有字号；普通编辑阅读留白保持，错误区域有足够空间；路径/错误/恢复动作层级清楚；深浅色沿用主题与错误token，复用五语files.loadFailed/common.retry/common.loading/duplicateFilePaths，无新增文案；加载复用已有spinner及reduced-motion规则，未增装饰动画，OS偏好未实测；键盘重试焦点、字段错误关联、草稿与响应隔离实测/测试；320/390/768/1440布局覆盖，手机重试44px；保持LambChat既有语言，无新依赖或生产图片。Impeccable按此前确认不可用环境的DESIGN.md清单人工检查。
+
+fixture在独立3017预览进程，file-flow=1提供三个文本文件，failure=skill-file每路径首次GET失败、Retry恢复；其余写请求仍405。上述新增/删除/改名仅表单本地草稿，没有保存真实技能；onSave payload通过组件测试验证。HMR更新代码期间会重载整个演示页，检查阶段重新定位，不将开发热更新作为运行时草稿保持证据。用户3002预览及其输入未操作。截图均在仓库外interface-quality目录；此阶段不证明真实并发服务、二进制上传保存、认证或真机触屏/软键盘成功。
+
+继续：二进制预览/保存及部分失败恢复、剩余界面/语言组合、真机与真实服务写入。整体目标保持进行中；本批文件读取缺陷关闭，不据此宣告全界面完成。
+
+最终生产修改后门禁：pnpm test 761文件/3692项全部通过；pnpm run lint零错误零警告；pnpm run build含tsc/Vite/PWA/预算通过，eager JS559076/559104 bytes、precache5017048/5242880 bytes、91 entries，未提高预算，保留既有chunk-size提示。此前lint的一项effect cleanup ref警告改为捕获该次effect的requests变量后重跑全部门禁通过。git diff --check通过。最后独立只读复核无确定P1/P2，未重复门禁。仅文档/预览清理留在最后门禁之后。

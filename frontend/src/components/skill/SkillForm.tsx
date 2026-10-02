@@ -66,13 +66,18 @@ export function SkillForm({
   const [pendingBinaryFiles, setPendingBinaryFiles] = useState<
     Record<string, File>
   >({});
-  const [loadingFilePath, setLoadingFilePath] = useState<string | null>(null);
+  const [loadingFilePaths, setLoadingFilePaths] = useState<Set<string>>(
+    new Set(),
+  );
+  const [fileLoadErrors, setFileLoadErrors] = useState<Record<string, string>>(
+    {},
+  );
   const binaryFileInputRef = useRef<HTMLInputElement>(null);
 
   // Track which file paths have been loaded
   const loadedFilePaths = useRef<Set<string>>(new Set());
   // Track which file paths are currently being loaded (prevent concurrent loads of same file)
-  const loadingPaths = useRef<Set<string>>(new Set());
+  const loadingPaths = useRef<Map<string, symbol>>(new Map());
 
   const toggleFullscreen = useCallback(
     (fs: boolean) => {
@@ -85,7 +90,11 @@ export function SkillForm({
   // Initialize files from skill prop
   useEffect(() => {
     loadedFilePaths.current = new Set();
-    loadingPaths.current = new Set();
+    const requests = loadingPaths.current;
+    requests.clear();
+    setLoadingFilePaths(new Set());
+    setFileLoadErrors({});
+    setActiveFileIndex(0);
     setBinaryFiles({});
     setPendingBinaryFiles({});
 
@@ -125,6 +134,7 @@ export function SkillForm({
     if (skill?.binaryFiles) {
       setBinaryFiles(skill.binaryFiles);
     }
+    return () => requests.clear();
   }, [skill]);
 
   // Reset form fields when skill changes
@@ -170,12 +180,19 @@ export function SkillForm({
       const filePath = file.path;
       // Prevent duplicate concurrent loads of the same file
       if (loadingPaths.current.has(filePath)) return;
-      loadingPaths.current.add(filePath);
-      setLoadingFilePath(filePath);
+      const request = Symbol(filePath);
+      loadingPaths.current.set(filePath, request);
+      setLoadingFilePaths(new Set(loadingPaths.current.keys()));
+      setFileLoadErrors((prev) => {
+        const next = { ...prev };
+        delete next[filePath];
+        return next;
+      });
 
       skillApi
         .getFile(skill.name, filePath)
         .then((fileResp) => {
+          if (loadingPaths.current.get(filePath) !== request) return;
           if (fileResp.is_binary && fileResp.url) {
             // Binary file: store metadata
             setBinaryFiles((prev) => ({
@@ -187,8 +204,8 @@ export function SkillForm({
               },
             }));
             setFiles((prev) =>
-              prev.map((f, i) =>
-                i === index
+              prev.map((f) =>
+                f.path === filePath
                   ? {
                       ...f,
                       content: `[Binary: ${fileResp.mime_type}, ${(
@@ -200,39 +217,41 @@ export function SkillForm({
             );
           } else {
             setFiles((prev) =>
-              prev.map((f, i) =>
-                i === index ? { ...f, content: fileResp.content } : f,
+              prev.map((f) =>
+                f.path === filePath ? { ...f, content: fileResp.content } : f,
               ),
             );
           }
           loadedFilePaths.current.add(filePath);
         })
         .catch(() => {
-          // Failed to load file content
+          if (loadingPaths.current.get(filePath) !== request) return;
+          setFileLoadErrors((prev) => ({
+            ...prev,
+            [filePath]: t("files.loadFailed"),
+          }));
         })
         .finally(() => {
+          if (loadingPaths.current.get(filePath) !== request) return;
           loadingPaths.current.delete(filePath);
-          // Only clear loading state if this was the last loading file
-          if (loadingPaths.current.size === 0) {
-            setLoadingFilePath(null);
-          } else {
-            // Update to show whichever file is still loading
-            const remaining = Array.from(loadingPaths.current);
-            setLoadingFilePath(remaining[remaining.length - 1]);
-          }
+          setLoadingFilePaths(new Set(loadingPaths.current.keys()));
         });
     },
-    [skill?.name, files],
+    [skill?.name, files, t],
   );
 
   // Auto-load SKILL.md on mount
   useEffect(() => {
     if (!skill?.name || !skill?.filePaths) return;
     const skillMdIndex = files.findIndex((f) => f.path === "SKILL.md");
-    if (skillMdIndex >= 0 && !loadedFilePaths.current.has("SKILL.md")) {
+    if (
+      skillMdIndex >= 0 &&
+      !loadedFilePaths.current.has("SKILL.md") &&
+      !fileLoadErrors["SKILL.md"]
+    ) {
       loadFileContent(skillMdIndex);
     }
-  }, [files, skill?.name, skill?.filePaths, loadFileContent]);
+  }, [files, skill?.name, skill?.filePaths, loadFileContent, fileLoadErrors]);
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -334,7 +353,16 @@ export function SkillForm({
     const next = files.filter((_, i) => i !== index);
     setFiles(next);
     focusAfterRemoval.current = true;
-    loadedFilePaths.current.delete(removedPath);
+    if (!next.some((file) => file.path === removedPath)) {
+      loadedFilePaths.current.delete(removedPath);
+    }
+    loadingPaths.current.delete(removedPath);
+    setLoadingFilePaths(new Set(loadingPaths.current.keys()));
+    setFileLoadErrors((prev) => {
+      const next = { ...prev };
+      delete next[removedPath];
+      return next;
+    });
     // Clean up pending binary entry and revoke preview URL
     setPendingBinaryFiles((prev) => {
       const next = { ...prev };
@@ -354,15 +382,37 @@ export function SkillForm({
   };
 
   const updateFilePath = (index: number, path: string) => {
+    if (
+      path.trim() &&
+      files.some((file, i) => i !== index && file.path.trim() === path.trim())
+    ) {
+      setErrors((prev) => ({
+        ...prev,
+        files: t("skills.form.validation.duplicateFilePaths"),
+      }));
+      return;
+    }
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next.files;
+      return next;
+    });
     const next = [...files];
     const previousPath = next[index]?.path;
+    if (
+      previousPath !== undefined &&
+      !loadedFilePaths.current.has(previousPath)
+    )
+      return;
     next[index] = { ...next[index], path };
     setFiles(next);
     if (
       previousPath !== undefined &&
       loadedFilePaths.current.has(previousPath)
     ) {
-      loadedFilePaths.current.delete(previousPath);
+      if (!next.some((file) => file.path === previousPath)) {
+        loadedFilePaths.current.delete(previousPath);
+      }
       loadedFilePaths.current.add(path);
     }
   };
@@ -460,7 +510,13 @@ export function SkillForm({
     files,
     activeFileIndex,
     binaryFiles,
-    loadingFilePath,
+    loadingFilePath: loadingFilePaths.has(files[activeFileIndex]?.path)
+      ? files[activeFileIndex]?.path
+      : null,
+    fileLoadError: fileLoadErrors[files[activeFileIndex]?.path],
+    isCurrentFileLoaded: loadedFilePaths.current.has(
+      files[activeFileIndex]?.path,
+    ),
     setName,
     setDescription,
     setEnabled,
@@ -472,7 +528,10 @@ export function SkillForm({
     addFile,
     addBinaryFile,
     removeTag,
-    loadFileContent,
+    loadFileContent: (index: number) => {
+      formRef.current?.focus();
+      loadFileContent(index);
+    },
     handleSubmit,
     onCancel,
     toggleFullscreen,
@@ -484,7 +543,7 @@ export function SkillForm({
       role={isFullscreen ? "dialog" : undefined}
       aria-modal={isFullscreen ? true : undefined}
       aria-label={isFullscreen ? t("skills.form.fullscreenEditor") : undefined}
-      tabIndex={isFullscreen ? -1 : undefined}
+      tabIndex={-1}
       onSubmit={handleSubmit}
       className={
         isFullscreen
