@@ -766,3 +766,19 @@ IAB 3017：Persona 390 深浅色最终已选区 127px、不收缩、弹层 400px
 最终生产修改后门禁：771 文件 / 3748 项前端测试通过；lint 零错误零警告；build 含 tsc/Vite/PWA/预算通过，eager JavaScript 559140/561152 bytes，precache 5017684/5242880 bytes / 91 entries。未提高预算。最后 gate 后仅补文档及只读视觉证据。
 
 头像上传生命周期、Persona 保存请求归属与其余页面/状态/语言组合继续检查；整体目标保持进行中，不据本批门禁宣告所有界面完成。3017 已被用户采用，继续保留预览和用户标签页；原 3002 服务与用户草稿未操作。
+
+## 2026-10-02 角色编辑器头像、保存与失败恢复
+
+开工 fetch/rebase 确认最新 origin/develop 2bba3d15，基线 81a0fac3；继续隔离工作树并保留主 checkout。上轮文件搜索的补充复查确认标题工具栏和原生 CodeMirror 搜索已满足用户要求，未另建搜索 UI；相关15项测试重新通过。
+
+头像预览改为命名原生按钮，支持直接替换已有头像、键盘激活；合并重复移除分支，移除入口始终可见，手机44px。图片加载失败保留原头像值。使用已有 UploadHandle 在退出时中止，压缩及上传的迟到结果不得修改后来打开的草稿；上传等待期间阻止提交，失败在头像旁持续说明并可重试同一原文件。图标选择器在表单内展开，避免覆盖字段，原生选项可Tab操作、Escape只关闭本层并归还入口、IME不退出、移除也归还稳定入口。静态3D图标替代此编辑器的自动播放动画，沿用既有资源与主题。
+
+保存使用本会话等待与请求归属，阻止双重提交、冻结提交的字段、保留可聚焦容器及取消路径；返回null或抛错均显示既有错误组件与Retry，草稿保留。关闭重开同id及切换角色后，旧保存不关闭新编辑器。复核发现共享isMutating会冻结新稿，修复为只守卫并发提交，不误显示当前保存等待；真实usePersonaPresets集成测试涵盖旧mutation及后续列表GET两个等待阶段。没有改变API、权限或保存payload契约。13项新增行为测试与13项既有恢复测试通过；移除焦点和共享等待问题均先见RED再GREEN，独立复核无剩余确定P1/P2。
+
+独立3018只读/显式模拟fixture：390×844深色图标216×216、选项44px、Escape回入口；保存等待字段禁用、焦点保持在表单，首次503后修改名称和头像保留、底部错误/Retry可见，Retry模拟200后关闭。320×568浅色图标同样无溢出；已有机器人头像上传公开测试icon，等待Save禁用、焦点保持，503后原头像和错误保留，Retry同文件后模拟200恢复、移除回入口。1440×900浅色侧栏489.59px、图标184×184；834×1112浅色编辑器640px，图标184px；上述页面横向overflow0。未提交真实文件、修改真实角色、验证存储、权限写入、真机触屏或软键盘。截图位于仓库外interface-quality：persona-avatar-picker-390-dark-final、persona-save-390-dark-pending-final、persona-save-390-dark-error-final、persona-avatar-picker-320-light-final、persona-avatar-upload-320-light-pending-final、persona-avatar-upload-320-light-error-final、persona-avatar-upload-320-light-recovered-final、persona-avatar-picker-1440-light-final、persona-avatar-picker-834-light-final。测试文件热更新曾重载临时页面，该次错误截图不作为证据；最终截图在最后源码编辑和新query之后重放。
+
+八项自检：既有标签/字段字体与尺度；保留分组留白、删除隐藏移除入口与浮层遮挡；头像/草稿/固定页脚主次清楚；深浅色主题与错误/焦点token；静态资源和reduced-motion过渡；等待、失败、重试、取消、键盘与旧响应归属；实际手机/平板/桌面几何及44px操作；沿用LambChat组件和已有资源，无新依赖或额外视觉体系。沿用Impeccable不可用环境的DESIGN.md人工清单。
+
+最后生产修改后全量772文件/3761项前端测试通过，lint零错误零警告，build含tsc/Vite/PWA/性能预算通过；eager JavaScript 559142/561152 bytes、precache 5017930/5242880 bytes、91 entries。没有提高预算，保留既有chunk-size提示。门禁后只补文档与实际只读视觉证据。3017与用户页面保留；本轮临时3018服务和检查标签页回收，浏览器临时尺寸恢复。
+
+全界面目标继续进行；其它表单、弹层、长语言文案及剩余空/错/加载组合仍需继续核对，不能据本批测试与截图宣告整体完成。

@@ -1614,6 +1614,47 @@ const server = await createServer({
           const failureTarget = previewParams.get("failure");
           const streamKey = req.headers.referer ?? "";
           if (
+            previewParams.get("persona-flow") === "1" &&
+            ((req.method === "POST" &&
+              ["/api/persona-presets/", "/api/upload/file"].includes(
+                url.pathname,
+              )) ||
+              (req.method === "PUT" &&
+                /^\/api\/persona-presets\/[^/]+$/.test(url.pathname)))
+          ) {
+            // UI-only simulation: discard bytes, never save, parse or forward them.
+            req.resume();
+            const avatar = url.pathname === "/api/upload/file";
+            const key = `persona-flow:${streamKey}:${url.pathname}`;
+            const failed =
+              failureTarget === (avatar ? "persona-avatar" : "persona-save") &&
+              !failedChannelRequests.has(key);
+            if (failed) failedChannelRequests.add(key);
+            setTimeout(() => {
+              res.statusCode = failed ? 503 : 200;
+              res.setHeader("Content-Type", "application/json");
+              res.end(
+                JSON.stringify(
+                  failed
+                    ? { detail: "Fixture save unavailable" }
+                    : avatar
+                      ? {
+                          key: "preview-avatar",
+                          url: "/icons/icon-192.png",
+                          name: "preview-avatar.png",
+                          type: "image",
+                          mime_type: "image/png",
+                          size: 41245,
+                        }
+                      : presets.find((preset) =>
+                          url.pathname.endsWith(`/${preset.id}`),
+                        ) ?? presets[0],
+                ),
+              );
+            }, 2000);
+            return;
+          }
+          if (
             previewParams.get("save-flow") === "1" &&
             req.method === "PUT" &&
             /^\/api\/skills\/[^/]+\/(files|binary-files)\//.test(url.pathname)
