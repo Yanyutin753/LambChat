@@ -1054,3 +1054,17 @@ LocalSandboxSection复用usePreferenceWrites统一配对、策略、重启和取
 本轮临时标签70已关闭，视口reset成功。3019进程在检查PID84585及cwd后停止，确认3017/3018保持；保留既有结果标签及文件查找标签69。新标签清单已无旧临时65，不再沿用上轮未确认清理状态。
 
 全站目标仍进行中：主界面、剩余弹层及全部状态矩阵未全部验收；分享页的真实认证/权限、真实会话、原生与手机设备也未证明。继续核查公开阅读页及主聊天导航/预览的完整交互、长文案与空错加载，不据本轮项目页与局部门禁宣告全站完成。
+
+### 2026-10-02：公开会话阅读布局与滚动反馈
+
+上一轮文件搜索检查属于 progress：补充当前3017真实文件预览在320/390px打开/关闭查找的渲染证据，正文top始终141px，浮层宽280px，搜索控件44px，整页溢出0，14项相关测试通过。本轮继续原全站目标。
+
+390px长标题/作者/助手/模型名原hero scrollWidth实测1920px，整页虽0溢出，但被main隐藏裁掉。SharedPage在标题、作者、元数据增加宽度约束和anywhere折行，修后hero为389px。320px俄语长名称带40px作者头像、14px角色/模型图标，所有hero后代均无内部溢出；834/1440px也无溢出。非交互元数据去掉重复底色pill，沿用主题secondary与既有衬线；手机overline、作者与分隔区留白收小，正文/消息组件的阅读间距保持。默认头像与失败回退统一40px。home链接具名且44px高，GitHub用既有44px IconButton类；页尾计数/日期/阅读时间使用可读主题token并允许换行。CTA与品牌hover遵循reduced motion，去除分批入场动画。
+
+320px俄语页尾原回到顶部按钮遮住计数信息：隐藏的另一个ScrollButtons按钮仍占44px+gap。共享控件隐藏时display:none，保留disabled/aria-hidden与键盘行为；修后meta y643.11–662.30、arrow y674–718，无重叠，滚动到底remaining=0。空会话1440×1000实测仅剩51px，却仍显示到底部；SharedPage现内容就绪立即测量、监听resize与body ResizeObserver，卸载时清理。320×740空内容高度905时两按钮隐藏；缩放和内容高度更新由真实组件/platform seam测试覆盖。滚动快捷键按减少动效偏好使用instant。
+
+新增3项布局/链接测试先RED后GREEN；共享滚动测试扩展先RED（inline-block）后GREEN；2项滚动测量/减少动效测试先RED（错误按钮、smooth）后GREEN。17文件67项相关检查通过。独立只读审查三次均无确定P1/P2；指出的320px俄语带头像/图标长名称缺口已补实屏。最终787文件3927项全量测试、lint零错误警告、类型/Vite/PWA/build和体积门禁通过：eager JS560332/561152、precache93项5033648/5242880，无预算提高。中间全量一次既有projectAndSearchComposition IME断言失败，单独3项及随后两次完整检查通过，未改动该模块。测试正则无效转义lint错误已修。日志/tmp/share-reading-delivery-{test,lint,build}.log。
+
+截图在仓库外 `/Users/clivia/.codex/visualizations/share-reading-layout`：390深色中文正常、320浅色俄语长名称带头像、834/1440浅色长名称、320深色俄语最终页尾、320/1440sepia俄语空会话。Impeccable offline update报告未安装技能文件，按DESIGN八项人工复核，不安装新依赖。复用LambChat品牌、衬线、控件和主题；排版、留白、层级、色彩、动效、微交互、响应式的上述缺陷已修。仅只读fixture和DOM/platform测试，不证明真实权限、创建分享、原生手机/软键盘或模型对话。
+
+主聊天/预览切换、尚未覆盖的编辑流程和全状态/五语矩阵仍未闭合，目标保持进行中；下一轮继续主聊天阅读/预览流程，不能以本轮绿门禁宣告全站完成。

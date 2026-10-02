@@ -57,6 +57,9 @@ import {
 } from "../persona/PersonaAvatarIcon";
 import { isEmojiAvatar, getEmojiAvatarUrl } from "../persona/personaAvatar";
 
+const metadataClassName =
+  "inline-flex min-w-0 max-w-full items-center gap-1.5 text-12 text-theme-text-secondary [overflow-wrap:anywhere] [&>svg]:shrink-0";
+
 function resolveSharedAssistantIdentity(
   session: SharedContentResponse["session"] | null | undefined,
 ) {
@@ -90,7 +93,7 @@ export function SharedPage({
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<SharedContentResponse | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [showScrollBottom, setShowScrollBottom] = useState(true);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
 
   const handleScroll = useCallback(() => {
@@ -105,18 +108,37 @@ export function SharedPage({
   }, []);
 
   useEffect(() => {
+    if (isLoading) return;
+    handleScroll();
     window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [handleScroll]);
+    window.addEventListener("resize", handleScroll);
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? undefined
+        : new ResizeObserver(handleScroll);
+    observer?.observe(document.body);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+      observer?.disconnect();
+    };
+  }, [handleScroll, isLoading]);
 
   const scrollToTop = useCallback(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({
+      top: 0,
+      behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
+    });
   }, []);
 
   const scrollToBottom = useCallback(() => {
     window.scrollTo({
       top: document.documentElement.scrollHeight,
-      behavior: "smooth",
+      behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
     });
   }, []);
 
@@ -463,13 +485,11 @@ export function SharedPage({
           {/* Left: Brand */}
           <Link
             to="/"
-            className="flex items-center cursor-pointer group gap-1.5"
+            aria-label={APP_NAME}
+            className="flex min-h-11 items-center cursor-pointer group gap-1.5"
           >
-            <BrandLogo className="size-8 transition-transform duration-300 group-hover:scale-105" />
-            <BrandWordmark
-              decorative
-              className="w-auto text-stone-900 dark:text-stone-100 h-8"
-            />
+            <BrandLogo className="size-8 transition-transform duration-300 group-hover:scale-105 motion-reduce:transition-none motion-reduce:transform-none" />
+            <BrandWordmark decorative className="w-auto text-theme-text h-8" />
           </Link>
 
           {/* Right: Controls */}
@@ -515,23 +535,26 @@ export function SharedPage({
         <SessionImageGalleryProvider messages={messages}>
           <article className="max-w-4xl lg:max-w-5xl xl:max-w-6xl mx-auto">
             {/* Editorial hero */}
-            <header className="pt-[calc(5rem+var(--app-safe-area-top,0px))] sm:pt-[calc(7rem+var(--app-safe-area-top,0px))] lg:pt-[calc(9rem+var(--app-safe-area-top,0px))] pb-0 animate-in fade-in duration-800">
+            <header className="pt-[calc(5rem+var(--app-safe-area-top,0px))] sm:pt-[calc(7rem+var(--app-safe-area-top,0px))] lg:pt-[calc(9rem+var(--app-safe-area-top,0px))] pb-0">
               {/* Overline label */}
-              <div className="text-center mb-5">
-                <span className="inline-block text-11 font-semibold font-serif tracking-[0.15em] uppercase text-stone-400 dark:text-stone-500">
+              <div className="text-center mb-3 sm:mb-5">
+                <span className="inline-block text-11 font-semibold font-serif tracking-[0.15em] uppercase text-theme-text-secondary">
                   {t("share.sharedConversation")}
                 </span>
               </div>
 
               {/* Title */}
-              <h1 className="text-[1.75rem] sm:text-36 lg:text-[2.75rem] font-light text-theme-text text-center leading-[1.2] tracking-[-0.01em] max-w-3xl mx-auto font-serif">
+              <h1 className="px-4 text-balance [overflow-wrap:anywhere] text-[1.75rem] sm:text-36 lg:text-[2.75rem] font-light text-theme-text text-center leading-[1.2] tracking-[-0.01em] max-w-3xl mx-auto font-serif">
                 {sessionTitle}
               </h1>
 
               {/* Author + meta strip */}
-              <div className="mt-10 sm:mt-14 flex flex-col items-center gap-4 sm:gap-5 font-serif">
+              <div className="mt-6 sm:mt-10 flex flex-col items-center gap-4 sm:gap-5 px-4 sm:px-6 font-serif">
                 {/* Author */}
-                <div className="flex items-center gap-3">
+                <div
+                  data-share-author
+                  className="flex min-w-0 max-w-full items-center gap-3"
+                >
                   {data.owner.avatar_url ? (
                     <ImageWithSkeleton
                       src={
@@ -541,55 +564,55 @@ export function SharedPage({
                       alt={data.owner.username}
                       skipUrlResolve
                       inline
-                      className="size-10 rounded-full flex-shrink-0 ring-2 ring-stone-100 dark:ring-stone-800"
+                      className="size-10 rounded-full flex-shrink-0 ring-2 ring-theme-border"
                       style={{ objectFit: "cover", filter: "grayscale(20%)" }}
                       errorFallback={
-                        <BrandLogo className="size-12 rounded-full flex-shrink-0 ring-2 ring-stone-100 dark:ring-stone-800" />
+                        <BrandLogo className="size-10 rounded-full flex-shrink-0 ring-2 ring-theme-border" />
                       }
                     />
                   ) : (
-                    <BrandLogo className="size-12 rounded-full flex-shrink-0 ring-2 ring-stone-100 dark:ring-stone-800" />
+                    <BrandLogo className="size-10 rounded-full flex-shrink-0 ring-2 ring-theme-border" />
                   )}
-                  <div className="space-y-1">
-                    <div className="text-13 font-semibold text-stone-800 dark:text-stone-200">
+                  <div className="min-w-0 space-y-1 [overflow-wrap:anywhere]">
+                    <div className="text-13 font-semibold text-theme-text">
                       {data.owner.username}
                     </div>
                     {data.session.created_at && (
-                      <div className="text-11 text-stone-400 dark:text-stone-500 mt-0.5 tracking-wide">
+                      <div className="text-11 text-theme-text-secondary mt-0.5">
                         {formatDateTimeShort(data.session.created_at)}
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Meta chips row */}
-                <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 px-6">
+                {/* Metadata */}
+                <div className="flex min-w-0 max-w-full flex-wrap items-center justify-center gap-x-4 gap-y-2">
                   {messages.length > 0 && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
+                    <span className={metadataClassName}>
                       <MessageSquare size={11} />
                       {messages.length} {t("share.messages")}
                     </span>
                   )}
                   {data.session.agent_name && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
+                    <span className={metadataClassName}>
                       {data.session.agent_name}
                     </span>
                   )}
                   {data.session.persona_preset_name && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
+                    <span className={metadataClassName}>
                       {data.session.persona_avatar &&
                       !data.session.persona_avatar.startsWith("icon:") &&
                       !isEmojiAvatar(data.session.persona_avatar) ? (
                         <PersonaAvatarImage
                           avatar={data.session.persona_avatar}
-                          className="w-3.5 h-3.5 rounded-full object-cover"
+                          className="w-3.5 h-3.5 shrink-0 rounded-full object-cover"
                         />
                       ) : isEmojiAvatar(data.session.persona_avatar) ? (
                         <PersonaAvatarImage
                           avatar={getEmojiAvatarUrl(
                             data.session.persona_avatar,
                           )}
-                          className="w-3.5 h-3.5 rounded-full object-cover"
+                          className="w-3.5 h-3.5 shrink-0 rounded-full object-cover"
                         />
                       ) : (
                         <PersonaAvatarIcon
@@ -601,22 +624,24 @@ export function SharedPage({
                     </span>
                   )}
                   {data.session.team_name && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
+                    <span className={metadataClassName}>
                       {data.session.team_name}
                     </span>
                   )}
                   {data.session.model && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
+                    <span className={metadataClassName}>
                       {(() => {
                         const iconUrl = getModelIconUrl(
                           data.session.model,
                           (data.session as Record<string, unknown>).provider as
-                            string | undefined,
+                            | string
+                            | undefined,
                         );
                         const mono = isMonochromeIcon(
                           data.session.model,
                           (data.session as Record<string, unknown>).provider as
-                            string | undefined,
+                            | string
+                            | undefined,
                         );
                         return iconUrl ? (
                           <ImageWithSkeleton
@@ -624,7 +649,7 @@ export function SharedPage({
                             alt=""
                             skipUrlResolve
                             inline
-                            className={`w-3.5 h-3.5 ${
+                            className={`w-3.5 h-3.5 shrink-0 ${
                               mono ? "dark:invert" : ""
                             }`}
                           />
@@ -633,9 +658,7 @@ export function SharedPage({
                       {data.session.model}
                     </span>
                   )}
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium capitalize">
-                    {readingTime}
-                  </span>
+                  <span className={metadataClassName}>{readingTime}</span>
                 </div>
               </div>
 
@@ -672,31 +695,27 @@ export function SharedPage({
             {/* Conversation divider */}
             <div
               data-share-conversation-divider
-              className="flex items-center gap-3 px-4 py-8 sm:px-6 sm:py-12"
+              className="flex items-center gap-3 px-4 py-6 sm:px-6 sm:py-10"
             >
-              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-stone-200/80 dark:via-stone-700/50 to-transparent" />
-              <span className="flex-shrink-0 text-10 font-semibold tracking-[0.18em] uppercase text-stone-400 dark:text-stone-500 font-mono tabular-nums select-none">
+              <div className="flex-1 h-px bg-theme-border" />
+              <span className="flex-shrink-0 text-11 font-medium tracking-[0.12em] uppercase text-theme-text-secondary font-mono tabular-nums select-none">
                 {t("share.conversationHistory")}
               </span>
-              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-stone-200/80 dark:via-stone-700/50 to-transparent" />
+              <div className="flex-1 h-px bg-theme-border" />
             </div>
 
             {/* Messages */}
             {messages.length === 0 ? (
               <div className="text-center pb-24 pt-12 sm:pb-32 sm:pt-16">
                 <SceneIllustration scene="message" className="mx-auto mb-4" />
-                <p className="text-stone-400 dark:text-stone-500 text-14 font-serif">
+                <p className="text-theme-text-secondary text-14 font-serif">
                   {t("share.noMessages")}
                 </p>
               </div>
             ) : (
               <div className="pb-8 sm:pb-12">
                 {messages.map((message, index) => (
-                  <div
-                    key={message.id}
-                    className="animate-in fade-in"
-                    style={{ animationDelay: `${Math.min(index * 30, 200)}ms` }}
-                  >
+                  <div key={message.id}>
                     <ChatMessage
                       message={message}
                       sessionId={data.session.id}
@@ -732,7 +751,7 @@ export function SharedPage({
                 <p className="font-serif text-15 font-semibold tracking-tight text-theme-text">
                   {t("share.createYourOwn")}
                 </p>
-                <p className="mt-1.5 font-serif text-12 text-stone-500 dark:text-stone-500">
+                <p className="mt-1.5 font-serif text-12 text-theme-text-secondary">
                   {APP_NAME} &middot; Open Source &middot; MIT
                 </p>
               </div>
@@ -741,7 +760,7 @@ export function SharedPage({
               <Link
                 to="/"
                 aria-label={t("share.createYourOwn")}
-                className="group inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-xl bg-stone-950 px-4 py-2.5 font-serif text-13 font-semibold text-white shadow-sm transition-all duration-200 hover:bg-stone-800 active:scale-[0.98] dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-white"
+                className="group inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-xl bg-stone-950 px-4 py-2.5 font-serif text-13 font-semibold text-white shadow-sm transition-all duration-200 hover:bg-stone-800 active:scale-[0.98] dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-white motion-reduce:transition-none motion-reduce:transform-none"
               >
                 <BrandLogo className="size-6" />
                 <BrandWordmark
@@ -757,7 +776,7 @@ export function SharedPage({
                   strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="transition-transform duration-200 group-hover:translate-x-1"
+                  className="transition-transform duration-200 group-hover:translate-x-1 motion-reduce:transition-none motion-reduce:transform-none"
                 >
                   <path d="M5 12h14" />
                   <path d="m12 5 7 7-7 7" />
@@ -768,17 +787,20 @@ export function SharedPage({
 
           {/* Bottom meta bar */}
           <div className="pb-6 sm:pb-8 flex flex-col sm:flex-row items-center justify-between gap-2.5 font-serif">
-            <div className="flex items-center gap-2 text-11 text-stone-300 dark:text-stone-600 font-serif">
+            <div
+              data-share-footer-meta
+              className="flex max-w-full flex-wrap items-center justify-center gap-2 text-12 text-theme-text-secondary font-serif [overflow-wrap:anywhere]"
+            >
               {data.session.created_at && (
                 <>
                   <span>{formatDate(data.session.created_at)}</span>
-                  <span className="w-0.5 h-0.5 rounded-full bg-stone-200 dark:bg-stone-700" />
+                  <span className="w-0.5 h-0.5 rounded-full bg-theme-text-secondary" />
                 </>
               )}
               <span>
                 {messages.length} {t("share.messages")}
               </span>
-              <span className="w-0.5 h-0.5 rounded-full bg-stone-200 dark:bg-stone-700" />
+              <span className="w-0.5 h-0.5 rounded-full bg-theme-text-secondary" />
               <span>{readingTime}</span>
             </div>
 
@@ -786,7 +808,7 @@ export function SharedPage({
               href={GITHUB_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-stone-300 dark:text-stone-700 hover:text-stone-500 dark:hover:text-stone-400 transition-colors duration-200"
+              className="ui-button ui-button--ghost ui-button--lg ui-icon-button text-theme-text-secondary"
               aria-label="GitHub"
             >
               <svg

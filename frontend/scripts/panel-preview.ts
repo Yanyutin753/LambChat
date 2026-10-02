@@ -1238,7 +1238,7 @@ function response(
         agent_name: "通用助手",
         created_at: now,
       },
-      events: history.events,
+      events: scenario === "empty" ? [] : history.events,
       owner: { username: "LambChat Demo" },
       share_type: "full",
       share_scope: "session",
@@ -1951,6 +1951,29 @@ const server = await createServer({
                 email: "cross.department.research.and.delivery@example.test",
                 roles: ["project-administrator-with-long-role-name", "research", "engineering"],
               } : {}),
+            };
+          }
+          if (
+            url.pathname === "/api/share/public/preview-report" &&
+            previewParams.get("scope") !== "project" &&
+            previewParams.has("share-long")
+          ) {
+            const sessionShare = data as { session: object };
+            data = {
+              ...sessionShare,
+              session: {
+                ...sessionShare.session,
+                name: "QuarterlyResearchAndCrossDepartmentDelivery".repeat(3),
+                agent_name: "ResearchAndDeliveryAssistant".repeat(3),
+                persona_preset_name: "跨部门产品研究与交付负责人".repeat(3),
+                model: "custom-research-and-delivery-model".repeat(3),
+                provider: "openai",
+                persona_avatar: previewParams.has("share-avatar") ? "icon:BookOpen" : undefined,
+              },
+              owner: {
+                username: "ResearchAndDeliveryOwner".repeat(3),
+                ...(previewParams.has("share-avatar") ? { avatar_url: "/images/lamb.webp" } : {}),
+              },
             };
           }
           if (

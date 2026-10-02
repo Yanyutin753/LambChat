@@ -124,3 +124,5 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 连接与目录互锁走查：`shell=paired&failure=status` 同时保留原生“运行中”与连接读取错误，Retry 等待1.2秒后恢复；`shell=web&failure=status` 同样有等待反馈。`shell=paired&native-flow=1&failure=save` 可检查选目录、确认、保存重试与待应用重启期间暂停原生操作；`failure=restart` 可检查原生重启等待禁用目录修改，随后选目录也禁用原生错误中的Retry。只读读取重试仍可用。互锁当前限同一设置分区，预览不调用原生桥、迁移文件或重启应用，不证明多实例协调或真实迁移。
 
 同一入口加 `reopen=1` 可关闭/重新挂载实际设置组件，保留页面和共享store。可检查迁移等待中重新进入、保存后新路径与待重启入口保留，以及 `custom=1` 恢复默认后的说明；`failure=relaunch` 可检查重启失败/Retry。刷新整个页面会重置模块内存，模拟重启不会真的刷新；该入口只证明同一WebView生命周期内的状态连续性，不证明独立WebView重载、原生迁移或应用重启。
+
+会话分享阅读走查：`/shared/preview-report?share-long=1` 提供无空格的长标题、作者/助手/模型名和长中文角色名；叠加 `share-avatar=1` 检查作者头像、角色与模型图标的固定尺寸。`fixture=empty` 在会话分享中返回无事件内容；可组合三主题，使用已有语言菜单检查俄语长文案。仅 GET fixture，不验证真实分享权限、模型执行或真机键盘。
