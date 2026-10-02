@@ -105,6 +105,8 @@ function Preview({ fullscreen = false }: { fullscreen?: boolean }) {
 
 test.each([false, true])(
   "file preview opens native find without a second toolbar (fullscreen=%s)",
+  // CI 冷加载下整条用例（多次 8s 级等待）可能超过 vitest 默认 5s 用例超时。
+  { timeout: 30000 },
   async (fullscreen) => {
     const { container } = render(
       <I18nextProvider i18n={appI18n.cloneInstance({ lng: "zh" })}>
