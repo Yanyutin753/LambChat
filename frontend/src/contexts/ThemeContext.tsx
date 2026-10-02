@@ -8,6 +8,11 @@ import {
 } from "react";
 import { authApi } from "../services/api";
 import { useThemeShortcut } from "../hooks/useThemeShortcut";
+import { useAuth } from "../hooks/useAuth";
+import {
+  usePreferenceWrites,
+  type PreferenceWriteState,
+} from "../hooks/usePreferenceWrites";
 import {
   applyThemeToDocument,
   currentLocalMinutes,
@@ -30,6 +35,8 @@ interface ThemeContextType {
   themeSchedule: ThemeSchedule | null;
   /** 更新定时切换偏好；null 表示未配置。手动切主题会自动退出自动模式。 */
   setThemeSchedule: (schedule: ThemeSchedule | null) => void;
+  appearanceState?: PreferenceWriteState;
+  retryAppearance: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -39,6 +46,8 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
+  const { user } = useAuth();
+  const { states, save, retry } = usePreferenceWrites(user?.id);
   const [theme, setThemeState] = useState<Theme>(getInitialThemePreference);
   const [themeSchedule, setScheduleState] = useState<ThemeSchedule | null>(
     () => {
@@ -57,8 +66,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   useEffect(() => {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
-    // Sync to backend (non-blocking)
-    authApi.updateMetadata({ theme }).catch(() => {});
   }, [theme]);
 
   // Listen for system preference changes
@@ -106,11 +113,10 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     return () => window.clearInterval(timer);
   }, [themeSchedule]);
 
-  // 偏好持久化（与 theme 同模式：变更即写本地并同步后端）
+  // Restored and scheduled appearance changes only update local storage.
   useEffect(() => {
     if (!themeSchedule) return;
     localStorage.setItem(THEME_SCHEDULE_KEY, JSON.stringify(themeSchedule));
-    authApi.updateMetadata({ themeSchedule }).catch(() => {});
   }, [themeSchedule]);
 
   // Listen for external schedule changes (e.g. from auth login restoring backend preferences)
@@ -131,25 +137,37 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   }, []);
 
   const toggleTheme = () => {
-    setThemeState((prev) => resolveNextTheme(prev));
-    disableAutoSchedule();
+    setTheme(resolveNextTheme(theme));
   };
 
   useThemeShortcut(toggleTheme);
 
   const setTheme = (newTheme: Theme) => {
+    const nextSchedule = themeSchedule?.enabled
+      ? { ...themeSchedule, enabled: false }
+      : themeSchedule;
+    const metadata = {
+      theme: newTheme,
+      themeSchedule: nextSchedule,
+    };
+    if (user && !save("appearance", () => authApi.updateMetadata(metadata)))
+      return;
     setThemeState(newTheme);
-    disableAutoSchedule();
-  };
-
-  const disableAutoSchedule = () => {
-    setScheduleState((prev) =>
-      prev?.enabled ? { ...prev, enabled: false } : prev,
-    );
+    if (nextSchedule) setScheduleState(nextSchedule);
   };
 
   const setThemeSchedule = (schedule: ThemeSchedule | null) => {
     if (schedule && !parseThemeSchedule(schedule)) return;
+    const nextTheme = schedule?.enabled
+      ? resolveScheduledTheme(currentLocalMinutes(), schedule)
+      : theme;
+    if (
+      user &&
+      !save("appearance", () =>
+        authApi.updateMetadata({ theme: nextTheme, themeSchedule: schedule }),
+      )
+    )
+      return;
     setScheduleState(schedule);
     if (!schedule) {
       try {
@@ -162,7 +180,15 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   return (
     <ThemeContext.Provider
-      value={{ theme, toggleTheme, setTheme, themeSchedule, setThemeSchedule }}
+      value={{
+        theme,
+        toggleTheme,
+        setTheme,
+        themeSchedule,
+        setThemeSchedule,
+        appearanceState: states.appearance,
+        retryAppearance: () => retry("appearance"),
+      }}
     >
       {children}
     </ThemeContext.Provider>

@@ -3,7 +3,7 @@ import {
   Suspense,
   useState,
   useEffect,
-  useCallback,
+  useLayoutEffect,
   useRef,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -13,6 +13,7 @@ import { isNativeAppRuntime } from "../../../services/api/config";
 import { useTheme } from "../../../contexts/ThemeContext";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { useAuth } from "../../../hooks/useAuth";
+import { usePreferenceWrites } from "../../../hooks/usePreferenceWrites";
 import { authApi, agentConfigApi, agentApi } from "../../../services/api";
 import { DEFAULT_THINKING_LEVEL_STORAGE_KEY } from "../../layout/AppContent/useAgentOptions";
 import { resolveAgentDisplayName } from "../../agent/agentCatalog";
@@ -96,18 +97,28 @@ const THINKING_LEVEL_OPTIONS: { key: ThinkingLevel; labelKey: string }[] = [
 ];
 
 export function ProfilePreferencesTab() {
+  const { user } = useAuth();
+  return <PreferencesContent key={user?.id} />;
+}
+
+function PreferencesContent() {
   const { t, i18n } = useTranslation();
   const contentRef = useRef<HTMLDivElement>(null);
-  const { theme, setTheme } = useTheme();
-  const {
-    availableModels,
-    defaultModel,
-    modelsLoading,
-    modelsError,
-    reloadModels,
-  } = useSettingsContext();
+  const { theme, setTheme, appearanceState, retryAppearance } = useTheme();
+  const { availableModels, modelsLoading, modelsError, reloadModels } =
+    useSettingsContext();
   const { enableMemory } = useSettingsContext();
   const { user } = useAuth();
+  const { states, save, retry } = usePreferenceWrites(user?.id);
+  useLayoutEffect(() => {
+    if (
+      (appearanceState === "saving" ||
+        Object.values(states).includes("saving")) &&
+      (document.activeElement === document.body ||
+        document.activeElement?.matches(":disabled"))
+    )
+      contentRef.current?.focus({ preventScroll: true });
+  }, [states, appearanceState]);
   const [memoryEnabled, setMemoryEnabled] = useState(
     user?.metadata?.memoryEnabled !== false,
   );
@@ -115,34 +126,29 @@ export function ProfilePreferencesTab() {
     parseCloudSandboxPolicy(user?.metadata?.sandboxCloudConfirmPolicy),
   );
 
-  const handleMemoryToggle = useCallback(() => {
+  const handleMemoryToggle = () => {
     const next = !memoryEnabled;
+    if (!save("memory", () => authApi.updateMetadata({ memoryEnabled: next })))
+      return;
     setMemoryEnabled(next);
-    authApi.updateMetadata({ memoryEnabled: next }).catch(() => {
-      setMemoryEnabled(!next);
-      toast.error(t("common.operationFailed"));
-    });
-  }, [memoryEnabled, t]);
+  };
 
   // Dropdown open states
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const toggle = (key: string) =>
     setOpenDropdown((prev) => (prev === key ? null : key));
 
-  // 云端沙箱确认策略：用户级偏好存 metadata，服务端确认门按 run 快照读取；
-  // 乐观更新，失败回滚（与 memoryToggle 同模式）
-  const handleCloudSandboxPolicyChange = useCallback(
-    (next: CloudSandboxPolicy) => {
-      const prev = cloudSandboxPolicy;
-      setCloudSandboxPolicy(next);
-      setOpenDropdown(null);
-      authApi.updateMetadata({ sandboxCloudConfirmPolicy: next }).catch(() => {
-        setCloudSandboxPolicy(prev);
-        toast.error(t("common.operationFailed"));
-      });
-    },
-    [cloudSandboxPolicy, t],
-  );
+  // Keep the selected draft on failure; only a successful save changes server policy.
+  const handleCloudSandboxPolicyChange = (next: CloudSandboxPolicy) => {
+    if (
+      !save("cloudSandboxPolicy", () =>
+        authApi.updateMetadata({ sandboxCloudConfirmPolicy: next }),
+      )
+    )
+      return;
+    setCloudSandboxPolicy(next);
+    setOpenDropdown(null);
+  };
 
   // Send shortcut preference (Enter, Ctrl/⌘+Enter, or Shift+Enter sends)
   const [newlineModifier, setNewlineModifier] = useState<SendModifier>(() =>
@@ -172,18 +178,12 @@ export function ProfilePreferencesTab() {
   const [selectedModelId, setSelectedModelId] = useState<string>(() => {
     return localStorage.getItem("defaultModelId") || "";
   });
-  const [, setSelectedModelValue] = useState<string>(() => {
-    return localStorage.getItem("defaultModel") || defaultModel;
-  });
-
   // Agent preference
   const [agents, setAgents] = useState<AgentInfo[]>([]);
-  const [currentAgentPref, setCurrentAgentPref] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<string>("");
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [agentsError, setAgentsError] = useState(false);
   const [agentsAttempt, setAgentsAttempt] = useState(0);
-  const [agentsSaving, setAgentsSaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -193,7 +193,6 @@ export function ProfilePreferencesTab() {
       .then(([agentsRes, prefRes]) => {
         if (cancelled) return;
         setAgents(agentsRes.agents || []);
-        setCurrentAgentPref(prefRes.default_agent_id);
         setSelectedAgent(
           prefRes.default_agent_id || agentsRes.default_agent || "",
         );
@@ -211,43 +210,54 @@ export function ProfilePreferencesTab() {
 
   // Handlers
   const handleLanguageChange = (code: string) => {
+    if (!save("language", () => authApi.updateMetadata({ language: code })))
+      return;
     i18n.changeLanguage(code);
     localStorage.setItem("language", code);
-    authApi.updateMetadata({ language: code }).catch(() => {});
     setOpenDropdown(null);
   };
 
   const handleThemeChange = (newTheme: Theme) => {
     setTheme(newTheme);
-    authApi.updateMetadata({ theme: newTheme }).catch(() => {});
     setOpenDropdown(null);
   };
 
   const handleFontScaleChange = (scale: FontScale) => {
+    if (!save("fontSize", () => authApi.updateMetadata({ fontScale: scale })))
+      return;
     setFontScale(scale);
     localStorage.setItem(FONT_SCALE_STORAGE_KEY, scale);
     applyFontScaleToDocument(scale);
-    authApi.updateMetadata({ fontScale: scale }).catch(() => {});
     setOpenDropdown(null);
   };
 
   const handleNewlineChange = (modifier: SendModifier) => {
+    if (
+      !save("newline", () =>
+        authApi.updateMetadata({ newlineModifier: modifier }),
+      )
+    )
+      return;
     setNewlineModifier(modifier);
     localStorage.setItem(SEND_MODIFIER_STORAGE_KEY, modifier);
-    authApi.updateMetadata({ newlineModifier: modifier }).catch(() => {});
     setOpenDropdown(null);
   };
 
   const handleModelChange = (modelId: string) => {
     const model = availableModels?.find((m) => m.id === modelId);
     const modelValue = model?.value || "";
+    if (
+      !save("model", () =>
+        authApi.updateMetadata({
+          defaultModel: modelValue,
+          defaultModelId: modelId,
+        }),
+      )
+    )
+      return;
     setSelectedModelId(modelId);
-    setSelectedModelValue(modelValue);
     localStorage.setItem("defaultModelId", modelId);
     localStorage.setItem("defaultModel", modelValue);
-    authApi
-      .updateMetadata({ defaultModel: modelValue, defaultModelId: modelId })
-      .catch(() => {});
     window.dispatchEvent(
       new CustomEvent("model-preference-updated", {
         detail: { modelId, modelValue },
@@ -256,33 +266,61 @@ export function ProfilePreferencesTab() {
     setOpenDropdown(null);
   };
 
-  const handleAgentChange = async (agentId: string) => {
+  const handleAgentChange = (agentId: string) => {
+    if (
+      !save(
+        "agent",
+        () => agentConfigApi.setUserPreference(agentId),
+        () => {
+          toast.success(t("agentConfig.preferenceSaved"));
+          window.dispatchEvent(new CustomEvent("agent-preference-updated"));
+        },
+      )
+    )
+      return;
     setSelectedAgent(agentId);
     setOpenDropdown(null);
-    setAgentsSaving(true);
-    try {
-      await agentConfigApi.setUserPreference(agentId);
-      setCurrentAgentPref(agentId);
-      toast.success(t("agentConfig.preferenceSaved"));
-      window.dispatchEvent(new CustomEvent("agent-preference-updated"));
-    } catch (err) {
-      toast.error((err as Error).message || t("agentConfig.saveFailed"));
-      setSelectedAgent(currentAgentPref || "");
-    } finally {
-      setAgentsSaving(false);
-    }
   };
 
   const handleThinkingLevelChange = (level: ThinkingLevel) => {
+    if (
+      !save("thinking", () =>
+        authApi.updateMetadata({ defaultThinkingLevel: level }),
+      )
+    )
+      return;
     setDefaultThinkingLevel(level);
     localStorage.setItem(DEFAULT_THINKING_LEVEL_STORAGE_KEY, level);
-    authApi.updateMetadata({ defaultThinkingLevel: level }).catch(() => {});
     window.dispatchEvent(
       new CustomEvent("thinking-preference-updated", {
         detail: level,
       }),
     );
     setOpenDropdown(null);
+  };
+
+  const renderSaveStatus = (
+    key: string,
+    labelKey: string,
+    localApplied = false,
+  ) => {
+    const state = key === "appearance" ? appearanceState : states[key];
+    if (!state) return null;
+    return (
+      <div className="profile-setting-status">
+        <CatalogStatus
+          label={t(labelKey)}
+          loading={state === "saving"}
+          error={state === "error"}
+          loadingText={t("common.saving")}
+          errorText={t(
+            localApplied ? "profile.preferenceSyncFailed" : "common.saveFailed",
+          )}
+          onRetry={key === "appearance" ? retryAppearance : () => retry(key)}
+          focusTargetRef={contentRef}
+        />
+      </div>
+    );
   };
 
   const agentOptions = agents.map((a) => ({
@@ -313,35 +351,42 @@ export function ProfilePreferencesTab() {
       <div className="profile-section">
         <div className="space-y-0">
           {enableMemory && (
-            <button
-              onClick={handleMemoryToggle}
-              className="profile-setting-row"
-            >
-              <span className="text-14 text-theme-text dark:text-stone-200">
-                {t("profile.memoryToggle")}
-              </span>
-              <span
-                className={`relative h-5 w-9 rounded-full transition-colors ${
-                  memoryEnabled
-                    ? "bg-amber-500"
-                    : "bg-theme-border-hover dark:bg-stone-600"
-                }`}
+            <>
+              <button
+                type="button"
                 role="switch"
                 aria-checked={memoryEnabled}
                 aria-label={t("profile.memoryToggle")}
+                disabled={states.memory === "saving"}
+                onClick={handleMemoryToggle}
+                className="profile-setting-row"
               >
+                <span className="text-14 text-theme-text dark:text-stone-200">
+                  {t("profile.memoryToggle")}
+                </span>
                 <span
-                  className={`absolute top-0.5 h-4 w-4 rounded-full bg-theme-toggle-knob transition-all ${
-                    memoryEnabled ? "left-[1.15rem]" : "left-0.5"
+                  className={`relative h-5 w-9 rounded-full transition-colors ${
+                    memoryEnabled
+                      ? "bg-amber-500"
+                      : "bg-theme-border-hover dark:bg-stone-600"
                   }`}
-                />
-              </span>
-            </button>
+                  aria-hidden="true"
+                >
+                  <span
+                    className={`absolute top-0.5 h-4 w-4 rounded-full bg-theme-toggle-knob transition-all ${
+                      memoryEnabled ? "left-[1.15rem]" : "left-0.5"
+                    }`}
+                  />
+                </span>
+              </button>
+              {renderSaveStatus("memory", "profile.memoryToggle")}
+            </>
           )}
 
           <SelectRow
             label={t("profile.language")}
             value={i18n.language}
+            loading={states.language === "saving"}
             options={LANGUAGES.map((l) => ({
               key: l.code,
               labelKey: "",
@@ -352,11 +397,14 @@ export function ProfilePreferencesTab() {
             renderLabel={(code) =>
               LANGUAGES.find((l) => l.code === code)?.nativeName || code
             }
-          />
+          >
+            {renderSaveStatus("language", "profile.language", true)}
+          </SelectRow>
 
           <SelectRow
             label={t("profile.theme")}
             value={theme}
+            loading={appearanceState === "saving"}
             options={THEME_OPTIONS}
             open={openDropdown === "theme"}
             onToggle={() => toggle("theme")}
@@ -366,15 +414,19 @@ export function ProfilePreferencesTab() {
           <Suspense fallback={null}>
             <ThemeScheduleSection />
           </Suspense>
+          {renderSaveStatus("appearance", "profile.theme", true)}
 
           <SelectRow
             label={t("profile.fontSize")}
             value={fontScale}
+            loading={states.fontSize === "saving"}
             options={FONT_SCALE_OPTIONS}
             open={openDropdown === "fontSize"}
             onToggle={() => toggle("fontSize")}
             onSelect={handleFontScaleChange}
-          />
+          >
+            {renderSaveStatus("fontSize", "profile.fontSize", true)}
+          </SelectRow>
 
           <SelectRow
             label={t("agentConfig.defaultAgent")}
@@ -383,9 +435,11 @@ export function ProfilePreferencesTab() {
             open={openDropdown === "agent"}
             onToggle={() => toggle("agent")}
             onSelect={handleAgentChange}
-            loading={agentsLoading || agentsError || agentsSaving}
+            loading={agentsLoading || agentsError || states.agent === "saving"}
             renderLabel={renderAgentLabel}
-          />
+          >
+            {renderSaveStatus("agent", "agentConfig.defaultAgent")}
+          </SelectRow>
           <CatalogStatus
             focusTargetRef={contentRef}
             label={t("agentConfig.defaultAgent")}
@@ -405,7 +459,9 @@ export function ProfilePreferencesTab() {
             <SelectRow
               label={t("profile.defaultModel")}
               value={selectedModelId}
-              loading={modelsLoading || modelsError}
+              loading={
+                modelsLoading || modelsError || states.model === "saving"
+              }
               options={availableModels.map((m) => ({
                 key: m.id,
                 labelKey: "",
@@ -417,27 +473,35 @@ export function ProfilePreferencesTab() {
                 const m = availableModels.find((m) => m.id === id);
                 return m ? m.label : id;
               }}
-            />
+            >
+              {renderSaveStatus("model", "profile.defaultModel", true)}
+            </SelectRow>
           )}
 
           <SelectRow
             label={t("profile.defaultThinking")}
             value={defaultThinkingLevel}
+            loading={states.thinking === "saving"}
             options={THINKING_LEVEL_OPTIONS}
             open={openDropdown === "thinking"}
             onToggle={() => toggle("thinking")}
             onSelect={handleThinkingLevelChange}
-          />
+          >
+            {renderSaveStatus("thinking", "profile.defaultThinking", true)}
+          </SelectRow>
 
           <SelectRow
             label={t("profile.newlineModifier")}
             value={newlineModifier}
+            loading={states.newline === "saving"}
             options={NEWLINE_OPTIONS}
             open={openDropdown === "newline"}
             onToggle={() => toggle("newline")}
             onSelect={handleNewlineChange}
             renderLabel={renderNewlineLabel}
-          />
+          >
+            {renderSaveStatus("newline", "profile.newlineModifier", true)}
+          </SelectRow>
         </div>
       </div>
 
@@ -476,11 +540,17 @@ export function ProfilePreferencesTab() {
           <SelectRow
             label={t("profile.localSandbox.policy")}
             value={cloudSandboxPolicy}
+            loading={states.cloudSandboxPolicy === "saving"}
             options={CLOUD_SANDBOX_POLICY_OPTIONS}
             open={openDropdown === "cloudSandboxPolicy"}
             onToggle={() => toggle("cloudSandboxPolicy")}
             onSelect={handleCloudSandboxPolicyChange}
-          />
+          >
+            {renderSaveStatus(
+              "cloudSandboxPolicy",
+              "profile.localSandbox.policy",
+            )}
+          </SelectRow>
         </div>
 
         <Suspense fallback={null}>

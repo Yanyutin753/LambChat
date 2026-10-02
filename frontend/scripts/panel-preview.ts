@@ -1614,6 +1614,36 @@ const server = await createServer({
           const failureTarget = previewParams.get("failure");
           const streamKey = req.headers.referer ?? "";
           if (
+            previewParams.get("preferences-flow") === "1" &&
+            req.method === "PUT" &&
+            [
+              "/api/auth/profile/metadata",
+              "/api/agent/config/user/preference",
+            ].includes(url.pathname)
+          ) {
+            // UI-only simulation: discard bytes; never parse, save or forward preferences.
+            req.resume();
+            const key = `preferences-flow:${streamKey}:${url.pathname}`;
+            const failed =
+              failureTarget === "preference-save" &&
+              !failedChannelRequests.has(key);
+            if (failed) failedChannelRequests.add(key);
+            setTimeout(() => {
+              res.statusCode = failed ? 503 : 200;
+              res.setHeader("Content-Type", "application/json");
+              res.end(
+                JSON.stringify(
+                  failed
+                    ? { detail: "Fixture preference sync unavailable" }
+                    : url.pathname.endsWith("/metadata")
+                      ? user
+                      : { default_agent_id: "search" },
+                ),
+              );
+            }, 2000);
+            return;
+          }
+          if (
             (previewParams.get("persona-flow") === "1" &&
               ((req.method === "POST" &&
                 ["/api/persona-presets/", "/api/upload/file"].includes(

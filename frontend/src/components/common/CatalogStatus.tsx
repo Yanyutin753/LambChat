@@ -11,12 +11,16 @@ export function CatalogStatus({
   error,
   onRetry,
   focusTargetRef,
+  loadingText,
+  errorText,
 }: {
   label: string;
   loading?: boolean;
   error?: boolean;
   onRetry: () => void;
   focusTargetRef: RefObject<HTMLElement | null>;
+  loadingText?: string;
+  errorText?: string;
 }) {
   const { t } = useTranslation();
   if (!loading && !error) return null;
@@ -35,7 +39,10 @@ export function CatalogStatus({
             aria-hidden="true"
           />
         )}
-        {label} · {t(loading ? "common.loading" : "common.loadFailed")}
+        {label} ·{" "}
+        {loading
+          ? (loadingText ?? t("common.loading"))
+          : (errorText ?? t("common.loadFailed"))}
       </span>
       {!loading && (
         <Button
