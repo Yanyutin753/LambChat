@@ -112,3 +112,7 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 语言同步走查复用 `preferences-flow=1&failure=preference-save`：标题栏菜单选择语言后立即本机应用，保存等待时禁用重复选择，失败后原请求重试；个人设置共享相同等待和错误状态，新的成功选择清除旧重试。`/auth/login?guest=1`、`/download?guest=1` 与 `/shared/preview-report?guest=1` 可检查公共语言菜单、键盘关闭和手机44px触控区域；访客及公开分享仅本机切换，不提交受保护的偏好请求。账号切换及迟到资料刷新由行为测试覆盖，预览不证明真实认证或云端持久化。
 
 原生服务地址组件走查：`/server-connection-preview?view=setup&theme=dark&lang=zh` 渲染实际首启表单，去掉 `view=setup` 渲染设置页分区；此独立入口不加载原生桥，不属于生产路由。输入 `http://127.0.0.1:<预览端口>/preview-health` 后按 Enter，探测 GET 等待2秒并固定503，可检查禁用、取消、错误、焦点及320px短屏滚动。不会连真实服务、成功保存地址或刷新应用；成功保存、取消后的迟到响应与15秒超时由组件测试验证。不能替代原生客户端网络/软键盘/换服登录验证。
+
+原生沙箱数据位置走查：`/sandbox-data-preview?theme=dark&lang=zh` 渲染实际数据位置组件；`custom=1` 显示自定义根，`failure=read|pick|save|reset|relaunch` 让对应操作首次失败后恢复。命令由仅预览的模块替身执行等待，不读写文件、不迁移目录、不重启应用。短屏使用明确的100dvh滚动容器，避免仅在scripts内出现的Tailwind类未生成。此入口不是生产路由，不证明真实Tauri目录迁移或重启。
+
+本地沙箱设置走查：同一入口加 `shell=unpaired|paired|web` 渲染实际LocalSandboxSection；`failure=process` 首次进程读取失败、重试/下一次轮询恢复，`shell=web&failure=status` 检查网页状态错误与重试。可组合三主题及 `lang=ru` 检查完整路径、两列手机快捷按钮、完整确认策略值、字段标签、44px按钮及16px输入。所有配对、PAT、策略、目录打开、重启与取消配对命令等待后拒绝执行；只填写公开演示占位符，不提供真实凭据。这些状态替身仅用于此独立入口，常规面板使用实际全局状态hook和GET fixture。不能证明真实登录、PAT持久化、原生进程操作或真机软键盘。

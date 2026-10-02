@@ -3,6 +3,8 @@ import { createRoot } from "react-dom/client";
 import i18n from "../src/i18n";
 import { applyThemeToDocument, isTheme } from "../src/utils/themeDom";
 import { SandboxDataLocationCard } from "../src/components/profile/SandboxDataLocationCard";
+import { LocalSandboxSection } from "../src/components/profile/LocalSandboxSection";
+import { MemoryRouter } from "react-router-dom";
 import "../src/fonts.css";
 import "../src/styles/tailwind.css";
 import "../src/styles/tokens.css";
@@ -17,10 +19,23 @@ const theme = params.get("theme");
 applyThemeToDocument(isTheme(theme) ? theme : "light");
 await i18n.changeLanguage(params.get("lang") || "zh");
 createRoot(document.getElementById("root")!).render(
-  <main className="mx-auto h-dvh w-full max-w-xl overflow-y-auto p-4 sm:p-6">
+  <main
+    className={`mx-auto w-full overflow-y-auto p-4 sm:p-6 ${params.has("shell") ? "max-w-3xl" : "max-w-xl"}`}
+    style={{ height: "100dvh" }}
+  >
     <h1 className="profile-section-heading font-serif">
-      {i18n.t("profile.localSandbox.title")}
+      {i18n.t(
+        params.has("shell")
+          ? "profile.preferences"
+          : "profile.localSandbox.title",
+      )}
     </h1>
-    <SandboxDataLocationCard />
+    {params.has("shell") ? (
+      <MemoryRouter>
+        <LocalSandboxSection embedded />
+      </MemoryRouter>
+    ) : (
+      <SandboxDataLocationCard />
+    )}
   </main>,
 );

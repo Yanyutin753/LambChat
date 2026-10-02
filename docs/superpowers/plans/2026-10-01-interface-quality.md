@@ -946,3 +946,21 @@ IAB独立3018：390深色Header错误说明可读，原语言保留，重试显�
 另外以8019独立临时后端运行uv本地沙箱全量E2E，44/44 PASS，MongoDB/Redis使用本机既有服务，一次性用户与测试目录由脚本回收。临时.env symlink及8019后端已回收，未发布配置或凭据。此E2E证明现有本地daemon执行、传输、skills虚拟挂载、转移整树与下线链路，不证明Tauri数据根真实迁移或实际重启。3019及临时走查标签页回收，视口恢复；3018已交付预览及用户3017保留。
 
 全站目标仍进行中。下一阶段继续LocalSandboxSection配对表单、四列快捷按钮在手机/长语言的布局、状态读取错误被当离线，以及原生数据位置在关闭重开设置/多实例/迁移在途时的状态与待重启提示持久性；还需真实原生窗口、目录迁移和设备证据。不得将本批门禁或fixture视为全部界面完成。
+
+## 2026-10-02 本地沙箱状态、配对表单与窄屏控制
+
+上一目标回合提供了新证据：直接核对用户3017文件查找，确认现有CodeMirror原生浮层不占正文行、320/390px可用，17项测试通过；没有重复实现。此次继续interface-state，当前HEAD为1d1a0a7d，已fetch确认origin/develop仍349e2f08，主checkout、mobile-density及用户3017保持。
+
+LocalSandboxSection将网页状态错误与离线引导分开，原生进程读取失败保留CatalogStatus及重试，不再冒充“已停止”并开放配对。初始/重试加载有具名role=status。读取代次拒绝晚到旧响应覆盖原生推送事件；订阅拒绝回退10秒轮询，卸载后的迟到null不再创建轮询计时器。两种配对共用同步ref锁和loading方法状态，等待冻结两条入口及用户名/密码；具名FormField/Input保持autocomplete，所属焦点移到稳定form。现有无副作用登录、PAT铸造、保存/重启与策略流程未改，无新增文案或依赖。
+
+复用Button及现有token，快捷按钮按容器宽度由四列变两列，长标签自然换行，移动/粗指针44px，输入16px。320俄语实测确认策略值截断，增加小于400px容器的标签/完整宽选择器纵向布局，选择器同样44px。语义与状态新增9项先RED后GREEN，最终本文件23项通过。独立只读复核含增量未发现确定P1/P2。
+
+独立/sandbox-data-preview以shell=unpaired|paired|web渲染真实设置组件，failure=process|status检查读取错误；原生配对、PAT、重启、取消配对和目录打开均等待后拒绝执行，不访问真实桥或凭据。状态替身限定该独立入口，常规面板保留实际useSandboxStatus全局hook及HTTP GET fixture。短屏检查发现仅scripts内使用的h-dvh未被Tailwind扫描，明确inline height100dvh；修复后main.clientHeight300、main.scrollTop455、root.scrollTop0，密码字段底边253.8可见，横向overflow0。此为预览容器校正，不是生产布局改动。
+
+浏览器证据：320深色俄语快捷按钮140px宽、70/50px高，策略当前值完整显示、overflow0；390深色配对输入44px/16px，当前账号配对等待form aria-busy=true、焦点FORM，两个按钮和字段全部disabled；320浅色俄语进程读取错误保留Retry并隐藏配对，Retry后加载和section焦点稳定；390深色网页503仅显示错误/Retry，无安装引导，恢复后才显示离线下载；1440浅色俄语宽宿主720px，快捷按钮四列各174px、overflow0。截图保存在仓库外interface-quality：local-sandbox-320-dark-ru-final、local-sandbox-390-dark-pair-form-final、local-sandbox-320-light-ru-process-error-final、local-sandbox-320-short-light-ru-focus-final、local-sandbox-390-dark-web-status-error-final、local-sandbox-1440-light-ru-final。预览不证明真实PAT持久化、登录、进程操作或真机软键盘。上一批44项本地沙箱E2E记录仍是原链路基线，本批未更改该传输/daemon协议，不将旧结果称为此次新验证。
+
+八项按DESIGN.md人工自检：沿用标题/字段字体；保持分组留白、不压缩整页；加载/在线/错误/配对/快捷操作分层；深浅暖色token及既有五语；无新动效、spinner遵循reduced-motion；同步互锁/重试/语义/焦点/卸载经行为测试；320/390/834/1440及300px短屏实测；复用LambChat组件和容器规则，无并行设计体系。Impeccable未安装，使用项目清单。最终全量783文件/3878测试通过，lint零错误零警告，build含tsc/Vite/PWA通过；eager JS560198/561152 bytes、precache5031495/5242880 bytes、93项，未提高预算。
+
+全站目标继续。尚需配对后保存/重启部分失败时的准确恢复、策略写入失败的选择/反馈、重启/取消配对在途操作互锁与旧账号/卸载响应归属；数据位置关闭重开/多实例/迁移在途及待重启提示持久性、真实Tauri目录迁移和设备证据也未完成。不得将本批门禁与fixture视为全部界面完成。
+
+最终834暖色检查无alert、无横向溢出，四列按钮174px；新增local-sandbox-834-sepia-final截图。已回收本轮3019服务和临时标签页，视口恢复；已有3018结果标签继续保留，用户3017与主checkout未覆盖。下一轮也要检查原生进程可读但服务端status失败时的提示与策略就绪，不据进程running断言服务连接已成功。

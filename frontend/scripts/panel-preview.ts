@@ -1475,6 +1475,19 @@ const server = await createServer({
       },
       resolveId(source, importer) {
         if (
+          importer?.endsWith("/components/profile/LocalSandboxSection.tsx") &&
+          [
+            "../../services/tauri/sandboxShell",
+            "../../hooks/useSandboxStatus",
+            "../../services/api/tokenManager",
+            "../../services/api/sandbox",
+          ].includes(source)
+        ) {
+          return fileURLToPath(
+            new URL("./local-sandbox-fixture.ts", import.meta.url),
+          );
+        }
+        if (
           importer?.endsWith("/components/profile/SandboxDataLocationCard.tsx") &&
           (source === "../../services/tauri/sandboxShell" ||
             source === "@tauri-apps/plugin-process")
