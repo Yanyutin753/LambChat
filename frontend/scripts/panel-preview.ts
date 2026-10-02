@@ -1614,6 +1614,60 @@ const server = await createServer({
           const failureTarget = previewParams.get("failure");
           const streamKey = req.headers.referer ?? "";
           if (
+            (previewParams.get("persona-flow") === "1" &&
+              ((req.method === "POST" &&
+                ["/api/persona-presets/", "/api/upload/file"].includes(
+                  url.pathname,
+                )) ||
+                (req.method === "PUT" &&
+                  /^\/api\/persona-presets\/[^/]+$/.test(url.pathname)))) ||
+            (previewParams.get("team-flow") === "1" &&
+              ((req.method === "POST" && url.pathname === "/api/teams/") ||
+                (req.method === "PUT" &&
+                  /^\/api\/teams\/[^/]+$/.test(url.pathname))))
+          ) {
+            // UI-only simulation: discard bytes, never save, parse or forward them.
+            req.resume();
+            const avatar = url.pathname === "/api/upload/file";
+            const team = url.pathname.startsWith("/api/teams/");
+            const key = `editor-flow:${streamKey}:${url.pathname}`;
+            const failed =
+              failureTarget ===
+                (avatar
+                  ? "persona-avatar"
+                  : team
+                    ? "team-save"
+                    : "persona-save") && !failedChannelRequests.has(key);
+            if (failed) failedChannelRequests.add(key);
+            setTimeout(() => {
+              res.statusCode = failed ? 503 : 200;
+              res.setHeader("Content-Type", "application/json");
+              res.end(
+                JSON.stringify(
+                  failed
+                    ? { detail: "Fixture save unavailable" }
+                    : avatar
+                      ? {
+                          key: "preview-avatar",
+                          url: "/icons/icon-192.png",
+                          name: "preview-avatar.png",
+                          type: "image",
+                          mime_type: "image/png",
+                          size: 41245,
+                        }
+                      : team
+                        ? (teams.find((item) =>
+                            url.pathname.endsWith(`/${item.id}`),
+                          ) ?? teams[0])
+                        : (presets.find((preset) =>
+                            url.pathname.endsWith(`/${preset.id}`),
+                          ) ?? presets[0]),
+                ),
+              );
+            }, 2000);
+            return;
+          }
+          if (
             previewParams.get("save-flow") === "1" &&
             req.method === "PUT" &&
             /^\/api\/skills\/[^/]+\/(files|binary-files)\//.test(url.pathname)
@@ -1704,7 +1758,7 @@ const server = await createServer({
           }
           const chatState = completedPreviewStreams.has(streamKey)
             ? "completed"
-            : previewParams.get("chat-state") ?? "completed";
+            : (previewParams.get("chat-state") ?? "completed");
           if (
             req.method === "GET" &&
             url.pathname === "/api/chat/sessions/preview-report/stream" &&
@@ -1983,8 +2037,10 @@ const server = await createServer({
           const isRead = req.method === "GET";
           const channelConfigFailure =
             isRead &&
-            ((failureTarget === "persona-bindings" &&
-              url.pathname.replace(/\/$/, "") === "/api/mcp") ||
+            ((failureTarget === "team-detail" &&
+              /^\/api\/teams\/[^/]+$/.test(url.pathname)) ||
+              (failureTarget === "persona-bindings" &&
+                url.pathname.replace(/\/$/, "") === "/api/mcp") ||
               (failureTarget === "persona-skill-list" &&
                 url.pathname.replace(/\/$/, "") === "/api/skills" &&
                 url.searchParams.get("limit") === "20") ||
@@ -2070,6 +2126,12 @@ const server = await createServer({
             );
           if (scenario === "loading" && !url.pathname.startsWith("/api/auth/"))
             setTimeout(send, 8000);
+          else if (
+            previewParams.get("team-flow") === "1" &&
+            isRead &&
+            /^\/api\/teams\/[^/]+$/.test(url.pathname)
+          )
+            setTimeout(send, 2000);
           else send();
           if (data === undefined && isRead)
             console.log("Missing fixture:", url.pathname);
