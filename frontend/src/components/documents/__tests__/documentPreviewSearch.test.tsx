@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import {
   act,
+  waitFor,
   cleanup,
   fireEvent,
   render,
@@ -58,7 +59,9 @@ beforeEach(() => {
   }));
 });
 
-test("file search waits for the lazy viewer instead of accepting a silent no-op", async () => {
+test("file search waits for the lazy viewer instead of accepting a silent no-op",
+  // CI 冷加载下整条用例可能超过 vitest 默认 5s 用例超时。
+  { timeout: 30000 }, async () => {
   previewLoad.pending = true;
   const i18n = appI18n.cloneInstance({ lng: "zh" });
   render(
@@ -115,7 +118,9 @@ test.each([false, true])(
     );
     await screen.findByRole("textbox", { name: "代码预览" }, { timeout: 8000 });
     expect(container.querySelector(".code-editor-toolbar")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "搜索" }));
+    const eachSearchButton = screen.getByRole("button", { name: "搜索" });
+    await waitFor(() => expect(eachSearchButton).toBeEnabled(), { timeout: 8000 });
+    fireEvent.click(eachSearchButton);
     const field = await screen.findByRole(
       "textbox",
       { name: "查找" },
@@ -136,7 +141,9 @@ test.each([false, true])(
   },
 );
 
-test("HTML source search shares its existing source toolbar", async () => {
+test("HTML source search shares its existing source toolbar",
+  // CI 冷加载下整条用例可能超过 vitest 默认 5s 用例超时。
+  { timeout: 30000 }, async () => {
   const { container } = render(
     <I18nextProvider i18n={appI18n.cloneInstance({ lng: "zh" })}>
       <HtmlPreview content="<p>alpha</p>" />
@@ -145,7 +152,11 @@ test("HTML source search shares its existing source toolbar", async () => {
   fireEvent.click(screen.getByRole("button", { name: "源码" }));
   await screen.findByRole("textbox", { name: "代码预览" }, { timeout: 8000 });
   expect(container.querySelector(".code-editor-toolbar")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "搜索" }));
+  // The search trigger stays disabled until the lazy editor mounts; wait for
+  // it to become enabled or the click is a silent no-op on slow CI runners.
+  const searchButton = screen.getByRole("button", { name: "搜索" });
+  await waitFor(() => expect(searchButton).toBeEnabled(), { timeout: 8000 });
+  fireEvent.click(searchButton);
   expect(
     await screen.findByRole(
       "textbox",
