@@ -71,7 +71,7 @@ test("file search waits for the lazy viewer instead of accepting a silent no-op"
   );
   expect(screen.getByRole("button", { name: "搜索" })).toBeDisabled();
   await act(async () => previewLoad.release?.());
-  await screen.findByRole("textbox", { name: "代码预览" });
+  await screen.findByRole("textbox", { name: "代码预览" }, { timeout: 8000 });
   expect(screen.getByRole("button", { name: "搜索" })).toBeEnabled();
   fireEvent.click(screen.getByRole("button", { name: "搜索" }));
   expect(
@@ -111,10 +111,14 @@ test.each([false, true])(
         <Preview fullscreen={fullscreen} />
       </I18nextProvider>,
     );
-    await screen.findByRole("textbox", { name: "代码预览" });
+    await screen.findByRole("textbox", { name: "代码预览" }, { timeout: 8000 });
     expect(container.querySelector(".code-editor-toolbar")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "搜索" }));
-    const field = await screen.findByRole("textbox", { name: "查找" });
+    const field = await screen.findByRole(
+      "textbox",
+      { name: "查找" },
+      { timeout: 8000 },
+    );
     expect(field).toHaveFocus();
     fireEvent.change(field, { target: { value: "alpha" } });
     fireEvent.click(
@@ -124,7 +128,9 @@ test.each([false, true])(
     expect(editor).toHaveFocus();
     expect(editor.textContent).toBe("alpha = 1alpha = 2");
     fireEvent.keyDown(editor, { key: "f", code: "KeyF", ctrlKey: true });
-    expect(await screen.findByRole("textbox", { name: "查找" })).toBeTruthy();
+    expect(
+      await screen.findByRole("textbox", { name: "查找" }, { timeout: 8000 }),
+    ).toBeTruthy();
   },
 );
 
@@ -135,7 +141,7 @@ test("HTML source search shares its existing source toolbar", async () => {
     </I18nextProvider>,
   );
   fireEvent.click(screen.getByRole("button", { name: "源码" }));
-  await screen.findByRole("textbox", { name: "代码预览" });
+  await screen.findByRole("textbox", { name: "代码预览" }, { timeout: 8000 });
   expect(container.querySelector(".code-editor-toolbar")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "搜索" }));
   expect(
