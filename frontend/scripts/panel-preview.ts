@@ -63,7 +63,14 @@ const roles = rows((i, name) => ({
   name,
   description: "管理团队成员、模型与工具访问权限",
   permissions: Object.values(Permission).slice(0, (i % 10) + 2),
-  limits: {},
+  limits:
+    i < 2
+      ? {
+          max_channels: 12,
+          max_concurrent_chats: 4,
+          max_file_size_document: 80,
+        }
+      : {},
   is_system: i < 2,
 }));
 const skills = rows((i, name) => ({
@@ -96,9 +103,20 @@ const presets = rows((i, name) => ({
   tags: tags.slice(0, (i % 4) + 1),
   scope: i % 2 ? "user" : "global",
   owner_user_id: user.id,
-  system_prompt: "你是一名专业的研究助手。",
+  system_prompt:
+    i === 0
+      ? `# 研究助手\n\n用准确、简洁的语言回答，保留关键约束与资料来源。\n\n- 区分事实与推断。\n- 给出可执行的下一步。\n\n参考资料：\nhttps://example.com/research/${"delivery-context-".repeat(
+          18,
+        )}`
+      : "你是一名专业的研究助手。",
   starter_prompts: [{ text: "帮我总结本周的项目进展" }],
-  skill_names: [],
+  skill_names:
+    i === 0
+      ? [
+          "research-summary",
+          "delivery-context-with-multiple-source-constraints-and-quality-checks",
+        ]
+      : [],
   mcp_server_names: [],
   visibility: "public",
   status: "published",

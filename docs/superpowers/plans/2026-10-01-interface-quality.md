@@ -730,3 +730,21 @@ fixture 新增仅 GET 的 marketplace-files/marketplace-file 首次503并Retry�
 最后生产修改后的门禁：767文件/3721项测试通过，lint零错误零警告；build含tsc/Vite/PWA/预算通过，eager JS559147/561152 bytes、precache5017375/5242880 bytes、91 entries。没有提高预算，保留既有chunk-size提示。git diff --check通过；门禁之后只补文档和原生证据，不再次重复已通过的检查。
 
 继续检查Persona/Role侧栏有意义元信息、源码长行、其它表单与剩余语言/界面组合；真实存储、服务对话、触屏与软键盘待验。整体目标保持进行中，不以本批截图或门禁宣告全部界面完成。
+
+## 2026-10-02 角色详情与嵌套弹层焦点
+
+开工fetch/rebase确认最新origin/develop35af6aff，基线d2376f00，继续隔离分支，保留主checkout未提交内容。Persona预览的112px装饰横幅改为56px头像和来源/使用次数元信息行；复用既有头像加载/失败回退。提示词原文与Markdown共用外层阅读滚动，原文长行换行且复制原始文本；原文切换复用IconButton，aria-pressed表达当前模式，手机从22px增至44px。标签和技能标题采用语义heading，长技能名可换行。
+
+Role详情补回被忽略subtitle中的系统标识，保留系统角色禁止删除及既有管理权限；无权限明确显示既有零计数。限额使用dl/dt/dd与已有auto-grid-cols，按实际侧栏宽度排列，零值仍显示；删除权限分组重复垂直margin，日期支持换行。
+
+原生320浅色发现详情关闭到剩余Persona选择Modal后焦点落BODY。共享restoreOpenerFocus原先见到任何modal就退出；改为剩余顶层modal包含opener时允许归还，入口不可聚焦则在该modal内找可用控件，无控件时聚焦modal。保留新activeId、其它modal、已获有效焦点及hidden/inert守卫。四项新增真实嵌套关闭行为均RED→GREEN：保留挂载、卸载关闭、隐藏入口有其它控件和无控件；另五项新增行为覆盖两种Persona来源与使用次数、原文模式/原始复制、系统角色删除保护和权限零计数。目标5文件49项通过，独立只读复核的modal fallback P2已关闭，最终无确定新增P1/P2。
+
+IAB独立3017实测：390深色、320浅色Persona原文及正文内部横向overflow均0（原文基线约2088px、hero基线正文8px）；切换与复制44×44px。320浅色Escape关闭实际回首个Persona卡片button，选择器保持。Role390深色/320浅色页与正文overflow0，固定footer编辑/关闭44px，系统角色无删除；1440深色侧栏489.59px，限额按容器单列433.59px，关闭返回角色标题。截图在仓库外interface-quality：persona-detail-390-dark-final、persona-source-390-dark-final、persona-source-320-light-final、persona-picker-320-light-focus-final、role-detail-390-dark-final、role-detail-320-light-final、role-detail-1440-dark-final。
+
+用户明确“能搜就行了”：保持既有聊天代码块simpleSearch，只显示关键词、下一个/上一个和关闭，不扩展高级选项。390深色实际键盘输入report并导航命中，DOM显示一个选中结果，所有搜索/复制/导航按钮44px、整页overflow0；搜索邻接复制，python同行对齐，关闭回代码预览焦点。相关12项测试通过；basic-code-search-390-dark-final为最终截图。没有操作用户3002页面输入、剪贴板或重启其服务；3002现有进程仍使用本隔离worktree源码。
+
+八项自检：沿用现有标题/元信息/等宽原文尺度；移除大块空横幅与重复分组margin，保留分组阅读留白；tab→元信息→提示词/技能→固定操作层级；深浅主题token与头像既有识别；无新增动效，沿用组件reduced-motion；切换aria-pressed、语义权限/限额和关闭焦点有测试/原生证据；320/390/1440与44px触控尺寸实测；复用LambChat头像、按钮和容器布局，无新依赖、资产、翻译键或另一套视觉体系。Impeccable按此前不可用环境的DESIGN.md清单人工检查。
+
+最后生产修改后门禁：769文件/3730项测试通过；lint零错误零警告；build含tsc/Vite/PWA/预算通过，eager JS559135/561152 bytes、precache5016770/5242880 bytes、91 entries，未提高预算，保留既有chunk-size提示。首轮全量唯一失败是已替换布局的旧sm:grid-cols-2源码断言，更新为容器适配约束后最终全量通过。git diff --check通过。门禁后仅文档/只读原生证据与清理。
+
+这批仅GET fixture和模拟Clipboard行为，不证明真实角色保存、权限写入、服务对话、手机软键盘或触屏。继续其它表单/选择器与剩余语言和状态组合；整体目标保持进行中，不据此宣告全部界面完成。
