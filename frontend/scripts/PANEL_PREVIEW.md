@@ -72,3 +72,5 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 成果文件树走查：`/chat/preview-report?artifacts=1` 添加两个文件与一个内联文本项目的只读成果，可打开“全部文件”、项目文件树，检查长中文文件名、复制、单文件下载和 ZIP。可组合 `theme=dark` / `sepia` 与 `failure=clipboard`；不连接真实 API 或执行项目代码。
 
 图片走查：`/chat/preview-report?images=1` 添加已有桌面/手机截图及一个固定404的图片到实际 `reveal_file` 画廊，可检查键盘打开、失败重试、切换恢复、缩放旋转与下载。404保持失败；同一图片重试成功由组件测试覆盖。图片来自仓库已有公开演示资产，不创建或上传真实文件。
+
+视频走查：`/chat/preview-report?videos=1` 提供固定404的视频，可检查错误说明与同 URL 重试。需要实际播放时，用 `PANEL_PREVIEW_VIDEO=/absolute/path/sample.webm pnpm preview:panels` 启动，页面额外提供此本机样例；文件只由预览服务读取，不加入生产资源或提交仓库。本轮使用 [MDN 的示例视频](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/video)（[flower.webm](https://developer.mozilla.org/shared-assets/videos/flower.webm)）验证播放、暂停、原生控件 Tab 顺序和下载内容。原生视频全屏、旧 iOS WebView 回退及真实触屏仍需对应设备验证。

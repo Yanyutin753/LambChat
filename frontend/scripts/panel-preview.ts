@@ -1,8 +1,12 @@
 /** Local-only UI fixture server. No requests are forwarded to a real API. */
 import { createServer } from "vite";
+import { readFileSync } from "node:fs";
 import { Permission, type PermissionsResponse } from "../src/types/auth";
 
 const now = "2026-09-30T08:00:00Z";
+const previewVideo = process.env.PANEL_PREVIEW_VIDEO
+  ? readFileSync(process.env.PANEL_PREVIEW_VIDEO)
+  : null;
 const labels = [
   "季度业务分析",
   "产品研究与洞察",
@@ -1433,9 +1437,18 @@ const server = await createServer({
           const previewParams = new URL(
             req.headers.referer ?? "http://localhost",
           ).searchParams;
-          if (url.pathname === "/preview-missing-image.webp") {
+          if (
+            url.pathname === "/preview-missing-image.webp" ||
+            url.pathname === "/preview-missing-video.webm"
+          ) {
             res.statusCode = 404;
             res.end();
+            return;
+          }
+          if (url.pathname === "/preview-video.webm") {
+            res.statusCode = previewVideo ? 200 : 404;
+            res.setHeader("Content-Type", "video/webm");
+            res.end(previewVideo);
             return;
           }
           if (
@@ -1657,18 +1670,46 @@ const server = await createServer({
           }
           if (
             url.pathname === "/api/sessions/preview-report/events" &&
-            previewParams.has("images")
+            (previewParams.has("images") || previewParams.has("videos"))
           ) {
             const history = data as { events: object[] };
-            const images = [
-              ["桌面工作区.webp", "/images/best-practice/chat-home.webp"],
-              ["暂不可用的图片.webp", "/preview-missing-image.webp"],
-              ["移动端工作区.webp", "/images/best-practice/mobile-view.webp"],
+            const media = [
+              ...(previewParams.has("images")
+                ? [
+                    [
+                      "桌面工作区.webp",
+                      "/images/best-practice/chat-home.webp",
+                      "image",
+                    ],
+                    [
+                      "暂不可用的图片.webp",
+                      "/preview-missing-image.webp",
+                      "image",
+                    ],
+                    [
+                      "移动端工作区.webp",
+                      "/images/best-practice/mobile-view.webp",
+                      "image",
+                    ],
+                  ]
+                : []),
+              ...(previewParams.has("videos")
+                ? [
+                    [
+                      "暂不可用的视频.webm",
+                      "/preview-missing-video.webm",
+                      "video",
+                    ],
+                    ...(previewVideo
+                      ? [["视频预览.webm", "/preview-video.webm", "video"]]
+                      : []),
+                  ]
+                : []),
             ];
             history.events.splice(
               history.events.length - 1,
               0,
-              ...images.flatMap(([name, imageUrl], index) => [
+              ...media.flatMap(([name, mediaUrl, type], index) => [
                 {
                   id: `preview-image-start-${index}`,
                   event_type: "tool:start",
@@ -1690,9 +1731,9 @@ const server = await createServer({
                     tool_call_id: `preview-image-${index}`,
                     result: {
                       key: `preview-image-${index}`,
-                      url: imageUrl,
+                      url: mediaUrl,
                       name,
-                      type: "image",
+                      type,
                     },
                     success: true,
                   },

@@ -86,6 +86,7 @@ test("fullscreen diagram captures focus and only its own Escape closes it", asyn
   fireEvent.click(opener);
   const viewer = screen.getByRole("dialog", { name: "chat.mermaidDiagram" });
   expect(viewer).toHaveFocus();
+  expect(viewer).not.toHaveAttribute("data-yields-sidebar");
   fireEvent.keyDown(viewer, { key: "Escape", isComposing: true });
   expect(viewer).toBeInTheDocument();
   fireEvent.keyDown(viewer, { key: "Escape" });

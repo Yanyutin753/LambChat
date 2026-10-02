@@ -1,11 +1,20 @@
-import { useEffect, useCallback, useRef } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { X, Download } from "lucide-react";
+import { X, Download, RefreshCw } from "lucide-react";
 import { ViewerTopBar } from "./ViewerTopBar";
 import { ViewerTopBarButton } from "./ViewerTopBarButton";
 import { downloadUrl } from "./viewerDownload";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
+import { restoreOpenerFocusUnclaimed } from "../../utils/modalDialog";
+import { SceneIllustration } from "./SceneIllustration";
+import { useDialogFocus } from "./useDialogFocus";
 
 interface VideoViewerProps {
   src: string;
@@ -16,32 +25,38 @@ interface VideoViewerProps {
 
 export function VideoViewer({ src, isOpen, onClose, title }: VideoViewerProps) {
   const { t } = useTranslation();
-  const videoRef = useRef<HTMLVideoElement>(null);
-  useBodyScrollLock(isOpen);
-
-  useEffect(() => {
-    if (isOpen && videoRef.current) {
-      videoRef.current.currentTime = 0;
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+  const surfaceRef = useRef<HTMLDialogElement | HTMLDivElement>(null);
+  const nativeModal =
+    typeof HTMLDialogElement !== "undefined" &&
+    typeof HTMLDialogElement.prototype.showModal === "function";
+  const Surface = nativeModal ? "dialog" : "div";
+  const [hasError, setHasError] = useState(false);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  useDialogFocus({
+    open: isOpen && !nativeModal,
+    onClose,
+    surfaceRef,
+    nativeMediaControls: true,
+  });
+  useBodyScrollLock(isOpen, !nativeModal, !nativeModal);
+  useLayoutEffect(() => {
+    if (!isOpen || !nativeModal) return;
+    const dialog = surfaceRef.current as HTMLDialogElement;
+    const opener = document.activeElement as HTMLElement | null;
+    dialog.showModal();
+    return () => {
+      dialog.close();
+      queueMicrotask(() => restoreOpenerFocusUnclaimed(opener, dialog));
     };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, nativeModal]);
 
   useEffect(() => {
-    if (!isOpen && videoRef.current) {
-      videoRef.current.pause();
-    }
-  }, [isOpen]);
+    setHasError(false);
+    setRetryAttempt(0);
+  }, [isOpen, src]);
 
   const handleBackgroundClick = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.MouseEvent<HTMLElement>) => {
       if (e.target === e.currentTarget) onClose();
     },
     [onClose],
@@ -50,10 +65,31 @@ export function VideoViewer({ src, isOpen, onClose, title }: VideoViewerProps) {
   if (!isOpen) return null;
 
   return createPortal(
-    <div
-      data-yields-sidebar
-      className="safe-area-x fixed inset-0 z-[300] flex flex-col bg-black"
+    <Surface
+      ref={(element: HTMLDialogElement | HTMLDivElement | null) => {
+        surfaceRef.current = element;
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title || t("fileLibrary.types.video")}
+      tabIndex={-1}
+      className="safe-area-x fixed inset-0 z-[300] flex flex-col bg-black backdrop:bg-black video-viewer m-0 w-full max-w-none max-h-none border-0 p-0"
+      style={{
+        height: "var(--app-viewport-height, 100dvh)",
+        transform: "translate3d(0, var(--app-viewport-offset-top, 0px), 0)",
+      }}
       onClick={handleBackgroundClick}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onKeyDown={(event) => {
+        if (
+          event.key === "Escape" &&
+          (event.nativeEvent.isComposing || event.keyCode === 229)
+        )
+          event.preventDefault();
+      }}
     >
       <ViewerTopBar className="bg-black/80 shrink-0">
         <ViewerTopBarButton
@@ -76,19 +112,50 @@ export function VideoViewer({ src, isOpen, onClose, title }: VideoViewerProps) {
         </ViewerTopBarButton>
       </ViewerTopBar>
 
-      <div className="safe-area-bottom flex-1 overflow-hidden flex items-center justify-center">
+      <div
+        className="safe-area-bottom flex-1 overflow-hidden flex items-center justify-center"
+        onClick={handleBackgroundClick}
+      >
         <video
-          ref={videoRef}
+          key={`${src}:${retryAttempt}`}
           controls
+          tabIndex={0}
+          aria-label={title || t("fileLibrary.types.video")}
           autoPlay={false}
+          playsInline
+          hidden={hasError}
+          preload="metadata"
           className="max-w-full max-h-full"
           src={src}
+          onError={() => {
+            if (surfaceRef.current?.contains(document.activeElement))
+              surfaceRef.current.focus();
+            setHasError(true);
+          }}
           onClick={(e) => e.stopPropagation()}
         >
           {t("documents.videoNotSupported")}
         </video>
+        {hasError && (
+          <div className="flex flex-col items-center gap-3 px-6 text-center text-white/80">
+            <SceneIllustration scene="files" />
+            <p role="alert" className="text-14">
+              {t("documents.videoLoadFailed")}
+            </p>
+            <ViewerTopBarButton
+              icon={<RefreshCw size={18} />}
+              onClick={() => {
+                surfaceRef.current?.focus();
+                setHasError(false);
+                setRetryAttempt((attempt) => attempt + 1);
+              }}
+            >
+              {t("common.retry")}
+            </ViewerTopBarButton>
+          </div>
+        )}
       </div>
-    </div>,
+    </Surface>,
     document.body,
   );
 }

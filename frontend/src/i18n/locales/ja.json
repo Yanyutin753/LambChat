@@ -1347,6 +1347,7 @@
     "unsupportedFileHint": "このファイルタイプはオンラインプレビューに対応していません。ダウンロードして確認してください。",
     "unsupportedFilePreview": "このファイルはプレビューに対応していません",
     "videoNotSupported": "ブラウザは動画タグに対応していません",
+    "videoLoadFailed": "この動画を再生できません。再試行するか、ダウンロードして別のプレーヤーで開いてください。",
     "viewSource": "ソースを表示",
     "wordConversionError": "Word文書の変換に失敗しました",
     "wordPreviewError": "Wordプレビューエラー",

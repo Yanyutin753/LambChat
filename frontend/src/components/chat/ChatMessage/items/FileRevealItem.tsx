@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { clsx } from "clsx";
 import { ExternalLink, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner, ImageViewer, VideoViewer } from "../../../common";
+import { ViewerTopBarButton } from "../../../common/ViewerTopBarButton";
 import { ImageWithSkeleton } from "../ImageWithSkeleton";
 import {
   getFileExtension,
@@ -127,6 +128,7 @@ export function FileRevealItem({
   const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
   const [videoViewerSrc, setVideoViewerSrc] = useState<string | null>(null);
   const [mediaLoaded, setMediaLoaded] = useState(false);
+  const inlineVideoRef = useRef<HTMLVideoElement>(null);
   const sessionImageGallery = useSessionImageGallery();
 
   const parsed = useMemo(() => {
@@ -188,6 +190,8 @@ export function FileRevealItem({
   const isAudio = fileInfo.category === "audio";
   const isExcalidraw = isExcalidrawFile(getFileExtension(parsed.filePath));
   const canPreview = isImage || isVideo || isAudio;
+  const Preview = isVideo ? "div" : "button";
+  const Footer = !isImage && !isAudio ? "button" : "div";
   const previewAutoOpenKey = getFileRevealAutoOpenKey({
     s3Key: parsed.s3Key,
     s3Url: parsed.s3Url,
@@ -223,6 +227,7 @@ export function FileRevealItem({
   const openPreview = useCallback(
     (source: RevealPreviewOpenSource) => {
       if (!previewAutoOpenKey || !previewRequest) return;
+      inlineVideoRef.current?.pause();
       openRevealPreview(previewRequest, source, onOpenPreview);
     },
     [previewAutoOpenKey, onOpenPreview, previewRequest],
@@ -353,14 +358,19 @@ export function FileRevealItem({
               />
             </div>
           ) : (
-            <div
-              className="relative group/img cursor-pointer"
+            <Preview
+              type={isVideo ? undefined : "button"}
+              aria-label={isVideo ? undefined : fileName}
+              className="relative block w-full group/img text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)]"
               style={isImage ? undefined : { aspectRatio: "16/9" }}
-              onClick={() => {
-                if (isImage) openImagePreview(parsed.s3Url);
-                else if (isVideo) setVideoViewerSrc(parsed.s3Url);
-                else if (isExcalidraw) openPreview("manual");
-              }}
+              onClick={
+                isVideo
+                  ? undefined
+                  : () => {
+                      if (isImage) openImagePreview(parsed.s3Url);
+                      else if (isExcalidraw) openPreview("manual");
+                    }
+              }
             >
               {!mediaLoaded && !isExcalidraw && (
                 <div className="absolute inset-0">
@@ -383,6 +393,7 @@ export function FileRevealItem({
               ) : (
                 parsed.s3Url && (
                   <video
+                    ref={inlineVideoRef}
                     src={parsed.s3Url}
                     controls
                     preload="metadata"
@@ -402,11 +413,27 @@ export function FileRevealItem({
               )}
               {(isImage || isVideo || isExcalidraw) && (
                 <>
-                  <div className="absolute top-2 right-2 opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-none z-[2]">
-                    <div className="p-1.5 rounded-lg bg-black/40 shadow pointer-events-auto">
-                      <ExternalLink size={14} className="text-white" />
+                  {isVideo ? (
+                    <ViewerTopBarButton
+                      iconOnly
+                      icon={<ExternalLink size={18} />}
+                      className="absolute top-2 right-2 z-[2] bg-black/60 text-white/80"
+                      aria-label={t("imageViewer.fullscreen")}
+                      onClick={() => {
+                        inlineVideoRef.current?.pause();
+                        setVideoViewerSrc(parsed.s3Url);
+                      }}
+                    />
+                  ) : (
+                    <div
+                      className="absolute top-2 right-2 opacity-0 group-hover/img:opacity-100 group-focus-visible/img:opacity-100 transition-opacity pointer-events-none z-[2]"
+                      aria-hidden="true"
+                    >
+                      <div className="p-1.5 rounded-lg bg-black/40 shadow pointer-events-auto">
+                        <ExternalLink size={14} className="text-white" />
+                      </div>
                     </div>
-                  </div>
+                  )}
                   {isImage && (fileName || parsed.description) && (
                     <div className="absolute bottom-0 left-0 right-0 opacity-0 group-hover/img:opacity-100 transition-opacity z-[2]">
                       <div className="px-2 py-1.5 bg-gradient-to-t from-black/60 to-transparent">
@@ -418,13 +445,15 @@ export function FileRevealItem({
                   )}
                 </>
               )}
-            </div>
+            </Preview>
           )}
 
-          <div
+          <Footer
+            type={!isImage && !isAudio ? "button" : undefined}
             className={clsx(
-              "flex items-center gap-2 px-3 py-2 bg-theme-bg dark:bg-theme-bg-subtle/50 border-t border-theme-border",
+              "flex w-full text-left items-center gap-2 px-3 py-2 bg-theme-bg dark:bg-theme-bg-subtle/50 border-t border-theme-border focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]",
               isAudio && "border-t-0",
+              !isImage && !isAudio && "min-h-11 sm:min-h-0",
             )}
             onClick={() => {
               if (!isImage && !isAudio) openPreview("manual");
@@ -441,7 +470,7 @@ export function FileRevealItem({
                 {parsed.description}
               </span>
             )}
-          </div>
+          </Footer>
         </div>
       ) : (
         <button

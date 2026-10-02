@@ -94,19 +94,6 @@ export function ImageViewer({
       queueMicrotask(() => restoreOpenerFocusUnclaimed(previous, dialog));
   }, [isOpen]);
   useLayoutEffect(() => {
-    if (!isOpen) return;
-    const panels = Array.from(
-      document.querySelectorAll<HTMLElement>("body > [data-right-panel-root]"),
-    ).map((panel) => {
-      const previous = panel.inert ?? false;
-      panel.inert = true;
-      return { panel, previous };
-    });
-    return () => {
-      for (const { panel, previous } of panels) panel.inert = previous;
-    };
-  }, [isOpen]);
-  useLayoutEffect(() => {
     if (
       isOpen &&
       document.activeElement === document.body &&
@@ -164,7 +151,7 @@ export function ImageViewer({
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [canGoNext, canGoPrevious, isOpen, onClose, onNext, onPrevious]);
-  useBodyScrollLock(isOpen, true);
+  useBodyScrollLock(isOpen, true, true);
 
   useEffect(() => {
     if (!isOpen) return;

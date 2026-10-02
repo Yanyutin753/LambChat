@@ -276,7 +276,7 @@ export function ExcalidrawFullscreenViewer({
     };
   }, [svgBlobUrl]);
 
-  useBodyScrollLock(true);
+  useBodyScrollLock(true, true, true);
 
   // Native non-passive wheel handler — matches ImageViewer
   useEffect(() => {
@@ -445,7 +445,6 @@ export function ExcalidrawFullscreenViewer({
       aria-modal="true"
       aria-label={t("documents.excalidrawDiagram")}
       tabIndex={-1}
-      data-yields-sidebar
       className="excalidraw-viewer safe-area-x fixed inset-0 z-[300] flex flex-col bg-black/90"
       onClick={handleBackgroundClick}
     >

@@ -542,7 +542,7 @@ function MermaidViewer({
     return () => URL.revokeObjectURL(svgBlobUrl);
   }, [svgBlobUrl]);
 
-  useBodyScrollLock(true);
+  useBodyScrollLock(true, true, true);
 
   const handleWheel = useCallback((event: React.WheelEvent) => {
     if (!event.ctrlKey && !event.metaKey) return;
@@ -651,7 +651,6 @@ function MermaidViewer({
       aria-modal="true"
       aria-label={t("chat.mermaidDiagram")}
       tabIndex={-1}
-      data-yields-sidebar
       className="mermaid-viewer safe-area-x fixed inset-0 z-[300] flex flex-col bg-black/90"
     >
       {/* Top bar - close + code actions */}

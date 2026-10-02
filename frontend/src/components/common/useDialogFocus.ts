@@ -11,11 +11,13 @@ export function useDialogFocus({
   onClose,
   surfaceRef,
   dismissible = true,
+  nativeMediaControls = false,
 }: {
   open: boolean;
   onClose: () => void;
   surfaceRef: RefObject<HTMLElement | null>;
   dismissible?: boolean;
+  nativeMediaControls?: boolean;
 }) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -32,6 +34,26 @@ export function useDialogFocus({
       surface !== null &&
       (topmostVisibleDialog() === surface ||
         topmostVisibleModalDialog() === surface);
+    let backwards = false;
+    const controls = () =>
+      Array.from(
+        surface?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],[contenteditable="true"],[tabindex]',
+        ) ?? [],
+      ).filter(
+        (el) =>
+          el.getClientRects().length &&
+          (el.tabIndex >= 0 ||
+            (el.matches('[contenteditable="true"]') &&
+              !el.hasAttribute("tabindex"))) &&
+          !el.closest('[inert],[aria-hidden="true"]'),
+      );
+    const containMediaFocus = () => {
+      if (!ownsTopLayer(surface) || surface?.contains(document.activeElement))
+        return;
+      const targets = controls();
+      (backwards ? targets[targets.length - 1] : targets[0])?.focus();
+    };
     const keyboard = (event: KeyboardEvent) => {
       if (
         !ownsTopLayer(surface) ||
@@ -45,20 +67,16 @@ export function useDialogFocus({
         closeRef.current();
       }
       if (event.key !== "Tab" || !surface) return;
-      const controls = Array.from(
-        surface.querySelectorAll<HTMLElement>(
-          'button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],[contenteditable="true"],[tabindex]',
-        ),
-      ).filter(
-        (el) =>
-          el.getClientRects().length &&
-          (el.tabIndex >= 0 ||
-            (el.matches('[contenteditable="true"]') &&
-              !el.hasAttribute("tabindex"))) &&
-          !el.closest('[inert],[aria-hidden="true"]'),
-      );
-      const first = controls[0],
-        last = controls[controls.length - 1];
+      backwards = event.shiftKey;
+      // Native media has internal tab stops absent from querySelectorAll.
+      if (
+        nativeMediaControls &&
+        document.activeElement?.matches("video[controls],audio[controls]")
+      )
+        return;
+      const targets = controls();
+      const first = targets[0],
+        last = targets[targets.length - 1];
       if (!first) event.preventDefault();
       else if (
         event.shiftKey &&
@@ -75,8 +93,12 @@ export function useDialogFocus({
       }
     };
     document.addEventListener("keydown", keyboard);
+    if (nativeMediaControls)
+      document.addEventListener("focusin", containMediaFocus);
     return () => {
       document.removeEventListener("keydown", keyboard);
+      if (nativeMediaControls)
+        document.removeEventListener("focusin", containMediaFocus);
       const restore = () => {
         if (previous?.isConnected)
           restoreOpenerFocusUnclaimed(previous, surface);
@@ -85,5 +107,5 @@ export function useDialogFocus({
       if (previous?.closest("[inert]")) queueMicrotask(restore);
       else restore();
     };
-  }, [open, surfaceRef]);
+  }, [open, surfaceRef, nativeMediaControls]);
 }

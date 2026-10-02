@@ -1347,6 +1347,7 @@
     "unsupportedFileHint": "This file type does not support online preview. Please download it to view.",
     "unsupportedFilePreview": "Preview is not supported for this file",
     "videoNotSupported": "Your browser does not support the video tag.",
+    "videoLoadFailed": "Couldn't play this video. Retry or download it to open in another player.",
     "viewSource": "View Source",
     "wordConversionError": "Failed to convert Word document",
     "wordPreviewError": "Word preview error",

@@ -529,3 +529,29 @@ TDD：加载失败、重试、错误切换、两种共享图片入口、图片�
 截图沿用 interface-quality 目录：image-viewer-390-dark-before.png；image-viewer-320-light-final.png、image-gallery-320-sepia-final.png、image-viewer-390-dark-error-final.png / final.png、image-viewer-768-sepia-final.png、image-viewer-1440-light-final.png。1440 半屏旧截图已改名 before-fullscreen，最终1440在最后 inert 修正后重新保存；320/390/768在最后仅影响已开右面板隔离的修改前，不作为该隔离证明。临时 viewport reset，tab10 handoff；用户原tab和剪贴板未操作。
 
 继续：其他下载格式、大图/内嵌图片、绘图与视频全屏的侧栏关系、资源导入发布、其余语言、真实触屏/软键盘、认证/写入/真实对话与扫码 E2E。整体目标保持进行中，不以本批图片样例推断全部界面已无明显提升空间。
+
+### 当前执行：视频原生控件与绘图全屏
+
+- [x] 视频入口与播放控件分离；图片/绘图入口采用原生按钮，视频失败说明与同 URL 重试，下载保持可用。
+- [x] 绘图和 Markdown Mermaid 全屏完整覆盖桌面右面板，复用独立面板锁计数，关闭恢复原入口与原始 inert 状态。
+- [x] 实际播放、暂停、原生控件键盘顺序、下载内容和四宽度三主题检查；旧 WebView 回退、完整门禁与只读复核。
+
+本批完成：FileRevealItem 原内联视频外层不再响应点击打开第二播放器，沿用 ViewerTopBarButton 提供独立右上角预览入口，手机44px、桌面40px，文件 footer 使用原生按钮；图像和绘图 preview 不再是不可键盘操作的 div。打开视频预览或手动侧栏前暂停原内联视频，避免两个播放器同时播放。VideoViewer 复用顶栏、files 羊场景及五语错误，失败隐藏无效播放器，Retry remount 同签名 URL；下载仍能供不支持该格式的用户在其他播放器打开。无新组件体系、生产资产或依赖。
+
+视频采用原生 dialog.showModal 管理背景隔离和浏览器播放器内部焦点；仅在不支持 API 的 WebView 使用现有 useDialogFocus 与背景/右面板锁。旧模式 nativeMediaControls 选项让媒体 Tab 不被错误截断，focusin 越出顶层 surface 后按前后方向收回，其他调用者保留原行为。Excalidraw 和实际 Markdown Mermaid 删除 yield-sidebar 标记，useBodyScrollLock 的第三参数独立计数右面板锁；ImageViewer 删除重复的局部 panel effect 并复用同一锁。独立计数保持已经存在的普通 modal root lock，不放大通用 modal 的侧栏策略。
+
+TDD：视频 dialog/error、嵌套 fullscreen 面板计数、两种绘图 no-yield 共5项先 RED；内联视频不打开第二播放器与独立图片键盘入口2项 RED 后 GREEN。原生实测发现 JS Tab trap 跳过播放器内部控件，DIALOG 断言明确 RED 后改原生弹窗。只读复核发现 iOS最低版本14、showModal API兼容 P2，删除API的用例明确 TypeError RED 后补能力检测和回退，覆盖开启、媒体Tab放行、正反向焦点回收、IME/Escape和关闭还原。最后 pause 断言明确0调用 RED 后修实际 opener。最终共新增6项行为测试，既有 drawing/Mermaid 测试增添 no-yield 断言，不降低既有守卫。
+
+原生浏览器：videos=1 固定404与可选本机媒体，preview session27314/3002，API写入仍405。本机样例来自 MDN flower.webm（仅 /tmp，不提交仓库）；960×540、duration5.059、readyState4。390 inline Space 实际 paused=false 且 time前进，未打开第二播放器；点击独立入口后 inline paused=true/time0.205、预览 paused=true/time0。预览 Space 播放/暂停均实际改变 paused/currentTime；播放中 Escape 移除预览，剩余内联/侧栏播放器均暂停，焦点回原预览按钮。下载 preview-video.webm 为554058 bytes，SHA256 与本机源精确一致，已保存 video-download-verified.webm 后清理本批下载。
+
+原生键盘逐项经过播放、音量、静音、播放器全屏、更多、时间进度；末端有一次浏览器/body焦点过渡，再回 Close/Download，没有进入背景应用。原生播放器全屏按钮 Space 在 IAB 未实际进入 document.fullscreenElement，因此只证明入口可达，不声称 OS 视频全屏或退出层次已验证；旧 iOS回退内部Tab顺序仍需真机。320 light 错误文案完整换行、Retry Space 对固定404仍诚实失败，关闭/下载/Retry均约44px；390 dark 播放预览，768 sepia 稳定播放/暂停后截图，1440 light 预览顶栏40px。四宽度本批页面横向溢出均0。浏览器 viewport 请求尺寸按当前浏览器缩放换算成CSS320/390/768/1440，截图边缘包含浏览器表面，不由截图像素直接推断CSS尺寸。
+
+1440 light 先打开实际 docked Markdown右面板再开 Excalidraw，绘图 dialog left0/right1440（修前仅749px），背景右面板 inert属性存在且 AX 消失；Escape清除锁、返回文件库原绘图按钮。Markdown实际 Mermaid full dialog 同样0–1440，关闭背景panel inert恢复false，focus回面板里的原Fullscreen按钮。样例只有三节点，不作为大图可读性或触摸缩放证明。
+
+八项自检：沿用既有文字与文件名层级；保持正文/卡片阅读留白，仅收紧动作；播放控件与预览入口分离、失败恢复明确；媒体沿用黑色观看表面，周边 light/dark/sepia 不另建色彩体系；VideoViewer transition 纳入已有 reduced-motion，无装饰动效，OS偏好未实测；原生播放、键盘路径、焦点回退、失败与真实下载验证；四宽度、手机44px与桌面40px且无本批横向溢出，触屏/软键盘未验证；沿用 LambChat 场景与现有视觉语言。Impeccable 继续按已确认不可用环境的 DESIGN.md 清单人工检查。
+
+截图：video-320-light-error-final.png、video-390-dark-final.png、video-768-sepia-final.png、video-1440-light-final.png、drawing-fullscreen-1440-light-final.png、mermaid-fullscreen-1440-light-final.png；drawing-fullscreen-1440-dark-before.png 仅基线。320 error 与桌面 drawing/Mermaid 的最后视频 pause 修改不影响其布局；390在该修改后重拍。原生 Top Layer 最新 diff 和旧 WebView回退已独立只读复核，兼容 P2关闭；最终媒体 pause 行单独复核。复核者未重复全量门禁或原生交互。
+
+继续：其他格式下载、大图与内嵌图片、资源导入发布、其余语言、旧 iOS/真实触屏/软键盘、原生视频全屏、认证/写入/真实对话与扫码E2E。整体目标保持进行中，不以本批演示数据和媒体路径称全界面已无明显提升空间。
+
+最终修改后门禁：pnpm test 754文件/3655项全通过；pnpm run lint 零错误零警告；pnpm run build 含 tsc/Vite/PWA/预算通过，eager JS559004/559104 bytes、precache5022614/5242880 bytes、91 entries，未提高预算，保留既有chunk-size提示。最终pause行只读复核无新增P1/P2，git diff --check通过。构建首次动态div/dialog ref类型失败已修为明确类型callback后重跑通过。截图与验证资产在仓库外；临时viewport reset，tab10 handoff，用户原tab及剪贴板未操作。

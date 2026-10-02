@@ -1347,6 +1347,7 @@
     "unsupportedFileHint": "此文件类型暂不支持在线预览，请下载后查看。",
     "unsupportedFilePreview": "暂不支持预览此文件",
     "videoNotSupported": "您的浏览器不支持视频标签",
+    "videoLoadFailed": "无法播放此视频，请重试或下载后使用其他播放器打开。",
     "viewSource": "查看源代码",
     "wordConversionError": "Word 文档转换失败",
     "wordPreviewError": "Word 预览错误",

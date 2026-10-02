@@ -129,6 +129,7 @@ test("drawing preview has a keyboard fullscreen entry and nested menu focus boun
     name: "documents.excalidrawDiagram",
   });
   expect(viewer).toHaveFocus();
+  expect(viewer).not.toHaveAttribute("data-yields-sidebar");
   fireEvent.click(
     within(viewer).getByRole("button", { name: "documents.download" }),
   );
