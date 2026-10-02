@@ -58,7 +58,9 @@ beforeEach(() => {
   }));
 });
 
-test("file search waits for the lazy viewer instead of accepting a silent no-op", async () => {
+test("file search waits for the lazy viewer instead of accepting a silent no-op",
+  // CI 冷加载下整条用例可能超过 vitest 默认 5s 用例超时。
+  { timeout: 30000 }, async () => {
   previewLoad.pending = true;
   const i18n = appI18n.cloneInstance({ lng: "zh" });
   render(
@@ -136,7 +138,9 @@ test.each([false, true])(
   },
 );
 
-test("HTML source search shares its existing source toolbar", async () => {
+test("HTML source search shares its existing source toolbar",
+  // CI 冷加载下整条用例可能超过 vitest 默认 5s 用例超时。
+  { timeout: 30000 }, async () => {
   const { container } = render(
     <I18nextProvider i18n={appI18n.cloneInstance({ lng: "zh" })}>
       <HtmlPreview content="<p>alpha</p>" />
