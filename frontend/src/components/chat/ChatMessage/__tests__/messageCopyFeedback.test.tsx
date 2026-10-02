@@ -31,11 +31,6 @@ vi.mock("../../../../hooks/useAuth", () => ({
   useAuth: () => ({ isAuthenticated: false }),
 }));
 vi.mock("../../../../hooks/useFxRates", () => ({ useFxRates: () => null }));
-vi.mock("../../../common/DeferredCodeMirrorViewer", () => ({
-  DeferredCodeMirrorViewer: ({ value }: { value: string }) => (
-    <pre>{value}</pre>
-  ),
-}));
 
 afterEach(cleanup);
 beforeEach(() => vi.clearAllMocks());
@@ -110,7 +105,7 @@ test.each([
         }),
     );
     render(<MarkdownContent content={content} />);
-    const copy = screen.getByRole("button", { name: label });
+    const copy = await screen.findByRole("button", { name: label });
     fireEvent.click(copy);
     expect(copy).toBeDisabled();
     expect(mocks.success).not.toHaveBeenCalled();

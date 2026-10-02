@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Search } from "lucide-react";
 import type { EditorView } from "@codemirror/view";
@@ -11,13 +11,18 @@ import "../../styles/code-editor.css";
 export function CodeMirrorSearchToolbar({
   viewRef,
   copyText,
+  copyLabel,
+  label,
 }: {
   viewRef: RefObject<EditorView | null>;
   copyText?: string;
+  copyLabel?: string;
+  label?: ReactNode;
 }) {
   const { t } = useTranslation();
   return (
     <div className="code-editor-toolbar">
+      {label && <div className="min-w-0 flex-1">{label}</div>}
       <ToolbarIconButton
         icon={<Search size={14} aria-hidden="true" />}
         aria-label={t("common.search")}
@@ -31,7 +36,9 @@ export function CodeMirrorSearchToolbar({
             ?.focus();
         }}
       />
-      {copyText !== undefined && <CopyButton text={copyText} />}
+      {copyText !== undefined && (
+        <CopyButton text={copyText} label={copyLabel} />
+      )}
     </div>
   );
 }
