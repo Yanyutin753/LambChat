@@ -10,7 +10,7 @@ import {
 import {
   Share2,
   MoreHorizontal,
-  MessageSquarePlus,
+  SquarePen,
   Bell,
   Languages,
   Sun,
@@ -19,7 +19,11 @@ import {
   Check,
   ChevronLeft,
   ListTree,
+  RefreshCw,
+  AlertCircle,
 } from "lucide-react";
+import { ToolbarIconButton } from "../../common/ui/ToolbarIconButton";
+import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { ModelSelector } from "../../agent/ModelSelector";
 import { UserMenu } from "../UserMenu";
 import { ShareDialog } from "../../share/ShareDialog";
@@ -80,8 +84,14 @@ export function Header({
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { theme, toggleTheme } = useTheme();
-  const { pinnedModelIds, togglePinnedModel } = useSettingsContext();
+  const { theme, toggleTheme, appearanceState, retryAppearance } = useTheme();
+  const {
+    pinnedModelIds,
+    togglePinnedModel,
+    modelsLoading,
+    modelsError,
+    reloadModels,
+  } = useSettingsContext();
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [notifDialogOpen, setNotifDialogOpen] = useState(false);
   const [activeNotifCount, setActiveNotifCount] = useState(0);
@@ -152,7 +162,7 @@ export function Header({
       ? [
           {
             label: t("sidebar.newChat"),
-            icon: <MessageSquarePlus size={16} />,
+            icon: <SquarePen size={16} />,
             onClick: onNewSession,
           },
         ]
@@ -177,20 +187,29 @@ export function Header({
     },
     {
       label:
-        theme === "light"
-          ? t("theme.switchToDark")
-          : theme === "dark"
-            ? t("theme.switchToSepia")
-            : t("theme.switchToLight"),
+        appearanceState === "error"
+          ? `${t("common.retry")}: ${t("profile.theme")}`
+          : appearanceState === "saving"
+            ? t("common.saving")
+            : theme === "light"
+              ? t("theme.switchToDark")
+              : theme === "dark"
+                ? t("theme.switchToSepia")
+                : t("theme.switchToLight"),
       icon:
-        theme === "light" ? (
+        appearanceState === "error" ? (
+          <AlertCircle size={16} className="text-theme-error" />
+        ) : appearanceState === "saving" ? (
+          <LoadingSpinner size="sm" />
+        ) : theme === "light" ? (
           <Moon size={16} />
         ) : theme === "dark" ? (
           <Coffee size={16} />
         ) : (
           <Sun size={16} />
         ),
-      onClick: toggleTheme,
+      disabled: appearanceState === "saving",
+      onClick: appearanceState === "error" ? retryAppearance : toggleTheme,
     },
     {
       label: t("common.language"),
@@ -258,6 +277,24 @@ export function Header({
           </button>
           {activeTab === "chat" ? (
             <>
+              {onSelectModel && (modelsLoading || modelsError) && (
+                <ToolbarIconButton
+                  disabled={modelsLoading}
+                  aria-label={`${t("nav.models")} · ${t(modelsLoading ? "common.loading" : "common.loadFailed")}${modelsLoading ? "" : ` · ${t("common.retry")}`}`}
+                  title={`${t("nav.models")} · ${t(modelsLoading ? "common.loading" : "common.loadFailed")}`}
+                  onClick={() => {
+                    mobileMenuBtnRef.current?.focus({ preventScroll: true });
+                    reloadModels();
+                  }}
+                  icon={
+                    modelsLoading ? (
+                      <LoadingSpinner size="sm" />
+                    ) : (
+                      <RefreshCw size={16} aria-hidden="true" />
+                    )
+                  }
+                />
+              )}
               {availableModels &&
                 availableModels.length > 0 &&
                 onSelectModel && (

@@ -41,6 +41,7 @@ test("document preview toolbar gives the file title flexible space and groups ac
     handleCopy: vi.fn(),
     handleDownload: vi.fn(),
     toolbarRef: createRef<HTMLDivElement>(),
+    panelRef: createRef<HTMLDivElement>(),
     setViewSource: vi.fn(),
     setViewMode: vi.fn(),
     handleFullscreenToggle: vi.fn(),

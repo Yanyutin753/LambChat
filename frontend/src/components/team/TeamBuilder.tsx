@@ -2,26 +2,19 @@ import {
   useState,
   useEffect,
   useCallback,
-  useMemo,
   useRef,
+  useId,
   forwardRef,
   useImperativeHandle,
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Bot,
-  Camera,
   ChevronDown,
-  Cpu,
-  Loader2,
   MessageSquareText,
   Plus,
   Search,
-  Smile,
-  Sparkles,
   Tag,
   Users,
-  X,
 } from "lucide-react";
 import type { PersonaPreset } from "../../types";
 import type { Team, TeamCreateRequest, TeamMember } from "../../types/team";
@@ -33,25 +26,20 @@ import { modelApi } from "../../services/api/model";
 import type { ModelOption } from "../../services/api/model";
 import type { AgentInfo } from "../../types/agent";
 import { personaPresetApi } from "../../services/api/personaPreset";
-import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
-import { uploadApi } from "../../services/api";
-import { compressImageFile } from "../../utils/imageCompression";
 import toast from "react-hot-toast";
 import { ConfirmDialog } from "../common/ConfirmDialog";
-import {
-  PersonaAvatarIcon,
-  PersonaAvatarImage,
-} from "../persona/PersonaAvatarIcon";
-import {
-  getEmojiAvatarUrl,
-  isEmojiAvatar,
-  isPersonaImageAvatar,
-} from "../persona/personaAvatar";
+import { Button } from "../common/ui";
+import { Pagination } from "../common/Pagination";
+import { CatalogStatus } from "../common/CatalogStatus";
+import { LoadingSpinner } from "../common/LoadingSpinner";
+import { ConfigPanelErrorCallout } from "../panels/ConfigPanelErrorCallout";
 import {
   draftRowsToStarterPrompts,
   starterPromptsToDraftRows,
   type StarterPromptDraftRow,
 } from "../persona/personaPresetEditor";
+import { AvatarSection } from "../persona/PersonaEditorAvatarSection";
+import { StarterPromptsEditor } from "../persona/PersonaEditorStarterPrompts";
 import { useOptionalSettingsContext } from "../../contexts/SettingsContext";
 
 export interface TeamBuilderHandle {
@@ -62,8 +50,11 @@ export interface TeamBuilderHandle {
 
 export interface TeamBuilderFooterState {
   saving: boolean;
+  uploadingAvatar: boolean;
   existingTeamId: string | null;
   hasTeamName: boolean;
+  canSave: boolean;
+  saveError: boolean;
 }
 
 interface TeamBuilderProps {
@@ -79,21 +70,6 @@ function generateMemberId(): string {
     .toString(36)
     .slice(2, 8)}`;
 }
-
-const TEAM_AVATAR_EMOJIS = [
-  "✨",
-  "🤖",
-  "🎓",
-  "💻",
-  "✍️",
-  "🛡️",
-  "📊",
-  "⚡",
-  "📦",
-  "🎨",
-  "🧠",
-  "💬",
-];
 
 function tagsToInput(tags: string[] | undefined): string {
   return (tags ?? []).join(", ");
@@ -111,18 +87,34 @@ function inputToTags(value: string): string[] {
   return result;
 }
 
+const ROLE_PAGE_SIZE = 20;
+
 export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
   function TeamBuilder(
     { teamId, onSave, onClose, surface = "page", onFormStateChange },
     ref,
   ) {
     const { t } = useTranslation();
+    const fieldId = useId();
+    const rolePickerId = useId();
     const settingsContext = useOptionalSettingsContext();
     const [presets, setPresets] = useState<PersonaPreset[]>([]);
     const [presetsLoading, setPresetsLoading] = useState(true);
+    const [presetsError, setPresetsError] = useState(false);
+    const [presetsTotal, setPresetsTotal] = useState(0);
+    const [presetsPage, setPresetsPage] = useState(1);
+    const [presetsAttempt, setPresetsAttempt] = useState(0);
+    const roleListRef = useRef<HTMLDivElement>(null);
+    const roleSearchRef = useRef<HTMLInputElement>(null);
     const [fallbackModels, setFallbackModels] = useState<ModelOption[] | null>(
       null,
     );
+    const [fallbackModelsLoading, setFallbackModelsLoading] = useState(true);
+    const [fallbackModelsError, setFallbackModelsError] = useState(false);
+    const [modelsAttempt, setModelsAttempt] = useState(0);
+    const [agentsLoading, setAgentsLoading] = useState(true);
+    const [agentsError, setAgentsError] = useState(false);
+    const [agentsAttempt, setAgentsAttempt] = useState(0);
     const [availableAgents, setAvailableAgents] = useState<AgentInfo[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
 
@@ -136,68 +128,139 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
     >([]);
     const [members, setMembers] = useState<TeamMember[]>([]);
     const [defaultMemberId, setDefaultMemberId] = useState<string | null>(null);
-    const [saving, setSaving] = useState(false);
+    const requestedTeamId = teamId ?? null;
+    const [loadedTeamId, setLoadedTeamId] = useState<string | null | undefined>(
+      requestedTeamId ? undefined : null,
+    );
+    const [loading, setLoading] = useState(!!requestedTeamId);
+    const [loadError, setLoadError] = useState(false);
+    const [loadAttempt, setLoadAttempt] = useState(0);
+    const [saveError, setSaveError] = useState(false);
+    const [mutation, setMutation] = useState<
+      "save" | "clone" | "delete" | null
+    >(null);
+    const session = useRef(0);
+    const pendingMutation = useRef(false);
+    const formRef = useRef<HTMLFormElement>(null);
+    const saving = mutation === "save";
+    const isDeleting = mutation === "delete";
+    const ready = loadedTeamId === requestedTeamId && !loading && !loadError;
+    const busy = !ready || mutation !== null;
     const [existingTeamId, setExistingTeamId] = useState<string | null>(null);
-    const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
     const [rolePickerOpen, setRolePickerOpen] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    const [isDeleting, setIsDeleting] = useState(false);
-    const avatarInputRef = useRef<HTMLInputElement>(null);
+    const avatarUploadingRef = useRef(false);
+    const handleAvatarUploadingChange = useCallback((uploading: boolean) => {
+      avatarUploadingRef.current = uploading;
+      setUploadingAvatar(uploading);
+    }, []);
+    const rolePickerTriggerRef = useRef<HTMLButtonElement>(null);
     const rolePickerRef = useRef<HTMLDivElement>(null);
-    const availableModels = settingsContext?.availableModels ?? fallbackModels;
+    const availableModels = settingsContext
+      ? settingsContext.availableModels
+      : fallbackModels;
+    const hasSettingsContext = Boolean(settingsContext);
+    const modelsLoading = settingsContext
+      ? settingsContext.modelsLoading
+      : fallbackModelsLoading;
+    const modelsError = settingsContext
+      ? settingsContext.modelsError
+      : fallbackModelsError;
+    const reloadModels = settingsContext
+      ? settingsContext.reloadModels
+      : () => setModelsAttempt((attempt) => attempt + 1);
 
     useImperativeHandle(ref, () => ({
       handleSave,
       handleClone,
       handleDelete: () => {
-        if (existingTeamId) setShowDeleteConfirm(true);
+        if (ready && !pendingMutation.current && existingTeamId)
+          setShowDeleteConfirm(true);
       },
     }));
 
     const hasTeamName = teamName.trim().length > 0;
+    const canSave = !busy && !uploadingAvatar && hasTeamName;
 
     useEffect(() => {
       onFormStateChange?.({
         saving,
+        uploadingAvatar,
         existingTeamId,
         hasTeamName,
+        canSave,
+        saveError,
       });
-    }, [saving, existingTeamId, hasTeamName, onFormStateChange]);
+    }, [
+      saving,
+      uploadingAvatar,
+      existingTeamId,
+      hasTeamName,
+      canSave,
+      saveError,
+      onFormStateChange,
+    ]);
 
     useEffect(() => {
-      personaPresetApi
-        .list({ limit: 100 })
-        .then((res) => {
-          setPresets(res.presets);
-          setPresetsLoading(false);
-        })
-        .catch(() => {
-          setPresetsLoading(false);
-        });
-    }, []);
-
-    useEffect(() => {
-      if (settingsContext?.availableModels) {
-        setFallbackModels(null);
-        return;
-      }
+      if (!rolePickerOpen) return;
       let cancelled = false;
+      setPresetsLoading(true);
+      setPresetsError(false);
+      const timer = window.setTimeout(
+        () => {
+          void personaPresetApi
+            .list({
+              skip: (presetsPage - 1) * ROLE_PAGE_SIZE,
+              limit: ROLE_PAGE_SIZE,
+              q: searchQuery.trim() || undefined,
+            })
+            .then((res) => {
+              if (cancelled) return;
+              setPresets(res.presets);
+              setPresetsTotal(res.total);
+              roleListRef.current?.scrollTo?.({ top: 0 });
+            })
+            .catch(() => {
+              if (!cancelled) setPresetsError(true);
+            })
+            .finally(() => {
+              if (!cancelled) setPresetsLoading(false);
+            });
+        },
+        searchQuery.trim() ? 200 : 0,
+      );
+      return () => {
+        cancelled = true;
+        window.clearTimeout(timer);
+      };
+    }, [rolePickerOpen, searchQuery, presetsPage, presetsAttempt]);
+
+    useEffect(() => {
+      if (hasSettingsContext) return;
+      let cancelled = false;
+      setFallbackModelsLoading(true);
+      setFallbackModelsError(false);
       modelApi
         .listAvailable()
         .then((res) => {
           if (!cancelled) setFallbackModels(res.models ?? []);
         })
         .catch(() => {
-          if (!cancelled) setFallbackModels([]);
+          if (!cancelled) setFallbackModelsError(true);
+        })
+        .finally(() => {
+          if (!cancelled) setFallbackModelsLoading(false);
         });
       return () => {
         cancelled = true;
       };
-    }, [settingsContext?.availableModels]);
+    }, [hasSettingsContext, modelsAttempt]);
 
     useEffect(() => {
       let cancelled = false;
+      setAgentsLoading(true);
+      setAgentsError(false);
       agentApi
         .list()
         .then((res) => {
@@ -208,12 +271,15 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
           }
         })
         .catch(() => {
-          if (!cancelled) setAvailableAgents([]);
+          if (!cancelled) setAgentsError(true);
+        })
+        .finally(() => {
+          if (!cancelled) setAgentsLoading(false);
         });
       return () => {
         cancelled = true;
       };
-    }, []);
+    }, [agentsAttempt]);
 
     useEffect(() => {
       if (!rolePickerOpen) return;
@@ -230,30 +296,53 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
     }, [rolePickerOpen]);
 
     useEffect(() => {
-      if (teamId) {
-        teamApi.get(teamId).then((team) => {
-          setExistingTeamId(team.id);
-          setTeamName(team.name);
-          setTeamDescription(team.description);
-          setTeamAvatar(team.avatar ?? null);
-          setTeamTagsInput(tagsToInput(team.tags));
-          setTeamInstructions(team.team_instructions);
-          setStarterPromptRows(starterPromptsToDraftRows(team.starter_prompts));
-          setMembers(team.members);
-          setDefaultMemberId(team.default_member_id ?? null);
-        });
-      } else {
-        setExistingTeamId(null);
-        setTeamName("");
-        setTeamDescription("");
-        setTeamAvatar(null);
-        setTeamTagsInput("");
-        setTeamInstructions("");
-        setStarterPromptRows([]);
-        setMembers([]);
-        setDefaultMemberId(null);
+      const owner = ++session.current;
+      pendingMutation.current = false;
+      setMutation(null);
+      setSaveError(false);
+      setLoadError(false);
+      setLoading(!!requestedTeamId);
+      setLoadedTeamId(requestedTeamId ? undefined : null);
+      setRolePickerOpen(false);
+      setShowDeleteConfirm(false);
+      setExistingTeamId(null);
+      setTeamName("");
+      setTeamDescription("");
+      setTeamAvatar(null);
+      setTeamTagsInput("");
+      setTeamInstructions("");
+      setStarterPromptRows([]);
+      setMembers([]);
+      setDefaultMemberId(null);
+      if (requestedTeamId) {
+        void teamApi
+          .get(requestedTeamId)
+          .then((team) => {
+            if (owner !== session.current) return;
+            setExistingTeamId(team.id);
+            setTeamName(team.name);
+            setTeamDescription(team.description);
+            setTeamAvatar(team.avatar ?? null);
+            setTeamTagsInput(tagsToInput(team.tags));
+            setTeamInstructions(team.team_instructions);
+            setStarterPromptRows(
+              starterPromptsToDraftRows(team.starter_prompts),
+            );
+            setMembers(team.members);
+            setDefaultMemberId(team.default_member_id ?? null);
+            setLoadedTeamId(requestedTeamId);
+            setLoading(false);
+          })
+          .catch(() => {
+            if (owner !== session.current) return;
+            setLoadError(true);
+            setLoading(false);
+          });
       }
-    }, [teamId]);
+      return () => {
+        session.current = owner + 1;
+      };
+    }, [requestedTeamId, loadAttempt]);
 
     const handleAddRole = useCallback(
       (preset: PersonaPreset) => {
@@ -280,7 +369,7 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
         const nextMembers = members.filter((m) => m.member_id !== memberId);
         setMembers(nextMembers);
         setDefaultMemberId((current) =>
-          current === memberId ? nextMembers[0]?.member_id ?? null : current,
+          current === memberId ? (nextMembers[0]?.member_id ?? null) : current,
         );
       },
       [members],
@@ -328,11 +417,22 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
     );
 
     const handleSave = async () => {
-      if (!teamName.trim()) return;
-      setSaving(true);
+      if (
+        !ready ||
+        !teamName.trim() ||
+        pendingMutation.current ||
+        avatarUploadingRef.current
+      )
+        return;
+      const owner = session.current;
+      pendingMutation.current = true;
+      formRef.current?.focus({ preventScroll: true });
+      setMutation("save");
+      setSaveError(false);
+      setRolePickerOpen(false);
       try {
         const payload: TeamCreateRequest = {
-          name: teamName,
+          name: teamName.trim(),
           description: teamDescription,
           avatar: teamAvatar,
           tags: inputToTags(teamTagsInput),
@@ -355,6 +455,7 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
         const team = existingTeamId
           ? await teamApi.update(existingTeamId, payload)
           : await teamApi.create(payload);
+        if (owner !== session.current) return;
         setExistingTeamId(team.id);
         toast.success(
           existingTeamId
@@ -362,18 +463,33 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
             : t("team.createSuccess", "团队已创建"),
         );
         onSave?.(team);
-      } catch (e) {
-        console.error("Failed to save team:", e);
-        toast.error(t("team.saveFailed", "保存失败"));
+      } catch {
+        if (owner === session.current) setSaveError(true);
       } finally {
-        setSaving(false);
+        if (owner === session.current) {
+          pendingMutation.current = false;
+          setMutation(null);
+        }
       }
     };
 
     const handleClone = async () => {
-      if (!existingTeamId) return;
+      if (
+        !ready ||
+        !existingTeamId ||
+        pendingMutation.current ||
+        avatarUploadingRef.current
+      )
+        return;
+      const owner = session.current;
+      pendingMutation.current = true;
+      formRef.current?.focus({ preventScroll: true });
+      setMutation("clone");
+      setSaveError(false);
+      setRolePickerOpen(false);
       try {
         const cloned = await teamApi.clone(existingTeamId);
+        if (owner !== session.current) return;
         setExistingTeamId(cloned.id);
         setTeamName(cloned.name);
         setTeamDescription(cloned.description);
@@ -384,41 +500,42 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
         setMembers(cloned.members);
         setDefaultMemberId(cloned.default_member_id ?? null);
         toast.success(t("team.cloneSuccess", "团队已克隆"));
-      } catch (e) {
-        console.error("Failed to clone team:", e);
-        toast.error(t("team.cloneFailed", "克隆失败"));
-      }
-    };
-
-    const handleAvatarUpload = async (file: File) => {
-      setUploadingAvatar(true);
-      try {
-        const compressed = await compressImageFile(file);
-        const upload = uploadApi.uploadFile(compressed, {
-          folder: "persona-avatars",
-        });
-        const result = await upload.promise;
-        setTeamAvatar(result.url);
-      } catch (e) {
-        console.error("Team avatar upload failed:", e);
+      } catch {
+        if (owner === session.current)
+          toast.error(t("team.cloneFailed", "克隆失败"));
       } finally {
-        setUploadingAvatar(false);
+        if (owner === session.current) {
+          pendingMutation.current = false;
+          setMutation(null);
+        }
       }
     };
 
     const handleDelete = async () => {
-      if (!existingTeamId) return;
-      setIsDeleting(true);
+      if (
+        !ready ||
+        !existingTeamId ||
+        pendingMutation.current ||
+        avatarUploadingRef.current
+      )
+        return;
+      const owner = session.current;
+      pendingMutation.current = true;
+      setMutation("delete");
       try {
         await teamApi.delete(existingTeamId);
+        if (owner !== session.current) return;
         toast.success(t("team.deleteSuccess", "团队已删除"));
         setShowDeleteConfirm(false);
         onClose?.();
-      } catch (e) {
-        console.error("Failed to delete team:", e);
-        toast.error(t("team.deleteFailed", "删除失败"));
+      } catch {
+        if (owner === session.current)
+          toast.error(t("team.deleteFailed", "删除失败"));
       } finally {
-        setIsDeleting(false);
+        if (owner === session.current) {
+          pendingMutation.current = false;
+          setMutation(null);
+        }
       }
     };
 
@@ -426,16 +543,6 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
     const configuredMemberCount = members.filter((member) =>
       member.role_instructions.trim(),
     ).length;
-    const filteredPresets = useMemo(() => {
-      if (!searchQuery.trim()) return presets;
-      const q = searchQuery.toLowerCase();
-      return presets.filter(
-        (preset) =>
-          preset.name.toLowerCase().includes(q) ||
-          preset.description.toLowerCase().includes(q) ||
-          preset.tags.some((tag) => tag.toLowerCase().includes(q)),
-      );
-    }, [presets, searchQuery]);
     const defaultMember = members.find(
       (member) => member.member_id === defaultMemberId,
     );
@@ -446,420 +553,360 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
         }`}
       >
         <form
+          ref={formRef}
+          tabIndex={-1}
+          aria-busy={(!ready && !loadError) || mutation !== null}
           className="es-form"
           onSubmit={(event) => {
             event.preventDefault();
             void handleSave();
           }}
         >
-          {/* Profile: Avatar + Name + Description */}
-          <div className="ppe-profile-section">
-            <div className="ppe-avatar-upload">
-              <div
-                className="ppe-avatar-preview"
-                onClick={() =>
-                  !teamAvatar &&
-                  !uploadingAvatar &&
-                  avatarInputRef.current?.click()
-                }
-              >
-                {isEmojiAvatar(teamAvatar) ? (
-                  <>
-                    <PersonaAvatarImage
-                      avatar={getEmojiAvatarUrl(teamAvatar)}
-                      alt=""
-                      className="ppe-avatar-img"
-                    />
-                    <button
-                      type="button"
-                      className="ppe-avatar-remove"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setTeamAvatar(null);
-                      }}
-                      title={t("team.remove")}
-                    >
-                      <X size={12} />
-                    </button>
-                  </>
-                ) : isPersonaImageAvatar(teamAvatar) ? (
-                  <>
-                    <PersonaAvatarImage
-                      avatar={teamAvatar}
-                      alt=""
-                      className="ppe-avatar-img"
-                      onError={() => setTeamAvatar(null)}
-                    />
-                    <button
-                      type="button"
-                      className="ppe-avatar-remove"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setTeamAvatar(null);
-                      }}
-                      title={t("team.remove")}
-                    >
-                      <X size={12} />
-                    </button>
-                  </>
-                ) : teamAvatar ? (
-                  <>
-                    <div className="ppe-avatar-placeholder">
-                      <PersonaAvatarIcon avatar={teamAvatar} size={20} />
-                    </div>
-                    <button
-                      type="button"
-                      className="ppe-avatar-remove"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setTeamAvatar(null);
-                      }}
-                      title={t("team.remove")}
-                    >
-                      <X size={12} />
-                    </button>
-                  </>
-                ) : (
-                  <div className="ppe-avatar-placeholder">
-                    <Camera size={18} />
-                  </div>
-                )}
-                {uploadingAvatar && (
-                  <div className="ppe-avatar-uploading">
-                    <Loader2 size={16} className="animate-spin" />
-                  </div>
-                )}
-              </div>
-              <input
-                ref={avatarInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                disabled={uploadingAvatar}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) void handleAvatarUpload(file);
-                  e.target.value = "";
-                }}
-              />
-              <div className="relative">
-                <button
-                  type="button"
-                  className="ppe-avatar-hint-btn"
-                  disabled={uploadingAvatar}
-                  onClick={() => setAvatarPickerOpen((v) => !v)}
+          {!ready &&
+            (loadError ? (
+              <div className="flex flex-col gap-3">
+                <ConfigPanelErrorCallout message={t("common.loadFailed")} />
+                <Button
+                  className="self-start"
+                  onClick={() => {
+                    formRef.current?.focus({ preventScroll: true });
+                    setLoadAttempt((attempt) => attempt + 1);
+                  }}
                 >
-                  <Smile size={12} />
-                  {t("team.chooseIcon")}
-                </button>
-                {avatarPickerOpen && (
-                  <div className="ppe-icon-picker">
-                    {TEAM_AVATAR_EMOJIS.map((emoji) => (
-                      <button
-                        key={emoji}
-                        type="button"
-                        className="ppe-icon-picker-item"
-                        onClick={() => {
-                          setTeamAvatar(emoji);
-                          setAvatarPickerOpen(false);
-                        }}
-                        title={emoji}
+                  {t("common.retry")}
+                </Button>
+              </div>
+            ) : (
+              <div
+                role="status"
+                className="flex items-center justify-center gap-2 py-6 text-13 text-theme-text-secondary"
+              >
+                <LoadingSpinner size="sm" />
+                <span>{t("team.loading")}</span>
+              </div>
+            ))}
+          {ready && (
+            <fieldset disabled={busy} className="contents">
+              {/* Profile: Avatar + Name + Description */}
+              <div className="ppe-profile-section">
+                <AvatarSection
+                  key={existingTeamId ?? "new"}
+                  avatar={teamAvatar ?? ""}
+                  onAvatarChange={(avatar) => setTeamAvatar(avatar || null)}
+                  onUploadingChange={handleAvatarUploadingChange}
+                />
+
+                <div className="ppe-profile-fields">
+                  <div className="ppe-field">
+                    <label className="ppe-label" htmlFor={`${fieldId}-name`}>
+                      {t("team.teamName")}{" "}
+                      <span className="ppe-required" aria-hidden="true">
+                        *
+                      </span>
+                    </label>
+                    <input
+                      id={`${fieldId}-name`}
+                      required
+                      type="text"
+                      value={teamName}
+                      onChange={(e) => setTeamName(e.target.value)}
+                      placeholder={t("team.teamNamePlaceholder")}
+                      className="ppe-input"
+                    />
+                  </div>
+                  <div className="ppe-field">
+                    <label
+                      className="ppe-label"
+                      htmlFor={`${fieldId}-description`}
+                    >
+                      {t("team.description")}
+                    </label>
+                    <input
+                      type="text"
+                      id={`${fieldId}-description`}
+                      value={teamDescription}
+                      onChange={(e) => setTeamDescription(e.target.value)}
+                      placeholder={t("team.descriptionPlaceholder")}
+                      className="ppe-input"
+                    />
+                  </div>
+                  <div className="ppe-field">
+                    <label className="ppe-label" htmlFor={`${fieldId}-tags`}>
+                      <Tag size={13} className="ppe-label-icon" />
+                      {t("team.tags", "标签")}
+                    </label>
+                    <input
+                      type="text"
+                      id={`${fieldId}-tags`}
+                      value={teamTagsInput}
+                      onChange={(e) => setTeamTagsInput(e.target.value)}
+                      placeholder={t(
+                        "team.tagsPlaceholder",
+                        "例如：研究, 写作",
+                      )}
+                      className="ppe-input"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Team instructions */}
+              <div className="ppe-field">
+                <label
+                  className="ppe-label"
+                  htmlFor={`${fieldId}-instructions`}
+                >
+                  <MessageSquareText size={13} className="ppe-label-icon" />
+                  {t("team.instructions")}
+                </label>
+                <div className="ppe-textarea-wrap">
+                  <textarea
+                    id={`${fieldId}-instructions`}
+                    aria-describedby={`${fieldId}-instructions-hint`}
+                    value={teamInstructions}
+                    onChange={(e) => setTeamInstructions(e.target.value)}
+                    placeholder={t("team.instructionsPlaceholder")}
+                    className="ppe-textarea"
+                    rows={4}
+                  />
+                </div>
+                <span
+                  id={`${fieldId}-instructions-hint`}
+                  className="text-12 leading-relaxed text-theme-text-secondary"
+                >
+                  {t("team.instructionsHint")}
+                </span>
+              </div>
+
+              <StarterPromptsEditor
+                prompts={starterPromptRows}
+                onChange={setStarterPromptRows}
+              />
+
+              {/* Team members */}
+              <div className="ppe-field" style={{ gap: "0.75rem" }}>
+                <div className="tmb-header">
+                  <div className="tmb-header__row">
+                    <label className="ppe-label">
+                      <Users size={13} className="ppe-label-icon" />
+                      {t("team.teamMembers")}
+                    </label>
+                    <span className="tmb-default">
+                      <Users size={11} />
+                      <span>
+                        {defaultMember?.role_name || t("team.notSet")}
+                      </span>
+                    </span>
+                  </div>
+                  <div className="tmb-stats">
+                    <span className="tmb-stat">
+                      <span className="tmb-stat__dot" />
+                      {t("team.selected", { count: members.length })}
+                    </span>
+                    <span className="tmb-stat tmb-stat--active">
+                      <span className="tmb-stat__dot" />
+                      {t("team.active", { count: activeMemberCount })}
+                    </span>
+                    <span className="tmb-stat tmb-stat--configured">
+                      <span className="tmb-stat__dot" />
+                      {t("team.configured", { count: configuredMemberCount })}
+                    </span>
+                  </div>
+                </div>
+
+                <div ref={rolePickerRef}>
+                  <button
+                    ref={rolePickerTriggerRef}
+                    type="button"
+                    aria-expanded={rolePickerOpen}
+                    aria-controls={rolePickerOpen ? rolePickerId : undefined}
+                    onClick={() => {
+                      setRolePickerOpen((v) => !v);
+                      setSearchQuery("");
+                      setPresetsPage(1);
+                    }}
+                    className={`team-role-picker-trigger ${
+                      rolePickerOpen ? "team-role-picker-trigger--open" : ""
+                    }`}
+                  >
+                    <Plus size={14} />
+                    <span>
+                      {members.length === 0
+                        ? t("team.addRoles")
+                        : t("team.addAnotherRole")}
+                    </span>
+                    <ChevronDown
+                      size={14}
+                      className={`team-role-picker-trigger__chevron ${
+                        rolePickerOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {rolePickerOpen && (
+                    <div
+                      id={rolePickerId}
+                      className="team-role-picker-dropdown"
+                      role="group"
+                      aria-label={t("team.addRoles")}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Escape") return;
+                        event.stopPropagation();
+                        if (
+                          event.nativeEvent.isComposing ||
+                          event.keyCode === 229
+                        )
+                          return;
+                        event.preventDefault();
+                        setRolePickerOpen(false);
+                        rolePickerTriggerRef.current?.focus();
+                      }}
+                    >
+                      <div className="team-role-picker-dropdown__search">
+                        <Search
+                          size={14}
+                          className="team-role-picker-dropdown__search-icon"
+                        />
+                        <PanelSearchInput
+                          ref={roleSearchRef}
+                          type="text"
+                          value={searchQuery}
+                          onValueChange={(query) => {
+                            setSearchQuery(query);
+                            setPresetsPage(1);
+                          }}
+                          aria-label={t("team.searchRoles")}
+                          placeholder={t("team.searchRoles")}
+                          className="ppe-input"
+                          style={{ paddingLeft: "2.25rem" }}
+                          autoFocus
+                        />
+                      </div>
+                      <div
+                        ref={roleListRef}
+                        aria-busy={presetsLoading}
+                        className="team-role-picker-dropdown__list"
                       >
-                        <span className="relative inline-flex size-5">
-                          <ImageWithSkeleton
-                            src={getEmojiAvatarUrl(emoji)}
-                            alt=""
-                            skipUrlResolve
-                            inline
-                            className="rounded-md"
-                            style={{ width: 20, height: 20 }}
-                          />
-                        </span>
-                      </button>
+                        {presetsLoading && (
+                          <div
+                            role="status"
+                            className="team-form-empty flex items-center justify-center gap-2"
+                          >
+                            <LoadingSpinner size="sm" />
+                            {t("team.loadingRoles")}
+                          </div>
+                        )}
+                        {!presetsLoading && presetsError && (
+                          <div className="flex flex-col gap-2">
+                            <ConfigPanelErrorCallout
+                              message={t("common.loadFailed")}
+                            />
+                            <Button
+                              className="self-start"
+                              onClick={() => {
+                                roleSearchRef.current?.focus();
+                                setPresetsAttempt((attempt) => attempt + 1);
+                              }}
+                            >
+                              {t("common.retry")}
+                            </Button>
+                          </div>
+                        )}
+                        {!presetsLoading &&
+                          !presetsError &&
+                          presets.length === 0 && (
+                            <div className="team-form-empty">
+                              {t("team.noRolesFound")}
+                            </div>
+                          )}
+                        {!presetsLoading &&
+                          !presetsError &&
+                          presets.map((preset) => (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              className="team-form-role-option"
+                              onClick={() => handleAddRole(preset)}
+                            >
+                              <span className="team-form-role-option__name font-serif">
+                                {preset.name}
+                              </span>
+                              {preset.description && (
+                                <span className="team-form-role-option__desc">
+                                  {preset.description}
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                      </div>
+                      {!presetsLoading && !presetsError && (
+                        <Pagination
+                          page={presetsPage}
+                          pageSize={ROLE_PAGE_SIZE}
+                          total={presetsTotal}
+                          onChange={(page) => {
+                            roleSearchRef.current?.focus();
+                            setPresetsPage(page);
+                          }}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {members.length > 0 && (
+                  <>
+                    <CatalogStatus
+                      focusTargetRef={formRef}
+                      label={t("team.memberModels")}
+                      loading={modelsLoading}
+                      error={modelsError}
+                      onRetry={reloadModels}
+                    />
+                    <CatalogStatus
+                      focusTargetRef={formRef}
+                      label={t("team.memberModes")}
+                      loading={agentsLoading}
+                      error={agentsError}
+                      onRetry={() => setAgentsAttempt((attempt) => attempt + 1)}
+                    />
+                  </>
+                )}
+                {members.length > 0 && (
+                  <div className="team-form-selected__list">
+                    {members.map((member) => (
+                      <TeamMemberCard
+                        disabled={busy}
+                        key={member.member_id}
+                        member={member}
+                        isDefault={member.member_id === defaultMemberId}
+                        onRemove={() => handleRemoveMember(member.member_id)}
+                        onSetDefault={() =>
+                          setDefaultMemberId(member.member_id)
+                        }
+                        onToggleEnabled={() =>
+                          handleToggleEnabled(member.member_id)
+                        }
+                        onInstructionsChange={(text) =>
+                          handleInstructionsChange(member.member_id, text)
+                        }
+                        modelsUnavailable={modelsLoading || modelsError}
+                        agentsUnavailable={agentsLoading || agentsError}
+                        availableModels={availableModels ?? []}
+                        onModelChange={(modelId) =>
+                          handleModelChange(member.member_id, modelId)
+                        }
+                        availableAgents={availableAgents}
+                        onAgentChange={(agentId) =>
+                          handleAgentChange(member.member_id, agentId)
+                        }
+                      />
                     ))}
                   </div>
                 )}
               </div>
-            </div>
-
-            <div className="ppe-profile-fields">
-              <div className="ppe-field">
-                <label className="ppe-label">
-                  {t("team.teamName")} <span className="ppe-required">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={teamName}
-                  onChange={(e) => setTeamName(e.target.value)}
-                  placeholder={t("team.teamNamePlaceholder")}
-                  className="ppe-input"
-                />
-              </div>
-              <div className="ppe-field">
-                <label className="ppe-label">{t("team.description")}</label>
-                <input
-                  type="text"
-                  value={teamDescription}
-                  onChange={(e) => setTeamDescription(e.target.value)}
-                  placeholder={t("team.descriptionPlaceholder")}
-                  className="ppe-input"
-                />
-              </div>
-              <div className="ppe-field">
-                <label className="ppe-label">
-                  <Tag size={13} className="ppe-label-icon" />
-                  {t("team.tags", "标签")}
-                </label>
-                <input
-                  type="text"
-                  value={teamTagsInput}
-                  onChange={(e) => setTeamTagsInput(e.target.value)}
-                  placeholder={t("team.tagsPlaceholder", "例如：研究, 写作")}
-                  className="ppe-input"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Team instructions */}
-          <div className="ppe-field">
-            <label className="ppe-label">
-              <MessageSquareText size={13} className="ppe-label-icon" />
-              {t("team.instructions")}
-            </label>
-            <div className="ppe-textarea-wrap">
-              <textarea
-                value={teamInstructions}
-                onChange={(e) => setTeamInstructions(e.target.value)}
-                placeholder={t("team.instructionsPlaceholder")}
-                className="ppe-textarea"
-                rows={4}
-              />
-            </div>
-            <span
-              style={{
-                fontSize: "0.6875rem",
-                color: "var(--theme-text-secondary)",
-                opacity: 0.75,
-                lineHeight: "1.4",
-                marginTop: "0.25rem",
-                display: "block",
-              }}
-            >
-              {t("team.instructionsHint")}
-            </span>
-          </div>
-
-          {/* Starter prompts */}
-          <div className="ppe-field">
-            <label className="ppe-label">
-              <Sparkles size={13} className="ppe-label-icon" />
-              {t("personaPresets.starterPrompts", "Starter Prompts")}
-            </label>
-            <div className="ppe-starter-list">
-              {starterPromptRows.map((prompt, index) => (
-                <div key={index} className="ppe-starter-row">
-                  <input
-                    value={prompt.icon}
-                    onChange={(e) =>
-                      setStarterPromptRows((prev) =>
-                        prev.map((item, i) =>
-                          i === index
-                            ? { ...item, icon: e.target.value }
-                            : item,
-                        ),
-                      )
-                    }
-                    className="ppe-input ppe-starter-icon"
-                    placeholder={t("personaPresets.starterIcon", "Icon")}
-                  />
-                  <input
-                    value={prompt.text}
-                    onChange={(e) =>
-                      setStarterPromptRows((prev) =>
-                        prev.map((item, i) =>
-                          i === index
-                            ? { ...item, text: e.target.value }
-                            : item,
-                        ),
-                      )
-                    }
-                    className="ppe-input ppe-starter-text"
-                    placeholder={t(
-                      "personaPresets.starterPromptPlaceholder",
-                      'Enter a prompt, or use {"zh":"...","en":"..."}',
-                    )}
-                  />
-                  <button
-                    type="button"
-                    className="ppe-starter-remove"
-                    onClick={() =>
-                      setStarterPromptRows((prev) =>
-                        prev.filter((_, i) => i !== index),
-                      )
-                    }
-                    title={t("common.delete", "Delete")}
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
-            </div>
-            <button
-              type="button"
-              className="ppe-starter-add"
-              onClick={() =>
-                setStarterPromptRows((prev) => [
-                  ...prev,
-                  { icon: "", text: "" },
-                ])
-              }
-            >
-              <Plus size={13} />
-              {t("personaPresets.addStarterPrompt", "Add starter prompt")}
-            </button>
-          </div>
-
-          {/* Team members */}
-          <div className="ppe-field" style={{ gap: "0.75rem" }}>
-            <div className="tmb-header">
-              <div className="tmb-header__row">
-                <label className="ppe-label">
-                  <Users size={13} className="ppe-label-icon" />
-                  {t("team.teamMembers")}
-                </label>
-                <span className="tmb-default">
-                  <Users size={11} />
-                  <span>{defaultMember?.role_name || t("team.notSet")}</span>
-                </span>
-              </div>
-              <div className="tmb-stats">
-                <span className="tmb-stat">
-                  <span className="tmb-stat__dot" />
-                  {t("team.selected", { count: members.length })}
-                </span>
-                <span className="tmb-stat tmb-stat--active">
-                  <span className="tmb-stat__dot" />
-                  {t("team.active", { count: activeMemberCount })}
-                </span>
-                <span className="tmb-stat tmb-stat--configured">
-                  <span className="tmb-stat__dot" />
-                  {t("team.configured", { count: configuredMemberCount })}
-                </span>
-                <span className="tmb-stat">
-                  <Bot size={11} />
-                  {t("team.memberModes", "成员模式")}
-                </span>
-                <span className="tmb-stat">
-                  <Cpu size={11} />
-                  {t("team.memberModels", "成员模型")}
-                </span>
-              </div>
-            </div>
-
-            <div ref={rolePickerRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  setRolePickerOpen((v) => !v);
-                  setSearchQuery("");
-                }}
-                className={`team-role-picker-trigger ${
-                  rolePickerOpen ? "team-role-picker-trigger--open" : ""
-                }`}
-              >
-                <Plus size={14} />
-                <span>
-                  {members.length === 0
-                    ? t("team.addRoles")
-                    : t("team.addAnotherRole")}
-                </span>
-                <ChevronDown
-                  size={14}
-                  className={`team-role-picker-trigger__chevron ${
-                    rolePickerOpen ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
-
-              {rolePickerOpen && (
-                <div className="team-role-picker-dropdown">
-                  <div className="team-role-picker-dropdown__search">
-                    <Search
-                      size={14}
-                      className="team-role-picker-dropdown__search-icon"
-                    />
-                    <PanelSearchInput
-                      type="text"
-                      value={searchQuery}
-                      onValueChange={setSearchQuery}
-                      placeholder={t("team.searchRoles")}
-                      className="ppe-input"
-                      style={{ paddingLeft: "2.25rem" }}
-                      autoFocus
-                    />
-                  </div>
-                  <div className="team-role-picker-dropdown__list">
-                    {presetsLoading && (
-                      <div className="team-form-empty">
-                        {t("team.loadingRoles")}
-                      </div>
-                    )}
-                    {!presetsLoading && filteredPresets.length === 0 && (
-                      <div className="team-form-empty">
-                        {t("team.noRolesFound")}
-                      </div>
-                    )}
-                    {filteredPresets.map((preset) => (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        className="team-form-role-option"
-                        onClick={() => handleAddRole(preset)}
-                      >
-                        <span className="team-form-role-option__name font-serif">
-                          {preset.name}
-                        </span>
-                        {preset.description && (
-                          <span className="team-form-role-option__desc">
-                            {preset.description}
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {members.length > 0 && (
-              <div className="team-form-selected__list">
-                {members.map((member) => (
-                  <TeamMemberCard
-                    key={member.member_id}
-                    member={member}
-                    isDefault={member.member_id === defaultMemberId}
-                    onRemove={() => handleRemoveMember(member.member_id)}
-                    onSetDefault={() => setDefaultMemberId(member.member_id)}
-                    onToggleEnabled={() =>
-                      handleToggleEnabled(member.member_id)
-                    }
-                    onInstructionsChange={(text) =>
-                      handleInstructionsChange(member.member_id, text)
-                    }
-                    availableModels={availableModels ?? []}
-                    onModelChange={(modelId) =>
-                      handleModelChange(member.member_id, modelId)
-                    }
-                    availableAgents={availableAgents}
-                    onAgentChange={(agentId) =>
-                      handleAgentChange(member.member_id, agentId)
-                    }
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+            </fieldset>
+          )}
         </form>
 
         <ConfirmDialog

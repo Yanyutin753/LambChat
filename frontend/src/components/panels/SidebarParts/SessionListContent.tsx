@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import {
   Search,
   FolderOpen,
-  MessageSquarePlus,
+  SquarePen,
   MoreHorizontal,
   CalendarClock,
   FolderInput,
@@ -317,7 +317,7 @@ export function SessionListContent({
           onClick={onNewSession}
           className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors group"
         >
-          <MessageSquarePlus size={20} />
+          <SquarePen size={20} />
           <span className="flex-1 text-left">{t("sidebar.newChat")}</span>
           <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-10 font-medium text-theme-text-tertiary dark:text-stone-500 rounded opacity-0 group-hover:opacity-100 transition-opacity">
             {t("sidebar.newChatShortcut")}

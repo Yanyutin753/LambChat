@@ -6,7 +6,7 @@ import { ModalSurface } from "../common/ModalSurface";
 import { useRef, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Edit2, Trash2, MessageSquarePlus, Share2, X } from "lucide-react";
+import { Edit2, Trash2, SquarePen, Share2, X } from "lucide-react";
 import type { Project } from "../../types";
 
 import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
@@ -144,7 +144,7 @@ export function ProjectMenu({
                 }}
                 className="w-full flex items-center gap-2.5 px-3 py-2.5 text-13 text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
               >
-                <MessageSquarePlus size={16} />
+                <SquarePen size={16} />
                 <span>{t("sidebar.newChat")}</span>
               </button>
             )}
@@ -243,7 +243,7 @@ export function ProjectMenu({
           }}
           className="w-full flex items-center gap-2 px-3 py-2 text-14 text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
         >
-          <MessageSquarePlus size={14} />
+          <SquarePen size={14} />
           <span>{t("sidebar.newChat")}</span>
         </button>
       )}

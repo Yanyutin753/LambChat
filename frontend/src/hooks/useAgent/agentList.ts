@@ -30,8 +30,10 @@ async function fetchAgentsData(): Promise<{
 export function useAgentList(hasActiveMessages: () => boolean) {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [currentAgent, setCurrentAgent] = useState<string>("");
-  const [agentsLoading, setAgentsLoading] = useState(false);
+  const [agentsLoading, setAgentsLoading] = useState(true);
+  const [agentsError, setAgentsError] = useState(false);
   const [allowedModelIds, setAllowedModelIds] = useState<string[] | null>(null);
+  const requestRef = useRef(0);
 
   // Ref for currentAgent to avoid dependency changes triggering refetch
   const currentAgentRef = useRef(currentAgent);
@@ -40,35 +42,46 @@ export function useAgentList(hasActiveMessages: () => boolean) {
   }, [currentAgent]);
 
   // Fetch available agents
-  const fetchAgents = useCallback(async () => {
-    setAgentsLoading(true);
-    try {
-      const {
-        agents: availableAgents,
-        allowedModelIds: modelIds,
-        defaultAgent,
-      } = await fetchAgentsData();
-      setAgents(availableAgents);
-      setAllowedModelIds(modelIds);
-      const nextAgentId = resolveAvailableAgentId(
-        currentAgentRef.current,
-        defaultAgent,
-        availableAgents,
-      );
-      if (nextAgentId !== currentAgentRef.current) {
-        currentAgentRef.current = nextAgentId;
-        setCurrentAgent(nextAgentId);
+  const fetchAgents = useCallback(
+    async (applyPreference = false) => {
+      const request = ++requestRef.current;
+      setAgentsLoading(true);
+      setAgentsError(false);
+      try {
+        const {
+          agents: availableAgents,
+          allowedModelIds: modelIds,
+          defaultAgent,
+        } = await fetchAgentsData();
+        if (request !== requestRef.current) return;
+        setAgents(availableAgents);
+        setAllowedModelIds(modelIds);
+        const nextAgentId = resolveAvailableAgentId(
+          applyPreference && !hasActiveMessages()
+            ? ""
+            : currentAgentRef.current,
+          defaultAgent,
+          availableAgents,
+        );
+        if (nextAgentId !== currentAgentRef.current) {
+          currentAgentRef.current = nextAgentId;
+          setCurrentAgent(nextAgentId);
+        }
+      } catch {
+        if (request === requestRef.current) setAgentsError(true);
+      } finally {
+        if (request === requestRef.current) setAgentsLoading(false);
       }
-    } catch (err) {
-      console.error("Failed to fetch agents:", err);
-    } finally {
-      setAgentsLoading(false);
-    }
-  }, []); // No dependencies - uses ref instead
+    },
+    [hasActiveMessages],
+  );
 
   // Load agents on mount
   useEffect(() => {
     fetchAgents();
+    return () => {
+      requestRef.current += 1;
+    };
   }, [fetchAgents]);
 
   // Refresh agents when page becomes visible (e.g., switching back to /chat tab)
@@ -87,37 +100,8 @@ export function useAgentList(hasActiveMessages: () => boolean) {
 
   // Listen for agent preference updates to refresh agents list and apply new default
   useEffect(() => {
-    const handleAgentPreferenceUpdated = async () => {
-      // Fetch fresh agents data
-      setAgentsLoading(true);
-      try {
-        const {
-          agents: availableAgents,
-          allowedModelIds: modelIds,
-          defaultAgent,
-        } = await fetchAgentsData();
-
-        // Update agents list
-        setAgents(availableAgents);
-        setAllowedModelIds(modelIds);
-
-        // Apply the new default agent if user doesn't have an active session
-        // (i.e., no current messages means it's a good time to switch)
-        const hasActiveSession = hasActiveMessages();
-        const nextAgentId = resolveAvailableAgentId(
-          hasActiveSession ? currentAgentRef.current : "",
-          defaultAgent,
-          availableAgents,
-        );
-        if (nextAgentId !== currentAgentRef.current) {
-          currentAgentRef.current = nextAgentId;
-          setCurrentAgent(nextAgentId);
-        }
-      } catch (err) {
-        console.error("Failed to fetch agents after preference update:", err);
-      } finally {
-        setAgentsLoading(false);
-      }
+    const handleAgentPreferenceUpdated = () => {
+      void fetchAgents(true);
     };
 
     window.addEventListener(
@@ -130,13 +114,14 @@ export function useAgentList(hasActiveMessages: () => boolean) {
         handleAgentPreferenceUpdated,
       );
     };
-  }, [hasActiveMessages]);
+  }, [fetchAgents]);
 
   return {
     agents,
     currentAgent,
     setCurrentAgent,
     agentsLoading,
+    agentsError,
     allowedModelIds,
     currentAgentRef,
     fetchAgents,

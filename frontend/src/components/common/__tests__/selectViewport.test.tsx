@@ -68,3 +68,33 @@ test("labelled select describes its current value after it changes", () => {
     screen.getByRole("button", { name: "Role", description: "Beta" }),
   ).toBeTruthy();
 });
+
+test("disabling a select closes its portalled choices and does not reopen on recovery", () => {
+  const props = {
+    value: "one",
+    ariaLabel: "Model",
+    onChange: vi.fn(),
+    options: [{ value: "one", label: "First" }],
+  };
+  const view = render(<Select {...props} />);
+  fireEvent.click(screen.getByRole("button", { name: "Model" }));
+  expect(screen.getByRole("listbox")).toBeTruthy();
+  view.rerender(<Select {...props} disabled />);
+  expect(screen.queryByRole("listbox")).toBeNull();
+  view.rerender(<Select {...props} />);
+  expect(screen.queryByRole("listbox")).toBeNull();
+});
+
+test("an already closed disabled select does not announce an artificial open change", () => {
+  const onOpenChange = vi.fn();
+  render(
+    <Select
+      value="one"
+      disabled
+      onOpenChange={onOpenChange}
+      onChange={vi.fn()}
+      options={[{ value: "one", label: "First" }]}
+    />,
+  );
+  expect(onOpenChange).not.toHaveBeenCalled();
+});

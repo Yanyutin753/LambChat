@@ -63,7 +63,14 @@ const roles = rows((i, name) => ({
   name,
   description: "管理团队成员、模型与工具访问权限",
   permissions: Object.values(Permission).slice(0, (i % 10) + 2),
-  limits: {},
+  limits:
+    i < 2
+      ? {
+          max_channels: 12,
+          max_concurrent_chats: 4,
+          max_file_size_document: 80,
+        }
+      : {},
   is_system: i < 2,
 }));
 const skills = rows((i, name) => ({
@@ -96,9 +103,20 @@ const presets = rows((i, name) => ({
   tags: tags.slice(0, (i % 4) + 1),
   scope: i % 2 ? "user" : "global",
   owner_user_id: user.id,
-  system_prompt: "你是一名专业的研究助手。",
+  system_prompt:
+    i === 0
+      ? `# 研究助手\n\n用准确、简洁的语言回答，保留关键约束与资料来源。\n\n- 区分事实与推断。\n- 给出可执行的下一步。\n\n参考资料：\nhttps://example.com/research/${"delivery-context-".repeat(
+          18,
+        )}`
+      : "你是一名专业的研究助手。",
   starter_prompts: [{ text: "帮我总结本周的项目进展" }],
-  skill_names: [],
+  skill_names:
+    i === 0
+      ? [
+          "research-summary",
+          "delivery-context-with-multiple-source-constraints-and-quality-checks",
+        ]
+      : [],
   mcp_server_names: [],
   visibility: "public",
   status: "published",
@@ -870,8 +888,18 @@ function response(
   if (path.startsWith("/api/teams/"))
     return teams.find((p) => path.endsWith(p.id)) ?? teams[0];
   if (path === "/api/memory") return paginate(memories, "memories");
-  if (path.startsWith("/api/memory/"))
-    return memories.find((p) => path.endsWith(p.memory_id)) ?? memories[0];
+  if (path.startsWith("/api/memory/")) {
+    const memory =
+      memories.find((p) => path.endsWith(p.memory_id)) ?? memories[0];
+    return {
+      ...memory,
+      content: `${
+        memory.content
+      }\n\n完整执行约束：保留资料来源与验收记录。\nhttps://example.com/research/${"delivery-context-".repeat(
+        18,
+      )}`,
+    };
+  }
   if (path === "/api/bookmarks")
     return { items: all(bookmarks), total: all(bookmarks).length };
   if (path === "/api/notifications/active") return [];
@@ -1586,6 +1614,129 @@ const server = await createServer({
           const failureTarget = previewParams.get("failure");
           const streamKey = req.headers.referer ?? "";
           if (
+            previewParams.get("profile-flow") === "1" &&
+            ((req.method === "POST" &&
+              url.pathname === "/api/auth/update-username") ||
+              (["POST", "DELETE"].includes(req.method ?? "") &&
+                url.pathname === "/api/upload/avatar"))
+          ) {
+            // UI-only simulation: discard bytes; never parse, save or forward profile changes.
+            req.resume();
+            const key = `profile-flow:${streamKey}:${req.method}:${url.pathname}`;
+            const failed =
+              failureTarget === "profile-save" &&
+              !failedChannelRequests.has(key);
+            if (failed) failedChannelRequests.add(key);
+            setTimeout(() => {
+              res.statusCode = failed ? 503 : 200;
+              res.setHeader("Content-Type", "application/json");
+              res.end(
+                JSON.stringify(
+                  failed
+                    ? {
+                        detail: {
+                          code: "update_failed",
+                          message: "Update failed",
+                        },
+                      }
+                    : url.pathname.startsWith("/api/auth")
+                      ? user
+                      : req.method === "DELETE"
+                        ? { deleted: true }
+                        : {
+                            url: "/icons/icon-192.png",
+                            filename: "avatar.png",
+                          },
+                ),
+              );
+            }, 2000);
+            return;
+          }
+          if (
+            previewParams.get("preferences-flow") === "1" &&
+            req.method === "PUT" &&
+            [
+              "/api/auth/profile/metadata",
+              "/api/agent/config/user/preference",
+            ].includes(url.pathname)
+          ) {
+            // UI-only simulation: discard bytes; never parse, save or forward preferences.
+            req.resume();
+            const key = `preferences-flow:${streamKey}:${url.pathname}`;
+            const failed =
+              failureTarget === "preference-save" &&
+              !failedChannelRequests.has(key);
+            if (failed) failedChannelRequests.add(key);
+            setTimeout(() => {
+              res.statusCode = failed ? 503 : 200;
+              res.setHeader("Content-Type", "application/json");
+              res.end(
+                JSON.stringify(
+                  failed
+                    ? { detail: "Fixture preference sync unavailable" }
+                    : url.pathname.endsWith("/metadata")
+                      ? user
+                      : { default_agent_id: "search" },
+                ),
+              );
+            }, 2000);
+            return;
+          }
+          if (
+            (previewParams.get("persona-flow") === "1" &&
+              ((req.method === "POST" &&
+                ["/api/persona-presets/", "/api/upload/file"].includes(
+                  url.pathname,
+                )) ||
+                (req.method === "PUT" &&
+                  /^\/api\/persona-presets\/[^/]+$/.test(url.pathname)))) ||
+            (previewParams.get("team-flow") === "1" &&
+              ((req.method === "POST" && url.pathname === "/api/teams/") ||
+                (req.method === "PUT" &&
+                  /^\/api\/teams\/[^/]+$/.test(url.pathname))))
+          ) {
+            // UI-only simulation: discard bytes, never save, parse or forward them.
+            req.resume();
+            const avatar = url.pathname === "/api/upload/file";
+            const team = url.pathname.startsWith("/api/teams/");
+            const key = `editor-flow:${streamKey}:${url.pathname}`;
+            const failed =
+              failureTarget ===
+                (avatar
+                  ? "persona-avatar"
+                  : team
+                    ? "team-save"
+                    : "persona-save") && !failedChannelRequests.has(key);
+            if (failed) failedChannelRequests.add(key);
+            setTimeout(() => {
+              res.statusCode = failed ? 503 : 200;
+              res.setHeader("Content-Type", "application/json");
+              res.end(
+                JSON.stringify(
+                  failed
+                    ? { detail: "Fixture save unavailable" }
+                    : avatar
+                      ? {
+                          key: "preview-avatar",
+                          url: "/icons/icon-192.png",
+                          name: "preview-avatar.png",
+                          type: "image",
+                          mime_type: "image/png",
+                          size: 41245,
+                        }
+                      : team
+                        ? (teams.find((item) =>
+                            url.pathname.endsWith(`/${item.id}`),
+                          ) ?? teams[0])
+                        : (presets.find((preset) =>
+                            url.pathname.endsWith(`/${preset.id}`),
+                          ) ?? presets[0]),
+                ),
+              );
+            }, 2000);
+            return;
+          }
+          if (
             previewParams.get("save-flow") === "1" &&
             req.method === "PUT" &&
             /^\/api\/skills\/[^/]+\/(files|binary-files)\//.test(url.pathname)
@@ -1676,7 +1827,7 @@ const server = await createServer({
           }
           const chatState = completedPreviewStreams.has(streamKey)
             ? "completed"
-            : previewParams.get("chat-state") ?? "completed";
+            : (previewParams.get("chat-state") ?? "completed");
           if (
             req.method === "GET" &&
             url.pathname === "/api/chat/sessions/preview-report/stream" &&
@@ -1742,6 +1893,27 @@ const server = await createServer({
                   url.pathname === "/api/agents"
                 ? { agents, count: agents.length, default_agent: "team" }
                 : response(url, scenario, chatState);
+          if (["/api/auth/me", "/api/auth/profile"].includes(url.pathname)) {
+            data = {
+              ...user,
+              ...(previewParams.has("profile-avatar") ? {avatar_url: "/icons/icon-192.png"} : {}),
+              ...(previewParams.has("profile-long") ? {
+                username: "跨部门产品研究与长期项目交付负责人",
+                email: "cross.department.research.and.delivery@example.test",
+                roles: ["project-administrator-with-long-role-name", "research", "engineering"],
+              } : {}),
+            };
+          }
+          if (url.pathname === "/api/agents") {
+            if (previewParams.get("agents") === "empty")
+              data = { agents: [], count: 0 };
+            else if (previewParams.get("agents") === "single")
+              data = {
+                agents: agents.slice(0, 1),
+                count: 1,
+                default_agent: "fast",
+              };
+          }
           if (
             previewParams.has("file-flow") &&
             /^\/api\/skills\/[^/]+$/.test(url.pathname)
@@ -1955,8 +2127,30 @@ const server = await createServer({
           const isRead = req.method === "GET";
           const channelConfigFailure =
             isRead &&
-            ((failureTarget === "skill-file" &&
-              /^\/api\/skills\/[^/]+\/files\//.test(url.pathname)) ||
+            ((failureTarget === "catalog-models" &&
+              url.pathname === "/api/agent/models/available") ||
+              (failureTarget === "catalog-agents" &&
+                url.pathname === "/api/agents") ||
+              (failureTarget === "catalog-preference" &&
+                url.pathname === "/api/agent/config/user/preference") ||
+              (failureTarget === "team-roles" &&
+                url.pathname.replace(/\/$/, "") === "/api/persona-presets" &&
+                url.searchParams.get("limit") === "20") ||
+              (failureTarget === "team-detail" &&
+                /^\/api\/teams\/[^/]+$/.test(url.pathname)) ||
+              (failureTarget === "persona-bindings" &&
+                url.pathname.replace(/\/$/, "") === "/api/mcp") ||
+              (failureTarget === "persona-skill-list" &&
+                url.pathname.replace(/\/$/, "") === "/api/skills" &&
+                url.searchParams.get("limit") === "20") ||
+              (failureTarget === "skill-file" &&
+                /^\/api\/skills\/[^/]+\/files\//.test(url.pathname)) ||
+              (failureTarget === "memory-detail" &&
+                /^\/api\/memory\/[^/]+$/.test(url.pathname)) ||
+              (failureTarget === "marketplace-files" &&
+                /^\/api\/marketplace\/[^/]+\/files$/.test(url.pathname)) ||
+              (failureTarget === "marketplace-file" &&
+                /^\/api\/marketplace\/[^/]+\/files\//.test(url.pathname)) ||
               (failureTarget === "model-role" &&
                 /^\/api\/agent\/config\/roles\/[^/]+\/models$/.test(
                   url.pathname,
@@ -2031,6 +2225,18 @@ const server = await createServer({
             );
           if (scenario === "loading" && !url.pathname.startsWith("/api/auth/"))
             setTimeout(send, 8000);
+          else if (
+            previewParams.has("agent-flow") &&
+            isRead &&
+            url.pathname === "/api/agents"
+          )
+            setTimeout(send, 2000);
+          else if (
+            previewParams.get("team-flow") === "1" &&
+            isRead &&
+            /^\/api\/teams\/[^/]+$/.test(url.pathname)
+          )
+            setTimeout(send, 2000);
           else send();
           if (data === undefined && isRead)
             console.log("Missing fixture:", url.pathname);

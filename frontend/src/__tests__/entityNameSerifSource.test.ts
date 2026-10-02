@@ -70,8 +70,10 @@ test("channel selects render entity names with font-serif", () => {
 test("skill selectors render skill names with font-serif", () => {
   const skill = readComponent("selectors/SkillSelector.tsx");
   expect(skill).toMatch(/text-12 sm:text-13 font-medium font-serif truncate/);
-  const personaEditor = readComponent("persona/PersonaEditorSkillSelector.tsx");
-  expect(personaEditor).toMatch(/text-14 font-medium font-serif truncate/);
+  const personaEditor = readComponent(
+    "persona/PersonaEditorBindingSelector.tsx",
+  );
+  expect(personaEditor).toMatch(/font-serif text-14 font-medium/);
   const slash = readComponent("chat/SlashDropdownMenu.tsx");
   expect(slash).toMatch(/min-w-0 flex-1 truncate font-serif/);
 });

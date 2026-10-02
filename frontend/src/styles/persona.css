@@ -241,10 +241,8 @@
     box-shadow 0.2s ease;
 }
 
-.ppe-avatar-preview:hover {
+.ppe-avatar-preview:hover:not(:disabled) {
   border-color: var(--theme-text-secondary);
-  box-shadow: 0 0 0 3px
-    color-mix(in srgb, var(--theme-text-secondary) 15%, transparent);
 }
 
 .ppe-avatar-img {
@@ -272,65 +270,81 @@
   color: var(--theme-text-secondary);
 }
 
-.ppe-avatar-remove {
-  position: absolute;
-  top: 0;
-  right: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.125rem;
-  height: 1.125rem;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
-  color: white;
-  border: 2px solid var(--theme-bg-card);
-  cursor: pointer;
-  opacity: 0;
-  transform: scale(0.8);
-  transition:
-    opacity 0.15s ease,
-    transform 0.15s ease;
-}
-
-.ppe-avatar-preview:hover .ppe-avatar-remove {
-  opacity: 1;
-  transform: scale(1);
-}
-
 .ppe-avatar-uploading {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.75);
+  pointer-events: none;
+  background: color-mix(in srgb, var(--theme-bg-card) 85%, transparent);
   color: var(--theme-primary);
 }
 
-.dark .ppe-avatar-uploading {
-  background: rgba(0, 0, 0, 0.55);
-}
-
-.ppe-avatar-hint-btn {
-  display: inline-flex;
+/* Avatar controls stay visible on touch and keyboard. */
+.ppe-avatar-actions {
+  display: flex;
   align-items: center;
-  gap: 0.2rem;
-  padding: 0.1875rem 0.4375rem;
-  font-size: 0.625rem;
-  font-weight: 500;
-  color: var(--theme-text-tertiary, var(--theme-text-secondary));
-  border-radius: 1rem;
-  border: none;
-  background: color-mix(in srgb, var(--theme-text) 5%, var(--theme-bg));
-  cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
+  gap: 4px;
 }
 
-.ppe-avatar-hint-btn:hover {
-  color: var(--theme-text-secondary);
-  background: color-mix(in srgb, var(--theme-text) 10%, var(--theme-bg));
+.ppe-avatar-preview:focus-visible,
+.ppe-avatar-upload:focus-visible,
+.ppe-avatar-upload .ppe-icon-picker-item:focus-visible {
+  outline: 2px solid var(--theme-ring);
+  outline-offset: 2px;
+}
+
+.ppe-avatar-preview:disabled {
+  cursor: wait;
+}
+
+.ppe-avatar-upload .ppe-icon-picker {
+  position: static;
+  box-shadow: none;
+  width: max-content;
+  max-width: 100%;
+  border-radius: var(--radius-md);
+  animation: none;
+}
+
+.ppe-avatar-upload .ppe-icon-picker-item:hover,
+.ppe-avatar-upload .ppe-icon-picker-item:active {
+  transform: none;
+  box-shadow: none;
+}
+
+.ppe-avatar-upload .ppe-icon-picker-item[aria-pressed="true"] {
+  border-color: var(--theme-primary);
+  background: var(--theme-bg-subtle);
+}
+
+.ppe-avatar-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: 100%;
+  font-size: 12px;
+  color: var(--theme-error);
+}
+
+@media (max-width: 639px), (pointer: coarse) {
+  .ppe-avatar-actions button,
+  .ppe-avatar-error button,
+  .ppe-avatar-upload .ppe-icon-picker-item {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ppe-avatar-preview,
+  .ppe-avatar-placeholder,
+  .ppe-avatar-upload .ppe-icon-picker-item {
+    transition: none;
+  }
 }
 
 /* ===== Icon Picker Grid ===== */
@@ -493,7 +507,8 @@
   font-size: 0.6875rem;
   font-weight: 500;
   color: var(--theme-text);
-  white-space: nowrap;
+  max-width: 100%;
+  min-width: 0;
   animation: ppe-chip-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -539,11 +554,9 @@
 
 /* --- Dropdown --- */
 .ppe-skill-dropdown {
-  position: absolute;
-  top: calc(100% + 0.375rem);
-  left: 0;
-  right: 0;
-  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
   border-radius: 0.75rem;
   border: 1px solid var(--theme-border);
   background: var(--theme-bg-card);
@@ -588,6 +601,7 @@
 }
 
 .ppe-skill-dropdown__search-wrap {
+  min-width: 0;
   flex: 1;
   position: relative;
   display: flex;
@@ -693,7 +707,8 @@
 
 /* --- List --- */
 .ppe-skill-dropdown__list {
-  max-height: 18rem;
+  min-height: 0;
+  flex: 1;
   overflow-y: auto;
   padding: 0.375rem;
 }
@@ -1153,18 +1168,6 @@
     height: 3.5rem;
   }
 
-  .ppe-skill-dropdown {
-    position: fixed;
-    top: auto;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    border-radius: 1rem 1rem 0 0;
-    border-bottom: none;
-    max-height: 60dvh;
-    animation: ppe-sheet-up 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-
   .ppe-skill-dropdown .ppe-skill-dropdown__search-icon {
     left: 0.75rem;
   }
@@ -1553,4 +1556,87 @@
 
 .resource-picker .pps-card__action {
   max-width: 100%;
+}
+
+/* Capability popovers share the editor's controls and viewport rhythm. */
+.ppe-skill-dropdown__header,
+.ppe-skill-dropdown__loading,
+.ppe-skill-dropdown__empty {
+  flex-shrink: 0;
+}
+
+.ppe-skill-selected-bar {
+  flex-shrink: 0;
+  min-height: 0;
+  max-height: 8rem;
+  overflow-y: auto;
+}
+
+.ppe-skill-dropdown__list:has([role="option"]) {
+  min-height: 2.75rem;
+}
+
+.ppe-skill-chip__name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ppe-skill-chip-remove:hover {
+  background: var(--theme-bg-elevated);
+  color: var(--theme-text);
+}
+
+.ppe-skill-chip-remove:focus-visible,
+.ppe-skill-option:focus-visible,
+.ppe-starter-remove:focus-visible,
+.ppe-starter-add:focus-visible {
+  outline: 2px solid var(--theme-ring);
+  outline-offset: -2px;
+}
+
+.ppe-skill-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 639px), (pointer: coarse) {
+  .ppe-input,
+  .ppe-starter-remove,
+  .ppe-starter-add,
+  .ppe-skill-trigger,
+  .ppe-skill-chip-remove,
+  .ppe-skill-dropdown__clear-all,
+  .ppe-skill-dropdown .ppe-skill-search {
+    min-height: 2.75rem;
+  }
+
+  .ppe-input,
+  .ppe-textarea,
+  .ppe-skill-dropdown .ppe-skill-search {
+    font-size: 1rem;
+  }
+
+  .ppe-starter-row {
+    grid-template-columns: 4.25rem minmax(0, 1fr) 2.75rem;
+  }
+
+  .ppe-starter-remove,
+  .ppe-skill-chip-remove {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .ppe-skill-dropdown .ui-icon-button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ppe-skill-dropdown,
+  .ppe-skill-chip,
+  .ppe-skill-selected-area,
+  .ppe-field-animated {
+    animation: none;
+  }
 }

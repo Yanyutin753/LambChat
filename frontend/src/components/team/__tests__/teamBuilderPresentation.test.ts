@@ -30,6 +30,24 @@ function assertCssDeclaration(
   );
 }
 
+test("member default and destructive states remain visible over shared icon styles", () => {
+  const memberSource = readFileSync(
+    new URL("../TeamMemberCard.tsx", import.meta.url),
+    "utf8",
+  );
+  expect(memberSource).not.toMatch(/variant=\{isDefault \? "primary"/);
+  assertCssDeclaration(
+    ".team-member-card .team-member-card__action-btn--active",
+    "color",
+    "var\\(--theme-primary\\)",
+  );
+  assertCssDeclaration(
+    ".team-member-card .team-member-card__action-btn--danger:hover",
+    "color",
+    "var\\(--theme-error\\)",
+  );
+});
+
 test("team selected member cards fill the team member picker width", () => {
   assertCssDeclaration(".team-form-selected__list", "width", "100%");
   expect(teamCss).toMatch(
@@ -95,6 +113,8 @@ test("team editor uses one sidebar form matching role editor patterns", () => {
   expect(builderSource).toMatch(/team-role-picker-dropdown__list/);
   expect(builderSource).toMatch(/team-form-selected__list/);
   expect(wrapperSource).toMatch(/footerState/);
+  expect(wrapperSource).toMatch(/<PanelFooterActions>/);
+  expect(wrapperSource).toMatch(/loading=\{footerState\.saving\}/);
   expect(wrapperSource).toMatch(/<EditorSidebar/);
   expect(builderSource).not.toMatch(/activeMobilePane/);
   expect(builderSource).not.toMatch(/team-builder-mobile-switch/);
@@ -103,8 +123,14 @@ test("team editor uses one sidebar form matching role editor patterns", () => {
   expect(memberCardSource).toMatch(/list-item-card/);
   expect(memberCardSource).toMatch(/team-member-card__avatar-btn/);
   expect(builderSource).toMatch(/teamAvatar/);
-  expect(builderSource).toMatch(/ppe-icon-picker/);
-  expect(builderSource).toMatch(/persona-avatars/);
+  expect(builderSource).toMatch(/<AvatarSection/);
+  expect(builderSource).toMatch(/<StarterPromptsEditor/);
+  const avatarSource = readFileSync(
+    new URL("../../persona/PersonaEditorAvatarSection.tsx", import.meta.url),
+    "utf8",
+  );
+  expect(avatarSource).toMatch(/ppe-icon-picker/);
+  expect(avatarSource).toMatch(/persona-avatars/);
   expect(teamCss).toMatch(/\.team-editor-form\s*\{/);
   expect(teamCss).toMatch(/\.team-form-role-option\s*\{/);
   expect(teamCss).toMatch(/\.team-form-selected__list\s*\{/);

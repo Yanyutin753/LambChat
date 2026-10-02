@@ -2221,6 +2221,7 @@
     "viewSource": "View Source"
   },
   "profile": {
+    "preferenceSyncFailed": "Applied on this device. Cloud sync failed.",
     "appearance": "Appearance",
     "avatar": "Avatar",
     "avatarDeleted": "Avatar deleted",

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, Pencil, Check } from "lucide-react";
+import { Pencil, Check } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Mail, ExternalLink } from "lucide-react";
 import { ImageWithSkeleton } from "../../chat/ChatMessage/ImageWithSkeleton";
@@ -9,8 +9,16 @@ import { useAuth } from "../../../hooks/useAuth";
 import { useSettings } from "../../../hooks/useSettings";
 import { Permission } from "../../../types";
 import { authApi, getFullUrl, uploadApi } from "../../../services/api";
+import { CatalogStatus } from "../../common/CatalogStatus";
+import { usePreferenceWrites } from "../../../hooks/usePreferenceWrites";
+import { compressImageFile } from "../../../utils/imageCompression";
 
 export function ProfileInfoTab() {
+  const { user } = useAuth();
+  return <ProfileInfoContent key={user?.id} />;
+}
+
+function ProfileInfoContent() {
   const { t } = useTranslation();
   const { user, refreshUser, hasPermission } = useAuth();
   const { getSettingValue } = useSettings();
@@ -23,117 +31,91 @@ export function ProfileInfoTab() {
   const [usernameError, setUsernameError] = useState("");
   const [isUpdatingUsername, setIsUpdatingUsername] = useState(false);
 
-  // Avatar upload state
-  const [isUploading, setIsUploading] = useState(false);
-
-  // Permission check for avatar upload
+  const mounted = useRef(true);
+  const usernamePending = useRef(false);
+  const usernameFormRef = useRef<HTMLFormElement>(null);
+  const infoRef = useRef<HTMLDivElement>(null);
+  const avatarRef = useRef<HTMLDivElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const compressionRef = useRef<AbortController | null>(null);
+  const restoreUsernameFocus = useRef(false);
+  const usernameErrorId = useId();
+  const { states, save, retry } = usePreferenceWrites(user?.id);
+  const [avatarOperation, setAvatarOperation] = useState<"upload" | "delete">(
+    "upload",
+  );
+  const isUploading = states.avatar === "saving";
   const canUploadAvatar = hasPermission(Permission.AVATAR_UPLOAD);
 
-  // Compress image file to target size (default 100KB)
-  const compressImage = async (
-    file: File,
-    targetSizeKB: number = 100,
-    maxWidth: number = 512,
-    maxHeight: number = 512,
-  ): Promise<File> => {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      const objectUrl = URL.createObjectURL(file);
-      img.onload = () => {
-        URL.revokeObjectURL(objectUrl);
-        let { width, height } = img;
-        if (width > maxWidth || height > maxHeight) {
-          const ratio = Math.min(maxWidth / width, maxHeight / height);
-          width = Math.round(width * ratio);
-          height = Math.round(height * ratio);
-        }
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      compressionRef.current?.abort();
+    };
+  }, []);
+  useLayoutEffect(() => {
+    if (!isEditingUsername && restoreUsernameFocus.current) {
+      infoRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+      restoreUsernameFocus.current = false;
+    }
+  }, [isEditingUsername]);
 
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          reject(new Error("Failed to get canvas context"));
-          return;
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-
-        const targetBytes = targetSizeKB * 1024;
-        let quality = 0.9;
-        const minQuality = 0.1;
-
-        const tryCompress = (): void => {
-          canvas.toBlob(
-            (blob) => {
-              if (!blob) {
-                reject(new Error("Failed to compress image"));
-                return;
-              }
-
-              if (blob.size <= targetBytes || quality <= minQuality) {
-                const compressedFile = new File([blob], file.name, {
-                  type: "image/jpeg",
-                  lastModified: Date.now(),
-                });
-                resolve(compressedFile);
-                return;
-              }
-
-              quality -= 0.1;
-              tryCompress();
-            },
-            "image/jpeg",
-            quality,
-          );
-        };
-
-        tryCompress();
-      };
-
-      img.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
-        reject(new Error("Failed to load image"));
-      };
-
-      img.src = objectUrl;
-    });
+  const cancelUsername = () => {
+    if (usernamePending.current) return;
+    restoreUsernameFocus.current = true;
+    setIsEditingUsername(false);
+    setNewUsername("");
+    setUsernameError("");
   };
 
-  const handleAvatarUpload = async (file: File) => {
-    setIsUploading(true);
-    try {
-      const compressedFile = await compressImage(file, 100, 512, 512);
-      await uploadApi.uploadAvatar(compressedFile);
-      await authApi.getProfile();
-      refreshUser();
-    } catch (error) {
-      console.error("Failed to upload avatar:", error);
-      const message =
-        error instanceof Error ? error.message : t("profile.uploadFailed");
-      toast.error(message);
-    } finally {
-      setIsUploading(false);
-    }
+  const handleAvatarUpload = (file: File) => {
+    let compressed: File | undefined;
+    if (
+      !save(
+        "avatar",
+        async () => {
+          if (!compressed) {
+            compressionRef.current = new AbortController();
+            compressed = await compressImageFile(file, {
+              maxDimension: 512,
+              targetSizeKB: 100,
+              skipBelowKB: 100,
+              fallback: "main-thread",
+              signal: compressionRef.current.signal,
+            });
+          }
+          if (!mounted.current) return;
+          await uploadApi.uploadAvatar(compressed);
+        },
+        () => {
+          void refreshUser();
+        },
+      )
+    )
+      return;
+    setAvatarOperation("upload");
+    avatarRef.current?.focus({ preventScroll: true });
   };
 
-  const handleAvatarDelete = async () => {
-    setIsUploading(true);
-    try {
-      await uploadApi.deleteAvatar();
-      await authApi.getProfile();
-      refreshUser();
-      toast.success(t("profile.avatarDeleted"));
-    } catch (error) {
-      console.error("Failed to delete avatar:", error);
-      const message =
-        error instanceof Error ? error.message : t("profile.deleteFailed");
-      toast.error(message);
-    } finally {
-      setIsUploading(false);
-    }
+  const handleAvatarDelete = () => {
+    if (
+      !save(
+        "avatar",
+        () => uploadApi.deleteAvatar(),
+        () => {
+          void refreshUser();
+          toast.success(t("profile.avatarDeleted"));
+        },
+      )
+    )
+      return;
+    setAvatarOperation("delete");
+    avatarRef.current?.focus({ preventScroll: true });
   };
 
   const handleUsernameUpdate = async () => {
+    if (usernamePending.current) return;
     setUsernameError("");
 
     if (!newUsername || newUsername.length < 3 || newUsername.length > 50) {
@@ -141,26 +123,39 @@ export function ProfileInfoTab() {
       return;
     }
 
+    usernamePending.current = true;
+    usernameFormRef.current?.focus({ preventScroll: true });
     setIsUpdatingUsername(true);
     try {
       await authApi.updateUsername(newUsername);
-      refreshUser();
+      if (!mounted.current) return;
+      void refreshUser();
+      restoreUsernameFocus.current = true;
       setIsEditingUsername(false);
       setNewUsername("");
       toast.success(t("profile.usernameUpdated"));
     } catch (error) {
+      if (!mounted.current) return;
       setUsernameError(
         (error as Error).message || t("profile.usernameUpdateFailed"),
       );
     } finally {
-      setIsUpdatingUsername(false);
+      if (mounted.current) {
+        usernamePending.current = false;
+        setIsUpdatingUsername(false);
+      }
     }
   };
 
   return (
     <>
       {/* Avatar */}
-      <div className="profile-avatar">
+      <div
+        ref={avatarRef}
+        tabIndex={-1}
+        className="profile-avatar"
+        aria-busy={isUploading}
+      >
         <div className="relative">
           {user?.avatar_url ? (
             <ImageWithSkeleton
@@ -184,37 +179,61 @@ export function ProfileInfoTab() {
               </span>
             </div>
           )}
-          {isUploading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full">
-              <Loader2 size={24} className="animate-spin text-white" />
-            </div>
-          )}
         </div>
         {canUploadAvatar && (
           <div className="flex flex-wrap items-center gap-2">
-            <label className="profile-avatar-upload cursor-pointer rounded-lg bg-theme-bg-subtle dark:bg-stone-700 px-3 py-1.5 text-12 font-medium text-theme-text-secondary dark:text-stone-300 hover:bg-theme-border-hover hover:text-theme-text dark:hover:bg-stone-600 transition-colors">
+            <Button
+              size="sm"
+              disabled={isUploading}
+              className="max-sm:!min-h-11 [@media(pointer:coarse)]:!min-h-11"
+              onClick={() => avatarInputRef.current?.click()}
+            >
               {t("profile.changeAvatar")}
-              <input
-                type="file"
-                accept="image/*"
-                className="sr-only"
-                disabled={isUploading}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleAvatarUpload(file);
-                }}
-              />
-            </label>
+            </Button>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              disabled={isUploading}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleAvatarUpload(file);
+                e.target.value = "";
+              }}
+            />
             {user?.avatar_url && (
               <Button
                 variant="danger"
                 size="sm"
                 onClick={handleAvatarDelete}
                 disabled={isUploading}
+                className="max-sm:!min-h-11 [@media(pointer:coarse)]:!min-h-11"
               >
                 {t("profile.deleteAvatar")}
               </Button>
             )}
+          </div>
+        )}
+        {canUploadAvatar && states.avatar && (
+          <div className="basis-full">
+            <CatalogStatus
+              label={t("profile.avatar")}
+              loading={isUploading}
+              error={states.avatar === "error"}
+              loadingText={t(
+                avatarOperation === "upload"
+                  ? "fileUpload.uploading"
+                  : "common.saving",
+              )}
+              errorText={t(
+                avatarOperation === "upload"
+                  ? "profile.uploadFailed"
+                  : "profile.deleteFailed",
+              )}
+              onRetry={() => retry("avatar")}
+              focusTargetRef={avatarRef}
+            />
           </div>
         )}
       </div>
@@ -222,54 +241,95 @@ export function ProfileInfoTab() {
       {/* User Info */}
       <div className="space-y-0">
         {/* Username - editable */}
-        <div className="py-3.5 border-b border-theme-border-subtle dark:border-stone-700/60">
+        <div
+          ref={infoRef}
+          className="py-3.5 border-b border-theme-border-subtle dark:border-stone-700/60"
+        >
           {isEditingUsername ? (
-            <div className="space-y-2">
+            <form
+              ref={usernameFormRef}
+              tabIndex={-1}
+              className="space-y-2"
+              aria-busy={isUpdatingUsername}
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleUsernameUpdate();
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Escape") return;
+                event.stopPropagation();
+                if (event.nativeEvent.isComposing || event.keyCode === 229)
+                  return;
+                event.preventDefault();
+                cancelUsername();
+              }}
+            >
+              <label
+                className="block text-14 text-theme-text-secondary"
+                htmlFor={`${usernameErrorId}-input`}
+              >
+                {t("profile.username")}
+              </label>
               <Input
+                id={`${usernameErrorId}-input`}
                 type="text"
                 value={newUsername}
-                onChange={(e) => setNewUsername(e.target.value)}
+                disabled={isUpdatingUsername}
+                onChange={(e) => {
+                  setNewUsername(e.target.value);
+                  setUsernameError("");
+                }}
                 minLength={3}
                 maxLength={50}
                 placeholder={t("profile.usernamePlaceholder")}
                 error={!!usernameError}
+                aria-describedby={usernameError ? usernameErrorId : undefined}
                 autoFocus
               />
               {usernameError && (
-                <p className="text-12 text-theme-error">{usernameError}</p>
+                <p
+                  id={usernameErrorId}
+                  role="alert"
+                  className="text-12 text-theme-error [overflow-wrap:anywhere]"
+                >
+                  {usernameError}
+                </p>
               )}
               <div className="flex gap-2">
                 <Button
                   variant="primary"
-                  onClick={handleUsernameUpdate}
+                  type="submit"
                   disabled={
                     isUpdatingUsername || newUsername === user?.username
                   }
                   loading={isUpdatingUsername}
                   leftIcon={<Check size={14} />}
-                  className="flex-1 sm:flex-none"
+                  className="flex-1 sm:flex-none max-sm:!min-h-11 [@media(pointer:coarse)]:!min-h-11"
                 >
-                  {t("common.save")}
+                  {t(
+                    isUpdatingUsername
+                      ? "common.saving"
+                      : usernameError
+                        ? "common.retry"
+                        : "common.save",
+                  )}
                 </Button>
                 <Button
-                  onClick={() => {
-                    setIsEditingUsername(false);
-                    setNewUsername("");
-                    setUsernameError("");
-                  }}
-                  className="flex-1 sm:flex-none"
+                  onClick={cancelUsername}
+                  disabled={isUpdatingUsername}
+                  className="flex-1 sm:flex-none max-sm:!min-h-11 [@media(pointer:coarse)]:!min-h-11"
                 >
                   {t("common.cancel")}
                 </Button>
               </div>
-            </div>
+            </form>
           ) : (
             <div className="flex items-center justify-between gap-3">
               <span className="text-14 text-theme-text-secondary dark:text-stone-400 shrink-0">
                 {t("profile.username")}
               </span>
               <div className="flex items-center gap-2 min-w-0">
-                <span className="text-14 font-medium text-theme-text dark:text-stone-100 truncate">
+                <span className="text-14 font-medium text-theme-text dark:text-stone-100 text-right [overflow-wrap:anywhere]">
                   {user?.username || "-"}
                 </span>
                 <IconButton
@@ -280,7 +340,7 @@ export function ProfileInfoTab() {
                   }}
                   icon={<Pencil size={13} />}
                   size="sm"
-                  className="shrink-0 text-amber-500 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-md"
+                  className="shrink-0 text-theme-primary max-sm:!size-11 [@media(pointer:coarse)]:!size-11"
                   title={t("common.edit")}
                 />
               </div>
@@ -292,7 +352,7 @@ export function ProfileInfoTab() {
           <span className="text-14 text-theme-text-secondary dark:text-stone-400 shrink-0">
             {t("profile.email")}
           </span>
-          <span className="text-14 font-medium text-theme-text dark:text-stone-100 truncate text-right">
+          <span className="min-w-0 text-14 font-medium text-theme-text dark:text-stone-100 text-right [overflow-wrap:anywhere]">
             {user?.email || "-"}
           </span>
         </div>
@@ -329,7 +389,7 @@ export function ProfileInfoTab() {
                   <Mail size={14} />
                   {t("profile.email", "Email")}
                 </span>
-                <span className="text-14 font-medium text-theme-text dark:text-stone-100 truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                <span className="min-w-0 text-right [overflow-wrap:anywhere] text-14 font-medium text-theme-text dark:text-stone-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
                   {adminEmail}
                 </span>
               </a>

@@ -575,6 +575,96 @@ test("manual close restores focus to the opening trigger", async () => {
   await waitFor(() => expect(trigger).toHaveFocus());
 });
 
+test.each([false, true])(
+  "closing a nested editor restores its opener in the remaining modal (unmounted=%s)",
+  async (unmounted) => {
+    installMatchMedia(390);
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <ModalSurface open onClose={vi.fn()} label="Persona picker">
+            <button onClick={() => setOpen(true)}>Preview persona</button>
+          </ModalSurface>
+          {(!unmounted || open) && (
+            <EditorSidebar
+              open={open}
+              onClose={() => setOpen(false)}
+              title="Persona preview"
+            >
+              body
+            </EditorSidebar>
+          )}
+        </>
+      );
+    }
+    const user = userEvent.setup();
+    render(<Harness />);
+    const trigger = screen.getByRole("button", { name: "Preview persona" });
+    await user.click(trigger);
+    await user.click(screen.getByRole("button", { name: /^Close tab:/i }));
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(
+      screen.getByRole("dialog", { name: "Persona picker" }),
+    ).toBeVisible();
+  },
+);
+
+test.each([true, false])(
+  "a hidden nested editor opener keeps focus in its modal (has control=%s)",
+  async (hasControl) => {
+    installMatchMedia(390);
+    vi.spyOn(HTMLElement.prototype, "getClientRects").mockImplementation(
+      function (this: HTMLElement) {
+        return (this.closest('[hidden],[inert],[aria-hidden="true"]')
+          ? []
+          : [{}]) as unknown as DOMRectList;
+      },
+    );
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      const [previewed, setPreviewed] = useState(false);
+      return (
+        <>
+          <main>
+            <button>Background action</button>
+          </main>
+          <ModalSurface open onClose={vi.fn()} label="Persona picker">
+            <button
+              hidden={previewed && !open}
+              onClick={() => {
+                setPreviewed(true);
+                setOpen(true);
+              }}
+            >
+              Preview persona
+            </button>
+            {hasControl && <button>Another persona</button>}
+          </ModalSurface>
+          <EditorSidebar
+            open={open}
+            onClose={() => setOpen(false)}
+            title="Persona preview"
+          >
+            body
+          </EditorSidebar>
+        </>
+      );
+    }
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Preview persona" }));
+    await user.click(screen.getByRole("button", { name: /^Close tab:/i }));
+    await waitFor(() =>
+      expect(
+        hasControl
+          ? screen.getByRole("button", { name: "Another persona" })
+          : screen.getByRole("dialog", { name: "Persona picker" }),
+      ).toHaveFocus(),
+    );
+  },
+);
+
 test("a tool panel hides an editor and closing it restores the editor", async () => {
   const toolClose = vi.fn();
   const view = render(

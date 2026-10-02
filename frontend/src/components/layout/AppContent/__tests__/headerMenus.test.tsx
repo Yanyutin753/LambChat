@@ -5,6 +5,10 @@ import { MemoryRouter } from "react-router-dom";
 import { Header } from "../Header";
 import userEvent from "@testing-library/user-event";
 import { OPEN_NOTIFICATIONS_EVENT } from "../../DesktopSidebarShell/desktopShellPlatform";
+const appearance = vi.hoisted(() => ({
+  state: undefined as "saving" | "error" | undefined,
+  retry: vi.fn(),
+}));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: "zh" } }),
 }));
@@ -21,7 +25,12 @@ vi.mock("../../../../hooks/useAuth", () => ({
   useAuth: () => ({ user: { permissions: [] } }),
 }));
 vi.mock("../../../../contexts/ThemeContext", () => ({
-  useTheme: () => ({ theme: "light", toggleTheme: vi.fn() }),
+  useTheme: () => ({
+    theme: "light",
+    toggleTheme: vi.fn(),
+    appearanceState: appearance.state,
+    retryAppearance: appearance.retry,
+  }),
 }));
 vi.mock("../../../../contexts/SettingsContext", () => ({
   useSettingsContext: () => ({
@@ -39,7 +48,11 @@ vi.mock("../../../../services/api", () => ({ authApi: {} }));
 vi.mock("../../../../services/api/notification", () => ({
   notificationApi: { getActive: () => Promise.resolve([]) },
 }));
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  appearance.state = undefined;
+  appearance.retry.mockClear();
+});
 function renderHeader() {
   render(
     <MemoryRouter>
@@ -59,6 +72,15 @@ function openLanguages() {
   fireEvent.click(screen.getByRole("button", { name: "common.menu" }));
   fireEvent.click(screen.getByRole("menuitem", { name: "common.language" }));
 }
+test("a failed appearance sync is reachable as a retry in the header menu", () => {
+  appearance.state = "error";
+  renderHeader();
+  fireEvent.click(screen.getByRole("button", { name: "common.menu" }));
+  fireEvent.click(
+    screen.getByRole("menuitem", { name: "common.retry: profile.theme" }),
+  );
+  expect(appearance.retry).toHaveBeenCalledOnce();
+});
 test("opening notifications externally dismisses the header menu first", () => {
   renderHeader();
   fireEvent.click(screen.getByRole("button", { name: "common.menu" }));

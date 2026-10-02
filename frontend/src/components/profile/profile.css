@@ -146,6 +146,16 @@
 .profile-setting-row:hover {
   color: var(--theme-primary);
 }
+.profile-setting-row:has(+ .profile-setting-status) {
+  border-bottom: 0;
+}
+.profile-setting-status {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--theme-border-subtle);
+}
+.profile-setting-status:last-child {
+  border-bottom: 0;
+}
 .profile-icon-button {
   display: inline-flex;
   width: 36px;

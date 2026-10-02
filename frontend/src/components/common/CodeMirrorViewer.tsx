@@ -113,8 +113,10 @@ export interface CodeMirrorViewerProps {
   /** Optional file/language label at the start of the toolbar. */
   toolbarLabel?: ReactNode;
   copyLabel?: string;
-  /** Keep only keyword and previous/next controls in the search panel. */
+  /** Compact floating native find by default; false exposes all search options. */
   simpleSearch?: boolean;
+  /** Hide the local toolbar when its parent provides the search action. */
+  showToolbar?: boolean;
 }
 
 /** ViewPlugin that decorates highlighted lines with a background color */
@@ -185,7 +187,8 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
   copyable,
   toolbarLabel,
   copyLabel,
-  simpleSearch,
+  simpleSearch = true,
+  showToolbar = true,
 }: CodeMirrorViewerProps) {
   const { t } = useTranslation();
   const themeMode = useAppThemeMode();
@@ -193,7 +196,7 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
   const viewRef = useRef<EditorView | null>(null);
   const wrapperClassName = [
     "h-full",
-    simpleSearch && "code-editor--simple-search",
+    simpleSearch && "code-editor--simple-search code-editor--overlay-search",
     className,
   ]
     .filter(Boolean)
@@ -335,12 +338,15 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
       className={`code-editor ${wrapperClassName}`}
       onKeyDownCapture={guardCodeMirrorSearchComposition}
     >
-      <CodeMirrorSearchToolbar
-        viewRef={viewRef}
-        copyText={copyable ? value : undefined}
-        copyLabel={copyLabel}
-        label={toolbarLabel}
-      />
+      {showToolbar && (
+        <CodeMirrorSearchToolbar
+          floating={!toolbarLabel && !copyable}
+          viewRef={viewRef}
+          copyText={copyable ? value : undefined}
+          copyLabel={copyLabel}
+          label={toolbarLabel}
+        />
+      )}
       <CodeMirror
         className="h-full"
         height="100%"

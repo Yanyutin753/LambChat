@@ -243,7 +243,7 @@ test("selector search fields share editing-safe input behavior", () => {
     "../../agent/ModelSelector.tsx",
     "../../team/TeamBuilder.tsx",
     "../../team/TeamPickerModal.tsx",
-    "../../persona/PersonaEditorSkillSelector.tsx",
+    "../../persona/PersonaEditorBindingSelector.tsx",
     "../../persona/PersonaPresetSelector.tsx",
     "../../panels/SearchDialog.tsx",
     "../../panels/channel/ChannelPersonaSelect.tsx",

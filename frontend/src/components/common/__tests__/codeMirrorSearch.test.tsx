@@ -1,5 +1,12 @@
 /** @vitest-environment jsdom */
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { CodeMirrorViewer } from "../CodeMirrorViewer";
 import { SkillEditor } from "../../skill/SkillEditor";
@@ -20,7 +27,11 @@ async function renderEditor(
   render(
     <I18nextProvider i18n={i18n}>
       {readOnly === true ? (
-        <CodeMirrorViewer filePath="notes.txt" value="alpha alpha" />
+        <CodeMirrorViewer
+          filePath="notes.txt"
+          value="alpha alpha"
+          simpleSearch={false}
+        />
       ) : (
         <SkillEditor
           filePath="notes.txt"
@@ -33,6 +44,38 @@ async function renderEditor(
   );
   return change;
 }
+
+test("plain file code keeps native find compact and floating without a content row", async () => {
+  const { container } = render(
+    <I18nextProvider i18n={appI18n.cloneInstance({ lng: "zh" })}>
+      <CodeMirrorViewer filePath="notes.txt" value="alpha alpha" />
+    </I18nextProvider>,
+  );
+  expect(container.querySelector(".code-editor-toolbar")).toHaveClass(
+    "code-editor-toolbar--floating",
+  );
+  expect(container.querySelector(".code-editor")).toHaveClass(
+    "code-editor--simple-search",
+    "code-editor--overlay-search",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "搜索" }));
+  const query = screen.getByRole("textbox", { name: "查找" });
+  expect(query).toHaveFocus();
+  fireEvent.change(query, { target: { value: "alpha" } });
+  fireEvent.click(screen.getByRole("button", { name: "下一个" }));
+  await waitFor(() =>
+    expect(container.querySelectorAll(".cm-searchMatch")).toHaveLength(2),
+  );
+  expect(container.querySelector(".cm-searchMatch-selected")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+  const editor = screen.getByRole("textbox", { name: "notes.txt" });
+  act(() => editor.focus());
+  fireEvent.keyDown(editor, { key: "f", code: "KeyF", ctrlKey: true });
+  expect(screen.getByRole("textbox", { name: "查找" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+  expect(editor).toHaveFocus();
+  expect(editor).toHaveTextContent("alpha alpha");
+});
 
 test("skill search opens from its button, uses the app language and returns focus on close", async () => {
   const change = await renderEditor();
@@ -82,6 +125,13 @@ test("read-only code search offers no replacement and leaves Tab available for n
 
 test("read-only skill preview returns focus to its code after search closes", async () => {
   await renderEditor("skill-preview");
+  expect(document.querySelector(".code-editor")).toHaveClass(
+    "code-editor--simple-search",
+    "code-editor--overlay-search",
+  );
+  expect(document.querySelector(".code-editor-toolbar")).toHaveClass(
+    "code-editor-toolbar--floating",
+  );
   fireEvent.click(screen.getByRole("button", { name: "搜索" }));
   fireEvent.click(screen.getByRole("button", { name: "关闭" }));
   expect(document.activeElement).toBe(
