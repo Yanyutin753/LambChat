@@ -268,6 +268,19 @@ export function SessionListContent({
     sessionActions.onRequestBatchDeleteSessions(selectedIds);
   }, [selectedIds, sessionActions]);
 
+  const selectModeButton = !isSelectionMode && (
+    <Tooltip content={t("sidebar.selectMode")}>
+      <button
+        type="button"
+        onClick={handleToggleSelectionMode}
+        aria-label={t("sidebar.selectMode")}
+        className={`${sectionActionClass} ${sectionRevealClass}`}
+      >
+        <ListChecks size={14} />
+      </button>
+    </Tooltip>
+  );
+
   return (
     <>
       {/* Header（桌面双栏模式下品牌与折叠由 ActivityRail 承接，不渲染） */}
@@ -424,7 +437,9 @@ export function SessionListContent({
               collapsed={isPinnedCollapsed}
               onToggle={onTogglePinnedCollapsed}
               createLabel={t("sidebar.newChat")}
-            />
+            >
+              {selectModeButton}
+            </SidebarSectionHeader>
             {!isPinnedCollapsed && (
               <>
                 {isPinnedLoading ? (
@@ -501,7 +516,9 @@ export function SessionListContent({
             onToggle={onToggleProjectsCollapsed}
             createLabel={t("sidebar.newProject")}
             onCreate={projectActions.onOpenNewProjectModal}
-          />
+          >
+            {selectModeButton}
+          </SidebarSectionHeader>
 
           {/* Favorites project */}
           {!isProjectsCollapsed &&
@@ -624,16 +641,7 @@ export function SessionListContent({
                   onCreate={onNewSession}
                   createIcon="compose"
                 >
-                  <Tooltip content={t("sidebar.selectMode")}>
-                    <button
-                      type="button"
-                      onClick={handleToggleSelectionMode}
-                      aria-label={t("sidebar.selectMode")}
-                      className={`${sectionActionClass} ${sectionRevealClass}`}
-                    >
-                      <ListChecks size={14} />
-                    </button>
-                  </Tooltip>
+                  {selectModeButton}
                   {chatsUnreadCount > 0 && (
                     <MarkAllReadBadge
                       count={chatsUnreadCount}
