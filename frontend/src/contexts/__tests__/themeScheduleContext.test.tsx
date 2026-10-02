@@ -11,6 +11,9 @@ import {
 vi.mock("../../services/api", () => ({
   authApi: { updateMetadata: vi.fn().mockResolvedValue({}) },
 }));
+vi.mock("../../hooks/useAuth", () => ({
+  useAuth: () => ({ user: { id: "user" } }),
+}));
 
 import { ThemeProvider, useTheme } from "../ThemeContext";
 

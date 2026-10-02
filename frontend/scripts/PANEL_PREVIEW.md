@@ -102,3 +102,5 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 模型与助手目录走查：`/team?failure=catalog-models` 或 `failure=catalog-agents` 分别让可用模型 GET、助手目录 GET 首次503，重试恢复。`/chat/preview-report?failure=catalog-models` 可检查标题栏和个人设置的模型目录；`failure=catalog-preference` 让个人偏好中的已保存助手偏好 GET 首次503，重试恢复。新的 `run` 参数可重放。可检查紧凑错误反馈、手机44px重试、焦点保留和现有草稿/选择不被失败清空；其它写操作仍405，不证明真实保存、认证或设备行为。
 
 聊天助手模式走查：`/chat/preview-report?failure=catalog-agents&agent-flow=1` 让助手目录读取等待2秒、首次503、重试恢复；模式入口保持可见，等待期间显示紧凑状态并保持焦点。`agents=empty` / `agents=single` 分别返回成功空目录和单助手，可检查空提示、选择和关闭。可组合三主题与新的 `run` 参数；只修改 GET fixture，写请求仍405，没有真实对话或偏好保存。
+
+个人偏好保存走查：`/chat/preview-report?preferences-flow=1&failure=preference-save` 显式启用个人元数据及默认助手 PUT 的2秒模拟等待，各路径首次503、重试200；请求字节丢弃，不解析、存储、更新真实偏好或转发。新的 `run` 参数可重放，其它写请求仍405。用于检查失败后选择保留、本机应用与云端同步错误的区分、逐字段禁用、原请求重试、移动端44px及稳定焦点。不证明真实云端持久化、认证、真机触屏或软键盘；账号切换及跨外观操作失败恢复由组件测试验证。

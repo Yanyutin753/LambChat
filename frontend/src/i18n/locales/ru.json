@@ -2221,6 +2221,7 @@
     "viewSource": "Исходный код"
   },
   "profile": {
+    "preferenceSyncFailed": "Применено на этом устройстве. Синхронизация с облаком не удалась.",
     "appearance": "Внешний вид",
     "avatar": "Аватар",
     "avatarDeleted": "Аватар удалён",
