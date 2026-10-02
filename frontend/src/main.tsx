@@ -38,6 +38,7 @@ import "./styles/pwa.css";
 import "./styles/utilities.css";
 import "./styles/panels.css";
 import "./styles/legacy-panels.css";
+import { LanguagePreferenceProvider } from "./hooks/useLanguagePreference";
 import { AuthProvider } from "./hooks/useAuth";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import { installMobileViewportResetHandlers } from "./utils/mobile";
@@ -58,9 +59,11 @@ registerLambChatPwa();
 createRoot(document.getElementById("root")!).render(
   <BrowserRouter>
     <AuthProvider>
-      <SettingsProvider>
-        <App />
-      </SettingsProvider>
+      <LanguagePreferenceProvider>
+        <SettingsProvider>
+          <App />
+        </SettingsProvider>
+      </LanguagePreferenceProvider>
     </AuthProvider>
   </BrowserRouter>,
 );

@@ -188,7 +188,7 @@ export function UserMessageBubble({
           )}
 
           {/* Action buttons - show on hover */}
-          <div className="flex justify-end mt-2 gap-1">
+          <div className="chat-message-actions flex justify-end mt-2 gap-1">
             {onFork && (
               <button
                 onClick={onFork}

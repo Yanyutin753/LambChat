@@ -40,14 +40,14 @@ test("MCP more actions respect edit permission and internal servers", () => {
       onDelete={vi.fn()}
     />,
   );
-  fireEvent.click(screen.getByRole("button", { name: "common.moreOptions" }));
-  expect(screen.queryByRole("menuitem", { name: "mcp.card.edit" })).toBeNull();
   expect(
-    screen.queryByRole("menuitem", { name: "mcp.card.delete" }),
+    screen.queryByRole("button", { name: "common.moreOptions" }),
   ).toBeNull();
+  expect(screen.queryByRole("button", { name: "mcp.card.edit" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "mcp.card.delete" })).toBeNull();
   expect(
-    screen.getByRole("menuitem", { name: "mcp.card.disable" }),
-  ).toBeTruthy();
+    screen.getAllByRole("button", { name: "mcp.card.disable" }),
+  ).toHaveLength(1);
 });
 test("skill export remains available in the more menu", () => {
   const exportZip = vi.fn();

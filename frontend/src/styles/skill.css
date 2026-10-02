@@ -609,6 +609,10 @@
 }
 
 @media (max-width: 639px), (pointer: coarse) {
+  .skill-form input.ui-input {
+    min-height: 2.75rem;
+    font-size: 1rem;
+  }
   .skill-form button {
     min-height: 2.75rem;
     min-width: 2.75rem;

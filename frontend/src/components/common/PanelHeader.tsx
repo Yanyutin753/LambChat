@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import { MoreHorizontal, Search } from "lucide-react";
 import { SceneIllustration, type IllustrationScene } from "./SceneIllustration";
 import { PanelSearchInput } from "./PanelSearchInput";
+import { restoreOpenerFocusUnclaimed } from "../../utils/modalDialog";
 
 interface PanelHeaderProps {
   /** 面板标题 */
@@ -48,11 +49,18 @@ interface PanelHeaderProps {
   className?: string;
 }
 
-function flattenActionNodes(node: ReactNode): ReactNode[] {
+function flattenActionNodes(
+  node: ReactNode,
+  flattenGroups = false,
+): ReactNode[] {
   return Children.toArray(node).flatMap((child) => {
-    if (isValidElement(child) && child.type === Fragment) {
+    if (
+      isValidElement(child) &&
+      (child.type === Fragment || (flattenGroups && child.type === "div"))
+    ) {
       return flattenActionNodes(
         (child.props as { children?: ReactNode }).children,
+        flattenGroups,
       );
     }
     return child;
@@ -87,8 +95,10 @@ export function PanelHeader({
   const mobileActionNodes = hasSearch
     ? [...actionNodes, ...searchActionNodes]
     : actionNodes;
-  const hasMobileMenuContent =
-    mobileActionNodes.length > 0 || Boolean(searchAccessory);
+  const mobileControlCount =
+    flattenActionNodes(mobileActionNodes, true).length +
+    (searchAccessory ? 1 : 0);
+  const hasMobileMenuContent = mobileControlCount > 1;
 
   useEffect(() => {
     if (!isMobileMenuOpen) return;
@@ -109,6 +119,8 @@ export function PanelHeader({
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229)
+        return;
       if (event.key === "Escape") {
         setIsMobileMenuOpen(false);
         mobileMenuRef.current
@@ -129,6 +141,7 @@ export function PanelHeader({
     className,
     hasSearch ? "panel-header--has-search" : "",
     searchOnly ? "panel-header--search-only" : "",
+    mobileControlCount === 1 ? "panel-header--single-action" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -147,6 +160,10 @@ export function PanelHeader({
           onClick={(e) => {
             if ((e.target as Element).closest(".ui-select, [data-filter-menu]"))
               return;
+            restoreOpenerFocusUnclaimed(
+              mobileMenuRef.current?.querySelector<HTMLButtonElement>("button"),
+              mobileMenuRef.current,
+            );
             setIsMobileMenuOpen(false);
           }}
         >
@@ -243,6 +260,11 @@ export function PanelHeader({
               </div>
             )}
           </div>
+          {mobileControlCount === 1 && mobileActionNodes.length === 1 && (
+            <div className="panel-header__mobile-actions panel-header__mobile-direct">
+              {mobileActionNodes}
+            </div>
+          )}
           {searchAccessory && !isMobileMenuOpen && (
             <div className="panel-header__search-accessory">
               {searchAccessory}

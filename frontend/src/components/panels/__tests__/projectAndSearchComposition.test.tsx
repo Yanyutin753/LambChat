@@ -44,9 +44,9 @@ test.each([{ isComposing: true }, { keyCode: 229 }])(
 test("legacy IME confirmation keeps search open without navigating to a session", async () => {
   const select = vi.fn();
   render(<SearchDialog isOpen onClose={vi.fn()} onSelectSession={select} />);
-  const result = await screen.findByRole("button", { name: /Research/ });
+  const result = await screen.findByRole("option", { name: /Research/ });
   result.scrollIntoView = vi.fn();
-  const input = screen.getByRole("textbox");
+  const input = screen.getByRole("combobox");
   fireEvent.keyDown(input, { key: "ArrowDown" });
   fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
   expect(select).not.toHaveBeenCalled();

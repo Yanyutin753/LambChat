@@ -1,25 +1,20 @@
-import { ModalSurface } from "../../common/ModalSurface";
 import { useEffect, useRef, useState, useCallback } from "react";
-
-import {
-  ThumbsUp,
-  ThumbsDown,
-  X,
-  Send,
-  ImagePlus,
-  Loader2,
-} from "lucide-react";
-import { clsx } from "clsx";
+import { ThumbsUp, ThumbsDown, X, Send, ImagePlus } from "lucide-react";
+import { Dialog } from "../../common/Dialog";
+import { Button } from "../../common";
+import { LoadingSpinner } from "../../common/LoadingSpinner";
+import { ConfigPanelErrorCallout } from "../../panels/ConfigPanelErrorCallout";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
-
-import { uploadApi } from "../../../services/api/upload";
+import { uploadApi, type UploadHandle } from "../../../services/api/upload";
 import { compressImageFile } from "../../../utils/imageCompression";
 import { uuid } from "../../../utils/uuid";
 import type { RatingValue } from "../../../types/feedback";
 import type { MessageAttachment } from "../../../types/upload";
 
 const MAX_IMAGES = 9;
+const actionClass = "!min-h-11 sm:!min-h-9 [@media(pointer:coarse)]:!min-h-11 [&>span]:!whitespace-normal";
+const footerActionClass = `${actionClass} min-w-0 flex-1 self-stretch sm:flex-none`;
 
 interface FeedbackDialogProps {
   isOpen: boolean;
@@ -32,6 +27,7 @@ interface FeedbackDialogProps {
   isSubmitting: boolean;
   attachments: MessageAttachment[];
   onAttachmentsChange: (attachments: MessageAttachment[]) => void;
+  error?: string;
 }
 
 export function FeedbackDialog({
@@ -45,243 +41,244 @@ export function FeedbackDialog({
   isSubmitting,
   attachments,
   onAttachmentsChange,
+  error,
 }: FeedbackDialogProps) {
   const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
+  const uploadRequest = useRef<symbol | null>(null);
+  const uploadHandle = useRef<UploadHandle | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [failedFiles, setFailedFiles] = useState<File[]>([]);
 
   useEffect(() => {
-    if (isOpen && textareaRef.current) {
-      textareaRef.current.focus();
-    }
+    setIsUploading(false);
+    setUploadError("");
+    setFailedFiles([]);
+    if (isOpen) textareaRef.current?.focus();
+    return () => {
+      uploadRequest.current = null;
+      uploadHandle.current?.abort();
+      uploadHandle.current = null;
+    };
   }, [isOpen]);
 
+  const focusSurface = () =>
+    textareaRef.current?.closest<HTMLElement>("[data-modal-surface]")?.focus();
+  const submit = () => {
+    if (isSubmitting || isUploading) return;
+    focusSurface();
+    onSubmit();
+  };
   const handleImageSelect = useCallback(
-    async (files: FileList | null) => {
-      if (!files || files.length === 0) return;
-
+    async (files: FileList | File[] | null) => {
+      if (!isOpen || isSubmitting || uploadRequest.current || !files?.length)
+        return;
       const remaining = MAX_IMAGES - attachments.length;
       if (remaining <= 0) {
-        toast.error(t("feedback.imageLimit", "最多上传 9 张图片"));
+        toast.error(t("feedback.imageLimit"));
         return;
       }
-
       const imageFiles = Array.from(files)
-        .filter((f) => f.type.startsWith("image/"))
+        .filter((file) => file.type.startsWith("image/"))
         .slice(0, remaining);
-
-      if (imageFiles.length === 0) return;
-
+      if (!imageFiles.length) return;
+      const request = Symbol("feedback-upload");
+      uploadRequest.current = request;
+      textareaRef.current
+        ?.closest<HTMLElement>("[data-modal-surface]")
+        ?.focus();
       setIsUploading(true);
-      const newAttachments: MessageAttachment[] = [...attachments];
-
+      setUploadError("");
+      setFailedFiles([]);
+      const next = [...attachments];
+      const failed: File[] = [];
       for (const file of imageFiles) {
         try {
           const compressed = await compressImageFile(file, {
             maxDimension: 1280,
             targetSizeKB: 800,
           });
+          if (uploadRequest.current !== request) return;
           const handle = uploadApi.uploadFile(compressed, "feedback");
+          uploadHandle.current = handle;
           const result = await handle.promise;
-
-          newAttachments.push({
-            id: uuid(),
-            key: result.key,
-            name: result.name,
-            type: result.type,
-            mimeType: result.mimeType,
-            size: result.size,
-            url: result.url,
-          });
-          onAttachmentsChange([...newAttachments]);
-        } catch (err) {
-          console.error("Failed to upload image:", err);
-          toast.error(
-            err instanceof Error
-              ? err.message
-              : t("feedback.uploadFailed", "图片上传失败"),
+          if (uploadRequest.current !== request) return;
+          uploadHandle.current = null;
+          next.push({ id: uuid(), ...result });
+          onAttachmentsChange([...next]);
+        } catch (cause) {
+          if (uploadRequest.current !== request) return;
+          uploadHandle.current = null;
+          failed.push(file);
+          setUploadError(
+            cause instanceof Error ? cause.message : t("feedback.uploadFailed"),
           );
         }
       }
-
+      if (uploadRequest.current !== request) return;
+      uploadRequest.current = null;
+      setFailedFiles(failed);
       setIsUploading(false);
     },
-    [attachments, onAttachmentsChange, t],
+    [attachments, isOpen, isSubmitting, onAttachmentsChange, t],
   );
 
-  const handleRemoveAttachment = useCallback(
-    (id: string) => {
-      onAttachmentsChange(attachments.filter((a) => a.id !== id));
-    },
-    [attachments, onAttachmentsChange],
-  );
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      handleImageSelect(e.dataTransfer.files);
-    },
-    [handleImageSelect],
-  );
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-  }, []);
-
-  if (!isOpen) return null;
-
+  const title =
+    rating === "up" ? t("feedback.positive") : t("feedback.negative");
   return (
-    <ModalSurface open={isOpen} onClose={onClose} dismissible={true}>
-      <div className="relative z-10 w-full sm:max-w-md sm:mx-4 sm:pointer-events-auto bg-theme-bg-card dark:bg-stone-800 sm:rounded-xl rounded-t-xl shadow-xl border border-stone-200 dark:border-stone-700 overflow-hidden duration-300 animate-slide-up-sheet sm:animate-in sm:fade-in sm:zoom-in-95 sm:duration-200">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-200 dark:border-stone-700">
-          <div className="sm:hidden absolute top-2 left-1/2 -translate-x-1/2 w-9 h-1 bg-stone-300 dark:bg-stone-600 rounded-full" />
-          <div className="flex items-center gap-2 pt-2 sm:pt-0">
-            <span
-              className={clsx(
-                "flex h-7 w-7 items-center justify-center rounded-full bg-stone-100 text-stone-600 dark:bg-stone-700 dark:text-stone-300",
-              )}
-            >
-              {rating === "up" ? (
-                <ThumbsUp size={14} />
-              ) : (
-                <ThumbsDown size={14} />
-              )}
-            </span>
-            <h3 className="text-18 font-semibold font-serif text-stone-900 dark:text-stone-100">
-              {rating === "up"
-                ? t("feedback.positive")
-                : t("feedback.negative")}
-            </h3>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
+    <Dialog
+      open={isOpen}
+      onClose={onClose}
+      dismissible={!isSubmitting}
+      size="md"
+      title={<span className="font-serif">{title}</span>}
+      icon={
+        rating === "up" ? (
+          <ThumbsUp size={16} className="text-theme-text-secondary" />
+        ) : (
+          <ThumbsDown size={16} className="text-theme-text-secondary" />
+        )
+      }
+      footer={
+        <>
+          <Button
+            variant="secondary"
+            className={footerActionClass}
+            disabled={isSubmitting || isUploading}
+            onClick={() => {
+              focusSurface();
+              onSkip();
+            }}
           >
-            <X size={20} className="text-stone-500 dark:text-stone-400" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-5">
-          {/* Image attachments */}
-          {attachments.length > 0 && (
-            <div className="mb-3 flex flex-wrap gap-2">
-              {attachments.map((attachment) => (
-                <div
-                  key={attachment.id}
-                  className="relative group/att h-20 w-20 rounded-lg overflow-hidden border border-stone-200 dark:border-stone-700 flex-shrink-0"
-                >
-                  <img
-                    src={attachment.url}
-                    alt={attachment.name}
-                    className="h-full w-full object-cover"
-                  />
-                  <button
-                    onClick={() => handleRemoveAttachment(attachment.id)}
-                    className="absolute top-0.5 right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white opacity-0 group-hover/att:opacity-100 transition-opacity"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-              ))}
-              {attachments.length < MAX_IMAGES && !isUploading && (
+            {t("feedback.skipAndSubmit")}
+          </Button>
+          <Button
+            variant="primary"
+            className={footerActionClass}
+            disabled={isUploading}
+            loading={isSubmitting}
+            leftIcon={<Send size={14} />}
+            onClick={submit}
+          >
+            {error ? t("common.retry") : t("feedback.submit")}
+          </Button>
+        </>
+      }
+    >
+      <div
+        className="space-y-3"
+        aria-busy={isSubmitting || isUploading || undefined}
+      >
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {attachments.map((attachment) => (
+              <div
+                key={attachment.id}
+                className="group/att relative size-20 shrink-0 overflow-hidden rounded-lg border border-theme-border"
+              >
+                <img
+                  src={attachment.url}
+                  alt={attachment.name}
+                  className="size-full object-cover"
+                />
                 <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex h-20 w-20 items-center justify-center rounded-lg border border-dashed border-stone-300 dark:border-stone-600 text-stone-400 dark:text-stone-500 hover:border-stone-400 dark:hover:border-stone-500 hover:text-stone-500 dark:hover:text-stone-400 transition-colors flex-shrink-0"
+                  type="button"
+                  aria-label={`${t("common.remove")}: ${attachment.name}`}
+                  disabled={isSubmitting || isUploading}
+                  onClick={() => {
+                    textareaRef.current?.focus();
+                    onAttachmentsChange(
+                      attachments.filter((item) => item.id !== attachment.id),
+                    );
+                  }}
+                  className="absolute right-0 top-0 flex size-11 items-center justify-center opacity-100 transition-opacity sm:size-7 sm:opacity-0 sm:group-hover/att:opacity-100 sm:focus-visible:opacity-100 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-ring disabled:opacity-50"
                 >
-                  <ImagePlus size={20} />
+                  <span className="flex size-5 items-center justify-center rounded-full bg-black/60 text-white">
+                    <X size={12} />
+                  </span>
                 </button>
-              )}
-            </div>
-          )}
-
-          {/* Upload progress indicator */}
-          {isUploading && (
-            <div className="mb-3 flex items-center gap-2 text-12 text-stone-400 dark:text-stone-500">
-              <Loader2 size={14} className="animate-spin" />
-              <span>{t("feedback.uploading", "上传中...")}</span>
-            </div>
-          )}
-
-          {/* Drop zone / add image button (when no attachments) */}
-          {attachments.length === 0 && !isUploading && (
-            <div
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onClick={() => fileInputRef.current?.click()}
-              className="mb-3 flex items-center gap-2 rounded-lg border border-dashed border-stone-300 dark:border-stone-600 px-3 py-2 text-stone-400 dark:text-stone-500 hover:border-stone-400 dark:hover:border-stone-500 hover:text-stone-500 dark:hover:text-stone-400 transition-colors cursor-pointer"
-            >
-              <ImagePlus size={16} />
-              <span className="text-14">
-                {t("feedback.addImage", "添加图片（最多 9 张）")}
-              </span>
-            </div>
-          )}
-
-          <textarea
-            ref={textareaRef}
-            value={comment}
-            onChange={(e) => onCommentChange(e.target.value)}
-            placeholder={
-              t("feedback.commentPlaceholder") || "What could be improved?"
-            }
-            className={clsx(
-              "w-full resize-none rounded-lg border border-stone-200 p-3 text-14",
-              "bg-stone-50 dark:border-stone-700 dark:bg-stone-900",
-              "text-stone-900 dark:text-stone-100",
-              "placeholder:text-stone-400 dark:placeholder:text-stone-500",
-              "focus:border-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400",
-              "transition-colors",
-            )}
-            rows={4}
-          />
-          <div className="mt-2 text-12 text-stone-400 text-right">
-            {t("feedback.pressEnter") || "⌘+Enter to send"}
+              </div>
+            ))}
           </div>
-        </div>
-
-        {/* Hidden file input */}
+        )}
+        {attachments.length < MAX_IMAGES && (
+          <Button
+            aria-label={t("feedback.addImage")}
+            variant="ghost"
+            className={`w-full !justify-start !px-3 !border !border-dashed !border-theme-border ${actionClass}`}
+            disabled={isSubmitting || isUploading}
+            leftIcon={<ImagePlus size={16} />}
+            onClick={() => fileInputRef.current?.click()}
+            onDrop={(event) => {
+              event.preventDefault();
+              void handleImageSelect(event.dataTransfer.files);
+            }}
+            onDragOver={(event) => event.preventDefault()}
+          >
+            {t("feedback.addImage")}
+          </Button>
+        )}
+        {isUploading && (
+          <div
+            role="status"
+            className="flex items-center gap-2 text-12 text-theme-text-secondary"
+          >
+            <LoadingSpinner size="sm" />
+            {t("feedback.uploading")}
+          </div>
+        )}
+        {uploadError && (
+          <div className="space-y-2">
+            <ConfigPanelErrorCallout message={uploadError} />
+            <Button
+              className={actionClass}
+              disabled={isSubmitting || isUploading}
+              onClick={() => void handleImageSelect(failedFiles)}
+            >
+              {t("common.retry")}
+            </Button>
+          </div>
+        )}
+        <textarea
+          ref={textareaRef}
+          aria-label={t("feedback.commentLabel")}
+          disabled={isSubmitting}
+          value={comment}
+          onChange={(event) => onCommentChange(event.target.value)}
+          placeholder={t("feedback.commentPlaceholder")}
+          className="ui-textarea w-full resize-none !text-16 sm:!text-14 [@media(pointer:coarse)]:!text-16"
+          rows={4}
+          onKeyDown={(event) => {
+            if (
+              event.key !== "Enter" ||
+              !(event.metaKey || event.ctrlKey) ||
+              event.nativeEvent.isComposing ||
+              event.keyCode === 229
+            )
+              return;
+            event.preventDefault();
+            submit();
+          }}
+        />
+        <p className="hidden text-right text-12 text-theme-text-secondary sm:block">
+          {t("feedback.pressEnter")}
+        </p>
+        {error && <ConfigPanelErrorCallout message={error} />}
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
           multiple
-          className="hidden"
-          onChange={(e) => {
-            handleImageSelect(e.target.files);
-            e.target.value = "";
+          hidden
+          disabled={isSubmitting || isUploading}
+          onChange={(event) => {
+            void handleImageSelect(event.target.files);
+            event.target.value = "";
           }}
         />
-
-        {/* Footer */}
-        <div className="safe-area-bottom flex items-center justify-end gap-2 px-5 pt-4 [--safe-area-bottom-extra:1rem] bg-stone-50 dark:bg-stone-900/50 border-t border-stone-100 dark:border-stone-700">
-          <button
-            onClick={onSkip}
-            disabled={isSubmitting || isUploading}
-            className="px-4 py-2 text-14 font-medium text-stone-700 dark:text-stone-300 bg-theme-bg-card dark:bg-stone-800 border border-stone-200 dark:border-stone-600 rounded-lg hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {t("common.skip") || "Skip"}
-          </button>
-          <button
-            onClick={onSubmit}
-            disabled={isSubmitting || isUploading}
-            className="flex items-center gap-2 px-4 py-2 text-14 font-medium bg-stone-900 hover:bg-stone-800 dark:bg-stone-600 dark:hover:bg-stone-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? (
-              <span className="relative h-4 w-4">
-                <span className="absolute inset-0 rounded-full border-2 border-white/30 dark:border-stone-700" />
-                <span className="absolute inset-0 rounded-full border-2 border-transparent border-t-white dark:border-t-stone-300 animate-spin will-change-transform" />
-              </span>
-            ) : (
-              <Send size={14} />
-            )}
-            <span>{t("feedback.submit") || "Submit"}</span>
-          </button>
-        </div>
       </div>
-    </ModalSurface>
+    </Dialog>
   );
 }

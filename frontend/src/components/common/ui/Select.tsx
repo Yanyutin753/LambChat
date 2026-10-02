@@ -223,8 +223,8 @@ export function Select({
                 onClick={() => {
                   if (option.disabled) return;
                   setOpen(false);
-                  onChange(option.value);
                   ref.current?.querySelector("button")?.focus();
+                  onChange(option.value);
                 }}
               >
                 {option.value === value && (

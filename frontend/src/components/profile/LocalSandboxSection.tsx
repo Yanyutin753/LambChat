@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
@@ -12,6 +18,7 @@ import {
 import { sandboxApi, sandboxApiMachines } from "../../services/api/sandbox";
 import { getValidAccessToken } from "../../services/api/tokenManager";
 import { effectiveApiBase } from "../../services/api/serverConfig";
+import { usePreferenceWrites } from "../../hooks/usePreferenceWrites";
 import {
   SANDBOX_STATUS_REFRESH_EVENT,
   notifySandboxStatusRefresh,
@@ -28,7 +35,10 @@ import {
   subscribeDaemonStatus,
   writeConfirmPolicy,
 } from "../../services/tauri/sandboxShell";
-import { SkeletonLine } from "../skeletons";
+import { CatalogStatus } from "../common/CatalogStatus";
+import { Button } from "../common/ui/Button";
+import { Input } from "../common/ui/Input";
+import { FormField } from "../common/ui/FormField";
 import { SelectRow } from "./SelectRow";
 import { SandboxMachinesCard } from "./SandboxMachinesCard";
 import { SandboxDataLocationCard } from "./SandboxDataLocationCard";
@@ -42,6 +52,12 @@ const CONFIRM_POLICY_OPTIONS = [
 ] as const;
 
 type ConfirmPolicy = (typeof CONFIRM_POLICY_OPTIONS)[number]["key"];
+type SandboxAction = "current" | "other" | "policy" | "restart" | "unpair";
+const PATH_LABELS = {
+  workspaces: "profile.localSandbox.openWorkspaces",
+  audit: "profile.localSandbox.openAudit",
+  logs: "profile.localSandbox.openLogs",
+} as const;
 
 /** daemon 连接的服务端地址：运行时配置（打包壳首启设置）优先，构建期
  * API_BASE 次之；同源部署回退 origin。 */
@@ -77,22 +93,50 @@ export function LocalSandboxSection({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const shell = isShellAvailable();
-  const { status, statusError, online, refresh, currentMachineId } =
+  const { status, statusError, refreshing, online, refresh, currentMachineId } =
     useSandboxStatus();
   const [processStatus, setProcessStatus] = useState("");
   const [policy, setPolicy] = useState<ConfirmPolicy>("all");
   const [policyOpen, setPolicyOpen] = useState(false);
-  const [pairing, setPairing] = useState(false);
-  const [pairingCurrent, setPairingCurrent] = useState(false);
-  const [applying, setApplying] = useState(false);
-  const [unpairing, setUnpairing] = useState(false);
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const pairFormRef = useRef<HTMLFormElement>(null);
+  const processRequest = useRef(0);
+  const operationGeneration = useRef(0);
+  const operationError = useRef("");
+  const { states, save, retry, discard } = usePreferenceWrites("local-sandbox");
+  const [action, setAction] = useState<SandboxAction | null>(null);
+  const [pathAction, setPathAction] =
+    useState<keyof typeof PATH_LABELS>("workspaces");
+  const [pairPrepared, setPairPrepared] = useState(false);
+  const [locationBusy, setLocationBusy] = useState(false);
+  const [policyDraft, setPolicyDraft] = useState(false);
+  const busy = states.native === "saving";
+  const pathBusy = states.path === "saving";
+  const pairing = action === "other" && busy;
+  const pairingCurrent = action === "current" && busy;
+  const blocked = busy || pathBusy || pairPrepared || locationBusy;
+  const pairBusy = blocked;
+  const unpairing = action === "unpair" && busy;
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  useLayoutEffect(() => {
+    const invalidate = () => {
+      operationGeneration.current++;
+    };
+    return invalidate;
+  }, []);
 
   const refreshProcessStatus = useCallback(() => {
-    daemonProcessStatus()
-      .then((next) => setProcessStatus(next))
-      .catch(() => setProcessStatus("stopped"));
+    const request = ++processRequest.current;
+    setProcessStatus((previous) => (previous === "error" ? "" : previous));
+    daemonProcessStatus().then(
+      (next) => {
+        if (request === processRequest.current) setProcessStatus(next);
+      },
+      () => {
+        if (request === processRequest.current) setProcessStatus("error");
+      },
+    );
   }, []);
 
   useEffect(() => {
@@ -103,7 +147,12 @@ export function LocalSandboxSection({
     let cancelSubscription: (() => void) | null = null;
     let fallbackTimer: ReturnType<typeof setInterval> | null = null;
     let cancelled = false;
+    const invalidateProcessRequest = () => {
+      processRequest.current++;
+    };
     void subscribeDaemonStatus((event) => {
+      if (cancelled) return;
+      invalidateProcessRequest();
       setProcessStatus(
         event.unsupported
           ? "unsupported"
@@ -111,23 +160,33 @@ export function LocalSandboxSection({
             ? "running"
             : "stopped",
       );
-    }).then((cancel) => {
-      if (cancelled && cancel) {
-        cancel();
-        return;
-      }
-      if (!cancel) {
-        fallbackTimer = setInterval(
-          refreshProcessStatus,
-          PROCESS_POLL_INTERVAL_MS,
-        );
-      }
-      cancelSubscription = cancel;
-    });
+    }).then(
+      (cancel) => {
+        if (cancelled) {
+          cancel?.();
+          return;
+        }
+        if (!cancel) {
+          fallbackTimer = setInterval(
+            refreshProcessStatus,
+            PROCESS_POLL_INTERVAL_MS,
+          );
+        }
+        cancelSubscription = cancel;
+      },
+      () => {
+        if (!cancelled)
+          fallbackTimer = setInterval(
+            refreshProcessStatus,
+            PROCESS_POLL_INTERVAL_MS,
+          );
+      },
+    );
     const onRefresh = () => refreshProcessStatus();
     window.addEventListener(SANDBOX_STATUS_REFRESH_EVENT, onRefresh);
     return () => {
       cancelled = true;
+      invalidateProcessRequest();
       cancelSubscription?.();
       if (fallbackTimer) clearInterval(fallbackTimer);
       window.removeEventListener(SANDBOX_STATUS_REFRESH_EVENT, onRefresh);
@@ -138,24 +197,34 @@ export function LocalSandboxSection({
   // 用户正在切换（policyOpen/applying）时不回写，避免覆盖在途选择
   const reportedPolicy = status?.daemon_confirm_policy;
   useEffect(() => {
+    if (reportedPolicy === policy && policyDraft) {
+      setPolicyDraft(false);
+      return;
+    }
     if (
       reportedPolicy &&
       !policyOpen &&
-      !applying &&
+      !busy &&
+      !policyDraft &&
       reportedPolicy !== policy &&
       CONFIRM_POLICY_OPTIONS.some((o) => o.key === reportedPolicy)
     ) {
       setPolicy(reportedPolicy as ConfirmPolicy);
     }
-  }, [reportedPolicy, policyOpen, applying, policy]);
+  }, [reportedPolicy, policyOpen, busy, policy, policyDraft]);
 
   // 未配对判定：daemon 进程退出/不可用（未配对时 daemon 启动即退），
   // 或会话已失效（status 401）——两者都回到配对表单
   const unpaired =
-    processStatus === "stopped" ||
-    processStatus === "unsupported" ||
-    statusError === "unauthorized";
+    (processStatus === "stopped" ||
+      processStatus === "unsupported" ||
+      statusError === "unauthorized") &&
+    !(states.native && action !== "current" && action !== "other");
   const loading = processStatus === "";
+  const connectionPending = status === null && statusError === null;
+  const connectionFailed = statusError === "failed";
+  const connectionLoading =
+    connectionPending || (connectionFailed && refreshing);
 
   // 分区头：独立形态是卡片大标题（同其他卡）；嵌入形态是 tile 内的软标题
   // （同通知页 h4 语言），带一句说明文案
@@ -186,13 +255,19 @@ export function LocalSandboxSection({
   if (!shell) {
     // 纯 web：daemon 在线（桌面端/CLI 已配对连接）→ 状态行 + 机器列表；
     // 离线 → 配对引导；首帧状态未回 → 骨架（不闪现引导提示）
-    const statusLoading = status === null && statusError === null;
+    const statusLoading = connectionLoading;
     const webBody = (
       <>
         {header}
         <div className={embedded ? "mt-2 space-y-0" : "space-y-0"}>
-          {statusLoading ? (
-            <SkeletonLine width="w-full" />
+          {statusLoading || statusError ? (
+            <CatalogStatus
+              label={t("profile.localSandbox.title")}
+              loading={statusLoading}
+              error={Boolean(statusError)}
+              onRetry={refresh}
+              focusTargetRef={sectionRef}
+            />
           ) : online ? (
             <>
               <div className="flex w-full items-center justify-between gap-2 py-3 first:pt-2 last:pb-0 text-left">
@@ -223,15 +298,15 @@ export function LocalSandboxSection({
                 {t("profile.localSandbox.needDesktop")}
               </p>
               {/* 离线引导：跳站内下载页（桌面端/daemon 安装包 + 配对教程） */}
-              <button
-                type="button"
+              <Button
+                variant="primary"
+                className="w-full"
+                leftIcon={<Download size={14} />}
                 onClick={() => navigate("/download")}
                 data-sandbox-download-cta
-                className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-amber-500 px-3 py-2 text-14 font-medium text-white transition-colors hover:bg-amber-600"
               >
-                <Download size={13} />
                 {t("profile.localSandbox.downloadCta")}
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -239,159 +314,200 @@ export function LocalSandboxSection({
     );
     if (embedded) {
       return (
-        <div className="mt-3 border-t border-theme-border dark:border-stone-600/50 pt-3.5">
+        <div
+          ref={sectionRef}
+          tabIndex={-1}
+          className="local-sandbox-section mt-3 border-t border-theme-border pt-3 outline-none"
+        >
           {webBody}
         </div>
       );
     }
     return (
-      <div className="profile-section">
+      <div
+        ref={sectionRef}
+        tabIndex={-1}
+        className="local-sandbox-section profile-section outline-none"
+      >
         {webBody}
       </div>
     );
   }
 
-  const applyPatAndRestart = async (
-    pat: string,
-    patId: string,
-    confirmPolicy: ConfirmPolicy,
+  const startOperation = (
+    nextAction: SandboxAction,
+    request: (isCurrent: () => boolean) => Promise<void>,
+    onSaved?: () => void,
+    errorText: () => string = () => t("common.operationFailed"),
   ) => {
-    await savePairing({
-      serverUrl: resolveServerUrl(),
-      pat,
-      patId,
-      confirmPolicy,
-    });
-    await restartDaemon();
-    notifySandboxStatusRefresh();
-    refresh();
-    refreshProcessStatus();
-  };
-
-  const handlePair = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pairing || !username.trim() || !password) return;
-    setPairing(true);
-    try {
-      // 无副作用登录：直连 fetch 拿 access_token，不 setTokens、不派发
-      // auth:login（换账号配对不得切换壳会话身份），JWT 只活在本次闭包里。
-      const pairingJwt = await sandboxApi.pairingLogin({
-        username: username.trim(),
-        password,
-      });
-      // 用配对账号的 JWT（而非壳会话 token）铸 PAT，并保存配对回执 pat_id
-      const pat = await sandboxApi.createPairingPat(pairingJwt);
-      await applyPatAndRestart(pat.token, pat.pat_id, policy);
-      toast.success(t("profile.localSandbox.paired"));
-      setPassword("");
-    } catch (err) {
-      console.warn("[LocalSandboxSection] pairing failed:", err);
-      toast.error(t("profile.localSandbox.pairFailed"));
-    } finally {
-      setPairing(false);
-    }
-  };
-
-  /** 一键配对：当前壳会话（刷新后的 JWT）直接铸 PAT，不碰密码通道——
-   * OAuth 账号没有密码，这是他们唯一可用的手动配对路径。 */
-  const handlePairWithCurrentAccount = async () => {
-    if (pairingCurrent) return;
-    setPairingCurrent(true);
-    try {
-      const sessionJwt = await getValidAccessToken();
-      if (!sessionJwt) {
-        toast.error(t("profile.localSandbox.pairNeedLogin"));
-        return;
-      }
-      const pat = await sandboxApi.createPairingPat(sessionJwt);
-      await applyPatAndRestart(pat.token, pat.pat_id, policy);
-      toast.success(t("profile.localSandbox.paired"));
-    } catch (err) {
-      console.warn(
-        "[LocalSandboxSection] pair with current account failed:",
-        err,
-      );
-      toast.error(t("profile.localSandbox.pairFailed"));
-    } finally {
-      setPairingCurrent(false);
-    }
-  };
-
-  const handlePolicyChange = async (next: ConfirmPolicy) => {
-    setPolicy(next);
-    setPolicyOpen(false);
-    if (applying) return;
-    setApplying(true);
-    try {
-      // 服务端耐久层（machpolicy）是持久化真源：先写它，daemon 重连/心跳
-      // 才不会用 sandbox.json 启动快照把策略打回旧值（全局生效的关键）。
-      if (currentMachineId) {
-        await sandboxApiMachines.updateConfirmPolicy(currentMachineId, next);
-      }
-      // 只写配置：write_confirm_policy 仅覆写 confirm_policy（保留 pat 等其余
-      // 字段），不重铸 PAT——旧实现每次切换铸一枚永久凭据，会无限累积。
-      await writeConfirmPolicy(next);
-      await restartDaemon();
-      notifySandboxStatusRefresh();
-      refresh();
-      refreshProcessStatus();
-    } catch (err) {
-      console.warn("[LocalSandboxSection] policy change failed:", err);
-      toast.error(t("common.operationFailed"));
-    } finally {
-      setApplying(false);
-    }
-  };
-
-  const handleUnpair = async () => {
-    if (unpairing) return;
-    setUnpairing(true);
-    try {
-      // 服务端自撤销：用落盘 PAT 调 DELETE /api/auth/pat/current 删自己；
-      // 失败（已吊销/离线）不阻塞本地清理——残留 PAT 可在网页端 PAT 管理页吊销。
-      const storedPat = await readPairingPat();
-      if (storedPat) {
+    if (locationBusy || pathBusy) return false;
+    const generation = operationGeneration.current;
+    const isCurrent = () => generation === operationGeneration.current;
+    const accepted = save(
+      "native",
+      async () => {
         try {
-          await sandboxApi.revokePairingPat(storedPat);
-        } catch (err) {
-          console.warn(
-            "[LocalSandboxSection] server-side PAT revoke failed:",
-            err,
-          );
+          await request(isCurrent);
+        } catch (error) {
+          if (isCurrent()) {
+            operationError.current = errorText();
+            toast.error(operationError.current);
+          }
+          throw error;
         }
+      },
+      () => {
+        notifySandboxStatusRefresh();
+        refresh();
+        refreshProcessStatus();
+        onSaved?.();
+      },
+    );
+    if (accepted) {
+      setAction(nextAction);
+      operationError.current = "";
+      if (sectionRef.current?.contains(document.activeElement)) {
+        const target =
+          nextAction === "current" || nextAction === "other"
+            ? pairFormRef.current
+            : sectionRef.current;
+        target?.focus({ preventScroll: true });
       }
-      await clearPairing();
-      notifySandboxStatusRefresh();
-      refresh();
-      refreshProcessStatus();
-      toast.success(t("profile.localSandbox.unpaired"));
-    } catch (err) {
-      console.warn("[LocalSandboxSection] unpair failed:", err);
-      toast.error(t("common.operationFailed"));
-    } finally {
-      setUnpairing(false);
+    }
+    return accepted;
+  };
+
+  const startPairing = (mode: "current" | "other") => {
+    if (pairBusy || (mode === "other" && (!username.trim() || !password)))
+      return;
+    const credentials = { username: username.trim(), password };
+    const confirmPolicy = policy;
+    const serverUrl = resolveServerUrl();
+    let receipt:
+      Awaited<ReturnType<typeof sandboxApi.createPairingPat>> | undefined;
+    let saved = false;
+    let message = t("profile.localSandbox.pairFailed");
+    startOperation(
+      mode,
+      async (isCurrent) => {
+        if (!receipt) {
+          const jwt =
+            mode === "current"
+              ? await getValidAccessToken()
+              : await sandboxApi.pairingLogin(credentials);
+          if (!isCurrent()) return;
+          if (!jwt) {
+            message = t("profile.localSandbox.pairNeedLogin");
+            throw new Error("Pairing requires a signed-in account");
+          }
+          receipt = await sandboxApi.createPairingPat(jwt);
+          if (!isCurrent()) return;
+          if (pairFormRef.current?.contains(document.activeElement))
+            sectionRef.current?.focus({ preventScroll: true });
+          setPairPrepared(true);
+          message = t("common.operationFailed");
+        }
+        if (!saved) {
+          await savePairing({
+            serverUrl,
+            pat: receipt.token,
+            patId: receipt.pat_id,
+            confirmPolicy,
+          });
+          saved = true;
+          if (!isCurrent()) return;
+          message = t("profile.localSandbox.pairSavedRestartPending");
+        }
+        if (!isCurrent()) return;
+        await restartDaemon();
+      },
+      () => {
+        setPairPrepared(false);
+        setPassword("");
+        toast.success(t("profile.localSandbox.paired"));
+      },
+      () => message,
+    );
+  };
+
+  const handlePair = (event: React.FormEvent) => {
+    event.preventDefault();
+    startPairing("other");
+  };
+  const handlePairWithCurrentAccount = () => startPairing("current");
+
+  const handlePolicyChange = (next: ConfirmPolicy) => {
+    if (blocked) return;
+    const machineId = currentMachineId;
+    let serverSaved = false;
+    let localSaved = false;
+    if (
+      startOperation("policy", async (isCurrent) => {
+        // Retry resumes the failed step, preserving the acknowledged server/local writes.
+        if (!serverSaved && machineId) {
+          await sandboxApiMachines.updateConfirmPolicy(machineId, next);
+          serverSaved = true;
+          if (!isCurrent()) return;
+        }
+        if (!localSaved) {
+          await writeConfirmPolicy(next);
+          localSaved = true;
+          if (!isCurrent()) return;
+        }
+        await restartDaemon();
+      })
+    ) {
+      setPolicy(next);
+      setPolicyDraft(true);
+      setPolicyOpen(false);
     }
   };
 
-  const handleRestart = async () => {
-    try {
+  const handleUnpair = () => {
+    if (blocked) return;
+    let revocationAttempted = false;
+    startOperation(
+      "unpair",
+      async (isCurrent) => {
+        if (!revocationAttempted) {
+          const storedPat = await readPairingPat();
+          if (!isCurrent()) return;
+          if (storedPat) {
+            try {
+              await sandboxApi.revokePairingPat(storedPat);
+            } catch {
+              // Preserve offline cleanup; a leftover PAT can still be revoked in PAT settings.
+            }
+            if (!isCurrent()) return;
+          }
+          revocationAttempted = true;
+        }
+        await clearPairing();
+      },
+      () => toast.success(t("profile.localSandbox.unpaired")),
+    );
+  };
+
+  const handleRestart = () => {
+    if (blocked) return;
+    if (states.native === "error" && action === "policy") {
+      if (sectionRef.current?.contains(document.activeElement))
+        sectionRef.current?.focus({ preventScroll: true });
+      retry("native");
+      return;
+    }
+    startOperation("restart", async () => {
       await restartDaemon();
-      notifySandboxStatusRefresh();
-      refresh();
-      refreshProcessStatus();
-    } catch (err) {
-      console.warn("[LocalSandboxSection] restart failed:", err);
-      toast.error(t("common.operationFailed"));
-    }
+    });
   };
 
-  const handleOpenLocalPath = (
-    logicalName: "workspaces" | "audit" | "logs",
-  ) => {
-    openLocalPath(logicalName).catch((err) => {
-      console.warn("[LocalSandboxSection] open path failed:", err);
-      toast.error(t("common.operationFailed"));
-    });
+  const handleOpenLocalPath = (logicalName: keyof typeof PATH_LABELS) => {
+    if (blocked) return;
+    if (save("path", () => openLocalPath(logicalName))) {
+      setPathAction(logicalName);
+      if (sectionRef.current?.contains(document.activeElement))
+        sectionRef.current?.focus({ preventScroll: true });
+    }
   };
 
   const body = (
@@ -400,34 +516,52 @@ export function LocalSandboxSection({
 
       <div className={embedded ? "mt-2 space-y-0" : "space-y-0"}>
         {/* 状态行：在线圆点 + daemon 版本 + 进程状态徽标 */}
-        {loading ? (
-          <SkeletonLine width="w-full" />
+        {loading || processStatus === "error" ? (
+          <CatalogStatus
+            label={t("profile.localSandbox.title")}
+            loading={loading}
+            error={processStatus === "error"}
+            onRetry={refreshProcessStatus}
+            focusTargetRef={sectionRef}
+          />
         ) : (
           <div className="flex w-full items-center justify-between gap-2 py-3 first:pt-2 last:pb-0 text-left">
-            <span className="flex min-w-0 items-center gap-2 text-14 text-theme-text dark:text-stone-200">
-              <span
-                className={`h-2 w-2 rounded-full shrink-0 ${
-                  online
-                    ? "bg-theme-success"
-                    : "bg-theme-text-tertiary dark:bg-stone-500"
-                }`}
-                data-sandbox-online={online}
-              />
-              {online
-                ? t("profile.localSandbox.statusOnline")
-                : t("profile.localSandbox.statusOffline")}
-              {status?.daemon_version && (
-                <span className="truncate text-12 text-theme-text-secondary dark:text-stone-400">
-                  {t("profile.localSandbox.version", {
-                    version: status.daemon_version,
-                  })}
-                </span>
-              )}
-            </span>
+            {connectionLoading || connectionFailed ? (
+              <div className="min-w-0 flex-1">
+                <CatalogStatus
+                  label={t("profile.localSandbox.title")}
+                  loading={connectionLoading}
+                  error={connectionFailed}
+                  onRetry={refresh}
+                  focusTargetRef={sectionRef}
+                />
+              </div>
+            ) : (
+              <span className="flex min-w-0 items-center gap-2 text-14 text-theme-text dark:text-stone-200">
+                <span
+                  className={`h-2 w-2 rounded-full shrink-0 ${
+                    online
+                      ? "bg-theme-success"
+                      : "bg-theme-text-tertiary dark:bg-stone-500"
+                  }`}
+                  data-sandbox-online={online}
+                />
+                {online
+                  ? t("profile.localSandbox.statusOnline")
+                  : t("profile.localSandbox.statusOffline")}
+                {status?.daemon_version && (
+                  <span className="truncate text-12 text-theme-text-secondary dark:text-stone-400">
+                    {t("profile.localSandbox.version", {
+                      version: status.daemon_version,
+                    })}
+                  </span>
+                )}
+              </span>
+            )}
             <span
               className={`shrink-0 rounded-full px-2 py-0.5 text-10 font-medium ${
                 processStatus === "running"
-                    ? "bg-[color-mix(in_srgb,var(--theme-success)_10%,transparent)] text-theme-success dark:text-green-400"
+                  ? "bg-[color-mix(in_srgb,var(--theme-success)_10%,transparent)] text-theme-success dark:text-green-400"
                   : "bg-theme-text-secondary/10 dark:bg-stone-500/20 text-theme-text-secondary dark:text-stone-400"
               }`}
             >
@@ -439,53 +573,96 @@ export function LocalSandboxSection({
         )}
 
         {/* 数据位置（配对态无关）：当前根 + 更改/恢复默认 + 重启引导 */}
-        <SandboxDataLocationCard />
+        <SandboxDataLocationCard
+          disabled={busy || pathBusy || pairPrepared}
+          onBusyChange={setLocationBusy}
+        />
 
-        {unpaired ? (
-          <form onSubmit={handlePair} className="space-y-2 pt-2">
+        {states.native && (
+          <div className="mt-2" aria-busy={busy}>
+            <CatalogStatus
+              label={t(
+                action === "policy"
+                  ? "profile.localSandbox.policy"
+                  : action === "restart"
+                    ? "profile.localSandbox.restartDaemon"
+                    : action === "unpair"
+                      ? "profile.localSandbox.unpair"
+                      : "profile.localSandbox.pairButton",
+              )}
+              loading={busy}
+              error={states.native === "error"}
+              errorText={operationError.current}
+              disabled={locationBusy || pathBusy}
+              onRetry={() => {
+                if (!locationBusy && !pathBusy) retry("native");
+              }}
+              focusTargetRef={sectionRef}
+            />
+          </div>
+        )}
+
+        {loading ||
+        processStatus === "error" ||
+        pairPrepared ? null : unpaired ? (
+          <form
+            ref={pairFormRef}
+            tabIndex={-1}
+            aria-busy={busy}
+            onSubmit={handlePair}
+            className="space-y-3 pt-3 outline-none"
+          >
             <p className="text-12 text-theme-text-secondary dark:text-stone-400">
               {t("profile.localSandbox.pairTitle")}
             </p>
             {/* 一键配对：当前登录账号铸 PAT（OAuth 账号唯一可用的手动路径） */}
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              className="w-full"
               onClick={handlePairWithCurrentAccount}
-              disabled={pairingCurrent}
+              loading={pairingCurrent}
+              disabled={pairBusy}
               data-pair-current-account
-              className="w-full rounded-xl bg-amber-500 disabled:opacity-50 px-3 py-2 text-14 font-medium text-white transition-colors hover:bg-amber-600"
             >
-              {pairingCurrent
-                ? t("common.loading")
-                : t("profile.localSandbox.pairWithCurrent")}
-            </button>
-            <p className="pt-1 text-12 text-theme-text-tertiary dark:text-stone-500">
+              {t("profile.localSandbox.pairWithCurrent")}
+            </Button>
+            <p className="text-12 text-theme-text-secondary">
               {t("profile.localSandbox.pairOtherAccount")}
             </p>
-            <input
-              type="text"
-              autoComplete="username"
-              placeholder={t("auth.usernamePlaceholder")}
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full rounded-xl border border-theme-border dark:border-stone-600 bg-theme-bg-card dark:bg-stone-800 px-3 py-2 text-14 text-theme-text dark:text-stone-100 focus:outline-none focus:ring-1 focus:ring-amber-400"
-            />
-            <input
-              type="password"
-              autoComplete="current-password"
-              placeholder={t("auth.passwordPlaceholder")}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-xl border border-theme-border dark:border-stone-600 bg-theme-bg-card dark:bg-stone-800 px-3 py-2 text-14 text-theme-text dark:text-stone-100 focus:outline-none focus:ring-1 focus:ring-amber-400"
-            />
-            <button
+            <FormField label={t("auth.username")}>
+              <Input
+                type="text"
+                autoComplete="username"
+                placeholder={t("auth.usernamePlaceholder")}
+                value={username}
+                disabled={pairBusy}
+                onChange={(e) => {
+                  discard("native");
+                  setUsername(e.target.value);
+                }}
+              />
+            </FormField>
+            <FormField label={t("auth.password")}>
+              <Input
+                type="password"
+                autoComplete="current-password"
+                placeholder={t("auth.passwordPlaceholder")}
+                value={password}
+                disabled={pairBusy}
+                onChange={(e) => {
+                  discard("native");
+                  setPassword(e.target.value);
+                }}
+              />
+            </FormField>
+            <Button
               type="submit"
-              disabled={pairing || !username.trim() || !password}
-              className="w-full rounded-xl border border-theme-border dark:border-stone-500/70 disabled:opacity-50 px-3 py-2 text-14 font-medium text-theme-text-secondary dark:text-stone-300 transition-colors hover:border-theme-border-hover dark:hover:border-stone-400/70 hover:bg-theme-bg-card dark:hover:bg-stone-800/70"
+              className="w-full"
+              loading={pairing}
+              disabled={pairBusy || !username.trim() || !password}
             >
-              {pairing
-                ? t("common.loading")
-                : t("profile.localSandbox.pairButton")}
-            </button>
+              {t("profile.localSandbox.pairButton")}
+            </Button>
           </form>
         ) : (
           <>
@@ -497,67 +674,62 @@ export function LocalSandboxSection({
               open={policyOpen}
               onToggle={() => setPolicyOpen((v) => !v)}
               onSelect={handlePolicyChange}
-              loading={applying}
+              loading={blocked || connectionPending || connectionFailed}
             />
 
-            {/* 快捷操作：等宽四列，居中对齐（destructive 操作单独降级到下一行） */}
-            <div className="grid grid-cols-4 gap-2">
-              <button
-                type="button"
-                onClick={() => handleOpenLocalPath("workspaces")}
-                className="flex items-center justify-center gap-1.5 rounded-xl border border-theme-border dark:border-stone-500/70 px-2 py-2 text-12 font-medium text-theme-text-secondary dark:text-stone-300 transition-colors hover:border-theme-border-hover dark:hover:border-stone-400/70 hover:bg-theme-bg-card dark:hover:bg-stone-800/70"
-              >
-                <FolderOpen size={12} className="shrink-0 opacity-60" />
-                <span className="truncate">
-                  {t("profile.localSandbox.openWorkspaces")}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleOpenLocalPath("audit")}
-                className="flex items-center justify-center gap-1.5 rounded-xl border border-theme-border dark:border-stone-500/70 px-2 py-2 text-12 font-medium text-theme-text-secondary dark:text-stone-300 transition-colors hover:border-theme-border-hover dark:hover:border-stone-400/70 hover:bg-theme-bg-card dark:hover:bg-stone-800/70"
-              >
-                <FolderOpen size={12} className="shrink-0 opacity-60" />
-                <span className="truncate">
-                  {t("profile.localSandbox.openAudit")}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleOpenLocalPath("logs")}
-                className="flex items-center justify-center gap-1.5 rounded-xl border border-theme-border dark:border-stone-500/70 px-2 py-2 text-12 font-medium text-theme-text-secondary dark:text-stone-300 transition-colors hover:border-theme-border-hover dark:hover:border-stone-400/70 hover:bg-theme-bg-card dark:hover:bg-stone-800/70"
-              >
-                <FolderOpen size={12} className="shrink-0 opacity-60" />
-                <span className="truncate">
-                  {t("profile.localSandbox.openLogs")}
-                </span>
-              </button>
-              <button
-                type="button"
+            <div className="local-sandbox-actions">
+              {(["workspaces", "audit", "logs"] as const).map((path) => (
+                <Button
+                  key={path}
+                  size="sm"
+                  leftIcon={
+                    <FolderOpen size={14} className="shrink-0 opacity-60" />
+                  }
+                  onClick={() => handleOpenLocalPath(path)}
+                  loading={pathBusy && pathAction === path}
+                  disabled={blocked}
+                >
+                  {t(PATH_LABELS[path])}
+                </Button>
+              ))}
+              <Button
+                size="sm"
+                leftIcon={
+                  <RotateCw size={14} className="shrink-0 opacity-60" />
+                }
                 onClick={handleRestart}
-                className="flex items-center justify-center gap-1.5 rounded-xl border border-theme-border dark:border-stone-500/70 px-2 py-2 text-12 font-medium text-theme-text-secondary dark:text-stone-300 transition-colors hover:border-theme-border-hover dark:hover:border-stone-400/70 hover:bg-theme-bg-card dark:hover:bg-stone-800/70"
+                loading={action === "restart" && busy}
+                disabled={blocked}
               >
-                <RotateCw size={12} className="shrink-0 opacity-60" />
-                <span className="truncate">
-                  {t("profile.localSandbox.restartDaemon")}
-                </span>
-              </button>
+                {t("profile.localSandbox.restartDaemon")}
+              </Button>
             </div>
-
-            {/* 取消配对：低强调 ghost，悬停才泛红——与日常操作组拉开间距，
-                远离动线避免误触 */}
-            <div className="mt-2.5 flex justify-end">
-              <button
-                type="button"
+            {states.path && (
+              <div className="mt-2" aria-busy={pathBusy}>
+                <CatalogStatus
+                  label={t(PATH_LABELS[pathAction])}
+                  loading={pathBusy}
+                  error={states.path === "error"}
+                  errorText={t("common.operationFailed")}
+                  disabled={blocked}
+                  onRetry={() => {
+                    if (!blocked) retry("path");
+                  }}
+                  focusTargetRef={sectionRef}
+                />
+              </div>
+            )}
+            <div className="mt-3 flex justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                leftIcon={<Link2Off size={14} />}
+                loading={unpairing}
+                disabled={blocked}
                 onClick={handleUnpair}
-                disabled={unpairing}
-                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-12 text-theme-text-tertiary dark:text-stone-500 transition-colors hover:bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)] dark:hover:bg-red-950/30 hover:text-theme-error dark:hover:text-red-400 disabled:opacity-50"
               >
-                <Link2Off size={12} />
-                {unpairing
-                  ? t("common.loading")
-                  : t("profile.localSandbox.unpair")}
-              </button>
+                {t("profile.localSandbox.unpair")}
+              </Button>
             </div>
 
             {/* 多机管理：在线机器列表 + 默认机/重命名 + 当前服务器地址 */}
@@ -570,13 +742,21 @@ export function LocalSandboxSection({
 
   if (embedded) {
     return (
-      <div className="mt-3 border-t border-theme-border dark:border-stone-600/50 pt-3.5">
+      <div
+        ref={sectionRef}
+        tabIndex={-1}
+        className="local-sandbox-section mt-3 border-t border-theme-border pt-3 outline-none"
+      >
         {body}
       </div>
     );
   }
   return (
-    <div className="profile-section">
+    <div
+      ref={sectionRef}
+      tabIndex={-1}
+      className="local-sandbox-section profile-section outline-none"
+    >
       {body}
     </div>
   );

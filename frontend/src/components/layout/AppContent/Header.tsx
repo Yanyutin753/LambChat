@@ -30,7 +30,7 @@ import { ShareDialog } from "../../share/ShareDialog";
 import { useAuth } from "../../../hooks/useAuth";
 import { useTheme } from "../../../contexts/ThemeContext";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
-import { authApi } from "../../../services/api";
+import { useLanguagePreference } from "../../../hooks/useLanguagePreference";
 import { notificationApi } from "../../../services/api/notification";
 import { useSessionTitle } from "../../../hooks/useSessionTitle";
 import { NotificationDialog } from "../../notification/NotificationDialog";
@@ -84,6 +84,8 @@ export function Header({
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { languageState, selectLanguage, retryLanguage } =
+    useLanguagePreference();
   const { theme, toggleTheme, appearanceState, retryAppearance } = useTheme();
   const {
     pinnedModelIds,
@@ -212,9 +214,27 @@ export function Header({
       onClick: appearanceState === "error" ? retryAppearance : toggleTheme,
     },
     {
-      label: t("common.language"),
-      icon: <Languages size={16} />,
-      onClick: () => openMenu("language"),
+      label:
+        languageState === "error"
+          ? `${t("common.retry")}: ${t("common.language")}`
+          : languageState === "saving"
+            ? `${t("common.language")} · ${t("common.saving")}`
+            : t("common.language"),
+      groupLabel:
+        languageState === "error"
+          ? t("profile.preferenceSyncFailed")
+          : undefined,
+      icon:
+        languageState === "saving" ? (
+          <LoadingSpinner size="sm" />
+        ) : languageState === "error" ? (
+          <AlertCircle size={16} className="text-theme-error" />
+        ) : (
+          <Languages size={16} />
+        ),
+      disabled: languageState === "saving",
+      onClick:
+        languageState === "error" ? retryLanguage : () => openMenu("language"),
     },
   ];
   const languageActions: ResourceCardAction[] = [
@@ -234,6 +254,7 @@ export function Header({
       return {
         label: lang.name,
         checked,
+        disabled: languageState === "saving",
         icon: (
           <Check
             size={16}
@@ -242,9 +263,7 @@ export function Header({
           />
         ),
         onClick: () => {
-          i18n.changeLanguage(lang.code);
-          localStorage.setItem("language", lang.code);
-          authApi.updateMetadata({ language: lang.code }).catch(() => {});
+          selectLanguage(lang.code);
         },
       };
     }),

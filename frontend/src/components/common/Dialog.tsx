@@ -61,7 +61,7 @@ export function Dialog({
               {icon}
               <h3
                 id={titleId}
-                className="truncate text-16 font-semibold font-sans text-theme-text dark:text-stone-100"
+                className="min-w-0 [overflow-wrap:anywhere] text-16 font-semibold font-sans text-theme-text dark:text-stone-100"
               >
                 {title}
               </h3>
@@ -69,7 +69,7 @@ export function Dialog({
             {dismissible && (
               <button
                 onClick={onClose}
-                className="inline-flex size-11 sm:size-7 shrink-0 items-center justify-center rounded-full text-theme-text-tertiary transition-colors hover:bg-theme-bg-subtle dark:hover:bg-stone-700"
+                className="inline-flex size-11 sm:size-7 [@media(pointer:coarse)]:size-11 shrink-0 items-center justify-center rounded-full text-theme-text-tertiary transition-colors hover:bg-theme-bg-subtle dark:hover:bg-stone-700"
                 aria-label={t("common.dismiss", "关闭")}
               >
                 <X size={14} />
@@ -83,7 +83,7 @@ export function Dialog({
         </div>
 
         {footer !== undefined && (
-          <div className="safe-area-bottom flex items-center justify-end gap-2 border-t border-theme-border-subtle bg-theme-bg-subtle px-5 py-3 dark:border-stone-700 dark:bg-stone-900/50">
+          <div className="safe-area-bottom flex flex-wrap items-center justify-end gap-2 border-t border-theme-border-subtle bg-theme-bg-subtle px-5 py-3 [--safe-area-bottom-extra:0.75rem] dark:border-stone-700 dark:bg-stone-900/50">
             {footer}
           </div>
         )}

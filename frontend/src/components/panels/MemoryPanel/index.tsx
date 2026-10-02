@@ -224,7 +224,7 @@ export function MemoryPanel() {
   }
 
   return (
-    <div className="glass-shell flex h-full flex-col min-h-0">
+    <div data-batch-panel className="glass-shell flex h-full flex-col min-h-0">
       <PanelHeader
         title={t("memory.title")}
         subtitle={
@@ -514,11 +514,10 @@ export function MemoryPanel() {
         />
       )}
 
-      {selectionMode && (
+      {(selectionMode || batchLoading) && (
         <BatchActionBar
           selectedCount={checkedIds.size}
           batchLoading={batchLoading}
-          onBatchToggle={() => {}}
           onBatchDelete={handleBatchDelete}
           onClearSelection={clearSelection}
         />

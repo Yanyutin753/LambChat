@@ -241,7 +241,9 @@ export function PersonaEditorBindingSelector({
                 const next =
                   event.key === "ArrowDown"
                     ? options[(index + 1) % options.length]
-                    : options[index - 1];
+                    : index < 0
+                      ? options.at(-1)
+                      : options[index - 1];
                 (next ?? searchInputRef.current)?.focus();
               } else if (
                 index >= 0 &&

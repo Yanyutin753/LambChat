@@ -35,7 +35,8 @@ test("team pane titles use font-serif like team member names", () => {
 test("shared dialog titles use font-serif", () => {
   const confirm = readComponent("common/ConfirmDialog.tsx");
   const contact = readComponent("common/ContactAdminDialog.tsx");
-  expect(confirm).toMatch(/text-16 font-semibold font-sans/);
+  expect(confirm).toMatch(/<Dialog/);
+  expect(readComponent("common/Dialog.tsx")).toMatch(/text-16 font-semibold font-sans/);
   expect(contact).toMatch(/text-16 font-semibold font-serif tracking-tight/);
 });
 
@@ -44,9 +45,9 @@ test("not found page headline uses font-serif like error boundary", () => {
   expect(source).toMatch(/<h1\b[^>]*className="[^"]*\bfont-serif\b/);
 });
 
-test("shared project error headline uses font-serif like shared page", () => {
-  const source = readComponent("share/SharedProjectPage.tsx");
-  expect(source).toMatch(/<h1 className="text-20 font-semibold font-serif/);
+test("shared entry error headline uses font-serif like shared page", () => {
+  const source = readComponent("share/SharedEntry.tsx");
+  expect(source).toMatch(/<h1\b[^>]*className="[^"]*\bfont-serif\b/);
 });
 
 test("cad preview phase heading uses font-serif like its idle heading", () => {

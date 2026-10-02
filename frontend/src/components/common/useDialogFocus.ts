@@ -99,12 +99,15 @@ export function useDialogFocus({
       document.removeEventListener("keydown", keyboard);
       if (nativeMediaControls)
         document.removeEventListener("focusin", containMediaFocus);
-      const restore = () => {
-        if (previous?.isConnected)
-          restoreOpenerFocusUnclaimed(previous, surface);
-      };
+      const restore = () => restoreOpenerFocusUnclaimed(previous, surface);
       // The background lock cleans up after this effect; native inert blocks focus.
-      if (previous?.closest("[inert]")) queueMicrotask(restore);
+      // A removed opener needs the newly visible navigation after cleanup too.
+      if (
+        !previous?.isConnected ||
+        previous === document.body ||
+        previous.closest("[inert]")
+      )
+        queueMicrotask(restore);
       else restore();
     };
   }, [open, surfaceRef, nativeMediaControls]);

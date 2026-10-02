@@ -1,4 +1,5 @@
 import {
+  restoreOpenerFocusUnclaimed,
   topmostVisibleDialog,
   topmostVisibleModalDialog,
 } from "../../utils/modalDialog";
@@ -132,41 +133,13 @@ function restoreOpenerFocus(openerRef: RefObject<HTMLElement | null>): void {
   requestAnimationFrame(() => {
     if (getRightPanelSnapshot().activeId) return;
     const modal = topmostVisibleModalDialog();
-    if (modal && !modal.contains(openerRef.current)) return;
-    const active = document.activeElement;
     if (
-      active instanceof HTMLElement &&
-      active !== document.body &&
-      active.isConnected &&
-      !active.closest('[hidden],[inert],[aria-hidden="true"]')
+      modal &&
+      openerRef.current?.isConnected &&
+      !modal.contains(openerRef.current)
     )
       return;
-    const opener = openerRef.current;
-    if (
-      opener?.isConnected &&
-      !opener.closest('[hidden],[inert],[aria-hidden="true"]')
-    ) {
-      opener.focus({ preventScroll: true });
-      if (document.activeElement === opener) return;
-    }
-    const region = opener?.closest('[data-panel],main,[role="main"]');
-    const page =
-      modal ??
-      (region?.isConnected
-        ? region
-        : document.querySelector('main,[role="main"]'));
-    const visible = (element: HTMLElement) =>
-      element.getClientRects().length > 0 &&
-      !element.closest('[hidden],[inert],[aria-hidden="true"]');
-    const selected = [
-      ...(page?.querySelectorAll<HTMLElement>(
-        'button[aria-pressed="true"],[role="tab"][aria-selected="true"]',
-      ) ?? []),
-    ].find(visible);
-    const fallback =
-      selected ??
-      [...(page?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])].find(visible);
-    (fallback ?? modal)?.focus({ preventScroll: true });
+    restoreOpenerFocusUnclaimed(openerRef.current, null);
   });
 }
 

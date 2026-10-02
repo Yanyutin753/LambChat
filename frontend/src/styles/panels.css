@@ -388,3 +388,41 @@
     min-height: 2.75rem;
   }
 }
+
+/* Batch actions stay below pagination, within their own resource panel. */
+.resource-batch-bar {
+  flex: none;
+  container: resource-batch / inline-size;
+  padding-block: 8px;
+  outline: none;
+}
+.resource-batch-bar:focus-visible {
+  outline: 2px solid var(--theme-ring);
+  outline-offset: -2px;
+}
+.resource-batch-bar__actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.resource-batch-bar .ui-button {
+  min-height: 44px;
+  min-width: 44px;
+  flex-shrink: 0;
+}
+.resource-batch-bar .ui-icon-button {
+  height: 44px;
+}
+.resource-batch-bar__label {
+  display: none;
+}
+@container resource-batch (min-width: 480px) {
+  .resource-batch-bar__label {
+    display: inline;
+  }
+}
+/* The list owns its scroll area; a sticky header would cover its short-screen footer. */
+[data-panel] [data-batch-panel] .skill-panel-header {
+  position: static;
+}

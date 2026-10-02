@@ -35,6 +35,7 @@ export interface UseSandboxStatusOptions {
 export function useSandboxStatus(options?: UseSandboxStatusOptions): {
   status: SandboxStatus | null;
   statusError: SandboxStatusError;
+  refreshing: boolean;
   online: boolean;
   machines: SandboxMachine[];
   defaultMachineId: string | null;
@@ -62,6 +63,7 @@ export function useSandboxStatus(options?: UseSandboxStatusOptions): {
     return {
       status: null,
       statusError: null,
+      refreshing: false,
       online: false,
       machines: [],
       defaultMachineId: null,
@@ -73,6 +75,7 @@ export function useSandboxStatus(options?: UseSandboxStatusOptions): {
   return {
     status: state.status,
     statusError: state.statusError,
+    refreshing: state.refreshing,
     online: isSandboxOnline(state),
     machines: state.machines,
     defaultMachineId: state.defaultMachineId,

@@ -124,7 +124,7 @@ export function DocumentViewerFrame({
   const resetView = useCallback(() => setZoom(1), []);
 
   return (
-    <div className="relative h-full min-h-[400px] w-full overflow-hidden bg-stone-200 dark:bg-stone-950">
+    <div className="relative h-full min-h-0 w-full overflow-hidden bg-theme-bg-subtle">
       <div
         ref={viewportRef}
         aria-label={ariaLabel}

@@ -31,32 +31,34 @@ const PdfPreview = memo(function PdfPreview({ url }: PdfPreviewProps) {
 
   if (loadFailed) {
     return (
-      <div className="flex h-full min-h-[400px] w-full flex-col items-center justify-center gap-4 bg-stone-100 px-6 text-center dark:bg-stone-950">
-        <div>
-          <p className="text-14 font-medium font-serif text-stone-700 dark:text-stone-200">
-            {t("documents.pdfPreviewUnavailable", "PDF 预览不可用")}
-          </p>
-          <p className="mt-1 max-w-sm text-12 text-stone-500 dark:text-stone-400">
-            {t(
-              "documents.pdfPreviewUnavailableHint",
-              "当前浏览器无法在页面内打开这个 PDF，可以在新窗口中查看。",
-            )}
-          </p>
+      <div className="h-full min-h-0 w-full overflow-auto bg-theme-bg-subtle text-center">
+        <div className="flex min-h-full flex-col items-center justify-center gap-4 p-6">
+          <div role="alert">
+            <p className="text-14 font-medium font-serif text-theme-text">
+              {t("documents.pdfPreviewUnavailable", "PDF 预览不可用")}
+            </p>
+            <p className="mt-1 max-w-sm text-12 text-theme-text-secondary">
+              {t(
+                "documents.pdfPreviewUnavailableHint",
+                "当前浏览器无法在页面内打开这个 PDF，可以在新窗口中查看。",
+              )}
+            </p>
+          </div>
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="ui-button ui-button--primary ui-button--lg shrink-0"
+          >
+            {t("documents.openInNewTab", "在新窗口打开")}
+          </a>
         </div>
-        <a
-          href={url}
-          target="_blank"
-          rel="noreferrer"
-          className="rounded-lg bg-stone-900 px-4 py-2 text-14 font-medium text-white transition-colors hover:bg-stone-700 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-300"
-        >
-          {t("documents.openInNewTab", "在新窗口打开")}
-        </a>
       </div>
     );
   }
 
   return (
-    <div className="relative h-full min-h-[400px] w-full">
+    <div className="relative h-full min-h-0 w-full">
       <DocumentViewerFrame
         naturalWidth={PDF_NATURAL_PAGE_WIDTH}
         loading={loading}

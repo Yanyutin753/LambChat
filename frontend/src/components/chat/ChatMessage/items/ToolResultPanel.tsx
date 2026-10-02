@@ -87,30 +87,25 @@ interface ToolResultPanelProps {
 
 const statusConfig: Record<
   CollapsibleStatus,
-  { bg: string; color: string; icon: React.ReactNode }
+  { color: string; icon: React.ReactNode }
 > = {
   idle: {
-    bg: "bg-theme-bg-subtle",
     color: "text-theme-text-tertiary",
     icon: null,
   },
   loading: {
-    bg: "bg-[color-mix(in_srgb,var(--theme-primary)_8%,transparent)]",
     color: "text-[var(--theme-primary)]",
     icon: null,
   },
   success: {
-    bg: "bg-emerald-100/80 dark:bg-emerald-900/30",
     color: "text-emerald-600 dark:text-emerald-400",
     icon: <CheckCircle size={16} />,
   },
   error: {
-    bg: "bg-red-100/80 dark:bg-red-900/30",
     color: "text-red-600 dark:text-red-400",
     icon: <XCircle size={16} />,
   },
   cancelled: {
-    bg: "bg-[color-mix(in_srgb,var(--theme-primary)_8%,transparent)]",
     color: "text-[var(--theme-primary)]",
     icon: <Ban size={16} />,
   },
@@ -463,7 +458,7 @@ export function ToolResultPanel({
 
               {/* Status + Icon */}
               <div
-                className={`tool-console-header-icon flex items-center justify-center size-8 rounded-xl shrink-0 ${cfg.bg}`}
+                className="tool-console-header-icon flex items-center justify-center size-4 shrink-0"
               >
                 {status === "loading" ? (
                   <LoadingSpinner
@@ -483,7 +478,7 @@ export function ToolResultPanel({
                 <div className="tool-console-title-row flex items-baseline gap-2 min-w-0 flex-1 overflow-hidden font-serif">
                   <h3
                     id={titleId}
-                    className={`tool-console-title min-w-0 truncate font-medium text-14 text-theme-text ${
+                    className={`tool-console-title min-w-0 truncate leading-6 font-medium text-14 text-theme-text ${
                       subtitle ? "max-w-[40%]" : "max-w-full"
                     }`}
                     title={title}
@@ -499,7 +494,7 @@ export function ToolResultPanel({
                       if (!isTagList) {
                         return (
                           <span
-                            className="tool-console-subtitle-pill min-w-0 max-w-[45vw] sm:max-w-[min(32rem,52%)] truncate font-sans text-12 font-normal leading-none text-theme-text-tertiary"
+                            className="tool-console-subtitle-pill min-w-0 max-w-[45vw] sm:max-w-[min(32rem,52%)] truncate font-sans text-12 font-normal leading-5 text-theme-text-tertiary"
                             title={subtitle}
                           >
                             {subtitle}
@@ -514,14 +509,14 @@ export function ToolResultPanel({
                           {visible.map((tag, i) => (
                             <span
                               key={i}
-                              className="tool-console-subtitle-chip min-w-0 shrink-0 max-w-full truncate font-sans text-12 font-normal leading-none text-theme-text-tertiary"
+                              className="tool-console-subtitle-chip min-w-0 shrink-0 max-w-full truncate font-sans text-12 font-normal leading-5 text-theme-text-tertiary"
                               title={tag}
                             >
                               {tag}
                             </span>
                           ))}
                           {overflow > 0 && (
-                            <span className="tool-console-subtitle-overflow shrink-0 font-sans text-12 font-normal leading-none text-theme-text-tertiary tabular-nums">
+                            <span className="tool-console-subtitle-overflow shrink-0 font-sans text-12 font-normal leading-5 text-theme-text-tertiary tabular-nums">
                               +{overflow}
                             </span>
                           )}

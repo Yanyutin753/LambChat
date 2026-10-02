@@ -79,6 +79,46 @@ test("skill metadata and file path have associated labels and validation feedbac
   ).toBe("skills.form.validation.nameRequired");
 });
 
+test("adding a file focuses its path before editing its contents", () => {
+  render(<SkillForm onSave={vi.fn()} onCancel={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: "skills.form.addFile" }));
+  expect(
+    screen.getByRole("textbox", { name: "skills.form.filePath" }),
+  ).toHaveFocus();
+});
+
+test("an unnamed file draft blocks saving and focuses its path instead of dropping its contents", () => {
+  const save = vi.fn();
+  render(<SkillForm onSave={save} onCancel={vi.fn()} />);
+  fireEvent.change(screen.getByRole("textbox", { name: "skills.form.name" }), {
+    target: { value: "research" },
+  });
+  fireEvent.change(
+    screen.getByRole("textbox", { name: "skills.form.description" }),
+    { target: { value: "Research workflow" } },
+  );
+  fireEvent.click(screen.getByRole("button", { name: "skills.form.addFile" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "skills.form.fullscreenEditor" }),
+  );
+  fireEvent.change(screen.getByRole("textbox", { name: "" }), {
+    target: { value: "Keep this new file draft" },
+  });
+  fireEvent.click(
+    screen.getByRole("button", { name: "skills.form.exitFullscreen" }),
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "skills.form.createSkill" }),
+  );
+  expect(save).not.toHaveBeenCalled();
+  const path = screen.getByRole("textbox", { name: "skills.form.filePath" });
+  expect(path).toHaveAttribute("aria-invalid", "true");
+  expect(path).toHaveFocus();
+  expect(screen.getByRole("textbox", { name: "" })).toHaveValue(
+    "Keep this new file draft",
+  );
+});
+
 test("removing a file preserves the selected remaining file and returns keyboard focus", async () => {
   vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([
     {},
