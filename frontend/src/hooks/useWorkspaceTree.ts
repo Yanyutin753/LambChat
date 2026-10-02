@@ -217,6 +217,8 @@ export function useWorkspaceTree(
 
   const refresh = useCallback(() => {
     if (!sessionId || state === "loading") return;
+    setState("loading");
+    setError(null);
     // 重拉根 + 已装载目录：attachLevel 原地替换，展开现场保留。
     const dirs = collectLoadedDirs(root);
     void loadDir(".", { replace: true });

@@ -1068,3 +1068,17 @@ LocalSandboxSection复用usePreferenceWrites统一配对、策略、重启和取
 截图在仓库外 `/Users/clivia/.codex/visualizations/share-reading-layout`：390深色中文正常、320浅色俄语长名称带头像、834/1440浅色长名称、320深色俄语最终页尾、320/1440sepia俄语空会话。Impeccable offline update报告未安装技能文件，按DESIGN八项人工复核，不安装新依赖。复用LambChat品牌、衬线、控件和主题；排版、留白、层级、色彩、动效、微交互、响应式的上述缺陷已修。仅只读fixture和DOM/platform测试，不证明真实权限、创建分享、原生手机/软键盘或模型对话。
 
 主聊天/预览切换、尚未覆盖的编辑流程和全状态/五语矩阵仍未闭合，目标保持进行中；下一轮继续主聊天阅读/预览流程，不能以本轮绿门禁宣告全站完成。
+
+### 2026-10-02：文件预览焦点交接与目录读取恢复
+
+上一目标回合补充当前3017文件查找入口、320/390px浮层和17项相关检查，属于提供新证据的 progress。本轮继续原全站目标，interface-state开工clean，HTTPS fetch确认origin/develop为HEAD祖先；保留主checkout及用户3017/既有3018。
+
+390px真实浏览器复现：打开文件后 explorer 被隐藏，焦点落到BODY；关闭内嵌预览后原按钮ref随着preview=null清空，焦点仍为BODY。WorkspacePanel为预览和浏览区提供具名稳定焦点区域，只在 explorer 实际隐藏且焦点仍在旧列表或BODY时交接；不夺取已转到另一任务的焦点，桌面双栏保留原文件选择。返回时先捕获原DOM按钮，再等布局恢复归还；请求代次防止迟到读取重新打开已关闭内容。只读审查指出目录刷新已移除原文件的遗漏，新增回归先RED，补稳定explorer焦点回退后GREEN；最终审查无确定剩余P1/P2。
+
+目录Retry复用现有Button，手机/触摸区域44px，错误有alert语义与长串折行，加载有status文字和现有LoadingSpinner。useWorkspaceTree.refresh切到loading、清除旧错误，保留既有树与展开现场；等待期间禁用刷新。无新文案、依赖、主题或布局体系。真实WorkspacePanel、LazyDocumentPreview、文档组件和useWorkspaceTree集成测试覆盖打开、返回、关闭、另一任务焦点、迟到读取、目录重试和刷新移除文件，只有API/平台边界mock。首批3项先RED后GREEN，目录恢复另RED后GREEN，删除原文件场景另RED后GREEN；共7项新增。相关6文件34项通过（随后新增的回退测试也通过）。
+
+只读fixture新增workspace-list/workspace-read首次GET失败及恢复、workspace-flow=1的2秒目录/文件读取等待，empty真正返回空目录。指南记录边界；仍拒绝其他写入。实际390深色打开定位SECTION预览，关闭归还今天吃什么.py；320俄语深/浅色错误和Retry加载，44px重试、浏览region焦点及overflow0；1440浅色居中双栏宽1150px、文件焦点保留，834面板宽832px、overflow0；390暖色俄语空目录具名文字与overflow0。截图在仓库外workspace-preview-return目录。
+
+按DESIGN八项复核：排版/留白/层级沿用文件浏览与文档工具栏，不加重复卡片或工具行；三主题文字与反馈可读；减少动效沿用shared LoadingSpinner；焦点与返回/恢复微交互经真实DOM和组件验证；320/390/834/1440响应式；复用LambChat视觉语言、不引入装饰或平行系统。Impeccable offline update仍报告未安装技能文件，使用项目人工清单。最终788文件3934项全量测试、lint零错误警告、tsc/Vite/PWA/build和体积门禁通过：eager560325/561152、precache93项5033774/5242880，无预算提高。首轮全量既有projectAndSearchComposition.test.tsx的legacy IME用例失败，单独3项及最终完整运行通过；未改此模块，保留间歇性失败作为后续核查项。日志/tmp/workspace-preview-delivery-*.log。
+
+目标保持进行中。深层目录展开失败、文件读取失败后的明确恢复、跨预览/导航/缩放焦点、剩余编辑与五语全状态矩阵、真实Tauri/手机与服务端权限/会话尚未全部验收，不据局部绿门禁声称全站完成。
