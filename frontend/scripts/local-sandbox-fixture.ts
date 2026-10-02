@@ -1,7 +1,10 @@
+import { resolvePreviewLanguage, translatePreviewText } from "./preview-i18n";
 /** Preview-only shell/status seam. No real native actions or API writes. */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSandboxStatus as useRealSandboxStatus } from "../src/hooks/useSandboxStatus";
 const params = new URLSearchParams(location.search);
+const language = resolvePreviewLanguage(params.get("lang"));
+const previewText = (text: string) => translatePreviewText(text, language);
 const nativeFixture = location.pathname === "/sandbox-data-preview";
 let failedProcess = false;
 const nativeFlow = nativeFixture && params.get("native-flow") === "1";
@@ -15,7 +18,7 @@ async function run(operation: string) {
   await new Promise((resolve) => setTimeout(resolve, 1200));
   if (params.get("failure") === operation && !attempted.has(operation)) {
     attempted.add(operation);
-    throw new Error("Preview operation unavailable");
+    throw new Error(previewText("Preview operation unavailable"));
   }
 }
 export const isShellAvailable = () =>
@@ -26,14 +29,14 @@ export async function daemonProcessStatus() {
   await new Promise((resolve) => setTimeout(resolve, 800));
   if (params.get("failure") === "process" && !failedProcess) {
     failedProcess = true;
-    throw new Error("Preview status unavailable");
+    throw new Error(previewText("Preview status unavailable"));
   }
   return running ? "running" : "stopped";
 }
 export const subscribeDaemonStatus = async () => null;
 async function rejectMutation() {
   await new Promise((resolve) => setTimeout(resolve, 1200));
-  throw new Error("Native actions disabled in preview");
+  throw new Error(previewText("Native actions disabled in preview"));
 }
 // Explicit flow uses public placeholders only. No bridge, filesystem or API writes.
 export async function savePairing() {

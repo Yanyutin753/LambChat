@@ -3,6 +3,15 @@ import { createServer } from "vite";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Permission, type PermissionsResponse } from "../src/types/auth";
+import {
+  createPreviewLanguageBootstrap,
+  localizePreviewData,
+  resolvePreviewLanguage,
+  restorePreviewText,
+  translatePreviewText,
+  translatePreviewCsv,
+  type PreviewLanguage,
+} from "./preview-i18n";
 
 const now = "2026-09-30T08:00:00Z";
 const previewVideo = process.env.PANEL_PREVIEW_VIDEO
@@ -735,6 +744,7 @@ function response(
   url: URL,
   scenario: string,
   chatState = "completed",
+  language: PreviewLanguage = "zh",
 ): unknown {
   const path = url.pathname.replace(/\/$/, "");
   const q = url.searchParams;
@@ -749,7 +759,7 @@ function response(
     const search = (q.get("q") ?? q.get("search") ?? "").toLowerCase();
     if (search)
       data = data.filter((item) =>
-        JSON.stringify(item).toLowerCase().includes(search),
+        JSON.stringify(localizePreviewData(item, language)).toLowerCase().includes(search),
       );
     return {
       [key]: data.slice(skip, skip + pageSize),
@@ -1549,7 +1559,8 @@ const server = await createServer({
       configResolved(config) {
         config.server.proxy = {};
       },
-      resolveId(source, importer) {
+      resolveId(source, importer, options) {
+        if (options?.scan) return;
         if (
           importer?.endsWith("/components/profile/LocalSandboxSection.tsx") &&
           [
@@ -1591,7 +1602,7 @@ const server = await createServer({
         }
         return html.replace(
           "<head>",
-          `<head><script>const params=new URLSearchParams(location.search);if(params.has("guest")){localStorage.removeItem("access_token");localStorage.removeItem("refresh_token");}else{localStorage.setItem("access_token",${JSON.stringify(
+          `<head><script>${createPreviewLanguageBootstrap()}const params=new URLSearchParams(location.search);if(params.has("guest")){localStorage.removeItem("access_token");localStorage.removeItem("refresh_token");}else{localStorage.setItem("access_token",${JSON.stringify(
             token,
           )});}localStorage.setItem("lambchat-theme",params.get("theme")||"light");if(params.get("failure")==="clipboard"&&navigator.clipboard){const write=navigator.clipboard.writeText.bind(navigator.clipboard);let failed=false;navigator.clipboard.writeText=(text)=>{if(!failed){failed=true;return Promise.reject(new DOMException("Preview clipboard unavailable","NotAllowedError"));}return write(text);};}</script>`,
         );
@@ -1602,6 +1613,15 @@ const server = await createServer({
           const previewParams = new URL(
             req.headers.referer ?? "http://localhost",
           ).searchParams;
+          const language = resolvePreviewLanguage(previewParams.get("lang"));
+          const previewJson = (value: unknown) =>
+            JSON.stringify(localizePreviewData(value, language));
+          const previewText = (value: string) => translatePreviewText(value, language);
+          url.pathname = url.pathname.split("/").map((segment) =>
+            encodeURIComponent(restorePreviewText(decodeURIComponent(segment), language)),
+          ).join("/");
+          const fixturePath = url.searchParams.get("path");
+          if (fixturePath) url.searchParams.set("path", restorePreviewText(fixturePath, language));
           // Failure-only health fixture; never stores or switches a server URL.
           if (
             req.method === "GET" &&
@@ -1713,14 +1733,14 @@ const server = await createServer({
           }
           if (url.pathname === "/preview-document.md") {
             res.end(
-              '# 项目交付报告\n\n研究结果与后续计划。保持舒适的阅读宽度与清楚的信息层级。 使用 `delivery_count` 核对交付次数。\n\n## 验证清单\n\n- 手机工具栏与长文件名\n- 代码与表格横向滚动\n- 深浅色与护眼主题\n\n```mermaid\ngraph LR\n  A[研究] --> B[设计] --> C[验证]\n```\n\n| 项目 | 负责人 | 阶段 | 交付成果 | 验证方法 | 下一步 |\n| --- | --- | --- | --- | --- | --- |\n| 响应式界面 | 产品设计团队 | 验收中 | 跨端界面与交互规范 | 手机、平板、桌面逐页走查 | 核对触屏和键盘焦点 |\n\n```python\nreport = summarize(source="quarterly_business_metrics.csv", columns=["month", "delivery_count", "completion_rate", "owner"])\n```\n',
+              previewText('# 项目交付报告\n\n研究结果与后续计划。保持舒适的阅读宽度与清楚的信息层级。 使用 `delivery_count` 核对交付次数。\n\n## 验证清单\n\n- 手机工具栏与长文件名\n- 代码与表格横向滚动\n- 深浅色与护眼主题\n\n```mermaid\ngraph LR\n  A[研究] --> B[设计] --> C[验证]\n```\n\n| 项目 | 负责人 | 阶段 | 交付成果 | 验证方法 | 下一步 |\n| --- | --- | --- | --- | --- | --- |\n| 响应式界面 | 产品设计团队 | 验收中 | 跨端界面与交互规范 | 手机、平板、桌面逐页走查 | 核对触屏和键盘焦点 |\n\n```python\nreport = summarize(source="quarterly_business_metrics.csv", columns=["month", "delivery_count", "completion_rate", "owner"])\n```\n'),
             );
             return;
           }
           if (url.pathname === "/preview-document.excalidraw") {
             res.setHeader("Content-Type", "application/json");
             res.end(
-              JSON.stringify({
+              previewJson({
                 type: "excalidraw",
                 version: 2,
                 appState: { viewBackgroundColor: "#ffffff" },
@@ -1785,7 +1805,7 @@ const server = await createServer({
           }
           if (url.pathname === "/preview-document.csv") {
             res.end(
-              "月份,交付数量,完成率,负责人,交付成果,验证方法,下一步\n六月,128,92%,产品设计团队,跨端界面与交互规范,手机平板桌面逐页走查,核对触屏和键盘焦点\n七月,156,96%,前端开发团队,文档阅读和文件预览,长文件名与表格验证,完成深浅色回归\n八月,182,98%,质量验证团队,异常恢复与发布验收,自动化检查和人工复核,整理验证结果\n",
+              translatePreviewCsv("月份,交付数量,完成率,负责人,交付成果,验证方法,下一步\n六月,128,92%,产品设计团队,跨端界面与交互规范,手机平板桌面逐页走查,核对触屏和键盘焦点\n七月,156,96%,前端开发团队,文档阅读和文件预览,长文件名与表格验证,完成深浅色回归\n八月,182,98%,质量验证团队,异常恢复与发布验收,自动化检查和人工复核,整理验证结果\n", language),
             );
             return;
           }
@@ -1815,7 +1835,7 @@ const server = await createServer({
               res.statusCode = failed ? 503 : 200;
               res.setHeader("Content-Type", "application/json");
               res.end(
-                JSON.stringify(
+                previewJson(
                   failed
                     ? {
                         detail: {
@@ -1855,7 +1875,7 @@ const server = await createServer({
               res.statusCode = failed ? 503 : 200;
               res.setHeader("Content-Type", "application/json");
               res.end(
-                JSON.stringify(
+                previewJson(
                   failed
                     ? { detail: "Fixture preference sync unavailable" }
                     : url.pathname.endsWith("/metadata")
@@ -1883,7 +1903,7 @@ const server = await createServer({
               res.statusCode = failed ? 503 : 200;
               res.setHeader("Content-Type", "application/json");
               res.end(
-                JSON.stringify(
+                previewJson(
                   failed
                     ? { detail: "Fixture feedback unavailable" }
                     : upload
@@ -1931,7 +1951,7 @@ const server = await createServer({
               res.statusCode = failed ? 503 : 200;
               res.setHeader("Content-Type", "application/json");
               res.end(
-                JSON.stringify(
+                previewJson(
                   failed
                     ? { detail: "Fixture save unavailable" }
                     : avatar
@@ -1973,7 +1993,7 @@ const server = await createServer({
               res.statusCode = failed ? 503 : 200;
               res.setHeader("Content-Type", "application/json");
               res.end(
-                JSON.stringify(
+                previewJson(
                   failed
                     ? { detail: "Fixture upload unavailable" }
                     : {
@@ -2024,7 +2044,7 @@ const server = await createServer({
             res.setHeader("Cache-Control", "no-store");
             const send = () =>
               res.end(
-                JSON.stringify(
+                previewJson(
                   failed
                     ? {
                         detail: {
@@ -2057,7 +2077,7 @@ const server = await createServer({
             res.flushHeaders();
             const sendEvent = (event: string, data: object, id: string) =>
               res.write(
-                `id: ${id}\nevent: ${event}\ndata: ${JSON.stringify({
+                `id: ${id}\nevent: ${event}\ndata: ${previewJson({
                   ...data,
                   run_id: "preview-run",
                   _timestamp: new Date().toISOString(),
@@ -2111,7 +2131,7 @@ const server = await createServer({
               : failureTarget === "welcome-teams" &&
                   url.pathname === "/api/agents"
                 ? { agents, count: agents.length, default_agent: "team" }
-                : response(url, scenario, chatState);
+                : response(url, scenario, chatState, language);
           if (url.pathname === "/api/auth/oauth/providers") {
             const email =
               previewParams.get("contact") === "empty"
@@ -2609,7 +2629,7 @@ const server = await createServer({
           res.setHeader("Cache-Control", "no-store");
           const send = () =>
             res.end(
-              JSON.stringify(
+              previewJson(
                 res.statusCode === 200
                   ? data
                   : {
@@ -2685,5 +2705,5 @@ const server = await createServer({
 });
 await server.listen();
 console.log(
-  "Panel preview: http://127.0.0.1:3002/mcp (65 items; ?fixture=empty|error|loading)",
+  `Panel preview: ${server.resolvedUrls?.local[0]}mcp (65 items; ?lang=zh|en|ja|ko|ru; ?fixture=empty|error|loading)`,
 );

@@ -1,3 +1,4 @@
+import { resolvePreviewLanguage, translatePreviewText } from "./preview-i18n";
 /** UI-only dialog preview: no native updater, mail client, or write API is invoked. */
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -18,9 +19,11 @@ import "../src/styles/animations.css";
 
 void import("../src/fonts-cjk");
 const params = new URLSearchParams(location.search);
+const language = resolvePreviewLanguage(params.get("lang"));
+const previewText = (text: string) => translatePreviewText(text, language);
 const theme = params.get("theme");
 applyThemeToDocument(isTheme(theme) ? theme : "light");
-await i18n.changeLanguage(params.get("lang") || "zh");
+await i18n.changeLanguage(language);
 
 export function DialogPreview() {
   const [open, setOpen] = useState(true);
@@ -31,8 +34,10 @@ export function DialogPreview() {
     available: true,
     version: params.has("long") ? `99.0.0-${"preview".repeat(12)}` : "99.0.0",
     releaseNotes: params.has("long")
-      ? `## 更新说明\n\n${"更清楚地阅读任务状态，并继续您的工作。\n\n".repeat(8)}\n\n\`preview-${"long-path".repeat(20)}\`\n\n| Module | Change |\n| --- | --- |\n| Rendering | ${"responsive".repeat(20)} |`
-      : "## 更新说明\n\n- 优化手机布局。\n- 改善查找与键盘操作。",
+      ? previewText(
+          `## 更新说明\n\n${"更清楚地阅读任务状态，并继续您的工作。\n\n".repeat(8)}\n\n\`preview-${"long-path".repeat(20)}\`\n\n| Module | Change |\n| --- | --- |\n| Rendering | ${"responsive".repeat(20)} |`,
+        )
+      : previewText("## 更新说明\n\n- 优化手机布局。\n- 改善查找与键盘操作。"),
     releaseUrl: "https://example.test/release/99.0.0",
     releaseAssets: [],
     publishedAt: "2026-10-02T00:00:00Z",
@@ -42,7 +47,9 @@ export function DialogPreview() {
     contentLength: 120 * 1024 * 1024,
     readyToInstall: params.get("state") === "ready",
     error:
-      params.get("state") === "error" ? "Fixture update unavailable" : null,
+      params.get("state") === "error"
+        ? previewText("Fixture update unavailable")
+        : null,
     linuxInstallSource: params.get("source") === "unknown" ? "unknown" : null,
   });
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -54,7 +61,10 @@ export function DialogPreview() {
       setState((value) => ({
         ...value,
         downloading: false,
-        error: attempts.current === 1 ? "Fixture update unavailable" : null,
+        error:
+          attempts.current === 1
+            ? previewText("Fixture update unavailable")
+            : null,
         readyToInstall: attempts.current > 1,
       }));
     }, 2000);
@@ -62,7 +72,9 @@ export function DialogPreview() {
   const close = () => setOpen(false);
   return (
     <main style={{ height: "100dvh", padding: 16 }}>
-      <Button onClick={() => setOpen(true)}>Open dialog</Button>
+      <Button onClick={() => setOpen(true)}>
+        {previewText("Open dialog")}
+      </Button>
       {params.get("view") === "about" ? (
         <AboutDialog isOpen={open} onClose={close} />
       ) : params.get("view") === "confirm" ? (

@@ -1,3 +1,4 @@
+import { resolvePreviewLanguage } from "./preview-i18n";
 /** Fixture entry only: native-only forms without a native bridge or real API. */
 import { createRoot } from "react-dom/client";
 import i18n from "../src/i18n";
@@ -14,9 +15,10 @@ import "../src/components/profile/profile.css";
 
 void import("../src/fonts-cjk");
 const params = new URLSearchParams(location.search);
+const language = resolvePreviewLanguage(params.get("lang"));
 const theme = params.get("theme");
 applyThemeToDocument(isTheme(theme) ? theme : "light");
-await i18n.changeLanguage(params.get("lang") || "zh");
+await i18n.changeLanguage(language);
 createRoot(document.getElementById("root")!).render(
   params.get("view") === "setup" ? (
     <ServerSetupScreen />

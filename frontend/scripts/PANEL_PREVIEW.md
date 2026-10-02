@@ -28,6 +28,8 @@
 
 ## 状态与走查
 
+所有入口支持 `?lang=zh|en|ja|ko|ru`（默认 `zh`），包括主应用、公开分享、对话框与本地沙箱表单。界面复用正式 i18n，列表名称、描述、标签、通知、聊天正文、Markdown/CSV 内容与文件树样例随语言切换；页面内导航会保留语言参数。例如：`/skills?lang=en`、`/chat/preview-report?lang=ja&theme=dark`、`/notifications?lang=ru&fixture=empty`。语言参数优先于预览 origin 已保存的语言，未知语言回退中文；切换参数后刷新即可。
+
 桌面端数据位置可用独立入口 `/sandbox-data-preview?theme=dark&custom=1`；`lang=ru` 检查长文案，`failure=read|pick|save|reset|relaunch` 让指定操作等待1.2秒后首次失败、重试恢复。该入口渲染真实 `SandboxDataLocationCard`，预览服务只将此组件的原生服务模块与 process 插件替换为本地 fixture，选择/保存/恢复/重启均不访问真实文件或原生桥。可检查读取错误、路径折行、迁移选项锁定、重试和重启提示；不能证明真实数据迁移、覆盖文件、跨窗口状态或应用重启。
 
 URL 参数：`?theme=dark` 为深色；默认浅色。`?fixture=empty` 返回空列表，`?fixture=error` 模拟加载失败，`?fixture=loading` 延迟响应；可组合 `?theme=dark&fixture=empty`。设置和认证保持可用，以便继续导航。

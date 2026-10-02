@@ -1,3 +1,4 @@
+import { resolvePreviewLanguage } from "./preview-i18n";
 /** Native-only data-location UI; commands are replaced by the fixture server. */
 import { createRoot } from "react-dom/client";
 import { useState } from "react";
@@ -17,9 +18,10 @@ import "../src/components/profile/profile.css";
 
 void import("../src/fonts-cjk");
 const params = new URLSearchParams(location.search);
+const language = resolvePreviewLanguage(params.get("lang"));
 const theme = params.get("theme");
 applyThemeToDocument(isTheme(theme) ? theme : "light");
-await i18n.changeLanguage(params.get("lang") || "zh");
+await i18n.changeLanguage(language);
 export function Preview() {
   const [open, setOpen] = useState(true);
   return (
