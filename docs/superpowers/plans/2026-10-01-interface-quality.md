@@ -489,3 +489,23 @@ TDD：分享和路径5项先明确 RED；初次 green 的分享 pending 偶发�
 截图沿用 interface-quality 目录：share-copy-390-dark-final.png、workspace-path-320-light.png、project-share-320-light-final.png、project-share-768-sepia.png、share-1440-light.png；早期 share-copy-390-dark-failed.png / share-copy-390-dark.png 在 ToolbarIconButton 修正前，不作为最终三个手机动作尺寸证明。
 
 继续：实际聊天产物文件树仍有嵌套 span 下载/复制、乐观复制反馈，需要沿真实 caller 逐项修；图片/下载/格式、大图/内嵌图片、资源导入发布、其余语言、真机触屏/软键盘、认证/写入/真实对话、扫码 E2E 等保持待完成。整体目标进行中，不由本批分享、路径和演示数据推断全部界面无明显可提升之处。
+
+### 当前执行：聊天成果与项目文件树
+
+- [x] RED：文件预览与辅助操作独立可达、复制等待真实结果并可重试、ZIP 等待/失败/重试、相对路径保持原内容。
+- [x] 复用 CopyButton、ToolbarIconButton、Button 与 Tooltip，手机操作44px、紧凑 gap-1，文件名保留两行空间；鼠标悬停/键盘聚焦显示辅助操作，触屏直接显示。
+- [x] 修复目录面板快照双入口互相抵消、特殊文件名继承对象属性崩溃、中文文件字符数误标为字节数；实际下载内容、四宽度三主题、完整门禁与只读复核。
+
+本批完成：RevealArtifactsSummary 和 FileTreeView 的文件行拆为独立预览按钮与下载/复制兄弟按钮，删除 span role=button 与乐观复制状态；沿用现有反馈与五语文案，ZIP 等待禁用且失败反馈可重试，严格下载不生成漏文件的包。保留正文密度、36px文件图标及文件名两行/Tooltip；不新增组件体系或依赖。目录两个展开入口使用同一目标状态，让 snapshot 批量恢复幂等。文件叶子保留原始路径，二进制与共享 FileTypeInfo 查表改 Object.hasOwn，修复 constructor/__proto__ 文件名问题；文本大小使用 UTF-8 字节数，与下载编码一致。
+
+TDD：先完成8项失败行为，随后受控证明两个目录恢复测试 RED；已有文件类型查表的 constructor 名称导致 undefined icon，新增3项纯函数 RED 后修共享根因，再验证文件树不误判为二进制。实屏发现中文文件25字符误报25 B，中文+emoji 用例明确4 B→10 B RED/GREEN。新文件12项行为、共享类型3项回归，均通过。首轮全量被禁止 native title 的源码守卫拦截，改用现有 Tooltip 后重新通过，未放宽守卫。
+
+实际预览新增 artifacts=1 只读成果与内联文件项目，写入仍405、不执行项目代码。390 dark 基线看到复制/下载 span 为32px且 opacity0，改后文件动作约44px直接可见；320 light 使用 Enter 复制失败后 Space 重试，真实剪贴板精确匹配完整中文 Markdown。390 dark 实际单文件下载731 bytes、内容含 Markdown、Mermaid 和代码。ZIP 的浏览器 download 事件等待超时，但 UI 已完成，随后核对实际生成的磁盘文件证明已下载；未由事件超时推断任务仍在执行。第一版 CSV fixture URL 错误导致ZIP包含HTML，修正 fixture URL和真实731/421 bytes元数据后重新下载，最终ZIP含两个正确文件；项目ZIP含67/51 bytes完整文本。仅已验证版本保存至截图目录的 artifact-files-verified.zip、project-files-verified.zip、artifact-report-verified.md，测试下载已清理。
+
+320 light、390 dark、768 sepia、1440 light 页面横向溢出均0；手机辅助操作44px，桌面32px，768/1440 Tab 到复制按钮 focus-visible=true 且动作显现。最后将隐藏条件限定为≥640px且 hover/fine pointer，Tailwind 实际编译确认条件有效；未模拟或宣称真实 coarse pointer/真机软键盘已验证。320截图在复制成功Toast可见时；最终390项目截图在UTF-8修复及正确ParsedProjectRevealData fixture后。目录状态恢复由组件测试证明，未把简单浏览器展开当跨面板恢复证据。
+
+八项自检：保留 serif 层级与清晰文件名/metadata；不统一压缩正文/卡片留白；预览与辅助操作职责和焦点清晰；沿用 light/dark/sepia token；无新增装饰动效、沿用 reduced-motion；复制等待/失败/重试、真实下载及键盘可达；四宽度无本批页面溢出、触屏条件和移动44px；保持 LambChat 视觉语言与现有文件类型图标。Impeccable 仍按已确认不可用环境的 DESIGN.md 清单人工检查。
+
+最终生产修改后门禁：pnpm test 748文件/3639项通过；pnpm run lint 零错误零警告；pnpm run build 含 tsc/Vite/PWA/预算通过，eager JS 558782/559104 bytes、precache 5016819/5242880 bytes、91 entries，未提高预算，保留既有 chunk-size 提示。最后 fixture 数据格式修正不改变生产代码。独立只读复核先发现并关闭快照 P2，最后UTF-8与触屏媒体条件检查无新增P1/P2；复核者未重复原生或全量门禁。git diff --check通过。
+
+截图：artifact-tree-390-dark-final.png、project-files-390-dark-final.png、project-files-320-light-final.png、artifact-tree-768-sepia-final.png、artifact-tree-1440-light-final.png；artifact-tree-390-dark-before.png和artifact-copy-390-dark-failed.png记录原布局与复制失败。320/768截图在最后触屏媒体条件微调前，fine pointer视觉行为不变；最终390已核对最新生产代码。继续图片/下载其他格式、大图/内嵌图片、资源导入发布、其余语言与真机/认证/写入/真实对话/扫码E2E，整体目标保持进行中。

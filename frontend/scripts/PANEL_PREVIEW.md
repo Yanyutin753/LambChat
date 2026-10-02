@@ -68,3 +68,5 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 复制反馈走查：`/chat/preview-report?tools=1&failure=clipboard` 添加只读演示工具的参数/结果，并让本页面首次剪贴板写入失败；点击同一复制入口重试恢复真实剪贴板写入。仅在预览HTML启用，生产不覆盖浏览器API。页面重新加载可重放；复制不会请求真实模型或写API。
 
 分享复制走查：会话与项目分享管理列表各提供一个只读演示链接 `preview-report`，可组合 `failure=clipboard` 检查首次失败与重试。不会创建新分享，创建、更新与删除请求仍返回405；创建成功但复制失败的路径由组件测试覆盖。
+
+成果文件树走查：`/chat/preview-report?artifacts=1` 添加两个文件与一个内联文本项目的只读成果，可打开“全部文件”、项目文件树，检查长中文文件名、复制、单文件下载和 ZIP。可组合 `theme=dark` / `sepia` 与 `failure=clipboard`；不连接真实 API 或执行项目代码。

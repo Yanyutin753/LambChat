@@ -1650,6 +1650,68 @@ const server = await createServer({
               },
             );
           }
+          if (
+            url.pathname === "/api/sessions/preview-report/events" &&
+            previewParams.has("artifacts")
+          ) {
+            const history = data as { events: object[] };
+            const files = [
+              ["交付计划与下一阶段验证清单.md", "/preview-document.md", 731],
+              ["季度交付数据.csv", "/preview-document.csv", 421],
+            ];
+            const artifacts = files.map(([name, signedUrl, fileSize]) => ({
+              kind: "file",
+              id: `preview-artifact:${name}`,
+              name,
+              path: `/交付资料/${name}`,
+              fileSize,
+              preview: {
+                kind: "file",
+                previewKey: name,
+                filePath: name,
+                signedUrl,
+              },
+            }));
+            history.events.splice(
+              2,
+              0,
+              ...[
+                ...artifacts,
+                {
+                  kind: "project",
+                  id: "preview-artifact:project",
+                  name: "研究资料与交付计划",
+                  mode: "folder",
+                  fileCount: 2,
+                  template: "static",
+                  preview: {
+                    kind: "project",
+                    previewKey: "preview-artifact:project",
+                    project: {
+                      version: 1,
+                      name: "研究资料与交付计划",
+                      mode: "folder",
+                      path: "/研究资料与交付计划",
+                      template: "static",
+                      fileCount: 2,
+                      files: {
+                        "/交付资料/交付计划与下一阶段验证清单.md":
+                          "# 交付计划\n\n确认需求、验证原型、记录验收结果。",
+                        "/交付资料/下一阶段数据.csv":
+                          "阶段,完成率\n需求确认,100%\n原型验证,85%",
+                      },
+                    },
+                  },
+                },
+              ].map((artifact, index) => ({
+                id: `preview-artifact-${index}`,
+                event_type: "artifact:result",
+                run_id: "preview-run",
+                timestamp: now,
+                data: { artifact, success: true },
+              })),
+            );
+          }
           const isRead = req.method === "GET";
           const channelConfigFailure =
             isRead &&
