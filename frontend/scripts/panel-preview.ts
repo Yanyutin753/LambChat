@@ -1614,6 +1614,45 @@ const server = await createServer({
           const failureTarget = previewParams.get("failure");
           const streamKey = req.headers.referer ?? "";
           if (
+            previewParams.get("profile-flow") === "1" &&
+            ((req.method === "POST" &&
+              url.pathname === "/api/auth/update-username") ||
+              (["POST", "DELETE"].includes(req.method ?? "") &&
+                url.pathname === "/api/upload/avatar"))
+          ) {
+            // UI-only simulation: discard bytes; never parse, save or forward profile changes.
+            req.resume();
+            const key = `profile-flow:${streamKey}:${req.method}:${url.pathname}`;
+            const failed =
+              failureTarget === "profile-save" &&
+              !failedChannelRequests.has(key);
+            if (failed) failedChannelRequests.add(key);
+            setTimeout(() => {
+              res.statusCode = failed ? 503 : 200;
+              res.setHeader("Content-Type", "application/json");
+              res.end(
+                JSON.stringify(
+                  failed
+                    ? {
+                        detail: {
+                          code: "update_failed",
+                          message: "Update failed",
+                        },
+                      }
+                    : url.pathname.startsWith("/api/auth")
+                      ? user
+                      : req.method === "DELETE"
+                        ? { deleted: true }
+                        : {
+                            url: "/icons/icon-192.png",
+                            filename: "avatar.png",
+                          },
+                ),
+              );
+            }, 2000);
+            return;
+          }
+          if (
             previewParams.get("preferences-flow") === "1" &&
             req.method === "PUT" &&
             [
@@ -1854,6 +1893,17 @@ const server = await createServer({
                   url.pathname === "/api/agents"
                 ? { agents, count: agents.length, default_agent: "team" }
                 : response(url, scenario, chatState);
+          if (["/api/auth/me", "/api/auth/profile"].includes(url.pathname)) {
+            data = {
+              ...user,
+              ...(previewParams.has("profile-avatar") ? {avatar_url: "/icons/icon-192.png"} : {}),
+              ...(previewParams.has("profile-long") ? {
+                username: "跨部门产品研究与长期项目交付负责人",
+                email: "cross.department.research.and.delivery@example.test",
+                roles: ["project-administrator-with-long-role-name", "research", "engineering"],
+              } : {}),
+            };
+          }
           if (url.pathname === "/api/agents") {
             if (previewParams.get("agents") === "empty")
               data = { agents: [], count: 0 };

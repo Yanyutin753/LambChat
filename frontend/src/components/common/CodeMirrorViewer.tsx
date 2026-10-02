@@ -113,7 +113,7 @@ export interface CodeMirrorViewerProps {
   /** Optional file/language label at the start of the toolbar. */
   toolbarLabel?: ReactNode;
   copyLabel?: string;
-  /** Keep only keyword and previous/next controls in the search panel. */
+  /** Compact floating native find by default; false exposes all search options. */
   simpleSearch?: boolean;
   /** Hide the local toolbar when its parent provides the search action. */
   showToolbar?: boolean;
@@ -187,7 +187,7 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
   copyable,
   toolbarLabel,
   copyLabel,
-  simpleSearch,
+  simpleSearch = true,
   showToolbar = true,
 }: CodeMirrorViewerProps) {
   const { t } = useTranslation();
@@ -196,7 +196,7 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
   const viewRef = useRef<EditorView | null>(null);
   const wrapperClassName = [
     "h-full",
-    simpleSearch && "code-editor--simple-search",
+    simpleSearch && "code-editor--simple-search code-editor--overlay-search",
     className,
   ]
     .filter(Boolean)

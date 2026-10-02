@@ -875,3 +875,28 @@ IAB独立3018：390×844深色首次503时入口具名“选择模式·加载失
 八项自检：沿用正文与衬线标题尺度；保留字段节奏且无重复分隔；读取/等待/失败/本机同步状态分层；五语文案及深浅色主题token；未新增动效、既有spinner尊重reduced-motion；禁用/重试/账号隔离/焦点经行为验证；320/390/834/1440及俄语长文案实测；复用LambChat标准组件，无新依赖或设计体系。按DESIGN.md交付清单人工检查。最终780文件/3826项测试、lint、build含tsc/Vite/PWA通过；eager JavaScript559727/561152 bytes，precache5026085/5242880 bytes、91 entries，未提高预算。
 
 全界面目标保持进行中。下一阶段继续个人信息用户名/头像、服务地址/本地沙箱设置及标题栏语言保存恢复，剩余选择器和弹层状态矩阵、真实服务及设备验证，不能据本批门禁宣告整体完成。
+
+本轮额外确认最新文件预览请求：390×844浅色代码搜索并入标题工具栏，CodeMirror原生浮层280×46px，choice命中两处，页面无横向溢出；Escape关闭并回到代码预览。截图file-preview-native-find-390-light-final保存在同一仓库外证据目录。临时3018服务、走查标签页已回收，视口恢复，用户3017与主checkout目录保留。
+
+## 2026-10-02 个人信息编辑与头像恢复
+
+上一目标回合属于progress：已提交偏好保存与原生文件查找证据。本轮继续隔离worktree，fetch/rebase到最新origin/develop 58f9d9b2，偏好提交重放为d026effb，主checkout不动。个人用户名改原生具名form：Enter提交，等待冻结输入和取消、同步ref拒绝重复提交；失败保留草稿和具名alert，重试使用当前草稿；Escape局部取消且IME不退出，成功/取消回编辑按钮。账号key重置草稿、卸载后的旧保存不再刷新或toast。
+
+头像改原生Button打开文件选择，手机/粗指针44px，输入清空可重选同文件；复用usePreferenceWrites与CatalogStatus呈现持续上传/删除错误、重试及稳定焦点。删92行独立压缩实现及重复profile GET，复用compressImageFile，512px/100KB；压缩文件缓存用于准确重试，关闭/账号切换中止worker并阻止准备后继续上传。只读复核发现默认original回退会让无Worker浏览器的大JPEG永远撞2MB门限，补已有main-thread回退。两条真实压缩集成验证Worker缺失/unsupported、3MB JPEG降至512×256/90KB并通过模拟2MB上传门限，先RED后GREEN。新11项行为加既有压缩/模态共17项通过，再复核无确定P1/P2。用户名/邮箱与管理员邮箱自然换行，复用五语现有文案，无新token、依赖或素材。
+
+显式profile-flow fixture只模拟用户名POST/头像POST、DELETE并丢弃字节；GET长资料和现有公开头像不是真实持久化。IAB最终320浅色长用户名/邮箱/角色全可读、avatar动作44px、content/page横向overflow0；Enter提交用户名后input/cancel禁用、aria-busy=true、焦点FORM。上传现有公开测试图标后焦点头像DIV、上传/删除按钮禁用；两项失败同时保留，各自重试44px。1440浅色错误分层、头像Retry32px/用户名38px；834浅色overflow0，两项重试后错误消失、编辑结束且焦点回编辑。局部Escape保留设置窗口并回编辑；390深色删除失败/重试维持头像DIV焦点，无横向溢出。截图保存仓库外interface-quality：profile-info-320-light-long-final、profile-info-320-light-errors-final、profile-info-1440-light-errors-final、profile-info-834-light-recovered-final、profile-info-390-dark-delete-error-final。浏览器预览不证明真实头像/用户名写入、权限或真机软键盘。
+
+八项人工自检：复用标题/字段尺度；保留资料分组留白且不新增卡片；头像、身份、错误、操作层级清楚；沿用深浅色token；无新动效、现有spinner遵循reduced-motion；表单/IME/重试/焦点/旧请求经行为验证；320/390/834/1440与长资料无本批溢出；保持LambChat组件语言和五语文案。沿DESIGN.md清单人工检查。最终781文件/3837项测试、lint、build含tsc/Vite/PWA通过，eager JavaScript559725/561152 bytes、precache5027071/5242880 bytes、91 entries，未提高预算。
+
+全界面目标保持进行中。下一阶段重点：AuthProvider已开始的refreshUser在账号切换后的响应归属（本批只保护尚未启动的刷新）；服务地址/本地沙箱设置、标题栏语言保存及其它未完成状态矩阵，随后验证真实服务和设备。不得将本批预览、门禁或局部修复视为全站完成。
+
+最终390深色删除重试成功后alert=0、焦点仍头像DIV、overflow0；已回收本轮3018服务和临时标签页、恢复视口。用户3017服务及主checkout的.v2c/.video_agent未跟踪目录保留。
+
+
+## 2026-10-02 文件预览原生查找统一
+
+根据最新请求，先处理文件预览搜索。正式DocumentPreview已复用页头按钮和原生浮层，但普通CodeMirrorViewer及市场只读SkillEditor仍会在打开查找时占一行。共享只读Viewer默认启用既有simple/overlay样式；只读SkillEditor浮动按钮及查找框，编辑态保留完整原生查找/替换。复用@codemirror/search，无自制搜索、依赖、文案或token。两项回归先RED（缺少紧凑浮层class）后GREEN，补真实原生匹配高亮/下一个行为；独立复核无确定P1/P2。
+
+IAB实际市场SKILL.md文件：桌面展开前后cm-content top均107.59375px；320深色查找框280px、按钮44px，Escape只关闭查找并回SKILL.md，Cmd/Ctrl+F重新打开；390浅色框280px、匹配1处、页面横向overflow0。文件库Python预览同样无额外工具行，原生匹配2处。截图存仓库外interface-quality/native-file-find-mobile-dark.png、native-file-find-mobile-light.png、native-file-find-desktop-dark.png。该证据是响应式浏览器预览，不代表真机软键盘。
+
+沿DESIGN.md人工检查排版、留白、层级、主题、动效、焦点、响应式与现有组件一致性；无新增动效，已有reduced-motion规则保留。全量781文件/3837测试、lint、build（含tsc、Vite、PWA）通过；eager JS559727/561152、precache5027071/5242880、91项，未提高预算。仅提交本次文件预览改动。未完成的auth刷新测试暂存仓库外/tmp/lambchat-authRefreshOwnership-paused-20261002.test.tsx，后续继续原有全站目标；本批不能视为全站完成。
