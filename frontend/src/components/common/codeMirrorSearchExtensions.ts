@@ -1,7 +1,18 @@
 import type { TFunction } from "i18next";
 import { EditorState } from "@codemirror/state";
-import { search } from "@codemirror/search";
+import { openSearchPanel, search } from "@codemirror/search";
+import { EditorView } from "@codemirror/view";
 import type { KeyboardEvent } from "react";
+
+export function openCodeMirrorSearch(editor: HTMLElement | null) {
+  if (!editor?.isConnected) return;
+  const view = EditorView.findFromDOM(editor);
+  if (!view) return;
+  openSearchPanel(view);
+  view.dom
+    .querySelector<HTMLInputElement>('.cm-search [name="search"]')
+    ?.focus();
+}
 
 export function guardCodeMirrorSearchComposition(event: KeyboardEvent) {
   if (

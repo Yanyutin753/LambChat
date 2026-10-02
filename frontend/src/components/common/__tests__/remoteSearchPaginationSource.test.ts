@@ -78,7 +78,7 @@ test("remote paginated panel searches reset pagination in their change handlers"
       handler: "handleSkillSearchChange",
       reset: "setSkillPage(1);",
       value: "setSkillSearch(query);",
-      prop: /onValueChange=\{handleSkillSearchChange\}/,
+      prop: /onSearchChange=\{handleSkillSearchChange\}/,
       staleEffect:
         /onChange=\{\(e\) => handleSkillSearchChange\(e\.target\.value\)\}/,
     },

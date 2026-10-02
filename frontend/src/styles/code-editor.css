@@ -26,6 +26,27 @@
   color: var(--theme-text-secondary);
 }
 
+.code-editor .code-editor-toolbar .ui-icon-button:hover {
+  color: var(--theme-text);
+  background: transparent;
+}
+
+.code-editor-toolbar .ui-icon-button > svg {
+  box-sizing: content-box;
+  padding: 5px;
+  border-radius: var(--radius-sm);
+}
+
+.code-editor-toolbar .ui-icon-button:hover > svg {
+  background: color-mix(in srgb, var(--theme-text) 6%, transparent);
+}
+
+@media (hover: none) {
+  .code-editor-toolbar .ui-icon-button:hover > svg {
+    background: transparent;
+  }
+}
+
 .code-editor .cm-panels {
   color: var(--theme-text);
   background: var(--theme-bg-card) !important;
@@ -244,9 +265,43 @@
   }
 }
 
+.code-editor--simple-search .cm-panels {
+  background: transparent !important;
+  border: 0 !important;
+}
+
 .code-editor--simple-search .cm-panel.cm-search {
   flex-wrap: nowrap;
-  padding: 4px;
+  width: min(17.5rem, calc(100% - 1rem));
+  margin: 6px 8px 6px auto;
+  padding: 0 2px;
+  gap: 2px;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-sm);
+  background: var(--theme-bg-card);
+}
+
+.code-editor--simple-search .cm-panel.cm-search:focus-within {
+  border-color: var(--theme-ring);
+}
+
+[data-panel-presentation="fullscreen"]
+  .code-editor--simple-search
+  .cm-panel.cm-search {
+  margin-top: 12px;
+}
+
+.code-editor--simple-search .cm-panel.cm-search :is(button, .cm-textfield) {
+  border: 0;
+  background: transparent;
+}
+
+.code-editor--simple-search .cm-panel.cm-search button:hover {
+  color: var(--theme-text);
+}
+
+.code-editor--simple-search .cm-panel.cm-search .cm-textfield:focus-visible {
+  outline: none;
 }
 
 .code-editor--simple-search .cm-panel.cm-search [name="search"] {

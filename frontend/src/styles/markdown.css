@@ -107,18 +107,18 @@
 }
 
 .ai-code-block__copy,
-.ai-code-block .code-editor-toolbar .copy-button {
+.ai-code-block .code-editor-toolbar .ui-icon-button {
   color: var(--theme-text-tertiary);
 }
 
 .ai-code-block__copy:hover,
-.ai-code-block .code-editor-toolbar .copy-button:hover {
+.ai-code-block .code-editor-toolbar .ui-icon-button:hover {
   color: var(--theme-text);
-  background: color-mix(in srgb, var(--theme-text) 6%, transparent);
+  background: transparent;
 }
 
 .ai-code-block__copy:focus-visible,
-.ai-code-block .code-editor-toolbar .copy-button:focus-visible {
+.ai-code-block .code-editor-toolbar .ui-icon-button:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--theme-primary) 55%, transparent);
   outline-offset: 1px;
 }
