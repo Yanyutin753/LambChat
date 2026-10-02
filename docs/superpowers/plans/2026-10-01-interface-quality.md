@@ -1126,3 +1126,17 @@ LocalSandboxSection复用usePreferenceWrites统一配对、策略、重启和取
 八项自检：排版、留白、层级及色彩保持现有组件/token；无新增动效，继续现有reduced-motion处理；微交互改善关闭与返回且不抢焦点；320/390/834/1440真实响应式检查；沿用LambChat视觉语言而不增加装饰、依赖或另一套控件。无新增文案，五语沿用现有名称。npx --offline impeccable update仍报告未安装skill folders，按DESIGN清单人工检查。最终789文件3960项全量测试、lint零错误警告、tsc/Vite/PWA/build与体积预算通过：eager560322/561152 bytes、precache93项5032890/5242880 bytes，保留既有异步块500kB提示，未提高预算。日志/tmp/responsive-focus-*-final.log，git diff --check通过。
 
 全站目标保持进行中。继续剩余编辑流程的完整窄屏布局、键盘与空错加载反馈及五语矩阵；本轮共享焦点修复不等于全部页面完成验收。真实服务、原生桌面/手机与软键盘证据仍未闭合。
+
+### 2026-10-02：全屏技能编辑器原生查找与新增文件命名
+
+继续同一全站目标，interface-state 开工 clean，fetch 确认 origin/develop 是 HEAD 祖先。实际320px发现全屏 SkillEditor 搜索按钮仍独占52px一行；新增文件后又缺少路径输入，未命名内容会被现有 payload helper 跳过。复用 DocumentPreview 的 useCodeMirrorReady/openCodeMirrorSearch，将全屏搜索放进既有文件操作栏并隐藏内部重复工具栏，查找使用已有浮层样式，保留编辑器原生替换和快捷键。其他 SkillEditor 调用保留默认工具栏行为，不新增依赖。
+
+新增文件时在同一标题行展示共享 Input 并聚焦，Enter 返回具名代码编辑器，保留输入法守卫、重复路径错误与草稿。普通模式 Add File 也聚焦现有路径输入。保存前校验空白路径并选择对应文件，防止静默丢弃；新增 filePathRequired 同步五种 locale。复用 ConfigPanelErrorCallout 和已存在的错误焦点处理。全屏表单位于 EditorSidebar 外，实屏确认路径输入只有36px；独立复核也指出这一P2，补现有 skill-form 手机/coarse 规则后实测44px、16px，桌面 fine 不变。复核无剩余确定P1/P2。
+
+5项新增用户行为先RED（5 failed / 7 passed）后GREEN：实际 CodeMirror 查找共享顶栏、原生替换/关闭焦点；全屏新增路径/Enter不保存；重复路径；普通新增路径聚焦；未命名保存阻止且草稿保留。5个相关测试文件29项通过。全量检查发现旧源码测试只允许单个导入名，改为同一组合导入中识别 ToolbarIconButton，保留组件复用断言。
+
+3018旧预览仍显示缓存组件，保留原进程和用户3017，启动仅本轮3019验证最新源码。IAB深色俄语320/390/834/1440全屏没有独立搜索行且无横向溢出；320px搜索44px，代码从y72开始，查找浮层打开后仍y72。原生编辑查找280px，保留替换，320×300时高度180px、内部可滚动。新增路径实测44px、聚焦，Enter到 scripts/report.py；重复SKILL.md保持错误；未命名保存被阻止，print("draft stays")保留且普通路径获得错误焦点。390浅色无溢出。再次核对文件预览：搜索在标题操作栏、内部工具栏0个，320/390查找浮层280×46px，代码y141不变，choice回车命中2处，Escape返回代码。未提交有效保存或真实文件写请求。截图在仓库外 skill-editor-native-find 目录。
+
+八项自检：标题和代码沿用现有排版；删除重复搜索行而保持既有留白；文件、搜索、状态分层；浅/深色沿用token；无新增动效且遵循已有reduced motion；命名、校验、Enter、Escape及焦点实测；手机/平板/桌面和短屏可用；复用LambChat组件而不增加装饰。npx --offline impeccable update仍报告未安装skill folders，按DESIGN清单人工检查。最终790文件3965项、lint零错误警告、tsc/Vite/PWA/build及预算通过：eager560406/561152 bytes，precache93项5033357/5242880 bytes；未放宽预算。日志/tmp/skill-editor-*-final.log，git diff --check通过。
+
+全站目标保持进行中。继续剩余编辑流程与五语完整状态矩阵，真实服务写入、原生桌面/手机及软键盘仍需独立证据；本批不宣称全站验收完成。

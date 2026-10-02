@@ -1,16 +1,38 @@
 import { useTranslation } from "react-i18next";
-import { Shrink, Plus, ChevronDown, Upload } from "lucide-react";
+import { Shrink, Plus, ChevronDown, Upload, Search } from "lucide-react";
+import { useId, useRef, useState } from "react";
+import { useCodeMirrorReady } from "../../hooks/useCodeMirrorReady";
 import { FileTreeItem } from "./FileTreeItem";
 import { FileTabs } from "./FileTabs";
 import { SkillEditor } from "./SkillEditor";
 import { BinaryFilePreview } from "./BinaryFilePreview";
 import { SkillFileLoadState } from "./SkillFileLoadState";
 import { buildFileTree } from "./SkillForm.utils";
-import { ToolbarIconButton } from "../common";
+import { Input, ToolbarIconButton } from "../common";
+import { ConfigPanelErrorCallout } from "../panels/ConfigPanelErrorCallout";
 import type { SkillFormActions } from "./SkillForm.types";
 
 export function SkillFormFullscreen(a: SkillFormActions) {
   const { t } = useTranslation();
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [naming, setNaming] = useState(false);
+  const errorId = useId();
+  const currentPath = a.files[a.activeFileIndex]?.path || "";
+  const searchReady = useCodeMirrorReady(
+    editorRef,
+    !a.loadingFilePath && !a.fileLoadError && !a.binaryFiles[currentPath],
+  );
+  const addFile = () => {
+    setNaming(true);
+    a.addFile();
+  };
+  const handleSearch = () => {
+    const editor = editorRef.current?.querySelector<HTMLElement>(".cm-editor");
+    if (!editor) return;
+    void import("../common/codeMirrorSearchExtensions").then(
+      ({ openCodeMirrorSearch }) => openCodeMirrorSearch(editor),
+    );
+  };
 
   return (
     <>
@@ -41,7 +63,7 @@ export function SkillFormFullscreen(a: SkillFormActions) {
             <div className="shrink-0 px-2 py-1.5 space-y-1">
               <button
                 type="button"
-                onClick={a.addFile}
+                onClick={addFile}
                 className="w-full flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-14 text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-white/5 transition-colors"
               >
                 <Plus size={13} />
@@ -61,26 +83,62 @@ export function SkillFormFullscreen(a: SkillFormActions) {
           </div>
 
           {/* Right: editor only */}
-          <div className="flex flex-1 flex-col min-w-0 min-h-0">
+          <div ref={editorRef} className="flex flex-1 flex-col min-w-0 min-h-0">
             {/* Mobile header: tabs + actions */}
             <div className="shrink-0 flex items-center gap-1 px-3 py-2">
-              <p
-                className="hidden min-w-0 flex-1 truncate font-mono text-12 text-[var(--theme-text-secondary)] sm:block"
-                title={a.files[a.activeFileIndex]?.path}
-              >
-                {a.files[a.activeFileIndex]?.path || t("skills.form.untitled")}
-              </p>
-              <div className="flex-1 min-w-0 sm:hidden">
-                <FileTabs
-                  files={a.files}
-                  activeFileIndex={a.activeFileIndex}
-                  onSelect={a.setActiveFileIndex}
-                  onRemove={a.removeFile}
-                  untitledLabel={t("skills.form.untitled")}
+              {naming || !currentPath.trim() ? (
+                <Input
+                  type="text"
+                  data-skill-file-path
+                  aria-label={t("skills.form.filePath")}
+                  aria-describedby={a.errors.files ? errorId : undefined}
+                  placeholder={t("skills.form.fileNamePlaceholder")}
+                  value={currentPath}
+                  disabled={!a.isCurrentFileLoaded}
+                  error={!!a.errors.files}
+                  className="min-w-0 flex-1 font-mono"
+                  onChange={(event) =>
+                    a.updateFilePath(a.activeFileIndex, event.target.value)
+                  }
+                  onBlur={() => setNaming(false)}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key !== "Enter" ||
+                      event.nativeEvent.isComposing ||
+                      event.keyCode === 229
+                    )
+                      return;
+                    event.preventDefault();
+                    if (currentPath.trim() && !a.errors.files) {
+                      setNaming(false);
+                      editorRef.current
+                        ?.querySelector<HTMLElement>(".cm-content")
+                        ?.focus();
+                    }
+                  }}
                 />
-              </div>
+              ) : (
+                <>
+                  <p
+                    className="hidden min-w-0 flex-1 truncate font-mono text-12 text-[var(--theme-text-secondary)] sm:block"
+                    title={a.files[a.activeFileIndex]?.path}
+                  >
+                    {a.files[a.activeFileIndex]?.path ||
+                      t("skills.form.untitled")}
+                  </p>
+                  <div className="flex-1 min-w-0 sm:hidden">
+                    <FileTabs
+                      files={a.files}
+                      activeFileIndex={a.activeFileIndex}
+                      onSelect={a.setActiveFileIndex}
+                      onRemove={a.removeFile}
+                      untitledLabel={t("skills.form.untitled")}
+                    />
+                  </div>
+                </>
+              )}
               <ToolbarIconButton
-                onClick={a.addFile}
+                onClick={addFile}
                 icon={<Plus size={15} />}
                 aria-label={t("skills.form.addFile")}
                 title={t("skills.form.addFile")}
@@ -96,12 +154,24 @@ export function SkillFormFullscreen(a: SkillFormActions) {
                 />
               )}
               <ToolbarIconButton
+                onClick={handleSearch}
+                disabled={!searchReady}
+                icon={<Search size={15} />}
+                aria-label={t("common.search")}
+                title={t("common.search")}
+              />
+              <ToolbarIconButton
                 onClick={() => a.toggleFullscreen(false)}
                 icon={<Shrink size={18} />}
                 aria-label={t("skills.form.exitFullscreen")}
                 title={t("skills.form.exitFullscreen")}
               />
             </div>
+            {a.errors.files && (
+              <div id={errorId} className="mx-3">
+                <ConfigPanelErrorCallout message={a.errors.files} />
+              </div>
+            )}
 
             {/* Editor / Binary Preview */}
             <div className="flex-1 min-h-0 p-3 sm:p-4">
@@ -142,7 +212,8 @@ export function SkillFormFullscreen(a: SkillFormActions) {
                       onChange={(val) =>
                         a.updateFileContent(a.activeFileIndex, val)
                       }
-                      className="flex-1 min-h-0"
+                      className="flex-1 min-h-0 code-editor--overlay-search"
+                      showToolbar={false}
                       filePath={a.files[a.activeFileIndex]?.path}
                       readOnly={a.isLoading}
                     />

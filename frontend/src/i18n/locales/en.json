@@ -3355,6 +3355,7 @@
         "contentRequired": "Content is required",
         "descriptionRequired": "Description is required",
         "duplicateFilePaths": "Duplicate file paths are not allowed",
+        "filePathRequired": "Enter a file path for each file",
         "nameInvalid": "Name can only contain letters, numbers, underscores, hyphens, dots, and CJK characters",
         "nameRequired": "Name is required",
         "nameTooLong": "Name cannot exceed 100 characters",

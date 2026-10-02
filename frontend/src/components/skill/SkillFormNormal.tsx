@@ -175,6 +175,7 @@ export function SkillFormNormal(a: SkillFormActions) {
                 >
                   <Input
                     type="text"
+                    data-skill-file-path
                     value={a.files[a.activeFileIndex]?.path || ""}
                     disabled={!a.isCurrentFileLoaded}
                     error={!!a.errors.files}
