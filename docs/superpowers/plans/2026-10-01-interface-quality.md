@@ -1154,3 +1154,22 @@ LocalSandboxSection复用usePreferenceWrites统一配对、策略、重启和取
 按DESIGN八项自检：复用排版/间距与单层共享弹层，主次操作清楚、长文案完整；浅深色token可读，无装饰性动效，沿用减少动效控件；原文件重试、提交恢复、删除/关闭焦点有测试和实屏；手机布局与原生查找不挤正文；沿用LambChat视觉语言。npx --offline impeccable update报告未安装skill folders，按项目人工清单检查。最终791文件3977项、lint零错误警告、tsc/Vite/PWA/build及预算通过：eager560447/561152 bytes，precache93项5032401/5242880 bytes，无预算提高。日志/tmp/feedback-*-final-delivery.log；git diff --check通过。首轮全量4项源码断言失败由共享Dialog迁移引起，修复上述owner追踪后完整通过。
 
 全站目标保持进行中。未将fixture成功称为真实反馈/存储，未宣称真机输入或全站完成。下一轮优先恢复独立浏览器验证的平板/桌面与短屏证据，并继续尚未完整覆盖的更新/联系管理员及其余五语完整状态。
+
+
+### 2026-10-02：更新与联系管理员弹窗
+
+上一目标回合属于 progress：当前用户3017文件预览在320/390px的真实查找、高亮、Escape焦点与21项相关检查提供了新证据。本轮继续同一全站目标，在interface-state保留仅本轮preview未提交文件；fetch确认origin/develop仍为HEAD祖先，没有重启或编辑用户3017、既有3018及主checkout。
+
+实际基线：更新弹窗长版本号被裁切，深色主按钮白字落在浅主色上，日志与弹窗存在双重滚动；联系管理员在settings读取中显示空联系方式，320px俄语的底部关闭42.39px且被挤到屏底之外，长邮箱截断。复用既有Dialog/Button/ConfigPanelErrorCallout，删除联系弹层渐变、嵌套联系卡片和重复底部关闭；保留原羊场景、衬线标题及两个联系原因，缩小场景并让邮件完整折行。加载显示status，读取失败显示持续alert和真实useSettings的强制Retry；Retry先归还稳定modal焦点，等待期间没有空信息误报。共享Dialog标题允许折行，coarse关闭补44px。
+
+更新保留Skip、SkipVersion及各平台回调/安装来源文案，主操作使用共享primary前景色；手机/coarse至少44px，长文案自然折行。错误移正文首部且在焦点仍属于本弹层时聚焦可恢复提示，不抢外部portal焦点。下载进度放在固定页脚，长日志和短屏仍可见，具有具名progressbar及0–100有限值，遵循reduced motion。日志改成一个共享正文滚动区，长inline code折行；实屏发现长表格单词把相邻列压到单字宽，table-fixed均分后两列各203px且长内容完整折行。进度轨道使用theme-border，与页脚底色可区分。
+
+初始相关检查先RED：6 failed/13 passed，修复后通过；等待→失败的错误焦点补断言另先RED：1 failed/10 passed，再GREEN。真实Hook的API边界测试覆盖等待、读取失败与重试恢复、完整邮件/外链、空信息和Escape；没有mock掉Hook。9文件47项相关通过，最终792文件3983项全量通过；lint零错误警告，tsc/Vite/PWA/build及预算通过：eager560451/561152 bytes，precache92项5028842/5242880 bytes，未提高预算。日志/tmp/system-dialogs-{test,lint,build}-final.log，git diff --check通过。独立只读复核三次没有剩余确定P1/P2。
+
+UI-only /dialog-preview显式模拟更新等待2秒、首次失败、重试待安装和关闭；联系settings GET等待2秒、首次503后Retry恢复，只有公开example.test占位联系方式。未调用原生更新、下载、安装、重启、邮件客户端、支持发送或真实写入。预览入口热更新曾留下多个portal，补原生hot.dispose卸载root后实际HMR验证role=dialog数量1；production路由不引入该入口。PANEL_PREVIEW说明参数与边界。
+
+实际验证320×568、390×844、320×300、834×1112、1440×1000，浅/深/sepia及中英日韩俄组合；上述弹层长版本/日志/邮件、等待/错误/空/待安装无横向裁切。320×300俄语下载进度y228–236、主按钮y244–288，底部保留12px；联系正文单层滚动，Tab到支持链接自动滚动141px并可见，未激活链接。错误恢复后显示完整联系方式，Escape关闭并归还Open dialog。桌面英语iOS提示保留Go to Download，手机操作至少44px；834为fine鼠标模拟，coarse规则只有CSS/测试证据，不能称真机触控已验。旧92标签视口观察超时后保留现有服务，使用新标签恢复检查，未把超时算通过。
+
+截图在仓库外system-dialogs目录：320-dark-update-error、320-short-downloading、320-short-contact-focused、390-light-update、320-light-update-error-ko、320-light-contact-ko、834-sepia-update-ready-ja、834-sepia-contact-ja、1440-dark-update-ios-en、1440-dark-contact-empty-en等。834-sepia-update-ready-ja已替换为最终均分表格版本。按八项自检：正文/标题与日志层级清楚、删除重复容器且保留共享留白；复用三主题token并修正主操作对比；无新增装饰动效、减少动效覆盖进度；加载/恢复/焦点实测；窄屏、短屏、平板、桌面可用；沿用LambChat羊场景/衬线/组件规范。Impeccable offline update仍报告未安装skill folders，按DESIGN清单人工复核。
+
+全站目标保持进行中。完整跨页状态/五语矩阵、真实认证/保存/聊天与原生桌面/手机仍未闭合。游客真实useSettings没有token不读取受保护配置，联系管理员公开获取路径未由此fixture证明；下一批核对认证支持/公开配置与尚未完整验收的确认、关于及其他弹层流程，不以本批两个弹窗及绿门禁代替全站验收。

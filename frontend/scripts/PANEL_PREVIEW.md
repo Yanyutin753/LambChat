@@ -134,3 +134,8 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 会话分享阅读走查：`/shared/preview-report?share-long=1` 提供无空格的长标题、作者/助手/模型名和长中文角色名；叠加 `share-avatar=1` 检查作者头像、角色与模型图标的固定尺寸。`fixture=empty` 在会话分享中返回无事件内容；可组合三主题，使用已有语言菜单检查俄语长文案。仅 GET fixture，不验证真实分享权限、模型执行或真机键盘。
 
 子目录恢复走查：`/chat/preview-report?failure=workspace-child&workspace-flow=1` 保持根目录正常，首次读取子目录 GET 等待2秒后503，重试返回研究资料内的访谈记录目录和访谈笔记；进一步展开访谈记录可读会议记录.txt。新的 `run` 参数重放失败，可组合三主题。目录失败就地提示，Retry 保留展开状态、稳定焦点及缓存；全局刷新也重新读取失败目录。`failure=workspace-read` 可检查深层文件路径、读取失败、直接Retry及移动端返回原文件。仅只读fixture，不证明真实沙箱权限、原生文件管理器或设备行为。
+
+
+系统弹窗走查：`/dialog-preview?theme=dark&lang=ru` 直接渲染实际 UpdateDialog；支持 `state=downloading|error|ready`、`long=1` 长版本号/日志/表格、`platform=ios|tauri`（默认 android）和 `source=unknown`。升级按钮只模拟等待2秒、首次失败、重试后待安装、确认后关闭，不调用原生 updater、下载、安装、重启或真实写 API。
+
+联系管理员走查：同一路由加 `view=contact` 渲染实际 ContactAdminDialog；默认邮箱验证原因，`reason=permission` 切换权限说明，`contact=empty` 为空联系方式，`long=1` 是公开占位长邮箱。设置 GET 等待2秒，`failure=contact-settings` 首次503、Retry恢复；新的 `run` 查询可重放。保留实际 mailto/外链语义，走查仅检查链接、不激活邮件客户端或发送消息。`guest=1` 使用真实 Hook 的无 token 路径，不读取受保护 settings；此入口不证明公开配置获取、真实支持发送或原生设备行为。

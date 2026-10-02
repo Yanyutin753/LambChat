@@ -65,5 +65,9 @@ test("dialog close has a 44px mobile target and keeps the desktop size compact",
       Content
     </Dialog>,
   );
-  expect(screen.getByRole("button")).toHaveClass("size-11", "sm:size-7");
+  expect(screen.getByRole("button")).toHaveClass(
+    "size-11",
+    "sm:size-7",
+    "[@media(pointer:coarse)]:size-11",
+  );
 });

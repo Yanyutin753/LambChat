@@ -1,10 +1,19 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { useState } from "react";
+import { UpdateProgressBar } from "../UpdateProgressBar";
 import { UpdateDialog } from "../UpdateDialog";
 import { APP_VERSION } from "../../../utils/appVersion";
 import type { UpdateState } from "../../../types";
@@ -144,4 +153,75 @@ test("uses the universal Dialog shell (common dialog component)", () => {
   expect(dialogSource).toMatch(/<ModalSurface/);
   expect(dialogSource).toMatch(/rounded-t-2xl/);
   expect(dialogSource).toMatch(/sm:rounded-xl/);
+});
+
+test("a failed update exposes one primary retry and retains its error", () => {
+  const onUpgrade = vi.fn();
+  render(
+    <UpdateDialog
+      {...baseProps}
+      onUpgrade={onUpgrade}
+      state={makeState({ error: "Download unavailable" })}
+    />,
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent("Download unavailable");
+  const retry = screen.getByRole("button", { name: "重试" });
+  expect(retry).toHaveClass("ui-button--primary");
+  expect(screen.queryByRole("button", { name: "立即升级" })).toBeNull();
+  fireEvent.click(retry);
+  expect(onUpgrade).toHaveBeenCalledTimes(1);
+});
+
+test("starting an update keeps keyboard focus in the locked dialog", async () => {
+  const onDismiss = vi.fn();
+  let failDownload!: () => void;
+  function PendingUpdate() {
+    const [state, setState] = useState(makeState());
+    failDownload = () => setState(makeState({ error: "Download unavailable" }));
+    return (
+      <UpdateDialog
+        {...baseProps}
+        state={state}
+        onDismiss={onDismiss}
+        onUpgrade={() =>
+          setState(makeState({ downloading: true, progress: 42 }))
+        }
+      />
+    );
+  }
+  render(<PendingUpdate />);
+  const start = screen.getByRole("button", { name: "立即升级" });
+  start.focus();
+  fireEvent.click(start);
+  await waitFor(() => expect(screen.getByRole("dialog")).toHaveFocus());
+  expect(
+    screen.getByRole("progressbar", { name: "正在下载..." }),
+  ).toHaveAttribute("aria-valuenow", "42");
+  expect(screen.getByRole("button", { name: "正在下载..." })).toBeDisabled();
+  fireEvent.keyDown(document, { key: "Escape" });
+  fireEvent.click(document.querySelector("[data-dialog-backdrop]")!);
+  expect(onDismiss).not.toHaveBeenCalled();
+  act(() => failDownload());
+  await waitFor(() => expect(screen.getByRole("alert")).toHaveFocus());
+});
+
+test("download progress exposes a bounded accessible percentage", () => {
+  for (const [value, expected] of [
+    [-10, 0],
+    [110, 100],
+    [Number.NaN, 0],
+  ]) {
+    cleanup();
+    render(
+      <UpdateProgressBar
+        progress={value}
+        downloaded={50}
+        contentLength={100}
+      />,
+    );
+    const progress = screen.getByRole("progressbar", { name: "正在下载..." });
+    expect(progress).toHaveAttribute("aria-valuemin", "0");
+    expect(progress).toHaveAttribute("aria-valuemax", "100");
+    expect(progress).toHaveAttribute("aria-valuenow", String(expected));
+  }
 });

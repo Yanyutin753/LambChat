@@ -1505,6 +1505,9 @@ const server = await createServer({
         }
       },
       transformIndexHtml(html, context) {
+        if (context.originalUrl?.split("?")[0] === "/dialog-preview") {
+          html = html.replace("/src/main.tsx", "/scripts/dialog-preview.tsx");
+        }
         if (context.originalUrl?.split("?")[0] === "/sandbox-data-preview") {
           html = html.replace(
             "/src/main.tsx",
@@ -1985,6 +1988,32 @@ const server = await createServer({
                 ? { agents, count: agents.length, default_agent: "team" }
                 : response(url, scenario, chatState);
           if (
+            url.pathname.replace(/\/$/, "") === "/api/settings" &&
+            previewParams.get("view") === "contact"
+          ) {
+            const email =
+              previewParams.get("contact") === "empty"
+                ? ""
+                : previewParams.has("long")
+                  ? `${"research-support-".repeat(8)}@example.test`
+                  : "support@example.test";
+            data = {
+              ...settings,
+              settings: {
+                ...settings.settings,
+                frontend: settings.settings.frontend.map((item) => ({
+                  ...item,
+                  value:
+                    item.key === "ADMIN_CONTACT_EMAIL"
+                      ? email
+                      : item.key === "ADMIN_CONTACT_URL" && email
+                        ? "https://example.test/support"
+                        : item.value,
+                })),
+              },
+            };
+          }
+          if (
             url.pathname === "/api/sessions" &&
             previewParams.has("search-long")
           ) {
@@ -2326,6 +2355,8 @@ const server = await createServer({
             isRead &&
             ((failureTarget === "catalog-models" &&
               url.pathname === "/api/agent/models/available") ||
+              (failureTarget === "contact-settings" &&
+                url.pathname.replace(/\/$/, "") === "/api/settings") ||
               (failureTarget === "share-content" &&
                 url.pathname === "/api/share/public/preview-report") ||
               (failureTarget === "workspace-list" &&
@@ -2447,6 +2478,12 @@ const server = await createServer({
             );
           if (scenario === "loading" && !url.pathname.startsWith("/api/auth/"))
             setTimeout(send, 8000);
+          else if (
+            isRead &&
+            previewParams.get("view") === "contact" &&
+            url.pathname.replace(/\/$/, "") === "/api/settings"
+          )
+            setTimeout(send, 2000);
           else if (
             isRead &&
             previewParams.get("search-flow") === "1" &&

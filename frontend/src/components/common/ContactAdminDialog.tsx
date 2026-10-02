@@ -1,10 +1,11 @@
-import { ModalSurface } from "./ModalSurface";
-import { SceneIllustration } from "./SceneIllustration";
-import { useEffect, useRef } from "react";
-
-import { Mail, ExternalLink, ArrowRight } from "lucide-react";
+import { Mail, ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useSettings } from "../../hooks/useSettings";
+import { Dialog } from "./Dialog";
+import { SceneIllustration } from "./SceneIllustration";
+import { LoadingSpinner } from "./LoadingSpinner";
+import { Button } from "./ui/Button";
+import { ConfigPanelErrorCallout } from "../panels/ConfigPanelErrorCallout";
 
 interface ContactAdminDialogProps {
   isOpen: boolean;
@@ -18,117 +19,101 @@ export function ContactAdminDialog({
   reason = "noPermission",
 }: ContactAdminDialogProps) {
   const { t } = useTranslation();
-  const { getSettingValue } = useSettings();
-  const closeRef = useRef<HTMLButtonElement>(null);
-
+  const { getSettingValue, isLoading, error, fetchSettings } = useSettings();
   const adminEmail = getSettingValue("ADMIN_CONTACT_EMAIL") as string | null;
   const adminUrl = getSettingValue("ADMIN_CONTACT_URL") as string | null;
-
-  useEffect(() => {
-    if (isOpen) {
-      closeRef.current?.focus();
-    }
-  }, [isOpen]);
-
-  if (!isOpen) return null;
-
-  const title =
+  const title = t(
     reason === "emailActivation"
-      ? t("contactAdmin.emailActivationTitle", "邮箱验证问题")
-      : t("contactAdmin.noPermissionTitle", "权限不足");
-
-  const description =
+      ? "contactAdmin.emailActivationTitle"
+      : "contactAdmin.noPermissionTitle",
+  );
+  const description = t(
     reason === "emailActivation"
-      ? t(
-          "contactAdmin.emailActivationDesc",
-          "您的邮箱尚未验证或验证链接已过期，请联系管理员获取帮助。",
-        )
-      : t(
-          "contactAdmin.noPermissionDesc",
-          "您当前没有发送消息的权限。如需开通，请联系管理员。",
-        );
-
-  const hasContact = adminEmail || adminUrl;
+      ? "contactAdmin.emailActivationDesc"
+      : "contactAdmin.noPermissionDesc",
+  );
+  const linkClass =
+    "flex min-h-11 min-w-0 items-center gap-3 rounded-lg px-3 py-3 text-14 text-theme-text transition-colors hover:bg-theme-bg-subtle focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]";
 
   return (
-    <ModalSurface open={isOpen} onClose={onClose} dismissible={true}>
-      <div className="relative z-10 w-full max-w-[420px] rounded-2xl border border-stone-200/60 bg-theme-bg-card shadow-2xl shadow-stone-900/8 dark:border-stone-700/50 dark:bg-stone-900 dark:shadow-stone-950/40 animate-in fade-in zoom-in-95 duration-200">
-        {/* Header illustration */}
-        <div className="relative overflow-hidden rounded-t-2xl bg-gradient-to-b from-amber-50/80 to-white px-8 pb-7 pt-9 dark:from-amber-950/20 dark:to-stone-900">
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/40 to-transparent dark:via-amber-700/30" />
-          <SceneIllustration scene="message" className="mx-auto mb-4" />
-          <div className="text-center">
-            <h3 className="text-16 font-semibold font-serif tracking-tight text-stone-900 dark:text-stone-50">
-              {title}
-            </h3>
-            <p className="mt-2 text-14 leading-relaxed text-stone-500 dark:text-stone-400">
-              {description}
-            </p>
-          </div>
+    <Dialog
+      open={isOpen}
+      onClose={onClose}
+      size="sm"
+      title={
+        <span className="text-16 font-semibold font-serif tracking-tight">
+          {title}
+        </span>
+      }
+    >
+      <div className="space-y-4">
+        <div className="flex items-start gap-3">
+          <SceneIllustration scene="message" className="!h-16 !w-16 shrink-0" />
+          <p className="min-w-0 text-14 leading-relaxed text-theme-text-secondary">
+            {description}
+          </p>
         </div>
-
-        {/* Contact methods */}
-        <div className="px-5 py-5">
-          {hasContact ? (
-            <div className="space-y-2.5">
-              {adminEmail && (
-                <a
-                  href={`mailto:${adminEmail}`}
-                  className="group flex items-center gap-3 rounded-xl border border-stone-100 bg-stone-50/50 px-4 py-3 text-14 text-stone-600 transition-all hover:border-stone-200 hover:bg-white hover:shadow-sm dark:border-stone-800 dark:bg-stone-800/40 dark:text-stone-300 dark:hover:border-stone-700 dark:hover:bg-stone-800/70"
-                >
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-stone-900/5 dark:bg-stone-700 dark:ring-stone-600/50 dark:shadow-none">
-                    <Mail size={15} className="text-stone-400" />
-                  </div>
-                  <span className="flex-1 truncate">{adminEmail}</span>
-                  <ArrowRight
-                    size={15}
-                    className="text-stone-300 transition-transform group-hover:translate-x-0.5 dark:text-stone-600"
-                  />
-                </a>
-              )}
-              {adminUrl && (
-                <a
-                  href={adminUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group flex items-center gap-3 rounded-xl border border-stone-100 bg-stone-50/50 px-4 py-3 text-14 text-stone-600 transition-all hover:border-stone-200 hover:bg-white hover:shadow-sm dark:border-stone-800 dark:bg-stone-800/40 dark:text-stone-300 dark:hover:border-stone-700 dark:hover:bg-stone-800/70"
-                >
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-stone-900/5 dark:bg-stone-700 dark:ring-stone-600/50 dark:shadow-none">
-                    <ExternalLink size={15} className="text-stone-400" />
-                  </div>
-                  <span className="flex-1">
-                    {t("contactAdmin.supportLink", "联系管理员")}
-                  </span>
-                  <ArrowRight
-                    size={15}
-                    className="text-stone-300 transition-transform group-hover:translate-x-0.5 dark:text-stone-600"
-                  />
-                </a>
-              )}
-            </div>
-          ) : (
-            <div className="rounded-xl border border-stone-100 bg-stone-50/50 px-4 py-4 text-center dark:border-stone-800 dark:bg-stone-800/40">
-              <p className="text-14 text-stone-400 dark:text-stone-500">
-                {t(
-                  "contactAdmin.noContactInfo",
-                  "暂无管理员联系方式，请联系系统管理员。",
-                )}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Close */}
-        <div className="px-5 pb-6 pt-1">
-          <button
-            ref={closeRef}
-            onClick={onClose}
-            className="w-full rounded-xl bg-stone-900 py-2.5 text-14 font-medium text-white shadow-sm transition-all hover:bg-stone-800 active:bg-stone-700 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-200 dark:active:bg-stone-300"
+        {isLoading ? (
+          <div
+            role="status"
+            className="flex min-h-11 items-center gap-2 text-14 text-theme-text-secondary"
           >
-            {t("common.close", "关闭")}
-          </button>
-        </div>
+            <LoadingSpinner size="sm" />
+            {t("common.loading")}
+          </div>
+        ) : error ? (
+          <div className="space-y-3">
+            <ConfigPanelErrorCallout message={error} />
+            <Button
+              className="!min-h-11 sm:!min-h-9 [@media(pointer:coarse)]:!min-h-11"
+              onClick={(event) => {
+                event.currentTarget
+                  .closest<HTMLElement>("[data-modal-surface]")
+                  ?.focus();
+                void fetchSettings(true);
+              }}
+            >
+              {t("common.retry")}
+            </Button>
+          </div>
+        ) : adminEmail || adminUrl ? (
+          <div className="space-y-1">
+            {adminEmail && (
+              <a href={`mailto:${adminEmail}`} className={linkClass}>
+                <Mail
+                  size={16}
+                  className="shrink-0 text-theme-text-tertiary"
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 [overflow-wrap:anywhere]">
+                  {adminEmail}
+                </span>
+              </a>
+            )}
+            {adminUrl && (
+              <a
+                href={adminUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={linkClass}
+              >
+                <ExternalLink
+                  size={16}
+                  className="shrink-0 text-theme-text-tertiary"
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 [overflow-wrap:anywhere]">
+                  {t("contactAdmin.supportLink")}
+                </span>
+              </a>
+            )}
+          </div>
+        ) : (
+          <p className="text-14 leading-relaxed text-theme-text-secondary">
+            {t("contactAdmin.noContactInfo")}
+          </p>
+        )}
       </div>
-    </ModalSurface>
+    </Dialog>
   );
 }
