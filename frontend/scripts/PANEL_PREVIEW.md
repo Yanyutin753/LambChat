@@ -108,3 +108,5 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 个人信息写入走查：`/chat/preview-report?profile-flow=1&failure=profile-save` 显式启用用户名 POST 和头像 POST/DELETE 的2秒模拟等待，各方法/路径首次503、重试200。请求字节丢弃，不解析、存储或转发；成功返回静态fixture，用户名和头像不会真实改变，其他写请求仍405。`profile-avatar=1` 给资料 GET 加现有公开头像，`profile-long=1` 返回长用户名/邮箱/角色；新的 `run` 可重放失败。用于检查用户名冻结、错误保留、Enter提交、Escape局部取消和焦点恢复，以及头像上传/删除等待与原文件重试。不证明真实持久化、认证、手机软键盘；旧请求隔离、压缩回退与2MB约束由集成测试验证。
 
 语言同步走查复用 `preferences-flow=1&failure=preference-save`：标题栏菜单选择语言后立即本机应用，保存等待时禁用重复选择，失败后原请求重试；个人设置共享相同等待和错误状态，新的成功选择清除旧重试。`/auth/login?guest=1`、`/download?guest=1` 与 `/shared/preview-report?guest=1` 可检查公共语言菜单、键盘关闭和手机44px触控区域；访客及公开分享仅本机切换，不提交受保护的偏好请求。账号切换及迟到资料刷新由行为测试覆盖，预览不证明真实认证或云端持久化。
+
+原生服务地址组件走查：`/server-connection-preview?view=setup&theme=dark&lang=zh` 渲染实际首启表单，去掉 `view=setup` 渲染设置页分区；此独立入口不加载原生桥，不属于生产路由。输入 `http://127.0.0.1:<预览端口>/preview-health` 后按 Enter，探测 GET 等待2秒并固定503，可检查禁用、取消、错误、焦点及320px短屏滚动。不会连真实服务、成功保存地址或刷新应用；成功保存、取消后的迟到响应与15秒超时由组件测试验证。不能替代原生客户端网络/软键盘/换服登录验证。

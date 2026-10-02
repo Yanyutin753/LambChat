@@ -914,3 +914,17 @@ IAB独立3018：390深色Header错误说明可读，原语言保留，重试显�
 八项自检沿用现有文字尺度与留白，状态层级清楚，主题token和五语既有文案，无新动效/依赖/素材；复用共享菜单键盘/焦点机制，窄屏触控尺寸实际核对，保持LambChat视觉语言。按DESIGN.md交付清单人工检查。最终47项针对性行为测试及全量783文件/3852项通过，lint零错误零警告，build含tsc/Vite/PWA通过；eager JS560109/561152、precache5028288/5242880、92项，未提高预算。全站目标仍进行中，服务地址/本地沙箱设置、剩余状态组合和真实服务/设备验证留待后续，不据本批门禁宣告整体完成。
 
 最后按用户最新请求复验390深色Python文件：搜索入口在标题工具栏，原生查找浮层280×46px；展开前后文件cm-content top均141px，无额外搜索行，choice命中显示，Escape关闭回代码预览，页面overflow0。截图native-file-find-390-dark-current保存在同一证据目录。3018独立预览及该标签页作为可查看结果保留，浏览器临时尺寸恢复；用户3017和主checkout未覆盖。
+
+## 2026-10-02 服务地址表单与首启响应式
+
+上一目标回合有实际progress：语言同步及资料刷新已提交。本轮继续interface-state worktree，fetch/rebase到最新origin/develop349e2f08；前三个已集成提交由Git跳过，上轮提交重放为1e0f50cc，主checkout与用户3017保持。
+
+两处/health探测收敛到useServerConnection：AbortController与同步请求ref拒绝重复提交，取消、卸载、15秒超时使请求失效；即使fetch忽略abort，迟到成功也不能写地址或reload，旧finally不影响新请求。设置页原来取消只收起表单、首启离开后仍能保存；7项回归先全部RED，再GREEN。表单使用原生submit、具名输入/错误描述、IME Enter保护，设置内Escape局部取消回修改按钮；等待冻结输入并聚焦稳定form，取消仍可用。首启复用Button/Input和theme token，去掉厚卡片、模糊及大阴影，按标题/说明/字段/操作分层；手机44px、输入16px，现有五语文案，无新动效或依赖。
+
+独立复核发现探测失败会抢走用户已移到其他设置的焦点，追加真实外部button+deferred响应测试先RED，加入有效焦点归属判断后GREEN；首启同样保护外部焦点。等待表单移除原生整块outline，交互控件焦点环保留。320×300俄语实际暴露全局body/root overflow:hidden裁掉Connect：将首启改为定高dvh独立滚动和intrinsic表单自动边距；Tab到Connect后scrollTop119、buttonBottom267.7，按钮可见且overflow0。最终复核无确定P1/P2。
+
+隔离3019独立fixture入口渲染实际组件，不注入Tauri/Capacitor桥；健康探测仅2秒后503，绝不转发真实服务或模拟成功保存。390深色Enter等待form aria-busy=true、焦点FORM、input/Connect禁用，输入及按钮44px；失败保留地址并回输入，Escape取消回修改。320浅色俄语等待控件44px、无整块焦点框及横向溢出，短屏滚动如上；834浅色俄语错误完整可读，1440暖色表单448px、overflow0；390深色中文最终错误与连接可读。截图仓库外interface-quality：server-settings-390-dark-error-final、server-setup-320-light-ru-loading-final、server-setup-320-short-ru-focus-final、server-setup-834-light-ru-error-final、server-setup-1440-sepia-final、server-setup-390-dark-error-final。此为响应式组件/键盘证据，不证明原生软键盘、实际换服登录或真实云端网络。
+
+八项人工自检：沿用serif标题及正文尺度、字段留白；平面层级突出内容与连接反馈；全部theme token及现有五语；无新增动画，既有spinner/reduced-motion；取消/超时/重试/IME/焦点经行为测试；320/390/834/1440和300px短屏实测；复用LambChat控件并保持克制视觉。按DESIGN.md交付检查，Impeccable环境沿用人工清单。最终17项针对性、全量783文件/3860项测试通过，lint零警告零错误，build含tsc/Vite/PWA通过；eager JS560133/561152、precache5029787/5242880、93项，未提高预算。git diff --check通过。
+
+本轮3019服务和临时标签页回收，视口恢复；上轮3018结果及用户3017保留。全站目标继续：本地沙箱设置/数据位置读取失败、保存恢复和窄屏操作布局，剩余异步归属及状态组合、真实服务和设备证据尚未完成，不据本批门禁宣告全站完成。

@@ -1472,7 +1472,13 @@ const server = await createServer({
       configResolved(config) {
         config.server.proxy = {};
       },
-      transformIndexHtml(html) {
+      transformIndexHtml(html, context) {
+        if (context.originalUrl?.split("?")[0] === "/server-connection-preview") {
+          html = html.replace(
+            "/src/main.tsx",
+            "/scripts/server-connection-preview.tsx",
+          );
+        }
         return html.replace(
           "<head>",
           `<head><script>const params=new URLSearchParams(location.search);if(params.has("guest")){localStorage.removeItem("access_token");localStorage.removeItem("refresh_token");}else{localStorage.setItem("access_token",${JSON.stringify(
@@ -1486,6 +1492,18 @@ const server = await createServer({
           const previewParams = new URL(
             req.headers.referer ?? "http://localhost",
           ).searchParams;
+          // Failure-only health fixture; never stores or switches a server URL.
+          if (
+            req.method === "GET" &&
+            url.pathname === "/preview-health/health"
+          ) {
+            const timer = setTimeout(() => {
+              res.statusCode = 503;
+              res.end("Preview server unavailable");
+            }, 2000);
+            res.on("close", () => clearTimeout(timer));
+            return;
+          }
           if (
             url.pathname === "/preview-missing-image.webp" ||
             url.pathname === "/preview-missing-video.webm"
