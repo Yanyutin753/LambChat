@@ -1,7 +1,13 @@
 import { useTranslation } from "react-i18next";
-import { Maximize2, X, Plus, Save, Tag, Pencil, Upload } from "lucide-react";
-import { Toggle } from "./Toggle";
-import { Button, IconButton, Input, Textarea } from "../common";
+import { Maximize2, X, Plus, Save, Pencil, Upload } from "lucide-react";
+import { ToggleSwitch } from "../panels/AgentPanel/shared/ToggleSwitch";
+import {
+  Button,
+  ToolbarIconButton,
+  FormField,
+  Input,
+  Textarea,
+} from "../common";
 import { FileTabs } from "./FileTabs";
 import { SkillEditor } from "./SkillEditor";
 import { BinaryFilePreview } from "./BinaryFilePreview";
@@ -20,11 +26,11 @@ export function SkillFormNormal(a: SkillFormActions) {
         {/* Metadata card */}
         <div className="skill-form-card rounded-3xl shadow-sm">
           <div className="space-y-4 px-4 py-4 sm:px-5">
-            {/* Name */}
-            <div className="space-y-1.5">
-              <label className="block text-12 font-medium text-[var(--theme-text-secondary)]">
-                {t("skills.form.name")}
-              </label>
+            <FormField
+              label={t("skills.form.name")}
+              error={a.errors.name}
+              hint={a.isEditing ? t("skills.form.nameCannotChange") : undefined}
+            >
               <Input
                 type="text"
                 value={a.name}
@@ -33,84 +39,36 @@ export function SkillFormNormal(a: SkillFormActions) {
                 placeholder={t("skills.form.namePlaceholder")}
                 error={!!a.errors.name}
                 className="font-mono"
-                trailingSlot={
-                  a.isEditing ? (
-                    <span className="pointer-events-none rounded-md bg-[var(--theme-bg-card)]/80 p-1">
-                      <svg
-                        className="h-4 w-4 text-stone-400 dark:text-stone-500"
-                        viewBox="0 0 16 16"
-                        fill="none"
-                      >
-                        <rect
-                          x="2"
-                          y="2"
-                          width="12"
-                          height="12"
-                          rx="3"
-                          stroke="currentColor"
-                          strokeWidth="1.2"
-                        />
-                        <path
-                          d="M6 8h4M8 6v4"
-                          stroke="currentColor"
-                          strokeWidth="1.2"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    </span>
-                  ) : null
-                }
               />
-              {a.errors.name && (
-                <p className="text-12 text-red-500">{a.errors.name}</p>
-              )}
-              {a.isEditing && !a.errors.name && (
-                <p className="text-12 text-stone-400 dark:text-stone-500">
-                  {t("skills.form.nameCannotChange")}
-                </p>
-              )}
-            </div>
-
-            {/* Description */}
-            <div className="space-y-1.5">
-              <label className="block text-12 font-medium text-[var(--theme-text-secondary)]">
-                {t("skills.form.description")}
-              </label>
+            </FormField>
+            <FormField
+              label={t("skills.form.description")}
+              error={a.errors.description}
+            >
               <Textarea
                 value={a.description}
                 onChange={(e) => a.setDescription(e.target.value)}
                 placeholder={t("skills.form.descriptionPlaceholder")}
                 rows={5}
                 error={!!a.errors.description}
-                className="resize-none leading-6"
+                className="resize-y leading-6"
               />
-              {a.errors.description && (
-                <p className="text-12 text-red-500">{a.errors.description}</p>
-              )}
-            </div>
-
-            {/* Tags */}
-            <div className="space-y-1.5">
-              <label className="block text-12 font-medium text-[var(--theme-text-secondary)]">
-                {t("adminMarketplace.tags")}
-              </label>
-              <div className="skill-tag-editor rounded-2xl bg-[var(--theme-bg-subtle)] p-3 shadow-sm">
-                <div className="flex items-center gap-2 text-11 font-semibold uppercase tracking-[0.16em] text-[var(--theme-text-secondary)]/80">
-                  <Tag size={12} className="text-[var(--theme-primary)]" />
-                  {t("adminMarketplace.tags")}
-                </div>
-                <p className="mt-2 text-12 leading-5 text-[var(--theme-text-secondary)]/80">
-                  {t("adminMarketplace.tagsHint")}
-                </p>
-                <Input
-                  type="text"
-                  value={a.tagsInput}
-                  onChange={(e) => a.setTagsInput(e.target.value)}
-                  placeholder={t("adminMarketplace.tagsPlaceholder")}
-                  error={!!a.errors.tags}
-                  className="mt-3"
-                />
-                <div className="mt-3 flex flex-wrap gap-2">
+            </FormField>
+            <FormField
+              label={t("adminMarketplace.tags")}
+              hint={t("adminMarketplace.tagsHint")}
+              error={a.errors.tags}
+            >
+              <Input
+                type="text"
+                value={a.tagsInput}
+                data-skill-tags
+                onChange={(e) => a.setTagsInput(e.target.value)}
+                placeholder={t("adminMarketplace.tagsPlaceholder")}
+                error={!!a.errors.tags}
+              />
+              {normalizeTags(a.tagsInput).length > 0 && (
+                <div className="flex flex-wrap gap-2">
                   {normalizeTags(a.tagsInput).map((tag) => (
                     <span
                       key={tag}
@@ -121,23 +79,15 @@ export function SkillFormNormal(a: SkillFormActions) {
                         type="button"
                         onClick={() => a.removeTag(tag)}
                         className="skill-tag-chip-remove"
-                        aria-label={`Remove tag ${tag}`}
+                        aria-label={`${t("common.remove")}: ${tag}`}
                       >
                         <X size={11} />
                       </button>
                     </span>
                   ))}
-                  {normalizeTags(a.tagsInput).length === 0 && (
-                    <span className="text-12 text-[var(--theme-text-secondary)]/80">
-                      {t("adminMarketplace.tagsPlaceholder")}
-                    </span>
-                  )}
                 </div>
-              </div>
-              {a.errors.tags && (
-                <p className="text-12 text-red-500">{a.errors.tags}</p>
               )}
-            </div>
+            </FormField>
 
             {/* Enabled toggle */}
             <div className="skill-toggle-panel flex items-center justify-between rounded-2xl bg-[var(--theme-bg-subtle)] px-3 py-3">
@@ -152,10 +102,10 @@ export function SkillFormNormal(a: SkillFormActions) {
                 </p>
               </div>
               <div className="shrink-0">
-                <Toggle
-                  checked={a.enabled}
-                  onChange={a.setEnabled}
-                  label={t("skills.form.enabled")}
+                <ToggleSwitch
+                  enabled={a.enabled}
+                  onToggle={() => a.setEnabled(!a.enabled)}
+                  ariaLabel={t("skills.form.enabled")}
                 />
               </div>
             </div>
@@ -171,39 +121,29 @@ export function SkillFormNormal(a: SkillFormActions) {
                   {t("skills.form.files", "Files")}
                 </p>
                 <div className="flex items-center gap-1 shrink-0">
-                  <IconButton
+                  <ToolbarIconButton
                     aria-label={t("skills.form.addFile", "Add file")}
                     onClick={a.addFile}
                     icon={<Plus size={15} />}
-                    size="sm"
-                    className="h-9 w-9 rounded-xl text-stone-400 hover:bg-[var(--theme-bg-card)] hover:text-[var(--theme-text)]"
+                    variant="muted"
                     title={t("skills.form.addFile", "Add file")}
                   />
-                  <IconButton
+                  <ToolbarIconButton
                     aria-label={t(
                       "skills.form.addBinaryFile",
                       "Upload binary file",
                     )}
                     onClick={a.addBinaryFile}
                     icon={<Upload size={15} />}
-                    size="sm"
-                    className="h-9 w-9 rounded-xl text-stone-400 hover:bg-[var(--theme-bg-card)] hover:text-[var(--theme-text)]"
+                    variant="muted"
                     title={t("skills.form.addBinaryFile", "Upload binary file")}
                   />
-                  <IconButton
-                    aria-label={t("skills.form.editFullscreen", "Edit")}
-                    onClick={() => a.toggleFullscreen(true)}
-                    icon={<Pencil size={15} />}
-                    size="sm"
-                    className="h-9 w-9 rounded-xl text-stone-400 hover:bg-[var(--theme-bg-card)] hover:text-[var(--theme-text)]"
-                    title={t("skills.form.editFullscreen", "Edit")}
-                  />
-                  <IconButton
+                  <ToolbarIconButton
                     aria-label={t("skills.form.fullscreenEditor")}
+                    data-fullscreen-trigger
                     onClick={() => a.toggleFullscreen(true)}
                     icon={<Maximize2 size={15} />}
-                    size="sm"
-                    className="h-9 w-9 rounded-xl text-stone-400 hover:bg-[var(--theme-bg-card)] hover:text-[var(--theme-text)]"
+                    variant="muted"
                     title={t("skills.form.fullscreenEditor")}
                   />
                 </div>
@@ -220,18 +160,17 @@ export function SkillFormNormal(a: SkillFormActions) {
               </div>
 
               <div className="skill-file-path rounded-2xl px-3 py-2.5">
-                <label className="mb-1 block text-11 font-semibold uppercase tracking-[0.16em] text-[var(--theme-text-secondary)]/80">
-                  {t("skills.form.filePath")}
-                </label>
-                <Input
-                  type="text"
-                  value={a.files[a.activeFileIndex]?.path || ""}
-                  onChange={(e) =>
-                    a.updateFilePath(a.activeFileIndex, e.target.value)
-                  }
-                  placeholder={t("skills.form.filePathPlaceholder")}
-                  className="bg-transparent font-mono text-12"
-                />
+                <FormField label={t("skills.form.filePath")}>
+                  <Input
+                    type="text"
+                    value={a.files[a.activeFileIndex]?.path || ""}
+                    onChange={(e) =>
+                      a.updateFilePath(a.activeFileIndex, e.target.value)
+                    }
+                    placeholder={t("skills.form.filePathPlaceholder")}
+                    className="bg-transparent font-mono text-12"
+                  />
+                </FormField>
               </div>
             </div>
           </div>
@@ -305,10 +244,9 @@ export function SkillFormNormal(a: SkillFormActions) {
                   <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[var(--theme-bg)] to-transparent" />
                   <Button
                     variant="primary"
-                    size="sm"
                     onClick={() => a.toggleFullscreen(true)}
                     leftIcon={<Pencil size={12} />}
-                    className="absolute right-3 bottom-3 shadow-md transition-transform duration-150 hover:scale-105 active:scale-95"
+                    className="absolute right-3 bottom-3 shadow-md"
                   >
                     {t("skills.form.editFullscreen", "Edit")}
                   </Button>

@@ -4,6 +4,7 @@ import { EditorView } from "@codemirror/view";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { useAppThemeMode } from "../../hooks/useAppThemeMode";
 import { getLangSupport } from "../common/getLangSupport";
+import { useTranslation } from "react-i18next";
 
 export function SkillEditor({
   value,
@@ -20,6 +21,7 @@ export function SkillEditor({
   readOnly?: boolean;
   lineWrapping?: boolean;
 }) {
+  const { t } = useTranslation();
   const themeMode = useAppThemeMode();
   const isDark = themeMode === "dark";
 
@@ -29,6 +31,9 @@ export function SkillEditor({
     return [
       ...(langSupport ? [langSupport] : []),
       ...(lineWrapping ? [EditorView.lineWrapping] : []),
+      EditorView.contentAttributes.of({
+        "aria-label": filePath || t("skills.form.untitled"),
+      }),
       EditorView.theme({
         "&": {
           height: "100%",
@@ -75,7 +80,7 @@ export function SkillEditor({
         },
       }),
     ];
-  }, [filePath, isDark, lineWrapping]);
+  }, [filePath, isDark, lineWrapping, t]);
 
   return (
     <div
@@ -90,6 +95,7 @@ export function SkillEditor({
         extensions={extensions}
         readOnly={readOnly}
         editable={!readOnly}
+        indentWithTab={false}
         basicSetup={{
           lineNumbers: true,
           highlightActiveLineGutter: true,

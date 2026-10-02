@@ -109,9 +109,9 @@ test("sidebars, fullscreen editors, and media viewers use vertical safe-area spa
   expect(skillForm).toMatch(
     /skill-form--fullscreen safe-area-viewport-padding/,
   );
-  expect(skillFullscreen).toMatch(
-    /top:\s*"calc\(1rem \+ var\(--app-safe-area-top-active,/,
-  );
+  // The exit action stays in the toolbar, inside SkillForm's safe viewport.
+  expect(skillFullscreen).toMatch(/<ToolbarIconButton[\s\S]*exitFullscreen/);
+  expect(skillFullscreen).not.toMatch(/<FloatingIconButton/);
 
   expect(viewerTopBar).toMatch(/className=\{clsx\("safe-area-top\b/);
   expect(imageViewer).toMatch(/<ViewerTopBar[\s>]/);
@@ -122,9 +122,7 @@ test("sidebars, fullscreen editors, and media viewers use vertical safe-area spa
   expect(toolResultPanel).toMatch(/safe-area-viewport-padding/);
   expect(excalidrawPreview).toMatch(/<ViewerTopBar[\s>]/);
   expect(excalidrawPreview).not.toMatch(/safe-area-bottom/);
-  expect(excalidrawDirectViewer).toMatch(
-    /<ExcalidrawFullscreenViewer[\s>]/,
-  );
+  expect(excalidrawDirectViewer).toMatch(/<ExcalidrawFullscreenViewer[\s>]/);
   expect(mermaidViewer).toMatch(/<ViewerTopBar[\s>]/);
   expect(mermaidViewer).not.toMatch(/safe-area-bottom/);
 });
@@ -175,10 +173,10 @@ test("profile mobile sheet relies on the portal viewport safe area only", () => 
   // 外层只避让顶部系统栏；底部 inset 由 sheet 表面自己承担，
   // 不允许 padding-bottom 把 sheet 顶离屏幕底边（遮罩会露缝）
   expect(profileModal).toMatch(/<ModalSurface/);
-  expect(readSource("../components/common/ModalSurface.tsx")).toMatch(/safe-area-viewport-padding-top/);
-  expect(profileModal).toMatch(
-    /profile-dialog safe-area-bottom/,
+  expect(readSource("../components/common/ModalSurface.tsx")).toMatch(
+    /safe-area-viewport-padding-top/,
   );
+  expect(profileModal).toMatch(/profile-dialog safe-area-bottom/);
   expect(profileModal).not.toMatch(
     /renderFooter\(\s*"[^"]*\bsafe-area-bottom\b/,
   );

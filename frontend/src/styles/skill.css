@@ -597,6 +597,40 @@
   color: var(--theme-text);
 }
 
+.skill-file-remove {
+  width: 1.75rem;
+  height: 1.75rem;
+  opacity: 0;
+}
+
+:is(.skill-file-tab, .skill-file-tree-row):is(:hover, :focus-within)
+  .skill-file-remove {
+  opacity: 1;
+}
+
+@media (max-width: 639px), (pointer: coarse) {
+  .skill-form button {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+  .skill-file-remove {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skill-form,
+  .skill-form-card {
+    animation: none !important;
+  }
+  .skill-form * {
+    transition: none !important;
+  }
+  .skill-form button {
+    transform: none !important;
+  }
+}
+
 /* Form card entrance animation */
 .skill-form-card {
   animation: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -865,18 +899,5 @@
 @media (max-width: 639px) {
   .editor-sidebar .skill-form-editor .relative[style] {
     min-height: 160px;
-  }
-}
-
-/* Fullscreen button hidden inside sidebar (already full-height) */
-.editor-sidebar .skill-form-editor [title="skills.form.fullscreenEditor"],
-.editor-sidebar .skill-form-editor [title="skills.form.editFullscreen"] {
-  display: none;
-}
-
-@media (max-width: 639px) {
-  .sfe-panel .skill-form-editor [title="skills.form.fullscreenEditor"],
-  .sfe-panel .skill-form-editor [title="skills.form.editFullscreen"] {
-    display: flex;
   }
 }

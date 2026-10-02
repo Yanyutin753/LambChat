@@ -577,3 +577,25 @@ imports=1仅为两个只读POST返回预设数据，消费并丢弃上传body，
 继续：真实导入/发布、其余语言、触屏/软键盘、旧iOS/原生媒体全屏、认证/写入/真实对话和其他下载格式。整体目标保持进行中，不以本批fixture推断全界面已无明显提升空间。
 
 最终门禁：pnpm test 756文件/3666项全通过；pnpm run lint零错误零警告；pnpm run build含tsc/Vite/PWA/预算通过，eager JS559085/559104 bytes、precache5017943/5242880 bytes、91 entries，未提高预算，保留既有chunk-size提示。最后390深色失败恢复后ShiftTab实际回发布按钮，重拍最终手机截图；最后只读复核无新增P1/P2，git diff --check通过。临时viewport已恢复，tab11 handoff，用户原tab和剪贴板未操作。
+
+### 当前执行：技能编辑表单与全屏文件管理
+
+- [x] 元数据复用 FormField，名称、描述、标签、文件路径关联标签与错误；移除重复标签标题/占位提示、启用文字和名称装饰图标，保留五行描述与阅读间距。
+- [x] 普通工具栏复用 ToolbarIconButton，删除重复 Pencil 入口；启用复用 ToggleSwitch，删除专属 Toggle 文件，沿用主题/字体/i18n，无新资产、依赖或文案键。
+- [x] 全屏退出纳入顶部工具栏，修复上传遮挡；两处 min-w-0 防止多文件标签挤出动作，当前标签 nearest 定位。手机/coarse pointer 按钮最小44px，桌面工具栏32px。
+- [x] 文件/树删除为具名独立原生按钮，桌面 hover/focus 显示、触屏始终可用；文件删除保持选中项并回可见控件，标签删除回输入框，错误定位首个可编辑字段。
+- [x] 全屏复用 useDialogFocus/useBodyScrollLock，支持 IME/Escape、键盘边界、背景/右面板隔离与关闭保留内容/焦点。真实 CodeMirror 放行 Tab，不将导航写入缩进；删除遮住正文的硬编码黑色 Esc toast。
+
+TDD：元数据关联、文件/树独立删除、全屏隔离四项明确 RED；验证定位/删除索引与焦点两处断言 RED；折叠当前目录后删末项 zzz.md 的 BODY 焦点问题、标签 Space 删除焦点问题分别新增 RED；真实 CodeMirror Tab 用例明确 false RED。修复后共两个新文件8项行为测试 GREEN。全量三条旧结构守卫写死浮动按钮/Pencil，更新为父容器安全区内 Toolbar、FormField/ToggleSwitch，保留原安全区和共享组件检查。
+
+原生 IAB tab11、3002只读 fixture：320×568浅色空提交错误完整显示，focus回名称，滚动后固定操作可用；390×844深色标签/文件 Space 删除、开关状态、正反向 Tab、输入保留/退出焦点实测。最终 Escape 只退出全屏，右面板 inert 属性 true→false，元数据与正文保留，focus回原入口。多文件动作保持视口内，手机名义44px（实测43.9967px舍入）、动作 gap4px。768×905暖色普通/全屏重拍无黑色提示遮挡；1440×900浅色停靠489.6px，选 docs/help.md→折叠 docs→Space删zzz，focus回可见SKILL，编辑header/内容仍help，退出后保留。四档横向溢出均0；viewport按现有浏览器缩放换算成CSS实际尺寸。
+
+复核建议查搜索关闭动作：390/320原生 Cmd+F 打开/关闭；320 previous x195.066–257.220，close x260.016–304.013，不相交，all自动换行，未复现重叠。只证明入口、尺寸、关闭；不声称查找替换内容正确性。原库搜索样式、checkbox触控与locale列入下一批共享编辑器检查。
+
+八项自检：保留产品字体/阅读留白；去除冗余表面，操作紧凑；字段/提示/文件/提交层级清晰；沿用light/dark/sepia和既有五语，删除硬编码提示；此form动画/transition/按钮缩放尊重 reduced-motion，无新装饰动效，OS偏好未实测；键盘、焦点、删除、开关和草稿保留原生验证；四宽度无本批溢出，coarse由CSS覆盖，真实触屏/软键盘/旧iOS未验证；沿用 LambChat 组件与视觉语言。Impeccable依此前确认不可用环境，按 DESIGN.md 清单人工检查。
+
+最终门禁：pnpm test 758文件/3674项全部通过；lint零错误零警告；build含tsc/Vite/PWA与预算通过，eager JS559067/559104 bytes，precache5016902/5242880 bytes、91 entries，未提高预算，保留既有chunk-size提示。最终只读复核无确定P1/P2，git diff --check通过。Prettier registry重试期间用既有缓存完成，原dlx最终也成功。门禁后只有文档/原生检查，无生产代码变化。
+
+截图在仓库外 interface-quality：skill-editor-390-dark-before.png、skill-editor-fullscreen-390-dark-before.png为基线；最终 skill-editor-320-light-validation.png、skill-editor-320-light-files.png、skill-editor-fullscreen-320-light-final.png、skill-editor-390-dark-final.png、skill-editor-fullscreen-390-dark-final.png、skill-editor-768-sepia-final.png、skill-editor-fullscreen-768-sepia-final.png、skill-editor-1440-light-final.png、skill-editor-fullscreen-1440-light-final.png。临时viewport恢复、tab11 handoff，用户原tab/剪贴板未操作。
+
+继续：共享编辑器搜索和弹层、技能文件懒加载错误/竞态、二进制保存恢复、真实创建/更新/上传、其余语言/真机和未覆盖界面。本批未向真实API写入fixture内容，不作为认证、写入或真实对话E2E证明。整体目标保持进行中，不以本批截图称全部界面已无明显提升空间。

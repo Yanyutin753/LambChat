@@ -124,7 +124,8 @@ test("floating icon button centralizes fullscreen overlay icon actions", () => {
   expect(floatingIconButton).toMatch(/w-11 h-11 rounded-xl bg-black\/80/);
 
   expect(documentToolbar).toMatch(/import \{[\s\S]*FloatingIconButton/);
-  expect(skillFullscreen).toMatch(/import \{ FloatingIconButton \}/);
+  expect(skillFullscreen).toMatch(/import \{ ToolbarIconButton \}/);
+  expect(skillFullscreen).toMatch(/<ToolbarIconButton[\s\S]*exitFullscreen/);
   expect(documentToolbar).not.toMatch(/w-11 h-11 rounded-xl bg-black\/80/);
   expect(skillFullscreen).not.toMatch(/w-11 h-11 rounded-xl bg-black\/80/);
 });
@@ -387,10 +388,10 @@ test("normal skill form uses shared primitives for generic form controls", () =>
   );
   expect(source).toMatch(/<Input[\s\S]*adminMarketplace\.tagsPlaceholder/);
   expect(source).toMatch(/<Input[\s\S]*skills\.form\.filePathPlaceholder/);
-  expect(source).toMatch(/<IconButton[\s\S]*addFile/);
-  expect(source).toMatch(/<IconButton[\s\S]*editFullscreen/);
-  expect(source).toMatch(/icon=\{<Pencil size=\{15\} \/>/);
-  expect(source).toMatch(/<IconButton[\s\S]*toggleFullscreen\(true\)/);
+  expect(source).toMatch(/<ToolbarIconButton[\s\S]*addFile/);
+  expect(source).toMatch(/<ToolbarIconButton[\s\S]*toggleFullscreen\(true\)/);
+  expect(source).toMatch(/<FormField[\s\S]*skills\.form\.name/);
+  expect(source).toMatch(/<ToggleSwitch[\s\S]*ariaLabel=/);
   expect(source).toMatch(/<Button[\s\S]*type="submit"/);
   expect(source).not.toMatch(
     /<input[\s\S]*(a\.name|a\.tagsInput|updateFilePath)/,
