@@ -1,24 +1,34 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown } from "lucide-react";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
+import { CatalogStatus } from "../../common/CatalogStatus";
 import { ModelIconImg } from "../../agent/modelIcon.tsx";
 
 export function ProfileModelsTab() {
   const { t } = useTranslation();
-  const { availableModels } = useSettingsContext();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const { availableModels, modelsLoading, modelsError, reloadModels } =
+    useSettingsContext();
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const toggle = (id: string) =>
     setExpanded((prev) => (prev === id ? null : id));
 
   return (
-    <div className="space-y-3">
-      {!availableModels || availableModels.length === 0 ? (
+    <div ref={contentRef} tabIndex={-1} className="space-y-3 outline-none">
+      <CatalogStatus
+        focusTargetRef={contentRef}
+        label={t("nav.models")}
+        loading={modelsLoading}
+        error={modelsError}
+        onRetry={reloadModels}
+      />
+      {availableModels?.length === 0 && !modelsLoading && !modelsError ? (
         <p className="text-14 profile-empty">{t("profile.noModels")}</p>
       ) : (
         <div className="space-y-1.5">
-          {availableModels.map((model) => (
+          {availableModels?.map((model) => (
             <div key={model.id} className="profile-model">
               <button
                 onClick={() => toggle(model.id)}
