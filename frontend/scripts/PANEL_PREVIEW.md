@@ -145,3 +145,5 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 关于与确认弹窗：`/dialog-preview?view=about` 使用真实 useVersion 与只读版本 GET，等待2秒；`failure=about-version` 让初次读取503后 Retry 恢复，`failure=about-check` 只让强制检查首次503，已读版本保持可见。`long=1` 返回长版本号，`state=current` 显示已更新状态。`view=confirm` 仅模拟确认等待2秒后关闭，没有删除或写请求；`long=1` 添加长正文，`long-actions=1` 使用长操作文案检查按钮换行，`variant=warning|info` 检查主题变体。可组合 `theme=light|dark|sepia` 与 `lang=zh|en|ja|ko|ru`。外链为 example.test 占位，不证明真实更新下载、删除或手机软键盘。
 
 PDF 格式走查：`/files` 第一组新增“研究与交付计划.pdf”，由本地两页 PDF 样例经实际 PDF.js worker 渲染，可检查连续滚动、适配宽度、缩放/还原与短屏底部操作。`failure=pdf-render` 返回 HTTP 200 的损坏 PDF，检查解析失败提示、短屏滚动及键盘到达“在新窗口打开”；不激活该链接。`fixture=error&failure=document` 则首次文件 GET 503，重试后恢复，用于区分网络错误与格式解析错误。可组合三主题与新的 `run` 参数；仅本地只读样例，不证明真实 Word/PPT 渲染、认证或原生设备行为。
+
+文件回退与 CAD 走查：首组提供“图纸预览.dxf”（实际 DxfViewer 渲染四条线）、“原始图纸.dwg”（仅占位数据，检查不支持格式提示）及“文本回退.pptx”（故意缺失幻灯片关系，经实际转换库失败后从 ZIP 恢复两页文字）。`failure=cad-render` 返回损坏 DXF，检查解析错误、短屏滚动和键盘焦点。手机短屏可检查下载按钮可达、画布高度和 PPT 分页标题；样例不证明真实 DWG 解析、完整 Office 兼容或原生设备行为。

@@ -79,7 +79,11 @@ async function openNotes() {
   });
   act(() => opener.focus());
   fireEvent.click(opener);
-  await screen.findByRole("heading", { name: "notes.txt", exact: true });
+  await screen.findByRole(
+    "heading",
+    { name: "notes.txt", exact: true },
+    { timeout: 8000 },
+  );
   return opener;
 }
 

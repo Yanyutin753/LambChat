@@ -1101,7 +1101,7 @@ function response(
     const groups = all(files).map((file, i) => ({
       session_id: file.session_id,
       session_name: file.session_name,
-      file_count: i === 0 ? 5 : 3,
+      file_count: i === 0 ? 8 : 3,
       files: [
         file,
         ...(i === 0
@@ -1127,6 +1127,26 @@ function response(
                 mime_type: "application/pdf",
                 card_preview: null,
               },
+              ...([
+                ["图纸预览.dxf", "dxf", "application/dxf", 260],
+                ["原始图纸.dwg", "dwg", "application/acad", 36],
+                [
+                  "文本回退.pptx",
+                  "pptx",
+                  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                  1080,
+                ],
+              ] as const).map(([name, ext, mime, size]) => ({
+                ...file,
+                id: `preview-${ext}`,
+                file_size: size,
+                file_name: name,
+                file_key: `preview/sample.${ext}`,
+                original_path: `/workspace/${name}`,
+                url: `/preview-document.${ext}`,
+                mime_type: mime,
+                card_preview: null,
+              })),
             ]
           : []),
         {
@@ -1612,6 +1632,33 @@ const server = await createServer({
               res.end("Preview document temporarily unavailable");
               return;
             }
+          }
+          if (url.pathname === "/preview-document.dxf") {
+            res.setHeader("Content-Type", "application/dxf");
+            res.end(
+              previewParams.get("failure") === "cad-render"
+                ? "Invalid DXF fixture"
+                : readFileSync(
+                    new URL("./fixtures/preview-drawing.dxf", import.meta.url),
+                  ),
+            );
+            return;
+          }
+          if (url.pathname === "/preview-document.dwg") {
+            res.end("DWG fallback fixture - no drawing data");
+            return;
+          }
+          if (url.pathname === "/preview-document.pptx") {
+            res.setHeader(
+              "Content-Type",
+              "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            );
+            res.end(
+              readFileSync(
+                new URL("./fixtures/preview-text-slides.pptx", import.meta.url),
+              ),
+            );
+            return;
           }
           if (url.pathname === "/preview-document.pdf") {
             res.setHeader("Content-Type", "application/pdf");

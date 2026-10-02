@@ -1,8 +1,9 @@
 .cad-preview {
   position: relative;
   height: 100%;
-  min-height: 400px;
-  background: linear-gradient(rgba(148, 163, 184, 0.09) 1px, transparent 1px),
+  min-height: 0;
+  background:
+    linear-gradient(rgba(148, 163, 184, 0.09) 1px, transparent 1px),
     linear-gradient(90deg, rgba(148, 163, 184, 0.09) 1px, transparent 1px),
     var(--theme-bg-card);
   background-size: 32px 32px;
@@ -12,6 +13,8 @@
 .cad-preview__viewer {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .cad-preview__viewer canvas {
@@ -21,15 +24,27 @@
 .cad-preview__overlay {
   position: absolute;
   inset: 0;
+  overflow: auto;
+}
+
+.cad-preview__overlay-content {
+  min-height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
-  pointer-events: none;
+}
+
+.cad-preview__overlay:focus-visible,
+.cad-preview__viewer:focus-visible {
+  outline: 2px solid var(--theme-ring);
+  outline-offset: -2px;
 }
 
 .cad-preview__panel {
   width: min(100%, 420px);
+  flex-shrink: 0;
+  overflow-wrap: anywhere;
   border: 1px solid var(--theme-border);
   border-radius: 12px;
   background: color-mix(in srgb, var(--theme-bg-card) 94%, transparent);
@@ -50,6 +65,12 @@
   height: 100%;
   width: var(--cad-progress, 30%);
   border-radius: inherit;
-  background: rgb(8, 145, 178);
+  background: var(--theme-primary);
   transition: width 160ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cad-preview__progress-bar {
+    transition: none;
+  }
 }

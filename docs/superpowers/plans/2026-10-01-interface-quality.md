@@ -1265,3 +1265,13 @@ IAB证据：320×568深色俄语筛选、分层Escape/Tab/清空；390×844浅�
 真实预览：390深色正常两页/适配；834×1112 sepia两页且toolbarbottom1067；1440×900浅色两页且toolbarbottom855，整页横溢0。能力选择器390深色ArrowUp使最后选项自动滚入list可见范围。截图在仓库外visualizations/resource-header，包含pdf-320-short-dark-zoom、pdf-390-dark-fit、pdf-834-sepia、pdf-1440-light及错误页截图。仅本地PDF实际渲染，不证明真实Word/PPT、认证、写入或原生设备触控/软键盘。
 
 最终全量798文件4032测试通过，lint零错误/警告，tsc/Vite/PWA/build通过（既有大chunk提示保留），预算未提高：eager560438/561152 bytes、92条precache5027235/5242880 bytes。日志/tmp/document-short-tests-final.log、document-short-lint-final.log、document-short-build-final.log；相关初次6文件35项通过，git diff --check通过。Impeccable无已安装skill folders，按DESIGN人工完成八项检查：字号/阅读留白保留，状态与操作层级明确，三主题token复用，无新装饰/依赖/动效，沿用reduced-motion，原生滚动、焦点和响应式有实际证据。全站目标保持 active，主清单未闭合项不勾选；下一批处理 FileFallback/CAD内部与PPT文本回退的固定高度，再继续剩余状态矩阵与真实服务/原生设备验收。
+
+### 2026-10-03：文件回退、CAD 与 PPT 文本的短屏阅读
+
+上一回合为 progress（cc7b7949），开工 fetch/rebase 确认 origin/develop 已包含。共享 FileFallbackPanel、CAD 内层和 PPT 文本回退取消400px最小高度；提示内层自然增长并滚动，下载复用44px共享Button，PPT标题沿用五语标签补页码，阅读区支持键盘焦点。CAD加载/错误提供status/alert，加载完成仅在overlay持焦点时交接至稳定viewer，不抢外部焦点。独立复核指出卸载失焦P2，deferred成功测试先1failed/2passed再修复；最终增量复核无其他确定P1/P2。
+
+实际320×300 RED：三种内容原400px超过235px区域，DWG下载bottom409.375不可见；GREEN根高235，Tab使44px下载按钮滚至232.375–276.375。实际PPT库与ZIP损坏关系样例恢复两页，End滚至第二页，reader235/scroll342。CAD原有仅absolute/inset布局还被DxfViewer注入relative覆盖，导致canvas0px；真实断言RED 0vs235，补width/height100%后GREEN235，390×844重新加载可见四条线构成的矩形。损坏DXF返回实际解析错误，alert保留，overlay235/scroll280；这次未取得End完成滚动后的证据，不把即时scrollTop0当作通过。截图在仓库外visualizations/resource-header。浅色1440 CAD画布810px，但白色默认图线对浅色背景对比不足，明确列入下一批；不能将高度正确当作全主题渲染完成。
+
+用户文件搜索要求再次实测390×844：现有CodeMirror原生查找浮层280×46px，position:absolute，展开前后contentTop65px不变，无第二工具栏；summarize命中两处，关闭回代码预览。3017与本worktree的相关工具栏和CSS逐字一致，已有实现无需重复修改。截图file-search-390-dark-final.png。
+
+相关3文件12项通过；新增CAD3项和PPT五语5项分别有真实RED。全量首次799文件通过、1个旧workspace懒加载测试超过默认1秒等待；仅将该测试标题等待改为8秒，与同类编辑器冷启动测试一致，重跑全量800文件4040项通过。lint零错误/警告，tsc/Vite/PWA/build通过，预算不变：eager560453/561152、92条precache5026809/5242880 bytes。日志/tmp/document-fallback-tests-final-retry.log、document-fallback-lint-verified.log、document-fallback-build-verified.log；git diff --check通过。npx --offline impeccable update报告未安装skill folders，按DESIGN人工检查排版、留白、层级、色彩、动效、微交互、响应式及原创性；无新依赖/装饰，沿用token/reduced-motion。仍未闭合CAD浅色对比、其他格式/状态及真实服务/原生设备验收；全站goal保持active，主清单未勾完，不宣称全站完成。
