@@ -159,7 +159,9 @@ test("profile action transfers focus into the new dialog instead of the avatar",
   const profile = await screen.findByRole("dialog", {
     name: "Personal settings",
   });
-  expect(profile.contains(document.activeElement)).toBe(true);
+  await waitFor(() =>
+    expect(profile.contains(document.activeElement)).toBe(true),
+  );
   expect(
     screen.queryByRole("dialog", { name: "Profile", exact: true }),
   ).toBeNull();
