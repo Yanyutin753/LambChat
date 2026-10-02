@@ -2303,7 +2303,7 @@
       "restartDaemon": "daemon を再起動",
       "needDesktop": "ローカルサンドボックスは現在オフラインです。LambChat デスクトップアプリでペアリングすると、ウェブでも利用できます。",
       "webManaged": "ペアリング済みデスクトップアプリで管理",
-      "pairFailed": "ペアリングに失敗しました。認証情報を確認して再試行してください。",
+      "pairFailed": "ペアリングに失敗しました。もう一度お試しください。",
       "unpair": "ペアリング解除",
       "unpaired": "ペアリングを解除しました",
       "machines": "マイマシン",
@@ -2329,7 +2329,8 @@
         "days": "{{days}}日前にオンライン"
       },
       "forgetMachine": "このマシンを削除",
-      "forgetMachineConfirm": "「{{name}}」を削除しますか？名前とデフォルト設定が消去されます。"
+      "forgetMachineConfirm": "「{{name}}」を削除しますか？名前とデフォルト設定が消去されます。",
+      "pairSavedRestartPending": "ペアリング情報を保存しました。完了するにはサービスを再起動してください。"
     },
     "maxPinnedModels": "最大{{max}}個のモデルをピン留めできます",
     "memoryToggle": "セッション横断メモリ",

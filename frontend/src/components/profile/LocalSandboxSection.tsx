@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
@@ -12,6 +18,7 @@ import {
 import { sandboxApi, sandboxApiMachines } from "../../services/api/sandbox";
 import { getValidAccessToken } from "../../services/api/tokenManager";
 import { effectiveApiBase } from "../../services/api/serverConfig";
+import { usePreferenceWrites } from "../../hooks/usePreferenceWrites";
 import {
   SANDBOX_STATUS_REFRESH_EVENT,
   notifySandboxStatusRefresh,
@@ -45,6 +52,7 @@ const CONFIRM_POLICY_OPTIONS = [
 ] as const;
 
 type ConfirmPolicy = (typeof CONFIRM_POLICY_OPTIONS)[number]["key"];
+type SandboxAction = "current" | "other" | "policy" | "restart" | "unpair";
 
 /** daemon 连接的服务端地址：运行时配置（打包壳首启设置）优先，构建期
  * API_BASE 次之；同源部署回退 origin。 */
@@ -88,17 +96,25 @@ export function LocalSandboxSection({
   const sectionRef = useRef<HTMLDivElement>(null);
   const pairFormRef = useRef<HTMLFormElement>(null);
   const processRequest = useRef(0);
-  const pairLock = useRef(false);
-  const [pairingMethod, setPairingMethod] = useState<
-    "current" | "other" | null
-  >(null);
-  const pairing = pairingMethod === "other";
-  const pairingCurrent = pairingMethod === "current";
-  const pairBusy = pairingMethod !== null;
-  const [applying, setApplying] = useState(false);
-  const [unpairing, setUnpairing] = useState(false);
+  const operationGeneration = useRef(0);
+  const operationError = useRef("");
+  const { states, save, retry, discard } = usePreferenceWrites("local-sandbox");
+  const [action, setAction] = useState<SandboxAction | null>(null);
+  const [pairPrepared, setPairPrepared] = useState(false);
+  const [policyDraft, setPolicyDraft] = useState(false);
+  const busy = states.native === "saving";
+  const pairing = action === "other" && busy;
+  const pairingCurrent = action === "current" && busy;
+  const pairBusy = busy || pairPrepared;
+  const unpairing = action === "unpair" && busy;
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  useLayoutEffect(() => {
+    const invalidate = () => {
+      operationGeneration.current++;
+    };
+    return invalidate;
+  }, []);
 
   const refreshProcessStatus = useCallback(() => {
     const request = ++processRequest.current;
@@ -171,23 +187,29 @@ export function LocalSandboxSection({
   // 用户正在切换（policyOpen/applying）时不回写，避免覆盖在途选择
   const reportedPolicy = status?.daemon_confirm_policy;
   useEffect(() => {
+    if (reportedPolicy === policy && policyDraft) {
+      setPolicyDraft(false);
+      return;
+    }
     if (
       reportedPolicy &&
       !policyOpen &&
-      !applying &&
+      !busy &&
+      !policyDraft &&
       reportedPolicy !== policy &&
       CONFIRM_POLICY_OPTIONS.some((o) => o.key === reportedPolicy)
     ) {
       setPolicy(reportedPolicy as ConfirmPolicy);
     }
-  }, [reportedPolicy, policyOpen, applying, policy]);
+  }, [reportedPolicy, policyOpen, busy, policy, policyDraft]);
 
   // 未配对判定：daemon 进程退出/不可用（未配对时 daemon 启动即退），
   // 或会话已失效（status 401）——两者都回到配对表单
   const unpaired =
-    processStatus === "stopped" ||
-    processStatus === "unsupported" ||
-    statusError === "unauthorized";
+    (processStatus === "stopped" ||
+      processStatus === "unsupported" ||
+      statusError === "unauthorized") &&
+    !(states.native && action !== "current" && action !== "other");
   const loading = processStatus === "";
 
   // 分区头：独立形态是卡片大标题（同其他卡）；嵌入形态是 tile 内的软标题
@@ -298,146 +320,170 @@ export function LocalSandboxSection({
     );
   }
 
-  const applyPatAndRestart = async (
-    pat: string,
-    patId: string,
-    confirmPolicy: ConfirmPolicy,
+  const startOperation = (
+    nextAction: SandboxAction,
+    request: (isCurrent: () => boolean) => Promise<void>,
+    onSaved?: () => void,
+    errorText: () => string = () => t("common.operationFailed"),
   ) => {
-    await savePairing({
-      serverUrl: resolveServerUrl(),
-      pat,
-      patId,
-      confirmPolicy,
-    });
-    await restartDaemon();
-    notifySandboxStatusRefresh();
-    refresh();
-    refreshProcessStatus();
-  };
-
-  const handlePair = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pairLock.current || !username.trim() || !password) return;
-    pairLock.current = true;
-    setPairingMethod("other");
-    if (pairFormRef.current?.contains(document.activeElement))
-      pairFormRef.current.focus({ preventScroll: true });
-    try {
-      // 无副作用登录：直连 fetch 拿 access_token，不 setTokens、不派发
-      // auth:login（换账号配对不得切换壳会话身份），JWT 只活在本次闭包里。
-      const pairingJwt = await sandboxApi.pairingLogin({
-        username: username.trim(),
-        password,
-      });
-      // 用配对账号的 JWT（而非壳会话 token）铸 PAT，并保存配对回执 pat_id
-      const pat = await sandboxApi.createPairingPat(pairingJwt);
-      await applyPatAndRestart(pat.token, pat.pat_id, policy);
-      toast.success(t("profile.localSandbox.paired"));
-      setPassword("");
-    } catch (err) {
-      console.warn("[LocalSandboxSection] pairing failed:", err);
-      toast.error(t("profile.localSandbox.pairFailed"));
-    } finally {
-      pairLock.current = false;
-      setPairingMethod(null);
-    }
-  };
-
-  /** 一键配对：当前壳会话（刷新后的 JWT）直接铸 PAT，不碰密码通道——
-   * OAuth 账号没有密码，这是他们唯一可用的手动配对路径。 */
-  const handlePairWithCurrentAccount = async () => {
-    if (pairLock.current) return;
-    pairLock.current = true;
-    setPairingMethod("current");
-    if (pairFormRef.current?.contains(document.activeElement))
-      pairFormRef.current.focus({ preventScroll: true });
-    try {
-      const sessionJwt = await getValidAccessToken();
-      if (!sessionJwt) {
-        toast.error(t("profile.localSandbox.pairNeedLogin"));
-        return;
-      }
-      const pat = await sandboxApi.createPairingPat(sessionJwt);
-      await applyPatAndRestart(pat.token, pat.pat_id, policy);
-      toast.success(t("profile.localSandbox.paired"));
-    } catch (err) {
-      console.warn(
-        "[LocalSandboxSection] pair with current account failed:",
-        err,
-      );
-      toast.error(t("profile.localSandbox.pairFailed"));
-    } finally {
-      pairLock.current = false;
-      setPairingMethod(null);
-    }
-  };
-
-  const handlePolicyChange = async (next: ConfirmPolicy) => {
-    setPolicy(next);
-    setPolicyOpen(false);
-    if (applying) return;
-    setApplying(true);
-    try {
-      // 服务端耐久层（machpolicy）是持久化真源：先写它，daemon 重连/心跳
-      // 才不会用 sandbox.json 启动快照把策略打回旧值（全局生效的关键）。
-      if (currentMachineId) {
-        await sandboxApiMachines.updateConfirmPolicy(currentMachineId, next);
-      }
-      // 只写配置：write_confirm_policy 仅覆写 confirm_policy（保留 pat 等其余
-      // 字段），不重铸 PAT——旧实现每次切换铸一枚永久凭据，会无限累积。
-      await writeConfirmPolicy(next);
-      await restartDaemon();
-      notifySandboxStatusRefresh();
-      refresh();
-      refreshProcessStatus();
-    } catch (err) {
-      console.warn("[LocalSandboxSection] policy change failed:", err);
-      toast.error(t("common.operationFailed"));
-    } finally {
-      setApplying(false);
-    }
-  };
-
-  const handleUnpair = async () => {
-    if (unpairing) return;
-    setUnpairing(true);
-    try {
-      // 服务端自撤销：用落盘 PAT 调 DELETE /api/auth/pat/current 删自己；
-      // 失败（已吊销/离线）不阻塞本地清理——残留 PAT 可在网页端 PAT 管理页吊销。
-      const storedPat = await readPairingPat();
-      if (storedPat) {
+    const generation = operationGeneration.current;
+    const isCurrent = () => generation === operationGeneration.current;
+    const accepted = save(
+      "native",
+      async () => {
         try {
-          await sandboxApi.revokePairingPat(storedPat);
-        } catch (err) {
-          console.warn(
-            "[LocalSandboxSection] server-side PAT revoke failed:",
-            err,
-          );
+          await request(isCurrent);
+        } catch (error) {
+          if (isCurrent()) {
+            operationError.current = errorText();
+            toast.error(operationError.current);
+          }
+          throw error;
         }
+      },
+      () => {
+        notifySandboxStatusRefresh();
+        refresh();
+        refreshProcessStatus();
+        onSaved?.();
+      },
+    );
+    if (accepted) {
+      setAction(nextAction);
+      operationError.current = "";
+      if (sectionRef.current?.contains(document.activeElement)) {
+        const target =
+          nextAction === "current" || nextAction === "other"
+            ? pairFormRef.current
+            : sectionRef.current;
+        target?.focus({ preventScroll: true });
       }
-      await clearPairing();
-      notifySandboxStatusRefresh();
-      refresh();
-      refreshProcessStatus();
-      toast.success(t("profile.localSandbox.unpaired"));
-    } catch (err) {
-      console.warn("[LocalSandboxSection] unpair failed:", err);
-      toast.error(t("common.operationFailed"));
-    } finally {
-      setUnpairing(false);
+    }
+    return accepted;
+  };
+
+  const startPairing = (mode: "current" | "other") => {
+    if (pairBusy || (mode === "other" && (!username.trim() || !password)))
+      return;
+    const credentials = { username: username.trim(), password };
+    const confirmPolicy = policy;
+    const serverUrl = resolveServerUrl();
+    let receipt:
+      Awaited<ReturnType<typeof sandboxApi.createPairingPat>> | undefined;
+    let saved = false;
+    let message = t("profile.localSandbox.pairFailed");
+    startOperation(
+      mode,
+      async (isCurrent) => {
+        if (!receipt) {
+          const jwt =
+            mode === "current"
+              ? await getValidAccessToken()
+              : await sandboxApi.pairingLogin(credentials);
+          if (!isCurrent()) return;
+          if (!jwt) {
+            message = t("profile.localSandbox.pairNeedLogin");
+            throw new Error("Pairing requires a signed-in account");
+          }
+          receipt = await sandboxApi.createPairingPat(jwt);
+          if (!isCurrent()) return;
+          if (pairFormRef.current?.contains(document.activeElement))
+            sectionRef.current?.focus({ preventScroll: true });
+          setPairPrepared(true);
+          message = t("common.operationFailed");
+        }
+        if (!saved) {
+          await savePairing({
+            serverUrl,
+            pat: receipt.token,
+            patId: receipt.pat_id,
+            confirmPolicy,
+          });
+          saved = true;
+          if (!isCurrent()) return;
+          message = t("profile.localSandbox.pairSavedRestartPending");
+        }
+        if (!isCurrent()) return;
+        await restartDaemon();
+      },
+      () => {
+        setPairPrepared(false);
+        setPassword("");
+        toast.success(t("profile.localSandbox.paired"));
+      },
+      () => message,
+    );
+  };
+
+  const handlePair = (event: React.FormEvent) => {
+    event.preventDefault();
+    startPairing("other");
+  };
+  const handlePairWithCurrentAccount = () => startPairing("current");
+
+  const handlePolicyChange = (next: ConfirmPolicy) => {
+    if (busy || pairPrepared) return;
+    const machineId = currentMachineId;
+    let serverSaved = false;
+    let localSaved = false;
+    if (
+      startOperation("policy", async (isCurrent) => {
+        // Retry resumes the failed step, preserving the acknowledged server/local writes.
+        if (!serverSaved && machineId) {
+          await sandboxApiMachines.updateConfirmPolicy(machineId, next);
+          serverSaved = true;
+          if (!isCurrent()) return;
+        }
+        if (!localSaved) {
+          await writeConfirmPolicy(next);
+          localSaved = true;
+          if (!isCurrent()) return;
+        }
+        await restartDaemon();
+      })
+    ) {
+      setPolicy(next);
+      setPolicyDraft(true);
+      setPolicyOpen(false);
     }
   };
 
-  const handleRestart = async () => {
-    try {
-      await restartDaemon();
-      notifySandboxStatusRefresh();
-      refresh();
-      refreshProcessStatus();
-    } catch (err) {
-      console.warn("[LocalSandboxSection] restart failed:", err);
-      toast.error(t("common.operationFailed"));
+  const handleUnpair = () => {
+    if (busy || pairPrepared) return;
+    let revocationAttempted = false;
+    startOperation(
+      "unpair",
+      async (isCurrent) => {
+        if (!revocationAttempted) {
+          const storedPat = await readPairingPat();
+          if (!isCurrent()) return;
+          if (storedPat) {
+            try {
+              await sandboxApi.revokePairingPat(storedPat);
+            } catch {
+              // Preserve offline cleanup; a leftover PAT can still be revoked in PAT settings.
+            }
+            if (!isCurrent()) return;
+          }
+          revocationAttempted = true;
+        }
+        await clearPairing();
+      },
+      () => toast.success(t("profile.localSandbox.unpaired")),
+    );
+  };
+
+  const handleRestart = () => {
+    if (busy || pairPrepared) return;
+    if (states.native === "error" && action === "policy") {
+      if (sectionRef.current?.contains(document.activeElement))
+        sectionRef.current?.focus({ preventScroll: true });
+      retry("native");
+      return;
     }
+    startOperation("restart", async () => {
+      await restartDaemon();
+    });
   };
 
   const handleOpenLocalPath = (
@@ -502,11 +548,34 @@ export function LocalSandboxSection({
         {/* 数据位置（配对态无关）：当前根 + 更改/恢复默认 + 重启引导 */}
         <SandboxDataLocationCard />
 
-        {loading || processStatus === "error" ? null : unpaired ? (
+        {states.native && (
+          <div className="mt-2" aria-busy={busy}>
+            <CatalogStatus
+              label={t(
+                action === "policy"
+                  ? "profile.localSandbox.policy"
+                  : action === "restart"
+                    ? "profile.localSandbox.restartDaemon"
+                    : action === "unpair"
+                      ? "profile.localSandbox.unpair"
+                      : "profile.localSandbox.pairButton",
+              )}
+              loading={busy}
+              error={states.native === "error"}
+              errorText={operationError.current}
+              onRetry={() => retry("native")}
+              focusTargetRef={sectionRef}
+            />
+          </div>
+        )}
+
+        {loading ||
+        processStatus === "error" ||
+        pairPrepared ? null : unpaired ? (
           <form
             ref={pairFormRef}
             tabIndex={-1}
-            aria-busy={pairBusy}
+            aria-busy={busy}
             onSubmit={handlePair}
             className="space-y-3 pt-3 outline-none"
           >
@@ -534,7 +603,10 @@ export function LocalSandboxSection({
                 placeholder={t("auth.usernamePlaceholder")}
                 value={username}
                 disabled={pairBusy}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => {
+                  discard("native");
+                  setUsername(e.target.value);
+                }}
               />
             </FormField>
             <FormField label={t("auth.password")}>
@@ -544,7 +616,10 @@ export function LocalSandboxSection({
                 placeholder={t("auth.passwordPlaceholder")}
                 value={password}
                 disabled={pairBusy}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  discard("native");
+                  setPassword(e.target.value);
+                }}
               />
             </FormField>
             <Button
@@ -566,7 +641,7 @@ export function LocalSandboxSection({
               open={policyOpen}
               onToggle={() => setPolicyOpen((v) => !v)}
               onSelect={handlePolicyChange}
-              loading={applying}
+              loading={busy || pairPrepared}
             />
 
             <div className="local-sandbox-actions">
@@ -578,6 +653,7 @@ export function LocalSandboxSection({
                     <FolderOpen size={14} className="shrink-0 opacity-60" />
                   }
                   onClick={() => handleOpenLocalPath(path)}
+                  disabled={busy || pairPrepared}
                 >
                   {t(
                     `profile.localSandbox.${path === "workspaces" ? "openWorkspaces" : path === "audit" ? "openAudit" : "openLogs"}`,
@@ -590,6 +666,8 @@ export function LocalSandboxSection({
                   <RotateCw size={14} className="shrink-0 opacity-60" />
                 }
                 onClick={handleRestart}
+                loading={action === "restart" && busy}
+                disabled={busy || pairPrepared}
               >
                 {t("profile.localSandbox.restartDaemon")}
               </Button>
@@ -600,6 +678,7 @@ export function LocalSandboxSection({
                 size="sm"
                 leftIcon={<Link2Off size={14} />}
                 loading={unpairing}
+                disabled={busy || pairPrepared}
                 onClick={handleUnpair}
               >
                 {t("profile.localSandbox.unpair")}

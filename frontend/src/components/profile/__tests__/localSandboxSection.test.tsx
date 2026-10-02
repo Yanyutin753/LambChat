@@ -32,6 +32,8 @@ const mocks = vi.hoisted(() => ({
   createPairingPat: vi.fn(),
   revokePairingPat: vi.fn(),
   getValidAccessToken: vi.fn(),
+  readMachineId: vi.fn(),
+  updateConfirmPolicy: vi.fn(),
   navigate: vi.fn(),
 }));
 
@@ -47,6 +49,7 @@ vi.mock("../../../services/tauri/sandboxShell", () => ({
   isShellAvailable: mocks.isShellAvailable,
   subscribeDaemonStatus: mocks.subscribeDaemonStatus,
   daemonProcessStatus: mocks.daemonProcessStatus,
+  readMachineId: mocks.readMachineId,
   savePairing: mocks.savePairing,
   restartDaemon: mocks.restartDaemon,
   openLocalPath: mocks.openLocalPath,
@@ -70,6 +73,7 @@ vi.mock("../../../services/api/sandbox", () => ({
   },
   sandboxApiMachines: {
     listMachines: mocks.listMachines,
+    updateConfirmPolicy: mocks.updateConfirmPolicy,
   },
   machinePlatformLabel: (platform: string) => platform,
 }));
@@ -79,6 +83,337 @@ vi.mock("react-hot-toast", () => ({
 }));
 
 import { LocalSandboxSection } from "../LocalSandboxSection";
+import { getSandboxStatusStoreState } from "../../../stores/sandboxStatusStore";
+
+test("policy save keeps focus in the section while its select is disabled", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({
+    online: true,
+    daemon_confirm_policy: "all",
+  });
+  mocks.writeConfirmPolicy.mockReturnValue(new Promise(() => {}));
+  const { container } = render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Confirmation policy" }),
+  );
+  const option = await screen.findByRole("option", {
+    name: "Confirm commands only",
+  });
+  act(() => option.focus());
+  fireEvent.click(option);
+  expect(
+    screen.getByRole("button", { name: "Confirmation policy" }),
+  ).toBeDisabled();
+  expect(container.querySelector(".local-sandbox-section")).toHaveFocus();
+});
+
+test("restart continues an unsaved policy instead of dropping its error and retry", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({
+    online: true,
+    daemon_confirm_policy: "all",
+  });
+  mocks.writeConfirmPolicy
+    .mockRejectedValueOnce(new Error("write failed"))
+    .mockResolvedValue(undefined);
+  mocks.restartDaemon.mockResolvedValue(undefined);
+  render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Confirmation policy" }),
+  );
+  fireEvent.click(await screen.findByText("Confirm commands only"));
+  await screen.findByRole("alert");
+  fireEvent.click(screen.getByRole("button", { name: /restart daemon/i }));
+  await waitFor(() =>
+    expect(mocks.writeConfirmPolicy).toHaveBeenCalledTimes(2),
+  );
+  await waitFor(() => expect(mocks.restartDaemon).toHaveBeenCalledTimes(1));
+  await waitFor(() =>
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
+  );
+});
+
+test("policy restart retry does not repeat acknowledged server or local writes", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.readMachineId.mockResolvedValue("fixture-machine");
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({
+    online: true,
+    daemon_confirm_policy: "all",
+  });
+  mocks.updateConfirmPolicy.mockResolvedValue(undefined);
+  mocks.writeConfirmPolicy.mockResolvedValue(undefined);
+  mocks.restartDaemon
+    .mockRejectedValueOnce(new Error("restart failed"))
+    .mockResolvedValue(undefined);
+  render(<LocalSandboxSection />);
+  await waitFor(() =>
+    expect(getSandboxStatusStoreState().currentMachineId).toBe(
+      "fixture-machine",
+    ),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Confirmation policy" }),
+  );
+  fireEvent.click(await screen.findByText("Confirm commands only"));
+  await screen.findByRole("alert");
+  expect(
+    screen.getByRole("button", { name: "Confirmation policy" }),
+  ).toHaveTextContent("Confirm commands only");
+  fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+  await waitFor(() => expect(mocks.restartDaemon).toHaveBeenCalledTimes(2));
+  expect(mocks.updateConfirmPolicy).toHaveBeenCalledTimes(1);
+  expect(mocks.updateConfirmPolicy).toHaveBeenCalledWith(
+    "fixture-machine",
+    "commands",
+  );
+  expect(mocks.writeConfirmPolicy).toHaveBeenCalledTimes(1);
+});
+
+test("closing while a PAT is being created prevents late native save and notifications", async () => {
+  let resolve!: (value: { token: string; pat_id: string }) => void;
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("stopped");
+  mocks.getStatus.mockResolvedValue({ online: false });
+  mocks.getValidAccessToken.mockResolvedValue("fixture-jwt");
+  mocks.createPairingPat.mockImplementation(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  const { unmount } = render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /pair with current account/i }),
+  );
+  await waitFor(() => expect(resolve).toBeDefined());
+  unmount();
+  await act(async () =>
+    resolve({ token: "fixture-pat", pat_id: "fixture-id" }),
+  );
+  expect(mocks.savePairing).not.toHaveBeenCalled();
+  expect(mocks.restartDaemon).not.toHaveBeenCalled();
+  const { toast } = await import("react-hot-toast");
+  expect(toast.success).not.toHaveBeenCalled();
+});
+
+test("closing during restart suppresses its late error notification", async () => {
+  let reject!: (error: Error) => void;
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({ online: true });
+  mocks.restartDaemon.mockImplementation(
+    () =>
+      new Promise((_, fail) => {
+        reject = fail;
+      }),
+  );
+  const { unmount } = render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /restart daemon/i }),
+  );
+  await waitFor(() => expect(reject).toBeDefined());
+  unmount();
+  await act(async () => reject(new Error("restart failed")));
+  const { toast } = await import("react-hot-toast");
+  expect(toast.error).not.toHaveBeenCalled();
+});
+
+test.each(["current", "other"])(
+  "%s pairing retries only restart after credentials are saved",
+  async (mode) => {
+    mocks.isShellAvailable.mockReturnValue(true);
+    mocks.daemonProcessStatus.mockResolvedValue("stopped");
+    mocks.getStatus.mockResolvedValue({ online: false });
+    mocks.getValidAccessToken.mockResolvedValue("fixture-jwt");
+    mocks.pairingLogin.mockResolvedValue("fixture-jwt");
+    mocks.createPairingPat.mockResolvedValue({
+      token: "fixture-pat",
+      pat_id: "fixture-id",
+    });
+    mocks.savePairing.mockResolvedValue(undefined);
+    mocks.restartDaemon
+      .mockRejectedValueOnce(new Error("restart unavailable"))
+      .mockResolvedValue(undefined);
+    render(<LocalSandboxSection />);
+    const current = await screen.findByRole("button", {
+      name: /pair with current account/i,
+    });
+    fireEvent.change(screen.getByLabelText("Username"), {
+      target: { value: "preview" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "fixture" },
+    });
+    const submit =
+      mode === "current"
+        ? current
+        : screen.getByRole("button", { name: /pair and start/i });
+    act(() => submit.focus());
+    fireEvent.click(submit);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /saved.*restart/i,
+    );
+    expect(
+      screen.queryByRole("button", { name: /pair with current account/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Username")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("alert").closest(".local-sandbox-section"),
+    ).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+    await waitFor(() => expect(mocks.restartDaemon).toHaveBeenCalledTimes(2));
+    expect(mocks.createPairingPat).toHaveBeenCalledTimes(1);
+    expect(mocks.savePairing).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
+    );
+  },
+);
+
+test("pairing retries native save with the same receipt instead of minting another PAT", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("stopped");
+  mocks.getStatus.mockResolvedValue({ online: false });
+  mocks.getValidAccessToken.mockResolvedValue("fixture-jwt");
+  mocks.createPairingPat.mockResolvedValue({
+    token: "fixture-pat",
+    pat_id: "fixture-id",
+  });
+  mocks.savePairing
+    .mockRejectedValueOnce(new Error("write failed"))
+    .mockResolvedValue(undefined);
+  mocks.restartDaemon.mockResolvedValue(undefined);
+  render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /pair with current account/i }),
+  );
+  await screen.findByRole("alert");
+  fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+  await waitFor(() => expect(mocks.restartDaemon).toHaveBeenCalledTimes(1));
+  expect(mocks.createPairingPat).toHaveBeenCalledTimes(1);
+  expect(mocks.savePairing).toHaveBeenCalledTimes(2);
+  expect(mocks.savePairing.mock.calls[0]).toEqual(
+    mocks.savePairing.mock.calls[1],
+  );
+});
+
+test("policy save failure keeps the selected policy and retries the failed write", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({
+    online: true,
+    daemon_confirm_policy: "all",
+  });
+  mocks.writeConfirmPolicy
+    .mockRejectedValueOnce(new Error("write failed"))
+    .mockResolvedValue(undefined);
+  mocks.restartDaemon.mockResolvedValue(undefined);
+  render(<LocalSandboxSection />);
+  const policy = await screen.findByRole("button", {
+    name: "Confirmation policy",
+  });
+  fireEvent.click(policy);
+  fireEvent.click(await screen.findByText("Confirm commands only"));
+  await screen.findByRole("alert");
+  expect(policy).toHaveTextContent("Confirm commands only");
+  fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+  await waitFor(() => expect(mocks.restartDaemon).toHaveBeenCalledTimes(1));
+  expect(mocks.writeConfirmPolicy.mock.calls).toEqual([
+    ["commands"],
+    ["commands"],
+  ]);
+  expect(mocks.createPairingPat).not.toHaveBeenCalled();
+});
+
+test.each(["restart", "unpair"])(
+  "%s freezes all process mutations and offers retry on failure",
+  async (action) => {
+    let reject!: (error: Error) => void;
+    mocks.isShellAvailable.mockReturnValue(true);
+    mocks.daemonProcessStatus.mockResolvedValue("running");
+    mocks.getStatus.mockResolvedValue({ online: true });
+    mocks.readPairingPat.mockResolvedValue(null);
+    const command =
+      action === "restart" ? mocks.restartDaemon : mocks.clearPairing;
+    command
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, fail) => {
+            reject = fail;
+          }),
+      )
+      .mockResolvedValue(undefined);
+    const { container } = render(<LocalSandboxSection />);
+    const restart = await screen.findByRole("button", {
+      name: /restart daemon/i,
+    });
+    const unpair = screen.getByRole("button", { name: /^unpair$/i });
+    (action === "restart" ? restart : unpair).focus();
+    fireEvent.click(action === "restart" ? restart : unpair);
+    await waitFor(() => expect(reject).toBeDefined());
+    expect(restart).toBeDisabled();
+    expect(unpair).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Confirmation policy" }),
+    ).toBeDisabled();
+    expect(container.querySelector(".local-sandbox-section")).toHaveFocus();
+    await act(async () => reject(new Error("native unavailable")));
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+    await waitFor(() => expect(command).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
+    );
+  },
+);
+
+test("closing during pairing login prevents late PAT creation and native writes", async () => {
+  let resolve!: (value: string) => void;
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("stopped");
+  mocks.getStatus.mockResolvedValue({ online: false });
+  mocks.getValidAccessToken.mockImplementation(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  mocks.createPairingPat.mockResolvedValue({
+    token: "fixture-pat",
+    pat_id: "fixture-id",
+  });
+  mocks.savePairing.mockResolvedValue(undefined);
+  mocks.restartDaemon.mockResolvedValue(undefined);
+  const { unmount } = render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /pair with current account/i }),
+  );
+  await waitFor(() => expect(resolve).toBeDefined());
+  unmount();
+  await act(async () => resolve("fixture-jwt"));
+  expect(mocks.createPairingPat).not.toHaveBeenCalled();
+  expect(mocks.savePairing).not.toHaveBeenCalled();
+});
+
+test("unpair retry continues local cleanup without repeating server revocation", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({ online: true });
+  mocks.readPairingPat.mockResolvedValue("fixture-pat");
+  mocks.revokePairingPat.mockResolvedValue(undefined);
+  mocks.clearPairing
+    .mockRejectedValueOnce(new Error("clear failed"))
+    .mockResolvedValue(undefined);
+  render(<LocalSandboxSection />);
+  fireEvent.click(await screen.findByRole("button", { name: /^unpair$/i }));
+  await screen.findByRole("alert");
+  fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+  await waitFor(() => expect(mocks.clearPairing).toHaveBeenCalledTimes(2));
+  expect(mocks.revokePairingPat).toHaveBeenCalledTimes(1);
+});
 
 beforeEach(async () => {
   await i18n.changeLanguage("en");

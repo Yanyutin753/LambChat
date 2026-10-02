@@ -2303,7 +2303,7 @@
       "restartDaemon": "Restart daemon",
       "needDesktop": "Local sandbox is offline. Pair it with the LambChat desktop app to use it on the web.",
       "webManaged": "Managed by the paired desktop app",
-      "pairFailed": "Pairing failed. Check your credentials and try again.",
+      "pairFailed": "Pairing failed. Please try again.",
       "unpair": "Unpair",
       "unpaired": "Pairing removed",
       "machines": "My Machines",
@@ -2329,7 +2329,8 @@
         "days": "last seen {{days}}d ago"
       },
       "forgetMachine": "Forget this machine",
-      "forgetMachineConfirm": "Forget \"{{name}}\"? Its name and default-machine setting will be removed."
+      "forgetMachineConfirm": "Forget \"{{name}}\"? Its name and default-machine setting will be removed.",
+      "pairSavedRestartPending": "Pairing is saved. Restart the daemon to finish."
     },
     "maxPinnedModels": "Pin up to {{max}} models",
     "memoryToggle": "Cross-session memory",

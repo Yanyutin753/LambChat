@@ -1,9 +1,23 @@
-/** Preview-only shell/status seam. Native mutations always fail without running. */
+/** Preview-only shell/status seam. No real native actions or API writes. */
 import { useCallback, useEffect, useState } from "react";
 import { useSandboxStatus as useRealSandboxStatus } from "../src/hooks/useSandboxStatus";
 const params = new URLSearchParams(location.search);
 const nativeFixture = location.pathname === "/sandbox-data-preview";
 let failedProcess = false;
+const nativeFlow = nativeFixture && params.get("native-flow") === "1";
+const attempted = new Set<string>();
+let running = params.get("shell") === "paired";
+let policy = "all";
+let reportedPolicy = "all";
+let restartContext: "pair" | "policy" | null = null;
+async function run(operation: string) {
+  if (!nativeFlow) return rejectMutation();
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  if (params.get("failure") === operation && !attempted.has(operation)) {
+    attempted.add(operation);
+    throw new Error("Preview operation unavailable");
+  }
+}
 export const isShellAvailable = () =>
   nativeFixture && params.get("shell") !== "web";
 export const SANDBOX_STATUS_REFRESH_EVENT = "sandbox-status-refresh";
@@ -14,41 +28,81 @@ export async function daemonProcessStatus() {
     failedProcess = true;
     throw new Error("Preview status unavailable");
   }
-  return params.get("shell") === "paired" ? "running" : "stopped";
+  return running ? "running" : "stopped";
 }
 export const subscribeDaemonStatus = async () => null;
 async function rejectMutation() {
   await new Promise((resolve) => setTimeout(resolve, 1200));
   throw new Error("Native actions disabled in preview");
 }
-export const savePairing = rejectMutation;
-export const restartDaemon = rejectMutation;
+// Explicit flow uses public placeholders only. No bridge, filesystem or API writes.
+export async function savePairing() {
+  await run("pair-save");
+  restartContext = "pair";
+}
+export async function restartDaemon() {
+  await run(restartContext ? `${restartContext}-restart` : "restart");
+  running = true;
+  reportedPolicy = policy;
+  restartContext = null;
+}
 export const openLocalPath = rejectMutation;
-export const clearPairing = rejectMutation;
-export const readPairingPat = async () => null;
-export const writeConfirmPolicy = rejectMutation;
+export async function clearPairing() {
+  await run("unpair");
+  running = false;
+}
+export const readPairingPat = async () =>
+  nativeFlow ? "preview-only-pat" : null;
+export async function writeConfirmPolicy(next: string) {
+  await run("policy-save");
+  policy = next;
+  restartContext = "policy";
+}
 export const getValidAccessToken = async () => "preview-placeholder";
 export const sandboxApi = {
-  pairingLogin: rejectMutation,
-  createPairingPat: rejectMutation,
-  revokePairingPat: rejectMutation,
+  pairingLogin: async () => {
+    await run("pair-login");
+    return "preview-placeholder";
+  },
+  createPairingPat: async () => {
+    await run("pair-create");
+    return { token: "preview-only-pat", pat_id: "preview-only-id" };
+  },
+  revokePairingPat: async () => {
+    await run("unpair-revoke");
+  },
 };
-export const sandboxApiMachines = { updateConfirmPolicy: rejectMutation };
+export const sandboxApiMachines = {
+  updateConfirmPolicy: async () => {
+    await run("policy-server");
+  },
+};
 function usePreviewSandboxStatus() {
   const [ready, setReady] = useState(false);
+  const [, setVersion] = useState(0);
   const [failed, setFailed] = useState(params.get("failure") === "status");
   useEffect(() => {
     const timer = setTimeout(() => setReady(true), 800);
     return () => clearTimeout(timer);
   }, []);
-  const refresh = useCallback(() => setFailed(false), []);
-  const online = ready && !failed && params.get("shell") === "paired";
+  const refresh = useCallback(() => {
+    setFailed(false);
+    setVersion((value) => value + 1);
+  }, []);
+  const online = ready && !failed && running;
   return {
-    status: ready && !failed ? { online, daemon_version: "0.3.0" } : null,
+    status:
+      ready && !failed
+        ? {
+            online,
+            daemon_version: "0.3.0",
+            daemon_confirm_policy: reportedPolicy,
+          }
+        : null,
     statusError: ready && failed ? "error" : null,
     online,
     refresh,
-    currentMachineId: null,
+    currentMachineId: nativeFlow ? "preview-only-machine" : null,
   };
 }
 export const useSandboxStatus = nativeFixture

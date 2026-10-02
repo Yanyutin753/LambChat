@@ -2303,7 +2303,7 @@
       "restartDaemon": "daemon 재시작",
       "needDesktop": "로컬 샌드박스가 오프라인입니다. LambChat 데스크톱 앱과 페어링하면 웹에서도 사용할 수 있습니다.",
       "webManaged": "페어링된 데스크톱 앱에서 관리",
-      "pairFailed": "페어링에 실패했습니다. 계정 정보를 확인하고 다시 시도하세요.",
+      "pairFailed": "페어링에 실패했습니다. 다시 시도해 주세요.",
       "unpair": "페어링 해제",
       "unpaired": "페어링이 해제되었습니다",
       "machines": "내 머신",
@@ -2329,7 +2329,8 @@
         "days": "{{days}}일 전 접속"
       },
       "forgetMachine": "이 머신 잊기",
-      "forgetMachineConfirm": "\"{{name}}\"을(를) 잊으시겠습니까? 이름과 기본 머신 설정이 삭제됩니다."
+      "forgetMachineConfirm": "\"{{name}}\"을(를) 잊으시겠습니까? 이름과 기본 머신 설정이 삭제됩니다.",
+      "pairSavedRestartPending": "페어링 정보가 저장되었습니다. 완료하려면 서비스를 다시 시작하세요."
     },
     "maxPinnedModels": "최대 {{max}}개 모델을 고정할 수 있습니다",
     "memoryToggle": "세션 간 메모리",

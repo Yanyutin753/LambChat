@@ -115,4 +115,6 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 
 原生沙箱数据位置走查：`/sandbox-data-preview?theme=dark&lang=zh` 渲染实际数据位置组件；`custom=1` 显示自定义根，`failure=read|pick|save|reset|relaunch` 让对应操作首次失败后恢复。命令由仅预览的模块替身执行等待，不读写文件、不迁移目录、不重启应用。短屏使用明确的100dvh滚动容器，避免仅在scripts内出现的Tailwind类未生成。此入口不是生产路由，不证明真实Tauri目录迁移或重启。
 
-本地沙箱设置走查：同一入口加 `shell=unpaired|paired|web` 渲染实际LocalSandboxSection；`failure=process` 首次进程读取失败、重试/下一次轮询恢复，`shell=web&failure=status` 检查网页状态错误与重试。可组合三主题及 `lang=ru` 检查完整路径、两列手机快捷按钮、完整确认策略值、字段标签、44px按钮及16px输入。所有配对、PAT、策略、目录打开、重启与取消配对命令等待后拒绝执行；只填写公开演示占位符，不提供真实凭据。这些状态替身仅用于此独立入口，常规面板使用实际全局状态hook和GET fixture。不能证明真实登录、PAT持久化、原生进程操作或真机软键盘。
+本地沙箱设置走查：同一入口加 `shell=unpaired|paired|web` 渲染实际LocalSandboxSection；`failure=process` 首次进程读取失败、重试/下一次轮询恢复，`shell=web&failure=status` 检查网页状态错误与重试。可组合三主题及 `lang=ru` 检查完整路径、两列手机快捷按钮、完整确认策略值、字段标签、44px按钮及16px输入。默认所有配对、PAT、策略、目录打开、重启与取消配对命令等待后拒绝执行；只填写公开演示占位符，不提供真实凭据。这些状态替身仅用于此独立入口，常规面板使用实际全局状态hook和GET fixture。不能证明真实登录、PAT持久化、原生进程操作或真机软键盘。
+
+分步恢复走查：显式加 `native-flow=1`，可用 `failure=pair-login|pair-create|pair-save|pair-restart|policy-server|policy-save|policy-restart|restart|unpair` 使对应模拟步骤首次失败、重试恢复。配对回执使用公开占位符，账号字段不被解析或转发；模拟保存/策略/启动仅更新预览模块内存，不访问原生桥、文件系统或真实 API。可检查回执确认后收起凭据表单、重启失败的准确说明、只继续失败步骤，以及策略保存失败后点击 Restart 仍继续原保存。目录打开始终拒绝；刷新页面重置模拟流程。此入口不证明真实凭据落盘、服务端写入、进程重启或真实设备行为。

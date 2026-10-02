@@ -964,3 +964,21 @@ LocalSandboxSection将网页状态错误与离线引导分开，原生进程读�
 全站目标继续。尚需配对后保存/重启部分失败时的准确恢复、策略写入失败的选择/反馈、重启/取消配对在途操作互锁与旧账号/卸载响应归属；数据位置关闭重开/多实例/迁移在途及待重启提示持久性、真实Tauri目录迁移和设备证据也未完成。不得将本批门禁与fixture视为全部界面完成。
 
 最终834暖色检查无alert、无横向溢出，四列按钮174px；新增local-sandbox-834-sepia-final截图。已回收本轮3019服务和临时标签页，视口恢复；已有3018结果标签继续保留，用户3017与主checkout未覆盖。下一轮也要检查原生进程可读但服务端status失败时的提示与策略就绪，不据进程running断言服务连接已成功。
+
+## 2026-10-02 原生操作分步恢复与配对反馈收敛
+
+上一回合核对用户指定的文件原生查找，17项相关测试及390px布局/命中/焦点实测提供新证据，分类为progress。本轮继续interface-state现场，HTTPS fetch确认origin/develop仍为349e2f08且是HEAD祖先；主checkout、mobile-density与用户3017保持。接续此前未提交的原生操作修复，没有重新开始全站工作。
+
+LocalSandboxSection复用usePreferenceWrites统一配对、策略、重启和取消配对互锁及持久错误/Retry。配对请求闭包保留PAT回执与已保存步骤：原生保存失败重用同一回执，保存成功后重启失败只重试启动，不再重复生成PAT或错误归咎账号密码。回执确认后隐藏已不能修改的凭据表单，仅其仍拥有焦点时转到稳定section；等待/错误保留紧凑CatalogStatus。新增准确“已保存，重启即可完成”文案同步五语。策略保留失败选择，重试跳过已确认的服务端/本机写入；取消配对清理失败重试不重复吊销。卸载在后续步骤之前失效，迟到成功/错误不继续原生写入或通知。
+
+独立复核发现策略失败后Restart会覆盖原请求并清除错误，但保留未保存选择。新增交叉操作先RED后GREEN，Restart此时复用未完成策略请求。实屏又发现portalled Select选项在onChange之后回焦trigger，抢掉caller焦点后trigger禁用导致BODY焦点；一项集成先RED（35pass/1fail），共享Select仅将回焦移到onChange之前，caller可按归属接住焦点。复核包括SelectRow、直接Select与包装调用，无新确定P1/P2。最终本文件36项，含shared Select针对性42项全部通过。
+
+预览新增显式native-flow=1，仅本独立入口用公开占位符与内存状态模拟步骤首次失败/重试成功；默认操作仍拒绝执行，目录打开始终拒绝。账号内容不解析、存储或转发，不使用真实PAT、原生桥、文件写入或API写入。指南更新边界；fixture只证明UI和恢复路径，不证明实际登录、凭据落盘、服务端保存或原生进程重启。
+
+浏览器最终证据：390深色配对重启失败收起表单，准确说明与44px Retry保留，section焦点稳定、overflow0，Retry后在线/运行控制恢复；320深色俄语策略首次失败保留commands，点Restart显示原策略等待、所有相邻原生操作冻结、焦点section，完成后commands与正常控件恢复；320×300短屏main独立滚动至426，焦点日志按钮top125.4/bottom175.4、宽140/高50可见，overflow0；390浅色取消配对失败保留Retry，重试等待冻结Restart，完成后未配对表单恢复；1440浅色俄语四列各174×50，834暖色无alert，均overflow0。最终截图在仓库外interface-quality目录，文件名local-sandbox-actions-390-dark-pair-restart-error-final、320-dark-ru-policy-error-final、320-dark-ru-policy-recovered-final、320-short-ru-focus-final、390-light-unpair-error-final、1440-light-ru-final、834-sepia-ru-final。
+
+八项按DESIGN.md人工自检：复用既有文字尺度、按钮及分组留白；以状态/说明/行动分层，避免重复表单和闲置反馈空行；颜色沿用theme token且三主题实测；无新增装饰动效，已有reduced-motion保留；互锁、逐步Retry、焦点、卸载用行为测试和实屏核对；320/390/834/1440及300px短屏实际验证；复用LambChat视觉语言、没有额外依赖或并行设计系统。pnpm exec impeccable确认命令不可用，使用项目清单等价人工检查。最终全量783文件/3891测试通过，lint零错误零警告，build含tsc/Vite/PWA通过；eager JS560328/561152 bytes、precache5031924/5242880 bytes、93项，未提高预算。
+
+全站目标继续。下一步需服务端status失败但进程可读时的明确反馈、数据位置与原生操作的跨区互锁、数据位置关闭重开/多实例/待重启持久性、账号切换时在途操作归属、目录打开迟到错误，以及真实Tauri和手机设备验证。PAT创建响应失败的服务端幂等性也不由本UI改动证明；不将fixture或局部门禁宣告为全部界面完成。
+
+最终桌面/平板截图重新等待数据位置读取完成再保存；回收本轮3019服务及临时标签，浏览器尺寸恢复，既有3018结果标签保留。仅停止经过PID和cwd核对的本轮preview进程，用户3017保持。

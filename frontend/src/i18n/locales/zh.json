@@ -2303,7 +2303,7 @@
       "restartDaemon": "重启 daemon",
       "needDesktop": "本地沙箱当前离线：用 LambChat 桌面端配对连接后，即可在网页端选用本地沙箱。",
       "webManaged": "由已配对的桌面端管理",
-      "pairFailed": "配对失败，请检查账号密码后重试",
+      "pairFailed": "配对失败，请重试。",
       "unpair": "取消配对",
       "unpaired": "已取消配对",
       "machines": "我的机器",
@@ -2329,7 +2329,8 @@
         "days": "{{days}} 天前在线"
       },
       "forgetMachine": "忘记这台机器",
-      "forgetMachineConfirm": "确定忘记「{{name}}」？将清除它的名称与默认机设置。"
+      "forgetMachineConfirm": "确定忘记「{{name}}」？将清除它的名称与默认机设置。",
+      "pairSavedRestartPending": "配对信息已保存，重启服务后即可完成。"
     },
     "maxPinnedModels": "最多置顶 {{max}} 个模型",
     "memoryToggle": "跨会话记忆",
