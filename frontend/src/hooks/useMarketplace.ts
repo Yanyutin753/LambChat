@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import i18n from "i18next";
 import { marketplaceApi } from "../services/api/marketplace";
 import type {
@@ -39,15 +39,28 @@ export function useMarketplace() {
   const [previewFiles, setPreviewFiles] =
     useState<MarketplaceSkillFilesResponse | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string>();
+  const [previewFileErrors, setPreviewFileErrors] = useState<
+    Record<string, string>
+  >({});
+  const previewSession = useRef<{ name: string } | null>(null);
+  const previewRequests = useRef(new Map<string, symbol>());
   const [previewFileContent, setPreviewFileContent] = useState<
     Record<string, string>
   >({});
   const [previewBinaryFiles, setPreviewBinaryFiles] = useState<
     Record<string, BinaryFileInfo>
   >({});
-  const [previewFileLoading, setPreviewFileLoading] = useState<string | null>(
-    null,
+  const [previewFileLoading, setPreviewFileLoading] = useState(
+    new Set<string>(),
   );
+  useEffect(() => {
+    const requests = previewRequests.current;
+    return () => {
+      previewSession.current = null;
+      requests.clear();
+    };
+  }, []);
 
   // Fetch marketplace skills
   const fetchSkills = useCallback(async () => {
@@ -123,6 +136,12 @@ export function useMarketplace() {
 
   // Preview skill detail
   const openPreview = useCallback(async (skill: MarketplaceSkillResponse) => {
+    const session = { name: skill.skill_name };
+    previewSession.current = session;
+    previewRequests.current.clear();
+    setPreviewFileLoading(new Set());
+    setPreviewFileErrors({});
+    setPreviewError(undefined);
     setPreviewSkill(skill);
     setPreviewFiles(null);
     setPreviewFileContent({});
@@ -130,23 +149,36 @@ export function useMarketplace() {
     setPreviewLoading(true);
     try {
       const files = await marketplaceApi.listFiles(skill.skill_name);
+      if (previewSession.current !== session) return;
       setPreviewFiles(files);
-    } catch (err) {
-      console.error(
-        i18n.t("marketplace.fetchFilesFailed", "获取技能文件失败:"),
-        err,
-      );
+    } catch {
+      if (previewSession.current === session)
+        setPreviewError(i18n.t("files.loadFailed"));
     } finally {
-      setPreviewLoading(false);
+      if (previewSession.current === session) setPreviewLoading(false);
     }
   }, []);
 
   // Read preview file content
   const readPreviewFile = useCallback(
     async (skillName: string, filePath: string) => {
-      setPreviewFileLoading(filePath);
+      const session = previewSession.current;
+      if (session?.name !== skillName || previewRequests.current.has(filePath))
+        return;
+      const request = Symbol(filePath);
+      previewRequests.current.set(filePath, request);
+      setPreviewFileLoading(new Set(previewRequests.current.keys()));
+      setPreviewFileErrors((previous) => {
+        const next = { ...previous };
+        delete next[filePath];
+        return next;
+      });
+      const isCurrent = () =>
+        previewSession.current === session &&
+        previewRequests.current.get(filePath) === request;
       try {
         const resp = await marketplaceApi.getFile(skillName, filePath);
+        if (!isCurrent()) return;
         setPreviewFileContent((prev) => ({
           ...prev,
           [filePath]: resp.content,
@@ -166,19 +198,29 @@ export function useMarketplace() {
             },
           }));
         }
-      } catch (err) {
-        console.error(
-          i18n.t("marketplace.fetchFileContentFailed", "获取文件内容失败:"),
-          err,
-        );
+      } catch {
+        if (isCurrent())
+          setPreviewFileErrors((previous) => ({
+            ...previous,
+            [filePath]: i18n.t("files.loadFailed"),
+          }));
       } finally {
-        setPreviewFileLoading(null);
+        if (isCurrent()) {
+          previewRequests.current.delete(filePath);
+          setPreviewFileLoading(new Set(previewRequests.current.keys()));
+        }
       }
     },
     [],
   );
 
   const closePreview = useCallback(() => {
+    previewSession.current = null;
+    previewRequests.current.clear();
+    setPreviewLoading(false);
+    setPreviewFileLoading(new Set());
+    setPreviewFileErrors({});
+    setPreviewError(undefined);
     setPreviewSkill(null);
     setPreviewFiles(null);
     setPreviewFileContent({});
@@ -382,12 +424,13 @@ export function useMarketplace() {
     previewSkill,
     previewFiles,
     previewLoading,
+    previewError,
+    previewFileErrors,
     previewFileContent,
     previewBinaryFiles,
     previewFileLoading,
     openPreview,
     readPreviewFile,
     closePreview,
-    setPreviewFileContent,
   };
 }

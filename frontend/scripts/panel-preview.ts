@@ -1957,6 +1957,10 @@ const server = await createServer({
             isRead &&
             ((failureTarget === "skill-file" &&
               /^\/api\/skills\/[^/]+\/files\//.test(url.pathname)) ||
+              (failureTarget === "marketplace-files" &&
+                /^\/api\/marketplace\/[^/]+\/files$/.test(url.pathname)) ||
+              (failureTarget === "marketplace-file" &&
+                /^\/api\/marketplace\/[^/]+\/files\//.test(url.pathname)) ||
               (failureTarget === "model-role" &&
                 /^\/api\/agent\/config\/roles\/[^/]+\/models$/.test(
                   url.pathname,

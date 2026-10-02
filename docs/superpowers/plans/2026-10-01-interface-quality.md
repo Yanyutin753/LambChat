@@ -691,3 +691,21 @@ BinaryFilePreview 的图片、视频、音频失败统一复用 SkillFileLoadSta
 八项自检：保留既有文件标题/等宽路径/元数据字号；图片只保留单套加载层、媒体维持阅读空间；标题、格式、内容及错误恢复层级明确；沿用深浅主题与既有错误色；删除自定义视频动效，无新增动画，既有 skeleton reduced-motion 规则保留；原生播放键盘、图片关闭焦点、Retry稳定焦点和表单下载语义有实测/测试；320/390/1440实际布局和44px按钮覆盖；复用既有插画、primitive及浏览器媒体控件，无新依赖或视觉体系。Impeccable按此前不可用环境的 DESIGN.md 清单人工检查。
 
 最后生产调整后门禁：pnpm test 765文件/3709项通过；lint零错误零警告；build含tsc/Vite/PWA/预算通过，eager JS559147/561152 bytes、precache5017396/5242880 bytes、91 entries，未提高预算，保留既有chunk-size提示。diff --check通过。真实存储写入、所有媒体格式、音频成功播放、移动系统全屏与真机软键盘/触屏仍待验；这批不扩大既有搜索功能，也不据此宣告全部界面完成。
+
+### 当前执行：商店详情与文件预览
+
+fetch/rebase 最新 origin/develop（6f10c1af）后继续。390深色只读 fixture 首次文件 GET 503，真实 SkillPreviewModal 显示空白编辑器，关闭仅28×28px，独立 modal 没有可读名称（marketplace-preview-01）。文件清单失败也被当作无文件；hook 的单一 loading path 和无请求归属会让迟到响应污染其它技能或清除其它文件加载状态。
+
+useMarketplace 为每次详情使用独立 session 对象，关闭、重开、换技能和卸载均失效旧请求；每文件 Map 请求与 Set loading 防重复读取并保持并发状态。清单/文件失败显示已有五语错误，Retry 可恢复；空文本以 undefined 区分已加载与未加载，不反复请求。SkillPreviewModal 复用 SkillFileLoadState、Button 和 ToolbarIconButton，预览以完整路径命名，手机关闭44px、桌面32px。列表和文件重试先 focus 稳定容器；父层按技能名 key 重置当前文件。删除不再使用的外部缓存 setter prop/导出，避免绕过请求归属。
+
+追踪渲染发现 EditorSidebar 不使用 subtitle，原版本与说明实际未显示。将既有元数据移至正文，版本12px、说明13px；短说明完整显示，长说明可展开/收起并有 aria-expanded。独立复核指出79个中文字符在320px也可能超过三行却无展开入口，改为同一 hasLongDescription 同时控制三行限制与展开入口，不再截断无恢复入口的短说明。未新设颜色/字体/间距体系或新增文案。
+
+6项实际 hook+modal 集成测试均看到关键 RED 再 GREEN：清单失败重试；文件失败重试与空文本缓存；旧技能清单迟到隔离；一个文件完成不清除另一 pending；关闭后旧文件不污染新技能；版本与说明可见。外部 API 模拟，真实 EditorSidebar/ModalSurface/CodeMirror 保留。原有 source 测试和商店编辑保存回归同时通过。最后只读复核关闭说明截断 P2，无本批剩余确定 P1/P2；不将源码审查当作真机证明。
+
+原生 IAB 独立3017：390深色首次读取失败明确错误、Retry/close均44px、dialog名SKILL.md、overflow0（02）；Enter Retry 正文恢复，focus=DIV/connected，Escape关闭回SKILL.md文件按钮（03）。320×568浅色清单失败与44pxRetry（04），Retry后列表恢复且焦点在稳定正文；独立二进制modal加载公开图标，关闭/下载均44px，路径名称正确。320浅色最终详情显示版本、完整短说明、标签、文件列表（05）。1440×900浅色侧栏与独立文件预览同时可读，close32px、dialog名SKILL.md、overflow0（06）。截图在仓库外 interface-quality；02/03/04早于元数据补回，预览恢复/尺寸逻辑未改变，05/06是元数据最终布局。HMR重载不当作运行时状态保持证据。
+
+八项自检：既有标题/等宽路径/版本与正文尺度；详情恢复必要说明留白，预览动作保留紧凑比例；元数据→标签→文件→读取状态层级清楚；深浅色和错误/焦点主题token；无新增动效，既有加载组件保留 reduced-motion；原生关闭/Retry焦点、可读名称、aria-expanded和并发归属；320/390/1440实测无本批横向溢出、手机44px；复用产品既有组件与插画，无新依赖或生产资产。Impeccable按此前不可用环境的 DESIGN.md 清单人工检查。
+
+fixture 新增仅 GET 的 marketplace-files/marketplace-file 首次503并Retry恢复，其它写仍405；未安装、发布或写真实技能。最终修改后门禁：766文件/3715测试通过；lint零错误零警告；build含tsc/Vite/PWA/预算通过，eager JS559137/561152 bytes、precache5017396/5242880 bytes、91 entries，未提高预算，保留既有chunk-size提示。diff --check通过，最后门禁后仅文档/原生走查/预览清理。
+
+继续检查其它侧栏元数据调用、剩余界面/语言组合、真机和真实服务边界。整体目标保持进行中；本批不声称全界面或真实安装/发布端到端完成。
