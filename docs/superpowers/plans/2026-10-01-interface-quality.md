@@ -599,3 +599,21 @@ TDD：元数据关联、文件/树独立删除、全屏隔离四项明确 RED；
 截图在仓库外 interface-quality：skill-editor-390-dark-before.png、skill-editor-fullscreen-390-dark-before.png为基线；最终 skill-editor-320-light-validation.png、skill-editor-320-light-files.png、skill-editor-fullscreen-320-light-final.png、skill-editor-390-dark-final.png、skill-editor-fullscreen-390-dark-final.png、skill-editor-768-sepia-final.png、skill-editor-fullscreen-768-sepia-final.png、skill-editor-1440-light-final.png、skill-editor-fullscreen-1440-light-final.png。临时viewport恢复、tab11 handoff，用户原tab/剪贴板未操作。
 
 继续：共享编辑器搜索和弹层、技能文件懒加载错误/竞态、二进制保存恢复、真实创建/更新/上传、其余语言/真机和未覆盖界面。本批未向真实API写入fixture内容，不作为认证、写入或真实对话E2E证明。整体目标保持进行中，不以本批截图称全部界面已无明显提升空间。
+
+### 当前执行：共享代码查找与键盘交互
+
+- [x] SkillEditor 与 CodeMirrorViewer 共用已有 CodeMirror 原生搜索、顶部入口及主题样式；复制动作移入工具栏，不遮正文。
+- [x] 按容器宽度适配搜索/替换：窄面板按钮和标签至少44px、操作gap4px、输入16px，桌面约32px；长俄语完整换行，短屏面板可滚动。
+- [x] 五语查找/替换/公告跟随应用语言，随编辑器懒加载；只读预览设置真实 readOnly，不提供替换。Tab可导航，关闭查找回正文，IME候选Enter/Escape不执行搜索或关闭外层。
+
+沿用 ToolbarIconButton、CopyButton 与主题token，未另写搜索引擎或自定义搜索面板。@codemirror/search 6.7.0原本已由UIW安装，仅显式声明依赖；没有升级库。最初五语加入全局locale导致eager预算超限，改为编辑器懒加载资源注册后通过，未提高预算。只读正文补tabindex=0解决原生关闭查找后BODY焦点；capture仅拦截搜索区内IME候选Enter/Escape的传播，保留默认候选处理。
+
+TDD新增9项实际CodeMirror行为测试：入口/焦点、真实全部替换、只读无替换与Tab、只读技能预览焦点、IME保护、另四语。入口、显式搜索焦点、IME默认事件分别见RED后修；组件未mock CodeMirror。已有布局守卫更新为共享根节点，Keyboard测试保留react-i18next实际初始化导出。独立只读复核最终无P1/P2；没有重复原生或全量门禁。
+
+原生IAB：320×568深色俄语完整搜索/替换布局，390×844深色实际四处skill→guide替换、Escape仅关搜索且草稿保留；390浅色文件只读搜索summarize实际两处匹配，关闭回代码正文，Tab可达下载。正常技能侧栏预览实际683.5px高，未复现180px预览裁切，未加推测性高度补丁。768×905暖色聊天窄代码区按容器走44px样式、选项换行；滚动后面板和代码可见，页面溢出0。1440×900浅色文件预览665px宽、搜索面板84.2px高，按钮约32px，关闭回正文，页面溢出0。
+
+聊天fixture在后续正文重新挂载时两次清空搜索并将焦点落到BODY，原因尚未确定；列为下一批状态保留检查，不把本批共享搜索测试当聊天稳定性证明。平板截图先保存时恰遇正文刷新，不能作为持久状态证据。最终可靠手机截图editor-search-viewer-390-light-final.png，窄俄语editor-search-320-dark-ru-final.png，桌面editor-search-viewer-1440-light-final.png均在仓库外interface-quality目录。临时viewport已恢复，预览语言恢复俄语，tab11 handoff，用户原tab/剪贴板未操作。
+
+八项自检：沿用产品字体、代码等宽和16px移动输入；保留正文阅读留白、收紧动作gap；工具栏/查找/正文层级明确且复制不遮代码；light/dark/sepia主题与匹配高亮使用token；无新增装饰动效、尊重reduced-motion；查找替换、只读、Tab/Escape、焦点与IME测试；四档原生布局核对但非全宽度×主题矩阵，真实触屏/软键盘/候选窗口未验证；保持LambChat视觉语言，无新生产资产。Impeccable依此前确认不可用环境，按DESIGN.md人工清单检查。
+
+最终生产修改后门禁：pnpm test 759文件/3683项全部通过；lint零错误零警告；build含tsc/Vite/PWA/预算通过，eager JS559066/559104 bytes，precache5016622/5242880 bytes、91 entries；保留既有chunk-size提示。git diff --check通过。继续聊天代码预览重建、技能懒加载错误/竞态、二进制保存恢复及真机/真实写入；整体目标保持进行中。

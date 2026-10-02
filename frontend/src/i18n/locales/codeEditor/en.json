@@ -1,0 +1,17 @@
+{
+  "next": "Next match",
+  "previous": "Previous match",
+  "find": "Find",
+  "replace": "Replace",
+  "replaceAll": "Replace all",
+  "matchCase": "Match case",
+  "regexp": "Regex",
+  "wholeWord": "Whole word",
+  "goToLine": "Go to line",
+  "go": "Go",
+  "currentMatch": "Current match",
+  "onLine": "on line",
+  "replacedMatch": "Replaced match on line $",
+  "replacedMatches": "Replaced $ matches",
+  "preview": "Code preview"
+}

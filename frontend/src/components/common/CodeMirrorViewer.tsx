@@ -1,3 +1,7 @@
+import {
+  codeMirrorSearchExtensions,
+  guardCodeMirrorSearchComposition,
+} from "./codeMirrorSearchExtensions";
 import { memo, useEffect, useMemo, useRef, useCallback } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import {
@@ -13,7 +17,8 @@ import type { EditorState } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { useAppThemeMode } from "../../hooks/useAppThemeMode";
-import { CopyButton } from "./CopyButton";
+import { useTranslation } from "react-i18next";
+import { CodeMirrorSearchToolbar } from "./CodeMirrorSearch";
 import { getLangSupport } from "./getLangSupport";
 
 // GitHub 风格亮色语法色（为白底设计）
@@ -167,6 +172,7 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
   highlightLineRange,
   copyable,
 }: CodeMirrorViewerProps) {
+  const { t } = useTranslation();
   const themeMode = useAppThemeMode();
   const isDark = themeMode === "dark";
   const viewRef = useRef<EditorView | null>(null);
@@ -206,6 +212,11 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
 
   const extensions = useMemo(() => {
     const exts: Extension[] = [
+      ...codeMirrorSearchExtensions(t),
+      EditorView.contentAttributes.of({
+        "aria-label": filePath || t("codeEditor.preview"),
+        tabindex: "0",
+      }),
       EditorView.editable.of(false),
       EditorView.domEventHandlers({
         copy: (event, view) => {
@@ -285,7 +296,7 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
     const lang = getLangSupport(language, filePath);
     if (lang) exts.push(lang);
     return exts;
-  }, [language, filePath, fontSize, maxHeight, isDark, highlightLineRange]);
+  }, [language, filePath, fontSize, maxHeight, isDark, highlightLineRange, t]);
 
   // Build line number offset if startLine is provided
   const lineOffsetExtensions = useMemo(() => {
@@ -299,37 +310,36 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
   }, [startLine]);
 
   return (
-    <div className={copyable ? "group relative h-full" : wrapperClassName}>
-      <div className={copyable ? wrapperClassName : undefined}>
-        <CodeMirror
-          className="h-full"
-          height="100%"
-          value={value}
-          theme={
-            isDark ? oneDark : themeMode === "sepia" ? githubSepia : githubLight
-          }
-          extensions={[...extensions, ...lineOffsetExtensions]}
-          onCreateEditor={handleCreateEditor}
-          basicSetup={{
-            lineNumbers: !startLine || startLine <= 1 ? lineNumbers : false,
-            highlightActiveLineGutter: false,
-            highlightActiveLine: false,
-            foldGutter: false,
-            bracketMatching: false,
-            closeBrackets: false,
-            indentOnInput: false,
-          }}
-        />
-      </div>
-      {copyable && (
-        <div className="absolute top-2 right-2 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-          <CopyButton
-            text={value}
-            size={14}
-            className="!bg-white/80 dark:!bg-stone-800/80 !rounded-md !border !border-stone-200 dark:!border-stone-700"
-          />
-        </div>
-      )}
+    <div
+      className={`code-editor ${wrapperClassName}`}
+      onKeyDownCapture={guardCodeMirrorSearchComposition}
+    >
+      <CodeMirrorSearchToolbar
+        viewRef={viewRef}
+        copyText={copyable ? value : undefined}
+      />
+      <CodeMirror
+        className="h-full"
+        height="100%"
+        value={value}
+        theme={
+          isDark ? oneDark : themeMode === "sepia" ? githubSepia : githubLight
+        }
+        extensions={[...extensions, ...lineOffsetExtensions]}
+        onCreateEditor={handleCreateEditor}
+        readOnly
+        editable={false}
+        indentWithTab={false}
+        basicSetup={{
+          lineNumbers: !startLine || startLine <= 1 ? lineNumbers : false,
+          highlightActiveLineGutter: false,
+          highlightActiveLine: false,
+          foldGutter: false,
+          bracketMatching: false,
+          closeBrackets: false,
+          indentOnInput: false,
+        }}
+      />
     </div>
   );
 });
