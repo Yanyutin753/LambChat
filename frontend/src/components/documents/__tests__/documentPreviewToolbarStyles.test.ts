@@ -26,3 +26,20 @@ test("document preview uses a reading column and quiet path disclosure", () => {
   expect(preview.includes("<details")).toBe(true);
   expect(preview.includes("documents.pressEscToClose")).toBe(false);
 });
+
+test("native file find overlays the code without reserving a content row", () => {
+  const codeStyles = readFileSync(
+    new URL("../../../styles/code-editor.css", import.meta.url),
+    "utf8",
+  );
+  for (const file of ["CodeRenderer", "HtmlPreview"]) {
+    const source = readFileSync(
+      new URL(`../previews/${file}.tsx`, import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain("code-editor--overlay-search");
+  }
+  expect(codeStyles).toMatch(
+    /\.code-editor\.code-editor--overlay-search \.cm-panels\s*\{[^}]*position:\s*absolute;[^}]*width:\s*min\(/,
+  );
+});

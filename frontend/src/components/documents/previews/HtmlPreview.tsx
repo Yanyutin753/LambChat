@@ -115,7 +115,7 @@ const HtmlPreview = memo(function HtmlPreview({ content }: HtmlPreviewProps) {
             language="html"
             lineNumbers={true}
             fontSize="0.8125rem"
-            className="w-full h-full"
+            className="w-full h-full code-editor--overlay-search"
             showToolbar={false}
             simpleSearch
           />
