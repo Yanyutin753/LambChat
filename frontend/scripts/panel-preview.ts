@@ -1949,6 +1949,26 @@ const server = await createServer({
                   url.pathname === "/api/agents"
                 ? { agents, count: agents.length, default_agent: "team" }
                 : response(url, scenario, chatState);
+          if (
+            url.pathname === "/api/sessions" &&
+            previewParams.has("search-long")
+          ) {
+            const results = data as { sessions: Record<string, unknown>[] };
+            data = {
+              ...results,
+              sessions: results.sessions.map((session) => ({
+                ...session,
+                name: `${session.name} 与跨部门长期交付计划`,
+                metadata: {
+                  project_name:
+                    "QuarterlyResearchAndCrossDepartmentDelivery".repeat(4),
+                  search_match:
+                    "https://example.test/research/" +
+                    "delivery-context-".repeat(12),
+                },
+              })),
+            };
+          }
           if (["/api/auth/me", "/api/auth/profile"].includes(url.pathname)) {
             data = {
               ...user,
@@ -2280,6 +2300,9 @@ const server = await createServer({
                 url.searchParams.has("path")) ||
               (failureTarget === "workspace-read" &&
                 url.pathname === "/api/sandbox/fs/cloud/read") ||
+              (failureTarget === "search-sessions" &&
+                url.pathname === "/api/sessions" &&
+                url.searchParams.has("search")) ||
               (failureTarget === "project-page" &&
                 url.pathname === "/api/share/public/preview-report" &&
                 url.searchParams.has("session_skip")) ||
@@ -2389,6 +2412,12 @@ const server = await createServer({
             );
           if (scenario === "loading" && !url.pathname.startsWith("/api/auth/"))
             setTimeout(send, 8000);
+          else if (
+            isRead &&
+            previewParams.get("search-flow") === "1" &&
+            url.pathname === "/api/sessions"
+          )
+            setTimeout(send, 2000);
           else if (
             isRead &&
             previewParams.get("workspace-flow") === "1" &&

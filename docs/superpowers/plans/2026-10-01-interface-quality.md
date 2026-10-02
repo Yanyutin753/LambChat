@@ -1094,3 +1094,21 @@ LocalSandboxSection复用usePreferenceWrites统一配对、策略、重启和取
 八项自检：排版复用既有12/13px文件层级；留白和行距沿用共享文件树/文档工具栏；路径、原因、Retry分层；三主题沿用token可读；无新动效且loader遵循reduced-motion；焦点/缓存/迟到结果/重试动作经组件验证；320/390/834/1440无本批溢出；保持LambChat组件语言，没有新依赖、素材、主题或装饰。复用五种locale现有文案，无新字符串。npx --offline impeccable update仍报告未安装skill folders，按DESIGN清单完成人工检查。全量788文件3942项、lint零错误警告、tsc/Vite/PWA/build与体积门禁通过：eager560322/561152、precache93项5033774/5242880，无提高预算。日志/tmp/workspace-recovery-*-final.log。
 
 全站目标保持进行中。下一轮继续主聊天搜索IME间歇性失败与跨预览/导航/缩放焦点；剩余编辑流程、五语全状态矩阵以及真实服务/桌面和移动设备证据仍未闭合，不据本批局部修复和门禁声称全站完成。
+
+### 2026-10-02：会话搜索的层级、键盘分页和窄屏反馈
+
+上一目标回合核对3017文件预览：原生查找入口在既有工具栏，320/390px不额外占行、命中2处，17项相关检查通过，分类为progress。本轮继续interface-state；fetch确认origin/develop为HEAD祖先，保留既有工作树与用户3017。
+
+实屏长项目名将标题挤到0px；改为标题、匹配摘要、项目上下排列，各自截断并保留完整title。沿用14px衬线标题、12px摘要、11px项目、主题token、共享ModalSurface与按钮；手机单层sheet，桌面512px，输入和Clear手机/coarse为44px、桌面fine为32px，单行结果最低44px。手机隐藏键盘提示，桌面Cancel隐藏，焦点指示可见；未增加依赖、文案或动画，结果颜色过渡与共享loader尊重reduced motion。
+
+追加结果原本清空键盘选中项；现在只在新查询时重置，输入直接处理方向键/Enter并保留现代和229输入法守卫。combobox、listbox、option、aria-selected和active descendant反馈当前选择，焦点仍在输入。持续聚焦时Clear可能保留旧draft，清空前结束编辑再同步既有PanelSearchInput并归还焦点。真实键盘走到第30项另复现分页不触发：默认窗口observer被弹层滚动容器裁切；现在observer绑定实际结果列表。
+
+分页选择与两项ARIA回归先RED（3failed），聚焦清空先RED（1failed），滚动observer边界先RED（1failed/7passed）；8项新测试与既有相关6文件42项GREEN。覆盖追加、失败下一页及准确skip重试、新查询、清空、ARIA和现代/旧输入法。旧IME单测基线独立12轮均通过，未将历史间歇失败宣称为已复现或已证明修复。
+
+只读IAB证据：320深色长元数据标题288px、输入/Clear44px、无横向溢出；390俄语首次503保持输入和持续错误，Retry44px、等待焦点仍在输入、恢复后选择与聚焦Clear正常。键盘30次ArrowDown从30项触发busy，追加至65项仍选第29索引，Enter导航/chat/preview-session-29并关闭侧栏。320×300浅色普通结果行44px，sheet top21.41/bottom300，结果滚动且无横向溢出，空查询结果可读、Escape归还手机侧栏搜索入口。1440浅色与834护眼俄语弹层512px、长文本无溢出，桌面Clear32px、Cancel不可见。截图与复现JSON在仓库外session-search目录；coarse条件已核对媒体规则，未把窗口缩放称为真实触控/输入法/软键盘或真实后端检索证明。
+
+八项自检：标题/摘要/项目排版分层；沿用共享留白与单层容器；主内容优先、状态与操作清楚；三主题token可读；没有装饰性动效且保留reduced motion；分页、Retry、Clear、IME与焦点有行为和实屏证据；320/390/834/1440及300px短屏可用；保留LambChat视觉语言，不复制奖项网站外观。复用五语既有文案，无新locale键。独立只读审查的触控P2已修复，其余本批状态和observer增量未发现确定P1/P2。npx --offline impeccable update仍报告未安装skill folders，按DESIGN.md人工检查。
+
+最终789文件3950项测试、lint零错误警告、tsc/Vite/PWA/build与预算通过；eager560324/561152 bytes、precache93项5032728/5242880 bytes，未放宽预算。日志/tmp/session-search-*-delivery.log，git diff --check通过。
+
+全站目标仍进行中。跨断点实屏确认新缺口：834桌面搜索缩到390后查询和选中项保留，Escape关闭却退到BODY，因为桌面opener已卸载。下一轮优先修复共享弹层在opener消失后的焦点归还，并继续其余编辑流程和五语状态矩阵；真实服务及原生设备保留为未验证边界，不据本批门禁宣称全站完成。
