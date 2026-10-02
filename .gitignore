@@ -145,3 +145,7 @@ gui-test-screenshots/
 
 # 本地工单/PR 文稿（工单清单、spec、PR body 草稿，勿提交）
 tickets/
+
+.v2c/
+
+.video_agent/

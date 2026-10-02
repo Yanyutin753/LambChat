@@ -1432,7 +1432,7 @@
     "paginationInfo": "显示第 {{start}}-{{end}} 条，共 {{total}} 条",
     "positive": "好评",
     "positiveRate": "好评率",
-    "pressEnter": "⌘+Enter 发送",
+    "pressEnter": "按 Ctrl / ⌘ + Enter 提交",
     "skipAndSubmit": "跳过并提交",
     "submit": "提交",
     "submitFailed": "反馈提交失败",
@@ -2303,7 +2303,7 @@
       "restartDaemon": "重启 daemon",
       "needDesktop": "本地沙箱当前离线：用 LambChat 桌面端配对连接后，即可在网页端选用本地沙箱。",
       "webManaged": "由已配对的桌面端管理",
-      "pairFailed": "配对失败，请检查账号密码后重试",
+      "pairFailed": "配对失败，请重试。",
       "unpair": "取消配对",
       "unpaired": "已取消配对",
       "machines": "我的机器",
@@ -2329,7 +2329,8 @@
         "days": "{{days}} 天前在线"
       },
       "forgetMachine": "忘记这台机器",
-      "forgetMachineConfirm": "确定忘记「{{name}}」？将清除它的名称与默认机设置。"
+      "forgetMachineConfirm": "确定忘记「{{name}}」？将清除它的名称与默认机设置。",
+      "pairSavedRestartPending": "配对信息已保存，重启服务后即可完成。"
     },
     "maxPinnedModels": "最多置顶 {{max}} 个模型",
     "memoryToggle": "跨会话记忆",
@@ -3354,6 +3355,7 @@
         "contentRequired": "请输入内容",
         "descriptionRequired": "请输入描述",
         "duplicateFilePaths": "文件路径不能重复",
+        "filePathRequired": "请输入每个文件的路径",
         "nameInvalid": "名称只能包含字母、数字、下划线、连字符、点和中文",
         "nameRequired": "请输入技能名称",
         "nameTooLong": "名称不能超过100个字符",

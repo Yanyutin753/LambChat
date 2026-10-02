@@ -9,6 +9,8 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
+  useLayoutEffect,
   type ReactNode,
 } from "react";
 import {
@@ -20,6 +22,7 @@ import {
   isTokenExpired,
   getRedirectPath,
   clearRedirectPath,
+  decodeToken,
 } from "../services/api";
 import {
   applyUserMetadataPreferences,
@@ -78,6 +81,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   // 存储从 API 获取的动态权限
   const [dynamicPermissions, setDynamicPermissions] = useState<Permission[]>(
+    [],
+  );
+
+  const refreshRequest = useRef(0);
+  const currentUserId = useRef(user?.id);
+  useLayoutEffect(() => {
+    currentUserId.current = user?.id;
+  }, [user?.id]);
+  useEffect(
+    () => () => {
+      refreshRequest.current += 1;
+    },
     [],
   );
 
@@ -153,6 +168,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 监听登出事件
   useEffect(() => {
     const handleLogout = () => {
+      refreshRequest.current += 1;
+      setDynamicPermissions([]);
       setToken(null);
       setUser(null);
     };
@@ -164,6 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 登录
   const login = useCallback(
     async (credentials: LoginRequest, turnstileToken?: string) => {
+      refreshRequest.current += 1;
       setIsLoading(true);
       try {
         await authApi.login(credentials, turnstileToken);
@@ -232,6 +250,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 处理 OAuth 回调
   const handleOAuthCallback = useCallback(
     async (provider: string, code: string, state: string) => {
+      refreshRequest.current += 1;
       setIsLoading(true);
       try {
         await authApi.handleOAuthCallback(provider, code, state);
@@ -263,30 +282,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // 登出
   const logout = useCallback(() => {
+    refreshRequest.current += 1;
+    setDynamicPermissions([]);
     authApi.logout();
     setToken(null);
     setUser(null);
   }, []);
 
-  // 刷新用户信息（同时更新动态权限）
+  // Refresh identity without replaying old cloud preferences over local edits.
   const refreshUser = useCallback(async () => {
     if (!isAuthenticated()) return;
-
     const accessToken = getAccessToken();
-    setToken(accessToken);
-
+    if (!accessToken) return;
+    const subject = decodeToken(accessToken)?.sub;
+    const request = ++refreshRequest.current;
     try {
       const currentUser = await authApi.getCurrentUser();
+      const latestToken = getAccessToken();
+      if (
+        request !== refreshRequest.current ||
+        !latestToken ||
+        (latestToken !== accessToken &&
+          (typeof subject !== "string" ||
+            decodeToken(latestToken)?.sub !== subject))
+      )
+        return;
+      setToken(latestToken);
       setUser(currentUser);
-      applyUserMetadata(currentUser.metadata);
-      // 更新动态权限
-      if (currentUser.permissions) {
-        setDynamicPermissions(
-          currentUser.permissions.filter((p): p is Permission =>
-            Object.values(Permission).includes(p as Permission),
-          ),
-        );
-      }
+      // OAuth's first refresh still restores the newly signed-in account.
+      if (currentUserId.current !== currentUser.id)
+        applyUserMetadata(currentUser.metadata);
+      setDynamicPermissions(
+        (currentUser.permissions ?? []).filter((p): p is Permission =>
+          Object.values(Permission).includes(p as Permission),
+        ),
+      );
     } catch (error) {
       console.error("Failed to refresh user info:", error);
     }

@@ -458,7 +458,9 @@ export function useSkills(options?: {
 
   // Batch delete skills
   const batchDeleteSkills = useCallback(
-    async (names: string[]): Promise<boolean> => {
+    async (
+      names: string[],
+    ): Promise<Awaited<ReturnType<typeof skillApi.batchDelete>> | null> => {
       setError(null);
       try {
         const result = await skillApi.batchDelete(names);
@@ -470,15 +472,10 @@ export function useSkills(options?: {
         }
         // Full refresh for consistency
         await fetchSkills();
-        return result.errors.length === 0;
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : i18n.t("skills.batchDeleteFailed", "批量删除技能失败"),
-        );
-        await fetchSkills(); // rollback
-        return false;
+        return result;
+      } catch {
+        await fetchSkills();
+        return null;
       }
     },
     [fetchSkills],
@@ -486,36 +483,19 @@ export function useSkills(options?: {
 
   // Batch toggle skills
   const batchToggleSkills = useCallback(
-    async (names: string[], enabled: boolean): Promise<boolean> => {
-      // Optimistic update
-      names.forEach((name) => pendingTogglesRef.current.set(name, enabled));
-      setSkills((prev) =>
-        prev.map((s) => (names.includes(s.name) ? { ...s, enabled } : s)),
-      );
-
+    async (
+      names: string[],
+      enabled: boolean,
+    ): Promise<Awaited<ReturnType<typeof skillApi.batchToggle>> | null> => {
+      setError(null);
       try {
         const result = await skillApi.batchToggle(names, enabled);
-        // Clear pending for successful ones
-        result.updated.forEach((name) =>
-          pendingTogglesRef.current.delete(name),
-        );
         // Refresh for consistency
         await fetchSkills();
-        return result.errors.length === 0;
-      } catch (err) {
-        // Rollback on error
-        names.forEach((name) => pendingTogglesRef.current.delete(name));
-        setSkills((prev) =>
-          prev.map((s) =>
-            names.includes(s.name) ? { ...s, enabled: !enabled } : s,
-          ),
-        );
-        setError(
-          err instanceof Error
-            ? err.message
-            : i18n.t("skills.batchToggleFailed", "批量切换技能状态失败"),
-        );
-        return false;
+        return result;
+      } catch {
+        await fetchSkills();
+        return null;
       }
     },
     [fetchSkills],
@@ -530,7 +510,8 @@ export function useSkills(options?: {
       if (names.length === 0) {
         return true;
       }
-      return await batchToggleSkills(names, enabled);
+      const result = await batchToggleSkills(names, enabled);
+      return result !== null && result.errors.length === 0;
     },
     [batchToggleSkills, skills],
   );
@@ -544,7 +525,8 @@ export function useSkills(options?: {
       if (names.length === 0) {
         return true;
       }
-      return await batchToggleSkills(names, enabled);
+      const result = await batchToggleSkills(names, enabled);
+      return result !== null && result.errors.length === 0;
     },
     [batchToggleSkills, skills],
   );

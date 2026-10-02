@@ -1,3 +1,4 @@
+import { useLanguagePreference } from "../../../hooks/useLanguagePreference";
 import {
   lazy,
   Suspense,
@@ -110,15 +111,18 @@ function PreferencesContent() {
   const { enableMemory } = useSettingsContext();
   const { user } = useAuth();
   const { states, save, retry } = usePreferenceWrites(user?.id);
+  const { languageState, selectLanguage, retryLanguage } =
+    useLanguagePreference();
   useLayoutEffect(() => {
     if (
       (appearanceState === "saving" ||
+        languageState === "saving" ||
         Object.values(states).includes("saving")) &&
       (document.activeElement === document.body ||
         document.activeElement?.matches(":disabled"))
     )
       contentRef.current?.focus({ preventScroll: true });
-  }, [states, appearanceState]);
+  }, [states, appearanceState, languageState]);
   const [memoryEnabled, setMemoryEnabled] = useState(
     user?.metadata?.memoryEnabled !== false,
   );
@@ -210,10 +214,7 @@ function PreferencesContent() {
 
   // Handlers
   const handleLanguageChange = (code: string) => {
-    if (!save("language", () => authApi.updateMetadata({ language: code })))
-      return;
-    i18n.changeLanguage(code);
-    localStorage.setItem("language", code);
+    if (!selectLanguage(code)) return;
     setOpenDropdown(null);
   };
 
@@ -304,7 +305,12 @@ function PreferencesContent() {
     labelKey: string,
     localApplied = false,
   ) => {
-    const state = key === "appearance" ? appearanceState : states[key];
+    const state =
+      key === "appearance"
+        ? appearanceState
+        : key === "language"
+          ? languageState
+          : states[key];
     if (!state) return null;
     return (
       <div className="profile-setting-status">
@@ -316,7 +322,13 @@ function PreferencesContent() {
           errorText={t(
             localApplied ? "profile.preferenceSyncFailed" : "common.saveFailed",
           )}
-          onRetry={key === "appearance" ? retryAppearance : () => retry(key)}
+          onRetry={
+            key === "appearance"
+              ? retryAppearance
+              : key === "language"
+                ? retryLanguage
+                : () => retry(key)
+          }
           focusTargetRef={contentRef}
         />
       </div>
@@ -386,7 +398,7 @@ function PreferencesContent() {
           <SelectRow
             label={t("profile.language")}
             value={i18n.language}
-            loading={states.language === "saving"}
+            loading={languageState === "saving"}
             options={LANGUAGES.map((l) => ({
               key: l.code,
               labelKey: "",

@@ -81,7 +81,7 @@ test("document preview toolbar gives the file title flexible space and groups ac
   expect(screen.queryByTitle("Copy link")).toBeNull();
   expect(
     screen.getByRole("button", { name: "documents.source" }),
-  ).toHaveTextContent("documents.source");
+  ).toHaveTextContent(/^$/);
   fireEvent.click(screen.getByRole("button", { name: "documents.source" }));
   expect(props.setViewSource).toHaveBeenCalledWith(true);
   fireEvent.click(screen.getByTitle("documents.download"));

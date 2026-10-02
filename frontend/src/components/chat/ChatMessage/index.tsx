@@ -878,6 +878,7 @@ export const ChatMessage = memo(function ChatMessage({
                 {/* Feedback buttons */}
                 {isAuthenticated && sessionId && (message.runId || runId) && (
                   <FeedbackButtons
+                    className="chat-message-feedback"
                     sessionId={sessionId}
                     runId={message.runId || runId!}
                     currentFeedback={message.feedback}

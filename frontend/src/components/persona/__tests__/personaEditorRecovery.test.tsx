@@ -186,9 +186,11 @@ test("MCP binding picker stays unavailable until its catalog has loaded", async 
 
 function PickerHarness({
   binding = false,
+  bindingOptions = [{ name: "context" }],
   close,
 }: {
   binding?: boolean;
+  bindingOptions?: { name: string }[];
   close: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -198,7 +200,7 @@ function PickerHarness({
       <input aria-label="Draft" defaultValue="Keep this draft" />
       {binding ? (
         <PersonaEditorBindingSelector
-          options={[{ name: "context" }]}
+          options={bindingOptions}
           selected={selected}
           onChange={setSelected}
           open={open}
@@ -261,6 +263,39 @@ test("Tab and Enter activate the focused skill rather than a stale hover index",
   await user.keyboard("{Enter}");
   expect(option).toHaveAttribute("aria-selected", "false");
 });
+
+test.each([false, true])(
+  "ArrowUp from capability search reaches the last option (MCP=%s)",
+  async (binding) => {
+    api.skills.mockResolvedValueOnce({
+      skills: ["alpha", "zeta"].map((skill_name) => ({ skill_name })),
+      total: 2,
+    });
+    render(
+      <PickerHarness
+        binding={binding}
+        bindingOptions={[{ name: "alpha" }, { name: "zeta" }]}
+        close={vi.fn()}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: i18n.t(
+          binding
+            ? "personaPresets.mcpServerCount"
+            : "personaPresets.skillCount",
+          { count: 1 },
+        ),
+      }),
+    );
+    const option = await screen.findByRole("option", {
+      name: /^zeta(?: zeta)?$/,
+    });
+    expect(screen.getByRole("combobox")).toHaveFocus();
+    await userEvent.keyboard("{ArrowUp}");
+    expect(option).toHaveFocus();
+  },
+);
 
 test("touch users can close the capability popup without dismissing their draft", async () => {
   const close = vi.fn();

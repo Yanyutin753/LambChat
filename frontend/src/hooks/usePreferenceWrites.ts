@@ -55,5 +55,15 @@ export function usePreferenceWrites(owner: string | undefined) {
     },
     [save],
   );
-  return { states, save, retry };
+  const discard = useCallback((key: string) => {
+    if (writes.current.get(key)?.pending) return false;
+    writes.current.delete(key);
+    setStates((previous) => {
+      const next = { ...previous };
+      delete next[key];
+      return next;
+    });
+    return true;
+  }, []);
+  return { states, save, retry, discard };
 }

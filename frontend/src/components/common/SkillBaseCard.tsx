@@ -1,6 +1,7 @@
 import {
   useCallback,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -10,6 +11,7 @@ import { MoreHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ResourceCardMenu, type ResourceCardAction } from "./ResourceCardMenu";
 import { Checkbox } from "./Checkbox";
+import { restoreOpenerFocusUnclaimed } from "../../utils/modalDialog";
 
 export interface SkillBaseCardProps {
   title: string;
@@ -64,6 +66,13 @@ export function SkillBaseCard({
 }: SkillBaseCardProps) {
   const { t } = useTranslation();
   const menuId = useId();
+  const cardRef = useRef<HTMLDivElement>(null);
+  const focusedControl = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const control = focusedControl.current;
+    if (control && !control.isConnected)
+      restoreOpenerFocusUnclaimed(cardRef.current, control);
+  });
   const focusReturn = useRef<HTMLElement | null>(null);
   const [menuPosition, setMenuPosition] = useState<{
     x: number;
@@ -73,11 +82,17 @@ export function SkillBaseCard({
     setMenuPosition(null);
     if (restoreFocus) focusReturn.current?.focus();
   }, []);
+  const singleAction = actions.length === 1 ? actions[0] : undefined;
+  const SingleAction = singleAction?.href ? "a" : "button";
   const lineClamp = descriptionMaxLines === 3 ? "line-clamp-3" : "line-clamp-2";
 
   return (
     <div
+      ref={cardRef}
       role="group"
+      onFocusCapture={(event) => {
+        focusedControl.current = event.target as HTMLElement;
+      }}
       aria-label={title}
       tabIndex={
         onClick || (selectionMode && onSelect) || actions.length ? 0 : undefined
@@ -257,27 +272,56 @@ export function SkillBaseCard({
         {(footer || actions.length > 0) && (
           <div className="scb__footer flex items-center gap-2">
             {footer && <div className="min-w-0 flex-1">{footer}</div>}
-            {actions.length > 0 && (
-              <button
-                type="button"
-                aria-label={t("common.moreOptions")}
-                aria-haspopup="menu"
-                aria-expanded={Boolean(menuPosition)}
-                aria-controls={menuPosition ? menuId : undefined}
-                className="scb__action-btn scb__action-btn--ghost ml-auto min-h-11 min-w-11 shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (menuPosition) {
-                    closeMenu(true);
+            {singleAction ? (
+              <SingleAction
+                type={singleAction.href ? undefined : "button"}
+                href={singleAction.disabled ? undefined : singleAction.href}
+                target={singleAction.href ? "_blank" : undefined}
+                rel={singleAction.href ? "noopener noreferrer" : undefined}
+                disabled={singleAction.href ? undefined : singleAction.disabled}
+                aria-disabled={singleAction.disabled || undefined}
+                aria-label={singleAction.label}
+                title={singleAction.label}
+                aria-pressed={singleAction.checked}
+                aria-current={singleAction.current ? "page" : undefined}
+                className={`scb__action-btn scb__action-btn--ghost ml-auto min-h-11 min-w-11 shrink-0 aria-disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] ${singleAction.danger ? "!text-theme-error" : ""}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (singleAction.disabled) {
+                    event.preventDefault();
                     return;
                   }
-                  focusReturn.current = e.currentTarget;
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  setMenuPosition({ x: rect.right - 224, y: rect.bottom + 4 });
+                  singleAction.onClick?.();
                 }}
               >
-                <MoreHorizontal size={16} />
-              </button>
+                {singleAction.icon ?? singleAction.label}
+              </SingleAction>
+            ) : (
+              actions.length > 1 && (
+                <button
+                  type="button"
+                  aria-label={t("common.moreOptions")}
+                  aria-haspopup="menu"
+                  aria-expanded={Boolean(menuPosition)}
+                  aria-controls={menuPosition ? menuId : undefined}
+                  className="scb__action-btn scb__action-btn--ghost ml-auto min-h-11 min-w-11 shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (menuPosition) {
+                      closeMenu(true);
+                      return;
+                    }
+                    focusReturn.current = e.currentTarget;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setMenuPosition({
+                      x: rect.right - 224,
+                      y: rect.bottom + 4,
+                    });
+                  }}
+                >
+                  <MoreHorizontal size={16} />
+                </button>
+              )
             )}
           </div>
         )}

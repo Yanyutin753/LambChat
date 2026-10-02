@@ -1113,6 +1113,26 @@ html[data-mobile-keyboard="true"]
 }
 
 /* ─── Message Action Buttons — focus-visible ring ─── */
+.chat-message-actions .copy-button {
+  /* Match the dark-mode brightness boost applied to sibling stone-500 icons. */
+  @apply text-stone-400 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300;
+}
+
+.chat-message-actions button,
+.chat-message-feedback > .contents > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.chat-message-actions .chat-message-feedback {
+  gap: inherit;
+}
+
 .chat-message-actions button:focus-visible {
   outline: none;
   box-shadow: var(--shadow-inset-hover);
@@ -1234,6 +1254,7 @@ html[data-mobile-keyboard="true"]
   }
   .chat-input-toolbar button,
   .chat-message-actions button,
+  .chat-message-feedback > .contents > span,
   .chat-scroll-actions button {
     min-width: 2.75rem;
     min-height: 2.75rem;

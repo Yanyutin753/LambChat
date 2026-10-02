@@ -18,6 +18,7 @@ export function SkillEditor({
   filePath,
   readOnly,
   lineWrapping = true,
+  showToolbar = true,
 }: {
   value: string;
   onChange: (val: string) => void;
@@ -25,6 +26,7 @@ export function SkillEditor({
   filePath?: string;
   readOnly?: boolean;
   lineWrapping?: boolean;
+  showToolbar?: boolean;
 }) {
   const { t } = useTranslation();
   const themeMode = useAppThemeMode();
@@ -97,7 +99,9 @@ export function SkillEditor({
         className || ""
       } code-editor ${readOnly ? "code-editor--simple-search code-editor--overlay-search" : ""} h-full min-h-0 flex flex-col overflow-hidden [&_.cm-theme]:h-full [&_.cm-editor]:h-full [&_.cm-editor]:min-h-0 [&_.cm-scroller]:flex-1 [&_.cm-scroller]:min-h-0 [&_.cm-scroller]:overflow-auto`}
     >
-      <CodeMirrorSearchToolbar viewRef={viewRef} floating={readOnly} />
+      {showToolbar && (
+        <CodeMirrorSearchToolbar viewRef={viewRef} floating={readOnly} />
+      )}
       <CodeMirror
         value={value}
         onChange={onChange}

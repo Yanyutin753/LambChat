@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 import { clsx } from "clsx";
 import toast from "react-hot-toast";
@@ -32,6 +32,14 @@ export function FeedbackButtons({
   const [showDialog, setShowDialog] = useState(false);
   const [comment, setComment] = useState("");
   const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
+  const [submitError, setSubmitError] = useState("");
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const [submittedFeedback, setSubmittedFeedback] =
     useState<RatingValue | null>(externalFeedback || null);
 
@@ -46,6 +54,7 @@ export function FeedbackButtons({
     setSelectedRating(rating);
     setComment("");
     setAttachments([]);
+    setSubmitError("");
     setShowDialog(true);
   }
 
@@ -53,6 +62,7 @@ export function FeedbackButtons({
     if (isSubmitting || !selectedRating) return;
 
     setIsSubmitting(true);
+    setSubmitError("");
     try {
       await feedbackApi.submit({
         rating: selectedRating,
@@ -72,25 +82,28 @@ export function FeedbackButtons({
               }))
             : undefined,
       });
+      if (!mounted.current) return;
       setSubmittedFeedback(selectedRating);
       onFeedbackChange?.(selectedRating);
       setShowDialog(false);
       toast.success(t("feedback.submitSuccess") || "Feedback submitted");
     } catch (error) {
-      console.error("Failed to submit feedback:", error);
-      toast.error(
+      if (!mounted.current) return;
+      setSubmitError(
         error instanceof Error ? error.message : t("feedback.submitFailed"),
       );
     } finally {
-      setIsSubmitting(false);
+      if (mounted.current) setIsSubmitting(false);
     }
   }
 
   function handleClose() {
+    if (isSubmitting) return;
     setShowDialog(false);
     setSelectedRating(null);
     setComment("");
     setAttachments([]);
+    setSubmitError("");
   }
 
   function handleSkip() {
@@ -140,9 +153,7 @@ export function FeedbackButtons({
             <ThumbsUp
               size={16}
               className={clsx(
-                selectedRating === "up"
-                  ? "text-stone-600 dark:text-stone-300"
-                  : "text-stone-400 dark:text-stone-500",
+                selectedRating === "up" && "text-stone-600 dark:text-stone-300",
               )}
             />
           </button>
@@ -161,9 +172,7 @@ export function FeedbackButtons({
             <ThumbsDown
               size={16}
               className={clsx(
-                selectedRating === "down"
-                  ? "text-stone-600 dark:text-stone-300"
-                  : "text-stone-400 dark:text-stone-500",
+                selectedRating === "down" && "text-stone-600 dark:text-stone-300",
               )}
             />
           </button>
@@ -180,6 +189,7 @@ export function FeedbackButtons({
           onSubmit={handleSubmitFeedback}
           onSkip={handleSkip}
           isSubmitting={isSubmitting}
+          error={submitError}
           attachments={attachments}
           onAttachmentsChange={setAttachments}
         />

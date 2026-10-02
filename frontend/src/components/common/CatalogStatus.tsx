@@ -13,6 +13,7 @@ export function CatalogStatus({
   focusTargetRef,
   loadingText,
   errorText,
+  disabled = false,
 }: {
   label: string;
   loading?: boolean;
@@ -21,6 +22,7 @@ export function CatalogStatus({
   focusTargetRef: RefObject<HTMLElement | null>;
   loadingText?: string;
   errorText?: string;
+  disabled?: boolean;
 }) {
   const { t } = useTranslation();
   if (!loading && !error) return null;
@@ -48,6 +50,7 @@ export function CatalogStatus({
         <Button
           variant="ghost"
           size="sm"
+          disabled={disabled}
           aria-label={`${t("common.retry")}: ${label}`}
           className="max-sm:!min-h-11 [@media(pointer:coarse)]:!min-h-11"
           onClick={() => {

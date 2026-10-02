@@ -51,6 +51,14 @@ export function SkillForm({
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [activeFileIndex, setActiveFileIndex] = useState<number>(0);
   const focusAfterRemoval = useRef(false);
+  const focusAfterAddition = useRef(false);
+  useEffect(() => {
+    if (!focusAfterAddition.current) return;
+    focusAfterAddition.current = false;
+    formRef.current
+      ?.querySelector<HTMLInputElement>("[data-skill-file-path]")
+      ?.focus();
+  }, [files, activeFileIndex]);
   useEffect(() => {
     if (!focusAfterRemoval.current) return;
     focusAfterRemoval.current = false;
@@ -295,8 +303,12 @@ export function SkillForm({
     if (!skillMd || !skillMd.content.trim()) {
       newErrors.content = t("skills.form.validation.contentRequired");
     }
-    const paths = files.map((f) => f.path);
-    if (new Set(paths).size !== paths.length) {
+    const paths = files.map((f) => f.path.trim());
+    const unnamedIndex = paths.findIndex((path) => !path);
+    if (unnamedIndex >= 0) {
+      newErrors.files = t("skills.form.validation.filePathRequired");
+      setActiveFileIndex(unnamedIndex);
+    } else if (new Set(paths).size !== paths.length) {
       newErrors.files = t("skills.form.validation.duplicateFilePaths");
     }
 
@@ -390,6 +402,7 @@ export function SkillForm({
   };
 
   const addFile = () => {
+    focusAfterAddition.current = true;
     setFiles([...files, { path: "", content: "" }]);
     setActiveFileIndex(files.length);
     loadedFilePaths.current.add("");

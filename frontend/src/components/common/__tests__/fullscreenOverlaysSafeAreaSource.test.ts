@@ -84,8 +84,7 @@ const bottomSheetWrapperExpectations: OverlayExpectation[] = [
   {
     name: "FeedbackDialog wrapper only avoids the status bar",
     path: "../../chat/ChatMessage/FeedbackDialog.tsx",
-    pattern:
-      /safe-area-viewport-padding-top fixed inset-0 z-\[300\] flex items-end/,
+    pattern: /<Dialog\b/,
   },
   {
     name: "SessionPreviewDialog wrapper only avoids the status bar",
@@ -245,10 +244,18 @@ const bottomSheetSurfaceExpectations: OverlayExpectation[] = [
   {
     name: "FeedbackDialog footer keeps its inner bottom inset",
     path: "../../chat/ChatMessage/FeedbackDialog.tsx",
-    pattern:
-      /safe-area-bottom flex items-center justify-end gap-2 px-5 pt-4 \[--safe-area-bottom-extra:1rem\]/,
+    pattern: /<Dialog\b[\s\S]*footer=\{/,
   },
 ];
+
+test("shared Dialog delegates viewport insets and pads its footer", () => {
+  const source = readSource("../Dialog.tsx");
+  expect(source).toMatch(/<ModalSurface\b/);
+  expect(source).toMatch(/className="safe-area-bottom\b/);
+  expect(source).toMatch(/\[--safe-area-bottom-extra:0\.75rem\]/);
+  expect(readSource("../ModalSurface.tsx")).toMatch(/safe-area-viewport-padding-top/);
+  expect(readSource("../modalSurface.css")).toMatch(/--app-safe-area-bottom-active/);
+});
 
 for (const { name, path, pattern } of bottomSheetSurfaceExpectations) {
   test(name, () => {

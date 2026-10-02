@@ -32,6 +32,8 @@ const mocks = vi.hoisted(() => ({
   createPairingPat: vi.fn(),
   revokePairingPat: vi.fn(),
   getValidAccessToken: vi.fn(),
+  readMachineId: vi.fn(),
+  updateConfirmPolicy: vi.fn(),
   navigate: vi.fn(),
 }));
 
@@ -47,6 +49,7 @@ vi.mock("../../../services/tauri/sandboxShell", () => ({
   isShellAvailable: mocks.isShellAvailable,
   subscribeDaemonStatus: mocks.subscribeDaemonStatus,
   daemonProcessStatus: mocks.daemonProcessStatus,
+  readMachineId: mocks.readMachineId,
   savePairing: mocks.savePairing,
   restartDaemon: mocks.restartDaemon,
   openLocalPath: mocks.openLocalPath,
@@ -70,6 +73,7 @@ vi.mock("../../../services/api/sandbox", () => ({
   },
   sandboxApiMachines: {
     listMachines: mocks.listMachines,
+    updateConfirmPolicy: mocks.updateConfirmPolicy,
   },
   machinePlatformLabel: (platform: string) => platform,
 }));
@@ -79,15 +83,599 @@ vi.mock("react-hot-toast", () => ({
 }));
 
 import { LocalSandboxSection } from "../LocalSandboxSection";
+import { getSandboxStatusStoreState } from "../../../stores/sandboxStatusStore";
+import { sandboxDataLocationStore } from "../../../stores/sandboxDataLocationStore";
+
+test.each([
+  ["Open workspaces", "workspaces"],
+  ["Open audit log", "audit"],
+  ["Open logs", "logs"],
+])(
+  "%s failure remains visible and retries the selected directory",
+  async (label, path) => {
+    mocks.isShellAvailable.mockReturnValue(true);
+    mocks.daemonProcessStatus.mockResolvedValue("running");
+    mocks.getStatus.mockResolvedValue({ online: true });
+    mocks.openLocalPath
+      .mockRejectedValueOnce(new Error("file manager unavailable"))
+      .mockResolvedValue(undefined);
+    const { container } = render(<LocalSandboxSection />);
+    fireEvent.click(await screen.findByRole("button", { name: label }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(label);
+    fireEvent.click(screen.getByRole("button", { name: `Retry: ${label}` }));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(container.querySelector(".local-sandbox-section")).toHaveFocus();
+    expect(mocks.openLocalPath.mock.calls).toEqual([[path], [path]]);
+    expect(mocks.restartDaemon).not.toHaveBeenCalled();
+  },
+);
+
+test("opening a directory announces progress and prevents duplicate native actions", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({ online: true });
+  let finish!: () => void;
+  mocks.openLocalPath.mockImplementation(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  render(<LocalSandboxSection />);
+  const open = await screen.findByRole("button", { name: "Open workspaces" });
+  fireEvent.click(open);
+  fireEvent.click(open);
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    /open workspaces.*loading/i,
+  );
+  expect(screen.getByRole("button", { name: "Restart daemon" })).toBeDisabled();
+  expect(
+    screen.getByRole("button", { name: "Change location" }),
+  ).toBeDisabled();
+  expect(open).toBeDisabled();
+  await act(async () => finish());
+  await waitFor(() => expect(open).toBeEnabled());
+  expect(mocks.openLocalPath).toHaveBeenCalledTimes(1);
+});
+
+test("a directory failure after closing settings does not leak a late error toast", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({ online: true });
+  let fail!: (error: Error) => void;
+  mocks.openLocalPath.mockImplementation(
+    () =>
+      new Promise<void>((_, reject) => {
+        fail = reject;
+      }),
+  );
+  const { unmount } = render(<LocalSandboxSection />);
+  fireEvent.click(await screen.findByRole("button", { name: "Open logs" }));
+  await waitFor(() => expect(fail).toBeDefined());
+  unmount();
+  await act(async () => fail(new Error("file manager unavailable")));
+  const { toast } = await import("react-hot-toast");
+  expect(toast.error).not.toHaveBeenCalled();
+});
+
+test("failed native retry waits while the directory picker is open", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({ online: true });
+  mocks.restartDaemon.mockRejectedValueOnce(new Error("restart unavailable"));
+  mocks.pickSandboxDirectory.mockReturnValue(new Promise(() => {}));
+  render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /restart daemon/i }),
+  );
+  const retry = await screen.findByRole("button", {
+    name: /retry: restart daemon/i,
+  });
+  fireEvent.click(screen.getByRole("button", { name: /change location/i }));
+  expect(retry).toBeDisabled();
+  fireEvent.click(retry);
+  expect(mocks.restartDaemon).toHaveBeenCalledTimes(1);
+});
+
+test("directory retry cannot bypass a pending native restart", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({ online: true });
+  mocks.pickSandboxDirectory.mockRejectedValueOnce(
+    new Error("picker unavailable"),
+  );
+  mocks.restartDaemon.mockReturnValue(new Promise(() => {}));
+  render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /change location/i }),
+  );
+  const retry = await screen.findByRole("button", {
+    name: /retry: change location/i,
+  });
+  fireEvent.click(screen.getByRole("button", { name: /restart daemon/i }));
+  expect(retry).toBeDisabled();
+  fireEvent.click(retry);
+  expect(mocks.pickSandboxDirectory).toHaveBeenCalledTimes(1);
+});
+
+test("native connection failure keeps process state and retries without claiming offline", async () => {
+  let recover!: (status: { online: boolean }) => void;
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus
+    .mockRejectedValueOnce(new Error("service unavailable"))
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          recover = resolve;
+        }),
+    );
+  const { container } = render(<LocalSandboxSection />);
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    /local sandbox.*failed/i,
+  );
+  expect(screen.getByText("Running")).toBeVisible();
+  expect(screen.queryByText("Offline")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Confirmation policy" }),
+  ).toBeDisabled();
+  fireEvent.click(
+    screen.getByRole("button", { name: /retry: local sandbox/i }),
+  );
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    /local sandbox.*loading/i,
+  );
+  expect(container.querySelector(".local-sandbox-section")).toHaveFocus();
+  await waitFor(() => expect(recover).toBeDefined());
+  await act(async () => recover({ online: true }));
+  expect(await screen.findByText("Online")).toBeVisible();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Confirmation policy" }),
+  ).toBeEnabled();
+});
+
+test("native process readiness does not announce offline while connection status is pending", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockReturnValue(new Promise(() => {}));
+  render(<LocalSandboxSection />);
+  await screen.findByText("Running");
+  expect(screen.getByText(/local sandbox.*loading/i)).toHaveAttribute(
+    "role",
+    "status",
+  );
+  expect(screen.queryByText("Offline")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Confirmation policy" }),
+  ).toBeDisabled();
+});
+
+test("directory selection locks native actions until it is cancelled", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({ online: true });
+  let picked!: (value: string) => void;
+  mocks.pickSandboxDirectory.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        picked = resolve;
+      }),
+  );
+  render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /change location/i }),
+  );
+  expect(
+    screen.getByRole("button", { name: /restart daemon/i }),
+  ).toBeDisabled();
+  expect(screen.getByRole("button", { name: /^unpair$/i })).toBeDisabled();
+  expect(
+    screen.getByRole("button", { name: "Confirmation policy" }),
+  ).toBeDisabled();
+  await waitFor(() => expect(picked).toBeDefined());
+  await act(async () => picked("/Volumes/preview"));
+  expect(
+    screen.getByRole("button", { name: /restart daemon/i }),
+  ).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+  expect(screen.getByRole("button", { name: /restart daemon/i })).toBeEnabled();
+  expect(mocks.restartDaemon).not.toHaveBeenCalled();
+});
+
+test("saved location keeps native actions locked until the app restarts", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({ online: true });
+  mocks.pickSandboxDirectory.mockResolvedValue("/Volumes/preview");
+  mocks.setSandboxDataLocation.mockResolvedValue(undefined);
+  render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /change location/i }),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: /save and move/i }),
+  );
+  await screen.findByText(/restart the app to apply/i);
+  expect(
+    screen.getByRole("button", { name: /restart daemon/i }),
+  ).toBeDisabled();
+  expect(screen.getByRole("button", { name: /^unpair$/i })).toBeDisabled();
+  expect(
+    screen.getByRole("button", { name: "Confirmation policy" }),
+  ).toBeDisabled();
+});
+
+test("native restart prevents changing the data directory until it settles", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({ online: true });
+  let done!: () => void;
+  mocks.restartDaemon.mockImplementation(
+    () =>
+      new Promise<void>((resolve) => {
+        done = resolve;
+      }),
+  );
+  render(<LocalSandboxSection />);
+  const change = await screen.findByRole("button", {
+    name: /change location/i,
+  });
+  fireEvent.click(screen.getByRole("button", { name: /restart daemon/i }));
+  expect(change).toBeDisabled();
+  fireEvent.click(change);
+  expect(mocks.pickSandboxDirectory).not.toHaveBeenCalled();
+  await waitFor(() => expect(done).toBeDefined());
+  await act(async () => done());
+  expect(change).toBeEnabled();
+});
+
+test("policy save keeps focus in the section while its select is disabled", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({
+    online: true,
+    daemon_confirm_policy: "all",
+  });
+  mocks.writeConfirmPolicy.mockReturnValue(new Promise(() => {}));
+  const { container } = render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Confirmation policy" }),
+  );
+  const option = await screen.findByRole("option", {
+    name: "Confirm commands only",
+  });
+  act(() => option.focus());
+  fireEvent.click(option);
+  expect(
+    screen.getByRole("button", { name: "Confirmation policy" }),
+  ).toBeDisabled();
+  expect(container.querySelector(".local-sandbox-section")).toHaveFocus();
+});
+
+test("restart continues an unsaved policy instead of dropping its error and retry", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({
+    online: true,
+    daemon_confirm_policy: "all",
+  });
+  mocks.writeConfirmPolicy
+    .mockRejectedValueOnce(new Error("write failed"))
+    .mockResolvedValue(undefined);
+  mocks.restartDaemon.mockResolvedValue(undefined);
+  render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Confirmation policy" }),
+  );
+  fireEvent.click(await screen.findByText("Confirm commands only"));
+  await screen.findByRole("alert");
+  fireEvent.click(screen.getByRole("button", { name: /restart daemon/i }));
+  await waitFor(() =>
+    expect(mocks.writeConfirmPolicy).toHaveBeenCalledTimes(2),
+  );
+  await waitFor(() => expect(mocks.restartDaemon).toHaveBeenCalledTimes(1));
+  await waitFor(() =>
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
+  );
+});
+
+test("policy restart retry does not repeat acknowledged server or local writes", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.readMachineId.mockResolvedValue("fixture-machine");
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({
+    online: true,
+    daemon_confirm_policy: "all",
+  });
+  mocks.updateConfirmPolicy.mockResolvedValue(undefined);
+  mocks.writeConfirmPolicy.mockResolvedValue(undefined);
+  mocks.restartDaemon
+    .mockRejectedValueOnce(new Error("restart failed"))
+    .mockResolvedValue(undefined);
+  render(<LocalSandboxSection />);
+  await waitFor(() =>
+    expect(getSandboxStatusStoreState().currentMachineId).toBe(
+      "fixture-machine",
+    ),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Confirmation policy" }),
+  );
+  fireEvent.click(await screen.findByText("Confirm commands only"));
+  await screen.findByRole("alert");
+  expect(
+    screen.getByRole("button", { name: "Confirmation policy" }),
+  ).toHaveTextContent("Confirm commands only");
+  fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+  await waitFor(() => expect(mocks.restartDaemon).toHaveBeenCalledTimes(2));
+  expect(mocks.updateConfirmPolicy).toHaveBeenCalledTimes(1);
+  expect(mocks.updateConfirmPolicy).toHaveBeenCalledWith(
+    "fixture-machine",
+    "commands",
+  );
+  expect(mocks.writeConfirmPolicy).toHaveBeenCalledTimes(1);
+});
+
+test("closing while a PAT is being created prevents late native save and notifications", async () => {
+  let resolve!: (value: { token: string; pat_id: string }) => void;
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("stopped");
+  mocks.getStatus.mockResolvedValue({ online: false });
+  mocks.getValidAccessToken.mockResolvedValue("fixture-jwt");
+  mocks.createPairingPat.mockImplementation(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  const { unmount } = render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /pair with current account/i }),
+  );
+  await waitFor(() => expect(resolve).toBeDefined());
+  unmount();
+  await act(async () =>
+    resolve({ token: "fixture-pat", pat_id: "fixture-id" }),
+  );
+  expect(mocks.savePairing).not.toHaveBeenCalled();
+  expect(mocks.restartDaemon).not.toHaveBeenCalled();
+  const { toast } = await import("react-hot-toast");
+  expect(toast.success).not.toHaveBeenCalled();
+});
+
+test("closing during restart suppresses its late error notification", async () => {
+  let reject!: (error: Error) => void;
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({ online: true });
+  mocks.restartDaemon.mockImplementation(
+    () =>
+      new Promise((_, fail) => {
+        reject = fail;
+      }),
+  );
+  const { unmount } = render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /restart daemon/i }),
+  );
+  await waitFor(() => expect(reject).toBeDefined());
+  unmount();
+  await act(async () => reject(new Error("restart failed")));
+  const { toast } = await import("react-hot-toast");
+  expect(toast.error).not.toHaveBeenCalled();
+});
+
+test.each(["current", "other"])(
+  "%s pairing retries only restart after credentials are saved",
+  async (mode) => {
+    mocks.isShellAvailable.mockReturnValue(true);
+    mocks.daemonProcessStatus.mockResolvedValue("stopped");
+    mocks.getStatus.mockResolvedValue({ online: false });
+    mocks.getValidAccessToken.mockResolvedValue("fixture-jwt");
+    mocks.pairingLogin.mockResolvedValue("fixture-jwt");
+    mocks.createPairingPat.mockResolvedValue({
+      token: "fixture-pat",
+      pat_id: "fixture-id",
+    });
+    mocks.savePairing.mockResolvedValue(undefined);
+    mocks.restartDaemon
+      .mockRejectedValueOnce(new Error("restart unavailable"))
+      .mockResolvedValue(undefined);
+    render(<LocalSandboxSection />);
+    const current = await screen.findByRole("button", {
+      name: /pair with current account/i,
+    });
+    fireEvent.change(screen.getByLabelText("Username"), {
+      target: { value: "preview" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "fixture" },
+    });
+    const submit =
+      mode === "current"
+        ? current
+        : screen.getByRole("button", { name: /pair and start/i });
+    act(() => submit.focus());
+    fireEvent.click(submit);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /saved.*restart/i,
+    );
+    expect(
+      screen.queryByRole("button", { name: /pair with current account/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Username")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("alert").closest(".local-sandbox-section"),
+    ).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+    await waitFor(() => expect(mocks.restartDaemon).toHaveBeenCalledTimes(2));
+    expect(mocks.createPairingPat).toHaveBeenCalledTimes(1);
+    expect(mocks.savePairing).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
+    );
+  },
+);
+
+test("pairing retries native save with the same receipt instead of minting another PAT", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("stopped");
+  mocks.getStatus.mockResolvedValue({ online: false });
+  mocks.getValidAccessToken.mockResolvedValue("fixture-jwt");
+  mocks.createPairingPat.mockResolvedValue({
+    token: "fixture-pat",
+    pat_id: "fixture-id",
+  });
+  mocks.savePairing
+    .mockRejectedValueOnce(new Error("write failed"))
+    .mockResolvedValue(undefined);
+  mocks.restartDaemon.mockResolvedValue(undefined);
+  render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /pair with current account/i }),
+  );
+  await screen.findByRole("alert");
+  fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+  await waitFor(() => expect(mocks.restartDaemon).toHaveBeenCalledTimes(1));
+  expect(mocks.createPairingPat).toHaveBeenCalledTimes(1);
+  expect(mocks.savePairing).toHaveBeenCalledTimes(2);
+  expect(mocks.savePairing.mock.calls[0]).toEqual(
+    mocks.savePairing.mock.calls[1],
+  );
+});
+
+test("policy save failure keeps the selected policy and retries the failed write", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({
+    online: true,
+    daemon_confirm_policy: "all",
+  });
+  mocks.writeConfirmPolicy
+    .mockRejectedValueOnce(new Error("write failed"))
+    .mockResolvedValue(undefined);
+  mocks.restartDaemon.mockResolvedValue(undefined);
+  render(<LocalSandboxSection />);
+  const policy = await screen.findByRole("button", {
+    name: "Confirmation policy",
+  });
+  fireEvent.click(policy);
+  fireEvent.click(await screen.findByText("Confirm commands only"));
+  await screen.findByRole("alert");
+  expect(policy).toHaveTextContent("Confirm commands only");
+  fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+  await waitFor(() => expect(mocks.restartDaemon).toHaveBeenCalledTimes(1));
+  expect(mocks.writeConfirmPolicy.mock.calls).toEqual([
+    ["commands"],
+    ["commands"],
+  ]);
+  expect(mocks.createPairingPat).not.toHaveBeenCalled();
+});
+
+test.each(["restart", "unpair"])(
+  "%s freezes all process mutations and offers retry on failure",
+  async (action) => {
+    let reject!: (error: Error) => void;
+    mocks.isShellAvailable.mockReturnValue(true);
+    mocks.daemonProcessStatus.mockResolvedValue("running");
+    mocks.getStatus.mockResolvedValue({ online: true });
+    mocks.readPairingPat.mockResolvedValue(null);
+    const command =
+      action === "restart" ? mocks.restartDaemon : mocks.clearPairing;
+    command
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, fail) => {
+            reject = fail;
+          }),
+      )
+      .mockResolvedValue(undefined);
+    const { container } = render(<LocalSandboxSection />);
+    const restart = await screen.findByRole("button", {
+      name: /restart daemon/i,
+    });
+    const unpair = screen.getByRole("button", { name: /^unpair$/i });
+    (action === "restart" ? restart : unpair).focus();
+    fireEvent.click(action === "restart" ? restart : unpair);
+    await waitFor(() => expect(reject).toBeDefined());
+    expect(restart).toBeDisabled();
+    expect(unpair).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Confirmation policy" }),
+    ).toBeDisabled();
+    expect(container.querySelector(".local-sandbox-section")).toHaveFocus();
+    await act(async () => reject(new Error("native unavailable")));
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+    await waitFor(() => expect(command).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
+    );
+  },
+);
+
+test("closing during pairing login prevents late PAT creation and native writes", async () => {
+  let resolve!: (value: string) => void;
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("stopped");
+  mocks.getStatus.mockResolvedValue({ online: false });
+  mocks.getValidAccessToken.mockImplementation(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  mocks.createPairingPat.mockResolvedValue({
+    token: "fixture-pat",
+    pat_id: "fixture-id",
+  });
+  mocks.savePairing.mockResolvedValue(undefined);
+  mocks.restartDaemon.mockResolvedValue(undefined);
+  const { unmount } = render(<LocalSandboxSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /pair with current account/i }),
+  );
+  await waitFor(() => expect(resolve).toBeDefined());
+  unmount();
+  await act(async () => resolve("fixture-jwt"));
+  expect(mocks.createPairingPat).not.toHaveBeenCalled();
+  expect(mocks.savePairing).not.toHaveBeenCalled();
+});
+
+test("unpair retry continues local cleanup without repeating server revocation", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.getStatus.mockResolvedValue({ online: true });
+  mocks.readPairingPat.mockResolvedValue("fixture-pat");
+  mocks.revokePairingPat.mockResolvedValue(undefined);
+  mocks.clearPairing
+    .mockRejectedValueOnce(new Error("clear failed"))
+    .mockResolvedValue(undefined);
+  render(<LocalSandboxSection />);
+  fireEvent.click(await screen.findByRole("button", { name: /^unpair$/i }));
+  await screen.findByRole("alert");
+  fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+  await waitFor(() => expect(mocks.clearPairing).toHaveBeenCalledTimes(2));
+  expect(mocks.revokePairingPat).toHaveBeenCalledTimes(1);
+});
 
 beforeEach(async () => {
   await i18n.changeLanguage("en");
-  vi.clearAllMocks();
+  vi.resetAllMocks();
+  sandboxDataLocationStore.set({
+    saving: false,
+    pendingRestart: null,
+    root: null,
+  });
   // 默认：非事件模式（resolve null → 组件回退轮询，与旧行为同构）
   mocks.subscribeDaemonStatus.mockImplementation(() => Promise.resolve(null));
-  // 数据位置卡默认读取失败（静默不渲染）——既有用例不感知新卡；
-  // 卡片自身的交互用例见 sandboxDataLocationCard.test.tsx
-  mocks.readSandboxDataLocation.mockRejectedValue(new Error("unset"));
+  // 数据位置交互另有测试，这里提供真实形状的稳定读取。
+  mocks.readSandboxDataLocation.mockResolvedValue({
+    root: "/home/preview/.lambchat",
+    customized: false,
+    overrideConfigured: false,
+  });
   window.localStorage.clear();
   _resetSandboxStatusStoreForTests();
   mocks.listMachines.mockResolvedValue({
@@ -95,6 +683,150 @@ beforeEach(async () => {
     default_machine_id: null,
   });
 });
+
+test.each([false, true])(
+  "status loading is announced before actions appear (shell=%s)",
+  (shell) => {
+    mocks.isShellAvailable.mockReturnValue(shell);
+    mocks.getStatus.mockImplementation(() => new Promise(() => {}));
+    mocks.daemonProcessStatus.mockImplementation(() => new Promise(() => {}));
+    render(<LocalSandboxSection />);
+    expect(screen.getByText(/local sandbox.*loading/i)).toHaveAttribute(
+      "role",
+      "status",
+    );
+    expect(
+      screen.queryByRole("button", {
+        name: /pair with current account|download local sandbox/i,
+      }),
+    ).not.toBeInTheDocument();
+  },
+);
+
+test("web status failure offers retry instead of declaring the sandbox offline", async () => {
+  mocks.isShellAvailable.mockReturnValue(false);
+  mocks.getStatus
+    .mockRejectedValueOnce(new Error("unavailable"))
+    .mockResolvedValue({ online: true });
+  render(<LocalSandboxSection />);
+  expect(await screen.findByRole("alert")).toHaveTextContent(/failed/i);
+  expect(
+    screen.queryByRole("button", { name: /download local sandbox/i }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+  expect(await screen.findByText("Online")).toBeVisible();
+});
+
+test("failed native process read keeps pairing hidden until a successful retry", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus
+    .mockRejectedValueOnce(new Error("bridge unavailable"))
+    .mockResolvedValue("stopped");
+  mocks.getStatus.mockResolvedValue({ online: false });
+  render(<LocalSandboxSection />);
+  expect(await screen.findByRole("alert")).toHaveTextContent(/failed/i);
+  expect(
+    screen.queryByRole("button", { name: /pair with current account/i }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+  expect(
+    await screen.findByRole("button", { name: /pair with current account/i }),
+  ).toBeVisible();
+});
+
+test("a shell status event invalidates an older native process read", async () => {
+  let resolve!: (value: string) => void;
+  let listener!: (event: { running: boolean; unsupported: boolean }) => void;
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockImplementation(
+    () =>
+      new Promise<string>((done) => {
+        resolve = done;
+      }),
+  );
+  mocks.subscribeDaemonStatus.mockImplementation(async (onStatus) => {
+    listener = onStatus;
+    return () => {};
+  });
+  mocks.getStatus.mockResolvedValue({ online: true });
+  render(<LocalSandboxSection />);
+  await waitFor(() => expect(listener).toBeDefined());
+  act(() => listener({ running: true, unsupported: false }));
+  await screen.findByRole("button", { name: /restart daemon/i });
+  await act(async () => resolve("stopped"));
+  expect(
+    screen.queryByRole("button", { name: /pair with current account/i }),
+  ).not.toBeInTheDocument();
+});
+
+test("closing before a missing subscription resolves does not start a polling timer", async () => {
+  vi.useFakeTimers();
+  try {
+    let resolve!: (value: null) => void;
+    mocks.isShellAvailable.mockReturnValue(true);
+    mocks.daemonProcessStatus.mockResolvedValue("stopped");
+    mocks.subscribeDaemonStatus.mockImplementation(
+      () =>
+        new Promise<null>((done) => {
+          resolve = done;
+        }),
+    );
+    mocks.getStatus.mockResolvedValue({ online: false });
+    const { unmount } = render(<LocalSandboxSection />);
+    await act(async () => {});
+    unmount();
+    await act(async () => resolve(null));
+    await act(async () => vi.advanceTimersByTime(11000));
+    expect(mocks.daemonProcessStatus).toHaveBeenCalledTimes(1);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("a failed native subscription falls back to process polling", async () => {
+  vi.useFakeTimers();
+  try {
+    mocks.isShellAvailable.mockReturnValue(true);
+    mocks.daemonProcessStatus.mockResolvedValue("stopped");
+    mocks.subscribeDaemonStatus.mockRejectedValue(
+      new Error("events unavailable"),
+    );
+    mocks.getStatus.mockResolvedValue({ online: false });
+    render(<LocalSandboxSection />);
+    await act(async () => {});
+    await act(async () => vi.advanceTimersByTime(11000));
+    expect(mocks.daemonProcessStatus).toHaveBeenCalledTimes(2);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test.each(["current", "other"])(
+  "%s account pairing freezes both pairing paths and keeps accessible fields",
+  async (mode) => {
+    mocks.isShellAvailable.mockReturnValue(true);
+    mocks.daemonProcessStatus.mockResolvedValue("stopped");
+    mocks.getStatus.mockResolvedValue({ online: false });
+    mocks.getValidAccessToken.mockImplementation(() => new Promise(() => {}));
+    mocks.pairingLogin.mockImplementation(() => new Promise(() => {}));
+    render(<LocalSandboxSection />);
+    const current = await screen.findByRole("button", {
+      name: /pair with current account/i,
+    });
+    const username = screen.getByLabelText("Username");
+    const password = screen.getByLabelText("Password");
+    fireEvent.change(username, { target: { value: "preview" } });
+    fireEvent.change(password, { target: { value: "fixture" } });
+    const other = screen.getByRole("button", { name: /pair and start/i });
+    (mode === "current" ? current : other).focus();
+    fireEvent.click(mode === "current" ? current : other);
+    expect(current).toBeDisabled();
+    expect(other).toBeDisabled();
+    expect(username).toBeDisabled();
+    expect(password).toBeDisabled();
+    expect(username.closest("form")).toHaveFocus();
+  },
+);
 
 test("pure web offline renders the pairing guidance with a download CTA", async () => {
   mocks.isShellAvailable.mockReturnValue(false);
@@ -260,7 +992,7 @@ test("paired view shows status line and policy change writes config only (no PAT
   expect(screen.getByText("Running")).toBeInTheDocument();
 
   // 策略切换：writeConfirmPolicy（新策略）→ restartDaemon；绝不重铸 PAT
-  fireEvent.click(screen.getByRole("button", {name:"Confirmation policy"}));
+  fireEvent.click(screen.getByRole("button", { name: "Confirmation policy" }));
   fireEvent.click(await screen.findByText("Confirm commands only"));
 
   await waitFor(() => expect(mocks.restartDaemon).toHaveBeenCalled());
@@ -281,7 +1013,13 @@ test("paired view opens whitelisted local folders via logical names", async () =
 
   await screen.findByText("Online");
   fireEvent.click(screen.getByRole("button", { name: /open workspaces/i }));
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: /open audit/i })).toBeEnabled(),
+  );
   fireEvent.click(screen.getByRole("button", { name: /open audit/i }));
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: /open logs/i })).toBeEnabled(),
+  );
   fireEvent.click(screen.getByRole("button", { name: /open logs/i }));
 
   await waitFor(() => expect(mocks.openLocalPath).toHaveBeenCalledTimes(3));

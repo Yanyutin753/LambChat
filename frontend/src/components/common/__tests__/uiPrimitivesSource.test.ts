@@ -124,7 +124,7 @@ test("floating icon button centralizes fullscreen overlay icon actions", () => {
   expect(floatingIconButton).toMatch(/w-11 h-11 rounded-xl bg-black\/80/);
 
   expect(documentToolbar).toMatch(/import \{[\s\S]*FloatingIconButton/);
-  expect(skillFullscreen).toMatch(/import \{ ToolbarIconButton \}/);
+  expect(skillFullscreen).toMatch(/import \{[^}]*\bToolbarIconButton\b[^}]*\}/);
   expect(skillFullscreen).toMatch(/<ToolbarIconButton[\s\S]*exitFullscreen/);
   expect(documentToolbar).not.toMatch(/w-11 h-11 rounded-xl bg-black\/80/);
   expect(skillFullscreen).not.toMatch(/w-11 h-11 rounded-xl bg-black\/80/);

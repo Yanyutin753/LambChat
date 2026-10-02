@@ -331,13 +331,26 @@ const LOCATION = {
   overrideConfigured: true,
 };
 
-test("readSandboxDataLocation resolves the typed location from the shell", async () => {
-  enterTauriShell();
-  mocks.invoke.mockResolvedValueOnce(LOCATION);
+test.each([true, false])(
+  "readSandboxDataLocation maps Rust override_configured=%s for the settings UI",
+  async (overrideConfigured) => {
+    enterTauriShell();
+    mocks.invoke.mockResolvedValueOnce({
+      root: LOCATION.root,
+      customized: LOCATION.customized,
+      override_configured: overrideConfigured,
+    });
 
-  await expect(readSandboxDataLocation()).resolves.toEqual(LOCATION);
-  expect(mocks.invoke).toHaveBeenCalledWith("sandbox_data_location", undefined);
-});
+    await expect(readSandboxDataLocation()).resolves.toEqual({
+      ...LOCATION,
+      overrideConfigured,
+    });
+    expect(mocks.invoke).toHaveBeenCalledWith(
+      "sandbox_data_location",
+      undefined,
+    );
+  },
+);
 
 test("setSandboxDataLocation invokes set_sandbox_data_location with camelCase args", async () => {
   enterTauriShell();
