@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { CodeMirrorViewer } from "../CodeMirrorViewer";
 import { SkillEditor } from "../../skill/SkillEditor";
@@ -33,6 +33,27 @@ async function renderEditor(
   );
   return change;
 }
+
+test("plain file code keeps a floating native find action instead of a toolbar row", () => {
+  const { container } = render(
+    <I18nextProvider i18n={appI18n.cloneInstance({ lng: "zh" })}>
+      <CodeMirrorViewer filePath="notes.txt" value="alpha alpha" />
+    </I18nextProvider>,
+  );
+  expect(container.querySelector(".code-editor-toolbar")).toHaveClass(
+    "code-editor-toolbar--floating",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "搜索" }));
+  expect(screen.getByRole("textbox", { name: "查找" })).toHaveFocus();
+  fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+  const editor = screen.getByRole("textbox", { name: "notes.txt" });
+  act(() => editor.focus());
+  fireEvent.keyDown(editor, { key: "f", code: "KeyF", ctrlKey: true });
+  expect(screen.getByRole("textbox", { name: "查找" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+  expect(editor).toHaveFocus();
+  expect(editor).toHaveTextContent("alpha alpha");
+});
 
 test("skill search opens from its button, uses the app language and returns focus on close", async () => {
   const change = await renderEditor();
