@@ -333,8 +333,10 @@ export function PersonaEditorModal({
           <div className="ppe-profile-section">
             <AvatarSection
               key={avatarSession}
-              draft={draft}
-              onDraftChange={setDraft}
+              avatar={draft.avatar}
+              onAvatarChange={(avatar) =>
+                setDraft((prev) => ({ ...prev, avatar }))
+              }
               onUploadingChange={setAvatarUploading}
             />
 

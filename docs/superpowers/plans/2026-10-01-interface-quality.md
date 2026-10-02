@@ -782,3 +782,17 @@ IAB 3017：Persona 390 深浅色最终已选区 127px、不收缩、弹层 400px
 最后生产修改后全量772文件/3761项前端测试通过，lint零错误零警告，build含tsc/Vite/PWA/性能预算通过；eager JavaScript 559142/561152 bytes、precache 5017930/5242880 bytes、91 entries。没有提高预算，保留既有chunk-size提示。门禁后只补文档与实际只读视觉证据。3017与用户页面保留；本轮临时3018服务和检查标签页回收，浏览器临时尺寸恢复。
 
 全界面目标继续进行；其它表单、弹层、长语言文案及剩余空/错/加载组合仍需继续核对，不能据本批测试与截图宣告整体完成。
+
+## 2026-10-02 团队编辑器共用控件与窄屏操作
+
+本轮继续现有隔离 worktree，fetch/rebase 确认最新 origin/develop；前一轮文件原生查找浮层已提交为34295d84。团队编辑器基线发现旧头像入口未采用角色编辑器的共用控件，手机“选择图标”样式失配、上传预览无键盘入口；重复实现还会在图片加载失败时清空已存头像，上传时允许提交。
+
+TeamBuilder 删除重复头像上传/图标选择和开场提示词实现，复用现有 AvatarSection / StarterPromptsEditor。AvatarSection 接口收敛为 avatar / onAvatarChange，两个实际调用方共享清理、上传错误重试、静态图标和焦点操作；原 Persona 13 项生命周期测试保持通过。团队上传同步 ref 阻止 imperative 保存，真实 Wrapper 页脚也禁用保存；teamId 切换卸载旧头像组件、中止上传，迟到结果不能覆盖新团队。新旧头像加载失败均保留数据，失败保留原文件供重试。补全团队名称/简介/标签/指令标签关联、必填语义和 hint 描述；开场提示词沿用现有命名控件。角色搜索具备 disclosure 语义、命名输入和局部 Escape/IME 边界，关闭归还入口焦点。指令说明使用现有12px文本 token，去掉11px/0.75透明度内联。页脚复用 Button / PanelFooterActions，保存等待显示 loading/status。未添加依赖、新 API 或设计 token。
+
+TDD：5 项团队可观察行为先全部失败，再通过，覆盖命名/键盘、图片失败保留头像、上传阻止保存/换记录清理、同文件重试、角色搜索 Escape/IME。共享页脚源码断言同样先见失败再通过。相关9文件/43测试通过；最终全部生产修改后773文件/3767项测试通过，lint零错误零警告，build含tsc/Vite/PWA与性能预算通过：eager JavaScript 559139/561152 bytes，precache 5017933/5242880 bytes、91 entries。独立只读复核未发现本批确定P1/P2。未提高预算。
+
+原生 IAB 只读/显式模拟 fixture：390深色长团队名、216px图标区和44px选择按钮无横向溢出；上传等待禁用保存，首次503后名称与编程头像保留，Retry同文件模拟200恢复。成员搜索“跨部门”长名称可读，Escape回添加入口且编辑器保持打开。最终页脚/说明文字修改后在新query重放320×740浅色：图标区216px、按钮/页脚44px、overflow0，上传等待/503/Retry恢复，草稿保留；834×1112浅色及1440×900浅色均overflow0，桌面图标区184px，Escape归还选择入口。截图保存在仓库外interface-quality目录：team-avatar-picker-320-light-final、team-avatar-upload-320-light-pending-final、team-avatar-upload-320-light-error-final、team-avatar-picker-834-light-final、team-avatar-picker-1440-light-final；此前390深色截图用于头像/角色查找行为证据，未作为最后页脚样式证据。浏览器视口与模拟响应不证明真机触屏/软键盘、真实上传存储或团队写入。
+
+八项人工自检：共用字段/标签排版；保持正文分组留白并删除重复控件；头像、草稿、主操作层级清楚；使用深浅主题/错误/焦点token；图标静态且既有过渡尊重reduced-motion；等待、失败、重试、键盘和迟到上传行为有验证；手机/平板/桌面与长名称已走查；沿用LambChat组件与已有资源。Impeccable未安装，按DESIGN.md交付清单人工复核。临时3018服务与本轮标签页回收，临时视口恢复；用户3017、原3002及标签页保留。
+
+整体目标继续进行。团队详情读取/保存请求归属、成员操作、其余编辑器/弹层、长语言及空/错/加载组合仍需下一阶段继续核对，不据本轮局部门禁宣告全界面完成。

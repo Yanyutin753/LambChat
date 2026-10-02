@@ -4,24 +4,20 @@ import {
   useCallback,
   useMemo,
   useRef,
+  useId,
   forwardRef,
   useImperativeHandle,
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Bot,
-  Camera,
   ChevronDown,
   Cpu,
-  Loader2,
   MessageSquareText,
   Plus,
   Search,
-  Smile,
-  Sparkles,
   Tag,
   Users,
-  X,
 } from "lucide-react";
 import type { PersonaPreset } from "../../types";
 import type { Team, TeamCreateRequest, TeamMember } from "../../types/team";
@@ -33,25 +29,15 @@ import { modelApi } from "../../services/api/model";
 import type { ModelOption } from "../../services/api/model";
 import type { AgentInfo } from "../../types/agent";
 import { personaPresetApi } from "../../services/api/personaPreset";
-import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
-import { uploadApi } from "../../services/api";
-import { compressImageFile } from "../../utils/imageCompression";
 import toast from "react-hot-toast";
 import { ConfirmDialog } from "../common/ConfirmDialog";
-import {
-  PersonaAvatarIcon,
-  PersonaAvatarImage,
-} from "../persona/PersonaAvatarIcon";
-import {
-  getEmojiAvatarUrl,
-  isEmojiAvatar,
-  isPersonaImageAvatar,
-} from "../persona/personaAvatar";
 import {
   draftRowsToStarterPrompts,
   starterPromptsToDraftRows,
   type StarterPromptDraftRow,
 } from "../persona/personaPresetEditor";
+import { AvatarSection } from "../persona/PersonaEditorAvatarSection";
+import { StarterPromptsEditor } from "../persona/PersonaEditorStarterPrompts";
 import { useOptionalSettingsContext } from "../../contexts/SettingsContext";
 
 export interface TeamBuilderHandle {
@@ -62,6 +48,7 @@ export interface TeamBuilderHandle {
 
 export interface TeamBuilderFooterState {
   saving: boolean;
+  uploadingAvatar: boolean;
   existingTeamId: string | null;
   hasTeamName: boolean;
 }
@@ -79,21 +66,6 @@ function generateMemberId(): string {
     .toString(36)
     .slice(2, 8)}`;
 }
-
-const TEAM_AVATAR_EMOJIS = [
-  "✨",
-  "🤖",
-  "🎓",
-  "💻",
-  "✍️",
-  "🛡️",
-  "📊",
-  "⚡",
-  "📦",
-  "🎨",
-  "🧠",
-  "💬",
-];
 
 function tagsToInput(tags: string[] | undefined): string {
   return (tags ?? []).join(", ");
@@ -117,6 +89,8 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
     ref,
   ) {
     const { t } = useTranslation();
+    const fieldId = useId();
+    const rolePickerId = useId();
     const settingsContext = useOptionalSettingsContext();
     const [presets, setPresets] = useState<PersonaPreset[]>([]);
     const [presetsLoading, setPresetsLoading] = useState(true);
@@ -138,12 +112,16 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
     const [defaultMemberId, setDefaultMemberId] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [existingTeamId, setExistingTeamId] = useState<string | null>(null);
-    const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
     const [rolePickerOpen, setRolePickerOpen] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
-    const avatarInputRef = useRef<HTMLInputElement>(null);
+    const avatarUploadingRef = useRef(false);
+    const handleAvatarUploadingChange = useCallback((uploading: boolean) => {
+      avatarUploadingRef.current = uploading;
+      setUploadingAvatar(uploading);
+    }, []);
+    const rolePickerTriggerRef = useRef<HTMLButtonElement>(null);
     const rolePickerRef = useRef<HTMLDivElement>(null);
     const availableModels = settingsContext?.availableModels ?? fallbackModels;
 
@@ -160,10 +138,17 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
     useEffect(() => {
       onFormStateChange?.({
         saving,
+        uploadingAvatar,
         existingTeamId,
         hasTeamName,
       });
-    }, [saving, existingTeamId, hasTeamName, onFormStateChange]);
+    }, [
+      saving,
+      uploadingAvatar,
+      existingTeamId,
+      hasTeamName,
+      onFormStateChange,
+    ]);
 
     useEffect(() => {
       personaPresetApi
@@ -328,7 +313,7 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
     );
 
     const handleSave = async () => {
-      if (!teamName.trim()) return;
+      if (!teamName.trim() || saving || avatarUploadingRef.current) return;
       setSaving(true);
       try {
         const payload: TeamCreateRequest = {
@@ -390,22 +375,6 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
       }
     };
 
-    const handleAvatarUpload = async (file: File) => {
-      setUploadingAvatar(true);
-      try {
-        const compressed = await compressImageFile(file);
-        const upload = uploadApi.uploadFile(compressed, {
-          folder: "persona-avatars",
-        });
-        const result = await upload.promise;
-        setTeamAvatar(result.url);
-      } catch (e) {
-        console.error("Team avatar upload failed:", e);
-      } finally {
-        setUploadingAvatar(false);
-      }
-    };
-
     const handleDelete = async () => {
       if (!existingTeamId) return;
       setIsDeleting(true);
@@ -454,140 +423,24 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
         >
           {/* Profile: Avatar + Name + Description */}
           <div className="ppe-profile-section">
-            <div className="ppe-avatar-upload">
-              <div
-                className="ppe-avatar-preview"
-                onClick={() =>
-                  !teamAvatar &&
-                  !uploadingAvatar &&
-                  avatarInputRef.current?.click()
-                }
-              >
-                {isEmojiAvatar(teamAvatar) ? (
-                  <>
-                    <PersonaAvatarImage
-                      avatar={getEmojiAvatarUrl(teamAvatar)}
-                      alt=""
-                      className="ppe-avatar-img"
-                    />
-                    <button
-                      type="button"
-                      className="ppe-avatar-remove"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setTeamAvatar(null);
-                      }}
-                      title={t("team.remove")}
-                    >
-                      <X size={12} />
-                    </button>
-                  </>
-                ) : isPersonaImageAvatar(teamAvatar) ? (
-                  <>
-                    <PersonaAvatarImage
-                      avatar={teamAvatar}
-                      alt=""
-                      className="ppe-avatar-img"
-                      onError={() => setTeamAvatar(null)}
-                    />
-                    <button
-                      type="button"
-                      className="ppe-avatar-remove"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setTeamAvatar(null);
-                      }}
-                      title={t("team.remove")}
-                    >
-                      <X size={12} />
-                    </button>
-                  </>
-                ) : teamAvatar ? (
-                  <>
-                    <div className="ppe-avatar-placeholder">
-                      <PersonaAvatarIcon avatar={teamAvatar} size={20} />
-                    </div>
-                    <button
-                      type="button"
-                      className="ppe-avatar-remove"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setTeamAvatar(null);
-                      }}
-                      title={t("team.remove")}
-                    >
-                      <X size={12} />
-                    </button>
-                  </>
-                ) : (
-                  <div className="ppe-avatar-placeholder">
-                    <Camera size={18} />
-                  </div>
-                )}
-                {uploadingAvatar && (
-                  <div className="ppe-avatar-uploading">
-                    <Loader2 size={16} className="animate-spin" />
-                  </div>
-                )}
-              </div>
-              <input
-                ref={avatarInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                disabled={uploadingAvatar}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) void handleAvatarUpload(file);
-                  e.target.value = "";
-                }}
-              />
-              <div className="relative">
-                <button
-                  type="button"
-                  className="ppe-avatar-hint-btn"
-                  disabled={uploadingAvatar}
-                  onClick={() => setAvatarPickerOpen((v) => !v)}
-                >
-                  <Smile size={12} />
-                  {t("team.chooseIcon")}
-                </button>
-                {avatarPickerOpen && (
-                  <div className="ppe-icon-picker">
-                    {TEAM_AVATAR_EMOJIS.map((emoji) => (
-                      <button
-                        key={emoji}
-                        type="button"
-                        className="ppe-icon-picker-item"
-                        onClick={() => {
-                          setTeamAvatar(emoji);
-                          setAvatarPickerOpen(false);
-                        }}
-                        title={emoji}
-                      >
-                        <span className="relative inline-flex size-5">
-                          <ImageWithSkeleton
-                            src={getEmojiAvatarUrl(emoji)}
-                            alt=""
-                            skipUrlResolve
-                            inline
-                            className="rounded-md"
-                            style={{ width: 20, height: 20 }}
-                          />
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            <AvatarSection
+              key={teamId ?? "new"}
+              avatar={teamAvatar ?? ""}
+              onAvatarChange={(avatar) => setTeamAvatar(avatar || null)}
+              onUploadingChange={handleAvatarUploadingChange}
+            />
 
             <div className="ppe-profile-fields">
               <div className="ppe-field">
-                <label className="ppe-label">
-                  {t("team.teamName")} <span className="ppe-required">*</span>
+                <label className="ppe-label" htmlFor={`${fieldId}-name`}>
+                  {t("team.teamName")}{" "}
+                  <span className="ppe-required" aria-hidden="true">
+                    *
+                  </span>
                 </label>
                 <input
+                  id={`${fieldId}-name`}
+                  required
                   type="text"
                   value={teamName}
                   onChange={(e) => setTeamName(e.target.value)}
@@ -596,9 +449,12 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
                 />
               </div>
               <div className="ppe-field">
-                <label className="ppe-label">{t("team.description")}</label>
+                <label className="ppe-label" htmlFor={`${fieldId}-description`}>
+                  {t("team.description")}
+                </label>
                 <input
                   type="text"
+                  id={`${fieldId}-description`}
                   value={teamDescription}
                   onChange={(e) => setTeamDescription(e.target.value)}
                   placeholder={t("team.descriptionPlaceholder")}
@@ -606,12 +462,13 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
                 />
               </div>
               <div className="ppe-field">
-                <label className="ppe-label">
+                <label className="ppe-label" htmlFor={`${fieldId}-tags`}>
                   <Tag size={13} className="ppe-label-icon" />
                   {t("team.tags", "标签")}
                 </label>
                 <input
                   type="text"
+                  id={`${fieldId}-tags`}
                   value={teamTagsInput}
                   onChange={(e) => setTeamTagsInput(e.target.value)}
                   placeholder={t("team.tagsPlaceholder", "例如：研究, 写作")}
@@ -623,12 +480,14 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
 
           {/* Team instructions */}
           <div className="ppe-field">
-            <label className="ppe-label">
+            <label className="ppe-label" htmlFor={`${fieldId}-instructions`}>
               <MessageSquareText size={13} className="ppe-label-icon" />
               {t("team.instructions")}
             </label>
             <div className="ppe-textarea-wrap">
               <textarea
+                id={`${fieldId}-instructions`}
+                aria-describedby={`${fieldId}-instructions-hint`}
                 value={teamInstructions}
                 onChange={(e) => setTeamInstructions(e.target.value)}
                 placeholder={t("team.instructionsPlaceholder")}
@@ -637,88 +496,17 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
               />
             </div>
             <span
-              style={{
-                fontSize: "0.6875rem",
-                color: "var(--theme-text-secondary)",
-                opacity: 0.75,
-                lineHeight: "1.4",
-                marginTop: "0.25rem",
-                display: "block",
-              }}
+              id={`${fieldId}-instructions-hint`}
+              className="text-12 leading-relaxed text-theme-text-secondary"
             >
               {t("team.instructionsHint")}
             </span>
           </div>
 
-          {/* Starter prompts */}
-          <div className="ppe-field">
-            <label className="ppe-label">
-              <Sparkles size={13} className="ppe-label-icon" />
-              {t("personaPresets.starterPrompts", "Starter Prompts")}
-            </label>
-            <div className="ppe-starter-list">
-              {starterPromptRows.map((prompt, index) => (
-                <div key={index} className="ppe-starter-row">
-                  <input
-                    value={prompt.icon}
-                    onChange={(e) =>
-                      setStarterPromptRows((prev) =>
-                        prev.map((item, i) =>
-                          i === index
-                            ? { ...item, icon: e.target.value }
-                            : item,
-                        ),
-                      )
-                    }
-                    className="ppe-input ppe-starter-icon"
-                    placeholder={t("personaPresets.starterIcon", "Icon")}
-                  />
-                  <input
-                    value={prompt.text}
-                    onChange={(e) =>
-                      setStarterPromptRows((prev) =>
-                        prev.map((item, i) =>
-                          i === index
-                            ? { ...item, text: e.target.value }
-                            : item,
-                        ),
-                      )
-                    }
-                    className="ppe-input ppe-starter-text"
-                    placeholder={t(
-                      "personaPresets.starterPromptPlaceholder",
-                      'Enter a prompt, or use {"zh":"...","en":"..."}',
-                    )}
-                  />
-                  <button
-                    type="button"
-                    className="ppe-starter-remove"
-                    onClick={() =>
-                      setStarterPromptRows((prev) =>
-                        prev.filter((_, i) => i !== index),
-                      )
-                    }
-                    title={t("common.delete", "Delete")}
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
-            </div>
-            <button
-              type="button"
-              className="ppe-starter-add"
-              onClick={() =>
-                setStarterPromptRows((prev) => [
-                  ...prev,
-                  { icon: "", text: "" },
-                ])
-              }
-            >
-              <Plus size={13} />
-              {t("personaPresets.addStarterPrompt", "Add starter prompt")}
-            </button>
-          </div>
+          <StarterPromptsEditor
+            prompts={starterPromptRows}
+            onChange={setStarterPromptRows}
+          />
 
           {/* Team members */}
           <div className="ppe-field" style={{ gap: "0.75rem" }}>
@@ -759,7 +547,10 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
 
             <div ref={rolePickerRef}>
               <button
+                ref={rolePickerTriggerRef}
                 type="button"
+                aria-expanded={rolePickerOpen}
+                aria-controls={rolePickerOpen ? rolePickerId : undefined}
                 onClick={() => {
                   setRolePickerOpen((v) => !v);
                   setSearchQuery("");
@@ -783,7 +574,21 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
               </button>
 
               {rolePickerOpen && (
-                <div className="team-role-picker-dropdown">
+                <div
+                  id={rolePickerId}
+                  className="team-role-picker-dropdown"
+                  role="group"
+                  aria-label={t("team.addRoles")}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Escape") return;
+                    event.stopPropagation();
+                    if (event.nativeEvent.isComposing || event.keyCode === 229)
+                      return;
+                    event.preventDefault();
+                    setRolePickerOpen(false);
+                    rolePickerTriggerRef.current?.focus();
+                  }}
+                >
                   <div className="team-role-picker-dropdown__search">
                     <Search
                       size={14}
@@ -793,6 +598,7 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
                       type="text"
                       value={searchQuery}
                       onValueChange={setSearchQuery}
+                      aria-label={t("team.searchRoles")}
                       placeholder={t("team.searchRoles")}
                       className="ppe-input"
                       style={{ paddingLeft: "2.25rem" }}

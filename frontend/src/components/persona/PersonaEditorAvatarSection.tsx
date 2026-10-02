@@ -11,19 +11,16 @@ import { isPersonaImageAvatar, isEmojiAvatar } from "./personaAvatar";
 import { getFluentEmojiCDN } from "@lobehub/fluent-emoji";
 import { PersonaAvatarIcon, PersonaAvatarImage } from "./PersonaAvatarIcon";
 import { AVATAR_EMOJIS } from "./PersonaEditorTypes";
-import type { PersonaEditorDraft } from "./PersonaEditorTypes";
 
 interface AvatarSectionProps {
-  draft: PersonaEditorDraft;
-  onDraftChange: (
-    updater: (prev: PersonaEditorDraft) => PersonaEditorDraft,
-  ) => void;
+  avatar: string;
+  onAvatarChange: (avatar: string) => void;
   onUploadingChange: (uploading: boolean) => void;
 }
 
 export function AvatarSection({
-  draft,
-  onDraftChange,
+  avatar,
+  onAvatarChange,
   onUploadingChange,
 }: AvatarSectionProps) {
   const { t } = useTranslation();
@@ -71,8 +68,7 @@ export function AvatarSection({
           folder: "persona-avatars",
         });
         const result = await upload.current.promise;
-        if (mounted.current)
-          onDraftChange((prev) => ({ ...prev, avatar: result.url }));
+        if (mounted.current) onAvatarChange(result.url);
       } catch {
         if (mounted.current) setFailedFile(file);
       } finally {
@@ -84,7 +80,7 @@ export function AvatarSection({
         }
       }
     },
-    [onUploadingChange, onDraftChange],
+    [onUploadingChange, onAvatarChange],
   );
 
   const iconTrigger = () =>
@@ -92,9 +88,7 @@ export function AvatarSection({
       ".ppe-avatar-actions > button",
     );
   const avatarLabel = t(
-    draft.avatar
-      ? "personaPresets.changeAvatar"
-      : "personaPresets.uploadAvatar",
+    avatar ? "personaPresets.changeAvatar" : "personaPresets.uploadAvatar",
   );
   const removeLabel = `${t("common.remove")} ${t("personaPresets.avatar")}`;
   return (
@@ -107,22 +101,22 @@ export function AvatarSection({
         disabled={isUploadingAvatar}
         onClick={() => avatarInputRef.current?.click()}
       >
-        {isEmojiAvatar(draft.avatar) ? (
+        {isEmojiAvatar(avatar) ? (
           <PersonaAvatarImage
-            avatar={getFluentEmojiCDN(draft.avatar, { type: "3d" })}
+            avatar={getFluentEmojiCDN(avatar, { type: "3d" })}
             alt=""
             className="ppe-avatar-img"
           />
-        ) : isPersonaImageAvatar(draft.avatar) ? (
+        ) : isPersonaImageAvatar(avatar) ? (
           <PersonaAvatarImage
-            avatar={draft.avatar}
+            avatar={avatar}
             alt=""
             className="ppe-avatar-img"
           />
         ) : (
           <span className="ppe-avatar-placeholder">
-            {draft.avatar ? (
-              <PersonaAvatarIcon avatar={draft.avatar} size={20} />
+            {avatar ? (
+              <PersonaAvatarIcon avatar={avatar} size={20} />
             ) : (
               <Camera size={18} aria-hidden="true" />
             )}
@@ -160,7 +154,7 @@ export function AvatarSection({
         >
           {t("personaPresets.pickIcon")}
         </Button>
-        {draft.avatar && (
+        {avatar && (
           <IconButton
             size="sm"
             disabled={isUploadingAvatar}
@@ -169,7 +163,7 @@ export function AvatarSection({
             icon={<X size={14} aria-hidden="true" />}
             onClick={() => {
               setFailedFile(null);
-              onDraftChange((prev) => ({ ...prev, avatar: "" }));
+              onAvatarChange("");
               iconTrigger()?.focus();
             }}
           />
@@ -206,10 +200,10 @@ export function AvatarSection({
               className="ppe-icon-picker-item"
               aria-label={t(item.labelKey)}
               title={t(item.labelKey)}
-              aria-pressed={draft.avatar === item.emoji}
+              aria-pressed={avatar === item.emoji}
               onClick={() => {
                 setFailedFile(null);
-                onDraftChange((prev) => ({ ...prev, avatar: item.emoji }));
+                onAvatarChange(item.emoji);
                 setIconPickerOpen(false);
                 iconTrigger()?.focus();
               }}

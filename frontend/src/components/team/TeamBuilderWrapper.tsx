@@ -37,6 +37,8 @@ import {
 import type { Team, TeamCreateRequest, TeamMember } from "../../types/team";
 import type { LocalizedText, PersonaStarterPrompt } from "../../types";
 import { EditorSidebar } from "../common/EditorSidebar";
+import { Button } from "../common/ui";
+import { PanelFooterActions } from "../common/PanelControls";
 import { nameToGradient } from "../common/cardUtils";
 import { Pagination } from "../common/Pagination";
 import { PanelHeader } from "../common/PanelHeader";
@@ -205,6 +207,7 @@ export function TeamBuilderWrapper() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [footerState, setFooterState] = useState<TeamBuilderFooterState>({
     saving: false,
+    uploadingAvatar: false,
     existingTeamId: null,
     hasTeamName: false,
   });
@@ -796,24 +799,24 @@ export function TeamBuilderWrapper() {
         defaultWidthPct={30}
         widthStorageKey="team-editor-sidebar-width"
         footer={
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={handleClose}
-              className="btn-secondary"
-            >
-              {t("common.cancel")}
-            </button>
-            <button
-              type="button"
+          <PanelFooterActions>
+            <Button onClick={handleClose}>{t("common.cancel")}</Button>
+            <Button
+              variant="primary"
               onClick={() => formRef.current?.handleSave()}
-              disabled={footerState.saving || !footerState.hasTeamName}
-              className="btn-primary disabled:opacity-50"
+              disabled={
+                footerState.saving ||
+                footerState.uploadingAvatar ||
+                !footerState.hasTeamName
+              }
+              loading={footerState.saving}
+              leftIcon={<Save size={14} />}
             >
-              <Save size={16} />
-              {footerState.saving ? t("team.saving") : t("team.save")}
-            </button>
-          </div>
+              <span role={footerState.saving ? "status" : undefined}>
+                {footerState.saving ? t("team.saving") : t("team.save")}
+              </span>
+            </Button>
+          </PanelFooterActions>
         }
       >
         <TeamBuilder
