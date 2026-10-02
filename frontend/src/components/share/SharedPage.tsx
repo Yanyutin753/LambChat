@@ -1,3 +1,4 @@
+import { LanguageToggle } from "../common/LanguageToggle";
 /**
  * SharedPage - Public view of a shared session
  * ChatGPT-inspired design with theme support and mobile responsiveness
@@ -13,9 +14,7 @@ import {
   Moon,
   Coffee,
   ExternalLink,
-  Languages,
   MessageCircle,
-  Check,
   Loader2,
   XCircle,
 } from "lucide-react";
@@ -57,14 +56,6 @@ import {
 } from "../persona/PersonaAvatarIcon";
 import { isEmojiAvatar, getEmojiAvatarUrl } from "../persona/personaAvatar";
 
-const LANGUAGES = [
-  { code: "en", nativeName: "English" },
-  { code: "zh", nativeName: "中文" },
-  { code: "ja", nativeName: "日本語" },
-  { code: "ko", nativeName: "한국어" },
-  { code: "ru", nativeName: "Русский" },
-];
-
 function resolveSharedAssistantIdentity(
   session: SharedContentResponse["session"] | null | undefined,
 ) {
@@ -83,68 +74,6 @@ function resolveSharedAssistantIdentity(
     name: session.persona_preset_name ?? null,
     avatar: session.persona_avatar ?? null,
   };
-}
-
-/** Local-only language toggle — no backend API calls (safe for unauthenticated shared pages) */
-function SharedPageLanguageToggle() {
-  const { i18n, t } = useTranslation();
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const selectLanguage = useCallback(
-    (code: string) => {
-      i18n.changeLanguage(code);
-      localStorage.setItem("language", code);
-      setIsOpen(false);
-    },
-    [i18n],
-  );
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center justify-center w-9 h-9 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 transition-all duration-200 hover:scale-105 active:scale-95"
-        title={t("common.language")}
-        aria-label={t("common.language")}
-      >
-        <Languages size={18} className="text-stone-600 dark:text-stone-300" />
-      </button>
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-40 rounded-lg bg-theme-bg-card shadow-lg border border-theme-border py-1 z-50">
-          {LANGUAGES.map((lang) => (
-            <button
-              key={lang.code}
-              onClick={() => selectLanguage(lang.code)}
-              className={`w-full px-4 py-2 text-left text-14 flex items-center justify-between transition-colors ${
-                i18n.language === lang.code
-                  ? "bg-theme-bg-subtle text-theme-text"
-                  : "text-theme-text-secondary hover:bg-theme-bg-subtle hover:text-theme-text"
-              }`}
-            >
-              <span>{lang.nativeName}</span>
-              {i18n.language === lang.code && (
-                <Check size={16} className="text-theme-text" />
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 export function SharedPage({
@@ -558,7 +487,7 @@ export function SharedPage({
             >
               <MessageCircle size={18} />
             </Link>
-            <SharedPageLanguageToggle />
+            <LanguageToggle sync={false} />
             <button
               onClick={toggleTheme}
               className="flex items-center justify-center w-9 h-9 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 transition-all duration-200 hover:scale-105 active:scale-95"
@@ -686,14 +615,12 @@ export function SharedPage({
                         const iconUrl = getModelIconUrl(
                           data.session.model,
                           (data.session as Record<string, unknown>).provider as
-                            | string
-                            | undefined,
+                            string | undefined,
                         );
                         const mono = isMonochromeIcon(
                           data.session.model,
                           (data.session as Record<string, unknown>).provider as
-                            | string
-                            | undefined,
+                            string | undefined,
                         );
                         return iconUrl ? (
                           <ImageWithSkeleton

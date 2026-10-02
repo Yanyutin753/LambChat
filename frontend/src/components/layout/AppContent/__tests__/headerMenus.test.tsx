@@ -1,5 +1,14 @@
+import { LanguagePreferenceProvider } from "../../../../hooks/useLanguagePreference";
+import type { ReactNode } from "react";
 /** @vitest-environment jsdom */
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render as renderBase,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { Header } from "../Header";
@@ -8,9 +17,14 @@ import { OPEN_NOTIFICATIONS_EVENT } from "../../DesktopSidebarShell/desktopShell
 const appearance = vi.hoisted(() => ({
   state: undefined as "saving" | "error" | undefined,
   retry: vi.fn(),
+  language: vi.fn(),
+  write: vi.fn().mockResolvedValue({}),
 }));
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key, i18n: { language: "zh" } }),
+  useTranslation: () => ({
+    t: (key: string) => key,
+    i18n: { language: "zh", changeLanguage: appearance.language },
+  }),
 }));
 vi.mock("../../../common/SceneIllustration", () => ({
   SceneIllustration: () => null,
@@ -22,7 +36,7 @@ vi.mock("../../../notification/NotificationDialog", () => ({
   NotificationDialog: () => null,
 }));
 vi.mock("../../../../hooks/useAuth", () => ({
-  useAuth: () => ({ user: { permissions: [] } }),
+  useAuth: () => ({ user: { id: "first", permissions: [] } }),
 }));
 vi.mock("../../../../contexts/ThemeContext", () => ({
   useTheme: () => ({
@@ -44,7 +58,9 @@ vi.mock("../../../../hooks/useStickyDropdownPosition", () => ({
 vi.mock("../../../../hooks/useSessionTitle", () => ({
   useSessionTitle: () => "",
 }));
-vi.mock("../../../../services/api", () => ({ authApi: {} }));
+vi.mock("../../../../services/api", () => ({
+  authApi: { updateMetadata: appearance.write },
+}));
 vi.mock("../../../../services/api/notification", () => ({
   notificationApi: { getActive: () => Promise.resolve([]) },
 }));
@@ -52,6 +68,8 @@ afterEach(() => {
   cleanup();
   appearance.state = undefined;
   appearance.retry.mockClear();
+  appearance.language.mockClear();
+  appearance.write.mockReset().mockResolvedValue({});
 });
 function renderHeader() {
   render(
@@ -159,3 +177,32 @@ test("language choices expose selection and returning focuses the parent action"
   await userEvent.keyboard("{ArrowDown}");
   expect(screen.getByRole("menuitemradio", { name: "English" })).toHaveFocus();
 });
+
+test("header language sync exposes failure and retries without changing local language twice", async () => {
+  let reject!: (reason: Error) => void;
+  appearance.write.mockReturnValueOnce(
+    new Promise((_yes, no) => {
+      reject = no;
+    }),
+  );
+  openLanguages();
+  fireEvent.click(screen.getByRole("menuitemradio", { name: "English" }));
+  await waitFor(() =>
+    expect(appearance.write).toHaveBeenCalledWith({ language: "en" }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "common.menu" }));
+  expect(
+    screen.getByRole("menuitem", { name: "common.language · common.saving" }),
+  ).toBeDisabled();
+  await act(async () => reject(new Error("fixture failed")));
+  fireEvent.click(
+    screen.getByRole("menuitem", { name: "common.retry: common.language" }),
+  );
+  await waitFor(() => expect(appearance.write).toHaveBeenCalledTimes(2));
+  expect(appearance.write).toHaveBeenLastCalledWith({ language: "en" });
+  expect(appearance.language).toHaveBeenCalledExactlyOnceWith("en");
+});
+
+function render(children: ReactNode) {
+  return renderBase(children, { wrapper: LanguagePreferenceProvider });
+}

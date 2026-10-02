@@ -900,3 +900,17 @@ IAB独立3018：390×844深色首次503时入口具名“选择模式·加载失
 IAB实际市场SKILL.md文件：桌面展开前后cm-content top均107.59375px；320深色查找框280px、按钮44px，Escape只关闭查找并回SKILL.md，Cmd/Ctrl+F重新打开；390浅色框280px、匹配1处、页面横向overflow0。文件库Python预览同样无额外工具行，原生匹配2处。截图存仓库外interface-quality/native-file-find-mobile-dark.png、native-file-find-mobile-light.png、native-file-find-desktop-dark.png。该证据是响应式浏览器预览，不代表真机软键盘。
 
 沿DESIGN.md人工检查排版、留白、层级、主题、动效、焦点、响应式与现有组件一致性；无新增动效，已有reduced-motion规则保留。全量781文件/3837测试、lint、build（含tsc、Vite、PWA）通过；eager JS559727/561152、precache5027071/5242880、91项，未提高预算。仅提交本次文件预览改动。未完成的auth刷新测试暂存仓库外/tmp/lambchat-authRefreshOwnership-paused-20261002.test.tsx，后续继续原有全站目标；本批不能视为全站完成。
+
+## 2026-10-02 资料刷新归属与共享语言同步
+
+本轮先fetch/rebase到origin/develop 54ddd574。原mobile-density checkout随后被外部流程reset至origin/codex/interface-quality，reflog确认；未覆盖该现场。改用原生工具创建interface-state worktree及codex/interface-state分支，从最新develop重放此前未集成的资料编辑、文件查找和两行证据文档。后续修改仅在新worktree；原checkout和用户3017服务保留。
+
+refreshUser用请求序号、账号token subject和卸载失效保护已开始的资料刷新；同账号token续期仍可应用身份与权限，登出立即清权限。普通同账号资料更新不再回放旧云端主题/语言覆盖本机新选择，新账号首次OAuth刷新仍恢复云端偏好。8项真实AuthProvider行为测试先6项RED后全部GREEN；范围仅refreshUser，初始化/login/OAuth独立请求仍需继续审查。
+
+语言入口复用ResourceCardMenu和既有usePreferenceWrites，等待禁用、失败保留本机语言并提供准确重试；访客与公开分享只本机切换，删除SharedPage重复菜单。复核发现每入口独立请求会让旧失败重试覆盖设置页新成功选择，新增实际双入口集成先2项RED，改为按账号共享LanguagePreferenceProvider后GREEN。复核还发现共享sm按钮样式覆盖普通44px类，修正手机/coarse important尺寸；两项P2关闭，最终复核无其他确定P1/P2。
+
+IAB独立3018：390深色Header错误说明可读，原语言保留，重试显示禁用Saving后撤错；320浅色访客菜单五语可达，Down/Escape回入口，中文选择后焦点语言按钮、横向overflow0；共享页320深色复用同菜单。登录/共享页语言入口实际44×44，桌面1440为32×32、overflow0。截图在仓库外interface-quality：language-sync-390-dark-error-final、language-menu-320-light-final、language-shared-320-dark-final。独立预览因模块扩展名变更保留了Vite旧解析，确认missing-module后仅重启本轮服务恢复；不是生产加载问题。无真实认证/云端持久化/真机触屏证据。
+
+八项自检沿用现有文字尺度与留白，状态层级清楚，主题token和五语既有文案，无新动效/依赖/素材；复用共享菜单键盘/焦点机制，窄屏触控尺寸实际核对，保持LambChat视觉语言。按DESIGN.md交付清单人工检查。最终47项针对性行为测试及全量783文件/3852项通过，lint零错误零警告，build含tsc/Vite/PWA通过；eager JS560109/561152、precache5028288/5242880、92项，未提高预算。全站目标仍进行中，服务地址/本地沙箱设置、剩余状态组合和真实服务/设备验证留待后续，不据本批门禁宣告整体完成。
+
+最后按用户最新请求复验390深色Python文件：搜索入口在标题工具栏，原生查找浮层280×46px；展开前后文件cm-content top均141px，无额外搜索行，choice命中显示，Escape关闭回代码预览，页面overflow0。截图native-file-find-390-dark-current保存在同一证据目录。3018独立预览及该标签页作为可查看结果保留，浏览器临时尺寸恢复；用户3017和主checkout未覆盖。

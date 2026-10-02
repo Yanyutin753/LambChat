@@ -1,9 +1,12 @@
+import { LanguagePreferenceProvider } from "../../../../hooks/useLanguagePreference";
+import type { ReactNode } from "react";
+import { LanguageToggle } from "../../../common/LanguageToggle";
 /** @vitest-environment jsdom */
 import {
   act,
   cleanup,
   fireEvent,
-  render,
+  render as renderBase,
   screen,
   waitFor,
 } from "@testing-library/react";
@@ -447,3 +450,55 @@ test("switching accounts before a queued write starts prevents sending the old d
   );
   expect(api.agent).not.toHaveBeenCalled();
 });
+
+test("language writes share pending state across public controls and profile preferences", async () => {
+  render(
+    <ThemeProvider>
+      <LanguageToggle />
+      <ProfilePreferencesTab />
+    </ThemeProvider>,
+  );
+  const pending = deferred();
+  api.metadata.mockReturnValueOnce(pending.promise);
+  fireEvent.click(screen.getByRole("button", { name: "common.language" }));
+  fireEvent.click(screen.getByRole("menuitemradio", { name: "日本語" }));
+  await waitFor(() =>
+    expect(api.metadata).toHaveBeenCalledWith({ language: "ja" }),
+  );
+  expect(
+    screen.getByRole("button", { name: "profile.language" }),
+  ).toBeDisabled();
+  await act(async () => pending.resolve());
+});
+test("a newer profile language choice replaces the earlier failed menu retry", async () => {
+  render(
+    <ThemeProvider>
+      <LanguageToggle />
+      <ProfilePreferencesTab />
+    </ThemeProvider>,
+  );
+  api.metadata.mockRejectedValueOnce(new Error("Offline"));
+  fireEvent.click(screen.getByRole("button", { name: "common.language" }));
+  fireEvent.click(screen.getByRole("menuitemradio", { name: "日本語" }));
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "common.language" }),
+    ).toHaveAttribute("aria-description", "profile.preferenceSyncFailed"),
+  );
+  choose("profile.language", "Русский");
+  await waitFor(() => expect(api.metadata).toHaveBeenCalledTimes(2));
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "common.language" }),
+    ).not.toHaveAttribute("aria-description"),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "common.language" }));
+  expect(
+    screen.queryByRole("menuitem", { name: "common.retry: common.language" }),
+  ).toBeNull();
+  expect(api.metadata).toHaveBeenLastCalledWith({ language: "ru" });
+});
+
+function render(children: ReactNode) {
+  return renderBase(children, { wrapper: LanguagePreferenceProvider });
+}
