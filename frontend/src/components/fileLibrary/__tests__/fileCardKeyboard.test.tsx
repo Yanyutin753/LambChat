@@ -1,12 +1,11 @@
 /** @vitest-environment jsdom */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
-import { GridCard } from "../components/GridCard";
-import { ListCard } from "../components/ListCard";
+import { RevealedFileCard } from "../RevealedFileCard";
 import type { RevealedFileItem } from "../../../services/api";
 
-vi.mock("react-i18next", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("react-i18next")>()),
+vi.mock("react-i18next", async (original) => ({
+  ...(await original<typeof import("react-i18next")>()),
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 vi.mock("../components/FileCardPreview", () => ({
@@ -14,73 +13,57 @@ vi.mock("../components/FileCardPreview", () => ({
 }));
 afterEach(cleanup);
 
-const file = {
-  id: "file",
-  session_id: "session",
-  file_name: "report.md",
-  file_size: 100,
-  created_at: "2026-10-01T00:00:00Z",
-} as RevealedFileItem;
-
-test.each([GridCard, ListCard])(
-  "%s provides a file action separate from its more menu",
-  (Card) => {
+test.each(["grid", "list"] as const)(
+  "%s file actions support keyboard opening, selection and Escape",
+  (viewMode) => {
     const preview = vi.fn();
+    const go = vi.fn();
     render(
-      <Card
-        file={file}
+      <RevealedFileCard
+        file={
+          {
+            session_id: "session",
+            file_name: "report.md",
+            created_at: "2026-10-01",
+          } as RevealedFileItem
+        }
+        viewMode={viewMode}
         onPreview={preview}
-        onGoToSession={vi.fn()}
-        onToggleFavorite={vi.fn()}
+        onGoToSession={go}
+        onToggleFavorite={() => {}}
       />,
     );
-    const open = screen.getByRole("button", { name: "report.md", exact: true });
-    open.focus();
-    fireEvent.click(open);
-    expect(preview).toHaveBeenCalledExactlyOnceWith(file);
-    fireEvent.click(screen.getByRole("button", { name: /common.moreOptions/ }));
-    expect(preview).toHaveBeenCalledTimes(1);
-  },
-);
-
-test.each([GridCard, ListCard])(
-  "%s closes its menu on Escape and restores focus",
-  (Card) => {
-    render(
-      <Card
-        file={file}
-        onPreview={vi.fn()}
-        onGoToSession={vi.fn()}
-        onToggleFavorite={vi.fn()}
-      />,
-    );
-    const more = screen.getByRole("button", { name: /common.moreOptions/ });
+    const title = screen.getByRole("button", { name: "report.md" });
+    fireEvent.click(title);
+    expect(preview).toHaveBeenCalledOnce();
+    const card = screen.getByRole("group", { name: "report.md" });
+    fireEvent.keyDown(card, { key: "F10", shiftKey: true });
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(card).toHaveFocus();
+    const more = screen.getByRole("button", { name: "common.moreOptions" });
     more.focus();
-    fireEvent.click(more);
-    const action = screen.getByRole("menuitem", {
+    fireEvent.click(more, { detail: 0 });
+    const first = screen.getByRole("menuitem", {
       name: "fileLibrary.context.goToSession",
     });
-    expect(document.activeElement).toBe(action);
-    fireEvent.keyDown(action, { key: "Escape" });
+    expect(first).toHaveFocus();
+    fireEvent.keyDown(first, { key: "ArrowDown" });
+    expect(
+      screen.getByRole("menuitem", { name: "fileLibrary.context.favorite" }),
+    ).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     expect(screen.queryByRole("menu")).toBeNull();
-    expect(document.activeElement).toBe(more);
+    expect(more).toHaveFocus();
+    fireEvent.click(more);
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "fileLibrary.context.goToSession" }),
+    );
+    expect(go).toHaveBeenCalledWith(
+      "session",
+      expect.objectContaining({ file_name: "report.md" }),
+    );
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(preview).toHaveBeenCalledOnce();
   },
 );
-
-test("file menu closes before running its selected action", () => {
-  const favorite = vi.fn();
-  render(
-    <GridCard
-      file={file}
-      onPreview={vi.fn()}
-      onGoToSession={vi.fn()}
-      onToggleFavorite={favorite}
-    />,
-  );
-  fireEvent.click(screen.getByRole("button", { name: /common.moreOptions/ }));
-  fireEvent.click(
-    screen.getByRole("menuitem", { name: "fileLibrary.context.favorite" }),
-  );
-  expect(favorite).toHaveBeenCalledExactlyOnceWith(file);
-  expect(screen.queryByRole("menu")).toBeNull();
-});

@@ -18,6 +18,7 @@ import { BrandWordmark } from "../../common/BrandWordmark";
 import { APP_NAME } from "../../../constants";
 import { DesktopActivityRail } from "./DesktopActivityRail";
 import { isEditableEventTarget } from "../../../utils/editableTarget";
+
 import {
   DESKTOP_SIDEBAR_TOGGLE_EVENT,
   DESKTOP_SIDEBAR_OPEN_SEARCH_EVENT,

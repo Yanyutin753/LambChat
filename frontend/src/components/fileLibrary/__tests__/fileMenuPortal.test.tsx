@@ -20,7 +20,7 @@ test("file actions escape the grid and preview stacking context", () => {
     <div className="auto-grid-cols overflow-hidden">
       <FileContextMenu
         menu={{ x: 500, y: 200, file }}
-        id="file-menu"
+        menuId="file-menu"
         onClose={vi.fn()}
         file={file}
         onGoToSession={vi.fn()}
@@ -28,12 +28,9 @@ test("file actions escape the grid and preview stacking context", () => {
       />
     </div>,
   );
-  const menu = screen.getByRole("menu");
+  const menu = screen.getByRole("menu", { name: "report.md" });
   expect(menu.parentElement).toBe(document.body);
   expect(container.contains(menu)).toBe(false);
-  expect(
-    screen.getByRole("menuitem", { name: "fileLibrary.context.goToSession" }),
-  ).toBeTruthy();
 });
 
 test("file toolbar dropdown escapes its clipping panel", () => {

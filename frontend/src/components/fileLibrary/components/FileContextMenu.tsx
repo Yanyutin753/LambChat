@@ -1,12 +1,12 @@
 import { useTranslation } from "react-i18next";
+import { ResourceCardMenu } from "../../common/ResourceCardMenu";
 import { MessageSquare, Star, Download, ExternalLink } from "lucide-react";
 import type { RevealedFileItem } from "../../../services/api";
 import { getFullUrl } from "../../../services/api";
-import { ResourceCardMenu } from "../../common/ResourceCardMenu";
 
 interface FileContextMenuProps {
   menu: { x: number; y: number; file: RevealedFileItem } | null;
-  id: string;
+  menuId: string;
   onClose: (restoreFocus?: boolean) => void;
   file: RevealedFileItem;
   onGoToSession: (sessionId: string, file?: RevealedFileItem) => void;
@@ -15,7 +15,7 @@ interface FileContextMenuProps {
 
 export function FileContextMenu({
   menu,
-  id,
+  menuId,
   onClose,
   file,
   onGoToSession,
@@ -81,16 +81,16 @@ export function FileContextMenu({
 
   return (
     <ResourceCardMenu
-      id={id}
+      id={menuId}
       title={file.file_name}
       position={menu}
       onClose={onClose}
       actions={items.map((item) => ({
         label: item.label,
+        onClick: item.action,
         icon: (
           <item.icon size={16} className="shrink-0 text-theme-text-secondary" />
         ),
-        onClick: item.action,
       }))}
     />
   );
