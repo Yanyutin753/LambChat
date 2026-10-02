@@ -1,7 +1,7 @@
 import { createPortal } from "react-dom";
-import { useEffect, type CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
 import { Users, Sparkles, User, Pin, Star } from "lucide-react";
-import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
+import { usePanelFilterMenu } from "../../hooks/usePanelFilterMenu";
 import type { ScopeFilter } from "./usePersonaPlaza";
 
 interface ScopeTab {
@@ -18,26 +18,6 @@ const ICON_MAP = {
   Pin,
   Star,
 } as const;
-
-const DROPDOWN_GUTTER = 12;
-const SCOPE_DROPDOWN_WIDTH = 192;
-
-function getDropdownPosition(rect: DOMRect, width: number): CSSProperties {
-  const availableWidth = window.innerWidth - DROPDOWN_GUTTER * 2;
-  const renderedWidth = Math.min(width, availableWidth);
-  const left = Math.min(
-    Math.max(DROPDOWN_GUTTER, rect.right - renderedWidth),
-    window.innerWidth - renderedWidth - DROPDOWN_GUTTER,
-  );
-  const top = rect.bottom + 8;
-
-  return {
-    top,
-    left,
-    width: renderedWidth,
-    maxHeight: `calc(100dvh - ${top + DROPDOWN_GUTTER}px)`,
-  };
-}
 
 interface PersonaScopeDropdownProps {
   isOpen: boolean;
@@ -56,33 +36,25 @@ export function PersonaScopeDropdown({
   onSelect,
   onClose,
 }: PersonaScopeDropdownProps) {
-  useEffect(() => {
-    if (!isOpen) return;
+  const { t } = useTranslation();
+  const { menuRef, dropdownStyle, ready, onKeyDown, closeMenu } =
+    usePanelFilterMenu(scopeBtnRef, isOpen, 192, onClose);
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
-
-  // Compute style before any early return — hooks must not be called conditionally
-  const dropdownStyle = useStickyDropdownPosition(scopeBtnRef, isOpen, (rect) =>
-    getDropdownPosition(rect, SCOPE_DROPDOWN_WIDTH),
-  );
-
-  if (!isOpen) return null;
+  if (!ready) return null;
 
   return createPortal(
     <div
       className="fixed inset-0 z-[999]"
       data-panel-header-dropdown
-      onPointerDown={onClose}
+      onPointerDown={closeMenu}
     >
       <div
         className="panel-header-dropdown fixed overflow-y-auto rounded-xl border bg-[var(--theme-bg-card,#1c1917)] p-1 shadow-lg"
+        ref={menuRef}
+        tabIndex={-1}
+        onKeyDown={onKeyDown}
         role="menu"
+        aria-label={t("personaPresets.scope")}
         style={dropdownStyle}
         onPointerDown={(e) => e.stopPropagation()}
       >
@@ -94,7 +66,7 @@ export function PersonaScopeDropdown({
               type="button"
               onClick={() => {
                 onSelect(key);
-                onClose();
+                closeMenu();
               }}
               role="menuitemradio"
               aria-checked={scopeFilter === key}

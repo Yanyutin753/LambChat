@@ -1,6 +1,7 @@
 import { SceneIllustration } from "../../common/SceneIllustration";
 import { type ElementType } from "react";
 import { Download } from "lucide-react";
+import { Button } from "../../common/ui/Button";
 import type { TFunction } from "i18next";
 import "./FileFallbackPanel.css";
 
@@ -59,14 +60,13 @@ export default function FileFallbackPanel({
             {description}
           </p>
           {(downloadUrl || onDownload) && (
-            <button
-              type="button"
+            <Button
+              size="lg"
               onClick={handleDownload}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-700 px-4 py-2 text-14 font-medium text-white transition-colors hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500"
+              leftIcon={<Download size={16} aria-hidden="true" />}
             >
-              <Download size={16} />
               {downloadLabel}
-            </button>
+            </Button>
           )}
         </div>
       </div>

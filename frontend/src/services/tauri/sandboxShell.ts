@@ -173,8 +173,17 @@ export interface SandboxDataLocation {
 }
 
 /** 读取沙箱数据根状态。 */
-export function readSandboxDataLocation(): Promise<SandboxDataLocation> {
-  return invokeInShell<SandboxDataLocation>("sandbox_data_location");
+export async function readSandboxDataLocation(): Promise<SandboxDataLocation> {
+  const location = await invokeInShell<{
+    root: string;
+    customized: boolean;
+    override_configured: boolean;
+  }>("sandbox_data_location");
+  return {
+    root: location.root,
+    customized: location.customized,
+    overrideConfigured: location.override_configured,
+  };
 }
 
 /** 更改沙箱数据根：migrateData=true 时把旧根顶层数据搬到新根。成功后须

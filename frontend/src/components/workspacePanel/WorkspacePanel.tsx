@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { ToolbarIconButton } from "../common/ui/ToolbarIconButton";
+import { Button } from "../common/ui/Button";
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { Tooltip } from "../common/Tooltip";
 import { RightPanelActiveContext } from "../common/useRightPanelEntry";
 import { LazyDocumentPreview } from "../documents/LazyDocumentPreview";
@@ -153,7 +155,7 @@ export function WorkspacePanel({
       ? "cloud"
       : `${sandboxMode ?? ""}|${selectedMachineId}|${selection?.id ?? ""}`
   }`;
-  const { root, state, error, toggleDir, refresh, expandedPaths } =
+  const { root, state, error, toggleDir, refresh, retryDir, expandedPaths } =
     useWorkspaceTree(effectiveSessionId, resetKey, source);
 
   const [preview, setPreview] = useState<Pick<
@@ -165,12 +167,18 @@ export function WorkspacePanel({
   const [rootExpanded, setRootExpanded] = useState(true);
   const [explorerCollapsed, setExplorerCollapsed] = useState(false);
   const selectedButtonRef = useRef<HTMLButtonElement>(null);
+  const explorerRef = useRef<HTMLElement>(null);
+  const previewRef = useRef<HTMLElement>(null);
   const previewPrefix = `workspace:${JSON.stringify([
     resetKey,
     workspaceSelection,
   ])}:`;
   const [openingPath, setOpeningPath] = useState<string | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<{
+    path: string;
+    message: string;
+    action: "read" | "reveal";
+  } | null>(null);
   const previewRequest = useRef(0);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -198,6 +206,19 @@ export function WorkspacePanel({
       previewRequest.current += 1;
     };
   }, [previewPrefix]);
+
+  useEffect(() => {
+    const explorer = explorerRef.current;
+    if (
+      preview &&
+      !showFiles &&
+      explorer &&
+      getComputedStyle(explorer).display === "none" &&
+      (document.activeElement === document.body ||
+        explorer.contains(document.activeElement))
+    )
+      previewRef.current?.focus({ preventScroll: true });
+  }, [preview, showFiles]);
 
   const openFile = useCallback(
     async (path: string) => {
@@ -230,7 +251,11 @@ export function WorkspacePanel({
         setShowFiles(false);
       } catch {
         if (request === previewRequest.current)
-          setPreviewError(t("documents.error"));
+          setPreviewError({
+            path,
+            message: t("documents.error"),
+            action: "read",
+          });
       } finally {
         if (request === previewRequest.current) setOpeningPath(null);
       }
@@ -259,6 +284,8 @@ export function WorkspacePanel({
   const handleReveal = useCallback(
     async (relPath: string) => {
       if (!sessionId || isCloudView) return;
+      const request = previewRequest.current;
+      setPreviewError(null);
       try {
         await revealWorkspacePath(
           sessionId,
@@ -267,7 +294,12 @@ export function WorkspacePanel({
           selectedMachineId,
         );
       } catch {
-        setPreviewError(t("sessionWorkspace.failed"));
+        if (request === previewRequest.current)
+          setPreviewError({
+            path: relPath,
+            message: t("sessionWorkspace.failed"),
+            action: "reveal",
+          });
       }
     },
     [sessionId, isCloudView, workspaceSelection, selectedMachineId, t],
@@ -281,8 +313,15 @@ export function WorkspacePanel({
   }, [isCloudView, refreshCloudStatus, refresh]);
 
   const backToFiles = () => {
+    const opener = selectedButtonRef.current;
+    const request = ++previewRequest.current;
+    setOpeningPath(null);
     setShowFiles(true);
-    requestAnimationFrame(() => selectedButtonRef.current?.focus());
+    requestAnimationFrame(() => {
+      if (request !== previewRequest.current) return;
+      if (opener?.isConnected) opener.focus();
+      else explorerRef.current?.focus({ preventScroll: true });
+    });
   };
 
   const renderNodes = (nodes: WorkspaceTreeNode[], depth: number) =>
@@ -301,6 +340,7 @@ export function WorkspacePanel({
               <button
                 onClick={() => toggleDir(node.path)}
                 aria-expanded={expanded}
+                aria-busy={node.loading ?? false}
                 title={node.path}
                 className="workspace-file-row"
                 style={{ paddingLeft: padding }}
@@ -315,7 +355,7 @@ export function WorkspacePanel({
                 {node.loading ? (
                   <Loader2
                     size={16}
-                    className="shrink-0 animate-spin text-theme-text-tertiary"
+                    className="shrink-0 animate-spin motion-reduce:animate-none text-theme-text-tertiary"
                   />
                 ) : expanded ? (
                   <FolderOpen
@@ -330,6 +370,34 @@ export function WorkspacePanel({
                 )}
                 <span className="truncate text-13 text-left">{node.name}</span>
               </button>
+              {expanded && node.error && (
+                <div
+                  className="flex min-w-0 items-center gap-2 pr-3 pb-1"
+                  style={{ paddingLeft: padding + 21 }}
+                >
+                  <p
+                    role="alert"
+                    className="min-w-0 flex-1 text-12 text-theme-text-secondary [overflow-wrap:anywhere]"
+                  >
+                    {node.error}
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`${t("workspacePanel.retry")}: ${node.name}`}
+                    className="shrink-0 max-sm:!min-h-11 [@media(pointer:coarse)]:!min-h-11"
+                    onClick={(event) => {
+                      const trigger =
+                        event.currentTarget.parentElement
+                          ?.previousElementSibling;
+                      if (trigger instanceof HTMLElement) trigger.focus();
+                      void retryDir(node.path);
+                    }}
+                  >
+                    {t("workspacePanel.retry")}
+                  </Button>
+                </div>
+              )}
               {expanded &&
                 node.children &&
                 renderNodes(node.children, depth + 1)}
@@ -517,7 +585,9 @@ export function WorkspacePanel({
 
       <div className="workspace-browser">
         <section
-          className="workspace-explorer"
+          ref={explorerRef}
+          tabIndex={-1}
+          className="workspace-explorer focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-[var(--theme-ring)]"
           aria-label={t("workspacePanel.title")}
         >
           <div className="workspace-search">
@@ -549,12 +619,31 @@ export function WorkspacePanel({
             </div>
           )}
           {previewError && (
-            <p
-              role="alert"
-              className="shrink-0 px-3 py-2 text-12 text-theme-text-secondary"
-            >
-              {previewError}
-            </p>
+            <div className="flex min-w-0 shrink-0 items-center gap-2 px-3 py-2">
+              <p
+                role="alert"
+                className="min-w-0 flex-1 text-12 text-theme-text-secondary [overflow-wrap:anywhere]"
+              >
+                <span className="block font-medium text-theme-text">
+                  {previewError.path}
+                </span>
+                {previewError.message}
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={`${t("workspacePanel.retry")}: ${previewError.path}`}
+                className="shrink-0 max-sm:!min-h-11 [@media(pointer:coarse)]:!min-h-11"
+                onClick={() => {
+                  explorerRef.current?.focus({ preventScroll: true });
+                  if (previewError.action === "reveal")
+                    void handleReveal(previewError.path);
+                  else void openFile(previewError.path);
+                }}
+              >
+                {t("workspacePanel.retry")}
+              </Button>
+            </div>
           )}
 
           {/* 本地视图状态区 */}
@@ -603,15 +692,23 @@ export function WorkspacePanel({
           !(isCloudView && !sessionId) ? (
             state === "error" ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-                <p className="text-12 text-theme-text-secondary dark:text-stone-400">
+                <p
+                  role="alert"
+                  className="text-12 text-theme-text-secondary [overflow-wrap:anywhere]"
+                >
                   {error}
                 </p>
-                <button
-                  onClick={handleRefresh}
-                  className="text-12 text-theme-text-secondary hover:underline dark:text-stone-300"
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    explorerRef.current?.focus({ preventScroll: true });
+                    handleRefresh();
+                  }}
+                  className="max-sm:!min-h-11 [@media(pointer:coarse)]:!min-h-11"
                 >
                   {t("workspacePanel.retry", { defaultValue: "重试" })}
-                </button>
+                </Button>
               </div>
             ) : (
               <div
@@ -619,11 +716,12 @@ export function WorkspacePanel({
                 className="workspace-file-list min-h-0 flex-1 overflow-y-auto"
               >
                 {state === "loading" && root.length === 0 ? (
-                  <div className="flex items-center justify-center pt-6">
-                    <Loader2
-                      size={16}
-                      className="animate-spin text-theme-text-tertiary"
-                    />
+                  <div
+                    role="status"
+                    className="flex items-center justify-center gap-2 pt-6 text-12 text-theme-text-secondary"
+                  >
+                    <LoadingSpinner size="sm" />
+                    {t("common.loading")}
                   </div>
                 ) : root.length === 0 ? (
                   state === "idle" ? null : (
@@ -641,7 +739,9 @@ export function WorkspacePanel({
           ) : null}
         </section>
         <section
-          className="workspace-preview"
+          ref={previewRef}
+          tabIndex={-1}
+          className="workspace-preview focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-[var(--theme-ring)]"
           aria-label={t("documents.preview")}
         >
           {preview ? (

@@ -91,7 +91,7 @@ test("sidebar session and project titles use font-serif", () => {
 
 test("search and recent chat lists render session titles with font-serif", () => {
   const search = readComponent("panels/SearchDialog.tsx");
-  expect(search).toMatch(/block text-14 font-serif text-stone-700/);
+  expect(search).toMatch(/block text-14 font-serif text-theme-text/);
   expect(search).toMatch(/text-11 font-serif/);
   const recent = readComponent("sidebar/RecentChatsDialog.tsx");
   expect(recent).toMatch(/truncate text-13 font-serif/);

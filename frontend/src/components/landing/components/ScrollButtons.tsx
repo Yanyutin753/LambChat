@@ -22,6 +22,7 @@ export function ScrollButtons({
         type="button"
         disabled={!showTop}
         aria-hidden={!showTop}
+        style={showTop ? undefined : { display: "none" }}
         onClick={onScrollToTop}
         className={`landing-scroll-btn w-11 h-11 sm:w-10 sm:h-10 rounded-xl bg-white/90 dark:bg-stone-800/90 border border-stone-200/60 dark:border-stone-700/40 shadow-lg shadow-stone-200/30 dark:shadow-stone-900/40 flex items-center justify-center text-theme-text-secondary dark:text-theme-text-secondary hover:text-theme-text-secondary dark:hover:text-stone-200 hover:bg-white dark:hover:bg-stone-700 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 ${
           showTop
@@ -36,6 +37,7 @@ export function ScrollButtons({
         type="button"
         disabled={!showBottom}
         aria-hidden={!showBottom}
+        style={showBottom ? undefined : { display: "none" }}
         onClick={onScrollToBottom}
         className={`landing-scroll-btn w-11 h-11 sm:w-10 sm:h-10 rounded-xl bg-white/90 dark:bg-stone-800/90 border border-stone-200/60 dark:border-stone-700/40 shadow-lg shadow-stone-200/30 dark:shadow-stone-900/40 flex items-center justify-center text-theme-text-secondary dark:text-theme-text-secondary hover:text-theme-text-secondary dark:hover:text-stone-200 hover:bg-white dark:hover:bg-stone-700 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 ${
           showBottom

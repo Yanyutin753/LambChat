@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import { MoreHorizontal, Search } from "lucide-react";
 import { SceneIllustration, type IllustrationScene } from "./SceneIllustration";
 import { PanelSearchInput } from "./PanelSearchInput";
+import { restoreOpenerFocusUnclaimed } from "../../utils/modalDialog";
 
 interface PanelHeaderProps {
   /** 面板标题 */
@@ -118,6 +119,8 @@ export function PanelHeader({
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229)
+        return;
       if (event.key === "Escape") {
         setIsMobileMenuOpen(false);
         mobileMenuRef.current
@@ -157,6 +160,10 @@ export function PanelHeader({
           onClick={(e) => {
             if ((e.target as Element).closest(".ui-select, [data-filter-menu]"))
               return;
+            restoreOpenerFocusUnclaimed(
+              mobileMenuRef.current?.querySelector<HTMLButtonElement>("button"),
+              mobileMenuRef.current,
+            );
             setIsMobileMenuOpen(false);
           }}
         >

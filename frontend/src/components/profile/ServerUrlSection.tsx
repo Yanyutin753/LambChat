@@ -7,7 +7,7 @@
  * 首启屏的网络改写生效链路）与恢复默认（清除运行时覆盖，回到烘焙值）。
  */
 
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Globe, Pencil, RotateCcw } from "lucide-react";
 
@@ -16,8 +16,10 @@ import {
   effectiveApiBase,
   getStoredServerUrl,
   normalizeServerUrl,
-  setStoredServerUrl,
 } from "../../services/api/serverConfig";
+import { useServerConnection } from "../../hooks/useServerConnection";
+import { Button } from "../common/ui/Button";
+import { Input } from "../common/ui/Input";
 
 export function ServerUrlSection() {
   const { t } = useTranslation();
@@ -28,35 +30,42 @@ export function ServerUrlSection() {
 
   const [editing, setEditing] = useState(false);
   const [input, setInput] = useState("");
-  const [testing, setTesting] = useState(false);
-  const [error, setError] = useState("");
+  const { testing, error, connect, cancel } = useServerConnection();
+  const id = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const wasEditing = useRef(false);
+  useEffect(() => {
+    const active = document.activeElement;
+    if (editing) {
+      if (
+        testing ||
+        !wasEditing.current ||
+        formRef.current?.contains(active) ||
+        active === document.body ||
+        !active?.isConnected ||
+        active.matches(":disabled")
+      )
+        (testing ? formRef : inputRef).current?.focus();
+    } else if (wasEditing.current)
+      sectionRef.current
+        ?.querySelector<HTMLButtonElement>("[data-server-change]")
+        ?.focus();
+    wasEditing.current = editing;
+  }, [editing, testing]);
 
   const normalized = normalizeServerUrl(input);
 
   const startEdit = () => {
     setInput(current);
-    setError("");
+    cancel();
     setEditing(true);
   };
 
-  const handleConnect = async () => {
-    if (!normalized || testing) return;
-    setTesting(true);
-    setError("");
-    try {
-      // 直连绝对地址探测（此刻网络改写仍指向旧地址，不能走改写层）
-      const resp = await fetch(`${normalized}/health`, { method: "GET" });
-      if (!resp.ok) {
-        setError(t("serverSetup.fail", { status: String(resp.status) }));
-        return;
-      }
-      setStoredServerUrl(normalized);
-      window.location.reload();
-    } catch {
-      setError(t("serverSetup.unreachable"));
-    } finally {
-      setTesting(false);
-    }
+  const cancelEdit = () => {
+    cancel();
+    setEditing(false);
   };
 
   const handleReset = () => {
@@ -65,93 +74,131 @@ export function ServerUrlSection() {
   };
 
   return (
-    <div className="profile-section">
+    <div ref={sectionRef} className="profile-section">
       <div className="flex items-center gap-2 mb-3">
-        <Globe size={13} className="text-amber-500 dark:text-amber-400" />
+        <Globe size={13} className="text-theme-primary" aria-hidden="true" />
         <h3 className="profile-section-heading font-serif">
           {t("profile.serverUrl.title")}
         </h3>
       </div>
-      <p className="text-12 text-theme-text-secondary dark:text-stone-400 leading-relaxed">
+      <p className="text-12 text-theme-text-secondary leading-relaxed">
         {t("profile.serverUrl.desc")}
       </p>
 
       {editing ? (
-        <div className="mt-3 space-y-2">
+        <form
+          ref={formRef}
+          tabIndex={-1}
+          aria-label={t("serverSetup.title")}
+          aria-busy={testing}
+          className="mt-3 space-y-2 outline-none"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void connect(input);
+          }}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              cancelEdit();
+            }
+          }}
+        >
           <label
-            htmlFor="server-url-input"
-            className="block text-12 font-medium text-theme-text-secondary dark:text-stone-400"
+            htmlFor={id}
+            className="block text-12 font-medium text-theme-text-secondary"
           >
             {t("serverSetup.label")}
           </label>
-          <input
-            id="server-url-input"
+          <Input
+            id={id}
+            ref={inputRef}
             type="text"
-            autoFocus
+            inputMode="url"
+            autoCapitalize="none"
+            autoComplete="url"
             spellCheck={false}
+            disabled={testing}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void handleConnect();
-              if (e.key === "Escape") setEditing(false);
+            onChange={(e) => {
+              cancel();
+              setInput(e.target.value);
             }}
-            className="w-full rounded-xl border border-theme-border dark:border-stone-600 bg-theme-bg-card dark:bg-stone-800 px-3 py-2 text-14 text-theme-text dark:text-stone-100 focus:outline-none focus:ring-1 focus:ring-amber-400"
+            onKeyDown={(e) => {
+              if (
+                e.key === "Enter" &&
+                (e.nativeEvent.isComposing || e.keyCode === 229)
+              )
+                e.preventDefault();
+            }}
+            aria-describedby={
+              error || (input.trim() && !normalized) ? `${id}-error` : undefined
+            }
+            error={Boolean(error || (input.trim() && !normalized))}
+            className="max-sm:!min-h-11 max-sm:!text-16 [@media(pointer:coarse)]:!min-h-11 [@media(pointer:coarse)]:!text-16"
           />
           {input.trim() !== "" && !normalized && (
-            <p className="text-12 text-theme-error dark:text-red-400">
+            <p id={`${id}-error`} className="text-12 text-theme-error">
               {t("serverSetup.invalid")}
             </p>
           )}
           {error && (
-            <p className="text-12 text-theme-error dark:text-red-400" role="alert">
+            <p
+              id={`${id}-error`}
+              className="text-12 text-theme-error"
+              role="alert"
+            >
               {error}
             </p>
           )}
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => void handleConnect()}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="submit"
+              variant="primary"
+              loading={testing}
               disabled={!normalized || testing}
-              className="rounded-xl bg-amber-500 disabled:opacity-50 px-3 py-2 text-14 font-medium text-white transition-colors hover:bg-amber-600"
+              className="max-sm:!min-h-11 [@media(pointer:coarse)]:!min-h-11"
             >
               {testing ? t("serverSetup.testing") : t("serverSetup.connect")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditing(false)}
-              className="rounded-xl border border-theme-border dark:border-stone-600 px-3 py-2 text-14 text-theme-text-secondary dark:text-stone-300 transition-colors hover:bg-theme-bg-subtle dark:hover:bg-stone-700/50"
+            </Button>
+            <Button
+              onClick={cancelEdit}
+              className="max-sm:!min-h-11 [@media(pointer:coarse)]:!min-h-11"
             >
               {t("profile.serverUrl.cancel")}
-            </button>
+            </Button>
           </div>
-        </div>
+        </form>
       ) : (
-        <div className="mt-2 flex items-center justify-between gap-2">
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <span
-            className="min-w-0 truncate font-mono text-14 text-theme-text dark:text-stone-200"
+            className="min-w-0 font-mono text-13 text-theme-text [overflow-wrap:anywhere]"
+            title={current}
             data-server-url-current
           >
             {current}
           </span>
-          <span className="flex shrink-0 items-center gap-1.5">
-            <button
-              type="button"
+          <span className="flex shrink-0 flex-wrap gap-2">
+            <Button
+              size="sm"
+              data-server-change
               onClick={startEdit}
-              className="flex items-center gap-1 rounded-xl border border-theme-border dark:border-stone-600 px-2.5 py-1.5 text-12 text-theme-text-secondary dark:text-stone-300 transition-colors hover:bg-theme-bg-subtle dark:hover:bg-stone-700/50"
+              leftIcon={<Pencil size={13} aria-hidden="true" />}
+              className="max-sm:!min-h-11 [@media(pointer:coarse)]:!min-h-11"
             >
-              <Pencil size={12} className="opacity-60" />
               {t("profile.serverUrl.change")}
-            </button>
+            </Button>
             {hasOverride && (
-              <button
-                type="button"
+              <Button
+                size="sm"
                 onClick={handleReset}
                 title={t("profile.serverUrl.resetTitle")}
-                className="flex items-center gap-1 rounded-xl border border-theme-border dark:border-stone-600 px-2.5 py-1.5 text-12 text-theme-text-secondary dark:text-stone-300 transition-colors hover:bg-theme-bg-subtle dark:hover:bg-stone-700/50"
+                leftIcon={<RotateCcw size={13} aria-hidden="true" />}
+                className="max-sm:!min-h-11 [@media(pointer:coarse)]:!min-h-11"
               >
-                <RotateCcw size={12} className="opacity-60" />
                 {t("profile.serverUrl.reset")}
-              </button>
+              </Button>
             )}
           </span>
         </div>

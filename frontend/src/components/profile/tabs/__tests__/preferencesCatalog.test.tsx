@@ -1,9 +1,11 @@
+import { LanguagePreferenceProvider } from "../../../../hooks/useLanguagePreference";
+import type { ReactNode } from "react";
 /** @vitest-environment jsdom */
 import {
   act,
   cleanup,
   fireEvent,
-  render,
+  render as renderBase,
   screen,
   waitFor,
 } from "@testing-library/react";
@@ -105,3 +107,7 @@ test("a failed saved preference is not silently replaced by the system default",
   expect(select).toBeEnabled();
   expect(api.save).not.toHaveBeenCalled();
 });
+
+function render(children: ReactNode) {
+  return renderBase(children, { wrapper: LanguagePreferenceProvider });
+}

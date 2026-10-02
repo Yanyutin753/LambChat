@@ -265,3 +265,22 @@ async def test_refresh_applies_empty_code_interpreter_settings(
     await config_service.refresh_settings(key)
 
     assert getattr(settings, key) == ""
+
+
+@pytest.mark.parametrize("key", ["ADMIN_CONTACT_EMAIL", "ADMIN_CONTACT_URL"])
+async def test_clearing_public_contact_updates_the_live_configuration(
+    monkeypatch: pytest.MonkeyPatch, key: str
+) -> None:
+    import src.kernel.config.service as config_service
+    from src.kernel.config import settings
+
+    class RawStorage:
+        async def get_raw(self, requested_key: str):
+            assert requested_key == key
+            return SimpleNamespace(value="")
+
+    monkeypatch.setattr(config_service, "_settings_service", SimpleNamespace(_storage=RawStorage()))
+    monkeypatch.setattr(config_service, "_settings_cache", {})
+    monkeypatch.setattr(settings, key, "previous-contact-value")
+    await config_service.refresh_settings(key)
+    assert getattr(settings, key) == ""

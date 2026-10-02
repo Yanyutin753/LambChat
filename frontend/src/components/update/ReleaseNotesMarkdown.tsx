@@ -39,7 +39,7 @@ const RELEASE_NOTES_HEADING_CLASS =
 
 export function ReleaseNotesMarkdown({ content }: ReleaseNotesMarkdownProps) {
   return (
-    <div className="text-14 leading-relaxed text-stone-600 dark:text-stone-400 [&_code]:rounded [&_code]:bg-stone-100 dark:[&_code]:bg-stone-800 [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.9em] [&_code]:text-stone-700 dark:[&_code]:text-stone-200 [&_del]:line-through [&_strong]:font-semibold [&_strong]:text-stone-800 dark:[&_strong]:text-stone-200">
+    <div className="min-w-0 [overflow-wrap:anywhere] text-14 leading-relaxed text-stone-600 dark:text-stone-400 [&_code]:rounded [&_code]:bg-stone-100 dark:[&_code]:bg-stone-800 [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.9em] [&_code]:text-stone-700 dark:[&_code]:text-stone-200 [&_del]:line-through [&_strong]:font-semibold [&_strong]:text-stone-800 dark:[&_strong]:text-stone-200">
       <ReactMarkdown
         allowedElements={[...ALLOWED_RELEASE_NOTES_ELEMENTS]}
         components={{
@@ -84,7 +84,7 @@ export function ReleaseNotesMarkdown({ content }: ReleaseNotesMarkdownProps) {
             </blockquote>
           ),
           table: ({ children }) => (
-            <table className="my-2 w-full text-left text-12 [&_td]:border-t [&_td]:border-stone-200 [&_td]:py-1 [&_td]:pr-3 [&_th]:border-b [&_th]:border-stone-200 [&_th]:py-1 [&_th]:pr-3 dark:[&_td]:border-stone-700 dark:[&_th]:border-stone-700">
+            <table className="my-2 w-full table-fixed text-left text-12 [&_td]:border-t [&_td]:border-stone-200 [&_td]:py-1 [&_td]:pr-3 [&_th]:border-b [&_th]:border-stone-200 [&_th]:py-1 [&_th]:pr-3 dark:[&_td]:border-stone-700 dark:[&_th]:border-stone-700">
               {children}
             </table>
           ),

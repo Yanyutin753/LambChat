@@ -306,8 +306,7 @@
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: var(--theme-accent-light);
-  color: var(--theme-primary);
+  @apply bg-gradient-to-br from-amber-400 to-orange-500 text-white;
 }
 .profile-footer {
   display: flex;
@@ -422,4 +421,87 @@
 }
 .profile-setting-row .ui-select {
   max-width: 55%;
+}
+.profile-data-location {
+  container: sandbox-data / inline-size;
+}
+
+.local-sandbox-section {
+  container: local-sandbox / inline-size;
+}
+.local-sandbox-section .ui-button {
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+}
+.local-sandbox-section .ui-button__label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.local-sandbox-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+@container local-sandbox (max-width: 639px) {
+  .local-sandbox-section .ui-button,
+  .local-sandbox-section .ui-input,
+  .local-sandbox-section .ui-select-trigger {
+    min-height: 44px;
+  }
+  .local-sandbox-section .ui-input {
+    font-size: 16px;
+  }
+  .local-sandbox-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container local-sandbox (max-width: 399px) {
+  .local-sandbox-section .profile-setting-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .local-sandbox-section .profile-setting-row .ui-select {
+    max-width: 100%;
+  }
+  .local-sandbox-section .ui-select-trigger {
+    height: auto;
+    padding-block: 8px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+@media (pointer: coarse) {
+  .local-sandbox-section .ui-button,
+  .local-sandbox-section .ui-input,
+  .local-sandbox-section .ui-select-trigger {
+    min-height: 44px;
+  }
+  .local-sandbox-section .ui-input {
+    font-size: 16px;
+  }
+}
+
+.profile-data-location .ui-button {
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+}
+
+.profile-data-location .ui-button__label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@container sandbox-data (max-width: 639px) {
+  .profile-data-location .ui-button {
+    min-height: 44px;
+  }
+}
+
+@media (pointer: coarse) {
+  .profile-data-location .ui-button {
+    min-height: 44px;
+  }
 }

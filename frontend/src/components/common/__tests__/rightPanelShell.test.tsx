@@ -610,9 +610,14 @@ test.each([false, true])(
   },
 );
 
-test.each([true, false])(
-  "a hidden nested editor opener keeps focus in its modal (has control=%s)",
-  async (hasControl) => {
+test.each([
+  { state: "hidden", hasControl: true },
+  { state: "hidden", hasControl: false },
+  { state: "removed", hasControl: true },
+  { state: "removed", hasControl: false },
+])(
+  "a $state nested editor opener keeps focus in its modal (has control=$hasControl)",
+  async ({ state, hasControl }) => {
     installMatchMedia(390);
     vi.spyOn(HTMLElement.prototype, "getClientRects").mockImplementation(
       function (this: HTMLElement) {
@@ -630,15 +635,17 @@ test.each([true, false])(
             <button>Background action</button>
           </main>
           <ModalSurface open onClose={vi.fn()} label="Persona picker">
-            <button
-              hidden={previewed && !open}
-              onClick={() => {
-                setPreviewed(true);
-                setOpen(true);
-              }}
-            >
-              Preview persona
-            </button>
+            {!(state === "removed" && previewed && !open) && (
+              <button
+                hidden={state === "hidden" && previewed && !open}
+                onClick={() => {
+                  setPreviewed(true);
+                  setOpen(true);
+                }}
+              >
+                Preview persona
+              </button>
+            )}
             {hasControl && <button>Another persona</button>}
           </ModalSurface>
           <EditorSidebar

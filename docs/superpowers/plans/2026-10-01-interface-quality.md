@@ -900,3 +900,378 @@ IAB独立3018：390×844深色首次503时入口具名“选择模式·加载失
 IAB实际市场SKILL.md文件：桌面展开前后cm-content top均107.59375px；320深色查找框280px、按钮44px，Escape只关闭查找并回SKILL.md，Cmd/Ctrl+F重新打开；390浅色框280px、匹配1处、页面横向overflow0。文件库Python预览同样无额外工具行，原生匹配2处。截图存仓库外interface-quality/native-file-find-mobile-dark.png、native-file-find-mobile-light.png、native-file-find-desktop-dark.png。该证据是响应式浏览器预览，不代表真机软键盘。
 
 沿DESIGN.md人工检查排版、留白、层级、主题、动效、焦点、响应式与现有组件一致性；无新增动效，已有reduced-motion规则保留。全量781文件/3837测试、lint、build（含tsc、Vite、PWA）通过；eager JS559727/561152、precache5027071/5242880、91项，未提高预算。仅提交本次文件预览改动。未完成的auth刷新测试暂存仓库外/tmp/lambchat-authRefreshOwnership-paused-20261002.test.tsx，后续继续原有全站目标；本批不能视为全站完成。
+
+## 2026-10-02 资料刷新归属与共享语言同步
+
+本轮先fetch/rebase到origin/develop 54ddd574。原mobile-density checkout随后被外部流程reset至origin/codex/interface-quality，reflog确认；未覆盖该现场。改用原生工具创建interface-state worktree及codex/interface-state分支，从最新develop重放此前未集成的资料编辑、文件查找和两行证据文档。后续修改仅在新worktree；原checkout和用户3017服务保留。
+
+refreshUser用请求序号、账号token subject和卸载失效保护已开始的资料刷新；同账号token续期仍可应用身份与权限，登出立即清权限。普通同账号资料更新不再回放旧云端主题/语言覆盖本机新选择，新账号首次OAuth刷新仍恢复云端偏好。8项真实AuthProvider行为测试先6项RED后全部GREEN；范围仅refreshUser，初始化/login/OAuth独立请求仍需继续审查。
+
+语言入口复用ResourceCardMenu和既有usePreferenceWrites，等待禁用、失败保留本机语言并提供准确重试；访客与公开分享只本机切换，删除SharedPage重复菜单。复核发现每入口独立请求会让旧失败重试覆盖设置页新成功选择，新增实际双入口集成先2项RED，改为按账号共享LanguagePreferenceProvider后GREEN。复核还发现共享sm按钮样式覆盖普通44px类，修正手机/coarse important尺寸；两项P2关闭，最终复核无其他确定P1/P2。
+
+IAB独立3018：390深色Header错误说明可读，原语言保留，重试显示禁用Saving后撤错；320浅色访客菜单五语可达，Down/Escape回入口，中文选择后焦点语言按钮、横向overflow0；共享页320深色复用同菜单。登录/共享页语言入口实际44×44，桌面1440为32×32、overflow0。截图在仓库外interface-quality：language-sync-390-dark-error-final、language-menu-320-light-final、language-shared-320-dark-final。独立预览因模块扩展名变更保留了Vite旧解析，确认missing-module后仅重启本轮服务恢复；不是生产加载问题。无真实认证/云端持久化/真机触屏证据。
+
+八项自检沿用现有文字尺度与留白，状态层级清楚，主题token和五语既有文案，无新动效/依赖/素材；复用共享菜单键盘/焦点机制，窄屏触控尺寸实际核对，保持LambChat视觉语言。按DESIGN.md交付清单人工检查。最终47项针对性行为测试及全量783文件/3852项通过，lint零错误零警告，build含tsc/Vite/PWA通过；eager JS560109/561152、precache5028288/5242880、92项，未提高预算。全站目标仍进行中，服务地址/本地沙箱设置、剩余状态组合和真实服务/设备验证留待后续，不据本批门禁宣告整体完成。
+
+最后按用户最新请求复验390深色Python文件：搜索入口在标题工具栏，原生查找浮层280×46px；展开前后文件cm-content top均141px，无额外搜索行，choice命中显示，Escape关闭回代码预览，页面overflow0。截图native-file-find-390-dark-current保存在同一证据目录。3018独立预览及该标签页作为可查看结果保留，浏览器临时尺寸恢复；用户3017和主checkout未覆盖。
+
+## 2026-10-02 服务地址表单与首启响应式
+
+上一目标回合有实际progress：语言同步及资料刷新已提交。本轮继续interface-state worktree，fetch/rebase到最新origin/develop349e2f08；前三个已集成提交由Git跳过，上轮提交重放为1e0f50cc，主checkout与用户3017保持。
+
+两处/health探测收敛到useServerConnection：AbortController与同步请求ref拒绝重复提交，取消、卸载、15秒超时使请求失效；即使fetch忽略abort，迟到成功也不能写地址或reload，旧finally不影响新请求。设置页原来取消只收起表单、首启离开后仍能保存；7项回归先全部RED，再GREEN。表单使用原生submit、具名输入/错误描述、IME Enter保护，设置内Escape局部取消回修改按钮；等待冻结输入并聚焦稳定form，取消仍可用。首启复用Button/Input和theme token，去掉厚卡片、模糊及大阴影，按标题/说明/字段/操作分层；手机44px、输入16px，现有五语文案，无新动效或依赖。
+
+独立复核发现探测失败会抢走用户已移到其他设置的焦点，追加真实外部button+deferred响应测试先RED，加入有效焦点归属判断后GREEN；首启同样保护外部焦点。等待表单移除原生整块outline，交互控件焦点环保留。320×300俄语实际暴露全局body/root overflow:hidden裁掉Connect：将首启改为定高dvh独立滚动和intrinsic表单自动边距；Tab到Connect后scrollTop119、buttonBottom267.7，按钮可见且overflow0。最终复核无确定P1/P2。
+
+隔离3019独立fixture入口渲染实际组件，不注入Tauri/Capacitor桥；健康探测仅2秒后503，绝不转发真实服务或模拟成功保存。390深色Enter等待form aria-busy=true、焦点FORM、input/Connect禁用，输入及按钮44px；失败保留地址并回输入，Escape取消回修改。320浅色俄语等待控件44px、无整块焦点框及横向溢出，短屏滚动如上；834浅色俄语错误完整可读，1440暖色表单448px、overflow0；390深色中文最终错误与连接可读。截图仓库外interface-quality：server-settings-390-dark-error-final、server-setup-320-light-ru-loading-final、server-setup-320-short-ru-focus-final、server-setup-834-light-ru-error-final、server-setup-1440-sepia-final、server-setup-390-dark-error-final。此为响应式组件/键盘证据，不证明原生软键盘、实际换服登录或真实云端网络。
+
+八项人工自检：沿用serif标题及正文尺度、字段留白；平面层级突出内容与连接反馈；全部theme token及现有五语；无新增动画，既有spinner/reduced-motion；取消/超时/重试/IME/焦点经行为测试；320/390/834/1440和300px短屏实测；复用LambChat控件并保持克制视觉。按DESIGN.md交付检查，Impeccable环境沿用人工清单。最终17项针对性、全量783文件/3860项测试通过，lint零警告零错误，build含tsc/Vite/PWA通过；eager JS560133/561152、precache5029787/5242880、93项，未提高预算。git diff --check通过。
+
+本轮3019服务和临时标签页回收，视口恢复；上轮3018结果及用户3017保留。全站目标继续：本地沙箱设置/数据位置读取失败、保存恢复和窄屏操作布局，剩余异步归属及状态组合、真实服务和设备证据尚未完成，不据本批门禁宣告全站完成。
+
+## 2026-10-02 沙箱数据位置错误恢复与响应式
+
+上一回合核对了用户3017文件预览：原生CodeMirror查找已浮动、展开/关闭正文位置不变，17项相关测试通过，没有重复实现。此次继续interface-state worktree，fetch确认origin/develop仍为349e2f08，主checkout和用户3017保持。
+
+数据位置读取、目录选择、保存、恢复默认、重启复用usePreferenceWrites与CatalogStatus。读取失败保留标题和重试；保存失败保留所选目录、迁移选择和原生错误原因；保存期间冻结checkbox与Cancel，稳定section承接本区焦点，卸载忽略迟到成功toast。新增discard仅清失败请求，拒绝清在途请求；取消或改迁移选择清旧快照，新操作启动前清另一个失败槽，避免picker与reset的旧Retry交叉执行。7项恢复回归先RED再GREEN；交叉reset→picker回归先RED，修复并补反向deferred覆盖。独立复核交叉P2已关闭，增量无确定P1/P2。
+
+追到实际Rust响应，SandboxDataLocation没有camelCase serde重命名，原来的桥却直接断言overrideConfigured，导致真实壳“恢复默认”消失。替换不真实的既有fixture为override_configured原生格式，true/false两项先RED，再在共享服务桥显式映射后GREEN；没有改Rust命令、迁移或覆盖文件语义。
+
+布局改为标题/状态、完整根路径、说明、所选路径、迁移选择和操作顺序，去掉重复嵌套卡片及独立硬编码深色。复用Button和主题token，当前卡片以sandbox-data容器宽度控制44px触控，长标签允许换行；原生checkbox保持具名语义且整行可点。没有新增文案、字体、依赖或动画。
+
+3019独立fixture渲染真实组件，仅预览服务器替换此组件的native服务与process插件；所有操作等待1.2秒、指定首次失败后恢复，不调用原生桥、不访问或迁移文件、不重启应用。320浅色俄语读取错误可读、Retry44px、重试焦点DIV、等待aria-busy=true；恢复后的长路径和目录确认无横向溢出，两个按钮44px。390深色保存等待checkbox/Cancel/Save禁用、焦点DIV；错误保留所选目录并显示持久alert，Retry后展示“已保存/需重启”。834深色恢复布局宽576px、overflow0；1440暖色俄语reset失败可重试，恢复后完整说明数据留在原处。320×300暖色俄语Tab可达重启按钮，底边283.77px在300px视口内、overflow0。390浅色relaunch失败保留已保存状态，Retry仅重启、恢复启用。截图保存仓库外interface-quality：sandbox-location-320-light-ru-read-error-final、sandbox-location-320-light-ru-confirm-final、sandbox-location-390-dark-save-error-final、sandbox-location-390-dark-saved-final、sandbox-location-1440-sepia-ru-reset-error-final、sandbox-location-1440-sepia-ru-reset-recovered-final、sandbox-location-320-short-ru-reset-final、sandbox-location-390-light-relaunch-error-final；优化前证据sandbox-location-320-dark-before。
+
+按DESIGN.md八项人工检查：沿用标题/正文尺度，保留分组留白；完整路径、迁移决策、错误与完成状态层级明确；现有深浅/暖色token；无新动效、已有spinner遵循reduced-motion；禁用、重试、键盘焦点与卸载经行为验证；320/390/834/1440及俄语短屏实测；复用LambChat组件，不引入并行视觉系统。Impeccable检查器未安装，使用项目交付清单。最终全量783文件/3869项测试、lint零警告零错误、build含tsc/Vite/PWA通过；eager JS560212/561152、precache5030472/5242880、93项，未提高预算。git diff --check通过。
+
+另外以8019独立临时后端运行uv本地沙箱全量E2E，44/44 PASS，MongoDB/Redis使用本机既有服务，一次性用户与测试目录由脚本回收。临时.env symlink及8019后端已回收，未发布配置或凭据。此E2E证明现有本地daemon执行、传输、skills虚拟挂载、转移整树与下线链路，不证明Tauri数据根真实迁移或实际重启。3019及临时走查标签页回收，视口恢复；3018已交付预览及用户3017保留。
+
+全站目标仍进行中。下一阶段继续LocalSandboxSection配对表单、四列快捷按钮在手机/长语言的布局、状态读取错误被当离线，以及原生数据位置在关闭重开设置/多实例/迁移在途时的状态与待重启提示持久性；还需真实原生窗口、目录迁移和设备证据。不得将本批门禁或fixture视为全部界面完成。
+
+## 2026-10-02 本地沙箱状态、配对表单与窄屏控制
+
+上一目标回合提供了新证据：直接核对用户3017文件查找，确认现有CodeMirror原生浮层不占正文行、320/390px可用，17项测试通过；没有重复实现。此次继续interface-state，当前HEAD为1d1a0a7d，已fetch确认origin/develop仍349e2f08，主checkout、mobile-density及用户3017保持。
+
+LocalSandboxSection将网页状态错误与离线引导分开，原生进程读取失败保留CatalogStatus及重试，不再冒充“已停止”并开放配对。初始/重试加载有具名role=status。读取代次拒绝晚到旧响应覆盖原生推送事件；订阅拒绝回退10秒轮询，卸载后的迟到null不再创建轮询计时器。两种配对共用同步ref锁和loading方法状态，等待冻结两条入口及用户名/密码；具名FormField/Input保持autocomplete，所属焦点移到稳定form。现有无副作用登录、PAT铸造、保存/重启与策略流程未改，无新增文案或依赖。
+
+复用Button及现有token，快捷按钮按容器宽度由四列变两列，长标签自然换行，移动/粗指针44px，输入16px。320俄语实测确认策略值截断，增加小于400px容器的标签/完整宽选择器纵向布局，选择器同样44px。语义与状态新增9项先RED后GREEN，最终本文件23项通过。独立只读复核含增量未发现确定P1/P2。
+
+独立/sandbox-data-preview以shell=unpaired|paired|web渲染真实设置组件，failure=process|status检查读取错误；原生配对、PAT、重启、取消配对和目录打开均等待后拒绝执行，不访问真实桥或凭据。状态替身限定该独立入口，常规面板保留实际useSandboxStatus全局hook及HTTP GET fixture。短屏检查发现仅scripts内使用的h-dvh未被Tailwind扫描，明确inline height100dvh；修复后main.clientHeight300、main.scrollTop455、root.scrollTop0，密码字段底边253.8可见，横向overflow0。此为预览容器校正，不是生产布局改动。
+
+浏览器证据：320深色俄语快捷按钮140px宽、70/50px高，策略当前值完整显示、overflow0；390深色配对输入44px/16px，当前账号配对等待form aria-busy=true、焦点FORM，两个按钮和字段全部disabled；320浅色俄语进程读取错误保留Retry并隐藏配对，Retry后加载和section焦点稳定；390深色网页503仅显示错误/Retry，无安装引导，恢复后才显示离线下载；1440浅色俄语宽宿主720px，快捷按钮四列各174px、overflow0。截图保存在仓库外interface-quality：local-sandbox-320-dark-ru-final、local-sandbox-390-dark-pair-form-final、local-sandbox-320-light-ru-process-error-final、local-sandbox-320-short-light-ru-focus-final、local-sandbox-390-dark-web-status-error-final、local-sandbox-1440-light-ru-final。预览不证明真实PAT持久化、登录、进程操作或真机软键盘。上一批44项本地沙箱E2E记录仍是原链路基线，本批未更改该传输/daemon协议，不将旧结果称为此次新验证。
+
+八项按DESIGN.md人工自检：沿用标题/字段字体；保持分组留白、不压缩整页；加载/在线/错误/配对/快捷操作分层；深浅暖色token及既有五语；无新动效、spinner遵循reduced-motion；同步互锁/重试/语义/焦点/卸载经行为测试；320/390/834/1440及300px短屏实测；复用LambChat组件和容器规则，无并行设计体系。Impeccable未安装，使用项目清单。最终全量783文件/3878测试通过，lint零错误零警告，build含tsc/Vite/PWA通过；eager JS560198/561152 bytes、precache5031495/5242880 bytes、93项，未提高预算。
+
+全站目标继续。尚需配对后保存/重启部分失败时的准确恢复、策略写入失败的选择/反馈、重启/取消配对在途操作互锁与旧账号/卸载响应归属；数据位置关闭重开/多实例/迁移在途及待重启提示持久性、真实Tauri目录迁移和设备证据也未完成。不得将本批门禁与fixture视为全部界面完成。
+
+最终834暖色检查无alert、无横向溢出，四列按钮174px；新增local-sandbox-834-sepia-final截图。已回收本轮3019服务和临时标签页，视口恢复；已有3018结果标签继续保留，用户3017与主checkout未覆盖。下一轮也要检查原生进程可读但服务端status失败时的提示与策略就绪，不据进程running断言服务连接已成功。
+
+## 2026-10-02 原生操作分步恢复与配对反馈收敛
+
+上一回合核对用户指定的文件原生查找，17项相关测试及390px布局/命中/焦点实测提供新证据，分类为progress。本轮继续interface-state现场，HTTPS fetch确认origin/develop仍为349e2f08且是HEAD祖先；主checkout、mobile-density与用户3017保持。接续此前未提交的原生操作修复，没有重新开始全站工作。
+
+LocalSandboxSection复用usePreferenceWrites统一配对、策略、重启和取消配对互锁及持久错误/Retry。配对请求闭包保留PAT回执与已保存步骤：原生保存失败重用同一回执，保存成功后重启失败只重试启动，不再重复生成PAT或错误归咎账号密码。回执确认后隐藏已不能修改的凭据表单，仅其仍拥有焦点时转到稳定section；等待/错误保留紧凑CatalogStatus。新增准确“已保存，重启即可完成”文案同步五语。策略保留失败选择，重试跳过已确认的服务端/本机写入；取消配对清理失败重试不重复吊销。卸载在后续步骤之前失效，迟到成功/错误不继续原生写入或通知。
+
+独立复核发现策略失败后Restart会覆盖原请求并清除错误，但保留未保存选择。新增交叉操作先RED后GREEN，Restart此时复用未完成策略请求。实屏又发现portalled Select选项在onChange之后回焦trigger，抢掉caller焦点后trigger禁用导致BODY焦点；一项集成先RED（35pass/1fail），共享Select仅将回焦移到onChange之前，caller可按归属接住焦点。复核包括SelectRow、直接Select与包装调用，无新确定P1/P2。最终本文件36项，含shared Select针对性42项全部通过。
+
+预览新增显式native-flow=1，仅本独立入口用公开占位符与内存状态模拟步骤首次失败/重试成功；默认操作仍拒绝执行，目录打开始终拒绝。账号内容不解析、存储或转发，不使用真实PAT、原生桥、文件写入或API写入。指南更新边界；fixture只证明UI和恢复路径，不证明实际登录、凭据落盘、服务端保存或原生进程重启。
+
+浏览器最终证据：390深色配对重启失败收起表单，准确说明与44px Retry保留，section焦点稳定、overflow0，Retry后在线/运行控制恢复；320深色俄语策略首次失败保留commands，点Restart显示原策略等待、所有相邻原生操作冻结、焦点section，完成后commands与正常控件恢复；320×300短屏main独立滚动至426，焦点日志按钮top125.4/bottom175.4、宽140/高50可见，overflow0；390浅色取消配对失败保留Retry，重试等待冻结Restart，完成后未配对表单恢复；1440浅色俄语四列各174×50，834暖色无alert，均overflow0。最终截图在仓库外interface-quality目录，文件名local-sandbox-actions-390-dark-pair-restart-error-final、320-dark-ru-policy-error-final、320-dark-ru-policy-recovered-final、320-short-ru-focus-final、390-light-unpair-error-final、1440-light-ru-final、834-sepia-ru-final。
+
+八项按DESIGN.md人工自检：复用既有文字尺度、按钮及分组留白；以状态/说明/行动分层，避免重复表单和闲置反馈空行；颜色沿用theme token且三主题实测；无新增装饰动效，已有reduced-motion保留；互锁、逐步Retry、焦点、卸载用行为测试和实屏核对；320/390/834/1440及300px短屏实际验证；复用LambChat视觉语言、没有额外依赖或并行设计系统。pnpm exec impeccable确认命令不可用，使用项目清单等价人工检查。最终全量783文件/3891测试通过，lint零错误零警告，build含tsc/Vite/PWA通过；eager JS560328/561152 bytes、precache5031924/5242880 bytes、93项，未提高预算。
+
+全站目标继续。下一步需服务端status失败但进程可读时的明确反馈、数据位置与原生操作的跨区互锁、数据位置关闭重开/多实例/待重启持久性、账号切换时在途操作归属、目录打开迟到错误，以及真实Tauri和手机设备验证。PAT创建响应失败的服务端幂等性也不由本UI改动证明；不将fixture或局部门禁宣告为全部界面完成。
+
+最终桌面/平板截图重新等待数据位置读取完成再保存；回收本轮3019服务及临时标签，浏览器尺寸恢复，既有3018结果标签保留。仅停止经过PID和cwd核对的本轮preview进程，用户3017保持。
+
+## 2026-10-02 沙箱连接反馈与数据位置操作互锁
+
+上一目标回合实测用户3017文件预览：原生查找按钮已在标题工具栏，320/390/1280px无额外工具行或横向溢出，原生匹配2处，17项相关测试通过，提供新证据，分类为progress。此次接续interface-state未提交工作，HTTPS fetch确认origin/develop仍349e2f08且为HEAD祖先；主checkout、mobile-density及用户3017保持。
+
+共享sandboxStatusStore增加refreshing，保留既有缓存、错误和刷新去重。原生进程可读但连接未就绪/失败时，左侧展示CatalogStatus加载/错误与Retry，右侧保留实际Running/Stopped；不能据进程运行断言连接在线或离线。失败重试显示等待，策略选择等连接恢复后再开放；网页分支复用等待状态。没有新轮询、依赖、文案或主题token。
+
+数据位置组件向所属LocalSandboxSection报告选择、确认、保存、重启及待应用重启状态；此期间暂停配对、策略、目录打开、daemon重启、取消配对及原生mutation Retry。反向原生写入也禁用目录修改、确认及mutation Retry，读取Retry仍可用，卸载释放本分区busy。复用既有usePreferenceWrites与CatalogStatus，没有全局协调器。七项新增回归先RED（7failed/36pass）后GREEN，相关4文件76项通过；独立只读增量复核无确定P1/P2。
+
+3019独立fixture实测：390深色连接错误仍有运行徽章、策略禁用，Retry期间loading与section焦点稳定，恢复后Online与策略可用；选目录/确认暂停原生动作，Cancel解锁。保存首次错误保留选择与迁移checkbox，Retry成功后待重启提示与原生锁保留。320浅色俄语重启等待禁用Change，失败后Change恢复，点击Change禁用原生错误Retry；320×300 Tab到Save，main.scrollTop300、buttonTop128.42/bottom172.42/height44、overflow0。834暖色与1440浅色俄语状态错误清晰、宿主宽720px、overflow0。截图位于仓库外interface-quality目录：local-sandbox-cross-390-dark-status-error-final、390-dark-status-recovered-final、390-dark-confirm-final、390-dark-pending-restart-final、320-short-light-ru-confirm-final、834-sepia-status-error-final、1440-light-ru-status-error-final。fixture只模拟公开占位符和内存步骤，不调用真实桥、API写入、文件迁移或应用重启。
+
+八项按DESIGN.md人工检查：沿用文字尺度和分组留白；连接/进程/目录状态各自准确、行动层级清楚；三主题token；无新增动效、保留reduced-motion；禁用、取消、重试、焦点及卸载经行为与实屏验证；320/390/834/1440及短屏实际核对；保持LambChat现有控件和视觉语言。pnpm exec impeccable确认检查器不可用，按项目交付清单检查。最终全量783文件3898项测试、lint零错误零警告、build含tsc/Vite/PWA通过；eager JS560326/561152 bytes、precache5032069/5242880 bytes、93项，预算未提高，git diff --check通过。
+
+全站目标继续。本次互锁仅同一设置分区；两个实例、关闭重开时待重启状态持久性、账号切换在途操作归属、目录打开迟到错误、真实Tauri迁移/重启和手机设备仍缺验证，不能据本批门禁宣告全部界面完成。最终回收经过PID/cwd核对的本轮3019及临时标签，恢复视口，既有3018结果和用户3017保留。
+
+## 2026-10-02 数据位置关闭重开与迁移状态连续性
+
+上一目标回合提交f02da0ef，状态反馈/跨区互锁有真实修改及实屏证据，分类为progress。继续interface-state，HTTPS fetch确认origin/develop仍349e2f08且为HEAD祖先，开工现场干净；主checkout、mobile-density及用户3017保持。读取daemon.rs实际契约确认：成功set即时修改进程LAMBCHAT_HOME，clear移除覆盖与变量，但仍须重启应用；原UI却保留旧根路径、在组件卸载时丢待重启提示。
+
+复用createSingletonStore与useSyncExternalStore共享迁移在途、已保存操作类型和目标路径。已开始的原生命令不因设置卸载停止，成功结果仍记录共享状态，旧实例的usePreferenceWrites继续抑制迟到toast；失败释放迁移锁，原确认/Retry保留。重新进入或第二实例显示同一等待/待重启状态，不能继续另一目录写入；新路径优先于旧读取结果，恢复默认隐藏旧自定义根并沿用准确说明。此状态只共享同一WebView生命周期，独立WebView重载仍需原生pending标记，源码明确记录该边界；原生命令、文件迁移协议及凭据逻辑未改。
+
+五项真实组件回归先RED（5failed/15pass）再GREEN：保存后重开、正确新根、迁移中重开、第二实例跟随、恢复默认重开。关联2文件63项通过，独立只读增量复核无确定P1/P2。全量783文件3903项测试通过，lint最初一条预览入口Fast Refresh警告，经仅导出预览组件后复跑零警告零错误；build含tsc/Vite/PWA通过。eager JS560317/561152 bytes、precache5032069/5242880 bytes、93项，未提高预算；git diff --check通过。
+
+预览新增可选reopen=1，按钮仅在独立入口挂载/卸载实际组件，不在生产路由。390深色实测迁移中关闭/重新进入仍为数据位置Loading，完成后新根、自定义标识及Restart保留；保存后再次重开同样保留，原生动作锁定。重启首次失败保留alert与Retry，恢复后仍保留待重启提示（fixture不真的重启）。320×300 Tab到Restart：main.scrollTop242、buttonTop180.05/bottom224.05/height44，overflow0。834暖色俄语恢复默认后重开，旧根不再显示、准确说明保留、宿主720px与overflow0；1440浅色俄语保存显示完整新根，overflow0。截图位于仓库外interface-quality：sandbox-location-continuity-390-dark-reopened-saving-final、390-dark-reopened-final、320-short-dark-relaunch-final、834-sepia-ru-reset-reopened-final、1440-light-ru-saved-final。fixture命令仅等待与内存替身，不迁移真实文件、访问原生桥、写真实API或重启应用；热刷新预览入口会重置模块，因此最后证据均在入口修改完成后重新采集。
+
+八项按DESIGN.md检查：沿用既有字号与分组留白；目标路径、迁移等待、待重启和错误分层且不重复嵌套；三主题token与五语既有文案；无新增动效、保留reduced-motion；同步锁、关闭重开、Retry、焦点与迟到通知由行为/实屏覆盖；320/390/834/1440与300px短屏核对；复用LambChat组件，保持克制视觉。Impeccable沿用已确认不可用的环境，按项目交付清单人工检查。
+
+全站目标仍进行中。多实例数据状态已共享，但配对/策略/重启等原生写入本身仍按设置实例管理，跨实例协调、账号切换归属、目录打开迟到错误、WebView独立重载后的待重启状态、真实Tauri迁移/重启及真机仍待继续；不据本批局部门禁宣告全站完成。回收经PID/cwd核对的本轮3019和临时标签，视口恢复；3018结果与用户3017保持。
+
+### 2026-10-02：目录打开的反馈与关闭归属
+
+当前唯一生产调用是 LocalSandboxSection。三个目录动作原本只有失败 toast，等待无反馈/重复请求保护，卸载后仍可能提示旧错误。复用 usePreferenceWrites 的独立 path 槽及 CatalogStatus，补 loading、持续错误、原目录 Retry 和稳定 section 焦点；等待期间与原生操作、数据位置互锁，不覆盖 native 槽的分步恢复闭包。不新增依赖、文案或主题 token。普通账号切换已由 ProfilePreferencesTab 的 user.id key 卸载设置；登录 token 更新至用户资料返回之间的归属窗口仍未证明，无猜测性 auth 改动。
+
+五项组件回归先 RED（5 failed / 43 passed）再 GREEN；旧目录白名单测试改为等待前一动作结束再点下一项，仍验证三个原始逻辑路径。关联2文件68项、全量783文件3908项通过，lint零警告零错误；build含tsc/Vite/PWA与预算通过，保留既有异步大块的500kB提示。eager JS560329/561152 bytes、precache5032069/5242880 bytes、93项，未提高预算。独立只读审查无确定P1/P2。
+
+3019独立 fixture 实测390深色等待/失败/重试，Retry44px、overflow0；320×600浅色俄语 Tab 到Retry，main.scrollTop308、top367.8125/bottom411.8125/height44、overflow0，重试恢复。日志等待中关闭/重开无旧错误。834与1440护眼色俄语错误清楚，main宽768px、overflow0。截图位于仓库外interface-quality，前缀sandbox-directory-feedback，分别记录390-dark-loading、390-dark-error、320-light-ru-reopened、320-short-light-ru-error、834-sepia-ru-error、1440-sepia-ru-error。fixture新增显式native-flow的open-*等待/首次失败/恢复，仅模拟结果，不打开系统文件管理器、桥或真实目录。
+
+八项人工检查：沿用文字尺度与分组留白；行动及状态层级清楚且闲置不占行；三主题token；无新增动效且沿用reduced-motion；重复点击、Retry、关闭与焦点经组件和实屏核对；320/390/834/1440及长文案无溢出；保留LambChat控件与视觉语言。Impeccable命令当前不可用，按DESIGN.md等价检查。全站清单未改为完成：跨实例原生动作、账号token/资料过渡窗口、独立WebView重载、真实Tauri与真机仍需继续；主界面、剩余弹层和全部状态矩阵仍按原目标覆盖。
+
+### 2026-10-02：公开分享入口的恢复与触控操作
+
+上一回合用14项文件查找测试及320/390px实屏确认原生查找不独占一行，提供了新证据，分类为progress。本轮继续主界面与公开分享范围。真实fixture复现503被旧入口二次请求后解释成分享不存在；入口现在一次读取，按结构化HTTP状态区分登录、失效与可重试故障。shareId作为loader key，切换链接时立即隐藏上一份内容并取消旧响应归属；失败/项目分流清理SSR预览，普通会话成功沿用已有淡出。重试聚焦稳定根节点，等待有status。全部复用既有五语文案、插图及按钮，无新依赖。
+
+七项实际组件回归覆盖等待、503不自动重复请求/显式重试、401/404状态分类、链接切换、SSR错误清理及滚动生命周期。此前六项先RED；本轮滚动测试再RED（1 failed/6 passed），将allow-scroll统一放到入口并删除两个子页重复控制后，关联13文件54项GREEN。浏览器320×240实际复现底部按钮被裁切；修复后中文Tab到返回，scrollY66、按钮top164.39/bottom208.39/height44；俄语两行操作scrollY118、scrollHeight358，按钮同样完整可达，overflow0。
+
+390深色实测503持续重试提示，点击恢复会话；834护眼俄语404及1440浅色俄语503均有清晰行动、44px操作、overflow0。390项目空manifest分流正常，保留项目空状态并可滚动。额外发现会话/项目主题按钮原为36/34px；复用IconButton lg，会话开始对话Link使用同一按钮规范，三个页头操作实测均44×44、同y6；项目主题切换到sepia正常。视觉修改以实屏尺寸前后验证，不增加镜像CSS断言。截图在仓库外interface-quality，前缀shared-entry；使用只读GET故障和项目manifest替身，不证明真实登录/权限/分享创建、服务端SSR输出、模型对话或真机。
+
+按八项交付清单检查：既有衬线标题、正文字号与有限宽度；单层留白、错误与行动层级；三主题token；未增加动效，按钮沿用共享reduced-motion处理；status/alert、Retry焦点、路由响应归属和键盘滚动；320/390/834/1440以及俄语折行；保留LambChat插图和控件。实际运行npx impeccable update返回No impeccable skill folders found；按DESIGN.md人工检查，不以此代替门禁。
+
+全站目标仍未完成。项目会话展开的等待/错误/重复请求及分页失败反馈、项目长元数据折行、剩余主界面和弹层矩阵、真实账号/原生端边界继续检查；不把本轮入口与触控修复等同全站验收。预览3017/3018及既有结果保持，本轮3019及临时标签在核对归属后回收。
+
+最终全量784文件3915项通过，lint零错误零警告；build含tsc/Vite/PWA及预算通过，保留既有异步大块500kB提示。eager JS560327/561152 bytes、precache5033069/5242880 bytes（93项），未放宽预算。独立只读审查确认短屏P2关闭，最终无新增确定P1/P2。git diff --check通过。
+
+回收结果：本轮3019的PID80934已核对cwd后停止，端口确认仅3017/3018保留，工作树提交后干净。3019临时标签已关闭；旧3018临时标签65的close发生CDP观察超时，随后视口reset也超时，未确认这两项成功，未重启现有浏览器或服务。已保存截图与完成门禁不受影响，后续继续用同一浏览器新标签走查；保留标签标记也须下一轮核对。
+
+### 2026-10-02：项目分享展开、分页恢复与阅读布局
+
+上一回合直接核对用户3017的文件原生查找，17项相关测试与320/390px实屏提供新证据，分类为progress；未重复实现已有功能。本轮继续interface-state，HTTPS fetch确认origin/develop为HEAD祖先。主checkout的.v2c/.video_agent及mobile-density保持，未推送、合并或部署。
+
+390深色俄语实际复现：子会话首次503后没有展开或错误反馈，长分享者将数量及单位挤成多行。SharedProjectPage将展开状态与内容缓存、在途读取分开：点击立即展开具名region/status，收起/重开复用同一在途请求；已加载内容保留，迟到响应仅更新缓存而不重新展开。失败有本会话alert和44px Retry，重试焦点留在稳定region。兄弟会话可独立加载。分页失败保留原列表并重试同一offset，等待禁用；完成后仅当分页容器仍拥有焦点才交接给首个新增会话，正常滚动使其可见。SharedEntry是唯一生产caller且按shareId卸载旧实例，项目页删除重复初始读取及不可达的硬编码错误页。
+
+阅读布局保留衬线标题与现有主题：标题text-balance避免手机孤字行，卡片标题最多两行；数量/单位作为完整信息组，长分享者另行自然换行；手机封面图标44px、分组留白24px，正文继续保留空间。页头品牌成为44px高返回入口，语言及主题按钮均44×44。项目页补齐公开会话已有LanguageToggle sync=false，复用五语、原生菜单关闭与焦点归还，不写已登录账号的云端偏好。空消息改用已有share.noMessages；去掉消息包装层无目的入场动效，等待复用LoadingSpinner。
+
+7项真实组件回归先后RED：展开/重试/迟到及分页5failed；最后一页焦点1failed/5passed；语言入口1failed/6passed。接入真实LanguagePreferenceProvider后关联15文件65项通过，语言测试包含已登录用户不调用metadata写入。首次全量发现旧字体源码断言仍指向删除的死错误分支，改为检查真实SharedEntry的h1。最终785文件3922项通过，lint零错误零警告；build含tsc/Vite/PWA及体积预算通过，保留既有异步大块500kB提示。eager JS560334/561152 bytes、precache5034266/5242880 bytes、93项，未放宽预算。两次只读独立审查无确定P1/P2，git diff --check通过。
+
+只读3019 fixture新增3个项目会话（初始2个）、空消息、下一页及2秒等待，子会话/分页首次503后恢复；profile=long检查长分享者，fixture=empty保留空项目。仅GET替身，非GET仍405，不创建分享或证明真实权限、认证、模型对话、SSR服务端或原生设备。320俄语数量行高22.39px、overflow0；390 Retry焦点region、等待可见，收起后的晚到会话保持aria-expanded=false，空兄弟会话正确显示俄语空消息，缓存重开后富消息可读、overflow0。320×300浅色俄语分页错误Retry44px且完整可见；键盘重试后3个会话保留，新增首个按钮top109.08/bottom181.86在300px内，焦点未落BODY。834护眼及1440浅色无横向溢出，桌面阅读列1024px。最终320中文、390中文和俄语空项目、834护眼中文、1440浅色中文均复查；项目语言菜单切换后关闭并归还语言按钮焦点。
+
+截图保存在仓库外/Users/clivia/.codex/visualizations/interface-quality-project-share，包含390-dark-zh-session-error-final、320-light-zh-session-error-final、834-sepia-zh-session-error-final、1440-light-zh-session-error-final、390-dark-ru-empty-project-final、320-short-light-ru-page-error及page-recovered等。八项自检：沿用文字刻度和品牌衬线；保留正文留白，仅调整手机封面与操作；项目/数量/分享者/会话/错误层级清晰；三主题token；无新装饰动效、保留reduced-motion；加载、Retry、缓存、分页焦点及本机语言经行为与实屏验证；320/390/834/1440、长语言及短屏；复用LambChat组件，不增加依赖或平行设计系统。npx --offline impeccable update仍报告No impeccable skill folders found，按DESIGN.md人工清单检查。
+
+本轮临时标签70已关闭，视口reset成功。3019进程在检查PID84585及cwd后停止，确认3017/3018保持；保留既有结果标签及文件查找标签69。新标签清单已无旧临时65，不再沿用上轮未确认清理状态。
+
+全站目标仍进行中：主界面、剩余弹层及全部状态矩阵未全部验收；分享页的真实认证/权限、真实会话、原生与手机设备也未证明。继续核查公开阅读页及主聊天导航/预览的完整交互、长文案与空错加载，不据本轮项目页与局部门禁宣告全站完成。
+
+### 2026-10-02：公开会话阅读布局与滚动反馈
+
+上一轮文件搜索检查属于 progress：补充当前3017真实文件预览在320/390px打开/关闭查找的渲染证据，正文top始终141px，浮层宽280px，搜索控件44px，整页溢出0，14项相关测试通过。本轮继续原全站目标。
+
+390px长标题/作者/助手/模型名原hero scrollWidth实测1920px，整页虽0溢出，但被main隐藏裁掉。SharedPage在标题、作者、元数据增加宽度约束和anywhere折行，修后hero为389px。320px俄语长名称带40px作者头像、14px角色/模型图标，所有hero后代均无内部溢出；834/1440px也无溢出。非交互元数据去掉重复底色pill，沿用主题secondary与既有衬线；手机overline、作者与分隔区留白收小，正文/消息组件的阅读间距保持。默认头像与失败回退统一40px。home链接具名且44px高，GitHub用既有44px IconButton类；页尾计数/日期/阅读时间使用可读主题token并允许换行。CTA与品牌hover遵循reduced motion，去除分批入场动画。
+
+320px俄语页尾原回到顶部按钮遮住计数信息：隐藏的另一个ScrollButtons按钮仍占44px+gap。共享控件隐藏时display:none，保留disabled/aria-hidden与键盘行为；修后meta y643.11–662.30、arrow y674–718，无重叠，滚动到底remaining=0。空会话1440×1000实测仅剩51px，却仍显示到底部；SharedPage现内容就绪立即测量、监听resize与body ResizeObserver，卸载时清理。320×740空内容高度905时两按钮隐藏；缩放和内容高度更新由真实组件/platform seam测试覆盖。滚动快捷键按减少动效偏好使用instant。
+
+新增3项布局/链接测试先RED后GREEN；共享滚动测试扩展先RED（inline-block）后GREEN；2项滚动测量/减少动效测试先RED（错误按钮、smooth）后GREEN。17文件67项相关检查通过。独立只读审查三次均无确定P1/P2；指出的320px俄语带头像/图标长名称缺口已补实屏。最终787文件3927项全量测试、lint零错误警告、类型/Vite/PWA/build和体积门禁通过：eager JS560332/561152、precache93项5033648/5242880，无预算提高。中间全量一次既有projectAndSearchComposition IME断言失败，单独3项及随后两次完整检查通过，未改动该模块。测试正则无效转义lint错误已修。日志/tmp/share-reading-delivery-{test,lint,build}.log。
+
+截图在仓库外 `/Users/clivia/.codex/visualizations/share-reading-layout`：390深色中文正常、320浅色俄语长名称带头像、834/1440浅色长名称、320深色俄语最终页尾、320/1440sepia俄语空会话。Impeccable offline update报告未安装技能文件，按DESIGN八项人工复核，不安装新依赖。复用LambChat品牌、衬线、控件和主题；排版、留白、层级、色彩、动效、微交互、响应式的上述缺陷已修。仅只读fixture和DOM/platform测试，不证明真实权限、创建分享、原生手机/软键盘或模型对话。
+
+主聊天/预览切换、尚未覆盖的编辑流程和全状态/五语矩阵仍未闭合，目标保持进行中；下一轮继续主聊天阅读/预览流程，不能以本轮绿门禁宣告全站完成。
+
+### 2026-10-02：文件预览焦点交接与目录读取恢复
+
+上一目标回合补充当前3017文件查找入口、320/390px浮层和17项相关检查，属于提供新证据的 progress。本轮继续原全站目标，interface-state开工clean，HTTPS fetch确认origin/develop为HEAD祖先；保留主checkout及用户3017/既有3018。
+
+390px真实浏览器复现：打开文件后 explorer 被隐藏，焦点落到BODY；关闭内嵌预览后原按钮ref随着preview=null清空，焦点仍为BODY。WorkspacePanel为预览和浏览区提供具名稳定焦点区域，只在 explorer 实际隐藏且焦点仍在旧列表或BODY时交接；不夺取已转到另一任务的焦点，桌面双栏保留原文件选择。返回时先捕获原DOM按钮，再等布局恢复归还；请求代次防止迟到读取重新打开已关闭内容。只读审查指出目录刷新已移除原文件的遗漏，新增回归先RED，补稳定explorer焦点回退后GREEN；最终审查无确定剩余P1/P2。
+
+目录Retry复用现有Button，手机/触摸区域44px，错误有alert语义与长串折行，加载有status文字和现有LoadingSpinner。useWorkspaceTree.refresh切到loading、清除旧错误，保留既有树与展开现场；等待期间禁用刷新。无新文案、依赖、主题或布局体系。真实WorkspacePanel、LazyDocumentPreview、文档组件和useWorkspaceTree集成测试覆盖打开、返回、关闭、另一任务焦点、迟到读取、目录重试和刷新移除文件，只有API/平台边界mock。首批3项先RED后GREEN，目录恢复另RED后GREEN，删除原文件场景另RED后GREEN；共7项新增。相关6文件34项通过（随后新增的回退测试也通过）。
+
+只读fixture新增workspace-list/workspace-read首次GET失败及恢复、workspace-flow=1的2秒目录/文件读取等待，empty真正返回空目录。指南记录边界；仍拒绝其他写入。实际390深色打开定位SECTION预览，关闭归还今天吃什么.py；320俄语深/浅色错误和Retry加载，44px重试、浏览region焦点及overflow0；1440浅色居中双栏宽1150px、文件焦点保留，834面板宽832px、overflow0；390暖色俄语空目录具名文字与overflow0。截图在仓库外workspace-preview-return目录。
+
+按DESIGN八项复核：排版/留白/层级沿用文件浏览与文档工具栏，不加重复卡片或工具行；三主题文字与反馈可读；减少动效沿用shared LoadingSpinner；焦点与返回/恢复微交互经真实DOM和组件验证；320/390/834/1440响应式；复用LambChat视觉语言、不引入装饰或平行系统。Impeccable offline update仍报告未安装技能文件，使用项目人工清单。最终788文件3934项全量测试、lint零错误警告、tsc/Vite/PWA/build和体积门禁通过：eager560325/561152、precache93项5033774/5242880，无预算提高。首轮全量既有projectAndSearchComposition.test.tsx的legacy IME用例失败，单独3项及最终完整运行通过；未改此模块，保留间歇性失败作为后续核查项。日志/tmp/workspace-preview-delivery-*.log。
+
+目标保持进行中。深层目录展开失败、文件读取失败后的明确恢复、跨预览/导航/缩放焦点、剩余编辑与五语全状态矩阵、真实Tauri/手机与服务端权限/会话尚未全部验收，不据局部绿门禁声称全站完成。
+
+### 2026-10-02：文件与多层目录读取恢复
+
+上一目标回合属于progress：同步最新文件原生查找到3017并取得320/390px实际定位与快捷键证据。本轮继续interface-state工作树，fetch确认最新origin/develop是HEAD祖先；保留其它工作树和主checkout的未跟踪目录。修复展开子目录响应error/异常被忽略、看起来像空目录的问题：每个目录记录读取错误并就地提示和Retry，aria-busy、reduced-motion loader及稳定目录焦点；成功清除本目录错误，保留展开及缓存。全局刷新重读从未成功加载的失败目录；子目录成功不再清除根目录错误。文件读取失败显示准确路径并直接重试，等待保持浏览region焦点，成功转到具名预览，返回恢复原文件和多层目录。
+
+首批6项实际WorkspacePanel/useWorkspaceTree回归先RED后GREEN，覆盖响应/网络失败、文件读取、缓存子目录刷新、根错/子成功顺序和未加载失败目录的全局恢复。只读复核发现原生Reveal错误仍使用旧字符串状态契约，补action read/reveal分派、同代次守卫及准确重试：另2项先RED（空错误、旧工作区失败落新视图）后GREEN，验证不误调用read且Reveal参数准确；再次复核无确定剩余P1/P2。相关5文件39项通过。原生桥调用由边界mock模拟，不能视为真实Finder/Tauri验收。
+
+只读fixture增加首次子目录失败与两层目录内容，保持GET恢复、其他写请求拒绝。IAB 390深色俄语子目录错误可见；320深色Retry44px、目录busy/expanded=true且焦点在原目录，恢复后进一步展开访谈记录和会议记录.txt、无横向溢出。320浅色深路径文件错误完整可读，Retry44px、读取等待焦点在文件浏览region、成功在预览region；返回准确聚焦会议记录.txt并保留三个展开入口。834浅色侧栏宽638px使用单栏预览；1440浅色居中宽1137px，文件树220px+预览917px且选中原文件；1440暖色目录错误在220px树内换行，Retry32px，834暖色重试保留原目录焦点和展开。截图在仓库外workspace-file-recovery目录，不证明真实服务权限、设备软键盘或原生文件管理器。
+
+八项自检：排版复用既有12/13px文件层级；留白和行距沿用共享文件树/文档工具栏；路径、原因、Retry分层；三主题沿用token可读；无新动效且loader遵循reduced-motion；焦点/缓存/迟到结果/重试动作经组件验证；320/390/834/1440无本批溢出；保持LambChat组件语言，没有新依赖、素材、主题或装饰。复用五种locale现有文案，无新字符串。npx --offline impeccable update仍报告未安装skill folders，按DESIGN清单完成人工检查。全量788文件3942项、lint零错误警告、tsc/Vite/PWA/build与体积门禁通过：eager560322/561152、precache93项5033774/5242880，无提高预算。日志/tmp/workspace-recovery-*-final.log。
+
+全站目标保持进行中。下一轮继续主聊天搜索IME间歇性失败与跨预览/导航/缩放焦点；剩余编辑流程、五语全状态矩阵以及真实服务/桌面和移动设备证据仍未闭合，不据本批局部修复和门禁声称全站完成。
+
+### 2026-10-02：会话搜索的层级、键盘分页和窄屏反馈
+
+上一目标回合核对3017文件预览：原生查找入口在既有工具栏，320/390px不额外占行、命中2处，17项相关检查通过，分类为progress。本轮继续interface-state；fetch确认origin/develop为HEAD祖先，保留既有工作树与用户3017。
+
+实屏长项目名将标题挤到0px；改为标题、匹配摘要、项目上下排列，各自截断并保留完整title。沿用14px衬线标题、12px摘要、11px项目、主题token、共享ModalSurface与按钮；手机单层sheet，桌面512px，输入和Clear手机/coarse为44px、桌面fine为32px，单行结果最低44px。手机隐藏键盘提示，桌面Cancel隐藏，焦点指示可见；未增加依赖、文案或动画，结果颜色过渡与共享loader尊重reduced motion。
+
+追加结果原本清空键盘选中项；现在只在新查询时重置，输入直接处理方向键/Enter并保留现代和229输入法守卫。combobox、listbox、option、aria-selected和active descendant反馈当前选择，焦点仍在输入。持续聚焦时Clear可能保留旧draft，清空前结束编辑再同步既有PanelSearchInput并归还焦点。真实键盘走到第30项另复现分页不触发：默认窗口observer被弹层滚动容器裁切；现在observer绑定实际结果列表。
+
+分页选择与两项ARIA回归先RED（3failed），聚焦清空先RED（1failed），滚动observer边界先RED（1failed/7passed）；8项新测试与既有相关6文件42项GREEN。覆盖追加、失败下一页及准确skip重试、新查询、清空、ARIA和现代/旧输入法。旧IME单测基线独立12轮均通过，未将历史间歇失败宣称为已复现或已证明修复。
+
+只读IAB证据：320深色长元数据标题288px、输入/Clear44px、无横向溢出；390俄语首次503保持输入和持续错误，Retry44px、等待焦点仍在输入、恢复后选择与聚焦Clear正常。键盘30次ArrowDown从30项触发busy，追加至65项仍选第29索引，Enter导航/chat/preview-session-29并关闭侧栏。320×300浅色普通结果行44px，sheet top21.41/bottom300，结果滚动且无横向溢出，空查询结果可读、Escape归还手机侧栏搜索入口。1440浅色与834护眼俄语弹层512px、长文本无溢出，桌面Clear32px、Cancel不可见。截图与复现JSON在仓库外session-search目录；coarse条件已核对媒体规则，未把窗口缩放称为真实触控/输入法/软键盘或真实后端检索证明。
+
+八项自检：标题/摘要/项目排版分层；沿用共享留白与单层容器；主内容优先、状态与操作清楚；三主题token可读；没有装饰性动效且保留reduced motion；分页、Retry、Clear、IME与焦点有行为和实屏证据；320/390/834/1440及300px短屏可用；保留LambChat视觉语言，不复制奖项网站外观。复用五语既有文案，无新locale键。独立只读审查的触控P2已修复，其余本批状态和observer增量未发现确定P1/P2。npx --offline impeccable update仍报告未安装skill folders，按DESIGN.md人工检查。
+
+最终789文件3950项测试、lint零错误警告、tsc/Vite/PWA/build与预算通过；eager560324/561152 bytes、precache93项5032728/5242880 bytes，未放宽预算。日志/tmp/session-search-*-delivery.log，git diff --check通过。
+
+全站目标仍进行中。跨断点实屏确认新缺口：834桌面搜索缩到390后查询和选中项保留，Escape关闭却退到BODY，因为桌面opener已卸载。下一轮优先修复共享弹层在opener消失后的焦点归还，并继续其余编辑流程和五语状态矩阵；真实服务及原生设备保留为未验证边界，不据本批门禁宣称全站完成。
+
+### 2026-10-02：跨断点弹层与编辑器的焦点归还
+
+上一目标回合提供文件原生搜索的当前渲染与21项相关检查，属于 progress。本轮继续原全站目标，interface-state 开工 clean，fetch 确认最新 origin/develop 为 HEAD 祖先；未修改主 checkout、mobile-density 或用户3017。
+
+复用侧面板已有的焦点回退顺序，在 modalDialog 统一实现：优先恢复可用原入口；入口卸载、隐藏或禁用时，回到仍打开的弹层、原面板选中控件或可见页面导航。过滤隐藏/inert/aria-hidden祖先与CSS隐藏，不进入已关闭的手机抽屉；保留其他任务或新弹层已经获得的焦点，恢复使用 preventScroll。useDialogFocus 在原入口消失或原焦点为BODY时等待背景inert清理。侧面板删除重复回退代码并调用共享函数。富文本编辑器保留隐式焦点能力；没有控件的header不能中断后续main回退。
+
+10项新增行为回归分别先RED再GREEN：首批5项失败；富文本、未聚焦原入口、无控件header各1项失败；嵌套编辑器原入口卸载且有/无剩余控件2项失败。真实ModalSurface/EditorSidebar与平台边界验证背景解锁、关闭/新打开归属、所选页签及父弹层焦点。相关8文件73项通过。独立只读审查发现ES2023 findLast与已卸载嵌套入口提前返回两个P2，分别改用ES2020 reverse/find和仅对仍连接入口执行范围守卫；最终复核确认两项关闭，无其他确定P1/P2。
+
+3018真实IAB检查：834桌面搜索缩到390/320后查询与输入焦点保留，Escape返回“展开侧边栏”；320×600按钮44×44、focus-visible=true、页面溢出0。390手机搜索放大到834时输入和查询保留，关闭返回可见页头控件。手机抽屉内关闭搜索先回到搜索入口，再Escape关闭抽屉回到展开按钮；文件侧面板关闭回到会话文件入口。1440浅色技能编辑器缩到390为fullscreen，关闭返回当前“技能中心”页签（44px高），无横向溢出。截图与JSON在仓库外responsive-dialog-focus目录；没有执行保存、创建或真实设备输入。旧86标签观察两次超时，保留原标签和服务，用同一浏览器新87/88标签取得实屏证据，未重启现有运行时。
+
+八项自检：排版、留白、层级及色彩保持现有组件/token；无新增动效，继续现有reduced-motion处理；微交互改善关闭与返回且不抢焦点；320/390/834/1440真实响应式检查；沿用LambChat视觉语言而不增加装饰、依赖或另一套控件。无新增文案，五语沿用现有名称。npx --offline impeccable update仍报告未安装skill folders，按DESIGN清单人工检查。最终789文件3960项全量测试、lint零错误警告、tsc/Vite/PWA/build与体积预算通过：eager560322/561152 bytes、precache93项5032890/5242880 bytes，保留既有异步块500kB提示，未提高预算。日志/tmp/responsive-focus-*-final.log，git diff --check通过。
+
+全站目标保持进行中。继续剩余编辑流程的完整窄屏布局、键盘与空错加载反馈及五语矩阵；本轮共享焦点修复不等于全部页面完成验收。真实服务、原生桌面/手机与软键盘证据仍未闭合。
+
+### 2026-10-02：全屏技能编辑器原生查找与新增文件命名
+
+继续同一全站目标，interface-state 开工 clean，fetch 确认 origin/develop 是 HEAD 祖先。实际320px发现全屏 SkillEditor 搜索按钮仍独占52px一行；新增文件后又缺少路径输入，未命名内容会被现有 payload helper 跳过。复用 DocumentPreview 的 useCodeMirrorReady/openCodeMirrorSearch，将全屏搜索放进既有文件操作栏并隐藏内部重复工具栏，查找使用已有浮层样式，保留编辑器原生替换和快捷键。其他 SkillEditor 调用保留默认工具栏行为，不新增依赖。
+
+新增文件时在同一标题行展示共享 Input 并聚焦，Enter 返回具名代码编辑器，保留输入法守卫、重复路径错误与草稿。普通模式 Add File 也聚焦现有路径输入。保存前校验空白路径并选择对应文件，防止静默丢弃；新增 filePathRequired 同步五种 locale。复用 ConfigPanelErrorCallout 和已存在的错误焦点处理。全屏表单位于 EditorSidebar 外，实屏确认路径输入只有36px；独立复核也指出这一P2，补现有 skill-form 手机/coarse 规则后实测44px、16px，桌面 fine 不变。复核无剩余确定P1/P2。
+
+5项新增用户行为先RED（5 failed / 7 passed）后GREEN：实际 CodeMirror 查找共享顶栏、原生替换/关闭焦点；全屏新增路径/Enter不保存；重复路径；普通新增路径聚焦；未命名保存阻止且草稿保留。5个相关测试文件29项通过。全量检查发现旧源码测试只允许单个导入名，改为同一组合导入中识别 ToolbarIconButton，保留组件复用断言。
+
+3018旧预览仍显示缓存组件，保留原进程和用户3017，启动仅本轮3019验证最新源码。IAB深色俄语320/390/834/1440全屏没有独立搜索行且无横向溢出；320px搜索44px，代码从y72开始，查找浮层打开后仍y72。原生编辑查找280px，保留替换，320×300时高度180px、内部可滚动。新增路径实测44px、聚焦，Enter到 scripts/report.py；重复SKILL.md保持错误；未命名保存被阻止，print("draft stays")保留且普通路径获得错误焦点。390浅色无溢出。再次核对文件预览：搜索在标题操作栏、内部工具栏0个，320/390查找浮层280×46px，代码y141不变，choice回车命中2处，Escape返回代码。未提交有效保存或真实文件写请求。截图在仓库外 skill-editor-native-find 目录。
+
+八项自检：标题和代码沿用现有排版；删除重复搜索行而保持既有留白；文件、搜索、状态分层；浅/深色沿用token；无新增动效且遵循已有reduced motion；命名、校验、Enter、Escape及焦点实测；手机/平板/桌面和短屏可用；复用LambChat组件而不增加装饰。npx --offline impeccable update仍报告未安装skill folders，按DESIGN清单人工检查。最终790文件3965项、lint零错误警告、tsc/Vite/PWA/build及预算通过：eager560406/561152 bytes，precache93项5033357/5242880 bytes；未放宽预算。日志/tmp/skill-editor-*-final.log，git diff --check通过。
+
+全站目标保持进行中。继续剩余编辑流程与五语完整状态矩阵，真实服务写入、原生桌面/手机及软键盘仍需独立证据；本批不宣称全站验收完成。
+
+### 2026-10-02：聊天评价弹层与上传、提交恢复
+
+继续同一全站目标，interface-state 开工 clean，fetch 确认 origin/develop 为 HEAD 祖先。此前技能普通编辑、长文件路径与加载等已有走查记录，本轮转向尚未完整验收的聊天评价弹层。320×568 深色俄语实际复现：关闭28px，跳过40.39px，提交38.39px；Add Image 是不可键盘操作的 div，评论缺少显式标签，附件删除仅20px且依赖 hover。复用现有 Dialog、Button、LoadingSpinner、ConfigPanelErrorCallout 与 ui-textarea：手机关闭、附件删除、Add Image、重试至少44px，评论16px，正文可滚动、页脚保持可达。长俄语操作等宽且可折行，桌面保留既有尺寸；标题沿用衬线与主题，不新增组件体系或依赖。共享 Dialog 的 safe-area-bottom 原覆盖 py-3 底部为0，补已有 --safe-area-bottom-extra:0.75rem 约定后底部保留12px加原生安全区，更新弹层同时受益。
+
+上传批次复用现有 UploadHandle.abort，关闭/卸载取消并隔离压缩和上传的迟到响应；拒绝重复选择/拖入，保留部分成功附件与失败原文件，错误持续显示并可 Retry。提交期间冻结表单并拒绝关闭，错误保留评论/附件且主操作转 Retry；父级卸载不再应用旧提交结果。Ctrl/Cmd+Enter 提交，普通 Enter 换行，现代/旧 IME 不误触提交；五语提示同步。删除附件前聚焦稳定评论，避免控件卸载后失焦。初始10项用户行为先RED后GREEN；独立审查指出删除焦点P2，另1项先RED后GREEN；底部留白断言先RED（1 failed/36 passed）后GREEN。相关6文件73项通过；旧安全区与滚动锁源码断言改为追踪 Dialog→ModalSurface，保留共享owner约束。最终独立只读复核无确定剩余P1/P2。
+
+3019 UI-only feedback-flow fixture 显式模拟 POST 等待2秒、首次503、重试200，丢弃请求字节且不解析/保存/转发，其它写入仍405；已更新 PANEL_PREVIEW 指南。实际320俄语浅/深色验证44px控件、长文案完整显示、无横向溢出；上传先失败再重试返回公开图标，键盘 Enter 打开文件选择器，附件删除后焦点回评论。提交等待时 Escape 无效、评论冻结，首次失败持续 alert 且 Mobile feedback sample 保留，Retry 后关闭并显示已评价状态。safe-area 修后操作底边556px，距568px屏底12px。最终截图在仓库外 chat-feedback 目录；320-dark-russian 是补底部12px前的布局记录，320-light-submit-error 包含最终底部留白。
+
+再次核对用户文件预览要求：390与320px搜索按钮在现有标题工具栏、内部重复工具栏0个；CodeMirror原生简洁查找浮层280×46px，打开前后代码top始终141px，choice命中2处，Escape返回代码，整页溢出0。截图390-file-native-find与320-file-native-find。没有用独立搜索行或撑满正文。尝试保留的3017旧标签69只读观察时浏览器超时，独立3019上再做834主题/视口切换及reset也超时；没有重启用户服务或把这些平板检查列为通过。保留已取得的手机实屏证据，原生触控/软键盘、桌面与暖色最终验证仍为下一轮边界。
+
+按DESIGN八项自检：复用排版/间距与单层共享弹层，主次操作清楚、长文案完整；浅深色token可读，无装饰性动效，沿用减少动效控件；原文件重试、提交恢复、删除/关闭焦点有测试和实屏；手机布局与原生查找不挤正文；沿用LambChat视觉语言。npx --offline impeccable update报告未安装skill folders，按项目人工清单检查。最终791文件3977项、lint零错误警告、tsc/Vite/PWA/build及预算通过：eager560447/561152 bytes，precache93项5032401/5242880 bytes，无预算提高。日志/tmp/feedback-*-final-delivery.log；git diff --check通过。首轮全量4项源码断言失败由共享Dialog迁移引起，修复上述owner追踪后完整通过。
+
+全站目标保持进行中。未将fixture成功称为真实反馈/存储，未宣称真机输入或全站完成。下一轮优先恢复独立浏览器验证的平板/桌面与短屏证据，并继续尚未完整覆盖的更新/联系管理员及其余五语完整状态。
+
+
+### 2026-10-02：更新与联系管理员弹窗
+
+上一目标回合属于 progress：当前用户3017文件预览在320/390px的真实查找、高亮、Escape焦点与21项相关检查提供了新证据。本轮继续同一全站目标，在interface-state保留仅本轮preview未提交文件；fetch确认origin/develop仍为HEAD祖先，没有重启或编辑用户3017、既有3018及主checkout。
+
+实际基线：更新弹窗长版本号被裁切，深色主按钮白字落在浅主色上，日志与弹窗存在双重滚动；联系管理员在settings读取中显示空联系方式，320px俄语的底部关闭42.39px且被挤到屏底之外，长邮箱截断。复用既有Dialog/Button/ConfigPanelErrorCallout，删除联系弹层渐变、嵌套联系卡片和重复底部关闭；保留原羊场景、衬线标题及两个联系原因，缩小场景并让邮件完整折行。加载显示status，读取失败显示持续alert和真实useSettings的强制Retry；Retry先归还稳定modal焦点，等待期间没有空信息误报。共享Dialog标题允许折行，coarse关闭补44px。
+
+更新保留Skip、SkipVersion及各平台回调/安装来源文案，主操作使用共享primary前景色；手机/coarse至少44px，长文案自然折行。错误移正文首部且在焦点仍属于本弹层时聚焦可恢复提示，不抢外部portal焦点。下载进度放在固定页脚，长日志和短屏仍可见，具有具名progressbar及0–100有限值，遵循reduced motion。日志改成一个共享正文滚动区，长inline code折行；实屏发现长表格单词把相邻列压到单字宽，table-fixed均分后两列各203px且长内容完整折行。进度轨道使用theme-border，与页脚底色可区分。
+
+初始相关检查先RED：6 failed/13 passed，修复后通过；等待→失败的错误焦点补断言另先RED：1 failed/10 passed，再GREEN。真实Hook的API边界测试覆盖等待、读取失败与重试恢复、完整邮件/外链、空信息和Escape；没有mock掉Hook。9文件47项相关通过，最终792文件3983项全量通过；lint零错误警告，tsc/Vite/PWA/build及预算通过：eager560451/561152 bytes，precache92项5028842/5242880 bytes，未提高预算。日志/tmp/system-dialogs-{test,lint,build}-final.log，git diff --check通过。独立只读复核三次没有剩余确定P1/P2。
+
+UI-only /dialog-preview显式模拟更新等待2秒、首次失败、重试待安装和关闭；联系settings GET等待2秒、首次503后Retry恢复，只有公开example.test占位联系方式。未调用原生更新、下载、安装、重启、邮件客户端、支持发送或真实写入。预览入口热更新曾留下多个portal，补原生hot.dispose卸载root后实际HMR验证role=dialog数量1；production路由不引入该入口。PANEL_PREVIEW说明参数与边界。
+
+实际验证320×568、390×844、320×300、834×1112、1440×1000，浅/深/sepia及中英日韩俄组合；上述弹层长版本/日志/邮件、等待/错误/空/待安装无横向裁切。320×300俄语下载进度y228–236、主按钮y244–288，底部保留12px；联系正文单层滚动，Tab到支持链接自动滚动141px并可见，未激活链接。错误恢复后显示完整联系方式，Escape关闭并归还Open dialog。桌面英语iOS提示保留Go to Download，手机操作至少44px；834为fine鼠标模拟，coarse规则只有CSS/测试证据，不能称真机触控已验。旧92标签视口观察超时后保留现有服务，使用新标签恢复检查，未把超时算通过。
+
+截图在仓库外system-dialogs目录：320-dark-update-error、320-short-downloading、320-short-contact-focused、390-light-update、320-light-update-error-ko、320-light-contact-ko、834-sepia-update-ready-ja、834-sepia-contact-ja、1440-dark-update-ios-en、1440-dark-contact-empty-en等。834-sepia-update-ready-ja已替换为最终均分表格版本。按八项自检：正文/标题与日志层级清楚、删除重复容器且保留共享留白；复用三主题token并修正主操作对比；无新增装饰动效、减少动效覆盖进度；加载/恢复/焦点实测；窄屏、短屏、平板、桌面可用；沿用LambChat羊场景/衬线/组件规范。Impeccable offline update仍报告未安装skill folders，按DESIGN清单人工复核。
+
+全站目标保持进行中。完整跨页状态/五语矩阵、真实认证/保存/聊天与原生桌面/手机仍未闭合。游客真实useSettings没有token不读取受保护配置，联系管理员公开获取路径未由此fixture证明；下一批核对认证支持/公开配置与尚未完整验收的确认、关于及其他弹层流程，不以本批两个弹窗及绿门禁代替全站验收。
+
+### 2026-10-02：关于与共享确认弹窗
+
+上一目标回合属于 progress：重新核对用户3017文件预览的标题栏入口、CodeMirror原生浮层、320/390px、高亮、快捷键与15项相关检查，避免重复实现已经合入的搜索。本轮回到interface-state，开工clean，fetch/rebase确认最新origin/develop已是HEAD祖先；用户3017与主checkout保持原状态。
+
+基线实际320px俄语：关于读取失败仅剩关闭、无Retry；关闭28px、底部38.39px，当前客户端版本也被隐藏。确认默认聚焦删除；长正文随整体滚动把标题隐藏，取消40.39px/确认38.39px。两者复用既有Dialog、Button、主题与文案，删除重复卡片、骨架和孤立硬编码色。关于始终显示打包APP_VERSION，读取/检查显示status，持久alert及Retry；再次检查保留已读版本与外链，先将焦点交还modal再禁用操作。外链使用原生a、noopener noreferrer，无window.open；没有新增依赖或文案。确认保留所有回调/variant/loading约定，初始焦点留在具名modal；确认等待aria-busy/status、拒绝Escape/背景关闭，底部操作不因长正文滚出。移动/coarse至少44px，正文/版本自然换行，标题沿用现有衬线/无衬线约定。
+
+TDD新增7项：初次版本等待/失败恢复/再次检查保留与焦点/原生外链，以及确认初始安全焦点/等待关闭守卫/取消返回入口；先见6 failed/1 passed，再全部GREEN。相关5文件20项通过。独立只读复核发现Tailwind将ui-button__label中的双下划线解成空格，换行未命中；真实320px长按钮scrollWidth161/539对client102，修正为既有[&>span]并改flex-auto，让长caption按需成为整行。320×300最终长操作44/78px、主操作bottom288，留白12px，无横向溢出。第二处P2为sm:flex-none下长操作宽573.33px超过footer382px；max-w-full后342px恰为footer减两侧20px。最终独立复核无确定剩余P1/P2。
+
+最终生产修改后全量794文件3990项通过；lint零错误/警告，build含tsc/Vite/PWA及预算通过：eager560448/561152 bytes，precache92项5026754/5242880 bytes，未提高预算。日志/tmp/about-confirm-tests-complete.log、/tmp/about-confirm-lint-final-checked.log、/tmp/about-confirm-build-verified.log，git diff --check通过。Impeccable offline update仍报告未安装skill folders，按DESIGN八项人工检查。
+
+UI-only /dialog-preview增加真实About/useVersion的GET边界：2秒等待、初次读取或force_refresh首次503后Retry恢复；current fixture按请求中的客户端版本返回相同latest，long返回长版本。Confirm只模拟2秒等待后关闭，不调用删除或写API；long-actions用既有长文案测试响应式换行。PANEL_PREVIEW说明已补。没有激活外部链接、原生更新、下载、真实删除、重置或保存。
+
+实际IAB证据：关于320×568深色俄语读取失败→Retry恢复、长版本完整折行；390×844浅色中文强制检查失败→Retry，已读99.0.0与当前2.13.2全程保留；834×1112 sepia韩语长版本；1440×900深色英语已更新状态；320×300浅色日语Tab到GitHub自动滚动正文122px，链接在170.75–214.75px、关闭bottom104、主操作bottom288，均可见。确认320×300俄语长操作、中文长正文（内滚动115/380px且标题top69.20、操作bottom288）；390×844深色日语长正文；320×568深色韩语warning；834×1112 sepia俄语长操作；1440×900浅色英语info。均无整页横向溢出。韩语模拟确认等待时Escape无效，结束实际关闭、焦点回Open dialog。中文短屏直接滚轮操作未改变scrollTop，不将其计为成功滚动；日语Tab实际滚动提供正文可达证据。浏览器fine视口不证明真机触屏/软键盘。
+
+实际/settings 390px浅色俄语打开关于、Escape归还“关于”入口；打开“重置所有”确认，默认焦点modal，关闭/取消/主操作44px，Escape回重置入口，未执行重置。截图在仓库外common-dialogs目录：about-320-dark-ru-ready、about-390-light-zh-check-error、about-834-sepia-ko、about-1440-dark-en-current、about-320-short-light-ja-focused、confirm-320-short-ru-long-actions、confirm-320-short-light-zh、confirm-390-dark-ja、confirm-320-dark-ko-warning、confirm-834-sepia-ru-long-actions、confirm-1440-light-en、settings-about-390-light-ru、settings-confirm-390-light-ru。俄语long-actions截图已替换为最终flex-auto版本，英语current截图已替换为相同客户端/latest版本。
+
+八项自检：沿用版本等宽排版、标题规范与主题；减去重复容器但保留阅读留白；当前/最新/状态/操作层级清楚；主操作正确使用主题前景、危险操作现有danger；无新增动效，沿用reduced-motion；错误持续、重试、禁用、焦点与原生链接均有行为/实屏；手机、短屏、平板、桌面与五语组合覆盖；使用LambChat现有视觉组件，未另造设计系统。本批两个弹窗完成不等于全站完成，主清单仍保持未验证项。下一轮优先查游客联系管理员的公开配置路径，以及剩余真实页面状态与跨页弹层/键盘流；真实认证、存储写入、服务对话和原生设备验证尚未闭合。
+
+### 2026-10-02：游客联系管理员的公开配置与恢复
+
+上一目标回合属于 progress：当前3017文件预览已使用原生紧凑查找，320px实屏证明不新增内容行、命中高亮及关闭归还代码焦点，14项相关测试通过，无重复生产修改。本轮继续interface-state既有隔离分支；fetch后暂存本批既有TDD测试、rebase确认当前分支已包含最新origin/develop，再恢复测试。uv自动改写的项目版本锁文件已恢复，不夹带无关改动；主checkout和用户3017保持原状态。
+
+游客基线：/dialog-preview?view=contact&guest=1不发读取、直接显示“暂无管理员联系方式”；根因为useSettings无token不会读取受保护settings。改用现有公开认证配置GET /api/auth/oauth/providers，仅增加明确白名单admin_contact.email/url；原受保护settings不开放。两项配置加入既有允许空字符串的运行时刷新集合，管理员清空后不再保留旧联系值。弹窗仅打开时读取，提供status、持久alert/Retry、成功空状态，关闭/卸载中止请求并隔离迟到成功/失败；204空响应按读取失败处理。重试将焦点保持在共享modal；复用既有Dialog、按钮、illustration、token和五语文案，无新依赖。
+
+TDD先见前端5 failed/1 passed、后端4 failed/13 passed，原因分别是未读取公开配置/无loading与error/无abort以及缺少公开字段/空值刷新失效，再最小实现GREEN。最终前端全量794文件3993项通过，lint无错误或警告，build含tsc/Vite/PWA及预算通过：eager560455/561152 bytes、92条precache5027133/5242880 bytes，未提高预算。后端认证/设置/配置相关114项通过，Ruff全仓通过、Mypy全src共520文件通过；后端两条既有Pydantic class-config弃用警告，build保留既有大chunk提示。日志/tmp/public-contact-tests-all.log、public-contact-lint.log、public-contact-build.log、public-contact-backend-all-related.log、public-contact-ruff-all.log、public-contact-mypy-all.log。独立只读审查未发现确定P1/P2。
+
+只读preview更新为同一公开配置路径，2秒等待、首次503后Retry、空/长邮箱，旧contact-settings参数保留为fixture别名；guest=1移除预览origin token。真实RegistrationPending入口/auth/pending?email=preview@example.test&guest=1&contact-flow=1也可重复走查，未调用resend、注册或真实写入。IAB实屏：320×568深色俄语失败→Retry→联系链接，关闭/Retry44px、焦点modal；320×300浅色日语长邮箱换行，Tab到支持链接实际滚动正文148px，链接bottom283.73、关闭bottom104，无整页横溢；834×1112 sepia韩语成功空状态；1440×900深色英语权限原因与长邮箱；390×844浅色中文实际注册待验证页支持按钮→loading→503→Retry→邮箱/支持链接→Escape，焦点回原支持按钮。邮箱/外链只检查属性，不激活邮件客户端或外站。截图在仓库外visualizations/public-contact目录，包括pending-contact-390-light-zh-ready/error、contact-320-dark-ru-ready、contact-320-short-light-ja-long、contact-834-sepia-ko-empty、contact-1440-dark-en-long。开发时注释HMR曾使页面重挂载，最终实际入口流程使用新run重新完整验证，错误截图已替换为稳定终态证据。
+
+八项自检：沿用原字号/标题层级，联系方式自然折行；保留必要阅读留白和单层modal；说明、读取状态和支持动作层级独立；沿用三主题及错误token；无新增动效，已有reduced-motion保留；等待/重试/关闭/焦点有行为和实屏证据；手机、短屏、平板、桌面及五语组合可用；继续LambChat羊场景与既有视觉语言。npm exec --offline -- impeccable update报告没有已安装skill folders，按DESIGN清单人工复核。
+
+全站目标保持进行中，主清单未勾选项不改为完成。本批证明公开配置契约/真实AuthMiddleware匿名保护与组件生命周期，以及fixture上的真实支持入口；不证明部署后跨实例配置广播、生产认证、邮件支持、真实持久化/聊天或原生触屏/软键盘。下一批优先核对未闭合的资源导入/发布与批量操作状态、剩余预览格式和跨页键盘组合，再继续真实服务和设备验收；不会用本批绿门禁替代全站验收。
+
+### 2026-10-02：共享批量工具栏与技能部分失败恢复
+
+上一目标回合属于 progress：用户3017文件预览已是CodeMirror原生浮动查找，本轮再次在独立3019核对，不重复实现。interface-state开工fetch后确认最新origin/develop已是HEAD祖先，保留既有批量工作和测试；主checkout、用户3017及其他工作树未修改。
+
+共享BatchActionBar由浮动工具条改为列表后的正常布局，保留现有Button/IconButton、主题和间距；按组件可用宽度显示文字或图标，按钮至少44px且具有名称。Memory不再传空的启用/禁用回调，只提供删除和清除。等待状态保持工具栏、具名status和焦点，阻止重复操作及Escape清除。技能列表短屏最小页头/分页超过可用高度时由列表自身滚动并裁切，局部取消该列表页头的sticky，避免滚动后的页头遮住分页；不改变其他面板。
+
+原批量回调把详细API结果作为布尔成功，导致部分失败清除全部选择并显示成功；批量toggle的乐观反转也会覆盖实际混合状态。改为按deleted/updated处理成功项、保留未完成选择，刷新权威列表；部分/全部失败在工具栏显示持久alert和Retry，删除重复全页写入错误。Retry只请求原未完成且仍被选中的项，不把等待期间新选项目带入；无可重试交集不显示无效按钮。即时请求锁与卸载失效守卫保留。成功/清除后用既有restoreOpenerFocusUnclaimed归还当前搜索框，提交后的微任务重新查询，覆盖Skeleton刷新导致搜索重挂载且不抢走其他已拥有焦点。
+
+TDD新增11项，真实useSkillsActions/useSkills/skillApi，仅模拟fetch边界，并覆盖实际SkillsList、MemoryPanel与Toaster。先观察请求失败、部分返回、Memory无效操作、重复错误、Retry误带新项目、列表重挂载丢焦点、无效Retry按钮等RED，再GREEN。三轮只读复核找到三个P2并全部闭合，最终未发现其他确定P1/P2。最终全量795文件4004项通过，lint无错误/警告，tsc/Vite/PWA/build与预算通过：eager560453/561152 bytes，precache92项5026887/5242880 bytes，未放宽预算；git diff --check通过。日志/tmp/skill-batch-tests-final.log、skill-batch-lint-final.log、skill-batch-build-final.log，11项相关GREEN日志skill-batch-green-final-reviewed.log。共享按钮、状态、成功/错误文案在zh/en/ja/ko/ru均存在。
+
+实际IAB：中文320×568深色正常/失败；320×300失败时Tab到下一页使列表滚动，分页136–180px、工具栏188–300px、页头static，整页无横溢；Escape清除后焦点回搜索。俄语390×844浅色仅图标且四个动作44×44px、534×700断点文字完整、834×1112 sepia及1440×900浅色文字工具栏，无横溢。Memory390浅色俄语只有删除/清除，两者44px。8秒延迟fixture的真实批量启用等待：aria-busy=true、四个按钮禁用、status为Обработка...、焦点group，Escape不丢失状态；405后持续错误和Retry。只读preview全部写请求405，不证明真实批量持久化或设备触控。834俄语页头搜索被同排长操作挤窄是新发现的既有问题，列入下一批，不以工具栏通过代替整页完成。
+
+再次按用户文件预览要求实测390/320px：搜索仅在现有标题动作中一个入口，原生查找浮层280×46px，打开前后代码top141px，choice命中两处，Escape返回代码预览，正文不新增搜索行、无横溢。截图在仓库外visualizations/skill-batch，包括390-file-native-find、320-file-native-find、320-short-dark-retry、390-light-ru、1440-light-ru、834-sepia-ru、390-memory-light-ru、390-dark-ru-pending/error。测试语言已通过UI恢复中文，未保存管理员设置或执行真实写入。
+
+八项自检：复用现有排版和间距、保留阅读留白；计数/操作/错误层级分明；三主题token，无新渐变或装饰；无新增动效、沿用reduced-motion；等待/Retry/键盘/焦点有测试和实屏；手机短屏/平板/桌面可用；继续现有LambChat视觉系统，不新增依赖。npm exec --offline -- impeccable update仍报告未安装skill folders，使用DESIGN人工清单。全站目标保持进行中，主清单未闭合项保持未勾选；下一批优先处理技能页头长文案搜索空间、剩余导入发布/预览格式/跨页键盘组合，再补真实服务和原生设备验收。
+
+### 2026-10-02：资源搜索空间与筛选键盘闭环
+
+上一回合为 progress（8d4948cd）。开工 fetch/rebase 确认 origin/develop 已包含；主 checkout 与用户3017保留。共享页头使用原生 flex 换行，搜索最低可读宽度16rem，长操作移到下一行并右对齐：834px俄语搜索从53.78px恢复638.05px，1440px仍一行。手机动作打开真实 EditorSidebar/ModalSurface 前使用既有焦点 helper 保留 More，动作已主动转移焦点时不抢焦点。
+
+SkillFilterDropdown 两个调用方（技能列表/商店）共用原生 menu 语义、选中项初始焦点、箭头/Home/End、多选保持、分层 Escape 与原生 Tab。清空会先聚焦稳定菜单避免移除按钮后落到 BODY；短屏向上翻转、按真实可用高度滚动。手机/coarse portal 控件宽高至少44px。只读审查发现清空失焦与短标签宽度两项P2，均单独RED后修复，最终未发现其他确定P1/P2。共10项新检查，相关22项通过；旧 Memory 源码断言迁移到 menuitemcheckbox/aria-checked。最终796文件4014测试通过，lint零警告，tsc/Vite/PWA/build通过，预算未提高：eager560452/561152、precache92项5027281/5242880 bytes，git diff --check通过。日志 /tmp/resource-header-*-reviewed.log。
+
+IAB证据：320×568深色俄语筛选、分层Escape/Tab/清空；390×844浅色俄语商店筛选与发布编辑器关闭归还More；834×1112 sepia俄语搜索、1440×900浅色俄语单行。截图位于仓库外 visualizations/resource-header。语言通过UI恢复中文；fixture写请求405，不证明实际发布、保存或设备触控。用户当前3017文件预览再次核对已有 CodeMirror 原生浮动查找，无重复生产修改；390px正文打开前后top141px/height678.40625px一致，浮层280×46px，320px无横溢，Escape回代码。文件预览相关17项测试通过。
+
+八项人工检查沿用现有字号、阅读留白、状态层级、主题token和reduced-motion；无新增装饰/依赖，实际键盘和窄屏布局有证据。Impeccable未安装skill folders，按DESIGN清单人工验收。全站目标仍进行中：剩余Persona筛选的焦点/短屏边界、技能写权限入口、其他格式与真实服务/原生设备验收尚待核对，不把本批当作全站完成。
+
+### 2026-10-03：角色与团队筛选的短屏和键盘闭环
+
+上一回合为 progress（32d410d3），文件原生查找已有实现且再次验实，不重复生产修改。本轮开工 clean，fetch/rebase确认最新origin/develop已包含；保留主checkout及用户3017。IAB320px复现角色标签打开后焦点仍在入口，Escape同时关闭子筛选和父操作菜单；PersonaScopeDropdown/PersonaTagFilterDropdown各由角色页和团队页两处调用。两组件复用SkillFilterDropdown已验证的布局和导航，提取usePanelFilterMenu供三个真实组件共用，保留useStickyDropdownPosition、主题与现有尺寸。选中项初始焦点，单选menuitemradio/多选menuitemcheckbox，箭头/Home/End，分层Escape、原生Tab；选择与外部关闭前同步保留trigger焦点，清空先聚焦稳定root，输入法按键保留。visualViewport定位按上下可用空间翻转并可滚动，角色/团队标签根菜单取消裁切。
+
+8项真实组件测试先8failed后GREEN，scope选择失焦的中间失败促使closeMenu在卸载前归还焦点。实际834px俄语进一步发现页头主操作组775.02px宽，发布按钮right848.02px超过viewport834；共享CSS让主操作组及普通flex子组受宽度约束、自然换行、每行右对齐，文件视图切换组排除。独立source测试先1failed13passed，再GREEN；最终按钮right814（20px页边），桌面保持单行。旧source断言迁移到共享hook与正确radio语义，不减去viewport覆盖。新增9项检查，相关29项通过。三轮独立只读复核（筛选、换行、最后对齐）未发现确定P1/P2。
+
+最终797文件4023测试通过、lint零错误/警告、tsc/Vite/PWA/build通过，预算未放宽：eager560462/561152 bytes、92条precache5027462/5242880 bytes；git diff --check通过。日志/tmp/persona-filter-tests-final.log、persona-filter-lint-final.log、persona-filter-build-final.log、persona-filter-related-final.log。Impeccable仍无已安装skill folders，按DESIGN清单人工复核；新菜单名称使用五语已有scope/tags key，无新增文案。
+
+实屏：320×568中文深色角色标签选择→清空稳定root→Escape回标签且父More仍开；范围End/Enter选择回trigger。320×300范围向上至top12/bottom123、111px可滚动区、选中项可见，五项控件44px；标签75.81–173px，Tab回导出，父More保持。390×844中文浅色团队范围/标签，标签宽高≥44px。834×1112俄语sepia角色菜单及主操作换行完整；1440×900俄语深色团队菜单；390俄语浅色技能菜单共享hook回归，Escape回Filter且父More保持。所有抽检整页横溢0。截图在仓库外visualizations/resource-header：persona-320-short-scope、team-390-light-tags、persona-834-sepia-ru-scope（最终右对齐）、team-1440-dark-ru-tags。语言通过UI恢复中文，临时viewport/tab已清理；只读fixture写请求405，不证明保存、权限写入或真机软键盘。
+
+八项自检：原字号和阅读留白保留、长动作换行而不裁切；页头/搜索/菜单层级明确；三主题复用token；无新增装饰/动效/依赖，沿用reduced-motion；真实焦点/选择/关闭/Tab证据；手机短屏、平板和桌面边界可用；继续现有LambChat视觉语言。全站目标仍进行中，未闭合主清单不勾选；下一批优先核对技能写权限入口、剩余预览格式与编辑选择器组合，再补真实服务和原生设备验收。
+
+### 2026-10-03：技能权限入口与撤权焦点
+
+上一回合为 progress（985ec6d7）。开工 fetch/rebase 已确认最新 origin/develop；主 checkout、用户3017与其他预览保持不变。沿真实后端契约核对：skill:read 支持列表、文件、个人置顶/收藏；skill:write 管创建、导入、编辑、启停；skill:delete 与 marketplace:publish 各自独立。SkillsPanel/SkillsList/本地 SkillCard 按独立权限提供回调与入口，批量工具栏删除变为可选，Memory 原调用不变。只读保留搜索、筛选、偏好及 ZIP 导出入口，不再提供创建邀请、勾选或无权限编辑/启停/删除；没有新增只读详情页。弹层也由对应权限收敛；撤权且请求结束后清空旧选择，Retry 根据原失败操作权限提供，等待状态保持。
+
+7项真实组件/Hook/API边界测试先7failed后GREEN，覆盖读/写/删/发布独立组合、撤权清选择、失去写权限后的失败Retry及只读空状态。只读复核发现两个P2：持焦点Retry被撤权卸载、持焦点卡片checkbox被卸载。分别以实际 userEvent Tab/click 观察1failed6passed，再在 BatchActionBar 与共享 SkillBaseCard 记录持焦点控件，仅其断开时用既有 restoreOpenerFocusUnclaimed 恢复存活栏/卡片，保留其他控件或新弹层已拥有的焦点。最终复核未发现确定P1/P2，6个相关文件39项通过。最终全量798文件4030项通过、lint零错误/警告、tsc/Vite/PWA/build通过，预算未放宽：eager560463/561152 bytes、92条precache5027462/5242880 bytes。日志 /tmp/skill-permissions-tests-reviewed.log、skill-permissions-lint-reviewed.log、skill-permissions-build-reviewed.log；git diff --check通过。
+
+预览增加 skill-access=read|write|delete|publish，只限制技能域，其余域权限保留，不修改真实账号。IAB：390深色只读菜单只有取消置顶/取消收藏/导出；320×568浅色只读空状态无创建提示；390浅色写权限页头保留全选/GitHub/ZIP/新建，批量只有启用/禁用/清除且44×44px；320×300深色删除权限菜单无编辑/启停，批量仅删除/清除且44px，栏位240–300px；834 sepia发布权限菜单独立提供更新商店，无checkbox；1440浅色只读布局。抽检横溢0。截图在仓库外visualizations/resource-header。ZIP入口点击后IAB下载等待超时且无控制台错误，未取得下载文件证据，不宣称真实导出/写入已验收；fixture写请求405，不证明服务端持久化或设备触控。
+
+再次核对用户3017文件预览要求：390px原生查找浮层280×46px，展开前后代码top141px、height678.40625px不变；320px浮层left32/right312，无横溢，Cmd+F打开，choice匹配2处，Escape回代码预览。已有原生实现满足要求，不重复生产修改。截图file-native-find-390-dark.jpg；临时检查tab已关闭，用户tab未改。
+
+八项检查沿用排版/留白/层级、三主题token与reduced-motion，无新增装饰、动效或依赖；权限入口简化且触控尺寸保留，键盘恢复有真实组件测试与UI证据。npm exec --offline -- impeccable update仍报告未安装skill folders，按DESIGN清单人工验收。全站目标保持进行中；剩余预览格式、编辑选择器组合及真实服务/原生设备验收仍未闭合。
+
+### 2026-10-03：共享文档短屏高度与能力选择器导航
+
+上一 goal 回合为 progress（重新验证用户3017文件原生查找和手机尺寸，14项相关测试通过；已有实现不重复生产修改），此前未提交工作继续收尾。当前 fetch 确认 HEAD 含最新 origin/develop，主 checkout 的两个未跟踪目录与用户3017保持。技能/MCP 两个真实调用共享 PersonaEditorBindingSelector，搜索框 ArrowUp 原先留在搜索，现在进入最后一项；两项真实 userEvent 检查先2failed13passed再15passed，多选项分别覆盖技能API边界与直接MCP目录，不改选中草稿或Tab路径。
+
+共享 PDF/正常 Word/PPT DocumentViewerFrame 与 DocumentPreviewContent 的 PDF/PPT/CAD/HTML 外层取消固定400px最小高度，采用现有主题背景及 min-h-0，保持原生滚动与 fit-relative zoom。注意取消 CAD 外层并不代表内部 CAD 已适配。新增本地两页 PDF 样例由实际 PDF.js worker 渲染；320×300原缩放栏bottom449超出视口的真实断言RED，调整后bottom284，按钮44px，放大120%/还原100%正常。复核指出错误态居中裁掉顶部：损坏PDF在320×180标题top62.92小于内容top65，断言RED；改外层滚动、内层min-h-full自然增长后标题top89，scrollTop0，Tab到44px打开链接可见于135.77–179.77。错误语义alert、文案/颜色沿用五语与主题，链接未激活。独立复核关闭P2，最终无其他确定P1/P2。
+
+真实预览：390深色正常两页/适配；834×1112 sepia两页且toolbarbottom1067；1440×900浅色两页且toolbarbottom855，整页横溢0。能力选择器390深色ArrowUp使最后选项自动滚入list可见范围。截图在仓库外visualizations/resource-header，包含pdf-320-short-dark-zoom、pdf-390-dark-fit、pdf-834-sepia、pdf-1440-light及错误页截图。仅本地PDF实际渲染，不证明真实Word/PPT、认证、写入或原生设备触控/软键盘。
+
+最终全量798文件4032测试通过，lint零错误/警告，tsc/Vite/PWA/build通过（既有大chunk提示保留），预算未提高：eager560438/561152 bytes、92条precache5027235/5242880 bytes。日志/tmp/document-short-tests-final.log、document-short-lint-final.log、document-short-build-final.log；相关初次6文件35项通过，git diff --check通过。Impeccable无已安装skill folders，按DESIGN人工完成八项检查：字号/阅读留白保留，状态与操作层级明确，三主题token复用，无新装饰/依赖/动效，沿用reduced-motion，原生滚动、焦点和响应式有实际证据。全站目标保持 active，主清单未闭合项不勾选；下一批处理 FileFallback/CAD内部与PPT文本回退的固定高度，再继续剩余状态矩阵与真实服务/原生设备验收。
+
+### 2026-10-03：文件回退、CAD 与 PPT 文本的短屏阅读
+
+上一回合为 progress（cc7b7949），开工 fetch/rebase 确认 origin/develop 已包含。共享 FileFallbackPanel、CAD 内层和 PPT 文本回退取消400px最小高度；提示内层自然增长并滚动，下载复用44px共享Button，PPT标题沿用五语标签补页码，阅读区支持键盘焦点。CAD加载/错误提供status/alert，加载完成仅在overlay持焦点时交接至稳定viewer，不抢外部焦点。独立复核指出卸载失焦P2，deferred成功测试先1failed/2passed再修复；最终增量复核无其他确定P1/P2。
+
+实际320×300 RED：三种内容原400px超过235px区域，DWG下载bottom409.375不可见；GREEN根高235，Tab使44px下载按钮滚至232.375–276.375。实际PPT库与ZIP损坏关系样例恢复两页，End滚至第二页，reader235/scroll342。CAD原有仅absolute/inset布局还被DxfViewer注入relative覆盖，导致canvas0px；真实断言RED 0vs235，补width/height100%后GREEN235，390×844重新加载可见四条线构成的矩形。损坏DXF返回实际解析错误，alert保留，overlay235/scroll280；这次未取得End完成滚动后的证据，不把即时scrollTop0当作通过。截图在仓库外visualizations/resource-header。浅色1440 CAD画布810px，但白色默认图线对浅色背景对比不足，明确列入下一批；不能将高度正确当作全主题渲染完成。
+
+用户文件搜索要求再次实测390×844：现有CodeMirror原生查找浮层280×46px，position:absolute，展开前后contentTop65px不变，无第二工具栏；summarize命中两处，关闭回代码预览。3017与本worktree的相关工具栏和CSS逐字一致，已有实现无需重复修改。截图file-search-390-dark-final.png。
+
+相关3文件12项通过；新增CAD3项和PPT五语5项分别有真实RED。全量首次799文件通过、1个旧workspace懒加载测试超过默认1秒等待；仅将该测试标题等待改为8秒，与同类编辑器冷启动测试一致，重跑全量800文件4040项通过。lint零错误/警告，tsc/Vite/PWA/build通过，预算不变：eager560453/561152、92条precache5026809/5242880 bytes。日志/tmp/document-fallback-tests-final-retry.log、document-fallback-lint-verified.log、document-fallback-build-verified.log；git diff --check通过。npx --offline impeccable update报告未安装skill folders，按DESIGN人工检查排版、留白、层级、色彩、动效、微交互、响应式及原创性；无新依赖/装饰，沿用token/reduced-motion。仍未闭合CAD浅色对比、其他格式/状态及真实服务/原生设备验收；全站goal保持active，主清单未勾完，不宣称全站完成。

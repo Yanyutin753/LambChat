@@ -150,11 +150,12 @@ export const authApi = {
   },
 
   /**
-   * 获取可用的 OAuth 提供商列表
+   * 获取可用的 OAuth 提供商列表及公开认证和联系配置
    */
-  async getOAuthProviders(): Promise<{
+  async getOAuthProviders(signal?: AbortSignal): Promise<{
     providers: { id: string; name: string }[];
     registration_enabled: boolean;
+    admin_contact?: { email: string; url: string };
     turnstile?: {
       enabled: boolean;
       site_key: string;
@@ -166,6 +167,7 @@ export const authApi = {
     return authFetch<{
       providers: { id: string; name: string }[];
       registration_enabled: boolean;
+      admin_contact?: { email: string; url: string };
       turnstile?: {
         enabled: boolean;
         site_key: string;
@@ -173,7 +175,7 @@ export const authApi = {
         require_on_register: boolean;
         require_on_password_change: boolean;
       };
-    }>(`${API_BASE}/api/auth/oauth/providers`, { skipAuth: true });
+    }>(`${API_BASE}/api/auth/oauth/providers`, { skipAuth: true, signal });
   },
 
   /**
