@@ -295,7 +295,7 @@ export function SessionListContent({
               rel="noopener noreferrer"
               className="text-theme-text dark:text-stone-100 hover:text-theme-text dark:hover:text-stone-50 transition-colors"
             >
-              <BrandWordmark decorative className="size-7 w-auto mb-1" />
+              <BrandWordmark decorative className="size-7 w-auto" />
             </a>
           </div>
           <Tooltip content={t("sidebar.collapseSidebar")}>
@@ -626,7 +626,7 @@ export function SessionListContent({
                       type="button"
                       onClick={handleToggleSelectionMode}
                       aria-label={t("common.cancel")}
-                      className="sidebar-nav-btn flex size-7 items-center justify-center rounded-md"
+                      className="sidebar-nav-btn flex h-8 w-6 items-center justify-center rounded-md"
                     >
                       <X size={14} />
                     </button>
@@ -643,13 +643,15 @@ export function SessionListContent({
                 >
                   {selectModeButton}
                   {chatsUnreadCount > 0 && (
-                    <MarkAllReadBadge
-                      count={chatsUnreadCount}
-                      badgeId="all"
-                      markingReadId={markingReadId}
-                      onMarkAllRead={() => onMarkAllRead()}
-                      tooltip={t("sidebar.markAllRead")}
-                    />
+                    <div className="flex h-8 w-6 shrink-0 items-center justify-center max-sm:h-11 max-sm:w-11">
+                      <MarkAllReadBadge
+                        count={chatsUnreadCount}
+                        badgeId="all"
+                        markingReadId={markingReadId}
+                        onMarkAllRead={() => onMarkAllRead()}
+                        tooltip={t("sidebar.markAllRead")}
+                      />
+                    </div>
                   )}
                 </SidebarSectionHeader>
               )}
@@ -772,14 +774,14 @@ export function SessionListContent({
                   defaultValue: "已选 {{count}} 个",
                 })}
               </div>
-              <div className="flex shrink-0 items-center gap-1.5">
+              <div className="flex shrink-0 items-center gap-1">
                 <Tooltip content={t("sidebar.moveSelectedToProject")}>
                   <button
                     type="button"
                     disabled={selectedCount === 0}
                     onClick={() => setIsProjectPickerOpen((value) => !value)}
                     aria-label={t("sidebar.moveSelectedToProject")}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-theme-text-secondary transition hover:text-theme-text disabled:cursor-not-allowed disabled:opacity-45 dark:text-stone-300 dark:hover:text-stone-50"
+                    className="inline-flex h-8 w-6 shrink-0 items-center justify-center rounded-lg text-theme-text-secondary transition hover:text-theme-text disabled:cursor-not-allowed disabled:opacity-45 dark:text-stone-300 dark:hover:text-stone-50"
                   >
                     <FolderInput size={14} />
                   </button>
@@ -790,7 +792,7 @@ export function SessionListContent({
                     disabled={selectedCount === 0}
                     onClick={handleRequestDeleteSelected}
                     aria-label={t("sidebar.deleteSelected")}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-theme-error transition hover:text-theme-error disabled:cursor-not-allowed disabled:opacity-45 dark:text-red-400 dark:hover:text-red-300"
+                    className="inline-flex h-8 w-6 shrink-0 items-center justify-center rounded-lg text-theme-error transition hover:text-theme-error disabled:cursor-not-allowed disabled:opacity-45 dark:text-red-400 dark:hover:text-red-300"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -800,7 +802,7 @@ export function SessionListContent({
                     type="button"
                     onClick={onClearSelection}
                     aria-label={t("common.cancel")}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-theme-text-secondary transition hover:text-theme-text dark:text-stone-400 dark:hover:text-stone-100"
+                    className="inline-flex h-8 w-6 shrink-0 items-center justify-center rounded-lg text-theme-text-secondary transition hover:text-theme-text dark:text-stone-400 dark:hover:text-stone-100"
                   >
                     <X size={15} />
                   </button>

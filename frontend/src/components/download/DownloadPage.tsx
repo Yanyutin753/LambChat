@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useTheme } from "../../contexts/ThemeContext";
 import {
   Monitor,
   Terminal,
@@ -208,6 +209,7 @@ function SectionHeadingXL({
  */
 export function DownloadPage() {
   const { t } = useTranslation();
+  const { theme } = useTheme();
   const [scrolled, setScrolled] = useState(false);
   const [info, setInfo] = useState<VersionInfo | null>(null);
   const [failed, setFailed] = useState(false);
@@ -458,7 +460,11 @@ export function DownloadPage() {
         </div>
         <img
           className="public-brand-art"
-          src="/images/illustrations/auth-brand-workspace.webp"
+          src={
+            theme === "dark"
+              ? "/images/illustrations/auth-brand-workspace.webp"
+              : "/images/illustrations/auth-brand-workspace-light.webp"
+          }
           alt=""
           aria-hidden="true"
           fetchPriority="high"

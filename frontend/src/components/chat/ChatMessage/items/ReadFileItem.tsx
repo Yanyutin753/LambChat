@@ -276,7 +276,7 @@ const ReadFileItem = memo(function ReadFileItem({
         animatedDots={isStreamingLabel}
         suffix={
           lineRange ? (
-            <span className="shrink-0 font-mono font-medium opacity-60 leading-none">
+            <span className="shrink-0 opacity-60">
               {lineRange}
             </span>
           ) : undefined

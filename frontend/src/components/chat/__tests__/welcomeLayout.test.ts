@@ -91,7 +91,7 @@ test("keeps mobile welcome cards readable with stable touch targets", () => {
   );
 });
 
-test("widens welcome suggestion containers only from the sm breakpoint", () => {
+test("keeps the persona gallery aligned with the composer at every breakpoint", () => {
   const promptWidths = [
     "sm:max-w-[48rem]",
     "md:max-w-[50rem]",
@@ -100,11 +100,11 @@ test("widens welcome suggestion containers only from the sm breakpoint", () => {
     "2xl:max-w-[56rem]",
   ];
   const personaWidths = [
-    "sm:max-w-[52rem]",
-    "md:max-w-[54rem]",
-    "lg:max-w-[58rem]",
-    "xl:max-w-[62rem]",
-    "2xl:max-w-[66rem]",
+    "sm:max-w-[44rem]",
+    "md:max-w-[46rem]",
+    "lg:max-w-[48rem]",
+    "xl:max-w-[50rem]",
+    "2xl:max-w-[52rem]",
   ];
 
   const promptClass = getWelcomeSuggestionsContainerClass("prompts");

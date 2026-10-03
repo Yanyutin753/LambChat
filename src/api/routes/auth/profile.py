@@ -55,7 +55,9 @@ def _validate_bounded_string_list(
 
 
 def _validate_theme_schedule(schedule: object) -> None:
-    """按时段自动切换主题的偏好：{enabled, start, end, nightTheme}"""
+    """按时段自动切换主题的偏好：{enabled, start, end, nightTheme}，None 表示清除。"""
+    if schedule is None:
+        return
     if not isinstance(schedule, dict):
         raise AppError(ErrorCode.INVALID_THEME_SCHEDULE)
     if set(schedule.keys()) != {"enabled", "start", "end", "nightTheme"}:

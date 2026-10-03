@@ -132,6 +132,37 @@ async def test_update_profile_metadata_rejects_too_many_skill_lists(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("theme", ["light", "dark", "sepia"])
+async def test_update_profile_metadata_accepts_theme_without_schedule(
+    monkeypatch: pytest.MonkeyPatch, theme: str
+) -> None:
+    received: dict = {}
+
+    class _FakeStorage:
+        async def update_metadata(self, _user_id, metadata):
+            received.update(metadata)
+            return {"metadata": metadata}
+
+    monkeypatch.setattr(user_storage, "UserStorage", lambda: _FakeStorage())
+
+    app = FastAPI()
+    app.include_router(profile_route.router, prefix="/api/auth")
+    register_error_handlers(app)
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.put(
+            "/api/auth/profile/metadata",
+            json={"metadata": {"theme": theme, "themeSchedule": None}},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["metadata"] == {"theme": theme, "themeSchedule": None}
+    assert received == {"theme": theme, "themeSchedule": None}
+
+
+@pytest.mark.asyncio
 async def test_update_profile_metadata_accepts_valid_theme_schedule(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -170,6 +201,11 @@ async def test_update_profile_metadata_accepts_valid_theme_schedule(
 @pytest.mark.parametrize(
     "schedule",
     [
+        False,
+        "",
+        0,
+        [],
+        {},
         {"enabled": True, "start": "24:00", "end": "07:00", "nightTheme": "dark"},
         {"enabled": True, "start": "22:0", "end": "07:00", "nightTheme": "dark"},
         {"enabled": True, "start": "2200", "end": "07:00", "nightTheme": "dark"},
@@ -179,7 +215,7 @@ async def test_update_profile_metadata_accepts_valid_theme_schedule(
     ],
 )
 async def test_update_profile_metadata_rejects_invalid_theme_schedule(
-    monkeypatch: pytest.MonkeyPatch, schedule: dict
+    monkeypatch: pytest.MonkeyPatch, schedule: object
 ) -> None:
     class _StorageShouldNotBeCalled:
         async def update_metadata(self, *_args, **_kwargs):

@@ -169,7 +169,7 @@ function ChatInputShellSkeleton() {
         </div>
       </div>
       {/* Toolbar — 1:1 with real ChatInputToolbar default idle state */}
-      <div className="flex max-w-full flex-nowrap justify-between gap-1.5 px-2 pb-3 pt-3 mx-0.5">
+      <div className="flex max-w-full flex-nowrap justify-between gap-1.5 px-1 py-2 sm:px-2 sm:py-3 mx-0.5">
         <div className="flex min-h-10 min-w-0 flex-1 items-center gap-1.5">
           {/* FeatureMenu button (chat-tool-btn: fixed 2.25rem height, rounded-full) */}
           <div className="skeleton-line h-9 w-9 rounded-full shrink-0" />
@@ -288,12 +288,12 @@ export function WelcomeSkeleton() {
         <div className="welcome-suggestions-header flex items-center justify-between mb-2 sm:mb-2.5 md:mb-2.5 xl:mb-3 2xl:mb-3">
           <div className="flex items-center gap-1.5">
             <div
-              className="welcome-skeleton-line size-[11px] sm:w-3.5 sm:h-3.5 xl:w-4 xl:h-4 rounded-full"
+              className="welcome-skeleton-line size-[13px] rounded-full"
               style={{ opacity: 0.6 }}
             />
             <div
               className="welcome-skeleton-line w-20 sm:w-24"
-              style={{ height: "12px" }}
+              style={{ height: "13px" }}
             />
           </div>
           <div className="flex items-center gap-2">

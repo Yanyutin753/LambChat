@@ -140,13 +140,12 @@ export function CollapsiblePill({
   const displayedLabel = formatLabel ? formattedLabel : label;
 
   return (
-    <div className="my-1 min-w-0 max-w-full overflow-hidden">
+    <div className="my-1 min-w-0 max-w-full">
       <button
         type="button"
         onClick={handleToggle}
         className={clsx(
           "pill-btn",
-          "inline-flex items-center gap-2 px-3 py-1 rounded-full text-12 font-medium max-w-full h-7",
           statusStyles[status],
           enterClass,
           status === "loading" && "pill-loading-breathe",
@@ -158,7 +157,7 @@ export function CollapsiblePill({
         {icon}
         <span
           className={clsx(
-            "text-12 font-mono font-medium min-w-0 truncate overflow-hidden leading-none",
+            "min-w-0 truncate overflow-hidden",
             animatedDots && "typing-dots",
           )}
         >

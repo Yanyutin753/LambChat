@@ -44,11 +44,11 @@ export function ProfileModelsTab() {
                   icon={model.icon}
                   size={22}
                 />
-                <span className="flex-1 min-w-0 text-14 font-medium text-theme-text dark:text-stone-200 truncate">
+                <span className="flex-1 min-w-0 text-14 font-medium font-serif text-theme-text dark:text-stone-200 truncate">
                   {model.label}
                 </span>
                 {model.provider && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-10 font-medium capitalize bg-theme-bg-subtle dark:bg-stone-700 text-theme-text-secondary dark:text-stone-400 shrink-0">
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-10 font-medium font-serif capitalize bg-theme-bg-subtle dark:bg-stone-700 text-theme-text-secondary dark:text-stone-400 shrink-0">
                     {model.provider}
                   </span>
                 )}

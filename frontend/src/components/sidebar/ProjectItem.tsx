@@ -377,7 +377,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
               <ProjectWorkspaceDetails value={project.workspace} />
             )}
             {!isEditing && unreadCount > 0 && (
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center max-sm:h-9 max-sm:w-9">
+              <div className="flex h-8 w-6 shrink-0 items-center justify-center max-sm:h-11 max-sm:w-11">
                 <MarkAllReadBadge
                   count={unreadCount}
                   badgeId={`project-${project.id}`}
@@ -402,9 +402,9 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
                   aria-label={t("sidebar.newChatInProject", {
                     project: project.name,
                   })}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] max-sm:h-9 max-sm:w-9"
+                  className="flex h-8 w-6 shrink-0 items-center justify-center rounded-md text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] max-sm:h-9 max-sm:w-9"
                 >
-                  <SquarePen size={16} aria-hidden="true" />
+                  <SquarePen size={14} aria-hidden="true" />
                 </button>
               </Tooltip>
             )}
@@ -416,7 +416,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
                   ref={menuButtonRef}
                   onClick={handleMenuClick}
                   aria-label={t("sidebar.moreOptions")}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center max-sm:h-9 max-sm:w-9 rounded p-0.5 transition-colors"
+                  className="flex h-8 w-6 shrink-0 items-center justify-center max-sm:h-9 max-sm:w-9 rounded-md transition-colors"
                 >
                   <MoreHorizontal
                     size={14}

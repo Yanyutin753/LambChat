@@ -1,6 +1,12 @@
 import path from "node:path";
 import { defineConfig } from "vitest/config";
 
+// Vitest saturates every core by default, which starves the desktop on
+// many-core dev machines (measured PSI cpu ~50% on a 16-thread laptop).
+// Cap workers to keep the UI responsive; CI runners (≤4 cores) are
+// unaffected. Override locally with VITEST_MAX_WORKERS=16 for full speed.
+const maxWorkers = Number(process.env.VITEST_MAX_WORKERS) || 8;
+
 export default defineConfig({
   test: {
     globals: true,
@@ -8,6 +14,7 @@ export default defineConfig({
     // Component tests that need DOM should add: // @vitest-environment jsdom
     environment: "node",
     include: ["src/**/__tests__/**/*.test.{ts,tsx}"],
+    maxWorkers,
     setupFiles: ["src/test-setup.ts"],
     coverage: {
       provider: "v8",

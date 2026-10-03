@@ -98,3 +98,32 @@ test("an already closed disabled select does not announce an artificial open cha
   );
   expect(onOpenChange).not.toHaveBeenCalled();
 });
+
+test("grouped options keep headings out of keyboard navigation and skip disabled choices", () => {
+  const onChange = vi.fn();
+  render(
+    <Select
+      value="one"
+      onChange={onChange}
+      ariaLabel="Category"
+      options={[
+        { value: "one", label: "First", group: "Basics" },
+        { value: "two", label: "Second", group: "Models", disabled: true },
+        { value: "three", label: "Third", group: "Models" },
+      ]}
+    />,
+  );
+  const trigger = screen.getByRole("button", { name: "Category" });
+  fireEvent.keyDown(trigger, { key: "ArrowDown" });
+  expect(screen.getAllByRole("group")).toHaveLength(2);
+  expect(screen.getByRole("group", { name: "Models" })).toContainElement(
+    screen.getByRole("option", { name: "Third" }),
+  );
+  expect(screen.getByRole("option", { name: "First" })).toHaveFocus();
+  fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+  expect(screen.getByRole("option", { name: "Third" })).toHaveFocus();
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+  expect(screen.queryByRole("listbox")).toBeNull();
+  expect(trigger).toHaveFocus();
+  expect(onChange).not.toHaveBeenCalled();
+});

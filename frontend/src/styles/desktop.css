@@ -192,16 +192,21 @@ html:has([data-titlebar], [data-workspace-ui])
   min-width: 0;
 }
 
-/* Serif glyphs sit optically high beside avatars; keep their full line boxes. */
-.chat-input-toolbar .font-serif,
+/* Center the serif glyphs optically without shrinking their clipping box. */
 .chat-assistant-heading .font-serif {
   position: relative;
-  top: 1px;
+  top: 0.125em;
 }
 
 html:has([data-titlebar], [data-workspace-ui]) .chat-input-toolbar .font-serif {
   font-size: 0.8125rem;
   font-weight: 500;
+}
+
+/* Compact toolbar labels retain their optical alignment correction. */
+.chat-input-toolbar .font-serif {
+  position: relative;
+  top: 1px;
 }
 
 html:has([data-titlebar], [data-workspace-ui]) .chat-tool-btn {

@@ -3,13 +3,19 @@ import { expect, test } from "vitest";
 const read = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 
-test("phone navigation and its action sheets use 44px controls without shrinking titles", () => {
+test("phone navigation uses compact 40px rows while action sheets retain 44px controls", () => {
   const css = read("../components.css");
   expect(css).toMatch(
     /@media \(max-width: 639px\)\s*\{\s*\.session-sidebar-drawer \.sidebar-action-row,\s*\.sidebar-nav-btn\s*\{[^}]*min-height:\s*2\.75rem;/,
   );
   expect(css).toMatch(
     /\.session-sidebar-drawer button,\s*\.sidebar-mobile-menu button\s*\{[^}]*min-width:\s*2\.75rem;[^}]*min-height:\s*2\.75rem;/,
+  );
+  expect(css).toMatch(
+    /\.session-sidebar-drawer \.sidebar-nav-btn,\s*\.session-sidebar-drawer \.sidebar-section-header,\s*\.session-sidebar-drawer \.sidebar-section-header button\s*\{[^}]*min-height:\s*2\.5rem;/,
+  );
+  expect(read("../../components/panels/SidebarParts/SidebarSectionHeader.tsx")).toContain(
+    "sidebar-section-header",
   );
   expect(css).toMatch(/\.sidebar-action-controls\s*\{\s*gap:\s*0;/);
   expect(read("../../components/panels/SessionSidebar.tsx")).toContain(
