@@ -368,7 +368,7 @@ export function WorkspacePanel({
                     className="shrink-0 text-theme-text-secondary"
                   />
                 )}
-                <span className="truncate text-13 text-left">{node.name}</span>
+                <span className="truncate text-14 text-left">{node.name}</span>
               </button>
               {expanded && node.error && (
                 <div
