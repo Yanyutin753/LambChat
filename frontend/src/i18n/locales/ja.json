@@ -900,6 +900,7 @@
       "removeBookmark": "ブックマークを削除",
       "result": "結果",
       "retryAnswer": "回答を再生成",
+      "runInterrupted": "回答が中断されました",
       "runStepsCount": "{{count}} ステップ",
       "runStepsDetail": "詳細を表示",
       "runStepsStopped": "停止しました",

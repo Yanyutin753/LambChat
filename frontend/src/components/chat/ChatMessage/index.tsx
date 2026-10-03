@@ -1,7 +1,7 @@
 import { clsx } from "clsx";
 import { useEffect, useRef, useState, memo } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, GitBranch, Info, Loader2, Target } from "lucide-react";
+import { ChevronDown, GitBranch, Info, Loader2, RotateCcw, Target, WifiOff } from "lucide-react";
 import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosition";
 import type {
   Message,
@@ -32,6 +32,7 @@ import {
   splitRunTailGroups,
 } from "./runStepsCollapseUtils";
 import { FeedbackButtons } from "./FeedbackButtons";
+import { isInterruptedRunMessage } from "./interruptedRun";
 import { AssistantAvatar } from "./AssistantAvatar";
 import { ShareButton } from "./ShareButton";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
@@ -57,6 +58,7 @@ import type { ActiveGoalSpec } from "../../../hooks/useAgent/types";
 import { createMessageAnchorId } from "../../layout/AppContent/messageOutline";
 import { formatDateTime, formatDateTimeShort } from "../../../utils/datetime";
 import { CopyButton } from "../../common/CopyButton";
+import { Button } from "../../common/ui/Button";
 import { shouldShowGoalDetailsForMessage } from "../goalVisibility";
 import { areChatMessagePropsEqual } from "./messageMemo";
 import { hasPendingAskHuman } from "../../../hooks/useAgent/messageParts";
@@ -821,6 +823,34 @@ export const ChatMessage = memo(function ChatMessage({
           )}
           {/* Streaming state now lives in the RunStepsCollapse "Working…" row (Codex-style) */}
         </div>
+        {/* 断联窗口内远端终结且零产出的 run：给出「回答已中断」与重试入口 */}
+        {!message.isStreaming &&
+          !isWaitingForHuman &&
+          isInterruptedRunMessage(message) && (
+            <div
+              className="my-2 inline-flex max-w-full flex-wrap items-center gap-2 px-4 py-2 rounded-xl text-13 font-medium"
+              style={{
+                background:
+                  "color-mix(in srgb, var(--theme-primary) 8%, transparent)",
+                border:
+                  "1px solid color-mix(in srgb, var(--theme-primary) 18%, transparent)",
+                color: "var(--theme-primary)",
+              }}
+            >
+              <WifiOff size={10} className="shrink-0" />
+              <span>{t("chat.message.runInterrupted")}</span>
+              {isLastMessage && onRetryCancelledMessage && (
+                <Button
+                  size="sm"
+                  onClick={() => void onRetryCancelledMessage(message.id)}
+                  className="chat-cancelled-retry max-w-full whitespace-normal"
+                  leftIcon={<RotateCcw size={12} className="shrink-0" />}
+                >
+                  {t("chat.message.retryAnswer")}
+                </Button>
+              )}
+            </div>
+          )}
         {/* Copy button and Token button - same line at bottom, show on message hover (only after message completes) */}
         {!message.isStreaming && !isWaitingForHuman && (
           <div className="chat-message-actions flex items-center gap-1 pb-2">

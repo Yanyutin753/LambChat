@@ -900,6 +900,7 @@
       "removeBookmark": "Remove bookmark",
       "result": "Result",
       "retryAnswer": "Retry answer",
+      "runInterrupted": "Response was interrupted",
       "runStepsCount": "{{count}} steps",
       "runStepsDetail": "Show full details",
       "runStepsStopped": "Stopped",

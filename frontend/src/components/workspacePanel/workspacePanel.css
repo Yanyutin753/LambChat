@@ -50,7 +50,7 @@
   gap: 6px;
   min-height: 32px;
   padding: 0 12px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   text-align: left;
   border-top: 1px solid var(--theme-border);
@@ -98,7 +98,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 .workspace-file-menu {
   display: flex;

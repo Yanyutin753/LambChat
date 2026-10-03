@@ -171,15 +171,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           "vendor-react": ["react", "react-dom", "react-router-dom"],
-          "vendor-markdown": [
-            "react-markdown",
-            "remark-gfm",
-            "remark-breaks",
-            "remark-math",
-            "rehype-katex",
-            "rehype-highlight",
-          ],
-          "vendor-katex": ["katex"],
           "vendor-i18n": ["i18next", "react-i18next"],
         },
       },

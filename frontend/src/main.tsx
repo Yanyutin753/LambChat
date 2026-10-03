@@ -1,6 +1,5 @@
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import "katex/dist/katex.min.css";
 import "./fonts.css";
 // 动态 import chunk 拉取失败自愈（桌面端更新重启后 WebView2 缓存旧
 // index.html 引用已删除 chunk）：吞错并带 cache-bust 参数重载一次。

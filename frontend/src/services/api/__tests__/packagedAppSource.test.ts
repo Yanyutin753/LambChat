@@ -100,7 +100,7 @@ test("backend-provided avatar URLs are resolved before image rendering", () => {
     "../../../components/panels/SidebarParts/SidebarUserRow.tsx",
     "../../../components/panels/SidebarParts/SidebarRail.tsx",
     "../../../components/share/SharedPage.tsx",
-    "../../../components/layout/AppContent/MessageOutlinePanel.tsx",
+    "../../../components/layout/AppContent/MessageOutlineFlow.tsx",
     "../../../components/persona/PersonaAvatarIcon.tsx",
     "../../../components/chat/ChatMessage/AssistantAvatar.tsx",
     "../../../components/chat/ChatMessage/subagentRoleMeta.ts",

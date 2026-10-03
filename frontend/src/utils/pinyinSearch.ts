@@ -1,12 +1,31 @@
-import { pinyin } from "pinyin-pro";
 import type { ToolInfo } from "../types/tool";
+
+type PinyinFn = (
+  text: string,
+  options: { toneType: "none"; separator: string },
+) => string;
+
+let pinyinFn: PinyinFn | null = null;
+let preloading: Promise<void> | null = null;
+
+/**
+ * pinyin-pro is a ~440KB dictionary; only tool-search matching needs it, so
+ * it loads on demand (when the selector opens) instead of the first-paint
+ * shell. Until it resolves, toPinyin degrades to the original text.
+ */
+export function preloadPinyin(): Promise<void> {
+  preloading ??= import("pinyin-pro").then((m) => {
+    pinyinFn = m.pinyin as PinyinFn;
+  });
+  return preloading;
+}
 
 /**
  * Convert Chinese text to space-separated pinyin.
  * Non-Chinese characters are preserved as-is.
  */
 export function toPinyin(text: string): string {
-  return pinyin(text, { toneType: "none", separator: "" });
+  return pinyinFn ? pinyinFn(text, { toneType: "none", separator: "" }) : text;
 }
 
 /**
