@@ -20,6 +20,7 @@ import toast from "react-hot-toast";
 import { SkeletonList, SkeletonCard } from "../skeletons";
 import { Checkbox } from "../common/Checkbox";
 import { CopyButton } from "../common/CopyButton";
+import { SceneIllustration } from "../common/SceneIllustration";
 import { IconButton, ToolbarIconButton } from "../common/ui";
 import { shareApi } from "../../services/api/share";
 import type {
@@ -244,10 +245,10 @@ export function ShareDialog({
     <ModalSurface open={isOpen} onClose={onClose} dismissible={true}>
       <div className="relative z-10 w-full sm:max-w-xl sm:mx-4 sm:pointer-events-auto bg-white dark:bg-stone-800 sm:rounded-xl rounded-t-xl shadow-xl border border-stone-200 dark:border-stone-700 overflow-hidden duration-300 max-h-[90vh] max-h-[90dvh] flex flex-col animate-slide-up-sheet sm:animate-in sm:fade-in sm:zoom-in-95 sm:duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-stone-700">
-          <div className="flex items-center gap-2 pt-2 sm:pt-0">
-            <Share2 size={20} className="text-stone-500 dark:text-stone-400" />
-            <h3 className="text-18 font-semibold font-serif text-stone-900 dark:text-stone-100">
+        <div className="flex shrink-0 items-center justify-between gap-3 px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-stone-700">
+          <div className="flex min-w-0 items-center gap-3 pt-2 sm:pt-0">
+            <SceneIllustration scene="message" className="!h-12 !w-12" />
+            <h3 className="min-w-0 break-words text-18 font-semibold font-serif text-stone-900 dark:text-stone-100">
               {t("share.title")}
             </h3>
           </div>

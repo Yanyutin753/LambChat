@@ -4598,6 +4598,12 @@
   .session-sidebar-drawer .sidebar-section-header button {
     min-height: 2.5rem;
   }
+  .session-sidebar-drawer .sidebar-section-header {
+    gap: 0;
+  }
+  .session-sidebar-drawer .sidebar-section-header button {
+    min-width: 2.25rem;
+  }
   .sidebar-action-controls {
     gap: 0;
   }

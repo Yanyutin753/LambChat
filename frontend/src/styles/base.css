@@ -50,6 +50,22 @@
   }
 }
 
+@media (max-width: 639px) {
+  .app-toaster {
+    --app-toast-padding: 4px 10px;
+    --app-toast-min-width: 0px;
+  }
+
+  .app-toaster .app-toast-content {
+    gap: 6px;
+  }
+
+  .app-toast-message > [role="status"] {
+    margin: 4px 0;
+    overflow-wrap: anywhere;
+  }
+}
+
 /* 统一 checkbox / radio 样式 */
 input[type="checkbox"],
 input[type="radio"] {

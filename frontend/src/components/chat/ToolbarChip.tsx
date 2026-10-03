@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -25,6 +25,22 @@ export function ToolbarChip({
   onClear,
 }: ToolbarChipProps) {
   const { t } = useTranslation();
+  const labelRef = useRef<HTMLSpanElement>(null);
+  const [labelOverflows, setLabelOverflows] = useState(false);
+
+  useLayoutEffect(() => {
+    const element = labelRef.current;
+    if (!element) return;
+    const measure = () => {
+      setLabelOverflows(element.scrollWidth > element.clientWidth);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [label]);
+
   return (
     <div className="composer-toolbar-chip group relative flex min-w-0 shrink">
       <button
@@ -43,11 +59,12 @@ export function ToolbarChip({
               {icon}
             </span>
           )}
-          {/* 名称在空间不足时截断；手机端外层仍保留完整点击区域。 */}
+          {/* 手机端放不下完整名称时只显示图标；保留布局以便宽度恢复后重新测量。 */}
           <span
+            ref={labelRef}
             className={`min-w-0 truncate text-14 leading-5 font-semibold text-blue-600 dark:text-blue-400 font-serif${
               labelClassName ? ` ${labelClassName}` : ""
-            }`}
+            }${icon && labelOverflows ? " max-sm:invisible" : ""}`}
           >
             {label}
           </span>
