@@ -1,0 +1,173 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+uploads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+/.venv/
+/venv/
+/ENV/
+/env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+.env.*.tmp
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Redis
+dump.rdb
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# MyPy
+.mypy_cache/
+frontend/node_modules/
+frontend/src-tauri/icons/
+# tsc incremental build cache — regenerated on every build, must not be tracked
+frontend/tsconfig.tsbuildinfo
+frontend/**/*.tsbuildinfo
+
+# Local sandbox daemon build artifacts (PyInstaller onefile + Tauri sidecar binaries)
+frontend/src-tauri/binaries/
+# Embedded python-build-standalone tarballs (build-time fetch-pbs.py download, ~100MB each)
+frontend/src-tauri/resources/python/
+# Tauri Rust 构建产物（Cargo.lock 入库：壳的可复现构建依赖锁文件，M4 T8）
+frontend/src-tauri/target/
+frontend/src-tauri/gen/
+client/dist/
+client/build/
+mcp.json
+
+# DeepAgent workspace
+workspace/
+
+# Documentation
+docs/deepagents
+.omc/
+
+.docs/
+docs/plans/
+node_modules/
+.claude/
+!docs/images/
+!docs/images/**/
+frontend/src/components/common/DynamicIcon.tsx
+.codex/
+claude-code
+.playwright-mcp/
+docs/.vitepress/.temp/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+
+# YubbChat (external project, not part of this repo)
+YubbChat/
+.codex
+/scripts/*
+!/scripts/
+!/scripts/create_daytona_snapshot.py
+!/scripts/create_e2b_template.py
+!/scripts/migrate_docx_skill_paths.py
+!/scripts/migrate_trace_events_to_chunks.py
+!/scripts/verify_trace_event_chunks.py
+!/scripts/pre_deploy_db_checks.py
+!/scripts/seed_desktop_preview.py
+!/scripts/extract_raise_sites.py
+!/scripts/codemod_error_literals.py
+!/scripts/cleanup_junk_memories.py
+!/scripts/sync_error_locales.py
+!/scripts/backfill_memory_scope.py
+!/scripts/eval_systemone_gate.py
+!/scripts/e2e_local_sandbox.py
+!/scripts/verify_sandbox_pause_heal.py
+!/scripts/verify_sandbox_cross_session.py
+!/scripts/generate_updater_manifest.py
+!/scripts/benchmark_memory_scope.py
+!/scripts/site-screenshots/
+!/scripts/site-screenshots/capture_all.py
+!/scripts/site-screenshots/make_auth.py
+!/scripts/site-screenshots/README.md
+docs/docs/.vitepress/
+k8s/lambchat-secret.yaml
+k8s/lambchat.yaml
+
+# Superpowers (external project, not part of this repo)
+.superpowers/
+.worktrees/
+
+# Personal logs & audits (not for sync)
+log_and_audit/
+uv.lock
+
+# Agent tooling local state (ZCode / Mimosa, not part of this repo)
+.mimosa/
+.zcode/
+
+# GUI 走查截图（agent 生成的本地验证产物，勿提交）
+gui-test-screenshots/
+
+# 本地工单/PR 文稿（工单清单、spec、PR body 草稿，勿提交）
+tickets/
+
+# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
+.git/
+.hg/
+.svn/
+bower_components/
+jspm_packages/
+site-packages/
+venv/
+coverage/
+lcov-report/
+cmakefiles/
+cmake-build-*/
+bazel-*/
+pods/
+deriveddata/
+storybook-static/
+playwright-report/
+test-results/
+allure-results/
+allure-report/
+cdk.out/
+*.dist-info/
+pip-wheel-metadata/
+# ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
+# 自定义规则写在下方（本行提示可删除）

@@ -84,13 +84,13 @@ export function HeroSection({ onLogin }: HeroSectionProps) {
           className="mt-12 sm:mt-24 pt-6 sm:pt-8 border-t border-stone-200/40 dark:border-stone-800/30"
         >
           <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 sm:gap-x-5 sm:gap-y-2.5">
-            <span className="text-10 font-semibold tracking-[0.14em] uppercase text-theme-text-tertiary dark:text-theme-text-secondary">
+            <span className="text-10 font-serif font-semibold tracking-[0.14em] uppercase text-theme-text-tertiary dark:text-theme-text-secondary">
               {t("landing.footerBuiltWith")}
             </span>
             {TECH_STACK.map((tech) => (
               <span
                 key={tech.label}
-                className={`blog-tech-pill inline-flex items-center rounded-full px-3 py-1 text-11 sm:text-12 font-medium text-theme-text-secondary border border-stone-100/60 dark:border-stone-700/20`}
+                className={`blog-tech-pill inline-flex items-center rounded-full px-3 py-1 text-11 sm:text-12 font-medium font-serif text-theme-text-secondary border border-stone-100/60 dark:border-stone-700/20`}
               >
                 {tech.label}
               </span>
