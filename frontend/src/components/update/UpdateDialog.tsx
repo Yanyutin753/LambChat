@@ -43,13 +43,14 @@ export function UpdateDialog({
     }
   }, [isOpen, state.error]);
 
-  // Linux 安装来源分流文案：deb/rpm=下载并安装（pkexec），unknown=前往下载
-  // （无法判定安装方式不盲装），appimage/非 Linux 保持 updater 语义
+  // Linux 安装来源分流文案：deb/rpm=下载并安装（pkcon/pkexec），appimage/
+  // unknown=前往下载（AppImage 已停发，引导换装 deb），其余保持 updater 语义
   const source = state.linuxInstallSource;
   const isLinuxPackage =
     platform === "tauri" && (source === "deb" || source === "rpm");
-  const isUnknownSource = platform === "tauri" && source === "unknown";
-  const isGoToDownload = platform === "ios" || isUnknownSource;
+  const isGoToDownload =
+    platform === "ios" ||
+    (platform === "tauri" && (source === "unknown" || source === "appimage"));
 
   const footer = (
     <>
@@ -98,10 +99,13 @@ export function UpdateDialog({
             ? t("updateRetry", "重试")
             : isGoToDownload
               ? t("updateGoToDownload", "前往下载")
-              : isLinuxPackage
-                ? t("updateDownloadAndInstall", "下载并安装")
-                : state.readyToInstall
-                  ? t("update.updateRelaunchInstall", "重启并安装")
+              : state.readyToInstall
+                ? // 移动端已下载完整 APK：直接安装不重下；桌面语义是重启替换
+                  platform === "android"
+                  ? t("update.installNow", "安装")
+                  : t("update.updateRelaunchInstall", "重启并安装")
+                : isLinuxPackage
+                  ? t("updateDownloadAndInstall", "下载并安装")
                   : t("updateDownload", "立即升级")}
       </Button>
     </>

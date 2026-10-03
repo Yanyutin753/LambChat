@@ -3852,6 +3852,7 @@
     "upToDate": "已是最新版本",
     "installPermissionHint": "请先允许 LambChat 安装未知应用，授权后重新点击升级",
     "updateRelaunchInstall": "重启并安装",
+    "installNow": "安装",
     "availableTitle": "发现新版本",
     "skipVersion": "跳过此版本",
     "viewFullNotes": "查看完整更新日志",

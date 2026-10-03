@@ -3852,6 +3852,7 @@
     "upToDate": "You are on the latest version",
     "installPermissionHint": "Allow LambChat to install unknown apps first, then tap upgrade again",
     "updateRelaunchInstall": "Restart & install",
+    "installNow": "Install",
     "availableTitle": "Update Available",
     "skipVersion": "Skip This Version",
     "viewFullNotes": "View full changelog",

@@ -29,7 +29,9 @@ test("release workflow publishes branded desktop and mobile artifacts", () => {
   expect(workflow).toMatch(/label: Linux x86_64/);
   expect(workflow).toMatch(/label: Linux ARM64/);
   expect(workflow).toMatch(/runner: ubuntu-24\.04-arm/);
-  expect(workflow).toMatch(/bundles: appimage,deb,rpm/);
+  // Linux 只发 deb/rpm（AppImage 停发，应用内走缓存+pkexec 自研链路）
+  expect(workflow).toMatch(/bundles: deb,rpm/);
+  expect(workflow).not.toMatch(/appimage/);
   // macOS 双架构矩阵：两条目都在 macos-14（arm64 宿主）上构建，Intel 走
   // rustup target 交叉编译 + daemon Rosetta 路径（矩阵变量而非字面量）
   expect(workflow).toMatch(/runner: macos-14/);
@@ -63,11 +65,12 @@ test("release workflow publishes branded desktop and mobile artifacts", () => {
   );
   expect(manifestGenerator).toMatch(/version = tag\.lstrip\("v"\)/);
   expect(workflow).toMatch(/frontend\/src-tauri\/target\/release\/bundle/);
-  expect(workflow).toMatch(
-    /LambChat-\$\{RELEASE_TAG\}-Linux-\$\{arch\}\.AppImage/,
-  );
   expect(workflow).toMatch(/LambChat-\$\{RELEASE_TAG\}-Linux-\$\{arch\}\.deb/);
   expect(workflow).toMatch(/LambChat-\$\{RELEASE_TAG\}-Linux-\$\{arch\}\.rpm/);
+  // Windows：NSIS setup 为主推（updater 载体），MSI 企业部署保留
+  expect(workflow).toMatch(
+    /LambChat-\$env:RELEASE_TAG-Windows-x64-setup\.exe/,
+  );
   expect(workflow).toMatch(/LambChat-\$env:RELEASE_TAG-Windows\.msi/);
   expect(workflow).toMatch(/LambChat-\$env:RELEASE_TAG-Windows-Portable\.zip/);
   // macOS 资产名带架构段（asset_suffix 矩阵变量）：双架构产物不得同名互踩

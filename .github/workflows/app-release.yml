@@ -37,32 +37,30 @@ jobs:
       # 归档按平台落 resources/python/<tag>/，与 daemon 平台一一对应）
       # updater_*：即发即传时增量合并 latest.json 的平台条目（macOS 走
       # .app.tar.gz updater 产物，dmg 仅用于首装不分发更新）
+          # Linux 只发 deb/rpm（AppImage 已停发）：应用内更新走自研
+          # 「版本化缓存下载 + pkcon/pkexec 安装」链路，不进 updater 清单
           - label: Linux x86_64
             runner: ubuntu-latest
-            bundles: appimage,deb,rpm
+            bundles: deb,rpm
             artifact_slug: linux-x86_64
             arch: x86_64
             pbs_platform: linux-x86_64
-            updater_key: linux-x86_64
-            updater_sig: "*_amd64.AppImage.sig"
-            updater_asset_suffix: Linux-x86_64.AppImage
           - label: Linux ARM64
             runner: ubuntu-24.04-arm
-            bundles: appimage,deb,rpm
+            bundles: deb,rpm
             artifact_slug: linux-arm64
             arch: arm64
             pbs_platform: linux-aarch64
-            updater_key: linux-aarch64
-            updater_sig: "*_aarch64.AppImage.sig"
-            updater_asset_suffix: Linux-arm64.AppImage
+          # Windows 双包：NSIS（currentUser，主推——零 UAC 自更新）+ MSI
+          # （企业部署保留）。updater 条目指向 NSIS setup.exe
           - label: Windows
             runner: windows-2022
-            bundles: msi
+            bundles: msi,nsis
             artifact_slug: windows
             pbs_platform: windows-x86_64
             updater_key: windows-x86_64
-            updater_sig: "*_x64_en-US.msi.sig"
-            updater_asset_suffix: Windows.msi
+            updater_sig: "*_x64-setup.exe.sig"
+            updater_asset_suffix: Windows-x64-setup.exe
           # macOS 双架构（M5）：两条目都在 macos-14（arm64）上构建——Rust 侧
           # 交叉编译 x86_64（rustup target），daemon 侧由 build-daemon.sh 的
           # Rosetta 路径产 x86_64 sidecar（PyInstaller 不支持交叉编译）。
@@ -291,14 +289,9 @@ jobs:
           mkdir -p release-assets
           arch="${{ matrix.arch }}"
           bundle_dir="frontend/src-tauri/target/release/bundle"
-          appimage="$(find "$bundle_dir" -name '*.AppImage' -type f | head -1 || true)"
           deb="$(find "$bundle_dir" -name '*.deb' -type f | head -1 || true)"
           rpm="$(find "$bundle_dir" -name '*.rpm' -type f | head -1 || true)"
           found=false
-          if [ -n "$appimage" ]; then
-            cp "$appimage" "release-assets/LambChat-${RELEASE_TAG}-Linux-${arch}.AppImage"
-            found=true
-          fi
           if [ -n "$deb" ]; then
             cp "$deb" "release-assets/LambChat-${RELEASE_TAG}-Linux-${arch}.deb"
             found=true
@@ -320,6 +313,14 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+          # NSIS setup.exe：currentUser 安装（主推，updater 自更新同款）
+          $setup = Get-ChildItem -Path 'frontend/src-tauri/target/release/bundle' -Recurse -Include '*x64-setup.exe' -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch '\\.sig$' } | Select-Object -First 1
+          if ($null -eq $setup) {
+            throw 'No Windows NSIS setup installer found'
+          }
+          Copy-Item $setup.FullName "release-assets/LambChat-$env:RELEASE_TAG-Windows-x64-setup.exe"
+
+          # MSI：企业部署保留（GPO/SCCM 场景），不再是 updater 载体
           $msi = Get-ChildItem -Path 'frontend/src-tauri/target/release/bundle' -Recurse -Include *.msi -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($null -eq $msi) {
             throw 'No Windows MSI installer found'

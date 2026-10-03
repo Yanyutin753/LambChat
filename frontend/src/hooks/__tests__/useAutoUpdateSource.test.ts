@@ -151,22 +151,24 @@ test("tauri updater keeps proxy fallback endpoint for manifest fetch", () => {
   );
 });
 
-test("linux package update flow routes deb/rpm through the package manager path", () => {
+test("linux package update flow routes deb/rpm through the cached package path", () => {
   const hook = readRepoFile("frontend/src/hooks/useAutoUpdate.ts");
-  // 来源检测 → 分流：deb/rpm 走「下载 + pkexec 安装」而非 updater
+  // 来源检测 → 分流：Linux 桌面整体走后端版本检查（updater 已无 Linux 产物）
   expect(hook).toMatch(/getLinuxInstallInfo/);
-  expect(hook).toMatch(/installLinuxPackage\(/);
-  expect(hook).toMatch(/buildLinuxPackageAssetName/);
+  expect(hook).toMatch(/checkLinuxUpdate\(/);
+  expect(hook).toMatch(/findLinuxPackageAsset/);
   expect(hook).toMatch(/buildLinuxPackageDownloadUrl/);
-  // deb/rpm 不进 updater 后台静默下载——它只会拉 AppImage 且装不上系统包
-  expect(hook).toMatch(/linuxSource !== "deb" && linuxSource !== "rpm"/);
-  // unknown 来源不盲装，回落下载页
+  // 下载与安装分离：发现即后台缓存下载（版本化缓存不重下），安装从缓存取包
+  expect(hook).toMatch(/downloadLinuxPackage\(/);
+  expect(hook).toMatch(/installLinuxPackage\(/);
+  // appimage/unknown 不盲装，回落下载页（AppImage 停发，引导换装 deb）
   expect(hook).toMatch(/buildApiUrl\("\/download"\)/);
 });
 
 test("linux update service bridges the rust commands and progress event", () => {
   const service = readRepoFile("frontend/src/services/tauri/linuxUpdate.ts");
   expect(service).toMatch(/get_linux_install_source/);
+  expect(service).toMatch(/download_linux_package/);
   expect(service).toMatch(/install_linux_package/);
   expect(service).toMatch(/linux-update-progress/);
 });
@@ -178,13 +180,19 @@ test("rust side detects install source and installs deb/rpm via pkexec", () => {
   expect(rust).toMatch(/"dpkg", "-S"/);
   expect(rust).toMatch(/"rpm", "-qf"/);
   expect(rust).toMatch(/fallback_install_source/);
-  // deb → apt、rpm → dnf，pkexec 提权
+  // 安装回退链：pkcon（PackageKit）→ pkexec apt/dnf → dpkg/rpm 直装
+  expect(rust).toMatch(/"pkcon"/);
   expect(rust).toMatch(/"apt"/);
   expect(rust).toMatch(/"dnf"/);
   expect(rust).toMatch(/"pkexec"/);
+  expect(rust).toMatch(/installer_argv_chain/);
+  // 版本化缓存：.part 原子落盘 + 缓存命中跳过下载 + 残留清理
+  expect(rust).toMatch(/update_cache_dir/);
+  expect(rust).toMatch(/remove_stale_packages/);
   // 命令注册进 invoke handler（缺注册前端 invoke 直接挂）
   const lib = readRepoFile("frontend/src-tauri/src/lib.rs");
   expect(lib).toMatch(/linux_update::get_linux_install_source/);
+  expect(lib).toMatch(/linux_update::download_linux_package/);
   expect(lib).toMatch(/linux_update::install_linux_package/);
 });
 
@@ -230,9 +238,10 @@ test("update flow is single-flight: downloads guarded by in-flight flag, re-chec
 
 test("manual update check distinguishes failure from up-to-date", () => {
   const hook = readRepoFile("frontend/src/hooks/useAutoUpdate.ts");
-  // 检查失败不得伪装成「已是最新」；两条检查路径都返回成败
+  // 检查失败不得伪装成「已是最新」；三条检查路径都返回成败
   expect(hook).toMatch(/updateCheckFailed/);
-  expect(hook).toMatch(/ok = await checkTauriUpdate\(background, manual\)/);
+  expect(hook).toMatch(/checkTauriUpdate\(background, manual\)/);
+  expect(hook).toMatch(/checkLinuxUpdate\(linuxSource, background, manual\)/);
   expect(hook).toMatch(/ok = await checkBackendUpdate\(background, manual\)/);
 
   // 失败文案五语齐
@@ -242,4 +251,50 @@ test("manual update check distinguishes failure from up-to-date", () => {
     ) as Record<string, string>;
     expect(data.updateCheckFailed, locale).toBeTruthy();
   }
+});
+
+test("android install reuses a fully downloaded APK instead of re-downloading", () => {
+  const hook = readRepoFile("frontend/src/hooks/useAutoUpdate.ts");
+  // 主流缓存语义：完整性判定纯函数 + 安装前先查 status
+  expect(hook).toMatch(/isDownloadedApkComplete/);
+  expect(hook).toMatch(/UpdateDownloader\.status\(/);
+  // 检查发现更新时也刷新「已可安装」态（弹窗按钮直接显示「安装」）
+  expect(hook).toMatch(/refreshAndroidApkReadyState/);
+  // 新下载完成后清旧版本残留包
+  expect(hook).toMatch(/cleanup\(\{ keepFileName: assetName \}\)/);
+});
+
+test("UpdateDownloaderPlugin exposes status and cleanup for the apk cache", () => {
+  const plugin = readRepoFile(
+    "frontend/android/app/src/main/java/com/lambchat/app/UpdateDownloaderPlugin.java",
+  );
+  expect(plugin).toMatch(/@PluginMethod\s*\n\s*public void status\(/);
+  expect(plugin).toMatch(/@PluginMethod\s*\n\s*public void cleanup\(/);
+  // status 回绝对路径（可直接交给 installApk），cleanup 保留当前目标包
+  expect(plugin).toMatch(/getAbsolutePath/);
+  expect(plugin).toMatch(/keepFileName/);
+});
+
+test("windows updater artifacts are NSIS currentUser installers", () => {
+  // Windows 桌面对齐主流（Chrome/VSCode 同款）：NSIS + currentUser + passive
+  // ——零 UAC 自更新；MSI 保留给企业手动部署，不进 updater 清单
+  const win = readRepoFile("frontend/src-tauri/tauri.windows.conf.json");
+  expect(win).toMatch(/"nsis"/);
+  expect(win).toMatch(/"installMode":\s*"currentUser"/);
+  const conf = readRepoFile("frontend/src-tauri/tauri.conf.json");
+  expect(conf).toMatch(/"installMode":\s*"passive"/);
+
+  const wf = readRepoFile(".github/workflows/app-release.yml");
+  expect(wf).toMatch(/bundles: msi,nsis/);
+  expect(wf).toMatch(/"\*_x64-setup\.exe\.sig"/);
+  expect(wf).toMatch(/Windows-x64-setup\.exe/);
+  // Linux 不再产 AppImage、不进 updater 清单
+  expect(wf).toMatch(/bundles: deb,rpm/);
+  expect(wf).not.toMatch(/AppImage\.sig/);
+
+  const manifest = readRepoFile("scripts/generate_updater_manifest.py");
+  expect(manifest).toMatch(/"\*_x64-setup\.exe\.sig", "Windows-x64-setup\.exe"/);
+  // 清单不得再引用 AppImage 产物或 Linux 平台条目（正文说明性文字除外）
+  expect(manifest).not.toMatch(/AppImage\.sig/);
+  expect(manifest).not.toMatch(/"linux-x86_64"/);
 });

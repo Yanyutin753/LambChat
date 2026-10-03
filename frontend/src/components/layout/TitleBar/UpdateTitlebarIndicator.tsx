@@ -150,18 +150,19 @@ export function UpdateTitlebarIndicator({
         ? t("updateError", "更新失败")
         : t("update.availableTitle", "发现新版本");
 
-  // 主按钮文案与 UpdateDialog 的分流保持一致（deb/rpm / unknown / updater）
-  const isLinuxPackage =
-    state.linuxInstallSource === "deb" || state.linuxInstallSource === "rpm";
-  const isGoToDownload = state.linuxInstallSource === "unknown";
+  // 主按钮文案与 UpdateDialog 的分流保持一致（deb/rpm 已缓存待装 /
+  // appimage+unknown 前往下载 / updater 重启安装）
+  const source = state.linuxInstallSource;
+  const isLinuxPackage = source === "deb" || source === "rpm";
+  const isGoToDownload = source === "unknown" || source === "appimage";
   const primaryLabel = state.downloading
     ? t("updateDownloading", "正在下载...")
     : isGoToDownload
       ? t("updateGoToDownload", "前往下载")
-      : isLinuxPackage
-        ? t("updateDownloadAndInstall", "下载并安装")
-        : state.readyToInstall
-          ? t("update.updateRelaunchInstall", "重启并安装")
+      : state.readyToInstall
+        ? t("update.updateRelaunchInstall", "重启并安装")
+        : isLinuxPackage
+          ? t("updateDownloadAndInstall", "下载并安装")
           : t("updateDownload", "立即升级");
 
   return (

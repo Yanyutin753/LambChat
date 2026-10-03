@@ -1,14 +1,18 @@
 //! Linux 桌面端更新安装：安装来源检测 + deb/rpm 包管理器安装。
 //!
-//! 背景：tauri-plugin-updater 在 Linux 只支持 AppImage——`.deb`/`.rpm` 安装的
-//! 壳跑 `update.install()` 时会因 `/usr/bin/lambchat` 归 root 所有而权限失败
-//! （2.10.0 → 2.10.2 的实际报错）。本模块补齐系统包路径：
+//! 背景：tauri-plugin-updater 在 Linux 只支持 AppImage（已停发）；`.deb`/
+//! `.rpm` 安装的壳跑 `update.install()` 时会因 `/usr/bin/lambchat` 归 root
+//! 所有而权限失败（2.10.0 → 2.10.2 的实际报错）。本模块承担 Linux 全部
+//! 更新链路（对齐主流发行版客户端的 deb 自更新模式）：
 //!
 //! - [`get_linux_install_source`]：检测当前程序来源（AppImage / deb / rpm /
-//!   unknown），前端据此分流——AppImage 走 updater 替换重启，deb/rpm 走本
-//!   模块「下载 + pkexec 提权安装」，unknown 回落下载页；
-//! - [`install_linux_package`]：流式下载 deb/rpm 到临时目录（进度事件推送），
-//!   `pkexec apt|dnf install` 安装（polkit GUI 授权），成功后前端 relaunch。
+//!   unknown），前端据此分流——deb/rpm 走本模块，其余回落下载页；
+//! - [`download_linux_package`]：流式下载到版本化缓存目录
+//!   （`~/.cache/lambchat/updates/<资产名>`，`.part` 落盘原子改名——目录里
+//!   存在终名文件即完整可复用，重复检查/重试绝不重复下载）；
+//! - [`install_linux_package`]：从缓存取包，`pkcon install-local` →
+//!   `pkexec apt|dnf install` → `pkexec dpkg -i / rpm -U` 三级回退安装
+//!   （polkit GUI 授权），成功后清空缓存、前端 relaunch。
 //!
 //! 检测序：AppImage 扩展名 → `dpkg -S` / `rpm -qf` 包归属反查（权威）→
 //! 系统前缀 + 本机包管理器启发式（保守，双装/都没有判 unknown）。
@@ -129,21 +133,49 @@ fn release_asset_arch() -> Option<&'static str> {
     }
 }
 
-/// deb/rpm 对应的系统安装器调用参数（pkexec 之后的部分；纯函数便于单测）。
-fn installer_argv(kind: &str, package_path: &Path) -> Option<Vec<String>> {
+/// deb/rpm 对应的系统安装器调用链（逐级回退；纯函数便于单测）。
+/// pkcon（PackageKit）会话级授权体验最好且无需终端，不打 pkexec；apt/dnf/
+/// dpkg/rpm 都要提权，由 pkexec 前缀拉起 polkit GUI 授权。
+fn installer_argv_chain(kind: &str, package_path: &Path) -> Option<Vec<Vec<String>>> {
     let path = package_path.to_string_lossy().into_owned();
     match kind {
         SOURCE_DEB => Some(vec![
-            "apt".into(),
-            "install".into(),
-            "-y".into(),
-            path,
+            vec![
+                "pkcon".into(),
+                "install-local".into(),
+                "-y".into(),
+                path.clone(),
+            ],
+            vec![
+                "pkexec".into(),
+                "apt".into(),
+                "install".into(),
+                "-y".into(),
+                path.clone(),
+            ],
+            vec!["pkexec".into(), "dpkg".into(), "-i".into(), path],
         ]),
         SOURCE_RPM => Some(vec![
-            "dnf".into(),
-            "install".into(),
-            "-y".into(),
-            path,
+            vec![
+                "pkcon".into(),
+                "install-local".into(),
+                "-y".into(),
+                path.clone(),
+            ],
+            vec![
+                "pkexec".into(),
+                "dnf".into(),
+                "install".into(),
+                "-y".into(),
+                path.clone(),
+            ],
+            vec![
+                "pkexec".into(),
+                "rpm".into(),
+                "-U".into(),
+                "--replacepkgs".into(),
+                path,
+            ],
         ]),
         _ => None,
     }
@@ -158,12 +190,73 @@ fn ensure_rustls_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
 }
 
-/// 流式下载安装包到临时目录（200ms 节流回调进度；返回落盘路径）。
+/// 更新包缓存目录：`$XDG_CACHE_HOME/lambchat/updates`（默认
+/// `~/.cache/lambchat/updates`），取不到家目录时回落系统临时目录。
+/// 版本化资产名即缓存键——同一版本只下载一次，装完清空。
+fn update_cache_dir() -> PathBuf {
+    let base = std::env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .or_else(|| {
+            std::env::var_os("HOME")
+                .map(|h| PathBuf::from(h).join(".cache"))
+        })
+        .unwrap_or_else(std::env::temp_dir);
+    base.join("lambchat").join("updates")
+}
+
+/// 清空缓存目录里的更新包（安装成功后调用；目录不存在为幂等成功）。
+fn clear_update_cache(dir: &Path) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+}
+
+/// 下载完成后清掉其它版本的残留包（只保留刚下好的这份）。
+fn remove_stale_packages(dir: &Path, keep: &Path) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() && path != keep {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+}
+
+/// 流式下载更新包到缓存目录（200ms 节流回调进度；返回落盘路径与是否
+/// 真实发生下载）。`.part` 中转 + 完成后原子改名：目录里存在终名文件即
+/// 视为完整包直接复用——重复检查、重试、应用重启都不再重复下载。
 /// 下载核心与 Tauri 事件解耦，便于用本地 HTTP 服务做单测。
-async fn download_to_temp<F>(url: &str, ext: &str, mut on_progress: F) -> Result<PathBuf, String>
+async fn download_update_package<F>(
+    url: &str,
+    cache_dir: &Path,
+    file_name: &str,
+    mut on_progress: F,
+) -> Result<(PathBuf, bool), String>
 where
     F: FnMut(u64, u64),
 {
+    std::fs::create_dir_all(cache_dir)
+        .map_err(|e| format!("create {}: {e}", cache_dir.display()))?;
+    let path = cache_dir.join(file_name);
+    if path.is_file() {
+        // 缓存命中：推一次终值进度（UI 直接到 100%），不发网络请求
+        let size = path
+            .metadata()
+            .map(|m| m.len())
+            .unwrap_or(0);
+        on_progress(size, size);
+        return Ok((path, false));
+    }
+
     ensure_rustls_provider();
     let client = reqwest::Client::builder()
         .user_agent(concat!("LambChatDesktop/", env!("CARGO_PKG_VERSION")))
@@ -180,9 +273,9 @@ where
         return Err(format!("download failed: HTTP {}", resp.status()));
     }
     let content_length = resp.content_length().unwrap_or(0);
-    let path = std::env::temp_dir().join(format!("lambchat-update.{ext}"));
-    let mut file =
-        std::fs::File::create(&path).map_err(|e| format!("create {}: {e}", path.display()))?;
+    let part_path = cache_dir.join(format!("{file_name}.part"));
+    let mut file = std::fs::File::create(&part_path)
+        .map_err(|e| format!("create {}: {e}", part_path.display()))?;
 
     let mut downloaded: u64 = 0;
     let mut wrote_any = false;
@@ -196,7 +289,7 @@ where
             continue;
         }
         file.write_all(&chunk)
-            .map_err(|e| format!("write {}: {e}", path.display()))?;
+            .map_err(|e| format!("write {}: {e}", part_path.display()))?;
         downloaded += chunk.len() as u64;
         wrote_any = true;
         if last_emit.is_none_or(|t| t.elapsed() >= PROGRESS_THROTTLE) {
@@ -205,30 +298,35 @@ where
         }
     }
     if !wrote_any {
-        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(&part_path);
         return Err("download produced no content".into());
     }
     file.flush()
-        .map_err(|e| format!("flush {}: {e}", path.display()))?;
+        .map_err(|e| format!("flush {}: {e}", part_path.display()))?;
+    // 完整落盘后才改终名（= 完整性标记），并顺手清掉旧版本残留包
+    std::fs::rename(&part_path, &path)
+        .map_err(|e| format!("finalize {}: {e}", path.display()))?;
+    remove_stale_packages(cache_dir, &path);
     // 收尾事件：让 UI 的 downloaded/content_length 落到终值
     on_progress(downloaded, content_length);
-    Ok(path)
+    Ok((path, true))
 }
 
-/// pkexec 调用系统包管理器安装本地包文件。
+/// 调起安装器（argv[0] 为程序名：pkcon 直接跑，apt/dnf 等由 pkexec 拉起）。
 ///
 /// stderr 由独立线程持续排空（dnf 进度输出可超管道缓冲，不排空会写阻塞
 /// → 安装挂死）；stdout 丢弃（GUI 壳无处展示）。超时 kill 兜底。
 fn run_pkexec_installer(argv: &[String]) -> Result<(), String> {
-    let mut child = Command::new("pkexec")
-        .args(argv)
+    let mut child = Command::new(&argv[0])
+        .args(&argv[1..])
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| {
             format!(
-                "failed to spawn pkexec ({e}); 系统缺少 polkit 授权组件，\
-                 请从下载页手动安装新版安装包"
+                "failed to spawn {} ({e}); 系统缺少 polkit 授权组件，\
+                 请从下载页手动安装新版安装包",
+                argv[0]
             )
         })?;
 
@@ -292,37 +390,74 @@ pub fn get_linux_install_source() -> LinuxInstallInfo {
     }
 }
 
-/// 下载 deb/rpm 安装包并以 pkexec 提权安装（成功后前端 relaunch 进新版）。
+/// 下载 deb/rpm 更新包到版本化缓存（进度经 linux-update-progress 事件）。
+/// 缓存命中（该版本已完整下载）不发网络请求，直接推终值进度返回 false。
 #[tauri::command]
-pub async fn install_linux_package(
+pub async fn download_linux_package(
     app: AppHandle,
     url: String,
-    kind: String,
-) -> Result<(), String> {
+    asset_name: String,
+) -> Result<bool, String> {
+    if asset_name.is_empty() || asset_name.contains('/') {
+        return Err(format!("invalid asset name: {asset_name:?}"));
+    }
+    let app_for_progress = app.clone();
+    let (_path, downloaded) = download_update_package(
+        &url,
+        &update_cache_dir(),
+        &asset_name,
+        move |downloaded, content_length| {
+            let _ = app_for_progress.emit(
+                PROGRESS_EVENT,
+                ProgressPayload {
+                    downloaded,
+                    content_length,
+                },
+            );
+        },
+    )
+    .await?;
+    Ok(downloaded)
+}
+
+/// 从缓存安装 deb/rpm 更新包（pkcon → pkexec 包管理器 → 底层工具三级
+/// 回退；成功后清空缓存，调用方 relaunch 进新版）。
+#[tauri::command]
+pub async fn install_linux_package(asset_name: String, kind: String) -> Result<(), String> {
     if kind != SOURCE_DEB && kind != SOURCE_RPM {
         return Err(format!("unsupported package kind: {kind}"));
     }
-    let app_for_progress = app.clone();
-    let ext = kind.clone();
-    let path = download_to_temp(&url, &ext, move |downloaded, content_length| {
-        let _ = app_for_progress.emit(
-            PROGRESS_EVENT,
-            ProgressPayload {
-                downloaded,
-                content_length,
-            },
-        );
-    })
-    .await?;
+    if asset_name.is_empty() || asset_name.contains('/') {
+        return Err(format!("invalid asset name: {asset_name:?}"));
+    }
+    let path = update_cache_dir().join(&asset_name);
+    if !path.is_file() {
+        return Err(format!(
+            "update package not downloaded yet: {}",
+            path.display()
+        ));
+    }
 
-    // pkexec 安装是阻塞轮询（≤20min 授权窗口），挪出 async 线程
-    let argv = installer_argv(&kind, &path)
+    let chains = installer_argv_chain(&kind, &path)
         .ok_or_else(|| format!("unsupported package kind: {kind}"))?;
-    let result =
-        tauri::async_runtime::spawn_blocking(move || run_pkexec_installer(&argv)).await;
-    // 装完即清；失败也清（重试走完整重新下载，不残留半包）
-    let _ = std::fs::remove_file(&path);
-    result.map_err(|e| format!("installer task failed: {e}"))?
+    let mut last_err = String::new();
+    for argv in chains {
+        // pkexec/pkcon 授权是阻塞轮询（≤20min 授权窗口），挪出 async 线程
+        let argv_clone = argv.clone();
+        let result =
+            tauri::async_runtime::spawn_blocking(move || run_pkexec_installer(&argv_clone))
+                .await;
+        match result {
+            Ok(Ok(())) => {
+                // 装完即清：新版本已生效，缓存使命完成
+                clear_update_cache(&update_cache_dir());
+                return Ok(());
+            }
+            Ok(Err(e)) => last_err = e,
+            Err(e) => last_err = format!("installer task failed: {e}"),
+        }
+    }
+    Err(format!("all install attempts failed; last: {last_err}"))
 }
 
 #[cfg(test)]
@@ -367,13 +502,29 @@ mod tests {
     }
 
     #[test]
-    fn installer_argv_maps_deb_to_apt_and_rpm_to_dnf() {
-        let deb = installer_argv(SOURCE_DEB, Path::new("/tmp/lambchat-update.deb")).unwrap();
-        assert_eq!(deb, vec!["apt", "install", "-y", "/tmp/lambchat-update.deb"]);
-        let rpm = installer_argv(SOURCE_RPM, Path::new("/tmp/lambchat-update.rpm")).unwrap();
-        assert_eq!(rpm, vec!["dnf", "install", "-y", "/tmp/lambchat-update.rpm"]);
-        assert!(installer_argv(SOURCE_APPIMAGE, Path::new("/tmp/x")).is_none());
-        assert!(installer_argv("exe", Path::new("/tmp/x")).is_none());
+    fn installer_argv_chain_falls_back_pkcon_then_manager_then_lowlevel() {
+        let deb = installer_argv_chain(SOURCE_DEB, Path::new("/cache/lambchat-update.deb")).unwrap();
+        assert_eq!(
+            deb[0],
+            vec!["pkcon", "install-local", "-y", "/cache/lambchat-update.deb"]
+        );
+        assert_eq!(
+            deb[1],
+            vec!["pkexec", "apt", "install", "-y", "/cache/lambchat-update.deb"]
+        );
+        assert_eq!(
+            deb[2],
+            vec!["pkexec", "dpkg", "-i", "/cache/lambchat-update.deb"]
+        );
+        let rpm = installer_argv_chain(SOURCE_RPM, Path::new("/cache/x.rpm")).unwrap();
+        assert_eq!(rpm[0][0], "pkcon");
+        assert_eq!(rpm[1], vec!["pkexec", "dnf", "install", "-y", "/cache/x.rpm"]);
+        assert_eq!(
+            rpm[2],
+            vec!["pkexec", "rpm", "-U", "--replacepkgs", "/cache/x.rpm"]
+        );
+        assert!(installer_argv_chain(SOURCE_APPIMAGE, Path::new("/tmp/x")).is_none());
+        assert!(installer_argv_chain("exe", Path::new("/tmp/x")).is_none());
     }
 
     #[test]
@@ -442,37 +593,97 @@ mod tests {
         assert!(resp.ends_with("hello"), "{resp}");
     }
 
+    /// 每个用例独立的缓存目录（测试不污染真实 ~/.cache，也不互相干扰）。
+    fn test_cache_dir(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "lambchat-rs-test-{}-{}-{tag}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
     #[test]
     fn async_runtime_block_on_works_in_test_harness() {
         assert_eq!(tauri::async_runtime::block_on(async { 7 }), 7);
     }
 
     #[test]
-    fn download_to_temp_streams_file_and_progress() {
+    fn download_streams_to_cache_and_clears_stale_versions() {
         let body: Vec<u8> = (0..100_000u32).map(|i| (i % 251) as u8).collect();
         let head = format!(
             "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: application/vnd.debian.binary-package\r\nConnection: close\r\n\r\n",
             body.len()
         );
         let url = spawn_chunked_http_server(&head, &body);
-        let path = tauri::async_runtime::block_on(download_to_temp(&url, "test-pkg", |d, c| {
-            // 进度单调不回退，总量不超 content-length
-            assert!(c == body.len() as u64, "content_length mismatch");
-            let _ = d;
-        }))
+        let dir = test_cache_dir("download");
+        // 旧版本残留包：新包下载完成后应被清掉
+        let stale = dir.join("LambChat-v9.9.9-Linux-x86_64.deb");
+        std::fs::write(&stale, b"stale").unwrap();
+
+        let (path, downloaded) = tauri::async_runtime::block_on(download_update_package(
+            &url,
+            &dir,
+            "LambChat-v2.99.0-Linux-x86_64.deb",
+            |d, c| {
+                assert!(c == body.len() as u64, "content_length mismatch");
+                let _ = d;
+            },
+        ))
         .expect("download should succeed");
-        let written = std::fs::read(&path).expect("temp file readable");
+        assert!(downloaded, "fresh download must report downloaded=true");
+
+        let written = std::fs::read(&path).expect("cached file readable");
         assert_eq!(written, body, "downloaded bytes must match served body");
-        let _ = std::fs::remove_file(&path);
+        assert!(!dir.join("LambChat-v2.99.0-Linux-x86_64.deb.part").exists());
+        assert!(!stale.exists(), "stale version package must be removed");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
-    fn download_to_temp_surfaces_http_error_status() {
+    fn cached_package_skips_download_without_network() {
+        // 不起 HTTP 服务：缓存命中路径必须零网络请求（起服务反而掩盖不了——
+        // 连接必然失败，测试即红）
+        let dir = test_cache_dir("cache-hit");
+        let cached = dir.join("LambChat-v2.99.0-Linux-x86_64.deb");
+        std::fs::write(&cached, b"cached-bytes").unwrap();
+
+        let mut progress_calls = 0u32;
+        let (path, downloaded) = tauri::async_runtime::block_on(download_update_package(
+            "http://127.0.0.1:1/never-reached",
+            &dir,
+            "LambChat-v2.99.0-Linux-x86_64.deb",
+            |_d, _c| progress_calls += 1,
+        ))
+        .expect("cache hit must succeed without network");
+        assert!(!downloaded, "cache hit must report downloaded=false");
+        assert_eq!(path, cached);
+        assert!(progress_calls >= 1, "cache hit still emits final progress");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn download_surfaces_http_error_status_and_keeps_no_partial() {
         let head = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
         let url = spawn_chunked_http_server(head, b"");
-        let err = tauri::async_runtime::block_on(download_to_temp(&url, "test-pkg-404", |_, _| {}))
-            .expect_err("404 must fail");
+        let dir = test_cache_dir("404");
+        let err = tauri::async_runtime::block_on(download_update_package(
+            &url,
+            &dir,
+            "LambChat-v2.99.0-Linux-x86_64.deb",
+            |_, _| {},
+        ))
+        .expect_err("404 must fail");
         assert!(err.contains("404"), "error should carry status: {err}");
+        assert!(
+            !dir.join("LambChat-v2.99.0-Linux-x86_64.deb").exists(),
+            "failed download must not leave a finalized package"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// e2e（scripts/e2e_linux_update.py）专用：打印本机检测结果供人工核对。

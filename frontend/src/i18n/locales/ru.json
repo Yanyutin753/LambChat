@@ -3852,6 +3852,7 @@
     "upToDate": "У вас последняя версия",
     "installPermissionHint": "Сначала разрешите LambChat установку неизвестных приложений, затем снова нажмите «Обновить»",
     "updateRelaunchInstall": "Перезапустить и установить",
+    "installNow": "Установить",
     "availableTitle": "Доступно обновление",
     "skipVersion": "Пропустить эту версию",
     "viewFullNotes": "Полный список изменений",

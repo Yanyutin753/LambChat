@@ -41,9 +41,12 @@ export function detectDesktopPlatform(
 
 /**
  * 把桌面端安装包分组。匹配规则对齐 app-release.yml 的资产命名：
- * - Windows：`*-Windows.msi`（安装版）、`*-Windows-Portable.zip`（便携版）
+ * - Windows：`*-Windows-x64-setup.exe`（NSIS 安装包，主推——currentUser
+ *   安装零 UAC，应用内自更新同款）、`*-Windows.msi`（企业部署）、
+ *   `*-Windows-Portable.zip`（便携版）
  * - macOS：`*.dmg`
- * - Linux：`*.AppImage` / `*.deb` / `*.rpm`（x86_64 在前、arm64 在后）
+ * - Linux：`*.deb` / `*.rpm`（deb 主推，与应用内 pkexec 更新链同包型；
+ *   x86_64 在前、arm64 在后）。AppImage 已停发，不再展示。
  */
 export function matchDesktopAssets(
   assets: ReleaseAsset[],
@@ -57,36 +60,38 @@ export function matchDesktopAssets(
       url: asset.url,
       ...(asset.size != null ? { size: asset.size } : {}),
     };
-    if (/Windows\.msi$/i.test(name)) {
+    if (/Windows-x64-setup\.exe$/i.test(name)) {
+      group.windows.push(link);
+    } else if (/Windows\.msi$/i.test(name)) {
       group.windows.push(link);
     } else if (/Windows-Portable\.zip$/i.test(name)) {
       group.windows.push(link);
     } else if (/\.dmg$/i.test(name)) {
       group.macos.push(link);
-    } else if (
-      /\.(AppImage|deb|rpm)$/i.test(name) &&
-      /linux|amd64|arm64/i.test(name)
-    ) {
+    } else if (/\.(deb|rpm)$/i.test(name) && /Linux/i.test(name)) {
       group.linux.push(link);
     }
   }
-  // 同平台内保持稳定顺序：安装版在前便携在后；x86_64 在前 arm64 在后
-  const windowsRank = (n: string) => (/Portable/i.test(n) ? 1 : 0);
+  // 同平台内保持稳定顺序：NSIS 安装包 → MSI → 便携版；deb → rpm；
+  // x86_64 在前 arm64 在后
+  const windowsRank = (n: string) =>
+    /x64-setup\.exe$/i.test(n) ? 0 : /Portable/i.test(n) ? 2 : 1;
   group.windows.sort(
     (x, y) =>
       windowsRank(x.name) - windowsRank(y.name) || x.name.localeCompare(y.name),
   );
   group.macos.sort((x, y) => x.name.localeCompare(y.name));
   group.linux.sort((x, y) => {
-    const arch = (n: string) => (/arm64|aarch64/i.test(n) ? 1 : 0);
-    return arch(x.name) - arch(y.name) || x.name.localeCompare(y.name);
+    const rank = (n: string) =>
+      (/arm64|aarch64/i.test(n) ? 2 : 0) + (/\.rpm$/i.test(n) ? 1 : 0);
+    return rank(x.name) - rank(y.name) || x.name.localeCompare(y.name);
   });
   return group;
 }
 
 /**
  * 平台主推安装包（下载页「立即下载 xx 版」直链用）：取该平台分组首位——
- * Windows 为 .msi 安装版、macOS 为 .dmg、Linux 为 x86_64 AppImage。
+ * Windows 为 NSIS setup.exe 安装包、macOS 为 .dmg、Linux 为 x86_64 .deb。
  * 分组为空（该平台无资产）返回 null，由调用方回退到分区选择。
  */
 export function pickRecommendedAsset(

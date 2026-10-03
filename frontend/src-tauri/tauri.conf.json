@@ -52,7 +52,10 @@
       "endpoints": [
         "https://lambchat.com/api/version/assets/latest.json/download",
         "https://github.com/Yanyutin753/LambChat/releases/latest/download/latest.json"
-      ]
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

@@ -2,8 +2,8 @@
  * Linux 桌面端更新安装 —— Tauri 壳 invoke 封装。
  *
  * 对应 Rust 侧 linux_update.rs：安装来源检测（AppImage / deb / rpm /
- * unknown）与「下载 deb/rpm + pkexec 提权安装」。仅桌面壳内可用，
- * 非壳环境由调用方降级（null / 抛错）。
+ * unknown）、「缓存下载 deb/rpm + pkcon/pkexec 提权安装」。仅桌面壳内
+ * 可用，非壳环境由调用方降级（null / 抛错）。
  */
 
 import type { LinuxInstallSource } from "../../types";
@@ -28,16 +28,31 @@ export async function getLinuxInstallInfo(): Promise<LinuxInstallInfo | null> {
 }
 
 /**
- * 下载 deb/rpm 安装包并以 pkexec 提权安装（成功后调用方 relaunch）。
+ * 下载 deb/rpm 更新包到版本化缓存（Rust 侧 `~/.cache/lambchat/updates/`，
+ * `.part` 原子落盘——终名文件存在即完整包）。缓存命中（该版本已下载过）
+ * 不发网络请求、直接推终值进度，返回 false；真实下载返回 true。
  * 进度经 linux-update-progress 事件推送（subscribeLinuxUpdateProgress）。
  */
-export function installLinuxPackage(
+export function downloadLinuxPackage(
   url: string,
+  assetName: string,
+): Promise<boolean> {
+  return invokeInShell("download_linux_package", { url, assetName });
+}
+
+/**
+ * 从缓存安装 deb/rpm 更新包（pkcon → pkexec apt|dnf → dpkg/rpm 三级回退，
+ * 成功后 Rust 清空缓存；调用方随后 relaunch 进新版）。
+ * 包未在缓存中时抛错——安装前先走 downloadLinuxPackage。
+ */
+export function installLinuxPackage(
+  assetName: string,
   kind: "deb" | "rpm",
 ): Promise<void> {
-  return invokeInShell("install_linux_package", { url, kind }).then(
-    () => undefined,
-  );
+  return invokeInShell("install_linux_package", {
+    assetName,
+    kind,
+  }).then(() => undefined);
 }
 
 export interface LinuxUpdateProgressEvent {

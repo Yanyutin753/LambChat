@@ -42,7 +42,7 @@ jobs:
           ASSET_DIR: release-assets
         run: |
           set -euo pipefail
-          # 五桌面不齐直接红（判据同 app-release）；齐全才上传——推给桌面端
+          # 清单平台不齐直接红（判据同 app-release：Win NSIS + 双 mac；Linux 不进清单）；齐全才上传——推给桌面端
           python3 scripts/generate_updater_manifest.py
           gh release upload "$RELEASE_TAG" release-assets/latest.json --clobber \
             --repo "$GITHUB_REPOSITORY"
