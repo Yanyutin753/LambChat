@@ -1,4 +1,10 @@
-import { matchTool, toPinyin } from "../pinyinSearch";
+import { beforeAll, expect } from "vitest";
+import { matchTool, preloadPinyin, toPinyin } from "../pinyinSearch";
+
+// pinyin-pro 按需加载；测试前先预热字典。
+beforeAll(async () => {
+  await preloadPinyin();
+});
 import type { ToolInfo } from "../../types/tool";
 
 const mockT = (key: string) => key;
