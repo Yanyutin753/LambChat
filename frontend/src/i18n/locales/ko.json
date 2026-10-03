@@ -900,6 +900,7 @@
       "removeBookmark": "북마크 제거",
       "result": "결과",
       "retryAnswer": "다시 답변",
+      "runInterrupted": "응답이 중단되었습니다",
       "runStepsCount": "{{count}} 단계",
       "runStepsDetail": "전체 상세 보기",
       "runStepsStopped": "중지됨",
