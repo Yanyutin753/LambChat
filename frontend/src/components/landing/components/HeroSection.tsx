@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { useTheme } from "../../../contexts/ThemeContext";
 import { APP_NAME, GITHUB_URL } from "../../../constants";
 import { BrandWordmark } from "../../common/BrandWordmark";
 import { TECH_STACK } from "../data";
@@ -11,6 +12,7 @@ interface HeroSectionProps {
 
 export function HeroSection({ onLogin }: HeroSectionProps) {
   const { t } = useTranslation();
+  const { theme } = useTheme();
 
   return (
     <section className={`${getHeroSectionClassName()} public-brand-hero`}>
@@ -98,7 +100,11 @@ export function HeroSection({ onLogin }: HeroSectionProps) {
       </div>
       <img
         className="public-brand-art"
-        src="/images/illustrations/auth-brand-workspace.webp"
+        src={
+          theme === "dark"
+            ? "/images/illustrations/auth-brand-workspace.webp"
+            : "/images/illustrations/auth-brand-workspace-light.webp"
+        }
         alt=""
         aria-hidden="true"
         fetchPriority="high"

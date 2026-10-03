@@ -14,8 +14,8 @@ test("sidebar actions share slots and reveal only within their own row", () => {
     expect(source).toContain("sidebar-action-row");
   }
   expect(session).not.toContain("max-sm:opacity-100");
-  expect(session).toContain("h-8 w-8");
-  expect(header).toContain("h-8 w-8");
+  expect(session).toContain("h-8 w-6");
+  expect(header).toContain("h-8 w-6");
   expect(css).toContain(".sidebar-action-row:hover > .sidebar-action-reveal");
   expect(css).not.toContain(
     "html:not(:has([data-titlebar])) .sidebar-action-reveal",

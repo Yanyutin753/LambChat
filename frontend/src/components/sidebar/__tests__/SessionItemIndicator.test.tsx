@@ -92,7 +92,7 @@ describe("SessionItem task running indicator", () => {
     renderSessionItem({ task_status: "waiting_human" });
     const indicator = document.querySelector("[data-session-status=ask-human]");
     expect(indicator).toBeInTheDocument();
-    expect(indicator).toHaveClass("w-4", "h-4");
+    expect(indicator).toHaveClass("w-6", "h-8");
     expect(indicator).not.toHaveClass("border", "bg-amber-100/70");
     expect(indicator?.textContent).toBe("");
     expect(indicator?.querySelector("svg")).toHaveAttribute("width", "16");

@@ -672,33 +672,28 @@ export function SettingsPanel() {
                 </Button>
               ) : (
                 subcategories.length > 1 && (
-                  <label className="mt-3 flex flex-wrap items-center gap-2 text-12 text-theme-text-secondary dark:text-stone-400">
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-12 text-theme-text-secondary dark:text-stone-400">
                     <span>{t("settings.navigation.subcategory")}</span>
-                    <select
+                    <Select
+                      ariaLabel={t("settings.navigation.subcategory")}
                       value={activeSubcategory ?? "__all__"}
-                      onChange={(event) =>
-                        setActiveSubcategory(
-                          event.target.value === "__all__"
-                            ? null
-                            : event.target.value,
-                        )
+                      onChange={(value) =>
+                        setActiveSubcategory(value === "__all__" ? null : value)
                       }
-                      className="h-10 min-w-0 max-w-full rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] px-3 text-14 text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] dark:text-stone-100"
-                    >
-                      <option value="__all__">
-                        {t("settings.navigation.allSubcategories")}
-                      </option>
-                      {subcategories.map((group) => (
-                        <option
-                          key={group.subcategory}
-                          value={group.subcategory}
-                        >
-                          {group.label || t("subcategories.general")} ·{" "}
-                          {group.settings.length}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      className="min-w-0 max-w-full"
+                      triggerClassName="min-h-11"
+                      options={[
+                        {
+                          value: "__all__",
+                          label: t("settings.navigation.allSubcategories"),
+                        },
+                        ...subcategories.map((group) => ({
+                          value: group.subcategory,
+                          label: `${group.label || t("subcategories.general")} · ${group.settings.length}`,
+                        })),
+                      ]}
+                    />
+                  </div>
                 )
               )}
               <p className="mt-2 text-12 text-theme-text-secondary dark:text-stone-400">

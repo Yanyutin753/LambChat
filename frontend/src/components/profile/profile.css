@@ -317,6 +317,7 @@
   padding: 14px 24px;
   color: var(--theme-text-tertiary);
   font-size: 11px;
+  font-family: serif;
 }
 .profile-footer a {
   display: flex;

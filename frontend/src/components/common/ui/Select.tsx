@@ -7,6 +7,7 @@ import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosit
 export interface SelectOption {
   value: string;
   label: ReactNode;
+  group?: string;
   disabled?: boolean;
 }
 
@@ -132,6 +133,42 @@ export function Select({
       )?.focus();
   }, [open]);
 
+  const optionGroups: { label?: string; options: SelectOption[] }[] = [];
+  for (const option of options) {
+    const previous = optionGroups[optionGroups.length - 1];
+    if (previous && previous.label === option.group) {
+      previous.options.push(option);
+    } else {
+      optionGroups.push({ label: option.group, options: [option] });
+    }
+  }
+
+  const renderOption = (option: SelectOption) => (
+    <button
+      key={option.value}
+      type="button"
+      disabled={option.disabled}
+      role="option"
+      aria-selected={option.value === value}
+      className={cx(
+        "ui-select-option",
+        option.value === value && "ui-select-option--active",
+        option.disabled && "ui-select-option--disabled",
+      )}
+      onClick={() => {
+        if (option.disabled) return;
+        setOpen(false);
+        ref.current?.querySelector("button")?.focus();
+        onChange(option.value);
+      }}
+    >
+      {option.value === value && (
+        <Check size={14} className="ui-select-option__check" />
+      )}
+      <span className="ui-select-option__label">{option.label}</span>
+    </button>
+  );
+
   return (
     <div ref={ref} className={cx("ui-select", className)}>
       <button
@@ -208,31 +245,22 @@ export function Select({
             }}
             style={dropdownStyle}
           >
-            {options.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                disabled={option.disabled}
-                role="option"
-                aria-selected={option.value === value}
-                className={cx(
-                  "ui-select-option",
-                  option.value === value && "ui-select-option--active",
-                  option.disabled && "ui-select-option--disabled",
-                )}
-                onClick={() => {
-                  if (option.disabled) return;
-                  setOpen(false);
-                  ref.current?.querySelector("button")?.focus();
-                  onChange(option.value);
-                }}
-              >
-                {option.value === value && (
-                  <Check size={14} className="ui-select-option__check" />
-                )}
-                <span className="ui-select-option__label">{option.label}</span>
-              </button>
-            ))}
+            {optionGroups.map((group) =>
+              group.label === undefined ? (
+                group.options.map(renderOption)
+              ) : (
+                <div
+                  key={group.options[0].value}
+                  role="group"
+                  aria-label={group.label}
+                >
+                  <div className="px-3 pb-1 pt-2 text-12 font-medium text-theme-text-secondary">
+                    {group.label}
+                  </div>
+                  {group.options.map(renderOption)}
+                </div>
+              ),
+            )}
           </div>,
           document.body,
         )}

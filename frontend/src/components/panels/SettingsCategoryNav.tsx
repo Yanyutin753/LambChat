@@ -1,3 +1,4 @@
+import { Select } from "../common/ui/Select";
 import { useTranslation } from "react-i18next";
 import type { SettingCategory, SettingsNavigationGroup } from "../../types";
 import type { VisibleCategory } from "./settingsPanelGrouping";
@@ -27,35 +28,28 @@ export function SettingsCategoryNav({
   const groups = buildSettingsNavigation(categories, navigation);
   if (mobile)
     return (
-      <label className="settings-category-picker mb-3 block sm:hidden">
+      <div className="settings-category-picker mb-3 block sm:hidden">
         <span className="mb-1 block text-12 font-medium text-stone-500 dark:text-stone-400">
           {t("settings.navigation.browse")}
         </span>
-        <select
+        <Select
+          ariaLabel={t("settings.navigation.browse")}
           value={searching ? "" : activeCategory}
-          onChange={(event) => onSelect(event.target.value as SettingCategory)}
+          onChange={(value) => onSelect(value as SettingCategory)}
           disabled={categories.length === 0}
-          className="h-11 w-full rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] px-3 text-14 text-stone-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] dark:text-stone-100"
-        >
-          {searching && (
-            <option value="" disabled>
-              {t("settings.navigation.searchResults")}
-            </option>
+          placeholder={
+            searching ? t("settings.navigation.searchResults") : undefined
+          }
+          triggerClassName="min-h-11"
+          options={groups.flatMap((group) =>
+            group.categories.map(({ category, count }) => ({
+              value: category,
+              label: `${labels[category]} · ${count}`,
+              group: t(`settings.navigation.groups.${group.id}`),
+            })),
           )}
-          {groups.map((group) => (
-            <optgroup
-              key={group.id}
-              label={t(`settings.navigation.groups.${group.id}`)}
-            >
-              {group.categories.map(({ category, count }) => (
-                <option key={category} value={category}>
-                  {labels[category]} · {count}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-      </label>
+        />
+      </div>
     );
 
   return (

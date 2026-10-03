@@ -74,11 +74,9 @@
 
 /* Markdown code blocks — quiet, tool-like frame scoped to rendered code */
 .ai-code-block {
-  border-color: color-mix(in srgb, var(--theme-text) 10%, var(--theme-border));
+  border-color: var(--theme-border);
+  border-radius: var(--radius-md);
   background: var(--theme-bg-card);
-  box-shadow:
-    inset 0 0 0 0.5px color-mix(in srgb, var(--theme-text) 3%, transparent),
-    0 6px 18px -18px color-mix(in srgb, var(--theme-text) 24%, transparent);
 }
 
 .ai-code-block__header,
@@ -132,7 +130,7 @@
 }
 
 .dark .ai-code-block__body {
-  background: color-mix(in srgb, #111827 72%, var(--theme-bg-card)) !important;
+  background: var(--theme-bg-code) !important;
 }
 
 /* Streaming prose — use the server stream as the typewriter, add only a caret. */
@@ -162,15 +160,12 @@
 /* Markdown data tables — semantic table markup with an AIcss-inspired frame. */
 .ai-data-table {
   border: 1px solid var(--theme-border);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   background: color-mix(
     in srgb,
     var(--theme-bg-subtle) 74%,
     var(--theme-bg-card)
   );
-  box-shadow:
-    inset 0 0 0 0.5px color-mix(in srgb, var(--theme-text) 3%, transparent),
-    0 8px 24px -24px color-mix(in srgb, var(--theme-text) 24%, transparent);
 }
 
 .ai-data-table__toolbar {
@@ -217,7 +212,10 @@
   border-collapse: separate;
   border-spacing: 0;
   background: var(--theme-bg-card);
-  font-size: 0.8125rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
 }
 
 .ai-data-table__head {
@@ -232,22 +230,21 @@
 .ai-data-table__header-cell,
 .ai-data-table__cell {
   min-width: 6rem;
-  padding: 0.5625rem 0.75rem;
+  padding: 0.625rem 0.75rem;
   text-align: start;
-  vertical-align: middle;
+  vertical-align: top;
 }
 
 .ai-data-table__header-cell {
-  color: var(--theme-text-tertiary);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  color: var(--theme-text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 500;
   white-space: nowrap;
 }
 
 .ai-data-table__cell {
   color: var(--theme-text-secondary);
-  line-height: 1.45;
+  line-height: 1.6;
 }
 
 .ai-data-table__header-cell:not(:last-child),
@@ -273,7 +270,6 @@
 .ai-data-table__header-cell:first-child,
 .ai-data-table__cell:first-child {
   min-width: 9rem;
-  font-weight: 550;
 }
 
 .ai-data-table__cell[data-comparison-state] {
@@ -382,18 +378,6 @@
   /* stone-700 */
 }
 
-.markdown-preview hr {
-  border: none;
-  border-top: 1px solid #d6d3d1;
-  /* stone-300 */
-  margin: 1rem 0;
-}
-
-.dark .markdown-preview hr {
-  border-top-color: #57534e;
-  /* stone-600 */
-}
-
 .markdown-content img {
   max-width: 100%;
   border-radius: 0.75rem;
@@ -491,6 +475,191 @@
   color: var(--theme-text-secondary);
 }
 
+/* Shared reading typography for MarkdownContent in chat and file previews. */
+.markdown-prose {
+  font-weight: 400;
+  hyphens: none;
+}
+
+.markdown-prose :where(p, ul, ol, blockquote) {
+  margin-block: 0.75em;
+}
+
+.markdown-prose :where(h1, h2, h3, h4, h5, h6) {
+  margin-block: 0.75em 0.375em;
+  color: inherit;
+  font-weight: 600;
+  line-height: 1.4;
+  text-wrap: pretty;
+}
+
+.markdown-prose h1 {
+  font-size: 1.5rem;
+}
+
+.markdown-prose h2 {
+  font-size: 1.25rem;
+}
+
+.markdown-prose h3 {
+  font-size: 1.125rem;
+}
+
+.markdown-prose h4 {
+  font-size: 1rem;
+}
+
+.markdown-prose h5 {
+  font-size: 0.9375rem;
+}
+
+.markdown-prose h6 {
+  font-size: 0.875rem;
+}
+
+.markdown-prose :where(strong) {
+  color: inherit;
+  font-weight: 600;
+}
+
+.markdown-prose :where(em) {
+  color: inherit;
+  font-style: italic;
+}
+
+.markdown-prose :where(ul, ol) {
+  padding-inline-start: 1.5em;
+  list-style-position: outside;
+}
+
+.markdown-prose ul {
+  list-style-type: disc;
+}
+
+.markdown-prose ul ul {
+  list-style-type: circle;
+}
+
+.markdown-prose ol {
+  list-style-type: decimal;
+}
+
+.markdown-prose li {
+  padding-inline-start: 0.125em;
+  margin-block: 0.25em;
+}
+
+.markdown-prose li::marker {
+  color: var(--theme-text-tertiary);
+  font-weight: 400;
+}
+
+.markdown-prose li :where(ul, ol) {
+  margin-block: 0.375em;
+}
+
+.markdown-prose li > p {
+  display: block;
+  margin-block: 0.375em;
+}
+
+.markdown-prose .contains-task-list {
+  list-style: none;
+  padding-inline-start: 0;
+}
+
+.markdown-prose .task-list-item > input {
+  margin-inline-end: 0.5em;
+  accent-color: var(--theme-primary);
+}
+
+.markdown-prose blockquote {
+  border-inline-start: 3px solid var(--theme-border-hover);
+  padding-inline-start: 1em;
+  color: var(--theme-text-secondary);
+}
+
+.markdown-prose > :first-child,
+.markdown-prose blockquote > :first-child,
+.markdown-prose li > :first-child {
+  margin-block-start: 0;
+}
+
+.markdown-prose > :last-child,
+.markdown-prose blockquote > :last-child,
+.markdown-prose li > :last-child {
+  margin-block-end: 0;
+}
+
+.markdown-prose .markdown-link {
+  color: color-mix(in srgb, var(--theme-info) 80%, var(--theme-text-secondary));
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: 1px;
+  overflow-wrap: anywhere;
+}
+
+.markdown-prose .markdown-link:hover {
+  text-decoration-color: currentColor;
+}
+
+.markdown-heading-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.markdown-heading-link:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+.markdown-inline-code {
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  background: color-mix(in srgb, var(--theme-border) 70%, transparent);
+  color: var(--theme-text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 0.9em;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.markdown-inline-code-copy {
+  display: inline;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  vertical-align: baseline;
+  cursor: pointer;
+}
+
+.markdown-inline-code-copy:hover > code {
+  background: var(--theme-border);
+}
+
+.markdown-prose :is(a, .markdown-inline-code-copy):focus-visible {
+  outline: 2px solid var(--theme-ring);
+  outline-offset: 2px;
+}
+
+.markdown-prose hr {
+  height: 0;
+  margin-block: 1.5em;
+  border: 0;
+  border-block-start: 1px solid var(--theme-border);
+  background: none;
+}
+
 /* Thinking content - muted stone tones */
 .markdown-preview.thinking-content {
   color: var(--theme-text-secondary);
@@ -540,12 +709,6 @@
 
 .dark .markdown-preview pre::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
-}
-
-/* Fix list-inside: prevent <p> from breaking number and text onto separate lines */
-.markdown-preview li > p {
-  display: inline;
-  margin: 0;
 }
 
 .markdown-preview * {

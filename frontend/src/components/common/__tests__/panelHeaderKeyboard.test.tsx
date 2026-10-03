@@ -125,10 +125,10 @@ test("closing mobile actions preserves focus already moved by its action", async
 });
 
 test.each([false, true])(
-  "single header action is direct with search=%s",
+  "single header action uses the shared mobile menu with search=%s",
   (hasSearch) => {
     const run = vi.fn();
-    render(
+    const { container } = render(
       <PanelHeader
         title="Tools"
         actions={
@@ -140,27 +140,61 @@ test.each([false, true])(
         onSearchChange={hasSearch ? vi.fn() : undefined}
       />,
     );
-    expect(
-      screen.queryByRole("button", { name: "common.filtersAndActions" }),
-    ).toBeNull();
-    const buttons = screen.getAllByRole("button", { name: "New tool" });
-    fireEvent.click(buttons[buttons.length - 1]);
+    const trigger = screen.getByRole("button", {
+      name: "common.filtersAndActions",
+    });
+    fireEvent.click(trigger);
+    const menu = container.querySelector<HTMLElement>(
+      ".panel-header__mobile-menu",
+    )!;
+    fireEvent.click(within(menu).getByRole("button", { name: "New tool" }));
     expect(run).toHaveBeenCalledOnce();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
   },
 );
 
-test("a lone search filter is exposed without another menu", () => {
-  render(
+test("a lone search filter uses the shared mobile menu", () => {
+  const { container } = render(
     <PanelHeader
       title="Tools"
       onSearchChange={vi.fn()}
       searchAccessory={<button>Filter</button>}
     />,
   );
+  fireEvent.click(
+    screen.getByRole("button", { name: "common.filtersAndActions" }),
+  );
+  const menu = container.querySelector<HTMLElement>(
+    ".panel-header__mobile-menu",
+  )!;
+  expect(within(menu).getByRole("button", { name: "Filter" })).toBeInTheDocument();
+});
+
+test("a lone search action opens from the embedded search menu", () => {
+  const { container } = render(
+    <PanelHeader
+      title="Tools"
+      searchOnly
+      onSearchChange={vi.fn()}
+      searchActions={<button>Create</button>}
+    />,
+  );
+  const searchBox = container.querySelector<HTMLElement>(
+    ".panel-header__search-box",
+  )!;
+  fireEvent.click(
+    within(searchBox).getByRole("button", { name: "common.filtersAndActions" }),
+  );
+  expect(
+    within(searchBox).getByRole("button", { name: "Create" }),
+  ).toBeInTheDocument();
+});
+
+test("a header without actions has no empty mobile menu", () => {
+  render(<PanelHeader title="Tools" onSearchChange={vi.fn()} />);
   expect(
     screen.queryByRole("button", { name: "common.filtersAndActions" }),
   ).toBeNull();
-  expect(screen.getAllByRole("button", { name: "Filter" })).toHaveLength(1);
 });
 
 test("grouped header actions keep their wrapper behavior in the menu", () => {

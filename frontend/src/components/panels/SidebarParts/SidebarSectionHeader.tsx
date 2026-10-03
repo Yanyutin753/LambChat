@@ -6,7 +6,7 @@ import { ChevronDown, Plus, SquarePen } from "lucide-react";
 export const sectionRevealClass = "sidebar-action-reveal";
 /** 分组头部动作按钮（新增、多选等）的统一样式。 */
 export const sectionActionClass =
-  "inline-flex h-8 w-8 max-sm:h-9 max-sm:w-9 shrink-0 items-center justify-center rounded-md text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2";
+  "inline-flex h-8 w-6 max-sm:h-9 max-sm:w-9 shrink-0 items-center justify-center rounded-md text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2";
 
 export function SidebarSectionHeader({
   label,
@@ -26,7 +26,7 @@ export function SidebarSectionHeader({
   children?: ReactNode;
 }) {
   return (
-    <div className="sidebar-action-row group/section flex h-8 max-sm:h-9 items-center gap-1 px-[9px] select-none">
+    <div className="sidebar-section-header sidebar-action-row group/section flex h-8 max-sm:h-9 items-center gap-1 px-[9px] select-none">
       <button
         type="button"
         onClick={onToggle}

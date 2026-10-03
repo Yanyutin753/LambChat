@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { fireEvent, render, screen, cleanup } from "@testing-library/react";
+import { fireEvent, render, screen, cleanup, within } from "@testing-library/react";
 import { vi } from "vitest";
 import { SettingsCategoryNav } from "../SettingsCategoryNav";
 
@@ -46,9 +46,18 @@ test("mobile picker includes every visible category under a labeled group", () =
       onSelect={onSelect}
     />,
   );
-  const picker = screen.getByRole("combobox");
+  const picker = screen.getByRole("button", {
+    name: "settings.navigation.browse",
+    description: "Appearance · 2",
+  });
+  fireEvent.click(picker);
   expect(screen.getAllByRole("group")).toHaveLength(2);
-  fireEvent.change(picker, { target: { value: "llm" } });
+  const group = screen.getByRole("group", {
+    name: "settings.navigation.groups.intelligence",
+  });
+  fireEvent.click(within(group).getByRole("option", { name: "Models · 3" }));
+  expect(screen.queryByRole("listbox")).toBeNull();
+  expect(picker).toHaveFocus();
   expect(onSelect).toHaveBeenCalledWith("llm");
 });
 
@@ -63,4 +72,42 @@ test("global search does not falsely mark one category as current", () => {
     />,
   );
   expect(screen.getByRole("button").hasAttribute("aria-current")).toBe(false);
+});
+
+test("mobile search shows its placeholder and lets users return to a category", () => {
+  const onSelect = vi.fn();
+  render(
+    <SettingsCategoryNav
+      mobile
+      categories={[{ category: "frontend", count: 2 }]}
+      activeCategory="frontend"
+      searching
+      labels={{ frontend: "Appearance" }}
+      onSelect={onSelect}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", {
+    name: "settings.navigation.browse",
+    description: "settings.navigation.searchResults",
+  }));
+  const option = screen.getByRole("option", { name: "Appearance · 2" });
+  expect(option).toHaveAttribute("aria-selected", "false");
+  fireEvent.click(option);
+  expect(onSelect).toHaveBeenCalledWith("frontend");
+});
+
+test("mobile category picker is disabled when no categories are visible", () => {
+  render(
+    <SettingsCategoryNav
+      mobile
+      categories={[]}
+      activeCategory="frontend"
+      searching={false}
+      labels={{}}
+      onSelect={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("button", {
+    name: "settings.navigation.browse",
+  })).toBeDisabled();
 });
