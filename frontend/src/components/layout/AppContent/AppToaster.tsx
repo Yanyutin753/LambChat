@@ -21,8 +21,8 @@ export function AppToaster() {
           background: "var(--theme-bg-elevated)",
           color: "var(--theme-text)",
           borderRadius: "8px",
-          padding: "12px 16px",
-          minWidth: "280px",
+          padding: "var(--app-toast-padding, 12px 16px)",
+          minWidth: "var(--app-toast-min-width, 280px)",
         },
         success: {
           duration: 3000,
@@ -48,9 +48,11 @@ export function AppToaster() {
         return (
           <ToastBar toast={currentToast}>
             {({ icon, message }) => (
-              <div className="flex w-full items-center gap-3 text-left">
+              <div className="app-toast-content flex w-full items-center gap-3 text-left">
                 <span className="flex shrink-0 items-center">{icon}</span>
-                <div className="min-w-0 flex-1 text-14 leading-snug">{message}</div>
+                <div className="app-toast-message min-w-0 flex-1 text-14 leading-snug">
+                  {message}
+                </div>
                 <IconButton
                   size="sm"
                   icon={<X size={14} aria-hidden="true" />}

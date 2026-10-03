@@ -625,7 +625,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                   <button
                     type="submit"
                     disabled={isSubmitting || isRedirecting}
-                    className="auth-primary-button mt-1 min-h-12 w-full rounded-full py-3 text-16 font-medium transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="auth-primary-button mt-1 min-h-12 w-full rounded-full py-3 text-16 font-medium font-serif transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <span className="inline-flex items-center justify-center gap-2">
                       {isSubmitting && (
