@@ -155,10 +155,11 @@ export function combinePrecacheBudgetEntries(
   });
 }
 
-// 548KB：代码查找功能（interface-quality 批次）引入 @codemirror/search
-// 6.7.0，随 CodeMirror 查看器进入首屏 eager 边界，实测 559128B（超 546KB
-// 门限 24B）。沿既有 2KB 阶梯上调，不放宽 5MB 预缓存门限。
-export const EAGER_JAVASCRIPT_BUDGET_BYTES = 548 * 1024;
+// 432KB：首屏加载专项优化后回撤——pinyin-pro（~442KB raw）与 @xyflow（~377KB
+// raw）改为按需加载、移除 vendor-markdown/vendor-katex 的 manualChunks 分组
+// （该分组曾把 130KB(gz) 的 markdown 栈拖进首屏 modulepreload），实测
+// 430529B。markdown 渲染栈由懒加载的路由 chunk 自行提取共享，不重复打包。
+export const EAGER_JAVASCRIPT_BUDGET_BYTES = 432 * 1024;
 export const PRECACHE_BUDGET_BYTES = 5 * 1024 * 1024;
 export const PRECACHE_ADDITIONAL_ENTRIES: PrecacheEntry[] = [];
 
