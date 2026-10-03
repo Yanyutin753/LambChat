@@ -1114,8 +1114,8 @@ html[data-mobile-keyboard="true"]
 
 /* ─── Message Action Buttons — focus-visible ring ─── */
 .chat-message-actions .copy-button {
-  /* Match the dark-mode brightness boost applied to sibling stone-500 icons. */
-  @apply text-stone-400 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300;
+  /* 与兄弟操作按钮（收藏/分支/赞踩/分享）同一套 idle/hover 颜色与圆角 */
+  @apply rounded-md text-stone-400 dark:text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-700 hover:text-stone-600 dark:hover:text-stone-300;
 }
 
 .chat-message-actions button,
@@ -1253,11 +1253,15 @@ html[data-mobile-keyboard="true"]
     gap: 0;
   }
   .chat-input-toolbar button,
-  .chat-message-actions button,
-  .chat-message-feedback > .contents > span,
   .chat-scroll-actions button {
     min-width: 2.75rem;
     min-height: 2.75rem;
+  }
+  /* 消息操作行全是次级操作：36px 触达够用，44px 会把整行撑得稀疏 */
+  .chat-message-actions button,
+  .chat-message-feedback > .contents > span {
+    min-width: 2.25rem;
+    min-height: 2.25rem;
   }
   .chat-message-actions {
     flex-wrap: wrap;

@@ -193,9 +193,9 @@ export function UserMessageBubble({
               <button
                 onClick={onFork}
                 className={clsx(
-                  "p-1.5 rounded-lg transition-colors duration-200",
+                  "p-1.5 rounded-md transition-colors duration-200",
                   getUserMessageActionButtonVisibilityClass(isLastMessage),
-                  "hover:bg-black/5 dark:hover:bg-white/5",
+                  "hover:bg-stone-200 dark:hover:bg-stone-700",
                   "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
                 )}
                 title={t("chat.message.fork")}

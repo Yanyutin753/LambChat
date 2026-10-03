@@ -3,13 +3,16 @@ import { expect, test } from "vitest";
 const read = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 
-test("mobile composer and message actions use contiguous 44px touch targets", () => {
+test("mobile composer and scroll actions keep 44px targets; message actions compact to 36px", () => {
   const css = read("../chat.css");
   expect(css).toMatch(
     /@media \(max-width: 639px\)\s*\{[\s\S]*\.chat-input-toolbar,\s*\.chat-input-toolbar > div,\s*\.chat-message-actions\s*\{\s*gap:\s*0;/,
   );
   expect(css).toMatch(
-    /\.chat-input-toolbar button,\s*\.chat-message-actions button,\s*\.chat-message-feedback > \.contents > span,\s*\.chat-scroll-actions button\s*\{[^}]*min-width:\s*2\.75rem;[^}]*min-height:\s*2\.75rem;/,
+    /\.chat-input-toolbar button,\s*\.chat-scroll-actions button\s*\{[^}]*min-width:\s*2\.75rem;[^}]*min-height:\s*2\.75rem;/,
+  );
+  expect(css).toMatch(
+    /\.chat-message-actions button,\s*\.chat-message-feedback > \.contents > span\s*\{[^}]*min-width:\s*2\.25rem;[^}]*min-height:\s*2\.25rem;/,
   );
   expect(css).toMatch(/\.chat-message-actions\s*\{\s*flex-wrap:\s*wrap;/);
 });
