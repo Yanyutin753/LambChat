@@ -6,8 +6,18 @@ const read = (path: string) =>
 
 test("message copy actions use the same idle and hover colors as sibling actions", () => {
   expect(read("../chat.css")).toMatch(
-    /\.chat-message-actions \.copy-button\s*\{[^}]*@apply text-stone-400 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300;/,
+    /\.chat-message-actions \.copy-button\s*\{[^}]*@apply rounded-md text-stone-400 dark:text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-700 hover:text-stone-600 dark:hover:text-stone-300;/,
   );
+});
+
+test("user bubble fork button shares the stone hover surface with the action row", () => {
+  const source = read(
+    "../../components/chat/ChatMessage/UserMessageBubble.tsx",
+  );
+  expect(source).toMatch(
+    /"p-1\.5 rounded-md transition-colors duration-200",\s*\n\s*getUserMessageActionButtonVisibilityClass\(isLastMessage\),\s*\n\s*"hover:bg-stone-200 dark:hover:bg-stone-700",/,
+  );
+  expect(source).not.toContain("hover:bg-black/5");
 });
 
 test("user and assistant action rows share button sizes and feedback spacing", () => {

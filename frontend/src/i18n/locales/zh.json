@@ -900,6 +900,7 @@
       "removeBookmark": "移除书签",
       "result": "结果",
       "retryAnswer": "重新回答",
+      "runInterrupted": "回答已中断",
       "runStepsCount": "{{count}} 个步骤",
       "runStepsDetail": "查看完整详情",
       "runStepsStopped": "已停止",
