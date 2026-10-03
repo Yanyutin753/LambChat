@@ -73,7 +73,7 @@ export const WELCOME_SUGGESTIONS_CLASS_NAME =
   "welcome-suggestions relative mx-auto px-2 sm:px-0 sm:mt-2 md:mt-2.5 xl:mt-3 2xl:mt-3 w-full sm:max-w-[48rem] md:max-w-[50rem] lg:max-w-[52rem] xl:max-w-[54rem] 2xl:max-w-[56rem]";
 
 export const WELCOME_PERSONA_CLASS_NAME =
-  "welcome-suggestions relative mx-auto px-2 sm:px-0 sm:mt-2 md:mt-2.5 xl:mt-3 2xl:mt-3 w-full sm:max-w-[52rem] md:max-w-[54rem] lg:max-w-[58rem] xl:max-w-[62rem] 2xl:max-w-[66rem]";
+  "welcome-suggestions relative mx-auto px-4 sm:px-10 sm:mt-2 md:mt-2.5 xl:mt-3 2xl:mt-3 w-full sm:max-w-[44rem] md:max-w-[46rem] lg:max-w-[48rem] xl:max-w-[50rem] 2xl:max-w-[52rem]";
 
 export function getWelcomeSuggestionsContainerClass(
   variant: "personas" | "prompts",

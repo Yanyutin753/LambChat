@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ChatInput } from "./ChatInput";
 import { Button } from "../common/ui/Button";
+import { SceneIllustration } from "../common/SceneIllustration";
 import type { ChatInputProps } from "./ChatInput";
 import type { ActiveGoalSpec } from "../../hooks/useAgent/types";
 import { ContactAdminDialog } from "../common/ContactAdminDialog";
@@ -501,13 +502,10 @@ export const WelcomePage = memo(function WelcomePage({
         >
           <div className="welcome-suggestions-header flex items-center justify-between mb-2 sm:mb-2.5 md:mb-2.5 xl:mb-3 2xl:mb-3">
             <div
-              className="flex items-center gap-1.5 text-12 sm:text-13 md:text-13 font-medium font-serif"
+              className="flex items-center gap-1.5 text-13 font-medium font-serif"
               style={{ color: "var(--theme-text-secondary)" }}
             >
-              <Sparkles
-                size={11}
-                className="opacity-60 sm:w-3.5 sm:h-3.5 xl:w-4 xl:h-4 2xl:w-4 2xl:h-4"
-              />
+              <Sparkles size="1em" className="shrink-0 opacity-60" />
               <span>
                 {showTeamCards || (canChangeTeam && !showTeamStarterPrompts)
                   ? t("team.plaza", "团队广场")
@@ -523,7 +521,7 @@ export const WelcomePage = memo(function WelcomePage({
                   variant="ghost"
                   size="sm"
                   onClick={() => navigate(showTeamCards ? "/team" : "/persona")}
-                  rightIcon={<ChevronRight size={12} />}
+                  rightIcon={<ChevronRight size="1em" />}
                 >
                   {t("common.manage")}
                 </Button>
@@ -596,10 +594,13 @@ export const WelcomePage = memo(function WelcomePage({
             }
           >
             {galleryEmpty && (
-              <div
-                role="status"
-                className="flex min-h-11 flex-col items-center justify-center gap-1 py-3 text-center text-14 text-theme-text-secondary"
-              >
+              <div role="status" className="welcome-gallery-empty">
+                {(isPersonaEmpty || isTeamEmpty) && (
+                  <SceneIllustration
+                    scene={showTeamCards ? "panel-team" : "panel-persona"}
+                    className="welcome-gallery-empty__illustration"
+                  />
+                )}
                 <p>
                   {showTeamCards
                     ? isTeamEmpty

@@ -12,8 +12,14 @@ const animationSource = readFileSync(
 
 describe("CollapsiblePill alignment", () => {
   test("uses a readable line height while preserving monospace labels", () => {
-    expect(source).toMatch(
-      /"text-12 font-mono font-medium min-w-0 truncate overflow-hidden leading-none"/,
+    expect(animationSource).toMatch(
+      /\.pill-btn\s*\{[^}]*items-center[^}]*font-mono[^}]*leading-normal/,
+    );
+    expect(animationSource).toMatch(
+      /\.pill-btn > span\s*\{\s*line-height: inherit;/,
+    );
+    expect(animationSource).toMatch(
+      /\.pill-btn > svg\s*\{[^}]*block[^}]*size-3[^}]*shrink-0/,
     );
     expect(source).not.toContain("tracking-[0.01em]");
     expect(source).not.toContain("translate-y-px");

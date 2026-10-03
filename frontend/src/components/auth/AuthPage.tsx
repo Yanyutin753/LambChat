@@ -82,6 +82,10 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileKey, setTurnstileKey] = useState(0); // 用于强制重新渲染 Turnstile
   const { theme } = useTheme();
+  const artworkSrc =
+    theme === "dark"
+      ? "/images/illustrations/auth-brand-workspace.webp"
+      : "/images/illustrations/auth-brand-workspace-light.webp";
   const isKeyboardOpen = useMobileKeyboardAware();
   const { login, register, loginWithOAuth } = useAuth();
   const authId = useId();
@@ -391,8 +395,8 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
             />
           </Link>
           <div className="flex items-center gap-1.5">
-            <LanguageToggle />
-            <ThemeToggle className="auth-theme-control" />
+            <LanguageToggle className="auth-appearance-control" />
+            <ThemeToggle className="auth-appearance-control" />
           </div>
         </div>
       </nav>
@@ -418,7 +422,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
             </Link>
 
             <div className="auth-brand-story">
-              <img src="/images/illustrations/auth-brand-workspace.webp" alt="" aria-hidden="true" className="auth-hero-art" width={1024} height={1280} decoding="async" />
+              <img src={artworkSrc} alt="" aria-hidden="true" className="auth-hero-art" width={1024} height={1280} decoding="async" />
               <p className="auth-brand-eyebrow">{t("landing.badge")}</p>
               <h2 className="font-serif">{t("auth.brandTitle")}</h2>
               <p className="auth-brand-description font-serif">{t("landing.mainInterfaceDesc")}</p>
@@ -441,11 +445,11 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
 
           <div className="auth-form-side relative flex w-full justify-center lg:min-h-[calc(100svh-var(--titlebar-inset,0px))] lg:items-center">
             <div className="absolute right-6 top-6 hidden items-center gap-1.5 lg:flex">
-              <LanguageToggle />
-              <ThemeToggle className="auth-theme-control" />
+              <LanguageToggle className="auth-appearance-control" />
+              <ThemeToggle className="auth-appearance-control" />
             </div>
             <div className="auth-form-frame w-full">
-              <img src="/images/illustrations/auth-brand-workspace.webp" alt="" aria-hidden="true" className="auth-mobile-art lg:hidden" width={1024} height={1280} decoding="async" />
+              <img src={artworkSrc} alt="" aria-hidden="true" className="auth-mobile-art lg:hidden" width={1024} height={1280} decoding="async" />
               {/* Form surface */}
               <div className="auth-form-surface">
                 <div className="auth-form-heading mb-7 text-center sm:mb-9">
@@ -726,7 +730,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                       <button
                         type="button"
                         onClick={switchMode}
-                        className="font-medium text-theme-text underline-offset-4 transition-all duration-200 hover:text-theme-text-secondary hover:underline dark:text-white dark:hover:text-stone-200"
+                        className="font-medium font-serif text-theme-text underline-offset-4 transition-all duration-200 hover:text-theme-text-secondary hover:underline dark:text-white dark:hover:text-stone-200"
                       >
                         {mode === "login"
                           ? t("auth.registerNow")
@@ -755,7 +759,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                   className="auth-footer-divider w-32 sm:w-40"
                   aria-hidden="true"
                 />
-                <div className="flex flex-wrap items-center justify-center gap-x-2 text-10 text-theme-text-tertiary dark:text-stone-500 sm:gap-x-3 sm:text-12">
+                <div className="flex font-serif flex-wrap items-center justify-center gap-x-2 text-10 text-theme-text-tertiary dark:text-stone-500 sm:gap-x-3 sm:text-12">
                   <a
                     href={GITHUB_URL}
                     target="_blank"

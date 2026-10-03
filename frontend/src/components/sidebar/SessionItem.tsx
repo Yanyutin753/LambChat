@@ -302,7 +302,7 @@ function SessionItemComponent({
         style={
           isDragging ? { touchAction: "none" } : { touchAction: "manipulation" }
         }
-        className={`sidebar-session-row sidebar-action-row group relative flex cursor-pointer items-center gap-2 h-8 max-sm:h-10 rounded-[10px] px-[9px] transition-colors ${
+        className={`sidebar-session-row sidebar-action-row group relative flex cursor-pointer items-center gap-1 h-8 max-sm:h-10 rounded-[10px] px-[9px] transition-colors ${
           !isSelected && isActive
             ? "bg-theme-bg-subtle dark:bg-stone-700/50"
             : ""
@@ -366,7 +366,7 @@ function SessionItemComponent({
           <Tooltip content={taskStatusLabel}>
             <span
               aria-label={taskStatusLabel}
-              className="shrink-0 inline-flex items-center justify-center"
+              className="shrink-0 inline-flex h-8 w-6 max-sm:h-11 max-sm:w-11 items-center justify-center"
             >
               <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border-2 border-amber-500/25 border-t-amber-500 dark:border-t-amber-400 animate-spin" />
             </span>
@@ -378,7 +378,7 @@ function SessionItemComponent({
             <span
               data-session-status="ask-human"
               aria-label="Ask human · 等待你的回复"
-              className="shrink-0 inline-flex items-center justify-center w-4 h-4 text-amber-500 dark:text-amber-400"
+              className="shrink-0 inline-flex items-center justify-center h-8 w-6 max-sm:h-11 max-sm:w-11 text-amber-500 dark:text-amber-400"
             >
               <AlertCircle size={16} strokeWidth={2.3} />
             </span>
@@ -390,14 +390,16 @@ function SessionItemComponent({
           !isEditing &&
           !isActive &&
           (session.unread_count ?? 0) > 0 && (
-            <span
-              className={`shrink-0 inline-flex items-center justify-center rounded-full bg-red-500 text-10 font-medium leading-none text-white ${
-                session.unread_count! <= 9
-                  ? "w-4 h-4"
-                  : "h-4 min-w-[20px] px-1.5"
-              }`}
-            >
-              {session.unread_count}
+            <span className="inline-flex h-8 w-6 shrink-0 items-center justify-center max-sm:h-11 max-sm:w-11">
+              <span
+                className={`inline-flex items-center justify-center rounded-full bg-red-500 text-10 font-medium leading-none text-white ${
+                  session.unread_count! <= 9
+                    ? "w-4 h-4"
+                    : "h-4 min-w-[20px] px-1.5"
+                }`}
+              >
+                {session.unread_count}
+              </span>
             </span>
           )}
         {!selectionMode && !isEditing && (
@@ -407,7 +409,7 @@ function SessionItemComponent({
               ref={menuButtonRef}
               onClick={handleMenuClick}
               aria-label={t("sidebar.moreOptions")}
-              className="sidebar-action-reveal flex h-8 w-8 shrink-0 items-center justify-center rounded-md max-sm:h-9 max-sm:w-9 focus-visible:outline focus-visible:outline-2"
+              className="sidebar-action-reveal flex h-8 w-6 shrink-0 items-center justify-center rounded-md max-sm:h-9 max-sm:w-9 focus-visible:outline focus-visible:outline-2"
               style={isTouched || isMenuOpen ? { opacity: 1 } : undefined}
             >
               <MoreHorizontal

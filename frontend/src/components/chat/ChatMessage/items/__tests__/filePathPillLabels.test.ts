@@ -58,7 +58,7 @@ test("collapsible pill always truncates labels to prevent overflow", () => {
   );
 
   expect(source).toMatch(
-    /font-mono[^"]*min-w-0[^"]*truncate[^"]*overflow-hidden[^"]*"/,
+    /min-w-0[^"]*truncate[^"]*overflow-hidden[^"]*"/,
   );
 });
 

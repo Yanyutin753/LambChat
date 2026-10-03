@@ -63,7 +63,7 @@ export function SandboxItem({
       }
       suffix={
         status === "ready" && sandboxId ? (
-          <span className="text-12 font-mono font-medium min-w-0 truncate overflow-hidden leading-none">
+          <span className="min-w-0 truncate">
             {t("chat.sandboxId", { id: sandboxId })}
           </span>
         ) : undefined

@@ -20,6 +20,26 @@ vi.mock("../../../../utils/clipboard", () => ({
 }));
 afterEach(cleanup);
 
+test.each([1, 2, 3, 4, 5, 6])(
+  "level %i headings retain their outline anchor when the label is emphasized",
+  (level) => {
+    render(
+      <MarkdownContent
+        content={`${"#".repeat(level)} **Results**`}
+        headingAnchorContext={{ messageId: "run-1", partIndex: 0 }}
+      />,
+    );
+    const heading = screen.getByRole("heading", { level, name: "Results" });
+    const id = "chat-outline-heading-run-1-0-results";
+    expect(heading).toHaveAttribute("id", id);
+    expect(heading).toHaveAttribute("data-outline-id", id);
+    expect(screen.getByRole("link", { name: "Results" })).toHaveAttribute(
+      "href",
+      `#${id}`,
+    );
+  },
+);
+
 test("chat code search and copy share the toolbar beside its language label", async () => {
   const i18n = appI18n.cloneInstance({ lng: "en" });
   render(

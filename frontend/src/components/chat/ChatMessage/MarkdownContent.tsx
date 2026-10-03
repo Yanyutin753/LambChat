@@ -15,7 +15,6 @@ import React, {
 } from "react";
 import { Check, Download, Table2, Code2, X, Minus } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { clsx } from "clsx";
 import { getFullUrl } from "../../../services/api/config";
 import { MermaidDiagram } from "./MermaidDiagram";
 import { DeferredCodeMirrorViewer } from "../../common/DeferredCodeMirrorViewer";
@@ -152,17 +151,13 @@ function InlineCode({ children }: { children: React.ReactNode }) {
     setInsideLink(!!buttonRef.current?.closest("a"));
   }, []);
   if (insideLink) {
-    return (
-      <code className="rounded bg-theme-bg-code px-1.5 py-0.5 text-14 text-theme-text font-mono">
-        {children}
-      </code>
-    );
+    return <code className="markdown-inline-code">{children}</code>;
   }
   return (
     <button
       ref={buttonRef}
       type="button"
-      className="rounded bg-theme-bg-code px-1.5 py-0.5 text-14 text-theme-text font-mono cursor-pointer hover:bg-theme-bg-hover transition-colors"
+      className="markdown-inline-code-copy"
       disabled={copying}
       aria-busy={copying || undefined}
       aria-label={label}
@@ -173,7 +168,9 @@ function InlineCode({ children }: { children: React.ReactNode }) {
         void copy();
       }}
     >
-      <code id={codeId}>{children}</code>
+      <code id={codeId} className="markdown-inline-code">
+        {children}
+      </code>
       {failed && (
         <span id={`${codeId}-error`} className="sr-only">
           {t("chat.message.copyFailed")}
@@ -218,7 +215,7 @@ function CodeBlock({
           value={codeString}
           language={language || undefined}
           lineNumbers={true}
-          fontSize="0.75rem"
+          fontSize="0.8125rem"
           className="[&_.cm-editor]:rounded-none [&_.cm-gutters]:border-r-0"
           copyable
           simpleSearch
@@ -301,11 +298,7 @@ function TableBlock({ children }: { children: React.ReactNode }) {
   return (
     <div className="ai-data-table group/table my-3 overflow-hidden">
       {/* Toolbar */}
-      <div
-        className={clsx(
-          "ai-data-table__toolbar flex items-center justify-between px-2.5 py-2 font-serif",
-        )}
-      >
+      <div className="ai-data-table__toolbar flex items-center justify-between px-3 py-2">
         <span className="ai-data-table__title flex items-center gap-1.5 text-11 sm:text-12 font-medium select-none">
           <Table2 size={12} aria-hidden="true" />
           {t("chat.message.table", "Table")}
@@ -349,11 +342,11 @@ const markdownComponents: Components = {
         id={id}
         data-outline-anchor="true"
         data-outline-id={id}
-        className="text-24 font-bold text-stone-900 dark:text-stone-100 mt-4 mb-3 first:mt-0 group/head scroll-mt-4"
+        className="scroll-mt-4"
       >
         <a
           href={`#${id}`}
-          className="no-underline text-inherit hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+          className="markdown-heading-link"
         >
           {children}
         </a>
@@ -368,11 +361,11 @@ const markdownComponents: Components = {
         id={id}
         data-outline-anchor="true"
         data-outline-id={id}
-        className="text-20 font-bold text-stone-900 dark:text-stone-100 mt-3 mb-2 group/head scroll-mt-4"
+        className="scroll-mt-4"
       >
         <a
           href={`#${id}`}
-          className="no-underline text-inherit hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+          className="markdown-heading-link"
         >
           {children}
         </a>
@@ -387,11 +380,11 @@ const markdownComponents: Components = {
         id={id}
         data-outline-anchor="true"
         data-outline-id={id}
-        className="text-18 font-semibold text-stone-900 dark:text-stone-100 mt-2 mb-1.5 group/head scroll-mt-4"
+        className="scroll-mt-4"
       >
         <a
           href={`#${id}`}
-          className="no-underline text-inherit hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+          className="markdown-heading-link"
         >
           {children}
         </a>
@@ -406,50 +399,61 @@ const markdownComponents: Components = {
         id={id}
         data-outline-anchor="true"
         data-outline-id={id}
-        className="text-16 font-semibold text-stone-800 dark:text-stone-200 mt-2 mb-1 group/head scroll-mt-4"
+        className="scroll-mt-4"
       >
         <a
           href={`#${id}`}
-          className="no-underline text-inherit hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+          className="markdown-heading-link"
         >
           {children}
         </a>
       </h4>
     );
   },
-  // Paragraphs
-  p: ({ children }) => (
-    <p className="text-gray-700 dark:text-gray-300 leading-[1.75] mb-2 last:mb-0">
-      {children}
-    </p>
-  ),
-  // Lists with better styling
-  ul: ({ children }) => (
-    <ul className="list-disc space-y-1.5 mb-3 pl-5 marker:text-amber-500 dark:marker:text-amber-400 marker:text-[0.6em]">
-      {children}
-    </ul>
-  ),
-  ol: ({ children }) => (
-    <ol className="list-decimal list-inside space-y-1.5 mb-3 pl-5 marker:text-stone-500 dark:marker-stone-400 marker:font-semibold">
-      {children}
-    </ol>
-  ),
-  li: ({ children }) => (
-    <li className="text-gray-700 dark:text-gray-300 leading-[1.75]">
-      {children}
-    </li>
-  ),
-  // Blockquotes with elegant styling
-  blockquote: ({ children }) => (
-    <blockquote
-      className="my-3 pl-4 pr-3 py-2 border-l-[5px] border-amber-400 bg-amber-50 dark:bg-amber-900/20"
-      style={{ borderRadius: "4px" }}
-    >
-      <div className="text-stone-600 dark:text-stone-300 text-14 [&>p]:italic [&>p:first-child]:italic">
-        {children}
-      </div>
-    </blockquote>
-  ),
+  h5: function Heading5({ children }) {
+    const { headingAnchorContext } = useContext(MarkdownContext);
+    const id = getHeadingAnchorId({ children, headingAnchorContext });
+    return (
+      <h5
+        id={id}
+        data-outline-anchor="true"
+        data-outline-id={id}
+        className="scroll-mt-4"
+      >
+        <a
+          href={`#${id}`}
+          className="markdown-heading-link"
+        >
+          {children}
+        </a>
+      </h5>
+    );
+  },
+  h6: function Heading6({ children }) {
+    const { headingAnchorContext } = useContext(MarkdownContext);
+    const id = getHeadingAnchorId({ children, headingAnchorContext });
+    return (
+      <h6
+        id={id}
+        data-outline-anchor="true"
+        data-outline-id={id}
+        className="scroll-mt-4"
+      >
+        <a
+          href={`#${id}`}
+          className="markdown-heading-link"
+        >
+          {children}
+        </a>
+      </h6>
+    );
+  },
+  // Typography is shared by chat and document previews in markdown.css.
+  p: ({ children }) => <p>{children}</p>,
+  ul: ({ children, className }) => <ul className={className}>{children}</ul>,
+  ol: ({ children, start }) => <ol start={start}>{children}</ol>,
+  li: ({ children, className }) => <li className={className}>{children}</li>,
+  blockquote: ({ children }) => <blockquote>{children}</blockquote>,
   // Links with hover effects
   a: ({ href, children }) => {
     const linkChildren = renderLinkedImages(children);
@@ -459,7 +463,7 @@ const markdownComponents: Components = {
         return (
           <a
             href={href}
-            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition-colors cursor-pointer"
+            className="markdown-link"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -487,25 +491,15 @@ const markdownComponents: Components = {
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition-colors"
+        className="markdown-link"
       >
         {linkChildren}
       </a>
     );
   },
-  // Horizontal rule
-  hr: () => (
-    <hr className="my-4 border-0 h-px bg-gradient-to-r from-transparent via-stone-300 to-transparent dark:via-stone-600" />
-  ),
-  // Strong and emphasis
-  strong: ({ children }) => (
-    <strong className="font-bold text-stone-900 dark:text-stone-100">
-      {children}
-    </strong>
-  ),
-  em: ({ children }) => (
-    <em className="italic text-stone-600 dark:text-stone-400">{children}</em>
-  ),
+  hr: () => <hr />,
+  strong: ({ children }) => <strong>{children}</strong>,
+  em: ({ children }) => <em>{children}</em>,
   // Code blocks
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   code: function MarkdownCode(props: any) {
@@ -542,10 +536,10 @@ const markdownComponents: Components = {
     <tbody className="ai-data-table__body">{children}</tbody>
   ),
   tr: ({ children }) => <tr className="ai-data-table__row">{children}</tr>,
-  th: ({ children }) => (
-    <th className="ai-data-table__header-cell">{children}</th>
+  th: ({ children, style }) => (
+    <th className="ai-data-table__header-cell" style={style}>{children}</th>
   ),
-  td: ({ children }) => {
+  td: ({ children, style }) => {
     const cellText = extractNodeText(children).trim();
     const comparisonState = getComparisonCellState(cellText);
     const ComparisonIcon =
@@ -558,6 +552,7 @@ const markdownComponents: Components = {
     return (
       <td
         className="ai-data-table__cell"
+        style={comparisonState ? { ...style, textAlign: "center" } : style}
         data-comparison-state={comparisonState || undefined}
       >
         {comparisonState ? (
@@ -615,7 +610,7 @@ export const MarkdownContent = memo(function MarkdownContent({
       }}
     >
       <span
-        className="ai-streaming-text markdown-preview block my-1 pl-0.5"
+        className="ai-streaming-text markdown-preview markdown-prose block my-1"
         data-streaming={isStreaming || undefined}
         aria-busy={isStreaming || undefined}
       >

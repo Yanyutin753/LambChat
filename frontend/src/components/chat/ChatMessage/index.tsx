@@ -741,7 +741,7 @@ export const ChatMessage = memo(function ChatMessage({
               personaAvatar={personaAvatar}
             />
             <span
-              className="min-w-0 truncate text-16 sm:text-18 leading-none font-semibold tracking-tight font-serif"
+              className="min-w-0 truncate text-16 sm:text-18 leading-normal font-semibold tracking-tight font-serif"
               style={{ color: "var(--theme-text)" }}
             >
               {personaName || t("chat.message.assistant")}

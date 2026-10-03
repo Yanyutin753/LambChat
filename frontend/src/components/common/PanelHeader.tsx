@@ -98,7 +98,7 @@ export function PanelHeader({
   const mobileControlCount =
     flattenActionNodes(mobileActionNodes, true).length +
     (searchAccessory ? 1 : 0);
-  const hasMobileMenuContent = mobileControlCount > 1;
+  const hasMobileMenuContent = mobileControlCount > 0;
 
   useEffect(() => {
     if (!isMobileMenuOpen) return;
@@ -141,7 +141,6 @@ export function PanelHeader({
     className,
     hasSearch ? "panel-header--has-search" : "",
     searchOnly ? "panel-header--search-only" : "",
-    mobileControlCount === 1 ? "panel-header--single-action" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -260,11 +259,6 @@ export function PanelHeader({
               </div>
             )}
           </div>
-          {mobileControlCount === 1 && mobileActionNodes.length === 1 && (
-            <div className="panel-header__mobile-actions panel-header__mobile-direct">
-              {mobileActionNodes}
-            </div>
-          )}
           {searchAccessory && !isMobileMenuOpen && (
             <div className="panel-header__search-accessory">
               {searchAccessory}

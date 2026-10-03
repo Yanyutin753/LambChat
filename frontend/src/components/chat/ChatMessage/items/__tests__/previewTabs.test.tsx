@@ -8,7 +8,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import { RevealPreviewHost } from "../RevealPreviewHost";
 import {
   clearRevealPreviewTabs,
@@ -24,6 +24,13 @@ import {
   updatePersistentToolPanel,
 } from "../persistentToolPanelState";
 import { resetRightPanelCoordinator } from "../../../../common/rightPanelCoordinator";
+
+beforeAll(async () => {
+  // 文件预览弹窗（含 tab 条）整体在 LazyDocumentPreview 的 Suspense 边界内，
+  // 冷启动 CI 上首次 import DocumentPreview 分块可能超过 findByRole 默认 1s
+  // 超时；预热让 lazy() 立即 resolve，不再与超时竞速。
+  await import("../../../../documents/DocumentPreview");
+});
 
 beforeEach(() => {
   window.matchMedia = vi.fn().mockReturnValue({
@@ -66,7 +73,7 @@ test("files and tools share tabs; closing a background file does not close the s
       ),
     ),
   );
-  await screen.findByRole("tab", { name: "alpha.txt" });
+  await screen.findByRole("tab", { name: "alpha.txt" }, { timeout: 5000 });
   act(() =>
     openPersistentToolPanel({
       panelKey: "tool:a",
@@ -88,7 +95,7 @@ test("files and tools share tabs; closing a background file does not close the s
       ),
     ),
   );
-  await screen.findByRole("tab", { name: "beta.txt" });
+  await screen.findByRole("tab", { name: "beta.txt" }, { timeout: 5000 });
   expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
     "alpha.txt",
     "Tool",
@@ -145,7 +152,7 @@ test("same file paths in different projects keep separate tabs", async () => {
     fireEvent.click(
       await within(project).findByRole("button", { name: /^same.txt/ }),
     );
-    await screen.findAllByRole("tab", { name: "same.txt" });
+    await screen.findAllByRole("tab", { name: "same.txt" }, { timeout: 5000 });
   }
   expect(
     getRevealPreviewTabs().filter((tab) => tab.request.kind === "file"),
