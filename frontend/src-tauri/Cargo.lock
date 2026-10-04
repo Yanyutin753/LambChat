@@ -1942,8 +1942,12 @@ dependencies = [
 name = "lambchat"
 version = "2.14.0"
 dependencies = [
+ "block2",
  "command-group",
  "libc",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
  "reqwest",
  "rustls",
  "serde",

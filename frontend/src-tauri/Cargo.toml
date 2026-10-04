@@ -44,3 +44,10 @@ command-group = "5.0.1"
 [target.'cfg(unix)'.dependencies]
 # daemon sidecar 探活轮询用 kill(pid, 0)（存在性校验，不发实际信号）
 libc = "0.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# AppKit types already used by Tauri; no extra window-decoration plugin.
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWindow", "NSView", "NSButton", "NSResponder"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSNotification", "NSOperation", "NSString", "block2"] }
+block2 = "0.6"
