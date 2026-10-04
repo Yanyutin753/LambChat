@@ -11,11 +11,7 @@
         "additionalBrowserArgs": "--disable-http-cache --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection",
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "decorations": true,
-        "trafficLightPosition": {
-          "x": 12,
-          "y": 21.5
-        }
+        "decorations": true
       }
     ]
   }
