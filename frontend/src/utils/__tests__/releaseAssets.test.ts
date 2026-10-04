@@ -19,16 +19,15 @@ const V281_ASSETS: ReleaseAsset[] = [
   a("lambchat-daemon-x86_64-pc-windows-msvc.exe"),
   a("lambchat-daemon-x86_64-unknown-linux-gnu"),
   a("LambChat-ios-v2.8.1-unsigned-xcarchive.zip"),
-  a("LambChat-v2.8.1-Linux-arm64.AppImage"),
   a("LambChat-v2.8.1-Linux-arm64.deb"),
   a("LambChat-v2.8.1-Linux-arm64.rpm"),
-  a("LambChat-v2.8.1-Linux-x86_64.AppImage"),
   a("LambChat-v2.8.1-Linux-x86_64.deb"),
   a("LambChat-v2.8.1-Linux-x86_64.rpm"),
   a("LambChat-v2.8.1-macOS.dmg"),
   a("LambChat-v2.8.1-Windows-Portable.zip"),
+  a("LambChat-v2.8.1-Windows-x64-setup.exe"),
   a("LambChat-v2.8.1-Windows.msi"),
-  a("LambChat_2.8.1_amd64.AppImage.sig"),
+  a("LambChat_2.8.1_x64-setup.exe.sig"),
   a("LambChat_2.8.1_x64_en-US.msi.sig"),
   a("latest.json"),
 ];
@@ -90,28 +89,39 @@ test("unknown user agents return null", () => {
 test("groups desktop installers by platform and drops noise assets", () => {
   const group = matchDesktopAssets(V281_ASSETS);
 
+  // Windows：NSIS 安装包为主推（零 UAC 自更新），MSI 给企业用户，便携版兜底
   expect(group.windows.map((d) => d.name)).toEqual([
+    "LambChat-v2.8.1-Windows-x64-setup.exe",
     "LambChat-v2.8.1-Windows.msi",
     "LambChat-v2.8.1-Windows-Portable.zip",
   ]);
   expect(group.macos.map((d) => d.name)).toEqual(["LambChat-v2.8.1-macOS.dmg"]);
+  // Linux：deb 主推（对应应用内 pkexec 更新链），rpm 次之，不再分发 AppImage
   expect(group.linux.map((d) => d.name)).toEqual([
-    "LambChat-v2.8.1-Linux-x86_64.AppImage",
     "LambChat-v2.8.1-Linux-x86_64.deb",
     "LambChat-v2.8.1-Linux-x86_64.rpm",
-    "LambChat-v2.8.1-Linux-arm64.AppImage",
     "LambChat-v2.8.1-Linux-arm64.deb",
     "LambChat-v2.8.1-Linux-arm64.rpm",
   ]);
 });
 
+test("legacy AppImage assets are no longer offered for Linux", () => {
+  const group = matchDesktopAssets([
+    a("LambChat-v2.8.1-Linux-x86_64.AppImage"),
+    a("LambChat-v2.8.1-Linux-x86_64.deb"),
+  ]);
+  expect(group.linux.map((d) => d.name)).toEqual([
+    "LambChat-v2.8.1-Linux-x86_64.deb",
+  ]);
+});
+
 test("keeps download urls and sizes intact", () => {
   const group = matchDesktopAssets(V281_ASSETS);
-  const msi = group.windows[0];
-  expect(msi.url).toBe(
-    "https://github.com/Yanyutin753/LambChat/releases/download/v2.8.1/LambChat-v2.8.1-Windows.msi",
+  const setup = group.windows[0];
+  expect(setup.url).toBe(
+    "https://github.com/Yanyutin753/LambChat/releases/download/v2.8.1/LambChat-v2.8.1-Windows-x64-setup.exe",
   );
-  expect(msi.size).toBe(86_234_112);
+  expect(setup.size).toBe(86_234_112);
 });
 
 test("empty or unmatched assets yield empty groups", () => {
@@ -155,13 +165,14 @@ test("recommends the platform's primary installer for direct download", () => {
   const group = matchDesktopAssets(V281_ASSETS);
 
   expect(pickRecommendedAsset(group, "windows")?.name).toBe(
-    "LambChat-v2.8.1-Windows.msi",
+    "LambChat-v2.8.1-Windows-x64-setup.exe",
   );
   expect(pickRecommendedAsset(group, "macos")?.name).toBe(
     "LambChat-v2.8.1-macOS.dmg",
   );
+  // Linux 主推 deb：与应用内更新链同包型，下载页装的和应用内升级的保持一致
   expect(pickRecommendedAsset(group, "linux")?.name).toBe(
-    "LambChat-v2.8.1-Linux-x86_64.AppImage",
+    "LambChat-v2.8.1-Linux-x86_64.deb",
   );
 });
 

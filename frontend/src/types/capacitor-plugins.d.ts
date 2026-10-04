@@ -31,8 +31,27 @@ declare module "@capacitor/filesystem" {
     recursive?: boolean;
   }
 
+  export interface StatOptions {
+    path: string;
+    directory?: Directory;
+  }
+
+  /** 与 @capacitor/filesystem v7 的 StatResult 对齐（缓存判定只用 size） */
+  export interface StatResult {
+    type: string;
+    size: number;
+    mtime: number;
+    uri: string;
+  }
+
+  export interface GetUriResult {
+    uri: string;
+  }
+
   export const Filesystem: {
     writeFile: (options: WriteFileOptions) => Promise<WriteFileResult>;
     appendFile: (options: AppendFileOptions) => Promise<void>;
+    stat: (options: StatOptions) => Promise<StatResult>;
+    getUri: (options: StatOptions) => Promise<GetUriResult>;
   };
 }

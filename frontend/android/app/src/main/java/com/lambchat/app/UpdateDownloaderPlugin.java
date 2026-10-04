@@ -10,6 +10,7 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import java.io.File;
 
 /**
  * 更新包原生下载桥（系统 DownloadManager）。
@@ -21,15 +22,29 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  *
  * downloadId 以字符串往返（Long.parseLong），避开各 Capacitor 版本
  * PluginCall 数值取值 API 差异。
+ *
+ * 版本化缓存（主流客户端语义）：资产名带版本号即缓存键——status 命中
+ * 完整文件直接安装不重下，cleanup 清旧版本残留。
  */
 @CapacitorPlugin(name = "UpdateDownloader")
 public class UpdateDownloaderPlugin extends Plugin {
+
+    /** 应用专属外部 Downloads 目录（DownloadManager 的下载目的地）。 */
+    private File downloadsDir() {
+        File dir = getContext().getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+        return dir != null ? dir : new File(getContext().getFilesDir(), Environment.DIRECTORY_DOWNLOADS);
+    }
+
+    private static boolean isValidFileName(String fileName) {
+        return fileName != null && !fileName.isEmpty()
+                && !fileName.contains("/") && !fileName.contains("..");
+    }
 
     @PluginMethod
     public void start(PluginCall call) {
         String url = call.getString("url");
         String fileName = call.getString("fileName");
-        if (url == null || url.isEmpty() || fileName == null || fileName.isEmpty()) {
+        if (url == null || url.isEmpty() || !isValidFileName(fileName)) {
             call.reject("url and fileName are required");
             return;
         }
@@ -55,6 +70,48 @@ public class UpdateDownloaderPlugin extends Plugin {
         } catch (Exception e) {
             call.reject("enqueue failed: " + e.getMessage());
         }
+    }
+
+    /**
+     * 查目标文件是否已完整下载（缓存命中判定：文件存在 + 大小）。
+     * path 返回绝对路径，可直接交给 ApkInstaller.installApk。
+     */
+    @PluginMethod
+    public void status(PluginCall call) {
+        String fileName = call.getString("fileName");
+        if (!isValidFileName(fileName)) {
+            call.reject("fileName is required");
+            return;
+        }
+        File file = new File(downloadsDir(), fileName);
+        JSObject ret = new JSObject();
+        ret.put("exists", file.isFile());
+        ret.put("size", file.isFile() ? file.length() : 0);
+        if (file.isFile()) {
+            ret.put("path", file.getAbsolutePath());
+        }
+        call.resolve(ret);
+    }
+
+    /** 删除目录里 keepFileName 之外的残留更新包（换版本/装完后收尾）。 */
+    @PluginMethod
+    public void cleanup(PluginCall call) {
+        String keep = call.getString("keepFileName");
+        File dir = downloadsDir();
+        int removed = 0;
+        File[] files = dir.listFiles();
+        if (files != null) {
+            for (File f : files) {
+                if (f.isFile() && (keep == null || !keep.equals(f.getName()))) {
+                    if (f.delete()) {
+                        removed++;
+                    }
+                }
+            }
+        }
+        JSObject ret = new JSObject();
+        ret.put("removed", removed);
+        call.resolve(ret);
     }
 
     @PluginMethod
