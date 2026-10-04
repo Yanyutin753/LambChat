@@ -1,9 +1,9 @@
+import { DialogCloseButton } from "../../common/DialogCloseButton";
 import { ModalSurface } from "../../common/ModalSurface";
 import { useTranslation } from "react-i18next";
-import { Tag, X } from "lucide-react";
+import { Tag } from "lucide-react";
 
 import { Button, FormField, Input, Textarea } from "../../common";
-import { ToolbarIconButton } from "../../common/ui/ToolbarIconButton";
 import { ResourceCardTags } from "../../common/ResourceCardTags";
 import { ConfigPanelErrorCallout } from "../ConfigPanelErrorCallout";
 
@@ -79,11 +79,9 @@ export function PublishDialog({
               </p>
             </div>
           </div>
-          <ToolbarIconButton
-            aria-label={t("common.close")}
+          <DialogCloseButton
             disabled={isPublishing}
             onClick={() => setPublishConfirm(null)}
-            icon={<X size={18} />}
           />
         </div>
         <div className="min-h-0 overflow-y-auto space-y-5 p-5 sm:p-6">

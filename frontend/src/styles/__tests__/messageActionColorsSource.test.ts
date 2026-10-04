@@ -4,9 +4,13 @@ import { expect, test } from "vitest";
 const read = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 
-test("message copy actions use the same idle and hover colors as sibling actions", () => {
-  expect(read("../chat.css")).toMatch(
-    /\.chat-message-actions \.copy-button\s*\{[^}]*@apply rounded-md text-stone-400 dark:text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-700 hover:text-stone-600 dark:hover:text-stone-300;/,
+test("message actions share theme colors for idle and hover states", () => {
+  const css = read("../chat.css");
+  expect(css).toMatch(
+    /\.chat-message-actions button:not\(\[aria-pressed="true"\]\)\s*\{[^}]*color: var\(--theme-text-tertiary\);[^}]*background: transparent;/,
+  );
+  expect(css).toMatch(
+    /\.chat-message-actions button:not\(\[aria-pressed="true"\]\):enabled:hover\s*\{[^}]*color: var\(--theme-text-secondary\);[^}]*background: var\(--theme-bg-subtle\);/,
   );
 });
 

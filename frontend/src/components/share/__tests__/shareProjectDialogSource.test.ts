@@ -21,7 +21,7 @@ test.each(["ShareDialog.tsx", "ShareProjectDialog.tsx"])(
   "%s exposes share choices and a named close action",
   (file) => {
     const dialog = readFileSync(resolve(currentDir, "..", file), "utf8");
-    expect(dialog).toContain('aria-label={t("common.close")}');
+    expect(dialog).toContain("<DialogCloseButton onClick={onClose}");
     expect(dialog).toContain('aria-pressed={shareType === "full"}');
     expect(dialog).toContain('aria-pressed={shareType === "partial"}');
     expect(dialog).toContain('aria-pressed={visibility === "public"}');

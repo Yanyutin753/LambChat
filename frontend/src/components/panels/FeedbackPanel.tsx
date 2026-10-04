@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
 /**
  * 反馈管理面板 — 电商平台评价风格
@@ -367,7 +368,7 @@ function FeedbackDetailModal({
     <>
       <ModalSurface open onClose={onClose}>
         <div
-          className="w-full sm:max-w-lg bg-white dark:bg-stone-800 sm:rounded-2xl rounded-t-2xl shadow-2xl border-t sm:border border-stone-200/50 dark:border-stone-700/50 max-h-[85vh] flex flex-col animate-slide-up-sheet sm:animate-in sm:fade-in sm:zoom-in-95 sm:duration-200 safe-area-bottom"
+          className="w-full sm:max-w-lg bg-theme-bg-card sm:rounded-2xl rounded-t-2xl shadow-2xl border-t sm:border border-stone-200/50 dark:border-stone-700/50 max-h-[85vh] flex flex-col animate-slide-up-sheet sm:animate-in sm:fade-in sm:zoom-in-95 sm:duration-200 safe-area-bottom"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -389,24 +390,7 @@ function FeedbackDetailModal({
                 </p>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="flex h-11 w-11 items-center justify-center rounded-full text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
+            <DialogCloseButton onClick={onClose} />
           </div>
 
           {/* Body */}

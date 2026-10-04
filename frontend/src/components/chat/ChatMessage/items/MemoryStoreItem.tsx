@@ -28,6 +28,7 @@ import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import { DetailSection } from "./DetailSection";
 import { TYPE_STYLES, TYPE_DOTS } from "../../../panels/MemoryPanel/constants";
+import { buildPanelSummary } from "../panelSummary";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -431,11 +432,9 @@ const MemoryStoreItem = memo(function MemoryStoreItem({
             icon:
               action === "delete" ? <Trash2 size={16} /> : <Brain size={16} />,
             status: pillStatus,
-            subtitle: title
-              ? title.length > 80
-                ? title.slice(0, 77) + "…"
-                : title
-              : undefined,
+            subtitle: buildPanelSummary(
+              title || summary || content || memoryIdArg,
+            ),
             fallback: detailContent || undefined,
             buildDetail: (data) => (
               <MemoryStoreDetail

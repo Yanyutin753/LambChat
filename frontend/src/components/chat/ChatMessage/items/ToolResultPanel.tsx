@@ -173,10 +173,13 @@ export function ToolResultPanel({
     onClose();
   }, [onUserClose, onClose]);
 
+  const tabTitle = [title, subtitle?.replace(/\s+/g, " ").trim()]
+    .filter(Boolean)
+    .join(" · ");
   const entry = useRightPanelEntry({
     open,
     onClose: handleUserClose,
-    title,
+    title: tabTitle,
     icon,
     registryKey,
     kind: "content",

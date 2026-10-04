@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
 import {
   Fragment,
@@ -19,7 +20,6 @@ import {
   Bell,
   Settings,
   BarChart3,
-  X,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
@@ -29,7 +29,6 @@ import {
   ResourceCardMenu,
   type ResourceCardAction,
 } from "../common/ResourceCardMenu";
-import { IconButton } from "../common";
 import { getFullUrl } from "../../services/api";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
 
@@ -240,12 +239,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
                 <span className="min-w-0 truncate text-14 font-medium font-serif text-theme-text">
                   {user?.username || t("common.user")}
                 </span>
-                <IconButton
-                  size="lg"
-                  aria-label={t("common.close")}
-                  icon={<X size={18} />}
-                  onClick={() => closeMenu()}
-                />
+                <DialogCloseButton onClick={() => closeMenu()} />
               </div>
               <div className="pb-1.5">
                 {actions.map((action) => (

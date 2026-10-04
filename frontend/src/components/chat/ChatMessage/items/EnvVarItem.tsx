@@ -253,10 +253,7 @@ const EnvVarItem = memo(function EnvVarItem({
             title: actionLabel,
             icon: <KeyRound size={16} />,
             status: pillStatus,
-            subtitle:
-              allKeys.length > 0
-                ? t("chat.message.toolVarCount", { count: allKeys.length })
-                : undefined,
+            subtitle: allKeys.join(", ") || undefined,
             fallback: detailContent || undefined,
             buildDetail: (data) => (
               <EnvVarDetail {...toolDetailPropsFromPanelData(data)} />

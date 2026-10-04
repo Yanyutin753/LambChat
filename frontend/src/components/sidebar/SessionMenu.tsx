@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
 /**
  * Session context menu component for session actions
@@ -11,7 +12,6 @@ import {
   Trash2,
   FolderHeart,
   Tag,
-  X,
   ChevronLeft,
   Share2,
   Star,
@@ -389,15 +389,7 @@ export function SessionMenu({
             <span className="text-14 font-medium">
               {t("sidebar.sessionOptions")}
             </span>
-            <button
-              type="button"
-              aria-label={t("common.close")}
-              onClick={onClose}
-              className="p-1 rounded-full transition-colors"
-              style={{ color: "var(--theme-text-secondary)" }}
-            >
-              <X size={18} />
-            </button>
+            <DialogCloseButton onClick={onClose} />
           </div>
 
           <div className="px-2 pb-4">

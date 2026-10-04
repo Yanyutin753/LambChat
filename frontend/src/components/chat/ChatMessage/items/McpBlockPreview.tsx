@@ -27,6 +27,7 @@ import { ToolResultPanel } from "./ToolResultPanel";
 import {
   extractGeneratedImageResults,
   extractSingleImageResult,
+  fileNameFromUrl,
   type GeneratedImageResult,
 } from "./toolImageResults";
 import {
@@ -38,6 +39,7 @@ import {
   subscribeBlockPreview,
 } from "./blockPreviewStore";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
+import { buildPanelSummary } from "../panelSummary";
 
 /** All opened blocks stay keyed independently of virtualized message rows. */
 export function BlockPreviewPortal() {
@@ -46,21 +48,39 @@ export function BlockPreviewPortal() {
     getBlockPreviewTabs,
     getBlockPreviewTabs,
   );
-  return previews.map((preview) => (
-    <BlockPreviewTab key={blockPreviewKey(preview)} preview={preview} />
+  return previews.map((preview, index) => (
+    <BlockPreviewTab
+      key={blockPreviewKey(preview)}
+      preview={preview}
+      index={index}
+    />
   ));
 }
 
-function BlockPreviewTab({ preview }: { preview: BlockPreviewData }) {
+function BlockPreviewTab({
+  preview,
+  index,
+}: {
+  preview: BlockPreviewData;
+  index: number;
+}) {
   const { t } = useTranslation();
   const close = () => closeBlockPreview(blockPreviewKey(preview));
   let icon: React.ReactNode;
   let title: string;
+  let subtitle = buildPanelSummary(
+    preview.text || preview.url || "",
+  );
   let content: React.ReactNode;
 
   if (preview.type === "image" && preview.src) {
     icon = <ImageIcon size={16} />;
     title = t("chat.message.toolOutput");
+    subtitle =
+      preview.fileName ||
+      (preview.src.startsWith("data:")
+        ? `${preview.src.slice(5).split(/[;,]/, 1)[0]} · ${index + 1}`
+        : fileNameFromUrl(preview.src));
     content = (
       <div className="flex items-center justify-center p-4 bg-theme-bg min-h-[200px]">
         <ImageWithSkeleton
@@ -114,6 +134,7 @@ function BlockPreviewTab({ preview }: { preview: BlockPreviewData }) {
       onClose={close}
       registryKey={blockPreviewKey(preview)}
       title={title}
+      subtitle={subtitle}
       icon={icon}
       status="success"
     >

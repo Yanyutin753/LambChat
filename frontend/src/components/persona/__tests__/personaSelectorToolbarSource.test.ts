@@ -11,7 +11,7 @@ const selectorSource = readFileSync(
 test("persona selector keeps the manage entry in the sheet header", () => {
   // 管理角色入口与关闭按钮同处头部，手机端收敛为纯图标，不再挤占搜索区
   expect(selectorSource).toMatch(
-    /border-b px-5 py-4[\s\S]*?personaPresets\.manage[\s\S]*?<X size=\{18\}/,
+    /border-b px-5 py-4[\s\S]*?personaPresets\.manage[\s\S]*?<DialogCloseButton/,
   );
   expect(selectorSource).toMatch(
     /<span className="hidden sm:inline">\s*\{t\("personaPresets\.manage"/,

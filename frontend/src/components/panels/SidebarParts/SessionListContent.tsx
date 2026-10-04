@@ -326,15 +326,15 @@ export function SessionListContent({
       <div
         className={
           compactChrome
-            ? "flex flex-col gap-0 sm:gap-px ps-1 pe-0 pt-1 mb-2 space-y-0 sm:space-y-1"
-            : "flex flex-col gap-0 sm:gap-px ps-1 pe-0 mb-2 space-y-0 sm:space-y-1"
+            ? "flex flex-col gap-0 sm:gap-px px-1 pt-1 mb-2 space-y-0 sm:space-y-1"
+            : "flex flex-col gap-0 sm:gap-px px-1 mb-2 space-y-0 sm:space-y-1"
         }
       >
         <button
           onClick={onNewSession}
           className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors group"
         >
-          <SquarePen size={20} />
+          <SquarePen size={compactChrome ? 19 : 20} />
           <span className="flex-1 text-left">{t("sidebar.newChat")}</span>
           <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-10 font-medium text-theme-text-tertiary dark:text-stone-500 rounded opacity-0 group-hover:opacity-100 transition-opacity">
             {t("sidebar.newChatShortcut")}
@@ -397,7 +397,7 @@ export function SessionListContent({
       <div
         ref={onSetScrollEl}
         data-sidebar-scroll
-        className="flex-1 overflow-y-auto ps-1 pe-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex-1 overflow-y-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <div className="flex flex-col gap-px">
           {/* Pinned sessions (aggregated across projects) */}

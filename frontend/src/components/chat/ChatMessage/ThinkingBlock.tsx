@@ -11,6 +11,7 @@ import {
 import { SidebarMarkdownContent } from "./SidebarMarkdownContent";
 import { buildStreamingThinkingPreview } from "./thinkingPreview";
 import { useSmoothStreamText } from "./useSmoothStreamText";
+import { buildPanelSummary } from "./panelSummary";
 
 export function ThinkingBlock({
   content,
@@ -27,6 +28,7 @@ export function ThinkingBlock({
 
   // 思考文案平滑流出：片段到达后打字机式渐显，而非整块蹦出；历史回放全量
   const displayContent = useSmoothStreamText(content, !!isStreaming);
+  const subtitle = buildPanelSummary(content);
 
   useEffect(() => {
     if (!isPersistentToolPanelOpen(panelKey)) return;
@@ -34,6 +36,7 @@ export function ThinkingBlock({
       (prev) => ({
         ...prev,
         status,
+        subtitle,
         children: (
           <div className="p-3 sm:p-4 [&_.markdown-preview]:thinking-content">
             <SidebarMarkdownContent
@@ -45,7 +48,7 @@ export function ThinkingBlock({
       }),
       panelKey,
     );
-  }, [displayContent, isStreaming, panelKey, status]);
+  }, [displayContent, isStreaming, panelKey, status, subtitle]);
 
   // Show a brief preview of the reasoning content in the pill label
   const preview = useMemo(() => {
@@ -73,6 +76,7 @@ export function ThinkingBlock({
       onPanelOpen={() => {
         openPersistentToolPanel({
           title: t("chat.message.thought"),
+          subtitle,
           icon: <Brain size={16} />,
           status,
           panelKey,

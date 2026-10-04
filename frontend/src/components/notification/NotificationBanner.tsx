@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "../common/DialogCloseButton";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Bell, Calendar, X } from "lucide-react";
@@ -219,14 +220,7 @@ export function NotificationBanner() {
                   </p>
                 </div>
               </div>
-              <button
-                onClick={closeSelectedNotification}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors"
-                style={{ color: "var(--theme-text-secondary)" }}
-                aria-label={t("common.dismiss", "关闭")}
-              >
-                <X size={18} />
-              </button>
+              <DialogCloseButton onClick={closeSelectedNotification} />
             </div>
 
             <div className="space-y-4 px-5 py-5">
