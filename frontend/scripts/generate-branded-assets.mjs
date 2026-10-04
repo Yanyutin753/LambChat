@@ -5,12 +5,13 @@ import { deflateSync, inflateSync } from "node:zlib";
 const checkOnly = process.argv.includes("--check");
 const brandIconPath = resolve("public/icons/icon-512.png");
 const brandIcon = readFileSync(brandIconPath);
+// App icons use an opaque tile; splash images keep the existing web artwork.
+const mobileIcon = readFileSync(resolve("resources/mobile-icon.png"));
 const IOS_APP_ICON_SIZE = 1024;
 const crcTable = createCrcTable();
-const iosAppIcon = scalePngNearest(brandIcon, IOS_APP_ICON_SIZE / 512);
+const iosAppIcon = scalePngNearest(mobileIcon, IOS_APP_ICON_SIZE / 512);
 
 const targets = [
-  "resources/icon.png",
   "resources/splash.png",
   "android/app/src/main/res/drawable/splash.png",
   "android/app/src/main/res/drawable-land-hdpi/splash.png",
@@ -23,6 +24,13 @@ const targets = [
   "android/app/src/main/res/drawable-port-xhdpi/splash.png",
   "android/app/src/main/res/drawable-port-xxhdpi/splash.png",
   "android/app/src/main/res/drawable-port-xxxhdpi/splash.png",
+  "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732.png",
+  "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-1.png",
+  "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-2.png",
+];
+
+const mobileIconTargets = [
+  "resources/icon.png",
   "android/app/src/main/res/mipmap-hdpi/ic_launcher.png",
   "android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png",
   "android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png",
@@ -38,12 +46,10 @@ const targets = [
   "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png",
   "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
   "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png",
-  "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732.png",
-  "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-1.png",
-  "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-2.png",
 ];
 
 const generatedTargets = new Map([
+  ...mobileIconTargets.map((target) => [target, mobileIcon]),
   [
     "ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png",
     iosAppIcon,

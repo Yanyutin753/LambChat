@@ -126,6 +126,7 @@ test("mobile package scripts generate and validate branded native images", () =>
   expect(packagedBuildScript).toMatch(/LAMBCHAT_APP_URL:\s*normalizedAppUrl/);
   expect(assetScript).toMatch(/LambChat/);
   expect(assetScript).toMatch(/public\/icons\/icon-512\.png/);
+  expect(assetScript).toMatch(/resources\/mobile-icon\.png/);
   expect(assetScript).toMatch(/scalePngNearest/);
   expect(assetScript).toMatch(/1024/);
 });
