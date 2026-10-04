@@ -1,4 +1,14 @@
-import { ArrowRight, Download, ExternalLink, RefreshCw } from "lucide-react";
+import {
+  ArrowDownCircle,
+  BadgeCheck,
+  Calendar,
+  CheckCircle2,
+  Download,
+  ExternalLink,
+  PackageCheck,
+  RefreshCw,
+  ScrollText,
+} from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Dialog } from "../common/Dialog";
@@ -88,8 +98,14 @@ export function UpdateDialog({
             <ExternalLink size={16} />
           ) : isLinuxPackage ? (
             <Download size={16} />
+          ) : state.readyToInstall ? (
+            platform === "android" ? (
+              <PackageCheck size={16} />
+            ) : (
+              <RefreshCw size={16} />
+            )
           ) : (
-            <RefreshCw size={16} />
+            <Download size={16} />
           )
         }
       >
@@ -119,7 +135,19 @@ export function UpdateDialog({
       size="md"
       title={t("update.availableTitle", "发现新版本")}
       icon={
-        <Download size={18} className="shrink-0 text-[var(--theme-primary)]" />
+        state.downloading ? (
+          <ArrowDownCircle
+            size={18}
+            className="shrink-0 text-[var(--theme-primary)]"
+          />
+        ) : state.readyToInstall ? (
+          <BadgeCheck
+            size={18}
+            className="shrink-0 text-[var(--theme-primary)]"
+          />
+        ) : (
+          <Download size={18} className="shrink-0 text-[var(--theme-primary)]" />
+        )
       }
       footer={footer}
     >
@@ -127,17 +155,21 @@ export function UpdateDialog({
         {state.error && (
           <ConfigPanelErrorCallout message={state.error} tabIndex={-1} />
         )}
-        {/* 版本迁移行：当前 → 新版本 */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="flex min-w-0 flex-wrap items-center gap-1.5 font-mono text-14 text-theme-text-secondary dark:text-stone-400">
-            v{APP_VERSION}
-            <ArrowRight size={14} className="opacity-60" aria-hidden="true" />
-            <span className="min-w-0 [overflow-wrap:anywhere] font-semibold text-theme-text dark:text-stone-100">
+        {/* 版本信息是弹窗主体：新版本号大号居前，当前版本作小字参照 */}
+        <div className="flex flex-col gap-1">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+            <span className="min-w-0 [overflow-wrap:anywhere] font-mono text-20 font-semibold text-theme-text dark:text-stone-100">
               v{state.version ?? ""}
             </span>
-          </span>
+            <span className="min-w-0 text-12 text-theme-text-tertiary dark:text-stone-500">
+              {t("update.currentVersionLabel", "当前")}
+              {" v"}
+              {APP_VERSION}
+            </span>
+          </div>
           {state.publishedAt && (
-            <span className="text-12 text-theme-text-tertiary dark:text-stone-500">
+            <span className="flex items-center gap-1 text-12 text-theme-text-tertiary dark:text-stone-500">
+              <Calendar size={12} className="shrink-0 opacity-70" aria-hidden="true" />
               {t("updatePublishedAt", {
                 date: new Date(state.publishedAt).toLocaleDateString(),
               })}
@@ -145,9 +177,30 @@ export function UpdateDialog({
           )}
         </div>
 
+        {platform === "android" &&
+          state.readyToInstall &&
+          !state.downloading &&
+          !state.error && (
+            <div className="flex items-center gap-1.5 text-12 text-theme-text-secondary dark:text-stone-300">
+              <CheckCircle2
+                size={13}
+                className="shrink-0 text-[var(--theme-primary)]"
+                aria-hidden="true"
+              />
+              {t("update.apkReady", {
+                defaultValue: "安装包已下载完成，点击安装不会重复下载",
+              })}
+            </div>
+          )}
+
         {state.releaseNotes && (
           <div className="space-y-1">
-            <p className="text-12 font-medium text-theme-text-secondary dark:text-stone-300">
+            <p className="flex items-center gap-1 text-12 font-medium text-theme-text-secondary dark:text-stone-300">
+              <ScrollText
+                size={12}
+                className="shrink-0 opacity-70"
+                aria-hidden="true"
+              />
               {t("updateReleaseNotes", "更新日志")}
             </p>
             <ReleaseNotesMarkdown content={state.releaseNotes} />

@@ -154,6 +154,26 @@ test("android ready-to-install shows direct install button", () => {
   expect(screen.queryByRole("button", { name: /重启并安装/ })).toBeNull();
 });
 
+test("android ready state explains why the button installs without re-downloading", () => {
+  render(
+    <UpdateDialog
+      {...baseProps}
+      platform="android"
+      state={makeState({ readyToInstall: true })}
+    />,
+  );
+  expect(screen.getByText(/安装包已下载完成/)).toBeTruthy();
+});
+
+test("new version is the visual anchor and current version stays as reference", () => {
+  render(<UpdateDialog {...baseProps} state={makeState()} />);
+  const body = document.body.textContent ?? "";
+  // 新版本号与当前版本都在场（大号主体 + 小字参照）
+  expect(body).toContain("99.0.0");
+  expect(body).toContain(APP_VERSION);
+  expect(body).toContain("更新日志");
+});
+
 test("uses the universal Dialog shell (common dialog component)", () => {
   const source = readFileSync(
     resolve(import.meta.dirname, "../UpdateDialog.tsx"),

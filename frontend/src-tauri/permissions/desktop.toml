@@ -14,5 +14,6 @@ commands.allow = [
   "set_sandbox_data_location",
   "clear_sandbox_data_location",
   "get_linux_install_source",
+  "download_linux_package",
   "install_linux_package",
 ]
