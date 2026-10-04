@@ -155,7 +155,8 @@ function scalePngNearest(source, factor) {
   const sourceStride = 1 + width * 4;
   const outputWidth = width * factor;
   const outputHeight = height * factor;
-  const outputStride = 1 + outputWidth * 4;
+  // iOS's primary marketing icon is exported as RGB, without an alpha channel.
+  const outputStride = 1 + outputWidth * 3;
   const scaled = Buffer.alloc(outputStride * outputHeight);
 
   for (let y = 0; y < height; y += 1) {
@@ -169,10 +170,13 @@ function scalePngNearest(source, factor) {
       scaled[targetOffset] = 0;
 
       for (let x = 0; x < width; x += 1) {
-        const pixel = sourceRow.subarray(x * 4, x * 4 + 4);
-        const targetPixelOffset = targetOffset + 1 + x * factor * 4;
+        if (sourceRow[x * 4 + 3] !== 255) {
+          throw new Error("Mobile app icon must be fully opaque.");
+        }
+        const pixel = sourceRow.subarray(x * 4, x * 4 + 3);
+        const targetPixelOffset = targetOffset + 1 + x * factor * 3;
         pixel.copy(scaled, targetPixelOffset);
-        pixel.copy(scaled, targetPixelOffset + 4);
+        pixel.copy(scaled, targetPixelOffset + 3);
       }
     }
   }
@@ -187,6 +191,7 @@ function scalePngNearest(source, factor) {
     const nextIhdr = Buffer.from(chunk.data);
     nextIhdr.writeUInt32BE(outputWidth, 0);
     nextIhdr.writeUInt32BE(outputHeight, 4);
+    nextIhdr[9] = 2;
     nextChunks.push({ type: chunk.type, data: nextIhdr });
   }
   nextChunks.push({ type: "IDAT", data: deflateSync(scaled) });

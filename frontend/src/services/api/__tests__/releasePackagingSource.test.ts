@@ -5,6 +5,18 @@ function readRepoFile(path: string): string {
   return readFileSync(url, "utf8");
 }
 
+test("iOS primary app icon is a 1024px RGB PNG without an alpha channel", () => {
+  const icon = readFileSync(
+    new URL(
+      "../../../../../frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png",
+      import.meta.url,
+    ),
+  );
+  expect(icon.readUInt32BE(16)).toBe(1024);
+  expect(icon.readUInt32BE(20)).toBe(1024);
+  expect(icon[25]).toBe(2);
+});
+
 test("release workflow publishes branded desktop and mobile artifacts", () => {
   const workflowPath = ".github/workflows/app-release.yml";
   expect(
