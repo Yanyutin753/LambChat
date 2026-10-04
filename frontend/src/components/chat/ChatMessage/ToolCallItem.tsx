@@ -315,6 +315,7 @@ export function ToolCallItem({
 
   const canExpand = hasArgs || hasResult;
   const pillSummary = buildToolPillSummary(displayArgs);
+  const panelSubtitle = [pillSummary, serverName].filter(Boolean).join(" · ");
 
   // 进行中：标签学「思考中」，平滑流出正在生成的参数尾部
   // （等待人工确认时参数已完整，不视为流式）
@@ -377,11 +378,12 @@ export function ToolCallItem({
       (prev) => ({
         ...prev,
         status,
+        subtitle: panelSubtitle || undefined,
         footer: durationFooter,
       }),
       panelKey,
     );
-  }, [panelKey, status, durationFooter]);
+  }, [panelKey, status, durationFooter, panelSubtitle]);
 
   // Inline content for desktop expand
   const inlineContent = canExpand && (
@@ -435,7 +437,7 @@ export function ToolCallItem({
       icon: isMcpTool ? <Globe size={16} /> : <Wrench size={16} />,
       status,
       panelKey,
-      subtitle: serverName || undefined,
+      subtitle: panelSubtitle || undefined,
       children: <ToolCallPanelContent toolCallId={id} />,
       footer: durationFooter,
     });

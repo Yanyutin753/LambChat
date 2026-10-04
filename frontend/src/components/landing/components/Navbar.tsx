@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { Download } from "lucide-react";
 import { ThemeToggle } from "../../common/ThemeToggle";
 import { LanguageToggle } from "../../common/LanguageToggle";
 import { BrandWordmark } from "../../common/BrandWordmark";
@@ -40,7 +41,7 @@ export function Navbar({
           <BrandLogo className="size-8 transition-transform duration-300 group-hover:scale-105" />
           <BrandWordmark
             decorative
-            className="w-auto text-stone-900 dark:text-stone-100 h-8"
+            className="w-auto text-stone-900 dark:text-stone-100 h-8 max-[379px]:hidden"
           />
         </Link>
 
@@ -63,8 +64,13 @@ export function Navbar({
         </div>
 
         <div className="public-nav-actions flex items-center gap-1.5">
-          <Link className="public-download-link" to="/download">
-            {t("imageViewer.download")}
+          <Link
+            className="ui-button ui-icon-button ui-button--ghost !size-11"
+            to="/download"
+            aria-label={t("imageViewer.download")}
+            title={t("imageViewer.download")}
+          >
+            <Download size={18} aria-hidden="true" />
           </Link>
           <LanguageToggle />
           <ThemeToggle />

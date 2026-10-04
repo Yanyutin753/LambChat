@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 
-test("macOS positions native controls beside the centered 36px toolbar", () => {
+test("macOS lets measured native alignment own the overlay controls", () => {
   const config = JSON.parse(
     readFileSync(
       new URL(
@@ -11,14 +11,13 @@ test("macOS positions native controls beside the centered 36px toolbar", () => {
       "utf8",
     ),
   );
-  // Tao's y is a titlebar container inset, not the painted control center.
-  // Keep the native position paired with the 36px toolbar height.
   expect(config.app.windows[0]).toMatchObject({
     decorations: true,
     titleBarStyle: "Overlay",
     hiddenTitle: true,
-    trafficLightPosition: { x: 12, y: 21.5 },
   });
+  // Tao/Wry would reposition the container on resize and overwrite our centering.
+  expect(config.app.windows[0]).not.toHaveProperty("trafficLightPosition");
 });
 
 test("desktop frame reserves the platform titlebar height during loading", () => {
@@ -28,4 +27,9 @@ test("desktop frame reserves the platform titlebar height during loading", () =>
   );
   expect(frame).toContain('os === "mac" ? "36px" : "40px"');
   expect(frame).toContain('os === "mac" ? "h-9 shrink-0" : "h-10 shrink-0"');
+  const native = readFileSync(
+    new URL("../../../../../src-tauri/src/titlebar.rs", import.meta.url),
+    "utf8",
+  );
+  expect(native).toContain("const TITLEBAR_HEIGHT: f64 = 36.0;");
 });

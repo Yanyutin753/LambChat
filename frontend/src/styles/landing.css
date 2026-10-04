@@ -1822,12 +1822,6 @@ html.dark .blog-landing-container>nav,
   background: var(--theme-bg);
 }
 
-@media (max-width: 359px) {
-  .public-nav-actions>.public-download-link {
-    display: none;
-  }
-}
-
 html.dark .blog-landing-container .blog-tech-pill {
   background: none;
   border: 0;

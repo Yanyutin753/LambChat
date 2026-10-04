@@ -27,6 +27,7 @@ import {
   createSubagentPanelFooter,
 } from "../subagentPanelState";
 import { subagentPanelStore } from "../subagentPanelStore";
+import { buildPanelSummary } from "../panelSummary";
 export interface PersistentToolPanelState {
   title: string;
   status: CollapsibleStatus;
@@ -116,6 +117,7 @@ export function closePersistentToolPanel(panelKey?: string): void {
 
 interface LivePanelChrome {
   status: CollapsibleStatus;
+  subtitle?: string;
   footer?: ReactNode;
 }
 
@@ -163,6 +165,7 @@ function useLivePanelChrome(
     const { panelStatus, subtitle } = buildSubagentPanelState(subagentData);
     return {
       status: panelStatus,
+      subtitle: buildPanelSummary(subagentData.input),
       footer: createSubagentPanelFooter(subtitle),
     };
   }
@@ -220,7 +223,7 @@ const PersistentToolPanelTab = memo(function PersistentToolPanelTab({
       title={panel.title}
       icon={panel.icon}
       status={liveChrome?.status ?? panel.status}
-      subtitle={panel.subtitle}
+      subtitle={liveChrome?.subtitle ?? panel.subtitle}
       viewMode={panel.viewMode ?? "sidebar"}
       onViewModeChange={handleViewModeChange}
       isFullscreen={panel.isFullscreen ?? false}

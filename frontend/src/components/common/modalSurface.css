@@ -44,6 +44,7 @@
     justify-content: center;
     touch-action: none;
     cursor: grab;
+    background: var(--theme-bg-card);
   }
   .modal-handle span {
     height: 4px;

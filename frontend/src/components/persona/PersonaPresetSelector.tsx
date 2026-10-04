@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -5,7 +6,6 @@ import {
   Search,
   Settings2,
   UserRound,
-  X,
   Sparkles,
   Copy,
   Pin,
@@ -201,14 +201,7 @@ export function PersonaPresetSelector({
                 </span>
               </button>
             )}
-            <button
-              type="button"
-              className="rounded-lg p-2 hover:bg-theme-bg-subtle dark:hover:bg-stone-800"
-              aria-label={t("common.close")}
-              onClick={() => onOpenChange(false)}
-            >
-              <X size={18} />
-            </button>
+            <DialogCloseButton onClick={() => onOpenChange(false)} />
           </div>
         </div>
 

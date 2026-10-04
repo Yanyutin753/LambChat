@@ -6,6 +6,8 @@ mod daemon;
 mod commands;
 mod linux_update;
 mod tray;
+#[cfg(target_os = "macos")]
+mod titlebar;
 
 /// SIGTERM 停机旗标：信号处理器只做原子置位（async-signal-safe 的唯一动作），
 /// 专用线程轮询后经 `app.exit(0)` 走正常退出路径（M4 T8）。
@@ -204,6 +206,10 @@ pub fn run() {
         // 状态文件在 app data，随版本升级的 clean_on_version_upgrade 重置）
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            if let Some(window) = app.get_webview_window("main") {
+                titlebar::install(&window)?;
+            }
             // 沙箱根覆盖注入必须最先：此后所有 sandbox_home() 解析（PBS
             // 播种、daemon spawn、open_local_path 白名单）都跟随覆盖文件。
             daemon::apply_sandbox_home_override(app.handle());
@@ -263,6 +269,8 @@ pub fn run() {
             }
             // 退出路径：托管 kill daemon（窗口关闭 / 托盘退出 / app.exit 均会走到）。
             if let tauri::RunEvent::Exit = event {
+                #[cfg(target_os = "macos")]
+                titlebar::uninstall();
                 daemon::stop(app_handle);
             }
         });

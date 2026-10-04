@@ -327,7 +327,9 @@ const EvalItem = memo(function EvalItem({
           title,
           icon: <Code2 size={16} />,
           status,
-          subtitle: codePreview?.language,
+          subtitle:
+            [pillSummary, codePreview?.language].filter(Boolean).join(" · ") ||
+            undefined,
           fallback: detailContent || undefined,
           buildDetail: (data) => (
             <EvalDetail {...toolDetailPropsFromPanelData(data)} />

@@ -5,12 +5,13 @@ import { deflateSync, inflateSync } from "node:zlib";
 const checkOnly = process.argv.includes("--check");
 const brandIconPath = resolve("public/icons/icon-512.png");
 const brandIcon = readFileSync(brandIconPath);
+// App icons use an opaque tile; splash images keep the existing web artwork.
+const mobileIcon = readFileSync(resolve("resources/mobile-icon.png"));
 const IOS_APP_ICON_SIZE = 1024;
 const crcTable = createCrcTable();
-const iosAppIcon = scalePngNearest(brandIcon, IOS_APP_ICON_SIZE / 512);
+const iosAppIcon = scalePngNearest(mobileIcon, IOS_APP_ICON_SIZE / 512);
 
 const targets = [
-  "resources/icon.png",
   "resources/splash.png",
   "android/app/src/main/res/drawable/splash.png",
   "android/app/src/main/res/drawable-land-hdpi/splash.png",
@@ -23,6 +24,13 @@ const targets = [
   "android/app/src/main/res/drawable-port-xhdpi/splash.png",
   "android/app/src/main/res/drawable-port-xxhdpi/splash.png",
   "android/app/src/main/res/drawable-port-xxxhdpi/splash.png",
+  "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732.png",
+  "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-1.png",
+  "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-2.png",
+];
+
+const mobileIconTargets = [
+  "resources/icon.png",
   "android/app/src/main/res/mipmap-hdpi/ic_launcher.png",
   "android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png",
   "android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png",
@@ -38,12 +46,10 @@ const targets = [
   "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png",
   "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
   "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png",
-  "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732.png",
-  "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-1.png",
-  "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-2.png",
 ];
 
 const generatedTargets = new Map([
+  ...mobileIconTargets.map((target) => [target, mobileIcon]),
   [
     "ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png",
     iosAppIcon,
@@ -149,7 +155,8 @@ function scalePngNearest(source, factor) {
   const sourceStride = 1 + width * 4;
   const outputWidth = width * factor;
   const outputHeight = height * factor;
-  const outputStride = 1 + outputWidth * 4;
+  // iOS's primary marketing icon is exported as RGB, without an alpha channel.
+  const outputStride = 1 + outputWidth * 3;
   const scaled = Buffer.alloc(outputStride * outputHeight);
 
   for (let y = 0; y < height; y += 1) {
@@ -163,10 +170,13 @@ function scalePngNearest(source, factor) {
       scaled[targetOffset] = 0;
 
       for (let x = 0; x < width; x += 1) {
-        const pixel = sourceRow.subarray(x * 4, x * 4 + 4);
-        const targetPixelOffset = targetOffset + 1 + x * factor * 4;
+        if (sourceRow[x * 4 + 3] !== 255) {
+          throw new Error("Mobile app icon must be fully opaque.");
+        }
+        const pixel = sourceRow.subarray(x * 4, x * 4 + 3);
+        const targetPixelOffset = targetOffset + 1 + x * factor * 3;
         pixel.copy(scaled, targetPixelOffset);
-        pixel.copy(scaled, targetPixelOffset + 4);
+        pixel.copy(scaled, targetPixelOffset + 3);
       }
     }
   }
@@ -181,6 +191,7 @@ function scalePngNearest(source, factor) {
     const nextIhdr = Buffer.from(chunk.data);
     nextIhdr.writeUInt32BE(outputWidth, 0);
     nextIhdr.writeUInt32BE(outputHeight, 4);
+    nextIhdr[9] = 2;
     nextChunks.push({ type: chunk.type, data: nextIhdr });
   }
   nextChunks.push({ type: "IDAT", data: deflateSync(scaled) });

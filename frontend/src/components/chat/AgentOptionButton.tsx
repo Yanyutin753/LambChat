@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "../common/DialogCloseButton";
 import { useState, memo, type ReactNode } from "react";
 import { ModalSurface } from "../common/ModalSurface";
 import { Brain, Settings } from "lucide-react";
@@ -143,9 +144,12 @@ export const AgentOptionButton = memo(function AgentOptionButton({
               overscrollBehavior: "contain",
             }}
           >
-            <h3 className="text-14 font-medium font-serif mb-3 text-theme-text">
-              {description}
-            </h3>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="min-w-0 text-14 font-medium font-serif text-theme-text">
+                {description}
+              </h3>
+              <DialogCloseButton onClick={() => setShowDropdown(false)} />
+            </div>
             {note && (
               <div className="text-12 mb-3 px-2.5 py-1.5 rounded-lg bg-theme-bg-subtle text-theme-text-secondary">
                 {note}

@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
 /**
  * ShareProjectDialog - 创建/管理项目分享
@@ -16,14 +17,13 @@ import {
   Globe,
   Lock,
   Loader2,
-  X,
   AlertTriangle,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { SkeletonList } from "../skeletons";
 import { Checkbox } from "../common/Checkbox";
 import { CopyButton } from "../common/CopyButton";
-import { IconButton, ToolbarIconButton } from "../common/ui";
+import { ToolbarIconButton } from "../common/ui";
 import { shareApi } from "../../services/api/share";
 import { sessionApi } from "../../services/api/session";
 import type { SharedSession, ShareType, ShareVisibility } from "../../types";
@@ -183,7 +183,7 @@ export function ShareProjectDialog({
 
   return (
     <ModalSurface open={isOpen} onClose={onClose} dismissible={true}>
-      <div className="relative z-10 w-full sm:max-w-xl sm:mx-4 sm:pointer-events-auto bg-white dark:bg-stone-800 sm:rounded-xl rounded-t-xl shadow-xl border border-stone-200 dark:border-stone-700 overflow-hidden duration-300 max-h-[90vh] max-h-[90dvh] flex flex-col animate-slide-up-sheet sm:animate-in sm:fade-in sm:zoom-in-95 sm:duration-200">
+      <div className="relative z-10 w-full sm:max-w-xl sm:mx-4 sm:pointer-events-auto bg-theme-bg-card sm:rounded-xl rounded-t-xl shadow-xl border border-stone-200 dark:border-stone-700 overflow-hidden duration-300 max-h-[90vh] max-h-[90dvh] flex flex-col animate-slide-up-sheet sm:animate-in sm:fade-in sm:zoom-in-95 sm:duration-200">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-stone-700">
           <div className="flex items-center gap-2 pt-2 sm:pt-0">
@@ -192,13 +192,7 @@ export function ShareProjectDialog({
               {t("sidebar.shareProject")}
             </h3>
           </div>
-          <IconButton
-            aria-label={t("common.close")}
-            size="lg"
-            icon={<X size={20} />}
-            onClick={onClose}
-            className="sm:!size-7"
-          />
+          <DialogCloseButton onClick={onClose} />
         </div>
 
         {/* Content */}
@@ -451,7 +445,7 @@ export function ShareProjectDialog({
         </div>
 
         {/* Footer */}
-        <div className="safe-area-bottom flex flex-wrap items-center justify-end gap-2 px-5 pt-4 [--safe-area-bottom-extra:1rem] [&>button]:min-h-11 bg-stone-50 dark:bg-stone-900/50 border-t border-stone-100 dark:border-stone-700">
+        <div className="safe-area-bottom flex flex-wrap items-center justify-end gap-2 px-5 pt-4 [--safe-area-bottom-extra:1rem] [&>button]:min-h-11 bg-theme-bg-card border-t border-theme-border">
           <button
             onClick={onClose}
             className="px-4 py-2 text-14 font-medium text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-600 rounded-lg hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors"
