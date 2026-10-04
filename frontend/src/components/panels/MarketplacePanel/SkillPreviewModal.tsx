@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "../../common/DialogCloseButton";
 import { ModalSurface } from "../../common/ModalSurface";
 import { useState, useRef } from "react";
 
@@ -7,7 +8,6 @@ import {
   ChevronRight,
   ChevronDown,
   Loader2 as Loader2Icon,
-  X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
@@ -15,7 +15,7 @@ import { EditorSidebar } from "../../common/EditorSidebar";
 import { BinaryFilePreview } from "../../skill/BinaryFilePreview";
 import { SkillEditor } from "../../skill/SkillEditor";
 import { SkillFileLoadState } from "../../skill/SkillFileLoadState";
-import { Button, ToolbarIconButton } from "../../common";
+import { Button } from "../../common";
 import { ConfigPanelErrorCallout } from "../ConfigPanelErrorCallout";
 import type {
   MarketplaceSkillResponse,
@@ -225,11 +225,10 @@ export function SkillPreviewModal({
                   {previewFilePath}
                 </div>
               </div>
-              <ToolbarIconButton
+              <DialogCloseButton
                 aria-label={t("marketplace.closePreview")}
                 title={t("marketplace.closePreview")}
                 onClick={() => setPreviewFilePath(null)}
-                icon={<X size={16} />}
               />
             </div>
 

@@ -1,6 +1,6 @@
+import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
-import { X } from "lucide-react";
-import { IconButton } from "../common/ui/IconButton";
+
 import { useTranslation } from "react-i18next";
 import {
   getSendShortcutDisplay,
@@ -75,12 +75,7 @@ export function ShortcutDialog({
           >
             {t("chat.keyboardShortcuts", "键盘快捷键")}
           </h3>
-          <IconButton
-            size="lg"
-            aria-label={t("common.close")}
-            onClick={onClose}
-            icon={<X size={16} />}
-          />
+          <DialogCloseButton onClick={onClose} />
         </div>
         <div
           className="space-y-3 text-13"

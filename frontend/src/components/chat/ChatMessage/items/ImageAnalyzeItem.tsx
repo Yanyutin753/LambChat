@@ -230,7 +230,7 @@ const ImageAnalyzeItem = memo(function ImageAnalyzeItem({
             title: t("chat.message.toolImageAnalyze"),
             icon: <Eye size={16} />,
             status,
-            subtitle: imageSummary || prompt || undefined,
+            subtitle: prompt || imageSummary || undefined,
             fallback: detailContent || undefined,
             buildDetail: (data) => (
               <ImageAnalyzeDetail {...toolDetailPropsFromPanelData(data)} />

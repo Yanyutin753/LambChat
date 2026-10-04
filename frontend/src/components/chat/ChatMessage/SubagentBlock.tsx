@@ -43,6 +43,7 @@ import {
   getSubagentRoleIconMeta,
 } from "./subagentRoleMeta";
 import { DeferredSubagentPanelContent } from "./DeferredSubagentPanelContent";
+import { buildPanelSummary } from "./panelSummary";
 
 function SubagentStatusIcon({
   status,
@@ -113,6 +114,7 @@ export function openSubagentPanelByAgentId(agentId: string): boolean {
   resetSubagentPanelAutoOpenState(panelKey);
   openPersistentToolPanel({
     title: formattedAgentName,
+    subtitle: buildPanelSummary(data.input),
     icon: <Bot size={16} />,
     status: panelStatus,
     panelKey,
@@ -202,6 +204,7 @@ export function SubagentBlock({
       markSubagentPanelAutoOpened(panelKey);
       openPersistentToolPanel({
         title: formattedAgentName,
+        subtitle: buildPanelSummary(input),
         icon: <RoleIcon size={16} />,
         status: panelStatus,
         panelKey,
@@ -234,6 +237,7 @@ export function SubagentBlock({
     resetSubagentPanelAutoOpenState(panelKey);
     openPersistentToolPanel({
       title: formattedAgentName,
+      subtitle: buildPanelSummary(input),
       icon: <RoleIcon size={16} />,
       status: panelStatus,
       panelKey,
@@ -241,7 +245,15 @@ export function SubagentBlock({
       footer: createSubagentPanelFooter(subtitle),
       onUserClose: () => dismissSubagentPanelAutoOpen(panelKey),
     });
-  }, [formattedAgentName, RoleIcon, panelStatus, subtitle, panelKey, agent_id]);
+  }, [
+    formattedAgentName,
+    RoleIcon,
+    panelStatus,
+    subtitle,
+    panelKey,
+    agent_id,
+    input,
+  ]);
 
   return (
     <div

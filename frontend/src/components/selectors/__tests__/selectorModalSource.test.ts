@@ -68,9 +68,7 @@ test("selector modals share the header and action bar styles", () => {
   expect(headerSource).toMatch(
     /absolute left-1\/2 -translate-x-1\/2 top-2 w-10 h-1 rounded-full bg-stone-300\/80 dark:bg-stone-600 sm:hidden/,
   );
-  expect(headerSource).toMatch(
-    /flex size-11 shrink-0 items-center justify-center rounded-full border border-stone-200\/80 bg-white\/80 text-stone-500 shadow-sm/,
-  );
+  expect(headerSource).toMatch(/<DialogCloseButton onClick=\{onClose\}/);
 
   expect(actionBarSource).toMatch(/export function SelectorActionBar/);
   expect(actionBarSource).toMatch(

@@ -224,7 +224,7 @@ const VideoAnalyzeItem = memo(function VideoAnalyzeItem({
           title: t("chat.message.toolVideoAnalyze"),
           icon: <Eye size={16} />,
           status,
-          subtitle: videoSummary || prompt || undefined,
+          subtitle: prompt || videoSummary || undefined,
           fallback: detailContent || undefined,
           buildDetail: (data) => (
             <VideoAnalyzeDetail {...toolDetailPropsFromPanelData(data)} />

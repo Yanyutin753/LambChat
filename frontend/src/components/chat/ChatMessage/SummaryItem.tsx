@@ -9,6 +9,7 @@ import {
   isPersistentToolPanelOpen,
 } from "./items/persistentToolPanelState";
 import { MarkdownContent } from "./MarkdownContent";
+import { buildPanelSummary } from "./panelSummary";
 
 export function SummaryItem({
   content,
@@ -24,6 +25,7 @@ export function SummaryItem({
   const { t } = useTranslation();
 
   const status: CollapsibleStatus = isStreaming ? "loading" : "success";
+  const subtitle = buildPanelSummary(content);
   const suffix = useMemo(
     () =>
       freedTokens != null
@@ -40,6 +42,7 @@ export function SummaryItem({
       (prev) => ({
         ...prev,
         status,
+        subtitle,
         children: (
           <div className="p-3 sm:p-4">
             <MarkdownContent content={content} isStreaming={isStreaming} />
@@ -48,7 +51,7 @@ export function SummaryItem({
       }),
       panelKey,
     );
-  }, [content, isStreaming, panelKey, status]);
+  }, [content, isStreaming, panelKey, status, subtitle]);
 
   return (
     <CollapsiblePill
@@ -65,6 +68,7 @@ export function SummaryItem({
       onPanelOpen={() => {
         openPersistentToolPanel({
           title: t("chat.message.summary"),
+          subtitle,
           icon: <FileText size={16} />,
           status,
           panelKey,

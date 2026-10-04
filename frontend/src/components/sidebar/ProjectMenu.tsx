@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
 /**
  * Project context menu component for project actions
@@ -6,7 +7,7 @@ import { ModalSurface } from "../common/ModalSurface";
 import { useRef, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Edit2, Trash2, SquarePen, Share2, X } from "lucide-react";
+import { Edit2, Trash2, SquarePen, Share2 } from "lucide-react";
 import type { Project } from "../../types";
 
 import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
@@ -112,19 +113,14 @@ export function ProjectMenu({
       <ModalSurface open onClose={onClose} label={t("sidebar.projectOptions")}>
         <div
           ref={menuRef}
-          className="safe-area-bottom bg-white dark:bg-stone-800 rounded-t-2xl shadow-xl max-h-[70dvh] overflow-y-auto"
+          className="safe-area-bottom bg-theme-bg-card rounded-t-2xl shadow-xl max-h-[70dvh] overflow-y-auto"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 pb-1.5">
             <span className="text-13 font-medium text-[var(--theme-text)]">
               {t("sidebar.projectOptions")}
             </span>
-            <button
-              onClick={onClose}
-              className="p-1 rounded-full hover:bg-stone-100 dark:hover:bg-stone-700"
-            >
-              <X size={16} className="text-stone-400" />
-            </button>
+            <DialogCloseButton onClick={onClose} />
           </div>
 
           {/* Menu items */}

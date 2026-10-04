@@ -1,9 +1,9 @@
-import { X } from "lucide-react";
+import { DialogCloseButton } from "../common/DialogCloseButton";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AgentIcon } from "./AgentIcon";
 import { ModalSurface } from "../common/ModalSurface";
-import { Button, IconButton } from "../common";
+import { Button } from "../common";
 
 const AGENT_ICON_EMOJIS: { emoji: string; labelKey: string }[] = [
   { emoji: "✨", labelKey: "personaPresets.emojiSparkles" },
@@ -63,12 +63,7 @@ export const AgentIconSelect = React.memo(function AgentIconSelect({
             <h2 className="text-16 font-semibold text-theme-text">
               {t("personaPresets.pickIcon")}
             </h2>
-            <IconButton
-              size="lg"
-              aria-label={t("common.close")}
-              icon={<X size={18} />}
-              onClick={() => setOpen(false)}
-            />
+            <DialogCloseButton onClick={() => setOpen(false)} />
           </div>
           <div className="grid grid-cols-4 gap-2">
             {AGENT_ICON_EMOJIS.map((item) => (

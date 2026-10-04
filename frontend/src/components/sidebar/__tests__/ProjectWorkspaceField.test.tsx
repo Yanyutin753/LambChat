@@ -72,7 +72,7 @@ test("workspace details stay hidden until requested and dismiss without toggling
   ).toBeInTheDocument();
   expect(onToggle).not.toHaveBeenCalled();
   fireEvent.click(
-    within(dialog).getByRole("button", { name: "common.dismiss" }),
+    within(dialog).getByRole("button", { name: "common.close" }),
   );
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(onToggle).not.toHaveBeenCalled();

@@ -1,8 +1,9 @@
+import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
 import { useState, useEffect, useCallback, useRef } from "react";
 
 import { useTranslation } from "react-i18next";
-import { Plus, Search, Settings2, Sparkles, UsersRound, X } from "lucide-react";
+import { Plus, Search, Settings2, Sparkles, UsersRound } from "lucide-react";
 import { nameToGradient } from "../panels/MarketplacePanel/constants";
 import { teamApi } from "../../services/api/team";
 import type { Team } from "../../types/team";
@@ -128,14 +129,7 @@ export function TeamPickerModal({
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              className="rounded-lg p-2 hover:bg-theme-bg-subtle"
-              aria-label={t("common.close")}
-              onClick={onClose}
-            >
-              <X size={18} />
-            </button>
+            <DialogCloseButton onClick={onClose} />
           </div>
         </div>
 

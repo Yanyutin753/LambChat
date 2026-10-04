@@ -1,8 +1,9 @@
+import { DialogCloseButton } from "./DialogCloseButton";
 import { ModalSurface } from "./ModalSurface";
 import { useEffect, useRef } from "react";
 
 import { useTranslation } from "react-i18next";
-import { Trash2, FolderInput, X } from "lucide-react";
+import { Trash2, FolderInput } from "lucide-react";
 
 import { LoadingSpinner } from "./LoadingSpinner";
 
@@ -59,13 +60,7 @@ export function DeleteProjectDialog({
               {t("sidebar.deleteProjectTitle")}
             </span>
           </div>
-          <button
-            onClick={onCancel}
-            disabled={loading}
-            className="flex items-center justify-center w-6 h-6 rounded-md transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-subtle)]"
-          >
-            <X size={14} strokeWidth={2} />
-          </button>
+          <DialogCloseButton onClick={onCancel} disabled={loading} />
         </div>
 
         {/* Description */}

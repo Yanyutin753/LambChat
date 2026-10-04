@@ -1,9 +1,9 @@
+import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
 import { Select } from "../common/ui/Select";
 import { useState, useEffect, useRef, useId } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  X,
   User,
   Bell,
   Settings,
@@ -96,14 +96,7 @@ export function ProfileModal({
           <h2 id={titleId} className="font-serif">
             {t("nav.settings")}
           </h2>
-          <button
-            type="button"
-            className="profile-icon-button"
-            aria-label={t("common.close")}
-            onClick={onCloseProfileModal}
-          >
-            <X size={18} />
-          </button>
+          <DialogCloseButton onClick={onCloseProfileModal} />
         </header>
         <div className="profile-body">
           <nav className="profile-nav" aria-label={t("profile.preferences")}>

@@ -1112,10 +1112,23 @@ html[data-mobile-keyboard="true"]
   }
 }
 
-/* ─── Message Action Buttons — focus-visible ring ─── */
-.chat-message-actions .copy-button {
-  /* 与兄弟操作按钮（收藏/分支/赞踩/分享）同一套 idle/hover 颜色与圆角 */
-  @apply rounded-md text-stone-400 dark:text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-700 hover:text-stone-600 dark:hover:text-stone-300;
+/* Message actions share one surface, including CopyButton's UI primitive. */
+.chat-message-actions button:not([aria-pressed="true"]) {
+  color: var(--theme-text-tertiary);
+  background: transparent;
+}
+
+.chat-message-actions button:not([aria-pressed="true"]):enabled:hover {
+  color: var(--theme-text-secondary);
+  background: var(--theme-bg-subtle);
+}
+
+.chat-message-actions button[aria-pressed="true"] {
+  color: var(--theme-warning);
+}
+
+.chat-message-actions button[aria-pressed="true"]:enabled:hover {
+  background: var(--theme-bg-subtle);
 }
 
 .chat-message-actions button,
@@ -1125,8 +1138,18 @@ html[data-mobile-keyboard="true"]
   justify-content: center;
   width: 2rem;
   height: 2rem;
+  min-width: 2rem;
+  min-height: 2rem;
   padding: 0;
+  border: 0;
+  border-radius: 0.375rem;
   flex-shrink: 0;
+}
+
+.chat-message-actions button > svg,
+.chat-message-feedback > .contents > span > svg {
+  width: 1rem;
+  height: 1rem;
 }
 
 .chat-message-actions .chat-message-feedback {
@@ -1134,9 +1157,22 @@ html[data-mobile-keyboard="true"]
 }
 
 .chat-message-actions button:focus-visible {
-  outline: none;
-  box-shadow: var(--shadow-inset-hover);
-  border-radius: inherit;
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-message-actions button {
+    transition: none;
+  }
+}
+
+@media (max-width: 639px), (pointer: coarse) {
+  .chat-message-actions button,
+  .chat-message-feedback > .contents > span {
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+  }
 }
 
 /* Mention popup skeleton */
@@ -1256,12 +1292,6 @@ html[data-mobile-keyboard="true"]
   .chat-scroll-actions button {
     min-width: 2.75rem;
     min-height: 2.75rem;
-  }
-  /* 消息操作行全是次级操作：36px 触达够用，44px 会把整行撑得稀疏 */
-  .chat-message-actions button,
-  .chat-message-feedback > .contents > span {
-    min-width: 2.25rem;
-    min-height: 2.25rem;
   }
   .chat-message-actions {
     flex-wrap: wrap;

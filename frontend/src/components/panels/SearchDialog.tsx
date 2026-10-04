@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "../common/DialogCloseButton";
 /**
  * Search dialog for finding sessions across all projects.
  *
@@ -19,7 +20,7 @@ import { useTranslation } from "react-i18next";
 import { Search, X, Hash } from "lucide-react";
 import { sessionApi, type BackendSession } from "../../services/api";
 import { PanelSearchInput } from "../common/PanelSearchInput";
-import { Button, IconButton } from "../common/ui";
+import { IconButton } from "../common/ui";
 import { getSessionTitle } from "./sessionHelpers";
 import { SkeletonList } from "../skeletons";
 import { LoadingSpinner } from "../common/LoadingSpinner";
@@ -208,34 +209,34 @@ export function SearchDialog({
     >
       <div className="relative flex min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-theme-border bg-theme-bg-card shadow-xl">
         {/* Search input */}
-        <div className="flex shrink-0 items-center gap-2 sm:gap-3 px-4 py-3">
-          <Search
-            size={16}
-            strokeWidth={2}
-            className="shrink-0 text-theme-text-tertiary"
-            aria-hidden="true"
-          />
-          <PanelSearchInput
-            ref={inputRef}
-            type="text"
-            role="combobox"
-            aria-label={t("sidebar.searchSessions")}
-            aria-autocomplete="list"
-            aria-expanded="true"
-            aria-controls={resultsId}
-            aria-activedescendant={
-              allSessions[activeIndex]
-                ? `${resultsId}-${activeIndex}`
-                : undefined
-            }
-            autoComplete="off"
-            value={searchQuery}
-            onValueChange={setSearchQuery}
-            onKeyDown={handleKeyDown}
-            placeholder={t("sidebar.searchSessions") + "..."}
-            className="flex-1 min-w-0 min-h-11 sm:min-h-8 [@media(pointer:coarse)]:min-h-11 rounded-sm text-16 sm:text-15 bg-transparent text-theme-text placeholder:text-theme-text-tertiary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-ring)]"
-          />
-          <div className="flex shrink-0 items-center gap-0">
+        <div className="flex shrink-0 items-center gap-2 px-4 pt-1 pb-2 sm:gap-3 sm:pt-4 sm:pb-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-transparent bg-theme-bg-subtle pl-3 pr-1 focus-within:border-[color-mix(in_srgb,var(--theme-ring)_55%,transparent)]">
+            <Search
+              size={16}
+              strokeWidth={2}
+              className="shrink-0 text-theme-text-tertiary"
+              aria-hidden="true"
+            />
+            <PanelSearchInput
+              ref={inputRef}
+              type="text"
+              role="combobox"
+              aria-label={t("sidebar.searchSessions")}
+              aria-autocomplete="list"
+              aria-expanded="true"
+              aria-controls={resultsId}
+              aria-activedescendant={
+                allSessions[activeIndex]
+                  ? `${resultsId}-${activeIndex}`
+                  : undefined
+              }
+              autoComplete="off"
+              value={searchQuery}
+              onValueChange={setSearchQuery}
+              onKeyDown={handleKeyDown}
+              placeholder={t("sidebar.searchSessions") + "..."}
+              className="h-11 min-w-0 flex-1 border-0 bg-transparent p-0 text-16 text-theme-text placeholder:text-theme-text-tertiary outline-none focus:outline-none focus-visible:outline-none focus:ring-0"
+            />
             {searchQuery && (
               <IconButton
                 aria-label={t("common.clear")}
@@ -246,25 +247,12 @@ export function SearchDialog({
                   flushSync(() => setSearchQuery(""));
                   inputRef.current?.focus();
                 }}
-                className="!size-11 sm:!size-8 [@media(pointer:coarse)]:!size-11"
+                className="!size-11 shrink-0"
               />
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              className="!min-h-11 sm:!hidden"
-            >
-              {t("common.cancel")}
-            </Button>
           </div>
-          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-10 font-medium font-serif text-theme-text-tertiary bg-theme-bg-subtle rounded-md border border-theme-border">
-            ESC
-          </kbd>
+          <DialogCloseButton onClick={onClose} />
         </div>
-
-        {/* Divider */}
-        <div className="mx-4 h-px shrink-0 bg-theme-border" />
 
         {/* Results list */}
         <div

@@ -1,8 +1,9 @@
+import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
 import { useCallback, useEffect, useState } from "react";
 
 import { useTranslation } from "react-i18next";
-import { X, Loader2, User, Bot } from "lucide-react";
+import { Loader2, User, Bot } from "lucide-react";
 import { sessionApi } from "../../services/api/session";
 import type { SSEEventRecord } from "../../types/session";
 
@@ -89,7 +90,7 @@ export function SessionPreviewDialog({
 
   return (
     <ModalSurface open={isOpen} onClose={onClose} dismissible={true}>
-      <div className="relative z-10 w-full sm:max-w-2xl sm:mx-4 sm:pointer-events-auto bg-white dark:bg-stone-800 sm:rounded-xl rounded-t-xl shadow-xl border border-stone-200 dark:border-stone-700 overflow-hidden duration-300 max-h-[85vh] max-h-[85dvh] flex flex-col animate-slide-up-sheet sm:animate-in sm:fade-in sm:zoom-in-95 sm:duration-200 safe-area-bottom">
+      <div className="relative z-10 w-full sm:max-w-2xl sm:mx-4 sm:pointer-events-auto bg-theme-bg-card sm:rounded-xl rounded-t-xl shadow-xl border border-stone-200 dark:border-stone-700 overflow-hidden duration-300 max-h-[85vh] max-h-[85dvh] flex flex-col animate-slide-up-sheet sm:animate-in sm:fade-in sm:zoom-in-95 sm:duration-200 safe-area-bottom">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-200 dark:border-stone-700 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
@@ -110,12 +111,7 @@ export function SessionPreviewDialog({
               {sessionName}
             </h2>
           </div>
-          <button
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 dark:hover:text-stone-300 dark:hover:bg-stone-700 transition-colors shrink-0"
-          >
-            <X size={18} />
-          </button>
+          <DialogCloseButton onClick={onClose} />
         </div>
 
         {/* Messages */}
