@@ -313,13 +313,12 @@ def test_release_workflow_guards_version_drift_and_manifest_version_from_tag() -
     assert '("windows-x86_64", "*_x64-setup.exe.sig", "Windows-x64-setup.exe")' in generator
     # Linux 已停发 AppImage：清单不得再含 linux 条目
     assert "linux-x86_64" not in {
-        entry.split(",")[0].strip().strip('"() ') for entry in generator.splitlines() if entry.strip().startswith("(")
+        entry.split(",")[0].strip().strip('"() ')
+        for entry in generator.splitlines()
+        if entry.strip().startswith("(")
     }
     # 清单平台不齐时拒发（exit 2）：Win NSIS + 双 mac 是发布完成判据
-    assert (
-        'REQUIRED_PLATFORMS = ("windows-x86_64", "darwin-aarch64", "darwin-x86_64")'
-        in generator
-    )
+    assert 'REQUIRED_PLATFORMS = ("windows-x86_64", "darwin-aarch64", "darwin-x86_64")' in generator
 
 
 def test_updater_manifest_download_urls_go_through_self_hosted_proxy() -> None:
