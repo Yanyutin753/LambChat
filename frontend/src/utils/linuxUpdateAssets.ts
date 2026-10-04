@@ -39,3 +39,19 @@ export function buildLinuxPackageDownloadUrl(
       : buildReleaseAssetDownloadUrl(assetName, apiBase);
   return `${base}?tag=${encodeURIComponent(normalizeVersionTag(version))}`;
 }
+
+/**
+ * 在最新 release 的资产清单里定位目标 deb/rpm 资产（按拼装名精确匹配）。
+ *
+ * 以 GitHub 实际资产为准（拼装名只锁命名契约），缺失该 arch/kind 组合时
+ * 返回 null——调用方回落「前往下载页」，不盲下错误包型。
+ */
+export function findLinuxPackageAsset(
+  assets: readonly { name: string }[],
+  version: string,
+  arch: string,
+  kind: "deb" | "rpm",
+): { name: string } | null {
+  const want = buildLinuxPackageAssetName(version, arch, kind);
+  return assets.find((a) => a.name === want) ?? null;
+}

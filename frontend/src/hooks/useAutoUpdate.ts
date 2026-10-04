@@ -3,14 +3,15 @@ import i18n from "i18next";
 import { versionApi, buildReleaseAssetDownloadUrl } from "../services/api";
 import { buildApiUrl } from "../services/api/config";
 import {
+  downloadLinuxPackage,
   getLinuxInstallInfo,
   installLinuxPackage,
   subscribeLinuxUpdateProgress,
   type LinuxInstallSource,
 } from "../services/tauri/linuxUpdate";
 import {
-  buildLinuxPackageAssetName,
   buildLinuxPackageDownloadUrl,
+  findLinuxPackageAsset,
 } from "../utils/linuxUpdateAssets";
 import { APP_VERSION } from "../utils/appVersion";
 import { bytesToBase64 } from "../utils/bytesToBase64";
@@ -148,6 +149,20 @@ export function shouldPromptUpdate(
   return !isVersionSkipped(version, skipped);
 }
 
+/**
+ * 已下载 APK 的完整性判定（主流移动客户端的缓存语义）：文件存在且
+ * 大小与 release 资产一致 → 直接安装不重下；无期望大小（老元数据）时
+ * 按「存在且非空」信任（DownloadManager 完成通知即完整性背书）。
+ */
+export function isDownloadedApkComplete(
+  status: { exists: boolean; size: number },
+  expectedSize?: number,
+): boolean {
+  if (!status.exists || status.size <= 0) return false;
+  if (expectedSize == null || expectedSize <= 0) return true;
+  return status.size === expectedSize;
+}
+
 /** 模态更新对话框只保留给移动端（安装需用户确认）；桌面端完全后台 +
  * 标题栏指示器，永不阻塞用户操作 */
 export function shouldOpenUpdateDialog(
@@ -220,6 +235,12 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   /** 下载/安装「在飞」标志：pendingUpdateRef 只在下载完成时置位，卫兵只查它
    * 会漏掉下载中——复检再触发即起第二条下载（进度条跳变/多进度的根因） */
   const downloadInFlightRef = useRef(false);
+  /** Linux deb/rpm 目标资产（检查时定位；下载与安装共用，name 即缓存键） */
+  const linuxTargetAssetRef = useRef<{ name: string; url: string } | null>(
+    null,
+  );
+  /** 已完整缓存/下载完成的 Linux 包名（readyToInstall 的跨复检事实源） */
+  const linuxDownloadedRef = useRef<string | null>(null);
 
   const platform = platformRef.current;
 
@@ -277,14 +298,19 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   }, [platform]);
 
   /** Check for updates. background=true 时不打断用户：弹窗 + 系统通知（每版本一次）；
-   * manual=true（设置页手动检查）无视「跳过此版本」列表 */
+   * manual=true（设置页手动检查）无视「跳过此版本」列表。
+   * Linux 桌面（任何安装来源）走后端版本检查 + deb/rpm 缓存链；其余桌面
+   * 走 Tauri updater（NSIS/.app.tar.gz 原生替换）。 */
   const checkForUpdate = useCallback(
     async (options?: { background?: boolean; manual?: boolean }) => {
       const background = options?.background === true;
       const manual = options?.manual === true;
       let ok = true;
       if (platform === "tauri") {
-        ok = await checkTauriUpdate(background, manual);
+        const linuxSource = await ensureLinuxSource();
+        ok = linuxSource
+          ? await checkLinuxUpdate(linuxSource, background, manual)
+          : await checkTauriUpdate(background, manual);
       } else if (platform === "android" || platform === "ios") {
         ok = await checkBackendUpdate(background, manual);
       }
@@ -368,7 +394,8 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     }
   }, []);
 
-  /** Check via Tauri updater plugin（返回检查是否成功，失败供手动检查提示区分） */
+  /** Check via Tauri updater plugin（返回检查是否成功，失败供手动检查提示区分）。
+   * 仅 Windows/macOS 可达：Linux 桌面在 checkForUpdate 已分流到 checkLinuxUpdate */
   const checkTauriUpdate = useCallback(
     async (background = false, manual = false): Promise<boolean> => {
       try {
@@ -380,7 +407,6 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
             readSkippedUpdateVersions(window.localStorage),
             { manual },
           );
-          const linuxSource = await ensureLinuxSource();
           // 复检（手动/聚焦/周期）不能清掉进行中的下载进度或待安装态：
           // 否则进度条中途消失重来、readyToInstall 错乱
           const preserve =
@@ -394,21 +420,13 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
                 update.body ?? (preserve ? prev.releaseNotes : null),
               releaseUrl: null,
               releaseAssets: [],
-              linuxInstallSource: linuxSourceRef.current,
             }));
             // 桌面端不弹框：发现即后台静默下载（不阻塞用户），完成后标题栏
-            // 指示器一键重启安装。deb/rpm 除外——updater 只会拉 AppImage 且
-            // 装不上系统包，改为用户在指示器 popover 里主动触发
-            // 「下载 deb/rpm + pkexec 安装」
-            if (linuxSource !== "deb" && linuxSource !== "rpm") {
-              void startBackgroundDownload(update);
-            }
+            // 指示器一键重启安装
+            void startBackgroundDownload(update);
             if (background && notifiedVersionRef.current !== update.version) {
               notifiedVersionRef.current = update.version;
-              void notifyUpdateAvailable(
-                update.version,
-                linuxSource !== "deb" && linuxSource !== "rpm",
-              );
+              void notifyUpdateAvailable(update.version, true);
             }
           } else if (!preserve) {
             // 被跳过的版本：不弹窗、指示器熄灭（保持初始态）
@@ -421,8 +439,119 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       }
       return true;
     },
-    [startBackgroundDownload, ensureLinuxSource],
+    [startBackgroundDownload],
   );
+
+  /** Linux 桌面检查（后端 /api/version：AppImage 已停发，updater 清单无
+   * Linux 条目）。deb/rpm 定位到目标资产后即后台缓存下载；appimage/
+   * unknown 不自动下载，安装动作回落下载页（引导换装 deb）。 */
+  const checkLinuxUpdate = useCallback(
+    async (
+      source: LinuxInstallSource,
+      background = false,
+      manual = false,
+    ): Promise<boolean> => {
+      try {
+        const info = await versionApi.checkForUpdates(APP_VERSION);
+        if (info.has_update) {
+          const v = info.latest_version ?? null;
+          const prompt = shouldPromptUpdate(
+            v,
+            readSkippedUpdateVersions(window.localStorage),
+            { manual },
+          );
+          // 复检不能清掉进行中的下载进度或待安装态（与 updater 路径同款）
+          const preserve =
+            downloadInFlightRef.current || linuxDownloadedRef.current !== null;
+          if (prompt) {
+            linuxTargetAssetRef.current = null;
+            if (source === "deb" || source === "rpm") {
+              const arch = linuxArchRef.current;
+              const asset =
+                arch && v
+                  ? findLinuxPackageAsset(
+                      info.release_assets ?? [],
+                      v,
+                      arch,
+                      source,
+                    )
+                  : null;
+              if (asset) {
+                linuxTargetAssetRef.current = {
+                  name: asset.name,
+                  url: buildLinuxPackageDownloadUrl(asset.name, v ?? ""),
+                };
+              }
+            }
+            setState((prev) => ({
+              ...(preserve ? prev : INITIAL_STATE),
+              available: true,
+              version: v,
+              releaseNotes:
+                info.release_notes ?? (preserve ? prev.releaseNotes : null),
+              releaseUrl: info.release_url ?? null,
+              releaseAssets: info.release_assets ?? [],
+              linuxInstallSource: source,
+            }));
+            // 主流 deb 客户端模式：发现即后台缓存下载（版本化缓存保证
+            // 不重复下载），完成后指示器一键「重启并安装」
+            if (linuxTargetAssetRef.current) {
+              void startLinuxBackgroundDownload();
+            }
+            if (background && v && notifiedVersionRef.current !== v) {
+              notifiedVersionRef.current = v;
+              void notifyUpdateAvailable(
+                v,
+                linuxTargetAssetRef.current !== null,
+              );
+            }
+          } else if (!preserve) {
+            setState(INITIAL_STATE);
+          }
+        }
+      } catch {
+        // Silently fail
+        return false;
+      }
+      return true;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  /** Linux deb/rpm 后台缓存下载（缓存命中时 Rust 即刻返回，不发网络请求） */
+  const startLinuxBackgroundDownload = useCallback(async () => {
+    const target = linuxTargetAssetRef.current;
+    if (!target) return;
+    if (
+      downloadInFlightRef.current ||
+      linuxDownloadedRef.current === target.name ||
+      pendingUpdateRef.current
+    ) {
+      return;
+    }
+    downloadInFlightRef.current = true;
+    setState((prev) =>
+      prev.available
+        ? { ...prev, downloading: true, error: null, progress: 0 }
+        : prev,
+    );
+    try {
+      await downloadLinuxPackage(target.url, target.name);
+      linuxDownloadedRef.current = target.name;
+      downloadInFlightRef.current = false;
+      setState((prev) => ({
+        ...prev,
+        downloading: false,
+        readyToInstall: true,
+        progress: 100,
+      }));
+    } catch {
+      // 后台下载失败不弹错：用户点「下载并安装」时前台重试兜底
+      downloadInFlightRef.current = false;
+      setState((prev) => ({ ...prev, downloading: false }));
+    }
+  }, []);
 
   /** Check via backend /api/version endpoint（上报客户端版本，has_update 按它判断；
    * 返回检查是否成功，与 Tauri 路径同供手动检查提示区分） */
@@ -450,6 +579,12 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
             if (shouldOpenUpdateDialog(platform)) {
               setShowDialog(true);
             }
+            // Android：这版 APK 若已完整下载过，直接进「待安装」态——
+            // 弹窗按钮显示「安装」，点击不重下（显式传资产列表：setState
+            // 后 stateRef 尚未随重渲染更新，读了必是旧值）
+            if (platform === "android") {
+              void refreshAndroidApkReadyState(info.release_assets ?? []);
+            }
             if (background && v && notifiedVersionRef.current !== v) {
               notifiedVersionRef.current = v;
               void notifyUpdateAvailable(v, false);
@@ -464,21 +599,54 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       }
       return true;
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [platform],
+  );
+
+  /** Android：目标 APK 已完整缓存时置 readyToInstall（旧壳无 status 方法
+   * 则静默跳过——按未下载处理，走下载路径） */
+  const refreshAndroidApkReadyState = useCallback(
+    async (assets: ReleaseAsset[]) => {
+      try {
+        const apkAsset = findApkAsset(assets);
+        if (!apkAsset) return;
+        const { UpdateDownloader } = await import(
+          "../services/capacitor/updateDownloader"
+        );
+        const status = await UpdateDownloader.status({
+          fileName: apkAsset.name,
+        });
+        if (!isDownloadedApkComplete(status, apkAsset.size)) return;
+        setState((prev) =>
+          prev.available && prev.version
+            ? {
+                ...prev,
+                readyToInstall: true,
+                downloaded: status.size,
+                contentLength: status.size,
+                progress: 100,
+              }
+            : prev,
+        );
+      } catch {
+        // 原生桥不可用（旧壳）：按未下载处理
+      }
+    },
+    [],
   );
 
   /** Start the update process */
   const startUpdate = useCallback(async () => {
     if (platform === "tauri") {
-      // Linux 安装来源分流：deb/rpm 走包管理器安装；unknown 回落下载页；
-      // appimage / 非 Linux 走 updater 替换重启（含后台已下载的 pending）
+      // Linux 桌面（含 AppImage/unknown——updater 已无 Linux 产物，统一
+      // 引导下载页换装 deb）；其余桌面走 updater 替换重启
       const linuxSource = await ensureLinuxSource();
-      if (linuxSource === "deb" || linuxSource === "rpm") {
-        await installLinuxPackageUpdate(linuxSource);
-        return;
-      }
-      if (linuxSource === "unknown") {
-        openDownloadPage();
+      if (linuxSource) {
+        if (linuxSource === "deb" || linuxSource === "rpm") {
+          await installLinuxPackageUpdate(linuxSource);
+        } else {
+          openDownloadPage();
+        }
         return;
       }
       const pending = pendingUpdateRef.current;
@@ -506,31 +674,33 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   }, [platform, state]);
 
   /**
-   * Linux deb/rpm 安装：同源反代下载对应安装包 → Rust 侧 pkexec
-   * `apt|dnf install` 提权安装（进度经 linux-update-progress 事件）→ 成功后
-   * relaunch 进新版。系统包归 root 所有，不能也不该由 updater 直接覆盖。
+   * Linux deb/rpm 安装：确保包在缓存（后台已下载则直接用；否则现场下载，
+   * 进度经 linux-update-progress 事件）→ pkcon/pkexec 提权安装（Rust 侧
+   * 三级回退）→ 成功后 relaunch 进新版。系统包归 root 所有，不能也不该
+   * 由 updater 直接覆盖。
    */
   const installLinuxPackageUpdate = useCallback(
     async (source: "deb" | "rpm") => {
-      if (downloadInFlightRef.current) return; // 双击/在飞互斥：两次 invoke=两次 pkexec 下载
+      if (downloadInFlightRef.current) return; // 双击/在飞互斥：两次 invoke=两次提权下载
+      const target = linuxTargetAssetRef.current;
+      if (!target) {
+        openDownloadPage();
+        return;
+      }
       downloadInFlightRef.current = true;
       setState((prev) => ({
         ...prev,
         downloading: true,
         error: null,
-        progress: 0,
-        downloaded: 0,
+        progress: linuxDownloadedRef.current === target.name ? 100 : 0,
       }));
       try {
-        const version = stateRef.current.version;
-        const arch = linuxArchRef.current;
-        if (!version) throw new Error("No update version known");
-        if (!arch) {
-          throw new Error("Unsupported Linux architecture for package update");
+        if (linuxDownloadedRef.current !== target.name) {
+          // 前台兜底：后台未完成/失败时点击升级，现场下载（缓存命中即秒回）
+          await downloadLinuxPackage(target.url, target.name);
+          linuxDownloadedRef.current = target.name;
         }
-        const assetName = buildLinuxPackageAssetName(version, arch, source);
-        const url = buildLinuxPackageDownloadUrl(assetName, version);
-        await installLinuxPackage(url, source);
+        await installLinuxPackage(target.name, source);
         setState((prev) => ({ ...prev, downloading: false, progress: 100 }));
         const { relaunch } = await import("@tauri-apps/plugin-process");
         await relaunch();
@@ -543,6 +713,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         }));
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [platform],
   );
 
@@ -619,13 +790,13 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
 
       // 原生 DownloadManager 优先：无 CORS、不占 WebView 内存、系统断点续传
       try {
-        await installAndroidUpdateViaNative(apkAsset.name);
+        await installAndroidUpdateViaNative(apkAsset.name, apkAsset.size);
         return;
       } catch {
         // 原生桥不可用/下载失败（旧壳、系统裁剪、瞬时网络）：
         // 回落 WebView 流式代理路径——两条链路同一代理 URL，行为一致
       }
-      await installAndroidUpdateViaWebViewStream(apkAsset.name);
+      await installAndroidUpdateViaWebViewStream(apkAsset.name, apkAsset.size);
     } catch (err) {
       setState((prev) => ({
         ...prev,
@@ -643,12 +814,53 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.releaseAssets]);
 
-  /** 原生 DownloadManager 下载 + 拉起安装器（progress 轮询驱动进度条） */
+  /** 拉起系统安装器的公共收尾（授权提示 + 态收口） */
+  const launchAndroidInstaller = useCallback(
+    async (path: string) => {
+      const { ApkInstaller } = await import(
+        "../services/capacitor/apkInstaller"
+      );
+      const res = await ApkInstaller.installApk({ path });
+      if (res.status === "settings") {
+        const { toast } = await import("react-hot-toast");
+        toast(
+          i18n.t("update.installPermissionHint", {
+            defaultValue:
+              "请先允许 LambChat 安装未知应用，授权后重新点击升级",
+          }),
+        );
+      }
+      setState((prev) => ({
+        ...prev,
+        downloading: false,
+        progress: 100,
+        readyToInstall: true,
+      }));
+    },
+    [],
+  );
+
+  /** 原生 DownloadManager 下载 + 拉起安装器（progress 轮询驱动进度条）。
+   *  主流缓存语义：该版本 APK 已完整下载（应用专属目录 + 大小吻合）时
+   *  直接安装，绝不重复下载；新下载完成后清掉旧版本残留包。 */
   const installAndroidUpdateViaNative = useCallback(
-    async (assetName: string) => {
+    async (assetName: string, expectedSize?: number) => {
       const { UpdateDownloader } = await import(
         "../services/capacitor/updateDownloader"
       );
+
+      // 已完整缓存：直接安装（跳过下载——重复弹窗/复检不重复扣流量）
+      try {
+        const status = await UpdateDownloader.status({ fileName: assetName });
+        if (isDownloadedApkComplete(status, expectedSize) && status.path) {
+          await UpdateDownloader.cleanup({ keepFileName: assetName });
+          await launchAndroidInstaller(status.path);
+          return;
+        }
+      } catch {
+        // 旧壳无 status 方法：按未下载处理，走下载
+      }
+
       const { downloadId } = await UpdateDownloader.start({
         // 同一自托管代理 URL：原生无 CORS 约束，但保住「服务端可达 GitHub」
         // 的转发语义（国内直连 GitHub release 不稳）
@@ -668,20 +880,11 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
           contentLength: p.totalBytes,
         }));
         if (p.status === "success" && p.localUri) {
-          const { ApkInstaller } = await import(
-            "../services/capacitor/apkInstaller"
+          // 清旧版本残留，保留当前包（未安装前可能再弹窗直装）
+          await UpdateDownloader.cleanup({ keepFileName: assetName }).catch(
+            () => undefined,
           );
-          const res = await ApkInstaller.installApk({ path: p.localUri });
-          if (res.status === "settings") {
-            const { toast } = await import("react-hot-toast");
-            toast(
-              i18n.t("update.installPermissionHint", {
-                defaultValue:
-                  "请先允许 LambChat 安装未知应用，授权后重新点击升级",
-              }),
-            );
-          }
-          setState((prev) => ({ ...prev, downloading: false, progress: 100 }));
+          await launchAndroidInstaller(p.localUri);
           return;
         }
         if (p.status === "failed") {
@@ -689,12 +892,34 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         }
       }
     },
-    [],
+    [launchAndroidInstaller],
   );
 
-  /** WebView 流式代理下载（兜底）：逐块 base64 落盘避免整包驻留内存 */
+  /** WebView 流式代理下载（兜底）：逐块 base64 落盘避免整包驻留内存。
+   *  同样先查缓存：已完整落盘直接安装。 */
   const installAndroidUpdateViaWebViewStream = useCallback(
-    async (assetName: string) => {
+    async (assetName: string, expectedSize?: number) => {
+      const { Filesystem, Directory } = await import("@capacitor/filesystem");
+      const fileName = assetName || "LambChat-update.apk";
+
+      // 缓存命中：直接安装（Filesystem.stat 校验大小）
+      try {
+        const stat = await Filesystem.stat({
+          path: fileName,
+          directory: Directory.Cache,
+        });
+        if (isDownloadedApkComplete({ exists: true, size: stat.size }, expectedSize)) {
+          const { uri } = await Filesystem.getUri({
+            path: fileName,
+            directory: Directory.Cache,
+          });
+          await launchAndroidInstaller(uri);
+          return;
+        }
+      } catch {
+        // 未下载过（stat ENOENT）：走下载
+      }
+
       // 直连 GitHub browser_download_url 会被 WebView CORS 拦截
       // （Failed to fetch）：走自托管后端同源代理流式下载。
       const response = await fetch(buildReleaseAssetDownloadUrl(assetName));
@@ -705,8 +930,6 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
 
       // 逐块 base64 落盘（writeFile + appendFile），避免整包 APK 在
       // WebView 内存里 Blob+base64 双份驻留导致低端机 OOM。
-      const { Filesystem, Directory } = await import("@capacitor/filesystem");
-      const fileName = assetName || "LambChat-update.apk";
       let wroteAny = false;
       let writtenUri: string | undefined;
       let downloaded = 0;
@@ -744,27 +967,9 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
 
       // 拉起系统安装器（ACTION_VIEW + FileProvider 覆盖安装）。
       // Share（ACTION_SEND）只开分享面板装不了包。
-      const { ApkInstaller } = await import(
-        "../services/capacitor/apkInstaller"
-      );
-      const res = await ApkInstaller.installApk({ path: writtenUri });
-      if (res.status === "settings") {
-        // 未授予「安装未知应用」：原生已跳设置页，提示授权后重试
-        const { toast } = await import("react-hot-toast");
-        toast(
-          i18n.t("update.installPermissionHint", {
-            defaultValue: "请先允许 LambChat 安装未知应用，授权后重新点击升级",
-          }),
-        );
-      }
-
-      setState((prev) => ({
-        ...prev,
-        downloading: false,
-        progress: 100,
-      }));
+      await launchAndroidInstaller(writtenUri);
     },
-    [],
+    [launchAndroidInstaller],
   );
 
   /** Open release page in browser (iOS) */
@@ -780,7 +985,8 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   }, []);
 
   /** 跳过此版本：持久化后该版本不再自动提醒（手动检查仍会显示）。
-   * 桌面端同步熄灭标题栏指示器并丢弃已下载的待安装包 */
+   * 桌面端同步熄灭标题栏指示器并丢弃已下载的待安装包（Linux 缓存文件
+   * 保留——体积换切换成本，下个版本下载时自动清掉） */
   const skipThisVersion = useCallback(() => {
     const version = stateRef.current.version;
     if (version) {
@@ -789,6 +995,8 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     setShowDialog(false);
     if (platformRef.current === "tauri") {
       pendingUpdateRef.current = null;
+      linuxTargetAssetRef.current = null;
+      linuxDownloadedRef.current = null;
       setState(INITIAL_STATE);
     }
   }, []);

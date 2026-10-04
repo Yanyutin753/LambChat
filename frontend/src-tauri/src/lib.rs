@@ -241,6 +241,7 @@ pub fn run() {
             daemon::set_sandbox_data_location,
             daemon::clear_sandbox_data_location,
             linux_update::get_linux_install_source,
+            linux_update::download_linux_package,
             linux_update::install_linux_package
         ])
         // 关闭到托盘：主窗口点 × 隐藏驻留（常驻 AI 助手的桌面惯例，托盘

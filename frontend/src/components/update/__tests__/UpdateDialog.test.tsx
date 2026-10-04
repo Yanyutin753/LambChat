@@ -126,7 +126,7 @@ test("unknown linux source falls back to go-to-download button", () => {
   expect(screen.queryByRole("button", { name: /下载并安装/ })).toBeNull();
 });
 
-test("appimage source keeps the updater button semantics", () => {
+test("appimage source falls back to go-to-download (AppImage discontinued)", () => {
   render(
     <UpdateDialog
       {...baseProps}
@@ -136,7 +136,42 @@ test("appimage source keeps the updater button semantics", () => {
       })}
     />,
   );
-  expect(screen.getByRole("button", { name: /重启并安装/ })).toBeTruthy();
+  // AppImage 已停发：不再走 updater 重启安装语义，引导到下载页换装 deb
+  expect(screen.getByRole("button", { name: /前往下载/ })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /重启并安装/ })).toBeNull();
+});
+
+test("android ready-to-install shows direct install button", () => {
+  render(
+    <UpdateDialog
+      {...baseProps}
+      platform="android"
+      state={makeState({ readyToInstall: true, downloaded: 100, progress: 100 })}
+    />,
+  );
+  // APK 已完整缓存：按钮是「安装」（不重下），不是桌面的「重启并安装」
+  expect(screen.getByRole("button", { name: /^安装$/ })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /重启并安装/ })).toBeNull();
+});
+
+test("android ready state explains why the button installs without re-downloading", () => {
+  render(
+    <UpdateDialog
+      {...baseProps}
+      platform="android"
+      state={makeState({ readyToInstall: true })}
+    />,
+  );
+  expect(screen.getByText(/安装包已下载完成/)).toBeTruthy();
+});
+
+test("new version is the visual anchor and current version stays as reference", () => {
+  render(<UpdateDialog {...baseProps} state={makeState()} />);
+  const body = document.body.textContent ?? "";
+  // 新版本号与当前版本都在场（大号主体 + 小字参照）
+  expect(body).toContain("99.0.0");
+  expect(body).toContain(APP_VERSION);
+  expect(body).toContain("更新日志");
 });
 
 test("uses the universal Dialog shell (common dialog component)", () => {
