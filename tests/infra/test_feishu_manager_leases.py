@@ -83,11 +83,15 @@ class _BlockingStartChannel:
         self.config = config
         self.message_handler = message_handler
         self.started = asyncio.Event()
+        self.stopped = False
 
     async def start(self) -> bool:
         self.started.set()
         await asyncio.Event().wait()
         return True
+
+    async def stop(self) -> None:
+        self.stopped = True
 
 
 class _StreamingStorage:
@@ -503,6 +507,7 @@ async def test_start_user_client_releases_lease_when_start_is_cancelled(
         await task
 
     assert "feishu:lease:app-3" in fake_redis.deleted
+    assert created_channels[0].stopped
 
 
 @pytest.mark.asyncio

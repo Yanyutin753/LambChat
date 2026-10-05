@@ -213,7 +213,11 @@ class DingTalkChannel(ChatChannel):
                 return False
             expiry = metadata.get("session_webhook_expired_time")
             if expiry and float(expiry) <= time.time() * 1000:
-                return False
+                return await self._send_reply(
+                    chat_id,
+                    content,
+                    **{key: value for key, value in metadata.items() if key != "session_webhook"},
+                )
             client = await self._get_http()
             try:
                 response = await client.post(

@@ -65,6 +65,7 @@ class WeComChannel(ChatChannel):
         self._reply_acks: dict[str, asyncio.Future[bool]] = {}
         self._missed_pongs = 0
         self._ping_ids: set[str] = set()
+        self._connection_id: str | None = None
 
     def _validate_inbound_config(self) -> bool:
         return bool(self.config.bot_id and self.config.bot_secret)
@@ -77,6 +78,7 @@ class WeComChannel(ChatChannel):
                     "wss://openws.work.weixin.qq.com", max_msg_size=1024 * 1024
                 ) as ws:
                     self._ws = ws
+                    self._connection_id = uuid.uuid4().hex
                     req_id = f"aibot_subscribe_{uuid.uuid4().hex}"
                     await ws.send_json(
                         {
@@ -183,12 +185,18 @@ class WeComChannel(ChatChannel):
                 "chat_id": chat_id,
                 "content": text["content"],
                 "message_id": body["msgid"],
-                "metadata": {"wecom_req_id": req_id, "chat_type": chat_type},
+                "metadata": {
+                    "wecom_req_id": req_id,
+                    "chat_type": chat_type,
+                    **({"wecom_connection_id": self._connection_id} if self._connection_id else {}),
+                },
             }
         ):
             raise RuntimeError("WeCom smart bot message queue unavailable")
 
     async def _send_reply(self, chat_id: str, content: str, **metadata: Any) -> bool:
+        if metadata.get("wecom_connection_id") != self._connection_id:
+            metadata.pop("wecom_req_id", None)
         remaining = content.encode("utf-8")
         if not remaining:
             return False

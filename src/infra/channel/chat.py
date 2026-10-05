@@ -5,12 +5,13 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import re
-import secrets
 from typing import Any
 
 from pydantic import ConfigDict
 
 from src.infra.channel.chat_lease import ChatLease, release_message
+from src.infra.channel.inbox import ChannelInbox
+from src.infra.channel.inbox_worker import InboxWorker
 from src.infra.channel.outbound import OutboundChannel, OutboundChannelManager
 from src.infra.logging import get_logger
 from src.infra.storage.redis import get_redis_client
@@ -72,12 +73,10 @@ class ChatChannel(OutboundChannel):
         super().__init__(config, message_handler)
         self._connected = False
         self._reader: asyncio.Task | None = None
-        self._pending: set[asyncio.Task] = set()
-        self._pending_claims: dict[asyncio.Task, tuple[Any, str, str]] = {}
-        self._dispatch_failed = False
-        self._admitting = 0
-        self._generation = 0
-        self._chat_locks: dict[tuple[str, str], asyncio.Lock] = {}
+        self._inbox_worker = InboxWorker(
+            ChannelInbox(self.channel_type.value, self.user_id, self.config.instance_id),
+            self._dispatch,
+        )
 
     @property
     def is_running(self) -> bool:
@@ -133,6 +132,8 @@ class ChatChannel(OutboundChannel):
             self._reader = asyncio.create_task(self._supervise())
         else:
             self._connected = True
+            if self.config.receive_enabled:
+                self._reader = asyncio.create_task(self._inbox_worker.run())
         return True
 
     async def _run_inbound(self) -> None:
@@ -158,6 +159,7 @@ class ChatChannel(OutboundChannel):
                 tasks = [
                     asyncio.create_task(self._run_inbound()),
                     asyncio.create_task(self._keep_lease(lease)),
+                    asyncio.create_task(self._consume_inbox()),
                 ]
                 done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
                 for task in done:
@@ -188,122 +190,66 @@ class ChatChannel(OutboundChannel):
                     pass
             await asyncio.sleep(delay)
 
+    async def _consume_inbox(self) -> None:
+        # Connection-bound transports (notably WeCom) can only reply after
+        # authentication. A lost reader lease cancels this worker with the socket.
+        while not self._connected:
+            await asyncio.sleep(0.1)
+        await self._inbox_worker.run()
+
     async def enqueue_inbound(self, message: dict[str, Any]) -> bool:
-        """True means accepted or deliberately ignored; False requests a retry."""
-        if not self._running or not self.config.receive_enabled:
+        """Acknowledge only ignored or durably persisted input."""
+        if not self.config.receive_enabled:
             return True
+        if not self._running:
+            return False
         if any(
             not isinstance(message.get(key), str) or not message[key]
             for key in ("sender_id", "chat_id", "content", "message_id")
         ):
             return True
-        if not self._authorized(message):
+        if not self._authorized(message) or len(message["content"]) > MAX_INBOUND_CONTENT_CHARS:
             return True
-        if len(message["content"]) > MAX_INBOUND_CONTENT_CHARS:
-            return True
-        if len(self._pending) + self._admitting >= MAX_PENDING_MESSAGES:
-            return False
-        identity = f"{self.channel_type.value}:{self.user_id}:{self.config.instance_id}:{message['message_id']}"
-        key = "channel:message:" + hashlib.sha256(identity.encode()).hexdigest()
-        owner = secrets.token_hex(16)
-        redis = get_redis_client()
-        generation = self._generation
-        self._admitting += 1
-        try:
-            if not await redis.set(key, owner, nx=True, ex=86400):
-                return True
-            if not self._running or generation != self._generation:
-                await release_message(redis, key, owner)
-                return False
-            task = asyncio.create_task(self._dispatch(message, redis, key, owner))
-            self._pending.add(task)
-            self._pending_claims[task] = (redis, key, owner)
-            task.add_done_callback(self._forget_dispatch)
-            return True
-        except asyncio.CancelledError:
-            # The Redis command may have succeeded before cancellation arrived.
-            try:
-                await release_message(redis, key, owner)
-            except Exception:
-                pass
-            raise
-        except Exception:
-            return False
-        finally:
-            self._admitting -= 1
-
-    def _forget_dispatch(self, task: asyncio.Task) -> None:
-        self._pending.discard(task)
-        self._pending_claims.pop(task, None)
-
-    async def _dispatch(self, message: dict[str, Any], redis: Any, key: str, owner: str) -> bool:
-        scope = (message["chat_id"], message["sender_id"])
-        lock = self._chat_locks.setdefault(scope, asyncio.Lock())
-        try:
-            async with lock:
-                metadata = {
+        return await self._inbox_worker.accept(
+            {
+                **message,
+                "metadata": {
                     **message.get("metadata", {}),
                     "instance_id": self.config.instance_id,
                     "message_id": message["message_id"],
-                }
-                if self.message_handler is None:
-                    raise RuntimeError("Receiving handler is missing")
-                await self.message_handler(
-                    user_id=self.user_id,
-                    sender_id=message["sender_id"],
-                    chat_id=message["chat_id"],
-                    content=message["content"],
-                    metadata=metadata,
-                )
-            return True
-        except (Exception, asyncio.CancelledError) as exc:
-            self._dispatch_failed = True
-            try:
-                await release_message(redis, key, owner)
-            except Exception:
-                pass
-            if isinstance(exc, asyncio.CancelledError):
-                raise
-            logger.warning("%s message failed (%s)", self.channel_type.value, type(exc).__name__)
-            return False
-        finally:
-            # Keep a lock only while another message is waiting on it.
-            if not lock.locked() and not getattr(lock, "_waiters", None):
-                self._chat_locks.pop(scope, None)
+                },
+            }
+        )
+
+    async def _dispatch(self, message: dict[str, Any]) -> None:
+        if message.get("outbound") is True:
+            if not await self.send_message(message["chat_id"], message["content"]):
+                raise RuntimeError("Channel outbound delivery failed")
+            return
+        # Re-check configuration when replaying accepted work after a reload.
+        if not self._authorized(message):
+            return
+        if self.message_handler is None:
+            raise RuntimeError("Receiving handler is missing")
+        await self.message_handler(
+            user_id=self.user_id,
+            sender_id=message["sender_id"],
+            chat_id=message["chat_id"],
+            content=message["content"],
+            metadata=message.get("metadata", {}),
+        )
 
     async def drain(self) -> bool:
-        succeeded = True
-        if self._pending:
-            succeeded = all(await asyncio.gather(*list(self._pending)))
-        succeeded = succeeded and not self._dispatch_failed
-        self._dispatch_failed = False
-        return succeeded
+        return await self._inbox_worker.drain()
 
     async def stop(self) -> None:
         self._running = False
-        self._generation += 1
         self._connected = False
-        tasks = list(self._pending)
-        claims = dict(self._pending_claims)
         if self._reader:
-            tasks.append(self._reader)
-        for task in tasks:
-            task.cancel()
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
-        # A task cancelled before its first instruction never enters _dispatch's
-        # cancellation handler; release its owner-checked claim here as well.
-        for task, (redis, key, owner) in claims.items():
-            if task.cancelled():
-                try:
-                    await release_message(redis, key, owner)
-                except Exception:
-                    pass
-        self._pending.clear()
-        self._pending_claims.clear()
-        self._dispatch_failed = False
-        self._reader = None
-        self._chat_locks.clear()
+            self._reader.cancel()
+            await asyncio.gather(self._reader, return_exceptions=True)
+            self._reader = None
+        await self._inbox_worker.stop()
         await super().stop()
 
     async def _send_reply(self, chat_id: str, content: str, **metadata: Any) -> bool:

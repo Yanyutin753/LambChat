@@ -145,6 +145,32 @@ async def test_session_reply_checks_expiry_and_platform_error():
         await ch._http.aclose()
 
 
+async def test_expired_session_reply_after_restart_uses_authenticated_target():
+    ch = channel()
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        if request.url.path.endswith("accessToken"):
+            return httpx.Response(200, json={"accessToken": "fresh"})
+        return httpx.Response(200, json={"processQueryKey": "accepted"})
+
+    ch._http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+    try:
+        assert await ch._send_reply(
+            "group",
+            "recovered answer",
+            chat_type="group",
+            session_webhook="https://oapi.dingtalk.com/robot/sendBySession?session=old",
+            session_webhook_expired_time=1,
+        )
+        assert len(requests) == 2
+        assert json.loads(requests[1].content)["openConversationId"] == "group"
+        assert all("sendBySession" not in str(request.url) for request in requests)
+    finally:
+        await ch._http.aclose()
+
+
 async def test_stream_ticket_request_uses_credentials_and_robot_topic():
     ch = channel()
     requests = []

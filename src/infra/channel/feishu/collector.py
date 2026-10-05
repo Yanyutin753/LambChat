@@ -21,6 +21,7 @@ from src.infra.channel.feishu.handler_helpers import (
 )
 from src.infra.channel.feishu.manager import FeishuChannelManager
 from src.infra.channel.feishu.markdown import FeishuMarkdownAdapter
+from src.infra.channel.inbox_worker import current_delivery
 from src.infra.logging import get_logger
 
 logger = get_logger(__name__)
@@ -97,6 +98,22 @@ class FeishuResponseCollector:
         self._stream_status_text: str | None = None
         self._approval_card_message_ids: dict[str, str] = {}
         self._approval_card_sent_ids: set[str] = set()
+        self._delivery = current_delivery.get()
+        checkpoint = self._delivery.checkpoint if self._delivery else {}
+        self._stream_card_id = checkpoint.get("feishu_stream_card_id")
+        self._stream_message_id = checkpoint.get("feishu_stream_message_id")
+        self._stream_sequence = checkpoint.get("feishu_stream_sequence", 0)
+        self._stream_finalized = checkpoint.get("feishu_stream_finalized", False)
+        self._stream_last_pushed_content = checkpoint.get("feishu_stream_content", "")
+        self._reply_sent = checkpoint.get("feishu_reply_sent", False)
+        self._sent_file_keys = set(checkpoint.get("feishu_sent_file_keys", []))
+        self._approval_card_message_ids = dict(checkpoint.get("feishu_approval_messages", {}))
+        self._approval_card_sent_ids = set(checkpoint.get("feishu_approval_sent_ids", []))
+        self._stream_error: Exception | None = None
+
+    async def _save_delivery(self, **values: Any) -> None:
+        if self._delivery:
+            await self._delivery.save(**values)
 
     def _current_stream_content(self) -> str:
         content = "".join(self.text_parts)
@@ -128,8 +145,15 @@ class FeishuResponseCollector:
 
     async def append_stream_chunk(self, chunk: str) -> None:
         """Append one response chunk and push it to a Feishu streaming card when enabled."""
+        if self._stream_error:
+            raise self._stream_error
         self.append_text(chunk)
-        if not self.stream_reply or self._stream_failed or self._stream_finalized:
+        if (
+            not self.stream_reply
+            or self._stream_failed
+            or self._stream_finalized
+            or self._reply_sent
+        ):
             return
 
         if self._stream_card_id:
@@ -164,6 +188,12 @@ class FeishuResponseCollector:
                 self._stream_card_id = card_id
                 self._stream_message_id = message_id
                 self._stream_last_pushed_content = initial_content
+                await self._save_delivery(
+                    feishu_stream_card_id=card_id,
+                    feishu_stream_message_id=message_id,
+                    feishu_stream_sequence=self._stream_sequence,
+                    feishu_stream_content=initial_content,
+                )
                 initialized = True
 
         self._ensure_stream_update_worker()
@@ -195,7 +225,8 @@ class FeishuResponseCollector:
             task.result()
         except Exception as e:
             self._stream_failed = True
-            logger.warning("[Feishu] Stream update worker failed: %s", e, exc_info=True)
+            self._stream_error = e
+            logger.warning("[Feishu] Stream update worker failed: %s", type(e).__name__)
 
     async def _stream_update_worker(self) -> None:
         first_update = True
@@ -236,12 +267,17 @@ class FeishuResponseCollector:
                     self._stream_failed = True
                     return
                 self._stream_last_pushed_content = content
+                await self._save_delivery(
+                    feishu_stream_sequence=self._stream_sequence,
+                    feishu_stream_content=content,
+                )
 
     async def _cancel_stream_update_worker(self) -> None:
         task = self._stream_update_task
-        if not task or task.done():
+        if not task:
             return
-        task.cancel()
+        if not task.done():
+            task.cancel()
         try:
             await task
         except asyncio.CancelledError:
@@ -375,10 +411,13 @@ class FeishuResponseCollector:
 
     async def finalize_stream_message(self) -> bool:
         """Close the streaming card. Returns True when the reply was streamed."""
-        if not self._stream_card_id or self._stream_failed or self._stream_finalized:
-            return False
-
+        if self._stream_error:
+            raise self._stream_error
+        if self._stream_finalized or self._reply_sent:
+            return True
         await self._cancel_stream_update_worker()
+        if not self._stream_card_id or self._stream_failed:
+            return False
         async with self._stream_lock:
             if not self._stream_card_id or self._stream_failed or self._stream_finalized:
                 return False
@@ -393,12 +432,20 @@ class FeishuResponseCollector:
                 final_text,
                 self._stream_sequence,
             )
+            if success:
+                await self._save_delivery(
+                    feishu_stream_finalized=True,
+                    feishu_stream_sequence=self._stream_sequence,
+                    feishu_stream_content=final_text,
+                )
             self._stream_finalized = success
             return success
 
     async def send_card_message(self) -> bool:
         """发送卡片消息（支持回复引用、图片嵌入）"""
-        if self._stream_finalized:
+        if self._stream_error:
+            raise self._stream_error
+        if self._stream_finalized or self._reply_sent:
             return True
 
         client = self._get_client()
@@ -410,6 +457,8 @@ class FeishuResponseCollector:
             self.chat_id, content, reply_to_id=self.reply_to_message_id
         )
         if success:
+            await self._save_delivery(feishu_reply_sent=True)
+            self._reply_sent = True
             reply_info = (
                 f" (reply to {self.reply_to_message_id})" if self.reply_to_message_id else ""
             )
@@ -477,7 +526,7 @@ class FeishuResponseCollector:
         # card while reporting failure (e.g. a non-230011 error code with no
         # fallback), and a duplicate approval_required event must not re-send;
         # better to skip a retry than to spam a second approval card.
-        if approval_id:
+        if approval_id and not self._delivery:
             self._approval_card_sent_ids.add(approval_id)
         logger.info(
             "[HITL] approval_id=%s Sending approval card (session=%s run=%s)",
@@ -502,6 +551,12 @@ class FeishuResponseCollector:
         )
         self.record_approval_card(approval_id, message_id)
         if success:
+            if approval_id:
+                self._approval_card_sent_ids.add(approval_id)
+            await self._save_delivery(
+                feishu_approval_messages=dict(self._approval_card_message_ids),
+                feishu_approval_sent_ids=sorted(self._approval_card_sent_ids),
+            )
             logger.info(
                 "[HITL] approval_id=%s Approval card sent message_id=%s",
                 approval_id,
@@ -555,6 +610,8 @@ class FeishuResponseCollector:
 
         base_client = self.manager._find_channel(self.user_id, self.instance_id)
         if not base_client:
+            if self._delivery:
+                raise RuntimeError("Feishu file client unavailable")
             logger.warning(f"[Feishu] No client for user {self.user_id}")
             return
 
@@ -563,6 +620,8 @@ class FeishuResponseCollector:
         try:
             storage = await get_or_init_storage()
         except Exception as e:
+            if self._delivery:
+                raise
             logger.error(f"[Feishu] Failed to init storage: {e}")
             return
 
@@ -572,6 +631,8 @@ class FeishuResponseCollector:
                 file_key = file_info.get("key", "")
 
                 if not file_key:
+                    if self._delivery:
+                        raise RuntimeError("Feishu file key missing")
                     logger.warning(f"[Feishu] No key for file {file_name}")
                     continue
                 if file_key in self._sent_file_keys:
@@ -589,6 +650,8 @@ class FeishuResponseCollector:
                         chunk_size=FEISHU_REVEAL_DOWNLOAD_CHUNK_SIZE,
                     )
                     if size <= 0:
+                        if self._delivery:
+                            raise RuntimeError("Feishu file download empty")
                         logger.warning(f"[Feishu] File not found or empty: {file_key}")
                         continue
 
@@ -598,6 +661,8 @@ class FeishuResponseCollector:
                     mime_type = str(file_info.get("mime_type") or "").lower()
                     if file_type == "image" or mime_type.startswith("image/"):
                         if not hasattr(client, "upload_image_file"):
+                            if self._delivery:
+                                raise RuntimeError("Feishu image upload unavailable")
                             logger.warning(
                                 "[Feishu] Client does not support streaming image upload"
                             )
@@ -611,6 +676,9 @@ class FeishuResponseCollector:
                             )
                             if sent:
                                 self._sent_file_keys.add(file_key)
+                                await self._save_delivery(
+                                    feishu_sent_file_keys=sorted(self._sent_file_keys)
+                                )
                                 logger.info(f"[Feishu] Sent image: {file_name}")
                             else:
                                 logger.warning(
@@ -618,6 +686,8 @@ class FeishuResponseCollector:
                                 )
                         else:
                             logger.warning(f"[Feishu] Failed to upload image {file_name} to Feishu")
+                        if self._delivery and file_key not in self._sent_file_keys:
+                            raise RuntimeError("Feishu image delivery failed")
                         continue
 
                     feishu_file_key = await client.upload_file(tmp.name, file_name)
@@ -630,10 +700,17 @@ class FeishuResponseCollector:
                         )
                         if sent:
                             self._sent_file_keys.add(file_key)
+                            await self._save_delivery(
+                                feishu_sent_file_keys=sorted(self._sent_file_keys)
+                            )
                             logger.info(f"[Feishu] Sent file: {file_name}")
                         else:
                             logger.warning(f"[Feishu] Failed to send file {file_name} to Feishu")
                     else:
                         logger.warning(f"[Feishu] Failed to upload file {file_name} to Feishu")
+                    if self._delivery and file_key not in self._sent_file_keys:
+                        raise RuntimeError("Feishu file delivery failed")
             except Exception as e:
+                if self._delivery:
+                    raise
                 logger.error(f"[Feishu] Failed to upload file {file_info.get('name')}: {e}")

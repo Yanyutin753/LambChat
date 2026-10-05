@@ -13,20 +13,6 @@ from src.infra.channel.feishu.channel import FeishuChannel
 from src.kernel.schemas.feishu import FeishuConfig, FeishuGroupPolicy
 
 
-class _FakeRedisClient:
-    def __init__(self) -> None:
-        self.values: dict[str, str] = {}
-        self.expirations: dict[str, int] = {}
-
-    async def set(self, key: str, value: str, nx: bool = False, ex: int | None = None):
-        if nx and key in self.values:
-            return False
-        self.values[key] = value
-        if ex is not None:
-            self.expirations[key] = ex
-        return True
-
-
 def _build_channel(user_id: str = "user-1") -> FeishuChannel:
     return FeishuChannel(
         FeishuConfig(
@@ -134,44 +120,11 @@ class _PatchedThread(threading.Thread):
 
 
 @pytest.mark.asyncio
-async def test_mark_message_processed_uses_shared_redis_dedup(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fake_redis = _FakeRedisClient()
-    monkeypatch.setattr("src.infra.channel.feishu.channel.get_redis_client", lambda: fake_redis)
-
-    first = _build_channel()
-    second = _build_channel()
-
-    assert await first._mark_message_processed("msg-1") is True
-    assert await second._mark_message_processed("msg-1") is False
-
-
-@pytest.mark.asyncio
-async def test_mark_message_processed_skips_redis_after_local_cache_hit(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fake_redis = _FakeRedisClient()
-    monkeypatch.setattr("src.infra.channel.feishu.channel.get_redis_client", lambda: fake_redis)
-
-    channel = _build_channel()
-
-    assert await channel._mark_message_processed("msg-1") is True
-    redis_keys_after_first = dict(fake_redis.values)
-
-    assert await channel._mark_message_processed("msg-1") is False
-    assert fake_redis.values == redis_keys_after_first
-
-
-@pytest.mark.asyncio
 async def test_message_metadata_includes_received_reaction_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     channel = _build_channel()
     captured: dict[str, object] = {}
-
-    async def _mark_processed(_message_id: str) -> bool:
-        return True
 
     async def _add_reaction(_message_id: str, _emoji: str) -> str:
         return "reaction-1"
@@ -179,8 +132,13 @@ async def test_message_metadata_includes_received_reaction_id(
     async def _handle_message(**kwargs):
         captured.update(kwargs)
 
-    monkeypatch.setattr(channel, "_mark_message_processed", _mark_processed)
     monkeypatch.setattr(channel, "_add_reaction", _add_reaction)
+
+    async def accept(message):
+        captured.update(message)
+        return True
+
+    monkeypatch.setattr(channel._inbox_worker, "accept", accept)
     monkeypatch.setattr(channel, "_handle_message", _handle_message)
 
     await channel._on_message(
@@ -190,6 +148,8 @@ async def test_message_metadata_includes_received_reaction_id(
         )
     )
 
+    assert "reaction_id" not in captured["metadata"]
+    await channel._deliver_inbox_message(dict(captured))
     assert captured["metadata"]["reaction_id"] == "reaction-1"
 
 
@@ -201,9 +161,6 @@ async def test_on_message_offloads_content_json_parse(
     captured: dict[str, object] = {}
     calls: list[tuple[Any, tuple[Any, ...]]] = []
 
-    async def _mark_processed(_message_id: str) -> bool:
-        return True
-
     async def _add_reaction(_message_id: str, _emoji: str) -> str:
         return "reaction-1"
 
@@ -214,8 +171,13 @@ async def test_on_message_offloads_content_json_parse(
         calls.append((func, args))
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(channel, "_mark_message_processed", _mark_processed)
     monkeypatch.setattr(channel, "_add_reaction", _add_reaction)
+
+    async def accept(message):
+        captured.update(message)
+        return True
+
+    monkeypatch.setattr(channel._inbox_worker, "accept", accept)
     monkeypatch.setattr(channel, "_handle_message", _handle_message)
     monkeypatch.setattr("src.infra.channel.feishu.channel.run_blocking_io", _fake_run_blocking_io)
 
@@ -240,9 +202,6 @@ async def test_on_message_offloads_share_card_content_extraction(
     captured: dict[str, object] = {}
     calls: list[tuple[Any, tuple[Any, ...]]] = []
 
-    async def _mark_processed(_message_id: str) -> bool:
-        return True
-
     async def _add_reaction(_message_id: str, _emoji: str) -> str:
         return "reaction-1"
 
@@ -253,8 +212,13 @@ async def test_on_message_offloads_share_card_content_extraction(
         calls.append((func, args))
         return func(*args, **kwargs)
 
-    monkeypatch.setattr(channel, "_mark_message_processed", _mark_processed)
     monkeypatch.setattr(channel, "_add_reaction", _add_reaction)
+
+    async def accept(message):
+        captured.update(message)
+        return True
+
+    monkeypatch.setattr(channel._inbox_worker, "accept", accept)
     monkeypatch.setattr(channel, "_handle_message", _handle_message)
     monkeypatch.setattr(feishu_channel, "run_blocking_io", _fake_run_blocking_io)
 
@@ -295,6 +259,7 @@ async def test_start_imports_lark_sdk_off_event_loop(
     assert await channel.start() is True
     assert import_threads
     assert import_threads[0] != main_thread_id
+    await channel.stop()
 
 
 @pytest.mark.asyncio
@@ -420,9 +385,6 @@ async def test_audio_message_uses_configured_transcription_prompt(
     )
     captured: dict[str, object] = {}
 
-    async def _mark_processed(_message_id: str) -> bool:
-        return True
-
     async def _add_reaction(_message_id: str, _emoji: str) -> str:
         return "reaction-1"
 
@@ -437,9 +399,14 @@ async def test_audio_message_uses_configured_transcription_prompt(
     async def _handle_message(**kwargs):
         captured.update(kwargs)
 
-    monkeypatch.setattr(channel, "_mark_message_processed", _mark_processed)
     monkeypatch.setattr(channel, "_add_reaction", _add_reaction)
     monkeypatch.setattr(channel, "_download_and_store_resource", _download_resource)
+
+    async def accept(message):
+        captured.update(message)
+        return True
+
+    monkeypatch.setattr(channel._inbox_worker, "accept", accept)
     monkeypatch.setattr(channel, "_handle_message", _handle_message)
 
     await channel._on_message(

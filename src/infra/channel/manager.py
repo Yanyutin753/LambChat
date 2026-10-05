@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any, Callable, Optional
 
 from src.infra.channel.base import UserChannelManager
+from src.infra.channel.outbox import send_via_owner
 from src.infra.channel.registry import get_registry
 from src.infra.logging import get_logger
 from src.kernel.schemas.channel import ChannelType
@@ -130,6 +131,16 @@ class ChannelCoordinator:
             return False
 
         channel = manager.get_channel(user_id, instance_id)
+        if (
+            channel_type == ChannelType.FEISHU
+            and not channel
+            or channel_type == ChannelType.WEIXIN
+            and not channel
+            or channel_type == ChannelType.WECOM
+            and (not channel or getattr(channel.config, "receive_enabled", False))
+            and not getattr(channel, "_connected", False)
+        ):
+            return await send_via_owner(user_id, channel_type, chat_id, content, instance_id)
         if not channel:
             logger.warning(f"No {channel_type} channel for user {user_id}, instance {instance_id}")
             return False
