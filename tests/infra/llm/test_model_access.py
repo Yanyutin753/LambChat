@@ -5,6 +5,7 @@ import warnings
 
 import pytest
 
+from src.infra.llm import httpx_pool
 from src.infra.llm.client import LLMClient, _make_cache_key
 from src.infra.llm.models_service import clear_api_key_cache, set_cached_api_key
 from src.kernel.config import settings
@@ -97,7 +98,9 @@ def test_create_model_normalizes_non_positive_request_timeout(
 
 
 @pytest.mark.asyncio
-async def test_clear_cache_by_model_tracks_and_drains_async_client_close() -> None:
+async def test_clear_cache_by_model_defers_async_client_close_until_grace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     close_started = False
     close_finished = False
 
@@ -111,6 +114,7 @@ async def test_clear_cache_by_model_tracks_and_drains_async_client_close() -> No
     class _FakeModel:
         async_client = _FakeAsyncClient()
 
+    monkeypatch.setattr(httpx_pool, "_close_grace_seconds", lambda: 0.05)
     LLMClient._model_cache.clear()
     LLMClient._model_cache[
         (
@@ -128,7 +132,10 @@ async def test_clear_cache_by_model_tracks_and_drains_async_client_close() -> No
 
     assert LLMClient.clear_cache_by_model() == 1
     assert close_started is False
+    await LLMClient.drain_close_tasks(timeout=1)
+    assert close_started is False  # 宽限期内不关闭
 
+    await asyncio.sleep(0.15)
     await LLMClient.drain_close_tasks(timeout=1)
 
     assert close_started is True
@@ -136,10 +143,12 @@ async def test_clear_cache_by_model_tracks_and_drains_async_client_close() -> No
 
 
 @pytest.mark.asyncio
-async def test_clear_cache_by_model_accepts_future_returned_by_async_client_close() -> None:
+async def test_grace_close_accepts_future_returned_by_async_client_close(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     loop = asyncio.get_running_loop()
     close_future = loop.create_future()
-    loop.call_later(0.01, close_future.set_result, None)
+    loop.call_later(0.05, close_future.set_result, None)
 
     class _FakeAsyncClient:
         def aclose(self):
@@ -148,6 +157,7 @@ async def test_clear_cache_by_model_accepts_future_returned_by_async_client_clos
     class _FakeModel:
         async_client = _FakeAsyncClient()
 
+    monkeypatch.setattr(httpx_pool, "_close_grace_seconds", lambda: 0.05)
     LLMClient._model_cache.clear()
     LLMClient._model_cache[
         (
@@ -164,6 +174,7 @@ async def test_clear_cache_by_model_accepts_future_returned_by_async_client_clos
     ] = _FakeModel()  # type: ignore[assignment]
 
     assert LLMClient.clear_cache_by_model() == 1
+    await asyncio.sleep(0.15)
     await LLMClient.drain_close_tasks(timeout=1)
 
     assert close_future.done() is True
