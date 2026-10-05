@@ -112,6 +112,8 @@ _LIFESPAN_BACKGROUND_TASK_NAMES = (
     "stale_task_cleanup_task",
     "stale_task_cleanup_recheck_task",
     "feishu_task",
+    "weixin_task",
+    "outbound_task",
     "pricing_sync_task",
 )
 _STALE_TASK_CLEANUP_RECHECK_DELAY_SECONDS = max(5.0, HEARTBEAT_TIMEOUT * 2 + 5)
@@ -528,6 +530,18 @@ async def lifespan(app: FastAPI):
     _feishu_task = asyncio.create_task(_start_feishu())
     app.state.feishu_task = _feishu_task
 
+    # Start WeChat iLink bot channels in background (long-polling inbound)
+    async def _start_weixin():
+        try:
+            from src.infra.channel.weixin import setup_weixin_handler
+
+            await setup_weixin_handler(default_agent=settings.DEFAULT_AGENT)
+        except Exception as e:
+            logger.warning(f"Failed to start WeChat channels: {e}")
+
+    _weixin_task = asyncio.create_task(_start_weixin())
+    app.state.weixin_task = _weixin_task
+
     # Start outbound push channels (DingTalk/WeCom/Telegram/Slack/... webhooks)
     async def _start_outbound():
         try:
@@ -591,6 +605,12 @@ async def lifespan(app: FastAPI):
             await stop_outbound_channels()
         except Exception as e:
             logger.warning(f"Failed to stop outbound channels: {e}")
+        try:
+            from src.infra.channel.weixin import stop_weixin_channels
+
+            await stop_weixin_channels()
+        except Exception as e:
+            logger.warning(f"Failed to stop WeChat channels: {e}")
         # 再统一取消 lifespan 后台任务，让各任务自己的 finally 在依赖关闭前完成。
         await _cancel_lifespan_background_tasks_for_shutdown(app)
 

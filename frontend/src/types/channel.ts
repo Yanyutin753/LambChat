@@ -15,7 +15,8 @@ export type ChannelType =
   | "gotify"
   | "pushover"
   | "serverchan"
-  | "pushplus";
+  | "pushplus"
+  | "weixin";
 
 export type ChannelCapability =
   | "websocket"

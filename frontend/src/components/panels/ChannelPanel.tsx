@@ -28,6 +28,7 @@ import { Button, Input, PanelFooterActions, Select } from "../common";
 import { ToggleSwitch } from "./AgentPanel/shared";
 import { ConfigPanelErrorCallout } from "./ConfigPanelErrorCallout";
 import { EmptyState } from "../common/EmptyState";
+import { WeixinQrLogin } from "./channel/weixin/WeixinQrLogin";
 import { ChannelAgentSelect } from "./channel/ChannelAgentSelect";
 import { channelApi } from "../../services/api/channel";
 import type {
@@ -585,6 +586,15 @@ export function ChannelPanel({
               ariaLabel={t("channel.enabled")}
             />
           </div>
+
+          {/* WeChat iLink: QR login fills bot_token */}
+          {channelType === "weixin" && (
+            <WeixinQrLogin
+              onToken={(token) =>
+                setFormValues((prev) => ({ ...prev, bot_token: token }))
+              }
+            />
+          )}
 
           {/* Dynamic Fields */}
           {metadata.config_fields.map(renderField)}

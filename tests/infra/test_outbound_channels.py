@@ -335,8 +335,11 @@ async def test_ntfy_topic_post_with_title(fake_http) -> None:
     await channel.start()
     assert await channel.send_message("", "backup done", title="Nightly") is True
     req = fake_http[0].requests[0]
-    assert req["url"] == "https://ntfy.sh/lambchat"  # 默认公共服务器
-    assert req["headers"]["Title"] == "Nightly"
+    # JSON publish：URL 只到服务器根，topic/title/message 全在 body（中文标题兼容）
+    assert req["url"] == "https://ntfy.sh"  # 默认公共服务器
+    assert req["json"]["topic"] == "lambchat"
+    assert req["json"]["title"] == "Nightly"
+    assert req["json"]["message"] == "backup done"
     await channel.stop()
 
 
@@ -514,7 +517,7 @@ async def test_coordinator_delivers_to_outbound_channel(fake_http) -> None:
         )
         is True
     )
-    assert fake_http[0].requests[0]["url"] == "https://ntfy.sh/lambchat"
+    assert fake_http[0].requests[0]["url"] == "https://ntfy.sh"
     await manager.stop()
 
 
@@ -549,7 +552,7 @@ async def test_coordinator_lazily_resolves_started_manager_singleton(fake_http) 
             )
             is True
         )
-        assert fake_http[0].requests[0]["url"] == "https://ntfy.sh/lambchat"
+        assert fake_http[0].requests[0]["url"] == "https://ntfy.sh"
     finally:
         await singleton.stop()
         # 清理单例缓存，避免污染其他测试

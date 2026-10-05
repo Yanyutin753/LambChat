@@ -12,6 +12,7 @@ Gotify/Pushover/Server酱/PushPlus 等）：无长连接、无入站消息回调
 
 from __future__ import annotations
 
+import asyncio
 from abc import abstractmethod
 from typing import Any, Callable, Optional
 
@@ -22,6 +23,18 @@ from src.infra.logging import get_logger
 from src.kernel.schemas.channel import ChannelCapability
 
 logger = get_logger(__name__)
+
+
+def _redact_url(url: str) -> str:
+    """去掉 query（钉钉 sign / Gotify token 等凭据都在查询串）。"""
+    from urllib.parse import urlsplit
+
+    try:
+        parts = urlsplit(url)
+        return f"{parts.scheme}://{parts.netloc}{parts.path}"
+    except Exception:
+        return "<invalid-url>"
+
 
 _DEFAULT_TITLE_FALLBACK = "LambChat"
 
@@ -45,6 +58,7 @@ class OutboundChannel(BaseChannel):
     def __init__(self, config: Any, message_handler: Optional[Callable] = None):
         super().__init__(config, message_handler)
         self._http: Optional[httpx.AsyncClient] = None
+        self._http_lock: Optional[asyncio.Lock] = None
 
     # ── 生命周期 ──
 
@@ -60,8 +74,11 @@ class OutboundChannel(BaseChannel):
 
     async def _get_http(self) -> httpx.AsyncClient:
         """懒建共享 client；意外关闭后自愈重建。"""
-        if self._http is None or self._http.is_closed:
-            self._http = httpx.AsyncClient(timeout=self.timeout_seconds)
+        if self._http_lock is None:
+            self._http_lock = asyncio.Lock()
+        async with self._http_lock:
+            if self._http is None or self._http.is_closed:
+                self._http = httpx.AsyncClient(timeout=self.timeout_seconds)
         return self._http
 
     # ── 发送 ──
@@ -107,7 +124,13 @@ class OutboundChannel(BaseChannel):
                 url, json=json, data=data, content=content, headers=headers
             )
         except httpx.HTTPError as e:
-            logger.warning("%s request failed (%s): %s", self.channel_type.value, url, e)
+            # URL 带 access_token/sign 等凭据（钉钉/企微/Gotify），只记 host+path
+            logger.warning(
+                "%s request failed (%s): %s",
+                self.channel_type.value,
+                _redact_url(url),
+                e,
+            )
             return None
         return response
 
@@ -202,14 +225,25 @@ class OutboundChannelManager(UserChannelManager):
 
     async def reload_user(self, user_id: str, instance_id: Optional[str] = None) -> bool:
         configs = await self._get_storage().list_user_configs_by_type(user_id, self.channel_type)
+        # 路由契约：disable/delete 靠 reload_user 停止运行中实例（先停再按需重启）
+        prefix = f"{user_id}:"
+        keys_to_stop = [
+            key
+            for key in list(self._channels)
+            if key.startswith(prefix) and (not instance_id or key == f"{user_id}:{instance_id}")
+        ]
         matched = [
             cfg
             for cfg in configs
             if cfg.get("enabled", True)
             and (not instance_id or cfg.get("instance_id") == instance_id)
         ]
-        if not matched:
+        if not keys_to_stop and not matched:
             return False
+        for key in keys_to_stop:
+            stopped = self._channels.pop(key, None)
+            if stopped is not None:
+                await stopped.stop()
         for config_dict in matched:
             await self._start_instance(config_dict)
         return True

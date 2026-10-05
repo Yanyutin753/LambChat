@@ -781,7 +781,14 @@
     "testSuccess": "Connection successful",
     "title": "Channels",
     "webhookShort": "Hook",
-    "websocketShort": "WS"
+    "websocketShort": "WS",
+    "weixin": {
+      "scanLogin": "Scan QR to get token",
+      "qrWaiting": "Scan with WeChat to confirm",
+      "qrScanned": "Scanned — confirm on your phone",
+      "qrExpired": "QR code expired, try again",
+      "qrFailed": "QR login failed, try again"
+    }
   },
   "chat": {
     "addMoreFiles": "Add more files",

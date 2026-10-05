@@ -44,12 +44,12 @@ class NtfyChannel(OutboundChannel):
         if not topic:
             return False
         server = (self.config.server or "https://ntfy.sh").rstrip("/")
-        headers = {"Title": title}
+        # JSON publish：Title/Priority 走 HTTP 头时非 ASCII 标题会触发
+        # UnicodeEncodeError（中文通知必挂），统一放 body
+        payload: dict[str, Any] = {"topic": topic, "title": title, "message": content}
         if self.config.priority and self.config.priority != "default":
-            headers["Priority"] = self.config.priority
-        response = await self._post(
-            f"{server}/{topic}", content=content.encode("utf-8"), headers=headers
-        )
+            payload["priority"] = self.config.priority
+        response = await self._post(server, json=payload)
         return response is not None and not response.is_error
 
     @classmethod

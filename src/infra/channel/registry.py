@@ -18,7 +18,9 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 # Internal modules to skip during discovery
-_INTERNAL = frozenset({"base", "registry", "manager", "outbound", "__init__"})
+_INTERNAL = frozenset(
+    {"base", "registry", "manager", "outbound", "delivery", "fallback", "__init__"}
+)
 
 
 def discover_channel_modules() -> list[str]:

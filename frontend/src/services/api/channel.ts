@@ -167,4 +167,30 @@ export const channelApi = {
       },
     );
   },
+
+  /** 发起微信 iLink 扫码登录，返回二维码 */
+  async startWeixinRegistration(): Promise<{
+    qr_code: string;
+    qr_url: string;
+    expires_in: number;
+    interval: number;
+  }> {
+    return authFetch(`${API_BASE}/api/channels/weixin/registrations`, {
+      method: "POST",
+    });
+  },
+
+  /** 轮询微信扫码状态；success 时返回 bot_token */
+  async pollWeixinRegistration(
+    qrCode: string,
+  ): Promise<{
+    status: "pending" | "scanned" | "success" | "expired" | "error";
+    bot_token?: string;
+    message?: string;
+    interval?: number;
+  }> {
+    return authFetch(
+      `${API_BASE}/api/channels/weixin/registrations/${encodeURIComponent(qrCode)}`,
+    );
+  },
 };

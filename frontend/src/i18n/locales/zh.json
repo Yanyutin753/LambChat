@@ -781,7 +781,14 @@
     "testSuccess": "连接成功",
     "title": "渠道管理",
     "webhookShort": "Hook",
-    "websocketShort": "WS"
+    "websocketShort": "WS",
+    "weixin": {
+      "scanLogin": "扫码登录获取 Token",
+      "qrWaiting": "请用微信扫码确认",
+      "qrScanned": "已扫码，请在手机上确认",
+      "qrExpired": "二维码已过期，请重新获取",
+      "qrFailed": "扫码登录失败，请重试"
+    }
   },
   "chat": {
     "addMoreFiles": "添加更多文件",

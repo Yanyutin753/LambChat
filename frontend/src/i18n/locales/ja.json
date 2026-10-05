@@ -781,7 +781,14 @@
     "testSuccess": "接続成功",
     "title": "チャンネル",
     "webhookShort": "Hook",
-    "websocketShort": "WS"
+    "websocketShort": "WS",
+    "weixin": {
+      "scanLogin": "QRコードをスキャンしてトークンを取得",
+      "qrWaiting": "WeChatでスキャンして確認してください",
+      "qrScanned": "スキャン済み — スマホで確認してください",
+      "qrExpired": "QRコードの有効期限が切れました。再試行してください",
+      "qrFailed": "QRログインに失敗しました。再試行してください"
+    }
   },
   "chat": {
     "addMoreFiles": "さらにファイルを追加",

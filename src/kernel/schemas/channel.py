@@ -28,6 +28,8 @@ class ChannelType(str, Enum):
     PUSHOVER = "pushover"
     SERVERCHAN = "serverchan"
     PUSHPLUS = "pushplus"
+    # 双向渠道（长轮询收消息 + 发消息，iLink Bot 协议）
+    WEIXIN = "weixin"
 
 
 class ChannelCapability(str, Enum):

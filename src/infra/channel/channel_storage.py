@@ -36,6 +36,7 @@ SENSITIVE_FIELDS = frozenset(
         "webhook_url",
         "bot_token",
         "app_token",
+        "api_token",
         "user_key",
         "device_key",
         "send_key",

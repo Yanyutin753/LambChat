@@ -146,6 +146,38 @@ async def get_feishu_registration(session_id: str):
     return session.to_dict(include_secret=session.status == "success")
 
 
+@router.post(
+    "/weixin/registrations",
+    dependencies=[Depends(require_permissions(Permission.CHANNEL_WRITE))],
+)
+async def start_weixin_registration():
+    """发起微信 iLink 扫码登录，返回二维码。"""
+    from src.infra.channel.weixin import provider as weixin_provider
+
+    client = await weixin_provider.get_client()
+    try:
+        session = await weixin_provider.begin_qr_registration(client)
+    except Exception as e:
+        raise AppError(ErrorCode.CHANNEL_ERROR, message=str(e)) from e
+    return session
+
+
+@router.get(
+    "/weixin/registrations/{qr_code}",
+    dependencies=[Depends(require_permissions(Permission.CHANNEL_WRITE))],
+)
+async def get_weixin_registration(qr_code: str):
+    """轮询微信扫码状态；成功返回 bot_token（前端自动回填）。"""
+    from src.infra.channel.weixin import provider as weixin_provider
+
+    client = await weixin_provider.get_client()
+    try:
+        result = await weixin_provider.poll_qr_registration(client, qr_code)
+    except Exception as e:
+        raise AppError(ErrorCode.CHANNEL_ERROR, message=str(e)) from e
+    return result
+
+
 @router.delete(
     "/feishu/registrations/{session_id}",
     dependencies=[Depends(require_permissions(Permission.CHANNEL_WRITE))],
