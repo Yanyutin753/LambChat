@@ -229,11 +229,15 @@ async def send_bot_message(
 
 
 async def verify_token(client: httpx.AsyncClient, token: str) -> bool:
-    """getconfig 探活，token 有效返回 True。"""
+    """Authenticate startup without requiring a conversation recipient.
+
+    getconfig retrieves a recipient's typing ticket and requires ilink_user_id;
+    it cannot validate a newly scanned bot that has not received a message yet.
+    """
     try:
-        await _request(client, token, "/getconfig")
+        await _request(client, token, "/msg/notifystart")
     except RuntimeError as e:
-        logger.warning("weixin getconfig failed: %s", e)
+        logger.warning("weixin startup authentication failed: %s", e)
         return False
     return True
 
