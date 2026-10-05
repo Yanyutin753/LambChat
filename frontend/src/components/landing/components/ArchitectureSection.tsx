@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { STATS } from "../data";
+import { STATS, shotSrc } from "../data";
 import { SectionHeading } from "./SectionHeading";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { ImageWithSkeleton } from "../../chat/ChatMessage/ImageWithSkeleton";
@@ -31,14 +31,11 @@ export function ArchitectureSection({
             data-reveal-scale
             className="public-preview blog-arch-frame blog-arch-card blog-glass-inner-glow group relative rounded-xl overflow-hidden cursor-pointer bg-white/80 dark:bg-stone-900/30 transition-all duration-500 hover:-translate-y-1.5 hover:shadow-2xl"
             onClick={() =>
-              onOpenViewer(
-                "/images/best-practice/architecture.webp",
-                t("landing.architecture"),
-              )
+              onOpenViewer(shotSrc("architecture"), t("landing.architecture"))
             }
           >
             <ImageWithSkeleton
-              src="/images/best-practice/architecture.webp"
+              src={shotSrc("architecture")}
               alt={t("landing.architecture")}
               skipUrlResolve
               inline

@@ -81,7 +81,7 @@ export function ImageWithSkeleton({
   useEffect(() => {
     setStage(thumbSrc ? -1 : 0);
     setHasError(false);
-    setIsLoaded(loadedImages.has((thumbSrc ?? resolvedSrc) ?? ""));
+    setIsLoaded(loadedImages.has(thumbSrc ?? resolvedSrc ?? ""));
   }, [thumbSrc, resolvedSrc]);
 
   const handleLoad = useCallback(() => {
