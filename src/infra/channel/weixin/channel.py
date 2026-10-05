@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import uuid
 from typing import Any, Callable, Optional
 
@@ -29,11 +30,23 @@ POLL_LOCK_TTL_SECONDS = 150  # 需覆盖 90s 长轮询；处理期由续期任�
 POLL_ERROR_BACKOFF_MAX_SECONDS = 60
 LOCK_RENEW_INTERVAL_SECONDS = 45
 SEEN_MESSAGE_TTL_SECONDS = 3600
-# iLink 消息体实测无 id 字段，退回内容指纹去重；短窗只挡跨副本双消费的
-# 秒级窗口，避免误吞用户短时间连发的相同内容消息
+# 无消息 ID 时，用响应游标及批内位置区分投递，不按文本合并不同消息。
 SEEN_FINGERPRINT_TTL_SECONDS = 300
 POLL_LOCK_RETRY_SECONDS = 10
 POLL_ERROR_BACKOFF_SECONDS = 5
+
+_RENEW_LOCK_LUA = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+    return redis.call('expire', KEYS[1], ARGV[2])
+end
+return 0
+"""
+_RELEASE_LOCK_LUA = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+    return redis.call('del', KEYS[1])
+end
+return 0
+"""
 
 
 def _buf_key(user_id: str, instance_id: str) -> str:
@@ -48,14 +61,27 @@ def _seen_key(key: str) -> str:
     return f"weixin:seen:{key}"
 
 
-def _dedup_key(message: dict[str, Any]) -> tuple[str, int]:
-    """去重键：message_id 优先，缺失时退回 (chat|sender|content) 指纹。"""
+def _dedup_key(
+    message: dict[str, Any], batch_cursor: str | None, index: int
+) -> tuple[str, int] | None:
+    """优先消息 ID；缺失时只识别同一响应批次内的同一条消息。"""
     message_id = message.get("message_id")
     if message_id:
-        return str(message_id), SEEN_MESSAGE_TTL_SECONDS
+        return f"id:{message_id}", SEEN_MESSAGE_TTL_SECONDS
+    if not batch_cursor:
+        return None  # 没有可靠投递身份时宁可重复，不误吞正常的相同文本。
     fingerprint = hashlib.sha256(
-        f"{message.get('chat_id', '')}|{message.get('sender_id', '')}|"
-        f"{message.get('content', '')}".encode()
+        json.dumps(
+            [
+                batch_cursor,
+                index,
+                message.get("chat_id"),
+                message.get("sender_id"),
+                message.get("content"),
+                message.get("context_token"),
+            ],
+            ensure_ascii=False,
+        ).encode()
     ).hexdigest()
     return f"fp:{fingerprint}", SEEN_FINGERPRINT_TTL_SECONDS
 
@@ -78,7 +104,7 @@ async def _acquire_poll_lock(
     from src.infra.storage.redis import get_redis_client
 
     try:
-        redis = client or get_redis_client()
+        redis: Any = client or get_redis_client()
         return bool(
             await redis.set(
                 _lock_key(user_id, instance_id), owner, nx=True, ex=POLL_LOCK_TTL_SECONDS
@@ -94,12 +120,12 @@ async def _renew_poll_lock(user_id: str, instance_id: str, owner: str, client: A
     from src.infra.storage.redis import get_redis_client
 
     try:
-        redis = client or get_redis_client()
-        current = await redis.get(_lock_key(user_id, instance_id))
-        if current != owner:
-            return False
-        await redis.expire(_lock_key(user_id, instance_id), POLL_LOCK_TTL_SECONDS)
-        return True
+        redis: Any = client or get_redis_client()
+        return bool(
+            await redis.eval(
+                _RENEW_LOCK_LUA, 1, _lock_key(user_id, instance_id), owner, POLL_LOCK_TTL_SECONDS
+            )
+        )
     except Exception as e:
         logger.debug("weixin poll lock renew failed: %s", e)
         return False
@@ -112,10 +138,8 @@ async def _release_poll_lock(
     from src.infra.storage.redis import get_redis_client
 
     try:
-        redis = client or get_redis_client()
-        key = _lock_key(user_id, instance_id)
-        if await redis.get(key) == owner:
-            await redis.delete(key)
+        redis: Any = client or get_redis_client()
+        await redis.eval(_RELEASE_LOCK_LUA, 1, _lock_key(user_id, instance_id), owner)
     except Exception as e:
         logger.debug("weixin poll lock release failed: %s", e)
 
@@ -230,17 +254,20 @@ class WeixinChannel(BaseChannel):
         buf = str(raw_buf) if raw_buf is not None else ""
         messages, next_buf = await provider.get_updates(client, self.config.bot_token, buf)
 
-        for message in messages:
+        for index, message in enumerate(messages):
             # 群聊消息按策略过滤（chat_id 为 room 时与发送者不同）
             if (
                 self.config.group_policy == WeixinGroupPolicy.OFF
                 and message["chat_id"] != message["sender_id"]
             ):
                 continue
-            dedup_key, dedup_ttl = _dedup_key(message)
-            if not await _mark_message_seen(dedup_key, ttl=dedup_ttl):
-                logger.debug("weixin duplicate message skipped: %s", dedup_key)
-                continue
+            dedup = _dedup_key(message, next_buf, index)
+            if dedup:
+                dedup_key, dedup_ttl = dedup
+                scoped_key = f"{self.config.user_id}:{self.config.instance_id}:{dedup_key}"
+                if not await _mark_message_seen(scoped_key, ttl=dedup_ttl):
+                    logger.debug("weixin duplicate message skipped: %s", scoped_key)
+                    continue
             await self._with_lock_renewal(self._dispatch_message(message))
 
         # 游标在本批消息全部处理完成后才持久化：中途失败下轮按旧游标重拉，

@@ -62,3 +62,21 @@ async def test_stale_message_cleanup_cannot_delete_a_new_owners_claim(lease_redi
     assert await lease_redis.get("message") == "new-owner"
     await release_message(lease_redis, "message", "new-owner")
     assert await lease_redis.get("message") is None
+
+
+async def test_weixin_poll_lock_lua_preserves_new_owner(lease_redis):
+    from src.infra.channel.weixin.channel import (
+        _acquire_poll_lock,
+        _release_poll_lock,
+        _renew_poll_lock,
+    )
+
+    key = "weixin:poll-lock:test-user:test-instance"
+    assert await _acquire_poll_lock("test-user", "test-instance", "old", client=lease_redis)
+    assert await _renew_poll_lock("test-user", "test-instance", "old", client=lease_redis)
+    await lease_redis.set(key, "new", ex=150)
+    assert not await _renew_poll_lock("test-user", "test-instance", "old", client=lease_redis)
+    await _release_poll_lock("test-user", "test-instance", "old", client=lease_redis)
+    assert await lease_redis.get(key) == "new"
+    await _release_poll_lock("test-user", "test-instance", "new", client=lease_redis)
+    assert await lease_redis.get(key) is None
