@@ -1,3 +1,4 @@
+import { EmptyState } from "../common/EmptyState";
 import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
 /**
@@ -611,17 +612,11 @@ export function FeedbackPanel() {
         {isLoading && feedbackList.length === 0 ? (
           <FeedbackListSkeleton />
         ) : !loadError && !isLoading && feedbackList.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-stone-100 dark:bg-stone-800">
-              <ThumbsUp size={24} className="text-theme-text-tertiary" />
-            </div>
-            <p className="text-14 font-medium text-theme-text-secondary">
-              {t("feedback.noFeedback")}
-            </p>
-            <p className="mt-1 text-12 text-stone-400 dark:text-stone-600">
-              {t("feedback.noFeedbackHint")}
-            </p>
-          </div>
+          <EmptyState
+            icon={<ThumbsUp size={20} />}
+            title={t("feedback.noFeedback")}
+            description={t("feedback.noFeedbackHint")}
+          />
         ) : (
           feedbackList.map((feedback) => (
             <FeedbackCard

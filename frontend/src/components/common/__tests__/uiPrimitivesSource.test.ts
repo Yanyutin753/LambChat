@@ -156,8 +156,8 @@ test("viewer top bar buttons keep overlay actions fixed and non-wrapping", () =>
   );
 
   assertExports(commonIndex, "ViewerTopBar");
-  expect(topBar).toMatch(/safe-area-top bg-black/);
-  expect(topBar).toMatch(/flex h-16 items-center justify-between px-3 sm:px-6/);
+  expect(topBar).toMatch(/viewer-top-bar safe-area-top pointer-events-none absolute inset-x-0 top-0 z-20/);
+  expect(topBar).toMatch(/flex h-14 items-center justify-between px-3 sm:px-6/);
   assertExports(commonIndex, "ViewerTopBarButton");
   expect(source).toMatch(/flex shrink-0/);
   expect(source).toMatch(/whitespace-nowrap/);
@@ -673,7 +673,7 @@ test("json schema editor uses shared primitives for generated controls", () => {
   expect(source).toMatch(/import \{ Button, IconButton, Input, Select \}/);
   expect(source).toMatch(/<Select[\s\S]*field\.options/);
   expect(source).toMatch(/<Input[\s\S]*field\.placeholder/);
-  expect(source).toMatch(/<IconButton[\s\S]*removeItem/);
+  expect(source).toMatch(/<IconButton[\s\S]*<Trash2/);
   expect(source).toMatch(/<Button[\s\S]*JSON_SCHEMA_ADD_ITEM/);
   expect(source).not.toMatch(/GlassSelect/);
   expect(source).not.toMatch(/<input[\s\S]*field\.placeholder/);

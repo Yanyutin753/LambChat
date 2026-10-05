@@ -1,3 +1,4 @@
+import { EmptyState } from "../common/EmptyState";
 /**
  * 书签面板 - 列出当前用户收藏的消息（大纲/总结等），
  * 点击跳转到对应会话并定位高亮那条消息。
@@ -104,19 +105,11 @@ export function BookmarksPanel() {
         )}
 
         {status !== "error" && items.length === 0 && status !== "loading" && (
-          <div className="flex min-h-64 flex-col items-center justify-center gap-4 p-8 text-center">
-            <div className="flex size-16 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--theme-primary)_8%,var(--theme-bg-card))] text-[var(--theme-primary)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--theme-primary)_14%,var(--theme-border)),0_18px_34px_-28px_color-mix(in_srgb,var(--theme-primary)_46%,transparent)]">
-              <Bookmark size={26} strokeWidth={1.5} />
-            </div>
-            <div>
-              <p className="font-serif text-16 font-semibold text-[var(--theme-text)]">
-                {t("bookmarks.empty")}
-              </p>
-              <p className="mx-auto mt-1 max-w-88 text-14 leading-relaxed text-[var(--theme-text-secondary)]">
-                {t("bookmarks.emptyHint")}
-              </p>
-            </div>
-          </div>
+          <EmptyState
+            icon={<Bookmark size={20} />}
+            title={t("bookmarks.empty")}
+            description={t("bookmarks.emptyHint")}
+          />
         )}
 
         {items.length > 0 && (

@@ -149,7 +149,7 @@ export function EditorSidebar({
           </>
         )}
 
-        {entry.active && <RightPanelTabs />}
+        {entry.selected && <RightPanelTabs />}
         <RightPanelOwnerContext value={entry.ownerId}>
           <RightPanelActiveContext value={entry.active}>
             <div

@@ -1,3 +1,4 @@
+import { EmptyState } from "../common/EmptyState";
 /**
  * 角色管理页面组件
  */
@@ -682,15 +683,12 @@ export function RolesPanel() {
       {/* 角色列表 */}
       <div className="panel-body flex-1 overflow-y-auto">
         {!error && filteredRoles.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-center">
-            <Shield
-              size={48}
-              className="mb-4 text-theme-text-secondary opacity-40"
-            />
-            <p className="text-theme-text-secondary">
-              {searchQuery ? t("roles.noMatchingRoles") : t("roles.noRoles")}
-            </p>
-          </div>
+          <EmptyState
+            icon={<Shield size={20} />}
+            title={
+              searchQuery ? t("roles.noMatchingRoles") : t("roles.noRoles")
+            }
+          />
         ) : (
           <div className="grid gap-3 auto-grid-cols">
             {paginatedRoles.map((role) => (

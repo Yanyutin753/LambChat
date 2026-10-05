@@ -32,7 +32,7 @@ test("compact document toolbars keep touch actions and close reachable without s
   );
   expect(css).toMatch(/@container document-toolbar \(max-width: 479px\)/);
   expect(css).toMatch(
-    /\.document-preview-toolbar button\[type\]\s*\{[^}]*min-width: 2.75rem;[^}]*min-height: 2.75rem;/,
+    /\.document-preview-toolbar button\[type\]\s*\{[^}]*min-width: 2.25rem;[^}]*min-height: 2.25rem;/,
   );
   expect(css).toMatch(
     /\.document-preview-language\s*\{[^}]*display: none;/,

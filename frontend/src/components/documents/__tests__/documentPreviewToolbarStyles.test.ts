@@ -22,7 +22,7 @@ test("document preview uses a reading column and quiet path disclosure", () => {
     "utf8",
   );
   expect(styles.includes(".document-reading-column")).toBe(true);
-  expect(styles.includes(".right-panel-tab:only-child")).toBe(true);
+  expect(styles.includes(".right-panel-tab:only-child")).toBe(false);
   expect(preview.includes("<details")).toBe(true);
   expect(preview.includes("documents.pressEscToClose")).toBe(false);
 });

@@ -206,3 +206,19 @@ test("header language sync exposes failure and retries without changing local la
 function render(children: ReactNode) {
   return renderBase(children, { wrapper: LanguagePreferenceProvider });
 }
+
+
+test("wide-screen header opener dispatches the sidebar toggle event", () => {
+  const toggle = vi.fn();
+  const previousWidth = window.innerWidth;
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: 1200 });
+  window.addEventListener("lambchat:desktop-sidebar-toggle", toggle);
+  try {
+    renderHeader();
+    fireEvent.click(screen.getByRole("button", { name: "sidebar.expandSidebar" }));
+    expect(toggle).toHaveBeenCalledOnce();
+  } finally {
+    window.removeEventListener("lambchat:desktop-sidebar-toggle", toggle);
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: previousWidth });
+  }
+});

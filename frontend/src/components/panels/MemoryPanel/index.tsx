@@ -1,3 +1,4 @@
+import { EmptyState } from "../../common/EmptyState";
 import {
   useState,
   useEffect,
@@ -331,16 +332,14 @@ export function MemoryPanel() {
           </div>
         )}
         {!loadError && !isLoading && memories.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--glass-bg)]">
-              <Brain size={32} className="text-[var(--theme-text-secondary)]" />
-            </div>
-            <p className="text-18 font-medium font-serif text-[var(--theme-text)]">
-              {searchQuery || filterType || filterSource
+          <EmptyState
+            icon={<Brain size={20} />}
+            title={
+              searchQuery || filterType || filterSource
                 ? t("memory.noResults")
-                : t("memory.empty")}
-            </p>
-          </div>
+                : t("memory.empty")
+            }
+          />
         ) : (
           <div className="grid gap-3 auto-grid-cols">
             {memories.map((memory) => {

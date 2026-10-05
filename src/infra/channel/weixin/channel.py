@@ -8,6 +8,9 @@ agent 执行管线（见 handler.py）。
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
+import uuid
 from typing import Any, Callable, Optional
 
 import httpx
@@ -27,8 +30,23 @@ POLL_LOCK_TTL_SECONDS = 150  # 需覆盖 90s 长轮询；处理期由续期任�
 POLL_ERROR_BACKOFF_MAX_SECONDS = 60
 LOCK_RENEW_INTERVAL_SECONDS = 45
 SEEN_MESSAGE_TTL_SECONDS = 3600
+# 无消息 ID 时，用响应游标及批内位置区分投递，不按文本合并不同消息。
+SEEN_FINGERPRINT_TTL_SECONDS = 300
 POLL_LOCK_RETRY_SECONDS = 10
 POLL_ERROR_BACKOFF_SECONDS = 5
+
+_RENEW_LOCK_LUA = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+    return redis.call('expire', KEYS[1], ARGV[2])
+end
+return 0
+"""
+_RELEASE_LOCK_LUA = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+    return redis.call('del', KEYS[1])
+end
+return 0
+"""
 
 
 def _buf_key(user_id: str, instance_id: str) -> str:
@@ -39,34 +57,57 @@ def _lock_key(user_id: str, instance_id: str) -> str:
     return f"weixin:poll-lock:{user_id}:{instance_id}"
 
 
-def _seen_key(message_id: str) -> str:
-    return f"weixin:seen:{message_id}"
+def _seen_key(key: str) -> str:
+    return f"weixin:seen:{key}"
 
 
-async def _mark_message_seen(message_id: str) -> bool:
-    """message_id 去重标记；已见过返回 False（锁过期被其他副本重拉时兜底）。"""
+def _dedup_key(
+    message: dict[str, Any], batch_cursor: str | None, index: int
+) -> tuple[str, int] | None:
+    """优先消息 ID；缺失时只识别同一响应批次内的同一条消息。"""
+    message_id = message.get("message_id")
+    if message_id:
+        return f"id:{message_id}", SEEN_MESSAGE_TTL_SECONDS
+    if not batch_cursor:
+        return None  # 没有可靠投递身份时宁可重复，不误吞正常的相同文本。
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            [
+                batch_cursor,
+                index,
+                message.get("chat_id"),
+                message.get("sender_id"),
+                message.get("content"),
+                message.get("context_token"),
+            ],
+            ensure_ascii=False,
+        ).encode()
+    ).hexdigest()
+    return f"fp:{fingerprint}", SEEN_FINGERPRINT_TTL_SECONDS
+
+
+async def _mark_message_seen(key: str, ttl: int = SEEN_MESSAGE_TTL_SECONDS) -> bool:
+    """去重标记；已见过返回 False（锁过期被其他副本重拉时兜底）。"""
     from src.infra.storage.redis import get_redis_client
 
     try:
-        return bool(
-            await get_redis_client().set(
-                _seen_key(message_id), "1", nx=True, ex=SEEN_MESSAGE_TTL_SECONDS
-            )
-        )
+        return bool(await get_redis_client().set(_seen_key(key), "1", nx=True, ex=ttl))
     except Exception as e:
         logger.debug("weixin seen-mark failed (allowing message): %s", e)
         return True  # 去重基础设施故障时宁可重复不可丢
 
 
-async def _acquire_poll_lock(user_id: str, instance_id: str) -> bool:
-    """SET NX + TTL 锁：多副本部署只有一个实例消费 getupdates 游标。"""
+async def _acquire_poll_lock(
+    user_id: str, instance_id: str, owner: str, client: Any = None
+) -> bool:
+    """SET NX + TTL 锁（值=owner 令牌）：多副本部署只有一个实例消费 getupdates 游标。"""
     from src.infra.storage.redis import get_redis_client
 
     try:
-        client = get_redis_client()
+        redis: Any = client or get_redis_client()
         return bool(
-            await client.set(
-                _lock_key(user_id, instance_id), "1", nx=True, ex=POLL_LOCK_TTL_SECONDS
+            await redis.set(
+                _lock_key(user_id, instance_id), owner, nx=True, ex=POLL_LOCK_TTL_SECONDS
             )
         )
     except Exception as e:
@@ -74,11 +115,31 @@ async def _acquire_poll_lock(user_id: str, instance_id: str) -> bool:
         return False
 
 
-async def _release_poll_lock(user_id: str, instance_id: str) -> None:
+async def _renew_poll_lock(user_id: str, instance_id: str, owner: str, client: Any = None) -> bool:
+    """只有锁值仍是自己的 owner 令牌才续期；过期或被夺走返回 False。"""
     from src.infra.storage.redis import get_redis_client
 
     try:
-        await get_redis_client().delete(_lock_key(user_id, instance_id))
+        redis: Any = client or get_redis_client()
+        return bool(
+            await redis.eval(
+                _RENEW_LOCK_LUA, 1, _lock_key(user_id, instance_id), owner, POLL_LOCK_TTL_SECONDS
+            )
+        )
+    except Exception as e:
+        logger.debug("weixin poll lock renew failed: %s", e)
+        return False
+
+
+async def _release_poll_lock(
+    user_id: str, instance_id: str, owner: str, client: Any = None
+) -> None:
+    """释放锁前校验 owner：锁已易主时不动他人的锁。"""
+    from src.infra.storage.redis import get_redis_client
+
+    try:
+        redis: Any = client or get_redis_client()
+        await redis.eval(_RELEASE_LOCK_LUA, 1, _lock_key(user_id, instance_id), owner)
     except Exception as e:
         logger.debug("weixin poll lock release failed: %s", e)
 
@@ -96,6 +157,7 @@ class WeixinChannel(BaseChannel):
         self._http: httpx.AsyncClient | None = None
         self._http_lock: asyncio.Lock | None = None
         self._poll_task: asyncio.Task | None = None
+        self._lock_owner: str | None = None
         self._last_context_tokens: dict[str, str] = {}
 
     # ── 生命周期 ──
@@ -134,20 +196,37 @@ class WeixinChannel(BaseChannel):
         client, self._http = self._http, None
         if client is not None and not client.is_closed:
             await client.aclose()
-        await _release_poll_lock(self.config.user_id, self.config.instance_id)
+        if self._lock_owner:
+            await _release_poll_lock(self.config.user_id, self.config.instance_id, self._lock_owner)
+            self._lock_owner = None
 
     # ── 收消息 ──
 
     async def _poll_loop(self) -> None:
-        """持锁长轮询；拿不到锁则以 standby 节奏重试（等其他副本让位）。"""
+        """持锁长轮询；拿不到锁则以 standby 节奏重试（等其他副本让位）。
+
+        每轮长轮询前必须确认锁仍归自己（owner 令牌续期）：空闲期连续两轮
+        90s 长轮询即可耗尽 150s TTL，锁过期被其他副本夺走后若不自知，
+        双副本会同时消费同一 bot 导致一条消息回答两次（生产事故复盘）。
+        """
         backoff = POLL_ERROR_BACKOFF_SECONDS
         while self._running:
-            locked = await _acquire_poll_lock(self.config.user_id, self.config.instance_id)
+            owner = uuid.uuid4().hex
+            locked = await _acquire_poll_lock(self.config.user_id, self.config.instance_id, owner)
             if not locked:
                 await asyncio.sleep(POLL_LOCK_RETRY_SECONDS)
                 continue
+            self._lock_owner = owner
             try:
                 while self._running:
+                    if not await _renew_poll_lock(
+                        self.config.user_id, self.config.instance_id, owner
+                    ):
+                        logger.warning(
+                            "weixin poll lock lost (user %s); yielding consumption",
+                            self.config.user_id,
+                        )
+                        break  # 锁已易主，立即让位防双消费
                     try:
                         await self._consume_once()
                         backoff = POLL_ERROR_BACKOFF_SECONDS  # 成功即重置退避
@@ -159,7 +238,8 @@ class WeixinChannel(BaseChannel):
                         await asyncio.sleep(backoff)
                         backoff = min(backoff * 2, POLL_ERROR_BACKOFF_MAX_SECONDS)
             finally:
-                await _release_poll_lock(self.config.user_id, self.config.instance_id)
+                await _release_poll_lock(self.config.user_id, self.config.instance_id, owner)
+                self._lock_owner = None
             if self._running:
                 await asyncio.sleep(POLL_LOCK_RETRY_SECONDS)
 
@@ -174,17 +254,20 @@ class WeixinChannel(BaseChannel):
         buf = str(raw_buf) if raw_buf is not None else ""
         messages, next_buf = await provider.get_updates(client, self.config.bot_token, buf)
 
-        for message in messages:
+        for index, message in enumerate(messages):
             # 群聊消息按策略过滤（chat_id 为 room 时与发送者不同）
             if (
                 self.config.group_policy == WeixinGroupPolicy.OFF
                 and message["chat_id"] != message["sender_id"]
             ):
                 continue
-            message_id = message.get("message_id")
-            if message_id and not await _mark_message_seen(message_id):
-                logger.debug("weixin duplicate message skipped: %s", message_id)
-                continue
+            dedup = _dedup_key(message, next_buf, index)
+            if dedup:
+                dedup_key, dedup_ttl = dedup
+                scoped_key = f"{self.config.user_id}:{self.config.instance_id}:{dedup_key}"
+                if not await _mark_message_seen(scoped_key, ttl=dedup_ttl):
+                    logger.debug("weixin duplicate message skipped: %s", scoped_key)
+                    continue
             await self._with_lock_renewal(self._dispatch_message(message))
 
         # 游标在本批消息全部处理完成后才持久化：中途失败下轮按旧游标重拉，
@@ -205,12 +288,15 @@ class WeixinChannel(BaseChannel):
         while True:
             await asyncio.sleep(LOCK_RENEW_INTERVAL_SECONDS)
             try:
-                from src.infra.storage.redis import get_redis_client
-
-                await get_redis_client().expire(
-                    _lock_key(self.config.user_id, self.config.instance_id),
-                    POLL_LOCK_TTL_SECONDS,
-                )
+                # owner 校验续期：锁已易主时不给他人的锁续命，让位由
+                # _poll_loop 每轮开头的 renew 检查完成
+                if self._lock_owner and not await _renew_poll_lock(
+                    self.config.user_id, self.config.instance_id, self._lock_owner
+                ):
+                    logger.warning(
+                        "weixin poll lock lost during dispatch (user %s)",
+                        self.config.user_id,
+                    )
             except asyncio.CancelledError:
                 raise
             except Exception:

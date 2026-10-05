@@ -24,7 +24,7 @@ const overlayExpectations: OverlayExpectation[] = [
     name: "DocumentPreviewToolbar fullscreen exit button offsets below the status bar",
     path: "../../documents/DocumentPreviewToolbar.tsx",
     pattern:
-      /top: "calc\(1rem \+ var\(--app-safe-area-top-active, var\(--app-safe-area-top, 0px\)\)\)"/,
+      /top: "calc\(4rem \+ var\(--app-safe-area-top-active, var\(--app-safe-area-top, 0px\)\)\)"/,
   },
   {
     name: "NotificationBanner detail dialog delegates to the safe-area padded selector portal",

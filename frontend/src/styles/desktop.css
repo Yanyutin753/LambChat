@@ -386,3 +386,15 @@ html[data-right-panel-presentation="docked"]:has(
     display: none;
   }
 }
+
+
+/* The collapsed web sidebar reopens from the page header, not the activity rail. */
+@media (min-width: 640px) {
+  html:not(:has([data-titlebar]))
+    [data-workspace-ui]
+    > [data-desktop-sidebar-shell]:has(> [data-desktop-sidebar][inert])
+    + [data-workspace-content]
+    .chat-header__sidebar-expand {
+    display: flex;
+  }
+}

@@ -1,4 +1,4 @@
-import { SceneIllustration } from "../common/SceneIllustration";
+import { EmptyState } from "../common/EmptyState";
 import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -40,12 +40,11 @@ export function SessionBookmarksPanelBody({
 
   if (bookmarks.length === 0) {
     return (
-      <div className="scheduled-task-empty-state min-h-0 flex-1 px-6">
-        <SceneIllustration scene="reading" className="mb-4" />
-        <p className="scheduled-task-empty-state__body">
-          {t("bookmarks.empty")}
-        </p>
-      </div>
+      <EmptyState
+        className="flex-1"
+        icon={<Bookmark size={20} />}
+        title={t("bookmarks.empty")}
+      />
     );
   }
 

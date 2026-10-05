@@ -18,7 +18,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { PanelHeader } from "../../common/PanelHeader";
-import { PanelHeaderActions } from "../../common";
+import { EmptyState, PanelHeaderActions } from "../../common";
 import { Button } from "../../common/ui/Button";
 import { ScheduledTaskPanelSkeleton } from "../../skeletons";
 import { Pagination } from "../../common/Pagination";
@@ -438,25 +438,19 @@ export function ScheduledTaskPanel({
               </div>
             )}
             {!loadError && tasks.length === 0 ? (
-              <div className="scheduled-task-empty-state">
-                <div className="scheduled-task-empty-state__icon">
-                  <Clock size={32} />
-                </div>
-                <p className="scheduled-task-empty-state__title font-serif">
-                  {t(
-                    searchQuery.trim()
-                      ? "scheduledTask.noResults"
-                      : "scheduledTask.noTasks",
-                  )}
-                </p>
-                <p className="scheduled-task-empty-state__body">
-                  {t(
-                    searchQuery.trim()
-                      ? "scheduledTask.noResultsDesc"
-                      : "scheduledTask.noTasksDesc",
-                  )}
-                </p>
-              </div>
+              <EmptyState
+                icon={<Clock size={20} />}
+                title={t(
+                  searchQuery.trim()
+                    ? "scheduledTask.noResults"
+                    : "scheduledTask.noTasks",
+                )}
+                description={t(
+                  searchQuery.trim()
+                    ? "scheduledTask.noResultsDesc"
+                    : "scheduledTask.noTasksDesc",
+                )}
+              />
             ) : (
               <div className="grid auto-grid-cols gap-3">
                 {tasks.map((task) => {

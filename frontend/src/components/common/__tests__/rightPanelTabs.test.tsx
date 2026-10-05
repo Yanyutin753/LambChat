@@ -17,6 +17,7 @@ import { openToolLivePanel } from "../../chat/ChatMessage/items/ToolLivePanelCon
 import { EditorSidebar } from "../EditorSidebar";
 import { resetRightPanelCoordinator } from "../rightPanelCoordinator";
 import {
+  isPersistentToolPanelActive,
   PersistentToolPanelHost,
   openPersistentToolPanel,
   closeAllPersistentToolPanels,
@@ -273,4 +274,20 @@ test("background tool updates do not render until selected, then show the latest
   expect(build.mock.calls.length).toBe(previousRenders);
   fireEvent.click(screen.getByRole("tab", { name: "Live" }));
   await waitFor(() => expect(screen.getByText("finished")).toBeVisible());
+});
+
+
+test("reopening a collapsed tool restores its existing tab and draft", async () => {
+  render(<PersistentToolPanelHost />);
+  const panel = { panelKey: "collapse-test", title: "Result", status: "success" as const,
+    children: <input aria-label="Tool draft" defaultValue="" /> };
+  act(() => openPersistentToolPanel(panel));
+  const draft = await screen.findByRole("textbox", { name: "Tool draft" });
+  fireEvent.change(draft, { target: { value: "retained" } });
+  fireEvent.click(screen.getByRole("button", { name: "Collapse panel" }));
+  expect(isPersistentToolPanelActive("collapse-test")).toBe(false);
+  act(() => openPersistentToolPanel(panel));
+  expect(screen.getAllByRole("tab")).toHaveLength(1);
+  expect(screen.getByRole("textbox", { name: "Tool draft" })).toBe(draft);
+  expect(draft).toHaveValue("retained");
 });

@@ -1526,6 +1526,8 @@
   },
   "common": {
     "moreOptions": "More options",
+    "collapsePanel": "Collapse panel",
+    "expandPanel": "Expand panel",
     "panelTabs": "Panel tabs",
     "closePanelTab": "Close tab: {{title}}",
     "paginationSummary": "{{total}} items · {{pageSize}} per page",

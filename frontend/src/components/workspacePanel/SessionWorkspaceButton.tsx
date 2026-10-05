@@ -1,6 +1,11 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useState, useSyncExternalStore } from "react";
 import { FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import {
+  activateRightPanelByKey,
+  getRightPanelSnapshot,
+  subscribeRightPanels,
+} from "../common/rightPanelCoordinator";
 
 const ToolResultPanel = lazy(() =>
   import("../chat/ChatMessage/items/ToolResultPanel").then((module) => ({
@@ -28,6 +33,13 @@ export function SessionWorkspaceButton(props: Props) {
 function WorkspaceButton(props: Props) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const registryKey = `workspace-${props.sessionId}`;
+  const active = useSyncExternalStore(subscribeRightPanels, () => {
+    const snapshot = getRightPanelSnapshot();
+    return !snapshot.collapsed && snapshot.entries.some(
+      (entry) => entry.id === snapshot.activeId && entry.registryKey === registryKey,
+    );
+  });
   const [headerActionsTarget, setHeaderActionsTarget] =
     useState<HTMLDivElement | null>(null);
   return (
@@ -36,8 +48,11 @@ function WorkspaceButton(props: Props) {
         type="button"
         title={t("workspacePanel.title")}
         aria-label={t("workspacePanel.title")}
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
+        aria-expanded={active}
+        onClick={() => {
+          if (open && !active) activateRightPanelByKey(registryKey);
+          else setOpen(!open);
+        }}
         className="flex size-11 sm:size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle aria-expanded:bg-theme-bg-subtle aria-expanded:text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
       >
         <FolderOpen size={18} />
@@ -56,7 +71,7 @@ function WorkspaceButton(props: Props) {
                 className="flex shrink-0 items-center"
               />
             }
-            registryKey={`workspace-${props.sessionId}`}
+            registryKey={registryKey}
           >
             <WorkspacePanel
               key={`${props.sandboxMode}|${props.machineId}|${props.workspaceSelection}`}

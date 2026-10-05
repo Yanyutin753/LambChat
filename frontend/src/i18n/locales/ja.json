@@ -1526,6 +1526,8 @@
   },
   "common": {
     "moreOptions": "その他の操作",
+    "collapsePanel": "パネルを折りたたむ",
+    "expandPanel": "パネルを展開",
     "panelTabs": "パネルタブ",
     "closePanelTab": "タブを閉じる：{{title}}",
     "paginationSummary": "全 {{total}} 件 · 1ページ {{pageSize}} 件",

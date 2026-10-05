@@ -529,7 +529,7 @@ export function ExcalidrawFullscreenViewer({
         ) : svgBlobUrl ? (
           <>
             <div
-              className="absolute inset-0 flex items-center justify-center"
+              className="viewer-stage absolute inset-0 flex items-center justify-center"
               style={{
                 cursor:
                   scale > 1 ? (isDragging ? "grabbing" : "grab") : "default",
@@ -548,7 +548,7 @@ export function ExcalidrawFullscreenViewer({
               <img
                 src={svgBlobUrl}
                 alt={t("documents.excalidrawDiagram", "Excalidraw diagram")}
-                className="max-w-[90vw] max-h-[85dvh] object-contain select-none"
+                className="max-w-full max-h-full object-contain select-none"
                 style={{
                   transform: `translate(${position.x}px, ${position.y}px) scale(${scale}) rotate(${rotation}deg)`,
                   transition: isDragging ? "none" : "transform 0.1s ease-out",

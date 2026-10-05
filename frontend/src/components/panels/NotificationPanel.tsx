@@ -1,3 +1,4 @@
+import { EmptyState } from "../common/EmptyState";
 import { AlertCircle } from "lucide-react";
 /**
  * 通知管理面板 - Admin CRUD panel for notifications
@@ -453,14 +454,10 @@ export function NotificationPanel() {
         {isLoading && notifications.length === 0 ? (
           <NotificationsListSkeleton />
         ) : !loadError && !isLoading && notifications.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800">
-              <Bell size={32} className="text-stone-400 dark:text-stone-500" />
-            </div>
-            <p className="text-18 font-medium font-serif text-stone-700 dark:text-stone-300">
-              {t("notification.noNotifications")}
-            </p>
-          </div>
+          <EmptyState
+            icon={<Bell size={20} />}
+            title={t("notification.noNotifications")}
+          />
         ) : (
           <div className="space-y-3">
             {notifications.map((notification) => {
