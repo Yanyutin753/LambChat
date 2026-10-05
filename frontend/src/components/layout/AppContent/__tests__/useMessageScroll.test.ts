@@ -353,9 +353,10 @@ test("matches reveal_project targets after normalizing project paths", () => {
   ).toEqual({ messageIndex: 0, partIndex: 0 });
 });
 
-test("retries anchor scrolling until the target element appears", async () => {
+test("retries anchor scrolling until the target element appears", () => {
   let attempts = 0;
   let scrolled = 0;
+  const scheduled: Array<() => void> = [];
   const target = {
     scrollIntoView: () => {
       scrolled += 1;
@@ -367,13 +368,15 @@ test("retries anchor scrolling until the target element appears", async () => {
       attempts += 1;
       return attempts >= 3 ? target : null;
     },
-    schedule: (callback) => setTimeout(callback, 1) as unknown as number,
-    cancelSchedule: (handle) =>
-      clearTimeout(handle as unknown as NodeJS.Timeout),
+    schedule: (callback) => scheduled.push(callback),
+    cancelSchedule: () => {},
     maxAttempts: 5,
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  // Drive retry callbacks directly; CI load must not affect timer ordering.
+  for (let step = 0; step < 5 && scheduled.length > 0; step += 1) {
+    scheduled.shift()!();
+  }
 
   expect(scrolled).toBe(1);
   expect(attempts).toBe(3);
