@@ -113,11 +113,11 @@ test("sidebars, fullscreen editors, and media viewers use vertical safe-area spa
   expect(skillFullscreen).toMatch(/<ToolbarIconButton[\s\S]*exitFullscreen/);
   expect(skillFullscreen).not.toMatch(/<FloatingIconButton/);
 
-  expect(viewerTopBar).toMatch(/className=\{clsx\("safe-area-top\b/);
+  expect(viewerTopBar).toMatch(/className=\{clsx\([\s\S]*?\bsafe-area-top\b/);
   expect(imageViewer).toMatch(/<ViewerTopBar[\s>]/);
   expect(imageViewer).not.toMatch(/safe-area-bottom/);
   expect(videoViewer).toMatch(/<ViewerTopBar[\s>]/);
-  expect(videoViewer).toMatch(/className="safe-area-bottom\b/);
+  expect(videoViewer).toMatch(/className="[^"\n]*\bsafe-area-bottom\b/);
   expect(excalidrawThumbnail).toMatch(/safe-area-viewport-padding/);
   expect(toolResultPanel).toMatch(/safe-area-viewport-padding/);
   expect(excalidrawPreview).toMatch(/<ViewerTopBar[\s>]/);

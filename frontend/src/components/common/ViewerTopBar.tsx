@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import clsx from "clsx";
+import "./viewer.css";
 
 interface ViewerTopBarProps {
   children: ReactNode;
@@ -13,10 +14,15 @@ export function ViewerTopBar({
   contentClassName,
 }: ViewerTopBarProps) {
   return (
-    <div className={clsx("safe-area-top bg-black", className)}>
+    <div
+      className={clsx(
+        "viewer-top-bar safe-area-top pointer-events-none absolute inset-x-0 top-0 z-20 safe-area-x",
+        className,
+      )}
+    >
       <div
         className={clsx(
-          "flex h-16 items-center justify-between px-3 sm:px-6",
+          "flex h-14 items-center justify-between px-3 sm:px-6",
           contentClassName,
         )}
       >

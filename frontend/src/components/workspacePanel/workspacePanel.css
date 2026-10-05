@@ -2,6 +2,9 @@
 .workspace-panel {
   --workspace-action-size: 32px;
 }
+[data-right-panel-root]:has(.workspace-panel) {
+  --right-panel-action-size: var(--workspace-action-size);
+}
 .workspace-panel {
   container-type: inline-size;
   container-name: workspace-files;
@@ -211,10 +214,6 @@
     display: none;
   }
 }
-[data-right-panel-root]:has(.workspace-panel)
-  .right-panel-tabs:has(.right-panel-tab:only-child) {
-  display: none;
-}
 @media (pointer: coarse), (max-width: 639px) {
   [data-right-panel-root]:has(.workspace-panel),
   .workspace-panel {
@@ -245,7 +244,7 @@
 }
 [data-right-panel-root]:has(.workspace-panel) .tool-console-header {
   min-height: 40px;
-  padding: 4px 8px 4px 12px;
+  padding: 4px var(--right-panel-inset, 1rem);
 }
 [data-right-panel-root]:has(.workspace-panel) .workspace-header-actions,
 [data-right-panel-root]:has(.workspace-panel) .tool-console-actions,

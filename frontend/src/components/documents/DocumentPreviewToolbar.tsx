@@ -2,10 +2,10 @@ import { useState, useCallback, useId, useRef } from "react";
 import { useClipboardCopy } from "../../hooks/useClipboardCopy";
 import { useCodeMirrorReady } from "../../hooks/useCodeMirrorReady";
 import { BackIcon } from "../common/BackIcon";
-import { FileIcon } from "../common/FileIcon";
 import { FloatingIconButton, ToolbarIconButton } from "../common";
 import {
   X,
+  Shrink,
   Copy,
   Check,
   AlertCircle,
@@ -92,6 +92,7 @@ export default function DocumentPreviewToolbar({
   unsupportedPreviewFile,
   onUserInteraction,
   onClose,
+  exitFullscreen,
   effectiveOnBack,
   handleCopy,
   handleDownload,
@@ -205,24 +206,24 @@ export default function DocumentPreviewToolbar({
             onClick={handleSearch}
             disabled={!searchReady}
             style={{
-              top: "calc(1rem + var(--app-safe-area-top-active, var(--app-safe-area-top, 0px)))",
+              top: "calc(4rem + var(--app-safe-area-top-active, var(--app-safe-area-top, 0px)))",
               right: "4.25rem",
             }}
             aria-label={t("common.search")}
             title={t("common.search")}
-            icon={<Search size={18} />}
+            icon={<Search size={TOOLBAR_ICON_SIZE} />}
           />
         )}
         <FloatingIconButton
           onClick={(e) => {
             e.stopPropagation();
-            onClose();
+            exitFullscreen();
           }}
           style={{
-            top: "calc(1rem + var(--app-safe-area-top-active, var(--app-safe-area-top, 0px)))",
+            top: "calc(4rem + var(--app-safe-area-top-active, var(--app-safe-area-top, 0px)))",
           }}
-          title={t("common.close")}
-          icon={<X size={18} />}
+          title={t("documents.exitFullscreen")}
+          icon={<Shrink size={TOOLBAR_ICON_SIZE} />}
         />
       </>
     );
@@ -242,11 +243,7 @@ export default function DocumentPreviewToolbar({
           icon={<BackIcon size={TOOLBAR_ICON_SIZE} />}
         />
       )}
-      {embedded ? (
-        <Icon size={16} className="shrink-0 text-theme-text-secondary" />
-      ) : (
-        <FileIcon icon={Icon} bg={fileInfo.bg} color={fileInfo.color} compact />
-      )}
+      <Icon size={TOOLBAR_ICON_SIZE} className={`document-preview-header-icon shrink-0 ${embedded ? "text-theme-text-secondary" : fileInfo.color}`} />
       <div className="document-preview-file-info flex-1 min-w-0 overflow-hidden">
         <h3
           className="text-13 sm:text-14 font-medium font-sans text-[var(--theme-text)] truncate"
@@ -349,14 +346,14 @@ export default function DocumentPreviewToolbar({
             </div>
           )
         )}
-        <ToolbarIconButton
+        {embedded && <ToolbarIconButton
           onClick={() => {
             onClose();
           }}
           title={t("common.close")}
           aria-label={t("common.close")}
           icon={<X size={TOOLBAR_ICON_SIZE} />}
-        />
+        />}
       </div>
     </div>
   );

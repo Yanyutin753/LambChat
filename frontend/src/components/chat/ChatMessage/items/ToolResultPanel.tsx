@@ -4,7 +4,6 @@ import { createPortal } from "react-dom";
 import { RightPanelTabs } from "../../../common/RightPanelTabs";
 import { BackIcon } from "../../../common/BackIcon";
 import {
-  X,
   CheckCircle,
   XCircle,
   Ban,
@@ -26,9 +25,6 @@ import { useSidebarPanel } from "../../../../hooks/useSidebarPanel";
 import type { CollapsibleStatus } from "../../../common/CollapsiblePill";
 import { registerToolPanel } from "./toolPanelRegistry";
 import {
-  getSidebarHistoryLength,
-  goBackSidebar,
-  subscribeSidebarHistory,
   clearSidebarHistory,
 } from "./sidebarHistoryStore";
 import {
@@ -146,15 +142,6 @@ export function ToolResultPanel({
   const [contentReady, setContentReady] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
 
-  const [historyAvailable, setHistoryAvailable] = useState(
-    () => getSidebarHistoryLength() > 0,
-  );
-  useEffect(() => {
-    return subscribeSidebarHistory(() => {
-      setHistoryAvailable(getSidebarHistoryLength() > 0);
-    });
-  }, []);
-
   // Only use external viewMode when fully controlled (has onChange callback)
   // Otherwise treat externalViewMode as initial value and manage internally
   const isViewModeControlled = !!(externalViewMode && onViewModeChange);
@@ -186,10 +173,7 @@ export function ToolResultPanel({
     automatic: automatic && !userInteracted,
   });
 
-  const effectiveOnBack =
-    onBack ??
-    (historyAvailable ? goBackSidebar : undefined) ??
-    (entry.hasPrevious ? onClose : undefined);
+  const effectiveOnBack = onBack;
 
   const {
     isMobile,
@@ -221,7 +205,7 @@ export function ToolResultPanel({
   useRightPanelFocus({
     open,
     active: entry.active,
-    automatic,
+    automatic: automatic && !userInteracted,
     presentation,
     panelRef,
     openerRef: entry.openerRef,
@@ -431,7 +415,7 @@ export function ToolResultPanel({
         </>
       )}
 
-      {entry.active && <RightPanelTabs />}
+      {entry.selected && <RightPanelTabs />}
       {/* Header section — sidebar mode always; center/fullscreen mode; mobile always */}
       {(isSidebar || isMobile || isCenter || isFullscreen) && (
         <div
@@ -568,30 +552,10 @@ export function ToolResultPanel({
                       isFullscreen ? <Shrink size={16} /> : <Expand size={16} />
                     }
                   />
-                  <ToolbarIconButton
-                    variant="muted"
-                    onClick={() => {
-                      handleUserClose();
-                    }}
-                    title={t("common.close")}
-                    aria-label={t("common.close")}
-                    icon={<X size={16} />}
-                  />
+
                 </div>
               )}
-              {hideViewToggle && (
-                <div className="tool-console-actions flex items-center gap-1 shrink-0">
-                  <ToolbarIconButton
-                    variant="muted"
-                    onClick={() => {
-                      handleUserClose();
-                    }}
-                    aria-label={t("common.close")}
-                    title={t("common.close")}
-                    icon={<X size={16} />}
-                  />
-                </div>
-              )}
+
             </div>
           )}
         </div>

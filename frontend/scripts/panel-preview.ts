@@ -303,6 +303,42 @@ const settings = {
   settings: {
     frontend: [
       {
+        key: "WELCOME_SUGGESTIONS",
+        type: "json",
+        category: "frontend",
+        subcategory: "display",
+        description: "settingDesc.WELCOME_SUGGESTIONS",
+        requires_restart: false,
+        is_sensitive: false,
+        frontend_visible: true,
+        value: {
+          en: [
+            { icon: "🐍", text: "Create a Python hello world script" },
+            { icon: "📁", text: "List files in the workspace directory" },
+            { icon: "📄", text: "Read the README.md file" },
+            { icon: "🔧", text: "Help me write a shell script" },
+          ],
+          zh: [
+            { icon: "🐍", text: "创建一个 Python Hello World 脚本" },
+            { icon: "📁", text: "列出工作区目录中的文件" },
+            { icon: "📄", text: "读取 README.md 文件" },
+            { icon: "🔧", text: "帮我写一个 Shell 脚本" },
+          ],
+          ja: [], ko: [], ru: [],
+        },
+        default_value: {},
+        json_schema: {
+          type: "object", value_type: "array",
+          key_label: "settingDesc.WELCOME_SUGGESTION_LANG",
+          item_label: "settingDesc.WELCOME_SUGGESTION_ITEM",
+          key_options: ["en", "zh", "ja", "ko", "ru"],
+          fields: [
+            { name: "icon", type: "text", label: "settingDesc.WELCOME_SUGGESTION_ICON", required: true, layout_width: "compact" },
+            { name: "text", type: "text", label: "settingDesc.WELCOME_SUGGESTION_TEXT", required: true, layout_width: "full" },
+          ],
+        },
+      },
+      {
         key: "DEFAULT_AGENT",
         value: "fast",
         default_value: "fast",

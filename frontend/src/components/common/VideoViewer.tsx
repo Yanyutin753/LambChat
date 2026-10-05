@@ -91,7 +91,7 @@ export function VideoViewer({ src, isOpen, onClose, title }: VideoViewerProps) {
           event.preventDefault();
       }}
     >
-      <ViewerTopBar className="bg-black/80 shrink-0">
+      <ViewerTopBar>
         <ViewerTopBarButton
           onClick={onClose}
           aria-label={t("common.close")}
@@ -99,7 +99,7 @@ export function VideoViewer({ src, isOpen, onClose, title }: VideoViewerProps) {
           iconOnly
         />
         {title && (
-          <span className="text-14 text-white/70 truncate max-w-[60vw] hidden sm:block">
+          <span className="rounded-md bg-black/70 px-2.5 py-1 text-14 text-white/70 truncate max-w-[60vw] hidden sm:block">
             {title}
           </span>
         )}
@@ -113,7 +113,7 @@ export function VideoViewer({ src, isOpen, onClose, title }: VideoViewerProps) {
       </ViewerTopBar>
 
       <div
-        className="safe-area-bottom flex-1 overflow-hidden flex items-center justify-center"
+        className="viewer-stage safe-area-bottom min-h-0 flex-1 overflow-hidden flex items-center justify-center"
         onClick={handleBackgroundClick}
       >
         <video

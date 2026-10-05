@@ -311,7 +311,7 @@ export function ImageViewer({
         />
 
         {positionLabel && (
-          <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-md bg-white/10 px-2.5 py-1 text-12 font-medium tabular-nums text-white/70">
+          <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-md bg-black/70 px-2.5 py-1 text-12 font-medium tabular-nums text-white/70">
             {positionLabel}
           </div>
         )}
@@ -329,7 +329,7 @@ export function ImageViewer({
       {/* Main area */}
       <div ref={containerRef} className="flex-1 overflow-hidden relative">
         <div
-          className="absolute inset-0 flex items-center justify-center"
+          className="viewer-stage absolute inset-0 flex items-center justify-center"
           style={{
             cursor: scale > 1 ? (isDragging ? "grabbing" : "grab") : "default",
           }}

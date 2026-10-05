@@ -20,11 +20,13 @@ export interface RightPanelSnapshot {
   activeId: symbol | null;
   activeKind: RightPanelKind | null;
   depth: number;
+  collapsed: boolean;
   hasDeliberatePanel: boolean;
 }
 
 let entries: RightPanelEntry[] = [];
 let activeId: symbol | null = null;
+let collapsed = false;
 const closingIds = new Set<symbol>();
 const listeners = new Set<() => void>();
 
@@ -33,6 +35,7 @@ let snapshot: RightPanelSnapshot = {
   activeId: null,
   activeKind: null,
   depth: 0,
+  collapsed: false,
   hasDeliberatePanel: false,
 };
 
@@ -41,8 +44,9 @@ function emit(): void {
   snapshot = {
     entries,
     activeId: active?.id ?? null,
-    activeKind: active?.kind ?? null,
+    activeKind: collapsed ? null : (active?.kind ?? null),
     depth: entries.length,
+    collapsed,
     hasDeliberatePanel: entries.some((entry) => !entry.automatic),
   };
   listeners.forEach((listener) => listener());
@@ -55,6 +59,7 @@ export function registerRightPanel(entry: RightPanelEntry): boolean {
       candidate.id === entry.id ? entry : candidate,
     );
     activeId = entry.id;
+    collapsed = false;
     closingIds.delete(entry.id);
     emit();
     return true;
@@ -68,6 +73,7 @@ export function registerRightPanel(entry: RightPanelEntry): boolean {
     automaticEntries.forEach((candidate) => candidate.close());
   }
 
+  collapsed = false;
   entries = [...entries, entry];
   if (
     !entries.some(
@@ -98,6 +104,7 @@ export function unregisterRightPanel(id: symbol): void {
 
   const index = entries.findIndex((entry) => entry.id === id);
   entries = next;
+  if (!entries.length) collapsed = false;
   if (activeId === id) {
     const adjacent = entries[Math.min(index, entries.length - 1)];
     activeId = adjacent?.id ?? null;
@@ -125,9 +132,10 @@ export function hasOpenRightPanel(): boolean {
 
 export function activateRightPanel(id: symbol): void {
   const entry = entries.find((candidate) => candidate.id === id);
-  if (!entry || activeId === id) return;
+  if (!entry || (activeId === id && !collapsed)) return;
   const select = () => {
     if (!entries.some((candidate) => candidate.id === id)) return;
+    collapsed = false;
     activeId = id;
     emit();
   };
@@ -154,12 +162,28 @@ export function closeRightPanel(id: symbol): void {
 }
 
 export function closeActiveRightPanel(): void {
-  if (activeId) closeRightPanel(activeId);
+  if (activeId && !collapsed) closeRightPanel(activeId);
 }
 
 export function resetRightPanelCoordinator(): void {
   entries = [];
   activeId = null;
+  collapsed = false;
   closingIds.clear();
   emit();
+}
+
+/** Hide the lane without unmounting its tabs or discarding drafts. */
+export function collapseRightPanel(): void {
+  if (!activeId || collapsed) return;
+  const collapse = () => {
+    if (!activeId) return;
+    collapsed = true;
+    emit();
+  };
+  if (typeof document !== "undefined" && document.fullscreenElement) {
+    void document.exitFullscreen().then(collapse).catch(() => {});
+  } else {
+    collapse();
+  }
 }

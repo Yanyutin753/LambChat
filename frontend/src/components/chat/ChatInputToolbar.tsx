@@ -212,7 +212,7 @@ export function ChatInputToolbar({
       enabled: showSandboxEntry && sandboxChipLocal,
     },
   );
-  // 统一面板入口标签：本地档 + 已选设备 → 「档位 · 设备」（chip 与 popover 徽标共用；
+  // 统一面板入口标签：本地档 + 已选设备 → 设备名（chip 与 popover 徽标共用；
   // 云端档或自动解析时退回纯档位名）
   const sandboxLabel = sandboxTierLabel
     ? resolveSandboxButtonLabel({

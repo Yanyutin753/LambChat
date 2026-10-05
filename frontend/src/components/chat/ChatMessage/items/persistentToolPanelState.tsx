@@ -73,7 +73,7 @@ export function isPersistentToolPanelOpen(panelKey?: string): boolean {
 
 export function isPersistentToolPanelActive(panelKey: string): boolean {
   const snapshot = getRightPanelSnapshot();
-  return snapshot.entries.some(
+  return !snapshot.collapsed && snapshot.entries.some(
     (entry) =>
       entry.id === snapshot.activeId &&
       entry.registryKey === `persistent:${panelKey}`,
@@ -185,7 +185,7 @@ const PersistentToolPanelTab = memo(function PersistentToolPanelTab({
   const registryKey = panelRegistryKey(panel);
   const active = useSyncExternalStore(subscribeRightPanels, () => {
     const snapshot = getRightPanelSnapshot();
-    return snapshot.entries.some(
+    return !snapshot.collapsed && snapshot.entries.some(
       (entry) =>
         entry.id === snapshot.activeId && entry.registryKey === registryKey,
     );

@@ -1,4 +1,3 @@
-import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
 import {
   Fragment,
@@ -235,12 +234,6 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
               id={menuId}
               className="safe-area-bottom max-h-[85dvh] overflow-y-auto bg-theme-bg-card"
             >
-              <div className="sticky top-0 z-10 flex items-center justify-between gap-3 bg-theme-bg-card px-4 py-1">
-                <span className="min-w-0 truncate text-14 font-medium font-serif text-theme-text">
-                  {user?.username || t("common.user")}
-                </span>
-                <DialogCloseButton onClick={() => closeMenu()} />
-              </div>
               <div className="pb-1.5">
                 {actions.map((action) => (
                   <Fragment key={action.label}>

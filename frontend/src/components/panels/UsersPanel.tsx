@@ -1,3 +1,4 @@
+import { EmptyState } from "../common/EmptyState";
 /**
  * 用户管理页面组件
  */
@@ -502,17 +503,12 @@ export function UsersPanel() {
       {/* 用户列表 */}
       <div className="panel-body flex-1 overflow-y-auto">
         {!error && users.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-center">
-            <Users
-              size={48}
-              className="mb-4 text-theme-text-secondary opacity-40"
-            />
-            <p className="text-theme-text-secondary">
-              {debouncedSearch
-                ? t("users.noMatchingUsers")
-                : t("users.noUsers")}
-            </p>
-          </div>
+          <EmptyState
+            icon={<Users size={20} />}
+            title={
+              debouncedSearch ? t("users.noMatchingUsers") : t("users.noUsers")
+            }
+          />
         ) : (
           <>
             {/* Desktop table view */}

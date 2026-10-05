@@ -626,6 +626,15 @@ class _FakeRedisClient:
         for key in keys:
             self.store.pop(key, None)
 
+    async def eval(self, script, numkeys, key, owner, *args):
+        if self.store.get(key) != owner:
+            return 0
+        if args:
+            await self.expire(key, args[0])
+        else:
+            await self.delete(key)
+        return 1
+
 
 def _inbound_payload(text: str, *, message_id: str | None = None) -> _FakeResponse:
     msg: dict[str, Any] = {
@@ -638,10 +647,10 @@ def _inbound_payload(text: str, *, message_id: str | None = None) -> _FakeRespon
     return _FakeResponse(json_data={"ret": 0, "data": {"get_updates_buf": "BUF2", "msgs": [msg]}})
 
 
-async def test_consume_once_dedups_by_content_fingerprint_without_message_id(
+async def test_consume_once_dedups_same_batch_delivery_without_message_id(
     fake_http, monkeypatch
 ) -> None:
-    """iLink 消息体无 id 字段时 message_id=None，必须退回内容指纹去重。"""
+    """iLink 消息体无 id 字段时，同一批次的同一条消息仍需去重。"""
     import src.infra.storage.redis as redis_mod
     from src.infra.channel.weixin.channel import SEEN_FINGERPRINT_TTL_SECONDS, WeixinChannel
 
@@ -663,9 +672,9 @@ async def test_consume_once_dedups_by_content_fingerprint_without_message_id(
     await channel._consume_once(fake_storage)  # noqa: SLF001
     assert len(received) == 1  # 第二次必须被指纹去重挡下
 
-    fp_keys = [k for k in fake_client.store if k.startswith("weixin:seen:fp:")]
+    fp_keys = [k for k in fake_client.store if k.startswith("weixin:seen:u1:i1:fp:")]
     assert len(fp_keys) == 1  # 同指纹只落一个去重键
-    fp_calls = [c for c in fake_client.set_calls if c["key"].startswith("weixin:seen:fp:")]
+    fp_calls = [c for c in fake_client.set_calls if c["key"].startswith("weixin:seen:u1:i1:fp:")]
     assert fp_calls[0]["ex"] == SEEN_FINGERPRINT_TTL_SECONDS  # 短窗兜底，不误吞连发重复
     assert fp_calls[1]["nx"] is True  # 第二次仍走 NX（返回 False 被挡下）
 
@@ -690,7 +699,7 @@ async def test_consume_once_dedup_by_message_id_keeps_long_ttl(fake_http, monkey
 
     await channel._consume_once(fake_storage)  # noqa: SLF001
     assert len(received) == 1
-    id_sets = [c for c in fake_client.set_calls if c["key"] == "weixin:seen:m1"]
+    id_sets = [c for c in fake_client.set_calls if c["key"] == "weixin:seen:u1:i1:id:m1"]
     assert len(id_sets) == 1
     assert id_sets[0]["ex"] == SEEN_MESSAGE_TTL_SECONDS
 
@@ -777,3 +786,80 @@ async def test_poll_loop_renews_each_round_and_yields_when_lock_lost(
     # 锁丢失后立即让位：只发起过一次 getupdates 长轮询
     assert len(fake_http[0].requests) == 1
     assert releases == [holders[0]]  # 释放的是自己的 owner
+
+
+async def test_identical_text_in_distinct_update_batches_is_not_lost(fake_http, monkeypatch):
+    import src.infra.storage.redis as redis_mod
+    from src.infra.channel.weixin.channel import WeixinChannel
+
+    received = []
+
+    async def handler(**kwargs):
+        received.append(kwargs)
+
+    channel = WeixinChannel(_weixin_config(), message_handler=handler)
+    first = _inbound_payload("继续")
+    second = _inbound_payload("继续")
+    second._json["data"]["get_updates_buf"] = "BUF3"
+    _respond(fake_http, [first, second])
+    client = _FakeRedisClient()
+    monkeypatch.setattr(redis_mod, "get_redis_client", lambda: client)
+    storage = _FakeRedisStorage()
+    await channel._consume_once(storage)
+    await channel._consume_once(storage)
+    assert len(received) == 2
+
+
+async def test_identical_messages_in_different_instances_do_not_collide(fake_http, monkeypatch):
+    import src.infra.storage.redis as redis_mod
+    from src.infra.channel.weixin.channel import WeixinChannel
+
+    received = []
+
+    async def handler(**kwargs):
+        received.append(kwargs)
+
+    client = _FakeRedisClient()
+    monkeypatch.setattr(redis_mod, "get_redis_client", lambda: client)
+    for instance in ("instance-a", "instance-b"):
+        config = _weixin_config().model_copy(update={"instance_id": instance})
+        channel = WeixinChannel(config, message_handler=handler)
+        _PENDING.append([_inbound_payload("你好", message_id="same-id")])
+        await channel._consume_once(_FakeRedisStorage())
+    assert len(received) == 2
+
+
+@pytest.mark.parametrize("operation", ["renew", "release"])
+async def test_poll_lock_owner_change_cannot_affect_new_owner(operation):
+    from src.infra.channel.weixin import channel as ch
+
+    class ChangedOwnerRedis(_FakeRedisClient):
+        async def get(self, key):
+            old = await super().get(key)
+            self.store[key] = "NEW-OWNER"
+            return old
+
+        async def eval(self, *args):
+            self.store["weixin:poll-lock:u1:i1"] = "NEW-OWNER"
+            return await super().eval(*args)
+
+    client = ChangedOwnerRedis()
+    key = "weixin:poll-lock:u1:i1"
+    client.store[key] = "OLD-OWNER"
+    if operation == "renew":
+        assert not await ch._renew_poll_lock("u1", "i1", "OLD-OWNER", client=client)
+        assert client.expire_calls == []
+    else:
+        await ch._release_poll_lock("u1", "i1", "OLD-OWNER", client=client)
+    assert client.store[key] == "NEW-OWNER"
+
+
+def test_no_id_delivery_identity_distinguishes_batch_positions_and_context():
+    from src.infra.channel.weixin.channel import _dedup_key
+
+    message = {"chat_id": "a", "sender_id": "a", "content": "继续"}
+    assert _dedup_key(message, "batch", 0) != _dedup_key(message, "batch", 1)
+    assert _dedup_key(message, "batch", 0) != _dedup_key(
+        {**message, "context_token": "new"}, "batch", 0
+    )
+    assert _dedup_key(message, None, 0) is None

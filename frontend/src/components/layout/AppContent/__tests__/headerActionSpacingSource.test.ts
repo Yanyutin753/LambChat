@@ -37,15 +37,15 @@ test("header menu exposes open state and restores focus on Escape", () => {
   expect(source).toContain("mobileMenuBtnRef.current?.focus();");
 });
 
-test("mobile sidebar and model triggers have comfortable touch heights", () => {
+test("mobile sidebar and model triggers use compact 36px touch heights", () => {
   const css = readFileSync(
     new URL("../../../../styles/components.css", import.meta.url),
     "utf8",
   );
   expect(css).toMatch(
-    /\.chat-header__identity > button,\s*\.chat-header__identity > \.relative > button\s*\{[^}]*min-height:\s*2\.75rem;/,
+    /\.chat-header__identity > button,\s*\.chat-header__identity > \.relative > button\s*\{[^}]*min-height:\s*2\.25rem;/,
   );
   expect(css).toMatch(
-    /\.chat-header__identity > button\s*\{[^}]*min-width:\s*2\.75rem;/,
+    /\.chat-header__identity > button\s*\{[^}]*min-width:\s*2\.25rem;/,
   );
 });

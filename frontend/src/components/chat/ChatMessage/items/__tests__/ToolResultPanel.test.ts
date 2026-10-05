@@ -61,7 +61,7 @@ test("tool result overlay reserves vertical safe-area spacing", () => {
   expect(componentSource).toMatch(/safe-area-viewport-padding/);
 });
 
-test("close button delegates to handleUserClose for panel dismissal", () => {
+test("tab closure delegates to handleUserClose for panel dismissal", () => {
   const componentSource = readFileSync(
     new URL("../ToolResultPanel.tsx", import.meta.url),
     "utf8",
@@ -70,7 +70,7 @@ test("close button delegates to handleUserClose for panel dismissal", () => {
   expect(componentSource).toMatch(
     /const handleUserClose = useCallback\(\(\) => \{\s*onUserClose\?\.\(\);\s*clearSidebarHistory\(\);\s*onClose\(\);/s,
   );
-  expect(componentSource).toMatch(/aria-label=\{t\("common\.close"\)\}/);
+  expect(componentSource).toMatch(/useRightPanelEntry\(\{[\s\S]*?onClose: handleUserClose,/);
   expect(componentSource).toMatch(/handleUserClose\(\)/);
 });
 
@@ -218,7 +218,7 @@ test("tool result actions stay compact and flat at every breakpoint", () => {
     ),
     (match) => match[1].trim().split(/\s+/),
   );
-  expect(actionClassNames).toHaveLength(2);
+  expect(actionClassNames).toHaveLength(1);
   for (const classNames of actionClassNames) {
     expect(classNames).toEqual(
       expect.arrayContaining([
@@ -232,7 +232,7 @@ test("tool result actions stay compact and flat at every breakpoint", () => {
   }
   expect(componentsSource).not.toMatch(/\.tool-console-actions\s*\{/);
   expect(componentsSource).toMatch(
-    /\.tool-console-actions\s*>\s*button\s*\{[\s\S]*?width:\s*2rem;[\s\S]*?height:\s*2rem;[\s\S]*?min-width:\s*0;[\s\S]*?min-height:\s*0;/,
+    /\.tool-console-actions\s*>\s*button\s*\{[\s\S]*?width:\s*var\(--right-panel-action-size, 2rem\);[\s\S]*?height:\s*var\(--right-panel-action-size, 2rem\);[\s\S]*?min-width:\s*0;[\s\S]*?min-height:\s*0;/,
   );
   expect(toolbarButtonSource).toMatch(
     /min-h-\[44px\] min-w-\[44px\] sm:size-8 sm:min-h-0 sm:min-w-0/,

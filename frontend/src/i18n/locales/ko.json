@@ -1526,6 +1526,8 @@
   },
   "common": {
     "moreOptions": "추가 작업",
+    "collapsePanel": "패널 접기",
+    "expandPanel": "패널 펼치기",
     "panelTabs": "패널 탭",
     "closePanelTab": "탭 닫기: {{title}}",
     "paginationSummary": "총 {{total}}개 · 페이지당 {{pageSize}}개",

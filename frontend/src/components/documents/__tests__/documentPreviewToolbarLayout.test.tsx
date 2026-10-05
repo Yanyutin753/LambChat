@@ -61,7 +61,9 @@ test("document preview toolbar gives the file title flexible space and groups ac
     "[&_button>svg]:size-5",
     "sm:[&_button>svg]:size-4",
   );
-  expect(fileIcon).toHaveClass("size-8");
+  expect(fileIcon).toHaveClass("document-preview-header-icon", props.fileInfo.color);
+  expect(fileIcon).toHaveAttribute("width", "16");
+  expect(fileIcon).toHaveAttribute("height", "16");
   expect(fileInfoBlock).toHaveClass(
     "document-preview-file-info",
     "flex-1",
@@ -77,7 +79,7 @@ test("document preview toolbar gives the file title flexible space and groups ac
     "gap-1",
     "shrink-0",
   );
-  expect(actionGroup?.querySelectorAll("button")).toHaveLength(4);
+  expect(actionGroup?.querySelectorAll("button")).toHaveLength(3);
   expect(screen.queryByTitle("Copy link")).toBeNull();
   expect(
     screen.getByRole("button", { name: "documents.source" }),

@@ -1,0 +1,33 @@
+/* Only the controls intercept input; the canvas remains draggable between them. */
+.viewer-top-bar button {
+  pointer-events: auto;
+  background-color: rgb(0 0 0 / 70%);
+}
+
+.viewer-top-bar button:hover,
+.viewer-top-bar button:focus-visible {
+  background-color: rgb(0 0 0 / 90%);
+}
+
+.viewer-top-bar button[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 30%);
+}
+
+.viewer-top-bar button:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+}
+
+/* Reserve space when fitted; transformed images can still pan behind controls. */
+.viewer-stage {
+  padding-top: calc(
+    3.5rem + var(--app-safe-area-top-active, var(--app-safe-area-top, 0px))
+  );
+}
+
+@media (pointer: coarse) {
+  .viewer-top-bar button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}

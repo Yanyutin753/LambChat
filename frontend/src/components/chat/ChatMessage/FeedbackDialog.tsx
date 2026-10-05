@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { ThumbsUp, ThumbsDown, X, Send, ImagePlus } from "lucide-react";
+import { X, Send, ImagePlus } from "lucide-react";
 import { Dialog } from "../../common/Dialog";
+import { SceneIllustration } from "../../common/SceneIllustration";
 import { Button } from "../../common";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { ConfigPanelErrorCallout } from "../../panels/ConfigPanelErrorCallout";
@@ -135,11 +136,10 @@ export function FeedbackDialog({
       size="md"
       title={<span className="font-serif">{title}</span>}
       icon={
-        rating === "up" ? (
-          <ThumbsUp size={16} className="text-theme-text-secondary" />
-        ) : (
-          <ThumbsDown size={16} className="text-theme-text-secondary" />
-        )
+        <SceneIllustration
+          scene={rating === "up" ? "panel-feedback-positive" : "panel-feedback"}
+          className="!h-12 !w-12"
+        />
       }
       footer={
         <>

@@ -136,6 +136,41 @@
     grid-template-columns: repeat(8, minmax(2.75rem, 1fr));
   }
 }
+/* Keep category context, result count and filtering in one compact heading. */
+[data-panel] .settings-section-header {
+  padding-bottom: var(--panel-gap);
+  border-bottom: 1px solid var(--theme-border);
+  overflow-wrap: anywhere;
+}
+[data-panel] .settings-section-header__row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+[data-panel] .settings-section-header__filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  max-width: 50%;
+}
+[data-panel] .settings-section-header__filter > span {
+  flex-shrink: 0;
+}
+@container panel (max-width: 639px) {
+  [data-panel] .settings-section-header__row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  [data-panel] .settings-section-header__filter {
+    max-width: 100%;
+    width: 100%;
+  }
+  [data-panel] .settings-section-header__filter > div {
+    flex: 1;
+  }
+}
 @container panel (max-width: 799px) {
   .model-config-heading {
     flex-direction: column;
