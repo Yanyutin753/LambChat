@@ -246,7 +246,8 @@
     "tempTag": "温度: {{value}}",
     "temperature": "温度",
     "title": "助手配置",
-    "valueAndLabelRequired": "值和标签为必填项"
+    "valueAndLabelRequired": "值和标签为必填项",
+    "modelApiBaseDefaultHint": "留空将使用官方端点 {{url}}"
   },
   "agentOptions": {
     "enableCodeInterpreter": {
@@ -698,7 +699,8 @@
     "daemonVersionUnsupported": "本地沙箱守护进程版本 {{version}} 低于最低要求 {{min}}，请升级",
     "sandboxMachineOffline": "所选沙箱机器「{{machine}}」当前离线",
     "sandboxMachineNotFound": "沙箱机器「{{machine}}」不存在或已移除",
-    "pluginNoEditPermission": "没有编辑插件 {{name}} 的权限"
+    "pluginNoEditPermission": "没有编辑插件 {{name}} 的权限",
+    "modelConfigIncomplete": "模型配置不完整：渠道 {{provider}} 缺少 {{field}}"
   },
   "categories": {
     "scheduled_task": "定时任务",

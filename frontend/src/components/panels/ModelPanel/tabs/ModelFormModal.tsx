@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useId } from "react";
+import { useCallback, useEffect, useMemo, useState, useId } from "react";
 import { Eye, EyeOff, Save, Plus, Pencil } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -124,6 +124,17 @@ export const ModelFormModal = ({
     provider: formProvider,
     providers,
   });
+
+  // 选中渠道的官方默认端点：留空时后端自动兜底，placeholder 直接展示省得查文档
+  const providerDefaultBase = useMemo(() => {
+    const slug =
+      formProvider ||
+      (formValue.includes("/")
+        ? formValue.split("/", 1)[0].trim().toLowerCase()
+        : "");
+    if (!slug) return null;
+    return providers.find((p) => p.value === slug)?.defaultBaseUrl ?? null;
+  }, [formProvider, formValue, providers]);
 
   // 按模型标识查询 models.dev 匹配价格（防抖）
   useEffect(() => {
@@ -572,9 +583,18 @@ export const ModelFormModal = ({
                 type="text"
                 value={formApiBase}
                 onChange={(e) => setFormApiBase(e.target.value)}
-                placeholder={t("agentConfig.modelApiBasePlaceholder")}
+                placeholder={
+                  providerDefaultBase || t("agentConfig.modelApiBasePlaceholder")
+                }
                 className="es-input"
               />
+              {providerDefaultBase && (
+                <p className="es-hint">
+                  {t("agentConfig.modelApiBaseDefaultHint", {
+                    url: providerDefaultBase,
+                  })}
+                </p>
+              )}
             </div>
             {showsApiFormat(modelProtocol) && (
               <div className="es-field">

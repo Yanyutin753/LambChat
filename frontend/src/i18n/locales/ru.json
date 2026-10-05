@@ -246,7 +246,8 @@
     "tempTag": "темп: {{value}}",
     "temperature": "Температура",
     "title": "Конфигурация агентов",
-    "valueAndLabelRequired": "Значение и метка обязательны"
+    "valueAndLabelRequired": "Значение и метка обязательны",
+    "modelApiBaseDefaultHint": "Оставьте пустым, чтобы использовать официальную конечную точку {{url}}"
   },
   "agentOptions": {
     "enableCodeInterpreter": {
@@ -698,7 +699,8 @@
     "daemonVersionUnsupported": "Версия локального sandbox-демона {{version}} ниже минимальной {{min}}, обновите его",
     "sandboxMachineOffline": "Выбранная машина песочницы «{{machine}}» сейчас не в сети",
     "sandboxMachineNotFound": "Машина песочницы «{{machine}}» не найдена или удалена",
-    "pluginNoEditPermission": "Нет прав на редактирование плагина {{name}}"
+    "pluginNoEditPermission": "Нет прав на редактирование плагина {{name}}",
+    "modelConfigIncomplete": "Конфигурация модели неполна: отсутствует {{field}} для провайдера {{provider}}"
   },
   "categories": {
     "scheduled_task": "Запланированные задачи",

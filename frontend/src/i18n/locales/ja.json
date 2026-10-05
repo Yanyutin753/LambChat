@@ -246,7 +246,8 @@
     "tempTag": "温度: {{value}}",
     "temperature": "温度",
     "title": "エージェント設定",
-    "valueAndLabelRequired": "値とラベルは必須です"
+    "valueAndLabelRequired": "値とラベルは必須です",
+    "modelApiBaseDefaultHint": "空欄の場合は公式エンドポイント {{url}} が使用されます"
   },
   "agentOptions": {
     "enableCodeInterpreter": {
@@ -698,7 +699,8 @@
     "daemonVersionUnsupported": "ローカルサンドボックスデーモンのバージョン {{version}} は最低要件 {{min}} 未満です。アップデートしてください",
     "sandboxMachineOffline": "選択したサンドボックスマシン「{{machine}}」は現在オフラインです",
     "sandboxMachineNotFound": "サンドボックスマシン「{{machine}}」が見つからないか、削除されました",
-    "pluginNoEditPermission": "プラグイン {{name}} を編集する権限がありません"
+    "pluginNoEditPermission": "プラグイン {{name}} を編集する権限がありません",
+    "modelConfigIncomplete": "モデル設定が不完全です：プロバイダー {{provider}} の {{field}} が不足しています"
   },
   "categories": {
     "scheduled_task": "スケジュールタスク",

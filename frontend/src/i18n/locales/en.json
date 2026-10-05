@@ -246,7 +246,8 @@
     "tempTag": "temp: {{value}}",
     "temperature": "Temperature",
     "title": "Agent Configuration",
-    "valueAndLabelRequired": "Value and Label are required"
+    "valueAndLabelRequired": "Value and Label are required",
+    "modelApiBaseDefaultHint": "Leave empty to use the official endpoint {{url}}"
   },
   "agentOptions": {
     "enableCodeInterpreter": {
@@ -698,7 +699,8 @@
     "daemonVersionUnsupported": "Daemon version {{version}} is below minimum {{min}}; please update",
     "sandboxMachineOffline": "Selected sandbox machine '{{machine}}' is offline",
     "sandboxMachineNotFound": "Sandbox machine '{{machine}}' not found or removed",
-    "pluginNoEditPermission": "No permission to edit plugin {{name}}"
+    "pluginNoEditPermission": "No permission to edit plugin {{name}}",
+    "modelConfigIncomplete": "Model config is incomplete: missing {{field}} for provider {{provider}}"
   },
   "categories": {
     "scheduled_task": "Scheduled tasks",
