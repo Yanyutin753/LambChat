@@ -223,7 +223,6 @@ export function DesktopSidebarShell({
         <DesktopActivityRail
           collapsed={collapsed}
           onOpenChats={() => onToggleChatCollapsed(false)}
-          onToggleSidebar={() => onToggleCollapsed(!collapsed)}
           onShowProfile={onShowProfile}
         />
       )}

@@ -35,6 +35,7 @@ import { notificationApi } from "../../../services/api/notification";
 import { useSessionTitle } from "../../../hooks/useSessionTitle";
 import { NotificationDialog } from "../../notification/NotificationDialog";
 import {
+  DESKTOP_SIDEBAR_TOGGLE_EVENT,
   OPEN_NOTIFICATIONS_EVENT,
   NOTIFICATION_COUNT_EVENT,
 } from "../DesktopSidebarShell/desktopShellPlatform";
@@ -275,8 +276,14 @@ export function Header({
         <div className="chat-header__identity flex min-w-0 items-center gap-2 flex-shrink">
           <button
             type="button"
-            onClick={() => setMobileSidebarOpen(true)}
-            className={`flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-[var(--color-background-muted)] dark:text-stone-300 sm:hidden transition-colors`}
+            onClick={() => {
+              if (window.innerWidth >= 640) {
+                window.dispatchEvent(new Event(DESKTOP_SIDEBAR_TOGGLE_EVENT));
+              } else {
+                setMobileSidebarOpen(true);
+              }
+            }}
+            className={`chat-header__sidebar-expand flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-[var(--color-background-muted)] dark:text-stone-300 sm:hidden transition-colors`}
             title={t("sidebar.expandSidebar")}
             aria-label={t("sidebar.expandSidebar")}
           >

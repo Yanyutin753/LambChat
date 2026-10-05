@@ -251,7 +251,7 @@ test("activity rail exposes creation tools and keeps only secondary features in 
   expect(screen.getAllByRole("button", { name: "nav.skills" })).toHaveLength(1);
 });
 
-test("web navigation keeps a working sidebar toggle visible in both states", () => {
+test("web sidebar collapses beside notifications and reopens through the header event", () => {
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
     value: 1200,
@@ -272,10 +272,8 @@ test("web navigation keeps a working sidebar toggle visible in both states", () 
   expect(collapse).toHaveAttribute("aria-expanded", "true");
   fireEvent.click(collapse);
   expect(sidebar).toHaveAttribute("inert");
-  const expand = screen.getByRole("button", { name: "sidebar.expandSidebar" });
-  expect(expand).toBeVisible();
-  expect(expand).toHaveAttribute("aria-expanded", "false");
-  fireEvent.click(expand);
+  expect(screen.queryByRole("button", { name: "sidebar.expandSidebar" })).toBeNull();
+  fireEvent(window, new Event("lambchat:desktop-sidebar-toggle"));
   expect(sidebar).not.toHaveAttribute("inert");
 });
 
