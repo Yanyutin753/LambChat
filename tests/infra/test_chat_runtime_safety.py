@@ -14,6 +14,8 @@ from src.infra.channel.chat_handler import (
 )
 from src.infra.channel.dingtalk import DingTalkChannel, DingTalkConfig
 
+pytestmark = pytest.mark.usefixtures("fake_channel_inbox")
+
 
 def channel():
     ch = DingTalkChannel(
@@ -35,79 +37,64 @@ def channel():
 MESSAGE = {"sender_id": "sender", "chat_id": "chat", "content": "hello", "message_id": "one"}
 
 
-async def test_concurrent_admission_reserves_capacity_before_redis_await(monkeypatch):
+async def test_concurrent_admission_persists_backlog_before_dispatch(fake_channel_inbox):
     ch = channel()
-    gate, processing = asyncio.Event(), asyncio.Event()
-    redis = AsyncMock()
-
-    async def reserve(*args, **kwargs):
-        await gate.wait()
-        return True
-
-    async def handler(**kwargs):
-        await processing.wait()
-
-    redis.set.side_effect = reserve
-    ch.message_handler.side_effect = handler
-    monkeypatch.setattr("src.infra.channel.chat.MAX_PENDING_MESSAGES", 1)
-    monkeypatch.setattr("src.infra.channel.chat.get_redis_client", lambda: redis)
+    fake_channel_inbox.accept_gate = gate = asyncio.Event()
     tasks = [
-        asyncio.create_task(ch.enqueue_inbound({**MESSAGE, "message_id": str(i)})) for i in range(2)
+        asyncio.create_task(ch.enqueue_inbound({**MESSAGE, "message_id": str(i)}))
+        for i in range(40)
     ]
     await asyncio.sleep(0)
+    assert not fake_channel_inbox.rows
     gate.set()
-    accepted = await asyncio.gather(*tasks)
+    assert all(await asyncio.gather(*tasks))
+    assert len(fake_channel_inbox.rows) == 40
+    ch.message_handler.assert_not_awaited()
     await ch.stop()
-    assert accepted.count(True) == 1
+    assert len(fake_channel_inbox.rows) == 40
+    assert all(row["state"] == "pending" for row in fake_channel_inbox.rows.values())
+    assert len(await ch._inbox_worker.inbox.pending(limit=40)) == 1
 
 
-async def test_stop_during_redis_claim_cannot_launch_an_agent_after_shutdown(monkeypatch):
+async def test_stop_during_acceptance_preserves_input_without_launching_agent(fake_channel_inbox):
     ch = channel()
-    gate = asyncio.Event()
-    redis = AsyncMock()
-
-    async def reserve(*args, **kwargs):
-        await gate.wait()
-        return True
-
-    redis.set.side_effect = reserve
-    monkeypatch.setattr("src.infra.channel.chat.get_redis_client", lambda: redis)
+    fake_channel_inbox.accept_gate = gate = asyncio.Event()
     pending = asyncio.create_task(ch.enqueue_inbound(MESSAGE))
     await asyncio.sleep(0)
     await ch.stop()
     gate.set()
-    await pending
-    await asyncio.sleep(0)
+    assert await pending
     ch.message_handler.assert_not_awaited()
-    assert redis.eval.await_count == 1
+    assert len(await ch._inbox_worker.inbox.pending()) == 1
 
 
-async def test_stop_before_dispatch_starts_releases_claim_for_redelivery(monkeypatch):
+async def test_stop_before_dispatch_keeps_input_for_new_reader():
     ch = channel()
-    redis = AsyncMock()
-    redis.set.return_value = True
-    monkeypatch.setattr("src.infra.channel.chat.get_redis_client", lambda: redis)
     assert await ch.enqueue_inbound(MESSAGE)
     await ch.stop()
     ch.message_handler.assert_not_awaited()
-    assert redis.eval.await_count == 1
+    replacement = channel()
+    try:
+        assert await replacement.drain()
+        replacement.message_handler.assert_awaited_once()
+    finally:
+        await replacement.stop()
 
 
-async def test_handler_failures_remain_visible_to_drain(monkeypatch):
+async def test_handler_failures_remain_visible_to_drain():
     ch = channel()
     ch.message_handler.side_effect = RuntimeError("agent failed")
-    redis = AsyncMock()
-    redis.set.return_value = True
-    monkeypatch.setattr("src.infra.channel.chat.get_redis_client", lambda: redis)
     assert await ch.enqueue_inbound(MESSAGE)
-    await asyncio.sleep(0)
-    await asyncio.sleep(0)
-    assert not await ch.drain()
-    await ch.stop()
+    try:
+        assert not await ch.drain()
+        assert len(await ch._inbox_worker.inbox.pending()) == 1
+    finally:
+        await ch.stop()
 
 
 @pytest.fixture
 def handler_dependencies(monkeypatch):
+    monkeypatch.setattr("src.infra.channel.recovery.settings.TASK_BACKEND", "local")
     monkeypatch.setattr(
         "src.infra.folder.storage.ProjectStorage.get_by_id",
         AsyncMock(return_value=SimpleNamespace(workspace=None)),
@@ -232,7 +219,7 @@ async def test_handler_never_sends_subagent_or_user_chunks(handler_dependencies)
     deps.channel.send_message.assert_awaited_once_with("chat", "answer")
 
 
-async def test_cancelling_handler_also_cancels_owned_background_run(
+async def test_cancelling_handler_preserves_recoverable_background_run(
     handler_dependencies, monkeypatch
 ):
     deps = handler_dependencies
@@ -256,7 +243,7 @@ async def test_cancelling_handler_also_cancels_owned_background_run(
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
-    deps.manager.cancel_run.assert_awaited_once_with("run", user_id="owner")
+    deps.manager.cancel_run.assert_not_awaited()
 
 
 def test_telegram_forum_threads_have_isolated_sessions():
@@ -328,3 +315,20 @@ async def test_oversized_inbound_text_is_ignored_without_truncation_or_agent(mon
     await ch.drain()
     redis.set.assert_not_awaited()
     ch.message_handler.assert_not_awaited()
+
+
+async def test_handler_uses_registered_arq_executor_when_configured(
+    handler_dependencies, monkeypatch
+):
+    deps = handler_dependencies
+    monkeypatch.setattr("src.infra.channel.recovery.settings.TASK_BACKEND", "arq")
+    deps.manager.submit_arq.return_value = ("run", "trace")
+    await deps.handle(
+        user_id="owner", sender_id="sender", chat_id="chat", content="hello", metadata={}
+    )
+    deps.manager.submit.assert_not_awaited()
+    args = deps.manager.submit_arq.call_args.kwargs
+    assert args["executor_key"] == "agent_stream"
+    assert "executor" not in args
+    assert args["user_id"] == "owner"
+    deps.channel.send_message.assert_awaited_once_with("chat", "answer")

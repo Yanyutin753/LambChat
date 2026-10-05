@@ -16,6 +16,7 @@ from src.infra.channel.feishu.handler_helpers import (
     EVENT_TOOL_START,
     _extract_tool_media_files,
 )
+from src.infra.channel.recovery import read_channel_events
 from src.infra.logging import get_logger
 
 logger = get_logger(__name__)
@@ -28,13 +29,10 @@ async def _process_events(
     show_tools: bool,
 ) -> None:
     """处理事件流并收集响应"""
-    from src.infra.session.dual_writer import get_dual_writer
-
-    dual_writer = get_dual_writer()
     pending_approvals: dict[str, dict[str, Any]] = {}
 
     try:
-        async for event in dual_writer.read_from_redis(session_id, run_id):
+        async for event in read_channel_events(session_id, run_id):
             event_type = event.get("event_type", "")
             data = event.get("data", {})
 
@@ -43,6 +41,8 @@ async def _process_events(
                 if chunk:
                     await collector.append_stream_chunk(chunk)
 
+            elif event_type == "run:resumed":
+                collector.text_parts.clear()
             elif event_type == EVENT_TOOL_START and show_tools:
                 tool_name = data.get("tool", "")
                 if tool_name:
@@ -140,4 +140,8 @@ async def _process_events(
         logger.info(f"[Feishu] Event processing completed for session={session_id}")
 
     except Exception as e:
+        from src.infra.channel.inbox_worker import current_delivery
+
+        if current_delivery.get() is not None:
+            raise
         logger.error(f"[Feishu] Event processing error: {e}", exc_info=True)

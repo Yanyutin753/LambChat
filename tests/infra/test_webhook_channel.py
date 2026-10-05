@@ -7,6 +7,8 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
+pytestmark = pytest.mark.usefixtures("fake_channel_inbox")
+
 
 def test_webhook_requires_nonempty_strong_secret():
     from src.infra.channel.webhook import WebhookConfig
@@ -172,24 +174,14 @@ async def test_webhook_redirect_is_not_followed(monkeypatch):
         await channel.stop()
 
 
-async def test_webhook_callbacks_on_two_replicas_share_dedupe_and_tenant_binding(monkeypatch):
+async def test_webhook_callbacks_on_two_replicas_share_dedupe_and_tenant_binding():
     from src.infra.channel.webhook import WebhookChannelManager
 
-    seen = set()
     handled = []
-
-    async def claim(key, value, *, nx, ex):
-        if key in seen:
-            return False
-        seen.add(key)
-        return True
 
     async def handle(**message):
         handled.append(message)
 
-    redis = AsyncMock()
-    redis.set.side_effect = claim
-    monkeypatch.setattr("src.infra.channel.chat.get_redis_client", lambda: redis)
     first = WebhookChannelManager(message_handler=handle)
     second = WebhookChannelManager(message_handler=handle)
     config = {
@@ -208,8 +200,8 @@ async def test_webhook_callbacks_on_two_replicas_share_dedupe_and_tenant_binding
         assert handled[0]["user_id"] == "owner"
         assert handled[0]["content"] == "/new"
         assert handled[0]["metadata"]["instance_id"] == "one"
-        assert first.get_channel("owner", "one")._reader is None
-        assert second.get_channel("owner", "one")._reader is None
+        assert first.get_channel("owner", "one")._reader is not None
+        assert second.get_channel("owner", "one")._reader is not None
         # Identical platform message IDs in another tenant are independent.
         assert await second.receive_callback({**config, "user_id": "another"}, message)
         await second.get_channel("another", "one").drain()
@@ -219,13 +211,10 @@ async def test_webhook_callbacks_on_two_replicas_share_dedupe_and_tenant_binding
         await second.stop()
 
 
-async def test_webhook_applies_fresh_allowlist_without_restarting_pending_messages(monkeypatch):
+async def test_webhook_applies_fresh_allowlist_without_restarting_pending_messages():
     from src.infra.channel.webhook import WebhookChannelManager
 
     handled = []
-    redis = AsyncMock()
-    redis.set.return_value = True
-    monkeypatch.setattr("src.infra.channel.chat.get_redis_client", lambda: redis)
 
     async def handle(**message):
         handled.append(message)

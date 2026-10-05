@@ -97,15 +97,23 @@ class FeishuChannelManager(UserChannelManager):
         )
 
     async def start(self) -> None:
+        async with self._lifecycle_lock:
+            await self._start_locked()
+
+    async def _start_locked(self) -> None:
         """Start all enabled Feishu channels."""
         if not FEISHU_AVAILABLE:
             logger.warning("Feishu SDK not installed. Run: pip install lark-oapi")
             return
 
+        self._stopping = False
         self._running = True
-
-        started, skipped = await self._reconcile_enabled_configs()
         self._ensure_rebalance_task()
+        try:
+            started, skipped = await self._reconcile_enabled_configs()
+        except Exception as exc:
+            logger.warning("[Feishu] Initial reconciliation failed: %s", exc)
+            return
         logger.info(
             "Feishu startup processed enabled configurations: started=%s skipped=%s",
             started,
@@ -113,7 +121,12 @@ class FeishuChannelManager(UserChannelManager):
         )
 
     async def stop(self) -> None:
+        async with self._lifecycle_lock:
+            await self._stop_locked()
+
+    async def _stop_locked(self) -> None:
         """Stop all Feishu channels."""
+        self._stopping = True
         self._running = False
         await self._cancel_rebalance_task()
 
@@ -235,7 +248,12 @@ class FeishuChannelManager(UserChannelManager):
         try:
             while self._running:
                 await asyncio.sleep(_FEISHU_REBALANCE_INTERVAL)
-                await self._reconcile_enabled_configs()
+                try:
+                    async with self._lifecycle_lock:
+                        if self._running:
+                            await self._reconcile_enabled_configs()
+                except Exception as exc:
+                    logger.warning("[Feishu] Rebalance failed; will retry: %s", exc)
         except asyncio.CancelledError:
             pass
         except Exception as e:
@@ -278,16 +296,14 @@ class FeishuChannelManager(UserChannelManager):
         channel_key = self._channel_key(config.user_id, config.instance_id)
 
         existing_channel = self._channels.get(channel_key)
-        existing_app_id = (
-            getattr(existing_channel.config, "app_id", None) if existing_channel else None
-        )
         existing_running = bool(
             getattr(existing_channel, "is_running", getattr(existing_channel, "_running", False))
         )
         if (
             existing_channel
             and not replace_existing
-            and existing_app_id == config.app_id
+            and existing_channel.config.model_dump(exclude={"created_at", "updated_at"})
+            == config.model_dump(exclude={"created_at", "updated_at"})
             and existing_running
         ):
             existing_channel.message_handler = self._message_handler
@@ -306,6 +322,9 @@ class FeishuChannelManager(UserChannelManager):
                 )
                 return False
 
+        if existing_channel:
+            await self._stop_channel_by_key(channel_key)
+
         if not await self._acquire_lease(app_id):
             logger.info(
                 "[Feishu] Lease for app_id=%s is held by another instance, skipping '%s'",
@@ -314,29 +333,34 @@ class FeishuChannelManager(UserChannelManager):
             )
             return False
 
+        client: FeishuChannel | None = None
+        started = False
         try:
-            if channel_key in self._channels:
-                await self._channels[channel_key].stop()
-                # Clean up old app_id tracking
-                old_app_id = getattr(self._channels[channel_key].config, "app_id", None)
-                if old_app_id and old_app_id in self._active_app_ids:
-                    del self._active_app_ids[old_app_id]
-
             client = FeishuChannel(config, self._message_handler)
-            success = await client.start()
+            started = await client.start()
 
-            if success:
+            if started:
                 self._channels[channel_key] = client
                 self._active_app_ids[app_id] = channel_key
                 self._ensure_lease_refresh_task(app_id)
-                return True
-            await self._release_lease(app_id)
-            return False
-        except BaseException:
-            await self._release_lease(app_id)
-            raise
+            return started
+        finally:
+            if not started:
+                # start() can create inbox workers before SDK setup fails. Join
+                # them before another replica is allowed to acquire this lease.
+                try:
+                    if client is not None:
+                        await client.stop()
+                finally:
+                    await self._release_lease(app_id)
 
     async def reload_user(self, user_id: str, instance_id: Optional[str] = None) -> bool:
+        async with self._lifecycle_lock:
+            if self._stopping:
+                return False
+            return await self._reload_user_locked(user_id, instance_id)
+
+    async def _reload_user_locked(self, user_id: str, instance_id: Optional[str] = None) -> bool:
         """Reload a user's Feishu configuration and restart the client.
 
         Args:
@@ -370,7 +394,7 @@ class FeishuChannelManager(UserChannelManager):
 
         # Stop all existing clients
         for key in list(self._channels.keys()):
-            if key.startswith(user_id):
+            if key == user_id or key.startswith(f"{user_id}:"):
                 await self._stop_channel_by_key(key)
 
         # Start all enabled clients
@@ -392,17 +416,9 @@ class FeishuChannelManager(UserChannelManager):
     def _find_channel(
         self, user_id: str, instance_id: Optional[str] = None
     ) -> Optional[FeishuChannel]:
-        """Find a channel by user_id, with fallback to prefix match.
-
-        Lookup order:
-        1. Exact match: "user_id:instance_id" (if instance_id provided)
-        2. Exact match: "user_id"
-        3. Prefix match: first key starting with "user_id:"
-        """
+        """Resolve explicit instances exactly; legacy callers may use the first user bot."""
         if instance_id:
-            channel = self._channels.get(f"{user_id}:{instance_id}")
-            if channel:
-                return cast(FeishuChannel, channel)
+            return cast(FeishuChannel | None, self._channels.get(f"{user_id}:{instance_id}"))
 
         channel = self._channels.get(user_id)
         if channel:
@@ -602,6 +618,10 @@ class FeishuChannelManager(UserChannelManager):
         self._lease_tasks[app_id] = asyncio.create_task(_refresh())
 
     async def _stop_channel_after_lost_lease(self, app_id: str) -> None:
+        async with self._lifecycle_lock:
+            await self._stop_channel_after_lost_lease_locked(app_id)
+
+    async def _stop_channel_after_lost_lease_locked(self, app_id: str) -> None:
         channel_key = self._active_app_ids.pop(app_id, None)
         if not channel_key:
             return

@@ -105,6 +105,14 @@ Verify the secret and return HTTP 2xx. `sentAt` is a Unix timestamp in milliseco
 
 ## Check your configuration
 
+### Multiple replicas and server restarts
+
+Receiving channels (Feishu, WeChat, Telegram, Slack, Discord, DingTalk, WeCom, and custom Webhook) persist messages in MongoDB before acknowledging receipt or advancing a polling cursor. Replicas share delivery records and processing leases. Messages in one conversation stay ordered, and a replica that loses ownership stops processing. Pending messages do not expire; completed deduplication records remain for seven days.
+
+Connections retry after server restarts and network failures. Accepted deliveries retain their original run ID and use the normal conversation recovery mechanism. Saved Feishu streaming cards continue updating; WeCom uses the current connection; DingTalk uses its authenticated API when a temporary reply URL expires. Session mappings include the owner and channel instance, and an explicitly selected instance never falls back to another bot. Legacy Feishu/WeChat chat-only session mappings are not reused across tenants; earlier conversations remain in the web history.
+
+Recovery requires shared MongoDB and Redis plus valid platform permissions. Notification-only channels have no inbound connection to reconnect. When a platform does not provide idempotent sends, a crash after it receives a reply but before LambChat records success can still cause a duplicate reply on retry. This is not an external exactly-once guarantee. Messages acknowledged by older versions before the durable inbox was deployed have no new recovery record.
+
 Send a message from an allowed account, check the conversation and reply, send a second message to verify context, and try `/new`. Verify that an account outside your allowlist cannot start a run. Check each instance's agent, model, project and destination independently.
 
 Automated tests cover protocol messages, authentication, isolation, deduplication and failure handling. Platform permissions, app publication, actual credentials and connectivity still require a test with your real account. Passing mocked protocol tests is not a claim that a real bot has been connected.
