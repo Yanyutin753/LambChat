@@ -8,9 +8,9 @@ const source = readFileSync(
   "utf8",
 );
 
-test("vitest worker 数封顶且默认 8，可通过 VITEST_MAX_WORKERS 覆盖", () => {
+test("vitest worker 数不超过可用 CPU 且封顶 8，可通过环境变量覆盖", () => {
   expect(source).toMatch(
-    /Number\(process\.env\.VITEST_MAX_WORKERS\)\s*\|\|\s*8/,
+    /Number\(process\.env\.VITEST_MAX_WORKERS\)\s*\|\|\s*Math\.min\(8,\s*availableParallelism\(\)\)/,
   );
 });
 
