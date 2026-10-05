@@ -15,7 +15,7 @@ import {
   SECTION_IDS,
   SECTION_ROUTE_BY_ID,
 } from "./constants";
-import { MAIN_SHOTS, MGMT_SHOTS, RESPONSIVE_SHOTS } from "./data";
+import { MAIN_SHOTS, MGMT_SHOTS, RESPONSIVE_SHOTS, shotSrc } from "./data";
 import { Navbar } from "./components/Navbar";
 import { MobileMenu } from "./components/MobileMenu";
 import { HeroSection } from "./components/HeroSection";
@@ -58,7 +58,7 @@ export function LandingPage() {
     () => [
       ...MAIN_SHOTS.map((s) => ({ src: s.src, alt: t(`landing.${s.altKey}`) })),
       {
-        src: "/images/best-practice/architecture.webp",
+        src: shotSrc("architecture"),
         alt: t("landing.architecture"),
       },
       ...MGMT_SHOTS.map((s) => ({ src: s.src, alt: t(`landing.${s.altKey}`) })),
@@ -140,7 +140,14 @@ export function LandingPage() {
       if (route && window.location.pathname !== route) {
         navigate(route, { replace: false });
       }
-      document.getElementById(id)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      document
+        .getElementById(id)
+        ?.scrollIntoView({
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
+            .matches
+            ? "auto"
+            : "smooth",
+        });
     },
     [navigate],
   );
@@ -156,7 +163,13 @@ export function LandingPage() {
   }, [currentSectionId]);
 
   const scrollToTop = useCallback(
-    () => window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }),
+    () =>
+      window.scrollTo({
+        top: 0,
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+      }),
     [],
   );
 
@@ -164,7 +177,9 @@ export function LandingPage() {
     () =>
       window.scrollTo({
         top: document.documentElement.scrollHeight,
-        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
       }),
     [],
   );

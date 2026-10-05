@@ -1,10 +1,15 @@
 /** @vitest-environment jsdom */
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, beforeAll, expect, test, vi } from "vitest";
 import { I18nextProvider } from "react-i18next";
-import i18n from "../../../i18n";
+import i18n, { i18nReady } from "../../../i18n";
 import { useDocumentPreviewState } from "../useDocumentPreviewState";
 import DocumentPreviewContent from "../DocumentPreviewContent";
+
+beforeAll(async () => {
+  await i18nReady;
+  await i18n.loadLanguages(["zh"]);
+});
 
 afterEach(() => {
   cleanup();

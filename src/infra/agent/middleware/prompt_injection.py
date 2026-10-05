@@ -381,9 +381,10 @@ class EnvVarPromptMiddleware(AgentMiddleware):
 
     _FRAME_MARKER = "<env_var_keys_context>"
 
-    def __init__(self, *, user_id: str) -> None:
+    def __init__(self, *, user_id: str, additional_keys: tuple[str, ...] = ()) -> None:
         super().__init__()
         self._user_id = user_id
+        self._additional_keys = tuple(sorted(set(additional_keys)))
 
     async def awrap_model_call(
         self,
@@ -393,6 +394,14 @@ class EnvVarPromptMiddleware(AgentMiddleware):
         from src.infra.tool.env_var_prompt import build_env_var_prompt
 
         prompt = await build_env_var_prompt(self._user_id)
+        if self._additional_keys:
+            key_list = "\n".join(f"- `{key}`" for key in self._additional_keys)
+            prompt = (
+                f"{prompt}\n\n## Channel Environment Variables\n\n"
+                "Names only; these variables override user variables for this run. "
+                "Reference environment variables without printing or revealing their values.\n"
+                f"{key_list}"
+            ).strip()
         if not prompt:
             return await handler(request)
         prompt = escape_control_frame_tags(prompt)
@@ -413,6 +422,15 @@ class EnvVarPromptMiddleware(AgentMiddleware):
             ),
             None,
         )
+        if env_index is None and self._additional_keys:
+            env_index = next(
+                (
+                    index
+                    for index, tool in enumerate(tools)
+                    if getattr(tool, "name", "") == "execute"
+                ),
+                None,
+            )
         target = tools[env_index] if env_index is not None else None
         if env_index is not None and isinstance(target, BaseTool):
             tools[env_index] = target.model_copy(

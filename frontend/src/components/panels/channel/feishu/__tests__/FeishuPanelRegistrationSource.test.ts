@@ -21,8 +21,8 @@ test("registration polling cleanup cancels active server-side session", () => {
   expect(panelSource).toMatch(/return\s+\(\)\s*=>\s*\{/);
 });
 
-test("feishu panel uses the bot message icon", () => {
-  expect(panelSource).toMatch(/BotMessageSquare/);
+test("feishu panel uses the shared Feishu brand icon", () => {
+  expect(panelSource).toMatch(/<ChannelIcon channelType="feishu"/);
   expect(panelSource).not.toMatch(/import \{[^}]*\bMessageSquare\b/);
 });
 

@@ -2,10 +2,15 @@
 import { useRef, useState } from "react";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, beforeAll, expect, test, vi } from "vitest";
 import { I18nextProvider } from "react-i18next";
-import i18n from "../../../i18n";
+import i18n, { i18nReady } from "../../../i18n";
 import { AgentModeSelector } from "../AgentModeSelector";
+
+beforeAll(async () => {
+  await i18nReady;
+  await i18n.loadLanguages(["zh"]);
+});
 
 afterEach(cleanup);
 test("an initially unavailable mode catalog stays open through retry and keeps focus while options recover", async () => {

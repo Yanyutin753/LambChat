@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from src.infra.logging import get_logger
 
@@ -18,7 +18,20 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 # Internal modules to skip during discovery
-_INTERNAL = frozenset({"base", "registry", "manager", "__init__"})
+_INTERNAL = frozenset(
+    {
+        "base",
+        "registry",
+        "manager",
+        "outbound",
+        "delivery",
+        "fallback",
+        "__init__",
+        "chat",
+        "chat_handler",
+        "chat_lease",
+    }
+)
 
 
 def discover_channel_modules() -> list[str]:
@@ -51,6 +64,16 @@ def discover_channel_modules() -> list[str]:
     return modules
 
 
+def _defined_by_module(mod: Any, cls: type) -> bool:
+    """类是否由该渠道模块（或其子模块，如 feishu 包内的 feishu.channel）定义。
+
+    渠道模块普遍 from outbound/base 导入共享基类，dir() 扫描时这些导入名
+    也是 BaseChannel 子类——不限定定义来源会把共享基类错认成渠道。
+    """
+    cls_module = getattr(cls, "__module__", "") or ""
+    return cls_module == mod.__name__ or cls_module.startswith(mod.__name__ + ".")
+
+
 def load_channel_class(module_name: str) -> Optional[type["BaseChannel"]]:
     """
     Import a channel module and return the BaseChannel subclass found.
@@ -67,7 +90,12 @@ def load_channel_class(module_name: str) -> Optional[type["BaseChannel"]]:
         mod = importlib.import_module(f"src.infra.channel.{module_name}")
         for attr in dir(mod):
             obj = getattr(mod, attr)
-            if isinstance(obj, type) and issubclass(obj, _Base) and obj is not _Base:
+            if (
+                isinstance(obj, type)
+                and issubclass(obj, _Base)
+                and obj is not _Base
+                and _defined_by_module(mod, obj)
+            ):
                 return obj
     except ImportError as e:
         logger.debug(f"Could not import channel module '{module_name}': {e}")
@@ -93,10 +121,15 @@ def load_manager_class(module_name: str) -> Optional[type["UserChannelManager"]]
         mod = importlib.import_module(f"src.infra.channel.{module_name}")
         for attr in dir(mod):
             obj = getattr(mod, attr)
-            if isinstance(obj, type) and issubclass(obj, _Manager) and obj is not _Manager:
+            if (
+                isinstance(obj, type)
+                and issubclass(obj, _Manager)
+                and obj is not _Manager
+                and _defined_by_module(mod, obj)
+            ):
                 return obj
     except ImportError as e:
-        logger.debug(f"Could not import channel module '{module_name}': {e}")
+        logger.debug(f"Could not import manager module '{module_name}': {e}")
     except Exception as e:
         logger.warning(f"Error loading manager from '{module_name}': {e}")
 

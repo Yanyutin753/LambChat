@@ -5,7 +5,14 @@ import ja from "./locales/codeEditor/ja.json";
 import ko from "./locales/codeEditor/ko.json";
 import ru from "./locales/codeEditor/ru.json";
 
-// CodeMirror is lazy-loaded; keep its phrases in the same lazy boundary.
-for (const [language, codeEditor] of Object.entries({ en, zh, ja, ko, ru })) {
-  i18n.addResourceBundle(language, "translation", { codeEditor }, true, true);
+// Keep editor phrases lazy without making an unloaded locale look complete.
+function registerLoadedLocales() {
+  for (const [language, codeEditor] of Object.entries({ en, zh, ja, ko, ru })) {
+    if (i18n.hasResourceBundle(language, "translation")) {
+      i18n.addResourceBundle(language, "translation", { codeEditor }, true, true);
+    }
+  }
 }
+
+registerLoadedLocales();
+i18n.on("loaded", registerLoadedLocales);

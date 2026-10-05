@@ -5,6 +5,7 @@ import type {
 
 export type FeishuConfigResponse = ChannelConfigResponse["config"] & {
   app_id: string;
+  platform?: "feishu" | "lark";
   encrypt_key: string;
   verification_token: string;
   react_emoji: string;

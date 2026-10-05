@@ -701,6 +701,11 @@ class ErrorCode(Enum):
     MODEL_NOT_FOUND = ("model_not_found", 404, "Model not found")
     MODEL_DISABLED = ("model_disabled", 400, "Model is disabled")
     MODEL_NOT_ALLOWED = ("model_not_allowed", 403, "Model not allowed")
+    MODEL_CONFIG_INCOMPLETE = (
+        "model_config_incomplete",
+        400,
+        "Model config is incomplete: missing {{field}} for provider {{provider}}",
+    )
     MODEL_EMPTY_RESPONSE = (
         "model_empty_response",
         500,

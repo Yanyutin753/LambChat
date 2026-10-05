@@ -1,4 +1,4 @@
-import { getFluentEmojiCDN } from "@lobehub/fluent-emoji";
+import { getEmojiAssetUrl } from "../../utils/emojiAssets";
 
 export type PersonaAvatarIconKey =
   | "sparkles"
@@ -75,5 +75,5 @@ export function isEmojiAvatar(
 }
 
 export function getEmojiAvatarUrl(emoji: string): string {
-  return getFluentEmojiCDN(emoji, { type: "anim" });
+  return getEmojiAssetUrl(emoji, "anim");
 }

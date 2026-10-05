@@ -7,6 +7,8 @@ export interface ProviderInfo {
   value: string;
   protocol: string;
   prefixes: string[];
+  /** 官方默认端点；后端在未填 api_base 时自动兜底，null 表示无默认 */
+  defaultBaseUrl?: string | null;
 }
 
 export function resolveModelProtocol(opts: {

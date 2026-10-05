@@ -307,7 +307,12 @@ export const modelApi = {
 
   /** 列出所有支持的 LLM 供应商 */
   async listProviders(): Promise<
-    { value: string; protocol: string; prefixes: string[] }[]
+    {
+      value: string;
+      protocol: string;
+      prefixes: string[];
+      defaultBaseUrl?: string | null;
+    }[]
   > {
     return authFetch(`${API_BASE}/api/agent/models/providers/list`);
   },

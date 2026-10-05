@@ -8,14 +8,19 @@ import {
   screen,
 } from "@testing-library/react";
 import { lazy, Suspense } from "react";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import { I18nextProvider } from "react-i18next";
-import appI18n from "../../../i18n";
+import appI18n, { i18nReady } from "../../../i18n";
 import { useDocumentPreviewState } from "../useDocumentPreviewState";
 import DocumentPreviewToolbar from "../DocumentPreviewToolbar";
 import DocumentPreviewContent from "../DocumentPreviewContent";
 import HtmlPreview from "../previews/HtmlPreview";
 import type { CodeMirrorViewerProps } from "../../common/CodeMirrorViewer";
+
+beforeAll(async () => {
+  await i18nReady;
+  await appI18n.loadLanguages(["zh"]);
+});
 
 const previewLoad = vi.hoisted(() => ({
   pending: false,

@@ -2,14 +2,16 @@
  * Channels Page - Lists all available channels and their instances
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { BotMessageSquare, Bot, Plus, ChevronRight } from "lucide-react";
+import { Plus, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
 import { APP_NAME } from "../../constants";
 import { channelApi } from "../../services/api/channel";
+import { ChannelIcon } from "../panels/channel/ChannelIcon";
+import { localizeChannelMetadata } from "../panels/channel/channelMetadata";
 import { ChannelPanel } from "../panels/ChannelPanel";
 import { FeishuPanel } from "../panels/channel/feishu/FeishuPanel";
 import { PanelHeader } from "../common/PanelHeader";
@@ -27,19 +29,6 @@ import type {
   ChannelType,
 } from "../../types/channel";
 import { formatDate } from "../../utils/datetime";
-
-// Icon map for channel icons
-const CHANNEL_ICONS: Record<string, React.FC<{ className?: string }>> = {
-  BotMessageSquare,
-  "message-circle": Bot,
-  feishu: BotMessageSquare,
-};
-
-// Get icon component
-function getChannelIcon(iconName: string, className?: string) {
-  const IconComponent = CHANNEL_ICONS[iconName] || Bot;
-  return <IconComponent className={className} />;
-}
 
 // Keep the original channel presentation separate from the redesigned skill cards.
 function ChannelCard({
@@ -137,7 +126,12 @@ export function ChannelsPage() {
       instanceId?: string;
     }>();
 
-  const [channelTypes, setChannelTypes] = useState<ChannelMetadata[]>([]);
+  const [rawChannelTypes, setChannelTypes] = useState<ChannelMetadata[]>([]);
+  const channelTypes = useMemo(
+    () =>
+      rawChannelTypes.map((metadata) => localizeChannelMetadata(metadata, t)),
+    [rawChannelTypes, t],
+  );
   const [instances, setInstances] = useState<
     Record<string, ChannelConfigResponse[]>
   >({});
@@ -371,7 +365,14 @@ export function ChannelsPage() {
                         : statusUnavailable
                           ? "channel.statusUnavailable"
                           : "channel.disconnected";
-                    const gradient = nameToGradient(ct.display_name);
+                    const receivesMessages = ct.capabilities.some((capability) =>
+                      ["websocket", "webhook", "long_polling"].includes(capability),
+                    );
+                    const gradient = nameToGradient(
+                      rawChannelTypes.find(
+                        (raw) => raw.channel_type === ct.channel_type,
+                      )?.display_name ?? ct.channel_type,
+                    );
 
                     return (
                       <ChannelCard
@@ -379,7 +380,7 @@ export function ChannelsPage() {
                         title={ct.display_name}
                         description={ct.description}
                         gradient={gradient}
-                        icon={getChannelIcon(ct.icon, "w-5 h-5")}
+                        icon={<ChannelIcon channelType={ct.channel_type} />}
                         statusPills={
                           <div className="mt-1 flex flex-wrap gap-1.5">
                             {instanceCount > 0 && (
@@ -387,6 +388,20 @@ export function ChannelsPage() {
                                 className={`rounded-full px-2 py-0.5 text-12 font-medium ${hasAnyConnected ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300" : allDisabled || statusUnavailable ? "bg-[var(--theme-primary-light)] text-theme-text-secondary" : "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"}`}
                               >
                                 {t(summaryStatus)}
+                              </span>
+                            )}
+                            {ct.capabilities.includes("send_message") && (
+                              <span className="rounded-full bg-[var(--theme-primary-light)] px-2 py-0.5 text-12 font-medium text-theme-text-secondary">
+                                {t(
+                                  receivesMessages
+                                    ? "channel.twoWayChat"
+                                    : "channel.pushOnly",
+                                )}
+                              </span>
+                            )}
+                            {ct.capabilities.includes("long_polling") && (
+                              <span className="rounded-full bg-[var(--theme-primary-light)] px-2 py-0.5 text-12 font-medium text-theme-text-secondary">
+                                {t("channel.longPolling")}
                               </span>
                             )}
                             {ct.capabilities.includes("websocket") && (

@@ -2,6 +2,8 @@
 认证中间件
 """
 
+import re
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
@@ -119,6 +121,14 @@ class AuthMiddleware:
 
         # Exact match on public paths
         if path in self.PUBLIC_PATHS:
+            await _call_next()
+            return
+
+        # This exact callback authenticates with its per-instance secret in the
+        # route. Channel configuration/listing APIs still require a user token.
+        if request.method == "POST" and re.fullmatch(
+            r"/api/channels/webhook/[^/]+/callback/?", path
+        ):
             await _call_next()
             return
 

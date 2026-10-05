@@ -8,7 +8,7 @@ import {
   Loader2,
   Bot,
 } from "lucide-react";
-import { getFluentEmojiCDN } from "@lobehub/fluent-emoji";
+import { getEmojiAssetUrl } from "../../../utils/emojiAssets";
 import { useTranslation } from "react-i18next";
 import { hasOpenRightPanel } from "../../common/rightPanelCoordinator";
 import {
@@ -299,9 +299,8 @@ export function SubagentBlock({
         >
           {!agentAvatarUrl && roleIconMeta.emoji ? (
             <ImageWithSkeleton
-              src={getFluentEmojiCDN(roleIconMeta.emoji!, { type: "3d" })}
+              src={getEmojiAssetUrl(roleIconMeta.emoji!, "3d")}
               alt={roleIconMeta.emoji}
-              skipUrlResolve
               inline
               loading="eager"
               style={{ objectFit: "contain" }}
@@ -314,7 +313,6 @@ export function SubagentBlock({
               <ImageWithSkeleton
                 src={agentAvatarUrl}
                 alt=""
-                skipUrlResolve
                 inline
                 loading="lazy"
               />

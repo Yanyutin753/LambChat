@@ -170,7 +170,7 @@ async def create_model(
 @router.get("/providers/list")
 async def list_providers():
     """列出所有支持的 LLM 供应商（从 PROVIDER_REGISTRY 生成）。"""
-    from src.infra.llm.client import PROVIDER_REGISTRY
+    from src.infra.llm.providers import PROVIDER_DEFAULTS, PROVIDER_REGISTRY
 
     providers = []
     for slug, (protocol, prefixes) in PROVIDER_REGISTRY.items():
@@ -179,6 +179,8 @@ async def list_providers():
                 "value": slug,
                 "protocol": protocol,
                 "prefixes": prefixes,
+                # 官方默认端点：未配置 api_base 时后端自动兜底；前端用作表单提示
+                "defaultBaseUrl": PROVIDER_DEFAULTS.get(slug),
             }
         )
     return providers

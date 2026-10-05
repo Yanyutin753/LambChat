@@ -21,10 +21,24 @@ class FeishuGroupPolicy(str, Enum):
     MENTION = "mention"  # Respond only when @mentioned
 
 
+class FeishuPlatform(str, Enum):
+    FEISHU = "feishu"
+    LARK = "lark"
+
+
+def feishu_api_domain(platform: FeishuPlatform | str) -> str:
+    """Resolve only the two official regions; never accept a caller's URL."""
+    return {
+        FeishuPlatform.FEISHU: "https://open.feishu.cn",
+        FeishuPlatform.LARK: "https://open.larksuite.com",
+    }[FeishuPlatform(platform)]
+
+
 class FeishuConfigBase(BaseModel):
     """Base Feishu configuration schema."""
 
     instance_id: str = Field("", description="Instance ID for multi-instance support")
+    platform: FeishuPlatform = FeishuPlatform.FEISHU
     app_id: str = Field(..., description="Feishu/Lark App ID")
     app_secret: str = Field(..., description="Feishu/Lark App Secret")
     encrypt_key: str = Field("", description="Encrypt key for event encryption (optional)")
@@ -58,6 +72,7 @@ class FeishuConfigUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     app_id: Optional[str] = None
+    platform: Optional[FeishuPlatform] = None
     app_secret: Optional[str] = None
     encrypt_key: Optional[str] = None
     verification_token: Optional[str] = None
@@ -84,6 +99,7 @@ class FeishuConfigResponse(BaseModel):
     """Feishu configuration response (masked sensitive fields)."""
 
     user_id: str
+    platform: FeishuPlatform = FeishuPlatform.FEISHU
     app_id: str  # Can show app_id (not sensitive)
     has_app_secret: bool  # Only show if secret is set
     encrypt_key: str = ""  # Masked

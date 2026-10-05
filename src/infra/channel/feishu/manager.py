@@ -83,6 +83,7 @@ class FeishuChannelManager(UserChannelManager):
             user_id=user_id,
             instance_id=resolved_instance_id,
             app_id=config_dict.get("app_id") or "",
+            platform=config_dict.get("platform", "feishu"),
             app_secret=config_dict.get("app_secret") or "",
             encrypt_key=config_dict.get("encrypt_key") or "",
             verification_token=config_dict.get("verification_token") or "",

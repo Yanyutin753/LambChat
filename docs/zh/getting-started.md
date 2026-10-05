@@ -65,3 +65,7 @@ pnpm dev       # 启动前端开发服务器（端口 3001）
 | 沙箱 | Daytona 或 E2B |
 | 认证 | JWT, OAuth, bcrypt |
 | 链路追踪 | LangSmith |
+
+## 接入聊天渠道
+
+在网页外使用 Agent，请参阅[聊天渠道接入](/zh/channels)。

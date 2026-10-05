@@ -743,6 +743,7 @@ class TaskExecutor:
                     delivered_count,
                 )
                 # Web Push fallback when WebSocket has no active connection
+                push_delivered = 0
                 try:
                     from src.infra.push.manager import PushManager
 
@@ -761,6 +762,23 @@ class TaskExecutor:
                         )
                 except Exception as push_err:
                     logger.warning("Failed to send push notification fallback: %s", push_err)
+                # 渠道兜底：WS 与 Web Push 均未送达时，把结果推到用户配置的
+                # IM 渠道（push 已送达则不再双推手机）
+                if push_delivered <= 0:
+                    try:
+                        from src.infra.channel.fallback import deliver_task_fallback
+
+                        await deliver_task_fallback(
+                            user_id=user_id,
+                            session_id=session_id,
+                            run_id=run_id,
+                            status_value=status.value,
+                            message=message,
+                        )
+                    except Exception as channel_err:
+                        logger.warning(
+                            "Failed to send channel fallback notification: %s", channel_err
+                        )
             else:
                 logger.info(
                     "Task notification delivered: user_id=%s, session=%s, status=%s, delivered=%s",
@@ -893,6 +911,7 @@ class TaskExecutor:
 
         Args:
             session_name: 自定义 session 名称，默认 "新对话"
+            session_metadata: 本次执行显式提供的元数据，也更新已有会话以支持恢复运行
 
         Raises:
             PermissionError: 如果 session 存在但不属于当前用户
@@ -907,6 +926,10 @@ class TaskExecutor:
                         f"User {user_id} attempted to access session {session_id} owned by {existing.user_id}"
                     )
                     raise PermissionError("无权访问此会话")
+                if session_metadata:
+                    updated = await self._storage.update_metadata_only(session_id, session_metadata)
+                    if not updated:
+                        raise RuntimeError("Failed to persist session execution metadata")
                 logger.debug(f"Session {session_id} already exists")
                 return
 
@@ -929,3 +952,5 @@ class TaskExecutor:
             raise  # 重新抛出权限错误
         except Exception as e:
             logger.warning(f"Failed to ensure session: {e}")
+            if session_metadata is not None:
+                raise

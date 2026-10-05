@@ -103,12 +103,14 @@ class LazySandboxBackend(BaseSandbox):
         user_id: str,
         presenter: _SandboxPresenter,
         manager_factory: Callable[[], _SandboxManager],
+        env_overrides: dict[str, str] | None = None,
     ) -> None:
         construction_started_at = time.perf_counter()
         self._session_id = session_id
         self._user_id = user_id
         self._presenter: _SandboxPresenter = presenter
         self._manager_factory = manager_factory
+        self._run_env_overrides = dict(env_overrides or {})
         self._platform = settings.SANDBOX_PLATFORM.lower()
         self._public_work_dir = public_sandbox_work_dir(session_id)
         self._actual_work_dir: str | None = None
@@ -664,6 +666,10 @@ class LazySandboxBackend(BaseSandbox):
                 and PurePosixPath(actual_work_dir).is_absolute()
             ):
                 raise ValueError("sandbox manager returned an invalid work directory")
+
+            from src.infra.envvar.sync import apply_sandbox_env_overrides
+
+            apply_sandbox_env_overrides(delegate, self._run_env_overrides)
 
             await self._attempt_event(
                 "ready",

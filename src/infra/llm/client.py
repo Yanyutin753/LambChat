@@ -19,6 +19,8 @@ from langchain_core.language_models.model_profile import ModelProfile as LangCha
 from pydantic import SecretStr
 
 from src.infra.llm.anthropic_chat import LambChatAnthropicChatModel as ChatAnthropic
+from src.infra.llm.azure_chat import LambChatAzureChatModel as AzureChatOpenAI
+from src.infra.llm.azure_chat import parse_azure_endpoint
 from src.infra.llm.budget import (
     ANTHROPIC_DEFAULT_MAX_TOKENS,
     warn_if_input_budget_strangled,
@@ -39,57 +41,18 @@ from src.infra.llm.openai_chat import (
 from src.infra.llm.openai_chat import (
     is_official_openai_base_url,
 )
+from src.infra.llm.providers import (
+    _parse_provider,
+    _resolve_default_api_base,
+    _resolve_protocol,
+)
 from src.infra.logging import get_logger
 from src.kernel.config import settings
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.exceptions import AuthorizationError
 from src.kernel.schemas.model import ModelConfig
 
 logger = get_logger(__name__)
-
-# ── Provider 注册表 ──
-# 每个条目: provider_slug → (协议类型, 模型名前缀列表)
-# 协议类型: "anthropic" | "google" | "openai"
-# 不在此注册表的 provider 统一走 OpenAI 兼容接口
-PROVIDER_REGISTRY: dict[str, tuple[str, list[str]]] = {
-    # Anthropic 协议
-    "anthropic": ("anthropic", ["claude"]),
-    "minimax": ("anthropic", ["abab", "minimax"]),
-    # zai 在 _resolve_protocol 中动态路由：coding plan → anthropic，其余 → openai
-    # Google 协议
-    "google": ("google", ["gemini", "gemma"]),
-    "gemini": ("google", ["gemini", "gemma"]),
-    # OpenAI 兼容协议（显式列出，保持完整性）
-    "openai": ("openai", ["gpt", "o1", "o3", "o4", "chatgpt"]),
-    "deepseek": ("openai", ["deepseek"]),
-    "meta": ("openai", ["llama"]),
-    "mistral": ("openai", ["mistral", "mixtral"]),
-    "qwen": ("openai", ["qwen"]),
-    "groq": ("openai", ["groq"]),
-    "xai": ("openai", ["grok"]),
-    "cohere": ("openai", ["command"]),
-    "zhipu": ("openai", ["glm", "chatglm"]),
-    "moonshot": ("openai", ["moonshot"]),
-    "ollama": ("openai", []),
-    "perplexity": ("openai", ["sonar"]),
-    "stepfun": ("openai", ["step"]),
-    "doubao": ("openai", ["doubao"]),
-    "spark": ("openai", ["spark"]),
-    "yi": ("openai", ["yi"]),
-    "baichuan": ("openai", ["baichuan"]),
-    "internlm": ("openai", ["internlm"]),
-    "tencent": ("openai", ["hunyuan"]),
-    "zeroone": ("openai", ["zero"]),
-    # zai coding plan → Claude 协议
-    "zai": ("anthropic", []),
-    # Kimi → Claude (Anthropic) 协议
-    "kimi": ("anthropic", []),
-}
-
-
-def _resolve_protocol(provider: str) -> str:
-    """解析 provider 对应的协议类型。"""
-    entry = PROVIDER_REGISTRY.get(provider)
-    return entry[0] if entry else "openai"
 
 
 def _resolve_use_responses(protocol: str, api_format: Optional[str]) -> bool:
@@ -103,30 +66,6 @@ def _resolve_use_responses(protocol: str, api_format: Optional[str]) -> bool:
         return False
     fmt = api_format or getattr(settings, "LLM_OPENAI_API_FORMAT", None) or "chat_completions"
     return fmt == "responses"
-
-
-def _parse_provider(model: str) -> tuple[str, str]:
-    """从模型标识解析 provider 和 model_name。
-
-    支持格式:
-      - "provider/model-name" → 直接取 provider 部分
-      - "model-name" (无 /)  → 按前缀推断 provider
-
-    Returns:
-        (provider, model_name)，如 ("anthropic", "claude-3-5-sonnet-20241022")
-    """
-    if "/" in model:
-        provider, model_name = model.split("/", 1)
-        return provider, model_name
-
-    # 无 / 时按模型名前缀推断
-    lower = model.lower()
-    for slug, (_, prefixes) in PROVIDER_REGISTRY.items():
-        for prefix in prefixes:
-            if lower.startswith(prefix):
-                return slug, model
-
-    return "openai", model
 
 
 def _effective_timeout(timeout: float) -> float | None:
@@ -483,6 +422,8 @@ def _has_env_provider_auth(protocol: str) -> bool:
         return bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"))
     if protocol == "google":
         return bool(os.environ.get("GOOGLE_API_KEY"))
+    if protocol == "azure":
+        return bool(os.environ.get("AZURE_OPENAI_API_KEY"))
     return False
 
 
@@ -563,6 +504,35 @@ class LLMClient:
             if profile:
                 anthropic_kwargs["profile"] = profile
             return ChatAnthropic(**anthropic_kwargs, **kwargs)
+        if protocol == "azure":
+            # Azure OpenAI：endpoint=资源 URL、deployment=模型名、api_version
+            # 可由端点查询串携带；端点必须显式提供（每账号资源 URL，无默认）。
+            if not api_base:
+                raise AppError(
+                    ErrorCode.MODEL_CONFIG_INCOMPLETE,
+                    args={"field": "api_base", "provider": "azure"},
+                )
+            azure_endpoint, azure_api_version = parse_azure_endpoint(api_base)
+            azure_kwargs: dict[str, Any] = {
+                "azure_endpoint": azure_endpoint,
+                "deployment_name": model_name,
+                "api_version": azure_api_version,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "max_retries": 0,
+                "timeout": None,
+                "first_event_timeout": _effective_timeout(settings.LLM_FIRST_EVENT_TIMEOUT),
+                "non_streaming_timeout": _effective_timeout(settings.LLM_REQUEST_TIMEOUT),
+                "stream_idle_timeout": _effective_timeout(settings.LLM_STREAM_IDLE_TIMEOUT),
+                "stream_gap_warn_timeout": _effective_timeout(settings.LLM_STREAM_GAP_WARN_TIMEOUT),
+            }
+            if api_key:
+                azure_kwargs["api_key"] = SecretStr(api_key)
+            if pooled_http_async_client is not None:
+                azure_kwargs["http_async_client"] = pooled_http_async_client
+            if profile:
+                azure_kwargs["profile"] = profile
+            return AzureChatOpenAI(**azure_kwargs, **kwargs)
         if protocol == "google":
             # 仅 Gemini 2.5+ 思考系接受 thinking_level；老模型与关闭档一律不传。
             # （langchain-google-genai 文档注明 2.5 系惯用 thinking_budget、3 系用
@@ -853,11 +823,18 @@ class LLMClient:
                         model_value=model,
                     )
 
+        # 官方默认端点兜底：显式 api_base（模型配置/调用方）优先，仅未填时
+        # 生效；未注册渠道（自定义中转）不受影响。
+        if not api_base:
+            api_base = _resolve_default_api_base(provider)
+
         protocol = _resolve_protocol(provider)
         if not api_key and not _has_env_provider_auth(protocol):
             if protocol == "anthropic" and not _has_explicit_anthropic_auth_omission(kwargs):
                 raise AuthorizationError("model_api_key_missing")
             if protocol == "google":
+                raise AuthorizationError("model_api_key_missing")
+            if protocol == "azure":
                 raise AuthorizationError("model_api_key_missing")
 
         cache_key = _make_cache_key(
@@ -892,7 +869,7 @@ class LLMClient:
 
         logger.info(f"Creating {provider} model: {model_name}")
         pooled_client: Optional[httpx.AsyncClient] = None
-        if protocol == "openai":
+        if protocol in ("openai", "azure"):
             pooled_client = _acquire_pooled_http_async_client(api_key, api_base)
         try:
             instance = LLMClient._create_model(

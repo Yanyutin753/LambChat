@@ -86,6 +86,23 @@ class ChannelCoordinator:
 
         return await manager.reload_user(user_id)
 
+    def _resolve_manager(self, channel_type: ChannelType) -> Optional[UserChannelManager]:
+        """取渠道 manager：已启动的优先，否则惰性解析 registry 单例。
+
+        coordinator.start() 并非所有部署路径都会调用（main.py 走各渠道
+        专用启动链路），惰性解析让 send_message 在 manager 未注册进
+        coordinator 时仍能复用已被启动的 manager 单例（定时任务投递链路）。
+        """
+        manager = self._managers.get(channel_type)
+        if manager is not None:
+            return manager
+        manager_cls = get_registry().get_manager_class(channel_type)
+        if manager_cls is None:
+            return None
+        manager = manager_cls.get_instance()
+        self._managers[channel_type] = manager
+        return manager
+
     async def send_message(
         self,
         user_id: str,
@@ -107,7 +124,7 @@ class ChannelCoordinator:
         Returns:
             True if sent successfully, False otherwise.
         """
-        manager = self._managers.get(channel_type)
+        manager = self._resolve_manager(channel_type)
         if not manager:
             logger.warning(f"No manager for channel type: {channel_type}")
             return False

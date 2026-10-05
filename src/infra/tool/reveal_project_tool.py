@@ -30,6 +30,7 @@ import asyncio
 import inspect
 import json
 import os
+import shlex
 import uuid
 from tempfile import SpooledTemporaryFile
 from typing import Annotated, Any, Optional
@@ -42,6 +43,11 @@ from src.infra.async_utils.background_tasks import BestEffortTaskLimiter
 from src.infra.logging import get_logger
 from src.infra.logging.context import TraceContext
 from src.infra.revealed_file.storage import get_revealed_file_storage
+from src.infra.tool._reveal_project_bundle import (
+    BUNDLE_EXTRACT_TOTAL_LIMIT,
+    _build_bundle_command,
+    _extract_bundle_members,
+)
 from src.infra.tool.backend_utils import (
     get_backend_from_runtime,
     get_base_url_from_runtime,
@@ -68,6 +74,15 @@ MAX_PROJECT_VERSIONS = 5
 PROJECT_UPLOAD_SPOOL_MEMORY_LIMIT = 2 * 1024 * 1024
 MAX_PROJECT_FILES = 200
 _project_cleanup_tasks = BestEffortTaskLimiter("project cleanup", max_tasks=4)
+
+# --- 沙箱 bundle 打包上传 ---
+# 本地沙箱 daemon 逐条串行消费调用队列，跨洋链路上「每文件一次往返」的吞吐被
+# 钉死在 ~1 文件/秒（2026-10-05 生产实测 176 文件 189s）。达到阈值文件数的目录
+# 改为 daemon 侧 tar 打包 + 单流拉回 + 服务端解包并发上传，往返次数坍缩为常数。
+BUNDLE_MIN_FILES = 5
+# bundle 路径的上传全部发生在服务端（解包后的字节 → OSS），不受 daemon 串行消费
+# 限制，可比逐文件路径的下载+上传混合并发更激进，但每 worker 仍驻留一个文件缓冲。
+BUNDLE_UPLOAD_CONCURRENCY = 8
 
 
 async def drain_project_cleanup_tasks() -> None:
@@ -426,6 +441,73 @@ async def _cleanup_old_versions(storage: Any, project_name: str) -> None:
         logger.warning(f"Failed to cleanup old versions for {project_name}: {e}")
 
 
+def _package_json_content_of(rel_path: str, content_bytes: bytes) -> Optional[str]:
+    if rel_path != "/package.json":
+        return None
+    try:
+        return content_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
+async def _finish_upload_from_spool(
+    storage: Any,
+    spooled: Any,
+    rel_path: str,
+    folder_name: str,
+    base_url: str,
+) -> tuple[str, dict[str, Any]]:
+    """从已写好的 spool 完成 OSS 上传，返回 (rel_path, file_info)。"""
+    filename = os.path.basename(rel_path)
+    is_binary = _is_binary(filename)
+    mime_type = _get_mime_type(filename)
+
+    upload_filename = rel_path.lstrip("/")
+    content_type = mime_type if is_binary else "text/plain"
+
+    await run_long_blocking_io(spooled.seek, 0)
+    upload_result = await storage.upload_file(
+        file=spooled,
+        folder=folder_name,
+        filename=upload_filename,
+        content_type=content_type,
+        skip_size_limit=True,
+    )
+
+    proxy_url = f"{base_url}/api/upload/file/{upload_result.key}"
+
+    file_info: dict[str, Any] = {
+        "url": proxy_url,
+        "is_binary": is_binary,
+        "size": upload_result.size,
+    }
+    if is_binary:
+        file_info["content_type"] = upload_result.content_type or mime_type
+
+    return rel_path, file_info
+
+
+async def _upload_bytes_to_storage(
+    storage: Any,
+    content_bytes: bytes,
+    rel_path: str,
+    folder_name: str,
+    base_url: str,
+) -> tuple[str, dict[str, Any], Optional[str]]:
+    """把已就绪的字节上传到 OSS，返回 (rel_path, file_info, package_json_content)。"""
+    package_json_content = _package_json_content_of(rel_path, content_bytes)
+    with SpooledTemporaryFile(
+        max_size=PROJECT_UPLOAD_SPOOL_MEMORY_LIMIT,
+        mode="w+b",
+    ) as spooled:
+        await run_long_blocking_io(spooled.write, content_bytes)
+        del content_bytes
+        rel_path, file_info = await _finish_upload_from_spool(
+            storage, spooled, rel_path, folder_name, base_url
+        )
+    return rel_path, file_info, package_json_content
+
+
 async def _upload_file(
     storage: Any,
     backend: Any,
@@ -452,44 +534,17 @@ async def _upload_file(
             logger.info(f"Skipping large file: {rel_path} ({len(content_bytes)} bytes)")
             return None
 
-        filename = os.path.basename(rel_path)
-        is_binary = _is_binary(filename)
-        mime_type = _get_mime_type(filename)
-
-        upload_filename = rel_path.lstrip("/")
-        content_type = mime_type if is_binary else "text/plain"
-        package_json_content = None
-        if rel_path == "/package.json":
-            try:
-                package_json_content = content_bytes.decode("utf-8")
-            except UnicodeDecodeError:
-                pass
-
+        package_json_content = _package_json_content_of(rel_path, content_bytes)
         with SpooledTemporaryFile(
             max_size=PROJECT_UPLOAD_SPOOL_MEMORY_LIMIT,
             mode="w+b",
         ) as spooled:
             await run_long_blocking_io(spooled.write, content_bytes)
+            # 上传 await 期间即解除下载缓冲引用（内存上限约束，勿移出 with 块）
             del content_bytes
-            await run_long_blocking_io(spooled.seek, 0)
-            upload_result = await storage.upload_file(
-                file=spooled,
-                folder=folder_name,
-                filename=upload_filename,
-                content_type=content_type,
-                skip_size_limit=True,
+            rel_path, file_info = await _finish_upload_from_spool(
+                storage, spooled, rel_path, folder_name, base_url
             )
-
-        proxy_url = f"{base_url}/api/upload/file/{upload_result.key}"
-
-        file_info: dict[str, Any] = {
-            "url": proxy_url,
-            "is_binary": is_binary,
-            "size": upload_result.size,
-        }
-        if is_binary:
-            file_info["content_type"] = upload_result.content_type or mime_type
-
         return rel_path, file_info, package_json_content, None
 
 
@@ -532,6 +587,125 @@ async def _upload_project_files_bounded(
 
     await asyncio.gather(*(_worker() for _ in range(worker_count)))
     return results
+
+
+async def _upload_bundle_members(
+    storage: Any,
+    members: dict[str, bytes],
+    folder_name: str,
+    base_url: str,
+) -> dict[str, tuple[str, dict[str, Any], Optional[str], Optional[str]]]:
+    """服务端并发上传解包后的成员（不受 daemon 串行消费限制）。"""
+    if not members:
+        return {}
+
+    semaphore = asyncio.Semaphore(BUNDLE_UPLOAD_CONCURRENCY)
+    rel_paths = list(members.keys())
+    results: dict[str, tuple[str, dict[str, Any], Optional[str], Optional[str]]] = {}
+    next_index = 0
+    lock = asyncio.Lock()
+    worker_count = min(BUNDLE_UPLOAD_CONCURRENCY, len(rel_paths))
+
+    async def _worker() -> None:
+        nonlocal next_index
+        while True:
+            async with lock:
+                if next_index >= len(rel_paths):
+                    return
+                rel_path = rel_paths[next_index]
+                next_index += 1
+            async with semaphore:
+                try:
+                    rel_path, file_info, pkg = await _upload_bytes_to_storage(
+                        storage, members[rel_path], rel_path, folder_name, base_url
+                    )
+                except Exception as e:  # noqa: BLE001 - 单文件上传失败降级补传
+                    logger.warning(f"bundle member upload failed ({rel_path}): {e}")
+                    continue
+            results[rel_path] = (rel_path, file_info, pkg, None)
+
+    await asyncio.gather(*(_worker() for _ in range(worker_count)))
+    return results
+
+
+async def _upload_project_files_via_bundle(
+    storage: Any,
+    backend: Any,
+    project_path: str,
+    upload_tasks: list[tuple[str, str]],
+    folder_name: str,
+    base_url: str,
+) -> Optional[
+    tuple[
+        list[tuple[str, dict[str, Any], Optional[str], Optional[str]]],
+        list[tuple[str, str]],
+    ]
+]:
+    """bundle 快路径：daemon 侧打包 → 单流拉回 → 服务端解包并发上传。
+
+    返回 (已上传结果, 未覆盖到的 upload_tasks)；整体失败返回 None（调用方全量
+    降级逐文件路径，行为与旧链路完全一致）。
+    """
+    bundle_path = (
+        f"{os.path.dirname(project_path.rstrip('/'))}/.reveal-bundle-{uuid.uuid4().hex[:8]}.tar.gz"
+    )
+    cleanup_command = shlex.join(["rm", "-f", "--", bundle_path])
+    cleanup_task: asyncio.Task[Any] | None = None
+    try:
+        await _execute_command(
+            backend,
+            _build_bundle_command(
+                project_path, bundle_path, [rel_path for _, rel_path in upload_tasks]
+            ),
+        )
+        bundle_size = await _get_backend_file_size(backend, bundle_path)
+        if bundle_size is None:
+            bundle_size = _coerce_file_size(
+                await _execute_command(backend, f"wc -c < {shlex.quote(bundle_path)}")
+            )
+        if bundle_size is None or bundle_size > BUNDLE_EXTRACT_TOTAL_LIMIT:
+            logger.info("bundle size unknown or over limit, falling back to per-file upload")
+            return None
+        bundle_bytes = await _download_file_from_backend(backend, bundle_path)
+        if bundle_bytes is None:
+            logger.info("bundle download returned nothing, falling back to per-file upload")
+            return None
+        wanted = {rel_path for _, rel_path in upload_tasks}
+        members = await run_long_blocking_io(
+            _extract_bundle_members,
+            bundle_bytes,
+            wanted,
+            max_member_size=_get_storage_internal_upload_max_size(storage),
+            max_total_size=BUNDLE_EXTRACT_TOTAL_LIMIT,
+        )
+        del bundle_bytes
+        if members is None:
+            return None
+        # daemon 侧清理打包产物与上传并行，不增加端到端时延。
+        cleanup_task = asyncio.create_task(_execute_command(backend, cleanup_command))
+        uploaded = await _upload_bundle_members(storage, members, folder_name, base_url)
+    except Exception as e:  # noqa: BLE001 - 任何 bundle 环节失败都降级
+        logger.info(f"bundle path failed ({project_path}), falling back to per-file: {e}")
+        return None
+    finally:
+        # 下载/解包失败和任务取消也可能留下完整或部分归档，必须回收。
+        try:
+            if cleanup_task is None:
+                await _execute_command(backend, cleanup_command)
+            else:
+                await cleanup_task
+        except Exception:  # noqa: BLE001 - 清理尽力而为
+            pass
+
+    results: list[tuple[str, dict[str, Any], Optional[str], Optional[str]]] = list(
+        uploaded.values()
+    )
+    missing = [
+        (file_path, rel_path) for file_path, rel_path in upload_tasks if rel_path not in uploaded
+    ]
+    if missing:
+        logger.info(f"bundle missed {len(missing)}/{len(upload_tasks)} files, refetching per-file")
+    return results, missing
 
 
 @tool
@@ -607,14 +781,35 @@ async def reveal_project(
                 skipped_files += 1
         skipped_files += skipped_due_to_file_limit
 
-        # 并发上传到 OSS，但只保留固定数量的 worker/coroutine，避免大目录放大内存。
-        results = await _upload_project_files_bounded(
-            storage,
-            backend,
-            upload_tasks,
-            folder_name,
-            base_url,
-        )
+        results: list[Optional[tuple[str, dict[str, Any], Optional[str], Optional[str]]]] = []
+        remaining_tasks = upload_tasks
+        # 沙箱大目录走 bundle 快路径：daemon 侧 tar 单包单流搬运，把 N 次跨洋
+        # 往返坍缩成常数次（daemon 逐条串行消费队列，逐文件并发在它面前无效）。
+        # 任何环节失败自动降级逐文件路径，行为与旧链路一致。
+        if _is_sandbox_backend(backend) and len(upload_tasks) >= BUNDLE_MIN_FILES:
+            bundled = await _upload_project_files_via_bundle(
+                storage,
+                backend,
+                project_path,
+                upload_tasks,
+                folder_name,
+                base_url,
+            )
+            if bundled is not None:
+                bundle_results, missing = bundled
+                results.extend(bundle_results)
+                remaining_tasks = missing
+        if remaining_tasks:
+            # 逐文件上传到 OSS，但只保留固定数量的 worker/coroutine，避免大目录放大内存。
+            results.extend(
+                await _upload_project_files_bounded(
+                    storage,
+                    backend,
+                    remaining_tasks,
+                    folder_name,
+                    base_url,
+                )
+            )
 
         # 构建 manifest
         files_manifest: dict[str, dict[str, Any]] = {}

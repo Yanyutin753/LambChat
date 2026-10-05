@@ -28,6 +28,11 @@ class _FakeRegistry:
 
 
 class _FakeStorage:
+    def build_response_from_config(self, config, channel_type, user_id, metadata):
+        from src.infra.channel.channel_storage import ChannelStorage
+
+        return ChannelStorage().build_response_from_config(config, channel_type, user_id, metadata)
+
     def __init__(self) -> None:
         self.create_calls = 0
         self.update_calls = 0

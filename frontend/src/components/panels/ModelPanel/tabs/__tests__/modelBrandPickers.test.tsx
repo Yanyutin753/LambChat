@@ -64,7 +64,7 @@ test.each([
       "openai",
     );
     const list = screen.getByRole("listbox", { name: i18n.t(label) });
-    await user.click(within(list).getByRole("option", { name: /OpenAI/ }));
+    await user.click(within(list).getByRole("option", { name: /^OpenAI/ }));
     expect(onChange).toHaveBeenCalledWith("openai");
     expect(trigger).toHaveAccessibleDescription("OpenAI");
     expect(trigger).toHaveFocus();

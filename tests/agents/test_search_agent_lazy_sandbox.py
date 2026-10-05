@@ -395,6 +395,7 @@ async def _create_search_backend(
     *,
     presenter: _RecordingPresenter,
     manager_factory,
+    agent_options=None,
 ) -> tuple[CompositeBackend, LazySandboxBackend, SearchAgentContext, str | None]:
     async def fake_store() -> object:
         return object()
@@ -409,10 +410,95 @@ async def _create_search_backend(
         context=context,
         presenter=presenter,  # type: ignore[arg-type]
         assistant_id="assistant-user-1",
+        agent_options=agent_options,
     )
     assert isinstance(backend, CompositeBackend)
     assert isinstance(lazy, LazySandboxBackend)
     return backend, lazy, context, work_dir
+
+
+async def test_channel_environment_reaches_lazy_delegate_without_mutating_shared_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from src.infra.channel.channel_storage import ChannelStorage
+
+    monkeypatch.setattr(
+        ChannelStorage,
+        "get_config",
+        AsyncMock(
+            return_value={
+                "user_id": "user-1",
+                "runtime_config": {"env_vars": {"TOKEN": "channel-secret"}},
+            }
+        ),
+    )
+    shared_env = {"GLOBAL": "shared", "TOKEN": "global-token"}
+    sandbox = _RecordingSandbox()
+    sandbox.env_vars = shared_env
+    manager = _RecordingManager(sandbox)
+    monkeypatch.setattr(search_nodes.settings, "SANDBOX_PLATFORM", "e2b")
+    backend, lazy, _context, _work_dir = await _create_search_backend(
+        monkeypatch,
+        presenter=_RecordingPresenter(),
+        manager_factory=lambda: manager,
+        agent_options={"channel_runtime": {"channel_type": "telegram", "instance_id": "bot-1"}},
+    )
+    assert lazy.id == "pending"
+    assert sandbox.env_vars is shared_env
+
+    await backend.awrite("/workspace/session-1/result.txt", "done")
+
+    assert sandbox.env_vars == {"GLOBAL": "shared", "TOKEN": "channel-secret"}
+    assert shared_env == {"GLOBAL": "shared", "TOKEN": "global-token"}
+
+
+async def test_channel_environment_reaches_selected_local_machine(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.infra.channel.channel_storage import ChannelStorage
+    from src.infra.envvar import sync
+
+    monkeypatch.setattr(search_nodes.settings, "ENABLE_SANDBOX", True)
+    monkeypatch.setattr(search_nodes, "acreate_store", AsyncMock(return_value=object()))
+    monkeypatch.setattr(
+        ChannelStorage,
+        "get_config",
+        AsyncMock(
+            return_value={
+                "user_id": "user-1",
+                "runtime_config": {"env_vars": {"TOKEN": "local-secret"}},
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        sync,
+        "EnvVarStorage",
+        lambda: SimpleNamespace(get_decrypted_vars=AsyncMock(return_value={"GLOBAL": "value"})),
+    )
+    _backend, _prompt, _store, local, _work_dir = await search_nodes._create_backend_and_prompt(
+        state={"session_id": "session-1"},
+        context=SearchAgentContext(session_id="session-1", user_id="user-1"),
+        presenter=_RecordingPresenter(),
+        assistant_id="assistant-user-1",
+        agent_options={
+            "sandbox": "local",
+            "sandbox_machine_id": "machine-1",
+            "channel_runtime": {"channel_type": "telegram", "instance_id": "bot-1"},
+        },
+    )
+    assert local.env_vars == {"GLOBAL": "value", "TOKEN": "local-secret"}
+    from src.infra.backend import local as local_module
+
+    dispatch = AsyncMock(return_value={"stdout": "done", "exit_code": 0})
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    await local.aexecute("check-channel-env")
+    args, kwargs = dispatch.await_args
+    assert args[0:2] == ("user-1", "exec")
+    assert args[2]["env"] == {"GLOBAL": "value", "TOKEN": "local-secret"}
+    assert "local-secret" not in args[2]["command"]
+    assert kwargs["machine_id"] == "machine-1"
 
 
 @pytest.mark.asyncio

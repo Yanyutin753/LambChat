@@ -8,7 +8,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import { I18nextProvider } from "react-i18next";
 import appI18n from "../../../i18n";
 import { WorkspacePanel } from "../WorkspacePanel";
@@ -37,6 +37,11 @@ vi.mock("../../../services/tauri/sandboxShell", async (original) => ({
   ...(await original<typeof import("../../../services/tauri/sandboxShell")>()),
   revealWorkspacePath: api.reveal,
 }));
+beforeAll(async () => {
+  // Compile the real lazy preview before timing focus interactions. Its cold
+  // dependency transform exceeds the first test's 5s budget on CI runners.
+  await import("../../documents/DocumentPreview");
+}, 30_000);
 beforeEach(() => {
   api.reveal.mockReset().mockResolvedValue(undefined);
   api.list.mockReset().mockResolvedValue({

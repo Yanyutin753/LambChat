@@ -6,13 +6,23 @@ export type ChannelType =
   | "feishu"
   | "wechat"
   | "dingtalk"
+  | "wecom"
   | "slack"
   | "telegram"
-  | "discord";
+  | "discord"
+  | "ntfy"
+  | "bark"
+  | "gotify"
+  | "pushover"
+  | "serverchan"
+  | "pushplus"
+  | "weixin"
+  | "webhook";
 
 export type ChannelCapability =
   | "websocket"
   | "webhook"
+  | "long_polling"
   | "send_message"
   | "send_image"
   | "send_file"
@@ -45,6 +55,15 @@ export interface ConfigField {
   default?: string | boolean;
 }
 
+export interface ChannelRuntimeConfig {
+  sandbox?: "default" | "local" | "cloud";
+  sandbox_machine_id?: string;
+  enable_thinking?: "" | "low" | "medium" | "high" | "max";
+  enable_code_interpreter?: boolean | null;
+  response_language?: "" | "en" | "zh" | "ja" | "ko" | "ru";
+  env_vars?: Record<string, string>;
+}
+
 export interface ChannelConfigResponse {
   instance_id: string;
   channel_type: ChannelType;
@@ -58,6 +77,7 @@ export interface ChannelConfigResponse {
   project_id?: string | null;
   team_id?: string | null;
   persona_preset_id?: string | null;
+  runtime_config?: ChannelRuntimeConfig | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -79,6 +99,7 @@ export interface ChannelConfigCreate {
   project_id?: string | null;
   team_id?: string | null;
   persona_preset_id?: string | null;
+  runtime_config?: ChannelRuntimeConfig | null;
 }
 
 export interface ChannelConfigUpdate {
@@ -89,6 +110,7 @@ export interface ChannelConfigUpdate {
   project_id?: string | null;
   team_id?: string | null;
   persona_preset_id?: string | null;
+  runtime_config?: ChannelRuntimeConfig | null;
 }
 
 export interface ChannelTypeListResponse {

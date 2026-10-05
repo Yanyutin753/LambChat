@@ -16,12 +16,23 @@ class ChannelType(str, Enum):
     """Supported channel types."""
 
     FEISHU = "feishu"
-    # Future channels:
-    # WECHAT = "wechat"
-    # DINGTALK = "dingtalk"
-    # SLACK = "slack"
-    # TELEGRAM = "telegram"
-    # DISCORD = "discord"
+    # 聊天平台：支持机器人双向接入，也保留原有出站通知配置
+    DINGTALK = "dingtalk"
+    WECOM = "wecom"
+    TELEGRAM = "telegram"
+    SLACK = "slack"
+    DISCORD = "discord"
+    # 通知推送服务
+    NTFY = "ntfy"
+    BARK = "bark"
+    GOTIFY = "gotify"
+    PUSHOVER = "pushover"
+    SERVERCHAN = "serverchan"
+    PUSHPLUS = "pushplus"
+    # 双向渠道（长轮询收消息 + 发消息，iLink Bot 协议）
+    WEIXIN = "weixin"
+    # 认证 HTTP 回调与回复
+    WEBHOOK = "webhook"
 
 
 class ChannelCapability(str, Enum):
@@ -29,6 +40,7 @@ class ChannelCapability(str, Enum):
 
     WEBSOCKET = "websocket"  # Supports WebSocket long connection
     WEBHOOK = "webhook"  # Supports webhook callbacks
+    LONG_POLLING = "long_polling"  # Receives messages via long polling
     SEND_MESSAGE = "send_message"  # Can send messages
     SEND_IMAGE = "send_image"  # Can send images
     SEND_FILE = "send_file"  # Can send files
@@ -85,6 +97,7 @@ class ChannelConfigCreate(BaseModel):
     channel_type: ChannelType
     name: str = Field(description="User-defined name for this channel instance")
     config: dict[str, Any]  # Channel-specific config as dict
+    runtime_config: dict[str, Any] | None = None
     agent_id: Optional[str] = Field(None, description="Agent ID to use for this channel instance")
     model_id: Optional[str] = Field(
         None, description="Model config ID to use for this channel instance"
@@ -102,6 +115,7 @@ class ChannelConfigUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     config: dict[str, Any]
+    runtime_config: dict[str, Any] | None = None
     enabled: Optional[bool] = None
     agent_id: Optional[str] = Field(None, description="Agent ID to use for this channel instance")
     model_id: Optional[str] = Field(
@@ -123,6 +137,7 @@ class ChannelConfigResponse(BaseModel):
     user_id: str
     enabled: bool
     config: dict[str, Any]  # Masked config for display
+    runtime_config: dict[str, Any] = Field(default_factory=dict)
     capabilities: list[ChannelCapability]
     agent_id: Optional[str] = Field(None, description="Agent ID used by this channel instance")
     model_id: Optional[str] = Field(
