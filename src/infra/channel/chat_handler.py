@@ -5,10 +5,11 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-import uuid
 from typing import Any
 
 from src.infra.channel.channel_storage import ChannelStorage
+from src.infra.channel.recovery import delivery_session, read_channel_events, submit_channel_task
+from src.infra.channel.session_scope import new_delivery_session
 from src.infra.storage.redis import RedisStorage
 
 
@@ -74,7 +75,6 @@ async def execute_chat_agent(
 
 def create_chat_message_handler(channel: Any, default_agent: str):
     async def handle(*, user_id: str, sender_id: str, chat_id: str, content: str, metadata: dict):
-        from src.infra.session.dual_writer import get_dual_writer
         from src.infra.session.manager import SessionManager
         from src.infra.task.manager import get_task_manager
 
@@ -100,11 +100,11 @@ def create_chat_message_handler(channel: Any, default_agent: str):
         redis = RedisStorage()
         key = f"channel:session:{scope}"
         if content.strip() == "/new":
-            await redis.set(key, f"channel_{scope}_{uuid.uuid4().hex}")
+            await redis.set(key, await new_delivery_session(f"channel_{scope}"))
             if not await channel.send_message(chat_id, "New conversation ready.", **metadata):
                 raise RuntimeError("Channel reply failed")
             return
-        session_id = await redis.get(key) or f"channel_{scope}"
+        session_id = delivery_session(await redis.get(key) or f"channel_{scope}")
         from src.infra.channel.runtime import (
             build_channel_agent_options,
             build_channel_session_metadata,
@@ -123,7 +123,15 @@ def create_chat_message_handler(channel: Any, default_agent: str):
             persona_system_prompt = snapshot.system_prompt
             enabled_skills = snapshot.skill_names or None
             enabled_mcp_servers = getattr(snapshot, "mcp_server_names", None) or None
-        run_id, _ = await get_task_manager().submit(
+        run_id, _ = await submit_channel_task(
+            get_task_manager(),
+            channel_delivery={
+                "channel_type": channel.channel_type.value,
+                "channel_instance_id": channel.config.instance_id,
+                "chat_id": chat_id,
+                "enabled": True,
+                "send_on_success": True,
+            },
             session_id=session_id,
             agent_id=config.get("agent_id") or default_agent,
             message=content,
@@ -161,7 +169,7 @@ def create_chat_message_handler(channel: Any, default_agent: str):
                 },
             )
             chunks: list[str] = []
-            async for event in get_dual_writer().read_from_redis(session_id, run_id):
+            async for event in read_channel_events(session_id, run_id):
                 kind = event.get("event_type")
                 data = event.get("data")
                 if not isinstance(data, dict):
@@ -172,6 +180,8 @@ def create_chat_message_handler(channel: Any, default_agent: str):
                         "human",
                     ):
                         chunks.append(data["content"])
+                elif kind == "run:resumed":
+                    chunks.clear()
                 elif kind == "approval_required":
                     await channel.send_message(
                         chat_id,
@@ -190,7 +200,7 @@ def create_chat_message_handler(channel: Any, default_agent: str):
             if reply and not await channel.send_message(chat_id, reply, **metadata):
                 raise RuntimeError("Channel reply failed")
         except asyncio.CancelledError:
-            await get_task_manager().cancel_run(run_id, user_id=channel.user_id)
+            # Transport shutdown detaches the reply reader; task recovery owns the run.
             raise
 
     return handle

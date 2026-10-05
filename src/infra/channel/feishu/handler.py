@@ -23,6 +23,7 @@ from src.infra.channel.feishu.handler_helpers import (
     _get_feishu_session_id,
 )
 from src.infra.channel.feishu.manager import FeishuChannelManager
+from src.infra.channel.recovery import delivery_session, submit_channel_task
 from src.infra.logging import get_logger
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings  # noqa: F401 - compatibility for handler tests/patching
@@ -167,16 +168,11 @@ def create_feishu_message_handler(
         metadata: dict,
     ) -> None:
         """处理飞书消息"""
-        print(
-            f"[DEBUG] feishu_message_handler: {content[:50]}",
-            file=sys.stderr,
-            flush=True,
-        )
-
         original_message_id = metadata.get("message_id")
         received_reaction_id = metadata.get("reaction_id")
         instance_id = metadata.get("instance_id")
         delivery_chat_id = chat_id
+        collector = None
 
         try:
             logger.info(
@@ -192,18 +188,24 @@ def create_feishu_message_handler(
 
             # 处理 /new 命令 - 严格匹配
             if content.strip() == "/new":
-                new_session_id = await _create_new_feishu_session(chat_id)
-                await manager.send_message(
+                new_session_id = await _create_new_feishu_session(
+                    chat_id, user_id=user_id, instance_id=instance_id
+                )
+                if not await manager.send_message(
                     user_id,
                     delivery_chat_id,
                     "✅ 已创建新对话，请发送消息开始",
                     instance_id,
-                )
+                ):
+                    raise RuntimeError("Channel reply failed")
                 logger.info(f"[Feishu] New session created for chat {chat_id}: {new_session_id}")
                 return
 
             # 获取当前 session ID
-            session_id = await _get_feishu_session_id(chat_id)
+            session_id = await _get_feishu_session_id(
+                chat_id, user_id=user_id, instance_id=instance_id
+            )
+            session_id = delivery_session(session_id)
             task_manager = get_task_manager()
 
             # Resolve agent, model & project: use per-channel config if available
@@ -348,7 +350,15 @@ def create_feishu_message_handler(
             # Use time-based session title for Feishu
             session_title = utc_now().strftime("%Y-%m-%d %H:%M")
 
-            run_id, _ = await task_manager.submit(
+            run_id, _ = await submit_channel_task(
+                task_manager,
+                channel_delivery={
+                    "channel_type": "feishu",
+                    "channel_instance_id": instance_id,
+                    "chat_id": delivery_chat_id,
+                    "enabled": True,
+                    "send_on_success": True,
+                },
                 session_id=session_id,
                 agent_id=agent_to_use,
                 message=content,
@@ -415,13 +425,17 @@ def create_feishu_message_handler(
             )
 
             streamed = await collector.finalize_stream_message()
-            if not streamed:
-                await collector.send_card_message()
+            if not streamed and not await collector.send_card_message():
+                raise RuntimeError("Channel reply failed")
             await collector.upload_and_send_files()
 
             logger.info(f"[Feishu] Message processing completed for {chat_id}")
 
         except Exception as e:
+            from src.infra.channel.inbox_worker import current_delivery
+
+            if current_delivery.get() is not None:
+                raise
             logger.error(f"[Feishu] Error handling message: {e}", exc_info=True)
             try:
                 await manager.send_message(
@@ -433,6 +447,8 @@ def create_feishu_message_handler(
             except Exception:
                 pass
         finally:
+            if collector is not None:
+                await collector._cancel_stream_update_worker()
             if original_message_id and received_reaction_id:
                 try:
                     await manager.delete_reaction(

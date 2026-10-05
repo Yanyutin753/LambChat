@@ -2,11 +2,11 @@
 
 import inspect
 import mimetypes
-import time
 from typing import Any
 from urllib.parse import quote, unquote, urlparse
 
 from src.infra.async_utils import run_long_blocking_io
+from src.infra.channel.session_scope import channel_session_scope, new_delivery_session
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 
@@ -97,37 +97,23 @@ async def _download_storage_object_to_file(
     return size
 
 
-async def _get_feishu_session_id(chat_id: str) -> str:
-    """获取飞书聊天对应的当前 session ID，如果不存在则创建默认的"""
+async def _get_feishu_session_id(chat_id: str, *, user_id: str, instance_id: str | None) -> str:
+    """Resolve a scoped session without overwriting a concurrent /new command."""
     from src.infra.storage.redis import RedisStorage
 
-    storage = RedisStorage()
-    key = f"{FEISHU_SESSION_KEY_PREFIX}{chat_id}"
-    session_id = await storage.get(key)
-
-    if session_id is None:
-        # 默认使用 chat_id 作为 session ID（兼容旧数据）
-        session_id = f"feishu_{chat_id}"
-        await storage.set(key, session_id)
-
-    return session_id
+    scope = channel_session_scope(user_id, instance_id, chat_id)
+    session_id = await RedisStorage().get(f"{FEISHU_SESSION_KEY_PREFIX}{scope}")
+    # The deterministic default needs no write; /new alone updates the mapping.
+    return session_id if session_id is not None else f"feishu_{scope}"
 
 
-async def _create_new_feishu_session(chat_id: str) -> str:
-    """为飞书聊天创建新的 session ID"""
+async def _create_new_feishu_session(chat_id: str, *, user_id: str, instance_id: str | None) -> str:
+    """Rotate only this owner's bot/chat session, including within one second."""
     from src.infra.storage.redis import RedisStorage
 
-    storage = RedisStorage()
-    key = f"{FEISHU_SESSION_KEY_PREFIX}{chat_id}"
-
-    # 使用时间戳生成唯一的 session ID
-    timestamp = int(time.time())
-    session_id = f"feishu_{chat_id}_{timestamp}"
-
-    # 存储到 Redis，不设置过期时间
-    await storage.set(key, session_id)
-
-    logger.info(f"[Feishu] Created new session for chat {chat_id}: {session_id}")
+    scope = channel_session_scope(user_id, instance_id, chat_id)
+    session_id = await new_delivery_session(f"feishu_{scope}")
+    await RedisStorage().set(f"{FEISHU_SESSION_KEY_PREFIX}{scope}", session_id)
     return session_id
 
 

@@ -7,6 +7,8 @@ import pytest
 
 from src.infra.channel.wecom import WeComChannel, WeComConfig
 
+pytestmark = pytest.mark.usefixtures("fake_channel_inbox")
+
 
 def channel():
     return WeComChannel(
@@ -90,6 +92,19 @@ async def test_smart_bot_proactive_send_uses_chatid_and_rejects_error_ack():
     assert not await task
 
 
+async def test_reconnect_reply_does_not_reuse_previous_socket_request():
+    ch = channel()
+    ch._connection_id = "new-connection"
+    ch._send_reply_part = AsyncMock(return_value=True)
+    assert await ch._send_reply(
+        "group",
+        "recovered answer",
+        wecom_req_id="old-request",
+        wecom_connection_id="old-connection",
+    )
+    assert "wecom_req_id" not in ch._send_reply_part.call_args.kwargs
+
+
 async def test_smart_bot_heartbeat_requires_application_ack():
     ch = channel()
     ch._ws = AsyncMock()
@@ -103,13 +118,10 @@ async def test_smart_bot_heartbeat_requires_application_ack():
     ch._ws.close.assert_awaited()
 
 
-async def test_smart_bot_dispatch_does_not_conflict_with_reply_ack_tracking(monkeypatch):
+async def test_smart_bot_dispatch_does_not_conflict_with_reply_ack_tracking():
     ch = channel()
     ch._running = True
     ch.message_handler = AsyncMock()
-    redis = AsyncMock()
-    redis.set.return_value = True
-    monkeypatch.setattr("src.infra.channel.chat.get_redis_client", lambda: redis)
     await ch._handle_ws_frame(callback())
     await ch.drain()
     assert ch.message_handler.call_args.kwargs["content"] == "hello"

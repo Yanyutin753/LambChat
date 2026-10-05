@@ -6,7 +6,9 @@ Provides abstract base class for implementing various chat platform channels
 
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable
 from typing import Any, Callable, Optional
 
 from src.infra.logging import get_logger
@@ -159,7 +161,7 @@ class BaseChannel(ABC):
         """
         if not self.message_handler:
             logger.warning(f"No message handler registered for {self.channel_type} channel")
-            return
+            raise RuntimeError("Channel message handler is unavailable")
 
         try:
             enriched_metadata = metadata or {}
@@ -177,6 +179,7 @@ class BaseChannel(ABC):
             )
         except Exception as e:
             logger.error(f"Error handling message on {self.channel_type}: {e}")
+            raise
 
 
 class UserChannelManager(ABC):
@@ -201,6 +204,33 @@ class UserChannelManager(ABC):
         self.message_handler = message_handler
         self._channels: dict[str, BaseChannel] = {}
         self._running = False
+        self._lifecycle_lock = asyncio.Lock()
+        self._stopping = False
+        self._reconcile_task: asyncio.Task | None = None
+        self._reconcile_interval = 30.0
+
+    def _ensure_reconcile_task(self, reconcile: Callable[[], Awaitable[Any]]) -> None:
+        """Repair missed config notifications and transient startup failures."""
+        if self._reconcile_task and not self._reconcile_task.done():
+            return
+
+        async def run() -> None:
+            while self._running:
+                await asyncio.sleep(self._reconcile_interval)
+                try:
+                    async with self._lifecycle_lock:
+                        if self._running:
+                            await reconcile()
+                except Exception as exc:
+                    logger.warning("%s reconciliation failed: %s", self.channel_type.value, exc)
+
+        self._reconcile_task = asyncio.create_task(run())
+
+    async def _cancel_reconcile_task(self) -> None:
+        task, self._reconcile_task = self._reconcile_task, None
+        if task:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
     @classmethod
     def get_instance(cls) -> "UserChannelManager":
@@ -238,9 +268,7 @@ class UserChannelManager(ABC):
     def get_channel(self, user_id: str, instance_id: Optional[str] = None) -> Optional[BaseChannel]:
         """Get a user's channel instance."""
         if instance_id:
-            channel = self._channels.get(f"{user_id}:{instance_id}")
-            if channel:
-                return channel
+            return self._channels.get(f"{user_id}:{instance_id}")
 
         channel = self._channels.get(user_id)
         if channel:

@@ -7,9 +7,10 @@ message:chunk 拼接为完整文本，approval_required 以文本提示兜底
 
 from __future__ import annotations
 
-import time
 from typing import Any, AsyncGenerator, Callable
 
+from src.infra.channel.recovery import delivery_session, read_channel_events, submit_channel_task
+from src.infra.channel.session_scope import channel_session_scope, new_delivery_session
 from src.infra.logging import get_logger
 
 logger = get_logger(__name__)
@@ -22,24 +23,23 @@ APPROVAL_HINT = "⏸️ 这一步需要人工确认，请到 LambChat 网页端�
 MAX_REPLY_CHARS = 3500  # 微信单条消息安全上限内留余量
 
 
-async def _get_weixin_session_id(chat_id: str) -> str:
+async def _get_weixin_session_id(chat_id: str, *, user_id: str, instance_id: str | None) -> str:
+    """Resolve a scoped session without overwriting a concurrent /new command."""
     from src.infra.storage.redis import RedisStorage
 
-    storage = RedisStorage()
-    key = f"{WEIXIN_SESSION_KEY_PREFIX}{chat_id}"
-    session_id = await storage.get(key)
-    if session_id is None:
-        session_id = f"weixin_{chat_id}"
-        await storage.set(key, session_id)
-    return session_id
+    scope = channel_session_scope(user_id, instance_id, chat_id)
+    session_id = await RedisStorage().get(f"{WEIXIN_SESSION_KEY_PREFIX}{scope}")
+    # The deterministic default needs no write; /new alone updates the mapping.
+    return session_id if session_id is not None else f"weixin_{scope}"
 
 
-async def _create_new_weixin_session(chat_id: str) -> str:
+async def _create_new_weixin_session(chat_id: str, *, user_id: str, instance_id: str | None) -> str:
+    """Rotate only this owner's bot/chat session, including within one second."""
     from src.infra.storage.redis import RedisStorage
 
-    storage = RedisStorage()
-    session_id = f"weixin_{chat_id}_{int(time.time())}"
-    await storage.set(f"{WEIXIN_SESSION_KEY_PREFIX}{chat_id}", session_id)
+    scope = channel_session_scope(user_id, instance_id, chat_id)
+    session_id = await new_delivery_session(f"weixin_{scope}")
+    await RedisStorage().set(f"{WEIXIN_SESSION_KEY_PREFIX}{scope}", session_id)
     return session_id
 
 
@@ -97,17 +97,18 @@ async def _process_events_and_reply(
     run_id: str,
 ) -> None:
     """消费 run 事件流：拼 chunk 文本，结束时一次性回复。"""
-    from src.infra.session.dual_writer import get_dual_writer
 
     chunks: list[str] = []
     try:
-        async for event in get_dual_writer().read_from_redis(session_id, run_id):
+        async for event in read_channel_events(session_id, run_id):
             event_type = event.get("event_type", "")
             data = event.get("data", {})
             if event_type == EVENT_MESSAGE_CHUNK:
                 chunk = data.get("content", "")
                 if chunk:
                     chunks.append(chunk)
+            elif event_type == "run:resumed":
+                chunks.clear()
             elif event_type == EVENT_APPROVAL_REQUIRED:
                 await send(APPROVAL_HINT)
             elif event_type in ("done", "complete", "error"):
@@ -117,6 +118,10 @@ async def _process_events_and_reply(
                         await send(f"⚠️ 执行出错：{error_message[:500]}")
                 break
     except Exception as e:
+        from src.infra.channel.inbox_worker import current_delivery
+
+        if current_delivery.get() is not None:
+            raise
         logger.error("[Weixin] event processing error: %s", e, exc_info=True)
         if chunks:
             await send("".join(chunks)[:MAX_REPLY_CHARS])
@@ -148,15 +153,21 @@ def create_weixin_message_handler(
         context_token = metadata.get("context_token")
 
         async def send(text: str) -> None:
-            await manager.send_message(user_id, chat_id, text, instance_id, context_token)
+            if not await manager.send_message(user_id, chat_id, text, instance_id, context_token):
+                raise RuntimeError("Channel reply failed")
 
         try:
             if content.strip() == "/new":
-                session_id = await _create_new_weixin_session(chat_id)
+                session_id = await _create_new_weixin_session(
+                    chat_id, user_id=user_id, instance_id=instance_id
+                )
                 await send(f"✅ 已创建新对话 {session_id}，请发送消息开始")
                 return
 
-            session_id = await _get_weixin_session_id(chat_id)
+            session_id = await _get_weixin_session_id(
+                chat_id, user_id=user_id, instance_id=instance_id
+            )
+            session_id = delivery_session(session_id)
             task_manager = get_task_manager()
 
             # 渠道实例级配置（agent/model/persona/project）
@@ -252,7 +263,15 @@ def create_weixin_message_handler(
                 ):
                     yield event
 
-            run_id, _ = await task_manager.submit(
+            run_id, _ = await submit_channel_task(
+                task_manager,
+                channel_delivery={
+                    "channel_type": "weixin",
+                    "channel_instance_id": instance_id,
+                    "chat_id": chat_id,
+                    "enabled": True,
+                    "send_on_success": True,
+                },
                 session_id=session_id,
                 agent_id=agent_to_use,
                 message=content,
@@ -299,6 +318,10 @@ def create_weixin_message_handler(
 
             await _process_events_and_reply(send, session_id, run_id)
         except Exception as e:
+            from src.infra.channel.inbox_worker import current_delivery
+
+            if current_delivery.get() is not None:
+                raise
             logger.error("[Weixin] message handling failed: %s", e, exc_info=True)
             try:
                 await send(f"⚠️ 处理消息时出错：{e}")

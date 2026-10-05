@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Optional
 
 from src.infra.channel.base import UserChannelManager
@@ -26,6 +27,7 @@ class WeixinChannelManager(UserChannelManager):
     def __init__(self, message_handler=None):
         super().__init__(message_handler)
         self._storage: Any = None
+        self._config_snapshots: dict[str, dict[str, Any]] = {}
 
     def _get_storage(self) -> Any:
         if self._storage is None:
@@ -38,39 +40,83 @@ class WeixinChannelManager(UserChannelManager):
         return WeixinChannel(WeixinConfig(**config_dict), self.message_handler)
 
     async def start(self) -> None:
+        async with self._lifecycle_lock:
+            await self._start_locked()
+
+    async def _start_locked(self) -> None:
+        self._stopping = False
         self._running = True
+        self._ensure_reconcile_task(self._reconcile_enabled_configs)
         try:
-            async for config_dict in self._get_storage().iter_enabled_configs(ChannelType.WEIXIN):
-                await self._start_instance(config_dict)
-        except Exception as e:
-            logger.error("Failed to load weixin configs: %s", e)
+            await self._reconcile_enabled_configs()
+        except Exception as exc:
+            logger.error("Failed to load %s configs: %s", self.channel_type.value, exc)
+
+    async def _reconcile_enabled_configs(self) -> None:
+        desired: set[str] = set()
+        async for config in self._get_storage().iter_enabled_configs(self.channel_type):
+            key = f"{config.get('user_id', '')}:{config.get('instance_id', '')}"
+            desired.add(key)
+            channel = self._channels.get(key)
+            if (
+                channel is None
+                or not channel.is_running
+                or self._config_snapshots.get(key) != config
+            ):
+                await self._start_instance(config)
+            elif self.message_handler is not None:
+                channel.message_handler = self.message_handler
+        for key in list(self._channels):
+            if key not in desired:
+                await self._channels.pop(key).stop()
+                self._config_snapshots.pop(key, None)
 
     async def _start_instance(self, config_dict: dict[str, Any]) -> Optional[WeixinChannel]:
         key = f"{config_dict.get('user_id', '')}:{config_dict.get('instance_id', '')}"
         old = self._channels.pop(key, None)
+        self._config_snapshots.pop(key, None)
         if old is not None:
             await old.stop()
         channel = self._build_channel(config_dict)
         try:
             if not await channel.start():
                 logger.warning("Failed to start weixin channel for %s (token invalid?)", key)
+                await channel.stop()
                 return None
+        except asyncio.CancelledError:
+            await channel.stop()
+            raise
         except Exception as e:
             logger.error("Error starting weixin channel for %s: %s", key, e)
+            await channel.stop()
             return None
+        self._config_snapshots[key] = dict(config_dict)
         self._channels[key] = channel
         return channel
 
     async def stop(self) -> None:
+        async with self._lifecycle_lock:
+            await self._stop_locked()
+
+    async def _stop_locked(self) -> None:
+        self._stopping = True
         self._running = False
+        await self._cancel_reconcile_task()
         for channel in list(self._channels.values()):
             try:
                 await channel.stop()
             except Exception as e:
                 logger.error("Error stopping weixin channel: %s", e)
         self._channels.clear()
+        self._config_snapshots.clear()
 
     async def reload_user(self, user_id: str, instance_id: Optional[str] = None) -> bool:
+        async with self._lifecycle_lock:
+            if self._stopping:
+                return False
+            return await self._reload_user_locked(user_id, instance_id)
+
+    async def _reload_user_locked(self, user_id: str, instance_id: Optional[str] = None) -> bool:
         configs = await self._get_storage().list_user_configs_by_type(user_id, ChannelType.WEIXIN)
         # 路由契约：disable/delete 先落库再 reload_user 停止运行中的实例。
         # 停止范围=目标实例（instance_id 指定时）或该用户全部实例。
@@ -90,6 +136,7 @@ class WeixinChannelManager(UserChannelManager):
             return False
         for key in keys_to_stop:
             stopped = self._channels.pop(key, None)
+            self._config_snapshots.pop(key, None)
             if stopped is not None:
                 await stopped.stop()
         for config_dict in matched:

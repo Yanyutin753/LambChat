@@ -15,6 +15,41 @@ import pytest
 import src.infra.channel  # noqa: F401  预热渠道包：飞书 sender 类体在 patch httpx 前完成定义
 from src.kernel.schemas.channel import ChannelType
 
+
+@pytest.fixture(autouse=True)
+def inbox_worker(monkeypatch):
+    from src.infra.channel.weixin import channel as module
+
+    class Worker:
+        def __init__(self, inbox, handler):
+            self.records = {}
+            self.handler = handler
+
+        async def accept(self, message):
+            self.records.setdefault(message["message_id"], message)
+            return True
+
+        async def drain(self):
+            for message in self.records.values():
+                if not message.get("done"):
+                    await self.handler(message)
+                    message["done"] = True
+
+        async def run(self):
+            await asyncio.Event().wait()
+
+        async def stop(self):
+            pass
+
+    monkeypatch.setattr(module, "InboxWorker", Worker)
+    monkeypatch.setattr(
+        module.WeixinChannel, "_cached_context_token", lambda self, target: _no_context()
+    )
+
+    async def _no_context():
+        return None
+
+
 # ── fakes ───────────────────────────────────────────────────────────────────
 
 
@@ -304,11 +339,8 @@ async def test_channel_dispatches_inbound_messages(fake_http, monkeypatch) -> No
 
     monkeypatch.setattr("src.infra.channel.weixin.provider.get_updates", fake_get_updates)
 
-    async def _always_first(key: str, ttl: int = 3600) -> bool:
-        return True
-
-    monkeypatch.setattr("src.infra.channel.weixin.channel._mark_message_seen", _always_first)
     await channel._consume_once(fake_redis)  # noqa: SLF001
+    await channel._inbox_worker.drain()
 
     assert len(received) == 1
     msg = received[0]
@@ -318,7 +350,7 @@ async def test_channel_dispatches_inbound_messages(fake_http, monkeypatch) -> No
     assert msg["metadata"]["context_token"] == "ctx-1"
     assert msg["metadata"]["instance_id"] == "i1"
     # 游标在消息处理完之后才持久化
-    assert fake_redis.values["weixin:buf:u1:i1"] == "BUF2"
+    assert fake_redis.values["weixin:buf:" + ":".join(channel._reader_scope)] == "BUF2"
 
 
 async def test_channel_group_policy_off_ignores_group_messages(monkeypatch) -> None:
@@ -348,11 +380,8 @@ async def test_channel_group_policy_off_ignores_group_messages(monkeypatch) -> N
 
     monkeypatch.setattr("src.infra.channel.weixin.provider.get_updates", fake_get_updates)
 
-    async def _always_first(key: str, ttl: int = 3600) -> bool:
-        return True
-
-    monkeypatch.setattr("src.infra.channel.weixin.channel._mark_message_seen", _always_first)
     await channel._consume_once(fake_redis)  # noqa: SLF001
+    await channel._inbox_worker.drain()
     assert received == []  # 群聊被过滤
 
 
@@ -652,7 +681,7 @@ async def test_consume_once_dedups_same_batch_delivery_without_message_id(
 ) -> None:
     """iLink 消息体无 id 字段时，同一批次的同一条消息仍需去重。"""
     import src.infra.storage.redis as redis_mod
-    from src.infra.channel.weixin.channel import SEEN_FINGERPRINT_TTL_SECONDS, WeixinChannel
+    from src.infra.channel.weixin.channel import WeixinChannel
 
     received: list[dict[str, Any]] = []
 
@@ -669,20 +698,20 @@ async def test_consume_once_dedups_same_batch_delivery_without_message_id(
     monkeypatch.setattr(redis_mod, "get_redis_client", lambda: fake_client)
 
     await channel._consume_once(fake_storage)  # noqa: SLF001
+    await channel._inbox_worker.drain()
     await channel._consume_once(fake_storage)  # noqa: SLF001
+    await channel._inbox_worker.drain()
     assert len(received) == 1  # 第二次必须被指纹去重挡下
 
-    fp_keys = [k for k in fake_client.store if k.startswith("weixin:seen:u1:i1:fp:")]
-    assert len(fp_keys) == 1  # 同指纹只落一个去重键
-    fp_calls = [c for c in fake_client.set_calls if c["key"].startswith("weixin:seen:u1:i1:fp:")]
-    assert fp_calls[0]["ex"] == SEEN_FINGERPRINT_TTL_SECONDS  # 短窗兜底，不误吞连发重复
-    assert fp_calls[1]["nx"] is True  # 第二次仍走 NX（返回 False 被挡下）
+    assert len(channel._inbox_worker.records) == 1
+    assert next(iter(channel._inbox_worker.records)).startswith("fp:")
+    assert not fake_client.set_calls  # no ephemeral pre-execution dedupe
 
 
-async def test_consume_once_dedup_by_message_id_keeps_long_ttl(fake_http, monkeypatch) -> None:
+async def test_consume_once_uses_message_id_as_durable_identity(fake_http, monkeypatch) -> None:
     """有 message_id 时保持原长 TTL 去重（钉住既有行为）。"""
     import src.infra.storage.redis as redis_mod
-    from src.infra.channel.weixin.channel import SEEN_MESSAGE_TTL_SECONDS, WeixinChannel
+    from src.infra.channel.weixin.channel import WeixinChannel
 
     received: list[dict[str, Any]] = []
 
@@ -698,10 +727,10 @@ async def test_consume_once_dedup_by_message_id_keeps_long_ttl(fake_http, monkey
     monkeypatch.setattr(redis_mod, "get_redis_client", lambda: fake_client)
 
     await channel._consume_once(fake_storage)  # noqa: SLF001
+    await channel._inbox_worker.drain()
     assert len(received) == 1
-    id_sets = [c for c in fake_client.set_calls if c["key"] == "weixin:seen:u1:i1:id:m1"]
-    assert len(id_sets) == 1
-    assert id_sets[0]["ex"] == SEEN_MESSAGE_TTL_SECONDS
+    assert list(channel._inbox_worker.records) == ["id:m1"]
+    assert not fake_client.set_calls
 
 
 async def test_renew_poll_lock_only_renews_own_lock() -> None:
@@ -753,12 +782,12 @@ async def test_poll_loop_renews_each_round_and_yields_when_lock_lost(
     holders: list[str] = []
 
     async def fake_acquire(uid: str, iid: str, owner: str) -> bool:
-        if holders:
+        if len(holders) >= 2:
             return False  # 让位后不再抢锁，停在 standby
         holders.append(owner)
         return True
 
-    renew_seq = [True, False]
+    renew_seq = [True] * 10 + [False]
 
     async def fake_renew(uid: str, iid: str, owner: str) -> bool:
         assert owner == holders[0]
@@ -782,10 +811,11 @@ async def test_poll_loop_renews_each_round_and_yields_when_lock_lost(
     channel._running = False  # noqa: SLF001
     await asyncio.wait_for(task, timeout=2)
 
+    await channel._inbox_worker.drain()
     assert len(received) == 1  # 消息只消费一次
     # 锁丢失后立即让位：只发起过一次 getupdates 长轮询
     assert len(fake_http[0].requests) == 1
-    assert releases == [holders[0]]  # 释放的是自己的 owner
+    assert releases == [holders[0], holders[0]]  # 两把锁均释放自己的 owner
 
 
 async def test_identical_text_in_distinct_update_batches_is_not_lost(fake_http, monkeypatch):
@@ -806,7 +836,9 @@ async def test_identical_text_in_distinct_update_batches_is_not_lost(fake_http, 
     monkeypatch.setattr(redis_mod, "get_redis_client", lambda: client)
     storage = _FakeRedisStorage()
     await channel._consume_once(storage)
+    await channel._inbox_worker.drain()
     await channel._consume_once(storage)
+    await channel._inbox_worker.drain()
     assert len(received) == 2
 
 
@@ -826,6 +858,7 @@ async def test_identical_messages_in_different_instances_do_not_collide(fake_htt
         channel = WeixinChannel(config, message_handler=handler)
         _PENDING.append([_inbound_payload("你好", message_id="same-id")])
         await channel._consume_once(_FakeRedisStorage())
+        await channel._inbox_worker.drain()
     assert len(received) == 2
 
 
