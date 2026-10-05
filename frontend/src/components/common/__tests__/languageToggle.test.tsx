@@ -8,10 +8,15 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import { I18nextProvider } from "react-i18next";
-import appI18n from "../../../i18n";
+import appI18n, { i18nReady } from "../../../i18n";
 import { LanguageToggle } from "../LanguageToggle";
+
+beforeAll(async () => {
+  await i18nReady;
+  await appI18n.loadLanguages(["zh"]);
+});
 const api = vi.hoisted(() => ({
   user: undefined as { id: string } | undefined,
   write: vi.fn(),

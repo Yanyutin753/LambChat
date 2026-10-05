@@ -819,7 +819,7 @@
         },
         "dingtalk": {
           "name": "DingTalk",
-          "description": "Bot の Webhook で DingTalk グループに通知を送信",
+          "description": "DingTalk Stream ボットで会話、またはグループ Webhook で通知を送信します",
           "fields": {
             "secret": {
               "placeholder": "SEC で始まる値（署名を有効にした場合は必須）",
@@ -830,18 +830,21 @@
             }
           },
           "guide": {
-            "0": "対象の DingTalk グループ設定で「ロボット」を選択",
-            "1": "Markdown 対応のカスタム Bot を追加",
-            "2": "Webhook URL を上の設定にコピー",
-            "3": "署名を有効にした場合はシークレットも入力"
+            "0": "双方向チャットには Stream モードの企業アプリボットを作成し、Client ID、Client Secret、Corporation ID を入力して受信を有効にします",
+            "1": "送信者は DingTalk の従業員 ID で制限します。通知先はグループの会話 ID、DM の場合は user:<staffId> を指定します",
+            "2": "Webhook 通知のみの場合は、対象の DingTalk グループ設定からロボットを選択します",
+            "3": "Markdown 対応のカスタムロボットを追加します",
+            "4": "Webhook URL を上の設定にコピーします",
+            "5": "署名を有効にした場合は、署名シークレットも入力します"
           }
         },
         "discord": {
           "name": "Discord",
-          "description": "Webhook で Discord チャンネルに通知を送信",
+          "description": "Discord ボットで会話、または Webhook で通知を送信します",
           "guide": {
-            "0": "チャンネル設定 → 連携サービス → Webhook を開く",
-            "1": "Webhook を作成し、URL を上に入力"
+            "0": "通知にはチャンネル Webhook を使用できます。受信する場合は Discord 開発者ポータルでボットを作成します",
+            "1": "チャンネルの閲覧、メッセージ送信、履歴の閲覧権限でボットを招待し、トークンと許可する送信者 ID を入力します",
+            "2": "グループでは既定でメンションが必要です。この制限を解除する前に開発者ポータルで Message Content Intent を有効にします"
           },
           "fields": {
             "webhook_url": {
@@ -957,10 +960,11 @@
         },
         "slack": {
           "name": "Slack",
-          "description": "Incoming Webhook で Slack チャンネルに通知を送信",
+          "description": "Slack Socket Mode で会話、または Webhook で通知を送信します",
           "guide": {
-            "0": "api.slack.com/messaging/webhooks で Incoming Webhook を作成",
-            "1": "送信先チャンネルを選択し Webhook URL をコピー"
+            "0": "通知のみの場合は受信 Webhook を使用できます。エージェントと会話するにはメッセージ受信を有効にします",
+            "1": "Socket Mode を有効にし、connections:write 権限のアプリトークンを作成して、chat:write、app_mentions:read、im:history 権限のボットをインストールします",
+            "2": "app_mention と message.im を購読し、ボットをチャンネルに招待して、許可する送信者 ID を設定します"
           },
           "fields": {
             "webhook_url": {
@@ -970,7 +974,7 @@
         },
         "telegram": {
           "name": "Telegram",
-          "description": "Bot で Telegram チャットに通知を送信",
+          "description": "Telegram ボットでエージェントと会話し、通知を受信します",
           "fields": {
             "bot_token": {
               "placeholder": "123456:ABC-DEF...（@BotFather で取得）",
@@ -990,17 +994,20 @@
             }
           },
           "guide": {
-            "0": "@BotFather で Bot を作成しトークンをコピー",
-            "1": "Bot に送信後、getUpdates でチャット ID を取得",
-            "2": "Bot トークンと既定のチャット ID を上に入力"
+            "0": "@BotFather でボットを作成し、トークンをコピーします",
+            "1": "受信を有効にし、許可する送信者 ID またはチャット ID を指定します。両方のリストが空の場合は既定のチャット ID を使用できます",
+            "2": "ロングポーリングを有効にする前に、既存の Webhook を削除してください。LambChat は自動削除しません",
+            "3": "ボットに DM を送るか、許可されたグループでメンションまたは返信します。/new で新しい会話を開始します"
           }
         },
         "wecom": {
           "name": "WeCom Bot",
-          "description": "Bot の Webhook で WeCom グループに通知を送信",
+          "description": "WeCom スマートボットで会話、またはグループ Webhook で通知を送信します",
           "guide": {
-            "0": "対象の WeCom グループに Bot を追加",
-            "1": "Webhook URL を上の設定にコピー"
+            "0": "双方向チャットには API モードの常時接続スマートボットを作成し、Bot ID と Bot Secret を入力して受信を有効にします",
+            "1": "WeCom のユーザー ID で送信者を制限します。従来のグループ Webhook は通知の送信専用です",
+            "2": "Webhook 通知のみの場合は、対象の WeCom グループにグループボットを追加します",
+            "3": "Webhook URL を上の設定にコピーします"
           },
           "fields": {
             "webhook_url": {
@@ -1047,8 +1054,114 @@
             "2": "Bot を有効にしメッセージイベントを購読",
             "3": "WebSocket 接続を使用（公開 IP は不要）"
           }
+        },
+        "webhook": {
+          "name": "Webhook",
+          "description": "認証付き Webhook で外部サービスをエージェントに接続します",
+          "guide": {
+            "0": "16 文字以上のランダムなシークレットを設定し、許可する送信者 ID またはチャット ID を指定します",
+            "1": "チャンネルを保存してインスタンス ID をコピーし、/api/channels/webhook/{instance_id}/callback に POST します",
+            "2": "x-lambchat-bot-secret ヘッダーに保存したシークレットを設定します。JSON に sender_id、content、message_id、任意で chat_id を含めます",
+            "3": "再試行には同じ一意の message_id を使用します。/new を送信すると新しい会話を開始します",
+            "4": "必要に応じて公開 HTTPS の返信先を設定します。返信には chatId と text が含まれ、同じシークレットヘッダーで認証します"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "返信先 URL",
+              "description": "エージェントの返信を受け取る HTTPS URL。任意です。",
+              "placeholder": "https://example.com/replies"
+            },
+            "webhook_secret": {
+              "title": "Webhook シークレット",
+              "description": "受信リクエストと送信返信で共用する認証シークレット。",
+              "placeholder": "16 文字以上のランダムな文字列"
+            }
+          }
+        }
+      },
+      "commonFields": {
+        "receive_enabled": {
+          "title": "メッセージを受信",
+          "description": "双方向チャットを有効にします。許可する送信者 ID、チャット ID、または既定のチャット ID を先に設定してください。"
+        },
+        "allowed_sender_ids": {
+          "title": "許可する送信者 ID",
+          "description": "表示名ではなく、プラットフォームの固定ユーザー ID を入力します。送信者とチャットの両方を設定した場合、両方の条件を満たす必要があります。",
+          "placeholder": "ユーザー ID をカンマ区切りで入力"
+        },
+        "allowed_chat_ids": {
+          "title": "許可するチャット ID",
+          "description": "エージェントを呼び出せる会話を制限します。両方のリストが空の場合は既定のチャット ID を使用し、それも空なら受信を有効にできません。",
+          "placeholder": "チャット ID をカンマ区切りで入力"
+        },
+        "bot_token": {
+          "title": "ボットトークン",
+          "description": "メッセージ受信には必須です。Webhook による通知のみの場合は不要です。",
+          "placeholder": "プラットフォームからボットトークンをコピー"
+        },
+        "app_token": {
+          "title": "アプリトークン",
+          "description": "connections:write 権限を持つ Slack のアプリレベルトークン。",
+          "placeholder": "xapp-..."
+        },
+        "default_chat_id": {
+          "title": "既定のチャット ID",
+          "description": "通知の既定の送信先です。両方のアクセスリストが空の場合、受信できる会話の制限にも使用します。",
+          "placeholder": "プラットフォームの会話 ID"
+        },
+        "require_mention": {
+          "title": "グループではメンション時のみ応答",
+          "description": "グループではメンションされた場合のみ返信します。無効にする前に Discord 開発者ポータルで Message Content Intent を有効にしてください。"
+        },
+        "client_id": {
+          "title": "クライアント ID",
+          "description": "DingTalk 企業アプリのボットの Client ID。"
+        },
+        "client_secret": {
+          "title": "クライアントシークレット",
+          "description": "DingTalk 企業アプリのボットの Client Secret。"
+        },
+        "corp_id": {
+          "title": "企業 ID",
+          "description": "アプリを所有する DingTalk 組織の Corporation ID。"
+        },
+        "bot_id": {
+          "title": "ボット ID",
+          "description": "API モードの WeCom スマートボットの Bot ID。"
+        },
+        "bot_secret": {
+          "title": "ボットシークレット",
+          "description": "WeCom スマートボットの常時接続に使用するシークレット。"
         }
       }
+    },
+    "runtime": {
+      "title": "実行設定",
+      "project": "プロジェクト",
+      "noProject": "プロジェクトなし",
+      "unavailableProject": "保存済みのプロジェクトを利用できません",
+      "projectWorkspace": "このプロジェクトは {{machine}} の {{path}} に接続されています。実行環境はこのローカル作業ディレクトリに従います。",
+      "sandbox": "実行環境",
+      "local": "ローカル PC",
+      "cloud": "クラウド PC",
+      "machine": "ローカル端末",
+      "offline": "オフライン",
+      "noMachines": "利用可能な端末がありません。ローカルサンドボックスを接続してください。",
+      "thinking": "思考の強度",
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "max": "最大",
+      "code": "コードインタープリター",
+      "language": "応答言語",
+      "inherit": "既定値を使用",
+      "env": "サンドボックスの環境変数",
+      "envHint": "1 行に KEY=VALUE を入力します。*** は保存済みの値を保持し、行を削除すると変数が削除されます。このチャネルのサンドボックスにのみ適用されます。",
+      "envInvalid": "重複しない KEY=VALUE を 1 行ずつ入力してください。名前は英字またはアンダースコアで始まり、英数字とアンダースコアのみ使用できます。NUL 文字は使用できません。",
+      "envTooLarge": "変数は最大 50 個、各値は 16000 文字、合計 64000 文字までです。",
+      "applyHint": "変更は次回以降のチャネル実行に適用されます。実行中のタスクは現在の設定を保持します。",
+      "reset": "実行設定をリセット",
+      "envProtected": "LAMBCHAT_WORKSPACE と LAMBCHAT_SHARED はサンドボックスが管理するため、上書きできません。"
     }
   },
   "chat": {
@@ -1798,7 +1911,12 @@
     "title": "Feishu/Lark チャンネル",
     "verificationToken": "検証トークン",
     "waitingForQr": "QRコードを準備中",
-    "waitingForScan": "スキャン待ち"
+    "waitingForScan": "スキャン待ち",
+    "platform": "サービス地域",
+    "platformFeishu": "Feishu（中国）",
+    "platformLark": "Lark（国際版）",
+    "larkManualHint": "Lark 開発者コンソールでアプリを作成し、認証情報を入力してください。QR コードによる登録は Feishu のみ対応しています。",
+    "larkStep1": "Lark 開発者コンソール（open.larksuite.com）を開きます"
   },
   "fileLibrary": {
     "action": {

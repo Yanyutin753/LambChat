@@ -26,12 +26,12 @@ logger = get_logger(__name__)
 
 
 def _redact_url(url: str) -> str:
-    """去掉 query（钉钉 sign / Gotify token 等凭据都在查询串）。"""
+    """只保留主机；bot token/webhook secret 也可能位于 path 或 userinfo。"""
     from urllib.parse import urlsplit
 
     try:
         parts = urlsplit(url)
-        return f"{parts.scheme}://{parts.netloc}{parts.path}"
+        return parts.hostname or "<invalid-url>"
     except Exception:
         return "<invalid-url>"
 
@@ -49,7 +49,7 @@ def default_title(content: str) -> str:
 class OutboundChannel(BaseChannel):
     """出站推送渠道基类：子类只需实现 ``_send`` 与配置模型。"""
 
-    capabilities = (ChannelCapability.SEND_MESSAGE,)
+    capabilities: tuple[ChannelCapability, ...] = (ChannelCapability.SEND_MESSAGE,)
 
     # 子类按平台限制覆盖（Telegram 4096 / Discord 2000 / 企微 markdown 4096 字节…）
     max_content_chars: int = 3800
@@ -96,7 +96,7 @@ class OutboundChannel(BaseChannel):
                 "%s send failed for user %s: %s",
                 self.channel_type.value,
                 self.user_id,
-                e,
+                type(e).__name__,
             )
             return False
 
@@ -124,12 +124,12 @@ class OutboundChannel(BaseChannel):
                 url, json=json, data=data, content=content, headers=headers
             )
         except httpx.HTTPError as e:
-            # URL 带 access_token/sign 等凭据（钉钉/企微/Gotify），只记 host+path
+            # Exception text can itself embed the full credential-bearing URL.
             logger.warning(
                 "%s request failed (%s): %s",
                 self.channel_type.value,
                 _redact_url(url),
-                e,
+                type(e).__name__,
             )
             return None
         return response

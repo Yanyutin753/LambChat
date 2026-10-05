@@ -214,33 +214,8 @@ async def list_user_channels(
             metadata = registry.get_channel_class(channel_type)
             if metadata:
                 meta = metadata.get_metadata()
-                sensitive_fields = set()
-                for field in meta.get("config_fields", []):
-                    if field.get("sensitive"):
-                        sensitive_fields.add(field["name"])
-
-                # Mask sensitive fields
-                masked_config = {k: v for k, v in config.items() if k not in sensitive_fields}
-                for field in sensitive_fields:
-                    if config.get(field):
-                        masked_config[field] = "***"
-
                 responses.append(
-                    ChannelConfigResponse(
-                        id=config.get("instance_id", ""),
-                        channel_type=channel_type,
-                        name=config.get("name", ""),
-                        user_id=user.sub,
-                        enabled=config.get("enabled", True),
-                        config=masked_config,
-                        capabilities=meta.get("capabilities", []),
-                        agent_id=config.get("agent_id"),
-                        model_id=config.get("model_id"),
-                        project_id=config.get("project_id"),
-                        persona_preset_id=config.get("persona_preset_id"),
-                        created_at=config.get("created_at"),
-                        updated_at=config.get("updated_at"),
-                    )
+                    storage.build_response_from_config(config, channel_type, user.sub, meta)
                 )
         except ValueError:
             # Unknown channel type, skip
@@ -274,33 +249,8 @@ async def list_channel_instances(
     metadata = channel_class.get_metadata()
     responses = []
     for config in configs:
-        sensitive_fields = set()
-        for field in metadata.get("config_fields", []):
-            if field.get("sensitive"):
-                sensitive_fields.add(field["name"])
-
-        # Mask sensitive fields
-        masked_config = {k: v for k, v in config.items() if k not in sensitive_fields}
-        for field in sensitive_fields:
-            if config.get(field):
-                masked_config[field] = "***"
-
         responses.append(
-            ChannelConfigResponse(
-                id=config.get("instance_id", ""),
-                channel_type=channel_type,
-                name=config.get("name", ""),
-                user_id=user.sub,
-                enabled=config.get("enabled", True),
-                config=masked_config,
-                capabilities=metadata.get("capabilities", []),
-                agent_id=config.get("agent_id"),
-                model_id=config.get("model_id"),
-                project_id=config.get("project_id"),
-                persona_preset_id=config.get("persona_preset_id"),
-                created_at=config.get("created_at"),
-                updated_at=config.get("updated_at"),
-            )
+            storage.build_response_from_config(config, channel_type, user.sub, metadata)
         )
 
     return ChannelListResponse(channels=responses)
@@ -374,6 +324,13 @@ async def create_channel_instance(
         raise AppError(ErrorCode.UNKNOWN_CHANNEL_TYPE, args={"type": channel_type})
 
     metadata = channel_class.get_metadata()
+    from src.api.routes.chat_configuration import validate_chat_configuration
+
+    validate_chat_configuration(registry, channel_type, data.config)
+
+    from src.api.routes.channel_runtime_configuration import validate_runtime_configuration
+
+    runtime_config = await validate_runtime_configuration(data.runtime_config, user.sub)
 
     # Validate agent_id against user permissions
     await _validate_agent_id(data.agent_id, user)
@@ -391,6 +348,7 @@ async def create_channel_instance(
             project_id=data.project_id,
             team_id=data.team_id,
             persona_preset_id=data.persona_preset_id,
+            runtime_config=runtime_config,
         )
 
         # Reload the channel client if manager exists
@@ -448,6 +406,20 @@ async def update_channel_instance(
             # Keep existing value for empty sensitive fields
             merged_config[field["name"]] = existing.get(field["name"])
 
+    from src.api.routes.chat_configuration import validate_chat_configuration
+
+    validate_chat_configuration(registry, channel_type, merged_config)
+
+    from src.api.routes.channel_runtime_configuration import validate_runtime_configuration
+
+    runtime_config = (
+        await validate_runtime_configuration(
+            data.runtime_config, user.sub, existing.get("runtime_config")
+        )
+        if "runtime_config" in data.model_fields_set
+        else ...
+    )
+
     # Validate agent_id if explicitly provided in the request
     agent_id_value: str | None = ...  # type: ignore[assignment]
     if "agent_id" in data.model_fields_set:
@@ -497,6 +469,7 @@ async def update_channel_instance(
         project_id=project_id_value,
         team_id=team_id_value,
         persona_preset_id=persona_preset_id_value,
+        runtime_config=runtime_config,
     )
 
     if not config:

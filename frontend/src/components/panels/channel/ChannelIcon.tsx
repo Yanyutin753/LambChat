@@ -1,4 +1,4 @@
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, Webhook } from "lucide-react";
 import type { ChannelType } from "../../../types/channel";
 import bark from "../../../assets/channels/bark.png";
 import dingtalk from "../../../assets/channels/dingtalk.svg";
@@ -14,7 +14,7 @@ import telegram from "../../../assets/channels/telegram.svg";
 import wecom from "../../../assets/channels/wecom.png";
 import wechat from "../../../assets/channels/wechat.ico";
 
-const CHANNEL_LOGOS: Record<ChannelType, string> = {
+const CHANNEL_LOGOS: Partial<Record<ChannelType, string>> = {
   bark,
   dingtalk,
   discord,
@@ -39,6 +39,9 @@ export function ChannelIcon({
   channelType: string;
   size?: number;
 }) {
+  if (channelType === "webhook") {
+    return <Webhook size={size} aria-hidden="true" className="shrink-0 text-theme-text-secondary" />;
+  }
   const src = Object.hasOwn(CHANNEL_LOGOS, channelType)
     ? CHANNEL_LOGOS[channelType as ChannelType]
     : undefined;

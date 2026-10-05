@@ -147,7 +147,7 @@ test("switching language translates config and validation while preserving secre
           channel_type: "dingtalk",
           display_name: "DingTalk",
           setup_guide: [
-            "Open the target DingTalk group chat settings and choose Robots",
+            "For bidirectional chat, create a Stream mode enterprise robot and enable receiving",
           ],
           config_fields: [
             {
@@ -174,7 +174,7 @@ test("switching language translates config and validation while preserving secre
     await act(() => i18n.changeLanguage("zh"));
     expect(screen.getByLabelText("加签密钥")).toHaveValue("SEC-draft");
     expect(
-      screen.getByText("打开目标钉钉群设置，选择「机器人」"),
+      screen.getByText(/双向对话请创建 Stream 模式企业应用机器人/),
     ).toBeVisible();
     fireEvent.click(
       screen.getByRole("button", { name: i18n.t("common.save") }),

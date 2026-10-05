@@ -17,6 +17,8 @@ import { FeishuPanel } from "../feishu/FeishuPanel";
 import { channelApi } from "../../../../services/api/channel";
 import type { ChannelMetadata, ChannelType } from "../../../../types/channel";
 
+vi.mock("../../../../services/api/project", () => ({ projectApi: { list: async () => [] } }));
+
 vi.mock("../../../../hooks/useAuth", () => ({
   useAuth: () => ({ hasPermission: () => true }),
 }));

@@ -52,6 +52,17 @@ async def execute_weixin_agent(
     agent_options: dict | None = None,
     persona_system_prompt: str | None = None,
     enabled_skills: list[str] | None = None,
+    disabled_tools=None,
+    attachments=None,
+    disabled_skills=None,
+    disabled_mcp_tools=None,
+    enabled_mcp_servers=None,
+    recommendation_input=None,
+    team_id=None,
+    active_goal=None,
+    auto_mode=False,
+    hitl_resume=None,
+    base_url="",
 ) -> AsyncGenerator[dict[str, Any], None]:
     """执行 Agent 并透传事件流（与 feishu execute 同构）。"""
     from src.agents.core.base import AgentFactory
@@ -65,6 +76,17 @@ async def execute_weixin_agent(
         agent_options=agent_options,
         persona_system_prompt=persona_system_prompt,
         enabled_skills=enabled_skills,
+        disabled_tools=disabled_tools,
+        attachments=attachments,
+        disabled_skills=disabled_skills,
+        disabled_mcp_tools=disabled_mcp_tools,
+        enabled_mcp_servers=enabled_mcp_servers,
+        recommendation_input=recommendation_input,
+        team_id=team_id,
+        active_goal=active_goal,
+        auto_mode=auto_mode,
+        hitl_resume=hitl_resume,
+        base_url=base_url,
     ):
         yield event
 
@@ -141,6 +163,8 @@ def create_weixin_message_handler(
             agent_to_use = default_agent
             model_id: str | None = None
             project_id: str | None = None
+            team_id: str | None = None
+            ch_config = None
             persona_preset_id: str | None = None
             agent_options: dict[str, Any] | None = None
             if instance_id:
@@ -154,10 +178,12 @@ def create_weixin_message_handler(
                     agent_to_use = ch_config.get("agent_id") or agent_to_use
                     model_id = ch_config.get("model_id")
                     project_id = ch_config.get("project_id")
+                    team_id = ch_config.get("team_id")
                     persona_preset_id = ch_config.get("persona_preset_id")
 
             persona_system_prompt: str | None = None
             enabled_skills: list[str] | None = None
+            enabled_mcp_servers: list[str] | None = None
             if persona_preset_id:
                 try:
                     from src.infra.persona_preset.manager import PersonaPresetManager
@@ -167,13 +193,20 @@ def create_weixin_message_handler(
                     )
                     persona_system_prompt = snapshot.system_prompt
                     enabled_skills = snapshot.skill_names or None
+                    enabled_mcp_servers = getattr(snapshot, "mcp_server_names", None) or None
                 except Exception as e:
                     logger.warning(
                         "[Weixin] ignore unavailable persona %s: %s", persona_preset_id, e
                     )
 
-            if model_id:
-                agent_options = {**(agent_options or {}), "model_id": model_id}
+            from src.infra.channel.runtime import (
+                build_channel_agent_options,
+                build_channel_session_metadata,
+            )
+
+            agent_options = await build_channel_agent_options(
+                {**(ch_config or {}), "model_id": model_id, "project_id": project_id}, user_id
+            )
 
             async def executor(
                 session_id: str,
@@ -188,6 +221,9 @@ def create_weixin_message_handler(
                 enabled_skills=None,
                 persona_system_prompt=None,
                 disabled_mcp_tools=None,
+                enabled_mcp_servers=None,
+                hitl_resume=None,
+                base_url="",
                 recommendation_input=None,
                 team_id=None,
                 active_goal=None,
@@ -202,6 +238,17 @@ def create_weixin_message_handler(
                     agent_options=agent_options,
                     persona_system_prompt=persona_system_prompt,
                     enabled_skills=enabled_skills,
+                    disabled_tools=disabled_tools,
+                    attachments=attachments,
+                    disabled_skills=disabled_skills,
+                    disabled_mcp_tools=disabled_mcp_tools,
+                    enabled_mcp_servers=enabled_mcp_servers,
+                    recommendation_input=recommendation_input,
+                    team_id=team_id,
+                    active_goal=active_goal,
+                    auto_mode=auto_mode,
+                    hitl_resume=hitl_resume,
+                    base_url=base_url,
                 ):
                     yield event
 
@@ -213,9 +260,21 @@ def create_weixin_message_handler(
                 executor=executor,
                 agent_options=agent_options,
                 project_id=project_id,
+                team_id=team_id if agent_to_use == "team" else None,
                 enabled_skills=enabled_skills,
                 persona_system_prompt=persona_system_prompt,
                 auto_mode=True,
+                enabled_mcp_servers=enabled_mcp_servers,
+                session_metadata=build_channel_session_metadata(
+                    agent_id=agent_to_use,
+                    agent_options=agent_options,
+                    project_id=project_id,
+                    team_id=team_id if agent_to_use == "team" else None,
+                    enabled_skills=enabled_skills,
+                    enabled_mcp_servers=enabled_mcp_servers,
+                    persona_system_prompt=persona_system_prompt,
+                    auto_mode=True,
+                ),
             )
 
             # 会话级渠道投递元数据：任务完成通知/后续 proactive 推送复用

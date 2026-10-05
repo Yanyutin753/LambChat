@@ -40,6 +40,9 @@ SENSITIVE_FIELDS = frozenset(
         "user_key",
         "device_key",
         "send_key",
+        "client_secret",
+        "bot_secret",
+        "webhook_secret",
     }
 )
 CHANNEL_CONFIG_LIST_LIMIT = 200
@@ -132,6 +135,21 @@ class ChannelStorage:
             return await self._doc_to_config(doc)
         return None
 
+    async def get_config_by_instance(
+        self, channel_type: ChannelType, instance_id: str
+    ) -> Optional[dict[str, Any]]:
+        """Resolve an opaque callback instance without trusting a caller's owner ID."""
+        await self.ensure_indexes_if_needed()
+        docs = (
+            await self._get_collection()
+            .find({"channel_type": channel_type.value, "instance_id": instance_id})
+            .limit(2)
+            .to_list(length=2)
+        )
+        if len(docs) != 1:
+            return None
+        return await self._doc_to_config(docs[0])
+
     async def create_config(
         self,
         user_id: str,
@@ -144,6 +162,7 @@ class ChannelStorage:
         project_id: str | None = None,
         team_id: str | None = None,
         persona_preset_id: str | None = None,
+        runtime_config: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Create channel configuration for a user"""
         await self.ensure_indexes_if_needed()
@@ -159,6 +178,7 @@ class ChannelStorage:
             "instance_id": instance_id,
             "name": name,
             "config": await self._encrypt_config(config),
+            "runtime_config": await self._encrypt_runtime_config(runtime_config or {}),
             "enabled": enabled,
             "agent_id": agent_id,
             "model_id": model_id,
@@ -189,6 +209,7 @@ class ChannelStorage:
         project_id: Optional[str] | types.EllipsisType = ...,
         team_id: Optional[str] | types.EllipsisType = ...,
         persona_preset_id: Optional[str] | types.EllipsisType = ...,
+        runtime_config: dict[str, Any] | types.EllipsisType = ...,
     ) -> Optional[dict[str, Any]]:
         """Update channel configuration for a user"""
         await self.ensure_indexes_if_needed()
@@ -205,6 +226,8 @@ class ChannelStorage:
             "config": await self._encrypt_config(config),
         }
 
+        if runtime_config is not ...:
+            update_data["runtime_config"] = await self._encrypt_runtime_config(runtime_config)
         if enabled is not None:
             update_data["enabled"] = enabled
         if name is not None:
@@ -323,6 +346,7 @@ class ChannelStorage:
             user_id=user_id,
             enabled=config.get("enabled", True),
             config=masked_config,
+            runtime_config=masked_config.get("runtime_config", {}),
             capabilities=metadata.get("capabilities", []) if metadata else [],
             agent_id=config.get("agent_id"),
             model_id=config.get("model_id"),
@@ -414,10 +438,24 @@ class ChannelStorage:
         async for doc in cursor:
             yield await self._doc_to_config(doc)
 
+    async def _encrypt_runtime_config(self, runtime: dict[str, Any]) -> dict[str, Any]:
+        result = dict(runtime)
+        if result.get("env_vars"):
+            result["env_vars"] = await run_long_blocking_io(encrypt_value, result["env_vars"])
+        return result
+
+    async def _decrypt_runtime_config(self, runtime: dict[str, Any]) -> dict[str, Any]:
+        result = dict(runtime)
+        if result.get("env_vars"):
+            result["env_vars"] = await run_long_blocking_io(decrypt_value, result["env_vars"])
+        return result
+
     async def _encrypt_config(self, config: dict[str, Any]) -> dict[str, Any]:
         """Encrypt sensitive fields in config"""
         encrypted = {}
         for key, value in config.items():
+            if key == "runtime_config":
+                continue  # Authoritative runtime settings live outside provider config.
             if key in SENSITIVE_FIELDS and isinstance(value, str) and value:
                 encrypted[key] = await run_long_blocking_io(encrypt_value, {"value": value})
             else:
@@ -454,9 +492,13 @@ class ChannelStorage:
 
     def _mask_config(self, config: dict[str, Any], sensitive_fields: set[str]) -> dict[str, Any]:
         """Mask sensitive fields in config for display"""
-        masked = {}
+        masked: dict[str, Any] = {}
+        from src.infra.channel.runtime import mask_runtime_config
+
         for key, value in config.items():
-            if key in sensitive_fields:
+            if key == "runtime_config":
+                masked[key] = mask_runtime_config(value)
+            elif key in sensitive_fields:
                 if value:
                     masked[key] = "***"
                 else:
@@ -471,11 +513,12 @@ class ChannelStorage:
         decrypted_config = await self._decrypt_config(config)
 
         return {
-            "user_id": doc.get("user_id"),  # Include user_id from document
+            **decrypted_config,
+            "runtime_config": await self._decrypt_runtime_config(doc.get("runtime_config") or {}),
+            "user_id": doc.get("user_id"),  # Owner metadata always comes from the document
             "channel_type": doc.get("channel_type"),
             "instance_id": doc.get("instance_id"),
             "name": doc.get("name"),
-            **decrypted_config,
             "enabled": doc.get("enabled", True),
             "agent_id": doc.get("agent_id"),
             "model_id": doc.get("model_id"),

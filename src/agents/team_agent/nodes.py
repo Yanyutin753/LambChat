@@ -50,6 +50,7 @@ from src.agents.search_agent.prompt import (
 from src.agents.search_agent.prompt import (
     SANDBOX_SYSTEM_PROMPT as SEARCH_SANDBOX_SYSTEM_PROMPT,
 )
+from src.agents.team_agent import backend_setup
 from src.agents.team_agent.context import TeamAgentContext
 from src.agents.team_agent.prompt import (
     SANDBOX_RUNTIME_SECTION as TEAM_SANDBOX_RUNTIME_SECTION,
@@ -79,19 +80,13 @@ from src.infra.agent.middleware import (
     image_url_middleware_for_mode,
     summarization_fallback_patch,
 )
-from src.infra.backend import (
-    create_persistent_backend,
-    create_sandbox_backend,
-)
 from src.infra.goal import (
     build_goal_input,
     create_goal_rubric_middleware,
 )
 from src.infra.llm.client import LLMClient
 from src.infra.logging import get_logger
-from src.infra.sandbox.session_manager import get_session_sandbox_manager
 from src.infra.storage.checkpoint import get_async_checkpointer
-from src.infra.storage.mongodb_store import acreate_store
 from src.kernel.config import settings
 from src.kernel.schemas.model import ModelConfig, effective_image_url_mode
 
@@ -345,68 +340,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             )
         return model, fallback, bool(vision), image_url_mode
 
-    async def _load_backend_bundle() -> tuple[Any, Any, Any, str | None]:
-        backend_start = time.time()
-        loaded_sandbox_backend = None
-        loaded_sandbox_work_dir = None
-
-        if not settings.ENABLE_SANDBOX:
-            loaded_backend = create_persistent_backend(
-                assistant_id=assistant_id,
-                user_id=context.user_id,
-                session_id=state.get("session_id", str(uuid.uuid4())),
-            )
-            logger.info(
-                f"[TeamAgent] Sandbox disabled, using PersistentBackend for assistant: {assistant_id}"
-            )
-        else:
-            if not context.user_id:
-                raise ValueError("Sandbox requires authenticated user (user_id is required)")
-            sandbox_manager = get_session_sandbox_manager()
-            try:
-                await presenter.emit_sandbox_starting()
-            except Exception as exc:
-                logger.warning("Failed to emit sandbox:starting event: %s", exc)
-            try:
-                (
-                    loaded_sandbox_backend,
-                    loaded_sandbox_work_dir,
-                ) = await sandbox_manager.get_or_create(
-                    session_id=state.get("session_id", str(uuid.uuid4())),
-                    user_id=context.user_id,
-                )
-                try:
-                    sandbox_id = getattr(loaded_sandbox_backend.default, "id", "unknown")
-                    await presenter.emit_sandbox_ready(
-                        sandbox_id=sandbox_id,
-                        work_dir=loaded_sandbox_work_dir,
-                    )
-                except Exception as exc:
-                    logger.warning("Failed to emit sandbox:ready event: %s", exc)
-                loaded_backend = create_sandbox_backend(
-                    loaded_sandbox_backend.default,
-                    assistant_id,
-                    user_id=context.user_id,
-                )
-                logger.info(
-                    f"[TeamAgent] Sandbox enabled, using sandbox backend for assistant: {assistant_id}"
-                )
-            except Exception as exc:
-                try:
-                    await presenter.emit_sandbox_error(f"沙箱初始化失败: {str(exc)}")
-                except Exception as emit_exc:
-                    logger.warning("Failed to emit sandbox:error event: %s", emit_exc)
-                raise
-
-        loaded_store = await acreate_store()
-        logger.debug(f"[TeamAgent] Backend init: {(time.time() - backend_start) * 1000:.3f}ms")
-        return (
-            loaded_backend,
-            loaded_store,
-            loaded_sandbox_backend,
-            loaded_sandbox_work_dir,
-        )
-
     async def _load_context_tools() -> list[Any]:
         get_tools = getattr(context, "get_tools", None)
         if callable(get_tools):
@@ -418,12 +351,21 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
     prepared = await prepare_agent_inputs(
         model=_load_model_bundle(),
-        backend=_load_backend_bundle(),
+        backend=backend_setup.load_backend_bundle(
+            state=state,
+            context=context,
+            presenter=presenter,
+            assistant_id=assistant_id,
+            agent_options=agent_options,
+        ),
         tools=_load_context_tools(),
         checkpointer=get_async_checkpointer(thread_id=state.get("session_id")),
     )
     llm, fallback_model_value, supports_vision, image_url_mode = prepared.model
     backend, store, sandbox_backend, sandbox_work_dir = prepared.backend
+    runtime_env_keys = tuple(
+        getattr(getattr(sandbox_backend, "default", sandbox_backend), "_run_env_overrides", {})
+    )
     filtered_tool_list = prepared.tools
     inner_checkpointer = prepared.checkpointer
 
@@ -532,7 +474,11 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         if prompt_sections:
             mw.append(SectionPromptMiddleware(sections=prompt_sections))
         if sandbox_backend:
-            mw.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
+            mw.append(
+                EnvVarPromptMiddleware(
+                    user_id=context.user_id or "default", additional_keys=runtime_env_keys
+                )
+            )
             if subagent_runtime_section:
                 mw.append(SandboxWorkspaceMiddleware(policy_text=subagent_runtime_section))
             mw.append(SandboxSlowRunMiddleware())
@@ -789,7 +735,11 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             )
         )
     if sandbox_backend:
-        user_middleware.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
+        user_middleware.append(
+            EnvVarPromptMiddleware(
+                user_id=context.user_id or "default", additional_keys=runtime_env_keys
+            )
+        )
         if sandbox_work_dir:
             user_middleware.append(
                 SandboxWorkspaceMiddleware(

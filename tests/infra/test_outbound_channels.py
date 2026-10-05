@@ -137,7 +137,9 @@ def test_channel_type_enum_matches_registry() -> None:
         assert ChannelType(slug) is not None
 
 
-def test_outbound_channels_declare_send_only_capabilities() -> None:
+def test_notification_channels_keep_send_capability_and_chat_platforms_advertise_receiving() -> (
+    None
+):
     from src.infra.channel.registry import get_registry
 
     for slug in EXPECTED_OUTBOUND_TYPES:
@@ -145,7 +147,13 @@ def test_outbound_channels_declare_send_only_capabilities() -> None:
         assert cls is not None
         caps = {c.value for c in cls.get_capabilities()}  # type: ignore[attr-defined]
         assert "send_message" in caps
-        assert "websocket" not in caps  # 出站渠道无长连接
+        if slug in {"dingtalk", "wecom", "slack", "discord"}:
+            assert "websocket" in caps
+        elif slug == "telegram":
+            assert "long_polling" in caps
+        else:
+            assert "websocket" not in caps
+            assert "long_polling" not in caps
         # 前端动态表单依赖 config_fields
         assert cls.get_config_fields()  # type: ignore[attr-defined]
 

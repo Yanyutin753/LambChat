@@ -86,3 +86,20 @@ async def test_install_script_path_is_public_without_authorization() -> None:
 
     assert response.status_code == 200
     assert response.json()["ok"] == "script"
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("GET", "/api/channels/webhook/instance/callback"),
+        ("POST", "/api/channels/webhook"),
+        ("PUT", "/api/channels/webhook/instance"),
+        ("POST", "/api/channels/webhook/instance/nested/callback"),
+    ],
+)
+async def test_webhook_exception_does_not_expose_channel_management(method, path):
+    app = FastAPI()
+    app.add_middleware(AuthMiddleware)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.request(method, path)
+    assert response.status_code == 401

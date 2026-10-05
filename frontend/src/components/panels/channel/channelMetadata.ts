@@ -15,17 +15,16 @@ export function localizeChannelMetadata(
     description: translate("description", metadata.description),
     config_fields: metadata.config_fields.map((field) => {
       const key = `fields.${field.name}`;
+      const translateField = (part: string, fallback = "") =>
+        t(
+          [`${base}.${key}.${part}`, `channel.catalog.commonFields.${field.name}.${part}`],
+          { defaultValue: fallback },
+        );
       return {
         ...field,
-        title: translate(`${key}.title`, field.title),
-        description:
-          field.description === undefined
-            ? undefined
-            : translate(`${key}.description`, field.description),
-        placeholder:
-          field.placeholder === undefined
-            ? undefined
-            : translate(`${key}.placeholder`, field.placeholder),
+        title: translateField("title", field.title),
+        description: translateField("description", field.description) || undefined,
+        placeholder: translateField("placeholder", field.placeholder) || undefined,
         options: field.options?.map((option) => ({
           ...option,
           label: translate(

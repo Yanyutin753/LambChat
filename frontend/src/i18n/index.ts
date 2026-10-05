@@ -1,11 +1,26 @@
-import i18n from "i18next";
+import i18n, { type BackendModule, type ResourceLanguage } from "i18next";
 import { initReactI18next } from "react-i18next";
 
 import en from "./locales/en.json";
-import zh from "./locales/zh.json";
-import ja from "./locales/ja.json";
-import ko from "./locales/ko.json";
-import ru from "./locales/ru.json";
+
+const localeLoaders: Record<
+  string,
+  () => Promise<{ default: ResourceLanguage }>
+> = {
+  zh: () => import("./locales/zh.json"),
+  ja: () => import("./locales/ja.json"),
+  ko: () => import("./locales/ko.json"),
+  ru: () => import("./locales/ru.json"),
+};
+
+const localeBackend: BackendModule = {
+  type: "backend",
+  init() {},
+  async read(language, _namespace) {
+    const load = localeLoaders[language];
+    return load ? (await load()).default : {};
+  },
+};
 
 const SUPPORTED_LANGUAGES = ["en", "zh", "ja", "ko", "ru"];
 
@@ -31,14 +46,12 @@ const detectLanguage = (): string => {
   return "en";
 };
 
-i18n.use(initReactI18next).init({
+export const i18nReady = i18n.use(localeBackend).use(initReactI18next).init({
   resources: {
     en: { translation: en },
-    zh: { translation: zh },
-    ja: { translation: ja },
-    ko: { translation: ko },
-    ru: { translation: ru },
   },
+  partialBundledLanguages: true,
+  supportedLngs: SUPPORTED_LANGUAGES,
   lng: detectLanguage(),
   fallbackLng: "en",
   showSupportNotice: false,

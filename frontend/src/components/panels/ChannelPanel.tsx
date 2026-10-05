@@ -24,9 +24,15 @@ import { ChannelIcon } from "./channel/ChannelIcon";
 import { localizeChannelMetadata } from "./channel/channelMetadata";
 import { WeixinQrLogin } from "./channel/weixin/WeixinQrLogin";
 import { ChannelAgentSelect } from "./channel/ChannelAgentSelect";
+import { ChannelModelSelect } from "./channel/ChannelModelSelect";
+import { ChannelPersonaSelect } from "./channel/ChannelPersonaSelect";
+import { ChannelTeamSelect } from "./channel/ChannelTeamSelect";
+import { ChannelRunConfigFields } from "./channel/ChannelRunConfigFields";
+import { defaultChannelRuntime, formatChannelEnv, parseChannelEnv } from "./channel/channelRuntimeConfig";
 import { channelApi } from "../../services/api/channel";
 import type {
   ChannelType,
+  ChannelRuntimeConfig,
   ChannelMetadata,
   ChannelConfigResponse,
   ChannelConfigStatus,
@@ -79,6 +85,24 @@ export function ChannelPanel({
   const [hasExistingConfig, setHasExistingConfig] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [agentId, setAgentId] = useState<string | null>(null);
+  const [modelId, setModelId] = useState<string | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [teamId, setTeamId] = useState<string | null>(null);
+  const [personaPresetId, setPersonaPresetId] = useState<string | null>(null);
+  const [runtimeConfig, setRuntimeConfig] = useState<ChannelRuntimeConfig>(defaultChannelRuntime);
+  const [envText, setEnvText] = useState("");
+  const isChatCapable = metadata.capabilities.some((capability) =>
+    ["websocket", "webhook", "long_polling", "direct_message", "group_chat"].includes(capability));
+
+  const applyRunConfiguration = (config?: ChannelConfigResponse) => {
+    setAgentId(config?.agent_id || null);
+    setModelId(config?.model_id || null);
+    setProjectId(config?.project_id || null);
+    setTeamId(config?.agent_id === "team" ? config.team_id || null : null);
+    setPersonaPresetId(config?.agent_id === "team" ? null : config?.persona_preset_id || null);
+    setRuntimeConfig(config?.runtime_config || defaultChannelRuntime());
+    setEnvText(formatChannelEnv(config?.runtime_config?.env_vars));
+  };
 
   const loadConfig = async () => {
     const generation = ++loadGeneration.current;
@@ -92,6 +116,7 @@ export function ChannelPanel({
         // New instance - don't load anything
         setHasExistingConfig(false);
         setEnabled(false);
+        applyRunConfiguration();
         const defaults: Record<string, unknown> = {};
         metadata.config_fields.forEach((field) => {
           if (field.default !== undefined) {
@@ -115,10 +140,11 @@ export function ChannelPanel({
         setEnabled(configResponse.enabled);
         setInstanceName(configResponse.name);
         setFormValues(configResponse.config || {});
-        setAgentId(configResponse.agent_id || null);
+        applyRunConfiguration(configResponse);
       } else {
         setHasExistingConfig(false);
         setEnabled(false);
+        applyRunConfiguration();
         setAgentId(null);
         const defaults: Record<string, unknown> = {};
         metadata.config_fields.forEach((field) => {
@@ -182,6 +208,18 @@ export function ChannelPanel({
     setSaveError(null);
     if (!validateForm()) return;
 
+    let runSettings = {};
+    if (isChatCapable) {
+      try {
+        runSettings = { model_id: modelId, project_id: projectId,
+          team_id: agentId === "team" ? teamId : null,
+          persona_preset_id: agentId === "team" ? null : personaPresetId,
+          runtime_config: { ...defaultChannelRuntime(), ...runtimeConfig, env_vars: parseChannelEnv(envText) } };
+      } catch (error) {
+        setSaveError(t(error instanceof Error ? error.message : "channel.runtime.envInvalid"));
+        return;
+      }
+    }
     setIsSaving(true);
     try {
       const configData: Record<string, unknown> = {};
@@ -198,8 +236,11 @@ export function ChannelPanel({
           config: configData,
           enabled,
           agent_id: agentId,
+          ...runSettings,
         });
         setConfig(updated);
+        setRuntimeConfig(updated.runtime_config || defaultChannelRuntime());
+        setEnvText(formatChannelEnv(updated.runtime_config?.env_vars));
         const cleared = { ...formValues };
         metadata.config_fields
           .filter((f) => f.sensitive)
@@ -222,8 +263,11 @@ export function ChannelPanel({
           name: instanceName.trim(),
           config: configData,
           agent_id: agentId,
+          ...runSettings,
         });
         setConfig(created);
+        setRuntimeConfig(created.runtime_config || defaultChannelRuntime());
+        setEnvText(formatChannelEnv(created.runtime_config?.env_vars));
         setHasExistingConfig(true);
         // Navigate to the new instance - don't fetch status here, it will be fetched after navigation
         navigate(`/channels/${channelType}/${created.instance_id}`, {
@@ -577,7 +621,21 @@ export function ChannelPanel({
           {metadata.config_fields.map(renderField)}
 
           {/* Agent Selector */}
-          <ChannelAgentSelect value={agentId} onChange={setAgentId} />
+          <fieldset disabled={isSaving || !canWrite} className="min-w-0 space-y-4">
+            <ChannelAgentSelect value={agentId} onChange={(value) => {
+              setAgentId(value);
+              if (value === "team") setPersonaPresetId(null);
+              else setTeamId(null);
+            }} />
+            {isChatCapable && <>
+              <ChannelModelSelect value={modelId} onChange={setModelId} />
+              {agentId === "team" ? <ChannelTeamSelect value={teamId} onChange={setTeamId} />
+                : <ChannelPersonaSelect value={personaPresetId} onChange={setPersonaPresetId} />}
+              <ChannelRunConfigFields value={runtimeConfig} onChange={setRuntimeConfig}
+                projectId={projectId} onProjectChange={setProjectId}
+                envText={envText} onEnvTextChange={setEnvText} disabled={isSaving || !canWrite} />
+            </>}
+          </fieldset>
         </div>
       </div>
 

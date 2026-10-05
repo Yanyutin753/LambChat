@@ -25,6 +25,24 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
+test("Lark region loads and survives an existing instance save", async () => {
+  const user = userEvent.setup();
+  const config: ChannelConfigResponse = {
+    instance_id: "lark-instance", channel_type: "feishu", name: "Lark app",
+    user_id: "owner", enabled: true, capabilities: [],
+    config: { app_id: "cli_lark", platform: "lark" },
+  };
+  vi.mocked(channelApi.update).mockResolvedValue(config);
+  vi.mocked(channelApi.getStatus).mockResolvedValue({
+    channel_type: "feishu", enabled: true, connected: true,
+  });
+  render(<MemoryRouter><FeishuPanel instanceId="lark-instance" initialConfig={config} /></MemoryRouter>);
+  expect(await screen.findByLabelText(i18n.t("feishu.platform"))).toHaveValue("lark");
+  expect(screen.queryByRole("button", { name: i18n.t("feishu.scanCreate") })).toBeNull();
+  await user.click(screen.getByRole("button", { name: i18n.t("common.save") }));
+  expect(vi.mocked(channelApi.update).mock.calls[0][2].config.platform).toBe("lark");
+});
+
 test("Feishu keeps a rejected draft and permits retry without replacing an empty existing secret", async () => {
   const user = userEvent.setup();
   const config: ChannelConfigResponse = {

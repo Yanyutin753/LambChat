@@ -25,6 +25,7 @@ from src.api.routes import (
     agent,
     auth,
     bookmark,
+    channel_webhook,
     channels,
     chat,
     envvar,
@@ -815,6 +816,7 @@ def create_app() -> FastAPI:
     app.include_router(notification.router, prefix="/api/notifications", tags=["Notifications"])
     app.include_router(push.router, prefix="/api/push", tags=["Push"])
     # Generic channel configuration
+    app.include_router(channel_webhook.router, prefix="/api/channels", tags=["Channels"])
     app.include_router(channels.router, prefix="/api/channels", tags=["Channels"])
     # Scheduled tasks
     app.include_router(

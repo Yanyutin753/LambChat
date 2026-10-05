@@ -7,7 +7,7 @@ import { FeishuPanelForm } from "../FeishuPanelForm";
 import { PREDEFINED_EMOJIS } from "../constants";
 
 vi.mock("../../ChannelAgentSelect", () => ({ ChannelAgentSelect: () => null }));
-vi.mock("../../ChannelModelSelect", () => ({ ChannelModelSelect: () => null }));
+vi.mock("../../ChannelModelSelect", () => ({ ChannelModelSelect: () => <button type="button">Model choice</button> }));
 vi.mock("../../ChannelPersonaSelect", () => ({
   ChannelPersonaSelect: () => null,
 }));
@@ -72,6 +72,8 @@ function props(): ComponentProps<typeof FeishuPanelForm> {
     enabled: false,
     isTesting: false,
     canWrite: true,
+    platform: "feishu",
+    setPlatform: vi.fn(),
     instanceName: "",
     appId: "",
     appSecret: "",
@@ -115,6 +117,15 @@ function props(): ComponentProps<typeof FeishuPanelForm> {
     handleTest: vi.fn(),
   };
 }
+
+test("Lark presents manual credentials and the international setup guide without Feishu registration", () => {
+  render(<FeishuPanelForm {...props()} platform="lark" credentialMode="scan" />);
+  expect(screen.getByLabelText(i18n.t("feishu.appId"), { exact: false })).toBeVisible();
+  expect(screen.getByText(i18n.t("feishu.larkManualHint"))).toBeVisible();
+  expect(screen.getByText(i18n.t("feishu.larkStep1"))).toBeVisible();
+  expect(screen.queryByRole("button", { name: i18n.t("feishu.oneClickRegister") })).toBeNull();
+  expect(screen.queryByRole("button", { name: i18n.t("feishu.scanCreate") })).toBeNull();
+});
 
 test("Feishu fields have associated labels and enabled switches expose their states", () => {
   const p = props();
@@ -166,4 +177,9 @@ test("credential mode, reaction and group policy expose selection without changi
   expect(p.setCredentialMode).toHaveBeenCalledWith("scan");
   expect(p.setAppSecret).not.toHaveBeenCalled();
   expect(p.handleStartRegistration).not.toHaveBeenCalled();
+});
+
+test.each([{ isSaving: true, canWrite: true }, { isSaving: false, canWrite: false }])("run selectors are disabled when saving or read-only: %j", (state) => {
+  render(<FeishuPanelForm {...props()} {...state} />);
+  expect(screen.getByRole("button", { name: "Model choice" })).toBeDisabled();
 });

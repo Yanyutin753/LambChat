@@ -83,7 +83,7 @@ def _patch_common(monkeypatch: pytest.MonkeyPatch, module, fake_graph: _FakeDeep
     monkeypatch.setattr(module.LLMClient, "get_model", fake_get_model)
     monkeypatch.setattr(module, "resolve_fallback_model", fake_resolve_fallback_model)
     monkeypatch.setattr(module, "get_async_checkpointer", fake_checkpointer)
-    monkeypatch.setattr(module, "acreate_store", fake_store)
+    monkeypatch.setattr(getattr(module, "backend_setup", module), "acreate_store", fake_store)
     monkeypatch.setattr(module, "emit_token_usage", fake_emit_token_usage)
     monkeypatch.setattr(module, "AgentEventProcessor", _FakeEventProcessor)
 
@@ -688,7 +688,9 @@ async def test_team_role_subagent_prompt_includes_role_instructions_and_skills(
     monkeypatch.setattr(team_nodes.settings, "ENABLE_SANDBOX", False)
     monkeypatch.setattr(team_nodes.settings, "ENABLE_SKILLS", True)
     monkeypatch.setattr(team_nodes.settings, "ENABLE_MEMORY", True)
-    monkeypatch.setattr(team_nodes, "create_persistent_backend", lambda **_kwargs: object())
+    monkeypatch.setattr(
+        team_nodes.backend_setup, "create_persistent_backend", lambda **_kwargs: object()
+    )
 
     team = TeamResponse(
         id="team-1",
@@ -798,7 +800,9 @@ async def test_team_agent_node_adds_code_interpreter_middleware_when_enabled(
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
     monkeypatch.setattr(team_nodes.settings, "ENABLE_SANDBOX", False)
-    monkeypatch.setattr(team_nodes, "create_persistent_backend", lambda **_kwargs: object())
+    monkeypatch.setattr(
+        team_nodes.backend_setup, "create_persistent_backend", lambda **_kwargs: object()
+    )
 
     async def fake_resolve_runtime_team(**_kwargs):
         return None
@@ -854,7 +858,9 @@ async def test_team_role_subagent_inherits_global_skills_when_role_skills_are_em
     _patch_common(monkeypatch, team_nodes, fake_graph)
     monkeypatch.setattr(team_nodes.settings, "ENABLE_SANDBOX", False)
     monkeypatch.setattr(team_nodes.settings, "ENABLE_SKILLS", True)
-    monkeypatch.setattr(team_nodes, "create_persistent_backend", lambda **_kwargs: object())
+    monkeypatch.setattr(
+        team_nodes.backend_setup, "create_persistent_backend", lambda **_kwargs: object()
+    )
 
     team = TeamResponse(
         id="team-1",
