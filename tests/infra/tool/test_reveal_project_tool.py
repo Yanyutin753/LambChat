@@ -1,6 +1,8 @@
 import asyncio
 import gc
+import io
 import json
+import tarfile
 import weakref
 from types import SimpleNamespace
 
@@ -712,3 +714,231 @@ async def test_upload_file_rejects_known_oversize_backend_file_before_download(
     )
 
     assert result is None
+
+
+# --- 沙箱 bundle 打包上传（P0：跨洋逐文件往返 → 单包单流） ---
+
+
+class _SandboxBackend:
+    """带 aexecute 的假沙箱 backend：记录命令，输出可注入。"""
+
+    def __init__(self, *, output: str = "") -> None:
+        self.commands: list[str] = []
+        self._output = output
+
+    async def aexecute(self, command: str, **_kwargs) -> SimpleNamespace:
+        self.commands.append(command)
+        return SimpleNamespace(output=self._output)
+
+
+def _build_targz(entries: dict[str, bytes]) -> bytes:
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:gz") as tf:
+        for name, data in entries.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tf.addfile(info, io.BytesIO(data))
+    return buffer.getvalue()
+
+
+def _install_bundle_patches(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    files: list[str],
+    bundle: bytes | None,
+    contents: dict[str, bytes] | None = None,
+    storage: _FakeStorage | None = None,
+) -> tuple[_SandboxBackend, _FakeStorage]:
+    """沙箱 bundle 路径测试通用装配：记录下载调用，tar 包与逐文件内容分流。"""
+
+    async def _download(_backend: object, file_path: str) -> bytes | None:
+        if file_path.startswith("/workspace/.reveal-bundle-"):
+            return bundle
+        return (contents or {}).get(file_path)
+
+    monkeypatch.setattr(
+        reveal_project_tool,
+        "_download_file_from_backend",
+        _download,
+    )
+    return _install_common_patches(monkeypatch, files=files, contents=contents or {})
+
+
+@pytest.mark.asyncio
+async def test_reveal_project_batches_sandbox_files_through_single_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_path = "/workspace/demo-folder"
+    files = [f"{project_path}/file-{index}.txt" for index in range(6)]
+    entries = {f"./file-{index}.txt": f"content-{index}\n".encode() for index in range(6)}
+    bundle = _build_targz(entries)
+
+    async def _download(_backend: object, file_path: str) -> bytes | None:
+        assert file_path.startswith("/workspace/.reveal-bundle-"), (
+            f"must download the bundle only, got {file_path}"
+        )
+        return bundle
+
+    fake_storage = _install_common_patches(monkeypatch, files=files, contents={})
+    monkeypatch.setattr(
+        reveal_project_tool,
+        "_download_file_from_backend",
+        _download,
+    )
+    backend = _SandboxBackend()
+
+    result = json.loads(
+        await reveal_project_tool.reveal_project.coroutine(
+            project_path=project_path,
+            runtime=_Runtime(backend),
+        )
+    )
+
+    assert result["file_count"] == 6
+    assert set(result["files"]) == {f"/file-{index}.txt" for index in range(6)}
+    # 单次 bundle 下载替代 6 次逐文件跨洋往返
+    tar_commands = [cmd for cmd in backend.commands if cmd.startswith("tar ")]
+    assert len(tar_commands) == 1
+    assert "-C" in tar_commands[0] and "czf" in tar_commands[0]
+    # daemon 侧打包产物被清理
+    assert any("rm -f" in cmd and ".reveal-bundle-" in cmd for cmd in backend.commands)
+    assert len(fake_storage.uploads) == 6
+
+
+def test_bundle_command_excludes_heavy_directories() -> None:
+    command = reveal_project_tool._build_bundle_command(
+        "/workspace/demo-folder",
+        "/workspace/.reveal-bundle-abcd1234.tar.gz",
+    )
+
+    assert command.startswith("tar czf")
+    assert "--exclude=node_modules" in command
+    assert "--exclude=.git" in command
+    assert "--exclude=dist" in command
+    assert "--exclude=build" in command
+    assert "--exclude=.reveal-bundle-" in command
+
+
+@pytest.mark.asyncio
+async def test_bundle_missing_members_fall_back_to_per_file_upload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_path = "/workspace/demo-folder"
+    files = [f"{project_path}/file-{index}.txt" for index in range(6)]
+    # bundle 只带 5 个文件，file-5 缺失 → 走逐文件补传
+    entries = {f"./file-{index}.txt": f"content-{index}\n".encode() for index in range(5)}
+    bundle = _build_targz(entries)
+    contents = {files[5]: b"content-5\n"}
+
+    async def _download(_backend: object, file_path: str) -> bytes | None:
+        if file_path.startswith("/workspace/.reveal-bundle-"):
+            return bundle
+        return contents.get(file_path)
+
+    _install_common_patches(monkeypatch, files=files, contents=contents)
+    monkeypatch.setattr(
+        reveal_project_tool,
+        "_download_file_from_backend",
+        _download,
+    )
+    backend = _SandboxBackend()
+
+    result = json.loads(
+        await reveal_project_tool.reveal_project.coroutine(
+            project_path=project_path,
+            runtime=_Runtime(backend),
+        )
+    )
+
+    assert result["file_count"] == 6
+    assert "/file-5.txt" in result["files"]
+
+
+@pytest.mark.asyncio
+async def test_bundle_download_failure_falls_back_to_per_file_upload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_path = "/workspace/demo-folder"
+    files = [f"{project_path}/file-{index}.txt" for index in range(6)]
+    contents = {file_path: f"{file_path}\n".encode() for file_path in files}
+
+    async def _download(_backend: object, file_path: str) -> bytes | None:
+        if file_path.startswith("/workspace/.reveal-bundle-"):
+            return None  # daemon 侧 tar 不可用/失败
+        return contents.get(file_path)
+
+    _install_common_patches(monkeypatch, files=files, contents=contents)
+    monkeypatch.setattr(
+        reveal_project_tool,
+        "_download_file_from_backend",
+        _download,
+    )
+    backend = _SandboxBackend()
+
+    result = json.loads(
+        await reveal_project_tool.reveal_project.coroutine(
+            project_path=project_path,
+            runtime=_Runtime(backend),
+        )
+    )
+
+    assert result["file_count"] == 6
+
+
+def test_extract_bundle_members_skips_unsafe_entries() -> None:
+    entries = {
+        "./README.md": b"# demo\n",
+        "../escape.txt": b"evil",
+        "/absolute.txt": b"evil",
+        "./nested/ok.txt": b"ok\n",
+    }
+    bundle = _build_targz(entries)
+
+    members = reveal_project_tool._extract_bundle_members(
+        bundle, wanted={"/README.md", "/nested/ok.txt", "/escape.txt", "/absolute.txt"}
+    )
+
+    assert members == {"/README.md": b"# demo\n", "/nested/ok.txt": b"ok\n"}
+
+
+def test_extract_bundle_members_returns_none_over_total_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(reveal_project_tool, "BUNDLE_EXTRACT_TOTAL_LIMIT", 8)
+    bundle = _build_targz({"./a.txt": b"x" * 6, "./b.txt": b"y" * 6})
+
+    assert reveal_project_tool._extract_bundle_members(bundle, wanted={"/a.txt", "/b.txt"}) is None
+
+
+def test_extract_bundle_members_skips_oversize_single_member(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(reveal_project_tool, "BUNDLE_EXTRACT_TOTAL_LIMIT", 1024 * 1024)
+    bundle = _build_targz({"./small.txt": b"ok\n", "./huge.bin": b"x" * 100})
+
+    members = reveal_project_tool._extract_bundle_members(
+        bundle, wanted={"/small.txt", "/huge.bin"}, max_member_size=10
+    )
+
+    assert members == {"/small.txt": b"ok\n"}
+
+
+@pytest.mark.asyncio
+async def test_small_sandbox_projects_skip_bundle_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_path = "/workspace/demo-folder"
+    files = [f"{project_path}/file-{index}.txt" for index in range(2)]
+    contents = {file_path: f"{file_path}\n".encode() for file_path in files}
+    _install_common_patches(monkeypatch, files=files, contents=contents)
+    backend = _SandboxBackend()
+
+    result = json.loads(
+        await reveal_project_tool.reveal_project.coroutine(
+            project_path=project_path,
+            runtime=_Runtime(backend),
+        )
+    )
+
+    assert result["file_count"] == 2
+    assert backend.commands == []
