@@ -81,6 +81,9 @@ def _build_fake_lark_module() -> ModuleType:
         def app_secret(self, _value: str):
             return self
 
+        def domain(self, _value: str):
+            return self
+
         def log_level(self, _value):
             return self
 

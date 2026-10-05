@@ -69,6 +69,7 @@ class FeishuStorage:
         doc = {
             "user_id": user_id,
             "app_id": config.app_id,
+            "platform": config.platform.value,
             "app_secret": await self._encrypt_secret(config.app_secret),
             "encrypt_key": config.encrypt_key,
             "verification_token": config.verification_token,
@@ -101,6 +102,8 @@ class FeishuStorage:
 
         if updates.app_id is not None:
             update_data["app_id"] = updates.app_id
+        if updates.platform is not None:
+            update_data["platform"] = updates.platform.value
         if updates.app_secret is not None:
             update_data["app_secret"] = await self._encrypt_secret(updates.app_secret)
         if updates.encrypt_key is not None:
@@ -145,6 +148,7 @@ class FeishuStorage:
         return FeishuConfigResponse(
             user_id=config.user_id,
             app_id=config.app_id,
+            platform=config.platform,
             has_app_secret=bool(config.app_secret),
             encrypt_key="***" if config.encrypt_key else "",
             verification_token="***" if config.verification_token else "",
@@ -214,6 +218,7 @@ class FeishuStorage:
         return FeishuConfig(
             user_id=doc["user_id"],
             app_id=doc["app_id"],
+            platform=doc.get("platform", "feishu"),
             app_secret=await self._decrypt_secret(doc.get("app_secret", "")),
             encrypt_key=doc.get("encrypt_key", ""),
             verification_token=doc.get("verification_token", ""),

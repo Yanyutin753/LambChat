@@ -10,6 +10,7 @@ import httpx
 
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
+from src.kernel.schemas.feishu import feishu_api_domain
 
 logger = get_logger(__name__)
 
@@ -46,7 +47,11 @@ class FeishuBaseSenderMixin:
         ".ppt": "ppt",
         ".pptx": "ppt",
     }
-    _FEISHU_API_BASE = "https://open.feishu.cn/open-apis"
+
+    @property
+    def _feishu_api_base(self) -> str:
+        return f"{feishu_api_domain(getattr(self.config, 'platform', 'feishu'))}/open-apis"
+
     _REPLY_FALLBACK_ERROR_CODES = {230011}
     _tenant_access_token: str | None = None
     _tenant_access_token_expires_at: float = 0.0
@@ -84,7 +89,7 @@ class FeishuBaseSenderMixin:
         try:
             client = self._get_feishu_http_client()
             response = await client.post(
-                f"{self._FEISHU_API_BASE}/auth/v3/tenant_access_token/internal/",
+                f"{self._feishu_api_base}/auth/v3/tenant_access_token/internal/",
                 json={"app_id": app_id, "app_secret": app_secret},
             )
             response.raise_for_status()
@@ -137,7 +142,7 @@ class FeishuBaseSenderMixin:
                 )
             response = await client.request(
                 method,
-                f"{self._FEISHU_API_BASE}{path}",
+                f"{self._feishu_api_base}{path}",
                 **request_kwargs,
             )
             try:

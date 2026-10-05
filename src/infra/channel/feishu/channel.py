@@ -30,6 +30,7 @@ from src.kernel.schemas.feishu import (
     DEFAULT_AUDIO_TRANSCRIBE_PROMPT,
     FeishuConfig,
     FeishuGroupPolicy,
+    feishu_api_domain,
 )
 
 logger = get_logger(__name__)
@@ -156,6 +157,12 @@ class FeishuChannel(FeishuSenderMixin, BaseChannel):
             "type": "object",
             "required": ["app_id", "app_secret"],
             "properties": {
+                "platform": {
+                    "type": "string",
+                    "enum": ["feishu", "lark"],
+                    "default": "feishu",
+                    "title": "Service region",
+                },
                 "app_id": {
                     "type": "string",
                     "title": "App ID",
@@ -216,6 +223,16 @@ class FeishuChannel(FeishuSenderMixin, BaseChannel):
     def get_config_fields(cls) -> list[dict[str, Any]]:
         """Get configuration fields for UI rendering."""
         return [
+            {
+                "name": "platform",
+                "title": "Service region",
+                "type": "select",
+                "default": "feishu",
+                "options": [
+                    {"value": "feishu", "label": "Feishu (China)"},
+                    {"value": "lark", "label": "Lark (International)"},
+                ],
+            },
             {
                 "name": "app_id",
                 "title": "App ID",
@@ -395,6 +412,7 @@ class FeishuChannel(FeishuSenderMixin, BaseChannel):
                 lark.Client.builder()
                 .app_id(self.config.app_id)
                 .app_secret(self.config.app_secret)
+                .domain(feishu_api_domain(self.config.platform))
                 .log_level(lark.LogLevel.INFO)
                 .build()
             )
@@ -446,6 +464,7 @@ class FeishuChannel(FeishuSenderMixin, BaseChannel):
             self.config.app_id,
             self.config.app_secret,
             event_handler=event_handler,
+            domain=feishu_api_domain(self.config.platform),
             log_level=lark.LogLevel.WARNING,
             auto_reconnect=True,
         )

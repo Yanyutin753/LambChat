@@ -86,3 +86,7 @@ LambChat
 | Sandbox | Daytona or E2B |
 | Auth | JWT, OAuth, bcrypt |
 | Tracing | LangSmith |
+
+## Connect chat channels
+
+To use your agent from a messaging platform, see [Chat channels](/en/channels).

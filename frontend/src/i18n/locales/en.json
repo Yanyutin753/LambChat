@@ -246,7 +246,8 @@
     "tempTag": "temp: {{value}}",
     "temperature": "Temperature",
     "title": "Agent Configuration",
-    "valueAndLabelRequired": "Value and Label are required"
+    "valueAndLabelRequired": "Value and Label are required",
+    "modelApiBaseDefaultHint": "Leave empty to use the official endpoint {{url}}"
   },
   "agentOptions": {
     "enableCodeInterpreter": {
@@ -698,7 +699,8 @@
     "daemonVersionUnsupported": "Daemon version {{version}} is below minimum {{min}}; please update",
     "sandboxMachineOffline": "Selected sandbox machine '{{machine}}' is offline",
     "sandboxMachineNotFound": "Sandbox machine '{{machine}}' not found or removed",
-    "pluginNoEditPermission": "No permission to edit plugin {{name}}"
+    "pluginNoEditPermission": "No permission to edit plugin {{name}}",
+    "modelConfigIncomplete": "Model config is incomplete: missing {{field}} for provider {{provider}}"
   },
   "categories": {
     "scheduled_task": "Scheduled tasks",
@@ -781,7 +783,386 @@
     "testSuccess": "Connection successful",
     "title": "Channels",
     "webhookShort": "Hook",
-    "websocketShort": "WS"
+    "websocketShort": "WS",
+    "pushOnly": "Push only",
+    "twoWayChat": "Two-way chat",
+    "longPolling": "Long polling",
+    "weixin": {
+      "scanLogin": "Scan QR to get token",
+      "qrWaiting": "Scan with WeChat to confirm",
+      "qrScanned": "Scanned — confirm on your phone",
+      "qrExpired": "QR code expired, try again",
+      "qrFailed": "QR login failed, try again"
+    },
+    "catalog": {
+      "providers": {
+        "bark": {
+          "name": "Bark",
+          "description": "Push notifications to iOS via the Bark app",
+          "fields": {
+            "server": {
+              "placeholder": "https://api.day.app (or your own server URL)",
+              "title": "Server URL"
+            },
+            "device_key": {
+              "placeholder": "Copy the key from the app home screen",
+              "title": "Device Key"
+            },
+            "group": {
+              "title": "Notification Group"
+            }
+          },
+          "guide": {
+            "0": "Install Bark from the App Store",
+            "1": "Copy the device key from the app home screen"
+          }
+        },
+        "dingtalk": {
+          "name": "DingTalk",
+          "description": "Chat through a DingTalk Stream robot or send group webhook notifications",
+          "fields": {
+            "secret": {
+              "placeholder": "Starts with SEC; required when signing is enabled",
+              "title": "Signing Secret"
+            },
+            "webhook_url": {
+              "title": "Webhook URL"
+            }
+          },
+          "guide": {
+            "0": "For two-way chat, create an enterprise app robot in Stream mode; enter Client ID, Client Secret and Corporation ID, then enable receiving",
+            "1": "Use DingTalk staff IDs to restrict senders. Notification targets are group conversation IDs or user:<staffId> for direct messages",
+            "2": "For webhook notifications, open the target DingTalk group settings and choose Robots",
+            "3": "Add a custom robot with Markdown support",
+            "4": "Copy the webhook URL into the configuration above",
+            "5": "If signing is enabled, also enter the signing secret"
+          }
+        },
+        "discord": {
+          "name": "Discord",
+          "description": "Chat through a Discord bot or send webhook notifications",
+          "guide": {
+            "0": "Use a channel webhook for notifications, or create a bot in the Discord Developer Portal to receive messages",
+            "1": "Invite the bot with View Channels, Send Messages and Read Message History permissions; enter its token and allowed sender IDs",
+            "2": "Groups require a mention by default. Enable Message Content Intent in the Developer Portal before turning this requirement off"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "Webhook URL"
+            }
+          }
+        },
+        "gotify": {
+          "name": "Gotify",
+          "description": "Push notifications to a self-hosted Gotify server",
+          "fields": {
+            "app_token": {
+              "placeholder": "Token for an application on your Gotify server",
+              "title": "App Token"
+            },
+            "server": {
+              "title": "Server URL"
+            },
+            "priority": {
+              "title": "Priority",
+              "options": {
+                "3": "Low (3)",
+                "5": "Default (5)",
+                "8": "High (8)"
+              }
+            }
+          },
+          "guide": {
+            "0": "Create an application on your Gotify server and copy its token",
+            "1": "Enter the server URL and app token above"
+          }
+        },
+        "ntfy": {
+          "name": "ntfy",
+          "description": "Push notifications to ntfy topics (self-hosted or ntfy.sh)",
+          "fields": {
+            "server": {
+              "placeholder": "https://ntfy.sh (or your own server URL)",
+              "title": "Server URL"
+            },
+            "topic": {
+              "placeholder": "Your private topic name",
+              "title": "Topic"
+            },
+            "priority": {
+              "title": "Priority",
+              "options": {
+                "default": "Default",
+                "high": "High",
+                "urgent": "Urgent"
+              }
+            }
+          },
+          "guide": {
+            "0": "Choose a unique topic name; keep it secret because anyone with it can read messages",
+            "1": "Subscribe to the topic in the ntfy app",
+            "2": "For self-hosting, enter your own ntfy server URL"
+          }
+        },
+        "pushover": {
+          "name": "Pushover",
+          "description": "Push notifications to devices via Pushover",
+          "fields": {
+            "api_token": {
+              "placeholder": "Token for your application at pushover.net",
+              "title": "API Token"
+            },
+            "user_key": {
+              "placeholder": "User key from your Pushover dashboard",
+              "title": "User Key"
+            }
+          },
+          "guide": {
+            "0": "Create an application at pushover.net and copy its API token",
+            "1": "Copy your user key from the Pushover dashboard"
+          }
+        },
+        "pushplus": {
+          "name": "PushPlus",
+          "description": "Push notifications to WeChat via PushPlus",
+          "fields": {
+            "token": {
+              "placeholder": "Token from the pushplus.plus user center",
+              "title": "Token"
+            },
+            "template": {
+              "title": "Message Template",
+              "options": {
+                "markdown": "Markdown",
+                "html": "HTML",
+                "txt": "Plain text"
+              }
+            }
+          },
+          "guide": {
+            "0": "Log in to pushplus.plus with WeChat and copy your token",
+            "1": "Messages arrive through the PushPlus official account in WeChat"
+          }
+        },
+        "serverchan": {
+          "name": "ServerChan",
+          "description": "Push notifications to WeChat via ServerChan",
+          "fields": {
+            "send_key": {
+              "placeholder": "Starts with SCT; get it at sct.ftqq.com",
+              "title": "SendKey"
+            }
+          },
+          "guide": {
+            "0": "Log in to sct.ftqq.com with WeChat and copy your SendKey",
+            "1": "Messages arrive through the Fangtang service account in WeChat"
+          }
+        },
+        "slack": {
+          "name": "Slack",
+          "description": "Chat through Slack Socket Mode or send webhook notifications",
+          "guide": {
+            "0": "Use an incoming webhook for notifications, or enable receiving to chat with your agent",
+            "1": "Enable Socket Mode, create an app token with connections:write, and install a bot with chat:write, app_mentions:read and im:history",
+            "2": "Subscribe to app_mention and message.im, invite the bot to your channel, and configure allowed sender IDs"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "Webhook URL"
+            }
+          }
+        },
+        "telegram": {
+          "name": "Telegram",
+          "description": "Chat with your agent through a Telegram bot and receive notifications",
+          "fields": {
+            "bot_token": {
+              "placeholder": "123456:ABC-DEF... (from @BotFather)",
+              "title": "Bot Token"
+            },
+            "default_chat_id": {
+              "placeholder": "Message your bot, then check getUpdates",
+              "title": "Default Chat ID"
+            },
+            "parse_mode": {
+              "title": "Parse Mode",
+              "options": {
+                "plain": "Plain text",
+                "Markdown": "Markdown",
+                "HTML": "HTML"
+              }
+            }
+          },
+          "guide": {
+            "0": "Create a bot with @BotFather and copy its token",
+            "1": "Enable receiving and allow specific sender or chat IDs. A default chat ID can be used when both access lists are empty",
+            "2": "Remove any existing webhook before enabling long polling. LambChat will not delete it automatically",
+            "3": "Message the bot privately, or mention or reply to it in an allowed group. Send /new to start a new conversation"
+          }
+        },
+        "wecom": {
+          "name": "WeCom Bot",
+          "description": "Chat through a WeCom smart robot or send group webhook notifications",
+          "guide": {
+            "0": "For two-way chat, create a smart robot in API mode with a persistent connection; enter Bot ID and Bot Secret, then enable receiving",
+            "1": "Restrict senders by WeCom user ID. Legacy group webhooks support outgoing notifications only",
+            "2": "For webhook notifications, add a group bot to the target WeCom group",
+            "3": "Copy the webhook URL into the configuration above"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "Webhook URL"
+            }
+          }
+        },
+        "weixin": {
+          "name": "WeChat Bot",
+          "description": "Chat with your agent in WeChat via the official iLink bot API",
+          "fields": {
+            "bot_token": {
+              "placeholder": "Scan the QR code to fill in the token automatically",
+              "title": "Bot Token"
+            },
+            "default_chat_id": {
+              "placeholder": "WeChat user ID for outbound notifications; available in message logs",
+              "title": "Default Chat ID"
+            },
+            "group_policy": {
+              "title": "Group Policy",
+              "options": {
+                "open": "Respond in groups and DMs",
+                "off": "DMs only"
+              }
+            }
+          },
+          "guide": {
+            "0": "Scan the QR code and confirm on your phone",
+            "1": "The bot token is filled in automatically after scanning",
+            "2": "Message the bot in WeChat to start chatting"
+          }
+        },
+        "wechat": {
+          "name": "WeChat",
+          "description": "Connect WeChat to your agent"
+        },
+        "feishu": {
+          "name": "Feishu / Lark",
+          "description": "Feishu/Lark enterprise communication platform",
+          "guide": {
+            "0": "Go to open.feishu.cn",
+            "1": "Create a custom app and get its App ID and App Secret",
+            "2": "Enable the bot and subscribe to message events",
+            "3": "Use a WebSocket connection; no public IP is required"
+          }
+        },
+        "webhook": {
+          "name": "Webhook",
+          "description": "Connect external services to your agent through authenticated webhooks",
+          "guide": {
+            "0": "Choose a random secret of at least 16 characters and configure allowed sender or chat IDs",
+            "1": "Save the channel and copy its instance ID. POST to /api/channels/webhook/{instance_id}/callback",
+            "2": "Set x-lambchat-bot-secret to the saved secret. Send JSON with sender_id, content, message_id and optional chat_id",
+            "3": "Reuse a stable unique message_id for retries. Send /new to start a new conversation",
+            "4": "Optionally set a public HTTPS reply endpoint. Replies include chatId and text, authenticated with the same secret header"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "Reply endpoint URL",
+              "description": "Optional HTTPS URL that receives agent replies.",
+              "placeholder": "https://example.com/replies"
+            },
+            "webhook_secret": {
+              "title": "Webhook secret",
+              "description": "Shared secret for incoming requests and outgoing replies.",
+              "placeholder": "At least 16 random characters"
+            }
+          }
+        }
+      },
+      "commonFields": {
+        "receive_enabled": {
+          "title": "Receive messages",
+          "description": "Enable two-way chat. Configure allowed sender IDs, allowed chat IDs, or a default chat ID before enabling."
+        },
+        "allowed_sender_ids": {
+          "title": "Allowed sender IDs",
+          "description": "Use stable platform user IDs, not display names. If both sender and chat lists are set, both must match.",
+          "placeholder": "Comma-separated user IDs"
+        },
+        "allowed_chat_ids": {
+          "title": "Allowed chat IDs",
+          "description": "Restrict which conversations can invoke the agent. If both lists are empty, the default chat ID is used; without one, receiving cannot be enabled.",
+          "placeholder": "Comma-separated chat IDs"
+        },
+        "bot_token": {
+          "title": "Bot Token",
+          "description": "Required for receiving messages; webhook-only notifications do not need it.",
+          "placeholder": "Copy the bot token from the platform"
+        },
+        "app_token": {
+          "title": "App Token",
+          "description": "Slack app-level token with the connections:write scope.",
+          "placeholder": "xapp-..."
+        },
+        "default_chat_id": {
+          "title": "Default Chat ID",
+          "description": "Default notification destination. Also restricts receiving when both access lists are empty.",
+          "placeholder": "Platform conversation ID"
+        },
+        "require_mention": {
+          "title": "Require Mention in Groups",
+          "description": "Reply only when mentioned in groups. Before disabling, enable Message Content Intent in the Discord Developer Portal."
+        },
+        "client_id": {
+          "title": "Client ID",
+          "description": "Client ID of your DingTalk enterprise app robot."
+        },
+        "client_secret": {
+          "title": "Client Secret",
+          "description": "Client secret of your DingTalk enterprise app robot."
+        },
+        "corp_id": {
+          "title": "Corporation ID",
+          "description": "Corporation ID of the DingTalk organization that owns the app."
+        },
+        "bot_id": {
+          "title": "Bot ID",
+          "description": "Bot ID of your WeCom smart robot in API mode."
+        },
+        "bot_secret": {
+          "title": "Bot Secret",
+          "description": "Secret for the persistent connection of your WeCom smart robot."
+        }
+      }
+    },
+    "runtime": {
+      "title": "Run configuration",
+      "project": "Project",
+      "noProject": "No project",
+      "unavailableProject": "Saved project unavailable",
+      "projectWorkspace": "This project uses {{machine}} at {{path}}. Its local workspace determines the run environment.",
+      "sandbox": "Run environment",
+      "local": "Local computer",
+      "cloud": "Cloud computer",
+      "machine": "Local machine",
+      "offline": "Offline",
+      "noMachines": "No machines are available. Connect a local sandbox to choose a device.",
+      "thinking": "Thinking intensity",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "max": "Maximum",
+      "code": "Code interpreter",
+      "language": "Response language",
+      "inherit": "Use default",
+      "env": "Sandbox environment variables",
+      "envHint": "One KEY=VALUE per line. Keep *** to retain a saved value; remove its line to delete it. Values apply to this channel’s sandbox.",
+      "envInvalid": "Use unique KEY=VALUE lines. Keys must start with a letter or underscore and contain only letters, digits or underscores. NUL characters are not allowed.",
+      "envTooLarge": "Use at most 50 variables, 16000 characters per value and 64000 characters in total.",
+      "applyHint": "Changes apply to subsequent channel runs; running tasks keep their current configuration.",
+      "reset": "Reset run settings",
+      "envProtected": "LAMBCHAT_WORKSPACE and LAMBCHAT_SHARED are managed by the sandbox and cannot be overridden."
+    }
   },
   "chat": {
     "addMoreFiles": "Add more files",
@@ -1530,7 +1911,12 @@
     "title": "Feishu/Lark Channel",
     "verificationToken": "Verification Token",
     "waitingForQr": "Preparing QR",
-    "waitingForScan": "Waiting for scan"
+    "waitingForScan": "Waiting for scan",
+    "platform": "Service region",
+    "platformFeishu": "Feishu (China)",
+    "platformLark": "Lark (International)",
+    "larkManualHint": "Create an app in the Lark Developer Console and enter its credentials. QR registration is available for Feishu only.",
+    "larkStep1": "Go to the Lark Developer Console (open.larksuite.com)"
   },
   "fileLibrary": {
     "action": {

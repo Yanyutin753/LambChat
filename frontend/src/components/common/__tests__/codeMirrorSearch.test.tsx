@@ -7,11 +7,16 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, beforeAll, expect, test, vi } from "vitest";
 import { CodeMirrorViewer } from "../CodeMirrorViewer";
 import { SkillEditor } from "../../skill/SkillEditor";
 import { I18nextProvider } from "react-i18next";
-import appI18n from "../../../i18n";
+import appI18n, { i18nReady } from "../../../i18n";
+
+beforeAll(async () => {
+  await i18nReady;
+  await appI18n.loadLanguages(["zh", "ja", "ko", "ru"]);
+});
 
 vi.mock("../../../hooks/useAppThemeMode", () => ({
   useAppThemeMode: () => "light",

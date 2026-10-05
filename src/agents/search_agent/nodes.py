@@ -71,7 +71,11 @@ from src.infra.backend import (
     create_persistent_backend,
     create_sandbox_backend,
 )
-from src.infra.envvar.sync import sync_sandbox_env_vars
+from src.infra.envvar.sync import (
+    apply_sandbox_env_overrides,
+    resolve_channel_env_vars,
+    sync_sandbox_env_vars,
+)
 from src.infra.goal import (
     build_goal_input,
     create_goal_rubric_middleware,
@@ -210,6 +214,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     )
     llm, fallback_model_value, supports_vision, image_url_mode = prepared.model
     backend, system_prompt, store, sandbox_backend, sandbox_work_dir = prepared.backend
+    runtime_env_keys = tuple(getattr(sandbox_backend, "_run_env_overrides", {}))
     filtered_tool_list = prepared.tools
     inner_checkpointer = prepared.checkpointer
 
@@ -252,7 +257,11 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         if subagent_prompt_sections:
             mw.append(SectionPromptMiddleware(sections=subagent_prompt_sections))
         if sandbox_backend:
-            mw.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
+            mw.append(
+                EnvVarPromptMiddleware(
+                    user_id=context.user_id or "default", additional_keys=runtime_env_keys
+                )
+            )
         if sandbox_runtime_policy:
             from src.infra.agent.middleware import SandboxWorkspaceMiddleware
 
@@ -357,7 +366,11 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             )
         )
     if sandbox_backend:
-        user_middleware.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
+        user_middleware.append(
+            EnvVarPromptMiddleware(
+                user_id=context.user_id or "default", additional_keys=runtime_env_keys
+            )
+        )
         # 沙箱统一确认门（本地 + 云端）：整批单次 interrupt，本地读 daemon
         # 上报策略，云端读用户 metadata 偏好（未设置归 none 保持云上历史行为）
         from src.infra.agent.middleware.sandbox_confirm import (
@@ -658,6 +671,7 @@ async def _create_backend_and_prompt(
         raise ValueError("Sandbox requires authenticated user (user_id is required)")
 
     session_id = state.get("session_id") or context.session_id
+    env_overrides = await resolve_channel_env_vars(context.user_id, agent_options)
     platform = _resolve_sandbox_platform(agent_options, settings.SANDBOX_PLATFORM.lower())
     if platform == "local":
         from src.infra.backend.local import WorkspaceAliasBackend
@@ -676,6 +690,7 @@ async def _create_backend_and_prompt(
         # 用户 env 变量注入（对齐云端：backend.env_vars → 执行时下发）；
         # env_var 工具运行中改动经 sync_envvar_change 实时刷新同一属性
         await sync_sandbox_env_vars(local_backend, user_id)
+        apply_sandbox_env_overrides(local_backend, env_overrides)
         logger.info(
             f"Sandbox enabled (local), using local sandbox backend for assistant: {assistant_id}"
         )
@@ -693,6 +708,7 @@ async def _create_backend_and_prompt(
         user_id=context.user_id,
         presenter=presenter,
         manager_factory=get_session_sandbox_manager,
+        env_overrides=env_overrides,
     )
     context.set_run_sandbox(sandbox_backend)
     logger.info(f"Sandbox enabled, using lazy sandbox backend for assistant: {assistant_id}")

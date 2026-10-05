@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { Button } from "../../../common";
 import { ToggleSwitch } from "../../AgentPanel/shared";
 import {
@@ -24,12 +24,17 @@ import type { FeishuConfigStatus } from "./types";
 
 interface FeishuPanelFormProps {
   t: TFunction;
+  runConfiguration?: ReactNode;
   hasExistingConfig: boolean;
   status: FeishuConfigStatus | null;
   enabled: boolean;
   isTesting: boolean;
+  isSaving?: boolean;
   canWrite: boolean;
   instanceName: string;
+  platform: "feishu" | "lark";
+  setPlatform: (value: "feishu" | "lark") => void;
+  secretRequired?: boolean;
   appId: string;
   appSecret: string;
   encryptKey: string;
@@ -74,12 +79,17 @@ interface FeishuPanelFormProps {
 
 export function FeishuPanelForm({
   t,
+  runConfiguration,
   hasExistingConfig,
   status,
   enabled,
   isTesting,
+  isSaving = false,
   canWrite,
   instanceName,
+  platform,
+  setPlatform,
+  secretRequired = !hasExistingConfig,
   appId,
   appSecret,
   encryptKey,
@@ -122,6 +132,7 @@ export function FeishuPanelForm({
   handleTest,
 }: FeishuPanelFormProps) {
   const formId = useId();
+  const activeCredentialMode = platform === "lark" ? "manual" : credentialMode;
   return (
     <div className="es-form">
       {/* Status Callout */}
@@ -207,21 +218,38 @@ export function FeishuPanelForm({
           {t("feishu.credentials", "App Credentials")}
         </div>
 
-        <div className="mb-4 grid grid-cols-2 rounded-lg border border-[var(--theme-border)] bg-[var(--glass-bg-subtle)] p-1">
+        <div className="es-field">
+          <label htmlFor={`${formId}-platform`} className="es-label">
+            {t("feishu.platform")}
+          </label>
+          <select
+            id={`${formId}-platform`}
+            value={platform}
+            disabled={!canWrite || isRegistering}
+            onChange={(event) => setPlatform(event.target.value as "feishu" | "lark")}
+            className="glass-input es-input"
+          >
+            <option value="feishu">{t("feishu.platformFeishu")}</option>
+            <option value="lark">{t("feishu.platformLark")}</option>
+          </select>
+          {platform === "lark" && <p className="es-hint">{t("feishu.larkManualHint")}</p>}
+        </div>
+
+        {platform === "feishu" && <div className="mb-4 grid grid-cols-2 rounded-lg border border-[var(--theme-border)] bg-[var(--glass-bg-subtle)] p-1">
           {(["scan", "manual"] as const).map((mode) => (
             <Button
               key={mode}
-              variant={credentialMode === mode ? "secondary" : "ghost"}
-              aria-pressed={credentialMode === mode}
+              variant={activeCredentialMode === mode ? "secondary" : "ghost"}
+              aria-pressed={activeCredentialMode === mode}
               className="feishu-mode-button"
               onClick={() => setCredentialMode(mode)}
             >
               {t(mode === "scan" ? "feishu.scanCreate" : "feishu.manualFill")}
             </Button>
           ))}
-        </div>
+        </div>}
 
-        {credentialMode === "scan" && (
+        {activeCredentialMode === "scan" && (
           <div className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] px-4 py-6 text-center">
             <p className="mx-auto max-w-[28rem] text-14 text-[var(--theme-text-secondary)]">
               {t(
@@ -296,7 +324,7 @@ export function FeishuPanelForm({
           </div>
         )}
 
-        {credentialMode === "manual" && (
+        {activeCredentialMode === "manual" && (
           <>
             <div className="es-field">
               <label htmlFor={`${formId}-appId`} className="es-label">
@@ -315,24 +343,24 @@ export function FeishuPanelForm({
             <div className="es-field">
               <label htmlFor={`${formId}-appSecret`} className="es-label">
                 {t("feishu.appSecret", "App Secret")}
-                {!hasExistingConfig && <span className="es-required">*</span>}
+                {secretRequired && <span className="es-required">*</span>}
               </label>
               <input
                 id={`${formId}-appSecret`}
                 type="password"
                 aria-describedby={
-                  hasExistingConfig ? `${formId}-secret-hint` : undefined
+                  !secretRequired ? `${formId}-secret-hint` : undefined
                 }
                 value={appSecret}
                 onChange={(e) => setAppSecret(e.target.value)}
                 placeholder={
-                  hasExistingConfig
+                  !secretRequired
                     ? t("feishu.passwordMask", "••••••••••••")
                     : ""
                 }
                 className="glass-input es-input"
               />
-              {hasExistingConfig && (
+              {!secretRequired && (
                 <p id={`${formId}-secret-hint`} className="es-hint">
                   {t("feishu.leaveEmpty")}
                 </p>
@@ -341,7 +369,7 @@ export function FeishuPanelForm({
           </>
         )}
 
-        {credentialMode === "scan" && appId && (
+        {activeCredentialMode === "scan" && appId && (
           <div className="mt-4 rounded-lg border border-[var(--theme-border)] bg-[var(--glass-bg-subtle)] px-3 py-2">
             <div className="text-12 font-medium text-[var(--theme-text-secondary)]">
               {t("feishu.currentCredential", "Current credential")}
@@ -595,22 +623,26 @@ export function FeishuPanelForm({
       </div>
 
       {/* Agent & Model */}
-      <div className="es-section">
-        <ChannelAgentSelect value={agentId} onChange={onAgentIdChange} />
-      </div>
-      <div className="es-section">
-        <ChannelModelSelect value={modelId} onChange={setModelId} />
-      </div>
-      <div className="es-section">
-        {agentId === "team" ? (
-          <ChannelTeamSelect value={teamId} onChange={setTeamId} />
-        ) : (
-          <ChannelPersonaSelect
-            value={personaPresetId}
-            onChange={setPersonaPresetId}
-          />
-        )}
-      </div>
+      <fieldset disabled={isSaving || !canWrite} className="min-w-0 space-y-4">
+        <div className="es-section">
+          <ChannelAgentSelect value={agentId} onChange={onAgentIdChange} />
+        </div>
+        <div className="es-section">
+          <ChannelModelSelect value={modelId} onChange={setModelId} />
+        </div>
+        <div className="es-section">
+          {agentId === "team" ? (
+            <ChannelTeamSelect value={teamId} onChange={setTeamId} />
+          ) : (
+            <ChannelPersonaSelect
+              value={personaPresetId}
+              onChange={setPersonaPresetId}
+            />
+          )}
+        </div>
+
+        {runConfiguration}
+      </fieldset>
 
       {/* Setup Guide */}
       <div className="es-callout">
@@ -620,7 +652,7 @@ export function FeishuPanelForm({
           </div>
           <ol className="mt-1 list-decimal list-outside ml-4 space-y-0.5 text-[0.8rem] text-[var(--theme-text-secondary)]">
             <li>
-              {t("feishu.step1", "Go to Feishu Open Platform (open.feishu.cn)")}
+              {t(platform === "lark" ? "feishu.larkStep1" : "feishu.step1")}
             </li>
             <li>
               {t(

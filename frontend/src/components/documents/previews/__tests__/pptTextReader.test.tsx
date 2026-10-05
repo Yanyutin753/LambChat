@@ -1,10 +1,15 @@
 /** @vitest-environment jsdom */
 import { readFileSync } from "node:fs";
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, beforeAll, expect, test, vi } from "vitest";
 import { I18nextProvider } from "react-i18next";
-import i18n from "../../../../i18n";
+import i18n, { i18nReady } from "../../../../i18n";
 import PptPreview from "../PptPreview";
+
+beforeAll(async () => {
+  await i18nReady;
+  await i18n.loadLanguages(["zh", "ja", "ko", "ru"]);
+});
 
 const bytes = readFileSync("scripts/fixtures/preview-text-slides.pptx");
 afterEach(() => {

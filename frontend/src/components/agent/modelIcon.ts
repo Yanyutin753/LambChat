@@ -23,6 +23,23 @@ import baichuan from "@lobehub/icons-static-svg/icons/baichuan-color.svg?url";
 import internlm from "@lobehub/icons-static-svg/icons/internlm-color.svg?url";
 import tencent from "@lobehub/icons-static-svg/icons/tencent-color.svg?url";
 import zeroone from "@lobehub/icons-static-svg/icons/zeroone.svg?url";
+import openrouter from "@lobehub/icons-static-svg/icons/openrouter.svg?url";
+import together from "@lobehub/icons-static-svg/icons/together-color.svg?url";
+import fireworks from "@lobehub/icons-static-svg/icons/fireworks-color.svg?url";
+import deepinfra from "@lobehub/icons-static-svg/icons/deepinfra-color.svg?url";
+import novita from "@lobehub/icons-static-svg/icons/novita-color.svg?url";
+import nvidia from "@lobehub/icons-static-svg/icons/nvidia-color.svg?url";
+import cerebras from "@lobehub/icons-static-svg/icons/cerebras.svg?url";
+import sambanova from "@lobehub/icons-static-svg/icons/sambanova-color.svg?url";
+import nebius from "@lobehub/icons-static-svg/icons/nebius.svg?url";
+import hyperbolic from "@lobehub/icons-static-svg/icons/hyperbolic-color.svg?url";
+import lambda from "@lobehub/icons-static-svg/icons/lambda.svg?url";
+import github from "@lobehub/icons-static-svg/icons/github.svg?url";
+import azure from "@lobehub/icons-static-svg/icons/azure.svg?url";
+import siliconcloud from "@lobehub/icons-static-svg/icons/siliconcloud-color.svg?url";
+import baidu from "@lobehub/icons-static-svg/icons/baidu-color.svg?url";
+import modelscope from "@lobehub/icons-static-svg/icons/modelscope-color.svg?url";
+import gitee from "@lobehub/icons-static-svg/icons/giteeai.svg?url";
 
 // provider name → icon
 const providerMap: Record<string, string> = {
@@ -55,6 +72,23 @@ const providerMap: Record<string, string> = {
   alibaba: qwen,
   aliyun: qwen,
   hunyuan: tencent,
+  openrouter,
+  together,
+  fireworks,
+  deepinfra,
+  novita,
+  nvidia,
+  cerebras,
+  sambanova,
+  nebius,
+  hyperbolic,
+  lambda,
+  github,
+  azure,
+  siliconflow: siliconcloud,
+  baidu,
+  modelscope,
+  gitee,
 };
 
 export const modelIconSlugs = Object.keys(providerMap);
@@ -102,6 +136,13 @@ const monochromeProviders = new Set([
   "yi",
   "zeroone",
   "moonshot",
+  "openrouter",
+  "cerebras",
+  "nebius",
+  "lambda",
+  "github",
+  "azure",
+  "gitee",
 ]);
 
 export function isMonochromeIcon(model: string, provider?: string): boolean {

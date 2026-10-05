@@ -256,6 +256,27 @@ async def battery(user_id: str, pat: str, machine_id: str) -> None:
         f"exit={r.get('exit_code')} {(time.monotonic() - t0) * 1000:.0f}ms",
     )
 
+    # Channel overrides belong to each execution, including concurrent runs.
+    from src.infra.backend.local import WorkspaceAliasBackend
+    from src.infra.envvar.sync import apply_sandbox_env_overrides
+
+    channel_backends = [
+        WorkspaceAliasBackend(user_id=user_id, session_id="e2e", machine_id=machine_id)
+        for _ in range(3)
+    ]
+    apply_sandbox_env_overrides(channel_backends[0], {"LAMBCHAT_E2E_CHANNEL_ENV": "first"})
+    apply_sandbox_env_overrides(channel_backends[1], {"LAMBCHAT_E2E_CHANNEL_ENV": "second"})
+    env_results = await asyncio.gather(
+        *(
+            backend.aexecute('printf "%s" "${LAMBCHAT_E2E_CHANNEL_ENV:-unset}"')
+            for backend in channel_backends
+        )
+    )
+    check(
+        "渠道环境变量并发隔离，普通执行无残留",
+        [result.output for result in env_results] == ["first", "second", "unset"],
+    )
+
     # 3. 防冒答：在飞调用以他机身份回传 → 409 sandbox_result_mismatch
     import redis.asyncio as aioredis
 

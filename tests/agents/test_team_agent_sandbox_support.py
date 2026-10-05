@@ -57,7 +57,7 @@ def _patch_common(monkeypatch: pytest.MonkeyPatch, module, fake_graph: _FakeDeep
     monkeypatch.setattr(module.LLMClient, "get_model", fake_get_model)
     monkeypatch.setattr(module, "resolve_fallback_model", fake_resolve_fallback_model)
     monkeypatch.setattr(module, "get_async_checkpointer", fake_checkpointer)
-    monkeypatch.setattr(module, "acreate_store", fake_store)
+    monkeypatch.setattr(getattr(module, "backend_setup", module), "acreate_store", fake_store)
     monkeypatch.setattr(module, "emit_token_usage", fake_emit_token_usage)
     monkeypatch.setattr(module, "AgentEventProcessor", _FakeEventProcessor)
 
@@ -93,8 +93,10 @@ def _install_deepagents_shims(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("platform", ["cloud", "local"])
 async def test_team_agent_node_uses_sandbox_backend_when_enabled(
     monkeypatch: pytest.MonkeyPatch,
+    platform: str,
 ) -> None:
     _install_deepagents_shims(monkeypatch)
 
@@ -105,21 +107,55 @@ async def test_team_agent_node_uses_sandbox_backend_when_enabled(
     _patch_common(monkeypatch, team_nodes, fake_graph)
 
     monkeypatch.setattr(team_nodes.settings, "ENABLE_SANDBOX", True)
-    monkeypatch.setattr(team_nodes, "create_persistent_backend", lambda **_kwargs: object())
+    monkeypatch.setattr(
+        team_nodes.backend_setup, "create_persistent_backend", lambda **_kwargs: object()
+    )
 
-    sandbox_backend = object()
+    from unittest.mock import AsyncMock
+
+    from src.infra.backend import local
+    from src.infra.channel.channel_storage import ChannelStorage
+    from src.infra.envvar import sync
+
+    shared_env = {"GLOBAL": "value"}
+    sandbox_backend = SimpleNamespace(env_vars=shared_env, work_dir="/home/user")
+    monkeypatch.setattr(
+        ChannelStorage,
+        "get_config",
+        AsyncMock(
+            return_value={
+                "user_id": "user-1",
+                "runtime_config": {"env_vars": {"TOKEN": "team-secret"}},
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        sync,
+        "EnvVarStorage",
+        lambda: SimpleNamespace(get_decrypted_vars=AsyncMock(return_value=shared_env)),
+    )
+    local_calls = []
+
+    def make_local_backend(**kwargs):
+        local_calls.append(kwargs)
+        return sandbox_backend
+
+    monkeypatch.setattr(local, "WorkspaceAliasBackend", make_local_backend)
 
     async def fake_get_or_create(**_kwargs):
+        assert platform == "cloud", "local selection must not initialize a cloud sandbox"
         return SimpleNamespace(default=sandbox_backend), "/home/user"
 
     sandbox_manager = SimpleNamespace(get_or_create=fake_get_or_create)
 
     monkeypatch.setattr(
-        team_nodes,
+        team_nodes.backend_setup,
         "create_sandbox_backend",
         lambda sandbox_backend, assistant_id, user_id=None: sandbox_backend,
     )
-    monkeypatch.setattr(team_nodes, "get_session_sandbox_manager", lambda: sandbox_manager)
+    monkeypatch.setattr(
+        team_nodes.backend_setup, "get_session_sandbox_manager", lambda: sandbox_manager
+    )
 
     emitted: list[tuple[str, tuple, dict]] = []
 
@@ -161,7 +197,11 @@ async def test_team_agent_node_uses_sandbox_backend_when_enabled(
             "context": context,
             "presenter": _Presenter(),
             "base_url": "",
-            "agent_options": {},
+            "agent_options": {
+                "sandbox": platform,
+                "sandbox_machine_id": "machine-1",
+                "channel_runtime": {"channel_type": "telegram", "instance_id": "bot-1"},
+            },
         }
     }
 
@@ -176,8 +216,16 @@ async def test_team_agent_node_uses_sandbox_backend_when_enabled(
     assert "## Storage" in system_prompt
     assert "current session workspace" in system_prompt
     assert "/skills/" in system_prompt
-    assert emitted[0][0] == "starting"
-    assert emitted[1][0] == "ready"
+    assert sandbox_backend.env_vars == {"GLOBAL": "value", "TOKEN": "team-secret"}
+    assert shared_env == {"GLOBAL": "value"}
+    if platform == "cloud":
+        assert emitted[0][0] == "starting"
+        assert emitted[1][0] == "ready"
+        assert local_calls == []
+    else:
+        assert local_calls == [
+            {"user_id": "user-1", "session_id": "session-1", "machine_id": "machine-1"}
+        ]
 
 
 @pytest.mark.asyncio
@@ -197,12 +245,12 @@ async def test_team_agent_node_uses_persistent_backend_when_sandbox_disabled(
     persistent_backend = object()
 
     monkeypatch.setattr(
-        team_nodes,
+        team_nodes.backend_setup,
         "create_persistent_backend",
         lambda **_kwargs: persistent_backend,
     )
     monkeypatch.setattr(
-        team_nodes,
+        team_nodes.backend_setup,
         "get_session_sandbox_manager",
         lambda: (_ for _ in ()).throw(AssertionError("sandbox manager should not be used")),
     )
@@ -248,7 +296,7 @@ async def test_team_agent_node_rejects_invalid_team_id(
     monkeypatch.setattr(team_nodes.settings, "ENABLE_SANDBOX", False)
     monkeypatch.setattr(team_manager_module, "get_team_manager", lambda: _TeamManager())
     monkeypatch.setattr(
-        team_nodes,
+        team_nodes.backend_setup,
         "create_persistent_backend",
         lambda **_kwargs: object(),
     )
@@ -300,7 +348,9 @@ async def _run_team_node_with_members(
 
     monkeypatch.setattr(persona_manager, "get_persona_preset_manager", lambda: _PresetManager())
     monkeypatch.setattr(team_nodes.settings, "ENABLE_SANDBOX", False)
-    monkeypatch.setattr(team_nodes, "create_persistent_backend", lambda **_kwargs: object())
+    monkeypatch.setattr(
+        team_nodes.backend_setup, "create_persistent_backend", lambda **_kwargs: object()
+    )
 
     context = TeamAgentContext(session_id="session-1", user_id="user-1")
     config = {
@@ -643,7 +693,9 @@ async def test_team_agent_node_reads_existing_state_messages_for_recommendations
         "schedule_recommend_questions",
         lambda *_args, **_kwargs: None,
     )
-    monkeypatch.setattr(team_nodes, "create_persistent_backend", lambda **_kwargs: object())
+    monkeypatch.setattr(
+        team_nodes.backend_setup, "create_persistent_backend", lambda **_kwargs: object()
+    )
 
     context = TeamAgentContext(session_id="session-1", user_id="user-1")
     config = {

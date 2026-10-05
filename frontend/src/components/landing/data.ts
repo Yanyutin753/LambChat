@@ -100,24 +100,31 @@ export const TECH_STACK = [
   },
 ];
 
+// Bump when replacing screenshots so browser caches pick up the new assets.
+export const SCREENSHOT_ASSET_VERSION = "20261005";
+
+export function shotSrc(name: string): string {
+  return `/images/best-practice/${name}.webp?v=${SCREENSHOT_ASSET_VERSION}`;
+}
+
 export const MAIN_SHOTS: ScreenshotItem[] = [
-  { src: "/images/best-practice/chat-home.webp", altKey: "chatInterface" },
+  { src: shotSrc("chat-home"), altKey: "chatInterface" },
   {
-    src: "/images/best-practice/chat-response.webp",
+    src: shotSrc("chat-response"),
     altKey: "streamingResponse",
   },
 ];
 
 export const MGMT_SHOTS: ScreenshotItem[] = [
-  { src: "/images/best-practice/models-page.webp", altKey: "models" },
-  { src: "/images/best-practice/mcp-page.webp", altKey: "mcp" },
-  { src: "/images/best-practice/skills-page.webp", altKey: "skills" },
-  { src: "/images/best-practice/roles-page.webp", altKey: "roles" },
+  { src: shotSrc("models-page"), altKey: "models" },
+  { src: shotSrc("mcp-page"), altKey: "mcp" },
+  { src: shotSrc("skills-page"), altKey: "skills" },
+  { src: shotSrc("roles-page"), altKey: "roles" },
 ];
 
 export const RESPONSIVE_SHOTS: ScreenshotItem[] = [
-  { src: "/images/best-practice/mobile-view.webp", altKey: "mobile" },
-  { src: "/images/best-practice/tablet-view.webp", altKey: "tablet" },
+  { src: shotSrc("mobile-view"), altKey: "mobile" },
+  { src: shotSrc("tablet-view"), altKey: "tablet" },
 ];
 
 export const STATS = [

@@ -52,7 +52,7 @@ export function ChannelModelSelect({
             ? t("common.loading", "Loading...")
             : t("channel.defaultModel", "Default Model")
         }
-        options={models.map((model) => ({
+        options={[{ value: "", label: t("channel.defaultModel") }, ...models.map((model) => ({
           value: model.id,
           label: (
             <>
@@ -60,7 +60,7 @@ export function ChannelModelSelect({
               <span className="opacity-60"> ({model.value})</span>
             </>
           ),
-        }))}
+        }))]}
       />
       <p className="es-hint">
         {t(

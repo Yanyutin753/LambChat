@@ -42,17 +42,6 @@ logger = get_logger(__name__)
 
 _POLL_INTERVAL = 2  # seconds between status checks when waiting for completion
 _DEFAULT_TIMEOUT = 3600  # 60 minutes
-_ASSISTANT_EVENT_TYPES = {
-    "message",
-    "assistant:message",
-    "ai:message",
-    "assistant",
-    "ai",
-    "content",
-    "message:chunk",
-    "summary",
-}
-_ASSISTANT_ROLES = {"assistant", "ai"}
 
 # Track detached monitor tasks so they can be drained on shutdown.
 _detached_monitor_tasks: set[asyncio.Task[None]] = set()
@@ -675,47 +664,9 @@ class ScheduledTaskRunner:
         max_content_chars: int,
     ) -> str:
         """Extract assistant text from trace events for channel delivery."""
-        parts: list[str] = []
-        chunk_parts: list[str] = []
+        from src.infra.channel.delivery import extract_delivery_text
 
-        def flush_chunks() -> None:
-            if not chunk_parts:
-                return
-            chunk_text = "".join(chunk_parts).strip()
-            if chunk_text:
-                parts.append(chunk_text)
-            chunk_parts.clear()
-
-        for event in events:
-            event_type = str(event.get("event_type") or "")
-            data = event.get("data")
-            if not isinstance(data, dict):
-                continue
-            role = str(data.get("role") or "").lower()
-            if role in {"user", "human"}:
-                continue
-            if event_type == "message" and role not in _ASSISTANT_ROLES:
-                continue
-            if event_type not in _ASSISTANT_EVENT_TYPES and role not in _ASSISTANT_ROLES:
-                continue
-
-            content = data.get("content")
-            if content is None:
-                content = data.get("message")
-            if not isinstance(content, str) or not content.strip():
-                continue
-
-            if event_type == "message:chunk":
-                chunk_parts.append(content)
-            else:
-                flush_chunks()
-                parts.append(content.strip())
-
-        flush_chunks()
-        text = "\n".join(parts).strip()
-        if len(text) > max_content_chars:
-            return text[:max_content_chars].rstrip()
-        return text
+        return extract_delivery_text(events, max_chars=max_content_chars)
 
 
 # ── Singleton ──────────────────────────────────────

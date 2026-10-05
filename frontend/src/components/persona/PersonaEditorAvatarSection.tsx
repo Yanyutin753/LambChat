@@ -8,7 +8,7 @@ import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
 import { Button, IconButton } from "../common/ui";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { isPersonaImageAvatar, isEmojiAvatar } from "./personaAvatar";
-import { getFluentEmojiCDN } from "@lobehub/fluent-emoji";
+import { getEmojiAssetUrl } from "../../utils/emojiAssets";
 import { PersonaAvatarIcon, PersonaAvatarImage } from "./PersonaAvatarIcon";
 import { AVATAR_EMOJIS } from "./PersonaEditorTypes";
 
@@ -103,7 +103,7 @@ export function AvatarSection({
       >
         {isEmojiAvatar(avatar) ? (
           <PersonaAvatarImage
-            avatar={getFluentEmojiCDN(avatar, { type: "3d" })}
+            avatar={getEmojiAssetUrl(avatar, "3d")}
             alt=""
             className="ppe-avatar-img"
           />
@@ -210,7 +210,7 @@ export function AvatarSection({
             >
               <span className="relative inline-flex size-5">
                 <ImageWithSkeleton
-                  src={getFluentEmojiCDN(item.emoji, { type: "3d" })}
+                  src={getEmojiAssetUrl(item.emoji, "3d")}
                   alt=""
                   skipUrlResolve
                   inline

@@ -349,6 +349,48 @@ async def test_env_var_prompt_does_not_enter_system_prompt_without_tool(
     assert captured[0].system_message.content == "base"
 
 
+async def test_channel_environment_key_inventory_is_private_to_each_run(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.infra.agent.middleware import EnvVarPromptMiddleware
+    from src.infra.tool import env_var_prompt
+
+    monkeypatch.setattr(env_var_prompt, "build_env_var_prompt", AsyncMock(return_value=""))
+    requests = []
+
+    async def capture(request):
+        requests.append(request)
+
+    original = _EnvVarListTool()
+    for keys in [("FIRST_CHANNEL_KEY",), ("SECOND_CHANNEL_KEY",), ()]:
+        await EnvVarPromptMiddleware(user_id="owner", additional_keys=keys).awrap_model_call(
+            _Request(SystemMessage(content="base"), tools=[original]), capture
+        )
+    descriptions = [request.tools[0].description for request in requests]
+    assert "FIRST_CHANNEL_KEY" in descriptions[0]
+    assert "SECOND_CHANNEL_KEY" not in descriptions[0]
+    assert "SECOND_CHANNEL_KEY" in descriptions[1]
+    assert "FIRST_CHANNEL_KEY" not in descriptions[1]
+    assert descriptions[2] == original.description
+
+
+async def test_channel_keys_are_visible_when_env_inventory_tool_is_deferred(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.infra.agent.middleware import EnvVarPromptMiddleware
+    from src.infra.tool import env_var_prompt
+
+    monkeypatch.setattr(env_var_prompt, "build_env_var_prompt", AsyncMock(return_value=""))
+    execute = _EnvVarListTool().model_copy(update={"name": "execute"})
+    capture = AsyncMock()
+    await EnvVarPromptMiddleware(
+        user_id="owner", additional_keys=("CHANNEL_KEY",)
+    ).awrap_model_call(_Request(SystemMessage(content="base"), tools=[execute]), capture)
+    request = capture.await_args.args[0]
+    assert "CHANNEL_KEY" in request.tools[0].description
+    assert "CHANNEL_KEY" not in execute.description
+
+
 @pytest.mark.asyncio
 async def test_env_var_list_returns_masked_values(monkeypatch: pytest.MonkeyPatch) -> None:
     from src.infra.tool import env_var_tool

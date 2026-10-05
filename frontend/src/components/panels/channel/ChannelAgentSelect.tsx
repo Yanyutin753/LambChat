@@ -56,7 +56,7 @@ export function ChannelAgentSelect({
             ? t("common.loading", "Loading...")
             : t("channel.defaultAgent", "Default Agent")
         }
-        options={agents.map((agent) => ({
+        options={[{ value: "", label: t("channel.defaultAgent") }, ...agents.map((agent) => ({
           value: agent.id,
           label: (
             <>
@@ -69,7 +69,7 @@ export function ChannelAgentSelect({
               </span>
             </>
           ),
-        }))}
+        }))]}
       />
       <p className="es-hint">
         {t(

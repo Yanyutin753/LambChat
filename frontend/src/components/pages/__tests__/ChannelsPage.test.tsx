@@ -1,5 +1,12 @@
 /** @vitest-environment jsdom */
-import { render, screen, cleanup, waitFor, act } from "@testing-library/react";
+import {
+  render,
+  screen,
+  cleanup,
+  waitFor,
+  act,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { test, expect, vi, afterEach } from "vitest";
@@ -296,4 +303,81 @@ test("closing a mobile editor restores focus after the background stops being in
   await waitFor(() => expect(document.activeElement).not.toBe(document.body));
   expect(document.activeElement?.isConnected).toBe(true);
   expect(document.activeElement?.closest("[inert]")).toBeNull();
+});
+
+test("channel catalog follows the UI language without refetching metadata", async () => {
+  await i18n.changeLanguage("en");
+  vi.mocked(channelApi.getTypes).mockResolvedValue([
+    {
+      ...metadata,
+      channel_type: "weixin",
+      display_name: "WeChat Bot",
+      description:
+        "Chat with your agent in WeChat via the official iLink bot API",
+    },
+  ]);
+  vi.mocked(channelApi.listByType).mockResolvedValue([]);
+  mount("/channels");
+  await screen.findByRole("button", { name: "WeChat Bot" });
+  try {
+    await act(() => i18n.changeLanguage("zh"));
+    expect(screen.getByRole("button", { name: "微信机器人" })).toBeVisible();
+    expect(
+      screen.getByText("通过官方 iLink 机器人接口，在微信中与智能体对话"),
+    ).toBeVisible();
+    expect(channelApi.getTypes).toHaveBeenCalledTimes(1);
+  } finally {
+    await act(() => i18n.changeLanguage("en"));
+  }
+});
+
+test("catalog distinguishes outbound push, polling chat and callback chat in every locale", async () => {
+  vi.mocked(channelApi.getTypes).mockResolvedValue([
+    { ...metadata, capabilities: ["send_message"] },
+    {
+      ...metadata,
+      channel_type: "weixin",
+      capabilities: ["send_message", "long_polling"],
+    },
+    {
+      ...metadata,
+      channel_type: "feishu",
+      capabilities: ["send_message", "websocket", "webhook"],
+    },
+  ]);
+  vi.mocked(channelApi.listByType).mockResolvedValue([]);
+  mount("/channels");
+  await screen.findByRole("group", { name: "Slack" });
+  try {
+    for (const locale of ["zh", "en", "ja", "ko", "ru"]) {
+      await act(() => i18n.changeLanguage(locale));
+      const push = within(screen.getByRole("group", { name: "Slack" }));
+      const polling = within(
+        screen.getByRole("group", {
+          name: i18n.t("channel.catalog.providers.weixin.name"),
+        }),
+      );
+      const callback = within(
+        screen.getByRole("group", {
+          name: i18n.t("channel.catalog.providers.feishu.name"),
+        }),
+      );
+      for (const key of ["pushOnly", "twoWayChat", "longPolling"]) {
+        expect(
+          i18n.getResource(locale, "translation", `channel.${key}`),
+        ).toBeTruthy();
+      }
+      expect(push.getByText(i18n.t("channel.pushOnly"))).toBeVisible();
+      expect(push.queryByText(i18n.t("channel.twoWayChat"))).toBeNull();
+      expect(push.queryByText(i18n.t("channel.webhookShort"))).toBeNull();
+      expect(polling.getByText(i18n.t("channel.twoWayChat"))).toBeVisible();
+      expect(polling.getByText(i18n.t("channel.longPolling"))).toBeVisible();
+      expect(callback.getByText(i18n.t("channel.twoWayChat"))).toBeVisible();
+      expect(callback.getByText(i18n.t("channel.websocketShort"))).toBeVisible();
+      expect(callback.getByText(i18n.t("channel.webhookShort"))).toBeVisible();
+    }
+    expect(channelApi.getTypes).toHaveBeenCalledTimes(1);
+  } finally {
+    await act(() => i18n.changeLanguage("en"));
+  }
 });

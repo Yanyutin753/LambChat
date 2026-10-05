@@ -7,7 +7,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, beforeAll, expect, test, vi } from "vitest";
 import { SessionWorkspaceButton } from "../SessionWorkspaceButton";
 vi.mock("react-i18next", async (original) => ({
   ...(await original<typeof import("react-i18next")>()),
@@ -40,6 +40,11 @@ vi.mock("../WorkspacePanel", async () => {
     },
   };
 });
+beforeAll(async () => {
+  // Keep cold compilation of the real panel outside interaction timeouts.
+  // SessionWorkspaceButton still loads and renders it lazily after the click.
+  await import("../../chat/ChatMessage/items/ToolResultPanel");
+}, 30_000);
 afterEach(cleanup);
 Object.defineProperty(window, "innerWidth", {
   configurable: true,
