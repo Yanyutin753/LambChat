@@ -4,7 +4,23 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { BotMessageSquare, Bot, Plus, ChevronRight } from "lucide-react";
+import {
+  BotMessageSquare,
+  Bot,
+  Plus,
+  ChevronRight,
+  BellRing,
+  MessageSquare,
+  Send,
+  Hash,
+  Gamepad2,
+  RadioTower,
+  Dog,
+  Bell,
+  Megaphone,
+  SendHorizontal,
+  Zap,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
@@ -33,6 +49,18 @@ const CHANNEL_ICONS: Record<string, React.FC<{ className?: string }>> = {
   BotMessageSquare,
   "message-circle": Bot,
   feishu: BotMessageSquare,
+  // 出站推送渠道（键 = 后端渠道 icon 字段下发的 lucide 名）
+  "bell-ring": BellRing,
+  "message-square": MessageSquare,
+  send: Send,
+  hash: Hash,
+  "gamepad-2": Gamepad2,
+  "radio-tower": RadioTower,
+  dog: Dog,
+  bell: Bell,
+  megaphone: Megaphone,
+  "send-horizontal": SendHorizontal,
+  zap: Zap,
 };
 
 // Get icon component

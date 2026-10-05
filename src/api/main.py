@@ -528,6 +528,18 @@ async def lifespan(app: FastAPI):
     _feishu_task = asyncio.create_task(_start_feishu())
     app.state.feishu_task = _feishu_task
 
+    # Start outbound push channels (DingTalk/WeCom/Telegram/Slack/... webhooks)
+    async def _start_outbound():
+        try:
+            from src.infra.channel.outbound import start_outbound_channels
+
+            await start_outbound_channels()
+        except Exception as e:
+            logger.warning(f"Failed to start outbound channels: {e}")
+
+    _outbound_task = asyncio.create_task(_start_outbound())
+    app.state.outbound_task = _outbound_task
+
     # Periodically sync model prices (models.dev) and USD fx rates.
     async def _run_pricing_sync_loop() -> None:
         from src.infra.pricing.sync import sync_pricing
@@ -572,6 +584,13 @@ async def lifespan(app: FastAPI):
 
         # 先关闭飞书长连接并释放 lease，避免快速重启时旧锁阻止新实例启动。
         await _stop_feishu_channels_for_shutdown(app)
+        # 再关掉出站推送渠道（无长连接，只需停 manager 并关闭连接池）。
+        try:
+            from src.infra.channel.outbound import stop_outbound_channels
+
+            await stop_outbound_channels()
+        except Exception as e:
+            logger.warning(f"Failed to stop outbound channels: {e}")
         # 再统一取消 lifespan 后台任务，让各任务自己的 finally 在依赖关闭前完成。
         await _cancel_lifespan_background_tasks_for_shutdown(app)
 

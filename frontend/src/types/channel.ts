@@ -6,9 +6,16 @@ export type ChannelType =
   | "feishu"
   | "wechat"
   | "dingtalk"
+  | "wecom"
   | "slack"
   | "telegram"
-  | "discord";
+  | "discord"
+  | "ntfy"
+  | "bark"
+  | "gotify"
+  | "pushover"
+  | "serverchan"
+  | "pushplus";
 
 export type ChannelCapability =
   | "websocket"

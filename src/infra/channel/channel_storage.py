@@ -25,7 +25,21 @@ logger = get_logger(__name__)
 
 # Fields that should be encrypted
 SENSITIVE_FIELDS = frozenset(
-    {"app_secret", "secret", "token", "password", "api_key", "access_token"}
+    {
+        "app_secret",
+        "secret",
+        "token",
+        "password",
+        "api_key",
+        "access_token",
+        # 出站推送渠道的凭据字段（webhook URL 本身携带 access_token/key）
+        "webhook_url",
+        "bot_token",
+        "app_token",
+        "user_key",
+        "device_key",
+        "send_key",
+    }
 )
 CHANNEL_CONFIG_LIST_LIMIT = 200
 

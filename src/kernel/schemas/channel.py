@@ -16,12 +16,18 @@ class ChannelType(str, Enum):
     """Supported channel types."""
 
     FEISHU = "feishu"
-    # Future channels:
-    # WECHAT = "wechat"
-    # DINGTALK = "dingtalk"
-    # SLACK = "slack"
-    # TELEGRAM = "telegram"
-    # DISCORD = "discord"
+    # 出站推送渠道（webhook/Bot API，无长连接无入站）
+    DINGTALK = "dingtalk"
+    WECOM = "wecom"
+    TELEGRAM = "telegram"
+    SLACK = "slack"
+    DISCORD = "discord"
+    NTFY = "ntfy"
+    BARK = "bark"
+    GOTIFY = "gotify"
+    PUSHOVER = "pushover"
+    SERVERCHAN = "serverchan"
+    PUSHPLUS = "pushplus"
 
 
 class ChannelCapability(str, Enum):
