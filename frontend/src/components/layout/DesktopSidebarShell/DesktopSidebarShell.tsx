@@ -1,3 +1,4 @@
+import { SidebarToggleIcon } from "../../common/SidebarToggleIcon";
 import { hasVisibleModalDialog } from "../../../utils/modalDialog";
 /** 左侧导航壳：会话列表、全局导航和可调整宽度。会话文件由右侧面板承载。 */
 
@@ -11,7 +12,7 @@ import {
 } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Bell, PanelLeft, Search } from "lucide-react";
+import { Bell, Search } from "lucide-react";
 import clsx from "clsx";
 import { BrandLogo } from "../../common/BrandLogo";
 import { BrandWordmark } from "../../common/BrandWordmark";
@@ -271,7 +272,7 @@ export function DesktopSidebarShell({
                       onClick={() => onToggleCollapsed(true)}
                       className="flex size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle focus-visible:outline focus-visible:outline-2"
                     >
-                      <PanelLeft size={16} aria-hidden="true" />
+                      <SidebarToggleIcon className="size-4" />
                     </button>
                   )}
                   <button

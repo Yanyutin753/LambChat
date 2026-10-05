@@ -12,8 +12,8 @@ test("mobile sidebar expand toggle matches the sidebar collapse icon color", () 
   );
 });
 
-test("header overflow menu trigger matches the sidebar collapse icon color", () => {
+test("header overflow menu trigger uses theme colors and visible interaction states", () => {
   expect(source).toMatch(
-    /className="flex size-11 sm:size-8 items-center justify-center rounded-lg text-stone-600 hover:bg-\[var\(--color-background-muted\)\] dark:text-stone-300 transition-colors"\s+title=\{t\("common\.menu"\)\}/,
+    /className="flex size-11 sm:size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle aria-expanded:bg-theme-bg-subtle aria-expanded:text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-\[var\(--theme-ring\)\]"\s+title=\{t\("common\.menu"\)\}/,
   );
 });

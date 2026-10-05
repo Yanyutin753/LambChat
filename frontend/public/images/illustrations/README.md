@@ -15,6 +15,11 @@
 - `lamb-message.png`：Full small lamb sitting, gently holding a small muted sage envelope with both paws, attentive friendly expression.
 - `lamb-notification.png`：内置 ImageGen 图生图，以 `lamb-avatar.png` 和 `lamb-message.png` 为参考。小羊头部从浅鼠尾草绿信封后探出，两只小蹄自然搭在信封上缘；没有躯干或腿。保留奶油白羊毛、粉色脸颊、柔和棕色描边，表情放松、头部微倾。透明底，无铃铛、缎带、角标或装饰符号；192×192 静态 PNG，用于 44px 通知插图，深浅色共用。
 
+## 消息评价弹窗（2026-10-05）
+
+- 好评：`lamb-panel-feedback-positive.png`，内置 ImageGen 以 `lamb-panel-feedback.png` 为画风参考生成，透明 PNG；差评复用 `lamb-panel-feedback.png` 的认真记录形象。两者在标题旁显示为 48px，均使用 `panel-` 场景以复用 `SceneIllustration` 的统一圆角、底色、边框、内边距与装饰语义。
+- 好评生成提示词：Create ONE new production UI spot illustration for the POSITIVE feedback dialog in LambChat. Use the reference image only as exact character/style reference: same round cream lamb face, scalloped ivory wool tuft, floppy ears, tiny black eyes, peach blush, thick dark brown clean hand-drawn outline. Close-up head and tiny paws portrait, joyful grateful expression, soft happy closed eyes and small smile, both tiny hooves gently holding a small muted sage heart at lower center to express appreciation. No pencil, no notebook. Preserve reference identity and restrained flat ivory, muted sage palette. Fills 88% square canvas, readable at 48px. True transparent alpha background, no text, letters, background circle, tile, gradients, sparkles, ground, shadow or full body. Save as PNG.
+
 ## 面板专属头像（2026-09-30）
 
 使用内置 ImageGen，以 `lamb-avatar.png` 为品牌参考逐张生成，保留原生成文件；交付素材为 `lamb-panel-*.png`，192×192 透明 PNG。桌面页头显示 48px，定制工具栏 48px，手机导航标题 28px。复用 `SceneIllustration` 的装饰语义、加载回退和主题处理。

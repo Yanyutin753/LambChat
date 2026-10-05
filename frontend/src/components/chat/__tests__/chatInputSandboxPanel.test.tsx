@@ -4,7 +4,7 @@
 // 2. RunModePopover 设置组提供"沙箱"条目（档位+设备 badge + daemon 在线状态点），点击打开 sandbox 面板
 // 3. sandbox 面板为统一面板：档位（云端/本地）+ 执行设备同弹窗；点设备自动切本地档
 // 4. 当前设备在设备行上标识（壳内 read_machine_id 比对命中）
-// 5. 工具栏左侧提供"沙箱"chip（档位图标 + 档位·设备标签 + 本地档状态点），单击直达 sandbox 面板
+// 5. 工具栏左侧提供"沙箱"chip（档位图标 + 设备标签 + 本地档状态点），单击直达 sandbox 面板
 import {
   cleanup,
   fireEvent,
@@ -437,8 +437,8 @@ test("sandbox chip shows the selected machine in the label on the local tier", a
   });
   renderToolbar(vi.fn(), { sandbox: "local", sandbox_machine_id: "mac1" });
 
-  // chip：档位 · 设备 一目了然
-  const chip = await screen.findByTitle("Sandbox · Local computer · MacBook");
+  // chip：直接显示设备名，省略本地电脑前缀
+  const chip = await screen.findByTitle("Sandbox · MacBook");
   expect(chip).toHaveTextContent("MacBook");
 });
 

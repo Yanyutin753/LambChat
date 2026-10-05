@@ -14,11 +14,6 @@ import {
   getFullUrl,
 } from "../../services/api/config";
 import {
-  getSidebarHistoryLength,
-  goBackSidebar,
-  subscribeSidebarHistory,
-} from "../chat/ChatMessage/items/sidebarHistoryStore";
-import {
   fetchDocumentArrayBuffer,
   fetchDocumentText,
   fetchUploadFile,
@@ -84,17 +79,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
 
   const { t } = useTranslation();
 
-  // Sidebar history
-  const [historyAvailable, setHistoryAvailable] = useState(
-    () => getSidebarHistoryLength() > 0,
-  );
-  useEffect(() => {
-    return subscribeSidebarHistory(() => {
-      setHistoryAvailable(getSidebarHistoryLength() > 0);
-    });
-  }, []);
-  const effectiveOnBack =
-    onBack ?? (historyAvailable ? goBackSidebar : undefined);
+  const effectiveOnBack = onBack;
 
   // Data state
   const [data, setData] = useState<{ content: string; path: string } | null>(

@@ -1,3 +1,4 @@
+import { EmptyState } from "../../common/EmptyState";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -100,17 +101,14 @@ function SessionScheduledTaskPanelBody({
           <Loader2 className="h-5 w-5 animate-spin text-stone-400" />
         </div>
       ) : tasks.length === 0 ? (
-        <div className="scheduled-task-empty-state min-h-0 flex-1 px-6">
-          <div className="scheduled-task-empty-state__icon h-12 w-12">
-            <CalendarClock size={24} />
-          </div>
-          <p className="scheduled-task-empty-state__body">
-            {t(
-              "scheduledTask.noConversationTasks",
-              "当前会话暂无 agent 创建的定时任务",
-            )}
-          </p>
-        </div>
+        <EmptyState
+          className="flex-1"
+          icon={<CalendarClock size={20} />}
+          title={t(
+            "scheduledTask.noConversationTasks",
+            "当前会话暂无 agent 创建的定时任务",
+          )}
+        />
       ) : (
         <div className="scheduled-task-panel flex-1 space-y-2 overflow-y-auto p-3">
           {tasks.map((task) => (

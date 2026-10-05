@@ -38,7 +38,7 @@ export function ThinkingBlock({
         status,
         subtitle,
         children: (
-          <div className="p-3 sm:p-4 [&_.markdown-preview]:thinking-content">
+          <div className="right-panel-prose [&_.markdown-preview]:thinking-content">
             <SidebarMarkdownContent
               content={displayContent}
               isStreaming={isStreaming}
@@ -81,7 +81,7 @@ export function ThinkingBlock({
           status,
           panelKey,
           children: (
-            <div className="p-3 sm:p-4 [&_.markdown-preview]:thinking-content">
+            <div className="right-panel-prose [&_.markdown-preview]:thinking-content">
               <SidebarMarkdownContent
                 content={displayContent}
                 isStreaming={isStreaming}

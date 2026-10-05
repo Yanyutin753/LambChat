@@ -37,7 +37,10 @@ export function EmptyState({
       {illustration ? (
         <SceneIllustration scene={illustration} />
       ) : (
-        <div className="flex size-10 items-center justify-center rounded-full bg-theme-bg-subtle text-theme-text-tertiary">
+        <div
+          aria-hidden="true"
+          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-theme-bg-subtle text-theme-text-tertiary [&>svg]:size-5"
+        >
           {icon ?? <MessageSquare size={20} />}
         </div>
       )}

@@ -60,7 +60,7 @@ export function useRightPanelEntry({
   // Subscribe to flags, so unrelated tab metadata cannot rerender hidden shells.
   const getFlags = () => {
     const current = getRightPanelSnapshot();
-    return (current.activeId === ownerId ? 1 : 0) | (current.depth > 1 ? 2 : 0);
+    return (current.activeId === ownerId ? 1 : 0) | (current.depth > 1 ? 2 : 0) | (current.collapsed ? 4 : 0);
   };
   const flags = useSyncExternalStore(subscribeRightPanels, getFlags, getFlags);
 
@@ -120,7 +120,8 @@ export function useRightPanelEntry({
   return {
     ownerId,
     panelId,
-    active: open && !!(flags & 1),
+    selected: open && !!(flags & 1),
+    active: open && !!(flags & 1) && !(flags & 4),
     hasPrevious: open && !!(flags & 1) && !!(flags & 2),
     openerRef,
   };
@@ -165,6 +166,7 @@ export function useRightPanelFocus({
     if (active && !wasActive.current && !automatic) {
       queueMicrotask(() => {
         const panel = panelRef.current;
+        if (!panel || panel.closest("[hidden], [inert]")) return;
         const first =
           panel?.querySelector<HTMLElement>(
             '[role="tab"][aria-selected="true"]',

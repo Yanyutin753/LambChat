@@ -79,6 +79,28 @@ function chooseFile() {
   });
 }
 
+test.each([
+  ["up", "positive", "panel-feedback-positive"],
+  ["down", "negative", "panel-feedback"],
+] as const)(
+  "%s feedback shows matching decorative lamb beside its title",
+  (rating, label, scene) => {
+    open({ rating });
+    const dialog = screen.getByRole("dialog", { name: `feedback.${label}` });
+    const illustration = dialog.querySelector(
+      `img[src="/images/illustrations/lamb-${scene}.png"]`,
+    );
+    expect(illustration).toBeInTheDocument();
+    expect(illustration).toHaveAttribute("alt", "");
+    expect(illustration).toHaveAttribute("aria-hidden", "true");
+    expect(illustration).toHaveClass("panel-artwork", "!h-12", "!w-12");
+    expect(illustration?.parentElement).toContainElement(
+      screen.getByRole("heading", { name: `feedback.${label}` }),
+    );
+    expect(screen.getByRole("textbox")).toHaveFocus();
+  },
+);
+
 test("feedback image actions and comment have native accessible names", () => {
   open();
   expect(

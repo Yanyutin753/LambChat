@@ -91,7 +91,7 @@ test.each([{ isComposing: true }, { keyCode: 229 }])(
     expect(screen.queryByRole("menu")).toBeNull();
   },
 );
-test("mobile sheet has an explicit close action that returns focus to the avatar", async () => {
+test("mobile sheet omits the header and Escape returns focus to the avatar", async () => {
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
     value: 390,
@@ -99,9 +99,11 @@ test("mobile sheet has an explicit close action that returns focus to the avatar
   const trigger = mountMenu();
   const sheet = screen.getByRole("dialog", { name: "Profile", exact: true });
   expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
-  await userEvent.click(
-    within(sheet).getByRole("button", { name: "Close", exact: true }),
-  );
+  expect(within(sheet).queryByText(auth.user.username)).toBeNull();
+  expect(
+    within(sheet).queryByRole("button", { name: "Close", exact: true }),
+  ).toBeNull();
+  await userEvent.keyboard("{Escape}");
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(trigger).toHaveFocus();
 });

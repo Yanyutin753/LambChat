@@ -185,3 +185,13 @@ test("embedded previews hide an empty overflow menu", () => {
   renderCopyLinkButton({ embedded: true }, false);
   expect(screen.queryByRole("button", { name: "nav.more" })).toBeNull();
 });
+
+
+test("fullscreen exit leaves the document tab open", () => {
+  const exitFullscreen = vi.fn();
+  const onClose = vi.fn();
+  renderCopyLinkButton({ isFullscreen: true, exitFullscreen, onClose }, false);
+  fireEvent.click(screen.getByRole("button", { name: "documents.exitFullscreen" }));
+  expect(exitFullscreen).toHaveBeenCalledOnce();
+  expect(onClose).not.toHaveBeenCalled();
+});

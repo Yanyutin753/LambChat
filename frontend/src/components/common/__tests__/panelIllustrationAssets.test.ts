@@ -11,6 +11,7 @@ const panels = [
   "memory",
   "notifications",
   "feedback",
+  "feedback-positive",
   "schedule",
   "usage",
   "mcp",

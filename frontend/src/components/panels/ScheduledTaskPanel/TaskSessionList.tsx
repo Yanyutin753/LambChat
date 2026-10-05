@@ -1,3 +1,4 @@
+import { EmptyState } from "../../common/EmptyState";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -90,17 +91,11 @@ export function TaskSessionList({
       {/* Session List */}
       <div className="panel-body flex-1 overflow-y-auto">
         {sessions.length === 0 ? (
-          <div className="scheduled-task-empty-state">
-            <div className="scheduled-task-empty-state__icon">
-              <MessageSquare size={32} />
-            </div>
-            <p className="scheduled-task-empty-state__title font-serif">
-              {t("scheduledTask.noSessions")}
-            </p>
-            <p className="scheduled-task-empty-state__body">
-              {t("scheduledTask.noSessionsDesc")}
-            </p>
-          </div>
+          <EmptyState
+            icon={<MessageSquare size={20} />}
+            title={t("scheduledTask.noSessions")}
+            description={t("scheduledTask.noSessionsDesc")}
+          />
         ) : (
           <div className="scheduled-task-list">
             {sessions.map((session) => {

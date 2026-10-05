@@ -88,7 +88,7 @@ test("narrow screens open files as a modal with a working close control", async 
   expect(
     await screen.findByRole("dialog", { name: "workspacePanel.title" }),
   ).toHaveAttribute("aria-modal", "true");
-  fireEvent.click(screen.getByRole("button", { name: "common.close" }));
+  fireEvent.click(screen.getByRole("button", { name: "common.closePanelTab" }));
   expect(screen.queryByRole("dialog")).toBeNull();
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
@@ -125,7 +125,7 @@ test("files and previews share width, including resize then return", async () =>
     .getByRole("separator")
     .getAttribute("aria-valuenow");
   const previewWidth = width();
-  fireEvent.click(within(preview).getByRole("button", { name: "common.back" }));
+  fireEvent.click(within(preview).getByRole("tab", { name: "workspacePanel.title" }));
   await waitFor(() => expect(files).toBeVisible());
   expect(within(files).getByRole("separator")).toHaveAttribute(
     "aria-valuenow",
@@ -162,7 +162,7 @@ test.each([390, 768, 1440])(
     const preview = await screen.findByRole(role, { name: "Preview" });
     expect(preview).toHaveAttribute("data-panel-presentation", presentation);
     fireEvent.click(
-      within(preview).getByRole("button", { name: "common.back" }),
+      within(preview).getByRole("tab", { name: "workspacePanel.title" }),
     );
     await waitFor(() => expect(files).toBeVisible());
     Object.defineProperty(window, "innerWidth", {
@@ -171,3 +171,16 @@ test.each([390, 768, 1440])(
     });
   },
 );
+
+
+test("the workspace launcher restores a collapsed tab instead of closing it", async () => {
+  render(<SessionWorkspaceButton sessionId="collapse" />);
+  const launcher = screen.getByRole("button", { name: "workspacePanel.title" });
+  fireEvent.click(launcher);
+  await screen.findByText("files for collapse");
+  fireEvent.click(screen.getByRole("button", { name: "common.collapsePanel" }));
+  expect(launcher).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(launcher);
+  expect(await screen.findByText("files for collapse")).toBeVisible();
+  expect(screen.getAllByRole("tab")).toHaveLength(1);
+});

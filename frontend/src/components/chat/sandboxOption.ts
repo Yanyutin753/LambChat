@@ -139,7 +139,7 @@ export function buildSandboxMachineRows(
 
 /**
  * 沙箱入口按钮（工具栏 chip / RunModePopover 徽标）的展示标签：
- * 云端档或本地自动 → 档位名；本地指定机 → 「档位名 · 机器名」。
+ * 云端档或本地自动 → 档位名；本地指定机 → 机器名。
  * 机器值不在列表（他端删除/失效）回落档位名，不展示幽灵机器。
  */
 export function resolveSandboxButtonLabel(opts: {
@@ -154,5 +154,5 @@ export function resolveSandboxButtonLabel(opts: {
   if (!machineId) return opts.tierLabel;
   const machine = opts.machines.find((m) => m.machine_id === machineId);
   if (!machine) return opts.tierLabel;
-  return `${opts.tierLabel} · ${machine.name || machine.machine_id}`;
+  return machine.name || machine.machine_id;
 }

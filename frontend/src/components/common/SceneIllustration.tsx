@@ -14,6 +14,7 @@ export type IllustrationScene =
   | "panel-memory"
   | "panel-notifications"
   | "panel-feedback"
+  | "panel-feedback-positive"
   | "panel-schedule"
   | "panel-usage"
   | "panel-mcp"

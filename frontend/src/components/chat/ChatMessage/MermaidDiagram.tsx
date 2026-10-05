@@ -751,7 +751,7 @@ function MermaidViewer({
           onWheel={handleWheel}
         >
           <div
-            className="absolute inset-0 flex items-center justify-center"
+            className="viewer-stage absolute inset-0 flex items-center justify-center"
             style={{
               cursor:
                 scale > 1 ? (isDragging ? "grabbing" : "grab") : "default",
@@ -766,7 +766,7 @@ function MermaidViewer({
             <img
               src={svgBlobUrl}
               alt={t("chat.mermaidDiagram", "Mermaid 图表")}
-              className="max-w-[90vw] max-h-[85dvh] object-contain select-none"
+              className="max-w-full max-h-full object-contain select-none"
               style={{
                 transform: `translate(${position.x}px, ${position.y}px) scale(${scale}) rotate(${rotation}deg)`,
                 transition: isDragging ? "none" : "transform 0.1s ease-out",
@@ -801,7 +801,7 @@ function MermaidViewer({
 
         {/* Code panel */}
         {showCode && (
-          <div className="w-full sm:w-[480px] border-l border-white/10 bg-stone-900 flex flex-col overflow-hidden">
+          <div className="viewer-stage w-full sm:w-[480px] border-l border-white/10 bg-stone-900 flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2 border-b border-white/10">
               <span className="text-12 font-medium text-white/50">
                 {t("chat.mermaid", "Mermaid")}

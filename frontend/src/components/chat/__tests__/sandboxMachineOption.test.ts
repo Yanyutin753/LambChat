@@ -130,7 +130,7 @@ describe("resolveSandboxButtonLabel", () => {
     ).toBe(tierLabel);
   });
 
-  it("本地 + 指定机器显示「档位名 · 机器名」", () => {
+  it("本地 + 指定机器只显示机器名", () => {
     expect(
       resolveSandboxButtonLabel({
         sandboxValue: "local",
@@ -138,7 +138,7 @@ describe("resolveSandboxButtonLabel", () => {
         machineValue: "mac1",
         machines,
       }),
-    ).toBe("本地 · MacBook");
+    ).toBe("MacBook");
     // 无名机器回落 machine_id
     expect(
       resolveSandboxButtonLabel({
@@ -147,7 +147,7 @@ describe("resolveSandboxButtonLabel", () => {
         machineValue: "srv1",
         machines: [machine("srv1", { name: "" })],
       }),
-    ).toBe("本地 · srv1");
+    ).toBe("srv1");
   });
 
   it("本地 + 机器值已失效（不在列表）回落档位名", () => {
