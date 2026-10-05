@@ -7,6 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
+import { useState } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { DESKTOP_SIDEBAR_OPEN_SEARCH_EVENT } from "../desktopShellPlatform";
 import { DesktopSidebarShellGate } from "../DesktopSidebarShell";
@@ -41,7 +42,7 @@ test("native sidebar toggle opens the drawer at mobile widths", () => {
   expect(toggleMobile).toHaveBeenCalledWith(true);
 });
 
-test("desktop header omits collapse and gives notification and search equal spacing", () => {
+test("web header places collapse beside notifications with equally sized controls", () => {
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
     value: 1200,
@@ -53,11 +54,12 @@ test("desktop header omits collapse and gives notification and search equal spac
       </DesktopSidebarShellGate>
     </MemoryRouter>,
   );
-  expect(
-    screen.queryByRole("button", { name: "sidebar.collapseSidebar" }),
-  ).toBeNull();
   const notifications = screen.getByRole("button", { name: "nav.notifications" });
   const search = screen.getByRole("button", { name: "sidebar.searchSessions" });
+  const collapse = screen.getByRole("button", { name: "sidebar.collapseSidebar" });
+  expect(collapse.parentElement).toBe(notifications.parentElement);
+  expect(collapse.nextElementSibling).toBe(notifications);
+  expect(collapse).toHaveClass("size-8");
   expect(notifications.parentElement).toBe(search.parentElement);
   expect(notifications).toHaveClass("size-8");
   expect(search).toHaveClass("size-8");
@@ -247,4 +249,52 @@ test("activity rail exposes creation tools and keeps only secondary features in 
   expect(screen.getByRole("button", { name: "nav.channels" })).toBeVisible();
   expect(screen.getByRole("button", { name: "nav.memory" })).toBeVisible();
   expect(screen.getAllByRole("button", { name: "nav.skills" })).toHaveLength(1);
+});
+
+test("web navigation keeps a working sidebar toggle visible in both states", () => {
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: 1200,
+  });
+  function Workspace() {
+    const [collapsed, setCollapsed] = useState(false);
+    return (
+      <DesktopSidebarShellGate collapsed={collapsed} onToggleCollapsed={setCollapsed}>
+        <div>chats</div>
+      </DesktopSidebarShellGate>
+    );
+  }
+  const { container } = render(
+    <MemoryRouter><Workspace /></MemoryRouter>,
+  );
+  const sidebar = container.querySelector("[data-desktop-sidebar]");
+  const collapse = screen.getByRole("button", { name: "sidebar.collapseSidebar" });
+  expect(collapse).toHaveAttribute("aria-expanded", "true");
+  fireEvent.click(collapse);
+  expect(sidebar).toHaveAttribute("inert");
+  const expand = screen.getByRole("button", { name: "sidebar.expandSidebar" });
+  expect(expand).toBeVisible();
+  expect(expand).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(expand);
+  expect(sidebar).not.toHaveAttribute("inert");
+});
+
+
+test("saved narrow sidebar widths are raised to the new minimum", () => {
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: 1200 });
+  localStorage.setItem("lambchat_desktop_sidebar_width", "232");
+  try {
+    render(
+      <MemoryRouter>
+        <DesktopSidebarShellGate collapsed={false} onToggleCollapsed={vi.fn()}>
+          <div>chats</div>
+        </DesktopSidebarShellGate>
+      </MemoryRouter>,
+    );
+    const handle = screen.getByRole("separator");
+    expect(handle).toHaveAttribute("aria-valuemin", "264");
+    expect(handle).toHaveAttribute("aria-valuenow", "264");
+  } finally {
+    localStorage.removeItem("lambchat_desktop_sidebar_width");
+  }
 });

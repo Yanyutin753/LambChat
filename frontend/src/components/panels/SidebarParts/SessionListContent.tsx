@@ -285,7 +285,10 @@ export function SessionListContent({
     <>
       {/* Header（桌面双栏模式下品牌与折叠由 ActivityRail 承接，不渲染） */}
       {!compactChrome && (
-        <div className="flex items-center justify-between px-3 pt-3 pb-2">
+        <div
+          data-sidebar-brand=""
+          className="flex h-12 shrink-0 items-center justify-between px-3"
+        >
           <div className="flex size-7 items-center gap-1.5">
             <BrandLogo alt={APP_NAME} className="size-7 mb-1" />
             <a

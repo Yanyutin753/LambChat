@@ -11,7 +11,7 @@ import {
 } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Bell, Search } from "lucide-react";
+import { Bell, PanelLeft, Search } from "lucide-react";
 import clsx from "clsx";
 import { BrandLogo } from "../../common/BrandLogo";
 import { BrandWordmark } from "../../common/BrandWordmark";
@@ -29,7 +29,7 @@ import {
 
 const WIDTH_STORAGE_KEY = "lambchat_desktop_sidebar_width";
 const DEFAULT_WIDTH = 264;
-const MIN_WIDTH = 232;
+const MIN_WIDTH = 264;
 const MAX_WIDTH_CAP = 480;
 const MAX_WIDTH_RATIO = 0.5;
 
@@ -223,6 +223,7 @@ export function DesktopSidebarShell({
         <DesktopActivityRail
           collapsed={collapsed}
           onOpenChats={() => onToggleChatCollapsed(false)}
+          onToggleSidebar={() => onToggleCollapsed(!collapsed)}
           onShowProfile={onShowProfile}
         />
       )}
@@ -262,6 +263,18 @@ export function DesktopSidebarShell({
                   <BrandWordmark decorative className="h-7 w-auto min-w-0" />
                 </Link>
                 <div className="ml-auto flex shrink-0 items-center">
+                  {!isDesktopShell() && (
+                    <button
+                      type="button"
+                      title={t("sidebar.collapseSidebar")}
+                      aria-label={t("sidebar.collapseSidebar")}
+                      aria-expanded={!collapsed}
+                      onClick={() => onToggleCollapsed(true)}
+                      className="flex size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle focus-visible:outline focus-visible:outline-2"
+                    >
+                      <PanelLeft size={16} aria-hidden="true" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     title={t("nav.notifications")}

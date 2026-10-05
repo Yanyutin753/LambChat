@@ -3,6 +3,7 @@ import {
   FolderOpen,
   MessageCircle,
   MoreHorizontal,
+  PanelLeft,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -10,15 +11,18 @@ import { useAuth } from "../../../hooks/useAuth";
 import { useMoreMenu } from "../../../hooks/useMoreMenu";
 import { SidebarUserRow } from "../../panels/SidebarParts/SidebarUserRow";
 import { DesktopMoreMenu } from "../../panels/SidebarParts/DesktopMoreMenu";
+import { isDesktopShell } from "./desktopShellPlatform";
 import { Permission } from "../../../types/auth";
 
 export function DesktopActivityRail({
   collapsed,
   onOpenChats,
+  onToggleSidebar,
   onShowProfile,
 }: {
   collapsed: boolean;
   onOpenChats: () => void;
+  onToggleSidebar?: () => void;
   onShowProfile?: () => void;
 }) {
   const { t } = useTranslation();
@@ -58,6 +62,18 @@ export function DesktopActivityRail({
       className="flex h-full w-[var(--sidebar-rail-width)] shrink-0 flex-col items-center border-r border-theme-border bg-[var(--theme-bg-sidebar)] py-1.5"
     >
       <div className="flex min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto">
+        {!isDesktopShell() && collapsed && onToggleSidebar && (
+          <button
+            type="button"
+            className={buttonClass}
+            title={t("sidebar.expandSidebar")}
+            aria-label={t("sidebar.expandSidebar")}
+            aria-expanded={!collapsed}
+            onClick={onToggleSidebar}
+          >
+            <PanelLeft size={19} aria-hidden="true" />
+          </button>
+        )}
         <button
           type="button"
           className={buttonClass}
