@@ -21,6 +21,7 @@ export type ChannelType =
 export type ChannelCapability =
   | "websocket"
   | "webhook"
+  | "long_polling"
   | "send_message"
   | "send_image"
   | "send_file"

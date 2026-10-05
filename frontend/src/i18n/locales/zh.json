@@ -784,6 +784,9 @@
     "title": "渠道管理",
     "webhookShort": "Hook",
     "websocketShort": "WS",
+    "pushOnly": "单向推送",
+    "twoWayChat": "双向聊天",
+    "longPolling": "长轮询",
     "weixin": {
       "scanLogin": "扫码登录获取 Token",
       "qrWaiting": "请用微信扫码确认",

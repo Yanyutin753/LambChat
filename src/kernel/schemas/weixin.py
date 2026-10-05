@@ -33,6 +33,7 @@ class WeixinConfig(ChannelConfigBase):
     @classmethod
     def get_capabilities(cls) -> list[ChannelCapability]:
         return [
+            ChannelCapability.LONG_POLLING,
             ChannelCapability.SEND_MESSAGE,
             ChannelCapability.DIRECT_MESSAGE,
             ChannelCapability.GROUP_CHAT,

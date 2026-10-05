@@ -91,6 +91,7 @@ def test_weixin_registered_as_bidirectional_channel() -> None:
     cls = get_registry().get_channel_class(ChannelType.WEIXIN)
     assert cls is not None
     caps = {c.value for c in cls.get_capabilities()}
+    assert "long_polling" in caps
     assert "send_message" in caps
 
 

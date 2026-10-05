@@ -1,5 +1,12 @@
 /** @vitest-environment jsdom */
-import { render, screen, cleanup, waitFor, act } from "@testing-library/react";
+import {
+  render,
+  screen,
+  cleanup,
+  waitFor,
+  act,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { test, expect, vi, afterEach } from "vitest";
@@ -318,6 +325,57 @@ test("channel catalog follows the UI language without refetching metadata", asyn
     expect(
       screen.getByText("通过官方 iLink 机器人接口，在微信中与智能体对话"),
     ).toBeVisible();
+    expect(channelApi.getTypes).toHaveBeenCalledTimes(1);
+  } finally {
+    await act(() => i18n.changeLanguage("en"));
+  }
+});
+
+test("catalog distinguishes outbound push, polling chat and callback chat in every locale", async () => {
+  vi.mocked(channelApi.getTypes).mockResolvedValue([
+    { ...metadata, capabilities: ["send_message"] },
+    {
+      ...metadata,
+      channel_type: "weixin",
+      capabilities: ["send_message", "long_polling"],
+    },
+    {
+      ...metadata,
+      channel_type: "feishu",
+      capabilities: ["send_message", "websocket", "webhook"],
+    },
+  ]);
+  vi.mocked(channelApi.listByType).mockResolvedValue([]);
+  mount("/channels");
+  await screen.findByRole("group", { name: "Slack" });
+  try {
+    for (const locale of ["zh", "en", "ja", "ko", "ru"]) {
+      await act(() => i18n.changeLanguage(locale));
+      const push = within(screen.getByRole("group", { name: "Slack" }));
+      const polling = within(
+        screen.getByRole("group", {
+          name: i18n.t("channel.catalog.providers.weixin.name"),
+        }),
+      );
+      const callback = within(
+        screen.getByRole("group", {
+          name: i18n.t("channel.catalog.providers.feishu.name"),
+        }),
+      );
+      for (const key of ["pushOnly", "twoWayChat", "longPolling"]) {
+        expect(
+          i18n.getResource(locale, "translation", `channel.${key}`),
+        ).toBeTruthy();
+      }
+      expect(push.getByText(i18n.t("channel.pushOnly"))).toBeVisible();
+      expect(push.queryByText(i18n.t("channel.twoWayChat"))).toBeNull();
+      expect(push.queryByText(i18n.t("channel.webhookShort"))).toBeNull();
+      expect(polling.getByText(i18n.t("channel.twoWayChat"))).toBeVisible();
+      expect(polling.getByText(i18n.t("channel.longPolling"))).toBeVisible();
+      expect(callback.getByText(i18n.t("channel.twoWayChat"))).toBeVisible();
+      expect(callback.getByText(i18n.t("channel.websocketShort"))).toBeVisible();
+      expect(callback.getByText(i18n.t("channel.webhookShort"))).toBeVisible();
+    }
     expect(channelApi.getTypes).toHaveBeenCalledTimes(1);
   } finally {
     await act(() => i18n.changeLanguage("en"));

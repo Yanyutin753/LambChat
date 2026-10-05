@@ -37,6 +37,7 @@ class ChannelCapability(str, Enum):
 
     WEBSOCKET = "websocket"  # Supports WebSocket long connection
     WEBHOOK = "webhook"  # Supports webhook callbacks
+    LONG_POLLING = "long_polling"  # Receives messages via long polling
     SEND_MESSAGE = "send_message"  # Can send messages
     SEND_IMAGE = "send_image"  # Can send images
     SEND_FILE = "send_file"  # Can send files

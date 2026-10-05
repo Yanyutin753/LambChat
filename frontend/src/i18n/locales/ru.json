@@ -784,6 +784,9 @@
     "title": "Каналы",
     "webhookShort": "Hook",
     "websocketShort": "WS",
+    "pushOnly": "Только уведомления",
+    "twoWayChat": "Двусторонний чат",
+    "longPolling": "Долгий опрос",
     "weixin": {
       "scanLogin": "Сканируйте QR для получения токена",
       "qrWaiting": "Отсканируйте в WeChat для подтверждения",

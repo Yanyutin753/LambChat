@@ -784,6 +784,9 @@
     "title": "채널",
     "webhookShort": "Hook",
     "websocketShort": "WS",
+    "pushOnly": "단방향 알림",
+    "twoWayChat": "양방향 채팅",
+    "longPolling": "롱 폴링",
     "weixin": {
       "scanLogin": "QR 스캔으로 토큰 받기",
       "qrWaiting": "WeChat로 스캔하여 확인하세요",

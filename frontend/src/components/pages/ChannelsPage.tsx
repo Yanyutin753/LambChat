@@ -365,6 +365,9 @@ export function ChannelsPage() {
                         : statusUnavailable
                           ? "channel.statusUnavailable"
                           : "channel.disconnected";
+                    const receivesMessages = ct.capabilities.some((capability) =>
+                      ["websocket", "webhook", "long_polling"].includes(capability),
+                    );
                     const gradient = nameToGradient(
                       rawChannelTypes.find(
                         (raw) => raw.channel_type === ct.channel_type,
@@ -385,6 +388,20 @@ export function ChannelsPage() {
                                 className={`rounded-full px-2 py-0.5 text-12 font-medium ${hasAnyConnected ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300" : allDisabled || statusUnavailable ? "bg-[var(--theme-primary-light)] text-theme-text-secondary" : "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"}`}
                               >
                                 {t(summaryStatus)}
+                              </span>
+                            )}
+                            {ct.capabilities.includes("send_message") && (
+                              <span className="rounded-full bg-[var(--theme-primary-light)] px-2 py-0.5 text-12 font-medium text-theme-text-secondary">
+                                {t(
+                                  receivesMessages
+                                    ? "channel.twoWayChat"
+                                    : "channel.pushOnly",
+                                )}
+                              </span>
+                            )}
+                            {ct.capabilities.includes("long_polling") && (
+                              <span className="rounded-full bg-[var(--theme-primary-light)] px-2 py-0.5 text-12 font-medium text-theme-text-secondary">
+                                {t("channel.longPolling")}
                               </span>
                             )}
                             {ct.capabilities.includes("websocket") && (
