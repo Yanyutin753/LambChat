@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import QRCode from "qrcode";
+import { ChannelIcon } from "../ChannelIcon";
 import { BackIcon } from "../../../common/BackIcon";
-import { BotMessageSquare, Save, Trash2 } from "lucide-react";
+import { Save, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../../../hooks/useAuth";
@@ -770,12 +771,7 @@ export function FeishuPanel({
             : instanceName || t("feishu.title", "Feishu/Lark Channel")
         }
         subtitle={t("feishu.description")}
-        icon={
-          <BotMessageSquare
-            size={20}
-            className="text-[#3370ff] dark:text-[#7aa2ff]"
-          />
-        }
+        icon={<ChannelIcon channelType="feishu" />}
         footer={actionButtons}
       >
         {formContent}

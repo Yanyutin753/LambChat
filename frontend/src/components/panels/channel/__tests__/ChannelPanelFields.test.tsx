@@ -1,5 +1,11 @@
 /** @vitest-environment jsdom */
-import { cleanup, render, screen, fireEvent } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  fireEvent,
+  act,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
 import i18n from "../../../../i18n";
@@ -127,4 +133,55 @@ test("dynamic channel fields and switches expose names and preserve drafts after
       }),
     }),
   );
+});
+
+test("switching language translates config and validation while preserving secret drafts", async () => {
+  await i18n.changeLanguage("en");
+  render(
+    <MemoryRouter>
+      <ChannelPanel
+        channelType="dingtalk"
+        instanceId="new"
+        metadata={{
+          ...metadata,
+          channel_type: "dingtalk",
+          display_name: "DingTalk",
+          setup_guide: [
+            "Open the target DingTalk group chat settings and choose Robots",
+          ],
+          config_fields: [
+            {
+              name: "webhook_url",
+              title: "Webhook URL",
+              type: "text",
+              required: true,
+            },
+            {
+              name: "secret",
+              title: "Signing Secret",
+              type: "password",
+              sensitive: true,
+            },
+          ],
+        }}
+      />
+    </MemoryRouter>,
+  );
+  fireEvent.change(await screen.findByLabelText("Signing Secret"), {
+    target: { value: "SEC-draft" },
+  });
+  try {
+    await act(() => i18n.changeLanguage("zh"));
+    expect(screen.getByLabelText("加签密钥")).toHaveValue("SEC-draft");
+    expect(
+      screen.getByText("打开目标钉钉群设置，选择「机器人」"),
+    ).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: i18n.t("common.save") }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("Webhook 地址");
+    expect(screen.getByRole("alert").textContent).not.toContain("{{");
+  } finally {
+    await act(() => i18n.changeLanguage("en"));
+  }
 });

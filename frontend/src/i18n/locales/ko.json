@@ -752,7 +752,7 @@
     "disconnected": "연결 끊김",
     "enabled": "채널 활성화",
     "enabledDesc": "이 채널 활성화 또는 비활성화",
-    "fieldRequired": "{{field.title}}은(는) 필수입니다",
+    "fieldRequired": "{{field.title}} 항목은 필수입니다",
     "instanceCount_one": "{{count}}개 인스턴스",
     "instanceCount_other": "{{count}}개 인스턴스",
     "instanceName": "인스턴스 이름",
@@ -788,6 +788,262 @@
       "qrScanned": "스캔 완료 — 휴대폰에서 확인하세요",
       "qrExpired": "QR 코드가 만료되었습니다. 다시 시도하세요",
       "qrFailed": "QR 로그인 실패, 다시 시도하세요"
+    },
+    "catalog": {
+      "providers": {
+        "bark": {
+          "name": "Bark",
+          "description": "Bark 앱으로 iOS 기기에 알림 전송",
+          "fields": {
+            "server": {
+              "placeholder": "https://api.day.app(또는 자체 서버 URL)",
+              "title": "서버 URL"
+            },
+            "device_key": {
+              "placeholder": "앱 홈 화면에서 키 복사",
+              "title": "기기 키"
+            },
+            "group": {
+              "title": "알림 그룹"
+            }
+          },
+          "guide": {
+            "0": "App Store에서 Bark 설치",
+            "1": "앱 홈 화면에서 기기 키 복사"
+          }
+        },
+        "dingtalk": {
+          "name": "DingTalk",
+          "description": "봇 Webhook으로 DingTalk 그룹에 알림 전송",
+          "fields": {
+            "secret": {
+              "placeholder": "SEC로 시작, 서명 활성화 시 필수",
+              "title": "서명 시크릿"
+            },
+            "webhook_url": {
+              "title": "Webhook URL"
+            }
+          },
+          "guide": {
+            "0": "대상 DingTalk 그룹 설정에서 로봇 선택",
+            "1": "Markdown 메시지를 지원하는 사용자 정의 봇 추가",
+            "2": "위 설정에 Webhook URL 복사",
+            "3": "서명을 활성화한 경우 서명 시크릿도 입력"
+          }
+        },
+        "discord": {
+          "name": "Discord",
+          "description": "Webhook으로 Discord 채널에 알림 전송",
+          "guide": {
+            "0": "채널 설정 → 연동 → Webhook 열기",
+            "1": "Webhook을 생성하고 위에 URL 입력"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "Webhook URL"
+            }
+          }
+        },
+        "gotify": {
+          "name": "Gotify",
+          "description": "자체 호스팅 Gotify 서버에 알림 전송",
+          "fields": {
+            "app_token": {
+              "placeholder": "Gotify 서버에서 생성한 앱의 토큰",
+              "title": "앱 토큰"
+            },
+            "server": {
+              "title": "서버 URL"
+            },
+            "priority": {
+              "title": "우선순위",
+              "options": {
+                "3": "낮음(3)",
+                "5": "기본(5)",
+                "8": "높음(8)"
+              }
+            }
+          },
+          "guide": {
+            "0": "Gotify 서버에서 앱 생성 후 토큰 복사",
+            "1": "위에 서버 URL과 앱 토큰 입력"
+          }
+        },
+        "ntfy": {
+          "name": "ntfy",
+          "description": "ntfy 토픽에 알림 전송(자체 호스팅 또는 ntfy.sh)",
+          "fields": {
+            "server": {
+              "placeholder": "https://ntfy.sh(또는 자체 서버 URL)",
+              "title": "서버 URL"
+            },
+            "topic": {
+              "placeholder": "비공개 토픽 이름",
+              "title": "토픽"
+            },
+            "priority": {
+              "title": "우선순위",
+              "options": {
+                "default": "기본",
+                "high": "높음",
+                "urgent": "긴급"
+              }
+            }
+          },
+          "guide": {
+            "0": "고유한 토픽 이름을 선택하고 비밀로 유지하세요. 이름을 알면 누구나 메시지를 읽을 수 있습니다",
+            "1": "ntfy 앱에서 해당 토픽 구독",
+            "2": "자체 호스팅 시 자체 ntfy 서버 URL 입력"
+          }
+        },
+        "pushover": {
+          "name": "Pushover",
+          "description": "Pushover로 기기에 알림 전송",
+          "fields": {
+            "api_token": {
+              "placeholder": "pushover.net에서 생성한 앱의 토큰",
+              "title": "API 토큰"
+            },
+            "user_key": {
+              "placeholder": "Pushover 대시보드의 사용자 키",
+              "title": "사용자 키"
+            }
+          },
+          "guide": {
+            "0": "pushover.net에서 앱 생성 후 API 토큰 복사",
+            "1": "Pushover 대시보드에서 사용자 키 복사"
+          }
+        },
+        "pushplus": {
+          "name": "PushPlus",
+          "description": "PushPlus로 WeChat에 알림 전송",
+          "fields": {
+            "token": {
+              "placeholder": "pushplus.plus 사용자 센터의 토큰",
+              "title": "토큰"
+            },
+            "template": {
+              "title": "메시지 템플릿",
+              "options": {
+                "markdown": "Markdown",
+                "html": "HTML",
+                "txt": "일반 텍스트"
+              }
+            }
+          },
+          "guide": {
+            "0": "WeChat으로 pushplus.plus에 로그인 후 토큰 복사",
+            "1": "WeChat의 PushPlus 공식 계정으로 메시지 수신"
+          }
+        },
+        "serverchan": {
+          "name": "ServerChan",
+          "description": "ServerChan으로 WeChat에 알림 전송",
+          "fields": {
+            "send_key": {
+              "placeholder": "SCT로 시작(sct.ftqq.com에서 발급)",
+              "title": "전송 키(SendKey)"
+            }
+          },
+          "guide": {
+            "0": "WeChat으로 sct.ftqq.com에 로그인 후 SendKey 복사",
+            "1": "WeChat의 方糖 서비스 계정으로 메시지 수신"
+          }
+        },
+        "slack": {
+          "name": "Slack",
+          "description": "수신 Webhook으로 Slack 채널에 알림 전송",
+          "guide": {
+            "0": "api.slack.com/messaging/webhooks에서 수신 Webhook 생성",
+            "1": "대상 채널 선택 후 Webhook URL 복사"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "Webhook URL"
+            }
+          }
+        },
+        "telegram": {
+          "name": "Telegram",
+          "description": "봇으로 Telegram 채팅에 알림 전송",
+          "fields": {
+            "bot_token": {
+              "placeholder": "123456:ABC-DEF...(@BotFather에서 발급)",
+              "title": "봇 토큰"
+            },
+            "default_chat_id": {
+              "placeholder": "봇에 메시지를 보낸 후 getUpdates로 확인",
+              "title": "기본 채팅 ID"
+            },
+            "parse_mode": {
+              "title": "파싱 모드",
+              "options": {
+                "plain": "일반 텍스트",
+                "Markdown": "Markdown",
+                "HTML": "HTML"
+              }
+            }
+          },
+          "guide": {
+            "0": "@BotFather로 봇 생성 후 토큰 복사",
+            "1": "봇에 메시지를 보낸 후 getUpdates로 채팅 ID 확인",
+            "2": "위에 봇 토큰과 기본 채팅 ID 입력"
+          }
+        },
+        "wecom": {
+          "name": "WeCom 봇",
+          "description": "봇 Webhook으로 WeCom 그룹에 알림 전송",
+          "guide": {
+            "0": "대상 WeCom 그룹에 그룹 봇 추가",
+            "1": "위 설정에 Webhook URL 복사"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "Webhook URL"
+            }
+          }
+        },
+        "weixin": {
+          "name": "WeChat 봇",
+          "description": "공식 iLink 봇 API로 WeChat에서 에이전트와 대화",
+          "fields": {
+            "bot_token": {
+              "placeholder": "QR 코드를 스캔하여 자동 입력",
+              "title": "봇 토큰"
+            },
+            "default_chat_id": {
+              "placeholder": "알림 대상 WeChat 사용자 ID(메시지 로그에서 확인)",
+              "title": "기본 채팅 ID"
+            },
+            "group_policy": {
+              "title": "그룹 응답 정책",
+              "options": {
+                "open": "그룹 및 개인 채팅에 응답",
+                "off": "개인 채팅만"
+              }
+            }
+          },
+          "guide": {
+            "0": "QR 코드를 스캔하고 휴대폰에서 확인",
+            "1": "스캔 후 봇 토큰이 자동 입력됩니다",
+            "2": "WeChat에서 봇에 메시지를 보내 대화 시작"
+          }
+        },
+        "wechat": {
+          "name": "WeChat",
+          "description": "WeChat을 에이전트에 연결"
+        },
+        "feishu": {
+          "name": "Feishu / Lark",
+          "description": "Feishu / Lark 기업 협업 플랫폼 연결",
+          "guide": {
+            "0": "open.feishu.cn 접속",
+            "1": "사용자 정의 앱 생성 후 App ID와 App Secret 발급",
+            "2": "봇 기능 활성화 후 메시지 이벤트 구독",
+            "3": "WebSocket 연결 사용(공인 IP 불필요)"
+          }
+        }
+      }
     }
   },
   "chat": {

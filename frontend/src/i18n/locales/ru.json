@@ -752,7 +752,7 @@
     "disconnected": "Отключено",
     "enabled": "Включить канал",
     "enabledDesc": "Включить или отключить этот канал",
-    "fieldRequired": "{{field.title}} обязательно",
+    "fieldRequired": "Поле «{{field.title}}» обязательно",
     "instanceCount_one": "{{count}} экземпляр",
     "instanceCount_other": "{{count}} экземпляров",
     "instanceName": "Название экземпляра",
@@ -788,6 +788,262 @@
       "qrScanned": "Отсканировано — подтвердите на телефоне",
       "qrExpired": "QR-код истёк, попробуйте снова",
       "qrFailed": "Не удалось войти по QR, попробуйте снова"
+    },
+    "catalog": {
+      "providers": {
+        "bark": {
+          "name": "Bark",
+          "description": "Отправка уведомлений на iOS через Bark",
+          "fields": {
+            "server": {
+              "placeholder": "https://api.day.app (или URL своего сервера)",
+              "title": "URL сервера"
+            },
+            "device_key": {
+              "placeholder": "Скопируйте ключ с главного экрана приложения",
+              "title": "Ключ устройства"
+            },
+            "group": {
+              "title": "Группа уведомлений"
+            }
+          },
+          "guide": {
+            "0": "Установите Bark из App Store",
+            "1": "Скопируйте ключ устройства с главного экрана приложения"
+          }
+        },
+        "dingtalk": {
+          "name": "DingTalk",
+          "description": "Уведомления в группы DingTalk через вебхук бота",
+          "fields": {
+            "secret": {
+              "placeholder": "Начинается с SEC; обязателен при включённой подписи",
+              "title": "Секрет подписи"
+            },
+            "webhook_url": {
+              "title": "URL вебхука"
+            }
+          },
+          "guide": {
+            "0": "Откройте настройки группы DingTalk и выберите роботов",
+            "1": "Добавьте собственного бота с поддержкой Markdown",
+            "2": "Скопируйте URL вебхука в настройки выше",
+            "3": "Если подпись включена, укажите секрет подписи"
+          }
+        },
+        "discord": {
+          "name": "Discord",
+          "description": "Уведомления в канал Discord через вебхук",
+          "guide": {
+            "0": "Откройте настройки канала → Интеграции → Вебхуки",
+            "1": "Создайте вебхук и вставьте его URL выше"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "URL вебхука"
+            }
+          }
+        },
+        "gotify": {
+          "name": "Gotify",
+          "description": "Уведомления на собственный сервер Gotify",
+          "fields": {
+            "app_token": {
+              "placeholder": "Токен приложения на вашем сервере Gotify",
+              "title": "Токен приложения"
+            },
+            "server": {
+              "title": "URL сервера"
+            },
+            "priority": {
+              "title": "Приоритет",
+              "options": {
+                "3": "Низкий (3)",
+                "5": "По умолчанию (5)",
+                "8": "Высокий (8)"
+              }
+            }
+          },
+          "guide": {
+            "0": "Создайте приложение на сервере Gotify и скопируйте токен",
+            "1": "Укажите URL сервера и токен приложения выше"
+          }
+        },
+        "ntfy": {
+          "name": "ntfy",
+          "description": "Уведомления в темы ntfy на своём сервере или ntfy.sh",
+          "fields": {
+            "server": {
+              "placeholder": "https://ntfy.sh (или URL своего сервера)",
+              "title": "URL сервера"
+            },
+            "topic": {
+              "placeholder": "Название вашей приватной темы",
+              "title": "Тема"
+            },
+            "priority": {
+              "title": "Приоритет",
+              "options": {
+                "default": "По умолчанию",
+                "high": "Высокий",
+                "urgent": "Срочный"
+              }
+            }
+          },
+          "guide": {
+            "0": "Выберите уникальное имя темы и храните его в тайне: зная имя, любой может читать сообщения",
+            "1": "Подпишитесь на тему в приложении ntfy",
+            "2": "Для своего сервера укажите его URL"
+          }
+        },
+        "pushover": {
+          "name": "Pushover",
+          "description": "Уведомления на устройства через Pushover",
+          "fields": {
+            "api_token": {
+              "placeholder": "Токен приложения на pushover.net",
+              "title": "Токен API"
+            },
+            "user_key": {
+              "placeholder": "Ключ пользователя из панели Pushover",
+              "title": "Ключ пользователя"
+            }
+          },
+          "guide": {
+            "0": "Создайте приложение на pushover.net и скопируйте токен API",
+            "1": "Скопируйте ключ пользователя из панели Pushover"
+          }
+        },
+        "pushplus": {
+          "name": "PushPlus",
+          "description": "Уведомления в WeChat через PushPlus",
+          "fields": {
+            "token": {
+              "placeholder": "Токен из личного кабинета pushplus.plus",
+              "title": "Токен"
+            },
+            "template": {
+              "title": "Шаблон сообщения",
+              "options": {
+                "markdown": "Markdown",
+                "html": "HTML",
+                "txt": "Обычный текст"
+              }
+            }
+          },
+          "guide": {
+            "0": "Войдите на pushplus.plus через WeChat и скопируйте токен",
+            "1": "Сообщения приходят через официальный аккаунт PushPlus в WeChat"
+          }
+        },
+        "serverchan": {
+          "name": "ServerChan",
+          "description": "Уведомления в WeChat через ServerChan",
+          "fields": {
+            "send_key": {
+              "placeholder": "Начинается с SCT; получите на sct.ftqq.com",
+              "title": "Ключ отправки (SendKey)"
+            }
+          },
+          "guide": {
+            "0": "Войдите на sct.ftqq.com через WeChat и скопируйте SendKey",
+            "1": "Сообщения приходят через сервисный аккаунт 方糖 в WeChat"
+          }
+        },
+        "slack": {
+          "name": "Slack",
+          "description": "Уведомления в канал Slack через входящий вебхук",
+          "guide": {
+            "0": "Создайте входящий вебхук на api.slack.com/messaging/webhooks",
+            "1": "Выберите канал и скопируйте URL вебхука"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "URL вебхука"
+            }
+          }
+        },
+        "telegram": {
+          "name": "Telegram",
+          "description": "Уведомления в чаты Telegram через бота",
+          "fields": {
+            "bot_token": {
+              "placeholder": "123456:ABC-DEF... (от @BotFather)",
+              "title": "Токен бота"
+            },
+            "default_chat_id": {
+              "placeholder": "Отправьте сообщение боту и проверьте getUpdates",
+              "title": "ID чата по умолчанию"
+            },
+            "parse_mode": {
+              "title": "Режим разметки",
+              "options": {
+                "plain": "Обычный текст",
+                "Markdown": "Markdown",
+                "HTML": "HTML"
+              }
+            }
+          },
+          "guide": {
+            "0": "Создайте бота через @BotFather и скопируйте токен",
+            "1": "Отправьте сообщение боту и получите ID чата через getUpdates",
+            "2": "Укажите токен бота и ID чата по умолчанию выше"
+          }
+        },
+        "wecom": {
+          "name": "Бот WeCom",
+          "description": "Уведомления в группы WeCom через вебхук бота",
+          "guide": {
+            "0": "Добавьте бота в нужную группу WeCom",
+            "1": "Скопируйте URL вебхука в настройки выше"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "URL вебхука"
+            }
+          }
+        },
+        "weixin": {
+          "name": "Бот WeChat",
+          "description": "Общение с агентом в WeChat через официальный API бота iLink",
+          "fields": {
+            "bot_token": {
+              "placeholder": "Отсканируйте QR-код для автоматического заполнения",
+              "title": "Токен бота"
+            },
+            "default_chat_id": {
+              "placeholder": "ID пользователя WeChat для уведомлений; доступен в журнале сообщений",
+              "title": "ID чата по умолчанию"
+            },
+            "group_policy": {
+              "title": "Правила для групп",
+              "options": {
+                "open": "Отвечать в группах и личных чатах",
+                "off": "Только личные чаты"
+              }
+            }
+          },
+          "guide": {
+            "0": "Отсканируйте QR-код и подтвердите на телефоне",
+            "1": "После сканирования токен бота заполнится автоматически",
+            "2": "Отправьте сообщение боту в WeChat, чтобы начать диалог"
+          }
+        },
+        "wechat": {
+          "name": "WeChat",
+          "description": "Подключение WeChat к агенту"
+        },
+        "feishu": {
+          "name": "Feishu / Lark",
+          "description": "Подключение корпоративной платформы Feishu / Lark",
+          "guide": {
+            "0": "Откройте open.feishu.cn",
+            "1": "Создайте приложение и получите App ID и App Secret",
+            "2": "Включите бота и подпишитесь на события сообщений",
+            "3": "Используйте WebSocket; публичный IP не нужен"
+          }
+        }
+      }
     }
   },
   "chat": {

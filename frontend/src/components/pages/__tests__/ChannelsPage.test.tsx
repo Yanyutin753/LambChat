@@ -297,3 +297,29 @@ test("closing a mobile editor restores focus after the background stops being in
   expect(document.activeElement?.isConnected).toBe(true);
   expect(document.activeElement?.closest("[inert]")).toBeNull();
 });
+
+test("channel catalog follows the UI language without refetching metadata", async () => {
+  await i18n.changeLanguage("en");
+  vi.mocked(channelApi.getTypes).mockResolvedValue([
+    {
+      ...metadata,
+      channel_type: "weixin",
+      display_name: "WeChat Bot",
+      description:
+        "Chat with your agent in WeChat via the official iLink bot API",
+    },
+  ]);
+  vi.mocked(channelApi.listByType).mockResolvedValue([]);
+  mount("/channels");
+  await screen.findByRole("button", { name: "WeChat Bot" });
+  try {
+    await act(() => i18n.changeLanguage("zh"));
+    expect(screen.getByRole("button", { name: "微信机器人" })).toBeVisible();
+    expect(
+      screen.getByText("通过官方 iLink 机器人接口，在微信中与智能体对话"),
+    ).toBeVisible();
+    expect(channelApi.getTypes).toHaveBeenCalledTimes(1);
+  } finally {
+    await act(() => i18n.changeLanguage("en"));
+  }
+});

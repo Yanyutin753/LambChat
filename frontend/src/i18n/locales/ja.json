@@ -788,6 +788,262 @@
       "qrScanned": "スキャン済み — スマホで確認してください",
       "qrExpired": "QRコードの有効期限が切れました。再試行してください",
       "qrFailed": "QRログインに失敗しました。再試行してください"
+    },
+    "catalog": {
+      "providers": {
+        "bark": {
+          "name": "Bark",
+          "description": "Bark アプリで iOS 端末に通知を送信",
+          "fields": {
+            "server": {
+              "placeholder": "https://api.day.app（または自分のサーバー URL）",
+              "title": "サーバー URL"
+            },
+            "device_key": {
+              "placeholder": "アプリのホーム画面からキーをコピー",
+              "title": "デバイスキー"
+            },
+            "group": {
+              "title": "通知グループ"
+            }
+          },
+          "guide": {
+            "0": "App Store から Bark をインストール",
+            "1": "アプリのホーム画面からデバイスキーをコピー"
+          }
+        },
+        "dingtalk": {
+          "name": "DingTalk",
+          "description": "Bot の Webhook で DingTalk グループに通知を送信",
+          "fields": {
+            "secret": {
+              "placeholder": "SEC で始まる値（署名を有効にした場合は必須）",
+              "title": "署名シークレット"
+            },
+            "webhook_url": {
+              "title": "Webhook URL"
+            }
+          },
+          "guide": {
+            "0": "対象の DingTalk グループ設定で「ロボット」を選択",
+            "1": "Markdown 対応のカスタム Bot を追加",
+            "2": "Webhook URL を上の設定にコピー",
+            "3": "署名を有効にした場合はシークレットも入力"
+          }
+        },
+        "discord": {
+          "name": "Discord",
+          "description": "Webhook で Discord チャンネルに通知を送信",
+          "guide": {
+            "0": "チャンネル設定 → 連携サービス → Webhook を開く",
+            "1": "Webhook を作成し、URL を上に入力"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "Webhook URL"
+            }
+          }
+        },
+        "gotify": {
+          "name": "Gotify",
+          "description": "セルフホストの Gotify サーバーに通知を送信",
+          "fields": {
+            "app_token": {
+              "placeholder": "Gotify サーバーで作成したアプリのトークン",
+              "title": "アプリトークン"
+            },
+            "server": {
+              "title": "サーバー URL"
+            },
+            "priority": {
+              "title": "優先度",
+              "options": {
+                "3": "低（3）",
+                "5": "既定（5）",
+                "8": "高（8）"
+              }
+            }
+          },
+          "guide": {
+            "0": "Gotify サーバーでアプリを作成しトークンをコピー",
+            "1": "サーバー URL とアプリトークンを上に入力"
+          }
+        },
+        "ntfy": {
+          "name": "ntfy",
+          "description": "ntfy トピックに通知を送信（セルフホストまたは ntfy.sh）",
+          "fields": {
+            "server": {
+              "placeholder": "https://ntfy.sh（または自分のサーバー URL）",
+              "title": "サーバー URL"
+            },
+            "topic": {
+              "placeholder": "非公開のトピック名",
+              "title": "トピック"
+            },
+            "priority": {
+              "title": "優先度",
+              "options": {
+                "default": "既定",
+                "high": "高",
+                "urgent": "緊急"
+              }
+            }
+          },
+          "guide": {
+            "0": "固有のトピック名を選び秘密に保管（名前を知る人は誰でも閲覧可能）",
+            "1": "ntfy アプリでトピックを購読",
+            "2": "セルフホストの場合は自分の ntfy サーバー URL を入力"
+          }
+        },
+        "pushover": {
+          "name": "Pushover",
+          "description": "Pushover で端末に通知を送信",
+          "fields": {
+            "api_token": {
+              "placeholder": "pushover.net で作成したアプリのトークン",
+              "title": "API トークン"
+            },
+            "user_key": {
+              "placeholder": "Pushover ダッシュボードのユーザーキー",
+              "title": "ユーザーキー"
+            }
+          },
+          "guide": {
+            "0": "pushover.net でアプリを作成し API トークンをコピー",
+            "1": "Pushover ダッシュボードからユーザーキーをコピー"
+          }
+        },
+        "pushplus": {
+          "name": "PushPlus",
+          "description": "PushPlus で WeChat に通知を送信",
+          "fields": {
+            "token": {
+              "placeholder": "pushplus.plus ユーザーセンターのトークン",
+              "title": "トークン"
+            },
+            "template": {
+              "title": "メッセージテンプレート",
+              "options": {
+                "markdown": "Markdown",
+                "html": "HTML",
+                "txt": "プレーンテキスト"
+              }
+            }
+          },
+          "guide": {
+            "0": "WeChat で pushplus.plus にログインしトークンをコピー",
+            "1": "WeChat の PushPlus 公式アカウントで受信"
+          }
+        },
+        "serverchan": {
+          "name": "ServerChan",
+          "description": "ServerChan で WeChat に通知を送信",
+          "fields": {
+            "send_key": {
+              "placeholder": "SCT で始まるキー（sct.ftqq.com で取得）",
+              "title": "送信キー（SendKey）"
+            }
+          },
+          "guide": {
+            "0": "WeChat で sct.ftqq.com にログインし SendKey をコピー",
+            "1": "WeChat の「方糖」サービスアカウントで受信"
+          }
+        },
+        "slack": {
+          "name": "Slack",
+          "description": "Incoming Webhook で Slack チャンネルに通知を送信",
+          "guide": {
+            "0": "api.slack.com/messaging/webhooks で Incoming Webhook を作成",
+            "1": "送信先チャンネルを選択し Webhook URL をコピー"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "Webhook URL"
+            }
+          }
+        },
+        "telegram": {
+          "name": "Telegram",
+          "description": "Bot で Telegram チャットに通知を送信",
+          "fields": {
+            "bot_token": {
+              "placeholder": "123456:ABC-DEF...（@BotFather で取得）",
+              "title": "Bot トークン"
+            },
+            "default_chat_id": {
+              "placeholder": "Bot に送信後、getUpdates で確認",
+              "title": "既定のチャット ID"
+            },
+            "parse_mode": {
+              "title": "解析モード",
+              "options": {
+                "plain": "プレーンテキスト",
+                "Markdown": "Markdown",
+                "HTML": "HTML"
+              }
+            }
+          },
+          "guide": {
+            "0": "@BotFather で Bot を作成しトークンをコピー",
+            "1": "Bot に送信後、getUpdates でチャット ID を取得",
+            "2": "Bot トークンと既定のチャット ID を上に入力"
+          }
+        },
+        "wecom": {
+          "name": "WeCom Bot",
+          "description": "Bot の Webhook で WeCom グループに通知を送信",
+          "guide": {
+            "0": "対象の WeCom グループに Bot を追加",
+            "1": "Webhook URL を上の設定にコピー"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "Webhook URL"
+            }
+          }
+        },
+        "weixin": {
+          "name": "WeChat Bot",
+          "description": "公式 iLink Bot API を使い WeChat でエージェントと会話",
+          "fields": {
+            "bot_token": {
+              "placeholder": "QR コードをスキャンして自動入力",
+              "title": "Bot トークン"
+            },
+            "default_chat_id": {
+              "placeholder": "通知先の WeChat ユーザー ID（メッセージログで確認）",
+              "title": "既定のチャット ID"
+            },
+            "group_policy": {
+              "title": "グループ応答ポリシー",
+              "options": {
+                "open": "グループと個別チャットに応答",
+                "off": "個別チャットのみ"
+              }
+            }
+          },
+          "guide": {
+            "0": "QR コードをスキャンしスマートフォンで確認",
+            "1": "スキャン後に Bot トークンが自動入力されます",
+            "2": "WeChat で Bot にメッセージを送って会話を開始"
+          }
+        },
+        "wechat": {
+          "name": "WeChat",
+          "description": "WeChat をエージェントに接続"
+        },
+        "feishu": {
+          "name": "Feishu / Lark",
+          "description": "Feishu / Lark 企業向けコミュニケーション基盤に接続",
+          "guide": {
+            "0": "open.feishu.cn にアクセス",
+            "1": "カスタムアプリを作成し App ID と App Secret を取得",
+            "2": "Bot を有効にしメッセージイベントを購読",
+            "3": "WebSocket 接続を使用（公開 IP は不要）"
+          }
+        }
+      }
     }
   },
   "chat": {

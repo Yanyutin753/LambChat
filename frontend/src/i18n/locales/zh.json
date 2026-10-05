@@ -752,7 +752,7 @@
     "disconnected": "未连接",
     "enabled": "启用渠道",
     "enabledDesc": "启用或禁用此渠道",
-    "fieldRequired": "此字段为必填项",
+    "fieldRequired": "请填写{{field.title}}",
     "instanceCount_one": "{{count}} 个实例",
     "instanceCount_other": "{{count}} 个实例",
     "instanceName": "实例名称",
@@ -788,6 +788,262 @@
       "qrScanned": "已扫码，请在手机上确认",
       "qrExpired": "二维码已过期，请重新获取",
       "qrFailed": "扫码登录失败，请重试"
+    },
+    "catalog": {
+      "providers": {
+        "bark": {
+          "name": "Bark",
+          "description": "通过 Bark 应用向 iOS 设备推送通知",
+          "fields": {
+            "server": {
+              "placeholder": "https://api.day.app（自建服务请填写自己的地址）",
+              "title": "服务器地址"
+            },
+            "device_key": {
+              "placeholder": "从应用首页复制设备密钥",
+              "title": "设备密钥"
+            },
+            "group": {
+              "title": "通知分组"
+            }
+          },
+          "guide": {
+            "0": "从 App Store 安装 Bark 应用",
+            "1": "复制应用首页显示的设备密钥"
+          }
+        },
+        "dingtalk": {
+          "name": "钉钉",
+          "description": "通过自定义机器人 Webhook 向钉钉群推送通知",
+          "fields": {
+            "secret": {
+              "placeholder": "以 SEC 开头，启用加签时必填",
+              "title": "加签密钥"
+            },
+            "webhook_url": {
+              "title": "Webhook 地址"
+            }
+          },
+          "guide": {
+            "0": "打开目标钉钉群设置，选择「机器人」",
+            "1": "添加支持 Markdown 消息的自定义机器人",
+            "2": "将 Webhook 地址复制到上方配置",
+            "3": "若安全设置启用了「加签」，还需填写加签密钥"
+          }
+        },
+        "discord": {
+          "name": "Discord",
+          "description": "通过 Webhook 向 Discord 频道推送通知",
+          "guide": {
+            "0": "打开频道设置 → 集成 → Webhook",
+            "1": "创建 Webhook，并将地址填入上方配置"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "Webhook 地址"
+            }
+          }
+        },
+        "gotify": {
+          "name": "Gotify",
+          "description": "向自建 Gotify 服务器推送通知",
+          "fields": {
+            "app_token": {
+              "placeholder": "在 Gotify 中创建应用后获取的令牌",
+              "title": "应用令牌"
+            },
+            "server": {
+              "title": "服务器地址"
+            },
+            "priority": {
+              "title": "优先级",
+              "options": {
+                "3": "低（3）",
+                "5": "默认（5）",
+                "8": "高（8）"
+              }
+            }
+          },
+          "guide": {
+            "0": "在 Gotify 服务器中创建应用并复制令牌",
+            "1": "在上方填写服务器地址和应用令牌"
+          }
+        },
+        "ntfy": {
+          "name": "ntfy",
+          "description": "向 ntfy 主题推送通知，支持自建服务或 ntfy.sh",
+          "fields": {
+            "server": {
+              "placeholder": "https://ntfy.sh（自建服务请填写自己的地址）",
+              "title": "服务器地址"
+            },
+            "topic": {
+              "placeholder": "填写私密主题名称",
+              "title": "主题"
+            },
+            "priority": {
+              "title": "优先级",
+              "options": {
+                "default": "默认",
+                "high": "高",
+                "urgent": "紧急"
+              }
+            }
+          },
+          "guide": {
+            "0": "选择唯一的主题名称并妥善保密，知道主题名的人都能读取消息",
+            "1": "在 ntfy 应用中订阅该主题",
+            "2": "使用自建服务时，填写自己的 ntfy 服务器地址"
+          }
+        },
+        "pushover": {
+          "name": "Pushover",
+          "description": "通过 Pushover 向设备推送通知",
+          "fields": {
+            "api_token": {
+              "placeholder": "在 pushover.net 创建应用后获取的令牌",
+              "title": "API 令牌"
+            },
+            "user_key": {
+              "placeholder": "Pushover 用户主页中的用户密钥",
+              "title": "用户密钥"
+            }
+          },
+          "guide": {
+            "0": "在 pushover.net 创建应用并复制 API 令牌",
+            "1": "从 Pushover 用户主页复制用户密钥"
+          }
+        },
+        "pushplus": {
+          "name": "PushPlus 推送加",
+          "description": "通过 PushPlus 推送加向微信推送通知",
+          "fields": {
+            "token": {
+              "placeholder": "pushplus.plus 用户中心中的令牌",
+              "title": "令牌"
+            },
+            "template": {
+              "title": "消息模板",
+              "options": {
+                "markdown": "Markdown",
+                "html": "HTML",
+                "txt": "纯文本"
+              }
+            }
+          },
+          "guide": {
+            "0": "使用微信登录 pushplus.plus 并复制令牌",
+            "1": "通过微信中的 PushPlus 推送加公众号接收消息"
+          }
+        },
+        "serverchan": {
+          "name": "Server酱",
+          "description": "通过 Server酱向微信推送通知",
+          "fields": {
+            "send_key": {
+              "placeholder": "以 SCT 开头，在 sct.ftqq.com 获取",
+              "title": "发送密钥（SendKey）"
+            }
+          },
+          "guide": {
+            "0": "使用微信登录 sct.ftqq.com 并复制 SendKey",
+            "1": "通过微信中的「方糖」服务号接收消息"
+          }
+        },
+        "slack": {
+          "name": "Slack",
+          "description": "通过传入 Webhook 向 Slack 频道推送通知",
+          "guide": {
+            "0": "在 api.slack.com/messaging/webhooks 创建传入 Webhook",
+            "1": "选择目标频道并复制 Webhook 地址"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "Webhook 地址"
+            }
+          }
+        },
+        "telegram": {
+          "name": "Telegram",
+          "description": "通过机器人向 Telegram 会话推送通知",
+          "fields": {
+            "bot_token": {
+              "placeholder": "123456:ABC-DEF...（从 @BotFather 获取）",
+              "title": "机器人令牌"
+            },
+            "default_chat_id": {
+              "placeholder": "先向机器人发送消息，再通过 getUpdates 获取",
+              "title": "默认会话 ID"
+            },
+            "parse_mode": {
+              "title": "解析模式",
+              "options": {
+                "plain": "纯文本",
+                "Markdown": "Markdown",
+                "HTML": "HTML"
+              }
+            }
+          },
+          "guide": {
+            "0": "通过 @BotFather 创建机器人并复制令牌",
+            "1": "向机器人发送消息，再通过 getUpdates 获取会话 ID",
+            "2": "在上方填写机器人令牌和默认会话 ID"
+          }
+        },
+        "wecom": {
+          "name": "企业微信机器人",
+          "description": "通过群机器人 Webhook 向企业微信群推送通知",
+          "guide": {
+            "0": "在目标企业微信群中添加群机器人",
+            "1": "将 Webhook 地址复制到上方配置"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "Webhook 地址"
+            }
+          }
+        },
+        "weixin": {
+          "name": "微信机器人",
+          "description": "通过官方 iLink 机器人接口，在微信中与智能体对话",
+          "fields": {
+            "bot_token": {
+              "placeholder": "点击「扫码登录」自动获取",
+              "title": "机器人令牌"
+            },
+            "default_chat_id": {
+              "placeholder": "出站推送的默认微信用户 ID，可从消息日志获取",
+              "title": "默认会话 ID"
+            },
+            "group_policy": {
+              "title": "群聊策略",
+              "options": {
+                "open": "响应群聊和私聊",
+                "off": "仅响应私聊"
+              }
+            }
+          },
+          "guide": {
+            "0": "点击「扫码登录」，在手机上确认",
+            "1": "扫码成功后会自动填入机器人令牌",
+            "2": "在微信中向机器人发送消息，即可开始对话"
+          }
+        },
+        "wechat": {
+          "name": "微信",
+          "description": "连接微信与智能体"
+        },
+        "feishu": {
+          "name": "飞书 / Lark",
+          "description": "连接飞书 / Lark 企业协作平台",
+          "guide": {
+            "0": "访问飞书开放平台 open.feishu.cn",
+            "1": "创建自建应用并获取 App ID 和 App Secret",
+            "2": "启用机器人能力并订阅消息事件",
+            "3": "使用 WebSocket 长连接，无需公网 IP"
+          }
+        }
+      }
     }
   },
   "chat": {

@@ -788,6 +788,262 @@
       "qrScanned": "Scanned — confirm on your phone",
       "qrExpired": "QR code expired, try again",
       "qrFailed": "QR login failed, try again"
+    },
+    "catalog": {
+      "providers": {
+        "bark": {
+          "name": "Bark",
+          "description": "Push notifications to iOS via the Bark app",
+          "fields": {
+            "server": {
+              "placeholder": "https://api.day.app (or your own server URL)",
+              "title": "Server URL"
+            },
+            "device_key": {
+              "placeholder": "Copy the key from the app home screen",
+              "title": "Device Key"
+            },
+            "group": {
+              "title": "Notification Group"
+            }
+          },
+          "guide": {
+            "0": "Install Bark from the App Store",
+            "1": "Copy the device key from the app home screen"
+          }
+        },
+        "dingtalk": {
+          "name": "DingTalk",
+          "description": "Push notifications to DingTalk groups via a bot webhook",
+          "fields": {
+            "secret": {
+              "placeholder": "Starts with SEC; required when signing is enabled",
+              "title": "Signing Secret"
+            },
+            "webhook_url": {
+              "title": "Webhook URL"
+            }
+          },
+          "guide": {
+            "0": "Open the target DingTalk group settings and choose Robots",
+            "1": "Add a custom robot that supports Markdown messages",
+            "2": "Copy the webhook URL into the configuration above",
+            "3": "If signing is enabled, also enter the signing secret"
+          }
+        },
+        "discord": {
+          "name": "Discord",
+          "description": "Push notifications to a Discord channel via a webhook",
+          "guide": {
+            "0": "Open channel settings → Integrations → Webhooks",
+            "1": "Create a webhook and paste its URL above"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "Webhook URL"
+            }
+          }
+        },
+        "gotify": {
+          "name": "Gotify",
+          "description": "Push notifications to a self-hosted Gotify server",
+          "fields": {
+            "app_token": {
+              "placeholder": "Token for an application on your Gotify server",
+              "title": "App Token"
+            },
+            "server": {
+              "title": "Server URL"
+            },
+            "priority": {
+              "title": "Priority",
+              "options": {
+                "3": "Low (3)",
+                "5": "Default (5)",
+                "8": "High (8)"
+              }
+            }
+          },
+          "guide": {
+            "0": "Create an application on your Gotify server and copy its token",
+            "1": "Enter the server URL and app token above"
+          }
+        },
+        "ntfy": {
+          "name": "ntfy",
+          "description": "Push notifications to ntfy topics (self-hosted or ntfy.sh)",
+          "fields": {
+            "server": {
+              "placeholder": "https://ntfy.sh (or your own server URL)",
+              "title": "Server URL"
+            },
+            "topic": {
+              "placeholder": "Your private topic name",
+              "title": "Topic"
+            },
+            "priority": {
+              "title": "Priority",
+              "options": {
+                "default": "Default",
+                "high": "High",
+                "urgent": "Urgent"
+              }
+            }
+          },
+          "guide": {
+            "0": "Choose a unique topic name; keep it secret because anyone with it can read messages",
+            "1": "Subscribe to the topic in the ntfy app",
+            "2": "For self-hosting, enter your own ntfy server URL"
+          }
+        },
+        "pushover": {
+          "name": "Pushover",
+          "description": "Push notifications to devices via Pushover",
+          "fields": {
+            "api_token": {
+              "placeholder": "Token for your application at pushover.net",
+              "title": "API Token"
+            },
+            "user_key": {
+              "placeholder": "User key from your Pushover dashboard",
+              "title": "User Key"
+            }
+          },
+          "guide": {
+            "0": "Create an application at pushover.net and copy its API token",
+            "1": "Copy your user key from the Pushover dashboard"
+          }
+        },
+        "pushplus": {
+          "name": "PushPlus",
+          "description": "Push notifications to WeChat via PushPlus",
+          "fields": {
+            "token": {
+              "placeholder": "Token from the pushplus.plus user center",
+              "title": "Token"
+            },
+            "template": {
+              "title": "Message Template",
+              "options": {
+                "markdown": "Markdown",
+                "html": "HTML",
+                "txt": "Plain text"
+              }
+            }
+          },
+          "guide": {
+            "0": "Log in to pushplus.plus with WeChat and copy your token",
+            "1": "Messages arrive through the PushPlus official account in WeChat"
+          }
+        },
+        "serverchan": {
+          "name": "ServerChan",
+          "description": "Push notifications to WeChat via ServerChan",
+          "fields": {
+            "send_key": {
+              "placeholder": "Starts with SCT; get it at sct.ftqq.com",
+              "title": "SendKey"
+            }
+          },
+          "guide": {
+            "0": "Log in to sct.ftqq.com with WeChat and copy your SendKey",
+            "1": "Messages arrive through the Fangtang service account in WeChat"
+          }
+        },
+        "slack": {
+          "name": "Slack",
+          "description": "Push notifications to a Slack channel via an incoming webhook",
+          "guide": {
+            "0": "Create an incoming webhook at api.slack.com/messaging/webhooks",
+            "1": "Choose the target channel and copy the webhook URL"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "Webhook URL"
+            }
+          }
+        },
+        "telegram": {
+          "name": "Telegram",
+          "description": "Push notifications to Telegram chats via a bot",
+          "fields": {
+            "bot_token": {
+              "placeholder": "123456:ABC-DEF... (from @BotFather)",
+              "title": "Bot Token"
+            },
+            "default_chat_id": {
+              "placeholder": "Message your bot, then check getUpdates",
+              "title": "Default Chat ID"
+            },
+            "parse_mode": {
+              "title": "Parse Mode",
+              "options": {
+                "plain": "Plain text",
+                "Markdown": "Markdown",
+                "HTML": "HTML"
+              }
+            }
+          },
+          "guide": {
+            "0": "Create a bot with @BotFather and copy its token",
+            "1": "Message your bot, then find your chat ID using getUpdates",
+            "2": "Enter the bot token and default chat ID above"
+          }
+        },
+        "wecom": {
+          "name": "WeCom Bot",
+          "description": "Push notifications to WeCom groups via a bot webhook",
+          "guide": {
+            "0": "Add a group bot in the target WeCom group",
+            "1": "Copy the webhook URL into the configuration above"
+          },
+          "fields": {
+            "webhook_url": {
+              "title": "Webhook URL"
+            }
+          }
+        },
+        "weixin": {
+          "name": "WeChat Bot",
+          "description": "Chat with your agent in WeChat via the official iLink bot API",
+          "fields": {
+            "bot_token": {
+              "placeholder": "Scan the QR code to fill in the token automatically",
+              "title": "Bot Token"
+            },
+            "default_chat_id": {
+              "placeholder": "WeChat user ID for outbound notifications; available in message logs",
+              "title": "Default Chat ID"
+            },
+            "group_policy": {
+              "title": "Group Policy",
+              "options": {
+                "open": "Respond in groups and DMs",
+                "off": "DMs only"
+              }
+            }
+          },
+          "guide": {
+            "0": "Scan the QR code and confirm on your phone",
+            "1": "The bot token is filled in automatically after scanning",
+            "2": "Message the bot in WeChat to start chatting"
+          }
+        },
+        "wechat": {
+          "name": "WeChat",
+          "description": "Connect WeChat to your agent"
+        },
+        "feishu": {
+          "name": "Feishu / Lark",
+          "description": "Feishu/Lark enterprise communication platform",
+          "guide": {
+            "0": "Go to open.feishu.cn",
+            "1": "Create a custom app and get its App ID and App Secret",
+            "2": "Enable the bot and subscribe to message events",
+            "3": "Use a WebSocket connection; no public IP is required"
+          }
+        }
+      }
     }
   },
   "chat": {

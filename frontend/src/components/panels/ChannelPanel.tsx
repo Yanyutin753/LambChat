@@ -7,15 +7,7 @@
 import { useState, useEffect, useMemo, useId, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { BackIcon } from "../common/BackIcon";
-import {
-  Save,
-  Trash2,
-  RefreshCw,
-  Check,
-  X,
-  AlertCircle,
-  MessageCircle,
-} from "lucide-react";
+import { Save, Trash2, RefreshCw, Check, X, AlertCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { useAuth } from "../../hooks/useAuth";
@@ -28,6 +20,8 @@ import { Button, Input, PanelFooterActions, Select } from "../common";
 import { ToggleSwitch } from "./AgentPanel/shared";
 import { ConfigPanelErrorCallout } from "./ConfigPanelErrorCallout";
 import { EmptyState } from "../common/EmptyState";
+import { ChannelIcon } from "./channel/ChannelIcon";
+import { localizeChannelMetadata } from "./channel/channelMetadata";
 import { WeixinQrLogin } from "./channel/weixin/WeixinQrLogin";
 import { ChannelAgentSelect } from "./channel/ChannelAgentSelect";
 import { channelApi } from "../../services/api/channel";
@@ -49,10 +43,14 @@ interface ChannelPanelProps {
 export function ChannelPanel({
   channelType,
   instanceId,
-  metadata,
+  metadata: rawMetadata,
   onClose,
 }: ChannelPanelProps) {
   const { t } = useTranslation();
+  const metadata = useMemo(
+    () => localizeChannelMetadata(rawMetadata, t),
+    [rawMetadata, t],
+  );
   const formId = useId();
   const [saveError, setSaveError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -153,13 +151,13 @@ export function ChannelPanel({
   // Initialize form defaults from metadata
   useEffect(() => {
     const defaults: Record<string, unknown> = {};
-    metadata.config_fields.forEach((field) => {
+    rawMetadata.config_fields.forEach((field) => {
       if (field.default !== undefined) {
         defaults[field.name] = field.default;
       }
     });
     setFormValues((prev) => ({ ...defaults, ...prev }));
-  }, [metadata]);
+  }, [rawMetadata]);
 
   const requiredFields = useMemo(() => {
     return metadata.config_fields.filter((f) => f.required);
@@ -170,10 +168,9 @@ export function ChannelPanel({
       const value = formValues[field.name];
       if (value === undefined || value === "" || value === null) {
         if (hasExistingConfig && field.sensitive) continue;
-        const message = t(
-          "channel.fieldRequired",
-          `${field.title} is required`,
-        );
+        const message = t("channel.fieldRequired", {
+          field: { title: field.title },
+        });
         setSaveError(message);
         return false;
       }
@@ -426,26 +423,6 @@ export function ChannelPanel({
     }
   };
 
-  // Get icon based on channel type
-  const getChannelIcon = () => {
-    switch (channelType) {
-      case "wechat":
-        return (
-          <MessageCircle
-            size={18}
-            className="text-stone-600 dark:text-stone-400"
-          />
-        );
-      default:
-        return (
-          <MessageCircle
-            size={18}
-            className="text-stone-600 dark:text-stone-400"
-          />
-        );
-    }
-  };
-
   // Form content shared between both modes
   const formContent = isLoading ? (
     <PanelLoadingState text={t("common.loading")} />
@@ -689,10 +666,7 @@ export function ChannelPanel({
     <ConfirmDialog
       isOpen={showDeleteConfirm}
       title={t("channel.deleteTitle", "Delete Channel Instance")}
-      message={t(
-        "channel.deleteConfirmMessage",
-        `Are you sure you want to delete "${instanceName}"? This action cannot be undone.`,
-      )}
+      message={t("channel.deleteConfirmMessage", { instanceName })}
       confirmText={t("common.delete", "Delete")}
       cancelText={t("common.cancel", "Cancel")}
       variant="danger"
@@ -717,7 +691,7 @@ export function ChannelPanel({
               : instanceName || metadata.display_name
           }
           subtitle={metadata.description}
-          icon={getChannelIcon()}
+          icon={<ChannelIcon channelType={channelType} size={18} />}
           footer={actionButtons}
         >
           {formContent}
