@@ -2,8 +2,10 @@ import asyncio
 import gc
 import io
 import json
+import subprocess
 import tarfile
 import weakref
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -730,6 +732,9 @@ class _SandboxBackend:
         self.commands.append(command)
         return SimpleNamespace(output=self._output)
 
+    async def aget_file_size(self, _file_path: str) -> int:
+        return 1024
+
 
 def _build_targz(entries: dict[str, bytes]) -> bytes:
     buffer = io.BytesIO()
@@ -805,18 +810,131 @@ async def test_reveal_project_batches_sandbox_files_through_single_bundle(
     assert len(fake_storage.uploads) == 6
 
 
-def test_bundle_command_excludes_heavy_directories() -> None:
-    command = reveal_project_tool._build_bundle_command(
-        "/workspace/demo-folder",
-        "/workspace/.reveal-bundle-abcd1234.tar.gz",
+@pytest.mark.parametrize(
+    "directory_name", ["project", "project ' $(touch injected) `touch injected`"]
+)
+def test_bundle_command_archives_visible_files_with_literal_paths(
+    tmp_path: Path, directory_name: str
+) -> None:
+    project = tmp_path / directory_name
+    project.mkdir()
+    (project / "index.html").write_text("hello")
+    (project / "src").mkdir()
+    (project / "src" / "app.ts").write_text("app")
+    for ignored in [".env", ".hidden/secret.txt", "src/.hidden/secret.txt", "node_modules/lib.js"]:
+        target = project / ignored
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("excluded")
+    bundle = tmp_path / f"{directory_name}.tar.gz"
+
+    subprocess.run(
+        reveal_project_tool._build_bundle_command(
+            str(project), str(bundle), ["/index.html", "/src/app.ts"]
+        ),
+        shell=True,
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
     )
 
-    assert command.startswith("tar czf")
-    assert "--exclude=node_modules" in command
-    assert "--exclude=.git" in command
-    assert "--exclude=dist" in command
-    assert "--exclude=build" in command
-    assert "--exclude=.reveal-bundle-" in command
+    assert not (tmp_path / "injected").exists()
+    with tarfile.open(bundle) as archive:
+        assert {member.name for member in archive if member.isfile()} == {
+            "./index.html",
+            "./src/app.ts",
+        }
+
+
+def test_bundle_command_only_archives_selected_files_without_recursing(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "index.html").write_text("hello")
+    (project / "unselected.bin").write_bytes(b"unused")
+    (project / "changed-to-directory").mkdir()
+    (project / "changed-to-directory" / "large.bin").write_bytes(b"unused")
+    bundle = tmp_path / "bundle.tar.gz"
+
+    subprocess.run(
+        reveal_project_tool._build_bundle_command(
+            str(project), str(bundle), selected_paths=["/index.html", "/changed-to-directory"]
+        ),
+        shell=True,
+        check=True,
+        capture_output=True,
+    )
+
+    with tarfile.open(bundle) as archive:
+        assert {member.name for member in archive if member.isfile()} == {"./index.html"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("size", [None, 257 * 1024 * 1024])
+async def test_bundle_download_requires_known_bounded_archive_size(
+    monkeypatch: pytest.MonkeyPatch, size: int | None
+) -> None:
+    async def get_size(_backend: object, _file_path: str) -> int | None:
+        return size
+
+    downloads = []
+
+    async def download(_backend: object, file_path: str) -> bytes:
+        downloads.append(file_path)
+        return _build_targz({"./index.html": b"hello"})
+
+    monkeypatch.setattr(reveal_project_tool, "_get_backend_file_size", get_size)
+    monkeypatch.setattr(reveal_project_tool, "_download_file_from_backend", download)
+
+    result = await reveal_project_tool._upload_project_files_via_bundle(
+        _FakeStorage(),
+        _SandboxBackend(),
+        "/workspace/project",
+        [("/workspace/project/index.html", "/index.html")],
+        "folder",
+        "https://example.com",
+    )
+
+    assert result is None
+    assert downloads == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["download", "corrupt", "extraction_limit"])
+async def test_failed_bundle_attempt_removes_daemon_archive(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, failure: str
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "index.html").write_text("hello")
+
+    class LocalBackend:
+        async def aexecute(self, command: str, **_kwargs) -> SimpleNamespace:
+            result = await asyncio.to_thread(
+                subprocess.run, command, shell=True, check=True, capture_output=True
+            )
+            return SimpleNamespace(output=result.stdout.decode())
+
+    async def download(_backend: object, file_path: str) -> bytes | None:
+        assert Path(file_path).exists()
+        if failure == "download":
+            return None
+        if failure == "corrupt":
+            return b"not a tar archive"
+        return _build_targz({"./index.html": b"hello" * 200})
+
+    monkeypatch.setattr(reveal_project_tool, "_download_file_from_backend", download)
+    monkeypatch.setattr(reveal_project_tool, "BUNDLE_EXTRACT_TOTAL_LIMIT", 512)
+
+    result = await reveal_project_tool._upload_project_files_via_bundle(
+        _FakeStorage(),
+        LocalBackend(),
+        str(project),
+        [(str(project / "index.html"), "/index.html")],
+        "folder",
+        "https://example.com",
+    )
+
+    assert result is None
+    assert list(tmp_path.glob(".reveal-bundle-*")) == []
 
 
 @pytest.mark.asyncio
@@ -901,19 +1019,18 @@ def test_extract_bundle_members_skips_unsafe_entries() -> None:
     assert members == {"/README.md": b"# demo\n", "/nested/ok.txt": b"ok\n"}
 
 
-def test_extract_bundle_members_returns_none_over_total_limit(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(reveal_project_tool, "BUNDLE_EXTRACT_TOTAL_LIMIT", 8)
+def test_extract_bundle_members_returns_none_over_total_limit() -> None:
     bundle = _build_targz({"./a.txt": b"x" * 6, "./b.txt": b"y" * 6})
 
-    assert reveal_project_tool._extract_bundle_members(bundle, wanted={"/a.txt", "/b.txt"}) is None
+    assert (
+        reveal_project_tool._extract_bundle_members(
+            bundle, wanted={"/a.txt", "/b.txt"}, max_total_size=8
+        )
+        is None
+    )
 
 
-def test_extract_bundle_members_skips_oversize_single_member(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(reveal_project_tool, "BUNDLE_EXTRACT_TOTAL_LIMIT", 1024 * 1024)
+def test_extract_bundle_members_skips_oversize_single_member() -> None:
     bundle = _build_targz({"./small.txt": b"ok\n", "./huge.bin": b"x" * 100})
 
     members = reveal_project_tool._extract_bundle_members(

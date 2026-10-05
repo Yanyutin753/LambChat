@@ -28,11 +28,9 @@ Reveal Project 工具
 
 import asyncio
 import inspect
-import io
 import json
 import os
-import posixpath
-import tarfile
+import shlex
 import uuid
 from tempfile import SpooledTemporaryFile
 from typing import Annotated, Any, Optional
@@ -45,6 +43,11 @@ from src.infra.async_utils.background_tasks import BestEffortTaskLimiter
 from src.infra.logging import get_logger
 from src.infra.logging.context import TraceContext
 from src.infra.revealed_file.storage import get_revealed_file_storage
+from src.infra.tool._reveal_project_bundle import (
+    BUNDLE_EXTRACT_TOTAL_LIMIT,
+    _build_bundle_command,
+    _extract_bundle_members,
+)
 from src.infra.tool.backend_utils import (
     get_backend_from_runtime,
     get_base_url_from_runtime,
@@ -54,7 +57,6 @@ from src.infra.tool.backend_utils import (
     get_user_id_from_runtime,
 )
 from src.infra.tool.reveal_project_detection import (
-    IGNORE_DIRS,
     ProjectTemplate,
     _find_entry,
     _get_mime_type,
@@ -81,12 +83,6 @@ BUNDLE_MIN_FILES = 5
 # bundle 路径的上传全部发生在服务端（解包后的字节 → OSS），不受 daemon 串行消费
 # 限制，可比逐文件路径的下载+上传混合并发更激进，但每 worker 仍驻留一个文件缓冲。
 BUNDLE_UPLOAD_CONCURRENCY = 8
-# 解包驻留内存上限：与逐文件路径的峰值（UPLOAD_CONCURRENCY × 单文件上限）同量级。
-BUNDLE_EXTRACT_TOTAL_LIMIT = 256 * 1024 * 1024
-# daemon 侧打包排除的重目录/隐藏文件（模式不含 "/" 时对任意路径组件生效，
-# GNU tar 与 bsdtar 语义一致）。服务端仍以 upload_tasks 清单为最终裁判，
-# 这里只是少搬无用字节。
-_BUNDLE_EXCLUDE_PATTERNS = [*sorted(IGNORE_DIRS), ".*", ".reveal-bundle-*"]
 
 
 async def drain_project_cleanup_tasks() -> None:
@@ -593,70 +589,6 @@ async def _upload_project_files_bounded(
     return results
 
 
-def _build_bundle_command(project_path: str, bundle_path: str) -> str:
-    """构造 daemon 侧 tar 打包命令（POSIX 风格，与 find 扫描同一 shell 语境）。"""
-    parts = ["tar", "czf", f'"{bundle_path}"']
-    parts.extend(f"--exclude={pattern}" for pattern in _BUNDLE_EXCLUDE_PATTERNS)
-    parts.extend(["-C", f'"{project_path}"', "."])
-    return " ".join(parts)
-
-
-def _extract_bundle_members(
-    bundle_bytes: bytes,
-    wanted: set[str],
-    *,
-    max_member_size: int | None = None,
-) -> dict[str, bytes] | None:
-    """安全解包 bundle，只保留 wanted 清单里的普通文件。
-
-        - 路径清洗后拒绝绝对路径与 ``..`` 上溯（tar 路径穿越）；
-    - 非 UTF-8 文件名、非普通文件成员跳过；
-        - 单成员超过 ``max_member_size`` 跳过（与逐文件路径的超限语义一致）；
-        - 解包总量超过 ``BUNDLE_EXTRACT_TOTAL_LIMIT`` 返回 None（调用方整体降级
-          逐文件路径——那条路径逐文件流转，不驻留大内存）。
-    """
-    members: dict[str, bytes] = {}
-    total = 0
-    try:
-        with tarfile.open(fileobj=io.BytesIO(bundle_bytes), mode="r:gz") as tf:
-            for member in tf:
-                if not member.isreg():
-                    continue
-                normalized = posixpath.normpath(member.name)
-                if (
-                    not normalized
-                    or normalized == "."
-                    or normalized.startswith("/")
-                    or normalized == ".."
-                    or normalized.startswith("../")
-                ):
-                    continue
-                rel_path = f"/{normalized}"
-                if rel_path not in wanted:
-                    continue
-                if max_member_size is not None and member.size > max_member_size:
-                    continue
-                total += member.size
-                if total > BUNDLE_EXTRACT_TOTAL_LIMIT:
-                    logger.info(
-                        f"bundle extraction exceeds total limit {BUNDLE_EXTRACT_TOTAL_LIMIT}, "
-                        "falling back to per-file upload"
-                    )
-                    return None
-                try:
-                    normalized.encode("utf-8")
-                except UnicodeEncodeError:
-                    continue
-                extracted = tf.extractfile(member)
-                if extracted is None:
-                    continue
-                members[rel_path] = extracted.read()
-    except (tarfile.TarError, OSError, EOFError) as e:
-        logger.info(f"bundle extraction failed: {e}")
-        return None
-    return members
-
-
 async def _upload_bundle_members(
     storage: Any,
     members: dict[str, bytes],
@@ -717,8 +649,23 @@ async def _upload_project_files_via_bundle(
     bundle_path = (
         f"{os.path.dirname(project_path.rstrip('/'))}/.reveal-bundle-{uuid.uuid4().hex[:8]}.tar.gz"
     )
+    cleanup_command = shlex.join(["rm", "-f", "--", bundle_path])
+    cleanup_task: asyncio.Task[Any] | None = None
     try:
-        await _execute_command(backend, _build_bundle_command(project_path, bundle_path))
+        await _execute_command(
+            backend,
+            _build_bundle_command(
+                project_path, bundle_path, [rel_path for _, rel_path in upload_tasks]
+            ),
+        )
+        bundle_size = await _get_backend_file_size(backend, bundle_path)
+        if bundle_size is None:
+            bundle_size = _coerce_file_size(
+                await _execute_command(backend, f"wc -c < {shlex.quote(bundle_path)}")
+            )
+        if bundle_size is None or bundle_size > BUNDLE_EXTRACT_TOTAL_LIMIT:
+            logger.info("bundle size unknown or over limit, falling back to per-file upload")
+            return None
         bundle_bytes = await _download_file_from_backend(backend, bundle_path)
         if bundle_bytes is None:
             logger.info("bundle download returned nothing, falling back to per-file upload")
@@ -729,20 +676,24 @@ async def _upload_project_files_via_bundle(
             bundle_bytes,
             wanted,
             max_member_size=_get_storage_internal_upload_max_size(storage),
+            max_total_size=BUNDLE_EXTRACT_TOTAL_LIMIT,
         )
+        del bundle_bytes
         if members is None:
             return None
+        # daemon 侧清理打包产物与上传并行，不增加端到端时延。
+        cleanup_task = asyncio.create_task(_execute_command(backend, cleanup_command))
+        uploaded = await _upload_bundle_members(storage, members, folder_name, base_url)
     except Exception as e:  # noqa: BLE001 - 任何 bundle 环节失败都降级
         logger.info(f"bundle path failed ({project_path}), falling back to per-file: {e}")
         return None
-
-    # daemon 侧清理打包产物与上传并行，不增加端到端时延
-    cleanup_task = asyncio.ensure_future(_execute_command(backend, f'rm -f "{bundle_path}"'))
-    try:
-        uploaded = await _upload_bundle_members(storage, members, folder_name, base_url)
     finally:
+        # 下载/解包失败和任务取消也可能留下完整或部分归档，必须回收。
         try:
-            await cleanup_task
+            if cleanup_task is None:
+                await _execute_command(backend, cleanup_command)
+            else:
+                await cleanup_task
         except Exception:  # noqa: BLE001 - 清理尽力而为
             pass
 
