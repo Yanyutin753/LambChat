@@ -462,7 +462,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     ) -> list:
         """Build the middleware stack for a single subagent."""
         mw = [
-            *create_retry_middleware(fallback_model=fallback_model, thinking=thinking_config),
+            *create_retry_middleware(fallback_model=fallback_model),
             create_todo_middleware(),
             ToolResultBinaryMiddleware(base_url=subagent_base_url),
             ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir),
@@ -702,9 +702,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         ]
 
     # ── 主代理中间件栈 ──
-    user_middleware = create_retry_middleware(
-        fallback_model=fallback_model_value, thinking=thinking_config
-    )
+    user_middleware = create_retry_middleware(fallback_model=fallback_model_value)
     user_middleware.append(create_todo_middleware())
     user_middleware.insert(
         0, SteerMiddleware(session_id=str(state.get("session_id") or ""), presenter=presenter)

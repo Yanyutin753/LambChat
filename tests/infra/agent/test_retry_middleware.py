@@ -2,7 +2,11 @@ import httpx
 import pytest
 from langchain_core.messages import AIMessage
 
-from src.infra.agent.middleware.retry import EmptyContentRetryMiddleware, ModelFallbackMiddleware
+from src.infra.agent.middleware.retry import (
+    EmptyContentRetryMiddleware,
+    ModelFallbackMiddleware,
+    create_retry_middleware,
+)
 
 
 class _Request:
@@ -162,14 +166,17 @@ async def test_fallback_empty_final_message_returns_response_without_raise() -> 
     assert result.content == ""
 
 
-async def test_fallback_model_is_created_with_same_thinking_config(monkeypatch) -> None:
+async def test_fallback_model_is_created_without_thinking(monkeypatch) -> None:
+    """issue #781：栈带 thinking 配置时 fallback LLM 也不得继承。
+
+    跨模型重放历史时，thinking 模式要求 assistant 轮回传 reasoning 块
+    （reasoning_content / reasoning_text，字段名随端点而异），而历史由主模型
+    产生、不含该字段——硅基流动系端点直接 400。fallback 语义求稳，显式以
+    thinking=None 创建即不触发回传校验。"""
     calls = []
     fallback_model = object()
-    thinking = {"type": "enabled", "level": "medium", "budget_tokens": 8192}
-    middleware = ModelFallbackMiddleware(
-        fallback_model="openai/fallback-model",
-        thinking=thinking,
-    )
+    stack = create_retry_middleware(fallback_model="openai/fallback-model")
+    middleware = next(m for m in stack if isinstance(m, ModelFallbackMiddleware))
 
     async def fake_get_model(**kwargs):
         calls.append(kwargs)
@@ -180,7 +187,7 @@ async def test_fallback_model_is_created_with_same_thinking_config(monkeypatch) 
     result = await middleware._get_fallback_llm()
 
     assert result is fallback_model
-    assert calls == [{"model": "openai/fallback-model", "thinking": thinking}]
+    assert calls == [{"model": "openai/fallback-model", "thinking": None}]
 
 
 def test_is_retryable_error_recognizes_asyncio_timeout() -> None:
