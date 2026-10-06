@@ -122,19 +122,23 @@ class ModelFallbackMiddleware(AgentMiddleware):
     replays the request once.
     """
 
-    def __init__(self, *, fallback_model: str, thinking: dict | None = None) -> None:
+    def __init__(self, *, fallback_model: str) -> None:
         super().__init__()
         self._fallback_model = fallback_model
-        self._thinking = thinking
         self._fallback_llm: BaseChatModel | None = None
         self._prewarm_task: asyncio.Task[None] | None = None
 
     async def _create_fallback_llm(self) -> BaseChatModel:
         from src.infra.llm.client import LLMClient
 
+        # #781：fallback 不继承 thinking 配置。跨模型重放历史时，thinking
+        # 模式要求 assistant 轮回传 reasoning 块（reasoning_content /
+        # reasoning_text，字段名随端点而异），而历史由主模型产生、不含该字段，
+        # 硅基流动系端点会直接 400 硬失败。fallback 语义求稳：显式不带
+        # thinking 参数即不触发回传校验，代价仅为兜底响应无推理。
         llm = await LLMClient.get_model(
             model=self._fallback_model,
-            thinking=self._thinking,
+            thinking=None,
         )
         logger.info("[ModelFallback] Created fallback LLM: %s", self._fallback_model)
         return llm
@@ -300,7 +304,6 @@ class UniqueResponseIdMiddleware(AgentMiddleware):
 
 def create_retry_middleware(
     fallback_model: str | None = None,
-    thinking: dict | None = None,
 ) -> list[AgentMiddleware[Any, Any, Any]]:
     """Create the retry middleware stack for deep agents.
 
@@ -322,7 +325,9 @@ def create_retry_middleware(
     ]
 
     if fallback_model:
-        stack.append(ModelFallbackMiddleware(fallback_model=fallback_model, thinking=thinking))
+        # 不接收 thinking 参数（#781）：fallback 跨模型重放历史时 thinking
+        # 模式会被端点要求回传 reasoning 块而 400，兜底链路一律不带。
+        stack.append(ModelFallbackMiddleware(fallback_model=fallback_model))
 
     stack.extend(
         [

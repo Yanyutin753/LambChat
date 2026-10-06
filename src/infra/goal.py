@@ -202,10 +202,7 @@ def create_goal_rubric_middleware(
 
     from src.infra.agent.middleware.retry import create_retry_middleware
 
-    grader_middleware = create_retry_middleware(
-        fallback_model=fallback_model,
-        thinking=thinking,
-    )
+    grader_middleware = create_retry_middleware(fallback_model=fallback_model)
 
     try:
         return _create_rubric_middleware_with_retry(

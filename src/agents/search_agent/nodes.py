@@ -245,7 +245,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     def _build_subagent_middleware(subagent_type: str) -> list:
         mw = [
-            *create_retry_middleware(fallback_model=fallback_model_value, thinking=thinking_config),
+            *create_retry_middleware(fallback_model=fallback_model_value),
             create_todo_middleware(),
             ToolResultBinaryMiddleware(base_url=search_base_url),
             ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir),
@@ -331,9 +331,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     ]
 
     # 构建中间件栈：steer → retry → binary → authored prompts → sandbox tools → memory_index → tool search
-    user_middleware = create_retry_middleware(
-        fallback_model=fallback_model_value, thinking=thinking_config
-    )
+    user_middleware = create_retry_middleware(fallback_model=fallback_model_value)
     user_middleware.append(create_todo_middleware())
     user_middleware.insert(
         0, SteerMiddleware(session_id=str(state.get("session_id") or ""), presenter=presenter)
