@@ -56,6 +56,7 @@ class GitHubClient:
     def __init__(self):
         self._cache: Optional[GitHubRelease] = None
         self._cache_time: Optional[datetime] = None
+        self._updater_cache: Optional[tuple[GitHubRelease, datetime]] = None
         self._tag_cache: dict[str, tuple[GitHubRelease, datetime]] = {}
 
     async def get_latest_release(self, force_refresh: bool = False) -> Optional[GitHubRelease]:
@@ -96,6 +97,39 @@ class GitHubClient:
                 del self._tag_cache[oldest]
             self._tag_cache[key] = (release, datetime.now(UTC))
         return release
+
+    async def get_latest_updater_release(self) -> Optional[GitHubRelease]:
+        """Find the newest stable release with a published desktop updater manifest.
+
+        A baking release has packages but no latest.json. Keep serving the previous
+        published manifest until Desktop Updater Publish completes.
+        """
+        cached = self._updater_cache
+        if cached and datetime.now(UTC) - cached[1] < timedelta(seconds=CACHE_TTL_SECONDS):
+            return cached[0]
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                # ponytail: bounded to 90 releases; increase only if baking spans more releases.
+                for page in range(1, 4):
+                    url = f"{GITHUB_API_URL.removesuffix('/latest')}?per_page=30&page={page}"
+                    response = await client.get(
+                        url, headers={"Accept": "application/vnd.github+json"}
+                    )
+                    if response.status_code != 200:
+                        return None
+                    releases = response.json()
+                    for data in releases:
+                        if data.get("draft") or data.get("prerelease"):
+                            continue
+                        release = self._parse_release(data)
+                        if any(asset["name"] == "latest.json" for asset in release.assets):
+                            self._updater_cache = (release, datetime.now(UTC))
+                            return release
+                    if len(releases) < 30:
+                        break
+        except Exception:
+            return None
+        return None
 
     async def open_asset_stream(self, url: str) -> "AssetStream":
         """打开 release 资产的上游下载流（github.com 302 → 签名 blob，需跟随重定向）。

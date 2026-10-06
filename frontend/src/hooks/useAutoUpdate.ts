@@ -100,6 +100,8 @@ export function formatUpdateError(error: unknown, platform: string): string {
 /** Debounce delay (ms) before checking for updates on startup */
 const CHECK_DELAY_MS = 5000;
 
+type UpdateCheckResult = { ok: boolean; version: string | null };
+
 /** 周期检查间隔与聚焦检查最小间隔（纯函数见 shouldCheckNow，供测试） */
 export const PERIODIC_CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000;
 export const FOCUS_CHECK_MIN_INTERVAL_MS = 60 * 60 * 1000;
@@ -190,9 +192,8 @@ async function notifyUpdateAvailable(
   backgroundDownload: boolean,
 ): Promise<void> {
   try {
-    const { appNotificationService } = await import(
-      "../services/notifications/appNotificationService"
-    );
+    const { appNotificationService } =
+      await import("../services/notifications/appNotificationService");
     await appNotificationService.notify({
       type: "message",
       title: i18n.t("update.notificationTitle", "发现新版本"),
@@ -219,6 +220,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   const [showDialog, setShowDialog] = useState(false);
   const platformRef = useRef(detectPlatform());
   const checkedRef = useRef(false);
+  const manualCheckInFlightRef = useRef(false);
   const lastCheckedAtRef = useRef(0);
   const notifiedVersionRef = useRef<string | null>(null);
   /** 已后台下载完成的 Tauri 更新对象（待用户确认安装重启） */
@@ -305,18 +307,17 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     async (options?: { background?: boolean; manual?: boolean }) => {
       const background = options?.background === true;
       const manual = options?.manual === true;
-      let ok = true;
+      let result: UpdateCheckResult = { ok: true, version: null };
       if (platform === "tauri") {
         const linuxSource = await ensureLinuxSource();
-        ok = linuxSource
+        result = linuxSource
           ? await checkLinuxUpdate(linuxSource, background, manual)
           : await checkTauriUpdate(background, manual);
       } else if (platform === "android" || platform === "ios") {
-        ok = await checkBackendUpdate(background, manual);
+        result = await checkBackendUpdate(background, manual);
       }
       lastCheckedAtRef.current = Date.now();
-      return ok;
-      // web: no-op（恒 true）
+      return result;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [platform],
@@ -325,26 +326,28 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   /** 手动「检查更新」（设置页事件触发）：无更新给「已是最新」、失败明确报错——
    * 此前检查失败也弹「已是最新」，把网络/清单故障伪装成最新态 */
   const checkNow = useCallback(async () => {
-    if (platform === "web") return;
-    const before = stateRef.current.available;
-    const ok = await checkForUpdate({ manual: true });
+    if (platform === "web" || manualCheckInFlightRef.current) return;
+    manualCheckInFlightRef.current = true;
     const { toast } = await import("react-hot-toast");
-    if (!ok) {
-      toast.error(i18n.t("updateCheckFailed", "检查更新失败，请稍后重试"));
-      return;
-    }
-    if (!stateRef.current.available && !before) {
-      toast.success(i18n.t("update.upToDate", "已是最新版本"));
-      return;
-    }
-    // 桌面端发现新版本：不弹框——toast 告知 + 标题栏指示器接管后续流程
-    if (platform === "tauri" && stateRef.current.available && !before) {
-      toast.success(
-        i18n.t("update.foundToast", {
-          defaultValue: "发现新版本 v{{version}}",
-          version: stateRef.current.version ?? "",
-        }),
-      );
+    const options = { id: "manual-update-check" };
+    toast.loading(i18n.t("update.checking"), options);
+    try {
+      const result = await checkForUpdate({ manual: true });
+      if (!result.ok) {
+        toast.error(i18n.t("updateCheckFailed"), options);
+      } else if (result.version) {
+        toast.success(
+          i18n.t("update.foundToast", { version: result.version }),
+          options,
+        );
+      } else {
+        toast.success(i18n.t("update.upToDate"), options);
+      }
+    } catch (error) {
+      console.warn("[Update] Manual check failed", error);
+      toast.error(i18n.t("updateCheckFailed"), options);
+    } finally {
+      manualCheckInFlightRef.current = false;
     }
   }, [platform, checkForUpdate]);
 
@@ -397,7 +400,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   /** Check via Tauri updater plugin（返回检查是否成功，失败供手动检查提示区分）。
    * 仅 Windows/macOS 可达：Linux 桌面在 checkForUpdate 已分流到 checkLinuxUpdate */
   const checkTauriUpdate = useCallback(
-    async (background = false, manual = false): Promise<boolean> => {
+    async (background = false, manual = false): Promise<UpdateCheckResult> => {
       try {
         const { check } = await import("@tauri-apps/plugin-updater");
         const update = await check();
@@ -433,11 +436,11 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
             setState(INITIAL_STATE);
           }
         }
-      } catch {
-        // Silently fail — updater may not be available in dev
-        return false;
+        return { ok: true, version: update?.available ? update.version : null };
+      } catch (error) {
+        console.warn("[Update] Native check failed", error);
+        return { ok: false, version: null };
       }
-      return true;
     },
     [startBackgroundDownload],
   );
@@ -450,7 +453,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       source: LinuxInstallSource,
       background = false,
       manual = false,
-    ): Promise<boolean> => {
+    ): Promise<UpdateCheckResult> => {
       try {
         const info = await versionApi.checkForUpdates(APP_VERSION);
         if (info.has_update) {
@@ -509,11 +512,14 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
             setState(INITIAL_STATE);
           }
         }
-      } catch {
-        // Silently fail
-        return false;
+        return {
+          ok: true,
+          version: info.has_update ? (info.latest_version ?? null) : null,
+        };
+      } catch (error) {
+        console.warn("[Update] Backend check failed", error);
+        return { ok: false, version: null };
       }
-      return true;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
@@ -556,9 +562,16 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   /** Check via backend /api/version endpoint（上报客户端版本，has_update 按它判断；
    * 返回检查是否成功，与 Tauri 路径同供手动检查提示区分） */
   const checkBackendUpdate = useCallback(
-    async (background = false, manual = false): Promise<boolean> => {
+    async (background = false, manual = false): Promise<UpdateCheckResult> => {
       try {
         const info = await versionApi.checkForUpdates(APP_VERSION);
+        // 检查可以发现新版本，但不能替换正在下载的 APK 及其进度。
+        if (platform === "android" && downloadInFlightRef.current) {
+          return {
+            ok: true,
+            version: info.has_update ? (info.latest_version ?? null) : null,
+          };
+        }
         if (info.has_update) {
           const v = info.latest_version ?? null;
           const prompt = shouldPromptUpdate(
@@ -567,14 +580,19 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
             { manual },
           );
           if (prompt) {
-            setState({
+            setState((prev) => ({
               ...INITIAL_STATE,
+              ...(platform === "android" &&
+              prev.version === v &&
+              prev.readyToInstall
+                ? prev
+                : {}),
               available: true,
               version: v,
               releaseNotes: info.release_notes ?? null,
               releaseUrl: info.release_url ?? null,
               releaseAssets: info.release_assets ?? [],
-            });
+            }));
             // 该路径仅移动端（android/ios）可达：对话框保留
             if (shouldOpenUpdateDialog(platform)) {
               setShowDialog(true);
@@ -593,11 +611,14 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
             setState(INITIAL_STATE);
           }
         }
-      } catch {
-        // Silently fail
-        return false;
+        return {
+          ok: true,
+          version: info.has_update ? (info.latest_version ?? null) : null,
+        };
+      } catch (error) {
+        console.warn("[Update] Backend check failed", error);
+        return { ok: false, version: null };
       }
-      return true;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [platform],
@@ -610,15 +631,17 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       try {
         const apkAsset = findApkAsset(assets);
         if (!apkAsset) return;
-        const { UpdateDownloader } = await import(
-          "../services/capacitor/updateDownloader"
-        );
+        const { UpdateDownloader } =
+          await import("../services/capacitor/updateDownloader");
         const status = await UpdateDownloader.status({
           fileName: apkAsset.name,
         });
         if (!isDownloadedApkComplete(status, apkAsset.size)) return;
         setState((prev) =>
-          prev.available && prev.version
+          prev.available &&
+          prev.version &&
+          !downloadInFlightRef.current &&
+          findApkAsset(prev.releaseAssets)?.name === apkAsset.name
             ? {
                 ...prev,
                 readyToInstall: true,
@@ -778,6 +801,8 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
 
   /** Download APK and trigger Android install intent */
   const installAndroidUpdate = useCallback(async () => {
+    if (downloadInFlightRef.current) return;
+    downloadInFlightRef.current = true;
     setState((prev) => ({
       ...prev,
       downloading: true,
@@ -810,6 +835,8 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
               ? err.message
               : i18n.t("updateError", "更新失败"),
       }));
+    } finally {
+      downloadInFlightRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.releaseAssets]);
