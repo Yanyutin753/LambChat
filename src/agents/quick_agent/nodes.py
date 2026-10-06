@@ -87,9 +87,7 @@ async def quick_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             attachments = await inline_image_attachments_as_data_urls(
                 attachments, base_url=configurable.get("base_url", "")
             )
-    human_message = build_human_message(
-        user_input, attachments, supports_vision=supports_vision
-    )
+    human_message = build_human_message(user_input, attachments, supports_vision=supports_vision)
 
     messages = [
         SystemMessage(content=_build_system_prompt(configurable)),
