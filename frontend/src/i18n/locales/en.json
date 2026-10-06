@@ -297,6 +297,10 @@
       "description": "No sandbox, faster response, for daily chat",
       "name": "Fast Agent"
     },
+    "quick": {
+      "description": "Sends messages straight to the LLM — no tools, no sandbox, fastest replies",
+      "name": "Quick Q&A"
+    },
     "search": {
       "description": "With code interpreter & sandbox, for complex tasks",
       "name": "Search Agent"
