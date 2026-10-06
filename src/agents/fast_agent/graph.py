@@ -56,7 +56,7 @@ class FastAgent(BaseGraphAgent):
     _description = "快速响应的 AI 助手，无沙箱，支持 Skills"
     _description_key = "agents.fast.description"
     _version = "1.0.0"
-    _sort_order = 2  # 排序权重，数值越小越靠前
+    _sort_order = 3  # 排序权重，数值越小越靠前（search=1, quick=2, fast=3）
     _supports_sandbox = False  # 不支持沙箱环境
 
     _options = {
