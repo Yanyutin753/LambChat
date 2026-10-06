@@ -8,6 +8,9 @@ from collections.abc import Callable, Iterator
 from typing import Any
 
 import httpx
+from langchain_core.callbacks import AsyncCallbackHandler
+from langchain_core.messages import AIMessage
+from langchain_core.runnables.config import ensure_config, merge_configs
 
 from src.kernel.config import settings
 
@@ -51,7 +54,7 @@ def _is_provider_retryable_error(exc: BaseException) -> bool:
             ):
                 return True
             if isinstance(exc, module.APIStatusError):
-                if 500 <= exc.status_code < 600:
+                if exc.status_code in (408, 409, 429) or 500 <= exc.status_code < 600:
                     return True
                 body = getattr(exc, "body", None)
                 if isinstance(body, dict):
@@ -73,7 +76,7 @@ def _is_provider_retryable_error(exc: BaseException) -> bool:
         if isinstance(exc, google_errors.ServerError):
             return True
         if isinstance(exc, google_errors.ClientError):
-            return getattr(exc, "code", None) == 429
+            return getattr(exc, "code", None) in (408, 409, 429)
     except (ImportError, AttributeError):
         pass
     return False
@@ -84,6 +87,12 @@ def is_retryable_model_error(exc: BaseException) -> bool:
     for current in _exception_chain(exc):
         if isinstance(current, ValueError) and "No generations found in stream" in str(current):
             return True
+        if isinstance(current, EmptyModelResponseError):
+            return True
+        if isinstance(current, httpx.HTTPStatusError):
+            status = current.response.status_code
+            if status in (408, 409, 429) or 500 <= status < 600:
+                return True
         if isinstance(current, TimeoutError):
             return True
         if isinstance(current, httpx.TransportError):
@@ -126,12 +135,54 @@ def is_auth_model_error(exc: BaseException) -> bool:
     instead of surfacing the raw 401/403 to the user.
     """
     for current in _exception_chain(exc):
+        if isinstance(current, httpx.HTTPStatusError) and current.response.status_code in (
+            401,
+            403,
+        ):
+            return True
         if _is_provider_auth_error(current):
             return True
         # 部分中转/包装层把上游鉴权失败重写成普通异常，仅保留 SDK 文案
         if "Error code: 401 -" in str(current) or "Error code: 403 -" in str(current):
             return True
     return False
+
+
+class EmptyModelResponseError(RuntimeError):
+    """A completed model call returned no final answer or tool calls."""
+
+
+class _ModelOutputTracker(AsyncCallbackHandler):
+    """Never replay an invocation after its stream has delivered content."""
+
+    def __init__(self) -> None:
+        self.emitted = False
+
+    async def on_llm_new_token(
+        self, token: str | list[str | dict[str, Any]], *, chunk: Any = None, **kwargs: Any
+    ) -> None:
+        message = getattr(chunk, "message", None)
+        if token or (
+            message is not None and (message.content or getattr(message, "tool_call_chunks", None))
+        ):
+            self.emitted = True
+
+
+def _empty_answer(response: Any) -> bool:
+    if not isinstance(response, AIMessage) or response.tool_calls:
+        return False
+    content = response.content
+    if isinstance(content, str):
+        return not content.strip()
+    return not any(
+        (isinstance(block, str) and block.strip())
+        or (
+            isinstance(block, dict)
+            and block.get("type") == "text"
+            and block.get("text", "").strip()
+        )
+        for block in content
+    )
 
 
 async def ainvoke_with_retry(
@@ -142,19 +193,53 @@ async def ainvoke_with_retry(
     retry_delay: float | None = None,
     operation: str = "model",
     retry_if: Callable[[BaseException], bool] = is_retryable_model_error,
+    fallback_model: str | None = None,
+    thinking: dict | None = None,
     **kwargs: Any,
 ) -> Any:
-    """Invoke a model once plus ``max_retries`` retries on transient failures."""
+    """Retry transient/empty calls, then use the configured fallback once.
+
+    The same policy covers every protocol. Cancellation propagates immediately;
+    once streamed content is delivered, failures propagate instead of replaying it.
+    """
     retries = settings.LLM_MAX_RETRIES if max_retries is None else max(0, max_retries)
     base_delay = settings.LLM_RETRY_DELAY if retry_delay is None else max(0, retry_delay)
+    tracker = _ModelOutputTracker()
+    config = ensure_config(kwargs.get("config"))
+    if "config" in kwargs or config.get("callbacks"):
+        kwargs["config"] = merge_configs(config, {"callbacks": [tracker]})
 
     for attempt in range(retries + 1):
         try:
-            return await model.ainvoke(prompt, **kwargs)
+            response = await model.ainvoke(prompt, **kwargs)
+            if _empty_answer(response) and not tracker.emitted:
+                raise EmptyModelResponseError("Model returned no final answer")
+            return response
         except Exception as exc:
-            if attempt >= retries or not retry_if(exc):
+            if tracker.emitted:
                 raise
-            delay = base_delay * (2**attempt)
+            retryable = retry_if(exc)
+            if attempt >= retries or not retryable:
+                if fallback_model and (retryable or is_auth_model_error(exc)):
+                    from src.infra.llm.client import LLMClient
+
+                    logger.warning(
+                        "[%s] primary failed with %s; switching to fallback",
+                        operation,
+                        type(exc).__name__,
+                    )
+                    fallback = await LLMClient.get_model(model=fallback_model, thinking=thinking)
+                    return await ainvoke_with_retry(
+                        fallback,
+                        prompt,
+                        max_retries=retries,
+                        retry_delay=base_delay,
+                        operation=operation,
+                        retry_if=retry_if,
+                        **kwargs,
+                    )
+                raise
+            delay = min(base_delay * (2**attempt), 60.0)
             logger.warning(
                 "[%s] model call failed with %s (attempt %d/%d); retrying in %.1fs",
                 operation,

@@ -15,12 +15,14 @@ from langchain_core.runnables import RunnableConfig
 from src.agents.core.node_utils import (
     build_human_message,
     inline_image_attachments_as_data_urls,
+    resolve_fallback_model,
     resolve_model_supports_vision,
 )
 from src.agents.core.subagent_prompts import build_response_language_section
 from src.agents.core.thinking import build_thinking_config
 from src.agents.quick_agent.prompt import QUICK_SYSTEM_PROMPT
 from src.infra.llm.client import LLMClient
+from src.infra.llm.retry import ainvoke_with_retry
 from src.infra.logging import get_logger
 
 logger = get_logger(__name__)
@@ -67,11 +69,12 @@ async def quick_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     configurable = config.get("configurable", {})
     agent_options = configurable.get("agent_options") or {}
 
+    thinking = build_thinking_config(agent_options)
     llm = await LLMClient.get_model(
         model=agent_options.get("model"),
         model_id=agent_options.get("model_id"),
         model_config=agent_options.get("_resolved_model_config"),
-        thinking=build_thinking_config(agent_options),
+        thinking=thinking,
     )
 
     user_input = state.get("input", "")
@@ -95,7 +98,19 @@ async def quick_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         human_message,
     ]
 
-    ai_message = await llm.ainvoke(messages, config=config)
+    fallback = agent_options.get("_resolved_fallback_model")
+    if "_resolved_fallback_model" not in agent_options:
+        fallback = await resolve_fallback_model(
+            agent_options.get("model_id"), agent_options.get("model"), log_prefix="[QuickAgent]"
+        )
+    ai_message = await ainvoke_with_retry(
+        llm,
+        messages,
+        config=config,
+        operation="quick-agent",
+        fallback_model=fallback,
+        thinking=thinking,
+    )
 
     return {
         "messages": [human_message, ai_message],

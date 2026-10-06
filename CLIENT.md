@@ -89,7 +89,14 @@
 - 六文件 bump 规则以 `AGENTS.md` 为准；`versionCode`（第七处）随 `versionName` 联动。
 - **cargo `Cargo.toml` crate 版本当前已漂移（2.8.6 vs `tauri.conf.json` 2.10.1）且 preflight 不校验**——二选一，团队拍板：纳入 preflight 一并 bump（推荐），或在 `Cargo.toml` 注释明确「crate 版本不参与发版」并写明理由。悬空不管是最差选项。
 - 建议 bump 脚本化（`scripts/bump_version.py`：一次改齐全部版本文件 + 校验 versionCode 规则），替代手工六处编辑；出 tag 的 preflight 继续兜底。
-- 发版完成判据不变：latest.json 五个桌面平台条目齐全（含 `darwin-x86_64`）+ mac/windows 真机抽检通过。
+- 发版完成判据不变：latest.json 三个桌面平台条目齐全（Windows x64、macOS Apple Silicon / Intel）（含 `darwin-x86_64`）+ mac/windows 真机抽检通过。
+
+### 模型调用与跨端一致性
+
+- Web、Tauri（macOS / Windows / Linux）、Capacitor（Android / iOS）共享助手目录与五语文案；轻量助手保留 `quick` 标识，已有会话和助手偏好继续有效。
+- 所有已注册模型协议共用瞬态错误分类：连接故障、超时、408 / 409 / 429 / 5xx 按 `LLM_MAX_RETRIES` 和 `LLM_RETRY_DELAY` 重试。主模型失败后使用模型配置或全局配置中的 fallback；401 / 403 直接切备用模型，不重试相同凭据。
+- 轻量助手的直接调用也使用共享重试 / fallback；直接调用已经交付流式内容后不重放请求，取消立即传播。备用模型失败后终止，不循环切换。
+- 桌面烘焙期间自动更新主端点回退到最近已发布稳定版清单；手动检查直接依据返回的版本结果反馈，检查、下载和待安装状态不互相覆盖。
 
 ## 10. 测试（§5 + §10）
 

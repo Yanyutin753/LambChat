@@ -298,8 +298,8 @@
       "name": "快速助手"
     },
     "quick": {
-      "description": "消息直发大模型，无工具无沙箱，最快拿到回复",
-      "name": "快问快答"
+      "description": "日常问答、写作与翻译，专注直接回应。",
+      "name": "轻量助手"
     },
     "search": {
       "description": "支持代码解释器和沙箱，适合复杂任务",
@@ -4237,6 +4237,7 @@
     "messageMissing": "书签指向的消息不在历史中，可能已被删除"
   },
   "update": {
+    "checking": "正在检查更新…",
     "aboutTitle": "关于",
     "checkNow": "检查更新",
     "notificationBody": "新版本 {{version}} 已发布，可在设置中检查更新",

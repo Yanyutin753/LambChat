@@ -7,6 +7,7 @@ import pytest
     "relative_path",
     [
         "src/api/routes/session.py",
+        "src/agents/quick_agent/nodes.py",
         "src/agents/core/recommendations.py",
         "src/infra/agent/middleware/main_agent_context.py",
         "src/infra/agent/middleware/subagent_activity.py",

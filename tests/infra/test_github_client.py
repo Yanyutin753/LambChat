@@ -106,3 +106,51 @@ async def test_get_release_by_tag_missing_tag_returns_none(monkeypatch):
     assert _FakeAsyncClient.all_requests == [
         f"{gc_module.GITHUB_API_URL.replace('/latest', '')}/tags/v9.9.9"
     ]
+
+
+async def test_updater_release_skips_baking_drafts_and_prereleases(monkeypatch):
+    releases = [
+        {**PAYLOAD, "tag_name": "v2.9.0"},
+        {**PAYLOAD, "draft": True, "assets": [{"name": "latest.json"}]},
+        {**PAYLOAD, "prerelease": True, "assets": [{"name": "latest.json"}]},
+        {
+            **PAYLOAD,
+            "assets": [
+                {"name": "latest.json", "browser_download_url": "https://example.com/stable.json"}
+            ],
+        },
+    ]
+    _install(
+        monkeypatch,
+        {
+            f"{gc_module.GITHUB_API_URL.removesuffix('/latest')}?per_page=30&page=1": _FakeResponse(
+                payload=releases
+            )
+        },
+    )
+    client = GitHubClient()
+    release = await client.get_latest_updater_release()
+    assert release is not None
+    assert release.tag_name == "v2.6.0"
+    assert release.assets[0]["url"] == "https://example.com/stable.json"
+    assert await client.get_latest_updater_release() == release
+    assert len(_FakeAsyncClient.all_requests) == 1
+
+
+async def test_updater_release_searches_past_first_page(monkeypatch):
+    base = gc_module.GITHUB_API_URL.removesuffix("/latest")
+    _install(
+        monkeypatch,
+        {
+            f"{base}?per_page=30&page=1": _FakeResponse(payload=[PAYLOAD] * 30),
+            f"{base}?per_page=30&page=2": _FakeResponse(
+                payload=[{**PAYLOAD, "assets": [{"name": "latest.json"}]}]
+            ),
+        },
+    )
+    assert (await GitHubClient().get_latest_updater_release()).tag_name == "v2.6.0"
+
+
+async def test_updater_release_returns_none_on_upstream_failure(monkeypatch):
+    _install(monkeypatch, {})
+    assert await GitHubClient().get_latest_updater_release() is None

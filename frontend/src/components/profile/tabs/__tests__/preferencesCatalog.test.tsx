@@ -32,7 +32,8 @@ vi.mock("../../../../contexts/ThemeContext", () => ({
 vi.mock("../../../../hooks/useAuth", () => ({
   useAuth: () => ({ user: { id: "user", metadata: {} } }),
 }));
-vi.mock("react-i18next", () => ({
+vi.mock("react-i18next", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react-i18next")>()),
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: "en" } }),
 }));
 vi.mock("../../ThemeScheduleSection", () => ({ default: () => null }));

@@ -298,8 +298,8 @@
       "name": "Fast Agent"
     },
     "quick": {
-      "description": "Sends messages straight to the LLM — no tools, no sandbox, fastest replies",
-      "name": "Quick Q&A"
+      "description": "Everyday questions, writing and translation, with direct responses.",
+      "name": "Everyday Assistant"
     },
     "search": {
       "description": "With code interpreter & sandbox, for complex tasks",
@@ -4237,6 +4237,7 @@
     "messageMissing": "The bookmarked message is no longer in the history; it may have been deleted"
   },
   "update": {
+    "checking": "Checking for updates…",
     "aboutTitle": "About",
     "checkNow": "Check for updates",
     "notificationBody": "Version {{version}} is available. Check for updates in settings",
