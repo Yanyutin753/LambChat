@@ -287,3 +287,15 @@ def test_quick_agent_checkpointer_respects_checkpoint_backend() -> None:
     source = (src_root / "agents/quick_agent/graph.py").read_text(encoding="utf-8")
     assert "get_async_checkpointer" in source
     assert "get_mongo_checkpointer" not in source
+
+
+def test_base_stream_initial_state_drops_unserializable_kwargs() -> None:
+    """BaseGraphAgent._stream 的初始状态不得携带原始 kwargs（含 Presenter 等
+    不可序列化对象）：外层图带 checkpointer 时输入写入触发 msgpack 序列化
+    直接报错（staging quick agent 首轮实证 'Type is not msgpack serializable:
+    Presenter'）。"""
+    from pathlib import Path
+
+    src_root = Path(__file__).resolve().parents[3] / "src"
+    source = (src_root / "agents/core/base.py").read_text(encoding="utf-8")
+    assert '"context": kwargs' not in source

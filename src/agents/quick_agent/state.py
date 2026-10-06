@@ -7,9 +7,10 @@ fast/search/team 的内层图同款格式，跨 agent 切换会话时历史双�
 增量 checkpoint，这是必须同款的原因）。
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, NotRequired, Optional
 
 from deepagents import DeepAgentState
+from langgraph.channels import EphemeralValue
 
 
 class QuickAgentState(DeepAgentState):
@@ -22,9 +23,14 @@ class QuickAgentState(DeepAgentState):
         messages: 消息历史（DeltaChannel + checkpointer，与 deepagents 内层图同款）
         output: 输出结果
         attachments: 用户上传的附件列表（可选）
+        context: EphemeralValue 通道——BaseGraphAgent._stream 会把含 Presenter
+            等不可序列化对象的 kwargs 以 "context" 键传入初始状态；外层图带
+            checkpointer 时未知键会被序列化落库直接报错，声明为临时通道既
+            接住该键又不会被持久化。
     """
 
     input: str
     session_id: str
     output: str
     attachments: Optional[List[Dict[str, Any]]]
+    context: NotRequired[Annotated[Any, EphemeralValue]]
