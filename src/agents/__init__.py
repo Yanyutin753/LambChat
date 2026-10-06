@@ -28,6 +28,7 @@ def discover_agents() -> None:
     """发现并注册所有 Agent"""
     # 导入会触发 @register_agent 装饰器
     from src.agents.fast_agent import FastAgent  # noqa: F401
+    from src.agents.quick_agent import QuickAgent  # noqa: F401
     from src.agents.search_agent import SearchAgent  # noqa: F401
     from src.agents.team_agent import TeamAgent  # noqa: F401
 

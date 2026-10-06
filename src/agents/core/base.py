@@ -449,11 +449,13 @@ class BaseGraphAgent(ABC):
                 config["callbacks"] = [langfuse_handler]
 
             # 初始状态
+            # 注意：不要把 kwargs 原样塞进 state——kwargs 携带 Presenter 等不可
+            # 序列化对象，外层图一旦带 checkpointer，输入写入会触发 msgpack
+            # 序列化直接报错（quick agent 实证）。
             initial_state = {
                 "input": message,
                 "session_id": session_id,
                 "messages": [],
-                "context": kwargs,
                 "attachments": kwargs.get("attachments", []),
             }
 
