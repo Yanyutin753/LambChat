@@ -39,13 +39,17 @@ const user = {
   created_at: now,
   updated_at: now,
 };
-const agents = ["fast", "search", "team"].map((id, i) => ({
+const agents = ["fast", "search", "team", "quick"].map((id, i) => ({
   id,
-  name: ["通用助手", "研究助手", "团队助手"][i],
-  description: "完成研究、分析和内容交付任务",
+  name: ["通用助手", "研究助手", "团队助手", "agents.quick.name"][i],
+  description:
+    id === "quick"
+      ? "agents.quick.description"
+      : "完成研究、分析和内容交付任务",
   enabled: true,
   version: "1.0",
-  icon: "Bot",
+  icon: id === "quick" ? "Zap" : "Bot",
+  supports_sandbox: id === "search" || id === "team",
   labels: {},
   sort_order: i,
   options: {},

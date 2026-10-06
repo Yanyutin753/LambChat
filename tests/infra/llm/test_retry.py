@@ -150,3 +150,144 @@ def test_auth_error_detects_proxy_rewritten_message() -> None:
 )
 def test_auth_error_ignores_non_auth_failures(exc) -> None:
     assert is_auth_model_error(exc) is False
+
+
+@pytest.mark.parametrize("status", [408, 409, 429, 500, 502, 503, 504])
+def test_retryable_http_status_is_protocol_independent(status):
+    response = httpx.Response(status, request=httpx.Request("POST", "https://model.invalid"))
+    assert is_retryable_model_error(
+        httpx.HTTPStatusError("upstream", request=response.request, response=response)
+    )
+
+
+async def test_direct_call_switches_to_fallback_after_primary_retries(monkeypatch):
+    from src.infra.llm.client import LLMClient
+
+    primary = _Model([TimeoutError()] * 2)
+    backup = _Model([], result="backup answer")
+
+    async def get_model(**kwargs):
+        assert kwargs["model"] == "backup-model"
+        return backup
+
+    monkeypatch.setattr(LLMClient, "get_model", get_model)
+    assert (
+        await ainvoke_with_retry(
+            primary, "prompt", max_retries=1, retry_delay=0, fallback_model="backup-model"
+        )
+        == "backup answer"
+    )
+    assert primary.calls == 2
+
+
+async def test_direct_call_switches_auth_failure_without_retrying_same_key(monkeypatch):
+    from src.infra.llm.client import LLMClient
+
+    primary = _Model([_openai_status_error(openai_module.AuthenticationError, 401)])
+
+    async def get_model(**kwargs):
+        return _Model([], result="backup answer")
+
+    monkeypatch.setattr(LLMClient, "get_model", get_model)
+    assert (
+        await ainvoke_with_retry(
+            primary, "prompt", max_retries=3, retry_delay=0, fallback_model="backup-model"
+        )
+        == "backup answer"
+    )
+    assert primary.calls == 1
+
+
+async def test_streamed_output_is_not_replayed_on_later_failure():
+    class StreamingModel(_Model):
+        async def ainvoke(self, prompt, **kwargs):
+            self.calls += 1
+            for callback in kwargs["config"]["callbacks"]:
+                await callback.on_llm_new_token("already delivered", run_id=None)
+            raise TimeoutError("stream interrupted")
+
+    model = StreamingModel([])
+    with pytest.raises(TimeoutError):
+        await ainvoke_with_retry(
+            model, "prompt", max_retries=3, retry_delay=0, fallback_model="backup-model", config={}
+        )
+    assert model.calls == 1
+
+
+async def test_empty_answer_retries_before_fallback(monkeypatch):
+    from langchain_core.messages import AIMessage
+
+    from src.infra.llm.client import LLMClient
+
+    primary = _Model([], result=AIMessage(content=""))
+
+    async def get_model(**kwargs):
+        return _Model([], result=AIMessage(content="backup answer"))
+
+    monkeypatch.setattr(LLMClient, "get_model", get_model)
+    result = await ainvoke_with_retry(
+        primary, "prompt", max_retries=1, retry_delay=0, fallback_model="backup-model"
+    )
+    assert result.content == "backup answer"
+    assert primary.calls == 2
+
+
+async def test_cancelled_direct_call_never_retries_or_falls_back():
+    import asyncio
+
+    model = _Model([asyncio.CancelledError()])
+    with pytest.raises(asyncio.CancelledError):
+        await ainvoke_with_retry(
+            model, "prompt", max_retries=3, retry_delay=0, fallback_model="backup"
+        )
+    assert model.calls == 1
+
+
+async def test_failed_fallback_has_bounded_retries_and_never_cycles(monkeypatch):
+    from src.infra.llm.client import LLMClient
+
+    primary = _Model([TimeoutError()] * 2)
+    fallback = _Model([TimeoutError()] * 2)
+
+    async def get_model(**kwargs):
+        return fallback
+
+    monkeypatch.setattr(LLMClient, "get_model", get_model)
+    with pytest.raises(TimeoutError):
+        await ainvoke_with_retry(
+            primary, "prompt", max_retries=1, retry_delay=0, fallback_model="backup"
+        )
+    assert primary.calls == fallback.calls == 2
+
+
+async def test_existing_callbacks_and_call_metadata_survive_retries():
+    from langchain_core.callbacks import AsyncCallbackHandler
+
+    callback = AsyncCallbackHandler()
+    original = {
+        "callbacks": [callback],
+        "metadata": {"task": "one"},
+        "configurable": {"thread_id": "session"},
+    }
+
+    class RecordingModel(_Model):
+        async def ainvoke(self, prompt, **kwargs):
+            assert callback in kwargs["config"]["callbacks"]
+            assert kwargs["config"]["metadata"]["task"] == "one"
+            assert kwargs["config"]["configurable"]["thread_id"] == "session"
+            return await super().ainvoke(prompt, **kwargs)
+
+    model = RecordingModel([TimeoutError()])
+    assert (
+        await ainvoke_with_retry(model, "prompt", max_retries=1, retry_delay=0, config=original)
+        == "ok"
+    )
+    assert original["callbacks"] == [callback]
+
+
+async def test_direct_retry_preserves_simple_ainvoke_interface_without_config():
+    class SimpleModel:
+        async def ainvoke(self, prompt):
+            return "answer"
+
+    assert await ainvoke_with_retry(SimpleModel(), "question") == "answer"

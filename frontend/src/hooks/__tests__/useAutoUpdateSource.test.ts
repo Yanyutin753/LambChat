@@ -219,7 +219,7 @@ test("update flow is single-flight: downloads guarded by in-flight flag, re-chec
   expect(hook).toMatch(/const downloadInFlightRef = useRef\(false\)/);
   const guards =
     hook.match(/if \(downloadInFlightRef\.current\) return/g) ?? [];
-  expect(guards.length).toBe(2); // installTauriUpdate + installLinuxPackageUpdate
+  expect(guards.length).toBe(3); // desktop, Linux package, Android APK
   // 后台下载卫兵 = pending(已完成) + inFlight(进行中) 双查——单查完成标志
   // 会在下载中放行第二条下载（多进度条/并发下载根因）
   expect(hook).toMatch(
@@ -242,7 +242,9 @@ test("manual update check distinguishes failure from up-to-date", () => {
   expect(hook).toMatch(/updateCheckFailed/);
   expect(hook).toMatch(/checkTauriUpdate\(background, manual\)/);
   expect(hook).toMatch(/checkLinuxUpdate\(linuxSource, background, manual\)/);
-  expect(hook).toMatch(/ok = await checkBackendUpdate\(background, manual\)/);
+  expect(hook).toMatch(
+    /result = await checkBackendUpdate\(background, manual\)/,
+  );
 
   // 失败文案五语齐
   for (const locale of ["zh", "en", "ja", "ko", "ru"]) {
@@ -293,7 +295,9 @@ test("windows updater artifacts are NSIS currentUser installers", () => {
   expect(wf).not.toMatch(/AppImage\.sig/);
 
   const manifest = readRepoFile("scripts/generate_updater_manifest.py");
-  expect(manifest).toMatch(/"\*_x64-setup\.exe\.sig", "Windows-x64-setup\.exe"/);
+  expect(manifest).toMatch(
+    /"\*_x64-setup\.exe\.sig", "Windows-x64-setup\.exe"/,
+  );
   // 清单不得再引用 AppImage 产物或 Linux 平台条目（正文说明性文字除外）
   expect(manifest).not.toMatch(/AppImage\.sig/);
   expect(manifest).not.toMatch(/"linux-x86_64"/);

@@ -298,8 +298,8 @@
       "name": "빠른 에이전트"
     },
     "quick": {
-      "description": "메시지를 LLM에 직접 전송 — 도구·샌드박스 없이 가장 빠른 응답",
-      "name": "빠른 Q&A"
+      "description": "일상 질문, 글쓰기와 번역에 바로 답합니다.",
+      "name": "일상 도우미"
     },
     "search": {
       "description": "코드 인터프리터 & 샌드박스 지원, 복잡한 작업용",
@@ -4237,6 +4237,7 @@
     "messageMissing": "북마크한 메시지를 기록에서 찾을 수 없습니다. 삭제되었을 수 있습니다"
   },
   "update": {
+    "checking": "업데이트 확인 중…",
     "aboutTitle": "정보",
     "checkNow": "업데이트 확인",
     "notificationBody": "버전 {{version}}이(가) 출시되었습니다. 설정에서 업데이트를 확인하세요",

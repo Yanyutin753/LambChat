@@ -102,3 +102,47 @@ async def test_tag_path_does_not_force_refresh(monkeypatch: pytest.MonkeyPatch):
     response = await download_release_asset("latest.json", tag="v2.11.0")
     assert response.status_code == 200
     assert _TagClient.refreshed is False  # tag 锁定路径不做 latest 强刷
+
+
+async def test_baking_release_serves_previous_published_updater(monkeypatch):
+    from src.api.routes import version as version_module
+
+    class BakingClient(_FakeClient):
+        async def get_latest_release(self, force_refresh=False):
+            return _release(["app.tar.gz"])
+
+        async def get_latest_updater_release(self):
+            release = _release(["latest.json"])
+            release.assets[0]["url"] = "https://example.com/previous/latest.json"
+            return release
+
+        async def open_asset_stream(self, url):
+            assert url == "https://example.com/previous/latest.json"
+            return _Stream()
+
+    monkeypatch.setattr(version_module, "github_client", BakingClient())
+    response = await download_release_asset("latest.json", tag=None)
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize("asset_name,tag", [("latest.json", "v2.14.1"), ("missing.apk", None)])
+async def test_updater_fallback_does_not_change_other_asset_or_tag_downloads(
+    monkeypatch, asset_name, tag
+):
+    from src.api.routes import version as version_module
+    from src.kernel.errors import AppError, ErrorCode
+
+    class MissingClient(_FakeClient):
+        async def get_latest_release(self, force_refresh=False):
+            return _release([])
+
+        async def get_release_by_tag(self, tag):
+            return _release([])
+
+        async def get_latest_updater_release(self):
+            raise AssertionError("must not fall back")
+
+    monkeypatch.setattr(version_module, "github_client", MissingClient())
+    with pytest.raises(AppError) as error:
+        await download_release_asset(asset_name, tag=tag)
+    assert error.value.error_code == ErrorCode.RELEASE_ASSET_NOT_FOUND

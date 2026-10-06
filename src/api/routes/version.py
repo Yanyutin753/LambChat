@@ -90,6 +90,9 @@ async def download_release_asset(
             # 双 pod 缓存窗口内自更新主端点 404）。找不到时强刷一次再找。
             release = await github_client.get_latest_release(force_refresh=True)
             asset = _find_asset(release, asset_name)
+        if asset is None and asset_name == "latest.json":
+            release = await github_client.get_latest_updater_release()
+            asset = _find_asset(release, asset_name)
     if asset is None:
         raise AppError(ErrorCode.RELEASE_ASSET_NOT_FOUND, args={"name": asset_name})
 

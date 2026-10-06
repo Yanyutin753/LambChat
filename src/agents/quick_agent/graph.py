@@ -28,9 +28,9 @@ class QuickAgent(BaseGraphAgent):
     """
 
     _agent_id = "quick"
-    _agent_name = "Quick Agent"
+    _agent_name = "Everyday Assistant"
     _name_key = "agents.quick.name"
-    _description = "快问快答：消息直发 LLM，无工具无沙箱"
+    _description = "Everyday questions, writing and translation, with direct responses."
     _description_key = "agents.quick.description"
     _version = "1.0.0"
     _sort_order = 2  # 排序权重，数值越小越靠前（search=1, quick=2）

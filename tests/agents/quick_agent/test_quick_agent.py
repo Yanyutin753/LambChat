@@ -36,6 +36,11 @@ def _patch_model(monkeypatch, model: _FakeModel) -> None:
 
     monkeypatch.setattr("src.agents.quick_agent.nodes.LLMClient", _FakeLLMClient)
 
+    async def no_fallback(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr("src.agents.quick_agent.nodes.resolve_fallback_model", no_fallback)
+
 
 class _RecordingBuilder:
     def __init__(self) -> None:
@@ -299,3 +304,67 @@ def test_base_stream_initial_state_drops_unserializable_kwargs() -> None:
     src_root = Path(__file__).resolve().parents[3] / "src"
     source = (src_root / "agents/core/base.py").read_text(encoding="utf-8")
     assert '"context": kwargs' not in source
+
+
+async def test_quick_agent_uses_configured_fallback_after_retry_exhaustion(monkeypatch):
+    from src.kernel.config import settings
+
+    monkeypatch.setattr(settings, "LLM_MAX_RETRIES", 1)
+    monkeypatch.setattr(settings, "LLM_RETRY_DELAY", 0)
+
+    class FailingModel(_FakeModel):
+        async def ainvoke(self, messages, **kwargs):
+            self.calls.append(list(messages))
+            raise TimeoutError()
+
+    primary = FailingModel()
+    backup = _FakeModel(reply="备用回答")
+
+    async def get_model(**kwargs):
+        return backup if kwargs.get("model") == "backup" else primary
+
+    monkeypatch.setattr("src.agents.quick_agent.nodes.LLMClient.get_model", get_model)
+    result = await quick_agent_node(
+        _state("你好"), {"configurable": {"agent_options": {"_resolved_fallback_model": "backup"}}}
+    )
+    assert result["output"] == "备用回答"
+    assert len(primary.calls) == 2
+    assert len(backup.calls) == 1
+
+
+async def test_real_quick_graph_does_not_replay_delivered_stream(monkeypatch):
+    import pytest
+    from langchain_core.messages import AIMessageChunk
+    from langchain_core.outputs import ChatGenerationChunk
+
+    from src.agents.quick_agent.graph import QuickAgent
+    from src.kernel.config import settings
+
+    class InterruptedModel(BaseChatModel):
+        attempts: int = 0
+
+        @property
+        def _llm_type(self):
+            return "interrupted-test"
+
+        def _generate(self, *args, **kwargs):
+            raise AssertionError("graph should stream")
+
+        async def _astream(self, *args, **kwargs):
+            self.attempts += 1
+            yield ChatGenerationChunk(message=AIMessageChunk(content="已经交付的正文"))
+            raise TimeoutError("stream interrupted")
+
+    monkeypatch.setattr(settings, "LLM_RETRY_DELAY", 0)
+    model = InterruptedModel()
+    _patch_model(monkeypatch, model)
+    builder = GraphBuilder(QuickAgentState)
+    QuickAgent().build_graph(builder)
+    graph = builder.compile()
+    delivered = []
+    with pytest.raises(TimeoutError):
+        async for event in graph.astream_events(_state("你好"), version="v2"):
+            if event["event"] == "on_chat_model_stream":
+                delivered.append(event["data"]["chunk"].content)
+    assert delivered == ["已经交付的正文"]
+    assert model.attempts == 1
