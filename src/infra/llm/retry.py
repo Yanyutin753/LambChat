@@ -228,7 +228,8 @@ async def ainvoke_with_retry(
                         operation,
                         type(exc).__name__,
                     )
-                    fallback = await LLMClient.get_model(model=fallback_model, thinking=thinking)
+                    # Cross-model histories lack the primary model's reasoning blocks.
+                    fallback = await LLMClient.get_model(model=fallback_model, thinking=None)
                     return await ainvoke_with_retry(
                         fallback,
                         prompt,

@@ -168,12 +168,18 @@ async def test_direct_call_switches_to_fallback_after_primary_retries(monkeypatc
 
     async def get_model(**kwargs):
         assert kwargs["model"] == "backup-model"
+        assert kwargs["thinking"] is None
         return backup
 
     monkeypatch.setattr(LLMClient, "get_model", get_model)
     assert (
         await ainvoke_with_retry(
-            primary, "prompt", max_retries=1, retry_delay=0, fallback_model="backup-model"
+            primary,
+            "prompt",
+            max_retries=1,
+            retry_delay=0,
+            fallback_model="backup-model",
+            thinking={"type": "enabled"},
         )
         == "backup answer"
     )
