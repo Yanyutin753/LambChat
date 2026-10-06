@@ -1101,7 +1101,7 @@ function response(
     const groups = all(files).map((file, i) => ({
       session_id: file.session_id,
       session_name: file.session_name,
-      file_count: i === 0 ? 8 : 3,
+      file_count: i === 0 ? 10 : 3,
       files: [
         file,
         ...(i === 0
@@ -1135,6 +1135,13 @@ function response(
                   "pptx",
                   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
                   1080,
+                ],
+                ["音频样例.wav", "wav", "audio/wav", 16044],
+                [
+                  "视频样例.mp4",
+                  "mp4",
+                  "video/mp4",
+                  1268,
                 ],
               ] as const).map(([name, ext, mime, size]) => ({
                 ...file,
@@ -1475,11 +1482,26 @@ function response(
               { path: "随手记.txt", is_dir: false },
               { path: "交付计划与下一阶段验证清单.md", is_dir: false },
               { path: "品牌图标.png", is_dir: false },
+              { path: "音频样例.wav", is_dir: false },
+              { path: "视频样例.mp4", is_dir: false },
             ],
     };
   }
   if (path === "/api/sandbox/fs/cloud/read") {
     const file = url.searchParams.get("path") || "";
+    if (file === "音频样例.wav" || file === "视频样例.mp4")
+      return {
+        encoding: "base64",
+        content: readFileSync(
+          new URL(
+            file.endsWith(".wav")
+              ? "./fixtures/preview-audio.wav"
+              : "./fixtures/preview-video.mp4",
+            import.meta.url,
+          ),
+        ).toString("base64"),
+        next_offset: null,
+      };
     if (file.endsWith(".png"))
       return {
         encoding: "base64",
@@ -1641,6 +1663,24 @@ const server = await createServer({
                 : readFileSync(
                     new URL("./fixtures/preview-drawing.dxf", import.meta.url),
                   ),
+            );
+            return;
+          }
+          if (
+            url.pathname === "/preview-document.wav" ||
+            url.pathname === "/preview-document.mp4"
+          ) {
+            const audio = url.pathname.endsWith(".wav");
+            res.setHeader("Content-Type", audio ? "audio/wav" : "video/mp4");
+            res.end(
+              readFileSync(
+                new URL(
+                  audio
+                    ? "./fixtures/preview-audio.wav"
+                    : "./fixtures/preview-video.mp4",
+                  import.meta.url,
+                ),
+              ),
             );
             return;
           }

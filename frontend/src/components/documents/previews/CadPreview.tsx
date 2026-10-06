@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { DraftingCompass } from "lucide-react";
 import { DxfViewer } from "dxf-viewer";
+import { Color } from "three";
+import { useAppThemeMode } from "../../../hooks/useAppThemeMode";
 import type { TFunction } from "i18next";
 import FileFallbackPanel from "./FileFallbackPanel";
 import "./CadPreview.css";
@@ -30,6 +32,7 @@ function formatPhase(phase: LoadPhase | null, t: TFunction): string {
 
 export default function CadPreview(props: CadPreviewProps) {
   const { kind, url, t } = props;
+  const themeMode = useAppThemeMode();
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +55,11 @@ export default function CadPreview(props: CadPreviewProps) {
     const viewer = new DxfViewer(containerRef.current, {
       autoResize: true,
       antialias: true,
+      clearColor: new Color(
+        getComputedStyle(document.documentElement)
+          .getPropertyValue("--theme-bg-card")
+          .trim() || undefined,
+      ),
       clearAlpha: 0,
       canvasAlpha: true,
       colorCorrection: true,
@@ -60,7 +68,10 @@ export default function CadPreview(props: CadPreviewProps) {
 
     if (!viewer.HasRenderer()) {
       setError(t("documents.cadWebglUnavailable", "WebGL is not available"));
-      return () => viewer.Destroy();
+      return () => {
+        viewer.Destroy();
+        viewer.GetCanvas()?.remove();
+      };
     }
 
     setError(null);
@@ -100,8 +111,9 @@ export default function CadPreview(props: CadPreviewProps) {
     return () => {
       cancelled = true;
       viewer.Destroy();
+      viewer.GetCanvas()?.remove();
     };
-  }, [kind, t, url]);
+  }, [kind, t, themeMode, url]);
 
   if (kind === "dwg") {
     return (

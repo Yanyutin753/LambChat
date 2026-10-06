@@ -213,12 +213,14 @@ export default function DocumentPreviewContent({
 
   if (resolvedVideoFile && videoUrl) {
     return (
-      <div className="flex items-center justify-center h-full bg-gradient-to-b from-stone-900 to-stone-950 min-h-[400px] p-4 sm:p-8">
-        <div className="relative w-full max-w-4xl mx-auto">
+      <div className="flex h-full min-h-0 items-center justify-center overflow-hidden bg-theme-bg-subtle p-4 sm:p-8">
+        <div className="relative flex h-full min-h-0 w-full max-w-4xl items-center justify-center mx-auto">
           <video
             controls
+            playsInline
+            aria-label={fileName}
             autoPlay={false}
-            className="w-full max-h-[65dvh] rounded-xl shadow-2xl ring-1 ring-white/10"
+            className="h-full w-full max-h-full object-contain"
             src={videoUrl}
             style={{ margin: "0 auto", display: "block" }}
             onError={(e) => {
@@ -236,15 +238,12 @@ export default function DocumentPreviewContent({
 
   if (resolvedAudioFile && audioUrl) {
     return (
-      <div className="flex items-center justify-center h-full min-h-[400px] p-4 sm:p-8">
-        <div className="w-full max-w-lg mx-auto flex flex-col items-center gap-6">
-          <div className="flex flex-col items-center gap-2">
-            <SceneIllustration scene="files" />
-            <Icon size={18} className={fileInfo.color} />
-          </div>
+      <div className="h-full min-h-0 overflow-auto bg-theme-bg-subtle">
+        <div className="flex min-h-full items-center justify-center p-4 sm:p-8">
           <audio
             controls
-            className="w-full"
+            aria-label={fileName}
+            className="w-full max-w-lg"
             src={audioUrl}
             onError={(e) => {
               const fallback = mediaProxyFallbackSrc(e.currentTarget);
