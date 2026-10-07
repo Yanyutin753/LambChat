@@ -6,14 +6,17 @@
 """
 
 import asyncio
+import json
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 
 from src.api.deps import get_current_user_required
 from src.api.server_timing import timed_server_phase
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.folder.storage import get_project_storage
 from src.infra.llm.retry import ainvoke_with_retry
 from src.infra.logging import get_logger
@@ -287,6 +290,28 @@ async def mark_session_read(
     return {"status": "ok"}
 
 
+# 全量历史序列化卸载阈值：超过该事件数的响应预渲染卸载到慢道。
+# FastAPI 对返回 dict 的 jsonable_encoder+json.dumps 跑在事件循环上，
+# 长会话全量事件可达 20MB+；gzip 侧 starlette GZipMiddleware（≥128KiB）
+# 已自带线程卸载，这里补齐序列化这半。小响应保持 dict 走常规路径。
+_HISTORY_JSON_OFFLOAD_EVENT_COUNT = 500
+
+
+def _render_history_json_bytes(payload: dict[str, Any]) -> bytes:
+    """与 FastAPI JSONResponse 渲染语义一致：jsonable_encoder → 紧凑 dumps。"""
+    return json.dumps(
+        jsonable_encoder(payload),
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
+async def _render_history_response_offloaded(payload: dict[str, Any]) -> Response:
+    body = await run_long_blocking_io(_render_history_json_bytes, payload)
+    return Response(content=body, media_type="application/json")
+
+
 @router.get("/{session_id}/events")
 async def get_session_events(
     session_id: str,
@@ -439,6 +464,8 @@ async def get_session_events(
             if has_more_traces and oldest_trace_started_at and oldest_trace_id
             else None
         )
+    if len(events) >= _HISTORY_JSON_OFFLOAD_EVENT_COUNT:
+        return await _render_history_response_offloaded(response)
     return response
 
 

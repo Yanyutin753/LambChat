@@ -1934,3 +1934,27 @@ async def test_aexecute_reads_exec_timeout_setting_at_call_time(monkeypatch):
     monkeypatch.setattr(local_module.settings, "SANDBOX_LOCAL_EXEC_TIMEOUT", 120)
     await fixed.aexecute("echo c")
     assert seen[-1] == 33.0
+
+
+async def test_aupload_one_builds_chunk_commands_off_event_loop(monkeypatch):
+    """旧 daemon 降级链路曾把整文件分块命令列表（含逐块 base64）内联构建在
+    事件循环上；必须整体经 run_long_blocking_io 卸载。"""
+    offloaded = []
+    original = local_module.run_long_blocking_io
+
+    async def _spy(func, *args, **kwargs):
+        offloaded.append(func)
+        return await original(func, *args, **kwargs)
+
+    monkeypatch.setattr(local_module, "run_long_blocking_io", _spy)
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None, machine_id=None):
+        return _ok_response()
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+
+    result = await backend._aupload_one("/workspace/s1/big.bin", b"y" * 200_000, platform="linux")
+
+    assert result.error is None
+    assert backend._upload_chunk_commands in offloaded

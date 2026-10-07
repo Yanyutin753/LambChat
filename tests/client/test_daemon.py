@@ -1288,3 +1288,36 @@ async def test_channel_break_logs_exception_type(capsys):
 
     err = capsys.readouterr().err
     assert "通道断开: _EmptyTimeoutError" in err
+
+
+async def test_fs_op_executes_off_event_loop_thread(tmp_path, monkeypatch):
+    """fs op 是同步磁盘 IO+base64（grep 无时间预算可达分钟级），曾内联跑在
+    daemon 事件循环上——SSE 读循环与 watchdog ack 全停摆。exec 走 to_thread，
+    fs op 必须同待遇。"""
+    import threading
+
+    from lambchat_sandbox import daemon as daemon_module
+
+    seen_threads = []
+
+    def record(op, payload, data_root):
+        del op, payload, data_root
+        seen_threads.append(threading.current_thread())
+        return {"ok": True}
+
+    monkeypatch.setattr(daemon_module, "handle_fs_op", record)
+    client = FakeClient(
+        calls=[_fs_call(op="fs_read", payload={"path": "f", "cwd": "/workspace/s1"})]
+    )
+    auditor = MemoryAuditor()
+
+    await _run(
+        _cfg("none", data_root=tmp_path),
+        FakeFactory([client, _terminator()]),
+        executor=FakeExecutor(),
+        auditor=auditor,
+    )
+
+    assert client.posted[-1][1]["status"] == "ok"
+    assert seen_threads, "handle_fs_op 未被调用"
+    assert all(t is not threading.main_thread() for t in seen_threads)
