@@ -57,6 +57,10 @@ div:has(> [data-workspace-content]):has([data-desktop-activity-rail]) {
   background-color: var(--theme-bg-sidebar) !important;
 }
 
+div:has(> [data-desktop-sidebar-shell] > [data-desktop-sidebar][inert]):has(> [data-workspace-content]) {
+  background-color: var(--desktop-rail-bg) !important;
+}
+
 div:has([data-desktop-activity-rail]) > [data-workspace-content] {
   background: var(--desktop-canvas-bg, var(--theme-bg));
   border-left: 1px solid var(--theme-border-faint);

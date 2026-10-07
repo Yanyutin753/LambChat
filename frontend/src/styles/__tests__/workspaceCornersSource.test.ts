@@ -69,3 +69,11 @@ test("feedback summary uses shared themed surfaces", () => {
     "panel-summary mb-4 p-4 rounded-2xl bg-theme-bg-card border border-theme-border",
   );
 });
+
+test("collapsed sidebar reveals the content curves against the activity rail tint", () => {
+  const css = readFileSync(new URL("../desktop.css", import.meta.url), "utf8")
+    .replace(/\s+/g, " ");
+  expect(css).toMatch(
+    /div:has\(> \[data-desktop-sidebar-shell\] > \[data-desktop-sidebar\]\[inert\]\):has\(> \[data-workspace-content\]\)\s*\{[^}]*background-color: var\(--desktop-rail-bg\) !important;/,
+  );
+});
