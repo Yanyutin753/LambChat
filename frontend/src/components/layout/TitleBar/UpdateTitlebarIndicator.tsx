@@ -10,6 +10,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { ReleaseNotesMarkdown } from "../../update/ReleaseNotesMarkdown";
+import { Button } from "../../common/ui/Button";
+import { ConfigPanelErrorCallout } from "../../panels/ConfigPanelErrorCallout";
 import { UpdateProgressBar } from "../../update/UpdateProgressBar";
 import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosition";
 import { APP_VERSION } from "../../../utils/appVersion";
@@ -157,13 +159,15 @@ export function UpdateTitlebarIndicator({
   const isGoToDownload = source === "unknown" || source === "appimage";
   const primaryLabel = state.downloading
     ? t("updateDownloading", "正在下载...")
-    : isGoToDownload
-      ? t("updateGoToDownload", "前往下载")
-      : state.readyToInstall
-        ? t("update.updateRelaunchInstall", "重启并安装")
-        : isLinuxPackage
-          ? t("updateDownloadAndInstall", "下载并安装")
-          : t("updateDownload", "立即升级");
+    : state.error
+      ? t("updateRetry", "重试")
+      : isGoToDownload
+        ? t("updateGoToDownload", "前往下载")
+        : state.readyToInstall
+          ? t("update.updateRelaunchInstall", "重启并安装")
+          : isLinuxPackage
+            ? t("updateDownloadAndInstall", "下载并安装")
+            : t("updateDownload", "立即升级");
 
   return (
     <>
@@ -187,15 +191,27 @@ export function UpdateTitlebarIndicator({
             role="dialog"
             tabIndex={-1}
             aria-label={t("update.availableTitle", "发现新版本")}
-            className="fixed z-[302] w-80 max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-var(--titlebar-inset,40px)-1rem)] overflow-y-auto rounded-xl border shadow-xl animate-scale-in outline-none"
+            className="fixed z-[302] w-96 max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-var(--titlebar-inset,40px)-1rem)] overflow-y-auto rounded-xl border shadow-xl animate-scale-in motion-reduce:animate-none outline-none"
             style={{
               ...menuPosition,
               backgroundColor: "var(--theme-bg-card)",
               borderColor: "var(--theme-border)",
             }}
           >
-            <div className="space-y-3 p-3.5">
-              <div className="flex items-center gap-1.5 font-mono text-13 text-[var(--color-text-secondary)]">
+            <div className="space-y-4 p-4">
+              <div className="space-y-1">
+                <h2 className="font-serif text-16 font-semibold text-theme-text">
+                  {phase === "ready"
+                    ? t("update.readyTitle", "更新已下载")
+                    : label}
+                </h2>
+                {phase === "ready" && (
+                  <p className="text-12 leading-relaxed text-theme-text-secondary">
+                    {t("update.readyHint", "重启后即可使用新版本。")}
+                  </p>
+                )}
+              </div>
+              <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 font-mono text-13 text-[var(--color-text-secondary)]">
                 v{APP_VERSION}
                 <ArrowRight
                   size={13}
@@ -214,18 +230,21 @@ export function UpdateTitlebarIndicator({
                 )}
               </div>
 
-              {state.releaseNotes && (
-                <div className="max-h-52 overflow-y-auto rounded-lg bg-[var(--theme-bg-subtle)] p-2.5">
-                  <ReleaseNotesMarkdown content={state.releaseNotes} />
+              <div className="space-y-2">
+                <p className="text-12 font-medium text-theme-text-secondary">
+                  {t("updateReleaseNotes", "更新日志")}
+                </p>
+                <div className="max-h-64 overflow-y-auto overscroll-contain pr-1">
+                  <ReleaseNotesMarkdown content={state.releaseNotes ?? ""} />
                 </div>
-              )}
+              </div>
 
               {state.releaseUrl && (
                 <a
                   href={state.releaseUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-12 text-blue-600 hover:underline dark:text-blue-400"
+                  className="inline-flex min-h-9 [@media(pointer:coarse)]:min-h-11 items-center gap-1 text-12 text-theme-text-secondary hover:text-theme-text hover:underline"
                 >
                   <ExternalLink size={12} />
                   {t("update.viewFullNotes", "查看完整更新日志")}
@@ -240,41 +259,30 @@ export function UpdateTitlebarIndicator({
                 />
               )}
 
-              {state.error && (
-                <div className="flex items-center justify-between gap-2 rounded-lg bg-red-50 p-2.5 text-13 text-red-600 dark:bg-red-900/20 dark:text-red-400">
-                  <span className="break-words">{state.error}</span>
-                  {!state.downloading && (
-                    <button
-                      type="button"
-                      onClick={onInstall}
-                      className="shrink-0 font-medium underline underline-offset-2 hover:opacity-80"
-                    >
-                      {t("updateRetry", "重试")}
-                    </button>
-                  )}
-                </div>
-              )}
+              {state.error && <ConfigPanelErrorCallout message={state.error} />}
 
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2 border-t border-theme-border pt-3">
                 {!state.downloading ? (
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={onSkipVersion}
-                    className="rounded-md px-2.5 py-1.5 text-12 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--theme-bg-subtle)] hover:text-[var(--color-text-secondary)]"
+                    className="[@media(pointer:coarse)]:!min-h-11"
                   >
                     {t("update.skipVersion", "跳过此版本")}
-                  </button>
+                  </Button>
                 ) : (
                   <span />
                 )}
-                <button
-                  type="button"
+                <Button
+                  variant="primary"
+                  size="sm"
                   onClick={onInstall}
                   disabled={state.downloading}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[var(--theme-primary)] px-3.5 py-1.5 text-13 font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="[@media(pointer:coarse)]:!min-h-11"
                 >
                   {primaryLabel}
-                </button>
+                </Button>
               </div>
             </div>
           </div>,

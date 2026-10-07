@@ -176,6 +176,8 @@ Conventional Commits + 中文描述：`类型(范围): 摘要`。
 3. 出包默认**烘焙态**：资产全部上 Release、CI 打包产物冒烟（mac 直接跑 .app 内 daemon、Linux 解包 deb 跑、Windows 跑 sidecar）须绿，但 `latest.json` **不上传**——桌面端自更新不感知。真机抽检（mac/windows）通过后，到 Actions 手动跑 **Desktop Updater Publish**（输入 tag）才把 latest.json 推给桌面端；此时发版完成的判据是 latest.json 平台条目齐全（Windows NSIS + 双架构 macOS，含 `darwin-x86_64`；Linux 不进清单——已停发 AppImage，deb/rpm 走应用内自研更新链路）。仓库变量 `DESKTOP_UPDATER_AUTO_PUBLISH=true` 可恢复随包直发（不建议）。
 > 烘焙期间，`/api/version/assets/latest.json/download` 继续提供最近已发布的稳定版清单；带 `?tag=` 的下载仍严格锁定指定版本。仅桌面自动更新清单回退，普通安装包和移动端版本查询沿用最新 Release。
 
+更新清单的 `notes` 与 `pub_date` 必须来自该 tag 的 GitHub Release 正文与发布时间，不能只填写产品名和版本号；桌面、Linux 与移动端均展示实际改动、日期及完整更新日志链接。
+
 4. 重打同一 tag：先删远端 tag 与旧 run，再在新提交上重推；资产同名 `--clobber` 原地替换。
 
 ### 晋升 checklist（develop → main）
