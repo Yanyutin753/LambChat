@@ -1,0 +1,193 @@
+"""Linux computer-use 后端(pyatspi / AT-SPI2)。
+
+直接用系统原生的 ``python3-pyatspi``(apt/dnf 系统包,不经 pip——dogtail
+在 Ubuntu 26.04 的 pip 生态已装不上,且它只是 pyatspi 的薄壳)。
+
+前置条件:
+- 系统包 ``python3-pyatspi``(或 ``python3-pyatspi``+``gir1.2-atspi-2.0``);
+- 会话需可达:``DBUS_SESSION_BUS_ADDRESS`` 指向用户会话总线(SSH 场景需
+  显式 ``unix:path=/run/user/<uid>/bus``),AT-SPI 总线由 GNOME 桌面常驻提供;
+- GNOME 需开无障碍:``gsettings set org.gnome.desktop.interface toolkit-accessibility true``;
+- 事件/截屏走 ops 层 pyautogui(X11;Wayland 下合成输入受限,报错引导)。
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+
+def _pyatspi() -> Any:
+    try:
+        import pyatspi
+
+        return pyatspi
+    except ImportError as exc:
+        raise RuntimeError(f"python3-pyatspi missing: {exc}") from exc
+
+
+def _desktop() -> Any:
+    return _pyatspi().Registry.getDesktop(0)
+
+
+def ax_trusted() -> bool:
+    try:
+        _desktop().childCount  # noqa: B018 - AT-SPI 总线可达性探测
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def frontmost_pid() -> int | None:
+    # AT-SPI 无前台语义;X11 下用 xdotool 探测,Wayland 返回 None
+    # (事件路径据此报 foreground_required,绝不猜)
+    import subprocess
+
+    try:
+        output = subprocess.run(
+            ["xdotool", "getactivewindow", "getwindowpid"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        ).stdout
+        return int(output.strip())
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return None
+
+
+def list_apps() -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    try:
+        desktop = _desktop()
+        for index in range(desktop.childCount):
+            app = desktop.getChildAtIndex(index)
+            try:
+                rows.append({"pid": int(app.get_process_id()), "name": app.name or ""})
+            except Exception:  # noqa: BLE001 - 单应用元数据缺失不拖垮清单
+                continue
+    except Exception:  # noqa: BLE001 - AT-SPI 不可达
+        pass
+    return rows
+
+
+def _extents(element: Any) -> list[float] | None:
+    try:
+        rect = element.get_extents(_pyatspi().DESKTOP_COORDS)
+        return [float(rect.x), float(rect.y), float(rect.width), float(rect.height)]
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _is_window(element: Any) -> bool:
+    try:
+        return element.getRoleName() in ("frame", "window", "dialog", "alert")
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def windows(pid: int) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    try:
+        desktop = _desktop()
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(f"at-spi unreachable: {exc}") from exc
+    for index in range(desktop.childCount):
+        app = desktop.getChildAtIndex(index)
+        try:
+            if int(app.get_process_id()) != pid:
+                continue
+        except Exception:  # noqa: BLE001
+            continue
+        for child_index in range(app.childCount):
+            child = app.getChildAtIndex(child_index)
+            if not _is_window(child):
+                continue
+            rows.append(
+                {
+                    "window_id": len(rows),
+                    "title": child.name or "",
+                    "subrole": child.getRoleName(),
+                    "main": len(rows) == 0,
+                    "focused": False,
+                    "bounds": _extents(child),
+                    "handle": child,
+                }
+            )
+    return rows
+
+
+def pick_window(pid: int, window_id: int | None) -> tuple[Any, dict[str, Any]]:
+    rows = windows(pid)
+    if window_id is not None:
+        if 0 <= window_id < len(rows):
+            row = rows[window_id]
+            return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds")}
+        raise KeyError(f"window index {window_id} out of range")
+    if rows:
+        row = rows[0]
+        return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds")}
+    raise KeyError("app has no accessible windows")
+
+
+def children(element: Any) -> list[Any]:
+    try:
+        return [element.getChildAtIndex(i) for i in range(element.childCount)]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _text_value(element: Any) -> str | None:
+    try:
+        text = element.queryText()
+        content = text.getText(0, text.characterCount)
+        return content if content else None
+    except Exception:  # noqa: BLE001 - 非文本控件
+        return None
+
+
+def row_of(element: Any) -> dict[str, Any]:
+    actions: list[str] = []
+    try:
+        action = element.queryAction()
+        actions = [action.getName(i) for i in range(action.nActions)]
+    except Exception:  # noqa: BLE001
+        actions = []
+    try:
+        kind = element.getRoleName() or None
+        title = element.name or None
+    except Exception:  # noqa: BLE001
+        kind, title = None, None
+    return {
+        "kind": kind,
+        "title": title,
+        "value": _text_value(element),
+        "actions": actions,
+        "bounds": _extents(element),
+    }
+
+
+def perform(element: Any, action: str) -> None:
+    try:
+        act = element.queryAction()
+    except Exception as exc:  # noqa: BLE001
+        raise KeyError(f"no actions on element: {exc}") from exc
+    wanted = action if not action.startswith("AX") else action.removeprefix("AX")
+    wanted = wanted if wanted != "click" else "click"
+    for index in range(act.nActions):
+        name = act.getName(index)
+        if name == wanted or name.lower() == wanted.lower():
+            if not act.doAction(index):
+                raise RuntimeError(f"action {name} returned failure")
+            return
+    raise KeyError(f"action {action} not available on element")
+
+
+def set_value(element: Any, text: str) -> None:
+    try:
+        editable = element.queryEditableText()
+        if not editable.setTextContents(text):
+            raise RuntimeError("setTextContents returned failure")
+        return
+    except KeyError:
+        raise KeyError("element not settable (no editable text interface)") from None
+    except Exception as exc:  # noqa: BLE001
+        raise KeyError(f"element not settable: {exc}") from exc

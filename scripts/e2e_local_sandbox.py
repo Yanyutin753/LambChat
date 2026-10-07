@@ -422,6 +422,32 @@ async def battery(user_id: str, pat: str, machine_id: str) -> None:
         f"{len(blob) // (1024 * 1024)}MiB",
     )
 
+    # ---------- computer-use：状态预检 + 应用发现 + 授权语义 ----------
+    # 平台差异收敛契约：mac 报 platform=darwin（授权与否都如实），
+    # Linux CI 无后端时报 platform=unsupported——都是 PASS；只有协议断裂才 FAIL。
+    r = await dispatch_local_call(user_id, "cua_status", {}, machine_id=machine_id)
+    res = r.get("result") or {}
+    platform = res.get("platform")
+    check(
+        "cua_status 结构化返回",
+        r.get("status") == "ok" and platform in ("darwin", "win32", "linux", "unsupported"),
+        f"platform={platform} ax={res.get('accessibility')}",
+    )
+    if platform in ("darwin", "win32", "linux"):
+        r = await dispatch_local_call(user_id, "cua_apps", {}, machine_id=machine_id)
+        apps = (r.get("result") or {}).get("apps") or []
+        check("cua_apps 枚举 GUI 应用", len(apps) > 0, f"{len(apps)} apps")
+        if res.get("accessibility") != "granted":
+            r = await dispatch_local_call(
+                user_id, "cua_state", {"pid": apps[0]["pid"]}, machine_id=machine_id
+            )
+            err = (r.get("result") or {}).get("error")
+            check(
+                "未授权时 cua_state 结构化引导(不卡死)",
+                err == "ax_not_trusted",
+                f"error={err}",
+            )
+
 
 async def edge_cases(user_id: str, machine_id: str) -> None:
     """边界专项：安全拒绝、超时语义、空文件、会话隔离、超限、伪超帧。"""

@@ -1448,7 +1448,9 @@
       "toolWebSearchResults_other": "{{count}} 条结果",
       "toolWrite": "写入",
       "waitingConfirm": "等待确认",
-      "toolDocumentParse": "解析文档"
+      "toolDocumentParse": "解析文档",
+      "computerUseTitle": "电脑控制",
+      "computerUsePermissionHint": "需要在系统设置 → 隐私与安全性中给 LambChat.app 授予「辅助功能」与「屏幕录制」权限(仅需一次),授权后重试。"
     },
     "messageInput": "消息输入框",
     "noPermission": "没有发送消息的权限",

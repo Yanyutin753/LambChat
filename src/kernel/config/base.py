@@ -295,6 +295,10 @@ class Settings(BaseSettings):
     # Code Interpreter Settings
     ENABLE_CODE_INTERPRETER: bool = False
     CODE_INTERPRETER_PTC_TOOLS: str = "web_search,web_fetch"
+
+    # Computer Use（本地沙箱 daemon 驱动本机 GUI；需在系统设置给 LambChat.app
+    # 授辅助功能+屏幕录制权限，未授权时工具返回结构化引导而非卡死）
+    ENABLE_COMPUTER_USE: bool = True
     CODE_INTERPRETER_SNAPSHOT_KEY: str = ""
 
     # Model Pricing Settings（models.dev 价格同步 + USD 汇率换算）

@@ -1448,7 +1448,9 @@
       "toolWebSearchResults_other": "{{count}} 件の結果",
       "toolWrite": "書込",
       "waitingConfirm": "確認待ち",
-      "toolDocumentParse": "ドキュメント解析"
+      "toolDocumentParse": "ドキュメント解析",
+      "computerUseTitle": "コンピュータ操作",
+      "computerUsePermissionHint": "システム設定 → プライバシーとセキュリティで LambChat.app に「補助機能」と「画面収録」を一度だけ許可してから再試行してください。"
     },
     "messageInput": "メッセージ入力",
     "noPermission": "メッセージを送信する権限がありません",

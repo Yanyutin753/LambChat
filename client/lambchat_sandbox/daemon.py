@@ -43,6 +43,7 @@ from pathlib import Path
 from lambchat_sandbox import paths, pbs
 from lambchat_sandbox.audit import Auditor
 from lambchat_sandbox.config import SandboxConfig
+from lambchat_sandbox.cua_ops import CUA_OPS, handle_cua_op
 from lambchat_sandbox.executor import Executor, ExecutorError
 from lambchat_sandbox.fsops import (
     FS_OPS,
@@ -308,6 +309,18 @@ async def _process_call(
             auditor=auditor,
         )
         return
+    if call.op in CUA_OPS:
+        # computer-use：观察带时间预算、动作毫秒级，无 watchdog 必要，先 ack
+        await client.post_result(call.call_id, {"stage": "ack"})
+        await _process_cua_call(
+            client,
+            call,
+            session_id=session_id,
+            path=path,
+            started=started,
+            auditor=auditor,
+        )
+        return
 
     await client.post_result(
         call.call_id,
@@ -425,6 +438,59 @@ async def _process_fs_call(
         # 否则 fs op 执行期间 SSE 读循环与 watchdog ack 全部停摆
         result = await asyncio.to_thread(handle_fs_op, call.op, call.payload, cfg.data_root)
     except Exception as exc:  # noqa: BLE001 - 单条 fs op 崩溃不拖垮通道
+        await client.post_result(
+            call.call_id, {"stage": "done", "status": "error", "error": str(exc)}
+        )
+        auditor.log(
+            session_id,
+            {
+                "event": "executed",
+                "call_id": call.call_id,
+                "op": call.op,
+                "path": path,
+                "status": "error",
+            },
+        )
+        return
+
+    await client.post_result(call.call_id, {"stage": "done", "status": "ok", "result": result})
+    auditor.log(
+        session_id,
+        {"event": "executed", "call_id": call.call_id, "op": call.op, "path": path, "status": "ok"},
+    )
+
+
+async def _process_cua_call(
+    client: ChannelClient,
+    call: ToolCall,
+    *,
+    session_id: str,
+    path: str,
+    started: float,
+    auditor: Auditor,
+) -> None:
+    """op=cua_*（computer-use）的执行链：与 fs op 同语义的两级错误协议。
+
+    AX 树走查/截屏是同步重活（各自带时间预算），经 to_thread 离开事件循环；
+    op 级错误（未授权/元素失效/平台不支持）收敛进 ``result.error``——模型
+    可读指引后引导用户授权或改路径重试。
+    """
+    auditor.log(
+        session_id, {"event": "allowed", "call_id": call.call_id, "op": call.op, "path": path}
+    )
+    effective = call.timeout if call.timeout > 0 else DEFAULT_EXEC_TIMEOUT_S
+    if time.monotonic() - started >= effective:
+        await client.post_result(
+            call.call_id, {"stage": "done", "status": "error", "error": "expired"}
+        )
+        auditor.log(
+            session_id, {"event": "expired", "call_id": call.call_id, "op": call.op, "path": path}
+        )
+        return
+
+    try:
+        result = await asyncio.to_thread(handle_cua_op, call.op, call.payload)
+    except Exception as exc:  # noqa: BLE001 - 单条 cua op 崩溃不拖垮通道
         await client.post_result(
             call.call_id, {"stage": "done", "status": "error", "error": str(exc)}
         )

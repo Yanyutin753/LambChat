@@ -1448,7 +1448,9 @@
       "toolWebSearchResults_other": "결과 {{count}}개",
       "toolWrite": "쓰기",
       "waitingConfirm": "확인 대기 중",
-      "toolDocumentParse": "문서 파싱"
+      "toolDocumentParse": "문서 파싱",
+      "computerUseTitle": "컴퓨터 제어",
+      "computerUsePermissionHint": "시스템 설정 → 개인정보 보호 및 보안에서 LambChat.app에 접근성 및 화면 기록 권한을 한 번만 허용한 후 다시 시도하세요."
     },
     "messageInput": "메시지 입력",
     "noPermission": "메시지를 보낼 권한이 없습니다",

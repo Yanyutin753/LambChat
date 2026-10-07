@@ -33,6 +33,7 @@ import {
   ToolSearchItem,
   ConversationHistoryItem,
   SkillSearchItem,
+  ComputerUseItem,
   WebFetchItem,
   WebSearchItem,
 } from "./ToolCallItem";
@@ -539,6 +540,20 @@ export function MessagePartRenderer({
       );
     }
     // Detect skill search, use dedicated component (shows matched skill metadata as cards)
+    if (part.name === "computer_use") {
+      return (
+        <ComputerUseItem
+          id={part.id}
+          args={toolArgs}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
     if (part.name === "search_skills") {
       return (
         <SkillSearchItem

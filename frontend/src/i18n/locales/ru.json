@@ -1448,7 +1448,9 @@
       "toolWebSearchResults_other": "{{count}} результатов",
       "toolWrite": "Запись",
       "waitingConfirm": "Ожидание подтверждения",
-      "toolDocumentParse": "Разбор документа"
+      "toolDocumentParse": "Разбор документа",
+      "computerUseTitle": "Управление компьютером",
+      "computerUsePermissionHint": "Выдайте LambChat.app разрешения «Универсальный доступ» и «Запись экрана» в Настройки → Конфиденциальность (один раз), затем повторите."
     },
     "messageInput": "Поле ввода сообщения",
     "noPermission": "Нет прав для отправки сообщений",
