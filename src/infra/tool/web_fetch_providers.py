@@ -325,12 +325,12 @@ async def direct_fetch(client: httpx.AsyncClient, url: str, max_chars: int) -> d
         html = response.text
         host = urlsplit(current).hostname or ""
         if host == "mp.weixin.qq.com" or host.endswith(".mp.weixin.qq.com"):
-            title, markdown = _extract_wechat(html)
+            title, markdown = await run_long_blocking_io(_extract_wechat, html)
         else:
-            title, markdown = _extract_markdown(html)
+            title, markdown = await run_long_blocking_io(_extract_markdown, html)
             if len(markdown) < _EMPTY_CONTENT_THRESHOLD and 'id="js_content"' in html:
                 # 部分中文站点沿用微信排版容器：通用提取失败时按同结构再试
-                title, markdown = _extract_wechat(html)
+                title, markdown = await run_long_blocking_io(_extract_wechat, html)
         if len(markdown) < _EMPTY_CONTENT_THRESHOLD:
             # SPA/JS 渲染页：直连拿不到正文，交回供应商链走 Jina 兜底
             return {"success": False, "error": "web_fetch_empty_content"}

@@ -40,6 +40,7 @@ from deepagents.backends.sandbox import (
     _parse_glob_output,
 )
 
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.backend._local_compat import (
     _classify_file_error,
     _cmd_quote,
@@ -371,7 +372,11 @@ class LocalSandboxBackend(LocalFsTransferMixin, BaseSandbox):
         self, path: str, content: bytes, *, platform: str = ""
     ) -> FileUploadResponse:
         try:
-            for command in self._upload_chunk_commands(path, content, platform=platform):
+            # 整文件分块命令构建含逐块 base64（50MB≈千余块），必须离开事件循环
+            commands = await run_long_blocking_io(
+                self._upload_chunk_commands, path, content, platform=platform
+            )
+            for command in commands:
                 # plumbing 走原始分发：超时/中继故障原样上抛（区别于模型面向
                 # 的 aexecute 把命令超时转成命令结局）
                 result = self._exec_result_to_response(await self._aexecute_dispatch(command))

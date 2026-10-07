@@ -7,6 +7,7 @@ from typing import Any
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field, PrivateAttr
 
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.search import DiscoveryRecord, search_records
 
 SKILL_SEARCH_LIMIT = 10
@@ -95,4 +96,4 @@ class SkillSearchTool(BaseTool):
         )
 
     async def _arun(self, query: str) -> str:
-        return self._run(query)
+        return await run_long_blocking_io(self._run, query)

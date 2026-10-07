@@ -421,7 +421,9 @@ async def _process_fs_call(
         return
 
     try:
-        result = handle_fs_op(call.op, call.payload, cfg.data_root)
+        # 同 exec：同步磁盘 IO（grep 无时间预算可达分钟级）必须离开事件循环，
+        # 否则 fs op 执行期间 SSE 读循环与 watchdog ack 全部停摆
+        result = await asyncio.to_thread(handle_fs_op, call.op, call.payload, cfg.data_root)
     except Exception as exc:  # noqa: BLE001 - 单条 fs op 崩溃不拖垮通道
         await client.post_result(
             call.call_id, {"stage": "done", "status": "error", "error": str(exc)}

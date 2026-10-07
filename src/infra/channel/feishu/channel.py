@@ -442,7 +442,8 @@ class FeishuChannel(FeishuSenderMixin, BaseChannel):
         self._client, event_handler = await run_blocking_io(_build_clients)
 
         self._inbox_task = asyncio.create_task(self._inbox_worker.run())
-        self._ws_loop_ref = _ensure_feishu_ws_loop()
+        # 首次创建要同步等锁 + ready.wait(5)（含 lark_oapi 冷 import），必须离开事件循环
+        self._ws_loop_ref = await run_blocking_io(_ensure_feishu_ws_loop)
         self._ws_future = asyncio.run_coroutine_threadsafe(
             self._run_ws_client(event_handler),
             self._ws_loop_ref,

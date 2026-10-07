@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator
 
 from redis.exceptions import ResponseError
 
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.sandbox.relay import _frames as _frames_codec
 from src.infra.sandbox.relay.registry import SandboxClientRegistry
@@ -419,50 +420,58 @@ async def dispatch_local_stream_upload(
     resp_key = f"sandbox:resp:{call_id}"
     await redis.rpush(registry.queue_key(user_id, target), json.dumps(req))
 
-    def _build_frames() -> list[bytes]:
-        out = [
-            _frames_codec.encode_frame(
-                _frames_codec.FRAME_META, json.dumps({"size": len(content)}).encode()
-            )
-        ]
-        for offset in range(0, len(content), _UPBLOB_CHUNK_BYTES):
-            out.append(
-                _frames_codec.encode_frame(
-                    _frames_codec.FRAME_DATA, content[offset : offset + _UPBLOB_CHUNK_BYTES]
-                )
-            )
-        out.append(_frames_codec.encode_frame(_frames_codec.FRAME_EOF))
-        return out
-
     start = time.monotonic()
     acked = False
     ack_at: float | None = None
     outcome = "error"
     done: dict | None = None
+
+    async def _push_frame(frame: bytes) -> None:
+        """窗口控制下发一帧。帧必须逐帧惰性编码卸载——一次性内联构建整文件
+        帧列表（≈2× 文件体积 memcpy）曾把 1GB 上限的传输数秒级冻结在事件循环上。"""
+        nonlocal outcome
+        while time.monotonic() < deadline:
+            if await redis.llen(blob_key) < _UPBLOB_WINDOW:
+                break
+            # 窗口等待期也要消费中断哨兵：daemon 拉流中断开时 /upload 端点
+            # 会向 resp 队列推 error done——不检查就会干等满 exec_timeout
+            # （窗口永不腾空，2026-09-08 E2E 上传中断档实测 600s）
+            raw = await _pop_resp(redis, resp_key)
+            if raw is not None:
+                resp = json.loads(raw)
+                if resp.get("user_id") == user_id and resp.get("stage") == "done":
+                    outcome = "failed"
+                    raise AppError(
+                        ErrorCode.SANDBOX_EXEC_FAILED,
+                        args={"detail": str(resp.get("error") or "upload stream failed")},
+                    )
+            await asyncio.sleep(_UPBLOB_POLL_INTERVAL)
+        else:
+            outcome = "timeout"
+            raise AppError(ErrorCode.SANDBOX_TIMEOUT, args={"seconds": int(exec_timeout)})
+        await redis.rpush(blob_key, frame)
+        await redis.expire(blob_key, 120)
+
     try:
         deadline = start + exec_timeout
-        for frame in _build_frames():
-            while time.monotonic() < deadline:
-                if await redis.llen(blob_key) < _UPBLOB_WINDOW:
-                    break
-                # 窗口等待期也要消费中断哨兵：daemon 拉流中断开时 /upload 端点
-                # 会向 resp 队列推 error done——不检查就会干等满 exec_timeout
-                # （窗口永不腾空，2026-09-08 E2E 上传中断档实测 600s）
-                raw = await _pop_resp(redis, resp_key)
-                if raw is not None:
-                    resp = json.loads(raw)
-                    if resp.get("user_id") == user_id and resp.get("stage") == "done":
-                        outcome = "failed"
-                        raise AppError(
-                            ErrorCode.SANDBOX_EXEC_FAILED,
-                            args={"detail": str(resp.get("error") or "upload stream failed")},
-                        )
-                await asyncio.sleep(_UPBLOB_POLL_INTERVAL)
-            else:
-                outcome = "timeout"
-                raise AppError(ErrorCode.SANDBOX_TIMEOUT, args={"seconds": int(exec_timeout)})
-            await redis.rpush(blob_key, frame)
-            await redis.expire(blob_key, 120)
+        await _push_frame(
+            await run_long_blocking_io(
+                _frames_codec.encode_frame,
+                _frames_codec.FRAME_META,
+                json.dumps({"size": len(content)}).encode(),
+            )
+        )
+        for offset in range(0, len(content), _UPBLOB_CHUNK_BYTES):
+            await _push_frame(
+                await run_long_blocking_io(
+                    _frames_codec.encode_frame,
+                    _frames_codec.FRAME_DATA,
+                    content[offset : offset + _UPBLOB_CHUNK_BYTES],
+                )
+            )
+        await _push_frame(
+            await run_long_blocking_io(_frames_codec.encode_frame, _frames_codec.FRAME_EOF)
+        )
         while time.monotonic() < deadline and done is None:
             # results 端点为 RPUSH 队列（ack/done 按序）；旧实例 SET（string）
             # 由 _pop_resp 捕获 WRONGTYPE 后回落 GET

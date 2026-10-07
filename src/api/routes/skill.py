@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from src.api.deps import require_permissions
 from src.api.routes import skill_uploads
 from src.api.routes.upload import _read_upload_file_limited
-from src.infra.async_utils import run_blocking_io
+from src.infra.async_utils import run_blocking_io, run_long_blocking_io
 from src.infra.skill.binary import guess_mime_type, parse_binary_ref_async
 from src.infra.skill.marketplace import MarketplaceStorage
 from src.infra.skill.storage import SkillStorage, normalize_skill_name_list
@@ -147,7 +147,7 @@ async def preview_zip_skills(
         raise AppError(ErrorCode.FILE_READ_FAILED)
 
     try:
-        skill_list = await run_blocking_io(_parse_zip_skill_preview, content)
+        skill_list = await run_long_blocking_io(_parse_zip_skill_preview, content)
     except ValueError as e:
         raise AppError(ErrorCode.SKILL_ERROR, message=str(e))
 
@@ -189,7 +189,7 @@ async def upload_skill_from_zip(
         raise AppError(ErrorCode.FILE_READ_FAILED)
 
     try:
-        skills = await run_blocking_io(_parse_zip_skills, content)
+        skills = await run_long_blocking_io(_parse_zip_skills, content)
     except ValueError as e:
         raise AppError(ErrorCode.SKILL_ERROR, message=str(e))
 
