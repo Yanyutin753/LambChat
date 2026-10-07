@@ -4252,7 +4252,12 @@
     "skipVersion": "跳过此版本",
     "viewFullNotes": "查看完整更新日志",
     "foundToast": "发现新版本 v{{version}}",
-    "notificationBodyDesktop": "新版本 {{version}} 已开始后台下载，完成后可在标题栏一键重启安装"
+    "notificationBodyDesktop": "新版本 {{version}} 已开始后台下载，完成后可在标题栏一键重启安装",
+    "readyTitle": "更新已下载",
+    "readyHint": "重启后即可使用新版本。",
+    "notesUnavailable": "此版本尚未提供详细更新说明，可查看完整更新日志。",
+    "readyToast": "v{{version}} 已下载，可重启安装",
+    "downloadingToast": "正在下载 v{{version}}，完成后即可安装"
   },
   "download": {
     "title": "下载本地沙箱",

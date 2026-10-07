@@ -477,6 +477,7 @@ jobs:
           UPDATER_KEY: ${{ matrix.updater_key }}
           UPDATER_SIG: ${{ matrix.updater_sig }}
           UPDATER_ASSET_SUFFIX: ${{ matrix.updater_asset_suffix }}
+          RELEASE_NOTES_FILE: release-notes.md
         run: |
           set -euo pipefail
           sig_file="$(compgen -G "release-assets/$UPDATER_SIG" | head -1 || true)"
@@ -485,6 +486,9 @@ jobs:
             exit 0
           fi
           export SIG_FILE="$sig_file"
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json body -q .body > "$RELEASE_NOTES_FILE"
+          RELEASE_PUBLISHED_AT="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json publishedAt -q .publishedAt)"
+          export RELEASE_PUBLISHED_AT
           rm -f latest.json
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
             --pattern latest.json --dir . >/dev/null 2>&1 || true
@@ -508,8 +512,8 @@ jobs:
             // 版本必须取自 tag：v2.8.2 发布时 tauri.conf.json 仍写 2.8.1，
             // 导致 latest.json 报 2.8.1、桌面端永远检测不到更新。
             manifest.version = process.env.RELEASE_TAG.replace(/^v/, "");
-            manifest.notes = `LambChat ${process.env.RELEASE_TAG}`;
-            manifest.pub_date = new Date().toISOString().replace(/\.\d+Z$/, "Z");
+            manifest.notes = fs.readFileSync(process.env.RELEASE_NOTES_FILE, "utf8").trim() || `LambChat ${process.env.RELEASE_TAG}`;
+            manifest.pub_date = process.env.RELEASE_PUBLISHED_AT;
             fs.writeFileSync("latest.json", JSON.stringify(manifest, null, 2));
             console.log("latest.json platforms:", Object.keys(manifest.platforms).sort().join(", "));
           '
@@ -841,10 +845,15 @@ jobs:
         # 桌面端自更新不感知，待人工/真机抽检后跑 Publish Updater 工作流才
         # 真正推送（v2.9.0~v2.9.2 三连热修的流程性根治）。
         env:
+          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ env.RELEASE_TAG }}
           ASSET_DIR: release-assets
+          RELEASE_NOTES_FILE: release-notes.md
         run: |
           set -euo pipefail
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json body -q .body > "$RELEASE_NOTES_FILE"
+          RELEASE_PUBLISHED_AT="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json publishedAt -q .publishedAt)"
+          export RELEASE_PUBLISHED_AT
           python3 scripts/generate_updater_manifest.py || {
             echo "!! latest.json 平台不齐——见上方 WARN"; exit 1; }
           if [ "${{ vars.DESKTOP_UPDATER_AUTO_PUBLISH }}" != "true" ]; then

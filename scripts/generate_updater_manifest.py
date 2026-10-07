@@ -51,6 +51,8 @@ def main() -> int:
         return 1
 
     version = tag.lstrip("v")
+    notes_file = os.environ.get("RELEASE_NOTES_FILE")
+    notes = pathlib.Path(notes_file).read_text(encoding="utf-8").strip() if notes_file else ""
 
     def sig(pattern: str) -> str | None:
         files = sorted(glob.glob(str(asset_dir / pattern)))
@@ -70,8 +72,9 @@ def main() -> int:
 
     manifest = {
         "version": version,
-        "notes": f"LambChat {tag}",
-        "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "notes": notes or f"LambChat {tag}",
+        "pub_date": os.environ.get("RELEASE_PUBLISHED_AT")
+        or datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "platforms": platforms,
     }
     out = asset_dir / "latest.json"
@@ -80,7 +83,7 @@ def main() -> int:
 
     if not all(p in platforms for p in REQUIRED_PLATFORMS):
         print(
-            "发布判据未满足（五桌面须齐全，含 darwin-x86_64）——清单已生成但缺:",
+            "发布判据未满足（Windows 与 macOS 双架构须齐全，含 darwin-x86_64）——清单已生成但缺:",
             [p for p in REQUIRED_PLATFORMS if p not in platforms],
             file=sys.stderr,
         )

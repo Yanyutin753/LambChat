@@ -559,3 +559,27 @@ def test_release_workflow_collect_steps_publish_daemon_sidecar_assets() -> None:
                 assert "RELEASE_TAG" not in line, (
                     f"{name}: daemon 资产名保留 triple 原名，不得重命名"
                 )
+
+
+def test_updater_manifest_includes_release_notes(tmp_path, monkeypatch):
+    import json
+    import runpy
+
+    notes = tmp_path / "notes.md"
+    notes.write_text("## 本次更新\n- 修复检查更新提示\n", encoding="utf-8")
+    for name in [
+        "LambChat_2.14.2_x64-setup.exe.sig",
+        "LambChat-v2.14.2-macOS-Apple-Silicon.app.tar.gz.sig",
+        "LambChat-v2.14.2-macOS-Intel.app.tar.gz.sig",
+    ]:
+        (tmp_path / name).write_text("signature")
+    monkeypatch.setenv("RELEASE_TAG", "v2.14.2")
+    monkeypatch.setenv("ASSET_DIR", str(tmp_path))
+    monkeypatch.setenv("RELEASE_NOTES_FILE", str(notes))
+    monkeypatch.setenv("RELEASE_PUBLISHED_AT", "2026-10-06T19:35:00Z")
+    generator = runpy.run_path("scripts/generate_updater_manifest.py")
+    assert generator["main"]() == 0
+    manifest = json.loads((tmp_path / "latest.json").read_text())
+    assert manifest["notes"] == notes.read_text().strip()
+
+    assert manifest["pub_date"] == "2026-10-06T19:35:00Z"

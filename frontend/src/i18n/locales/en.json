@@ -4252,7 +4252,12 @@
     "skipVersion": "Skip This Version",
     "viewFullNotes": "View full changelog",
     "foundToast": "New version v{{version}} available",
-    "notificationBodyDesktop": "Version {{version}} is downloading in the background. Restart to install from the title bar when it's ready"
+    "notificationBodyDesktop": "Version {{version}} is downloading in the background. Restart to install from the title bar when it's ready",
+    "readyTitle": "Update ready",
+    "readyHint": "Restart to use the new version.",
+    "notesUnavailable": "Detailed release notes are not provided for this version. View the full changelog for more information.",
+    "readyToast": "v{{version}} is ready to install",
+    "downloadingToast": "Downloading v{{version}}; install when it finishes"
   },
   "download": {
     "title": "Download Local Sandbox",

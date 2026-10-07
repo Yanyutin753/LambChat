@@ -72,12 +72,10 @@ test("skip-this-version action is available before download and wired", () => {
 });
 
 test("downloading state hides skip actions and shows progress", () => {
-  const onSkip = vi.fn();
   const onSkipVersion = vi.fn();
   render(
     <UpdateDialog
       {...baseProps}
-      onSkip={onSkip}
       onSkipVersion={onSkipVersion}
       state={makeState({
         downloading: true,
@@ -146,7 +144,11 @@ test("android ready-to-install shows direct install button", () => {
     <UpdateDialog
       {...baseProps}
       platform="android"
-      state={makeState({ readyToInstall: true, downloaded: 100, progress: 100 })}
+      state={makeState({
+        readyToInstall: true,
+        downloaded: 100,
+        progress: 100,
+      })}
     />,
   );
   // APK 已完整缓存：按钮是「安装」（不重下），不是桌面的「重启并安装」
@@ -259,4 +261,13 @@ test("download progress exposes a bounded accessible percentage", () => {
     expect(progress).toHaveAttribute("aria-valuemax", "100");
     expect(progress).toHaveAttribute("aria-valuenow", String(expected));
   }
+});
+
+test("the mobile footer keeps one secondary action and one primary action", () => {
+  render(
+    <UpdateDialog {...baseProps} platform="android" state={makeState()} />,
+  );
+  expect(screen.getByRole("button", { name: /跳过此版本/ })).toBeTruthy();
+  expect(screen.getByRole("button", { name: /立即升级/ })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /以后再说/ })).toBeNull();
 });

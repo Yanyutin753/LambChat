@@ -14,6 +14,7 @@ import {
   findLinuxPackageAsset,
 } from "../utils/linuxUpdateAssets";
 import { APP_VERSION } from "../utils/appVersion";
+import { GITHUB_URL } from "../constants";
 import { bytesToBase64 } from "../utils/bytesToBase64";
 import type { UpdateState, ReleaseAsset } from "../types";
 
@@ -237,6 +238,8 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   /** 下载/安装「在飞」标志：pendingUpdateRef 只在下载完成时置位，卫兵只查它
    * 会漏掉下载中——复检再触发即起第二条下载（进度条跳变/多进度的根因） */
   const downloadInFlightRef = useRef(false);
+  // Accepted target is synchronous: React state may still be awaiting a render.
+  const updateVersionRef = useRef<string | null>(null);
   /** Linux deb/rpm 目标资产（检查时定位；下载与安装共用，name 即缓存键） */
   const linuxTargetAssetRef = useRef<{ name: string; url: string } | null>(
     null,
@@ -336,10 +339,14 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       if (!result.ok) {
         toast.error(i18n.t("updateCheckFailed"), options);
       } else if (result.version) {
-        toast.success(
-          i18n.t("update.foundToast", { version: result.version }),
-          options,
-        );
+        const current = stateRef.current;
+        const message =
+          current.version === result.version && current.readyToInstall
+            ? "update.readyToast"
+            : current.version === result.version && current.downloading
+              ? "update.downloadingToast"
+              : "update.foundToast";
+        toast.success(i18n.t(message, { version: result.version }), options);
       } else {
         toast.success(i18n.t("update.upToDate"), options);
       }
@@ -404,6 +411,13 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       try {
         const { check } = await import("@tauri-apps/plugin-updater");
         const update = await check();
+        if (downloadInFlightRef.current || pendingUpdateRef.current) {
+          await update?.close?.();
+          return {
+            ok: true,
+            version: updateVersionRef.current,
+          };
+        }
         if (update?.available) {
           const prompt = shouldPromptUpdate(
             update.version,
@@ -415,13 +429,15 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
           const preserve =
             downloadInFlightRef.current || pendingUpdateRef.current !== null;
           if (prompt) {
+            updateVersionRef.current = update.version;
             setState((prev) => ({
               ...(preserve ? prev : INITIAL_STATE),
               available: true,
               version: update.version,
               releaseNotes:
                 update.body ?? (preserve ? prev.releaseNotes : null),
-              releaseUrl: null,
+              releaseUrl: `${GITHUB_URL}/releases/tag/v${update.version}`,
+              publishedAt: update.date ?? null,
               releaseAssets: [],
             }));
             // 桌面端不弹框：发现即后台静默下载（不阻塞用户），完成后标题栏
@@ -456,6 +472,10 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     ): Promise<UpdateCheckResult> => {
       try {
         const info = await versionApi.checkForUpdates(APP_VERSION);
+        if (!info.latest_version) return { ok: false, version: null };
+        if (downloadInFlightRef.current || linuxDownloadedRef.current) {
+          return { ok: true, version: updateVersionRef.current };
+        }
         if (info.has_update) {
           const v = info.latest_version ?? null;
           const prompt = shouldPromptUpdate(
@@ -467,6 +487,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
           const preserve =
             downloadInFlightRef.current || linuxDownloadedRef.current !== null;
           if (prompt) {
+            updateVersionRef.current = v;
             linuxTargetAssetRef.current = null;
             if (source === "deb" || source === "rpm") {
               const arch = linuxArchRef.current;
@@ -492,6 +513,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
               version: v,
               releaseNotes:
                 info.release_notes ?? (preserve ? prev.releaseNotes : null),
+              publishedAt: info.published_at ?? null,
               releaseUrl: info.release_url ?? null,
               releaseAssets: info.release_assets ?? [],
               linuxInstallSource: source,
@@ -565,11 +587,15 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     async (background = false, manual = false): Promise<UpdateCheckResult> => {
       try {
         const info = await versionApi.checkForUpdates(APP_VERSION);
+        if (!info.latest_version) return { ok: false, version: null };
         // 检查可以发现新版本，但不能替换正在下载的 APK 及其进度。
-        if (platform === "android" && downloadInFlightRef.current) {
+        if (
+          platform === "android" &&
+          (downloadInFlightRef.current || stateRef.current.readyToInstall)
+        ) {
           return {
             ok: true,
-            version: info.has_update ? (info.latest_version ?? null) : null,
+            version: updateVersionRef.current,
           };
         }
         if (info.has_update) {
@@ -580,6 +606,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
             { manual },
           );
           if (prompt) {
+            updateVersionRef.current = v;
             setState((prev) => ({
               ...INITIAL_STATE,
               ...(platform === "android" &&
@@ -590,6 +617,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
               available: true,
               version: v,
               releaseNotes: info.release_notes ?? null,
+              publishedAt: info.published_at ?? null,
               releaseUrl: info.release_url ?? null,
               releaseAssets: info.release_assets ?? [],
             }));
@@ -872,9 +900,8 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
    *  直接安装，绝不重复下载；新下载完成后清掉旧版本残留包。 */
   const installAndroidUpdateViaNative = useCallback(
     async (assetName: string, expectedSize?: number) => {
-      const { UpdateDownloader } = await import(
-        "../services/capacitor/updateDownloader"
-      );
+      const { UpdateDownloader } =
+        await import("../services/capacitor/updateDownloader");
 
       // 已完整缓存：直接安装（跳过下载——重复弹窗/复检不重复扣流量）
       try {
@@ -935,7 +962,12 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
           path: fileName,
           directory: Directory.Cache,
         });
-        if (isDownloadedApkComplete({ exists: true, size: stat.size }, expectedSize)) {
+        if (
+          isDownloadedApkComplete(
+            { exists: true, size: stat.size },
+            expectedSize,
+          )
+        ) {
           const { uri } = await Filesystem.getUri({
             path: fileName,
             directory: Directory.Cache,
@@ -1022,6 +1054,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     setShowDialog(false);
     if (platformRef.current === "tauri") {
       pendingUpdateRef.current = null;
+      updateVersionRef.current = null;
       linuxTargetAssetRef.current = null;
       linuxDownloadedRef.current = null;
       setState(INITIAL_STATE);

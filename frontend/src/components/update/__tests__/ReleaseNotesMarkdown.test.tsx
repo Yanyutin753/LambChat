@@ -59,3 +59,24 @@ test("renders plain text release notes without markdown syntax", () => {
 
   expect(html).toContain("普通的一行更新说明");
 });
+
+test("a version-only note shows an honest empty state", () => {
+  const html = renderToStaticMarkup(
+    <ReleaseNotesMarkdown content="LambChat v2.14.2" />,
+  );
+  expect(html).not.toContain("LambChat v2.14.2");
+  expect(html).toMatch(/尚未提供|not provided/);
+});
+
+test("compact release notes omit duplicated titles and platform installation appendix", () => {
+  const html = renderToStaticMarkup(
+    <ReleaseNotesMarkdown
+      content={
+        "LambChat v2.14.2\n\n- 修复更新提示\n\n---\n<!-- macos-gatekeeper-note -->\n安装命令附录"
+      }
+    />,
+  );
+  expect(html).toContain("修复更新提示");
+  expect(html).not.toContain("LambChat v2.14.2");
+  expect(html).not.toContain("安装命令附录");
+});

@@ -1,4 +1,5 @@
 import ReactMarkdown from "react-markdown";
+import { useTranslation } from "react-i18next";
 import remarkBreaks from "remark-breaks";
 import { cjkGfmRemarkPlugins } from "../common/markdownRemarkPlugins";
 
@@ -35,11 +36,30 @@ const ALLOWED_RELEASE_NOTES_ELEMENTS = [
 // Release notes 来自 GitHub Release body，标题统一收敛为紧凑小节样式，
 // 避免 ## 在小弹窗里渲染成大标题。
 const RELEASE_NOTES_HEADING_CLASS =
-  "text-14 font-semibold text-stone-800 dark:text-stone-200 mt-3 first:mt-0 mb-1.5";
+  "text-14 font-semibold text-theme-text mt-3 first:mt-0 mb-1.5";
 
 export function ReleaseNotesMarkdown({ content }: ReleaseNotesMarkdownProps) {
+  const { t } = useTranslation();
+  const notes = content
+    .split("<!-- macos-gatekeeper-note -->")[0]
+    .replace(
+      /^(?:#{1,6}\s+)?LambChat\s+v?\d+\.\d+\.\d+(?:[-+][\w.-]+)?\s*(?:\n|$)/i,
+      "",
+    )
+    .replace(/\n---\s*$/, "")
+    .trim();
+  if (!notes) {
+    return (
+      <p className="text-13 leading-relaxed text-theme-text-tertiary">
+        {t(
+          "update.notesUnavailable",
+          "Detailed release notes are not provided for this version.",
+        )}
+      </p>
+    );
+  }
   return (
-    <div className="min-w-0 [overflow-wrap:anywhere] text-14 leading-relaxed text-stone-600 dark:text-stone-400 [&_code]:rounded [&_code]:bg-stone-100 dark:[&_code]:bg-stone-800 [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.9em] [&_code]:text-stone-700 dark:[&_code]:text-stone-200 [&_del]:line-through [&_strong]:font-semibold [&_strong]:text-stone-800 dark:[&_strong]:text-stone-200">
+    <div className="min-w-0 [overflow-wrap:anywhere] text-14 leading-relaxed text-theme-text-secondary [&_code]:rounded [&_code]:bg-stone-100 dark:[&_code]:bg-stone-800 [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.9em] [&_code]:text-stone-700 dark:[&_code]:text-stone-200 [&_del]:line-through [&_strong]:font-semibold [&_strong]:text-stone-800 dark:[&_strong]:text-stone-200">
       <ReactMarkdown
         allowedElements={[...ALLOWED_RELEASE_NOTES_ELEMENTS]}
         components={{
@@ -48,7 +68,7 @@ export function ReleaseNotesMarkdown({ content }: ReleaseNotesMarkdownProps) {
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 dark:text-blue-400 hover:underline"
+              className="text-[var(--theme-primary)] hover:underline"
             >
               {children}
             </a>
@@ -75,11 +95,9 @@ export function ReleaseNotesMarkdown({ content }: ReleaseNotesMarkdownProps) {
               {children}
             </ol>
           ),
-          hr: () => (
-            <hr className="my-2.5 border-stone-200 dark:border-stone-700" />
-          ),
+          hr: () => <hr className="my-2.5 border-theme-border" />,
           blockquote: ({ children }) => (
-            <blockquote className="my-1.5 border-l-2 border-stone-300 pl-3 text-stone-500 dark:border-stone-600 dark:text-stone-400">
+            <blockquote className="my-1.5 border-l-2 border-stone-300 pl-3 text-theme-text-secondary dark:border-theme-border">
               {children}
             </blockquote>
           ),
@@ -92,7 +110,7 @@ export function ReleaseNotesMarkdown({ content }: ReleaseNotesMarkdownProps) {
         remarkPlugins={[...cjkGfmRemarkPlugins, remarkBreaks]}
         unwrapDisallowed
       >
-        {content}
+        {notes}
       </ReactMarkdown>
     </div>
   );

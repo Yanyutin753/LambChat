@@ -40,8 +40,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
           ASSET_DIR: release-assets
+          RELEASE_NOTES_FILE: release-notes.md
         run: |
           set -euo pipefail
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json body -q .body > "$RELEASE_NOTES_FILE"
+          RELEASE_PUBLISHED_AT="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json publishedAt -q .publishedAt)"
+          export RELEASE_PUBLISHED_AT
           # 清单平台不齐直接红（判据同 app-release：Win NSIS + 双 mac；Linux 不进清单）；齐全才上传——推给桌面端
           python3 scripts/generate_updater_manifest.py
           gh release upload "$RELEASE_TAG" release-assets/latest.json --clobber \

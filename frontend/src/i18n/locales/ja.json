@@ -4252,7 +4252,12 @@
     "skipVersion": "このバージョンをスキップ",
     "viewFullNotes": "更新履歴をすべて表示",
     "foundToast": "新バージョン v{{version}} があります",
-    "notificationBodyDesktop": "新バージョン {{version}} をバックグラウンドでダウンロード中です。完了後、タイトルバーから再起動してインストールできます"
+    "notificationBodyDesktop": "新バージョン {{version}} をバックグラウンドでダウンロード中です。完了後、タイトルバーから再起動してインストールできます",
+    "readyTitle": "更新の準備ができました",
+    "readyHint": "再起動すると新しいバージョンを使用できます。",
+    "notesUnavailable": "このバージョンの詳しい更新内容はまだ提供されていません。更新履歴をご確認ください。",
+    "readyToast": "v{{version}} のインストール準備ができました",
+    "downloadingToast": "v{{version}} をダウンロード中です。完了後にインストールできます"
   },
   "download": {
     "title": "ローカルサンドボックスのダウンロード",

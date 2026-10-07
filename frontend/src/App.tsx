@@ -376,7 +376,6 @@ function App() {
     showDialog: showUpdateDialog,
     setShowDialog: setShowUpdateDialog,
     startUpdate,
-    skipUpdate,
     skipThisVersion,
   } = useAutoUpdate();
   const updatePlatform = (() => {
@@ -435,7 +434,6 @@ function App() {
                 state={updateState}
                 isOpen={showUpdateDialog}
                 onUpgrade={startUpdate}
-                onSkip={skipUpdate}
                 onSkipVersion={skipThisVersion}
                 onDismiss={() => setShowUpdateDialog(false)}
                 platform={updatePlatform as "tauri" | "android" | "ios"}
