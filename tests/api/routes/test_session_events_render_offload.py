@@ -15,6 +15,7 @@ import pytest
 from fastapi import Response
 
 from src.api.routes import session as session_routes
+from src.api.routes import session_history_render
 from src.kernel.schemas.user import TokenPayload
 
 
@@ -53,6 +54,7 @@ def _patch_route(monkeypatch: pytest.MonkeyPatch, events: list[dict[str, Any]]) 
 
 
 async def _call(event_count: int):
+    del event_count
     return await session_routes.get_session_events(
         "session-1",
         event_types=None,
@@ -70,21 +72,21 @@ async def _call(event_count: int):
 
 @pytest.mark.asyncio
 async def test_large_history_json_rendering_is_offloaded(monkeypatch: pytest.MonkeyPatch) -> None:
-    threshold = session_routes._HISTORY_JSON_OFFLOAD_EVENT_COUNT
+    threshold = session_history_render.HISTORY_JSON_OFFLOAD_EVENT_COUNT
     _patch_route(monkeypatch, [_event(i) for i in range(threshold + 1)])
 
     offloaded: list[Any] = []
-    original = session_routes.run_long_blocking_io
+    original = session_history_render.run_long_blocking_io
 
     async def _spy(func, *args, **kwargs):
         offloaded.append(func)
         return await original(func, *args, **kwargs)
 
-    monkeypatch.setattr(session_routes, "run_long_blocking_io", _spy)
+    monkeypatch.setattr(session_history_render, "run_long_blocking_io", _spy)
 
     result = await _call(threshold + 1)
 
-    assert session_routes._render_history_json_bytes in offloaded
+    assert session_history_render._render_history_json_bytes in offloaded
     assert isinstance(result, Response)
     assert result.media_type == "application/json"
     import json as json_mod
