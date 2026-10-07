@@ -8,12 +8,14 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from fastapi import Response
 
 # 真实模块须在 _load_session_routes_module 注入 stub 之前导入并持有引用
 from src.infra.session.dual_writer import DualEventWriter as _RealDualEventWriter
@@ -178,7 +180,12 @@ async def _call_events(session_routes, monkeypatch, writer, **overrides):
         trace_limit=20,
     )
     kwargs.update(overrides)
-    return await session_routes.get_session_events("session-1", **kwargs)
+    result = await session_routes.get_session_events("session-1", **kwargs)
+    # 全量历史（≥500 事件）走预渲染卸载路径返回 Response；解码回 dict 断言，
+    # 内容与 HTTP 客户端实际收到的 JSON 逐字节一致
+    if isinstance(result, Response):
+        return json.loads(result.body)
+    return result
 
 
 @pytest.mark.asyncio

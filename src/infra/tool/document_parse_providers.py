@@ -173,7 +173,7 @@ async def mistral_parse(
     )
     model = _setting("DOCUMENT_PARSE_MISTRAL_MODEL") or _MISTRAL_DEFAULT_MODEL
 
-    encoded = base64.b64encode(data).decode("ascii")
+    encoded = await run_long_blocking_io(_b64_ascii, data)
     body = build_mistral_ocr_request(
         model,
         filename,
@@ -249,6 +249,10 @@ async def _mineru_parse_local(
         pages=None,
         engine="mineru:local",
     )
+
+
+def _b64_ascii(data: bytes) -> str:
+    return base64.b64encode(data).decode("ascii")
 
 
 def extract_mineru_zip(zip_bytes: bytes) -> tuple[str, list[dict[str, str]]]:
@@ -340,7 +344,7 @@ async def _mineru_parse_cloud(
 
     zip_response = await client.get(str(zip_url))
     _raise_for_status(zip_response, "mineru")
-    markdown, images = extract_mineru_zip(zip_response.content)
+    markdown, images = await run_long_blocking_io(extract_mineru_zip, zip_response.content)
     return _result(
         markdown=markdown,
         images=images if include_images else [],
@@ -391,7 +395,7 @@ async def azure_parse(
         analyze_url,
         params={"api-version": _AZURE_API_VERSION, "outputContentFormat": "markdown"},
         headers=headers,
-        json={"base64Source": base64.b64encode(data).decode("ascii")},
+        json={"base64Source": await run_long_blocking_io(_b64_ascii, data)},
     )
     _raise_for_status(response, "azure")
     operation_url = response.headers.get("operation-location") or response.headers.get(
@@ -508,7 +512,7 @@ async def paddleocr_parse(
 
     suffix = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
     payload = {
-        "file": base64.b64encode(data).decode("ascii"),
+        "file": await run_long_blocking_io(_b64_ascii, data),
         "fileType": 1 if f".{suffix}" in _PADDLE_IMAGE_EXTENSIONS else 0,
         "useDocOrientationClassify": False,
         "useDocUnwarping": False,
@@ -634,7 +638,7 @@ async def markitdown_parse(
     if not markdown.strip():
         raise DocumentParseError("markitdown returned empty markdown")
 
-    images = extract_ooxml_media_images(data) if include_images else []
+    images = await run_long_blocking_io(extract_ooxml_media_images, data) if include_images else []
     if images:
         markdown = rewrite_local_image_refs(markdown, [image["ref"] for image in images])
     return _result(markdown=markdown, images=images, pages=None, engine="markitdown")
@@ -704,7 +708,7 @@ async def _ocr_page_image(
         extension = "png"
     filename = f"page-{index}.{extension}"
     try:
-        data = base64.b64decode(str(image.get("base64") or ""))
+        data = await run_long_blocking_io(base64.b64decode, str(image.get("base64") or ""))
     except (binascii.Error, ValueError):
         logger.warning("[DocumentParse] image OCR skip %s: bad base64", filename)
         return "", ""

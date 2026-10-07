@@ -13,6 +13,10 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from src.api.deps import get_current_user_required
+from src.api.routes.session_history_render import (
+    HISTORY_JSON_OFFLOAD_EVENT_COUNT,
+    render_history_response_offloaded,
+)
 from src.api.server_timing import timed_server_phase
 from src.infra.folder.storage import get_project_storage
 from src.infra.llm.retry import ainvoke_with_retry
@@ -439,6 +443,8 @@ async def get_session_events(
             if has_more_traces and oldest_trace_started_at and oldest_trace_id
             else None
         )
+    if len(events) >= HISTORY_JSON_OFFLOAD_EVENT_COUNT:
+        return await render_history_response_offloaded(response)
     return response
 
 

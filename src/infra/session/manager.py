@@ -879,7 +879,7 @@ class SessionManager:
             cursor = self.trace_storage.chunks_collection.find({"trace_id": source_trace_id})
             docs: list[dict] = []
             async for chunk_doc in cursor:
-                cloned_chunk = deepcopy(chunk_doc)
+                cloned_chunk = await run_long_blocking_io(deepcopy, chunk_doc)
                 cloned_chunk.pop("_id", None)
                 cloned_chunk["trace_id"] = cloned_trace_id
                 cloned_chunk["session_id"] = cloned_trace.get("session_id", "")

@@ -730,3 +730,29 @@ async def test_dispatch_call_logs_ack_timeout_outcome(fake, monkeypatch, caplog)
     assert len(records) == 1
     assert records[0].outcome == "ack_timeout"
     assert records[0].repushes == 0
+
+
+async def test_upload_stream_encodes_frames_off_event_loop(fake, monkeypatch):
+    """整文件帧列表曾一次性内联构建（≈2× 文件体积 memcpy，1GB 上限数秒级冻结
+    事件循环）；必须逐帧惰性编码并经 run_long_blocking_io 卸载。"""
+    monkeypatch.setattr(dispatch_module, "_UPBLOB_POLL_INTERVAL", 0.01)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_STREAM_TIMEOUT", 0.3)
+
+    offloaded = []
+    original = dispatch_module.run_long_blocking_io
+
+    async def _spy(func, *args, **kwargs):
+        offloaded.append(func)
+        return await original(func, *args, **kwargs)
+
+    monkeypatch.setattr(dispatch_module, "run_long_blocking_io", _spy)
+
+    content = b"x" * (dispatch_module._UPBLOB_CHUNK_BYTES * 2 + 10)
+    with pytest.raises(AppError) as exc:
+        # 无 daemon 消费：meta/数据/EOF 帧推完后在 done 等待处快速超时
+        await dispatch_module.dispatch_local_stream_upload(
+            "u1", {"cwd": "/workspace/s1", "path": "big.bin", "max_bytes": 10**9}, content
+        )
+    assert exc.value.error_code == ErrorCode.SANDBOX_TIMEOUT
+    assert dispatch_module._frames_codec.encode_frame in offloaded
+    assert len(offloaded) >= 3  # meta + 2 数据帧（EOF 是否发出取决于窗口时序）
