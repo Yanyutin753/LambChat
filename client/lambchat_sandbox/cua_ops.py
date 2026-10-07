@@ -398,6 +398,10 @@ def _op_click(payload: dict) -> dict:
         y = float(target["y"])
     except (KeyError, TypeError, ValueError) as exc:
         raise CuaOpError("invalid_arguments", "target needs x/y") from exc
+    native_click = getattr(_backend(), "click_point", None)
+    if callable(native_click):
+        native_click(x, y, button)  # Linux: AT-SPI 鼠标合成
+        return {"ok": True, "strategy": "a11y-event", "x": x, "y": y}
     pyautogui = _pyautogui()
     for _ in range(max(1, min(clicks, 3))):
         if button == "right":
@@ -432,6 +436,11 @@ def _op_set_value(payload: dict) -> dict:
 
 
 def _type_text(text: str) -> None:
+    backend = _backend()
+    native = getattr(backend, "type_text", None)
+    if callable(native):
+        native(text)  # Linux: AT-SPI KEY_STRING(Wayland 原生)
+        return
     pyautogui = _pyautogui()
     if all(ord(ch) < 128 for ch in text):
         pyautogui.typewrite(text, interval=0.01)

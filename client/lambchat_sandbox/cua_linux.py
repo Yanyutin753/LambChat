@@ -165,16 +165,29 @@ def row_of(element: Any) -> dict[str, Any]:
     }
 
 
+# 语义动作 → 各 UI 框架的 AT-SPI 动作名(GTK: click/press;Chromium: press/
+# doDefault;Qt: press)。按序匹配第一个存在的。
+_SEMANTIC_ACTIONS: dict[str, tuple[str, ...]] = {
+    "click": ("click", "press", "doDefault", "activate"),
+    "context_menu": ("showContextMenu", "showMenu"),
+}
+
+
 def perform(element: Any, action: str) -> None:
     try:
         act = element.queryAction()
     except Exception as exc:  # noqa: BLE001
         raise KeyError(f"no actions on element: {exc}") from exc
-    wanted = action if not action.startswith("AX") else action.removeprefix("AX")
-    wanted = wanted if wanted != "click" else "click"
-    for index in range(act.nActions):
-        name = act.getName(index)
-        if name == wanted or name.lower() == wanted.lower():
+    available = {act.getName(i): i for i in range(act.nActions)}
+    if action.startswith("AX"):
+        action = action.removeprefix("AX")
+    candidates = _SEMANTIC_ACTIONS.get(action, (action,))
+    for name in candidates:
+        if name in available or name.lower() in {k.lower(): v for k, v in available.items()}:
+            index = available.get(name)
+            if index is None:
+                lowered = {k.lower(): v for k, v in available.items()}
+                index = lowered[name.lower()]
             if not act.doAction(index):
                 raise RuntimeError(f"action {name} returned failure")
             return
@@ -184,10 +197,81 @@ def perform(element: Any, action: str) -> None:
 def set_value(element: Any, text: str) -> None:
     try:
         editable = element.queryEditableText()
-        if not editable.setTextContents(text):
-            raise RuntimeError("setTextContents returned failure")
-        return
-    except KeyError:
-        raise KeyError("element not settable (no editable text interface)") from None
+    except Exception as exc:  # noqa: BLE001
+        raise KeyError(f"element not settable (no editable text): {exc}") from exc
+    # setTextContents → replaceText 双路径:Chromium 对 setTextContents 常返回
+    # 失败,但 EditableText.replaceText(0, charCount, text) 可用(xiaoxin 真机)
+    try:
+        if editable.setTextContents(text):
+            return
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        count = element.queryText().characterCount
+        if editable.replaceText(0, count, text):
+            return
     except Exception as exc:  # noqa: BLE001
         raise KeyError(f"element not settable: {exc}") from exc
+    raise KeyError("element not settable: setTextContents/replaceText both failed")
+
+
+# pyatspi 原生合成输入(经 AT-SPI 总线,Wayland 原生可用,无需 X11/pyautogui)。
+# 特殊键名 → X keysym(pyatspi KEY_SYM 用)
+_KEYSYMS = {
+    "return": "Return",
+    "enter": "Return",
+    "escape": "Escape",
+    "tab": "Tab",
+    "delete": "BackSpace",
+    "forwarddelete": "Delete",
+    "space": "space",
+    "left": "Left",
+    "right": "Right",
+    "down": "Down",
+    "up": "Up",
+    "home": "Home",
+    "end": "End",
+    "pageup": "Prior",
+    "pagedown": "Next",
+    "f1": "F1",
+    "f2": "F2",
+    "f3": "F3",
+    "f4": "F4",
+    "f5": "F5",
+    "f6": "F6",
+    "f7": "F7",
+    "f8": "F8",
+    "f9": "F9",
+    "f10": "F10",
+    "f11": "F11",
+    "f12": "F12",
+}
+
+
+def type_text(text: str) -> None:
+    """KEY_STRING 整串合成(大小写/unicode 由 keysym 字符串承载)。"""
+    _pyatspi().Registry.generateKeyboardEvent(0, text, _pyatspi().KEY_STRING)
+
+
+def press_key(key: str) -> None:
+    """单键(特殊键走 KEY_SYM,单字符走 KEY_STRING)。"""
+    pyatspi = _pyatspi()
+    sym = _KEYSYMS.get(key.lower())
+    if sym:
+        pyatspi.Registry.generateKeyboardEvent(0, sym, pyatspi.KEY_SYM)
+        return
+    if len(key) == 1:
+        pyatspi.Registry.generateKeyboardEvent(0, key, pyatspi.KEY_STRING)
+        return
+    raise KeyError(f"unknown_key:{key}")
+
+
+def click_point(x: float, y: float, button: str = "left") -> None:
+    pyatspi = _pyatspi()
+    mapping = {
+        "left": pyatspi.MOUSE_B1C,
+        "middle": pyatspi.MOUSE_B2C,
+        "right": pyatspi.MOUSE_B3C,
+    }
+    kind = mapping.get(button, pyatspi.MOUSE_B1C)
+    pyatspi.Registry.generateMouseEvent(int(x), int(y), kind)
