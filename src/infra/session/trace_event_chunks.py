@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 from bson import json_util
 from pymongo import ReturnDocument
 
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.session import trace_storage as trace_storage_helpers
 from src.infra.session.trace_chunk_rollback import TraceChunkRollbackMixin
@@ -471,7 +472,8 @@ class TraceEventChunkMixin(TraceChunkRollbackMixin):
             normalized_event["seq"] = index
             normalized_events.append(normalized_event)
 
-        replacement_digest = _replacement_digest(
+        replacement_digest = await run_long_blocking_io(
+            _replacement_digest,
             normalized_events,
             mark_storage_chunked=mark_storage_chunked,
             remove_legacy_events=remove_legacy_events,

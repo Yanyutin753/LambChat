@@ -357,7 +357,7 @@ async def image_analyze(
                 for att in attachments
             ]
         try:
-            _validate_attachment_data_urls(attachments)
+            await run_long_blocking_io(_validate_attachment_data_urls, attachments)
         except ValueError:
             logger.warning("[image_analyze] rejected invalid image data URL")
             return await _json_dumps_result({"error": "Invalid image data URL"})

@@ -1551,3 +1551,35 @@ async def test_stale_chunk_replacement_is_automatically_recovered(failure: str) 
         for event in chunk.get("events", [])
     ]
     assert contents == ([] if failure == "insert" else ["replacement"])
+
+
+@pytest.mark.asyncio
+async def test_replace_trace_events_with_chunks_offloads_digest_off_event_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """整 trace 的 json 序列化+sha256 是重 CPU 活，必须经 run_long_blocking_io 离开事件循环。"""
+    import src.infra.session.trace_event_chunks as trace_event_chunks_module
+
+    monkeypatch.setattr(trace_storage_module.settings, "SESSION_EVENT_CHUNK_SIZE", 2, raising=False)
+    offloaded: list[Any] = []
+    original = trace_event_chunks_module.run_long_blocking_io
+
+    async def _spy(func, *args, **kwargs):
+        offloaded.append(func)
+        return await original(func, *args, **kwargs)
+
+    monkeypatch.setattr(trace_event_chunks_module, "run_long_blocking_io", _spy)
+
+    storage = TraceStorage()
+    storage._collection = _FakeTraceCollection(_trace_document())
+    storage._chunks_collection = _FakeChunkCollection()
+
+    assert (
+        await storage.replace_trace_events_with_chunks(
+            _trace_document(),
+            [_event("message", "a"), _event("done", "b")],
+        )
+        is True
+    )
+
+    assert trace_event_chunks_module._replacement_digest in offloaded

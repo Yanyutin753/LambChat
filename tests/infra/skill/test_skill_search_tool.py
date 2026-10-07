@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from typing import Any
+
+import pytest
+
 from src.infra.skill.skill_search_tool import SkillSearchTool
 
 
@@ -55,3 +59,23 @@ def test_search_skills_handles_blank_empty_and_no_match_without_fabrication() ->
     assert SkillSearchTool(_skills())._run(" ") == "Enter a Skill name or capability to search."
     assert SkillSearchTool([])._run("image") == "No Skills are available."
     assert SkillSearchTool(_skills())._run("quantum-teleport") == "No Skills matched that query."
+
+
+@pytest.mark.asyncio
+async def test_arun_offloads_search_off_event_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    """difflib 搜索是同步 CPU 活，_arun 必须经 run_long_blocking_io 离开事件循环。"""
+    import src.infra.skill.skill_search_tool as skill_search_tool_module
+
+    offloaded: list[Any] = []
+    original = skill_search_tool_module.run_long_blocking_io
+
+    async def _spy(func, *args, **kwargs):
+        offloaded.append(func)
+        return await original(func, *args, **kwargs)
+
+    monkeypatch.setattr(skill_search_tool_module, "run_long_blocking_io", _spy)
+
+    result = await SkillSearchTool(_skills())._arun("sql")
+
+    assert "Name: database-query" in result
+    assert offloaded
