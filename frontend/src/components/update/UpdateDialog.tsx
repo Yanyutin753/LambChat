@@ -23,7 +23,6 @@ interface UpdateDialogProps {
   state: UpdateState;
   isOpen: boolean;
   onUpgrade: () => void;
-  onSkip: () => void;
   onDismiss: () => void;
   /** 跳过此版本：该版本不再自动提醒（手动检查仍会显示） */
   onSkipVersion: () => void;
@@ -37,7 +36,6 @@ export function UpdateDialog({
   state,
   isOpen,
   onUpgrade,
-  onSkip,
   onDismiss,
   onSkipVersion,
   platform,
@@ -78,11 +76,6 @@ export function UpdateDialog({
           {t("update.skipVersion", "跳过此版本")}
         </Button>
       )}
-      {!state.downloading && (
-        <Button onClick={onSkip} className={actionClass}>
-          {t("updateSkip", "以后再说")}
-        </Button>
-      )}
       <Button
         onClick={(event) => {
           event.currentTarget
@@ -92,7 +85,7 @@ export function UpdateDialog({
         }}
         loading={state.downloading}
         variant="primary"
-        className={`${actionClass} basis-full sm:basis-auto`}
+        className={actionClass}
         leftIcon={
           isGoToDownload ? (
             <ExternalLink size={16} />
@@ -133,7 +126,13 @@ export function UpdateDialog({
       onClose={onDismiss}
       dismissible={!state.downloading}
       size="md"
-      title={t("update.availableTitle", "发现新版本")}
+      title={
+        state.downloading
+          ? t("updateDownloading", "正在下载...")
+          : state.readyToInstall
+            ? t("update.readyTitle", "更新已下载")
+            : t("update.availableTitle", "发现新版本")
+      }
       icon={
         state.downloading ? (
           <ArrowDownCircle
@@ -146,7 +145,10 @@ export function UpdateDialog({
             className="shrink-0 text-[var(--theme-primary)]"
           />
         ) : (
-          <Download size={18} className="shrink-0 text-[var(--theme-primary)]" />
+          <Download
+            size={18}
+            className="shrink-0 text-[var(--theme-primary)]"
+          />
         )
       }
       footer={footer}
@@ -169,7 +171,11 @@ export function UpdateDialog({
           </div>
           {state.publishedAt && (
             <span className="flex items-center gap-1 text-12 text-theme-text-tertiary dark:text-stone-500">
-              <Calendar size={12} className="shrink-0 opacity-70" aria-hidden="true" />
+              <Calendar
+                size={12}
+                className="shrink-0 opacity-70"
+                aria-hidden="true"
+              />
               {t("updatePublishedAt", {
                 date: new Date(state.publishedAt).toLocaleDateString(),
               })}
@@ -177,35 +183,32 @@ export function UpdateDialog({
           )}
         </div>
 
-        {platform === "android" &&
-          state.readyToInstall &&
-          !state.downloading &&
-          !state.error && (
-            <div className="flex items-center gap-1.5 text-12 text-theme-text-secondary dark:text-stone-300">
-              <CheckCircle2
-                size={13}
-                className="shrink-0 text-[var(--theme-primary)]"
-                aria-hidden="true"
-              />
-              {t("update.apkReady", {
-                defaultValue: "安装包已下载完成，点击安装不会重复下载",
-              })}
-            </div>
-          )}
-
-        {state.releaseNotes && (
-          <div className="space-y-1">
-            <p className="flex items-center gap-1 text-12 font-medium text-theme-text-secondary dark:text-stone-300">
-              <ScrollText
-                size={12}
-                className="shrink-0 opacity-70"
-                aria-hidden="true"
-              />
-              {t("updateReleaseNotes", "更新日志")}
-            </p>
-            <ReleaseNotesMarkdown content={state.releaseNotes} />
+        {state.readyToInstall && !state.downloading && !state.error && (
+          <div className="flex items-center gap-1.5 text-12 text-theme-text-secondary dark:text-stone-300">
+            <CheckCircle2
+              size={13}
+              className="shrink-0 text-[var(--theme-primary)]"
+              aria-hidden="true"
+            />
+            {platform === "android"
+              ? t("update.apkReady", {
+                  defaultValue: "安装包已下载完成，点击安装不会重复下载",
+                })
+              : t("update.readyHint", "重启后即可使用新版本。")}
           </div>
         )}
+
+        <div className="space-y-1">
+          <p className="flex items-center gap-1 text-12 font-medium text-theme-text-secondary dark:text-stone-300">
+            <ScrollText
+              size={12}
+              className="shrink-0 opacity-70"
+              aria-hidden="true"
+            />
+            {t("updateReleaseNotes", "更新日志")}
+          </p>
+          <ReleaseNotesMarkdown content={state.releaseNotes ?? ""} />
+        </div>
 
         {state.releaseUrl && !state.downloading && (
           <a

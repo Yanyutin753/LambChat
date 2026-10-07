@@ -4252,7 +4252,12 @@
     "skipVersion": "이 버전 건너뛰기",
     "viewFullNotes": "전체 변경 로그 보기",
     "foundToast": "새 버전 v{{version}}이(가) 있습니다",
-    "notificationBodyDesktop": "새 버전 {{version}}을(를) 백그라운드로 다운로드 중입니다. 완료 후 타이틀 바에서 바로 재시작해 설치할 수 있습니다"
+    "notificationBodyDesktop": "새 버전 {{version}}을(를) 백그라운드로 다운로드 중입니다. 완료 후 타이틀 바에서 바로 재시작해 설치할 수 있습니다",
+    "readyTitle": "업데이트 준비 완료",
+    "readyHint": "다시 시작하면 새 버전을 사용할 수 있습니다.",
+    "notesUnavailable": "이 버전의 자세한 업데이트 내용은 아직 제공되지 않았습니다. 전체 변경 기록을 확인하세요.",
+    "readyToast": "v{{version}} 설치 준비가 완료되었습니다",
+    "downloadingToast": "v{{version}} 다운로드 중입니다. 완료 후 설치할 수 있습니다"
   },
   "download": {
     "title": "로컬 샌드박스 다운로드",

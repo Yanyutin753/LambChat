@@ -145,3 +145,22 @@ test("skip-this-version is wired and hidden while downloading", () => {
   fireEvent.click(screen.getByRole("button", { name: /跳过此版本/ }));
   expect(onSkipVersion).toHaveBeenCalledTimes(1);
 });
+
+test("ready popover explains the restart and offers complete release notes", () => {
+  renderIndicator(
+    makeState({
+      readyToInstall: true,
+      releaseNotes: "LambChat v99.0.0",
+      releaseUrl: "https://example.test/release",
+    }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: /发现新版本/ }));
+  const popover = screen.getByRole("dialog");
+  expect(within(popover).getByRole("heading")).toHaveTextContent(
+    /已下载|ready/i,
+  );
+  expect(within(popover).getByText(/重启后|restart/i)).toBeTruthy();
+  expect(
+    within(popover).getByRole("link", { name: /完整更新日志/ }),
+  ).toHaveAttribute("href", "https://example.test/release");
+});
