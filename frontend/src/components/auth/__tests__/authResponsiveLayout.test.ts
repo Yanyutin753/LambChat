@@ -8,6 +8,19 @@ function readAuthSource(fileName: string): string {
   return readFileSync(join(currentDir, fileName), "utf8");
 }
 
+test.each(["AuthPage", "AuthLayout", "ForgotPassword", "ResetPassword"])(
+  "%s keeps fixed navigation below the native titlebar",
+  (name) => {
+    const source = readAuthSource(`../${name}.tsx`);
+    const navs = source.match(/<nav\b[^>]*>/g) ?? [];
+    expect(navs.length).toBeGreaterThan(0);
+    for (const nav of navs) {
+      expect(nav).toContain('top: "var(--titlebar-inset, 0px)"');
+      expect(nav).not.toContain("fixed top-0");
+    }
+  },
+);
+
 test("auth pages use safe centered mobile layout classes", () => {
   const authPage = readAuthSource("../AuthPage.tsx");
   const authLayout = readAuthSource("../AuthLayout.tsx");

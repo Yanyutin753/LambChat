@@ -797,6 +797,12 @@ def test_detect_tool_error_detects_string_error_prefix() -> None:
     assert detect_tool_error(None, "Error: failed to run") == (True, "Error: failed to run")
 
 
+def test_detect_tool_error_detects_computer_use_error_code() -> None:
+    result = "ERROR ax_not_trusted: grant Accessibility"
+    assert detect_tool_error(None, result) == (True, result)
+    assert detect_tool_error(None, "window: Error log viewer") == (False, None)
+
+
 def test_process_messages_compacts_large_artifact_before_serializing() -> None:
     large_value = "x" * 120_000
     result = process_messages(
@@ -1188,3 +1194,30 @@ async def test_same_chunk_text_precedes_tool_args_delta() -> None:
         "message:chunk",
         "tool:args:chunk",
     ]
+
+
+@pytest.mark.asyncio
+async def test_large_computer_observation_preserves_screenshot_through_sse() -> None:
+    from src.infra.tool.computer_use_tool import _format_result
+
+    raw = await _format_result(
+        {
+            "state": "[0] AXTextField\n" + "界面文字" * 40_000,
+            "element_count": 400,
+            "screenshot": {"url": "/api/upload/file/shot.jpg"},
+        }
+    )
+    presenter = FakePresenter()
+    await AgentEventProcessor(presenter).process_event(
+        {
+            "event": "on_tool_end",
+            "name": "computer_use",
+            "run_id": "cua-large",
+            "data": {"output": ToolMessage(content=raw, tool_call_id="cua-large")},
+            "metadata": {},
+        }
+    )
+    result = presenter.emitted[0]["data"]["result"]
+    assert isinstance(result, dict)
+    assert result["screenshot"]["url"] == "/api/upload/file/shot.jpg"
+    assert result["truncated"] is True

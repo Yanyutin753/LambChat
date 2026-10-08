@@ -37,6 +37,8 @@ export function useRightPanelEntry({
   kind,
   automatic = false,
   title,
+  path,
+  fileType,
   icon,
   registryKey,
 }: {
@@ -45,6 +47,8 @@ export function useRightPanelEntry({
   kind: RightPanelKind;
   automatic?: boolean;
   title?: string;
+  path?: string;
+  fileType?: string;
   icon?: ReactNode;
   registryKey?: string;
 }) {
@@ -60,7 +64,11 @@ export function useRightPanelEntry({
   // Subscribe to flags, so unrelated tab metadata cannot rerender hidden shells.
   const getFlags = () => {
     const current = getRightPanelSnapshot();
-    return (current.activeId === ownerId ? 1 : 0) | (current.depth > 1 ? 2 : 0) | (current.collapsed ? 4 : 0);
+    return (
+      (current.activeId === ownerId ? 1 : 0) |
+      (current.depth > 1 ? 2 : 0) |
+      (current.collapsed ? 4 : 0)
+    );
   };
   const flags = useSyncExternalStore(subscribeRightPanels, getFlags, getFlags);
 
@@ -78,6 +86,8 @@ export function useRightPanelEntry({
       close: () => closeRef.current(),
       opener: openerRef.current,
       title,
+      path,
+      fileType,
       icon,
       panelId,
       registryKey,
@@ -100,6 +110,8 @@ export function useRightPanelEntry({
       close: () => closeRef.current(),
       opener: openerRef.current,
       title,
+      path,
+      fileType,
       icon,
       panelId,
       registryKey,
@@ -111,6 +123,8 @@ export function useRightPanelEntry({
     kind,
     automatic,
     title,
+    path,
+    fileType,
     icon,
     panelId,
     registryKey,

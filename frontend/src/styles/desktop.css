@@ -82,6 +82,10 @@ html:has([data-desktop-activity-rail]) {
 }
 
 /* #root yields room to docked panels; native chrome still spans the window. */
+html[data-right-panel-presentation="docked"]:has([data-titlebar]) #root {
+  overflow: visible;
+}
+
 html[data-right-panel-presentation="docked"] [data-titlebar] {
   width: calc(100% + var(--right-panel-active-width, 0px));
   flex-shrink: 0;

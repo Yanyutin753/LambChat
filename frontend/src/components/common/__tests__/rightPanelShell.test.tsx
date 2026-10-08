@@ -851,7 +851,8 @@ test("editor uses one tab title without a duplicate header", async () => {
   await waitFor(() =>
     expect(screen.getByRole("tab", { name: "Edit team" })).toBeTruthy(),
   );
-  expect(screen.getAllByText("Edit team")).toHaveLength(1);
+  expect(screen.getAllByRole("tab", { name: "Edit team" })).toHaveLength(1);
+  expect(screen.queryByRole("heading", { name: "Edit team" })).toBeNull();
   expect(screen.queryByText("Build roles")).toBeNull();
   expect(document.querySelector(".editor-sidebar-header")).toBeNull();
   expect(screen.getByRole("complementary", { name: "Edit team" })).toBeTruthy();

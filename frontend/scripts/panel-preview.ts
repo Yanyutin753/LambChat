@@ -329,17 +329,32 @@ const settings = {
             { icon: "📄", text: "读取 README.md 文件" },
             { icon: "🔧", text: "帮我写一个 Shell 脚本" },
           ],
-          ja: [], ko: [], ru: [],
+          ja: [],
+          ko: [],
+          ru: [],
         },
         default_value: {},
         json_schema: {
-          type: "object", value_type: "array",
+          type: "object",
+          value_type: "array",
           key_label: "settingDesc.WELCOME_SUGGESTION_LANG",
           item_label: "settingDesc.WELCOME_SUGGESTION_ITEM",
           key_options: ["en", "zh", "ja", "ko", "ru"],
           fields: [
-            { name: "icon", type: "text", label: "settingDesc.WELCOME_SUGGESTION_ICON", required: true, layout_width: "compact" },
-            { name: "text", type: "text", label: "settingDesc.WELCOME_SUGGESTION_TEXT", required: true, layout_width: "full" },
+            {
+              name: "icon",
+              type: "text",
+              label: "settingDesc.WELCOME_SUGGESTION_ICON",
+              required: true,
+              layout_width: "compact",
+            },
+            {
+              name: "text",
+              type: "text",
+              label: "settingDesc.WELCOME_SUGGESTION_TEXT",
+              required: true,
+              layout_width: "full",
+            },
           ],
         },
       },
@@ -2191,12 +2206,21 @@ const server = await createServer({
           if (["/api/auth/me", "/api/auth/profile"].includes(url.pathname)) {
             data = {
               ...user,
-              ...(previewParams.has("profile-avatar") ? {avatar_url: "/icons/icon-192.png"} : {}),
-              ...(previewParams.has("profile-long") ? {
-                username: "跨部门产品研究与长期项目交付负责人",
-                email: "cross.department.research.and.delivery@example.test",
-                roles: ["project-administrator-with-long-role-name", "research", "engineering"],
-              } : {}),
+              ...(previewParams.has("profile-avatar")
+                ? { avatar_url: "/icons/icon-192.png" }
+                : {}),
+              ...(previewParams.has("profile-long")
+                ? {
+                    username: "跨部门产品研究与长期项目交付负责人",
+                    email:
+                      "cross.department.research.and.delivery@example.test",
+                    roles: [
+                      "project-administrator-with-long-role-name",
+                      "research",
+                      "engineering",
+                    ],
+                  }
+                : {}),
             };
             const skillAccess = previewParams.get("skill-access");
             if (["read", "write", "delete", "publish"].includes(skillAccess ?? "")) {
@@ -2344,6 +2368,134 @@ const server = await createServer({
                 size: 41245,
               };
             }
+          }
+          if (
+            url.pathname === "/api/sessions/preview-report/events" &&
+            previewParams.has("cua")
+          ) {
+            const history = data as { events: object[] };
+            const cases = [
+              {
+                action: "status",
+                args: { machine_id: "local-mac", probe_screen: true },
+                result: {
+                  platform: "darwin",
+                  ready: true,
+                  accessibility: "granted",
+                  screen_recording: "granted",
+                },
+              },
+              {
+                action: "apps",
+                args: {},
+                result: {
+                  apps: [
+                    { name: "LambChat", pid: 42, active: true },
+                    {
+                      name: "Visual Studio Code with a very long application title",
+                      pid: 84,
+                      active: false,
+                    },
+                  ],
+                },
+              },
+              {
+                action: "windows",
+                args: { pid: 42 },
+                result: {
+                  pid: 42,
+                  windows: [
+                    {
+                      window_id: 0,
+                      title:
+                        "CUA test window with a long title for narrow panels",
+                      main: true,
+                      focused: true,
+                      bounds: [180, 738, 640, 552],
+                    },
+                  ],
+                },
+              },
+              {
+                action: "state",
+                args: {
+                  name: "LambChat",
+                  window_id: 0,
+                  include_screenshot: true,
+                },
+                result: {
+                  pid: 42,
+                  window: {
+                    window_id: 0,
+                    title: "CUA test window",
+                    bounds: [180, 738, 640, 552],
+                  },
+                  element_count: 17,
+                  truncated: true,
+                  state:
+                    "window: CUA test window (id=0)\n[0] AXWindow actions=Raise\n  [1] AXTextField 'CUA input' value='literal input 中文'\n  [2] AXButton 'Test button' actions=Press",
+                  screenshot: {
+                    mime: "image/webp",
+                    width: 1280,
+                    height: 860,
+                    data_b64: readFileSync(
+                      "public/images/best-practice/chat-home.webp",
+                    ).toString("base64"),
+                  },
+                },
+              },
+              {
+                action: "click",
+                args: { pid: 42, index: 2 },
+                result: { ok: true, strategy: "a11y", action: "click" },
+              },
+              {
+                action: "state",
+                args: { pid: 42 },
+                result: "ERROR dispatch_failed: local sandbox daemon offline",
+                success: false,
+              },
+              {
+                action: "status",
+                args: {},
+                result: {
+                  platform: "linux",
+                  ready: false,
+                  accessibility: "denied",
+                  screen_recording: "unknown",
+                },
+              },
+              { action: "apps", args: {}, result: { apps: [] } },
+            ];
+            history.events.splice(
+              2,
+              0,
+              ...cases.flatMap((item, index) => [
+                {
+                  id: `preview-cua-start-${index}`,
+                  event_type: "tool:start",
+                  run_id: "preview-run",
+                  timestamp: now,
+                  data: {
+                    tool: "computer_use",
+                    tool_call_id: `preview-cua-${index}`,
+                    args: { action: item.action, ...item.args },
+                  },
+                },
+                {
+                  id: `preview-cua-result-${index}`,
+                  event_type: "tool:result",
+                  run_id: "preview-run",
+                  timestamp: now,
+                  data: {
+                    tool: "computer_use",
+                    tool_call_id: `preview-cua-${index}`,
+                    result: item.result,
+                    success: item.success ?? true,
+                  },
+                },
+              ]),
+            );
           }
           if (
             url.pathname === "/api/sessions/preview-report/events" &&

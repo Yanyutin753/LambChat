@@ -54,4 +54,7 @@ test("native titlebar spans the docked panel lane", () => {
   expect(css).toContain(
     "width: calc(100% + var(--right-panel-active-width, 0px))",
   );
+  expect(css).toMatch(
+    /html\[data-right-panel-presentation="docked"\]:has\(\[data-titlebar\]\) #root\s*\{\s*overflow: visible;/,
+  );
 });

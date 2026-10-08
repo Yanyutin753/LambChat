@@ -217,10 +217,30 @@ def set_focus(element: Any) -> None:
 def activate_window(pid: int, window_id: int | None) -> None:
     """把窗口调到前台(显式 activate 动作,agent 主动调用)。"""
     rows = windows(pid)
-    if not rows:
-        raise KeyError(f"pid {pid} has no accessible windows")
-    row = rows[0] if window_id is None or not (0 <= window_id < len(rows)) else rows[window_id]
-    row["handle"].set_focus()
+    index = 0 if window_id is None else window_id
+    if not 0 <= index < len(rows):
+        raise KeyError(f"window index {index} out of range")
+    rows[index]["handle"].set_focus()
+
+
+def screenshot(bounds: list[float] | None) -> Any:
+    from PIL import ImageGrab
+
+    bbox = None
+    if bounds:
+        x, y, width, height = bounds
+        bbox = (int(x), int(y), int(x + width), int(y + height))
+    return ImageGrab.grab(bbox=bbox, all_screens=True)
+
+
+def type_text(text: str) -> None:
+    from pywinauto.keyboard import send_keys
+
+    # VK_PACKET carries 16-bit UTF-16 units; send_keys also interprets punctuation.
+    encoded = text.encode("utf-16-le")
+    units = (chr(int.from_bytes(encoded[i : i + 2], "little")) for i in range(0, len(encoded), 2))
+    literal = "".join("{" + char + "}" if char in "{}+^%~()" else char for char in units)
+    send_keys(literal, with_spaces=True, with_tabs=True, with_newlines=True, pause=0.01)
 
 
 def _read_value(element: Any) -> str | None:
