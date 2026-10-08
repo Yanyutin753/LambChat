@@ -244,7 +244,7 @@ async def test_apps_preserves_structured_list(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(cut, "dispatch_local_call", _dispatch)
     assert json.loads(await _call(action="apps")) == {
         "machine_id": "mac-staging-cua",
-        "apps": [{"pid": 1, "name": "Notes", "active": True}]
+        "apps": [{"pid": 1, "name": "Notes", "active": True}],
     }
 
 

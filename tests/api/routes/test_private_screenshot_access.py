@@ -106,6 +106,7 @@ async def test_noncanonical_key_cannot_bypass_private_guard(screenshot):
     with pytest.raises(AppError):
         await upload.get_file_proxy("image/../" + KEY, req, current_user=None)
 
+
 async def test_registered_legacy_capture_does_not_retain_public_access(screenshot):
     _, _, _, req = screenshot
     with pytest.raises(AppError):
