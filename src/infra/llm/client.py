@@ -199,7 +199,7 @@ _REASONING_EFFORT_PREFIXES: dict[str, tuple[str, ...]] = {
     "deepseek": ("deepseek-flash", "deepseek-v4"),
 }
 # zhipu hybrid-reasoning GLM families that accept the `thinking` request-body
-# field (via model_kwargs). glm-4.7 未核实，不发送。
+# field (via extra_body). glm-4.7 未核实，不发送。
 _ZHIPU_THINKING_PREFIXES = (
     "glm-4.5",
     "glm-4-5",
@@ -603,8 +603,10 @@ class LLMClient:
         # OpenAI 协议：按 provider/模型家族门控思考参数（issue #211）
         # - openai/xai 推理模型收到 reasoning_effort；responses 模式下
         #   langchain-openai 会自动映射为 reasoning.effort
-        # - zhipu GLM-4.5+/GLM-5 收到 `thinking` 请求体字段（经 model_kwargs，
-        #   仅 chat completions 线格式；/v1/responses 不接受该字段）
+        # - zhipu GLM-4.5+/GLM-5 收到 `thinking` 请求体字段（经 extra_body，
+        #   仅 chat completions 线格式；/v1/responses 不接受该字段）。不能走
+        #   model_kwargs——langchain-openai 会把它平铺为 create() 顶层 kwarg，
+        #   openai SDK 严格签名下未知参数直接 TypeError
         # - deepseek V4 系官方接受 reasoning_effort（见前缀表）；
         #   其余 OpenAI 兼容提供商（Qwen 等）不发送——会触发不兼容思考模式
         reasoning_effort: Optional[str] = None
@@ -623,9 +625,9 @@ class LLMClient:
         if reasoning_effort is not None:
             openai_kwargs["reasoning_effort"] = reasoning_effort
         if zhipu_thinking_body:
-            model_kwargs = dict(kwargs.pop("model_kwargs", {}) or {})
-            model_kwargs.update(zhipu_thinking_body)
-            openai_kwargs["model_kwargs"] = model_kwargs
+            extra_body = dict(kwargs.pop("extra_body", None) or {})
+            extra_body.update(zhipu_thinking_body)
+            openai_kwargs["extra_body"] = extra_body
         if profile:
             openai_kwargs["profile"] = profile
         return ChatOpenAI(**openai_kwargs, **kwargs)

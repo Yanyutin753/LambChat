@@ -87,10 +87,10 @@ def test_non_openai_protocols_ignore_responses_format() -> None:
 def test_zhipu_thinking_body_skipped_in_responses_mode() -> None:
     responses_model = _openai_model("zhipu", "glm-4.6", thinking=ENABLED, api_format="responses")
     assert responses_model.use_responses_api is True
-    assert "thinking" not in responses_model.model_kwargs
+    assert "thinking" not in (responses_model.extra_body or {})
 
     chat_model = _openai_model("zhipu", "glm-4.6", thinking=ENABLED)
-    assert chat_model.model_kwargs.get("thinking") == {"type": "enabled"}
+    assert chat_model.extra_body.get("thinking") == {"type": "enabled"}
 
 
 def test_reasoning_effort_survives_in_responses_mode() -> None:
