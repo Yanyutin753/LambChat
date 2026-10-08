@@ -305,9 +305,7 @@ def test_chord_key_falls_back_to_pyautogui(fake_backend: _FakeBackend) -> None:
     original = ops_mod._pyautogui
     ops_mod._pyautogui = lambda: _FakePyautogui()  # type: ignore[assignment]
     try:
-        result = cua_ops.handle_cua_op(
-            "cua_key", {"pid": 4242, "text": "l", "modifiers": "ctrl"}
-        )
+        result = cua_ops.handle_cua_op("cua_key", {"pid": 4242, "text": "l", "modifiers": "ctrl"})
     finally:
         ops_mod._pyautogui = original  # type: ignore[assignment]
     assert result == {"ok": True}
