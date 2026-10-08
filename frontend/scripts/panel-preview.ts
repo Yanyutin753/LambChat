@@ -1589,7 +1589,8 @@ const server = await createServer({
       configResolved(config) {
         config.server.proxy = {};
       },
-      resolveId(source, importer) {
+      resolveId(source, importer, options) {
+        if (options.scan) return;
         if (
           importer?.endsWith("/components/profile/LocalSandboxSection.tsx") &&
           [
