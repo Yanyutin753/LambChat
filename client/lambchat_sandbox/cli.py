@@ -6,17 +6,21 @@ import argparse
 import asyncio
 import getpass
 import json
+import os
 import sys
+import tempfile
+from dataclasses import replace
 
 import httpx
 
 from lambchat_sandbox import __version__, selfupdate
-from lambchat_sandbox.auth import AuthError, clear_pat, load_pat, pair
+from lambchat_sandbox.auth import AuthError, clear_pat, load_pat, pair, store_pat
 from lambchat_sandbox.config import (
     ConfigError,
-    SandboxConfig,
+    config_path,
     load_config,
     save_config,
+    server_origin,
 )
 from lambchat_sandbox.daemon import run_daemon
 from lambchat_sandbox.selfupdate import SelfUpdateError
@@ -42,19 +46,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def cmd_login(args: argparse.Namespace) -> int:
-    cfg = load_config()
-    if args.server:
-        if not (args.server.startswith("http://") or args.server.startswith("https://")):
-            print("server_url 必须以 http:// 或 https:// 开头", file=sys.stderr)
-            return 1
-        cfg = SandboxConfig(
-            server_url=args.server,
-            data_root=cfg.data_root,
-            confirm_policy=cfg.confirm_policy,
-            embedded_python=cfg.embedded_python,
-        )
-        save_config(cfg)
-        print(f"已保存 server_url: {args.server}")
+    cfg = load_config(server_url_override=args.server)
+    candidate = args.server or cfg.server_url
+    server_origin(candidate)
+    cfg = replace(cfg, server_url=candidate.rstrip("/"), pat_id=None)
 
     username = input("用户名: ").strip()
     if not username:
@@ -63,15 +58,40 @@ def cmd_login(args: argparse.Namespace) -> int:
     password = getpass.getpass("密码: ")
 
     try:
-        token = asyncio.run(pair(cfg.server_url, username, password))
+        token = asyncio.run(pair(cfg.server_url, username, password, persist=False))
+        p = config_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        backup = None
+        if p.exists():
+            with tempfile.NamedTemporaryFile(dir=p.parent, delete=False) as snapshot:
+                snapshot.write(p.read_bytes())
+                backup = snapshot.name
+        try:
+            save_config(cfg)
+            store_pat(token, server_url=cfg.server_url)
+        except BaseException:
+            if backup is not None:
+                os.replace(backup, p)
+            else:
+                p.unlink(missing_ok=True)
+            raise
+        finally:
+            if backup is not None:
+                try:
+                    os.unlink(backup)
+                except FileNotFoundError:
+                    pass
     except AuthError as exc:
         print(f"登录失败: {exc}", file=sys.stderr)
         return 1
     except httpx.HTTPError as exc:
         print(f"无法连接服务端: {exc}", file=sys.stderr)
         return 1
+    except OSError:
+        print("无法保存配对凭据，请检查本地文件权限", file=sys.stderr)
+        return 1
 
-    print(f"配对成功：PAT {token[:8]}… 已存储")
+    print("配对成功：凭据已存储")
     return 0
 
 
@@ -82,11 +102,11 @@ def cmd_logout(args: argparse.Namespace) -> int:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
-    token = load_pat()
+    cfg = load_config()
+    token = load_pat(server_url=cfg.server_url)
     if not token:
         print("未找到 PAT，请先 lambchat_sandbox login", file=sys.stderr)
         return 1
-    cfg = load_config()
     try:
         resp = httpx.get(
             f"{cfg.server_url.rstrip('/')}/api/sandbox/status",
@@ -107,11 +127,11 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    pat = load_pat()
+    cfg = load_config()
+    pat = load_pat(server_url=cfg.server_url)
     if not pat:
         print("未找到 PAT，请先 lambchat_sandbox login", file=sys.stderr)
         return 1
-    cfg = load_config()
     try:
         asyncio.run(run_daemon(cfg, pat=pat))
     except TransportAuthError as exc:

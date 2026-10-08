@@ -281,6 +281,7 @@
       "offline": "离线",
       "offlineHint": "该电脑当前离线，暂不能选为执行机器",
       "section": "执行设备",
+      "computerUseHint": "电脑操作使用明确选中的设备；代码执行仍使用上方所选沙箱。",
       "currentDevice": "当前设备"
     },
     "sandboxPolicy": {
@@ -3152,7 +3153,7 @@
     "testing": "正在连接…",
     "fail": "服务器响应异常（HTTP {{status}}），请检查地址",
     "unreachable": "无法连接到该地址，请确认服务已启动且可访问",
-    "invalid": "地址格式不正确"
+    "invalid": "服务器地址需使用 HTTPS；HTTP 仅支持 localhost 等回环开发地址。"
   },
   "session": {
     "deleteFailed": "删除会话失败",
@@ -3471,7 +3472,7 @@
     "DOCUMENT_PARSE_MAX_DOWNLOAD_BYTES": "文档下载大小上限（字节）",
     "DOCUMENT_PARSE_MAX_OUTPUT_CHARS": "解析结果 Markdown 最大字符数，超出截断",
     "DOCUMENT_PARSE_MAX_IMAGES": "单次解析最多提取的图片数",
-    "ENABLE_COMPUTER_USE": "电脑控制(computer_use):让 Agent 经本地沙箱 daemon 驱动本机桌面 GUI。仅本地沙箱平台可用,需桌面端在线;macOS 需给 LambChat.app 授辅助功能+屏幕录制。"
+    "ENABLE_COMPUTER_USE": "电脑控制（computer_use）：让 Agent 操作当前对话明确选择的在线电脑。代码沙箱可为本地或云端；macOS 需向 LambChat.app 授予辅助功能与屏幕录制权限。"
   },
   "settings": {
     "navigation": {

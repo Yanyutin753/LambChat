@@ -61,7 +61,9 @@ def test_auth_pat_file_follows_env_root(monkeypatch, tmp_path):
     monkeypatch.setattr(auth, "keyring", None)
     monkeypatch.setenv(paths.HOME_ENV, str(tmp_path))
     auth.store_pat("token-x")
-    assert (tmp_path / "pat").read_text(encoding="utf-8") == "token-x"
+    import json
+
+    assert json.loads((tmp_path / "pat").read_text(encoding="utf-8"))["token"] == "token-x"
     assert auth.load_pat() == "token-x"
     auth.clear_pat()
     assert not (tmp_path / "pat").exists()

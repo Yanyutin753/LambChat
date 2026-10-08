@@ -222,12 +222,13 @@ async def computer_use(
 ) -> str:
     """Operate native apps / the desktop on the user's OWN machine via the local sandbox.
 
-    Availability: requires the LOCAL sandbox platform (desktop app daemon). Cloud sandbox
-    sessions do not have it — on ``dispatch_failed: offline`` tell the user to open the
-    LambChat desktop app (or switch the session sandbox to local); do not retry blindly.
-    The session's selected local machine is authoritative. You cannot change it with
+    Availability: requires an explicitly selected, online desktop app daemon. The code
+    sandbox may be local or cloud; desktop selection is independent of that platform.
+    On ``dispatch_failed: offline`` tell the user to open LambChat on the selected
+    machine; do not retry blindly. The session's selected machine is authoritative.
+    You cannot change it with
     tool arguments; ask the user to change the session selection. If it is offline,
-    stop instead of selecting another machine. Cloud sessions cannot use this tool.
+    stop instead of selecting another machine.
 
     Workflow (always):
     1. ``launch`` to open a URL or start an app — this is the correct way to start
@@ -292,8 +293,8 @@ async def computer_use(
     config = getattr(runtime, "config", None)
     configurable = config.get("configurable", {}) if isinstance(config, dict) else {}
     selection = configurable.get("computer_use_context")
-    if not isinstance(selection, dict) or selection.get("platform") != "local":
-        return "ERROR local_session_required: select the local sandbox in this session"
+    if not isinstance(selection, dict):
+        return "ERROR machine_selection_required: select an online machine in this session"
     selected_machine = selection.get("machine_id")
     if not isinstance(selected_machine, str) or not selected_machine:
         return "ERROR machine_selection_required: select an online machine in this session"

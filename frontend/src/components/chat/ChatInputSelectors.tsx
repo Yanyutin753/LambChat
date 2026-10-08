@@ -20,7 +20,6 @@ import {
 import { sandboxApiMachines } from "../../services/api/sandbox";
 import {
   SANDBOX_AGENT_OPTION_KEY,
-  SANDBOX_LOCAL_VALUE,
   SANDBOX_MACHINE_AGENT_OPTION_KEY,
   adaptSandboxAgentOption,
   buildSandboxMachineRows,
@@ -164,8 +163,7 @@ export function ChatInputSelectors({
   } = useSandboxStatus();
   const sandboxShell = isShellAvailable();
   const [policyOverride, setPolicyOverride] = useState<string | null>(null);
-  const sandboxValue = agentOptionValues[SANDBOX_AGENT_OPTION_KEY] ?? "cloud";
-  // 统一面板设备行：存在任一在线机即展示（云端档点设备 = 一键切本地档），
+  // 电脑操作目标独立于代码沙箱；云端会话也可明确选择在线设备。
   // 当前设备（壳内 read_machine_id 比对命中）带标识
   const machineRows = machines.some((m) => m.online !== false)
     ? buildSandboxMachineRows(machines, defaultMachineId, currentMachineId, t)
@@ -174,9 +172,7 @@ export function ChatInputSelectors({
     typeof agentOptionValues[SANDBOX_MACHINE_AGENT_OPTION_KEY] === "string"
       ? (agentOptionValues[SANDBOX_MACHINE_AGENT_OPTION_KEY] as string)
       : "";
-  const selectedMachine =
-    machines.find((m) => m.machine_id === (machineValue || defaultMachineId)) ??
-    machines.find((m) => m.online !== false);
+  const selectedMachine = machines.find((m) => m.machine_id === machineValue);
   const executionPolicy =
     policyOverride ?? selectedMachine?.confirm_policy ?? "all";
   const handlePolicyChange = async (policy: string) => {
@@ -205,10 +201,6 @@ export function ChatInputSelectors({
       toast.error(t("agentOptions.sandboxMachine.offlineHint"));
       return;
     }
-    // 云端档点设备：一并切本地（档位与执行目标一次到位）
-    if (sandboxValue !== SANDBOX_LOCAL_VALUE) {
-      onToggleAgentOption?.(SANDBOX_AGENT_OPTION_KEY, SANDBOX_LOCAL_VALUE);
-    }
     onToggleAgentOption?.(SANDBOX_MACHINE_AGENT_OPTION_KEY, row.value);
   };
   const machineSection =
@@ -225,11 +217,15 @@ export function ChatInputSelectors({
           >
             {t("agentOptions.sandboxMachine.section")}
           </div>
+          <p
+            className="px-3 pb-2 text-12"
+            style={{ color: "var(--theme-text-muted)" }}
+          >
+            {t("agentOptions.sandboxMachine.computerUseHint")}
+          </p>
           <div className="flex flex-col gap-1">
             {machineRows.map((row) => {
-              const active =
-                sandboxValue === SANDBOX_LOCAL_VALUE &&
-                row.value === machineValue;
+              const active = row.value === machineValue;
               const PlatformIcon = machinePlatformIcon(row.platform);
               return (
                 <button

@@ -281,6 +281,7 @@
       "offline": "offline",
       "offlineHint": "That computer is offline and can't be selected as the execution target",
       "section": "Device",
+      "computerUseHint": "Computer control uses the explicitly selected device; code still runs in the sandbox selected above.",
       "currentDevice": "This device"
     },
     "sandboxPolicy": {
@@ -3152,7 +3153,7 @@
     "testing": "Connecting…",
     "fail": "Server responded abnormally (HTTP {{status}}), please check the address",
     "unreachable": "Cannot reach this address. Make sure the server is running and accessible",
-    "invalid": "Invalid address format"
+    "invalid": "Use an HTTPS server address. HTTP is allowed only for loopback development addresses such as localhost."
   },
   "session": {
     "deleteFailed": "Failed to delete session",
@@ -3471,7 +3472,7 @@
     "DOCUMENT_PARSE_MAX_DOWNLOAD_BYTES": "Maximum document download size in bytes",
     "DOCUMENT_PARSE_MAX_OUTPUT_CHARS": "Maximum characters of parsed Markdown before truncation",
     "DOCUMENT_PARSE_MAX_IMAGES": "Maximum images extracted per parse",
-    "ENABLE_COMPUTER_USE": "Computer Use: let the agent drive the desktop GUI on the user's machine via the local sandbox daemon. Local sandbox platform only; macOS needs Accessibility & Screen Recording granted to LambChat.app."
+    "ENABLE_COMPUTER_USE": "Computer Use: let the agent operate the online computer explicitly selected for this chat. The code sandbox may be local or cloud; macOS requires Accessibility and Screen Recording permissions for LambChat.app."
   },
   "settings": {
     "navigation": {

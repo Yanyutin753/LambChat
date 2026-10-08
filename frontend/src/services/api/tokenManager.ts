@@ -101,6 +101,9 @@ export async function refreshTokens(): Promise<RefreshedTokens> {
     }
 
     const tokenResponse = (await response.json()) as RefreshedTokens;
+    if (getRefreshToken() !== refreshToken) {
+      throw new Error("Authentication changed while refreshing tokens");
+    }
     setTokens(tokenResponse.access_token, tokenResponse.refresh_token);
     return tokenResponse.access_token;
   })();

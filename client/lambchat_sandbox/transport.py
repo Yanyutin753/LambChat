@@ -22,6 +22,7 @@ from urllib.parse import quote
 import httpx
 
 from lambchat_sandbox import __version__
+from lambchat_sandbox.config import server_origin
 from lambchat_sandbox.platform import daemon_platform
 
 BACKOFF_MAX_S = 60.0
@@ -143,6 +144,7 @@ class ChannelClient:
         machine_name: str = "",
         client: httpx.AsyncClient | None = None,
     ) -> None:
+        server_origin(server_url)
         self._base = server_url.rstrip("/")
         self._pat = pat
         self._confirm_policy = confirm_policy
@@ -152,12 +154,14 @@ class ChannelClient:
             client
             if client is not None
             else httpx.AsyncClient(
+                verify=True,
+                follow_redirects=False,
                 timeout=httpx.Timeout(
                     connect=_CHANNEL_CONNECT_TIMEOUT_S,
                     read=_CHANNEL_READ_TIMEOUT_S,
                     write=30.0,
                     pool=30.0,
-                )
+                ),
             )
         )
 
@@ -186,6 +190,7 @@ class ChannelClient:
             f"?version={quote(__version__)}&platform={quote(daemon_platform())}"
             f"{policy_param}{machine_params}",
             headers={"Authorization": f"Bearer {self._pat}", "Accept": "text/event-stream"},
+            follow_redirects=False,
         )
         response = await cm.__aenter__()
         parser = _FrameParser()
@@ -250,6 +255,7 @@ class ChannelClient:
             f"{self._base}/api/sandbox/results/{quote(call_id, safe='')}{machine_param}",
             json={k: v for k, v in body.items() if v is not None},
             headers=self._auth_headers(),
+            follow_redirects=False,
             timeout=POST_TIMEOUT_S,
         )
         if response.status_code == 409 and body.get("stage") == "done":
@@ -287,6 +293,7 @@ class ChannelClient:
             f"{self._base}/api/sandbox/results/stream/{quote(call_id, safe='')}{machine_param}",
             content=_frame_stream(),
             headers={**self._auth_headers(), "Content-Type": "application/octet-stream"},
+            follow_redirects=False,
             timeout=httpx.Timeout(
                 connect=_CHANNEL_CONNECT_TIMEOUT_S,
                 write=30.0,
@@ -309,6 +316,7 @@ class ChannelClient:
             "GET",
             f"{self._base}/api/sandbox/upload/{quote(call_id, safe='')}{machine_param}",
             headers=self._auth_headers(),
+            follow_redirects=False,
             timeout=httpx.Timeout(
                 connect=_CHANNEL_CONNECT_TIMEOUT_S,
                 read=max(deadline_s, 30.0),
@@ -329,6 +337,7 @@ class ChannelClient:
         response = await self._client.post(
             f"{self._base}/api/sandbox/offline{machine_param}",
             headers=self._auth_headers(),
+            follow_redirects=False,
             timeout=POST_TIMEOUT_S,
         )
         await _raise_for_status(response, "post_offline")

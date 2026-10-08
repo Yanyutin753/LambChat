@@ -32,10 +32,14 @@ describe("normalizeServerUrl", () => {
       "http://localhost:8000",
     );
   });
-  test("ip allowed", () => {
-    expect(normalizeServerUrl("http://192.168.1.5:8000")).toBe(
-      "http://192.168.1.5:8000",
-    );
+  test("remote plaintext server and URL credentials are rejected", () => {
+    expect(normalizeServerUrl("http://192.168.1.5:8000")).toBe("");
+    expect(normalizeServerUrl("http://127.attacker.example")).toBe("");
+    expect(normalizeServerUrl("https://name:secret@lc.example.com")).toBe("");
+    expect(normalizeServerUrl("https://lc.example.com?token=x")).toBe("");
+    expect(normalizeServerUrl("https://lc.example.com#fragment")).toBe("");
+    expect(normalizeServerUrl("https://lc.example.com?")).toBe("");
+    expect(normalizeServerUrl("https://lc.example.com#")).toBe("");
   });
   test("empty and garbage rejected", () => {
     expect(normalizeServerUrl("  ")).toBe("");
@@ -146,4 +150,19 @@ describe("移动端（Capacitor）运行时配置", () => {
     expect(needsServerSetup(capGlobal as never)).toBe(false);
     clearStoredServerUrl();
   });
+});
+
+test("unsafe stored server blocks authenticated requests and requires setup", async () => {
+  window.localStorage.setItem("lambchat_server_url", "http://remote.example");
+  const fetchImpl = vi.fn().mockResolvedValue(new Response("ok"));
+  expect(needsServerSetup({ __TAURI_INTERNALS__: {} })).toBe(true);
+  expect(effectiveApiBase()).toBe("");
+  installServerUrlNetworkPatch({ fetchImpl, base: "https://fallback.example" });
+  await expect(
+    window.fetch("/api/auth/refresh", {
+      method: "POST",
+      body: JSON.stringify({ refresh_token: "private-test-token" }),
+    }),
+  ).rejects.toThrow();
+  expect(fetchImpl).not.toHaveBeenCalled();
 });

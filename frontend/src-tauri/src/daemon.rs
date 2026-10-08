@@ -535,8 +535,9 @@ pub(crate) fn sandbox_home() -> Result<PathBuf, String> {
             return Ok(PathBuf::from(custom));
         }
     }
-    default_sandbox_home()
-        .ok_or_else(|| "neither $HOME nor %USERPROFILE% is set; cannot locate ~/.lambchat".to_string())
+    default_sandbox_home().ok_or_else(|| {
+        "neither $HOME nor %USERPROFILE% is set; cannot locate ~/.lambchat".to_string()
+    })
 }
 
 /// 缺省根 `~/.lambchat`（未设 `LAMBCHAT_HOME` 时的解析结果，供"是否自定义"
@@ -553,16 +554,18 @@ fn default_sandbox_home() -> Option<PathBuf> {
 /// 写入配置文件时先写同目录临时文件，再原子替换目标，避免 daemon 重启
 /// 恰好读到截断 JSON（Windows/macOS 的进程重启竞态尤其容易复现）。
 fn write_atomic_file(path: &Path, contents: &[u8]) -> Result<(), String> {
-    let parent = path.parent().ok_or_else(|| {
-        format!("cannot determine parent directory for {}", path.display())
-    })?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("cannot determine parent directory for {}", path.display()))?;
     let file_name = path
         .file_name()
         .ok_or_else(|| format!("cannot determine file name for {}", path.display()))?
         .to_string_lossy();
     let tmp = parent.join(format!(".{file_name}.{}.tmp", std::process::id()));
-    std::fs::write(&tmp, contents)
-        .map_err(|e| format!("failed to write {}: {e}", tmp.display()))?;
+    if let Err(e) = write_private_file(&tmp, contents) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e);
+    }
     if let Err(e) = std::fs::rename(&tmp, path) {
         #[cfg(windows)]
         {
@@ -575,7 +578,10 @@ fn write_atomic_file(path: &Path, contents: &[u8]) -> Result<(), String> {
                 })?;
                 if let Err(rename_err) = std::fs::rename(&tmp, path) {
                     let _ = std::fs::remove_file(&tmp);
-                    return Err(format!("failed to replace {}: {rename_err}", path.display()));
+                    return Err(format!(
+                        "failed to replace {}: {rename_err}",
+                        path.display()
+                    ));
                 }
                 return Ok(());
             }
@@ -588,7 +594,7 @@ fn write_atomic_file(path: &Path, contents: &[u8]) -> Result<(), String> {
 
 fn write_private_file(path: &Path, contents: &[u8]) -> Result<(), String> {
     let mut options = std::fs::OpenOptions::new();
-    options.write(true).create(true).truncate(true);
+    options.write(true).create_new(true);
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
@@ -597,6 +603,7 @@ fn write_private_file(path: &Path, contents: &[u8]) -> Result<(), String> {
     let mut file = options
         .open(path)
         .map_err(|e| format!("failed to open {}: {e}", path.display()))?;
+    restrict_to_owner(path)?;
     std::io::Write::write_all(&mut file, contents)
         .map_err(|e| format!("failed to write {}: {e}", path.display()))
 }
@@ -609,10 +616,48 @@ fn restrict_to_owner(path: &Path) -> Result<(), String> {
         std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
             .map_err(|e| format!("failed to chmod 0600 {}: {e}", path.display()))?;
     }
-    // TODO(M4): Windows 侧等价 ACL 收紧。
-    #[cfg(not(unix))]
-    let _ = path;
+    #[cfg(windows)]
+    {
+        // The path is data, never interpolated into the PowerShell program.
+        let script = r#"$ErrorActionPreference='Stop'; $sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User; $acl=New-Object System.Security.AccessControl.FileSecurity; $acl.SetOwner($sid); $acl.SetAccessRuleProtection($true,$false); $rule=New-Object System.Security.AccessControl.FileSystemAccessRule($sid,'FullControl','Allow'); $acl.AddAccessRule($rule); Set-Acl -LiteralPath $env:LAMBCHAT_CREDENTIAL_PATH -AclObject $acl"#;
+        let output = std::process::Command::new("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-Command", script])
+            .env("LAMBCHAT_CREDENTIAL_PATH", path)
+            .output()
+            .map_err(|_| "Unable to secure credential file".to_string())?;
+        if !output.status.success() {
+            return Err("Unable to secure credential file".to_string());
+        }
+    }
     Ok(())
+}
+
+fn server_origin(server_url: &str) -> Result<String, String> {
+    let url = reqwest::Url::parse(server_url)
+        .map_err(|_| "server_url requires a valid HTTPS URL".to_string())?;
+    let host = url.host_str().ok_or("server_url requires a hostname")?;
+    let loopback = host == "localhost"
+        || host
+            .trim_matches(['[', ']'])
+            .parse::<std::net::IpAddr>()
+            .map(|ip| ip.is_loopback())
+            .unwrap_or(false);
+    if server_url.trim() != server_url
+        || server_url
+            .chars()
+            .any(|c| c.is_whitespace() || c.is_control())
+        || !matches!(url.scheme(), "http" | "https")
+        || (url.scheme() == "http" && !loopback)
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(
+            "server_url requires HTTPS; HTTP is only allowed for loopback development".to_string(),
+        );
+    }
+    Ok(url.origin().ascii_serialization())
 }
 
 /// 校验并写入配对凭据与 daemon 配置。
@@ -651,9 +696,7 @@ fn write_pairing_files(
     confirm_policy: &str,
     pat_id: Option<&str>,
 ) -> Result<(), String> {
-    if !(server_url.starts_with("http://") || server_url.starts_with("https://")) {
-        return Err("server_url must start with http:// or https://".to_string());
-    }
+    let origin = server_origin(server_url)?;
     if !matches!(confirm_policy, "all" | "commands" | "none") {
         return Err("confirm_policy must be one of all/commands/none".to_string());
     }
@@ -666,8 +709,9 @@ fn write_pairing_files(
 
     let pat_file = home.join("pat");
     // 新建即 0600；若 pat 已存在（历史遗留宽松权限）再显式收紧一次，失败上抛。
-    write_private_file(&pat_file, pat.as_bytes())?;
-    restrict_to_owner(&pat_file)?;
+    let credential = serde_json::json!({"origin": origin, "token": pat});
+    let credential = serde_json::to_vec(&credential).map_err(|e| e.to_string())?;
+    write_atomic_file(&pat_file, &credential)?;
 
     // 保留既有 data_root（配置文件可能被用户手工定制过），以及 daemon 生成的
     // 机器身份（machine_id / machine_name）——重新配对不得轮换机器身份，否则
@@ -816,21 +860,36 @@ fn clear_pairing_files(home: &Path) -> Result<(), String> {
 /// 读回配对 PAT（取消配对时前端拿它调服务端自删端点）。
 /// 文件缺失 → `Ok(None)`（未配对）。
 #[tauri::command]
-pub fn read_pairing_pat() -> Result<Option<String>, String> {
-    read_pat_file(&sandbox_home()?)
+pub fn read_pairing_pat(server_url: String) -> Result<Option<String>, String> {
+    read_pat_file(&sandbox_home()?, &server_url)
 }
 
 /// 文件层读 PAT（可测试核心：home 由调用方注入）。
-fn read_pat_file(home: &Path) -> Result<Option<String>, String> {
+fn read_pat_file(home: &Path, server_url: &str) -> Result<Option<String>, String> {
+    let expected_origin = server_origin(server_url)?;
     let pat_file = home.join("pat");
     match std::fs::read_to_string(&pat_file) {
         Ok(raw) => {
-            let trimmed = raw.trim();
-            if trimmed.is_empty() {
-                Ok(None)
-            } else {
-                Ok(Some(trimmed.to_string()))
+            let credential: serde_json::Value = match serde_json::from_str(&raw) {
+                Ok(value) => value,
+                Err(_) => return Ok(None),
+            };
+            let config = std::fs::read_to_string(home.join("sandbox.json"))
+                .ok()
+                .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok());
+            let origin = config
+                .as_ref()
+                .and_then(|cfg| cfg["server_url"].as_str())
+                .and_then(|url| server_origin(url).ok());
+            if credential["origin"].as_str() != origin.as_deref()
+                || origin.as_deref() != Some(expected_origin.as_str())
+            {
+                return Ok(None);
             }
+            Ok(credential["token"]
+                .as_str()
+                .filter(|token| !token.is_empty() && token.bytes().all(|c| (33..=126).contains(&c)))
+                .map(str::to_string))
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(format!("failed to read {}: {e}", pat_file.display())),
@@ -973,7 +1032,9 @@ fn read_sandbox_home_override(app: &AppHandle) -> Option<String> {
 /// `LAMBCHAT_HOME` 时注入环境变量——此后 `sandbox_home()`、daemon spawn、
 /// PBS 播种全部自动跟随。显式环境变量优先（手工启动调试场景不被覆盖）。
 pub(crate) fn apply_sandbox_home_override(app: &AppHandle) {
-    let Some(home) = read_sandbox_home_override(app) else { return };
+    let Some(home) = read_sandbox_home_override(app) else {
+        return;
+    };
     if let Some(existing) = std::env::var_os("LAMBCHAT_HOME") {
         if !existing.to_string_lossy().trim().is_empty() {
             return;
@@ -1008,13 +1069,11 @@ fn validate_new_sandbox_home(raw: &str, current: &Path) -> Result<PathBuf, Strin
 
 /// 递归拷贝目录（跨卷 rename 失败后的回退路径：copy + remove）。
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
-    std::fs::create_dir_all(dst)
-        .map_err(|e| format!("failed to create {}: {e}", dst.display()))?;
-    let entries = std::fs::read_dir(src)
-        .map_err(|e| format!("failed to read {}: {e}", src.display()))?;
+    std::fs::create_dir_all(dst).map_err(|e| format!("failed to create {}: {e}", dst.display()))?;
+    let entries =
+        std::fs::read_dir(src).map_err(|e| format!("failed to read {}: {e}", src.display()))?;
     for entry in entries {
-        let entry =
-            entry.map_err(|e| format!("failed to read entry in {}: {e}", src.display()))?;
+        let entry = entry.map_err(|e| format!("failed to read entry in {}: {e}", src.display()))?;
         let from = entry.path();
         let to = dst.join(entry.file_name());
         if from.is_dir() {
@@ -1047,9 +1106,8 @@ fn migrate_root_entries(old_root: &Path, new_root: &Path) -> Result<usize, Strin
             // 跨卷（不同盘符/挂载点）rename 失败 → copy + remove 回退
             copy_dir_recursive(&from, &to)?;
             if from.is_dir() {
-                std::fs::remove_dir_all(&from).map_err(|e| {
-                    format!("failed to remove {}: {e}", from.display())
-                })?;
+                std::fs::remove_dir_all(&from)
+                    .map_err(|e| format!("failed to remove {}: {e}", from.display()))?;
             } else {
                 std::fs::remove_file(&from)
                     .map_err(|e| format!("failed to remove {}: {e}", from.display()))?;
@@ -1127,14 +1185,12 @@ pub async fn set_sandbox_data_location(
 pub fn clear_sandbox_data_location(app: AppHandle) -> Result<(), String> {
     let override_path = sandbox_home_override_path(&app)?;
     if override_path.exists() {
-        std::fs::remove_file(&override_path).map_err(|e| {
-            format!("failed to remove {}: {e}", override_path.display())
-        })?;
+        std::fs::remove_file(&override_path)
+            .map_err(|e| format!("failed to remove {}: {e}", override_path.display()))?;
     }
     std::env::remove_var("LAMBCHAT_HOME");
     Ok(())
 }
-
 
 #[cfg(test)]
 mod sandbox_home_override_tests {
@@ -1163,11 +1219,7 @@ mod sandbox_home_override_tests {
         assert!(validate_new_sandbox_home("", &current).is_err());
         assert!(validate_new_sandbox_home("   ", &current).is_err());
         assert!(validate_new_sandbox_home("relative/path", &current).is_err());
-        assert!(validate_new_sandbox_home(
-            current.to_string_lossy().as_ref(),
-            &current
-        )
-        .is_err());
+        assert!(validate_new_sandbox_home(current.to_string_lossy().as_ref(), &current).is_err());
         // 新根嵌在当前根内 → 拒绝
         assert!(validate_new_sandbox_home(
             current.join("sub").to_string_lossy().as_ref(),
@@ -1403,7 +1455,10 @@ mod tests {
             sandbox.join("workspaces").to_string_lossy()
         );
         // pat 文件内容为明文 PAT
-        assert_eq!(std::fs::read_to_string(&pat_path).unwrap(), "lc_pat_secret");
+        let credential: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&pat_path).unwrap()).unwrap();
+        assert_eq!(credential["token"], "lc_pat_secret");
+        assert_eq!(credential["origin"], "https://lc.example");
 
         // ---- save_pairing：pat_id 为 None → 不写键（旧形态） ----
         write_pairing_files(
@@ -1444,7 +1499,9 @@ mod tests {
 
         // ---- read_pat_file：读回配对 PAT ----
         assert_eq!(
-            read_pat_file(&sandbox).unwrap().as_deref(),
+            read_pat_file(&sandbox, "https://lc.example")
+                .unwrap()
+                .as_deref(),
             Some("lc_pat_secret3")
         );
 
@@ -1456,7 +1513,7 @@ mod tests {
         assert!(cfg.get("pat_id").is_none());
         assert_eq!(cfg["server_url"], "https://lc.example");
         assert_eq!(cfg["confirm_policy"], "none");
-        assert_eq!(read_pat_file(&sandbox).unwrap(), None);
+        assert_eq!(read_pat_file(&sandbox, "https://lc.example").unwrap(), None);
 
         // ---- 校验失败路径 ----
         assert!(write_pairing_files(&sandbox, "ftp://bad", "p", "all", None).is_err());
@@ -1671,5 +1728,42 @@ mod tests {
             }
             _ => panic!("new-generation child was taken by the stale exit handler"),
         }
+    }
+    #[test]
+    fn pairing_rejects_remote_plaintext_before_writing_credentials() {
+        let tmp =
+            std::env::temp_dir().join(format!("lambchat-insecure-pair-{}", std::process::id()));
+        for server in [
+            "http://remote.example",
+            "http://192.168.1.2:8000",
+            "https://user:secret@remote.example",
+            "https://remote.example?token=x",
+        ] {
+            assert!(write_pairing_files(&tmp, server, "test-secret", "all", None).is_err());
+            assert!(!tmp.join("pat").exists());
+        }
+    }
+
+    #[test]
+    fn pairing_credentials_cannot_be_loaded_for_another_server() {
+        let tmp = std::env::temp_dir().join(format!("lambchat-bound-pair-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        write_pairing_files(&tmp, "https://one.example:443", "test-secret", "all", None).unwrap();
+        assert_eq!(
+            read_pat_file(&tmp, "https://one.example")
+                .unwrap()
+                .as_deref(),
+            Some("test-secret")
+        );
+        assert_eq!(read_pat_file(&tmp, "https://other.example").unwrap(), None);
+        std::fs::write(
+            tmp.join("sandbox.json"),
+            r#"{"server_url":"https://other.example"}"#,
+        )
+        .unwrap();
+        assert_eq!(read_pat_file(&tmp, "https://one.example").unwrap(), None);
+        std::fs::write(tmp.join("pat"), "legacy-secret").unwrap();
+        assert_eq!(read_pat_file(&tmp, "https://one.example").unwrap(), None);
+        let _ = std::fs::remove_dir_all(tmp);
     }
 }
