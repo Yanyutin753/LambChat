@@ -25,6 +25,9 @@ class _FakeBackend:
     def __init__(self):
         self.performed: list[tuple[Any, str]] = []
         self.set_values: list[tuple[Any, str]] = []
+        self.focused: list[Any] = []
+        self.activated: list[tuple[int, int | None]] = []
+        self.set_value_error: Exception | None = None
         self.window = _FakeElement(
             "AXWindow",
             "Main",
@@ -75,7 +78,15 @@ class _FakeBackend:
         self.performed.append((element, action))
 
     def set_value(self, element: Any, text: str) -> None:
+        if self.set_value_error is not None:
+            raise self.set_value_error
         self.set_values.append((element, text))
+
+    def set_focus(self, element: Any) -> None:
+        self.focused.append(element)
+
+    def activate_window(self, pid: int, window_id: int | None) -> None:
+        self.activated.append((pid, window_id))
 
 
 @pytest.fixture
@@ -184,3 +195,69 @@ def test_status_without_backend_reports_unsupported(
 def test_invalid_arguments_for_non_status_actions(fake_backend: _FakeBackend) -> None:
     result = cua_ops.handle_cua_op("cua_state", {})
     assert result["error"] == "invalid_arguments"
+
+
+# ---------------------------------------------------------------------------
+# 2026-10-08 生产质量回修:type 免前台路径 / activate / 异常结构化
+# ---------------------------------------------------------------------------
+
+
+def test_type_with_index_writes_value_without_foreground(
+    fake_backend: _FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """带 index 的 type 走 focus+set_value 免前台——后台窗口也能输入,
+    不再一律 foreground_required(生产实测 Windows Edge 地址框即此坑)。"""
+    # 前台是别的应用,元素路径仍必须成功
+    monkeypatch.setattr(fake_backend, "frontmost_pid", lambda: 9999)
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    result = cua_ops.handle_cua_op("cua_type", {"pid": 4242, "index": 2, "text": "今日新闻"})
+    assert result == {"ok": True, "strategy": "a11y", "method": "set_value"}
+    assert fake_backend.set_values[0][1] == "今日新闻"
+    assert fake_backend.focused  # 先聚焦过元素
+
+
+def test_type_without_index_still_requires_foreground(
+    fake_backend: _FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(fake_backend, "frontmost_pid", lambda: 9999)
+    result = cua_ops.handle_cua_op("cua_type", {"pid": 4242, "text": "hello"})
+    assert result["error"] == "foreground_required"
+
+
+def test_type_index_unsettable_element_hints_activate(
+    fake_backend: _FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """元素不可直写且不在前台:报 foreground_required 并指路 activate。"""
+    monkeypatch.setattr(fake_backend, "frontmost_pid", lambda: 9999)
+    fake_backend.set_value_error = KeyError("not settable")
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    result = cua_ops.handle_cua_op("cua_type", {"pid": 4242, "index": 1, "text": "x"})
+    assert result["error"] == "foreground_required"
+    assert "activate" in result["detail"]
+
+
+def test_activate_routes_to_backend(fake_backend: _FakeBackend) -> None:
+    result = cua_ops.handle_cua_op("cua_activate", {"pid": 4242, "window_id": 0})
+    assert result == {"ok": True, "pid": 4242}
+    assert fake_backend.activated == [(4242, 0)]
+
+
+def test_unexpected_exception_converges_structured(
+    fake_backend: _FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """COMError 等三方异常不再裸穿 daemon 层(生产 dispatch_failed 主因)。
+    在模型可读层收敛为 op_failed,错误类型与原文都在 detail 里。"""
+
+    def _boom(payload: dict) -> dict:
+        raise RuntimeError("COMError: element gone")
+
+    monkeypatch.setitem(cua_ops._CUA_HANDLERS, "cua_apps", _boom)
+    result = cua_ops.handle_cua_op("cua_apps", {})
+    assert result["error"] == "op_failed"
+    assert "RuntimeError" in result["detail"]
+    assert "COMError" in result["detail"]
+
+
+def test_cua_activate_in_ops_registry() -> None:
+    assert "cua_activate" in cua_ops.CUA_OPS
+    assert "cua_activate" in cua_ops._CUA_HANDLERS

@@ -181,3 +181,37 @@ def set_value(element: Any, text: str) -> None:
             element.AXValue = text
         except Exception as exc:  # noqa: BLE001
             raise KeyError(f"element not settable: {exc}") from exc
+
+
+def set_focus(element: Any) -> None:
+    """AX 聚焦元素(不抢前台窗口)。atomacos 的属性 setter 拼写随版本
+    有差异,逐一探测;全失败不致命——type 免前台路径靠 set_value 兜住。"""
+    for setter in (
+        lambda: setattr(element, "AXSetFocused", True),
+        lambda: element.set_attribute("AXSetFocused", True),  # type: ignore[attr-defined]
+    ):
+        try:
+            setter()
+            return
+        except Exception:  # noqa: BLE001
+            continue
+    raise KeyError("element not focusable")
+
+
+def activate_window(pid: int, window_id: int | None) -> None:
+    """把应用调到前台:`open -a <bundle>`(免 osascript——System Events 的
+    自动化权限无人批准会无限卡死,见记忆 osascript-tcc-hang-gotcha)。
+
+    AppKit/NSWorkspace 非主线程会死锁(记忆 computer-use-implementation),
+    不碰;psutil 取可执行路径后向上找 .app bundle 交给系统 open。
+    """
+    import subprocess
+    from pathlib import Path
+
+    import psutil
+
+    exe = Path(psutil.Process(pid).exe())
+    bundle = next((p for p in exe.parents if p.name.endswith(".app")), None)
+    if bundle is None:
+        raise KeyError(f"pid {pid} is not a bundled .app (exe={exe})")
+    subprocess.Popen(["open", "-a", str(bundle)], start_new_session=True)

@@ -180,3 +180,38 @@ async def test_launch_does_not_require_pid(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(cut, "dispatch_local_call", _dispatch)
     result = await _call(action="launch", url="https://example.com")
     assert not result.startswith("ERROR invalid_arguments")
+
+
+@pytest.mark.asyncio
+async def test_app_error_detail_is_interpolated_not_leaked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """生产事故回归(2026-10-08):str(AppError) 拿到的是未插值模板,
+    daemon 侧真实错误全被吞成 "Local sandbox execution failed: {{detail}}"。"""
+
+    async def _dispatch(user_id: str, op: str, payload: dict, *, machine_id=None) -> dict:
+        raise AppError(ErrorCode.SANDBOX_EXEC_FAILED, args={"detail": "pyperclip missing"})
+
+    monkeypatch.setattr(cut, "dispatch_local_call", _dispatch)
+    result = await _call(action="apps")
+    assert result.startswith("ERROR dispatch_failed")
+    assert "pyperclip missing" in result
+    assert "{{detail}}" not in result
+
+
+@pytest.mark.asyncio
+async def test_activate_action_routes_to_cua_activate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    async def _dispatch(user_id: str, op: str, payload: dict, *, machine_id=None) -> dict:
+        captured.update(op=op, payload=payload)
+        return {"status": "ok", "result": {"ok": True, "pid": 7}}
+
+    monkeypatch.setattr(cut, "dispatch_local_call", _dispatch)
+    result = await _call(action="activate", pid=7, window_id=0)
+    assert captured["op"] == "cua_activate"
+    assert captured["payload"]["pid"] == 7
+    assert captured["payload"]["window_id"] == 0
+    assert "ok" in result

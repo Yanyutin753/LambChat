@@ -215,6 +215,24 @@ def set_value(element: Any, text: str) -> None:
     raise KeyError("element not settable: setTextContents/replaceText both failed")
 
 
+def set_focus(element: Any) -> None:
+    """AT-SPI component.grabFocus(免前台聚焦,Wayland 可用)。"""
+    try:
+        if not element.queryComponent().grabFocus():
+            raise KeyError("grabFocus returned False")
+    except KeyError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise KeyError(f"element not focusable: {exc}") from exc
+
+
+def activate_window(pid: int, window_id: int | None) -> None:
+    """Wayland 安全模型下外部激活窗口没有可靠通道(wmctrl 只认 X11;
+    GNOME 的 Shell D-Bus 激活面向应用 ID 不面向 pid)。明确报不支持并
+    指路元素动作,不让模型空转重试。"""
+    raise KeyError("window activation unsupported on Linux/Wayland; act on elements instead")
+
+
 # pyatspi 原生合成输入(经 AT-SPI 总线,Wayland 原生可用,无需 X11/pyautogui)。
 # 特殊键名 → X keysym(pyatspi KEY_SYM 用)
 _KEYSYMS = {
