@@ -30,6 +30,7 @@ _ACTIONS = (
     "launch",
     "windows",
     "state",
+    "activate",
     "click",
     "set_value",
     "type",
@@ -41,7 +42,10 @@ _ACTIONS = (
 
 class _ComputerUseInput(BaseModel):
     action: str = Field(
-        ..., description="status|apps|launch|windows|state|click|set_value|type|key|scroll|action"
+        ...,
+        description=(
+            "status|apps|launch|windows|state|activate|click|set_value|type|key|scroll|action"
+        ),
     )
     url: Optional[str] = Field(None, description="launch: open this URL in the default browser")
     app: Optional[str] = Field(None, description="launch: executable path to start (no shell)")
@@ -143,7 +147,8 @@ def _format_result(action: str, result: dict[str, Any]) -> str:
 async def computer_use(
     action: Annotated[
         str,
-        "One of: status, apps, launch, windows, state, click, set_value, type, key, scroll, action",
+        "One of: status, apps, launch, windows, state, activate, click, set_value, "
+        "type, key, scroll, action",
     ],
     url: Annotated[Optional[str], "launch: URL to open in default browser"] = None,
     app: Annotated[Optional[str], "launch: executable path (no shell)"] = None,
@@ -183,7 +188,11 @@ async def computer_use(
        acting again (indices from an older observation are invalid → stale_state).
     4. Prefer element actions (accessibility press/value work on background apps, no
        focus stealing). Coordinates/keyboard are last resorts and need the app frontmost
-       (``foreground_required`` otherwise; the event path NEVER activates apps).
+       (``foreground_required`` otherwise; the event path NEVER activates apps silently —
+       call ``activate`` explicitly first when you truly need keyboard shortcuts).
+       ``type`` with an element ``index`` focuses the element and writes the value via
+       accessibility (works on background windows); raw ``type``/``key`` without an
+       index types into whatever is frontmost.
     5. Multi-window apps: ``windows`` lists them; pin with window_id. Without it the
        key/main window is re-resolved each observation — a just-opened modal becomes the
        captured window (check the ``window:`` header line first when things look wrong).
@@ -246,7 +255,9 @@ async def computer_use(
     try:
         resp = await dispatch_local_call(user_id, f"cua_{action}", payload, machine_id=machine_id)
     except Exception as exc:  # noqa: BLE001 - AppError(SANDBOX_*) 等统一转文本
-        message = str(exc)
+        # AppError.__str__ 返回未插值模板("... {{detail}}")——真实原因在
+        # args 里,必须走 display_message,否则 daemon 侧错误全被吞成模板
+        message = getattr(exc, "display_message", None) or str(exc)
         logger.warning("[computer_use] dispatch failed action=%s: %s", action, message)
         hint = ""
         if "offline" in message.lower():

@@ -31,6 +31,7 @@ CUA_OPS = frozenset(
         "cua_launch",
         "cua_windows",
         "cua_state",
+        "cua_activate",
         "cua_click",
         "cua_set_value",
         "cua_type",
@@ -519,14 +520,62 @@ def _type_text(text: str) -> None:
 
 
 def _op_type(payload: dict) -> dict:
+    """输入文本。带元素索引时优先走免前台路径:AX/UIA 聚焦元素 →
+    ValuePattern/EditableText 直写——后台窗口也能输入,绕开事件策略的
+    foreground 门槛(实测 Chromium 地址框有 ValuePattern,直写即可)。
+    直写失败再回退合成键盘(需前台)。
+    """
     _require_ax()
     pid = _resolve_app_ref(payload)
     text = payload.get("text")
     if not isinstance(text, str) or not text:
         raise CuaOpError("invalid_arguments", "text required")
+
+    index = payload.get("index")
+    if index is not None:
+        element = _resolve_index(pid, payload.get("window_id"), index)
+        backend = _backend()
+        try:
+            backend.set_focus(element)
+        except Exception:  # noqa: BLE001 - 聚焦尽力而为,直写不依赖它
+            pass
+        try:
+            backend.set_value(element, text)
+            return {"ok": True, "strategy": "a11y", "method": "set_value"}
+        except Exception:  # noqa: BLE001 - 元素不可直写,回退事件输入
+            pass
+        # set_focus 在 Windows 会顺带把窗口调到前台;再查一次前台,过则打字
+        try:
+            _require_foreground(pid)
+        except CuaOpError as exc:
+            raise CuaOpError(
+                "foreground_required",
+                f"{exc.detail}; element is not directly settable — "
+                "activate the window (action=activate) first, or use set_value on a settable element",
+            ) from exc
+        _type_text(text)
+        return {"ok": True, "strategy": "event", "method": "focused-typing"}
+
     _require_foreground(pid)
     _type_text(text)
-    return {"ok": True}
+    return {"ok": True, "strategy": "event", "method": "raw-typing"}
+
+
+def _op_activate(payload: dict) -> dict:
+    """显式把目标应用/窗口调到前台(agent 主动调用)。
+
+    与「事件策略绝不自动激活」不冲突:禁的是静默抢焦点,给模型一个
+    显式 activate 动作是 ZCode 同款契约——key 快捷键类操作的前置步骤。
+    """
+    backend = _backend()
+    pid = _resolve_app_ref(payload)
+    try:
+        backend.activate_window(pid, payload.get("window_id"))
+    except CuaOpError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise CuaOpError("action_failed", f"activate failed: {exc}") from exc
+    return {"ok": True, "pid": pid}
 
 
 def _map_modifiers(text: str | None) -> list[str]:
@@ -676,6 +725,7 @@ _CUA_HANDLERS = {
     "cua_launch": _op_launch,
     "cua_windows": _op_windows,
     "cua_state": _op_state,
+    "cua_activate": _op_activate,
     "cua_click": _op_click,
     "cua_set_value": _op_set_value,
     "cua_type": _op_type,
@@ -686,7 +736,13 @@ _CUA_HANDLERS = {
 
 
 def handle_cua_op(op: str, payload: dict) -> dict:
-    """执行一个 computer-use op。CuaOpError 转为 ``{"error": ...}`` 结果。"""
+    """执行一个 computer-use op。
+
+    CuaOpError 与**一切**运行时异常都转为 ``{"error": ...}`` 结构化结果:
+    生产实测(2026-10-08 Windows)未捕获的 COMError/pyperclip 缺失会裸穿到
+    daemon 层 error 字符串,relay 包成 SANDBOX_EXEC_FAILED 后模型只见到
+    模板文案而无从纠错——op 级异常必须在模型可读层收敛。
+    """
     handler = _CUA_HANDLERS.get(op)
     if handler is None:
         raise ValueError(f"unknown cua op: {op}")
@@ -694,3 +750,5 @@ def handle_cua_op(op: str, payload: dict) -> dict:
         return handler(payload or {})
     except CuaOpError as exc:
         return {"error": exc.code, "detail": exc.detail}
+    except Exception as exc:  # noqa: BLE001 - COMError 等三方异常同样结构化
+        return {"error": "op_failed", "detail": f"{type(exc).__name__}: {exc}"}
