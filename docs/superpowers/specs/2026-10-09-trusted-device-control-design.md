@@ -99,4 +99,4 @@
 
 - ZCode 公开 SSH backend：<https://github.com/zai-org/ZCode/blob/main/packages/server/src/remote/ssh-backend.ts>。证明客户端可直接连接目标，不证明目标服务器被控制后的安全性。
 - Tailscale Tailnet Lock：<https://tailscale.com/docs/features/tailnet-lock>。参考将设备加入信任域的授权从平台移到可信节点。
-- TLS 1.3：<https://www.rfc-editor.org/rfc/rfc8446>。使用标准双向认证、加密与重放边界，不自创密码协议。
+- TLS 1.3：<https://www.rfc-editor.org/info/rfc9846/>（2026 年更新，取代 RFC 8446）。使用标准双向认证、加密与重放边界，不自创密码协议。
