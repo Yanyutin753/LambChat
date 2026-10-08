@@ -24,6 +24,9 @@ from src.infra.sandbox.relay.registry import (
     parse_daemon_platform,
     parse_daemon_version,
 )
+from src.infra.sandbox.relay.registry import (
+    version_tuple as _version_tuple,
+)
 from src.infra.storage.redis import (
     create_redis_client,
     get_binary_redis_client,
@@ -169,24 +172,6 @@ async def channel_frames(
             continue
 
 
-def _version_tuple(version: str) -> tuple[int, ...]:
-    """语义化版本串 → 可比较 int 元组：按 ``.`` 分段，非数字段容错按 0 处理。
-
-    空串 → ``(0,)``（最低）：M1 旧 daemon 不上报 version，按最低版本拒连，
-    倒逼升级到带版本上报与 self-update 的新客户端。段数不齐时短元组直接
-    比较（``(0, 1) < (0, 1, 0)``），与直觉一致。
-
-    数字判定必须 ``isascii() and isdigit()``（M4 T8 加固）：Unicode 数字
-    （如 "٥"）``isdigit()`` 为真且 ``int()`` 可转成 5——伪造 version "٥.0"
-    若被解析成 (5,0) 就绕过了版本门。非 ASCII 数字一律按 0（拒连侧）。
-    """
-    if not version:
-        return (0,)
-    return tuple(
-        int(part) if part.isascii() and part.isdigit() else 0 for part in version.strip().split(".")
-    )
-
-
 @router.get("/channel")
 async def sandbox_channel(
     version: str = "",
@@ -307,6 +292,18 @@ class SandboxResultRequest(BaseModel):
     result: Optional[dict[str, Any]] = None
 
 
+async def _validate_call_assignment(redis, call_id: str, user_id: str, machine_id: str) -> None:
+    assigned = await redis.get(f"sandbox:callassign:{call_id}")
+    owner = await redis.get(f"sandbox:callowner:{call_id}")
+    if isinstance(assigned, bytes):
+        assigned = assigned.decode("utf-8")
+    if isinstance(owner, bytes):
+        owner = owner.decode("utf-8")
+    # Missing identity is permitted only for a call explicitly sent to legacy.
+    if owner != user_id or not assigned or assigned != (machine_id or "legacy"):
+        raise AppError(ErrorCode.SANDBOX_RESULT_MISMATCH, args={"machine": machine_id})
+
+
 @router.post("/results/{call_id}")
 async def sandbox_result(
     call_id: str,
@@ -316,12 +313,7 @@ async def sandbox_result(
     user: TokenPayload = Depends(require_pat_only("sandbox:execute")),
 ):
     redis = _redis()
-    # 调用-机器绑定：dispatch 入队前写目标机，回传机不一致即拒（同用户 A 机
-    # 冒答 B 机）；无绑定键（旧调用/兼容窗口）或回传不带 machine_id（旧
-    # daemon）时跳过校验
-    assigned = await redis.get(f"sandbox:callassign:{call_id}")
-    if assigned and machine_id and assigned != machine_id:
-        raise AppError(ErrorCode.SANDBOX_RESULT_MISMATCH, args={"machine": machine_id})
+    await _validate_call_assignment(redis, call_id, user.sub, machine_id)
     # 回传 body 上限：stdout/base64 是失控大头。先查 Content-Length 头做早期
     # 拒绝（超大请求不进内存），再在读完后二次校验（chunked 无 CL 的兜底）
     content_length = request.headers.get("content-length")
@@ -349,6 +341,7 @@ def _stream_total_max_bytes() -> int:
 async def sandbox_result_stream(
     call_id: str,
     request: Request,
+    machine_id: str = "",
     user: TokenPayload = Depends(require_pat_only("sandbox:execute")),
 ):
     """流式结果回传：fs_download_stream 的二进制帧经 chunked body 逐帧入 Redis list。
@@ -359,6 +352,7 @@ async def sandbox_result_stream(
     三件事：帧/总量上限、逐帧 rpush、无 eof 帧断流的哨兵补齐。
     """
     redis = _binary_redis()  # rpush 裸二进制帧；消费端 dispatch 同走二进制客户端
+    await _validate_call_assignment(redis, call_id, user.sub, machine_id)
     key = f"sandbox:stream:{user.sub}:{call_id}"
     total = 0
     saw_eof = False
@@ -411,6 +405,7 @@ async def _push_stream_error(redis, key: str, text: str) -> None:
 @router.get("/upload/{call_id}")
 async def sandbox_upload_stream(
     call_id: str,
+    machine_id: str = "",
     user: TokenPayload = Depends(require_pat_only("sandbox:execute")),
 ):
     """流式上传拉流端点：daemon 对 fs_upload_stream 的单个 GET 在这里取走整个文件。
@@ -420,6 +415,7 @@ async def sandbox_upload_stream(
     数据不过服务端内存整缓冲。总量上限已在生产者侧预检（max_bytes）。
     """
     redis = _binary_redis()  # lpop 裸二进制帧，解码客户端读取即抛 UnicodeDecodeError
+    await _validate_call_assignment(redis, call_id, user.sub, machine_id)
     key = f"sandbox:upblob:{user.sub}:{call_id}"
     resp_key = f"sandbox:resp:{call_id}"
     deadline = time.monotonic() + float(settings.SANDBOX_LOCAL_STREAM_TIMEOUT) + 10.0

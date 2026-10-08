@@ -73,12 +73,23 @@ def _decode_base64_to_file(b64_data: str, file, *, max_bytes: int) -> int:
     return total
 
 
-async def upload_binary_blocks(result: dict, base_url: str) -> None:
+async def upload_binary_blocks(
+    result: dict,
+    base_url: str,
+    *,
+    private_user_id: str | None = None,
+    private_session_id: str | None = None,
+    private: bool = False,
+) -> None:
     """Upload base64 blocks in-place, replacing each `base64` payload with a URL."""
     blocks = result.get("blocks")
     if not isinstance(blocks, list):
         return
 
+    private = private or private_user_id is not None or private_session_id is not None
+    if private and not (private_user_id and private_session_id):
+        _redact_all_base64_blocks(blocks)
+        return
     storage = None
     uploaded_block_count = 0
     estimated_total_bytes = 0
@@ -127,13 +138,24 @@ async def upload_binary_blocks(result: dict, base_url: str) -> None:
                     spooled,
                     max_bytes=_BINARY_UPLOAD_MAX_BYTES,
                 )
-                upload_result = await storage.upload_file(
-                    file=spooled,
-                    folder="tool_binaries",
-                    filename=filename,
-                    content_type=mime_type,
-                    skip_size_limit=True,
-                )
+                if private:
+                    upload_result = await _upload_private_screenshot(
+                        storage,
+                        spooled,
+                        filename,
+                        mime_type,
+                        size,
+                        private_user_id,
+                        private_session_id,
+                    )
+                else:
+                    upload_result = await storage.upload_file(
+                        file=spooled,
+                        folder="tool_binaries",
+                        filename=filename,
+                        content_type=mime_type,
+                        skip_size_limit=True,
+                    )
 
             proxy_url = (
                 f"{base_url}/api/upload/file/{upload_result.key}"
@@ -158,3 +180,50 @@ async def upload_binary_blocks(result: dict, base_url: str) -> None:
         except Exception as exc:
             logger.warning("Failed to upload binary block: %s", exc)
             _redact_failed_binary_upload(block)
+
+
+async def _upload_private_screenshot(storage, file, filename, mime_type, size, user_id, session_id):
+    from src.infra.session.storage import SessionStorage
+    from src.infra.upload.file_record import FileRecordStorage
+
+    if not storage.is_local and storage._config.public_bucket:
+        raise ValueError("Desktop captures require private storage")
+    sessions = SessionStorage()
+    session = await sessions.collection.find_one({"session_id": session_id, "user_id": user_id})
+    if not session or not await sessions.acquire_trace_write(session_id):
+        raise ValueError("Desktop capture session unavailable")
+    epoch = session.get("private_capture_epoch", 0)
+    uploaded = None
+    registered = False
+    try:
+        uploaded = await storage.upload_file(
+            file=file,
+            folder=f"cua_screenshots/{user_id}/{session_id}",
+            filename=filename,
+            content_type=mime_type,
+            skip_size_limit=True,
+        )
+        await FileRecordStorage().create(
+            file_hash=uuid.uuid4().hex,
+            key=uploaded.key,
+            name=filename,
+            mime_type=mime_type,
+            size=size,
+            category="image",
+            uploaded_by=user_id,
+            private_session_id=session_id,
+            private_capture_epoch=epoch,
+        )
+        registered = True
+        current = await sessions.collection.find_one({"session_id": session_id, "user_id": user_id})
+        if not current or current.get("private_capture_epoch", 0) != epoch:
+            raise ValueError("Desktop capture session cleared during upload")
+        return uploaded
+    except BaseException:
+        if uploaded:
+            await storage.delete_file(uploaded.key)
+            if registered:
+                await FileRecordStorage().delete_by_key(uploaded.key, user_id)
+        raise
+    finally:
+        await sessions.release_trace_write(session_id)

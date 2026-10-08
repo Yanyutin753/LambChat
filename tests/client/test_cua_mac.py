@@ -176,3 +176,21 @@ def test_window_capture_uses_native_screen_coordinates_on_retina(mac_backend) ->
         image = mac_backend.screenshot([100, 100, 800, 600])
     assert image.size == (1600, 1200)
     assert image.getpixel((1599, 1199)) == (0, 0, 255)
+
+
+def test_secure_mac_field_does_not_read_or_return_its_value(mac_backend):
+    class SecureField:
+        AXRole = "AXTextField"
+        AXSubrole = "AXSecureTextField"
+        AXTitle = "Password"
+
+        @property
+        def AXValue(self):  # noqa: N802 - Native AX attribute.
+            pytest.fail("secure field value must never be read")
+
+    assert mac_backend.row_of(SecureField())["value"] is None
+
+
+def test_regular_mac_field_retains_its_value(mac_backend):
+    element = SimpleNamespace(AXRole="AXTextField", AXSubrole="", AXValue="ordinary")
+    assert mac_backend.row_of(element)["value"] == "ordinary"

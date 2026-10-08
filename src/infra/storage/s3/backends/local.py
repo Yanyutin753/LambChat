@@ -40,7 +40,7 @@ class LocalStorageBackend(S3StorageBackend):
     def _get_file_path(self, key: str) -> Path:
         """Get the local file path for a given key, preventing path traversal."""
         target = (self._base_path / key).resolve()
-        if not str(target).startswith(str(self._base_path)):
+        if not target.is_relative_to(self._base_path):
             raise ValueError(f"Invalid key: path traversal detected: {key}")
         return target
 

@@ -96,6 +96,39 @@ def test_resume_approved_returns_true(interrupt_supported, monkeypatch):
     assert confirm_local_op("rm x", "all", description="d") is True
 
 
+def test_confirmation_identifies_execution_card(interrupt_supported, monkeypatch):
+    import langgraph.types
+
+    captured = []
+
+    def approve(value):
+        captured.append(value)
+        return {"approved": True}
+
+    monkeypatch.setattr(langgraph.types, "interrupt", approve)
+    assert confirm_local_op("rm cua", "all", description="machine A", tool_call_id="cua-call")
+    assert captured[0]["tool_call_id"] == "cua-call"
+
+
+@pytest.mark.parametrize("approved_context", [None, {"machine_id": "other"}])
+def test_confirmation_cannot_replay_on_another_machine(
+    interrupt_supported, monkeypatch, approved_context
+):
+    import langgraph.types
+
+    monkeypatch.setattr(
+        langgraph.types,
+        "interrupt",
+        lambda value: {
+            "approved": True,
+            "confirmation_context": approved_context,
+        },
+    )
+    assert not confirm_local_op(
+        "rm cua", "all", description="machine A", confirmation_context={"machine_id": "selected"}
+    )
+
+
 def test_resume_rejected_returns_false(interrupt_supported, monkeypatch):
     import langgraph.types
 

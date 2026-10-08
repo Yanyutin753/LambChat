@@ -214,7 +214,12 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         mw = [
             *create_retry_middleware(fallback_model=fallback_model_value),
             create_todo_middleware(),
-            ToolResultBinaryMiddleware(base_url=subagent_base_url, supports_vision=supports_vision),
+            ToolResultBinaryMiddleware(
+                base_url=subagent_base_url,
+                supports_vision=supports_vision,
+                user_id=context.user_id,
+                session_id=str(state.get("session_id") or ""),
+            ),
             ArtifactDeliveryMiddleware(),
             SubagentActivityMiddleware(backend=backend),
         ]
@@ -288,7 +293,12 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     user_middleware.append(create_todo_middleware())
     user_middleware.insert(0, SteerMiddleware(session_id=str(session_id), presenter=presenter))
     user_middleware.append(
-        ToolResultBinaryMiddleware(base_url=subagent_base_url, supports_vision=supports_vision)
+        ToolResultBinaryMiddleware(
+            base_url=subagent_base_url,
+            supports_vision=supports_vision,
+            user_id=context.user_id,
+            session_id=str(state.get("session_id") or ""),
+        )
     )
     user_middleware.append(ArtifactDeliveryMiddleware())
     _image_mw = image_url_middleware_for_mode(image_url_mode)
@@ -354,11 +364,20 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     graph_compile_time = time.time() - graph_compile_start
     logger.debug(f"[FastAgent] Graph compile: {graph_compile_time * 1000:.3f}ms")
 
+    from src.infra.tool.computer_use_tool import resolve_computer_use_context
+
     inner_config: RunnableConfig = {
         "configurable": build_nested_graph_configurable(
             thread_id=state.get("session_id", str(uuid.uuid4())),
             checkpointer=inner_checkpointer,
             backend=backend,
+            computer_use_context=(
+                await resolve_computer_use_context(
+                    context.user_id or "", agent_options, configurable.get("hitl_resume")
+                )
+                if settings.ENABLE_COMPUTER_USE
+                else None
+            ),
             context=context,
             disabled_skills=configurable.get("disabled_skills"),
             enabled_skills=configurable.get("enabled_skills"),

@@ -1,10 +1,11 @@
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { MousePointerClick } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { CollapsiblePill } from "../../../common";
 import { ImageWithSkeleton } from "../ImageWithSkeleton";
 import { getFullUrl } from "../../../../services/api/config";
+import { authenticatedRequest } from "../../../../services/api/authenticatedRequest";
 import {
   openToolLivePanel,
   toolDetailPropsFromPanelData,
@@ -61,6 +62,45 @@ function ComputerUseDetail({
   const { openImage, viewer } = useImagePreviewFallback();
   const parsed = useMemo(() => parseComputerUseResult(result), [result]);
   const { data, text, error, screenshotSrc } = parsed;
+  const [privateImage, setPrivateImage] = useState("");
+  const [imageFailed, setImageFailed] = useState(false);
+  const imageSrc = screenshotSrc?.startsWith("data:image/")
+    ? screenshotSrc
+    : privateImage;
+  useEffect(() => {
+    setPrivateImage("");
+    setImageFailed(false);
+    if (!screenshotSrc || screenshotSrc.startsWith("data:image/")) return;
+    const url = getFullUrl(screenshotSrc);
+    const filePrefix = getFullUrl("/api/upload/file/");
+    if (!url || !filePrefix || !url.startsWith(filePrefix)) {
+      setImageFailed(true);
+      return;
+    }
+    const controller = new AbortController();
+    let objectUrl = "";
+    void authenticatedRequest(url, {
+      signal: controller.signal,
+      cache: "no-store",
+      redirect: "error",
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Screenshot unavailable");
+        const blob = await response.blob();
+        if (!blob.type.startsWith("image/"))
+          throw new Error("Invalid screenshot");
+        if (controller.signal.aborted) return;
+        objectUrl = URL.createObjectURL(blob);
+        setPrivateImage(objectUrl);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setImageFailed(true);
+      });
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [screenshotSrc]);
   const action = typeof args.action === "string" ? args.action : "";
   const windowInfo = computerUseRecord(data.window);
   const screenshot = computerUseRecord(data.screenshot);
@@ -76,6 +116,7 @@ function ComputerUseDetail({
       `${key}.permissions.${["granted", "denied"].includes(String(value)) ? value : "unknown"}`,
     );
   const resultFields: Record<string, unknown> = {
+    machine_id: data.machine_id,
     platform: data.platform === "darwin" ? "macOS" : data.platform,
     ready:
       typeof data.ready === "boolean"
@@ -225,18 +266,21 @@ function ComputerUseDetail({
           )}
         </section>
       )}
-      {screenshotSrc && (
+      {screenshotSrc && !imageSrc && (
+        <p role="status" className="text-12 text-theme-text-secondary">
+          {t(`${key}.${imageFailed ? "failed" : "waiting"}`)}
+        </p>
+      )}
+      {imageSrc && (
         <figure className="min-w-0 space-y-2">
           <button
             type="button"
-            onClick={() =>
-              openImage(getFullUrl(screenshotSrc) || screenshotSrc)
-            }
+            onClick={() => openImage(imageSrc)}
             className="block w-full cursor-zoom-in rounded-[var(--radius-sm)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-theme-primary"
             aria-label={t("chat.message.openImage")}
           >
             <ImageWithSkeleton
-              src={screenshotSrc}
+              src={imageSrc}
               alt={t(`${key}.screenshot`)}
               loading="eager"
               aspectRatio={

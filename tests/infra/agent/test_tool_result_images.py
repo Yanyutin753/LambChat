@@ -21,7 +21,12 @@ async def capture(request):
 
 
 @pytest.mark.parametrize("tool_name", ["read_file", "computer_use"])
-async def test_tool_image_is_injected_only_into_the_outbound_model_request(tool_name):
+async def test_tool_image_is_injected_only_into_the_outbound_model_request(tool_name, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.infra.upload.file_record.FileRecordStorage.find_by_key", AsyncMock(return_value=None)
+    )
     image = {"url": "/api/upload/file/tool_binaries/chart.png", "mime_type": "image/png"}
     payload = image if tool_name == "read_file" else {"screenshot": {**image, "mime": "image/png"}}
     message = ToolMessage(content=json.dumps(payload), name=tool_name, tool_call_id="call-1")

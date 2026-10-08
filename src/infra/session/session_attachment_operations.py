@@ -108,7 +108,14 @@ class SessionAttachmentOperationsMixin:
             [
                 {
                     "$set": {
-                        field: {**operation, "uploaded_by": "$user_id"},
+                        field: {
+                            **operation,
+                            "uploaded_by": "$user_id",
+                            "private_capture_epoch": {"$ifNull": ["$private_capture_epoch", 0]},
+                        },
+                        "private_capture_epoch": {
+                            "$add": [{"$ifNull": ["$private_capture_epoch", 0]}, 1]
+                        },
                         "updated_at": utc_now(),
                     }
                 }
@@ -126,7 +133,21 @@ class SessionAttachmentOperationsMixin:
             return None
         result = await self.collection.find_one_and_update(
             {"_id": object_id, "$or": [{field: {"$exists": False}}, {field: None}]},
-            [{"$set": {field: {**operation, "uploaded_by": "$user_id"}, "updated_at": utc_now()}}],
+            [
+                {
+                    "$set": {
+                        field: {
+                            **operation,
+                            "uploaded_by": "$user_id",
+                            "private_capture_epoch": {"$ifNull": ["$private_capture_epoch", 0]},
+                        },
+                        "private_capture_epoch": {
+                            "$add": [{"$ifNull": ["$private_capture_epoch", 0]}, 1]
+                        },
+                        "updated_at": utc_now(),
+                    }
+                }
+            ],
             return_document=True,
         )
         if result:

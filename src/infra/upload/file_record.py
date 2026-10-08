@@ -102,6 +102,7 @@ class FileRecordStorage:
 
         await collection.create_index("key", unique=True, background=True)
         await collection.create_index("uploaded_by", background=True)
+        await collection.create_index("private_session_id", sparse=True, background=True)
 
     async def find_by_hash(self, file_hash: str, uploaded_by: str) -> Optional[dict]:
         """Look up a file record by content hash.
@@ -153,6 +154,9 @@ class FileRecordStorage:
         size: int,
         category: str,
         uploaded_by: str,
+        *,
+        private_session_id: str | None = None,
+        private_capture_epoch: int = 0,
     ) -> dict:
         """Insert a new file record.
 
@@ -183,9 +187,68 @@ class FileRecordStorage:
             "created_at": now,
             "updated_at": now,
         }
+        if private_session_id is not None:
+            doc["private_session_id"] = private_session_id
+            doc["private_capture_epoch"] = private_capture_epoch
+            doc["reference_count"] = 1
         result = await self.collection.insert_one(doc)
         doc["id"] = str(result.inserted_id)
         return doc
+
+    async def is_private_key(self, key: str) -> bool:
+        if key.startswith("cua_screenshots/"):
+            return True
+        if key.startswith("tool_binaries/"):
+            record = await self.find_by_key(key)
+            return bool(record and record.get("private_session_id"))
+        return False
+
+    async def require_private_access(
+        self, key: str, user_id: str | None, session_id: str | None = None
+    ) -> dict:
+        """Desktop captures are never granted access through shared sessions."""
+        from src.infra.session.storage import SessionStorage
+        from src.kernel.errors import AppError, ErrorCode
+
+        record = await self.find_by_key(key, user_id) if user_id else None
+        private_session = record.get("private_session_id") if record else None
+        if (
+            not record
+            or record.get("uploaded_by") != user_id
+            or not private_session
+            or record.get("deleting_at")
+            or (session_id is not None and session_id != private_session)
+        ):
+            raise AppError(ErrorCode.FILE_NOT_FOUND)
+        session = await SessionStorage().collection.find_one(
+            {
+                "session_id": private_session,
+                "user_id": user_id,
+                "attachment_delete_operation": {"$exists": False},
+            }
+        )
+        if not session or record.get("private_capture_epoch", 0) != session.get(
+            "private_capture_epoch", 0
+        ):
+            raise AppError(ErrorCode.FILE_NOT_FOUND)
+        return record
+
+    async def delete_private_session_files(
+        self, session_id: str, *, max_epoch: int | None = None
+    ) -> None:
+        """Strict deletion under the session's writer fence; failed deletes can retry."""
+        from src.infra.storage.s3.service import get_or_init_storage
+
+        query: dict[str, Any] = {"private_session_id": session_id}
+        if max_epoch is not None:
+            query["$or"] = [
+                {"private_capture_epoch": {"$lte": max_epoch}},
+                {"private_capture_epoch": {"$exists": False}},
+            ]
+        async for record in self.collection.find(query):
+            object_storage = await get_or_init_storage()
+            await object_storage.delete_file(record["key"])
+            await self.delete_by_key(record["key"], record["uploaded_by"])
 
     async def add_references(self, keys: list[str]) -> int:
         """Increment persisted message references for the given storage keys."""

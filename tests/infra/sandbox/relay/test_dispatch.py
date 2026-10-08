@@ -756,3 +756,140 @@ async def test_upload_stream_encodes_frames_off_event_loop(fake, monkeypatch):
     assert exc.value.error_code == ErrorCode.SANDBOX_TIMEOUT
     assert dispatch_module._frames_codec.encode_frame in offloaded
     assert len(offloaded) >= 3  # meta + 2 数据帧（EOF 是否发出取决于窗口时序）
+
+
+@pytest.mark.parametrize("kind", ["call", "stream", "upload"])
+async def test_assignment_covers_entire_timeout_and_is_cleaned(fake, monkeypatch, kind):
+    monkeypatch.setattr(dispatch_module, "_registry", lambda: _MachinesFakeRegistry("mac1"))
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_EXEC_TIMEOUT", 600)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_STREAM_TIMEOUT", 600)
+    monkeypatch.setattr(dispatch_module, "_BLPOP_TIMEOUT", 0.01)
+    original_set = fake.set
+    assignments = {}
+
+    async def record_set(key, value, ex=None):
+        assignments[key] = (value, ex)
+        await original_set(key, value, ex)
+
+    monkeypatch.setattr(fake, "set", record_set)
+
+    async def daemon():
+        while not fake.lists.get("sandbox:req:u1:mac1"):
+            await asyncio.sleep(0.001)
+        req = json.loads(await fake.lpop("sandbox:req:u1:mac1"))
+        assert req["machine_id"] == "mac1"
+        call_id = req["call_id"]
+        assert assignments[f"sandbox:callassign:{call_id}"] == ("mac1", 610)
+        assert assignments[f"sandbox:callowner:{call_id}"] == ("u1", 610)
+        if kind == "stream":
+            from src.infra.sandbox.relay._frames import FRAME_EOF, encode_frame
+
+            await fake.rpush(f"sandbox:stream:u1:{call_id}", encode_frame(FRAME_EOF))
+        else:
+            await fake.rpush(
+                f"sandbox:resp:{call_id}",
+                json.dumps({"user_id": "u1", "stage": "done", "status": "ok"}),
+            )
+
+    task = asyncio.create_task(daemon())
+    try:
+        async with asyncio.timeout(1):
+            if kind == "call":
+                await dispatch_module.dispatch_local_call("u1", "exec", {})
+            elif kind == "stream":
+                await _collect_stream(
+                    dispatch_module.dispatch_local_stream("u1", "fs_download_stream", {})
+                )
+            else:
+                await dispatch_module.dispatch_local_stream_upload("u1", {}, b"synthetic")
+    finally:
+        await task
+    assert not fake.kv
+
+
+@pytest.mark.parametrize("kind", ["call", "stream", "upload"])
+async def test_failed_dispatch_enqueue_cleans_assignment(fake, monkeypatch, kind):
+    original_rpush = fake.rpush
+
+    async def fail_queue(key, value):
+        if key.startswith("sandbox:req:"):
+            raise OSError("synthetic queue failure")
+        await original_rpush(key, value)
+
+    monkeypatch.setattr(fake, "rpush", fail_queue)
+    with pytest.raises(OSError, match="synthetic queue failure"):
+        if kind == "call":
+            await dispatch_module.dispatch_local_call("u1", "exec", {})
+        elif kind == "stream":
+            await _collect_stream(
+                dispatch_module.dispatch_local_stream("u1", "fs_download_stream", {})
+            )
+        else:
+            await dispatch_module.dispatch_local_stream_upload("u1", {}, b"synthetic")
+    assert not fake.kv
+
+
+@pytest.mark.parametrize(
+    "version", ["2.14.3", "", "malformed", "999.bad", "٩.99.99", "2.14.4-beta"]
+)
+async def test_cua_requires_privacy_safe_daemon_version(fake, monkeypatch, version):
+    registry = _MachinesFakeRegistry("mac1")
+
+    async def machine_value(user_id, machine_id):
+        assert (user_id, machine_id) == ("u1", "mac1")
+        return f"node|{version}|darwin|all|Mac"
+
+    registry.machine_value = machine_value
+    monkeypatch.setattr(dispatch_module, "_registry", lambda: registry)
+    with pytest.raises(AppError) as exc:
+        await dispatch_module.dispatch_local_call(
+            "u1", "cua_status", {}, machine_id="mac1", timeout=0
+        )
+    assert exc.value.error_code == ErrorCode.DAEMON_VERSION_UNSUPPORTED
+    assert exc.value.args_data == {"version": version or "unknown", "min": "2.14.4"}
+    assert not fake.lists and not fake.kv
+
+
+@pytest.mark.parametrize("machine_id", [None, "", " "])
+async def test_cua_never_resolves_account_default_machine(fake, monkeypatch, machine_id):
+    registry = _MachinesFakeRegistry("mac1")
+
+    async def resolve_target(*args):
+        pytest.fail("CUA must reject missing explicit target before default resolution")
+
+    registry.resolve_target = resolve_target
+    monkeypatch.setattr(dispatch_module, "_registry", lambda: registry)
+    with pytest.raises(AppError) as exc:
+        await dispatch_module.dispatch_local_call(
+            "u1", "cua_screenshot", {}, machine_id=machine_id, timeout=0
+        )
+    assert exc.value.error_code == ErrorCode.BAD_REQUEST
+    assert not fake.lists and not fake.kv
+
+
+@pytest.mark.parametrize("version", ["2.14.4", "2.15.0", "3.0.0"])
+async def test_cua_dispatches_only_to_selected_supported_daemon(fake, monkeypatch, version):
+    registry = _MachinesFakeRegistry("mac1")
+
+    async def machine_value(user_id, machine_id):
+        return f"node|{version}|darwin|all|Mac"
+
+    registry.machine_value = machine_value
+    monkeypatch.setattr(dispatch_module, "_registry", lambda: registry)
+    monkeypatch.setattr(dispatch_module, "_BLPOP_TIMEOUT", 0.01)
+
+    async def daemon():
+        while not fake.lists.get("sandbox:req:u1:mac1"):
+            await asyncio.sleep(0.001)
+        req = json.loads(await fake.lpop("sandbox:req:u1:mac1"))
+        await fake.rpush(
+            f"sandbox:resp:{req['call_id']}",
+            json.dumps({"user_id": "u1", "stage": "done", "status": "ok"}),
+        )
+
+    task = asyncio.create_task(daemon())
+    result = await dispatch_module.dispatch_local_call(
+        "u1", "cua_status", {}, machine_id="mac1", timeout=1
+    )
+    await task
+    assert result["status"] == "ok"

@@ -100,6 +100,12 @@ def _resolve_update_value(value: object, document: dict[str, Any]) -> object:
         resolved = _get_nested(document, value[1:])
         return None if resolved is _MISSING else deepcopy(resolved)
     if isinstance(value, dict):
+        if "$ifNull" in value:
+            first, fallback = value["$ifNull"]
+            result = _resolve_update_value(first, document)
+            return _resolve_update_value(fallback, document) if result is None else result
+        if "$add" in value:
+            return sum(_resolve_update_value(item, document) for item in value["$add"])
         return {key: _resolve_update_value(item, document) for key, item in value.items()}
     if isinstance(value, list):
         return [_resolve_update_value(item, document) for item in value]
@@ -114,8 +120,9 @@ def _apply_update(document: dict[str, Any], update: dict | list[dict]) -> None:
             if current is _MISSING:
                 current = 0
             _set_nested(document, key, current + value)
+        original = deepcopy(document) if isinstance(update, list) else document
         for key, value in stage.get("$set", {}).items():
-            _set_nested(document, key, _resolve_update_value(value, document))
+            _set_nested(document, key, _resolve_update_value(value, original))
         for key in stage.get("$unset", {}):
             _unset_nested(document, key)
 
@@ -249,6 +256,11 @@ class _FilterAwareCollection:
 
 
 class _FileRecordStorage:
+    async def delete_private_session_files(
+        self, session_id: str, *, max_epoch: int | None = None
+    ) -> None:
+        return None
+
     def __init__(self) -> None:
         self.released_counts: list[Counter[str]] = []
         self.operation_ids: list[str] = []
@@ -668,6 +680,11 @@ async def test_delete_session_cleans_checkpoints_after_session_document_delete(
             calls.append("session")
             return True
 
+    async def _delete_private_files(_session_id: str, *, max_epoch: int | None = None) -> None:
+        calls.append("screenshots" if max_epoch is not None else "remaining-screenshots")
+
+    manager._file_record_storage.delete_private_session_files = _delete_private_files
+
     async def _delete_checkpoints(_session_id: str) -> None:
         calls.append("checkpoints")
 
@@ -688,7 +705,7 @@ async def test_delete_session_cleans_checkpoints_after_session_document_delete(
     deleted = await manager.delete_session("session-1")
 
     assert deleted is True
-    assert calls == ["session", "checkpoints"]
+    assert calls == ["screenshots", "remaining-screenshots", "session", "checkpoints"]
 
 
 @pytest.mark.asyncio
@@ -1890,6 +1907,7 @@ async def test_concurrent_delete_request_cannot_cancel_the_owner_fence(
     )
     storage = _Storage()
     manager = _Manager()
+    manager._file_record_storage = _FileRecordStorage()
     manager.storage = storage
     manager._trace_storage = _TraceStorage()
 
@@ -2084,3 +2102,71 @@ async def test_fresh_delete_fence_still_blocks_new_delete(
         "acquired": False,
     }
     assert collection.documents[0]["attachment_delete_operation"]["id"] == "active-fence"
+
+
+async def test_clear_messages_private_cleanup_failure_keeps_operation_for_retry():
+    from unittest.mock import AsyncMock
+
+    manager = SessionManager()
+    manager.storage = _SessionOperationStorage()
+    manager._trace_storage = _TraceStorage()
+    files = _FileRecordStorage()
+    files.delete_private_session_files = AsyncMock(side_effect=RuntimeError("delete unavailable"))
+    manager._file_record_storage = files
+    with pytest.raises(RuntimeError, match="delete unavailable"):
+        await manager.clear_session_messages("session-1")
+    assert manager.storage.server_operation is not None
+    files.delete_private_session_files.side_effect = None
+    await manager.clear_session_messages("session-1")
+    assert manager.storage.server_operation is None
+    assert files.delete_private_session_files.await_count == 2
+    files.delete_private_session_files.assert_awaited_with("session-1", max_epoch=0)
+
+
+async def test_clear_claim_advances_capture_epoch_once_and_retry_reuses_it(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", AsyncMock())
+    storage = SessionStorage()
+    storage._collection = _FilterAwareCollection([{"session_id": "session", "user_id": "owner"}])
+    first = await storage.claim_attachment_clear_operation("session")
+    assert first["private_capture_epoch"] == 0
+    assert storage.collection.documents[0]["private_capture_epoch"] == 1
+    assert await storage.claim_attachment_clear_operation("session") == first
+    assert storage.collection.documents[0]["private_capture_epoch"] == 1
+    assert await storage.complete_attachment_clear_operation("session", first["id"])
+    second = await storage.claim_attachment_clear_operation("session")
+    assert second["private_capture_epoch"] == 1
+    assert storage.collection.documents[0]["private_capture_epoch"] == 2
+
+
+async def test_clear_private_cleanup_preserves_captures_started_after_the_clear(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.infra.storage.s3 import service
+    from src.infra.upload.file_record import FileRecordStorage
+
+    records = FileRecordStorage()
+    records._collection = _FilterAwareCollection(
+        [
+            {
+                "key": "old",
+                "uploaded_by": "owner",
+                "private_session_id": "session",
+                "private_capture_epoch": 0,
+            },
+            {"key": "legacy", "uploaded_by": "owner", "private_session_id": "session"},
+            {
+                "key": "new",
+                "uploaded_by": "owner",
+                "private_session_id": "session",
+                "private_capture_epoch": 1,
+            },
+        ]
+    )
+    monkeypatch.setattr(records, "ensure_indexes_if_needed", AsyncMock())
+    objects = SimpleNamespace(delete_file=AsyncMock())
+    monkeypatch.setattr(service, "get_or_init_storage", AsyncMock(return_value=objects))
+    await records.delete_private_session_files("session", max_epoch=0)
+    assert [record["key"] for record in records.collection.documents] == ["new"]
+    assert objects.delete_file.await_count == 2

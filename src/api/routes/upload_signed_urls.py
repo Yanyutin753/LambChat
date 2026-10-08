@@ -62,15 +62,33 @@ async def get_signed_urls(
     """
     Get presigned URLs for private S3 objects.
     """
-    del current_user
     from src.api.routes import upload as upload_route
 
-    storage = await upload_route.get_or_init_storage()
+    private_urls = []
+    public_keys = []
     base_url = upload_route._get_base_url(req)
+    for key in body.keys:
+        if "\\" in key or any(part in (".", "..", "") for part in key.split("/")):
+            private_urls.append(SignedUrlItem(key=key, error="File not found"))
+        elif key.startswith(
+            ("cua_screenshots/", "tool_binaries/")
+        ) and await upload_route._file_record_storage.is_private_key(key):
+            try:
+                await upload_route._file_record_storage.require_private_access(
+                    key, current_user.sub
+                )
+                private_urls.append(SignedUrlItem(key=key, url=f"{base_url}/api/upload/file/{key}"))
+            except AppError:
+                private_urls.append(SignedUrlItem(key=key, error="File not found"))
+        else:
+            public_keys.append(key)
+    if not public_keys:
+        return SignedUrlResponse(urls=private_urls, expires_in=0)
+    storage = await upload_route.get_or_init_storage()
 
     if storage.is_local:
-        urls = []
-        for key in body.keys:
+        urls = list(private_urls)
+        for key in public_keys:
             try:
                 exists = await storage.file_exists(key)
                 if exists:
@@ -82,8 +100,8 @@ async def get_signed_urls(
         return SignedUrlResponse(urls=urls, expires_in=0)
 
     if storage._config.public_bucket:
-        urls = []
-        for key in body.keys:
+        urls = list(private_urls)
+        for key in public_keys:
             try:
                 url = await storage.get_file_url(key)
                 urls.append(SignedUrlItem(key=key, url=url))
@@ -91,8 +109,8 @@ async def get_signed_urls(
                 urls.append(SignedUrlItem(key=key, error=str(e)))
         return SignedUrlResponse(urls=urls, expires_in=0)
 
-    urls = []
-    for key in body.keys:
+    urls = list(private_urls)
+    for key in public_keys:
         try:
             url = await storage.get_presigned_url(key, body.expires)
             urls.append(SignedUrlItem(key=key, url=url))
@@ -117,14 +135,23 @@ async def get_single_signed_url(
     """
     Get a single presigned URL for a private S3 object.
     """
-    del current_user
     if expires < 60 or expires > 86400:
         raise AppError(ErrorCode.INVALID_EXPIRES_RANGE)
 
     from src.api.routes import upload as upload_route
 
-    storage = await upload_route.get_or_init_storage()
+    if "\\" in key or any(part in (".", "..", "") for part in key.split("/")):
+        return SignedUrlItem(key=key, error="File not found")
     base_url = upload_route._get_base_url(request)
+    if key.startswith(
+        ("cua_screenshots/", "tool_binaries/")
+    ) and await upload_route._file_record_storage.is_private_key(key):
+        try:
+            await upload_route._file_record_storage.require_private_access(key, current_user.sub)
+            return SignedUrlItem(key=key, url=f"{base_url}/api/upload/file/{key}")
+        except AppError:
+            return SignedUrlItem(key=key, error="File not found")
+    storage = await upload_route.get_or_init_storage()
 
     try:
         if storage.is_local:

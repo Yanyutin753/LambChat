@@ -92,5 +92,33 @@ async def test_materialize_forwards_trace_id_to_approval_event(
     assert dual_writer.events[0]["trace_id"] == "trace-9"
 
 
+async def test_materialize_persists_original_desktop_confirmation_context(monkeypatch, dual_writer):
+    from unittest.mock import AsyncMock
+
+    context = {"machine_id": "selected-mac", "operation_sha256": "original"}
+    snapshot = _snapshot_with_ask_human()
+    snapshot.tasks[0].interrupts[0].value.update(
+        origin="sandbox_confirm",
+        tool_call_id="cua-call",
+        confirmation_context=context,
+    )
+    create = AsyncMock(
+        return_value=SimpleNamespace(
+            id="a",
+            message="confirm",
+            type="form",
+            metadata={},
+        )
+    )
+    monkeypatch.setattr("src.api.routes.human.create_approval", create)
+    monkeypatch.setattr(
+        "src.infra.storage.mongodb.get_approval_storage",
+        lambda: SimpleNamespace(list_pending=_no_pending),
+    )
+    await materialize_ask_human_approvals(snapshot, session_id="s", run_id="r", user_id="u")
+    assert create.call_args.kwargs["metadata"]["confirmation_context"] == context
+    assert create.call_args.kwargs["metadata"]["tool_call_ids"] == ["cua-call"]
+
+
 async def _no_pending(**kwargs: Any) -> list:
     return []

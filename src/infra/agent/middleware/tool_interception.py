@@ -25,6 +25,7 @@ from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 
 from src.agents.core.node_utils import (
+    _download_image_as_data_url,
     _is_private_url,
     build_human_message,
     inline_image_attachments_as_data_urls,
@@ -241,10 +242,19 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
     2. read_file tool reading binary files → download and upload to S3, return file link
     """
 
-    def __init__(self, *, base_url: str = "", supports_vision: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        base_url: str = "",
+        supports_vision: bool = False,
+        user_id: str | None = None,
+        session_id: str | None = None,
+    ) -> None:
         super().__init__()
         self._base_url = base_url
         self._supports_vision = supports_vision
+        self._user_id = user_id
+        self._session_id = session_id
 
     async def awrap_model_call(
         self,
@@ -305,7 +315,34 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
                     "mime_type": mime,
                     "name": image.get("name") or message.name or "tool image",
                 }
-                if _is_private_url(url):
+                from src.infra.upload.file_record import FileRecordStorage
+
+                image_key = parsed.path.split("/api/upload/file/", 1)[1]
+                try:
+                    private_image = await FileRecordStorage().is_private_key(image_key)
+                except Exception:
+                    logger.warning("Tool image privacy metadata unavailable")
+                    continue
+                if private_image:
+                    if not self._user_id or not self._session_id:
+                        continue
+                    from src.infra.storage.s3.service import get_or_init_storage
+
+                    try:
+                        data_url = await _download_image_as_data_url(
+                            await get_or_init_storage(),
+                            parsed.path.split("/api/upload/file/", 1)[1],
+                            mime,
+                            private_user_id=self._user_id,
+                            private_session_id=self._session_id,
+                        )
+                    except Exception:
+                        logger.warning("Private tool image could not be authorized for model input")
+                        continue
+                    if not data_url:
+                        continue
+                    attachment = {**attachment, "data_url": data_url}
+                elif _is_private_url(url):
                     inlined = await inline_image_attachments_as_data_urls(
                         [attachment], base_url=base_url, force_data_url=True
                     )

@@ -353,7 +353,20 @@ async def _download_image_as_data_url(
     storage,
     key: object,
     mime_type: str,
+    *,
+    private_user_id: str | None = None,
+    private_session_id: str | None = None,
 ) -> str | None:
+    from posixpath import normpath
+
+    from src.infra.upload.file_record import FileRecordStorage
+
+    if await FileRecordStorage().is_private_key(normpath(str(key).replace("\\", "/")).lstrip("/")):
+        if not private_user_id or not private_session_id:
+            return None
+        await FileRecordStorage().require_private_access(
+            str(key), private_user_id, private_session_id
+        )
     max_bytes = get_image_download_max_bytes()
     spooled = SpooledTemporaryFile(
         max_size=IMAGE_DATA_URL_SPOOL_MAX_MEMORY_BYTES,
