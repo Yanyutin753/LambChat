@@ -261,3 +261,87 @@ def test_unexpected_exception_converges_structured(
 def test_cua_activate_in_ops_registry() -> None:
     assert "cua_activate" in cua_ops.CUA_OPS
     assert "cua_activate" in cua_ops._CUA_HANDLERS
+
+
+# ---------------------------------------------------------------------------
+# 2026-10-08 xiaoxin 真机回修:单键原生合成 / launch 裸名解析
+# ---------------------------------------------------------------------------
+
+
+def test_single_key_prefers_native_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Wayland 无 X11 时 pyautogui 不可用;单键(回车等)必须走 AT-SPI
+    原生合成——真机实测回车失败逼 agent 绕 URL 导航。"""
+    pressed: list[str] = []
+
+    class _NativeBackend(_FakeBackend):
+        def press_key(self, key: str) -> None:
+            pressed.append(key)
+
+    fake = _NativeBackend()
+    monkeypatch.setattr(cua_backend, "_BACKEND", fake)
+    monkeypatch.setattr(cua_backend, "_BACKEND_ERROR", None)
+    monkeypatch.setattr(cua_backend, "backend_platform", lambda: "fake")
+    cua_ops._OBSERVATIONS.clear()
+
+    def _no_pyautogui() -> Any:
+        raise AssertionError("native path must not touch pyautogui")
+
+    monkeypatch.setattr(cua_ops, "_pyautogui", _no_pyautogui)
+    result = cua_ops.handle_cua_op("cua_key", {"pid": 4242, "text": "return"})
+    assert result == {"ok": True, "strategy": "a11y-event", "key": "enter"}
+    assert pressed == ["enter"]
+
+
+def test_chord_key_falls_back_to_pyautogui(fake_backend: _FakeBackend) -> None:
+    """修饰键和弦没有原生通道,仍走 pyautogui。"""
+    pressed: list[str] = []
+
+    class _FakePyautogui:
+        def hotkey(self, *keys: str) -> None:
+            pressed.extend(keys)
+
+    import lambchat_sandbox.cua_ops as ops_mod
+
+    original = ops_mod._pyautogui
+    ops_mod._pyautogui = lambda: _FakePyautogui()  # type: ignore[assignment]
+    try:
+        result = cua_ops.handle_cua_op(
+            "cua_key", {"pid": 4242, "text": "l", "modifiers": "ctrl"}
+        )
+    finally:
+        ops_mod._pyautogui = original  # type: ignore[assignment]
+    assert result == {"ok": True}
+    assert "ctrl" in pressed and "l" in pressed
+
+
+def test_launch_resolves_bare_name_from_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    """裸名 app(firefox)按 PATH 解析,不再直接 launch_failed。"""
+    import shutil as shutil_mod
+
+    monkeypatch.setattr(
+        shutil_mod, "which", lambda name: f"/usr/bin/{name}" if name == "firefox" else None
+    )
+    import subprocess as subprocess_mod
+
+    class _FakeProc:
+        pid = 4242
+
+    monkeypatch.setattr(subprocess_mod, "Popen", lambda *a, **k: _FakeProc())
+    import lambchat_sandbox.cua_backend as cb
+
+    monkeypatch.setattr(cb, "backend_platform", lambda: "linux")
+    result = cua_ops.handle_cua_op("cua_launch", {"app": "firefox", "args": ["https://x"]})
+    assert result["ok"] is True
+    assert result["target"] == "/usr/bin/firefox"
+
+
+def test_type_reads_index_from_tool_target_shape(fake_backend: _FakeBackend) -> None:
+    """工具层把 index 放在 target.index(与 click/set_value 同形);daemon
+    只读顶层会让元素输入路径在真实链路上静默失效。"""
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    result = cua_ops.handle_cua_op(
+        "cua_type",
+        {"pid": 4242, "target": {"type": "element", "index": 2}, "text": "hi"},
+    )
+    assert result["method"] == "set_value"
+    assert fake_backend.set_values[0][1] == "hi"
