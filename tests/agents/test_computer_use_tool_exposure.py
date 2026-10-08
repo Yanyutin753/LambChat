@@ -2,6 +2,9 @@
 
 暴露链路:FastAgentContext.setup 注册(get_tools 只做 MCP 懒加载,不装配
 基础工具——漏调 setup 的测试会拿到空表,这是已知坑而非工具缺失)。
+所有支持本地沙箱的 agent 都必须暴露该工具:fast(直注册)、team(继承
+FastAgentContext)、search(自有 context,须单独注册)。quick 是纯 LLM
+无工具设计,不适用。
 """
 
 from __future__ import annotations
@@ -9,11 +12,15 @@ from __future__ import annotations
 import pytest
 
 from src.agents.fast_agent.context import FastAgentContext
+from src.agents.search_agent.context import SearchAgentContext
+
+CONTEXT_CLASSES = [FastAgentContext, SearchAgentContext]
 
 
 @pytest.mark.asyncio
-async def test_computer_use_exposed_inline_after_setup() -> None:
-    context = FastAgentContext(user_id="cua-exposure-test")
+@pytest.mark.parametrize("context_class", CONTEXT_CLASSES)
+async def test_computer_use_exposed_inline_after_setup(context_class) -> None:
+    context = context_class(user_id="cua-exposure-test")
     try:
         await context.setup()
         tools = await context.get_tools()

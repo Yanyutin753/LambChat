@@ -806,7 +806,10 @@ async def test_execute_document_parse_redispatches_image_only_result(
         client=_FakeClient([]),
     )
 
-    assert calls == ["spec.docx", "page-1.png", "page-2.png"]
+    # 两页图片的重派发是并发的，完成顺序取决于调度——只断言 docx 首遍
+    # 先行、两张图各重派发恰好一次，不钉死相对顺序（否则 CI 随机挂）
+    assert calls[:1] == ["spec.docx"]
+    assert sorted(calls[1:]) == ["page-1.png", "page-2.png"]
     assert result["engine"] == "mistral:mistral-ocr-latest+ocr:mistral"
     # 每页 OCR 文本紧跟其原图引用（保住 VLM 视觉兜底）
     assert "## Page 1 OCR 文本" in result["markdown"]
