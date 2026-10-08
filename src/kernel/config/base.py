@@ -86,7 +86,7 @@ class Settings(BaseSettings):
     LLM_RETRY_DELAY: float = 1.0
     LLM_REQUEST_TIMEOUT: float = 0.0  # 非流式完整响应总超时（秒；<=0 禁用）
     LLM_FIRST_EVENT_TIMEOUT: float = 30.0  # 流式首事件超时（秒；<=0 禁用）
-    TASK_RUN_WATCHDOG_TIMEOUT: float = 1800.0  # 任务 run 级 watchdog 总超时（秒；<=0 禁用）
+    TASK_RUN_WATCHDOG_TIMEOUT: float = 86400.0  # run 级 watchdog 总超时（秒；<=0 禁用）。纯墙钟不感知事件活跃度，须远大于健康长任务时长；真卡死由 stall watchdog（事件停滞检测）兜底
     LLM_STREAM_IDLE_TIMEOUT: float = 120.0  # 流式 chunk 空闲超时（秒；<=0 禁用）
     LLM_STREAM_GAP_WARN_TIMEOUT: float = (
         10.0  # 流式 chunk 间隔告警阈值（秒；<=0 禁用，仅告警不干预）
