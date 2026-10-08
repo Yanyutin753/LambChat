@@ -193,6 +193,8 @@ async def materialize_ask_human_approvals(
         }
         if resume_context:
             metadata["resume_context"] = resume_context
+        if isinstance(payload.get("confirmation_context"), dict):
+            metadata["confirmation_context"] = payload["confirmation_context"]
         if interrupt_id:
             metadata["interrupt_id"] = interrupt_id
         tool_call_id = payload.get("tool_call_id")
@@ -389,11 +391,15 @@ def build_hitl_resume_payload(
     sandbox_confirm_message = (
         str(approval.message) if approval_metadata.get("origin") == "sandbox_confirm" else None
     )
+    resume_value = {k: v for k, v in resume_value.items() if k != "confirmation_context"}
+    if isinstance(approval_metadata.get("confirmation_context"), dict):
+        resume_value["confirmation_context"] = approval_metadata["confirmation_context"]
     command_resume = {str(interrupt_id): resume_value} if interrupt_id else resume_value
     return {
         "approval_id": approval.id,
         "resume_attempt_id": resume_attempt_id,
         "resume_value": command_resume,
+        "confirmation_context": approval_metadata.get("confirmation_context"),
         **({"sandbox_confirm_message": sandbox_confirm_message} if sandbox_confirm_message else {}),
         "goal_started_at": resume_context.get("goal_started_at"),
         "run_started_at": resume_context.get("run_started_at"),

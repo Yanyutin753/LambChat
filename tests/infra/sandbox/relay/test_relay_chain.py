@@ -191,32 +191,28 @@ async def test_result_from_wrong_machine_is_rejected(wired, monkeypatch):
     await task
 
 
-async def test_result_without_machine_id_still_accepted(wired, monkeypatch):
-    """兼容窗口：旧 daemon 不带 machine_id 回传——绑定校验跳过（放行）。"""
-    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 2)
-    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_EXEC_TIMEOUT", 5)
+async def test_result_without_machine_id_is_rejected_for_selected_machine(wired, monkeypatch):
+    """Legacy identity must not bypass an explicitly selected machine."""
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 0.05)
+    monkeypatch.setattr(dispatch_module, "_BLPOP_TIMEOUT", 0.01)
 
-    async def legacy_daemon():
+    async def wrong_daemon():
         request = await _consume_tool_call_frame(wired, _FakeRegistry("mac1"))
-        await sandbox_route.sandbox_result(
-            call_id=request["call_id"],
-            request=_FakeRequest(),
-            body=sandbox_route.SandboxResultRequest(stage="ack"),
-            machine_id="",  # 旧 daemon：不携带机器标识
-            user=_fake_user(),
-        )
-        await sandbox_route.sandbox_result(
-            call_id=request["call_id"],
-            request=_FakeRequest(),
-            body=sandbox_route.SandboxResultRequest(stage="done", status="ok"),
-            machine_id="",
-            user=_fake_user(),
-        )
+        with pytest.raises(AppError) as exc:
+            await sandbox_route.sandbox_result(
+                call_id=request["call_id"],
+                request=_FakeRequest(),
+                body=sandbox_route.SandboxResultRequest(stage="ack"),
+                machine_id="",
+                user=_fake_user(),
+            )
+        assert exc.value.error_code == ErrorCode.SANDBOX_RESULT_MISMATCH
 
-    task = asyncio.create_task(legacy_daemon())
-    result = await dispatch_local_call("u1", "exec", {"command": "ls"}, machine_id="mac1")
+    task = asyncio.create_task(wrong_daemon())
+    with pytest.raises(AppError) as exc:
+        await dispatch_local_call("u1", "exec", {}, machine_id="mac1")
     await task
-    assert result["status"] == "ok"
+    assert exc.value.error_code == ErrorCode.SANDBOX_TIMEOUT
 
 
 async def test_legacy_set_result_still_readable_during_rolling_deploy(wired, monkeypatch):
@@ -242,6 +238,7 @@ async def test_legacy_set_result_still_readable_during_rolling_deploy(wired, mon
 async def test_results_endpoint_writes_queue_with_expiry(wired):
     """results 端点写入形态：RPUSH 队列（ack/done 两阶段依次入队）+ EXPIRE。"""
     wired.kv["sandbox:callassign:call-x"] = "mac1"
+    wired.kv["sandbox:callowner:call-x"] = "u1"
     await sandbox_route.sandbox_result(
         call_id="call-x",
         request=_FakeRequest(),

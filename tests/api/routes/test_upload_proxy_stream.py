@@ -45,6 +45,9 @@ class _FakeS3Storage:
 
 
 class _FakeRecordStorage:
+    async def is_private_key(self, key: str) -> bool:
+        return False
+
     def __init__(self, record: dict | None) -> None:
         self._record = record
 

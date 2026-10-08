@@ -129,17 +129,17 @@ def pick_window(pid: int, window_id: int | None) -> tuple[Any, dict[str, Any]]:
     if window_id is not None:
         if 0 <= window_id < len(rows):
             row = rows[window_id]
-            return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds")}
+            return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds", "focused")}
         raise KeyError(f"window index {window_id} out of range")
     for row in rows:
         if row["focused"]:
-            return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds")}
+            return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds", "focused")}
     for row in rows:
         if row["main"]:
-            return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds")}
+            return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds", "focused")}
     if rows:
         row = rows[0]
-        return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds")}
+        return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds", "focused")}
     raise KeyError("app has no accessible windows")
 
 
@@ -161,7 +161,10 @@ def row_of(element: Any) -> dict[str, Any]:
         actions = list(element.getActions())
     except Exception:  # noqa: BLE001
         actions = []
-    value = _scalar(element, "AXValue")
+    role = _scalar(element, "AXRole")
+    subrole = _scalar(element, "AXSubrole")
+    protected = subrole == "AXSecureTextField" or role == "AXSecureTextField"
+    value = None if protected else _scalar(element, "AXValue")
     return {
         "kind": _scalar(element, "AXRole"),
         "title": _scalar(element, "AXTitle"),

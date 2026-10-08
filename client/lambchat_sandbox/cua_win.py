@@ -28,14 +28,23 @@ def ax_trusted() -> bool:
     return True
 
 
+def _foreground_hwnd() -> int | None:
+    import ctypes
+
+    getter = ctypes.windll.user32.GetForegroundWindow  # type: ignore[attr-defined]
+    getter.restype = ctypes.c_void_p
+    return getter() or None
+
+
 def frontmost_pid() -> int | None:
     import ctypes
 
     user32 = ctypes.windll.user32  # type: ignore[attr-defined]
-    hwnd = user32.GetForegroundWindow()
+    hwnd = _foreground_hwnd()
     if not hwnd:
         return None
     pid = ctypes.c_uint32()
+    user32.GetWindowThreadProcessId.argtypes = (ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint32))
     user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
     return pid.value or None
 
@@ -100,6 +109,10 @@ def windows(pid: int) -> list[dict[str, Any]]:
     # 不到目标进程(192.168.1.2 Win10 实测 0 窗口,而全量列表里窗口明明
     # 存在)——窗口在那,过滤坏,就自己过滤。
     rows: list[dict[str, Any]] = []
+    try:
+        foreground = _foreground_hwnd()
+    except Exception:  # noqa: BLE001 - Missing native focus must deny screenshot capture.
+        foreground = None
     for element in _desktop_windows():
         if _window_pid(element) != pid:
             continue
@@ -109,13 +122,18 @@ def windows(pid: int) -> list[dict[str, Any]]:
             bounds = [float(rect.left), float(rect.top), float(rect.width()), float(rect.height())]
         except Exception:  # noqa: BLE001
             bounds = None
+        try:
+            hwnd = getattr(element, "handle", None) or getattr(element.element_info, "handle", None)
+            focused = foreground is not None and hwnd == foreground
+        except Exception:  # noqa: BLE001 - UIA native handle may be unavailable.
+            focused = False
         rows.append(
             {
                 "window_id": len(rows),
                 "title": getattr(element.element_info, "name", "") or "",
                 "subrole": None,
                 "main": len(rows) == 0,
-                "focused": False,
+                "focused": focused,
                 "bounds": bounds,
                 "handle": element,
             }
@@ -128,11 +146,14 @@ def pick_window(pid: int, window_id: int | None) -> tuple[Any, dict[str, Any]]:
     if window_id is not None:
         if 0 <= window_id < len(rows):
             row = rows[window_id]
-            return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds")}
+            return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds", "focused")}
         raise KeyError(f"window index {window_id} out of range")
+    for row in rows:
+        if row["focused"]:
+            return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds", "focused")}
     if rows:
         row = rows[0]
-        return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds")}
+        return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds", "focused")}
     raise KeyError("app has no accessible windows")
 
 
@@ -244,6 +265,11 @@ def type_text(text: str) -> None:
 
 
 def _read_value(element: Any) -> str | None:
+    try:
+        if element.element_info.element.CurrentIsPassword is not False:
+            return None
+    except Exception:  # noqa: BLE001 - Unknown protection state must not expose values.
+        return None
     # WinForms/WPF 控件常无 Legacy patterns:legacy → ValuePattern 双路径读
     try:
         legacy = element.legacy_properties()

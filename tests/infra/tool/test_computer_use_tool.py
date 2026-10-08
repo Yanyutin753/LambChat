@@ -12,14 +12,133 @@ from src.infra.tool import computer_use_tool as cut
 from src.kernel.errors import AppError, ErrorCode
 
 
-def _runtime(user_id: str = "u1") -> Any:
-    return SimpleNamespace(config={"configurable": {"context": SimpleNamespace(user_id=user_id)}})
+def _runtime(
+    user_id: str = "u1", *, machine: str | None = "mac-staging-cua", platform="local"
+) -> Any:
+    return SimpleNamespace(
+        config={
+            "configurable": {
+                "context": SimpleNamespace(user_id=user_id),
+                "session_id": "session-1",
+                "computer_use_context": {"platform": platform, "machine_id": machine},
+            }
+        }
+    )
+
+
+@pytest.fixture(autouse=True)
+def unattended_policy(monkeypatch):
+    async def lookup(user_id, machine_id=None):
+        return "none"
+
+    monkeypatch.setattr(cut, "_lookup_confirm_policy", lookup, raising=False)
 
 
 async def _call(**kwargs: Any) -> str:
     merged = {"runtime": _runtime()}
     merged.update(kwargs)
     return await cut.computer_use.ainvoke(merged)
+
+
+async def test_cua_uses_trusted_selected_machine_without_model_argument(monkeypatch):
+    async def dispatch(user_id, op, payload, *, machine_id=None):
+        return {"result": {"machine": machine_id}}
+
+    monkeypatch.setattr(cut, "dispatch_local_call", dispatch)
+    result = json.loads(await _call(action="apps", runtime=_runtime(machine="selected-mac")))
+    assert result["machine"] == "selected-mac"
+
+
+async def test_model_cannot_override_selected_machine(monkeypatch):
+    async def dispatch(*args, **kwargs):
+        pytest.fail("a different machine must never receive the call")
+
+    monkeypatch.setattr(cut, "dispatch_local_call", dispatch)
+    result = await _call(
+        action="apps", machine_id="other-windows", runtime=_runtime(machine="selected-mac")
+    )
+    assert result.startswith("ERROR machine_mismatch")
+
+
+async def test_selected_machine_is_not_replaced_by_account_default():
+    assert await cut.resolve_computer_use_context(
+        "u1",
+        {
+            "sandbox": "local",
+            "sandbox_machine_id": "selected-windows",
+        },
+    ) == {"platform": "local", "machine_id": "selected-windows"}
+
+
+async def test_automatic_selection_cannot_choose_a_cua_machine():
+    assert await cut.resolve_computer_use_context("u1", {"sandbox": "local"}) == {
+        "platform": "local",
+        "machine_id": None,
+    }
+
+
+async def test_resuming_on_different_machine_is_denied_even_if_new_policy_none(monkeypatch):
+    runtime = _runtime(machine="new-machine")
+    runtime.tool_call_id = "call-1"
+    runtime.config["configurable"]["computer_use_context"]["resume"] = {
+        "tool_call_id": "call-1",
+        "approved": True,
+        "confirmation_context": {"machine_id": "old-machine", "operation_sha256": "old"},
+    }
+
+    async def dispatch(*args, **kwargs):
+        pytest.fail("old approval must not reach a new machine with policy none")
+
+    monkeypatch.setattr(cut, "dispatch_local_call", dispatch)
+    assert "declined_by_user" in await _call(action="apps", runtime=runtime)
+
+
+async def test_cua_dispatches_trusted_session_scope(monkeypatch):
+    async def dispatch(user_id, op, payload, *, machine_id=None):
+        assert payload["session_id"] == "session-1"
+        assert machine_id == "mac-staging-cua"
+        return {"result": {"ok": True}}
+
+    monkeypatch.setattr(cut, "dispatch_local_call", dispatch)
+    assert json.loads(await _call(action="apps"))["ok"] is True
+
+
+async def test_commands_policy_requires_confirmation_for_screenshots(monkeypatch):
+    async def lookup(*args):
+        return "commands"
+
+    async def dispatch(*args, **kwargs):
+        pytest.fail("a screenshot cannot bypass the commands confirmation policy")
+
+    monkeypatch.setattr(cut, "_lookup_confirm_policy", lookup)
+    monkeypatch.setattr(cut, "dispatch_local_call", dispatch)
+    assert "declined_by_user" in await _call(action="state", pid=42, include_screenshot=True)
+
+
+@pytest.mark.parametrize(
+    "runtime", [_runtime(machine=None), _runtime(platform="cloud"), SimpleNamespace(config={})]
+)
+async def test_missing_local_selection_never_falls_back_to_account_machine(monkeypatch, runtime):
+    async def dispatch(*args, **kwargs):
+        pytest.fail("no dispatch without trusted local machine selection")
+
+    monkeypatch.setattr(cut, "dispatch_local_call", dispatch)
+    result = await _call(action="apps", runtime=runtime)
+    assert result.startswith("ERROR ")
+
+
+async def test_cua_fails_closed_when_confirmation_required_without_interrupt(monkeypatch):
+    async def lookup(user_id, machine_id=None):
+        assert machine_id == "mac-staging-cua"
+        return "all"
+
+    async def dispatch(*args, **kwargs):
+        pytest.fail("no desktop access without approval")
+
+    monkeypatch.setattr(cut, "_lookup_confirm_policy", lookup, raising=False)
+    monkeypatch.setattr(cut, "dispatch_local_call", dispatch)
+    result = await _call(action="state", pid=42, include_screenshot=True)
+    assert "declined_by_user" in result
 
 
 @pytest.mark.asyncio
@@ -95,7 +214,12 @@ async def test_state_preserves_window_metadata_and_screenshot(
             }
         }
 
-    async def _upload(result: dict, base_url: str) -> None:
+    async def _upload(
+        result: dict, base_url: str, *, private=False, private_user_id=None, private_session_id=None
+    ) -> None:
+        assert private is True
+        assert private_user_id == "u1"
+        assert private_session_id == "session-1"
         block = result["blocks"][0]
         assert block["base64"] == "abcd"
         assert block["mime_type"] == "image/jpeg"
@@ -119,6 +243,7 @@ async def test_apps_preserves_structured_list(monkeypatch: pytest.MonkeyPatch) -
 
     monkeypatch.setattr(cut, "dispatch_local_call", _dispatch)
     assert json.loads(await _call(action="apps")) == {
+        "machine_id": "mac-staging-cua",
         "apps": [{"pid": 1, "name": "Notes", "active": True}]
     }
 
