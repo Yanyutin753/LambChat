@@ -184,3 +184,57 @@ def test_windows_text_preserves_supplementary_unicode(monkeypatch):
     monkeypatch.setitem(sys.modules, "pywinauto.keyboard", keyboard)
     cua_win.type_text("😀𠀀")
     assert calls == ["\ud83d\ude00\ud840\udc00"]
+
+
+@pytest.mark.parametrize("protected", [True, None])
+def test_windows_protected_or_unknown_field_does_not_read_value(protected):
+    from types import SimpleNamespace
+
+    class Element:
+        element_info = SimpleNamespace(element=SimpleNamespace(CurrentIsPassword=protected))
+
+        def legacy_properties(self):
+            pytest.fail("protected or unknown value must never be read")
+
+    assert cua_win._read_value(Element()) is None
+
+
+def test_regular_windows_field_retains_its_value():
+    from types import SimpleNamespace
+
+    element = SimpleNamespace(
+        element_info=SimpleNamespace(element=SimpleNamespace(CurrentIsPassword=False)),
+        legacy_properties=lambda: {"value": "ordinary"},
+    )
+    assert cua_win._read_value(element) == "ordinary"
+
+
+@pytest.mark.parametrize("foreground", [22, None])
+@pytest.mark.parametrize("handle_source", ["wrapper", "element_info"])
+def test_windows_selection_uses_native_foreground_handle(monkeypatch, foreground, handle_source):
+    import ctypes
+    from types import SimpleNamespace
+
+    def get_foreground():
+        return foreground
+
+    monkeypatch.setattr(
+        ctypes,
+        "windll",
+        SimpleNamespace(user32=SimpleNamespace(GetForegroundWindow=get_foreground)),
+        raising=False,
+    )
+    rect = SimpleNamespace(left=0, top=0, width=lambda: 100, height=lambda: 100)
+    handles = [
+        SimpleNamespace(
+            process_id=lambda: 7,
+            handle=hwnd if handle_source == "wrapper" else None,
+            element_info=SimpleNamespace(name=str(hwnd), rectangle=rect, handle=hwnd),
+        )
+        for hwnd in (11, 22)
+    ]
+    monkeypatch.setattr(cua_win, "_desktop_windows", lambda: handles)
+    element, info = cua_win.pick_window(7, None)
+    assert element is handles[1 if foreground else 0]
+    assert info["focused"] is (foreground is not None)
+    assert get_foreground.restype is ctypes.c_void_p

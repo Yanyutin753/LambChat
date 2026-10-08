@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import math
+import re
 import time
 import uuid
 from collections.abc import AsyncIterator
@@ -11,7 +13,11 @@ from redis.exceptions import ResponseError
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.sandbox.relay import _frames as _frames_codec
-from src.infra.sandbox.relay.registry import SandboxClientRegistry
+from src.infra.sandbox.relay.registry import (
+    SandboxClientRegistry,
+    parse_daemon_version,
+    version_tuple,
+)
 from src.infra.storage.redis import get_binary_redis_client, get_redis_client
 from src.kernel.config import settings
 from src.kernel.errors import AppError, ErrorCode
@@ -53,10 +59,22 @@ _BLPOP_TIMEOUT = 1.0
 
 #: 调用-机器绑定键：dispatch 入队前写目标机，results 端点校验回传者。
 _ASSIGN_PREFIX = "sandbox:callassign"
+_CUA_MIN_DAEMON_VERSION = "2.14.4"
 
 
 def _assign_key(call_id: str) -> str:
     return f"{_ASSIGN_PREFIX}:{call_id}"
+
+
+def _owner_key(call_id: str) -> str:
+    return f"sandbox:callowner:{call_id}"
+
+
+async def _bind_call(redis, call_id: str, user_id: str, target: str, timeout: float) -> None:
+    # Keep the target string readable by old replicas; unscoped old calls fail closed.
+    ttl = max(1, math.ceil(timeout) + 10)
+    await redis.set(_assign_key(call_id), target, ex=ttl)
+    await redis.set(_owner_key(call_id), user_id, ex=ttl)
 
 
 def _redis():
@@ -154,6 +172,11 @@ async def dispatch_local_call(
     → legacy）。显式指定且该机离线时报 SANDBOX_MACHINE_OFFLINE（区别于无任何
     机器在线的 DAEMON_OFFLINE，前端据此提示换机）。
     """
+    if op.startswith("cua_") and (not machine_id or not machine_id.strip()):
+        raise AppError(
+            ErrorCode.BAD_REQUEST,
+            message="Computer control requires an explicitly selected machine",
+        )
     registry = _registry()
     if machine_id:
         target = await registry.resolve_target(user_id, machine_id)
@@ -163,11 +186,22 @@ async def dispatch_local_call(
         target = await registry.resolve_target(user_id)
         if target is None:
             raise AppError(ErrorCode.DAEMON_OFFLINE)
+    if op.startswith("cua_"):
+        version = parse_daemon_version(await registry.machine_value(user_id, target))
+        # Older daemons lack session-bound observations and password-field protection.
+        if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) or version_tuple(
+            version
+        ) < version_tuple(_CUA_MIN_DAEMON_VERSION):
+            raise AppError(
+                ErrorCode.DAEMON_VERSION_UNSUPPORTED,
+                args={"version": version or "unknown", "min": _CUA_MIN_DAEMON_VERSION},
+            )
     exec_timeout = timeout if timeout is not None else float(settings.SANDBOX_LOCAL_EXEC_TIMEOUT)
     call_id = uuid.uuid4().hex
     req = {
         "call_id": call_id,
         "user_id": user_id,
+        "machine_id": target,
         "op": op,
         "payload": payload,
         "timeout": exec_timeout,
@@ -175,11 +209,7 @@ async def dispatch_local_call(
     }
     redis = _redis()
     resp_key = f"sandbox:resp:{call_id}"
-    # 调用-机器绑定：results 端点据此拒绝同用户其他机器冒答（call_id 难猜，
-    # 但绑定后模型上无冒答空间）；无绑定键的旧调用（兼容窗口）跳过校验
-    await redis.set(_assign_key(call_id), target, ex=120)
     repusher = _AckRepusher(redis, registry.queue_key(user_id, target), req)
-    await repusher.push()
 
     start = time.monotonic()
     acked = False
@@ -189,6 +219,8 @@ async def dispatch_local_call(
     exec_deadline = start + exec_timeout
     next_repush = repusher.next_due()
     try:
+        await _bind_call(redis, call_id, user_id, target, exec_timeout)
+        await repusher.push()
         while time.monotonic() < exec_deadline:
             if not acked and time.monotonic() >= next_repush:
                 await repusher.push()
@@ -236,11 +268,11 @@ async def dispatch_local_call(
         raise AppError(ErrorCode.SANDBOX_TIMEOUT, args={"seconds": int(exec_timeout)})
     finally:
         _log_roundtrip(op, call_id, outcome, start, ack_at, max(repusher.push_count - 1, 0))
-        try:
-            await redis.delete(resp_key)
-            await redis.delete(_assign_key(call_id))
-        except Exception:  # noqa: BLE001 - 清理尽力而为
-            pass
+        for key in (resp_key, _assign_key(call_id), _owner_key(call_id)):
+            try:
+                await redis.delete(key)
+            except Exception:  # noqa: BLE001 - 清理尽力而为
+                pass
         await repusher.cleanup()
 
 
@@ -284,6 +316,7 @@ async def dispatch_local_stream(
     req = {
         "call_id": call_id,
         "user_id": user_id,
+        "machine_id": target,
         "op": op,
         "payload": payload,
         "timeout": exec_timeout,
@@ -293,7 +326,6 @@ async def dispatch_local_stream(
     stream_key = _stream_key(user_id, call_id)
     resp_key = f"sandbox:resp:{call_id}"
     repusher = _AckRepusher(redis, registry.queue_key(user_id, target), req)
-    await repusher.push()
 
     start = time.monotonic()
     acked = False
@@ -303,6 +335,8 @@ async def dispatch_local_stream(
     exec_deadline = start + exec_timeout
     next_repush = repusher.next_due()
     try:
+        await _bind_call(redis, call_id, user_id, target, exec_timeout)
+        await repusher.push()
         while time.monotonic() < exec_deadline:
             if not acked and time.monotonic() >= next_repush:
                 await repusher.push()
@@ -364,7 +398,7 @@ async def dispatch_local_stream(
         raise AppError(ErrorCode.SANDBOX_TIMEOUT, args={"seconds": int(exec_timeout)})
     finally:
         _log_roundtrip(op, call_id, outcome, start, ack_at, max(repusher.push_count - 1, 0))
-        for key in (resp_key, stream_key):
+        for key in (resp_key, stream_key, _assign_key(call_id), _owner_key(call_id)):
             try:
                 await redis.delete(key)
             except Exception:  # noqa: BLE001 - 清理尽力而为
@@ -410,6 +444,7 @@ async def dispatch_local_stream_upload(
     req = {
         "call_id": call_id,
         "user_id": user_id,
+        "machine_id": target,
         "op": "fs_upload_stream",
         "payload": payload,
         "timeout": exec_timeout,
@@ -418,8 +453,6 @@ async def dispatch_local_stream_upload(
     redis = _binary_redis()  # upblob list 是裸二进制帧（req/resp 均为 JSON，bytes 兼容）
     blob_key = _upblob_key(user_id, call_id)
     resp_key = f"sandbox:resp:{call_id}"
-    await redis.rpush(registry.queue_key(user_id, target), json.dumps(req))
-
     start = time.monotonic()
     acked = False
     ack_at: float | None = None
@@ -453,6 +486,8 @@ async def dispatch_local_stream_upload(
         await redis.expire(blob_key, 120)
 
     try:
+        await _bind_call(redis, call_id, user_id, target, exec_timeout)
+        await redis.rpush(registry.queue_key(user_id, target), json.dumps(req))
         deadline = start + exec_timeout
         await _push_frame(
             await run_long_blocking_io(
@@ -508,7 +543,7 @@ async def dispatch_local_stream_upload(
         outcome = "done"
     finally:
         _log_roundtrip("fs_upload_stream", call_id, outcome, start, ack_at, 0)
-        for key in (resp_key, blob_key):
+        for key in (resp_key, blob_key, _assign_key(call_id), _owner_key(call_id)):
             try:
                 await redis.delete(key)
             except Exception:  # noqa: BLE001 - 清理尽力而为

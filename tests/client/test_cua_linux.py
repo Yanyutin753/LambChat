@@ -180,3 +180,55 @@ def test_normalized_special_keys_reach_linux_native_backend(monkeypatch, text, s
     monkeypatch.setattr(cua_ops, "_pyautogui", lambda: pytest.fail("native key must work"))
     cua_ops._op_key({"text": text})
     assert events == [(0, symbol, 2)]
+
+
+def test_linux_password_field_does_not_read_text(monkeypatch):
+    monkeypatch.setattr(cua_linux, "_pyatspi", lambda: SimpleNamespace(ROLE_PASSWORD_TEXT=77))
+
+    class Element:
+        def getRole(self):  # noqa: N802 - Native AT-SPI interface.
+            return 77
+
+        def queryText(self):  # noqa: N802 - Native AT-SPI interface.
+            pytest.fail("password text must never be read")
+
+    assert cua_linux._text_value(Element()) is None
+
+
+def test_regular_linux_field_retains_its_value(monkeypatch):
+    monkeypatch.setattr(cua_linux, "_pyatspi", lambda: SimpleNamespace(ROLE_PASSWORD_TEXT=77))
+    element = SimpleNamespace(
+        getRole=lambda: 1,
+        queryText=lambda: SimpleNamespace(characterCount=8, getText=lambda a, b: "ordinary"),
+    )
+    assert cua_linux._text_value(element) == "ordinary"
+
+
+@pytest.mark.parametrize("active", [True, None])
+def test_linux_selection_uses_native_active_state(monkeypatch, active):
+    def state(index):
+        if active is None:
+            raise RuntimeError("focus unavailable")
+        return SimpleNamespace(contains=lambda flag: flag == 77 and index == 1)
+
+    handles = [
+        SimpleNamespace(
+            name=str(i),
+            getRoleName=lambda: "frame",
+            getState=lambda i=i: state(i),
+            get_extents=lambda coord: SimpleNamespace(x=0, y=0, width=100, height=100),
+        )
+        for i in range(2)
+    ]
+    app = SimpleNamespace(
+        get_process_id=lambda: 7, childCount=2, getChildAtIndex=lambda i: handles[i]
+    )
+    monkeypatch.setattr(
+        cua_linux, "_desktop", lambda: SimpleNamespace(childCount=1, getChildAtIndex=lambda i: app)
+    )
+    monkeypatch.setattr(
+        cua_linux, "_pyatspi", lambda: SimpleNamespace(STATE_ACTIVE=77, DESKTOP_COORDS=0)
+    )
+    element, info = cua_linux.pick_window(7, None)
+    assert element is handles[1 if active else 0]
+    assert info["focused"] is (active is not None)

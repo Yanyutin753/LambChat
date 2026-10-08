@@ -18,8 +18,11 @@ from __future__ import annotations
 
 import base64
 import io
+import math
 import os
 import time
+from contextvars import ContextVar
+from threading import Lock
 from typing import Any
 
 from lambchat_sandbox import cua_backend
@@ -226,36 +229,42 @@ class _Observed:
         self.window = window
 
 
-_OBSERVATIONS: dict[str, _Observed] = {}
+_OBSERVATIONS: dict[tuple[str | None, int, int | None], _Observed] = {}
+_OBSERVATION_SESSION: ContextVar[str | None] = ContextVar("cua_observation_session", default=None)
+_OBSERVATION_LOCK = Lock()
 
 
-def _cache_key(pid: int, window_id: int | None) -> str:
-    return f"{pid}:{window_id if window_id is not None else 'main'}"
+def _cache_key(pid: int, window_id: int | None) -> tuple[str | None, int, int | None]:
+    return (_OBSERVATION_SESSION.get(), pid, window_id)
 
 
-def _drop(key: str) -> None:
+def _drop(key: tuple[str | None, int, int | None]) -> None:
     _OBSERVATIONS.pop(key, None)
 
 
 def _store_observation(pid: int, window_id: int | None, observed: _Observed) -> None:
-    key = _cache_key(pid, window_id)
-    now = time.monotonic()
-    for stale_key in [k for k, v in _OBSERVATIONS.items() if now - v.ts > ELEMENT_CACHE_TTL]:
-        _drop(stale_key)
-    while len(_OBSERVATIONS) >= ELEMENT_CACHE_MAX_APPS:
-        oldest = min(_OBSERVATIONS, key=lambda k: _OBSERVATIONS[k].ts)
-        _drop(oldest)
-    _drop(key)
-    _OBSERVATIONS[key] = observed
+    with _OBSERVATION_LOCK:
+        key = _cache_key(pid, window_id)
+        now = time.monotonic()
+        for stale_key in [k for k, v in _OBSERVATIONS.items() if now - v.ts > ELEMENT_CACHE_TTL]:
+            _drop(stale_key)
+        while len(_OBSERVATIONS) >= ELEMENT_CACHE_MAX_APPS:
+            oldest = min(_OBSERVATIONS, key=lambda k: _OBSERVATIONS[k].ts)
+            _drop(oldest)
+        _drop(key)
+        _OBSERVATIONS[key] = observed
 
 
 def _resolve_index(pid: int, window_id: int | None, index: Any) -> Any:
-    if window_id is not None:
-        observed = _OBSERVATIONS.get(_cache_key(pid, window_id))
-    else:
-        # 索引寻址该应用**最近一次**观察(未显式钉窗口时),与 ZCode 语义一致
-        candidates = [v for k, v in _OBSERVATIONS.items() if k.startswith(f"{pid}:")]
-        observed = max(candidates, key=lambda v: v.ts) if candidates else None
+    with _OBSERVATION_LOCK:
+        if window_id is not None:
+            observed = _OBSERVATIONS.get(_cache_key(pid, window_id))
+        else:
+            # 索引寻址该应用**最近一次**观察(未显式钉窗口时),与 ZCode 语义一致
+            candidates = [
+                v for k, v in _OBSERVATIONS.items() if k[:2] == (_OBSERVATION_SESSION.get(), pid)
+            ]
+            observed = max(candidates, key=lambda v: v.ts) if candidates else None
     if observed is None or time.monotonic() - observed.ts > ELEMENT_CACHE_TTL:
         raise CuaOpError("stale_state", "observe again with cua_state before acting")
     if not isinstance(index, int) or index < 0 or index >= len(observed.elements):
@@ -367,6 +376,19 @@ def _op_state(payload: dict) -> dict:
     }
     if payload.get("include_screenshot"):
         try:
+            # ponytail: Foreground regions may include overlays; window isolation needs native capture.
+            _require_foreground(pid)
+            try:
+                _, active_window = backend.pick_window(pid, None)
+            except Exception as exc:  # noqa: BLE001 - Preserve the tree when focus is unknown.
+                raise CuaOpError("foreground_required", "active window unavailable") from exc
+            if (
+                active_window.get("focused") is not True
+                or resolved_window_id is None
+                or active_window.get("window_id") != resolved_window_id
+                or active_window.get("bounds") != window_info.get("bounds")
+            ):
+                raise CuaOpError("foreground_required", "target window is not the active window")
             result["screenshot"] = _capture(window_info.get("bounds"))
         except CuaOpError as exc:
             result["screenshot"] = {"error": exc.code, "detail": exc.detail}
@@ -379,6 +401,14 @@ def _op_state(payload: dict) -> dict:
 
 
 def _capture(bounds: list[float] | None) -> dict[str, Any]:
+    if (
+        not isinstance(bounds, (list, tuple))
+        or len(bounds) != 4
+        or any(not isinstance(v, (int, float)) or not math.isfinite(v) for v in bounds)
+        or bounds[2] < 1
+        or bounds[3] < 1
+    ):
+        raise CuaOpError("screenshot_failed", "target window bounds unavailable or invalid")
     backend = _backend()  # 平台可用性预检
     if _is_mac():
         import Quartz
@@ -389,7 +419,7 @@ def _capture(bounds: list[float] | None) -> dict[str, Any]:
         native_capture = getattr(backend, "screenshot", None)
         if callable(native_capture):
             image = native_capture(bounds)
-        elif bounds:
+        else:
             region = (
                 int(bounds[0]),
                 int(bounds[1]),
@@ -397,8 +427,6 @@ def _capture(bounds: list[float] | None) -> dict[str, Any]:
                 max(1, int(bounds[3])),
             )
             image = _pyautogui().screenshot(region=region)
-        else:
-            image = _pyautogui().screenshot()
     except Exception as exc:  # noqa: BLE001
         raise CuaOpError("screenshot_failed", str(exc)) from exc
     if image is None:
@@ -771,7 +799,7 @@ def _op_status(payload: dict) -> dict:
     message = None
     if payload.get("probe_screen"):
         try:
-            _capture(None)
+            _capture([0, 0, 10, 10])
             screen_state = "granted"
         except CuaOpError as exc:
             screen_state = "denied" if exc.code == "screen_recording_denied" else "unknown"
@@ -823,9 +851,16 @@ def handle_cua_op(op: str, payload: dict) -> dict:
     handler = _CUA_HANDLERS.get(op)
     if handler is None:
         raise ValueError(f"unknown cua op: {op}")
+    payload = payload or {}
+    session_id = payload.get("session_id")
+    if session_id is not None and (not isinstance(session_id, str) or not session_id):
+        return {"error": "invalid_arguments", "detail": "session_id must be nonempty text"}
+    token = _OBSERVATION_SESSION.set(session_id)
     try:
-        return handler(payload or {})
+        return handler(payload)
     except CuaOpError as exc:
         return {"error": exc.code, "detail": exc.detail}
     except Exception as exc:  # noqa: BLE001 - COMError 等三方异常同样结构化
         return {"error": "op_failed", "detail": f"{type(exc).__name__}: {exc}"}
+    finally:
+        _OBSERVATION_SESSION.reset(token)

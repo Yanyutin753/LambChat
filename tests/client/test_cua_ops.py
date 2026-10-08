@@ -60,7 +60,12 @@ class _FakeBackend:
         assert pid == 4242
         if window_id is not None and window_id != 0:
             raise KeyError("window index out of range")
-        return self.window, {"window_id": 0, "title": "Main", "bounds": [10.0, 20.0, 800.0, 600.0]}
+        return self.window, {
+            "window_id": 0,
+            "title": "Main",
+            "bounds": [10.0, 20.0, 800.0, 600.0],
+            "focused": True,
+        }
 
     def children(self, element: Any) -> list[Any]:
         return element.children
@@ -111,7 +116,7 @@ def test_state_walks_tree_and_stores_indices(fake_backend: _FakeBackend) -> None
     assert result["element_count"] == 3  # 窗口 + 按钮 + 输入框
     assert "[0] AXWindow 'Main'" in result["state"]
     assert "[1] AXButton '确定'" in result["state"]
-    observed = cua_ops._OBSERVATIONS["4242:0"]
+    observed = cua_ops._OBSERVATIONS[(None, 4242, 0)]
     assert len(observed.elements) == 3
 
 
@@ -418,7 +423,7 @@ def test_macos_capture_checks_real_screen_recording_permission(
         sys.modules, "Quartz", SimpleNamespace(CGPreflightScreenCaptureAccess=lambda: False)
     )
     with pytest.raises(cua_ops.CuaOpError, match="screen_recording_denied"):
-        cua_ops._capture(None)
+        cua_ops._capture([0, 0, 100, 100])
 
 
 def test_launch_resolves_bare_name_from_path(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -497,3 +502,192 @@ def test_optional_input_library_exit_becomes_a_structured_error(monkeypatch):
     monkeypatch.setattr(builtins, "__import__", importing)
     with pytest.raises(cua_ops.CuaOpError):
         cua_ops._pyautogui()
+
+
+@pytest.mark.parametrize(
+    "bounds",
+    [
+        None,
+        [],
+        [0, 0, 0, 100],
+        [0, 0, -5, 100],
+        [0, 0, float("nan"), 100],
+        [0, float("inf"), 100, 100],
+        ["0", 0, 100, 100],
+    ],
+)
+def test_capture_rejects_invalid_window_bounds_before_reading_pixels(
+    fake_backend, monkeypatch, bounds
+):
+    def capture(_bounds):
+        pytest.fail("invalid bounds must never capture desktop pixels")
+
+    monkeypatch.setattr(fake_backend, "screenshot", capture, raising=False)
+    with pytest.raises(cua_ops.CuaOpError, match="screenshot_failed"):
+        cua_ops._capture(bounds)
+
+
+def test_background_state_keeps_tree_but_refuses_screen_region(fake_backend, monkeypatch):
+    monkeypatch.setattr(fake_backend, "frontmost_pid", lambda: 100)
+    monkeypatch.setattr(
+        cua_ops, "_capture", lambda bounds: pytest.fail("background pixels captured")
+    )
+    result = cua_ops.handle_cua_op("cua_state", {"pid": 4242, "include_screenshot": True})
+    assert "AXButton" in result["state"]
+    assert result["screenshot"]["error"] == "foreground_required"
+
+
+@pytest.mark.parametrize("window_id", [None, 0])
+def test_element_indices_resolve_only_the_same_conversation(fake_backend, window_id):
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242, "session_id": "chat-a"})
+    first = fake_backend.window.children[0]
+    fake_backend.window = _FakeElement("AXWindow", "Other", [_FakeElement("AXButton", "Delete")])
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242, "session_id": "chat-b"})
+    result = cua_ops.handle_cua_op(
+        "cua_click",
+        {
+            "pid": 4242,
+            "session_id": "chat-a",
+            "window_id": window_id,
+            "target": {"type": "element", "index": 1},
+        },
+    )
+    assert result["ok"] is True
+    assert fake_backend.performed == [(first, "click")]
+
+
+@pytest.mark.parametrize(
+    "observed_session,action_session", [(None, "chat-a"), ("chat-a", None), ("chat-a", "chat-b")]
+)
+def test_other_conversation_or_legacy_observation_cannot_authorize_an_element(
+    fake_backend, observed_session, action_session
+):
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242, "session_id": observed_session})
+    result = cua_ops.handle_cua_op(
+        "cua_click",
+        {
+            "pid": 4242,
+            "session_id": action_session,
+            "target": {"type": "element", "index": 1},
+        },
+    )
+    assert result["error"] == "stale_state"
+    assert fake_backend.performed == []
+
+
+def test_conversation_observation_still_expires(fake_backend, monkeypatch):
+    clock = [0.0]
+    monkeypatch.setattr(cua_ops.time, "monotonic", lambda: clock[0])
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242, "session_id": "chat-a"})
+    clock[0] = cua_ops.ELEMENT_CACHE_TTL + 1
+    result = cua_ops.handle_cua_op(
+        "cua_click",
+        {
+            "pid": 4242,
+            "session_id": "chat-a",
+            "target": {"type": "element", "index": 1},
+        },
+    )
+    assert result["error"] == "stale_state"
+    assert fake_backend.performed == []
+
+
+def test_concurrent_daemon_threads_keep_conversation_indices_separate(fake_backend, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier, local
+
+    thread = local()
+    observed = Barrier(2)
+    monkeypatch.setattr(
+        fake_backend,
+        "pick_window",
+        lambda pid, wid: (
+            thread.window,
+            {"window_id": 0, "title": "Main", "bounds": [0, 0, 100, 100]},
+        ),
+    )
+
+    monkeypatch.setattr(
+        fake_backend, "perform", lambda element, action: setattr(thread, "clicked", element)
+    )
+
+    def act(session):
+        button = _FakeElement("AXButton", session)
+        thread.window = _FakeElement("AXWindow", "Main", [button])
+        cua_ops.handle_cua_op("cua_state", {"pid": 4242, "session_id": session})
+        observed.wait(timeout=5)
+        result = cua_ops.handle_cua_op(
+            "cua_click",
+            {"pid": 4242, "session_id": session, "target": {"type": "element", "index": 1}},
+        )
+        return result, button, thread.clicked
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(act, ["chat-a", "chat-b"]))
+    assert all(result["ok"] and clicked is button for result, button, clicked in results)
+
+
+@pytest.mark.parametrize(
+    "active",
+    [
+        {"window_id": 1, "bounds": [10.0, 20.0, 800.0, 600.0], "focused": True},
+        {"window_id": 0, "bounds": [100.0, 200.0, 800.0, 600.0], "focused": True},
+        {"bounds": [10.0, 20.0, 800.0, 600.0], "focused": True},
+        None,
+    ],
+)
+def test_same_app_other_or_unknown_active_window_refuses_screenshot(
+    fake_backend, monkeypatch, active
+):
+    requested = {"window_id": 0, "title": "Main", "bounds": [10.0, 20.0, 800.0, 600.0]}
+
+    def pick(pid, window_id):
+        if window_id == 0:
+            return fake_backend.window, requested
+        if active is None:
+            raise RuntimeError("cannot determine active window")
+        return fake_backend.window, active
+
+    monkeypatch.setattr(fake_backend, "pick_window", pick)
+    monkeypatch.setattr(
+        cua_ops, "_capture", lambda bounds: pytest.fail("wrong window pixels captured")
+    )
+    result = cua_ops.handle_cua_op(
+        "cua_state",
+        {
+            "pid": 4242,
+            "window_id": 0,
+            "include_screenshot": True,
+        },
+    )
+    assert "AXButton" in result["state"]
+    assert result["screenshot"]["error"] == "foreground_required"
+
+
+def test_same_app_active_window_allows_target_region_capture(fake_backend, monkeypatch):
+    captures = []
+    monkeypatch.setattr(
+        cua_ops, "_capture", lambda bounds: captures.append(bounds) or {"mime": "image/jpeg"}
+    )
+    result = cua_ops.handle_cua_op(
+        "cua_state",
+        {
+            "pid": 4242,
+            "window_id": 0,
+            "include_screenshot": True,
+        },
+    )
+    assert result["screenshot"] == {"mime": "image/jpeg"}
+    assert captures == [[10.0, 20.0, 800.0, 600.0]]
+
+
+@pytest.mark.parametrize("focused", [False, None])
+def test_unknown_or_unfocused_window_never_captures_pixels(fake_backend, monkeypatch, focused):
+    info = {"window_id": 0, "title": "Main", "bounds": [0, 0, 100, 100], "focused": focused}
+    monkeypatch.setattr(fake_backend, "pick_window", lambda pid, wid: (fake_backend.window, info))
+    monkeypatch.setattr(
+        cua_ops, "_capture", lambda bounds: pytest.fail("unfocused pixels captured")
+    )
+    result = cua_ops.handle_cua_op("cua_state", {"pid": 4242, "include_screenshot": True})
+    assert result["screenshot"]["error"] == "foreground_required"
+    assert "AXButton" in result["state"]

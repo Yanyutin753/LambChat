@@ -27,6 +27,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import uuid
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -588,16 +589,30 @@ async def edge_cases(user_id: str, machine_id: str) -> None:
 
     _sys.path.insert(0, str(REPO / "client"))
     from lambchat_sandbox.frames import FRAME_DATA, FRAME_EOF, encode_frame
+    from src.infra.storage.redis import get_redis_client
 
-    async with httpx.AsyncClient() as hc:
-        resp8 = await hc.post(
-            f"{SERVER}/api/sandbox/results/stream/edge-oversize",
-            content=encode_frame(FRAME_DATA, b"x" * (9 * 1024 * 1024)) + encode_frame(FRAME_EOF),
-            headers={
-                "Authorization": f"Bearer {_PAT_HOLDER['pat']}",
-                "Content-Type": "application/octet-stream",
-            },
-            timeout=30,
+    call8 = f"e2e-oversize-{uuid.uuid4().hex}"
+    redis8 = get_redis_client()
+    await redis8.set(f"sandbox:callassign:{call8}", machine_id, ex=60)
+    await redis8.set(f"sandbox:callowner:{call8}", user_id, ex=60)
+    try:
+        async with httpx.AsyncClient() as hc:
+            resp8 = await hc.post(
+                f"{SERVER}/api/sandbox/results/stream/{call8}",
+                params={"machine_id": machine_id},
+                content=encode_frame(FRAME_DATA, b"x" * (9 * 1024 * 1024))
+                + encode_frame(FRAME_EOF),
+                headers={
+                    "Authorization": f"Bearer {_PAT_HOLDER['pat']}",
+                    "Content-Type": "application/octet-stream",
+                },
+                timeout=30,
+            )
+    finally:
+        await redis8.delete(
+            f"sandbox:callassign:{call8}",
+            f"sandbox:callowner:{call8}",
+            f"sandbox:stream:{user_id}:{call8}",
         )
     check("伪超帧 413", resp8.status_code == 413, f"HTTP {resp8.status_code}")
 

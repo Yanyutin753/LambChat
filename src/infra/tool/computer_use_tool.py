@@ -11,6 +11,7 @@ offline 错误（模型可引导用户启动桌面端）。
 
 from __future__ import annotations
 
+import hashlib
 import json
 from typing import Annotated, Any, Optional
 
@@ -18,12 +19,34 @@ from langchain.tools import ToolRuntime, tool
 from pydantic import BaseModel, Field
 
 from src.infra.agent.events.binary_uploads import upload_binary_blocks
+from src.infra.agent.middleware.sandbox_confirm import _lookup_confirm_policy
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
+from src.infra.sandbox.confirm import confirm_local_op
 from src.infra.sandbox.relay.dispatch import dispatch_local_call
-from src.infra.tool.backend_utils import get_user_id_from_runtime
+from src.infra.tool.backend_utils import get_session_id_from_runtime, get_user_id_from_runtime
 
 logger = get_logger(__name__)
+
+
+async def resolve_computer_use_context(
+    user_id: str, options: dict[str, Any], hitl_resume: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Pin the trusted session selection once per run, before any model tool call."""
+    choice = options.get("sandbox")
+    platform = choice if choice in ("local", "cloud") else None
+    selected = options.get("sandbox_machine_id")
+    machine = selected.strip() if isinstance(selected, str) else None
+    selection: dict[str, Any] = {"platform": platform, "machine_id": machine}
+    if hitl_resume and isinstance(hitl_resume.get("confirmation_context"), dict):
+        approval = hitl_resume.get("approval_resolved") or {}
+        selection["resume"] = {
+            "tool_call_id": approval.get("tool_call_id"),
+            "approved": approval.get("success") is True,
+            "confirmation_context": hitl_resume["confirmation_context"],
+        }
+    return selection
+
 
 _ACTIONS = (
     "status",
@@ -52,7 +75,8 @@ class _ComputerUseInput(BaseModel):
     app: Optional[str] = Field(None, description="launch: executable path to start (no shell)")
     args: Optional[list[str]] = Field(None, description="launch: argv for app")
     machine_id: Optional[str] = Field(
-        None, description="target a specific registered machine (multi-machine users)"
+        None,
+        description="optional assertion of the session-selected machine; cannot change targets",
     )
     pid: Optional[int] = Field(None, description="target app pid (from apps; preferred over name)")
     name: Optional[str] = Field(None, description="target app name (exact, from apps)")
@@ -127,7 +151,7 @@ def _build_payload(data: _ComputerUseInput) -> dict[str, Any]:
     return payload
 
 
-async def _format_result(result: dict[str, Any]) -> str:
+async def _format_result(result: dict[str, Any], runtime: Any = None) -> str:
     if not isinstance(result, dict):
         return str(result)
     if "error" in result:
@@ -139,8 +163,14 @@ async def _format_result(result: dict[str, Any]) -> str:
             "base64": screenshot["data_b64"],
             "mime_type": screenshot.get("mime", "image/jpeg"),
         }
-        # Store pixels before the SSE text limit; send the same file proxy URL as MCP images.
-        await upload_binary_blocks({"blocks": [block]}, "")
+        # Persist privately before the SSE limit; pixels never get an anonymous URL.
+        await upload_binary_blocks(
+            {"blocks": [block]},
+            "",
+            private=True,
+            private_user_id=get_user_id_from_runtime(runtime),
+            private_session_id=get_session_id_from_runtime(runtime),
+        )
         result = {
             **result,
             "screenshot": {
@@ -194,7 +224,9 @@ async def computer_use(
     Availability: requires the LOCAL sandbox platform (desktop app daemon). Cloud sandbox
     sessions do not have it — on ``dispatch_failed: offline`` tell the user to open the
     LambChat desktop app (or switch the session sandbox to local); do not retry blindly.
-    Multi-machine users: pass ``machine_id`` to target a specific registered machine.
+    The session's selected local machine is authoritative. You cannot change it with
+    tool arguments; ask the user to change the session selection. If it is offline,
+    stop instead of selecting another machine. Cloud sessions cannot use this tool.
 
     Workflow (always):
     1. ``launch`` to open a URL or start an app — this is the correct way to start
@@ -256,6 +288,20 @@ async def computer_use(
     if not user_id:
         return "ERROR no_user_context"
 
+    config = getattr(runtime, "config", None)
+    configurable = config.get("configurable", {}) if isinstance(config, dict) else {}
+    selection = configurable.get("computer_use_context")
+    if not isinstance(selection, dict) or selection.get("platform") != "local":
+        return "ERROR local_session_required: select the local sandbox in this session"
+    selected_machine = selection.get("machine_id")
+    if not isinstance(selected_machine, str) or not selected_machine:
+        return "ERROR machine_selection_required: select an online machine in this session"
+    if machine_id and machine_id != selected_machine:
+        return "ERROR machine_mismatch: tool arguments cannot change the session's selected machine"
+    session_id = get_session_id_from_runtime(runtime)
+    if not session_id:
+        return "ERROR session_required: desktop access requires a trusted session"
+
     payload = _build_payload(
         _ComputerUseInput(
             action=action,
@@ -280,8 +326,39 @@ async def computer_use(
             element_action=element_action,
         )
     )
+    payload["session_id"] = session_id
+    policy = await _lookup_confirm_policy(user_id, selected_machine)
+    read_only = action in ("status", "apps", "windows") or (
+        action == "state" and not include_screenshot
+    )
+    operation = json.dumps({"action": action, **payload}, sort_keys=True, ensure_ascii=False)
+    confirmation_context = {
+        "machine_id": selected_machine,
+        "operation_sha256": hashlib.sha256(operation.encode()).hexdigest(),
+    }
+    resumed = selection.get("resume")
+    if isinstance(resumed, dict):
+        original = resumed.get("confirmation_context") or {}
+        same_call = resumed.get("tool_call_id") == getattr(runtime, "tool_call_id", None)
+        if original.get("machine_id") != selected_machine or (
+            same_call and (resumed.get("approved") is not True or original != confirmation_context)
+        ):
+            return (
+                "ERROR declined_by_user: resumed desktop approval no longer matches this operation"
+            )
+    if not confirm_local_op(
+        "computer_use read" if read_only else "rm computer_use operation",
+        policy,
+        description=f"Computer control on machine {selected_machine}: {operation}"
+        + (" (includes a screenshot sent to the model)" if include_screenshot else ""),
+        tool_call_id=str(getattr(runtime, "tool_call_id", "") or ""),
+        confirmation_context=confirmation_context,
+    ):
+        return "ERROR declined_by_user: approval missing or operation changed; do not retry without an explicit user request"
     try:
-        resp = await dispatch_local_call(user_id, f"cua_{action}", payload, machine_id=machine_id)
+        resp = await dispatch_local_call(
+            user_id, f"cua_{action}", payload, machine_id=selected_machine
+        )
     except Exception as exc:  # noqa: BLE001 - AppError(SANDBOX_*) 等统一转文本
         # AppError.__str__ 返回未插值模板("... {{detail}}")——真实原因在
         # args 里,必须走 display_message,否则 daemon 侧错误全被吞成模板
@@ -296,4 +373,6 @@ async def computer_use(
     if result is None:
         error = resp.get("error") if isinstance(resp, dict) else resp
         return f"ERROR daemon_error: {error}"
-    return await _format_result(result)
+    if isinstance(result, dict):
+        result = {**result, "machine_id": selected_machine}
+    return await _format_result(result, runtime)

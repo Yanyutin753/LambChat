@@ -117,13 +117,17 @@ def windows(pid: int) -> list[dict[str, Any]]:
             child = app.getChildAtIndex(child_index)
             if not _is_window(child):
                 continue
+            try:
+                focused = bool(child.getState().contains(_pyatspi().STATE_ACTIVE))
+            except Exception:  # noqa: BLE001 - Unknown native focus must deny screenshot capture.
+                focused = False
             rows.append(
                 {
                     "window_id": len(rows),
                     "title": child.name or "",
                     "subrole": child.getRoleName(),
                     "main": len(rows) == 0,
-                    "focused": False,
+                    "focused": focused,
                     "bounds": _extents(child),
                     "handle": child,
                 }
@@ -136,11 +140,14 @@ def pick_window(pid: int, window_id: int | None) -> tuple[Any, dict[str, Any]]:
     if window_id is not None:
         if 0 <= window_id < len(rows):
             row = rows[window_id]
-            return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds")}
+            return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds", "focused")}
         raise KeyError(f"window index {window_id} out of range")
+    for row in rows:
+        if row["focused"]:
+            return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds", "focused")}
     if rows:
         row = rows[0]
-        return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds")}
+        return row["handle"], {k: row[k] for k in ("window_id", "title", "bounds", "focused")}
     raise KeyError("app has no accessible windows")
 
 
@@ -153,6 +160,8 @@ def children(element: Any) -> list[Any]:
 
 def _text_value(element: Any) -> str | None:
     try:
+        if element.getRole() == _pyatspi().ROLE_PASSWORD_TEXT:
+            return None
         text = element.queryText()
         content = text.getText(0, text.characterCount)
         return content if content else None

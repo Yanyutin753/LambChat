@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError
 
-from src.api.deps import get_current_user_required, require_permissions
+from src.api.deps import get_current_user, get_current_user_required, require_permissions
 from src.api.routes.file_type import (
     FILE_EXTENSIONS,
     FileCategory,
@@ -889,28 +889,31 @@ async def get_file_proxy(
     cover: bool = False,
     thumb: bool = False,
     t: int | None = None,
+    current_user: TokenPayload | None = Depends(get_current_user),
 ) -> Response:
-    """
-    Dynamic proxy endpoint for file access
-
-    For S3 storage: generates a short-lived presigned URL and redirects.
-    For local storage: serves the file directly.
-    No authentication required.
-
-    Query params:
-        direct: If true, return the URL as JSON instead of redirecting.
-        proxy: If true, stream non-local storage through the app instead of redirecting.
-        cover: If true, serve a 16:9 cover thumbnail instead of the original
-            (OSS image crop / video first frame; local storage via Pillow).
-            Unsupported types return 404 so clients fall back without
-            downloading the original file.
-        thumb: If true, serve an aspect-fit chat thumbnail instead of the
-            original (OSS m_lfit resize; local/Pillow; other S3 providers
-            render once and cache beside the original). Unsupported types
-            return 404 so clients fall back to the original.
-        t: Video snapshot timestamp in ms for cover (default 1000).
+    """Serve files or variants; private desktop captures require the session owner.
+    cover/thumb request derived images; t is the video cover timestamp in milliseconds.
     """
     from fastapi.responses import JSONResponse
+
+    if "\\" in key or any(part in (".", "..", "") for part in key.split("/")):
+        raise AppError(ErrorCode.FILE_NOT_FOUND)
+    if await _file_record_storage.is_private_key(key):
+        record = await _file_record_storage.require_private_access(
+            key, getattr(current_user, "sub", None)
+        )
+        storage = await get_or_init_storage()
+        headers = {"Cache-Control": "private, no-store", "Vary": "Authorization"}
+        if storage.is_local:
+            path = storage.get_file_path(key)
+            if not await run_long_blocking_io(_path_exists, path):
+                raise AppError(ErrorCode.FILE_NOT_FOUND)
+            return FileResponse(path=str(path), media_type=record["mime_type"], headers=headers)
+        if storage._config.public_bucket:
+            raise AppError(ErrorCode.FILE_NOT_FOUND)
+        return StreamingResponse(
+            storage.download_stream(key), media_type=record["mime_type"], headers=headers
+        )
 
     storage = await get_or_init_storage()
 

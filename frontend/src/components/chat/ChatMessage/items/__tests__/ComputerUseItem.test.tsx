@@ -1,8 +1,15 @@
 /** @vitest-environment jsdom */
-import { cleanup, fireEvent, render, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  within,
+  waitFor,
+} from "@testing-library/react";
 import { createInstance } from "i18next";
 import { I18nextProvider } from "react-i18next";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
+import * as tokenManager from "../../../../../services/api/tokenManager";
 import zh from "../../../../../i18n/locales/zh.json";
 import { ComputerUseItem } from "../ComputerUseItem";
 import {
@@ -19,6 +26,48 @@ await i18n.init({
 afterEach(() => {
   cleanup();
   closeAllPersistentToolPanels();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+test("screenshots load with authentication into revocable blob URLs", async () => {
+  vi.spyOn(tokenManager, "getValidAccessToken").mockResolvedValue("test-token");
+  const fetch = vi
+    .fn()
+    .mockResolvedValue({
+      ok: true,
+      status: 200,
+      blob: async () => new Blob(["test"], { type: "image/jpeg" }),
+    });
+  vi.stubGlobal("fetch", fetch);
+  const create = vi.fn().mockReturnValue("blob:private-screenshot");
+  const revoke = vi.fn();
+  Object.defineProperty(URL, "createObjectURL", {
+    configurable: true,
+    value: create,
+  });
+  Object.defineProperty(URL, "revokeObjectURL", {
+    configurable: true,
+    value: revoke,
+  });
+  const { panel } = show({
+    args: { action: "state" },
+    result: {
+      screenshot: { url: "/api/upload/file/cua_screenshots/u/s/test.jpg" },
+    },
+    success: true,
+  });
+  await waitFor(() =>
+    expect(panel.getByRole("img").getAttribute("src")).toBe(
+      "blob:private-screenshot",
+    ),
+  );
+  expect(fetch.mock.calls[0][1].headers.get("Authorization")).toBe(
+    "Bearer test-token",
+  );
+  expect(fetch.mock.calls[0][1].cache).toBe("no-store");
+  cleanup();
+  expect(revoke).toHaveBeenCalledWith("blob:private-screenshot");
 });
 
 function show(props: React.ComponentProps<typeof ComputerUseItem>) {
@@ -35,6 +84,20 @@ function show(props: React.ComponentProps<typeof ComputerUseItem>) {
   );
   return { view: within(view.container), panel: within(panel.container) };
 }
+
+test("external screenshot URLs never receive the user's access token", async () => {
+  const fetch = vi.fn();
+  vi.stubGlobal("fetch", fetch);
+  const { panel } = show({
+    args: { action: "state" },
+    result: {
+      screenshot: { url: "https://untrusted.example/api/upload/file/test.jpg" },
+    },
+    success: true,
+  });
+  expect(fetch).not.toHaveBeenCalled();
+  expect(panel.queryByRole("img")).toBeNull();
+});
 
 test("collapsed control identifies the localized action and target", () => {
   const { view } = show({

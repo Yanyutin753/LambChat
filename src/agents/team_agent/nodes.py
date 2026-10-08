@@ -466,7 +466,10 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             *create_retry_middleware(fallback_model=fallback_model),
             create_todo_middleware(),
             ToolResultBinaryMiddleware(
-                base_url=subagent_base_url, supports_vision=member_supports_vision
+                base_url=subagent_base_url,
+                supports_vision=member_supports_vision,
+                user_id=context.user_id,
+                session_id=str(state.get("session_id") or ""),
             ),
             ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir),
             SubagentActivityMiddleware(backend=backend),
@@ -716,7 +719,12 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         0, SteerMiddleware(session_id=str(state.get("session_id") or ""), presenter=presenter)
     )
     user_middleware.append(
-        ToolResultBinaryMiddleware(base_url=subagent_base_url, supports_vision=supports_vision)
+        ToolResultBinaryMiddleware(
+            base_url=subagent_base_url,
+            supports_vision=supports_vision,
+            user_id=context.user_id,
+            session_id=str(state.get("session_id") or ""),
+        )
     )
     user_middleware.append(ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir))
     _image_mw = image_url_middleware_for_mode(image_url_mode)
@@ -798,11 +806,20 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     graph_compile_time = time.time() - graph_compile_start
     logger.debug(f"[TeamAgent] Graph compile: {graph_compile_time * 1000:.3f}ms")
 
+    from src.infra.tool.computer_use_tool import resolve_computer_use_context
+
     inner_config: RunnableConfig = {
         "configurable": build_nested_graph_configurable(
             thread_id=state.get("session_id", str(uuid.uuid4())),
             checkpointer=inner_checkpointer,
             backend=backend,
+            computer_use_context=(
+                await resolve_computer_use_context(
+                    context.user_id or "", agent_options, configurable.get("hitl_resume")
+                )
+                if settings.ENABLE_COMPUTER_USE
+                else None
+            ),
             context=context,
             disabled_skills=configurable.get("disabled_skills"),
             enabled_skills=runtime_enabled_skills,
@@ -828,7 +845,15 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     if hitl_resume is not None:
         from langgraph.types import Command
 
-        graph_input: Any = Command(resume=hitl_resume.get("resume_value"))
+        resume_map = hitl_resume.get("resume_value")
+        sandbox_message = hitl_resume.get("sandbox_confirm_message")
+        if sandbox_message and isinstance(resume_map, dict):
+            from src.infra.task.hitl import expand_sandbox_confirm_resume
+
+            resume_map = await expand_sandbox_confirm_resume(
+                inner_graph, inner_config, resume_map, message=sandbox_message
+            )
+        graph_input: Any = Command(resume=resume_map)
     else:
         if supports_vision:
             attachments = await inline_image_attachments_as_data_urls(

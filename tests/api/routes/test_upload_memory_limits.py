@@ -241,6 +241,9 @@ async def test_local_file_proxy_checks_file_existence_in_blocking_executor(
             return file_path
 
     class _FakeRecordStorage:
+        async def is_private_key(self, key: str) -> bool:
+            return False
+
         async def find_by_key(self, key: str):
             assert key == "docs/report.txt"
             return {"name": "report.txt", "mime_type": "text/plain"}
@@ -290,6 +293,9 @@ async def test_s3_file_proxy_can_stream_through_app_for_preview_fetches(
             raise AssertionError("proxy preview fetches should not redirect to object storage")
 
     class _FakeRecordStorage:
+        async def is_private_key(self, key: str) -> bool:
+            return False
+
         async def find_by_key(self, key: str):
             assert key == "docs/report.txt"
             return {"name": "report.txt", "mime_type": "text/plain"}
@@ -363,6 +369,9 @@ async def test_upload_delete_unknown_key_never_starts_background_object_deletion
             calls.append(key)
 
     class _FakeRecordStorage:
+        async def is_private_key(self, key: str) -> bool:
+            return False
+
         async def find_by_key(self, key: str, uploaded_by: str):
             assert uploaded_by == "owner-a"
             return None

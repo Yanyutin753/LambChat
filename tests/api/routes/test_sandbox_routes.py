@@ -317,6 +317,8 @@ async def test_channel_and_results_reject_jwt(monkeypatch):
 
 async def test_results_endpoint_writes_resp(monkeypatch):
     redis = _FakeRedis()
+    await redis.set("sandbox:callassign:call-1", "legacy")
+    await redis.set("sandbox:callowner:call-1", "u1")
     app = FastAPI()
     register_error_handlers(app)
     app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
@@ -342,6 +344,8 @@ async def test_results_rejects_oversized_body(monkeypatch):
     超限即拒绝，防止单次回传把 Redis 与内存打爆。
     """
     redis = _FakeRedis()
+    await redis.set("sandbox:callassign:call-1", "legacy")
+    await redis.set("sandbox:callowner:call-1", "u1")
     monkeypatch.setattr(sandbox_route.settings, "SANDBOX_RESULTS_MAX_BYTES", 64)
     app = FastAPI()
     register_error_handlers(app)
@@ -357,7 +361,7 @@ async def test_results_rejects_oversized_body(monkeypatch):
         )
     assert resp.status_code == 413
     assert resp.json()["detail"]["code"] == "sandbox_payload_too_large"
-    assert not redis.kv  # 超限直接拒绝，不写 resp key
+    assert not redis.lists  # 超限直接拒绝，不写 resp key
 
 
 def _results_body_of_size(n: int) -> bytes:
@@ -372,6 +376,8 @@ async def _post_results_with_size(monkeypatch, body: bytes):
     """带精确字节数 body 打 results 端点；返回 (response, redis)。"""
     monkeypatch.setattr(sandbox_route.settings, "SANDBOX_RESULTS_MAX_BYTES", 128)
     redis = _FakeRedis()
+    await redis.set("sandbox:callassign:call-1", "legacy")
+    await redis.set("sandbox:callowner:call-1", "u1")
     app = FastAPI()
     register_error_handlers(app)
     app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
@@ -403,7 +409,7 @@ async def test_results_rejects_body_one_byte_over_limit(monkeypatch):
 
     assert resp.status_code == 413
     assert resp.json()["detail"]["code"] == "sandbox_payload_too_large"
-    assert not redis.kv
+    assert not redis.lists
 
 
 async def test_status_endpoint(monkeypatch):
@@ -876,6 +882,8 @@ async def test_results_endpoint_preserves_fs_op_result(monkeypatch):
     https://lambchat.com/shared/d-_7Oqe2I3ay）。
     """
     redis = _FakeRedis()
+    await redis.set("sandbox:callassign:call-1", "legacy")
+    await redis.set("sandbox:callowner:call-1", "u1")
     app = FastAPI()
     register_error_handlers(app)
     app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
@@ -1074,6 +1082,8 @@ async def test_chunked_download_seam_old_daemon_fallback(monkeypatch, tmp_path):
 
 
 def _stream_app(monkeypatch, redis):
+    redis.kv["sandbox:callassign:call-s1"] = "legacy"
+    redis.kv["sandbox:callowner:call-s1"] = "u1"
     app = FastAPI()
     register_error_handlers(app)
     app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
@@ -1308,6 +1318,8 @@ async def test_upload_stream_endpoint_serves_binary_frames(monkeypatch):
         encode_frame(FRAME_EOF),
     ]
     binary = _BinaryRedisView(store)
+    await binary.set("sandbox:callassign:call-bin", "legacy")
+    await binary.set("sandbox:callowner:call-bin", "u1")
     for frame in frames:  # 生产者（dispatch_local_stream_upload）rpush 二进制帧
         await binary.rpush("sandbox:upblob:u1:call-bin", frame)
 
@@ -1512,6 +1524,8 @@ async def test_upload_stream_client_disconnect_pushes_error_done(monkeypatch):
     from src.infra.sandbox.relay import _frames
 
     redis = _FakeRedis()
+    await redis.set("sandbox:callassign:c1", "legacy")
+    await redis.set("sandbox:callowner:c1", "u1")
     monkeypatch.setattr(sandbox_route, "_binary_redis", lambda: redis)
     await redis.rpush("sandbox:upblob:u1:c1", _frames.encode_frame(_frames.FRAME_DATA, b"partial"))
     await redis.rpush("sandbox:upblob:u1:c1", _frames.encode_frame(_frames.FRAME_EOF))

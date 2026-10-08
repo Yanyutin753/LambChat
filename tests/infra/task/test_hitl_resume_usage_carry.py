@@ -45,3 +45,16 @@ def test_payload_without_resume_context_keeps_none_carry():
     assert payload["prior_usage"] is None
     assert payload["goal_started_at"] is None
     assert payload["approval_resolved"]["status"] == "rejected"
+
+
+def test_confirmation_context_is_from_stored_approval_not_user_response():
+    approval = _approval(None)
+    approval.metadata["confirmation_context"] = {"machine_id": "original"}
+    payload = build_hitl_resume_payload(
+        approval,
+        {
+            "approved": True,
+            "confirmation_context": {"machine_id": "forged"},
+        },
+    )
+    assert payload["resume_value"]["i1"]["confirmation_context"] == {"machine_id": "original"}

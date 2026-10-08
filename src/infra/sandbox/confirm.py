@@ -43,7 +43,14 @@ def needs_confirm(command: str, policy: str) -> bool:
     raise ValueError(f"未知确认策略: {policy!r}（可选: {'/'.join(POLICIES)}）")
 
 
-def confirm_local_op(command: str, policy: str, *, description: str) -> bool:
+def confirm_local_op(
+    command: str,
+    policy: str,
+    *,
+    description: str,
+    tool_call_id: str = "",
+    confirmation_context: dict | None = None,
+) -> bool:
     """统一确认门：needs_confirm 判定 + ask_human interrupt（服务端，spec §3.5）。
 
     必须在图任务内的工具调用栈中同步调用（与 AskHumanTool interrupt 模式同
@@ -81,6 +88,15 @@ def confirm_local_op(command: str, policy: str, *, description: str) -> bool:
             "origin": "sandbox_confirm",
             "message": description,
             "fields": [],
+            "tool_call_id": tool_call_id,
+            **({"confirmation_context": confirmation_context} if confirmation_context else {}),
         }
     )
-    return bool(isinstance(resume_value, dict) and resume_value.get("approved"))
+    return bool(
+        isinstance(resume_value, dict)
+        and resume_value.get("approved")
+        and (
+            confirmation_context is None
+            or resume_value.get("confirmation_context") == confirmation_context
+        )
+    )
