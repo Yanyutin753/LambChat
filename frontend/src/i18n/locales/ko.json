@@ -1448,7 +1448,9 @@
       "toolWebSearchResults_other": "결과 {{count}}개",
       "toolWrite": "쓰기",
       "waitingConfirm": "확인 대기 중",
-      "toolDocumentParse": "문서 파싱"
+      "toolDocumentParse": "문서 파싱",
+      "computerUseTitle": "컴퓨터 제어",
+      "computerUsePermissionHint": "시스템 설정 → 개인정보 보호 및 보안에서 LambChat.app에 접근성 및 화면 기록 권한을 한 번만 허용한 후 다시 시도하세요."
     },
     "messageInput": "메시지 입력",
     "noPermission": "메시지를 보낼 권한이 없습니다",
@@ -3389,7 +3391,8 @@
     "DOCUMENT_PARSE_TIKA_URL": "Apache Tika 서버 URL (자체 호스팅)",
     "DOCUMENT_PARSE_MAX_DOWNLOAD_BYTES": "문서 다운로드 최대 크기 (바이트)",
     "DOCUMENT_PARSE_MAX_OUTPUT_CHARS": "파싱 결과 Markdown 최대 문자 수, 초과 시 잘림",
-    "DOCUMENT_PARSE_MAX_IMAGES": "한 번의 파싱에서 추출할 최대 이미지 수"
+    "DOCUMENT_PARSE_MAX_IMAGES": "한 번의 파싱에서 추출할 최대 이미지 수",
+    "ENABLE_COMPUTER_USE": "컴퓨터 제어: 로컬 샌드박스 daemon을 통해 데스크톱 GUI를 조작합니다. 로컬 샌드박스 전용. macOS는 LambChat.app에 접근성·화면 기록 권한 필요."
   },
   "settings": {
     "navigation": {
@@ -3879,7 +3882,8 @@
     "title": "제목 생성",
     "turnstile": "Turnstile",
     "webSearch": "웹 검색",
-    "dedup": "의미 중복 제거"
+    "dedup": "의미 중복 제거",
+    "local": "로컬 샌드박스"
   },
   "systemHealth": {
     "fetchFailed": "상태 데이터 가져오기 실패",

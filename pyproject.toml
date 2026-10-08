@@ -79,6 +79,17 @@ dev = [
     "pre-commit>=4.6.2",
     "pyinstaller>=6.0",
 ]
+# computer-use 后端（仅 daemon 打包时同步：`uv sync --group cua`）。
+# 平台标记互斥，各自只在对应构建机上落地：
+# - macOS: atomacos（Apple AX API，经 PyObjC；附带 pyautogui/pyscreeze 事件与截屏）
+# - Windows: pywinauto（UIA）+ pyautogui（键鼠/截屏，Windows 下零额外系统依赖）
+# - Linux: 系统包 python3-pyatspi（pip 无可靠发行，apt/dnf 安装）+ pyautogui（X11）
+cua = [
+    "atomacos>=3.3; sys_platform == 'darwin'",
+    "pywinauto>=0.6.9; sys_platform == 'win32'",
+    "pyautogui; sys_platform != 'darwin'",
+    "python-xlib; sys_platform == 'linux'",
+]
 
 [build-system]
 requires = ["hatchling"]

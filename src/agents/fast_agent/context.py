@@ -351,6 +351,13 @@ class FastAgentContext:
 
             self._append_unique_tools([SkillSearchTool(self.skills)])
 
+        # computer-use：仅本地沙箱 daemon 支持；daemon 未授权/离线时报结构化
+        # 错误，工具描述内含「禁 osascript」铁律与引导
+        if settings.ENABLE_COMPUTER_USE:
+            from src.infra.tool.computer_use_tool import computer_use
+
+            self._append_unique_tools([computer_use])
+
         logger.info(f"[FastAgentContext] Setup complete, total {len(self.tools)} tools available")
 
     async def close(self) -> None:

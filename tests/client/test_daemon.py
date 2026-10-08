@@ -144,6 +144,8 @@ class FakeExecutor:
         virtual_cwd: str,
         timeout: float,
         env_extra: dict[str, str] | None = None,
+        *,
+        detach: bool = False,
     ) -> dict:
         self.calls.append((command, virtual_cwd, timeout))
         self.env_extras.append(env_extra)
@@ -333,7 +335,7 @@ async def test_exec_policy_all_executes_without_local_gate():
 class _SlowExecutor(FakeExecutor):
     """阻塞 0.15s 的执行器：跨过 watchdog 延时阈值（测试中调小）。"""
 
-    def execute(self, command, virtual_cwd, timeout, env_extra=None):
+    def execute(self, command, virtual_cwd, timeout, env_extra=None, *, detach=False):
         time.sleep(0.15)
         return super().execute(command, virtual_cwd, timeout, env_extra)
 
@@ -1321,3 +1323,24 @@ async def test_fs_op_executes_off_event_loop_thread(tmp_path, monkeypatch):
     assert client.posted[-1][1]["status"] == "ok"
     assert seen_threads, "handle_fs_op 未被调用"
     assert all(t is not threading.main_thread() for t in seen_threads)
+
+
+async def test_cua_op_converges_structured_result(tmp_path):
+    """cua op：走 to_thread 执行、结果进 result 字段；未授权/不支持平台都
+    收敛为结构化 error（不炸通道、不卡死）。"""
+    client = FakeClient(calls=[_fs_call(op="cua_status", payload={})])
+    auditor = MemoryAuditor()
+
+    await _run(
+        _cfg("none", data_root=tmp_path),
+        FakeFactory([client, _terminator()]),
+        executor=FakeExecutor(),
+        auditor=auditor,
+    )
+
+    body = client.posted[-1][1]
+    assert body["status"] == "ok"
+    result = body["result"]
+    # 本机平台决定 platform 值：CI(Linux)=unsupported，mac=darwin——都是契约内
+    assert result.get("platform") in ("darwin", "win32", "linux", "unsupported")
+    assert "ready" in result
