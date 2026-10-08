@@ -336,3 +336,46 @@ async def test_mcp_arun_preserves_json_array_text_for_string_arguments() -> None
 
     assert result == "ok"
     assert received == [{"payload": '["literal", "json"]'}]
+
+
+def test_mcp_tool_timeout_defaults_to_900() -> None:
+    """单次工具调用超时默认 900s 且可经 settings 覆盖（原硬编码 300）。
+
+    生产事故 2026-10-08：image_analyze 的 vision 调用持续生成 5 分钟以上，
+    300s 硬超时把外层三次重试全部掐断（3×300s=15 分钟全部作废），上游还在
+    正常输出。默认放宽到 900s 并允许 MCP_TOOL_TIMEOUT 覆盖。
+    """
+    from src.infra.tool import mcp_client
+    from src.kernel.config import settings
+
+    assert settings.MCP_TOOL_TIMEOUT == 900
+    assert mcp_client._mcp_tool_timeout() == 900.0
+
+
+@pytest.mark.asyncio
+async def test_mcp_arun_enforces_configured_tool_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """settings.MCP_TOOL_TIMEOUT 生效于 _arun 的 wait_for：超时即返回错误信息。"""
+    from src.infra.tool import mcp_client
+    from src.kernel.config import settings
+
+    monkeypatch.setattr(settings, "MCP_TOOL_TIMEOUT", 1, raising=False)
+
+    class _HangingTool(BaseTool):
+        name: str = "hang"
+        description: str = "hangs forever"
+
+        def _run(self, *a, **k):
+            raise NotImplementedError
+
+        async def _arun(self, *args, config=None, **kwargs):
+            await asyncio.sleep(30)
+            return "never"
+
+    wrapper = mcp_client.MCPToolWithRetry(
+        original_tool=_HangingTool(), max_retries=1, retry_delay=0
+    )
+    result = await wrapper._arun()
+
+    assert "timed out after 1 attempts" in result

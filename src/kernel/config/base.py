@@ -111,6 +111,9 @@ class Settings(BaseSettings):
     ENABLE_DEFERRED_TOOL_LOADING: bool = True
     DEFERRED_TOOL_THRESHOLD: int = 20
     DEFERRED_TOOL_SEARCH_LIMIT: int = 25
+    # 单次工具调用超时（秒）。识图等 vision 调用可持续生成 5 分钟以上，
+    # 300s 会掐断健康长调用且三次重试全部作废（2026-10-08 生产事故）。
+    MCP_TOOL_TIMEOUT: int = 900
     MCP_GLOBAL_CACHE_TTL_SECONDS: int = 900
     MCP_GLOBAL_MAX_ENTRIES: int = 100
     MCP_GLOBAL_INIT_WAIT_SECONDS: int = 5
