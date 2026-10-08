@@ -27,6 +27,7 @@ logger = get_logger(__name__)
 _ACTIONS = (
     "status",
     "apps",
+    "launch",
     "windows",
     "state",
     "click",
@@ -40,7 +41,13 @@ _ACTIONS = (
 
 class _ComputerUseInput(BaseModel):
     action: str = Field(
-        ..., description="status|apps|windows|state|click|set_value|type|key|scroll|action"
+        ..., description="status|apps|launch|windows|state|click|set_value|type|key|scroll|action"
+    )
+    url: Optional[str] = Field(None, description="launch: open this URL in the default browser")
+    app: Optional[str] = Field(None, description="launch: executable path to start (no shell)")
+    args: Optional[list[str]] = Field(None, description="launch: argv for app")
+    machine_id: Optional[str] = Field(
+        None, description="target a specific registered machine (multi-machine users)"
     )
     pid: Optional[int] = Field(None, description="target app pid (from apps; preferred over name)")
     name: Optional[str] = Field(None, description="target app name (exact, from apps)")
@@ -95,6 +102,12 @@ def _build_payload(data: _ComputerUseInput) -> dict[str, Any]:
         payload["probe_screen"] = True
     if data.repeat is not None:
         payload["repeat"] = data.repeat
+    if data.url:
+        payload["url"] = data.url
+    if data.app:
+        payload["app"] = data.app
+    if data.args:
+        payload["args"] = data.args
     return payload
 
 
@@ -129,8 +142,13 @@ def _format_result(action: str, result: dict[str, Any]) -> str:
 @tool("computer_use", args_schema=_ComputerUseInput)
 async def computer_use(
     action: Annotated[
-        str, "One of: status, apps, windows, state, click, set_value, type, key, scroll, action"
+        str,
+        "One of: status, apps, launch, windows, state, click, set_value, type, key, scroll, action",
     ],
+    url: Annotated[Optional[str], "launch: URL to open in default browser"] = None,
+    app: Annotated[Optional[str], "launch: executable path (no shell)"] = None,
+    args: Annotated[Optional[list[str]], "launch: argv for app"] = None,
+    machine_id: Annotated[Optional[str], "target a specific registered machine"] = None,
     pid: Annotated[Optional[int], "Target app pid (preferred)"] = None,
     name: Annotated[Optional[str], "Target app name (exact match)"] = None,
     window_id: Annotated[Optional[int], "Pin one window"] = None,
@@ -148,37 +166,55 @@ async def computer_use(
     repeat: Annotated[Optional[int], "Key repeat count"] = None,
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
-    """Operate the UI of native apps on the user's Mac via the local sandbox daemon.
+    """Operate native apps / the desktop on the user's OWN machine via the local sandbox.
+
+    Availability: requires the LOCAL sandbox platform (desktop app daemon). Cloud sandbox
+    sessions do not have it — on ``dispatch_failed: offline`` tell the user to open the
+    LambChat desktop app (or switch the session sandbox to local); do not retry blindly.
+    Multi-machine users: pass ``machine_id`` to target a specific registered machine.
 
     Workflow (always):
-    1. ``apps`` to find the pid (name match is fallback; copy names character-for-character).
-    2. ``state`` to observe the AX tree of the app's window. Element indices address the
-       LATEST observation; a new ``state`` renumbers everything.
-    3. Act by element index (``click``/``set_value``/``type``/``key``/``scroll``/``action``),
-       then ``state`` again to confirm — an accepted action is not proof the app acted.
-    4. Prefer element actions (AXPress/AXValue work on background apps, no focus stealing).
-       Coordinates and keyboard events are last resorts and require the app to be
-       frontmost (``foreground_required`` otherwise; the event path NEVER activates apps).
+    1. ``launch`` to open a URL or start an app — this is the correct way to start
+       browsers/GUI apps (detached, survives; do NOT start GUI apps via shell execute).
+    2. ``apps`` to find the pid (browsers are multi-process: only ONE pid owns windows —
+       probe candidates with ``windows`` and keep the pid that returns windows).
+    3. ``state`` to observe the accessibility tree. Element indices address the LATEST
+       observation; every new ``state`` renumbers. Re-observe after ANY action before
+       acting again (indices from an older observation are invalid → stale_state).
+    4. Prefer element actions (accessibility press/value work on background apps, no
+       focus stealing). Coordinates/keyboard are last resorts and need the app frontmost
+       (``foreground_required`` otherwise; the event path NEVER activates apps).
     5. Multi-window apps: ``windows`` lists them; pin with window_id. Without it the
        key/main window is re-resolved each observation — a just-opened modal becomes the
-       captured window (check the ``window:`` header line).
+       captured window (check the ``window:`` header line first when things look wrong).
+
+    Browser pages (Chromium family): the page DOM may NOT appear in the tree until the
+    browser activates accessibility — if ``state`` shows only window chrome, prefer URL
+    navigation instead of trying to click into the page (e.g. open
+    ``https://www.baidu.com/s?wd=<query>`` via ``launch`` for searches); address-bar
+    and browser chrome (tabs/buttons) are always visible. Firefox exposes page DOM
+    more readily.
 
     Hard rules:
     - NEVER use osascript/AppleScript/System Events/JXA for UI automation — an unattended
       TCC permission dialog hangs forever. This tool is the replacement.
     - For settable elements prefer set_value over typing.
     - Errors are structured: ax_not_trusted/screen_recording_denied → tell the user to
-      grant Accessibility & Screen Recording to LambChat.app once in System Settings;
-      app_not_found → ``apps``; element_unavailable/stale_state → re-observe with ``state``.
-    - Screenshot (include_screenshot=true) returns base64 for the human/UI; the AX tree
-      text is your primary view.
+      grant Accessibility & Screen Recording to LambChat.app once in System Settings
+      (macOS) / enable toolkit-accessibility (Linux); app_not_found → ``apps``;
+      element_unavailable/stale_state → re-observe with ``state``; offline → see
+      Availability above.
+    - Screenshot (include_screenshot=true) returns base64 for the human/UI; the
+      accessibility tree text is your primary view.
     """
 
     action = (action or "").strip().lower()
     if action not in _ACTIONS:
         return f"ERROR invalid_action: choose one of {', '.join(_ACTIONS)}"
-    if action not in ("status", "apps") and pid is None and not name:
+    if action not in ("status", "apps", "launch") and pid is None and not name:
         return "ERROR invalid_arguments: this action needs pid or name"
+    if action == "launch" and not url and not app:
+        return "ERROR invalid_arguments: launch needs url or app"
 
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
@@ -202,10 +238,13 @@ async def computer_use(
             include_screenshot=include_screenshot,
             probe_screen=probe_screen,
             repeat=repeat,
+            url=url,
+            app=app,
+            args=args,
         )
     )
     try:
-        resp = await dispatch_local_call(user_id, f"cua_{action}", payload)
+        resp = await dispatch_local_call(user_id, f"cua_{action}", payload, machine_id=machine_id)
     except Exception as exc:  # noqa: BLE001 - AppError(SANDBOX_*) 等统一转文本
         message = str(exc)
         logger.warning("[computer_use] dispatch failed action=%s: %s", action, message)

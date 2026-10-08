@@ -3391,7 +3391,8 @@
     "DOCUMENT_PARSE_TIKA_URL": "Apache Tika サーバー URL（自己ホスト）",
     "DOCUMENT_PARSE_MAX_DOWNLOAD_BYTES": "ドキュメントダウンロードの最大サイズ（バイト）",
     "DOCUMENT_PARSE_MAX_OUTPUT_CHARS": "解析結果 Markdown の最大文字数（超過分は切り詰め）",
-    "DOCUMENT_PARSE_MAX_IMAGES": "1 回の解析で抽出する画像の最大数"
+    "DOCUMENT_PARSE_MAX_IMAGES": "1 回の解析で抽出する画像の最大数",
+    "ENABLE_COMPUTER_USE": "コンピュータ操作:ローカルサンドボックス daemon 経由でデスクトップ GUI を操作。ローカルサンドボックス専用。macOS は LambChat.app へのアクセシビリティと画面収録の許可が必要。"
   },
   "settings": {
     "navigation": {
@@ -3881,7 +3882,8 @@
     "title": "タイトル生成",
     "turnstile": "Turnstile",
     "webSearch": "ウェブ検索",
-    "dedup": "意味重複排除"
+    "dedup": "意味重複排除",
+    "local": "ローカルサンドボックス"
   },
   "systemHealth": {
     "fetchFailed": "ヘルスデータの取得に失敗",

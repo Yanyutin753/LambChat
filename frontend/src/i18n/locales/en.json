@@ -3391,7 +3391,8 @@
     "DOCUMENT_PARSE_TIKA_URL": "Apache Tika server URL (self-hosted)",
     "DOCUMENT_PARSE_MAX_DOWNLOAD_BYTES": "Maximum document download size in bytes",
     "DOCUMENT_PARSE_MAX_OUTPUT_CHARS": "Maximum characters of parsed Markdown before truncation",
-    "DOCUMENT_PARSE_MAX_IMAGES": "Maximum images extracted per parse"
+    "DOCUMENT_PARSE_MAX_IMAGES": "Maximum images extracted per parse",
+    "ENABLE_COMPUTER_USE": "Computer Use: let the agent drive the desktop GUI on the user's machine via the local sandbox daemon. Local sandbox platform only; macOS needs Accessibility & Screen Recording granted to LambChat.app."
   },
   "settings": {
     "navigation": {
@@ -3881,7 +3882,8 @@
     "title": "Title Generation",
     "turnstile": "Turnstile",
     "webSearch": "Web Search",
-    "dedup": "Semantic dedup"
+    "dedup": "Semantic dedup",
+    "local": "Local Sandbox"
   },
   "systemHealth": {
     "fetchFailed": "Failed to fetch health data",

@@ -44,6 +44,7 @@ export function buildSubcategoryLabels(t: Translate): Record<string, string> {
     cache: t("subcategories.cache"),
     title: t("subcategories.title"),
     events: t("subcategories.events"),
+    local: t("subcategories.local"),
     daytona: t("subcategories.daytona"),
     e2b: t("subcategories.e2b"),
     mcp: t("subcategories.mcp"),

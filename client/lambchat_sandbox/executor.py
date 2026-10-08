@@ -295,11 +295,17 @@ class Executor:
         virtual_cwd: str,
         timeout: float,
         env_extra: dict[str, str] | None = None,
+        *,
+        detach: bool = False,
     ) -> dict:
         """执行 command，返回 {status, stdout, stderr, exit_code, error}。
 
         ``env_extra``：服务端下发的用户 env（仅 exec op 携带），合并进子进程
         环境（合并序见 :meth:`_spawn_env`）。
+
+        ``detach``：启动并接管模式——Windows 跳过 Job Object（否则 exec 结束
+        时 KILL_ON_JOB_CLOSE 会把浏览器等长驻 GUI 连坐击杀，真机实测）；
+        POSIX 本就以 start_new_session 脱离，无操作。命令本身仍按常规等待。
         """
         workspace = map_workspace(virtual_cwd, self._data_root)
         workspace.mkdir(parents=True, exist_ok=True)
@@ -307,7 +313,7 @@ class Executor:
         # 之后任意会话的重定向 `$LAMBCHAT_SHARED/…` 不会再因目录缺失而失败。
         (self._data_root / ".shared").mkdir(parents=True, exist_ok=True)
         if plat.is_windows():
-            return self._execute_windows(command, workspace, timeout, env_extra)
+            return self._execute_windows(command, workspace, timeout, env_extra, detach=detach)
         proc = subprocess.Popen(
             command,
             shell=True,
@@ -342,12 +348,55 @@ class Executor:
             "error": None,
         }
 
+    def _execute_windows_detached(
+        self,
+        command: str,
+        workspace: Path,
+        timeout: float,
+        env_extra: dict[str, str] | None = None,
+    ) -> dict:
+        """detach 执行:不入 Job Object,exec 结束后子树存活(启动并接管)。
+
+        daemon 自身不在任何 Job 里,直接 Popen 的子进程不受 KILL_ON_JOB_CLOSE
+        影响;超时也只回收直接子进程(cmd),已脱离的长驻 GUI 不连坐。
+        """
+        proc = subprocess.Popen(
+            command,
+            shell=True,
+            cwd=workspace,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=self._spawn_env(workspace, env_extra),
+        )
+        try:
+            stdout_b, stderr_b = proc.communicate(timeout=timeout)
+            exit_code = proc.returncode
+            return {
+                "status": "ok" if exit_code == 0 else "error",
+                "stdout": _tail(stdout_b),
+                "stderr": _tail(stderr_b),
+                "exit_code": exit_code,
+                "error": None,
+            }
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            _reap(proc)
+            return {
+                "status": "error",
+                "stdout": "",
+                "stderr": "",
+                "exit_code": None,
+                "error": "timeout",
+            }
+
     def _execute_windows(
         self,
         command: str,
         workspace: Path,
         timeout: float,
         env_extra: dict[str, str] | None = None,
+        *,
+        detach: bool = False,
     ) -> dict:
         """Windows 路径：Job Object 圈住整棵进程树（KILL_ON_JOB_CLOSE）。
 
@@ -363,6 +412,8 @@ class Executor:
         """
         winapi = _winapi
         assert winapi is not None  # 仅经 is_windows() 分支进入（mypy 收窄）
+        if detach:
+            return self._execute_windows_detached(command, workspace, timeout, env_extra)
         job = winapi.create_job_object()
         try:
             info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()

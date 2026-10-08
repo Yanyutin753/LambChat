@@ -3391,7 +3391,8 @@
     "DOCUMENT_PARSE_TIKA_URL": "Apache Tika 服务器地址（自建）",
     "DOCUMENT_PARSE_MAX_DOWNLOAD_BYTES": "文档下载大小上限（字节）",
     "DOCUMENT_PARSE_MAX_OUTPUT_CHARS": "解析结果 Markdown 最大字符数，超出截断",
-    "DOCUMENT_PARSE_MAX_IMAGES": "单次解析最多提取的图片数"
+    "DOCUMENT_PARSE_MAX_IMAGES": "单次解析最多提取的图片数",
+    "ENABLE_COMPUTER_USE": "电脑控制(computer_use):让 Agent 经本地沙箱 daemon 驱动本机桌面 GUI。仅本地沙箱平台可用,需桌面端在线;macOS 需给 LambChat.app 授辅助功能+屏幕录制。"
   },
   "settings": {
     "navigation": {
@@ -3881,7 +3882,8 @@
     "title": "标题生成",
     "turnstile": "Turnstile",
     "webSearch": "网页搜索",
-    "dedup": "语义去重"
+    "dedup": "语义去重",
+    "local": "本地沙箱"
   },
   "systemHealth": {
     "fetchFailed": "获取健康数据失败",
