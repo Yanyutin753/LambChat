@@ -336,6 +336,13 @@ class SearchAgentContext:
             self.tools.append(get_upload_url_tool())
             logger.info("[SearchAgentContext] Added upload_url_to_sandbox tool (sandbox mode)")
 
+        # computer-use：仅本地沙箱 daemon 支持；daemon 未授权/离线时报结构化
+        # 错误，工具描述内含「禁 osascript」铁律与引导（与 fast agent 同款）
+        if settings.ENABLE_COMPUTER_USE:
+            from src.infra.tool.computer_use_tool import computer_use
+
+            self._append_unique_tools([computer_use])
+
         # MCP 工具延迟加载（不在 setup 时初始化）
         logger.info("[SearchAgentContext] MCP tools will be lazy loaded on first use")
 
