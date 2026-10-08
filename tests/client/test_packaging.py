@@ -69,6 +69,16 @@ def test_makefile_exposes_client_build_daemon_target() -> None:
     assert "client/scripts/build-daemon.sh" in makefile
 
 
+def test_cua_group_installs_screenshot_encoder_on_every_platform() -> None:
+    import tomllib
+
+    config = tomllib.loads(_source("pyproject.toml"))
+    assert any(
+        requirement.lower().split(";")[0].strip().startswith("pillow") and ";" not in requirement
+        for requirement in config["dependency-groups"]["cua"]
+    )
+
+
 # ---------------------------------------------------------------------------
 # 内嵌 PBS 运行时（M4 T4）：fetch 脚本 / Tauri resources / 忽略产物
 # ---------------------------------------------------------------------------
@@ -583,3 +593,14 @@ def test_updater_manifest_includes_release_notes(tmp_path, monkeypatch):
     assert manifest["notes"] == notes.read_text().strip()
 
     assert manifest["pub_date"] == "2026-10-06T19:35:00Z"
+
+
+def test_linux_package_bundles_accessibility_runtime():
+    spec = _source("client/pyinstaller.spec")
+    workflow = _source(".github/workflows/app-release.yml")
+    assert "python3-pyatspi" in workflow
+    assert "python3-gi" in workflow
+    assert "gir1.2-atspi-2.0" in workflow
+    assert '"/usr/lib/python3/dist-packages"' in spec
+    assert '"gi.repository.Atspi"' in spec
+    assert '"pyatspi"' in spec

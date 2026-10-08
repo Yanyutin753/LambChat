@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from typing import Any
 
@@ -74,6 +75,55 @@ async def test_state_returns_rendered_tree(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 @pytest.mark.asyncio
+async def test_state_preserves_window_metadata_and_screenshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _dispatch(*args: Any, **kwargs: Any) -> dict:
+        return {
+            "result": {
+                "pid": 42,
+                "window": {"window_id": 0, "title": "编辑器", "bounds": [0, 0, 800, 600]},
+                "element_count": 1,
+                "truncated": False,
+                "state": "window: 编辑器 (id=0)\n[0] AXButton 'OK'",
+                "screenshot": {
+                    "mime": "image/jpeg",
+                    "width": 800,
+                    "height": 600,
+                    "data_b64": "abcd",
+                },
+            }
+        }
+
+    async def _upload(result: dict, base_url: str) -> None:
+        block = result["blocks"][0]
+        assert block["base64"] == "abcd"
+        assert block["mime_type"] == "image/jpeg"
+        block.pop("base64")
+        block["url"] = "/api/upload/file/cua-test.jpg"
+
+    monkeypatch.setattr(cut, "upload_binary_blocks", _upload)
+    monkeypatch.setattr(cut, "dispatch_local_call", _dispatch)
+    result = json.loads(await _call(action="state", pid=42, include_screenshot=True))
+    assert result["window"] == {"window_id": 0, "title": "编辑器", "bounds": [0, 0, 800, 600]}
+    assert result["element_count"] == 1
+    assert result["truncated"] is False
+    assert result["screenshot"]["url"] == "/api/upload/file/cua-test.jpg"
+    assert "data_b64" not in result["screenshot"]
+
+
+@pytest.mark.asyncio
+async def test_apps_preserves_structured_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _dispatch(*args: Any, **kwargs: Any) -> dict:
+        return {"result": {"apps": [{"pid": 1, "name": "Notes", "active": True}]}}
+
+    monkeypatch.setattr(cut, "dispatch_local_call", _dispatch)
+    assert json.loads(await _call(action="apps")) == {
+        "apps": [{"pid": 1, "name": "Notes", "active": True}]
+    }
+
+
+@pytest.mark.asyncio
 async def test_structured_error_is_formatted(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _dispatch(user_id: str, op: str, payload: dict, *, machine_id=None) -> dict:
         return {"status": "ok", "result": {"error": "ax_not_trusted", "detail": "grant…"}}
@@ -132,7 +182,7 @@ async def test_apps_listing_format(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(cut, "dispatch_local_call", _dispatch)
     result = await _call(action="apps")
-    assert "pid=1 Notes [active]" in result
+    assert json.loads(result)["apps"] == [{"pid": 1, "name": "Notes", "active": True}]
 
 
 @pytest.mark.asyncio
@@ -215,3 +265,33 @@ async def test_activate_action_routes_to_cua_activate(
     assert captured["payload"]["pid"] == 7
     assert captured["payload"]["window_id"] == 0
     assert "ok" in result
+
+
+@pytest.mark.asyncio
+async def test_element_action_name_reaches_daemon(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    async def _dispatch(user_id: str, op: str, payload: dict, *, machine_id=None) -> dict:
+        captured.update(op=op, payload=payload)
+        return {"result": {"ok": True}}
+
+    monkeypatch.setattr(cut, "dispatch_local_call", _dispatch)
+    await _call(action="action", pid=42, index=0, element_action="Press")
+    assert captured["payload"]["action"] == "Press"
+
+
+@pytest.mark.asyncio
+async def test_large_tree_keeps_valid_json_and_screenshot_metadata() -> None:
+    raw = await cut._format_result(
+        {
+            "state": "[0] AXTextField value='" + "a\\b中文" * 40_000,
+            "element_count": 400,
+            "truncated": False,
+            "screenshot": {"url": "/api/upload/file/shot.jpg", "width": 800, "height": 600},
+        }
+    )
+    assert len(raw) < 100_000
+    result = json.loads(raw)
+    assert result["truncated"] is True
+    assert result["screenshot"]["url"] == "/api/upload/file/shot.jpg"
+    assert result["state"].startswith("[0] AXTextField")

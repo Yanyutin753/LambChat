@@ -19,12 +19,16 @@ psutil 不在此列：procsup.py（Windows 父进程监视）模块级硬依赖�
 """
 
 from pathlib import Path
+import sys
+
+LINUX_SYSTEM_PACKAGES = ["/usr/lib/python3/dist-packages"] if sys.platform.startswith("linux") else []
+sys.path.extend(LINUX_SYSTEM_PACKAGES)
 
 REPO_ROOT = Path(SPECPATH).resolve().parent
 
 a = Analysis(
     [str(REPO_ROOT / "client/lambchat_sandbox/__main__.py")],
-    pathex=[str(REPO_ROOT / "client")],
+    pathex=[str(REPO_ROOT / "client"), *LINUX_SYSTEM_PACKAGES],
     binaries=[],
     datas=[],
     hiddenimports=[
@@ -36,6 +40,7 @@ a = Analysis(
         "PIL",
         "pyperclip",
         "pyautogui",
+        *(["pyatspi", "gi.repository.Atspi"] if LINUX_SYSTEM_PACKAGES else []),
     ],
     hookspath=[],
     hooksconfig={},

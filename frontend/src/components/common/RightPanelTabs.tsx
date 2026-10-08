@@ -1,6 +1,7 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import "./rightPanelTabs.css";
+import { Tooltip } from "./Tooltip";
 import { PanelRight, PanelRightClose, PanelRightOpen, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -61,36 +62,55 @@ export function RightPanelTabs() {
               className="right-panel-tab"
               data-selected={selected}
             >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                aria-controls={entry.panelId}
-                tabIndex={selected ? 0 : -1}
-                title={label}
-                onClick={() => activateRightPanel(entry.id)}
-                onKeyDown={(event) => {
-                  let next: number;
-                  if (event.key === "ArrowRight")
-                    next = (index + 1) % entries.length;
-                  else if (event.key === "ArrowLeft")
-                    next = (index + entries.length - 1) % entries.length;
-                  else if (event.key === "Home") next = 0;
-                  else if (event.key === "End") next = entries.length - 1;
-                  else if (event.key === "Delete") {
-                    event.preventDefault();
-                    closeRightPanel(entry.id);
-                    return;
-                  } else return;
-                  event.preventDefault();
-                  activateRightPanel(entries[next].id);
-                }}
+              <Tooltip
+                placement="bottom"
+                hoverDelay={500}
+                zIndex={300}
+                className="right-panel-tab-tooltip"
+                content={
+                  <span className="right-panel-tab-details">
+                    <strong>{label}</strong>
+                    {entry.path && entry.path !== label && (
+                      <span className="right-panel-tab-path">{entry.path}</span>
+                    )}
+                    {entry.fileType && (
+                      <span className="right-panel-tab-type">
+                        {entry.fileType}
+                      </span>
+                    )}
+                  </span>
+                }
               >
-                <span className="right-panel-tab-icon" aria-hidden="true">
-                  {entry.icon ?? <PanelRight size={14} />}
-                </span>
-                <span className="right-panel-tab-label">{label}</span>
-              </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  aria-controls={entry.panelId}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => activateRightPanel(entry.id)}
+                  onKeyDown={(event) => {
+                    let next: number;
+                    if (event.key === "ArrowRight")
+                      next = (index + 1) % entries.length;
+                    else if (event.key === "ArrowLeft")
+                      next = (index + entries.length - 1) % entries.length;
+                    else if (event.key === "Home") next = 0;
+                    else if (event.key === "End") next = entries.length - 1;
+                    else if (event.key === "Delete") {
+                      event.preventDefault();
+                      closeRightPanel(entry.id);
+                      return;
+                    } else return;
+                    event.preventDefault();
+                    activateRightPanel(entries[next].id);
+                  }}
+                >
+                  <span className="right-panel-tab-icon" aria-hidden="true">
+                    {entry.icon ?? <PanelRight size={14} />}
+                  </span>
+                  <span className="right-panel-tab-label">{label}</span>
+                </button>
+              </Tooltip>
               <button
                 type="button"
                 className="right-panel-tab-close"

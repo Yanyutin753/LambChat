@@ -17,6 +17,7 @@ from typing import Annotated, Any, Optional
 from langchain.tools import ToolRuntime, tool
 from pydantic import BaseModel, Field
 
+from src.infra.agent.events.binary_uploads import upload_binary_blocks
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.sandbox.relay.dispatch import dispatch_local_call
@@ -59,8 +60,14 @@ class _ComputerUseInput(BaseModel):
     index: Optional[int] = Field(
         None, description="element index from the latest state of this app"
     )
-    x: Optional[float] = Field(None, description="coordinate fallback: x on the current raster")
-    y: Optional[float] = Field(None, description="coordinate fallback: y on the current raster")
+    x: Optional[float] = Field(
+        None,
+        description="coordinate fallback: global screen x (add window origin; account for screenshot scaling)",
+    )
+    y: Optional[float] = Field(
+        None,
+        description="coordinate fallback: global screen y (add window origin; account for screenshot scaling)",
+    )
     text: Optional[str] = Field(None, description="type/key text (e.g. 'hello' or 'cmd+c')")
     value: Optional[str] = Field(None, description="set_value text")
     mouse_button: Optional[str] = Field(None, description="click: left|right|middle (default left)")
@@ -70,6 +77,9 @@ class _ComputerUseInput(BaseModel):
     include_screenshot: bool = Field(False, description="state: attach jpeg screenshot (base64)")
     probe_screen: bool = Field(False, description="status: probe Screen Recording permission")
     repeat: Optional[int] = Field(None, description="key: repeat count 1..50")
+    element_action: Optional[str] = Field(
+        None, description="action: exact action name from the latest tree (e.g. Press)"
+    )
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
@@ -112,35 +122,42 @@ def _build_payload(data: _ComputerUseInput) -> dict[str, Any]:
         payload["app"] = data.app
     if data.args:
         payload["args"] = data.args
+    if data.element_action:
+        payload["action"] = data.element_action
     return payload
 
 
-def _format_result(action: str, result: dict[str, Any]) -> str:
+async def _format_result(result: dict[str, Any]) -> str:
     if not isinstance(result, dict):
         return str(result)
     if "error" in result:
         detail = result.get("detail") or ""
         return f"ERROR {result['error']}" + (f": {detail}" if detail else "")
-    if action in ("state",):
-        return str(result.get("state") or result)
-    if action == "apps":
-        lines = []
-        for app in result.get("apps", []):
-            marker = " [active]" if app.get("active") else ""
-            lines.append(f"pid={app['pid']} {app['name']}{marker}")
-        return "\n".join(lines) or "no apps"
-    if action == "windows":
-        lines = []
-        for index, win in enumerate(result.get("windows", [])):
-            flags = ("main" if win.get("main") else "") + (" focused" if win.get("focused") else "")
-            lines.append(
-                f"[{index}] id={win.get('window_id')} title={win.get('title')!r}"
-                + (f" ({flags.strip()})" if flags.strip() else "")
-            )
-        return "\n".join(lines) or "no windows"
-    if action == "status":
-        return str(result)
-    return str(result)
+    screenshot = result.get("screenshot")
+    if isinstance(screenshot, dict) and screenshot.get("data_b64"):
+        block = {
+            "base64": screenshot["data_b64"],
+            "mime_type": screenshot.get("mime", "image/jpeg"),
+        }
+        # Store pixels before the SSE text limit; send the same file proxy URL as MCP images.
+        await upload_binary_blocks({"blocks": [block]}, "")
+        result = {
+            **result,
+            "screenshot": {
+                **{k: v for k, v in screenshot.items() if k != "data_b64"},
+                **{k: v for k, v in block.items() if k in ("url", "upload_error")},
+            },
+        }
+    serialized = await _json_dumps_result(result)
+    # Keep the JSON envelope below the SSE parse limit, including screenshot metadata.
+    while len(serialized) > 90_000 and isinstance(result.get("state"), str) and result["state"]:
+        result = {
+            **result,
+            "state": result["state"][: len(result["state"]) // 2],
+            "truncated": True,
+        }
+        serialized = await _json_dumps_result(result)
+    return serialized
 
 
 @tool("computer_use", args_schema=_ComputerUseInput)
@@ -169,6 +186,7 @@ async def computer_use(
     include_screenshot: Annotated[bool, "Attach screenshot to state"] = False,
     probe_screen: Annotated[bool, "Probe Screen Recording in status"] = False,
     repeat: Annotated[Optional[int], "Key repeat count"] = None,
+    element_action: Annotated[Optional[str], "action: name from tree actions= (e.g. Press)"] = None,
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
     """Operate native apps / the desktop on the user's OWN machine via the local sandbox.
@@ -212,6 +230,11 @@ async def computer_use(
     - NEVER use osascript/AppleScript/System Events/JXA for UI automation — an unattended
       TCC permission dialog hangs forever. This tool is the replacement.
     - For settable elements prefer set_value over typing.
+    - ``action`` invokes a named accessibility action: pass ``element_action`` from
+      the latest tree's actions= list and the element ``index``.
+    - Coordinate targets use global screen coordinates, not cropped screenshot pixels.
+      Add the window origin and account for screenshot scaling using window.bounds.
+      For scroll, pass an element index or coordinates to target the scroll area.
     - Errors are structured: ax_not_trusted/screen_recording_denied → tell the user to
       grant Accessibility & Screen Recording to LambChat.app once in System Settings
       (macOS) / enable toolkit-accessibility (Linux); app_not_found → ``apps``;
@@ -254,6 +277,7 @@ async def computer_use(
             url=url,
             app=app,
             args=args,
+            element_action=element_action,
         )
     )
     try:
@@ -272,4 +296,4 @@ async def computer_use(
     if result is None:
         error = resp.get("error") if isinstance(resp, dict) else resp
         return f"ERROR daemon_error: {error}"
-    return _format_result(action, result)
+    return await _format_result(result)

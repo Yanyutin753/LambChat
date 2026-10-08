@@ -9,6 +9,8 @@ export interface RightPanelEntry {
   close: () => void;
   opener: HTMLElement | null;
   title?: string;
+  path?: string;
+  fileType?: string;
   icon?: ReactNode;
   panelId?: string;
   registryKey?: string;
