@@ -247,7 +247,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         mw = [
             *create_retry_middleware(fallback_model=fallback_model_value),
             create_todo_middleware(),
-            ToolResultBinaryMiddleware(base_url=search_base_url),
+            ToolResultBinaryMiddleware(base_url=search_base_url, supports_vision=supports_vision),
             ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir),
             SubagentActivityMiddleware(backend=backend),
         ]
@@ -336,7 +336,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     user_middleware.insert(
         0, SteerMiddleware(session_id=str(state.get("session_id") or ""), presenter=presenter)
     )
-    user_middleware.append(ToolResultBinaryMiddleware(base_url=search_base_url))
+    user_middleware.append(
+        ToolResultBinaryMiddleware(base_url=search_base_url, supports_vision=supports_vision)
+    )
     user_middleware.append(ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir))
     _image_mw = image_url_middleware_for_mode(image_url_mode)
     if _image_mw:

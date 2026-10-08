@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import mimetypes
 from collections.abc import Awaitable, Callable
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -79,6 +80,11 @@ def _mime_type_from_block(block: dict) -> str:
         media_type = source.get("media_type")
         if isinstance(media_type, str) and media_type.startswith("image/"):
             return media_type
+    url = _image_url_from_block(block)
+    if url:
+        guessed = mimetypes.guess_type(urlsplit(url).path)[0]
+        if guessed and guessed.startswith("image/"):
+            return guessed
     return "image/jpeg"
 
 

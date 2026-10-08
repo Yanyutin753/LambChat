@@ -89,6 +89,7 @@ cua = [
     "pywinauto>=0.6.9; sys_platform == 'win32'",
     "pyautogui; sys_platform != 'darwin'",
     "python-xlib; sys_platform == 'linux'",
+    "pillow>=12.0",
     # 非 ASCII 文本输入的剪贴板通道(cua_ops._type_text);缺失时中文
     # 输入整链 dispatch_failed(2026-10-08 生产实测)
     "pyperclip",

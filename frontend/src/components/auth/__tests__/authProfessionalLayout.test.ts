@@ -13,3 +13,8 @@ test("auth editorial headings use the existing serif typography", () => {
   expect(source).toMatch(/<h2 className="font-serif"/);
   expect(source).toMatch(/<h1 className="font-serif /);
 });
+
+test("auth mode prompt and action share serif typography for text alignment", () => {
+  const classes = source.match(/className="(auth-mode-switch[^"]*)"/)?.[1];
+  expect(classes?.split(/\s+/)).toContain("font-serif");
+});

@@ -138,3 +138,49 @@ def test_list_apps_keeps_only_window_owning_processes(
 def test_list_apps_without_gui_windows_returns_empty(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cua_win, "_desktop_windows", lambda: [])
     assert cua_win.list_apps() == []
+
+
+def test_activate_window_rejects_invalid_pinned_index(monkeypatch):
+    handle = _FakeWinElement(pid=7)
+    monkeypatch.setattr(
+        cua_win, "windows", lambda pid: [{"window_id": 0, "title": "A", "handle": handle}]
+    )
+    with pytest.raises(KeyError):
+        cua_win.activate_window(7, 4)
+    assert handle.calls == []
+
+
+def test_windows_capture_includes_negative_monitor_coordinates(monkeypatch):
+    from PIL import Image, ImageGrab
+
+    calls = []
+    monkeypatch.setattr(
+        ImageGrab, "grab", lambda **kw: calls.append(kw) or Image.new("RGB", (640, 480))
+    )
+    assert cua_win.screenshot([-1280, 40, 640, 480]).size == (640, 480)
+    assert calls == [{"bbox": (-1280, 40, -640, 520), "all_screens": True}]
+
+
+def test_windows_text_uses_literal_unicode_without_clipboard(monkeypatch):
+    import sys
+    from types import ModuleType
+
+    keyboard = ModuleType("pywinauto.keyboard")
+    calls = []
+    keyboard.send_keys = lambda *args, **kw: calls.append((args, kw))
+    monkeypatch.setitem(sys.modules, "pywinauto.keyboard", keyboard)
+    cua_win.type_text("literal 中文 {ENTER}+^%~()\n")
+    assert calls[0][0] == ("literal 中文 {{}ENTER{}}{+}{^}{%}{~}{(}{)}\n",)
+    assert calls[0][1]["with_spaces"] and calls[0][1]["with_newlines"]
+
+
+def test_windows_text_preserves_supplementary_unicode(monkeypatch):
+    import sys
+    from types import ModuleType
+
+    keyboard = ModuleType("pywinauto.keyboard")
+    calls = []
+    keyboard.send_keys = lambda text, **kwargs: calls.append(text)
+    monkeypatch.setitem(sys.modules, "pywinauto.keyboard", keyboard)
+    cua_win.type_text("😀𠀀")
+    assert calls == ["\ud83d\ude00\ud840\udc00"]

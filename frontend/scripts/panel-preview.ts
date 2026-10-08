@@ -1,6 +1,7 @@
 /** Local-only UI fixture server. No requests are forwarded to a real API. */
 import { createServer } from "vite";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { Permission, type PermissionsResponse } from "../src/types/auth";
 
 const now = "2026-09-30T08:00:00Z";
@@ -328,17 +329,32 @@ const settings = {
             { icon: "📄", text: "读取 README.md 文件" },
             { icon: "🔧", text: "帮我写一个 Shell 脚本" },
           ],
-          ja: [], ko: [], ru: [],
+          ja: [],
+          ko: [],
+          ru: [],
         },
         default_value: {},
         json_schema: {
-          type: "object", value_type: "array",
+          type: "object",
+          value_type: "array",
           key_label: "settingDesc.WELCOME_SUGGESTION_LANG",
           item_label: "settingDesc.WELCOME_SUGGESTION_ITEM",
           key_options: ["en", "zh", "ja", "ko", "ru"],
           fields: [
-            { name: "icon", type: "text", label: "settingDesc.WELCOME_SUGGESTION_ICON", required: true, layout_width: "compact" },
-            { name: "text", type: "text", label: "settingDesc.WELCOME_SUGGESTION_TEXT", required: true, layout_width: "full" },
+            {
+              name: "icon",
+              type: "text",
+              label: "settingDesc.WELCOME_SUGGESTION_ICON",
+              required: true,
+              layout_width: "compact",
+            },
+            {
+              name: "text",
+              type: "text",
+              label: "settingDesc.WELCOME_SUGGESTION_TEXT",
+              required: true,
+              layout_width: "full",
+            },
           ],
         },
       },
@@ -803,6 +819,22 @@ function response(
   };
   const all = (items: object[]) => (scenario === "empty" ? [] : items);
   if (["/api/auth/me", "/api/auth/profile"].includes(path)) return user;
+  if (path === "/api/auth/oauth/providers")
+    return {
+      providers: [],
+      registration_enabled: true,
+      admin_contact: {
+        email: "support@example.test",
+        url: "https://example.test/support",
+      },
+      turnstile: {
+        enabled: false,
+        site_key: "",
+        require_on_login: false,
+        require_on_register: false,
+        require_on_password_change: false,
+      },
+    };
   if (path === "/api/pricing/rates")
     return { base: "USD", rates: { USD: 1 }, synced_at: now };
   if (path === "/api/upload/config")
@@ -1124,7 +1156,7 @@ function response(
     const groups = all(files).map((file, i) => ({
       session_id: file.session_id,
       session_name: file.session_name,
-      file_count: i === 0 ? 4 : 3,
+      file_count: i === 0 ? 10 : 3,
       files: [
         file,
         ...(i === 0
@@ -1139,6 +1171,44 @@ function response(
                 mime_type: "application/json",
                 card_preview: null,
               },
+              {
+                ...file,
+                id: "preview-pdf",
+                file_size: 2439,
+                file_name: "研究与交付计划.pdf",
+                file_key: "preview/delivery-plan.pdf",
+                original_path: "/workspace/研究与交付计划.pdf",
+                url: "/preview-document.pdf",
+                mime_type: "application/pdf",
+                card_preview: null,
+              },
+              ...([
+                ["图纸预览.dxf", "dxf", "application/dxf", 260],
+                ["原始图纸.dwg", "dwg", "application/acad", 36],
+                [
+                  "文本回退.pptx",
+                  "pptx",
+                  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                  1080,
+                ],
+                ["音频样例.wav", "wav", "audio/wav", 16044],
+                [
+                  "视频样例.mp4",
+                  "mp4",
+                  "video/mp4",
+                  1268,
+                ],
+              ] as const).map(([name, ext, mime, size]) => ({
+                ...file,
+                id: `preview-${ext}`,
+                file_size: size,
+                file_name: name,
+                file_key: `preview/sample.${ext}`,
+                original_path: `/workspace/${name}`,
+                url: `/preview-document.${ext}`,
+                mime_type: mime,
+                card_preview: null,
+              })),
             ]
           : []),
         {
@@ -1277,7 +1347,7 @@ function response(
         agent_name: "通用助手",
         created_at: now,
       },
-      events: history.events,
+      events: scenario === "empty" ? [] : history.events,
       owner: { username: "LambChat Demo" },
       share_type: "full",
       share_scope: "session",
@@ -1452,19 +1522,41 @@ function response(
     const directory = url.searchParams.get("path") || "";
     return {
       entries:
-        directory && directory !== "."
-          ? [{ path: "研究资料/访谈笔记.md", is_dir: false }]
+        scenario === "empty"
+          ? []
+          : directory && directory !== "."
+          ? directory === "研究资料"
+            ? [
+                { path: "研究资料/访谈记录", is_dir: true },
+                { path: "研究资料/访谈笔记.md", is_dir: false },
+              ]
+            : [{ path: `${directory}/会议记录.txt`, is_dir: false }]
           : [
               { path: "研究资料", is_dir: true },
               { path: "今天吃什么.py", is_dir: false },
               { path: "随手记.txt", is_dir: false },
               { path: "交付计划与下一阶段验证清单.md", is_dir: false },
               { path: "品牌图标.png", is_dir: false },
+              { path: "音频样例.wav", is_dir: false },
+              { path: "视频样例.mp4", is_dir: false },
             ],
     };
   }
   if (path === "/api/sandbox/fs/cloud/read") {
     const file = url.searchParams.get("path") || "";
+    if (file === "音频样例.wav" || file === "视频样例.mp4")
+      return {
+        encoding: "base64",
+        content: readFileSync(
+          new URL(
+            file.endsWith(".wav")
+              ? "./fixtures/preview-audio.wav"
+              : "./fixtures/preview-video.mp4",
+            import.meta.url,
+          ),
+        ).toString("base64"),
+        next_offset: null,
+      };
     if (file.endsWith(".png"))
       return {
         encoding: "base64",
@@ -1512,7 +1604,47 @@ const server = await createServer({
       configResolved(config) {
         config.server.proxy = {};
       },
-      transformIndexHtml(html) {
+      resolveId(source, importer, options) {
+        if (options.scan) return;
+        if (
+          importer?.endsWith("/components/profile/LocalSandboxSection.tsx") &&
+          [
+            "../../services/tauri/sandboxShell",
+            "../../hooks/useSandboxStatus",
+            "../../services/api/tokenManager",
+            "../../services/api/sandbox",
+          ].includes(source)
+        ) {
+          return fileURLToPath(
+            new URL("./local-sandbox-fixture.ts", import.meta.url),
+          );
+        }
+        if (
+          importer?.endsWith("/components/profile/SandboxDataLocationCard.tsx") &&
+          (source === "../../services/tauri/sandboxShell" ||
+            source === "@tauri-apps/plugin-process")
+        ) {
+          return fileURLToPath(
+            new URL("./sandbox-location-fixture.ts", import.meta.url),
+          );
+        }
+      },
+      transformIndexHtml(html, context) {
+        if (context.originalUrl?.split("?")[0] === "/dialog-preview") {
+          html = html.replace("/src/main.tsx", "/scripts/dialog-preview.tsx");
+        }
+        if (context.originalUrl?.split("?")[0] === "/sandbox-data-preview") {
+          html = html.replace(
+            "/src/main.tsx",
+            "/scripts/sandbox-data-preview.tsx",
+          );
+        }
+        if (context.originalUrl?.split("?")[0] === "/server-connection-preview") {
+          html = html.replace(
+            "/src/main.tsx",
+            "/scripts/server-connection-preview.tsx",
+          );
+        }
         return html.replace(
           "<head>",
           `<head><script>const params=new URLSearchParams(location.search);if(params.has("guest")){localStorage.removeItem("access_token");localStorage.removeItem("refresh_token");}else{localStorage.setItem("access_token",${JSON.stringify(
@@ -1526,6 +1658,18 @@ const server = await createServer({
           const previewParams = new URL(
             req.headers.referer ?? "http://localhost",
           ).searchParams;
+          // Failure-only health fixture; never stores or switches a server URL.
+          if (
+            req.method === "GET" &&
+            url.pathname === "/preview-health/health"
+          ) {
+            const timer = setTimeout(() => {
+              res.statusCode = 503;
+              res.end("Preview server unavailable");
+            }, 2000);
+            res.on("close", () => clearTimeout(timer));
+            return;
+          }
           if (
             url.pathname === "/preview-missing-image.webp" ||
             url.pathname === "/preview-missing-video.webm"
@@ -1566,6 +1710,62 @@ const server = await createServer({
               res.end("Preview document temporarily unavailable");
               return;
             }
+          }
+          if (url.pathname === "/preview-document.dxf") {
+            res.setHeader("Content-Type", "application/dxf");
+            res.end(
+              previewParams.get("failure") === "cad-render"
+                ? "Invalid DXF fixture"
+                : readFileSync(
+                    new URL("./fixtures/preview-drawing.dxf", import.meta.url),
+                  ),
+            );
+            return;
+          }
+          if (
+            url.pathname === "/preview-document.wav" ||
+            url.pathname === "/preview-document.mp4"
+          ) {
+            const audio = url.pathname.endsWith(".wav");
+            res.setHeader("Content-Type", audio ? "audio/wav" : "video/mp4");
+            res.end(
+              readFileSync(
+                new URL(
+                  audio
+                    ? "./fixtures/preview-audio.wav"
+                    : "./fixtures/preview-video.mp4",
+                  import.meta.url,
+                ),
+              ),
+            );
+            return;
+          }
+          if (url.pathname === "/preview-document.dwg") {
+            res.end("DWG fallback fixture - no drawing data");
+            return;
+          }
+          if (url.pathname === "/preview-document.pptx") {
+            res.setHeader(
+              "Content-Type",
+              "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            );
+            res.end(
+              readFileSync(
+                new URL("./fixtures/preview-text-slides.pptx", import.meta.url),
+              ),
+            );
+            return;
+          }
+          if (url.pathname === "/preview-document.pdf") {
+            res.setHeader("Content-Type", "application/pdf");
+            if (previewParams.get("failure") === "pdf-render") {
+              res.end("Invalid PDF fixture");
+              return;
+            }
+            res.end(
+              readFileSync(new URL("./fixtures/preview-document.pdf", import.meta.url)),
+            );
+            return;
           }
           if (url.pathname === "/preview-document.md") {
             res.end(
@@ -1717,6 +1917,41 @@ const server = await createServer({
                     : url.pathname.endsWith("/metadata")
                       ? user
                       : { default_agent_id: "search" },
+                ),
+              );
+            }, 2000);
+            return;
+          }
+          if (
+            previewParams.get("feedback-flow") === "1" &&
+            req.method === "POST" &&
+            ["/api/feedback/", "/api/upload/file"].includes(url.pathname)
+          ) {
+            // UI-only feedback: discard bytes; never parse, store or forward them.
+            req.resume();
+            const upload = url.pathname === "/api/upload/file";
+            const key = `feedback-flow:${streamKey}:${url.pathname}`;
+            const failed =
+              failureTarget === (upload ? "feedback-upload" : "feedback-save") &&
+              !failedChannelRequests.has(key);
+            if (failed) failedChannelRequests.add(key);
+            setTimeout(() => {
+              res.statusCode = failed ? 503 : 200;
+              res.setHeader("Content-Type", "application/json");
+              res.end(
+                JSON.stringify(
+                  failed
+                    ? { detail: "Fixture feedback unavailable" }
+                    : upload
+                      ? {
+                          key: "preview-feedback",
+                          url: "/icons/icon-192.png",
+                          name: "preview-feedback.png",
+                          type: "image",
+                          mime_type: "image/png",
+                          size: 41245,
+                        }
+                      : feedback[0],
                 ),
               );
             }, 2000);
@@ -1933,15 +2168,160 @@ const server = await createServer({
                   url.pathname === "/api/agents"
                 ? { agents, count: agents.length, default_agent: "team" }
                 : response(url, scenario, chatState);
+          if (url.pathname === "/api/auth/oauth/providers") {
+            const email =
+              previewParams.get("contact") === "empty"
+                ? ""
+                : previewParams.has("long")
+                  ? `${"research-support-".repeat(8)}@example.test`
+                  : "support@example.test";
+            data = {
+              ...(data as object),
+              admin_contact: {
+                email,
+                url: email ? "https://example.test/support" : "",
+              },
+            };
+          }
+          if (
+            url.pathname === "/api/sessions" &&
+            previewParams.has("search-long")
+          ) {
+            const results = data as { sessions: Record<string, unknown>[] };
+            data = {
+              ...results,
+              sessions: results.sessions.map((session) => ({
+                ...session,
+                name: `${session.name} 与跨部门长期交付计划`,
+                metadata: {
+                  project_name:
+                    "QuarterlyResearchAndCrossDepartmentDelivery".repeat(4),
+                  search_match:
+                    "https://example.test/research/" +
+                    "delivery-context-".repeat(12),
+                },
+              })),
+            };
+          }
           if (["/api/auth/me", "/api/auth/profile"].includes(url.pathname)) {
             data = {
               ...user,
-              ...(previewParams.has("profile-avatar") ? {avatar_url: "/icons/icon-192.png"} : {}),
-              ...(previewParams.has("profile-long") ? {
-                username: "跨部门产品研究与长期项目交付负责人",
-                email: "cross.department.research.and.delivery@example.test",
-                roles: ["project-administrator-with-long-role-name", "research", "engineering"],
-              } : {}),
+              ...(previewParams.has("profile-avatar")
+                ? { avatar_url: "/icons/icon-192.png" }
+                : {}),
+              ...(previewParams.has("profile-long")
+                ? {
+                    username: "跨部门产品研究与长期项目交付负责人",
+                    email:
+                      "cross.department.research.and.delivery@example.test",
+                    roles: [
+                      "project-administrator-with-long-role-name",
+                      "research",
+                      "engineering",
+                    ],
+                  }
+                : {}),
+            };
+            const skillAccess = previewParams.get("skill-access");
+            if (["read", "write", "delete", "publish"].includes(skillAccess ?? "")) {
+              const skillPermissions = {
+                write: Permission.SKILL_WRITE,
+                delete: Permission.SKILL_DELETE,
+                publish: Permission.MARKETPLACE_PUBLISH,
+              };
+              data = {
+                ...(data as object),
+                permissions: user.permissions.filter(permission =>
+                  !Object.values(skillPermissions).includes(permission) ||
+                  permission === skillPermissions[skillAccess as keyof typeof skillPermissions],
+                ),
+              };
+            }
+          }
+          if (
+            url.pathname === "/api/share/public/preview-report" &&
+            previewParams.get("scope") !== "project" &&
+            previewParams.has("share-long")
+          ) {
+            const sessionShare = data as { session: object };
+            data = {
+              ...sessionShare,
+              session: {
+                ...sessionShare.session,
+                name: "QuarterlyResearchAndCrossDepartmentDelivery".repeat(3),
+                agent_name: "ResearchAndDeliveryAssistant".repeat(3),
+                persona_preset_name: "跨部门产品研究与交付负责人".repeat(3),
+                model: "custom-research-and-delivery-model".repeat(3),
+                provider: "openai",
+                persona_avatar: previewParams.has("share-avatar") ? "icon:BookOpen" : undefined,
+              },
+              owner: {
+                username: "ResearchAndDeliveryOwner".repeat(3),
+                ...(previewParams.has("share-avatar") ? { avatar_url: "/images/lamb.webp" } : {}),
+              },
+            };
+          }
+          if (
+            url.pathname === "/api/share/public/preview-report" &&
+            previewParams.get("scope") === "project"
+          ) {
+            const projectSessions =
+              scenario === "empty"
+                ? []
+                : [
+                    {
+                      id: "project-session-1",
+                      name: "产品研究与跨部门协作的长期交付计划",
+                      agent_name: "研究助手",
+                      updated_at: now,
+                    },
+                    {
+                      id: "project-session-2",
+                      name: "空会话与下一步行动",
+                      agent_name: "快速助手",
+                      updated_at: now,
+                    },
+                    {
+                      id: "project-session-3",
+                      name: "发布前验证与交付记录",
+                      agent_name: "工程助手",
+                      updated_at: now,
+                    },
+                  ];
+            const skip = Number(url.searchParams.get("session_skip") ?? 0);
+            data = {
+              share_scope: "project",
+              share_type: "full",
+              project: {
+                id: "preview-project",
+                name: "产品研究与长期项目交付计划",
+                icon: "Folder",
+              },
+              sessions: projectSessions.slice(skip, skip + 2),
+              owner: {
+                username:
+                  previewParams.get("profile") === "long"
+                    ? "跨部门产品研究与长期项目交付负责人".repeat(3)
+                    : "LambChat Demo",
+              },
+              visibility: "public",
+              sessions_total: projectSessions.length,
+              has_more: skip + 2 < projectSessions.length,
+            };
+          }
+          if (
+            /^\/api\/share\/public\/preview-report\/sessions\/project-session-[123]$/.test(url.pathname)
+          ) {
+            const session = response(
+              new URL("http://localhost/api/share/public/preview-report"),
+              "populated",
+            ) as { session: object; events: object[] };
+            data = {
+              ...session,
+              session: { ...session.session, id: url.pathname.split("/").pop() },
+              events: url.pathname.endsWith("project-session-2")
+                ? []
+                : session.events,
             };
           }
           if (url.pathname === "/api/agents") {
@@ -1988,6 +2368,134 @@ const server = await createServer({
                 size: 41245,
               };
             }
+          }
+          if (
+            url.pathname === "/api/sessions/preview-report/events" &&
+            previewParams.has("cua")
+          ) {
+            const history = data as { events: object[] };
+            const cases = [
+              {
+                action: "status",
+                args: { machine_id: "local-mac", probe_screen: true },
+                result: {
+                  platform: "darwin",
+                  ready: true,
+                  accessibility: "granted",
+                  screen_recording: "granted",
+                },
+              },
+              {
+                action: "apps",
+                args: {},
+                result: {
+                  apps: [
+                    { name: "LambChat", pid: 42, active: true },
+                    {
+                      name: "Visual Studio Code with a very long application title",
+                      pid: 84,
+                      active: false,
+                    },
+                  ],
+                },
+              },
+              {
+                action: "windows",
+                args: { pid: 42 },
+                result: {
+                  pid: 42,
+                  windows: [
+                    {
+                      window_id: 0,
+                      title:
+                        "CUA test window with a long title for narrow panels",
+                      main: true,
+                      focused: true,
+                      bounds: [180, 738, 640, 552],
+                    },
+                  ],
+                },
+              },
+              {
+                action: "state",
+                args: {
+                  name: "LambChat",
+                  window_id: 0,
+                  include_screenshot: true,
+                },
+                result: {
+                  pid: 42,
+                  window: {
+                    window_id: 0,
+                    title: "CUA test window",
+                    bounds: [180, 738, 640, 552],
+                  },
+                  element_count: 17,
+                  truncated: true,
+                  state:
+                    "window: CUA test window (id=0)\n[0] AXWindow actions=Raise\n  [1] AXTextField 'CUA input' value='literal input 中文'\n  [2] AXButton 'Test button' actions=Press",
+                  screenshot: {
+                    mime: "image/webp",
+                    width: 1280,
+                    height: 860,
+                    data_b64: readFileSync(
+                      "public/images/best-practice/chat-home.webp",
+                    ).toString("base64"),
+                  },
+                },
+              },
+              {
+                action: "click",
+                args: { pid: 42, index: 2 },
+                result: { ok: true, strategy: "a11y", action: "click" },
+              },
+              {
+                action: "state",
+                args: { pid: 42 },
+                result: "ERROR dispatch_failed: local sandbox daemon offline",
+                success: false,
+              },
+              {
+                action: "status",
+                args: {},
+                result: {
+                  platform: "linux",
+                  ready: false,
+                  accessibility: "denied",
+                  screen_recording: "unknown",
+                },
+              },
+              { action: "apps", args: {}, result: { apps: [] } },
+            ];
+            history.events.splice(
+              2,
+              0,
+              ...cases.flatMap((item, index) => [
+                {
+                  id: `preview-cua-start-${index}`,
+                  event_type: "tool:start",
+                  run_id: "preview-run",
+                  timestamp: now,
+                  data: {
+                    tool: "computer_use",
+                    tool_call_id: `preview-cua-${index}`,
+                    args: { action: item.action, ...item.args },
+                  },
+                },
+                {
+                  id: `preview-cua-result-${index}`,
+                  event_type: "tool:result",
+                  run_id: "preview-run",
+                  timestamp: now,
+                  data: {
+                    tool: "computer_use",
+                    tool_call_id: `preview-cua-${index}`,
+                    result: item.result,
+                    success: item.success ?? true,
+                  },
+                },
+              ]),
+            );
           }
           if (
             url.pathname === "/api/sessions/preview-report/events" &&
@@ -2164,11 +2672,55 @@ const server = await createServer({
               })),
             );
           }
+          if (
+            url.pathname === "/api/version" &&
+            previewParams.get("view") === "about" &&
+            data &&
+            typeof data === "object"
+          ) {
+            Object.assign(data, {
+              latest_version: previewParams.get("state") === "current"
+                ? url.searchParams.get("client_version") || "2.13.2"
+                : previewParams.has("long")
+                  ? `99.0.0-${"preview".repeat(15)}`
+                  : "99.0.0",
+              has_update: previewParams.get("state") !== "current",
+              release_url: "https://example.test/release",
+              github_url: "https://example.test/source",
+            });
+          }
           const isRead = req.method === "GET";
           const channelConfigFailure =
             isRead &&
             ((failureTarget === "catalog-models" &&
               url.pathname === "/api/agent/models/available") ||
+              (failureTarget === "about-version" &&
+                url.pathname === "/api/version") ||
+              (failureTarget === "about-check" &&
+                url.pathname === "/api/version" &&
+                url.searchParams.has("force_refresh")) ||
+              ((failureTarget === "contact-config" ||
+                failureTarget === "contact-settings") &&
+                url.pathname === "/api/auth/oauth/providers") ||
+              (failureTarget === "share-content" &&
+                url.pathname === "/api/share/public/preview-report") ||
+              (failureTarget === "workspace-list" &&
+                url.pathname === "/api/sandbox/fs/cloud/list") ||
+              (failureTarget === "workspace-child" &&
+                url.pathname === "/api/sandbox/fs/cloud/list" &&
+                url.searchParams.has("path")) ||
+              (failureTarget === "workspace-read" &&
+                url.pathname === "/api/sandbox/fs/cloud/read") ||
+              (failureTarget === "search-sessions" &&
+                url.pathname === "/api/sessions" &&
+                url.searchParams.has("search")) ||
+              (failureTarget === "project-page" &&
+                url.pathname === "/api/share/public/preview-report" &&
+                url.searchParams.has("session_skip")) ||
+              (failureTarget === "project-session" &&
+                url.pathname.includes(
+                  "/api/share/public/preview-report/sessions/",
+                )) ||
               (failureTarget === "catalog-agents" &&
                 url.pathname === "/api/agents") ||
               (failureTarget === "catalog-preference" &&
@@ -2235,11 +2787,17 @@ const server = await createServer({
               !/auth|settings|agent\/models/.test(url.pathname));
           res.statusCode = !isRead
             ? 405
-            : fault
-              ? 503
-              : data === undefined
+            : url.pathname === "/api/share/public/preview-report" &&
+                previewParams.get("share-status") === "401"
+              ? 401
+              : url.pathname === "/api/share/public/preview-report" &&
+                  previewParams.get("share-status") === "404"
                 ? 404
-                : 200;
+                : fault
+                  ? 503
+                  : data === undefined
+                    ? 404
+                    : 200;
           res.setHeader("Content-Type", "application/json");
           res.setHeader("Cache-Control", "no-store");
           const send = () =>
@@ -2265,6 +2823,39 @@ const server = await createServer({
             );
           if (scenario === "loading" && !url.pathname.startsWith("/api/auth/"))
             setTimeout(send, 8000);
+          else if (
+            isRead &&
+            previewParams.get("view") === "about" &&
+            url.pathname === "/api/version"
+          )
+            setTimeout(send, 2000);
+          else if (
+            isRead &&
+            (previewParams.get("view") === "contact" ||
+              previewParams.has("contact-flow")) &&
+            url.pathname === "/api/auth/oauth/providers"
+          )
+            setTimeout(send, 2000);
+          else if (
+            isRead &&
+            previewParams.get("search-flow") === "1" &&
+            url.pathname === "/api/sessions"
+          )
+            setTimeout(send, 2000);
+          else if (
+            isRead &&
+            previewParams.get("workspace-flow") === "1" &&
+            /^\/api\/sandbox\/fs\/cloud\/(list|read)$/.test(url.pathname)
+          )
+            setTimeout(send, 2000);
+          else if (
+            isRead &&
+            previewParams.get("scope") === "project" &&
+            (url.pathname.includes("/api/share/public/preview-report/sessions/") ||
+              (url.pathname === "/api/share/public/preview-report" &&
+                url.searchParams.has("session_skip")))
+          )
+            setTimeout(send, 2000);
           else if (
             previewParams.has("agent-flow") &&
             isRead &&

@@ -29,7 +29,7 @@ test("execution tabs identify their commands and switch to the matching panel", 
   );
 
   const cpuTab = view.getByRole("tab", { name: "执行 · lscpu | head -20" });
-  expect(cpuTab).toHaveAttribute("title", "执行 · lscpu | head -20");
+  expect(cpuTab).toHaveTextContent("执行 · lscpu | head -20");
   expect(view.getByRole("tab", { name: "执行 · free -h" })).toHaveAttribute(
     "aria-selected",
     "true",
@@ -51,10 +51,7 @@ test.each([undefined, "", " \n\t "])(
       </ToolResultPanel>,
     );
 
-    expect(view.getByRole("tab", { name: "执行" })).toHaveAttribute(
-      "title",
-      "执行",
-    );
+    expect(view.getByRole("tab", { name: "执行" })).toHaveTextContent("执行");
   },
 );
 
@@ -81,5 +78,5 @@ test("tool tabs update their summaries without replacing the active tab", () => 
   const tab = view.getByRole("tab", { name: "搜索 · React hooks" });
   expect(tab).toHaveAttribute("aria-controls", panelId);
   expect(tab).toHaveAttribute("aria-selected", "true");
-  expect(tab).toHaveAttribute("title", "搜索 · React hooks");
+  expect(tab).toHaveTextContent("搜索 · React hooks");
 });

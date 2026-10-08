@@ -22,7 +22,10 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         <div className="auth-glow-violet absolute bottom-[15%] right-[10%] w-[280px] h-[280px] bg-[radial-gradient(circle,rgba(168,85,247,0.03)_0%,transparent_60%)] dark:bg-[radial-gradient(circle,rgba(168,85,247,0.018)_0%,transparent_60%)]" />
       </div>
 
-      <nav className="fixed top-0 inset-x-0 z-50 bg-theme-bg-card border-b border-stone-100/60 dark:border-stone-800/40 transition-shadow duration-300">
+      <nav
+        style={{ top: "var(--titlebar-inset, 0px)" }}
+        className="fixed inset-x-0 z-50 bg-theme-bg-card border-b border-stone-100/60 dark:border-stone-800/40 transition-shadow duration-300"
+      >
         <div className="mx-auto flex h-14 max-w-full items-center justify-between px-4 sm:px-8">
           <Link to="/" className="flex items-center group  gap-1.5">
             <BrandLogo

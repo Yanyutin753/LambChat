@@ -46,6 +46,8 @@ export default function DocumentPreview(props: DocumentPreviewProps) {
       open={true}
       title={state.path.split("/").pop() || state.path}
       icon={<state.Icon size={14} />}
+      path={state.path}
+      fileType={state.t(state.fileInfo.label)}
       automatic={state.automatic}
       onClose={state.onClose}
       registryKey={state.registryKey}

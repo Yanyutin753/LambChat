@@ -29,8 +29,22 @@ def frontmost_pid() -> int | None:
         system = atomacos.NativeUIElement.getSystemObject()
         focused = system.AXFocusedApplication
         return focused.pid if focused is not None else None
-    except Exception:  # noqa: BLE001
-        return None
+    except Exception:  # noqa: BLE001 - system-wide AX is unavailable on some macOS sessions
+        import re
+        import subprocess
+
+        # Launch Services reports focus even when the foreground app has no window.
+        front = subprocess.run(
+            ["/usr/bin/lsappinfo", "front"], capture_output=True, text=True, timeout=2
+        ).stdout.strip()
+        info = subprocess.run(
+            ["/usr/bin/lsappinfo", "info", "-only", "pid", front],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        ).stdout
+        match = re.search(r"\bpid\s*=\s*(\d+)", info)
+        return int(match[1]) if match else None
 
 
 def list_apps() -> list[dict[str, Any]]:
@@ -94,10 +108,10 @@ def app_by_pid(pid: int) -> Any:
 def windows(pid: int) -> list[dict[str, Any]]:
     app = app_by_pid(pid)
     rows = []
-    for window in app.windows():
+    for index, window in enumerate(app.windows()):
         rows.append(
             {
-                "window_id": None,
+                "window_id": index,
                 "title": _scalar(window, "AXTitle") or "",
                 "subrole": _scalar(window, "AXSubrole"),
                 "main": bool(_scalar(window, "AXMain")),
@@ -183,19 +197,86 @@ def set_value(element: Any, text: str) -> None:
             raise KeyError(f"element not settable: {exc}") from exc
 
 
+def press_chord(keys: list[str], modifiers: list[str]) -> None:
+    """Set modifier flags on each key event; separate modifier events can race."""
+    import Quartz
+    from pyautogui import isShiftCharacter  # noqa: N813
+    from pyautogui._pyautogui_osx import keyboardMapping  # noqa: N813
+
+    modifier_flags = {
+        "command": Quartz.kCGEventFlagMaskCommand,
+        "ctrl": Quartz.kCGEventFlagMaskControl,
+        "option": Quartz.kCGEventFlagMaskAlternate,
+        "shift": Quartz.kCGEventFlagMaskShift,
+    }
+    flags = 0
+    for modifier in modifiers:
+        flags |= modifier_flags[modifier]
+    for key in keys:
+        code = keyboardMapping.get(key)
+        if code is None:
+            raise KeyError(f"key {key} is unavailable")
+        key_flags = flags | (Quartz.kCGEventFlagMaskShift if isShiftCharacter(key) else 0)
+        for down in (True, False):
+            event = Quartz.CGEventCreateKeyboardEvent(None, code, down)
+            Quartz.CGEventSetFlags(event, key_flags if down else 0)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
+
+
+def type_text(text: str) -> None:
+    """Paste literal text while preserving images, files and rich clipboard formats."""
+    import time
+
+    import AppKit
+
+    board = AppKit.NSPasteboard.generalPasteboard()
+    saved = []
+    for item in board.pasteboardItems() or []:
+        copy = AppKit.NSPasteboardItem.alloc().init()
+        for kind in item.types():
+            data = item.dataForType_(kind)
+            if data is None:
+                raise RuntimeError("clipboard format cannot be preserved")
+            raw = bytes(data)
+            copy.setData_forType_(AppKit.NSData.dataWithBytes_length_(raw, len(raw)), kind)
+        saved.append(copy)
+    try:
+        board.clearContents()
+        board.setString_forType_(text, AppKit.NSPasteboardTypeString)
+        press_chord(["v"], ["command"])
+        time.sleep(0.1)  # Allow the target to consume the paste before restoring formats.
+    finally:
+        board.clearContents()
+        if saved:
+            board.writeObjects_(saved)
+
+
 def set_focus(element: Any) -> None:
-    """AX 聚焦元素(不抢前台窗口)。atomacos 的属性 setter 拼写随版本
-    有差异,逐一探测;全失败不致命——type 免前台路径靠 set_value 兜住。"""
-    for setter in (
-        lambda: setattr(element, "AXSetFocused", True),
-        lambda: element.set_attribute("AXSetFocused", True),  # type: ignore[attr-defined]
-    ):
-        try:
-            setter()
-            return
-        except Exception:  # noqa: BLE001
-            continue
-    raise KeyError("element not focusable")
+    """AX 聚焦元素(不抢前台窗口),并确认属性写入生效。"""
+    element.AXFocused = True
+    if not element.AXFocused:
+        raise KeyError("element not focusable")
+
+
+def screenshot(bounds: list[float] | None) -> Any:
+    """Capture native screen-point bounds; cropping a Retina raster mixes coordinate units."""
+    import subprocess
+    from pathlib import Path
+    from tempfile import TemporaryDirectory
+
+    from PIL import Image
+
+    with TemporaryDirectory(prefix="lambchat-cua-") as directory:
+        path = str(Path(directory) / "screen.png")
+        command = ["/usr/sbin/screencapture", "-x", "-t", "png"]
+        if bounds:
+            x, y, width, height = bounds
+            command.append(f"-R{int(x)},{int(y)},{max(1, int(width))},{max(1, int(height))}")
+        else:
+            command.append("-m")
+        subprocess.run([*command, path], check=True, capture_output=True, timeout=10)
+        with Image.open(path) as image:
+            return image.copy()
 
 
 def activate_window(pid: int, window_id: int | None) -> None:

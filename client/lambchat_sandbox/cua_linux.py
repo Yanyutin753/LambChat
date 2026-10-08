@@ -29,6 +29,22 @@ def _desktop() -> Any:
     return _pyatspi().Registry.getDesktop(0)
 
 
+def screenshot(bounds: list[float] | None) -> Any:
+    import os
+
+    from PIL import ImageGrab
+
+    if os.environ.get("WAYLAND_DISPLAY"):
+        raise RuntimeError(
+            "native Wayland capture is unavailable; use an X11 desktop for screenshots"
+        )
+    bbox = None
+    if bounds:
+        x, y, width, height = bounds
+        bbox = (int(x), int(y), int(x + width), int(y + height))
+    return ImageGrab.grab(bbox=bbox, xdisplay=os.environ.get("DISPLAY"))
+
+
 def ax_trusted() -> bool:
     try:
         _desktop().childCount  # noqa: B018 - AT-SPI 总线可达性探测
@@ -227,10 +243,26 @@ def set_focus(element: Any) -> None:
 
 
 def activate_window(pid: int, window_id: int | None) -> None:
-    """Wayland 安全模型下外部激活窗口没有可靠通道(wmctrl 只认 X11;
-    GNOME 的 Shell D-Bus 激活面向应用 ID 不面向 pid)。明确报不支持并
-    指路元素动作,不让模型空转重试。"""
-    raise KeyError("window activation unsupported on Linux/Wayland; act on elements instead")
+    """Activate the pinned X11 window; native Wayland windows require element actions."""
+    import subprocess
+
+    _, info = pick_window(pid, window_id)
+    try:
+        output = subprocess.run(
+            ["wmctrl", "-lp"], capture_output=True, text=True, timeout=5, check=True
+        ).stdout
+        matches = []
+        for line in output.splitlines():
+            fields = line.split(None, 4)
+            if len(fields) == 5 and fields[2] == str(pid) and fields[4] == info["title"]:
+                matches.append(fields[0])
+        if len(matches) != 1:
+            raise KeyError("pinned window unavailable on X11; use element actions on Wayland")
+        subprocess.run(["wmctrl", "-ia", matches[0]], capture_output=True, timeout=5, check=True)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise KeyError(
+            f"X11 activation unavailable; use element actions on Wayland: {exc}"
+        ) from exc
 
 
 # pyatspi 原生合成输入(经 AT-SPI 总线,Wayland 原生可用,无需 X11/pyautogui)。
@@ -239,8 +271,10 @@ _KEYSYMS = {
     "return": "Return",
     "enter": "Return",
     "escape": "Escape",
+    "esc": "Escape",
     "tab": "Tab",
-    "delete": "BackSpace",
+    "backspace": "BackSpace",
+    "delete": "Delete",
     "forwarddelete": "Delete",
     "space": "space",
     "left": "Left",
@@ -267,8 +301,41 @@ _KEYSYMS = {
 
 
 def type_text(text: str) -> None:
-    """KEY_STRING 整串合成(大小写/unicode 由 keysym 字符串承载)。"""
-    _pyatspi().Registry.generateKeyboardEvent(0, text, _pyatspi().KEY_STRING)
+    """Replace the focused text selection; KEY_STRING corrupts non-ASCII input."""
+    import time
+
+    pyatspi = _pyatspi()
+    desktop = _desktop()
+    pid = frontmost_pid()
+    queue = [
+        desktop.getChildAtIndex(i)
+        for i in range(desktop.childCount)
+        if desktop.getChildAtIndex(i).get_process_id() == pid
+    ]
+    deadline = time.monotonic() + 5
+    visited = 0
+    while queue and visited < 400 and time.monotonic() < deadline:
+        element = queue.pop(0)
+        visited += 1
+        if element.getState().contains(pyatspi.STATE_FOCUSED):
+            try:
+                source = element.queryText()
+                old = source.getText(0, -1)
+                start, end = (
+                    source.getSelection(0)
+                    if source.getNSelections()
+                    else (source.caretOffset, source.caretOffset)
+                )
+                updated = old[:start] + text + old[end:]
+                if element.queryEditableText().setTextContents(updated):
+                    source.setCaretOffset(start + len(text))
+                    return
+            except Exception:  # noqa: BLE001 - terminals may lack EditableText
+                pass
+        queue.extend(children(element))
+    if any(ord(char) > 127 for char in text):
+        raise KeyError("Unicode typing requires a focused editable element; use set_value")
+    pyatspi.Registry.generateKeyboardEvent(0, text, pyatspi.KEY_STRING)
 
 
 def press_key(key: str) -> None:
@@ -284,6 +351,30 @@ def press_key(key: str) -> None:
     raise KeyError(f"unknown_key:{key}")
 
 
+def press_chord(keys: list[str], modifiers: list[str]) -> None:
+    from Xlib import XK, display
+
+    pyatspi = _pyatspi()
+    connection = display.Display()
+    names = {"ctrl": "Control_L", "alt": "Alt_L", "shift": "Shift_L", "winleft": "Super_L"}
+    pressed = []
+    try:
+        symbols = [names[modifier] for modifier in modifiers]
+        symbols.extend(_KEYSYMS.get(key.lower(), key) for key in keys)
+        codes = [connection.keysym_to_keycode(XK.string_to_keysym(symbol)) for symbol in symbols]
+        if not all(codes):
+            raise KeyError("unknown key in chord")
+        try:
+            for code in codes:
+                pressed.append(code)
+                pyatspi.Registry.generateKeyboardEvent(code, "", pyatspi.KEY_PRESS)
+        finally:
+            for code in reversed(pressed):
+                pyatspi.Registry.generateKeyboardEvent(code, "", pyatspi.KEY_RELEASE)
+    finally:
+        connection.close()
+
+
 def click_point(x: float, y: float, button: str = "left") -> None:
     pyatspi = _pyatspi()
     mapping = {
@@ -293,3 +384,31 @@ def click_point(x: float, y: float, button: str = "left") -> None:
     }
     kind = mapping.get(button, pyatspi.MOUSE_B1C)
     pyatspi.Registry.generateMouseEvent(int(x), int(y), kind)
+
+
+def scroll_element(element: Any, direction: str, pages: float) -> None:
+    import time
+
+    pyatspi = _pyatspi()
+    queue = [element]
+    visited = 0
+    deadline = time.monotonic() + 5
+    while queue and visited < 400 and time.monotonic() < deadline:
+        candidate = queue.pop(0)
+        visited += 1
+        if candidate.getRoleName() == "scroll bar":
+            horizontal = candidate.getState().contains(pyatspi.STATE_HORIZONTAL)
+            if horizontal == (direction in ("left", "right")):
+                value = candidate.queryValue()
+                if value.maximumValue > value.minimumValue:
+                    step = value.minimumIncrement or (value.maximumValue - value.minimumValue) / 100
+                    delta = step * 10 * pages * (-1 if direction in ("up", "left") else 1)
+                    expected = max(
+                        value.minimumValue, min(value.maximumValue, value.currentValue + delta)
+                    )
+                    value.currentValue = expected
+                    if abs(value.currentValue - expected) > 0.001:
+                        raise KeyError("scroll range rejected the requested value")
+                    return
+        queue.extend(children(candidate))
+    raise KeyError("element has no accessible scroll range")

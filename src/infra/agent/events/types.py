@@ -11,6 +11,7 @@ TOOL_TASK = "task"
 TOOL_ERROR_INDICATORS = frozenset(
     (
         "error:",
+        "error ",
         "validationerror",
         "[mcp tool error]",
         "failed",

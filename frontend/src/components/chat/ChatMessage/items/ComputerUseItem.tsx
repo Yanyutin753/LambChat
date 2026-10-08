@@ -1,8 +1,10 @@
 import { memo, useMemo } from "react";
 import { MousePointerClick } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { CollapsiblePill } from "../../../common";
-
+import { ImageWithSkeleton } from "../ImageWithSkeleton";
+import { getFullUrl } from "../../../../services/api/config";
 import {
   openToolLivePanel,
   toolDetailPropsFromPanelData,
@@ -10,127 +12,356 @@ import {
 } from "./ToolLivePanelContent";
 import { useToolStreamingLabel } from "./useToolStreamingLabel";
 import { ToolArgsBlock } from "./ToolArgsBlock";
-import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolDurationFooter } from "./ToolDurationFooter";
-import { ToolResultContent } from "./McpBlockPreview";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
+import { useImagePreviewFallback } from "./imagePreviewFallback";
+import { computerUseRecord, parseComputerUseResult } from "./computerUseResult";
 
-function truncate(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+const key = "chat.message.computerUse";
+
+function actionLabel(action: string, t: TFunction) {
+  return t(`${key}.actions.${action}`, { defaultValue: action });
 }
 
-/** 权限类错误：给出「到系统设置授权一次」的提示行 */
-const PERMISSION_ERRORS = [
-  "ax_not_trusted",
-  "screen_recording_denied",
-];
-
-function resultText(result?: string | Record<string, unknown>): string {
-  if (result === undefined || result === null) return "";
-  return typeof result === "string" ? result : JSON.stringify(result, null, 2);
+function displayValue(value: unknown): string {
+  return typeof value === "object" ? JSON.stringify(value) : String(value);
 }
 
-/** 面板详情：AX 树/应用列表等观察文本为主视图 */
-function ComputerUseDetail({ args, result }: ToolDetailProps) {
+function resultSummary(
+  parsed: ReturnType<typeof parseComputerUseResult>,
+  t: TFunction,
+) {
+  const { data, error, text } = parsed;
+  if (error) return error;
+  if (typeof data.ready === "boolean")
+    return t(`${key}.${data.ready ? "ready" : "notReady"}`);
+  if (Array.isArray(data.apps))
+    return t(`${key}.appCount`, { count: data.apps.length });
+  if (Array.isArray(data.windows))
+    return t(`${key}.windowCount`, { count: data.windows.length });
+  if (typeof data.element_count === "number")
+    return t(`${key}.elementCount`, { count: data.element_count });
+  if (data.ok === true) return t(`${key}.succeeded`);
+  return (
+    text
+      .split("\n")
+      .find((line) => line.trim())
+      ?.slice(0, 72) ?? ""
+  );
+}
+
+function ComputerUseDetail({
+  args,
+  result,
+  isPending,
+  cancelled,
+  success,
+}: ToolDetailProps) {
   const { t } = useTranslation();
-  const action = (args.action as string) || "";
-  const text = resultText(result);
-  const needsPermission = PERMISSION_ERRORS.some((code) => text.includes(code));
+  const { openImage, viewer } = useImagePreviewFallback();
+  const parsed = useMemo(() => parseComputerUseResult(result), [result]);
+  const { data, text, error, screenshotSrc } = parsed;
+  const action = typeof args.action === "string" ? args.action : "";
+  const windowInfo = computerUseRecord(data.window);
+  const screenshot = computerUseRecord(data.screenshot);
+  const needsPermission =
+    ["ax_not_trusted", "screen_recording_denied"].includes(error) ||
+    screenshot.error === "screen_recording_denied" ||
+    data.accessibility === "denied" ||
+    data.screen_recording === "denied";
+  const offline = error === "dispatch_failed" && /offline/i.test(text);
+  const state = typeof data.state === "string" ? data.state : "";
+  const permission = (value: unknown) =>
+    t(
+      `${key}.permissions.${["granted", "denied"].includes(String(value)) ? value : "unknown"}`,
+    );
+  const resultFields: Record<string, unknown> = {
+    platform: data.platform === "darwin" ? "macOS" : data.platform,
+    ready:
+      typeof data.ready === "boolean"
+        ? t(`${key}.${data.ready ? "ready" : "notReady"}`)
+        : undefined,
+    accessibility: data.accessibility
+      ? permission(data.accessibility)
+      : undefined,
+    screen_recording: data.screen_recording
+      ? permission(data.screen_recording)
+      : undefined,
+    pid: data.pid,
+    window_title: windowInfo.title,
+    window_id: windowInfo.window_id,
+    bounds: windowInfo.bounds,
+    element_count: data.element_count,
+    strategy: data.strategy,
+    method: data.method,
+    target: data.target,
+    clicks: data.clicks,
+  };
+  const fields = (values: Record<string, unknown>) => (
+    <dl className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 text-12">
+      {Object.entries(values)
+        .filter(
+          ([, value]) => value !== undefined && value !== null && value !== "",
+        )
+        .map(([field, value]) => (
+          <div key={field} className="contents">
+            <dt className="text-theme-text-tertiary break-words">
+              {t(`${key}.fields.${field}`, { defaultValue: field })}
+            </dt>
+            <dd className="min-w-0 whitespace-pre-wrap break-words text-theme-text-secondary [overflow-wrap:anywhere]">
+              {displayValue(value)}
+            </dd>
+          </div>
+        ))}
+    </dl>
+  );
+  const parameterFields = Object.fromEntries(
+    Object.entries(args).filter(([field]) => field !== "action"),
+  );
+  const lists = Array.isArray(data.apps)
+    ? data.apps
+    : Array.isArray(data.windows)
+      ? data.windows
+      : null;
+  const apps = Array.isArray(data.apps);
 
   return (
-    <div className="flex h-full min-h-0 flex-col space-y-3 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
-      {action && (
-        <ToolArgsBlock size="detail">
+    <div className="min-w-0 space-y-5 p-2 sm:p-4">
+      <ToolArgsBlock size="detail" copyText={JSON.stringify(args, null, 2)}>
+        <span className="flex items-center gap-2">
           <MousePointerClick
             size={14}
             className="shrink-0 text-indigo-500 dark:text-indigo-400"
           />
-          <span className="text-indigo-600 dark:text-indigo-400 font-mono font-semibold">
-            {action}
+          <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+            {actionLabel(action, t)}
           </span>
-        </ToolArgsBlock>
-      )}
-
-      {needsPermission && (
-        <div className="rounded-lg bg-theme-bg border border-theme-border px-3 py-2 text-12 text-theme-text-secondary">
-          {t("chat.message.computerUsePermissionHint")}
+        </span>
+      </ToolArgsBlock>
+      {Object.keys(parameterFields).length > 0 && fields(parameterFields)}
+      {(isPending ||
+        cancelled ||
+        error ||
+        success === false ||
+        result === undefined) && (
+        <div
+          role="status"
+          className="rounded-[var(--radius-sm)] border border-theme-border bg-theme-bg px-3 py-2 text-12 text-theme-text-secondary break-words"
+        >
+          {isPending
+            ? t(`${key}.waiting`)
+            : cancelled
+              ? t(`${key}.cancelled`)
+              : error || success === false
+                ? t(`${key}.failed`)
+                : t(`${key}.noResult`)}
+          {error && <span className="ml-2 font-mono">{error}</span>}
         </div>
       )}
-
+      {(needsPermission || offline) && (
+        <p className="text-12 text-theme-text-secondary" role="status">
+          {t(
+            `${key}.${offline ? "offlineHint" : data.platform === "linux" ? "linuxPermissionHint" : data.platform === "win32" ? "windowsPermissionHint" : "permissionHint"}`,
+          )}
+        </p>
+      )}
+      {Object.values(resultFields).some((value) => value !== undefined) && (
+        <section className="space-y-3">
+          <h3 className="text-12 font-medium text-theme-text">
+            {t(`${key}.observation`)}
+          </h3>
+          {fields(resultFields)}
+        </section>
+      )}
+      {!!data.message && (
+        <p className="text-12 text-theme-text-secondary break-words">
+          {displayValue(data.message)}
+        </p>
+      )}
+      {lists && (
+        <section className="space-y-3">
+          <h3 className="text-12 font-medium text-theme-text">
+            {resultSummary(parsed, t)}
+          </h3>
+          {lists.length === 0 ? (
+            <p className="text-12 text-theme-text-tertiary">
+              {t(`${key}.${apps ? "noApps" : "noWindows"}`)}
+            </p>
+          ) : (
+            <ul className="divide-y divide-theme-border">
+              {lists.map((entry, index) => {
+                const row = computerUseRecord(entry);
+                return (
+                  <li key={index} className="space-y-1 py-2 text-12">
+                    <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+                      <span className="min-w-0 break-words text-theme-text-secondary [overflow-wrap:anywhere]">
+                        {displayValue(row.name ?? row.title ?? "—")}
+                      </span>
+                      {row.active === true && (
+                        <span className="text-theme-text-tertiary">
+                          {t(`${key}.active`)}
+                        </span>
+                      )}
+                      {row.focused === true && (
+                        <span className="text-theme-text-tertiary">
+                          {t(`${key}.focused`)}
+                        </span>
+                      )}
+                      {row.main === true && (
+                        <span className="text-theme-text-tertiary">
+                          {t(`${key}.mainWindow`)}
+                        </span>
+                      )}
+                    </div>
+                    {fields(
+                      apps
+                        ? { pid: row.pid }
+                        : { window_id: row.window_id, bounds: row.bounds },
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
+      {screenshotSrc && (
+        <figure className="min-w-0 space-y-2">
+          <button
+            type="button"
+            onClick={() =>
+              openImage(getFullUrl(screenshotSrc) || screenshotSrc)
+            }
+            className="block w-full cursor-zoom-in rounded-[var(--radius-sm)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-theme-primary"
+            aria-label={t("chat.message.openImage")}
+          >
+            <ImageWithSkeleton
+              src={screenshotSrc}
+              alt={t(`${key}.screenshot`)}
+              loading="eager"
+              aspectRatio={
+                typeof screenshot.width === "number" &&
+                typeof screenshot.height === "number"
+                  ? `${screenshot.width}/${screenshot.height}`
+                  : undefined
+              }
+              className="mx-auto max-h-[60dvh] w-full object-contain"
+              wrapperClassName="!my-0 !shadow-none"
+            />
+          </button>
+          <figcaption className="text-12 text-theme-text-tertiary">
+            {t(`${key}.screenshot`)}
+            {typeof screenshot.width === "number" &&
+              typeof screenshot.height === "number" &&
+              ` · ${screenshot.width} × ${screenshot.height}`}
+          </figcaption>
+        </figure>
+      )}
+      {(!!screenshot.upload_error || !!screenshot.error) && (
+        <p role="status" className="text-12 text-theme-text-secondary">
+          {t(`${key}.screenshotFailed`)}
+          <span className="ml-2 font-mono">
+            {displayValue(screenshot.error ?? screenshot.upload_error)}
+          </span>
+        </p>
+      )}
+      {state && (
+        <section className="space-y-2">
+          <h3 className="text-12 font-medium text-theme-text">
+            {t(`${key}.tree`)}
+          </h3>
+          {data.truncated === true && (
+            <p className="text-12 text-theme-text-tertiary">
+              {t(`${key}.truncated`)}
+            </p>
+          )}
+          <div className="group/result relative min-w-0">
+            <ToolHoverCopyButton text={state} position="resultCompact" />
+            <pre className="whitespace-pre-wrap break-words font-mono text-12 leading-relaxed text-theme-text-secondary [overflow-wrap:anywhere]">
+              {state}
+            </pre>
+          </div>
+        </section>
+      )}
       {text && (
-        <div className="group/result relative flex-1 min-h-0 text-12 text-theme-text-secondary overflow-y-auto min-w-0">
-          <ToolHoverCopyButton
-            text={text}
-            position="resultCompact"
-            className="z-20 pointer-events-auto"
-            copyButtonClassName="bg-[var(--theme-bg-elevated)] shadow-sm ring-1 ring-stone-200/70 hover:bg-stone-100 dark:bg-stone-900/90 dark:ring-stone-700/70 dark:hover:bg-stone-800"
-          />
-          <ToolResultContent result={result} hideCopyButton />
-        </div>
+        <details
+          open={Object.keys(data).length === 0}
+          className="group/result relative min-w-0 text-12 text-theme-text-secondary"
+        >
+          <summary className="min-h-11 cursor-pointer py-3 text-theme-text-tertiary focus-visible:outline focus-visible:outline-2 focus-visible:outline-theme-primary">
+            {t(`${key}.rawResult`)}
+          </summary>
+          <ToolHoverCopyButton text={text} position="resultCompact" />
+          <pre className="whitespace-pre-wrap break-words font-mono leading-relaxed [overflow-wrap:anywhere]">
+            {text}
+          </pre>
+        </details>
       )}
+      {!isPending && !cancelled && result !== undefined && !text && (
+        <p className="text-12 text-theme-text-tertiary">
+          {t(`${key}.noResult`)}
+        </p>
+      )}
+      {viewer}
     </div>
   );
 }
 
 const ComputerUseItem = memo(function ComputerUseItem({
   id,
-  args,
-  result,
-  success,
-  isPending,
-  cancelled,
-  startedAt,
-  completedAt,
-}: {
-  id?: string;
-  args: Record<string, unknown>;
-  result?: string | Record<string, unknown>;
-  success?: boolean;
-  isPending?: boolean;
-  cancelled?: boolean;
-  startedAt?: string;
-  completedAt?: string;
-}) {
+  ...props
+}: ToolDetailProps & { id?: string }) {
+  const {
+    args,
+    result,
+    success,
+    isPending,
+    cancelled,
+    startedAt,
+    completedAt,
+  } = props;
   const { t } = useTranslation();
-  const durationFooter = (
-    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
-  );
-  const action = (args.action as string) || "";
-  const text = useMemo(() => resultText(result), [result]);
-  const hasResult = result !== undefined;
-  const canExpand = !!action || hasResult || isPending;
-  const needsPermission = PERMISSION_ERRORS.some((code) => text.includes(code));
-
+  const parsed = useMemo(() => parseComputerUseResult(result), [result]);
+  const action = typeof args.action === "string" ? args.action : "";
   const status = isPending
     ? "loading"
     : cancelled
       ? "cancelled"
-      : success
-        ? "success"
-        : "error";
-
+      : parsed.error || success === false
+        ? "error"
+        : success || result !== undefined
+          ? "success"
+          : "idle";
+  const target =
+    args.name ??
+    args.app ??
+    (args.pid !== undefined ? `PID ${args.pid}` : args.machine_id);
+  const element =
+    args.index !== undefined
+      ? `#${args.index}`
+      : args.x !== undefined && args.y !== undefined
+        ? `(${args.x}, ${args.y})`
+        : "";
+  const summary = isPending
+    ? ""
+    : cancelled
+      ? t(`${key}.cancelled`)
+      : resultSummary(parsed, t);
   const titleLabel = t("chat.message.computerUseTitle");
-  const pillLabel = `${titleLabel}${action ? ` ${action}` : ""}`.trim();
+  const pillLabel = [
+    titleLabel,
+    actionLabel(action, t),
+    target,
+    element,
+    summary,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const { label, isStreamingLabel } = useToolStreamingLabel(pillLabel, args, {
     isPending,
     result,
   });
-
-  // 观察结果首行（window: … / pid=…）做行内预览
-  const firstLine = text ? text.split("\n").find((line) => line.trim()) : "";
-
-  const detailContent = canExpand && (
-    <ComputerUseDetail
-      args={args}
-      result={result}
-      success={success}
-      isPending={isPending}
-      cancelled={cancelled}
-      startedAt={startedAt}
-      completedAt={completedAt}
-    />
-  );
-
+  const canExpand = !!action || result !== undefined || isPending;
   return (
     <CollapsiblePill
       status={status}
@@ -147,55 +378,20 @@ const ComputerUseItem = memo(function ComputerUseItem({
           title: titleLabel,
           icon: <MousePointerClick size={16} />,
           status,
-          subtitle: action || undefined,
-          fallback: detailContent || undefined,
+          subtitle: actionLabel(action, t),
+          fallback: <ComputerUseDetail {...props} />,
           buildDetail: (data) => (
             <ComputerUseDetail {...toolDetailPropsFromPanelData(data)} />
           ),
-          footer: durationFooter,
+          footer: (
+            <ToolDurationFooter
+              startedAt={startedAt}
+              completedAt={completedAt}
+            />
+          ),
         });
       }}
-    >
-      {canExpand && (
-        <ToolInlineDetails>
-          {action && (
-            <ToolArgsBlock size="compact">
-              <MousePointerClick
-                size={12}
-                className="shrink-0 text-indigo-500 dark:text-indigo-400"
-              />
-              <span className="text-indigo-600 dark:text-indigo-400 font-mono font-medium min-w-0 truncate">
-                {truncate(action, 40)}
-              </span>
-            </ToolArgsBlock>
-          )}
-
-          {needsPermission && (
-            <div className="text-11 text-theme-text-secondary px-1">
-              {truncate(t("chat.message.computerUsePermissionHint"), 80)}
-            </div>
-          )}
-
-          {firstLine && !needsPermission && (
-            <div className="text-11 text-theme-text-tertiary font-mono px-1 truncate">
-              {truncate(firstLine, 72)}
-            </div>
-          )}
-
-          {hasResult && !firstLine && !needsPermission && (
-            <div className="group/result relative text-12 text-theme-text-secondary overflow-y-auto min-w-0">
-              <ToolHoverCopyButton
-                text={text}
-                position="resultCompact"
-                className="z-20 pointer-events-auto"
-                copyButtonClassName="bg-[var(--theme-bg-elevated)] shadow-sm ring-1 ring-stone-200/70 hover:bg-stone-100 dark:bg-stone-900/90 dark:ring-stone-700/70 dark:hover:bg-stone-800"
-              />
-              <ToolResultContent result={result} hideCopyButton />
-            </div>
-          )}
-        </ToolInlineDetails>
-      )}
-    </CollapsiblePill>
+    />
   );
 });
 

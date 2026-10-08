@@ -459,12 +459,15 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         prompt_sections: list[str] | None = None,
         fallback_model: str | None = fallback_model_value,
         member_image_url_mode: str = image_url_mode,
+        member_supports_vision: bool = supports_vision,
     ) -> list:
         """Build the middleware stack for a single subagent."""
         mw = [
             *create_retry_middleware(fallback_model=fallback_model),
             create_todo_middleware(),
-            ToolResultBinaryMiddleware(base_url=subagent_base_url),
+            ToolResultBinaryMiddleware(
+                base_url=subagent_base_url, supports_vision=member_supports_vision
+            ),
             ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir),
             SubagentActivityMiddleware(backend=backend),
         ]
@@ -529,6 +532,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                 member_model = None
                 member_fallback_model = fallback_model_value
                 member_image_url_mode = image_url_mode
+                member_supports_vision = supports_vision
                 if member_model_config is not None:
                     member_model = await LLMClient.get_model(
                         model=member_model_config.value,
@@ -542,6 +546,9 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                         log_prefix=f"[TeamAgent:{subagent_type}]",
                     )
                     member_image_url_mode = effective_image_url_mode(member_model_config.profile)
+                    member_supports_vision = bool(
+                        member_model_config.profile and member_model_config.profile.supports_vision
+                    )
                     logger.info(
                         "[TeamAgent] Role subagent model override: type=%s role=%s model_id=%s model=%s",
                         subagent_type,
@@ -603,6 +610,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                         prompt_sections=role_prompt_sections,
                         fallback_model=member_fallback_model,
                         member_image_url_mode=member_image_url_mode,
+                        member_supports_vision=member_supports_vision,
                     ),
                 }
                 if filtered_tools is not None:
@@ -707,7 +715,9 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     user_middleware.insert(
         0, SteerMiddleware(session_id=str(state.get("session_id") or ""), presenter=presenter)
     )
-    user_middleware.append(ToolResultBinaryMiddleware(base_url=subagent_base_url))
+    user_middleware.append(
+        ToolResultBinaryMiddleware(base_url=subagent_base_url, supports_vision=supports_vision)
+    )
     user_middleware.append(ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir))
     _image_mw = image_url_middleware_for_mode(image_url_mode)
     if _image_mw:

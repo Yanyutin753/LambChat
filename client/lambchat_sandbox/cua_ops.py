@@ -95,7 +95,7 @@ def _pyautogui() -> Any:
         import pyautogui
 
         return pyautogui
-    except ImportError as exc:
+    except (ImportError, SystemExit) as exc:
         raise CuaOpError("unsupported_platform", f"pyautogui_missing:{exc}") from exc
 
 
@@ -177,8 +177,17 @@ def _op_launch(payload: dict) -> dict:
             else:
                 subprocess.Popen(["xdg-open", url], start_new_session=True)
             return {"ok": True, "kind": "url", "target": url}
-        # app 路径启动(不走 shell)
-        argv = [str(app), *args]
+        # app 路径启动(不走 shell);裸名(如 "firefox")经 PATH 解析——
+        # 2026-10-08 xiaoxin 实测 agent 常用裸名,直接 Popen 报
+        # launch_failed: No such file or directory
+        import shutil
+
+        resolved = str(app)
+        if not os.path.isfile(resolved) and os.sep not in str(app):
+            which = shutil.which(str(app))
+            if which:
+                resolved = which
+        argv = [resolved, *args]
         env = None
         if platform.startswith("linux"):
             env = dict(os.environ)
@@ -357,7 +366,10 @@ def _op_state(payload: dict) -> dict:
         "state": _render_tree(rows, window_info, truncated),
     }
     if payload.get("include_screenshot"):
-        result["screenshot"] = _capture(window_info.get("bounds"))
+        try:
+            result["screenshot"] = _capture(window_info.get("bounds"))
+        except CuaOpError as exc:
+            result["screenshot"] = {"error": exc.code, "detail": exc.detail}
     return result
 
 
@@ -367,19 +379,26 @@ def _op_state(payload: dict) -> dict:
 
 
 def _capture(bounds: list[float] | None) -> dict[str, Any]:
-    _backend()  # 平台可用性预检
-    pyautogui = _pyautogui()
+    backend = _backend()  # 平台可用性预检
+    if _is_mac():
+        import Quartz
+
+        if not Quartz.CGPreflightScreenCaptureAccess():
+            raise CuaOpError("screen_recording_denied", "grant Screen Recording to LambChat.app")
     try:
-        if bounds:
+        native_capture = getattr(backend, "screenshot", None)
+        if callable(native_capture):
+            image = native_capture(bounds)
+        elif bounds:
             region = (
                 int(bounds[0]),
                 int(bounds[1]),
                 max(1, int(bounds[2])),
                 max(1, int(bounds[3])),
             )
-            image = pyautogui.screenshot(region=region)
+            image = _pyautogui().screenshot(region=region)
         else:
-            image = pyautogui.screenshot()
+            image = _pyautogui().screenshot()
     except Exception as exc:  # noqa: BLE001
         raise CuaOpError("screenshot_failed", str(exc)) from exc
     if image is None:
@@ -425,7 +444,7 @@ def _require_foreground(pid: int) -> None:
         front = _backend().frontmost_pid()
     except Exception:  # noqa: BLE001
         pass
-    if front is not None and front != pid:
+    if front != pid:
         raise CuaOpError(
             "foreground_required",
             "event strategy never activates apps; act on an element instead",
@@ -512,11 +531,15 @@ def _type_text(text: str) -> None:
     if all(ord(ch) < 128 for ch in text):
         pyautogui.typewrite(text, interval=0.01)
         return
-    # 非 ASCII:剪贴板 + 平台粘贴组合键(unicode 键盘事件不可靠)
+    # Non-ASCII fallback for platforms without native text injection.
     import pyperclip
 
-    pyperclip.copy(text)
-    pyautogui.hotkey(*(["command", "v"] if _is_mac() else ["ctrl", "v"]))
+    previous = pyperclip.paste()
+    try:
+        pyperclip.copy(text)
+        pyautogui.hotkey(*(["command", "v"] if _is_mac() else ["ctrl", "v"]))
+    finally:
+        pyperclip.copy(previous)
 
 
 def _op_type(payload: dict) -> dict:
@@ -531,7 +554,12 @@ def _op_type(payload: dict) -> dict:
     if not isinstance(text, str) or not text:
         raise CuaOpError("invalid_arguments", "text required")
 
+    # index 取值兼容两层:工具层规范是 target.index(与 click/set_value 同),
+    # 顶层 index 供 op 直调。只读顶层会让元素路径在真实链路上静默失效。
+    target_ref = payload.get("target") or {}
     index = payload.get("index")
+    if index is None and isinstance(target_ref, dict):
+        index = target_ref.get("index")
     if index is not None:
         element = _resolve_index(pid, payload.get("window_id"), index)
         backend = _backend()
@@ -601,24 +629,58 @@ def _map_modifiers(text: str | None) -> list[str]:
 
 def _op_key(payload: dict) -> dict:
     _require_ax()
+    backend = _backend()
     pid = _resolve_app_ref(payload)
     text = payload.get("text")
     if not isinstance(text, str) or not text.strip():
         raise CuaOpError("invalid_arguments", "text required (e.g. 'return' or 'cmd+c')")
     repeat = max(1, min(int(payload.get("repeat") or 1), 50))
-    modifier_keys = _map_modifiers(payload.get("modifiers"))
-    pyautogui = _pyautogui()
+    chord_modifiers = [
+        token.strip().lower()
+        for token in text.split("+")
+        if token.strip().lower()
+        in ("cmd", "command", "meta", "win", "ctrl", "control", "alt", "option", "shift")
+    ]
+    modifier_keys = list(
+        dict.fromkeys(
+            _map_modifiers(payload.get("modifiers")) + _map_modifiers("+".join(chord_modifiers))
+        )
+    )
     keys = []
     for token in text.split("+"):
         token = token.strip().lower()
         if not token:
             continue
-        if token in ("cmd", "command", "meta", "ctrl", "control", "alt", "option", "shift"):
-            continue  # 和弦里的修饰键走 modifiers 参数
+        if token in ("cmd", "command", "meta", "win", "ctrl", "control", "alt", "option", "shift"):
+            continue  # 修饰键已与 modifiers 参数合并
         keys.append(_KEY_MAP.get(token, token))
     if not keys and not modifier_keys:
         raise CuaOpError("invalid_arguments", "no key in chord")
     _require_foreground(pid)
+
+    native_chord = getattr(backend, "press_chord", None)
+    if (
+        callable(native_chord)
+        and keys
+        and (modifier_keys or len(keys) > 1 or not callable(getattr(backend, "press_key", None)))
+    ):
+        for _ in range(repeat):
+            native_chord(keys, modifier_keys)
+        return {"ok": True, "strategy": "a11y-event"}
+
+    # 单键优先走后端原生合成(Linux/AT-SPI KEY_SYM,Wayland 原生可用)。
+    # 2026-10-08 xiaoxin 实测:回车走 pyautogui 在无 X11 环境直接
+    # unsupported_platform,agent 只能绕 URL 导航——单键是最高频操作。
+    native_press = getattr(backend, "press_key", None)
+    if callable(native_press) and not modifier_keys and len(keys) == 1:
+        try:
+            for _ in range(repeat):
+                native_press(keys[0])
+            return {"ok": True, "strategy": "a11y-event", "key": keys[0]}
+        except Exception:  # noqa: BLE001 - 原生不支持该键回退 pyautogui
+            pass
+
+    pyautogui = _pyautogui()
     for _ in range(repeat):
         if modifier_keys and keys:
             pyautogui.hotkey(*modifier_keys, *keys)
@@ -638,9 +700,23 @@ def _op_scroll(payload: dict) -> dict:
         raise CuaOpError("invalid_arguments", "scroll_direction required")
     pages = max(0.0, min(float(payload.get("scroll_amount") or 1), 100))
     clicks = int(pages * 10)
+    target = payload.get("target") or {}
+    native_scroll = getattr(_backend(), "scroll_element", None)
+    if target.get("type") == "element" and callable(native_scroll):
+        element = _resolve_index(pid, payload.get("window_id"), target.get("index"))
+        try:
+            native_scroll(element, direction, pages)
+            return {"ok": True, "strategy": "a11y", "clicks": clicks}
+        except KeyError:
+            pass
     _require_foreground(pid)
     pyautogui = _pyautogui()
-    magnitude = -clicks if direction in ("up", "left") else clicks
+    if target.get("type") == "element":
+        element = _resolve_index(pid, payload.get("window_id"), target.get("index"))
+        pyautogui.moveTo(*_element_center(element))
+    elif target.get("type") == "coordinate":
+        pyautogui.moveTo(float(target["x"]), float(target["y"]))
+    magnitude = -clicks if direction in ("down", "left") else clicks
     try:
         if direction in ("left", "right"):
             pyautogui.hscroll(magnitude)
@@ -699,7 +775,8 @@ def _op_status(payload: dict) -> dict:
             screen_state = "granted"
         except CuaOpError as exc:
             screen_state = "denied" if exc.code == "screen_recording_denied" else "unknown"
-    ready = ax_ok and screen_state in ("granted", "unknown")
+            message = f"{exc.code}: {exc.detail}"
+    ready = ax_ok and (not payload.get("probe_screen") or screen_state == "granted")
     if not ax_ok:
         message = (
             "grant Accessibility (and Screen Recording) to LambChat.app"

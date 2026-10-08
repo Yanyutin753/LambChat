@@ -261,3 +261,239 @@ def test_unexpected_exception_converges_structured(
 def test_cua_activate_in_ops_registry() -> None:
     assert "cua_activate" in cua_ops.CUA_OPS
     assert "cua_activate" in cua_ops._CUA_HANDLERS
+
+
+# ---------------------------------------------------------------------------
+# 2026-10-08 xiaoxin 真机回修:单键原生合成 / launch 裸名解析
+# ---------------------------------------------------------------------------
+
+
+def test_single_key_prefers_native_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Wayland 无 X11 时 pyautogui 不可用;单键(回车等)必须走 AT-SPI
+    原生合成——真机实测回车失败逼 agent 绕 URL 导航。"""
+    pressed: list[str] = []
+
+    class _NativeBackend(_FakeBackend):
+        def press_key(self, key: str) -> None:
+            pressed.append(key)
+
+        def press_chord(self, keys, modifiers) -> None:
+            raise AssertionError("single keys must not require X11 chords")
+
+    monkeypatch.delenv("DISPLAY", raising=False)
+    fake = _NativeBackend()
+    monkeypatch.setattr(cua_backend, "_BACKEND", fake)
+    monkeypatch.setattr(cua_backend, "_BACKEND_ERROR", None)
+    monkeypatch.setattr(cua_backend, "backend_platform", lambda: "fake")
+    cua_ops._OBSERVATIONS.clear()
+
+    def _no_pyautogui() -> Any:
+        raise AssertionError("native path must not touch pyautogui")
+
+    monkeypatch.setattr(cua_ops, "_pyautogui", _no_pyautogui)
+    result = cua_ops.handle_cua_op("cua_key", {"pid": 4242, "text": "return"})
+    assert result == {"ok": True, "strategy": "a11y-event", "key": "enter"}
+    assert pressed == ["enter"]
+
+
+def test_chord_key_falls_back_to_pyautogui(fake_backend: _FakeBackend) -> None:
+    """修饰键和弦没有原生通道,仍走 pyautogui。"""
+    pressed: list[str] = []
+
+    class _FakePyautogui:
+        def hotkey(self, *keys: str) -> None:
+            pressed.extend(keys)
+
+    import lambchat_sandbox.cua_ops as ops_mod
+
+    original = ops_mod._pyautogui
+    ops_mod._pyautogui = lambda: _FakePyautogui()  # type: ignore[assignment]
+    try:
+        result = cua_ops.handle_cua_op("cua_key", {"pid": 4242, "text": "l", "modifiers": "ctrl"})
+    finally:
+        ops_mod._pyautogui = original  # type: ignore[assignment]
+    assert result == {"ok": True}
+    assert "ctrl" in pressed and "l" in pressed
+
+
+def test_key_chord_text_keeps_modifiers(
+    fake_backend: _FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pressed: list[tuple[str, ...]] = []
+
+    class Keyboard:
+        def hotkey(self, *keys: str) -> None:
+            pressed.append(keys)
+
+        def press(self, key: str) -> None:
+            pressed.append((key,))
+
+    monkeypatch.setattr(cua_ops, "_pyautogui", lambda: Keyboard())
+    result = cua_ops.handle_cua_op("cua_key", {"pid": 4242, "text": "ctrl+shift+a"})
+    assert result == {"ok": True}
+    assert pressed == [("ctrl", "shift", "a")]
+
+
+def test_scroll_targets_the_observed_element(
+    fake_backend: _FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    events: list[tuple] = []
+
+    class Mouse:
+        def moveTo(self, x: float, y: float) -> None:  # noqa: N802 - pyautogui API
+            events.append(("move", x, y))
+
+        def scroll(self, amount: int) -> None:
+            events.append(("scroll", amount))
+
+    monkeypatch.setattr(cua_ops, "_pyautogui", lambda: Mouse())
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    result = cua_ops.handle_cua_op(
+        "cua_scroll",
+        {"pid": 4242, "target": {"type": "element", "index": 1}, "scroll_direction": "down"},
+    )
+    assert result == {"ok": True, "clicks": 10}
+    assert events == [("move", 51.0, 22.0), ("scroll", -10)]
+
+
+def test_unknown_foreground_refuses_keyboard_injection(
+    fake_backend: _FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(fake_backend, "frontmost_pid", lambda: None)
+    result = cua_ops.handle_cua_op("cua_key", {"pid": 4242, "text": "return"})
+    assert result["error"] == "foreground_required"
+
+
+def test_raw_text_pastes_literally_and_restores_clipboard(
+    fake_backend: _FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sys
+    from types import SimpleNamespace
+
+    clipboard = ["original clipboard"]
+    pasted: list[str] = []
+    pyperclip = SimpleNamespace(
+        paste=lambda: clipboard[0], copy=lambda text: clipboard.__setitem__(0, text)
+    )
+
+    class Keyboard:
+        def typewrite(self, text: str, **kwargs) -> None:
+            pasted.append("IME-corrupted")
+
+        def hotkey(self, *keys: str) -> None:
+            pasted.append(clipboard[0])
+
+    monkeypatch.setitem(sys.modules, "pyperclip", pyperclip)
+    monkeypatch.setattr(cua_ops, "_pyautogui", lambda: Keyboard())
+    result = cua_ops.handle_cua_op("cua_type", {"pid": 4242, "text": "hello 中文"})
+    assert result["ok"] is True
+    assert pasted == ["hello 中文"]
+    assert clipboard == ["original clipboard"]
+
+
+def test_screenshot_denied_preserves_the_accessibility_tree(
+    fake_backend: _FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def denied(_bounds):
+        raise cua_ops.CuaOpError("screen_recording_denied", "grant permission")
+
+    monkeypatch.setattr(cua_ops, "_capture", denied)
+    result = cua_ops.handle_cua_op("cua_state", {"pid": 4242, "include_screenshot": True})
+    assert result["element_count"] == 3
+    assert "AXButton" in result["state"]
+    assert result["screenshot"] == {
+        "error": "screen_recording_denied",
+        "detail": "grant permission",
+    }
+
+
+def test_macos_capture_checks_real_screen_recording_permission(
+    fake_backend: _FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sys
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(cua_backend, "backend_platform", lambda: "darwin")
+    monkeypatch.setitem(
+        sys.modules, "Quartz", SimpleNamespace(CGPreflightScreenCaptureAccess=lambda: False)
+    )
+    with pytest.raises(cua_ops.CuaOpError, match="screen_recording_denied"):
+        cua_ops._capture(None)
+
+
+def test_launch_resolves_bare_name_from_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    """裸名 app(firefox)按 PATH 解析,不再直接 launch_failed。"""
+    import shutil as shutil_mod
+
+    monkeypatch.setattr(
+        shutil_mod, "which", lambda name: f"/usr/bin/{name}" if name == "firefox" else None
+    )
+    import subprocess as subprocess_mod
+
+    class _FakeProc:
+        pid = 4242
+
+    monkeypatch.setattr(subprocess_mod, "Popen", lambda *a, **k: _FakeProc())
+    import lambchat_sandbox.cua_backend as cb
+
+    monkeypatch.setattr(cb, "backend_platform", lambda: "linux")
+    result = cua_ops.handle_cua_op("cua_launch", {"app": "firefox", "args": ["https://x"]})
+    assert result["ok"] is True
+    assert result["target"] == "/usr/bin/firefox"
+
+
+def test_type_reads_index_from_tool_target_shape(fake_backend: _FakeBackend) -> None:
+    """工具层把 index 放在 target.index(与 click/set_value 同形);daemon
+    只读顶层会让元素输入路径在真实链路上静默失效。"""
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    result = cua_ops.handle_cua_op(
+        "cua_type",
+        {"pid": 4242, "target": {"type": "element", "index": 2}, "text": "hi"},
+    )
+    assert result["method"] == "set_value"
+    assert fake_backend.set_values[0][1] == "hi"
+
+
+def test_failed_screenshot_probe_is_not_reported_as_ready(fake_backend, monkeypatch):
+    def failed(bounds):
+        raise cua_ops.CuaOpError("screenshot_failed", "desktop unavailable")
+
+    monkeypatch.setattr(cua_ops, "_capture", failed)
+    result = cua_ops.handle_cua_op("cua_status", {"probe_screen": True})
+    assert result["ready"] is False
+    assert "desktop unavailable" in result["message"]
+
+
+def test_element_scroll_prefers_native_accessibility_without_foreground(fake_backend, monkeypatch):
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    calls = []
+    monkeypatch.setattr(fake_backend, "frontmost_pid", lambda: None)
+    monkeypatch.setattr(
+        fake_backend, "scroll_element", lambda *args: calls.append(args), raising=False
+    )
+    result = cua_ops.handle_cua_op(
+        "cua_scroll",
+        {
+            "pid": 4242,
+            "target": {"type": "element", "index": 1},
+            "scroll_direction": "down",
+            "scroll_amount": 2,
+        },
+    )
+    assert result["ok"] and result["strategy"] == "a11y"
+    assert calls[0][1:] == ("down", 2)
+
+
+def test_optional_input_library_exit_becomes_a_structured_error(monkeypatch):
+    import builtins
+
+    original = builtins.__import__
+
+    def importing(name, *args, **kwargs):
+        if name == "pyautogui":
+            raise SystemExit("tkinter missing")
+        return original(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", importing)
+    with pytest.raises(cua_ops.CuaOpError):
+        cua_ops._pyautogui()

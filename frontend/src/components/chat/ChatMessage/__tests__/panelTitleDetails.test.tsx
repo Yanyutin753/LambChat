@@ -177,7 +177,7 @@ test("text output previews identify their contents", () => {
   expect(view.getByRole("tab")).toHaveTextContent("CPU usage: 15%");
 });
 
-test("image output previews identify the source without exposing inline data", () => {
+test("image output previews identify the source without exposing inline data", async () => {
   openBlockPreview({ type: "image", src: "https://example.com/chart.png" });
   const view = render(<BlockPreviewPortal />);
   expect(view.getByRole("tab")).toHaveTextContent("chart.png");
@@ -189,5 +189,8 @@ test("image output previews identify the source without exposing inline data", (
   });
   const selected = view.getByRole("tab", { selected: true });
   expect(selected).toHaveTextContent("2");
-  expect(selected.getAttribute("title")).not.toContain("private-image-data");
+  fireEvent.mouseEnter(selected);
+  expect(await view.findByRole("tooltip")).not.toHaveTextContent(
+    "private-image-data",
+  );
 });

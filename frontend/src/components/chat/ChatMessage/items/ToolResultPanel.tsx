@@ -41,6 +41,8 @@ interface ToolResultPanelProps {
   open: boolean;
   onClose: () => void;
   title?: string;
+  path?: string;
+  fileType?: string;
   icon?: React.ReactNode;
   status?: CollapsibleStatus;
   subtitle?: string;
@@ -111,6 +113,8 @@ export function ToolResultPanel({
   open,
   onClose,
   title = "",
+  path,
+  fileType,
   icon,
   status = "idle",
   subtitle,
@@ -167,6 +171,8 @@ export function ToolResultPanel({
     open,
     onClose: handleUserClose,
     title: tabTitle,
+    path,
+    fileType,
     icon,
     registryKey,
     kind: "content",

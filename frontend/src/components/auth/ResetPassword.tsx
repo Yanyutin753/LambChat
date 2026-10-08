@@ -73,7 +73,10 @@ export function ResetPassword() {
       <div className="auth-atmosphere" aria-hidden="true">
         <div className="auth-glow-main absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.05)_0%,rgba(251,146,60,0.02)_40%,transparent_70%)] dark:bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.03)_0%,rgba(251,146,60,0.015)_40%,transparent_70%)]" />
       </div>
-      <nav className="fixed top-0 inset-x-0 z-50 bg-theme-bg-card/90 dark:bg-stone-950/90 border-b border-theme-border-subtle/60 dark:border-stone-800/40 transition-shadow duration-300">
+      <nav
+        style={{ top: "var(--titlebar-inset, 0px)" }}
+        className="fixed inset-x-0 z-50 bg-theme-bg-card/90 dark:bg-stone-950/90 border-b border-theme-border-subtle/60 dark:border-stone-800/40 transition-shadow duration-300"
+      >
         <div className="mx-auto flex h-14 max-w-full items-center justify-between px-4 sm:px-8">
           <Link to="/" className="flex items-center group  gap-1.5">
             <BrandLogo
@@ -145,7 +148,10 @@ export function ResetPassword() {
         <div className="auth-glow-blue absolute top-[30%] left-[5%] w-[350px] h-[350px] bg-[radial-gradient(circle,rgba(56,189,248,0.035)_0%,transparent_60%)] dark:bg-[radial-gradient(circle,rgba(56,189,248,0.025)_0%,transparent_60%)]" />
         <div className="auth-glow-violet absolute bottom-[15%] right-[10%] w-[280px] h-[280px] bg-[radial-gradient(circle,rgba(168,85,247,0.03)_0%,transparent_60%)] dark:bg-[radial-gradient(circle,rgba(168,85,247,0.018)_0%,transparent_60%)]" />
       </div>
-      <nav className="fixed top-0 inset-x-0 z-50 bg-theme-bg-card/90 dark:bg-stone-950/90 border-b border-theme-border-subtle/60 dark:border-stone-800/40 transition-shadow duration-300">
+      <nav
+        style={{ top: "var(--titlebar-inset, 0px)" }}
+        className="fixed inset-x-0 z-50 bg-theme-bg-card/90 dark:bg-stone-950/90 border-b border-theme-border-subtle/60 dark:border-stone-800/40 transition-shadow duration-300"
+      >
         <div className="mx-auto flex h-14 max-w-full items-center justify-between px-4 sm:px-8">
           <Link to="/" className="flex items-center group  gap-1.5">
             <BrandLogo

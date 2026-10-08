@@ -2,6 +2,8 @@ import {
   type CSSProperties,
   type ReactNode,
   useState,
+  useId,
+  useLayoutEffect,
   useCallback,
   useEffect,
   useRef,
@@ -20,6 +22,8 @@ interface TooltipProps {
   className?: string;
   /** z-index for the tooltip (default: 60) */
   zIndex?: number;
+  /** Delay before showing on mouse hover (ms). */
+  hoverDelay?: number;
   /** Force the bubble visible (e.g. driven by a parent's touch state); hover/long-press still work when not forced */
   open?: boolean;
 }
@@ -107,8 +111,9 @@ function getTooltipPosition(
   rect: DOMRect,
   requested: Placement,
   content: ReactNode,
+  measuredSize?: { width: number; height: number },
 ) {
-  const { width, height } = estimateTooltipSize(content);
+  const { width, height } = measuredSize ?? estimateTooltipSize(content);
   const resolved = resolvePlacement(requested, rect, width, height);
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
@@ -188,13 +193,21 @@ export function Tooltip({
   children,
   className,
   zIndex = 60,
+  hoverDelay = 0,
   open,
 }: TooltipProps) {
   const [show, setShow] = useState(false);
+  const tooltipId = useId();
+  const bubbleRef = useRef<HTMLSpanElement>(null);
+  const [measuredSize, setMeasuredSize] = useState<{
+    width: number;
+    height: number;
+  }>();
   const hoverTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const longPressTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const touchHideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const lastTouchAtRef = useRef(0);
+  const keyboardFocusRef = useRef(false);
   const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
   const wrapperRef = useRef<HTMLSpanElement>(null);
   const childElRef = useRef<HTMLElement | null>(null);
@@ -214,14 +227,18 @@ export function Tooltip({
 
   // --- Desktop: hover show/hide ---
   const handleMouseEnter = useCallback(() => {
+    clearTimeout(hoverTimer.current);
     // Synthetic mouseenter right after a tap is not a real hover
     if (Date.now() - lastTouchAtRef.current < TOUCH_MOUSE_GATE_MS) return;
     clearTimeout(touchHideTimer.current);
     clearTimeout(longPressTimer.current);
-    setShow(true);
-  }, []);
+    if (hoverDelay)
+      hoverTimer.current = setTimeout(() => setShow(true), hoverDelay);
+    else setShow(true);
+  }, [hoverDelay]);
 
   const handleMouseLeave = useCallback(() => {
+    clearTimeout(hoverTimer.current);
     hoverTimer.current = setTimeout(() => setShow(false), 150);
   }, []);
 
@@ -264,9 +281,41 @@ export function Tooltip({
   }, []);
 
   const handleActivate = useCallback(() => {
+    clearTimeout(hoverTimer.current);
     clearTimeout(longPressTimer.current);
     clearTimeout(touchHideTimer.current);
     setShow(false);
+  }, []);
+
+  const handleFocus = useCallback(() => {
+    if (keyboardFocusRef.current) setShow(true);
+  }, []);
+  const handleBlur = useCallback(() => setShow(false), []);
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      if (event.key === "Escape" && show) {
+        event.preventDefault();
+        event.stopPropagation();
+        handleActivate();
+      }
+    },
+    [handleActivate, show],
+  );
+
+  useEffect(() => {
+    const markKeyboard = (event: KeyboardEvent) => {
+      if (["Tab", "ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
+        keyboardFocusRef.current = true;
+    };
+    const markPointer = () => {
+      keyboardFocusRef.current = false;
+    };
+    document.addEventListener("keydown", markKeyboard, true);
+    document.addEventListener("pointerdown", markPointer, true);
+    return () => {
+      document.removeEventListener("keydown", markKeyboard, true);
+      document.removeEventListener("pointerdown", markPointer, true);
+    };
   }, []);
 
   // Bind events directly to child element (display:contents wrapper can't receive events)
@@ -281,6 +330,9 @@ export function Tooltip({
     el.addEventListener("touchend", handleTouchEnd, { passive: true });
     el.addEventListener("touchcancel", handleTouchCancel, { passive: true });
     el.addEventListener("click", handleActivate);
+    el.addEventListener("focusin", handleFocus);
+    el.addEventListener("focusout", handleBlur);
+    el.addEventListener("keydown", handleKeyDown);
 
     return () => {
       el.removeEventListener("mouseenter", handleMouseEnter);
@@ -290,6 +342,9 @@ export function Tooltip({
       el.removeEventListener("touchend", handleTouchEnd);
       el.removeEventListener("touchcancel", handleTouchCancel);
       el.removeEventListener("click", handleActivate);
+      el.removeEventListener("focusin", handleFocus);
+      el.removeEventListener("focusout", handleBlur);
+      el.removeEventListener("keydown", handleKeyDown);
     };
   }, [
     getChild,
@@ -300,6 +355,9 @@ export function Tooltip({
     handleTouchEnd,
     handleTouchCancel,
     handleActivate,
+    handleFocus,
+    handleBlur,
+    handleKeyDown,
   ]);
 
   // Close on outside click
@@ -327,17 +385,49 @@ export function Tooltip({
   // Forced-open (touch-driven) shows the bubble on top of the internal hover/long-press state
   const visible = open === true || show;
 
-  const tipStyle = useStickyDropdownPosition(childElRef, visible, (rect) => {
-    const position = getTooltipPosition(rect, placement, content);
-    resolvedPlacement.current = position.resolved;
-    arrowStyle.current = position.arrowStyle;
-    return {
-      ...position.style,
-      zIndex,
-    };
-  });
+  useLayoutEffect(() => {
+    if (!visible) {
+      setMeasuredSize(undefined);
+      return;
+    }
+    const rect = bubbleRef.current?.getBoundingClientRect();
+    if (rect?.width && rect.height)
+      setMeasuredSize({ width: rect.width, height: rect.height });
+  }, [visible, content]);
 
-  if (typeof content !== "string" && typeof content !== "number") return null;
+  useEffect(() => {
+    const el = getChild();
+    if (!visible || !el) return;
+    const previous = el.getAttribute("aria-describedby");
+    el.setAttribute(
+      "aria-describedby",
+      [previous, tooltipId].filter(Boolean).join(" "),
+    );
+    return () => {
+      if (previous === null) el.removeAttribute("aria-describedby");
+      else el.setAttribute("aria-describedby", previous);
+    };
+  }, [visible, getChild, tooltipId]);
+
+  const tipStyle = useStickyDropdownPosition(
+    childElRef,
+    visible,
+    (rect) => {
+      const position = getTooltipPosition(
+        rect,
+        placement,
+        content,
+        measuredSize,
+      );
+      resolvedPlacement.current = position.resolved;
+      arrowStyle.current = position.arrowStyle;
+      return {
+        ...position.style,
+        zIndex,
+      };
+    },
+    measuredSize,
+  );
 
   const arrowClassName = {
     top: "absolute left-0 top-full border-[5px] border-transparent border-t-stone-700 dark:border-t-stone-900",
@@ -357,6 +447,9 @@ export function Tooltip({
       {visible &&
         createPortal(
           <span
+            ref={bubbleRef}
+            id={tooltipId}
+            role="tooltip"
             data-placement={resolvedPlacement.current}
             className={`fixed z-50 max-w-[min(240px,calc(100vw-16px))] w-max rounded-md border border-white/10 bg-stone-700/95 px-2.5 py-1.5 text-12 font-medium leading-relaxed text-white shadow-xl shadow-black/20 backdrop-blur-sm whitespace-normal pointer-events-none ${
               className ?? ""

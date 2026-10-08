@@ -214,7 +214,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         mw = [
             *create_retry_middleware(fallback_model=fallback_model_value),
             create_todo_middleware(),
-            ToolResultBinaryMiddleware(base_url=subagent_base_url),
+            ToolResultBinaryMiddleware(base_url=subagent_base_url, supports_vision=supports_vision),
             ArtifactDeliveryMiddleware(),
             SubagentActivityMiddleware(backend=backend),
         ]
@@ -287,7 +287,9 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     user_middleware = create_retry_middleware(fallback_model=fallback_model_value)
     user_middleware.append(create_todo_middleware())
     user_middleware.insert(0, SteerMiddleware(session_id=str(session_id), presenter=presenter))
-    user_middleware.append(ToolResultBinaryMiddleware(base_url=subagent_base_url))
+    user_middleware.append(
+        ToolResultBinaryMiddleware(base_url=subagent_base_url, supports_vision=supports_vision)
+    )
     user_middleware.append(ArtifactDeliveryMiddleware())
     _image_mw = image_url_middleware_for_mode(image_url_mode)
     if _image_mw:

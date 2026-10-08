@@ -59,7 +59,7 @@ export function HeroSection({ onLogin }: HeroSectionProps) {
         >
           <button
             onClick={onLogin}
-            className="blog-btn-primary public-action public-action-primary group"
+            className="blog-btn-primary public-action public-action-primary font-serif group"
           >
             {t("landing.startUsing")}
             <span className="transition-transform duration-300 group-hover:translate-x-0.5">
@@ -70,7 +70,7 @@ export function HeroSection({ onLogin }: HeroSectionProps) {
             href={GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="blog-btn-ghost public-action public-action-secondary group"
+            className="blog-btn-ghost public-action public-action-secondary font-serif group"
           >
             <GitHubIcon />
             {t("landing.viewOnGitHub")}
