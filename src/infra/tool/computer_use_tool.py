@@ -202,7 +202,11 @@ async def computer_use(
     navigation instead of trying to click into the page (e.g. open
     ``https://www.baidu.com/s?wd=<query>`` via ``launch`` for searches); address-bar
     and browser chrome (tabs/buttons) are always visible. Firefox exposes page DOM
-    more readily.
+    more readily. On Linux/Wayland launch browsers with
+    ``--ozone-platform=wayland --disable-gpu --force-renderer-accessibility`` plus a
+    fresh ``--user-data-dir`` (default X11 mode exits silently without XWayland);
+    pass the executable path (e.g. ``/usr/bin/microsoft-edge``) — bare names are
+    resolved from PATH.
 
     Hard rules:
     - NEVER use osascript/AppleScript/System Events/JXA for UI automation — an unattended

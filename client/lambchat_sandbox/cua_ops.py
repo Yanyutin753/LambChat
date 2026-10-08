@@ -177,8 +177,17 @@ def _op_launch(payload: dict) -> dict:
             else:
                 subprocess.Popen(["xdg-open", url], start_new_session=True)
             return {"ok": True, "kind": "url", "target": url}
-        # app 路径启动(不走 shell)
-        argv = [str(app), *args]
+        # app 路径启动(不走 shell);裸名(如 "firefox")经 PATH 解析——
+        # 2026-10-08 xiaoxin 实测 agent 常用裸名,直接 Popen 报
+        # launch_failed: No such file or directory
+        import shutil
+
+        resolved = str(app)
+        if not os.path.isfile(resolved) and os.sep not in str(app):
+            which = shutil.which(str(app))
+            if which:
+                resolved = which
+        argv = [resolved, *args]
         env = None
         if platform.startswith("linux"):
             env = dict(os.environ)
@@ -531,7 +540,12 @@ def _op_type(payload: dict) -> dict:
     if not isinstance(text, str) or not text:
         raise CuaOpError("invalid_arguments", "text required")
 
+    # index 取值兼容两层:工具层规范是 target.index(与 click/set_value 同),
+    # 顶层 index 供 op 直调。只读顶层会让元素路径在真实链路上静默失效。
+    target_ref = payload.get("target") or {}
     index = payload.get("index")
+    if index is None and isinstance(target_ref, dict):
+        index = target_ref.get("index")
     if index is not None:
         element = _resolve_index(pid, payload.get("window_id"), index)
         backend = _backend()
@@ -601,13 +615,13 @@ def _map_modifiers(text: str | None) -> list[str]:
 
 def _op_key(payload: dict) -> dict:
     _require_ax()
+    backend = _backend()
     pid = _resolve_app_ref(payload)
     text = payload.get("text")
     if not isinstance(text, str) or not text.strip():
         raise CuaOpError("invalid_arguments", "text required (e.g. 'return' or 'cmd+c')")
     repeat = max(1, min(int(payload.get("repeat") or 1), 50))
     modifier_keys = _map_modifiers(payload.get("modifiers"))
-    pyautogui = _pyautogui()
     keys = []
     for token in text.split("+"):
         token = token.strip().lower()
@@ -619,6 +633,20 @@ def _op_key(payload: dict) -> dict:
     if not keys and not modifier_keys:
         raise CuaOpError("invalid_arguments", "no key in chord")
     _require_foreground(pid)
+
+    # 单键优先走后端原生合成(Linux/AT-SPI KEY_SYM,Wayland 原生可用)。
+    # 2026-10-08 xiaoxin 实测:回车走 pyautogui 在无 X11 环境直接
+    # unsupported_platform,agent 只能绕 URL 导航——单键是最高频操作。
+    native_press = getattr(backend, "press_key", None)
+    if callable(native_press) and not modifier_keys and len(keys) == 1:
+        try:
+            for _ in range(repeat):
+                native_press(keys[0])
+            return {"ok": True, "strategy": "a11y-event", "key": keys[0]}
+        except Exception:  # noqa: BLE001 - 原生不支持该键回退 pyautogui
+            pass
+
+    pyautogui = _pyautogui()
     for _ in range(repeat):
         if modifier_keys and keys:
             pyautogui.hotkey(*modifier_keys, *keys)
