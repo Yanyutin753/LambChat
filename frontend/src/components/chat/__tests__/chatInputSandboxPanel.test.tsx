@@ -276,7 +276,7 @@ test("sandbox panel lists machines in the same modal on the local tier", async (
   expect(screen.queryByText(THINKING_DESCRIPTION)).not.toBeInTheDocument();
 });
 
-test("sandbox panel shows the machine section on the cloud tier for one-tap switching", async () => {
+test("cloud sandbox machine selection preserves cloud code execution", async () => {
   mocks.listMachines.mockResolvedValue({
     machines: MACHINES,
     default_machine_id: null,
@@ -286,7 +286,7 @@ test("sandbox panel shows the machine section on the cloud tier for one-tap swit
 
   // 云端档也展示设备：点设备 = 一键切本地 + 指定执行目标
   fireEvent.click(await screen.findByText("MacBook"));
-  expect(onToggleAgentOption).toHaveBeenCalledWith("sandbox", "local");
+  expect(onToggleAgentOption).not.toHaveBeenCalledWith("sandbox", "local");
   expect(onToggleAgentOption).toHaveBeenCalledWith(
     "sandbox_machine_id",
     "mac1",

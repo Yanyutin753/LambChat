@@ -281,6 +281,7 @@
       "offline": "오프라인",
       "offlineHint": "해당 PC는 오프라인 상태라 실행 머신으로 선택할 수 없어요",
       "section": "실행 기기",
+      "computerUseHint": "컴퓨터 조작은 명시적으로 선택한 기기를 사용하며, 코드는 위에서 선택한 샌드박스에서 실행됩니다.",
       "currentDevice": "이 기기"
     },
     "sandboxPolicy": {
@@ -3152,7 +3153,7 @@
     "testing": "연결 중…",
     "fail": "서버 응답 이상(HTTP {{status}}). 주소를 확인해 주세요",
     "unreachable": "이 주소에 연결할 수 없습니다. 서버가 실행 중인지 확인해 주세요",
-    "invalid": "주소 형식이 올바르지 않습니다"
+    "invalid": "HTTPS 서버 주소를 사용하세요. HTTP는 localhost와 같은 개발용 루프백 주소에서만 허용됩니다."
   },
   "session": {
     "deleteFailed": "세션 삭제에 실패했습니다",
@@ -3471,7 +3472,7 @@
     "DOCUMENT_PARSE_MAX_DOWNLOAD_BYTES": "문서 다운로드 최대 크기 (바이트)",
     "DOCUMENT_PARSE_MAX_OUTPUT_CHARS": "파싱 결과 Markdown 최대 문자 수, 초과 시 잘림",
     "DOCUMENT_PARSE_MAX_IMAGES": "한 번의 파싱에서 추출할 최대 이미지 수",
-    "ENABLE_COMPUTER_USE": "컴퓨터 제어: 로컬 샌드박스 daemon을 통해 데스크톱 GUI를 조작합니다. 로컬 샌드박스 전용. macOS는 LambChat.app에 접근성·화면 기록 권한 필요."
+    "ENABLE_COMPUTER_USE": "Computer Use: Agent가 이 대화에서 명시적으로 선택한 온라인 컴퓨터를 조작합니다. 코드 샌드박스는 로컬 또는 클라우드를 선택할 수 있습니다. macOS에서는 LambChat.app에 손쉬운 사용 및 화면 기록 권한이 필요합니다."
   },
   "settings": {
     "navigation": {

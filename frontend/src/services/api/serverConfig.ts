@@ -6,6 +6,7 @@ import { API_BASE, isNativeAppRuntime } from "./config";
 import {
   clearStoredServerUrl,
   getStoredServerUrl,
+  hasUnsafeStoredServerUrl,
   normalizeServerUrl,
   setStoredServerUrl,
 } from "./serverUrlStore";
@@ -35,6 +36,7 @@ export function isTauriRuntime(globalLike?: NativeGlobalLike | null): boolean {
 
 /** 生效的 API 基址：运行时配置优先，构建期 VITE_API_BASE 兜底，Web 同源空串。 */
 export function effectiveApiBase(): string {
+  if (hasUnsafeStoredServerUrl()) return "";
   return getStoredServerUrl() || API_BASE;
 }
 
@@ -46,7 +48,7 @@ export function needsServerSetup(
     ? isTauriRuntime(globalLike) ||
       Boolean(globalLike.Capacitor?.isNativePlatform?.())
     : isNativeAppRuntime();
-  return native && !effectiveApiBase();
+  return native && (hasUnsafeStoredServerUrl() || !effectiveApiBase());
 }
 
 export function buildAbsoluteUrl(
@@ -81,7 +83,7 @@ export function installServerUrlNetworkPatch(deps: PatchDeps = {}): boolean {
   // 未注入依赖（生产启动）时仅原生端安装：Web 同源部署无需改写
   if (!deps.fetchImpl && !isNativeAppRuntime()) return false;
   const base = deps.base ?? effectiveApiBase();
-  if (!base) return false;
+  if (!base && !hasUnsafeStoredServerUrl()) return false;
 
   // 相对 /api、/ws，或绝对但指向 webview 自身 origin（tauri.localhost）的
   // /api、/ws 都要改写；其余绝对 URL（外部链接/签名地址）不动
@@ -114,6 +116,11 @@ export function installServerUrlNetworkPatch(deps: PatchDeps = {}): boolean {
           : input instanceof Request
             ? input.url
             : "";
+    if (hasUnsafeStoredServerUrl() && /\/(api|ws)(\/|\?|$)/.test(url)) {
+      throw new Error(
+        "Configure an HTTPS server before sending authenticated requests",
+      );
+    }
     if (url && shouldRewrite(url)) {
       if (typeof input === "string" || input instanceof URL) {
         return rawFetch(rewriteUrl(url), init);
@@ -139,6 +146,9 @@ export function installServerUrlNetworkPatch(deps: PatchDeps = {}): boolean {
     ) => WebSocket);
   class PatchedWebSocket extends RawWebSocket {
     constructor(url: string | URL, protocols?: string | string[]) {
+      if (hasUnsafeStoredServerUrl()) {
+        throw new Error("Configure an HTTPS server before opening a WebSocket");
+      }
       const raw = url.toString();
       const target = shouldRewrite(raw) ? rewriteUrl(raw) : raw;
       super(target, protocols);

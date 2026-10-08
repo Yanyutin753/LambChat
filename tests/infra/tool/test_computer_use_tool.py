@@ -116,7 +116,8 @@ async def test_commands_policy_requires_confirmation_for_screenshots(monkeypatch
 
 
 @pytest.mark.parametrize(
-    "runtime", [_runtime(machine=None), _runtime(platform="cloud"), SimpleNamespace(config={})]
+    "runtime",
+    [_runtime(machine=None), _runtime(platform="cloud", machine=None), SimpleNamespace(config={})],
 )
 async def test_missing_local_selection_never_falls_back_to_account_machine(monkeypatch, runtime):
     async def dispatch(*args, **kwargs):
@@ -432,3 +433,16 @@ async def test_large_tree_keeps_valid_json_and_screenshot_metadata() -> None:
     assert result["truncated"] is True
     assert result["screenshot"]["url"] == "/api/upload/file/shot.jpg"
     assert result["state"].startswith("[0] AXTextField")
+
+
+async def test_cloud_code_sandbox_uses_only_explicit_cua_machine(monkeypatch):
+    async def dispatch(user_id, op, payload, *, machine_id=None):
+        assert user_id == "u1" and machine_id == "selected-desktop"
+        assert payload["session_id"] == "session-1"
+        return {"result": {"ok": True}}
+
+    monkeypatch.setattr(cut, "dispatch_local_call", dispatch)
+    result = await _call(
+        action="apps", runtime=_runtime(platform="cloud", machine="selected-desktop")
+    )
+    assert json.loads(result)["machine_id"] == "selected-desktop"

@@ -191,3 +191,37 @@ def test_load_invalid_machine_id_type_rejected(tmp_path):
     p.write_text('{"machine_id": 123}', encoding="utf-8")
     with pytest.raises(ConfigError):
         load_config(p)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://example.com",
+        "http://192.168.1.2:8000",
+        "https://user:pass@example.com",
+        "https://example.com?token=x",
+        "https://example.com#fragment",
+        "https://example.com?",
+        "https://example.com#",
+        "https://",
+        "https://example.com:bad",
+    ],
+)
+def test_remote_server_urls_fail_closed_before_credentials_are_sent(tmp_path, url):
+    with pytest.raises(ConfigError):
+        save_config(SandboxConfig(server_url=url), tmp_path / "sandbox.json")
+
+
+@pytest.mark.parametrize(
+    ("url", "origin"),
+    [
+        ("https://EXAMPLE.com:443/base/", "https://example.com"),
+        ("http://localhost:8000", "http://localhost:8000"),
+        ("http://127.0.0.1:80", "http://127.0.0.1"),
+        ("http://[::1]:8000", "http://[::1]:8000"),
+    ],
+)
+def test_server_origin_matches_credential_namespace(url, origin):
+    from lambchat_sandbox.config import server_origin
+
+    assert server_origin(url) == origin

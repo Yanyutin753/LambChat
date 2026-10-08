@@ -281,6 +281,7 @@
       "offline": "オフライン",
       "offlineHint": "そのPCは現在オフラインのため、実行マシンとして選択できません",
       "section": "実行デバイス",
+      "computerUseHint": "コンピューター操作は明示的に選択したデバイスを使用し、コードは上で選択したサンドボックスで実行されます。",
       "currentDevice": "このデバイス"
     },
     "sandboxPolicy": {
@@ -3152,7 +3153,7 @@
     "testing": "接続中…",
     "fail": "サーバー応答異常（HTTP {{status}}）。アドレスを確認してください",
     "unreachable": "このアドレスに接続できません。サーバーが起動しているか確認してください",
-    "invalid": "アドレスの形式が正しくありません"
+    "invalid": "サーバーのアドレスには HTTPS を使用してください。HTTP は localhost などの開発用ループバックアドレスでのみ使用できます。"
   },
   "session": {
     "deleteFailed": "セッションの削除に失敗しました",
@@ -3471,7 +3472,7 @@
     "DOCUMENT_PARSE_MAX_DOWNLOAD_BYTES": "ドキュメントダウンロードの最大サイズ（バイト）",
     "DOCUMENT_PARSE_MAX_OUTPUT_CHARS": "解析結果 Markdown の最大文字数（超過分は切り詰め）",
     "DOCUMENT_PARSE_MAX_IMAGES": "1 回の解析で抽出する画像の最大数",
-    "ENABLE_COMPUTER_USE": "コンピュータ操作:ローカルサンドボックス daemon 経由でデスクトップ GUI を操作。ローカルサンドボックス専用。macOS は LambChat.app へのアクセシビリティと画面収録の許可が必要。"
+    "ENABLE_COMPUTER_USE": "Computer Use：このチャットで明示的に選択したオンラインのコンピューターを Agent が操作します。コード用サンドボックスはローカルまたはクラウドを選択できます。macOS では LambChat.app にアクセシビリティと画面収録の権限が必要です。"
   },
   "settings": {
     "navigation": {

@@ -99,9 +99,9 @@ export function clearPairing(): Promise<void> {
   return invokeInShell("clear_pairing").then(() => undefined);
 }
 
-/** 读回配对 PAT（未配对时 null）。 */
-export function readPairingPat(): Promise<string | null> {
-  return invokeInShell<string | null>("read_pairing_pat");
+/** Only return a pairing PAT belonging to the caller's current server. */
+export function readPairingPat(serverUrl: string): Promise<string | null> {
+  return invokeInShell<string | null>("read_pairing_pat", { serverUrl });
 }
 
 /**
