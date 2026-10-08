@@ -2242,6 +2242,7 @@ cua = [
     { name = "atomacos", marker = "sys_platform == 'darwin'" },
     { name = "pyautogui", version = "0.9.41", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'darwin' and sys_platform != 'win32'" },
     { name = "pyautogui", version = "0.9.54", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "pyperclip" },
     { name = "python-xlib", marker = "sys_platform == 'linux'" },
     { name = "pywinauto", marker = "sys_platform == 'win32'" },
 ]
@@ -2319,6 +2320,7 @@ requires-dist = [
 cua = [
     { name = "atomacos", marker = "sys_platform == 'darwin'", specifier = ">=3.3" },
     { name = "pyautogui", marker = "sys_platform != 'darwin'" },
+    { name = "pyperclip" },
     { name = "python-xlib", marker = "sys_platform == 'linux'" },
     { name = "pywinauto", marker = "sys_platform == 'win32'", specifier = ">=0.6.9" },
 ]

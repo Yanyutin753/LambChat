@@ -11,7 +11,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from pywinauto import Desktop
+
+def _desktop_windows() -> list[Any]:
+    """Desktop(backend="uia").windows()——懒加载 pywinauto(本模块需在
+    非 Windows 平台可导入供单元测试),失败按无窗口处理。"""
+    try:
+        from pywinauto import Desktop
+
+        return list(Desktop(backend="uia").windows())
+    except Exception:  # noqa: BLE001 - UIA 不可用
+        return []
 
 
 def ax_trusted() -> bool:
@@ -32,8 +41,22 @@ def frontmost_pid() -> int | None:
 
 
 def list_apps() -> list[dict[str, Any]]:
+    """只列**拥有可见顶层窗口**的进程。
+
+    生产实测(2026-10-08):全量 tasklist 数百行系统进程(System/csrss/
+    svchost),模型只能逐 pid 盲探 windows(连续 6 次 no_windows)。
+    合并桌面窗口枚举后只回 GUI 进程——浏览器多进程场景也直接给出
+    持窗口的主进程 pid,免探测。
+    """
     import subprocess
 
+    gui_pids: set[int] = set()
+    for element in _desktop_windows():
+        pid = _window_pid(element)
+        if pid:
+            gui_pids.add(pid)
+    if not gui_pids:
+        return []
     output = subprocess.run(
         ["tasklist", "/FO", "CSV", "/NH"], capture_output=True, text=True, timeout=15
     ).stdout
@@ -47,7 +70,15 @@ def list_apps() -> list[dict[str, Any]]:
             pid = int(pid_text)
         except ValueError:
             continue
+        if pid not in gui_pids:
+            continue
         rows.append({"pid": pid, "name": name.removesuffix(".exe")})
+    try:
+        front = frontmost_pid()
+    except Exception:  # noqa: BLE001
+        front = None
+    if front is not None:
+        rows.sort(key=lambda r: 0 if r["pid"] == front else 1)
     return rows
 
 
@@ -69,11 +100,7 @@ def windows(pid: int) -> list[dict[str, Any]]:
     # 不到目标进程(192.168.1.2 Win10 实测 0 窗口,而全量列表里窗口明明
     # 存在)——窗口在那,过滤坏,就自己过滤。
     rows: list[dict[str, Any]] = []
-    try:
-        all_windows = Desktop(backend="uia").windows()
-    except Exception:  # noqa: BLE001 - UIA 不可用
-        return rows
-    for element in all_windows:
+    for element in _desktop_windows():
         if _window_pid(element) != pid:
             continue
         try:
@@ -148,13 +175,52 @@ def row_of(element: Any) -> dict[str, Any]:
     }
 
 
+# 语义动作 → pywinauto wrapper 方法。生产实测(2026-10-08)漏了 "click"
+# 语义映射:ops 层把 click 传进来,这里 KeyError「action click not available
+# on element」——Windows 元素点击整体不可用。click/press 一律落到 Invoke
+# (UIA 的默认动作,即「点一下」);legacy DoDefaultAction 兜底覆盖无
+# InvokePattern 但有 LegacyIAccessible 默认动作的控件。
+_PERFORM_MAPPING = {
+    "invoke": "invoke",
+    "click": "invoke",
+    "press": "invoke",
+    "default": "invoke",
+    "select": "select",
+    "expand": "expand",
+    "toggle": "toggle",
+}
+
+
 def perform(element: Any, action: str) -> None:
-    mapping = {"invoke": "invoke", "select": "select", "expand": "expand", "toggle": "toggle"}
-    method = mapping.get(action.removeprefix("AX").lower())
+    normalized = action.removeprefix("AX").lower()
+    method = _PERFORM_MAPPING.get(normalized)
     if method and hasattr(element, method):
         getattr(element, method)()
         return
+    # LegacyIAccessible.DoDefaultAction 兜底:接口属性名随 pywinauto 版本
+    # 有 iface_legacy / iface_legacy_IAccessible 两种拼写,逐一探测。
+    for legacy_name in ("iface_legacy", "iface_legacy_IAccessible"):
+        legacy = getattr(element, legacy_name, None)
+        do_default = getattr(legacy, "DoDefaultAction", None)
+        if callable(do_default):
+            do_default()
+            return
     raise KeyError(f"action {action} not available on element")
+
+
+def set_focus(element: Any) -> None:
+    """聚焦元素;pywinauto 的 set_focus 会顺带把所在窗口调到前台——
+    type 的免前台路径(focus+set_value)失败回退合成键盘时正需要它。"""
+    element.set_focus()
+
+
+def activate_window(pid: int, window_id: int | None) -> None:
+    """把窗口调到前台(显式 activate 动作,agent 主动调用)。"""
+    rows = windows(pid)
+    if not rows:
+        raise KeyError(f"pid {pid} has no accessible windows")
+    row = rows[0] if window_id is None or not (0 <= window_id < len(rows)) else rows[window_id]
+    row["handle"].set_focus()
 
 
 def _read_value(element: Any) -> str | None:
