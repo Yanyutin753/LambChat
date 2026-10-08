@@ -25,6 +25,7 @@ from src.infra.logging import get_logger
 from src.infra.sandbox.confirm import confirm_local_op
 from src.infra.sandbox.relay.dispatch import dispatch_local_call
 from src.infra.tool.backend_utils import get_session_id_from_runtime, get_user_id_from_runtime
+from src.kernel.errors import AppError
 
 logger = get_logger(__name__)
 
@@ -221,12 +222,13 @@ async def computer_use(
 ) -> str:
     """Operate native apps / the desktop on the user's OWN machine via the local sandbox.
 
-    Availability: requires the LOCAL sandbox platform (desktop app daemon). Cloud sandbox
-    sessions do not have it — on ``dispatch_failed: offline`` tell the user to open the
-    LambChat desktop app (or switch the session sandbox to local); do not retry blindly.
-    The session's selected local machine is authoritative. You cannot change it with
+    Availability: requires an explicitly selected, online desktop app daemon. The code
+    sandbox may be local or cloud; desktop selection is independent of that platform.
+    On ``dispatch_failed: offline`` tell the user to open LambChat on the selected
+    machine; do not retry blindly. The session's selected machine is authoritative.
+    You cannot change it with
     tool arguments; ask the user to change the session selection. If it is offline,
-    stop instead of selecting another machine. Cloud sessions cannot use this tool.
+    stop instead of selecting another machine.
 
     Workflow (always):
     1. ``launch`` to open a URL or start an app — this is the correct way to start
@@ -291,8 +293,8 @@ async def computer_use(
     config = getattr(runtime, "config", None)
     configurable = config.get("configurable", {}) if isinstance(config, dict) else {}
     selection = configurable.get("computer_use_context")
-    if not isinstance(selection, dict) or selection.get("platform") != "local":
-        return "ERROR local_session_required: select the local sandbox in this session"
+    if not isinstance(selection, dict):
+        return "ERROR machine_selection_required: select an online machine in this session"
     selected_machine = selection.get("machine_id")
     if not isinstance(selected_machine, str) or not selected_machine:
         return "ERROR machine_selection_required: select an online machine in this session"
@@ -360,9 +362,8 @@ async def computer_use(
             user_id, f"cua_{action}", payload, machine_id=selected_machine
         )
     except Exception as exc:  # noqa: BLE001 - AppError(SANDBOX_*) 等统一转文本
-        # AppError.__str__ 返回未插值模板("... {{detail}}")——真实原因在
-        # args 里,必须走 display_message,否则 daemon 侧错误全被吞成模板
-        message = getattr(exc, "display_message", None) or str(exc)
+        # AppError.__str__ retains interpolation placeholders.
+        message = exc.display_message if isinstance(exc, AppError) else str(exc)
         logger.warning("[computer_use] dispatch failed action=%s: %s", action, message)
         hint = ""
         if "offline" in message.lower():

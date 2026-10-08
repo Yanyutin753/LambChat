@@ -74,6 +74,23 @@ test("existing pairing restarts a stopped daemon without replacing credentials",
   expect(mocks.savePairing).not.toHaveBeenCalled();
 });
 
+test("a daemon paired to another server is paired again for the current server", async () => {
+  mocks.daemonProcessStatus.mockResolvedValue("running");
+  mocks.readPairingPat.mockImplementation(async (serverUrl) =>
+    serverUrl === "http://localhost:8000" ? null : "synthetic-other-server-pat",
+  );
+  renderHook(() => useDesktopAutoPair("user-1"));
+  await flush();
+  expect(mocks.readPairingPat).toHaveBeenCalledWith("http://localhost:8000");
+  expect(mocks.createPairingPat).toHaveBeenCalledTimes(1);
+  expect(mocks.savePairing).toHaveBeenCalledWith(
+    expect.objectContaining({
+      serverUrl: "http://localhost:8000",
+      pat: "new-pat",
+    }),
+  );
+});
+
 test("running paired daemon and unsupported platform are left alone", async () => {
   mocks.readPairingPat.mockResolvedValue("existing-pat");
   mocks.daemonProcessStatus.mockResolvedValue("running");

@@ -22,7 +22,8 @@ export function useDesktopAutoPair(userId?: string) {
       try {
         const process = await daemonProcessStatus();
         if (cancelled || process === "unsupported") return;
-        const existingPat = await readPairingPat();
+        const serverUrl = effectiveApiBase() || window.location.origin;
+        const existingPat = await readPairingPat(serverUrl);
         if (cancelled) return;
         if (existingPat) {
           if (process === "running") return;
@@ -35,7 +36,7 @@ export function useDesktopAutoPair(userId?: string) {
             return;
           }
           await savePairing({
-            serverUrl: effectiveApiBase() || window.location.origin,
+            serverUrl,
             pat: pat.token,
             patId: pat.pat_id,
             confirmPolicy: "all",

@@ -251,8 +251,6 @@ async def _process_call(
                 "event": "duplicate_skipped",
                 "call_id": call.call_id,
                 "op": call.op,
-                "command": command,
-                "path": path,
             },
         )
         return
@@ -262,8 +260,6 @@ async def _process_call(
             "event": "received",
             "call_id": call.call_id,
             "op": call.op,
-            "command": command,
-            "path": path,
         },
     )
 
@@ -353,7 +349,8 @@ async def _process_exec_call(
     坏 env 不让命令失败。
     """
     auditor.log(
-        session_id, {"event": "allowed", "call_id": call.call_id, "op": "exec", "command": command}
+        session_id,
+        {"event": "allowed", "call_id": call.call_id, "op": "exec"},
     )
     effective = call.timeout if call.timeout > 0 else DEFAULT_EXEC_TIMEOUT_S
     if time.monotonic() - started >= effective:
@@ -362,7 +359,7 @@ async def _process_exec_call(
         )
         auditor.log(
             session_id,
-            {"event": "expired", "call_id": call.call_id, "op": "exec", "command": command},
+            {"event": "expired", "call_id": call.call_id, "op": "exec"},
         )
         return
 
@@ -392,7 +389,6 @@ async def _process_exec_call(
             "event": "executed",
             "call_id": call.call_id,
             "op": "exec",
-            "command": command,
             "status": result.get("status"),
             "exit_code": result.get("exit_code"),
         },
@@ -427,7 +423,8 @@ async def _process_fs_call(
       ExecutorError）收敛为 ``status=error``，与 exec 的对应路径对齐。
     """
     auditor.log(
-        session_id, {"event": "allowed", "call_id": call.call_id, "op": call.op, "path": path}
+        session_id,
+        {"event": "allowed", "call_id": call.call_id, "op": call.op},
     )
     effective = call.timeout if call.timeout > 0 else DEFAULT_EXEC_TIMEOUT_S
     if time.monotonic() - started >= effective:
@@ -435,7 +432,8 @@ async def _process_fs_call(
             call.call_id, {"stage": "done", "status": "error", "error": "expired"}
         )
         auditor.log(
-            session_id, {"event": "expired", "call_id": call.call_id, "op": call.op, "path": path}
+            session_id,
+            {"event": "expired", "call_id": call.call_id, "op": call.op},
         )
         return
 
@@ -453,7 +451,6 @@ async def _process_fs_call(
                 "event": "executed",
                 "call_id": call.call_id,
                 "op": call.op,
-                "path": path,
                 "status": "error",
             },
         )
@@ -462,7 +459,7 @@ async def _process_fs_call(
     await client.post_result(call.call_id, {"stage": "done", "status": "ok", "result": result})
     auditor.log(
         session_id,
-        {"event": "executed", "call_id": call.call_id, "op": call.op, "path": path, "status": "ok"},
+        {"event": "executed", "call_id": call.call_id, "op": call.op, "status": "ok"},
     )
 
 
@@ -482,7 +479,8 @@ async def _process_cua_call(
     可读指引后引导用户授权或改路径重试。
     """
     auditor.log(
-        session_id, {"event": "allowed", "call_id": call.call_id, "op": call.op, "path": path}
+        session_id,
+        {"event": "allowed", "call_id": call.call_id, "op": call.op},
     )
     effective = call.timeout if call.timeout > 0 else DEFAULT_EXEC_TIMEOUT_S
     if time.monotonic() - started >= effective:
@@ -490,7 +488,8 @@ async def _process_cua_call(
             call.call_id, {"stage": "done", "status": "error", "error": "expired"}
         )
         auditor.log(
-            session_id, {"event": "expired", "call_id": call.call_id, "op": call.op, "path": path}
+            session_id,
+            {"event": "expired", "call_id": call.call_id, "op": call.op},
         )
         return
 
@@ -506,7 +505,6 @@ async def _process_cua_call(
                 "event": "executed",
                 "call_id": call.call_id,
                 "op": call.op,
-                "path": path,
                 "status": "error",
             },
         )
@@ -515,7 +513,7 @@ async def _process_cua_call(
     await client.post_result(call.call_id, {"stage": "done", "status": "ok", "result": result})
     auditor.log(
         session_id,
-        {"event": "executed", "call_id": call.call_id, "op": call.op, "path": path, "status": "ok"},
+        {"event": "executed", "call_id": call.call_id, "op": call.op, "status": "ok"},
     )
 
 
@@ -538,7 +536,8 @@ async def _process_stream_call(
     fs op 同语义）；网络级 POST 失败照常上抛交外层重连。
     """
     auditor.log(
-        session_id, {"event": "allowed", "call_id": call.call_id, "op": call.op, "path": path}
+        session_id,
+        {"event": "allowed", "call_id": call.call_id, "op": call.op},
     )
     effective = call.timeout if call.timeout > 0 else DEFAULT_EXEC_TIMEOUT_S
     if time.monotonic() - started >= effective:
@@ -546,7 +545,8 @@ async def _process_stream_call(
             call.call_id, {"stage": "done", "status": "error", "error": "expired"}
         )
         auditor.log(
-            session_id, {"event": "expired", "call_id": call.call_id, "op": call.op, "path": path}
+            session_id,
+            {"event": "expired", "call_id": call.call_id, "op": call.op},
         )
         return
 
@@ -563,14 +563,13 @@ async def _process_stream_call(
                 "event": "executed",
                 "call_id": call.call_id,
                 "op": call.op,
-                "path": path,
                 "status": "error",
             },
         )
         return
     auditor.log(
         session_id,
-        {"event": "executed", "call_id": call.call_id, "op": call.op, "path": path, "status": "ok"},
+        {"event": "executed", "call_id": call.call_id, "op": call.op, "status": "ok"},
     )
 
 
@@ -593,7 +592,8 @@ async def _process_upload_stream_call(
     done 不炸通道；网络级失败上抛交外层重连。
     """
     auditor.log(
-        session_id, {"event": "allowed", "call_id": call.call_id, "op": call.op, "path": path}
+        session_id,
+        {"event": "allowed", "call_id": call.call_id, "op": call.op},
     )
     effective = call.timeout if call.timeout > 0 else DEFAULT_EXEC_TIMEOUT_S
     if time.monotonic() - started >= effective:
@@ -601,7 +601,8 @@ async def _process_upload_stream_call(
             call.call_id, {"stage": "done", "status": "error", "error": "expired"}
         )
         auditor.log(
-            session_id, {"event": "expired", "call_id": call.call_id, "op": call.op, "path": path}
+            session_id,
+            {"event": "expired", "call_id": call.call_id, "op": call.op},
         )
         return
 
@@ -620,7 +621,6 @@ async def _process_upload_stream_call(
                 "event": "executed",
                 "call_id": call.call_id,
                 "op": call.op,
-                "path": path,
                 "status": "error",
             },
         )
@@ -659,7 +659,6 @@ async def _process_upload_stream_call(
                 "event": "executed",
                 "call_id": call.call_id,
                 "op": call.op,
-                "path": path,
                 "status": "error",
             },
         )
@@ -670,7 +669,7 @@ async def _process_upload_stream_call(
     )
     auditor.log(
         session_id,
-        {"event": "executed", "call_id": call.call_id, "op": call.op, "path": path, "status": "ok"},
+        {"event": "executed", "call_id": call.call_id, "op": call.op, "status": "ok"},
     )
 
 

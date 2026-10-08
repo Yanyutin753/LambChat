@@ -209,8 +209,9 @@ test("team failures recover without remounting the composer", async () => {
 });
 
 test("a selected team without starter prompts keeps the team heading and change action", async () => {
-  listTeams.mockResolvedValueOnce({
-    teams: [{ id: "research", name: "Research", members: [] }],
+  listTeams.mockImplementationOnce(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    return { teams: [{ id: "research", name: "Research", members: [] }] };
   });
   render(
     <MemoryRouter>
@@ -222,8 +223,8 @@ test("a selected team without starter prompts keeps the team heading and change 
       />
     </MemoryRouter>,
   );
-  await waitFor(() => expect(listTeams).toHaveBeenCalledOnce());
-  expect(screen.getByText("team.plaza")).toBeInTheDocument();
+  expect(await screen.findByText("team.plaza")).toBeInTheDocument();
+  expect(listTeams).toHaveBeenCalledOnce();
   expect(screen.queryByText("personaPresets.title")).toBeNull();
   expect(screen.getByRole("button", { name: "team.change" })).toBeEnabled();
 });

@@ -53,6 +53,8 @@ test("falls back to the page origin when nothing is configured", () => {
 
 test("saving a reachable url persists it and reloads", async () => {
   window.localStorage.setItem("lambchat_server_url", "https://old.example.com");
+  window.localStorage.setItem("access_token", "synthetic-old-access");
+  window.localStorage.setItem("refresh_token", "synthetic-old-refresh");
   mocks.fetch.mockResolvedValue({ ok: true });
   render(<ServerUrlSection />);
 
@@ -69,6 +71,8 @@ test("saving a reachable url persists it and reloads", async () => {
   expect(window.localStorage.getItem("lambchat_server_url")).toBe(
     "https://new.example.com",
   );
+  expect(window.localStorage.getItem("access_token")).toBeNull();
+  expect(window.localStorage.getItem("refresh_token")).toBeNull();
 });
 
 test("an unhealthy server shows the failure message and saves nothing", async () => {
@@ -91,12 +95,16 @@ test("reset clears the runtime override and reloads", async () => {
     "lambchat_server_url",
     "https://override.example.com",
   );
+  window.localStorage.setItem("access_token", "synthetic-old-access");
+  window.localStorage.setItem("refresh_token", "synthetic-old-refresh");
   render(<ServerUrlSection />);
 
   fireEvent.click(screen.getByRole("button", { name: /reset/i }));
 
   await waitFor(() => expect(mocks.reload).toHaveBeenCalled());
   expect(window.localStorage.getItem("lambchat_server_url")).toBeNull();
+  expect(window.localStorage.getItem("access_token")).toBeNull();
+  expect(window.localStorage.getItem("refresh_token")).toBeNull();
 });
 
 test("cancelled health check cannot save a late success and returns focus", async () => {

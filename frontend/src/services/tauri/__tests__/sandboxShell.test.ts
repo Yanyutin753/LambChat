@@ -201,22 +201,26 @@ test("clearPairing invokes clear_pairing with no args", async () => {
 test("readPairingPat resolves the stored PAT or null", async () => {
   enterTauriShell();
   mocks.invoke.mockResolvedValueOnce("lc_pat_stored");
-  await expect(readPairingPat()).resolves.toBe("lc_pat_stored");
+  await expect(readPairingPat("https://current.example.com")).resolves.toBe(
+    "lc_pat_stored",
+  );
 
   mocks.invoke.mockResolvedValueOnce(null);
-  await expect(readPairingPat()).resolves.toBeNull();
+  await expect(
+    readPairingPat("https://current.example.com"),
+  ).resolves.toBeNull();
 
-  expect(mocks.invoke).toHaveBeenNthCalledWith(
-    2,
-    "read_pairing_pat",
-    undefined,
-  );
+  expect(mocks.invoke).toHaveBeenNthCalledWith(2, "read_pairing_pat", {
+    serverUrl: "https://current.example.com",
+  });
 });
 
 test("writeConfirmPolicy and clearPairing reject outside the shell", async () => {
   await expect(writeConfirmPolicy("all")).rejects.toThrow(/desktop shell/i);
   await expect(clearPairing()).rejects.toThrow(/desktop shell/i);
-  await expect(readPairingPat()).rejects.toThrow(/desktop shell/i);
+  await expect(readPairingPat("https://current.example.com")).rejects.toThrow(
+    /desktop shell/i,
+  );
   expect(mocks.invoke).not.toHaveBeenCalled();
 });
 

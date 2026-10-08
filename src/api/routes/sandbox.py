@@ -13,7 +13,8 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
 
-from src.api.deps import get_current_user_pat_or_jwt, require_pat_only
+from src.api.deps import require_pat_only, require_pat_scope
+from src.infra.auth.pat import PATStorage
 from src.infra.logging import get_logger
 from src.infra.sandbox.relay import _frames
 from src.infra.sandbox.relay.dispatch import dispatch_local_call
@@ -174,6 +175,7 @@ async def channel_frames(
 
 @router.get("/channel")
 async def sandbox_channel(
+    request: Request,
     version: str = "",
     platform: str = "",
     confirm_policy: str = "",
@@ -259,6 +261,22 @@ async def sandbox_channel(
                 machine_name=machine_name,
                 stream_redis=stream_redis,
             ):
+                if not frame.startswith("event: hello\n"):
+                    # A long-lived stream must not retain revoked or expired PAT authority.
+                    token = request.headers.get("authorization", "").partition(" ")[2].strip()
+                    try:
+                        record, _ = await PATStorage().verify(token)
+                        if (
+                            record is None
+                            or record.user_id != user.sub
+                            or "sandbox:execute" not in record.scopes
+                        ):
+                            return
+                    except Exception:
+                        logger.warning(
+                            "sandbox channel PAT revalidation unavailable; closing stream"
+                        )
+                        return
                 yield frame
         finally:
             finalize = asyncio.create_task(_finalize_stream())
@@ -479,7 +497,7 @@ async def sandbox_upload_stream(
 
 
 @router.get("/machines")
-async def sandbox_machines(user: TokenPayload = Depends(get_current_user_pat_or_jwt)):
+async def sandbox_machines(user: TokenPayload = Depends(require_pat_scope("sandbox:execute"))):
     """机器列表（多机 daemon）：含已知离线机（记忆层保留，online=False +
     last_seen），前端选择器据此置灰展示而非直接消失。"""
     machines = await _registry().list_machines(user.sub, include_offline=True)
@@ -513,7 +531,7 @@ class MachineConfirmPolicyRequest(BaseModel):
 async def sandbox_machine_rename(
     machine_id: str,
     body: MachineRenameRequest,
-    user: TokenPayload = Depends(get_current_user_pat_or_jwt),
+    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
 ):
     """重命名机器：写 rename 覆盖层，daemon 重连上报的 hostname 不冲掉自定义名。"""
     name = body.name.strip()
@@ -529,7 +547,7 @@ async def sandbox_machine_rename(
 @router.put("/machines/{machine_id}/default")
 async def sandbox_machine_set_default(
     machine_id: str,
-    user: TokenPayload = Depends(get_current_user_pat_or_jwt),
+    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
 ):
     """设默认机：无会话级选择时的执行目标。"""
     await _registry().set_default_machine(user.sub, machine_id)
@@ -541,7 +559,7 @@ async def sandbox_machine_set_default(
 async def sandbox_machine_update_confirm_policy(
     machine_id: str,
     body: MachineConfirmPolicyRequest,
-    user: TokenPayload = Depends(get_current_user_pat_or_jwt),
+    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
 ):
     """热更新在线 daemon 的确认策略，下一次执行立即生效。"""
     updated = await _registry().update_confirm_policy(user.sub, machine_id, body.policy)
@@ -554,7 +572,7 @@ async def sandbox_machine_update_confirm_policy(
 @router.delete("/machines/{machine_id}")
 async def sandbox_machine_forget(
     machine_id: str,
-    user: TokenPayload = Depends(get_current_user_pat_or_jwt),
+    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
 ):
     """移除离线机器（清集合成员、rename 覆盖层与默认机指向）。"""
     removed = await _registry().forget_machine(user.sub, machine_id)
@@ -570,7 +588,7 @@ async def sandbox_machine_forget(
 @router.get("/status")
 async def sandbox_status(
     machine_id: str = Query("", description="指定机器；缺省走默认机解析"),
-    user: TokenPayload = Depends(get_current_user_pat_or_jwt),
+    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
 ):
     """daemon 在线状态。
 
@@ -697,7 +715,7 @@ async def _dispatch_fs(user: TokenPayload, op: str, payload: dict, machine_id: s
 async def sandbox_fs_list(
     session_id: str = Query(..., description="会话 id：工作区绑定与目标机的解析依据"),
     path: str = Query("", description="工作区内相对路径；空 = 根目录"),
-    user: TokenPayload = Depends(get_current_user_pat_or_jwt),
+    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
 ):
     """列目录（桌面工作区文件树的懒加载源）。
 
@@ -717,7 +735,7 @@ async def sandbox_fs_read(
     path: str = Query(...),
     offset: int = Query(0, ge=0, description="起始行（0 基）"),
     limit: int = Query(500, ge=1, le=_FS_READ_MAX_LINES, description="读取行数"),
-    user: TokenPayload = Depends(get_current_user_pat_or_jwt),
+    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
 ):
     """读文本/二进制预览（行分页语义与模型侧 read_file 完全同源）。
 
@@ -790,7 +808,7 @@ def _cloud_rel(path: str) -> str:
 @router.get("/fs/cloud/status")
 async def sandbox_fs_cloud_status(
     session_id: str = Query(...),
-    user: TokenPayload = Depends(get_current_user_pat_or_jwt),
+    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
 ):
     """云端电脑状态速览（零副作用，读绑定落库值，不唤醒沙箱）。
 
@@ -807,7 +825,7 @@ async def sandbox_fs_cloud_status(
 async def sandbox_fs_cloud_list(
     session_id: str = Query(...),
     path: str = Query("", description="会话云端工作区内相对路径；空 = 根"),
-    user: TokenPayload = Depends(get_current_user_pat_or_jwt),
+    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
 ):
     """列云端会话工作区目录（会话子目录 ``{base}/sessions/{sid}``）。
 
@@ -849,7 +867,7 @@ async def sandbox_fs_cloud_read(
     path: str = Query(...),
     offset: int = Query(0, ge=0),
     limit: int = Query(500, ge=1, le=_FS_READ_MAX_LINES),
-    user: TokenPayload = Depends(get_current_user_pat_or_jwt),
+    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
 ):
     """读云端会话工作区文件（行分页，FileData 契约与本地端点对齐）。
 

@@ -757,3 +757,31 @@ async def test_result_rejection_still_raises_for_ack_or_unrelated_conflict(stage
     with pytest.raises(TransportError, match="HTTP 409"):
         await client.post_result("c", {"stage": stage})
     await client.close()
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["http://remote.example", "http://192.168.1.2:8000", "https://user:secret@remote.example"],
+)
+def test_channel_rejects_unencrypted_or_credentialed_remote_url(url):
+    from lambchat_sandbox.config import ConfigError
+
+    with pytest.raises(ConfigError):
+        ChannelClient(url, PAT)
+
+
+async def test_result_redirect_never_forwards_private_payload():
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        return httpx.Response(307, headers={"Location": "https://other.example/stolen"})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(respond), follow_redirects=True)
+    channel = ChannelClient(SERVER, PAT, client=client)
+    try:
+        with pytest.raises(TransportError):
+            await channel.post_result("call-1", {"stage": "done", "result": {"private": "capture"}})
+        assert len(requests) == 1 and requests[0].url.host == "lc.example"
+    finally:
+        await channel.close()

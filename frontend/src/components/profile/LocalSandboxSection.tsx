@@ -470,7 +470,7 @@ export function LocalSandboxSection({
       "unpair",
       async (isCurrent) => {
         if (!revocationAttempted) {
-          const storedPat = await readPairingPat();
+          const storedPat = await readPairingPat(resolveServerUrl());
           if (!isCurrent()) return;
           if (storedPat) {
             try {

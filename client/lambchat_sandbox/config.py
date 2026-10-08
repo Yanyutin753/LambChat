@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 import tempfile
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from lambchat_sandbox import paths
 
@@ -16,6 +18,45 @@ _VALID_CONFIRM_POLICIES = frozenset({"all", "commands", "none"})
 
 class ConfigError(Exception):
     """配置文件解析或校验失败。"""
+
+
+def server_origin(server_url: str) -> str:
+    """Bind credentials to a verified TLS origin; plaintext is only for loopback dev."""
+    try:
+        url = urlsplit(server_url)
+        host = url.hostname
+        port = url.port
+        if (
+            server_url != server_url.strip()
+            or any(ord(c) < 33 for c in server_url)
+            or url.scheme not in ("http", "https")
+            or not host
+            or url.username is not None
+            or url.password is not None
+            or "?" in server_url
+            or "#" in server_url
+            or "%" in host
+        ):
+            raise ValueError("invalid server URL")
+        try:
+            address = ipaddress.ip_address(host)
+            loopback = address.is_loopback
+            host = f"[{address}]" if address.version == 6 else str(address)
+        except ValueError:
+            loopback = host.lower() == "localhost"
+            host = host.encode("idna").decode("ascii").lower()
+        if url.scheme == "http" and not loopback:
+            raise ValueError("remote server connections require HTTPS")
+        suffix = (
+            f":{port}"
+            if port is not None and port != (443 if url.scheme == "https" else 80)
+            else ""
+        )
+        return f"{url.scheme}://{host}{suffix}"
+    except (TypeError, ValueError, UnicodeError) as exc:
+        raise ConfigError(
+            "server_url requires HTTPS; HTTP is only allowed for loopback development"
+        ) from exc
 
 
 @dataclass
@@ -45,14 +86,19 @@ def config_path() -> Path:
     return paths.config_file()
 
 
-def load_config(path: Path | None = None) -> SandboxConfig:
+def load_config(
+    path: Path | None = None, *, server_url_override: str | None = None
+) -> SandboxConfig:
     """加载配置；文件不存在时返回默认值，不写盘。"""
     p = path if path is not None else config_path()
+    if server_url_override is not None:
+        server_origin(server_url_override)
     if not p.exists():
-        cfg = SandboxConfig()
+        cfg = SandboxConfig(server_url=server_url_override or SandboxConfig.server_url)
         cfg.machine_id = new_machine_id()  # 首启：身份生成并立即持久化（见 SandboxConfig 注释）
         try:
-            save_config(cfg, p)
+            if server_url_override is None:
+                save_config(cfg, p)
         except OSError:  # 只读家目录等：退化为进程内身份，不阻塞启动
             pass
         return cfg
@@ -80,7 +126,7 @@ def load_config(path: Path | None = None) -> SandboxConfig:
         raise ConfigError(f"machine_name must be a string, got {raw_machine_name!r} ({p})")
 
     cfg = SandboxConfig(
-        server_url=str(raw.get("server_url", SandboxConfig.server_url)),
+        server_url=server_url_override or str(raw.get("server_url", SandboxConfig.server_url)),
         data_root=Path(str(raw.get("data_root", paths.workspaces_root()))),
         confirm_policy=str(raw.get("confirm_policy", SandboxConfig.confirm_policy)),
         embedded_python=raw_embedded,
@@ -92,7 +138,8 @@ def load_config(path: Path | None = None) -> SandboxConfig:
     if not cfg.machine_id:  # 首启/旧配置补身份：生成并立即持久化（见 SandboxConfig 注释）
         cfg.machine_id = new_machine_id()
         try:
-            save_config(cfg, p)
+            if server_url_override is None:
+                save_config(cfg, p)
         except OSError:  # 只读目录等：身份退化为进程内随机（注册表会每次换机，但不阻塞启动）
             pass
     return cfg
@@ -105,6 +152,7 @@ def save_config(cfg: SandboxConfig, path: Path | None = None) -> None:
     ConfigError 拒绝服务。临时文件在目标同目录创建（跨文件系统无法
     ``os.replace``）；失败清理半成品，成功后无残留。
     """
+    server_origin(cfg.server_url)
     p = path if path is not None else config_path()
     p.parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -135,7 +183,4 @@ def _validate(cfg: SandboxConfig, source: Path) -> None:
             f"confirm_policy must be one of {sorted(_VALID_CONFIRM_POLICIES)}, "
             f"got {cfg.confirm_policy!r} ({source})"
         )
-    if not (cfg.server_url.startswith("http://") or cfg.server_url.startswith("https://")):
-        raise ConfigError(
-            f"server_url must start with http:// or https://, got {cfg.server_url!r} ({source})"
-        )
+    server_origin(cfg.server_url)

@@ -1430,7 +1430,12 @@ async def test_presence_pushed_on_channel_register_and_disconnect(monkeypatch):
     monkeypatch.setattr(sandbox_route.settings, "SANDBOX_MIN_DAEMON_VERSION", "0.0.1")
 
     user = _fake_user()
-    resp = await sandbox_route.sandbox_channel(version="0.4.0", machine_id="m1", user=user)
+    resp = await sandbox_route.sandbox_channel(
+        request=Request({"type": "http", "headers": []}),
+        version="0.4.0",
+        machine_id="m1",
+        user=user,
+    )
     assert published == ["u1"]  # register 后、建流前推送
 
     iterator = resp.body_iterator

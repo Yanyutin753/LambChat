@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+from typing import Annotated
+
+from langchain.tools import ToolRuntime
+from langchain.tools import tool as lc_tool
+from langchain_core.tools import InjectedToolArg
+
 from src.infra.tool.deferred_manager import DeferredToolManager
 from src.infra.tool.tool_search_tool import ToolSearchTool
 
@@ -9,6 +15,16 @@ class _FakeTool:
         self.name = name
         self.description = description
         self.server = server
+
+    @property
+    def args(self) -> dict:
+        # 模拟 BaseTool.args 公开 schema 面：MCP dict 直传，模型取 JSON schema。
+        args_schema = getattr(self, "args_schema", None)
+        if isinstance(args_schema, dict):
+            return args_schema
+        if args_schema is not None:
+            return args_schema.model_json_schema()
+        return {}
 
 
 class _HugeArgsSchema:
@@ -116,3 +132,39 @@ async def test_search_tools_returns_compact_callable_schema_without_ranking_nois
     assert '"examples"' not in result
     assert "score:" not in result
     assert '\n  "' not in result
+
+
+@lc_tool
+async def _parse_probe_tool(
+    url: Annotated[str, "doc url"],
+    runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> str:
+    """Probe tool with injected runtime arg."""
+    return "ok"
+
+
+async def test_search_tools_formats_schema_for_injected_runtime_tools() -> None:
+    """InjectedToolArg 参数不能让 schema 生成失败（#815）。
+
+    带注入 runtime 的工具，原始 args_schema 含 CallableSchema，直接
+    model_json_schema() 会抛错；搜索结果必须改用已过滤注入参数的公开
+    schema，保证参数契约可见。工具须在模块级定义（闭包内装饰器无法
+    解析字符串注解，得到空 schema）。
+    """
+    from src.infra.tool.tool_search import ToolSearchResult
+    from src.infra.tool.tool_search_tool import _format_tool_result
+
+    assert "url" in _parse_probe_tool.args
+    assert "runtime" not in _parse_probe_tool.args
+
+    result = _format_tool_result(
+        ToolSearchResult(
+            name=_parse_probe_tool.name,
+            description=_parse_probe_tool.description,
+            score=1.0,
+            tool=_parse_probe_tool,
+        )
+    )
+
+    assert '"url"' in result
+    assert '"runtime"' not in result

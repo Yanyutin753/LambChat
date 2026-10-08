@@ -37,6 +37,7 @@ def create_access_token(
 
     payload = {
         "sub": user_id,
+        "type": "access",
         "exp": expire,
         "iat": now,
     }
@@ -133,6 +134,11 @@ def verify_token(token: str) -> TokenPayload:
         raise AppError(ErrorCode.INVALID_TOKEN, message="Token missing exp field")
     if "iat" not in payload:
         raise AppError(ErrorCode.INVALID_TOKEN, message="Token missing iat field")
+
+    # Legacy access tokens were issued with exactly these three claims.
+    legacy_access = set(payload) == {"sub", "exp", "iat"}
+    if payload.get("type") != "access" and not legacy_access:
+        raise AppError(ErrorCode.INVALID_TOKEN, message="Token is not an access token")
 
     return TokenPayload(
         sub=payload["sub"],
