@@ -35,6 +35,15 @@ SANDBOX_SETTING_DEFINITIONS: dict[str, dict] = {
         "depends_on": "ENABLE_SANDBOX",
         "options": ["daytona", "e2b", "cubesandbox"],
     },
+    "ENABLE_COMPUTER_USE": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.SANDBOX,
+        "subcategory": "local",
+        "description": "settingDesc.ENABLE_COMPUTER_USE",
+        "default": True,
+        "depends_on": "ENABLE_SANDBOX",
+        "frontend_visible": True,
+    },
     "SANDBOX_PAUSE_WHEN_IDLE": {
         "type": SettingType.BOOLEAN,
         "category": SettingCategory.SANDBOX,

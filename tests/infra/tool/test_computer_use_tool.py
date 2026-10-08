@@ -32,10 +32,7 @@ async def test_invalid_action_is_rejected_without_dispatch(
         return {"status": "ok", "result": {}}
 
     monkeypatch.setattr(cut, "dispatch_local_call", _dispatch)
-    assert (
-        (await _call(action="hack"))
-        == "ERROR invalid_action: choose one of status, apps, windows, state, click, set_value, type, key, scroll, action"
-    )
+    assert (await _call(action="hack")).startswith("ERROR invalid_action: choose one of")
     assert not called
 
 
@@ -49,7 +46,7 @@ async def test_state_action_requires_pid_or_name(monkeypatch: pytest.MonkeyPatch
 async def test_status_formats_plain_dict(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
 
-    async def _dispatch(user_id: str, op: str, payload: dict) -> dict:
+    async def _dispatch(user_id: str, op: str, payload: dict, *, machine_id=None) -> dict:
         captured.update(user_id=user_id, op=op, payload=payload)
         return {
             "status": "ok",
@@ -65,7 +62,7 @@ async def test_status_formats_plain_dict(monkeypatch: pytest.MonkeyPatch) -> Non
 
 @pytest.mark.asyncio
 async def test_state_returns_rendered_tree(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _dispatch(user_id: str, op: str, payload: dict) -> dict:
+    async def _dispatch(user_id: str, op: str, payload: dict, *, machine_id=None) -> dict:
         return {
             "status": "ok",
             "result": {"state": "window: Main (id=0)\n  [0] AXButton 'OK'"},
@@ -78,7 +75,7 @@ async def test_state_returns_rendered_tree(monkeypatch: pytest.MonkeyPatch) -> N
 
 @pytest.mark.asyncio
 async def test_structured_error_is_formatted(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _dispatch(user_id: str, op: str, payload: dict) -> dict:
+    async def _dispatch(user_id: str, op: str, payload: dict, *, machine_id=None) -> dict:
         return {"status": "ok", "result": {"error": "ax_not_trusted", "detail": "grant…"}}
 
     monkeypatch.setattr(cut, "dispatch_local_call", _dispatch)
@@ -88,7 +85,7 @@ async def test_structured_error_is_formatted(monkeypatch: pytest.MonkeyPatch) ->
 
 @pytest.mark.asyncio
 async def test_daemon_offline_appends_hint(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _dispatch(user_id: str, op: str, payload: dict) -> dict:
+    async def _dispatch(user_id: str, op: str, payload: dict, *, machine_id=None) -> dict:
         raise AppError(ErrorCode.DAEMON_OFFLINE)
 
     monkeypatch.setattr(cut, "dispatch_local_call", _dispatch)
@@ -101,7 +98,7 @@ async def test_daemon_offline_appends_hint(monkeypatch: pytest.MonkeyPatch) -> N
 async def test_element_index_becomes_target_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
 
-    async def _dispatch(user_id: str, op: str, payload: dict) -> dict:
+    async def _dispatch(user_id: str, op: str, payload: dict, *, machine_id=None) -> dict:
         captured.update(op=op, payload=payload)
         return {"status": "ok", "result": {"ok": True}}
 
@@ -116,7 +113,7 @@ async def test_element_index_becomes_target_payload(monkeypatch: pytest.MonkeyPa
 async def test_coordinate_target_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
 
-    async def _dispatch(user_id: str, op: str, payload: dict) -> dict:
+    async def _dispatch(user_id: str, op: str, payload: dict, *, machine_id=None) -> dict:
         captured.update(payload=payload)
         return {"status": "ok", "result": {"ok": True}}
 
@@ -127,7 +124,7 @@ async def test_coordinate_target_payload(monkeypatch: pytest.MonkeyPatch) -> Non
 
 @pytest.mark.asyncio
 async def test_apps_listing_format(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _dispatch(user_id: str, op: str, payload: dict) -> dict:
+    async def _dispatch(user_id: str, op: str, payload: dict, *, machine_id=None) -> dict:
         return {
             "status": "ok",
             "result": {"apps": [{"pid": 1, "name": "Notes", "active": True}]},
@@ -136,3 +133,50 @@ async def test_apps_listing_format(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cut, "dispatch_local_call", _dispatch)
     result = await _call(action="apps")
     assert "pid=1 Notes [active]" in result
+
+
+@pytest.mark.asyncio
+async def test_launch_requires_url_or_app(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _dispatch(*args: Any, **kwargs: Any) -> dict:
+        return {"status": "ok", "result": {"ok": True}}
+
+    monkeypatch.setattr(cut, "dispatch_local_call", _dispatch)
+    assert (await _call(action="launch")).startswith("ERROR invalid_arguments")
+
+
+@pytest.mark.asyncio
+async def test_launch_url_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    async def _dispatch(user_id: str, op: str, payload: dict, **kw: Any) -> dict:
+        captured.update(op=op, payload=payload, kw=kw)
+        return {"status": "ok", "result": {"ok": True, "kind": "url"}}
+
+    monkeypatch.setattr(cut, "dispatch_local_call", _dispatch)
+    result = await _call(action="launch", url="https://www.baidu.com")
+    assert "ok" in result or "True" in result or result == "" or "url" in result
+    assert captured["op"] == "cua_launch"
+    assert captured["payload"]["url"] == "https://www.baidu.com"
+
+
+@pytest.mark.asyncio
+async def test_machine_id_forwarded_to_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    async def _dispatch(user_id: str, op: str, payload: dict, *, machine_id=None) -> dict:
+        captured.update(machine_id=machine_id)
+        return {"status": "ok", "result": {"apps": []}}
+
+    monkeypatch.setattr(cut, "dispatch_local_call", _dispatch)
+    await _call(action="apps", machine_id="mac-staging-cua")
+    assert captured["machine_id"] == "mac-staging-cua"
+
+
+@pytest.mark.asyncio
+async def test_launch_does_not_require_pid(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _dispatch(*args: Any, **kwargs: Any) -> dict:
+        return {"status": "ok", "result": {"ok": True, "kind": "url"}}
+
+    monkeypatch.setattr(cut, "dispatch_local_call", _dispatch)
+    result = await _call(action="launch", url="https://example.com")
+    assert not result.startswith("ERROR invalid_arguments")

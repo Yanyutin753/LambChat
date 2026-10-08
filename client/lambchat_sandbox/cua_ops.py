@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import base64
 import io
+import os
 import time
 from typing import Any
 
@@ -27,6 +28,7 @@ CUA_OPS = frozenset(
     {
         "cua_status",
         "cua_apps",
+        "cua_launch",
         "cua_windows",
         "cua_state",
         "cua_click",
@@ -134,6 +136,70 @@ def _op_apps(payload: dict) -> dict:  # noqa: ARG001
             }
         )
     return {"apps": rows}
+
+
+# ---------------------------------------------------------------------------
+# 应用/URL 拉起(平台正确的 detach 启动)
+# ---------------------------------------------------------------------------
+
+
+def _op_launch(payload: dict) -> dict:
+    """启动应用或打开 URL,进程与 daemon 同生命周期(daemon 自身不在任何
+    Job/进程组里,子进程天然存活——绕开 exec 的 Windows Job 连坐与超时击杀)。
+
+    - ``url``:经系统 opener(macOS ``open`` / Windows ``os.startfile`` /
+      Linux ``xdg-open``,均免 shell);
+    - ``app``:可执行路径 + 可选 ``args`` 列表(不经过 shell,杜绝注入)。
+    Linux 下自动注入图形会话环境(WAYLAND_DISPLAY/DISPLAY/DBUS,SSH 起的
+    daemon 常缺)。
+    """
+    import subprocess
+
+    url = payload.get("url")
+    app = payload.get("app")
+    args = payload.get("args") or []
+    if not isinstance(args, list):
+        raise CuaOpError("invalid_arguments", "args must be a list")
+    args = [str(a) for a in args]
+    if not url and not app:
+        raise CuaOpError("invalid_arguments", "need url or app")
+    if url and app:
+        raise CuaOpError("invalid_arguments", "url and app are mutually exclusive")
+
+    platform = cua_backend.backend_platform()
+    try:
+        if url:
+            if platform == "darwin":
+                subprocess.Popen(["open", url], start_new_session=True)
+            elif platform == "win32":
+                os.startfile(url)  # noqa: S606 - 系统 opener,非 shell  # type: ignore[attr-defined]
+            else:
+                subprocess.Popen(["xdg-open", url], start_new_session=True)
+            return {"ok": True, "kind": "url", "target": url}
+        # app 路径启动(不走 shell)
+        argv = [str(app), *args]
+        env = None
+        if platform.startswith("linux"):
+            env = dict(os.environ)
+            runtime_dir = f"/run/user/{os.getuid()}"
+            env.setdefault("XDG_RUNTIME_DIR", runtime_dir)
+            env.setdefault("WAYLAND_DISPLAY", "wayland-0")
+            env.setdefault("DISPLAY", ":0")
+            env.setdefault("DBUS_SESSION_BUS_ADDRESS", f"unix:path={runtime_dir}/bus")
+        creationflags = 0
+        if platform == "win32":
+            creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        proc = subprocess.Popen(
+            argv,
+            start_new_session=(platform != "win32"),
+            env=env,
+            creationflags=creationflags,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return {"ok": True, "kind": "app", "target": argv[0], "pid": proc.pid}
+    except OSError as exc:
+        raise CuaOpError("launch_failed", str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -607,6 +673,7 @@ def _op_status(payload: dict) -> dict:
 _CUA_HANDLERS = {
     "cua_status": _op_status,
     "cua_apps": _op_apps,
+    "cua_launch": _op_launch,
     "cua_windows": _op_windows,
     "cua_state": _op_state,
     "cua_click": _op_click,

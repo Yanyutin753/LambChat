@@ -370,7 +370,13 @@ async def _process_exec_call(
     watchdog = asyncio.create_task(_exec_ack_watchdog(client, call.call_id, finished))
     try:
         result = await asyncio.to_thread(
-            _execute, executor, command, virtual_cwd, effective, _sanitize_env(call.payload)
+            _execute,
+            executor,
+            command,
+            virtual_cwd,
+            effective,
+            _sanitize_env(call.payload),
+            detach=bool(call.payload.get("detach")),
         )
     finally:
         finished.set()
@@ -706,12 +712,14 @@ def _execute(
     virtual_cwd: str,
     timeout: float,
     env_extra: dict[str, str] | None = None,
+    *,
+    detach: bool = False,
 ) -> dict:
     """执行并保证返回 done 契约 dict：executor 异常（如非法 cwd 的 ExecutorError）
     收敛为 ``status=error`` 的结果而非断连。"""
     effective = timeout if timeout > 0 else DEFAULT_EXEC_TIMEOUT_S
     try:
-        return executor.execute(command, virtual_cwd, effective, env_extra)
+        return executor.execute(command, virtual_cwd, effective, env_extra, detach=detach)
     except Exception as exc:  # noqa: BLE001 - 单条命令失败不拖垮通道
         return {"status": "error", "stdout": "", "stderr": "", "exit_code": None, "error": str(exc)}
 

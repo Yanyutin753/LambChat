@@ -3391,7 +3391,8 @@
     "DOCUMENT_PARSE_TIKA_URL": "Адрес сервера Apache Tika (собственный)",
     "DOCUMENT_PARSE_MAX_DOWNLOAD_BYTES": "Максимальный размер загружаемого документа в байтах",
     "DOCUMENT_PARSE_MAX_OUTPUT_CHARS": "Максимум символов Markdown в результате, далее усечение",
-    "DOCUMENT_PARSE_MAX_IMAGES": "Максимум извлекаемых изображений за один разбор"
+    "DOCUMENT_PARSE_MAX_IMAGES": "Максимум извлекаемых изображений за один разбор",
+    "ENABLE_COMPUTER_USE": "Управление компьютером: агент управляет рабочим столом через локальный sandbox daemon. Только локальная песочница; macOS требует разрешений доступа и записи экрана для LambChat.app."
   },
   "settings": {
     "navigation": {
@@ -3881,7 +3882,8 @@
     "title": "Генерация заголовка",
     "turnstile": "Turnstile",
     "webSearch": "Веб-поиск",
-    "dedup": "Семантическая дедупликация"
+    "dedup": "Семантическая дедупликация",
+    "local": "Локальная песочница"
   },
   "systemHealth": {
     "fetchFailed": "Не удалось получить данные",

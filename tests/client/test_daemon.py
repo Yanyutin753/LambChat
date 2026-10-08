@@ -144,6 +144,8 @@ class FakeExecutor:
         virtual_cwd: str,
         timeout: float,
         env_extra: dict[str, str] | None = None,
+        *,
+        detach: bool = False,
     ) -> dict:
         self.calls.append((command, virtual_cwd, timeout))
         self.env_extras.append(env_extra)
@@ -333,7 +335,7 @@ async def test_exec_policy_all_executes_without_local_gate():
 class _SlowExecutor(FakeExecutor):
     """阻塞 0.15s 的执行器：跨过 watchdog 延时阈值（测试中调小）。"""
 
-    def execute(self, command, virtual_cwd, timeout, env_extra=None):
+    def execute(self, command, virtual_cwd, timeout, env_extra=None, *, detach=False):
         time.sleep(0.15)
         return super().execute(command, virtual_cwd, timeout, env_extra)
 
