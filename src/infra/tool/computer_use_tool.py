@@ -25,6 +25,7 @@ from src.infra.logging import get_logger
 from src.infra.sandbox.confirm import confirm_local_op
 from src.infra.sandbox.relay.dispatch import dispatch_local_call
 from src.infra.tool.backend_utils import get_session_id_from_runtime, get_user_id_from_runtime
+from src.kernel.errors import AppError
 
 logger = get_logger(__name__)
 
@@ -360,9 +361,8 @@ async def computer_use(
             user_id, f"cua_{action}", payload, machine_id=selected_machine
         )
     except Exception as exc:  # noqa: BLE001 - AppError(SANDBOX_*) 等统一转文本
-        # AppError.__str__ 返回未插值模板("... {{detail}}")——真实原因在
-        # args 里,必须走 display_message,否则 daemon 侧错误全被吞成模板
-        message = getattr(exc, "display_message", None) or str(exc)
+        # AppError.__str__ retains interpolation placeholders.
+        message = exc.display_message if isinstance(exc, AppError) else str(exc)
         logger.warning("[computer_use] dispatch failed action=%s: %s", action, message)
         hint = ""
         if "offline" in message.lower():

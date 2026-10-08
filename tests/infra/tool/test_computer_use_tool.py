@@ -270,6 +270,18 @@ async def test_daemon_offline_appends_hint(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 @pytest.mark.asyncio
+async def test_app_error_detail_is_interpolated(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _dispatch(user_id: str, op: str, payload: dict, *, machine_id=None) -> dict:
+        raise AppError(ErrorCode.SANDBOX_EXEC_FAILED, args={"detail": "cua backend crashed"})
+
+    monkeypatch.setattr(cut, "dispatch_local_call", _dispatch)
+    result = await _call(action="state", pid=42)
+    assert result.startswith("ERROR dispatch_failed")
+    assert "cua backend crashed" in result
+    assert "{{" not in result
+
+
+@pytest.mark.asyncio
 async def test_element_index_becomes_target_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
 
