@@ -56,6 +56,7 @@ test("message part renderer routes internal inline tools to dedicated items", ()
 
   const expectedRoutes = [
     "upload_url_to_sandbox",
+    "computer_use",
     "image_analyze",
     "image_edit_with_references",
     "video_analyze",
@@ -85,6 +86,7 @@ test("message part renderer routes internal inline tools to dedicated items", ()
   expect(source).toMatch(/<WebSearchItem/);
   expect(source).toMatch(/<WebFetchItem/);
   expect(source).toMatch(/<DocumentParseItem/);
+  expect(source).toMatch(/<ComputerUseItem/);
 });
 
 test("every backend internal tool ships a dedicated item route", () => {
@@ -96,6 +98,7 @@ test("every backend internal tool ships a dedicated item route", () => {
   expect(internalToolNames).toEqual([
     "ask_human",
     "audio_transcribe",
+    "computer_use",
     "create_agent_team",
     "create_persona_preset",
     "document_parse",

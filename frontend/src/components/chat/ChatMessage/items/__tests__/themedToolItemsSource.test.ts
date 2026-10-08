@@ -16,6 +16,7 @@ const themedItems = [
   { file: "../TeamItem.tsx", accent: "emerald" },
   { file: "../ConversationHistoryItem.tsx", accent: "sky" },
   { file: "../SkillSearchItem.tsx", accent: "violet" },
+  { file: "../ComputerUseItem.tsx", accent: "indigo" },
   { file: "../WebSearchItem.tsx", accent: "sky" },
   { file: "../DocumentParseItem.tsx", accent: "sky" },
 ];

@@ -70,7 +70,7 @@ setup_rosetta_x86_64_toolchain() {
     # 会触发 openssl-sys 交叉编译而失败。daemon 真实依赖仅 httpx + psutil
     # （lambchat_sandbox 导入面 xref），PyInstaller 按导入分析打包、不触及
     # cryptography（纯服务端 pywebpush 传递依赖），跳过安装无副作用。
-    uv sync --group dev --no-install-package cryptography
+    uv sync --group dev --group cua --no-install-package cryptography
     uv run --no-sync python -c \
         'import platform; assert platform.machine() == "x86_64", platform.machine()'
 }
@@ -102,15 +102,17 @@ if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ] \
 fi
 
 echo "==> PyInstaller 打包 daemon（onefile）..."
-# Rosetta 路径已显式 sync（跳过 cryptography），--no-sync 防止 uv run 的
-# 自动同步把该包重新拉回（macOS x86_64 无 wheel 必然失败）
+# 常规路径先同步 cua 组（computer-use 后端，按平台标记落地），
+# Rosetta 路径上面已显式 sync（跳过 cryptography），--no-sync 防止 uv run
+# 的自动同步把该包重新拉回（macOS x86_64 无 wheel 必然失败）
 if [ "$CROSS_ROSETTA" = 1 ]; then
     uv run --no-sync pyinstaller client/pyinstaller.spec \
         --distpath client/dist \
         --workpath client/build \
         --noconfirm
 else
-    uv run pyinstaller client/pyinstaller.spec \
+    uv sync --group cua
+    uv run --no-sync pyinstaller client/pyinstaller.spec \
         --distpath client/dist \
         --workpath client/build \
         --noconfirm

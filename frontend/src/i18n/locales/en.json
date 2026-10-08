@@ -1448,7 +1448,9 @@
       "toolWebSearchResults_other": "{{count}} results",
       "toolWrite": "Write",
       "waitingConfirm": "Waiting for confirmation",
-      "toolDocumentParse": "Parse document"
+      "toolDocumentParse": "Parse document",
+      "computerUseTitle": "Computer Use",
+      "computerUsePermissionHint": "Grant Accessibility & Screen Recording to LambChat.app once in System Settings → Privacy & Security, then retry."
     },
     "messageInput": "Message",
     "noPermission": "No permission to send messages",

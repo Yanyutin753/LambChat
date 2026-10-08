@@ -2,8 +2,10 @@
 """lambchat_sandbox daemon 的 PyInstaller 打包 spec（onefile 单文件产物）。
 
 入口 client/lambchat_sandbox/__main__.py 与 ``python -m lambchat_sandbox`` 等价；
-包内仅依赖 stdlib + httpx，hiddenimports 无需手工列举（Analysis 按入口可达性收集，
-pytest/mypy 等 dev 依赖天然不会被打进来）。
+包内运行路径依赖 stdlib + httpx；computer-use 后端按平台经 ``cua`` 依赖组
+注入（macOS atomacos→PyObjC / Windows pywinauto / Linux dogtail + pyautogui），
+均为 cua_* op 的懒加载 import——Analysis 按入口可达性自动收集，未同步 cua 组
+的构建只会让 cua op 报 unsupported_platform，不影响其余链路。
 
 路径基准：PyInstaller 执行 spec 时不切换 cwd，spec 内相对路径会随调用目录漂移，
 因此统一用内置 ``SPECPATH``（spec 所在目录 client/）反推仓库根，
