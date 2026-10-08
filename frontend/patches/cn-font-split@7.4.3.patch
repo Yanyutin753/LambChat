@@ -1,5 +1,32 @@
+diff --git a/dist/init.sh b/dist/init.sh
+index 56a25d930bf46372558c72d979eb0cf767900f92..e19ce49dc290e4ec6e357e680fab32c034d0884c 100644
+--- a/dist/init.sh
++++ b/dist/init.sh
+@@ -136,11 +136,20 @@ function cn_i() {
+     local download_url="$GH_HOST/KonghaYao/cn-font-split/releases/download/$version/libffi-$p.$ext"
+     echo $download_url
+ 
+-    curl -fsSL -o "$SCRIPT_DIR/libffi-$p.$ext" "$download_url"
++    local destination="$SCRIPT_DIR/libffi-$p.$ext"
++    curl -fsSL --retry 3 --retry-all-errors --retry-delay 1 -o "$destination.part" "$download_url" || {
++        rm -f "$destination.part"
++        return 1
++    }
++    if [ ! -s "$destination.part" ]; then
++        rm -f "$destination.part"
++        return 1
++    fi
++    mv -f "$destination.part" "$destination" || return 1
+ 
+     # 检查 version 文件是否存在
+     if [ -f "$VERSION_FILE" ]; then
+-        sed "/^$p/d" "$VERSION_FILE" >temp && mv temp "$VERSION_FILE"
++        sed "/^$p/d" "$VERSION_FILE" >"$VERSION_FILE.part" && mv "$VERSION_FILE.part" "$VERSION_FILE" || return 1
+         echo "$p@$version" >>"$VERSION_FILE"
+     else
+         echo "$p@$version" >"$VERSION_FILE"
 diff --git a/package.json b/package.json
-index e08a6762c445ca1ec0c8dad4cd9670639e8cb895..e86d90883bb5f2b4dd1ac84f049572c4435a9783 100644
+index e08a6762c445ca1ec0c8dad4cd9670639e8cb895..f7d11ab100bac3d329383ace561849cc52c44bae 100644
 --- a/package.json
 +++ b/package.json
 @@ -57,7 +57,7 @@
@@ -7,7 +34,7 @@ index e08a6762c445ca1ec0c8dad4cd9670639e8cb895..e86d90883bb5f2b4dd1ac84f049572c4
    },
    "scripts": {
 -    "postinstall": "node ./dist/cli.js i default || node -v",
-+    "postinstall": "node ./dist/cli.js i default@7.6.8 || node -v",
++    "postinstall": "node ./dist/cli.js i default@7.6.8",
      "update-proto": "sh ./scripts/build_proto_ts.sh && proto-to-cli -i ../../crates/proto/src/index.proto -m InputTemplate -o ./src/gen/proto.ts && sh scripts/build_proto_ts.sh",
      "build": "pnpm update-proto && vite build && vite build -c vite.config.wasm.mts",
      "prepublish": "pnpm build"
