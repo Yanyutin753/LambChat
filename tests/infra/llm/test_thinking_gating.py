@@ -131,39 +131,46 @@ def test_openai_o1_family_not_supported() -> None:
 
 def test_zhipu_glm4_receives_thinking_body() -> None:
     model = _openai_model("zhipu", "glm-4.6", ENABLED("low"))
-    assert model.model_kwargs["thinking"] == {"type": "enabled"}
+    assert model.extra_body["thinking"] == {"type": "enabled"}
     model = _openai_model("zhipu", "glm-4.5-air", ENABLED("high"))
-    assert model.model_kwargs["thinking"] == {"type": "enabled"}
+    assert model.extra_body["thinking"] == {"type": "enabled"}
 
 
 def test_zhipu_glm5_receives_enabled_thinking() -> None:
     model = _openai_model("zhipu", "glm-5.3", ENABLED("medium"))
-    assert model.model_kwargs["thinking"] == {"type": "enabled"}
+    assert model.extra_body["thinking"] == {"type": "enabled"}
+
+
+def test_zhipu_thinking_never_rides_model_kwargs() -> None:
+    # 回归：model_kwargs 会被 langchain-openai 平铺为 create() 顶层 kwarg，
+    # openai SDK 严格签名下未知参数直接 TypeError；必须走 extra_body 并入请求体
+    model = _openai_model("zhipu", "glm-5.3", ENABLED("medium"))
+    assert "thinking" not in model.model_kwargs
 
 
 def test_zhipu_legacy_models_receive_nothing() -> None:
     model = _openai_model("zhipu", "chatglm-3-turbo", ENABLED("low"))
-    assert "thinking" not in model.model_kwargs
+    assert not (model.extra_body or {})
     assert model.reasoning_effort is None
 
 
 def test_zhipu_unverified_families_receive_nothing() -> None:
     # glm-4.7 未在官方矩阵核实 → 不发送
     model = _openai_model("zhipu", "glm-4.7", ENABLED("low"))
-    assert "thinking" not in model.model_kwargs
+    assert not (model.extra_body or {})
 
 
 def test_zhipu_body_sent_to_openai_protocol_glm_hosting() -> None:
     # 用户指示：全部供应商支持——第三方中转托管的 GLM 也发 thinking body（中转透传）
     for provider in ("zhipu", "openai", "deepseek", "siliconflow"):
         model = _openai_model(provider, "glm-4.6", ENABLED("low"))
-        assert model.model_kwargs["thinking"] == {"type": "enabled"}, provider
+        assert model.extra_body["thinking"] == {"type": "enabled"}, provider
 
 
 def test_zhipu_does_not_receive_openai_cache_extensions() -> None:
     model = _openai_model("zhipu", "glm-4.6", ENABLED("low"))
-    assert "prompt_cache_key" not in model.model_kwargs
-    assert "prompt_cache_retention" not in model.model_kwargs
+    assert "prompt_cache_key" not in (model.extra_body or {})
+    assert "prompt_cache_retention" not in (model.extra_body or {})
 
 
 # ── other OpenAI-compatible providers keep current behaviour ────────────

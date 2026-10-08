@@ -33,8 +33,17 @@ logger = get_logger(__name__)
 # MCP 重试配置
 MCP_MAX_RETRIES = 3
 MCP_RETRY_DELAY = 1.0  # 秒
-MCP_TOOL_TIMEOUT = 300  # 单次工具调用超时（秒）
 MCP_CONFIG_FILE_MAX_BYTES = 1024 * 1024
+
+
+def _mcp_tool_timeout() -> float:
+    """单次工具调用超时（秒），settings.MCP_TOOL_TIMEOUT 可覆盖；非法或 <=0 回落默认。"""
+    default = 900.0
+    try:
+        timeout = float(getattr(settings, "MCP_TOOL_TIMEOUT", default))
+    except (TypeError, ValueError):
+        return default
+    return timeout if timeout > 0 else default
 
 
 def _schema_allows_array(value_schema: Any) -> bool:
@@ -252,13 +261,14 @@ class MCPToolWithRetry(BaseTool):
         # such as ToolRuntime before Pydantic generates JSON Schema.
         kwargs = _normalize_json_array_args(kwargs, self.tool_call_schema)
 
+        tool_timeout = _mcp_tool_timeout()
         last_error: Exception | None = None
         for attempt in range(self._max_retries):
             try:
                 # 使用 wait_for 添加超时
                 return await asyncio.wait_for(
                     self._original_tool._arun(*args, config=config, **kwargs),
-                    timeout=MCP_TOOL_TIMEOUT,
+                    timeout=tool_timeout,
                 )
             except GraphBubbleUp:
                 # LangGraph uses these exceptions for control flow (not tool
@@ -266,7 +276,7 @@ class MCPToolWithRetry(BaseTool):
                 # GraphInterrupt so the graph can checkpoint and suspend.
                 raise
             except asyncio.TimeoutError:
-                last_error = TimeoutError(f"Tool timed out after {MCP_TOOL_TIMEOUT}s")
+                last_error = TimeoutError(f"Tool timed out after {tool_timeout}s")
                 logger.warning(
                     f"MCP tool '{self.name}' timed out (attempt {attempt + 1}/{self._max_retries})"
                 )
