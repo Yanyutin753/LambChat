@@ -154,19 +154,20 @@ def _format_tool_result(result: ToolSearchResult) -> str:
     tool = result.tool
     schema: dict[str, Any] = {}
     args_schema = getattr(tool, "args_schema", None)
-    if args_schema is not None:
-        if isinstance(args_schema, dict):
-            # MCP tools sometimes carry dict schemas directly
-            schema = args_schema
-        else:
-            try:
-                schema = args_schema.model_json_schema()
-            except Exception as e:
-                logger.warning(
-                    "Failed to generate schema for tool '%s': %s",
-                    result.name,
-                    e,
-                )
+    if isinstance(args_schema, dict):
+        # MCP tools sometimes carry dict schemas directly
+        schema = args_schema
+    elif args_schema is not None:
+        try:
+            schema = args_schema.model_json_schema()
+        except Exception:
+            # 原始模型含 InjectedToolArg 注入参数（ToolRuntime → CallableSchema）
+            # 时 model_json_schema() 必抛 PydanticInvalidForJsonSchema；退回公开
+            # schema（langchain 已过滤注入参数，返回拍平的 properties 映射），
+            # 保证搜索结果仍带参数契约而非空 Schema（#815）。
+            args = getattr(tool, "args", None)
+            if isinstance(args, dict):
+                schema = {"type": "object", "properties": args}
 
     callable_schema = {
         key: _compact_schema_value(schema[key]) for key in _CALLABLE_SCHEMA_KEYS if key in schema
