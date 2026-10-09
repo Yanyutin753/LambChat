@@ -19,8 +19,15 @@ from urllib.parse import unquote, urlparse
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.kernel.config import settings
+from src.kernel.errors import AppError
 
 logger = get_logger(__name__)
+
+
+def _error_text(exc: Exception) -> str:
+    """AppError.__str__ 是未插值的 {{param}} 模板，直接 str() 会把 {{seconds}} 等
+    占位符原文吐进日志（#807 同族）；display_message 按 args 插值且对纯文本幂等。"""
+    return exc.display_message if isinstance(exc, AppError) else str(exc)
 
 
 # Task-local handoff from the download helper to the immediate error probe. This
@@ -192,7 +199,9 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[
                     _last_backend_download_error.set((backend, file_path, resp.error))
                     return None
         except Exception as e:
-            logger.warning(f"[reveal_file] adownload_files failed for {file_path}: {e}")
+            logger.warning(
+                f"[reveal_file] adownload_files failed for {file_path}: {_error_text(e)}"
+            )
 
     if hasattr(backend, "download_files"):
         try:
@@ -209,7 +218,7 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[
                     _last_backend_download_error.set((backend, file_path, resp.error))
                     return None
         except Exception as e:
-            logger.warning(f"[reveal_file] download_files failed for {file_path}: {e}")
+            logger.warning(f"[reveal_file] download_files failed for {file_path}: {_error_text(e)}")
 
     return None
 
