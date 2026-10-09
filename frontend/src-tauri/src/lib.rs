@@ -152,45 +152,6 @@ fn seed_pbs_runtime_resource(app: &tauri::AppHandle) {
     }
 }
 
-/// On version upgrade, clean webview data so the user starts fresh.
-fn clean_on_version_upgrade(app_handle: &tauri::AppHandle) {
-    let app_dir = app_handle
-        .path()
-        .app_data_dir()
-        .expect("failed to resolve app data dir");
-    let version_file = app_dir.join(".installed-version");
-    let current_version = env!("CARGO_PKG_VERSION");
-
-    let should_clean = if version_file.exists() {
-        match fs::read_to_string(&version_file) {
-            Ok(prev) if prev.trim() != current_version => true,
-            Ok(_) => false,
-            Err(_) => true,
-        }
-    } else {
-        true
-    };
-
-    if should_clean {
-        let _ = fs::create_dir_all(&app_dir);
-        if let Ok(entries) = fs::read_dir(&app_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                // Remove everything except the version file itself
-                if path
-                    .file_name()
-                    .map_or(false, |n| n != ".installed-version")
-                {
-                    let _ = fs::remove_dir_all(&path);
-                }
-            }
-        }
-    }
-
-    // Always write current version
-    let _ = fs::write(&version_file, current_version);
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -204,7 +165,7 @@ pub fn run() {
         // dialog 插件：设置页"沙箱数据位置"目录选择（原生对话框）
         .plugin(tauri_plugin_dialog::init())
         // window-state 插件：跨启动记住主窗口位置/大小（桌面原生感标配；
-        // 状态文件在 app data，随版本升级的 clean_on_version_upgrade 重置）
+        // 状态文件在 app data，版本升级时同样保留）
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -214,7 +175,6 @@ pub fn run() {
             // 沙箱根覆盖注入必须最先：此后所有 sandbox_home() 解析（PBS
             // 播种、daemon spawn、open_local_path 白名单）都跟随覆盖文件。
             daemon::apply_sandbox_home_override(app.handle());
-            clean_on_version_upgrade(app.handle());
             app.manage(daemon::DaemonManager::default());
             app.manage(commands::preview::PreviewManager::default());
             // SIGTERM 优雅退出路径（unix）：kill -TERM → app.exit(0) → Exit 事件
