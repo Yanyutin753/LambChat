@@ -716,6 +716,26 @@ async def test_channel_drops_call_assigned_to_another_machine():
     await client.close()
 
 
+@pytest.mark.parametrize("assignment", [{}, {"machine_id": None}, {"machine_id": ""}])
+async def test_registered_machine_rejects_unbound_calls(assignment):
+    stream = (
+        _frame("hello", "{}")
+        + _frame("tool_call", json.dumps({"call_id": "unbound", "op": "exec", **assignment}))
+        + _frame("tool_call", json.dumps({"call_id": "bound", "op": "exec", "machine_id": "mac1"}))
+    )
+    client = ChannelClient(
+        SERVER,
+        PAT,
+        machine_id="mac1",
+        client=httpx.AsyncClient(transport=_sse_transport([], stream.encode())),
+    )
+    try:
+        _, calls = await client.connect()
+        assert [call.call_id async for call in calls] == ["bound"]
+    finally:
+        await client.close()
+
+
 async def test_late_done_rejected_by_assignment_does_not_break_channel():
     stream = _frame("hello", "{}") + _frame(
         "tool_call", json.dumps({"call_id": "next", "op": "exec", "machine_id": "mac1"})

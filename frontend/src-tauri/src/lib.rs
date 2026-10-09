@@ -5,6 +5,7 @@ use tauri::Manager;
 mod daemon;
 mod commands;
 mod linux_update;
+mod release_signature;
 mod tray;
 #[cfg(target_os = "macos")]
 mod titlebar;
@@ -215,6 +216,7 @@ pub fn run() {
             daemon::apply_sandbox_home_override(app.handle());
             clean_on_version_upgrade(app.handle());
             app.manage(daemon::DaemonManager::default());
+            app.manage(commands::preview::PreviewManager::default());
             // SIGTERM 优雅退出路径（unix）：kill -TERM → app.exit(0) → Exit 事件
             // → daemon::stop（与关窗路径同一出口）。
             #[cfg(unix)]
@@ -233,6 +235,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::preview::preview_html,
             commands::workspace::sandbox_pick_workspace,
             commands::workspace::reveal_workspace_path,
             daemon::save_pairing,

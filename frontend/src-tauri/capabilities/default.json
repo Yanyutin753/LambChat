@@ -5,6 +5,7 @@
   "windows": ["main"],
   "permissions": [
     "allow-existing-desktop-commands",
+    "allow-preview-html",
     "allow-sandbox-pick-workspace",
     "allow-reveal-workspace-path",
     "core:default",

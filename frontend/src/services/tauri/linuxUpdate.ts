@@ -29,8 +29,8 @@ export async function getLinuxInstallInfo(): Promise<LinuxInstallInfo | null> {
 
 /**
  * 下载 deb/rpm 更新包到版本化缓存（Rust 侧 `~/.cache/lambchat/updates/`，
- * `.part` 原子落盘——终名文件存在即完整包）。缓存命中（该版本已下载过）
- * 不发网络请求、直接推终值进度，返回 false；真实下载返回 true。
+ * 校验独立发布签名、大小与哈希后原子落盘）。缓存命中（文件再次校验通过）
+ * 不重复下载安装包、直接推终值进度，返回 false；真实下载返回 true。
  * 进度经 linux-update-progress 事件推送（subscribeLinuxUpdateProgress）。
  */
 export function downloadLinuxPackage(

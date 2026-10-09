@@ -5,6 +5,10 @@ import { useCodeMirrorReady } from "../../../hooks/useCodeMirrorReady";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { DeferredCodeMirrorViewer } from "../../common/DeferredCodeMirrorViewer";
 import { useTranslation } from "react-i18next";
+import {
+  invokeInShell,
+  isShellAvailable,
+} from "../../../services/tauri/sandboxShell";
 import { prepareHtmlPreviewContent } from "./htmlPreviewContent";
 
 interface HtmlPreviewProps {
@@ -14,6 +18,9 @@ interface HtmlPreviewProps {
 const HtmlPreview = memo(function HtmlPreview({ content }: HtmlPreviewProps) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
+  const [previewError, setPreviewError] = useState(false);
+  const [nativeUrl, setNativeUrl] = useState<string | null>(null);
+  const nativePreview = isShellAvailable();
   const [showSource, setShowSource] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
   const searchReady = useCodeMirrorReady(previewRef, showSource);
@@ -23,10 +30,31 @@ const HtmlPreview = memo(function HtmlPreview({ content }: HtmlPreviewProps) {
   );
 
   useEffect(() => {
-    if (content) {
+    let active = true;
+    setNativeUrl(null);
+    setPreviewError(false);
+    if (!content) return;
+    if (!nativePreview) {
       setLoading(false);
+      return;
     }
-  }, [content]);
+    setLoading(true);
+    void invokeInShell<string>("preview_html", {
+      content: previewContent,
+    })
+      .then((url) => {
+        if (active) setNativeUrl(url);
+      })
+      .catch(() => {
+        if (active) setPreviewError(true);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [content, nativePreview, previewContent]);
 
   if (loading) {
     return (
@@ -119,12 +147,17 @@ const HtmlPreview = memo(function HtmlPreview({ content }: HtmlPreviewProps) {
             showToolbar={false}
             simpleSearch
           />
+        ) : previewError ? (
+          <div role="alert" className="p-4 text-14 text-theme-text-secondary">
+            {t("documents.error")}
+          </div>
         ) : (
           <iframe
-            srcDoc={previewContent}
+            src={nativePreview ? (nativeUrl ?? undefined) : undefined}
+            srcDoc={nativePreview ? undefined : previewContent}
             title={t("documents.htmlDocument")}
             className="w-full h-full border-0"
-            sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
+            sandbox="allow-scripts allow-popups allow-forms allow-modals"
           />
         )}
       </div>

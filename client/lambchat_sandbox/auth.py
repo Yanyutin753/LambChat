@@ -7,9 +7,6 @@
 from __future__ import annotations
 
 import json
-import os
-import subprocess
-import tempfile
 from pathlib import Path
 from typing import TypeGuard
 
@@ -17,6 +14,7 @@ import httpx
 
 from lambchat_sandbox import paths
 from lambchat_sandbox.config import load_config, server_origin
+from lambchat_sandbox.private_files import write_private_bytes
 
 try:  # keyring 为可选依赖，缺失时静默使用文件后端
     import keyring
@@ -25,31 +23,6 @@ except ImportError:  # pragma: no cover - 是否触发取决于运行环境
 
 KEYRING_SERVICE = "lambchat-sandbox"
 KEYRING_USER = "pat"
-
-_IS_WINDOWS = os.name == "nt"
-_WINDOWS_OWNER_ACL = """
-$ErrorActionPreference = 'Stop'
-$identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
-$acl = New-Object System.Security.AccessControl.FileSecurity
-$acl.SetOwner($identity.User)
-$acl.SetAccessRuleProtection($true, $false)
-$rule = New-Object System.Security.AccessControl.FileSystemAccessRule($identity.User, 'FullControl', 'Allow')
-$acl.AddAccessRule($rule)
-Set-Acl -LiteralPath $env:LAMBCHAT_CREDENTIAL_PATH -AclObject $acl
-"""
-
-
-def _restrict_windows_owner(path: Path) -> None:
-    try:
-        subprocess.run(
-            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", _WINDOWS_OWNER_ACL],
-            env={**os.environ, "LAMBCHAT_CREDENTIAL_PATH": str(path)},
-            capture_output=True,
-            check=True,
-            timeout=15,
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
-        raise OSError("Unable to secure credential file") from exc
 
 
 class AuthError(Exception):
@@ -65,20 +38,7 @@ def _origin(server_url: str | None) -> str:
 
 
 def _write_credential(path: Path, origin: str, token: str | None) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # mkstemp creates mode 0600 before any secret is written.
-    fd, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            if _IS_WINDOWS:
-                _restrict_windows_owner(Path(temporary))
-            json.dump({"origin": origin, "token": token}, stream)
-        os.replace(temporary, path)
-    finally:
-        try:
-            os.unlink(temporary)
-        except FileNotFoundError:
-            pass
+    write_private_bytes(path, json.dumps({"origin": origin, "token": token}).encode("utf-8"))
 
 
 def _valid_token(token: object) -> TypeGuard[str]:

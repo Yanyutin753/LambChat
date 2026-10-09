@@ -103,6 +103,7 @@ YubbChat/
 /scripts/*
 !/scripts/
 !/scripts/create_daytona_snapshot.py
+!/scripts/sign_release_assets.py
 !/scripts/create_e2b_template.py
 !/scripts/migrate_docx_skill_paths.py
 !/scripts/migrate_trace_events_to_chunks.py

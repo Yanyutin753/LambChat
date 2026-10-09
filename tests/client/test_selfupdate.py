@@ -8,13 +8,18 @@ GitHub API 与资产下载端点；替换自体用 tmp_path 里的假 argv[0] �
 from __future__ import annotations
 
 import hashlib
+import json
 import stat
 
 import httpx
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 import lambchat_sandbox
-from lambchat_sandbox import selfupdate
+from lambchat_sandbox import release_signature, selfupdate
+
+_SIGNING_KEY = Ed25519PrivateKey.generate()
 
 
 def _api_response(tag: str, assets: list[dict]) -> httpx.Response:
@@ -25,7 +30,7 @@ def _api_response(tag: str, assets: list[dict]) -> httpx.Response:
             "assets": [
                 {
                     "name": a["name"],
-                    "browser_download_url": f"https://dl.example/{a['name']}",
+                    "browser_download_url": f"https://release-assets.githubusercontent.com/{a['name']}",
                     **({"digest": a["digest"]} if "digest" in a else {}),
                 }
                 for a in assets
@@ -41,8 +46,37 @@ def _transport(
     asset_content: bytes = b"NEW-BINARY",
     asset_status: int = 200,
     log: list[httpx.Request] | None = None,
+    signed: bool = True,
+    tamper_signature: bool = False,
 ) -> httpx.MockTransport:
     """假造 releases/latest 与资产下载两端点；记录请求供断言。"""
+
+    data = api_response.json() if api_response is not None else {}
+    assets = list(data.get("assets", []))
+    signed_assets = {}
+    for asset in assets:
+        digest = asset.get("digest", "sha256:" + hashlib.sha256(asset_content).hexdigest())
+        signed_assets[asset["name"]] = {
+            "sha256": digest.removeprefix("sha256:"),
+            "size": len(asset_content),
+        }
+    payload = json.dumps(
+        {
+            "schema": 1,
+            "version": data.get("tag_name", "v0.0.0").removeprefix("v"),
+            "commit": "a" * 40,
+            "assets": signed_assets,
+        }
+    ).encode()
+    signature = _SIGNING_KEY.sign(payload) if not tamper_signature else bytes(64)
+    if signed and api_response is not None:
+        data["assets"] = assets + [
+            {
+                "name": name,
+                "browser_download_url": f"https://release-assets.githubusercontent.com/{name}",
+            }
+            for name in (release_signature.MANIFEST_NAME, release_signature.SIGNATURE_NAME)
+        ]
 
     def handler(request: httpx.Request) -> httpx.Response:
         if log is not None:
@@ -51,8 +85,12 @@ def _transport(
             if api_status >= 400:
                 return httpx.Response(api_status, json={"message": "Not Found"})
             assert api_response is not None
-            return api_response
-        if request.url.host == "dl.example":
+            return httpx.Response(200, json=data)
+        if request.url.host == "release-assets.githubusercontent.com":
+            if request.url.path.endswith(release_signature.MANIFEST_NAME):
+                return httpx.Response(200, content=payload)
+            if request.url.path.endswith(release_signature.SIGNATURE_NAME):
+                return httpx.Response(200, content=signature)
             if asset_status >= 400:
                 return httpx.Response(asset_status, text="boom")
             return httpx.Response(200, content=asset_content)
@@ -74,6 +112,11 @@ def _fake_argv0(monkeypatch, tmp_path):
     fake.write_bytes(b"OLD-BINARY")
     monkeypatch.setattr(selfupdate.sys, "argv", [str(fake)])
     monkeypatch.setattr(selfupdate.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(
+        release_signature,
+        "RELEASE_PUBLIC_KEY",
+        _SIGNING_KEY.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw),
+    )
     return fake
 
 
@@ -91,7 +134,7 @@ def test_check_latest_finds_newer_platform_asset():
     result = selfupdate.check_latest(
         "Yanyutin753/LambChat", current_version="0.2.0", transport=_transport(api_response=resp)
     )
-    assert result == ("0.4.0", f"https://dl.example/{_ASSET_NAME}")
+    assert result == ("0.4.0", f"https://release-assets.githubusercontent.com/{_ASSET_NAME}")
 
 
 def test_check_latest_without_matching_asset_returns_none():
@@ -156,6 +199,7 @@ def test_host_triple_matrix():
         == "aarch64-unknown-linux-gnu"
     )
     assert selfupdate.host_triple(sys_platform="darwin", machine="arm64") == "aarch64-apple-darwin"
+    assert selfupdate.host_triple(sys_platform="darwin", machine="x86_64") == "x86_64-apple-darwin"
     assert selfupdate.host_triple(sys_platform="win32", machine="AMD64") == "x86_64-pc-windows-msvc"
 
 
@@ -191,7 +235,7 @@ def test_perform_update_replaces_target(tmp_path, _fake_argv0):
     assert target.read_bytes() == b"NEW-BINARY"
     assert not (tmp_path / "lambchat-daemon.new").exists()  # 临时名无残留
     assert stat.S_IMODE(target.stat().st_mode) & stat.S_IXUSR  # chmod +x
-    assert len(log) == 2  # releases/latest + 资产下载各一次
+    assert len(log) == 4  # Release metadata, signed manifest, signature, then asset.
 
 
 def test_perform_update_already_latest_leaves_target(_fake_argv0):
@@ -236,8 +280,8 @@ def test_perform_update_digest_mismatch_raises(tmp_path, _fake_argv0):
     assert not (tmp_path / "lambchat-daemon.new").exists()  # 失败清理临时文件
 
 
-def test_perform_update_without_digest_skips_verification(_fake_argv0):
-    """资产未声明 digest：跳过校验并注明（不误伤无摘要的早期 release）。"""
+def test_perform_update_without_digest_still_verifies_independent_signature(_fake_argv0):
+    """GitHub digest is optional; independently signed hash is mandatory."""
     resp = _api_response("v0.4.0", [{"name": _ASSET_NAME}])  # 无 digest 字段
 
     message = selfupdate.perform_update(
@@ -247,7 +291,39 @@ def test_perform_update_without_digest_skips_verification(_fake_argv0):
     )
 
     assert _fake_argv0.read_bytes() == b"NEW"
-    assert "跳过" in message  # 输出注明未校验
+    assert "签名" in message
+
+
+@pytest.mark.parametrize("attack", ["unsigned", "bad_signature"])
+def test_perform_update_rejects_unsigned_or_forged_release_before_replacing(attack, _fake_argv0):
+    resp = _api_response("v0.4.0", [{"name": _ASSET_NAME}])
+    with pytest.raises(selfupdate.SelfUpdateError, match="签名"):
+        selfupdate.perform_update(
+            current_version="0.3.1",
+            transport=_transport(
+                api_response=resp,
+                signed=attack != "unsigned",
+                tamper_signature=attack == "bad_signature",
+            ),
+        )
+    assert _fake_argv0.read_bytes() == b"OLD-BINARY"
+    assert not _fake_argv0.with_name(_fake_argv0.name + ".new").exists()
+
+
+def test_signed_asset_redirect_cannot_probe_loopback(_fake_argv0):
+    original = _good_transport(b"NEW-BINARY")
+    visited = []
+
+    def handler(request):
+        visited.append(request.url.host)
+        if request.url.path.endswith(_ASSET_NAME):
+            return httpx.Response(302, headers={"Location": "http://127.0.0.1:8000/private"})
+        return original.handle_request(request)
+
+    with pytest.raises(selfupdate.SelfUpdateError):
+        selfupdate.perform_update(current_version="0.3.1", transport=httpx.MockTransport(handler))
+    assert "127.0.0.1" not in visited
+    assert _fake_argv0.read_bytes() == b"OLD-BINARY"
 
 
 def test_perform_update_windows_rename_order(monkeypatch, tmp_path):
@@ -268,6 +344,29 @@ def test_perform_update_windows_rename_order(monkeypatch, tmp_path):
     assert target.read_bytes() == b"NEW-BINARY"
     assert (tmp_path / "lambchat-daemon.exe.old").read_bytes() == b"OLD-BINARY"
     assert not (tmp_path / "lambchat-daemon.exe.new").exists()
+
+
+def test_windows_failed_replacement_restores_original_binary(monkeypatch, tmp_path):
+    target = tmp_path / "lambchat-daemon.exe"
+    target.write_bytes(b"OLD-BINARY")
+    monkeypatch.setattr("lambchat_sandbox.platform._sys_platform", "win32")
+    original_replace = selfupdate.os.replace
+
+    def failing_replace(source, destination):
+        if str(source).endswith(".new"):
+            raise PermissionError("synthetic installation lock")
+        original_replace(source, destination)
+
+    monkeypatch.setattr(selfupdate.os, "replace", failing_replace)
+    asset = f"lambchat-daemon-{selfupdate.host_triple()}.exe"
+    with pytest.raises(selfupdate.SelfUpdateError):
+        selfupdate.perform_update(
+            current_version="0.3.1",
+            target_path=target,
+            transport=_good_transport(b"NEW-BINARY", asset_name=asset),
+        )
+    assert target.read_bytes() == b"OLD-BINARY"
+    assert not target.with_name(target.name + ".new").exists()
 
 
 # ---------- CLI update 子命令 ----------
