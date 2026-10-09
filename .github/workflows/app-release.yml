@@ -103,8 +103,7 @@ jobs:
           ios="$(grep -m1 'MARKETING_VERSION' frontend/ios/App/App.xcodeproj/project.pbxproj | sed -E 's/.*= ([^;]+);.*/\1/')"
           pyproject="$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "([^"]+)"/\1/')"
           daemon="$(grep -m1 '^__version__ = ' client/lambchat_sandbox/__init__.py | sed -E 's/__version__ = "([^"]+)"/\1/')"
-          # Cargo.toml 的包版本编译期进 CARGO_PKG_VERSION（clean_on_version_upgrade
-          # 依赖它），漂移则升级清 WebView 数据逻辑失效——曾冻在 2.8.6 达十版
+          # Cargo.toml 的包版本编译期进 CARGO_PKG_VERSION，须与桌面运行时版本一致
           cargo_toml="$(grep -m1 '^version = ' frontend/src-tauri/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')"
           want_code="$(printf '%s' "$tag" | tr -d '.')"
           fail=0
@@ -550,8 +549,7 @@ jobs:
           ios="$(grep -m1 'MARKETING_VERSION' frontend/ios/App/App.xcodeproj/project.pbxproj | sed -E 's/.*= ([^;]+);.*/\1/')"
           pyproject="$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "([^"]+)"/\1/')"
           daemon="$(grep -m1 '^__version__ = ' client/lambchat_sandbox/__init__.py | sed -E 's/__version__ = "([^"]+)"/\1/')"
-          # Cargo.toml 的包版本编译期进 CARGO_PKG_VERSION（clean_on_version_upgrade
-          # 依赖它），漂移则升级清 WebView 数据逻辑失效——曾冻在 2.8.6 达十版
+          # Cargo.toml 的包版本编译期进 CARGO_PKG_VERSION，须与桌面运行时版本一致
           cargo_toml="$(grep -m1 '^version = ' frontend/src-tauri/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')"
           want_code="$(printf '%s' "$tag" | tr -d '.')"
           fail=0
@@ -699,8 +697,7 @@ jobs:
           ios="$(grep -m1 'MARKETING_VERSION' frontend/ios/App/App.xcodeproj/project.pbxproj | sed -E 's/.*= ([^;]+);.*/\1/')"
           pyproject="$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "([^"]+)"/\1/')"
           daemon="$(grep -m1 '^__version__ = ' client/lambchat_sandbox/__init__.py | sed -E 's/__version__ = "([^"]+)"/\1/')"
-          # Cargo.toml 的包版本编译期进 CARGO_PKG_VERSION（clean_on_version_upgrade
-          # 依赖它），漂移则升级清 WebView 数据逻辑失效——曾冻在 2.8.6 达十版
+          # Cargo.toml 的包版本编译期进 CARGO_PKG_VERSION，须与桌面运行时版本一致
           cargo_toml="$(grep -m1 '^version = ' frontend/src-tauri/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')"
           want_code="$(printf '%s' "$tag" | tr -d '.')"
           fail=0
