@@ -16,6 +16,7 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
+import httpx
 import pytest
 
 from lambchat_sandbox import cli
@@ -1345,3 +1346,59 @@ async def test_cua_op_converges_structured_result(tmp_path):
     # 本机平台决定 platform 值：CI(Linux)=unsupported，mac=darwin——都是契约内
     assert result.get("platform") in ("darwin", "win32", "linux", "unsupported")
     assert "ready" in result
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        TransportError("get_stream: HTTP 409"),
+        httpx.ReadError("network disconnected"),
+        httpx.ReadTimeout("read timed out"),
+    ],
+)
+async def test_upload_stream_transport_failure_reports_done_before_reconnect(tmp_path, failure):
+    class FailedStreamClient(_UploadStreamClient):
+        def get_stream(self, call_id: str, *, deadline_s: float):
+            raise failure
+
+    client = FailedStreamClient(
+        [],
+        calls=[
+            _fs_call(
+                op="fs_upload_stream",
+                payload={"path": "test.bin", "cwd": "/workspace/s1"},
+            )
+        ],
+    )
+    await _run(
+        _cfg("none", data_root=tmp_path),
+        FakeFactory([client, _terminator()]),
+        executor=FakeExecutor(),
+        auditor=MemoryAuditor(),
+    )
+    assert client.posted == [
+        ("c1", {"stage": "ack"}),
+        ("c1", {"stage": "done", "status": "error", "error": "stream_transport_failed"}),
+    ]
+
+
+@pytest.mark.parametrize("failure", [httpx.ReadError("get failed"), TransportAuthError("expired")])
+async def test_upload_stream_failed_result_preserves_original_error(tmp_path, failure):
+    class FailedResultClient(_UploadStreamClient):
+        def get_stream(self, call_id: str, *, deadline_s: float):
+            raise failure
+
+        async def post_result(self, call_id: str, body: dict) -> None:
+            raise httpx.ConnectError("result unavailable")
+
+    with pytest.raises(type(failure)) as caught:
+        await daemon_module._process_upload_stream_call(
+            FailedResultClient([]),
+            _fs_call(op="fs_upload_stream", payload={"path": "test.bin", "cwd": "/workspace/s1"}),
+            session_id="s1",
+            path="test.bin",
+            started=time.monotonic(),
+            cfg=_cfg("none", data_root=tmp_path),
+            auditor=MemoryAuditor(),
+        )
+    assert caught.value is failure

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 import json
 import logging
+import shlex
 from types import SimpleNamespace
 
 import pytest
@@ -11,6 +13,11 @@ from deepagents.backends.sandbox import BaseSandbox
 
 from src.infra.backend.lazy_sandbox import LazySandboxBackend, SandboxInitializationError
 from src.infra.tool import upload_url_tool
+
+
+def _download_script(command: str) -> str:
+    payload = command.split("b64decode('", 1)[1].split("')", 1)[0]
+    return base64.b64decode(payload).decode()
 
 
 class _Runtime:
@@ -29,7 +36,7 @@ class _RecordingSandbox(BaseSandbox):
 
     def execute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
         del timeout
-        self.commands.append(command)
+        self.commands.append(_download_script(command))
         return ExecuteResponse(output="", exit_code=0)
 
     def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
@@ -326,7 +333,7 @@ async def test_upload_url_to_sandbox_prefers_sandbox_side_download(
             self.commands: list[str] = []
 
         async def aexecute(self, command: str):
-            self.commands.append(command)
+            self.commands.append(_download_script(command))
             return SimpleNamespace(exit_code=0, output="")
 
         async def aupload_files(self, files):
@@ -918,7 +925,7 @@ async def test_upload_url_to_sandbox_resolves_own_proxy_url_to_storage_direct_ur
             self.commands: list[str] = []
 
         async def aexecute(self, command: str):
-            self.commands.append(command)
+            self.commands.append(_download_script(command))
             return SimpleNamespace(exit_code=0, output="")
 
         async def aupload_files(self, files):
@@ -952,7 +959,7 @@ async def test_upload_url_to_sandbox_keeps_proxy_url_for_local_storage(
             self.commands: list[str] = []
 
         async def aexecute(self, command: str):
-            self.commands.append(command)
+            self.commands.append(_download_script(command))
             return SimpleNamespace(exit_code=0, output="")
 
     backend = _FakeBackend()
@@ -994,7 +1001,7 @@ async def test_upload_url_to_sandbox_leaves_non_plain_proxy_urls_alone(
             self.commands: list[str] = []
 
         async def aexecute(self, command: str):
-            self.commands.append(command)
+            self.commands.append(_download_script(command))
             return SimpleNamespace(exit_code=0, output="")
 
     backend = _FakeBackend()
@@ -1024,7 +1031,7 @@ async def test_upload_url_to_sandbox_presign_failure_falls_back_to_proxy_url(
             self.commands: list[str] = []
 
         async def aexecute(self, command: str):
-            self.commands.append(command)
+            self.commands.append(_download_script(command))
             return SimpleNamespace(exit_code=0, output="")
 
     backend = _FakeBackend()
@@ -1248,3 +1255,22 @@ async def test_upload_url_to_sandbox_failure_log_carries_error_category(
     # 原始输出（含 URL/路径）不进日志
     assert secret_url not in caplog.text
     assert "secret.docx" not in caplog.text
+
+
+def test_sandbox_download_command_is_a_single_windows_safe_python_argument() -> None:
+    import base64
+
+    command = upload_url_tool._sandbox_download_command(
+        'https://example.com/a?token=%25&x="quoted"', "/workspace/中文 image.jpg"
+    )
+    assert "\n" not in command
+    assert "%" not in command
+    assert command.startswith('python3 -c "')
+    assert command.endswith('"')
+    argv = shlex.split(command)
+    assert len(argv) == 3
+    payload = argv[2].split("b64decode('", 1)[1].split("')", 1)[0]
+    script = base64.b64decode(payload).decode()
+    compile(script, "download", "exec")
+    assert "中文 image.jpg" in script
+    assert "token=%25" in script
