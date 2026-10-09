@@ -24,7 +24,11 @@ from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.sandbox.confirm import confirm_local_op
 from src.infra.sandbox.relay.dispatch import dispatch_local_call
-from src.infra.tool.backend_utils import get_session_id_from_runtime, get_user_id_from_runtime
+from src.infra.tool.backend_utils import (
+    get_base_url_from_runtime,
+    get_session_id_from_runtime,
+    get_user_id_from_runtime,
+)
 from src.kernel.errors import AppError
 
 logger = get_logger(__name__)
@@ -167,7 +171,7 @@ async def _format_result(result: dict[str, Any], runtime: Any = None) -> str:
         # Persist privately before the SSE limit; pixels never get an anonymous URL.
         await upload_binary_blocks(
             {"blocks": [block]},
-            "",
+            get_base_url_from_runtime(runtime),
             private=True,
             private_user_id=get_user_id_from_runtime(runtime),
             private_session_id=get_session_id_from_runtime(runtime),

@@ -194,3 +194,35 @@ async def _do_render_and_cache_thumb(storage: Any, key: str, thumb_key: str) -> 
     except Exception as e:
         logger.warning(f"Failed to cache thumb for {key}: {e}")
     return _thumb_cache_response(body)
+
+
+async def get_private_file_thumb_response(storage: Any, key: str) -> Response:
+    """Called only after authorization; never persist a publicly addressable derivative."""
+    if not thumb_process_for_key(key):
+        raise AppError(ErrorCode.THUMB_NOT_AVAILABLE)
+    semaphore = _get_render_semaphore()
+    try:
+        await asyncio.wait_for(semaphore.acquire(), timeout=_RENDER_ACQUIRE_TIMEOUT)
+    except TimeoutError:
+        raise AppError(ErrorCode.THUMB_NOT_AVAILABLE)
+    try:
+        data = bytearray()
+        async for chunk in storage.download_stream(key):
+            if len(data) + len(chunk) > _RENDER_MAX_SOURCE_BYTES:
+                raise AppError(ErrorCode.THUMB_NOT_AVAILABLE)
+            data.extend(chunk)
+        body = await run_long_blocking_io(render_chat_thumb, bytes(data))
+        return Response(
+            content=body,
+            media_type="image/jpeg",
+            headers={
+                "Cache-Control": "private, no-store",
+                "Vary": "Authorization",
+            },
+        )
+    except AppError:
+        raise
+    except Exception:
+        raise AppError(ErrorCode.THUMB_RENDER_FAILED)
+    finally:
+        semaphore.release()

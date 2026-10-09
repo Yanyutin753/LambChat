@@ -111,3 +111,28 @@ async def test_registered_legacy_capture_does_not_retain_public_access(screensho
     _, _, _, req = screenshot
     with pytest.raises(AppError):
         await upload.get_file_proxy("tool_binaries/old.png", req, current_user=None)
+
+
+async def test_private_thumbnail_resizes_without_public_copy_or_redirect(screenshot):
+    import io
+
+    from PIL import Image
+
+    _, _, storage, req = screenshot
+    buffer = io.BytesIO()
+    Image.new("RGB", (3840, 2160), "blue").save(buffer, format="PNG")
+    data = buffer.getvalue()
+
+    async def download_stream(key):
+        yield data
+
+    storage.download_stream = download_stream
+    response = await upload.get_file_proxy(
+        KEY, req, current_user=SimpleNamespace(sub="owner"), thumb=True
+    )
+    assert response.media_type == "image/jpeg"
+    with Image.open(io.BytesIO(response.body)) as image:
+        assert image.size == (560, 315)
+    assert response.headers["cache-control"] == "private, no-store"
+    assert "location" not in response.headers
+    storage.get_presigned_url.assert_not_awaited()

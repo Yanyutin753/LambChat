@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { usePrivateImage } from "../../../hooks/usePrivateImage";
 import { getFullUrl } from "../../../services/api/config";
 import { getEmojiFallbackUrls } from "../../../utils/emojiAssets";
 
@@ -73,6 +74,7 @@ export function ImageWithSkeleton({
   // stage = -1 表示缩略图阶段；>= 0 索引 retryChain
   const [stage, setStage] = useState(() => (thumbSrc ? -1 : 0));
   const srcUsed = stage < 0 ? thumbSrc : retryChain[stage];
+  const privateImage = usePrivateImage(srcUsed);
   const [isLoaded, setIsLoaded] = useState(() =>
     loadedImages.has(thumbSrc ?? resolvedSrc ?? ""),
   );
@@ -99,6 +101,10 @@ export function ImageWithSkeleton({
     onExternalError?.();
   }, [stage, retryChain, onExternalError]);
 
+  useEffect(() => {
+    if (privateImage.failed) handleError();
+  }, [privateImage.failed, handleError]);
+
   if (!resolvedSrc) return null;
 
   // Inline mode: skeleton sits behind the img in the same space, no extra wrapper
@@ -124,7 +130,7 @@ export function ImageWithSkeleton({
           ))
         ) : (
           <img
-            src={srcUsed}
+            src={privateImage.src}
             alt={alt}
             loading={loading}
             onLoad={handleLoad}
@@ -165,7 +171,7 @@ export function ImageWithSkeleton({
       {/* Actual image */}
       {!hasError && (
         <img
-          src={srcUsed}
+          src={privateImage.src}
           alt={alt}
           loading={loading}
           onLoad={handleLoad}
