@@ -40,6 +40,8 @@ from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 
+import httpx
+
 from lambchat_sandbox import paths, pbs
 from lambchat_sandbox.audit import Auditor
 from lambchat_sandbox.config import SandboxConfig
@@ -56,6 +58,7 @@ from lambchat_sandbox.transport import (
     ChannelClient,
     ToolCall,
     TransportAuthError,
+    TransportError,
     UpdateRequiredError,
     backoff_delay,
 )
@@ -648,6 +651,14 @@ async def _process_upload_stream_call(
                     break
     except (ExecutorError, FsOpError) as exc:
         error = str(exc)
+    except (TransportError, httpx.TransportError):
+        # A failed GET must release the caller before the channel reconnects.
+        with contextlib.suppress(TransportError, httpx.TransportError):
+            await client.post_result(
+                call.call_id,
+                {"stage": "done", "status": "error", "error": "stream_transport_failed"},
+            )
+        raise
     finally:
         writer.close()
 
