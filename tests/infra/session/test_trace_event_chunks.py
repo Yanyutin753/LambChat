@@ -855,7 +855,7 @@ async def test_append_events_to_chunks_uses_reserved_sequence_range(
     assert [
         event["seq"]
         for _query, update, _upsert in chunk_collection.update_calls
-        for event in update[0]["$set"]["events"]["$concatArrays"][1]
+        for event in update[0]["$set"]["events"]["$concatArrays"][1]["$literal"]
     ] == [1, 2, 3]
     assert len(trace_collection.update_calls) == 1
     trace_update_query, trace_update_doc = trace_collection.update_calls[0]
@@ -922,7 +922,9 @@ async def test_append_events_to_chunks_replaces_existing_reserved_sequence_range
         {"$gte": [{"$ifNull": ["$$event.seq", 0]}, 2]},
         {"$lte": [{"$ifNull": ["$$event.seq", 0]}, 3]},
     ]
-    assert [event["seq"] for event in update[0]["$set"]["events"]["$concatArrays"][1]] == [2, 3]
+    assert [
+        event["seq"] for event in update[0]["$set"]["events"]["$concatArrays"][1]["$literal"]
+    ] == [2, 3]
     assert update[1]["$set"]["event_count"] == {"$size": "$events"}
 
 
@@ -1583,3 +1585,24 @@ async def test_replace_trace_events_with_chunks_offloads_digest_off_event_loop(
     )
 
     assert trace_event_chunks_module._replacement_digest in offloaded
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"result": ({"tail.": "$missing"},)},
+        {"result": "$missing"},
+        {"result": {"$add": [1, 2]}},
+    ],
+)
+async def test_append_tool_results_are_literal_data_not_mongo_expressions(data) -> None:
+    storage = TraceStorage()
+    storage._collection = _FakeTraceCollection(_trace_document())
+    chunks = _FakeChunkCollection()
+    storage._chunks_collection = chunks
+    event = {"event_type": "tool:result", "data": data, "timestamp": "t0"}
+
+    assert await storage.append_events_to_chunks(_trace_document(), [event], start_seq=1)
+
+    appended = chunks.update_calls[0][1][0]["$set"]["events"]["$concatArrays"][1]
+    assert appended == {"$literal": [{**event, "seq": 1}]}
