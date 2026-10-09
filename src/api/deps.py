@@ -39,7 +39,9 @@ def _get_cached_user(token: str) -> TokenPayload | None:
         return None
 
     expires_at, payload = cached
-    if expires_at <= time.monotonic():
+    if expires_at <= time.monotonic() or (
+        payload.exp is not None and payload.exp.timestamp() <= time.time()
+    ):
         _auth_cache.pop(token, None)
         return None
     return payload.model_copy(deep=True)
@@ -115,6 +117,8 @@ async def _load_user_payload(user_id: str, payload: TokenPayload | None = None) 
 
     if not user:
         raise AppError(ErrorCode.USER_NOT_FOUND)
+    if user.is_active is False:
+        raise AppError(ErrorCode.ACCOUNT_NOT_ACTIVE)
 
     # 从缓存/数据库动态获取角色和权限
     roles, permissions = await _get_user_roles_and_permissions(user.roles)
@@ -140,18 +144,7 @@ async def get_current_user(
         return None
 
     try:
-        cached = getattr(request.state, "current_user", None)
-        if isinstance(cached, TokenPayload):
-            return cached.model_copy(deep=True)
-
-        token = credentials.credentials
-        parsed = getattr(request.state, "auth_payload", None)
-        payload = (
-            parsed.model_copy(deep=True)
-            if isinstance(parsed, TokenPayload)
-            else await _verify_token_async(token)
-        )
-        return payload
+        return await get_current_user_required(request, credentials)
     except Exception:
         return None
 
@@ -179,12 +172,8 @@ async def get_current_user_required(
         if isinstance(cached_user, TokenPayload):
             return cached_user.model_copy(deep=True)
 
-        cached = _get_cached_user(token)
-        if cached is not None:
-            request.state.current_user = cached.model_copy(deep=True)
-            return cached
-
-        parsed = getattr(request.state, "auth_payload", None)
+        # Cache token verification, never the current account/role authority.
+        parsed = _get_cached_user(token) or getattr(request.state, "auth_payload", None)
         payload = (
             parsed.model_copy(deep=True)
             if isinstance(parsed, TokenPayload)
@@ -232,26 +221,7 @@ async def get_current_user_from_websocket(
             logger.warning("[WebSocket] Invalid token: no user_id")
             raise AppError(ErrorCode.INVALID_TOKEN)
 
-        # 从数据库获取用户信息
-        user_storage = UserStorage()
-        user = await user_storage.get_by_id(user_id)
-
-        if not user:
-            logger.warning(f"[WebSocket] User not found: {user_id}")
-            raise AppError(ErrorCode.USER_NOT_FOUND)
-
-        # 从缓存/数据库动态获取角色和权限
-        roles, permissions = await _get_user_roles_and_permissions(user.roles)
-
-        # 创建新的 TokenPayload，返回用户信息
-        return TokenPayload(
-            sub=payload.sub,
-            username=user.username,
-            roles=roles,
-            permissions=permissions,
-            exp=payload.exp,
-            iat=payload.iat,
-        )
+        return await _load_user_payload(user_id, payload)
 
     except AppError:
         raise
