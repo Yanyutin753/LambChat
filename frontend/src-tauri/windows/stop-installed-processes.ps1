@@ -8,7 +8,7 @@ try {
     )
     # Match the installation path so other checkouts and installations stay running.
     $processes = @(Get-Process -Name lambchat,lambchat-daemon -ErrorAction SilentlyContinue |
-        Where-Object { $targets -contains $_.Path })
+        Where-Object { $_.Path -and ($targets -contains [IO.Path]::GetFullPath($_.Path)) })
     foreach ($process in $processes) {
         if (-not $process.HasExited) {
             try { Stop-Process -InputObject $process -Force -ErrorAction Stop }

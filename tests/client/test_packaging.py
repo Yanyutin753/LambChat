@@ -634,7 +634,7 @@ def test_windows_upgrade_hooks_stop_owned_processes_and_uninstall_without_user_d
     assert "RMDir" not in hooks
     script = _source("frontend/src-tauri/windows/stop-installed-processes.ps1")
     assert "$env:LAMBCHAT_INSTALL_DIR" in script
-    assert "$targets -contains $_.Path" in script
+    assert "$targets -contains [IO.Path]::GetFullPath($_.Path)" in script
     assert "Wait-Process" in script
     assert "Remove-Item" not in script
 
