@@ -35,6 +35,27 @@ class _FakeRedis:
         exp = self.expires_at.get(key)
         return exp is None or exp > time.monotonic()
 
+    async def eval(self, script, key_count, *args):
+        if key_count == 2:
+            machine, members, member = args
+            if not await self.exists(machine):
+                await self.srem(members, member)
+                return 1
+            return 0
+        assert key_count == 3
+        owner, machine, members, mode, client, member, value, ttl = args
+        if mode != "register" and client and await self.get(owner) != client:
+            return 0
+        if mode == "unregister":
+            await self.delete(owner)
+            await self.delete(machine)
+            await self.srem(members, member)
+        else:
+            await self.set(owner, client, ex=ttl)
+            await self.set(machine, value, ex=ttl)
+            await self.sadd(members, member)
+        return 1
+
     # string
     async def get(self, key: str):
         if key in self.strings and self._alive(key):
@@ -379,3 +400,35 @@ async def test_daemon_report_seeds_policy_only_without_durable_record(registry):
     assert await registry.forget_machine("u1", "m1") is True
     await registry.register("u1", "c1", "node1", confirm_policy="commands", machine_id="m1")
     assert await registry.get_confirm_policy("u1", "m1") == "commands"
+
+
+async def test_old_connection_cleanup_keeps_reconnected_machine_online(registry):
+    await registry.register("u1", "old", "node1", machine_id="m1")
+    await registry.register("u1", "new", "node2", machine_id="m1")
+    await registry.unregister("u1", "old", "m1")
+    assert await registry.is_online("u1") is True
+    assert await registry.machine_value("u1", "m1") == "node2"
+
+
+async def test_old_connection_heartbeat_cannot_replace_reconnected_owner(registry):
+    await registry.register("u1", "old", "node1", machine_id="m1")
+    await registry.register("u1", "new", "node2", machine_id="m1")
+    await registry.heartbeat("u1", "old", "node1", machine_id="m1")
+    assert await registry.machine_value("u1", "m1") == "node2"
+
+
+async def test_listing_expired_machine_cannot_remove_a_concurrent_reconnection(registry):
+    await registry.register("u1", "old", "node1", machine_id="m1")
+    await registry.fake.delete("sandbox:machine:u1:m1")
+    original_get = registry.fake.get
+
+    async def reconnect_after_missing_read(key):
+        value = await original_get(key)
+        if key == "sandbox:machine:u1:m1" and value is None:
+            registry.fake.get = original_get
+            await registry.register("u1", "new", "node2", machine_id="m1")
+        return value
+
+    registry.fake.get = reconnect_after_missing_read
+    await registry.list_machines("u1")
+    assert await registry.is_online("u1") is True
