@@ -2,6 +2,7 @@
 会话管理器
 """
 
+import asyncio
 import uuid
 from collections import Counter
 from copy import deepcopy
@@ -380,7 +381,13 @@ class SessionManager:
 
     async def delete_session(self, session_id: str) -> bool:
         """删除会话（同时删除关联的 traces）"""
-        delete_operation = await self.storage.claim_attachment_delete_operation(session_id)
+        # The final SSE event can precede release of the trace writer lease.
+        delete_operation = None
+        for attempt in range(6):
+            delete_operation = await self.storage.claim_attachment_delete_operation(session_id)
+            if delete_operation is not None or attempt == 5:
+                break
+            await asyncio.sleep(0.1)
         if not isinstance(delete_operation, dict) or not isinstance(
             delete_operation.get("id"), str
         ):
