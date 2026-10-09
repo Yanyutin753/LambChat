@@ -647,3 +647,9 @@ def test_windows_upgrade_uses_native_powershell_and_routes_gui_to_cleanup():
     assert "MUI_GUIINIT_OUTERDIALOG" in hooks
     assert "MUI_PAGE_FUNCTION_GUIINIT" in hooks
     assert "MUI_CUSTOMFUNCTION_GUIINIT" in hooks
+
+
+def test_desktop_startup_does_not_recursively_delete_persistent_user_data():
+    startup = _source("frontend/src-tauri/src/lib.rs").split("#[cfg(test)]", 1)[0]
+    assert "fs::remove_dir_all" not in startup
+    assert "clean_on_version_upgrade" not in startup
