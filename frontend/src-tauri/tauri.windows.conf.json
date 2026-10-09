@@ -16,7 +16,8 @@
   "bundle": {
     "windows": {
       "nsis": {
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "installerHooks": "windows/hooks.nsh"
       }
     }
   }
