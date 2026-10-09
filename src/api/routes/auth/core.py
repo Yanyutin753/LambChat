@@ -143,6 +143,8 @@ async def refresh_token(request: Request):
         user = await manager.get_user(user_id)
         if not user:
             raise AppError(ErrorCode.USER_NOT_FOUND)
+        if user.is_active is False:
+            raise AppError(ErrorCode.ACCOUNT_NOT_ACTIVE)
 
         # 生成新的 access token 和 refresh token（轮换 refresh token）
         access_token = create_access_token(user_id=user_id)
@@ -156,7 +158,7 @@ async def refresh_token(request: Request):
             refresh_token=new_refresh_token,
             expires_in=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600,
         )
-    except HTTPException:
+    except (AppError, HTTPException):
         raise
     except Exception as e:
         raise AppError(ErrorCode.REFRESH_TOKEN_INVALID, message=str(e)) from e

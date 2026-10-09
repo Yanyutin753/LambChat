@@ -128,6 +128,11 @@ async def test_open_channel_stops_before_delivering_calls_after_pat_loses_access
         next_result = RuntimeError("PAT store unavailable")
     verify = AsyncMock(side_effect=[(valid, None), next_result])
     monkeypatch.setattr(PATStorage, "verify", verify)
+    monkeypatch.setattr(
+        sandbox.UserStorage,
+        "get_by_id",
+        AsyncMock(return_value=SimpleNamespace(is_active=True)),
+    )
     registry = SimpleNamespace(register=AsyncMock(), unregister=AsyncMock())
     monkeypatch.setattr(sandbox, "_registry", lambda: registry)
     monkeypatch.setattr(sandbox, "_redis", lambda: SimpleNamespace(set=AsyncMock()))

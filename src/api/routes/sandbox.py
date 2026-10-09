@@ -36,6 +36,7 @@ from src.infra.storage.redis import (
     get_binary_redis_client,
     get_redis_client,
 )
+from src.infra.user.storage import UserStorage
 from src.kernel.config import settings
 from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import TokenPayload
@@ -263,9 +264,12 @@ async def sandbox_channel(
                             or "sandbox:execute" not in record.scopes
                         ):
                             return
+                        account = await UserStorage().get_by_id(record.user_id)
+                        if account is None or account.is_active is False:
+                            return
                     except Exception:
                         logger.warning(
-                            "sandbox channel PAT revalidation unavailable; closing stream"
+                            "sandbox channel authority revalidation unavailable; closing stream"
                         )
                         return
                 yield frame

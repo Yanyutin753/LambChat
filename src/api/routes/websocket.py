@@ -4,7 +4,9 @@ WebSocket 路由
 提供 WebSocket 连接用于实时任务通知。
 """
 
+import asyncio
 import json
+from time import monotonic
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
@@ -77,7 +79,7 @@ async def websocket_endpoint(
             # 等待客户端发送首条认证消息
             logger.info("[WebSocket] Waiting for auth message from client")
             try:
-                auth_message = await websocket.receive_text()
+                auth_message = await asyncio.wait_for(websocket.receive_text(), timeout=15)
                 auth_data = await run_blocking_io(json.loads, auth_message)
                 if auth_data.get("type") == "auth":
                     auth_token = auth_data.get("token")
@@ -123,12 +125,24 @@ async def websocket_endpoint(
     logger.info(f"[WebSocket] Connected: user_id={user_id}")
 
     try:
-        # 保持连接，持续接收消息（目前主要是心跳）
+        next_auth_check = monotonic() + 15
         while True:
-            # 等待客户端消息，可以用于心跳检测
-            data = await websocket.receive_text()
-            # 可以在这里处理客户端的心跳消息
-            logger.debug(f"[WebSocket] Received from client: {data}")
+            try:
+                await asyncio.wait_for(
+                    websocket.receive_text(), timeout=max(0, next_auth_check - monotonic())
+                )
+            except TimeoutError:
+                pass
+            if monotonic() < next_auth_check:
+                continue
+            try:
+                refreshed = await get_current_user_from_websocket(auth_token)
+                if refreshed.sub != user_id:
+                    raise ValueError("Socket identity changed")
+            except Exception:
+                await websocket.close(code=4001, reason="unauthorized")
+                break
+            next_auth_check = monotonic() + 15
 
     except WebSocketDisconnect:
         logger.info(f"[WebSocket] Disconnected: user_id={user_id}")

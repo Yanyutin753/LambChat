@@ -81,3 +81,52 @@ async def test_websocket_auth_message_offloads_json_parse_and_auth_ok_serializat
     assert calls == [json.loads, json.dumps]
     assert websocket.sent_texts == ['{"type": "auth:ok"}']
     assert manager.connected == [(websocket, "user-1", False)]
+
+
+@pytest.mark.parametrize("idle", [False, True])
+async def test_established_socket_closes_when_authority_is_revoked(monkeypatch, idle):
+    from unittest.mock import AsyncMock
+
+    from src.kernel.errors import AppError, ErrorCode
+
+    clock = iter([0, 0, 15])
+    monkeypatch.setattr(websocket_route, "monotonic", lambda: next(clock))
+    manager = _Manager()
+    socket = _FakeWebSocket()
+    socket.receive_text = AsyncMock(
+        side_effect=TimeoutError() if idle else ["heartbeat", websocket_route.WebSocketDisconnect()]
+    )
+    monkeypatch.setattr(websocket_route, "get_ws_rate_limiter", lambda: _RateLimiter())
+    monkeypatch.setattr(websocket_route, "get_connection_manager", lambda: manager)
+    auth = AsyncMock(
+        side_effect=[SimpleNamespace(sub="user-1"), AppError(ErrorCode.ACCOUNT_NOT_ACTIVE)]
+    )
+    monkeypatch.setattr(websocket_route, "get_current_user_from_websocket", auth)
+    await websocket_route.websocket_endpoint(socket, token="token")
+    assert socket.closed == [(4001, "unauthorized")]
+    assert manager.disconnected == [(socket, "user-1")]
+    assert auth.await_count == 2
+
+
+async def test_client_messages_do_not_amplify_or_delay_auth_rechecks(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.kernel.errors import AppError, ErrorCode
+
+    manager = _Manager()
+    socket = _FakeWebSocket()
+    socket.receive_text = AsyncMock(
+        side_effect=["one", "two", "three", websocket_route.WebSocketDisconnect()]
+    )
+    clock = iter([0, 0, 1, 1, 2, 2, 15])
+    monkeypatch.setattr(websocket_route, "monotonic", lambda: next(clock), raising=False)
+    monkeypatch.setattr(websocket_route, "get_ws_rate_limiter", lambda: _RateLimiter())
+    monkeypatch.setattr(websocket_route, "get_connection_manager", lambda: manager)
+    auth = AsyncMock(
+        side_effect=[SimpleNamespace(sub="user-1"), AppError(ErrorCode.ACCOUNT_NOT_ACTIVE)]
+    )
+    monkeypatch.setattr(websocket_route, "get_current_user_from_websocket", auth)
+    await websocket_route.websocket_endpoint(socket, token="token")
+    assert socket.receive_text.await_count == 3
+    assert auth.await_count == 2
+    assert socket.closed == [(4001, "unauthorized")]
