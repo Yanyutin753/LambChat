@@ -619,3 +619,31 @@ def test_linux_package_bundles_accessibility_runtime():
     assert '"/usr/lib/python3/dist-packages"' in spec
     assert '"gi.repository.Atspi"' in spec
     assert '"pyatspi"' in spec
+
+
+def test_windows_upgrade_hooks_stop_owned_processes_and_uninstall_without_user_data():
+    import json
+
+    config = json.loads(_source("frontend/src-tauri/tauri.windows.conf.json"))
+    assert config["bundle"]["windows"]["nsis"]["installerHooks"] == "windows/hooks.nsh"
+    hooks = _source("frontend/src-tauri/windows/hooks.nsh")
+    assert "NSIS_HOOK_PREINSTALL" in hooks
+    assert "NSIS_HOOK_PREUNINSTALL" in hooks
+    assert 'uninstall.exe" /S /UPDATE _?=$INSTDIR' in hooks
+    assert "SetErrorLevel" in hooks and "Abort" in hooks
+    assert "RMDir" not in hooks
+    script = _source("frontend/src-tauri/windows/stop-installed-processes.ps1")
+    assert "$env:LAMBCHAT_INSTALL_DIR" in script
+    assert "$targets -contains $_.Path" in script
+    assert "Wait-Process" in script
+    assert "Remove-Item" not in script
+
+
+def test_windows_upgrade_uses_native_powershell_and_routes_gui_to_cleanup():
+    hooks = _source("frontend/src-tauri/windows/hooks.nsh")
+    assert "$WINDIR\\Sysnative\\WindowsPowerShell" in hooks
+    assert "StrCpy $UpdateMode 1" in hooks
+    assert "MUI_FUNCTION_GUIINIT" in hooks
+    assert "MUI_GUIINIT_OUTERDIALOG" in hooks
+    assert "MUI_PAGE_FUNCTION_GUIINIT" in hooks
+    assert "MUI_CUSTOMFUNCTION_GUIINIT" in hooks
