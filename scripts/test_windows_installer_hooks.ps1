@@ -101,6 +101,8 @@ SectionEnd
     $p = Start-Process (Join-Path $root 'candidate.exe') -ArgumentList @('/S', "/D=$install") -Wait -PassThru
     $owned.Refresh()
     if ($p.ExitCode -ne 0 -or -not $owned.HasExited -or (Test-Path (Join-Path $install 'legacy.txt')) -or -not (Test-Path (Join-Path $install 'new.txt'))) {
+        $remaining = Get-Process -Id $owned.Id -ErrorAction SilentlyContinue
+        Write-Output "Daemon observation: pid=$($owned.Id), remaining=$([bool]$remaining), name=$($remaining.ProcessName), path=$($remaining.Path)"
         throw "Silent upgrade failed: exit=$($p.ExitCode), daemonExited=$($owned.HasExited), legacyExists=$(Test-Path (Join-Path $install 'legacy.txt')), newExists=$(Test-Path (Join-Path $install 'new.txt'))"
     }
     if ((Get-Content $data) -ne 'keep-me') { throw 'User data changed' }
