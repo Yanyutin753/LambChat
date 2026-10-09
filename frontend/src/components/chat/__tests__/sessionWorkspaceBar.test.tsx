@@ -12,12 +12,14 @@ import { SessionWorkspaceBar } from "../SessionWorkspaceBar";
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   current: "m1" as string | null,
+  online: true,
+  defaultId: "m1" as string | null,
 }));
 vi.mock("../../../hooks/useSandboxStatus", () => ({
   useSandboxStatus: () => ({
     currentMachineId: mocks.current,
-    defaultMachineId: "m1",
-    machines: [{ machine_id: "m1", online: true }],
+    defaultMachineId: mocks.defaultId,
+    machines: [{ machine_id: "m1", online: mocks.online }],
   }),
 }));
 vi.mock("../../../services/tauri/sandboxShell", () => ({
@@ -32,6 +34,8 @@ afterEach(cleanup);
 beforeEach(() => {
   mocks.invoke.mockReset();
   mocks.current = "m1";
+  mocks.online = true;
+  mocks.defaultId = "m1";
 });
 
 test("native selection pins the machine and saves the directory in session options", async () => {
@@ -119,4 +123,33 @@ test("web sessions show the inherited directory without exposing its full path o
   expect(screen.getByText("project")).toBeVisible();
   expect(screen.queryByText("/Users/private/project")).toBeNull();
   expect(screen.queryByRole("button")).toBeNull();
+});
+
+
+test("reconnecting keeps the directory entry visible and disables it until online", () => {
+  const props = {
+    values: { sandbox: "local", sandbox_machine_id: "m1" },
+    onChange: vi.fn(),
+    disabled: false,
+  };
+  const { rerender } = render(<SessionWorkspaceBar {...props} />);
+  expect(screen.getByRole("button", { name: "sessionWorkspace.choose" })).toBeEnabled();
+  mocks.online = false;
+  rerender(<SessionWorkspaceBar {...props} />);
+  expect(screen.getByRole("button", { name: "sessionWorkspace.choose" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "sessionWorkspace.choose" })).toBeDisabled();
+  mocks.online = true;
+  rerender(<SessionWorkspaceBar {...props} />);
+  expect(screen.getByRole("button", { name: "sessionWorkspace.choose" })).toBeEnabled();
+});
+
+
+test("an implicit sole machine keeps its workspace entry when it disconnects", () => {
+  mocks.defaultId = null;
+  const props = { values: { sandbox: "local" }, onChange: vi.fn(), disabled: false };
+  const { rerender } = render(<SessionWorkspaceBar {...props} />);
+  expect(screen.getByRole("button", { name: "sessionWorkspace.choose" })).toBeEnabled();
+  mocks.online = false;
+  rerender(<SessionWorkspaceBar {...props} />);
+  expect(screen.getByRole("button", { name: "sessionWorkspace.choose" })).toBeDisabled();
 });

@@ -26,7 +26,11 @@ export function SessionWorkspaceBar({ values, onChange, disabled }: Props) {
   const selectedId = String(
     values.sandbox_machine_id ||
       defaultMachineId ||
-      (onlineMachines.length === 1 ? onlineMachines[0].machine_id : ""),
+      (onlineMachines.length === 1
+        ? onlineMachines[0].machine_id
+        : machines.length === 1
+          ? machines[0].machine_id
+          : ""),
   );
   const machine = machines.find((item) => item.machine_id === selectedId);
   const selection = parseWorkspaceSelection(values[WORKSPACE_OPTION]);
@@ -38,7 +42,6 @@ export function SessionWorkspaceBar({ values, onChange, disabled }: Props) {
     values.sandbox,
     selectedId,
     currentMachineId,
-    machine?.online === true,
   );
   const name =
     active?.path
@@ -89,7 +92,7 @@ export function SessionWorkspaceBar({ values, onChange, disabled }: Props) {
       <button
         type="button"
         onClick={() => void choose()}
-        disabled={disabled || busy}
+        disabled={disabled || busy || machine?.online !== true}
         className="flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 text-left focus-visible:outline focus-visible:outline-2 disabled:opacity-50"
         title={
           active

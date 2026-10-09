@@ -46,6 +46,27 @@ class _FakeRedis:
         exp = self.expires_at.get(key)
         return exp is None or exp > time.monotonic()
 
+    async def eval(self, script, key_count, *args):
+        if key_count == 2:
+            machine, members, member = args
+            if not await self.exists(machine):
+                await self.srem(members, member)
+                return 1
+            return 0
+        assert key_count == 3
+        owner, machine, members, mode, client, member, value, ttl = args
+        if mode != "register" and client and await self.get(owner) != client:
+            return 0
+        if mode == "unregister":
+            await self.delete(owner)
+            await self.delete(machine)
+            await self.srem(members, member)
+        else:
+            await self.set(owner, client, ex=ttl)
+            await self.set(machine, value, ex=ttl)
+            await self.sadd(members, member)
+        return 1
+
     async def rpush(self, key, value):
         self.lists.setdefault(key, []).append(value)
 

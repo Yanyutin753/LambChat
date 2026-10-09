@@ -192,3 +192,11 @@ async def test_complete_trace_finalizes_trace_without_status(monkeypatch):
 
     assert updated is True
     assert collection.doc["status"] == "completed"
+
+
+@pytest.mark.parametrize("status", ["completed", "error", "cancelled"])
+async def test_complete_trace_accepts_already_finalized_same_status(monkeypatch, status):
+    trace_doc = {"trace_id": "trace-1", "status": status, "event_revision": 7}
+    storage, collection = _make_storage(monkeypatch, trace_doc)
+    assert await storage.complete_trace("trace-1", status=status, ensure_token_usage=False) is True
+    assert collection.doc == trace_doc
