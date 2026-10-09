@@ -235,8 +235,11 @@ class ChannelClient:
                 if frame is None or frame.event != "tool_call":
                     continue
                 data = _parse_json_object(frame.data)
-                if data is not None and "machine_id" in data:
-                    if data["machine_id"] != (self._machine_id or "legacy"):
+                if data is not None:
+                    # A registered device must never accept an unscoped legacy command.
+                    if self._machine_id and data.get("machine_id") != self._machine_id:
+                        continue
+                    if not self._machine_id and data.get("machine_id", "legacy") != "legacy":
                         continue
                 call = _parse_tool_call(frame.data)
                 if call is not None:

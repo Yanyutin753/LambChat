@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-preview-html"
+description = "Render bounded HTML at an isolated read-only origin"
+commands.allow = ["preview_html"]

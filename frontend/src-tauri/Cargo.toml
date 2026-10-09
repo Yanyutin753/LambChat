@@ -35,6 +35,7 @@ uuid = { version = "1", features = ["v4"] }
 reqwest = { version = "0.13", default-features = false, features = ["stream", "rustls-no-provider"] }
 # 声明与 updater 插件完全一致（版本/feature 取并集，lock 零新增），
 # 供 linux_update 安装进程级 ring provider
+ring = "0.17"
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
 time = "=0.3.36"
 # 托盘菜单文案按系统 locale 五语本地化（M4 T8）；无传递依赖，纯 Rust 读 env/API
