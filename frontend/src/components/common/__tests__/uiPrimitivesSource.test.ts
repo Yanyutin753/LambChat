@@ -156,7 +156,9 @@ test("viewer top bar buttons keep overlay actions fixed and non-wrapping", () =>
   );
 
   assertExports(commonIndex, "ViewerTopBar");
-  expect(topBar).toMatch(/viewer-top-bar safe-area-top pointer-events-none absolute inset-x-0 top-0 z-20/);
+  expect(topBar).toMatch(
+    /viewer-top-bar safe-area-top pointer-events-none absolute inset-x-0 top-0 z-20/,
+  );
   expect(topBar).toMatch(/flex h-14 items-center justify-between px-3 sm:px-6/);
   assertExports(commonIndex, "ViewerTopBarButton");
   expect(source).toMatch(/flex shrink-0/);
@@ -205,7 +207,7 @@ test("image and video viewers share direct URL download behavior", () => {
 
   expect(imageViewer).toMatch(/import \{ downloadUrl \}/);
   expect(videoViewer).toMatch(/import \{ downloadUrl \}/);
-  expect(imageViewer).toMatch(/onClick=\{\(\) => downloadUrl\(src\)\}/);
+  expect(imageViewer).toMatch(/downloadUrl\(privateImage.src\)/);
   expect(videoViewer).toMatch(/onClick=\{\(\) => downloadUrl\(src\)\}/);
   expect([imageViewer, videoViewer].join("\n")).not.toMatch(
     /document\.createElement\("a"\)|\.download = ""/,

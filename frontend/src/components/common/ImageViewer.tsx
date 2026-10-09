@@ -19,6 +19,7 @@ import { ViewerTopBar } from "./ViewerTopBar";
 import { ViewerTopBarButton } from "./ViewerTopBarButton";
 import { downloadUrl } from "./viewerDownload";
 import { SceneIllustration } from "./SceneIllustration";
+import { usePrivateImage } from "../../hooks/usePrivateImage";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import {
   restoreOpenerFocusUnclaimed,
@@ -60,6 +61,13 @@ export function ImageViewer({
   const [isImageLoading, setIsImageLoading] = useState(false);
   const [hasImageError, setHasImageError] = useState(false);
   const [retryAttempt, setRetryAttempt] = useState(0);
+  const privateImage = usePrivateImage(isOpen ? src : undefined, retryAttempt);
+  useEffect(() => {
+    if (privateImage.failed) {
+      setIsImageLoading(false);
+      setHasImageError(true);
+    }
+  }, [privateImage.failed]);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -317,8 +325,8 @@ export function ImageViewer({
         )}
 
         <ViewerTopBarButton
-          onClick={() => downloadUrl(src)}
-          disabled={hasImageError}
+          onClick={() => privateImage.src && downloadUrl(privateImage.src)}
+          disabled={hasImageError || !privateImage.src}
           aria-label={t("imageViewer.download")}
           icon={<Download size={18} className="text-white/70" />}
         >
@@ -336,7 +344,7 @@ export function ImageViewer({
         >
           <img
             key={`${src}:${retryAttempt}`}
-            src={src}
+            src={privateImage.src}
             alt={alt}
             referrerPolicy="no-referrer"
             className="max-w-full max-h-full object-contain select-none"

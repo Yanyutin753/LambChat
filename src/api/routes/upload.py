@@ -38,7 +38,7 @@ from src.api.routes.upload_signed_urls import (
 from src.api.routes.upload_signed_urls import (
     router as signed_url_router,
 )
-from src.api.routes.upload_thumb import get_file_thumb_response
+from src.api.routes.upload_thumb import get_file_thumb_response, get_private_file_thumb_response
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.async_utils.background_tasks import BestEffortTaskLimiter
 from src.infra.auth.rbac import check_permission
@@ -891,9 +891,7 @@ async def get_file_proxy(
     t: int | None = None,
     current_user: TokenPayload | None = Depends(get_current_user),
 ) -> Response:
-    """Serve files or variants; private desktop captures require the session owner.
-    cover/thumb request derived images; t is the video cover timestamp in milliseconds.
-    """
+    """Serve files or variants; private desktop captures require the session owner."""
     from fastapi.responses import JSONResponse
 
     if "\\" in key or any(part in (".", "..", "") for part in key.split("/")):
@@ -904,13 +902,15 @@ async def get_file_proxy(
         )
         storage = await get_or_init_storage()
         headers = {"Cache-Control": "private, no-store", "Vary": "Authorization"}
+        if not storage.is_local and storage._config.public_bucket:
+            raise AppError(ErrorCode.FILE_NOT_FOUND)
+        if thumb:
+            return await get_private_file_thumb_response(storage, key)
         if storage.is_local:
             path = storage.get_file_path(key)
             if not await run_long_blocking_io(_path_exists, path):
                 raise AppError(ErrorCode.FILE_NOT_FOUND)
             return FileResponse(path=str(path), media_type=record["mime_type"], headers=headers)
-        if storage._config.public_bucket:
-            raise AppError(ErrorCode.FILE_NOT_FOUND)
         return StreamingResponse(
             storage.download_stream(key), media_type=record["mime_type"], headers=headers
         )

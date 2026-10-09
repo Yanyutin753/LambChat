@@ -553,6 +553,10 @@ class WorkspaceAliasBackend(WorkspaceAliasTransferMixin, LocalSandboxBackend):
             return path[len(prefix) :] or "."
         return path
 
+    async def aresolve_path(self, path: str) -> str:
+        """Resolve before encoding paths into scripts that command rewriting cannot inspect."""
+        return self._strip_required(path)
+
     def _strip_required(self, path: str) -> str:
         """必填路径版剥离：`_strip_path` 对 str 入参不会产出 None，类型兜底原样返回。"""
         stripped = self._strip_path(path)

@@ -21,7 +21,13 @@ from langchain_core.tools import BaseTool, InjectedToolArg
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.backend.lazy_sandbox import SandboxInitializationError
 from src.infra.logging import get_logger
-from src.infra.tool.backend_utils import get_backend_from_runtime, get_base_url_from_runtime
+from src.infra.tool.backend_utils import (
+    get_backend_from_runtime,
+    get_base_url_from_runtime,
+    get_user_id_from_runtime,
+)
+from src.infra.upload.file_record import FileRecordStorage
+from src.kernel.errors import AppError
 
 logger = get_logger(__name__)
 
@@ -60,6 +66,9 @@ file_path = {file_path!r}
 max_size = {_MAX_FILE_SIZE!r}
 chunk_size = 1024 * 1024
 
+if file_path.startswith("../.shared/"):
+    file_path = os.path.join(os.environ["LAMBCHAT_SHARED"], file_path[len("../.shared/"):])
+
 parent = os.path.dirname(file_path)
 if parent:
     os.makedirs(parent, exist_ok=True)
@@ -78,7 +87,7 @@ try:
                     raise RuntimeError(f"File too large: {{total}} bytes (max {{max_size}})")
                 out.write(chunk)
     os.replace(tmp_path, file_path)
-    print(total)
+    print(f"LAMBCHAT_DOWNLOAD_OK {{total}}")
 except Exception:
     try:
         os.remove(tmp_path)
@@ -163,12 +172,14 @@ async def _execute_sandbox_download(backend, url: str, file_path: str) -> tuple[
     else:
         return False, "backend does not support execute"
 
-    exit_code = getattr(result, "exit_code", 0)
+    exit_code = getattr(result, "exit_code", None)
+    output = str(getattr(result, "output", "") or "")
     if exit_code == 0:
-        return True, "success"
+        if re.search(r"(?m)^LAMBCHAT_DOWNLOAD_OK [0-9]+\s*$", output):
+            return True, "success"
+        return False, "missing_download_receipt"
     # 类别而非原文入日志：沙箱内 python 的报错原文带 URL/路径（如
     # Windows daemon python3 缺失、403 拒绝），只透出可诊断的类别。
-    output = str(getattr(result, "output", "") or "")
     return False, f"exit_code={exit_code} category={_classify_download_failure(output)}"
 
 
@@ -201,6 +212,41 @@ async def upload_url_to_sandbox(
             )
     # 自己的代理 URL 就地换成存储直链（省沙箱→API→存储的重定向跳），
     # 解析不出来时沿用原 URL，语义不变
+    parsed = urlparse(url)
+    if parsed.netloc == urlparse(base_url).netloc and parsed.path.startswith(_PROXY_URL_PREFIX):
+        key = unquote(parsed.path[len(_PROXY_URL_PREFIX) :])
+        if "\\" in key or any(part in (".", "..", "") for part in key.split("/")):
+            return await _json_dumps_result({"success": False, "error": "File unavailable"})
+        records = FileRecordStorage()
+        if await records.is_private_key(key):
+            try:
+                await records.require_private_access(key, get_user_id_from_runtime(runtime))
+                from src.infra.storage.s3.service import get_or_init_storage
+
+                storage = await get_or_init_storage()
+                content_bytes = bytearray()
+                async for chunk in storage.download_stream(key):
+                    if len(content_bytes) + len(chunk) > _MAX_FILE_SIZE:
+                        return await _json_dumps_result(
+                            {"success": False, "error": "File too large"}
+                        )
+                    content_bytes.extend(chunk)
+                results = await backend.aupload_files([(file_path, bytes(content_bytes))])
+                if not results or results[0].error:
+                    return await _json_dumps_result(
+                        {"success": False, "error": "Upload failed; please retry later"}
+                    )
+                return await _json_dumps_result(
+                    {"success": True, "path": file_path, "size": len(content_bytes)}
+                )
+            except SandboxInitializationError:
+                raise
+            except AppError:
+                return await _json_dumps_result({"success": False, "error": "File unavailable"})
+            except Exception:
+                return await _json_dumps_result(
+                    {"success": False, "error": "Download failed; please retry later"}
+                )
     original_url = url
     direct_url = await _resolve_storage_direct_url(url, base_url)
     if direct_url:

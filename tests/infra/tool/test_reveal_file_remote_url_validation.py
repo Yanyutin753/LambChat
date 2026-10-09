@@ -160,3 +160,19 @@ async def test_reveal_file_storage_init_failure_passes_through(
 
     assert result["url"] == _SELF_UPLOAD_URL
     assert result["_meta"]["source"] == "remote_url"
+
+
+async def test_relative_upload_url_is_revealed_without_reading_sandbox(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(reveal_file_tool, "_self_upload_url_missing", AsyncMock(return_value=False))
+    monkeypatch.setattr(reveal_file_tool, "_index_revealed_file", AsyncMock())
+    runtime = SimpleNamespace(config={"configurable": {"base_url": "https://app.example.com"}})
+    result = json.loads(
+        await reveal_file_tool.reveal_file.coroutine(
+            "/api/upload/file/images/photo.png", runtime=runtime
+        )
+    )
+    assert result["url"] == "https://app.example.com/api/upload/file/images/photo.png"
+    assert result["type"] == "image"

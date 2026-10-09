@@ -446,3 +446,17 @@ async def test_cloud_code_sandbox_uses_only_explicit_cua_machine(monkeypatch):
         action="apps", runtime=_runtime(platform="cloud", machine="selected-desktop")
     )
     assert json.loads(result)["machine_id"] == "selected-desktop"
+
+
+async def test_screenshot_upload_receives_runtime_origin(monkeypatch):
+    async def upload(result, base_url, **kwargs):
+        result["blocks"][0]["url"] = base_url + "/api/upload/file/cua_screenshots/u/s/a.jpg"
+
+    monkeypatch.setattr(cut, "upload_binary_blocks", upload)
+    runtime = _runtime()
+    runtime.config["configurable"]["base_url"] = "https://app.example"
+    result = json.loads(await cut._format_result({"screenshot": {"data_b64": "abcd"}}, runtime))
+    assert (
+        result["screenshot"]["url"]
+        == "https://app.example/api/upload/file/cua_screenshots/u/s/a.jpg"
+    )

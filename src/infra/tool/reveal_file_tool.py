@@ -267,6 +267,8 @@ async def reveal_file(
 ) -> str:
     """Show the user one clickable file or URL; replying with a bare path is not
     enough. Directories and multi-file projects must use reveal_project."""
+    if file_path.startswith("/api/upload/file/"):
+        file_path = f"{get_base_url_from_runtime(runtime)}{file_path}"
     if _is_remote_url(file_path):
         self_upload_key = _extract_self_upload_key(file_path)
         if self_upload_key is not None:
