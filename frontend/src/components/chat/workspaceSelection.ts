@@ -30,7 +30,6 @@ export function isCurrentWorkspaceMachine(
   mode: unknown,
   selected: string | null | undefined,
   current: string | null | undefined,
-  online: boolean,
 ): boolean {
-  return mode === "local" && !!current && current === selected && online;
+  return mode === "local" && !!current && current === selected;
 }

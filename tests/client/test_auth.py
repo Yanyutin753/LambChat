@@ -9,7 +9,7 @@ import pytest
 import lambchat_sandbox.auth as auth
 import lambchat_sandbox.cli as cli
 import lambchat_sandbox.config as config_mod
-from lambchat_sandbox import paths
+from lambchat_sandbox import paths, private_files
 from lambchat_sandbox.auth import AuthError, clear_pat, load_pat, pair, store_pat
 from lambchat_sandbox.cli import main
 
@@ -396,7 +396,7 @@ def test_credential_temp_is_private_before_any_secret_is_replaced(monkeypatch, t
         observed.append(source)
         original_replace(source, destination)
 
-    monkeypatch.setattr(auth.os, "replace", inspect_replace)
+    monkeypatch.setattr(private_files.os, "replace", inspect_replace)
     store_pat("synthetic-private", path=p, server_url="https://a.example")
     assert observed
     assert list(tmp_path.glob(".pat.*.tmp")) == []
@@ -414,7 +414,7 @@ def test_failed_credential_replace_keeps_previous_pairing_and_rolls_back_keyring
     def fail_replace(*args):
         raise OSError("synthetic disk failure")
 
-    monkeypatch.setattr(auth.os, "replace", fail_replace)
+    monkeypatch.setattr(private_files.os, "replace", fail_replace)
     with pytest.raises(OSError):
         store_pat("synthetic-new", path=p, server_url="https://a.example")
     assert p.read_bytes() == original
@@ -435,8 +435,8 @@ def test_windows_acl_failure_happens_before_secret_write_and_preserves_previous_
         seen.append(path)
         raise OSError("synthetic ACL failure")
 
-    monkeypatch.setattr(auth, "_restrict_windows_owner", fail_acl)
-    monkeypatch.setattr(auth, "_IS_WINDOWS", True)
+    monkeypatch.setattr(private_files, "_restrict_windows_owner", fail_acl)
+    monkeypatch.setattr(private_files, "_IS_WINDOWS", True)
     with pytest.raises(OSError):
         store_pat("synthetic-new", path=p, server_url="https://a.example")
     assert seen
@@ -487,11 +487,11 @@ def test_windows_acl_command_uses_constant_script_and_environment_path(monkeypat
     from unittest.mock import Mock
 
     run = Mock()
-    monkeypatch.setattr(auth.subprocess, "run", run)
+    monkeypatch.setattr(private_files.subprocess, "run", run)
     p = tmp_path / "quote'; $(command)" / "pat"
-    auth._restrict_windows_owner(p)
+    private_files._restrict_windows_owner(p)
     args, kwargs = run.call_args
-    assert args[0][-1] == auth._WINDOWS_OWNER_ACL
+    assert args[0][-1] == private_files._WINDOWS_OWNER_ACL
     assert str(p) not in args[0][-1]
     assert kwargs["env"]["LAMBCHAT_CREDENTIAL_PATH"] == str(p)
     assert kwargs["check"] is True

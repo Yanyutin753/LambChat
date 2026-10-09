@@ -128,6 +128,43 @@ def _release_workflow() -> dict:
     return data
 
 
+def test_release_publish_signs_assets_before_updater_and_upload():
+    steps = _release_workflow()["jobs"]["release"]["steps"]
+    names = [step.get("name", "") for step in steps]
+    signing = names.index("Sign immutable release assets")
+    assert signing < names.index("Generate latest.json updater manifest")
+    assert signing < names.index("Publish release")
+    step = steps[signing]
+    assert step["env"]["DEVICE_RELEASE_SIGNING_KEY"] == "${{ secrets.DEVICE_RELEASE_SIGNING_KEY }}"
+    assert "scripts/sign_release_assets.py" in step["run"]
+
+
+def test_release_signing_script_is_included_in_clean_checkout():
+    import subprocess
+
+    result = subprocess.run(
+        ["git", "check-ignore", "-q", "scripts/sign_release_assets.py"], check=False
+    )
+    assert result.returncode == 1, "Release signing script must not be git-ignored"
+
+
+def test_native_html_preview_command_is_registered_and_allowed():
+    assert "commands::preview::preview_html" in _source("frontend/src-tauri/src/lib.rs")
+    assert '"allow-preview-html"' in _source("frontend/src-tauri/capabilities/default.json")
+    assert '"preview_html"' in _source("frontend/src-tauri/permissions/preview.toml")
+
+
+def test_intel_daemon_build_installs_signature_verification_dependency():
+    script = _source("client/scripts/build-daemon.sh")
+    assert "--no-install-package cryptography" not in script
+    intel = next(
+        entry
+        for entry in _desktop_job()["strategy"]["matrix"]["include"]
+        if entry["label"] == "macOS Intel"
+    )
+    assert intel["runner"] == "macos-15-intel"
+
+
 def _desktop_job() -> dict:
     return _release_workflow()["jobs"]["desktop"]
 
@@ -135,9 +172,7 @@ def _desktop_job() -> dict:
 def test_release_workflow_matrix_covers_three_platforms() -> None:
     matrix = _desktop_job()["strategy"]["matrix"]["include"]
     by_label = {entry["label"]: entry for entry in matrix}
-    # M3 下线的 Windows/macOS 条目已恢复；macOS 双架构（M4 裁决的 arm64
-    # 单架构在 M5 升级）：两条目都在 macos-14（arm64）上构建——Rust 侧
-    # 交叉编译 x86_64，daemon 侧由 build-daemon.sh 走 Rosetta 路径
+    # Native runners ensure each daemon includes architecture-matching crypto libraries.
     assert set(by_label) == {
         "Linux x86_64",
         "Linux ARM64",
@@ -146,7 +181,7 @@ def test_release_workflow_matrix_covers_three_platforms() -> None:
         "macOS Intel",
     }
     assert by_label["macOS Apple Silicon"]["runner"] == "macos-14"
-    assert by_label["macOS Intel"]["runner"] == "macos-14"
+    assert by_label["macOS Intel"]["runner"] == "macos-15-intel"
     assert by_label["macOS Apple Silicon"]["target"] == "aarch64-apple-darwin"
     assert by_label["macOS Intel"]["target"] == "x86_64-apple-darwin"
     # dmg 仅首装；app bundle 产出 .app.tar.gz 供 Tauri updater 增量更新
@@ -497,32 +532,12 @@ def test_build_script_honors_target_triple_override() -> None:
     assert "${DAEMON_TARGET_TRIPLE:-$(detect_host_triple)}" in script
 
 
-def test_build_script_cross_builds_via_rosetta_on_arm64_mac() -> None:
-    """arm64 宿主 × x86_64 目标 = Rosetta 路径：PyInstaller 不支持交叉编译，
-    必须整套换 x86_64 工具链（x86_64 uv 静态二进制由 Rosetta 自动接手），
-    且用独立 venv 隔离宿主 arm64 环境。"""
+def test_daemon_cross_architecture_build_fails_explicitly():
     script = _source("client/scripts/build-daemon.sh")
-
-    # Rosetta 存在性保障（GH arm64 runner 预装，本地兜底自装）
-    assert "install-rosetta" in script
-    # x86_64 uv 静态二进制下载（PATH 前置后 uv run/pyinstaller 全链 x86_64）
-    assert "uv-x86_64-apple-darwin.tar.gz" in script
-    assert "PATH=" in script
-    # uv 托管解释器目录按版本不按架构区分：不隔离会复用宿主 arm64 CPython；
-    # 且找不到托管解释器时 uv 回退系统 PATH（runner 预装 arm64 3.12 即被采用），
-    # 必须 only-managed + 显式安装双保险（实验首两跑实测）
-    assert "UV_PYTHON_INSTALL_DIR" in script
-    assert "UV_PYTHON_PREFERENCE=only-managed" in script
-    assert "uv python install 3.12" in script
-    # 独立 venv：不污染宿主 arm64 .venv（落 client/build/，已 gitignore）
-    assert "UV_PROJECT_ENVIRONMENT" in script
-    assert "venv-daemon-x86_64" in script
-    # 防回归门禁：解释器架构现场断言（工具链退回 arm64 时立即失败）
-    assert 'platform.machine() == "x86_64"' in script
-    # cryptography ≥50 无 macOS x86_64 wheel（openssl-sys 交叉必败，实验三跑
-    # 实测）：daemon 导入面仅 httpx + psutil，跳过安装 + --no-sync 防回拉
-    assert "--no-install-package cryptography" in script
-    assert "uv run --no-sync pyinstaller" in script
+    assert '"$TRIPLE" != "$(detect_host_triple)"' in script
+    assert "cross-architecture packaging is unsupported" in script
+    assert "uv sync --group dev --group cua" in script
+    assert "--no-install-package" not in script
 
 
 def test_release_workflow_daemon_build_passes_target_triple() -> None:

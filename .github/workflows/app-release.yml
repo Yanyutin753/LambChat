@@ -61,9 +61,7 @@ jobs:
             updater_key: windows-x86_64
             updater_sig: "*_x64-setup.exe.sig"
             updater_asset_suffix: Windows-x64-setup.exe
-          # macOS 双架构（M5）：两条目都在 macos-14（arm64）上构建——Rust 侧
-          # 交叉编译 x86_64（rustup target），daemon 侧由 build-daemon.sh 的
-          # Rosetta 路径产 x86_64 sidecar（PyInstaller 不支持交叉编译）。
+          # macOS uses native architecture runners so crypto verification is bundled.
           # asset_suffix 带架构：双 mac 构建产物不得同名互踩。
           - label: macOS Apple Silicon
             runner: macos-14
@@ -76,7 +74,7 @@ jobs:
             updater_sig: "*-macOS-Apple-Silicon.app.tar.gz.sig"
             updater_asset_suffix: macOS-Apple-Silicon.app.tar.gz
           - label: macOS Intel
-            runner: macos-14
+            runner: macos-15-intel
             bundles: dmg,app
             artifact_slug: macos-intel
             target: x86_64-apple-darwin
@@ -210,9 +208,7 @@ jobs:
         shell: bash
         env:
           # uv 安装方式与 lint.yml 保持一致。DAEMON_TARGET_TRIPLE：与
-          # Tauri --target 对齐的 sidecar triple（Intel 条目在 arm64 宿主上
-          # 触发 build-daemon.sh 的 Rosetta 路径；Linux/Windows 无 target 键
-          # → 空串 → 宿主探测，行为不变）。
+          # Tauri --target 对齐的 sidecar triple；构建 runner 必须匹配目标架构。
           DAEMON_TARGET_TRIPLE: ${{ matrix.target || '' }}
           # uv.lock pins a CN mirror; GH-hosted runners throttle under
           # uv's 50 parallel downloads (same mitigation as lint.yml).
@@ -840,6 +836,16 @@ jobs:
           fi
           find release-assets -type f -print
           test "$(find release-assets -type f | wc -l)" -gt 0
+
+      - name: Install release signing runtime
+        uses: astral-sh/setup-uv@v4
+
+      - name: Sign immutable release assets
+        env:
+          DEVICE_RELEASE_SIGNING_KEY: ${{ secrets.DEVICE_RELEASE_SIGNING_KEY }}
+        run: |
+          uv run --no-project --python 3.12 --with cryptography==50.0.1 python scripts/sign_release_assets.py \
+            --directory release-assets --version "$RELEASE_TAG" --commit "$GITHUB_SHA"
 
       - name: Generate latest.json updater manifest
         # 公共生成器（scripts/generate_updater_manifest.py，与手动 publish

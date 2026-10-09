@@ -8,8 +8,8 @@ Tauri 壳形态的更新归壳的 updater，不经过这里。
 
 1. :func:`check_latest`：GET ``releases/latest``（GITHUB_TOKEN 可选）→ 找
    ``lambchat-daemon-<host-triple>`` 资产 → 版本高于当前才继续；
-2. 流式下载到 ``<argv[0]>.new``，边下边算 sha256（release 资产带 digest
-   则校验，不带则跳过并在结果里注明）；
+2. 验证独立签名清单绑定的版本、平台资产、大小和 sha256；流式下载
+   到 ``<argv[0]>.new``，缺少签名或校验不符时保留旧程序；
 3. 替换自体：onefile 二进制在跑时不能直接覆盖自身——POSIX 用
    ``os.replace`` 原子换；Windows 分支先把旧件改名 ``.old`` 再换（运行中
    的 exe 可以改名、不能被覆盖删除；改名序为后验项，真机行为留 CI/人工）；
@@ -32,6 +32,13 @@ import httpx
 
 import lambchat_sandbox
 from lambchat_sandbox import platform as plat
+from lambchat_sandbox.release_signature import (
+    MANIFEST_NAME,
+    MAX_MANIFEST_BYTES,
+    SIGNATURE_NAME,
+    ReleaseVerificationError,
+    verify_release,
+)
 
 DEFAULT_REPO = "Yanyutin753/LambChat"
 ASSET_PREFIX = "lambchat-daemon-"
@@ -41,6 +48,23 @@ _TIMEOUT = httpx.Timeout(30.0, read=120.0)  # 查询 30s；资产下载单次 re
 
 class SelfUpdateError(Exception):
     """更新失败（下载/校验/替换），message 面向 CLI 直出。"""
+
+
+def _validate_release_request(request: httpx.Request) -> None:
+    if (
+        request.url.scheme != "https"
+        or request.url.host
+        not in {
+            "api.github.com",
+            "github.com",
+            "objects.githubusercontent.com",
+            "release-assets.githubusercontent.com",
+        }
+        or request.url.port not in (None, 443)
+        or request.url.username
+        or request.url.password
+    ):
+        raise SelfUpdateError("更新下载地址或重定向不可信，拒绝更新")
 
 
 def _current_version(explicit: str | None) -> str:
@@ -83,8 +107,8 @@ def _ensure_packaged_target(target: Path) -> None:
 def host_triple(*, sys_platform: str | None = None, machine: str | None = None) -> str:
     """当前宿主的资产三元组（与 client/scripts/fetch-pbs.py 的映射同源）。
 
-    linux 按 machine 分 ``x86_64/aarch64-unknown-linux-gnu``；darwin 暂定
-    ``aarch64-apple-darwin``（M4 单 arm64，universal 列 M5）；win32 暂定
+    linux 按 machine 分 ``x86_64/aarch64-unknown-linux-gnu``；darwin 按
+    machine 分 Apple Silicon/Intel；win32 暂定
     ``x86_64-pc-windows-msvc``（暂无 arm64 Windows 构建）。参数供测试注入，
     缺省读真实宿主。
     """
@@ -93,7 +117,8 @@ def host_triple(*, sys_platform: str | None = None, machine: str | None = None) 
     if plat_name == "win32":
         return "x86_64-pc-windows-msvc"
     if plat_name == "darwin":
-        return "aarch64-apple-darwin"
+        arch = "aarch64" if arch_raw in ("aarch64", "arm64") else "x86_64"
+        return f"{arch}-apple-darwin"
     arch = "aarch64" if arch_raw in ("aarch64", "arm64") else "x86_64"
     return f"{arch}-unknown-linux-gnu"
 
@@ -111,28 +136,41 @@ def _fetch_latest(
     *,
     current_version: str | None = None,
     transport: httpx.BaseTransport | None = None,
-) -> tuple[str, str, str | None] | None:
-    """查 latest release，返回 ``(新版本, 资产 URL, digest|None)``。
+) -> tuple[str, str, str | None, dict[str, str]] | None:
+    """查 latest release，返回版本、资产 URL、digest 和签名文件地址。
 
     无 release（404）/无匹配平台资产/版本不高于当前 → None。其余非 2xx
     视为网络/接口异常，抛 :class:`SelfUpdateError`。
     """
     current = _parse_version(_current_version(current_version))
-    with httpx.Client(timeout=_TIMEOUT, transport=transport, follow_redirects=True) as client:
+    with httpx.Client(
+        timeout=_TIMEOUT,
+        transport=transport,
+        follow_redirects=True,
+        event_hooks={"request": [_validate_release_request]},
+    ) as client:
         resp = client.get(f"{_API_BASE}/{repo}/releases/latest", headers=_headers())
         if resp.status_code == 404:
             return None  # 仓库尚无 release：无更新可用
         if not resp.is_success:
             raise SelfUpdateError(f"查询 release 失败: HTTP {resp.status_code}")
         triple = host_triple()
-        for asset in resp.json().get("assets", []):
-            if asset.get("name", "").startswith(f"{ASSET_PREFIX}{triple}"):
+        asset_name = f"{ASSET_PREFIX}{triple}" + (".exe" if triple.endswith("msvc") else "")
+        assets = resp.json().get("assets", [])
+        security = {
+            asset["name"]: asset["browser_download_url"]
+            for asset in assets
+            if asset.get("name") in {MANIFEST_NAME, SIGNATURE_NAME}
+        }
+        for asset in assets:
+            if asset.get("name") == asset_name:
                 version = _parse_version(resp.json().get("tag_name", ""))
                 if version > current:
                     return (
                         resp.json().get("tag_name", "").lstrip("vV"),
                         asset["browser_download_url"],
                         asset.get("digest"),
+                        security,
                     )
                 return None  # 找到平台资产但已是最新
     return None  # 无匹配平台资产
@@ -153,25 +191,63 @@ def check_latest(
 
 
 def _download_to(
-    url: str, dest: Path, *, transport: httpx.BaseTransport | None = None
-) -> tuple[bytes, str]:
+    url: str, dest: Path, *, expected_size: int, transport: httpx.BaseTransport | None = None
+) -> tuple[str, str]:
     """流式下载到 dest（边下边算 sha256）；返回 ``(十六进制摘要, 算法)``。
 
     失败清理半成品 dest 并抛 SelfUpdateError。
     """
     hasher = hashlib.sha256()
+    size = 0
     try:
-        with httpx.Client(timeout=_TIMEOUT, transport=transport, follow_redirects=True) as client:
+        with httpx.Client(
+            timeout=_TIMEOUT,
+            transport=transport,
+            follow_redirects=True,
+            event_hooks={"request": [_validate_release_request]},
+        ) as client:
             with client.stream("GET", url) as resp:
                 resp.raise_for_status()
                 with dest.open("wb") as fh:
                     for chunk in resp.iter_bytes():
+                        size += len(chunk)
+                        if size > expected_size:
+                            raise SelfUpdateError("签名资产大小校验失败")
                         fh.write(chunk)
                         hasher.update(chunk)
-    except httpx.HTTPError as exc:
+        if size != expected_size:
+            raise SelfUpdateError("签名资产大小校验失败")
+    except (httpx.HTTPError, OSError, SelfUpdateError) as exc:
         dest.unlink(missing_ok=True)
-        raise SelfUpdateError(f"下载失败: {exc}") from exc
+        raise SelfUpdateError("下载失败：网络、文件写入或签名大小校验错误") from exc
     return hasher.hexdigest(), "sha256"
+
+
+def _signed_asset(security, version, current_version, *, transport=None):
+    try:
+        with httpx.Client(
+            timeout=_TIMEOUT,
+            transport=transport,
+            follow_redirects=True,
+            event_hooks={"request": [_validate_release_request]},
+        ) as client:
+            contents = []
+            for name, limit in ((MANIFEST_NAME, MAX_MANIFEST_BYTES), (SIGNATURE_NAME, 64)):
+                data = bytearray()
+                with client.stream("GET", security[name]) as response:
+                    response.raise_for_status()
+                    for chunk in response.iter_bytes():
+                        if len(data) + len(chunk) > limit:
+                            raise SelfUpdateError("发布签名文件超过大小限制")
+                        data.extend(chunk)
+                contents.append(bytes(data))
+        triple = host_triple()
+        asset_name = f"{ASSET_PREFIX}{triple}" + (".exe" if triple.endswith("msvc") else "")
+        return verify_release(
+            *contents, version=version, asset_name=asset_name, current_version=current_version
+        )
+    except (KeyError, httpx.HTTPError, ReleaseVerificationError) as exc:
+        raise SelfUpdateError("发布签名缺失或校验失败，拒绝更新") from exc
 
 
 def perform_update(
@@ -193,18 +269,23 @@ def perform_update(
     latest = _fetch_latest(repo, current_version=current_version, transport=transport)
     if latest is None:
         return f"已是最新（{_current_version(current_version)}），或最新 release 无当前平台资产，无需更新"
-    version, url, digest = latest
+    version, url, digest, security = latest
+    signed = _signed_asset(
+        security, version, _current_version(current_version), transport=transport
+    )
     new_path = target.with_name(target.name + ".new")
 
-    actual_hex, _ = _download_to(url, new_path, transport=transport)
+    actual_hex, _ = _download_to(url, new_path, expected_size=signed["size"], transport=transport)
 
-    verify_note = "release 未提供 digest，跳过校验"
+    if actual_hex != signed["sha256"]:
+        new_path.unlink(missing_ok=True)
+        raise SelfUpdateError("签名资产 sha256 校验失败")
+    verify_note = "独立发布签名与 sha256 校验通过"
     if digest:
         expected = digest.split(":", 1)[1] if ":" in digest else digest
         if expected.lower() != actual_hex:
             new_path.unlink(missing_ok=True)
             raise SelfUpdateError("sha256 校验失败：资产内容与 release 摘要不符")
-        verify_note = "sha256 校验通过"
 
     if plat.is_windows():
         # Windows：运行中的 exe 不能被覆盖但可以改名——旧件先挪 .old（残留的
@@ -213,7 +294,18 @@ def perform_update(
         old_path = target.with_name(target.name + ".old")
         old_path.unlink(missing_ok=True)
         os.replace(target, old_path)
-        os.replace(new_path, target)
+        try:
+            os.replace(new_path, target)
+        except OSError as exc:
+            try:
+                os.replace(old_path, target)
+            except OSError as rollback:
+                raise SelfUpdateError(
+                    "更新失败，旧程序保留在 .old，请通过原安装渠道恢复"
+                ) from rollback
+            finally:
+                new_path.unlink(missing_ok=True)
+            raise SelfUpdateError("更新替换失败，已恢复旧程序") from exc
     else:
         os.replace(new_path, target)  # POSIX：同目录 rename 原子换
     target.chmod(target.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)

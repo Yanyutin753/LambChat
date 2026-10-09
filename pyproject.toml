@@ -42,6 +42,7 @@ dependencies = [
     "resend>=2.42.0",
     "bcrypt>=5.0.0",
     "authlib>=1.7.2", # OAuth/OIDC support
+    "cryptography>=50.0.1", # Independently signed daemon release verification
     "langgraph-checkpoint-mongodb>=0.4.0",
     "daytona>=0.207.0",
     "minio>=7.2.20",

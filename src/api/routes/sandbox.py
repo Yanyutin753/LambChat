@@ -26,6 +26,9 @@ from src.infra.sandbox.relay.registry import (
     parse_daemon_version,
 )
 from src.infra.sandbox.relay.registry import (
+    machine_owner_key as _owner_key,
+)
+from src.infra.sandbox.relay.registry import (
     version_tuple as _version_tuple,
 )
 from src.infra.storage.redis import (
@@ -33,6 +36,7 @@ from src.infra.storage.redis import (
     get_binary_redis_client,
     get_redis_client,
 )
+from src.infra.user.storage import UserStorage
 from src.kernel.config import settings
 from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import TokenPayload
@@ -47,14 +51,6 @@ router = APIRouter()
 _BLPOP_TIMEOUT = 1.0
 _HEARTBEAT_SECONDS = 15
 _NODE_ID = f"{socket.gethostname()}:{uuid.uuid4().hex[:8]}"
-
-#: 多机 channel 的属主键前缀：同机重连换属主，旧流心跳时据此退场（对应
-#: legacy 路径 register 清 hash 的「后连踢前连」语义）。
-_OWNER_PREFIX = "sandbox:machineowner"
-
-
-def _owner_key(user_id: str, machine_id: str) -> str:
-    return f"{_OWNER_PREFIX}:{user_id}:{machine_id}"
 
 
 def _redis():
@@ -153,8 +149,6 @@ async def channel_frames(
                 machine_id=machine_id,
                 machine_name=machine_name,
             )
-            if machine_id:
-                await redis.set(_owner_key(user_id, machine_id), client_id, ex=35)
         # 阻塞读下发队列：超时切片返回 None → 回到心跳检查；Redis 异常上抛
         # 终结本流，daemon 走既有退避重连（与旧轮询模型同语义）
         item = await blocking.blpop(req_key, timeout=timeout_slice)
@@ -224,8 +218,6 @@ async def sandbox_channel(
         machine_id=machine_id,
         machine_name=machine_name,
     )
-    if machine_id:  # 多机属主：同机重连改写属主键，旧流心跳时据此退场
-        await _redis().set(_owner_key(user.sub, machine_id), client_id, ex=35)
     stop = asyncio.Event()
     await publish_presence(user.sub)  # 上线事件：注册成功即推，不等心跳
     # 每条 SSE 流一个专用阻塞客户端（独立连接池）：BLPOP 长阻塞独占连接，
@@ -272,9 +264,12 @@ async def sandbox_channel(
                             or "sandbox:execute" not in record.scopes
                         ):
                             return
+                        account = await UserStorage().get_by_id(record.user_id)
+                        if account is None or account.is_active is False:
+                            return
                     except Exception:
                         logger.warning(
-                            "sandbox channel PAT revalidation unavailable; closing stream"
+                            "sandbox channel authority revalidation unavailable; closing stream"
                         )
                         return
                 yield frame
@@ -637,7 +632,6 @@ async def sandbox_offline(
     registry = _registry()
     if machine_id:
         await registry.unregister(user.sub, "", machine_id)
-        await _redis().delete(_owner_key(user.sub, machine_id))
         await publish_presence(user.sub)
         return {"status": "offline", "machine_id": machine_id}
     active = await registry.get_active(user.sub)

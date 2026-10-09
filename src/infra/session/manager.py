@@ -2,6 +2,7 @@
 会话管理器
 """
 
+import asyncio
 import uuid
 from collections import Counter
 from copy import deepcopy
@@ -380,23 +381,37 @@ class SessionManager:
 
     async def delete_session(self, session_id: str) -> bool:
         """删除会话（同时删除关联的 traces）"""
-        delete_operation = await self.storage.claim_attachment_delete_operation(session_id)
-        if not isinstance(delete_operation, dict) or not isinstance(
-            delete_operation.get("id"), str
-        ):
-            raise SessionError("session_delete_fence_unavailable")
-        if delete_operation.get("acquired") is False:
-            raise SessionError("session_delete_in_progress")
-        delete_operation_id = delete_operation["id"]
-        try:
-            await self.trace_storage.expire_stale_running_traces(session_id)
-            await self.clear_session_messages(session_id)
-            if await self.trace_storage.has_session_trace_documents(session_id):
-                raise SessionError("session_delete_has_trace_survivors")
-            await self._file_record_storage.delete_private_session_files(session_id)
-        except BaseException:
-            await self.storage.cancel_attachment_delete_operation(session_id, delete_operation_id)
-            raise
+        # SSE can finish before the writer lease or trace finalizer settles.
+        for attempt in range(6):
+            delete_operation = await self.storage.claim_attachment_delete_operation(session_id)
+            if delete_operation is None and attempt < 5:
+                await asyncio.sleep(0.1)
+                continue
+            if not isinstance(delete_operation, dict) or not isinstance(
+                delete_operation.get("id"), str
+            ):
+                raise SessionError("session_delete_fence_unavailable")
+            if delete_operation.get("acquired") is False:
+                raise SessionError("session_delete_in_progress")
+            delete_operation_id = delete_operation["id"]
+            try:
+                await self.trace_storage.expire_stale_running_traces(session_id)
+                await self.clear_session_messages(session_id)
+                if await self.trace_storage.has_session_trace_documents(session_id):
+                    if attempt == 5:
+                        raise SessionError("session_delete_has_trace_survivors")
+                    await self.storage.cancel_attachment_delete_operation(
+                        session_id, delete_operation_id
+                    )
+                    await asyncio.sleep(0.1)
+                    continue
+                await self._file_record_storage.delete_private_session_files(session_id)
+            except BaseException:
+                await self.storage.cancel_attachment_delete_operation(
+                    session_id, delete_operation_id
+                )
+                raise
+            break
         # Clean up revealed file index
         try:
             from src.infra.revealed_file.storage import get_revealed_file_storage

@@ -4,12 +4,11 @@ import {
   isCurrentWorkspaceMachine,
 } from "../workspaceSelection";
 
-test("directory entry requires the current online machine and local mode", () => {
-  expect(isCurrentWorkspaceMachine("local", "m1", "m1", true)).toBe(true);
-  expect(isCurrentWorkspaceMachine("cloud", "m1", "m1", true)).toBe(false);
-  expect(isCurrentWorkspaceMachine("local", "m2", "m1", true)).toBe(false);
-  expect(isCurrentWorkspaceMachine("local", "m1", null, true)).toBe(false);
-  expect(isCurrentWorkspaceMachine("local", "m1", "m1", false)).toBe(false);
+test("directory entry belongs to the current machine in local mode", () => {
+  expect(isCurrentWorkspaceMachine("local", "m1", "m1")).toBe(true);
+  expect(isCurrentWorkspaceMachine("cloud", "m1", "m1")).toBe(false);
+  expect(isCurrentWorkspaceMachine("local", "m2", "m1")).toBe(false);
+  expect(isCurrentWorkspaceMachine("local", "m1", null)).toBe(false);
 });
 
 test("saved directory round trips and malformed options are ignored", () => {

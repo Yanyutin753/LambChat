@@ -708,7 +708,7 @@ class TraceEventChunkMixin(TraceChunkRollbackMixin):
                                 "events": {
                                     "$concatArrays": [
                                         existing_events_without_range,
-                                        chunk_events,
+                                        {"$literal": chunk_events},
                                     ]
                                 },
                             }

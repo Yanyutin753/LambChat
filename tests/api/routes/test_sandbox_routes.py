@@ -46,6 +46,27 @@ class _FakeRedis:
         exp = self.expires_at.get(key)
         return exp is None or exp > time.monotonic()
 
+    async def eval(self, script, key_count, *args):
+        if key_count == 2:
+            machine, members, member = args
+            if not await self.exists(machine):
+                await self.srem(members, member)
+                return 1
+            return 0
+        assert key_count == 3
+        owner, machine, members, mode, client, member, value, ttl = args
+        if mode != "register" and client and await self.get(owner) != client:
+            return 0
+        if mode == "unregister":
+            await self.delete(owner)
+            await self.delete(machine)
+            await self.srem(members, member)
+        else:
+            await self.set(owner, client, ex=ttl)
+            await self.set(machine, value, ex=ttl)
+            await self.sadd(members, member)
+        return 1
+
     async def rpush(self, key, value):
         self.lists.setdefault(key, []).append(value)
 
@@ -1587,3 +1608,33 @@ async def test_status_endpoint_explicit_machine_id_survives_stale_default(monkey
             "daemon_platform": "linux",
             "daemon_confirm_policy": "commands",
         }
+
+
+@pytest.mark.parametrize("account_active", [False, True])
+async def test_long_lived_channel_rechecks_account_before_control_frame(
+    monkeypatch, account_active
+):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    registry = _FakeRegistry()
+    record = SimpleNamespace(user_id="u1", scopes=["sandbox:execute"])
+    monkeypatch.setattr(sandbox_route.PATStorage, "verify", AsyncMock(return_value=(record, "")))
+    from src.infra.user.storage import UserStorage
+
+    monkeypatch.setattr(
+        UserStorage, "get_by_id", AsyncMock(return_value=SimpleNamespace(is_active=account_active))
+    )
+
+    async def frames(*args, **kwargs):
+        yield "event: hello\ndata: {}\n\n"
+        yield "event: tool_call\ndata: {}\n\n"
+
+    monkeypatch.setattr(sandbox_route, "channel_frames", frames)
+    async with _channel_app(monkeypatch, registry) as client:
+        response = await client.get(
+            "/api/sandbox/channel?version=2.14.4", headers={"Authorization": "Bearer lc_pat_test"}
+        )
+    assert "event: hello" in response.text
+    assert ("event: tool_call" in response.text) is account_active
+    assert len(registry.unregistered) == 1
