@@ -37,7 +37,7 @@ class _RecordingSandbox(BaseSandbox):
     def execute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
         del timeout
         self.commands.append(_download_script(command))
-        return ExecuteResponse(output="", exit_code=0)
+        return ExecuteResponse(output="LAMBCHAT_DOWNLOAD_OK 1", exit_code=0)
 
     def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
         return [FileUploadResponse(path=path) for path, _content in files]
@@ -304,7 +304,9 @@ async def test_upload_url_to_sandbox_redacts_provider_path_from_success_log(
 
         async def aexecute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
             del command, timeout
-            return ExecuteResponse(output=f"downloaded to {actual_path}", exit_code=0)
+            return ExecuteResponse(
+                output=f"downloaded to {actual_path}\nLAMBCHAT_DOWNLOAD_OK 1", exit_code=0
+            )
 
     caplog.set_level(logging.INFO)
 
@@ -334,7 +336,7 @@ async def test_upload_url_to_sandbox_prefers_sandbox_side_download(
 
         async def aexecute(self, command: str):
             self.commands.append(_download_script(command))
-            return SimpleNamespace(exit_code=0, output="")
+            return SimpleNamespace(exit_code=0, output="LAMBCHAT_DOWNLOAD_OK 1")
 
         async def aupload_files(self, files):
             raise AssertionError("sandbox-capable backends should download inside the sandbox")
@@ -379,7 +381,7 @@ async def test_upload_url_to_sandbox_wraps_sync_execute_in_blocking_executor(
     class _FakeBackend:
         def execute(self, command: str):
             calls.append(("execute", command))
-            return SimpleNamespace(exit_code=0, output="")
+            return SimpleNamespace(exit_code=0, output="LAMBCHAT_DOWNLOAD_OK 1")
 
         async def aupload_files(self, files):
             raise AssertionError("sandbox-capable backends should download inside the sandbox")
@@ -926,7 +928,7 @@ async def test_upload_url_to_sandbox_resolves_own_proxy_url_to_storage_direct_ur
 
         async def aexecute(self, command: str):
             self.commands.append(_download_script(command))
-            return SimpleNamespace(exit_code=0, output="")
+            return SimpleNamespace(exit_code=0, output="LAMBCHAT_DOWNLOAD_OK 1")
 
         async def aupload_files(self, files):
             raise AssertionError("sandbox-capable backends should download inside the sandbox")
@@ -960,7 +962,7 @@ async def test_upload_url_to_sandbox_keeps_proxy_url_for_local_storage(
 
         async def aexecute(self, command: str):
             self.commands.append(_download_script(command))
-            return SimpleNamespace(exit_code=0, output="")
+            return SimpleNamespace(exit_code=0, output="LAMBCHAT_DOWNLOAD_OK 1")
 
     backend = _FakeBackend()
     result = json.loads(
@@ -1002,7 +1004,7 @@ async def test_upload_url_to_sandbox_leaves_non_plain_proxy_urls_alone(
 
         async def aexecute(self, command: str):
             self.commands.append(_download_script(command))
-            return SimpleNamespace(exit_code=0, output="")
+            return SimpleNamespace(exit_code=0, output="LAMBCHAT_DOWNLOAD_OK 1")
 
     backend = _FakeBackend()
     result = json.loads(
@@ -1032,7 +1034,7 @@ async def test_upload_url_to_sandbox_presign_failure_falls_back_to_proxy_url(
 
         async def aexecute(self, command: str):
             self.commands.append(_download_script(command))
-            return SimpleNamespace(exit_code=0, output="")
+            return SimpleNamespace(exit_code=0, output="LAMBCHAT_DOWNLOAD_OK 1")
 
     backend = _FakeBackend()
     result = json.loads(
@@ -1274,3 +1276,96 @@ def test_sandbox_download_command_is_a_single_windows_safe_python_argument() -> 
     compile(script, "download", "exec")
     assert "中文 image.jpg" in script
     assert "token=%25" in script
+
+
+@pytest.mark.parametrize("authorized", [False, True])
+async def test_private_capture_download_uses_owned_bytes_not_bearer_url(monkeypatch, authorized):
+    from unittest.mock import AsyncMock
+
+    from src.infra.upload.file_record import FileRecordStorage
+    from src.kernel.errors import AppError, ErrorCode
+
+    payload = b"private screenshot"
+
+    class Storage(_FakeStorageService):
+        async def download_stream(self, key):
+            yield payload
+
+    storage = Storage()
+    _patch_storage(monkeypatch, storage)
+    access = AsyncMock(return_value={})
+    if not authorized:
+        access.side_effect = AppError(ErrorCode.FILE_NOT_FOUND)
+    monkeypatch.setattr(FileRecordStorage, "require_private_access", access)
+    backend = SimpleNamespace(
+        aupload_files=AsyncMock(return_value=[FileUploadResponse(path="/workspace/shot.jpg")])
+    )
+    runtime = _Runtime(backend)
+    runtime.config["configurable"]["context"] = SimpleNamespace(user_id="owner")
+    result = json.loads(
+        await upload_url_tool.upload_url_to_sandbox.coroutine(
+            url="/api/upload/file/cua_screenshots/owner/session/a.jpg",
+            file_path="/workspace/shot.jpg",
+            runtime=runtime,
+        )
+    )
+    assert result["success"] is authorized
+    assert storage.presign_calls == []
+    if authorized:
+        backend.aupload_files.assert_awaited_once_with([("/workspace/shot.jpg", payload)])
+    else:
+        backend.aupload_files.assert_not_awaited()
+
+
+async def test_zero_exit_without_download_receipt_is_not_success():
+    class Backend:
+        async def aexecute(self, command):
+            return ExecuteResponse(output="", exit_code=0)
+
+    ok, _ = await upload_url_tool._execute_sandbox_download(
+        Backend(), "https://example.com/image.jpg", "/workspace/image.jpg"
+    )
+    assert ok is False
+
+
+@pytest.mark.parametrize(
+    "public_path, native_path",
+    [
+        ("/workspace/session-1/image.jpg", "image.jpg"),
+        ("/workspace/.shared/image.jpg", "../.shared/image.jpg"),
+    ],
+)
+async def test_local_alias_is_resolved_before_encoding_download_script(public_path, native_path):
+    from src.infra.backend.local import WorkspaceAliasBackend
+
+    class Local(WorkspaceAliasBackend):
+        async def aexecute(self, command, **kwargs):
+            self.download_script = _download_script(command)
+            return ExecuteResponse(output="LAMBCHAT_DOWNLOAD_OK 1", exit_code=0)
+
+    provider = Local(user_id="u", session_id="session-1", platform_hint="win32")
+    local = CompositeBackend(default=provider, routes={})
+    ok, _ = await upload_url_tool._execute_sandbox_download(
+        local, "https://example.com/image.jpg", public_path
+    )
+    assert ok
+    assert f"file_path = {native_path!r}" in provider.download_script
+    assert public_path not in provider.download_script
+
+
+def test_shared_download_uses_daemon_shared_root_from_selected_directory(tmp_path, monkeypatch):
+    import io
+    import urllib.request
+
+    selected = tmp_path / "selected" / "project"
+    selected.mkdir(parents=True)
+    shared = tmp_path / "daemon" / ".shared"
+    monkeypatch.chdir(selected)
+    monkeypatch.setenv("LAMBCHAT_SHARED", str(shared))
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *args, **kwargs: io.BytesIO(b"image"))
+    script = _download_script(
+        upload_url_tool._sandbox_download_command("https://example.com/a", "../.shared/image.jpg")
+    )
+    exec(compile(script, "download", "exec"), {})
+    assert (shared / "image.jpg").read_bytes() == b"image"
+    assert not (selected.parent / ".shared").exists()
