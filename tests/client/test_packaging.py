@@ -449,6 +449,7 @@ def test_release_workflow_smokes_packaged_daemon_version() -> None:
     仅 codesign --verify 看不到运行时问题。"""
     steps = {step["name"]: step for step in _desktop_job()["steps"]}
     smoke = steps["Packaged daemon smoke (version assert)"]
+    assert "if" not in smoke, "Every native desktop runner must smoke its packaged daemon"
     assert '"$bin" version' in smoke["run"]
     assert "${RELEASE_TAG#v}" in smoke["run"]
     # macOS 走 .app 内 sidecar（不是构建目录里的裸 sidecar）

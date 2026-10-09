@@ -408,7 +408,6 @@ jobs:
       # Linux 解包 deb 后执行（同时锁布局：sidecar 与主程序同级且去 triple）、
       # Windows 执行构建产物 sidecar。输出必须等于 tag 版本。
       - name: Packaged daemon smoke (version assert)
-        if: runner.os != 'Linux' || matrix.arch == 'amd64'
         shell: bash
         run: |
           set -euo pipefail
