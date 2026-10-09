@@ -235,6 +235,14 @@ jobs:
         run: pnpm package:desktop
         working-directory: frontend
 
+      - name: Verify Windows installer upgrade hooks
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $compiler = Join-Path $env:LOCALAPPDATA 'tauri/NSIS/makensis.exe'
+          if (-not (Test-Path $compiler)) { throw 'Built installer NSIS toolchain missing' }
+          ./scripts/test_windows_installer_hooks.ps1 -MakeNsis $compiler
+
       # macOS 签名门禁：v2.8.4 及更早的 .app 没有 bundle 封印（无
       # _CodeSignature/CodeResources，Tauri 无 signingIdentity 时跳过签名），
       # 浏览器下载带隔离标记后被 Gatekeeper 判「已损坏」。signingIdentity "-"

@@ -7,9 +7,9 @@ URL 文件上传到沙箱工具
 通过 ToolRuntime 注入 backend，复用 backend_utils 获取沙箱后端。
 """
 
+import base64
 import json
 import re
-import shlex
 from tempfile import SpooledTemporaryFile
 from typing import Annotated, Any
 from urllib.parse import unquote, urlparse
@@ -86,7 +86,9 @@ except Exception:
         pass
     raise
 """
-    return f"python3 -c {shlex.quote(script)}"
+    # Base64 keeps cmd.exe expansion and POSIX quoting out of URLs and paths.
+    encoded = base64.b64encode(script.encode("utf-8")).decode("ascii")
+    return f"python3 -c \"import base64;exec(base64.b64decode('{encoded}'))\""
 
 
 async def _resolve_storage_direct_url(url: str, base_url: str) -> str | None:

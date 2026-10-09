@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'scripts/test_windows_installer_hooks.ps1'
       - 'frontend/**'
       - 'docs/**'
       - '*.md'
@@ -22,6 +23,7 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'scripts/test_windows_installer_hooks.ps1'
       - 'frontend/**'
       - 'docs/**'
       - '*.md'
@@ -220,3 +222,21 @@ jobs:
       - name: Run frontend tests
         run: pnpm test
         working-directory: frontend
+
+  windows-installer-hooks:
+    name: Windows Installer Hooks
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify automatic upgrade and reinstall
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'nsis-3.11.zip'
+          Invoke-WebRequest 'https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.11/nsis-3.11.zip' -OutFile $archive
+          if ((Get-FileHash $archive -Algorithm SHA1).Hash -ne 'EF7FF767E5CBD9EDD22ADD3A32C9B8F4500BB10D') { throw 'NSIS archive hash mismatch' }
+          $directory = Join-Path $env:RUNNER_TEMP 'nsis-toolchain'
+          Expand-Archive $archive $directory
+          $compiler = Get-ChildItem $directory -Filter makensis.exe -Recurse | Select-Object -First 1
+          if (-not $compiler) { throw 'NSIS compiler missing' }
+          ./scripts/test_windows_installer_hooks.ps1 -MakeNsis $compiler.FullName
