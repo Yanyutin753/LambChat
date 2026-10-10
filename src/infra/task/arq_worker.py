@@ -309,10 +309,12 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
             await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=True)
             logger.info("Deleted arq payload after user cancellation: run_id=%s", run_id)
             return
+        from .lifecycle import is_shutting_down
+
         await task_manager._mark_run_recoverable_failure(
             payload["session_id"],
             run_id,
-            "Server shutdown",
+            "Server shutdown" if is_shutting_down() else "Worker task interrupted",
         )
         await payload_store.delete(dispatch_id)
         await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=False)

@@ -55,6 +55,10 @@ class _FakeArqRuntime:
 @pytest.fixture
 def wired(monkeypatch: pytest.MonkeyPatch):
     """worker_main 全部协作者替换为可观测 fake；返回各 fake 供断言。"""
+    import threading
+    from src.infra.task import lifecycle
+
+    monkeypatch.setattr(lifecycle, "_shutting_down", threading.Event())
     task_manager = _FakeTaskManager()
     runtime = _FakeArqRuntime()
     pubsubs = {
@@ -196,6 +200,9 @@ async def test_amain_shutdown_stops_listeners_and_runtime_in_order(wired, monkey
     real_stop = wired.runtime.stop
 
     async def recording_runtime_stop() -> None:
+        from src.infra.task.lifecycle import is_shutting_down
+
+        assert is_shutting_down(), "planned shutdown must be marked before cancelling jobs"
         order.append("runtime_stop")
         await real_stop()
 
