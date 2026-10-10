@@ -119,3 +119,38 @@ def test_gpt_reasoning_blocks_switched_to_deepseek_anthropic_have_thinking():
     )
     payload = model._get_request_payload([HumanMessage(content="1+1"), message])
     assert payload["messages"][1]["content"][0]["type"] == "thinking"
+
+
+@pytest.mark.parametrize("provider", ["deepseek", "openai"])
+@pytest.mark.parametrize("reasoning", ["", "actual reasoning"])
+def test_deepseek_responses_replays_plain_reasoning_for_each_assistant(reasoning, provider):
+    model = LLMClient._create_model(
+        provider, "deepseek-flash", api_key="test", api_format="responses"
+    )
+    messages = history()
+    messages[1].additional_kwargs["reasoning_content"] = reasoning
+    payload = model._get_request_payload(messages)
+    assert payload["input"][1] == {
+        "type": "reasoning",
+        "content": [{"type": "reasoning_text", "text": reasoning or " "}],
+    }
+    assert payload["input"][2]["type"] == "function_call"
+    assert "include" not in payload
+    assert all(
+        "summary" not in item and "encrypted_content" not in item for item in payload["input"]
+    )
+
+
+@pytest.mark.parametrize("level,expected", [("low", "low"), ("medium", "high"), ("max", "max")])
+def test_openai_provider_deepseek_responses_supports_thinking_levels(level, expected):
+    model = LLMClient._create_model(
+        "openai",
+        "deepseek-flash",
+        api_key="test",
+        api_format="responses",
+        thinking={"level": level},
+    )
+    assert (
+        model._get_request_payload([HumanMessage(content="Hi")])["reasoning"]["effort"] == expected
+    )
+    assert model_supports_thinking("openai", "deepseek-flash")

@@ -8,7 +8,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from langchain_core.callbacks import AsyncCallbackManagerForLLMRun
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from langchain_openai import ChatOpenAI
 from pydantic import Field
@@ -76,7 +76,10 @@ class LambChatOpenAIChatModel(ChatOpenAI):
         # 严格校验的端点会整体 400（生产 2026-09-17：input[13].status），
         # 在统一出口剥离后再注入其余字段。
         strip_readonly_responses_input_fields(payload)
-        from src.infra.llm.reasoning_patch import is_deepseek_thinking_model
+        from src.infra.llm.reasoning_patch import (
+            is_deepseek_thinking_model,
+            reasoning_text_from_message,
+        )
 
         messages = self._convert_input(input_).to_messages()
         for source, message in zip(messages, payload.get("messages", [])):
@@ -84,16 +87,36 @@ class LambChatOpenAIChatModel(ChatOpenAI):
                 continue
             if is_deepseek_thinking_model(self.model_name):
                 # Missing cross-model reasoning is valid as an empty field.
-                reasoning = source.additional_kwargs.get("reasoning_content", "")
-                if not reasoning and isinstance(source.content, list):
-                    reasoning = "".join(
-                        b.get("thinking", "")
-                        for b in source.content
-                        if isinstance(b, dict) and b.get("type") == "thinking"
-                    )
+                reasoning = reasoning_text_from_message(source)
                 message["reasoning_content"] = reasoning
             elif not self.model_name.lower().startswith("deepseek"):
                 message.pop("reasoning_content", None)
+        if "input" in payload and is_deepseek_thinking_model(self.model_name):
+            from langchain_openai.chat_models.base import _construct_responses_api_input
+
+            # DeepSeek requires a nonempty field during tool continuation; missing history is whitespace.
+            items = []
+            for source in messages:
+                if isinstance(source, AIMessage):
+                    items.append(
+                        {
+                            "type": "reasoning",
+                            "content": [
+                                {
+                                    "type": "reasoning_text",
+                                    "text": reasoning_text_from_message(source) or " ",
+                                }
+                            ],
+                        }
+                    )
+                items.extend(
+                    item
+                    for item in _construct_responses_api_input([source], store=False)
+                    if item.get("type") != "reasoning"
+                )
+            payload["input"] = items
+            payload.pop("include", None)
+            strip_readonly_responses_input_fields(payload)
         # Codex 同款 KV 缓存路由：会话级 prompt_cache_key 让同前缀请求持续
         # 落在同一缓存机器。/v1/responses 与 /v1/chat/completions 两种线
         # 格式都注入（SDK 3.6.0 起后者同样支持该字段，替代 user 做缓存
