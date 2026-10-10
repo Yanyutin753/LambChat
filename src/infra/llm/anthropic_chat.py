@@ -9,7 +9,7 @@ from typing import Any
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.callbacks import AsyncCallbackManagerForLLMRun
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from pydantic import Field
 
@@ -108,6 +108,36 @@ class LambChatAnthropicChatModel(ChatAnthropic):
     stream_gap_warn_timeout: float | None = Field(default=None, exclude=True)
     # Inject Anthropic prompt-cache breakpoints (system prefix + final message).
     enable_prompt_cache: bool = Field(default=True, exclude=True)
+
+    def _get_request_payload(
+        self, input_: Any, *, stop: list[str] | None = None, **kwargs: Any
+    ) -> dict:
+        from src.infra.llm.reasoning_patch import is_deepseek_thinking_model
+
+        if is_deepseek_thinking_model(self.model):
+            messages = self._convert_input(input_).to_messages()
+            normalized = []
+            for message in messages:
+                if isinstance(message, AIMessage):
+                    content = _to_text_blocks(message.content) or []
+                    if not any(
+                        b.get("type") in ("thinking", "redacted_thinking")
+                        or (
+                            b.get("type") == "reasoning"
+                            and message.response_metadata.get("model_provider") == "anthropic"
+                        )
+                        for b in content
+                    ):
+                        # Preserve actual reasoning across protocols; missing history is empty.
+                        block = {
+                            "type": "thinking",
+                            "thinking": message.additional_kwargs.get("reasoning_content", ""),
+                            "signature": "",
+                        }
+                        message = message.model_copy(update={"content": [block, *content]})
+                normalized.append(message)
+            input_ = normalized
+        return super()._get_request_payload(input_, stop=stop, **kwargs)
 
     def bind_tools(
         self, tools, *, tool_choice=None, parallel_tool_calls=None, strict=None, **kwargs

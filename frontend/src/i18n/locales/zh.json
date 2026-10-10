@@ -146,6 +146,7 @@
     "imageUrlModeBase64": "转 Base64",
     "imageUrlModeHint": "会话始终保存短链接;供应商取图不跟随 302(如 DeepSeek)时选 Base64 或直出字节",
     "imageUrlModeProxyDirect": "直出字节(?proxy)",
+    "imageUrlModeStorageDirect": "存储直链（临时签名）",
     "imageUrlModeUrl": "默认(原样 URL)",
     "importInvalidFormat": "JSON 格式无效",
     "importModels": "导入",

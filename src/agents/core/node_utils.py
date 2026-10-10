@@ -233,7 +233,7 @@ async def resolve_model_image_url_mode(
     selected_model: str | None,
     *,
     log_prefix: str = "",
-) -> Literal["url", "base64", "proxy_direct"]:
+) -> Literal["url", "base64", "proxy_direct", "storage_direct"]:
     """Resolve how image URLs should be handed to the selected model.
 
     兼容旧配置：profile 只写了 image_url_to_base64=true 时按 "base64" 处理。

@@ -131,11 +131,8 @@ class ModelFallbackMiddleware(AgentMiddleware):
     async def _create_fallback_llm(self) -> BaseChatModel:
         from src.infra.llm.client import LLMClient
 
-        # #781：fallback 不继承 thinking 配置。跨模型重放历史时，thinking
-        # 模式要求 assistant 轮回传 reasoning 块（reasoning_content /
-        # reasoning_text，字段名随端点而异），而历史由主模型产生、不含该字段，
-        # 硅基流动系端点会直接 400 硬失败。fallback 语义求稳：显式不带
-        # thinking 参数即不触发回传校验，代价仅为兜底响应无推理。
+        # Fallback does not inherit the primary model's thinking intensity.
+        # DeepSeek's default thinking is supported by its history-normalizing adapter.
         llm = await LLMClient.get_model(
             model=self._fallback_model,
             thinking=None,
@@ -193,7 +190,9 @@ class ModelFallbackMiddleware(AgentMiddleware):
             # 视野（2026-09-05 13:50 生产 4 例：message:chunk + done 之后才
             # 追加 error，成功 run 被标失败且重试/降级重复烧钱）。零正文的
             # 终态判定由 executor 按真实 message:chunk 事件兜底。
-            return await handler(new_request)
+            from src.infra.agent.middleware.image_url import ImageUrlStorageDirectMiddleware
+
+            return await ImageUrlStorageDirectMiddleware().awrap_model_call(new_request, handler)
         except Exception as fallback_exc:
             logger.error(
                 "[ModelFallback] Fallback model %s also failed: %s",
@@ -325,8 +324,6 @@ def create_retry_middleware(
     ]
 
     if fallback_model:
-        # 不接收 thinking 参数（#781）：fallback 跨模型重放历史时 thinking
-        # 模式会被端点要求回传 reasoning 块而 400，兜底链路一律不带。
         stack.append(ModelFallbackMiddleware(fallback_model=fallback_model))
 
     stack.extend(

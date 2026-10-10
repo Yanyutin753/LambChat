@@ -146,6 +146,7 @@
     "imageUrlModeBase64": "Convert to Base64",
     "imageUrlModeHint": "Sessions keep short links; pick Base64 or direct bytes when the provider cannot follow redirects (e.g. DeepSeek)",
     "imageUrlModeProxyDirect": "Direct bytes (?proxy)",
+    "imageUrlModeStorageDirect": "Direct storage URL",
     "imageUrlModeUrl": "Default (URL as-is)",
     "importInvalidFormat": "Invalid JSON format",
     "importModels": "Import",

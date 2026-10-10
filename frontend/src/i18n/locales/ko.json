@@ -146,6 +146,7 @@
     "imageUrlModeBase64": "Base64로 변환",
     "imageUrlModeHint": "세션은 짧은 링크를 저장합니다. 리다이렉트 미지원 공급자(예: DeepSeek)는 Base64 또는 직접 바이트를 선택하세요",
     "imageUrlModeProxyDirect": "직접 바이트(?proxy)",
+    "imageUrlModeStorageDirect": "스토리지 직접 URL",
     "imageUrlModeUrl": "기본(URL 그대로)",
     "importInvalidFormat": "JSON 형식이 잘못되었습니다",
     "importModels": "가져오기",
