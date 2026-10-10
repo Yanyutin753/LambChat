@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from types import SimpleNamespace
 from typing import Any
@@ -505,3 +506,144 @@ async def test_screenshot_upload_receives_runtime_origin(monkeypatch):
         result["screenshot"]["url"]
         == "https://app.example/api/upload/file/cua_screenshots/u/s/a.jpg"
     )
+
+
+def test_cua_workflow_guides_agent_to_external_file_picker_process():
+    assert "portal" in cut.computer_use.description
+    assert "apps" in cut.computer_use.description
+
+
+def test_cua_workflow_distinguishes_desktop_files_from_agent_workspace():
+    assert "desktop files" in cut.computer_use.description
+    assert "virtual filesystem" in cut.computer_use.description
+
+
+def test_cua_workflow_checks_active_document_in_tabbed_office_editors():
+    assert "active document tab" in cut.computer_use.description
+    assert "pid alone" in cut.computer_use.description
+
+
+def test_cua_workflow_explains_screenshots_to_vision_enabled_models():
+    assert "vision-enabled models" in cut.computer_use.description
+    assert "base64 for the human/UI" not in cut.computer_use.description
+
+
+def test_cua_workflow_uses_exact_spreadsheet_cell_addresses():
+    assert "Name Box" in cut.computer_use.description
+    assert "cell addresses" in cut.computer_use.description
+
+
+def test_cua_workflow_discovers_office_dialog_process_before_observing():
+    assert "Office dialogs can run in a different process" in cut.computer_use.description
+    assert "active dialog's pid" in cut.computer_use.description
+
+
+def test_cua_schema_requires_explicit_app_target_for_coordinate_actions():
+    description = cut.computer_use.args_schema.model_fields["pid"].description
+    assert "Required unless name is supplied" in description
+    assert "Coordinate clicks also require pid or name" in cut.computer_use.description
+
+
+async def test_cua_parallel_calls_preserve_order_before_confirmation_lookup(monkeypatch):
+    first_lookup = asyncio.Event()
+    release_first = asyncio.Event()
+    seen = []
+    lookups = 0
+
+    async def lookup(user_id, machine_id=None):
+        nonlocal lookups
+        lookups += 1
+        if lookups == 1:
+            first_lookup.set()
+            await release_first.wait()
+        return "none"
+
+    async def dispatch(user_id, op, payload, *, machine_id=None):
+        seen.append(payload["text"])
+        return {"result": {"ok": True}}
+
+    monkeypatch.setattr(cut, "_lookup_confirm_policy", lookup)
+    monkeypatch.setattr(cut, "dispatch_local_call", dispatch)
+    first = asyncio.create_task(
+        cut.computer_use.coroutine(action="type", pid=123, text="first", runtime=_runtime())
+    )
+    await first_lookup.wait()
+    second = asyncio.create_task(
+        cut.computer_use.coroutine(action="key", pid=123, text="Return", runtime=_runtime())
+    )
+    try:
+        await asyncio.sleep(0)
+        assert seen == [], "later GUI input overtook the blocked first operation"
+    finally:
+        release_first.set()
+        await asyncio.gather(first, second)
+    assert seen == ["first", "Return"]
+
+
+async def test_cua_serialization_does_not_block_another_desktop(monkeypatch):
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def dispatch(user_id, op, payload, *, machine_id=None):
+        if machine_id == "busy-desktop":
+            started.set()
+            await release.wait()
+        return {"result": {"machine": machine_id}}
+
+    monkeypatch.setattr(cut, "dispatch_local_call", dispatch)
+    busy = asyncio.create_task(_call(action="apps", runtime=_runtime(machine="busy-desktop")))
+    await started.wait()
+    try:
+        other = await asyncio.wait_for(
+            _call(action="apps", runtime=_runtime(machine="other-desktop")), timeout=1
+        )
+        assert json.loads(other)["machine"] == "other-desktop"
+    finally:
+        release.set()
+        await busy
+
+
+async def test_cua_cancellation_releases_desktop_queue(monkeypatch):
+    started = asyncio.Event()
+
+    async def dispatch(user_id, op, payload, *, machine_id=None):
+        if op == "cua_type":
+            started.set()
+            await asyncio.Event().wait()
+        return {"result": {"ok": True}}
+
+    monkeypatch.setattr(cut, "dispatch_local_call", dispatch)
+    pending = asyncio.create_task(_call(action="type", pid=123, text="test"))
+    await started.wait()
+    pending.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await pending
+    result = await asyncio.wait_for(_call(action="apps"), timeout=1)
+    assert json.loads(result)["ok"] is True
+
+
+def test_scroll_guidance_targets_content_and_verifies_movement():
+    assert "nested scroll" in cut.computer_use.description
+    assert "0.1" in cut.computer_use.description
+    assert "verify movement" in cut.computer_use.description
+    assert "wheel notches" in cut.computer_use.args_schema.model_fields["scroll_amount"].description
+
+
+def test_nested_scroll_guidance_avoids_boundary_probe_chaining():
+    assert "scroll chaining" in cut.computer_use.description
+    assert "do not probe" in cut.computer_use.description
+    assert "parent" in cut.computer_use.description
+
+
+def test_observation_guidance_stops_when_current_evidence_meets_the_goal():
+    assert (
+        "If the current tree and screenshot demonstrate the requested outcome"
+        in cut.computer_use.description
+    )
+    assert "finish without more input or identical observations" in cut.computer_use.description
+
+
+def test_state_guidance_allows_subtree_and_avoids_reobserving_read_only_calls():
+    assert "state(index=...)" in cut.computer_use.description
+    assert "Read-only status/apps/windows/state calls" in cut.computer_use.description
+    assert "no new evidence" in cut.computer_use.description

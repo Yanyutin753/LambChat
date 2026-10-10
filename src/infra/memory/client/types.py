@@ -37,7 +37,7 @@ NATIVE_MEMORY_GUIDE = """
 
 Tools: `memory_retain` (store/update), `memory_recall` (search). `memory_delete` is deferred: load via `search_tools`. Use only these tools, never `/memories/` paths.
 
-`<memory_index>` entries are hint only, not ground truth. Recall selectively when prior context matters; project conventions/dependencies/past decisions: recall first.
+`<memory_index>`: hint only. Recall selectively; project conventions/dependencies/past decisions: recall first. User tool restrictions override memory. GUI-only tasks: use live state; do not recall or retain screen positions.
 
 | Type | Keep |
 |---|---|
@@ -46,10 +46,10 @@ Tools: `memory_retain` (store/update), `memory_recall` (search). `memory_delete`
 | `project` | goals, constraints, bugs, decisions; absolute dates |
 | `reference` | external systems, docs, URLs |
 
-**Remember:** durable preferences, project context, decisions, references, feedback; update, don't duplicate.
-**Skip:** greetings, ephemeral state, activity logs, code/git history, debugging in code.
+**Remember:** durable facts above; update, don't duplicate.
+**Skip:** greetings, ephemeral state, activity logs, code/git history, debugging.
 
-Delete inaccurate entries; honor ignore/forget. Todo/session state stays out of durable memory. Content older than 30 days may be stale — verify.
+Delete inaccuracies; honor ignore/forget. Todo/session state is not durable. Older than 30 days may be stale — verify.
 """
 
 # ENABLE_MEMORY_VFS=true 时的变体：放开 /memories/working/ 作为多轮长任务工作
@@ -60,7 +60,7 @@ NATIVE_MEMORY_GUIDE_VFS = """
 
 Tools: `memory_retain`, `memory_recall`; durable facts only there. `/memories/working/`: multi-turn task notes only, never durable facts. `memory_delete` is deferred: load via `search_tools`.
 
-`<memory_index>` entries are hint only, not ground truth. Recall selectively when prior context matters; project conventions/dependencies/past decisions: recall first.
+`<memory_index>`: hint only. Recall selectively; project conventions/dependencies/past decisions: recall first. User tool restrictions override memory. GUI-only tasks: use live state; do not recall or retain screen positions.
 
 | Type | Keep |
 |---|---|
@@ -69,8 +69,8 @@ Tools: `memory_retain`, `memory_recall`; durable facts only there. `/memories/wo
 | `project` | goals, constraints, decisions; absolute dates |
 | `reference` | external systems, docs, URLs |
 
-**Remember:** durable preferences, project context, decisions, references; update, don't duplicate.
-**Skip:** greetings, ephemeral state, activity logs, code/git history, debugging in code.
+**Remember:** durable facts above; update, don't duplicate.
+**Skip:** greetings, ephemeral state, activity logs, code/git history, debugging.
 
-Delete inaccurate entries; honor ignore/forget. Todo/session state stays out of durable memory. Content older than 30 days may be stale — verify.
+Delete inaccuracies; honor ignore/forget. Todo/session state is not durable. Older than 30 days may be stale — verify.
 """

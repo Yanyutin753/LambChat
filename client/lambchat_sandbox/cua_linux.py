@@ -26,7 +26,10 @@ def _pyatspi() -> Any:
 
 
 def _desktop() -> Any:
-    return _pyatspi().Registry.getDesktop(0)
+    desktop = _pyatspi().Registry.getDesktop(0)
+    # The daemon has no GLib event loop to refresh AT-SPI's cached descendants.
+    desktop.clear_cache()
+    return desktop
 
 
 def screenshot(bounds: list[float] | None) -> Any:
@@ -95,7 +98,7 @@ def _extents(element: Any) -> list[float] | None:
 
 def _is_window(element: Any) -> bool:
     try:
-        return element.getRoleName() in ("frame", "window", "dialog", "alert")
+        return element.getRoleName() in ("frame", "window", "dialog", "alert", "file chooser")
     except Exception:  # noqa: BLE001
         return False
 
@@ -111,10 +114,12 @@ def windows(pid: int) -> list[dict[str, Any]]:
         try:
             if int(app.get_process_id()) != pid:
                 continue
+            app.clear_cache()
         except Exception:  # noqa: BLE001
             continue
         for child_index in range(app.childCount):
             child = app.getChildAtIndex(child_index)
+            child.clear_cache()
             if not _is_window(child):
                 continue
             try:
@@ -153,7 +158,15 @@ def pick_window(pid: int, window_id: int | None) -> tuple[Any, dict[str, Any]]:
 
 def children(element: Any) -> list[Any]:
     try:
-        return [element.getChildAtIndex(i) for i in range(element.childCount)]
+        getattr(element, "clear_cache", lambda: None)()
+        # Spreadsheet providers expose millions of virtual cells below a single node.
+        candidates = [element.getChildAtIndex(i) for i in range(min(element.childCount, 400))]
+        visible = []
+        for child in candidates:
+            getattr(child, "clear_cache", lambda: None)()
+            if child.getState().contains(_pyatspi().STATE_SHOWING):
+                visible.append(child)
+        return visible
     except Exception:  # noqa: BLE001
         return []
 
@@ -170,6 +183,7 @@ def _text_value(element: Any) -> str | None:
 
 
 def row_of(element: Any) -> dict[str, Any]:
+    getattr(element, "clear_cache", lambda: None)()
     actions: list[str] = []
     try:
         action = element.queryAction()
@@ -224,20 +238,11 @@ def set_value(element: Any, text: str) -> None:
         editable = element.queryEditableText()
     except Exception as exc:  # noqa: BLE001
         raise KeyError(f"element not settable (no editable text): {exc}") from exc
-    # setTextContents → replaceText 双路径:Chromium 对 setTextContents 常返回
-    # 失败,但 EditableText.replaceText(0, charCount, text) 可用(xiaoxin 真机)
-    try:
-        if editable.setTextContents(text):
-            return
-    except Exception:  # noqa: BLE001
-        pass
-    try:
-        count = element.queryText().characterCount
-        if editable.replaceText(0, count, text):
-            return
-    except Exception as exc:  # noqa: BLE001
-        raise KeyError(f"element not settable: {exc}") from exc
-    raise KeyError("element not settable: setTextContents/replaceText both failed")
+    if not editable.setTextContents(text):
+        raise KeyError("element not settable: setTextContents failed")
+    element.clear_cache()
+    if element.queryText().getText(0, -1) != text:
+        raise KeyError("setTextContents did not change the editable text")
 
 
 def set_focus(element: Any) -> None:
@@ -274,7 +279,7 @@ def activate_window(pid: int, window_id: int | None) -> None:
         ) from exc
 
 
-# pyatspi 原生合成输入(经 AT-SPI 总线,Wayland 原生可用,无需 X11/pyautogui)。
+# AT-SPI 合成输入;Wayland 下是否可用取决于桌面,不保证全局键鼠支持。
 # 特殊键名 → X keysym(pyatspi KEY_SYM 用)
 _KEYSYMS = {
     "return": "Return",
@@ -335,16 +340,85 @@ def type_text(text: str) -> None:
                     if source.getNSelections()
                     else (source.caretOffset, source.caretOffset)
                 )
+                editable = element.queryEditableText()
                 updated = old[:start] + text + old[end:]
-                if element.queryEditableText().setTextContents(updated):
+                # AT-SPI insertion length counts UTF-8 bytes, caret offsets count characters.
+                changed = (
+                    editable.insertText(start, text, len(text.encode("utf-8")))
+                    if start == end
+                    else editable.setTextContents(updated)
+                )
+                if changed:
+                    element.clear_cache()
+                    if element.queryText().getText(0, -1) != updated:
+                        raise KeyError("typing did not change the editable text")
                     source.setCaretOffset(start + len(text))
                     return
             except Exception:  # noqa: BLE001 - terminals may lack EditableText
                 pass
-        queue.extend(children(element))
+        queue.extend(
+            child for child in children(element) if child.getState().contains(pyatspi.STATE_SHOWING)
+        )
+    import os
+
+    if (
+        os.environ.get("DISPLAY")
+        and not os.environ.get("WAYLAND_DISPLAY")
+        and os.environ.get("XDG_SESSION_TYPE") != "wayland"
+    ):
+        _type_x11_text(text)
+        return
     if any(ord(char) > 127 for char in text):
         raise KeyError("Unicode typing requires a focused editable element; use set_value")
     pyatspi.Registry.generateKeyboardEvent(0, text, pyatspi.KEY_STRING)
+
+
+def _type_x11_text(text: str) -> None:
+    """Use Unicode keysyms so Shift does not toggle the user's input method."""
+    import time
+    from contextlib import suppress
+
+    from Xlib import X, display
+    from Xlib.ext import xtest
+
+    connection = display.Display()
+    saved = []
+    try:
+        first = connection.display.info.min_keycode
+        count = connection.display.info.max_keycode - first + 1
+        mapping = connection.get_keyboard_mapping(first, count)
+        modifiers = {code for group in connection.get_modifier_mapping() for code in group}
+        free = [
+            (first + i, row)
+            for i, row in enumerate(mapping)
+            if not any(row) and first + i not in modifiers
+        ]
+        chars = list(dict.fromkeys(text))
+        # shortcut: distinct characters must fit unused keycodes; chunk longer input when needed.
+        if len(chars) > len(free):
+            raise KeyError("not enough unused X11 keycodes; type text in smaller chunks")
+        codes = {}
+        for char, (code, row) in zip(chars, free):
+            symbol = {"\n": 0xFF0D, "\r": 0xFF0D, "\t": 0xFF09}.get(char, 0x01000000 | ord(char))
+            saved.append((code, tuple(row)))
+            connection.change_keyboard_mapping(code, [(symbol, *([0] * (len(row) - 1)))])
+            codes[char] = code
+        connection.sync()
+        for char in text:
+            xtest.fake_input(connection, X.KeyPress, codes[char])
+            xtest.fake_input(connection, X.KeyRelease, codes[char])
+            connection.sync()
+            time.sleep(0.02)
+        time.sleep(0.1)  # Let the focused app consume keys before restoring the map.
+    finally:
+        try:
+            for code, row in saved:
+                with suppress(Exception):
+                    xtest.fake_input(connection, X.KeyRelease, code)
+                connection.change_keyboard_mapping(code, [row])
+            connection.sync()
+        finally:
+            connection.close()
 
 
 def press_key(key: str) -> None:
@@ -352,7 +426,9 @@ def press_key(key: str) -> None:
     pyatspi = _pyatspi()
     sym = _KEYSYMS.get(key.lower())
     if sym:
-        pyatspi.Registry.generateKeyboardEvent(0, sym, pyatspi.KEY_SYM)
+        from Xlib import XK
+
+        pyatspi.Registry.generateKeyboardEvent(XK.string_to_keysym(sym), "", pyatspi.KEY_SYM)
         return
     if len(key) == 1:
         pyatspi.Registry.generateKeyboardEvent(0, key, pyatspi.KEY_STRING)

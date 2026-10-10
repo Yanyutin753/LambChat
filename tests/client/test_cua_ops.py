@@ -111,6 +111,20 @@ def test_apps_marks_frontmost(fake_backend: _FakeBackend) -> None:
     assert by_name["Finder"]["active"] is False
 
 
+@pytest.mark.parametrize("clicks", [1, 2, 3])
+def test_native_coordinate_click_preserves_click_count(fake_backend, monkeypatch, clicks):
+    calls = []
+    monkeypatch.setattr(
+        fake_backend, "click_point", lambda *args: calls.append(args), raising=False
+    )
+    result = cua_ops.handle_cua_op(
+        "cua_click",
+        {"pid": 4242, "target": {"x": 30, "y": 40}, "click_count": clicks},
+    )
+    assert result["ok"]
+    assert calls == [(30.0, 40.0, "left")] * clicks
+
+
 def test_state_walks_tree_and_stores_indices(fake_backend: _FakeBackend) -> None:
     result = cua_ops.handle_cua_op("cua_state", {"pid": 4242})
     assert result["element_count"] == 3  # 窗口 + 按钮 + 输入框
@@ -118,6 +132,29 @@ def test_state_walks_tree_and_stores_indices(fake_backend: _FakeBackend) -> None
     assert "[1] AXButton '确定'" in result["state"]
     observed = cua_ops._OBSERVATIONS[(None, 4242, 0)]
     assert len(observed.elements) == 3
+
+
+def test_state_can_observe_a_subtree_and_replaces_its_indices(fake_backend):
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    result = cua_ops.handle_cua_op(
+        "cua_state", {"pid": 4242, "target": {"type": "element", "index": 1}}
+    )
+    assert result["element_count"] == 1
+    assert "[0] AXButton '确定'" in result["state"]
+    assert result["subtree"] is True
+    assert result["window"]["title"] == "Main"
+    cua_ops.handle_cua_op("cua_click", {"pid": 4242, "target": {"type": "element", "index": 0}})
+    assert fake_backend.performed[-1][0] is fake_backend.window.children[0]
+
+
+@pytest.mark.parametrize("index,error", [(0, "stale_state"), (999, "element_unavailable")])
+def test_subtree_observation_rejects_missing_or_invalid_prior_index(fake_backend, index, error):
+    if index:
+        cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    result = cua_ops.handle_cua_op(
+        "cua_state", {"pid": 4242, "target": {"type": "element", "index": index}}
+    )
+    assert result["error"] == error
 
 
 def test_click_element_uses_latest_observation(fake_backend: _FakeBackend) -> None:
@@ -445,6 +482,8 @@ def test_launch_resolves_bare_name_from_path(monkeypatch: pytest.MonkeyPatch) ->
     result = cua_ops.handle_cua_op("cua_launch", {"app": "firefox", "args": ["https://x"]})
     assert result["ok"] is True
     assert result["target"] == "/usr/bin/firefox"
+    assert result["launcher_pid"] == 4242
+    assert "pid" not in result
 
 
 def test_type_reads_index_from_tool_target_shape(fake_backend: _FakeBackend) -> None:
@@ -535,6 +574,17 @@ def test_background_state_keeps_tree_but_refuses_screen_region(fake_backend, mon
     result = cua_ops.handle_cua_op("cua_state", {"pid": 4242, "include_screenshot": True})
     assert "AXButton" in result["state"]
     assert result["screenshot"]["error"] == "foreground_required"
+    assert result["foreground_pid"] == 100
+
+
+def test_state_preserves_observation_when_foreground_pid_is_unavailable(fake_backend, monkeypatch):
+    def unavailable():
+        raise RuntimeError("desktop unavailable")
+
+    monkeypatch.setattr(fake_backend, "frontmost_pid", unavailable)
+    result = cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    assert "AXButton" in result["state"]
+    assert "foreground_pid" not in result
 
 
 @pytest.mark.parametrize("window_id", [None, 0])
@@ -691,3 +741,241 @@ def test_unknown_or_unfocused_window_never_captures_pixels(fake_backend, monkeyp
     result = cua_ops.handle_cua_op("cua_state", {"pid": 4242, "include_screenshot": True})
     assert result["screenshot"]["error"] == "foreground_required"
     assert "AXButton" in result["state"]
+
+
+@pytest.mark.parametrize("args", [[], ["--safe-mode", "file with spaces.xlsx"]])
+def test_launch_opens_macos_app_bundle(monkeypatch: pytest.MonkeyPatch, args: list[str]) -> None:
+    import subprocess
+    from types import SimpleNamespace
+
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        assert kwargs["check"] is True
+        assert kwargs["timeout"] == 10
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(cua_backend, "backend_platform", lambda: "darwin")
+    monkeypatch.setattr(subprocess, "run", run)
+    app = "/Applications/Numbers Creator Studio.app"
+    result = cua_ops.handle_cua_op("cua_launch", {"app": app, "args": args})
+    assert result["ok"] is True
+    assert result["target"] == app
+    assert calls == [["open", "-a", app, *(["--args", *args] if args else [])]]
+
+
+@pytest.mark.parametrize("error", ["exit", "timeout"])
+def test_launch_macos_bundle_reports_opener_failure(
+    monkeypatch: pytest.MonkeyPatch, error: str
+) -> None:
+    import subprocess
+
+    def run(argv, **kwargs):
+        if error == "exit":
+            raise subprocess.CalledProcessError(1, argv)
+        raise subprocess.TimeoutExpired(argv, 10)
+
+    monkeypatch.setattr(cua_backend, "backend_platform", lambda: "darwin")
+    monkeypatch.setattr(subprocess, "run", run)
+    result = cua_ops.handle_cua_op("cua_launch", {"app": "/missing/Office.app"})
+    assert result["error"] == "launch_failed"
+
+
+def test_state_omits_empty_layout_nodes_without_renumbering_controls():
+    rows = [
+        {"kind": "frame", "title": "Calc", "depth": 0},
+        {"kind": "filler", "depth": 1},
+        {"kind": "panel", "title": "Font Name", "actions": ["press"], "depth": 2},
+        {"kind": "panel", "depth": 2},
+        {"kind": "text", "value": "中文测试", "depth": 3},
+        {"kind": "Pane", "depth": 1},
+        {"kind": "Window", "depth": 2},
+        {"kind": "Pane", "actions": ["Invoke"], "depth": 2},
+    ]
+    state = cua_ops._render_tree(rows, {"title": "Calc", "window_id": 0}, False)
+    assert "[1] filler" not in state
+    assert "[3] panel" not in state
+    assert "[2] panel 'Font Name' actions=press" in state
+    assert "[4] text value='中文测试'" in state
+    assert "[5] Pane" not in state
+    assert "[6] Window" not in state
+    assert "[7] Pane actions=Invoke" in state
+
+
+@pytest.mark.parametrize("foreground", [True, False])
+def test_click_unactionable_cell_falls_back_only_in_foreground(
+    fake_backend, monkeypatch, foreground
+):
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    fake_backend.frontmost_pid = lambda: 4242 if foreground else 202
+
+    def unsupported(*args):
+        raise KeyError("no actions")
+
+    monkeypatch.setattr(fake_backend, "perform", unsupported)
+    clicks = []
+    fake_backend.click_point = lambda x, y, button: clicks.append((x, y, button))
+    payload = {"pid": 4242, "target": {"type": "element", "index": 1}}
+    if foreground:
+        result = cua_ops.handle_cua_op("cua_click", payload)
+        assert result["ok"] is True
+        assert clicks == [(51.0, 22.0, "left")]
+    else:
+        result = cua_ops.handle_cua_op("cua_click", payload)
+        assert result["error"] == "foreground_required"
+        assert clicks == []
+
+
+@pytest.mark.parametrize("bounds", [[0, 0, 0, 10], [0, 0, float("nan"), 10]])
+def test_element_click_center_rejects_invalid_bounds(fake_backend, monkeypatch, bounds):
+    monkeypatch.setattr(fake_backend, "row_of", lambda e: {"bounds": bounds})
+    with pytest.raises(cua_ops.CuaOpError, match="element_unavailable"):
+        cua_ops._element_center(fake_backend.window)
+
+
+def test_element_coordinate_fallback_rejects_background_window_of_same_app(
+    fake_backend, monkeypatch
+):
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242, "window_id": 0})
+    original = fake_backend.pick_window
+
+    def background(pid, window_id):
+        element, info = original(pid, window_id)
+        return element, {**info, "focused": False}
+
+    def unsupported(*args):
+        raise KeyError("no actions")
+
+    monkeypatch.setattr(fake_backend, "pick_window", background)
+    monkeypatch.setattr(fake_backend, "perform", unsupported)
+    fake_backend.click_point = lambda *args: pytest.fail("background coordinates must not click")
+    result = cua_ops.handle_cua_op(
+        "cua_click", {"pid": 4242, "window_id": 0, "target": {"type": "element", "index": 1}}
+    )
+    assert result["error"] == "foreground_required"
+
+
+def test_state_omits_unnamed_uia_invoke_groups_but_keeps_controls():
+    rows = [
+        {"depth": 0, "kind": "Group", "actions": ["Invoke"]},
+        {"depth": 1, "kind": "Button", "actions": ["Invoke"]},
+        {"depth": 1, "kind": "Group", "title": "Document", "actions": ["Invoke"]},
+        {"depth": 1, "kind": "Group", "actions": ["Expand"]},
+    ]
+    state = cua_ops._render_tree(rows, {"title": "WPS", "window_id": 0}, False)
+    assert "[0]" not in state
+    assert "[1] Button" in state
+    assert "[2] Group 'Document'" in state
+    assert "[3] Group" in state
+
+
+@pytest.mark.parametrize("direction,expected", [("down", (False, -1)), ("right", (True, 1))])
+def test_fine_scroll_uses_native_wheel_after_positioning(
+    fake_backend, monkeypatch, direction, expected
+):
+    events = []
+    mouse = type("Mouse", (), {"moveTo": lambda self, x, y: events.append(("move", x, y))})()
+    monkeypatch.setattr(cua_ops, "_pyautogui", lambda: mouse)
+    monkeypatch.setattr(
+        fake_backend, "scroll_wheel", lambda *args: events.append(args), raising=False
+    )
+    result = cua_ops.handle_cua_op(
+        "cua_scroll",
+        {
+            "pid": 4242,
+            "target": {"type": "coordinate", "x": 100, "y": 200},
+            "scroll_direction": direction,
+            "scroll_amount": 0.05,
+        },
+    )
+    assert result == {"ok": True, "clicks": 1}
+    assert events == [("move", 100.0, 200.0), expected]
+
+
+def test_scroll_without_target_positions_inside_active_window(fake_backend, monkeypatch):
+    events = []
+    mouse = type(
+        "Mouse",
+        (),
+        {
+            "moveTo": lambda self, x, y: events.append(("move", x, y)),
+            "scroll": lambda self, amount: events.append(("scroll", amount)),
+        },
+    )()
+    monkeypatch.setattr(cua_ops, "_pyautogui", lambda: mouse)
+    result = cua_ops.handle_cua_op("cua_scroll", {"pid": 4242, "scroll_direction": "down"})
+    assert result == {"ok": True, "clicks": 10}
+    assert events == [("move", 410.0, 320.0), ("scroll", -10)]
+
+
+def test_event_scroll_rejects_background_window_of_same_app(fake_backend, monkeypatch):
+    original = fake_backend.pick_window
+    monkeypatch.setattr(
+        fake_backend,
+        "pick_window",
+        lambda *args: (original(*args)[0], {**original(*args)[1], "focused": False}),
+    )
+    monkeypatch.setattr(
+        cua_ops, "_pyautogui", lambda: pytest.fail("background window must not receive wheel input")
+    )
+    result = cua_ops.handle_cua_op("cua_scroll", {"pid": 4242, "scroll_direction": "down"})
+    assert result["error"] == "foreground_required"
+
+
+def _two_windows(fake_backend, monkeypatch):
+    a = fake_backend.window
+    b = _FakeElement("AXWindow", "Other", [_FakeElement("AXButton", "B button")])
+
+    def pick(pid, window_id):
+        selected = 0 if window_id is None else window_id
+        root = a if selected == 0 else b
+        return root, {
+            "window_id": selected,
+            "title": root.title,
+            "bounds": [0, 0, 800, 600],
+            "focused": selected == 0,
+        }
+
+    monkeypatch.setattr(fake_backend, "pick_window", pick)
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242, "window_id": 0})
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242, "window_id": 1})
+    return a, b
+
+
+def test_subtree_without_window_id_uses_latest_window(fake_backend, monkeypatch):
+    _two_windows(fake_backend, monkeypatch)
+    result = cua_ops.handle_cua_op(
+        "cua_state",
+        {"pid": 4242, "target": {"type": "element", "index": 1}, "include_screenshot": True},
+    )
+    assert result["window"]["window_id"] == 1
+    assert "[0] AXButton 'B button'" in result["state"]
+    assert result["screenshot"]["error"] == "foreground_required"
+
+
+@pytest.mark.parametrize("op", ["cua_click", "cua_scroll", "cua_type"])
+def test_element_event_fallback_checks_its_observed_window(fake_backend, monkeypatch, op):
+    _two_windows(fake_backend, monkeypatch)
+
+    def unsupported(*args):
+        raise KeyError("unsupported")
+
+    monkeypatch.setattr(fake_backend, "perform", unsupported)
+    monkeypatch.setattr(fake_backend, "set_value", unsupported)
+
+    def unexpected(*args):
+        pytest.fail("must reject event input on a background observation")
+
+    monkeypatch.setattr(cua_ops, "_pyautogui", unexpected)
+    monkeypatch.setattr(cua_ops, "_type_text", unexpected)
+    result = cua_ops.handle_cua_op(
+        op,
+        {
+            "pid": 4242,
+            "target": {"type": "element", "index": 1},
+            "scroll_direction": "down",
+            "text": "X",
+        },
+    )
+    assert result["error"] == "foreground_required"
