@@ -285,6 +285,8 @@ async def computer_use(
        another observation. For truncated trees, use ``state(index=...)`` on a known
        document/container; subtree indices replace the previous ones. Omit index to
        return to the full window. Screenshots still show the verified target window.
+       If ``window.focused=false`` or screenshot error is ``foreground_required``,
+       call ``activate`` on that window before observing an image; do not retry the same background screenshot.
     4. Prefer element actions (accessibility press/value work on background apps, no
        focus stealing). Coordinates/keyboard are last resorts and need the app frontmost
        (``foreground_required`` otherwise; the event path NEVER activates apps silently —
@@ -345,6 +347,8 @@ async def computer_use(
     resolved from PATH.
 
     Hard rules:
+    - For non-editable dropdowns, expand and select the option using advertised actions,
+      then confirm with Enter and read the selected value before saving; do not use set_value.
     - NEVER use osascript/AppleScript/System Events/JXA for UI automation — an unattended
       TCC permission dialog hangs forever. This tool is the replacement.
     - For settable elements prefer set_value over typing.

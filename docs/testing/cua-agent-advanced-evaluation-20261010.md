@@ -68,3 +68,24 @@ WPS 12 行采购表：按小计降序排序并保留逐行乘法公式，追加�
 - 普通 / VFS 记忆指南都明确 GUI-only 禁用全部记忆工具，而非只禁止记录屏幕位置。两份指引仍在 960 字符预算内。之后严格 GUI 基准同时使用已有 disabled_tools 配置关闭三个记忆工具，提示约束与工具配置的效果分开报告。
 
 回归均先红后绿；客户端 / 工具 / 记忆相关测试 686 passed / 3 skipped，追加格式指南后工具测试 50 passed。全仓 Ruff 与格式检查、Mypy 564 文件通过；本次改动后的真实本地沙箱 E2E 含压力段 51/51 PASS。独立审查 Windows Toggle 的密码、未知、已有值与失效接口分支通过。格式真机校准、模型定向纠错与部署后完整 HTTP/SSE 对话验证另行记录。
+
+## 格式纠错复测与 Windows 原生类型修复
+
+失败 XLSX 的原生副本使用 Name Box 选择汇总 A1:B1，再按一次 Ctrl+B 保存，通过全部排序 / 公式 / 格式 / 冻结校验，逐格对照只有这两个表头加粗。Ctrl+B 可用，未再改键盘实现。Search Agent + glm-5.3-flash 对另一份副本采用字体对话框纠错，25 次 CUA、无其他工具调用，最终文件全部条件通过且其他单元格内容、公式、字体、金额格式与冻结不变。这是带方法提示的定向纠错，不把原完整排序题改记 PASS。
+
+staging 已使用完整聊天 HTTP/SSE、Search Agent、glm-5.3-flash、真实 Windows daemon 继续跑更难的 Edge 复核题。在此过程中发现并修复：
+
+- 测试机实际 comtypes 生成的 `IUIAutomationElement.CurrentIsPassword` ABI 为 `POINTER(c_int)`，原生 false 返回整数 0。旧代码的 `is False` 拒绝了普通字段值，也令 Toggle 状态隐藏。两条读取路径统一使用保护判断，只允许精确 bool / int 类型的 false / 0；密码 true / 1、-1、未知、字符串和浮点 0 均不读取。四条新整数零用例先失败，再修复；保护分支测试继续要求完全不触碰值接口。
+- 原生滚轮给共享 `ctypes.windll.user32.mouse_event` 设置无符号参数类型；测试机 PyAutoGUI 的 `_sendMouseEvent` 随后传 `c_long` 坐标，出现 `ArgumentError`。改用独立 WinDLL 函数绑定，不修改 PyAutoGUI 缓存签名。先失败的回归验证共享 argtypes / restype 不变；原来的方向、120 delta 与大步范围测试保留。
+- Edge 新窗口未取得焦点时，模型重复了两次失败截图和一次容器观察，随后显式 activate 恢复。工具指南明确窗口 focused=false / screenshot.foreground_required 时先激活对应窗口，不重复同一后台截图。未自动抢焦点，也未放宽截图权限。
+
+最新相关测试 702 passed / 3 skipped；全仓 Ruff / 格式与 Mypy 564 文件通过；修改后的全量本地沙箱 E2E 含压力段 51/51 PASS。独立审查的 Windows / 工具套件 110 passed，无阻塞项。当前单测和 E2E 结果不替代这两处原生类型修复的真机校准或冷启动模型复测。33 个本地评估账号的用户、PAT、会话、私有文件记录与测试记忆均已审计为 0；部署测试账号另行清理。
+
+
+## staging Edge 完整复核题首轮失败
+
+使用 develop-20261010-103108，通过正式 HTTP/SSE 入口运行 Search Agent + glm-5.3-flash + Windows daemon。47 次 CUA，包含 21 次 state；设备 27 筛选、横向滚动批准、页底核验和模态输入完成，但对非编辑型优先级下拉框使用 set_value 后值变为空字符串，两次保存均被页面校验拒绝。已取消该评估，记 FAIL，不将 transport 成功或模型回复作为完成证据。原始事件与页面操作记录保留。
+
+工具指南补充：非编辑型下拉框按其已提供动作展开并选择，以 Enter 确认，读取当前选中值后再保存；不对这类控件使用 set_value。指引测试先失败再通过，工具套件 52 passed。没有新增工具、自动输入或绕过页面验证。
+
+测试页面的并发事件日志曾出现非原子写入与到达顺序竞态，已在仓库外评估夹具用序号与原子替换修复，并行自检通过；这属于夹具问题。页底滚动判据改为确实滚动到可见提交按钮，保留真实滚动调用与页面记录要求，不要求超过该缩放比例下页面可达最大位置。两次保存失败的事实不受这些夹具修复影响。
