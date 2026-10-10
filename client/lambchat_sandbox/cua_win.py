@@ -18,9 +18,18 @@ def _desktop_windows() -> list[Any]:
     try:
         from pywinauto import Desktop
 
-        return list(Desktop(backend="uia").windows())
+        desktop = Desktop(backend="uia")
+        windows = list(desktop.windows())
     except Exception:  # noqa: BLE001 - UIA 不可用
         return []
+    try:
+        foreground = _foreground_hwnd()
+        if foreground and all(_window_hwnd(window) != foreground for window in windows):
+            # Owned Qt dialogs may be nested under their app in the UIA desktop tree.
+            windows.append(desktop.window(handle=foreground).wrapper_object())
+    except Exception:  # noqa: BLE001 - A denied active window must not hide discovered windows.
+        pass
+    return windows
 
 
 def ax_trusted() -> bool:
@@ -103,6 +112,17 @@ def _window_pid(element: Any) -> int | None:
     return None
 
 
+def _window_hwnd(element: Any) -> int | None:
+    for getter in (lambda: element.handle, lambda: element.element_info.handle):
+        try:
+            handle = getter()
+            if handle:
+                return int(handle)
+        except Exception:  # noqa: BLE001 - A stale wrapper may still expose its native info.
+            continue
+    return None
+
+
 def windows(pid: int) -> list[dict[str, Any]]:
     # 全量枚举后按 wrapper.process_id() 过滤:Desktop.windows(process=) 的
     # kwarg 过滤与 Application.connect(process=).windows() 在真机上均枚举
@@ -122,11 +142,7 @@ def windows(pid: int) -> list[dict[str, Any]]:
             bounds = [float(rect.left), float(rect.top), float(rect.width()), float(rect.height())]
         except Exception:  # noqa: BLE001
             bounds = None
-        try:
-            hwnd = getattr(element, "handle", None) or getattr(element.element_info, "handle", None)
-            focused = foreground is not None and hwnd == foreground
-        except Exception:  # noqa: BLE001 - UIA native handle may be unavailable.
-            focused = False
+        focused = foreground is not None and _window_hwnd(element) == foreground
         rows.append(
             {
                 "window_id": len(rows),
@@ -159,12 +175,22 @@ def pick_window(pid: int, window_id: int | None) -> tuple[Any, dict[str, Any]]:
 
 def children(element: Any) -> list[Any]:
     try:
-        return list(element.children())
+        candidates = element.children()
     except Exception:  # noqa: BLE001
         return []
+    visible = []
+    for child in candidates:
+        try:
+            if child.is_visible():
+                visible.append(child)
+        except Exception:  # noqa: BLE001 - One stale provider must not hide visible siblings.
+            continue
+    return visible
 
 
 def row_of(element: Any) -> dict[str, Any]:
+    from pywinauto.uia_defines import NoPatternInterfaceError
+
     try:
         info = element.element_info
         kind = getattr(info, "control_type", None) or ""
@@ -173,14 +199,17 @@ def row_of(element: Any) -> dict[str, Any]:
         kind, title = "", ""
     value = _read_value(element)
     actions: list[str] = []
-    for name, method in (
-        ("Invoke", "invoke"),
-        ("Select", "select"),
-        ("Expand", "expand"),
-        ("Toggle", "toggle"),
+    for name, pattern in (
+        ("Invoke", "iface_invoke"),
+        ("Select", "iface_selection_item"),
+        ("Expand", "iface_expand_collapse"),
+        ("Toggle", "iface_toggle"),
     ):
-        if hasattr(element, method):
-            actions.append(name)
+        try:
+            if getattr(element, pattern, None) is not None:
+                actions.append(name)
+        except NoPatternInterfaceError:
+            pass
     bounds = None
     try:
         rect = element.element_info.rectangle
@@ -213,15 +242,23 @@ _PERFORM_MAPPING = {
 
 
 def perform(element: Any, action: str) -> None:
+    from pywinauto.uia_defines import NoPatternInterfaceError
+
     normalized = action.removeprefix("AX").lower()
     method = _PERFORM_MAPPING.get(normalized)
     if method and hasattr(element, method):
-        getattr(element, method)()
-        return
+        try:
+            getattr(element, method)()
+            return
+        except NoPatternInterfaceError:
+            pass
     # LegacyIAccessible.DoDefaultAction 兜底:接口属性名随 pywinauto 版本
     # 有 iface_legacy / iface_legacy_IAccessible 两种拼写,逐一探测。
     for legacy_name in ("iface_legacy", "iface_legacy_IAccessible"):
-        legacy = getattr(element, legacy_name, None)
+        try:
+            legacy = getattr(element, legacy_name, None)
+        except NoPatternInterfaceError:
+            continue
         do_default = getattr(legacy, "DoDefaultAction", None)
         if callable(do_default):
             do_default()
@@ -258,9 +295,11 @@ def type_text(text: str) -> None:
     from pywinauto.keyboard import send_keys
 
     # VK_PACKET carries 16-bit UTF-16 units; send_keys also interprets punctuation.
-    encoded = text.encode("utf-16-le")
+    encoded = text.replace("\r\n", "\n").replace("\r", "\n").encode("utf-16-le")
     units = (chr(int.from_bytes(encoded[i : i + 2], "little")) for i in range(0, len(encoded), 2))
     literal = "".join("{" + char + "}" if char in "{}+^%~()" else char for char in units)
+    # Office cells recreate their editor after Enter/Tab; wait before the next character.
+    literal = literal.replace("\n", "{ENTER}{PAUSE 0.15}").replace("\t", "{TAB}{PAUSE 0.15}")
     send_keys(literal, with_spaces=True, with_tabs=True, with_newlines=True, pause=0.01)
 
 
@@ -282,6 +321,52 @@ def _read_value(element: Any) -> str | None:
         return str(element.iface_value.CurrentValue) or None
     except Exception:  # noqa: BLE001
         return None
+
+
+def press_chord(keys: list[str], modifiers: list[str]) -> None:
+    from pywinauto.keyboard import CODES, VirtualKeyAction, parse_keys
+
+    aliases = {"pageup": "PGUP", "pagedown": "PGDN"}
+    sequence = ""
+    for key in keys:
+        if len(key) == 1:
+            sequence += "{" + key + "}" if key in "{}+^%~()" else key
+        else:
+            name = aliases.get(key, key.upper())
+            if name not in CODES:
+                raise KeyError(f"unsupported key: {key}")
+            sequence += "{" + name + "}"
+    actions = parse_keys(sequence, vk_packet=False)
+    modifier_codes = {
+        "ctrl": "VK_CONTROL",
+        "shift": "VK_SHIFT",
+        "alt": "VK_MENU",
+        "winleft": "VK_LWIN",
+    }
+    codes = [CODES[modifier_codes[modifier]] for modifier in modifiers]
+    held = []
+    try:
+        for code in codes:
+            held.append(code)
+            VirtualKeyAction(code, up=False).run()
+        for action in actions:
+            action.run()  # VirtualKeyAction includes the extended flag for navigation keys.
+    finally:
+        for code in reversed(held):
+            VirtualKeyAction(code, down=False).run()
+
+
+def scroll_wheel(horizontal: bool, clicks: int) -> None:
+    import ctypes
+
+    mouse_event = ctypes.windll.user32.mouse_event
+    mouse_event.argtypes = (ctypes.c_uint32,) * 4 + (ctypes.c_size_t,)
+    mouse_event.restype = None
+    # PyAutoGUI's Windows hscroll uses the vertical flag and its wheel omits WHEEL_DELTA.
+    while clicks:
+        step = max(-100, min(clicks, 100))  # WM_MOUSEWHEEL carries a signed 16-bit delta.
+        mouse_event(0x1000 if horizontal else 0x0800, 0, 0, ctypes.c_uint32(step * 120).value, 0)
+        clicks -= step
 
 
 def set_value(element: Any, text: str) -> None:
