@@ -7,6 +7,8 @@ mod commands;
 mod linux_update;
 mod release_signature;
 mod tray;
+#[cfg(windows)]
+mod windows_acl;
 #[cfg(target_os = "macos")]
 mod titlebar;
 
