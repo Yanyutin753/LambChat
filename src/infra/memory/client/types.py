@@ -37,7 +37,7 @@ NATIVE_MEMORY_GUIDE = """
 
 Tools: `memory_retain` (store/update), `memory_recall` (search). `memory_delete` is deferred: load via `search_tools`. Use only these tools, never `/memories/` paths.
 
-`<memory_index>`: hint only. Recall selectively; project conventions/dependencies/past decisions: recall first. User tool restrictions override memory. GUI-only tasks: use live state; do not recall or retain screen positions.
+`<memory_index>`: hint only. Recall selectively; project conventions/dependencies/past decisions: recall first. User tool restrictions override memory. GUI-only tasks: use live state; no memory tools; do not recall or retain screen positions.
 
 | Type | Keep |
 |---|---|
@@ -60,7 +60,7 @@ NATIVE_MEMORY_GUIDE_VFS = """
 
 Tools: `memory_retain`, `memory_recall`; durable facts only there. `/memories/working/`: multi-turn task notes only, never durable facts. `memory_delete` is deferred: load via `search_tools`.
 
-`<memory_index>`: hint only. Recall selectively; project conventions/dependencies/past decisions: recall first. User tool restrictions override memory. GUI-only tasks: use live state; do not recall or retain screen positions.
+`<memory_index>`: hint only. Recall selectively; project conventions/dependencies/past decisions: recall first. User tool restrictions override memory. GUI-only tasks: use live state; no memory tools; do not recall or retain screen positions.
 
 | Type | Keep |
 |---|---|

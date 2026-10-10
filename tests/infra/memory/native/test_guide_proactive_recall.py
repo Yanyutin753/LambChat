@@ -16,3 +16,8 @@ def test_guides_respect_gui_only_scope_and_skip_transient_screen_memory() -> Non
         assert "User tool restrictions override memory" in guide
         assert "GUI-only tasks: use live state" in guide
         assert "do not recall or retain screen positions" in guide
+
+
+def test_guides_disallow_workflow_memory_during_gui_only_tasks() -> None:
+    for guide in (NATIVE_MEMORY_GUIDE, NATIVE_MEMORY_GUIDE_VFS):
+        assert "GUI-only tasks: use live state; no memory tools" in guide
