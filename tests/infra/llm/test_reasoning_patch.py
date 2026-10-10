@@ -51,3 +51,13 @@ def test_reasoning_content_is_not_sent_to_non_deepseek_models() -> None:
     payload = openai_base._convert_message_to_dict(message)
 
     assert "reasoning_content" not in payload
+
+
+def test_non_streaming_reasoning_is_preserved_for_history():
+    import langchain_openai.chat_models.base as openai_base
+
+    apply_reasoning_patches()
+    message = openai_base._convert_dict_to_message(
+        {"role": "assistant", "content": "2", "reasoning_content": "actual reasoning"}
+    )
+    assert message.additional_kwargs["reasoning_content"] == "actual reasoning"

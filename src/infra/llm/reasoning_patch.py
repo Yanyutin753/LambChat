@@ -13,6 +13,10 @@ These patches bridge the gap by:
 """
 
 
+def is_deepseek_thinking_model(name: str) -> bool:
+    return name.lower().startswith(("deepseek-flash", "deepseek-v4"))
+
+
 def _is_deepseek_message(message) -> bool:
     response_metadata = getattr(message, "response_metadata", {})
     if not isinstance(response_metadata, dict):
@@ -40,12 +44,19 @@ def apply_reasoning_patches() -> None:
 
     _orig_convert_delta = _base._convert_delta_to_message_chunk
     _orig_convert_msg = _base._convert_message_to_dict
+    _orig_convert_dict = _base._convert_dict_to_message
 
     def _patched_convert_delta(_dict, default_class):
         result = _orig_convert_delta(_dict, default_class)
         rc = _dict.get("reasoning_content") if isinstance(_dict, dict) else None
         if rc:
             result.additional_kwargs["reasoning_content"] = rc
+        return result
+
+    def _patched_convert_dict(data):
+        result = _orig_convert_dict(data)
+        if data.get("role") == "assistant" and data.get("reasoning_content"):
+            result.additional_kwargs["reasoning_content"] = data["reasoning_content"]
         return result
 
     def _patched_convert_msg(message, api="chat/completions"):
@@ -60,4 +71,5 @@ def apply_reasoning_patches() -> None:
 
     _base._convert_delta_to_message_chunk = _patched_convert_delta
     _base._convert_message_to_dict = _patched_convert_msg
+    _base._convert_dict_to_message = _patched_convert_dict
     setattr(_base, "_lambchat_reasoning_patch_applied", True)  # type: ignore[attr-defined]
