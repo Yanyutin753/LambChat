@@ -146,6 +146,7 @@
     "imageUrlModeBase64": "Base64 に変換",
     "imageUrlModeHint": "セッションは短いリンクを保持。リダイレクト非対応のプロバイダー(例: DeepSeek)は Base64 か直接バイトを選択",
     "imageUrlModeProxyDirect": "直接バイト出力(?proxy)",
+    "imageUrlModeStorageDirect": "ストレージ直リンク",
     "imageUrlModeUrl": "デフォルト(URLをそのまま)",
     "importInvalidFormat": "JSON形式が無効です",
     "importModels": "インポート",

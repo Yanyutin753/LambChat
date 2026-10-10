@@ -13,6 +13,33 @@ These patches bridge the gap by:
 """
 
 
+def is_deepseek_thinking_model(name: str) -> bool:
+    return name.lower().startswith(("deepseek-flash", "deepseek-v4"))
+
+
+def reasoning_text_from_message(message) -> str:
+    if text := message.additional_kwargs.get("reasoning_content"):
+        return text
+    if not isinstance(message.content, list):
+        return ""
+    parts = []
+    for block in message.content:
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") == "thinking":
+            parts.append(block.get("thinking", ""))
+        elif block.get("type") == "reasoning":
+            parts.append(
+                block.get("reasoning")
+                or "".join(
+                    part.get("text", "")
+                    for part in block.get("content", [])
+                    if isinstance(part, dict) and part.get("type") == "reasoning_text"
+                )
+            )
+    return "".join(parts)
+
+
 def _is_deepseek_message(message) -> bool:
     response_metadata = getattr(message, "response_metadata", {})
     if not isinstance(response_metadata, dict):
@@ -40,12 +67,21 @@ def apply_reasoning_patches() -> None:
 
     _orig_convert_delta = _base._convert_delta_to_message_chunk
     _orig_convert_msg = _base._convert_message_to_dict
+    _orig_convert_dict = _base._convert_dict_to_message
+    _orig_responses_chunk = _base._convert_responses_chunk_to_generation_chunk
+    _orig_responses_result = _base._construct_lc_result_from_responses_api
 
     def _patched_convert_delta(_dict, default_class):
         result = _orig_convert_delta(_dict, default_class)
         rc = _dict.get("reasoning_content") if isinstance(_dict, dict) else None
         if rc:
             result.additional_kwargs["reasoning_content"] = rc
+        return result
+
+    def _patched_convert_dict(data):
+        result = _orig_convert_dict(data)
+        if data.get("role") == "assistant" and data.get("reasoning_content"):
+            result.additional_kwargs["reasoning_content"] = data["reasoning_content"]
         return result
 
     def _patched_convert_msg(message, api="chat/completions"):
@@ -58,6 +94,44 @@ def apply_reasoning_patches() -> None:
                 result["reasoning_content"] = rc
         return result
 
+    def _patched_responses_chunk(chunk, *args, **kwargs):
+        if chunk.type != "response.reasoning_text.delta":
+            return _orig_responses_chunk(chunk, *args, **kwargs)
+        from types import SimpleNamespace
+
+        converted = SimpleNamespace(
+            type="response.reasoning_summary_text.delta",
+            output_index=chunk.output_index,
+            summary_index=chunk.content_index,
+            delta=chunk.delta,
+        )
+        result = _orig_responses_chunk(converted, *args, **kwargs)
+        if result[3] is not None:
+            for block in result[3].message.content:
+                if isinstance(block, dict):
+                    block.pop("summary", None)
+                    block["reasoning"] = chunk.delta
+        return result
+
+    def _patched_responses_result(response, *args, **kwargs):
+        result = _orig_responses_result(response, *args, **kwargs)
+        for generation in result.generations:
+            message = generation.message
+            if isinstance(message.content, list):
+                for block in message.content:
+                    if isinstance(block, dict) and block.get("type") == "reasoning":
+                        text = "".join(
+                            part.get("text", "")
+                            for part in block.get("content", [])
+                            if isinstance(part, dict) and part.get("type") == "reasoning_text"
+                        )
+                        if text:
+                            block["reasoning"] = text
+        return result
+
+    _base._convert_responses_chunk_to_generation_chunk = _patched_responses_chunk
+    _base._construct_lc_result_from_responses_api = _patched_responses_result
     _base._convert_delta_to_message_chunk = _patched_convert_delta
     _base._convert_message_to_dict = _patched_convert_msg
+    _base._convert_dict_to_message = _patched_convert_dict
     setattr(_base, "_lambchat_reasoning_patch_applied", True)  # type: ignore[attr-defined]

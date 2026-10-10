@@ -230,3 +230,89 @@ async def test_proxy_direct_middleware_keeps_reference_when_nothing_changed():
     await middleware.awrap_model_call(Request([message]), handler)
 
     assert seen["request"].messages is message or seen["request"].messages == [message]
+
+
+async def test_storage_direct_resolves_only_own_urls_without_mutating_history(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from src.infra.agent.middleware.image_url import image_url_middleware_for_mode
+    from src.infra.storage.s3 import service
+    from src.kernel.config import settings
+
+    monkeypatch.setattr(settings, "APP_BASE_URL", "https://lambchat.com")
+    storage = SimpleNamespace(
+        is_local=False,
+        get_presigned_url=AsyncMock(return_value="https://storage.example/a.png?signed=fresh"),
+    )
+    monkeypatch.setattr(service, "get_or_init_storage", AsyncMock(return_value=storage))
+
+    class Request:
+        def __init__(self, messages):
+            self.messages = messages
+
+        def override(self, **kwargs):
+            return Request(kwargs.get("messages", self.messages))
+
+    async def handler(request):
+        return request
+
+    own = "https://lambchat.com/api/upload/file/image/u1/a.png?proxy=true"
+    foreign = "https://other.example/api/upload/file/image/u1/a.png"
+    message = HumanMessage(
+        content=[
+            {"type": "image_url", "image_url": {"url": own}},
+            {"type": "image", "source": {"type": "url", "url": own}},
+            {"type": "image_url", "image_url": {"url": foreign}},
+        ]
+    )
+    middleware = image_url_middleware_for_mode("storage_direct")
+    assert middleware is not None
+    result = await middleware.awrap_model_call(Request([message]), handler)
+    assert (
+        result.messages[0].content[0]["image_url"]["url"]
+        == "https://storage.example/a.png?signed=fresh"
+    )
+    assert (
+        result.messages[0].content[1]["source"]["url"]
+        == "https://storage.example/a.png?signed=fresh"
+    )
+    assert result.messages[0].content[2]["image_url"]["url"] == foreign
+    assert message.content[0]["image_url"]["url"] == own
+    storage.get_presigned_url.assert_awaited_once_with("image/u1/a.png", 3600)
+
+
+async def test_storage_direct_does_not_sign_private_capture_urls(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from src.infra.agent.middleware.image_url import image_url_middleware_for_mode
+    from src.infra.storage.s3 import service
+    from src.kernel.config import settings
+
+    monkeypatch.setattr(settings, "APP_BASE_URL", "https://lambchat.com")
+    storage = SimpleNamespace(is_local=False, get_presigned_url=AsyncMock())
+    monkeypatch.setattr(service, "get_or_init_storage", AsyncMock(return_value=storage))
+    request = SimpleNamespace(
+        messages=[
+            HumanMessage(
+                content=[
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": "https://lambchat.com/api/upload/file/cua_screenshots/another-user/private.png"
+                        },
+                    }
+                ]
+            )
+        ]
+    )
+
+    async def handler(request):
+        return request
+
+    assert (
+        await image_url_middleware_for_mode("storage_direct").awrap_model_call(request, handler)
+        is request
+    )
+    storage.get_presigned_url.assert_not_awaited()

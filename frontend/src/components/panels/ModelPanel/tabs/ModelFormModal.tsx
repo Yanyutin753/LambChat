@@ -717,6 +717,10 @@ export const ModelFormModal = ({
                     label: t("agentConfig.imageUrlModeBase64"),
                   },
                   {
+                    value: "storage_direct",
+                    label: t("agentConfig.imageUrlModeStorageDirect"),
+                  },
+                  {
                     value: "proxy_direct",
                     label: t("agentConfig.imageUrlModeProxyDirect"),
                   },

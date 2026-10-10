@@ -13,8 +13,9 @@ ApiFormat = Literal["chat_completions", "responses"]
 # How image URLs are handed to the model:
 # - "url": pass through as-is (provider fetches the redirecting proxy URL)
 # - "base64": rewrite to base64 data URLs in-flight (state keeps compact URLs)
+# - "storage_direct": resolve to a fresh presigned storage URL in-flight
 # - "proxy_direct": append ?proxy=true so the app streams bytes (no redirect)
-ImageUrlMode = Literal["url", "base64", "proxy_direct"]
+ImageUrlMode = Literal["url", "base64", "proxy_direct", "storage_direct"]
 
 
 class ModelProfile(BaseModel):
@@ -29,7 +30,7 @@ class ModelProfile(BaseModel):
     )
     image_url_mode: Optional[ImageUrlMode] = Field(
         None,
-        description="How image URLs are handed to the model (url | base64 | proxy_direct)",
+        description="How image URLs are handed to the model (url | base64 | proxy_direct | storage_direct)",
     )
     image_url_to_base64: Optional[bool] = Field(
         False,

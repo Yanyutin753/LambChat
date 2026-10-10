@@ -356,6 +356,15 @@ async def image_analyze(
                 ({**att, "url": _append_proxy_direct_param(att["url"])} if att.get("url") else att)
                 for att in attachments
             ]
+        if image_url_mode == "storage_direct":
+            from src.infra.agent.middleware.image_url import _resolve_storage_image_url
+
+            attachments = [
+                {**att, "url": await _resolve_storage_image_url(att["url"])}
+                if att.get("url")
+                else att
+                for att in attachments
+            ]
         try:
             await run_long_blocking_io(_validate_attachment_data_urls, attachments)
         except ValueError:
