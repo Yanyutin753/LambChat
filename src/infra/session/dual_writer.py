@@ -148,6 +148,7 @@ class DualEventWriter:
         # MongoDB 批量写入缓冲
         # (trace_id, event_type, data, session_id, run_id, timestamp)
         self._mongo_buffer: list[MongoBufferItem] = []
+        self._mongo_flush_lock = asyncio.Lock()
         self._mongo_lock = asyncio.Lock()  # 只保护 buffer 和 flush 操作
         self._flush_event = asyncio.Event()  # 使用 Event 替代轮询标志
         self._flush_event.set()  # 初始状态为已就绪
@@ -343,6 +344,11 @@ class DualEventWriter:
         return True
 
     async def _do_flush(self) -> None:
+        # Include drained in-flight batches in the terminal-stream durability barrier.
+        async with self._mongo_flush_lock:
+            await self._do_flush_locked()
+
+    async def _do_flush_locked(self) -> None:
         """实际执行批量写入，使用 bulk_write 优化"""
         async with self._mongo_lock:
             if not self._mongo_buffer:
