@@ -102,3 +102,56 @@ def test_responses_nonstreaming_plain_reasoning_is_preserved():
     )
     message = base._construct_lc_result_from_responses_api(response).generations[0].message
     assert message.content[0]["reasoning"] == "actual thought"
+
+
+# ── GLM 思考系回传（生产 2026-10-10）────────────────────────────────────────
+# GLM-4.5+/GLM-5 系在 OpenAI 协议线格式（含任意中转）开思考模式后，历史
+# assistant 消息必须回传 reasoning_content，第二轮起 400：
+# "The `reasoning_text` in the thinking mode must be passed back to the API"。
+# 与 DeepSeek 不同，普通轮（无工具续轮）同样要求回传。
+
+
+def test_reasoning_content_is_sent_back_for_zhipu_thinking_plain_turn() -> None:
+    import langchain_openai.chat_models.base as openai_base
+
+    apply_reasoning_patches()
+    message = AIMessage(
+        content="final answer",
+        additional_kwargs={"reasoning_content": "thinking"},
+        response_metadata={"model_name": "glm-5.3-flash"},
+    )
+
+    payload = openai_base._convert_message_to_dict(message)
+
+    assert payload["reasoning_content"] == "thinking"
+
+
+def test_reasoning_content_is_sent_back_for_zhipu_thinking_tool_turn() -> None:
+    import langchain_openai.chat_models.base as openai_base
+
+    apply_reasoning_patches()
+    message = AIMessage(
+        content="",
+        additional_kwargs={"reasoning_content": "thinking"},
+        response_metadata={"model_name": "glm-4.6"},
+        tool_calls=[tool_call(name="search", args={}, id="call-1")],
+    )
+
+    payload = openai_base._convert_message_to_dict(message)
+
+    assert payload["reasoning_content"] == "thinking"
+
+
+def test_reasoning_content_not_sent_for_legacy_non_thinking_glm() -> None:
+    import langchain_openai.chat_models.base as openai_base
+
+    apply_reasoning_patches()
+    message = AIMessage(
+        content="hi",
+        additional_kwargs={"reasoning_content": "thinking"},
+        response_metadata={"model_name": "glm-4-plus"},
+    )
+
+    payload = openai_base._convert_message_to_dict(message)
+
+    assert "reasoning_content" not in payload

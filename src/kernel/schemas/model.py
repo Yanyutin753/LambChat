@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # Wire format for OpenAI-protocol providers: classic /chat/completions or the
 # newer /responses endpoint. Per-model override; falls back to the
@@ -103,6 +103,19 @@ class ModelConfig(BaseModel):
     order: int = Field(0, description="Display order")
     created_at: Optional[datetime] = Field(None, description="Creation timestamp")
     updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
+
+    @field_validator("provider", mode="after")
+    @classmethod
+    def _normalize_provider_slug(cls, value: Optional[str]) -> Optional[str]:
+        """入库前归一 provider slug（去空白 + 小写）。
+
+        注册表按小写 slug 查协议；大小写变体（如 "ZAI"）查表 miss 会静默
+        兜底到 openai 线格式，思考模型回传历史缺 reasoning 直接 400
+        （生产 2026-10-10）。
+        """
+        if value is None:
+            return value
+        return value.strip().lower() or None
 
 
 class ModelConfigCreate(BaseModel):

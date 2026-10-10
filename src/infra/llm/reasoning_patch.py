@@ -7,10 +7,17 @@ These patches bridge the gap by:
 1. **Inbound** — copying ``reasoning_content`` from the raw delta dict into
    ``AIMessageChunk.additional_kwargs`` so that ``langchain_core`` can surface
    it via ``content_blocks``.
-2. **Outbound** — only re-sending ``reasoning_content`` when continuing a
-   DeepSeek tool-call turn, which matches the provider contract without leaking
-   the field into ordinary assistant turns or other OpenAI-compatible backends.
+2. **Outbound** — re-sending ``reasoning_content`` in assistant history:
+   - GLM-4.5+/GLM-5 thinking models on every turn: their thinking mode
+     rejects the next request with 400 "The `reasoning_text` in the thinking
+     mode must be passed back to the API" once history carries an assistant
+     message without it (production 2026-10-10).
+   - DeepSeek only when continuing a tool-call turn, matching that
+     provider's documented contract, so the field does not leak into
+     ordinary assistant turns or other OpenAI-compatible backends.
 """
+
+from src.infra.llm.providers import is_zhipu_thinking_model
 
 
 def is_deepseek_thinking_model(name: str) -> bool:
@@ -59,6 +66,21 @@ def _has_tool_continuation(message) -> bool:
     return bool(additional_kwargs.get("tool_calls") or additional_kwargs.get("function_call"))
 
 
+def _model_name_of(message) -> str:
+    response_metadata = getattr(message, "response_metadata", {})
+    if not isinstance(response_metadata, dict):
+        return ""
+    return str(response_metadata.get("model_name") or response_metadata.get("model") or "").lower()
+
+
+def _should_replay_reasoning_content(message) -> bool:
+    if is_zhipu_thinking_model(_model_name_of(message)):
+        # GLM 思考系（glm-4.5+/glm-5）思考模式下历史 assistant 消息必须
+        # 回传 reasoning_content，普通轮即触发，与工具续轮无关。
+        return True
+    return _is_deepseek_message(message) and _has_tool_continuation(message)
+
+
 def apply_reasoning_patches() -> None:
     import langchain_openai.chat_models.base as _base
 
@@ -90,7 +112,7 @@ def apply_reasoning_patches() -> None:
         result = _orig_convert_msg(message, api=api)
         if isinstance(message, AIMessage):
             rc = message.additional_kwargs.get("reasoning_content")
-            if rc and _is_deepseek_message(message) and _has_tool_continuation(message):
+            if rc and _should_replay_reasoning_content(message):
                 result["reasoning_content"] = rc
         return result
 
