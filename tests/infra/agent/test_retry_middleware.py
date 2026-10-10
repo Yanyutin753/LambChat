@@ -10,11 +10,12 @@ from src.infra.agent.middleware.retry import (
 
 
 class _Request:
-    def __init__(self, model) -> None:
+    def __init__(self, model, messages=None) -> None:
         self.model = model
+        self.messages = messages or []
 
     def override(self, **kwargs):
-        return _Request(kwargs.get("model", self.model))
+        return _Request(kwargs.get("model", self.model), kwargs.get("messages", self.messages))
 
 
 async def test_fallback_runs_when_primary_raises_non_retryable_error() -> None:

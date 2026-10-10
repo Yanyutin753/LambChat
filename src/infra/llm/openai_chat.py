@@ -76,6 +76,24 @@ class LambChatOpenAIChatModel(ChatOpenAI):
         # 严格校验的端点会整体 400（生产 2026-09-17：input[13].status），
         # 在统一出口剥离后再注入其余字段。
         strip_readonly_responses_input_fields(payload)
+        from src.infra.llm.reasoning_patch import is_deepseek_thinking_model
+
+        messages = self._convert_input(input_).to_messages()
+        for source, message in zip(messages, payload.get("messages", [])):
+            if message.get("role") != "assistant":
+                continue
+            if is_deepseek_thinking_model(self.model_name):
+                # Missing cross-model reasoning is valid as an empty field.
+                reasoning = source.additional_kwargs.get("reasoning_content", "")
+                if not reasoning and isinstance(source.content, list):
+                    reasoning = "".join(
+                        b.get("thinking", "")
+                        for b in source.content
+                        if isinstance(b, dict) and b.get("type") == "thinking"
+                    )
+                message["reasoning_content"] = reasoning
+            elif not self.model_name.lower().startswith("deepseek"):
+                message.pop("reasoning_content", None)
         # Codex 同款 KV 缓存路由：会话级 prompt_cache_key 让同前缀请求持续
         # 落在同一缓存机器。/v1/responses 与 /v1/chat/completions 两种线
         # 格式都注入（SDK 3.6.0 起后者同样支持该字段，替代 user 做缓存

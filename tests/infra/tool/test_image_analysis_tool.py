@@ -451,3 +451,46 @@ def test_internal_registry_includes_image_analysis_when_enabled(monkeypatch):
     names = {tool.name for tool in internal_registry.build_internal_tools()}
 
     assert "image_analyze" in names
+
+
+@pytest.mark.asyncio
+async def test_image_analyze_uses_storage_direct_urls(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.infra.agent.middleware import image_url
+    from src.infra.tool import image_analysis_tool
+
+    model = ModelConfig(
+        id="vision-id",
+        value="deepseek-flash",
+        label="Vision",
+        profile=ModelProfile(supports_vision=True, image_url_mode="storage_direct"),
+    )
+    original = "https://app.example.com/api/upload/file/image/user/a.png"
+    signed = "https://storage.example.com/a.png?signed=fresh"
+    resolver = AsyncMock(return_value=signed)
+    captured = {}
+
+    class FakeLLM:
+        async def ainvoke(self, messages, config=None):
+            captured["messages"] = messages
+            return SimpleNamespace(content="A lamb")
+
+    monkeypatch.setattr(image_analysis_tool.settings, "IMAGE_ANALYSIS_MODEL_ID", "vision-id")
+    monkeypatch.setattr(
+        "src.infra.agent.model_storage.get_model_storage", lambda: _FakeStorage(model)
+    )
+    monkeypatch.setattr(
+        image_analysis_tool.LLMClient, "get_model", AsyncMock(return_value=FakeLLM())
+    )
+    monkeypatch.setattr(image_url, "_resolve_storage_image_url", resolver)
+    result = json.loads(
+        await image_analysis_tool.image_analyze.coroutine(
+            image_urls=[original],
+            prompt="Describe",
+            runtime=_Runtime(),
+        )
+    )
+    assert result["success"] is True
+    resolver.assert_awaited_once_with(original)
+    assert captured["messages"][0].content[1]["image_url"]["url"] == signed

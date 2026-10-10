@@ -249,8 +249,72 @@ class ImageUrlProxyDirectMiddleware(AgentMiddleware):
         return await handler(request)
 
 
+async def _resolve_storage_image_url(url: str) -> str:
+    from src.agents.core.node_utils import _upload_key_from_image_url
+    from src.infra.storage.s3.service import get_or_init_storage
+    from src.infra.upload.file_record import FileRecordStorage
+    from src.kernel.config import settings
+
+    parsed = urlsplit(url)
+    origin = urlsplit(settings.APP_BASE_URL)
+    key = _upload_key_from_image_url(url)
+    if (
+        not key
+        or not origin.netloc
+        or parsed.netloc != origin.netloc
+        or parsed.scheme not in ("http", "https")
+    ):
+        return url
+    if await FileRecordStorage().is_private_key(key):
+        return url
+    try:
+        storage = await get_or_init_storage()
+        return (
+            _append_proxy_direct_param(url)
+            if storage.is_local
+            else await storage.get_presigned_url(key, 3600)
+        )
+    except Exception as exc:
+        logger.warning("Failed to resolve image storage URL: error_type=%s", type(exc).__name__)
+        return _append_proxy_direct_param(url)
+
+
+class ImageUrlStorageDirectMiddleware(AgentMiddleware):
+    """Resolve app images to fresh storage URLs only for the outgoing request."""
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest[ContextT],
+        handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
+    ) -> ModelResponse[ResponseT]:
+        resolved: dict[str, str] = {}
+        messages = []
+        changed = False
+        for message in request.messages:
+            content = getattr(message, "content", None)
+            if not isinstance(content, list):
+                messages.append(message)
+                continue
+            blocks = []
+            for block in content:
+                url = _image_url_from_block(block)
+                if not url:
+                    blocks.append(block)
+                    continue
+                if url not in resolved:
+                    resolved[url] = await _resolve_storage_image_url(url)
+                blocks.append(_with_proxy_direct_url(block, resolved[url]))
+            if blocks != content:
+                message = message.model_copy(update={"content": blocks})
+                changed = True
+            messages.append(message)
+        return await handler(request.override(messages=messages) if changed else request)
+
+
 def image_url_middleware_for_mode(mode: str | None) -> AgentMiddleware | None:
     """Return the outbound image URL middleware for a model's image_url_mode."""
+    if mode == "storage_direct":
+        return ImageUrlStorageDirectMiddleware()
     if mode == "base64":
         return ImageUrlToBase64Middleware()
     if mode == "proxy_direct":

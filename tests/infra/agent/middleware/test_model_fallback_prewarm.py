@@ -20,6 +20,7 @@ from src.infra.llm.client import LLMClient
 class _FakeRequest:
     def __init__(self, model: str = "primary") -> None:
         self.model = model
+        self.messages = []
 
     def override(self, **kwargs):  # noqa: ANN003
         clone = _FakeRequest(model=kwargs.get("model", self.model))

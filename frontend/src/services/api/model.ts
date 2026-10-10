@@ -66,7 +66,7 @@ function getCachedModelList<T>(url: string): Promise<T> {
 // ============================================
 
 /** How image URLs are handed to the model (backend effective_image_url_mode) */
-export type ImageUrlMode = "url" | "base64" | "proxy_direct";
+export type ImageUrlMode = "url" | "base64" | "proxy_direct" | "storage_direct";
 
 export interface ModelProfile {
   max_input_tokens?: number;
