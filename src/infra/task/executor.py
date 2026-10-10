@@ -813,6 +813,23 @@ class TaskExecutor:
                 run_id=run_id,
                 error=error,
             )
+            if run_id and status in {
+                TaskStatus.QUEUED,
+                TaskStatus.PENDING,
+                TaskStatus.STARTING,
+            }:
+                session = await self._storage.get_by_session_id(session_id)
+                previous = getattr(session, "metadata", None) or {}
+                if previous.get("current_run_id") != run_id:
+                    # Recovery budgets belong to a run, not the lifetime of its conversation.
+                    metadata.update(
+                        resume_attempts=0,
+                        resume_attempts_run_id=run_id,
+                        interrupted_run_id=None,
+                        recovery_of_run_id=None,
+                        recovery_reason=None,
+                        recovery_requested_at=None,
+                    )
             if status == TaskStatus.COMPLETED:
                 metadata["completed_at"] = utc_now_iso()
 
