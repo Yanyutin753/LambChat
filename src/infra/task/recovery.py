@@ -503,6 +503,10 @@ class TaskRecoveryService:
                 if not attempts_run_id or attempts_run_id == source_run_id
                 else 0
             )
+            # A recorded graceful shutdown is a deployment, not a poison-run crash.
+            planned_shutdown = session_metadata.get("task_error") == "Server shutdown"
+            if planned_shutdown:
+                attempts = 0
             if attempts >= MAX_SEAMLESS_RESUME_ATTEMPTS:
                 # 毒消息防护：同 run 反复中断说明重跑本身在触发崩溃，
                 # 终态失败（写 error 事件 + trace 终结）。recoverable=False
@@ -553,7 +557,7 @@ class TaskRecoveryService:
                 session.id,
                 SessionUpdate(
                     metadata={
-                        "resume_attempts": attempts + 1,
+                        "resume_attempts": attempts if planned_shutdown else attempts + 1,
                         "resume_attempts_run_id": source_run_id,
                         "recovery_reason": reason,
                         "recovery_requested_at": utc_now_iso(),
