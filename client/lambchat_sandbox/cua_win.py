@@ -211,7 +211,7 @@ def row_of(element: Any) -> dict[str, Any]:
                 actions.append(name)
                 if name == "Toggle" and value is None:
                     try:
-                        if element.element_info.element.CurrentIsPassword is False:
+                        if _can_read_value(element):
                             value = {0: "off", 1: "on", 2: "mixed"}.get(
                                 interface.CurrentToggleState
                             )
@@ -312,11 +312,17 @@ def type_text(text: str) -> None:
     send_keys(literal, with_spaces=True, with_tabs=True, with_newlines=True, pause=0.01)
 
 
-def _read_value(element: Any) -> str | None:
+def _can_read_value(element: Any) -> bool:
     try:
-        if element.element_info.element.CurrentIsPassword is not False:
-            return None
+        protected = element.element_info.element.CurrentIsPassword
     except Exception:  # noqa: BLE001 - Unknown protection state must not expose values.
+        return False
+    # UIA BOOL is a native integer; only known false permits reading.
+    return type(protected) in (bool, int) and protected == 0
+
+
+def _read_value(element: Any) -> str | None:
+    if not _can_read_value(element):
         return None
     # WinForms/WPF 控件常无 Legacy patterns:legacy → ValuePattern 双路径读
     try:
@@ -368,7 +374,8 @@ def press_chord(keys: list[str], modifiers: list[str]) -> None:
 def scroll_wheel(horizontal: bool, clicks: int) -> None:
     import ctypes
 
-    mouse_event = ctypes.windll.user32.mouse_event
+    # Keep PyAutoGUI's cached mouse_event signature untouched.
+    mouse_event = ctypes.WinDLL("user32").mouse_event
     mouse_event.argtypes = (ctypes.c_uint32,) * 4 + (ctypes.c_size_t,)
     mouse_event.restype = None
     # PyAutoGUI's Windows hscroll uses the vertical flag and its wheel omits WHEEL_DELTA.

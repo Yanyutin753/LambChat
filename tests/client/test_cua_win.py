@@ -252,7 +252,7 @@ def test_windows_text_preserves_supplementary_unicode(monkeypatch):
     assert calls == ["\ud83d\ude00\ud840\udc00"]
 
 
-@pytest.mark.parametrize("protected", [True, None])
+@pytest.mark.parametrize("protected", [True, 1, None, -1, "false", 0.0])
 def test_windows_protected_or_unknown_field_does_not_read_value(protected):
     from types import SimpleNamespace
 
@@ -265,23 +265,27 @@ def test_windows_protected_or_unknown_field_does_not_read_value(protected):
     assert cua_win._read_value(Element()) is None
 
 
-def test_regular_windows_field_retains_its_value():
+@pytest.mark.parametrize("protected", [False, 0])
+def test_regular_windows_field_retains_its_value(protected):
     from types import SimpleNamespace
 
     element = SimpleNamespace(
-        element_info=SimpleNamespace(element=SimpleNamespace(CurrentIsPassword=False)),
+        element_info=SimpleNamespace(element=SimpleNamespace(CurrentIsPassword=protected)),
         legacy_properties=lambda: {"value": "ordinary"},
     )
     assert cua_win._read_value(element) == "ordinary"
 
 
 @pytest.mark.parametrize("state,expected", [(0, "off"), (1, "on"), (2, "mixed"), (3, None)])
-def test_windows_toggle_controls_report_their_current_state(state, expected):
+@pytest.mark.parametrize("protected", [False, 0])
+def test_windows_toggle_controls_report_their_current_state(state, expected, protected):
     from types import SimpleNamespace
 
     element = SimpleNamespace(
         element_info=SimpleNamespace(
-            control_type="CheckBox", name="Bold", element=SimpleNamespace(CurrentIsPassword=False)
+            control_type="CheckBox",
+            name="Bold",
+            element=SimpleNamespace(CurrentIsPassword=protected),
         ),
         iface_toggle=SimpleNamespace(CurrentToggleState=state),
     )
@@ -290,7 +294,7 @@ def test_windows_toggle_controls_report_their_current_state(state, expected):
     assert row["actions"] == ["Toggle"]
 
 
-@pytest.mark.parametrize("protected", [True, None])
+@pytest.mark.parametrize("protected", [True, 1, None, -1, "false", 0.0])
 def test_windows_toggle_state_respects_protected_or_unknown_controls(protected):
     from types import SimpleNamespace
 
@@ -423,11 +427,31 @@ def test_windows_wheel_uses_native_delta_and_horizontal_axis(monkeypatch, horizo
 
     event = MouseEvent()
     monkeypatch.setattr(
-        ctypes, "windll", SimpleNamespace(user32=SimpleNamespace(mouse_event=event)), raising=False
+        ctypes, "WinDLL", lambda name: SimpleNamespace(mouse_event=event), raising=False
     )
     cua_win.scroll_wheel(horizontal, clicks)
     assert event.calls == [(flag, 0, 0, ctypes.c_uint32(clicks * 120).value, 0)]
     assert event.argtypes[-1] is ctypes.c_size_t
+
+
+def test_windows_wheel_preserves_shared_pyautogui_mouse_signature(monkeypatch):
+    import ctypes
+    from types import SimpleNamespace
+
+    shared = SimpleNamespace(argtypes=None, restype=ctypes.c_int)
+    isolated = SimpleNamespace()
+    monkeypatch.setattr(
+        ctypes, "windll", SimpleNamespace(user32=SimpleNamespace(mouse_event=shared)), raising=False
+    )
+    monkeypatch.setattr(
+        ctypes,
+        "WinDLL",
+        lambda name: SimpleNamespace(mouse_event=isolated),
+        raising=False,
+    )
+    cua_win.scroll_wheel(False, 0)
+    assert shared.argtypes is None
+    assert shared.restype is ctypes.c_int
 
 
 def test_windows_chord_uses_extended_virtual_keys_and_releases_modifiers(monkeypatch):
@@ -482,7 +506,7 @@ def test_large_windows_scroll_keeps_each_wheel_delta_in_message_range(monkeypatc
 
     event = MouseEvent()
     monkeypatch.setattr(
-        ctypes, "windll", SimpleNamespace(user32=SimpleNamespace(mouse_event=event)), raising=False
+        ctypes, "WinDLL", lambda name: SimpleNamespace(mouse_event=event), raising=False
     )
     cua_win.scroll_wheel(False, -1000)
     deltas = [ctypes.c_int32(args[3]).value for args in event.calls]

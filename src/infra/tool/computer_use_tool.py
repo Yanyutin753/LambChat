@@ -285,6 +285,8 @@ async def computer_use(
        another observation. For truncated trees, use ``state(index=...)`` on a known
        document/container; subtree indices replace the previous ones. Omit index to
        return to the full window. Screenshots still show the verified target window.
+       If ``window.focused=false`` or screenshot error is ``foreground_required``,
+       call ``activate`` on that window before observing an image; do not retry the same background screenshot.
     4. Prefer element actions (accessibility press/value work on background apps, no
        focus stealing). Coordinates/keyboard are last resorts and need the app frontmost
        (``foreground_required`` otherwise; the event path NEVER activates apps silently —
