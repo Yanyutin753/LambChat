@@ -225,8 +225,14 @@ async def test_resume_reopens_error_trace_and_strips_terminal_stream(
 
 
 @pytest.mark.asyncio
-async def test_resume_caps_attempts_at_three(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("attempts_run_id", [None, "run-old"])
+async def test_resume_caps_attempts_at_three(
+    monkeypatch: pytest.MonkeyPatch, attempts_run_id: str | None
+) -> None:
     service, session, artifacts = _fixture(monkeypatch, resume_attempts=3)
+    session.metadata.update(
+        resume_attempts_run_id=attempts_run_id, task_error="Worker task interrupted"
+    )
 
     result = await service.resume_interrupted_run(session, "run-old", "server_restart")
 
