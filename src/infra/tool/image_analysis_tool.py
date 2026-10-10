@@ -28,6 +28,7 @@ from src.infra.llm.client import LLMClient
 from src.infra.logging import get_logger
 from src.infra.tool.backend_utils import get_backend_from_runtime, get_base_url_from_runtime
 from src.kernel.config import settings
+from src.kernel.errors import AppError
 from src.kernel.schemas.model import ModelConfig, effective_image_url_mode
 
 try:
@@ -187,6 +188,8 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> bytes | N
                     logger.warning(
                         "[image_analyze] Download error for %s: %s", file_path, resp.error
                     )
+        except AppError:
+            raise
         except Exception as e:
             logger.warning("[image_analyze] adownload_files failed for %s: %s", file_path, e)
 
@@ -201,6 +204,8 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> bytes | N
                     logger.warning(
                         "[image_analyze] Download error for %s: %s", file_path, resp.error
                     )
+        except AppError:
+            raise
         except Exception as e:
             logger.warning("[image_analyze] download_files failed for %s: %s", file_path, e)
 
@@ -385,6 +390,10 @@ async def image_analyze(
                 "analysis": analysis,
                 "model_id": model_config.id or model_reference,
             }
+        )
+    except AppError as exc:
+        return await _json_dumps_result(
+            {"error": exc.display_message, "code": exc.error_code.code, "args": exc.args_data}
         )
     except Exception as exc:
         # 只记异常类型不记正文：LLM 异常消息可能内嵌请求体（图片 data URL），

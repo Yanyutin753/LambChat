@@ -70,6 +70,7 @@ from src.infra.tool.backend_utils import (
     get_trace_id_from_runtime,
     get_user_id_from_runtime,
 )
+from src.kernel.errors import AppError
 
 logger = get_logger(__name__)
 
@@ -548,6 +549,19 @@ async def reveal_file(
 
         return await _json_dumps_result(reveal_result)
 
+    except AppError as exc:
+        return await _json_dumps_result(
+            {
+                "type": "file_reveal",
+                "file": {
+                    "path": file_path,
+                    "description": description or "",
+                    "error": exc.display_message,
+                    "code": exc.error_code.code,
+                    "args": exc.args_data,
+                },
+            }
+        )
     except Exception as e:
         logger.error(f"Error processing file {file_path}: {e}")
         error_result = {

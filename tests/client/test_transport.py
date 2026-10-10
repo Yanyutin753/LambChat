@@ -15,6 +15,7 @@ import pytest
 
 from lambchat_sandbox.transport import (
     ChannelClient,
+    ResultRejectedError,
     ToolCall,
     TransportAuthError,
     TransportError,
@@ -805,3 +806,26 @@ async def test_result_redirect_never_forwards_private_payload():
         assert len(requests) == 1 and requests[0].url.host == "lc.example"
     finally:
         await channel.close()
+
+
+@pytest.mark.parametrize("stream", [False, True])
+async def test_assignment_rejection_is_scoped_to_the_call(stream):
+    client = ChannelClient(
+        SERVER,
+        PAT,
+        client=httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    409, json={"detail": {"code": "sandbox_result_mismatch"}}
+                )
+            )
+        ),
+    )
+    try:
+        with pytest.raises(ResultRejectedError):
+            if stream:
+                await client.post_stream_result("expired", [], deadline_s=30)
+            else:
+                await client.post_result("expired", {"stage": "ack"})
+    finally:
+        await client.close()
