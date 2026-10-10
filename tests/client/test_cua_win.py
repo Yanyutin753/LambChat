@@ -275,6 +275,54 @@ def test_regular_windows_field_retains_its_value():
     assert cua_win._read_value(element) == "ordinary"
 
 
+@pytest.mark.parametrize("state,expected", [(0, "off"), (1, "on"), (2, "mixed"), (3, None)])
+def test_windows_toggle_controls_report_their_current_state(state, expected):
+    from types import SimpleNamespace
+
+    element = SimpleNamespace(
+        element_info=SimpleNamespace(
+            control_type="CheckBox", name="Bold", element=SimpleNamespace(CurrentIsPassword=False)
+        ),
+        iface_toggle=SimpleNamespace(CurrentToggleState=state),
+    )
+    row = cua_win.row_of(element)
+    assert row["value"] == expected
+    assert row["actions"] == ["Toggle"]
+
+
+@pytest.mark.parametrize("protected", [True, None])
+def test_windows_toggle_state_respects_protected_or_unknown_controls(protected):
+    from types import SimpleNamespace
+
+    class Toggle:
+        @property
+        def CurrentToggleState(self):  # noqa: N802 - COM property name
+            pytest.fail("protected or unknown state must never be read")
+
+    element = SimpleNamespace(
+        element_info=SimpleNamespace(element=SimpleNamespace(CurrentIsPassword=protected)),
+        iface_toggle=Toggle(),
+    )
+    assert cua_win.row_of(element)["value"] is None
+
+
+def test_windows_stale_toggle_state_keeps_the_control_available():
+    from types import SimpleNamespace
+
+    class Toggle:
+        @property
+        def CurrentToggleState(self):  # noqa: N802 - COM property name
+            raise OSError("stale provider")
+
+    element = SimpleNamespace(
+        element_info=SimpleNamespace(element=SimpleNamespace(CurrentIsPassword=False)),
+        iface_toggle=Toggle(),
+    )
+    row = cua_win.row_of(element)
+    assert row["value"] is None
+    assert row["actions"] == ["Toggle"]
+
+
 @pytest.mark.parametrize("foreground", [22, None])
 @pytest.mark.parametrize("handle_source", ["wrapper", "element_info"])
 def test_windows_selection_uses_native_foreground_handle(monkeypatch, foreground, handle_source):

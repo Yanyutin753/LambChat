@@ -206,8 +206,17 @@ def row_of(element: Any) -> dict[str, Any]:
         ("Toggle", "iface_toggle"),
     ):
         try:
-            if getattr(element, pattern, None) is not None:
+            interface = getattr(element, pattern, None)
+            if interface is not None:
                 actions.append(name)
+                if name == "Toggle" and value is None:
+                    try:
+                        if element.element_info.element.CurrentIsPassword is False:
+                            value = {0: "off", 1: "on", 2: "mixed"}.get(
+                                interface.CurrentToggleState
+                            )
+                    except Exception:  # noqa: BLE001 - A stale state must not hide the control.
+                        pass
         except NoPatternInterfaceError:
             pass
     bounds = None

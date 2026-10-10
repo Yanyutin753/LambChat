@@ -315,6 +315,8 @@ async def computer_use(
     the app, enter cell editing mode (usually F2), then ``type`` and confirm with Enter.
     Use the Name Box or Go To command for exact cell addresses; confirm the selected
     address before editing instead of guessing spreadsheet cell centers from pixels.
+    Formatting shortcuts toggle: verify the selected range and current value or format dialog
+    before repeating them; do not infer success from font appearance alone.
     In tabbed editors such as WPS, verify the active document tab and cell address before
     typing: a pid alone does not identify a document. If the tab changes, re-select the
     intended file and re-observe before continuing; do not type into another document.

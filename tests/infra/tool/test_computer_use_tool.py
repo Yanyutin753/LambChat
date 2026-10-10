@@ -533,6 +533,12 @@ def test_cua_workflow_uses_exact_spreadsheet_cell_addresses():
     assert "cell addresses" in cut.computer_use.description
 
 
+def test_cua_workflow_verifies_formatting_before_repeating_a_toggle():
+    assert "Formatting shortcuts toggle" in cut.computer_use.description
+    assert "current value or format dialog" in cut.computer_use.description
+    assert "do not infer success from font appearance alone" in cut.computer_use.description
+
+
 def test_cua_workflow_discovers_office_dialog_process_before_observing():
     assert "Office dialogs can run in a different process" in cut.computer_use.description
     assert "active dialog's pid" in cut.computer_use.description
