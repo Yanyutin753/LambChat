@@ -102,6 +102,8 @@ def test_responses_nonstreaming_plain_reasoning_is_preserved():
     )
     message = base._construct_lc_result_from_responses_api(response).generations[0].message
     assert message.content[0]["reasoning"] == "actual thought"
+
+
 # ── GLM 思考系回传（生产 2026-10-10）────────────────────────────────────────
 # GLM-4.5+/GLM-5 系在 OpenAI 协议线格式（含任意中转）开思考模式后，历史
 # assistant 消息必须回传 reasoning_content，第二轮起 400：
