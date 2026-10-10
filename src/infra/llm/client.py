@@ -239,6 +239,10 @@ def _resolve_reasoning_effort(
     Returns None when the provider/model family is not documented to accept
     reasoning_effort. Thinking is always enabled; only the level varies.
     """
+    name = model_name.lower()
+    if is_deepseek_thinking_model(name):
+        level = str(thinking.get("level") or "medium")
+        return {"low": "low", "medium": "high", "high": "high", "max": "max"}.get(level, "high")
     prefixes = _REASONING_EFFORT_PREFIXES.get(provider)
     if not prefixes:
         return None
@@ -251,9 +255,6 @@ def _resolve_reasoning_effort(
         return None
 
     level = str(thinking.get("level") or "medium")
-    if provider == "deepseek":
-        # 官方仅 low/high/max 三档：medium 并入 high
-        return {"low": "low", "medium": "high", "high": "high", "max": "max"}.get(level, "high")
     if level == "max" and provider in {"openai", "xai"}:
         # max 档原生支持度按家族分野：gpt-6 与 grok-4.6+ 原生接受
         # max/xhigh；gpt-5/o3/o4 只到 high（发 max 会 400），降档处理
@@ -377,6 +378,8 @@ def model_supports_thinking(provider: Optional[str], model_value: str) -> bool:
         match = _GEMINI_VERSION_RE.search(name)
         return match is not None and _version_tuple(match) >= (2, 5)
 
+    if is_deepseek_thinking_model(name):
+        return True
     prefixes = _REASONING_EFFORT_PREFIXES.get(effective_provider)
     if prefixes:
         if name.endswith("-chat-latest") or name.endswith("-non-reasoning"):

@@ -61,3 +61,44 @@ def test_non_streaming_reasoning_is_preserved_for_history():
         {"role": "assistant", "content": "2", "reasoning_content": "actual reasoning"}
     )
     assert message.additional_kwargs["reasoning_content"] == "actual reasoning"
+
+
+def test_responses_plain_reasoning_delta_is_streamed():
+    from types import SimpleNamespace
+
+    import langchain_openai.chat_models.base as base
+
+    apply_reasoning_patches()
+    event = SimpleNamespace(
+        type="response.reasoning_text.delta",
+        output_index=0,
+        content_index=0,
+        delta="actual thought",
+    )
+    result = base._convert_responses_chunk_to_generation_chunk(event, -1, -1, -1)
+    assert result[3] is not None
+    assert result[3].message.content[0]["reasoning"] == "actual thought"
+
+
+def test_responses_nonstreaming_plain_reasoning_is_preserved():
+    import langchain_openai.chat_models.base as base
+    from openai.types.responses import Response, ResponseReasoningItem
+
+    apply_reasoning_patches()
+    item = ResponseReasoningItem.model_construct(
+        id="rs_1",
+        type="reasoning",
+        summary=[],
+        content=[{"type": "reasoning_text", "text": "actual thought"}],
+    )
+    response = Response.model_construct(
+        id="resp_1",
+        model="deepseek-flash",
+        output=[item],
+        error=None,
+        usage=None,
+        service_tier=None,
+        text=None,
+    )
+    message = base._construct_lc_result_from_responses_api(response).generations[0].message
+    assert message.content[0]["reasoning"] == "actual thought"
