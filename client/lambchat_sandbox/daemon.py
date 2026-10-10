@@ -56,6 +56,7 @@ from lambchat_sandbox.fsops import (
 )
 from lambchat_sandbox.transport import (
     ChannelClient,
+    ResultRejectedError,
     ToolCall,
     TransportAuthError,
     TransportError,
@@ -209,9 +210,15 @@ async def _handle_channel(
 ) -> None:
     """单次连接内逐条处理 ToolCall；流结束/异常交回外层重连循环。"""
     async for call in calls:
-        await _process_call(
-            client, call, cfg=cfg, executor=executor, auditor=auditor, dedupe=dedupe
-        )
+        try:
+            await _process_call(
+                client, call, cfg=cfg, executor=executor, auditor=auditor, dedupe=dedupe
+            )
+        except ResultRejectedError:
+            auditor.log(
+                _session_id_from_cwd(str(call.payload.get("cwd", ""))),
+                {"event": "result_rejected", "call_id": call.call_id, "op": call.op},
+            )
 
 
 async def _process_call(

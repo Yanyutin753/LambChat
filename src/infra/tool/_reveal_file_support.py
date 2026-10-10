@@ -202,6 +202,8 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[
             logger.warning(
                 f"[reveal_file] adownload_files failed for {file_path}: {_error_text(e)}"
             )
+            if isinstance(e, AppError):
+                raise
 
     if hasattr(backend, "download_files"):
         try:
@@ -219,6 +221,8 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[
                     return None
         except Exception as e:
             logger.warning(f"[reveal_file] download_files failed for {file_path}: {_error_text(e)}")
+            if isinstance(e, AppError):
+                raise
 
     return None
 

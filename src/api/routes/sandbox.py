@@ -1,6 +1,7 @@
 """本地沙箱中继：daemon SSE 通道、结果回传、在线状态、桌面文件树只读端点。"""
 
 import asyncio
+import base64
 import contextlib
 import json
 import re
@@ -735,10 +736,10 @@ async def sandbox_fs_read(
 
     返回 daemon 的 fs_read 结果：文本 ``{encoding: "utf-8", content,
     total_lines, next_offset, ...}``；二进制 ``{encoding: "base64", content}``
-    （上限 MAX_BINARY_BYTES，超限在 ``error`` 里）。
+    （超过模型输出限制时走有大小上限的文件传输通道）。
     """
     cwd, machine_id = await _resolve_fs_target(user, session_id)
-    return await _dispatch_fs(
+    result = await _dispatch_fs(
         user,
         "fs_read",
         {
@@ -749,6 +750,18 @@ async def sandbox_fs_read(
         },
         machine_id,
     )
+    if str(result.get("error", "")).startswith("Binary file exceeds maximum preview size"):
+        from src.infra.backend.local import LocalSandboxBackend
+
+        # File previews use the bounded transfer channel, not model stdout limits.
+        backend = LocalSandboxBackend(
+            user_id=user.sub, session_id=session_id, machine_id=machine_id
+        )
+        content = await backend._adownload_via_fs(_sanitize_fs_path(path), cwd=cwd)
+        if isinstance(content, str):
+            return {"error": content}
+        return {"encoding": "base64", "content": base64.b64encode(content).decode("ascii")}
+    return result
 
 
 # ---------------------------------------------------------------------------

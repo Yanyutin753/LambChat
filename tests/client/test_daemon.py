@@ -26,6 +26,7 @@ from lambchat_sandbox.config import SandboxConfig
 from lambchat_sandbox.daemon import DEFAULT_EXEC_TIMEOUT_S, _graceful_shutdown, run_daemon
 from lambchat_sandbox.executor import ExecutorError
 from lambchat_sandbox.transport import (
+    ResultRejectedError,
     ToolCall,
     TransportAuthError,
     TransportError,
@@ -1402,3 +1403,34 @@ async def test_upload_stream_failed_result_preserves_original_error(tmp_path, fa
             auditor=MemoryAuditor(),
         )
     assert caught.value is failure
+
+
+async def test_rejected_ack_skips_action_and_keeps_channel(monkeypatch):
+    class RejectFirstClient(FakeClient):
+        async def post_result(self, call_id, body):
+            if call_id == "expired":
+                raise ResultRejectedError("post_result: HTTP 409")
+            await super().post_result(call_id, body)
+
+    handled = []
+
+    async def handle_cua(call_client, call, **kwargs):
+        handled.append(call.call_id)
+
+    monkeypatch.setattr(daemon_module, "_process_cua_call", handle_cua)
+    client = RejectFirstClient()
+    auditor = MemoryAuditor()
+    await daemon_module._handle_channel(
+        client,
+        _aiter([_call("expired", op="cua_state"), _call("next", op="cua_state")]),
+        cfg=_cfg(),
+        executor=lambda *args: None,
+        auditor=auditor,
+    )
+    assert handled == ["next"]
+    assert client.offline_count == 0
+    assert any(
+        event["event"] == "result_rejected"
+        for records in auditor.records.values()
+        for event in records
+    )
