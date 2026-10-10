@@ -547,7 +547,9 @@ def test_cua_workflow_activates_before_retrying_background_screenshots():
 
 def test_cua_workflow_commits_selection_only_dropdowns_before_saving():
     assert "non-editable dropdowns" in cut.computer_use.description
-    assert "confirm with Enter and read the selected value" in cut.computer_use.description
+    assert "read the selected value after closing" in cut.computer_use.description
+    assert "keyboard arrows and Enter" in cut.computer_use.description
+    assert "do not repeat Select followed by Enter" in cut.computer_use.description
     assert "do not use set_value" in cut.computer_use.description
 
 
@@ -665,3 +667,8 @@ def test_state_guidance_allows_subtree_and_avoids_reobserving_read_only_calls():
     assert "state(index=...)" in cut.computer_use.description
     assert "Read-only status/apps/windows/state calls" in cut.computer_use.description
     assert "no new evidence" in cut.computer_use.description
+
+
+def test_scroll_guidance_does_not_infer_boundary_from_sticky_header():
+    assert "sticky header" in cut.computer_use.description
+    assert "original first/last content" in cut.computer_use.description

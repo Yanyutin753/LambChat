@@ -309,6 +309,8 @@ async def computer_use(
     wheel fallback uses the active window center. Start with scroll_amount=0.1 for fine
     movement or 1 for larger movement; distance depends on the app and OS settings.
     Re-observe to verify movement and adjust; repeated ok results do not prove scrolling.
+    A visible sticky header does not prove the page is at the top or bottom; verify
+    the original first/last content and scrollbar position before claiming a boundary.
     At a nested region's boundary, scroll chaining can move its parent. Confirm the last
     item and scrollbar position with state; do not probe a visible boundary with more
     wheel input. If the parent moves, target outside the nested region to restore it.
@@ -347,8 +349,10 @@ async def computer_use(
     resolved from PATH.
 
     Hard rules:
-    - For non-editable dropdowns, expand and select the option using advertised actions,
-      then confirm with Enter and read the selected value before saving; do not use set_value.
+    - For non-editable dropdowns, expand and commit the option using advertised actions;
+      read the selected value after closing before saving; do not use set_value.
+      Select may only highlight: if the value reverts, use keyboard arrows and Enter;
+      do not repeat Select followed by Enter.
     - NEVER use osascript/AppleScript/System Events/JXA for UI automation — an unattended
       TCC permission dialog hangs forever. This tool is the replacement.
     - For settable elements prefer set_value over typing.
