@@ -703,8 +703,10 @@ async def test_run_agent_task_cleans_up_when_executor_is_unknown(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("planned_shutdown", [False, True])
 async def test_run_agent_task_marks_recoverable_and_deletes_payload_when_cancelled(
     monkeypatch: pytest.MonkeyPatch,
+    planned_shutdown: bool,
 ) -> None:
     payload = {
         "session_id": "session-1",
@@ -743,11 +745,14 @@ async def test_run_agent_task_marks_recoverable_and_deletes_payload_when_cancell
     monkeypatch.setattr(arq_worker, "get_registered_executor", lambda key: _executor_fn)
     monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)
 
+    monkeypatch.setattr("src.infra.task.lifecycle.is_shutting_down", lambda: planned_shutdown)
+
     with pytest.raises(asyncio.CancelledError):
         await arq_worker.run_agent_task({"payload_store": payload_store}, "run-1")
 
     assert task_executor.run_calls
-    assert recoverable_failures == [("session-1", "run-1", "Server shutdown")]
+    reason = "Server shutdown" if planned_shutdown else "Worker task interrupted"
+    assert recoverable_failures == [("session-1", "run-1", reason)]
     assert payload_store.deleted == ["run-1"]
     assert limiter.release_calls == [("user-1", "run-1", False)]
 

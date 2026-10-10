@@ -225,8 +225,14 @@ async def test_resume_reopens_error_trace_and_strips_terminal_stream(
 
 
 @pytest.mark.asyncio
-async def test_resume_caps_attempts_at_three(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("attempts_run_id", [None, "run-old"])
+async def test_resume_caps_attempts_at_three(
+    monkeypatch: pytest.MonkeyPatch, attempts_run_id: str | None
+) -> None:
     service, session, artifacts = _fixture(monkeypatch, resume_attempts=3)
+    session.metadata.update(
+        resume_attempts_run_id=attempts_run_id, task_error="Worker task interrupted"
+    )
 
     result = await service.resume_interrupted_run(session, "run-old", "server_restart")
 
@@ -284,3 +290,26 @@ async def test_resume_submit_exception_releases_slot_and_restores(
     last_metadata = artifacts["storage"].updates[-1][1].metadata
     assert last_metadata["task_status"] == "failed"
     assert last_metadata["task_recoverable"] is True
+
+
+async def test_resume_ignores_recovery_count_bound_to_a_previous_run(monkeypatch) -> None:
+    service, session, artifacts = _fixture(monkeypatch, resume_attempts=3)
+    session.metadata["resume_attempts_run_id"] = "historical-run"
+
+    result = await service.resume_interrupted_run(session, "run-old", "server_restart")
+
+    assert result["success"] is True
+    metadata = artifacts["storage"].updates[-1][1].metadata
+    assert metadata["resume_attempts"] == 1
+    assert metadata["resume_attempts_run_id"] == "run-old"
+
+
+async def test_planned_shutdown_does_not_exhaust_same_run_crash_budget(monkeypatch) -> None:
+    service, session, artifacts = _fixture(monkeypatch, resume_attempts=3)
+    session.metadata.update(resume_attempts_run_id="run-old", task_error="Server shutdown")
+
+    result = await service.resume_interrupted_run(session, "run-old", "server_restart")
+
+    assert result["success"] is True
+    assert artifacts["storage"].updates[-1][1].metadata["resume_attempts"] == 0
+    artifacts["mark_run_failed"].assert_not_awaited()
