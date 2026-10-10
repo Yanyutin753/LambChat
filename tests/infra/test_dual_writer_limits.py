@@ -1491,3 +1491,56 @@ async def test_close_dual_writer_does_not_create_singleton_when_unused() -> None
     await dual_writer.close_dual_writer()
 
     assert dual_writer._dual_writer is None
+
+
+@pytest.mark.asyncio
+async def test_terminal_stream_is_retained_when_mongo_events_are_pending() -> None:
+    fake_redis = _FakeRedis()
+    writer = dual_writer.DualEventWriter()
+    writer._redis = fake_redis
+
+    async def blocked_flush(**kwargs):
+        assert kwargs == {"require_empty": True}
+        raise RuntimeError("pending events")
+
+    writer.flush_mongo_buffer = blocked_flush
+    assert await writer.expire_stream("s1", run_id="r1", ttl_seconds=60) is False
+    assert fake_redis.expire_calls == []
+
+
+@pytest.mark.asyncio
+async def test_terminal_stream_waits_for_inflight_manual_flush() -> None:
+    from unittest.mock import AsyncMock
+
+    writer = dual_writer.DualEventWriter()
+    fake_redis = _FakeRedis()
+    writer._redis = fake_redis
+    writer._trace = type(
+        "Trace",
+        (),
+        {
+            "acquire_session_trace_write": AsyncMock(return_value=True),
+            "release_session_trace_write": AsyncMock(),
+        },
+    )()
+    writer._mongo_buffer = [("t1", "message:chunk", {}, "s1", "r1", datetime.now())]
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def flush(batch):
+        started.set()
+        await release.wait()
+        writer._mongo_buffer.extend(batch)
+
+    writer._flush_mongo_batch = flush
+    flushing = asyncio.create_task(writer.flush_mongo_buffer())
+    await started.wait()
+    expiring = asyncio.create_task(writer.expire_stream("s1", run_id="r1"))
+    try:
+        await asyncio.sleep(0)
+        assert fake_redis.expire_calls == []
+    finally:
+        release.set()
+        await flushing
+        await expiring
+    assert fake_redis.expire_calls == []

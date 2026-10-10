@@ -71,7 +71,7 @@ async def test_flush_acquires_leases_for_multiple_sessions_concurrently() -> Non
 
 
 @pytest.mark.asyncio
-async def test_flush_requeues_batch_and_releases_acquired_leases_when_one_lease_fails() -> None:
+async def test_flush_persists_healthy_sessions_when_another_session_lease_is_blocked() -> None:
     probe = _ParallelProbeTrace(fail_sessions={"s2"}, expected_sessions=3)
     writer = dual_writer.DualEventWriter()
     batch = [_buffer_item("s1"), _buffer_item("s2"), _buffer_item("s3")]
@@ -87,12 +87,8 @@ async def test_flush_requeues_batch_and_releases_acquired_leases_when_one_lease_
 
     await asyncio.wait_for(writer._do_flush(), timeout=4)
 
-    # 整批未写入（s2 拿不到租约）
-    assert flushed == []
-    # 批次回到缓冲区
-    assert sorted(_base(item) for item in writer._mongo_buffer) == sorted(
-        _base(item) for item in batch
-    )
+    assert flushed == [[batch[0], batch[2]]]
+    assert writer._mongo_buffer == [batch[1]]
     # 已拿到的 s1/s3 租约被释放，s2 未拿不释放
     assert sorted(probe.release_calls) == ["s1", "s3"]
 
@@ -142,3 +138,52 @@ async def test_flush_release_failure_is_logged_not_swallowed_silently() -> None:
 
     assert len(flushed) == 1  # 写入本身成功，不被 release 失败误报
     assert any("s1" in str(r) and "release" in str(r).lower() for r in records)
+
+
+@pytest.mark.asyncio
+async def test_flush_retries_only_blocked_session_after_lease_recovers() -> None:
+    probe = _ParallelProbeTrace(fail_sessions={"s2"}, expected_sessions=2)
+    writer = dual_writer.DualEventWriter()
+    batch = [_buffer_item("s1"), _buffer_item("s2")]
+    writer._mongo_buffer = list(batch)
+    writer._trace = probe
+    flushed: list[Any] = []
+
+    async def flush(items: list[Any]) -> None:
+        flushed.extend(items)
+
+    writer._flush_mongo_batch = flush
+    await writer._do_flush()
+    probe.fail_sessions.clear()
+    await writer._do_flush()
+
+    assert flushed == batch
+    assert writer._mongo_buffer == []
+    assert probe.release_calls == ["s1", "s2"]
+
+
+@pytest.mark.asyncio
+async def test_lease_error_preserves_failed_events_without_blocking_healthy_session() -> None:
+    class ErrorTrace(_ParallelProbeTrace):
+        async def acquire_session_trace_write(self, session_id: str) -> bool:
+            if session_id == "s2":
+                raise RuntimeError("lease unavailable")
+            return True
+
+    writer = dual_writer.DualEventWriter()
+    probe = ErrorTrace()
+    writer._trace = probe
+    batch = [_buffer_item("s1"), _buffer_item("s2")]
+    writer._mongo_buffer = list(batch)
+    flushed: list[Any] = []
+
+    async def flush(items: list[Any]) -> None:
+        flushed.extend(items)
+
+    writer._flush_mongo_batch = flush
+    with pytest.raises(RuntimeError, match="lease unavailable"):
+        await writer._do_flush()
+
+    assert flushed == [batch[0]]
+    assert writer._mongo_buffer == [batch[1]]
+    assert probe.release_calls == ["s1"]
