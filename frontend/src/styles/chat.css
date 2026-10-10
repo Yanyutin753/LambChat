@@ -119,6 +119,14 @@ html[data-mobile-keyboard="true"]
   color: var(--theme-text-secondary);
 }
 
+/* 输入区整体走 sans（中文落系统黑体），衬线只留全站展示位：盒内子
+   组件自带的 font-serif（工具条 chips、编辑器内嵌 chip）在盒内一并压回
+   sans；@ 提及弹窗的实体名除外——它跟随全站实体名衬线体系，斜杠菜单
+   等 portal 到 body 的弹层天然不受此作用域影响。 */
+.chat-input-container .font-serif:not(.mention-popup-name) {
+  font-family: "Source Sans 3", system-ui, sans-serif;
+}
+
 @media (max-width: 639px) {
   .chat-input-shell {
     padding-bottom: 0.75rem;
