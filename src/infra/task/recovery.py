@@ -497,7 +497,12 @@ class TaskRecoveryService:
                     "message": "任务仍在其他实例运行中，跳过恢复",
                 }
 
-            attempts = int(session_metadata.get("resume_attempts") or 0)
+            attempts_run_id = session_metadata.get("resume_attempts_run_id")
+            attempts = (
+                int(session_metadata.get("resume_attempts") or 0)
+                if not attempts_run_id or attempts_run_id == source_run_id
+                else 0
+            )
             if attempts >= MAX_SEAMLESS_RESUME_ATTEMPTS:
                 # 毒消息防护：同 run 反复中断说明重跑本身在触发崩溃，
                 # 终态失败（写 error 事件 + trace 终结）。recoverable=False
@@ -549,6 +554,7 @@ class TaskRecoveryService:
                 SessionUpdate(
                     metadata={
                         "resume_attempts": attempts + 1,
+                        "resume_attempts_run_id": source_run_id,
                         "recovery_reason": reason,
                         "recovery_requested_at": utc_now_iso(),
                         "task_recoverable": False,

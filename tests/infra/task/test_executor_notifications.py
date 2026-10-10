@@ -205,6 +205,13 @@ async def test_cancelled_task_emits_user_cancel_before_done(
     monkeypatch.setattr(executor, "_send_task_notification", _no_op)
     monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: writer)
 
+    from src.infra.task.exceptions import TaskInterruptedError
+
+    async def _user_cancelled(run_id):
+        raise TaskInterruptedError("Task cancelled")
+
+    monkeypatch.setattr("src.infra.task.executor.TaskCancellation.check_interrupt", _user_cancelled)
+
     await executor._handle_cancelled_error(
         "session-1",
         "run-1",
@@ -327,3 +334,27 @@ async def test_failed_task_shortens_terminal_stream_ttl(
 
     assert writer.events[-1]["event_type"] == "error"
     assert writer.expired_streams == [("session-1", "run-1", 60)]
+
+
+@pytest.mark.parametrize("status", [TaskStatus.PENDING, TaskStatus.QUEUED, TaskStatus.STARTING])
+async def test_new_run_resets_history_recovery_metadata(status) -> None:
+    storage = _FakeStorage(current_run_id="historical-run")
+    executor = TaskExecutor(storage=storage, run_info={}, heartbeat_manager=None)
+
+    await executor._update_session_status("session-1", status, run_id="run-new")
+
+    metadata = storage.updates[0][1].metadata
+    assert metadata["resume_attempts"] == 0
+    assert metadata["resume_attempts_run_id"] == "run-new"
+    assert metadata["interrupted_run_id"] is None
+    assert metadata["recovery_of_run_id"] is None
+    assert metadata["recovery_requested_at"] is None
+
+
+async def test_same_run_submission_preserves_recovery_budget() -> None:
+    storage = _FakeStorage(current_run_id="run-old")
+    executor = TaskExecutor(storage=storage, run_info={}, heartbeat_manager=None)
+
+    await executor._update_session_status("session-1", TaskStatus.PENDING, run_id="run-old")
+
+    assert "resume_attempts" not in storage.updates[0][1].metadata
