@@ -545,6 +545,12 @@ def test_cua_workflow_activates_before_retrying_background_screenshots():
     assert "do not retry the same background screenshot" in cut.computer_use.description
 
 
+def test_cua_workflow_commits_selection_only_dropdowns_before_saving():
+    assert "non-editable dropdowns" in cut.computer_use.description
+    assert "confirm with Enter and read the selected value" in cut.computer_use.description
+    assert "do not use set_value" in cut.computer_use.description
+
+
 def test_cua_workflow_discovers_office_dialog_process_before_observing():
     assert "Office dialogs can run in a different process" in cut.computer_use.description
     assert "active dialog's pid" in cut.computer_use.description

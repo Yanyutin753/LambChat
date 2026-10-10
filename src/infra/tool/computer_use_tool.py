@@ -347,6 +347,8 @@ async def computer_use(
     resolved from PATH.
 
     Hard rules:
+    - For non-editable dropdowns, expand and select the option using advertised actions,
+      then confirm with Enter and read the selected value before saving; do not use set_value.
     - NEVER use osascript/AppleScript/System Events/JXA for UI automation — an unattended
       TCC permission dialog hangs forever. This tool is the replacement.
     - For settable elements prefer set_value over typing.
