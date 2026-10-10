@@ -56,6 +56,7 @@ class _FakeArqRuntime:
 def wired(monkeypatch: pytest.MonkeyPatch):
     """worker_main 全部协作者替换为可观测 fake；返回各 fake 供断言。"""
     import threading
+
     from src.infra.task import lifecycle
 
     monkeypatch.setattr(lifecycle, "_shutting_down", threading.Event())
