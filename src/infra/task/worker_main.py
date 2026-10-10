@@ -131,7 +131,10 @@ async def _amain(stop: asyncio.Event) -> None:
         logger.info("standalone arq worker started")
         await stop.wait()
     finally:
-        # 先停 worker（收尾在途任务），再停监听，最后生命周期标记
+        from .lifecycle import mark_shutting_down
+
+        # Mark the process exit before cancelling jobs so timeouts retain their crash budget.
+        mark_shutting_down()
         try:
             await runtime.stop()
         except Exception:  # noqa: BLE101 - 退出路径尽力而为
