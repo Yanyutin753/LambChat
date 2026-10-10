@@ -148,6 +148,7 @@ class DualEventWriter:
         # MongoDB 批量写入缓冲
         # (trace_id, event_type, data, session_id, run_id, timestamp)
         self._mongo_buffer: list[MongoBufferItem] = []
+        self._mongo_flush_lock = asyncio.Lock()
         self._mongo_lock = asyncio.Lock()  # 只保护 buffer 和 flush 操作
         self._flush_event = asyncio.Event()  # 使用 Event 替代轮询标志
         self._flush_event.set()  # 初始状态为已就绪
@@ -343,6 +344,11 @@ class DualEventWriter:
         return True
 
     async def _do_flush(self) -> None:
+        # Include drained in-flight batches in the terminal-stream durability barrier.
+        async with self._mongo_flush_lock:
+            await self._do_flush_locked()
+
+    async def _do_flush_locked(self) -> None:
         """实际执行批量写入，使用 bulk_write 优化"""
         async with self._mongo_lock:
             if not self._mongo_buffer:
@@ -370,14 +376,18 @@ class DualEventWriter:
             acquire_failure = next(
                 (r for r in acquire_results if isinstance(r, BaseException)), None
             )
-            if acquire_failure is not None or not all(r is True for r in acquire_results):
+            leased = set(leased_session_ids)
+            blocked = [item for item in batch if _buffer_item_base(item)[3] not in leased]
+            if blocked:
                 async with self._mongo_lock:
-                    self._mongo_buffer = batch + self._mongo_buffer
+                    self._mongo_buffer = blocked + self._mongo_buffer
                 self._flush_event.set()
-                if acquire_failure is not None:
-                    raise acquire_failure
-                return
-            await self._flush_mongo_batch(batch)
+            # A deleted or fenced session must not block other users' history.
+            writable = [item for item in batch if _buffer_item_base(item)[3] in leased]
+            if writable:
+                await self._flush_mongo_batch(writable)
+            if acquire_failure is not None:
+                raise acquire_failure
         finally:
             if leased_session_ids:
                 release_results = await asyncio.gather(
@@ -925,6 +935,8 @@ class DualEventWriter:
         """
         stream_key = self._stream_key(session_id, run_id)
         try:
+            # Keep the replay copy until buffered history is durable.
+            await self.flush_mongo_buffer(require_empty=True)
             ttl = max(int(ttl_seconds), 1)
             success = await self.redis.expire(stream_key, ttl)
             self._ttl_set_keys.pop(stream_key, None)
