@@ -27,9 +27,10 @@ class _SyncBackend:
 @pytest.mark.asyncio
 async def test_async_download_failure_log_interpolates_apperror(caplog) -> None:
     with caplog.at_level(logging.WARNING, logger="src.infra.tool._reveal_file_support"):
-        result = await rfs._download_file_from_backend(_Backend(), "/workspace/x.py")
+        with pytest.raises(AppError) as caught:
+            await rfs._download_file_from_backend(_Backend(), "/workspace/x.py")
 
-    assert result is None
+    assert caught.value.error_code == ErrorCode.SANDBOX_TIMEOUT
     joined = caplog.text
     assert "after 300s" in joined
     assert "{{" not in joined
@@ -38,9 +39,37 @@ async def test_async_download_failure_log_interpolates_apperror(caplog) -> None:
 @pytest.mark.asyncio
 async def test_sync_download_failure_log_interpolates_apperror(caplog) -> None:
     with caplog.at_level(logging.WARNING, logger="src.infra.tool._reveal_file_support"):
-        result = await rfs._download_file_from_backend(_SyncBackend(), "/workspace/x.py")
+        with pytest.raises(AppError) as caught:
+            await rfs._download_file_from_backend(_SyncBackend(), "/workspace/x.py")
 
-    assert result is None
+    assert caught.value.error_code == ErrorCode.SANDBOX_TIMEOUT
     joined = caplog.text
     assert "after 300s" in joined
     assert "{{" not in joined
+
+
+async def test_reveal_file_preserves_offline_error_instead_of_missing_file(monkeypatch):
+    import json
+    from types import SimpleNamespace
+
+    from src.infra.tool import reveal_file_tool
+
+    async def storage():
+        return SimpleNamespace()
+
+    async def size(*args):
+        return None
+
+    async def download(*args):
+        raise AppError(ErrorCode.SANDBOX_MACHINE_OFFLINE, args={"machine_id": "m1"})
+
+    monkeypatch.setattr(reveal_file_tool, "_get_storage", storage)
+    monkeypatch.setattr(reveal_file_tool, "get_backend_from_runtime", lambda runtime: object())
+    monkeypatch.setattr(reveal_file_tool, "_get_backend_file_size", size)
+    monkeypatch.setattr(reveal_file_tool, "_download_file_from_backend", download)
+    result = json.loads(
+        await reveal_file_tool.reveal_file.coroutine("/workspace/screen.png", runtime=object())
+    )
+    assert result["file"]["code"] == "sandbox_machine_offline"
+    assert result["file"]["args"] == {"machine_id": "m1"}
+    assert "file_not_found" not in result["file"]["error"]

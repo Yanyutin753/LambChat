@@ -117,14 +117,42 @@ PROVIDER_DEFAULTS: dict[str, str] = {
 }
 
 
+def normalize_provider(provider: Optional[str]) -> str:
+    """归一 provider slug：去空白 + 小写。
+
+    注册表键全为小写；配置侧存进来的大小写变体（生产 2026-10-10 实录
+    provider="ZAI"）直接查表会 miss 并静默兜底到 openai 协议——GLM 思考
+    模型因此走错线格式，历史回传缺 reasoning 即 400。未注册 slug 原样
+    返回小写形态，维持「不认识的 provider 走 OpenAI 兼容」的既有语义。
+    """
+    return (provider or "").strip().lower()
+
+
+# zhipu hybrid-reasoning GLM families that accept the `thinking` request-body
+# field (via model_kwargs). glm-4.7 未核实，不发送。
+ZHIPU_THINKING_MODEL_PREFIXES = (
+    "glm-4.5",
+    "glm-4-5",
+    "glm-4.6",
+    "glm-4-6",
+    "glm-5",
+)
+
+
+def is_zhipu_thinking_model(name: str) -> bool:
+    """GLM 思考系模型（glm-4.5+/glm-5），与托管渠道无关，按模型名判断。"""
+    lowered = (name or "").lower()
+    return any(lowered.startswith(prefix) for prefix in ZHIPU_THINKING_MODEL_PREFIXES)
+
+
 def _resolve_default_api_base(provider: str) -> Optional[str]:
     """未填 api_base 时按 provider 兜底官方端点；未注册渠道返回 None。"""
-    return PROVIDER_DEFAULTS.get(provider)
+    return PROVIDER_DEFAULTS.get(normalize_provider(provider))
 
 
 def _resolve_protocol(provider: str) -> str:
-    """解析 provider 对应的协议类型。"""
-    entry = PROVIDER_REGISTRY.get(provider)
+    """解析 provider 对应的协议类型（slug 大小写/空白不敏感）。"""
+    entry = PROVIDER_REGISTRY.get(normalize_provider(provider))
     return entry[0] if entry else "openai"
 
 
@@ -132,7 +160,7 @@ def _parse_provider(model: str) -> tuple[str, str]:
     """从模型标识解析 provider 和 model_name。
 
     支持格式:
-      - "provider/model-name" → 直接取 provider 部分
+      - "provider/model-name"  → 直接取 provider 部分（归一为小写 slug）
       - "model-name" (无 /)  → 按前缀推断 provider
 
     Returns:
@@ -140,7 +168,7 @@ def _parse_provider(model: str) -> tuple[str, str]:
     """
     if "/" in model:
         provider, model_name = model.split("/", 1)
-        return provider, model_name
+        return normalize_provider(provider), model_name
 
     # 无 / 时按模型名前缀推断
     lower = model.lower()

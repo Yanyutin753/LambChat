@@ -45,6 +45,10 @@ from src.infra.llm.providers import (
     _parse_provider,
     _resolve_default_api_base,
     _resolve_protocol,
+    normalize_provider,
+)
+from src.infra.llm.providers import (
+    is_zhipu_thinking_model as _is_zhipu_thinking_model,
 )
 from src.infra.llm.reasoning_patch import is_deepseek_thinking_model
 from src.infra.logging import get_logger
@@ -201,18 +205,7 @@ _REASONING_EFFORT_PREFIXES: dict[str, tuple[str, ...]] = {
 }
 # zhipu hybrid-reasoning GLM families that accept the `thinking` request-body
 # field (via extra_body). glm-4.7 未核实，不发送。
-_ZHIPU_THINKING_PREFIXES = (
-    "glm-4.5",
-    "glm-4-5",
-    "glm-4.6",
-    "glm-4-6",
-    "glm-5",
-)
-
-
-def _is_zhipu_thinking_model(name: str) -> bool:
-    """GLM 思考系模型（glm-4.5+/glm-5），与托管渠道无关，按模型名判断。"""
-    return any(name.startswith(prefix) for prefix in _ZHIPU_THINKING_PREFIXES)
+# 前缀表与谓词已下沉 providers.py（reasoning_patch 复用），此处保留别名。
 
 
 # 次版本限定为 1-2 位数字且后不跟数字：防止把官方 model ID 里的发布日期
@@ -239,6 +232,7 @@ def _resolve_reasoning_effort(
     Returns None when the provider/model family is not documented to accept
     reasoning_effort. Thinking is always enabled; only the level varies.
     """
+    provider = normalize_provider(provider)
     name = model_name.lower()
     if is_deepseek_thinking_model(name):
         level = str(thinking.get("level") or "medium")
@@ -361,7 +355,7 @@ def model_supports_thinking(provider: Optional[str], model_value: str) -> bool:
     thinking body is chat_completions-only) are not replicated here.
     """
     parsed_provider, model_name = _parse_provider(model_value)
-    effective_provider = provider or parsed_provider
+    effective_provider = normalize_provider(provider or parsed_provider)
     protocol = _resolve_protocol(effective_provider)
     name = model_name.lower()
 
@@ -779,9 +773,9 @@ class LLMClient:
 
         provider, model_name = _parse_provider(model)
 
-        # 显式 provider 优先于从 value 解析
+        # 显式 provider 优先于从 value 解析（slug 大小写归一）
         if explicit_provider:
-            provider = explicit_provider
+            provider = normalize_provider(explicit_provider)
 
         # 当模型没有显式 provider 且没有 provider 前缀（无 '/'）且与默认模型不同时，
         # 使用默认模型的 provider，确保 API 格式一致性。
@@ -806,7 +800,7 @@ class LLMClient:
                 # Apply per-model overrides (explicit params still take priority)
                 if not explicit_provider and model_cfg.get("provider"):
                     explicit_provider = model_cfg["provider"]
-                    provider = explicit_provider
+                    provider = normalize_provider(explicit_provider)
                 if not api_base and model_cfg.get("api_base"):
                     api_base = model_cfg["api_base"]
                 if not api_format and model_cfg.get("api_format"):

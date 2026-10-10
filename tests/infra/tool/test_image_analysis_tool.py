@@ -494,3 +494,36 @@ async def test_image_analyze_uses_storage_direct_urls(monkeypatch):
     assert result["success"] is True
     resolver.assert_awaited_once_with(original)
     assert captured["messages"][0].content[1]["image_url"]["url"] == signed
+
+
+async def test_backend_offline_does_not_reach_vision_model(monkeypatch):
+    from src.infra.tool import image_analysis_tool as tool_module
+    from src.kernel.errors import AppError, ErrorCode
+
+    model = ModelConfig(
+        id="vision-id", value="vision", label="Vision", profile=ModelProfile(supports_vision=True)
+    )
+    monkeypatch.setattr(tool_module.settings, "IMAGE_ANALYSIS_MODEL_ID", "vision-id")
+    monkeypatch.setattr(
+        "src.infra.agent.model_storage.get_model_storage", lambda: _FakeStorage(model)
+    )
+
+    class OfflineBackend:
+        async def adownload_files(self, paths):
+            raise AppError(ErrorCode.SANDBOX_MACHINE_OFFLINE, args={"machine": "m1"})
+
+        def download_files(self, paths):
+            raise AssertionError("offline must not retry through sync download")
+
+    async def fail_model(**kwargs):
+        raise AssertionError("unreadable local file must not reach model")
+
+    monkeypatch.setattr(tool_module.LLMClient, "get_model", fail_model)
+    result = json.loads(
+        await tool_module.image_analyze.coroutine(
+            image_urls=["/workspace/s/screen.png"], runtime=_Runtime(backend=OfflineBackend())
+        )
+    )
+    assert result["code"] == "sandbox_machine_offline"
+    assert result["args"] == {"machine": "m1"}
+    assert "m1" in result["error"]

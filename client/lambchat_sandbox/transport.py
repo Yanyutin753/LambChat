@@ -54,6 +54,10 @@ class TransportError(Exception):
     """通道传输失败（非认证）。"""
 
 
+class ResultRejectedError(TransportError):
+    """The server rejected this call assignment; keep the channel connected."""
+
+
 class TransportAuthError(TransportError):
     """PAT 失效或无权限（401/403）；调用方不应重连，应提示重新 login。"""
 
@@ -377,6 +381,12 @@ async def _version_gate_message(response: httpx.Response) -> str | None:
 async def _raise_for_status(response: httpx.Response, context: str) -> None:
     if response.is_success:
         return
+    if response.status_code == 409 and context in {"post_result", "post_stream_result"}:
+        with contextlib.suppress(ValueError):
+            payload = response.json()
+            detail = payload.get("detail") if isinstance(payload, dict) else None
+            if isinstance(detail, dict) and detail.get("code") == "sandbox_result_mismatch":
+                raise ResultRejectedError(f"{context}: HTTP 409")
     if response.status_code == 426:
         message = await _version_gate_message(response)
         if message is not None:

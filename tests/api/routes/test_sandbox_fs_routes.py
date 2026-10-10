@@ -458,3 +458,33 @@ async def test_cloud_files_preserve_backend_errors(monkeypatch, operation):
         )
     assert response.status_code == 200
     assert response.json() == {"error": "path_not_found"}
+
+
+async def test_binary_preview_uses_transfer_channel_above_read_output_limit(monkeypatch):
+    import base64
+
+    from src.infra.backend.local import LocalSandboxBackend
+
+    content = b"\x89PNG\r\n\x1a\n" + b"x" * (600 * 1024)
+    transfers = []
+
+    async def download(self, path, *, cwd):
+        transfers.append((self._user_id, self._machine_id, path, cwd))
+        return content
+
+    monkeypatch.setattr(LocalSandboxBackend, "_adownload_via_fs", download)
+    async with _fs_app(
+        monkeypatch,
+        _fake_session(agent_options={"sandbox_machine_id": "m1"}),
+        [],
+        dispatch_result={
+            "result": {"error": "Binary file exceeds maximum preview size of 512000 bytes"}
+        },
+    ) as client:
+        response = await client.get(
+            "/api/sandbox/fs/read", params={"session_id": "s", "path": "./screen.png"}
+        )
+    assert response.status_code == 200
+    assert response.json()["encoding"] == "base64"
+    assert base64.b64decode(response.json()["content"]) == content
+    assert transfers == [("u1", "m1", "./screen.png", "/workspace/s")]
