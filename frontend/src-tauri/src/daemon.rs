@@ -618,16 +618,8 @@ fn restrict_to_owner(path: &Path) -> Result<(), String> {
     }
     #[cfg(windows)]
     {
-        // The path is data, never interpolated into the PowerShell program.
-        let script = r#"$ErrorActionPreference='Stop'; $sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User; $acl=New-Object System.Security.AccessControl.FileSecurity; $acl.SetOwner($sid); $acl.SetAccessRuleProtection($true,$false); $rule=New-Object System.Security.AccessControl.FileSystemAccessRule($sid,'FullControl','Allow'); $acl.AddAccessRule($rule); Set-Acl -LiteralPath $env:LAMBCHAT_CREDENTIAL_PATH -AclObject $acl"#;
-        let output = std::process::Command::new("powershell.exe")
-            .args(["-NoProfile", "-NonInteractive", "-Command", script])
-            .env("LAMBCHAT_CREDENTIAL_PATH", path)
-            .output()
-            .map_err(|_| "Unable to secure credential file".to_string())?;
-        if !output.status.success() {
-            return Err("Unable to secure credential file".to_string());
-        }
+        crate::windows_acl::restrict_to_owner(path)
+            .map_err(|e| format!("Unable to secure credential file: {e}"))?;
     }
     Ok(())
 }

@@ -83,6 +83,7 @@
 - **sidecar 生命周期契约**：退避重启（上限 3 次、稳定 300s 重置计数）、`kill(pid,0)` 存活探测、SIGTERM 优雅退出、`RunEvent::Exit` 兜底回收——**凡动 `daemon.rs` 或 daemon 进程管理（`procsup.py`），合并前必须跑 `uv run python scripts/e2e_local_sandbox.py` 全绿**（AGENTS.md 硬性门禁）。
 - **升级保留数据**：升级或同版本重装不得递归删除 app data / WebView 数据目录；登录、偏好和窗口状态随版本保留。前端资源通过构建产物文件名更新，禁止为刷新资源而清空持久化数据。
 - **日志**：统一写 `~/.lambchat/logs/desktop.log`，禁止另起路径；日志里不得出现 token / pairing 凭据明文。
+- **Windows 凭证权限**：使用进程 token 的用户 SID 与原生 Win32 API 设置受保护的 owner-only DACL；目录授予该 SID 可继承的 FullControl。禁止为此启动 PowerShell / `Set-Acl`，避免域信任或域账户解析失败阻塞配对。权限设置失败必须停止写入，保留既有凭证。
 
 ## 8. 移动端（Capacitor）专项
 

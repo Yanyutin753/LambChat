@@ -4,41 +4,111 @@ from __future__ import annotations
 
 import os
 import stat
-import subprocess
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 
 _IS_WINDOWS = os.name == "nt"
-_WINDOWS_OWNER_ACL = """
-$ErrorActionPreference = 'Stop'
-$identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
-$item = Get-Item -LiteralPath $env:LAMBCHAT_CREDENTIAL_PATH -Force
-if ($item.PSIsContainer) {
-    $acl = New-Object System.Security.AccessControl.DirectorySecurity
-    $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($identity.User, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
-} else {
-    $acl = New-Object System.Security.AccessControl.FileSecurity
-    $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($identity.User, 'FullControl', 'Allow')
-}
-$acl.SetOwner($identity.User)
-$acl.SetAccessRuleProtection($true, $false)
-$acl.AddAccessRule($rule)
-Set-Acl -LiteralPath $env:LAMBCHAT_CREDENTIAL_PATH -AclObject $acl
-"""
 
 
 def _restrict_windows_owner(path: Path) -> None:
+    # Resolve the current process SID locally. Set-Acl can consult an unavailable
+    # domain controller even when given a SecurityIdentifier, blocking pairing.
+    import ctypes
+    from ctypes import WinDLL, WinError, get_last_error, wintypes  # type: ignore[attr-defined]
+
+    advapi = WinDLL("advapi32", use_last_error=True)
+    kernel = WinDLL("kernel32", use_last_error=True)
+    kernel.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel.LocalFree.restype = ctypes.c_void_p
+    advapi.OpenProcessToken.argtypes = [
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.HANDLE),
+    ]
+    advapi.GetTokenInformation.argtypes = [
+        wintypes.HANDLE,
+        ctypes.c_int,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    advapi.ConvertSidToStringSidW.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+    advapi.ConvertStringSecurityDescriptorToSecurityDescriptorW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    advapi.GetSecurityDescriptorDacl.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(wintypes.BOOL),
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(wintypes.BOOL),
+    ]
+    advapi.SetNamedSecurityInfoW.argtypes = [
+        wintypes.LPWSTR,
+        ctypes.c_int,
+        wintypes.DWORD,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+    ]
+    advapi.SetNamedSecurityInfoW.restype = wintypes.DWORD
+    token = wintypes.HANDLE()
+    sid_text = ctypes.c_void_p()
+    descriptor = ctypes.c_void_p()
     try:
-        subprocess.run(
-            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", _WINDOWS_OWNER_ACL],
-            env={**os.environ, "LAMBCHAT_CREDENTIAL_PATH": str(path)},
-            capture_output=True,
-            check=True,
-            timeout=15,
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
-        raise OSError("Unable to secure credential file") from exc
+        if not advapi.OpenProcessToken(kernel.GetCurrentProcess(), 0x0008, ctypes.byref(token)):
+            raise WinError(get_last_error())
+        size = wintypes.DWORD()
+        advapi.GetTokenInformation(token, 1, None, 0, ctypes.byref(size))
+        if not size.value:
+            raise WinError(get_last_error())
+        buffer = ctypes.create_string_buffer(size.value)
+        if not advapi.GetTokenInformation(token, 1, buffer, size, ctypes.byref(size)):
+            raise WinError(get_last_error())
+        # TOKEN_USER starts with SID_AND_ATTRIBUTES.Sid (a pointer).
+        sid = ctypes.cast(buffer, ctypes.POINTER(ctypes.c_void_p))[0]
+        if not advapi.ConvertSidToStringSidW(sid, ctypes.byref(sid_text)):
+            raise WinError(get_last_error())
+        owner = ctypes.wstring_at(sid_text)
+        inheritance = "OICI" if path.is_dir() else ""
+        sddl = f"O:{owner}D:P(A;{inheritance};FA;;;{owner})"
+        if not advapi.ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            sddl, 1, ctypes.byref(descriptor), None
+        ):
+            raise WinError(get_last_error())
+        # OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION |
+        # PROTECTED_DACL_SECURITY_INFORMATION: replace inherited/broad ACEs.
+        present = wintypes.BOOL()
+        defaulted = wintypes.BOOL()
+        dacl = ctypes.c_void_p()
+        if (
+            not advapi.GetSecurityDescriptorDacl(
+                descriptor, ctypes.byref(present), ctypes.byref(dacl), ctypes.byref(defaulted)
+            )
+            or not present.value
+            or not dacl.value
+        ):
+            raise OSError("Missing private credential DACL")
+        # Unlike SetFileSecurity, this propagates inheritable ACE changes to
+        # existing children, matching DirectorySecurity/Set-Acl semantics.
+        status = advapi.SetNamedSecurityInfoW(str(path), 1, 0x80000005, sid, None, dacl, None)
+        if status:
+            raise WinError(status)
+    except OSError as exc:
+        raise OSError(f"Unable to secure credential file: {exc}") from exc
+    finally:
+        if descriptor.value:
+            kernel.LocalFree(descriptor)
+        if sid_text.value:
+            kernel.LocalFree(sid_text)
+        if token.value:
+            kernel.CloseHandle(token)
 
 
 def check_private(path: Path, *, directory: bool = False) -> None:
