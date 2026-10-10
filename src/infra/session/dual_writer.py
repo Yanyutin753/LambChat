@@ -370,14 +370,18 @@ class DualEventWriter:
             acquire_failure = next(
                 (r for r in acquire_results if isinstance(r, BaseException)), None
             )
-            if acquire_failure is not None or not all(r is True for r in acquire_results):
+            leased = set(leased_session_ids)
+            blocked = [item for item in batch if _buffer_item_base(item)[3] not in leased]
+            if blocked:
                 async with self._mongo_lock:
-                    self._mongo_buffer = batch + self._mongo_buffer
+                    self._mongo_buffer = blocked + self._mongo_buffer
                 self._flush_event.set()
-                if acquire_failure is not None:
-                    raise acquire_failure
-                return
-            await self._flush_mongo_batch(batch)
+            # A deleted or fenced session must not block other users' history.
+            writable = [item for item in batch if _buffer_item_base(item)[3] in leased]
+            if writable:
+                await self._flush_mongo_batch(writable)
+            if acquire_failure is not None:
+                raise acquire_failure
         finally:
             if leased_session_ids:
                 release_results = await asyncio.gather(
@@ -925,6 +929,8 @@ class DualEventWriter:
         """
         stream_key = self._stream_key(session_id, run_id)
         try:
+            # Keep the replay copy until buffered history is durable.
+            await self.flush_mongo_buffer(require_empty=True)
             ttl = max(int(ttl_seconds), 1)
             success = await self.redis.expire(stream_key, ttl)
             self._ttl_set_keys.pop(stream_key, None)

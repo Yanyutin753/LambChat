@@ -1491,3 +1491,18 @@ async def test_close_dual_writer_does_not_create_singleton_when_unused() -> None
     await dual_writer.close_dual_writer()
 
     assert dual_writer._dual_writer is None
+
+
+@pytest.mark.asyncio
+async def test_terminal_stream_is_retained_when_mongo_events_are_pending() -> None:
+    fake_redis = _FakeRedis()
+    writer = dual_writer.DualEventWriter()
+    writer._redis = fake_redis
+
+    async def blocked_flush(**kwargs):
+        assert kwargs == {"require_empty": True}
+        raise RuntimeError("pending events")
+
+    writer.flush_mongo_buffer = blocked_flush
+    assert await writer.expire_stream("s1", run_id="r1", ttl_seconds=60) is False
+    assert fake_redis.expire_calls == []
