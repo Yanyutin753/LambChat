@@ -19,6 +19,7 @@ import pytest
 from src.infra.sandbox.relay.registry import (
     LEGACY_MACHINE_ID,
     SandboxClientRegistry,
+    machine_owner_key,
 )
 
 
@@ -62,7 +63,9 @@ class _FakeRedis:
             return self.strings[key]
         return None
 
-    async def set(self, key: str, value: str, ex: int | None = None) -> None:
+    async def set(self, key: str, value: str, ex: int | None = None, nx: bool = False) -> None:
+        if nx and key in self.strings and self._alive(key):
+            return
         self.strings[key] = value
         if ex is not None:
             self.expires_at[key] = time.monotonic() + ex
@@ -364,6 +367,66 @@ async def test_update_confirm_policy_rewrites_live_machine_and_memory(registry):
     machines = await registry.list_machines("u1")
     assert machines[0]["confirm_policy"] == "commands"
     assert await registry.get_confirm_policy("u1", "m1") == "commands"
+
+
+# ---------------------------------------------------------------------------
+# 默认机自动领养：未配置默认机时首台在册机器即默认（自动档开箱即用）
+# ---------------------------------------------------------------------------
+
+
+async def test_first_registered_machine_adopted_as_default(registry):
+    """未设默认机时首台注册机自动领养为默认：多机同时在线的缺省解析
+    （默认机→唯一在线→legacy）不再无枝可依（此前多机在线 + 无默认机 →
+    resolve_target 返回 None → 调用方按 DAEMON_OFFLINE 收敛）。"""
+    await registry.register(
+        "u1", "c1", "n1", version="0.4.0", machine_id="mac1", machine_name="MacBook"
+    )
+    await registry.register(
+        "u1", "c2", "n2", version="0.4.0", machine_id="srv1", machine_name="Server"
+    )
+    assert await registry.get_default_machine("u1") == "mac1"
+    # 多机同时在线且从未显式配置：缺省解析到领养的默认机
+    assert await registry.resolve_target("u1") == "mac1"
+    # 后来者的心跳不抢默认
+    await registry.heartbeat("u1", "c2", "n2", version="0.4.0", machine_id="srv1")
+    assert await registry.get_default_machine("u1") == "mac1"
+
+
+async def test_explicit_default_not_overridden_by_adoption(registry):
+    """显式设置的默认机优先：后续注册/心跳的领养是 NX 语义，不覆写。"""
+    await registry.register("u1", "c1", "n1", version="0.4.0", machine_id="mac1")
+    await registry.set_default_machine("u1", "srv1")
+    await registry.register("u1", "c2", "n2", version="0.4.0", machine_id="srv1")
+    await registry.heartbeat("u1", "c2", "n2", version="0.4.0", machine_id="srv1")
+    assert await registry.get_default_machine("u1") == "srv1"
+
+
+async def test_heartbeat_adopts_default_for_preexisting_machine(registry):
+    """部署前已在线的机器（旧代码注册、无领养）经心跳补领养：无需等 daemon
+    重连走 register。手工铺出旧代码写入的在线状态，心跳即触发领养。"""
+    fake = registry.fake
+    await fake.set(machine_owner_key("u1", "pc1"), "c1", ex=35)
+    await fake.set("sandbox:machine:u1:pc1", "n1|0.4.0|win32|none|PC", ex=35)
+    await fake.sadd("sandbox:machset:u1", "pc1")
+    await registry.heartbeat("u1", "c1", "n1", version="0.4.0", machine_id="pc1", machine_name="PC")
+    assert await registry.get_default_machine("u1") == "pc1"
+
+
+async def test_legacy_connection_not_adopted_as_default(registry):
+    """legacy 连接（无 machine_id）不触发领养。"""
+    await registry.register("u1", "c1", "n1", version="0.2.0")
+    await registry.heartbeat("u1", "c1", "n1", version="0.2.0")
+    assert await registry.get_default_machine("u1") is None
+
+
+async def test_stale_heartbeat_does_not_adopt_its_machine(registry):
+    """被 owner 防踢拒绝的陈旧连接心跳（eval 返回 0）在早退前不领养默认机。"""
+    await registry.register("u1", "new", "node1", machine_id="m1")
+    assert await registry.get_default_machine("u1") == "m1"
+    # 陈旧连接给从未注册的 m2 补心跳：owner 不匹配 → changed=0 → 早退
+    await registry.heartbeat("u1", "old", "node2", machine_id="m2")
+    assert await registry.get_default_machine("u1") == "m1"
+    assert not await registry.fake.smembers("sandbox:machset:u1") & {"m2"}
 
 
 # ---------------------------------------------------------------------------

@@ -256,6 +256,7 @@ class SandboxClientRegistry:
                     confirm_policy=effective_policy,
                 ),
             )
+            await self._adopt_default_if_absent(redis, user_id, machine_id)
             return
         value = encode_node_value(node_id, version, platform, confirm_policy, machine_name)
         await redis.delete(_key(user_id))  # 后连踢前连（legacy 单机语义）
@@ -304,10 +305,24 @@ class SandboxClientRegistry:
                     confirm_policy=effective_policy,
                 ),
             )
+            await self._adopt_default_if_absent(redis, user_id, machine_id)
             return
         value = encode_node_value(node_id, version, platform, confirm_policy, machine_name)
         await redis.hset(_key(user_id), client_id, value)
         await redis.expire(_key(user_id), _TTL_SECONDS)
+
+    async def _adopt_default_if_absent(self, redis, user_id: str, machine_id: str) -> None:
+        """未设默认机时首台在册机自动领养（SET NX 先到先得）。
+
+        缺省解析「默认机 → 唯一在线机 → legacy」在多机同时在线且用户从未
+        配置默认机时无枝可依（resolve_target 返回 None → 调用方按
+        DAEMON_OFFLINE 收敛）：exec 尚可由模型引导选机，computer_use 的
+        可信选机上下文则直接拒绝执行。首台有效注册/心跳的机器领养为默认，
+        自动档开箱即用；register 与 heartbeat 双路径覆盖「部署前已在线」
+        的存量机器。NX 语义保证不覆写显式 set_default_machine 的用户选择，
+        forget_machine 移除领养机时照常清默认指向（剩余机器下次心跳重新领养）。
+        """
+        await redis.set(_machdefault_key(user_id), machine_id, nx=True)
 
     async def unregister(self, user_id: str, client_id: str, machine_id: str = "") -> None:
         redis = self._redis()

@@ -87,7 +87,9 @@ class _FakeRedis:
             await asyncio.sleep(timeout)
         return None
 
-    async def set(self, key, value, ex=None):
+    async def set(self, key, value, ex=None, nx=False):
+        if nx and key in self.kv:
+            return
         self.kv[key] = value
         if ex is not None:
             self.expires_at[key] = time.monotonic() + ex
@@ -545,9 +547,9 @@ async def test_status_endpoint_multi_machine_reports_default_machine(monkeypatch
     }
 
 
-async def test_status_endpoint_multiple_machines_without_default_online(monkeypatch):
-    """多机并存且未设默认：无缺省目标机（版本/平台为 null），但在线判定
-    必须为 True——任一机器在线即在线，与机器列表绿点一致。"""
+async def test_status_endpoint_multiple_machines_online_with_adopted_default(monkeypatch):
+    """多机并存且从未显式设默认：首台注册机自动领养为默认，状态端点的
+    缺省解析（版本/平台）指向领养机；在线判定与机器列表绿点一致。"""
     registry, _ = _real_registry(monkeypatch)
     await registry.register("u1", "c1", "n1", version="0.3.0", platform="linux", machine_id="mac1")
     await registry.register("u1", "c2", "n2", version="0.3.1", platform="win32", machine_id="pc1")
@@ -557,8 +559,8 @@ async def test_status_endpoint_multiple_machines_without_default_online(monkeypa
     assert resp.status_code == 200
     assert resp.json() == {
         "online": True,
-        "daemon_version": None,
-        "daemon_platform": None,
+        "daemon_version": "0.3.0",
+        "daemon_platform": "linux",
         "daemon_confirm_policy": None,
     }
 

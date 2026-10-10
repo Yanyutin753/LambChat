@@ -70,11 +70,56 @@ async def test_selected_machine_is_not_replaced_by_account_default():
     ) == {"platform": "local", "machine_id": "selected-windows"}
 
 
-async def test_automatic_selection_cannot_choose_a_cua_machine():
+async def test_automatic_selection_pins_registry_default_machine(monkeypatch):
+    """自动档（未显式选机）：由注册表缺省解析（默认机→唯一在线→legacy）钉住
+    目标机——默认机开箱即用，不再强制用户手动选中。"""
+
+    class _Registry:
+        def __init__(self, target):
+            self._target = target
+
+        async def resolve_target(self, user_id, machine_id=None):
+            assert user_id == "u1"
+            return self._target
+
+    monkeypatch.setattr(cut, "SandboxClientRegistry", lambda: _Registry("default-mac"))
+    assert await cut.resolve_computer_use_context("u1", {"sandbox": "local"}) == {
+        "platform": "local",
+        "machine_id": "default-mac",
+    }
+
+
+async def test_automatic_selection_without_online_machine_stays_unpinned(monkeypatch):
+    """无任何在线机：钉不住目标（None），工具层按 machine_selection_required
+    收敛——自动档解析不能凭空造出机器。"""
+
+    class _Registry:
+        async def resolve_target(self, user_id, machine_id=None):
+            return None
+
+    monkeypatch.setattr(cut, "SandboxClientRegistry", lambda: _Registry())
     assert await cut.resolve_computer_use_context("u1", {"sandbox": "local"}) == {
         "platform": "local",
         "machine_id": None,
     }
+
+
+async def test_pinned_default_machine_flows_to_dispatch(monkeypatch):
+    """自动档钉住的默认机进入 dispatch：与显式选机同一条确认链路。"""
+    captured = {}
+
+    async def dispatch(user_id, op, payload, *, machine_id=None):
+        captured["machine_id"] = machine_id
+        return {"result": {"ok": True}}
+
+    async def lookup(user_id, machine_id=None):
+        return "none"
+
+    monkeypatch.setattr(cut, "_lookup_confirm_policy", lookup, raising=False)
+    monkeypatch.setattr(cut, "dispatch_local_call", dispatch)
+    result = await _call(action="apps", runtime=_runtime(machine="default-mac"))
+    assert json.loads(result)["ok"] is True
+    assert captured["machine_id"] == "default-mac"
 
 
 async def test_resuming_on_different_machine_is_denied_even_if_new_policy_none(monkeypatch):

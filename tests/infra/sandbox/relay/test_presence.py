@@ -53,7 +53,9 @@ class _FakeRedis:
             return self.strings[key]
         return None
 
-    async def set(self, key: str, value: str, ex: int | None = None) -> None:
+    async def set(self, key: str, value: str, ex: int | None = None, nx: bool = False) -> None:
+        if nx and key in self.strings:
+            return
         self.strings[key] = value
         if ex is not None:
             self.expires_at[key] = time.monotonic() + ex

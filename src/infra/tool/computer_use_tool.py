@@ -24,6 +24,7 @@ from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.sandbox.confirm import confirm_local_op
 from src.infra.sandbox.relay.dispatch import dispatch_local_call
+from src.infra.sandbox.relay.registry import SandboxClientRegistry
 from src.infra.tool.backend_utils import (
     get_base_url_from_runtime,
     get_session_id_from_runtime,
@@ -37,11 +38,26 @@ logger = get_logger(__name__)
 async def resolve_computer_use_context(
     user_id: str, options: dict[str, Any], hitl_resume: dict[str, Any] | None = None
 ) -> dict[str, Any]:
-    """Pin the trusted session selection once per run, before any model tool call."""
+    """Pin the trusted session selection once per run, before any model tool call.
+
+    自动档（会话未显式选机）按注册表缺省解析钉住目标机（默认机 → 唯一在线
+    → legacy；默认机缺配时由注册表首台自动领养）——钉住的机器与显式选机走
+    完全相同的确认门/目标校验/HITL 续作匹配，模型仍无法改指目标。无任何
+    在线机时 machine_id 保持 None（工具按 machine_selection_required 收敛）。
+    """
     choice = options.get("sandbox")
     platform = choice if choice in ("local", "cloud") else None
     selected = options.get("sandbox_machine_id")
     machine = selected.strip() if isinstance(selected, str) else None
+    if not machine:
+        # 自动档：注册表缺省解析钉默认机。尽力而为（照 _lookup_daemon_identity
+        # 的容错语义）——redis 故障回落 None，工具层按 machine_selection_required
+        # 收敛，不阻断会话启动。
+        try:
+            machine = await SandboxClientRegistry().resolve_target(user_id)
+        except Exception:  # noqa: BLE001 - 选机解析尽力而为，失败不注入
+            logger.warning("computer_use default machine resolution failed for user %s", user_id)
+            machine = None
     selection: dict[str, Any] = {"platform": platform, "machine_id": machine}
     if hitl_resume and isinstance(hitl_resume.get("confirmation_context"), dict):
         approval = hitl_resume.get("approval_resolved") or {}
@@ -226,13 +242,13 @@ async def computer_use(
 ) -> str:
     """Operate native apps / the desktop on the user's OWN machine via the local sandbox.
 
-    Availability: requires an explicitly selected, online desktop app daemon. The code
-    sandbox may be local or cloud; desktop selection is independent of that platform.
-    On ``dispatch_failed: offline`` tell the user to open LambChat on the selected
-    machine; do not retry blindly. The session's selected machine is authoritative.
-    You cannot change it with
-    tool arguments; ask the user to change the session selection. If it is offline,
-    stop instead of selecting another machine.
+    Availability: requires an online desktop app daemon. With no explicit session
+    machine selection the user's default machine is pinned automatically (registry
+    default, adopted from the first registered machine). The session's pinned
+    machine is authoritative. You cannot change it with tool arguments; ask the
+    user to change the session selection instead. If the pinned machine is offline,
+    stop instead of selecting another machine. On ``dispatch_failed: offline`` tell
+    the user to open LambChat on that machine; do not retry blindly.
 
     Workflow (always):
     1. ``launch`` to open a URL or start an app — this is the correct way to start
