@@ -11,9 +11,11 @@ offline 错误（模型可引导用户启动桌面端）。
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 from typing import Annotated, Any, Optional
+from weakref import WeakValueDictionary
 
 from langchain.tools import ToolRuntime, tool
 from pydantic import BaseModel, Field
@@ -24,6 +26,7 @@ from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.sandbox.confirm import confirm_local_op
 from src.infra.sandbox.relay.dispatch import dispatch_local_call
+from src.infra.sandbox.relay.registry import SandboxClientRegistry
 from src.infra.tool.backend_utils import (
     get_base_url_from_runtime,
     get_session_id_from_runtime,
@@ -32,16 +35,40 @@ from src.infra.tool.backend_utils import (
 from src.kernel.errors import AppError
 
 logger = get_logger(__name__)
+_CUA_LOCKS: WeakValueDictionary[tuple[asyncio.AbstractEventLoop, str, str], asyncio.Lock] = (
+    WeakValueDictionary()
+)
+
+
+def _desktop_call_lock(user_id: str, machine_id: str) -> asyncio.Lock:
+    # Preserve model call order before asynchronous policy/relay work can reorder input.
+    key = (asyncio.get_running_loop(), user_id, machine_id)
+    return _CUA_LOCKS.setdefault(key, asyncio.Lock())
 
 
 async def resolve_computer_use_context(
     user_id: str, options: dict[str, Any], hitl_resume: dict[str, Any] | None = None
 ) -> dict[str, Any]:
-    """Pin the trusted session selection once per run, before any model tool call."""
+    """Pin the trusted session selection once per run, before any model tool call.
+
+    自动档（会话未显式选机）按注册表缺省解析钉住目标机（默认机 → 唯一在线
+    → legacy；默认机缺配时由注册表首台自动领养）——钉住的机器与显式选机走
+    完全相同的确认门/目标校验/HITL 续作匹配，模型仍无法改指目标。无任何
+    在线机时 machine_id 保持 None（工具按 machine_selection_required 收敛）。
+    """
     choice = options.get("sandbox")
     platform = choice if choice in ("local", "cloud") else None
     selected = options.get("sandbox_machine_id")
     machine = selected.strip() if isinstance(selected, str) else None
+    if not machine:
+        # 自动档：注册表缺省解析钉默认机。尽力而为（照 _lookup_daemon_identity
+        # 的容错语义）——redis 故障回落 None，工具层按 machine_selection_required
+        # 收敛，不阻断会话启动。
+        try:
+            machine = await SandboxClientRegistry().resolve_target(user_id)
+        except Exception:  # noqa: BLE001 - 选机解析尽力而为，失败不注入
+            logger.warning("computer_use default machine resolution failed for user %s", user_id)
+            machine = None
     selection: dict[str, Any] = {"platform": platform, "machine_id": machine}
     if hitl_resume and isinstance(hitl_resume.get("confirmation_context"), dict):
         approval = hitl_resume.get("approval_resolved") or {}
@@ -77,17 +104,22 @@ class _ComputerUseInput(BaseModel):
         ),
     )
     url: Optional[str] = Field(None, description="launch: open this URL in the default browser")
-    app: Optional[str] = Field(None, description="launch: executable path to start (no shell)")
+    app: Optional[str] = Field(
+        None, description="launch: executable path or macOS .app bundle (no shell)"
+    )
     args: Optional[list[str]] = Field(None, description="launch: argv for app")
     machine_id: Optional[str] = Field(
         None,
         description="optional assertion of the session-selected machine; cannot change targets",
     )
-    pid: Optional[int] = Field(None, description="target app pid (from apps; preferred over name)")
+    pid: Optional[int] = Field(
+        None,
+        description="Target app pid from apps. Required unless name is supplied for all actions except status/apps/launch, including coordinate clicks.",
+    )
     name: Optional[str] = Field(None, description="target app name (exact, from apps)")
     window_id: Optional[int] = Field(None, description="pin one window (from windows)")
     index: Optional[int] = Field(
-        None, description="element index from the latest state of this app"
+        None, description="element index from latest state; state: inspect only this subtree"
     )
     x: Optional[float] = Field(
         None,
@@ -102,7 +134,10 @@ class _ComputerUseInput(BaseModel):
     mouse_button: Optional[str] = Field(None, description="click: left|right|middle (default left)")
     click_count: Optional[int] = Field(None, description="click count 1..3")
     scroll_direction: Optional[str] = Field(None, description="scroll: up|down|left|right")
-    scroll_amount: Optional[float] = Field(None, description="scroll pages (default 1)")
+    scroll_amount: Optional[float] = Field(
+        None,
+        description="scroll amount (default 1); wheel fallback uses 10 wheel notches per unit, 0.1 for fine movement, not a fixed pixel/page distance",
+    )
     include_screenshot: bool = Field(False, description="state: attach jpeg screenshot (base64)")
     probe_screen: bool = Field(False, description="status: probe Screen Recording permission")
     repeat: Optional[int] = Field(None, description="key: repeat count 1..50")
@@ -203,10 +238,13 @@ async def computer_use(
         "type, key, scroll, action",
     ],
     url: Annotated[Optional[str], "launch: URL to open in default browser"] = None,
-    app: Annotated[Optional[str], "launch: executable path (no shell)"] = None,
+    app: Annotated[Optional[str], "launch: executable path or macOS .app bundle (no shell)"] = None,
     args: Annotated[Optional[list[str]], "launch: argv for app"] = None,
     machine_id: Annotated[Optional[str], "target a specific registered machine"] = None,
-    pid: Annotated[Optional[int], "Target app pid (preferred)"] = None,
+    pid: Annotated[
+        Optional[int],
+        "Target app pid from apps. Required unless name is supplied for all actions except status/apps/launch.",
+    ] = None,
     name: Annotated[Optional[str], "Target app name (exact match)"] = None,
     window_id: Annotated[Optional[int], "Pin one window"] = None,
     index: Annotated[Optional[int], "Element index from latest state"] = None,
@@ -226,22 +264,29 @@ async def computer_use(
 ) -> str:
     """Operate native apps / the desktop on the user's OWN machine via the local sandbox.
 
-    Availability: requires an explicitly selected, online desktop app daemon. The code
-    sandbox may be local or cloud; desktop selection is independent of that platform.
-    On ``dispatch_failed: offline`` tell the user to open LambChat on the selected
-    machine; do not retry blindly. The session's selected machine is authoritative.
-    You cannot change it with
-    tool arguments; ask the user to change the session selection. If it is offline,
-    stop instead of selecting another machine.
+    Availability: requires an online desktop app daemon. With no explicit session
+    machine selection the user's default machine is pinned automatically (registry
+    default, adopted from the first registered machine). The session's pinned
+    machine is authoritative. You cannot change it with tool arguments; ask the
+    user to change the session selection instead. If the pinned machine is offline,
+    stop instead of selecting another machine. On ``dispatch_failed: offline`` tell
+    the user to open LambChat on that machine; do not retry blindly.
 
     Workflow (always):
+    Coordinate clicks also require pid or name; never assume the current app implicitly.
     1. ``launch`` to open a URL or start an app — this is the correct way to start
        browsers/GUI apps (detached, survives; do NOT start GUI apps via shell execute).
-    2. ``apps`` to find the pid (browsers are multi-process: only ONE pid owns windows —
+    2. ``apps`` to find the pid (``launch.launcher_pid`` may belong to a wrapper,
+       not the accessible app; browsers are multi-process: only ONE pid owns windows —
        probe candidates with ``windows`` and keep the pid that returns windows).
     3. ``state`` to observe the accessibility tree. Element indices address the LATEST
-       observation; every new ``state`` renumbers. Re-observe after ANY action before
-       acting again (indices from an older observation are invalid → stale_state).
+       observation; every new ``state`` renumbers. Re-observe after a GUI change before
+       using indices again. Read-only status/apps/windows/state calls do not require
+       another observation. For truncated trees, use ``state(index=...)`` on a known
+       document/container; subtree indices replace the previous ones. Omit index to
+       return to the full window. Screenshots still show the verified target window.
+       If ``window.focused=false`` or screenshot error is ``foreground_required``,
+       call ``activate`` on that window before observing an image; do not retry the same background screenshot.
     4. Prefer element actions (accessibility press/value work on background apps, no
        focus stealing). Coordinates/keyboard are last resorts and need the app frontmost
        (``foreground_required`` otherwise; the event path NEVER activates apps silently —
@@ -252,6 +297,45 @@ async def computer_use(
     5. Multi-window apps: ``windows`` lists them; pin with window_id. Without it the
        key/main window is re-resolved each observation — a just-opened modal becomes the
        captured window (check the ``window:`` header line first when things look wrong).
+
+    If the current tree and screenshot demonstrate the requested outcome,
+    finish without more input or identical observations. Re-observe after a change
+    or to resolve specific missing evidence, not to repeatedly reconfirm the same state.
+    If a repeated observation provides no new evidence, change the approach or report
+    the specific uncertainty instead of polling the same state indefinitely.
+
+    Scrolling: target the content region with index or x/y, especially for nested scroll
+    areas; a toolbar, sidebar or another pane can consume the wheel. Without a target,
+    wheel fallback uses the active window center. Start with scroll_amount=0.1 for fine
+    movement or 1 for larger movement; distance depends on the app and OS settings.
+    Re-observe to verify movement and adjust; repeated ok results do not prove scrolling.
+    A visible sticky header does not prove the page is at the top or bottom; verify
+    the original first/last content and scrollbar position before claiming a boundary.
+    At a nested region's boundary, scroll chaining can move its parent. Confirm the last
+    item and scrollbar position with state; do not probe a visible boundary with more
+    wheel input. If the parent moves, target outside the nested region to restore it.
+
+    Office editors: a selected spreadsheet cell may not support ``set_value``. Activate
+    the app, enter cell editing mode (usually F2), then ``type`` and confirm with Enter.
+    Use the Name Box or Go To command for exact cell addresses; confirm the selected
+    address before editing instead of guessing spreadsheet cell centers from pixels.
+    Formatting shortcuts toggle: verify the selected range and current value or format dialog
+    before repeating them; do not infer success from font appearance alone.
+    In tabbed editors such as WPS, verify the active document tab and cell address before
+    typing: a pid alone does not identify a document. If the tab changes, re-select the
+    intended file and re-observe before continuing; do not type into another document.
+    Close startup dialogs first; re-observe after saving to handle format confirmations.
+    Office dialogs can run in a different process (including WPS Go To). If the editor
+    loses focus, rediscover with ``apps`` / ``windows`` and use the active dialog's pid
+    for ``state``, screenshots and keys instead of keeping the parent editor's pid.
+    When ``state.foreground_pid`` is present, observe that pid to identify the active
+    dialog before acting; the original observation still belongs to its requested pid.
+    File pickers may belong to a separate desktop portal process. If the editor loses
+    focus after Save As, use ``apps`` / ``windows`` to find the active dialog and its pid.
+    Saved desktop files are on the selected machine, not automatically in the Agent's
+    workspace. Fast Agent uses a Store-backed virtual filesystem: an empty ``ls`` there
+    does not mean a desktop save failed. Verify through the native app unless a filesystem
+    tool is explicitly connected to the same machine and path.
 
     Browser pages (Chromium family): the page DOM may NOT appear in the tree until the
     browser activates accessibility — if ``state`` shows only window chrome, prefer URL
@@ -265,6 +349,10 @@ async def computer_use(
     resolved from PATH.
 
     Hard rules:
+    - For non-editable dropdowns, expand and commit the option using advertised actions;
+      read the selected value after closing before saving; do not use set_value.
+      Select may only highlight: if the value reverts, use keyboard arrows and Enter;
+      do not repeat Select followed by Enter.
     - NEVER use osascript/AppleScript/System Events/JXA for UI automation — an unattended
       TCC permission dialog hangs forever. This tool is the replacement.
     - For settable elements prefer set_value over typing.
@@ -278,8 +366,9 @@ async def computer_use(
       (macOS) / enable toolkit-accessibility (Linux); app_not_found → ``apps``;
       element_unavailable/stale_state → re-observe with ``state``; offline → see
       Availability above.
-    - Screenshot (include_screenshot=true) returns base64 for the human/UI; the
-      accessibility tree text is your primary view.
+    - Screenshots (include_screenshot=true) are attached as images to vision-enabled models.
+      Prefer accessibility indices when available; use the screenshot to verify document
+      content and locate controls missing from the tree.
     """
 
     action = (action or "").strip().lower()
@@ -333,51 +422,51 @@ async def computer_use(
         )
     )
     payload["session_id"] = session_id
-    policy = await _lookup_confirm_policy(user_id, selected_machine)
-    read_only = action in ("status", "apps", "windows") or (
-        action == "state" and not include_screenshot
-    )
-    operation = json.dumps({"action": action, **payload}, sort_keys=True, ensure_ascii=False)
-    confirmation_context = {
-        "machine_id": selected_machine,
-        "operation_sha256": hashlib.sha256(operation.encode()).hexdigest(),
-    }
-    resumed = selection.get("resume")
-    if isinstance(resumed, dict):
-        original = resumed.get("confirmation_context") or {}
-        same_call = resumed.get("tool_call_id") == getattr(runtime, "tool_call_id", None)
-        if original.get("machine_id") != selected_machine or (
-            same_call and (resumed.get("approved") is not True or original != confirmation_context)
-        ):
-            return (
-                "ERROR declined_by_user: resumed desktop approval no longer matches this operation"
-            )
-    if not confirm_local_op(
-        "computer_use read" if read_only else "rm computer_use operation",
-        policy,
-        description=f"Computer control on machine {selected_machine}: {operation}"
-        + (" (includes a screenshot sent to the model)" if include_screenshot else ""),
-        tool_call_id=str(getattr(runtime, "tool_call_id", "") or ""),
-        confirmation_context=confirmation_context,
-    ):
-        return "ERROR declined_by_user: approval missing or operation changed; do not retry without an explicit user request"
-    try:
-        resp = await dispatch_local_call(
-            user_id, f"cua_{action}", payload, machine_id=selected_machine
+    async with _desktop_call_lock(user_id, selected_machine):
+        policy = await _lookup_confirm_policy(user_id, selected_machine)
+        read_only = action in ("status", "apps", "windows") or (
+            action == "state" and not include_screenshot
         )
-    except Exception as exc:  # noqa: BLE001 - AppError(SANDBOX_*) 等统一转文本
-        # AppError.__str__ retains interpolation placeholders.
-        message = exc.display_message if isinstance(exc, AppError) else str(exc)
-        logger.warning("[computer_use] dispatch failed action=%s: %s", action, message)
-        hint = ""
-        if "offline" in message.lower():
-            hint = " (local sandbox daemon offline — ask the user to open the LambChat desktop app)"
-        return f"ERROR dispatch_failed: {message}{hint}"
+        operation = json.dumps({"action": action, **payload}, sort_keys=True, ensure_ascii=False)
+        confirmation_context = {
+            "machine_id": selected_machine,
+            "operation_sha256": hashlib.sha256(operation.encode()).hexdigest(),
+        }
+        resumed = selection.get("resume")
+        if isinstance(resumed, dict):
+            original = resumed.get("confirmation_context") or {}
+            same_call = resumed.get("tool_call_id") == getattr(runtime, "tool_call_id", None)
+            if original.get("machine_id") != selected_machine or (
+                same_call
+                and (resumed.get("approved") is not True or original != confirmation_context)
+            ):
+                return "ERROR declined_by_user: resumed desktop approval no longer matches this operation"
+        if not confirm_local_op(
+            "computer_use read" if read_only else "rm computer_use operation",
+            policy,
+            description=f"Computer control on machine {selected_machine}: {operation}"
+            + (" (includes a screenshot sent to the model)" if include_screenshot else ""),
+            tool_call_id=str(getattr(runtime, "tool_call_id", "") or ""),
+            confirmation_context=confirmation_context,
+        ):
+            return "ERROR declined_by_user: approval missing or operation changed; do not retry without an explicit user request"
+        try:
+            resp = await dispatch_local_call(
+                user_id, f"cua_{action}", payload, machine_id=selected_machine
+            )
+        except Exception as exc:  # noqa: BLE001 - AppError(SANDBOX_*) 等统一转文本
+            # AppError.__str__ retains interpolation placeholders.
+            message = exc.display_message if isinstance(exc, AppError) else str(exc)
+            logger.warning("[computer_use] dispatch failed action=%s: %s", action, message)
+            hint = ""
+            if "offline" in message.lower():
+                hint = " (local sandbox daemon offline — ask the user to open the LambChat desktop app)"
+            return f"ERROR dispatch_failed: {message}{hint}"
 
-    result = resp.get("result") if isinstance(resp, dict) else None
-    if result is None:
-        error = resp.get("error") if isinstance(resp, dict) else resp
-        return f"ERROR daemon_error: {error}"
-    if isinstance(result, dict):
-        result = {**result, "machine_id": selected_machine}
-    return await _format_result(result, runtime)
+        result = resp.get("result") if isinstance(resp, dict) else None
+        if result is None:
+            error = resp.get("error") if isinstance(resp, dict) else resp
+            return f"ERROR daemon_error: {error}"
+        if isinstance(result, dict):
+            result = {**result, "machine_id": selected_machine}
+        return await _format_result(result, runtime)

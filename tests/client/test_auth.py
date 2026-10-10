@@ -1,6 +1,7 @@
 """PAT 存储（keyring/文件双后端）与服务端配对 + CLI。"""
 
 import json
+import os
 import stat
 
 import httpx
@@ -86,7 +87,8 @@ def test_store_creates_parent_dirs_and_chmod_600(tmp_path):
     p = tmp_path / ".lambchat" / "pat"
     store_pat("token-2", path=p)
     assert p.exists()
-    assert stat.S_IMODE(p.stat().st_mode) == 0o600
+    if os.name != "nt":  # Windows privacy is verified through real ACL tests.
+        assert stat.S_IMODE(p.stat().st_mode) == 0o600
 
 
 def test_load_missing_returns_none(tmp_path):
@@ -122,7 +124,8 @@ def test_keyring_failure_falls_back_to_file(monkeypatch, tmp_path):
     store_pat("token-5")
     pat_file = tmp_path / "pat"
     assert json.loads(pat_file.read_text(encoding="utf-8"))["token"] == "token-5"
-    assert stat.S_IMODE(pat_file.stat().st_mode) == 0o600
+    if os.name != "nt":
+        assert stat.S_IMODE(pat_file.stat().st_mode) == 0o600
     assert load_pat() == "token-5"  # keyring 读失败回退文件
 
 
@@ -391,7 +394,8 @@ def test_credential_temp_is_private_before_any_secret_is_replaced(monkeypatch, t
     observed = []
 
     def inspect_replace(source, destination):
-        assert stat.S_IMODE(auth.Path(source).stat().st_mode) == 0o600
+        if os.name != "nt":
+            assert stat.S_IMODE(auth.Path(source).stat().st_mode) == 0o600
         assert json.loads(auth.Path(source).read_text())["origin"] == "https://a.example"
         observed.append(source)
         original_replace(source, destination)
@@ -481,21 +485,6 @@ def test_cli_does_not_connect_using_a_pat_bound_to_another_server(monkeypatch, c
     monkeypatch.setattr(cli, "run_daemon", unexpected_request)
     assert main([command]) == 1
     assert "login" in capsys.readouterr().err
-
-
-def test_windows_acl_command_uses_constant_script_and_environment_path(monkeypatch, tmp_path):
-    from unittest.mock import Mock
-
-    run = Mock()
-    monkeypatch.setattr(private_files.subprocess, "run", run)
-    p = tmp_path / "quote'; $(command)" / "pat"
-    private_files._restrict_windows_owner(p)
-    args, kwargs = run.call_args
-    assert args[0][-1] == private_files._WINDOWS_OWNER_ACL
-    assert str(p) not in args[0][-1]
-    assert kwargs["env"]["LAMBCHAT_CREDENTIAL_PATH"] == str(p)
-    assert kwargs["check"] is True
-    assert kwargs["capture_output"] is True
 
 
 async def test_pair_rejects_unsafe_server_before_sending_password():

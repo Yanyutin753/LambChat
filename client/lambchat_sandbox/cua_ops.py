@@ -186,6 +186,15 @@ def _op_launch(payload: dict) -> dict:
         import shutil
 
         resolved = str(app)
+        if platform == "darwin" and resolved.endswith(".app"):
+            subprocess.run(
+                ["open", "-a", resolved, *(["--args", *args] if args else [])],
+                check=True,
+                timeout=10,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return {"ok": True, "kind": "app", "target": resolved}
         if not os.path.isfile(resolved) and os.sep not in str(app):
             which = shutil.which(str(app))
             if which:
@@ -210,8 +219,8 @@ def _op_launch(payload: dict) -> dict:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        return {"ok": True, "kind": "app", "target": argv[0], "pid": proc.pid}
-    except OSError as exc:
+        return {"ok": True, "kind": "app", "target": argv[0], "launcher_pid": proc.pid}
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
         raise CuaOpError("launch_failed", str(exc)) from exc
 
 
@@ -255,7 +264,7 @@ def _store_observation(pid: int, window_id: int | None, observed: _Observed) -> 
         _OBSERVATIONS[key] = observed
 
 
-def _resolve_index(pid: int, window_id: int | None, index: Any) -> Any:
+def _get_observation(pid: int, window_id: int | None) -> _Observed:
     with _OBSERVATION_LOCK:
         if window_id is not None:
             observed = _OBSERVATIONS.get(_cache_key(pid, window_id))
@@ -267,6 +276,11 @@ def _resolve_index(pid: int, window_id: int | None, index: Any) -> Any:
             observed = max(candidates, key=lambda v: v.ts) if candidates else None
     if observed is None or time.monotonic() - observed.ts > ELEMENT_CACHE_TTL:
         raise CuaOpError("stale_state", "observe again with cua_state before acting")
+    return observed
+
+
+def _resolve_index(pid: int, window_id: int | None, index: Any) -> Any:
+    observed = _get_observation(pid, window_id)
     if not isinstance(index, int) or index < 0 or index >= len(observed.elements):
         raise CuaOpError("element_unavailable", f"index {index!r} not in latest observation")
     return observed.elements[index]
@@ -336,6 +350,17 @@ def _walk_tree(root: Any) -> tuple[list[dict[str, Any]], list[Any], bool]:
 def _render_tree(rows: list[dict[str, Any]], window: dict[str, Any], truncated: bool) -> str:
     lines = [f"window: {window.get('title') or ''} (id={window.get('window_id')})"]
     for index, row in enumerate(rows):
+        if (
+            row.get("kind")
+            in ("filler", "panel", "root pane", "viewport", "Group", "Pane", "Window")
+            and not row.get("title")
+            and not row.get("value")
+            and (
+                not row.get("actions")
+                or (row.get("kind") == "Group" and row.get("actions") == ["Invoke"])
+            )
+        ):
+            continue  # Keep native indices while omitting non-interactive layout noise.
         indent = "  " * row["depth"]
         kind = row.get("kind") or "Unknown"
         label = f"[{index}] {kind}"
@@ -356,6 +381,10 @@ def _op_state(payload: dict) -> dict:
     backend = _backend()
     pid = _resolve_app_ref(payload)
     window_id = payload.get("window_id")
+    target = payload.get("target") or {}
+    subtree = target.get("type") == "element"
+    if subtree:
+        window_id = _get_observation(pid, window_id).window.get("window_id")
     try:
         window_element, window_info = backend.pick_window(
             pid, window_id if isinstance(window_id, int) else None
@@ -364,8 +393,11 @@ def _op_state(payload: dict) -> dict:
         raise CuaOpError("window_not_found", str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise CuaOpError("ax_error", str(exc)) from exc
-    rows, elements, truncated = _walk_tree(window_element)
     resolved_window_id = window_info.get("window_id")
+    root = (
+        _resolve_index(pid, resolved_window_id, target.get("index")) if subtree else window_element
+    )
+    rows, elements, truncated = _walk_tree(root)
     _store_observation(pid, resolved_window_id, _Observed(elements, window_info))
     result: dict[str, Any] = {
         "pid": pid,
@@ -374,6 +406,14 @@ def _op_state(payload: dict) -> dict:
         "truncated": truncated,
         "state": _render_tree(rows, window_info, truncated),
     }
+    if subtree:
+        result["subtree"] = True
+    try:
+        foreground_pid = backend.frontmost_pid()
+        if isinstance(foreground_pid, int) and foreground_pid > 0 and foreground_pid != pid:
+            result["foreground_pid"] = foreground_pid
+    except Exception:  # noqa: BLE001 - Preserve the tree if foreground discovery is unavailable.
+        pass
     if payload.get("include_screenshot"):
         try:
             # ponytail: Foreground regions may include overlays; window isolation needs native capture.
@@ -479,11 +519,28 @@ def _require_foreground(pid: int) -> None:
         )
 
 
+def _require_observed_window_foreground(pid: int, window_id: int | None) -> None:
+    _require_foreground(pid)
+    observed = _get_observation(pid, window_id)
+    _, window = _backend().pick_window(pid, observed.window.get("window_id"))
+    if not window.get("focused"):
+        raise CuaOpError("foreground_required", "observed window is not active")
+
+
 def _element_center(element: Any) -> tuple[float, float]:
     row = _backend().row_of(element)
-    bounds = row.get("bounds")
-    if not bounds:
-        raise CuaOpError("element_unavailable", "element has no bounds")
+    return _bounds_center(row.get("bounds"))
+
+
+def _bounds_center(bounds: Any) -> tuple[float, float]:
+    if (
+        not isinstance(bounds, (list, tuple))
+        or len(bounds) != 4
+        or any(not isinstance(v, (int, float)) or not math.isfinite(v) for v in bounds)
+        or bounds[2] < 1
+        or bounds[3] < 1
+    ):
+        raise CuaOpError("element_unavailable", "element bounds unavailable or invalid")
     return bounds[0] + bounds[2] / 2, bounds[1] + bounds[3] / 2
 
 
@@ -501,11 +558,14 @@ def _op_click(payload: dict) -> dict:
         semantic = "click" if button == "left" else "context_menu"
         try:
             backend.perform(element, semantic)
-        except KeyError as exc:
-            raise CuaOpError("action_failed", str(exc)) from exc
+        except KeyError:
+            _require_observed_window_foreground(pid, payload.get("window_id"))
+            x, y = _element_center(element)
+            target = {"x": x, "y": y}
         except Exception as exc:  # noqa: BLE001
             raise CuaOpError("action_failed", str(exc)) from exc
-        return {"ok": True, "strategy": "a11y", "action": semantic}
+        else:
+            return {"ok": True, "strategy": "a11y", "action": semantic}
     _require_foreground(pid)
     try:
         x = float(target["x"])
@@ -514,7 +574,8 @@ def _op_click(payload: dict) -> dict:
         raise CuaOpError("invalid_arguments", "target needs x/y") from exc
     native_click = getattr(_backend(), "click_point", None)
     if callable(native_click):
-        native_click(x, y, button)  # Linux: AT-SPI 鼠标合成
+        for _ in range(max(1, min(clicks, 3))):
+            native_click(x, y, button)  # Linux: AT-SPI 鼠标合成
         return {"ok": True, "strategy": "a11y-event", "x": x, "y": y}
     pyautogui = _pyautogui()
     for _ in range(max(1, min(clicks, 3))):
@@ -602,7 +663,7 @@ def _op_type(payload: dict) -> dict:
             pass
         # set_focus 在 Windows 会顺带把窗口调到前台;再查一次前台,过则打字
         try:
-            _require_foreground(pid)
+            _require_observed_window_foreground(pid, payload.get("window_id"))
         except CuaOpError as exc:
             raise CuaOpError(
                 "foreground_required",
@@ -727,7 +788,7 @@ def _op_scroll(payload: dict) -> dict:
     if direction not in ("up", "down", "left", "right"):
         raise CuaOpError("invalid_arguments", "scroll_direction required")
     pages = max(0.0, min(float(payload.get("scroll_amount") or 1), 100))
-    clicks = int(pages * 10)
+    clicks = max(1, round(pages * 10)) if pages > 0 else 0
     target = payload.get("target") or {}
     native_scroll = getattr(_backend(), "scroll_element", None)
     if target.get("type") == "element" and callable(native_scroll):
@@ -738,15 +799,25 @@ def _op_scroll(payload: dict) -> dict:
         except KeyError:
             pass
     _require_foreground(pid)
+    if target.get("type") == "element":
+        _require_observed_window_foreground(pid, payload.get("window_id"))
+    _, window = _backend().pick_window(pid, payload.get("window_id"))
+    if not window.get("focused"):
+        raise CuaOpError("foreground_required", "target window is not active")
     pyautogui = _pyautogui()
     if target.get("type") == "element":
         element = _resolve_index(pid, payload.get("window_id"), target.get("index"))
         pyautogui.moveTo(*_element_center(element))
     elif target.get("type") == "coordinate":
         pyautogui.moveTo(float(target["x"]), float(target["y"]))
+    else:
+        pyautogui.moveTo(*_bounds_center(window.get("bounds")))
     magnitude = -clicks if direction in ("down", "left") else clicks
     try:
-        if direction in ("left", "right"):
+        native_wheel = getattr(_backend(), "scroll_wheel", None)
+        if callable(native_wheel):
+            native_wheel(direction in ("left", "right"), magnitude)
+        elif direction in ("left", "right"):
             pyautogui.hscroll(magnitude)
         else:
             pyautogui.scroll(magnitude)

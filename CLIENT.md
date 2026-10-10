@@ -41,7 +41,7 @@
 - 远程服务器地址必须使用 HTTPS，HTTP 仅允许回环开发地址。PAT 绑定签发服务器 origin，改连服务器不复用旧凭据，未绑定的旧凭据须重新配对；服务器反向代理子路径仍保留。凭据文件原子写入，并在写入内容前设置仅本用户可访问的权限。
 - 上述传输与账户隔离不等同于服务器失陷后的端到端控制隔离：当前电脑指令仍由服务端 Agent 生成。可信设备执行与端到端配对方案须独立实现、验证后才能声明服务器无控制权。
 - CUA 截图仅允许已确认焦点的前台窗口有效区域，密码字段不读取；截图以会话所有者鉴权读取，禁止匿名、共享和签名直链，删除会话时回收。截图会发送给当前模型，窗口内通知或浮层仍可能入镜。新版回传必须携带机器身份，旧 daemon 的流式操作需同步更新；CUA 要求 daemon 2.14.4 或更新版本。
-- CUA 截图编码依赖三平台显式安装的 Pillow。Linux 打包机还需 `python3-pyatspi`、`python3-gi` 和 `gir1.2-atspi-2.0`，PyInstaller 从系统 Python 路径收集 AT-SPI 与 GI；构建 Python 的 minor 版本必须与系统 GI 扩展一致。Linux X11 的窗口激活和前台检测需 `wmctrl` / `xdotool`。Windows 必须有已登录的交互桌面；SSH 服务会话不能截取登录界面。Wayland 当前支持无障碍元素读写、点击和元素滚动，截图及全局键鼠仍受系统限制，不能把成功的元素操作视为全功能验证。
+- CUA 截图编码依赖三平台显式安装的 Pillow。Linux 打包机还需 `python3-pyatspi`、`python3-gi` 和 `gir1.2-atspi-2.0`，PyInstaller 从系统 Python 路径收集 AT-SPI 与 GI；构建 Python 的 minor 版本必须与系统 GI 扩展一致。Linux X11 的窗口激活和前台检测需 `wmctrl` / `xdotool`；当 AT-SPI 文本写入不生效时，键盘输入使用 X11 Unicode keysym，临时使用空闲非修饰键码并恢复原映射（不覆盖剪贴板、不合成 Shift 切换输入法）。Windows 必须有已登录的交互桌面；SSH 服务会话不能截取登录界面。Wayland 当前支持无障碍元素读写、点击和元素滚动，截图及全局键鼠仍受系统限制，不能把成功的元素操作视为全功能验证。
 - npm 侧 `@tauri-apps/*` 与 Cargo 侧 `tauri` 保持同 major.minor（`Cargo.toml` 注释已要求，升级时双重检查）。
 - tauri / capacitor 主版本升级必须单独 PR，且六端构建 + 冒烟门禁全绿才算过。
 
@@ -83,6 +83,7 @@
 - **sidecar 生命周期契约**：退避重启（上限 3 次、稳定 300s 重置计数）、`kill(pid,0)` 存活探测、SIGTERM 优雅退出、`RunEvent::Exit` 兜底回收——**凡动 `daemon.rs` 或 daemon 进程管理（`procsup.py`），合并前必须跑 `uv run python scripts/e2e_local_sandbox.py` 全绿**（AGENTS.md 硬性门禁）。
 - **升级保留数据**：升级或同版本重装不得递归删除 app data / WebView 数据目录；登录、偏好和窗口状态随版本保留。前端资源通过构建产物文件名更新，禁止为刷新资源而清空持久化数据。
 - **日志**：统一写 `~/.lambchat/logs/desktop.log`，禁止另起路径；日志里不得出现 token / pairing 凭据明文。
+- **Windows 凭证权限**：使用进程 token 的用户 SID 与原生 Win32 API 设置受保护的 owner-only DACL；目录授予该 SID 可继承的 FullControl。禁止为此启动 PowerShell / `Set-Acl`，避免域信任或域账户解析失败阻塞配对。权限设置失败必须停止写入，保留既有凭证。
 
 ## 8. 移动端（Capacitor）专项
 
