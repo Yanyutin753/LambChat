@@ -282,3 +282,33 @@ async def test_providers_list_route_exposes_default_base() -> None:
     assert by_slug["deepseek"]["defaultBaseUrl"] == "https://api.deepseek.com/v1"
     # 未注册默认端点的渠道（如 google）显式返回 None，前端可区分
     assert by_slug["google"]["defaultBaseUrl"] is None
+
+
+# ── Provider slug 大小写归一 ────────────────────────────────────────────────
+# 生产 2026-10-10：GLM 模型配置的 provider 存成大写 "ZAI"，注册表按小写键
+# 查不到，_resolve_protocol 兜底成 openai 线格式，思考模式历史回传缺
+# reasoning 直接 400。slug 归一后大小写/空白变体必须解析到同一协议。
+
+
+@pytest.mark.parametrize(
+    "raw",
+    ["zai", "ZAI", "Zai", " zai ", "anthropic", "Anthropic", "DeepSeek"],
+)
+def test_resolve_protocol_normalizes_provider_case(raw: str) -> None:
+    expected = {"zai": "anthropic", "anthropic": "anthropic", "deepseek": "openai"}[
+        raw.strip().lower()
+    ]
+    assert _resolve_protocol(raw) == expected
+
+
+def test_model_config_normalizes_provider_slug() -> None:
+    from src.kernel.schemas.model import ModelConfig
+
+    cfg = ModelConfig(value="glm-5.3-flash", provider="ZAI", label="GLM 5.3 Flash")
+    assert cfg.provider == "zai"
+
+
+def test_model_supports_thinking_normalized_provider() -> None:
+    from src.infra.llm.client import model_supports_thinking
+
+    assert model_supports_thinking("ZAI", "glm-5.3-flash") is True
