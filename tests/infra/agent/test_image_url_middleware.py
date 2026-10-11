@@ -279,7 +279,7 @@ async def test_storage_direct_resolves_only_own_urls_without_mutating_history(mo
     )
     assert result.messages[0].content[2]["image_url"]["url"] == foreign
     assert message.content[0]["image_url"]["url"] == own
-    storage.get_presigned_url.assert_awaited_once_with("image/u1/a.png", 3600)
+    storage.get_presigned_url.assert_awaited_once_with("image/u1/a.png")
 
 
 async def test_storage_direct_does_not_sign_private_capture_urls(monkeypatch):
