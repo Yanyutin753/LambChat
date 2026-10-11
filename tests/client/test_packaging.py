@@ -654,3 +654,64 @@ def test_desktop_startup_does_not_recursively_delete_persistent_user_data():
     startup = _source("frontend/src-tauri/src/lib.rs").split("#[cfg(test)]", 1)[0]
     assert "fs::remove_dir_all" not in startup
     assert "clean_on_version_upgrade" not in startup
+
+
+def test_spec_prefers_locked_environment_over_linux_system_packages(monkeypatch):
+    import runpy
+    import site
+    import sys
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    monkeypatch.setattr(site, "getsitepackages", lambda: ["/locked-venv/site-packages"])
+    captured = {}
+
+    def analysis(*args, **kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(pure=[], scripts=[], binaries=[], datas=[])
+
+    runpy.run_path(
+        "client/pyinstaller.spec",
+        init_globals={
+            "SPECPATH": str(Path("client").resolve()),
+            "Analysis": analysis,
+            "PYZ": lambda *args: None,
+            "EXE": lambda *args, **kwargs: None,
+        },
+    )
+    paths = captured["pathex"]
+    assert paths.index("/locked-venv/site-packages") < paths.index("/usr/lib/python3/dist-packages")
+
+
+def test_linux_daemon_build_checks_packaged_async_networking():
+    script = _source("client/scripts/build-daemon.sh")
+    assert 'uv run --no-sync python client/scripts/smoke-daemon-network.py "$TARGET"' in script
+
+
+def test_network_smoke_rejects_request_without_daemon_connection(tmp_path):
+    import os
+    import subprocess
+    import sys
+
+    import pytest
+
+    if os.name == "nt":
+        pytest.skip("fake executable uses a Unix shebang")
+    fake = tmp_path / "fake-daemon"
+    fake.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, pathlib, urllib.request\n"
+        "cfg=json.loads((pathlib.Path(os.environ['LAMBCHAT_HOME'])/'sandbox.json').read_text())\n"
+        "urllib.request.urlopen(cfg['server_url']+'/api/sandbox/channel').read(1)\n"
+        "raise SystemExit(1)\n"
+    )
+    fake.chmod(0o700)
+    result = subprocess.run(
+        [sys.executable, "client/scripts/smoke-daemon-network.py", str(fake)],
+        capture_output=True,
+        text=True,
+        timeout=25,
+    )
+    assert result.returncode != 0
+    assert "PACKAGED_ASYNC_NETWORK_PASS" not in result.stdout
