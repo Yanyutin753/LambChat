@@ -27,7 +27,10 @@ import { ResourceCardMenu } from "../common/ResourceCardMenu";
 import { getFullUrl } from "../../services/api/config";
 import type { DocumentPreviewState } from "./useDocumentPreviewState";
 
-type ToolbarProps = { embedded?: boolean } & Pick<
+type ToolbarProps = {
+  embedded?: boolean;
+  sharedPanelControls?: boolean;
+} & Pick<
   DocumentPreviewState,
   | "t"
   | "data"
@@ -68,6 +71,7 @@ const TOOLBAR_ICON_SIZE = 16;
 
 export default function DocumentPreviewToolbar({
   embedded = false,
+  sharedPanelControls = false,
   t,
   data,
   copied,
@@ -126,7 +130,7 @@ export default function DocumentPreviewToolbar({
   } = useClipboardCopy(fileUrl || "", t("documents.linkCopied", "Link copied"));
 
   const fileActions = [
-    ...(!embedded
+    ...(!embedded && !sharedPanelControls
       ? [
           {
             label: isSidebar
@@ -198,7 +202,7 @@ export default function DocumentPreviewToolbar({
   };
 
   // Fullscreen: floating exit button — matches SkillFormFullscreen style
-  if (isFullscreen) {
+  if (isFullscreen && !sharedPanelControls) {
     return (
       <>
         {searchable && (
@@ -243,7 +247,12 @@ export default function DocumentPreviewToolbar({
           icon={<BackIcon size={TOOLBAR_ICON_SIZE} />}
         />
       )}
-      <Icon size={TOOLBAR_ICON_SIZE} className={`document-preview-header-icon shrink-0 ${embedded ? "text-theme-text-secondary" : fileInfo.color}`} />
+      <Icon
+        size={TOOLBAR_ICON_SIZE}
+        className={`document-preview-header-icon shrink-0 ${
+          embedded ? "text-theme-text-secondary" : fileInfo.color
+        }`}
+      />
       <div className="document-preview-file-info flex-1 min-w-0 overflow-hidden">
         <h3
           className="text-13 sm:text-14 font-medium font-sans text-[var(--theme-text)] truncate"
@@ -346,14 +355,16 @@ export default function DocumentPreviewToolbar({
             </div>
           )
         )}
-        {embedded && <ToolbarIconButton
-          onClick={() => {
-            onClose();
-          }}
-          title={t("common.close")}
-          aria-label={t("common.close")}
-          icon={<X size={TOOLBAR_ICON_SIZE} />}
-        />}
+        {embedded && (
+          <ToolbarIconButton
+            onClick={() => {
+              onClose();
+            }}
+            title={t("common.close")}
+            aria-label={t("common.close")}
+            icon={<X size={TOOLBAR_ICON_SIZE} />}
+          />
+        )}
       </div>
     </div>
   );

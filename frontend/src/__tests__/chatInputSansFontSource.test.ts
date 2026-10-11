@@ -1,12 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-/**
- * 输入区（chat-input-container 盒内）走 sans（中文落系统黑体），衬线
- * 只保留给全站展示位（标题/实体名等）。盒内子组件自带的 font-serif
- * 由 chat.css 的作用域规则压回 sans；@ 提及弹窗的实体名除外——它
- * 跟随全站实体名衬线体系（见 entityNameSerifSource.test.ts）。
- */
+/** 编辑器使用 sans，工具栏与 @ 提及实体名保留 serif。 */
 function readRepoFile(...segments: string[]): string {
   return readFileSync(
     resolve(import.meta.dirname, "../..", ...segments),
@@ -21,10 +16,10 @@ test("chat input container opts into the sans stack, not the serif display font"
   expect(source).not.toMatch(/chat-input-container font-serif/);
 });
 
-test("font-serif chips inside the input box are scoped back to sans, mention entity names keep serif", () => {
+test("editor chips keep sans while toolbar and mention entity names keep serif", () => {
   const css = readRepoFile("src/styles/chat.css");
 
   expect(css).toMatch(
-    /\.chat-input-container \.font-serif:not\(\.mention-popup-name\)\s*\{[^}]*font-family:\s*"Source Sans 3",\s*system-ui,\s*sans-serif/s,
+    /\.chat-input-container\s+\.font-serif:not\(\s*\.mention-popup-name,\s*\.chat-input-toolbar,\s*\.chat-input-toolbar \*\s*\)\s*\{[^}]*font-family:\s*"Source Sans 3",\s*system-ui,\s*sans-serif/s,
   );
 });

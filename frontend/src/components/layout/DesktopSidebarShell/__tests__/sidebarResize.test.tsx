@@ -12,6 +12,24 @@ afterEach(() => {
   localStorage.clear();
 });
 
+test("sidebar starts at 290px when no width has been saved", () => {
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: 1200,
+  });
+  const { container } = render(
+    <MemoryRouter>
+      <DesktopSidebarShell collapsed={false} onToggleCollapsed={vi.fn()}>
+        <div>chats</div>
+      </DesktopSidebarShell>
+    </MemoryRouter>,
+  );
+  expect(
+    (container.querySelector("[data-desktop-sidebar]") as HTMLElement).style
+      .width,
+  ).toBe("290px");
+});
+
 test("sidebar resize keeps cursor feedback until capture ends and fits a narrowed window", () => {
   Object.defineProperty(window, "innerWidth", {
     configurable: true,

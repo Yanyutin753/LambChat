@@ -1616,6 +1616,7 @@
     "collapsePanel": "Collapse panel",
     "expandPanel": "Expand panel",
     "panelTabs": "Panel tabs",
+    "closeAllPanelTabs": "Close all tabs",
     "closePanelTab": "Close tab: {{title}}",
     "paginationSummary": "{{total}} items · {{pageSize}} per page",
     "about": "About",

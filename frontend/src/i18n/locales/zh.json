@@ -1616,6 +1616,7 @@
     "collapsePanel": "收起面板",
     "expandPanel": "展开面板",
     "panelTabs": "侧栏标签",
+    "closeAllPanelTabs": "全部关闭",
     "closePanelTab": "关闭标签：{{title}}",
     "paginationSummary": "共 {{total}} 条 · 每页 {{pageSize}}",
     "about": "关于",

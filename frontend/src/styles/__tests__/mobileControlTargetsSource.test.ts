@@ -3,27 +3,30 @@ import postcss from "postcss";
 import { expect, test } from "vitest";
 
 test.each([
-  ["components.css", ".ui-select-trigger"],
-  ["components.css", ".ui-select-option"],
-  ["components.css", ".glass-input.es-select-btn"],
-  ["components.css", ".glass-select-option"],
-  ["chat.css", ".chat-input-toolbar button"],
-])("%s gives %s a 44px mobile touch height", (file, selector) => {
-  const css = postcss.parse(
-    readFileSync(new URL(`../${file}`, import.meta.url), "utf8"),
-  );
-  let height: string | undefined;
-  css.walkAtRules("media", (media) => {
-    if (media.params !== "(max-width: 639px)") return;
-    media.walkRules((rule) => {
-      if (!rule.selectors.includes(selector)) return;
-      rule.walkDecls("min-height", (declaration) => {
-        height = declaration.value;
+  ["components.css", ".ui-select-trigger", "2.75rem"],
+  ["components.css", ".ui-select-option", "2.75rem"],
+  ["components.css", ".glass-input.es-select-btn", "2.75rem"],
+  ["components.css", ".glass-select-option", "2.75rem"],
+  ["chat.css", ".chat-input-toolbar button", "2.25rem"],
+])(
+  "%s gives %s its intended mobile height",
+  (file, selector, expectedHeight) => {
+    const css = postcss.parse(
+      readFileSync(new URL(`../${file}`, import.meta.url), "utf8"),
+    );
+    let height: string | undefined;
+    css.walkAtRules("media", (media) => {
+      if (media.params !== "(max-width: 639px)") return;
+      media.walkRules((rule) => {
+        if (!rule.selectors.includes(selector)) return;
+        rule.walkDecls("min-height", (declaration) => {
+          height = declaration.value;
+        });
       });
     });
-  });
-  expect(height).toBe("2.75rem");
-});
+    expect(height).toBe(expectedHeight);
+  },
+);
 
 test("select menus stop their entrance animation with reduced motion", () => {
   const css = postcss.parse(

@@ -354,7 +354,7 @@ function SessionItemComponent({
                   : isActive
                     ? "text-theme-text dark:text-stone-100 font-medium"
                     : "text-theme-text-secondary dark:text-stone-300 group-hover:text-theme-text dark:group-hover:text-stone-200"
-              } min-w-0 w-full h-8 max-sm:h-11 rounded text-left flex items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]`}
+              } min-w-0 w-full h-8 max-sm:h-9 rounded text-left flex items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]`}
             >
               <span className="truncate">{displayTitle}</span>
             </button>
@@ -366,7 +366,7 @@ function SessionItemComponent({
           <Tooltip content={taskStatusLabel}>
             <span
               aria-label={taskStatusLabel}
-              className="shrink-0 inline-flex h-8 w-6 max-sm:h-11 max-sm:w-11 items-center justify-center"
+              className="shrink-0 inline-flex h-8 w-6 max-sm:h-9 max-sm:w-9 items-center justify-center"
             >
               <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border-2 border-amber-500/25 border-t-amber-500 dark:border-t-amber-400 animate-spin" />
             </span>
@@ -378,7 +378,7 @@ function SessionItemComponent({
             <span
               data-session-status="ask-human"
               aria-label="Ask human · 等待你的回复"
-              className="shrink-0 inline-flex items-center justify-center h-8 w-6 max-sm:h-11 max-sm:w-11 text-amber-500 dark:text-amber-400"
+              className="shrink-0 inline-flex items-center justify-center h-8 w-6 max-sm:h-9 max-sm:w-9 text-amber-500 dark:text-amber-400"
             >
               <AlertCircle size={16} strokeWidth={2.3} />
             </span>
@@ -390,7 +390,7 @@ function SessionItemComponent({
           !isEditing &&
           !isActive &&
           (session.unread_count ?? 0) > 0 && (
-            <span className="inline-flex h-8 w-6 shrink-0 items-center justify-center max-sm:h-11 max-sm:w-11">
+            <span className="inline-flex h-8 w-6 shrink-0 items-center justify-center max-sm:h-9 max-sm:w-9">
               <span
                 className={`inline-flex items-center justify-center rounded-full bg-red-500 text-10 font-medium leading-none text-white ${
                   session.unread_count! <= 9

@@ -94,7 +94,7 @@ async def test_stale_update_does_not_schedule(monkeypatch: pytest.MonkeyPatch) -
 
 
 @pytest.mark.asyncio
-async def test_prefers_executor_user_id_over_session_lookup(
+async def test_idle_pause_uses_session_owner_when_another_run_overwrites_executor_user(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     executor, storage, scheduled = _make_executor(monkeypatch)
@@ -104,4 +104,25 @@ async def test_prefers_executor_user_id_over_session_lookup(
     await executor._update_session_status("sess-1", TaskStatus.COMPLETED, run_id="run-1")
     await _flush_hook_task()
 
-    assert scheduled == ["user-from-run"]
+    assert scheduled == ["user-from-session"]
+
+
+@pytest.mark.parametrize("shared_user", [None, "other-user"])
+async def test_status_notification_targets_session_owner(monkeypatch, shared_user):
+    from unittest.mock import AsyncMock
+
+    executor, storage, _scheduled = _make_executor(monkeypatch)
+    storage.user_id = "session-owner"
+    executor._user_id = shared_user
+    manager = SimpleNamespace(send_to_user_with_broadcast=AsyncMock(return_value=1))
+    monkeypatch.setattr("src.infra.websocket.get_connection_manager", lambda: manager)
+
+    await executor._update_session_status("sess-1", TaskStatus.COMPLETED, run_id="run-1")
+    await _flush_hook_task()
+
+    manager.send_to_user_with_broadcast.assert_awaited_once()
+    assert manager.send_to_user_with_broadcast.call_args.args[0] == "session-owner"
+    assert manager.send_to_user_with_broadcast.call_args.args[1]["data"] == {
+        "session_id": "sess-1",
+        "task_status": "completed",
+    }

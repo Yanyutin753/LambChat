@@ -136,7 +136,11 @@ export function SkillBaseCard({
           : ""
       } ${animated ? "scb--animated" : ""} ${
         selectionMode && onSelect ? "cursor-pointer" : ""
-      } ${actions.length ? "focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]" : ""} ${className}`}
+      } ${
+        actions.length
+          ? "focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
+          : ""
+      } ${className}`}
       style={{
         ...style,
         ...(animated
@@ -284,7 +288,9 @@ export function SkillBaseCard({
                 title={singleAction.label}
                 aria-pressed={singleAction.checked}
                 aria-current={singleAction.current ? "page" : undefined}
-                className={`scb__action-btn scb__action-btn--ghost ml-auto min-h-11 min-w-11 shrink-0 aria-disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] ${singleAction.danger ? "!text-theme-error" : ""}`}
+                className={`scb__action-btn scb__action-btn--ghost ml-auto min-h-9 min-w-9 shrink-0 aria-disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] ${
+                  singleAction.danger ? "!text-theme-error" : ""
+                }`}
                 onClick={(event) => {
                   event.stopPropagation();
                   if (singleAction.disabled) {
@@ -304,7 +310,7 @@ export function SkillBaseCard({
                   aria-haspopup="menu"
                   aria-expanded={Boolean(menuPosition)}
                   aria-controls={menuPosition ? menuId : undefined}
-                  className="scb__action-btn scb__action-btn--ghost ml-auto min-h-11 min-w-11 shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
+                  className="scb__action-btn scb__action-btn--ghost ml-auto min-h-9 min-w-9 shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
                   onClick={(e) => {
                     e.stopPropagation();
                     if (menuPosition) {

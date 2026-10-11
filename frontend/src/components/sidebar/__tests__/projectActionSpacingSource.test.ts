@@ -12,8 +12,8 @@ test("project header actions share equal slots and a single gap", () => {
   );
   expect(actions).toContain('className="flex shrink-0 items-center gap-1');
   expect(actions.match(/h-8 w-6/g)).toHaveLength(3);
-  expect(actions.match(/max-sm:h-9 max-sm:w-9/g)).toHaveLength(2);
-  expect(actions).toContain("max-sm:h-11 max-sm:w-11");
+  expect(actions.match(/max-sm:h-9 max-sm:w-9/g)).toHaveLength(3);
+  expect(actions).toContain("max-sm:h-9 max-sm:w-9");
 });
 
 test("project actions reveal on hover or keyboard focus and reveal on touch", () => {
