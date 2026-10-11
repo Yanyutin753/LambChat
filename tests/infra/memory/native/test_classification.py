@@ -107,3 +107,16 @@ async def test_find_semantic_memory_match_skips_other_memory_types():
     )
 
     assert match is None
+
+
+@pytest.mark.parametrize("url", ["steam://open/store", "https://example.com/help/desktop/scroll"])
+def test_durable_operating_fact_with_url_is_worthy(url):
+    assert is_manual_memory_worthy(
+        f"Steam 商店可通过 {url} 打开；商店滚动须使用真实鼠标滚轮，窗口消息无效。"
+    )
+
+
+def test_url_does_not_hide_code_or_path_dump():
+    assert looks_like_code_or_path("https://example.com/docs import os")
+    assert looks_like_code_or_path("steam://open/store deploy/k8s/scripts/run.sh")
+    assert not is_manual_memory_worthy("正在查看 https://example.com/help/desktop/scroll")

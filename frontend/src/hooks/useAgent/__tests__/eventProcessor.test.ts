@@ -990,3 +990,136 @@ test.each(["todo_write", "write_todos"])(
     ).toEqual(updated.parts);
   },
 );
+
+test.each([true, false])(
+  "completion drops unexecuted argument drafts (streaming: %s)",
+  (isStreaming) => {
+    const draft = {
+      type: "tool" as const,
+      id: "draft",
+      name: "edit_file",
+      args: { partial: '{"file_path":"file.txt"' },
+      argsPartial: true,
+      isPending: true,
+    };
+    const executed = {
+      type: "tool" as const,
+      id: "executed",
+      name: "edit_file",
+      args: { file_path: "file.txt" },
+      isPending: false,
+      success: true,
+      result: "Updated file",
+    };
+    const waiting = {
+      type: "tool" as const,
+      id: "waiting",
+      name: "execute",
+      args: { command: "pwd" },
+      isPending: true,
+    };
+    const result = processMessageEvent(
+      "done",
+      {},
+      [draft, executed, waiting],
+      "",
+      [],
+      0,
+      [],
+      isStreaming,
+    );
+    expect(result.parts).toEqual([
+      executed,
+      { ...waiting, isPending: false, cancelled: true },
+    ]);
+  },
+);
+
+test("completion removes nested drafts and preserves completed subagent results", () => {
+  const result = processMessageEvent(
+    "done",
+    {},
+    [
+      {
+        type: "subagent",
+        agent_id: "helper",
+        agent_name: "Helper",
+        input: "check",
+        depth: 1,
+        status: "complete",
+        isPending: false,
+        parts: [
+          {
+            type: "tool",
+            id: "draft",
+            name: "execute",
+            args: { partial: '{"command":' },
+            argsPartial: true,
+            isPending: true,
+          },
+          {
+            type: "tool",
+            id: "actual",
+            name: "execute",
+            args: { command: "pwd" },
+            isPending: false,
+            success: true,
+            result: "/workspace",
+          },
+        ],
+      },
+    ],
+    "",
+    [],
+    0,
+    [],
+    false,
+  );
+  expect(result.parts[0]).toMatchObject({
+    status: "complete",
+    cancelled: false,
+    parts: [{ id: "actual", success: true, result: "/workspace" }],
+  });
+});
+
+test("tool:start upgrades a draft when both events share the same call id", () => {
+  const draft = {
+    type: "tool" as const,
+    id: "call-1",
+    name: "read_file",
+    args: { partial: '{"file_path":' },
+    argsPartial: true,
+    isPending: true,
+  };
+  const started = processMessageEvent(
+    "tool:start",
+    {
+      tool: "read_file",
+      tool_call_id: "call-1",
+      args: { file_path: "image.png" },
+    },
+    [draft],
+    "",
+    [],
+    0,
+    [],
+    false,
+  );
+  expect(started.parts[0]).toMatchObject({ args: { file_path: "image.png" } });
+  expect(started.parts[0]).not.toHaveProperty("argsPartial", true);
+});
+
+test("completion retains a draft that already received an actual result", () => {
+  const draft = {
+    type: "tool" as const,
+    id: "call-1",
+    name: "read_file",
+    args: { partial: '{"file_path":' },
+    argsPartial: true,
+    isPending: false,
+    success: true,
+    result: { url: "https://example.com/image.png" },
+  };
+  const result = processMessageEvent("done", {}, [draft], "", [], 0, [], false);
+  expect(result.parts).toEqual([draft]);
+});
