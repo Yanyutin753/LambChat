@@ -643,7 +643,10 @@ export function processMessageEvent(
 
     case "complete":
     case "done": {
-      result.parts = clearAllLoadingStates(parts, { preserveAskHuman: true });
+      result.parts = clearAllLoadingStates(parts, {
+        preserveAskHuman: true,
+        discardToolDrafts: true,
+      });
       break;
     }
 
@@ -693,7 +696,11 @@ export function appendCancelledPart(parts: MessagePart[]): MessagePart[] {
 
 function hasToolCallId(parts: MessagePart[], toolCallId: string): boolean {
   return parts.some((part) => {
-    if (part.type === "tool") return part.id === toolCallId;
+    if (part.type === "tool")
+      return (
+        (!part.argsPartial || part.result !== undefined) &&
+        part.id === toolCallId
+      );
     if (part.type === "subagent") {
       return hasToolCallId(part.parts ?? [], toolCallId);
     }

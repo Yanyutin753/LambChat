@@ -39,6 +39,8 @@ _CODE_STRONG_MARKERS = (
 # 注意 alternation 中 tsx/jsx 必须排在 ts/js 前，避免 ".tsx" 被拆成 ".ts" 重复计数。
 _FILE_REFERENCE_RE = re.compile(r"\.(?:py|tsx|jsx|ts|js)|src/|node_modules")
 
+_URL_RE = re.compile(r"(?:https?|steam)://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+", re.IGNORECASE)
+
 _TRANSIENT_STARTS = (
     "正在",
     "现在",
@@ -82,7 +84,9 @@ def word_similarity(a: str, b: str) -> float:
 
 
 def looks_like_code_or_path(content: str) -> bool:
-    if content.count("/") + content.count("\\") >= 3:
+    # Protocol URLs are references, not filesystem path dumps.
+    path_text = _URL_RE.sub("", content)
+    if path_text.count("/") + path_text.count("\\") >= 3:
         return True
     lowered = content.lower()
     if any(marker in lowered for marker in _CODE_STRONG_MARKERS):
