@@ -1944,3 +1944,107 @@ test("legacy sandbox confirm approval (no origin) is recognized by message prefi
     .flatMap((m) => (m.parts || []).filter((p) => p.type === "tool"));
   expect(toolParts).toHaveLength(0);
 });
+
+test("completed history drops unexecuted tool drafts and preserves actual results", () => {
+  const event = (
+    event_type: string,
+    data: Record<string, unknown>,
+    seq: number,
+  ): HistoryEvent => ({
+    event_type,
+    data,
+    run_id: "run-tools",
+    timestamp: `2026-10-11T04:00:${String(seq).padStart(2, "0")}.000Z`,
+  });
+  const messages = reconstructMessagesFromEvents(
+    [
+      event(
+        "tool:args:chunk",
+        {
+          tool: "edit_file",
+          tool_call_id: "orphan",
+          content: '{"file_path":"file.txt"',
+        },
+        1,
+      ),
+      event(
+        "tool:args:chunk",
+        {
+          tool: "edit_file",
+          tool_call_id: "actual",
+          content: '{"file_path":"file.txt"}',
+        },
+        2,
+      ),
+      event(
+        "tool:start",
+        {
+          tool: "edit_file",
+          tool_call_id: "actual",
+          args: { file_path: "file.txt" },
+        },
+        3,
+      ),
+      event(
+        "tool:result",
+        {
+          tool: "edit_file",
+          tool_call_id: "actual",
+          success: true,
+          result: "Updated file",
+        },
+        4,
+      ),
+      event("done", { status: "completed" }, 5),
+    ],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+  expect(messages).toHaveLength(1);
+  expect(messages[0].parts).toHaveLength(1);
+  expect(messages[0].parts?.[0]).toMatchObject({
+    type: "tool",
+    id: "actual",
+    result: "Updated file",
+    success: true,
+  });
+});
+
+test("completed runs discard tool drafts in turns sealed by steer messages", () => {
+  const messages = reconstructMessagesFromEvents(
+    [
+      { event_type: "message:chunk", data: { content: "第一轮" } },
+      {
+        event_type: "tool:args:chunk",
+        data: {
+          tool: "edit_file",
+          tool_call_id: "orphan",
+          content: '{"file_path":',
+        },
+      },
+      {
+        event_type: "steer:message",
+        data: { content: "继续", message_id: "steer-1" },
+      },
+      { event_type: "message:chunk", data: { content: "已完成" } },
+      { event_type: "done", data: { status: "completed" } },
+    ].map((event, index) => ({
+      ...event,
+      run_id: "run-sealed",
+      timestamp: `2026-10-11T04:00:0${index}.000Z`,
+    })),
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+  const assistants = messages.filter((message) => message.role === "assistant");
+  expect(assistants).toHaveLength(2);
+  expect(
+    assistants
+      .flatMap((message) => message.parts || [])
+      .filter((part) => part.type === "tool"),
+  ).toHaveLength(0);
+  expect(assistants.map((message) => message.content)).toEqual([
+    "第一轮",
+    "已完成",
+  ]);
+});
