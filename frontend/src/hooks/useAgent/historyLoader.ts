@@ -172,11 +172,7 @@ function processHistoryEvent(
   }
 
   // Skip events that don't contribute to message content
-  if (
-    eventType === "metadata" ||
-    eventType === "done" ||
-    eventType === "goal:updated"
-  ) {
+  if (eventType === "metadata" || eventType === "goal:updated") {
     return currentAssistantMessage;
   }
 
@@ -632,8 +628,9 @@ export function reconstructMessagesFromEvents(
   // 无终态事件的 run（中断后未恢复/旧数据）不允许留下"执行中"部件：
   // 静默停转半截工具/参数流/思考/子代理的 loading（内容保留），避免历史里
   // 永远转圈。终态判定在折叠完成后统一进行，steer 封存的中间轮次也能等到
-  // 自己 run 的 done；有终态的 run 完全不动。
+  // 自己 run 的 done；完成的 run 清理所有轮次里未执行的参数草稿。
   const settledRunIds = new Set<string>();
+  const completedRunIds = new Set<string>();
   for (const event of anchoredEvents) {
     if (
       event.run_id &&
@@ -643,6 +640,9 @@ export function reconstructMessagesFromEvents(
         event.event_type === "user:cancel")
     ) {
       settledRunIds.add(event.run_id);
+      if (event.event_type === "done" || event.event_type === "complete") {
+        completedRunIds.add(event.run_id);
+      }
     }
   }
   for (let index = 0; index < reconstructedMessages.length; index += 1) {
@@ -650,7 +650,7 @@ export function reconstructMessagesFromEvents(
     if (
       message.role === "assistant" &&
       message.runId &&
-      !settledRunIds.has(message.runId)
+      (!settledRunIds.has(message.runId) || completedRunIds.has(message.runId))
     ) {
       reconstructedMessages[index] = {
         ...message,
@@ -658,6 +658,7 @@ export function reconstructMessagesFromEvents(
         // 但审批卡必须继续可交互（恢复走审批响应路径，不走无缝续跑）
         parts: clearAllLoadingStates(message.parts || [], {
           preserveAskHuman: true,
+          discardToolDrafts: completedRunIds.has(message.runId),
         }),
       };
     }
