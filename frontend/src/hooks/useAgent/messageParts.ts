@@ -944,9 +944,18 @@ export function hasPendingAskHuman(parts: MessagePart[]): boolean {
  */
 export function clearAllLoadingStates(
   parts: MessagePart[],
-  options?: { preserveAskHuman?: boolean },
+  options?: { preserveAskHuman?: boolean; discardToolDrafts?: boolean },
 ): MessagePart[] {
-  return parts.map((part) => {
+  // Unexecuted drafts are noise after completion; interruptions must retain resumable state.
+  const visibleParts = options?.discardToolDrafts
+    ? parts.filter(
+        (part) =>
+          part.type !== "tool" ||
+          !part.argsPartial ||
+          part.result !== undefined,
+      )
+    : parts;
+  return visibleParts.map((part) => {
     switch (part.type) {
       case "tool": {
         const toolPart = part as ToolPart;
