@@ -171,6 +171,32 @@ class ModelFallbackMiddleware(AgentMiddleware):
             self._fallback_llm = await self._create_fallback_llm()
         return self._fallback_llm
 
+    async def _with_fallback_image_mode(
+        self,
+        request: ModelRequest[ContextT],
+        handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
+    ) -> ModelResponse[ResponseT]:
+        """按 fallback 模型 profile 配置的 image_url_mode 处理出站图片。
+
+        2026-10-11 生产事故前这里硬编码 storage_direct：deepseek-flash 拉 OSS
+        预签名直链间歇 400 "Failed to download image"，而模型配置的
+        image_url_mode 被完全无视。现与主模型同规则，"url" 档不做改写。
+        """
+        from src.agents.core.node_utils import resolve_model_image_url_mode
+        from src.infra.agent.middleware.image_url import image_url_middleware_for_mode
+
+        mode = await resolve_model_image_url_mode(
+            None, self._fallback_model, log_prefix="[ModelFallback]"
+        )
+        image_middleware = image_url_middleware_for_mode(mode)
+        if image_middleware is None:
+            return await handler(request)
+        result = await image_middleware.awrap_model_call(
+            request,  # type: ignore[arg-type]
+            handler,  # type: ignore[arg-type]
+        )
+        return result  # type: ignore[return-value]
+
     async def _invoke_fallback(
         self,
         request: ModelRequest[ContextT],
@@ -190,9 +216,7 @@ class ModelFallbackMiddleware(AgentMiddleware):
             # 视野（2026-09-05 13:50 生产 4 例：message:chunk + done 之后才
             # 追加 error，成功 run 被标失败且重试/降级重复烧钱）。零正文的
             # 终态判定由 executor 按真实 message:chunk 事件兜底。
-            from src.infra.agent.middleware.image_url import ImageUrlStorageDirectMiddleware
-
-            return await ImageUrlStorageDirectMiddleware().awrap_model_call(new_request, handler)
+            return await self._with_fallback_image_mode(new_request, handler)
         except Exception as fallback_exc:
             logger.error(
                 "[ModelFallback] Fallback model %s also failed: %s",

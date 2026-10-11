@@ -982,7 +982,7 @@ async def get_file_proxy(
         if storage._config.public_bucket:
             url = await storage.get_file_url(key)
         else:
-            url = await storage.get_presigned_url(key, 300)
+            url = await storage.get_presigned_url(key)
     except Exception as e:
         logger.error(f"Failed to generate presigned URL for {key}: {e}")
         raise AppError(ErrorCode.FILE_URL_FAILED)
