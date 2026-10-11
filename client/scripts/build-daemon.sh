@@ -100,4 +100,7 @@ if [ "$version" != "$EXPECTED_VERSION" ]; then
     echo "版本输出异常: $version（期望 $EXPECTED_VERSION）" >&2
     exit 1
 fi
+case "$TRIPLE" in
+    *-linux-*) uv run --no-sync python client/scripts/smoke-daemon-network.py "$TARGET" ;;
+esac
 echo "✅ daemon sidecar 打包完成"

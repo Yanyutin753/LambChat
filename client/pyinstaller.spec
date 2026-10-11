@@ -18,17 +18,21 @@ rich→pygments→PIL→numpy→yaml、click、zstandard，anyio 拖进 uvloop/_
 psutil 不在此列：procsup.py（Windows 父进程监视）模块级硬依赖，排除即崩。
 """
 
-from pathlib import Path
 import sys
+from pathlib import Path
+from site import getsitepackages
 
-LINUX_SYSTEM_PACKAGES = ["/usr/lib/python3/dist-packages"] if sys.platform.startswith("linux") else []
+LINUX_SYSTEM_PACKAGES = (
+    ["/usr/lib/python3/dist-packages"] if sys.platform.startswith("linux") else []
+)
 sys.path.extend(LINUX_SYSTEM_PACKAGES)
 
 REPO_ROOT = Path(SPECPATH).resolve().parent
 
 a = Analysis(
     [str(REPO_ROOT / "client/lambchat_sandbox/__main__.py")],
-    pathex=[str(REPO_ROOT / "client"), *LINUX_SYSTEM_PACKAGES],
+    # Keep distro GI available without shadowing uv.lock dependencies.
+    pathex=[str(REPO_ROOT / "client"), *getsitepackages(), *LINUX_SYSTEM_PACKAGES],
     binaries=[],
     datas=[],
     hiddenimports=[
