@@ -51,6 +51,12 @@
 }
 
 @media (max-width: 639px) {
+  .chat-input-help-menu .ui-icon-button.ui-button--sm {
+    width: 2.25rem;
+    height: 2.25rem;
+    min-height: 2.25rem;
+  }
+
   .app-toaster {
     --app-toast-padding: 4px 10px;
     --app-toast-min-width: 0px;

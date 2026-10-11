@@ -211,7 +211,7 @@ export const SessionSidebar = forwardRef<
   const inDesktopShell = variant === "desktopShell";
   const isCollapsed = inDesktopShell
     ? false
-    : (externalCollapsed ?? internalCollapsed);
+    : externalCollapsed ?? internalCollapsed;
   const setIsCollapsed = onToggleCollapsed ?? setInternalCollapsed;
 
   // ─── Refs ────────────────────────────────────────────────────────
@@ -295,35 +295,35 @@ export const SessionSidebar = forwardRef<
         return sessions.find((s) => s.id === sessionId) ?? null;
       };
 
-      // Try uncategorized list first
+      // Update every loaded copy: pinned/favorites can duplicate a session.
       const uncategorized = patchSession(uncategorizedList.sessions);
       if (uncategorized) {
         uncategorizedList.updateSession({
           ...uncategorized,
           metadata: { ...uncategorized.metadata, ...metadataPatch },
         });
-        return;
       }
 
-      // Then the pinned section
+      // The pinned section
       const pinned = patchSession(pinnedList.sessions);
       if (pinned) {
         pinnedList.updateSession({
           ...pinned,
           metadata: { ...pinned.metadata, ...metadataPatch },
         });
-        return;
       }
 
-      // Then check all project lists
-      for (const [, handle] of projectRefs.current) {
+      // Project and scheduled-task lists also carry independent copies.
+      for (const handle of [
+        ...projectRefs.current.values(),
+        ...scheduledTaskRefs.current.values(),
+      ]) {
         const found = patchSession(handle.sessions);
         if (found) {
           handle.updateSession({
             ...found,
             metadata: { ...found.metadata, ...metadataPatch },
           });
-          return;
         }
       }
     },

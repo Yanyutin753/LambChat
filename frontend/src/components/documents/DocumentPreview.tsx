@@ -54,6 +54,10 @@ export default function DocumentPreview(props: DocumentPreviewProps) {
       viewMode={state.viewMode}
       onViewModeChange={state.setViewMode}
       isFullscreen={state.isFullscreen}
+      onFullscreenChange={(fullscreen) => {
+        if (fullscreen) state.handleFullscreenToggle();
+        else state.exitFullscreen();
+      }}
       panelElementRef={state.panelRef}
       mobileFillViewport={state.mobileFillViewport}
       onUserInteraction={state.onUserInteraction}
@@ -71,7 +75,7 @@ export default function DocumentPreview(props: DocumentPreviewProps) {
           </div>
         )
       }
-      customHeader={<DocumentPreviewToolbar {...state} />}
+      customHeader={<DocumentPreviewToolbar {...state} sharedPanelControls />}
     >
       <DocumentPreviewContent {...state} />
     </ToolResultPanel>

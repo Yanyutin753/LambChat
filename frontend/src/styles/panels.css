@@ -257,11 +257,12 @@
     min-height: 2.75rem;
   }
   .editor-sidebar .ui-icon-button {
-    min-width: 2.75rem;
+    min-height: 2.25rem;
+    min-width: 2.25rem;
   }
   .editor-sidebar .chat-tool-btn {
-    min-width: 2.75rem;
-    min-height: 2.75rem;
+    min-width: 2.25rem;
+    min-height: 2.25rem;
   }
   .editor-sidebar [role="switch"] {
     min-height: 2.75rem;
@@ -313,7 +314,7 @@
 }
 @container panel (max-width: 639px) {
   .file-library-toolbar button {
-    min-width: 2.75rem;
+    min-width: 2.25rem;
   }
   .file-library-toolbar__search {
     height: 2.75rem;
@@ -387,8 +388,8 @@
 }
 @container panel (max-width: 639px) {
   [data-panel] .ui-icon-button {
-    min-width: 2.75rem;
-    min-height: 2.75rem;
+    min-width: 2.25rem;
+    min-height: 2.25rem;
   }
   [data-panel] .role-card-title {
     min-height: 2.75rem;

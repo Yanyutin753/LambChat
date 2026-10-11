@@ -27,6 +27,64 @@
   flex-shrink: 0;
 }
 
+/* The composer is the primary action: keep it a little wider than the
+   gallery, without negative margins that could clip on narrow screens.
+   The shared welcome skeleton uses the same shell and editor selectors. */
+.welcome-input .chat-input-shell {
+  padding-inline: 0;
+}
+
+.welcome-root
+  .welcome-input
+  .chat-input-container:not([data-composer-expanded]) {
+  border-color: var(--theme-border);
+  border-radius: var(--radius-2xl);
+  box-shadow: 0 1px 3px var(--theme-shadow-sm);
+}
+
+.welcome-root .welcome-input .chat-input-container:hover {
+  border-color: var(--theme-border-hover);
+}
+
+.welcome-input .chat-composer-editor-wrap {
+  padding-top: 0.5rem;
+}
+
+.welcome-input
+  :is(.rich-chat-composer__editor, [data-composer-editor-skeleton]) {
+  min-height: 3.5rem;
+}
+
+/* A single, theme-aware border provides focus feedback on web and clients. */
+.welcome-root .welcome-input .chat-input-container:focus-within {
+  border-color: color-mix(in srgb, var(--theme-ring) 60%, var(--theme-border));
+  box-shadow: 0 1px 3px var(--theme-shadow-sm);
+}
+
+@media (min-width: 640px) {
+  .welcome-input .chat-input-shell {
+    padding-inline: 0.5rem;
+  }
+
+  .welcome-input .chat-composer-editor-wrap {
+    padding-top: 0.75rem;
+  }
+
+  .welcome-input
+    :is(.rich-chat-composer__editor, [data-composer-editor-skeleton]) {
+    min-height: 4rem;
+  }
+}
+
+/* Keep the typing area compact when the keyboard takes over the viewport. */
+@media (max-width: 639px) {
+  html[data-mobile-keyboard="true"]
+    .welcome-input
+    :is(.rich-chat-composer__editor, [data-composer-editor-skeleton]) {
+    min-height: 2.75rem;
+  }
+}
+
 /* ── Refresh button ── */
 .welcome-refresh-btn {
   border-radius: 0.5rem;
@@ -69,14 +127,12 @@
 .welcome-card:hover {
   border-color: color-mix(in srgb, var(--theme-text) 12%, var(--theme-border));
   background-color: var(--theme-bg) !important;
-  box-shadow: 0 2px 8px -2px
-    color-mix(in srgb, var(--theme-text) 4%, transparent);
+  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--theme-text) 4%, transparent);
 }
 
 .dark .welcome-card:hover {
   border-color: color-mix(in srgb, var(--theme-text) 15%, var(--theme-border));
-  box-shadow: 0 2px 10px -2px
-    color-mix(in srgb, var(--theme-text-secondary) 8%, transparent);
+  box-shadow: 0 2px 10px -2px color-mix(in srgb, var(--theme-text-secondary) 8%, transparent);
 }
 
 .welcome-card:active {
@@ -146,16 +202,14 @@
 .welcome-persona-card:hover {
   border-color: color-mix(in srgb, var(--theme-text) 12%, var(--theme-border));
   box-shadow:
-    0 4px 12px -4px
-      color-mix(in srgb, var(--theme-text-secondary) 12%, transparent),
+    0 4px 12px -4px color-mix(in srgb, var(--theme-text-secondary) 12%, transparent),
     0 1px 3px color-mix(in srgb, var(--theme-text) 6%, transparent);
 }
 
 .welcome-persona-avatar {
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--theme-text-secondary) 6%, transparent),
-    0 2px 8px -2px
-      color-mix(in srgb, var(--theme-text-secondary) 10%, transparent);
+    0 2px 8px -2px color-mix(in srgb, var(--theme-text-secondary) 10%, transparent);
   transition:
     box-shadow 0.3s ease,
     transform 0.3s ease;
@@ -164,8 +218,7 @@
 .welcome-persona-card:hover .welcome-persona-avatar {
   box-shadow:
     0 0 0 1.5px color-mix(in srgb, var(--theme-text-secondary) 12%, transparent),
-    0 4px 14px -2px
-      color-mix(in srgb, var(--theme-text-secondary) 16%, transparent);
+    0 4px 14px -2px color-mix(in srgb, var(--theme-text-secondary) 16%, transparent);
 }
 
 .welcome-persona-name-row {
@@ -329,15 +382,13 @@
 .dark .welcome-persona-avatar {
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--theme-text-secondary) 8%, transparent),
-    0 2px 10px -2px
-      color-mix(in srgb, var(--theme-text-secondary) 12%, transparent);
+    0 2px 10px -2px color-mix(in srgb, var(--theme-text-secondary) 12%, transparent);
 }
 
 .dark .welcome-persona-card:hover .welcome-persona-avatar {
   box-shadow:
     0 0 0 1.5px color-mix(in srgb, var(--theme-text-secondary) 14%, transparent),
-    0 4px 16px -2px
-      color-mix(in srgb, var(--theme-text-secondary) 18%, transparent);
+    0 4px 16px -2px color-mix(in srgb, var(--theme-text-secondary) 18%, transparent);
 }
 
 @media (max-width: 639px) {
@@ -410,8 +461,8 @@
     width: 2.375rem;
     height: 2.375rem;
     border-radius: 0.625rem;
-    box-shadow: 0 2px 8px -2px
-      color-mix(in srgb, var(--theme-text-secondary) 12%, transparent);
+    box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--theme-text-secondary)
+          12%, transparent);
   }
 
   .welcome-persona-info {

@@ -1616,6 +1616,7 @@
     "collapsePanel": "パネルを折りたたむ",
     "expandPanel": "パネルを展開",
     "panelTabs": "パネルタブ",
+    "closeAllPanelTabs": "すべてのタブを閉じる",
     "closePanelTab": "タブを閉じる：{{title}}",
     "paginationSummary": "全 {{total}} 件 · 1ページ {{pageSize}} 件",
     "about": "について",

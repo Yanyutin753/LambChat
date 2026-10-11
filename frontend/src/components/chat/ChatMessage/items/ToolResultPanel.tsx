@@ -3,15 +3,7 @@ import { useState, useEffect, useRef, useCallback, useId } from "react";
 import { createPortal } from "react-dom";
 import { RightPanelTabs } from "../../../common/RightPanelTabs";
 import { BackIcon } from "../../../common/BackIcon";
-import {
-  CheckCircle,
-  XCircle,
-  Ban,
-  Columns2,
-  PanelRight,
-  Expand,
-  Shrink,
-} from "lucide-react";
+import { CheckCircle, XCircle, Ban } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner, ToolbarIconButton } from "../../../common";
 import {
@@ -24,9 +16,7 @@ import {
 import { useSidebarPanel } from "../../../../hooks/useSidebarPanel";
 import type { CollapsibleStatus } from "../../../common/CollapsiblePill";
 import { registerToolPanel } from "./toolPanelRegistry";
-import {
-  clearSidebarHistory,
-} from "./sidebarHistoryStore";
+import { clearSidebarHistory } from "./sidebarHistoryStore";
 import {
   registerActiveSidebarSnapshotTarget,
   restorePendingSidebarPanelSnapshot,
@@ -35,7 +25,7 @@ export { closeCurrentToolPanel } from "./toolPanelRegistry";
 
 const WIDTH_STORAGE_KEY = "sidebar-preview-width";
 const WIDTH_CSS_VAR = "--sidebar-preview-width";
-const DEFAULT_WIDTH_PCT = 48;
+const DEFAULT_WIDTH_PCT = 40;
 
 interface ToolResultPanelProps {
   open: boolean;
@@ -219,20 +209,16 @@ export function ToolResultPanel({
 
   const handleToggleViewMode = useCallback(() => {
     onUserInteraction?.();
+    if (isFullscreen) {
+      if (onFullscreenChange) onFullscreenChange(false);
+      else if (externalIsFullscreen === undefined)
+        setInternalIsFullscreen(false);
+    }
     if (isViewModeControlled) {
       onViewModeChange!(viewMode === "sidebar" ? "center" : "sidebar");
       return;
     }
-    setInternalViewMode((v) => {
-      if (v === "center") {
-        if (isFullscreen) {
-          if (onFullscreenChange) onFullscreenChange(false);
-          else if (externalIsFullscreen === undefined)
-            setInternalIsFullscreen(false);
-        }
-      }
-      return v === "sidebar" ? "center" : "sidebar";
-    });
+    setInternalViewMode((v) => (v === "sidebar" ? "center" : "sidebar"));
   }, [
     onUserInteraction,
     isViewModeControlled,
@@ -421,7 +407,20 @@ export function ToolResultPanel({
         </>
       )}
 
-      {entry.selected && <RightPanelTabs />}
+      {entry.selected && (
+        <RightPanelTabs
+          viewControls={
+            hideViewToggle
+              ? undefined
+              : {
+                  isSidebar,
+                  isFullscreen,
+                  onToggleViewMode: handleToggleViewMode,
+                  onToggleFullscreen: handleToggleFullscreen,
+                }
+          }
+        />
+      )}
       {/* Header section — sidebar mode always; center/fullscreen mode; mobile always */}
       {(isSidebar || isMobile || isCenter || isFullscreen) && (
         <div
@@ -450,9 +449,7 @@ export function ToolResultPanel({
               )}
 
               {/* Status + Icon */}
-              <div
-                className="tool-console-header-icon flex items-center justify-center size-4 shrink-0"
-              >
+              <div className="tool-console-header-icon flex items-center justify-center size-4 shrink-0">
                 {status === "loading" ? (
                   <LoadingSpinner
                     size="sm"
@@ -521,47 +518,6 @@ export function ToolResultPanel({
 
               {/* Extra header actions */}
               {headerActions}
-
-              {/* Center / Fullscreen / Close */}
-              {!hideViewToggle && (
-                <div className="tool-console-actions flex items-center gap-1 shrink-0">
-                  <ToolbarIconButton
-                    variant="muted"
-                    aria-pressed={!isSidebar}
-                    onClick={() => {
-                      handleToggleViewMode();
-                    }}
-                    title={
-                      isSidebar
-                        ? t("documents.centerView", "Center view")
-                        : t("documents.sidebarView", "Sidebar view")
-                    }
-                    icon={
-                      isSidebar ? (
-                        <Columns2 size={16} />
-                      ) : (
-                        <PanelRight size={16} />
-                      )
-                    }
-                  />
-                  <ToolbarIconButton
-                    variant="muted"
-                    onClick={() => {
-                      handleToggleFullscreen();
-                    }}
-                    title={
-                      isFullscreen
-                        ? t("documents.exitFullscreen")
-                        : t("documents.fullscreen")
-                    }
-                    icon={
-                      isFullscreen ? <Shrink size={16} /> : <Expand size={16} />
-                    }
-                  />
-
-                </div>
-              )}
-
             </div>
           )}
         </div>

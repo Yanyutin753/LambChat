@@ -21,10 +21,12 @@ export function ChatInputHelpMenu({ className }: { className?: string }) {
   return createPortal(
     <div
       data-yields-sidebar
-      className={`chat-input-help-menu fixed z-50${className ? ` ${className}` : ""}`}
+      className={`chat-input-help-menu fixed z-50${
+        className ? ` ${className}` : ""
+      }`}
       style={{
-        bottom: "calc(0.5rem + var(--app-safe-area-bottom-active, 0px))",
-        right: "calc(0.5rem + var(--app-safe-area-right, 0px))",
+        bottom: "var(--app-safe-area-bottom-active, 0px)",
+        right: "var(--app-safe-area-right, 0px)",
       }}
     >
       <button
@@ -41,7 +43,7 @@ export function ChatInputHelpMenu({ className }: { className?: string }) {
             setPosition({ x: rect.right - 224, y: rect.top - 104 });
           }
         }}
-        className="ui-button ui-icon-button ui-button--ghost ui-button--lg rounded-full"
+        className="ui-button ui-icon-button ui-button--ghost ui-button--sm rounded-full"
       >
         <CircleHelp size={16} />
       </button>

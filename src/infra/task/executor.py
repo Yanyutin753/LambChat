@@ -125,7 +125,6 @@ class TaskExecutor:
 
         presenter = None
         dual_writer = None
-        self._user_id = user_id
 
         try:
             await self._update_session_status(session_id, TaskStatus.STARTING, run_id=run_id)
@@ -845,7 +844,10 @@ class TaskExecutor:
 
             # Send real-time task status update to sidebar
             try:
-                uid = getattr(self, "_user_id", None)
+                # Executors are shared by concurrent runs. Resolve ownership from
+                # this session, never from mutable executor-wide run state.
+                session = await self._storage.get_by_session_id(session_id)
+                uid = getattr(session, "user_id", None)
                 if uid:
                     from src.infra.websocket import get_connection_manager
 
@@ -868,18 +870,16 @@ class TaskExecutor:
     def _schedule_idle_pause_check(self, session_id: str) -> None:
         """终态后解析 user 并调度空闲暂停检查（含宽限期）。
 
-        user 优先取本 run 上下文的 _user_id（恢复/清扫等旁路调用没有时，
-        回退查 session 归属）；解析失败静默放弃，空闲超时兜底。
+        从 session 解析归属，避免共享 executor 的并发 run 串用户；
+        解析失败静默放弃，空闲超时兜底。
         """
 
         async def _resolve_and_schedule() -> None:
-            user_id = getattr(self, "_user_id", None)
-            if not user_id:
-                try:
-                    session = await self._storage.get_by_session_id(session_id)
-                except Exception:
-                    return
-                user_id = getattr(session, "user_id", None)
+            try:
+                session = await self._storage.get_by_session_id(session_id)
+            except Exception:
+                return
+            user_id = getattr(session, "user_id", None)
             if user_id:
                 schedule_idle_pause(str(user_id))
 

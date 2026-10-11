@@ -816,8 +816,8 @@
 @media (max-width: 639px), (pointer: coarse) {
   .ai-code-block__copy,
   .ai-data-table__action {
-    min-width: 2.75rem;
-    min-height: 2.75rem;
+    min-width: 2.25rem;
+    min-height: 2.25rem;
   }
   .ai-data-table__actions {
     gap: 0;

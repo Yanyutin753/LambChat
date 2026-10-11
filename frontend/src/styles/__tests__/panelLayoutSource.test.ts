@@ -34,7 +34,7 @@ test("compact panel controls remain touch sized and search-only headers have no 
     /\.panel-header--search-only \.panel-header__search-row\s*\{\s*margin-top:\s*0;/,
   );
   expect(components).toMatch(
-    /\.panel-header__mobile-more\s*\{[^}]*height:\s*2\.75rem;[^}]*width:\s*2\.75rem;/,
+    /\.panel-header__mobile-more\s*\{[^}]*height:\s*2\.25rem;[^}]*width:\s*2\.25rem;/,
   );
 });
 

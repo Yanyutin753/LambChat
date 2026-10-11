@@ -158,9 +158,10 @@ function ChatInputShellSkeleton() {
       }}
     >
       {/* Textarea area — 1:1 with real: div.px-2.5.pt-1 > div.relative > textarea */}
-      <div className="px-2.5 pt-1">
+      <div className="chat-composer-editor-wrap px-2.5 pt-1">
         <div className="relative">
           <div
+            data-composer-editor-skeleton=""
             className="bg-transparent w-full pt-[10px] text-15 leading-relaxed min-h-[40px] sm:min-h-[44px]"
             style={{ paddingLeft: 4 }}
           >
@@ -169,8 +170,8 @@ function ChatInputShellSkeleton() {
         </div>
       </div>
       {/* Toolbar — 1:1 with real ChatInputToolbar default idle state */}
-      <div className="flex max-w-full flex-nowrap justify-between gap-1.5 px-1 py-2 sm:px-2 sm:py-3 mx-0.5">
-        <div className="flex min-h-10 min-w-0 flex-1 items-center gap-1.5">
+      <div className="font-serif flex max-w-full flex-nowrap justify-between gap-1.5 px-1 py-1 sm:px-2 sm:py-3 mx-0.5">
+        <div className="flex min-h-9 min-w-0 flex-1 items-center gap-1.5">
           {/* FeatureMenu button (chat-tool-btn: fixed 2.25rem height, rounded-full) */}
           <div className="skeleton-line h-9 w-9 rounded-full shrink-0" />
           {/* Agent chip (chat-tool-btn + avatar 18px + text-14 label) */}

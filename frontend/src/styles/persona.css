@@ -1601,10 +1601,8 @@
 
 @media (max-width: 639px), (pointer: coarse) {
   .ppe-input,
-  .ppe-starter-remove,
   .ppe-starter-add,
   .ppe-skill-trigger,
-  .ppe-skill-chip-remove,
   .ppe-skill-dropdown__clear-all,
   .ppe-skill-dropdown .ppe-skill-search {
     min-height: 2.75rem;
@@ -1617,18 +1615,20 @@
   }
 
   .ppe-starter-row {
-    grid-template-columns: 4.25rem minmax(0, 1fr) 2.75rem;
+    grid-template-columns: 4.25rem minmax(0, 1fr) 2.25rem;
   }
 
   .ppe-starter-remove,
   .ppe-skill-chip-remove {
-    width: 2.75rem;
-    height: 2.75rem;
+    min-height: 2.25rem;
+    width: 2.25rem;
+    height: 2.25rem;
   }
 
+  .resource-picker .ui-icon-button,
   .ppe-skill-dropdown .ui-icon-button {
-    min-width: 2.75rem;
-    min-height: 2.75rem;
+    min-width: 2.25rem;
+    min-height: 2.25rem;
   }
 }
 

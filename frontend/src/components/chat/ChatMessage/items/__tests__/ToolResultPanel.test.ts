@@ -70,7 +70,9 @@ test("tab closure delegates to handleUserClose for panel dismissal", () => {
   expect(componentSource).toMatch(
     /const handleUserClose = useCallback\(\(\) => \{\s*onUserClose\?\.\(\);\s*clearSidebarHistory\(\);\s*onClose\(\);/s,
   );
-  expect(componentSource).toMatch(/useRightPanelEntry\(\{[\s\S]*?onClose: handleUserClose,/);
+  expect(componentSource).toMatch(
+    /useRightPanelEntry\(\{[\s\S]*?onClose: handleUserClose,/,
+  );
   expect(componentSource).toMatch(/handleUserClose\(\)/);
 });
 
@@ -162,7 +164,7 @@ test("tool result panel exposes console chrome styling hooks", () => {
     /:where\(\s*\.editor-sidebar--sidebar\s*,\s*\.tool-console-panel\[data-tool-panel-mode="sidebar"\]\s*\)\s*\{[\s\S]*height:\s*var\(--right-sidebar-height, calc\(100% - 1\.5rem\)\);[\s\S]*margin:\s*0\.75rem;/,
   );
   expect(componentsSource).toMatch(
-    /\.tool-console-panel\[data-tool-panel-mode="sidebar"\]\[data-sidebar-panel\]\s*\{[\s\S]*width:\s*calc\(var\(--sidebar-preview-width, 48%\) - 1\.5rem\) !important;[\s\S]*max-width:\s*calc\(var\(--sidebar-preview-width, 48%\) - 1\.5rem\) !important;/,
+    /\.tool-console-panel\[data-tool-panel-mode="sidebar"\]\[data-sidebar-panel\]\s*\{[\s\S]*width:\s*calc\(var\(--sidebar-preview-width, 40%\) - 1\.5rem\) !important;[\s\S]*max-width:\s*calc\(var\(--sidebar-preview-width, 40%\) - 1\.5rem\) !important;/,
   );
   expect(componentSource).not.toMatch(/data-tool-panel-status=\{status\}/);
   expect(componentsSource).not.toMatch(/\.tool-console-header-icon::after/);
@@ -179,7 +181,7 @@ test("tool result panel uses refined professional chrome treatment", () => {
   );
 
   expect(componentSource).toMatch(/tool-console-resize-handle/);
-  expect(componentSource).toMatch(/tool-console-actions/);
+  expect(componentSource).toMatch(/<RightPanelTabs\s+viewControls=/);
   expect(componentSource).toMatch(/tool-console-body__loading/);
   expect(componentsSource).toMatch(
     /\.tool-console-panel\s*\{[\s\S]*?--tool-console-surface-glow:/,
@@ -198,47 +200,26 @@ test("tool result panel uses refined professional chrome treatment", () => {
   );
 });
 
-test("tool result actions stay compact and flat at every breakpoint", () => {
-  const componentSource = readFileSync(
-    new URL("../ToolResultPanel.tsx", import.meta.url),
+test("tool result actions share a non-wrapping toolbar with touch-sized controls", () => {
+  const tabs = readFileSync(
+    new URL("../../../../common/RightPanelTabs.tsx", import.meta.url),
     "utf8",
   );
-  const componentsSource = readFileSync(
-    new URL("../../../../../styles/components.css", import.meta.url),
+  const css = readFileSync(
+    new URL("../../../../common/rightPanelTabs.css", import.meta.url),
     "utf8",
   );
-  const toolbarButtonSource = readFileSync(
-    new URL("../../../../common/ui/ToolbarIconButton.tsx", import.meta.url),
-    "utf8",
+  expect(tabs).toContain('className="right-panel-tab-actions"');
+  expect(css).toMatch(
+    /\.right-panel-tab-actions\s*\{[^}]*display: flex;[^}]*flex: 0 0 auto;/,
   );
-
-  const actionClassNames = Array.from(
-    componentSource.matchAll(
-      /className="([^"]*\btool-console-actions\b[^"]*)"/g,
-    ),
-    (match) => match[1].trim().split(/\s+/),
+  expect(css).toMatch(
+    /\.right-panel-view-action[^{}]*\{[^}]*width: 2\.25rem;[^}]*height: 2\.25rem;/,
   );
-  expect(actionClassNames).toHaveLength(1);
-  for (const classNames of actionClassNames) {
-    expect(classNames).toEqual(
-      expect.arrayContaining([
-        "tool-console-actions",
-        "flex",
-        "items-center",
-        "gap-1",
-        "shrink-0",
-      ]),
-    );
-  }
-  expect(componentsSource).not.toMatch(/\.tool-console-actions\s*\{/);
-  expect(componentsSource).toMatch(
-    /\.tool-console-actions\s*>\s*button\s*\{[\s\S]*?width:\s*var\(--right-panel-action-size, 2rem\);[\s\S]*?height:\s*var\(--right-panel-action-size, 2rem\);[\s\S]*?min-width:\s*0;[\s\S]*?min-height:\s*0;/,
-  );
-  expect(toolbarButtonSource).toMatch(
-    /min-h-\[44px\] min-w-\[44px\] sm:size-8 sm:min-h-0 sm:min-w-0/,
+  expect(css).toMatch(
+    /@media \(pointer: coarse\), \(max-width: 639px\)\s*\{[\s\S]*?\.right-panel-view-action\s*\{[^}]*width: 2\.75rem;[^}]*height: 2\.75rem;/,
   );
 });
-
 test("tool result panel masks rich content until snapshot restoration settles", () => {
   const componentSource = readFileSync(
     new URL("../ToolResultPanel.tsx", import.meta.url),
