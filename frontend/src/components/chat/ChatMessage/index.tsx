@@ -1,7 +1,15 @@
 import { clsx } from "clsx";
 import { useEffect, useRef, useState, memo } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, GitBranch, Info, Loader2, RotateCcw, Target, WifiOff } from "lucide-react";
+import {
+  ChevronDown,
+  GitBranch,
+  Info,
+  Loader2,
+  RotateCcw,
+  Target,
+  WifiOff,
+} from "lucide-react";
 import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosition";
 import type {
   Message,
@@ -741,7 +749,7 @@ export const ChatMessage = memo(function ChatMessage({
               personaAvatar={personaAvatar}
             />
             <span
-              className="min-w-0 truncate text-16 sm:text-18 leading-normal font-semibold tracking-tight font-serif"
+              className="min-w-0 truncate text-16 sm:text-18 lg:text-20 leading-normal font-semibold tracking-tight font-serif"
               style={{ color: "var(--theme-text)" }}
             >
               {personaName || t("chat.message.assistant")}

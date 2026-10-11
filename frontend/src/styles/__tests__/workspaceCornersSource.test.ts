@@ -33,7 +33,9 @@ test("desktop rail keeps its original distinct tint without recursive theme alia
   const css = readFileSync(new URL("../desktop.css", import.meta.url), "utf8");
   expect(css).not.toMatch(/--theme-bg(?:-card|-subtle|-elevated|-sidebar)?:/);
   expect(css).not.toContain("--desktop-canvas-bg:");
-  expect(css.replace(/\s+/g, " ")).toMatch(/--desktop-rail-bg: color-mix\( in srgb, var\(--theme-bg-sidebar\) 94%, var\(--theme-text\) \)/);
+  expect(css.replace(/\s+/g, " ")).toMatch(
+    /--desktop-rail-bg: color-mix\( in srgb, var\(--theme-bg-sidebar\) 94%, var\(--theme-text\) \)/,
+  );
 });
 
 test("file paper previews use the shared surface instead of a fixed stone color", () => {
@@ -71,9 +73,11 @@ test("feedback summary uses shared themed surfaces", () => {
 });
 
 test("collapsed sidebar reveals the content curves against the activity rail tint", () => {
-  const css = readFileSync(new URL("../desktop.css", import.meta.url), "utf8")
-    .replace(/\s+/g, " ");
+  const css = readFileSync(
+    new URL("../desktop.css", import.meta.url),
+    "utf8",
+  ).replace(/\s+/g, " ");
   expect(css).toMatch(
-    /div:has\(> \[data-desktop-sidebar-shell\] > \[data-desktop-sidebar\]\[inert\]\):has\(> \[data-workspace-content\]\)\s*\{[^}]*background-color: var\(--desktop-rail-bg\) !important;/,
+    /div:has\(> \[data-desktop-sidebar-shell\] > \[data-desktop-sidebar\]\[inert\]\):has\(\s*> \[data-workspace-content\]\s*\)\s*\{[^}]*background-color: var\(--desktop-rail-bg\) !important;/,
   );
 });

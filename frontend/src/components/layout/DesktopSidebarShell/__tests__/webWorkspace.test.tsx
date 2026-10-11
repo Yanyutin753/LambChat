@@ -20,6 +20,42 @@ vi.mock("react-i18next", async (importOriginal) => ({
 }));
 afterEach(cleanup);
 
+test("notification badge displays the count, caps it at 99+, and hides when cleared", () => {
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: 1200,
+  });
+  render(
+    <MemoryRouter>
+      <DesktopSidebarShellGate collapsed={false} onToggleCollapsed={vi.fn()}>
+        <div>chats</div>
+      </DesktopSidebarShellGate>
+    </MemoryRouter>,
+  );
+  const notifications = screen.getByRole("button", {
+    name: "nav.notifications",
+  });
+  expect(notifications.textContent).toBe("");
+  for (const [count, label] of [
+    [3, "3"],
+    [12, "12"],
+    [100, "99+"],
+  ] as const) {
+    fireEvent(
+      window,
+      new CustomEvent("lambchat:notification-count", { detail: count }),
+    );
+    expect(within(notifications).getByText(label)).toBeVisible();
+    expect(notifications).toHaveAccessibleName(`nav.notifications (${count})`);
+  }
+  fireEvent(
+    window,
+    new CustomEvent("lambchat:notification-count", { detail: 0 }),
+  );
+  expect(notifications.textContent).toBe("");
+  expect(notifications).toHaveAccessibleName("nav.notifications");
+});
+
 test("native sidebar toggle opens the drawer at mobile widths", () => {
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
@@ -54,9 +90,13 @@ test("web header places collapse beside notifications with equally sized control
       </DesktopSidebarShellGate>
     </MemoryRouter>,
   );
-  const notifications = screen.getByRole("button", { name: "nav.notifications" });
+  const notifications = screen.getByRole("button", {
+    name: "nav.notifications",
+  });
   const search = screen.getByRole("button", { name: "sidebar.searchSessions" });
-  const collapse = screen.getByRole("button", { name: "sidebar.collapseSidebar" });
+  const collapse = screen.getByRole("button", {
+    name: "sidebar.collapseSidebar",
+  });
   expect(collapse.parentElement).toBe(notifications.parentElement);
   expect(collapse.nextElementSibling).toBe(notifications);
   expect(collapse).toHaveClass("size-8");
@@ -259,27 +299,38 @@ test("web sidebar collapses beside notifications and reopens through the header 
   function Workspace() {
     const [collapsed, setCollapsed] = useState(false);
     return (
-      <DesktopSidebarShellGate collapsed={collapsed} onToggleCollapsed={setCollapsed}>
+      <DesktopSidebarShellGate
+        collapsed={collapsed}
+        onToggleCollapsed={setCollapsed}
+      >
         <div>chats</div>
       </DesktopSidebarShellGate>
     );
   }
   const { container } = render(
-    <MemoryRouter><Workspace /></MemoryRouter>,
+    <MemoryRouter>
+      <Workspace />
+    </MemoryRouter>,
   );
   const sidebar = container.querySelector("[data-desktop-sidebar]");
-  const collapse = screen.getByRole("button", { name: "sidebar.collapseSidebar" });
+  const collapse = screen.getByRole("button", {
+    name: "sidebar.collapseSidebar",
+  });
   expect(collapse).toHaveAttribute("aria-expanded", "true");
   fireEvent.click(collapse);
   expect(sidebar).toHaveAttribute("inert");
-  expect(screen.queryByRole("button", { name: "sidebar.expandSidebar" })).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "sidebar.expandSidebar" }),
+  ).toBeNull();
   fireEvent(window, new Event("lambchat:desktop-sidebar-toggle"));
   expect(sidebar).not.toHaveAttribute("inert");
 });
 
-
 test("saved narrow sidebar widths are raised to the new minimum", () => {
-  Object.defineProperty(window, "innerWidth", { configurable: true, value: 1200 });
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: 1200,
+  });
   localStorage.setItem("lambchat_desktop_sidebar_width", "232");
   try {
     render(
@@ -290,8 +341,8 @@ test("saved narrow sidebar widths are raised to the new minimum", () => {
       </MemoryRouter>,
     );
     const handle = screen.getByRole("separator");
-    expect(handle).toHaveAttribute("aria-valuemin", "264");
-    expect(handle).toHaveAttribute("aria-valuenow", "264");
+    expect(handle).toHaveAttribute("aria-valuemin", "290");
+    expect(handle).toHaveAttribute("aria-valuenow", "290");
   } finally {
     localStorage.removeItem("lambchat_desktop_sidebar_width");
   }

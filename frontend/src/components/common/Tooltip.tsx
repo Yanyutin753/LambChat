@@ -26,6 +26,8 @@ interface TooltipProps {
   hoverDelay?: number;
   /** Force the bubble visible (e.g. driven by a parent's touch state); hover/long-press still work when not forced */
   open?: boolean;
+  /** Keep tooltips inside a native fullscreen host when one owns the trigger. */
+  portalContainer?: Element;
 }
 
 /** Long press duration (ms) before tooltip appears on touch */
@@ -195,6 +197,7 @@ export function Tooltip({
   zIndex = 60,
   hoverDelay = 0,
   open,
+  portalContainer,
 }: TooltipProps) {
   const [show, setShow] = useState(false);
   const tooltipId = useId();
@@ -466,7 +469,7 @@ export function Tooltip({
               style={arrowStyle.current}
             />
           </span>,
-          document.body,
+          portalContainer ?? document.body,
         )}
     </>
   );

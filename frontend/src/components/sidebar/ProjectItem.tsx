@@ -377,7 +377,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
               <ProjectWorkspaceDetails value={project.workspace} />
             )}
             {!isEditing && unreadCount > 0 && (
-              <div className="flex h-8 w-6 shrink-0 items-center justify-center max-sm:h-11 max-sm:w-11">
+              <div className="flex h-8 w-6 shrink-0 items-center justify-center max-sm:h-9 max-sm:w-9">
                 <MarkAllReadBadge
                   count={unreadCount}
                   badgeId={`project-${project.id}`}

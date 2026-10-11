@@ -36,8 +36,7 @@
 }
 
 .skill-content-area {
-  background:
-    radial-gradient(
+  background: radial-gradient(
       ellipse 80% 50% at 50% 0%,
       color-mix(in srgb, var(--theme-primary-light) 6%, transparent) 0%,
       transparent 100%
@@ -616,6 +615,11 @@
   .skill-form button {
     min-height: 2.75rem;
     min-width: 2.75rem;
+  }
+  .skill-form .ui-icon-button,
+  .skill-form .skill-file-remove {
+    min-height: 2.25rem;
+    min-width: 2.25rem;
   }
   .skill-file-remove {
     opacity: 1;

@@ -50,25 +50,16 @@ test("expanded collapsible section cards fill the available panel height", () =>
   );
 });
 
-test("generic tool call panel stretches the result card to fill remaining height", () => {
-  const toolCallItemSource = readFileSync(
+test("generic tool results use natural height and a quiet reading surface", () => {
+  const source = readFileSync(
     new URL("../ToolCallItem.tsx", import.meta.url),
     "utf8",
   );
-
-  // 面板根节点：占满 panel-body 并自身兜底滚动
-  expect(toolCallItemSource).toMatch(
-    /className="relative flex h-full min-h-0 flex-col overflow-y-auto p-2 sm:p-4 \[&_pre\]:!text-14 \[&_pre\]:!max-h-none"/,
-  );
-  // 内层 flex 列承载小节，result 卡片展开时吃掉剩余空间
-  expect(toolCallItemSource).toMatch(
-    /className="flex min-h-0 flex-1 flex-col space-y-3"/,
-  );
-  expect(toolCallItemSource).toMatch(
-    /title=\{t\("chat\.message\.result"\)\}[\s\S]*?expandedClassName="flex min-h-0 flex-col grow shrink-0"/,
+  expect(source).toContain("tool-call-panel-content");
+  expect(source).not.toContain(
+    'expandedClassName="flex min-h-0 flex-col grow shrink-0"',
   );
 });
-
 test("tool live panel details fill the panel height while inline previews keep their caps", () => {
   const itemsDir = new URL("../items/", import.meta.url);
   const panelDetailItems = [

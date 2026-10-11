@@ -9,53 +9,57 @@
   flex-shrink: 0;
   /* Keep browser-style tabs in one row; scroll only after reaching minimum width. */
   flex-wrap: nowrap;
+  align-items: center;
   overflow-x: auto;
-  gap: 4px;
+  gap: 0.375rem;
   min-width: 0;
-  /* Tab border + label inset place its icon on the header/body origin. */
-  padding: 0.5rem 0.25rem 0 calc(var(--right-panel-inset, 1rem) - 0.75rem - 1px);
-  background: var(--theme-bg-subtle);
-  box-shadow: inset 0 -1px var(--theme-border);
+  /* Trade inner padding for outer breathing room without moving the icon origin. */
+  padding: 0.25rem 0.25rem 0.25rem
+    calc(var(--right-panel-inset, 1rem) - 0.5rem - 1px);
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--theme-border) transparent;
 }
 
 .right-panel-tab {
   position: relative;
   display: flex;
-  flex: 0 1 208px;
+  flex: 0 1 18rem;
   align-items: center;
   min-width: 80px;
-  max-width: 240px;
+  max-width: 20rem;
   border: 1px solid transparent;
-  border-bottom: 0;
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  border-radius: var(--radius-md);
   color: var(--theme-text-secondary);
   transition:
     background-color 120ms ease,
     color 120ms ease;
 }
 
-/* Background tabs use a quiet divider instead of boxed borders. */
-.right-panel-tab:not([data-selected="true"]):not(:last-child)::after {
+.right-panel-tab:hover {
+  background: var(--theme-bg-subtle);
+  color: var(--theme-text);
+}
+.right-panel-tab:not(:last-child):not([data-selected="true"]):not(:hover):not(
+    :has(+ .right-panel-tab[data-selected="true"])
+  )::after {
   content: "";
   position: absolute;
-  right: -3px;
-  top: 10px;
-  bottom: 10px;
+  right: -0.25rem;
+  top: 25%;
+  height: 50%;
   width: 1px;
   background: var(--theme-border);
   pointer-events: none;
 }
-.right-panel-tab:has(+ [data-selected="true"])::after {
-  display: none;
-}
-.right-panel-tab:hover {
-  background: color-mix(in srgb, var(--theme-bg-card) 60%, transparent);
-  color: var(--theme-text);
-}
 .right-panel-tab[data-selected="true"] {
   z-index: 1;
-  border-color: var(--theme-border);
-  background: var(--theme-bg-card);
+  border-color: color-mix(
+    in srgb,
+    var(--theme-border) 80%,
+    var(--theme-text-secondary)
+  );
+  background: var(--theme-bg-subtle);
   color: var(--theme-text);
 }
 
@@ -63,16 +67,16 @@
 .right-panel-tab > .contents > button {
   display: flex;
   align-items: center;
-  min-height: 2.25rem;
-  font-size: 12px;
+  min-height: 2rem;
+  font-size: 0.8125rem;
   line-height: 1.5;
 }
 .right-panel-tab [role="tab"] {
   flex: 1;
   gap: 0.5rem;
   min-width: 0;
-  padding: 0 0.25rem 0 0.75rem;
-  border-radius: var(--radius-md) 0 0 0;
+  padding: 0 0.25rem 0 0.5rem;
+  border-radius: var(--radius-md);
   text-align: left;
 }
 .right-panel-tab-label {
@@ -107,6 +111,7 @@
   width: var(--right-panel-action-size, 2rem);
   padding: 0;
   color: var(--theme-text-secondary);
+  border-radius: var(--radius-md);
 }
 .right-panel-tab-close svg {
   box-sizing: content-box;
@@ -117,7 +122,7 @@
     color 120ms ease;
 }
 .right-panel-tab-close:hover svg {
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-card);
   color: var(--theme-text);
 }
 .right-panel-tab button:focus-visible {
@@ -153,17 +158,62 @@
 }
 
 .right-panel-tabbar {
+  container: right-panel-tabbar / inline-size;
   display: flex;
   align-items: stretch;
   flex-shrink: 0;
   min-width: 0;
-  background: var(--theme-bg-subtle);
-  box-shadow: inset 0 -1px var(--theme-border);
+  background: var(--theme-bg-card);
 }
-.right-panel-tabbar > .right-panel-tabs {
+.right-panel-tab-scroll {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+.right-panel-tab-scroll > .right-panel-tabs {
   flex: 1;
 }
-.right-panel-collapse,
+/* Keep content-specific actions beneath the shared browser-like tab strip. */
+[data-right-panel-root] :is(.tool-console-header, .document-preview-toolbar) {
+  border-bottom: 1px solid var(--theme-border-faint);
+}
+.right-panel-tab-actions {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 0.125rem;
+  padding-right: 0.5rem;
+}
+.right-panel-view-action,
+.right-panel-collapse {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.25rem;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  min-height: 2.25rem;
+  background: transparent;
+  border-radius: var(--radius-md);
+  color: var(--theme-text-secondary);
+}
+.right-panel-view-action:hover,
+.right-panel-collapse:hover {
+  background: var(--theme-bg-subtle);
+  color: var(--theme-text);
+}
+.right-panel-view-action:focus-visible,
+.right-panel-collapse:focus-visible {
+  outline: 2px solid var(--theme-ring);
+  outline-offset: -2px;
+}
+/* Narrow desktop lanes need the same readable, scrollable tabs as phones. */
+@container right-panel-tabbar (max-width: 479px) {
+  .right-panel-tab {
+    flex: 0 0 10rem;
+  }
+}
 .right-panel-restore {
   display: flex;
   align-items: center;
@@ -173,13 +223,8 @@
   color: var(--theme-text-secondary);
 }
 .right-panel-collapse {
-  flex-shrink: 0;
-  align-self: flex-start;
-  width: var(--right-panel-action-size, 2rem);
-  min-width: var(--right-panel-action-size, 2rem);
-  height: 2.25rem;
-  min-height: 2.25rem;
-  margin: 0.5rem var(--right-panel-inset, 1rem) 0 0;
+  align-self: center;
+  margin: 0;
 }
 
 @media (pointer: coarse), (max-width: 639px) {
@@ -189,42 +234,51 @@
   .right-panel-tab [role="tab"] {
     padding-left: 0.5rem;
   }
-  .right-panel-collapse {
+  .right-panel-collapse,
+  .right-panel-view-action {
     width: 2.75rem;
     min-width: 2.75rem;
     height: 2.75rem;
     min-height: 2.75rem;
   }
 }
-.right-panel-collapse:hover,
 .right-panel-restore:hover {
-  background: var(--theme-bg-card);
+  background: color-mix(in srgb, var(--theme-bg-subtle) 90%, var(--theme-text));
   color: var(--theme-text);
-}
-.right-panel-collapse:focus-visible {
-  outline: 2px solid var(--theme-ring);
-  outline-offset: -2px;
 }
 .right-panel-restore:focus-visible {
   outline: 2px solid var(--theme-text-secondary);
   outline-offset: -2px;
 }
-.right-panel-restore {
+.right-panel-restore-group {
   position: fixed;
   z-index: 40;
   top: calc(
     64px + var(--app-safe-area-top-active, var(--app-safe-area-top, 0px))
   );
   right: 12px;
-  gap: 0.5rem;
-  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  max-width: calc(100vw - 24px);
+  padding-right: 4px;
   border: 1px solid var(--theme-border);
   border-radius: var(--radius-md);
   background: var(--theme-bg-card);
   font-size: 12px;
 }
+.right-panel-restore {
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  font-size: inherit;
+}
+.right-panel-restore-count {
+  font-variant-numeric: tabular-nums;
+}
 
 /* Match header controls at every user font scale, including the collapse row. */
+.right-panel-view-action svg,
 .right-panel-collapse svg,
 .right-panel-restore svg,
 .right-panel-tab-close svg {
@@ -235,7 +289,10 @@
 
 /* Portaled details stay outside the horizontally scrolling tab strip. */
 .right-panel-tab-tooltip {
-  width: min(240px, calc(100vw - 16px));
+  width: min(320px, calc(100vw - 16px));
+  max-width: min(320px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
+  overflow: hidden;
   padding: 12px;
   border-color: var(--theme-border);
   border-radius: var(--radius-lg);
@@ -260,6 +317,47 @@
 .right-panel-tab-type {
   margin-top: 8px;
 }
+.right-panel-tab-preview-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow: hidden;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--theme-border);
+  color: var(--theme-text-secondary);
+  font-weight: 400;
+}
+.right-panel-tab-preview-image {
+  display: block;
+  width: 100%;
+  max-height: 160px;
+  object-fit: contain;
+  margin-top: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--theme-bg-subtle);
+}
 .right-panel-tab-tooltip [data-tooltip-arrow] {
   display: none;
+}
+
+.right-panel-secondary-actions {
+  padding-right: 0;
+}
+
+/* On phones, only collapse stays pinned; other controls scroll after the tabs. */
+@media (max-width: 639px) {
+  .right-panel-tab-scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--theme-border) transparent;
+  }
+  .right-panel-tab-scroll > .right-panel-tabs {
+    flex: 1 0 auto;
+    overflow-x: visible;
+  }
+  .right-panel-tab {
+    flex: 0 0 10rem;
+  }
 }

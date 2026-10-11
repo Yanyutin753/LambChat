@@ -13,16 +13,20 @@ test("web chat loads the shared workspace styles without requiring native chrome
   expect(css).toContain(":has([data-titlebar], [data-workspace-ui])");
 });
 
-test("docked panels reserve native titlebar space and keep even outer insets", () => {
+test("docked panels reserve native titlebar space and reach the right and bottom edges", () => {
   const css = readFileSync(
     resolve(import.meta.dirname, "../desktop.css"),
     "utf8",
   );
   expect(css).toContain("top: var(--titlebar-inset, 0px)");
-  expect(css).toContain(
-    "height: calc(100% - var(--titlebar-inset, 0px) - 1rem)",
+  expect(css).toContain("height: calc(100% - var(--titlebar-inset, 0px))");
+  expect(css).toContain("width: var(--right-panel-active-width) !important");
+  expect(css).toMatch(
+    /margin: 0;[\s\S]*?border-left: 1px solid var\(--theme-border\);\s*border-radius: 0;/,
   );
-  expect(css).toContain("margin: 0.5rem");
+  expect(css).toMatch(
+    /\.right-panel-tabbar\s*\{[^}]*height: var\(--workspace-header-height\);/,
+  );
 });
 
 test("assistant heading preserves serif typography and a stable centered line box", () => {
@@ -43,7 +47,10 @@ test("assistant heading preserves serif typography and a stable centered line bo
 });
 
 test("toolbar keeps its independent optical alignment correction", () => {
-  const css = readFileSync(resolve(import.meta.dirname, "../desktop.css"), "utf8");
+  const css = readFileSync(
+    resolve(import.meta.dirname, "../desktop.css"),
+    "utf8",
+  );
   expect(css).toMatch(
     /\.chat-input-toolbar\s+\.font-serif\s*\{[^}]*position: relative;[^}]*top: 1px;/,
   );

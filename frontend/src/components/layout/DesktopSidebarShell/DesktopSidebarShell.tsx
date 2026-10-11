@@ -16,6 +16,7 @@ import { Bell, Search } from "lucide-react";
 import clsx from "clsx";
 import { BrandLogo } from "../../common/BrandLogo";
 import { BrandWordmark } from "../../common/BrandWordmark";
+import { formatUnreadCount } from "../../sidebar/unreadCounts";
 import { APP_NAME } from "../../../constants";
 import { DesktopActivityRail } from "./DesktopActivityRail";
 import { isEditableEventTarget } from "../../../utils/editableTarget";
@@ -29,8 +30,8 @@ import {
 } from "./desktopShellPlatform";
 
 const WIDTH_STORAGE_KEY = "lambchat_desktop_sidebar_width";
-const DEFAULT_WIDTH = 264;
-const MIN_WIDTH = 264;
+const DEFAULT_WIDTH = 290;
+const MIN_WIDTH = 290;
 const MAX_WIDTH_CAP = 480;
 const MAX_WIDTH_RATIO = 0.5;
 
@@ -278,7 +279,10 @@ export function DesktopSidebarShell({
                   <button
                     type="button"
                     title={t("nav.notifications")}
-                    aria-label={t("nav.notifications")}
+                    aria-label={
+                      t("nav.notifications") +
+                      (notificationCount > 0 ? ` (${notificationCount})` : "")
+                    }
                     onClick={() =>
                       window.dispatchEvent(new Event(OPEN_NOTIFICATIONS_EVENT))
                     }
@@ -287,9 +291,11 @@ export function DesktopSidebarShell({
                     <Bell size={16} />
                     {notificationCount > 0 && (
                       <span
-                        className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-[var(--theme-primary)]"
-                        aria-label={String(notificationCount)}
-                      />
+                        className="pointer-events-none absolute right-0 top-0 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-0.5 text-10 font-medium leading-none text-white"
+                        aria-hidden="true"
+                      >
+                        {formatUnreadCount(notificationCount)}
+                      </span>
                     )}
                   </button>
                   <button

@@ -9,14 +9,14 @@ test("phone navigation uses compact 40px rows while action sheets retain 44px co
     /@media \(max-width: 639px\)\s*\{\s*\.session-sidebar-drawer \.sidebar-action-row,\s*\.sidebar-nav-btn\s*\{[^}]*min-height:\s*2\.75rem;/,
   );
   expect(css).toMatch(
-    /\.session-sidebar-drawer button,\s*\.sidebar-mobile-menu button\s*\{[^}]*min-width:\s*2\.75rem;[^}]*min-height:\s*2\.75rem;/,
+    /\.session-sidebar-drawer button\s*\{[^}]*min-width:\s*2\.25rem;[^}]*min-height:\s*2\.25rem;/,
   );
   expect(css).toMatch(
     /\.session-sidebar-drawer \.sidebar-nav-btn,\s*\.session-sidebar-drawer \.sidebar-section-header,\s*\.session-sidebar-drawer \.sidebar-section-header button\s*\{[^}]*min-height:\s*2\.5rem;/,
   );
-  expect(read("../../components/panels/SidebarParts/SidebarSectionHeader.tsx")).toContain(
-    "sidebar-section-header",
-  );
+  expect(
+    read("../../components/panels/SidebarParts/SidebarSectionHeader.tsx"),
+  ).toContain("sidebar-section-header");
   expect(css).toMatch(/\.sidebar-action-controls\s*\{\s*gap:\s*0;/);
   expect(read("../../components/panels/SessionSidebar.tsx")).toContain(
     "session-sidebar-drawer",
@@ -26,7 +26,7 @@ test("phone navigation uses compact 40px rows while action sheets retain 44px co
   );
   expect(sidebar).toContain("gap-0 sm:gap-px");
   expect(sidebar).toContain("space-y-0 sm:space-y-1");
-  expect(sidebar).toContain("h-9 max-sm:h-11 items-center");
+  expect(sidebar).toContain("h-9 items-center");
   expect(css).toMatch(
     /\.session-sidebar-drawer input\s*\{[^}]*min-height:\s*2\.75rem;[^}]*font-size:\s*1rem;/,
   );

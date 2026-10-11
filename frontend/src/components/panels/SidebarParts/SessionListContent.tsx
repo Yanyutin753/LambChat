@@ -309,7 +309,10 @@ export function SessionListContent({
               className="flex size-8 items-center justify-center rounded-lg text-theme-text-secondary dark:text-stone-400 transition-colors cursor-w-resize rtl:cursor-e-resize"
               aria-label={t("sidebar.collapseSidebar")}
             >
-              <SidebarToggleIcon mobileFilled className="size-5 text-theme-text-secondary dark:text-stone-300" />
+              <SidebarToggleIcon
+                mobileFilled
+                className="size-5 text-theme-text-secondary dark:text-stone-300"
+              />
             </button>
           </Tooltip>
         </div>
@@ -457,7 +460,9 @@ export function SessionListContent({
                           }
                           currentProjectId={
                             (session.metadata?.project_id as
-                              string | null | undefined) ?? null
+                              | string
+                              | null
+                              | undefined) ?? null
                           }
                           onShare={() =>
                             sessionActions.onShareSession(session.id)
@@ -600,7 +605,7 @@ export function SessionListContent({
           {visibleUncategorizedSessions.length > 0 || isUncategorizedLoading ? (
             <>
               {isSelectionMode ? (
-                <div className="flex h-9 max-sm:h-11 items-center justify-between gap-2 px-[9px]">
+                <div className="flex h-9 items-center justify-between gap-2 px-[9px]">
                   <span className="text-13 font-medium text-theme-text-secondary dark:text-stone-400">
                     {t("sidebar.selectedCount", { count: selectedCount })}
                   </span>
@@ -635,7 +640,7 @@ export function SessionListContent({
                 >
                   {selectModeButton}
                   {chatsUnreadCount > 0 && (
-                    <div className="flex h-8 w-6 shrink-0 items-center justify-center max-sm:h-11 max-sm:w-11">
+                    <div className="flex h-8 w-6 shrink-0 items-center justify-center max-sm:h-9 max-sm:w-9">
                       <MarkAllReadBadge
                         count={chatsUnreadCount}
                         badgeId="all"

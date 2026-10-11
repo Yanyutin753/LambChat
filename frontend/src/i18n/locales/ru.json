@@ -1616,6 +1616,7 @@
     "collapsePanel": "Свернуть панель",
     "expandPanel": "Развернуть панель",
     "panelTabs": "Вкладки панели",
+    "closeAllPanelTabs": "Закрыть все вкладки",
     "closePanelTab": "Закрыть вкладку: {{title}}",
     "paginationSummary": "Всего {{total}} · По {{pageSize}} на странице",
     "about": "О программе",

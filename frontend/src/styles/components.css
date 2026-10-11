@@ -1,3 +1,22 @@
+/* Soften clipped sidebar rows without changing the list spacing. */
+[data-sidebar-scroll] {
+  scroll-padding-block: 12px;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 12px,
+    #000 calc(100% - 12px),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 12px,
+    #000 calc(100% - 12px),
+    transparent
+  );
+}
+
 /* Shared page server preview transition */
 #shared-server-preview {
   transition: opacity 0.35s ease;
@@ -142,7 +161,9 @@
   flex-wrap: wrap;
   padding-block: 0.375rem;
 }
-.json-schema-list:not(.json-schema-list--compact) .json-schema-row + .json-schema-row {
+.json-schema-list:not(.json-schema-list--compact)
+  .json-schema-row
+  + .json-schema-row {
   margin-top: 0.75rem;
   padding-top: 1rem;
   border-top: 1px solid var(--theme-border);
@@ -523,8 +544,7 @@
   min-height: 2.5rem;
   border-radius: 0.625rem;
   padding-inline: 0.875rem;
-  box-shadow: 0 8px 20px -14px
-    color-mix(in srgb, var(--theme-primary) 70%, black);
+  box-shadow: 0 8px 20px -14px color-mix(in srgb, var(--theme-primary) 70%, black);
 }
 
 .panel-header-primary-action > svg {
@@ -937,8 +957,8 @@
   .panel-header__mobile-more {
     display: inline-flex;
     align-items: center;
-    height: 2.75rem;
-    width: 2.75rem;
+    height: 2.25rem;
+    width: 2.25rem;
     justify-content: center;
     border: 0;
     border-radius: 0.5rem;
@@ -970,8 +990,8 @@
   }
 
   .panel-header__mobile-more--inline {
-    width: 2.75rem;
-    height: 2.75rem;
+    width: 2.25rem;
+    height: 2.25rem;
     border: 0;
     background: transparent;
     color: var(--theme-text-tertiary);
@@ -1521,8 +1541,7 @@
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  background:
-    linear-gradient(
+  background: linear-gradient(
       180deg,
       color-mix(in srgb, var(--theme-bg-card) 96%, var(--theme-bg-subtle)) 0%,
       var(--theme-bg-card) 10rem
@@ -1574,8 +1593,7 @@
   stroke-width: 2;
 }
 
-[data-right-panel-root]
-  .editor-sidebar-header-icon {
+[data-right-panel-root] .editor-sidebar-header-icon {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1621,9 +1639,9 @@
 }
 
 :where(
-  .editor-sidebar--sidebar,
-  .tool-console-panel[data-tool-panel-mode="sidebar"]
-) {
+    .editor-sidebar--sidebar,
+    .tool-console-panel[data-tool-panel-mode="sidebar"]
+  ) {
   --right-sidebar-ring: color-mix(
     in srgb,
     var(--theme-text) 10%,
@@ -3257,8 +3275,7 @@
   font-weight: 600;
   padding: 0 0.375rem;
   line-height: 1;
-  box-shadow: 0 2px 8px -2px
-    color-mix(in srgb, var(--theme-primary) 60%, transparent);
+  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--theme-primary) 60%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3440,8 +3457,7 @@
 
 .tool-console-panel[data-tool-panel-mode="sidebar"],
 .tool-console-panel[data-tool-panel-mode="mobile"] {
-  background:
-    linear-gradient(
+  background: linear-gradient(
       180deg,
       color-mix(in srgb, var(--theme-bg-card) 96%, var(--theme-bg-subtle)) 0%,
       var(--theme-bg-card) 10rem
@@ -3451,8 +3467,7 @@
 
 .tool-console-panel[data-tool-panel-mode="center"] {
   border: 1px solid color-mix(in srgb, var(--theme-border) 72%, transparent);
-  background:
-    linear-gradient(
+  background: linear-gradient(
       180deg,
       color-mix(in srgb, var(--theme-bg-card) 94%, var(--theme-bg-subtle)) 0%,
       var(--theme-bg-card) 11rem
@@ -3465,14 +3480,13 @@
 }
 
 .tool-console-panel[data-tool-panel-mode="sidebar"][data-sidebar-panel] {
-  width: calc(var(--sidebar-preview-width, 48%) - 1.5rem) !important;
-  max-width: calc(var(--sidebar-preview-width, 48%) - 1.5rem) !important;
+  width: calc(var(--sidebar-preview-width, 40%) - 1.5rem) !important;
+  max-width: calc(var(--sidebar-preview-width, 40%) - 1.5rem) !important;
 }
 
 .tool-console-chrome {
   position: relative;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       ellipse at 1.75rem 0,
       var(--tool-console-surface-glow),
       transparent 10rem
@@ -3578,8 +3592,7 @@
 }
 
 .tool-console-body {
-  background:
-    linear-gradient(
+  background: linear-gradient(
       180deg,
       color-mix(in srgb, var(--theme-bg) 62%, transparent),
       transparent 7rem
@@ -3859,8 +3872,7 @@
     var(--theme-primary) 16%,
     var(--theme-border)
   );
-  box-shadow: 0 2px 8px -2px
-    color-mix(in srgb, var(--theme-text) 4%, transparent);
+  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--theme-text) 4%, transparent);
 }
 
 /* Diff containers — edit file removed/added */
@@ -3944,11 +3956,13 @@
   );
   background-size: 11px 11px;
   background-repeat: space;
-  mask-image:
-    radial-gradient(ellipse at center, #000 0%, transparent 60%),
+  mask-image: radial-gradient(ellipse at center, #000 0%, transparent 60%),
     radial-gradient(ellipse at center, #000 0%, transparent 62%);
-  -webkit-mask-image:
-    radial-gradient(ellipse at center, #000 0%, transparent 60%),
+  -webkit-mask-image: radial-gradient(
+      ellipse at center,
+      #000 0%,
+      transparent 60%
+    ),
     radial-gradient(ellipse at center, #000 0%, transparent 62%);
   mask-repeat: no-repeat, no-repeat;
   -webkit-mask-repeat: no-repeat, no-repeat;
@@ -4720,7 +4734,10 @@
   .sidebar-nav-btn {
     min-height: 2.75rem;
   }
-  .session-sidebar-drawer button,
+  .session-sidebar-drawer button {
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+  }
   .sidebar-mobile-menu button {
     min-width: 2.75rem;
     min-height: 2.75rem;
@@ -4831,4 +4848,18 @@
     min-width: 2.25rem;
     min-height: 2.25rem;
   }
+}
+
+/* Plain reading sections inside the shared tool panel, without nested cards. */
+.tool-call-panel-content .collapsible-section-card--default {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding-inline: 0;
+}
+.tool-call-panel-content
+  .collapsible-section-card--default
+  + .collapsible-section-card--default {
+  border-top: 1px solid var(--theme-border-faint);
 }

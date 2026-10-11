@@ -131,3 +131,74 @@ test("leaving or clicking before the hover delay cancels the tooltip", () => {
   act(() => vi.advanceTimersByTime(500));
   expect(screen.queryByRole("tooltip")).toBeNull();
 });
+
+test("hover previews background content without activating it or exposing form fields", async () => {
+  render(
+    <>
+      <ToolResultPanel open onClose={() => {}} title="Research">
+        <p>Evidence from the research report.</p>
+        <button>Delete report</button>
+        <textarea defaultValue="Private draft" />
+        <input type="password" defaultValue="secret" />
+      </ToolResultPanel>
+      <ToolResultPanel open onClose={() => {}} title="Current">
+        <p>Current result</p>
+      </ToolResultPanel>
+    </>,
+  );
+  await act(async () => vi.advanceTimersByTime(100));
+  fireEvent.mouseEnter(screen.getByRole("tab", { name: "Research" }));
+  act(() => vi.advanceTimersByTime(500));
+  const tooltip = screen.getByRole("tooltip");
+  expect(tooltip).toHaveTextContent("Evidence from the research report.");
+  expect(tooltip).not.toHaveTextContent("Delete report");
+  expect(tooltip).not.toHaveTextContent("Private draft");
+  expect(tooltip).not.toHaveTextContent("secret");
+  expect(screen.getByRole("tab", { name: "Current" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+});
+
+test("panel controls share the tab bar and retain their view toggles", () => {
+  render(
+    <ToolResultPanel open onClose={() => {}} title="Result">
+      Content
+    </ToolResultPanel>,
+  );
+  const collapse = screen.getByRole("button", { name: "Collapse panel" });
+  const bar = collapse.closest(".right-panel-tabbar")! as HTMLElement;
+  fireEvent.click(within(bar).getByRole("button", { name: "Center view" }));
+  expect(
+    screen.getByRole("button", { name: "Sidebar", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  fireEvent.click(screen.getByRole("button", { name: "Fullscreen" }));
+  expect(screen.getByRole("button", { name: "Exit Fullscreen" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Sidebar", exact: true }));
+  expect(screen.getByRole("button", { name: "Center view" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+  expect(screen.queryByRole("button", { name: "Exit Fullscreen" })).toBeNull();
+});
+
+test("hover includes a loaded image without creating a second viewer", async () => {
+  render(
+    <ToolResultPanel open onClose={() => {}} title="Chart">
+      <img src="/chart.png" alt="Chart content" />
+    </ToolResultPanel>,
+  );
+  const image = screen.getByAltText("Chart content");
+  Object.defineProperties(image, {
+    complete: { value: true },
+    naturalWidth: { value: 800 },
+  });
+  await act(async () => vi.advanceTimersByTime(100));
+  fireEvent.mouseEnter(screen.getByRole("tab", { name: "Chart" }));
+  act(() => vi.advanceTimersByTime(500));
+  expect(screen.getByRole("tooltip").querySelector("img")).toHaveAttribute(
+    "src",
+    "http://localhost:3000/chart.png",
+  );
+  expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
+});

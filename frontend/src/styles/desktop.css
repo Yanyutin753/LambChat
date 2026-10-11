@@ -57,7 +57,9 @@ div:has(> [data-workspace-content]):has([data-desktop-activity-rail]) {
   background-color: var(--theme-bg-sidebar) !important;
 }
 
-div:has(> [data-desktop-sidebar-shell] > [data-desktop-sidebar][inert]):has(> [data-workspace-content]) {
+div:has(> [data-desktop-sidebar-shell] > [data-desktop-sidebar][inert]):has(
+    > [data-workspace-content]
+  ) {
   background-color: var(--desktop-rail-bg) !important;
 }
 
@@ -153,6 +155,14 @@ html:has([data-titlebar], [data-workspace-ui]) .chat-header {
 
 html:has([data-titlebar], [data-workspace-ui]) .chat-header::after {
   display: none;
+}
+
+html[data-right-panel-presentation="docked"]:has(
+    [data-titlebar],
+    [data-workspace-ui]
+  )
+  :is(.chat-header, .right-panel-tabbar) {
+  box-shadow: inset 0 -1px var(--theme-border);
 }
 
 html:has([data-titlebar], [data-workspace-ui])
@@ -281,7 +291,7 @@ html:has([data-titlebar]) .editor-sidebar[data-panel-presentation="overlay"] {
   --right-sidebar-height: calc(100% - var(--titlebar-inset, 0px) - 1.5rem);
 }
 
-/* Docked panels keep an even inset around the surface. */
+/* Docked panels align their tabs with the workspace header. */
 html[data-right-panel-presentation="docked"]:has(
     [data-titlebar],
     [data-workspace-ui]
@@ -292,13 +302,31 @@ html[data-right-panel-presentation="docked"]:has(
   ) {
   top: var(--titlebar-inset, 0px);
   bottom: 0;
-  height: calc(100% - var(--titlebar-inset, 0px) - 1rem);
-  margin: 0.5rem;
-  width: calc(var(--right-panel-active-width) - 1rem) !important;
-  max-width: calc(var(--right-panel-active-width) - 1rem) !important;
-  border: 1px solid var(--theme-border);
-  border-radius: var(--radius-xl);
-  box-shadow: 0 2px 8px var(--theme-shadow-sm);
+  height: calc(100% - var(--titlebar-inset, 0px));
+  margin: 0;
+  width: var(--right-panel-active-width) !important;
+  max-width: var(--right-panel-active-width) !important;
+  border: 0;
+  border-left: 1px solid var(--theme-border);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+html[data-right-panel-presentation="docked"]:has(
+    [data-titlebar],
+    [data-workspace-ui]
+  )
+  .right-panel-tabbar {
+  height: var(--workspace-header-height);
+}
+
+html[data-right-panel-presentation="docked"]:has(
+    [data-titlebar],
+    [data-workspace-ui]
+  )
+  .right-panel-tabs {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
 }
 
 html:has([data-titlebar], [data-workspace-ui])
@@ -394,7 +422,6 @@ html[data-right-panel-presentation="docked"]:has(
     display: none;
   }
 }
-
 
 /* The collapsed web sidebar reopens from the page header, not the activity rail. */
 @media (min-width: 640px) {
