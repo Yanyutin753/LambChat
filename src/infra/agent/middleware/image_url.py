@@ -272,7 +272,7 @@ async def _resolve_storage_image_url(url: str) -> str:
         return (
             _append_proxy_direct_param(url)
             if storage.is_local
-            else await storage.get_presigned_url(key, 3600)
+            else await storage.get_presigned_url(key)
         )
     except Exception as exc:
         logger.warning("Failed to resolve image storage URL: error_type=%s", type(exc).__name__)

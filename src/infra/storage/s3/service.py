@@ -405,17 +405,22 @@ class S3StorageService:
         return await self._get_backend().get_url(key)
 
     async def get_presigned_url(
-        self, key: str, expires: int = 3600, process: str | None = None
+        self, key: str, expires: int | None = None, process: str | None = None
     ) -> str:
         """Get presigned URL for a file (for private buckets).
 
+        ``expires`` defaults to the configured ``presigned_url_expires``
+        (capped at 7 days, the OSS V1 signature limit).
         `process` requests provider-side processing (e.g. OSS image crop)
         and is signed into the URL; backends without support raise TypeError.
         """
         backend = self._get_backend()
+        resolved = (
+            min(self._config.presigned_url_expires, 7 * 24 * 3600) if expires is None else expires
+        )
         if process is None:
-            return await backend.get_presigned_url(key, expires)
-        return await backend.get_presigned_url(key, expires, process=process)
+            return await backend.get_presigned_url(key, resolved)
+        return await backend.get_presigned_url(key, resolved, process=process)
 
     async def get_cover_presigned_url(
         self, key: str, expires_at: int, process: str | None = None
