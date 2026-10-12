@@ -10,6 +10,7 @@ import {
 } from "./projectRevealAutoOpen";
 import {
   getCachedProjectRevealFiles,
+  isManifestProject,
   loadProjectRevealFilesCached,
   parseProjectRevealSummary,
   type RevealPreviewRequest,
@@ -95,7 +96,7 @@ export function ProjectRevealItem({
   const inlineFiles = parsed?.version === 1 ? parsed.files : null;
   const cachedProjectFiles = useMemo(
     () =>
-      parsed?.version === 2
+      isManifestProject(parsed)
         ? getCachedProjectRevealFiles(projectAutoOpenKey)
         : null,
     [parsed, projectAutoOpenKey],
@@ -107,7 +108,7 @@ export function ProjectRevealItem({
     normalizeProjectRevealBinaryFiles(cachedProjectFiles?.binaryFiles),
   );
   const shouldLoadFiles = shouldLoadProjectRevealFiles({
-    isVersionedProject: parsed?.version === 2,
+    isVersionedProject: isManifestProject(parsed),
     success,
     isPreviewOpen,
     allowAutoPreview,
@@ -167,12 +168,12 @@ export function ProjectRevealItem({
   useEffect(() => {
     if (
       !parsed ||
-      parsed.version !== 2 ||
+      !isManifestProject(parsed) ||
       !projectAutoOpenKey ||
       !shouldLoadFiles
     ) {
       const cached =
-        parsed?.version === 2
+        isManifestProject(parsed)
           ? getCachedProjectRevealFiles(projectAutoOpenKey)
           : null;
       const nextLoadedFiles = cached?.files || inlineFiles;

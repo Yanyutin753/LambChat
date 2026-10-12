@@ -53,15 +53,23 @@ export interface RevealedFileItem {
       | "nextjs";
     entry?: string;
     file_count?: number;
-    files: Record<
-      string,
-      {
-        url: string;
-        size: number;
-        is_binary?: boolean;
-        content_type?: string;
-      }
-    >;
+    files:
+      | Record<
+          string,
+          {
+            url: string;
+            size: number;
+            is_binary?: boolean;
+            content_type?: string;
+          }
+        >
+      | Array<{
+          path: string;
+          url: string;
+          size: number;
+          is_binary?: boolean;
+          content_type?: string;
+        }>;
   } | null;
 }
 

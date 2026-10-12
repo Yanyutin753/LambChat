@@ -27,6 +27,7 @@ import type {
 } from "./revealPreviewData";
 import {
   getCachedProjectRevealFiles,
+  isManifestProject,
   loadProjectRevealFilesCached,
   shouldShowProjectRevealLoadingError,
 } from "./revealPreviewData";
@@ -112,8 +113,8 @@ function ProjectRevealPreviewPanel({
   );
   const cached = useMemo(
     () =>
-      project.version === 2 ? getCachedProjectRevealFiles(cacheKey) : null,
-    [cacheKey, project.version],
+      isManifestProject(project) ? getCachedProjectRevealFiles(cacheKey) : null,
+    [cacheKey, project],
   );
   const [loadedFiles, setLoadedFiles] = useState<Record<string, string> | null>(
     project.version === 1 ? project.files : cached?.files || null,
@@ -152,7 +153,7 @@ function ProjectRevealPreviewPanel({
   }, []);
 
   useEffect(() => {
-    if (project.version !== 2) {
+    if (!isManifestProject(project)) {
       setLoadedFiles((current) =>
         shouldReplaceProjectRevealFiles(current, project.files)
           ? project.files

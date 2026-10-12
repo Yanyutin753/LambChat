@@ -6,7 +6,7 @@ import {
   parseProjectRevealSummary,
   shouldShowProjectRevealLoadingError,
   type FileManifestEntry,
-  type ParsedProjectRevealData,
+  type ManifestProjectRevealData,
 } from "../revealPreviewData.ts";
 
 function makeTextManifest(count: number): Record<string, FileManifestEntry> {
@@ -23,7 +23,7 @@ function makeTextManifest(count: number): Record<string, FileManifestEntry> {
 
 function makeV2Project(
   files: Record<string, FileManifestEntry>,
-): ParsedProjectRevealData {
+): ManifestProjectRevealData {
   return {
     version: 2,
     name: "perf-project",
@@ -126,14 +126,108 @@ test("does not mark pure binary reveal_project folders as failed loads", () => {
   expect(showError).toBe(false);
 });
 
+test("parses v3 list manifests that keep paths as item values", () => {
+  const summary = parseProjectRevealSummary({
+    args: { project_path: "/workspace/parrot-bike" },
+    result: JSON.stringify({
+      type: "project_reveal",
+      version: 3,
+      name: "鹦鹉的兜风日",
+      mode: "project",
+      template: "static",
+      entry: "/index.html",
+      files: [
+        {
+          path: "/index.html",
+          url: "/api/upload/file/revealed_projects/parrot_ab12cd34/20261012_104859_8abe77e1_index.html",
+          is_binary: false,
+          size: 12443,
+        },
+      ],
+    }),
+    parseErrorMessage: "parse error",
+  });
+
+  expect(summary.parsed).toMatchObject({
+    version: 3,
+    name: "鹦鹉的兜风日",
+    template: "static",
+    entry: "/index.html",
+    fileCount: 1,
+  });
+  expect(Object.keys(summary.parsed?.files ?? {})).toEqual(["/index.html"]);
+});
+
+test("restores dotted path keys of legacy v2 manifests mangled by event key sanitization", () => {
+  // dual_writer 落库会把含 '.' 的 dict key 改写成 '_'，v2 manifest 的路径 key
+  // 全部中招（/index.html → /index_html）而 entry 是值幸免。上传 URL 的文件名
+  // 保留原始点号（{YYYYMMDD_HHMMSS}_{hash}_{原名}），可据此精确还原。
+  const summary = parseProjectRevealSummary({
+    args: { project_path: "/workspace/parrot-bike" },
+    result: JSON.stringify({
+      type: "project_reveal",
+      version: 2,
+      name: "parrot",
+      mode: "project",
+      template: "static",
+      entry: "/index.html",
+      files: {
+        "/index_html": {
+          url: "/api/upload/file/revealed_projects/parrot_ab12cd34/20261012_104859_8abe77e1_index.html",
+          is_binary: false,
+          size: 12443,
+        },
+        "/src/App_vue": {
+          url: "/api/upload/file/revealed_projects/parrot_ab12cd34/20261012_104859_8abe77e2_App.vue",
+          is_binary: false,
+          size: 800,
+        },
+        "/assets/app_min_js": {
+          url: "/api/upload/file/revealed_projects/parrot_ab12cd34/20261012_104859_8abe77e3_app.min.js",
+          is_binary: false,
+          size: 900,
+        },
+      },
+    }),
+    parseErrorMessage: "parse error",
+  });
+
+  expect(Object.keys(summary.parsed?.files ?? {}).sort()).toEqual(
+    ["/assets/app.min.js", "/index.html", "/src/App.vue"].sort(),
+  );
+  expect(summary.parsed?.entry).toBe("/index.html");
+});
+
+test("keeps legacy v2 manifest keys when the url does not decode a mangled form", () => {
+  const summary = parseProjectRevealSummary({
+    args: { project_path: "/workspace/site" },
+    result: JSON.stringify({
+      type: "project_reveal",
+      version: 2,
+      name: "site",
+      mode: "folder",
+      template: "vanilla",
+      files: {
+        // URL basename 是 notes_v2.txt，mangle 后 notes_v2_txt ≠ key 的
+        // notes_txt——无法证明 key 被消毒，必须原样保留
+        "/notes_txt": {
+          url: "/api/upload/file/revealed_projects/site_ab12cd34/20261012_104859_8abe77e4_notes_v2.txt",
+          is_binary: false,
+          size: 10,
+        },
+      },
+    }),
+    parseErrorMessage: "parse error",
+  });
+
+  expect(Object.keys(summary.parsed?.files ?? {})).toEqual(["/notes_txt"]);
+});
+
 test("loadProjectRevealFiles caps concurrent text file fetches", async () => {
   const fetchStub = stubFetchTrackingConcurrency();
   try {
     const result = await loadProjectRevealFiles(
-      makeV2Project(makeTextManifest(20)) as Extract<
-        ParsedProjectRevealData,
-        { version: 2 }
-      >,
+      makeV2Project(makeTextManifest(20)),
     );
 
     expect(Object.keys(result.files)).toHaveLength(20);
@@ -153,10 +247,7 @@ test("project reveal file cache evicts least recently used entries", async () =>
     const load = (key: string) =>
       loadProjectRevealFilesCached({
         previewKey: key,
-        project: makeV2Project(makeTextManifest(1)) as Extract<
-          ParsedProjectRevealData,
-          { version: 2 }
-        >,
+        project: makeV2Project(makeTextManifest(1)),
       });
 
     await load("project-1");

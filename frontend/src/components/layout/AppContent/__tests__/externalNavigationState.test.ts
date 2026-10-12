@@ -260,3 +260,49 @@ test("reopens an external preview after the target session changes", () => {
     }),
   ).toBe(false);
 });
+
+test("builds a project preview request from v3 list project_meta", () => {
+  expect(
+    buildExternalNavigationPreviewRequest({
+      id: "file-9",
+      file_key: "revealed/project-3",
+      file_name: "parrot",
+      file_size: 0,
+      url: null,
+      source: "reveal_project",
+      original_path: "/workspace/parrot-bike",
+      project_meta: {
+        template: "static",
+        entry: "/index.html",
+        file_count: 1,
+        files: [
+          {
+            path: "/index.html",
+            url: "/api/upload/file/revealed_projects/parrot_ab12cd34/20261012_104859_8abe77e1_index.html",
+            size: 12443,
+            is_binary: false,
+          },
+        ],
+      },
+    }),
+  ).toEqual({
+    kind: "project",
+    previewKey: "external-project:file-9",
+    project: {
+      version: 3,
+      name: "parrot",
+      mode: "project",
+      path: "/workspace/parrot-bike",
+      template: "static",
+      entry: "/index.html",
+      fileCount: 1,
+      files: {
+        "/index.html": {
+          url: "/api/upload/file/revealed_projects/parrot_ab12cd34/20261012_104859_8abe77e1_index.html",
+          size: 12443,
+          is_binary: false,
+        },
+      },
+    },
+  });
+});

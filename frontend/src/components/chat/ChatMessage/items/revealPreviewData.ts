@@ -25,6 +25,11 @@ export interface FileManifestEntry {
   content_type?: string;
 }
 
+/** v3 manifest 项：路径是值，绝不充当 dict key（事件落库的 key 消毒会把路径的 '.' 改成 '_'） */
+export interface FileManifestItem extends FileManifestEntry {
+  path: string;
+}
+
 interface ProjectRevealResultBase {
   type: "project_reveal";
   name: string;
@@ -47,6 +52,23 @@ export interface ProjectRevealResultV2 extends ProjectRevealResultBase {
   files: Record<string, FileManifestEntry>;
 }
 
+export interface ProjectRevealResultV3 extends ProjectRevealResultBase {
+  version: 3;
+  files: FileManifestItem[];
+}
+
+/** 按 URL 拉取文件的 manifest 形态（v2 路径 key / v3 路径列表，内部统一为 record） */
+export interface ManifestProjectRevealData {
+  version: 2 | 3;
+  name: string;
+  mode: ProjectRevealMode;
+  template: ProjectTemplate;
+  entry?: string;
+  path?: string;
+  fileCount: number;
+  files: Record<string, FileManifestEntry>;
+}
+
 export type ParsedProjectRevealData =
   | {
       version: 1;
@@ -58,16 +80,13 @@ export type ParsedProjectRevealData =
       fileCount: number;
       files: Record<string, string>;
     }
-  | {
-      version: 2;
-      name: string;
-      mode: ProjectRevealMode;
-      template: ProjectTemplate;
-      entry?: string;
-      path?: string;
-      fileCount: number;
-      files: Record<string, FileManifestEntry>;
-    };
+  | ManifestProjectRevealData;
+
+export function isManifestProject(
+  parsed: ParsedProjectRevealData | null | undefined,
+): parsed is ManifestProjectRevealData {
+  return !!parsed && parsed.version !== 1;
+}
 
 export interface ParsedProjectRevealSummary {
   projectName: string;
@@ -99,14 +118,76 @@ export type RevealPreviewRequest =
       footer?: ReactNode;
     };
 
-function isProjectRevealV2(
-  result: ProjectRevealResultV1 | ProjectRevealResultV2,
-): result is ProjectRevealResultV2 {
-  if ("version" in result && result.version === 2) return true;
+function isProjectRevealManifest(
+  result: ProjectRevealResultV1 | ProjectRevealResultV2 | ProjectRevealResultV3,
+): result is ProjectRevealResultV2 | ProjectRevealResultV3 {
+  if ("version" in result && (result.version === 2 || result.version === 3)) {
+    return true;
+  }
+  // 无版本号的早期 v2 载荷靠首项形态识别
   const firstFile = Object.values(result.files)[0];
   return (
     typeof firstFile === "object" && firstFile !== null && "url" in firstFile
   );
+}
+
+// 上传 key 的文件名段格式：{YYYYMMDD_HHMMSS}_{hash8}_{原始文件名}
+const UPLOADED_FILENAME_PREFIX = /^\d{8}_\d{6}_[0-9a-f]{8}_/;
+
+/**
+ * 还原被事件 key 消毒改写的 v2 路径 key。
+ *
+ * dual_writer 落库前会把含 '.' 的 dict key 改成 '_'（Mongo $set 拒写点号），
+ * 历史 v2 manifest 的路径 key 因此失真（/index.html → /index_html），而 entry
+ * 是值幸免——两边脱节后 sandpack 直接崩掉。上传 URL 的文件名段保留原始点号，
+ * basename 可据此无损还原；只有 URL 文件名恰好等于 key 的去点形态时才还原，
+ * 防止把正常 key 改错。
+ */
+function restoreManifestPathKey(path: string, url: string): string | null {
+  const separator = path.lastIndexOf("/");
+  const keyBasename = path.slice(separator + 1);
+  // key 里还有点号 = 未被消毒，或文件本就无扩展名（还原也无从下手）
+  if (!keyBasename || keyBasename.includes(".")) {
+    return null;
+  }
+  const urlBasename = url.slice(url.lastIndexOf("/") + 1);
+  const original = urlBasename.replace(UPLOADED_FILENAME_PREFIX, "");
+  if (!original.includes(".")) {
+    return null;
+  }
+  if (original.replace(/\./g, "_") !== keyBasename) {
+    return null;
+  }
+  return `${path.slice(0, separator + 1)}${original}`;
+}
+
+function restoreManifestFileKeys(
+  files: Record<string, FileManifestEntry>,
+): Record<string, FileManifestEntry> {
+  const restored: Record<string, FileManifestEntry> = {};
+  let changed = false;
+  for (const [path, entry] of Object.entries(files)) {
+    const original = restoreManifestPathKey(path, entry.url);
+    restored[original ?? path] = entry;
+    changed = changed || original !== null;
+  }
+  return changed ? restored : files;
+}
+
+function manifestFilesToRecord(
+  files: FileManifestItem[] | Record<string, FileManifestEntry>,
+): Record<string, FileManifestEntry> {
+  if (Array.isArray(files)) {
+    const record: Record<string, FileManifestEntry> = {};
+    for (const item of files) {
+      if (item && typeof item.path === "string" && item.path) {
+        const { path, ...entry } = item;
+        record[path] = { ...entry, is_binary: entry.is_binary ?? false };
+      }
+    }
+    return record;
+  }
+  return restoreManifestFileKeys(files);
 }
 
 export function parseProjectRevealSummary(input: {
@@ -129,28 +210,31 @@ export function parseProjectRevealSummary(input: {
         typeof result === "string"
           ? (JSON.parse(result) as
               | ProjectRevealResultV1
-              | ProjectRevealResultV2)
+              | ProjectRevealResultV2
+              | ProjectRevealResultV3)
           : (result as unknown as
               | ProjectRevealResultV1
-              | ProjectRevealResultV2);
+              | ProjectRevealResultV2
+              | ProjectRevealResultV3);
 
       if (raw.error) {
         error = raw.message || raw.error;
-      } else if (isProjectRevealV2(raw)) {
+      } else if (isProjectRevealManifest(raw)) {
         projectName = raw.name || "";
         projectPath = raw.path || "";
         mode = raw.mode || "project";
         template = raw.template || "vanilla";
-        fileCount = raw.file_count || Object.keys(raw.files).length;
+        const files = manifestFilesToRecord(raw.files);
+        fileCount = raw.file_count || Object.keys(files).length;
         parsed = {
-          version: 2,
+          version: Array.isArray(raw.files) || raw.version === 3 ? 3 : 2,
           name: projectName,
           mode,
           path: projectPath,
           template,
           entry: raw.entry,
           fileCount,
-          files: raw.files,
+          files,
         };
       } else {
         projectName = raw.name || "";
@@ -216,7 +300,7 @@ async function mapWithConcurrency<T, R>(
 }
 
 export async function loadProjectRevealFiles(
-  project: Extract<ParsedProjectRevealData, { version: 2 }>,
+  project: ManifestProjectRevealData,
 ): Promise<{
   files: Record<string, string>;
   binaryFiles: Record<string, string>;
@@ -323,7 +407,7 @@ function rememberProjectRevealFiles(
 
 export async function loadProjectRevealFilesCached(input: {
   previewKey: string;
-  project: Extract<ParsedProjectRevealData, { version: 2 }>;
+  project: ManifestProjectRevealData;
 }): Promise<LoadedProjectRevealFiles> {
   const { previewKey, project } = input;
   const cached = getCachedProjectRevealFiles(previewKey);
