@@ -141,7 +141,7 @@ async def refresh_token(request: Request):
 
         # 获取用户信息以验证用户仍然存在
         manager = UserManager()
-        with authority_lookup():
+        async with authority_lookup():
             user = await manager.get_user(user_id)
         if not user:
             raise AppError(ErrorCode.USER_NOT_FOUND)

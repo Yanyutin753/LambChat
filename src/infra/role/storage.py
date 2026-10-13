@@ -26,6 +26,7 @@ logger = get_logger(__name__)
 _ROLE_OBJ_CACHE_PREFIX = "role:obj:"
 _ROLE_OBJ_VERSION_PREFIX = "role:obj_ver:"
 _ROLE_OBJ_CACHE_TTL = 300  # 5 分钟
+_ROLE_CACHE_TIMEOUT_SECONDS = 2.0
 ROLE_ALLOWED_AGENTS_LIMIT = 100
 ROLE_LIST_LIMIT_MAX = 200
 ROLE_BATCH_LOOKUP_LIMIT = 100
@@ -259,19 +260,22 @@ class RoleStorage:
             角色对象或 None
         """
         version: str = "0"
+        cache_read_failed = False
 
         try:
-            redis = await _get_redis()
-            raw = await redis.get(f"{_ROLE_OBJ_VERSION_PREFIX}{name}")
-            version = raw or "0"
-            cache_key = f"{_ROLE_OBJ_CACHE_PREFIX}{name}:v{version}"
+            async with asyncio.timeout(_ROLE_CACHE_TIMEOUT_SECONDS):
+                redis = await _get_redis()
+                raw = await redis.get(f"{_ROLE_OBJ_VERSION_PREFIX}{name}")
+                version = raw or "0"
+                cache_key = f"{_ROLE_OBJ_CACHE_PREFIX}{name}:v{version}"
 
-            cached = await redis.get(cache_key)
-            if cached is not None:
-                logger.debug(f"[Role Cache] Hit for role {name}")
-                cached_data = await run_blocking_io(json.loads, cached)
-                return _cache_dict_to_role(cached_data)
+                cached = await redis.get(cache_key)
+                if cached is not None:
+                    logger.debug(f"[Role Cache] Hit for role {name}")
+                    cached_data = await run_blocking_io(json.loads, cached)
+                    return _cache_dict_to_role(cached_data)
         except Exception as e:
+            cache_read_failed = True
             logger.warning(f"[Role Cache] Redis get failed for role {name}: {e}")
 
         # 缓存未命中，查询数据库
@@ -284,20 +288,25 @@ class RoleStorage:
             role_dict["id"] = str(role_dict.pop("_id"))
             result = Role(**_normalize_role_dict(role_dict))
 
+        # A failed optional cache must not delay the authoritative result again.
+        if cache_read_failed:
+            return result
+
         # 写入缓存（CAS: 写入前重新检查版本号，避免 TOCTOU）
         try:
-            redis = await _get_redis()
-            current_version = await redis.get(f"{_ROLE_OBJ_VERSION_PREFIX}{name}")
-            current_version = current_version or "0"
-            if current_version == version:
-                cache_key = f"{_ROLE_OBJ_CACHE_PREFIX}{name}:v{current_version}"
-                cache_data = await run_blocking_io(
-                    json.dumps,
-                    _role_to_cache_dict(result) if result else None,
-                )
-                await redis.set(cache_key, cache_data, ex=_ROLE_OBJ_CACHE_TTL)
-            else:
-                logger.debug(f"[Role Cache] Version changed for role {name}, skip stale write")
+            async with asyncio.timeout(_ROLE_CACHE_TIMEOUT_SECONDS):
+                redis = await _get_redis()
+                current_version = await redis.get(f"{_ROLE_OBJ_VERSION_PREFIX}{name}")
+                current_version = current_version or "0"
+                if current_version == version:
+                    cache_key = f"{_ROLE_OBJ_CACHE_PREFIX}{name}:v{current_version}"
+                    cache_data = await run_blocking_io(
+                        json.dumps,
+                        _role_to_cache_dict(result) if result else None,
+                    )
+                    await redis.set(cache_key, cache_data, ex=_ROLE_OBJ_CACHE_TTL)
+                else:
+                    logger.debug(f"[Role Cache] Version changed for role {name}, skip stale write")
         except Exception as e:
             logger.warning(f"[Role Cache] Redis set failed for role {name}: {e}")
 
