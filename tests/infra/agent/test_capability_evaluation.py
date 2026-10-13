@@ -819,3 +819,29 @@ def test_insufficient_evidence_fixture_requires_unambiguous_exact_reply():
     )
     assert "Reply exactly EVIDENCE_MISSING and nothing else" in spec["input"]
     assert {"kind": "final_not_contains", "value": "tests passed"} in spec["assertions"]
+
+
+@pytest.mark.parametrize(
+    "result,expected", [({"success": False}, "fail"), ({"success": True}, "pass"), ("done", "pass")]
+)
+def test_tool_success_requires_successful_structured_result(result, expected):
+    spec = case([{"kind": "tool_succeeded", "tool": "web_fetch"}])
+    record = trace(
+        events=[
+            {
+                "event_type": "tool:result",
+                "data": {"tool": "web_fetch", "success": True, "result": result},
+            },
+            {"event_type": "done", "data": {}},
+        ]
+    )
+    assert evaluate_trace(spec, record, user_id="test-user")["outcome"] == expected
+
+
+def test_fallback_fixture_checks_provider_result_not_transport_success():
+    spec = next(
+        item
+        for item in load_cases(FIXTURES)["cases"]
+        if item["case_id"] == "tool_failure_alternative"
+    )
+    assert spec["assertions"][0]["field"] == "data.result.success"

@@ -697,7 +697,8 @@ class TaskRecoveryService:
             # Active states normally store False; their heartbeat decides recovery.
             (
                 session_metadata.get("task_recoverable") is False
-                and task_status not in {
+                and task_status
+                not in {
                     TaskStatus.RUNNING.value,
                     TaskStatus.STARTING.value,
                     TaskStatus.RECOVERING.value,

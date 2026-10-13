@@ -289,6 +289,7 @@ def evaluate_trace(case: dict[str, Any], trace: dict[str, Any], *, user_id: str)
                 event.get("event_type") == "tool:result"
                 and event.get("data", {}).get("tool") == assertion["tool"]
                 and event.get("data", {}).get("success") is True
+                and _field(event, "data.result.success") is not False
                 for event in events
             )
         elif kind == "artifact_equals":

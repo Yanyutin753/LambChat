@@ -187,7 +187,7 @@
         {
           "kind": "event_field",
           "event_type": "tool:result",
-          "field": "data.success",
+          "field": "data.result.success",
           "value": false
         },
         {
