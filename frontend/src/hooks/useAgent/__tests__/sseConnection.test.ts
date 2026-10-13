@@ -126,6 +126,32 @@ function createReconnectContext(messages: Message[]) {
   };
 }
 
+test("a new reply replaces an older reconnect still acquiring its token", async () => {
+  mocks.getValidAccessToken.mockReset();
+  mocks.fetchEventSource.mockReset();
+  let resolveOldToken: (token: string | null) => void = () => undefined;
+  mocks.getValidAccessToken
+    .mockReturnValueOnce(
+      new Promise<string | null>((resolve) => {
+        resolveOldToken = resolve;
+      }),
+    )
+    .mockResolvedValueOnce("new-token");
+  mocks.fetchEventSource.mockResolvedValueOnce(undefined);
+  const { ctx } = createReconnectContext([]);
+
+  const oldReconnect = connectToSSE("session-a", "run-a", "assistant-a", ctx);
+  const oldController = ctx.abortControllerRef.current!;
+  await connectToSSE("session-a", "run-b", "assistant-b", ctx);
+  resolveOldToken("old-token");
+  await oldReconnect;
+
+  expect(oldController.signal.aborted).toBe(true);
+  expect(mocks.fetchEventSource).toHaveBeenCalledTimes(1);
+  expect(mocks.fetchEventSource.mock.calls[0][0]).toContain("run_id=run-b");
+  expect(ctx.streamingMessageIdRef.current).toBe("assistant-b");
+});
+
 test("reconnect drops an empty streaming bubble and reloads history when the run completed", async () => {
   mocks.getStatus.mockResolvedValueOnce({ status: "completed" });
   const { ctx, onStaleRunStateDetected, readMessages } = createReconnectContext(

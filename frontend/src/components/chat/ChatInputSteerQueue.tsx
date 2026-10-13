@@ -20,7 +20,7 @@ interface ChatInputSteerQueueProps {
 }
 
 const actionClass =
-  "flex min-h-9 min-w-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 text-12 hover:bg-[var(--theme-bg-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] disabled:opacity-50";
+  "flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg text-12 hover:bg-[var(--theme-bg-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] disabled:opacity-50";
 
 function QueueRow({
   item,
@@ -35,7 +35,7 @@ function QueueRow({
     item.content || item.attachments?.map((file) => file.name).join(", ");
 
   return (
-    <div className="flex min-w-0 items-center gap-1 px-2 py-1 sm:gap-2 sm:px-3">
+    <div className="flex min-w-0 items-center gap-2 px-3 py-1.5 sm:px-4">
       {failed ? (
         <AlertCircle size={16} className="shrink-0 text-[var(--theme-error)]" />
       ) : (
@@ -59,43 +59,45 @@ function QueueRow({
           {t("chat.steerQueued")}
         </span>
       )}
-      {onGuide && onCancel && deferred && !failed && (
-        <button
-          type="button"
-          onClick={() => {
-            onCancel(item.content, item.id);
-            onGuide(item.content, item.attachments);
-          }}
-          className={actionClass}
-          title={t("chat.queueGuideHint")}
-        >
-          <CornerDownRight size={14} />
-          {t("chat.queueGuide")}
-        </button>
-      )}
-      {onCancel && (
-        <button
-          type="button"
-          onClick={() => onCancel(item.content, item.id)}
-          className={actionClass}
-          aria-label={t("chat.queueDelete")}
-          title={t("chat.queueDelete")}
-        >
-          <Trash2 size={14} />
-        </button>
-      )}
-      {onEdit && (
-        <button
-          type="button"
-          data-testid="queue-edit-trigger"
-          className={actionClass}
-          aria-label={t("chat.message.queueEdit")}
-          title={t("chat.message.queueEdit")}
-          onClick={() => onEdit(item.content, item.id, item.attachments)}
-        >
-          <Pencil size={14} />
-        </button>
-      )}
+      <div className="flex shrink-0 items-center gap-1">
+        {onGuide && onCancel && deferred && !failed && (
+          <button
+            type="button"
+            onClick={() => {
+              onCancel(item.content, item.id);
+              onGuide(item.content, item.attachments);
+            }}
+            className={`${actionClass} px-3`}
+            title={t("chat.queueGuideHint")}
+          >
+            <CornerDownRight size={14} />
+            {t("chat.queueGuide")}
+          </button>
+        )}
+        {onCancel && (
+          <button
+            type="button"
+            onClick={() => onCancel(item.content, item.id)}
+            className={`${actionClass} w-9`}
+            aria-label={t("chat.queueDelete")}
+            title={t("chat.queueDelete")}
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
+        {onEdit && (
+          <button
+            type="button"
+            data-testid="queue-edit-trigger"
+            className={`${actionClass} w-9`}
+            aria-label={t("chat.message.queueEdit")}
+            title={t("chat.message.queueEdit")}
+            onClick={() => onEdit(item.content, item.id, item.attachments)}
+          >
+            <Pencil size={14} />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

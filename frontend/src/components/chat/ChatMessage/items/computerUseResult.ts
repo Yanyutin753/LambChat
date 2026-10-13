@@ -58,3 +58,11 @@ export function parseComputerUseResult(
       : (original.match(/^ERROR\s+(\w+)/)?.[1] ?? "");
   return { data, text, error, screenshotSrc };
 }
+
+export function computerUsePreviewText(parsed: ReturnType<typeof parseComputerUseResult>): string {
+  const { data, text } = parsed;
+  const source = [data.state, data.tree, computerUseRecord(data.window).title, data.message]
+    .find((value) => typeof value === "string" && value.trim());
+  const readable = typeof source === "string" ? source : Object.keys(data).length === 0 ? text : "";
+  return readable.split("\n").find((line) => line.trim())?.trim() ?? "";
+}

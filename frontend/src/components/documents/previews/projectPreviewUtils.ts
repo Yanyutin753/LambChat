@@ -269,7 +269,16 @@ export function resolveEntryFile(
   entry?: string,
 ): string {
   if (entry) {
-    return entry.startsWith("/") ? entry : `/${entry}`;
+    const normalized = entry.startsWith("/") ? entry : `/${entry}`;
+    if (normalized in files) {
+      return normalized;
+    }
+    // 历史事件的路径 key 被 '.'→'_' 消毒过（entry 是值幸免），
+    // 先试 entry 的消毒形态再回落候选表，避免 entry 指向不存在的文件
+    const sanitizedKey = normalized.replace(/\./g, "_");
+    if (sanitizedKey in files) {
+      return sanitizedKey;
+    }
   }
 
   const matched = ENTRY_CANDIDATES.find((path) => path in files);

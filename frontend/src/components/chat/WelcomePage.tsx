@@ -1,3 +1,4 @@
+import type { PersistentGoal } from "../../services/api/session";
 import {
   memo,
   useMemo,
@@ -71,6 +72,9 @@ interface WelcomePageProps {
   selectedTeamId?: string | null;
   canSendMessage: boolean;
   chatInputProps: ChatInputProps;
+  persistentGoal?: PersistentGoal | null;
+  persistentGoalBusy?: boolean;
+  onControlPersistentGoal?: (action: "pause" | "resume" | "clear") => void;
   activeGoal?: ActiveGoalSpec | null;
   onClearActiveGoal?: () => void;
   onUsePersonaPreset?: (
@@ -123,6 +127,9 @@ export const WelcomePage = memo(function WelcomePage({
   canSendMessage,
   chatInputProps,
   activeGoal,
+  persistentGoal,
+  persistentGoalBusy,
+  onControlPersistentGoal,
   onClearActiveGoal,
   onUsePersonaPreset,
   onClearPersonaPreset,
@@ -483,6 +490,9 @@ export const WelcomePage = memo(function WelcomePage({
           onPendingInputConsumed={() => setPendingInput(null)}
           className="mx-auto w-full px-2"
           activeGoal={activeGoal || null}
+          persistentGoal={persistentGoal}
+          persistentGoalBusy={persistentGoalBusy}
+          onControlPersistentGoal={onControlPersistentGoal}
           onClearActiveGoal={onClearActiveGoal}
           goalLabel={t("chat.goal.active", "目标")}
           goalDurationLabel={t("chat.goal.running", "运行")}

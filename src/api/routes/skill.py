@@ -7,13 +7,14 @@ Simplified architecture: files + metadata (stored in __meta__ doc), enabled/disa
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Form, Query, UploadFile
+from fastapi import APIRouter, Depends, Form, Header, Query, UploadFile
 from pydantic import BaseModel
 
 from src.api.deps import require_permissions
 from src.api.routes import skill_uploads
 from src.api.routes.upload import _read_upload_file_limited
 from src.infra.async_utils import run_blocking_io, run_long_blocking_io
+from src.infra.onboarding.starter_pack import initialize_user_starter_pack, localize_starter_skill
 from src.infra.skill.binary import guess_mime_type, parse_binary_ref_async
 from src.infra.skill.marketplace import MarketplaceStorage
 from src.infra.skill.storage import SkillStorage, normalize_skill_name_list
@@ -243,6 +244,7 @@ async def upload_skill_from_zip(
 
 @router.get("/", response_model=UserSkillListResponse)
 async def list_user_skills(
+    language: str = Header(default="en", alias="Accept-Language"),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     q: str | None = None,
@@ -252,6 +254,7 @@ async def list_user_skills(
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
     """列出用户安装的所有 Skills（含发布状态）"""
+    await initialize_user_starter_pack(user.sub)
     # Get disabled_skills from user metadata
     user_storage = UserStorage()
     user_doc = await user_storage.get_by_id(user.sub)
@@ -337,7 +340,7 @@ async def list_user_skills(
         for s in skills
     ]
     return UserSkillListResponse(
-        skills=items,
+        skills=[localize_starter_skill(item, language) for item in items],
         total=total,
         enabled_count=max(enabled_count, 0),
         skip=skip,

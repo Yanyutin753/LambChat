@@ -1,13 +1,7 @@
+import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { useCallback, useEffect } from "react";
 import { clsx } from "clsx";
-import {
-  CheckCircle,
-  XCircle,
-  Ban,
-  ChevronRight,
-  Loader2,
-  Bot,
-} from "lucide-react";
+import { CheckCircle, XCircle, Ban, ChevronRight, Bot, Hourglass } from "lucide-react";
 import { getEmojiAssetUrl } from "../../../utils/emojiAssets";
 import { useTranslation } from "react-i18next";
 import { hasOpenRightPanel } from "../../common/rightPanelCoordinator";
@@ -56,12 +50,10 @@ function SubagentStatusIcon({
 }) {
   if (status === "running") {
     return (
-      <Loader2
+      <LoadingSpinner
+        color="text-current"
         size={size}
-        className={clsx(
-          "text-amber-500 dark:text-amber-400 animate-spin",
-          className,
-        )}
+        className={clsx("text-amber-500 dark:text-amber-400", className)}
       />
     );
   }
@@ -73,7 +65,10 @@ function SubagentStatusIcon({
       />
     );
   }
-  if (status === "error") {
+  if (status === "queued" || status === "waiting_human") {
+    return <Hourglass size={size} className={clsx("text-theme-text-tertiary", className)} />;
+  }
+  if (status === "error" || status === "timed_out") {
     return (
       <XCircle
         size={size}
@@ -151,7 +146,7 @@ export function SubagentBlock({
   parts?: MessagePart[];
   startedAt?: number;
   completedAt?: number;
-  status?: "pending" | "running" | "complete" | "error" | "cancelled";
+  status?: SubagentPanelData["status"];
   error?: string;
 }) {
   const {
@@ -271,15 +266,21 @@ export function SubagentBlock({
             "bg-amber-100/80 dark:bg-amber-900/30 ring-amber-300/70 dark:ring-amber-700/50",
           effectiveStatus === "complete" &&
             "bg-emerald-100/80 dark:bg-emerald-900/30 ring-emerald-300/70 dark:ring-emerald-700/50",
-          effectiveStatus === "error" &&
+          (effectiveStatus === "error" || effectiveStatus === "timed_out") &&
             "bg-red-100/80 dark:bg-red-900/30 ring-red-300/70 dark:ring-red-900/45",
           effectiveStatus === "cancelled" &&
             "bg-stone-200/60 dark:bg-stone-700/50 ring-stone-300/60 dark:ring-stone-600/50",
-          (!effectiveStatus || effectiveStatus === "pending") &&
+          (!effectiveStatus || effectiveStatus === "pending" || effectiveStatus === "queued" || effectiveStatus === "waiting_human") &&
             "bg-stone-100 dark:bg-stone-800 ring-stone-200 dark:ring-stone-700",
         )}
         aria-label={t("chat.subagentStatus", {
-          status: effectiveStatus || "pending",
+          status: effectiveStatus === "queued"
+            ? t("chat.message.toolSubagentQueued")
+            : effectiveStatus === "waiting_human"
+              ? t("chat.message.toolSubagentWaitingHuman")
+              : effectiveStatus === "timed_out"
+                ? t("chat.message.toolSubagentTimedOut")
+                : effectiveStatus || "pending",
         })}
       >
         <SubagentStatusIcon status={effectiveStatus} size={11} />

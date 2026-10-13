@@ -25,12 +25,12 @@ async def pending_interrupt_approvals(session_id: str) -> list:
     return [approval for approval in approvals if is_interrupt_approval(approval)]
 
 
-def approvals_bound_to_run(approvals: list, run_id: str) -> list:
+def approvals_bound_to_run(approvals: list, run_id: str, *, strict: bool = False) -> list:
     """过滤出绑定当前 run 的审批；未绑定 run 的残留审批一并纳入。"""
     bound = []
     for approval in approvals:
         approval_run = str((getattr(approval, "metadata", None) or {}).get("run_id") or "")
-        if not approval_run or not run_id or approval_run == run_id:
+        if approval_run == run_id or (not strict and (not approval_run or not run_id)):
             bound.append(approval)
     return bound
 
@@ -44,6 +44,7 @@ async def seal_suspended_run(
     cancel_reason: str | None,
     resolved_message: str,
     status_error: str,
+    expected_run_id: str | None = None,
 ) -> None:
     """封存挂起 run（调用方需已持有各审批的恢复锁）。
 
@@ -54,14 +55,22 @@ async def seal_suspended_run(
     from src.infra.storage.mongodb import get_approval_storage
     from src.infra.utils.datetime import utc_now_iso
 
-    session_id = getattr(session, "session_id", None) or (
-        getattr(approvals[0], "session_id", None) if approvals else None
+    session_id = (
+        getattr(session, "session_id", None)
+        or getattr(session, "id", None)
+        or (getattr(approvals[0], "session_id", None) if approvals else None)
     )
     if not session_id:
         return
     metadata = getattr(session, "metadata", None) or {}
-    run_id = str(metadata.get("current_run_id") or "")
-    trace_id = str(metadata.get("trace_id") or "") or None
+    run_id = expected_run_id or str(metadata.get("current_run_id") or "")
+    trace_id = None
+    if not expected_run_id or metadata.get("current_run_id") == expected_run_id:
+        trace_id = str(metadata.get("trace_id") or "") or None
+    if expected_run_id and approvals:
+        trace_id = (
+            str((getattr(approvals[0], "metadata", None) or {}).get("trace_id") or "") or trace_id
+        )
 
     # cancel_run 不改 task_status（挂起 run 无执行器协程写终态），
     # 显式落 CANCELLED：恢复方、后续 steer 与普通发送都以状态机为准。
@@ -123,6 +132,7 @@ async def reconcile_cancelled_hitl_approvals(
     *,
     user_id: str,
     task_manager,
+    expected_run_id: str | None = None,
 ) -> bool:
     """普通取消后的调和：关闭竞态残留的挂起 interrupt 审批并封存 run。
 
@@ -136,16 +146,25 @@ async def reconcile_cancelled_hitl_approvals(
     from src.infra.task.hitl import _acquire_resume_lock, _release_resume_lock
 
     approvals = await pending_interrupt_approvals(session_id)
-    if not approvals:
+    if not approvals and expected_run_id is None:
         return False
 
-    session = await SessionStorage().get_by_session_id(session_id)
+    storage = SessionStorage()
+    session = await storage.get_by_session_id(session_id)
+    if session is None:
+        session = await storage.get_by_id(session_id)
     if session is None:
         return False
-    run_id = str((getattr(session, "metadata", None) or {}).get("current_run_id") or "")
-    approvals = approvals_bound_to_run(approvals, run_id)
+    metadata = getattr(session, "metadata", None) or {}
+    run_id = expected_run_id or str(metadata.get("current_run_id") or "")
+    approvals = approvals_bound_to_run(approvals, run_id, strict=expected_run_id is not None)
     if not approvals:
-        return False
+        if not (
+            expected_run_id
+            and metadata.get("current_run_id") == expected_run_id
+            and metadata.get("task_status") == TaskStatus.WAITING_HUMAN.value
+        ):
+            return False
 
     held_locks: list[tuple[str, str]] = []
     try:
@@ -165,6 +184,7 @@ async def reconcile_cancelled_hitl_approvals(
             cancel_reason=None,
             resolved_message="运行已取消",
             status_error="Task cancelled",
+            expected_run_id=expected_run_id,
         )
         return True
     except Exception as e:

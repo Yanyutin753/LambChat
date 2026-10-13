@@ -34,7 +34,7 @@ function UploadUrlToSandboxDetail({ args, result }: ToolDetailProps) {
   return (
     <div className="flex h-full min-h-0 flex-col space-y-3 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
       {url && (
-        <ToolArgsBlock size="detail" wrap>
+        <ToolArgsBlock size="detail" copyText={url} wrap>
           <LinkIcon
             size={14}
             className="shrink-0 text-cyan-500 dark:text-cyan-400"
@@ -43,7 +43,7 @@ function UploadUrlToSandboxDetail({ args, result }: ToolDetailProps) {
         </ToolArgsBlock>
       )}
       {filePath && (
-        <ToolArgsBlock size="detail" wrap>
+        <ToolArgsBlock size="detail" copyText={filePath} wrap>
           <FileInput
             size={14}
             className="shrink-0 text-emerald-500 dark:text-emerald-400"
@@ -130,7 +130,7 @@ const UploadUrlToSandboxItem = memo(function UploadUrlToSandboxItem({
   // 进行中：标签学「思考中」，平滑流出正在生成的参数尾部
   const { label, isStreamingLabel } = useToolStreamingLabel(
     `${t("chat.message.toolUploadUrlToSandbox")} ${
-      filePath ? truncate(filePath, 56) : truncate(url, 56)
+      filePath || url
     }`,
     args,
     { isPending, result },
@@ -164,7 +164,7 @@ const UploadUrlToSandboxItem = memo(function UploadUrlToSandboxItem({
       {canExpand && (
         <ToolInlineDetails>
           {url && (
-            <ToolArgsBlock size="compact" wrap>
+            <ToolArgsBlock size="compact" copyText={url} wrap>
               <LinkIcon
                 size={12}
                 className="shrink-0 text-cyan-500 dark:text-cyan-400"
@@ -173,7 +173,7 @@ const UploadUrlToSandboxItem = memo(function UploadUrlToSandboxItem({
             </ToolArgsBlock>
           )}
           {filePath && (
-            <ToolArgsBlock size="compact" wrap>
+            <ToolArgsBlock size="compact" copyText={filePath} wrap>
               <FileInput
                 size={12}
                 className="shrink-0 text-emerald-500 dark:text-emerald-400"

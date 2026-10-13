@@ -1,10 +1,11 @@
-import { type ReactNode, useCallback, useMemo, useState } from "react";
+import { LoadingSpinner } from "../../common/LoadingSpinner";
+import { type ReactNode, useCallback, useId, useMemo, useState } from "react";
 import {
   FolderTree,
   Code2,
   ChevronRight,
+  ChevronDown,
   Download,
-  Loader2,
 } from "lucide-react";
 import clsx from "clsx";
 import toast from "react-hot-toast";
@@ -66,7 +67,7 @@ function FolderIcon({
 /*  Tree renderer                                                      */
 /* ------------------------------------------------------------------ */
 
-const FILE_ICON_SIZE = 36;
+const FILE_ICON_SIZE = 24;
 
 function formatSize(bytes?: number): string {
   if (bytes == null) return "";
@@ -127,7 +128,9 @@ function TreeFileRow({
   node,
   onOpenPreview,
   onOpenImagePreview,
+  inline = false,
 }: {
+  inline?: boolean;
   node: RevealArtifactTreeFile;
   onOpenPreview?: (
     preview: RevealPreviewRequest,
@@ -138,9 +141,19 @@ function TreeFileRow({
   const { t } = useTranslation();
   const ext = node.artifact.name.split(".").pop()?.toLowerCase() || "";
   const imageSrc = isImageFile(ext) ? node.artifact.preview.signedUrl : null;
+  const fileType = getFileTypeInfo(node.artifact.name);
+  const FileIcon = fileType.icon;
 
   return (
-    <div className="group flex min-w-0 max-w-full items-center gap-1 w-full px-3 py-2.5 rounded-xl hover:bg-theme-bg-subtle transition-colors">
+    <div
+      data-inline-attachment={inline || undefined}
+      className={clsx(
+        "group flex min-w-0 max-w-full items-center gap-1 w-full transition-colors motion-reduce:transition-none",
+        inline
+          ? "px-3 py-2 hover:bg-theme-text/[0.04]"
+          : "rounded-xl px-3 py-2.5 hover:bg-theme-bg-subtle",
+      )}
+    >
       <Tooltip content={node.artifact.name}>
         <button
           type="button"
@@ -155,24 +168,51 @@ function TreeFileRow({
           className="flex min-w-0 min-h-[44px] flex-1 items-center gap-3 text-left cursor-pointer rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
         >
           {imageSrc ? (
-            <ImageWithSkeleton
-              src={imageSrc}
-              alt={node.artifact.name}
-              skipUrlResolve
-              inline
-              className="w-9 h-9 rounded-lg object-cover shrink-0 bg-stone-100 dark:bg-stone-800"
-            />
+            <span
+              className={inline ? "flex h-8 w-8 shrink-0 items-center justify-center" : "contents"}
+            >
+              <ImageWithSkeleton
+                src={imageSrc}
+                alt={node.artifact.name}
+                skipUrlResolve
+                inline
+                className={clsx(
+                  inline ? "w-6 h-6" : "w-9 h-9",
+                  "rounded-lg object-cover shrink-0 bg-stone-100 dark:bg-stone-800",
+                )}
+              />
+            </span>
+          ) : inline ? (
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center text-theme-text-secondary">
+              <FileIcon size={24} strokeWidth={1.5} className={fileType.color} />
+            </span>
           ) : (
             getFileIcon(node.artifact.name)
           )}
           <div className="flex-1 min-w-0 text-left">
-            <div className="text-14 text-theme-text-secondary line-clamp-2 break-all text-balance">
+            <div
+              className={clsx(
+                "text-14 text-theme-text-secondary",
+                inline
+                  ? "truncate leading-5"
+                  : "line-clamp-2 break-all text-balance",
+              )}
+            >
               {node.artifact.name}
             </div>
-            <div className="text-12 text-theme-text-tertiary mt-0.5 truncate">
-              {node.artifact.fileSize
-                ? formatSize(node.artifact.fileSize)
-                : node.artifact.description || node.artifact.path}
+            <div
+              className={clsx(
+                "text-theme-text-tertiary mt-0.5 truncate",
+                inline ? "font-mono text-11 tracking-tight" : "text-12",
+              )}
+            >
+              {inline
+                ? [ext.toUpperCase(), formatSize(node.artifact.fileSize)]
+                    .filter(Boolean)
+                    .join(" · ")
+                : node.artifact.fileSize
+                  ? formatSize(node.artifact.fileSize)
+                  : node.artifact.description || node.artifact.path}
             </div>
           </div>
         </button>
@@ -189,10 +229,12 @@ function TreeFileRow({
             icon={<Download size={18} />}
           />
         </Tooltip>
-        <CopyButton
-          text={node.artifact.preview.signedUrl || node.artifact.path}
-          size={18}
-        />
+        {!inline && (
+          <CopyButton
+            text={node.artifact.preview.signedUrl || node.artifact.path}
+            size={18}
+          />
+        )}
       </div>
     </div>
   );
@@ -286,7 +328,7 @@ function TreeDirRow({
               className="disabled:opacity-50 opacity-100 sm:[@media(hover:hover)_and_(pointer:fine)]:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
               icon={
                 isDownloading ? (
-                  <Loader2 size={18} className="animate-spin" />
+                  <LoadingSpinner color="text-current" size={18} />
                 ) : (
                   <Download size={18} />
                 )
@@ -367,27 +409,26 @@ function ProjectRow({
     <button
       type="button"
       onClick={() => onOpenPreview?.(artifact.preview, "manual")}
-      className="group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-[var(--theme-bg-subtle)]"
+      className="group flex min-h-[60px] w-full cursor-pointer items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-theme-text/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] motion-reduce:transition-none"
     >
-      <span className="flex items-center justify-center size-10 rounded-xl shrink-0 bg-[var(--theme-primary-light)] transition-transform duration-200 group-hover:scale-105">
+      <span className="flex items-center justify-center size-8 shrink-0">
         <Icon
-          size={20}
+          size={24}
           strokeWidth={1.8}
           className="shrink-0 text-[var(--theme-primary)]"
         />
       </span>
       <span className="min-w-0 flex-1 text-left">
-        <span className="block truncate text-14 font-medium leading-5 text-[var(--theme-text)]">
+        <span className="block truncate text-14 leading-5 text-theme-text-secondary">
           {artifact.name}
         </span>
-        <span className="mt-0.5 block truncate text-12 leading-4 text-[var(--theme-text-secondary)]">
+        <span className="mt-0.5 block truncate font-mono text-11 leading-4 text-theme-text-tertiary">
           {subtitle}
         </span>
       </span>
-      <ChevronRight
-        size={18}
-        className="shrink-0 text-[var(--theme-text-secondary)] transition-transform duration-200"
-      />
+      <span className="flex size-8 shrink-0 items-center justify-center">
+        <ChevronRight size={18} className="text-theme-text-tertiary" />
+      </span>
     </button>
   );
 }
@@ -469,51 +510,55 @@ function DownloadAllButton({ artifacts }: { artifacts: RevealArtifact[] }) {
   if (Object.keys(binaryFiles).length === 0) return null;
 
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      onClick={async () => {
-        if (isDownloading) return;
-        if (skippedCount > 0) {
-          toast.error(
-            `${t(
-              "chat.message.downloadFailed",
-              "下载失败",
-            )}: ${skippedPaths.join(", ")}`,
-          );
-          return;
-        }
-        try {
-          setIsDownloading(true);
-          await exportProjectZip(
-            {},
-            t("chat.message.allFiles", "全部文件"),
-            binaryFiles,
-            { failOnBinaryError: true },
-          );
-        } catch (error) {
-          toast.error(
-            getDownloadFailureMessage(
-              t("chat.message.downloadFailed", "下载失败"),
-              error,
-            ),
-          );
-        } finally {
-          setIsDownloading(false);
-        }
-      }}
-      disabled={isDownloading}
-      aria-busy={isDownloading}
-      aria-label={t("chat.message.downloadAll", "下载全部")}
-      className="!min-h-[44px] sm:!min-h-0 text-11"
-    >
-      {isDownloading ? (
-        <Loader2 size={12} className="animate-spin" />
-      ) : (
-        <Download size={12} />
-      )}
-      {t("chat.message.downloadAll", "下载全部")}
-    </Button>
+    <Tooltip content={t("chat.message.downloadAll", "下载全部")}>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={async () => {
+          if (isDownloading) return;
+          if (skippedCount > 0) {
+            toast.error(
+              `${t(
+                "chat.message.downloadFailed",
+                "下载失败",
+              )}: ${skippedPaths.join(", ")}`,
+            );
+            return;
+          }
+          try {
+            setIsDownloading(true);
+            await exportProjectZip(
+              {},
+              t("chat.message.allFiles", "全部文件"),
+              binaryFiles,
+              { failOnBinaryError: true },
+            );
+          } catch (error) {
+            toast.error(
+              getDownloadFailureMessage(
+                t("chat.message.downloadFailed", "下载失败"),
+                error,
+              ),
+            );
+          } finally {
+            setIsDownloading(false);
+          }
+        }}
+        disabled={isDownloading}
+        aria-busy={isDownloading}
+        aria-label={t("chat.message.downloadAll", "下载全部")}
+        className="!min-h-[44px] sm:!min-h-0 text-11"
+      >
+        {isDownloading ? (
+          <LoadingSpinner size={12} color="text-current" />
+        ) : (
+          <Download size={12} />
+        )}
+        <span className="reveal-artifacts-download-label">
+          {t("chat.message.downloadAll", "下载全部")}
+        </span>
+      </Button>
+    </Tooltip>
   );
 }
 
@@ -536,6 +581,8 @@ export function RevealArtifactsSummary({
   const { t } = useTranslation();
   const artifacts = useMemo(() => collectRevealArtifacts(parts), [parts]);
   const subtitle = getArtifactSubtitle(artifacts, t);
+  const [expanded, setExpanded] = useState(false);
+  const disclosureId = useId();
   const stats = useMemo(() => getRevealArtifactStats(artifacts), [artifacts]);
   const [activeImagePreviewId, setActiveImagePreviewId] = useState<
     string | null
@@ -598,6 +645,9 @@ export function RevealArtifactsSummary({
     return null;
   }
 
+  const useSidePanel = artifacts.length >= 4;
+  const collapsedNames = artifacts.slice(0, 2).map((artifact) => artifact.name).join(" · ");
+
   const handleOpenPanel = () => {
     openPersistentToolPanel({
       title: t("chat.message.allFiles", "全部文件"),
@@ -606,27 +656,24 @@ export function RevealArtifactsSummary({
       subtitle,
       panelKey: "reveal-artifacts",
       mobileFillViewport: true,
+      customHeader: (
+        <div className="tool-console-header flex min-w-0 shrink-0 items-center justify-between gap-2 px-2 py-1.5 sm:px-4 sm:py-2">
+          <span className="min-w-0 truncate text-12 text-theme-text-tertiary">
+            {t("chat.message.fileDirectory", "文件目录")}
+          </span>
+          <DownloadAllButton artifacts={artifacts} />
+        </div>
+      ),
       children: (
         <div className="flex min-h-full flex-col bg-[var(--theme-bg-card)]">
-          <div className="shrink-0 border-b border-[var(--theme-border)] bg-gradient-to-b from-[var(--theme-bg)] to-[var(--theme-bg-card)] px-4 py-2">
-            <div className="flex items-center justify-between gap-3 font-serif">
-              <span className="text-11 font-medium text-[var(--theme-text-secondary)]">
-                {subtitle}
-              </span>
-              <div className="flex items-center gap-2">
-                <DownloadAllButton artifacts={artifacts} />
-                <span className="shrink-0 rounded-md bg-[var(--theme-primary)]/10 px-2 py-0.5 text-11 font-bold tabular-nums text-[var(--theme-primary)]">
-                  {stats.totalCount}
-                </span>
-              </div>
-            </div>
-          </div>
           <div className="min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto p-1.5">
             {projects.length > 0 && (
               <section>
-                <SectionTitle count={projects.length}>
-                  {t("chat.message.projects", "项目")}
-                </SectionTitle>
+                {fileTree.children.length > 0 && (
+                  <SectionTitle count={projects.length}>
+                    {t("chat.message.projects", "项目")}
+                  </SectionTitle>
+                )}
                 <div className="space-y-1.5">
                   {projects.map((p) => (
                     <ProjectRow
@@ -640,9 +687,11 @@ export function RevealArtifactsSummary({
             )}
             {fileTree.children.length > 0 && (
               <section>
-                <SectionTitle count={stats.fileCount}>
-                  {t("chat.message.files", "文件")}
-                </SectionTitle>
+                {projects.length > 0 && (
+                  <SectionTitle count={stats.fileCount}>
+                    {t("chat.message.files", "文件")}
+                  </SectionTitle>
+                )}
                 <div>
                   {fileTree.children.map((child, i) =>
                     child.kind === "dir" ? (
@@ -674,35 +723,70 @@ export function RevealArtifactsSummary({
 
   return (
     <>
-      <section className="my-2 sm:my-3 min-w-0">
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={handleOpenPanel}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              handleOpenPanel();
-            }
-          }}
-          className="group flex cursor-pointer items-center gap-3 rounded-2xl bg-[var(--theme-bg-card)] px-3 py-2.5 shadow-[0_1px_3px_var(--theme-shadow-sm)] ring-1 ring-[var(--theme-border)] transition-all duration-200 hover:shadow-[0_4px_12px_var(--theme-shadow-md)] hover:ring-[var(--theme-text-secondary)]/20 sm:px-4 sm:py-3"
-        >
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--theme-primary-light)] transition-transform duration-200 group-hover:scale-105">
-            <FolderIcon size={28} className="shrink-0" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-14 font-semibold font-serif text-[var(--theme-text)]">
-              {t("chat.message.allFiles", "全部文件")}
+      <section className="reveal-artifacts-summary my-2 w-full min-w-0 sm:my-3" aria-label={subtitle}>
+        <div className="w-full min-w-0 overflow-hidden rounded-xl border border-[var(--theme-border)] bg-theme-text/[0.02]">
+          {artifacts.length > 1 && (
+            <div className="relative">
+              <button
+                type="button"
+                aria-label={useSidePanel ? t("chat.message.allFiles", "全部文件") : subtitle}
+                aria-expanded={useSidePanel ? undefined : expanded}
+                aria-controls={useSidePanel ? undefined : disclosureId}
+                onClick={useSidePanel ? handleOpenPanel : () => setExpanded(!expanded)}
+                className="reveal-artifacts-toggle flex min-h-[52px] w-full items-center gap-3 pl-3 pr-40 py-2 text-left hover:bg-theme-text/[0.04] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--theme-primary)] motion-reduce:transition-none"
+              >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center">
+                  <FolderIcon size={24} className="shrink-0" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-13 text-theme-text-secondary">{subtitle}</span>
+                  {(useSidePanel || !expanded) && (
+                    <span className="mt-0.5 block truncate text-12 text-theme-text-tertiary">{collapsedNames}</span>
+                  )}
+                </span>
+                <span className="absolute right-3 flex h-8 w-8 items-center justify-center">
+                {useSidePanel ? (
+                  <ChevronRight size={16} className="shrink-0 text-theme-text-tertiary" />
+                ) : (
+                  <ChevronDown
+                    size={16}
+                    className={clsx(
+                      "shrink-0 text-theme-text-tertiary transition-transform motion-reduce:transition-none",
+                      expanded && "rotate-180",
+                    )}
+                  />
+                )}
+                </span>
+              </button>
+              <div className="absolute right-12 top-1/2 -translate-y-1/2">
+                <DownloadAllButton artifacts={artifacts} />
+              </div>
             </div>
-            <div className="mt-0.5 truncate text-12 text-[var(--theme-text-secondary)]">
-              {subtitle}
+          )}
+          {!useSidePanel && (artifacts.length === 1 || expanded) && (
+            <div
+              id={disclosureId}
+              className={clsx("divide-y divide-[var(--theme-border)]", artifacts.length > 1 && "border-t border-[var(--theme-border)]")}
+            >
+              {artifacts.map((artifact) =>
+                artifact.kind === "file" ? (
+                  <TreeFileRow
+                    key={artifact.id}
+                    node={{ kind: "file", artifact }}
+                    inline
+                    onOpenPreview={onOpenPreview}
+                    onOpenImagePreview={handleOpenImagePreview}
+                  />
+                ) : (
+                  <ProjectRow
+                    key={artifact.id}
+                    artifact={artifact}
+                    onOpenPreview={onOpenPreview}
+                  />
+                ),
+              )}
             </div>
-          </div>
-          <div className="relative z-10 flex shrink-0 items-center gap-1">
-            <span className="rounded-lg bg-[var(--theme-primary-light)] px-3 py-1.5 text-12 font-medium text-[var(--theme-primary)] ring-1 ring-[var(--theme-border)] transition-colors group-hover:bg-[var(--theme-primary)]/15 group-hover:ring-[var(--theme-text-secondary)]/20">
-              {t("project.preview", "预览")}
-            </span>
-          </div>
+          )}
         </div>
       </section>
       {activeImageItem && (

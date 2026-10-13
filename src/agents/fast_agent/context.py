@@ -205,6 +205,9 @@ class FastAgentContext:
                 )
             else:
                 self._append_unique_tools(deferred_mcp_tools, reserved=reserved_system_names)
+            from src.agents.core.mcp_tool_exposure import attach_mcp_availability
+
+            attach_mcp_availability(self)
         except Exception as e:
             logger.error(f"[FastAgentContext] Failed to load MCP tools: {e}", exc_info=True)
 
@@ -351,8 +354,7 @@ class FastAgentContext:
 
             self._append_unique_tools([SkillSearchTool(self.skills)])
 
-        # computer-use：仅本地沙箱 daemon 支持；daemon 未授权/离线时报结构化
-        # 错误，工具描述内含「禁 osascript」铁律与引导
+        # 会话运行时按本地档和在线机器过滤；工具描述包含「禁 osascript」规则。
         if settings.ENABLE_COMPUTER_USE:
             from src.infra.tool.computer_use_tool import computer_use
 

@@ -1,6 +1,7 @@
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, Loader2, Pin, Star } from "lucide-react";
+import { Check, Pin, Star } from "lucide-react";
 import type { PersonaPreset } from "../../types";
 import { PersonaAvatarWithLoading } from "../persona/PersonaAvatarWithLoading";
 
@@ -205,7 +206,7 @@ export function MentionPopup({
               })}
               {isLoadingMore && (
                 <div className="mention-popup-loading">
-                  <Loader2 size={14} className="animate-spin" />
+                  <LoadingSpinner color="text-current" size={14} />
                 </div>
               )}
             </div>

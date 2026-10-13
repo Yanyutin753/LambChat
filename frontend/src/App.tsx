@@ -1,3 +1,4 @@
+import { useAuth } from "./hooks/useAuth";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   Routes,
@@ -366,6 +367,7 @@ function AuthPageWrapper({
 
 // Main App Component
 function App() {
+  const { user } = useAuth();
   useAppViewport();
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -403,11 +405,19 @@ function App() {
 
   useEffect(() => {
     appNotificationService.setNavigator((route) => {
-      navigate(route, { replace: false });
+      navigate(route, {
+        replace: false,
+        state: { externalNavigate: true, scrollToBottom: true },
+      });
     });
     appNotificationService.initializeNativeClickHandlers();
     return () => appNotificationService.setNavigator(null);
   }, [navigate]);
+
+  useEffect(() => {
+    appNotificationService.setActiveUserId(user?.id ?? null);
+    return () => appNotificationService.setActiveUserId(null);
+  }, [user?.id]);
 
   // 打包壳首启：未配置服务器地址时先引导设置（保存后整页重载生效）。
   // 放在全部 hooks 之后（lazy 加载不占 PWA eager 预算）

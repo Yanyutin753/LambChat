@@ -23,6 +23,7 @@ class ErrorCode(Enum):
     METHOD_NOT_ALLOWED = ("method_not_allowed", 405, "Method not allowed")
     BAD_REQUEST = ("bad_request", 400, "Bad request")
     CONFLICT = ("conflict", 409, "Request conflict")
+    GOAL_CONFLICT = ("goal_conflict", 409, "Goal changed; refresh and retry")
     ADMIN_PERMISSION_REQUIRED = ("admin_permission_required", 403, "Admin permission required")
     BACKFILL_IN_PROGRESS = ("backfill_in_progress", 409, "Another replica is running the backfill")
     TOO_MANY_REQUESTS = ("too_many_requests", 429, "Too many requests, please try again later")
@@ -744,6 +745,16 @@ class ErrorCode(Enum):
     TASK_NOT_FOUND = ("task_not_found", 404, "Task not found")
     TASK_CANCELLED = ("task_cancelled", 409, "Task cancelled")
     TASK_SERVER_RESTART = ("task_server_restart", 409, "Interrupted by server restart")
+    TASK_RECOVERY_UNCERTAIN_EFFECT = (
+        "task_recovery_uncertain_effect",
+        409,
+        "Recovery stopped because a previous operation may already have taken effect. Verify its result before starting a new task.",
+    )
+    TASK_RECOVERY_NOT_AVAILABLE = (
+        "task_recovery_not_available",
+        409,
+        "Task recovery is no longer available",
+    )
     TASK_EXPIRED = ("task_expired", 410, "Task expired")
 
     @property

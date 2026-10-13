@@ -17,6 +17,15 @@
   );
 }
 
+/* Header actions share the same inset around their visible content. */
+@media (min-width: 640px) {
+  .chat-header__actions > button,
+  .chat-header__actions > .relative > button {
+    width: auto;
+    padding-inline: 0.5rem;
+  }
+}
+
 /* Shared page server preview transition */
 #shared-server-preview {
   transition: opacity 0.35s ease;
@@ -46,23 +55,6 @@
   }
 }
 
-/* Badge loading spinner */
-.badge-spinner {
-  display: block;
-  width: 8px;
-  height: 8px;
-  border: 1.5px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #fff;
-  border-radius: 50%;
-  animation: badge-spin 0.6s linear infinite;
-}
-
-@keyframes badge-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 /* Badge scale pulse on click */
 .badge-scale {
   animation: badge-scale-anim 0.3s ease-in-out;
@@ -74,26 +66,18 @@
   }
 }
 
-/* Skeleton lines — visible shimmer */
-.skeleton-line {
+/* Shared skeleton sheen follows the active surface and border tokens. */
+.skeleton-line,
+.welcome-skeleton-line,
+.welcome-skeleton-avatar {
   background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--theme-bg) 85%, #c8c3bd) 0%,
-    color-mix(in srgb, var(--theme-bg) 70%, #c8c3bd) 50%,
-    color-mix(in srgb, var(--theme-bg) 85%, #c8c3bd) 100%
+    100deg,
+    var(--theme-bg-subtle) 30%,
+    var(--theme-border) 50%,
+    var(--theme-bg-subtle) 70%
   );
   background-size: 200% 100%;
-  animation: shimmer 2.4s ease-in-out infinite;
-}
-
-.dark .skeleton-line {
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--theme-bg) 80%, #57534e) 0%,
-    color-mix(in srgb, var(--theme-bg) 60%, #57534e) 50%,
-    color-mix(in srgb, var(--theme-bg) 80%, #57534e) 100%
-  );
-  background-size: 200% 100%;
+  animation: shimmer 2.4s linear infinite;
 }
 
 .json-schema-field--compact {
@@ -222,7 +206,7 @@
 
 /* Unified spinner animation */
 .spinner-rotate {
-  animation: spinner-rotate 1s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+  animation: spinner-rotate 0.9s steps(8) infinite;
   will-change: transform;
 }
 
@@ -230,6 +214,47 @@
   .spinner-rotate {
     animation: none;
     will-change: auto;
+  }
+}
+
+/* A restrained sweep makes the label itself convey waiting. */
+.loading-label {
+  color: var(--theme-text-secondary);
+}
+
+@supports (background-clip: text) {
+  .loading-label {
+    background: linear-gradient(
+      100deg,
+      var(--theme-text-secondary) 35%,
+      var(--theme-text) 50%,
+      var(--theme-text-secondary) 65%
+    );
+    background-size: 250% 100%;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 2.8s linear infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-label,
+  .skeleton-line,
+  .welcome-skeleton-line,
+  .welcome-skeleton-avatar,
+  .animate-spin {
+    animation: none;
+  }
+  .loading-label {
+    background: none;
+    color: var(--theme-text-secondary);
+  }
+}
+
+@media (forced-colors: active) {
+  .loading-label {
+    background: none;
+    color: CanvasText;
   }
 }
 
@@ -1073,7 +1098,7 @@
   }
 
   .dark .modal-bottom-sheet {
-    background-color: #1c1917;
+    background-color: var(--theme-bg-card);
   }
 
   .modal-bottom-sheet-content {
@@ -1089,7 +1114,7 @@
   }
 
   .dark .bottom-sheet-handle {
-    background-color: #57534e;
+    background-color: var(--theme-border-hover);
   }
 }
 
@@ -1127,7 +1152,7 @@
   }
 
   .dark .modal-bottom-sheet-content {
-    background-color: var(--theme-bg-card, #1c1917);
+    background-color: var(--theme-bg-card);
     border-color: var(--glass-border, rgb(255 255 255 / 0.08));
     box-shadow:
       0 0 0 1px rgb(255 255 255 / 0.04),
@@ -1263,7 +1288,7 @@
 .dark .ui-button--danger,
 .dark .btn-danger {
   border-color: #7f1d1d;
-  background-color: #1c1917;
+  background-color: var(--theme-bg-card);
   color: #f87171;
 }
 
@@ -1328,8 +1353,8 @@
 
 .dark .ui-icon-button:hover,
 .dark .btn-icon:hover {
-  background-color: #44403c;
-  color: #d6d3d1;
+  background-color: var(--theme-bg-subtle);
+  color: var(--theme-text-secondary);
 }
 
 /* Shared panel pagination. Container queries also cover narrow desktop panels. */
@@ -1403,6 +1428,18 @@
     height: 2.75rem;
   }
 }
+.reveal-artifacts-summary {
+  container: reveal-artifacts / inline-size;
+}
+@container reveal-artifacts (max-width: 399px) {
+  .reveal-artifacts-download-label {
+    display: none;
+  }
+  .reveal-artifacts-toggle {
+    padding-right: 6rem;
+  }
+}
+
 .panel-pagination {
   margin-top: 0;
   min-width: 0;
@@ -1501,15 +1538,15 @@
 }
 
 .dark .attachment-scroll:hover {
-  scrollbar-color: rgba(120, 113, 108, 0.3) transparent;
+  scrollbar-color: rgba(115, 115, 115, 0.3) transparent;
 }
 
 .dark .attachment-scroll:hover::-webkit-scrollbar-thumb {
-  background: rgba(120, 113, 108, 0.3);
+  background: rgba(115, 115, 115, 0.3);
 }
 
 .dark .attachment-scroll:hover::-webkit-scrollbar-thumb:hover {
-  background: rgba(120, 113, 108, 0.5);
+  background: rgba(115, 115, 115, 0.5);
 }
 
 /* ===== EditorSidebar — Unified Right Sidebar / Mobile Fullscreen ===== */
@@ -1623,7 +1660,7 @@
 
 @media (max-width: 639px), (pointer: coarse) {
   [data-right-panel-root] {
-    --right-panel-header-height: 3rem;
+    --right-panel-header-height: 2.75rem;
     --right-panel-inset: 0.75rem;
     --right-panel-action-size: 2.25rem;
   }
@@ -3814,9 +3851,67 @@
    ═══════════════════════════════════════════ */
 
 .tool-args-block {
+  min-width: 0;
+  max-width: 100%;
   transition:
     background-color 0.15s ease,
     border-color 0.15s ease;
+}
+
+.tool-args-block__content > span {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.tool-args-block__content--wrap {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.tool-args-block__content--wrap > svg {
+  display: inline-block;
+  vertical-align: -0.125em;
+}
+
+.tool-args-block__content--wrap > span {
+  white-space: normal;
+}
+
+.tool-args-block__content--wrap > .shrink-0 {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.tool-args-block__content--wrap > :not(:last-child) {
+  margin-inline-end: 0.5rem;
+}
+
+.tool-args-block__copy.ui-icon-button {
+  width: 1.75rem;
+  height: 1.75rem;
+  min-width: 0;
+  min-height: 0;
+  border-radius: var(--radius-sm);
+  color: var(--theme-text-tertiary);
+}
+
+.tool-args-block[data-size="compact"] .tool-args-block__copy {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.tool-args-block .tool-args-block__copy:hover,
+.tool-args-block .tool-args-block__copy:focus-visible {
+  background: var(--theme-bg-subtle);
+  color: var(--theme-text-secondary);
+}
+
+@media (max-width: 639px), (pointer: coarse) {
+  .tool-args-block .tool-args-block__copy,
+  .tool-args-block[data-size="compact"] .tool-args-block__copy {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
 }
 
 /* ═══════════════════════════════════════════
@@ -4862,4 +4957,80 @@
   .collapsible-section-card--default
   + .collapsible-section-card--default {
   border-top: 1px solid var(--theme-border-faint);
+}
+
+/* Shared reading scale for built-in and MCP tool detail panels. */
+.tool-readable {
+  @apply font-serif;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+.tool-readable :is(.text-10, .text-11) {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.tool-readable :is(.text-12, .text-13) {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+.tool-readable .text-14 {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+.tool-readable :is(pre, code) {
+  font-family: theme("fontFamily.mono");
+}
+.tool-readable :is(pre, code) {
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+.tool-readable pre {
+  max-width: 100%;
+}
+.tool-readable .tool-detail-section {
+  border: 0;
+  border-bottom: 1px solid var(--theme-border-faint);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.tool-readable .tool-detail-section__header {
+  padding-inline: 0;
+}
+.tool-readable .tool-detail-section__body {
+  padding-inline: 0;
+}
+
+.tool-readable .tool-detail-section__title {
+  @apply font-serif;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+/* Tool detail icons share a fixed column; previews keep their own dimensions. */
+.tool-readable svg.lucide,
+.tool-console-header-icon svg.lucide {
+  width: 1rem;
+  height: 1rem;
+  min-width: 1rem;
+  flex-shrink: 0;
+}
+.tool-readable .tool-detail-section__icon {
+  width: 1rem;
+  height: 1rem;
+  justify-content: center;
+}
+.tool-readable .tool-detail-section__header {
+  align-items: center;
+  gap: 0.5rem;
+}
+.tool-readable :is(.font-mono, .cm-editor, .cm-scroller) {
+  font-family: theme("fontFamily.mono");
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+
+.tool-readable .tool-args-block,
+.tool-readable .tool-args-block__content .font-mono {
+  font-family: theme("fontFamily.serif");
 }

@@ -64,6 +64,10 @@ def validate_distributed_runtime_settings(
         errors.append("MCP_ENCRYPTION_SALT must be explicitly set and identical across replicas")
     if should_prepare_local_filesystem(settings):
         errors.append("S3_ENABLED=true with shared object storage is required for uploads")
+    if getattr(settings, "TASK_BACKEND", "arq") != "arq":
+        errors.append("TASK_BACKEND=arq is required for distributed task execution")
+    if getattr(settings, "CHECKPOINT_BACKEND", "mongodb") not in {"mongodb", "postgres"}:
+        errors.append("CHECKPOINT_BACKEND must use shared mongodb or postgres storage")
 
     if errors:
         raise DistributedRuntimeConfigError("; ".join(errors))

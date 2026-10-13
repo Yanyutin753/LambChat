@@ -282,7 +282,7 @@
       "offline": "オフライン",
       "offlineHint": "そのPCは現在オフラインのため、実行マシンとして選択できません",
       "section": "実行デバイス",
-      "computerUseHint": "コンピューター操作は明示的に選択したデバイスを使用し、コードは上で選択したサンドボックスで実行されます。",
+      "computerUseHint": "コンピューター操作はローカルコンピューターでのみ利用でき、選択したオンライン端末またはオンラインの既定端末を使用します。",
       "currentDevice": "このデバイス"
     },
     "sandboxPolicy": {
@@ -308,7 +308,7 @@
       "name": "検索エージェント"
     },
     "team": {
-      "description": "ロールベースでサブエージェントにタスクをルーティング。チーム未設定時は単一エージェントモードにフォールバック。",
+      "description": "適切なロールを自動検索してサブエージェントに依頼し、追加の指示を送って作業を続けられます。",
       "name": "チームエージェント"
     }
   },
@@ -682,6 +682,8 @@
     "taskNotFound": "タスクが見つかりません",
     "taskCancelled": "タスクはキャンセルされました",
     "taskServerRestart": "サーバーの再起動によりタスクが中断されました",
+    "taskRecoveryNotAvailable": "このタスクは完了したか、再開できなくなりました。",
+    "taskRecoveryUncertainEffect": "以前の操作がすでに反映された可能性があるため、再開を停止しました。結果を確認してから新しいタスクを開始してください。",
     "taskExpired": "タスクの有効期限が切れました",
     "forceRelogin": "ユーザー権限が変更されました。再ログインしてください",
     "tokenExpired": "ログインの有効期限が切れました。再ログインしてください",
@@ -706,7 +708,8 @@
     "sandboxMachineOffline": "選択したサンドボックスマシン「{{machine}}」は現在オフラインです",
     "sandboxMachineNotFound": "サンドボックスマシン「{{machine}}」が見つからないか、削除されました",
     "pluginNoEditPermission": "プラグイン {{name}} を編集する権限がありません",
-    "modelConfigIncomplete": "モデル設定が不完全です：プロバイダー {{provider}} の {{field}} が不足しています"
+    "modelConfigIncomplete": "モデル設定が不完全です：プロバイダー {{provider}} の {{field}} が不足しています",
+    "goalConflict": "目標が変更されました。更新して再試行してください"
   },
   "categories": {
     "scheduled_task": "スケジュールタスク",
@@ -1224,6 +1227,7 @@
     "message": {
       "addBookmark": "ブックマークに追加",
       "allFiles": "すべてのファイル",
+      "fileDirectory": "ファイル一覧",
       "args": "引数",
       "artifactsSubtitleFiles": "{{count}} 件のファイル",
       "artifactsSubtitleMixed": "{{files}} 件のファイル · {{projects}} 件のプロジェクト",
@@ -1422,6 +1426,16 @@
       "toolSkillSearch": "スキル検索",
       "toolSuccess": "コマンド成功",
       "toolTaskName": "名前",
+      "toolSendSubagentMessage": "サブエージェントにメッセージ",
+      "toolWaitSubagent": "サブエージェントを待つ",
+      "toolSendParentMessage": "親エージェントにメッセージ",
+      "toolReceiveSubagentMessage": "子エージェントからのメッセージ",
+      "subagentMessage": "追加メッセージ",
+      "toolSubagentRunning": "実行中",
+      "toolSubagentMessageQueued": "メッセージをキューに追加しました",
+      "toolSubagentCompleted": "完了",
+      "toolSubagentWaitingHuman": "人の入力を待機中",
+      "toolSubagentFailed": "失敗",
       "toolTeamDefaultMember": "メンバー {{index}}",
       "toolTeamDefaultPersona": "ペルソナ {{index}}",
       "toolTimeMinutes": "{{minutes}}分{{seconds}}秒",
@@ -1531,7 +1545,16 @@
         }
       },
       "computerUseTitle": "コンピュータ操作",
-      "computerUsePermissionHint": "システム設定 → プライバシーとセキュリティで LambChat.app に「補助機能」と「画面収録」を一度だけ許可してから再試行してください。"
+      "computerUsePermissionHint": "システム設定 → プライバシーとセキュリティで LambChat.app に「補助機能」と「画面収録」を一度だけ許可してから再試行してください。",
+      "toolCancelSubagent": "サブエージェントをキャンセル",
+      "toolStartBackgroundTask": "バックグラウンドタスクを開始",
+      "toolBackgroundTaskSubmitted": "バックグラウンドに送信済み",
+      "toolBackgroundTaskOpen": "タスクの会話を開く",
+      "toolBackgroundTaskUnavailable": "送信を確認できませんでした",
+      "toolListSubagents": "サブエージェント一覧",
+      "toolSubagentQueued": "待機中",
+      "toolSubagentTimedOut": "実行がタイムアウト",
+      "toolSubagentEmpty": "サブエージェントなし"
     },
     "messageInput": "メッセージ入力",
     "noPermission": "メッセージを送信する権限がありません",
@@ -1588,6 +1611,9 @@
     "steerQueue": "送信待ちのメッセージ",
     "steerQueued": "現在のステップ完了後に届きます",
     "stop": "生成を停止",
+    "backgroundRunning": "タスクはバックグラウンドで続行中",
+    "backgroundContinue": "バックグラウンドで続行",
+    "backgroundContinueHint": "この会話を離れてもタスクは実行を続けます",
     "stopConfirmMessage": "本当に生成を停止しますか？生成された内容は保持されます。",
     "stopConfirmTitle": "生成を停止",
     "subagentStatus": "サブエージェントステータス: {{status}}",
@@ -1599,6 +1625,13 @@
     "timeline": "タイムライン",
     "title": "チャット",
     "todo": {
+      "openPanel": "タスク一覧を開く",
+      "allCompleted": "すべてのタスクが完了",
+      "cancelledCount": "{{count}} 件キャンセル",
+      "pending": "未着手",
+      "in_progress": "進行中",
+      "completed": "完了",
+      "cancelled": "キャンセル済み",
       "progress": "{{completed}}/{{total}} 完了",
       "toggle": "タスクリスト"
     },
@@ -1609,7 +1642,28 @@
     "waitingForUpload": "ファイルのアップロードが完了するまでお待ちください",
     "welcomeRefresh": "更新",
     "welcomeSubtitle": "何かお手伝いできることはありますか？",
-    "welcomeSuggestions": "おすすめ"
+    "welcomeSuggestions": "おすすめ",
+    "goalPersistent": {
+      "pause": "目標を一時停止",
+      "resume": "目標を再開",
+      "clear": "目標をクリア",
+      "noGoal": "先に継続目標を作成してください。",
+      "tokensUnknown": "トークン使用量は不明",
+      "turns": "{{count}} / {{max}} 回",
+      "tokens": "{{count}} / {{max}} トークン",
+      "timeLimit": "制限 {{minutes}} 分",
+      "status": {
+        "active": "実行中",
+        "paused": "一時停止",
+        "waiting_human": "承認待ち",
+        "blocked": "ブロック中",
+        "completed": "完了",
+        "budget_limited": "予算上限に到達",
+        "cleared": "クリア済み"
+      },
+      "modeHint": "継続目標：{{status}}",
+      "attachmentsUnsupported": "継続目標を設定する前に、通常のメッセージで添付ファイルを送信してください。"
+    }
   },
   "common": {
     "moreOptions": "その他の操作",
@@ -2536,6 +2590,7 @@
     "users": "ユーザーアカウントとアクセスの管理"
   },
   "notification": {
+    "openConversation": "会話を開く",
     "active": "有効中",
     "cancel": "キャンセル",
     "collapse": "詳細を隠す",
@@ -2567,7 +2622,8 @@
     "typeMaintenance": "メンテナンス",
     "typeSuccess": "成功",
     "typeWarning": "警告",
-    "updatedSuccess": "お知らせを更新しました"
+    "updatedSuccess": "お知らせを更新しました",
+    "taskNeedsAttention": "タスクの確認が必要です"
   },
   "passwordInput": {
     "hidePassword": "パスワードを隠す",

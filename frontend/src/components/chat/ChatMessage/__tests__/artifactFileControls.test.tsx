@@ -48,6 +48,32 @@ afterEach(() => {
   clearSidebarPanelSnapshots();
 });
 
+const panelProjects: MessagePart[] = Array.from({ length: 3 }, (_, index) => ({
+  type: "artifact",
+  success: true,
+  artifact: {
+    kind: "project",
+    id: `project:${index}`,
+    name: `Project ${index}`,
+    mode: "folder",
+    fileCount: 0,
+    template: "static",
+    preview: {
+      kind: "project",
+      previewKey: `project:${index}`,
+      project: {
+        version: 1,
+        name: `Project ${index}`,
+        mode: "folder",
+        path: `/project-${index}`,
+        template: "static",
+        fileCount: 0,
+        files: {},
+      },
+    },
+  },
+}));
+
 test("project text file size reports UTF-8 bytes for Chinese and emoji", () => {
   render(
     <FileTreeView
@@ -74,9 +100,10 @@ test.each(["project", "summary"])(
         />,
       ).container;
     } else {
-      render(
+      const view = render(
         <RevealArtifactsSummary
           parts={[
+            ...panelProjects,
             {
               type: "artifact",
               success: true,
@@ -97,11 +124,15 @@ test.each(["project", "summary"])(
         />,
       );
       fireEvent.click(
-        screen.getByRole("button", { name: /chat.message.allFiles/ }),
+        screen.getByRole("button", {
+          name: "chat.message.allFiles",
+          exact: true,
+        }),
       );
       const panel = mocks.panel.mock.calls.at(-1)?.[0] as {
         children: ReactNode;
       };
+      view.unmount();
       root = render(<>{panel.children}</>).container;
     }
     registerActiveSidebarSnapshotTarget(`tree:${kind}`, root);
@@ -133,10 +164,11 @@ function showFiles(kind: string) {
       />,
     );
   } else {
-    render(
+    const view = render(
       <RevealArtifactsSummary
         onOpenPreview={open}
         parts={[
+          ...panelProjects,
           {
             type: "artifact",
             success: true,
@@ -157,9 +189,13 @@ function showFiles(kind: string) {
       />,
     );
     fireEvent.click(
-      screen.getByRole("button", { name: /chat.message.allFiles/ }),
+      screen.getByRole("button", {
+        name: "chat.message.allFiles",
+        exact: true,
+      }),
     );
     const panel = mocks.panel.mock.calls.at(-1)?.[0] as { children: ReactNode };
+    view.unmount();
     render(<>{panel.children}</>);
   }
   return open;
@@ -326,9 +362,10 @@ test("a relative text filename does not inherit binary identity from Object.prot
 });
 
 test("a file without a download URL keeps its preview and path copy available", () => {
-  render(
+  const view = render(
     <RevealArtifactsSummary
       parts={[
+        ...panelProjects,
         {
           type: "artifact",
           success: true,
@@ -348,9 +385,10 @@ test("a file without a download URL keeps its preview and path copy available", 
     />,
   );
   fireEvent.click(
-    screen.getByRole("button", { name: /chat.message.allFiles/ }),
+    screen.getByRole("button", { name: "chat.message.allFiles", exact: true }),
   );
   const panel = mocks.panel.mock.calls.at(-1)?.[0] as { children: ReactNode };
+  view.unmount();
   render(<>{panel.children}</>);
   expect(
     screen.getByRole("button", { name: "documents.downloadFile: missing.txt" }),
@@ -361,4 +399,22 @@ test("a file without a download URL keeps its preview and path copy available", 
   expect(
     screen.getByRole("button", { name: "missing.txt", exact: true }),
   ).toBeEnabled();
+});
+
+test("folder and file names use the same fixed icon column", () => {
+  render(
+    <FileTreeView
+      files={{ "/delivery/report.md": "report" }}
+      binaryFiles={{}}
+      showHeader={false}
+    />,
+  );
+  const folder = screen.getByRole("button", { name: "delivery", exact: true });
+  fireEvent.click(folder);
+  const file = screen.getByRole("button", { name: "report.md", exact: true });
+  for (const button of [folder, file]) {
+    const iconColumn = button.firstElementChild;
+    expect(iconColumn).toHaveClass("size-9", "shrink-0");
+    expect(iconColumn?.querySelector("svg")).toHaveAttribute("width", "20");
+  }
 });

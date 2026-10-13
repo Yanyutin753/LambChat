@@ -170,7 +170,7 @@ function ChatInputShellSkeleton() {
         </div>
       </div>
       {/* Toolbar — 1:1 with real ChatInputToolbar default idle state */}
-      <div className="font-serif flex max-w-full flex-nowrap justify-between gap-1.5 px-1 py-1 sm:px-2 sm:py-3 mx-0.5">
+      <div className="chat-input-toolbar font-serif flex max-w-full flex-nowrap justify-between gap-1.5 px-1 py-1 sm:px-2 sm:py-3 mx-0.5">
         <div className="flex min-h-9 min-w-0 flex-1 items-center gap-1.5">
           {/* FeatureMenu button (chat-tool-btn: fixed 2.25rem height, rounded-full) */}
           <div className="skeleton-line h-9 w-9 rounded-full shrink-0" />

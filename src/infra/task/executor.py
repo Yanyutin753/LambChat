@@ -10,8 +10,9 @@ import asyncio
 from typing import Any, Callable, Dict, List, Optional
 
 from src.agents.core import resolve_agent_name
+from src.infra.goal_runtime import with_goal_run_lease
 from src.infra.logging import get_logger
-from src.infra.sandbox.idle_pause import IDLE_PAUSE_TRIGGER_STATUSES, schedule_idle_pause
+from src.infra.sandbox.idle_pause import schedule_idle_pause
 from src.infra.session.dual_writer import get_dual_writer
 from src.infra.session.favorites import is_session_favorite
 from src.infra.session.storage import SessionStorage
@@ -19,11 +20,12 @@ from src.infra.utils.datetime import utc_now_iso
 from src.infra.writer.presenter_events import derive_user_message_run_modes
 from src.kernel.config import settings
 from src.kernel.errors import AppError, ErrorCode
-from src.kernel.schemas.session import SessionCreate, SessionUpdate
+from src.kernel.schemas.session import SessionCreate
 
 from .cancellation import TaskCancellation
 from .exceptions import TaskInterruptedError
 from .heartbeat import TaskHeartbeat
+from .session_status import TaskSessionStatusMixin
 from .stall_watchdog import aiter_with_stall_timeout
 from .state_machine import TaskStateMachine
 from .status import TaskStatus
@@ -66,7 +68,7 @@ def _is_main_agent_text_event(event: Any) -> bool:
     return isinstance(content, str) and bool(content.strip())
 
 
-class TaskExecutor:
+class TaskExecutor(TaskSessionStatusMixin):
     """
     任务执行器类
 
@@ -92,6 +94,7 @@ class TaskExecutor:
         self._heartbeat = heartbeat_manager
         self._state_machine = TaskStateMachine()
 
+    @with_goal_run_lease
     async def run_task(
         self,
         session_id: str,
@@ -125,9 +128,41 @@ class TaskExecutor:
 
         presenter = None
         dual_writer = None
+        fenced_resume = bool(
+            active_goal
+            and active_goal.get("_persistent_id")
+            and (hitl_resume or interrupted_resume)
+        )
+        from .background_admission import (
+            validate_background_resume,
+            validate_background_run_admission,
+        )
+        from .background_tasks import execute_background_stream
+
+        if executor is execute_background_stream:
+            await validate_background_run_admission(session_id, user_id, run_id)
+            fenced_resume = True
+        elif hitl_resume or interrupted_resume:
+            fenced_resume = (
+                await validate_background_resume(self._storage, session_id, user_id, run_id)
+                or fenced_resume
+            )
+        if fenced_resume:
+            await self._update_session_status(
+                session_id, TaskStatus.STARTING, run_id=run_id, expected_run_id=run_id
+            )
+        elif interrupted_resume and not hitl_resume:
+            if not await self._storage.claim_run_recovery(
+                session_id,
+                run_id,
+                self._state_machine.build_metadata(TaskStatus.STARTING, run_id=run_id),
+            ):
+                raise TaskInterruptedError("Interrupted run no longer authorizes recovery")
+            fenced_resume = True  # STARTING was already written atomically.
 
         try:
-            await self._update_session_status(session_id, TaskStatus.STARTING, run_id=run_id)
+            if not fenced_resume:
+                await self._update_session_status(session_id, TaskStatus.STARTING, run_id=run_id)
 
             # queued path 已经同时创建 trace 和写入 user:message 时，可安全复用。
             already_written = user_message_written or self._run_info.get(run_id, {}).get(
@@ -599,7 +634,15 @@ class TaskExecutor:
     ) -> None:
         """处理通用异常"""
         error_msg = getattr(error, "display_message", None) or str(error) or type(error).__name__
-        await self._update_session_status(session_id, TaskStatus.FAILED, error_msg, run_id=run_id)
+        if (
+            isinstance(error, AppError)
+            and error.error_code is ErrorCode.TASK_RECOVERY_UNCERTAIN_EFFECT
+        ):
+            await self._record_uncertain_effect(session_id, run_id, error)
+        else:
+            await self._update_session_status(
+                session_id, TaskStatus.FAILED, error_msg, run_id=run_id
+            )
         logger.error(
             f"Task failed: session={session_id}, run_id={run_id}, error={error}", exc_info=True
         )
@@ -676,6 +719,8 @@ class TaskExecutor:
         status: TaskStatus,
         user_id: str,
         message: str | None = None,
+        *,
+        prepared_completion: dict[str, Any] | None = None,
     ) -> None:
         """
         发送任务完成通知
@@ -690,7 +735,6 @@ class TaskExecutor:
         try:
             from src.infra.websocket import get_connection_manager
 
-            manager = get_connection_manager()
             notification: dict[str, Any] = {
                 "type": "task:complete",
                 "data": {
@@ -703,11 +747,13 @@ class TaskExecutor:
                 notification["data"]["message"] = message
 
             # 附带最新的 unread_count，让前端实时更新侧边栏
+            session_metadata = {}
             try:
                 from src.infra.session.manager import SessionManager
 
                 session = await SessionManager().get_session(session_id)
                 if session:
+                    session_metadata = session.metadata or {}
                     favorites_project_id = None
                     if session.user_id:
                         from src.infra.folder.storage import get_project_storage
@@ -731,6 +777,37 @@ class TaskExecutor:
             except Exception:
                 pass
 
+            from src.infra.task.completion_events import TaskCompletionStore, prepare_completion
+
+            completion = (
+                dict(prepared_completion)
+                if prepared_completion is not None
+                else prepare_completion(notification["data"], session_metadata)
+            )
+            if completion is None:
+                return
+            from src.infra.task.completion_recovery import TaskCompletionOutbox
+
+            notification["data"] = completion
+            outbox = TaskCompletionOutbox()
+            try:
+                await outbox.stage(session_id, user_id, completion)
+            except Exception as error:
+                logger.warning("Failed to stage task completion: %s", error)
+            try:
+                notification["data"], fresh = await TaskCompletionStore().record_once(
+                    user_id, completion
+                )
+            except Exception as error:
+                logger.warning("Failed to persist task completion: %s", error)
+                return
+            try:
+                await outbox.clear(session_id, user_id, completion["dedupe_key"])
+            except Exception as error:
+                logger.warning("Failed to clear delivered completion marker: %s", error)
+            if not fresh:
+                return
+            manager = get_connection_manager()
             delivered_count = await manager.send_to_user_with_broadcast(user_id, notification)
             if delivered_count <= 0:
                 logger.warning(
@@ -749,7 +826,8 @@ class TaskExecutor:
                     push_mgr = PushManager()
                     push_payload = {
                         "title": "LambChat",
-                        "body": message or f"Task {status.value}",
+                        "body": notification["data"].get("message")
+                        or f"Task {notification['data']['status']}",
                         "url": f"/chat/{session_id}",
                     }
                     push_delivered = await push_mgr.send_push_to_user(user_id, push_payload)
@@ -771,8 +849,8 @@ class TaskExecutor:
                             user_id=user_id,
                             session_id=session_id,
                             run_id=run_id,
-                            status_value=status.value,
-                            message=message,
+                            status_value=notification["data"]["status"],
+                            message=notification["data"].get("message"),
                         )
                     except Exception as channel_err:
                         logger.warning(
@@ -788,84 +866,6 @@ class TaskExecutor:
                 )
         except Exception as e:
             logger.warning(f"Failed to send task notification: {e}")
-
-    async def _update_session_status(
-        self,
-        session_id: str,
-        status: TaskStatus,
-        error: Optional[str] = None,
-        run_id: Optional[str] = None,
-    ) -> None:
-        """更新 session 状态"""
-        try:
-            if await self._is_stale_run_status_update(session_id, status, run_id):
-                logger.info(
-                    "Skipping stale task status update: session=%s, run_id=%s, status=%s",
-                    session_id,
-                    run_id,
-                    status.value,
-                )
-                return
-
-            metadata: Dict[str, Any] = self._state_machine.build_metadata(
-                status,
-                run_id=run_id,
-                error=error,
-            )
-            if run_id and status in {
-                TaskStatus.QUEUED,
-                TaskStatus.PENDING,
-                TaskStatus.STARTING,
-            }:
-                session = await self._storage.get_by_session_id(session_id)
-                previous = getattr(session, "metadata", None) or {}
-                if previous.get("current_run_id") != run_id:
-                    # Recovery budgets belong to a run, not the lifetime of its conversation.
-                    metadata.update(
-                        resume_attempts=0,
-                        resume_attempts_run_id=run_id,
-                        interrupted_run_id=None,
-                        recovery_of_run_id=None,
-                        recovery_reason=None,
-                        recovery_requested_at=None,
-                    )
-            if status == TaskStatus.COMPLETED:
-                metadata["completed_at"] = utc_now_iso()
-
-            await self._storage.update(
-                session_id,
-                SessionUpdate(metadata=metadata),
-            )
-
-            # 对话轮终态后安排沙箱空闲暂停检查（省成本）；fire-and-forget，
-            # 任何失败只记日志，绝不影响状态更新主流程。
-            if status.value in IDLE_PAUSE_TRIGGER_STATUSES:
-                self._schedule_idle_pause_check(session_id)
-
-            # Send real-time task status update to sidebar
-            try:
-                # Executors are shared by concurrent runs. Resolve ownership from
-                # this session, never from mutable executor-wide run state.
-                session = await self._storage.get_by_session_id(session_id)
-                uid = getattr(session, "user_id", None)
-                if uid:
-                    from src.infra.websocket import get_connection_manager
-
-                    cm = get_connection_manager()
-                    await cm.send_to_user_with_broadcast(
-                        uid,
-                        {
-                            "type": "session:task_status",
-                            "data": {
-                                "session_id": session_id,
-                                "task_status": status.value,
-                            },
-                        },
-                    )
-            except Exception:
-                logger.debug("Failed to send task status WebSocket notification")
-        except Exception as e:
-            logger.warning(f"Failed to update session status: {e}")
 
     def _schedule_idle_pause_check(self, session_id: str) -> None:
         """终态后解析 user 并调度空闲暂停检查（含宽限期）。
@@ -888,32 +888,6 @@ class TaskExecutor:
             task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
         except RuntimeError:
             logger.debug("No running loop for idle pause check: session=%s", session_id)
-
-    async def _is_stale_run_status_update(
-        self,
-        session_id: str,
-        status: TaskStatus,
-        run_id: Optional[str],
-    ) -> bool:
-        """Return true when an old run is trying to overwrite a newer current run."""
-        if not run_id or status in {
-            TaskStatus.QUEUED,
-            TaskStatus.PENDING,
-            TaskStatus.STARTING,
-        }:
-            return False
-
-        try:
-            session = await self._storage.get_by_session_id(session_id)
-        except Exception as e:
-            logger.warning("Failed to check current run before status update: %s", e)
-            return False
-
-        current_run_id = None
-        if session and getattr(session, "metadata", None):
-            current_run_id = session.metadata.get("current_run_id")
-
-        return bool(current_run_id and current_run_id != run_id)
 
     async def ensure_session(
         self,

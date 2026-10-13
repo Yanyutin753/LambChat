@@ -9,6 +9,12 @@ from pydantic import BaseModel, Field, PrivateAttr
 
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.search import DiscoveryRecord, search_records
+from src.infra.skill.loader import (
+    format_skills_prompt,
+    normalize_skill_keywords,
+    ordered_skill_metadata,
+    skill_discovery_keywords,
+)
 
 SKILL_SEARCH_LIMIT = 10
 
@@ -18,14 +24,6 @@ class SkillSearchInput(BaseModel):
         ...,
         description="Skill name or capability; supports +required and select:ExactName.",
     )
-
-
-def _normalize_tags(value: Any) -> tuple[str, ...]:
-    if isinstance(value, str):
-        return tuple(item.strip() for item in value.replace(";", ",").split(",") if item.strip())
-    if isinstance(value, (list, tuple, set)):
-        return tuple(str(item).strip() for item in value if str(item).strip())
-    return ()
 
 
 class SkillSearchTool(BaseTool):
@@ -41,29 +39,23 @@ class SkillSearchTool(BaseTool):
 
     def __init__(self, skills: list[dict], **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        unique: dict[str, dict] = {}
-        for skill in skills:
-            name = str(skill.get("name") or "").strip()
-            if name and name not in unique:
-                unique[name] = skill
+        ordered = ordered_skill_metadata(skills)
         self._records = tuple(
             DiscoveryRecord(
                 name=name,
-                text=str(unique[name].get("description") or ""),
-                tags=_normalize_tags(unique[name].get("tags")),
+                text=str(skill.get("description") or ""),
+                tags=skill_discovery_keywords(skill),
                 payload={
                     "name": name,
-                    "description": str(unique[name].get("description") or ""),
-                    "tags": _normalize_tags(unique[name].get("tags")),
+                    "description": str(skill.get("description") or ""),
+                    "tags": normalize_skill_keywords(skill.get("tags")),
                 },
             )
-            for name in sorted(unique, key=lambda item: (item.lower(), item))
+            for name, skill in ordered
         )
         # Codex-style layering: the Skill inventory lives on the tool it
         # describes, not in the system prompt — the system prompt stays fully
         # static and the inventory is versioned with the tool definition.
-        from src.infra.skill.loader import format_skills_prompt
-
         inventory = format_skills_prompt(skills)
         if inventory:
             self.description = f"{self.description}\n\n{inventory.strip()}"

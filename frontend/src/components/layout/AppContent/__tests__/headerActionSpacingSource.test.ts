@@ -3,6 +3,10 @@ import { expect, test } from "vitest";
 
 const source = readFileSync(new URL("../Header.tsx", import.meta.url), "utf8");
 
+test("chat header does not display a project badge", () => {
+  expect(source).not.toContain("{project.name}");
+});
+
 test("header puts more before workspace and avatar with a consistent gap", () => {
   const right = source.slice(source.indexOf("{/* Right */}"));
   expect(right).toContain(
@@ -48,4 +52,9 @@ test("mobile sidebar and model triggers use compact 36px touch heights", () => {
   expect(css).toMatch(
     /\.chat-header__identity > button\s*\{[^}]*min-width:\s*2\.25rem;/,
   );
+});
+
+test("header controls share horizontal padding instead of fixed width slots", () => {
+  const css = readFileSync(new URL("../../../../styles/components.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.chat-header__actions > button,\s*\.chat-header__actions > \.relative > button\s*\{[^}]*width:\s*auto;[^}]*padding-inline:\s*0\.5rem;/);
 });

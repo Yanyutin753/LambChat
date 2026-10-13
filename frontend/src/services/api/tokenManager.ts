@@ -58,8 +58,9 @@ export async function getValidAccessToken(): Promise<string | null> {
 
   try {
     return await refreshAccessToken();
-  } catch {
-    return null;
+  } catch (error) {
+    if ((error as Error & { status?: number })?.status === 401) return null;
+    throw error;
   }
 }
 
@@ -97,7 +98,9 @@ export async function refreshTokens(): Promise<RefreshedTokens> {
     });
 
     if (!response.ok) {
-      throw new Error("Token refresh failed");
+      const error = new Error("Token refresh failed") as Error & { status?: number };
+      error.status = response.status;
+      throw error;
     }
 
     const tokenResponse = (await response.json()) as RefreshedTokens;

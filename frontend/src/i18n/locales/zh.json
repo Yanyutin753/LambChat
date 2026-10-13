@@ -282,7 +282,7 @@
       "offline": "离线",
       "offlineHint": "该电脑当前离线，暂不能选为执行机器",
       "section": "执行设备",
-      "computerUseHint": "电脑操作使用明确选中的设备；代码执行仍使用上方所选沙箱。",
+      "computerUseHint": "电脑操作仅在本地电脑档可用，使用选中的在线设备或在线默认设备。",
       "currentDevice": "当前设备"
     },
     "sandboxPolicy": {
@@ -308,7 +308,7 @@
       "name": "搜索助手"
     },
     "team": {
-      "description": "按角色分派子代理，无团队时回退到单代理模式",
+      "description": "自动搜索合适角色并分派子代理，支持追加任务和持续协作",
       "name": "团队助手"
     }
   },
@@ -682,6 +682,8 @@
     "taskNotFound": "任务不存在",
     "taskCancelled": "任务已取消",
     "taskServerRestart": "服务重启导致任务中断",
+    "taskRecoveryNotAvailable": "当前任务已完成或不再允许恢复。",
+    "taskRecoveryUncertainEffect": "已停止恢复：先前操作可能已经生效。请核验其结果，再开始新任务。",
     "taskExpired": "任务已过期",
     "forceRelogin": "用户权限已变更，请重新登录",
     "tokenExpired": "登录已过期，请重新登录",
@@ -706,7 +708,8 @@
     "sandboxMachineOffline": "所选沙箱机器「{{machine}}」当前离线",
     "sandboxMachineNotFound": "沙箱机器「{{machine}}」不存在或已移除",
     "pluginNoEditPermission": "没有编辑插件 {{name}} 的权限",
-    "modelConfigIncomplete": "模型配置不完整：渠道 {{provider}} 缺少 {{field}}"
+    "modelConfigIncomplete": "模型配置不完整：渠道 {{provider}} 缺少 {{field}}",
+    "goalConflict": "目标已变更，请刷新后重试"
   },
   "categories": {
     "scheduled_task": "定时任务",
@@ -1224,6 +1227,7 @@
     "message": {
       "addBookmark": "添加书签",
       "allFiles": "全部文件",
+      "fileDirectory": "文件目录",
       "args": "参数",
       "artifactsSubtitleFiles": "{{count}} 个文件",
       "artifactsSubtitleMixed": "{{files}} 个文件 · {{projects}} 个项目",
@@ -1422,6 +1426,16 @@
       "toolSkillSearch": "技能搜索",
       "toolSuccess": "命令执行成功",
       "toolTaskName": "名称",
+      "toolSendSubagentMessage": "向子代理发消息",
+      "toolWaitSubagent": "等待子代理",
+      "toolSendParentMessage": "向父代理发消息",
+      "toolReceiveSubagentMessage": "收到子代理消息",
+      "subagentMessage": "追加消息",
+      "toolSubagentRunning": "运行中",
+      "toolSubagentMessageQueued": "消息已排队",
+      "toolSubagentCompleted": "已完成",
+      "toolSubagentWaitingHuman": "等待人工处理",
+      "toolSubagentFailed": "执行失败",
       "toolTeamDefaultMember": "成员 {{index}}",
       "toolTeamDefaultPersona": "角色 {{index}}",
       "toolTimeMinutes": "{{minutes}}分{{seconds}}秒",
@@ -1531,7 +1545,16 @@
         }
       },
       "computerUseTitle": "电脑控制",
-      "computerUsePermissionHint": "需要在系统设置 → 隐私与安全性中给 LambChat.app 授予「辅助功能」与「屏幕录制」权限(仅需一次),授权后重试。"
+      "computerUsePermissionHint": "需要在系统设置 → 隐私与安全性中给 LambChat.app 授予「辅助功能」与「屏幕录制」权限(仅需一次),授权后重试。",
+      "toolCancelSubagent": "取消子代理",
+      "toolStartBackgroundTask": "启动后台任务",
+      "toolBackgroundTaskSubmitted": "已提交到后台",
+      "toolBackgroundTaskOpen": "打开后台任务会话",
+      "toolBackgroundTaskUnavailable": "未能确认任务提交",
+      "toolListSubagents": "查看子代理",
+      "toolSubagentQueued": "排队中",
+      "toolSubagentTimedOut": "执行超时",
+      "toolSubagentEmpty": "暂无子代理"
     },
     "messageInput": "消息输入框",
     "noPermission": "没有发送消息的权限",
@@ -1588,6 +1611,9 @@
     "steerQueue": "待发送的排队消息",
     "steerQueued": "当前步骤后送达",
     "stop": "停止生成",
+    "backgroundRunning": "任务继续在后台运行",
+    "backgroundContinue": "后台继续",
+    "backgroundContinueHint": "离开当前会话，任务继续在后台运行",
     "stopConfirmMessage": "确定要停止当前生成吗？已生成的内容将保留。",
     "stopConfirmTitle": "停止生成",
     "subagentStatus": "子代理状态: {{status}}",
@@ -1599,6 +1625,13 @@
     "timeline": "时间线",
     "title": "对话",
     "todo": {
+      "openPanel": "打开任务清单",
+      "allCompleted": "全部任务已完成",
+      "cancelledCount": "{{count}} 项已取消",
+      "pending": "待处理",
+      "in_progress": "进行中",
+      "completed": "已完成",
+      "cancelled": "已取消",
       "progress": "{{completed}}/{{total}} 已完成",
       "toggle": "任务清单"
     },
@@ -1609,7 +1642,28 @@
     "waitingForUpload": "请等待文件上传完成",
     "welcomeRefresh": "换一批",
     "welcomeSubtitle": "✨ 我能为你做什么？",
-    "welcomeSuggestions": "建议"
+    "welcomeSuggestions": "建议",
+    "goalPersistent": {
+      "pause": "暂停目标",
+      "resume": "继续目标",
+      "clear": "清除目标",
+      "noGoal": "请先创建持久目标。",
+      "tokensUnknown": "Token 用量未知",
+      "turns": "{{count}} / {{max}} 轮",
+      "tokens": "{{count}} / {{max}} tokens",
+      "timeLimit": "时限 {{minutes}} 分钟",
+      "status": {
+        "active": "进行中",
+        "paused": "已暂停",
+        "waiting_human": "等待审批",
+        "blocked": "受阻",
+        "completed": "已完成",
+        "budget_limited": "预算已耗尽",
+        "cleared": "已清除"
+      },
+      "modeHint": "持久目标：{{status}}",
+      "attachmentsUnsupported": "请先通过普通消息发送附件，再设置持久目标。"
+    }
   },
   "common": {
     "moreOptions": "更多操作",
@@ -2536,6 +2590,7 @@
     "users": "管理用户账户和访问权限"
   },
   "notification": {
+    "openConversation": "打开会话",
     "active": "生效中",
     "cancel": "取消",
     "collapse": "收起详情",
@@ -2567,7 +2622,8 @@
     "typeMaintenance": "维护",
     "typeSuccess": "成功",
     "typeWarning": "警告",
-    "updatedSuccess": "通知更新成功"
+    "updatedSuccess": "通知更新成功",
+    "taskNeedsAttention": "任务需要你确认"
   },
   "passwordInput": {
     "hidePassword": "隐藏密码",

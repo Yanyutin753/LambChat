@@ -1,12 +1,11 @@
-"""computer_use 工具：经本地沙箱 daemon 驱动用户 Mac 的图形界面。
+"""computer_use 工具：经本地沙箱 daemon 驱动用户所选机器的图形界面。
 
 复刻 ZCode computer-use 的语义契约：Accessibility 树优先的观察与操作、
 元素索引寻址最近一次观察、事件兜底要求前台。**禁止 osascript / System
 Events / AppleScript**——无人值守场景下 TCC 弹窗无人可点会永久卡死。
 
 链路：agent 工具 → 本地 relay(dispatch_local_call)→ daemon cua_ops。
-云端沙箱（e2b/daytona/cubesandbox）无此能力，daemon 不在线时报
-offline 错误（模型可引导用户启动桌面端）。
+云端沙箱（e2b/daytona/cubesandbox）无此能力；只有本地档且机器在线时暴露。
 """
 
 from __future__ import annotations
@@ -51,24 +50,19 @@ async def resolve_computer_use_context(
 ) -> dict[str, Any]:
     """Pin the trusted session selection once per run, before any model tool call.
 
-    自动档（会话未显式选机）按注册表缺省解析钉住目标机（默认机 → 唯一在线
-    → legacy；默认机缺配时由注册表首台自动领养）——钉住的机器与显式选机走
-    完全相同的确认门/目标校验/HITL 续作匹配，模型仍无法改指目标。无任何
-    在线机时 machine_id 保持 None（工具按 machine_selection_required 收敛）。
+    本地档才解析目标机。显式选机先校验在线；自动档按默认机 → 唯一在线
+    → legacy 解析。无在线机时不向模型暴露工具。
     """
     choice = options.get("sandbox")
     platform = choice if choice in ("local", "cloud") else None
-    selected = options.get("sandbox_machine_id")
-    machine = selected.strip() if isinstance(selected, str) else None
-    if not machine:
-        # 自动档：注册表缺省解析钉默认机。尽力而为（照 _lookup_daemon_identity
-        # 的容错语义）——redis 故障回落 None，工具层按 machine_selection_required
-        # 收敛，不阻断会话启动。
+    machine = None
+    if platform == "local" and user_id:
+        selected = options.get("sandbox_machine_id")
+        selected = selected.strip() if isinstance(selected, str) else None
         try:
-            machine = await SandboxClientRegistry().resolve_target(user_id)
-        except Exception:  # noqa: BLE001 - 选机解析尽力而为，失败不注入
-            logger.warning("computer_use default machine resolution failed for user %s", user_id)
-            machine = None
+            machine = await SandboxClientRegistry().resolve_target(user_id, selected or None)
+        except Exception:  # noqa: BLE001 - 注册表故障时不暴露桌面工具
+            logger.warning("computer_use machine resolution failed for user %s", user_id)
     selection: dict[str, Any] = {"platform": platform, "machine_id": machine}
     if hitl_resume and isinstance(hitl_resume.get("confirmation_context"), dict):
         approval = hitl_resume.get("approval_resolved") or {}
@@ -78,6 +72,12 @@ async def resolve_computer_use_context(
             "confirmation_context": hitl_resume["confirmation_context"],
         }
     return selection
+
+
+def filter_computer_use_tools(tools: list[Any], selection: dict[str, Any] | None) -> list[Any]:
+    if selection and selection.get("platform") == "local" and selection.get("machine_id"):
+        return tools
+    return [tool for tool in tools if getattr(tool, "name", "") != "computer_use"]
 
 
 _ACTIONS = (
@@ -388,6 +388,8 @@ async def computer_use(
     selection = configurable.get("computer_use_context")
     if not isinstance(selection, dict):
         return "ERROR machine_selection_required: select an online machine in this session"
+    if selection.get("platform") != "local":
+        return "ERROR local_computer_required: select Local computer in this session"
     selected_machine = selection.get("machine_id")
     if not isinstance(selected_machine, str) or not selected_machine:
         return "ERROR machine_selection_required: select an online machine in this session"

@@ -79,3 +79,53 @@ async def test_arun_offloads_search_off_event_loop(monkeypatch: pytest.MonkeyPat
 
     assert "Name: database-query" in result
     assert offloaded
+
+
+@pytest.mark.parametrize("count", [20, 100, 500])
+def test_grouped_skill_inventory_preserves_all_exact_and_capability_matches(count) -> None:
+    skills = [
+        {"name": f"database-{index:03d}", "description": "Query relational tables", "tags": ["sql"]}
+        for index in range(count - 1)
+    ] + [{"name": "unknown-capability", "description": "Repair flux widgets"}]
+    tool = SkillSearchTool(skills)
+    if count > 20:
+        assert f"data ({count - 1} skills)" in tool.description
+        assert "uncategorized (1 skills)" in tool.description
+        assert "database-000" not in tool.description
+        assert len(tool.description) < 1200
+    assert "Name: unknown-capability" in tool._run("select:unknown-capability")
+    assert "Name: unknown-capability" in tool._run("repair flux")
+    assert "Name: database-000" in tool._run("relational tables")
+    for skill in skills:
+        assert f"Name: {skill['name']}\n" in tool._run(f"select:{skill['name']}")
+    assert SkillSearchTool(list(reversed(skills))).description == tool.description
+
+
+def test_disabled_skill_metadata_is_excluded_from_directory_and_search() -> None:
+    skills = [
+        {"name": "allowed", "description": "Allowed capability", "tags": ["sql"]},
+        {"name": "blocked", "description": "Hidden capability", "enabled": False},
+        {"name": "allowed", "description": "Duplicate must not win"},
+    ]
+    tool = SkillSearchTool(skills)
+    assert "blocked" not in tool.description
+    assert "Duplicate must not win" not in tool.description
+    assert tool._run("select:blocked") == "No Skills matched that query."
+    assert "Allowed capability" in tool._run("select:allowed")
+    skills[0]["description"] = "Changed after construction"
+    assert "Allowed capability" in tool._run("select:allowed")
+
+
+def test_skill_classification_search_reaches_metadata_not_only_descriptions() -> None:
+    tool = SkillSearchTool(
+        [
+            {"name": "accounts", "category": "Finance", "description": "Prepare records"},
+            {
+                "name": "migration",
+                "capabilities": ["database migration"],
+                "description": "Move records",
+            },
+        ]
+    )
+    assert "Name: accounts" in tool._run("Finance")
+    assert "Name: migration" in tool._run("database migration")

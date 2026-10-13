@@ -14,6 +14,7 @@ from src.infra.role.storage import RoleStorage
 from src.infra.team.manager import TeamManager
 from src.infra.tool.backend_utils import get_user_id_from_runtime
 from src.infra.user.storage import UserStorage
+from src.kernel.schemas.persona_preset import PersonaPresetSnapshot
 from src.kernel.schemas.team import TeamCreate, TeamMemberCreate, TeamUpdate
 from src.kernel.schemas.user import TokenPayload
 
@@ -78,6 +79,16 @@ def _can_create_team(user: TokenPayload) -> bool:
     return "team:write" in permissions or "chat:write" in permissions
 
 
+async def resolve_persona_for_subagent(preset_id: str, *, user_id: str) -> PersonaPresetSnapshot:
+    """Recheck current role access before using the trusted execution snapshot."""
+    user = await _resolve_user(user_id)
+    if not user or not _can_read_personas(user):
+        raise PermissionError("persona_preset_read_required")
+    return await PersonaPresetManager().use_preset(
+        preset_id, user_id=user_id, is_admin=_is_admin(user), user_roles=user.roles
+    )
+
+
 _PLACEHOLDER_PERSONA_IDS = {
     "general-purpose",
     "general_purpose",
@@ -111,8 +122,12 @@ async def search_persona_presets(
     ] = 20,
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
-    """Use this tool first to search visible personas before create_agent_team. Use
-    returned IDs as member persona_preset_id values; search again if roles are missing."""
+    """Use this tool first to search visible roles by capability. In Team Agent,
+    dispatch a suitable result with task(description=..., subagent_type=the returned
+    subagent_type); the server loads its original system prompt. Only use a generic
+    subagent after successful searches find no suitable role, never on search errors.
+    Before create_agent_team, use returned IDs as member persona_preset_id values;
+    search again if roles are missing."""
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return await _json_dumps_result({"error": "No user context available"})
@@ -140,6 +155,7 @@ async def search_persona_presets(
             "presets": [
                 {
                     "id": preset.id,
+                    "subagent_type": f"persona:{preset.id}",
                     "name": preset.name,
                     "description": preset.description,
                     "tags": preset.tags,

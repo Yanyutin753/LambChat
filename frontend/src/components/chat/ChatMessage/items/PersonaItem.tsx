@@ -14,7 +14,6 @@ import {
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
-import { nameToGradient } from "../../../common/cardUtils";
 import { MarkdownContent } from "../MarkdownContent";
 import { DetailSection } from "./DetailSection";
 import {
@@ -98,190 +97,27 @@ function PersonaDetail({ args, result }: ToolDetailProps) {
   const skillNames: string[] = parsed?.skill_names || [];
   const statusVal = parsed?.status || "";
 
-  const gradient = useMemo(
-    () => (displayName ? nameToGradient(displayName) : null),
-    [displayName],
-  );
-
   return (
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
-      {/* Hero card */}
       {displayName && (
-        <div
-          className={clsx(
-            "rounded-2xl overflow-hidden relative",
-            gradient && "shadow-md",
-          )}
-          style={
-            gradient
-              ? {
-                  boxShadow: `0 2px 16px -4px ${gradient[0]}30, 0 1px 3px rgb(0 0 0 / 0.06)`,
-                }
-              : undefined
-          }
-        >
-          {/* Gradient border ring */}
-          {gradient && (
-            <div
-              className="absolute inset-0 rounded-2xl p-px"
-              style={{
-                background: `linear-gradient(135deg, ${gradient[0]}40, ${gradient[1]}20, ${gradient[2]}40)`,
-              }}
-            >
-              <div className="w-full h-full rounded-[calc(1rem-1px)] bg-theme-bg-card" />
+        <section className="space-y-3 border-b border-theme-border pb-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="size-10 shrink-0 overflow-hidden rounded-[var(--radius-sm)] bg-theme-bg-subtle flex items-center justify-center">
+              <RenderAvatar avatar={avatar} sizeClass="w-full h-full object-cover" fallback={<UserRound size={16} className="text-theme-text-tertiary" />} />
             </div>
-          )}
-
-          <div className="relative z-10 rounded-2xl overflow-hidden">
-            {gradient && (
-              <div className="h-20 sm:h-24 relative overflow-hidden">
-                {/* Base gradient */}
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background: `linear-gradient(135deg, ${gradient[0]}, ${gradient[1]}, ${gradient[2]})`,
-                  }}
-                />
-                {/* Decorative mesh pattern */}
-                <div
-                  className="absolute inset-0 opacity-30"
-                  style={{
-                    backgroundImage: `radial-gradient(circle at 20% 80%, ${gradient[0]}60 0%, transparent 50%), radial-gradient(circle at 80% 20%, ${gradient[2]}60 0%, transparent 50%)`,
-                  }}
-                />
-                {/* Shimmer sweep */}
-                <div
-                  className="absolute inset-0 animate-[shimmer_3s_ease-in-out_infinite]"
-                  style={{
-                    background: `linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.15) 45%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.15) 55%, transparent 60%)`,
-                    backgroundSize: "200% 100%",
-                  }}
-                />
-                {/* Bottom fade into card */}
-                <div className="absolute bottom-0 inset-x-0 h-8 bg-gradient-to-t from-theme-bg-card to-transparent" />
-              </div>
-            )}
-            <div
-              className={clsx(
-                "relative px-4 sm:px-5 pt-4 pb-4",
-                "bg-theme-bg-card",
-                !gradient && "pt-5",
-              )}
-            >
-              {/* Avatar + Name row */}
-              <div
-                className={clsx(
-                  "flex items-start gap-3.5",
-                  gradient ? "-mt-9 sm:-mt-12" : "",
-                )}
-              >
-                <div
-                  className={clsx(
-                    "rounded-2xl flex items-center justify-center text-24 sm:text-30 leading-none shrink-0 overflow-hidden relative",
-                    gradient ? "w-14 h-14 sm:w-16 sm:h-16" : "w-11 h-11",
-                  )}
-                  style={
-                    gradient
-                      ? {
-                          boxShadow: `0 4px 14px -3px ${gradient[0]}40, 0 2px 6px -1px rgb(0 0 0 / 0.1)`,
-                        }
-                      : undefined
-                  }
-                >
-                  {/* Gradient ring effect */}
-                  {gradient && (
-                    <div
-                      className="absolute inset-0 rounded-2xl p-[2px]"
-                      style={{
-                        background: `linear-gradient(135deg, ${gradient[0]}, ${gradient[1]}, ${gradient[2]})`,
-                      }}
-                    >
-                      <div className="w-full h-full rounded-[calc(1rem-2px)] bg-theme-bg-card" />
-                    </div>
-                  )}
-                  <div
-                    className={clsx(
-                      "relative z-10 w-full h-full rounded-2xl flex items-center justify-center overflow-hidden",
-                      "bg-[color-mix(in_srgb,var(--theme-primary)_8%,var(--theme-bg-card))]",
-                    )}
-                  >
-                    <RenderAvatar
-                      avatar={avatar}
-                      sizeClass="w-full h-full"
-                      fallback={
-                        <UserRound
-                          size={gradient ? 28 : 22}
-                          className="text-[var(--theme-primary)]"
-                        />
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="min-w-0 flex-1 pt-0.5">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-16 sm:text-18 font-bold text-theme-text truncate tracking-tight">
-                      {displayName}
-                    </h3>
-                    {statusVal && statusVal !== "published" && (
-                      <span
-                        className={clsx(
-                          "inline-flex items-center px-2 py-0.5 rounded-full text-10 font-semibold tracking-wide uppercase",
-                          statusVal === "draft"
-                            ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 ring-1 ring-amber-200/50 dark:ring-amber-800/30"
-                            : statusVal === "archived"
-                              ? "bg-theme-bg-subtle text-theme-text-tertiary ring-1 ring-theme-border"
-                              : "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-200/50 dark:ring-emerald-800/30",
-                        )}
-                      >
-                        {statusVal}
-                      </span>
-                    )}
-                  </div>
-                  {description && (
-                    <p className="text-12 sm:text-13 text-theme-text-secondary/80 mt-1 leading-relaxed line-clamp-2">
-                      {description}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Tags + Skills */}
-              {(tags.length > 0 || skillNames.length > 0) && (
-                <div className="mt-4 space-y-2.5">
-                  {tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {tags.map((tag, i) => (
-                        <span
-                          key={i}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-11 font-medium transition-all duration-200 bg-theme-bg text-theme-text-secondary ring-1 ring-theme-border hover:ring-theme-border-hover"
-                        >
-                          <Tag size={9} className="opacity-40" />
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {skillNames.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {skillNames.map((skill, i) => (
-                        <span
-                          key={i}
-                          className={clsx(
-                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-11 font-medium",
-                            "bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-200/50 dark:ring-emerald-700/30",
-                          )}
-                        >
-                          <Zap size={9} className="opacity-50" />
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+            <div className="min-w-0 flex-1 space-y-1">
+              <h3 className="text-16 font-semibold text-theme-text break-words">{displayName}</h3>
+              {description && <p className="text-14 text-theme-text-secondary leading-relaxed break-words">{description}</p>}
+              {statusVal && statusVal !== "published" && <span className="text-12 text-theme-text-tertiary">{statusVal}</span>}
             </div>
           </div>
-        </div>
+          {(tags.length > 0 || skillNames.length > 0) && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-12 text-theme-text-secondary">
+              {tags.map((tag, i) => <span key={`tag-${i}`} className="inline-flex items-center gap-1.5"><Tag size={12} className="text-theme-text-tertiary" />{tag}</span>)}
+              {skillNames.map((skill, i) => <span key={`skill-${i}`} className="inline-flex items-center gap-1.5"><Zap size={12} className="text-theme-text-tertiary" />{skill}</span>)}
+            </div>
+          )}
+        </section>
       )}
 
       {/* System Prompt */}
@@ -366,7 +202,7 @@ function PersonaDetail({ args, result }: ToolDetailProps) {
         <pre className="group/result relative text-12 text-theme-text-tertiary whitespace-pre-wrap break-words p-3 rounded-lg bg-theme-bg border border-theme-border">
           {(() => {
             const text = extractText(result);
-            return text.length > 600 ? text.slice(0, 597) + "…" : text;
+            return text;
           })()}
           <ToolHoverCopyButton
             text={extractText(result)}
@@ -463,7 +299,7 @@ const PersonaItem = memo(function PersonaItem({
     <>
       <CollapsiblePill
         status={status}
-        icon={<UserRound size={12} className="shrink-0 opacity-50" />}
+        icon={<UserRound size={12} className="shrink-0 opacity-50 text-amber-500 dark:text-amber-400" />}
         label={label}
         animatedDots={isStreamingLabel}
         variant="tool"

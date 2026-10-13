@@ -5,6 +5,7 @@ LangGraph 节点函数，使用 deep agent 执行任务。
 后续可扩展：retrieve_node, summarize_node 等。
 """
 
+import asyncio
 import inspect
 import time
 import uuid
@@ -66,6 +67,8 @@ from src.infra.agent.middleware import (
     image_url_middleware_for_mode,
     summarization_fallback_patch,
 )
+from src.infra.agent.middleware.evidence import EvidenceClock, create_evidence_middleware
+from src.infra.agent.subagent_assembly import assemble_subagent_sessions, refresh_subagent_context
 from src.infra.backend import (
     LazySandboxBackend,
     create_persistent_backend,
@@ -215,7 +218,19 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     llm, fallback_model_value, supports_vision, image_url_mode = prepared.model
     backend, system_prompt, store, sandbox_backend, sandbox_work_dir = prepared.backend
     runtime_env_keys = tuple(getattr(sandbox_backend, "_run_env_overrides", {}))
-    filtered_tool_list = prepared.tools
+    from src.infra.tool.computer_use_tool import (
+        filter_computer_use_tools,
+        resolve_computer_use_context,
+    )
+
+    computer_use_context = (
+        await resolve_computer_use_context(
+            context.user_id or "", agent_options, configurable.get("hitl_resume")
+        )
+        if settings.ENABLE_COMPUTER_USE
+        else None
+    )
+    filtered_tool_list = filter_computer_use_tools(prepared.tools, computer_use_context)
     inner_checkpointer = prepared.checkpointer
 
     if context.deferred_manager is not None and not any(
@@ -243,7 +258,8 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         sandbox_backend, sandbox_work_dir, user_id=context.user_id or "default"
     )
 
-    def _build_subagent_middleware(subagent_type: str) -> list:
+    def _build_subagent_middleware(subagent_type: str, tool_context=None) -> list:
+        tool_context = tool_context or context
         mw = [
             *create_retry_middleware(fallback_model=fallback_model_value),
             create_todo_middleware(),
@@ -278,10 +294,10 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         append_memory_recall_middleware(
             mw, settings.ENABLE_MEMORY, context.user_id, session_id, active_goal
         )
-        if context.deferred_manager is not None:
+        if tool_context.deferred_manager is not None:
             from src.infra.agent.middleware import ToolSearchMiddleware
 
-            subagent_deferred_manager = context.deferred_manager.fork_for_scope(
+            subagent_deferred_manager = tool_context.deferred_manager.fork_for_scope(
                 f"subagent:{subagent_type}"
             )
             mw.append(
@@ -429,17 +445,75 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             agent_options, sandbox_active=sandbox_backend is not None
         )
     )
+    evidence_clock = EvidenceClock()
     rubric_middleware = create_goal_rubric_middleware(
         model=llm,
+        presenter=presenter,
+        backend=backend,
+        session_id=str(state.get("session_id") or ""),
         goal=active_goal,
         fallback_model=fallback_model_value,
         thinking=thinking_config,
+        evidence_clock=evidence_clock,
     )
     if rubric_middleware is not None:
         user_middleware.append(rubric_middleware)
 
+    user_middleware.append(
+        create_evidence_middleware(
+            backend=backend,
+            session_id=str(state.get("session_id") or ""),
+            presenter=presenter,
+            active_goal=active_goal,
+            clock=evidence_clock,
+        )
+    )
     user_middleware.append(MainAgentContextMiddleware(backend=backend))
     user_middleware.append(SubagentResultHandoffMiddleware(backend=backend))
+
+    runtime_subagent_specs = {spec["name"]: spec for spec in custom_subagents}
+
+    async def resolve_session_spec(role_type):
+        from src.agents.team_agent.member_config import resolve_team_member_model_config
+
+        await resolve_team_member_model_config(model_id, user_id=context.user_id)
+        spec = runtime_subagent_specs.get(role_type)
+        if spec is None:
+            raise ValueError("Unknown subagent type")
+        fresh_context = await refresh_subagent_context(context)
+        return {
+            **spec,
+            "tools": filter_computer_use_tools(
+                list(fresh_context.filter_tools()),
+                await resolve_computer_use_context(context.user_id or "", agent_options),
+            ),
+            "middleware": _build_subagent_middleware(role_type, fresh_context),
+        }
+
+    subagent_sessions, session_middleware = assemble_subagent_sessions(
+        session_id=str(state.get("session_id") or ""),
+        user_id=context.user_id or "",
+        specs=runtime_subagent_specs,
+        model=llm,
+        backend=backend,
+        tools=list(filtered_tools or []),
+        checkpointer=inner_checkpointer,
+        store=store,
+        system_prompt=system_prompt,
+        fallback_model=fallback_model_value,
+        thinking=thinking_config,
+        child_middleware=lambda: [
+            create_evidence_middleware(
+                backend=backend,
+                session_id=str(state.get("session_id") or ""),
+                presenter=presenter,
+                active_goal=active_goal,
+                clock=evidence_clock,
+            )
+        ],
+        resolve_spec=resolve_session_spec,
+    )
+    user_middleware.append(session_middleware)
 
     with summarization_fallback_patch(fallback_model_value, thinking_config):
         inner_graph = create_deep_agent(
@@ -456,20 +530,12 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     graph_compile_time = time.time() - graph_compile_start
     logger.debug(f"[Agent] Graph compile: {graph_compile_time * 1000:.3f}ms")
 
-    from src.infra.tool.computer_use_tool import resolve_computer_use_context
-
     inner_config: RunnableConfig = {
         "configurable": build_nested_graph_configurable(
             thread_id=state.get("session_id", str(uuid.uuid4())),
             checkpointer=inner_checkpointer,
             backend=backend,
-            computer_use_context=(
-                await resolve_computer_use_context(
-                    context.user_id or "", agent_options, configurable.get("hitl_resume")
-                )
-                if settings.ENABLE_COMPUTER_USE
-                else None
-            ),
+            computer_use_context=computer_use_context,
             context=context,  # 传递 context 以便工具访问 user_id
             disabled_skills=configurable.get("disabled_skills"),
             enabled_skills=configurable.get("enabled_skills"),
@@ -542,6 +608,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     interrupt_supported = interrupt_supported_for_checkpointer(inner_checkpointer)
     try:
         async with isolated_nested_graph_run():
+            from src.infra.agent.recovery_guard import guard_graph_recovery
+
+            await guard_graph_recovery(inner_graph, inner_config)
             token_supported = hitl_interrupt_supported.set(interrupt_supported)
             try:
                 async for event in inner_graph.astream_events(  # type: ignore[call-overload]
@@ -553,6 +622,10 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             finally:
                 hitl_interrupt_supported.reset(token_supported)
     finally:
+        current_task = asyncio.current_task()
+        await subagent_sessions.close(
+            preserve_approvals=current_task is None or not current_task.cancelling()
+        )
         await event_processor.flush()
         await emit_token_usage(
             event_processor,
@@ -716,7 +789,9 @@ async def _create_backend_and_prompt(
         # 本地 daemon 常驻用户机器：无云端沙箱需要懒初始化/释放，
         # 因此不走 LazySandboxBackend，也不注册 context.run_sandbox。
         return (
-            create_sandbox_backend(local_backend, assistant_id, user_id=user_id),
+            create_sandbox_backend(
+                local_backend, assistant_id, user_id=user_id, session_id=session_id
+            ),
             SANDBOX_SYSTEM_PROMPT,
             store,
             local_backend,
@@ -733,7 +808,9 @@ async def _create_backend_and_prompt(
     logger.info(f"Sandbox enabled, using lazy sandbox backend for assistant: {assistant_id}")
 
     return (
-        create_sandbox_backend(sandbox_backend, assistant_id, user_id=user_id),
+        create_sandbox_backend(
+            sandbox_backend, assistant_id, user_id=user_id, session_id=session_id
+        ),
         SANDBOX_SYSTEM_PROMPT,
         store,
         sandbox_backend,

@@ -425,6 +425,7 @@ def test_chat_stream_wires_steer_purge() -> None:
 
     from src.api.routes import chat as chat_module
 
-    source = inspect.getsource(chat_module.chat_stream)
+    source = inspect.getsource(chat_module._submit_chat)
+    assert "_submit_chat" in inspect.getsource(chat_module.chat_stream)
     assert "purge_stale_steers(" in source
     assert "_generate_run_id()" in source

@@ -31,6 +31,7 @@ import { useSessionImageGallery } from "./sessionImageGallery";
 import { ImageWithSkeleton } from "./ImageWithSkeleton";
 import { normalizeMarkdownCodeFences } from "./markdownCodeFences";
 import { CopyButton } from "../../common/CopyButton";
+import { Button } from "../../common/ui/Button";
 
 type MarkdownContextValue = {
   isStreaming?: boolean;
@@ -310,15 +311,17 @@ function TableBlock({ children }: { children: React.ReactNode }) {
             showLabel
             className="ai-data-table__action !gap-1 !px-1.5 !text-11 sm:!text-12"
           />
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={handleExport}
-            className="ai-data-table__action flex items-center gap-1 rounded px-1.5 py-0.5 text-11 sm:text-12 font-medium text-stone-500 dark:text-stone-400 transition-colors"
+            className="ai-data-table__action !gap-1 !px-1.5 !text-11 sm:!text-12"
             aria-label={t("chat.message.exportCsv", "Export CSV")}
             title={t("chat.message.exportCsv", "Export CSV")}
+            leftIcon={<Download size={12} aria-hidden="true" />}
           >
-            <Download size={12} />
             {t("chat.message.exportCsv", "CSV")}
-          </button>
+          </Button>
         </div>
       </div>
       {/* Scrollable table area */}

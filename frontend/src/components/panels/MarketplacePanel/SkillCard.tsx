@@ -1,9 +1,9 @@
+import { LoadingSpinner } from "../../common/LoadingSpinner";
 import {
   Download,
   FileText,
   Eye,
   RefreshCcw,
-  Loader2 as Loader2Icon,
   Pencil,
   MoreHorizontal,
   Sparkles,
@@ -155,13 +155,14 @@ export function SkillCard({
                   disabled
                   className="scb__action-btn scb__action-btn--loading"
                 >
-                  <Loader2Icon size={16} className="animate-spin" />
+                  <LoadingSpinner color="text-current" size={16} />
                 </button>
               ) : userSkillsLoading ? (
                 <span className="inline-flex items-center justify-center w-8 h-8">
-                  <Loader2Icon
+                  <LoadingSpinner
+                    color="text-current"
                     size={16}
-                    className="animate-spin text-[var(--theme-text-secondary)]"
+                    className="text-[var(--theme-text-secondary)]"
                   />
                 </span>
               ) : (

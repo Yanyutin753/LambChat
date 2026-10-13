@@ -2,7 +2,7 @@
 // 沙箱选择器集成（统一面板 round）：
 // 1. 同一时刻只允许一个选项模态打开（thinking / sandbox 互斥，FeaturePanel 各有独立 key）
 // 2. RunModePopover 设置组提供"沙箱"条目（档位+设备 badge + daemon 在线状态点），点击打开 sandbox 面板
-// 3. sandbox 面板为统一面板：档位（云端/本地）+ 执行设备同弹窗；点设备自动切本地档
+// 3. sandbox 面板在本地档显示在线执行设备；云端档不显示电脑控制目标
 // 4. 当前设备在设备行上标识（壳内 read_machine_id 比对命中）
 // 5. 工具栏左侧提供"沙箱"chip（档位图标 + 设备标签 + 本地档状态点），单击直达 sandbox 面板
 import {
@@ -276,21 +276,20 @@ test("sandbox panel lists machines in the same modal on the local tier", async (
   expect(screen.queryByText(THINKING_DESCRIPTION)).not.toBeInTheDocument();
 });
 
-test("cloud sandbox machine selection preserves cloud code execution", async () => {
+test("cloud sandbox hides computer control targets even when machines are online", async () => {
   mocks.listMachines.mockResolvedValue({
     machines: MACHINES,
     default_machine_id: null,
   });
   const onToggleAgentOption = vi.fn();
-  renderSelectors("sandbox", { sandbox: "cloud" }, onToggleAgentOption);
+  renderSelectors("sandbox", { sandbox: "cloud", sandbox_machine_id: "mac1" }, onToggleAgentOption);
 
-  // 云端档也展示设备：点设备 = 一键切本地 + 指定执行目标
-  fireEvent.click(await screen.findByText("MacBook"));
+  await screen.findByText(SANDBOX_DESCRIPTION);
+  await waitFor(() => expect(mocks.listMachines).toHaveBeenCalled());
+  expect(screen.queryByText("MacBook")).not.toBeInTheDocument();
+  expect(screen.queryByText("Auto (default)")).not.toBeInTheDocument();
   expect(onToggleAgentOption).not.toHaveBeenCalledWith("sandbox", "local");
-  expect(onToggleAgentOption).toHaveBeenCalledWith(
-    "sandbox_machine_id",
-    "mac1",
-  );
+  expect(onToggleAgentOption).not.toHaveBeenCalledWith("sandbox_machine_id", "mac1");
 });
 
 test("sandbox panel hides the machine section when no machine is online", async () => {
@@ -484,6 +483,12 @@ test("sandbox chip shows a green dot on the local tier when the daemon is online
     // jsdom 会把 #22c55e 规范化为 rgb(34, 197, 94)
     expect(dot.style.background).toMatch(/#22c55e|rgb\(34, 197, 94\)/);
   });
+  expect(dot.parentElement?.querySelector("svg.lucide-monitor")).not.toBeNull();
+  expect(dot.classList.contains("absolute")).toBe(true);
+  expect(dot.classList.contains("-top-0.5")).toBe(true);
+  expect(dot.classList.contains("-right-0.5")).toBe(true);
+  expect(dot.classList.contains("ring-2")).toBe(true);
+  expect(dot.parentElement?.classList.contains("overflow-visible")).toBe(true);
 });
 
 test("sandbox chip shows a gray dot on the local tier when the daemon is offline", async () => {

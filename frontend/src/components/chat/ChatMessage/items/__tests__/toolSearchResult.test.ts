@@ -84,3 +84,13 @@ describe("parseToolSearchResult", () => {
     expect(summary?.matches).toEqual([]);
   });
 });
+
+
+test("unavailable servers never become callable matches and mixed results retain their reason", () => {
+  const availability = "MCP connection availability:\n\n- offline: unavailable\nRepeated discovery does not reconnect.";
+  expect(parseToolSearchResult(availability)).toBeNull();
+  const summary = parseToolSearchResult(realisticResult + "\n\n" + availability);
+  expect(summary?.total).toBe(3);
+  expect(summary?.matches).toHaveLength(3);
+  expect(summary?.availability).toBe(availability);
+});

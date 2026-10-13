@@ -91,3 +91,24 @@ test("failed messages remain visible and editable", () => {
     screen.getByRole("button", { name: "chat.message.queueEdit" }),
   ).toBeEnabled();
 });
+
+test("queue actions keep equal spacing and fixed icon targets on narrow screens", () => {
+  render(
+    <ChatInputSteerQueue
+      items={[item]}
+      onGuide={vi.fn()}
+      onCancel={vi.fn()}
+      onEdit={vi.fn()}
+    />,
+  );
+  const guide = screen.getByRole("button", { name: "chat.queueGuide" });
+  const remove = screen.getByRole("button", { name: "chat.queueDelete" });
+  const edit = screen.getByRole("button", { name: "chat.message.queueEdit" });
+  expect(guide.parentElement).toHaveClass("flex", "gap-1", "shrink-0");
+  for (const action of [guide, remove, edit]) {
+    expect(action).toHaveClass("h-9");
+    expect(action.parentElement).toBe(guide.parentElement);
+  }
+  expect(remove).toHaveClass("w-9");
+  expect(edit).toHaveClass("w-9");
+});

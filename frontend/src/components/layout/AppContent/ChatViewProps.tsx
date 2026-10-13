@@ -1,3 +1,4 @@
+import type { PersistentGoal } from "../../../services/api/session";
 import { useState, useEffect } from "react";
 import { teamApi } from "../../../services/api/team";
 import { subscribeTeamsChanged } from "../../../hooks/teamEvents";
@@ -211,6 +212,7 @@ export interface ChatViewProps {
     submissionCallbacks?: ChatSubmissionCallbacks,
   ) => void;
   onStopGeneration: () => void;
+  onContinueInBackground?: () => void;
   onSupplementFollowUpMessage?: (
     content: string,
     attachments?: MessageAttachment[],
@@ -221,6 +223,9 @@ export interface ChatViewProps {
   ) => void;
   steerMessages?: import("../../../utils/mergeSteers").SteerItem[];
   onCancelSteer?: (content: string, messageId?: string) => void;
+  persistentGoal?: PersistentGoal | null;
+  persistentGoalBusy?: boolean;
+  onControlPersistentGoal?: (action: "pause" | "resume" | "clear") => void;
   activeGoal: ActiveGoalSpec | null;
   goalsByRunId: Record<string, ActiveGoalSpec>;
   onClearActiveGoal: () => void;

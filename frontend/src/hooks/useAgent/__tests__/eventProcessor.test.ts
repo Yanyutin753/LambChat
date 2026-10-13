@@ -448,6 +448,88 @@ test("agent call preserves team role avatar url", () => {
   expect(subagent.agent_avatar).toBe("https://cdn.example.com/designer.png");
 });
 
+test.each([0, 1, 2])(
+  "replayed agent call preserves the pending execution at depth %s",
+  (depth) => {
+    const pending: MessagePart = {
+      type: "subagent",
+      agent_id: "stable-agent",
+      agent_name: "Researcher",
+      input: "original task",
+      depth,
+      isPending: true,
+      status: "running",
+      parts: [{ type: "text", content: "before approval" }],
+    };
+    const parts: MessagePart[] =
+      depth === 2
+        ? [
+            {
+              type: "subagent",
+              agent_id: "parent",
+              agent_name: "Parent",
+              input: "parent",
+              depth: 1,
+              isPending: true,
+              parts: [pending],
+            },
+          ]
+        : [pending];
+
+    const result = processMessageEvent(
+      "agent:call",
+      { agent_id: "stable-agent", agent_name: "Researcher", input: "resuming" },
+      parts,
+      "",
+      [],
+      depth,
+      [],
+      true,
+      "message-1",
+    );
+
+    expect(result.parts).toEqual(parts);
+  },
+);
+
+test("completed agent can start a new execution with the same stable id", () => {
+  const completed: MessagePart = {
+    type: "subagent",
+    agent_id: "stable-agent",
+    agent_name: "Researcher",
+    input: "original task",
+    depth: 1,
+    isPending: false,
+    status: "complete",
+    parts: [{ type: "text", content: "first result" }],
+  };
+
+  const result = processMessageEvent(
+    "agent:call",
+    {
+      agent_id: "stable-agent",
+      agent_name: "Researcher",
+      input: "follow-up task",
+    },
+    [completed],
+    "",
+    [],
+    1,
+    [],
+    true,
+    "message-1",
+  );
+
+  expect(result.parts).toHaveLength(2);
+  expect(result.parts[0]).toEqual(completed);
+  expect(result.parts[1]).toMatchObject({
+    agent_id: "stable-agent",
+    input: "follow-up task",
+    isPending: true,
+    parts: [],
+  });
+});
+
 test("adds recommended questions from recommendation events", () => {
   const result = processMessageEvent(
     "recommend:questions",

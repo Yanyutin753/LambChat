@@ -4,6 +4,7 @@ Team Agent 节点 - 团队路由，角色分派
 基于 fast_agent/nodes.py 扩展，增加团队解析和多角色子代理。
 """
 
+import asyncio
 import inspect
 import time
 import uuid
@@ -45,13 +46,16 @@ from src.agents.core.thinking import build_thinking_config
 from src.agents.core.todo_middleware import create_todo_middleware
 from src.agents.fast_agent.prompt import FAST_SYSTEM_PROMPT
 from src.agents.search_agent.prompt import (
-    DEFAULT_SYSTEM_PROMPT as SEARCH_DEFAULT_SYSTEM_PROMPT,
-)
-from src.agents.search_agent.prompt import (
     SANDBOX_SYSTEM_PROMPT as SEARCH_SANDBOX_SYSTEM_PROMPT,
 )
 from src.agents.team_agent import backend_setup
 from src.agents.team_agent.context import TeamAgentContext
+from src.agents.team_agent.member_config import (
+    _build_member_agent_mode_sections,
+    _safe_member_model_config_dict,
+    resolve_team_member_agent_id,
+    resolve_team_member_model_config,
+)
 from src.agents.team_agent.prompt import (
     SANDBOX_RUNTIME_SECTION as TEAM_SANDBOX_RUNTIME_SECTION,
 )
@@ -62,6 +66,7 @@ from src.agents.team_agent.prompt import (
     build_team_subagent_display_names,
     summarize_role_system_prompt,
 )
+from src.agents.team_agent.subagent_scope import create_team_subagent_resolver
 from src.infra.agent import AgentEventProcessor
 from src.infra.agent.middleware import (
     ArtifactDeliveryMiddleware,
@@ -80,6 +85,11 @@ from src.infra.agent.middleware import (
     image_url_middleware_for_mode,
     summarization_fallback_patch,
 )
+from src.infra.agent.middleware.evidence import EvidenceClock, create_evidence_middleware
+from src.infra.agent.middleware.persona_subagent import (
+    PersonaSubagentMiddleware,
+)
+from src.infra.agent.subagent_assembly import assemble_subagent_sessions, refresh_subagent_context
 from src.infra.goal import (
     build_goal_input,
     create_goal_rubric_middleware,
@@ -88,7 +98,7 @@ from src.infra.llm.client import LLMClient
 from src.infra.logging import get_logger
 from src.infra.storage.checkpoint import get_async_checkpointer
 from src.kernel.config import settings
-from src.kernel.schemas.model import ModelConfig, effective_image_url_mode
+from src.kernel.schemas.model import effective_image_url_mode
 
 logger = get_logger(__name__)
 
@@ -137,137 +147,6 @@ async def resolve_runtime_team(
             raise ValueError("team_not_found_or_unavailable") from e
 
     return None
-
-
-async def resolve_team_member_model_config(
-    member_model_id: str | None,
-    *,
-    user_id: str | None = None,
-) -> ModelConfig | None:
-    """Resolve and validate a team member model override for runtime use."""
-    if not member_model_id:
-        return None
-
-    from src.infra.agent.model_storage import get_model_storage
-
-    try:
-        model = await get_model_storage().get(member_model_id)
-    except Exception as e:
-        logger.warning("[TeamAgent] Failed to resolve member model %s: %s", member_model_id, e)
-        raise ValueError("team_member_model_unavailable") from e
-
-    if not model or not model.enabled:
-        raise ValueError("team_member_model_unavailable")
-
-    if user_id:
-        try:
-            from src.infra.agent.model_access import resolve_user_allowed_model_ids
-            from src.infra.user.storage import UserStorage
-            from src.kernel.schemas.user import TokenPayload
-
-            user = await UserStorage().get_by_id(user_id)
-            if not user:
-                raise ValueError("team_member_model_not_allowed")
-            allowed_model_ids = await resolve_user_allowed_model_ids(
-                TokenPayload(
-                    sub=user.id,
-                    username=user.username,
-                    roles=user.roles,
-                    permissions=user.permissions,
-                )
-            )
-            if allowed_model_ids is not None:
-                allowed = set(allowed_model_ids)
-                if model.id not in allowed and model.value not in allowed:
-                    raise ValueError("team_member_model_not_allowed")
-        except ValueError:
-            raise
-        except Exception as e:
-            logger.warning(
-                "[TeamAgent] Failed to validate member model access %s: %s",
-                member_model_id,
-                e,
-            )
-            raise ValueError("team_member_model_unavailable") from e
-    return model
-
-
-def _safe_member_model_config_dict(model: ModelConfig) -> dict[str, Any]:
-    return model.model_copy(update={"api_key": None}).model_dump(mode="json")
-
-
-async def resolve_team_member_agent_id(
-    member_agent_id: str | None,
-    *,
-    user_id: str | None = None,
-) -> str | None:
-    """Resolve and validate a team member agent mode override for runtime use."""
-    if not member_agent_id:
-        return None
-
-    if member_agent_id == "team":
-        raise ValueError("team_member_agent_unavailable")
-
-    from src.agents.core.base import AgentFactory
-
-    registered_agent_ids = {agent["id"] for agent in AgentFactory.list_agents()}
-    if member_agent_id not in registered_agent_ids:
-        raise ValueError("team_member_agent_unavailable")
-
-    role_ids: list[str] = []
-    role_agent_map: dict[str, list[str] | None] = {}
-    try:
-        if user_id:
-            from src.infra.agent.config_storage import get_agent_config_storage
-            from src.infra.role.manager import get_role_manager
-            from src.infra.user.storage import UserStorage
-
-            user = await UserStorage().get_by_id(user_id)
-            if not user:
-                raise ValueError("team_member_agent_not_allowed")
-
-            storage = get_agent_config_storage()
-            role_manager = get_role_manager()
-            for role_name in user.roles or []:
-                role = await role_manager.get_role_by_name(role_name)
-                if not role:
-                    continue
-                role_ids.append(role.id)
-                role_agent_map[role.id] = await storage.get_role_agents(role.id)
-
-        allowed_agents = await AgentFactory.get_filtered_agents(
-            user_roles=role_ids,
-            role_agent_map=role_agent_map,
-        )
-        allowed_agent_ids = {agent["id"] for agent in allowed_agents}
-        if member_agent_id not in allowed_agent_ids:
-            raise ValueError("team_member_agent_not_allowed")
-    except ValueError:
-        raise
-    except Exception as e:
-        logger.warning(
-            "[TeamAgent] Failed to validate member agent access %s: %s",
-            member_agent_id,
-            e,
-        )
-        raise ValueError("team_member_agent_unavailable") from e
-
-    return member_agent_id
-
-
-def _build_member_agent_mode_sections(
-    agent_id: str | None,
-    *,
-    sandbox_active: bool,
-) -> list[str]:
-    """Return mode-specific prompt sections for a team member subagent."""
-    if not agent_id:
-        return []
-    if agent_id == "fast":
-        return [FAST_SYSTEM_PROMPT]
-    if agent_id == "search":
-        return [SEARCH_SANDBOX_SYSTEM_PROMPT if sandbox_active else SEARCH_DEFAULT_SYSTEM_PROMPT]
-    return []
 
 
 async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str, Any]:
@@ -366,7 +245,19 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     runtime_env_keys = tuple(
         getattr(getattr(sandbox_backend, "default", sandbox_backend), "_run_env_overrides", {})
     )
-    filtered_tool_list = prepared.tools
+    from src.infra.tool.computer_use_tool import (
+        filter_computer_use_tools,
+        resolve_computer_use_context,
+    )
+
+    computer_use_context = (
+        await resolve_computer_use_context(
+            context.user_id or "", agent_options, configurable.get("hitl_resume")
+        )
+        if settings.ENABLE_COMPUTER_USE
+        else None
+    )
+    filtered_tool_list = filter_computer_use_tools(prepared.tools, computer_use_context)
     inner_checkpointer = prepared.checkpointer
 
     memory_guide = get_memory_guide() if settings.ENABLE_MEMORY else ""
@@ -460,6 +351,8 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         fallback_model: str | None = fallback_model_value,
         member_image_url_mode: str = image_url_mode,
         member_supports_vision: bool = supports_vision,
+        deferred_manager: Any = None,
+        tool_context: Any = None,
     ) -> list:
         """Build the middleware stack for a single subagent."""
         mw = [
@@ -491,12 +384,15 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         append_memory_recall_middleware(
             mw, settings.ENABLE_MEMORY, context.user_id, session_id, active_goal
         )
-        if context.deferred_manager is not None:
+        manager = (
+            deferred_manager
+            if deferred_manager is not None
+            else (tool_context or context).deferred_manager
+        )
+        if manager is not None:
             from src.infra.agent.middleware import ToolSearchMiddleware
 
-            subagent_deferred_manager = context.deferred_manager.fork_for_scope(
-                f"subagent:{subagent_type}"
-            )
+            subagent_deferred_manager = manager.fork_for_scope(f"subagent:{subagent_type}")
             mw.append(
                 ToolSearchMiddleware(
                     deferred_manager=subagent_deferred_manager,
@@ -507,8 +403,8 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         return mw
 
     custom_subagents: list[SubAgent | CompiledSubAgent] = []
-    subagent_display_names: dict[str, str] = {}
-    subagent_avatars: dict[str, str] = {}
+    subagent_display_names: dict[str, str] = {"general-purpose": "general-purpose"}
+    subagent_avatars: dict[str, str] = {"general-purpose": ""}
     subagent_runtime_section = (
         TEAM_SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir)
         if sandbox_backend and sandbox_work_dir
@@ -774,11 +670,16 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                 user_id=context.user_id,
             )
         )
+    evidence_clock = EvidenceClock()
     rubric_middleware = create_goal_rubric_middleware(
         model=llm,
+        presenter=presenter,
+        backend=backend,
+        session_id=str(state.get("session_id") or ""),
         goal=active_goal,
         fallback_model=fallback_model_value,
         thinking=thinking_config,
+        evidence_clock=evidence_clock,
     )
     user_middleware.extend(
         create_code_interpreter_middleware(
@@ -788,8 +689,103 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     if rubric_middleware is not None:
         user_middleware.append(rubric_middleware)
 
+    user_middleware.append(
+        create_evidence_middleware(
+            backend=backend,
+            session_id=str(state.get("session_id") or ""),
+            presenter=presenter,
+            active_goal=active_goal,
+            clock=evidence_clock,
+        )
+    )
     user_middleware.append(MainAgentContextMiddleware(backend=backend))
     user_middleware.append(SubagentResultHandoffMiddleware(backend=backend))
+
+    runtime_subagent_specs = {spec["name"]: spec for spec in custom_subagents}
+    runtime_subagent_specs.setdefault(
+        "general-purpose",
+        {
+            "name": "general-purpose",
+            "description": "General-purpose fallback agent",
+            "system_prompt": SUBAGENT_PROMPT,
+            "middleware": _build_subagent_middleware(
+                prompt_sections=[s for s in (*persona_sections, memory_guide) if s]
+            ),
+        },
+    )
+
+    resolve_session_spec = create_team_subagent_resolver(
+        context=context,
+        runtime_subagent_specs=runtime_subagent_specs,
+        model_id=model_id,
+        llm=llm,
+        thinking_config=thinking_config,
+        team=team,
+        team_id=configurable.get("team_id"),
+        user_input=user_input,
+        session_id=session_id,
+        agent_options=agent_options,
+        persona_sections=persona_sections,
+        memory_guide=memory_guide,
+        sandbox_active=bool(sandbox_backend),
+        image_url_mode=image_url_mode,
+        supports_vision=supports_vision,
+        subagent_display_names=subagent_display_names,
+        subagent_avatars=subagent_avatars,
+        build_subagent_middleware=_build_subagent_middleware,
+        refresh_context=lambda current: refresh_subagent_context(current),
+        resolve_team=lambda **kwargs: resolve_runtime_team(**kwargs),
+        resolve_member_model=lambda *args, **kwargs: resolve_team_member_model_config(
+            *args, **kwargs
+        ),
+        resolve_member_agent=lambda *args, **kwargs: resolve_team_member_agent_id(*args, **kwargs),
+        get_model=lambda **kwargs: LLMClient.get_model(**kwargs),
+    )
+
+    subagent_sessions, session_middleware = assemble_subagent_sessions(
+        session_id=str(state.get("session_id") or ""),
+        user_id=context.user_id or "",
+        specs=runtime_subagent_specs,
+        model=llm,
+        backend=backend,
+        tools=filtered_tool_list,
+        checkpointer=inner_checkpointer,
+        store=store,
+        system_prompt=system_prompt,
+        fallback_model=fallback_model_value,
+        thinking=thinking_config,
+        child_middleware=lambda: [
+            create_evidence_middleware(
+                backend=backend,
+                session_id=str(state.get("session_id") or ""),
+                presenter=presenter,
+                active_goal=active_goal,
+                clock=evidence_clock,
+            )
+        ],
+        resolve_spec=resolve_session_spec,
+    )
+
+    if not team:
+        role_search = next(
+            (tool for tool in filtered_tool_list if tool.name == "search_persona_presets"),
+            None,
+        )
+        if role_search is None and context.deferred_manager is not None:
+            role_search = context.deferred_manager.get_tool("search_persona_presets")
+        if role_search is not None:
+            if role_search not in filtered_tool_list:
+                filtered_tool_list.append(role_search)
+            filtered_tools = filtered_tool_list
+
+            async def build_persona_task_tool(preset_id: str):
+                return session_middleware.tools[0]
+
+            user_middleware.append(
+                PersonaSubagentMiddleware(build_task_tool=build_persona_task_tool)
+            )
+
+    user_middleware.append(session_middleware)
 
     with summarization_fallback_patch(fallback_model_value, thinking_config):
         inner_graph = create_deep_agent(
@@ -806,20 +802,12 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     graph_compile_time = time.time() - graph_compile_start
     logger.debug(f"[TeamAgent] Graph compile: {graph_compile_time * 1000:.3f}ms")
 
-    from src.infra.tool.computer_use_tool import resolve_computer_use_context
-
     inner_config: RunnableConfig = {
         "configurable": build_nested_graph_configurable(
             thread_id=state.get("session_id", str(uuid.uuid4())),
             checkpointer=inner_checkpointer,
             backend=backend,
-            computer_use_context=(
-                await resolve_computer_use_context(
-                    context.user_id or "", agent_options, configurable.get("hitl_resume")
-                )
-                if settings.ENABLE_COMPUTER_USE
-                else None
-            ),
+            computer_use_context=computer_use_context,
             context=context,
             disabled_skills=configurable.get("disabled_skills"),
             enabled_skills=runtime_enabled_skills,
@@ -886,6 +874,9 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     interrupt_supported = interrupt_supported_for_checkpointer(inner_checkpointer)
     try:
         async with isolated_nested_graph_run():
+            from src.infra.agent.recovery_guard import guard_graph_recovery
+
+            await guard_graph_recovery(inner_graph, inner_config)
             token_supported = hitl_interrupt_supported.set(interrupt_supported)
             try:
                 async for event in inner_graph.astream_events(  # type: ignore[call-overload]
@@ -897,6 +888,10 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             finally:
                 hitl_interrupt_supported.reset(token_supported)
     finally:
+        current_task = asyncio.current_task()
+        await subagent_sessions.close(
+            preserve_approvals=current_task is None or not current_task.cancelling()
+        )
         await event_processor.flush()
         await emit_token_usage(
             event_processor,

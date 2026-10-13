@@ -26,6 +26,10 @@ vi.mock("react-i18next", () => ({
     i18n: { language: "zh", changeLanguage: appearance.language },
   }),
 }));
+vi.mock("../../../../hooks/useFxRates", () => ({ useFxRates: () => null }));
+vi.mock("../../../../hooks/useTodayUsageCost", () => ({
+  useTodayUsageCost: () => ({ stats: null }),
+}));
 vi.mock("../../../common/SceneIllustration", () => ({
   SceneIllustration: () => null,
 }));
@@ -77,8 +81,6 @@ function renderHeader() {
       <Header
         activeTab="files"
         setMobileSidebarOpen={vi.fn()}
-        currentProjectId={null}
-        projectManager={{ projects: [] }}
         onNewSession={vi.fn()}
         onShowProfile={vi.fn()}
       />

@@ -92,7 +92,7 @@ function VideoAnalyzeDetail({ args, result }: ToolDetailProps) {
   return (
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
       {prompt && (
-        <ToolArgsBlock size="detail" wrap>
+        <ToolArgsBlock size="detail" copyText={prompt} wrap>
           <MessageSquareText
             size={14}
             className="shrink-0 text-amber-500 dark:text-amber-400"
@@ -202,7 +202,7 @@ const VideoAnalyzeItem = memo(function VideoAnalyzeItem({
   // 进行中：标签学「思考中」，平滑流出正在生成的参数尾部
   const { label, isStreamingLabel } = useToolStreamingLabel(
     `${t("chat.message.toolVideoAnalyze")} ${
-      prompt ? truncate(prompt, 56) : truncate(videoSummary, 56)
+      prompt || videoSummary
     }`,
     args,
     { isPending, result },
@@ -236,7 +236,7 @@ const VideoAnalyzeItem = memo(function VideoAnalyzeItem({
       {canExpand && (
         <ToolInlineDetails>
           {prompt && (
-            <ToolArgsBlock size="compact" wrap>
+            <ToolArgsBlock size="compact" copyText={prompt} wrap>
               <MessageSquareText
                 size={12}
                 className="shrink-0 text-amber-500 dark:text-amber-400"

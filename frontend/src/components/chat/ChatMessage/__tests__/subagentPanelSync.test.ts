@@ -4,6 +4,46 @@ import type { Message } from "../../../../types";
 import { syncSubagentPanelStore } from "../subagentPanelState";
 import { subagentPanelStore } from "../subagentPanelStore";
 
+test("continuations retain both runs and follow-up messages in one conversation", () => {
+  const first = {
+    ...runningSubagent,
+    isPending: false,
+    status: "complete" as const,
+    result: "First report",
+    success: true,
+  };
+  const followup = {
+    type: "tool" as const,
+    id: "send-1",
+    name: "send_subagent_message",
+    args: { subagent_id: "researcher", message: "Only permissions" },
+    success: true,
+  };
+  const resumed = {
+    ...runningSubagent,
+    input: "Only permissions",
+    startedAt: 1_750_000_010_000,
+  };
+  const messages = [
+    assistantMessage([first, followup]),
+    { ...assistantMessage([resumed]), id: "assistant-2" },
+  ];
+  syncSubagentPanelStore(messages);
+  expect(subagentPanelStore.get("researcher")).toMatchObject({
+    status: "running",
+    history: [first, followup, resumed],
+  });
+  let notifications = 0;
+  const unsubscribe = subagentPanelStore.subscribe(
+    "researcher",
+    () => notifications++,
+  );
+  syncSubagentPanelStore(messages);
+  expect(notifications).toBe(0);
+  unsubscribe();
+  subagentPanelStore.clear();
+});
+
 function assistantMessage(parts: Message["parts"]): Message {
   return {
     id: "assistant-1",

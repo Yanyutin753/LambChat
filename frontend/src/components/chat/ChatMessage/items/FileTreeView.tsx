@@ -1,5 +1,6 @@
+import { LoadingSpinner } from "../../../common/LoadingSpinner";
 import { useCallback, useMemo, useState } from "react";
-import { Download, ChevronRight, Loader2 } from "lucide-react";
+import { Download, ChevronRight } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from "react-i18next";
 import { getFileTypeInfo, isImageFile } from "../../../documents/utils";
@@ -68,7 +69,7 @@ function sortTree(node: TreeNode) {
   }
 }
 
-const FILE_ICON_SIZE = 36;
+const FILE_ICON_SIZE = 20;
 
 function FolderIcon({
   size = 36,
@@ -105,7 +106,11 @@ function getFileIcon(name: string) {
   const info = getFileTypeInfo(name);
   const Icon = info.icon;
   return (
-    <Icon size={FILE_ICON_SIZE} className={clsx("shrink-0", info.color)} />
+    <Icon
+      size={FILE_ICON_SIZE}
+      style={{ width: FILE_ICON_SIZE, height: FILE_ICON_SIZE }}
+      className={clsx("shrink-0", info.color)}
+    />
   );
 }
 
@@ -199,7 +204,12 @@ function FileTreeNode({
               aria-label={node.name}
               className="flex min-w-0 min-h-[44px] flex-1 items-center gap-3 text-left rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
             >
-              <FolderIcon size={36} className="shrink-0" />
+              <span
+                className="flex size-9 shrink-0 items-center justify-center"
+                aria-hidden="true"
+              >
+                <FolderIcon size={20} />
+              </span>
               <div className="flex-1 min-w-0 text-left">
                 <div className="text-14 font-medium text-theme-text truncate">
                   {node.name}
@@ -235,7 +245,7 @@ function FileTreeNode({
                 className="disabled:opacity-50 opacity-100 sm:[@media(hover:hover)_and_(pointer:fine)]:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
                 icon={
                   isDownloading ? (
-                    <Loader2 size={18} className="animate-spin" />
+                    <LoadingSpinner color="text-current" size={18} />
                   ) : (
                     <Download size={18} />
                   )
@@ -245,7 +255,9 @@ function FileTreeNode({
           )}
           <ToolbarIconButton
             variant="muted"
-            aria-label={`${t(expanded ? "common.collapse" : "common.expand")}: ${node.name}`}
+            aria-label={`${t(
+              expanded ? "common.collapse" : "common.expand",
+            )}: ${node.name}`}
             aria-expanded={expanded}
             onClick={() => toggleDir(node.path, !expanded)}
             icon={
@@ -303,17 +315,22 @@ function FileTreeNode({
           onClick={() => onFileClick?.(node)}
           className="flex min-w-0 min-h-[44px] flex-1 items-center gap-3 text-left cursor-pointer rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
         >
-          {imageSrc ? (
-            <ImageWithSkeleton
-              src={imageSrc}
-              alt={node.name}
-              skipUrlResolve
-              inline
-              className="w-9 h-9 rounded-lg object-cover shrink-0 bg-theme-bg-subtle"
-            />
-          ) : (
-            getFileIcon(node.name)
-          )}
+          <span
+            className="flex size-9 shrink-0 items-center justify-center"
+            aria-hidden="true"
+          >
+            {imageSrc ? (
+              <ImageWithSkeleton
+                src={imageSrc}
+                alt={node.name}
+                skipUrlResolve
+                inline
+                className="w-9 h-9 rounded-lg object-cover shrink-0 bg-theme-bg-subtle"
+              />
+            ) : (
+              getFileIcon(node.name)
+            )}
+          </span>
           <div className="flex-1 min-w-0 text-left">
             <div className="text-14 text-theme-text-secondary line-clamp-2 break-all text-balance">
               {node.name}

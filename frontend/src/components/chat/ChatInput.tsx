@@ -1,13 +1,5 @@
-import {
-  useState,
-  useRef,
-  useEffect,
-  useCallback,
-  useMemo,
-  memo,
-  lazy,
-  Suspense,
-} from "react";
+import { parseFrontendGoalCommand } from "../../hooks/useAgent/goalCommands";
+import { useState, useRef, useEffect, useCallback, useMemo, memo, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import { Maximize2, Minimize2 } from "lucide-react";
@@ -26,6 +18,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { MentionPopup } from "./MentionPopup";
 import { TeamMentionPopup } from "./TeamMentionPopup";
 import { ActiveGoalBar } from "./ActiveGoalBar";
+import { getGoalControlScope } from "../../hooks/useAgent/goalControlScope";
 import { ChatInputToolbar } from "./ChatInputToolbar";
 import { SessionWorkspaceBar } from "./SessionWorkspaceBar";
 import { ChatInputSelectors } from "./ChatInputSelectors";
@@ -34,7 +27,7 @@ import { ChatInputAttachments } from "./ChatInputAttachments";
 import { ChatInputDragOverlay } from "./ChatInputDragOverlay";
 import { resolveThinkingPresentation } from "./chatInputThinking";
 import * as runModeOptions from "./chatInputRunModes";
-const { buildRunModesOptions, collectActiveRunModes } = runModeOptions;
+const { collectActiveRunModes } = runModeOptions;
 import { FILE_CATEGORY_PERMISSIONS } from "./chatInputConstants";
 import { getMentionPopupFixedPlacement } from "./chatInputViewport";
 import { useExpandedComposerHost } from "./chatInputExpandedHost";
@@ -80,7 +73,7 @@ const RichChatComposer = lazy(async () => {
 export type { ChatInputProps } from "./chatInputTypes";
 export const ChatInput = memo(function ChatInput({
   onSend,
-  onStop,
+  onStop, onContinueInBackground,
   onSupplement,
   onQueueFollowUp,
   steerMessages = [],
@@ -144,6 +137,9 @@ export const ChatInput = memo(function ChatInput({
   onPendingInputConsumed,
   className,
   activeGoal,
+  persistentGoal,
+  persistentGoalBusy = false,
+  onControlPersistentGoal,
   onClearActiveGoal,
   goalLabel,
   goalDurationLabel,
@@ -526,6 +522,8 @@ export const ChatInput = memo(function ChatInput({
     removeQueued: onCancelSteer,
     focusComposer: focusComposerAtEnd,
   });
+  const goalCommand = parseFrontendGoalCommand(input);
+  const isPersistentGoalCommand = goalCommand?.action === "persist" || goalCommand?.action === "pause" || goalCommand?.action === "resume" || (goalCommand?.action === "clear" && getGoalControlScope(activeGoal, persistentGoal) === "persistent");
   const handleComposerKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       if (event.nativeEvent.isComposing || event.keyCode === 229) return;
@@ -551,7 +549,7 @@ export const ChatInput = memo(function ChatInput({
         handleEnterSubmit(
           event,
           {
-            isLoading,
+            isLoading: isLoading && !isPersistentGoalCommand,
             sendBlocked,
             input,
             visibleAttachments,
@@ -578,6 +576,7 @@ export const ChatInput = memo(function ChatInput({
       hasInvalidAttachment,
       input,
       isLoading,
+      isPersistentGoalCommand,
       mention.highlightedIndex,
       mention.isActive,
       mentionMode,
@@ -631,7 +630,7 @@ export const ChatInput = memo(function ChatInput({
     !disabled &&
     canSend &&
     !sendBlocked &&
-    !isLoading &&
+    (!isLoading || isPersistentGoalCommand) &&
     !hasUploadingAttachment &&
     !hasFailedAttachment &&
     !hasInvalidAttachment;
@@ -733,11 +732,16 @@ export const ChatInput = memo(function ChatInput({
                 {isDraggingOver && <ChatInputDragOverlay />}
                 <ActiveGoalBar
                   goal={activeGoal ?? null}
+                  persistentGoal={persistentGoal}
+                  onPause={onControlPersistentGoal ? () => onControlPersistentGoal("pause") : undefined}
+                  onResume={onControlPersistentGoal ? () => onControlPersistentGoal("resume") : undefined}
                   label={goalLabel}
                   durationLabel={goalDurationLabel}
                   clearLabel={goalClearLabel}
                   onClear={onClearActiveGoal}
+                  onClearPersistentGoal={onControlPersistentGoal ? () => onControlPersistentGoal("clear") : undefined}
                   disabled={isLoading || !canSend}
+                  persistentDisabled={persistentGoalBusy || !canSend}
                   embedded
                 />
                 {mention.isActive &&
@@ -849,12 +853,6 @@ export const ChatInput = memo(function ChatInput({
                           onCreate: handleLongTextCreate,
                         }}
                         onRetryFileReference={handleRetryFileReference}
-                        runModes={buildRunModesOptions(
-                          autoModeEnabled,
-                          goalModeEnabled,
-                          onToggleAutoMode,
-                          onToggleGoalMode,
-                        )}
                         onKeyDown={handleComposerKeyDown}
                         onArrowKey={handleComposerArrowKey}
                         disabled={disabled || !canSend}
@@ -919,10 +917,11 @@ export const ChatInput = memo(function ChatInput({
                   agentOptions={agentOptions}
                   agentOptionValues={agentOptionValues}
                   onToggleAgentOption={onToggleAgentOption}
-                  onStopClick={() => setStopConfirmOpen(true)}
+                  onStopClick={() => setStopConfirmOpen(true)} onContinueInBackground={onContinueInBackground}
                   onNoPermissionClick={() => setContactAdminOpen(true)}
                   autoModeEnabled={autoModeEnabled}
                   goalModeEnabled={goalModeEnabled}
+                  persistentGoalStatus={persistentGoal?.status === "cleared" ? undefined : persistentGoal?.status}
                   onToggleAutoMode={onToggleAutoMode}
                   onToggleGoalMode={onToggleGoalMode}
                 />

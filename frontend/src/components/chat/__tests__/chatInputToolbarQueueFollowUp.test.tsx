@@ -53,6 +53,22 @@ const baseProps = {
   onNoPermissionClick: vi.fn(),
 };
 
+test("continuing in background invokes navigation without stopping the run", () => {
+  const onContinueInBackground = vi.fn();
+  const onStopClick = vi.fn();
+  const view = render(<ChatInputToolbar {...baseProps} hasDraft={false} onContinueInBackground={onContinueInBackground} onStopClick={onStopClick} />);
+  fireEvent.click(view.getByTestId("continue-in-background"));
+  expect(onContinueInBackground).toHaveBeenCalledTimes(1);
+  expect(onStopClick).not.toHaveBeenCalled();
+  fireEvent.click(view.getByRole("button", { name: /Stop|chat.stop/i }));
+  expect(onStopClick).toHaveBeenCalledTimes(1);
+});
+
+test("background continuation has no entry when idle or unavailable", () => {
+  const view = render(<ChatInputToolbar {...baseProps} isLoading={false} onContinueInBackground={vi.fn()} />);
+  expect(view.queryByTestId("continue-in-background")).toBeNull();
+});
+
 test("shows the queue follow-up trigger while running with a draft and fires it", () => {
   const onQueueFollowUp = vi.fn();
   const { getByTestId } = render(
@@ -105,4 +121,49 @@ test("hides the running send button while idle", () => {
   );
 
   expect(queryByTestId("queue-followup-trigger")).toBeNull();
+});
+
+
+test("active run modes sit beside the desktop model selector and stay hidden on phones", () => {
+  const onToggleAutoMode = vi.fn();
+  const onToggleGoalMode = vi.fn();
+  const { container } = render(
+    <ChatInputToolbar
+      {...baseProps}
+      autoModeEnabled
+      goalModeEnabled
+      onToggleAutoMode={onToggleAutoMode}
+      onToggleGoalMode={onToggleGoalMode}
+    />,
+  );
+  const modes = container.querySelector("[data-composer-run-modes]");
+  expect(modes).not.toBeNull();
+  const buttons = modes!.querySelectorAll("button");
+  expect(buttons).toHaveLength(2);
+  expect(modes!.querySelectorAll('span[aria-hidden="true"]')).toHaveLength(2);
+  expect(buttons[0].textContent).toContain("Auto");
+  expect(buttons[1].textContent).toContain("Goal");
+  expect(modes!.closest(".chat-input-toolbar")).not.toBeNull();
+  expect(modes!.className).toContain("hidden");
+  expect(modes!.className).toContain("sm:flex");
+  expect(container.querySelector("[data-run-mode-trigger] [data-run-mode-status-dot]")).not.toBeNull();
+  fireEvent.click(buttons[0]);
+  fireEvent.click(buttons[1]);
+  expect(onToggleAutoMode).toHaveBeenCalledWith(false);
+  expect(onToggleGoalMode).toHaveBeenCalledWith(false);
+});
+
+test("inactive run modes do not reserve an empty row", () => {
+  const { container } = render(<ChatInputToolbar {...baseProps} />);
+  expect(container.querySelector("[data-composer-run-modes]")).toBeNull();
+  expect(container.querySelector("[data-run-mode-status-dot]")).toBeNull();
+});
+
+
+test("one active desktop mode only shows the separator after the model", () => {
+  const { container } = render(
+    <ChatInputToolbar {...baseProps} goalModeEnabled />,
+  );
+  const modes = container.querySelector("[data-composer-run-modes]");
+  expect(modes!.querySelectorAll('span[aria-hidden="true"]')).toHaveLength(1);
 });

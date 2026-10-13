@@ -341,8 +341,8 @@ test("saved narrow sidebar widths are raised to the new minimum", () => {
       </MemoryRouter>,
     );
     const handle = screen.getByRole("separator");
-    expect(handle).toHaveAttribute("aria-valuemin", "290");
-    expect(handle).toHaveAttribute("aria-valuenow", "290");
+    expect(handle).toHaveAttribute("aria-valuemin", "260");
+    expect(handle).toHaveAttribute("aria-valuenow", "260");
   } finally {
     localStorage.removeItem("lambchat_desktop_sidebar_width");
   }

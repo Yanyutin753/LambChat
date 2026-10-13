@@ -114,6 +114,9 @@ class TaskStateMachine:
         }
         if run_id:
             metadata["current_run_id"] = run_id
+        if coerced in {TaskStatus.QUEUED, TaskStatus.PENDING, TaskStatus.STARTING}:
+            metadata["verification_required"] = False
+            metadata["verification_tool_calls"] = []
 
         if recoverable is not None:
             metadata["task_recoverable"] = recoverable

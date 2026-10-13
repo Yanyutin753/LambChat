@@ -7,6 +7,7 @@
  * user:message / user:cancel / approval_required which are history-specific.
  */
 
+import { getGoalProjectionIdentity } from "./goalControlScope";
 import type { Message, MessagePart, FormField } from "../../types";
 import { uuid } from "../../utils/uuid";
 import { authFetch } from "../../services/api/fetch";
@@ -298,11 +299,21 @@ function processHistoryEvent(
 
   // Manage subagent stack
   if (eventType === "agent:call") {
-    opts.activeSubagentStack.push({
-      agent_id: agentId || "unknown",
-      depth,
-      message_id: msg.id,
-    });
+    const messageId = msg.id;
+    if (
+      !opts.activeSubagentStack.some(
+        (item) =>
+          item.agent_id === (agentId || "unknown") &&
+          item.depth === depth &&
+          item.message_id === messageId,
+      )
+    ) {
+      opts.activeSubagentStack.push({
+        agent_id: agentId || "unknown",
+        depth,
+        message_id: messageId,
+      });
+    }
   }
 
   // Use unified event processor
@@ -814,6 +825,7 @@ export function extractGoalFromEvents(
     const next: ActiveGoalSpec = {
       objective: (goalData?.objective as string) ?? existing.objective ?? "",
       rubric: (goalData?.rubric as string) ?? existing.rubric,
+      ...getGoalProjectionIdentity(goalData, existing.runId === event.run_id ? existing : null),
       started_at: (data.started_at as string) ?? existing.started_at,
     };
     if (event.run_id) next.runId = event.run_id;
@@ -857,6 +869,7 @@ export function extractGoalsByRunFromEvents(
     const next: ActiveGoalSpec = {
       objective: (goalData?.objective as string) ?? existing.objective ?? "",
       rubric: (goalData?.rubric as string) ?? existing.rubric,
+      ...getGoalProjectionIdentity(goalData, existing.runId === event.run_id ? existing : null),
       runId: event.run_id,
       started_at: (data.started_at as string) ?? existing.started_at,
     };
@@ -955,4 +968,16 @@ export function createScheduledTaskApprovalLookup(
     setMessages((previous) =>
       resolveLegacyScheduledTaskApproval(previous, approval),
     );
+}
+
+/** Persistent goal snapshots are separate from the run-level goal lifecycle. */
+export function extractPersistentGoalFromEvents(events: HistoryEvent[], sessionId: string): import("../../services/api/session").PersistentGoal | null {
+  let current: import("../../services/api/session").PersistentGoal | null = null;
+  for (const event of events) {
+    if (event.event_type !== "goal:updated" || !event.data || typeof event.data !== "object") continue;
+    const goal = (event.data as { goal?: import("../../services/api/session").PersistentGoal | null }).goal;
+    if (goal === null) current = null;
+    else if (goal?.session_id === sessionId && (!current || goal.revision >= current.revision)) current = goal;
+  }
+  return current;
 }

@@ -62,6 +62,7 @@ src/
 │   ├── skill/         # 技能加载与市场（内置技能在这里，仓库已无 src/skills/）
 │   ├── storage/       # MongoDB、S3、checkpointer
 │   ├── task/          # arq 后台任务队列
+│   ├── goal.py        # 单轮 Goal 评分；persistent_goal.py / goal_runtime.py / goal_continuation.py 承载会话目标与续跑
 │   └── …              # session、user、role、upload、search、notification、memory、share 等
 └── kernel/            # 共享内核（不依赖 src/ 其他层）
     ├── config.py      # 全局配置定义
@@ -428,6 +429,25 @@ REDIS_URL=redis://localhost:6379/0
 LLM 模型通过 **Model Config UI** 配置，无需在环境变量中设置 API Key（除非需要独立的标题生成模型）。
 
 ## 验证指南
+
+### 先改完再验证（跨对话协作）
+
+**规矩：先完成当前请求的全部代码改动，以及调用方、测试、配置和相关 worktree 的同步，再运行 build、lint 等最终验证。禁止边改边反复构建、提前排队验证，或多个对话对同一批改动重复跑验证。TDD 的定向红绿测试仍按开发流程执行。**
+
+- 跨对话协作时，先把可独立完成的改动做完；不要为等待其他对话结束、等待构建锁或反复查询其他对话状态而长期挂起。
+- 验证名额被其他对话占用时，直接说明占用及尚未验证的项目并交付当前改动，留到该批改动全部完成后由一个对话统一串行验证；不得后台排队、循环重试或终止其他对话的任务。
+- 复用其他对话的验证结果时，必须确认覆盖相同代码状态和变更范围，并注明来源；验证后代码再有修改，相关结果不再视为最终验证。全部改动稳定后再补一次必要验证，不重复跑无关全量检查。
+
+### 本机验证必须串行（并发上限固定为 1）
+
+**规矩：同一台机器上，LambChat 的 build、E2E、test、lint、format、typecheck 等构建与验证任务合计最多运行一个，覆盖所有会话、Agent、终端及 worktree。不同类别也不得同时运行；前一个任务彻底退出后，才能启动下一个。**
+
+- 禁止通过后台 `&`、`Promise.all`、并行工具调用、多个终端或子 Agent 同时启动这些任务；已有任务运行时直接报告占用并退出，不跨对话排队等待，不重复启动，不擅自终止其他会话的任务。启动前检查运行中的构建/验证进程；检查进程只是协作约束，不能替代跨进程互斥锁。
+- 工具支持 worker/job 配置时固定为 `1`，禁止自动按 CPU 核数扩展：Make 使用 `make -j1 <目标>`（含 `check-all`）；Vitest 使用 `pnpm test --maxWorkers=1 --no-file-parallelism --maxConcurrency=1`（watch/coverage 同样追加这些参数）；pytest 不使用 xdist 的 `-n` 或分片并跑；Ruff 使用 `RAYON_NUM_THREADS=1`；Rust/Cargo 使用 `CARGO_BUILD_JOBS=1`。ESLint 不启用并发选项。
+- build、E2E、test、lint、typecheck 按顺序执行，发现失败先处理，再继续。watch 测试也占用这个唯一名额，退出后才能运行其他验证。
+- E2E 脚本一次只运行一个；脚本为验证并发行为而必需的并发用例及 `--stress` 覆盖仍须保留，不能为了串行调度删减测试。
+- 实际互斥入口为 `python3 scripts/run_validation.py <command> [args...]`，使用当前 OS 用户的 `~/.cache/lambchat/validation.lock`，所有 worktree 共用；占用时立即退出（退出码 75），不无限等待；任务退出后由 OS 释放锁，嵌套命令复用当前名额。Make/pnpm 验证入口、直接 pytest 和仓库沙箱 E2E 已接入。直接调用 Ruff、Mypy、Cargo、Vite 等底层命令时必须显式通过该入口，禁止绕过。
+- 这里约束任务调度及工具公开支持的 worker/job 数，不保证构建工具、原生库或被测服务内部只有一个 OS 线程；不能拦截绕过入口的底层命令，也不跨 OS 用户或机器互斥。
 
 根据变更范围选择最小验证方式：
 

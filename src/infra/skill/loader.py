@@ -4,6 +4,7 @@ Skills 加载模块
 从数据库加载用户技能文件，供 DeepAgent 使用。
 """
 
+import re
 from typing import Any, Dict, List, Optional, TypedDict
 
 from src.infra.logging import get_logger
@@ -96,19 +97,71 @@ async def load_skill_files(user_id: Optional[str]) -> SkillLoadResult:
     return result
 
 
-def format_skills_prompt(skills: list[dict]) -> str:
-    """Format a complete, deduplicated Skill inventory with progressive detail."""
-    if not skills:
-        return ""
+def normalize_skill_keywords(value: Any) -> tuple[str, ...]:
+    if isinstance(value, str):
+        return tuple(item.strip() for item in value.replace(";", ",").split(",") if item.strip())
+    if isinstance(value, (list, tuple, set)):
+        return tuple(sorted({str(item).strip() for item in value if str(item).strip()}))
+    return ()
 
+
+def skill_discovery_keywords(skill: dict) -> tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(
+            keyword
+            for field in ("category", "classification", "tags", "capabilities")
+            for keyword in normalize_skill_keywords(skill.get(field))
+        )
+    )
+
+
+def ordered_skill_metadata(skills: list[dict]) -> list[tuple[str, dict]]:
+    """The directory and search must use the same enabled, deduplicated inventory."""
     unique: dict[str, dict] = {}
     for skill in skills:
         name = str(skill.get("name") or "").strip()
-        if name and name not in unique:
+        if name and skill.get("enabled", True) and name not in unique:
             unique[name] = skill
-    ordered = [
-        (name, unique[name]) for name in sorted(unique, key=lambda item: (item.lower(), item))
-    ]
+    return [(name, unique[name]) for name in sorted(unique, key=lambda item: (item.lower(), item))]
+
+
+_SKILL_CAPABILITY_GROUPS = (
+    (
+        "data",
+        "SQL, databases, spreadsheets and analysis",
+        r"sql|databases?|spreadsheets?|analytics|数据|表格",
+    ),
+    ("documents", "Documents, PDFs and presentations", r"documents?|pdf|presentations?|文档|演示"),
+    (
+        "development",
+        "Code, repositories and software testing",
+        r"code|coding|git|software|编程|代码",
+    ),
+    ("media", "Images, video and audio", r"images?|videos?|audio|图片|视频|音频"),
+    ("research", "Search, research and web sources", r"research|search|web|搜索|研究"),
+    (
+        "communication",
+        "Mail, messaging and social content",
+        r"email|mail|social|messaging|邮件|社交",
+    ),
+    ("automation", "Tasks, schedules and automation", r"automation|schedule|workflow|自动化|定时"),
+)
+
+
+def _skill_group(skill: dict) -> tuple[str, str]:
+    classification = normalize_skill_keywords(skill.get("category") or skill.get("classification"))
+    if classification:
+        return classification[0], "Search this classification for available capabilities"
+    text = " ".join((*skill_discovery_keywords(skill), str(skill.get("description") or "")))
+    for name, description, keywords in _SKILL_CAPABILITY_GROUPS:
+        if re.search(rf"(?<![a-z])(?:{keywords})(?![a-z])", text, re.IGNORECASE):
+            return name, description
+    return "uncategorized", "Search by name or capability; all these Skills remain available"
+
+
+def format_skills_prompt(skills: list[dict]) -> str:
+    """Format enabled Skills, grouping large directories without hiding search candidates."""
+    ordered = ordered_skill_metadata(skills)
     if not ordered:
         return ""
 
@@ -118,7 +171,15 @@ def format_skills_prompt(skills: list[dict]) -> str:
             f"- {name}: {skill.get('description') or 'No description'}" for name, skill in ordered
         )
     else:
-        inventory = "\n".join(f"- {name}" for name, _skill in ordered)
+        groups: dict[tuple[str, str], int] = {}
+        for _name, skill in ordered:
+            group = _skill_group(skill)
+            groups[group] = groups.get(group, 0) + 1
+        inventory = "\n".join(
+            f"- {group} ({count} skills): {description}"
+            for (group, description), count in sorted(groups.items())
+        )
+        inventory += "\nAll available Skills remain searchable; groups are discovery hints."
 
     return f"""## Skills System
 

@@ -1,5 +1,10 @@
 .PHONY: help install install-pnpm install-all dev dev-all build build-all client-build-daemon client-fetch-pbs clean clean-all docker-up docker-down docker-logs docker-build docker-restart test lint format typecheck check-all pre-commit install-hooks frontend-dev frontend-build frontend-install frontend-test
 
+ifneq ($(filter check-all build-all test,$(MAKECMDGOALS)),)
+.NOTPARALLEL:
+endif
+VALIDATE = python3 scripts/run_validation.py
+
 # 默认目标
 help:
 	@echo "LambChat - Makefile 快捷命令"
@@ -78,7 +83,7 @@ dev-all:
 # 构建
 build:
 	@echo "🔨 构建后端..."
-	uv build
+	$(VALIDATE) uv build
 
 frontend-build:
 	@echo "🔨 构建前端..."
@@ -90,7 +95,7 @@ build-all: build frontend-build
 # 本地沙箱 daemon：PyInstaller onefile → frontend/src-tauri/binaries/lambchat-daemon-<triple>
 client-build-daemon:
 	@echo "🔨 打包本地沙箱 daemon（PyInstaller onefile → Tauri sidecar）..."
-	bash client/scripts/build-daemon.sh
+	$(VALIDATE) bash client/scripts/build-daemon.sh
 
 # 内嵌 Python 运行时：下载锁定的 python-build-standalone install_only 归档到
 # frontend/src-tauri/resources/python/<platform>/python.tar.gz（tag 锁定保可复现；
@@ -114,7 +119,7 @@ docker-logs:
 
 docker-build:
 	@echo "🔨 构建 Docker 镜像..."
-	docker-compose build
+	$(VALIDATE) docker-compose build
 
 docker-restart: docker-down docker-up
 	@echo "🔄 Docker 容器已重启"
@@ -127,23 +132,23 @@ install-hooks:
 
 pre-commit:
 	@echo "🪝 运行所有 pre-commit hooks..."
-	uv run pre-commit run --all-files
+	$(VALIDATE) uv run pre-commit run --all-files
 
 lint:
 	@echo "🔍 运行代码检查..."
-	uv run ruff check .
+	$(VALIDATE) uv run ruff check .
 
 format:
 	@echo "✨ 格式化代码..."
-	uv run ruff format .
+	$(VALIDATE) uv run ruff format .
 
 typecheck:
 	@echo "🔬 运行 Mypy 类型检查..."
-	uv run mypy src/
+	$(VALIDATE) uv run mypy src/
 
 test: frontend-test
 	@echo "🧪 运行后端测试..."
-	uv run --no-sync pytest
+	$(VALIDATE) uv run --no-sync pytest
 
 frontend-test:
 	@echo "🧪 运行前端测试..."

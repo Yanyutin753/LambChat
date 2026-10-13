@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -65,15 +66,42 @@ test("workspace details stay hidden until requested and dismiss without toggling
   fireEvent.click(
     screen.getByRole("button", { name: "projectWorkspace.details" }),
   );
-  const dialog = screen.getByRole("dialog");
+  const dialog = screen.getByRole("tooltip");
+  expect(dialog).toHaveClass("right-panel-tab-tooltip");
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(within(dialog).getByText(selection.path)).toBeInTheDocument();
   expect(
     within(dialog).getByText("projectWorkspace.inherits"),
   ).toBeInTheDocument();
   expect(onToggle).not.toHaveBeenCalled();
-  fireEvent.click(
-    within(dialog).getByRole("button", { name: "common.close" }),
-  );
-  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  const trigger = screen.getByRole("button", {
+    name: "projectWorkspace.details",
+  });
+  fireEvent.click(trigger);
+  expect(screen.getByRole("tooltip")).toBeInTheDocument();
+  fireEvent.pointerDown(document.body);
+  expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  fireEvent.click(trigger);
+  fireEvent.click(trigger);
+  expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   expect(onToggle).not.toHaveBeenCalled();
+});
+
+test("Escape dismisses pinned details after hovering the trigger again", () => {
+  vi.useFakeTimers();
+  try {
+    render(<ProjectWorkspaceField value={null} onChange={vi.fn()} />);
+    const trigger = screen.getByRole("button", {
+      name: "projectWorkspace.details",
+    });
+    fireEvent.click(trigger);
+    fireEvent.mouseEnter(trigger);
+    act(() => vi.advanceTimersByTime(500));
+    fireEvent.keyDown(trigger, { key: "Escape" });
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  } finally {
+    vi.useRealTimers();
+  }
 });

@@ -171,6 +171,7 @@ export function useSessionSync({
   const initialUrlSyncPendingRef = useRef(false);
   const selectSessionRequestIdRef = useRef(0);
   const sessionLoadIdRef = useRef(0);
+  const targetNavigationRef = useRef<string | null>(null);
   // Track a single sync delay timeout for cleanup on unmount
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -223,6 +224,7 @@ export function useSessionSync({
     if (activeTab !== "chat") return;
 
     if (urlSessionId && !isSyncingRef.current) {
+      targetNavigationRef.current = `${urlSessionId}:${getTargetRunIdFromSearch(locationSearchRef.current) ?? ""}`;
       isSyncingRef.current = true;
       initialUrlSyncPendingRef.current = true;
       const loadId = beginSessionLoad();
@@ -249,7 +251,7 @@ export function useSessionSync({
             ),
           });
           if (action?.type === "clear-external-state") {
-            navigate(action.path, { replace: true, state: null });
+            navigate(`${action.path}${locationSearchRef.current}`, { replace: true, state: null });
           }
           scheduleSyncReset();
         });
@@ -267,13 +269,23 @@ export function useSessionSync({
       return;
     }
 
-    if (isLoadingRef.current || sessionId === urlSessionId) {
+    if (sessionId === urlSessionId) {
+      const targetRunId = getTargetRunIdFromSearch(location.search);
+      const navigationKey = `${urlSessionId}:${targetRunId ?? ""}`;
+      if (targetRunId && !initialUrlSyncPendingRef.current && (
+        targetNavigationRef.current !== navigationKey ||
+        shouldResetExternalNavigateFlag(locationStateRef.current as ExternalNavigationState | null)
+      )) {
+        targetNavigationRef.current = navigationKey;
+        void loadHistoryRef.current(urlSessionId, targetRunId);
+      }
       if (isNewSessionRef.current) isNewSessionRef.current = false;
       if (isInternalNavRef.current && sessionId === urlSessionId) {
         isInternalNavRef.current = false;
       }
       return;
     }
+    if (isLoadingRef.current) return;
 
     if (isNewSessionRef.current) {
       isNewSessionRef.current = false;
@@ -310,7 +322,7 @@ export function useSessionSync({
       .finally(() => {
         isLoadingRef.current = false;
       });
-  }, [urlSessionId, sessionId, activeTab, location.search, beginSessionLoad]);
+  }, [urlSessionId, sessionId, activeTab, location.search, location.key, beginSessionLoad]);
 
   // Sync URL with sessionId state (when sessionId changes from internal actions)
   useEffect(() => {
@@ -340,7 +352,7 @@ export function useSessionSync({
     if (action.type === "clear-external-state") {
       // Clear the externalNavigate flag using router navigation so the UI
       // stays in sync with the browser history state.
-      navigate(action.path, { replace: true, state: null });
+      navigate(`${action.path}${locationSearchRef.current}`, { replace: true, state: null });
       return;
     }
 

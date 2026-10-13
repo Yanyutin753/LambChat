@@ -1,3 +1,9 @@
+.chat-input-help-menu .ui-icon-button.ui-button--sm {
+  width: 1.5rem;
+  height: 1.5rem;
+  min-height: 1.5rem;
+}
+
 /* Reserve workspace for the single active docked right-panel lane. */
 @media (min-width: 1200px) {
   #root {
@@ -111,22 +117,22 @@ select:-webkit-autofill:active {
 .dark select:-webkit-autofill:hover,
 .dark select:-webkit-autofill:focus,
 .dark select:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 30px #292524 inset !important;
-  -webkit-text-fill-color: #f5f5f4 !important;
-  caret-color: #f5f5f4 !important;
+  -webkit-box-shadow: 0 0 0 30px var(--theme-bg-elevated) inset !important;
+  -webkit-text-fill-color: var(--theme-text) !important;
+  caret-color: var(--theme-text) !important;
   outline: none !important;
-  border-color: #44403c !important;
+  border-color: var(--theme-border) !important;
 }
 
 /* Dark mode text brightness boost — shift stone-400/500/600 one step lighter */
 .dark .dark\:text-stone-400 {
-  color: #d6d3d1;
+  color: var(--theme-text-secondary);
 }
 .dark .dark\:text-stone-500 {
-  color: #a8a29e;
+  color: var(--theme-text-tertiary);
 }
 .dark .dark\:text-stone-600 {
-  color: #a8a29e;
+  color: var(--theme-text-tertiary);
 }
 
 /* Skeleton shimmer animation */
@@ -268,8 +274,8 @@ html[data-mobile-keyboard="true"] #root {
 }
 
 .dark {
-  --scrollbar-thumb: rgba(168, 162, 158, 0.15);
-  --scrollbar-thumb-hover: rgba(168, 162, 158, 0.25);
+  --scrollbar-thumb: rgba(163, 163, 163, 0.15);
+  --scrollbar-thumb-hover: rgba(163, 163, 163, 0.25);
 }
 
 /* ── Sidebar scroll effects (disabled — solid-color overlays cause truncation) ── */

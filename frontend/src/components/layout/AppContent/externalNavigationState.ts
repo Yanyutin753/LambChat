@@ -99,19 +99,16 @@ export function buildExternalNavigationPreviewRequest(
       return null;
     }
 
-    return {
-      kind: "project",
-      previewKey: `external-project:${file.id}`,
-      project: {
-        version: 2,
-        name: file.file_name,
-        mode: projectMeta.mode ?? "project",
-        path: file.original_path ?? undefined,
-        template: projectMeta.template,
-        entry: projectMeta.entry,
-        fileCount:
-          projectMeta.file_count ?? Object.keys(projectMeta.files).length,
-        files: Object.fromEntries(
+    const files = Array.isArray(projectMeta.files)
+      ? Object.fromEntries(
+          projectMeta.files
+            .filter((item) => item && typeof item.path === "string" && item.path)
+            .map((item) => {
+              const { path, ...entry } = item;
+              return [path, { ...entry, is_binary: entry.is_binary ?? false }];
+            }),
+        )
+      : Object.fromEntries(
           Object.entries(projectMeta.files).map(([path, entry]) => [
             path,
             {
@@ -119,7 +116,22 @@ export function buildExternalNavigationPreviewRequest(
               is_binary: entry.is_binary ?? false,
             },
           ]),
-        ),
+        );
+
+    return {
+      kind: "project",
+      previewKey: `external-project:${file.id}`,
+      project: {
+        // v3：文件列表形态的 project_meta；legacy record 形态直接透传
+        //（revealed_files 索引不走事件管道的 key 消毒，record key 保留原点号）
+        version: Array.isArray(projectMeta.files) ? 3 : 2,
+        name: file.file_name,
+        mode: projectMeta.mode ?? "project",
+        path: file.original_path ?? undefined,
+        template: projectMeta.template,
+        entry: projectMeta.entry,
+        fileCount: projectMeta.file_count ?? Object.keys(files).length,
+        files,
       },
     };
   }

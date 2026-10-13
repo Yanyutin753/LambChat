@@ -57,6 +57,53 @@ function createContext(
   };
 }
 
+test("replayed agent calls keep one live stack entry until the execution completes", () => {
+  const ctx = createContext(
+    [
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "",
+        timestamp: new Date(),
+        parts: [],
+      },
+    ],
+    null,
+  );
+  const call: StreamEvent = {
+    event: "agent:call",
+    data: JSON.stringify({
+      agent_id: "stable-agent",
+      agent_name: "Researcher",
+      input: "task",
+      depth: 1,
+    }),
+  };
+  handleStreamEvent(call, "assistant-1", "call-1", undefined, ctx);
+  handleStreamEvent(call, "assistant-1", "call-replay", undefined, ctx);
+
+  expect(ctx.activeSubagentStackRef.current).toEqual([
+    { agent_id: "stable-agent", depth: 1, message_id: "assistant-1" },
+  ]);
+  expect(ctx.messages()[0].parts).toHaveLength(1);
+
+  handleStreamEvent(
+    {
+      event: "agent:result",
+      data: JSON.stringify({ agent_id: "stable-agent", result: "done", depth: 1 }),
+    },
+    "assistant-1",
+    "result-1",
+    undefined,
+    ctx,
+  );
+  expect(ctx.activeSubagentStackRef.current).toEqual([]);
+
+  handleStreamEvent(call, "assistant-1", "call-followup", undefined, ctx);
+  expect(ctx.messages()[0].parts).toHaveLength(2);
+  expect(ctx.activeSubagentStackRef.current).toHaveLength(1);
+});
+
 test("skips SSE events older than loaded history", () => {
   const historyTimestamp = "2026-04-19T01:02:03.456Z";
   const eventTimestamp = "2026-04-19T01:02:03.455Z";
@@ -911,4 +958,13 @@ test("synthesized reconnect cancel (type task_cancelled) marks message cancelled
     "text",
     "cancelled",
   ]);
+});
+
+
+test("stream goal projection retains its ID but identical ordinary goal does not inherit it", () => {
+  const ctx = createContext([], null);
+  handleStreamEvent({ event: "goal:start", data: JSON.stringify({ session_id: "session-1", run_id: "r1", goal: { objective: "docs", rubric: "verified", _persistent_id: "g1" } }) }, "assistant-1", "projection-start", "2026-10-13T00:00:00Z", ctx);
+  expect(ctx.activeGoal()).toMatchObject({ _persistent_id: "g1" });
+  handleStreamEvent({ event: "goal:start", data: JSON.stringify({ session_id: "session-1", run_id: "r2", goal: { objective: "docs", rubric: "verified" } }) }, "assistant-1", "ordinary-start", "2026-10-13T00:00:01Z", ctx);
+  expect(ctx.activeGoal()?._persistent_id).toBeUndefined();
 });

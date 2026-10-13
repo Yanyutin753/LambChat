@@ -46,3 +46,18 @@ test("tracks current store size for lightweight observability", () => {
 
   expect(store.size()).toBe(1);
 });
+
+test("same-length streaming parts refresh an open conversation", () => {
+  const store = createSubagentPanelStore();
+  store.set({
+    ...createData("agent-a"),
+    parts: [{ type: "text", content: "Partial" }],
+  });
+  let notifications = 0;
+  store.subscribe("agent-a", () => notifications++);
+  store.set({
+    ...createData("agent-a"),
+    parts: [{ type: "text", content: "Partial reply grew" }],
+  });
+  expect(notifications).toBe(1);
+});

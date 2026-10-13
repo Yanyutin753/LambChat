@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import Any, cast
 
 from src.infra.agent.events.tool_outputs import get_tool_status
 from src.infra.agent.events.types import StreamEvent
@@ -30,6 +31,64 @@ class SubagentEventMixin:
     _subagent_avatars: dict[str, str]
     _presenter_emit: Any
     presenter: Any
+    flush: Callable[[], Awaitable[None]]
+
+    async def _handle_subagent_message(self, event: StreamEvent) -> None:
+        data = cast(dict[str, Any], event.get("data", {}))
+        await self.flush()
+        args = {
+            "subagent_id": data["subagent_id"],
+            "message": data["message"],
+            "direction": "received",
+        }
+        await self._presenter_emit(
+            self.presenter.present_tool_start(
+                "send_parent_message",
+                args,
+                tool_call_id=data["message_id"],
+                depth=0,
+            )
+        )
+        await self._presenter_emit(
+            self.presenter.present_tool_result(
+                "send_parent_message",
+                {"subagent_id": data["subagent_id"], "status": "queued"},
+                tool_call_id=data["message_id"],
+                success=True,
+                depth=0,
+            )
+        )
+
+    async def _handle_persistent_subagent_event(self, event: StreamEvent) -> None:
+        data = cast(dict[str, Any], event.get("data", {}))
+        subagent_id = data["subagent_id"]
+        role_type = data.get("subagent_type", "unknown")
+        await self.flush()
+        if data.get("phase") in {"started", "queued"}:
+            await self._presenter_emit(
+                self.presenter.present_agent_call(
+                    agent_id=subagent_id,
+                    agent_name=self._subagent_display_names.get(role_type, role_type),
+                    input_message=_strip_internal_main_context_snapshot(
+                        data.get("description", "")
+                    ),
+                    depth=1,
+                    agent_avatar=self._subagent_avatars.get(role_type),
+                    status=data.get("status"),
+                )
+            )
+        else:
+            await self._presenter_emit(
+                self.presenter.present_agent_result(
+                    agent_id=subagent_id,
+                    result=data.get("result", ""),
+                    success=data.get("status") == "completed",
+                    depth=1,
+                    error=data.get("error")
+                    or ("Cancelled" if data.get("status") == "cancelled" else None),
+                    status=data.get("status"),
+                )
+            )
 
     def _get_checkpoint_ns(self, metadata: dict[str, Any]) -> str:
         return metadata.get("langgraph_checkpoint_ns") or metadata.get("checkpoint_ns", "")

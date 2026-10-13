@@ -134,7 +134,7 @@ test("chat input notifies the usage chip when a run settles", () => {
   expect(source).toMatch(/useNotifyTodayUsageRefresh\(isLoading\)/);
 });
 
-test("usage chip matches the toolbar chip look: borderless, blue serif label, 16px", () => {
+test("usage chip uses a borderless neutral serif label and 16px icon", () => {
   const chatDir = dirname(fileURLToPath(import.meta.url));
   const source = readFileSync(
     resolve(chatDir, "../ComposerUsageChip.tsx"),
@@ -142,7 +142,8 @@ test("usage chip matches the toolbar chip look: borderless, blue serif label, 16
   );
   expect(source).not.toMatch(/1px solid var\(--theme-border\)/);
   expect(source).toMatch(/chat-tool-btn/);
-  expect(source).toMatch(/text-blue-600 dark:text-blue-400 font-serif/);
+  expect(source).toMatch(/text-theme-text-secondary font-serif/);
+  expect(source).not.toMatch(/text-blue-/);
   expect(source).toMatch(/<Activity size=\{16\}/);
 
   const toolbarSource = readFileSync(
@@ -154,17 +155,14 @@ test("usage chip matches the toolbar chip look: borderless, blue serif label, 16
   );
 });
 
-test("toolbar renders the usage chip in the right-side action group", () => {
+test("header renders today's usage next to the user menu, outside the composer", () => {
   const chatDir = dirname(fileURLToPath(import.meta.url));
-  const source = readFileSync(
-    resolve(chatDir, "../ChatInputToolbar.tsx"),
-    "utf8",
-  );
-  expect(source).toMatch(/<ComposerUsageChip \/>/);
-  // 位于设置按钮之前、右侧动作组之内
-  expect(source.indexOf("<ComposerUsageChip />")).toBeLessThan(
-    source.indexOf("data-run-mode-trigger"),
-  );
+  const header = readFileSync(resolve(chatDir, "../../layout/AppContent/Header.tsx"), "utf8");
+  const toolbar = readFileSync(resolve(chatDir, "../ChatInputToolbar.tsx"), "utf8");
+  expect(toolbar).not.toContain("ComposerUsageChip");
+  const actions = header.slice(header.indexOf("chat-header__actions"));
+  expect(actions).toContain("<ComposerUsageChip />");
+  expect(actions.indexOf("<ComposerUsageChip />")).toBeLessThan(actions.indexOf("<UserMenu"));
 });
 
 test("view details footer spreads label left and chevron right", () => {

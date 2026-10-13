@@ -42,10 +42,14 @@ def build_conversation_config(
     trace_id: str | None = None,
 ) -> dict:
     """Build session metadata for conversation configuration."""
+    from src.infra.task.background_tasks import BACKGROUND_EXECUTOR_KEY, BACKGROUND_SUBMISSION_RUN
+
     conversation_config = {
         "current_run_id": run_id,
         "agent_id": agent_id,
-        "executor_key": "agent_stream",
+        "executor_key": BACKGROUND_EXECUTOR_KEY
+        if BACKGROUND_SUBMISSION_RUN.get()
+        else "agent_stream",
         "agent_options": request.agent_options or {},
         "disabled_tools": request.disabled_tools or [],
         "disabled_skills": request.disabled_skills or [],

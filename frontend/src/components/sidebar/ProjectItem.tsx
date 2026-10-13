@@ -402,7 +402,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
                   aria-label={t("sidebar.newChatInProject", {
                     project: project.name,
                   })}
-                  className="flex h-8 w-6 shrink-0 items-center justify-center rounded-md text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] max-sm:h-9 max-sm:w-9"
+                  className="flex h-8 w-6 shrink-0 items-center justify-center rounded-md text-theme-text-secondary hover:text-theme-text focus-visible:text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] max-sm:h-9 max-sm:w-9"
                 >
                   <SquarePen size={14} aria-hidden="true" />
                 </button>
@@ -416,12 +416,9 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
                   ref={menuButtonRef}
                   onClick={handleMenuClick}
                   aria-label={t("sidebar.moreOptions")}
-                  className="flex h-8 w-6 shrink-0 items-center justify-center max-sm:h-9 max-sm:w-9 rounded-md transition-colors"
+                  className="flex h-8 w-6 shrink-0 items-center justify-center max-sm:h-9 max-sm:w-9 rounded-md text-theme-text-secondary hover:text-theme-text focus-visible:text-theme-text transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
                 >
-                  <MoreHorizontal
-                    size={14}
-                    className="text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300"
-                  />
+                  <MoreHorizontal size={14} aria-hidden="true" />
                 </button>
               </Tooltip>
             )}
@@ -489,7 +486,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
               <button
                 type="button"
                 onClick={() => onNewSessionInProject(project.id)}
-                className="flex min-h-10 items-center gap-2 rounded-md px-3 text-left text-13 text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
+                className="flex min-h-10 items-center gap-2 rounded-md px-3 text-left text-13 text-theme-text-secondary hover:text-theme-text focus-visible:text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
               >
                 <SquarePen size={14} className="shrink-0" aria-hidden="true" />
                 {t("sidebar.startFirstChat")}

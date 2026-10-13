@@ -3,14 +3,16 @@
   container-name: panel;
   container-type: inline-size;
   --panel-inset: 0.75rem;
-  --panel-header-block: 0.625rem;
-  --panel-gap: 0.75rem;
-  --panel-section-gap: 1.25rem;
+  --panel-header-block: 0.5rem;
+  --panel-gap: 0.5rem;
+  --panel-section-gap: 1rem;
 }
 @container panel (min-width: 640px) {
   [data-panel] > div {
     --panel-inset: 1.25rem;
     --panel-header-block: 0.75rem;
+    --panel-gap: 0.75rem;
+    --panel-section-gap: 1.25rem;
   }
 }
 @container panel (min-width: 1024px) {

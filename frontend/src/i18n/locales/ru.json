@@ -282,7 +282,7 @@
       "offline": "офлайн",
       "offlineHint": "Этот компьютер офлайн — нельзя выбрать его машиной выполнения",
       "section": "Устройство",
-      "computerUseHint": "Управление компьютером использует явно выбранное устройство; код выполняется в выбранной выше песочнице.",
+      "computerUseHint": "Управление компьютером доступно только в режиме локального компьютера с выбранным устройством в сети или устройством по умолчанию в сети.",
       "currentDevice": "Это устройство"
     },
     "sandboxPolicy": {
@@ -308,7 +308,7 @@
       "name": "Агент поиска"
     },
     "team": {
-      "description": "Маршрутизирует задачи субагентам по ролям. При отсутствии команды переходит в режим одиночного агента.",
+      "description": "Автоматически находит подходящие роли, поручает задачи субагентам и продолжает их работу.",
       "name": "Командный агент"
     }
   },
@@ -682,6 +682,8 @@
     "taskNotFound": "Задача не найдена",
     "taskCancelled": "Задача отменена",
     "taskServerRestart": "Задача прервана перезапуском сервера",
+    "taskRecoveryNotAvailable": "Задача завершена или больше недоступна для восстановления.",
+    "taskRecoveryUncertainEffect": "Восстановление остановлено: предыдущее действие уже могло быть выполнено. Проверьте результат перед началом новой задачи.",
     "taskExpired": "Срок задачи истёк",
     "forceRelogin": "Права пользователя изменены, войдите заново",
     "tokenExpired": "Срок действия входа истёк, войдите заново",
@@ -706,7 +708,8 @@
     "sandboxMachineOffline": "Выбранная машина песочницы «{{machine}}» сейчас не в сети",
     "sandboxMachineNotFound": "Машина песочницы «{{machine}}» не найдена или удалена",
     "pluginNoEditPermission": "Нет прав на редактирование плагина {{name}}",
-    "modelConfigIncomplete": "Конфигурация модели неполна: отсутствует {{field}} для провайдера {{provider}}"
+    "modelConfigIncomplete": "Конфигурация модели неполна: отсутствует {{field}} для провайдера {{provider}}",
+    "goalConflict": "Цель изменилась; обновите страницу и повторите попытку"
   },
   "categories": {
     "scheduled_task": "Запланированные задачи",
@@ -1224,6 +1227,7 @@
     "message": {
       "addBookmark": "Добавить закладку",
       "allFiles": "Все файлы",
+      "fileDirectory": "Каталог файлов",
       "args": "Аргументы",
       "artifactsSubtitleFiles": "{{count}} файлов",
       "artifactsSubtitleMixed": "{{files}} файлов · {{projects}} проектов",
@@ -1422,6 +1426,16 @@
       "toolSkillSearch": "Поиск навыков",
       "toolSuccess": "Команда выполнена",
       "toolTaskName": "Имя",
+      "toolSendSubagentMessage": "Сообщение субагенту",
+      "toolWaitSubagent": "Ожидание субагента",
+      "toolSendParentMessage": "Сообщение родительскому агенту",
+      "toolReceiveSubagentMessage": "Сообщение от субагента",
+      "subagentMessage": "Дополнительное сообщение",
+      "toolSubagentRunning": "Выполняется",
+      "toolSubagentMessageQueued": "Сообщение в очереди",
+      "toolSubagentCompleted": "Завершено",
+      "toolSubagentWaitingHuman": "Ожидает ответа человека",
+      "toolSubagentFailed": "Ошибка",
       "toolTeamDefaultMember": "Участник {{index}}",
       "toolTeamDefaultPersona": "Персона {{index}}",
       "toolTimeMinutes": "{{minutes}}м {{seconds}}с",
@@ -1531,7 +1545,16 @@
         }
       },
       "computerUseTitle": "Управление компьютером",
-      "computerUsePermissionHint": "Выдайте LambChat.app разрешения «Универсальный доступ» и «Запись экрана» в Настройки → Конфиденциальность (один раз), затем повторите."
+      "computerUsePermissionHint": "Выдайте LambChat.app разрешения «Универсальный доступ» и «Запись экрана» в Настройки → Конфиденциальность (один раз), затем повторите.",
+      "toolCancelSubagent": "Отменить подагента",
+      "toolStartBackgroundTask": "Запустить фоновую задачу",
+      "toolBackgroundTaskSubmitted": "Отправлено в фоновый режим",
+      "toolBackgroundTaskOpen": "Открыть диалог задачи",
+      "toolBackgroundTaskUnavailable": "Не удалось подтвердить отправку",
+      "toolListSubagents": "Список подагентов",
+      "toolSubagentQueued": "В очереди",
+      "toolSubagentTimedOut": "Время выполнения истекло",
+      "toolSubagentEmpty": "Подагентов нет"
     },
     "messageInput": "Поле ввода сообщения",
     "noPermission": "Нет прав для отправки сообщений",
@@ -1588,6 +1611,9 @@
     "steerQueue": "Сообщения в очереди на отправку",
     "steerQueued": "Будет доставлено после текущего шага",
     "stop": "Остановить генерацию",
+    "backgroundRunning": "Задача продолжает выполняться в фоне",
+    "backgroundContinue": "Продолжить в фоне",
+    "backgroundContinueHint": "Покинуть диалог, сохранив выполнение задачи",
     "stopConfirmMessage": "Вы уверены, что хотите остановить генерацию? Сгенерированное содержимое будет сохранено.",
     "stopConfirmTitle": "Остановить генерацию",
     "subagentStatus": "Статус субагента: {{status}}",
@@ -1599,6 +1625,13 @@
     "timeline": "Хронология",
     "title": "Чат",
     "todo": {
+      "openPanel": "Открыть список задач",
+      "allCompleted": "Все задачи выполнены",
+      "cancelledCount": "Отменено: {{count}}",
+      "pending": "Ожидает",
+      "in_progress": "Выполняется",
+      "completed": "Выполнено",
+      "cancelled": "Отменено",
       "progress": "{{completed}}/{{total}} выполнено",
       "toggle": "Список задач"
     },
@@ -1609,7 +1642,28 @@
     "waitingForUpload": "Пожалуйста, дождитесь завершения загрузки файла",
     "welcomeRefresh": "Обновить",
     "welcomeSubtitle": "Чем могу помочь?",
-    "welcomeSuggestions": "Предложения"
+    "welcomeSuggestions": "Предложения",
+    "goalPersistent": {
+      "pause": "Приостановить цель",
+      "resume": "Продолжить цель",
+      "clear": "Очистить цель",
+      "noGoal": "Сначала создайте постоянную цель.",
+      "tokensUnknown": "Расход токенов неизвестен",
+      "turns": "{{count}} / {{max}} раундов",
+      "tokens": "{{count}} / {{max}} токенов",
+      "timeLimit": "Лимит {{minutes}} мин",
+      "status": {
+        "active": "Активна",
+        "paused": "Приостановлена",
+        "waiting_human": "Ожидает подтверждения",
+        "blocked": "Заблокирована",
+        "completed": "Завершена",
+        "budget_limited": "Бюджет исчерпан",
+        "cleared": "Очищена"
+      },
+      "modeHint": "Постоянная цель: {{status}}",
+      "attachmentsUnsupported": "Перед созданием постоянной цели отправьте вложения обычным сообщением."
+    }
   },
   "common": {
     "moreOptions": "Дополнительные действия",
@@ -2536,6 +2590,7 @@
     "users": "Управление учётными записями и доступом"
   },
   "notification": {
+    "openConversation": "Открыть диалог",
     "active": "Активно",
     "cancel": "Отмена",
     "collapse": "Скрыть детали",
@@ -2567,7 +2622,8 @@
     "typeMaintenance": "Обслуживание",
     "typeSuccess": "Успех",
     "typeWarning": "Внимание",
-    "updatedSuccess": "Уведомление обновлено"
+    "updatedSuccess": "Уведомление обновлено",
+    "taskNeedsAttention": "Задача требует вашего подтверждения"
   },
   "passwordInput": {
     "hidePassword": "Скрыть пароль",

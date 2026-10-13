@@ -380,10 +380,6 @@ html[data-mobile-keyboard="true"]
   color: var(--theme-error);
 }
 
-.composer-reference-chip__status--spinning {
-  animation: composer-reference-spin 0.85s linear infinite;
-}
-
 .composer-reference-chip__retry {
   display: inline-flex;
   align-items: center;
@@ -405,18 +401,6 @@ html[data-mobile-keyboard="true"]
 
 .composer-skill-reference {
   user-select: none;
-}
-
-@keyframes composer-reference-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .composer-reference-chip__status--spinning {
-    animation: none;
-  }
 }
 
 .user-message-inline-markdown .markdown-preview {
@@ -1279,10 +1263,10 @@ html[data-mobile-keyboard="true"]
   pointer-events: none;
 }
 
-/* Keep phone controls distinct; wrap groups when the composer is narrower than their touch targets. */
+/* Keep phone controls distinct while preserving a single toolbar row. */
 @media (max-width: 639px) {
   .chat-input-container .chat-input-toolbar {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 0;
   }
   .chat-input-toolbar > div:first-child {

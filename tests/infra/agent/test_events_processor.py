@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 from typing import Any
 
@@ -16,6 +17,118 @@ from src.infra.agent.events.tool_outputs import (
     process_messages,
 )
 from src.infra.agent.first_event_timing import FirstEventTiming
+
+
+async def test_child_message_is_visible_to_parent_without_completing_the_child():
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+    await processor.process_event(
+        {
+            "event": "on_custom_event",
+            "name": "lambchat_subagent_message",
+            "data": {"subagent_id": "stable-1", "message_id": "note-1", "message": "Need scope"},
+            "metadata": {"lambchat_subagent_id": "stable-1"},
+        }
+    )
+    assert [event["event"] for event in presenter.emitted] == ["tool:start", "tool:result"]
+    incoming = presenter.emitted[0]["data"]
+    assert incoming["tool"] == "send_parent_message"
+    assert incoming["args"] == {
+        "subagent_id": "stable-1",
+        "message": "Need scope",
+        "direction": "received",
+    }
+    assert incoming["tool_call_id"] == "note-1"
+    assert incoming.get("depth", 0) == 0
+
+
+async def test_persistent_subagent_lifecycle_uses_stable_id_and_no_early_completion():
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter, subagent_display_names={"reviewer": "Reviewer"})
+    await processor.process_event(
+        {
+            "event": "on_tool_start",
+            "name": "task",
+            "data": {
+                "input": {"description": "work", "subagent_type": "reviewer", "background": True}
+            },
+            "metadata": {"lambchat_managed_task": True},
+        }
+    )
+    assert presenter.emitted == []
+    for phase in ("started", "completed"):
+        await processor.process_event(
+            {
+                "event": "on_custom_event",
+                "name": "lambchat_subagent",
+                "data": {
+                    "phase": phase,
+                    "subagent_id": "stable-1",
+                    "subagent_type": "reviewer",
+                    "description": "work",
+                    "result": "done",
+                    "status": "completed",
+                },
+                "metadata": {},
+            }
+        )
+    assert [e["event"] for e in presenter.emitted] == ["agent:call", "agent:result"]
+    assert all(e["data"]["agent_id"] == "stable-1" for e in presenter.emitted)
+
+
+async def test_independent_subagent_stream_does_not_become_parent_answer():
+    from langchain_core.messages import AIMessageChunk
+
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+    await processor.process_event(
+        {
+            "event": "on_chat_model_stream",
+            "name": "fake",
+            "run_id": "model-1",
+            "data": {"chunk": AIMessageChunk(content="child response")},
+            "metadata": {"lambchat_subagent_id": "stable-1", "checkpoint_ns": "model:1"},
+        }
+    )
+    await processor.flush()
+    assert processor.output_text == ""
+    assert presenter.emitted[-1]["data"]["agent_id"] == "stable-1"
+
+
+@pytest.mark.parametrize("tool_name", ["send_subagent_message", "wait_subagent"])
+@pytest.mark.parametrize(
+    "wrapper", ["message", "command", "serialized", "serialized_command", "nested"]
+)
+async def test_subagent_tool_events_keep_reply_after_model_handoff(tool_name, wrapper):
+    payload = {"subagent_id": "stable-1", "status": "completed", "result": "Review complete"}
+    reference = "Subagent report saved to: /reports/review.md"
+    message = ToolMessage(
+        content=reference,
+        tool_call_id="call-1",
+        name=tool_name,
+        additional_kwargs={"lambchat_original_content": json.dumps(payload)},
+    )
+    output = {
+        "message": message,
+        "command": Command(update={"messages": [message]}),
+        "serialized": message.model_dump(),
+        "serialized_command": {"update": {"messages": [message.model_dump()]}},
+        "nested": {"output": message.model_dump()},
+    }[wrapper]
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+    await processor.process_event(
+        {
+            "event": "on_tool_end",
+            "name": tool_name,
+            "run_id": "call-1",
+            "data": {"output": output},
+            "metadata": {},
+        }
+    )
+    event = next(event for event in presenter.emitted if event["event"] == "tool:result")
+    assert event["data"]["result"] == payload
+    assert message.content == reference
 
 
 class FakePresenter:
@@ -83,6 +196,7 @@ class FakePresenter:
         input_message: str,
         depth: int = 1,
         agent_avatar: str | None = None,
+        status: str | None = None,
     ) -> dict[str, Any]:
         return {
             "event": "agent:call",
@@ -90,6 +204,7 @@ class FakePresenter:
                 "agent_id": agent_id,
                 "agent_name": agent_name,
                 "agent_avatar": agent_avatar,
+                **({"status": status} if status else {}),
                 "input": input_message,
                 "depth": depth,
             },
@@ -102,12 +217,14 @@ class FakePresenter:
         success: bool = True,
         depth: int = 1,
         error: str | None = None,
+        status: str | None = None,
     ) -> dict[str, Any]:
         return {
             "event": "agent:result",
             "data": {
                 "agent_id": agent_id,
                 "result": result,
+                **({"status": status} if status else {}),
                 "success": success,
                 "depth": depth,
                 "error": error,
@@ -1221,3 +1338,35 @@ async def test_large_computer_observation_preserves_screenshot_through_sse() -> 
     assert isinstance(result, dict)
     assert result["screenshot"]["url"] == "/api/upload/file/shot.jpg"
     assert result["truncated"] is True
+
+
+@pytest.mark.parametrize(
+    "phase,status",
+    [
+        ("queued", "queued"),
+        ("started", "running"),
+        ("waiting_human", "waiting_human"),
+        ("completed", "cancelled"),
+        ("completed", "timed_out"),
+    ],
+)
+async def test_persistent_subagent_events_preserve_specific_lifecycle_status(phase, status):
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+    await processor.process_event(
+        {
+            "event": "on_custom_event",
+            "name": "lambchat_subagent",
+            "data": {
+                "phase": phase,
+                "status": status,
+                "subagent_id": "child",
+                "subagent_type": "reviewer",
+            },
+            "metadata": {},
+        }
+    )
+    assert presenter.emitted[-1]["data"]["status"] == status
+    assert presenter.emitted[-1]["event"] == (
+        "agent:call" if phase in {"queued", "started"} else "agent:result"
+    )

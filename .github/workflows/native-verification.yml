@@ -1,0 +1,154 @@
+name: Windows Native Verification
+
+# Build-only: no tags, releases, signing credentials, updater files or deployments.
+# The opt-in branch allows a first verification run without merging this workflow.
+on:
+  push:
+    branches:
+      - 'codex/native-verification/**'
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: 'Exact 40-character source commit to build from the selected codex branch'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-verification-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.32.1'
+  CARGO_BUILD_JOBS: '1'
+  RAYON_NUM_THREADS: '1'
+  UV_CONCURRENT_DOWNLOADS: '1'
+  UV_CONCURRENT_BUILDS: '1'
+  UV_CONCURRENT_INSTALLS: '1'
+  UV_FROZEN: 'true'
+  LAMBCHAT_APP_URL: ''
+  VITE_API_BASE: ''
+
+jobs:
+  windows:
+    if: startsWith(github.ref, 'refs/heads/codex/')
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Require exact source commit
+        shell: pwsh
+        env:
+          EXPECTED_SHA: ${{ github.event_name == 'push' && github.sha || inputs.expected_sha }}
+        run: |
+          $actual = (git rev-parse HEAD).Trim()
+          if ($env:EXPECTED_SHA -notmatch '^[0-9a-f]{40}$' -or $actual -cne $env:EXPECTED_SHA) {
+            throw 'Selected branch does not match expected source commit'
+          }
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Setup Python
+        run: python scripts/run_validation.py uv python install 3.12
+
+      - name: Verify Windows nested validation gate
+        run: python scripts/run_validation.py python scripts/verify_windows_validation.py
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: python ../scripts/run_validation.py cmd /d /s /c pnpm install --frozen-lockfile
+
+      - name: Verify native brand assets
+        working-directory: frontend
+        run: python ../scripts/run_validation.py cmd /d /s /c pnpm brand:assets:check
+
+      - name: Build current daemon sidecar
+        shell: bash
+        run: |
+          python scripts/run_validation.py uv sync --frozen --group dev --group cua
+          daemon_build_bash="$(cygpath -w "$BASH")"
+          python scripts/run_validation.py "$daemon_build_bash" client/scripts/build-daemon.sh
+
+      - name: Fetch pinned embedded Python
+        shell: bash
+        run: python scripts/run_validation.py uv run --frozen python client/scripts/fetch-pbs.py --platform windows-x86_64
+
+      - name: Configure isolated test application identity
+        shell: pwsh
+        run: |
+          $suffix = "r$env:GITHUB_RUN_ID-a$env:GITHUB_RUN_ATTEMPT"
+          $identifier = "com.lambchat.verification.$suffix"
+          $config = @{
+            productName = "LambChat Verify $suffix"
+            identifier = $identifier
+            mainBinaryName = "lambchat-verify-$suffix"
+            bundle = @{ createUpdaterArtifacts = $false; targets = @('nsis') }
+            plugins = @{ updater = @{ endpoints = @() } }
+          }
+          $config | ConvertTo-Json -Depth 8 | Set-Content frontend/src-tauri/verification.conf.json -Encoding utf8
+          New-Item -ItemType Directory verification-artifacts | Out-Null
+          @{
+            source_sha = (git rev-parse HEAD).Trim()
+            source_ref = $env:GITHUB_REF
+            workflow_run = $env:GITHUB_RUN_ID
+            workflow_attempt = $env:GITHUB_RUN_ATTEMPT
+            identifier = $identifier
+            product_name = $config.productName
+            main_binary_name = $config.mainBinaryName
+            executable_name = "$($config.mainBinaryName).exe"
+            signed = $false
+            released = $false
+            updater_artifacts = $false
+          } | ConvertTo-Json | Set-Content verification-artifacts/provenance.json -Encoding utf8
+
+      - name: Generate icons and build isolated unsigned NSIS
+        working-directory: frontend
+        shell: pwsh
+        run: |
+          python ../scripts/run_validation.py cmd /d /s /c pnpm dlx @tauri-apps/cli@2.11.2 icon resources/native-icon.png
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python ../scripts/run_validation.py cmd /d /s /c pnpm dlx @tauri-apps/cli@2.11.2 build --ci --no-sign --bundles nsis --config src-tauri/verification.conf.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --exit-code -- pnpm-lock.yaml src-tauri/Cargo.lock ../uv.lock
+          if ($LASTEXITCODE -ne 0) { throw 'Build changed a dependency lockfile' }
+
+      - name: Collect installer and content hashes
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem frontend/src-tauri/target/release/bundle/nsis -Filter '*-setup.exe')
+          if ($installers.Count -ne 1) { throw 'Expected exactly one test NSIS installer' }
+          Copy-Item $installers[0].FullName verification-artifacts/
+          Copy-Item frontend/src-tauri/verification.conf.json verification-artifacts/
+          Get-ChildItem verification-artifacts -File | Get-FileHash -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  $([IO.Path]::GetFileName($_.Path))" } |
+            Set-Content verification-artifacts/SHA256SUMS -Encoding utf8
+
+      - name: Upload verification artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-native-verification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: verification-artifacts/
+          if-no-files-found: error
+          retention-days: 7

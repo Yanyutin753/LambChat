@@ -43,7 +43,7 @@ function TransferDetail({
   return (
     <div className="flex h-full min-h-0 flex-col space-y-3 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
       {source && (
-        <ToolArgsBlock size="detail" wrap>
+        <ToolArgsBlock size="detail" copyText={source} wrap>
           <FolderOutput
             size={14}
             className="shrink-0 text-blue-500 dark:text-blue-400"
@@ -52,7 +52,7 @@ function TransferDetail({
         </ToolArgsBlock>
       )}
       {target && (
-        <ToolArgsBlock size="detail" wrap>
+        <ToolArgsBlock size="detail" copyText={target} wrap>
           <FolderInput
             size={14}
             className="shrink-0 text-emerald-500 dark:text-emerald-400"
@@ -188,7 +188,7 @@ const TransferItem = memo(function TransferItem({
       {canExpand && (
         <ToolInlineDetails>
           {source && (
-            <ToolArgsBlock size="compact" wrap>
+            <ToolArgsBlock size="compact" copyText={source} wrap>
               <FolderOutput
                 size={12}
                 className="shrink-0 text-blue-500 dark:text-blue-400"
@@ -197,7 +197,7 @@ const TransferItem = memo(function TransferItem({
             </ToolArgsBlock>
           )}
           {target && (
-            <ToolArgsBlock size="compact" wrap>
+            <ToolArgsBlock size="compact" copyText={target} wrap>
               <ArrowRight size={12} className="shrink-0 opacity-50" />
               <span className="break-all">{truncate(target, 120)}</span>
             </ToolArgsBlock>

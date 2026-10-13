@@ -8,6 +8,9 @@ const now = "2026-09-30T08:00:00Z";
 const previewVideo = process.env.PANEL_PREVIEW_VIDEO
   ? readFileSync(process.env.PANEL_PREVIEW_VIDEO)
   : null;
+const toolGallery = () => process.env.PANEL_PREVIEW_TOOL_GALLERY
+  ? JSON.parse(readFileSync(process.env.PANEL_PREVIEW_TOOL_GALLERY, "utf8")) as { name: string; events: object[] }[]
+  : [];
 const labels = [
   "季度业务分析",
   "产品研究与洞察",
@@ -1390,6 +1393,25 @@ function response(
             attachments: [],
           },
         },
+        {
+          id: "preview-todos",
+          event_type: "todo:updated",
+          run_id: "preview-run",
+          timestamp: now,
+          data: {
+            todos: [
+              { content: "整理用户需求和研究资料", status: "completed" },
+              {
+                content: "核对跨平台验证结果，确保长任务名称在任务侧栏完整显示且不会横向溢出",
+                status: chatState === "completed" ? "completed" : chatState === "cancelled" ? "cancelled" : "in_progress",
+              },
+              {
+                content: "汇总交付计划",
+                status: chatState === "cancelled" ? "cancelled" : chatState === "completed" ? "completed" : "pending",
+              },
+            ],
+          },
+        },
         ...(!active
           ? [
               {
@@ -1433,7 +1455,7 @@ function response(
               ? { error: "请求超时", type: "task_error", status: "error" }
               : { status: "completed" },
         },
-      ].filter((event) => !active || event.id === "preview-user-message"),
+      ].filter((event) => !active || ["preview-user-message", "preview-todos"].includes(event.id)),
       has_more_traces: false,
     };
   }
@@ -1589,7 +1611,7 @@ const failedChannelRequests = new Set<string>();
 const failedSkillPreviews = new Set<string>();
 const server = await createServer({
   root: process.cwd(),
-  cacheDir: "node_modules/.vite-panel-preview",
+  cacheDir: `node_modules/.vite-panel-preview-${process.env.PANEL_PREVIEW_PORT ?? 3002}`,
   server: {
     host: "127.0.0.1",
     port: Number(process.env.PANEL_PREVIEW_PORT ?? 3002),
@@ -1845,6 +1867,7 @@ const server = await createServer({
             );
             return;
           }
+          if (previewParams.has("composer-stack") && /^\/human\/(pending|preview-human)$/.test(url.pathname)) url.pathname = `/api${url.pathname}`;
           if (
             !url.pathname.startsWith("/api/") &&
             !url.pathname.startsWith("/ws")
@@ -2168,6 +2191,30 @@ const server = await createServer({
                   url.pathname === "/api/agents"
                 ? { agents, count: agents.length, default_agent: "team" }
                 : response(url, scenario, chatState);
+          if (previewParams.has("composer-stack")) {
+            const approval = {
+              id: "preview-human", session_id: "preview-report", status: "pending", type: "form",
+              message: "下一步优先验证哪个平台？",
+              fields: [{ name: "platform", type: "radio", label: "验证平台", options: ["桌面端", "移动端"], required: true }],
+              metadata: { mode: "interrupt" },
+            };
+            if (url.pathname === "/api/sessions/preview-report") {
+              const session = data as { metadata: Record<string, unknown> };
+              session.metadata.agent_options = {
+                sandbox: "local", sandbox_machine_id: "preview-machine",
+                sandbox_workspace: JSON.stringify({ id: "local-" + "a".repeat(32), machineId: "preview-machine", path: "/Users/demo/projects/LambChat" }),
+              };
+            }
+            if (url.pathname === "/api/sessions/preview-report/events" && previewParams.get("composer-stack") === "human") {
+              const history = data as { events: object[] };
+              history.events = [...history.events.slice(0, -1), {
+                id: "preview-human-event", event_type: "approval_required", run_id: "preview-run", timestamp: now,
+                data: { ...approval, tool_call_id: "preview-human" },
+              }];
+            }
+            if (url.pathname === "/api/human/preview-human") data = approval;
+            if (url.pathname === "/api/human/pending" && previewParams.get("composer-stack") === "human") data = { approvals: [approval] };
+          }
           if (url.pathname === "/api/auth/oauth/providers") {
             const email =
               previewParams.get("contact") === "empty"
@@ -2368,6 +2415,10 @@ const server = await createServer({
                 size: 41245,
               };
             }
+          }
+          if (url.pathname === "/api/sessions/preview-report/events" && previewParams.has("tool-gallery")) {
+            const gallery = toolGallery()[Number(previewParams.get("tool-gallery"))];
+            if (gallery) data = { ...(data as object), events: gallery.events };
           }
           if (
             url.pathname === "/api/sessions/preview-report/events" &&
@@ -2615,10 +2666,18 @@ const server = await createServer({
             previewParams.has("artifacts")
           ) {
             const history = data as { events: object[] };
+            const artifactFixture = previewParams.get("artifacts");
             const files = [
               ["交付计划与下一阶段验证清单.md", "/preview-document.md", 731],
               ["季度交付数据.csv", "/preview-document.csv", 421],
-            ];
+              ["用户访谈与需求复盘记录.md", "/preview-document.md", 731],
+              ["项目进度.csv", "/preview-document.csv", 421],
+              ["发布验收清单.md", "/preview-document.md", 731],
+              ["长期研究资料与跨部门协作验证记录.csv", "/preview-document.csv", 421],
+            ].slice(
+              0,
+              artifactFixture === "single" ? 1 : artifactFixture === "few" ? 3 : artifactFixture === "many" ? 6 : 2,
+            );
             const artifacts = files.map(([name, signedUrl, fileSize]) => ({
               kind: "file",
               id: `preview-artifact:${name}`,
@@ -2637,7 +2696,7 @@ const server = await createServer({
               0,
               ...[
                 ...artifacts,
-                {
+                ...(artifactFixture === "1" || artifactFixture === "mixed" ? [{
                   kind: "project",
                   id: "preview-artifact:project",
                   name: "研究资料与交付计划",
@@ -2662,7 +2721,7 @@ const server = await createServer({
                       },
                     },
                   },
-                },
+                }] : []),
               ].map((artifact, index) => ({
                 id: `preview-artifact-${index}`,
                 event_type: "artifact:result",

@@ -76,54 +76,16 @@ test("tab closure delegates to handleUserClose for panel dismissal", () => {
   expect(componentSource).toMatch(/handleUserClose\(\)/);
 });
 
-test("tool result header preserves single-line ellipsis with room for glyph ascenders and descenders", () => {
-  const componentSource = readFileSync(
-    new URL("../ToolResultPanel.tsx", import.meta.url),
-    "utf8",
-  );
-
-  expect(componentSource).toMatch(
-    /className="tool-console-title-row flex items-baseline gap-2 min-w-0 flex-1 overflow-hidden font-serif"/,
-  );
-  // 无副标题时标题占满整行可用宽度（"General-purpose" 级别的名字不再被 40% 上限截断）
-  expect(componentSource).toMatch(
-    /tool-console-title min-w-0 truncate leading-6 font-medium text-14 text-theme-text \$\{\s*subtitle \? "max-w-\[40%\]" : "max-w-full"\s*\}/,
-  );
-  expect(componentSource).not.toMatch(
-    /className="tool-console-title min-w-0 max-w-\[40%\] truncate/,
-  );
-  // 标题与副标题按文字基线对齐：副标题是普通截断 span（font-sans 覆盖行级
-  // font-serif），不再用 h-5/pb-[1px] 的贴底盒子制造基线错位
-  expect(componentSource).not.toMatch(
-    /tool-console-(?:title-row|subtitle-[a-z]+)\b[^"]*\bitems-end\b/,
-  );
-  expect(componentSource).not.toMatch(/pb-\[1px\]/);
-  expect(componentSource).toMatch(
-    /className="tool-console-subtitle-pill min-w-0 max-w-\[45vw\] sm:max-w-\[min\(32rem,52%\)\] truncate font-sans text-12 font-normal leading-5 text-theme-text-tertiary"/,
-  );
-  expect(componentSource).toMatch(
-    /title=\{subtitle\}\s*>\s*\{subtitle\}\s*<\/span>/s,
-  );
-  expect(componentSource).toMatch(
-    /className="tool-console-subtitle-list flex items-baseline gap-1 min-w-0 max-w-\[45vw\] sm:max-w-\[min\(32rem,52%\)\] overflow-hidden"/,
-  );
-  expect(componentSource).toMatch(
-    /className="tool-console-subtitle-chip min-w-0 shrink-0 max-w-full truncate font-sans text-12 font-normal leading-5 text-theme-text-tertiary"/,
-  );
-  expect(componentSource).toMatch(
-    /className="tool-console-subtitle-overflow shrink-0 font-sans text-12 font-normal leading-5 text-theme-text-tertiary tabular-nums"/,
-  );
-  expect(componentSource).not.toMatch(
-    /tool-console-command-pill|tool-console-command-text/,
-  );
-  expect(
-    readFileSync(
-      new URL("../../../../../styles/components.css", import.meta.url),
-      "utf8",
-    ),
-  ).not.toMatch(
-    /tool-console-subtitle(?:-pill|-chip)\s*\{[\s\S]*?border-bottom:/,
-  );
+test("all tool result headers keep title and context on one baseline with full text available", () => {
+  const source = readFileSync(new URL("../ToolResultPanel.tsx", import.meta.url), "utf8");
+  expect(source).toMatch(/tool-console-title-row flex items-baseline gap-2 min-w-0 flex-1/);
+  expect(source).toMatch(/tool-console-title min-w-0 max-w-full truncate/);
+  expect(source).toMatch(/tool-console-subtitle-pill min-w-0 max-w-full truncate/);
+  expect(source).toMatch(/title=\{title\}/);
+  expect(source).not.toContain('subtitle.split');
+  expect(source).not.toContain('max-w-[40%]');
+  expect(source).not.toContain('max-w-[45vw]');
+  expect(source).toMatch(/title=\{subtitle\}\s*>\s*\{subtitle\}\s*<\/span>/s);
 });
 
 test("tool result header icons have no background or border decoration", () => {
@@ -217,7 +179,7 @@ test("tool result actions share a non-wrapping toolbar with touch-sized controls
     /\.right-panel-view-action[^{}]*\{[^}]*width: 2\.25rem;[^}]*height: 2\.25rem;/,
   );
   expect(css).toMatch(
-    /@media \(pointer: coarse\), \(max-width: 639px\)\s*\{[\s\S]*?\.right-panel-view-action\s*\{[^}]*width: 2\.75rem;[^}]*height: 2\.75rem;/,
+    /@media \(pointer: coarse\), \(max-width: 639px\)\s*\{[\s\S]*?\.right-panel-view-action\s*\{[^}]*width: 2\.25rem;[^}]*height: 2\.25rem;/,
   );
 });
 test("tool result panel masks rich content until snapshot restoration settles", () => {
@@ -235,7 +197,7 @@ test("tool result panel masks rich content until snapshot restoration settles", 
   );
   expect(componentSource).toMatch(/aria-busy=\{!contentReady\}/);
   expect(componentSource).toMatch(
-    /className=\{`tool-console-body__content h-full min-h-full[\s\S]*?\$\{\s*contentReady \? "opacity-100" : "opacity-0"/,
+    /className=\{`tool-console-body__content tool-readable font-serif h-full min-h-full[\s\S]*?\$\{\s*contentReady \? "opacity-100" : "opacity-0"/,
   );
   expect(componentSource).toMatch(/tool-console-body__loading/s);
 });

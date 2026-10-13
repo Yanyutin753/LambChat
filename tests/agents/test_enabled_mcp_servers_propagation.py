@@ -22,7 +22,7 @@ def test_agent_request_has_enabled_mcp_servers_field() -> None:
 
 
 def test_chat_routes_thread_enabled_mcp_servers() -> None:
-    src = _read("src/api/routes/chat.py")
+    src = _read("src/api/routes/chat.py") + _read("src/api/routes/chat_agent_execution.py")
     assert "enabled_mcp_servers: list[str] | None = None" in src
     assert src.count("enabled_mcp_servers=request.enabled_mcp_servers") >= 2
     assert "enabled_mcp_servers=enabled_mcp_servers" in src

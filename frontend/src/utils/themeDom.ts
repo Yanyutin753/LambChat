@@ -11,7 +11,7 @@ const THEME_CLASSES: Record<Theme, string> = {
 
 const THEME_COLORS: Record<Theme, string> = {
   light: "#f5f5f4",
-  dark: "#151210",
+  dark: "#1c1d1f",
   sepia: "#f3edde",
 };
 
@@ -55,7 +55,7 @@ export function readThemeMode(
 /** PNG/Canvas 导出时的背景填充色（sepia 用米黄卡片底，避免导出突兀纯白） */
 export function themeExportBackground(theme: Theme): string {
   if (theme === "dark") {
-    return "#1c1917";
+    return "#212224";
   }
   return theme === "sepia" ? "#faf6ea" : "#ffffff";
 }

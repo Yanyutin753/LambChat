@@ -54,6 +54,48 @@ def test_sanitizer_returns_clean_data_object_unchanged() -> None:
     assert _sanitize_event_data_for_mongo(data) is data
 
 
+def test_sanitizer_keeps_reveal_project_v3_manifest_paths_intact() -> None:
+    """reveal_project v3 manifest 把文件路径放在列表项的值里，路径中的点
+    必须原样在事件管道中幸存。
+
+    回归（分享页 wScQWc2GU0f5）：v2 manifest 用路径当 dict key，
+    ``/index.html`` 被消毒成 ``/index_html`` 而 entry（值）保留点号，
+    回放/分享侧预览全部崩成 sandpack "entry" was not specified。
+    """
+    data = {
+        "tool": "reveal_project",
+        "result": {
+            "type": "project_reveal",
+            "version": 3,
+            "files": [
+                {
+                    "path": "/index.html",
+                    "url": "https://app.example.com/api/upload/file/f/20261012_104859_8abe77e1_index.html",
+                    "is_binary": False,
+                    "size": 12443,
+                },
+                {
+                    "path": "/assets/app.min.js",
+                    "url": "https://app.example.com/api/upload/file/f/20261012_104859_8abe77e2_app.min.js",
+                    "is_binary": False,
+                    "size": 900,
+                },
+            ],
+            "entry": "/index.html",
+        },
+    }
+
+    sanitized = _sanitize_event_data_for_mongo(data)
+
+    assert sanitized is data
+    payload = sanitized["result"]
+    assert payload["entry"] == "/index.html"
+    assert [item["path"] for item in payload["files"]] == [
+        "/index.html",
+        "/assets/app.min.js",
+    ]
+
+
 # ---------------------------------------------------------------------------
 # write_event buffers sanitized data
 # ---------------------------------------------------------------------------

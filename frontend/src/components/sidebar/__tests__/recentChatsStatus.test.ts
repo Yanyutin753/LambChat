@@ -10,13 +10,12 @@ const source = readFileSync(
 
 test("recent chats renders the same task status indicators as the sidebar", () => {
   expect(source).toMatch(/task_status/);
-  expect(source).toMatch(
-    /taskStatus === "running" \|\| taskStatus === "pending"/,
-  );
-  expect(source).toMatch(/taskStatus === "waiting_human"/);
+  expect(source).toMatch(/getSessionTaskIndicator\(session\.metadata\?\.task_status\)/);
+  expect(source).toMatch(/taskIndicator\.kind === "busy"/);
+  expect(source).toMatch(/taskIndicator\.kind === "attention"/);
   expect(source).toMatch(/data-session-status="ask-human"/);
   expect(source).toMatch(/aria-label=\{runningLabel\}/);
-  expect(source).toMatch(/animate-spin/);
+  expect(source).toMatch(/LoadingSpinner/);
 });
 
 test("recent chats keeps status labels reachable via long-press tooltip, never forced open by row touch", () => {

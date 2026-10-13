@@ -5,7 +5,7 @@ FROM node:20-bookworm-slim AS frontend-builder
 
 # cn-font-split 的 postinstall 用 curl 下载 libffi 内核，slim 镜像缺 curl
 # 时下载会被静默跳过，到 pnpm run build 才报 ERR_FFI
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates python3 && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
@@ -28,6 +28,7 @@ RUN pnpm install --frozen-lockfile
 COPY frontend/ ./
 
 # Build frontend
+COPY scripts/run_validation.py scripts/run-validation.mjs /app/scripts/
 RUN pnpm run build
 
 # Stage 2: Runtime image

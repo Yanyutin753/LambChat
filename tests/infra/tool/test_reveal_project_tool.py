@@ -218,11 +218,12 @@ async def test_reveal_project_keeps_common_folder_text_files(
     )
 
     assert result["type"] == "project_reveal"
-    assert "/README.md" in result["files"]
-    assert "/main.py" in result["files"]
-    assert "/scripts/deploy.sh" in result["files"]
-    assert "/config/app.yaml" in result["files"]
-    assert "/data/sample.json" in result["files"]
+    manifest_paths = {item["path"] for item in result["files"]}
+    assert "/README.md" in manifest_paths
+    assert "/main.py" in manifest_paths
+    assert "/scripts/deploy.sh" in manifest_paths
+    assert "/config/app.yaml" in manifest_paths
+    assert "/data/sample.json" in manifest_paths
 
 
 @pytest.mark.asyncio
@@ -352,8 +353,61 @@ async def test_reveal_project_handles_single_html_file_path_as_static_project(
     assert result["type"] == "project_reveal"
     assert result["mode"] == "project"
     assert result["entry"] == "/daily-news-2025-07-05.html"
-    assert "/daily-news-2025-07-05.html" in result["files"]
+    assert "/daily-news-2025-07-05.html" in {item["path"] for item in result["files"]}
     assert result["file_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_reveal_project_manifest_keeps_paths_as_values_not_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """v3 manifest 用列表承载文件，路径必须是项内的值，不能当 dict key。
+
+    事件落库会把含 '.' 的 key 消毒成 '_'（dual_writer._sanitize_event_data_for_mongo），
+    路径 key 里的扩展名点号会全军覆没（/index.html → /index_html），而 entry 是值
+    幸免——两边从此对不上，回放/分享侧预览全崩。回归：分享页 wScQWc2GU0f5。
+    """
+    file_path = "/workspace/parrot-bike/index.html"
+    _install_common_patches(
+        monkeypatch,
+        files=[file_path],
+        contents={file_path: b"<!doctype html><title>parrot</title>"},
+    )
+
+    captured_index: dict = {}
+
+    class _CapturingRevealedFileStorage:
+        async def upsert_by_name(self, **kwargs) -> None:
+            captured_index.update(kwargs)
+
+    monkeypatch.setattr(
+        reveal_project_tool,
+        "get_revealed_file_storage",
+        lambda: _CapturingRevealedFileStorage(),
+    )
+
+    result = json.loads(
+        await reveal_project_tool.reveal_project.coroutine(
+            project_path="/workspace/parrot-bike",
+            runtime=_Runtime(object()),
+            template="static",
+            name="parrot",
+        )
+    )
+
+    assert result["version"] == 3
+    assert isinstance(result["files"], list)
+    assert [item["path"] for item in result["files"]] == ["/index.html"]
+    assert result["files"][0]["url"].endswith("/index.html")
+    assert result["files"][0]["is_binary"] is False
+    # entry 与列表项路径逐字相等（不再有 key 消毒造成的点号漂移）
+    assert result["entry"] == result["files"][0]["path"]
+
+    # revealed_files 索引同步使用列表形态：$set 嵌套 dict 的路径 key 同样会被
+    # MongoDB 拒写，列表形态对 Mongo 5.0+ 也安全
+    indexed_files = captured_index["data"]["project_meta"]["files"]
+    assert isinstance(indexed_files, list)
+    assert [item["path"] for item in indexed_files] == ["/index.html"]
 
 
 @pytest.mark.asyncio
@@ -800,9 +854,13 @@ async def test_reveal_project_batches_sandbox_files_through_single_bundle(
     )
 
     assert result["file_count"] == 6
-    assert set(result["files"]) == {f"/file-{index}.txt" for index in range(6)}
+    assert {item["path"] for item in result["files"]} == {
+        f"/file-{index}.txt" for index in range(6)
+    }
     # 单次 bundle 下载替代 6 次逐文件跨洋往返
-    tar_commands = [cmd for cmd in backend.commands if cmd.startswith("tar ")]
+    tar_commands = [
+        cmd for cmd in backend.commands if cmd.startswith("env COPYFILE_DISABLE=1 tar ")
+    ]
     assert len(tar_commands) == 1
     assert "-C" in tar_commands[0] and "czf" in tar_commands[0]
     # daemon 侧打包产物被清理
@@ -843,6 +901,11 @@ def test_bundle_command_archives_visible_files_with_literal_paths(
             "./index.html",
             "./src/app.ts",
         }
+
+
+def test_bundle_command_disables_implicit_macos_metadata() -> None:
+    command = reveal_project_tool._build_bundle_command("/project", "/bundle.tar.gz", ["/file"])
+    assert command.startswith("env COPYFILE_DISABLE=1 tar ")
 
 
 def test_bundle_command_only_archives_selected_files_without_recursing(tmp_path: Path) -> None:
@@ -969,7 +1032,7 @@ async def test_bundle_missing_members_fall_back_to_per_file_upload(
     )
 
     assert result["file_count"] == 6
-    assert "/file-5.txt" in result["files"]
+    assert "/file-5.txt" in {item["path"] for item in result["files"]}
 
 
 @pytest.mark.asyncio

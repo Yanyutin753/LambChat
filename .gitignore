@@ -103,6 +103,7 @@ YubbChat/
 /scripts/*
 !/scripts/
 !/scripts/create_daytona_snapshot.py
+!/scripts/eval_agent_capabilities.py
 !/scripts/sign_release_assets.py
 !/scripts/test_windows_installer_hooks.ps1
 !/scripts/create_e2b_template.py
@@ -112,6 +113,7 @@ YubbChat/
 !/scripts/verify_trace_event_chunks.py
 !/scripts/pre_deploy_db_checks.py
 !/scripts/seed_desktop_preview.py
+!/scripts/seed_subagent_preview.py
 !/scripts/extract_raise_sites.py
 !/scripts/codemod_error_literals.py
 !/scripts/cleanup_junk_memories.py
@@ -119,6 +121,8 @@ YubbChat/
 !/scripts/backfill_memory_scope.py
 !/scripts/eval_systemone_gate.py
 !/scripts/e2e_local_sandbox.py
+!/scripts/run_validation.py
+!/scripts/run-validation.mjs
 !/scripts/verify_sandbox_pause_heal.py
 !/scripts/verify_sandbox_cross_session.py
 !/scripts/generate_updater_manifest.py

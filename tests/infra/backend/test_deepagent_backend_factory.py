@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 import pytest
 from deepagents.backends import CompositeBackend
 from deepagents.backends.protocol import (
@@ -197,3 +199,61 @@ def test_memories_route_namespace_aligned_with_memory_store_family() -> None:
 
     memories_backend = backend.routes["/memories/"]
     assert memories_backend._namespace(None) == ("memories", "user-1", "vfs")
+
+
+async def test_evidence_route_uses_session_store_without_starting_sandbox():
+    from types import SimpleNamespace
+
+    from deepagents.backends.utils import file_data_to_string
+
+    from src.infra.backend.deepagent import create_sandbox_backend
+
+    class NeverStartSandbox:
+        work_dir = "/workspace/s"
+
+        async def aread(self, *args, **kwargs):
+            raise AssertionError("Evidence must not start sandbox")
+
+        async def awrite(self, *args, **kwargs):
+            raise AssertionError("Evidence must not start sandbox")
+
+    class Store:
+        def __init__(self):
+            self.values = {}
+
+        async def aget(self, namespace, key):
+            value = self.values.get((namespace, key))
+            return SimpleNamespace(value=value) if value is not None else None
+
+        async def aput(self, namespace, key, value):
+            self.values[(namespace, key)] = value
+
+    store = Store()
+    backends = [
+        create_sandbox_backend(NeverStartSandbox(), "assistant-u", user_id=user, session_id=session)
+        for user, session in (("u", "s"), ("u", "other"), ("other", "s"))
+    ]
+    for backend in backends:
+        backend.routes["/evidence/"]._store = store
+        assert backend.evidence_root == "/evidence"
+    assert (await backends[0].awrite("/evidence/proof.json", "actual tool result")).error is None
+    first = await backends[0].aread("/evidence/proof.json")
+    assert file_data_to_string(first.file_data) == "actual tool result"
+    assert (await backends[1].aread("/evidence/proof.json")).error
+    assert (await backends[2].aread("/evidence/proof.json")).error
+    assert list(store.values)[0][0] == ("evidence", "u", hashlib.sha256(b"s").hexdigest())
+
+
+def test_persistent_evidence_namespace_keeps_exact_session_identity():
+    first = create_persistent_backend(assistant_id="assistant-u", user_id="u", session_id="a/b")
+    second = create_persistent_backend(assistant_id="assistant-u", user_id="u", session_id="a-b")
+    assert first.routes["/evidence/"]._namespace(None) == (
+        "evidence",
+        "u",
+        hashlib.sha256(b"a/b").hexdigest(),
+    )
+    assert second.routes["/evidence/"]._namespace(None) == (
+        "evidence",
+        "u",
+        hashlib.sha256(b"a-b").hexdigest(),
+    )

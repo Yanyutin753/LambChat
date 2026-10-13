@@ -78,7 +78,7 @@ function ToolSearchDetail({ args, result }: ToolDetailProps) {
   return (
     <div className="flex h-full min-h-0 flex-col space-y-3 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
       {query && (
-        <ToolArgsBlock size="detail">
+        <ToolArgsBlock size="detail" copyText={query}>
           <Search
             size={14}
             className="shrink-0 text-sky-500 dark:text-sky-400"
@@ -90,6 +90,7 @@ function ToolSearchDetail({ args, result }: ToolDetailProps) {
       )}
 
       {summary && <ToolSearchSummaryChips summary={summary} size="detail" />}
+      {summary?.availability && <ToolResultContent result={summary.availability} hideCopyButton />}
 
       {summary && summary.matches.length > 0 && (
         <div className="space-y-2">
@@ -170,7 +171,7 @@ const ToolSearchItem = memo(function ToolSearchItem({
         : "error";
 
   const titleLabel = t("chat.message.toolSearchTools");
-  const pillLabel = `${titleLabel} ${query ? `"${truncate(query, 24)}"` : ""}${
+  const pillLabel = `${titleLabel} ${query ? `"${query}"` : ""}${
     summary && summary.total > 0 ? ` (${summary.total})` : ""
   }`.trim();
 
@@ -221,7 +222,7 @@ const ToolSearchItem = memo(function ToolSearchItem({
         {canExpand && (
           <ToolInlineDetails>
             {query && (
-              <ToolArgsBlock size="compact">
+              <ToolArgsBlock size="compact" copyText={query}>
                 <Search
                   size={12}
                   className="shrink-0 text-sky-500 dark:text-sky-400"

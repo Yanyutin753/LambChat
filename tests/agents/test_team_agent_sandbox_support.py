@@ -21,7 +21,7 @@ class _FakeDeepAgent:
 
     async def aget_state(self, _config):
         self.aget_state_calls += 1
-        return SimpleNamespace(values={"messages": self.state_messages})
+        return SimpleNamespace(values={"messages": self.state_messages}, next=(), tasks=())
 
 
 class _FakeEventProcessor:
@@ -148,10 +148,16 @@ async def test_team_agent_node_uses_sandbox_backend_when_enabled(
 
     sandbox_manager = SimpleNamespace(get_or_create=fake_get_or_create)
 
+    evidence_sessions = []
+
+    def create_backend(sandbox_backend, assistant_id, user_id=None, session_id=None):
+        evidence_sessions.append((user_id, session_id))
+        return sandbox_backend
+
     monkeypatch.setattr(
         team_nodes.backend_setup,
         "create_sandbox_backend",
-        lambda sandbox_backend, assistant_id, user_id=None: sandbox_backend,
+        create_backend,
     )
     monkeypatch.setattr(
         team_nodes.backend_setup, "get_session_sandbox_manager", lambda: sandbox_manager
@@ -210,6 +216,7 @@ async def test_team_agent_node_uses_sandbox_backend_when_enabled(
         config,
     )
 
+    assert evidence_sessions == [("user-1", "session-1")]
     assert fake_graph.captured_create_kwargs is not None
     assert fake_graph.captured_create_kwargs["backend"] is sandbox_backend
     system_prompt = fake_graph.captured_create_kwargs["system_prompt"]
@@ -256,6 +263,9 @@ async def test_team_agent_node_uses_persistent_backend_when_sandbox_disabled(
     )
 
     context = TeamAgentContext(session_id="session-1", user_id="user-1")
+    from src.infra.tool.team_tool import search_persona_presets
+
+    context.tools = [search_persona_presets]
     config = {
         "configurable": {
             "context": context,
@@ -272,6 +282,68 @@ async def test_team_agent_node_uses_persistent_backend_when_sandbox_disabled(
 
     assert fake_graph.captured_create_kwargs is not None
     assert fake_graph.captured_create_kwargs["backend"] is persistent_backend
+    from src.infra.agent.middleware.persona_subagent import PersonaSubagentMiddleware
+
+    assert any(
+        isinstance(middleware, PersonaSubagentMiddleware)
+        for middleware in fake_graph.captured_create_kwargs["middleware"]
+    )
+    from unittest.mock import AsyncMock, MagicMock
+
+    from src.infra.agent import subagent_assembly
+    from src.infra.agent.middleware.subagent_sessions import SubagentSessionMiddleware
+    from src.infra.tool import team_tool
+
+    snapshot = SimpleNamespace(
+        name="Researcher",
+        system_prompt="TRUSTED_ROLE_SOP",
+        skill_names=["research"],
+        missing_skill_names=[],
+        mcp_server_names=[],
+        avatar=None,
+    )
+    resolve = AsyncMock(return_value=snapshot)
+    monkeypatch.setattr(team_tool, "resolve_persona_for_subagent", resolve)
+    monkeypatch.setattr(
+        subagent_assembly, "create_summarization_middleware", lambda *_args: object()
+    )
+    monkeypatch.setattr(team_nodes, "refresh_subagent_context", AsyncMock(return_value=context))
+    child_graph = SimpleNamespace(
+        builder=SimpleNamespace(compile=MagicMock(return_value="child graph"))
+    )
+    dispatch = MagicMock(return_value=child_graph)
+    monkeypatch.setattr(subagent_assembly, "create_sub_agent", dispatch)
+    role_middleware = next(
+        m
+        for m in fake_graph.captured_create_kwargs["middleware"]
+        if isinstance(m, PersonaSubagentMiddleware)
+    )
+    session_middleware = next(
+        m
+        for m in fake_graph.captured_create_kwargs["middleware"]
+        if isinstance(m, SubagentSessionMiddleware)
+    )
+    assert await role_middleware._build_task_tool("p1") is session_middleware.tools[0]
+    assert (
+        await session_middleware.sessions.build_graph(
+            "persona:p1", SimpleNamespace(subagent_id="child-1")
+        )
+        == "child graph"
+    )
+    resolve.assert_awaited_once_with("p1", user_id="user-1")
+    role_spec = dispatch.call_args.args[0]
+    assert role_spec["name"] == "persona:p1"
+    assert any("TRUSTED_ROLE_SOP" in getattr(m, "_prompt", "") for m in role_spec["middleware"])
+    assert (
+        child_graph.builder.compile.call_args.kwargs["store"]
+        is fake_graph.captured_create_kwargs["store"]
+    )
+    assert (
+        await session_middleware.sessions.build_graph(
+            "general-purpose", SimpleNamespace(subagent_id="child-2")
+        )
+        == "child graph"
+    )
 
 
 @pytest.mark.asyncio
@@ -713,7 +785,7 @@ async def test_team_agent_node_reads_existing_state_messages_for_recommendations
     )
     await asyncio.sleep(0)
 
-    assert fake_graph.aget_state_calls == 1
+    assert fake_graph.aget_state_calls == 2
     assert result == {"output": ""}
 
 

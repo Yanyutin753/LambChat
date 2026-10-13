@@ -7,8 +7,8 @@ interface ToolbarChipProps {
   label: string;
   /** 悬停提示；缺省回落 label。 */
   title?: string;
-  /** 标签尾部附加节点（如沙箱 daemon 状态点）。 */
-  trailing?: ReactNode;
+  /** 图标右上角附加节点（如沙箱 daemon 状态点）。 */
+  iconBadge?: ReactNode;
   /** 追加到标签上的类名（如手机端隐藏文字：hidden sm:inline）。 */
   labelClassName?: string;
   onClick: () => void;
@@ -19,7 +19,7 @@ export function ToolbarChip({
   icon,
   label,
   title,
-  trailing,
+  iconBadge,
   labelClassName,
   onClick,
   onClear,
@@ -54,21 +54,21 @@ export function ToolbarChip({
           {icon && (
             <span
               aria-hidden="true"
-              className={`relative h-4 w-4 shrink-0 inline-flex items-center justify-center overflow-hidden${onClear ? " sm:group-hover:opacity-0 sm:group-focus-within:opacity-0" : ""}`}
+              className={`relative h-4 w-4 shrink-0 inline-flex items-center justify-center ${iconBadge ? "overflow-visible" : "overflow-hidden"}${onClear ? " sm:group-hover:opacity-0 sm:group-focus-within:opacity-0" : ""}`}
             >
               {icon}
+              {iconBadge}
             </span>
           )}
           {/* 手机端放不下完整名称时只显示图标；保留布局以便宽度恢复后重新测量。 */}
           <span
             ref={labelRef}
-            className={`min-w-0 truncate text-14 leading-5 font-semibold text-blue-600 dark:text-blue-400 font-serif${
+            className={`composer-toolbar-label min-w-0 truncate text-14 leading-5 font-semibold text-blue-600 dark:text-blue-400 font-serif${
               labelClassName ? ` ${labelClassName}` : ""
             }${icon && labelOverflows ? " max-sm:invisible" : ""}`}
           >
             {label}
           </span>
-          {trailing}
         </div>
       </button>
       {onClear && (

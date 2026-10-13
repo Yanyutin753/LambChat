@@ -318,7 +318,7 @@ function WebSearchDetail({ args, result }: ToolDetailProps) {
               count: summary.images.length,
             })}
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="grid w-full max-w-md grid-cols-2 gap-2 sm:grid-cols-3">
             {summary.images.slice(0, 9).map((image, index) => (
               <button
                 key={`${image.url}-${index}`}
@@ -413,7 +413,7 @@ const WebSearchItem = memo(function WebSearchItem({
 
   const titleLabel = t("chat.message.toolWebSearch");
   const pillLabel = `${titleLabel} ${
-    query ? `"${truncate(query, 24)}"` : ""
+    query ? `"${query}"` : ""
   }`.trim();
   // 结果数走 suffix 徽章，pill 主标签保持干净
   const countSuffix =
@@ -488,7 +488,7 @@ const WebSearchItem = memo(function WebSearchItem({
         {canExpand && (
           <ToolInlineDetails>
             {query && (
-              <ToolArgsBlock size="compact">
+              <ToolArgsBlock size="compact" copyText={query}>
                 <Globe
                   size={12}
                   className="shrink-0 text-[var(--theme-primary)]"

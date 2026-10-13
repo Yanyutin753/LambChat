@@ -202,6 +202,10 @@ class SearchAgentContext:
                 # 低于阈值或未启用延迟：走原有逻辑
                 self._append_unique_tools(deferred_mcp_tools, reserved=reserved_system_names)
 
+            from src.agents.core.mcp_tool_exposure import attach_mcp_availability
+
+            attach_mcp_availability(self)
+
         except Exception as e:
             logger.error(f"[SearchAgentContext] Failed to load MCP tools: {e}", exc_info=True)
 
@@ -336,8 +340,7 @@ class SearchAgentContext:
             self.tools.append(get_upload_url_tool())
             logger.info("[SearchAgentContext] Added upload_url_to_sandbox tool (sandbox mode)")
 
-        # computer-use：仅本地沙箱 daemon 支持；daemon 未授权/离线时报结构化
-        # 错误，工具描述内含「禁 osascript」铁律与引导（与 fast agent 同款）
+        # 会话运行时按本地档和在线机器过滤；工具描述包含「禁 osascript」规则。
         if settings.ENABLE_COMPUTER_USE:
             from src.infra.tool.computer_use_tool import computer_use
 

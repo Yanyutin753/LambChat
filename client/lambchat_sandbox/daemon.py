@@ -86,6 +86,7 @@ class _CallDedupe:
 
     def __init__(self, capacity: int = _RECENT_CALL_IDS_MAX) -> None:
         self._seen: set[str] = set()
+        self._terminal: set[str] = set()
         self._order: deque[str] = deque()
         self._capacity = capacity
 
@@ -96,8 +97,18 @@ class _CallDedupe:
         self._seen.add(call_id)
         self._order.append(call_id)
         while len(self._order) > self._capacity:
-            self._seen.discard(self._order.popleft())
+            expired = self._order.popleft()
+            self._seen.discard(expired)
+            self._terminal.discard(expired)
         return True
+
+    def mark_terminal(self, call_id: str) -> None:
+        """The reply was accepted, or the server rejected its expired assignment."""
+        if call_id in self._seen:
+            self._terminal.add(call_id)
+
+    def is_terminal(self, call_id: str) -> bool:
+        return call_id in self._terminal
 
 
 def _default_machine_name() -> str:
@@ -211,10 +222,14 @@ async def _handle_channel(
     """单次连接内逐条处理 ToolCall；流结束/异常交回外层重连循环。"""
     async for call in calls:
         try:
-            await _process_call(
+            completed = await _process_call(
                 client, call, cfg=cfg, executor=executor, auditor=auditor, dedupe=dedupe
             )
+            if dedupe is not None and completed:
+                dedupe.mark_terminal(call.call_id)
         except ResultRejectedError:
+            if dedupe is not None:
+                dedupe.mark_terminal(call.call_id)
             auditor.log(
                 _session_id_from_cwd(str(call.payload.get("cwd", ""))),
                 {"event": "result_rejected", "call_id": call.call_id, "op": call.op},
@@ -229,7 +244,7 @@ async def _process_call(
     executor: Executor,
     auditor: Auditor,
     dedupe: _CallDedupe | None = None,
-) -> None:
+) -> bool:
     """单条 ToolCall 的完整决策链：审计 received → ack → op 分发 → 迟到检查 → 执行 → done。
 
     call_id 去重（dedupe 非 None 时）：服务端 dispatch 在 ACK 死线内对未确认
@@ -244,6 +259,9 @@ async def _process_call(
     ack**——短命令免一次 HTTP 往返）；``fs_*`` 走
     :func:`lambchat_sandbox.fsops.handle_fs_op`（win32 结构化文件操作）与流式
     op（长传输，立即 ack）；其余 op 回 ``unsupported`` 错误。
+
+    正常首次调用返回 True 表示结果回传已受理；重复帧返回 False，补发 ACK
+    不会把尚未确认结果的调用变为终态。网络异常继续上抛，保留未确认状态。
     """
     command = str(call.payload.get("command", ""))
     virtual_cwd = str(call.payload.get("cwd", ""))
@@ -252,9 +270,10 @@ async def _process_call(
     started = time.monotonic()
     if dedupe is not None and not dedupe.remember(call.call_id):
         # The first ACK may have been lost with the previous SSE connection.
-        # Re-ack the duplicate so server-side at-least-once dispatch can stop
-        # retrying, while still never executing the side effect twice.
-        await client.post_result(call.call_id, {"stage": "ack"})
+        # Re-ack only an unresolved duplicate. Confirmed terminal replies need
+        # no HTTP round trip and must not block later calls in this serial loop.
+        if not dedupe.is_terminal(call.call_id):
+            await client.post_result(call.call_id, {"stage": "ack"})
         auditor.log(
             session_id,
             {
@@ -263,7 +282,7 @@ async def _process_call(
                 "op": call.op,
             },
         )
-        return
+        return False
     auditor.log(
         session_id,
         {
@@ -285,7 +304,7 @@ async def _process_call(
             executor=executor,
             auditor=auditor,
         )
-        return
+        return True
     # fs op / 流式 op：立即 ack——结构化 op 快（无 watchdog 必要），流式传输
     # 可达数分钟（必须先 ack 才不会撞服务端 ACK 死线）
     if call.op in STREAM_OPS or call.op in FS_OPS:
@@ -303,7 +322,7 @@ async def _process_call(
             cfg=cfg,
             auditor=auditor,
         )
-        return
+        return True
     if call.op in FS_OPS:
         await _process_fs_call(
             client,
@@ -314,7 +333,7 @@ async def _process_call(
             cfg=cfg,
             auditor=auditor,
         )
-        return
+        return True
     if call.op in CUA_OPS:
         # computer-use：观察带时间预算、动作毫秒级，无 watchdog 必要，先 ack
         await client.post_result(call.call_id, {"stage": "ack"})
@@ -326,12 +345,13 @@ async def _process_call(
             started=started,
             auditor=auditor,
         )
-        return
+        return True
 
     await client.post_result(
         call.call_id,
         {"stage": "done", "status": "error", "error": f"unsupported op: {call.op}"},
     )
+    return True
 
 
 async def _process_exec_call(

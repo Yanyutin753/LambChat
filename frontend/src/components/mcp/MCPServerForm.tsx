@@ -1,5 +1,6 @@
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useState, useEffect, useId } from "react";
-import { Plus, Trash2, Loader2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Permission } from "../../types";
 import { uuid } from "../../utils/uuid";
@@ -502,7 +503,7 @@ export function MCPServerForm({
         >
           {isLoading ? (
             <span className="inline-flex items-center gap-1.5">
-              <Loader2 size={14} className="animate-spin" />
+              <LoadingSpinner color="text-current" size={14} />
               ...
             </span>
           ) : isEditing ? (

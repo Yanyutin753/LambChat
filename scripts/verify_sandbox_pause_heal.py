@@ -374,4 +374,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    from run_validation import validation_slot
+
+    with validation_slot():
+        sys.exit(main())

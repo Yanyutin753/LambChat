@@ -1,3 +1,4 @@
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -15,6 +16,7 @@ import {
 } from "./recentChatsPagination";
 import { MarkAllReadBadge } from "./MarkAllReadBadge";
 import { Tooltip } from "../common/Tooltip";
+import { getSessionTaskIndicator } from "./sessionTaskIndicator";
 import { AlertCircle } from "lucide-react";
 
 interface RecentChatsDialogProps {
@@ -247,18 +249,13 @@ export function RecentChatsDialog({
         ) : (
           <>
             {sessions.map((session) => {
-              const taskStatus = session.metadata?.task_status;
-              const isWaitingForHuman = taskStatus === "waiting_human";
-              const isGenerating =
-                taskStatus === "running" || taskStatus === "pending";
-              const runningLabel = isGenerating
-                ? t(
-                    taskStatus === "pending"
-                      ? "sidebar.pendingStatus"
-                      : "sidebar.runningStatus",
-                    taskStatus === "pending" ? "等待中" : "运行中",
-                  )
+              const taskIndicator = getSessionTaskIndicator(session.metadata?.task_status);
+              const isWaitingForHuman = taskIndicator.kind === "attention";
+              const isGenerating = taskIndicator.kind === "busy";
+              const runningLabel = isGenerating && taskIndicator.labelKey
+                ? t(taskIndicator.labelKey, taskIndicator.labelKey === "sidebar.pendingStatus" ? "等待中" : "运行中")
                 : null;
+              const attentionLabel = t("sidebar.waitingHuman", "等待回复");
 
               return (
                 <button
@@ -291,15 +288,20 @@ export function RecentChatsDialog({
                     <Tooltip content={runningLabel}>
                       <span
                         aria-label={runningLabel}
-                        className="shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full border-2 border-amber-500/25 border-t-amber-500 dark:border-t-amber-400 animate-spin"
-                      />
+                        className="shrink-0 inline-flex items-center justify-center w-4 h-4"
+                      >
+                        <LoadingSpinner
+                          size="sm"
+                          color="text-[var(--theme-primary)]"
+                        />
+                      </span>
                     </Tooltip>
                   )}
                   {isWaitingForHuman && (
-                    <Tooltip content={t("sidebar.waitingHuman", "等待回复")}>
+                    <Tooltip content={attentionLabel}>
                       <span
                         data-session-status="ask-human"
-                        aria-label="Ask human · 等待你的回复"
+                        aria-label={attentionLabel}
                         className="shrink-0 inline-flex items-center justify-center w-4 h-4 text-amber-500 dark:text-amber-400"
                       >
                         <AlertCircle size={16} strokeWidth={2.3} />

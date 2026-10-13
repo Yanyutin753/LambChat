@@ -116,6 +116,7 @@ _LIFESPAN_BACKGROUND_TASK_NAMES = (
     "weixin_task",
     "outbound_task",
     "pricing_sync_task",
+    "persistent_goal_task",
 )
 _STALE_TASK_CLEANUP_RECHECK_DELAY_SECONDS = max(5.0, HEARTBEAT_TIMEOUT * 2 + 5)
 
@@ -462,6 +463,10 @@ async def lifespan(app: FastAPI):
 
     await _run_startup_indexes(app)
 
+    from src.infra.onboarding.starter_pack import ensure_starter_personas
+
+    await ensure_starter_personas()
+
     # 启动分布式运行时监听器（任务/设置/模型/记忆/WebSocket）
     await start_runtime_services()
     logger.info("Runtime distributed listeners started")
@@ -567,6 +572,11 @@ async def lifespan(app: FastAPI):
             await asyncio.sleep(max(1, settings.PRICING_SYNC_INTERVAL_HOURS) * 3600)
 
     app.state.pricing_sync_task = asyncio.create_task(_run_pricing_sync_loop())
+
+    if settings.TASK_BACKEND == "local":
+        from src.infra.goal_continuation import local_goal_loop
+
+        app.state.persistent_goal_task = asyncio.create_task(local_goal_loop())
 
     async def _reset_memory_monitor_after_startup() -> None:
         try:
@@ -771,6 +781,10 @@ def create_app() -> FastAPI:
     app.include_router(version.router, prefix="/api", tags=["Version"])
     # Chat 路由: /api/chat/stream 后台执行, /api/chat/sessions/{id}/stream SSE
     app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
+    from src.api.routes import persistent_goal, task_completions
+
+    app.include_router(persistent_goal.router, prefix="/api/chat", tags=["Chat"])
+    app.include_router(task_completions.router, prefix="/api", tags=["Tasks"])
     # 会话排队状态查询（与 chat 会话路由同前缀，独立模块控制单文件规模）
     app.include_router(session_queue.router, prefix="/api/chat", tags=["Chat"])
     # Agent 路由: /api/agents 列表, /api/{agent_id}/stream 和 /api/{agent_id}/chat

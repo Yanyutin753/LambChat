@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill, CopyButton, LoadingSpinner } from "../../common";
 import type { CollapsibleStatus } from "../../common";
+import { parseToolPanelResult } from "./items/toolUtils";
 import { ToolArgsDisplay } from "./ToolArgsDisplay";
 import { ToolResultContent } from "./items/McpBlockPreview";
 import { ToolDurationFooter } from "./items/ToolDurationFooter";
@@ -58,7 +59,7 @@ function formatElapsed(seconds: number): string {
 
 function compactPreviewText(
   value: unknown,
-  maxLength = 72,
+  maxLength = 2048,
 ): string | undefined {
   if (value === undefined || value === null || value === "") return undefined;
   const raw = typeof value === "string" ? value : JSON.stringify(value);
@@ -91,7 +92,7 @@ function buildToolPillSummary(
 
   const entries = Object.entries(args)
     .map(([key, value]) => {
-      const preview = compactPreviewText(value, 36);
+      const preview = compactPreviewText(value, 256);
       return preview ? `${key}=${preview}` : undefined;
     })
     .filter((entry): entry is string => Boolean(entry))
@@ -118,6 +119,7 @@ export { DocumentParseItem } from "./items/DocumentParseItem";
 export { UploadUrlToSandboxItem } from "./items/UploadUrlToSandboxItem";
 export { TransferItem } from "./items/TransferItem";
 export { ScheduledTaskItem } from "./items/ScheduledTaskItem";
+export { SubagentControlItem } from "./items/SubagentControlItem";
 export { EnvVarItem } from "./items/EnvVarItem";
 export { PersonaItem } from "./items/PersonaItem";
 export { TeamItem } from "./items/TeamItem";
@@ -192,7 +194,7 @@ function ToolCallPanelContent({ toolCallId }: { toolCallId: string }) {
             }
             expandedClassName="flex min-h-0 flex-col shrink-0"
           >
-            <ToolResultContent result={data.result} hideCopyButton />
+            <ToolResultContent result={parseToolPanelResult(data.result)} hideCopyButton />
           </CollapsibleSection>
         )}
 
@@ -459,7 +461,7 @@ export function ToolCallItem({
         animatedDots={isStreamingLabel}
         suffix={
           serverName ? (
-            <span className="shrink-0 text-9 px-1.5 py-0.5 rounded-md bg-white/30 dark:bg-black/20 opacity-70 font-medium truncate max-w-[120px]">
+            <span className="min-w-0 max-w-[50%] truncate">
               {serverName}
             </span>
           ) : undefined
@@ -474,3 +476,7 @@ export function ToolCallItem({
     </>
   );
 }
+
+export { CancelSubagentItem } from "./items/CancelSubagentItem";
+export { StartBackgroundTaskItem } from "./items/StartBackgroundTaskItem";
+export { ListSubagentsItem } from "./items/ListSubagentsItem";

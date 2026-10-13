@@ -101,8 +101,10 @@ export const uploadApi = {
               await refreshAccessToken();
               await uploadOnce(true);
               return;
-            } catch {
-              redirectToLogin();
+            } catch (error) {
+              if ((error as Error & { status?: number })?.status === 401) redirectToLogin();
+              reject(error);
+              return;
             }
           }
 
@@ -147,7 +149,7 @@ export const uploadApi = {
         xhr.send(formData);
       };
 
-      void uploadOnce(false);
+      void uploadOnce(false).catch(reject);
     });
 
     return {

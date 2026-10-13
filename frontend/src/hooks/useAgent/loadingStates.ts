@@ -1,5 +1,6 @@
 /** 运行态/加载态状态簇（从 useAgent.ts 下沉，保持主 hook 在 1000 行红线内）。 */
 import { useState } from "react";
+import type { PersistentGoal } from "../../services/api/session";
 import type { BackendSession } from "../../services/api";
 import type { ConnectionStatus } from "../../types";
 import type { ActiveGoalSpec } from "./types";
@@ -19,6 +20,8 @@ export function useChatRuntimeStates() {
   const [isInitializingSandbox, setIsInitializingSandbox] = useState(false);
   const [sandboxError, setSandboxError] = useState<string | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [persistentGoal, setPersistentGoal] = useState<PersistentGoal | null>(null);
+  const [persistentGoalBusy, setPersistentGoalBusy] = useState(false);
   const [activeGoal, setActiveGoal] = useState<ActiveGoalSpec | null>(null);
   const [goalsByRunId, setGoalsByRunId] = useState<
     Record<string, ActiveGoalSpec>
@@ -50,6 +53,10 @@ export function useChatRuntimeStates() {
     setSandboxError,
     selectedTeamId,
     setSelectedTeamId,
+    persistentGoal,
+    setPersistentGoal,
+    persistentGoalBusy,
+    setPersistentGoalBusy,
     activeGoal,
     setActiveGoal,
     goalsByRunId,

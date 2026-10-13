@@ -7,6 +7,27 @@ import { ImageWithSkeleton } from "../ImageWithSkeleton";
 const FULL_SRC = "https://app.example/api/upload/file/abc/hero.jpg";
 const THUMB_SRC = "https://app.example/api/upload/file/abc/hero.jpg?thumb=1";
 
+test("auto-height inline images reserve skeleton space until loaded", () => {
+  const { container } = render(
+    <ImageWithSkeleton
+      src="https://app.example/placeholder-test.png"
+      alt="placeholder"
+      inline
+      aspectRatio="4 / 3"
+      className="w-full h-auto"
+    />,
+  );
+  const skeleton = container.querySelector(".skeleton-line") as HTMLElement;
+  const img = screen.getByAltText("placeholder");
+  expect(skeleton.style.aspectRatio).toBe("4 / 3");
+  expect(skeleton).not.toHaveClass("absolute");
+  expect(img).toHaveStyle({ position: "absolute" });
+
+  fireEvent.load(img);
+  expect(container.querySelector(".skeleton-line")).toBeNull();
+  expect(img.style.position).toBe("");
+});
+
 test.each([false, true])(
   "clickable image is a native preview button in inline=%s mode, including its error fallback",
   (inline) => {

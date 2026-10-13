@@ -5,13 +5,13 @@ export interface AutoLoginGateState {
 }
 
 /**
- * `/` 上已持有 token 且鉴权仍在校验时，几乎必然会被自动带进 `/chat`——
- * 此时先显示品牌过渡页，而不是渲染整个营销落地页再被跳走（落地页闪现）。
+ * 鉴权校验和已登录后的跳转都保持品牌过渡页，避免跳转 effect
+ * 执行前渲染营销落地页；校验失败后仍正常展示落地页。
  */
 export function shouldShowAutoLoginSplash({
   isLoading,
   isAuthenticated,
   hasToken,
 }: AutoLoginGateState): boolean {
-  return isLoading && !isAuthenticated && hasToken;
+  return isAuthenticated || (isLoading && hasToken);
 }

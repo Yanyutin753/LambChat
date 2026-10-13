@@ -27,6 +27,10 @@ import {
   EnvVarItem,
   PersonaItem,
   TeamItem,
+  SubagentControlItem,
+  CancelSubagentItem,
+  StartBackgroundTaskItem,
+  ListSubagentsItem,
   MemoryRecallItem,
   MemoryStoreItem,
   AskHumanItem,
@@ -449,6 +453,40 @@ export function MessagePartRenderer({
     ) {
       return (
         <TeamItem
+          id={part.id}
+          toolName={part.name}
+          args={toolArgs}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (part.name === "start_background_task") {
+      return <StartBackgroundTaskItem id={part.id} args={part.args} result={part.result}
+        success={part.success} isPending={part.isPending} cancelled={part.cancelled}
+        startedAt={part.startedAt} completedAt={part.completedAt} />;
+    }
+    if (part.name === "cancel_subagent") {
+      return <CancelSubagentItem id={part.id} args={part.args} result={part.result}
+        success={part.success} isPending={part.isPending} cancelled={part.cancelled}
+        startedAt={part.startedAt} completedAt={part.completedAt} />;
+    }
+    if (part.name === "list_subagents") {
+      return <ListSubagentsItem id={part.id} args={part.args} result={part.result}
+        success={part.success} isPending={part.isPending} cancelled={part.cancelled}
+        startedAt={part.startedAt} completedAt={part.completedAt} />;
+    }
+    if (
+      part.name === "send_subagent_message" ||
+      part.name === "send_parent_message" ||
+      part.name === "wait_subagent"
+    ) {
+      return (
+        <SubagentControlItem
           id={part.id}
           toolName={part.name}
           args={toolArgs}

@@ -8,16 +8,15 @@
 import asyncio
 import json
 import uuid
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from src.agents.core import resolve_agent_name
-from src.agents.core.base import AgentFactory
 from src.api.deps import get_current_user_required, require_permissions
 from src.api.routes.auth.utils import _get_language
+from src.api.routes.chat_agent_execution import _execute_agent_stream
 from src.api.routes.chat_language import apply_response_language
 from src.api.routes.chat_request_config import (  # noqa: F401 - 转发导入保持 from chat import 兼容
     build_conversation_config,
@@ -40,9 +39,13 @@ from src.infra.chat.session_baseline import (
     assemble_first_turn_message,
 )
 from src.infra.goal import GoalSpec, coerce_goal_spec
+from src.infra.goal_runtime import (
+    SUBMISSION_ACCEPTED,
+    bind_submission_goal,
+    submit_chat_with_goal,
+)
 from src.infra.logging import get_logger
 from src.infra.session.manager import SessionManager
-from src.infra.task.cancellation import _close_agent_safely
 from src.infra.task.concurrency import register_executor
 from src.infra.task.manager import get_task_manager
 from src.infra.task.status import TaskStatus
@@ -206,95 +209,6 @@ def resolve_goal_for_request(
     return active_goal, request.message
 
 
-async def _execute_agent_stream(
-    session_id: str,
-    agent_id: str,
-    message: str,
-    user_id: str,
-    presenter=None,
-    disabled_tools: list[str] | None = None,
-    agent_options: dict | None = None,
-    attachments: list[dict] | None = None,
-    disabled_skills: list[str] | None = None,
-    enabled_skills: list[str] | None = None,
-    persona_system_prompt: str | None = None,
-    disabled_mcp_tools: list[str] | None = None,
-    enabled_mcp_servers: list[str] | None = None,
-    team_id: str | None = None,
-    active_goal: dict | None = None,
-    recommendation_input: str | None = None,
-    auto_mode: bool = False,
-    hitl_resume: dict | None = None,
-    base_url: str = "",
-):
-    """执行 Agent 并流式输出事件（供 TaskManager 调用）"""
-    from src.infra.task.manager import TaskInterruptedError
-
-    run_id = presenter.run_id if presenter else None
-
-    started_at: str | None = None
-    goal_end_emitted = False
-    if active_goal is not None:
-        started_at = (
-            hitl_resume.get("goal_started_at") if hitl_resume is not None else None
-        ) or datetime.now(timezone.utc).isoformat()
-        if hitl_resume is None:
-            yield {
-                "event": "goal:start",
-                "data": {"goal": active_goal, "started_at": started_at},
-            }
-
-    try:
-        agent = await AgentFactory.get(agent_id)
-        async for event in agent.stream(
-            message,
-            session_id,
-            user_id=user_id,
-            presenter=presenter,
-            disabled_tools=disabled_tools,
-            agent_options=agent_options,
-            attachments=attachments,
-            disabled_skills=disabled_skills,
-            enabled_skills=enabled_skills,
-            persona_system_prompt=persona_system_prompt,
-            disabled_mcp_tools=disabled_mcp_tools,
-            enabled_mcp_servers=enabled_mcp_servers,
-            team_id=team_id,
-            active_goal=active_goal,
-            auto_mode=auto_mode,
-            goal_started_at=started_at,
-            recommendation_input=recommendation_input,
-            hitl_resume=hitl_resume,
-            base_url=base_url,
-        ):
-            if event.get("event") == "goal:end":
-                goal_end_emitted = True
-            yield event
-
-        if (
-            active_goal is not None
-            and not goal_end_emitted
-            and not getattr(presenter, "hitl_suspended", False)
-        ):
-            ended_at = datetime.now(timezone.utc).isoformat()
-            yield {
-                "event": "goal:end",
-                "data": {"goal": active_goal, "started_at": started_at, "ended_at": ended_at},
-            }
-    except (asyncio.CancelledError, TaskInterruptedError):
-        # 取消/中断时，调用 agent.close 清理资源
-        if run_id:
-            await _close_agent_safely(agent, run_id)
-        # agent 的 finally 块可能已发 goal:end，此处再 yield 确保不遗漏（Presenter 有去重）
-        if active_goal is not None and not goal_end_emitted:
-            ended_at = datetime.now(timezone.utc).isoformat()
-            yield {
-                "event": "goal:end",
-                "data": {"goal": active_goal, "started_at": started_at, "ended_at": ended_at},
-            }
-        raise
-
-
 # Register the default agent-stream executor so any worker can dispatch queued tasks
 register_executor("agent_stream", _execute_agent_stream)
 
@@ -323,6 +237,12 @@ async def chat_stream(
         status: 任务状态 (pending / queued)
         queue_position: 排队位置（仅排队时返回）
     """
+    return await submit_chat_with_goal(_submit_chat, request, http_request, agent_id, user)
+
+
+async def _submit_chat(
+    request: AgentRequest, http_request: Request, agent_id: str, user: TokenPayload
+):
     from src.infra.task.concurrency import ConcurrencyResult, get_concurrency_limiter
     from src.infra.task.manager import _generate_run_id
 
@@ -355,8 +275,28 @@ async def chat_stream(
     except AppError:
         raise
 
+    from src.infra.task.background_tasks import (
+        BACKGROUND_EXECUTOR_KEY,
+        BACKGROUND_SUBMISSION_RUN,
+        execute_background_stream,
+    )
+
+    background_run = BACKGROUND_SUBMISSION_RUN.get()
+    executor_key = BACKGROUND_EXECUTOR_KEY if background_run else "agent_stream"
+    executor = execute_background_stream if background_run else _execute_agent_stream
+    from src.infra.task.background_tasks import (
+        BACKGROUND_RESTRICTIONS,
+        apply_background_restrictions,
+    )
+
+    restrictions = BACKGROUND_RESTRICTIONS.get()
+    if background_run and restrictions is not None:
+        apply_background_restrictions(request, restrictions)
+    run_id = background_run or _generate_run_id()
+    active_goal_data, run_id = await bind_submission_goal(
+        request, existing_metadata, session_id, user.sub, run_id
+    )
     active_goal, agent_message = resolve_goal_for_request(request, existing_metadata)
-    active_goal_data = active_goal.model_dump() if active_goal else None
     task_manager = get_task_manager()
     preferred_language = _get_language(http_request)
     # 界面 locale 固定回复语言；随 agent_options 全链路透传（task_context /
@@ -394,9 +334,6 @@ async def chat_stream(
         from src.infra.utils.datetime import utc_now
 
         prompt_state["prompt_time_reported_at"] = utc_now().isoformat()
-
-    # 生成 run_id（不管是否排队都需要唯一 ID）
-    run_id = _generate_run_id()
 
     # Capture the base URL before queueing so artifact links survive worker dispatch.
     base_url = getattr(settings, "APP_BASE_URL", "").rstrip("/")
@@ -466,7 +403,7 @@ async def chat_stream(
 
     # Build task context for queued dispatch (stored in Redis, multi-worker safe)
     task_context = {
-        "executor_key": "agent_stream",
+        "executor_key": executor_key,
         "agent_id": agent_id,
         "message": formatted_message,
         "display_message": request.message,
@@ -562,6 +499,7 @@ async def chat_stream(
                 "attachment_references_claimed": attachment_references_claimed,
             }
 
+            SUBMISSION_ACCEPTED.set(True)
             # 更新 session metadata，存储完整的对话配置（排队状态；后台执行）
             await _schedule_session_config_update(
                 session_id,
@@ -594,7 +532,7 @@ async def chat_stream(
                 agent_id=agent_id,
                 message=formatted_message,
                 user_id=user.sub,
-                executor_key="agent_stream",
+                executor_key=executor_key,
                 disabled_tools=request.disabled_tools,
                 agent_options=request.agent_options,
                 attachments=attachments_data,
@@ -627,7 +565,7 @@ async def chat_stream(
                 agent_id=agent_id,
                 message=formatted_message,
                 user_id=user.sub,
-                executor=_execute_agent_stream,
+                executor=executor,
                 disabled_tools=request.disabled_tools,
                 agent_options=request.agent_options,
                 attachments=attachments_data,
@@ -652,6 +590,7 @@ async def chat_stream(
             await limiter.release(user.sub, run_id)
             raise
 
+    SUBMISSION_ACCEPTED.set(True)
     # 更新 session metadata，存储完整的对话配置（后台执行，不阻塞响应）
     await _schedule_session_config_update(
         session_id,
@@ -827,6 +766,14 @@ async def cancel_session(
         raise AppError(ErrorCode.SESSION_NOT_FOUND)
     verify_session_ownership(session, user)
 
+    if (session.metadata or {}).get("persistent_goal_id"):
+        from src.infra.goal_continuation import publish_goal
+        from src.infra.persistent_goal import GoalService
+
+        goal = await GoalService().control(session_id, user.sub, "pause")
+        if goal:
+            await publish_goal(goal)
+
     task_manager = get_task_manager()
     result = await task_manager.cancel(session_id, user_id=user.sub)
 
@@ -869,7 +816,10 @@ async def resume_session(
     verify_session_ownership(session, user)
 
     task_manager = get_task_manager()
-    return await task_manager.resume_session(session_id)
+    result = await task_manager.resume_session(session_id)
+    if result.get("code") == ErrorCode.TASK_RECOVERY_NOT_AVAILABLE.code:
+        raise AppError(ErrorCode.TASK_RECOVERY_NOT_AVAILABLE)
+    return result
 
 
 class SteerRequest(BaseModel):

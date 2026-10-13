@@ -1,0 +1,220 @@
+{
+  "version": "2",
+  "cases": [
+    {
+      "case_id": "steer_constraints",
+      "capability": "steering",
+      "input": "Use the controlled catalog to list projects. Wait for updated constraints before finalizing.",
+      "controlled_material": {
+        "catalog": [
+          "red",
+          "blue"
+        ],
+        "steer": "Return only blue."
+      },
+      "requires_live_hook": true,
+      "assertions": [
+        {
+          "kind": "event_count",
+          "event_type": "steer:message"
+        },
+        {
+          "kind": "final_contains",
+          "value": "blue"
+        },
+        {
+          "kind": "final_not_contains",
+          "value": "red"
+        }
+      ]
+    },
+    {
+      "case_id": "compression_continuation",
+      "capability": "context",
+      "input": "Remember invariant CAP-731. Finish the controlled long task after two forced summaries and state the invariant.",
+      "controlled_material": {
+        "invariant": "CAP-731",
+        "forced_summaries": 2
+      },
+      "requires_live_hook": true,
+      "assertions": [
+        {
+          "kind": "summary_count",
+          "min_count": 2
+        },
+        {
+          "kind": "final_contains",
+          "value": "CAP-731"
+        }
+      ]
+    },
+    {
+      "case_id": "multi_source_aggregation",
+      "capability": "aggregation",
+      "input": "Aggregate controlled sources source-a and source-b. Return total and both original source IDs.",
+      "controlled_material": {
+        "source-a": {
+          "value": 17
+        },
+        "source-b": {
+          "value": 25
+        }
+      },
+      "requires_live_hook": true,
+      "assertions": [
+        {
+          "kind": "final_contains",
+          "value": "42"
+        },
+        {
+          "kind": "final_contains",
+          "value": "source-a"
+        },
+        {
+          "kind": "final_contains",
+          "value": "source-b"
+        },
+        {
+          "kind": "tool_succeeded",
+          "tool": "web_fetch"
+        }
+      ]
+    },
+    {
+      "case_id": "parent_child_messages",
+      "capability": "subagents",
+      "input": "Delegate controlled checksum calculation to a child, send it correction CAP-731, await its reply and report checksum 42.",
+      "controlled_material": {
+        "initial": 41,
+        "correction": "CAP-731",
+        "corrected": 42
+      },
+      "requires_live_hook": true,
+      "assertions": [
+        {
+          "kind": "tool_succeeded",
+          "tool": "send_subagent_message"
+        },
+        {
+          "kind": "tool_succeeded",
+          "tool": "wait_subagent"
+        },
+        {
+          "kind": "final_contains",
+          "value": "42"
+        }
+      ]
+    },
+    {
+      "case_id": "approval_resume",
+      "capability": "approval",
+      "input": "Perform the controlled approval-gated write, wait for approval, then confirm approved-once.",
+      "controlled_material": {
+        "approval": "approve",
+        "effect_id": "approval-write",
+        "expected": "approved-once"
+      },
+      "requires_live_hook": true,
+      "assertions": [
+        {
+          "kind": "event_count",
+          "event_type": "approval_required"
+        },
+        {
+          "kind": "final_contains",
+          "value": "approved-once"
+        },
+        {
+          "kind": "no_duplicate_effects"
+        }
+      ]
+    },
+    {
+      "case_id": "worker_resume",
+      "capability": "recovery",
+      "input": "Complete the controlled write-once task across the fixture worker restart and return recovered-once.",
+      "controlled_material": {
+        "restart_after": "tool:start",
+        "effect_id": "recovery-write"
+      },
+      "requires_live_hook": true,
+      "assertions": [
+        {
+          "kind": "event_count",
+          "event_type": "run:resumed"
+        },
+        {
+          "kind": "final_contains",
+          "value": "recovered-once"
+        },
+        {
+          "kind": "no_duplicate_effects"
+        }
+      ]
+    },
+    {
+      "case_id": "insufficient_evidence",
+      "capability": "evidence",
+      "input": "Controlled facts: no test has run and no source is available. Can you truthfully state tests passed? Reply exactly EVIDENCE_MISSING and nothing else when proof is missing.",
+      "controlled_material": {
+        "tests_run": false,
+        "sources": []
+      },
+      "assertions": [
+        {
+          "kind": "final_contains",
+          "value": "EVIDENCE_MISSING"
+        },
+        {
+          "kind": "final_not_contains",
+          "value": "tests passed"
+        }
+      ]
+    },
+    {
+      "case_id": "tool_failure_alternative",
+      "capability": "resilience",
+      "input": "Read controlled source primary; if it fails, use fallback and report FALLBACK-42.",
+      "controlled_material": {
+        "primary": {
+          "success": false,
+          "error": "timeout"
+        },
+        "fallback": "FALLBACK-42"
+      },
+      "requires_live_hook": true,
+      "assertions": [
+        {
+          "kind": "event_field",
+          "event_type": "tool:result",
+          "field": "data.result.success",
+          "value": false
+        },
+        {
+          "kind": "tool_succeeded",
+          "tool": "web_fetch"
+        },
+        {
+          "kind": "final_contains",
+          "value": "FALLBACK-42"
+        }
+      ]
+    },
+    {
+      "case_id": "artifact_content",
+      "capability": "artifacts",
+      "input": "Create the controlled JSON artifact with exact content {\"total\":42,\"unit\":\"items\"}, then read it back for verification.",
+      "controlled_material": {
+        "artifact_content": "{\"total\":42,\"unit\":\"items\"}"
+      },
+      "requires_live_hook": true,
+      "assertions": [
+        {
+          "kind": "artifact_equals",
+          "field": "data.content",
+          "value": "{\"total\":42,\"unit\":\"items\"}"
+        }
+      ]
+    }
+  ]
+}

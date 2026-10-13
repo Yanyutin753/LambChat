@@ -15,6 +15,15 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
+if [[ "${LAMBCHAT_DAEMON_BUILD_WRAPPED:-}" != "1" ]]; then
+    export LAMBCHAT_DAEMON_BUILD_WRAPPED=1
+    daemon_build_bash="$BASH"
+    case "$(uname -s)" in
+        MINGW* | MSYS* | CYGWIN*) daemon_build_bash="$(cygpath -w "$daemon_build_bash")" ;;
+    esac
+    exec python3 "$REPO_ROOT/scripts/run_validation.py" "$daemon_build_bash" "${BASH_SOURCE[0]}" "$@"
+fi
+
 detect_host_triple() {
     if command -v rustc >/dev/null 2>&1; then
         host="$(rustc -vV | sed -n 's/^host:[[:space:]]*//p')"

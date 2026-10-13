@@ -1,3 +1,4 @@
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
 /**
@@ -11,14 +12,7 @@ import { ModalSurface } from "../common/ModalSurface";
 import { useCallback, useEffect, useState } from "react";
 
 import { useTranslation } from "react-i18next";
-import {
-  Share2,
-  Trash2,
-  Globe,
-  Lock,
-  Loader2,
-  AlertTriangle,
-} from "lucide-react";
+import { Share2, Trash2, Globe, Lock, AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
 import { SkeletonList } from "../skeletons";
 import { Checkbox } from "../common/Checkbox";
@@ -462,7 +456,7 @@ export function ShareProjectDialog({
           >
             <span className="inline-flex h-4 w-4 items-center justify-center">
               {isCreating ? (
-                <Loader2 size={16} className="animate-spin" />
+                <LoadingSpinner color="text-current" size={16} />
               ) : (
                 <Share2 size={16} />
               )}

@@ -6,7 +6,7 @@ Settings for managing chat sessions, event streaming, and session titles.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SESSION_MAX_RUNS_PER_SESSION` | `100` | Maximum agent runs per session. |
+| `SESSION_MAX_RUNS_PER_SESSION` | `10000` | Maximum agent runs per session. |
 | `SESSION_MAX_MESSAGES` | `20` | Maximum messages loaded per session (internal, not in `.env`). |
 | `SESSION_MAX_EVENTS_PER_TRACE` | `50000` | Maximum events per trace to prevent memory overflow. |
 | `SESSION_EVENT_CHUNK_STORAGE_ENABLED` | `false` | Store new trace events in `trace_event_chunks` instead of the legacy `traces.events` array. |
@@ -46,7 +46,7 @@ Use `SESSION_TITLE_MODEL` to select an existing model configuration from model m
 
 ```bash
 # .env
-SESSION_MAX_RUNS_PER_SESSION=100
+SESSION_MAX_RUNS_PER_SESSION=10000
 ENABLE_MESSAGE_HISTORY=true
 SSE_CACHE_TTL=86400
 SESSION_EVENT_CHUNK_STORAGE_ENABLED=false

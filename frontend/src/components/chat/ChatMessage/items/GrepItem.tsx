@@ -64,7 +64,11 @@ function GrepDetail({ args, result }: ToolDetailProps) {
 
   return (
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
-      <ToolArgsBlock size="detail" wrap>
+      <ToolArgsBlock
+        size="detail"
+        copyText={[pattern, searchPath, glob].filter(Boolean).join("\n")}
+        wrap
+      >
         <Search
           size={14}
           className="shrink-0 text-violet-500 dark:text-violet-400"
@@ -237,7 +241,11 @@ const GrepItem = memo(function GrepItem({
       >
         {canExpand && (
           <ToolInlineDetails>
-            <ToolArgsBlock size="compact" wrap>
+            <ToolArgsBlock
+              size="compact"
+              copyText={[pattern, searchPath, glob].filter(Boolean).join("\n")}
+              wrap
+            >
               <span className="text-violet-600 dark:text-violet-400 font-semibold">
                 {pattern}
               </span>

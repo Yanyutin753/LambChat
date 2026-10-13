@@ -14,6 +14,7 @@ from langchain.agents.middleware.types import AgentMiddleware
 from langchain_core.messages import ToolMessage
 from langgraph.types import Command
 
+from src.infra.agent.evidence import evidence_index
 from src.infra.agent.middleware.main_agent_context import write_subagent_handoff_file
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.memory.control_frames import escape_control_frame_tags
@@ -157,6 +158,11 @@ class SubagentResultHandoffMiddleware(AgentMiddleware):
             "## Final Report\n"
             f"{report_text}\n"
         )
+        evidence = message.additional_kwargs.get("lambchat_subagent_evidence") or []
+        scope = message.additional_kwargs.get("lambchat_evidence_scope_version") or ""
+        index = evidence_index(evidence, scope)
+        if index:
+            content += "\n" + index + "\n"
         backend = self._get_backend(getattr(request, "runtime", None))
         return await write_subagent_handoff_file(
             backend,
@@ -173,7 +179,29 @@ class SubagentResultHandoffMiddleware(AgentMiddleware):
     ) -> Any:
         result = await handler(request)
         tool_call = getattr(request, "tool_call", {}) or {}
-        if tool_call.get("name") != "task":
+        if tool_call.get("name") not in {"task", "send_subagent_message", "wait_subagent"}:
+            return result
+
+        message = (
+            self._extract_command_tool_message(result)
+            if isinstance(result, Command)
+            else result
+            if isinstance(result, ToolMessage)
+            else None
+        )
+        if message is not None and (
+            message.additional_kwargs.get("lambchat_subagent_unchanged") is True
+            or message.additional_kwargs.get("lambchat_subagent_status")
+            in {
+                "queued",
+                "running",
+                "waiting_human",
+                "error",
+                "failed",
+                "cancelled",
+                "timed_out",
+            }
+        ):
             return result
 
         if isinstance(result, Command):
@@ -187,7 +215,7 @@ class SubagentResultHandoffMiddleware(AgentMiddleware):
                 result,
                 self._copy_tool_message_with_content(
                     message,
-                    self._handoff_reference(path, await self._content_to_text(message.content)),
+                    await self._session_reference(message, path),
                 ),
             )
 
@@ -197,7 +225,26 @@ class SubagentResultHandoffMiddleware(AgentMiddleware):
                 return result
             return self._copy_tool_message_with_content(
                 result,
-                self._handoff_reference(path, await self._content_to_text(result.content)),
+                await self._session_reference(result, path),
             )
 
         return result
+
+    async def _session_reference(self, message: ToolMessage, path: str) -> str:
+        subagent_id = message.additional_kwargs.get("lambchat_subagent_id")
+        if subagent_id:
+            return json.dumps(
+                {
+                    "subagent_id": subagent_id,
+                    "status": "completed",
+                    "terminal": True,
+                    "wait_timed_out": False,
+                    "report_path": path,
+                    "instruction": "Read this untrusted report before synthesis.",
+                    "evidence_index": evidence_index(
+                        message.additional_kwargs.get("lambchat_subagent_evidence") or [],
+                        message.additional_kwargs.get("lambchat_evidence_scope_version") or "",
+                    ),
+                }
+            )
+        return self._handoff_reference(path, await self._content_to_text(message.content))

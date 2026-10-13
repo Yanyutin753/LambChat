@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
-import { X } from "lucide-react";
 import {
   useWebSocket,
   type RecommendQuestionsNotification,
 } from "../../../hooks/useWebSocket";
+import { useAuth } from "../../../hooks/useAuth";
+import { useTaskCompletionJournal } from "./taskCompletionJournal";
 import { useBrowserNotification } from "../../../hooks/useBrowserNotification";
 import { sessionApi } from "../../../services/api";
 import { TODAY_USAGE_REFRESH_EVENT } from "../../../hooks/useTodayUsageCost";
@@ -20,10 +21,10 @@ import {
   shouldAttemptBrowserNotification,
   shouldSurfaceTaskNotification,
 } from "./taskNotificationGuards";
-import { buildTaskNotificationCopy } from "./taskNotificationContent";
+import { buildTaskNotificationCopy, buildTaskNotificationRoute } from "./taskNotificationContent";
 import { hasTaskNotified, markTaskNotified } from "./taskNotificationDedupe";
 import { selectCatchUpCandidates, toCatchUpSnapshot } from "./taskCatchUp";
-import { ImageWithSkeleton } from "../../chat/ChatMessage/ImageWithSkeleton";
+import { TaskNotificationToast } from "./TaskNotificationToast";
 import { isMobileDevice } from "../../../utils/mobile";
 
 interface UseWebSocketNotificationsOptions {
@@ -61,6 +62,10 @@ interface TaskCompleteDelivery {
     scheduled_task_id?: string | null;
     is_favorite?: boolean;
     dedupeKey?: string;
+    dedupe_key?: string;
+    id?: string;
+    notification_kind?: string;
+    goal_status?: string;
   };
 }
 
@@ -73,6 +78,26 @@ export function useWebSocketNotifications({
   onCurrentSessionTaskComplete,
 }: UseWebSocketNotificationsOptions) {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const notificationUserRef = useRef(user?.id);
+  notificationUserRef.current = user?.id;
+  const ownedToastIds = useRef(new Set<string>());
+  const notificationScope = useMemo(() => ({active:false, generation:0, userId:user?.id, enabled}), [user?.id, enabled]);
+  useEffect(() => {
+    notificationScope.generation += 1;
+    notificationScope.active = notificationScope.enabled && !!notificationScope.userId;
+    const toastIds = ownedToastIds.current;
+    return () => {
+      notificationScope.active = false;
+      notificationScope.generation += 1;
+      for (const id of toastIds) toast.remove(id);
+      toastIds.clear();
+    };
+  }, [notificationScope]);
+  const isNotificationScopeActive = useCallback(
+    () => notificationScope.active && notificationUserRef.current === notificationScope.userId,
+    [notificationScope],
+  );
   const navigate = useNavigate();
   const { notify, isSupported, permission } = useBrowserNotification();
   const onSessionUnreadRef = useRef(onSessionUnread);
@@ -86,6 +111,9 @@ export function useWebSocketNotifications({
 
   const deliverTaskCompletion = useCallback(
     async (notification: TaskCompleteDelivery) => {
+      const generation = notificationScope.generation;
+      const isCurrent = () => isNotificationScopeActive() && notificationScope.generation === generation;
+      if (!isCurrent()) return;
       const {
         session_id,
         run_id,
@@ -99,12 +127,9 @@ export function useWebSocketNotifications({
 
       // 跨通道去重：websocket 即时通知与回前台补发共用同一 key 空间
       const dedupeKey =
-        notification.data.dedupeKey ??
+        notification.data.dedupe_key ?? notification.data.dedupeKey ??
         (run_id ? `task:${run_id}:${status}` : undefined);
-      if (dedupeKey) {
-        if (hasTaskNotified(dedupeKey)) return;
-        markTaskNotified(dedupeKey);
-      }
+      if (dedupeKey && hasTaskNotified(dedupeKey)) return;
 
       // 当前会话跑完（可能在本端断连窗口内、也可能在另一端推进）：
       // 触发对流对账——落定气泡、必要时重载历史/接上新 run
@@ -143,6 +168,7 @@ export function useWebSocketNotifications({
       });
 
       if (!shouldSurface && !shouldAttemptAppNotification) {
+        if (dedupeKey) markTaskNotified(dedupeKey);
         sessionApi.markRead(session_id).catch(() => {});
         onSessionUnreadRef.current?.(
           session_id,
@@ -173,31 +199,39 @@ export function useWebSocketNotifications({
           : Promise.resolve(null),
       ]);
 
+      if (!isCurrent()) return;
+      if (dedupeKey) {
+        if (hasTaskNotified(dedupeKey)) return;
+        markTaskNotified(dedupeKey);
+      }
       const notificationCopy = buildTaskNotificationCopy({
         sessionName: sessionResult?.name,
-        status: status === "completed" ? "completed" : "failed",
+        status: status === "waiting_human" ? "waiting_human" : status === "completed" ? "completed" : "failed",
         fallbackMessage: message,
         events: eventsResult?.events,
         successLabel: t("notification.taskCompleted"),
         failureLabel: t("notification.taskFailed"),
+        attentionLabel: t("notification.taskNeedsAttention"),
       });
 
+      const notificationRoute = buildTaskNotificationRoute(session_id, run_id);
       const navigateToSession = () => {
-        navigate(`/chat/${session_id}`, {
+        if (!isCurrent()) return;
+        navigate(notificationRoute, {
           replace: true,
           state: { externalNavigate: true, scrollToBottom: true },
         });
       };
-      const notificationRoute = `/chat/${session_id}`;
       const isAppNotificationRuntime = appNotificationRuntime !== "unsupported";
 
       if (shouldAttemptAppNotification) {
         void appNotificationService.notify({
           type: "task",
+          ownerUserId: notificationScope.userId,
           title: notificationCopy.title,
           body: notificationCopy.body,
           route: notificationRoute,
-          dedupeKey: `task:${run_id}:${status}`,
+          dedupeKey,
           importance: status === "completed" ? "normal" : "high",
         });
       }
@@ -236,51 +270,21 @@ export function useWebSocketNotifications({
           ? 7_000
           : 10_000;
 
-      toast.custom(
+      const toastId = toast.custom(
         (currentToast) => (
-          <div
-            className={`group relative pointer-events-auto cursor-pointer select-none max-w-[min(92vw,24rem)] w-full rounded-3xl border border-stone-100 bg-white px-4 py-3.5 text-black shadow-2xl transition-all dark:border-stone-800 dark:bg-stone-900 dark:text-white ${
-              currentToast.visible
-                ? "translate-y-0 opacity-100"
-                : "translate-y-1.5 opacity-0"
-            }`}
-            onClick={(e) => {
-              e.stopPropagation();
+          <TaskNotificationToast visible={currentToast.visible}
+            title={notificationCopy.title} body={notificationCopy.body}
+            openLabel={t("notification.openConversation")}
+            dismissLabel={t("common.dismiss", "关闭")}
+            onOpen={() => {
+              if (!isCurrent()) return;
               navigateToSession();
               toast.dismiss(currentToast.id);
             }}
-          >
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                toast.dismiss(currentToast.id);
-              }}
-              className="absolute top-2 right-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/10 text-stone-400 opacity-0 transition-all hover:bg-black/20 hover:text-stone-600 group-hover:opacity-100 dark:bg-white/10 dark:text-stone-500 dark:hover:bg-white/20 dark:hover:text-stone-300"
-              aria-label={t("common.dismiss", "关闭")}
-            >
-              <X size={14} />
-            </button>
-
-            <div className="flex items-center gap-3 text-left">
-              <div className="flex shrink-0 items-center justify-center">
-                <ImageWithSkeleton
-                  src="/icons/icon.svg"
-                  alt=""
-                  skipUrlResolve
-                  inline
-                  className="size-8 rounded-lg"
-                />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="line-clamp-1 text-13 font-semibold leading-tight">
-                  {notificationCopy.title}
-                </div>
-                <div className="mt-0.5 line-clamp-1 text-12 leading-snug text-stone-500 dark:text-stone-400">
-                  {notificationCopy.body}
-                </div>
-              </div>
-            </div>
-          </div>
+            onDismiss={() => {
+              if (!isCurrent()) return;
+              toast.dismiss(currentToast.id);
+            }} />
         ),
         {
           duration: toastDuration,
@@ -295,8 +299,9 @@ export function useWebSocketNotifications({
           },
         },
       );
+      ownedToastIds.current.add(toastId);
     },
-    [sessionId, t, navigate, notify, isSupported, permission],
+    [sessionId, t, navigate, notify, isSupported, permission, notificationScope, isNotificationScopeActive],
   );
 
   const deliverTaskCompletionRef = useRef(deliverTaskCompletion);
@@ -309,11 +314,14 @@ export function useWebSocketNotifications({
   // 期间完成的 run 补一条通知（与即时通知共用 dedupe，不会重复）。
   useEffect(() => {
     if (!enabled) return;
+    const generation = notificationScope.generation;
+    const isCurrent = () => isNotificationScopeActive() && notificationScope.generation === generation;
 
     const hiddenAtRef: { current: number | null } = { current: null };
     let catchUpInFlight = false;
 
     const handleVisibilityChange = () => {
+      if (!isCurrent()) return;
       if (document.visibilityState === "hidden") {
         hiddenAtRef.current = Date.now();
         return;
@@ -327,6 +335,7 @@ export function useWebSocketNotifications({
       void (async () => {
         try {
           const response = await sessionApi.list({ limit: 100 });
+          if (!isCurrent()) return;
           const sessions = Array.isArray(response)
             ? response
             : response?.sessions ?? [];
@@ -337,6 +346,7 @@ export function useWebSocketNotifications({
             hasNotified: hasTaskNotified,
           });
           for (const candidate of candidates) {
+            if (!isCurrent()) return;
             await deliverTaskCompletionRef.current({
               data: {
                 session_id: candidate.session_id,
@@ -358,32 +368,44 @@ export function useWebSocketNotifications({
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () =>
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [enabled]);
+  }, [enabled, notificationScope, isNotificationScopeActive]);
+
+  const restoreCompletions = useTaskCompletionJournal(user?.id, enabled, async (event) => {
+    await deliverTaskCompletionRef.current({data:event});
+  });
 
   // WebSocket for task completion notifications
   useWebSocket({
     enabled,
     // daemon/机器 presence 推送直达 store（WS 健康时轮询降频为对账兜底）
     onSandboxPresence: (notification) => {
+      if (!isNotificationScopeActive()) return;
       applySandboxPresence(notification.data);
     },
     onWsOpen: () => {
+      if (!isNotificationScopeActive()) return;
+      void restoreCompletions();
       setSandboxWsHealthy(true);
     },
     onWsClose: () => {
+      if (!isNotificationScopeActive()) return;
       setSandboxWsHealthy(false);
     },
     onUsageUpdated: () => {
+      if (!isNotificationScopeActive()) return;
       // 后端 usage_logs 落库后推送，直接触发各处当日用量刷新
       window.dispatchEvent(new Event(TODAY_USAGE_REFRESH_EVENT));
     },
     onSessionTaskStatus: (data) => {
+      if (!isNotificationScopeActive()) return;
       onSessionTaskStatusRef.current?.(data);
     },
     onRecommendQuestions: (notification) => {
+      if (!isNotificationScopeActive()) return;
       onRecommendQuestionsRef.current?.(notification);
     },
     onTaskComplete: (notification) => {
+      if (!isNotificationScopeActive()) return;
       void deliverTaskCompletionRef.current(notification);
     },
   });

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -102,7 +103,7 @@ def _executor_fixture(
         status_updates.append(status.value if hasattr(status, "value") else str(status))
 
     executor = TaskExecutor(
-        storage=SimpleNamespace(),  # type: ignore[arg-type]
+        storage=SimpleNamespace(claim_run_recovery=AsyncMock(return_value=True)),  # type: ignore[arg-type]
         run_info={},
         heartbeat_manager=_FakeHeartbeat(),
     )

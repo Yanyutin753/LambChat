@@ -1,9 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { Target, X } from "lucide-react";
+import { Target, X, Pause, Play } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import type { PersistentGoal } from "../../services/api/session";
+import { getGoalControlScope } from "../../hooks/useAgent/goalControlScope";
 import type { ActiveGoalSpec } from "../../hooks/useAgent/types";
 
 interface ActiveGoalBarProps {
   goal: ActiveGoalSpec | null;
+  persistentGoal?: PersistentGoal | null;
+  onClearPersistentGoal?: () => void;
+  persistentDisabled?: boolean;
+  onPause?: () => void;
+  onResume?: () => void;
   label?: string;
   durationLabel?: string;
   clearLabel?: string;
@@ -56,6 +64,10 @@ function EmbeddedGoalBar({
   })();
 
   const handleClear = () => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      onClear?.();
+      return;
+    }
     setExiting(true);
     const el = containerRef.current;
     if (el) {
@@ -119,7 +131,30 @@ function EmbeddedGoalBar({
   );
 }
 
-export function ActiveGoalBar({
+function PersistentGoalStrip({ goal, onPause, onResume, onClear, disabled, embedded, className }: {
+  goal: PersistentGoal; onPause?: () => void; onResume?: () => void; onClear?: () => void;
+  disabled: boolean; embedded: boolean; className: string;
+}) {
+  const { t } = useTranslation();
+  const canPause = goal.status === "active" || goal.status === "waiting_human";
+  const canResume = goal.status === "paused" || goal.status === "blocked" || goal.status === "budget_limited";
+  const buttonClass = "flex size-9 shrink-0 items-center justify-center rounded hover:bg-theme-bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-primary disabled:opacity-40";
+  if (goal.status === "cleared") return null;
+  return <div className={`flex min-w-0 flex-wrap items-center gap-2 px-3 py-2 text-14 ${embedded ? "border-b border-theme-border" : "mx-auto w-full max-w-[52rem]"} ${className}`}>
+    <Target className="size-4 shrink-0 text-theme-text-secondary" aria-hidden="true" />
+    <div className="min-w-0 flex-1 basis-40">
+      <p className="truncate text-theme-text-secondary" title={goal.objective}>{goal.objective}</p>
+      <p className="text-12 text-theme-text-tertiary" role="status" aria-live="polite">
+        {t(`chat.goalPersistent.status.${goal.status}`, goal.status)} · {t("chat.goalPersistent.turns", { count: goal.accounting.turns, max: goal.limits.max_turns, defaultValue: "{{count}} / {{max}} turns" })} · {goal.accounting.tokens === null ? t("chat.goalPersistent.tokensUnknown", "Token usage unknown") : t("chat.goalPersistent.tokens", { count: goal.accounting.tokens, max: goal.limits.max_tokens, defaultValue: "{{count}} / {{max}} tokens" })} · {t("chat.goalPersistent.timeLimit", { minutes: Math.ceil(goal.limits.max_seconds / 60), defaultValue: "{{minutes}} min limit" })}
+      </p>
+    </div>
+    {canPause && onPause && <button type="button" onClick={onPause} disabled={disabled} aria-label={t("chat.goalPersistent.pause", "Pause goal")} title={t("chat.goalPersistent.pause", "Pause goal")} className={buttonClass}><Pause className="size-4" aria-hidden="true" /></button>}
+    {canResume && onResume && <button type="button" onClick={onResume} disabled={disabled} aria-label={t("chat.goalPersistent.resume", "Resume goal")} title={t("chat.goalPersistent.resume", "Resume goal")} className={buttonClass}><Play className="size-4" aria-hidden="true" /></button>}
+    {onClear && <button type="button" onClick={onClear} disabled={disabled} aria-label={t("chat.goalPersistent.clear", "Clear goal")} title={t("chat.goalPersistent.clear", "Clear goal")} className={buttonClass}><X className="size-4" aria-hidden="true" /></button>}
+  </div>;
+}
+
+function OrdinaryGoalBar({
   goal,
   label = "Goal",
   durationLabel,
@@ -197,4 +232,18 @@ export function ActiveGoalBar({
       )}
     </div>
   );
+}
+
+
+export function ActiveGoalBar(props: ActiveGoalBarProps) {
+  const { goal, persistentGoal, disabled = false, embedded = false, className = "" } = props;
+  const scope = getGoalControlScope(goal, persistentGoal);
+  return <>
+    {persistentGoal && persistentGoal.status !== "cleared" && <PersistentGoalStrip
+      goal={persistentGoal} onPause={props.onPause} onResume={props.onResume}
+      onClear={props.onClearPersistentGoal ?? (scope === "persistent" ? props.onClear : undefined)}
+      disabled={props.persistentDisabled ?? disabled} embedded={embedded} className={className}
+    />}
+    {scope === "ordinary" && <OrdinaryGoalBar {...props} goal={goal ?? null} />}
+  </>;
 }

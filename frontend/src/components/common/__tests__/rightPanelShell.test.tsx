@@ -749,7 +749,9 @@ test("closing a tab reveals prior work without a redundant Back button", async (
 
   const user = userEvent.setup();
   render(<Harness />);
-  expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Back" }),
+  ).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Close tab: Preview" }));
 
   await waitFor(() =>
@@ -908,49 +910,84 @@ test.each(["hidden", "inert"])(
   },
 );
 
-
-test.each([390, 900, 1440])("collapse keeps drafts and scroll state at %ipx", async (width) => {
-  installMatchMedia(width);
-  function Harness() {
-    const [open, setOpen] = useState(true);
-    return <EditorSidebar open={open} onClose={() => setOpen(false)} title="Draft editor">
-      <input aria-label="Unsaved draft" defaultValue="draft" />
-    </EditorSidebar>;
-  }
-  render(<Harness />);
-  const input = screen.getByRole("textbox", { name: "Unsaved draft" });
-  fireEvent.change(input, { target: { value: "keep me" } });
-  const body = input.closest(".editor-sidebar-body")!;
-  body.scrollTop = 123;
-  fireEvent.click(screen.getByRole("button", { name: "Collapse panel" }));
-  expect(screen.queryByRole("tab")).not.toBeInTheDocument();
-  expect(getRightPanelSnapshot().depth).toBe(1);
-  await waitFor(() => expect(getRightPanelLayoutSnapshot()).toBeNull());
-  const reopen = screen.getByRole("button", { name: "Expand panel" });
-  await waitFor(() => expect(reopen).toHaveFocus());
-  fireEvent.click(reopen);
-  expect(screen.getByRole("textbox", { name: "Unsaved draft" })).toBe(input);
-  expect(input).toHaveValue("keep me");
-  expect(body.scrollTop).toBe(123);
-  await waitFor(() => expect(screen.getByRole("tab")).toHaveFocus());
-  fireEvent.click(screen.getByRole("button", { name: "Close tab: Draft editor" }));
-  expect(screen.queryByRole("button", { name: "Expand panel" })).not.toBeInTheDocument();
-  expect(getRightPanelSnapshot().depth).toBe(0);
-});
+test.each([390, 900, 1440])(
+  "collapse keeps drafts and scroll state at %ipx",
+  async (width) => {
+    installMatchMedia(width);
+    function Harness() {
+      const [open, setOpen] = useState(true);
+      return (
+        <EditorSidebar
+          open={open}
+          onClose={() => setOpen(false)}
+          title="Draft editor"
+        >
+          <input aria-label="Unsaved draft" defaultValue="draft" />
+        </EditorSidebar>
+      );
+    }
+    render(<Harness />);
+    const input = screen.getByRole("textbox", { name: "Unsaved draft" });
+    fireEvent.change(input, { target: { value: "keep me" } });
+    const body = input.closest(".editor-sidebar-body")!;
+    body.scrollTop = 123;
+    fireEvent.click(screen.getByRole("button", { name: "Collapse panel" }));
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+    expect(getRightPanelSnapshot().depth).toBe(1);
+    await waitFor(() => expect(getRightPanelLayoutSnapshot()).toBeNull());
+    const reopen = screen.getByRole("button", { name: "Expand panel" });
+    await waitFor(() => expect(reopen).toHaveFocus());
+    fireEvent.click(reopen);
+    expect(screen.getByRole("textbox", { name: "Unsaved draft" })).toBe(input);
+    expect(input).toHaveValue("keep me");
+    expect(body.scrollTop).toBe(123);
+    await waitFor(() => expect(screen.getByRole("tab")).toHaveFocus());
+    fireEvent.click(
+      screen.getByRole("button", { name: "Close tab: Draft editor" }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Expand panel" }),
+    ).not.toBeInTheDocument();
+    expect(getRightPanelSnapshot().depth).toBe(0);
+  },
+);
 
 test("tool tabs preserve detailed titles and reserve Back for explicit inner navigation", () => {
   const back = vi.fn();
-  const { rerender } = render(<ToolResultPanel open onClose={() => {}} title="LambChat" subtitle="vanilla · 176 files">content</ToolResultPanel>);
-  expect(screen.getByRole("tab", { name: "LambChat · vanilla · 176 files" })).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
-  rerender(<ToolResultPanel open onClose={() => {}} onBack={back} title="LambChat">content</ToolResultPanel>);
+  const { rerender } = render(
+    <ToolResultPanel
+      open
+      onClose={() => {}}
+      title="LambChat"
+      subtitle="vanilla · 176 files"
+    >
+      content
+    </ToolResultPanel>,
+  );
+  expect(
+    screen.getByRole("tab", { name: "LambChat · vanilla · 176 files" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Close" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Back" }),
+  ).not.toBeInTheDocument();
+  rerender(
+    <ToolResultPanel open onClose={() => {}} onBack={back} title="LambChat">
+      content
+    </ToolResultPanel>,
+  );
   fireEvent.click(screen.getByRole("button", { name: "Back" }));
   expect(back).toHaveBeenCalledOnce();
 });
 
 test("restoring an automatic preview moves keyboard focus into its tab", async () => {
-  render(<ToolResultPanel automatic open onClose={() => {}} title="Automatic result">result</ToolResultPanel>);
+  render(
+    <ToolResultPanel automatic open onClose={() => {}} title="Automatic result">
+      result
+    </ToolResultPanel>,
+  );
   const collapse = screen.getByRole("button", { name: "Collapse panel" });
   fireEvent.pointerDown(collapse);
   fireEvent.click(collapse);
@@ -959,5 +996,27 @@ test("restoring an automatic preview moves keyboard focus into its tab", async (
   installMatchMedia(390);
   fireEvent(window, new Event("resize"));
   fireEvent.click(restore);
-  await waitFor(() => expect(screen.getByRole("tab", { name: "Automatic result" })).toHaveFocus());
+  await waitFor(() =>
+    expect(screen.getByRole("tab", { name: "Automatic result" })).toHaveFocus(),
+  );
 });
+
+test.each(["subagent-research", "session-todos:session"])(
+  "%s opens at a compact reading width instead of the saved wide file preview",
+  (key) => {
+    installMatchMedia(1920);
+    localStorage.setItem("sidebar-preview-width", "60");
+    render(
+      <ToolResultPanel
+        open
+        onClose={() => {}}
+        registryKey={`persistent:${key}`}
+        title="Conversation"
+      >
+        Content
+      </ToolResultPanel>,
+    );
+    expect(getRightPanelLayoutSnapshot().widthPx).toBeLessThanOrEqual(480);
+    expect(getRightPanelLayoutSnapshot().widthPx).toBeGreaterThanOrEqual(360);
+  },
+);

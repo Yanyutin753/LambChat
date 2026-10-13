@@ -843,8 +843,8 @@
 }
 
 .dark .tag-default {
-  background-color: #44403c;
-  color: #d6d3d1;
+  background-color: var(--theme-border);
+  color: var(--theme-text-secondary);
 }
 
 .tag-success {

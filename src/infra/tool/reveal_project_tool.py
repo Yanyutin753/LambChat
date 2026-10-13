@@ -11,17 +11,18 @@ Reveal Project 工具
 3. 返回文件清单（manifest）给前端
 4. 前端从 OSS 拉取文本文件内容，前端项目用 Sandpack 渲染，普通文件夹用文件树/代码浏览展示
 
-返回格式（v2）：
+返回格式（v3，路径只作为列表项的值出现，绝不充当 dict key——事件落库的
+key 消毒会把路径里的 '.' 改写成 '_'，key 形态的路径会与 entry 脱节）：
 {
     "type": "project_reveal",
-    "version": 2,
+    "version": 3,
     "name": "项目名称",
     "mode": "project" | "folder",
     "template": "react" | "vue" | "vanilla" | "static" | "angular" | "svelte" | "solid" | "nextjs",
-    "files": {
-        "/App.js": {"url": "/api/upload/file/...", "is_binary": false, "size": 123},
-        "/logo.png": {"url": "/api/upload/file/...", "is_binary": true, "size": 4567, "content_type": "image/png"},
-    },
+    "files": [
+        {"path": "/App.js", "url": "/api/upload/file/...", "is_binary": false, "size": 123},
+        {"path": "/logo.png", "url": "/api/upload/file/...", "is_binary": true, "size": 4567, "content_type": "image/png"},
+    ],
     "entry": "/index.html"
 }
 """
@@ -733,7 +734,7 @@ async def reveal_project(
         return await _json_dumps_result(
             {
                 "type": "project_reveal",
-                "version": 2,
+                "version": 3,
                 "error": "backend_not_available",
                 "message": "无法访问文件系统",
             }
@@ -753,7 +754,7 @@ async def reveal_project(
             return await _json_dumps_result(
                 {
                     "type": "project_reveal",
-                    "version": 2,
+                    "version": 3,
                     "error": "no_files_found",
                     "message": f"在 {project_path} 中没有找到文件",
                 }
@@ -811,8 +812,10 @@ async def reveal_project(
                 )
             )
 
-        # 构建 manifest
-        files_manifest: dict[str, dict[str, Any]] = {}
+        # 构建 manifest：路径放在每个列表项的 "path" 值里。不能改回
+        # {path: info} 形态——事件落库的 key 消毒（_sanitize_event_data_for_mongo）
+        # 会把路径 key 的 '.' 改成 '_'，与 entry（值）脱节后前端预览全崩
+        files_manifest: list[dict[str, Any]] = []
         package_json_content: Optional[str] = None
         failed_reads: list[str] = []
         for upload in results:
@@ -822,7 +825,7 @@ async def reveal_project(
             if error == "read_failed":
                 failed_reads.append(rel_path)
                 continue
-            files_manifest[rel_path] = file_info
+            files_manifest.append({"path": rel_path, **file_info})
             if pkg_content is not None:
                 package_json_content = pkg_content
 
@@ -830,7 +833,7 @@ async def reveal_project(
             return await _json_dumps_result(
                 {
                     "type": "project_reveal",
-                    "version": 2,
+                    "version": 3,
                     "error": "no_files_found",
                     "message": f"在 {project_path} 中没有找到可上传的文件",
                     "scanned_files": len(all_files),
@@ -841,7 +844,7 @@ async def reveal_project(
         _project_cleanup_tasks.create_task(_cleanup_old_versions(storage, project_name))
 
         # 检测模板
-        file_keys = set(files_manifest.keys())
+        file_keys = {item["path"] for item in files_manifest}
         detected_template = template
         if not detected_template:
             detected_template = await run_long_blocking_io(
@@ -858,7 +861,7 @@ async def reveal_project(
 
         result = {
             "type": "project_reveal",
-            "version": 2,
+            "version": 3,
             "name": project_name,
             "description": description or "",
             "mode": mode,
@@ -912,7 +915,8 @@ async def reveal_project(
                 "template": detected_template,
                 "entry": entry,
                 "file_count": len(files_manifest),
-                "files": {k: dict(v) for k, v in files_manifest.items()},
+                # 列表形态：$set 嵌套 dict 的路径 key（含 '.'）会被 MongoDB 拒写
+                "files": [dict(item) for item in files_manifest],
             }
             data: dict[str, Any] = {
                 "file_type": "project",
@@ -947,7 +951,7 @@ async def reveal_project(
         return await _json_dumps_result(
             {
                 "type": "project_reveal",
-                "version": 2,
+                "version": 3,
                 "error": str(e),
                 "message": f"读取项目失败: {e}",
             }

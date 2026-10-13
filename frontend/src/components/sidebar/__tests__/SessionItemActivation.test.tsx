@@ -58,7 +58,7 @@ test("session title supports keyboard activation once and keeps the More action 
   expect(document.querySelector("button button")).toBeNull();
 });
 
-test("selection mode uses the title toggle without navigating or duplicate controls", async () => {
+test("selection mode exposes a checkbox that toggles by pointer and keyboard without navigating", async () => {
   const select = vi.fn(),
     toggle = vi.fn();
   const user = userEvent.setup();
@@ -70,9 +70,10 @@ test("selection mode uses the title toggle without navigating or duplicate contr
       onToggleSelected={toggle}
     />,
   );
-  const title = screen.getByRole("button", { name: "Research plan" });
-  expect(title).toHaveAttribute("aria-pressed", "false");
-  expect(screen.getAllByRole("button")).toHaveLength(1);
+  const title = screen.getByRole("checkbox", { name: "Research plan" });
+  expect(title).toHaveAttribute("aria-checked", "false");
+  expect(screen.queryAllByRole("button")).toHaveLength(0);
+  expect(title).not.toHaveAttribute("aria-current");
   await user.click(title);
   expect(toggle).toHaveBeenCalledOnce();
   expect(select).not.toHaveBeenCalled();
@@ -85,7 +86,11 @@ test("selection mode uses the title toggle without navigating or duplicate contr
       onToggleSelected={toggle}
     />,
   );
-  expect(title).toHaveAttribute("aria-pressed", "true");
+  expect(title).toHaveAttribute("aria-checked", "true");
+  await user.keyboard(" ");
+  await user.click(screen.getByRole("group", { name: "Research plan" }));
+  expect(toggle).toHaveBeenCalledTimes(3);
+  expect(select).not.toHaveBeenCalled();
 });
 
 test("renaming keeps the field named and Escape returns to the title without saving", async () => {

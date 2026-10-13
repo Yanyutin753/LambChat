@@ -196,7 +196,7 @@ async def test_execute_agent_stream_runs_agent_when_active_goal_is_supplied(
     async def _get(_agent_id: str):
         return agent
 
-    monkeypatch.setattr("src.api.routes.chat.AgentFactory.get", _get)
+    monkeypatch.setattr("src.api.routes.chat_agent_execution.AgentFactory.get", _get)
 
     events = [
         event
@@ -239,7 +239,7 @@ async def test_execute_agent_stream_passes_auto_mode_to_agent(
     async def _get(_agent_id: str):
         return agent
 
-    monkeypatch.setattr("src.api.routes.chat.AgentFactory.get", _get)
+    monkeypatch.setattr("src.api.routes.chat_agent_execution.AgentFactory.get", _get)
 
     events = [
         event

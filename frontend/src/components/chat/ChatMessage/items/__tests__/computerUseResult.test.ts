@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { parseComputerUseResult } from "../computerUseResult";
+import { computerUsePreviewText, parseComputerUseResult } from "../computerUseResult";
 
 describe("computer use results", () => {
   test("uses persisted screenshot file URLs", () => {
@@ -90,3 +90,10 @@ describe("computer use results", () => {
     },
   );
 });
+
+ test("summarizes structured observations without leaking JSON punctuation", () => {
+  expect(computerUsePreviewText(parseComputerUseResult({ tree: "1 window Editor\n  2 button Save" }))).toBe("1 window Editor");
+  expect(computerUsePreviewText(parseComputerUseResult({ state: "Window: Browser\n[1] Search" }))).toBe("Window: Browser");
+  expect(computerUsePreviewText(parseComputerUseResult({ screenshot: { url: "/api/upload/file/screen.png" } }))).toBe("");
+  expect(computerUsePreviewText(parseComputerUseResult("Observed application window"))).toBe("Observed application window");
+ });

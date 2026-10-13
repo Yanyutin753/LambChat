@@ -1,5 +1,6 @@
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, ToggleLeft, ToggleRight, Wrench } from "lucide-react";
+import { ToggleLeft, ToggleRight, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { mcpApi } from "../../services/api/mcp";
@@ -153,9 +154,10 @@ export function MCPToolPolicyEditor({
           {t("mcp.card.tools")}
         </label>
         {loading ? (
-          <Loader2
+          <LoadingSpinner
+            color="text-current"
             size={13}
-            className="animate-spin text-stone-300 dark:text-stone-600"
+            className="text-stone-300 dark:text-stone-600"
           />
         ) : (
           tools.length > 0 && (
@@ -226,9 +228,10 @@ export function MCPToolPolicyEditor({
                       {tool.name}
                     </code>
                     {savingTool === tool.name && (
-                      <Loader2
+                      <LoadingSpinner
+                        color="text-current"
                         size={11}
-                        className="animate-spin text-stone-300 dark:text-stone-600"
+                        className="text-stone-300 dark:text-stone-600"
                       />
                     )}
                   </div>

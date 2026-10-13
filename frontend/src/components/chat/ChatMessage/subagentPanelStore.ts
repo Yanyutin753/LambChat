@@ -1,17 +1,19 @@
-import type { MessagePart } from "../../../types";
+import type { MessagePart, SubagentPart } from "../../../types";
 
 export interface SubagentPanelData {
   agentId: string;
   agentName: string;
+  agentAvatar?: string;
   input: string;
   result?: string;
   success?: boolean;
   error?: string;
   isPending?: boolean;
   parts?: MessagePart[];
+  history?: MessagePart[];
   startedAt?: number;
   completedAt?: number;
-  status?: "pending" | "running" | "complete" | "error" | "cancelled";
+  status?: SubagentPart["status"];
 }
 
 type Listener = () => void;
@@ -21,10 +23,18 @@ function shallowEqual(a: SubagentPanelData, b: SubagentPanelData): boolean {
     a.parts === b.parts ||
     (Array.isArray(a.parts) &&
       Array.isArray(b.parts) &&
-      a.parts.length === b.parts.length);
+      a.parts.length === b.parts.length &&
+      a.parts.every((part, index) => part === b.parts![index]));
+  const historyEqual =
+    a.history === b.history ||
+    (a.history?.length === b.history?.length &&
+      !!a.history &&
+      !!b.history &&
+      a.history.every((part, index) => part === b.history![index]));
   return (
     a.agentId === b.agentId &&
     a.agentName === b.agentName &&
+    a.agentAvatar === b.agentAvatar &&
     a.input === b.input &&
     a.result === b.result &&
     a.success === b.success &&
@@ -33,7 +43,8 @@ function shallowEqual(a: SubagentPanelData, b: SubagentPanelData): boolean {
     a.startedAt === b.startedAt &&
     a.completedAt === b.completedAt &&
     a.status === b.status &&
-    partsEqual
+    partsEqual &&
+    historyEqual
   );
 }
 

@@ -8,7 +8,6 @@ import {
   shouldNudgeBrowserChrome,
 } from "./appBrowserChrome";
 import { isMobileDevice } from "../../../utils/mobile";
-import type { Project } from "../../../types";
 import type { TabType } from "./types";
 
 export interface AppShellProps {
@@ -17,8 +16,6 @@ export interface AppShellProps {
   showProfileModal: boolean;
   onCloseProfileModal: () => void;
   setMobileSidebarOpen: (open: boolean) => void;
-  currentProjectId: string | null;
-  projectManager: { projects: Project[] };
   onNewSession: () => void;
   onShowProfile: () => void;
   sidebar?: ReactNode;
@@ -48,8 +45,6 @@ export function AppShell({
   showProfileModal,
   onCloseProfileModal,
   setMobileSidebarOpen,
-  currentProjectId,
-  projectManager,
   onNewSession,
   onShowProfile,
   sidebar,
@@ -144,8 +139,6 @@ export function AppShell({
             activeTab={activeTab}
             headerActions={headerActions}
             setMobileSidebarOpen={setMobileSidebarOpen}
-            currentProjectId={currentProjectId}
-            projectManager={projectManager}
             onNewSession={onNewSession}
             onShowProfile={onShowProfile}
             availableModels={availableModels}

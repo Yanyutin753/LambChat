@@ -133,6 +133,7 @@ export function processMessageEvent(
         depth,
         data.timestamp,
         data.agent_avatar,
+        data.status,
       );
       result.parts = addPartToDepth(
         parts,
@@ -154,6 +155,7 @@ export function processMessageEvent(
         depth,
         data.error,
         data.timestamp,
+        data.status,
       );
       break;
     }

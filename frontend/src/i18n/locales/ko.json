@@ -282,7 +282,7 @@
       "offline": "오프라인",
       "offlineHint": "해당 PC는 오프라인 상태라 실행 머신으로 선택할 수 없어요",
       "section": "실행 기기",
-      "computerUseHint": "컴퓨터 조작은 명시적으로 선택한 기기를 사용하며, 코드는 위에서 선택한 샌드박스에서 실행됩니다.",
+      "computerUseHint": "컴퓨터 제어는 로컬 컴퓨터에서만 사용할 수 있으며 선택한 온라인 기기 또는 온라인 기본 기기를 사용합니다.",
       "currentDevice": "이 기기"
     },
     "sandboxPolicy": {
@@ -308,7 +308,7 @@
       "name": "검색 에이전트"
     },
     "team": {
-      "description": "역할 기반 서브 에이전트에 작업을 라우팅합니다. 팀 미설정 시 단일 에이전트 모드로 폴백합니다.",
+      "description": "적합한 역할을 자동 검색해 하위 에이전트에 작업을 맡기고 후속 지시로 작업을 이어갑니다.",
       "name": "팀 에이전트"
     }
   },
@@ -682,6 +682,8 @@
     "taskNotFound": "작업을 찾을 수 없습니다",
     "taskCancelled": "작업이 취소되었습니다",
     "taskServerRestart": "서버 재시작으로 작업이 중단되었습니다",
+    "taskRecoveryNotAvailable": "이 작업은 완료되었거나 더 이상 복구할 수 없습니다.",
+    "taskRecoveryUncertainEffect": "이전 작업이 이미 적용되었을 수 있어 복구를 중단했습니다. 결과를 확인한 후 새 작업을 시작하세요.",
     "taskExpired": "작업이 만료되었습니다",
     "forceRelogin": "사용자 권한이 변경되었습니다. 다시 로그인해 주세요",
     "tokenExpired": "로그인이 만료되었습니다. 다시 로그인해 주세요",
@@ -706,7 +708,8 @@
     "sandboxMachineOffline": "선택한 샌드박스 머신 '{{machine}}'이(가) 오프라인 상태입니다",
     "sandboxMachineNotFound": "샌드박스 머신 '{{machine}}'을(를) 찾을 수 없거나 제거되었습니다",
     "pluginNoEditPermission": "플러그인 {{name}}을(를) 편집할 권한이 없습니다",
-    "modelConfigIncomplete": "모델 설정이 불완전합니다: 제공자 {{provider}}의 {{field}}가 누락되었습니다"
+    "modelConfigIncomplete": "모델 설정이 불완전합니다: 제공자 {{provider}}의 {{field}}가 누락되었습니다",
+    "goalConflict": "목표가 변경되었습니다. 새로 고침 후 다시 시도하세요"
   },
   "categories": {
     "scheduled_task": "예약 작업",
@@ -1224,6 +1227,7 @@
     "message": {
       "addBookmark": "북마크 추가",
       "allFiles": "모든 파일",
+      "fileDirectory": "파일 목록",
       "args": "인수",
       "artifactsSubtitleFiles": "파일 {{count}}개",
       "artifactsSubtitleMixed": "파일 {{files}}개 · 프로젝트 {{projects}}개",
@@ -1422,6 +1426,16 @@
       "toolSkillSearch": "스킬 검색",
       "toolSuccess": "명령어 성공",
       "toolTaskName": "이름",
+      "toolSendSubagentMessage": "하위 에이전트에 메시지 보내기",
+      "toolWaitSubagent": "하위 에이전트 기다리기",
+      "toolSendParentMessage": "상위 에이전트에게 메시지",
+      "toolReceiveSubagentMessage": "하위 에이전트의 메시지",
+      "subagentMessage": "추가 메시지",
+      "toolSubagentRunning": "실행 중",
+      "toolSubagentMessageQueued": "메시지가 대기열에 추가됨",
+      "toolSubagentCompleted": "완료",
+      "toolSubagentWaitingHuman": "사용자 입력 대기 중",
+      "toolSubagentFailed": "실패",
       "toolTeamDefaultMember": "멤버 {{index}}",
       "toolTeamDefaultPersona": "페르소나 {{index}}",
       "toolTimeMinutes": "{{minutes}}분 {{seconds}}초",
@@ -1531,7 +1545,16 @@
         }
       },
       "computerUseTitle": "컴퓨터 제어",
-      "computerUsePermissionHint": "시스템 설정 → 개인정보 보호 및 보안에서 LambChat.app에 접근성 및 화면 기록 권한을 한 번만 허용한 후 다시 시도하세요."
+      "computerUsePermissionHint": "시스템 설정 → 개인정보 보호 및 보안에서 LambChat.app에 접근성 및 화면 기록 권한을 한 번만 허용한 후 다시 시도하세요.",
+      "toolCancelSubagent": "하위 에이전트 취소",
+      "toolStartBackgroundTask": "백그라운드 작업 시작",
+      "toolBackgroundTaskSubmitted": "백그라운드에 제출됨",
+      "toolBackgroundTaskOpen": "작업 대화 열기",
+      "toolBackgroundTaskUnavailable": "작업 제출을 확인할 수 없습니다",
+      "toolListSubagents": "하위 에이전트 목록",
+      "toolSubagentQueued": "대기열에 있음",
+      "toolSubagentTimedOut": "실행 시간 초과",
+      "toolSubagentEmpty": "하위 에이전트 없음"
     },
     "messageInput": "메시지 입력",
     "noPermission": "메시지를 보낼 권한이 없습니다",
@@ -1588,6 +1611,9 @@
     "steerQueue": "전송 대기 중인 메시지",
     "steerQueued": "현재 단계가 끝난 후 전달됩니다",
     "stop": "생성 중지",
+    "backgroundRunning": "작업이 백그라운드에서 계속 실행됩니다",
+    "backgroundContinue": "백그라운드에서 계속",
+    "backgroundContinueHint": "이 대화를 나가도 작업은 계속 실행됩니다",
     "stopConfirmMessage": "정말로 생성을 중단하시겠습니까? 지금까지 생성된 내용은 유지됩니다.",
     "stopConfirmTitle": "생성 중단",
     "subagentStatus": "서브에이전트 상태: {{status}}",
@@ -1599,6 +1625,13 @@
     "timeline": "타임라인",
     "title": "채팅",
     "todo": {
+      "openPanel": "작업 목록 열기",
+      "allCompleted": "모든 작업 완료",
+      "cancelledCount": "{{count}}개 취소됨",
+      "pending": "대기 중",
+      "in_progress": "진행 중",
+      "completed": "완료",
+      "cancelled": "취소됨",
       "progress": "{{completed}}/{{total}} 완료",
       "toggle": "할 일 목록"
     },
@@ -1609,7 +1642,28 @@
     "waitingForUpload": "파일 업로드가 완료될 때까지 기다려 주세요",
     "welcomeRefresh": "새로고침",
     "welcomeSubtitle": "무엇을 도와드릴까요?",
-    "welcomeSuggestions": "추천"
+    "welcomeSuggestions": "추천",
+    "goalPersistent": {
+      "pause": "목표 일시 중지",
+      "resume": "목표 계속",
+      "clear": "목표 지우기",
+      "noGoal": "먼저 지속 목표를 만드세요.",
+      "tokensUnknown": "토큰 사용량 알 수 없음",
+      "turns": "{{count}} / {{max}} 회",
+      "tokens": "{{count}} / {{max}} 토큰",
+      "timeLimit": "시간 제한 {{minutes}}분",
+      "status": {
+        "active": "진행 중",
+        "paused": "일시 중지됨",
+        "waiting_human": "승인 대기 중",
+        "blocked": "차단됨",
+        "completed": "완료됨",
+        "budget_limited": "예산 한도 도달",
+        "cleared": "지워짐"
+      },
+      "modeHint": "지속 목표: {{status}}",
+      "attachmentsUnsupported": "지속 목표를 설정하기 전에 일반 메시지로 첨부 파일을 보내세요."
+    }
   },
   "common": {
     "moreOptions": "추가 작업",
@@ -2536,6 +2590,7 @@
     "users": "사용자 계정 및 접근 권한 관리"
   },
   "notification": {
+    "openConversation": "대화 열기",
     "active": "활성",
     "cancel": "취소",
     "collapse": "상세 숨기기",
@@ -2567,7 +2622,8 @@
     "typeMaintenance": "점검",
     "typeSuccess": "성공",
     "typeWarning": "경고",
-    "updatedSuccess": "알림이 업데이트되었습니다"
+    "updatedSuccess": "알림이 업데이트되었습니다",
+    "taskNeedsAttention": "작업에 확인이 필요합니다"
   },
   "passwordInput": {
     "hidePassword": "비밀번호 숨기기",

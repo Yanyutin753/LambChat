@@ -217,7 +217,8 @@
 
 /* Base pill hover/transition */
 .pill-btn {
-  @apply flex w-fit min-h-7 max-w-full items-center gap-2 rounded-full px-3 py-1 font-mono text-12 font-medium leading-normal;
+  font-family: theme("fontFamily.mono");
+  @apply flex w-fit min-h-7 max-w-full items-center gap-2 rounded-full px-3 py-1 text-12 font-medium leading-normal;
   border: 1px solid color-mix(in srgb, currentColor 13%, transparent);
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, white 42%, transparent),
@@ -239,8 +240,29 @@
   @apply block size-3 shrink-0;
 }
 
+/* Tool summaries follow viewport breakpoints and still fit a narrowed chat column. */
+.pill-btn[data-variant="tool"] {
+  max-width: 100%;
+}
+@media (min-width: 640px) {
+  .pill-btn[data-variant="tool"] {
+    max-width: min(100%, 36rem);
+  }
+}
+@media (min-width: 1024px) {
+  .pill-btn[data-variant="tool"] {
+    max-width: min(100%, 48rem);
+  }
+}
+@media (min-width: 1280px) {
+  .pill-btn[data-variant="tool"] {
+    max-width: min(100%, 64rem);
+  }
+}
+
 /* Dark mode: soften border and inset shadow so they don't glow white */
 .dark .pill-btn {
+  font-family: theme("fontFamily.mono");
   border-color: color-mix(in srgb, currentColor 10%, transparent);
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, currentColor 6%, transparent),
@@ -299,6 +321,7 @@
     animation: none !important;
   }
   .pill-btn {
+    font-family: theme("fontFamily.mono");
     transition: background-color 0.15s ease !important;
   }
   .pill-btn:hover:not(:disabled),

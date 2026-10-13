@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-desktop-notifications"
+description = "Authorize native notification permission, delivery and focus for the main window."
+commands.allow = ["desktop_notification_supports_actions", "desktop_notification_permission", "desktop_notification_send", "desktop_notification_focus"]

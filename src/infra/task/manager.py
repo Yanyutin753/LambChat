@@ -13,6 +13,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from arq.connections import create_pool
 
+from src.infra.goal_runtime import GoalRunAlreadyOwnedError, with_goal_submission_lease
 from src.infra.logging import get_logger
 from src.infra.session.storage import SessionStorage
 from src.infra.writer.presenter_events import derive_user_message_run_modes
@@ -246,6 +247,7 @@ class BackgroundTaskManager:
     async def _release_recovery_lock(self, lock_key: str, token: str) -> None:
         await self._recovery_service().release_recovery_lock(lock_key, token)
 
+    @with_goal_submission_lease
     async def submit(
         self,
         session_id: str,
@@ -301,6 +303,21 @@ class BackgroundTaskManager:
         # 生成 run_id
         run_id = run_id or generate_run_id()
         trace_id = trace_id or ""
+        background_resume = False
+        if hitl_resume or interrupted_resume:
+            from .background_admission import (
+                validate_background_resume,
+                validate_background_run_admission,
+            )
+            from .background_tasks import execute_background_stream
+
+            if executor is execute_background_stream:
+                await validate_background_run_admission(session_id, user_id, run_id)
+                background_resume = True
+            else:
+                background_resume = await validate_background_resume(
+                    self.storage, session_id, user_id, run_id
+                )
 
         async with self._lock:
             existing_task = self._tasks.get(run_id)
@@ -319,9 +336,25 @@ class BackgroundTaskManager:
                 )
 
                 # 更新 MongoDB session 状态（包含 current_run_id）
-                await task_executor._update_session_status(
-                    session_id, TaskStatus.PENDING, run_id=run_id
+                fenced_resume = background_resume or bool(
+                    active_goal
+                    and active_goal.get("_persistent_id")
+                    and (hitl_resume or interrupted_resume)
                 )
+                if interrupted_resume and not hitl_resume and not fenced_resume:
+                    if not await self.storage.claim_run_recovery(
+                        session_id,
+                        run_id,
+                        self._state_machine.build_metadata(TaskStatus.PENDING, run_id=run_id),
+                    ):
+                        raise TaskInterruptedError("Interrupted run no longer authorizes recovery")
+                else:
+                    await task_executor._update_session_status(
+                        session_id,
+                        TaskStatus.PENDING,
+                        run_id=run_id,
+                        **({"expected_run_id": run_id} if fenced_resume else {}),
+                    )
             except Exception:
                 if not user_message_written:
                     await self._release_preclaimed_attachment_references(
@@ -573,6 +606,8 @@ class BackgroundTaskManager:
         run_info = self._run_info.pop(run_id, None)
         # 清理待处理任务上下文（如果存在）
         self._pending_tasks.pop(run_id, None)
+        if not task.cancelled() and isinstance(task.exception(), GoalRunAlreadyOwnedError):
+            return
         # 释放并发槽位
         user_id = run_info.get("user_id") if run_info else None
         if user_id:

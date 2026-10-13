@@ -71,6 +71,12 @@ test("message part renderer routes internal inline tools to dedicated items", ()
     "web_search",
     "web_fetch",
     "document_parse",
+    "cancel_subagent",
+    "start_background_task",
+    "list_subagents",
+    "send_subagent_message",
+    "send_parent_message",
+    "wait_subagent",
   ];
 
   for (const toolName of expectedRoutes) {
@@ -98,6 +104,7 @@ test("every backend internal tool ships a dedicated item route", () => {
   expect(internalToolNames).toEqual([
     "ask_human",
     "audio_transcribe",
+    "cancel_subagent",
     "computer_use",
     "create_agent_team",
     "create_persona_preset",
@@ -110,6 +117,7 @@ test("every backend internal tool ships a dedicated item route", () => {
     "image_analyze",
     "image_edit_with_references",
     "image_generate",
+    "list_subagents",
     "memory_delete",
     "memory_recall",
     "memory_retain",
@@ -124,16 +132,27 @@ test("every backend internal tool ships a dedicated item route", () => {
     "search_persona_presets",
     "search_skills",
     "search_tools",
+    "send_parent_message",
+    "send_subagent_message",
+    "start_background_task",
+    "task",
     "transfer_file",
     "transfer_path",
     "update_persona_preset",
     "upload_url_to_sandbox",
     "video_analyze",
+    "wait_subagent",
     "web_fetch",
     "web_search",
   ]);
 
   for (const toolName of internalToolNames) {
+    // task calls are emitted as subagent parts and already use SubagentBlock.
+    if (toolName === "task") {
+      expect(source).toMatch(/part\.type === "subagent"/);
+      expect(source).toMatch(/<SubagentBlock/);
+      continue;
+    }
     expect(source).toMatch(new RegExp(`part\\.name\\s*===\\s*"${toolName}"`));
   }
 });

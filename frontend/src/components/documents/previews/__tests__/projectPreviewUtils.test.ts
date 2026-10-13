@@ -52,6 +52,43 @@ test("normalizes explicit entry paths", () => {
   expect(entry).toBe("/src/main.jsx");
 });
 
+test("resolves the sanitizer-mangled entry variant when the explicit entry misses", () => {
+  // 历史事件里 v2 manifest 的路径 key 被 '.'→'_' 消毒过：entry /index.html
+  // 指向的文件实际挂在 /index_html 下
+  const entry = resolveEntryFile(
+    { "/index_html": "<!doctype html>" },
+    "/index.html",
+  );
+
+  expect(entry).toBe("/index_html");
+});
+
+test("falls back to entry candidates when the explicit entry matches nothing", () => {
+  const entry = resolveEntryFile(
+    {
+      "/index.html": "<h1>Hello</h1>",
+      "/about.html": "<h1>About</h1>",
+    },
+    "/missing-entry.jsx",
+  );
+
+  expect(entry).toBe("/index.html");
+});
+
+test("static config keeps an entry that exists in files when the manifest entry was mangled", () => {
+  // 回归：static 模板不传 template 给 Sandpack，entry 指向不存在的文件时
+  // sandpack-react resolveFile 兜底失败返回 null，进而抛
+  // '"entry" was not specified' 顶穿整页错误边界
+  const config = buildSandpackConfig(
+    "static",
+    { "/index_html": "<!doctype html>" },
+    "/index.html",
+  );
+
+  expect(config.customSetup?.entry).toBe("/index_html");
+  expect(config.files[config.customSetup?.entry ?? ""]).toBeTruthy();
+});
+
 test("uses svelte template when App.svelte is present", () => {
   const template = resolveSandpackTemplate("vanilla", {
     "/src/App.svelte": "<script>let count = 0;</script>",

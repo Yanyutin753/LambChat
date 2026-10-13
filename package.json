@@ -1,7 +1,7 @@
 {
   "scripts": {
     "docs:dev": "vitepress dev docs",
-    "docs:build": "vitepress build docs",
+    "docs:build": "node scripts/run-validation.mjs vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "install:all": "make install-all",
     "install:hooks": "make install-hooks",
@@ -18,10 +18,10 @@
     "test:frontend": "make frontend-test",
     "pre-commit": "make pre-commit",
     "check": "make check-all",
-    "ruff": "uv run ruff check .",
-    "ruff:fix": "uv run ruff check --fix .",
-    "ruff:format": "uv run ruff format .",
-    "mypy": "uv run mypy src/",
+    "ruff": "node scripts/run-validation.mjs uv run ruff check .",
+    "ruff:fix": "node scripts/run-validation.mjs uv run ruff check --fix .",
+    "ruff:format": "node scripts/run-validation.mjs uv run ruff format .",
+    "mypy": "node scripts/run-validation.mjs uv run mypy src/",
     "clean": "make clean",
     "clean:all": "make clean-all",
     "docker:up": "make docker-up",

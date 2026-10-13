@@ -76,7 +76,7 @@ export async function authFetch<T>(
       try {
         await refreshAccessToken();
       } catch (error) {
-        redirectToLogin();
+        if ((error as Error & { status?: number })?.status === 401) redirectToLogin();
         throw error;
       }
       return authFetch<T>(url, { ...options, skipAuth: false, _retry: true });

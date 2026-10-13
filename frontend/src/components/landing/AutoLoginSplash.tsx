@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { BrandLogo } from "../common/BrandLogo";
 import { BrandWordmark } from "../common/BrandWordmark";
+import { LoadingSpinner } from "../common/LoadingSpinner";
 
 /**
  * 全屏品牌过渡页：自动登录/跳转等待期的统一过渡（`/` 鉴权校验、OAuth 回调、
@@ -16,8 +17,7 @@ export function AutoLoginSplash({ text }: { text?: string }) {
     >
       <div className="auto-login-splash-brand">
         <div className="auto-login-splash-logo">
-          <span className="auto-login-splash-logo-halo" aria-hidden="true" />
-          <BrandLogo className="size-12 sm:size-14" alt="LambChat" />
+          <BrandLogo className="size-10 sm:size-12" alt="LambChat" />
         </div>
         <BrandWordmark className="auto-login-splash-wordmark" width={148} />
         <p
@@ -25,13 +25,11 @@ export function AutoLoginSplash({ text }: { text?: string }) {
           role="status"
           aria-live="polite"
         >
-          {text ?? t("landing.autoLoginPending")}
+          <LoadingSpinner size="xs" color="text-theme-text-tertiary" />
+          <span className="loading-label">
+            {text ?? t("landing.autoLoginPending")}
+          </span>
         </p>
-        <div className="auto-login-splash-dots" aria-hidden="true">
-          <span className="auto-login-splash-dot" />
-          <span className="auto-login-splash-dot" />
-          <span className="auto-login-splash-dot" />
-        </div>
       </div>
     </div>
   );

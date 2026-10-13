@@ -23,6 +23,6 @@ test("oauth provider buttons enter a loading state immediately on click", () => 
 
   // 被点击的按钮图标位换成旋转 spinner
   expect(authPage).toMatch(
-    /oauthPendingProvider === provider\.id[\s\S]*?animate-spin/,
+    /oauthPendingProvider === provider\.id[\s\S]*?<LoadingSpinner/,
   );
 });

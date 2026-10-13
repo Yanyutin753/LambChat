@@ -17,6 +17,7 @@
     "core:window:allow-start-dragging",
     "core:window:allow-is-maximized",
     "notification:default",
+    "allow-desktop-notifications",
     "updater:default",
     "process:default",
     "dialog:default",

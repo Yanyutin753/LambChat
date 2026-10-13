@@ -210,15 +210,16 @@ class SettingsService:
         imported = 0
 
         for key, definition in SETTING_DEFINITIONS.items():
+            # Only environment values can be imported. Persisted settings without
+            # an environment value are loaded by the later get_all startup pass.
+            env_value = os.environ.get(key)
+            if env_value is None:
+                continue
+
             # Check if already in database
             existing = await self._storage.get(key)
             if existing is not None and existing.updated_at is not None:
                 continue  # Already set, skip
-
-            # Get value from environment
-            env_value = os.environ.get(key)
-            if env_value is None:
-                continue  # No env value, skip
 
             # Parse and store via self.set() to trigger refresh + pub/sub broadcast
             parsed_value = await self._parse_env_value_async(key, env_value)

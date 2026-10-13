@@ -1,9 +1,9 @@
+import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { clsx } from "clsx";
 import {
   CheckCircle2,
   ChevronRight,
   Circle,
-  Loader2,
   ListTodo,
   XCircle,
 } from "lucide-react";
@@ -20,7 +20,11 @@ interface TodoBlockProps {
 
 const statusConfig: Record<
   TodoStatus,
-  { icon: typeof Circle; colorClass: string; textClass: string }
+  {
+    icon: typeof Circle | typeof LoadingSpinner;
+    colorClass: string;
+    textClass: string;
+  }
 > = {
   pending: {
     icon: Circle,
@@ -28,7 +32,7 @@ const statusConfig: Record<
     textClass: "text-stone-500 dark:text-stone-400",
   },
   in_progress: {
-    icon: Loader2,
+    icon: LoadingSpinner,
     colorClass: "text-[var(--theme-primary)]",
     textClass: "text-stone-700 dark:text-stone-200 font-medium",
   },
@@ -92,9 +96,10 @@ export function TodoBlock({ items, isStreaming, stateKey }: TodoBlockProps) {
           })}
         </span>
         {isStreaming && (
-          <Loader2
+          <LoadingSpinner
+            color="text-current"
             size={12}
-            className="shrink-0 animate-spin text-stone-400 dark:text-stone-500"
+            className="shrink-0 text-stone-400 dark:text-stone-500"
           />
         )}
         {/* Progress bar */}
@@ -135,24 +140,19 @@ export function TodoBlock({ items, isStreaming, stateKey }: TodoBlockProps) {
   );
 }
 
-function TodoItemRow({ item }: { item: TodoItem }) {
+export function TodoItemRow({ item, wrap = false }: { item: TodoItem; wrap?: boolean }) {
+  const { t } = useTranslation();
   const config = statusConfig[item.status];
   const Icon = config.icon;
 
   return (
-    <div className="flex items-start gap-2.5 py-1">
-      <Icon
-        size={14}
-        className={clsx(
-          "shrink-0 mt-0.5",
-          config.colorClass,
-          item.status === "in_progress" && "animate-spin",
-        )}
-      />
+    <div className="relative flex items-start gap-2.5 py-1">
+      <Icon size={14} className={clsx("shrink-0 mt-0.5", config.colorClass)} />
       <div className="min-w-0 flex-1">
         <p
           className={clsx(
-            "text-13 leading-snug truncate",
+            "text-13 leading-snug",
+            wrap ? "whitespace-pre-wrap break-words [overflow-wrap:anywhere]" : "truncate",
             config.textClass,
             item.status === "in_progress" &&
               "text-stone-800 dark:text-stone-100",
@@ -160,6 +160,7 @@ function TodoItemRow({ item }: { item: TodoItem }) {
           title={item.content}
         >
           {item.content}
+          <span className="sr-only left-0 top-0"> — {t(`chat.todo.${item.status}`)}</span>
         </p>
       </div>
     </div>

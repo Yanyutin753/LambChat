@@ -242,7 +242,7 @@
 
 .dark .scb__status-pill--inactive {
   background: var(--theme-bg-subtle);
-  color: #d6d3d1;
+  color: var(--theme-text-secondary);
 }
 
 /* Blue – published */
@@ -275,7 +275,7 @@
 
 .dark .scb__status-pill--disabled {
   background: var(--theme-bg-subtle);
-  color: #a8a29e;
+  color: var(--theme-text-tertiary);
 }
 
 /* --- Category Tag --- */
@@ -372,7 +372,7 @@
 }
 
 .dark .scb__action-btn--primary {
-  color: #1c1917;
+  color: var(--theme-bg-card);
 }
 
 .scb__action-btn--ghost {
@@ -589,7 +589,7 @@
 
 .dark .mp-card__status-pill--inactive {
   background: var(--theme-bg-subtle);
-  color: #d6d3d1;
+  color: var(--theme-text-secondary);
 }
 
 .mp-card__category-tag {
@@ -681,7 +681,7 @@
 }
 
 .dark .mp-card__action-btn--primary {
-  color: #1c1917;
+  color: var(--theme-bg-card);
 }
 
 .mp-card__action-btn--update {

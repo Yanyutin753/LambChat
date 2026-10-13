@@ -281,6 +281,7 @@ export function createSubagentPart(
   depth: number,
   timestamp?: string,
   agentAvatar?: string,
+  status?: string,
 ): SubagentPart {
   const startedAt = timestamp ? parseDate(timestamp).getTime() : Date.now();
   return {
@@ -290,7 +291,7 @@ export function createSubagentPart(
     agent_avatar: agentAvatar,
     input: input,
     isPending: true,
-    status: "running",
+    status: status === "queued" ? "queued" : "running",
     depth: depth,
     parts: [],
     startedAt,
@@ -533,6 +534,28 @@ function findAndMergeInSubagent(
       if (effectiveAgentId && p.agent_id !== effectiveAgentId) {
         continue;
       }
+      if (part.type === "subagent") {
+        if (
+          !(p.status === "queued" && part.status === "running") &&
+          !(
+            p.status === "waiting_human" &&
+            (part.status === "queued" || part.status === "running")
+          )
+        ) {
+          return parts;
+        }
+        const updated = [...parts];
+        updated[i] = {
+          ...p,
+          status: part.status,
+          startedAt: part.startedAt,
+          result: undefined,
+          success: undefined,
+          error: undefined,
+          completedAt: undefined,
+        };
+        return updated;
+      }
       const newSubagentParts = mergeOrAppendPart(p.parts || [], part);
       const newParts = [...parts];
       newParts[i] = { ...p, parts: newSubagentParts };
@@ -571,6 +594,16 @@ export function addPartToDepth(
   targetAgentId?: string,
   messageId?: string,
 ): MessagePart[] {
+  if (part.type === "subagent") {
+    // Approval recovery replays agent:call for the pending execution.
+    const existing = findAndMergeInSubagent(
+      parts,
+      part,
+      targetDepth,
+      part.agent_id,
+    );
+    if (existing) return existing;
+  }
   if (targetDepth <= 0) {
     // Merge adjacent text blocks at depth 0
     if (part.type === "text") {
@@ -667,9 +700,14 @@ export function updateSubagentResult(
   targetDepth: number,
   error?: string,
   timestamp?: string,
+  eventStatus?: string,
 ): MessagePart[] {
   const completedAt = timestamp ? parseDate(timestamp).getTime() : Date.now();
-  const status = success ? "complete" : "error";
+  const status: SubagentPart["status"] = eventStatus === "cancelled" || error === "Cancelled"
+    ? "cancelled"
+    : eventStatus === "timed_out" || eventStatus === "waiting_human"
+      ? eventStatus
+      : success ? "complete" : "error";
 
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
@@ -685,9 +723,9 @@ export function updateSubagentResult(
         result,
         success,
         error,
-        isPending: false,
+        isPending: status === "waiting_human",
         status,
-        completedAt,
+        completedAt: status === "waiting_human" ? undefined : completedAt,
       };
       return newParts;
     }
@@ -723,7 +761,7 @@ export function updateSubagentResultInParts(
   targetDepth: number,
   error?: string,
   completedAt?: number,
-  status?: "complete" | "error",
+  status?: SubagentPart["status"],
 ): MessagePart[] | null {
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
@@ -739,9 +777,9 @@ export function updateSubagentResultInParts(
         result,
         success,
         error,
-        isPending: false,
+        isPending: status === "waiting_human",
         status,
-        completedAt,
+        completedAt: status === "waiting_human" ? undefined : completedAt,
       };
       return newParts;
     }
@@ -975,6 +1013,9 @@ export function clearAllLoadingStates(
         const updatedParts = subagentPart.parts
           ? clearAllLoadingStates(subagentPart.parts, options)
           : [];
+        if (options?.preserveAskHuman && subagentPart.status === "waiting_human") {
+          return { ...subagentPart, parts: updatedParts };
+        }
         // Preserve existing terminal status (complete/error) instead of forcing cancelled
         const wasCompleted = subagentPart.status === "complete";
         const hadError = subagentPart.status === "error";
