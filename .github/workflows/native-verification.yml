@@ -88,7 +88,8 @@ jobs:
         shell: bash
         run: |
           python scripts/run_validation.py uv sync --frozen --group dev --group cua
-          python scripts/run_validation.py bash client/scripts/build-daemon.sh
+          daemon_build_bash="$(cygpath -w "$BASH")"
+          python scripts/run_validation.py "$daemon_build_bash" client/scripts/build-daemon.sh
 
       - name: Fetch pinned embedded Python
         shell: bash
