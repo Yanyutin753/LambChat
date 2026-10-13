@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 const mocks=vi.hoisted(()=>({load:vi.fn()}));
 vi.mock("../../../../services/api/taskCompletions",()=>({getTaskCompletions:mocks.load}));
 import { useTaskCompletionJournal } from "../taskCompletionJournal";
@@ -29,4 +29,53 @@ test("switching account during a request discards the late completion page",asyn
  await act(async()=>{resolve({items:[{id:"old-event",session_id:"old-session",run_id:"old-run",status:"completed"}],cursor:"old-cursor",next_cursor:null});});
  expect(deliver).not.toHaveBeenCalled();
  expect(localStorage.getItem("lambchat.taskCompletions.cursor.new")).toBeNull();
+});
+
+afterEach(()=>{vi.useRealTimers();});
+
+test("temporary 503 retries from saved cursor and stops after successful delivery",async()=>{
+ vi.useFakeTimers();
+ localStorage.setItem("lambchat.taskCompletions.cursor.user-one","saved");
+ mocks.load.mockRejectedValueOnce({status:503}).mockResolvedValueOnce({items:[{id:"done",session_id:"s",run_id:"r",status:"completed"}],cursor:"done",next_cursor:null});
+ const deliver=vi.fn().mockResolvedValue(undefined);
+ const {unmount}=renderHook(()=>useTaskCompletionJournal("user-one",true,deliver));
+ await act(async()=>{await vi.advanceTimersByTimeAsync(2000);});
+ expect(mocks.load.mock.calls).toEqual([["saved"],["saved"]]);
+ expect(deliver).toHaveBeenCalledOnce();
+ await act(async()=>{await vi.advanceTimersByTimeAsync(60000);});
+ expect(mocks.load).toHaveBeenCalledTimes(2);
+ unmount();
+});
+
+test("persistent 503 exhausts three retries until an external wake",async()=>{
+ vi.useFakeTimers();
+ mocks.load.mockRejectedValue({status:503});
+ const {unmount}=renderHook(()=>useTaskCompletionJournal("user-one",true,vi.fn()));
+ await act(async()=>{await vi.advanceTimersByTimeAsync(60000);});
+ expect(mocks.load).toHaveBeenCalledTimes(4);
+ await act(async()=>{window.dispatchEvent(new Event("online"));});
+ expect(mocks.load).toHaveBeenCalledTimes(5);
+ unmount();
+ await act(async()=>{await vi.advanceTimersByTimeAsync(60000);});
+ expect(mocks.load).toHaveBeenCalledTimes(5);
+});
+
+test.each([401,403,500])("does not automatically retry status %s",async(status)=>{
+ vi.useFakeTimers();
+ mocks.load.mockRejectedValue({status});
+ const {unmount}=renderHook(()=>useTaskCompletionJournal("user-one",true,vi.fn()));
+ await act(async()=>{await vi.advanceTimersByTimeAsync(60000);});
+ expect(mocks.load).toHaveBeenCalledOnce();
+ unmount();
+});
+
+test("account switch cancels pending retries from the old account",async()=>{
+ vi.useFakeTimers();
+ mocks.load.mockRejectedValueOnce({status:503});
+ const {rerender,unmount}=renderHook(({user})=>useTaskCompletionJournal(user,true,vi.fn()),{initialProps:{user:"old"}});
+ await act(async()=>{});
+ rerender({user:"new"});
+ await act(async()=>{await vi.advanceTimersByTimeAsync(60000);});
+ expect(mocks.load).toHaveBeenCalledTimes(2);
+ unmount();
 });

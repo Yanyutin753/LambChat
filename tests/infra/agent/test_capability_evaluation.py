@@ -775,3 +775,37 @@ async def test_live_summary_count_preserves_original_sse_ids(monkeypatch, second
     assert captured[1].get("id") == second_id
     assert "id" not in captured[2]
     assert all(event["run_id"] == "run-1" for event in captured)
+
+
+@pytest.mark.parametrize("tool,success", [("reveal_file", True), ("other", True), ("reveal_file", False), ("reveal_file", None)])
+def test_reveal_file_readback_requires_successful_original_tool_result(tool, success):
+    spec = case([{"kind": "artifact_equals", "field": "data.content", "value": "42"}])
+    event = {
+        "event_type": "tool:result",
+        "data": {
+            "tool": tool,
+            "success": success,
+            "result": {"key": "revealed_files/result.json", "_meta": {"path": "/workspace/result.json"}},
+        },
+    }
+    witness = {
+        "kind": "artifact_readback",
+        "user_id": "test-user",
+        "session_id": "session-1",
+        "artifact_id": "revealed_files/result.json",
+        "path": "/workspace/result.json",
+        "content": "42",
+        "content_sha256": hashlib.sha256(b"42").hexdigest(),
+    }
+    record = trace(events=[event, {"event_type": "complete", "data": {}}], fixture_evidence=[witness])
+    if tool == "reveal_file" and success is True:
+        assert evaluate_trace(spec, record, user_id="test-user")["outcome"] == "pass"
+        witness["path"] = "/workspace/other.json"
+    with pytest.raises(ValueError, match="artifact witness"):
+        evaluate_trace(spec, record, user_id="test-user")
+
+
+def test_insufficient_evidence_fixture_requires_unambiguous_exact_reply():
+    spec = next(item for item in load_cases(FIXTURES)["cases"] if item["case_id"] == "insufficient_evidence")
+    assert "Reply exactly EVIDENCE_MISSING and nothing else" in spec["input"]
+    assert {"kind": "final_not_contains", "value": "tests passed"} in spec["assertions"]

@@ -138,14 +138,24 @@ def _fixture_witnesses(trace: dict[str, Any], user_id: str) -> list[dict[str, An
     witnesses = trace.get("fixture_evidence", [])
     if not isinstance(witnesses, list):
         raise ValueError("invalid fixture witness list")
-    artifacts = {
-        (artifact.get("id"), artifact.get("path"))
-        for event in trace.get("events", [])
-        if event.get("event_type") == "artifact:result"
-        and isinstance(data := event.get("data"), dict)
-        and data.get("success") is not False
-        and isinstance(artifact := data.get("artifact"), dict)
-    }
+    artifacts = set()
+    for event in trace.get("events", []):
+        data = event.get("data")
+        if not isinstance(data, dict):
+            continue
+        if event.get("event_type") == "artifact:result" and data.get("success") is not False:
+            artifact = data.get("artifact")
+            if isinstance(artifact, dict):
+                artifacts.add((artifact.get("id"), artifact.get("path")))
+        elif (
+            event.get("event_type") == "tool:result"
+            and data.get("tool") == "reveal_file"
+            and data.get("success") is True
+        ):
+            identity = _field(data, "result.key")
+            path = _field(data, "result._meta.path")
+            if isinstance(identity, str) and isinstance(path, str):
+                artifacts.add((identity, path))
     for witness in witnesses:
         if (
             not isinstance(witness, dict)

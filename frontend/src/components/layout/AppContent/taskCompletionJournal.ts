@@ -40,6 +40,8 @@ export function useTaskCompletionJournal(
     if (!enabled || !userId) return;
     let cancelled = false;
     let inFlight = false;
+    let retryAttempt = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
     const key = `lambchat.taskCompletions.cursor.${userId}`;
     let cursor: string | null = null;
     try { cursor = localStorage.getItem(key); } catch { /* Private modes may disable storage. */ }
@@ -52,18 +54,35 @@ export function useTaskCompletionJournal(
           cursor = value;
           try { localStorage.setItem(key,value); } catch { /* Retain the bookmark for this mounted client. */ }
         }});
+        retryAttempt = 0;
       } catch (error) {
-        if (current()) console.warn("[AppContent] Completion journal catch-up failed", error);
+        if (current()) {
+          console.warn("[AppContent] Completion journal catch-up failed", error);
+          if (error && typeof error === "object" && "status" in error && error.status === 503 && retryAttempt < 3) {
+            retryTimer = setTimeout(() => {
+              retryTimer = undefined;
+              void restore();
+            }, 2000 * 2 ** retryAttempt++);
+          }
+        }
       } finally { inFlight = false; }
     };
-    restoreRef.current = restore;
-    const wake = () => { void restore(); };
+    const refresh = async () => {
+      if (inFlight) return;
+      clearTimeout(retryTimer);
+      retryTimer = undefined;
+      retryAttempt = 0;
+      await restore();
+    };
+    restoreRef.current = refresh;
+    const wake = () => { void refresh(); };
     document.addEventListener("visibilitychange",wake);
     window.addEventListener("online",wake);
     void restore();
     return () => {
       cancelled = true;
-      if (restoreRef.current === restore) restoreRef.current = async () => {};
+      clearTimeout(retryTimer);
+      if (restoreRef.current === refresh) restoreRef.current = async () => {};
       document.removeEventListener("visibilitychange",wake);
       window.removeEventListener("online",wake);
     };
