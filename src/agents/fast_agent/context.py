@@ -205,6 +205,9 @@ class FastAgentContext:
                 )
             else:
                 self._append_unique_tools(deferred_mcp_tools, reserved=reserved_system_names)
+            from src.agents.core.mcp_tool_exposure import attach_mcp_availability
+
+            attach_mcp_availability(self)
         except Exception as e:
             logger.error(f"[FastAgentContext] Failed to load MCP tools: {e}", exc_info=True)
 

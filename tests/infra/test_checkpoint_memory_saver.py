@@ -47,6 +47,18 @@ async def test_memory_saver_fallback_reuses_same_thread_cache() -> None:
 
 
 @pytest.mark.asyncio
+async def test_distributed_checkpoint_unavailability_never_falls_back_to_process_memory(
+    monkeypatch,
+):
+    from src.infra.distributed_validation import DistributedRuntimeConfigError
+
+    monkeypatch.setenv("LAMBCHAT_DISTRIBUTED_MODE", "true")
+    with pytest.raises(DistributedRuntimeConfigError, match="checkpoint"):
+        await checkpoint_mod.get_async_checkpointer(thread_id="distributed-session")
+    assert not hasattr(checkpoint_mod.get_async_checkpointer, "_memory_saver_cache")
+
+
+@pytest.mark.asyncio
 async def test_memory_saver_fallback_bounds_cached_threads() -> None:
     for i in range(5):
         await checkpoint_mod.get_async_checkpointer(thread_id=f"session-{i}")

@@ -90,6 +90,7 @@ function ToolSearchDetail({ args, result }: ToolDetailProps) {
       )}
 
       {summary && <ToolSearchSummaryChips summary={summary} size="detail" />}
+      {summary?.availability && <ToolResultContent result={summary.availability} hideCopyButton />}
 
       {summary && summary.matches.length > 0 && (
         <div className="space-y-2">

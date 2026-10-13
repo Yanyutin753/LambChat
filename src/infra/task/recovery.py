@@ -336,6 +336,9 @@ class TaskRecoveryService:
         language = await self.get_preferred_language(session.user_id, session)
         hidden_instruction = build_recovery_message(reason, language)
         agent_id = _resolve_recovery_agent_id(session_metadata, session)
+        from src.infra.goal_runtime import restore_goal_for_run
+
+        active_goal = await restore_goal_for_run(session, source_run_id)
         common_kwargs: dict[str, Any] = {
             "disabled_tools": session_metadata.get("disabled_tools") or None,
             "agent_options": session_metadata.get("agent_options") or None,
@@ -358,6 +361,8 @@ class TaskRecoveryService:
             "recommendation_input": hidden_instruction,
             "auto_mode": bool(session_metadata.get("auto_mode", False)),
         }
+        if active_goal is not None:
+            common_kwargs["active_goal"] = active_goal
 
         if getattr(settings, "TASK_BACKEND", "local") == "arq":
             # arq：新 dispatch_id（旧 job 可能仍留档），run_id 沿用原值；

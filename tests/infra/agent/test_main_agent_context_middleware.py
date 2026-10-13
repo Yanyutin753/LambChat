@@ -651,3 +651,39 @@ async def test_main_agent_context_skips_snapshot_inside_forked_context() -> None
 
     assert writes == []
     assert captured["args"]["description"] == "Delegate further."
+
+
+async def test_context_snapshot_keeps_evidence_index_outside_compression_and_cache():
+    writes = []
+
+    class Backend:
+        async def awrite(self, path, content):
+            writes.append(content)
+            return SimpleNamespace(error=None, path=path)
+
+    middleware = MainAgentContextMiddleware(backend=Backend(), token_limit=1, keep_recent=1)
+
+    async def compress(text):
+        return "compressed history"
+
+    middleware._compress_with_llm = compress
+    state = {
+        "messages": [HumanMessage(content="older " * 50), AIMessage(content="recent")],
+        "evidence": [
+            {
+                "evidence_id": "proof",
+                "source_ref": "/evidence/proof.json",
+                "scope_version": "v",
+                "status": "observed",
+            }
+        ],
+        "_evidence_scope_version": "v",
+    }
+    request = SimpleNamespace(state=state, runtime=SimpleNamespace(state=state))
+    await middleware._write_context_file(request)
+    assert "compressed history" in writes[-1]
+    assert "/evidence/proof.json" in writes[-1]
+    state["evidence"][0]["status"] = "stale"
+    await middleware._write_context_file(request)
+    assert len(writes) == 2
+    assert '"status": "stale"' in writes[-1]

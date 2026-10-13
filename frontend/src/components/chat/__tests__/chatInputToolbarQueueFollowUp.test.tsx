@@ -53,6 +53,22 @@ const baseProps = {
   onNoPermissionClick: vi.fn(),
 };
 
+test("continuing in background invokes navigation without stopping the run", () => {
+  const onContinueInBackground = vi.fn();
+  const onStopClick = vi.fn();
+  const view = render(<ChatInputToolbar {...baseProps} hasDraft={false} onContinueInBackground={onContinueInBackground} onStopClick={onStopClick} />);
+  fireEvent.click(view.getByTestId("continue-in-background"));
+  expect(onContinueInBackground).toHaveBeenCalledTimes(1);
+  expect(onStopClick).not.toHaveBeenCalled();
+  fireEvent.click(view.getByRole("button", { name: /Stop|chat.stop/i }));
+  expect(onStopClick).toHaveBeenCalledTimes(1);
+});
+
+test("background continuation has no entry when idle or unavailable", () => {
+  const view = render(<ChatInputToolbar {...baseProps} isLoading={false} onContinueInBackground={vi.fn()} />);
+  expect(view.queryByTestId("continue-in-background")).toBeNull();
+});
+
 test("shows the queue follow-up trigger while running with a draft and fires it", () => {
   const onQueueFollowUp = vi.fn();
   const { getByTestId } = render(

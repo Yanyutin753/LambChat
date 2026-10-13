@@ -1,9 +1,6 @@
-export type SubagentPanelStatus =
-  | "pending"
-  | "running"
-  | "complete"
-  | "error"
-  | "cancelled";
+import type { SubagentPart } from "../../../types";
+
+export type SubagentPanelStatus = NonNullable<SubagentPart["status"]>;
 
 const autoOpenedKeys = new Set<string>();
 const dismissedKeys = new Set<string>();

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from typing import Any
 
@@ -265,3 +266,106 @@ def test_subagent_handoff_reference_rejects_forged_activity_paths() -> None:
     assert "/sandbox/session/subagent_activity/activity_real-1.md" in reference
     assert "/etc/passwd" not in reference
     assert "../secrets.txt" not in reference
+
+
+async def test_handoff_preserves_child_checkpoint_sources_and_invalidated_status():
+    writes = []
+
+    class Backend:
+        async def awrite(self, path, content):
+            writes.append(content)
+            return SimpleNamespace(error=None, path=path)
+
+    middleware = SubagentResultHandoffMiddleware(backend=Backend())
+    evidence = [
+        {
+            "evidence_id": "child-proof",
+            "scope_version": "v",
+            "run_id": "child-run",
+            "tool_call_id": "child-call",
+            "source_ref": "/evidence/child-proof.json",
+            "status": "stale",
+        }
+    ]
+    message = ToolMessage(
+        content="done",
+        tool_call_id="task-call",
+        additional_kwargs={
+            "lambchat_subagent_id": "child",
+            "lambchat_subagent_evidence": evidence,
+            "lambchat_evidence_scope_version": "v",
+        },
+    )
+    request = SimpleNamespace(
+        tool_call={"name": "task", "args": {}}, runtime=SimpleNamespace(state={})
+    )
+
+    async def handler(req):
+        return message
+
+    result = await middleware.awrap_tool_call(request, handler)
+    assert "/evidence/child-proof.json" in writes[0]
+    assert "child-call" in writes[0]
+    assert '"status": "stale"' in writes[0]
+    assert result.additional_kwargs["lambchat_subagent_evidence"] == evidence
+    assert "/evidence/child-proof.json" in result.content
+
+
+@pytest.mark.asyncio
+async def test_already_collected_wait_does_not_write_another_handoff_or_hide_compact_status():
+    writes = []
+
+    class Backend:
+        async def awrite(self, path, content):
+            writes.append((path, content))
+            return SimpleNamespace(path=path, error=None)
+
+    message = ToolMessage(
+        content='{"subagent_id":"child","status":"completed","result_collected":true,"unchanged":true}',
+        tool_call_id="repeat-wait",
+        additional_kwargs={
+            "lambchat_subagent_id": "child",
+            "lambchat_subagent_status": "completed",
+            "lambchat_subagent_unchanged": True,
+            "lambchat_subagent_evidence": [],
+        },
+    )
+
+    async def handler(_request):
+        return Command(update={"messages": [message], "other_state": "retained"})
+
+    middleware = SubagentResultHandoffMiddleware(backend=Backend())
+    result = await middleware.awrap_tool_call(
+        SimpleNamespace(tool_call={"name": "wait_subagent", "args": {}}, runtime=None), handler
+    )
+    assert writes == []
+    assert result.update["messages"][0] is message
+    assert result.update["other_state"] == "retained"
+    assert "report_path" not in result.update["messages"][0].content
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("state", ["queued", "timed_out"])
+async def test_queued_or_timed_out_wait_preserves_status_without_writing_completed_report(state):
+    writes = []
+
+    class Backend:
+        async def awrite(self, path, content):
+            writes.append((path, content))
+            return SimpleNamespace(path=path, error=None)
+
+    message = ToolMessage(
+        content=json.dumps({"subagent_id": "child", "status": state}),
+        tool_call_id="status-wait",
+        additional_kwargs={"lambchat_subagent_id": "child", "lambchat_subagent_status": state},
+    )
+
+    async def handler(request):
+        return Command(update={"messages": [message]})
+
+    result = await SubagentResultHandoffMiddleware(backend=Backend()).awrap_tool_call(
+        SimpleNamespace(tool_call={"name": "wait_subagent", "args": {}}, runtime=None), handler
+    )
+    assert writes == []
+    assert result.update["messages"][0] is message
+    assert json.loads(result.update["messages"][0].content)["status"] == state

@@ -152,3 +152,8 @@ test("caps the number of catch-up notifications to avoid spam", () => {
 
   expect(candidates.length).toBeLessThanOrEqual(5);
 });
+
+
+test("persistent goal completion is owned by its durable journal rather than each run snapshot", () => {
+  expect(selectCatchUpCandidates({ sessions: [snapshot({metadata: { persistent_goal_id: "goal", persistent_goal_status: "active" }})], hiddenAt: HIDDEN_AT, currentSessionId: "other", hasNotified: () => false })).toEqual([]);
+});

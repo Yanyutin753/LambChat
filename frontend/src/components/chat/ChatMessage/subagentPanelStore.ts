@@ -1,4 +1,4 @@
-import type { MessagePart } from "../../../types";
+import type { MessagePart, SubagentPart } from "../../../types";
 
 export interface SubagentPanelData {
   agentId: string;
@@ -13,7 +13,7 @@ export interface SubagentPanelData {
   history?: MessagePart[];
   startedAt?: number;
   completedAt?: number;
-  status?: "pending" | "running" | "complete" | "error" | "cancelled";
+  status?: SubagentPart["status"];
 }
 
 type Listener = () => void;

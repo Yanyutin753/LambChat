@@ -23,6 +23,7 @@ class ErrorCode(Enum):
     METHOD_NOT_ALLOWED = ("method_not_allowed", 405, "Method not allowed")
     BAD_REQUEST = ("bad_request", 400, "Bad request")
     CONFLICT = ("conflict", 409, "Request conflict")
+    GOAL_CONFLICT = ("goal_conflict", 409, "Goal changed; refresh and retry")
     ADMIN_PERMISSION_REQUIRED = ("admin_permission_required", 403, "Admin permission required")
     BACKFILL_IN_PROGRESS = ("backfill_in_progress", 409, "Another replica is running the backfill")
     TOO_MANY_REQUESTS = ("too_many_requests", 429, "Too many requests, please try again later")

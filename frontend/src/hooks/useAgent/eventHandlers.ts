@@ -7,6 +7,7 @@
  * and React state updates (side effects).
  */
 
+import { getGoalProjectionIdentity } from "./goalControlScope";
 import type { Message } from "../../types";
 import { uuid } from "../../utils/uuid";
 import { sessionApi } from "../../services/api/session";
@@ -32,6 +33,7 @@ import {
   isCancelledErrorType,
   processMessageEvent,
 } from "./eventProcessor";
+import { selectPersistentGoal } from "./persistentGoalState";
 import { dispatchToolMutationRefresh } from "../../components/chat/ChatMessage/items/toolMutationEvents";
 
 /**
@@ -52,6 +54,7 @@ export interface EventHandlerContext {
   setConnectionStatus: (status: string) => void;
   setIsInitializingSandbox: (loading: boolean) => void;
   setSandboxError: (error: string | null) => void;
+  setPersistentGoal?: React.Dispatch<React.SetStateAction<import("../../services/api/session").PersistentGoal | null>>;
   setActiveGoal: React.Dispatch<
     React.SetStateAction<import("./types").ActiveGoalSpec | null>
   >;
@@ -156,11 +159,21 @@ export function handleStreamEvent(
       return;
     }
 
+    case "goal:updated": {
+      const goal = (data as unknown as { goal?: import("../../services/api/session").PersistentGoal | null }).goal;
+      if (goal === null) ctx.setPersistentGoal?.(null);
+      else if (goal?.session_id === ctx.sessionIdRef.current) {
+        ctx.setPersistentGoal?.((previous) => selectPersistentGoal(previous, goal, ctx.sessionIdRef.current));
+      }
+      return;
+    }
+
     case "goal:start": {
       ctx.setActiveGoal((prev) => {
         const goal: import("./types").ActiveGoalSpec = {
           objective: data.goal?.objective ?? prev?.objective ?? "",
           rubric: data.goal?.rubric ?? prev?.rubric,
+          ...getGoalProjectionIdentity(data.goal, prev?.runId === data.run_id ? prev : null),
           started_at: data.started_at ?? prev?.started_at,
         };
         if (data.run_id) goal.runId = data.run_id;
@@ -178,6 +191,7 @@ export function handleStreamEvent(
             objective:
               data.goal?.objective ?? prev[data.run_id!]?.objective ?? "",
             rubric: data.goal?.rubric ?? prev[data.run_id!]?.rubric,
+            ...getGoalProjectionIdentity(data.goal, prev[data.run_id!]),
             ...(data.goal?.max_iterations != null
               ? { max_iterations: data.goal.max_iterations }
               : prev[data.run_id!]?.max_iterations != null
@@ -196,6 +210,7 @@ export function handleStreamEvent(
         const goal: import("./types").ActiveGoalSpec = {
           objective: data.goal?.objective ?? prev?.objective ?? "",
           rubric: data.goal?.rubric ?? prev?.rubric,
+          ...getGoalProjectionIdentity(data.goal, prev?.runId === data.run_id ? prev : null),
           started_at: data.started_at ?? prev?.started_at,
           ended_at: data.ended_at,
         };
@@ -214,6 +229,7 @@ export function handleStreamEvent(
             objective:
               data.goal?.objective ?? prev[data.run_id!]?.objective ?? "",
             rubric: data.goal?.rubric ?? prev[data.run_id!]?.rubric,
+            ...getGoalProjectionIdentity(data.goal, prev[data.run_id!]),
             ...(data.goal?.max_iterations != null
               ? { max_iterations: data.goal.max_iterations }
               : prev[data.run_id!]?.max_iterations != null

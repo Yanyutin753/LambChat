@@ -554,7 +554,7 @@ def test_deferred_prompt_string_survives_prior_stub_cache_access() -> None:
     assert "alpha create" not in prompt
 
 
-def test_deferred_prompt_lists_every_mcp_name_without_descriptions() -> None:
+def test_large_deferred_prompt_groups_mcp_tools_without_dropping_search_candidates() -> None:
     tools = [
         _FakeTool(
             name=f"server:{index:03d}",
@@ -570,10 +570,9 @@ def test_deferred_prompt_lists_every_mcp_name_without_descriptions() -> None:
 
     prompt = manager.get_deferred_stubs_string()
 
-    assert {line.removeprefix("- ") for line in prompt.splitlines() if line.startswith("- ")} == {
-        tool.name for tool in tools
-    }
-    assert all(tool.description not in prompt for tool in tools)
+    assert "server (101 tools)" in prompt
+    assert len(prompt) < 600
+    assert [stub.name for stub in manager.get_deferred_stubs()] == [tool.name for tool in tools]
     assert "not shown" not in prompt
 
 

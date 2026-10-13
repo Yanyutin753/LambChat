@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from src.kernel.schemas.mcp import MCPToolPolicy
 
@@ -44,3 +44,23 @@ def split_mcp_tools_for_exposure(
             deferred_tools.append(tool)
 
     return inline_tools, deferred_tools
+
+
+def attach_mcp_availability(context: Any) -> None:
+    """Share the authorized cached connection snapshot across all agent modes."""
+    from src.infra.tool.deferred_manager import DeferredToolManager
+
+    names = getattr(context.mcp_manager, "unavailable_server_names", ())
+    if context.enabled_mcp_servers:
+        allowed = set(context.enabled_mcp_servers)
+        names = tuple(name for name in names if name in allowed)
+    if not names:
+        return
+    if context.deferred_manager is None:
+        context.deferred_manager = DeferredToolManager(
+            [],
+            context.session_id,
+            disabled_tools=context.disabled_tools,
+            disabled_mcp_tools=context.disabled_mcp_tools,
+        )
+    context.deferred_manager.set_unavailable_servers(names)

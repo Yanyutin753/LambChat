@@ -202,6 +202,10 @@ class SearchAgentContext:
                 # 低于阈值或未启用延迟：走原有逻辑
                 self._append_unique_tools(deferred_mcp_tools, reserved=reserved_system_names)
 
+            from src.agents.core.mcp_tool_exposure import attach_mcp_availability
+
+            attach_mcp_availability(self)
+
         except Exception as e:
             logger.error(f"[SearchAgentContext] Failed to load MCP tools: {e}", exc_info=True)
 

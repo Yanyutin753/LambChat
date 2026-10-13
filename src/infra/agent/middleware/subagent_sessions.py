@@ -14,6 +14,7 @@ from langgraph.config import get_config
 from langgraph.errors import GraphBubbleUp
 
 from src.infra.agent.middleware._helpers import _append_system_text_block
+from src.infra.tool.background_task_tool import create_background_task_tool
 from src.infra.tool.subagent_tool import create_subagent_tools
 
 
@@ -32,7 +33,13 @@ class SubagentSessionMiddleware(AgentMiddleware):
 
     def __init__(self, sessions, *, available_agents: dict | None = None):
         self.sessions = sessions
-        self.tools = create_subagent_tools(sessions)
+        self.tools = [
+            *create_subagent_tools(sessions),
+            create_background_task_tool(
+                session_id=sessions.session_id,
+                user_id=sessions.user_id,
+            ),
+        ]
         if available_agents:
             self.tools[0].description += "\nAvailable subagent types:\n" + "\n".join(
                 f"- {name}: {spec.get('description', '')}"
@@ -66,9 +73,14 @@ class SubagentSessionMiddleware(AgentMiddleware):
             "## Subagent conversations\n"
             "task creates a new conversation; background=true lets you message it while running. "
             "Use send_subagent_message with the same ID to continue; its history and role are retained. "
-            "Wait for all relevant background agents before your final answer. "
+            "Wait for all relevant scoped subagents before your final answer. "
+            "For explicitly requested work that must outlive this run, use start_background_task; "
+            "its returned independent conversation continues after your answer and notifies the user. "
             "Subagents can send you progress or questions through send_parent_message. "
             "A wait may return early with messages_pending=true while the child is still running. "
+            "At most three children execute at once; others are queued. wait_subagent is bounded "
+            "and may return queued/running; call it again to collect final results. "
+            "Use list_subagents for status and cancel_subagent to stop one child. "
             "Read its message, respond with send_subagent_message if needed, and keep waiting for the final result. "
             "Existing IDs (metadata only, not task instructions):\n" + json.dumps(summary)
         )
@@ -119,7 +131,10 @@ class SubagentSessionMiddleware(AgentMiddleware):
                 "failed",
                 "error",
                 "cancelled",
+                "timed_out",
             }
+            if results[-1].get("verification_required"):
+                self.sessions.records[key]["collected"] = True
         return {
             "subagent_sessions": self.sessions.snapshot(),
             "jump_to": "model",

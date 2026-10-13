@@ -83,6 +83,7 @@ export function selectCatchUpCandidates({
 
   for (const session of sessions) {
     if (!isNotifiableStatus(session.task_status)) continue;
+    if (session.metadata?.persistent_goal_id) continue;
     if (session.id === currentSessionId) continue;
 
     const updatedAt = Date.parse(session.updated_at);

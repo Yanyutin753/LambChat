@@ -43,7 +43,7 @@ async def test_twenty_skills_keep_every_name_and_description() -> None:
 
 
 @pytest.mark.asyncio
-async def test_twenty_one_skills_keep_all_names_without_descriptions_or_paths() -> None:
+async def test_twenty_one_unclassified_skills_have_count_and_search_guidance() -> None:
     skills = [
         {"name": f"skill-{index:02d}", "description": f"Private description {index}"}
         for index in range(21)
@@ -51,7 +51,8 @@ async def test_twenty_one_skills_keep_all_names_without_descriptions_or_paths() 
 
     prompt = await build_skills_prompt(skills)
 
-    assert all(skill["name"] in prompt for skill in skills)
+    assert all(skill["name"] not in prompt for skill in skills)
+    assert "uncategorized (21 skills)" in prompt
     assert all(skill["description"] not in prompt for skill in skills)
     assert "/skills/skill-" not in prompt
     assert "search_skills" in prompt
@@ -92,3 +93,23 @@ async def test_load_skill_files_uses_async_binary_ref_parser(monkeypatch) -> Non
 
     assert calls == ["hello"]
     assert "/demo/SKILL.md" in result["files"]
+
+
+@pytest.mark.asyncio
+async def test_skill_groups_use_classification_and_capability_metadata(monkeypatch) -> None:
+    monkeypatch.setattr("src.infra.skill.loader.settings.SKILL_PROMPT_DESCRIPTION_THRESHOLD", 1)
+    skills = [
+        {"name": "classified", "category": "Finance", "description": "Prepare accounts"},
+        {"name": "tagged", "tags": ["sql"], "description": "Handle records"},
+        {"name": "described", "description": "Create spreadsheet reports"},
+        {"name": "unknown", "description": "Unspecified capability"},
+        {"name": "blocked", "category": "Secret", "enabled": False},
+    ]
+    prompt = await build_skills_prompt(skills)
+    assert "Finance (1 skills)" in prompt
+    assert "data (2 skills)" in prompt
+    assert "uncategorized (1 skills)" in prompt
+    assert "Available Skills (4)" in prompt
+    assert "Secret" not in prompt
+    assert "- classified" not in prompt
+    assert prompt == await build_skills_prompt(list(reversed(skills)))

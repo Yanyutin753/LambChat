@@ -1,3 +1,4 @@
+import type { PersistentGoal } from "../../services/api/session";
 import type {
   Message,
   AgentInfo,
@@ -36,6 +37,7 @@ export type EventType =
   | "skills:changed"
   | "queue_update"
   | "status"
+  | "goal:updated"
   | "goal:start"
   | "goal:end"
   | "complete"
@@ -137,6 +139,7 @@ export interface EventData {
   queue_position?: number;
   // goal:start / goal:end event fields
   goal?: {
+    _persistent_id?: string;
     objective: string;
     rubric?: string;
     max_iterations?: number;
@@ -196,6 +199,7 @@ export interface UseAgentOptions {
 }
 
 export interface ActiveGoalSpec {
+  _persistent_id?: string;
   objective: string;
   rubric?: string;
   max_iterations?: number;
@@ -278,6 +282,8 @@ export interface HistoryEvent {
 export interface UseAgentReturn {
   messages: Message[];
   isLoading: boolean;
+  /** Only the admitted current run can be detached with an exact return link. */
+  canContinueInBackground: boolean;
   isLoadingHistory: boolean;
   historyLoadGeneration: number;
   /** 历史分页：是否还有更早的轮次（trace 窗口）可加载 */
@@ -296,6 +302,9 @@ export interface UseAgentReturn {
   isReconnecting: boolean;
   connectionStatus: ConnectionStatus;
   newlyCreatedSession: BackendSession | null;
+  persistentGoal: PersistentGoal | null;
+  persistentGoalBusy: boolean;
+  controlPersistentGoal: (action: "pause" | "resume" | "clear") => Promise<void>;
   activeGoal: ActiveGoalSpec | null;
   goalsByRunId: Record<string, ActiveGoalSpec>;
   isInitializingSandbox: boolean;

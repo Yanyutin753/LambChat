@@ -119,6 +119,45 @@ def _load_rubric_middleware_class():
     return RubricMiddleware
 
 
+def _build_evidence_grader_response_type():
+    """Require original observation references on each passing criterion."""
+    from typing import Annotated, Literal
+
+    from deepagents.middleware.rubric import CriterionFail, GraderResponse
+    from pydantic import Discriminator, create_model
+    from typing_extensions import TypedDict
+
+    class EvidencePass(TypedDict):
+        name: str
+        passed: Literal[True]
+        evidence_ids: Annotated[
+            list[str],
+            Field(
+                description="Current original evidence IDs that support this criterion; never cite stale or unavailable observations."
+            ),
+        ]
+
+    evidence_response = create_model(
+        "EvidenceGraderResponse",
+        __base__=GraderResponse,
+        criteria=(list[Annotated[EvidencePass | CriterionFail, Discriminator("passed")]], ...),
+    )
+
+    # Local annotations need explicit resolution because this module uses future annotations.
+    evidence_response.model_rebuild(_types_namespace=locals())
+    return evidence_response
+
+
+# Checkpoint deserialization imports this exact module-level name. A fresh class
+# per grader falls back to a dict on restore and loses criterion evidence IDs.
+EvidenceGraderResponse = _build_evidence_grader_response_type()
+
+
+def evidence_grader_response_type():
+    """Return the stable, checkpoint-restorable evidence response model."""
+    return EvidenceGraderResponse
+
+
 def _create_rubric_middleware_with_retry(
     middleware_cls: type,
     *,
@@ -126,6 +165,11 @@ def _create_rubric_middleware_with_retry(
     goal_spec: GoalSpec,
     on_evaluation: Callable,
     grader_middleware: Sequence,
+    presenter: Any = None,
+    backend: Any = None,
+    session_id: str = "",
+    scope_version: str = "",
+    evidence_clock: Any = None,
 ) -> object:
     """Create a RubricMiddleware subclass whose grader sub-agent carries the
     same retry/fallback middleware stack as the main agent.
@@ -148,6 +192,78 @@ def _create_rubric_middleware_with_retry(
 
         _grader: object | None  # declared for type-checker; set at runtime
 
+        async def _ainvoke_grader(self, state, iteration, correction=None, *, context=None):
+            from langchain_core.messages import HumanMessage
+
+            from src.infra.agent.evidence import load_grader_evidence
+
+            grader_state = state
+            clock_snapshot = (
+                (evidence_clock.token, evidence_clock.generation)
+                if evidence_clock is not None
+                else None
+            )
+            ready: set[str] = set()
+            if backend is not None and session_id:
+                text, ready = await load_grader_evidence(
+                    state.get("evidence", []),
+                    backend=backend,
+                    session_id=session_id,
+                    scope_version=scope_version,
+                    current_clock=evidence_clock,
+                )
+                if presenter is not None:
+                    presenter.goal_evidence_ready = bool(ready)
+                    presenter.goal_evidence_ids = sorted(ready)
+                # Keep bounded original chunks below upstream transcript-per-message
+                # limits; _grader_input still sanitizes them via _build_grader_payload.
+                chunks = [
+                    HumanMessage(content=text[offset : offset + 3000])
+                    for offset in range(0, len(text), 3000)
+                ]
+                grader_state = {**state, "messages": [*state.get("messages", []), *chunks]}
+            elif presenter is not None:
+                presenter.goal_evidence_ready = False
+                presenter.goal_evidence_ids = []
+            graded = await super()._ainvoke_grader(
+                grader_state, iteration, correction, context=context
+            )
+            if evidence_clock is not None and (
+                (evidence_clock.token, evidence_clock.generation) != clock_snapshot
+                or evidence_clock.active_writes > 0
+            ):
+                ready.clear()
+            if presenter is not None:
+                presenter.goal_evidence_ready = bool(ready)
+                presenter.goal_evidence_ids = sorted(ready)
+                presenter.goal_evidence_clock = evidence_clock
+                presenter.goal_evidence_clock_snapshot = clock_snapshot
+            if backend is not None and session_id:
+                checked = []
+                for criterion in graded.criteria:
+                    refs = criterion.get("evidence_ids", [])
+                    if criterion["passed"] and (
+                        not refs
+                        or not isinstance(refs, list)
+                        or any(not isinstance(ref, str) or ref not in ready for ref in refs)
+                    ):
+                        criterion = {
+                            "name": criterion["name"],
+                            "passed": False,
+                            "gap": "Cite current readable original evidence IDs for this criterion",
+                        }
+                    checked.append(criterion)
+                if checked != graded.criteria:
+                    # Preserve passing entries' references for the upstream evaluation callback.
+                    graded = graded.model_copy(
+                        update={
+                            "result": "needs_revision" if graded.result != "failed" else "failed",
+                            "explanation": "One or more criteria lack current original evidence references.",
+                            "criteria": checked,
+                        }
+                    )
+            return graded
+
         def _ensure_grader(self):
             if self._grader is not None:
                 return self._grader
@@ -165,7 +281,9 @@ def _create_rubric_middleware_with_retry(
                 system_prompt=self._system_prompt,
                 tools=self._tools,
                 name=_GRADER_SRC,
-                response_format=GraderResponse,
+                response_format=evidence_grader_response_type()
+                if backend is not None and session_id
+                else GraderResponse,
                 middleware=grader_middleware,
             )
             return self._grader
@@ -184,6 +302,10 @@ def create_goal_rubric_middleware(
     goal: dict | GoalSpec | None,
     fallback_model: str | None = None,
     thinking: dict | None = None,
+    presenter: Any = None,
+    backend: Any = None,
+    session_id: str = "",
+    evidence_clock: Any = None,
 ):
     """Create RubricMiddleware when the installed DeepAgents version supports it.
 
@@ -203,14 +325,25 @@ def create_goal_rubric_middleware(
     from src.infra.agent.middleware.retry import create_retry_middleware
 
     grader_middleware = create_retry_middleware(fallback_model=fallback_model)
+    from src.infra.agent.evidence import evidence_scope
+
+    def on_evaluation(evaluation):
+        log_goal_rubric_evaluation(evaluation)
+        if presenter is not None:
+            presenter.goal_verdict = dict(evaluation)
 
     try:
         return _create_rubric_middleware_with_retry(
             middleware_cls,
             model=model,
             goal_spec=spec,
-            on_evaluation=log_goal_rubric_evaluation,
+            on_evaluation=on_evaluation,
             grader_middleware=grader_middleware,
+            presenter=presenter,
+            backend=backend,
+            session_id=session_id,
+            scope_version=evidence_scope(goal),
+            evidence_clock=evidence_clock,
         )
     except TypeError:
         # Older RubricMiddleware may not accept all kwargs

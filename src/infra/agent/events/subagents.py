@@ -64,7 +64,7 @@ class SubagentEventMixin:
         subagent_id = data["subagent_id"]
         role_type = data.get("subagent_type", "unknown")
         await self.flush()
-        if data.get("phase") == "started":
+        if data.get("phase") in {"started", "queued"}:
             await self._presenter_emit(
                 self.presenter.present_agent_call(
                     agent_id=subagent_id,
@@ -74,6 +74,7 @@ class SubagentEventMixin:
                     ),
                     depth=1,
                     agent_avatar=self._subagent_avatars.get(role_type),
+                    status=data.get("status"),
                 )
             )
         else:
@@ -85,6 +86,7 @@ class SubagentEventMixin:
                     depth=1,
                     error=data.get("error")
                     or ("Cancelled" if data.get("status") == "cancelled" else None),
+                    status=data.get("status"),
                 )
             )
 

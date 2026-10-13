@@ -386,6 +386,14 @@ async def get_async_checkpointer(thread_id: str | None = None) -> BaseCheckpoint
     if checkpointer is not None:
         return _ensure_string_channel_version_support(checkpointer)
 
+    from src.infra.distributed_validation import (
+        DistributedRuntimeConfigError,
+        is_distributed_runtime,
+    )
+
+    if is_distributed_runtime():
+        raise DistributedRuntimeConfigError("Shared checkpoint storage is unavailable")
+
     # MemorySaver fallback
     from langgraph.checkpoint.memory import MemorySaver
 

@@ -11,7 +11,12 @@ export interface TaskCompleteNotification {
   data: {
     session_id: string;
     run_id: string;
-    status: "completed" | "failed";
+    status: "completed" | "failed" | "waiting_human";
+    id?: string;
+    dedupe_key?: string;
+    notification_kind?: string;
+    parent_session_id?: string;
+    goal_status?: string;
     message?: string;
     unread_count?: number;
     project_id?: string | null;

@@ -32,7 +32,7 @@ from src.kernel.config import settings
 PUBLIC_SANDBOX_ROOT = "/workspace"
 PUBLIC_SHARED_DIR = "/workspace/.shared"
 _SESSIONS_SEGMENT = "/sessions/"
-_ROUTED_STORAGE_ROOTS = ("/skills", "/memories")
+_ROUTED_STORAGE_ROOTS = ("/skills", "/memories", "/evidence")
 _SANDBOX_TOOL_PATH_ARGS = {
     "ls": "path",
     "read_file": "file_path",

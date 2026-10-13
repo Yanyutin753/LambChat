@@ -196,6 +196,7 @@ class FakePresenter:
         input_message: str,
         depth: int = 1,
         agent_avatar: str | None = None,
+        status: str | None = None,
     ) -> dict[str, Any]:
         return {
             "event": "agent:call",
@@ -203,6 +204,7 @@ class FakePresenter:
                 "agent_id": agent_id,
                 "agent_name": agent_name,
                 "agent_avatar": agent_avatar,
+                **({"status": status} if status else {}),
                 "input": input_message,
                 "depth": depth,
             },
@@ -215,12 +217,14 @@ class FakePresenter:
         success: bool = True,
         depth: int = 1,
         error: str | None = None,
+        status: str | None = None,
     ) -> dict[str, Any]:
         return {
             "event": "agent:result",
             "data": {
                 "agent_id": agent_id,
                 "result": result,
+                **({"status": status} if status else {}),
                 "success": success,
                 "depth": depth,
                 "error": error,
@@ -1334,3 +1338,35 @@ async def test_large_computer_observation_preserves_screenshot_through_sse() -> 
     assert isinstance(result, dict)
     assert result["screenshot"]["url"] == "/api/upload/file/shot.jpg"
     assert result["truncated"] is True
+
+
+@pytest.mark.parametrize(
+    "phase,status",
+    [
+        ("queued", "queued"),
+        ("started", "running"),
+        ("waiting_human", "waiting_human"),
+        ("completed", "cancelled"),
+        ("completed", "timed_out"),
+    ],
+)
+async def test_persistent_subagent_events_preserve_specific_lifecycle_status(phase, status):
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+    await processor.process_event(
+        {
+            "event": "on_custom_event",
+            "name": "lambchat_subagent",
+            "data": {
+                "phase": phase,
+                "status": status,
+                "subagent_id": "child",
+                "subagent_type": "reviewer",
+            },
+            "metadata": {},
+        }
+    )
+    assert presenter.emitted[-1]["data"]["status"] == status
+    assert presenter.emitted[-1]["event"] == (
+        "agent:call" if phase in {"queued", "started"} else "agent:result"
+    )

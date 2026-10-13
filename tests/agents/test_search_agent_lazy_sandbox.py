@@ -365,6 +365,15 @@ async def _run_search_graph(
         timeline=timeline,
     )
     presenter = _TimelinePresenter(timeline)
+    from unittest.mock import AsyncMock
+
+    from src.infra.session.storage import SessionStorage
+    from src.infra.storage import redis as redis_storage
+
+    parent = SimpleNamespace(user_id="user-1", metadata={"current_run_id": presenter.run_id})
+    monkeypatch.setattr(SessionStorage, "get_by_session_id", AsyncMock(return_value=parent))
+    lease_store = SimpleNamespace(set=AsyncMock(return_value=True), eval=AsyncMock(return_value=1))
+    monkeypatch.setattr(redis_storage, "get_redis_client", lambda: lease_store)
     agent = SearchAgent()
     events: list[dict[str, Any]] = []
     async for event in agent._stream(
@@ -740,6 +749,15 @@ async def test_search_stream_waits_for_sandbox_ready_before_first_tool_start(
         timeline=timeline,
     )
     presenter = _TimelinePresenter(timeline)
+    from unittest.mock import AsyncMock
+
+    from src.infra.session.storage import SessionStorage
+    from src.infra.storage import redis as redis_storage
+
+    parent = SimpleNamespace(user_id="user-1", metadata={"current_run_id": presenter.run_id})
+    monkeypatch.setattr(SessionStorage, "get_by_session_id", AsyncMock(return_value=parent))
+    lease_store = SimpleNamespace(set=AsyncMock(return_value=True), eval=AsyncMock(return_value=1))
+    monkeypatch.setattr(redis_storage, "get_redis_client", lambda: lease_store)
     agent = SearchAgent()
 
     async def run_agent() -> None:
@@ -800,6 +818,15 @@ async def test_search_stream_model_exception_closes_context(
         timeline=timeline,
     )
     presenter = _TimelinePresenter(timeline)
+    from unittest.mock import AsyncMock
+
+    from src.infra.session.storage import SessionStorage
+    from src.infra.storage import redis as redis_storage
+
+    parent = SimpleNamespace(user_id="user-1", metadata={"current_run_id": presenter.run_id})
+    monkeypatch.setattr(SessionStorage, "get_by_session_id", AsyncMock(return_value=parent))
+    lease_store = SimpleNamespace(set=AsyncMock(return_value=True), eval=AsyncMock(return_value=1))
+    monkeypatch.setattr(redis_storage, "get_redis_client", lambda: lease_store)
     agent = SearchAgent()
     events: list[dict[str, Any]] = []
 
@@ -840,6 +867,15 @@ async def test_search_stream_cancellation_during_first_initialization_closes_con
         timeline=timeline,
     )
     presenter = _TimelinePresenter(timeline)
+    from unittest.mock import AsyncMock
+
+    from src.infra.session.storage import SessionStorage
+    from src.infra.storage import redis as redis_storage
+
+    parent = SimpleNamespace(user_id="user-1", metadata={"current_run_id": presenter.run_id})
+    monkeypatch.setattr(SessionStorage, "get_by_session_id", AsyncMock(return_value=parent))
+    lease_store = SimpleNamespace(set=AsyncMock(return_value=True), eval=AsyncMock(return_value=1))
+    monkeypatch.setattr(redis_storage, "get_redis_client", lambda: lease_store)
     agent = SearchAgent()
 
     async def consume_stream() -> None:

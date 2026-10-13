@@ -11,7 +11,7 @@ from src.kernel.config import settings
 
 from .arq_payloads import TaskArqPayloadStore, UserMessageSearchIndexPayloadStore
 from .arq_settings import build_arq_redis_settings
-from .arq_worker import run_agent_task, update_user_message_search_index
+from .arq_worker import WorkerSettings
 
 logger = get_logger(__name__)
 
@@ -58,7 +58,8 @@ class EmbeddedArqRuntime:
 
     def _create_worker(self) -> Any:
         return self._worker_factory(
-            [run_agent_task, update_user_message_search_index],
+            WorkerSettings.functions,
+            cron_jobs=WorkerSettings.cron_jobs,
             queue_name=settings.ARQ_QUEUE_NAME,
             redis_settings=build_arq_redis_settings(settings),
             handle_signals=False,

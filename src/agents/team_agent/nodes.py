@@ -4,18 +4,15 @@ Team Agent 节点 - 团队路由，角色分派
 基于 fast_agent/nodes.py 扩展，增加团队解析和多角色子代理。
 """
 
+import asyncio
 import inspect
 import time
 import uuid
 from typing import Any, Dict, cast
 
 from deepagents import create_deep_agent
-from deepagents.graph import create_summarization_middleware
-from deepagents.middleware.filesystem import FilesystemMiddleware
-from deepagents.middleware.patch_tool_calls import PatchToolCallsMiddleware
-from deepagents.middleware.subagents import CompiledSubAgent, SubAgent, create_sub_agent
+from deepagents.middleware.subagents import CompiledSubAgent, SubAgent
 from langchain_core.runnables import RunnableConfig
-from langgraph.graph.state import CompiledStateGraph
 
 from src.agents.core.base import get_presenter
 from src.agents.core.node_utils import (
@@ -69,6 +66,7 @@ from src.agents.team_agent.prompt import (
     build_team_subagent_display_names,
     summarize_role_system_prompt,
 )
+from src.agents.team_agent.subagent_scope import create_team_subagent_resolver
 from src.infra.agent import AgentEventProcessor
 from src.infra.agent.middleware import (
     ArtifactDeliveryMiddleware,
@@ -87,11 +85,11 @@ from src.infra.agent.middleware import (
     image_url_middleware_for_mode,
     summarization_fallback_patch,
 )
+from src.infra.agent.middleware.evidence import EvidenceClock, create_evidence_middleware
 from src.infra.agent.middleware.persona_subagent import (
     PersonaSubagentMiddleware,
 )
-from src.infra.agent.middleware.subagent_sessions import SubagentSessionMiddleware
-from src.infra.agent.subagent_sessions import SubagentSessions
+from src.infra.agent.subagent_assembly import assemble_subagent_sessions, refresh_subagent_context
 from src.infra.goal import (
     build_goal_input,
     create_goal_rubric_middleware,
@@ -342,6 +340,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         member_image_url_mode: str = image_url_mode,
         member_supports_vision: bool = supports_vision,
         deferred_manager: Any = None,
+        tool_context: Any = None,
     ) -> list:
         """Build the middleware stack for a single subagent."""
         mw = [
@@ -373,7 +372,11 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         append_memory_recall_middleware(
             mw, settings.ENABLE_MEMORY, context.user_id, session_id, active_goal
         )
-        manager = deferred_manager if deferred_manager is not None else context.deferred_manager
+        manager = (
+            deferred_manager
+            if deferred_manager is not None
+            else (tool_context or context).deferred_manager
+        )
         if manager is not None:
             from src.infra.agent.middleware import ToolSearchMiddleware
 
@@ -655,11 +658,16 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                 user_id=context.user_id,
             )
         )
+    evidence_clock = EvidenceClock()
     rubric_middleware = create_goal_rubric_middleware(
         model=llm,
+        presenter=presenter,
+        backend=backend,
+        session_id=str(state.get("session_id") or ""),
         goal=active_goal,
         fallback_model=fallback_model_value,
         thinking=thinking_config,
+        evidence_clock=evidence_clock,
     )
     user_middleware.extend(
         create_code_interpreter_middleware(
@@ -669,49 +677,17 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     if rubric_middleware is not None:
         user_middleware.append(rubric_middleware)
 
+    user_middleware.append(
+        create_evidence_middleware(
+            backend=backend,
+            session_id=str(state.get("session_id") or ""),
+            presenter=presenter,
+            active_goal=active_goal,
+            clock=evidence_clock,
+        )
+    )
     user_middleware.append(MainAgentContextMiddleware(backend=backend))
     user_middleware.append(SubagentResultHandoffMiddleware(backend=backend))
-
-    async def build_persona_spec(preset_id: str):
-        from src.agents.team_agent.role_tools import build_role_tool_scope
-        from src.infra.skill.skill_search_tool import SkillSearchTool
-        from src.infra.tool.team_tool import resolve_persona_for_subagent
-
-        snapshot = await resolve_persona_for_subagent(preset_id, user_id=context.user_id or "")
-        role_type = f"persona:{preset_id}"
-        role_sections = [
-            build_role_subagent_section(snapshot.name, snapshot.system_prompt),
-            build_response_language_section(agent_options.get("response_language")),
-            memory_guide,
-        ]
-        role_tools, role_manager = build_role_tool_scope(
-            filtered_tool_list,
-            context.deferred_manager,
-            mcp_servers=snapshot.mcp_server_names,
-            scope=f"{session_id}:subagent:{role_type}",
-        )
-        role_skills = [
-            skill
-            for skill in context.skills
-            if (not snapshot.skill_names and not snapshot.missing_skill_names)
-            or skill.get("name") in snapshot.skill_names
-        ]
-        if settings.ENABLE_SKILLS and role_skills:
-            role_tools.append(SkillSearchTool(role_skills))
-        spec: SubAgent = {
-            "name": role_type,
-            "description": snapshot.name,
-            "model": llm,
-            "tools": role_tools,
-            "system_prompt": SUBAGENT_PROMPT,
-            "middleware": _build_subagent_middleware(
-                role_type, prompt_sections=role_sections, deferred_manager=role_manager
-            ),
-        }
-        subagent_display_names[role_type] = snapshot.name
-        if snapshot.avatar:
-            subagent_avatars[role_type] = snapshot.avatar
-        return spec
 
     runtime_subagent_specs = {spec["name"]: spec for spec in custom_subagents}
     runtime_subagent_specs.setdefault(
@@ -726,54 +702,56 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         },
     )
 
-    async def build_session_graph(role_type, inbox):
-        if role_type.startswith("persona:"):
-            spec = await build_persona_spec(role_type.removeprefix("persona:"))
-        else:
-            spec = runtime_subagent_specs.get(role_type)
-            if spec is None:
-                raise ValueError("Unknown subagent type")
-        if "runnable" in spec:
-            raise ValueError("Opaque compiled subagents cannot be continued")
-        with summarization_fallback_patch(fallback_model_value, thinking_config):
-            child_model = spec.get("model", llm)
-            child_graph = create_sub_agent(
-                cast(
-                    SubAgent,
-                    {
-                        **spec,
-                        "system_prompt": (
-                            f"{system_prompt}\n\n{spec.get('system_prompt', '')}"
-                            if spec.get("mode") == "fork"
-                            else spec.get("system_prompt", SUBAGENT_PROMPT)
-                        ),
-                        "model": child_model,
-                        "tools": spec.get("tools", filtered_tool_list),
-                        "middleware": [
-                            FilesystemMiddleware(backend=backend),
-                            create_summarization_middleware(child_model, backend),
-                            PatchToolCallsMiddleware(),
-                            *spec.get("middleware", []),
-                            inbox,
-                        ],
-                    },
-                )
-            )
-            return cast(CompiledStateGraph, child_graph).builder.compile(
-                checkpointer=inner_checkpointer, store=store, name=role_type
-            )
+    resolve_session_spec = create_team_subagent_resolver(
+        context=context,
+        runtime_subagent_specs=runtime_subagent_specs,
+        model_id=model_id,
+        llm=llm,
+        thinking_config=thinking_config,
+        team=team,
+        team_id=configurable.get("team_id"),
+        user_input=user_input,
+        session_id=session_id,
+        agent_options=agent_options,
+        persona_sections=persona_sections,
+        memory_guide=memory_guide,
+        sandbox_active=bool(sandbox_backend),
+        image_url_mode=image_url_mode,
+        supports_vision=supports_vision,
+        subagent_display_names=subagent_display_names,
+        subagent_avatars=subagent_avatars,
+        build_subagent_middleware=_build_subagent_middleware,
+        refresh_context=lambda current: refresh_subagent_context(current),
+        resolve_team=lambda **kwargs: resolve_runtime_team(**kwargs),
+        resolve_member_model=lambda *args, **kwargs: resolve_team_member_model_config(
+            *args, **kwargs
+        ),
+        resolve_member_agent=lambda *args, **kwargs: resolve_team_member_agent_id(*args, **kwargs),
+        get_model=lambda **kwargs: LLMClient.get_model(**kwargs),
+    )
 
-    subagent_sessions = SubagentSessions(
+    subagent_sessions, session_middleware = assemble_subagent_sessions(
         session_id=str(state.get("session_id") or ""),
         user_id=context.user_id or "",
-        build_graph=build_session_graph,
+        specs=runtime_subagent_specs,
+        model=llm,
+        backend=backend,
+        tools=filtered_tool_list,
         checkpointer=inner_checkpointer,
-        fork_types=frozenset(
-            name for name, spec in runtime_subagent_specs.items() if spec.get("mode") == "fork"
-        ),
-    )
-    session_middleware = SubagentSessionMiddleware(
-        subagent_sessions, available_agents=runtime_subagent_specs
+        store=store,
+        system_prompt=system_prompt,
+        fallback_model=fallback_model_value,
+        thinking=thinking_config,
+        child_middleware=lambda: [
+            create_evidence_middleware(
+                backend=backend,
+                session_id=str(state.get("session_id") or ""),
+                presenter=presenter,
+                active_goal=active_goal,
+                clock=evidence_clock,
+            )
+        ],
+        resolve_spec=resolve_session_spec,
     )
 
     if not team:
@@ -903,7 +881,10 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             finally:
                 hitl_interrupt_supported.reset(token_supported)
     finally:
-        await subagent_sessions.close()
+        current_task = asyncio.current_task()
+        await subagent_sessions.close(
+            preserve_approvals=current_task is None or not current_task.cancelling()
+        )
         await event_processor.flush()
         await emit_token_usage(
             event_processor,

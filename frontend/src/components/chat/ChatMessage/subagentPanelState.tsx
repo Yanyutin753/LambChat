@@ -160,7 +160,7 @@ export function buildSubagentConversation(data: SubagentPanelData): Message[] {
         parts.push(result);
       } else parts.push(result);
     }
-    if (part.error && status === "error")
+    if (part.error && (status === "error" || status === "timed_out"))
       parts.push({ type: "text", content: part.error });
     if (status === "cancelled" && !parts.some((p) => p.type === "cancelled"))
       parts.push({ type: "cancelled" });
@@ -266,7 +266,7 @@ export function buildSubagentPanelState(data: SubagentPanelData) {
       ? "loading"
       : effectiveStatus === "complete"
         ? "success"
-        : effectiveStatus === "error"
+        : effectiveStatus === "error" || effectiveStatus === "timed_out"
           ? "error"
           : effectiveStatus === "cancelled"
             ? "cancelled"

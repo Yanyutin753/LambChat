@@ -13,6 +13,7 @@ import { ChatInput } from "../../chat/ChatInput";
 import { SessionTodoDock } from "../../chat/SessionTodoDock";
 import { WelcomePage } from "../../chat/WelcomePage";
 import { Virtuoso, type ListRange, type VirtuosoHandle } from "react-virtuoso";
+import { ActiveGoalBar } from "../../chat/ActiveGoalBar";
 import { ApprovalPanel } from "../../panels/ApprovalPanel";
 import { setSteerCancelHandler } from "../../chat/steerCancelStore";
 import {
@@ -146,11 +147,15 @@ export function ChatView({
   approvalLoading,
   onSendMessage,
   onStopGeneration,
+  onContinueInBackground,
   onSupplementFollowUpMessage,
   onQueueFollowUpMessage,
   steerMessages,
   onCancelSteer,
   activeGoal,
+  persistentGoal,
+  persistentGoalBusy,
+  onControlPersistentGoal,
   goalsByRunId,
   onClearActiveGoal,
   attachments,
@@ -729,6 +734,7 @@ export function ChatView({
     focusRequest: composerFocusRequest,
     onSend: handleStableSend,
     onStop: onStopGeneration,
+    onContinueInBackground,
     onSupplement: onSupplementFollowUpMessage,
     onQueueFollowUp: onQueueFollowUpMessage,
     steerMessages,
@@ -845,6 +851,9 @@ export function ChatView({
                 canSendMessage={canSendMessage}
                 chatInputProps={chatInputProps}
                 activeGoal={visibleActiveGoal}
+                persistentGoal={persistentGoal}
+                persistentGoalBusy={persistentGoalBusy}
+                onControlPersistentGoal={onControlPersistentGoal}
                 onClearActiveGoal={onClearActiveGoal}
                 onUsePersonaPreset={onUsePersonaPreset}
                 onClearPersonaPreset={onClearPersonaPreset}
@@ -962,10 +971,23 @@ export function ChatView({
                 />
               </div>
             )}
+            {hasPendingAskHumanApproval && (persistentGoal || visibleActiveGoal) && (
+              <ActiveGoalBar goal={visibleActiveGoal} persistentGoal={persistentGoal}
+                disabled={isLoading || !canSendMessage}
+                persistentDisabled={persistentGoalBusy || !canSendMessage}
+                onClear={onClearActiveGoal}
+                onPause={onControlPersistentGoal ? () => onControlPersistentGoal("pause") : undefined}
+                onResume={onControlPersistentGoal ? () => onControlPersistentGoal("resume") : undefined}
+                onClearPersistentGoal={onControlPersistentGoal ? () => onControlPersistentGoal("clear") : undefined}
+              />
+            )}
             {!hasPendingAskHumanApproval && (
               <ChatInput
                 {...chatInputProps}
                 activeGoal={visibleActiveGoal}
+                persistentGoal={persistentGoal}
+                persistentGoalBusy={persistentGoalBusy}
+                onControlPersistentGoal={onControlPersistentGoal}
                 onClearActiveGoal={onClearActiveGoal}
                 goalLabel={t("chat.goal.active", "Goal")}
                 goalDurationLabel={t("chat.goal.running", "Running")}

@@ -6,6 +6,7 @@ DeepAgent Backend 构建模块
 Skills 路径现在使用 SkillsStoreBackend，支持 LLM 直接读写 skills 到 MongoDB。
 """
 
+import hashlib
 import re
 from typing import Any, cast
 
@@ -255,15 +256,19 @@ class WorkflowScopedBackend(BackendProtocol):
         ]
 
 
-def _create_routes(user_id: str) -> dict[str, BackendProtocol]:
-    """创建通用的 backend 路由（skills + memories）"""
+def _create_routes(user_id: str, session_id: str) -> dict[str, BackendProtocol]:
+    """创建用户路由及独立会话证据存储，不触发沙箱初始化。"""
     from src.infra.backend.skills_store import create_skills_backend
 
     skills_backend = create_skills_backend(user_id=user_id)
+    # StoreBackend namespace components cannot contain arbitrary path characters.
+    # Hash the exact identity instead of sanitizing IDs into colliding aliases.
+    evidence_session = hashlib.sha256(session_id.encode()).hexdigest()
 
     return {
         "/skills/": skills_backend,
         "/memories/": StoreBackend(namespace=lambda _rt: ("memories", user_id, "vfs")),
+        "/evidence/": StoreBackend(namespace=lambda _rt: ("evidence", user_id, evidence_session)),
     }
 
 
@@ -290,28 +295,32 @@ def create_persistent_backend(
 
     底层 Store 由 create_deep_agent 传入，此处只负责 namespace 路由。
     """
-    routes = _create_routes(user_id or "default")
+    routes = _create_routes(user_id or "default", session_id or assistant_id)
     workflow_session_id = _safe_session_id(session_id)
     workspace_path = f"/workflow/{workflow_session_id}"
     filesystem_backend = StoreBackend(
         namespace=lambda _rt: (assistant_id, "workflow", workflow_session_id)
     )
 
-    return CompositeBackend(
+    backend = CompositeBackend(
         default=WorkflowScopedBackend(filesystem_backend, workspace_path),
         routes=routes,
     )
+    setattr(backend, "evidence_root", "/evidence")
+    return backend
 
 
 def create_sandbox_backend(
     sandbox_backend: Any,
     assistant_id: str,
     user_id: str | None = None,
+    session_id: str | None = None,
 ) -> CompositeBackend:
     """创建基于沙箱的具体 Backend。"""
-    routes = _create_routes(user_id or "default")
+    evidence_session = session_id or getattr(sandbox_backend, "_session_id", None) or assistant_id
+    routes = _create_routes(user_id or "default", evidence_session)
 
-    return CompositeBackend(
+    backend = CompositeBackend(
         default=sandbox_backend,
         routes=routes,
         # Anchor offloaded artifacts (conversation history, large tool
@@ -321,3 +330,5 @@ def create_sandbox_backend(
         # error (issue #195).
         artifacts_root=getattr(sandbox_backend, "work_dir", "/home/user"),
     )
+    setattr(backend, "evidence_root", "/evidence")
+    return backend

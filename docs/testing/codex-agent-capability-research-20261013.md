@@ -1,0 +1,175 @@
+# 借鉴 Codex 增强 LambChat Agent
+
+调研日期：2026-10-13。本文是能力对照与候选路线，不是已实现功能或运行评测结果。
+
+## 代码基线与结论
+
+- 新 worktree：`codex/agent-capability-research`，基于 fetch 后的 `origin/develop`，提交 `59334caf8fd7a94c6d0daf1cd0a51b4c78a3c76c`。
+- 同时只读检查原工作区 `codex/tool-args-copy`，提交 `3d5bdbfebf0a4e725e7446cca9e67e8884ee2ff4`；其中存在尚未进入 develop 的子代理提交。原工作区还有未提交的前端改动，未复制或修改。
+- 检查范围：主 Agent 装配、Goal、插话、上下文交接、工具发现、QuickJS、技能加载、任务恢复及本地子代理实现；未覆盖整个仓库。
+
+最值得借鉴的是让目标、证据、工具和调度共同形成闭环。建议复用现有 LangGraph/deepagents、MongoDB、Redis、arq，不先迁移整个 Agent 框架。
+
+## 已有能力，避免重复建设
+
+| 能力 | 当前代码依据 | 判断 |
+| --- | --- | --- |
+| 运行中插话 | `src/infra/agent/middleware/steer.py`，`src/infra/task/steer.py` | 已有队列、模型调用前注入及工具消息相邻性修复；不能当成新功能再实现 |
+| 工具延迟加载 | `src/infra/tool/deferred_manager.py`，`src/infra/agent/middleware/tool_interception.py` | 已有发现顺序恢复、追加式 schema 装载、会话级冻结目录；已有缓存稳定性设计 |
+| 程序化工具调用 | `src/infra/agent/middleware/code_interpreter.py` | QuickJS 已有只读 PTC 白名单与批量聚合指引；默认白名单为 web_search/web_fetch，全局默认关闭且需每次 run 启用，不代表部署环境实际关闭 |
+| 自动摘要 | `src/infra/agent/middleware/summary_fallback.py` | 已有图片成本估算、摘要失败换模型；这是应用侧摘要，不等于 Responses 的不透明 compaction item |
+| 主子上下文交接 | `src/infra/agent/middleware/main_agent_context.py`，`src/infra/agent/middleware/subagent_result_handoff.py` | 已有上下文文件压缩、子代理报告落文件、日志路径及不可信内容标记 |
+| Goal 验收 | `src/infra/goal.py`，`src/api/routes/chat.py` | 已有 rubric、严格评分提示、修订迭代上限；Goal 是 run 级，不继承会话 metadata |
+| 技能渐进加载 | `src/infra/skill/loader.py`，`src/infra/skill/skill_search_tool.py` | 已有技能去重、目录阈值、search 后读 SKILL.md；目录很大时仍列全部技能名 |
+| 中断恢复 | `src/infra/task/recovery.py` | 已有同 run/trace 无缝恢复；不能宣称此前没有长任务恢复 |
+| 可续聊异步子代理 | 原工作区 `src/infra/agent/subagent_sessions.py`、`src/infra/tool/subagent_tool.py` | 本地已有后台 task、父子消息、wait、独立 checkpoint；主要装配点是 team_agent。尚未纳入本调研 worktree，不重复实现 |
+
+## 优先路线
+
+### 1. 持久 Goal：让 Agent 跨轮次追求可验证结果
+
+**差距依据：** `resolve_goal_for_request()` 明确不继承会话 Goal。当前 `GoalSpec` 包含 objective/rubric/max_iterations；这与 Codex 持久会话目标、空闲续跑、预算和生命周期控制不是同一个机制。[Codex Goals](https://developers.openai.com/cookbook/examples/codex/using_goals_in_codex)
+
+**最小增强：** 保留现有 run Goal，另设用户明确开启的会话 Goal。复用会话存储和任务提交链路记录状态、预算、最后进展；仅当无运行任务、无排队用户输入、无待审批且预算允许时续跑。rubric verdict 驱动完成或修订；run 结束和 `goal:end` 不能直接等同于会话目标达成。
+
+**收益例子：** “把接口延迟降到指定阈值并保持正确性”可以调查、修改、验证、修复，再继续下一轮，而不是单轮结束就丢失目标。
+
+**验收：** 重启后恢复目标；暂停后不续跑；用户新消息优先；预算耗尽不报完成；相同任务不能被双 worker 重复派发；无工具、无进展的循环受限。不能因模型自称已完成就终止目标。
+
+### 2. 压缩后仍能核验的证据清单
+
+**差距依据：** 现有交接文件已保存报告，压缩提示也要求保留约束和工具结果；但所检查的交接与 Goal 模块没有统一的“验收条件 → 原始证据 → 当前有效性”结构。建议增量补齐，不替换现有摘要系统。[Compaction](https://developers.openai.com/api/docs/guides/compaction)，[长期任务实践](https://developers.openai.com/blog/run-long-horizon-tasks-with-codex)
+
+**最小增强：** 在现有 checkpoint/交接文件旁维护每条验收条件的证据引用：工具事件 ID、文件或 URL、结论、验证时间、相关版本/输入。摘要保留索引；评分器按需读取原始证据。任务相关代码或输入变化后，旧验证变为待复核。
+
+**收益例子：** 第 60 步压缩后仍记得禁止改动的文件、已经排除的方案，以及某条“测试通过”对应的是哪个代码状态。
+
+**验收：** 多次强制压缩后保留目标、约束、未完成项与证据来源；已过期测试不能支撑完成；证据引用无权限或不可读时明确标记未验证。摘要和子代理报告仍是证据，不成为可执行指令。
+
+### 3. 把现有 PTC 做成可靠的批量工具编排
+
+**差距依据：** 当前桥接指引说明返回 JSON 字符串，并提示截断 fetch 结果不能作为完整 JSON 解析、改用正则取字段。这使编排依赖脆弱的字符串解析。Codex harness 的程序化工具调用强调结构化输出、明确错误契约和仅返回必要中间结果。[Programmatic Tool Calling](https://developers.openai.com/api/docs/guides/tools-programmatic-tool-calling)
+
+**最小增强：** 先只处理现有 web_search/web_fetch 桥：让桥返回稳定对象，或提供统一解析后的结果，包含成功/失败、数据、来源、截断信息；明确单次程序的调用数、时间与输出上限。保留来源 URL/证据引用，并发检索后只返回筛选结果。实现前需核实 langchain_quickjs 上游桥的可扩展接口。
+
+**收益例子：** 比较多个来源时，一次程序完成检索、去重与筛选，减少模型来回读大结果和重新拼参数。
+
+**验收：** 部分调用失败不污染成功结果；截断不伪装成完整数据；直接调用与 PTC 答案质量一致；所有内部工具调用仍可追踪。先比较 token、延迟与正确率，不承诺固定节省比例。写操作和审批工具不加入现有绕过 HITL 的桥。
+
+### 4. 先收敛本地子代理实现，再补编队调度
+
+**差距依据：** 原工作区已有续聊子代理，不是历史笔记里的纯同步版本。当前实现持有进程内 jobs、locks 和 mailbox，close 会取消活跃任务，父图结束前会收集未完成任务；checkpoint 存在不代表后台 worker 独立存活或跨副本调度已证明。[Multi-agent](https://developers.openai.com/api/docs/guides/agents-api/multi-agent)
+
+**最小增强：** 等现有子代理改动稳定后，复用它补显式并发上限、总预算、单子任务取消/超时、恢复身份与归属。先验证 team 的闭环，再决定是否扩展 fast/search。仅在用户明确需要父任务结束后继续执行时才增加独立后台任务生命周期。
+
+**验收：** 双派发不会启动重复执行；子代理审批传回正确父调用；消息不串任务；取消可回收；重启后的恢复不重复有副作用工具。并发数量和模型选择用真实任务数据决定。
+
+### 5. 工具和技能目录按业务域渐进暴露
+
+**差距依据：** 工具 schema 已延迟装载，但搜索工具描述仍含完整 stub 目录；技能目录超过阈值后仍列出全部名称。数量大时，模型仍为选择工具支付较多上下文成本。[Tool search](https://developers.openai.com/api/docs/guides/tools-tool-search)，[技能与提示词实践](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra)
+
+**最小增强：** 对大目录按 MCP server/业务域先呈现简短描述，搜索后展开工具；小目录维持当前行为。保留 `select:exact_tool_name` 与禁用/权限过滤；不要因减少目录信息导致模型误报“没有工具”。技能按实际任务读 references，而不是机械加载所有技能。
+
+**验收：** 以不同目录规模比较发现召回率、误选率、首轮 token 和缓存命中；重启后发现顺序不变；父子发现隔离；禁用工具不会通过搜索重新暴露。
+
+### 6. 失败 trace → 回归任务 → 候选改动 → A/B
+
+**现状：** 仓库已有大量定向测试、CUA 评测文档及记忆预门评估脚本；本次文件检索未发现覆盖上述全部能力的统一通用 Agent 回归入口。这是检索范围内的判断，不是整个项目无评测。[Agent improvement loop](https://developers.openai.com/cookbook/examples/agents_sdk/agent_improvement_loop)
+
+**最小增强：** 固定一批脱敏、可重复的任务，记录失败环节，形成回归集；每次只改一个机制，同模型、同工具条件、同数据快照进行对照。模型 judge 可辅助定位，文件结果、计算值和副作用等可机械判定的项目优先用确定性判定。
+
+**第一批任务：** 插话改约束、压缩后续作、多源检索聚合、子代理补充消息、审批中断恢复、worker 重启、资料不足时拒绝编造、工具失败后换路径、生成文件后校验内容。
+
+**指标：** 最终成功率、证据覆盖率、虚报完成率、约束违反、重复副作用、总 token、工具次数、耗时与成本。离线轨迹可用于诊断；涉及外部状态的完整执行必须在隔离环境重跑。评测器和 token/超时错误也要单独归因。
+
+## 推荐实施顺序与边界
+
+1. 先冻结小型回归集作为基线；同时等已有子代理改动收敛，避免两处重做。
+2. 补结构化 PTC 结果和可追溯的验收证据；这两项可直接增强现有 run。
+3. 再引入用户显式开启的持久 Goal，建立预算、暂停、续跑与证据验收。
+4. 按评测结果扩展子代理调度与目录分组。
+
+OpenAI 目前也提供运行 Codex harness 的 Agents API，覆盖会话、steering、压缩与恢复；它可作为 OpenAI 专属实验后端，但不建议先替换 LambChat 的多模型执行内核。API 能力是否可用需在实际账号、模型和传输上验证，不能把 Chat Completions 兼容渠道视为支持这些机制。[Agents API](https://developers.openai.com/api/docs/guides/agents-api/overview)
+
+以下为最初调研阶段的边界记录；后续实施见文末。最初仅新增本文。未修改生产代码、原工作区、依赖、模型配置或部署；未运行 Agent A/B、外部工具或服务评测。实现阶段遵守项目 TDD、专属工具 Item 与五语 locale 约定，所有验证通过共享锁串行执行；涉及本地沙箱链路时补全量沙箱 E2E。
+
+
+## 实施与源码复核（2026-10-13）
+
+实施基线改为最新 `origin/develop` 的 `7f3d6bbcfdf1e2edd7203c6d99a0f38d9f9348ce`，PR #871 已在该基线中，不再重复移植。本 worktree 增量接入六项能力：版本化评测、原生结构化只读 PTC、独立证据清单、持久 Goal、三个 Agent 模式的可续聊子代理、分组工具/技能目录。普通 run Goal 继续独立工作。
+
+用户进一步要求减少反复取不到状态的 token 浪费，本次复核了 OpenAI Codex **开源 harness** 的固定提交 `f82e36592278a0a782fb0d0fc97e5fa10e832ac2`；这不代表读取了桌面应用的全部私有实现。
+
+- [子代理状态等待](https://github.com/openai/codex/blob/f82e36592278a0a782fb0d0fc97e5fa10e832ac2/codex-rs/core/src/tools/handlers/multi_agents/wait.rs)：先订阅状态，按 deadline 等终态；缺失代理明确 NotFound，超时单独表示，不将 wait 完成当作子任务完成。
+- [邮箱事件等待](https://github.com/openai/codex/blob/f82e36592278a0a782fb0d0fc97e5fa10e832ac2/codex-rs/core/src/tools/handlers/multi_agents_v2/wait.rs)：等待 pending activity 或 watch.changed，区分邮箱、用户插话和超时；结果是紧凑摘要。
+- [状态订阅](https://github.com/openai/codex/blob/f82e36592278a0a782fb0d0fc97e5fa10e832ac2/codex-rs/core/src/agent/control/watch.rs)：先订阅再读初始状态，合并状态更新，保留终态快照。
+- [空输入进程轮询](https://github.com/openai/codex/blob/f82e36592278a0a782fb0d0fc97e5fa10e832ac2/codex-rs/core/src/unified_exec/process_manager.rs)：空 poll 使用独立最小等待界限，输出按块消费，避免紧密空轮询。
+- [MCP 错误状态](https://github.com/openai/codex/blob/f82e36592278a0a782fb0d0fc97e5fa10e832ac2/codex-rs/core/src/mcp_tool_call.rs)：保留 is_error，将工具失败映射为失败状态。
+
+LambChat 原本已经事件驱动等待，新增优化是默认等待 120 秒（允许 10–300 秒）、明确等待到期与执行超时、已收集结果只返回紧凑状态、重复状态不生成新的证据/交接文件、未知或终态提示停止等待。120 秒是本项目减少模型空转的策略；并非声称 Codex 默认也是 120 秒。确定性大报告用例比较首次 40000 字符报告与重复小于 500 字符状态；实际 token/成功率仍需同模型 A/B，不能据此宣称固定百分比节省。
+
+持久 Goal 原来把工具调用次数当作进展，失败请求和重复状态因此会不断续跑。现改为成功观察的规范化签名，忽略传输调用 ID、时间戳和重复条目；相同观察连续两轮无进展即 blocked，新观察恢复进展。此处是 LambChat 自身修复，未在所读 Codex 源码中找到通用无进展检测器，不能归为照搬 Codex。
+
+MCP 已授权但不可用的服务保留无敏感配置的状态快照，工具目录与搜索明确提示不可用，重复搜索不会重新连接。禁用/角色范围之外的服务不会暴露。MCP 字符串错误和原生 isError 不再成为可用完成证据。前端状态刷新失败退避至最多 60 秒，隐藏页面暂停，前台/网络恢复立即刷新；HTTP 请求本身不消费模型 token，此项改善客户端空转。
+
+最终验证结果在实施完成后追加；隔离测试、真实服务运行、模型行为、跨进程恢复、原生客户端与部署分别记录，不能相互替代。
+
+### 独立后台任务与提醒
+
+官方设置提供回合完成提醒选项：[通知设置](https://learn.chatgpt.com/docs/reference/settings)。开源 harness 的 [子代理终态通知](https://github.com/openai/codex/blob/f82e36592278a0a782fb0d0fc97e5fa10e832ac2/codex-rs/core/src/agent/control/completion.rs) 与 [进程异步 watcher](https://github.com/openai/codex/blob/f82e36592278a0a782fb0d0fc97e5fa10e832ac2/codex-rs/core/src/unified_exec/async_watcher.rs) 由终态事件触发，不要求模型不断取状态。这些源码证据没有覆盖桌面应用全部私有后台实现。
+
+LambChat 增加显式 `start_background_task`，在独立会话中通过现有授权和任务队列执行；父对话结束后继续。前台“后台继续”允许用户开始另一段对话，保留独立“停止”。接收成功只显示已提交，完成、失败与待审批分别处理。持久 Goal 的中间回合不提前报目标完成。
+
+完成提醒先写入用户隔离的 MongoDB 记录，再尝试现有 WebSocket/Push；重连、前台恢复和网络恢复时按游标补取，与实时提醒去重。写入失败保留会话 outbox，由有限扫描补发，不重新执行模型任务。游标采用服务端 BSON timestamp，避免客户端时钟或延迟请求导致排序倒退；这不承诺任意跨文档写入都具有全局事务顺序。
+
+真实隔离运行使用临时用户、独立 MongoDB/Redis 与独立 ARQ worker，未触碰原工作区服务。模型实际执行了子代理 list/start/wait/list/cancel，最终结果 4 已保存；另一持久 Goal 实际调用 QuickJS eval 计算 2+2、经过评分、记录已知 token，并从 checkpoint/Store 核验当前原始观察与 SHA256。独立后台任务在父对话结束后继续，在 API 重启期间由单独 worker 完成，结果 4 已保存；完成记录恰好一条，API 再次重启后仍可补取。最后一次 Goal/后台运行的 41 个隔离检查全部通过；独立的 Mongo CAS、Redis 归属检查也通过。
+
+真实运行额外发现并修复两处集成问题：实际嵌入式 ARQ worker 未注册 Goal 续跑及扫描函数；动态评分模型从 checkpoint 恢复后丢失证据引用。均补充了对应回归测试。
+
+未完成的验证：九例高级 live 评测中的八例需要隔离 `/__eval__/` 主机及故障注入 hooks，当前未配置，不能以单测或简单算术运行代替；同模型 A/B、worker 崩溃时在途外部写入、断电恢复、跨机器和原生系统通知送达均未验证。现有本地执行模式只证明离开前台后继续；服务器重启后的执行依赖 ARQ 和保守恢复，无法确认的外部写入停下来核验。
+
+
+### 分布式执行与 daemon 实测
+
+后台首次 dispatch、崩溃恢复、审批恢复共享同一可续租执行归属；普通重复派发不碰原持有者的 payload、并发名额和 run 状态。显式恢复碰到尚未释放的 lease 时由队列延迟重试，避免丢审批。执行前再次核对当前会话/run，终态不重跑，无法确认的在途写入仍停下来核验。
+
+真实集成另外暴露并修复了标准 API 会话 ObjectId 未被任务管理器识别、意外创建同名影子记录的问题。会话存储统一优先查自定义 session_id，未命中再查 ObjectId；所有管理器/状态/恢复/审批路径复用这一入口。
+
+- 两个独立 ARQ worker、两个独立提交进程：40 项检查通过。重复提交只创建一个后台任务；实际模型完成结果 4。杀掉本任务自己的执行 worker 后，另一个 worker 通过自然心跳过期接管同一 run，只保留一份用户消息、恢复事件和完成记录。此场景只包含可核验的只读算术，没有外部写入。
+- 两个真实 API 进程与两个本地 daemon 进程：8 项检查通过。daemon 只连接 API A，API B 通过共享 Redis 转发 exec/fs；三个会话相同路径内容隔离，错误用户/机器绑定拒绝，正确绑定成功。
+- 全量本地沙箱 E2E：47/47 通过，包含 exec、机器绑定、10/50/100MB 文件 SHA256、结构化文件操作、skills 虚拟挂载、501 文件整树 transfer 与优雅下线。macOS tar 的 AppleDouble 元数据污染通过 COPYFILE_DISABLE=1 修复并回归。
+- 当前源码另跑真实持久 Goal：26 项检查通过，覆盖 API 重启、预算、实际 eval/评分、用量与 checkpoint/Store 原始证据校验。
+
+以上都是同一台机器上的真实独立进程/副本。分布式配置测试没有执行跨机器 S3 文件 I/O，不能视为跨物理主机部署证明；本地 daemon 转发证明也不能替代 Windows/Linux 桌面真机验证。
+
+### 会话与提醒体验补齐
+
+继续阅读相同固定版本的 [跨会话审批提示](https://github.com/openai/codex/blob/f82e36592278a0a782fb0d0fc97e5fa10e832ac2/codex-rs/tui/src/app/thread_routing.rs)、[通知优先级](https://github.com/openai/codex/blob/f82e36592278a0a782fb0d0fc97e5fa10e832ac2/codex-rs/tui/src/chatwidget/notifications.rs) 和 [侧会话上下文](https://github.com/openai/codex/blob/f82e36592278a0a782fb0d0fc97e5fa10e832ac2/codex-rs/tui/src/app/side.rs)，本次沿现有会话/通知入口补齐三处：
+
+1. 后台继续后明确提示任务仍在运行，提供返回原会话及原 run 的入口；不发送取消请求。
+2. 侧栏与最近会话共享状态映射，queued/starting/recovering 不再暂时消失；等待回复的无障碍标签采用已有五语翻译。
+3. 完成/失败/待审批提醒改为独立可聚焦的打开、关闭按钮；网页、浏览器和原生通知统一携带 run_id，复用已有历史定位。窄屏关闭按钮保持 44px，减弱动效使用现有 reduced-motion 规则。
+
+仅借鉴可接入现有流程的模式；本次没有新建任务中心或实现 Codex 所有 TUI 交互。五语、宽屏浅色、窄屏深色、键盘打开与关闭已经浏览器 fixture 走查，无横向溢出；这不是登录后实际产品或原生客户端验收。
+
+
+体验复查的定向测试还发现两处竞态：提交尚未返回时离开会话，迟到的响应会重新挂接旧 SSE；登出/切账户时，迟到的通知请求及退出动画中的提示会保留旧内容。现复用发送序号撤销界面归属，并仅在当前 run 已受理后提供后台继续；服务端已受理任务保留，旧界面不再接管。提醒使用账户/挂载代际隔离，卸载、禁用和账户 A→B→A 都使旧请求与点击失效，只移除自身 toast；可读内容有独立读屏 live region。均观察对应行为 RED 后修复。
+
+
+### 最终验证记录
+
+所有本机验证通过共享锁串行运行，worker/job 上限为 1。
+
+| 验证 | 结果与范围 |
+| --- | --- |
+| 后端相关全量 | 3339 passed、1 skipped；Agent、task、tool、skill、backend、session、storage、API routes 与三种 Agent 模式 |
+| 前端全量 | 868 文件、4529 passed；后续提醒放弃/并发补发及账户生命周期改动另补 64 项定向回归与 16 项最终账户/后台入口回归 |
+| Ruff | 全仓 check 通过 |
+| Mypy | 597 个源码文件通过 |
+| 前端 lint | 最终运行无错误、无警告 |
+| 前端 build | TypeScript、Vite、PWA 与性能预算通过；已有大 chunk 提示不影响构建 |
+| 真实独立 worker/副本与 daemon | 上文 40 项、8 项真实进程验证通过；沙箱 E2E 47/47、真实 Goal 26 项通过 |
+
+提醒去重只在仍属于当前账户且实际完成交付时提交；在途请求因账户切换被放弃后，同一事件仍可补发，WS/journal 并发到达只展示一次。临时服务、预览与测试资源已回收，原工作区服务保留。
+
+Impeccable 检查器未安装，按 DESIGN.md 清单人工检查主题 token、五语、按钮触达、焦点、减少动效、窄屏与状态；未把 fixture 浏览器走查计作真实登录或原生客户端证明。高级 live hooks、同模型 A/B、跨物理主机共享 S3、外部写入断电恢复及原生通知真机送达仍未验证。

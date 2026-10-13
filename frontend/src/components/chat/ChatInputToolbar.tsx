@@ -1,6 +1,8 @@
+import type { PersistentGoal } from "../../services/api/session";
 import { Fragment, useRef, useCallback, useState, useEffect } from "react";
 import {
   AlertCircle,
+  ArrowUpRight,
   ArrowUp,
   Cloud,
   Monitor,
@@ -81,10 +83,12 @@ export interface ChatInputToolbarProps {
   agentOptionValues?: Record<string, boolean | string | number>;
   onToggleAgentOption?: (key: string, value: boolean | string | number) => void;
   onStopClick: () => void;
+  onContinueInBackground?: () => void;
   onNoPermissionClick: () => void;
   // Run mode
   autoModeEnabled?: boolean;
   goalModeEnabled?: boolean;
+  persistentGoalStatus?: PersistentGoal["status"];
   onToggleAutoMode?: (enabled: boolean) => void;
   onToggleGoalMode?: (enabled: boolean) => void;
 }
@@ -127,9 +131,11 @@ export function ChatInputToolbar({
   agentOptionValues = {},
   onToggleAgentOption,
   onStopClick,
+  onContinueInBackground,
   onNoPermissionClick,
   autoModeEnabled = false,
   goalModeEnabled = false,
+  persistentGoalStatus,
   onToggleAutoMode,
   onToggleGoalMode,
 }: ChatInputToolbarProps) {
@@ -441,7 +447,7 @@ export function ChatInputToolbar({
           }}
           className="chat-tool-btn group shrink-0 relative"
           title={t("mode.title", "Run Mode")}
-          aria-description={activeModes.map((mode) => t(`mode.${mode}`)).join(" · ") || undefined}
+          aria-description={[...activeModes.map((mode) => t(`mode.${mode}`)), ...(persistentGoalStatus ? [t("chat.goalPersistent.modeHint", { status: t(`chat.goalPersistent.status.${persistentGoalStatus}`) })] : [])].join(" · ") || undefined}
         >
           <span className="relative inline-flex h-4 w-4 items-center justify-center">
             <Settings2 size={16} />
@@ -476,6 +482,12 @@ export function ChatInputToolbar({
           onToggleAgentOption={onToggleAgentOption}
         />
 
+        {isLoading && onContinueInBackground && <button type="button"
+          data-testid="continue-in-background" onClick={onContinueInBackground} disabled={!canSend}
+          aria-label={t("chat.backgroundContinue")} title={t("chat.backgroundContinueHint")}
+          className="flex h-9 shrink-0 items-center gap-1 rounded px-2 text-12 text-theme-text-secondary hover:bg-theme-bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-primary disabled:opacity-40">
+          <ArrowUpRight size={14} aria-hidden="true" /><span className="max-w-16 truncate sm:max-w-24">{t("chat.backgroundContinue")}</span>
+        </button>}
         {!canSend ? (
           <button
             type="button"

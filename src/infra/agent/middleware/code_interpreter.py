@@ -15,6 +15,13 @@ from langchain.agents.middleware.types import (
 )
 from langchain_core.tools import BaseTool
 
+from src.infra.agent.middleware.ptc_adapter import (
+    MAX_PTC_CALLS,
+    MAX_RESULT_CHARS,
+    PROGRAM_TIMEOUT_SECONDS,
+    READ_ONLY_NAMES,
+    create_bounded_interpreter,
+)
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 
@@ -93,9 +100,11 @@ def _build_ptc_frame(ptc_tools: Sequence[str]) -> str:
         f"{signatures} are exposed as async host functions here. Batch lookups "
         "in one eval — Promise.all over query lists, loops with filtering and "
         "aggregation — instead of one tool call per round-trip. Each bridge "
-        "resolves to the tool's usual JSON **string** — JSON.parse it before "
-        "field access; truncated fetch payloads are not valid whole JSON, "
-        "extract fields with regex instead. Only the bridged tools are "
+        "returns a native object {ok, data, sources, truncated, error}. "
+        "Read fields directly; check ok/error and keep sources for citations. "
+        "Truncated data stays structured or becomes bounded text. "
+        "Each program allows 32 tool calls, 60 seconds, and 3 concurrent hosts; "
+        "individual hosts time out after 20 seconds. Only the bridged tools are "
         "callable; the REPL itself still has no direct filesystem or network "
         "access, and everything else goes through normal tools.\n"
         "</code_interpreter_ptc>"
@@ -193,7 +202,11 @@ def create_code_interpreter_middleware(
         )
         return []
 
-    ptc_tools = _parse_ptc_tools(getattr(settings, "CODE_INTERPRETER_PTC_TOOLS", ""))
+    ptc_tools = [
+        name
+        for name in _parse_ptc_tools(getattr(settings, "CODE_INTERPRETER_PTC_TOOLS", ""))
+        if name in READ_ONLY_NAMES
+    ]
     ptc_allowlist: list[str | BaseTool] | None = (
         list[str | BaseTool](ptc_tools) if ptc_tools else None
     )
@@ -219,9 +232,15 @@ def create_code_interpreter_middleware(
     if ptc_allowlist:
         # PTC 聚合场景的返回体（多路搜索结果合并去重）远大于纯算术结果，
         # 上游 4000 默认截断过紧；仅在启用白名单时放宽，仍为有界上限。
-        interpreter_kwargs["max_result_chars"] = 8000
+        interpreter_kwargs["max_result_chars"] = MAX_RESULT_CHARS
+        interpreter_kwargs["max_ptc_calls"] = MAX_PTC_CALLS
+        interpreter_kwargs["timeout"] = PROGRAM_TIMEOUT_SECONDS
 
     return [
-        CodeInterpreterMiddleware(**interpreter_kwargs),
+        (
+            create_bounded_interpreter(**interpreter_kwargs)
+            if ptc_allowlist
+            else CodeInterpreterMiddleware(**interpreter_kwargs)
+        ),
         CodeInterpreterRoutingMiddleware(sandbox_active=sandbox_active, ptc_tools=ptc_tools),
     ]

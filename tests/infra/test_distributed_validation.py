@@ -17,6 +17,8 @@ def _settings(**overrides):
         "MCP_ENCRYPTION_SALT": "stable-mcp-salt",
         "S3_ENABLED": True,
         "S3_PROVIDER": "custom",
+        "TASK_BACKEND": "arq",
+        "CHECKPOINT_BACKEND": "mongodb",
     }
     values.update(overrides)
     return SimpleNamespace(**values)
@@ -63,6 +65,19 @@ def test_distributed_runtime_accepts_stable_shared_configuration() -> None:
     settings._mcp_encryption_salt_generated = False
 
     validate_distributed_runtime_settings(settings, distributed_mode=True)
+
+
+@pytest.mark.parametrize(
+    "overrides,field",
+    [
+        ({"TASK_BACKEND": "local"}, "TASK_BACKEND"),
+        ({"CHECKPOINT_BACKEND": "memory"}, "CHECKPOINT_BACKEND"),
+        ({"CHECKPOINT_BACKEND": "disabled"}, "CHECKPOINT_BACKEND"),
+    ],
+)
+def test_distributed_runtime_rejects_process_local_execution(overrides, field) -> None:
+    with pytest.raises(DistributedRuntimeConfigError, match=field):
+        validate_distributed_runtime_settings(_settings(**overrides), distributed_mode=True)
 
 
 def test_is_distributed_runtime_reads_boolean_environment(monkeypatch: pytest.MonkeyPatch) -> None:
