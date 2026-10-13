@@ -6,7 +6,9 @@
 
 用户要求支持此前调研的六项能力，基于最新 PR 开始做。目标是提升真实任务完成率、长任务连贯性、工具调用效率与可控性。
 
-本次基线为 PR #871 `feat(workspace): 集成角色子代理协作与工作台体验优化`，head `ef34c49279bb4e1f002acc0f37c229d88c896667`，包含最新 `origin/develop` `59334caf8fd7a94c6d0daf1cd0a51b4c78a3c76c`。后续开发分支为 `codex/agent-capability-research`。原工作区未提交改动保留；不修改 PR #871 的源分支，不把并行 UI 改动复制进新分支。
+用户明确选择最新 `origin/develop` 为基线。本次 fetch 后基线为 `7f3d6bbcfdf1e2edd7203c6d99a0f38d9f9348ce`，已包含 PR #870。开发分支为 `codex/agent-capability-research`。原工作区未提交改动保留，不把并行 UI 改动复制进新分支。
+
+PR #871 的子代理实现（head `ef34c49279bb4e1f002acc0f37c229d88c896667`）仅作为候选复用依赖，不是开发基线；子项目 E 开工前重新检查合入状态。若仍未合入，只移植子代理必要代码、调用方和测试，不整批带入工作台 UI 改动；若已合入，直接复用 develop 中的实现。
 
 实现分成六个可独立验收的子项目：评测、PTC、证据、持久 Goal、子代理控制、目录发现。最终全部交付；顺序由依赖决定。复用 FastAPI、LangGraph/deepagents、QuickJS、MongoDB、Redis、arq 和现有 React 组件，不引入新 Agent 框架。
 
@@ -99,11 +101,11 @@ MongoDB 单独文档存唯一会话 Goal，更新通过 version/CAS；会话 met
 
 双 worker、提交后崩溃、入队前崩溃、旧 worker 迟到、用户消息竞态、暂停/恢复、审批恢复、预算耗尽、未知 usage、无进展、会话删除和 fork。fork 不继承活跃调度身份；普通聊天不能意外开启自动执行。
 
-## E. 基于 PR #871 的子代理控制
+## E. 子代理控制与既有实现复用
 
 ### 行为
 
-复用 SubagentSessions、独立 checkpoint、父子消息及角色授权。先以 team 跑通，再让 fast/search 复用同一装配 helper，保留现有专用角色和 fork 类型。不开第二套异步任务系统。
+以 develop 的子代理能力为准，并按上述依赖规则复用 PR #871 的 SubagentSessions、独立 checkpoint、父子消息及角色授权。先以 team 跑通，再让 fast/search 复用同一装配 helper，保留现有专用角色和 fork 类型。不开第二套异步任务系统。
 
 一个父 run 默认最多 3 个正在执行的子代理；排队任务状态 queued，不能标 running。每次子任务执行期限 600 秒，等待用户审批不计模型执行期限。父 run 取消或结束时收敛活跃子任务；本次不支持父 run 结束后的脱离执行。
 
