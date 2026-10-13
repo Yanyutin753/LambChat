@@ -61,14 +61,55 @@ async def test_model_cannot_override_selected_machine(monkeypatch):
     assert result.startswith("ERROR machine_mismatch")
 
 
-async def test_selected_machine_is_not_replaced_by_account_default():
-    assert await cut.resolve_computer_use_context(
+async def test_selected_machine_is_not_replaced_by_account_default(monkeypatch):
+    class _Registry:
+        async def resolve_target(self, user_id, machine_id=None):
+            assert (user_id, machine_id) == ("u1", "selected-windows")
+            return machine_id
+
+    monkeypatch.setattr(cut, "SandboxClientRegistry", lambda: _Registry())
+    context = await cut.resolve_computer_use_context(
         "u1",
         {
             "sandbox": "local",
             "sandbox_machine_id": "selected-windows",
         },
-    ) == {"platform": "local", "machine_id": "selected-windows"}
+    )
+    assert context == {"platform": "local", "machine_id": "selected-windows"}
+
+
+async def test_cloud_selection_never_resolves_an_account_machine(monkeypatch):
+    class _Registry:
+        async def resolve_target(self, *args):
+            pytest.fail("cloud conversations must not resolve desktop machines")
+
+    monkeypatch.setattr(cut, "SandboxClientRegistry", lambda: _Registry())
+    assert await cut.resolve_computer_use_context(
+        "u1", {"sandbox": "cloud", "sandbox_machine_id": "selected-mac"}
+    ) == {"platform": "cloud", "machine_id": None}
+
+
+async def test_explicit_offline_machine_is_not_available(monkeypatch):
+    class _Registry:
+        async def resolve_target(self, user_id, machine_id=None):
+            assert (user_id, machine_id) == ("u1", "offline-mac")
+            return None
+
+    monkeypatch.setattr(cut, "SandboxClientRegistry", lambda: _Registry())
+    assert await cut.resolve_computer_use_context(
+        "u1", {"sandbox": "local", "sandbox_machine_id": "offline-mac"}
+    ) == {"platform": "local", "machine_id": None}
+
+
+def test_tool_is_hidden_without_local_online_selection():
+    tools = [SimpleNamespace(name="computer_use"), SimpleNamespace(name="web_search")]
+    for context in (
+        None,
+        {"platform": "cloud", "machine_id": "mac"},
+        {"platform": "local", "machine_id": None},
+    ):
+        assert [t.name for t in cut.filter_computer_use_tools(tools, context)] == ["web_search"]
+    assert cut.filter_computer_use_tools(tools, {"platform": "local", "machine_id": "mac"}) == tools
 
 
 async def test_automatic_selection_pins_registry_default_machine(monkeypatch):
@@ -481,17 +522,15 @@ async def test_large_tree_keeps_valid_json_and_screenshot_metadata() -> None:
     assert result["state"].startswith("[0] AXTextField")
 
 
-async def test_cloud_code_sandbox_uses_only_explicit_cua_machine(monkeypatch):
-    async def dispatch(user_id, op, payload, *, machine_id=None):
-        assert user_id == "u1" and machine_id == "selected-desktop"
-        assert payload["session_id"] == "session-1"
-        return {"result": {"ok": True}}
+async def test_cloud_conversation_cannot_dispatch_even_with_selected_machine(monkeypatch):
+    async def dispatch(*args, **kwargs):
+        pytest.fail("cloud conversations must not control a desktop")
 
     monkeypatch.setattr(cut, "dispatch_local_call", dispatch)
     result = await _call(
         action="apps", runtime=_runtime(platform="cloud", machine="selected-desktop")
     )
-    assert json.loads(result)["machine_id"] == "selected-desktop"
+    assert result.startswith("ERROR local_computer_required")
 
 
 async def test_screenshot_upload_receives_runtime_origin(monkeypatch):

@@ -282,7 +282,7 @@
       "offline": "离线",
       "offlineHint": "该电脑当前离线，暂不能选为执行机器",
       "section": "执行设备",
-      "computerUseHint": "电脑操作使用明确选中的设备；代码执行仍使用上方所选沙箱。",
+      "computerUseHint": "电脑操作仅在本地电脑档可用，使用选中的在线设备或在线默认设备。",
       "currentDevice": "当前设备"
     },
     "sandboxPolicy": {

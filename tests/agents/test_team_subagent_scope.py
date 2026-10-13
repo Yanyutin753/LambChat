@@ -73,6 +73,17 @@ async def test_fallback_keeps_fork_prompt_and_reloads_tools_each_execution():
     ]
 
 
+async def test_resumed_cloud_child_drops_desktop_tool_from_fresh_context():
+    options = _options()
+    options["agent_options"] = {"sandbox": "cloud"}
+    options["refresh_context"].return_value.filter_tools = lambda: [
+        SimpleNamespace(name="computer_use"),
+        SimpleNamespace(name="web_search"),
+    ]
+    spec = await create_team_subagent_resolver(**options)("context-worker")
+    assert [tool.name for tool in spec["tools"]] == ["web_search"]
+
+
 async def test_persona_rechecks_access_and_updates_display_metadata(monkeypatch):
     options = _options()
     monkeypatch.setattr("src.agents.team_agent.subagent_scope.settings.ENABLE_SKILLS", True)

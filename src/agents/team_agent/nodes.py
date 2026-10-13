@@ -245,7 +245,19 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     runtime_env_keys = tuple(
         getattr(getattr(sandbox_backend, "default", sandbox_backend), "_run_env_overrides", {})
     )
-    filtered_tool_list = prepared.tools
+    from src.infra.tool.computer_use_tool import (
+        filter_computer_use_tools,
+        resolve_computer_use_context,
+    )
+
+    computer_use_context = (
+        await resolve_computer_use_context(
+            context.user_id or "", agent_options, configurable.get("hitl_resume")
+        )
+        if settings.ENABLE_COMPUTER_USE
+        else None
+    )
+    filtered_tool_list = filter_computer_use_tools(prepared.tools, computer_use_context)
     inner_checkpointer = prepared.checkpointer
 
     memory_guide = get_memory_guide() if settings.ENABLE_MEMORY else ""
@@ -790,20 +802,12 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     graph_compile_time = time.time() - graph_compile_start
     logger.debug(f"[TeamAgent] Graph compile: {graph_compile_time * 1000:.3f}ms")
 
-    from src.infra.tool.computer_use_tool import resolve_computer_use_context
-
     inner_config: RunnableConfig = {
         "configurable": build_nested_graph_configurable(
             thread_id=state.get("session_id", str(uuid.uuid4())),
             checkpointer=inner_checkpointer,
             backend=backend,
-            computer_use_context=(
-                await resolve_computer_use_context(
-                    context.user_id or "", agent_options, configurable.get("hitl_resume")
-                )
-                if settings.ENABLE_COMPUTER_USE
-                else None
-            ),
+            computer_use_context=computer_use_context,
             context=context,
             disabled_skills=configurable.get("disabled_skills"),
             enabled_skills=runtime_enabled_skills,

@@ -14,6 +14,7 @@ from src.agents.team_agent.member_config import (
     _safe_member_model_config_dict,
 )
 from src.agents.team_agent.prompt import build_team_member_subagent_type
+from src.infra.tool.computer_use_tool import filter_computer_use_tools, resolve_computer_use_context
 from src.kernel.config import settings
 from src.kernel.schemas.model import effective_image_url_mode
 
@@ -44,6 +45,12 @@ def create_team_subagent_resolver(
     resolve_member_agent: Any,
     get_model: Any,
 ):
+    async def available_tools(tool_context):
+        return filter_computer_use_tools(
+            list(tool_context.filter_tools()),
+            await resolve_computer_use_context(context.user_id or "", agent_options),
+        )
+
     async def build_persona_spec(preset_id: str, tool_context=None):
         tool_context = tool_context or context
         from src.agents.team_agent.role_tools import build_role_tool_scope
@@ -58,7 +65,7 @@ def create_team_subagent_resolver(
             memory_guide,
         ]
         role_tools, role_manager = build_role_tool_scope(
-            list(tool_context.filter_tools()),
+            await available_tools(tool_context),
             tool_context.deferred_manager,
             mcp_servers=snapshot.mcp_server_names,
             scope=f"{session_id}:subagent:{role_type}",
@@ -142,7 +149,11 @@ def create_team_subagent_resolver(
                 role_instructions=member.role_instructions or None,
             )
             member_tools, member_manager = build_role_tool_scope(
-                [tool for tool in fresh_context.filter_tools() if tool.name != "search_skills"],
+                [
+                    tool
+                    for tool in await available_tools(fresh_context)
+                    if tool.name != "search_skills"
+                ],
                 fresh_context.deferred_manager,
                 mcp_servers=current_preset.mcp_server_names,
                 scope=f"{session_id}:subagent:{role_type}",
@@ -184,7 +195,7 @@ def create_team_subagent_resolver(
         if not team:
             spec = {
                 **spec,
-                "tools": list(fresh_context.filter_tools()),
+                "tools": await available_tools(fresh_context),
                 "middleware": build_subagent_middleware(
                     role_type,
                     tool_context=fresh_context,

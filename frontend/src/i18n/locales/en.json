@@ -282,7 +282,7 @@
       "offline": "offline",
       "offlineHint": "That computer is offline and can't be selected as the execution target",
       "section": "Device",
-      "computerUseHint": "Computer control uses the explicitly selected device; code still runs in the sandbox selected above.",
+      "computerUseHint": "Computer control is available on Local computer with a selected online device or an online default device.",
       "currentDevice": "This device"
     },
     "sandboxPolicy": {
