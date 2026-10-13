@@ -1,4 +1,5 @@
-import { AlertCircle, LoaderCircle, Paperclip, RotateCcw } from "lucide-react";
+import { LoadingSpinner } from "../../common/LoadingSpinner";
+import { AlertCircle, Paperclip, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { FileReferenceDescriptor } from "./composerTypes";
 
@@ -29,7 +30,7 @@ export function FileReferenceChip({
   });
   const StatusIcon =
     status === "uploading"
-      ? LoaderCircle
+      ? LoadingSpinner
       : status === "failed"
         ? AlertCircle
         : null;
@@ -60,11 +61,7 @@ export function FileReferenceChip({
       </span>
       {!readOnly && StatusIcon ? (
         <StatusIcon
-          className={`composer-reference-chip__status${
-            status === "uploading"
-              ? " composer-reference-chip__status--spinning"
-              : ""
-          }`}
+          className="composer-reference-chip__status"
           size={13}
           aria-hidden="true"
         />

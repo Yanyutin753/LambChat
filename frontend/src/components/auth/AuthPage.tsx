@@ -12,13 +12,7 @@ import {
   useId,
 } from "react";
 import { Link } from "react-router-dom";
-import {
-  User,
-  Mail,
-  AlertCircle,
-  AtSign,
-  Loader2,
-} from "lucide-react";
+import { User, Mail, AlertCircle, AtSign } from "lucide-react";
 import { PasswordInput } from "./PasswordInput";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
@@ -633,6 +627,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                     <span className="inline-flex items-center justify-center gap-2">
                       {isSubmitting && (
                         <LoadingSpinner
+                          color="text-current"
                           size="sm"
                           className="text-white dark:text-stone-900"
                         />
@@ -660,7 +655,10 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                             className="auth-oauth-btn auth-social-provider flex h-12 items-center justify-center gap-2 rounded-full px-6 text-16 font-semibold text-theme-text transition-all active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100"
                           >
                             {oauthPendingProvider === provider.id && (
-                              <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin sm:h-5 sm:w-5" />
+                              <LoadingSpinner
+                                color="text-current"
+                                className="h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5"
+                              />
                             )}
                             {provider.id === "google" &&
                               oauthPendingProvider !== provider.id && (

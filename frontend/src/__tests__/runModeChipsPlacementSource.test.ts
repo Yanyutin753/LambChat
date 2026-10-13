@@ -8,14 +8,23 @@ function readRepoFile(...segments: string[]): string {
   );
 }
 
-test("运行模式 chip 作为消息内联节点接入编辑器", () => {
+test("运行模式仅在桌面模型旁显示，不占用可编辑消息文本", () => {
   const chatInput = readRepoFile("src/components/chat/ChatInput.tsx");
-  expect(chatInput).toMatch(/runModes=\{buildRunModesOptions\(/);
-  expect(chatInput).toMatch(
-    /buildRunModesOptions\(\s*autoModeEnabled,\s*goalModeEnabled,\s*onToggleAutoMode,\s*onToggleGoalMode,/,
+  const composer = chatInput.match(/<RichChatComposer\s[\s\S]*?\/>/)?.[0];
+  expect(composer).toBeDefined();
+  expect(composer).not.toMatch(/runModes=/);
+  expect(chatInput).toContain(
+    "runModes: collectActiveRunModes(autoModeEnabled, goalModeEnabled)",
   );
-  // 不再在输入框上方渲染独立的 chip 行
-  expect(chatInput).not.toMatch(/<RunModeChips/);
+  const toolbar = readRepoFile("src/components/chat/ChatInputToolbar.tsx");
+  expect(toolbar).toMatch(/data-composer-run-modes/);
+  expect(toolbar).toMatch(/className="hidden shrink-0 items-center gap-1\.5 sm:flex"/);
+  expect(toolbar.indexOf("data-composer-run-modes")).toBeGreaterThan(
+    toolbar.indexOf("<ToolbarChip"),
+  );
+  expect(toolbar.indexOf("data-composer-run-modes")).toBeLessThan(
+    toolbar.indexOf("flex shrink-0 items-center gap-1.5 self-center"),
+  );
 });
 
 test("工具栏右侧操作区不再渲染运行模式文字按钮", () => {
@@ -24,11 +33,14 @@ test("工具栏右侧操作区不再渲染运行模式文字按钮", () => {
   expect(toolbar).not.toMatch(/t\("mode\.goal"/);
 });
 
-test("运行模式触发按钮不再渲染激活状态圆点", () => {
+test("手机运行模式触发按钮显示激活状态角标", () => {
   const toolbar = readRepoFile("src/components/chat/ChatInputToolbar.tsx");
-  // 模式状态已由输入框内的 chip 呈现，触发按钮无需再叠加圆点
-  expect(toolbar).not.toMatch(/Status dot/);
-  expect(toolbar).not.toMatch(/-right-0\.5/);
+  // 手机端模式文字隐藏后，由设置图标角标提示启用状态。
+  const trigger = toolbar.match(/<button\s[^>]*data-run-mode-trigger[\s\S]*?<\/button>/)?.[0];
+  expect(trigger).toBeDefined();
+  expect(trigger).toContain("data-run-mode-status-dot");
+  expect(trigger).toContain("sm:hidden");
+  expect(trigger).not.toContain("data-sandbox-status-dot");
 });
 
 test("RunModeReferenceNode 复用 skill-chip 视觉并支持点击/退格关闭", () => {
@@ -68,14 +80,14 @@ test("身份 chip 自适应截断：空间足够完整显示，不足才出省�
   expect(chip).toMatch(/min-w-0 truncate text-14/);
 });
 
-test("右簇沙箱 chip 手机端仅图标（与用量图标一致）", () => {
+test("右簇沙箱 chip 手机端显示图标和状态角标，隐藏档位文字", () => {
   const toolbar = readRepoFile("src/components/chat/ChatInputToolbar.tsx");
-  // 档位文字与 daemon 状态点都在 sm 断点以下隐藏，只留档位图标
+  // 手机端保留档位图标和 daemon 状态角标。
   expect(toolbar).toMatch(
     /labelClassName="composer-sandbox-label hidden sm:inline max-w-40"/,
   );
   expect(toolbar).toMatch(
-    /hidden sm:inline h-1\.5 w-1\.5 shrink-0 rounded-full/,
+    /absolute -top-0\.5 -right-0\.5 block h-\[5px\] w-\[5px\] rounded-full ring-2/,
   );
 });
 
@@ -94,17 +106,16 @@ test("工具栏左行不再横向滚动，手机端超宽靠 chip 截断降级",
   expect(toolbar).not.toMatch(/overflow-x-auto/);
 });
 
-test("沙箱 chip 归入右簇与用量监控同组，不混入左侧身份 chip 行", () => {
+test("沙箱 chip 归入右簇，不混入左侧身份 chip 行", () => {
   const toolbar = readRepoFile("src/components/chat/ChatInputToolbar.tsx");
   const clusterIdx = toolbar.indexOf(
     "flex shrink-0 items-center gap-1.5 self-center",
   );
   const sandboxIdx = toolbar.indexOf("data-sandbox-status-dot");
-  const usageIdx = toolbar.indexOf("<ComposerUsageChip");
-  // 顺序：右簇开标签 < 沙箱 chip < 用量 chip（沙箱在簇内最左）
+  // 沙箱保留在右簇，用量入口已移到页头。
   expect(clusterIdx).toBeGreaterThan(-1);
   expect(sandboxIdx).toBeGreaterThan(clusterIdx);
-  expect(usageIdx).toBeGreaterThan(sandboxIdx);
+  expect(toolbar).not.toContain("ComposerUsageChip");
 });
 
 test("运行模式 chip 与相邻内容保留呼吸间距", () => {
@@ -125,4 +136,12 @@ test("发送后的用户消息携带运行模式 chip", () => {
 
   const messageView = readRepoFile("src/components/chat/ChatMessage/index.tsx");
   expect(messageView).toMatch(/runModes=\{message\.runModes\}/);
+});
+
+
+test("桌面模式入口与模型之间用主题竖线分隔", () => {
+  const toolbar = readRepoFile("src/components/chat/ChatInputToolbar.tsx");
+  const modes = toolbar.slice(toolbar.indexOf("data-composer-run-modes"));
+  expect(modes).toMatch(/aria-hidden="true" className="h-4 w-px shrink-0 bg-theme-border"/);
+  expect(modes.indexOf("bg-theme-border")).toBeLessThan(modes.indexOf("activeModes.map"));
 });

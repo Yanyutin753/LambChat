@@ -74,6 +74,45 @@ def test_team_tool_descriptions_guide_llm_team_creation() -> None:
 
 
 @pytest.mark.asyncio
+async def test_subagent_persona_resolution_uses_current_admin_permissions(monkeypatch):
+    from src.infra.tool import team_tool
+
+    manager = MagicMock()
+    manager.use_preset = AsyncMock(return_value="trusted snapshot")
+    monkeypatch.setattr(team_tool, "PersonaPresetManager", lambda: manager)
+    monkeypatch.setattr(
+        team_tool,
+        "_resolve_user",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                permissions=["chat:write", "persona_preset:admin"],
+                roles=["admin"],
+            )
+        ),
+    )
+    result = await team_tool.resolve_persona_for_subagent("p1", user_id="u1")
+    assert result == "trusted snapshot"
+    manager.use_preset.assert_awaited_once_with(
+        "p1", user_id="u1", is_admin=True, user_roles=["admin"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_subagent_persona_resolution_rechecks_revoked_permissions(monkeypatch):
+    from src.infra.tool import team_tool
+
+    manager = MagicMock()
+    manager.use_preset = AsyncMock()
+    monkeypatch.setattr(team_tool, "PersonaPresetManager", lambda: manager)
+    monkeypatch.setattr(
+        team_tool, "_resolve_user", AsyncMock(return_value=SimpleNamespace(permissions=[]))
+    )
+    with pytest.raises(PermissionError):
+        await team_tool.resolve_persona_for_subagent("p1", user_id="u1")
+    manager.use_preset.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_search_persona_presets_returns_visible_personas(
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -98,6 +137,7 @@ async def test_search_persona_presets_returns_visible_personas(
     assert result["success"] is True
     assert result["presets"][0]["id"] == "preset-research"
     assert result["presets"][0]["name"] == "Researcher"
+    assert result["presets"][0]["subagent_type"] == "persona:preset-research"
     manager.list_presets.assert_awaited_once()
     assert manager.list_presets.await_args.kwargs["q"] == "research"
 

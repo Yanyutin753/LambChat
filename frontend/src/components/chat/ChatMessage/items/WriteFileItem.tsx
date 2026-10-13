@@ -22,7 +22,7 @@ function WriteFileDetail({ args, result }: ToolDetailProps) {
 
   return (
     <div className="p-4 sm:p-5 space-y-3 tool-panel-content">
-      <ToolArgsBlock size="detail">
+      <ToolArgsBlock size="detail" copyText={filePath}>
         <span className="truncate">{filePath}</span>
       </ToolArgsBlock>
       {content && (
@@ -143,7 +143,7 @@ const WriteFileItem = memo(function WriteFileItem({
       >
         {canExpand && (
           <ToolInlineDetails>
-            <ToolArgsBlock size="compact">
+            <ToolArgsBlock size="compact" copyText={filePath}>
               <span className="truncate">{filePath}</span>
             </ToolArgsBlock>
             {content && (

@@ -136,7 +136,7 @@ class Settings(BaseSettings):
     HISTORY_IMAGE_KEEP_LIMIT: int = 20
 
     # Session Settings
-    SESSION_MAX_RUNS_PER_SESSION: int = 100
+    SESSION_MAX_RUNS_PER_SESSION: int = 10000
     ENABLE_MESSAGE_HISTORY: bool = True
     SSE_CACHE_TTL: int = 86400
     SESSION_SEARCH_BACKFILL_STARTUP_DELAY_SECONDS: float = 30.0

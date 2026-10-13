@@ -1,3 +1,4 @@
+import { LoadingSpinner } from "../common/LoadingSpinner";
 /**
  * Session item component with inline title editing and drag support
  */
@@ -222,6 +223,10 @@ function SessionItemComponent({
 
   // Right-click opens the menu anchored at the cursor; suppress during drag
   const handleContextMenu = (e: React.MouseEvent) => {
+    if (selectionMode) {
+      e.preventDefault();
+      return;
+    }
     if (isEditing) return; // Allow native context menu during rename
     if (isDragging) {
       e.preventDefault();
@@ -303,29 +308,16 @@ function SessionItemComponent({
           isDragging ? { touchAction: "none" } : { touchAction: "manipulation" }
         }
         className={`sidebar-session-row sidebar-action-row group relative flex cursor-pointer items-center gap-1 h-8 max-sm:h-10 rounded-[10px] px-[9px] transition-colors ${
-          !isSelected && isActive
+          isSelected || (!selectionMode && isActive)
             ? "bg-theme-bg-subtle dark:bg-stone-700/50"
             : ""
         } ${isDragging || isDraggingTouch ? "opacity-50 scale-95" : ""} ${
           selectionMode ? "pr-2" : ""
         }`}
       >
-        {selectionMode && (
-          <span
-            aria-hidden="true"
-            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
-              isSelected
-                ? "border-theme-text bg-theme-text text-white shadow-sm dark:border-stone-500 dark:bg-stone-600 dark:text-stone-100"
-                : "border-theme-border-hover bg-transparent text-transparent group-hover:border-theme-ring dark:border-stone-600 dark:group-hover:border-stone-500"
-            }`}
-          >
-            <Check size={11} strokeWidth={3} />
-          </span>
-        )}
-
         {/* Title - editable or display */}
         <div className="min-w-0 flex-1 flex items-center gap-2">
-          {isEditing ? (
+          {isEditing && !selectionMode ? (
             <input
               ref={inputRef}
               type="text"
@@ -342,8 +334,9 @@ function SessionItemComponent({
             <button
               ref={titleRef}
               type="button"
-              aria-current={isActive ? "page" : undefined}
-              aria-pressed={selectionMode ? isSelected : undefined}
+              role={selectionMode ? "checkbox" : undefined}
+              aria-current={!selectionMode && isActive ? "page" : undefined}
+              aria-checked={selectionMode ? isSelected : undefined}
               onClick={(e) => {
                 e.stopPropagation();
                 activate();
@@ -356,6 +349,19 @@ function SessionItemComponent({
                     : "text-theme-text-secondary dark:text-stone-300 group-hover:text-theme-text dark:group-hover:text-stone-200"
               } min-w-0 w-full h-8 max-sm:h-9 rounded text-left flex items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]`}
             >
+              {selectionMode && (
+                <span
+                  aria-hidden="true"
+                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors ${
+                    isSelected
+                      ? "border-theme-primary bg-theme-primary text-white"
+                      : "border-theme-border-hover bg-transparent text-transparent group-hover:border-theme-ring"
+                  }`}
+                >
+                  <Check size={11} strokeWidth={3} />
+                </span>
+              )}
+
               <span className="truncate">{displayTitle}</span>
             </button>
           )}
@@ -368,7 +374,7 @@ function SessionItemComponent({
               aria-label={taskStatusLabel}
               className="shrink-0 inline-flex h-8 w-6 max-sm:h-9 max-sm:w-9 items-center justify-center"
             >
-              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border-2 border-amber-500/25 border-t-amber-500 dark:border-t-amber-400 animate-spin" />
+              <LoadingSpinner size="sm" color="text-[var(--theme-primary)]" />
             </span>
           </Tooltip>
         )}

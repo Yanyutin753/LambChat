@@ -88,7 +88,7 @@ function BlockPreviewTab({
           alt={t("chat.message.toolOutput")}
           skipUrlResolve
           className="max-w-full max-h-[70dvh] object-contain rounded-lg"
-          wrapperClassName="!my-0"
+          wrapperClassName="!my-0 w-full max-w-md"
         />
       </div>
     );
@@ -169,7 +169,7 @@ export function McpBlockPreview({ block }: { block: McpContentBlock }) {
         alt={t("chat.message.toolOutput")}
         skipUrlResolve
         inline
-        className="max-w-full max-h-48 rounded-md border border-theme-border cursor-pointer hover:opacity-80 transition-opacity"
+        className="max-w-[min(100%,28rem)] max-h-48 rounded-md border border-theme-border cursor-pointer hover:opacity-80 transition-opacity"
         onClick={() => {
           if (src) openBlockPreview({ type: "image", src });
         }}
@@ -227,7 +227,7 @@ function GeneratedImageResults({ images }: { images: GeneratedImageResult[] }) {
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 gap-3">
+      <div className="grid w-full max-w-md grid-cols-1 gap-3">
         {images.map((image) => (
           <figure
             key={image.url}

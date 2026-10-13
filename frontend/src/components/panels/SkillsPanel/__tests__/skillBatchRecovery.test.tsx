@@ -311,13 +311,21 @@ test("memory selection offers deletion and clear without nonfunctional enable co
     screen.queryByRole("button", { name: "禁用", exact: true }),
   ).toBeNull();
   expect(
-    within(screen.getByRole("group")).getByRole("button", {
+    within(
+      screen.getByRole("group", {
+        name: `${i18n.t("skills.batchSelected")} 1`,
+      }),
+    ).getByRole("button", {
       name: "删除",
       exact: true,
     }),
   ).toBeTruthy();
   expect(
-    within(screen.getByRole("group")).getByRole("button", {
+    within(
+      screen.getByRole("group", {
+        name: `${i18n.t("skills.batchSelected")} 1`,
+      }),
+    ).getByRole("button", {
       name: "清除",
       exact: true,
     }),

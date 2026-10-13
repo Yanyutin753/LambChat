@@ -1,3 +1,4 @@
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -291,8 +292,13 @@ export function RecentChatsDialog({
                     <Tooltip content={runningLabel}>
                       <span
                         aria-label={runningLabel}
-                        className="shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full border-2 border-amber-500/25 border-t-amber-500 dark:border-t-amber-400 animate-spin"
-                      />
+                        className="shrink-0 inline-flex items-center justify-center w-4 h-4"
+                      >
+                        <LoadingSpinner
+                          size="sm"
+                          color="text-[var(--theme-primary)]"
+                        />
+                      </span>
                     </Tooltip>
                   )}
                   {isWaitingForHuman && (

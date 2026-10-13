@@ -28,7 +28,7 @@ function LsDetail({ args, result }: ToolDetailProps) {
 
   return (
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
-      <ToolArgsBlock size="detail">
+      <ToolArgsBlock size="detail" copyText={dirPath}>
         <FolderOpen size={14} className="shrink-0 opacity-60" />
         <span className="truncate">{dirPath}</span>
         {hasEntries && (
@@ -194,7 +194,7 @@ const LsItem = memo(function LsItem({
       >
         {canExpand && (
           <ToolInlineDetails>
-            <ToolArgsBlock size="compact">
+            <ToolArgsBlock size="compact" copyText={dirPath}>
               <FolderOpen size={12} className="shrink-0 opacity-60" />
               <span className="truncate">{dirPath}</span>
               {hasEntries && (

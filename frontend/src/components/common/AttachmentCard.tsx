@@ -1,5 +1,6 @@
+import { LoadingSpinner } from "./LoadingSpinner";
 import { memo, useMemo } from "react";
-import { AlertCircle, Loader2, RotateCcw, Type, X } from "lucide-react";
+import { AlertCircle, RotateCcw, Type, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 import type { MessageAttachment } from "../../types";
@@ -81,7 +82,7 @@ export const AttachmentCard = memo(function AttachmentCard({
   } = getAttachmentIconInfo(attachment.mimeType, attachment.name);
   const displayLabel = t(label, label);
   const attachmentUrl = attachment.url
-    ? getFullUrl(attachment.url) ?? attachment.url
+    ? (getFullUrl(attachment.url) ?? attachment.url)
     : "";
   const isImage =
     attachment.mimeType?.startsWith("image/") && Boolean(attachmentUrl);
@@ -151,7 +152,11 @@ export const AttachmentCard = memo(function AttachmentCard({
           )}
         >
           {isUploading ? (
-            <Loader2 size={18} className={clsx(iconColor, "animate-spin")} />
+            <LoadingSpinner
+              color="text-current"
+              size={18}
+              className={clsx(iconColor, "")}
+            />
           ) : isFailed ? (
             <AlertCircle size={18} className="text-red-500" />
           ) : isImage ? (
@@ -313,7 +318,11 @@ export const AttachmentCard = memo(function AttachmentCard({
         )}
       >
         {isUploading ? (
-          <Loader2 size={18} className={clsx(iconColor, "animate-spin")} />
+          <LoadingSpinner
+            color="text-current"
+            size={18}
+            className={clsx(iconColor, "")}
+          />
         ) : isImage ? (
           <>
             <ImageWithSkeleton

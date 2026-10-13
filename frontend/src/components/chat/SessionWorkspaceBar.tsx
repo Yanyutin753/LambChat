@@ -1,5 +1,6 @@
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useRef, useState } from "react";
-import { Folder, Loader2, X } from "lucide-react";
+import { Folder, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
 import { useSandboxStatus } from "../../hooks/useSandboxStatus";
@@ -106,10 +107,7 @@ export function SessionWorkspaceBar({ values, onChange, disabled }: Props) {
         }
       >
         {busy ? (
-          <Loader2
-            size={16}
-            className="shrink-0 animate-spin motion-reduce:animate-none"
-          />
+          <LoadingSpinner color="text-current" size={16} className="shrink-0" />
         ) : (
           <Folder size={16} className="shrink-0" />
         )}

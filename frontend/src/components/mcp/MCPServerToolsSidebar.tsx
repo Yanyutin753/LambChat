@@ -1,5 +1,6 @@
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useState, useCallback, useRef, useMemo, useEffect } from "react";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { mcpApi } from "../../services/api/mcp";
@@ -237,7 +238,7 @@ export function MCPServerToolsSidebar({
 
         {toolsLoading && (
           <div className="flex items-center gap-2 py-6 text-12 text-[var(--theme-text-tertiary)] justify-center">
-            <Loader2 size={14} className="animate-spin" />
+            <LoadingSpinner color="text-current" size={14} />
             <span>{t("mcp.card.discovering")}</span>
           </div>
         )}
@@ -347,9 +348,10 @@ export function MCPServerToolsSidebar({
                             {t("mcp.form.allowedRoles")}
                           </span>
                           {savingToolPolicy === tool.name && (
-                            <Loader2
+                            <LoadingSpinner
+                              color="text-current"
                               size={10}
-                              className="animate-spin text-[var(--theme-text-tertiary)]"
+                              className="text-[var(--theme-text-tertiary)]"
                             />
                           )}
                         </div>

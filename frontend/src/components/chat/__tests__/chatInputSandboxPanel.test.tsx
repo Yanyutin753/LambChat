@@ -484,6 +484,12 @@ test("sandbox chip shows a green dot on the local tier when the daemon is online
     // jsdom 会把 #22c55e 规范化为 rgb(34, 197, 94)
     expect(dot.style.background).toMatch(/#22c55e|rgb\(34, 197, 94\)/);
   });
+  expect(dot.parentElement?.querySelector("svg.lucide-monitor")).not.toBeNull();
+  expect(dot.classList.contains("absolute")).toBe(true);
+  expect(dot.classList.contains("-top-0.5")).toBe(true);
+  expect(dot.classList.contains("-right-0.5")).toBe(true);
+  expect(dot.classList.contains("ring-2")).toBe(true);
+  expect(dot.parentElement?.classList.contains("overflow-visible")).toBe(true);
 });
 
 test("sandbox chip shows a gray dot on the local tier when the daemon is offline", async () => {

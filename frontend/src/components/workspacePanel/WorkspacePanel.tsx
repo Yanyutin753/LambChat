@@ -18,7 +18,6 @@ import {
   FolderClosed,
   FolderOpen,
   HardDrive,
-  Loader2,
   RefreshCw,
   MoreHorizontal,
   Search,
@@ -353,9 +352,10 @@ export function WorkspacePanel({
                   )}
                 />
                 {node.loading ? (
-                  <Loader2
+                  <LoadingSpinner
+                    color="text-current"
                     size={16}
-                    className="shrink-0 animate-spin motion-reduce:animate-none text-theme-text-tertiary"
+                    className="shrink-0 text-theme-text-tertiary"
                   />
                 ) : expanded ? (
                   <FolderOpen
@@ -425,9 +425,10 @@ export function WorkspacePanel({
               style={{ paddingLeft: padding + 21 }}
             >
               {isLoading ? (
-                <Loader2
+                <LoadingSpinner
+                  color="text-current"
                   size={18}
-                  className="shrink-0 animate-spin motion-reduce:animate-none"
+                  className="shrink-0"
                 />
               ) : (
                 <Icon
@@ -720,7 +721,7 @@ export function WorkspacePanel({
                     role="status"
                     className="flex items-center justify-center gap-2 pt-6 text-12 text-theme-text-secondary"
                   >
-                    <LoadingSpinner size="sm" />
+                    <LoadingSpinner color="text-current" size="sm" />
                     {t("common.loading")}
                   </div>
                 ) : root.length === 0 ? (

@@ -27,6 +27,7 @@ import { ToolbarIconButton } from "../../common/ui/ToolbarIconButton";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { ModelSelector } from "../../agent/ModelSelector";
 import { UserMenu } from "../UserMenu";
+import { ComposerUsageChip } from "../../chat/ComposerUsageChip";
 import { ShareDialog } from "../../share/ShareDialog";
 import { useAuth } from "../../../hooks/useAuth";
 import { useTheme } from "../../../contexts/ThemeContext";
@@ -42,14 +43,11 @@ import {
 } from "../DesktopSidebarShell/desktopShellPlatform";
 import { Permission } from "../../../types";
 import type { TabType } from "./types";
-import type { Project } from "../../../types";
 
 interface HeaderProps {
   activeTab: TabType;
   headerActions?: ReactNode;
   setMobileSidebarOpen: (open: boolean) => void;
-  currentProjectId: string | null;
-  projectManager: { projects: Project[] };
   onNewSession: () => void;
   onShowProfile: () => void;
   availableModels?:
@@ -72,8 +70,6 @@ export function Header({
   activeTab,
   headerActions,
   setMobileSidebarOpen,
-  currentProjectId,
-  projectManager,
   onNewSession,
   onShowProfile,
   availableModels,
@@ -322,28 +318,6 @@ export function Header({
                   />
                 )}
 
-              {currentProjectId &&
-                (() => {
-                  const project = projectManager.projects.find(
-                    (p) => p.id === currentProjectId,
-                  );
-                  if (!project) return null;
-                  return (
-                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-[var(--color-background-muted)] border border-[var(--color-border)]">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        className="size-3 text-[var(--color-text-tertiary)]"
-                      >
-                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z" />
-                      </svg>
-                      <span className="text-12 text-[var(--color-text-secondary)] truncate max-w-[120px]">
-                        {project.name}
-                      </span>
-                    </div>
-                  );
-                })()}
             </>
           ) : (
             <div className="flex items-center gap-1.5">
@@ -411,6 +385,7 @@ export function Header({
           </div>
 
           {headerActions}
+          <ComposerUsageChip />
           <UserMenu onShowProfile={onShowProfile} />
         </div>
       </header>

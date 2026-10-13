@@ -1291,95 +1291,35 @@ html.dark .blog-landing-container::after {
 
 .auto-login-splash-brand {
   display: flex;
+  width: min(100%, 20rem);
+  padding: 1.5rem;
   flex-direction: column;
   align-items: center;
-  animation: fade-in 0.3s ease-out;
+  text-align: center;
 }
 
 .auto-login-splash-logo {
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 1.25rem;
-}
-
-.auto-login-splash-logo-halo {
-  position: absolute;
-  inset: -14px;
-  border-radius: 9999px;
-  border: 1px solid var(--theme-border);
-  animation: auto-login-halo 2.4s ease-in-out infinite;
+  margin-bottom: 0.875rem;
 }
 
 .auto-login-splash-wordmark {
   color: var(--theme-text);
-  margin-bottom: 0.875rem;
+  margin-bottom: 1.25rem;
 }
 
 .auto-login-splash-status {
-  font-size: 0.875rem;
-  letter-spacing: 0.02em;
-  color: var(--theme-text-secondary);
-  margin: 0 0 1.5rem;
-}
-
-.auto-login-splash-dots {
   display: flex;
-  gap: 0.5rem;
-}
-
-.auto-login-splash-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 9999px;
-  background: var(--theme-text-secondary);
-  animation: auto-login-dot 1.4s ease-in-out infinite;
-}
-
-.auto-login-splash-dot:nth-child(2) {
-  animation-delay: 0.18s;
-}
-
-.auto-login-splash-dot:nth-child(3) {
-  animation-delay: 0.36s;
-}
-
-@keyframes auto-login-halo {
-
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.5;
-  }
-
-  50% {
-    transform: scale(1.12);
-    opacity: 1;
-  }
-}
-
-@keyframes auto-login-dot {
-
-  0%,
-  100% {
-    transform: translateY(0) scale(0.9);
-    opacity: 0.55;
-  }
-
-  40% {
-    transform: translateY(-5px) scale(1.15);
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-
-  .auto-login-splash-brand,
-  .auto-login-splash-logo-halo,
-  .auto-login-splash-dot {
-    animation: none !important;
-  }
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  margin: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 /* Public pages share the auth brand scene and quiet editorial hierarchy. */
@@ -1588,7 +1528,7 @@ html.dark .public-brand-hero {
 .blog-landing-container nav,
 .blog-tech-pill:not(.font-serif),
 .public-eyebrow {
-  font-family: 'Source Sans 3', system-ui, sans-serif;
+  font-family: "Source Sans 3", system-ui, sans-serif;
 }
 
 .public-brand-link {
@@ -1660,7 +1600,7 @@ html.dark .public-brand-hero {
 .public-eyebrow {
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: .14em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--theme-text-secondary);
   margin-bottom: 20px;
@@ -1670,7 +1610,7 @@ html.dark .public-brand-hero {
   font-size: clamp(30px, 3.2vw, 44px);
   font-weight: 500;
   line-height: 1.3;
-  letter-spacing: -.025em;
+  letter-spacing: -0.025em;
   color: var(--theme-text);
   text-wrap: balance;
 }

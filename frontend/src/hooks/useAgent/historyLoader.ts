@@ -298,11 +298,21 @@ function processHistoryEvent(
 
   // Manage subagent stack
   if (eventType === "agent:call") {
-    opts.activeSubagentStack.push({
-      agent_id: agentId || "unknown",
-      depth,
-      message_id: msg.id,
-    });
+    const messageId = msg.id;
+    if (
+      !opts.activeSubagentStack.some(
+        (item) =>
+          item.agent_id === (agentId || "unknown") &&
+          item.depth === depth &&
+          item.message_id === messageId,
+      )
+    ) {
+      opts.activeSubagentStack.push({
+        agent_id: agentId || "unknown",
+        depth,
+        message_id: messageId,
+      });
+    }
   }
 
   // Use unified event processor

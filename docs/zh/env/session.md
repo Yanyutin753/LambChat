@@ -6,7 +6,7 @@
 
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
-| `SESSION_MAX_RUNS_PER_SESSION` | `100` | 每个会话的最大 Agent 运行次数。 |
+| `SESSION_MAX_RUNS_PER_SESSION` | `10000` | 每个会话的最大 Agent 运行次数。 |
 | `SESSION_MAX_MESSAGES` | `20` | 每个会话加载的最大消息数（内部配置，不在 `.env` 中）。 |
 | `SESSION_MAX_EVENTS_PER_TRACE` | `50000` | 每个 trace 保留的最大事件数，防止内存溢出。 |
 | `SESSION_EVENT_CHUNK_STORAGE_ENABLED` | `false` | 将新 trace 事件写入 `trace_event_chunks`，而不是旧的 `traces.events` 数组。 |
@@ -46,7 +46,7 @@
 
 ```bash
 # .env
-SESSION_MAX_RUNS_PER_SESSION=100
+SESSION_MAX_RUNS_PER_SESSION=10000
 ENABLE_MESSAGE_HISTORY=true
 SSE_CACHE_TTL=86400
 SESSION_EVENT_CHUNK_STORAGE_ENABLED=false

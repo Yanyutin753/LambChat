@@ -173,7 +173,9 @@ test("keeps chat input skeleton structure 1:1 with real ChatInput", () => {
     /className="chat-input-toolbar ([^"]+)"/,
   )?.[1];
   expect(toolbarClasses).toBeTruthy();
-  expect(chatSkeletonsSource).toContain(`className="${toolbarClasses}"`);
+  expect(chatSkeletonsSource).toContain(
+    `className="chat-input-toolbar ${toolbarClasses}"`,
+  );
   expect(chatSkeletonsSource).toMatch(
     /className="chat-tool-btn group shrink min-w-0 overflow-hidden pointer-events-none"/,
   );

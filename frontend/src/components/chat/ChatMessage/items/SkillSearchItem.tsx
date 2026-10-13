@@ -71,7 +71,7 @@ function SkillSearchDetail({ args, result }: ToolDetailProps) {
   return (
     <div className="flex h-full min-h-0 flex-col space-y-3 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
       {query && (
-        <ToolArgsBlock size="detail">
+        <ToolArgsBlock size="detail" copyText={query}>
           <Search
             size={14}
             className="shrink-0 text-violet-500 dark:text-violet-400"
@@ -174,7 +174,7 @@ const SkillSearchItem = memo(function SkillSearchItem({
         : "error";
 
   const titleLabel = t("chat.message.toolSkillSearch");
-  const pillLabel = `${titleLabel} ${query ? `"${truncate(query, 24)}"` : ""}${
+  const pillLabel = `${titleLabel} ${query ? `"${query}"` : ""}${
     matches.length > 0 ? ` (${matches.length})` : ""
   }`.trim();
 
@@ -224,7 +224,7 @@ const SkillSearchItem = memo(function SkillSearchItem({
       {canExpand && (
         <ToolInlineDetails>
           {query && (
-            <ToolArgsBlock size="compact">
+            <ToolArgsBlock size="compact" copyText={query}>
               <Search
                 size={12}
                 className="shrink-0 text-violet-500 dark:text-violet-400"

@@ -1,13 +1,8 @@
+import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { SceneIllustration } from "../../common/SceneIllustration";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Wrench,
-  ToggleLeft,
-  ToggleRight,
-  Loader2,
-  RefreshCw,
-} from "lucide-react";
+import { Wrench, ToggleLeft, ToggleRight, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import { authenticatedRequest } from "../../../services/api/authenticatedRequest";
 import { API_BASE } from "../../../services/api/config";
@@ -228,9 +223,10 @@ export function ProfileToolsTab() {
                           }
                         >
                           {isPending ? (
-                            <Loader2
+                            <LoadingSpinner
+                              color="text-current"
                               size={16}
-                              className="animate-spin text-theme-text-tertiary"
+                              className="text-theme-text-tertiary"
                             />
                           ) : isUserDisabled ? (
                             <ToggleLeft

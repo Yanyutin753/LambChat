@@ -30,8 +30,7 @@ import {
 } from "./desktopShellPlatform";
 
 const WIDTH_STORAGE_KEY = "lambchat_desktop_sidebar_width";
-const DEFAULT_WIDTH = 290;
-const MIN_WIDTH = 290;
+const MIN_WIDTH = 260;
 const MAX_WIDTH_CAP = 480;
 const MAX_WIDTH_RATIO = 0.5;
 
@@ -46,13 +45,15 @@ function clampWidth(value: number): number {
 }
 
 function readStoredWidth(): number {
+  const viewport = typeof window === "undefined" ? 1280 : window.innerWidth;
+  const defaultWidth = viewport >= 1280 ? 320 : viewport >= 1024 ? 288 : 260;
   try {
     const saved = Number(localStorage.getItem(WIDTH_STORAGE_KEY));
     return Number.isFinite(saved) && saved > 0
       ? clampWidth(saved)
-      : DEFAULT_WIDTH;
+      : clampWidth(defaultWidth);
   } catch {
-    return DEFAULT_WIDTH;
+    return clampWidth(defaultWidth);
   }
 }
 

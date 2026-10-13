@@ -462,6 +462,10 @@ async def lifespan(app: FastAPI):
 
     await _run_startup_indexes(app)
 
+    from src.infra.onboarding.starter_pack import ensure_starter_personas
+
+    await ensure_starter_personas()
+
     # 启动分布式运行时监听器（任务/设置/模型/记忆/WebSocket）
     await start_runtime_services()
     logger.info("Runtime distributed listeners started")

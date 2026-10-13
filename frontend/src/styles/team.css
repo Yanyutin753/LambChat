@@ -61,7 +61,7 @@
   transform: translateX(16px);
 }
 .dark .team-toggle {
-  background: #57534e;
+  background: var(--theme-neutral-600);
 }
 .dark .team-toggle--on {
   background: #f59e0b;

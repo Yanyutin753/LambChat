@@ -1,13 +1,7 @@
+import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { useCallback, useEffect } from "react";
 import { clsx } from "clsx";
-import {
-  CheckCircle,
-  XCircle,
-  Ban,
-  ChevronRight,
-  Loader2,
-  Bot,
-} from "lucide-react";
+import { CheckCircle, XCircle, Ban, ChevronRight, Bot } from "lucide-react";
 import { getEmojiAssetUrl } from "../../../utils/emojiAssets";
 import { useTranslation } from "react-i18next";
 import { hasOpenRightPanel } from "../../common/rightPanelCoordinator";
@@ -56,12 +50,10 @@ function SubagentStatusIcon({
 }) {
   if (status === "running") {
     return (
-      <Loader2
+      <LoadingSpinner
+        color="text-current"
         size={size}
-        className={clsx(
-          "text-amber-500 dark:text-amber-400 animate-spin",
-          className,
-        )}
+        className={clsx("text-amber-500 dark:text-amber-400", className)}
       />
     );
   }

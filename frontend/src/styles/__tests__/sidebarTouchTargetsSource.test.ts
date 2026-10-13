@@ -26,7 +26,7 @@ test("phone navigation uses compact 40px rows while action sheets retain 44px co
   );
   expect(sidebar).toContain("gap-0 sm:gap-px");
   expect(sidebar).toContain("space-y-0 sm:space-y-1");
-  expect(sidebar).toContain("h-9 items-center");
+  expect(sidebar).toContain("h-9 w-9");
   expect(css).toMatch(
     /\.session-sidebar-drawer input\s*\{[^}]*min-height:\s*2\.75rem;[^}]*font-size:\s*1rem;/,
   );

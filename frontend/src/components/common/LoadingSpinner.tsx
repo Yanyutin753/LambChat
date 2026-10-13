@@ -1,7 +1,10 @@
+import { twMerge } from "tailwind-merge";
+import { useTranslation } from "react-i18next";
+
 export type LoadingSize = "xs" | "sm" | "md" | "lg" | "xl";
 
 interface LoadingSpinnerProps {
-  size?: LoadingSize;
+  size?: LoadingSize | number;
   className?: string;
   static?: boolean;
   color?: string;
@@ -21,35 +24,37 @@ export function LoadingSpinner({
   static: isStatic = false,
   color = "",
 }: LoadingSpinnerProps) {
-  const sizeValue = sizeMap[size];
+  const sizeValue = typeof size === "number" ? size : sizeMap[size];
 
   return (
     <svg
+      aria-hidden="true"
+      focusable="false"
       width={sizeValue}
       height={sizeValue}
       viewBox="0 0 24 24"
       fill="none"
-      className={`${color || "text-stone-500 dark:text-stone-300"} ${
-        isStatic ? "" : "spinner-rotate"
-      } ${className}`}
+      className={twMerge(
+        color || "text-theme-text-secondary",
+        isStatic ? "" : "spinner-rotate",
+        "shrink-0",
+        className,
+      )}
     >
-      <circle
-        cx="12"
-        cy="12"
-        r="10"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        opacity="0.12"
-      />
-      <circle
-        cx="12"
-        cy="12"
-        r="10"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeDasharray="16 47"
-      />
+      {Array.from({ length: 8 }, (_, index) => (
+        <line
+          key={index}
+          x1="12"
+          y1="3"
+          x2="12"
+          y2="6"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          transform={`rotate(${index * 45} 12 12)`}
+          opacity={(index + 1) / 8}
+        />
+      ))}
     </svg>
   );
 }
@@ -61,17 +66,16 @@ interface LoadingProps {
 }
 
 export function Loading({ text, size = "md", className = "" }: LoadingProps) {
+  const { t } = useTranslation();
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label={text ? undefined : t("common.loading")}
+      className={`flex items-center gap-2.5 ${className}`}
+    >
       <LoadingSpinner size={size} />
-      {text && (
-        <span
-          className="text-14"
-          style={{ color: "var(--theme-text-secondary)" }}
-        >
-          {text}
-        </span>
-      )}
+      {text && <span className="loading-label text-14">{text}</span>}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { LanguageToggle } from "../common/LanguageToggle";
 /**
  * SharedPage - Public view of a shared session
@@ -5,7 +6,14 @@ import { LanguageToggle } from "../common/LanguageToggle";
  */
 
 import { SceneIllustration } from "../common/SceneIllustration";
-import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useMemo,
+  useRef,
+  useCallback,
+} from "react";
 import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -15,7 +23,6 @@ import {
   Coffee,
   ExternalLink,
   MessageCircle,
-  Loader2,
   XCircle,
 } from "lucide-react";
 import { BackIcon } from "../common/BackIcon";
@@ -28,7 +35,16 @@ import { SessionImageGalleryProvider } from "../chat/ChatMessage/sessionImageGal
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
 import { BrandLogo } from "../common/BrandLogo";
 import { RevealPreviewHost } from "../chat/ChatMessage/items/RevealPreviewHost";
-import { PersistentToolPanelHost } from "../chat/ChatMessage/items/persistentToolPanelState";
+import {
+  PersistentToolPanelHost,
+  closeAllPersistentToolPanels,
+} from "../chat/ChatMessage/items/persistentToolPanelState";
+import { syncSubagentPanelStore } from "../chat/ChatMessage/subagentPanelState";
+import { subagentPanelStore } from "../chat/ChatMessage/subagentPanelStore";
+import {
+  syncToolCallPanelStore,
+  toolCallPanelStore,
+} from "../chat/ChatMessage/toolCallPanelStore";
 import { AttachmentPreviewHost } from "../chat/AttachmentPreviewHost";
 import type { RevealPreviewRequest } from "../chat/ChatMessage/items/revealPreviewData";
 import {
@@ -197,6 +213,21 @@ export function SharedPage({
       activeSubagentStack: [],
     });
   }, [data?.events]);
+
+  useLayoutEffect(() => {
+    const clear = () => {
+      closeAllPersistentToolPanels();
+      toolCallPanelStore.clear();
+      subagentPanelStore.clear();
+    };
+    clear();
+    return clear;
+  }, [shareId]);
+
+  useLayoutEffect(() => {
+    syncToolCallPanelStore(messages);
+    syncSubagentPanelStore(messages);
+  }, [messages]);
 
   const [activePreviewState, setActivePreviewState] =
     useState<ActiveRevealPreviewState | null>(null);
@@ -634,14 +665,12 @@ export function SharedPage({
                         const iconUrl = getModelIconUrl(
                           data.session.model,
                           (data.session as Record<string, unknown>).provider as
-                            | string
-                            | undefined,
+                            string | undefined,
                         );
                         const mono = isMonochromeIcon(
                           data.session.model,
                           (data.session as Record<string, unknown>).provider as
-                            | string
-                            | undefined,
+                            string | undefined,
                         );
                         return iconUrl ? (
                           <ImageWithSkeleton
@@ -676,7 +705,7 @@ export function SharedPage({
                       }`}
                     >
                       {data.session.task_status === "running" && (
-                        <Loader2 size={10} className="animate-spin" />
+                        <LoadingSpinner color="text-current" size={10} />
                       )}
                       {data.session.task_status === "failed" && (
                         <XCircle size={10} />

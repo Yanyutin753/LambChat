@@ -119,7 +119,7 @@ function EnvVarDetail({ args, result }: ToolDetailProps) {
         <pre className="group/result relative text-12 text-theme-text-tertiary whitespace-pre-wrap break-words p-3 rounded-lg bg-theme-bg border border-theme-border">
           {(() => {
             const text = extractText(result);
-            return text.length > 600 ? text.slice(0, 597) + "…" : text;
+            return text;
           })()}
           <ToolHoverCopyButton
             text={extractText(result)}
@@ -212,7 +212,7 @@ const EnvVarItem = memo(function EnvVarItem({
         ? "success"
         : "error";
 
-  const labelSuffix = key || (allKeys.length > 0 ? `${allKeys.length}` : "");
+  const labelSuffix = key || allKeys.join(", ");
 
   // ── Panel detail content ──
 

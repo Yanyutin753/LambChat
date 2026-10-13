@@ -1,3 +1,4 @@
+import { LoadingSpinner } from "../common/LoadingSpinner";
 /**
  * Usage Details Panel — Token consumption tracking
  */
@@ -446,7 +447,7 @@ export function UsagePanel() {
         {isLoading && logs.length > 0 && (
           <div className="pointer-events-none mb-2 flex justify-center">
             <div className="inline-flex items-center gap-1.5 rounded-full bg-[var(--glass-bg-card)] px-3 py-1 text-11 text-theme-text-tertiary shadow-sm ring-1 ring-inset ring-[var(--theme-border-faint)]">
-              <RefreshCw size={10} className="animate-spin" />
+              <LoadingSpinner size={10} color="text-current" />
               {t("usage.refreshing")}
             </div>
           </div>

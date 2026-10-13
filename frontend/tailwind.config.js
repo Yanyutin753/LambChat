@@ -1,3 +1,5 @@
+import colors from "tailwindcss/colors.js";
+
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: "class",
@@ -53,6 +55,13 @@ export default {
         ],
       },
       colors: {
+        // Legacy stone utilities follow the active neutral scale, including /opacity.
+        stone: Object.fromEntries(
+          Object.entries(colors.stone).map(([shade, color]) => [
+            shade,
+            `color-mix(in srgb, var(--theme-neutral-${shade}, ${color}) calc(<alpha-value> * 100%), transparent)`,
+          ]),
+        ),
         // 裸 var() 字符串无法承载透明度修饰符（border-theme-border/60 会
         // 静默不生成，边框回落 preflight 默认 #e5e7eb，深色模式呈现白边），
         // 因此统一走 color-mix + <alpha-value>：无修饰符时 100% 混合等于

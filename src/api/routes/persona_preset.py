@@ -2,9 +2,10 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, Query
+from fastapi import APIRouter, Body, Depends, Header, Query
 
 from src.api.deps import require_permissions
+from src.infra.onboarding.starter_pack import initialize_user_starter_pack, localize_starter_persona
 from src.infra.persona_preset.manager import PersonaPresetManager
 from src.kernel.errors import AppError, ErrorCode
 from src.kernel.exceptions import NotFoundError
@@ -39,6 +40,7 @@ async def list_persona_presets(
     pinned: bool | None = None,
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=200),
+    language: str = Header(default="en", alias="Accept-Language"),
     user: TokenPayload = Depends(require_permissions("persona_preset:read")),
 ):
     """List visible persona presets."""
@@ -67,7 +69,7 @@ async def list_persona_presets(
         limit=limit,
     )
     return PersonaPresetListResponse(
-        presets=presets,
+        presets=[localize_starter_persona(preset, language) for preset in presets],
         total=total,
         skip=skip,
         limit=limit,
@@ -170,16 +172,19 @@ async def copy_persona_preset(
 @router.post("/{preset_id}/use", response_model=PersonaPresetSnapshot)
 async def use_persona_preset(
     preset_id: str,
+    language: str = Header(default="en", alias="Accept-Language"),
     user: TokenPayload = Depends(require_permissions("persona_preset:read")),
 ):
     """Resolve a persona preset into a runtime snapshot."""
     try:
-        return await _manager().use_preset(
+        await initialize_user_starter_pack(user.sub)
+        snapshot = await _manager().use_preset(
             preset_id,
             user_id=user.sub,
             is_admin=_is_admin(user),
             user_roles=list(user.roles or []),
         )
+        return localize_starter_persona(snapshot, language)
     except NotFoundError:
         raise AppError(ErrorCode.PERSONA_PRESET_NOT_FOUND)
 

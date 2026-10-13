@@ -34,7 +34,7 @@ const SEGMENT_STYLE: Record<
   },
 };
 
-/** 输入框工具栏的当日用量入口：金额 chip + 点击弹出用量卡（Token 构成 / 缓存命中 / 详情入口）。 */
+/** 页头的当日用量入口：金额 chip + 点击弹出用量卡（Token 构成 / 缓存命中 / 详情入口）。 */
 export function ComposerUsageChip() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -43,7 +43,7 @@ export function ComposerUsageChip() {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
 
-  // ChatInput 每次按键都会重渲染，快照（含 Intl.NumberFormat 构造）必须 memo，输入依赖不变时零开销
+  // 快照包含 Intl.NumberFormat 构造，只在用量或语言变化时重算。
   const snapshot = useMemo(
     () =>
       buildTodayUsageSnapshot(stats, {
@@ -97,12 +97,14 @@ export function ComposerUsageChip() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label={label}
+        aria-expanded={open}
+        aria-controls={open ? "composer-usage-popover" : undefined}
         className="chat-tool-btn shrink-0"
         title={label}
       >
         <span className="flex items-center gap-2">
           <Activity size={16} className="shrink-0" />
-          <span className="composer-usage-amount hidden sm:inline max-w-40 sm:max-w-52 truncate text-14 leading-5 font-semibold text-blue-600 dark:text-blue-400 font-serif tabular-nums">
+          <span className="composer-usage-amount hidden sm:inline max-w-40 sm:max-w-52 truncate text-14 leading-5 font-semibold text-theme-text-secondary font-serif tabular-nums">
             {snapshot.amount}
           </span>
         </span>
@@ -112,7 +114,7 @@ export function ComposerUsageChip() {
         createPortal(
           <div
             id="composer-usage-popover"
-            className="feature-menu-dropdown font-serif"
+            className="feature-menu-dropdown font-serif overflow-y-auto"
             style={position}
           >
             {/* ── 头部：今日用量 + 金额 ── */}

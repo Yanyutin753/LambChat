@@ -169,7 +169,7 @@ const ExecuteItem = memo(function ExecuteItem({
   const { label, isStreamingLabel } = useToolStreamingLabel(
     command
       ? `${t("chat.message.toolExecute")} ${
-          command.length > 80 ? command.slice(0, 77) + "…" : command
+          command
         }`
       : t("chat.message.toolExecute"),
     args,

@@ -27,6 +27,7 @@ import {
   EnvVarItem,
   PersonaItem,
   TeamItem,
+  SubagentControlItem,
   MemoryRecallItem,
   MemoryStoreItem,
   AskHumanItem,
@@ -449,6 +450,25 @@ export function MessagePartRenderer({
     ) {
       return (
         <TeamItem
+          id={part.id}
+          toolName={part.name}
+          args={toolArgs}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (
+      part.name === "send_subagent_message" ||
+      part.name === "send_parent_message" ||
+      part.name === "wait_subagent"
+    ) {
+      return (
+        <SubagentControlItem
           id={part.id}
           toolName={part.name}
           args={toolArgs}

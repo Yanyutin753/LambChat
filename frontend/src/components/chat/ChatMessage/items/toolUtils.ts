@@ -130,3 +130,27 @@ export function extractPaths(
     .map((line) => line.trim())
     .filter(Boolean);
 }
+
+/** Unwrap text-only MCP envelopes for reading without hiding other result fields. */
+export function parseToolPanelResult(
+  result: string | Record<string, unknown> | undefined,
+) {
+  let parsed: unknown = result;
+  if (typeof result === "string") {
+    try {
+      parsed = JSON.parse(result);
+    } catch {
+      return result;
+    }
+  }
+  if (
+    parsed && typeof parsed === "object" &&
+    Object.keys(parsed).length === 1 &&
+    "content" in parsed && Array.isArray(parsed.content) &&
+    parsed.content.length > 0 &&
+    parsed.content.every((block) => block?.type === "text" && typeof block.text === "string")
+  ) {
+    return parsed.content.map((block) => block.text).join("\n\n");
+  }
+  return result;
+}

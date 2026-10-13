@@ -44,7 +44,7 @@ function ReadFileImagePreview({
 }) {
   const { t } = useTranslation();
   return (
-    <figure className="overflow-hidden rounded-lg border border-theme-border bg-theme-bg">
+    <figure className="w-full max-w-md overflow-hidden rounded-lg border border-theme-border bg-theme-bg">
       <button
         type="button"
         className="block w-full bg-theme-bg-elevated cursor-zoom-in"
@@ -122,7 +122,7 @@ function ReadFileDetail({ args, result }: ToolDetailProps) {
 
   return (
     <div className="p-4 sm:p-5 space-y-3 tool-panel-content">
-      <ToolArgsBlock size="detail">
+      <ToolArgsBlock size="detail" copyText={filePath}>
         <span className="truncate">{filePath}</span>
         {lineRange && (
           <span className="shrink-0 text-theme-text-tertiary">{lineRange}</span>
@@ -305,7 +305,7 @@ const ReadFileItem = memo(function ReadFileItem({
         {hasContent && (
           <ToolInlineDetails>
             {filePath && (
-              <ToolArgsBlock size="compact">
+              <ToolArgsBlock size="compact" copyText={filePath}>
                 <span className="truncate">{filePath}</span>
                 {lineRange && (
                   <span className="shrink-0 text-theme-text-tertiary">

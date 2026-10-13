@@ -8,8 +8,8 @@ from bson import ObjectId
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
 
-_SEARCH_TOKEN_RE = re.compile(r"[A-Za-z0-9_]+|[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]+")
-_SEARCH_HAS_LITERAL_RE = re.compile(r"[A-Za-z0-9_\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]")
+_SEARCH_TOKEN_RE = re.compile(r"[A-Za-z0-9_]+|[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]+|[^\W\d_]+")
+_SEARCH_HAS_LITERAL_RE = re.compile(r"\w")
 PERSONA_PRESET_LIST_LIMIT = 200
 PERSONA_PRESET_BATCH_LOOKUP_LIMIT = 4_000
 
@@ -35,7 +35,7 @@ def _build_persona_search_terms(text: str | None) -> list[str]:
 
     for match in _SEARCH_TOKEN_RE.finditer(text):
         token = match.group(0)
-        if token.isascii():
+        if token.isascii() or not re.search(r"[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]", token):
             add(token)
             continue
 
@@ -482,6 +482,7 @@ class PersonaPresetStorage:
                                 "$or": [
                                     {"name": {"$regex": term, "$options": "i"}},
                                     {"description": {"$regex": term, "$options": "i"}},
+                                    {"starter_search_text": {"$regex": term, "$options": "i"}},
                                     {"tags": {"$elemMatch": {"$regex": term, "$options": "i"}}},
                                     {
                                         "skill_names": {

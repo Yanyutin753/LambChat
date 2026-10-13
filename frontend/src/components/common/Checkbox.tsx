@@ -1,4 +1,5 @@
-import { Check, LoaderCircle } from "lucide-react";
+import { LoadingSpinner } from "./LoadingSpinner";
+import { Check } from "lucide-react";
 
 type CheckboxProps = {
   checked: boolean;
@@ -71,10 +72,11 @@ export function Checkbox({
         />
       )}
       {pending ? (
-        <LoaderCircle
+        <LoadingSpinner
+          color="text-current"
           size={iconSizes[size]}
           aria-hidden="true"
-          className="animate-spin text-[var(--theme-primary)] motion-reduce:animate-none"
+          className="text-[var(--theme-primary)]"
         />
       ) : checked ? (
         <Check

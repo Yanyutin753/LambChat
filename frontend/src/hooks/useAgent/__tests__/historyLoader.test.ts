@@ -6,7 +6,65 @@ import {
 } from "../historyLoader.ts";
 import { vi } from "vitest";
 import type { Message } from "../../../types";
-import type { HistoryEvent } from "../types.ts";
+import type { HistoryEvent, SubagentStackItem } from "../types.ts";
+
+test("history replay keeps one pending execution and one stack entry for repeated agent calls", () => {
+  const activeSubagentStack: SubagentStackItem[] = [];
+  const events: HistoryEvent[] = [
+    { event_type: "user:message", run_id: "run-1", data: { content: "task" } },
+    {
+      event_type: "agent:call",
+      run_id: "run-1",
+      data: {
+        agent_id: "stable-agent",
+        agent_name: "Researcher",
+        input: "task",
+        depth: 1,
+      },
+    },
+    {
+      event_type: "message:chunk",
+      run_id: "run-1",
+      data: { agent_id: "stable-agent", content: "before approval", depth: 1 },
+    },
+    {
+      event_type: "agent:call",
+      run_id: "run-1",
+      data: {
+        agent_id: "stable-agent",
+        agent_name: "Researcher",
+        input: "resume",
+        depth: 1,
+      },
+    },
+  ];
+  const messages = reconstructMessagesFromEvents(events, new Set<string>(), {
+    activeSubagentStack,
+  });
+  const execution = messages[1].parts?.[0];
+  expect(messages[1].parts).toHaveLength(1);
+  expect(execution).toMatchObject({
+    type: "subagent",
+    parts: [{ type: "text", content: "before approval" }],
+  });
+  expect(activeSubagentStack).toHaveLength(1);
+
+  const completedStack: SubagentStackItem[] = [];
+  const completed = reconstructMessagesFromEvents(
+    [
+      ...events,
+      {
+        event_type: "agent:result",
+        run_id: "run-1",
+        data: { agent_id: "stable-agent", result: "done", depth: 1 },
+      },
+    ],
+    new Set<string>(),
+    { activeSubagentStack: completedStack },
+  );
+  expect(completedStack).toEqual([]);
+  expect(completed[1].parts?.[0]).toMatchObject({ isPending: false, result: "done" });
+});
 
 test("reconstructMessagesFromEvents preserves backend user message ids", () => {
   const messages = reconstructMessagesFromEvents(

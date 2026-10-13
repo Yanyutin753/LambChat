@@ -251,6 +251,12 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         await debug_log_event(event, self._debug_log_context())
         evt_type = event.get("event")
         event_name = event.get("name", "")
+        if evt_type == "on_custom_event" and event_name == "lambchat_subagent_message":
+            await self._handle_subagent_message(event)
+            return
+        if evt_type == "on_custom_event" and event_name == "lambchat_subagent":
+            await self._handle_persistent_subagent_event(event)
+            return
 
         # ── Rubric grader chain detection ──
         # The RubricMiddleware runs a grader sub-agent inside the graph.
@@ -303,6 +309,8 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
             return
 
         if tool_name == TOOL_TASK:
+            if event.get("metadata", {}).get("lambchat_managed_task"):
+                return
             match evt_type:
                 case "on_tool_start":
                     await self._handle_task_start(event)
@@ -335,7 +343,12 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
 
         checkpoint_ns = None
         checkpoint_ns = self._get_checkpoint_ns(metadata)
-        current_agent_id, current_depth = self._get_agent_context(checkpoint_ns)
+        stable_subagent_id = metadata.get("lambchat_subagent_id")
+        current_agent_id, current_depth = (
+            (stable_subagent_id, 1)
+            if isinstance(stable_subagent_id, str) and stable_subagent_id
+            else self._get_agent_context(checkpoint_ns)
+        )
 
         if current_depth and logger.isEnabledFor(logging.DEBUG):
             logger.debug(

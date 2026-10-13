@@ -170,6 +170,9 @@ export function ToolResultPanel({
   });
 
   const effectiveOnBack = onBack;
+  const compactPanel =
+    registryKey?.startsWith("persistent:subagent-") ||
+    registryKey?.startsWith("persistent:session-todos:");
 
   const {
     isMobile,
@@ -186,9 +189,13 @@ export function ToolResultPanel({
     open: entry.active,
     onClose: handleUserClose,
     kind: "content",
-    widthStorageKey: WIDTH_STORAGE_KEY,
+    widthStorageKey: compactPanel
+      ? "conversation-preview-width"
+      : WIDTH_STORAGE_KEY,
     widthCssVar: WIDTH_CSS_VAR,
-    defaultWidthPct: DEFAULT_WIDTH_PCT,
+    defaultWidthPct: compactPanel
+      ? Math.min(32, Math.floor(48000 / window.innerWidth))
+      : DEFAULT_WIDTH_PCT,
     minPanelPx: 360,
     dataAttr: "data-sidebar-preview",
     presentationOverride: isFullscreen
@@ -465,54 +472,22 @@ export function ToolResultPanel({
 
               {/* Title */}
               {title && (
-                <div className="tool-console-title-row flex items-baseline gap-2 min-w-0 flex-1 overflow-hidden font-serif">
+                <div className="tool-console-title-row flex items-baseline gap-2 min-w-0 flex-1 font-serif">
                   <h3
                     id={titleId}
-                    className={`tool-console-title min-w-0 truncate leading-6 font-medium text-14 text-theme-text ${
-                      subtitle ? "max-w-[40%]" : "max-w-full"
-                    }`}
+                    className="tool-console-title min-w-0 max-w-full truncate leading-6 font-medium text-14 text-theme-text"
                     title={title}
                   >
                     {title}
                   </h3>
-                  {subtitle &&
-                    (() => {
-                      const segments = subtitle.split(/\s+/).filter(Boolean);
-                      const isTagList =
-                        segments.length > 1 &&
-                        segments.every((s) => s.length <= 20);
-                      if (!isTagList) {
-                        return (
-                          <span
-                            className="tool-console-subtitle-pill min-w-0 max-w-[45vw] sm:max-w-[min(32rem,52%)] truncate font-sans text-12 font-normal leading-5 text-theme-text-tertiary"
-                            title={subtitle}
-                          >
-                            {subtitle}
-                          </span>
-                        );
-                      }
-                      const maxVisible = 4;
-                      const visible = segments.slice(0, maxVisible);
-                      const overflow = segments.length - maxVisible;
-                      return (
-                        <div className="tool-console-subtitle-list flex items-baseline gap-1 min-w-0 max-w-[45vw] sm:max-w-[min(32rem,52%)] overflow-hidden">
-                          {visible.map((tag, i) => (
-                            <span
-                              key={i}
-                              className="tool-console-subtitle-chip min-w-0 shrink-0 max-w-full truncate font-sans text-12 font-normal leading-5 text-theme-text-tertiary"
-                              title={tag}
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                          {overflow > 0 && (
-                            <span className="tool-console-subtitle-overflow shrink-0 font-sans text-12 font-normal leading-5 text-theme-text-tertiary tabular-nums">
-                              +{overflow}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })()}
+                  {subtitle && (
+                    <span
+                      className="tool-console-subtitle-pill min-w-0 max-w-full truncate font-sans text-12 font-normal leading-5 text-theme-text-tertiary"
+                      title={subtitle}
+                    >
+                      {subtitle}
+                    </span>
+                  )}
                 </div>
               )}
 
@@ -539,7 +514,7 @@ export function ToolResultPanel({
             aria-busy={!contentReady}
           >
             <div
-              className={`tool-console-body__content h-full min-h-full transition-opacity duration-150 ${
+              className={`tool-console-body__content tool-readable font-serif h-full min-h-full transition-opacity duration-150 ${
                 contentReady ? "opacity-100" : "opacity-0"
               }`}
               aria-hidden={!contentReady}

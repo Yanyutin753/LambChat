@@ -39,3 +39,23 @@ test("projects use a closed folder when collapsed and an open folder when expand
   expect(source).not.toContain("<DynamicIcon");
   expect(source).not.toContain("handleStartIconEdit");
 });
+
+test("project detail, new chat and menu icons share theme colors", () => {
+  const source = readFileSync(
+    new URL("../ProjectItem.tsx", import.meta.url),
+    "utf8",
+  );
+  const details = readFileSync(
+    new URL("../ProjectWorkspaceField.tsx", import.meta.url),
+    "utf8",
+  );
+  const actions = source.slice(
+    source.indexOf("{/* Project actions */}"),
+    source.indexOf("{/* Expandable content"),
+  );
+  const colors =
+    "text-theme-text-secondary hover:text-theme-text focus-visible:text-theme-text";
+  expect(actions.match(new RegExp(colors, "g"))).toHaveLength(2);
+  expect(details).toContain(colors);
+  expect(actions).not.toMatch(/text-stone-/);
+});

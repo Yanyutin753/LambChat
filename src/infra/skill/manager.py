@@ -79,6 +79,9 @@ class SkillManager:
         if not self.user_id or not self.storage:
             return {}
         try:
+            from src.infra.onboarding.starter_pack import initialize_user_starter_pack
+
+            await initialize_user_starter_pack(self.user_id)
             disabled_skills = await self._get_disabled_skills()
             result = await self.storage.get_effective_skills(
                 self.user_id, disabled_skills=disabled_skills

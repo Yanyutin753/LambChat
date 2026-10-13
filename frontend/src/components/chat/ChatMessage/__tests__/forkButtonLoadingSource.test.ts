@@ -13,7 +13,7 @@ test("fork button shows a spinner and disables while forking", () => {
   );
   expect(source).toMatch(/setIsForking\(true\)/);
   expect(source).toMatch(/finally\s*\{[\s\S]*?setIsForking\(false\)/);
-  expect(source).toMatch(/isForking \? \(\s*<Loader2[^>]*animate-spin/);
+  expect(source).toMatch(/isForking \? \(\s*<LoadingSpinner\b/);
   expect(source).toMatch(/: \(\s*<GitBranch size=\{16\} \/>/);
   expect(source).toMatch(/disabled=\{isForking\}/);
 });

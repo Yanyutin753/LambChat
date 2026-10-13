@@ -308,7 +308,7 @@
       "name": "搜索助手"
     },
     "team": {
-      "description": "按角色分派子代理，无团队时回退到单代理模式",
+      "description": "自动搜索合适角色并分派子代理，支持追加任务和持续协作",
       "name": "团队助手"
     }
   },
@@ -1224,6 +1224,7 @@
     "message": {
       "addBookmark": "添加书签",
       "allFiles": "全部文件",
+      "fileDirectory": "文件目录",
       "args": "参数",
       "artifactsSubtitleFiles": "{{count}} 个文件",
       "artifactsSubtitleMixed": "{{files}} 个文件 · {{projects}} 个项目",
@@ -1422,6 +1423,16 @@
       "toolSkillSearch": "技能搜索",
       "toolSuccess": "命令执行成功",
       "toolTaskName": "名称",
+      "toolSendSubagentMessage": "向子代理发消息",
+      "toolWaitSubagent": "等待子代理",
+      "toolSendParentMessage": "向父代理发消息",
+      "toolReceiveSubagentMessage": "收到子代理消息",
+      "subagentMessage": "追加消息",
+      "toolSubagentRunning": "运行中",
+      "toolSubagentMessageQueued": "消息已排队",
+      "toolSubagentCompleted": "已完成",
+      "toolSubagentWaitingHuman": "等待人工处理",
+      "toolSubagentFailed": "执行失败",
       "toolTeamDefaultMember": "成员 {{index}}",
       "toolTeamDefaultPersona": "角色 {{index}}",
       "toolTimeMinutes": "{{minutes}}分{{seconds}}秒",
@@ -1599,6 +1610,13 @@
     "timeline": "时间线",
     "title": "对话",
     "todo": {
+      "openPanel": "打开任务清单",
+      "allCompleted": "全部任务已完成",
+      "cancelledCount": "{{count}} 项已取消",
+      "pending": "待处理",
+      "in_progress": "进行中",
+      "completed": "已完成",
+      "cancelled": "已取消",
       "progress": "{{completed}}/{{total}} 已完成",
       "toggle": "任务清单"
     },

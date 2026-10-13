@@ -13,12 +13,11 @@ const thinkingSource = readFileSync(
   "utf8",
 );
 
-test("thinking and subagent sidebars use a lightweight renderer for long or streaming text", () => {
+test("thinking sidebars keep their long-text preview while subagents reuse the main chat renderer", () => {
   expect(sidebarSource).toMatch(/function SidebarMarkdownContent/);
   expect(sidebarSource).toMatch(/SIDEBAR_MARKDOWN_PREVIEW_LIMIT/);
   expect(sidebarSource).toMatch(/SUBAGENT_PARTS_PREVIEW_LIMIT/);
   expect(sidebarSource).toMatch(/const shouldUsePreview =/);
-  expect(panelSource).toMatch(/const shouldUsePartsPreview =/);
   expect(sidebarSource).toMatch(/w-full overflow-auto whitespace-pre-wrap/);
   expect(sidebarSource).toMatch(/from-theme-bg-card/);
   expect(sidebarSource).not.toMatch(/<pre className=/);
@@ -26,13 +25,7 @@ test("thinking and subagent sidebars use a lightweight renderer for long or stre
   expect(thinkingSource).toMatch(
     /<SidebarMarkdownContent\s+content=\{displayContent\}/,
   );
-  expect(panelSource).toMatch(
-    /<SidebarMarkdownContent\s+content=\{data\.input\}/,
-  );
-  expect(panelSource).toMatch(
-    /<SidebarMarkdownContent\s+content=\{data\.result\}/,
-  );
-  expect(panelSource).toMatch(
-    /<SidebarMarkdownContent\s+content=\{partsText\}/,
-  );
+  expect(panelSource).toMatch(/import \{ ChatMessage \} from "\.\/index"/);
+  expect(panelSource).toMatch(/<ChatMessage[\s\S]*?message=\{message\}/);
+  expect(panelSource).not.toMatch(/SidebarMarkdownContent/);
 });

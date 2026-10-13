@@ -107,7 +107,7 @@ export function ImageWithSkeleton({
 
   if (!resolvedSrc) return null;
 
-  // Inline mode: skeleton sits behind the img in the same space, no extra wrapper
+  // Keep the placeholder in flow so auto-height previews reserve space too.
   if (inline) {
     return (
       <Container
@@ -118,7 +118,10 @@ export function ImageWithSkeleton({
         className={`relative overflow-hidden image-with-skeleton ${className ?? ""} ${onClick ? "block text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)]" : ""}`}
       >
         {!isLoaded && !hasError && (
-          <div className="absolute inset-0 skeleton-line rounded-[inherit]" />
+          <div
+            className="w-full skeleton-line rounded-[inherit]"
+            style={{ aspectRatio }}
+          />
         )}
         {hasError ? (
           (errorFallback ?? (
@@ -137,6 +140,8 @@ export function ImageWithSkeleton({
             onError={handleError}
             referrerPolicy="no-referrer"
             style={{
+              position: !isLoaded ? "absolute" : undefined,
+              inset: !isLoaded ? 0 : undefined,
               opacity: isLoaded ? 1 : 0,
               transition: isLoaded ? "opacity 0.3s ease" : "none",
               width: "100%",

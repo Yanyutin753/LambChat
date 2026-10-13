@@ -1,14 +1,6 @@
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useState } from "react";
-import {
-  Sparkles,
-  Copy,
-  Tag,
-  FileText,
-  Zap,
-  Loader2,
-  Eye,
-  Code2,
-} from "lucide-react";
+import { Sparkles, Copy, Tag, FileText, Zap, Eye, Code2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { EditorSidebar } from "../common/EditorSidebar";
 import { CopyButton } from "../common/CopyButton";
@@ -71,7 +63,7 @@ export function PersonaPreviewSidebar({
             } ${isUsingPreset ? "pps-card__action--loading" : ""}`}
           >
             {isUsingPreset ? (
-              <Loader2 size={14} className="animate-spin" />
+              <LoadingSpinner color="text-current" size={14} />
             ) : (
               <Sparkles size={14} />
             )}

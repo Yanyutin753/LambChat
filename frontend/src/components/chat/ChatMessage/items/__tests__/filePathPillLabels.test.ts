@@ -70,7 +70,7 @@ test("collapsible pill can preserve labels without path-breaking formatting", ()
 
   expect(source).toMatch(/formatLabel\?: boolean/);
   expect(source).toMatch(
-    /const displayedLabel = formatLabel \? formattedLabel : label/,
+    /const displayedLabel = formatLabel && _variant !== "tool" \? formattedLabel : label/,
   );
   expect(source).toMatch(/\{displayedLabel\}/);
 });

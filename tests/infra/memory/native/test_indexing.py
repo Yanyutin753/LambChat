@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -7,6 +7,101 @@ from src.infra.memory.client.native.indexing import (
     choose_index_memories,
     compute_index_revision,
 )
+
+
+@pytest.mark.parametrize("project_id", ["p1", "p2", None])
+@pytest.mark.parametrize("context", ["project_constraint", "feedback_rule"])
+@pytest.mark.parametrize("personal_count", [80, 100])
+async def test_project_index_survives_newer_personal_memories(project_id, context, personal_count):
+    now = datetime(2026, 10, 12, tzinfo=timezone.utc)
+    base = {
+        "user_id": "u1",
+        "memory_type": "project",
+        "source": "manual",
+        "context": context,
+        "updated_at": now,
+        "summary": "Durable constraint",
+    }
+    docs = [
+        {**base, "memory_id": f"u{i}", "title": f"Personal {i}", "scope": "user"}
+        for i in range(personal_count)
+    ]
+    for pid in ("p1", "p2"):
+        docs.append(
+            {
+                **base,
+                "memory_id": pid,
+                "title": f"Required {pid}",
+                "scope": "project",
+                "project_id": pid,
+                "updated_at": now - timedelta(days=1),
+            }
+        )
+    docs.extend(
+        [
+            {**docs[-1], "user_id": "other", "title": "Other user"},
+            {**docs[-1], "source": "session_summary", "title": "Session only"},
+        ]
+    )
+
+    def matches(doc, query):
+        for key, value in query.items():
+            if key == "$or":
+                if not any(matches(doc, clause) for clause in value):
+                    return False
+            elif isinstance(value, dict):
+                if "$in" in value and doc.get(key) not in value["$in"]:
+                    return False
+                if "$ne" in value and doc.get(key) == value["$ne"]:
+                    return False
+            elif doc.get(key) != value:
+                return False
+        return True
+
+    class Cursor:
+        def __init__(self, selected):
+            self.docs = selected
+
+        def sort(self, fields):
+            for field, direction in reversed(fields):
+                self.docs.sort(key=lambda doc: doc[field], reverse=direction < 0)
+            return self
+
+        def limit(self, count):
+            self.docs = self.docs[:count]
+            return self
+
+        async def to_list(self, length):
+            return self.docs[:length]
+
+    class Collection:
+        def find(self, query, projection):
+            return Cursor(
+                [
+                    {key: value for key, value in doc.items() if projection.get(key)}
+                    for doc in docs
+                    if matches(doc, query)
+                ]
+            )
+
+    class Backend:
+        _collection = Collection()
+        _INDEX_CACHE_MAX_SIZE = 10
+
+        def __init__(self):
+            self._index_cache = {}
+
+    backend = Backend()
+    index = await build_memory_index(backend, "u1", project_id)
+    for pid in ("p1", "p2"):
+        assert (f"Required {pid}" in index) == (pid == project_id)
+    assert "Personal" in index
+    assert "Other user" not in index
+    assert "Session only" not in index
+    assert await build_memory_index(backend, "u1", project_id) == index
+    backend._index_cache.clear()
+    docs.reverse()
+    assert await build_memory_index(backend, "u1", project_id) == index
 
 
 def test_choose_index_memories_is_deterministic_without_access_count():

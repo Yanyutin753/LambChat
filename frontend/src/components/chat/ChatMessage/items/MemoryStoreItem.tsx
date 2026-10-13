@@ -289,7 +289,7 @@ function MemoryStoreDetail({
         <pre className="group/result relative text-12 text-theme-text-tertiary whitespace-pre-wrap break-words p-3 rounded-lg bg-theme-bg border border-theme-border">
           {(() => {
             const text = extractText(result);
-            return text.length > 600 ? text.slice(0, 597) + "…" : text;
+            return text;
           })()}
           <ToolHoverCopyButton
             text={extractText(result)}
@@ -373,15 +373,10 @@ const MemoryStoreItem = memo(function MemoryStoreItem({
   // ── Pill labels ──
 
   const pillLabel = useMemo(() => {
-    if (action === "delete") {
-      return t("chat.message.toolMemoryDelete");
-    }
-    if (title) {
-      const truncated = title.length > 28 ? title.slice(0, 25) + "…" : title;
-      return `${t("chat.message.toolMemoryStore")} ${truncated}`;
-    }
-    return t("chat.message.toolMemoryStore");
-  }, [action, title, t]);
+    const subject = action === "delete" ? memoryIdArg : title || summary || content.split("\n")[0];
+    const actionLabel = t(action === "delete" ? "chat.message.toolMemoryDelete" : "chat.message.toolMemoryStore");
+    return subject ? `${actionLabel} ${subject}` : actionLabel;
+  }, [action, memoryIdArg, title, summary, content, t]);
 
   // ── Panel detail content ──
 
