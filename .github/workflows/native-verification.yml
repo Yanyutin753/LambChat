@@ -26,6 +26,8 @@ env:
   CARGO_BUILD_JOBS: '1'
   RAYON_NUM_THREADS: '1'
   UV_CONCURRENT_DOWNLOADS: '1'
+  UV_CONCURRENT_BUILDS: '1'
+  UV_CONCURRENT_INSTALLS: '1'
   UV_FROZEN: 'true'
   LAMBCHAT_APP_URL: ''
   VITE_API_BASE: ''
@@ -73,11 +75,11 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: frontend
-        run: python ../scripts/run_validation.py pnpm install --frozen-lockfile
+        run: python ../scripts/run_validation.py cmd /d /s /c pnpm install --frozen-lockfile
 
       - name: Verify native brand assets
         working-directory: frontend
-        run: python ../scripts/run_validation.py pnpm brand:assets:check
+        run: python ../scripts/run_validation.py cmd /d /s /c pnpm brand:assets:check
 
       - name: Build current daemon sidecar
         shell: bash
@@ -121,9 +123,9 @@ jobs:
         working-directory: frontend
         shell: pwsh
         run: |
-          python ../scripts/run_validation.py pnpm dlx @tauri-apps/cli@2.11.2 icon resources/native-icon.png
+          python ../scripts/run_validation.py cmd /d /s /c pnpm dlx @tauri-apps/cli@2.11.2 icon resources/native-icon.png
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python ../scripts/run_validation.py pnpm dlx @tauri-apps/cli@2.11.2 build --ci --no-sign --bundles nsis --config src-tauri/verification.conf.json
+          python ../scripts/run_validation.py cmd /d /s /c pnpm dlx @tauri-apps/cli@2.11.2 build --ci --no-sign --bundles nsis --config src-tauri/verification.conf.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git diff --exit-code -- pnpm-lock.yaml src-tauri/Cargo.lock ../uv.lock
           if ($LASTEXITCODE -ne 0) { throw 'Build changed a dependency lockfile' }
