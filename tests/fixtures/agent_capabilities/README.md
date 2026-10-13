@@ -1,9 +1,18 @@
-# Agent capability suite v1
+# Agent capability suite version 2
 
 Nine versioned cases describe controlled input/material and mechanical assertions.
 An offline trace is supplied explicitly; it is diagnostic evidence, not an Agent
 execution. Each JSON/JSONL record contains `case_id`, expected `user_id`, one
 `session_id`, and `events` using the existing SSE `{event_type,data}` schema.
+The fixture remains at `v1.json` for existing CLI paths; its version is now `2`
+because compression requires completed summaries instead of streaming frame counts.
+The `summary_count` assertion counts only main-agent successful-compression stats
+with a positive integer `data.freed_tokens`. Each must retain its original Redis
+SSE `id` and nonempty `run_id`; repeated `(run_id, id)` pairs count once. Streaming
+chunks, child-agent stats, zero/invalid release counts, and events lacking these
+durable IDs do not count. Live collection preserves existing SSE IDs. Do not
+invent IDs from timestamps, array positions, or legacy trace normalization.
+Generic `event_count` still counts individual frames.
 Optional `final`, `elapsed_seconds`, and `judge: {outcome: pass|fail}` are supported.
 When `final` is absent, final-answer assertions use the last main-agent text block
 in the last controlled run. Fragments sharing its `text_id` are joined; tool,
@@ -41,7 +50,7 @@ Hook file shape:
 
 ```json
 {
-  "suite_version": "1",
+  "suite_version": "2",
   "cases": {
     "steer_constraints": [
       {"on_event":"session_created","path":"/__eval__/setup","body":{"case_id":"steer_constraints"}},

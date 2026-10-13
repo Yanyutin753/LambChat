@@ -1,5 +1,5 @@
 {
-  "version": "1",
+  "version": "2",
   "cases": [
     {
       "case_id": "steer_constraints",
@@ -39,8 +39,7 @@
       "requires_live_hook": true,
       "assertions": [
         {
-          "kind": "event_count",
-          "event_type": "summary",
+          "kind": "summary_count",
           "min_count": 2
         },
         {

@@ -41,7 +41,7 @@ def trace(**kwargs):
 
 def test_nine_versioned_cases_have_controlled_material_and_mechanical_assertions():
     suite = load_cases(FIXTURES)
-    assert suite["version"] == "1"
+    assert suite["version"] == "2"
     assert len(suite["cases"]) == 9
     assert len({item["case_id"] for item in suite["cases"]}) == 9
     assert all(
@@ -598,3 +598,180 @@ async def test_live_collects_scoped_external_effect_witness(foreign_owner):
     assert result["outcome"] == ("error" if foreign_owner else "pass")
     assert observed[0]["session_id"] == "session-1"
     assert observed[0]["observed_event"]["run_id"] == "run-1"
+
+
+def _compression_result(summary_events):
+    compression = next(
+        item
+        for item in load_cases(FIXTURES)["cases"]
+        if item["case_id"] == "compression_continuation"
+    )
+    return evaluate_trace(
+        compression,
+        trace(
+            case_id=compression["case_id"],
+            final="CAP-731",
+            events=[*summary_events, {"event_type": "complete", "data": {}}],
+        ),
+        user_id="test-user",
+    )
+
+
+def _summary_chunk(identity, content):
+    # Current presenter wire schema: multiple chunks share the model message ID.
+    return {
+        "event_type": "summary",
+        "data": {"summary_id": identity, "content": content, "depth": 0},
+    }
+
+
+def test_compression_two_chunks_of_one_summary_do_not_satisfy_two_summaries():
+    events = [
+        _summary_chunk("summary-one", "first chunk "),
+        _summary_chunk("summary-one", "second chunk"),
+        # One successful compression does not prove two completed cycles.
+        _summary_stats("1700000000000-0"),
+    ]
+    assert _compression_result(events)["outcome"] == "fail"
+
+
+def test_compression_unfinished_summary_streams_do_not_prove_two_completions():
+    events = [
+        _summary_chunk("first-partial", "partial"),
+        _summary_chunk("second-partial", "partial"),
+    ]
+    assert _compression_result(events)["outcome"] == "fail"
+
+
+def test_compression_unidentified_chunks_do_not_prove_completion():
+    events = [_summary_chunk(None, "first"), _summary_chunk(None, "second")]
+    assert _compression_result(events)["outcome"] == "fail"
+
+
+def test_generic_event_count_keeps_counting_individual_frames():
+    result = evaluate_trace(
+        case([{"kind": "event_count", "event_type": "summary", "min_count": 2}]),
+        trace(
+            events=[
+                _summary_chunk("same", "first"),
+                _summary_chunk("same", "second"),
+                {"event_type": "complete", "data": {}},
+            ]
+        ),
+        user_id="test-user",
+    )
+    assert result["outcome"] == "pass"
+
+
+def _summary_stats(identity, *, run_id="run-1", **data):
+    return {
+        "event_type": "summary",
+        "id": identity,
+        "run_id": run_id,
+        "data": {"summary_id": None, "content": "", "freed_tokens": 200, **data},
+    }
+
+
+def test_compression_counts_two_distinct_completed_stats_without_summary_ids():
+    assert (
+        _compression_result(
+            [
+                _summary_stats("1700000000000-0"),
+                _summary_stats("1700000000000-1"),
+            ]
+        )["outcome"]
+        == "pass"
+    )
+
+
+def test_compression_scopes_durable_ids_to_the_original_run():
+    assert (
+        _compression_result(
+            [
+                _summary_stats("1700000000000-0"),
+                _summary_stats("1700000000000-0", run_id="run-2"),
+            ]
+        )["outcome"]
+        == "pass"
+    )
+
+
+@pytest.mark.parametrize(
+    "second",
+    [
+        _summary_stats("1700000000000-0"),
+        _summary_stats(None),
+        {key: value for key, value in _summary_stats("1700000000000-1").items() if key != "id"},
+        _summary_stats("heartbeat"),
+        _summary_stats("0-0"),
+        _summary_stats("18446744073709551616-0"),
+        _summary_stats("1700000000000-1", run_id=""),
+        _summary_stats("1700000000000-1", run_id=" "),
+        _summary_stats("1700000000000-1", run_id=None),
+        _summary_stats("1700000000000-1", depth=1),
+        _summary_stats("1700000000000-1", freed_tokens=True),
+        _summary_stats("1700000000000-1", freed_tokens=0),
+        _summary_stats("1700000000000-1", freed_tokens=-1),
+        _summary_stats("1700000000000-1", freed_tokens="200"),
+        _summary_stats("1700000000000-1", freed_tokens=1.5),
+    ],
+)
+def test_compression_does_not_count_duplicate_or_invalid_completion_stats(second):
+    assert _compression_result([_summary_stats("1700000000000-0"), second])["outcome"] == "fail"
+
+
+@pytest.mark.parametrize(
+    "second_id, expected",
+    [
+        ("1700000000000-1", "pass"),
+        ("1700000000000-0", "fail"),
+        (None, "fail"),
+    ],
+)
+async def test_live_summary_count_preserves_original_sse_ids(monkeypatch, second_id, expected):
+    from src.infra.agent import capability_evaluation as evaluation
+
+    captured = []
+    original_evaluate = evaluation.evaluate_trace
+
+    def capture(case, record, **kwargs):
+        captured.extend(record["events"])
+        return original_evaluate(case, record, **kwargs)
+
+    monkeypatch.setattr(evaluation, "evaluate_trace", capture)
+
+    def respond(request):
+        if request.url.path == "/api/sessions":
+            return httpx.Response(200, json={"id": "session-1", "user_id": "test-user"})
+        if request.url.path == "/api/chat/stream":
+            return httpx.Response(200, json={"session_id": "session-1", "run_id": "run-1"})
+        if request.url.path.endswith("/stream"):
+            frames = []
+            for identity in ("1700000000000-0", second_id):
+                event = _summary_stats(identity)
+                frame = f"event: summary\ndata: {json.dumps(event['data'])}\n"
+                if identity is not None:
+                    frame += f"id: {identity}\n"
+                frames.append(frame + "\n")
+            return httpx.Response(
+                200, text="".join(frames) + "id: 1700000000000-2\n\nevent: complete\ndata: {}\n\n"
+            )
+        if request.method == "DELETE":
+            return httpx.Response(200, json={"success": True})
+        raise AssertionError(str(request.url))
+
+    async with httpx.AsyncClient(
+        base_url="http://localhost:8021", transport=httpx.MockTransport(respond)
+    ) as client:
+        result = await run_live_case(
+            client,
+            case([{"kind": "summary_count", "min_count": 2}]),
+            user_id="test-user",
+            agent_id="fast",
+            timeout=1,
+        )
+    assert result["outcome"] == expected
+    assert captured[0]["id"] == "1700000000000-0"
+    assert captured[1].get("id") == second_id
+    assert "id" not in captured[2]
+    assert all(event["run_id"] == "run-1" for event in captured)

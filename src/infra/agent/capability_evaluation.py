@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import re
 import time
 from collections import Counter
 from pathlib import Path
@@ -81,6 +82,27 @@ def _field(value: dict[str, Any], path: str) -> Any:
             return None
         current = current.get(part)
     return current
+
+
+def _completed_summary_count(events: list[dict[str, Any]]) -> int:
+    """Count successful compression stats by their original Redis stream identity."""
+    completed = set()
+    for event in events:
+        data = event.get("data")
+        if event.get("event_type") != "summary" or not isinstance(data, dict):
+            continue
+        freed = data.get("freed_tokens")
+        if data.get("depth", 0) != 0 or type(freed) is not int or freed <= 0:
+            continue
+        run_id, event_id = event.get("run_id"), event.get("id")
+        if not isinstance(run_id, str) or not run_id.strip() or not isinstance(event_id, str):
+            continue
+        if not re.fullmatch(r"(?:0|[1-9][0-9]{0,19})-(?:0|[1-9][0-9]{0,19})", event_id):
+            continue
+        if event_id == "0-0" or any(int(part) > 2**64 - 1 for part in event_id.split("-")):
+            continue
+        completed.add((run_id, event_id))
+    return len(completed)
 
 
 def _final_answer(events: list[dict[str, Any]]) -> str:
@@ -250,6 +272,8 @@ def evaluate_trace(case: dict[str, Any], trace: dict[str, Any], *, user_id: str)
             passed = sum(
                 event.get("event_type") == assertion["event_type"] for event in events
             ) >= assertion.get("min_count", 1)
+        elif kind == "summary_count":
+            passed = _completed_summary_count(events) >= assertion.get("min_count", 1)
         elif kind == "tool_succeeded":
             passed = any(
                 event.get("event_type") == "tool:result"
@@ -491,12 +515,15 @@ async def run_live_case(
                 ) as stream:
                     stream.raise_for_status()
                     event_type = "message"
+                    event_id = None
                     data_lines: list[str] = []
                     async for line in stream.aiter_lines():
                         if line.startswith("event:"):
                             event_type = line[6:].strip()
                         elif line.startswith("data:"):
                             data_lines.append(line[5:].lstrip())
+                        elif line.startswith("id:"):
+                            event_id = line[3:].removeprefix(" ")
                         elif not line and data_lines:
                             data = json.loads("\n".join(data_lines))
                             if not isinstance(data, dict):
@@ -507,12 +534,18 @@ async def run_live_case(
                                 "session_id": session_id,
                                 "run_id": current_run,
                             }
+                            if event_id is not None:
+                                event["id"] = event_id
                             events.append(event)
                             await fire_hooks(event)
                             data_lines = []
                             event_type = "message"
+                            event_id = None
                             if event["event_type"] in ("complete", "done", "error"):
                                 break
+                        elif not line:
+                            event_type = "message"
+                            event_id = None
             result = evaluate_trace(
                 case,
                 {
