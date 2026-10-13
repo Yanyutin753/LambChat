@@ -694,8 +694,19 @@ class TaskRecoveryService:
             }
 
         if (
-            session_metadata.get("task_recoverable") is False
+            # Active states normally store False; their heartbeat decides recovery.
+            (
+                session_metadata.get("task_recoverable") is False
+                and task_status not in {
+                    TaskStatus.RUNNING.value,
+                    TaskStatus.STARTING.value,
+                    TaskStatus.RECOVERING.value,
+                    TaskStatus.PENDING.value,
+                    TaskStatus.QUEUED.value,
+                }
+            )
             or session_metadata.get("task_error_code") == "cancelled"
+            or task_status in {TaskStatus.CANCELLING.value, TaskStatus.CANCELLED.value}
         ):
             return {
                 "success": False,

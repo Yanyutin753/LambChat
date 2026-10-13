@@ -4,13 +4,15 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.infra.task.recovery import TaskRecoveryService
+from src.infra.task.state_machine import TaskStateMachine
+from src.infra.task.status import TaskStatus
 
 
 @pytest.mark.parametrize("stale,expected", [(True, True), (False, False)])
 async def test_manual_resume_uses_heartbeat_age_before_key_ttl_expires(stale, expected):
     session = SimpleNamespace(
         id="session-1",
-        metadata={"current_run_id": "run-1", "task_status": "running"},
+        metadata=TaskStateMachine().build_metadata(TaskStatus.RUNNING, run_id="run-1"),
     )
     heartbeat = SimpleNamespace(
         check_exists=AsyncMock(return_value=True),
