@@ -73,6 +73,9 @@ jobs:
       - name: Setup Python
         run: python scripts/run_validation.py uv python install 3.12
 
+      - name: Verify Windows nested validation gate
+        run: python scripts/run_validation.py python scripts/verify_windows_validation.py
+
       - name: Install frontend dependencies
         working-directory: frontend
         run: python ../scripts/run_validation.py cmd /d /s /c pnpm install --frozen-lockfile
