@@ -7,6 +7,7 @@ trace. Mechanical assertions inspect recorded events, not a model's claim of suc
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import time
 from collections import Counter
@@ -110,6 +111,63 @@ def _final_answer(events: list[dict[str, Any]]) -> str:
     return final
 
 
+def _fixture_witnesses(trace: dict[str, Any], user_id: str) -> list[dict[str, Any]]:
+    """Validate explicitly supplied fixture observations, never model claims."""
+    witnesses = trace.get("fixture_evidence", [])
+    if not isinstance(witnesses, list):
+        raise ValueError("invalid fixture witness list")
+    artifacts = {
+        (artifact.get("id"), artifact.get("path"))
+        for event in trace.get("events", [])
+        if event.get("event_type") == "artifact:result"
+        and isinstance(data := event.get("data"), dict)
+        and data.get("success") is not False
+        and isinstance(artifact := data.get("artifact"), dict)
+    }
+    for witness in witnesses:
+        if (
+            not isinstance(witness, dict)
+            or witness.get("user_id") != user_id
+            or witness.get("session_id") != trace["session_id"]
+        ):
+            raise ValueError("fixture witness scope mismatch")
+        if witness.get("kind") == "artifact_readback":
+            content = witness.get("content")
+            if (
+                not isinstance(content, str)
+                or not isinstance(witness.get("artifact_id"), str)
+                or not witness["artifact_id"]
+                or not isinstance(witness.get("path"), str)
+                or not witness["path"]
+                or (witness.get("artifact_id"), witness.get("path")) not in artifacts
+                or witness.get("content_sha256") != hashlib.sha256(content.encode()).hexdigest()
+            ):
+                raise ValueError("artifact witness identity/content mismatch")
+        elif witness.get("kind") == "effect_counts":
+            effects = witness.get("effects")
+            if not isinstance(effects, list) or not effects:
+                raise ValueError("missing effect witness counts")
+            seen = set()
+            for effect in effects:
+                if not isinstance(effect, dict):
+                    raise ValueError("invalid effect witness")
+                identity = effect.get("effect_id")
+                attempts, committed = effect.get("attempt_count"), effect.get("committed_count")
+                if (
+                    not isinstance(identity, str)
+                    or not identity
+                    or identity in seen
+                    or type(attempts) is not int
+                    or type(committed) is not int
+                    or not 0 <= committed <= attempts
+                ):
+                    raise ValueError("invalid effect witness counts")
+                seen.add(identity)
+        else:
+            raise ValueError("unknown fixture witness kind")
+    return witnesses
+
+
 def evaluate_trace(case: dict[str, Any], trace: dict[str, Any], *, user_id: str) -> dict[str, Any]:
     if not case.get("assertions"):
         raise ValueError("case requires mechanical assertions")
@@ -137,6 +195,18 @@ def evaluate_trace(case: dict[str, Any], trace: dict[str, Any], *, user_id: str)
         if isinstance(event.get("data"), dict) and event["data"].get("effect_id")
     )
     result["duplicate_effects"] = sum(count - 1 for count in effects.values())
+    witnesses = _fixture_witnesses(trace, user_id)
+    effect_witnesses = [item for item in witnesses if item["kind"] == "effect_counts"]
+    effect_counts: dict[str, int] = {}
+    if effect_witnesses:
+        # Multiple cumulative observations must not count the same commit twice.
+        for witness in effect_witnesses:
+            for effect in witness["effects"]:
+                identity = effect["effect_id"]
+                effect_counts[identity] = max(
+                    effect_counts.get(identity, 0), effect["committed_count"]
+                )
+        result["duplicate_effects"] = sum(max(count - 1, 0) for count in effect_counts.values())
     usages = {}
     run_ids = {event.get("run_id", "trace") for event in events}
     for event in events:
@@ -188,14 +258,31 @@ def evaluate_trace(case: dict[str, Any], trace: dict[str, Any], *, user_id: str)
                 for event in events
             )
         elif kind == "artifact_equals":
-            # Compare actual observed artifact contents; never dereference an untrusted path.
+            readbacks = [item for item in witnesses if item["kind"] == "artifact_readback"]
+            if not readbacks:
+                result.update(outcome="error", failure_stage="fixture_evidence")
+                return result
             passed = any(
-                event.get("event_type") == "artifact:result"
-                and _field(event, assertion["field"]) == assertion["value"]
-                for event in events
+                _field({"data": {"content": item["content"]}}, assertion["field"])
+                == assertion["value"]
+                for item in readbacks
             )
         elif kind == "no_duplicate_effects":
-            passed = result["duplicate_effects"] == 0
+            if not effect_witnesses and result["duplicate_effects"] == 0:
+                result.update(outcome="error", failure_stage="fixture_evidence")
+                return result
+            expected = assertion.get("effect_id") or case.get("controlled_material", {}).get(
+                "effect_id"
+            )
+            passed = (
+                bool(effect_witnesses)
+                and result["duplicate_effects"] == 0
+                and (
+                    effect_counts.get(expected) == 1
+                    if expected
+                    else all(count == 1 for count in effect_counts.values())
+                )
+            )
         else:
             raise ValueError(f"unknown mechanical assertion: {kind}")
         result["evidence"].append({"assertion_index": index, "kind": kind, "passed": passed})
@@ -324,6 +411,7 @@ async def run_live_case(
             if run.get("session_id") != session_id or not run.get("run_id"):
                 raise ValueError("invalid submitted run scope")
             events: list[dict[str, Any]] = []
+            fixture_evidence: list[dict[str, Any]] = []
             pending = remaining_hooks
             followup_runs: list[str] = []
 
@@ -354,15 +442,37 @@ async def run_live_case(
                         or "?" in path
                     ):
                         raise ValueError("hook path outside isolated session")
+                    params = hook.get("params")
+                    if params is not None and (
+                        path != approval_path
+                        or not isinstance(params, dict)
+                        or set(params) - {"approved", "response"}
+                        or type(params.get("approved")) is not bool
+                        or not isinstance(params.get("response", "{}"), str)
+                    ):
+                        raise ValueError("unsupported approval hook parameters")
+                    collect = hook.get("collect")
+                    if collect and (
+                        not path.startswith("/__eval__/")
+                        or collect not in {"effect_counts", "artifact_readback"}
+                    ):
+                        raise ValueError("unsupported fixture witness collector")
                     action = await client.post(
                         path,
+                        params=params,
                         json={
                             **hook.get("body", {}),
                             **({"session_id": session_id} if path.startswith("/__eval__/") else {}),
+                            **({"observed_event": event} if collect else {}),
                         },
                     )
                     action.raise_for_status()
                     action_data = action.json()
+                    if collect:
+                        witness = action_data.get("witness")
+                        if not isinstance(witness, dict) or witness.get("kind") != collect:
+                            raise ValueError("missing fixture witness")
+                        fixture_evidence.append(witness)
                     next_run = action_data.get("run_id") or action_data.get("hitl_resume", {}).get(
                         "run_id"
                     )
@@ -410,6 +520,7 @@ async def run_live_case(
                     "user_id": user_id,
                     "session_id": session_id,
                     "events": events,
+                    "fixture_evidence": fixture_evidence,
                 },
                 user_id=user_id,
             )

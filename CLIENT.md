@@ -75,6 +75,8 @@
 
 ## 7. 桌面端（Tauri）专项
 
+- **原生通知**：桌面入口集中在 `src/commands/notification.rs`。macOS 弱链接 `UserNotifications` 并在运行时检查类可用性，保持 10.13 最低版本；可用时通过常驻 `UNUserNotificationCenter` 代理保存内部路由和账户归属，旧 macOS 与 Linux 保留 notification 插件发送。Windows 在 `windows_notification.rs` 使用应用 AUMID 发送，并保留通知及激活回调，支持横幅消失后的通知中心点击。Android 点击沿用 Capacitor。支持点击的平台均由前端 `appNotificationService` 校验当前账户与内部路由，再导航并显示桌面主窗口；不支持进程关闭后的冷启动点击。原生发送 API 成功仅说明系统受理，不能代替目标设备上实际送达与点击的观察证据。
+
 - **Windows 安装升级**：NSIS 安装包检测到旧安装后直接显示升级进度并沿用原目录，首次安装保留完整向导；普通、静默、应用内更新与同版本重装统一在复制文件前按安装目录停止旧主程序/daemon，再以 `/S /UPDATE` 运行旧卸载器；不删除聊天、登录和工作区数据。64 位系统使用原生 PowerShell，停止或卸载失败必须中止。`scripts/test_windows_installer_hooks.ps1` 用真实 NSIS 安装/卸载夹具验证该流程，PR CI 与 Windows 出包均执行；Tauri CLI 或 NSIS 升级时同步验证 Modern UI 初始化钩子与卸载分流。
 
 - **macOS 标题栏对齐**：`src/titlebar.rs` 按 AppKit 按钮实际高度对齐 36px WebView 顶栏（含 1px 底边框，内容中心为距顶端 17.5px）；使用原生通知在缩放、退出全屏、切换显示器、恢复窗口和重新聚焦后校正，不替换 Tauri 的窗口 delegate。不要再配置 `trafficLightPosition`，否则 Tao/Wry 会在布局时覆盖原生校正。修改后运行 `cd frontend/src-tauri && cargo run --example verify_titlebar_alignment`（真实原生控件与通知处理器冒烟；需要 macOS 及客户端构建资源），并打包检查实际缩放与全屏往返。

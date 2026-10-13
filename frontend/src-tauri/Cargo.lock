@@ -1965,6 +1965,7 @@ dependencies = [
  "tauri-plugin-window-state",
  "time",
  "uuid",
+ "windows",
 ]
 
 [[package]]

@@ -9,9 +9,11 @@ const serviceSource = readFileSync(
 test("App registers native notification route navigation inside the router", () => {
   expect(appSource).toMatch(/appNotificationService\.setNavigator/);
   expect(appSource).toMatch(/initializeNativeClickHandlers/);
+  expect(appSource).toMatch(/state:\s*\{\s*externalNavigate:\s*true,\s*scrollToBottom:\s*true\s*\}/);
 });
 
 test("app notification service handles Capacitor local notification clicks", () => {
   expect(serviceSource).toMatch(/localNotificationActionPerformed/);
-  expect(serviceSource).toMatch(/payload\.notification\.extra\?\.route/);
+  expect(serviceSource).toMatch(/handleNativeAction\(payload\.notification\.extra\)/);
+  expect(serviceSource).toMatch(/ownerUserId !== activeUserId/);
 });

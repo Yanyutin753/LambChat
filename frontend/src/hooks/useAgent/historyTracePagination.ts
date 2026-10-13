@@ -8,6 +8,7 @@ import { useCallback, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import type { Feedback, Message, SessionEventsResponse } from "../../types";
 import { sessionApi } from "../../services/api";
+import i18n from "../../i18n";
 import type { ActiveGoalSpec, HistoryEvent, UseAgentOptions } from "./types";
 import { applyFeedbackToMessages } from "./historyLoadState";
 import {
@@ -32,6 +33,10 @@ interface HistoryTracePaginationDeps {
   streamingMessageIdRef: RefObject<string | null>;
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setGoalsByRunId: Dispatch<SetStateAction<Record<string, ActiveGoalSpec>>>;
+  loadHistoryRequestIdRef: RefObject<number>;
+  historyAbortControllerRef: RefObject<AbortController | null>;
+  setIsLoadingHistory: Dispatch<SetStateAction<boolean>>;
+  setError: Dispatch<SetStateAction<string | null>>;
   onApprovalLookup?: (approval: {
     id: string;
     status: string;
@@ -50,6 +55,10 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
     setMessages,
     setGoalsByRunId,
     onApprovalLookup,
+    loadHistoryRequestIdRef,
+    historyAbortControllerRef,
+    setIsLoadingHistory,
+    setError,
   } = deps;
 
   const [hasMoreHistoryTraces, setHasMoreHistoryTraces] = useState(false);
@@ -61,6 +70,7 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
   const historyFeedbackRef = useRef<Feedback[]>([]);
   const hasMoreHistoryTracesRef = useRef(false);
   const isLoadingOlderHistoryRef = useRef(false);
+  const historyEpochRef = useRef(0);
 
   /** 首屏加载后记录事件快照与游标窗口 */
   const recordFirstWindow = useCallback(
@@ -84,6 +94,7 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
   }, []);
 
   const reset = useCallback(() => {
+    historyEpochRef.current += 1;
     historyEventsRef.current = [];
     historyTraceWindowRef.current = null;
     historyFeedbackRef.current = [];
@@ -92,6 +103,53 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
     isLoadingOlderHistoryRef.current = false;
     setIsLoadingOlderHistory(false);
   }, []);
+
+  // A notification can point outside the contiguous paged window. Read only
+  // that run and preserve the current messages/SSE owner and window cursor.
+  const loadTargetHistory = useCallback(async (targetSessionId: string, runId: string) => {
+    if (messagesRef.current.some(message => message.runId === runId)) return null;
+    const requestId = ++loadHistoryRequestIdRef.current;
+    historyAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    historyAbortControllerRef.current = controller;
+    const isCurrent = () => !controller.signal.aborted && requestId === loadHistoryRequestIdRef.current && sessionIdRef.current === targetSessionId;
+    const epoch = historyEpochRef.current;
+    isLoadingHistoryRef.current = true;
+    setIsLoadingHistory(true);
+    try {
+      const response = await sessionApi.getEvents(targetSessionId, {
+        run_id: runId,
+        include_active_user_message: true,
+        compact_message_chunks: true,
+        signal: controller.signal,
+      });
+      if (!isCurrent() || epoch !== historyEpochRef.current) return null;
+      const targetEvents = (response.events || []) as HistoryEvent[];
+      historyEventsRef.current = mergeOlderHistoryEvents(targetEvents, historyEventsRef.current);
+      const targetMessages = reconstructMessagesFromEvents(targetEvents, processedEventIdsRef.current, { options, activeSubagentStack: [], onApprovalLookup });
+      setMessages(previous => {
+        if (!isCurrent() || epoch !== historyEpochRef.current) return previous;
+        const existingRuns = new Set(previous.map(message => message.runId).filter(Boolean));
+        const additions = targetMessages.filter(message => !existingRuns.has(message.runId));
+        return [...additions, ...previous].sort((left, right) => left.timestamp.getTime() - right.timestamp.getTime());
+      });
+      setGoalsByRunId(previous => isCurrent() && epoch === historyEpochRef.current
+        ? { ...previous, ...extractGoalsByRunFromEvents(targetEvents) }
+        : previous);
+    } catch (error) {
+      if (isCurrent()) {
+        console.warn("[loadHistory] Failed to load notification run:", error);
+        setError(i18n.t("chat.requestFailed"));
+      }
+    } finally {
+      if (historyAbortControllerRef.current === controller) historyAbortControllerRef.current = null;
+      if (isCurrent()) {
+        isLoadingHistoryRef.current = false;
+        setIsLoadingHistory(false);
+      }
+    }
+    return null;
+  }, [messagesRef, sessionIdRef, processedEventIdsRef, options, onApprovalLookup, setMessages, setGoalsByRunId, loadHistoryRequestIdRef, historyAbortControllerRef, isLoadingHistoryRef, setIsLoadingHistory, setError]);
 
   // Load one more page of older runs and prepend the rebuilt messages.
   // Runs mid-stream are tolerated: the streaming run's assistant message is
@@ -198,6 +256,7 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
     recordFirstWindow,
     recordFeedback,
     loadOlderHistory,
+    loadTargetHistory,
     reset,
   };
 }

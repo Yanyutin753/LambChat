@@ -17,6 +17,12 @@ function event(runId: string, content: string): HistoryEvent {
   };
 }
 
+test("paging over an exact notification run already cached keeps each event once", () => {
+  const target = event("old-run", "answer");
+  const latest = event("latest-run", "answer");
+  expect(mergeOlderHistoryEvents([target], [target, latest])).toEqual([target, latest]);
+});
+
 describe("resolveHistoryTraceWindow", () => {
   test("keeps the cursor and continues paging when more traces exist", () => {
     expect(

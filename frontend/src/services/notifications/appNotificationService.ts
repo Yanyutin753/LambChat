@@ -16,6 +16,7 @@ export interface AppNotificationPayload {
   title: string;
   body?: string;
   route?: string;
+  ownerUserId?: string;
   dedupeKey?: string;
   importance?: "normal" | "high";
 }
@@ -70,6 +71,7 @@ export interface AppNotificationService {
   requestPermission: () => Promise<AppNotificationPermission | "unsupported">;
   getRuntime: () => AppNotificationRuntime;
   clearDedupe: () => void;
+  setActiveUserId: (userId: string | null) => void;
   setNavigator: (navigator: ((route: string) => void) | null) => void;
   initializeNativeClickHandlers: () => void;
 }
@@ -129,13 +131,29 @@ export function createAppNotificationService(
   const deliveredKeys = new Set<string>();
   let navigate = options.onNavigate ?? null;
   let clickHandlersInitialized = false;
+  let activeUserId: string | null = null;
+  let accountGeneration = 0;
+  let selectedAdapter: AppNotificationAdapter | null | undefined;
   const warn =
     options.onWarning ??
     ((message: string, error?: unknown) => {
       console.warn(message, error);
     });
 
-  const getAdapter = () => resolveAdapter(runtime, options.adapters);
+  const getAdapter = () => {
+    if (selectedAdapter === undefined) selectedAdapter = resolveAdapter(runtime, options.adapters);
+    return selectedAdapter;
+  };
+  const handleNativeAction = (payload: unknown) => {
+    if (!payload || typeof payload !== "object") return;
+    const {route, ownerUserId} = payload as {route?:unknown; ownerUserId?:unknown};
+    if (!navigate || !activeUserId || ownerUserId !== activeUserId || !isInternalNotificationRoute(route)) return;
+    navigate(route);
+    if (runtime === "tauri") {
+      void import("@tauri-apps/api/core").then(({invoke}) => invoke("desktop_notification_focus"))
+        .catch(error => warn("[AppNotification] Native focus failed", error));
+    }
+  };
 
   return {
     getRuntime() {
@@ -144,27 +162,33 @@ export function createAppNotificationService(
     clearDedupe() {
       deliveredKeys.clear();
     },
+    setActiveUserId(userId) {
+      if (activeUserId === userId) return;
+      activeUserId = userId;
+      accountGeneration += 1;
+      deliveredKeys.clear();
+    },
     setNavigator(navigator) {
       navigate = navigator;
     },
     initializeNativeClickHandlers() {
-      if (clickHandlersInitialized || runtime !== "capacitor-android") return;
+      if (clickHandlersInitialized || runtime === "unsupported") return;
       clickHandlersInitialized = true;
-      void import("@capacitor/local-notifications")
-        .then(({ LocalNotifications }) =>
-          LocalNotifications.addListener(
-            "localNotificationActionPerformed",
-            (payload) => {
-              const route = payload.notification.extra?.route;
-              if (typeof route === "string" && route && navigate) {
-                navigate(route);
-              }
-            },
-          ),
-        )
-        .catch((error) => {
-          warn("[AppNotification] Native click handler failed", error);
-        });
+      const failed = (error: unknown) => {
+        clickHandlersInitialized = false;
+        warn("[AppNotification] Native click handler failed", error);
+      };
+      if (runtime === "tauri") {
+        void import("@tauri-apps/api/event")
+          .then(({listen}) => listen("desktop-notification-action", event => handleNativeAction(event.payload)))
+          .catch(failed);
+      } else {
+        void import("@capacitor/local-notifications")
+          .then(({LocalNotifications}) => LocalNotifications.addListener(
+            "localNotificationActionPerformed", payload => handleNativeAction(payload.notification.extra),
+          ))
+          .catch(failed);
+      }
     },
     async requestPermission() {
       const adapter = getAdapter();
@@ -180,15 +204,22 @@ export function createAppNotificationService(
       const adapter = getAdapter();
       if (!adapter) return "unsupported";
 
+      const generation = accountGeneration;
+      const ownerUserId = payload.ownerUserId ?? activeUserId ?? undefined;
+      const isCurrent = () => !ownerUserId || (activeUserId === ownerUserId && accountGeneration === generation);
+      if (!isCurrent()) return "failed";
+      this.initializeNativeClickHandlers();
       if (payload.dedupeKey && deliveredKeys.has(payload.dedupeKey)) {
         return "deduped";
       }
 
       const permission = await this.requestPermission();
+      if (!isCurrent()) return "failed";
       if (permission !== "granted") return "permission-denied";
 
       try {
-        await adapter.notify(payload);
+        await adapter.notify(ownerUserId ? {...payload, ownerUserId} : payload);
+        if (!isCurrent()) return "failed";
         if (payload.dedupeKey) deliveredKeys.add(payload.dedupeKey);
         return "delivered";
       } catch (error) {
@@ -201,19 +232,40 @@ export function createAppNotificationService(
 
 export const appNotificationService = createAppNotificationService();
 
+function isInternalNotificationRoute(route: unknown): route is string {
+  if (typeof route !== "string" || route.length > 2048) return false;
+  if (route === "/notifications") return true;
+  if (!/^\/chat\/[^/?#\\\s]+(?:\?run_id=[^#\\\s]*)?$/.test(route)) return false;
+  try {
+    const session = decodeURIComponent(route.slice(6).split("?")[0]);
+    return session !== "." && session !== ".." && !/[/\\\s]/.test(session);
+  } catch { return false; }
+}
+
 function createTauriAdapter(): AppNotificationAdapter {
+  let platform: Promise<boolean> | undefined;
+  const supportsActions = () => platform ??= import("@tauri-apps/api/core")
+    .then(({invoke}) => invoke<boolean>("desktop_notification_supports_actions"));
   return {
     async requestPermission() {
+      if (await supportsActions()) {
+        const {invoke} = await import("@tauri-apps/api/core");
+        return await invoke<AppNotificationPermission>("desktop_notification_permission");
+      }
       const notification = await import("@tauri-apps/plugin-notification");
       const permission = await notification.requestPermission();
       return permission === "granted" ? "granted" : "denied";
     },
     async notify(payload) {
+      if (await supportsActions()) {
+        const {invoke} = await import("@tauri-apps/api/core");
+        await invoke("desktop_notification_send", {payload:{
+          title:payload.title, body:payload.body, route:payload.route, ownerUserId:payload.ownerUserId,
+        }});
+        return;
+      }
       const notification = await import("@tauri-apps/plugin-notification");
-      notification.sendNotification({
-        title: payload.title,
-        body: payload.body,
-      });
+      notification.sendNotification({title:payload.title, body:payload.body});
     },
   };
 }
@@ -239,6 +291,7 @@ function createCapacitorAndroidAdapter(): AppNotificationAdapter {
             body: payload.body || "",
             extra: {
               route: payload.route,
+              ownerUserId: payload.ownerUserId,
               type: payload.type,
               dedupeKey: payload.dedupeKey,
             },

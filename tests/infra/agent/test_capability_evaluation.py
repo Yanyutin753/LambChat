@@ -1,5 +1,6 @@
 """Deterministic evaluation and isolated live API contract regression tests."""
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -390,3 +391,210 @@ def test_only_last_controlled_run_answer_is_final_but_all_run_evidence_and_usage
     assert result["outcome"] == "pass"
     assert result["tool_calls"] == 1
     assert result["tokens"] == {"input": 6, "output": 9, "total": 15}
+
+
+def test_no_duplicate_effects_cannot_pass_without_an_external_write_witness():
+    result = evaluate_trace(
+        {
+            **case([{"kind": "no_duplicate_effects"}]),
+            "controlled_material": {"effect_id": "write-once"},
+        },
+        trace(),
+        user_id="test-user",
+    )
+    assert result["outcome"] == "error"
+    assert result["failure_stage"] == "fixture_evidence"
+
+
+def test_artifact_claim_in_sse_is_not_a_verified_content_readback():
+    result = evaluate_trace(
+        case([{"kind": "artifact_equals", "field": "data.content", "value": "42"}]),
+        trace(
+            events=[
+                {
+                    "event_type": "artifact:result",
+                    "data": {
+                        "content": "42",
+                        "artifact": {"id": "file:result.json", "path": "/workspace/result.json"},
+                    },
+                },
+                {"event_type": "complete", "data": {}},
+            ]
+        ),
+        user_id="test-user",
+    )
+    assert result["outcome"] == "error"
+    assert result["failure_stage"] == "fixture_evidence"
+
+
+@pytest.mark.parametrize(
+    "params, expected",
+    [
+        ({"approved": True, "response": "{}"}, "pass"),
+        ({"approved": True, "unexpected": "value"}, "error"),
+    ],
+)
+async def test_live_approval_hook_uses_only_supported_query_parameters(params, expected):
+    approval_requests = []
+
+    def respond(request):
+        if request.url.path == "/api/sessions":
+            return httpx.Response(200, json={"id": "session-1", "user_id": "test-user"})
+        if request.url.path == "/api/chat/stream":
+            return httpx.Response(200, json={"session_id": "session-1", "run_id": "run-1"})
+        if request.url.path.endswith("/stream"):
+            return httpx.Response(
+                200,
+                text='event: approval_required\ndata: {"id":"approval-1"}\n\nevent: message:chunk\ndata: {"content":"42"}\n\nevent: complete\ndata: {}\n\n',
+            )
+        if request.url.path == "/human/approval-1/respond":
+            approval_requests.append(request)
+            if request.url.params.get("approved") != "true":
+                return httpx.Response(422, json={"detail": "approved query parameter required"})
+        return httpx.Response(200, json={"success": True})
+
+    async with httpx.AsyncClient(
+        base_url="http://localhost:8021", transport=httpx.MockTransport(respond)
+    ) as client:
+        result = await run_live_case(
+            client,
+            case(),
+            user_id="test-user",
+            agent_id="fast",
+            timeout=1,
+            hooks=[
+                {
+                    "on_event": "approval_required",
+                    "path": "/human/{approval_id}/respond",
+                    "params": params,
+                }
+            ],
+        )
+    assert result["outcome"] == expected
+    if expected == "pass":
+        assert len(approval_requests) == 1
+        assert dict(approval_requests[0].url.params) == {"approved": "true", "response": "{}"}
+    else:
+        assert result["failure_stage"] == "protocol"
+        assert not approval_requests
+
+
+def test_effect_witness_requires_the_expected_committed_write_and_reports_duplicates():
+    spec = {
+        **case([{"kind": "no_duplicate_effects"}]),
+        "controlled_material": {"effect_id": "write-once"},
+    }
+    witness = {
+        "kind": "effect_counts",
+        "user_id": "test-user",
+        "session_id": "session-1",
+        "effects": [{"effect_id": "write-once", "attempt_count": 2, "committed_count": 1}],
+    }
+    assert (
+        evaluate_trace(spec, trace(fixture_evidence=[witness]), user_id="test-user")["outcome"]
+        == "pass"
+    )
+    witness["effects"][0]["committed_count"] = 2
+    result = evaluate_trace(spec, trace(fixture_evidence=[witness]), user_id="test-user")
+    assert result["outcome"] == "fail"
+    assert result["duplicate_effects"] == 1
+    witness["effects"][0]["committed_count"] = 0
+    assert (
+        evaluate_trace(spec, trace(fixture_evidence=[witness]), user_id="test-user")["outcome"]
+        == "fail"
+    )
+
+
+def test_artifact_witness_must_match_original_event_identity_and_content_hash():
+    spec = case([{"kind": "artifact_equals", "field": "data.content", "value": "42"}])
+    events = [
+        {
+            "event_type": "artifact:result",
+            "data": {
+                "artifact": {"id": "file:result.json", "path": "/workspace/result.json"},
+                "success": True,
+            },
+        },
+        {"event_type": "complete", "data": {}},
+    ]
+    witness = {
+        "kind": "artifact_readback",
+        "user_id": "test-user",
+        "session_id": "session-1",
+        "artifact_id": "file:result.json",
+        "path": "/workspace/result.json",
+        "content": "42",
+        "content_sha256": hashlib.sha256(b"42").hexdigest(),
+    }
+    assert (
+        evaluate_trace(spec, trace(events=events, fixture_evidence=[witness]), user_id="test-user")[
+            "outcome"
+        ]
+        == "pass"
+    )
+    for field, value in (
+        ("artifact_id", "unrelated"),
+        ("content_sha256", "wrong"),
+        ("session_id", "other-session"),
+        ("user_id", "other-user"),
+    ):
+        with pytest.raises(ValueError, match="witness"):
+            evaluate_trace(
+                spec,
+                trace(events=events, fixture_evidence=[{**witness, field: value}]),
+                user_id="test-user",
+            )
+
+
+@pytest.mark.parametrize("foreign_owner", [False, True])
+async def test_live_collects_scoped_external_effect_witness(foreign_owner):
+    observed = []
+
+    def respond(request):
+        if request.url.path == "/api/sessions":
+            return httpx.Response(200, json={"id": "session-1", "user_id": "test-user"})
+        if request.url.path == "/api/chat/stream":
+            return httpx.Response(200, json={"session_id": "session-1", "run_id": "run-1"})
+        if request.url.path.endswith("/stream"):
+            return httpx.Response(200, text="event: complete\ndata: {}\n\n")
+        if request.url.path == "/__eval__/effects":
+            body = json.loads(request.content)
+            observed.append(body)
+            return httpx.Response(
+                200,
+                json={
+                    "witness": {
+                        "kind": "effect_counts",
+                        "session_id": "session-1",
+                        "user_id": "other" if foreign_owner else "test-user",
+                        "effects": [
+                            {"effect_id": "write", "attempt_count": 1, "committed_count": 1}
+                        ],
+                    }
+                },
+            )
+        return httpx.Response(200, json={"success": True})
+
+    async with httpx.AsyncClient(
+        base_url="http://localhost:8021", transport=httpx.MockTransport(respond)
+    ) as client:
+        result = await run_live_case(
+            client,
+            {
+                **case([{"kind": "no_duplicate_effects"}]),
+                "controlled_material": {"effect_id": "write"},
+            },
+            user_id="test-user",
+            agent_id="fast",
+            timeout=1,
+            hooks=[
+                {
+                    "on_event": "complete",
+                    "path": "/__eval__/effects",
+                    "collect": "effect_counts",
+                }
+            ],
+        )
+    assert result["outcome"] == ("error" if foreign_owner else "pass")
+    assert observed[0]["session_id"] == "session-1"
+    assert observed[0]["observed_event"]["run_id"] == "run-1"

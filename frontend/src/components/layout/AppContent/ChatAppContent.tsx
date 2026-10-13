@@ -201,6 +201,7 @@ export function ChatAppContent({
     onApprovalRequired: (approval) => {
       void appNotificationService.notify({
         type: "approval",
+        ownerUserId: user?.id,
         title: t("approvals.needsConfirmation"),
         body: approval.message,
         route: sessionId ? `/chat/${sessionId}` : "/chat",
@@ -746,7 +747,6 @@ export function ChatAppContent({
     userId: user?.id, sessionId, runId: currentRunId, ready: canContinueInBackground,
     onDetach: handleNewSessionWithReset,
   });
-
   const handleMobileClose = useCallback(
     () => setMobileSidebarOpen(false),
     [setMobileSidebarOpen],

@@ -227,6 +227,7 @@ export function useWebSocketNotifications({
       if (shouldAttemptAppNotification) {
         void appNotificationService.notify({
           type: "task",
+          ownerUserId: notificationScope.userId,
           title: notificationCopy.title,
           body: notificationCopy.body,
           route: notificationRoute,

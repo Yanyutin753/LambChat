@@ -236,6 +236,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     recordFirstWindow,
     recordFeedback,
     loadOlderHistory,
+    loadTargetHistory,
     reset: resetHistoryPagination,
   } = useHistoryTracePagination({
     options,
@@ -247,6 +248,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     setMessages,
     setGoalsByRunId,
     onApprovalLookup,
+    loadHistoryRequestIdRef,
+    historyAbortControllerRef,
+    setIsLoadingHistory,
+    setError,
   });
 
   // Create event handler context
@@ -346,6 +351,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   // Load message history from backend
   const loadHistory = useCallback(
     async (targetSessionId: string, targetRunId?: string) => {
+      if (targetRunId && sessionIdRef.current === targetSessionId) {
+        return loadTargetHistory(targetSessionId, targetRunId);
+      }
       sendSeqRef.current += 1;
       submitInFlightRef.current = false;
       isSendingRef.current = false;
@@ -421,6 +429,17 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           // stale 且列表仍为空（无接管方重建内容）时恢复进入前快照
           if (messagesRef.current.length === 0) setMessages(messagesSnapshot);
           return null;
+        }
+
+        if (targetRunId && !eventsData.events.some(event => event.run_id === targetRunId)) {
+          const targetData = await sessionApi.getEvents(targetSessionId, {
+            run_id: targetRunId,
+            include_active_user_message: true,
+            compact_message_chunks: true,
+            signal,
+          });
+          if (isStaleHistoryLoad()) return null;
+          eventsData.events = [...targetData.events, ...eventsData.events];
         }
 
         const pendingSteersData = await sessionApi
@@ -562,6 +581,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       hydrateSteers,
       restoreSteerMessages,
       recordFirstWindow,
+      loadTargetHistory,
       recordFeedback,
       resetHistoryPagination,
       onApprovalLookup,
@@ -1267,7 +1287,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         if (selected !== response.goal) return;
         setPersistentGoal(selected);
         if (response.goal?.current_run_id && response.goal.current_run_id !== currentRunIdRef.current) {
-          await loadHistoryRef.current?.(sessionId, response.goal.current_run_id);
+          await loadHistoryRef.current?.(sessionId);
         }
       } catch (error) {
         failures = Math.min(failures + 1, 5);
