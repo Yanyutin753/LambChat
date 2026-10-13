@@ -264,8 +264,6 @@ class EvidenceMiddleware(AgentMiddleware):
             ]
         child_records = self.clock.invalidate_old(child_records)
         update["evidence"] = self.clock.invalidate_old([*records, *child_records, record])
-        update["_evidence_clock_token"] = self.clock.token
-        update["_evidence_clock_generation"] = self.clock.generation
         if raised is not None:
             state["evidence"] = merge_evidence(state.get("evidence", []), update["evidence"])
             raise raised
