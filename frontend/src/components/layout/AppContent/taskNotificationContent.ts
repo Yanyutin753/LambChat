@@ -12,6 +12,7 @@ export interface TaskNotificationCopy {
   body: string;
   statusLabel: string;
   isSuccess: boolean;
+  isAttention?: boolean;
 }
 
 interface BuildTaskNotificationCopyInput {
@@ -20,7 +21,8 @@ interface BuildTaskNotificationCopyInput {
   failureLabel: string;
   sessionName?: string;
   successLabel: string;
-  status: "completed" | "failed";
+  attentionLabel?: string;
+  status: "completed" | "failed" | "waiting_human";
 }
 
 export function buildTaskNotificationCopy({
@@ -29,10 +31,12 @@ export function buildTaskNotificationCopy({
   failureLabel,
   sessionName,
   successLabel,
+  attentionLabel,
   status,
 }: BuildTaskNotificationCopyInput): TaskNotificationCopy {
   const isSuccess = status === "completed";
-  const statusLabel = isSuccess ? successLabel : failureLabel;
+  const isAttention = status === "waiting_human";
+  const statusLabel = isAttention ? (attentionLabel || failureLabel) : isSuccess ? successLabel : failureLabel;
   const normalizedSessionName = normalizeText(sessionName);
   const assistantSummary = isSuccess ? getLatestAssistantSummary(events) : "";
   const fallbackSummary = normalizeText(fallbackMessage);
@@ -46,6 +50,7 @@ export function buildTaskNotificationCopy({
     body,
     statusLabel,
     isSuccess,
+    ...(isAttention ? {isAttention:true} : {}),
   };
 }
 
@@ -134,4 +139,9 @@ function truncateText(value: string, maxLength: number): string {
     .slice(0, maxLength - 1)
     .replace(/\s+\S*$/, "")
     .trim()}…`;
+}
+
+export function buildTaskNotificationRoute(sessionId: string, runId?: string): string {
+  const route = `/chat/${encodeURIComponent(sessionId)}`;
+  return runId ? `${route}?run_id=${encodeURIComponent(runId)}` : route;
 }

@@ -5,6 +5,8 @@ const SEPARATOR_RE = /^\s*---\s*$/m;
 
 export type FrontendGoalCommand =
   | { action: "run"; goal: ActiveGoalSpec; prompt: string }
+  | { action: "persist"; goal: ActiveGoalSpec; prompt: string }
+  | { action: "pause" | "resume" }
   | { action: "clear" }
   | { action: "invalid" };
 
@@ -36,14 +38,19 @@ export function parseFrontendGoalCommand(
   if (["clear", "reset", "done", "complete"].includes(body.toLowerCase())) {
     return { action: "clear" };
   }
-  if (!body) return { action: "invalid" };
+  if (["pause", "resume"].includes(body.toLowerCase())) {
+    return { action: body.toLowerCase() as "pause" | "resume" };
+  }
+  const persistent = /^persist(?:\s|$)/i.test(body);
+  const objectiveBody = persistent ? body.replace(/^persist\s*/i, "") : body;
+  if (!objectiveBody) return { action: "invalid" };
 
-  const parts = body.split(SEPARATOR_RE);
+  const parts = objectiveBody.split(SEPARATOR_RE);
   const objective = parts[0]?.trim() || "";
   if (!objective) return { action: "invalid" };
   const explicitRubric = parts.slice(1).join("---").trim();
   return {
-    action: "run",
+    action: persistent ? "persist" : "run",
     goal: buildGoalFromPrompt(objective, explicitRubric),
     prompt: objective,
   };

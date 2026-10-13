@@ -40,6 +40,7 @@
 - CUA 必须显式选择在线机器；代码沙箱可为本地或云端，桌面选机与代码沙箱平台独立。工具参数不能覆盖会话选机，未选择、离线或审批后改机均拒绝，不回退到账户默认机器。审批绑定机器和具体操作，按该机器确认策略执行。观察索引仅在当前会话有效。
 - 远程服务器地址必须使用 HTTPS，HTTP 仅允许回环开发地址。PAT 绑定签发服务器 origin，改连服务器不复用旧凭据，未绑定的旧凭据须重新配对；服务器反向代理子路径仍保留。凭据文件原子写入，并在写入内容前设置仅本用户可访问的权限。
 - 上述传输与账户隔离不等同于服务器失陷后的端到端控制隔离：当前电脑指令仍由服务端 Agent 生成。可信设备执行与端到端配对方案须独立实现、验证后才能声明服务器无控制权。
+- daemon 的有界 call_id 去重同时记录请求终态：结果已受理（含流式结果）或服务端明确拒绝过期回传后，重复帧仅记审计并跳过 HTTP；结果尚未确认的重复帧仍补发 ACK，避免旧终态调用阻塞后续请求。
 - CUA 截图仅允许已确认焦点的前台窗口有效区域，密码字段不读取；截图以会话所有者鉴权读取，禁止匿名、共享和签名直链，删除会话时回收。截图会发送给当前模型，窗口内通知或浮层仍可能入镜。新版回传必须携带机器身份，旧 daemon 的流式操作需同步更新；CUA 要求 daemon 2.14.4 或更新版本。
 - CUA 截图编码依赖三平台显式安装的 Pillow。Linux 打包机还需 `python3-pyatspi`、`python3-gi` 和 `gir1.2-atspi-2.0`，PyInstaller 从系统 Python 路径收集 AT-SPI 与 GI；构建 Python 的 minor 版本必须与系统 GI 扩展一致。Linux X11 的窗口激活和前台检测需 `wmctrl` / `xdotool`；当 AT-SPI 文本写入不生效时，键盘输入使用 X11 Unicode keysym，临时使用空闲非修饰键码并恢复原映射（不覆盖剪贴板、不合成 Shift 切换输入法）。Windows 必须有已登录的交互桌面；SSH 服务会话不能截取登录界面。Wayland 当前支持无障碍元素读写、点击和元素滚动，截图及全局键鼠仍受系统限制，不能把成功的元素操作视为全功能验证。
 - npm 侧 `@tauri-apps/*` 与 Cargo 侧 `tauri` 保持同 major.minor（`Cargo.toml` 注释已要求，升级时双重检查）。
@@ -74,6 +75,8 @@
 命名沿用现状：Tauri command 用 snake_case 并带领域前缀（`daemon_*` / `read_*`）；Rust 模块名单数名词。
 
 ## 7. 桌面端（Tauri）专项
+
+- **原生通知**：桌面入口集中在 `src/commands/notification.rs`。macOS 弱链接 `UserNotifications` 并在运行时检查类可用性，保持 10.13 最低版本；可用时通过常驻 `UNUserNotificationCenter` 代理保存内部路由和账户归属，旧 macOS 与 Linux 保留 notification 插件发送。Windows 在 `windows_notification.rs` 使用应用 AUMID 发送，并保留通知及激活回调，支持横幅消失后的通知中心点击。Android 点击沿用 Capacitor。支持点击的平台均由前端 `appNotificationService` 校验当前账户与内部路由，再导航并显示桌面主窗口；不支持进程关闭后的冷启动点击。原生发送 API 成功仅说明系统受理，不能代替目标设备上实际送达与点击的观察证据。
 
 - **Windows 安装升级**：NSIS 安装包检测到旧安装后直接显示升级进度并沿用原目录，首次安装保留完整向导；普通、静默、应用内更新与同版本重装统一在复制文件前按安装目录停止旧主程序/daemon，再以 `/S /UPDATE` 运行旧卸载器；不删除聊天、登录和工作区数据。64 位系统使用原生 PowerShell，停止或卸载失败必须中止。`scripts/test_windows_installer_hooks.ps1` 用真实 NSIS 安装/卸载夹具验证该流程，PR CI 与 Windows 出包均执行；Tauri CLI 或 NSIS 升级时同步验证 Modern UI 初始化钩子与卸载分流。
 

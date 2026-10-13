@@ -27,6 +27,7 @@ from src.infra.session.search_index import (
 from src.infra.session.session_attachment_operations import (
     SessionAttachmentOperationsMixin,
 )
+from src.infra.session.session_run_metadata import SessionRunMetadataMixin
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
 from src.kernel.schemas.session import Session, SessionCreate, SessionUpdate
@@ -65,7 +66,7 @@ _SESSION_INDEX_SPEC: list[tuple[list[tuple[str, int]], str, dict[str, Any]]] = [
 ]
 
 
-class SessionStorage(SessionAttachmentOperationsMixin):
+class SessionStorage(SessionAttachmentOperationsMixin, SessionRunMetadataMixin):
     """
     会话存储类
 
@@ -194,12 +195,12 @@ class SessionStorage(SessionAttachmentOperationsMixin):
         return Session(**session_dict)
 
     async def get_by_session_id(self, session_id: str) -> Optional[Session]:
-        """通过自定义 session_id 获取会话"""
+        """Resolve the canonical session, preferring a custom ID over ObjectId."""
         await self.ensure_indexes_if_needed()
         session_dict = await self.collection.find_one({"session_id": session_id})
 
         if not session_dict:
-            return None
+            return await self.get_by_id(session_id)
 
         return self._build_session(session_dict)
 
@@ -324,32 +325,6 @@ class SessionStorage(SessionAttachmentOperationsMixin):
             return None
 
         return self._build_session(result)
-
-    async def update_metadata_only(self, session_id: str, metadata: dict[str, Any]) -> bool:
-        """Update session metadata without fetching and rebuilding the full document."""
-        await self.ensure_indexes_if_needed()
-        if not metadata:
-            return True
-
-        update_dict: dict[str, Any] = {"updated_at": utc_now()}
-        for key, value in metadata.items():
-            update_dict[f"metadata.{key}"] = value
-
-        result = await self.collection.update_one(
-            {"session_id": session_id},
-            {"$set": update_dict},
-        )
-        if result.matched_count > 0:
-            return True
-
-        try:
-            result = await self.collection.update_one(
-                {"_id": ObjectId(session_id)},
-                {"$set": update_dict},
-            )
-            return result.matched_count > 0
-        except Exception:
-            return False
 
     async def delete(self, session_id: str) -> bool:
         """删除会话（支持自定义 session_id 或 ObjectId）"""

@@ -142,3 +142,12 @@ test("truncates very long notification summaries to a readable short preview", (
   expect(notification.body.endsWith("…")).toBe(true);
   expect(notification.body.length <= 96).toBe(true);
 });
+
+
+test("human approval is a needs-attention notification, never a failed task", () => {
+  const notice = buildTaskNotificationCopy({status:"waiting_human",sessionName:"Background research",successLabel:"Completed",failureLabel:"Failed",attentionLabel:"Needs your confirmation"});
+  expect(notice.statusLabel).toBe("Needs your confirmation");
+  expect(notice.body).toBe("Needs your confirmation");
+  expect(notice.isAttention).toBe(true);
+  expect(notice.isSuccess).toBe(false);
+});

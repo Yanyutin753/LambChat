@@ -138,6 +138,29 @@ class _FakeStorage:
         return SimpleNamespace(metadata=self.metadata)
 
 
+class _RecoveryStorage(_FakeStorage):
+    async def claim_run_recovery(self, session_id, run_id, metadata):
+        # Match the shared storage admission contract against current state,
+        # including state changed while the worker awaited heartbeat I/O.
+        current = self.metadata
+        allowed = current.get("task_status") in {
+            "running",
+            "starting",
+            "recovering",
+            "pending",
+            "queued",
+        } or (current.get("task_status") == "failed" and current.get("task_recoverable") is True)
+        if current.get("current_run_id") != run_id or not allowed:
+            return False
+        if current.get("verification_required") or current.get("task_error_code") in {
+            "cancelled",
+            "task_recovery_uncertain_effect",
+        }:
+            return False
+        self.metadata.update(metadata)
+        return True
+
+
 class _FakeLimiter:
     def __init__(self, *, can_acquire: bool = True) -> None:
         self.release_calls: list[tuple[str, str, bool]] = []
@@ -150,6 +173,134 @@ class _FakeLimiter:
 
     async def release(self, user_id: str, run_id: str, dequeue: bool = True) -> None:
         self.release_calls.append((user_id, run_id, dequeue))
+
+
+@pytest.mark.parametrize(
+    "current_run, status, finish_during_heartbeat",
+    [
+        ("run-1", TaskStatus.COMPLETED.value, False),
+        ("new-human-run", TaskStatus.QUEUED.value, False),
+        ("run-1", TaskStatus.COMPLETED.value, True),
+    ],
+)
+async def test_late_interrupted_resume_cannot_readmit_finished_or_replaced_run(
+    monkeypatch: pytest.MonkeyPatch, current_run, status, finish_during_heartbeat
+) -> None:
+    from src.infra.task.heartbeat import TaskHeartbeat
+
+    dispatch_id = "recovery-dispatch-old"
+    payload = {
+        "session_id": "session-1",
+        "run_id": "run-1",
+        "trace_id": "trace-old",
+        "agent_id": "fast",
+        "message": "",
+        "user_id": "user-1",
+        "executor_key": "agent_stream",
+        "interrupted_resume": True,
+        "user_message_written": True,
+    }
+    payload_store = _FakePayloadStore(payload, key=dispatch_id)
+    final_metadata = {
+        "current_run_id": current_run,
+        "task_status": status,
+        "task_recoverable": False,
+        "task_error_code": None,
+        "last_completed_run_id": "run-1",
+    }
+
+    storage = _RecoveryStorage(dict(final_metadata))
+    if finish_during_heartbeat:
+        storage.metadata.update(task_status=TaskStatus.RUNNING.value)
+
+    async def stale(_self, _run_id):
+        storage.metadata.update(final_metadata)
+        return True
+
+    task_executor = _FakeTaskExecutor()
+    live_run_info = {current_run: {"session_id": "session-1", "owner": "current-worker"}}
+    task_manager = SimpleNamespace(
+        storage=storage,
+        _run_info=dict(live_run_info),
+        _ensure_executor=lambda: task_executor,
+    )
+    limiter = _FakeLimiter()
+
+    async def execute(*args, **kwargs):
+        if False:
+            yield None
+
+    monkeypatch.setattr(TaskHeartbeat, "is_stale", stale)
+    monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
+    monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)
+    monkeypatch.setattr(arq_worker, "get_registered_executor", lambda _key: execute)
+
+    await arq_worker.run_agent_task({"payload_store": payload_store}, dispatch_id)
+
+    assert limiter.acquire_calls == []
+    assert limiter.release_calls == []
+    assert task_executor.status_calls == []
+    assert task_executor.run_calls == []
+    assert storage.metadata == final_metadata
+    assert task_manager._run_info == live_run_info
+    assert payload_store.deleted == [dispatch_id]
+
+
+@pytest.mark.parametrize(
+    "status, recoverable",
+    [
+        (TaskStatus.RUNNING.value, False),
+        (TaskStatus.FAILED.value, True),
+    ],
+)
+async def test_interrupted_resume_admits_current_active_or_recoverable_failed_run(
+    monkeypatch: pytest.MonkeyPatch, status, recoverable
+) -> None:
+    from src.infra.task.heartbeat import TaskHeartbeat
+
+    dispatch_id = "recovery-dispatch-current"
+    payload = {
+        "session_id": "session-1",
+        "run_id": "run-1",
+        "trace_id": "trace-1",
+        "agent_id": "fast",
+        "message": "",
+        "user_id": "user-1",
+        "executor_key": "agent_stream",
+        "interrupted_resume": True,
+    }
+    storage = _RecoveryStorage(
+        {
+            "current_run_id": "run-1",
+            "task_status": status,
+            "task_recoverable": recoverable,
+            "task_error": "Worker stopped",
+        }
+    )
+    payload_store = _FakePayloadStore(payload, key=dispatch_id)
+    task_executor = _FakeTaskExecutor()
+    task_manager = SimpleNamespace(
+        storage=storage,
+        _run_info={},
+        _ensure_executor=lambda: task_executor,
+    )
+    limiter = _FakeLimiter()
+    monkeypatch.setattr(TaskHeartbeat, "is_stale", AsyncMock(return_value=True))
+    monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
+    monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)
+    monkeypatch.setattr(arq_worker, "get_registered_executor", lambda _key: object())
+
+    await arq_worker.run_agent_task({"payload_store": payload_store}, dispatch_id)
+
+    assert limiter.acquire_calls == [("user-1", "run-1")]
+    assert len(task_executor.run_calls) == 1
+    assert task_executor.run_calls[0]["interrupted_resume"] is True
+    assert task_executor.status_calls == []  # Admission writes through storage CAS.
+    assert storage.metadata["task_status"] == TaskStatus.PENDING.value
+    assert storage.metadata["task_recoverable"] is False
+    assert storage.metadata["task_error"] is None
+    assert storage.metadata["verification_required"] is False
+    assert payload_store.deleted == [dispatch_id]
 
 
 @pytest.mark.asyncio

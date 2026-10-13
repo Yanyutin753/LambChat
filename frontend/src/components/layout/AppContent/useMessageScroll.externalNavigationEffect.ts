@@ -248,9 +248,9 @@ export function useMessageScrollExternalNavigationEffect({
       );
 
       if (runMessageIndex === -1) {
-        if (!isLoadingHistory) {
-          pendingExternalNavigationRef.current = null;
-        }
+        // The parent starts the exact-run fetch after navigation effects have
+        // run. Keep the target until its messages arrive or another navigation
+        // replaces it; this does not trigger fetching or frame retries.
         return;
       }
 
@@ -311,6 +311,7 @@ export function useMessageScrollExternalNavigationEffect({
       requestScrollToBottom("default");
     }
   }, [
+    externalNavigationToken,
     messages,
     requestScrollToBottom,
     isLoadingHistory,

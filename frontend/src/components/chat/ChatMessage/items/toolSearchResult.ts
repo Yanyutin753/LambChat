@@ -10,6 +10,7 @@ export interface ToolSearchSummary {
   newlyLoaded: number;
   alreadyAvailable: number;
   matches: ToolSearchMatch[];
+  availability?: string;
 }
 
 // search_tools 返回头：`Found 3 tool(s). Loaded 2 new; 1 already available. …`
@@ -26,10 +27,13 @@ export function parseToolSearchResult(
   const text = extractText(result as never);
   if (!text) return null;
 
-  const header = text.match(HEADER_RE);
+  const availabilityStart = text.indexOf("MCP connection availability:");
+  const availability = availabilityStart >= 0 ? text.slice(availabilityStart).trim() : undefined;
+  const catalog = availabilityStart >= 0 ? text.slice(0, availabilityStart) : text;
+  const header = catalog.match(HEADER_RE);
 
   const matches: ToolSearchMatch[] = [];
-  const blocks = text.split(/\n(?=## )/g);
+  const blocks = catalog.split(/\n(?=## )/g);
   for (const block of blocks) {
     if (!block.startsWith("## ")) continue;
     const name = block.slice(3).split("\n")[0].trim();
@@ -48,5 +52,6 @@ export function parseToolSearchResult(
     newlyLoaded: header ? Number(header[2]) : 0,
     alreadyAvailable: header ? Number(header[3]) : 0,
     matches,
+    ...(availability ? { availability } : {}),
   };
 }

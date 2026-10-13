@@ -48,5 +48,8 @@ export function mergeOlderHistoryEvents(
   olderEvents: HistoryEvent[],
   currentEvents: HistoryEvent[],
 ): HistoryEvent[] {
-  return [...olderEvents, ...currentEvents];
+  // Exact notification-run reads can overlap a later cursor page. Keep the
+  // newest cached copy and avoid replaying chunks twice for the same event.
+  const currentIds = new Set(currentEvents.map(event => event.id).filter(id => id != null));
+  return [...olderEvents.filter(event => event.id == null || !currentIds.has(event.id)), ...currentEvents];
 }

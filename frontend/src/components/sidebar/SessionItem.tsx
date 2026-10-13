@@ -11,6 +11,7 @@ import type { BackendSession } from "../../services/api/session";
 import type { Project } from "../../types";
 import { sessionApi } from "../../services/api";
 import { SessionMenu } from "./SessionMenu";
+import { getSessionTaskIndicator } from "./sessionTaskIndicator";
 import { Tooltip } from "../common/Tooltip";
 import { shouldBlockSessionSelection } from "../../utils/sessionSelectionGuard";
 
@@ -267,17 +268,13 @@ function SessionItemComponent({
 
   // Get display title
   const displayTitle = getSessionTitle(session);
-  const taskStatus = session.metadata?.task_status;
-  const isWaitingForHuman = taskStatus === "waiting_human";
-  const isGenerating = taskStatus === "running" || taskStatus === "pending";
-  const taskStatusLabel = isGenerating
-    ? t(
-        taskStatus === "pending"
-          ? "sidebar.pendingStatus"
-          : "sidebar.runningStatus",
-        taskStatus === "pending" ? "等待中" : "运行中",
-      )
+  const taskIndicator = getSessionTaskIndicator(session.metadata?.task_status);
+  const isWaitingForHuman = taskIndicator.kind === "attention";
+  const isGenerating = taskIndicator.kind === "busy";
+  const taskStatusLabel = isGenerating && taskIndicator.labelKey
+    ? t(taskIndicator.labelKey, taskIndicator.labelKey === "sidebar.pendingStatus" ? "等待中" : "运行中")
     : null;
+  const attentionLabel = t("sidebar.waitingHuman", "等待回复");
 
   const activate = () => {
     if (wasDraggingRef.current) {
@@ -380,10 +377,10 @@ function SessionItemComponent({
         )}
 
         {isWaitingForHuman && (
-          <Tooltip content={t("sidebar.waitingHuman", "等待回复")}>
+          <Tooltip content={attentionLabel}>
             <span
               data-session-status="ask-human"
-              aria-label="Ask human · 等待你的回复"
+              aria-label={attentionLabel}
               className="shrink-0 inline-flex items-center justify-center h-8 w-6 max-sm:h-9 max-sm:w-9 text-amber-500 dark:text-amber-400"
             >
               <AlertCircle size={16} strokeWidth={2.3} />

@@ -349,6 +349,7 @@ class MCPClientManager:
         self._use_database = use_database
         self._client: Optional[MultiServerMCPClient] = None
         self._tools: list[BaseTool] = []
+        self.unavailable_server_names: tuple[str, ...] = ()
         self._tool_server_map: dict[tuple[str, str], str] = {}
         self._tool_name_server_map: dict[str, str] = {}
         self._server_role_quotas: dict[str, dict[str, MCPRoleQuota]] = {}
@@ -512,6 +513,7 @@ class MCPClientManager:
         Returns:
             tuple: (tools, client) - 工具列表和客户端
         """
+        self.unavailable_server_names = ()
         mcp_servers = config.get("mcpServers", {})
         if not mcp_servers:
             return [], None
@@ -673,6 +675,7 @@ class MCPClientManager:
                 else:
                     logger.info(f"[MCP] Loaded {len(result)} tools from server '{server_name}'")
 
+        self.unavailable_server_names = tuple(sorted(failed_servers))
         if failed_servers:
             logger.warning(
                 f"[MCP] {len(failed_servers)} server(s) failed: {failed_servers}. "

@@ -229,6 +229,8 @@ def test_factory_passes_ptc_allowlist_and_snapshot_key(monkeypatch):
         "snapshot_signing_key": "explicit-key",
         # PTC 聚合场景放宽结果截断上限。
         "max_result_chars": 8000,
+        "max_ptc_calls": 32,
+        "timeout": 60,
     }
     assert isinstance(middleware[1], ci.CodeInterpreterRoutingMiddleware)
     assert middleware[1].ptc_tools == ["web_search", "web_fetch"]
@@ -360,7 +362,8 @@ async def test_routing_appends_ptc_bridge_guidance_when_enabled() -> None:
     assert "tools.webFetch" in eval_tool.description
     # staging 实测（2026-09-19）：模型不知道桥接工具返回 JSON 字符串，
     # 按对象取值失败后花 ~4 分钟/7 次 eval 试错。返回格式提示必须随帧给出。
-    assert "JSON.parse" in eval_tool.description
+    assert "{ok, data, sources, truncated, error}" in eval_tool.description
+    assert "JSON.parse" not in eval_tool.description
     assert "truncated" in eval_tool.description
     other = next(t for t in result.tools if t.name == "web_search")
     assert "<code_interpreter_ptc>" not in other.description
@@ -464,3 +467,14 @@ async def test_real_ptc_enablement_injects_bridged_tool_reference() -> None:
     assert "Dispatching Subagents" not in injected
     # PTC 注入只含白名单工具的 API 引用，远小于 JS 子代理编排教程（~9.8k）。
     assert len(injected) < 4000
+
+
+def test_factory_enforces_program_budget_and_filters_write_allowlist(monkeypatch):
+    from src.infra.agent.middleware import code_interpreter as ci
+
+    _enable_interpreter(monkeypatch)
+    monkeypatch.setattr(ci.settings, "CODE_INTERPRETER_PTC_TOOLS", "web_fetch,execute,task")
+    middleware = ci.create_code_interpreter_middleware({"enable_code_interpreter": True})
+    assert middleware[0]._max_ptc_calls == 32
+    assert middleware[0]._timeout == 60
+    assert middleware[1].ptc_tools == ["web_fetch"]

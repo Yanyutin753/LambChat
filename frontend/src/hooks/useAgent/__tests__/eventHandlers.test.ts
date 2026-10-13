@@ -959,3 +959,12 @@ test("synthesized reconnect cancel (type task_cancelled) marks message cancelled
     "cancelled",
   ]);
 });
+
+
+test("stream goal projection retains its ID but identical ordinary goal does not inherit it", () => {
+  const ctx = createContext([], null);
+  handleStreamEvent({ event: "goal:start", data: JSON.stringify({ session_id: "session-1", run_id: "r1", goal: { objective: "docs", rubric: "verified", _persistent_id: "g1" } }) }, "assistant-1", "projection-start", "2026-10-13T00:00:00Z", ctx);
+  expect(ctx.activeGoal()).toMatchObject({ _persistent_id: "g1" });
+  handleStreamEvent({ event: "goal:start", data: JSON.stringify({ session_id: "session-1", run_id: "r2", goal: { objective: "docs", rubric: "verified" } }) }, "assistant-1", "ordinary-start", "2026-10-13T00:00:01Z", ctx);
+  expect(ctx.activeGoal()?._persistent_id).toBeUndefined();
+});

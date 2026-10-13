@@ -44,4 +44,9 @@ def build_role_tool_scope(
         deferred_system_tools=system,
         session_id=scope,
         pre_discovered_names=deferred_manager.discovered_names,
+        unavailable_server_names=tuple(
+            name
+            for name in deferred_manager.unavailable_server_names
+            if not mcp_servers or name in mcp_servers
+        ),
     )

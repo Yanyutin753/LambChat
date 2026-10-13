@@ -103,6 +103,7 @@ YubbChat/
 /scripts/*
 !/scripts/
 !/scripts/create_daytona_snapshot.py
+!/scripts/eval_agent_capabilities.py
 !/scripts/sign_release_assets.py
 !/scripts/test_windows_installer_hooks.ps1
 !/scripts/create_e2b_template.py

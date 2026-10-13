@@ -1870,3 +1870,14 @@ async def test_upload_and_download_map_shared_alias_paths() -> None:
         ("upload_files", [("/remote/home/shared/skills/demo/SKILL.md", b"# demo")]),
         ("download_files", ["/remote/home/shared/skills/demo/SKILL.md"]),
     ]
+
+
+async def test_evidence_read_tool_policy_does_not_initialize_sandbox():
+    provider = _RecordingSandbox(work_dir="/remote/home/sessions/session-1")
+    manager = _Manager(provider)
+    presenter = _Presenter()
+    backend = _lazy(manager, presenter=presenter)
+    await backend.before_tool_start("read_file", {"file_path": "/evidence/proof.json"})
+    assert manager.calls == []
+    assert presenter.attempts == []
+    assert backend.id == "pending"

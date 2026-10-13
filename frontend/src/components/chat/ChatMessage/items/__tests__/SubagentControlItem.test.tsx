@@ -275,3 +275,27 @@ test.each([
     expect(view.container.textContent).not.toContain('"subagent_id"');
   },
 );
+
+test.each([
+  ["cancel_subagent", "chat.message.toolCancelSubagent"],
+  ["list_subagents", "chat.message.toolListSubagents"],
+])("%s exposes its dedicated control action", (toolName, titleKey) => {
+  const view = show({
+    toolName,
+    args: { subagent_id: "agent-1" },
+    result: JSON.stringify({ subagent_id: "agent-1", status: "cancelled", subagents: [] }),
+    success: true,
+  });
+  expect(view.getByRole("button").textContent).toContain(i18n.t(titleKey));
+});
+
+test("queued wait results stay idle instead of claiming success", () => {
+  const view = show({
+    toolName: "wait_subagent",
+    args: { subagent_id: "agent-1" },
+    result: JSON.stringify({ subagent_id: "agent-1", status: "queued" }),
+    success: true,
+  });
+  fireEvent.click(view.getByRole("button"));
+  expect(getPersistentToolPanelState()?.status).toBe("idle");
+});

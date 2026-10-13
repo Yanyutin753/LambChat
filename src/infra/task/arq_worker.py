@@ -6,14 +6,16 @@ import uuid
 from importlib import import_module
 from typing import Any
 
-from arq import Retry
+from arq import Retry, cron
 
 from src.infra.distributed_validation import validate_distributed_runtime_settings
+from src.infra.goal_continuation import continue_persistent_goal, scan_persistent_goals
 from src.infra.logging import get_logger
 from src.infra.storage.redis import get_redis_client
 from src.kernel.config import settings
 
 from .arq_payloads import TaskArqPayloadStore, UserMessageSearchIndexPayloadStore
+from .background_tasks import scan_background_tasks
 from .concurrency import get_concurrency_limiter, get_registered_executor
 from .exceptions import TaskInterruptedError
 from .hitl import (
@@ -22,6 +24,7 @@ from .hitl import (
     wait_for_hitl_source_release,
 )
 from .manager import get_task_manager
+from .state_machine import TaskStateMachine
 from .status import TaskStatus
 
 logger = get_logger(__name__)
@@ -125,6 +128,10 @@ def _resolve_executor(executor_key: str) -> Any:
     if executor_fn is not None:
         return executor_fn
 
+    if executor_key == "background_agent_stream":
+        from .background_tasks import execute_background_stream
+
+        return execute_background_stream
     if executor_key == "agent_stream":
         import_module("src.api.routes.chat")
         return get_registered_executor(executor_key)
@@ -180,6 +187,44 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
         return
     run_id = str(payload.get("run_id") or dispatch_id)
 
+    from src.infra.goal_runtime import (
+        GOAL_LEASE_TTL_SECONDS,
+        GoalRunAdmissionError,
+        GoalRunAlreadyOwnedError,
+        goal_run_lease,
+        validate_goal_admission,
+    )
+
+    try:
+        background = (
+            (payload["user_id"], payload["session_id"])
+            if payload.get("executor_key") == "background_agent_stream"
+            else None
+        )
+        async with goal_run_lease(
+            payload.get("active_goal"), run_id, background_identity=background
+        ):
+            await validate_goal_admission({**payload, "run_id": run_id})
+            if payload.get("executor_key") == "background_agent_stream":
+                from .background_admission import validate_background_run_admission
+
+                await validate_background_run_admission(
+                    payload["session_id"], payload["user_id"], run_id
+                )
+            await _run_agent_payload(payload_store, payload, dispatch_id, run_id)
+    except GoalRunAdmissionError:
+        await payload_store.delete(dispatch_id)
+        logger.info("Discarded stale Goal admission: run_id=%s", run_id)
+    except GoalRunAlreadyOwnedError:
+        # The current owner still needs the payload, concurrency slot and run info.
+        if payload.get("interrupted_resume") or payload.get("hitl_resume"):
+            logger.info("Deferred task resume while execution lease is owned: run_id=%s", run_id)
+            raise Retry(defer=GOAL_LEASE_TTL_SECONDS)
+        logger.info("Ignored duplicate Goal runner: run_id=%s", run_id)
+
+
+async def _run_agent_payload(payload_store, payload, dispatch_id: str, run_id: str) -> None:
+
     hitl_resume = payload.get("hitl_resume") or {}
     resume_attempt_id = hitl_resume.get("resume_attempt_id")
     if resume_attempt_id and not await wait_for_hitl_resume_activation(
@@ -192,6 +237,25 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
     task_executor = task_manager._ensure_executor()
 
     interrupted_resume = bool(payload.get("interrupted_resume"))
+    persistent_goal = bool((payload.get("active_goal") or {}).get("_persistent_id"))
+    background_run = payload.get("executor_key") == "background_agent_stream"
+    fenced_resume = persistent_goal or background_run
+
+    async def admit_goal_resume():
+        if fenced_resume:
+            from src.infra.goal_runtime import validate_goal_admission
+
+            await validate_goal_admission({**payload, "run_id": run_id})
+            if background_run:
+                from .background_admission import validate_background_run_admission
+
+                await validate_background_run_admission(
+                    payload["session_id"], payload["user_id"], run_id
+                )
+            await task_executor._update_session_status(
+                payload["session_id"], TaskStatus.PENDING, run_id=run_id, expected_run_id=run_id
+            )
+
     hitl_slot_acquired = False
     resume_slot_acquired = False
     if payload.get("hitl_resume"):
@@ -201,14 +265,16 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
         try:
             if not await wait_for_hitl_source_release(run_id, payload.get("user_id")):
                 raise Retry(defer=1)
+            await admit_goal_resume()
             limiter = get_concurrency_limiter()
             if not await limiter.try_acquire_run_slot(payload["user_id"], run_id):
                 raise Retry(defer=1)
             hitl_slot_acquired = True
             try:
-                await task_executor._update_session_status(
-                    payload["session_id"], TaskStatus.PENDING, run_id=run_id
-                )
+                if not fenced_resume:
+                    await task_executor._update_session_status(
+                        payload["session_id"], TaskStatus.PENDING, run_id=run_id
+                    )
             except BaseException:
                 await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=False)
                 raise
@@ -224,17 +290,23 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
         if not await TaskHeartbeat().is_stale(run_id):
             logger.info("Interrupted resume deferred, heartbeat fresh again: run_id=%s", run_id)
             raise Retry(defer=5)
+        if not fenced_resume:
+            admitted = await task_manager.storage.claim_run_recovery(
+                payload["session_id"],
+                run_id,
+                TaskStateMachine().build_metadata(TaskStatus.PENDING, run_id=run_id),
+            )
+            if not admitted:
+                # Heartbeat I/O and queue delivery can outlive this run. Discard
+                # only this dispatch without disturbing its completed/new owner.
+                await payload_store.delete(dispatch_id)
+                logger.info("Discarded stale interrupted resume: run_id=%s", run_id)
+                return
+        await admit_goal_resume()
         limiter = get_concurrency_limiter()
         if not await limiter.try_acquire_run_slot(payload["user_id"], run_id):
             raise Retry(defer=1)
         resume_slot_acquired = True
-        try:
-            await task_executor._update_session_status(
-                payload["session_id"], TaskStatus.PENDING, run_id=run_id
-            )
-        except BaseException:
-            await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=False)
-            raise
 
     executor_key = str(payload["executor_key"])
     try:
@@ -302,7 +374,7 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
     except TaskInterruptedError:
         await payload_store.delete(dispatch_id)
         await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=True)
-        logger.info("Deleted arq payload after user interruption: run_id=%s", run_id)
+        logger.info("Deleted arq payload after interruption or stale admission: run_id=%s", run_id)
     except asyncio.CancelledError:
         if await _is_user_cancelled_run(task_manager, payload["session_id"], run_id):
             await payload_store.delete(dispatch_id)
@@ -375,6 +447,10 @@ async def update_user_message_search_index(ctx: dict[str, Any], run_id: str) -> 
 
 
 class WorkerSettings:
-    functions = [run_agent_task, update_user_message_search_index]
+    functions = [run_agent_task, update_user_message_search_index, continue_persistent_goal]
+    cron_jobs = [
+        cron(scan_persistent_goals, second={0, 10, 20, 30, 40, 50}, run_at_startup=True),
+        cron(scan_background_tasks, second={5, 15, 25, 35, 45, 55}, run_at_startup=True),
+    ]
     on_startup = worker_startup
     on_shutdown = worker_shutdown

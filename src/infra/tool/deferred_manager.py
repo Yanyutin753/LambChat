@@ -18,6 +18,29 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+DEFERRED_DIRECTORY_GROUP_THRESHOLD = 40
+
+
+def _system_domain(name: str) -> str:
+    for domain in (
+        "conversation_history",
+        "scheduled_task",
+        "persona_preset",
+        "env_var",
+        "memory",
+        "team",
+        "web",
+        "document",
+        "image",
+        "video",
+        "audio",
+        "sandbox",
+        "skill",
+    ):
+        if f"_{domain}_" in f"_{name}_":
+            return domain
+    return "other"
+
 
 DEFERRED_TOOL_SEARCH_GUIDE = (
     "## Tool Search Guide\n\n"
@@ -75,11 +98,14 @@ class DeferredToolManager:
         pre_discovered_names: Optional[list[str]] = None,
         parent: Optional["DeferredToolManager"] = None,
         deferred_system_tools: Optional[list["BaseTool"]] = None,
+        unavailable_server_names: tuple[str, ...] = (),
     ):
         # 应用 disabled_tools 过滤
         disabled_set = set(disabled_tools or [])
         disabled_set.update(disabled_mcp_tools or [])
         mcp_servers = {t[4:] for t in disabled_set if t.startswith("mcp:")}
+        self._disabled_mcp_servers = mcp_servers
+        self.unavailable_server_names = tuple(sorted(set(unavailable_server_names) - mcp_servers))
         exact_disabled = disabled_set - {f"mcp:{s}" for s in mcp_servers}
 
         candidates = [
@@ -158,20 +184,44 @@ class DeferredToolManager:
             session_id=f"{self._session_id}:{safe_scope}",
             pre_discovered_names=self.discovered_names,
             parent=self,
+            unavailable_server_names=self.unavailable_server_names,
+        )
+
+    def set_unavailable_servers(self, names: tuple[str, ...]) -> None:
+        """Attach only authorized connection status, never raw errors or configuration."""
+        self.unavailable_server_names = tuple(sorted(set(names) - self._disabled_mcp_servers))
+        self._cached_stubs_string = None
+
+    def get_unavailable_servers_string(self) -> str:
+        if not self.unavailable_server_names:
+            return ""
+        from src.infra.memory.control_frames import escape_control_frame_tags
+
+        names = "\n".join(
+            f"- {escape_control_frame_tags(name.replace(chr(10), ' ').replace(chr(13), ' '))}: unavailable"
+            for name in self.unavailable_server_names
+        )
+        return (
+            "MCP connection availability:\n\n" + names + "\n"
+            "These authorized servers could not load their tools in this catalog snapshot. "
+            "Repeating tool discovery does not reconnect them. Use available capabilities "
+            "or explain this blocker; normal connection/config refresh can restore availability."
         )
 
     def _sync_parent_discoveries(self) -> None:
         if self._parent is None:
             return
 
-        parent_names = set(self._parent.discovered_names)
-        inherited = parent_names & set(self._tool_map.keys())
-        new_names = inherited - self._discovered_names
+        new_names = [
+            name
+            for name in self._parent.discovered_names
+            if name in self._tool_map and name not in self._discovered_names
+        ]
         if not new_names:
             return
 
         self._discovered_names.update(new_names)
-        self._discovered_order.extend(sorted(new_names))
+        self._discovered_order.extend(new_names)
 
     @property
     def total_deferred(self) -> int:
@@ -228,6 +278,35 @@ class DeferredToolManager:
             mcp_stubs = [stub for stub in stubs if stub.kind == "mcp"]
             system_stubs = [stub for stub in stubs if stub.kind == "system"]
             parts: list[str] = [DEFERRED_TOOL_SEARCH_GUIDE]
+            availability = self.get_unavailable_servers_string()
+            if availability:
+                parts.append(availability)
+            if len(stubs) > DEFERRED_DIRECTORY_GROUP_THRESHOLD:
+                groups: dict[tuple[str, str], list[DeferredToolStub]] = {}
+                for stub in stubs:
+                    if stub.kind == "mcp":
+                        domain = stub.server or (
+                            stub.name.split(":", 1)[0] if ":" in stub.name else "other"
+                        )
+                    else:
+                        domain = _system_domain(stub.name)
+                    groups.setdefault((stub.kind, domain), []).append(stub)
+                for kind, heading in (("mcp", "MCP Servers"), ("system", "System Domains")):
+                    lines = [
+                        f"- {domain} ({len(members)} tools): "
+                        f"{next((item.description for item in members if item.description), 'Search available capabilities')}"
+                        for (group_kind, domain), members in sorted(groups.items())
+                        if group_kind == kind
+                    ]
+                    if lines:
+                        parts.append(f"## {heading} (Deferred)\n\n" + "\n".join(lines))
+                parts.append(
+                    "Groups are search hints, not callable namespaces. Search a domain or capability "
+                    "to discover exact names; use `select:exact_tool_name` when known. "
+                    "All authorized tools remain searchable."
+                )
+                self._cached_stubs_string = "\n\n".join(parts)
+                return self._cached_stubs_string
             if mcp_stubs:
                 parts.append(
                     "## MCP Tools (Deferred)\n\n"
@@ -240,7 +319,7 @@ class DeferredToolManager:
                 )
             result = "\n\n".join(parts)
         else:
-            result = ""
+            result = self.get_unavailable_servers_string()
 
         self._cached_stubs_string = result
         return self._cached_stubs_string

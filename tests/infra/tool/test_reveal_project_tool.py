@@ -858,7 +858,9 @@ async def test_reveal_project_batches_sandbox_files_through_single_bundle(
         f"/file-{index}.txt" for index in range(6)
     }
     # 单次 bundle 下载替代 6 次逐文件跨洋往返
-    tar_commands = [cmd for cmd in backend.commands if cmd.startswith("tar ")]
+    tar_commands = [
+        cmd for cmd in backend.commands if cmd.startswith("env COPYFILE_DISABLE=1 tar ")
+    ]
     assert len(tar_commands) == 1
     assert "-C" in tar_commands[0] and "czf" in tar_commands[0]
     # daemon 侧打包产物被清理
@@ -899,6 +901,11 @@ def test_bundle_command_archives_visible_files_with_literal_paths(
             "./index.html",
             "./src/app.ts",
         }
+
+
+def test_bundle_command_disables_implicit_macos_metadata() -> None:
+    command = reveal_project_tool._build_bundle_command("/project", "/bundle.tar.gz", ["/file"])
+    assert command.startswith("env COPYFILE_DISABLE=1 tar ")
 
 
 def test_bundle_command_only_archives_selected_files_without_recursing(tmp_path: Path) -> None:

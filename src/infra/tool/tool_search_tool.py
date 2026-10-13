@@ -94,8 +94,9 @@ class ToolSearchTool(BaseTool):
         discovered = self._manager.get_discovered_tools()
         undiscovered = self._manager.get_undiscovered_tools()
         all_tools = discovered + undiscovered
+        availability = self._manager.get_unavailable_servers_string()
         if not all_tools:
-            return "No deferred tools are available for search."
+            return availability or "No deferred tools are available for search."
 
         results, parts = await run_long_blocking_io(
             _search_and_format_tool_results,
@@ -106,6 +107,8 @@ class ToolSearchTool(BaseTool):
         )
 
         if not results:
+            if availability:
+                return "No matching callable tools in the current catalog.\n\n" + availability
             return (
                 f"No tools found matching '{query}'. "
                 f"Try different keywords or check the available tool list."
@@ -121,7 +124,7 @@ class ToolSearchTool(BaseTool):
             f"{already_available_count} already available. Returned schemas are callable; "
             "call it directly next.\n\n"
         )
-        return header + "\n\n".join(parts)
+        return header + "\n\n".join(parts) + ("\n\n" + availability if availability else "")
 
 
 def _search_and_format_tool_results(

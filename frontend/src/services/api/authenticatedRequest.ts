@@ -47,7 +47,7 @@ export async function authenticatedRequest(
   try {
     await refreshAccessToken();
   } catch (error) {
-    redirectToLogin();
+    if ((error as Error & { status?: number })?.status === 401) redirectToLogin();
     throw error;
   }
 

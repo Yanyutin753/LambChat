@@ -193,10 +193,15 @@ pub fn run() {
                 }
             });
             // 托盘：构建失败（如缺 appindicator 运行库）仅告警，不影响主窗口。
+            commands::notification::install(app.handle());
             tray::init(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::notification::desktop_notification_supports_actions,
+            commands::notification::desktop_notification_permission,
+            commands::notification::desktop_notification_send,
+            commands::notification::desktop_notification_focus,
             commands::preview::preview_html,
             commands::workspace::sandbox_pick_workspace,
             commands::workspace::reveal_workspace_path,

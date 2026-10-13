@@ -7,6 +7,24 @@ from src.infra.task.status import TaskStatus
 from src.infra.writer.present import create_presenter
 
 
+@pytest.fixture(autouse=True)
+def isolated_completion_storage(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    async def record_once(user_id, data):
+        return data, True
+
+    monkeypatch.setattr(
+        "src.infra.task.completion_events.TaskCompletionStore",
+        lambda: SimpleNamespace(record_once=record_once),
+    )
+    monkeypatch.setattr(
+        "src.infra.task.completion_recovery.TaskCompletionOutbox",
+        lambda: SimpleNamespace(stage=AsyncMock(), clear=AsyncMock()),
+    )
+
+
 class _FakeWebSocketManager:
     def __init__(self, delivered_count: int) -> None:
         self.delivered_count = delivered_count

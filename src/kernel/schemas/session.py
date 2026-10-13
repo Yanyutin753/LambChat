@@ -76,4 +76,7 @@ def clone_session_metadata(
     if not include_checkpoints:
         copied.pop("checkpoints", None)
     copied.pop("current_run_id", None)
+    for key in list(copied):
+        if key.startswith("persistent_goal_"):
+            copied.pop(key)
     return copied

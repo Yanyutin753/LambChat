@@ -1,6 +1,6 @@
 [package]
 name = "lambchat"
-version = "2.14.6"
+version = "2.15.0"
 description = "LambChat desktop app"
 authors = ["LambChat"]
 license = ""
@@ -50,5 +50,9 @@ libc = "0.2"
 # AppKit types already used by Tauri; no extra window-decoration plugin.
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWindow", "NSView", "NSButton", "NSResponder"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSNotification", "NSOperation", "NSString", "block2"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSNotification", "NSOperation", "NSString", "NSDictionary", "NSError", "NSProcessInfo", "block2"] }
 block2 = "0.6"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# Reuse the existing locked WinRT bindings for real toast activation callbacks.
+windows = { version = "=0.61.3", features = ["Foundation", "UI_Notifications", "Data_Xml_Dom"] }

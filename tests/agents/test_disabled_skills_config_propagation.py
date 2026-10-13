@@ -29,7 +29,7 @@ class _FakeDeepAgent:
 
     async def aget_state(self, _config):
         self.aget_state_calls += 1
-        return SimpleNamespace(values={"messages": self.state_messages})
+        return SimpleNamespace(values={"messages": self.state_messages}, next=(), tasks=())
 
 
 class _FakeEventProcessor:
@@ -336,7 +336,7 @@ async def test_fast_agent_node_reads_existing_state_messages_for_recommendations
     )
     await asyncio.sleep(0)
 
-    assert fake_graph.aget_state_calls == 1
+    assert fake_graph.aget_state_calls == 2
     assert result == {"output": ""}
 
 
@@ -671,7 +671,7 @@ async def test_search_agent_node_reads_existing_state_messages_for_recommendatio
     )
     await asyncio.sleep(0)
 
-    assert fake_graph.aget_state_calls == 1
+    assert fake_graph.aget_state_calls == 2
     assert result == {"output": ""}
 
 
@@ -967,3 +967,73 @@ async def test_fast_agent_node_language_section_bytes_stable_across_turns(
         " error messages, file paths, and technical identifiers unchanged.",
         "",
     )
+
+
+@pytest.mark.parametrize("agent", ["fast", "search", "team"])
+async def test_each_agent_checks_real_inner_checkpoint_before_streaming(monkeypatch, agent):
+    import importlib
+    from unittest.mock import AsyncMock
+
+    from langchain_core.messages import AIMessage
+
+    from src.kernel.errors import AppError, ErrorCode
+
+    module = importlib.import_module(f"src.agents.{agent}_agent.nodes")
+    fake_graph = _FakeDeepAgent()
+    fake_graph.checkpointer = SimpleNamespace(
+        aget_tuple=AsyncMock(return_value=SimpleNamespace(pending_writes=[]))
+    )
+    fake_graph.builder = SimpleNamespace(nodes={})
+    fake_graph.aget_state = AsyncMock(
+        return_value=SimpleNamespace(
+            values={
+                "messages": [
+                    AIMessage(
+                        content="",
+                        tool_calls=[{"id": "write", "name": "external_write", "args": {}}],
+                    )
+                ]
+            },
+            next=("tools",),
+            tasks=(),
+            config={"configurable": {"checkpoint_id": "pending"}},
+        )
+    )
+    _patch_common(monkeypatch, module, fake_graph)
+    if agent == "search":
+
+        async def backend(**_kwargs):
+            return object(), "system prompt", object(), None, None
+
+        monkeypatch.setattr(module, "_create_backend_and_prompt", backend)
+    else:
+        monkeypatch.setattr(
+            getattr(module, "backend_setup", module),
+            "create_persistent_backend",
+            lambda **_kwargs: object(),
+        )
+    if agent == "team":
+        from src.agents.team_agent.context import TeamAgentContext
+
+        monkeypatch.setattr(module.settings, "ENABLE_SANDBOX", False)
+        context = TeamAgentContext(session_id="session", user_id="user")
+    else:
+        context = SimpleNamespace(user_id="user", skills=[], deferred_manager=None)
+    node = getattr(
+        module,
+        {"fast": "fast_agent_node", "search": "agent_node", "team": "team_router_node"}[agent],
+    )
+    with pytest.raises(AppError) as caught:
+        await node(
+            {"input": "continue", "session_id": "session", "attachments": []},
+            {
+                "configurable": {
+                    "context": context,
+                    "presenter": object(),
+                    "base_url": "",
+                    "agent_options": {},
+                }
+            },
+        )
+    assert caught.value.error_code is ErrorCode.TASK_RECOVERY_UNCERTAIN_EFFECT
+    assert fake_graph.captured_inner_config is None

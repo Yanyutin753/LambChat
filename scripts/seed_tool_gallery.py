@@ -399,6 +399,31 @@ def tool_cases():
             {"subagent_id": "mock-researcher"},
             {"subagent_id": "mock-researcher", "status": "completed", "result": "移动端检查完成"},
         ),
+        (
+            "09 Todo 与子代理",
+            "list_subagents",
+            {},
+            {"subagents": [{"subagent_id": "mock-researcher", "status": "completed"}]},
+        ),
+        (
+            "09 Todo 与子代理",
+            "cancel_subagent",
+            {"subagent_id": "mock-reviewer"},
+            {"subagent_id": "mock-reviewer", "status": "cancelled"},
+        ),
+        (
+            "09 Todo 与子代理",
+            "start_background_task",
+            {"description": "后台整理验收记录，完成后通知我"},
+            {
+                "task_id": "mock-background-task",
+                "session_id": "mock-background-session",
+                "run_id": "mock-background-run",
+                "parent_session_id": "mock-parent-session",
+                "execution_mode": "arq",
+                "status": "queued",
+            },
+        ),
         ("08 异常与空结果", "web_search", {"query": "不存在的模拟资料"}, {"results": []}),
         (
             "08 异常与空结果",

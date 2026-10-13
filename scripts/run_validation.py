@@ -11,6 +11,32 @@ from contextlib import contextmanager
 from pathlib import Path
 
 
+def _process_is_alive(pid):
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    if os.name != "nt":
+        os.kill(pid, 0)
+        return True
+
+    import ctypes
+    from ctypes import wintypes
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    kernel.OpenProcess.restype = wintypes.HANDLE
+    kernel.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+    kernel.WaitForSingleObject.restype = wintypes.DWORD
+    kernel.CloseHandle.argtypes = (wintypes.HANDLE,)
+    kernel.CloseHandle.restype = wintypes.BOOL
+    handle = kernel.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE, never TERMINATE
+    if not handle:
+        return False
+    try:
+        return kernel.WaitForSingleObject(handle, 0) == 258  # WAIT_TIMEOUT: still alive
+    finally:
+        kernel.CloseHandle(handle)
+
+
 @contextmanager
 def validation_slot():
     path = Path.home() / ".cache/lambchat/validation.lock"
@@ -18,15 +44,20 @@ def validation_slot():
     owner = os.environ.get("LAMBCHAT_VALIDATION_OWNER", "")
     nested = False
     try:
-        metadata = json.loads(path.read_text())
+        if os.name == "nt":
+            # Windows locks deny reads of byte zero, including buffered read-ahead.
+            with path.open("rb", buffering=0) as metadata_file:
+                metadata_file.seek(1)
+                metadata = json.loads(metadata_file.read())
+        else:
+            metadata = json.loads(path.read_text())
         if owner and metadata.get("owner") == owner:
-            os.kill(metadata["pid"], 0)
-            nested = True
+            nested = _process_is_alive(metadata["pid"])
     except (OSError, ValueError, KeyError):
         pass
 
     # Never unlink: replacing the inode would let another process bypass the lock.
-    with path.open("a+") as lock:
+    with path.open("a+b" if os.name == "nt" else "a+") as lock:
         if os.name == "nt":
             import msvcrt
 
@@ -51,9 +82,16 @@ def validation_slot():
             )
             raise SystemExit(75)
         token = secrets.token_hex(16)
-        lock.seek(0)
-        lock.truncate()
-        json.dump({"owner": token, "pid": os.getpid()}, lock)
+        metadata = {"owner": token, "pid": os.getpid()}
+        if os.name == "nt":
+            # Preserve the locked byte and put all readable metadata beyond it.
+            lock.seek(1)
+            lock.truncate()
+            lock.write(json.dumps(metadata).encode("utf-8"))
+        else:
+            lock.seek(0)
+            lock.truncate()
+            json.dump(metadata, lock)
         lock.flush()
         os.environ["LAMBCHAT_VALIDATION_OWNER"] = token
         try:

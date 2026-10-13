@@ -5,6 +5,7 @@ Core authentication routes (register, login, refresh, me, permissions)
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from src.api.deps import get_current_user_required
+from src.infra.auth.authority import authority_lookup
 from src.infra.auth.jwt import create_access_token, create_refresh_token, decode_token
 from src.infra.auth.turnstile import get_turnstile_service
 from src.infra.logging import get_logger
@@ -140,7 +141,8 @@ async def refresh_token(request: Request):
 
         # 获取用户信息以验证用户仍然存在
         manager = UserManager()
-        user = await manager.get_user(user_id)
+        async with authority_lookup():
+            user = await manager.get_user(user_id)
         if not user:
             raise AppError(ErrorCode.USER_NOT_FOUND)
         if user.is_active is False:

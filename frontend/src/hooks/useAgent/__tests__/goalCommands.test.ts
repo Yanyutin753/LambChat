@@ -123,3 +123,14 @@ test("plans bare goal command as invalid local-only action", () => {
     errorKey: "chat.goal.required",
   });
 });
+
+test("persistent goal commands stay distinct from run-scoped goals", () => {
+  expect(parseFrontendGoalCommand("/goal persist finish docs\n---\n- docs verified")).toEqual({
+    action: "persist",
+    goal: { objective: "finish docs", rubric: "- docs verified", max_iterations: 3 },
+    prompt: "finish docs",
+  });
+  expect(parseFrontendGoalCommand("/goal pause")).toEqual({ action: "pause" });
+  expect(parseFrontendGoalCommand("/goal resume")).toEqual({ action: "resume" });
+  expect(parseFrontendGoalCommand("/goal persist")).toEqual({ action: "invalid" });
+});

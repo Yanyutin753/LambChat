@@ -1,5 +1,7 @@
 import {
   normalizeEventRunIds,
+  extractGoalFromEvents,
+  extractGoalsByRunFromEvents,
   prepareMessagesForRunningRun,
   reconstructMessagesFromEvents,
   resolveLegacyScheduledTaskApproval,
@@ -2105,4 +2107,14 @@ test("completed runs discard tool drafts in turns sealed by steer messages", () 
     "第一轮",
     "已完成",
   ]);
+});
+
+
+test("history preserves persistent projection ID without leaking it into ordinary runs", () => {
+  const events: HistoryEvent[] = [{ event_type: "goal:start", run_id: "r1", data: { goal: { objective: "docs", rubric: "verified", _persistent_id: "g1" } } }];
+  expect(extractGoalFromEvents(events)).toMatchObject({ _persistent_id: "g1" });
+  expect(extractGoalsByRunFromEvents(events).r1).toMatchObject({ _persistent_id: "g1" });
+  events.push({ event_type: "goal:start", run_id: "r2", data: { goal: { objective: "docs", rubric: "verified" } } });
+  expect(extractGoalFromEvents(events)?._persistent_id).toBeUndefined();
+  expect(extractGoalsByRunFromEvents(events).r2._persistent_id).toBeUndefined();
 });

@@ -26,6 +26,7 @@ import {
   prepareMessagesForRunningRun,
   extractGoalFromEvents,
   extractGoalsByRunFromEvents,
+  extractPersistentGoalFromEvents,
   createScheduledTaskApprovalLookup,
 } from "./useAgent/historyLoader";
 import { clearAllLoadingStates } from "./useAgent/messageParts";
@@ -44,7 +45,7 @@ import {
 } from "./useAgent/steerQueue";
 import { getValidAccessToken } from "../services/api/tokenManager";
 import { resolveRunEnabledSkills } from "./useAgent/runSkillOverrides";
-import { planGoalSubmission } from "./useAgent/goalCommands";
+import { parseFrontendGoalCommand, planGoalSubmission } from "./useAgent/goalCommands";
 import { translateApiError } from "../utils/backendErrors";
 import { dispatchSessionTitleUpdated } from "../utils/sessionTitleEvents";
 import { useAgentList } from "./useAgent/agentList";
@@ -59,6 +60,9 @@ import {
 import { HISTORY_TRACE_PAGE_SIZE } from "./useAgent/historyPagination";
 import { useHistoryTracePagination } from "./useAgent/historyTracePagination";
 import { extractSessionConfig } from "./useAgent/sessionConfig";
+import { getGoalControlScope } from "./useAgent/goalControlScope";
+import { selectPersistentGoal } from "./useAgent/persistentGoalState";
+import type { PersistentGoal } from "../services/api/session";
 import { useAutoModeSetting } from "./useAgent/autoModeSetting";
 
 export function useAgent(options?: UseAgentOptions): UseAgentReturn {
@@ -95,6 +99,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     setSandboxError,
     selectedTeamId,
     setSelectedTeamId,
+    persistentGoal,
+    setPersistentGoal: setPersistentGoalState,
+    persistentGoalBusy,
+    setPersistentGoalBusy,
     activeGoal,
     setActiveGoal,
     goalsByRunId,
@@ -142,7 +150,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   // 最新 loadHistory 的稳定引用：SSE 层发现「run 已终结但本地空壳」时
   // 拉起历史重载（定义在下方，渲染期回填，避免 useCallback 依赖环）
   const loadHistoryRef = useRef<
-    ((targetSessionId: string) => Promise<unknown>) | null
+    ((targetSessionId: string, targetRunId?: string) => Promise<unknown>) | null
   >(null);
 
   // Flag for reconnect from history
@@ -154,6 +162,13 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   // Keep sessionId/runId in ref for closure access
   const sessionIdRef = useRef<string | null>(null);
   const currentRunIdRef = useRef<string | null>(null);
+  const persistentGoalRef = useRef<PersistentGoal | null>(null);
+  const persistentMutationEpochRef = useRef(0);
+  const setPersistentGoal = useCallback((updater: React.SetStateAction<PersistentGoal | null>) => {
+    const next = typeof updater === "function" ? updater(persistentGoalRef.current) : updater;
+    persistentGoalRef.current = next;
+    setPersistentGoalState(next);
+  }, [setPersistentGoalState]);
   const messagesRef = useRef<Message[]>([]);
   const sendMessageRef = useRef<
     | ((content: string, attachments?: MessageAttachment[]) => Promise<void>)
@@ -221,6 +236,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     recordFirstWindow,
     recordFeedback,
     loadOlderHistory,
+    loadTargetHistory,
     reset: resetHistoryPagination,
   } = useHistoryTracePagination({
     options,
@@ -232,6 +248,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     setMessages,
     setGoalsByRunId,
     onApprovalLookup,
+    loadHistoryRequestIdRef,
+    historyAbortControllerRef,
+    setIsLoadingHistory,
+    setError,
   });
 
   // Create event handler context
@@ -253,6 +273,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setIsInitializingSandbox,
       setSandboxError,
       setActiveGoal,
+      setPersistentGoal,
       setGoalsByRunId,
       onStaleRunStateDetected: (runId: string) => {
         // 只在该 run 仍是当前 run 且没有新的发送/加载进行时重载，
@@ -278,6 +299,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setIsInitializingSandbox,
       setSandboxError,
       setActiveGoal,
+      setPersistentGoal,
       setGoalsByRunId,
     ],
   );
@@ -316,6 +338,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      sendSeqRef.current += 1;
       historyAbortControllerRef.current?.abort();
       sseGenerationRef.current += 1;
       if (abortControllerRef.current) {
@@ -328,6 +351,13 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   // Load message history from backend
   const loadHistory = useCallback(
     async (targetSessionId: string, targetRunId?: string) => {
+      if (targetRunId && sessionIdRef.current === targetSessionId) {
+        return loadTargetHistory(targetSessionId, targetRunId);
+      }
+      sendSeqRef.current += 1;
+      submitInFlightRef.current = false;
+      isSendingRef.current = false;
+      if (sessionIdRef.current !== targetSessionId) setPersistentGoal(null);
       loadHistoryRequestIdRef.current += 1;
       const requestId = loadHistoryRequestIdRef.current;
       setHistoryLoadGeneration(requestId);
@@ -401,6 +431,17 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           return null;
         }
 
+        if (targetRunId && !eventsData.events.some(event => event.run_id === targetRunId)) {
+          const targetData = await sessionApi.getEvents(targetSessionId, {
+            run_id: targetRunId,
+            include_active_user_message: true,
+            compact_message_chunks: true,
+            signal,
+          });
+          if (isStaleHistoryLoad()) return null;
+          eventsData.events = [...targetData.events, ...eventsData.events];
+        }
+
         const pendingSteersData = await sessionApi
           .getPendingSteers(targetSessionId)
           .catch((error) => {
@@ -448,6 +489,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           const lastTimestamp = getLastEventTimestamp(historyEvents);
           lastHistoryTimestampRef.current = lastTimestamp;
 
+          const persistentSnapshot = await sessionApi.getPersistentGoal(targetSessionId, { signal }).catch(() => undefined);
+          if (isStaleHistoryLoad()) return null;
+          setPersistentGoal((previous) => selectPersistentGoal(previous, persistentSnapshot ? persistentSnapshot.goal : extractPersistentGoalFromEvents(historyEvents, targetSessionId), targetSessionId));
           const restoredGoal = extractGoalFromEvents(historyEvents);
           const restoredGoalsByRun = extractGoalsByRunFromEvents(historyEvents);
           const streamRunId = resolveHistoryStreamRunId(
@@ -537,10 +581,12 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       hydrateSteers,
       restoreSteerMessages,
       recordFirstWindow,
+      loadTargetHistory,
       recordFeedback,
       resetHistoryPagination,
       onApprovalLookup,
       setActiveGoal,
+      setPersistentGoal,
       setCurrentProjectId,
       setCurrentRunId,
       setError,
@@ -554,6 +600,30 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   );
 
   // Send message
+  const persistentMutationRef = useRef(false);
+  const controlPersistentGoal = useCallback(async (action: "pause" | "resume" | "clear") => {
+    const target = sessionIdRef.current;
+    if (!target || persistentMutationRef.current) return;
+    persistentMutationRef.current = true;
+    persistentMutationEpochRef.current += 1;
+    setPersistentGoalBusy(true);
+    try {
+      const response = await sessionApi.controlPersistentGoal(target, action);
+      if (sessionIdRef.current !== target) return;
+      if (response.goal && response.goal.session_id !== target) throw new Error(i18n.t("chat.goalPersistent.noGoal"));
+      setPersistentGoal((previous) => selectPersistentGoal(previous, response.goal, target));
+      setError(null);
+    } catch (error) {
+      if (sessionIdRef.current === target) {
+        const apiError = error as Error & { code?: string; args?: Record<string, unknown> };
+        setError(translateApiError(apiError.code, apiError.message, apiError.args, i18n.t));
+      }
+    } finally {
+      persistentMutationRef.current = false;
+      setPersistentGoalBusy(false);
+    }
+  }, [setError, setPersistentGoal, setPersistentGoalBusy]);
+
   const sendMessage = useCallback(
     async (
       content: string,
@@ -577,6 +647,63 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setIsLoadingHistory(false);
       isLoadingHistoryRef.current = false;
 
+      const command = parseFrontendGoalCommand(content);
+      if (command && (command.action === "persist" || command.action === "pause" || command.action === "resume" || (command.action === "clear" && getGoalControlScope(activeGoal, persistentGoal) === "persistent"))) {
+        if (attachments?.length) {
+          setError(i18n.t("chat.goalPersistent.attachmentsUnsupported"));
+          notifySubmissionRejected(submissionCallbacks);
+          return;
+        }
+        if (persistentMutationRef.current || submitInFlightRef.current) {
+          notifySubmissionRejected(submissionCallbacks);
+          return;
+        }
+        persistentMutationRef.current = true;
+        persistentMutationEpochRef.current += 1;
+        setPersistentGoalBusy(true);
+        const originSession = sessionIdRef.current;
+        const originStreamVersion = streamVersionRef.current;
+        let target = originSession;
+        try {
+          if (command.action !== "persist" && !target) throw new Error(i18n.t("chat.goalPersistent.noGoal"));
+          if (!target) {
+            const created = await sessionApi.create({ name: command.action === "persist" ? command.goal.objective : undefined, metadata: {
+              agent_id: currentAgent, agent_options: { ...options?.getAgentOptions?.(), ...agentOptions },
+              team_id: currentAgent === "team" ? selectedTeamId : null,
+              persona_preset_id: options?.getPersonaPresetId?.() || null,
+              disabled_skills: options?.getDisabledSkills?.() || [],
+              enabled_skills: resolveRunEnabledSkills({ personaPresetId: options?.getPersonaPresetId?.() || null, personaEnabledSkills: options?.getEnabledSkills?.(), runEnabledSkills: runOptions?.enabledSkills }),
+              disabled_mcp_tools: options?.getDisabledMcpTools?.() || [],
+              project_id: pendingProjectIdRef.current,
+            } });
+            if (sessionIdRef.current !== originSession || streamVersionRef.current !== originStreamVersion) { notifySubmissionRejected(submissionCallbacks); return; }
+            target = created.id;
+            sessionIdRef.current = target;
+            setSessionId(target);
+            setNewlyCreatedSession(created);
+            setCurrentProjectId(pendingProjectIdRef.current);
+            bindSteerSession(target);
+          }
+          const response = command.action === "persist"
+            ? await sessionApi.putPersistentGoal(target, { objective: command.goal.objective, rubric: command.goal.rubric!, ...(persistentGoal ? { expected_revision: persistentGoal.revision } : {}) })
+            : await sessionApi.controlPersistentGoal(target, command.action);
+          if (sessionIdRef.current !== target || streamVersionRef.current !== originStreamVersion) { notifySubmissionRejected(submissionCallbacks); return; }
+          if (command.action === "persist" && !response.goal) throw new Error(i18n.t("chat.goalPersistent.noGoal"));
+          if (response.goal && response.goal.session_id !== target) throw new Error(i18n.t("chat.goalPersistent.noGoal"));
+          setPersistentGoal((previous) => selectPersistentGoal(previous, response.goal, target));
+          setGoalModeEnabled(false);
+          setError(null);
+          notifySubmissionAccepted(submissionCallbacks);
+        } catch (error) {
+          const apiError = error as Error & { code?: string; args?: Record<string, unknown> };
+          if (sessionIdRef.current === target && streamVersionRef.current === originStreamVersion) setError(translateApiError(apiError.code, apiError.message, apiError.args, i18n.t));
+          notifySubmissionRejected(submissionCallbacks);
+        } finally {
+          persistentMutationRef.current = false;
+          setPersistentGoalBusy(false);
+        }
+        return;
+      }
       const goalPlan = planGoalSubmission(content, goalModeEnabled);
       if (goalPlan.handledWithoutSend) {
         if (goalPlan.errorKey) {
@@ -687,10 +814,13 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
         const newSessionId = submitData.session_id;
         const newRunId = submitData.run_id;
-        const projectId = pendingProjectIdRef.current;
-        submitInFlightRef.current = false;
         submissionAccepted = true;
         notifySubmissionAccepted(submissionCallbacks);
+        // Leaving the view does not cancel an accepted server task. Its late
+        // admission must not attach an SSE stream or mutate the next chat.
+        if (!ownsSend()) return;
+        const projectId = pendingProjectIdRef.current;
+        submitInFlightRef.current = false;
 
         if (goalForRun) {
           const goalWithRunId = {
@@ -927,6 +1057,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       options,
       selectedTeamId,
       goalModeEnabled,
+      persistentGoal,
+      activeGoal,
+      setPersistentGoal,
+      setPersistentGoalBusy,
       clearSteer,
       bindSteerSession,
       setActiveGoal,
@@ -1022,6 +1156,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   );
 
   const clearMessages = useCallback(() => {
+    sendSeqRef.current += 1;
+    submitInFlightRef.current = false;
     pendingProjectIdRef.current = null;
     setCurrentProjectId(null);
     loadHistoryRequestIdRef.current += 1;
@@ -1049,6 +1185,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     activeSubagentStackRef.current = [];
     setGoalModeEnabled(false);
     setActiveGoal(null);
+    setPersistentGoal(null);
     setGoalsByRunId({});
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -1059,6 +1196,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     clearSteerMessages,
     resetHistoryPagination,
     setActiveGoal,
+    setPersistentGoal,
     setConnectionStatus,
     setCurrentRunId,
     setCurrentProjectId,
@@ -1123,9 +1261,60 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     loadHistoryRef,
   });
 
+  const persistentGoalId = persistentGoal?.id;
+  const persistentGoalStatus = persistentGoal?.status;
+  useEffect(() => {
+    if (!sessionId || !persistentGoalId || !persistentGoalStatus || !["active", "waiting_human"].includes(persistentGoalStatus)) return;
+    let cancelled = false;
+    let inFlight = false;
+    let failures = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = () => {
+      clearTimeout(timer);
+      if (!cancelled) timer = setTimeout(() => void refresh(), Math.min(3000 * 2 ** failures, 60000));
+    };
+    const refresh = async () => {
+      if (cancelled || document.visibilityState === "hidden") return;
+      if (inFlight) return;
+      if (persistentMutationRef.current || isSendingRef.current || isLoadingHistoryRef.current) { schedule(); return; }
+      inFlight = true;
+      const mutationEpoch = persistentMutationEpochRef.current;
+      try {
+        const response = await sessionApi.getPersistentGoal(sessionId);
+        failures = 0;
+        if (cancelled || sessionIdRef.current !== sessionId || mutationEpoch !== persistentMutationEpochRef.current) return;
+        const selected = selectPersistentGoal(persistentGoalRef.current, response.goal, sessionId);
+        if (selected !== response.goal) return;
+        setPersistentGoal(selected);
+        if (response.goal?.current_run_id && response.goal.current_run_id !== currentRunIdRef.current) {
+          await loadHistoryRef.current?.(sessionId);
+        }
+      } catch (error) {
+        failures = Math.min(failures + 1, 5);
+        if (!cancelled && failures === 1) console.warn("[Goal] Failed to refresh persistent goal", error);
+      } finally { inFlight = false; schedule(); }
+    };
+    const resume = () => {
+      clearTimeout(timer);
+      if (document.visibilityState !== "hidden") { failures = 0; void refresh(); }
+    };
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("online", resume);
+    void refresh();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("online", resume);
+    };
+  }, [sessionId, persistentGoalId, persistentGoalStatus, setPersistentGoal]);
+
   return {
     messages,
     isLoading,
+    canContinueInBackground: Boolean(
+      isLoading && sessionId && currentRunId && !isLoadingHistory && !submitInFlightRef.current,
+    ),
     isLoadingHistory,
     historyLoadGeneration,
     hasMoreHistoryTraces,
@@ -1142,6 +1331,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     connectionStatus,
     newlyCreatedSession,
     activeGoal,
+    persistentGoal,
+    persistentGoalBusy,
+    controlPersistentGoal,
     goalsByRunId,
     isInitializingSandbox,
     sandboxError,

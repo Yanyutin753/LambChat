@@ -1,9 +1,9 @@
+import { useBackgroundConversationAction } from "./useBackgroundConversationAction";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { BlockPreviewPortal } from "../../chat/ChatMessage/items/McpBlockPreview";
-import { SessionSidebar } from "../../panels/SessionSidebar";
-import type { SessionSidebarHandle } from "../../panels/SessionSidebar";
+import { SessionSidebar, type SessionSidebarHandle } from "../../panels/SessionSidebar";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { useAgent } from "../../../hooks/useAgent";
 import { useApprovals } from "../../../hooks/useApprovals";
@@ -65,7 +65,7 @@ export function ChatAppContent({
   const [searchParams, setSearchParams] = useSearchParams();
   const { enableSkills, availableModels, systemDefaultModelId, defaultModel } =
     useSettingsContext();
-  const { hasPermission, isAuthenticated } = useAuth();
+  const { user, hasPermission, isAuthenticated } = useAuth();
   const ensureResumeStreamRef = useRef<(runId?: string | null) => void>(
     () => {},
   );
@@ -155,6 +155,7 @@ export function ChatAppContent({
     messages,
     sessionId,
     currentRunId,
+    canContinueInBackground,
     isLoading,
     isLoadingHistory,
     historyLoadGeneration,
@@ -170,6 +171,9 @@ export function ChatAppContent({
     connectionStatus,
     newlyCreatedSession,
     activeGoal,
+    persistentGoal,
+    persistentGoalBusy,
+    controlPersistentGoal,
     goalsByRunId,
     sendMessage,
     queueFollowUp,
@@ -197,6 +201,7 @@ export function ChatAppContent({
     onApprovalRequired: (approval) => {
       void appNotificationService.notify({
         type: "approval",
+        ownerUserId: user?.id,
         title: t("approvals.needsConfirmation"),
         body: approval.message,
         route: sessionId ? `/chat/${sessionId}` : "/chat",
@@ -716,7 +721,6 @@ export function ChatAppContent({
     activeSessionLoadRef.current = null;
     modelSelectionRevisionRef.current += 1;
     setSessionModelSelection(null);
-
     const nextSelection = resolveModelSelection({
       availableModels: filteredModels,
       userDefaultId: localStorage.getItem("defaultModelId") || "",
@@ -724,13 +728,10 @@ export function ChatAppContent({
       systemDefaultId: systemDefaultModelId,
       systemDefaultValue: defaultModel,
     });
-
     handleNewSession();
     setComposerFocusRequest((request) => request + 1);
     resetToDefaults();
-
     resetAgentOptionDefaults();
-
     setCurrentModelId(nextSelection.modelId);
     setCurrentModelValue(nextSelection.modelValue);
   }, [
@@ -742,6 +743,10 @@ export function ChatAppContent({
     systemDefaultModelId,
   ]);
 
+  const handleContinueInBackground = useBackgroundConversationAction({
+    userId: user?.id, sessionId, runId: currentRunId, ready: canContinueInBackground,
+    onDetach: handleNewSessionWithReset,
+  });
   const handleMobileClose = useCallback(
     () => setMobileSidebarOpen(false),
     [setMobileSidebarOpen],
@@ -914,14 +919,11 @@ export function ChatAppContent({
             runOptions,
             submissionCallbacks,
           ) => {
-            // 第一次发消息后请求原生通知权限（仅 App 客户端，一次性）：
-            // 此刻用户最需要「回复完成提醒」，且 Android 只允许前台请求
+            // 首次发消息时请求 App 通知权限：Android 只允许前台请求。
             void promptAppNotificationPermissionOnce({
               appRuntime: appNotificationService.getRuntime(),
-              storage:
-                typeof localStorage !== "undefined" ? localStorage : null,
-              requestPermission: () =>
-                appNotificationService.requestPermission(),
+              storage: null,
+              requestPermission: () => appNotificationService.requestPermission(),
             });
             return void sendMessage(
               content,
@@ -932,11 +934,15 @@ export function ChatAppContent({
             );
           }}
           onStopGeneration={stopGeneration}
+          onContinueInBackground={canContinueInBackground ? handleContinueInBackground : undefined}
           onSupplementFollowUpMessage={supplementFollowUp}
           onQueueFollowUpMessage={queueFollowUp}
           steerMessages={steerMessages}
           onCancelSteer={cancelSteer}
           activeGoal={activeGoal}
+          persistentGoal={persistentGoal}
+          persistentGoalBusy={persistentGoalBusy}
+          onControlPersistentGoal={(action) => void controlPersistentGoal(action)}
           goalsByRunId={goalsByRunId}
           onClearActiveGoal={clearActiveGoal}
           autoModeEnabled={autoModeEnabled}

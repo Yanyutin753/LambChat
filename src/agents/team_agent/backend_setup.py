@@ -72,7 +72,10 @@ async def load_backend_bundle(
         apply_sandbox_env_overrides(loaded_sandbox_backend, env_overrides)
         loaded_sandbox_work_dir = loaded_sandbox_backend.work_dir
         loaded_backend = create_sandbox_backend(
-            loaded_sandbox_backend, assistant_id, user_id=context.user_id
+            loaded_sandbox_backend,
+            assistant_id,
+            user_id=context.user_id,
+            session_id=state.get("session_id") or context.session_id,
         )
     else:
         if not context.user_id:
@@ -103,6 +106,7 @@ async def load_backend_bundle(
                 loaded_sandbox_backend.default,
                 assistant_id,
                 user_id=context.user_id,
+                session_id=state.get("session_id") or context.session_id,
             )
             logger.info(
                 f"[TeamAgent] Sandbox enabled, using sandbox backend for assistant: {assistant_id}"

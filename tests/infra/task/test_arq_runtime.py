@@ -61,10 +61,7 @@ async def test_start_embedded_arq_worker_runs_with_signals_disabled(
     assert runtime.is_running is True
     assert _FakeWorker.instances
     worker = _FakeWorker.instances[0]
-    assert worker.args[0] == [
-        arq_runtime.run_agent_task,
-        arq_runtime.update_user_message_search_index,
-    ]
+    assert worker.args[0] == arq_runtime.WorkerSettings.functions
     assert worker.kwargs["handle_signals"] is False
     assert worker.kwargs["max_jobs"] == 128
     assert worker.kwargs["job_timeout"] == 30
@@ -379,3 +376,18 @@ async def test_start_with_force_bypasses_embedded_flag(
     assert runtime.is_running is True
     assert len(_FakeWorker.instances) == 1
     await runtime.stop()
+
+
+def test_actual_worker_factory_registers_goal_continuations_and_recovery_scans(monkeypatch):
+    monkeypatch.setattr(arq_runtime, "settings", _arq_settings())
+    runtime = arq_runtime.EmbeddedArqRuntime(worker_factory=_FakeWorker)
+    worker = runtime._create_worker()
+    assert {fn.__name__ for fn in worker.args[0]} == {
+        "run_agent_task",
+        "update_user_message_search_index",
+        "continue_persistent_goal",
+    }
+    assert {job.coroutine.__name__ for job in worker.kwargs["cron_jobs"]} == {
+        "scan_persistent_goals",
+        "scan_background_tasks",
+    }

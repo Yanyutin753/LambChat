@@ -445,8 +445,19 @@ class BaseGraphAgent(ABC):
                 "metadata": run_metadata,
                 "recursion_limit": self.recursion_limit,
             }
-            if langfuse_handler is not None:
-                config["callbacks"] = [langfuse_handler]
+            callbacks: list[Any] = [langfuse_handler] if langfuse_handler is not None else []
+            from src.infra.goal_runtime import GOAL_RUN_LEASE, BackgroundLeaseCallback
+
+            lease_state = GOAL_RUN_LEASE.get()
+            if lease_state is not None and lease_state.get("kind") == "background":
+                callbacks.append(BackgroundLeaseCallback(lease_state))
+            goal_metrics = getattr(presenter, "persistent_goal_metrics", None)
+            if goal_metrics is not None:
+                from src.infra.goal_runtime import GoalUsageCallback
+
+                callbacks.append(GoalUsageCallback(goal_metrics))
+            if callbacks:
+                config["callbacks"] = callbacks
 
             # 初始状态
             # 注意：不要把 kwargs 原样塞进 state——kwargs 携带 Presenter 等不可

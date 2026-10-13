@@ -15,7 +15,18 @@ BUNDLE_EXTRACT_TOTAL_LIMIT = 256 * 1024 * 1024
 
 def _build_bundle_command(project_path: str, bundle_path: str, selected_paths: list[str]) -> str:
     """仅打包筛选后的文件；文件变为目录时也不递归扩大扫描范围。"""
-    parts = ["tar", "czf", bundle_path, "--no-recursion", "-C", project_path, "--"]
+    # macOS tar otherwise adds AppleDouble files outside the selected file list.
+    parts = [
+        "env",
+        "COPYFILE_DISABLE=1",
+        "tar",
+        "czf",
+        bundle_path,
+        "--no-recursion",
+        "-C",
+        project_path,
+        "--",
+    ]
     for rel_path in selected_paths:
         normalized = posixpath.normpath(rel_path.lstrip("/"))
         if normalized in {".", ".."} or normalized.startswith("../"):

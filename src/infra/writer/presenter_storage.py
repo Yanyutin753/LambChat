@@ -381,6 +381,9 @@ class StoragePresenterMixin:
         # 的 emit），executor 零正文守卫依赖本标记判定 run 是否交付过答案。
         _event_type = event.get("event", "unknown")
         _data = event.get("data")
+        goal_metrics = getattr(self, "persistent_goal_metrics", None)
+        if goal_metrics is not None:
+            goal_metrics.observe(event)
         if (
             _event_type == "message:chunk"
             and isinstance(_data, dict)

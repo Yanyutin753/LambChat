@@ -54,6 +54,28 @@ export interface SessionEventsQuery {
   before_trace_id?: string;
 }
 
+export interface PersistentGoal {
+  id: string;
+  session_id: string;
+  user_id: string;
+  objective: string;
+  rubric: string;
+  version: number;
+  revision: number;
+  status: "active" | "paused" | "waiting_human" | "blocked" | "completed" | "budget_limited" | "cleared";
+  limits: { max_turns: number; max_tokens: number; max_seconds: number };
+  accounting: { turns: number; tokens: number | null };
+  started_at: string | null;
+  current_run_id: string | null;
+}
+
+export interface PersistentGoalRequest {
+  objective: string;
+  rubric: string;
+  limits?: Partial<PersistentGoal["limits"]>;
+  expected_revision?: number;
+}
+
 export interface RunGoalSpec {
   objective: string;
   rubric?: string;
@@ -215,6 +237,18 @@ export function buildSessionEventsUrl(
 }
 
 export const sessionApi = {
+  async create(data: { name?: string; metadata?: Record<string, unknown> }): Promise<BackendSession> {
+    return authFetch(`${API_BASE}/api/sessions`, { method: "POST", body: JSON.stringify(data) });
+  },
+  async getPersistentGoal(sessionId: string, options?: { signal?: AbortSignal }): Promise<{ goal: PersistentGoal | null }> {
+    return authFetch(`${API_BASE}/api/chat/sessions/${encodeURIComponent(sessionId)}/goal`, options);
+  },
+  async putPersistentGoal(sessionId: string, data: PersistentGoalRequest): Promise<{ goal: PersistentGoal | null }> {
+    return authFetch(`${API_BASE}/api/chat/sessions/${encodeURIComponent(sessionId)}/goal`, { method: "PUT", body: JSON.stringify(data) });
+  },
+  async controlPersistentGoal(sessionId: string, action: "pause" | "resume" | "clear"): Promise<{ goal: PersistentGoal | null }> {
+    return authFetch(`${API_BASE}/api/chat/sessions/${encodeURIComponent(sessionId)}/goal/${action}`, { method: "POST" });
+  },
   /**
    * List all sessions with pagination
    */

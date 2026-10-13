@@ -682,6 +682,8 @@
     "taskNotFound": "Task not found",
     "taskCancelled": "Task cancelled",
     "taskServerRestart": "Interrupted by server restart",
+    "taskRecoveryNotAvailable": "This task has completed or is no longer available for recovery.",
+    "taskRecoveryUncertainEffect": "Recovery stopped because a previous operation may already have taken effect. Verify its result before starting a new task.",
     "taskExpired": "Task expired",
     "forceRelogin": "User permissions have changed. Please log in again",
     "tokenExpired": "Token has expired",
@@ -706,7 +708,8 @@
     "sandboxMachineOffline": "Selected sandbox machine '{{machine}}' is offline",
     "sandboxMachineNotFound": "Sandbox machine '{{machine}}' not found or removed",
     "pluginNoEditPermission": "No permission to edit plugin {{name}}",
-    "modelConfigIncomplete": "Model config is incomplete: missing {{field}} for provider {{provider}}"
+    "modelConfigIncomplete": "Model config is incomplete: missing {{field}} for provider {{provider}}",
+    "goalConflict": "Goal changed; refresh and retry"
   },
   "categories": {
     "scheduled_task": "Scheduled tasks",
@@ -1542,7 +1545,16 @@
         }
       },
       "computerUseTitle": "Computer Use",
-      "computerUsePermissionHint": "Grant Accessibility & Screen Recording to LambChat.app once in System Settings → Privacy & Security, then retry."
+      "computerUsePermissionHint": "Grant Accessibility & Screen Recording to LambChat.app once in System Settings → Privacy & Security, then retry.",
+      "toolCancelSubagent": "Cancel subagent",
+      "toolStartBackgroundTask": "Start background task",
+      "toolBackgroundTaskSubmitted": "Submitted in background",
+      "toolBackgroundTaskOpen": "Open background conversation",
+      "toolBackgroundTaskUnavailable": "Submission could not be confirmed",
+      "toolListSubagents": "List subagents",
+      "toolSubagentQueued": "Queued",
+      "toolSubagentTimedOut": "Timed out",
+      "toolSubagentEmpty": "No subagents"
     },
     "messageInput": "Message",
     "noPermission": "No permission to send messages",
@@ -1599,6 +1611,9 @@
     "steerQueue": "Queued messages to send",
     "steerQueued": "Delivered after the current step",
     "stop": "Stop generating",
+    "backgroundRunning": "Task continues in the background",
+    "backgroundContinue": "Continue in background",
+    "backgroundContinueHint": "Leave this conversation while the task keeps running",
     "stopConfirmMessage": "Are you sure you want to stop generating? The content generated so far will be kept.",
     "stopConfirmTitle": "Stop generating",
     "subagentStatus": "Subagent status: {{status}}",
@@ -1627,7 +1642,28 @@
     "waitingForUpload": "Please wait for file upload to complete",
     "welcomeRefresh": "Refresh",
     "welcomeSubtitle": "What can I do for you?",
-    "welcomeSuggestions": "Suggestions"
+    "welcomeSuggestions": "Suggestions",
+    "goalPersistent": {
+      "pause": "Pause goal",
+      "resume": "Resume goal",
+      "clear": "Clear goal",
+      "noGoal": "Create a persistent goal first.",
+      "tokensUnknown": "Token usage unknown",
+      "turns": "{{count}} / {{max}} turns",
+      "tokens": "{{count}} / {{max}} tokens",
+      "timeLimit": "{{minutes}} min limit",
+      "status": {
+        "active": "Active",
+        "paused": "Paused",
+        "waiting_human": "Waiting for approval",
+        "blocked": "Blocked",
+        "completed": "Completed",
+        "budget_limited": "Budget limit reached",
+        "cleared": "Cleared"
+      },
+      "modeHint": "Persistent goal: {{status}}",
+      "attachmentsUnsupported": "Send attachments in a regular message before setting a persistent goal."
+    }
   },
   "common": {
     "moreOptions": "More options",
@@ -2554,6 +2590,7 @@
     "users": "Manage user accounts and access"
   },
   "notification": {
+    "openConversation": "Open conversation",
     "active": "Active",
     "cancel": "Cancel",
     "collapse": "Hide details",
@@ -2585,7 +2622,8 @@
     "typeMaintenance": "Maintenance",
     "typeSuccess": "Success",
     "typeWarning": "Warning",
-    "updatedSuccess": "Notification updated successfully"
+    "updatedSuccess": "Notification updated successfully",
+    "taskNeedsAttention": "Task needs your confirmation"
   },
   "passwordInput": {
     "hidePassword": "Hide password",

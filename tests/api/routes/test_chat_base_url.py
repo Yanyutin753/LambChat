@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from src.api.routes import chat
+from src.api.routes import chat, chat_agent_execution
 from src.infra.task.concurrency import ConcurrencyResponse, ConcurrencyResult
 from src.kernel.schemas.agent import AgentRequest
 
@@ -42,7 +42,7 @@ async def test_execute_agent_stream_forwards_base_url_to_agent(
     async def _get_agent(_agent_id: str) -> _Agent:
         return agent
 
-    monkeypatch.setattr(chat, "AgentFactory", SimpleNamespace(get=_get_agent))
+    monkeypatch.setattr(chat_agent_execution.AgentFactory, "get", _get_agent)
 
     gen = chat._execute_agent_stream(
         "session-1",

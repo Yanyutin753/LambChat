@@ -11,7 +11,7 @@ from src.infra.storage.redis import get_redis_client
 from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import utc_now_iso
 from src.kernel.config import settings
-from src.kernel.errors import ErrorCode
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.session import SessionUpdate
 
 from .concurrency import get_concurrency_limiter, get_registered_executor
@@ -118,6 +118,12 @@ def _resolve_recovery_agent_id(session_metadata: dict[str, Any], session: Any) -
             return fallback
 
     return candidate or str(getattr(settings, "DEFAULT_AGENT", "") or "search")
+
+
+def _require_safe_recovery(session: Any) -> None:
+    metadata = getattr(session, "metadata", None) or {}
+    if metadata.get("task_error_code") == ErrorCode.TASK_RECOVERY_UNCERTAIN_EFFECT.code:
+        raise AppError(ErrorCode.TASK_RECOVERY_UNCERTAIN_EFFECT)
 
 
 class TaskRecoveryService:
@@ -317,6 +323,7 @@ class TaskRecoveryService:
         user:message UI 事件；executor 端 interrupted_resume=True 会先发
         run:resumed 标记事件，前端据此清空原气泡后续接新生成的内容。
         """
+        _require_safe_recovery(session)
         session_metadata = getattr(session, "metadata", None) or {}
         executor_key = str(session_metadata.get("executor_key") or "agent_stream")
         executor_fn = get_registered_executor(executor_key)
@@ -336,6 +343,9 @@ class TaskRecoveryService:
         language = await self.get_preferred_language(session.user_id, session)
         hidden_instruction = build_recovery_message(reason, language)
         agent_id = _resolve_recovery_agent_id(session_metadata, session)
+        from src.infra.goal_runtime import restore_goal_for_run
+
+        active_goal = await restore_goal_for_run(session, source_run_id)
         common_kwargs: dict[str, Any] = {
             "disabled_tools": session_metadata.get("disabled_tools") or None,
             "agent_options": session_metadata.get("agent_options") or None,
@@ -358,6 +368,8 @@ class TaskRecoveryService:
             "recommendation_input": hidden_instruction,
             "auto_mode": bool(session_metadata.get("auto_mode", False)),
         }
+        if active_goal is not None:
+            common_kwargs["active_goal"] = active_goal
 
         if getattr(settings, "TASK_BACKEND", "local") == "arq":
             # arq：新 dispatch_id（旧 job 可能仍留档），run_id 沿用原值；
@@ -370,7 +382,7 @@ class TaskRecoveryService:
                 user_id=str(session.user_id),
                 executor_key=executor_key,
                 dispatch_id=dispatch_id,
-                initial_status=TaskStatus.PENDING,
+                initial_status=None,
                 **common_kwargs,
             )
         else:
@@ -417,17 +429,17 @@ class TaskRecoveryService:
         error_message: str,
     ) -> None:
         """Restore a failed run to a recoverable failed state after recovery submission fails."""
-        await self._storage.update(
+        await self._storage.update_metadata_for_run(
             session_id,
-            SessionUpdate(
-                metadata=self._state_machine.build_metadata(
-                    TaskStatus.FAILED,
-                    run_id=run_id,
-                    error=error_message,
-                    error_code="server_restart",
-                    recoverable=True,
-                )
+            run_id,
+            self._state_machine.build_metadata(
+                TaskStatus.FAILED,
+                run_id=run_id,
+                error=error_message,
+                error_code="server_restart",
+                recoverable=True,
             ),
+            expected_statuses=["recovering", "pending", "queued", "starting"],
         )
 
     async def resume_interrupted_run(
@@ -437,6 +449,7 @@ class TaskRecoveryService:
         reason: str,
     ) -> dict[str, Any]:
         """Resume an interrupted run in-place (same run_id/trace, seamless to the user)."""
+        _require_safe_recovery(session)
         if not source_run_id:
             return {
                 "success": False,
@@ -497,6 +510,34 @@ class TaskRecoveryService:
                     "message": "任务仍在其他实例运行中，跳过恢复",
                 }
 
+            # The heartbeat read may outlive the worker finishing this same run.
+            fresh = await self._storage.get_by_session_id(session.id)
+            if fresh is None:
+                await self.release_recovery_lock(lock_key, lock_token)
+                return {
+                    "success": False,
+                    "run_id": None,
+                    "resumed_from_run_id": source_run_id,
+                    "code": ErrorCode.TASK_RECOVERY_NOT_AVAILABLE.code,
+                    "message": ErrorCode.TASK_RECOVERY_NOT_AVAILABLE.default_message,
+                }
+            session = fresh
+            _require_safe_recovery(session)
+            session_metadata = session.metadata or {}
+            if not await self._storage.claim_run_recovery(
+                session.id,
+                source_run_id,
+                self._state_machine.build_metadata(TaskStatus.RECOVERING, run_id=source_run_id),
+            ):
+                await self.release_recovery_lock(lock_key, lock_token)
+                return {
+                    "success": False,
+                    "run_id": None,
+                    "resumed_from_run_id": source_run_id,
+                    "code": ErrorCode.TASK_RECOVERY_NOT_AVAILABLE.code,
+                    "message": ErrorCode.TASK_RECOVERY_NOT_AVAILABLE.default_message,
+                }
+
             attempts_run_id = session_metadata.get("resume_attempts_run_id")
             attempts = (
                 int(session_metadata.get("resume_attempts") or 0)
@@ -531,15 +572,6 @@ class TaskRecoveryService:
                 await get_trace_storage().reopen_interrupted_trace(trace_id)
             await self._strip_terminal_stream_events(session.id, source_run_id)
 
-            await self._storage.update(
-                session.id,
-                SessionUpdate(
-                    metadata=self._state_machine.build_metadata(
-                        TaskStatus.RECOVERING,
-                        run_id=source_run_id,
-                    )
-                ),
-            )
             recovery_result = await self.submit_seamless_resume(
                 session, source_run_id, trace_id, reason
             )
@@ -553,18 +585,18 @@ class TaskRecoveryService:
                 await self.release_recovery_lock(lock_key, lock_token)
                 return recovery_result
 
-            await self._storage.update(
+            await self._storage.update_metadata_for_run(
                 session.id,
-                SessionUpdate(
-                    metadata={
-                        "resume_attempts": attempts if planned_shutdown else attempts + 1,
-                        "resume_attempts_run_id": source_run_id,
-                        "recovery_reason": reason,
-                        "recovery_requested_at": utc_now_iso(),
-                        "task_recoverable": False,
-                        "task_error_code": None,
-                    }
-                ),
+                source_run_id,
+                {
+                    "resume_attempts": attempts if planned_shutdown else attempts + 1,
+                    "resume_attempts_run_id": source_run_id,
+                    "recovery_reason": reason,
+                    "recovery_requested_at": utc_now_iso(),
+                    "task_recoverable": False,
+                    "task_error_code": None,
+                },
+                expected_statuses=["recovering", "pending", "queued", "starting", "running"],
             )
             return recovery_result
         except asyncio.CancelledError:
@@ -633,6 +665,7 @@ class TaskRecoveryService:
                 "message": "会话不存在",
             }
 
+        _require_safe_recovery(session)
         session_metadata = session.metadata or {}
         source_run_id = session_metadata.get("current_run_id")
         task_status = session_metadata.get("task_status")
@@ -661,8 +694,20 @@ class TaskRecoveryService:
             }
 
         if (
-            session_metadata.get("task_recoverable") is False
+            # Active states normally store False; their heartbeat decides recovery.
+            (
+                session_metadata.get("task_recoverable") is False
+                and task_status
+                not in {
+                    TaskStatus.RUNNING.value,
+                    TaskStatus.STARTING.value,
+                    TaskStatus.RECOVERING.value,
+                    TaskStatus.PENDING.value,
+                    TaskStatus.QUEUED.value,
+                }
+            )
             or session_metadata.get("task_error_code") == "cancelled"
+            or task_status in {TaskStatus.CANCELLING.value, TaskStatus.CANCELLED.value}
         ):
             return {
                 "success": False,
@@ -671,7 +716,7 @@ class TaskRecoveryService:
                 "message": "该任务已被用户取消，不能恢复",
             }
 
-        if await self._heartbeat.check_exists(str(source_run_id)):
+        if not await self._heartbeat.is_stale(str(source_run_id)):
             return {
                 "success": False,
                 "run_id": None,
