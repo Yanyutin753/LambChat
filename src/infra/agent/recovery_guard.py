@@ -55,13 +55,26 @@ def _readonly(tool: Any) -> bool:
 
 
 def _results(value: Any) -> set[str]:
-    if isinstance(value, ToolMessage):
-        return {value.tool_call_id}
-    if isinstance(value, dict):
-        return set().union(*(_results(item) for item in value.values()))
-    if isinstance(value, (list, tuple)):
-        return set().union(*(_results(item) for item in value))
-    return set()
+    answered: set[str] = set()
+
+    def visit(item: Any) -> None:
+        if isinstance(item, ToolMessage):
+            answered.add(item.tool_call_id)
+        elif isinstance(item, AIMessage):
+            # A messages write may include history followed by a reused call ID.
+            for call in item.tool_calls:
+                identity = call.get("id")
+                if isinstance(identity, str):
+                    answered.discard(identity)
+        elif isinstance(item, (list, tuple)):
+            for message in item:
+                visit(message)
+        elif isinstance(item, dict) and set(item) == {"$writes"}:
+            # LangGraph aggregates repeated writes to one channel this way.
+            visit(item["$writes"])
+
+    visit(value)
+    return answered
 
 
 def _uncertain(calls=()) -> AppError:
@@ -103,12 +116,16 @@ async def guard_graph_recovery(graph: Any, config: Any) -> None:
                 identity = message.tool_call_id
                 if len(pending.get(identity, [])) == 1:
                     del pending[identity]
-        answered: set[str] = set()
-        for task in snapshot.tasks:
-            answered.update(_results(task.result))
-        for _, channel, value in writes:
-            if channel not in {"__interrupt__", "__resume__", "__error__"}:
-                answered.update(_results(value))
+        task_ids = {task.id for task in snapshot.tasks}
+        message_outputs = [
+            task.result.get("messages") for task in snapshot.tasks if isinstance(task.result, dict)
+        ]
+        message_outputs.extend(
+            value
+            for task_id, channel, value in writes
+            if task_id in task_ids and channel == "messages"
+        )
+        answered = _results(message_outputs)
         for identity in answered:
             if len(pending.get(identity, [])) == 1:
                 del pending[identity]
@@ -122,7 +139,6 @@ async def guard_graph_recovery(graph: Any, config: Any) -> None:
             if channel == "__resume__" and isinstance(value, dict)
             for key in value
         }
-        task_ids = {task.id for task in snapshot.tasks}
         interrupt_ids = {item.id for task in snapshot.tasks for item in task.interrupts}
         legacy_global_resume = any(
             channel == "__resume__"

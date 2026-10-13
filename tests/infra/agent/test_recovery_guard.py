@@ -71,6 +71,8 @@ async def test_durable_matching_tool_result_allows_continuation(location):
     tasks = (
         [SimpleNamespace(id="t", result={"messages": [result]}, interrupts=())]
         if location == "task_result"
+        else [SimpleNamespace(id="t", result=None, interrupts=())]
+        if location == "pending_write"
         else []
     )
     writes = [("t", "messages", [result])] if location == "pending_write" else []
@@ -243,4 +245,100 @@ async def test_global_legacy_resume_cannot_reuse_approval():
     with pytest.raises(AppError):
         await guard_graph_recovery(
             graph([call()], tasks=[task], writes=[("global", "__resume__", {"approved": True})]), {}
+        )
+
+
+@pytest.mark.parametrize("provenance", ["orphan_task", "non_message_channel"])
+async def test_real_checkpoint_untrusted_pending_write_does_not_resolve_effect(provenance):
+    from langgraph.checkpoint.memory import InMemorySaver
+    from langgraph.graph import END, START, MessagesState, StateGraph
+
+    class State(MessagesState):
+        observation: dict
+
+    effects = []
+
+    async def external_write(_state):
+        effects.append("committed")
+        raise RuntimeError("lost process before durable tool result")
+
+    builder = StateGraph(State)
+    builder.add_node("tools", external_write)
+    builder.add_edge(START, "tools")
+    builder.add_edge("tools", END)
+    saver = InMemorySaver()
+    compiled = builder.compile(checkpointer=saver)
+    config = {"configurable": {"thread_id": f"untrusted-result-{provenance}"}}
+    with pytest.raises(RuntimeError, match="lost process"):
+        await compiled.ainvoke({"messages": [call()]}, config)
+    snapshot = await compiled.aget_state(config)
+    assert len(snapshot.tasks) == 1
+    old_result = ToolMessage(content="historical observation", tool_call_id="write-1")
+    if provenance == "orphan_task":
+        # Saved writes can exist for a task no longer in this checkpoint's frontier.
+        # LangGraph ignores them when preparing the authoritative current state.
+        await saver.aput_writes(snapshot.config, [("messages", [old_result])], "unrelated-old-task")
+    else:
+        # Even a current task can emit diagnostic/state data containing messages;
+        # only an actual messages-channel result can settle its external operation.
+        await saver.aput_writes(
+            snapshot.config, [("observation", {"previous": old_result})], snapshot.tasks[0].id
+        )
+
+    current = await compiled.aget_state(config)
+    assert not any(isinstance(message, ToolMessage) for message in current.values["messages"])
+    with pytest.raises(AppError) as caught:
+        await guard_graph_recovery(compiled, config)
+    assert caught.value.error_code is ErrorCode.TASK_RECOVERY_UNCERTAIN_EFFECT
+    assert effects == ["committed"]
+
+
+async def test_real_checkpoint_current_task_messages_result_allows_recovery():
+    import asyncio
+
+    from langgraph.checkpoint.memory import InMemorySaver
+    from langgraph.graph import END, START, MessagesState, StateGraph
+
+    wrote = asyncio.Event()
+    effects = []
+
+    async def external_write(_state):
+        effects.append("committed")
+        wrote.set()
+        return {"messages": [ToolMessage(content="committed", tool_call_id="write-1")]}
+
+    async def interrupted_sibling(_state):
+        await wrote.wait()
+        raise RuntimeError("sibling interrupted")
+
+    builder = StateGraph(MessagesState)
+    builder.add_node("tools", external_write)
+    builder.add_node("sibling", interrupted_sibling)
+    builder.add_edge(START, "tools")
+    builder.add_edge(START, "sibling")
+    builder.add_edge("tools", END)
+    builder.add_edge("sibling", END)
+    compiled = builder.compile(checkpointer=InMemorySaver())
+    config = {"configurable": {"thread_id": "known-durable-result"}}
+    with pytest.raises(RuntimeError, match="sibling interrupted"):
+        await compiled.ainvoke({"messages": [call()]}, config)
+    snapshot = await compiled.aget_state(config)
+    # Request the exact checkpoint, before pending writes are folded into values.
+    pinned = await compiled.aget_state(snapshot.config)
+    assert not any(isinstance(message, ToolMessage) for message in pinned.values["messages"])
+    assert any(
+        task.name == "tools" and isinstance(task.result, dict) and task.result.get("messages")
+        for task in pinned.tasks
+    )
+    await guard_graph_recovery(compiled, snapshot.config)
+    assert effects == ["committed"]
+
+
+async def test_task_messages_history_does_not_settle_a_later_reused_id():
+    old = ToolMessage(content="old commit", tool_call_id="same")
+    history = [call(identity="same"), old, call(identity="same")]
+    task = SimpleNamespace(id="t", result={"messages": history}, interrupts=())
+    with pytest.raises(AppError):
+        await guard_graph_recovery(
+            graph(history, tasks=[task], writes=[("t", "messages", history)]), {}
         )

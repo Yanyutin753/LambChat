@@ -1247,9 +1247,9 @@ async def test_duplicate_call_id_executes_once():
     assert len(executor.calls) == 2
     dones = [cid for cid, body in client.posted if body.get("stage") == "done"]
     assert dones == ["c1", "c2"]
-    # 重复帧必须重发 ACK，避免第一次 ACK 丢失时服务端持续重投
+    # 已接受 done 的调用已终态：重复帧无需再发 HTTP ACK。
     acks = [cid for cid, body in client.posted if body.get("stage") == "ack"]
-    assert acks == ["c1"]
+    assert acks == []
 
     # 重复帧有专属审计记录，可事后核对
     duplicates = [
@@ -1434,3 +1434,215 @@ async def test_rejected_ack_skips_action_and_keeps_channel(monkeypatch):
         for records in auditor.records.values()
         for event in records
     )
+
+
+async def test_completed_duplicates_do_not_block_next_file_read(tmp_path):
+    (tmp_path / "s1").mkdir()
+    (tmp_path / "s1" / "f.txt").write_text("original")
+
+    class SlowDuplicateClient(FakeClient):
+        completed = False
+        duplicate_http_attempts = 0
+
+        async def post_result(self, call_id, body):
+            if call_id == "finished" and body.get("stage") == "ack" and self.completed:
+                self.duplicate_http_attempts += 1
+                await asyncio.Event().wait()
+            await super().post_result(call_id, body)
+            if call_id == "finished" and body.get("stage") == "done":
+                self.completed = True
+
+    client = SlowDuplicateClient()
+    executor = FakeExecutor()
+    await asyncio.wait_for(
+        daemon_module._handle_channel(
+            client,
+            _aiter([_call("finished"), *[_call("finished") for _ in range(3)], _fs_call("read")]),
+            cfg=_cfg(data_root=tmp_path),
+            executor=executor,
+            auditor=MemoryAuditor(),
+            dedupe=daemon_module._CallDedupe(),
+        ),
+        0.5,
+    )
+    assert client.duplicate_http_attempts == 0
+    assert len(executor.calls) == 1
+    assert any(
+        cid == "read" and body.get("result", {}).get("content") == "original"
+        for cid, body in client.posted
+    )
+
+
+async def test_unresolved_duplicate_still_reacks_without_reexecuting():
+    dedupe = daemon_module._CallDedupe()
+    assert dedupe.remember("pending")
+    client, executor = FakeClient(), FakeExecutor()
+    await daemon_module._handle_channel(
+        client,
+        _aiter([_call("pending"), _call("pending")]),
+        cfg=_cfg(),
+        executor=executor,
+        auditor=MemoryAuditor(),
+        dedupe=dedupe,
+    )
+    assert client.posted == [("pending", {"stage": "ack"}), ("pending", {"stage": "ack"})]
+    assert executor.calls == []
+
+
+async def test_lost_done_reply_keeps_duplicate_reack_after_reconnection():
+    class LostReplyClient(FakeClient):
+        async def post_result(self, call_id, body):
+            if body.get("stage") == "done":
+                raise TransportError("unconfirmed done reply")
+            await super().post_result(call_id, body)
+
+    dedupe, executor = daemon_module._CallDedupe(), FakeExecutor()
+    with pytest.raises(TransportError):
+        await daemon_module._handle_channel(
+            LostReplyClient(),
+            _aiter([_call("lost")]),
+            cfg=_cfg(),
+            executor=executor,
+            auditor=MemoryAuditor(),
+            dedupe=dedupe,
+        )
+    reconnected = FakeClient()
+    await daemon_module._handle_channel(
+        reconnected,
+        _aiter([_call("lost")]),
+        cfg=_cfg(),
+        executor=executor,
+        auditor=MemoryAuditor(),
+        dedupe=dedupe,
+    )
+    assert len(executor.calls) == 1
+    assert reconnected.posted == [("lost", {"stage": "ack"})]
+
+
+async def test_lost_ack_reply_does_not_mark_a_call_terminal(tmp_path):
+    (tmp_path / "s1").mkdir()
+    (tmp_path / "s1" / "f.txt").write_text("original")
+
+    class LostAckClient(FakeClient):
+        async def post_result(self, call_id, body):
+            if body.get("stage") == "ack":
+                raise TransportError("unconfirmed ack reply")
+            await super().post_result(call_id, body)
+
+    dedupe = daemon_module._CallDedupe()
+    call = _fs_call("lost-ack")
+    with pytest.raises(TransportError):
+        await daemon_module._handle_channel(
+            LostAckClient(),
+            _aiter([call]),
+            cfg=_cfg(data_root=tmp_path),
+            executor=FakeExecutor(),
+            auditor=MemoryAuditor(),
+            dedupe=dedupe,
+        )
+    reconnected = FakeClient()
+    await daemon_module._handle_channel(
+        reconnected,
+        _aiter([call, call]),
+        cfg=_cfg(data_root=tmp_path),
+        executor=FakeExecutor(),
+        auditor=MemoryAuditor(),
+        dedupe=dedupe,
+    )
+    assert reconnected.posted == [("lost-ack", {"stage": "ack"}), ("lost-ack", {"stage": "ack"})]
+
+
+async def test_authoritatively_rejected_call_does_not_reack_every_late_duplicate(tmp_path):
+    (tmp_path / "s1").mkdir()
+    (tmp_path / "s1" / "f.txt").write_text("original")
+
+    class RejectedClient(FakeClient):
+        attempts = 0
+
+        async def post_result(self, call_id, body):
+            if call_id == "expired":
+                self.attempts += 1
+                raise ResultRejectedError("post_result: HTTP 409")
+            await super().post_result(call_id, body)
+
+    client = RejectedClient()
+    await daemon_module._handle_channel(
+        client,
+        _aiter([_fs_call("expired"), _fs_call("expired"), _fs_call("read")]),
+        cfg=_cfg(data_root=tmp_path),
+        executor=FakeExecutor(),
+        auditor=MemoryAuditor(),
+        dedupe=daemon_module._CallDedupe(),
+    )
+    assert client.attempts == 1
+    assert any(
+        cid == "read" and body.get("result", {}).get("content") == "original"
+        for cid, body in client.posted
+    )
+
+
+async def test_terminal_dedupe_entries_follow_existing_fifo_eviction():
+    client, executor = FakeClient(), FakeExecutor()
+    await daemon_module._handle_channel(
+        client,
+        _aiter([_call("first"), _call("second"), _call("first")]),
+        cfg=_cfg(),
+        executor=executor,
+        auditor=MemoryAuditor(),
+        dedupe=daemon_module._CallDedupe(capacity=1),
+    )
+    assert len(executor.calls) == 3
+    assert [cid for cid, body in client.posted if body.get("stage") == "done"] == [
+        "first",
+        "second",
+        "first",
+    ]
+
+
+async def test_accepted_stream_result_is_terminal_for_duplicate_http_acks(tmp_path):
+    (tmp_path / "s1").mkdir()
+    (tmp_path / "s1" / "f.txt").write_text("original")
+    stream = _fs_call("stream", op="fs_download_stream")
+    client = FakeClient()
+    await daemon_module._handle_channel(
+        client,
+        _aiter([stream, stream, _fs_call("read")]),
+        cfg=_cfg(data_root=tmp_path),
+        executor=FakeExecutor(),
+        auditor=MemoryAuditor(),
+        dedupe=daemon_module._CallDedupe(),
+    )
+    assert len(client.streamed) == 1
+    assert [cid for cid, body in client.posted if body.get("stage") == "ack"] == ["stream", "read"]
+
+
+async def test_unconfirmed_stream_result_remains_unresolved_for_duplicate_reack(tmp_path):
+    (tmp_path / "s1").mkdir()
+    (tmp_path / "s1" / "f.txt").write_text("original")
+
+    class LostStreamReply(FakeClient):
+        async def post_stream_result(self, call_id, lines, *, deadline_s):
+            raise TransportError("unconfirmed stream reply")
+
+    dedupe = daemon_module._CallDedupe()
+    stream = _fs_call("stream", op="fs_download_stream")
+    with pytest.raises(TransportError):
+        await daemon_module._handle_channel(
+            LostStreamReply(),
+            _aiter([stream]),
+            cfg=_cfg(data_root=tmp_path),
+            executor=FakeExecutor(),
+            auditor=MemoryAuditor(),
+            dedupe=dedupe,
+        )
+    reconnected = FakeClient()
+    await daemon_module._handle_channel(
+        reconnected,
+        _aiter([stream]),
+        cfg=_cfg(data_root=tmp_path),
+        executor=FakeExecutor(),
+        auditor=MemoryAuditor(),
+        dedupe=dedupe,
+    )
+    assert reconnected.posted == [("stream", {"stage": "ack"})]
+    assert reconnected.streamed == []
