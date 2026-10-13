@@ -23,16 +23,14 @@ test("sandbox selector opens on its own panel key, never the thinking panel", ()
   expect(source).toMatch(/activePanel === "sandbox"/);
 });
 
-test("unified sandbox panel hosts the machine rows, no separate machine panel", () => {
-  // 统一面板：设备行注入 sandbox 面板（belowOptions），独立 machine 面板已移除
-  expect(source).toMatch(/belowOptions=\{machineSection\}/);
+test("sandbox panel shows machine rows only for local computer", () => {
+  expect(source).toMatch(/belowOptions=\{adapted\.value === "local" \? machineSection : undefined\}/);
   expect(source).toMatch(/data-sandbox-machine-row/);
   expect(source).not.toMatch(/activePanel === "machine"/);
   expect(runModePopoverSource).not.toMatch(/data-machine-entry/);
 });
 
-test("unified sandbox panel marks the current device and switches tier on tap", () => {
-  // 当前设备标识 + 云端档点设备一键切本地
+test("local sandbox panel marks the current device", () => {
   expect(source).toMatch(/data-current-device-badge/);
   expect(source).toMatch(/agentOptions\.sandboxMachine\.currentDevice/);
   expect(source).toMatch(/handleSelectMachineRow/);
