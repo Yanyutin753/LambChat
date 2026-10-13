@@ -64,7 +64,12 @@ class SessionRunMetadataMixin:
             return False
 
     async def update_metadata_for_run(
-        self, session_id: str, run_id: str, metadata: dict[str, Any]
+        self,
+        session_id: str,
+        run_id: str,
+        metadata: dict[str, Any],
+        *,
+        expected_statuses: list[str] | None = None,
     ) -> bool:
         """Apply run metadata only while this exact run still owns the session."""
         await self.ensure_indexes_if_needed()
@@ -75,8 +80,45 @@ class SessionRunMetadataMixin:
             "updated_at": utc_now(),
             **{f"metadata.{key}": value for key, value in metadata.items()},
         }
+        predicate = {"_id": document["_id"], "metadata.current_run_id": run_id}
+        if expected_statuses is not None:
+            predicate["metadata.task_status"] = {"$in": expected_statuses}
         result = await self.collection.update_one(
-            {"_id": document["_id"], "metadata.current_run_id": run_id},
+            predicate,
             {"$set": update},
+        )
+        return result.matched_count > 0
+
+    async def claim_run_recovery(
+        self, session_id: str, run_id: str, metadata: dict[str, Any]
+    ) -> bool:
+        """Claim recovery before touching traces; completion and cancellation win atomically."""
+        await self.ensure_indexes_if_needed()
+        document = await self._find_doc(session_id, {"_id": 1})
+        if document is None:
+            return False
+        result = await self.collection.update_one(
+            {
+                "_id": document["_id"],
+                "metadata.current_run_id": run_id,
+                "metadata.verification_required": {"$ne": True},
+                "metadata.task_error_code": {
+                    "$nin": ["cancelled", "task_recovery_uncertain_effect"]
+                },
+                "$or": [
+                    {
+                        "metadata.task_status": {
+                            "$in": ["running", "starting", "recovering", "pending", "queued"]
+                        }
+                    },
+                    {"metadata.task_status": "failed", "metadata.task_recoverable": True},
+                ],
+            },
+            {
+                "$set": {
+                    "updated_at": utc_now(),
+                    **{f"metadata.{key}": value for key, value in metadata.items()},
+                }
+            },
         )
         return result.matched_count > 0

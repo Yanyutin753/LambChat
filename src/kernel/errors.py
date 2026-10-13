@@ -750,6 +750,11 @@ class ErrorCode(Enum):
         409,
         "Recovery stopped because a previous operation may already have taken effect. Verify its result before starting a new task.",
     )
+    TASK_RECOVERY_NOT_AVAILABLE = (
+        "task_recovery_not_available",
+        409,
+        "Task recovery is no longer available",
+    )
     TASK_EXPIRED = ("task_expired", 410, "Task expired")
 
     @property

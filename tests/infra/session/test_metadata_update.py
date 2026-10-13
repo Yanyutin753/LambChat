@@ -66,3 +66,123 @@ async def test_session_manager_get_session_events_forwards_limit_as_max_events()
 
     assert events == [{"event_type": "done"}]
     assert calls == [(("session-1",), {"max_events": 25})]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "metadata,expected",
+    [
+        ({"task_status": "running"}, True),
+        ({"task_status": "failed", "task_recoverable": True}, True),
+        ({"task_status": "completed"}, False),
+        ({"task_status": "cancelled"}, False),
+        ({"task_status": "waiting_human"}, False),
+        ({"task_status": "failed", "task_recoverable": False}, False),
+        ({"task_status": "running", "verification_required": True}, False),
+        ({"task_status": "running", "task_error_code": "cancelled"}, False),
+        ({"task_status": "running", "current_run_id": "new-run"}, False),
+    ],
+)
+async def test_recovery_claim_mongo_predicate_preserves_terminal_and_run_owner(
+    monkeypatch, metadata, expected
+):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from src.infra.session.session_run_metadata import SessionRunMetadataMixin
+
+    document = {"_id": "canonical-id", "metadata": {"current_run_id": "run-1", **metadata}}
+
+    def matches(query):
+        for key, condition in query.items():
+            if key == "$or":
+                if not any(matches(branch) for branch in condition):
+                    return False
+                continue
+            value = (
+                document["_id"]
+                if key == "_id"
+                else document["metadata"].get(key.removeprefix("metadata."))
+            )
+            if isinstance(condition, dict):
+                if "$in" in condition and value not in condition["$in"]:
+                    return False
+                if "$nin" in condition and value in condition["$nin"]:
+                    return False
+                if "$ne" in condition and value == condition["$ne"]:
+                    return False
+            elif value != condition:
+                return False
+        return True
+
+    async def update_one(query, update):
+        assert query["_id"] == "canonical-id"
+        assert query["metadata.current_run_id"] == "run-1"
+        assert query["metadata.verification_required"] == {"$ne": True}
+        assert query["metadata.task_error_code"] == {
+            "$nin": ["cancelled", "task_recovery_uncertain_effect"]
+        }
+        assert query["$or"] == [
+            {
+                "metadata.task_status": {
+                    "$in": ["running", "starting", "recovering", "pending", "queued"]
+                }
+            },
+            {"metadata.task_status": "failed", "metadata.task_recoverable": True},
+        ]
+        matched = matches(query)
+        if matched:
+            document["metadata"].update(
+                {
+                    key.removeprefix("metadata."): value
+                    for key, value in update["$set"].items()
+                    if key.startswith("metadata.")
+                }
+            )
+        return SimpleNamespace(matched_count=int(matched))
+
+    storage = SessionRunMetadataMixin()
+    storage.ensure_indexes_if_needed = AsyncMock()
+    storage._find_doc = AsyncMock(return_value={"_id": "canonical-id"})
+    storage.collection = SimpleNamespace(update_one=update_one)
+    previous = dict(document["metadata"])
+
+    assert (
+        await storage.claim_run_recovery(
+            "object-id-session", "run-1", {"task_status": "recovering"}
+        )
+        is expected
+    )
+    assert document["metadata"] == (
+        {**previous, "task_status": "recovering"} if expected else previous
+    )
+
+
+@pytest.mark.asyncio
+async def test_recovery_followup_metadata_requires_same_run_and_nonterminal_status():
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from src.infra.session.session_run_metadata import SessionRunMetadataMixin
+
+    storage = SessionRunMetadataMixin()
+    storage.ensure_indexes_if_needed = AsyncMock()
+    storage._find_doc = AsyncMock(return_value={"_id": "canonical-id"})
+    update = AsyncMock(return_value=SimpleNamespace(matched_count=0))
+    storage.collection = SimpleNamespace(update_one=update)
+
+    assert (
+        await storage.update_metadata_for_run(
+            "session-1",
+            "run-1",
+            {"task_status": "failed"},
+            expected_statuses=["recovering", "pending", "queued", "starting"],
+        )
+        is False
+    )
+    query = update.await_args.args[0]
+    assert query == {
+        "_id": "canonical-id",
+        "metadata.current_run_id": "run-1",
+        "metadata.task_status": {"$in": ["recovering", "pending", "queued", "starting"]},
+    }

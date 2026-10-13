@@ -24,10 +24,44 @@ from src.infra.task.recovery import TaskRecoveryService
 class _FakeStorage:
     def __init__(self, session=None) -> None:
         self.session = session
+        if session is not None:
+            session.metadata.setdefault("task_status", "running")
+            if session.metadata["task_status"] == "failed":
+                session.metadata.setdefault("task_recoverable", True)
         self.updates: list[tuple[str, Any]] = []
 
     async def update(self, session_id, session_update) -> None:
         self.updates.append((session_id, session_update))
+
+    async def get_by_session_id(self, session_id):
+        return self.session
+
+    async def claim_run_recovery(self, session_id, run_id, metadata):
+        previous = self.session.metadata if self.session else {}
+        allowed = previous.get("task_status") in {
+            "running",
+            "starting",
+            "recovering",
+            "pending",
+            "queued",
+        } or (previous.get("task_status") == "failed" and previous.get("task_recoverable") is True)
+        if (
+            previous.get("current_run_id") != run_id
+            or not allowed
+            or previous.get("verification_required") is True
+            or previous.get("task_error_code") in {"cancelled", "task_recovery_uncertain_effect"}
+        ):
+            return False
+        await self.update(session_id, SimpleNamespace(metadata=metadata))
+        return True
+
+    async def update_metadata_for_run(
+        self, session_id, run_id, metadata, *, expected_statuses=None
+    ):
+        if self.session.metadata.get("current_run_id") != run_id:
+            return False
+        await self.update(session_id, SimpleNamespace(metadata=metadata))
+        return True
 
 
 class _FakeExecutor:

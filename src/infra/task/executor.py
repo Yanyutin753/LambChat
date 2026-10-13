@@ -151,6 +151,14 @@ class TaskExecutor(TaskSessionStatusMixin):
             await self._update_session_status(
                 session_id, TaskStatus.STARTING, run_id=run_id, expected_run_id=run_id
             )
+        elif interrupted_resume and not hitl_resume:
+            if not await self._storage.claim_run_recovery(
+                session_id,
+                run_id,
+                self._state_machine.build_metadata(TaskStatus.STARTING, run_id=run_id),
+            ):
+                raise TaskInterruptedError("Interrupted run no longer authorizes recovery")
+            fenced_resume = True  # STARTING was already written atomically.
 
         try:
             if not fenced_resume:

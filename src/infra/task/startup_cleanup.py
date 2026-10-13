@@ -532,6 +532,15 @@ class TaskStartupCleanupService:
                 )
                 continue
 
+            fresh = await self._storage.get_by_session_id(session_id)
+            fresh_metadata = (getattr(fresh, "metadata", None) or {}) if fresh else {}
+            if (
+                fresh_metadata.get("current_run_id") != run_id
+                or fresh_metadata.get("task_status") != TaskStatus.RUNNING.value
+            ):
+                continue
+            session_model = fresh
+
             logger.warning(
                 "Cleaning up stale RUNNING task (no heartbeat): session=%s, run_id=%s",
                 session_id,

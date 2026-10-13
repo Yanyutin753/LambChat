@@ -24,6 +24,7 @@ from .hitl import (
     wait_for_hitl_source_release,
 )
 from .manager import get_task_manager
+from .state_machine import TaskStateMachine
 from .status import TaskStatus
 
 logger = get_logger(__name__)
@@ -289,19 +290,23 @@ async def _run_agent_payload(payload_store, payload, dispatch_id: str, run_id: s
         if not await TaskHeartbeat().is_stale(run_id):
             logger.info("Interrupted resume deferred, heartbeat fresh again: run_id=%s", run_id)
             raise Retry(defer=5)
+        if not fenced_resume:
+            admitted = await task_manager.storage.claim_run_recovery(
+                payload["session_id"],
+                run_id,
+                TaskStateMachine().build_metadata(TaskStatus.PENDING, run_id=run_id),
+            )
+            if not admitted:
+                # Heartbeat I/O and queue delivery can outlive this run. Discard
+                # only this dispatch without disturbing its completed/new owner.
+                await payload_store.delete(dispatch_id)
+                logger.info("Discarded stale interrupted resume: run_id=%s", run_id)
+                return
         await admit_goal_resume()
         limiter = get_concurrency_limiter()
         if not await limiter.try_acquire_run_slot(payload["user_id"], run_id):
             raise Retry(defer=1)
         resume_slot_acquired = True
-        try:
-            if not fenced_resume:
-                await task_executor._update_session_status(
-                    payload["session_id"], TaskStatus.PENDING, run_id=run_id
-                )
-        except BaseException:
-            await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=False)
-            raise
 
     executor_key = str(payload["executor_key"])
     try:
@@ -369,7 +374,7 @@ async def _run_agent_payload(payload_store, payload, dispatch_id: str, run_id: s
     except TaskInterruptedError:
         await payload_store.delete(dispatch_id)
         await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=True)
-        logger.info("Deleted arq payload after user interruption: run_id=%s", run_id)
+        logger.info("Deleted arq payload after interruption or stale admission: run_id=%s", run_id)
     except asyncio.CancelledError:
         if await _is_user_cancelled_run(task_manager, payload["session_id"], run_id):
             await payload_store.delete(dispatch_id)

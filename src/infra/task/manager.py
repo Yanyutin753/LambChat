@@ -336,16 +336,25 @@ class BackgroundTaskManager:
                 )
 
                 # 更新 MongoDB session 状态（包含 current_run_id）
-                admission_options = {}
-                if background_resume or (
+                fenced_resume = background_resume or bool(
                     active_goal
                     and active_goal.get("_persistent_id")
                     and (hitl_resume or interrupted_resume)
-                ):
-                    admission_options["expected_run_id"] = run_id
-                await task_executor._update_session_status(
-                    session_id, TaskStatus.PENDING, run_id=run_id, **admission_options
                 )
+                if interrupted_resume and not hitl_resume and not fenced_resume:
+                    if not await self.storage.claim_run_recovery(
+                        session_id,
+                        run_id,
+                        self._state_machine.build_metadata(TaskStatus.PENDING, run_id=run_id),
+                    ):
+                        raise TaskInterruptedError("Interrupted run no longer authorizes recovery")
+                else:
+                    await task_executor._update_session_status(
+                        session_id,
+                        TaskStatus.PENDING,
+                        run_id=run_id,
+                        **({"expected_run_id": run_id} if fenced_resume else {}),
+                    )
             except Exception:
                 if not user_message_written:
                     await self._release_preclaimed_attachment_references(
