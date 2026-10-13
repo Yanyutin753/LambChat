@@ -676,7 +676,7 @@ class TaskRecoveryService:
                 "message": "该任务已被用户取消，不能恢复",
             }
 
-        if await self._heartbeat.check_exists(str(source_run_id)):
+        if not await self._heartbeat.is_stale(str(source_run_id)):
             return {
                 "success": False,
                 "run_id": None,
