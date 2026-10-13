@@ -163,7 +163,7 @@ export function ChatInputSelectors({
   } = useSandboxStatus();
   const sandboxShell = isShellAvailable();
   const [policyOverride, setPolicyOverride] = useState<string | null>(null);
-  // 电脑操作目标独立于代码沙箱；云端会话也可明确选择在线设备。
+  // 电脑操作只在本地档展示在线设备。
   // 当前设备（壳内 read_machine_id 比对命中）带标识
   const machineRows = machines.some((m) => m.online !== false)
     ? buildSandboxMachineRows(machines, defaultMachineId, currentMachineId, t)
@@ -475,7 +475,7 @@ export function ChatInputSelectors({
                   value={adapted.value}
                   onChange={handleChange}
                   note={note}
-                  belowOptions={machineSection}
+                  belowOptions={adapted.value === "local" ? machineSection : undefined}
                   footer={downloadFooter}
                   isOpen={activePanel === "sandbox"}
                   onOpenChange={(open) =>

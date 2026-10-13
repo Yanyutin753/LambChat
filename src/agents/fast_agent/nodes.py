@@ -177,7 +177,19 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     )
     llm, fallback_model_value, supports_vision, image_url_mode = prepared.model
     backend, store = prepared.backend
-    filtered_tool_list = prepared.tools
+    from src.infra.tool.computer_use_tool import (
+        filter_computer_use_tools,
+        resolve_computer_use_context,
+    )
+
+    computer_use_context = (
+        await resolve_computer_use_context(
+            context.user_id or "", agent_options, configurable.get("hitl_resume")
+        )
+        if settings.ENABLE_COMPUTER_USE
+        else None
+    )
+    filtered_tool_list = filter_computer_use_tools(prepared.tools, computer_use_context)
     inner_checkpointer = prepared.checkpointer
 
     if context.deferred_manager is not None and not any(
@@ -379,7 +391,10 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         fresh_context = await refresh_subagent_context(context)
         return {
             **spec,
-            "tools": list(fresh_context.filter_tools()),
+            "tools": filter_computer_use_tools(
+                list(fresh_context.filter_tools()),
+                await resolve_computer_use_context(context.user_id or "", agent_options),
+            ),
             "middleware": _build_subagent_middleware(role_type, fresh_context),
         }
 
@@ -423,20 +438,12 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     graph_compile_time = time.time() - graph_compile_start
     logger.debug(f"[FastAgent] Graph compile: {graph_compile_time * 1000:.3f}ms")
 
-    from src.infra.tool.computer_use_tool import resolve_computer_use_context
-
     inner_config: RunnableConfig = {
         "configurable": build_nested_graph_configurable(
             thread_id=state.get("session_id", str(uuid.uuid4())),
             checkpointer=inner_checkpointer,
             backend=backend,
-            computer_use_context=(
-                await resolve_computer_use_context(
-                    context.user_id or "", agent_options, configurable.get("hitl_resume")
-                )
-                if settings.ENABLE_COMPUTER_USE
-                else None
-            ),
+            computer_use_context=computer_use_context,
             context=context,
             disabled_skills=configurable.get("disabled_skills"),
             enabled_skills=configurable.get("enabled_skills"),
