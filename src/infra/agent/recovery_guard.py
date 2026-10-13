@@ -4,7 +4,7 @@ from inspect import getclosurevars
 from types import CodeType
 from typing import Any
 
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
 from src.kernel.errors import AppError, ErrorCode
 
@@ -32,12 +32,14 @@ def _readonly(tool: Any) -> bool:
         from langchain_quickjs import CodeInterpreterMiddleware
 
         coroutine = getattr(tool, "coroutine", None)
-        if code is None:
+        if code is None or not callable(coroutine):
             return False
         bounded = code in _nested_codes(create_bounded_interpreter.__code__)
         original = (
             getclosurevars(coroutine).nonlocals.get("original_eval") if bounded else coroutine
         )
+        if not callable(original):
+            return False
         if getattr(original, "__code__", None) not in _nested_codes(
             CodeInterpreterMiddleware._build_tool.__code__
         ):
@@ -89,9 +91,14 @@ async def guard_graph_recovery(graph: Any, config: Any) -> None:
         # the corresponding call resolves it; ambiguous duplicate calls stay blocked.
         pending: dict[str, list[dict[str, Any]]] = {}
         for message in messages:
+            if not isinstance(message, BaseMessage):
+                raise _uncertain()
             if isinstance(message, AIMessage):
                 for call in message.tool_calls:
-                    pending.setdefault(call["id"], []).append(dict(call))
+                    identity = call.get("id")
+                    if not isinstance(identity, str) or not identity:
+                        raise _uncertain([call])
+                    pending.setdefault(identity, []).append(dict(call))
             elif isinstance(message, ToolMessage):
                 identity = message.tool_call_id
                 if len(pending.get(identity, [])) == 1:

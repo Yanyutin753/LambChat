@@ -973,7 +973,9 @@ async def test_fast_agent_node_language_section_bytes_stable_across_turns(
 async def test_each_agent_checks_real_inner_checkpoint_before_streaming(monkeypatch, agent):
     import importlib
     from unittest.mock import AsyncMock
+
     from langchain_core.messages import AIMessage
+
     from src.kernel.errors import AppError, ErrorCode
 
     module = importlib.import_module(f"src.agents.{agent}_agent.nodes")

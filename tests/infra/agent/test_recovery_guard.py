@@ -40,6 +40,23 @@ async def test_unknown_write_stops_before_replay():
     assert caught.value.args_data["tool_calls"] == [{"id": "write-1", "name": "external_write"}]
 
 
+async def test_readonly_call_with_missing_identity_is_not_replay_authority():
+    from src.infra.tool.web_fetch_tool import web_fetch
+
+    with pytest.raises(AppError):
+        await guard_graph_recovery(
+            graph([call(name="web_fetch", identity=None)], tools={"web_fetch": web_fetch}), {}
+        )
+
+
+async def test_unrecognized_checkpoint_message_cannot_authorize_replay():
+    with pytest.raises(AppError):
+        await guard_graph_recovery(
+            graph([{"type": "ai", "tool_calls": [{"name": "external_write", "id": "write-1"}]}]),
+            {},
+        )
+
+
 async def test_all_messages_are_checked_not_just_last_ai():
     with pytest.raises(AppError):
         await guard_graph_recovery(
@@ -132,6 +149,7 @@ async def test_actual_filesystem_read_tool_can_resume(name):
 @pytest.mark.parametrize("bounded", [False, True])
 async def test_actual_readonly_eval_can_resume(bounded):
     from langchain_quickjs import CodeInterpreterMiddleware
+
     from src.infra.agent.middleware.ptc_adapter import create_bounded_interpreter
 
     factory = create_bounded_interpreter if bounded else CodeInterpreterMiddleware
