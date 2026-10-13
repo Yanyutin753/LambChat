@@ -682,6 +682,7 @@
     "taskNotFound": "Task not found",
     "taskCancelled": "Task cancelled",
     "taskServerRestart": "Interrupted by server restart",
+    "taskRecoveryUncertainEffect": "Recovery stopped because a previous operation may already have taken effect. Verify its result before starting a new task.",
     "taskExpired": "Task expired",
     "forceRelogin": "User permissions have changed. Please log in again",
     "tokenExpired": "Token has expired",

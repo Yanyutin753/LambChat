@@ -6,6 +6,7 @@ from src.infra.goal_runtime import GoalRunAdmissionError
 from src.infra.logging import get_logger
 from src.infra.sandbox.idle_pause import IDLE_PAUSE_TRIGGER_STATUSES
 from src.infra.utils.datetime import utc_now_iso
+from src.kernel.errors import AppError
 from src.kernel.schemas.session import SessionUpdate
 
 from .status import TaskStatus
@@ -26,6 +27,23 @@ class TaskSessionStatusMixin:
         _state_machine: TaskStateMachine
 
         def _schedule_idle_pause_check(self, session_id: str) -> None: ...
+
+    async def _record_uncertain_effect(self, session_id: str, run_id: str, error: AppError) -> None:
+        await self._storage.update_metadata_for_run(
+            session_id,
+            run_id,
+            {
+                **self._state_machine.build_metadata(
+                    TaskStatus.FAILED,
+                    run_id=run_id,
+                    error=error.display_message,
+                    error_code=error.error_code.code,
+                    recoverable=False,
+                ),
+                "verification_required": True,
+                "verification_tool_calls": error.args_data.get("tool_calls", []),
+            },
+        )
 
     async def _update_session_status(
         self,

@@ -11,7 +11,7 @@ from src.infra.storage.redis import get_redis_client
 from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import utc_now_iso
 from src.kernel.config import settings
-from src.kernel.errors import ErrorCode
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.session import SessionUpdate
 
 from .concurrency import get_concurrency_limiter, get_registered_executor
@@ -118,6 +118,12 @@ def _resolve_recovery_agent_id(session_metadata: dict[str, Any], session: Any) -
             return fallback
 
     return candidate or str(getattr(settings, "DEFAULT_AGENT", "") or "search")
+
+
+def _require_safe_recovery(session: Any) -> None:
+    metadata = getattr(session, "metadata", None) or {}
+    if metadata.get("task_error_code") == ErrorCode.TASK_RECOVERY_UNCERTAIN_EFFECT.code:
+        raise AppError(ErrorCode.TASK_RECOVERY_UNCERTAIN_EFFECT)
 
 
 class TaskRecoveryService:
@@ -317,6 +323,7 @@ class TaskRecoveryService:
         user:message UI 事件；executor 端 interrupted_resume=True 会先发
         run:resumed 标记事件，前端据此清空原气泡后续接新生成的内容。
         """
+        _require_safe_recovery(session)
         session_metadata = getattr(session, "metadata", None) or {}
         executor_key = str(session_metadata.get("executor_key") or "agent_stream")
         executor_fn = get_registered_executor(executor_key)
@@ -442,6 +449,7 @@ class TaskRecoveryService:
         reason: str,
     ) -> dict[str, Any]:
         """Resume an interrupted run in-place (same run_id/trace, seamless to the user)."""
+        _require_safe_recovery(session)
         if not source_run_id:
             return {
                 "success": False,
@@ -638,6 +646,7 @@ class TaskRecoveryService:
                 "message": "会话不存在",
             }
 
+        _require_safe_recovery(session)
         session_metadata = session.metadata or {}
         source_run_id = session_metadata.get("current_run_id")
         task_status = session_metadata.get("task_status")

@@ -682,6 +682,7 @@
     "taskNotFound": "任务不存在",
     "taskCancelled": "任务已取消",
     "taskServerRestart": "服务重启导致任务中断",
+    "taskRecoveryUncertainEffect": "已停止恢复：先前操作可能已经生效。请核验其结果，再开始新任务。",
     "taskExpired": "任务已过期",
     "forceRelogin": "用户权限已变更，请重新登录",
     "tokenExpired": "登录已过期，请重新登录",

@@ -626,7 +626,15 @@ class TaskExecutor(TaskSessionStatusMixin):
     ) -> None:
         """处理通用异常"""
         error_msg = getattr(error, "display_message", None) or str(error) or type(error).__name__
-        await self._update_session_status(session_id, TaskStatus.FAILED, error_msg, run_id=run_id)
+        if (
+            isinstance(error, AppError)
+            and error.error_code is ErrorCode.TASK_RECOVERY_UNCERTAIN_EFFECT
+        ):
+            await self._record_uncertain_effect(session_id, run_id, error)
+        else:
+            await self._update_session_status(
+                session_id, TaskStatus.FAILED, error_msg, run_id=run_id
+            )
         logger.error(
             f"Task failed: session={session_id}, run_id={run_id}, error={error}", exc_info=True
         )

@@ -682,6 +682,7 @@
     "taskNotFound": "작업을 찾을 수 없습니다",
     "taskCancelled": "작업이 취소되었습니다",
     "taskServerRestart": "서버 재시작으로 작업이 중단되었습니다",
+    "taskRecoveryUncertainEffect": "이전 작업이 이미 적용되었을 수 있어 복구를 중단했습니다. 결과를 확인한 후 새 작업을 시작하세요.",
     "taskExpired": "작업이 만료되었습니다",
     "forceRelogin": "사용자 권한이 변경되었습니다. 다시 로그인해 주세요",
     "tokenExpired": "로그인이 만료되었습니다. 다시 로그인해 주세요",

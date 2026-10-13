@@ -745,6 +745,11 @@ class ErrorCode(Enum):
     TASK_NOT_FOUND = ("task_not_found", 404, "Task not found")
     TASK_CANCELLED = ("task_cancelled", 409, "Task cancelled")
     TASK_SERVER_RESTART = ("task_server_restart", 409, "Interrupted by server restart")
+    TASK_RECOVERY_UNCERTAIN_EFFECT = (
+        "task_recovery_uncertain_effect",
+        409,
+        "Recovery stopped because a previous operation may already have taken effect. Verify its result before starting a new task.",
+    )
     TASK_EXPIRED = ("task_expired", 410, "Task expired")
 
     @property

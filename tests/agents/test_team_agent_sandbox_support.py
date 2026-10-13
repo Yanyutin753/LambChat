@@ -21,7 +21,7 @@ class _FakeDeepAgent:
 
     async def aget_state(self, _config):
         self.aget_state_calls += 1
-        return SimpleNamespace(values={"messages": self.state_messages})
+        return SimpleNamespace(values={"messages": self.state_messages}, next=(), tasks=())
 
 
 class _FakeEventProcessor:
@@ -785,7 +785,7 @@ async def test_team_agent_node_reads_existing_state_messages_for_recommendations
     )
     await asyncio.sleep(0)
 
-    assert fake_graph.aget_state_calls == 1
+    assert fake_graph.aget_state_calls == 2
     assert result == {"output": ""}
 
 

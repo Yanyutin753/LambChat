@@ -682,6 +682,7 @@
     "taskNotFound": "タスクが見つかりません",
     "taskCancelled": "タスクはキャンセルされました",
     "taskServerRestart": "サーバーの再起動によりタスクが中断されました",
+    "taskRecoveryUncertainEffect": "以前の操作がすでに反映された可能性があるため、再開を停止しました。結果を確認してから新しいタスクを開始してください。",
     "taskExpired": "タスクの有効期限が切れました",
     "forceRelogin": "ユーザー権限が変更されました。再ログインしてください",
     "tokenExpired": "ログインの有効期限が切れました。再ログインしてください",
