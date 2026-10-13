@@ -10,6 +10,7 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src.infra.async_utils import run_blocking_io
+from src.infra.auth.authority import authority_lookup
 from src.infra.auth.jwt import verify_token
 from src.infra.auth.pat import PAT_PREFIX
 from src.infra.logging import get_logger
@@ -113,7 +114,8 @@ async def _load_user_payload(user_id: str, payload: TokenPayload | None = None) 
 
     # 从数据库获取用户信息
     user_storage = UserStorage()
-    user = await user_storage.get_by_id(user_id)
+    with authority_lookup():
+        user = await user_storage.get_by_id(user_id)
 
     if not user:
         raise AppError(ErrorCode.USER_NOT_FOUND)
@@ -121,7 +123,8 @@ async def _load_user_payload(user_id: str, payload: TokenPayload | None = None) 
         raise AppError(ErrorCode.ACCOUNT_NOT_ACTIVE)
 
     # 从缓存/数据库动态获取角色和权限
-    roles, permissions = await _get_user_roles_and_permissions(user.roles)
+    with authority_lookup():
+        roles, permissions = await _get_user_roles_and_permissions(user.roles)
 
     # 更新 payload
     payload.username = user.username
@@ -194,7 +197,7 @@ async def get_current_user_required(
     except AppError:
         raise
     except Exception as e:
-        raise AppError(ErrorCode.INVALID_TOKEN, message=str(e)) from e
+        raise AppError(ErrorCode.INTERNAL_ERROR) from e
 
 
 async def get_current_user_from_websocket(
@@ -226,8 +229,8 @@ async def get_current_user_from_websocket(
     except AppError:
         raise
     except Exception as e:
-        logger.error(f"[WebSocket] Auth error: {e}")
-        raise AppError(ErrorCode.INVALID_TOKEN, message=str(e)) from e
+        logger.error("[WebSocket] Auth error: %s", type(e).__name__)
+        raise AppError(ErrorCode.INTERNAL_ERROR) from e
 
 
 async def get_user_manager() -> UserManager:
@@ -316,7 +319,8 @@ async def get_current_user_pat_or_jwt(
     if token.startswith(PAT_PREFIX):
         from src.infra.auth.pat import PATStorage
 
-        record, reason = await PATStorage().verify(token)
+        with authority_lookup():
+            record, reason = await PATStorage().verify(token)
         if record is None:
             if reason == "expired":
                 raise AppError(ErrorCode.PAT_EXPIRED)

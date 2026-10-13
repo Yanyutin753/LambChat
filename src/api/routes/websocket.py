@@ -15,6 +15,7 @@ from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
 from src.infra.websocket import get_connection_manager
 from src.infra.websocket_rate_limiter import get_ws_rate_limiter
+from src.kernel.errors import AppError
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -108,7 +109,10 @@ async def websocket_endpoint(
         logger.info("[WebSocket] Client disconnected during auth")
         return
     except Exception as e:
-        logger.warning(f"[WebSocket] Auth failed from {client_ip}: {e}")
+        if isinstance(e, AppError) and e.http_status >= 500:
+            await websocket.close(code=1013, reason="service_unavailable")
+            return
+        logger.warning("[WebSocket] Auth failed from %s: %s", client_ip, type(e).__name__)
         should_block, _ = await rate_limiter.record_failure(client_ip)
         # close reason 用稳定错误码（前端按码翻译）
         reason = "rate_limited" if should_block else "unauthorized"
@@ -139,8 +143,11 @@ async def websocket_endpoint(
                 refreshed = await get_current_user_from_websocket(auth_token)
                 if refreshed.sub != user_id:
                     raise ValueError("Socket identity changed")
-            except Exception:
-                await websocket.close(code=4001, reason="unauthorized")
+            except Exception as error:
+                if isinstance(error, AppError) and error.http_status >= 500:
+                    await websocket.close(code=1013, reason="service_unavailable")
+                else:
+                    await websocket.close(code=4001, reason="unauthorized")
                 break
             next_auth_check = monotonic() + 15
 
