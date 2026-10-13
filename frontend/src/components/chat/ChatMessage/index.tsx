@@ -1,3 +1,4 @@
+import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { clsx } from "clsx";
 import { useEffect, useRef, useState, memo } from "react";
 import { createPortal } from "react-dom";
@@ -5,7 +6,6 @@ import {
   ChevronDown,
   GitBranch,
   Info,
-  Loader2,
   RotateCcw,
   Target,
   WifiOff,
@@ -702,8 +702,17 @@ export const ChatMessage = memo(function ChatMessage({
         <MessagePartRenderer
           key={group.partIndex}
           part={group.part}
-          messageId={message.id}
-          partIndex={group.partIndex}
+          messageId={
+            typeof message.metadata?.partAnchorOwnerId === "string"
+              ? message.metadata.partAnchorOwnerId
+              : message.id
+          }
+          partIndex={
+            group.partIndex +
+            (typeof message.metadata?.partIndexOffset === "number"
+              ? message.metadata.partIndexOffset
+              : 0)
+          }
           isStreaming={message.isStreaming}
           isLast={group.partIndex === message.parts!.length - 1}
           activePreview={activePreview}
@@ -765,9 +774,10 @@ export const ChatMessage = memo(function ChatMessage({
               stateKey={message.id}
               active
               renderExpanded={() => (
-                <Loader2
+                <LoadingSpinner
+                  color="text-current"
                   size={16}
-                  className="animate-spin text-theme-text-tertiary"
+                  className="text-theme-text-tertiary"
                 />
               )}
             />
@@ -893,7 +903,7 @@ export const ChatMessage = memo(function ChatMessage({
                   )}
                 >
                   {isForking ? (
-                    <Loader2 size={16} className="animate-spin" />
+                    <LoadingSpinner color="text-current" size={16} />
                   ) : (
                     <GitBranch size={16} />
                   )}

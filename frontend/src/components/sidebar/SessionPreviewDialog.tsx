@@ -1,9 +1,10 @@
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
 import { useCallback, useEffect, useState } from "react";
 
 import { useTranslation } from "react-i18next";
-import { Loader2, User, Bot } from "lucide-react";
+import { User, Bot } from "lucide-react";
 import { sessionApi } from "../../services/api/session";
 import type { SSEEventRecord } from "../../types/session";
 
@@ -118,7 +119,11 @@ export function SessionPreviewDialog({
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 size={20} className="animate-spin text-stone-400" />
+              <LoadingSpinner
+                color="text-current"
+                size={20}
+                className="text-stone-400"
+              />
             </div>
           ) : messages.length === 0 ? (
             <div className="text-center py-12 text-14 text-stone-400 dark:text-stone-500">

@@ -26,6 +26,8 @@ interface TooltipProps {
   hoverDelay?: number;
   /** Force the bubble visible (e.g. driven by a parent's touch state); hover/long-press still work when not forced */
   open?: boolean;
+  /** Dismiss a bubble pinned open by its trigger. */
+  onDismiss?: () => void;
   /** Keep tooltips inside a native fullscreen host when one owns the trigger. */
   portalContainer?: Element;
 }
@@ -197,6 +199,7 @@ export function Tooltip({
   zIndex = 60,
   hoverDelay = 0,
   open,
+  onDismiss,
   portalContainer,
 }: TooltipProps) {
   const [show, setShow] = useState(false);
@@ -375,6 +378,29 @@ export function Tooltip({
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [show, getChild]);
+
+  useEffect(() => {
+    if (!open || !onDismiss) return;
+    const dismiss = () => {
+      handleActivate();
+      onDismiss();
+    };
+    const outside = (event: PointerEvent) => {
+      if (!getChild()?.contains(event.target as Node)) dismiss();
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      dismiss();
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape, true);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape, true);
+    };
+  }, [open, onDismiss, handleActivate, getChild]);
 
   // Cleanup timers on unmount
   useEffect(() => {

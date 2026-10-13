@@ -626,8 +626,6 @@ async def test_build_memory_index_filters_by_scope_and_carries_revision():
     user_doc = _index_doc("m-user", mtype="user", scope="user", context="user_identity")
     docs = [project_doc, other_project_doc, user_doc]
 
-    seen: dict[str, object] = {}
-
     class FakeCursor:
         def __init__(self, result_docs):
             self._docs = result_docs
@@ -643,18 +641,14 @@ async def test_build_memory_index_filters_by_scope_and_carries_revision():
 
     class FakeCollection:
         def find(self, query, _projection):
-            seen["query"] = query
-            scope_clause = query.get("$or")
-            if scope_clause:
-                allowed_project = scope_clause[1]["project_id"]
+            if query.get("scope") == "project":
                 docs_visible = [
                     d
                     for d in docs
-                    if d.get("scope") in (None, "user", "reference")
-                    or (d.get("scope") == "project" and d.get("project_id") == allowed_project)
+                    if d.get("scope") == "project" and d.get("project_id") == query["project_id"]
                 ]
             else:
-                docs_visible = docs
+                docs_visible = [d for d in docs if d.get("scope") in (None, "user", "reference")]
             return FakeCursor(docs_visible)
 
     class FakeBackend:
@@ -668,7 +662,6 @@ async def test_build_memory_index_filters_by_scope_and_carries_revision():
     assert "m-other" not in result and "label-m-other" not in result
     assert "label-m-user" in result
     assert 'revision="' in result
-    assert "$or" in seen["query"]
 
 
 @pytest.mark.asyncio

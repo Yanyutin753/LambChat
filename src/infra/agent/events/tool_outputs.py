@@ -62,6 +62,19 @@ def _compact_text(value: str) -> str:
     return _compact_serializable_value(value)
 
 
+def _message_display_content(message: Any) -> Any:
+    if isinstance(message, dict):
+        content = message.get("content", "")
+        metadata = message.get("additional_kwargs", {})
+    else:
+        content = getattr(message, "content", None)
+        metadata = getattr(message, "additional_kwargs", {})
+    # Model handoff references must not replace the user's original reply.
+    if isinstance(metadata, dict) and metadata.get("lambchat_original_content") is not None:
+        return metadata["lambchat_original_content"]
+    return content
+
+
 def extract_tool_output(out: Any) -> Any:
     """Extract displayable content from LangGraph tool node output."""
     if out is None:
@@ -78,7 +91,7 @@ def extract_tool_output(out: Any) -> Any:
             if messages:
                 return process_messages(messages)
             return update
-        content = getattr(out, "content", None)
+        content = _message_display_content(out)
         if content is not None:
             return normalize_content(content)
         artifact = getattr(out, "artifact", None)
@@ -102,12 +115,14 @@ def extract_tool_output(out: Any) -> Any:
         return update
 
     if "content" in out:
-        return normalize_content(out["content"])
+        return normalize_content(_message_display_content(out))
 
     nested = out.get("output")
     if nested is not None:
         if isinstance(nested, dict):
-            return normalize_content(nested.get("content", nested))
+            return normalize_content(
+                _message_display_content(nested) if "content" in nested else nested
+            )
         return nested
 
     return out
@@ -240,11 +255,10 @@ def process_messages(messages: list) -> Any:
     has_media = False
 
     for message in messages:
+        content = _message_display_content(message)
         if isinstance(message, dict):
-            content = message.get("content", "")
             artifact = message.get("artifact")
         else:
-            content = getattr(message, "content", "")
             artifact = getattr(message, "artifact", None)
 
         # Prefer content (human-readable) over artifact (structured metadata)

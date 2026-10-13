@@ -1,12 +1,13 @@
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FolderOpen, Info, Loader2, X } from "lucide-react";
+import { FolderOpen, Info, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   invokeInShell,
   isShellAvailable,
 } from "../../services/tauri/sandboxShell";
-import { Dialog } from "../common/Dialog";
+import { Tooltip } from "../common/Tooltip";
 import type { Project } from "../../types";
 
 export function ProjectWorkspaceField({
@@ -56,9 +57,10 @@ export function ProjectWorkspaceField({
           className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-1 text-left focus-visible:outline focus-visible:outline-2 disabled:opacity-50"
         >
           {busy ? (
-            <Loader2
+            <LoadingSpinner
+              color="text-current"
               size={14}
-              className="shrink-0 animate-spin motion-reduce:animate-none"
+              className="shrink-0"
             />
           ) : (
             <FolderOpen size={14} className="shrink-0" />
@@ -91,40 +93,46 @@ export function ProjectWorkspaceDetails({
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const trigger = useRef<HTMLButtonElement>(null);
   return (
     <span className="shrink-0" onClick={(event) => event.stopPropagation()}>
-      <button
-        type="button"
-        ref={trigger}
-        onClick={() => setOpen(true)}
-        aria-label={t("projectWorkspace.details")}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        className="flex h-8 w-6 max-sm:h-9 max-sm:w-9 shrink-0 items-center justify-center rounded-md text-theme-text-tertiary focus-visible:outline focus-visible:outline-2"
-      >
-        <Info size={14} aria-hidden="true" />
-      </button>
-      <Dialog
+      <Tooltip
+        placement="bottom"
+        hoverDelay={500}
+        zIndex={300}
         open={open}
-        onClose={() => {
-          setOpen(false);
-          trigger.current?.focus();
-        }}
-        title={t("projectWorkspace.details")}
-      >
-        <div className="space-y-3 text-13 text-theme-text-secondary">
-          {value && (
-            <p className="break-all font-mono select-text">{value.path}</p>
-          )}
-          <p>
-            {t(
-              value ? "projectWorkspace.inherits" : "projectWorkspace.optional",
+        onDismiss={() => setOpen(false)}
+        className="right-panel-tab-tooltip"
+        content={
+          <span className="right-panel-tab-details">
+            <strong>{t("projectWorkspace.details")}</strong>
+            {value && (
+              <span className="right-panel-tab-path font-mono">
+                {value.path}
+              </span>
             )}
-          </p>
-          <p>{t("projectWorkspace.privacy")}</p>
-        </div>
-      </Dialog>
+            <span className="right-panel-tab-type">
+              {t(
+                value
+                  ? "projectWorkspace.inherits"
+                  : "projectWorkspace.optional",
+              )}
+            </span>
+            <span className="right-panel-tab-path">
+              {t("projectWorkspace.privacy")}
+            </span>
+          </span>
+        }
+      >
+        <button
+          type="button"
+          onClick={() => setOpen((previous) => !previous)}
+          aria-label={t("projectWorkspace.details")}
+          aria-expanded={open}
+          className="flex h-8 w-6 max-sm:h-9 max-sm:w-9 shrink-0 items-center justify-center rounded-md text-theme-text-secondary hover:text-theme-text focus-visible:text-theme-text focus-visible:outline focus-visible:outline-2"
+        >
+          <Info size={14} aria-hidden="true" />
+        </button>
+      </Tooltip>
     </span>
   );
 }

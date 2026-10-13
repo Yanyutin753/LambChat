@@ -81,7 +81,7 @@ test("resolveNextTheme cycles light → dark → sepia → light", () => {
 
 test("themeExportBackground maps each theme to its canvas export color", () => {
   expect(themeExportBackground("light")).toBe("#ffffff");
-  expect(themeExportBackground("dark")).toBe("#1c1917");
+  expect(themeExportBackground("dark")).toBe("#212224");
   expect(themeExportBackground("sepia")).toBe("#faf6ea");
 });
 
@@ -205,7 +205,7 @@ test("applyThemeToDocument updates every theme-color meta tag", () => {
 
   applyThemeToDocument("dark", documentLike);
 
-  expect(metaValues).toEqual(["#151210", "#151210", "#151210"]);
+  expect(metaValues).toEqual(["#1c1d1f", "#1c1d1f", "#1c1d1f"]);
 });
 
 test("applyThemeToDocument keeps the page background in sync for system bars", () => {
@@ -236,9 +236,9 @@ test("applyThemeToDocument keeps the page background in sync for system bars", (
 
   applyThemeToDocument("dark", documentLike);
 
-  expect(rootStyle.get("background-color")).toBe("#151210");
+  expect(rootStyle.get("background-color")).toBe("#1c1d1f");
   expect(rootStyle.get("color-scheme")).toBe("dark");
-  expect(bodyStyle.get("background-color")).toBe("#151210");
+  expect(bodyStyle.get("background-color")).toBe("#1c1d1f");
   expect(bodyStyle.get("color-scheme")).toBe("dark");
 });
 

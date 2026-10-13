@@ -180,7 +180,9 @@
       "description": "Emitted when a chain (or LangGraph node) starts executing.",
       "handled_by_processor": true,
       "handler": "processor.process_event -> rubric_grader chain detection (conditional)",
-      "emits_sse": ["agent:call"],
+      "emits_sse": [
+        "agent:call"
+      ],
       "note": "Only handled when name == 'rubric_grader'; emits agent:call and sets suppression flag. All other on_chain_start events fall through to the _CONTEXT_EVENT_TYPES filter and are silently ignored."
     },
     {
@@ -196,7 +198,9 @@
       "description": "Emitted when a chain (or LangGraph node) finishes executing.",
       "handled_by_processor": true,
       "handler": "processor.process_event -> rubric_grader chain detection (conditional)",
-      "emits_sse": ["agent:result"],
+      "emits_sse": [
+        "agent:result"
+      ],
       "note": "Only handled when name == 'rubric_grader'; emits agent:result with structured_response content and clears suppression flag. All other on_chain_end events are silently ignored."
     },
     {
@@ -226,6 +230,27 @@
       "description": "Emitted when an output parser finishes.",
       "handled_by_processor": false,
       "note": "Not in _CONTEXT_EVENT_TYPES; silently ignored by processor."
+    },
+    {
+      "event": "on_custom_event",
+      "lc_type": "CustomStreamEvent",
+      "description": "Persistent subagent lifecycle with stable conversation IDs.",
+      "handled_by_processor": true,
+      "handler": "SubagentEventMixin._handle_persistent_subagent_event",
+      "emits_sse": [
+        "agent:call",
+        "agent:result"
+      ],
+      "data_shape": {
+        "event": "on_custom_event",
+        "name": "lambchat_subagent",
+        "data": {
+          "phase": "started",
+          "subagent_id": "subagent-stable-id",
+          "subagent_type": "reviewer",
+          "description": "Review the evidence"
+        }
+      }
     }
   ],
   "event_flow_summary": {

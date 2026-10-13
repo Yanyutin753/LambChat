@@ -24,7 +24,7 @@ test("persona preset use buttons expose per-preset loading feedback", () => {
   );
   expect(selectorSource).toMatch(/aria-busy=\{isUsingPreset\}/);
   expect(selectorSource).toMatch(
-    /<Loader2 size=\{13\} className="animate-spin"/,
+    /<LoadingSpinner color="text-current" size=\{13\}/,
   );
   expect(selectorSource).toMatch(/personaPresets\.applying/);
 });
@@ -33,7 +33,7 @@ test("persona preview use button can mirror selector loading state", () => {
   expect(previewSource).toMatch(/isUsingPreset/);
   expect(previewSource).toMatch(/aria-busy=\{isUsingPreset\}/);
   expect(previewSource).toMatch(
-    /<Loader2 size=\{14\} className="animate-spin"/,
+    /<LoadingSpinner color="text-current" size=\{14\}/,
   );
   expect(previewSource).toMatch(/personaPresets\.applying/);
 });

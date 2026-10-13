@@ -96,6 +96,43 @@ test("image generation prompt can be copied from the detail panel", () => {
   expect(source).toMatch(/<CopyButton[\s\S]*?\btext=\{prompt\}/);
 });
 
+test("image generation panel uses the same bounded reference thumbnails as chat", () => {
+  const source = readFileSync(
+    new URL("../ImageGenerateItem.tsx", import.meta.url),
+    "utf8",
+  );
+  const detail = source.split("const ImageGenerateItem = memo")[0];
+
+  expect(detail).toContain('className="p-2 flex gap-1.5 overflow-x-auto"');
+  expect(detail).toContain("inputImages.slice(0, 4).map");
+  expect(detail).toContain("relative shrink-0 w-12 h-12 rounded-md overflow-hidden");
+  expect(detail).toContain("+{inputImages.length - 4}");
+  expect(detail).toContain("onClick={() => openImagePreview(resolvedUrl)}");
+});
+
+test("tool image previews share the chat gallery width limit", () => {
+  for (const file of [
+    "ImageGenerateItem",
+    "ImageAnalyzeItem",
+    "ReadFileItem",
+    "ComputerUseItem",
+    "McpBlockPreview",
+    "WebSearchItem",
+    "FileRevealItem",
+  ]) {
+    const source = readFileSync(
+      new URL(`../${file}.tsx`, import.meta.url),
+      "utf8",
+    );
+    expect(source, file).toContain("max-w-md");
+  }
+  const analysis = readFileSync(
+    new URL("../ImageAnalyzeItem.tsx", import.meta.url),
+    "utf8",
+  );
+  expect(analysis).not.toContain("gridTemplateColumns");
+});
+
 test("extractSingleImageResult recognizes single image upload payloads", () => {
   expect(
     extractSingleImageResult({

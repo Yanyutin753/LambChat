@@ -9,12 +9,10 @@ import {
   useState,
 } from "react";
 import { RightPanelActiveContext } from "../../common/useRightPanelEntry";
-import { ArrowDown, Maximize2 } from "lucide-react";
+import { ArrowDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { LoadingSpinner, CopyButton } from "../../common";
-import type { MessagePart } from "../../../types";
-import { MessagePartRenderer } from "./MessagePartRenderer";
-import { createSubagentAnchorOwnerId } from "./messagePartAnchors";
+import { ChatMessage } from "./index";
+import { buildSubagentConversation } from "./subagentPanelState";
 import {
   subagentPanelStore,
   type SubagentPanelData,
@@ -24,13 +22,6 @@ import {
   startSubagentPanelScrollToBottom,
   shouldAutoScrollSubagentPanel,
 } from "./subagentPanelScroll";
-import { shouldExpandSubagentProcessByDefault } from "./subagentPanelControl";
-import { CollapsibleSection } from "./CollapsibleSection";
-import {
-  SidebarMarkdownContent,
-  SUBAGENT_PARTS_PREVIEW_LIMIT,
-} from "./SidebarMarkdownContent";
-
 function useSubagentPanelData(
   agentId: string,
   active: boolean,
@@ -41,20 +32,6 @@ function useSubagentPanelData(
     [active, agentId],
   );
   return useSyncExternalStore(subscribe, () => subagentPanelStore.get(agentId));
-}
-
-function extractPartsText(parts: MessagePart[]): string {
-  return parts
-    .map((p) => {
-      if (p.type === "text" || p.type === "thinking") return p.content;
-      if (p.type === "tool")
-        return `[${p.name}]${p.result != null ? " " + String(p.result) : ""}`;
-      if (p.type === "subagent")
-        return `[${p.agent_name}]${p.result ? " " + p.result : ""}`;
-      return "";
-    })
-    .filter(Boolean)
-    .join("\n\n");
 }
 
 export function SubagentPanelContent({ agentId }: { agentId: string }) {
@@ -68,6 +45,10 @@ export function SubagentPanelContent({ agentId }: { agentId: string }) {
   const programmaticScrollRef = useRef(false);
   const stopAutoScrollRef = useRef<(() => void) | null>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const messages = useMemo(
+    () => (data ? buildSubagentConversation(data) : []),
+    [data],
+  );
 
   const markProgrammaticScroll = useCallback(() => {
     programmaticScrollRef.current = true;
@@ -169,113 +150,35 @@ export function SubagentPanelContent({ agentId }: { agentId: string }) {
     return () => window.clearTimeout(timer);
   }, []);
 
-  const partsText = useMemo(
-    () => (data?.parts?.length ? extractPartsText(data.parts) : ""),
-    [data?.parts],
-  );
-  const [showFullProcess, setShowFullProcess] = useState(false);
   if (!data) return null;
-
-  const effectiveStatus =
-    data.status ||
-    (data.isPending ? "running" : data.success ? "complete" : "error");
-  const shouldUsePartsPreview =
-    !!data.parts?.length &&
-    !showFullProcess &&
-    (data.isPending || partsText.length > SUBAGENT_PARTS_PREVIEW_LIMIT);
-
   return (
-    <div
-      ref={scrollRef}
-      onScroll={handleScroll}
-      className="relative flex h-full min-h-0 flex-col overflow-y-auto p-2 sm:p-4"
-    >
-      <div ref={contentRef} className="flex min-h-0 flex-1 flex-col space-y-3">
-        {data.input && (
-          <CollapsibleSection
-            title={t("chat.message.args")}
-            action={<CopyButton text={data.input} />}
-          >
-            <div className="text-14 text-stone-600 dark:text-stone-300 leading-relaxed">
-              <SidebarMarkdownContent content={data.input} />
-            </div>
-          </CollapsibleSection>
-        )}
-        {data.parts && data.parts.length > 0 && (
-          <CollapsibleSection
-            title={t("chat.message.processing")}
-            defaultExpanded={shouldExpandSubagentProcessByDefault(
-              effectiveStatus,
-            )}
-            action={<CopyButton text={partsText} />}
-          >
-            {shouldUsePartsPreview ? (
-              <div className="space-y-2">
-                <SidebarMarkdownContent
-                  content={partsText}
-                  isStreaming={data.isPending}
-                  expandable={false}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowFullProcess(true)}
-                  className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-theme-border bg-theme-bg-card px-2.5 text-12 font-medium text-theme-text-secondary transition-colors hover:bg-theme-bg-subtle hover:text-theme-text"
-                >
-                  <Maximize2 size={12} />
-                  {t("common.expand", "Expand")}
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {data.parts.map((part, index) => (
-                  <MessagePartRenderer
-                    key={index}
-                    part={part}
-                    messageId={createSubagentAnchorOwnerId(agentId)}
-                    partIndex={index}
-                    isStreaming={data.isPending}
-                    isLast={index === data.parts!.length - 1}
-                  />
-                ))}
-              </div>
-            )}
-          </CollapsibleSection>
-        )}
-        {data.error && effectiveStatus === "error" && (
-          <CollapsibleSection
-            title={t("chat.message.error")}
-            action={<CopyButton text={data.error} />}
-            variant="error"
-          >
-            <div className="text-12 text-red-700 dark:text-red-300 leading-relaxed">
-              {data.error}
-            </div>
-          </CollapsibleSection>
-        )}
-        {data.result && effectiveStatus === "complete" && (
-          <CollapsibleSection
-            title={t("chat.message.result")}
-            action={<CopyButton text={data.result} />}
-            expandedClassName="flex min-h-0 flex-col grow shrink-0"
-          >
-            <div className="text-14 text-stone-700 dark:text-stone-300 leading-relaxed">
-              <SidebarMarkdownContent content={data.result} />
-            </div>
-          </CollapsibleSection>
-        )}
-        {data.isPending && !data.parts?.length && (
-          <div className="flex items-center gap-2 text-stone-500 dark:text-stone-400">
-            <LoadingSpinner size="sm" />
-            <span className="text-14">{t("chat.message.executing")}</span>
-          </div>
-        )}
-        <div ref={bottomRef} className="h-px" />
+    <div className="relative flex h-full min-h-0 flex-col">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="min-h-0 flex-1 overflow-y-auto py-4"
+      >
+        <div ref={contentRef} className="space-y-6">
+          {messages.map((message, index) => (
+            <ChatMessage
+              key={message.id}
+              message={message}
+              personaName={data.agentName}
+              personaAvatar={data.agentAvatar}
+              isFirst={index === 0}
+              isLastMessage={index === messages.length - 1}
+              showFeedbackAndShareActions={false}
+            />
+          ))}
+          <div ref={bottomRef} className="h-px" />
+        </div>
       </div>
       {showScrollToBottom && (
         <button
           type="button"
           onClick={handleJumpToBottom}
-          className="sticky bottom-3 left-1/2 z-10 mt-3 inline-flex min-h-9 -translate-x-1/2 items-center gap-1.5 rounded-full border border-theme-border bg-theme-bg-card/95 px-3 text-12 font-medium text-theme-text-secondary shadow-lg transition-colors hover:bg-theme-bg-subtle hover:text-theme-text"
+          aria-label={t("common.scrollToBottom")}
+          className="absolute bottom-3 left-1/2 z-10 inline-flex min-h-9 w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-1.5 rounded-full border border-theme-border bg-theme-bg-card/95 px-3 text-12 font-medium text-theme-text-secondary shadow-lg transition-colors hover:bg-theme-bg-subtle hover:text-theme-text"
         >
           <ArrowDown size={13} />
           {t("common.scrollToBottom")}

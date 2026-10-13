@@ -533,6 +533,7 @@ function findAndMergeInSubagent(
       if (effectiveAgentId && p.agent_id !== effectiveAgentId) {
         continue;
       }
+      if (part.type === "subagent") return parts;
       const newSubagentParts = mergeOrAppendPart(p.parts || [], part);
       const newParts = [...parts];
       newParts[i] = { ...p, parts: newSubagentParts };
@@ -571,6 +572,16 @@ export function addPartToDepth(
   targetAgentId?: string,
   messageId?: string,
 ): MessagePart[] {
+  if (part.type === "subagent") {
+    // Approval recovery replays agent:call for the pending execution.
+    const existing = findAndMergeInSubagent(
+      parts,
+      part,
+      targetDepth,
+      part.agent_id,
+    );
+    if (existing) return existing;
+  }
   if (targetDepth <= 0) {
     // Merge adjacent text blocks at depth 0
     if (part.type === "text") {

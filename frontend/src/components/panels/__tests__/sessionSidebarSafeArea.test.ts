@@ -54,7 +54,7 @@ test("mobile sidebar panel uses a fixed drawer width", () => {
   const panelClass = mobileSidebarPanelClass();
 
   expect(panelClass).toBeTruthy();
-  expect(panelClass).toMatch(/\bw-64\b/);
+  expect(panelClass).toMatch(/\bw-\[272px\]/);
   expect(panelClass).toMatch(/\brounded-r-lg\b/);
 });
 

@@ -464,7 +464,16 @@ export function handleStreamEvent(
   // Manage subagent stack as side effect
   if (eventType === "agent:call") {
     const agentId = data.agent_id || "unknown";
-    subagentStack.push({ agent_id: agentId, depth, message_id: messageId });
+    if (
+      !subagentStack.some(
+        (item) =>
+          item.agent_id === agentId &&
+          item.depth === depth &&
+          item.message_id === messageId,
+      )
+    ) {
+      subagentStack.push({ agent_id: agentId, depth, message_id: messageId });
+    }
   }
 
   ctx.setMessages((prev) =>

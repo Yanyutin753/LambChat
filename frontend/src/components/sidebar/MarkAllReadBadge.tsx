@@ -1,3 +1,4 @@
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useCallback, type KeyboardEvent, type MouseEvent } from "react";
 import { formatUnreadCount } from "./unreadCounts";
 import { Tooltip } from "../common/Tooltip";
@@ -71,7 +72,7 @@ export function MarkAllReadBadge({
         ].join(" ")}
       >
         {isLoading ? (
-          <span className="badge-spinner" />
+          <LoadingSpinner size={10} color="text-current" />
         ) : (
           formatUnreadCount(count)
         )}

@@ -2,13 +2,7 @@ import { DialogCloseButton } from "../../common/DialogCloseButton";
 import { ModalSurface } from "../../common/ModalSurface";
 import { useState, useRef } from "react";
 
-import {
-  FileText,
-  ShoppingBag,
-  ChevronRight,
-  ChevronDown,
-  Loader2 as Loader2Icon,
-} from "lucide-react";
+import { FileText, ShoppingBag, ChevronRight, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { EditorSidebar } from "../../common/EditorSidebar";
@@ -126,7 +120,7 @@ export function SkillPreviewModal({
           {/* Files */}
           {previewLoading ? (
             <div className="flex items-center gap-2 text-14 text-[var(--theme-text-secondary)]">
-              <LoadingSpinner size="sm" />
+              <LoadingSpinner color="text-current" size="sm" />
               <span>{t("marketplace.loadingFiles")}</span>
             </div>
           ) : previewError ? (
@@ -180,9 +174,10 @@ export function SkillPreviewModal({
                           </div>
                         </div>
                         {isLoadingFile ? (
-                          <Loader2Icon
+                          <LoadingSpinner
+                            color="text-current"
                             size={14}
-                            className="animate-spin text-[var(--theme-text-secondary)]"
+                            className="text-[var(--theme-text-secondary)]"
                           />
                         ) : (
                           <ChevronRight

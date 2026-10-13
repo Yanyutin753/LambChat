@@ -248,18 +248,6 @@
   pointer-events: none;
 }
 
-.welcome-skeleton-avatar,
-.welcome-skeleton-line {
-  background: linear-gradient(
-    100deg,
-    color-mix(in srgb, var(--theme-border) 48%, transparent) 0%,
-    color-mix(in srgb, var(--theme-text) 6%, var(--theme-border)) 45%,
-    color-mix(in srgb, var(--theme-border) 48%, transparent) 90%
-  );
-  background-size: 220% 100%;
-  animation: welcome-skeleton-sheen 1.4s ease-in-out infinite;
-}
-
 .welcome-skeleton-avatar {
   width: 2.75rem;
   height: 2.75rem;
@@ -284,16 +272,6 @@
 
 .welcome-skeleton-desc {
   width: 72%;
-}
-
-@keyframes welcome-skeleton-sheen {
-  0% {
-    background-position: 120% 0;
-  }
-
-  100% {
-    background-position: -120% 0;
-  }
 }
 
 .welcome-skeleton-info {

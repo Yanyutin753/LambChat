@@ -308,7 +308,7 @@
       "name": "검색 에이전트"
     },
     "team": {
-      "description": "역할 기반 서브 에이전트에 작업을 라우팅합니다. 팀 미설정 시 단일 에이전트 모드로 폴백합니다.",
+      "description": "적합한 역할을 자동 검색해 하위 에이전트에 작업을 맡기고 후속 지시로 작업을 이어갑니다.",
       "name": "팀 에이전트"
     }
   },
@@ -1224,6 +1224,7 @@
     "message": {
       "addBookmark": "북마크 추가",
       "allFiles": "모든 파일",
+      "fileDirectory": "파일 목록",
       "args": "인수",
       "artifactsSubtitleFiles": "파일 {{count}}개",
       "artifactsSubtitleMixed": "파일 {{files}}개 · 프로젝트 {{projects}}개",
@@ -1422,6 +1423,16 @@
       "toolSkillSearch": "스킬 검색",
       "toolSuccess": "명령어 성공",
       "toolTaskName": "이름",
+      "toolSendSubagentMessage": "하위 에이전트에 메시지 보내기",
+      "toolWaitSubagent": "하위 에이전트 기다리기",
+      "toolSendParentMessage": "상위 에이전트에게 메시지",
+      "toolReceiveSubagentMessage": "하위 에이전트의 메시지",
+      "subagentMessage": "추가 메시지",
+      "toolSubagentRunning": "실행 중",
+      "toolSubagentMessageQueued": "메시지가 대기열에 추가됨",
+      "toolSubagentCompleted": "완료",
+      "toolSubagentWaitingHuman": "사용자 입력 대기 중",
+      "toolSubagentFailed": "실패",
       "toolTeamDefaultMember": "멤버 {{index}}",
       "toolTeamDefaultPersona": "페르소나 {{index}}",
       "toolTimeMinutes": "{{minutes}}분 {{seconds}}초",
@@ -1599,6 +1610,13 @@
     "timeline": "타임라인",
     "title": "채팅",
     "todo": {
+      "openPanel": "작업 목록 열기",
+      "allCompleted": "모든 작업 완료",
+      "cancelledCount": "{{count}}개 취소됨",
+      "pending": "대기 중",
+      "in_progress": "진행 중",
+      "completed": "완료",
+      "cancelled": "취소됨",
       "progress": "{{completed}}/{{total}} 완료",
       "toggle": "할 일 목록"
     },

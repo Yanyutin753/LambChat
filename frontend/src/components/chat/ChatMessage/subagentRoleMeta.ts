@@ -101,7 +101,7 @@ const SUBAGENT_ROLE_ICON_META: Record<
 export function formatSubagentName(agentName: string): string {
   return agentName
     .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 }
 

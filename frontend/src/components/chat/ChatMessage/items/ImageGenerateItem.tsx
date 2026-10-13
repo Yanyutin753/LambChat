@@ -240,22 +240,14 @@ function ImageGenerateDetail({
                 {inputImages.length}
               </span>
             </div>
-            <div
-              className="p-2 grid gap-2"
-              style={{
-                gridTemplateColumns: `repeat(${Math.min(
-                  inputImages.length,
-                  4,
-                )}, 1fr)`,
-              }}
-            >
-              {inputImages.map((imgUrl, i) => {
+            <div className="p-2 flex gap-1.5 overflow-x-auto">
+              {inputImages.slice(0, 4).map((imgUrl, i) => {
                 const resolvedUrl = getFullUrl(imgUrl) || imgUrl;
                 return (
                   <div
                     key={i}
                     className={clsx(
-                      "relative rounded-lg overflow-hidden",
+                      "relative shrink-0 w-12 h-12 rounded-md overflow-hidden",
                       "border border-dashed border-theme-border",
                       "hover:border-theme-text-tertiary",
                       "transition-colors cursor-pointer",
@@ -268,14 +260,19 @@ function ImageGenerateDetail({
                       alt={t("chat.message.toolImageRefAlt", { index: i + 1 })}
                       skipUrlResolve
                       inline
-                      className="w-full aspect-square object-cover"
+                      className="w-full h-full object-cover"
                     />
-                    <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/50 text-white text-9 font-medium">
-                      #{i + 1}
+                    <div className="absolute top-0 left-0 px-0.5 py-px rounded-br bg-black/50 text-white text-8 leading-none font-medium">
+                      {i + 1}
                     </div>
                   </div>
                 );
               })}
+              {inputImages.length > 4 && (
+                <div className="shrink-0 w-12 h-12 rounded-md bg-theme-bg-subtle border border-dashed border-theme-border flex items-center justify-center text-theme-text-secondary text-10 font-medium">
+                  +{inputImages.length - 4}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -284,7 +281,7 @@ function ImageGenerateDetail({
         {images.length > 0 && (
           <div
             className={clsx(
-              "grid gap-2.5",
+              "grid w-full max-w-md gap-2.5",
               images.length === 1 ? "grid-cols-1" : "grid-cols-2",
             )}
           >
@@ -436,7 +433,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
   // 进行中：标签学「思考中」，平滑流出正在生成的参数尾部
   const { label, isStreamingLabel } = useToolStreamingLabel(
     `${t("chat.message.toolImageGenerate")} ${
-      prompt.length > 40 ? prompt.slice(0, 37) + "…" : prompt
+      prompt
     }`,
     args,
     { isPending, result },
@@ -504,7 +501,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
 
       {/* Compact prompt (only when not pending) */}
       {!isPending && prompt && (
-        <ToolArgsBlock size="compact" wrap>
+        <ToolArgsBlock size="compact" copyText={prompt} wrap>
           <Sparkles size={12} className="shrink-0 text-theme-text-secondary" />
           <span className="truncate text-theme-text-secondary">
             {prompt.length > 120 ? prompt.slice(0, 117) + "…" : prompt}
@@ -571,7 +568,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
 
       {/* Compact image grid */}
       {images.length > 0 && (
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid w-full max-w-md grid-cols-2 gap-1.5">
           {images.slice(0, 4).map((img, i) => (
             <div
               key={i}

@@ -20,7 +20,6 @@ import {
   Permission,
   type PersonaPreset,
   type PersonaPresetSnapshot,
-  type Project,
 } from "../../../types";
 import { useDragAndDrop } from "./useDragAndDrop";
 import { WORKSPACE_OPTION } from "../../chat/workspaceSelection";
@@ -144,7 +143,6 @@ export function ChatAppContent({
     loadMorePersonaPresets,
     personaPresetListParams,
   ]);
-  const [projects, setProjects] = useState<Project[]>([]);
   const [composerFocusRequest, setComposerFocusRequest] = useState(0);
   const sessionConfigRef = useRef({
     disabledSkills: [] as string[],
@@ -193,7 +191,6 @@ export function ChatAppContent({
     setPendingProjectId,
     autoExpandProjectId,
     clearAutoExpandProjectId,
-    currentProjectId,
     reconnectSSE,
     reconcileActiveRun,
   } = useAgent({
@@ -780,8 +777,6 @@ export function ChatAppContent({
       showProfileModal={showProfileModal}
       onCloseProfileModal={onCloseProfileModal}
       setMobileSidebarOpen={setMobileSidebarOpen}
-      currentProjectId={currentProjectId}
-      projectManager={{ projects }}
       onNewSession={handleNewSessionWithReset}
       onShowProfile={onShowProfile}
       availableModels={filteredModels}
@@ -805,7 +800,6 @@ export function ChatAppContent({
             onSelectSession={handleSelectSessionAndClose}
             onNewSession={handleNewSessionAndClose}
             onSetPendingProjectId={selectProject}
-            onProjectsChange={setProjects}
             autoExpandProjectId={autoExpandProjectId}
             onConsumeAutoExpandProjectId={clearAutoExpandProjectId}
             newSession={newlyCreatedSession}

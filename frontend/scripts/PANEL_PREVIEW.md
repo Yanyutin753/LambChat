@@ -1,5 +1,9 @@
 # Panel 本地预览
 
+真实本地聊天里的子代理 Mock：在仓库根目录运行 `uv run python scripts/seed_subagent_preview.py`，会为已有 `desktop_dev` 账户插入两个模拟会话，并输出 `localhost:3001` 的聊天与只读演示链接。第一组包含角色搜索、原始 SOP、运行中追加要求、等待结果及下一轮使用相同子代理 ID 续跑；第二组包含搜索无匹配后的通用代理回退和续跑错误。复用现有聊天消息、工具与子代理卡片；只允许本机 `agent_state`，重复运行不覆盖已有记录，不执行模型、工具或 MCP。
+
+`/chat/preview-report` 包含主代理任务清单，可检查输入框上方的常驻摘要和右侧任务面板；`?chat-state=working` 查看当前步骤，`?chat-state=cancelled` 查看取消项。长任务名称用于检查窄屏折行。
+
 在 `frontend` 目录运行 `pnpm preview:panels`，访问 http://127.0.0.1:3002/files 。使用真实前端组件和独立的只读 API fixture，无需后端。仅绑定本机；模拟登录只写入预览 origin，API 写请求默认返回 405，不连接真实 API（下述显式模拟流程除外）。
 
 主要列表各有 65 条记录，文件有 65 个会话、196 个文件，覆盖 Markdown、代码、CSV、Excalidraw；用量包含趋势、排行和日志，设置包含九类配置。数据仅用于展示，不代表真实经营指标。
@@ -67,7 +71,7 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 ### 公开页面视觉验证
 
 `/download` 的版本接口提供示例安装包与 daemon 资产，便于检查平台推荐、文件名换行及终端反色。资产仅用于只读预览，不代表真实发布文件，请勿用此页面安装。
-预览使用独立的 `.vite-panel-preview` 缓存，避免与同一 worktree 的普通 Vite 服务争用依赖预构建缓存。
+预览使用按端口隔离的 `.vite-panel-preview-<port>` 缓存，避免与同一 worktree 的普通 Vite 服务争用依赖预构建缓存。
 
 本轮继续逐页复查上述主页面的桌面浅色与手机深色布局，并额外检查模型配置、聊天/分享、找回密码、无令牌重置/验证、注册待验证和 404；320px 复查通知与反馈，834px 复查设置。通知标题在窄屏分行、反馈操作和设置表单保留触控尺寸，认证辅助页复用登录页的主题表面；未执行真实发送、保存、删除或安装。示例默认助手 ID 与 fixture 的助手列表一致，避免选择器呈现空值。
 
@@ -75,7 +79,7 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 
 分享复制走查：会话与项目分享管理列表各提供一个只读演示链接 `preview-report`，可组合 `failure=clipboard` 检查首次失败与重试。不会创建新分享，创建、更新与删除请求仍返回405；创建成功但复制失败的路径由组件测试覆盖。
 
-成果文件树走查：`/chat/preview-report?artifacts=1` 添加两个文件与一个内联文本项目的只读成果，可打开“全部文件”、项目文件树，检查长中文文件名、复制、单文件下载和 ZIP。可组合 `theme=dark` / `sepia` 与 `failure=clipboard`；不连接真实 API 或执行项目代码。
+成果文件走查：`/chat/preview-report?artifacts=single` 显示单文件，`artifacts=few` 显示三个文件，`artifacts=many` 显示六个文件及紧凑汇总入口；`artifacts=mixed`（兼容 `artifacts=1`）显示两个文件和一个内联文本项目。1–3 个成果直接显示文件／项目行，保留预览、复制与单文件下载；四个及以上打开文件树与 ZIP 下载面板。可组合 `theme=dark` / `sepia`、`chat-state=streaming` 与 `failure=clipboard`，检查长文件名、键盘和窄屏。这些都是本机只读 mock，不写入真实对话、不连接真实 API 或执行项目代码。
 
 图片走查：`/chat/preview-report?images=1` 添加已有桌面/手机截图及一个固定404的图片到实际 `reveal_file` 画廊，可检查键盘打开、失败重试、切换恢复、缩放旋转与下载。404保持失败；同一图片重试成功由组件测试覆盖。图片来自仓库已有公开演示资产，不创建或上传真实文件。
 
@@ -148,3 +152,7 @@ PDF 格式走查：`/files` 第一组新增“研究与交付计划.pdf”，由
 
 文件回退与 CAD 走查：首组提供“图纸预览.dxf”（实际 DxfViewer 渲染四条线）、“原始图纸.dwg”（仅占位数据，检查不支持格式提示）及“文本回退.pptx”（故意缺失幻灯片关系，经实际转换库失败后从 ZIP 恢复两页文字）。`failure=cad-render` 返回损坏 DXF，检查解析错误、短屏滚动和键盘焦点。手机短屏可检查下载按钮可达、画布高度和 PPT 分页标题；样例不证明真实 DWG 解析、完整 Office 兼容或原生设备行为。
 电脑控制走查：`/chat/preview-report?cua=1` 提供状态/权限、应用列表、窗口列表、界面树与图片、点击结果、离线、未授权和空列表；可组合 `theme=dark` 与五语 `lang`。图片使用仓库已有演示资源，不捕获或上传真实桌面。真实 CUA 与截图传输仍需本地 daemon 验证。
+
+工具展示：启动时设置 `PANEL_PREVIEW_TOOL_GALLERY=/绝对路径/gallery.json`，再访问 `/chat/preview-report?tool-gallery=0`。JSON 为 `{ name, events }` 数组，索引选择对应的模拟对话；每次请求重新读取文件。仅展示 fixture，不执行工具或连接真实 MCP 服务。
+
+输入区组合走查：`/chat/preview-report?composer-stack=workspace&chat-state=working&theme=dark` 同时显示项目目录、执行中的外置任务摘要和本地电脑入口；`composer-stack=human` 显示模拟 Ask Human 确认表单。已完成对话隐藏摘要。只读 fixture，不提交确认、不执行工具，也不访问真实目录。

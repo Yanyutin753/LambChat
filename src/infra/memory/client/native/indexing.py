@@ -30,7 +30,7 @@ def choose_index_memories(
     now: datetime,
     staleness_days: int,
 ) -> list[dict[str, Any]]:
-    def score(doc: dict[str, Any]) -> tuple[float, float, str]:
+    def score(doc: dict[str, Any]) -> tuple[bool, float, float, str]:
         source = str(doc.get("source", "manual"))
         source_score = (
             2.0
@@ -50,7 +50,12 @@ def choose_index_memories(
         freshness_score = max(0.0, 2.0 - (age_days / max(staleness_days, 1)))
         # Access statistics are mutable on every recall and must not affect the
         # system-prompt prefix. Updated time is the stable memory revision.
-        return (source_score + freshness_score, -age_days, str(doc.get("memory_id", "")))
+        return (
+            doc.get("scope") == "project",
+            source_score + freshness_score,
+            -age_days,
+            str(doc.get("memory_id", "")),
+        )
 
     ranked = sorted(docs, key=score, reverse=True)
     return ranked[:per_type_limit]
@@ -101,20 +106,28 @@ async def build_memory_index(backend, user_id: str, project_id: Optional[str] = 
         "source": 1,
         "context": 1,
         "memory_id": 1,
+        "scope": 1,
     }
-    docs = (
-        await backend._collection.find(
-            {
-                "user_id": user_id,
-                "source": {"$ne": "session_summary"},
-                **build_scope_clause(project_id),
-            },
-            projection,
+    # Reserve candidates for this project before newer personal memories can
+    # exhaust the scan budget; each scope remains bounded and user-isolated.
+    scope_clauses = [build_scope_clause(None)]
+    if project_id:
+        scope_clauses.append({"scope": "project", "project_id": project_id})
+    docs = []
+    for scope_clause in scope_clauses:
+        docs.extend(
+            await backend._collection.find(
+                {
+                    "user_id": user_id,
+                    "source": {"$ne": "session_summary"},
+                    **scope_clause,
+                },
+                projection,
+            )
+            .sort([("updated_at", -1), ("memory_id", -1)])
+            .limit(80)
+            .to_list(length=80)
         )
-        .sort("updated_at", -1)
-        .limit(80)
-        .to_list(length=80)
-    )
 
     if not docs:
         return ""
@@ -142,11 +155,18 @@ async def build_memory_index(backend, user_id: str, project_id: Optional[str] = 
     }
 
     # Lessons 子块：feedback_rule 教训一行一条，独立预算（自进化小抄）。
-    # 刻意只按 updated_at 排序：access_count 每次召回自增，若进排序键会在
+    # 项目优先，同时间用 memory_id 稳定排序；access_count 每次召回自增，若进排序键会在
     # 快照重建时改变前缀字节、击穿 KV 缓存（与 choose_index_memories 同纪律）。
     lessons_max_chars = 400
     lesson_docs = [d for d in docs if d.get("context") == "feedback_rule"]
-    lesson_docs.sort(key=lambda d: str(d.get("updated_at") or ""), reverse=True)
+    lesson_docs.sort(
+        key=lambda d: (
+            d.get("scope") == "project",
+            str(d.get("updated_at") or ""),
+            str(d.get("memory_id") or ""),
+        ),
+        reverse=True,
+    )
     lesson_docs = lesson_docs[:3]
 
     lines = [f'<memory_index revision="{revision}">', "# Cross-Session Memory Index"]

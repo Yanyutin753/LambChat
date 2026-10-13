@@ -1,6 +1,13 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test } from "vitest";
+test("tool panel serif titles are not overridden by the workspace UI font", () => {
+  const css = readFileSync(new URL("../desktop.css", import.meta.url), "utf8");
+  expect(css).not.toMatch(
+    /[^{}]*\.tool-console-chrome[^{}]*\.font-serif\s*\{[^}]*font-family:\s*var\(--desktop-ui-font\)/,
+  );
+});
+
 test("web chat loads the shared workspace styles without requiring native chrome", () => {
   const root = resolve(import.meta.dirname, "../..");
   const shell = readFileSync(

@@ -235,9 +235,16 @@ export function SessionListContent({
     if (isSelectionMode) {
       onClearSelection();
     } else {
+      if (isChatsCollapsed) onToggleChatsCollapsed();
       onSetSelectionMode(true);
     }
-  }, [isSelectionMode, onClearSelection, onSetSelectionMode]);
+  }, [
+    isSelectionMode,
+    isChatsCollapsed,
+    onToggleChatsCollapsed,
+    onClearSelection,
+    onSetSelectionMode,
+  ]);
 
   const handleToggleAllVisible = useCallback(() => {
     onSetSelectedSessionIds((prev) =>
@@ -460,9 +467,7 @@ export function SessionListContent({
                           }
                           currentProjectId={
                             (session.metadata?.project_id as
-                              | string
-                              | null
-                              | undefined) ?? null
+                              string | null | undefined) ?? null
                           }
                           onShare={() =>
                             sessionActions.onShareSession(session.id)
@@ -604,56 +609,44 @@ export function SessionListContent({
           {/* Recent uncategorized sessions */}
           {visibleUncategorizedSessions.length > 0 || isUncategorizedLoading ? (
             <>
-              {isSelectionMode ? (
-                <div className="flex h-9 items-center justify-between gap-2 px-[9px]">
-                  <span className="text-13 font-medium text-theme-text-secondary dark:text-stone-400">
-                    {t("sidebar.selectedCount", { count: selectedCount })}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={handleToggleAllVisible}
-                      className="sidebar-nav-btn rounded-md px-2 py-1 text-12"
-                    >
-                      {allVisibleSelected
-                        ? t("sidebar.clearVisibleSelection")
-                        : t("sidebar.selectVisible")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleToggleSelectionMode}
-                      aria-label={t("common.cancel")}
-                      className="sidebar-nav-btn flex h-8 w-6 items-center justify-center rounded-md"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <SidebarSectionHeader
-                  label={t("sidebar.recentChats")}
-                  collapsed={isChatsCollapsed}
-                  onToggle={onToggleChatsCollapsed}
-                  createLabel={t("sidebar.newChat")}
-                  onCreate={onNewSession}
-                  createIcon="compose"
-                >
-                  {selectModeButton}
-                  {chatsUnreadCount > 0 && (
-                    <div className="flex h-8 w-6 shrink-0 items-center justify-center max-sm:h-9 max-sm:w-9">
-                      <MarkAllReadBadge
-                        count={chatsUnreadCount}
-                        badgeId="all"
-                        markingReadId={markingReadId}
-                        onMarkAllRead={() => onMarkAllRead()}
-                        tooltip={t("sidebar.markAllRead")}
-                      />
-                    </div>
-                  )}
-                </SidebarSectionHeader>
-              )}
+              <SidebarSectionHeader
+                label={t("sidebar.recentChats")}
+                collapsed={isChatsCollapsed}
+                onToggle={onToggleChatsCollapsed}
+                createLabel={t("sidebar.newChat")}
+                onCreate={isSelectionMode ? undefined : onNewSession}
+                createIcon="compose"
+              >
+                {isSelectionMode ? (
+                  <button
+                    type="button"
+                    onClick={handleToggleAllVisible}
+                    aria-label={`${t("sidebar.recentChats")}: ${allVisibleSelected ? t("sidebar.clearVisibleSelection") : t("sidebar.selectVisible")}`}
+                    className="sidebar-nav-btn min-h-9 rounded-md px-2 text-12"
+                  >
+                    {allVisibleSelected
+                      ? t("sidebar.clearVisibleSelection")
+                      : t("sidebar.selectVisible")}
+                  </button>
+                ) : (
+                  <>
+                    {selectModeButton}
+                    {chatsUnreadCount > 0 && (
+                      <div className="flex h-8 w-6 shrink-0 items-center justify-center max-sm:h-9 max-sm:w-9">
+                        <MarkAllReadBadge
+                          count={chatsUnreadCount}
+                          badgeId="all"
+                          markingReadId={markingReadId}
+                          onMarkAllRead={() => onMarkAllRead()}
+                          tooltip={t("sidebar.markAllRead")}
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+              </SidebarSectionHeader>
 
-              {(!isChatsCollapsed || isSelectionMode) && (
+              {!isChatsCollapsed && (
                 <>
                   {isUncategorizedLoading ? (
                     <SkeletonList count={5} compact />
@@ -736,7 +729,7 @@ export function SessionListContent({
                       key={project.id}
                       type="button"
                       onClick={() => handleMoveSelected(project.id)}
-                      className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-13 font-medium text-theme-text-secondary transition hover:text-theme-text dark:text-stone-300 dark:hover:text-stone-50"
+                      className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 text-left text-13 font-medium text-theme-text-secondary transition hover:text-theme-text dark:text-stone-300 dark:hover:text-stone-50"
                     >
                       <FolderInput
                         size={15}
@@ -750,7 +743,7 @@ export function SessionListContent({
                   <button
                     type="button"
                     onClick={() => handleMoveSelected(null)}
-                    className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-13 font-medium text-theme-text-secondary transition hover:text-theme-text dark:text-stone-300 dark:hover:text-stone-50"
+                    className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 text-left text-13 font-medium text-theme-text-secondary transition hover:text-theme-text dark:text-stone-300 dark:hover:text-stone-50"
                   >
                     <Tag
                       size={15}
@@ -764,8 +757,8 @@ export function SessionListContent({
               </div>
             )}
 
-            <div className="flex items-center justify-between gap-2 rounded-[10px] bg-theme-bg-subtle/85 p-1 ring-1 ring-inset ring-theme-border/80 dark:bg-stone-800/55 dark:ring-stone-700/70">
-              <div className="flex h-8 min-w-[72px] shrink-0 items-center justify-center rounded-lg bg-theme-bg-card/70 px-2 text-12 font-semibold text-theme-text-secondary ring-1 ring-inset ring-theme-border/70 dark:bg-stone-900/45 dark:text-stone-300 dark:ring-stone-700/60">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 px-1 text-12 font-medium text-theme-text-secondary">
                 {t("sidebar.selectedCount", {
                   count: selectedCount,
                   defaultValue: "已选 {{count}} 个",
@@ -778,7 +771,7 @@ export function SessionListContent({
                     disabled={selectedCount === 0}
                     onClick={() => setIsProjectPickerOpen((value) => !value)}
                     aria-label={t("sidebar.moveSelectedToProject")}
-                    className="inline-flex h-8 w-6 shrink-0 items-center justify-center rounded-lg text-theme-text-secondary transition hover:text-theme-text disabled:cursor-not-allowed disabled:opacity-45 dark:text-stone-300 dark:hover:text-stone-50"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-theme-text-secondary transition hover:text-theme-text disabled:cursor-not-allowed disabled:opacity-45 dark:text-stone-300 dark:hover:text-stone-50"
                   >
                     <FolderInput size={14} />
                   </button>
@@ -789,7 +782,7 @@ export function SessionListContent({
                     disabled={selectedCount === 0}
                     onClick={handleRequestDeleteSelected}
                     aria-label={t("sidebar.deleteSelected")}
-                    className="inline-flex h-8 w-6 shrink-0 items-center justify-center rounded-lg text-theme-error transition hover:text-theme-error disabled:cursor-not-allowed disabled:opacity-45 dark:text-red-400 dark:hover:text-red-300"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-theme-error transition hover:text-theme-error disabled:cursor-not-allowed disabled:opacity-45 dark:text-red-400 dark:hover:text-red-300"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -799,7 +792,7 @@ export function SessionListContent({
                     type="button"
                     onClick={onClearSelection}
                     aria-label={t("common.cancel")}
-                    className="inline-flex h-8 w-6 shrink-0 items-center justify-center rounded-lg text-theme-text-secondary transition hover:text-theme-text dark:text-stone-400 dark:hover:text-stone-100"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-theme-text-secondary transition hover:text-theme-text dark:text-stone-400 dark:hover:text-stone-100"
                   >
                     <X size={15} />
                   </button>

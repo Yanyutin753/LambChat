@@ -27,7 +27,11 @@ function GlobDetail({ args, result }: ToolDetailProps) {
 
   return (
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
-      <ToolArgsBlock size="detail" wrap>
+      <ToolArgsBlock
+        size="detail"
+        copyText={[pattern, searchPath].filter(Boolean).join("\n")}
+        wrap
+      >
         <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
           {pattern}
         </span>
@@ -183,7 +187,11 @@ const GlobItem = memo(function GlobItem({
       >
         {canExpand && (
           <ToolInlineDetails>
-            <ToolArgsBlock size="compact" wrap>
+            <ToolArgsBlock
+              size="compact"
+              copyText={[pattern, searchPath].filter(Boolean).join("\n")}
+              wrap
+            >
               <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
                 {pattern}
               </span>

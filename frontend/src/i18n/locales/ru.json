@@ -308,7 +308,7 @@
       "name": "Агент поиска"
     },
     "team": {
-      "description": "Маршрутизирует задачи субагентам по ролям. При отсутствии команды переходит в режим одиночного агента.",
+      "description": "Автоматически находит подходящие роли, поручает задачи субагентам и продолжает их работу.",
       "name": "Командный агент"
     }
   },
@@ -1224,6 +1224,7 @@
     "message": {
       "addBookmark": "Добавить закладку",
       "allFiles": "Все файлы",
+      "fileDirectory": "Каталог файлов",
       "args": "Аргументы",
       "artifactsSubtitleFiles": "{{count}} файлов",
       "artifactsSubtitleMixed": "{{files}} файлов · {{projects}} проектов",
@@ -1422,6 +1423,16 @@
       "toolSkillSearch": "Поиск навыков",
       "toolSuccess": "Команда выполнена",
       "toolTaskName": "Имя",
+      "toolSendSubagentMessage": "Сообщение субагенту",
+      "toolWaitSubagent": "Ожидание субагента",
+      "toolSendParentMessage": "Сообщение родительскому агенту",
+      "toolReceiveSubagentMessage": "Сообщение от субагента",
+      "subagentMessage": "Дополнительное сообщение",
+      "toolSubagentRunning": "Выполняется",
+      "toolSubagentMessageQueued": "Сообщение в очереди",
+      "toolSubagentCompleted": "Завершено",
+      "toolSubagentWaitingHuman": "Ожидает ответа человека",
+      "toolSubagentFailed": "Ошибка",
       "toolTeamDefaultMember": "Участник {{index}}",
       "toolTeamDefaultPersona": "Персона {{index}}",
       "toolTimeMinutes": "{{minutes}}м {{seconds}}с",
@@ -1599,6 +1610,13 @@
     "timeline": "Хронология",
     "title": "Чат",
     "todo": {
+      "openPanel": "Открыть список задач",
+      "allCompleted": "Все задачи выполнены",
+      "cancelledCount": "Отменено: {{count}}",
+      "pending": "Ожидает",
+      "in_progress": "Выполняется",
+      "completed": "Выполнено",
+      "cancelled": "Отменено",
       "progress": "{{completed}}/{{total}} выполнено",
       "toggle": "Список задач"
     },

@@ -26,25 +26,14 @@ export function getUsagePopoverPosition({
           viewportWidth - width - edgeInset,
         ),
       );
-  const availableAbove = triggerRect.top - edgeInset - gap;
-
-  if (isMobile && availableAbove < 280) {
-    return {
-      position: "fixed",
-      zIndex: 9999,
-      width,
-      left,
-      top: edgeInset,
-      maxHeight: viewportHeight - edgeInset * 2,
-    };
-  }
+  const top = triggerRect.bottom + gap;
 
   return {
     position: "fixed",
     zIndex: 9999,
     width,
     left,
-    bottom: viewportHeight - triggerRect.top + gap,
-    maxHeight: Math.max(160, availableAbove),
+    top,
+    maxHeight: Math.max(0, viewportHeight - top - edgeInset),
   };
 }

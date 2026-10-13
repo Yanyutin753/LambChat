@@ -1,3 +1,4 @@
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
 import { useEffect, useMemo, useState } from "react";
@@ -10,7 +11,6 @@ import {
   Copy,
   Pin,
   Star,
-  Loader2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { nameToGradient } from "../panels/MarketplacePanel/constants";
@@ -479,7 +479,7 @@ export function PersonaPresetSelector({
                           }`}
                         >
                           {isUsingPreset ? (
-                            <Loader2 size={13} className="animate-spin" />
+                            <LoadingSpinner color="text-current" size={13} />
                           ) : (
                             <Sparkles size={13} />
                           )}

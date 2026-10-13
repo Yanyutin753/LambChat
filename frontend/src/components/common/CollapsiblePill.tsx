@@ -137,12 +137,13 @@ export function CollapsiblePill({
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(" ");
-  const displayedLabel = formatLabel ? formattedLabel : label;
+  const displayedLabel = formatLabel && _variant !== "tool" ? formattedLabel : label;
 
   return (
     <div className="my-1 min-w-0 max-w-full">
       <button
         type="button"
+        data-variant={_variant}
         onClick={handleToggle}
         className={clsx(
           "pill-btn",

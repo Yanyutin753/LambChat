@@ -197,7 +197,7 @@ const WebFetchItem = memo(function WebFetchItem({
 
   const titleLabel = t("chat.message.toolWebFetch");
   const pillLabel = `${titleLabel} ${
-    url ? `"${truncate(hostFromUrl(url) || url, 24)}"` : ""
+    url ? `"${hostFromUrl(url) || url}"` : ""
   }`.trim();
 
   const { label, isStreamingLabel } = useToolStreamingLabel(pillLabel, args, {
@@ -247,7 +247,7 @@ const WebFetchItem = memo(function WebFetchItem({
       {canExpand && (
         <ToolInlineDetails>
           {url && (
-            <ToolArgsBlock size="compact">
+            <ToolArgsBlock size="compact" copyText={url}>
               <BookOpen
                 size={12}
                 className="shrink-0 text-[var(--theme-primary)]"

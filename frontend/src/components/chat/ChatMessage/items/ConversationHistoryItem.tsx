@@ -109,7 +109,7 @@ function HistoryQueryChip({
   if (!value) return null;
 
   return (
-    <ToolArgsBlock size={size}>
+    <ToolArgsBlock size={size} copyText={value}>
       {isSearch ? (
         <Search
           size={size === "detail" ? 14 : 12}
@@ -249,7 +249,7 @@ function ConversationHistoryDetail({
 
       {hasRawFallback && (
         <pre className="group/result relative text-12 text-theme-text-tertiary whitespace-pre-wrap break-words p-3 rounded-lg bg-theme-bg border border-theme-border">
-          {truncate(extractText(result as never), 600)}
+          {extractText(result as never)}
           <ToolHoverCopyButton
             text={extractText(result as never)}
             position="result"
@@ -317,7 +317,7 @@ const ConversationHistoryItem = memo(function ConversationHistoryItem({
     parsed?.kind === "detail" ? parsed.sessionName : undefined;
 
   const pillLabel = isSearch
-    ? `${titleLabel} ${query ? `"${truncate(query, 24)}"` : ""}${
+    ? `${titleLabel} ${query ? `"${query}"` : ""}${
         count > 0 ? ` (${count})` : ""
       }`.trim()
     : `${titleLabel} ${

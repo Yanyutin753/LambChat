@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState, useEffect } from "react";
+import { Fragment, useRef, useCallback, useState, useEffect } from "react";
 import {
   AlertCircle,
   ArrowUp,
@@ -7,6 +7,8 @@ import {
   Settings2,
   Square,
   Lock,
+  Zap,
+  Target,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { FeatureMenu, type FeaturePanel } from "../selectors/FeatureMenu";
@@ -29,7 +31,7 @@ import { LoadingSpinner } from "../common/LoadingSpinner";
 import { AgentIcon } from "../agent/AgentIcon";
 import { subscribeTeamsChanged } from "../../hooks/teamEvents";
 import { RunModePopover } from "./RunModePopover";
-import { ComposerUsageChip } from "./ComposerUsageChip";
+import { collectActiveRunModes } from "./chatInputRunModes";
 import { useSandboxStatus } from "../../hooks/useSandboxStatus";
 import {
   resolveSandboxPresentation,
@@ -248,6 +250,8 @@ export function ChatInputToolbar({
   );
   const selectedTeamName = selectedTeam?.name ?? null;
 
+  const activeModes = collectActiveRunModes(autoModeEnabled, goalModeEnabled);
+
   return (
     <div className="chat-input-toolbar font-serif flex max-w-full flex-nowrap justify-between gap-1.5 px-1 py-1 sm:px-2 sm:py-3 mx-0.5">
       {/* 左行不设横向滚动：滚动容器会在手机端裁切 chip（视觉上与右簇重叠），
@@ -353,6 +357,43 @@ export function ChatInputToolbar({
             onClear={() => onSelectTeam?.(null)}
           />
         )}
+        {activeModes.length > 0 && (
+          <div
+            data-composer-run-modes
+            role="group"
+            aria-label={t("mode.title", "Run Mode")}
+            className="hidden shrink-0 items-center gap-1.5 sm:flex"
+          >
+            <span aria-hidden="true" className="h-4 w-px shrink-0 bg-theme-border" />
+            {activeModes.map((mode, index) => (
+              <Fragment key={mode}>
+                {index > 0 && (
+                  <span aria-hidden="true" className="h-4 w-px shrink-0 bg-theme-border" />
+                )}
+                <button
+                  type="button"
+                  className="chat-tool-btn shrink-0 gap-2 text-14 font-semibold"
+                  style={{ color: "var(--theme-primary)" }}
+                  aria-label={`${t("common.clear")} ${t(`mode.${mode}`)}`}
+                  title={`${t("common.clear")} ${t(`mode.${mode}`)}`}
+                  aria-pressed={true}
+                  onClick={() =>
+                    mode === "auto"
+                      ? onToggleAutoMode?.(false)
+                      : onToggleGoalMode?.(false)
+                  }
+                >
+                  {mode === "auto" ? (
+                    <Zap size={16} aria-hidden="true" />
+                  ) : (
+                    <Target size={16} aria-hidden="true" />
+                  )}
+                  <span className="composer-run-mode-label">{t(`mode.${mode}`)}</span>
+                </button>
+              </Fragment>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 右簇与左行同轴居中：避免贴底对齐造成发送键相对左行图标错位。
@@ -364,14 +405,8 @@ export function ChatInputToolbar({
               // 手机端档位文字隐藏，档位靠图标区分：云端=云图标，本地=显示器图标
               sandboxChipLocal ? <Monitor size={16} /> : <Cloud size={16} />
             }
-            label={sandboxLabel || ""}
-            title={sandboxChipTitle}
-            labelClassName="composer-sandbox-label hidden sm:inline max-w-40"
-            onClick={() => onActivePanelChange("sandbox")}
-            trailing={
+            iconBadge={
               sandboxChipLocal ? (
-                // daemon 在线状态点：绿=在线，灰=离线（与 RunModePopover 沙箱条目同源）；
-                // 手机端只留纯图标，点在 sm 起显示
                 <span
                   data-sandbox-status-dot
                   title={
@@ -379,18 +414,21 @@ export function ChatInputToolbar({
                       ? t("profile.localSandbox.statusOnline")
                       : t("profile.localSandbox.statusOffline")
                   }
-                  className="hidden sm:inline h-1.5 w-1.5 shrink-0 rounded-full"
+                  className="absolute -top-0.5 -right-0.5 block h-[5px] w-[5px] rounded-full ring-2 ring-[var(--theme-bg)]"
                   style={{
                     background: sandboxOnline ? "#22c55e" : "#a8a29e",
                   }}
                 />
               ) : undefined
             }
+            label={sandboxLabel || ""}
+            title={sandboxChipTitle}
+            labelClassName="composer-sandbox-label hidden sm:inline max-w-40"
+            onClick={() => onActivePanelChange("sandbox")}
           />
         )}
 
         {/* Today's usage — amount chip with usage card */}
-        <ComposerUsageChip />
 
         {/* Settings / Run Mode button */}
         <button
@@ -403,8 +441,18 @@ export function ChatInputToolbar({
           }}
           className="chat-tool-btn group shrink-0 relative"
           title={t("mode.title", "Run Mode")}
+          aria-description={activeModes.map((mode) => t(`mode.${mode}`)).join(" · ") || undefined}
         >
-          <Settings2 size={16} />
+          <span className="relative inline-flex h-4 w-4 items-center justify-center">
+            <Settings2 size={16} />
+            {activeModes.length > 0 && (
+              <span
+                data-run-mode-status-dot
+                aria-hidden="true"
+                className="absolute -top-0.5 -right-0.5 h-[5px] w-[5px] rounded-full bg-theme-success ring-2 ring-[var(--theme-bg)] sm:hidden"
+              />
+            )}
+          </span>
         </button>
 
         <RunModePopover

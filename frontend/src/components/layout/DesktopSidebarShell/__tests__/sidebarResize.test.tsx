@@ -12,10 +12,10 @@ afterEach(() => {
   localStorage.clear();
 });
 
-test("sidebar starts at 290px when no width has been saved", () => {
+test.each([[640, 260], [1024, 288], [1280, 320]])("sidebar defaults to %ipx viewport width with a %ipx sidebar", (viewport, expected) => {
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
-    value: 1200,
+    value: viewport,
   });
   const { container } = render(
     <MemoryRouter>
@@ -27,7 +27,7 @@ test("sidebar starts at 290px when no width has been saved", () => {
   expect(
     (container.querySelector("[data-desktop-sidebar]") as HTMLElement).style
       .width,
-  ).toBe("290px");
+  ).toBe(`${expected}px`);
 });
 
 test("sidebar resize keeps cursor feedback until capture ends and fits a narrowed window", () => {

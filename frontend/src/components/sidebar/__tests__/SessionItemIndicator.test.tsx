@@ -46,13 +46,13 @@ const touchRow = (row: HTMLElement) =>
 describe("SessionItem task running indicator", () => {
   it("labels the running spinner via aria-label without a native title", () => {
     renderSessionItem({ task_status: "running" });
-    const indicator = document.querySelector(".animate-spin")?.parentElement;
+    const indicator = document.querySelector(".spinner-rotate")?.parentElement;
     expect(indicator).toHaveAttribute("aria-label", "运行中");
     expect(indicator).not.toHaveAttribute("title");
   });
   it("labels the pending spinner via aria-label", () => {
     renderSessionItem({ task_status: "pending" });
-    const indicator = document.querySelector(".animate-spin")?.parentElement;
+    const indicator = document.querySelector(".spinner-rotate")?.parentElement;
     expect(indicator).toHaveAttribute("aria-label", "等待中");
   });
   it("does not pop the running label bubble when the row is touched", () => {
@@ -61,7 +61,7 @@ describe("SessionItem task running indicator", () => {
     touchRow(row);
     expect(within(document.body).queryByText("运行中")).not.toBeInTheDocument();
     expect(
-      document.querySelector(".animate-spin")?.parentElement?.textContent,
+      document.querySelector(".spinner-rotate")?.parentElement?.textContent,
     ).toBe("");
   });
   it("does not pop the waiting-for-reply bubble when the row is touched", () => {
@@ -74,7 +74,7 @@ describe("SessionItem task running indicator", () => {
   });
   it("still shows the running label after a deliberate long press on the spinner", () => {
     const { row } = renderSessionItem({ task_status: "running" });
-    const spinner = document.querySelector(".animate-spin")?.parentElement;
+    const spinner = document.querySelector(".spinner-rotate")?.parentElement;
     expect(spinner).toBeTruthy();
     vi.useFakeTimers();
     try {
@@ -100,11 +100,11 @@ describe("SessionItem task running indicator", () => {
   });
   it("hides spinner when task_status is completed", () => {
     renderSessionItem({ task_status: "completed" });
-    expect(document.querySelector(".animate-spin")).not.toBeInTheDocument();
+    expect(document.querySelector(".spinner-rotate")).not.toBeInTheDocument();
   });
   it("hides spinner when task_status is absent", () => {
     renderSessionItem({});
-    expect(document.querySelector(".animate-spin")).not.toBeInTheDocument();
+    expect(document.querySelector(".spinner-rotate")).not.toBeInTheDocument();
   });
 });
 

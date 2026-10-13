@@ -2,7 +2,23 @@ import os
 
 import pytest
 
+from scripts.run_validation import validation_slot
+
 os.environ["DEBUG"] = "false"
+
+
+def pytest_configure(config):
+    if getattr(config.option, "numprocesses", None):
+        raise pytest.UsageError("LambChat validation requires a single pytest worker")
+
+
+def pytest_sessionstart(session):
+    session.validation_slot = validation_slot()
+    session.validation_slot.__enter__()
+
+
+def pytest_sessionfinish(session, exitstatus):
+    session.validation_slot.__exit__(None, None, None)
 
 
 @pytest.fixture(autouse=True)

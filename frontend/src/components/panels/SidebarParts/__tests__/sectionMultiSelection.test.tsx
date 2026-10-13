@@ -57,7 +57,13 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function Sidebar({ onDelete }: { onDelete: (ids: string[]) => void }) {
+function Sidebar({
+  onDelete,
+  recent = false,
+}: {
+  onDelete: (ids: string[]) => void;
+  recent?: boolean;
+}) {
   const [mode, setMode] = useState(false);
   const [selected, setSelected] = useState(new Set<string>());
   return (
@@ -76,7 +82,11 @@ function Sidebar({ onDelete }: { onDelete: (ids: string[]) => void }) {
         expandedMoreMenuBtnRef={createRef()}
         scrollEl={null}
         onSetScrollEl={noop}
-        uncategorizedSessions={[]}
+        uncategorizedSessions={
+          recent
+            ? [{ ...pinned, id: "recent", name: "Recent chat", metadata: {} }]
+            : []
+        }
         isUncategorizedLoading={false}
         hasMoreUncategorized={false}
         isLoadingMoreUncategorized={false}
@@ -147,20 +157,19 @@ test.each(["Pinned", "Projects"])(
     render(<Sidebar onDelete={onDelete} />);
     const header = screen.getByRole("button", { name: section }).parentElement!;
     fireEvent.click(within(header).getByRole("button", { name: "Select" }));
-    fireEvent.click(screen.getByRole("button", { name: "Pinned chat" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Pinned chat" }));
     fireEvent.click(
       screen.getByRole("button", { name: "Research", exact: true }),
     );
     fireEvent.click(
-      await screen.findByRole("button", { name: "Project chat" }),
-    );
-    expect(screen.getByRole("button", { name: "Pinned chat" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
+      await screen.findByRole("checkbox", { name: "Project chat" }),
     );
     expect(
-      screen.getByRole("button", { name: "Project chat" }),
-    ).toHaveAttribute("aria-pressed", "true");
+      screen.getByRole("checkbox", { name: "Pinned chat" }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(
+      screen.getByRole("checkbox", { name: "Project chat" }),
+    ).toHaveAttribute("aria-checked", "true");
     expect(screen.getByText("2 selected")).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Delete", exact: true }),
@@ -171,6 +180,35 @@ test.each(["Pinned", "Projects"])(
     );
     expect(
       screen.getByRole("button", { name: "Pinned chat" }),
-    ).not.toHaveAttribute("aria-pressed");
+    ).not.toHaveAttribute("aria-checked");
   },
 );
+
+test("selection keeps section context and one global count and cancel control", () => {
+  render(<Sidebar onDelete={vi.fn()} recent />);
+  fireEvent.click(
+    screen.getAllByRole("button", { name: "Select", exact: true })[0],
+  );
+  expect(
+    screen.getByRole("button", { name: "Recent chats", exact: true }),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("checkbox", { name: "Pinned chat" }));
+  expect(screen.getAllByText("1 selected")).toHaveLength(1);
+  expect(
+    screen.getAllByRole("button", { name: "Cancel", exact: true }),
+  ).toHaveLength(1);
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "Recent chats: Select all",
+      exact: true,
+    }),
+  );
+  expect(screen.getByRole("checkbox", { name: "Recent chat" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  expect(screen.getByRole("checkbox", { name: "Pinned chat" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+});

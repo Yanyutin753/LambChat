@@ -118,6 +118,9 @@ class UserManager:
         user = await self.storage.get_by_id(user_id)
         if not user:
             return None
+        from src.infra.onboarding.starter_pack import initialize_user_starter_pack
+
+        await initialize_user_starter_pack(user_id)
         return User.model_validate(user.model_dump())
 
     async def update_user(self, user_id: str, user_data: UserUpdate) -> Optional[User]:

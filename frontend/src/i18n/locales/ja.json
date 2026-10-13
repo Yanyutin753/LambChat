@@ -308,7 +308,7 @@
       "name": "検索エージェント"
     },
     "team": {
-      "description": "ロールベースでサブエージェントにタスクをルーティング。チーム未設定時は単一エージェントモードにフォールバック。",
+      "description": "適切なロールを自動検索してサブエージェントに依頼し、追加の指示を送って作業を続けられます。",
       "name": "チームエージェント"
     }
   },
@@ -1224,6 +1224,7 @@
     "message": {
       "addBookmark": "ブックマークに追加",
       "allFiles": "すべてのファイル",
+      "fileDirectory": "ファイル一覧",
       "args": "引数",
       "artifactsSubtitleFiles": "{{count}} 件のファイル",
       "artifactsSubtitleMixed": "{{files}} 件のファイル · {{projects}} 件のプロジェクト",
@@ -1422,6 +1423,16 @@
       "toolSkillSearch": "スキル検索",
       "toolSuccess": "コマンド成功",
       "toolTaskName": "名前",
+      "toolSendSubagentMessage": "サブエージェントにメッセージ",
+      "toolWaitSubagent": "サブエージェントを待つ",
+      "toolSendParentMessage": "親エージェントにメッセージ",
+      "toolReceiveSubagentMessage": "子エージェントからのメッセージ",
+      "subagentMessage": "追加メッセージ",
+      "toolSubagentRunning": "実行中",
+      "toolSubagentMessageQueued": "メッセージをキューに追加しました",
+      "toolSubagentCompleted": "完了",
+      "toolSubagentWaitingHuman": "人の入力を待機中",
+      "toolSubagentFailed": "失敗",
       "toolTeamDefaultMember": "メンバー {{index}}",
       "toolTeamDefaultPersona": "ペルソナ {{index}}",
       "toolTimeMinutes": "{{minutes}}分{{seconds}}秒",
@@ -1599,6 +1610,13 @@
     "timeline": "タイムライン",
     "title": "チャット",
     "todo": {
+      "openPanel": "タスク一覧を開く",
+      "allCompleted": "すべてのタスクが完了",
+      "cancelledCount": "{{count}} 件キャンセル",
+      "pending": "未着手",
+      "in_progress": "進行中",
+      "completed": "完了",
+      "cancelled": "キャンセル済み",
       "progress": "{{completed}}/{{total}} 完了",
       "toggle": "タスクリスト"
     },

@@ -52,7 +52,9 @@ docker-compose*.yml
 deploy/
 nginx/
 k8s/
-scripts/
+scripts/*
+!scripts/run_validation.py
+!scripts/run-validation.mjs
 
 # Uploads & runtime
 uploads/

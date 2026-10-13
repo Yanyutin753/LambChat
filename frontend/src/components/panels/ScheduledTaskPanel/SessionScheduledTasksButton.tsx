@@ -1,3 +1,4 @@
+import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { EmptyState } from "../../common/EmptyState";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -8,7 +9,6 @@ import {
   CalendarClock,
   Clock,
   History,
-  Loader2,
   Pause,
   Play,
   RotateCcw,
@@ -98,7 +98,10 @@ function SessionScheduledTaskPanelBody({
     <div className="flex h-full min-h-0 flex-col">
       {isLoading && tasks.length === 0 ? (
         <div className="flex flex-1 items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-stone-400" />
+          <LoadingSpinner
+            color="text-current"
+            className="h-5 w-5 text-stone-400"
+          />
         </div>
       ) : tasks.length === 0 ? (
         <EmptyState

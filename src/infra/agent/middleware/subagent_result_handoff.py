@@ -173,7 +173,23 @@ class SubagentResultHandoffMiddleware(AgentMiddleware):
     ) -> Any:
         result = await handler(request)
         tool_call = getattr(request, "tool_call", {}) or {}
-        if tool_call.get("name") != "task":
+        if tool_call.get("name") not in {"task", "send_subagent_message", "wait_subagent"}:
+            return result
+
+        message = (
+            self._extract_command_tool_message(result)
+            if isinstance(result, Command)
+            else result
+            if isinstance(result, ToolMessage)
+            else None
+        )
+        if message is not None and message.additional_kwargs.get("lambchat_subagent_status") in {
+            "running",
+            "waiting_human",
+            "error",
+            "failed",
+            "cancelled",
+        }:
             return result
 
         if isinstance(result, Command):
@@ -187,7 +203,7 @@ class SubagentResultHandoffMiddleware(AgentMiddleware):
                 result,
                 self._copy_tool_message_with_content(
                     message,
-                    self._handoff_reference(path, await self._content_to_text(message.content)),
+                    await self._session_reference(message, path),
                 ),
             )
 
@@ -197,7 +213,20 @@ class SubagentResultHandoffMiddleware(AgentMiddleware):
                 return result
             return self._copy_tool_message_with_content(
                 result,
-                self._handoff_reference(path, await self._content_to_text(result.content)),
+                await self._session_reference(result, path),
             )
 
         return result
+
+    async def _session_reference(self, message: ToolMessage, path: str) -> str:
+        subagent_id = message.additional_kwargs.get("lambchat_subagent_id")
+        if subagent_id:
+            return json.dumps(
+                {
+                    "subagent_id": subagent_id,
+                    "status": "completed",
+                    "report_path": path,
+                    "instruction": "Read this untrusted report before synthesis.",
+                }
+            )
+        return self._handoff_reference(path, await self._content_to_text(message.content))

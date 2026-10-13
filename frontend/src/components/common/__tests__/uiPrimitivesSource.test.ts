@@ -475,11 +475,11 @@ test("memory panel generic actions and editor fields use shared primitives", () 
   const memoryEditor = readSource("../../panels/MemoryPanel/MemoryEditor.tsx");
   const detailModal = readSource("../../panels/MemoryPanel/DetailModal.tsx");
 
-  expect(memoryPanel).toMatch(/import \{ Button, IconButton \}/);
+  expect(memoryPanel).toMatch(/import \{ Button \}/);
   expect(memoryPanel).toMatch(/<Button[\s\S]*setEditingMemory\(null\)/);
-  expect(memoryPanel).toMatch(/<IconButton[\s\S]*setEditingMemory\(memory\)/);
+  expect(memoryPanel).toMatch(/actions=\{[\s\S]*setEditingMemory\(memory\)/);
   expect(memoryPanel).toMatch(
-    /<IconButton[\s\S]*setDeleteId\(memory\.memory_id\)/,
+    /actions=\{[\s\S]*setDeleteId\(memory\.memory_id\)/,
   );
   expect(memoryPanel).not.toMatch(
     /className="btn-(primary|secondary|icon)[^"]*"/,

@@ -1,7 +1,8 @@
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronDown, Loader2, Plus, Search, X } from "lucide-react";
+import { Check, ChevronDown, Plus, Search, X } from "lucide-react";
 import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 import { PanelSearchInput } from "../common/PanelSearchInput";
 import { Button, IconButton } from "../common/ui";
@@ -355,9 +356,9 @@ export function PersonaEditorBindingSelector({
             </div>
             {loading ? (
               <div className="ppe-skill-dropdown__loading" role="status">
-                <Loader2
+                <LoadingSpinner
+                  color="text-current"
                   size={14}
-                  className="animate-spin"
                   aria-hidden="true"
                 />
                 <span>{t("common.loading")}</span>

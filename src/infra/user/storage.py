@@ -212,6 +212,9 @@ class UserStorage:
         try:
             result = await self.collection.insert_one(user_dict)
             user_dict["id"] = str(result.inserted_id)
+            from src.infra.onboarding.starter_pack import initialize_user_starter_pack
+
+            await initialize_user_starter_pack(user_dict["id"])
             return UserInDB(**user_dict)
         except DuplicateKeyError as e:
             # 解析哪个字段重复

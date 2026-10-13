@@ -149,7 +149,11 @@ export async function connectToSSE(
     retryCountRef,
   } = ctx;
 
-  if (connectionGeneration == null && isConnectingRef.current) {
+  if (
+    connectionGeneration == null &&
+    isConnectingRef.current &&
+    streamingMessageIdRef.current === messageId
+  ) {
     console.log("[SSE] Connection already in progress, skipping...");
     return;
   }

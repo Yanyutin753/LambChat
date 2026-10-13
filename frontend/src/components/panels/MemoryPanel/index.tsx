@@ -20,10 +20,13 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../../common/PanelHeader";
+import { SkillBaseCard } from "../../common/SkillBaseCard";
+import { nameToGradient } from "../../common/cardUtils";
+import { ResourceCardTags } from "../../common/ResourceCardTags";
 import { Pagination } from "../../common/Pagination";
 import { MemoryPanelSkeleton } from "../../skeletons";
 import { Checkbox } from "../../common/Checkbox";
-import { Button, IconButton } from "../../common";
+import { Button } from "../../common";
 import { BatchActionBar } from "../SkillsPanel/BatchActionBar";
 import { memoryApi, type MemoryItem } from "../../../services/api/memory";
 import {
@@ -346,34 +349,32 @@ export function MemoryPanel() {
               const badge = TYPE_STYLES[memory.memory_type] ?? TYPE_STYLES.user;
               const checked = checkedIds.has(memory.memory_id);
               return (
-                <div
+                <SkillBaseCard
                   key={memory.memory_id}
-                  className={`glass-card group relative flex flex-col rounded-xl p-4 sm:p-5 cursor-pointer transition-all duration-200 animate-glass-enter ${
-                    checked ? "ring-2 ring-[var(--theme-primary)]" : ""
-                  }`}
-                  onClick={() => !selectionMode && setSelected(memory)}
-                >
-                  {/* Checkbox */}
-                  <div
-                    className={`absolute top-3 right-3 z-10 transition-all duration-200 ${
-                      checked ? "scale-110" : "scale-90 group-hover:scale-100"
-                    }`}
-                  >
+                  title={memory.title}
+                  gradient={nameToGradient(memory.title)}
+                  icon={
+                    <Brain size={20} className="text-theme-text-secondary" />
+                  }
+                  className="cursor-pointer"
+                  description={memory.summary}
+                  selected={checked}
+                  onClick={() => {
+                    if (selectionMode) toggleCheck(memory.memory_id);
+                    else setSelected(memory);
+                  }}
+                  bannerLeadingOverlay={
                     <Checkbox
                       ariaLabel={memory.title}
                       size="lg"
                       checked={checked}
                       onChange={() => toggleCheck(memory.memory_id)}
-                      className="shadow-sm opacity-0 group-hover:opacity-100 max-sm:opacity-100"
+                      className="shadow-sm [@media(hover:none)]:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
                     />
-                  </div>
-
-                  {/* Header */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-11 font-medium ${badge}`}
-                      >
+                  }
+                  statusPills={
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <span className={`scb__status-pill ${badge}`}>
                         {t(`memory.type.${memory.memory_type}`)}
                       </span>
                       <span
@@ -388,81 +389,36 @@ export function MemoryPanel() {
                         />
                         {t(`memory.source.${memory.source}`, memory.source)}
                       </span>
-                      <span className="text-11 text-[var(--theme-text-secondary)]">
-                        {memory.updated_at
-                          ? formatDateTimeShort(memory.updated_at)
-                          : ""}
+                    </div>
+                  }
+                  tags={<ResourceCardTags tags={memory.tags} />}
+                  meta={
+                    memory.updated_at && (
+                      <span className="skill-meta-pill">
+                        {formatDateTimeShort(memory.updated_at)}
                       </span>
-                    </div>
-
-                    <h4 className="truncate text-16 font-semibold font-serif  text-[var(--theme-text)] pr-8">
-                      <button
-                        type="button"
-                        className="block w-full truncate text-left"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          if (selectionMode) toggleCheck(memory.memory_id);
-                          else setSelected(memory);
-                        }}
-                      >
-                        {memory.title}
-                      </button>
-                    </h4>
-
-                    <p className="mt-1 text-14 leading-relaxed text-[var(--theme-text-secondary)] line-clamp-2">
-                      {memory.summary}
-                    </p>
-                  </div>
-
-                  {/* Tags */}
-                  {memory.tags.length > 0 && (
-                    <div className="my-3 flex flex-wrap gap-1.5">
-                      {memory.tags.slice(0, 3).map((tag) => (
-                        <span key={tag} className="es-chip">
-                          {tag}
-                        </span>
-                      ))}
-                      {memory.tags.length > 3 && (
-                        <span className="es-chip">
-                          +{memory.tags.length - 3}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Footer */}
-                  <div className="mt-auto flex items-center gap-2 pt-4">
-                    <div className="inline-flex items-center gap-1.5 rounded-full bg-[var(--glass-bg)] px-2 py-0.5 text-11 text-[var(--theme-text-secondary)]">
+                    )
+                  }
+                  footer={
+                    <span className="inline-flex items-center gap-1.5 text-11 text-theme-text-secondary">
                       <Eye size={12} />
                       {memory.access_count ?? 0} {t("memory.accesses")}
-                    </div>
-
-                    <div className="ml-auto" />
-
-                    <IconButton
-                      aria-label={t("common.edit")}
-                      icon={<Pencil size={14} />}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingMemory(memory);
-                      }}
-                      size="sm"
-                      className="h-8 w-8 rounded-lg text-[var(--theme-text-secondary)] hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
-                      title={t("common.edit")}
-                    />
-                    <IconButton
-                      aria-label={t("common.delete")}
-                      icon={<Trash2 size={14} />}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteId(memory.memory_id);
-                      }}
-                      size="sm"
-                      className="h-8 w-8 rounded-lg text-[var(--theme-text-secondary)] hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                      title={t("common.delete")}
-                    />
-                  </div>
-                </div>
+                    </span>
+                  }
+                  actions={[
+                    {
+                      label: t("common.edit"),
+                      icon: <Pencil size={14} />,
+                      onClick: () => setEditingMemory(memory),
+                    },
+                    {
+                      label: t("common.delete"),
+                      icon: <Trash2 size={14} />,
+                      danger: true,
+                      onClick: () => setDeleteId(memory.memory_id),
+                    },
+                  ]}
+                />
               );
             })}
           </div>

@@ -15,7 +15,7 @@ import { ToolArgsBlock } from "./ToolArgsBlock";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { useImagePreviewFallback } from "./imagePreviewFallback";
-import { computerUseRecord, parseComputerUseResult } from "./computerUseResult";
+import { computerUsePreviewText, computerUseRecord, parseComputerUseResult } from "./computerUseResult";
 
 const key = "chat.message.computerUse";
 
@@ -31,7 +31,7 @@ function resultSummary(
   parsed: ReturnType<typeof parseComputerUseResult>,
   t: TFunction,
 ) {
-  const { data, error, text } = parsed;
+  const { data, error } = parsed;
   if (error) return error;
   if (typeof data.ready === "boolean")
     return t(`${key}.${data.ready ? "ready" : "notReady"}`);
@@ -42,12 +42,7 @@ function resultSummary(
   if (typeof data.element_count === "number")
     return t(`${key}.elementCount`, { count: data.element_count });
   if (data.ok === true) return t(`${key}.succeeded`);
-  return (
-    text
-      .split("\n")
-      .find((line) => line.trim())
-      ?.slice(0, 72) ?? ""
-  );
+  return computerUsePreviewText(parsed);
 }
 
 function ComputerUseDetail({
@@ -71,7 +66,7 @@ function ComputerUseDetail({
     data.accessibility === "denied" ||
     data.screen_recording === "denied";
   const offline = error === "dispatch_failed" && /offline/i.test(text);
-  const state = typeof data.state === "string" ? data.state : "";
+  const state = typeof data.state === "string" ? data.state : typeof data.tree === "string" ? data.tree : "";
   const permission = (value: unknown) =>
     t(
       `${key}.permissions.${["granted", "denied"].includes(String(value)) ? value : "unknown"}`,
@@ -228,7 +223,7 @@ function ComputerUseDetail({
         </section>
       )}
       {imageSrc && (
-        <figure className="min-w-0 space-y-2">
+        <figure className="min-w-0 w-full max-w-md space-y-2">
           <button
             type="button"
             onClick={() => openImage(imageSrc)}

@@ -13,6 +13,53 @@ from src.infra.agent.middleware.subagent_result_handoff import (
 
 
 @pytest.mark.asyncio
+async def test_background_subagent_status_is_not_hidden_in_a_report_file():
+    class Backend:
+        async def awrite(self, *_args):
+            raise AssertionError("running status must stay inline")
+
+    middleware = SubagentResultHandoffMiddleware(backend=Backend())
+    request = SimpleNamespace(tool_call={"name": "task", "args": {}}, runtime=object())
+    message = ToolMessage(
+        '{"subagent_id":"stable-1","status":"running"}',
+        tool_call_id="call-1",
+        additional_kwargs={
+            "lambchat_subagent_id": "stable-1",
+            "lambchat_subagent_status": "running",
+        },
+    )
+
+    async def handler(_request):
+        return Command(update={"messages": [message]})
+
+    result = await middleware.awrap_tool_call(request, handler)
+    assert result.update["messages"][0] is message
+
+
+@pytest.mark.asyncio
+async def test_completed_handoff_retains_subagent_id_for_continuation():
+    class Backend:
+        async def awrite(self, path, content):
+            return SimpleNamespace(path=path, error=None)
+
+    middleware = SubagentResultHandoffMiddleware(backend=Backend())
+    request = SimpleNamespace(tool_call={"name": "task", "args": {}}, runtime=object())
+
+    async def handler(_request):
+        return ToolMessage(
+            "result",
+            tool_call_id="call-1",
+            additional_kwargs={
+                "lambchat_subagent_id": "stable-1",
+                "lambchat_subagent_status": "completed",
+            },
+        )
+
+    result = await middleware.awrap_tool_call(request, handler)
+    assert "stable-1" in result.content
+
+
+@pytest.mark.asyncio
 async def test_subagent_result_handoff_writes_task_command_message_to_file() -> None:
     writes: list[tuple[str, str]] = []
 

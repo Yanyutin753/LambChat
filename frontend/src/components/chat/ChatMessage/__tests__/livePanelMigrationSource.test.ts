@@ -87,3 +87,14 @@ test("ChatView keeps both panel stores in sync with the message list", () => {
   expect(chatViewSource).toMatch(/toolCallPanelStore\.clear\(\)/);
   expect(chatViewSource).toMatch(/subagentPanelStore\.clear\(\)/);
 });
+
+test("public chat history also feeds and clears the live panel stores", () => {
+  const shared = readFileSync(
+    resolve(import.meta.dirname, "../../../share/SharedPage.tsx"),
+    "utf8",
+  );
+  expect(shared).toMatch(/syncToolCallPanelStore\(messages\)/);
+  expect(shared).toMatch(/syncSubagentPanelStore\(messages\)/);
+  expect(shared).toMatch(/toolCallPanelStore\.clear\(\)/);
+  expect(shared).toMatch(/subagentPanelStore\.clear\(\)/);
+});

@@ -28,7 +28,7 @@ test("collapsible section header does not nest action buttons inside the toggle"
   );
 });
 
-test("expanded collapsible section cards fill the available panel height", () => {
+test("collapsible section cards and the subagent conversation keep their panel scroll ownership", () => {
   const sectionSource = readFileSync(
     new URL("../CollapsibleSection.tsx", import.meta.url),
     "utf8",
@@ -39,15 +39,17 @@ test("expanded collapsible section cards fill the available panel height", () =>
   );
 
   expect(panelSource).toMatch(
-    /className="flex min-h-0 flex-1 flex-col space-y-3"/,
+    /className="relative flex h-full min-h-0 flex-col"/,
+  );
+  expect(panelSource).toMatch(
+    /ref=\{scrollRef\}[\s\S]*?min-h-0 flex-1 overflow-y-auto/,
   );
   expect(sectionSource).toMatch(
     /<div\s+data-sidebar-snapshot-key=\{`\$\{sectionKey\}-content`\}\s+className="mt-2 flex-1 min-h-0 overflow-y-auto animate-\[fade-in_150ms_ease-out\]"\s*>/,
   );
   expect(sectionSource).toMatch(/expanded && expandedClassName/);
-  expect(panelSource).toMatch(
-    /title=\{t\("chat\.message\.result"\)\}[\s\S]*?expandedClassName="flex min-h-0 flex-col grow shrink-0"/,
-  );
+  expect(panelSource).toMatch(/<ChatMessage/);
+  expect(panelSource).not.toMatch(/<CollapsibleSection/);
 });
 
 test("generic tool results use natural height and a quiet reading surface", () => {

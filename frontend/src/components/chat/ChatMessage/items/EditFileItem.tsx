@@ -38,7 +38,11 @@ function EditFileDetail({
   return (
     <div className="p-4 sm:p-5 space-y-3 tool-panel-content">
       <div className="ai-file-diff" data-state={status}>
-        <ToolArgsBlock size="detail" className="ai-file-diff__header">
+        <ToolArgsBlock
+          size="detail"
+          copyText={filePath}
+          className="ai-file-diff__header"
+        >
           <Pencil size={14} aria-hidden="true" />
           <span className="min-w-0 flex-1 truncate font-mono">{filePath}</span>
         </ToolArgsBlock>
@@ -198,7 +202,11 @@ const EditFileItem = memo(function EditFileItem({
               className="ai-file-diff ai-file-diff--compact"
               data-state={status}
             >
-              <ToolArgsBlock size="compact" className="ai-file-diff__header">
+              <ToolArgsBlock
+                size="compact"
+                copyText={filePath}
+                className="ai-file-diff__header"
+              >
                 <Pencil size={12} aria-hidden="true" />
                 <span className="min-w-0 flex-1 truncate font-mono">
                   {filePath}

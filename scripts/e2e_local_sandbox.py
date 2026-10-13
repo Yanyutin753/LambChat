@@ -1205,4 +1205,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    from run_validation import validation_slot
+
+    if "--daemon-child" in sys.argv:
+        sys.exit(main())
+    else:
+        with validation_slot():
+            sys.exit(main())

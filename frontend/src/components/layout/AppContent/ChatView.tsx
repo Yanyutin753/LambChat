@@ -10,6 +10,7 @@ import { RevealPreviewHost } from "../../chat/ChatMessage/items/RevealPreviewHos
 import { SessionImageGalleryProvider } from "../../chat/ChatMessage/sessionImageGallery";
 import { PersistentToolPanelHost } from "../../chat/ChatMessage/items/persistentToolPanelState";
 import { ChatInput } from "../../chat/ChatInput";
+import { SessionTodoDock } from "../../chat/SessionTodoDock";
 import { WelcomePage } from "../../chat/WelcomePage";
 import { Virtuoso, type ListRange, type VirtuosoHandle } from "react-virtuoso";
 import { ApprovalPanel } from "../../panels/ApprovalPanel";
@@ -888,6 +889,7 @@ export function ChatView({
         {/* ChatInput at bottom (when messages exist, WelcomePage renders its own) */}
         {messages.length > 0 && (
           <div className="relative">
+            <SessionTodoDock running={sessionRunning || approvals.length > 0} sessionId={sessionId} messages={messages} currentRunId={currentRunId} />
             <div
               className={`chat-scroll-actions absolute ${FLOATING_SCROLL_BUTTON_OFFSET_CLASS} right-2 z-50 flex flex-col gap-2 sm:right-4`}
             >

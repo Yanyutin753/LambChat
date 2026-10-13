@@ -385,9 +385,7 @@ const MemoryRecallItem = memo(function MemoryRecallItem({
       ? `${t("chat.message.toolMemoryRecall")} ${
           resultQuery
             ? `"${
-                resultQuery.length > 30
-                  ? resultQuery.slice(0, 27) + "…"
-                  : resultQuery
+                resultQuery
               }"`
             : ""
         } (${memories.length})`

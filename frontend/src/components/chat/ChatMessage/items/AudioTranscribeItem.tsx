@@ -25,7 +25,7 @@ function AudioTranscribeDetail({ args, result }: ToolDetailProps) {
   return (
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
       {url && (
-        <ToolArgsBlock size="detail" wrap>
+        <ToolArgsBlock size="detail" copyText={url} wrap>
           <Mic
             size={14}
             className="shrink-0 text-violet-500 dark:text-violet-400"
@@ -124,7 +124,7 @@ const AudioTranscribeItem = memo(function AudioTranscribeItem({
   // 进行中：标签学「思考中」，平滑流出正在生成的参数尾部
   const { label, isStreamingLabel } = useToolStreamingLabel(
     `${t("chat.message.toolAudioTranscribe")} ${
-      url.length > 50 ? url.slice(0, 47) + "…" : url
+      url
     }`,
     args,
     { isPending, result },
@@ -147,7 +147,7 @@ const AudioTranscribeItem = memo(function AudioTranscribeItem({
             icon: <Mic size={16} />,
             status,
             subtitle:
-              url.length > 100 ? url.slice(0, 97) + "…" : url || undefined,
+              url || undefined,
             fallback: detailContent || undefined,
             buildDetail: (data) => (
               <AudioTranscribeDetail {...toolDetailPropsFromPanelData(data)} />
@@ -158,7 +158,7 @@ const AudioTranscribeItem = memo(function AudioTranscribeItem({
       >
         {canExpand && (
           <ToolInlineDetails>
-            <ToolArgsBlock size="compact" wrap>
+            <ToolArgsBlock size="compact" copyText={url} wrap>
               <Mic
                 size={12}
                 className="shrink-0 text-violet-500 dark:text-violet-400"

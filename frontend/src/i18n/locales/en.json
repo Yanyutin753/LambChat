@@ -308,7 +308,7 @@
       "name": "Search Agent"
     },
     "team": {
-      "description": "Routes tasks to role-based sub-agents. Falls back to single agent mode when no team is configured.",
+      "description": "Find suitable roles, delegate tasks to subagents, and continue their work.",
       "name": "Team Agent"
     }
   },
@@ -1224,6 +1224,7 @@
     "message": {
       "addBookmark": "Add bookmark",
       "allFiles": "All files",
+      "fileDirectory": "File directory",
       "args": "Args",
       "artifactsSubtitleFiles": "{{count}} files",
       "artifactsSubtitleMixed": "{{files}} files · {{projects}} projects",
@@ -1422,6 +1423,16 @@
       "toolSkillSearch": "Skill Search",
       "toolSuccess": "Command succeeded",
       "toolTaskName": "Name",
+      "toolSendSubagentMessage": "Message subagent",
+      "toolWaitSubagent": "Wait for subagent",
+      "toolSendParentMessage": "Message parent agent",
+      "toolReceiveSubagentMessage": "Message from subagent",
+      "subagentMessage": "Follow-up message",
+      "toolSubagentRunning": "Running",
+      "toolSubagentMessageQueued": "Message queued",
+      "toolSubagentCompleted": "Completed",
+      "toolSubagentWaitingHuman": "Waiting for human input",
+      "toolSubagentFailed": "Failed",
       "toolTeamDefaultMember": "Member {{index}}",
       "toolTeamDefaultPersona": "Persona {{index}}",
       "toolTimeMinutes": "{{minutes}}m {{seconds}}s",
@@ -1599,6 +1610,13 @@
     "timeline": "Timeline",
     "title": "Chat",
     "todo": {
+      "openPanel": "Open task list",
+      "allCompleted": "All tasks completed",
+      "cancelledCount": "{{count}} cancelled",
+      "pending": "Pending",
+      "in_progress": "In progress",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
       "progress": "{{completed}}/{{total}} completed",
       "toggle": "Task list"
     },

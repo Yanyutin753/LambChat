@@ -65,7 +65,7 @@ function ImageAnalyzeDetail({ args, result }: ToolDetailProps) {
   return (
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
       {prompt && (
-        <ToolArgsBlock size="detail" wrap>
+        <ToolArgsBlock size="detail" copyText={prompt} wrap>
           <MessageSquareText
             size={14}
             className="shrink-0 text-amber-500 dark:text-amber-400"
@@ -74,13 +74,8 @@ function ImageAnalyzeDetail({ args, result }: ToolDetailProps) {
         </ToolArgsBlock>
       )}
       {images.length > 0 && (
-        <div
-          className="grid gap-2"
-          style={{
-            gridTemplateColumns: `repeat(${Math.min(images.length, 4)}, 1fr)`,
-          }}
-        >
-          {images.map((image, index) => (
+        <div className="grid w-full max-w-md gap-2 grid-cols-4">
+          {images.slice(0, 4).map((image, index) => (
             <button
               type="button"
               key={`${image.url}-${index}`}
@@ -108,6 +103,16 @@ function ImageAnalyzeDetail({ args, result }: ToolDetailProps) {
               </div>
             </button>
           ))}
+          {images.length > 4 && (
+            <div
+              className="rounded-md bg-theme-bg-subtle border border-theme-border flex items-center justify-center text-theme-text-secondary text-11 font-medium aspect-square"
+              title={t("chat.message.toolMoreImages", {
+                count: images.length - 4,
+              })}
+            >
+              +{images.length - 4}
+            </div>
+          )}
         </div>
       )}
       {analysis && (
@@ -207,7 +212,7 @@ const ImageAnalyzeItem = memo(function ImageAnalyzeItem({
   // 进行中：标签学「思考中」，平滑流出正在生成的参数尾部
   const { label, isStreamingLabel } = useToolStreamingLabel(
     `${t("chat.message.toolImageAnalyze")} ${
-      prompt ? truncate(prompt, 56) : truncate(imageSummary, 56)
+      prompt || imageSummary
     }`,
     args,
     { isPending, result },
@@ -242,7 +247,7 @@ const ImageAnalyzeItem = memo(function ImageAnalyzeItem({
         {canExpand && (
           <ToolInlineDetails>
             {prompt && (
-              <ToolArgsBlock size="compact" wrap>
+              <ToolArgsBlock size="compact" copyText={prompt} wrap>
                 <MessageSquareText
                   size={12}
                   className="shrink-0 text-amber-500 dark:text-amber-400"
@@ -251,7 +256,7 @@ const ImageAnalyzeItem = memo(function ImageAnalyzeItem({
               </ToolArgsBlock>
             )}
             {images.length > 0 && (
-              <div className="grid grid-cols-4 gap-1.5">
+              <div className="grid w-full max-w-md grid-cols-4 gap-1.5">
                 {images.slice(0, 4).map((image, index) => (
                   <button
                     type="button"

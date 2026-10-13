@@ -14,11 +14,14 @@ from src.agents.core.base import _AGENT_REGISTRY
 
 _DEEPAGENTS_SUBMODULES = [
     "deepagents",
+    "deepagents.graph",
     "deepagents.backends",
     "deepagents.backends.protocol",
     "deepagents.backends.sandbox",
     "deepagents.backends.utils",
     "deepagents.middleware",
+    "deepagents.middleware.filesystem",
+    "deepagents.middleware.patch_tool_calls",
     "deepagents.middleware.subagents",
     "deepagents.middleware.summarization",
 ]

@@ -231,10 +231,10 @@
 
 .dark {
   /* ── Primary ── */
-  --theme-primary: #d6d3d1;
-  --theme-primary-hover: #e7e5e4;
-  --theme-primary-light: #292524;
-  --theme-ring: #d6d3d1;
+  --theme-primary: #d0ceca;
+  --theme-primary-hover: #f0eeeb;
+  --theme-primary-light: #2b2c2f;
+  --theme-ring: #d0ceca;
 
   /* ── Semantic Colors ── */
   --theme-success: #34d399;
@@ -242,25 +242,38 @@
   --theme-warning: #fbbf24;
   --theme-info: #60a5fa;
 
+  /* Neutral scale for legacy gray utilities in panels and portalled menus. */
+  --theme-neutral-50: #fafafa;
+  --theme-neutral-100: #f5f5f5;
+  --theme-neutral-200: #e5e5e5;
+  --theme-neutral-300: #d4d4d4;
+  --theme-neutral-400: #a3a3a3;
+  --theme-neutral-500: #737373;
+  --theme-neutral-600: #525252;
+  --theme-neutral-700: #404040;
+  --theme-neutral-800: #262626;
+  --theme-neutral-900: #171717;
+  --theme-neutral-950: #0a0a0a;
+
   /* ── Backgrounds ── */
-  --theme-bg: #121010;
-  --theme-bg-card: #1e1b18;
-  --theme-bg-sidebar: #151210;
-  --theme-bg-elevated: #292524;
-  --theme-bg-subtle: #252220;
+  --theme-bg: #171819;
+  --theme-bg-card: #212224;
+  --theme-bg-sidebar: #1c1d1f;
+  --theme-bg-elevated: #2b2c2f;
+  --theme-bg-subtle: #252628;
   --theme-bg-code: #282c34;
   --theme-bg-code-gutter: #282c34;
 
   /* ── Borders ── */
-  --theme-border: #3d3835;
-  --theme-border-hover: #57534e;
-  --theme-border-subtle: #292524;
+  --theme-border: #353639;
+  --theme-border-hover: #515256;
+  --theme-border-subtle: #2b2c2f;
   --theme-border-faint: rgba(255, 255, 255, 0.04);
 
   /* ── Text ── */
-  --theme-text: #ffffff;
-  --theme-text-secondary: #d6d3d1;
-  --theme-text-tertiary: #a8a29e;
+  --theme-text: #f0eeeb;
+  --theme-text-secondary: #d0ceca;
+  --theme-text-tertiary: #aaa7a2;
 
   /* ── Overlays ── */
   --theme-overlay: rgba(0, 0, 0, 0.6);
@@ -308,7 +321,7 @@
   --color-background-blue: rgb(191 219 254 / 0.24);
   --color-background-purple: rgb(233 213 255 / 0.24);
   --color-background-pink: rgb(251 207 232 / 0.24);
-  --color-background-gray: rgb(168 162 158 / 0.15);
+  --color-background-gray: rgb(163 163 163 / 0.15);
 
   /* border / icon / text — light pastels for dark mode */
   --color-border-red: #fca5a5;
@@ -347,13 +360,13 @@
   --color-icon-pink: #f472b6;
   --color-text-pink: #fbcfe8;
 
-  --color-border-gray: #a8a29e;
-  --color-icon-gray: #a8a29e;
-  --color-text-gray: #d6d3d1;
+  --color-border-gray: #aaa7a2;
+  --color-icon-gray: #aaa7a2;
+  --color-text-gray: #d0ceca;
 
   /* ── Inset State Rings (dark-friendly: lower opacity, subtle tint) ── */
-  --shadow-inset-hover: inset 0 0 0 2px rgba(214, 211, 209, 0.12);
-  --shadow-inset-selected: inset 0 0 0 2px rgba(214, 211, 209, 0.25);
+  --shadow-inset-hover: inset 0 0 0 2px rgba(212, 212, 212, 0.12);
+  --shadow-inset-selected: inset 0 0 0 2px rgba(212, 212, 212, 0.25);
   --shadow-inset-success: inset 0 0 0 2px rgba(52, 211, 153, 0.2);
   --shadow-inset-error: inset 0 0 0 2px rgba(245, 101, 101, 0.2);
   --shadow-inset-warning: inset 0 0 0 2px rgba(245, 158, 11, 0.2);

@@ -14,7 +14,7 @@ test("editor, tool and document panels share fixed header geometry without works
     /\[data-right-panel-root\]\s+:is\(\s*\.editor-sidebar-header,\s*\.tool-console-header,\s*\.document-preview-toolbar\s*\)\s*\{[^}]*height: var\(--right-panel-header-height\);[^}]*min-height: var\(--right-panel-header-height\);[^}]*padding: 0 /,
   );
   expect(css).toContain("--right-panel-header-height: 2.75rem");
-  expect(css).toContain("--right-panel-header-height: 3rem");
+  expect(css).not.toContain("--right-panel-header-height: 3rem");
   const tabs = readFileSync(
     new URL("../rightPanelTabs.css", import.meta.url),
     "utf8",
@@ -34,9 +34,7 @@ test("compact document toolbars keep touch actions and close reachable without s
   expect(css).toMatch(
     /\.document-preview-toolbar button\[type\]\s*\{[^}]*min-width: 2.25rem;[^}]*min-height: 2.25rem;/,
   );
-  expect(css).toMatch(
-    /\.document-preview-language\s*\{[^}]*display: none;/,
-  );
+  expect(css).toMatch(/\.document-preview-language\s*\{[^}]*display: none;/);
   expect(css).toMatch(
     /\.document-preview-more-actions\s*\{[^}]*display: block;/,
   );
@@ -49,5 +47,21 @@ test("tablet overlay panels use the available width instead of desktop lane widt
   );
   expect(css).toMatch(
     /\.editor-sidebar\[data-panel-presentation="overlay"\],[\s\S]*?width: min\(40rem, calc\(100vw - 1.5rem\)\) !important;/,
+  );
+});
+
+test("phone tab controls use compact icon targets and tighter label gaps", () => {
+  const tabs = readFileSync(
+    new URL("../rightPanelTabs.css", import.meta.url),
+    "utf8",
+  );
+  const touch = tabs.slice(
+    tabs.indexOf("@media (pointer: coarse), (max-width: 639px)"),
+  );
+  expect(touch).not.toMatch(
+    /\.right-panel-tab > \.right-panel-tab-close\s*\{[^}]*width: 2\.75rem;/,
+  );
+  expect(touch).toMatch(
+    /\.right-panel-tab \[role="tab"\]\s*\{[^}]*gap: 0\.375rem;/,
   );
 });

@@ -80,3 +80,12 @@ test("file title and toolbar share the same search header spacing", () => {
     /\[data-panel\] \.file-library-toolbar\s*\{\s*padding-block:\s*var\(--panel-gap\) 0;/,
   );
 });
+
+test("narrow panels reduce content gaps while wider panels retain their spacing", () => {
+  expect(layout).toMatch(
+    /\[data-panel\]\s*\{[^}]*--panel-gap: 0\.5rem;[^}]*--panel-section-gap: 1rem;/,
+  );
+  expect(layout).toMatch(
+    /@container panel \(min-width: 640px\)\s*\{\s*\[data-panel\] > div\s*\{[^}]*--panel-gap: 0\.75rem;[^}]*--panel-section-gap: 1\.25rem;/,
+  );
+});

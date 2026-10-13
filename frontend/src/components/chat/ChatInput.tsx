@@ -34,7 +34,7 @@ import { ChatInputAttachments } from "./ChatInputAttachments";
 import { ChatInputDragOverlay } from "./ChatInputDragOverlay";
 import { resolveThinkingPresentation } from "./chatInputThinking";
 import * as runModeOptions from "./chatInputRunModes";
-const { buildRunModesOptions, collectActiveRunModes } = runModeOptions;
+const { collectActiveRunModes } = runModeOptions;
 import { FILE_CATEGORY_PERMISSIONS } from "./chatInputConstants";
 import { getMentionPopupFixedPlacement } from "./chatInputViewport";
 import { useExpandedComposerHost } from "./chatInputExpandedHost";
@@ -849,12 +849,6 @@ export const ChatInput = memo(function ChatInput({
                           onCreate: handleLongTextCreate,
                         }}
                         onRetryFileReference={handleRetryFileReference}
-                        runModes={buildRunModesOptions(
-                          autoModeEnabled,
-                          goalModeEnabled,
-                          onToggleAutoMode,
-                          onToggleGoalMode,
-                        )}
                         onKeyDown={handleComposerKeyDown}
                         onArrowKey={handleComposerArrowKey}
                         disabled={disabled || !canSend}

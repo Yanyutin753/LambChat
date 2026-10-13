@@ -445,7 +445,7 @@ function AskHumanDetail({ args, result, isPending }: ToolDetailProps) {
         <pre className="group/result relative text-12 text-theme-text-tertiary whitespace-pre-wrap break-words p-3 rounded-lg bg-theme-bg border border-theme-border">
           {(() => {
             const text = extractText(result);
-            return text.length > 600 ? text.slice(0, 597) + "…" : text;
+            return text;
           })()}
           <ToolHoverCopyButton
             text={extractText(result)}
@@ -546,8 +546,7 @@ const AskHumanItem = memo(function AskHumanItem({
     // 避免把命令截断在 pill 标签里
     if (message) {
       const headline = parsedMessage.headline ?? parsedMessage.summary;
-      const preview =
-        headline.length > 50 ? headline.slice(0, 47) + "…" : headline;
+      const preview = headline;
       const plain = preview.replace(/[#*_`~>[\]!]/g, "").trim();
       return `${base} — ${plain}`;
     }
