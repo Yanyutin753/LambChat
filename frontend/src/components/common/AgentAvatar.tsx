@@ -45,14 +45,30 @@ export function AgentAvatar({
   const generated = value.startsWith("generated:");
   const avatarSeed = generated ? value.slice("generated:".length) || seed : seed;
   const colors = nameToGradient(avatarSeed);
+  const slug = value.replace(/^(lobe|lobehub):/i, "").toLowerCase();
+  const modelIconUrl = modelIcons.has(slug)
+    ? getModelIconUrl(slug, undefined, slug)
+    : null;
+  const emoji = isEmojiAvatar(value);
+  const imageSource = modelIconUrl || (emoji ? getEmojiAssetUrl(value, "3d") : value);
+  const isBrandIcon = !!modelIconUrl || modelIconUrls.has(value);
+  const monochrome = isBrandIcon && monochromeIconUrls.has(imageSource);
   const frameClassName = `relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full ${className}`;
-  const frameStyle = {
-    width: size,
-    height: size,
-    borderRadius: "50%",
-    background: `color-mix(in srgb, ${colors[0]} 34%, var(--theme-bg-card))`,
-    color: "var(--theme-text)",
-  };
+  // 品牌模型图标自带完整视觉标识，垫 seed 染色圆底反而突兀（2026-10-14
+  // 用户反馈：模型列表全员背景很奇怪）——透明底直接渲染。
+  const frameStyle = isBrandIcon
+    ? {
+        width: size,
+        height: size,
+        borderRadius: "50%",
+      }
+    : {
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: `color-mix(in srgb, ${colors[0]} 34%, var(--theme-bg-card))`,
+        color: "var(--theme-text)",
+      };
   const artwork = (
     <span className="agent-avatar__artwork inline-flex h-full w-full">
       <Avatar name={avatarSeed} variant="beam" size="100%" colors={colors} />
@@ -76,14 +92,6 @@ export function AgentAvatar({
   }
   if (generated) return fallback;
 
-  const slug = value.replace(/^(lobe|lobehub):/i, "").toLowerCase();
-  const modelIconUrl = modelIcons.has(slug)
-    ? getModelIconUrl(slug, undefined, slug)
-    : null;
-  const emoji = isEmojiAvatar(value);
-  const imageSource = modelIconUrl || (emoji ? getEmojiAssetUrl(value, "3d") : value);
-  const isBrandIcon = !!modelIconUrl || modelIconUrls.has(value);
-  const monochrome = isBrandIcon && monochromeIconUrls.has(imageSource);
   if (modelIconUrl || emoji || /^(\/|https?:\/\/|data:image\/|blob:)/i.test(value)) {
     return (
       <span className={frameClassName} style={frameStyle} aria-hidden="true">
