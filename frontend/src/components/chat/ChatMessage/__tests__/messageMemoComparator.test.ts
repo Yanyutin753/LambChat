@@ -130,3 +130,12 @@ test("updates streaming messages when their message object changes", () => {
     ),
   ).toBe(false);
 });
+
+test("updates the avatar when switching agents with the same display name", () => {
+  expect(
+    areChatMessagePropsEqual(
+      { message: baseMessage, personaName: "Assistant", personaSeed: "fast" },
+      { message: baseMessage, personaName: "Assistant", personaSeed: "deepagents" },
+    ),
+  ).toBe(false);
+});

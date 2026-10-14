@@ -2,6 +2,10 @@
   width: 1.5rem;
   height: 1.5rem;
   min-height: 1.5rem;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  padding: 0;
 }
 
 /* Reserve workspace for the single active docked right-panel lane. */

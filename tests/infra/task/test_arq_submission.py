@@ -118,6 +118,7 @@ class _FakePresenter:
         attachment_references_claimed: bool = False,
         schedule_search_index: bool = True,
         run_modes=None,
+        assistant_identity=None,
     ) -> None:
         self.calls.append(
             (

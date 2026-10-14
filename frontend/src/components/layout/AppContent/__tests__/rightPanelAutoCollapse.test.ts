@@ -18,6 +18,7 @@ const docked = {
 test("collapses navigation only when active docked width leaves too little room", () => {
   expect(
     shouldTemporarilyCollapseNavigation({
+      viewportWidth: 1440,
       layout: docked,
       minimumWorkspaceWithNavigationPx: 820,
       userOverrode: false,
@@ -25,6 +26,7 @@ test("collapses navigation only when active docked width leaves too little room"
   ).toBe(true);
   expect(
     shouldTemporarilyCollapseNavigation({
+      viewportWidth: 1440,
       layout: { ...docked, widthPx: 500 },
       minimumWorkspaceWithNavigationPx: 820,
       userOverrode: false,
@@ -32,6 +34,7 @@ test("collapses navigation only when active docked width leaves too little room"
   ).toBe(false);
   expect(
     shouldTemporarilyCollapseNavigation({
+      viewportWidth: 1440,
       layout: { ...docked, presentation: "overlay" },
       minimumWorkspaceWithNavigationPx: 820,
       userOverrode: false,
@@ -39,6 +42,7 @@ test("collapses navigation only when active docked width leaves too little room"
   ).toBe(false);
   expect(
     shouldTemporarilyCollapseNavigation({
+      viewportWidth: 1440,
       layout: docked,
       minimumWorkspaceWithNavigationPx: 820,
       userOverrode: true,
@@ -49,6 +53,7 @@ test("collapses navigation only when active docked width leaves too little room"
 test("does not collapse navigation without an active panel", () => {
   expect(
     shouldTemporarilyCollapseNavigation({
+      viewportWidth: 1440,
       layout: null,
       minimumWorkspaceWithNavigationPx: 820,
       userOverrode: false,
@@ -56,6 +61,7 @@ test("does not collapse navigation without an active panel", () => {
   ).toBe(false);
   expect(
     shouldTemporarilyCollapseNavigation({
+      viewportWidth: 1440,
       layout: { ...docked, open: false },
       minimumWorkspaceWithNavigationPx: 820,
       userOverrode: false,
@@ -71,6 +77,7 @@ test("keeps both sidebars open until workspace is genuinely cramped", () => {
   for (const remainingWidth of [749, 680, 679]) {
     expect(
       shouldTemporarilyCollapseNavigation({
+        viewportWidth: 1440,
         layout: { ...docked, widthPx: docked.viewportWidth - remainingWidth },
         minimumWorkspaceWithNavigationPx: MINIMUM_WORKSPACE_WITH_NAVIGATION_PX,
         userOverrode: false,

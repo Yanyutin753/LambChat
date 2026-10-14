@@ -13,6 +13,13 @@ import { filterSendableAttachments } from "../../components/chat/attachmentValid
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
 
+export const SESSIONS_READ_EVENT = "lambchat:sessions-read";
+export interface SessionReadScope {
+  sessionId?: string;
+  projectId?: string | null;
+  scheduledTaskId?: string | null;
+}
+
 // Backend Session type (matches backend Session schema)
 export interface BackendSession {
   id: string;
@@ -575,6 +582,7 @@ export const sessionApi = {
     await authFetch(`${API_BASE}/api/sessions/${sessionId}/mark-read`, {
       method: "POST",
     });
+    window.dispatchEvent(new CustomEvent(SESSIONS_READ_EVENT, { detail: { sessionId } }));
   },
 
   /**
@@ -589,10 +597,12 @@ export const sessionApi = {
     if (opts?.scheduledTaskId)
       params.set("scheduled_task_id", opts.scheduledTaskId);
     const qs = params.toString();
-    return authFetch(
+    const result = await authFetch<{ status: string; modified_count: number }>(
       `${API_BASE}/api/sessions/mark-all-read${qs ? `?${qs}` : ""}`,
       { method: "POST" },
     );
+    window.dispatchEvent(new CustomEvent(SESSIONS_READ_EVENT, { detail: opts ?? {} }));
+    return result;
   },
 
   async forkMessage(

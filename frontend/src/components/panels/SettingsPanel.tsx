@@ -632,15 +632,10 @@ export function SettingsPanel() {
             ref={contentRef}
             className="panel-body min-h-0 flex-1 overflow-y-auto"
           >
-            <div className="settings-section-header mb-5">
+            <div className="settings-section-header mb-4">
               <div className="settings-section-header__row">
                 <div className="min-w-0 flex-1">
-                  <p className="mb-1 text-12 font-medium text-theme-text-secondary">
-                    {isSearching || !activeGroup
-                      ? t("settings.navigation.allCategories")
-                      : t(`settings.navigation.groups.${activeGroup.id}`)}
-                  </p>
-                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                     <h2 className="text-18 font-semibold tracking-tight text-theme-text">
                       {isSearching
                         ? t("settings.navigation.searchResults")
@@ -670,9 +665,6 @@ export function SettingsPanel() {
                 ) : (
                   subcategories.length > 1 && (
                     <div className="settings-section-header__filter">
-                      <span className="text-12 text-theme-text-secondary">
-                        {t("settings.navigation.subcategory")}
-                      </span>
                       <Select
                         ariaLabel={t("settings.navigation.subcategory")}
                         value={activeSubcategory ?? "__all__"}
@@ -696,14 +688,19 @@ export function SettingsPanel() {
                   )
                 )}
               </div>
-              <p className="mt-3 flex items-start gap-2 text-12 leading-relaxed text-theme-text-secondary">
-                <Info size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
-                <span>
-                  {canManage
-                    ? t("settings.navigation.saveHint")
-                    : t("settings.readOnlyNotice")}
-                </span>
-              </p>
+              {canManage ? (
+                <details className="settings-section-header__help">
+                  <summary>
+                    <Info size={14} aria-hidden="true" />
+                    {t("settings.navigation.saveHelp")}
+                  </summary>
+                  <p>{t("settings.navigation.saveHint")}</p>
+                </details>
+              ) : (
+                <p className="mt-2 text-12 leading-relaxed text-theme-text-secondary">
+                  {t("settings.readOnlyNotice")}
+                </p>
+              )}
             </div>
 
             {/* System Health Monitor */}

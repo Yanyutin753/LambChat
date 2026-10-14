@@ -50,6 +50,8 @@ export function splitAssistantTurn(
   const freshTurn: Message = {
     id: assistantId,
     role: "assistant",
+    assistantIdentity: messages[assistantIndex].assistantIdentity,
+    runId: messages[assistantIndex].runId,
     content: "",
     // 继承原轮次时间戳（run 起点）：流式计时锚点跨轮次连续，插话不清零
     timestamp: messages[assistantIndex].timestamp,

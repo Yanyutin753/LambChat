@@ -79,6 +79,7 @@ async def test_submit_persists_auto_run_mode_on_initial_user_message(
             "attachment_references_claimed": False,
             "schedule_search_index": True,
             "run_modes": ["auto"],
+            "assistant_identity": None,
         }
     ]
 
@@ -119,5 +120,6 @@ async def test_submit_persists_goal_run_mode_on_initial_user_message(
             "attachment_references_claimed": False,
             "schedule_search_index": True,
             "run_modes": ["goal"],
+            "assistant_identity": None,
         }
     ]

@@ -156,3 +156,13 @@ export function resolveSandboxButtonLabel(opts: {
   if (!machine) return opts.tierLabel;
   return machine.name || machine.machine_id;
 }
+
+/** 与后端 resolve_target 同序：显式设备 → 在线默认机 → 唯一在线机 → legacy。 */
+export function resolveSandboxPolicyMachine(
+  machines: SandboxMachine[], machineValue: string, defaultMachineId: string | null,
+): SandboxMachine | undefined {
+  if (machineValue) return machines.find((machine) => machine.machine_id === machineValue);
+  const online = machines.filter(isMachineOnline);
+  return online.find((machine) => machine.machine_id === defaultMachineId)
+    ?? (online.length === 1 ? online[0] : online.find((machine) => machine.machine_id === "legacy"));
+}

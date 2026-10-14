@@ -235,28 +235,30 @@ export function ProfileEnvVarsTab() {
                         if (e.key === "Escape") cancelEdit();
                       }}
                     />
-                    <button
-                      aria-label={t("common.save")}
-                      onClick={saveEdit}
-                      disabled={saving || !editingValue.trim()}
-                      className="profile-icon-button text-theme-success disabled:opacity-40"
-                    >
-                      {saving ? (
-                        <LoadingSpinner
-                          size="xs"
-                          color="text-theme-success dark:text-green-400"
-                        />
-                      ) : (
-                        <Check size={12} />
-                      )}
-                    </button>
-                    <button
-                      aria-label={t("common.cancel")}
-                      onClick={cancelEdit}
-                      className="profile-icon-button"
-                    >
-                      <X size={12} />
-                    </button>
+                    <div className="shrink-0 flex items-center gap-1">
+                      <button
+                        aria-label={t("common.save")}
+                        onClick={saveEdit}
+                        disabled={saving || !editingValue.trim()}
+                        className="profile-icon-button text-theme-success disabled:opacity-40"
+                      >
+                        {saving ? (
+                          <LoadingSpinner
+                            size="xs"
+                            color="text-theme-success dark:text-green-400"
+                          />
+                        ) : (
+                          <Check size={12} />
+                        )}
+                      </button>
+                      <button
+                        aria-label={t("common.cancel")}
+                        onClick={cancelEdit}
+                        className="profile-icon-button"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
                   </>
                 ) : (
                   <>

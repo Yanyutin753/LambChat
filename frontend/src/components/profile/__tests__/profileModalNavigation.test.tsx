@@ -5,9 +5,6 @@ import { ProfileModal } from "../ProfileModal";
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
-vi.mock("../../../hooks/useAuth", () => ({
-  useAuth: () => ({ logout: vi.fn() }),
-}));
 vi.mock("../../../hooks/useSwipeToClose", () => ({
   useSwipeToClose: () => ({ current: null }),
 }));
@@ -33,6 +30,7 @@ test("a single labelled dialog lets narrow screens select every settings categor
     <ProfileModal showProfileModal onCloseProfileModal={close} />,
   );
   expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  expect(screen.queryByRole("button", { name: "auth.logout" })).toBeNull();
   expect(
     screen.getByRole("heading", { name: "profile.title" }).className,
   ).toContain("font-serif");

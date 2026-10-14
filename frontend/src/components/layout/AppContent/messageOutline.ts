@@ -15,6 +15,7 @@ export type MessageOutlineItem =
       id: string;
       anchorId: string;
       kind: "assistant-message";
+      assistantIdentity?: Message["assistantIdentity"];
       label: string;
       level: 1;
       messageId: string;
@@ -109,6 +110,7 @@ export function extractMessageOutline(
         id: `assistant:${message.id}`,
         anchorId: createMessageAnchorId(message.id),
         kind: "assistant-message",
+        assistantIdentity: message.assistantIdentity,
         label,
         level: 1,
         messageId: message.id,

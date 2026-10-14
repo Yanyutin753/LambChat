@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   listMachines: vi.fn(),
   teamList: vi.fn(),
   navigate: vi.fn(),
+  refreshUser: vi.fn(),
 }));
 
 vi.mock("../../../services/tauri/sandboxShell", () => ({
@@ -55,6 +56,10 @@ vi.mock("react-hot-toast", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
+vi.mock("../../../hooks/useAuth", () => ({
+  useAuth: () => ({ user: { id: "sandbox-test", metadata: {} }, refreshUser: mocks.refreshUser }),
+}));
+
 import { ChatInputSelectors } from "../ChatInputSelectors";
 import { ChatInputToolbar } from "../ChatInputToolbar";
 import { RunModePopover } from "../RunModePopover";
@@ -64,7 +69,8 @@ import { _resetSandboxStatusStoreForTests } from "../../../stores/sandboxStatusS
 import type { AgentOption } from "../../../types";
 
 const THINKING_DESCRIPTION = "Control thinking intensity";
-const SANDBOX_DESCRIPTION = "Choose where sandboxed commands run";
+const SANDBOX_TITLE = "Runtime settings";
+const SANDBOX_DESCRIPTION = "Runtime and confirmation policy";
 
 const MACHINES: SandboxMachine[] = [
   {
@@ -186,13 +192,13 @@ test("thinking panel open renders only the thinking modal, not the sandbox modal
   renderSelectors("thinking");
 
   expect(screen.getByText(THINKING_DESCRIPTION)).toBeInTheDocument();
-  expect(screen.queryByText(SANDBOX_DESCRIPTION)).not.toBeInTheDocument();
+  expect(screen.queryByText(SANDBOX_TITLE)).not.toBeInTheDocument();
 });
 
 test("sandbox panel open renders only the sandbox modal, not the thinking modal", () => {
   renderSelectors("sandbox");
 
-  expect(screen.getByText(SANDBOX_DESCRIPTION)).toBeInTheDocument();
+  expect(screen.getByText(SANDBOX_TITLE)).toBeInTheDocument();
   expect(screen.queryByText(THINKING_DESCRIPTION)).not.toBeInTheDocument();
 });
 
@@ -268,7 +274,7 @@ test("sandbox panel lists machines in the same modal on the local tier", async (
   renderSelectors("sandbox", { sandbox: "local" });
 
   // 同一弹窗：档位描述 + 设备行（自动 + 机器名单）同帧渲染
-  expect(await screen.findByText(SANDBOX_DESCRIPTION)).toBeInTheDocument();
+  expect(await screen.findByText(SANDBOX_TITLE)).toBeInTheDocument();
   expect(await screen.findByText("MacBook")).toBeInTheDocument();
   expect(screen.getByText("Server")).toBeInTheDocument();
   expect(screen.getByText("Auto (default)")).toBeInTheDocument();
@@ -284,7 +290,7 @@ test("cloud sandbox hides computer control targets even when machines are online
   const onToggleAgentOption = vi.fn();
   renderSelectors("sandbox", { sandbox: "cloud", sandbox_machine_id: "mac1" }, onToggleAgentOption);
 
-  await screen.findByText(SANDBOX_DESCRIPTION);
+  await screen.findByText(SANDBOX_TITLE);
   await waitFor(() => expect(mocks.listMachines).toHaveBeenCalled());
   expect(screen.queryByText("MacBook")).not.toBeInTheDocument();
   expect(screen.queryByText("Auto (default)")).not.toBeInTheDocument();
@@ -302,7 +308,7 @@ test("sandbox panel hides the machine section when no machine is online", async 
   });
   renderSelectors("sandbox", { sandbox: "local" });
 
-  await screen.findByText(SANDBOX_DESCRIPTION);
+  await screen.findByText(SANDBOX_TITLE);
   await waitFor(() =>
     expect(screen.queryByText("MacBook")).not.toBeInTheDocument(),
   );
@@ -380,7 +386,7 @@ test("sandbox panel on offline web keeps the local tier visible with a download 
   // 纯 web + daemon 离线：本地档不再隐藏——置灰显示 + 面板底部下载引导
   mocks.isShellAvailable.mockReturnValue(false);
   mocks.getStatus.mockResolvedValue({ online: false });
-  renderSelectors("sandbox");
+  renderSelectors("sandbox", { sandbox: "local" });
 
   const localRow = await screen.findByText("Local computer");
   expect(localRow).toBeInTheDocument();

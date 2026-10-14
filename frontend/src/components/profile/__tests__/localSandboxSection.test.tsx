@@ -848,6 +848,20 @@ test("pure web offline renders the pairing guidance with a download CTA", async 
   expect(mocks.daemonProcessStatus).not.toHaveBeenCalled();
 });
 
+test("embedded web sandbox shows offline beside its heading only after status resolves", async () => {
+  mocks.isShellAvailable.mockReturnValue(false);
+  let resolveStatus!: (status: { online: boolean }) => void;
+  mocks.getStatus.mockReturnValue(
+    new Promise((resolve) => {
+      resolveStatus = resolve;
+    }),
+  );
+  render(<LocalSandboxSection embedded />);
+  expect(screen.queryByText("Offline")).not.toBeInTheDocument();
+  await act(async () => resolveStatus({ online: false }));
+  expect(await screen.findByText("Offline")).toBeInTheDocument();
+});
+
 test("pure web with an online daemon shows status and machines, not the dead-end hint", async () => {
   // 桌面端已配对连接：网页端能看到本地沙箱在线状态与机器列表
   //（会话里可选本地档 + 执行机器），而不是"需要桌面端"死提示

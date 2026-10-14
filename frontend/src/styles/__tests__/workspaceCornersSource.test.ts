@@ -67,9 +67,10 @@ test("feedback summary uses shared themed surfaces", () => {
     new URL("../../components/panels/FeedbackPanel.tsx", import.meta.url),
     "utf8",
   );
-  expect(source).toContain(
-    "panel-summary mb-4 p-4 rounded-2xl bg-theme-bg-card border border-theme-border",
-  );
+  const css = readFileSync(new URL("../panels.css", import.meta.url), "utf8");
+  expect(source).toContain('className="feedback-summary panel-summary"');
+  expect(css).toMatch(/\.feedback-summary\s*\{[^}]*background: var\(--theme-bg-card\)/);
+  expect(css).toMatch(/\.feedback-summary\s*\{[^}]*border: 1px solid var\(--theme-border\)/);
 });
 
 test("collapsed sidebar reveals the content curves against the activity rail tint", () => {

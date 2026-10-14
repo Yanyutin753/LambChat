@@ -527,7 +527,7 @@ function PreferencesContent() {
 
       {/* 沙箱：云端 + 本地合并一张卡——平铺分区，分区之间用 hairline 分隔
           （不叠 tile 夹层）；本地分区仍懒加载（M4 T8 PWA 预算） */}
-      <div className="profile-section">
+      <div className="profile-section profile-sandbox-section">
         <div className="flex items-center gap-2 mb-3">
           <Container size={13} className="text-amber-500 dark:text-amber-400" />
           <h3 className="profile-section-heading font-serif">
@@ -537,32 +537,34 @@ function PreferencesContent() {
 
         {/* 云端沙箱：执行确认策略（用户级偏好，存 metadata） */}
         <div>
-          <div className="flex items-center gap-1.5">
+          <div className="sandbox-preference-heading">
             <Cloud
-              size={13}
-              className="text-theme-text-tertiary dark:text-stone-500"
+              size={15}
+              className="text-theme-text-tertiary shrink-0"
             />
-            <span className="font-medium text-14 text-theme-text dark:text-stone-100">
+            <span className="font-medium text-14 text-theme-text">
               {t("profile.cloudSandbox")}
             </span>
           </div>
-          <p className="text-12 text-theme-text-secondary dark:text-stone-400 mt-1 leading-relaxed">
+          <p className="sandbox-preference-description">
             {t("profile.cloudSandboxDesc")}
           </p>
-          <SelectRow
-            label={t("profile.localSandbox.policy")}
-            value={cloudSandboxPolicy}
-            loading={states.cloudSandboxPolicy === "saving"}
-            options={CLOUD_SANDBOX_POLICY_OPTIONS}
-            open={openDropdown === "cloudSandboxPolicy"}
-            onToggle={() => toggle("cloudSandboxPolicy")}
-            onSelect={handleCloudSandboxPolicyChange}
-          >
-            {renderSaveStatus(
-              "cloudSandboxPolicy",
-              "profile.localSandbox.policy",
-            )}
-          </SelectRow>
+          <div className="sandbox-preference-content">
+            <SelectRow
+              label={t("profile.localSandbox.policy")}
+              value={cloudSandboxPolicy}
+              loading={states.cloudSandboxPolicy === "saving"}
+              options={CLOUD_SANDBOX_POLICY_OPTIONS}
+              open={openDropdown === "cloudSandboxPolicy"}
+              onToggle={() => toggle("cloudSandboxPolicy")}
+              onSelect={handleCloudSandboxPolicyChange}
+            >
+              {renderSaveStatus(
+                "cloudSandboxPolicy",
+                "profile.localSandbox.policy",
+              )}
+            </SelectRow>
+          </div>
         </div>
 
         <Suspense fallback={null}>

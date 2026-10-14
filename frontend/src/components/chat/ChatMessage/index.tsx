@@ -79,6 +79,7 @@ interface ChatMessageProps {
   onStop?: () => void;
   personaAvatar?: string | null;
   personaName?: string | null;
+  personaSeed?: string | null;
   activePreview?: RevealPreviewRequest | null;
   latestAutoPreview?: AutoPreviewTarget | null;
   onOpenPreview?: (
@@ -604,6 +605,7 @@ export const ChatMessage = memo(function ChatMessage({
   isLastMessage,
   personaAvatar,
   personaName,
+  personaSeed,
   activePreview,
   latestAutoPreview,
   onOpenPreview,
@@ -755,14 +757,17 @@ export const ChatMessage = memo(function ChatMessage({
           <div className="chat-assistant-heading mb-3 flex flex-nowrap items-center gap-2">
             <AssistantAvatar
               className="size-5 sm:size-6 shrink-0 rounded-full"
-              personaAvatar={personaAvatar}
-              personaName={personaName}
+              personaAvatar={message.assistantIdentity ? message.assistantIdentity.avatar : personaAvatar}
+              personaName={message.assistantIdentity ? message.assistantIdentity.name : personaName}
+              personaSeed={message.assistantIdentity?.seed ?? personaSeed}
             />
             <span
               className="min-w-0 truncate text-16 sm:text-18 lg:text-20 leading-normal font-semibold tracking-tight font-serif"
               style={{ color: "var(--theme-text)" }}
             >
-              {personaName || t("chat.message.assistant")}
+              {message.assistantIdentity?.name
+                ? t(message.assistantIdentity.name, { defaultValue: message.assistantIdentity.name.startsWith("agents.") ? t("chat.message.assistant") : message.assistantIdentity.name })
+                : personaName || t("chat.message.assistant")}
             </span>
           </div>
 

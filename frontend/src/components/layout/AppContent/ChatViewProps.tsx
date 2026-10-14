@@ -75,30 +75,38 @@ function resolveChatAssistantIdentity({
   currentTeam,
   selectedPersonaName,
   agentDisplayName,
+  agentIcon,
+  selectedPersonaPresetId,
 }: {
   currentAgent: string;
   currentPersonaAvatar: string | null;
   currentTeam: Team | null;
   selectedPersonaName: string | null;
   agentDisplayName?: string | null;
+  agentIcon?: string | null;
+  selectedPersonaPresetId?: string | null;
 }) {
+  const agentNameFallback =
+    typeof agentDisplayName === "string" && agentDisplayName.trim()
+      ? agentDisplayName
+      : null;
+
   if (currentAgent === "team") {
     const fallbackAvatar = currentTeam
       ? getTeamFallbackAvatar(currentTeam)
       : null;
     return {
       avatar: currentTeam?.avatar ?? fallbackAvatar,
-      name: currentTeam?.name ?? null,
+      name: currentTeam?.name || agentNameFallback,
+      seed: currentTeam?.name || "team",
     };
   }
 
-  const agentNameFallback =
-    typeof agentDisplayName === "string" && agentDisplayName.trim()
-      ? agentDisplayName
-      : null;
-
   return {
-    avatar: currentPersonaAvatar,
+    avatar: currentPersonaAvatar ?? (
+      selectedPersonaName || selectedPersonaPresetId ? null : agentIcon ?? null
+    ),
+    seed: selectedPersonaPresetId || selectedPersonaName || currentAgent,
     name: selectedPersonaName ?? agentNameFallback,
   };
 }

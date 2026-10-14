@@ -27,9 +27,7 @@
   flex-shrink: 0;
 }
 
-/* The composer is the primary action: keep it a little wider than the
-   gallery, without negative margins that could clip on narrow screens.
-   The shared welcome skeleton uses the same shell and editor selectors. */
+/* The shared welcome skeleton uses the same shell and editor selectors. */
 .welcome-input .chat-input-shell {
   padding-inline: 0;
 }
@@ -295,7 +293,7 @@
   }
 
   .welcome-persona-gallery {
-    --welcome-persona-card-height: 6rem;
+    --welcome-persona-card-height: 7rem;
     --welcome-persona-row-gap: 0.75rem;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -308,11 +306,16 @@
     overflow-y: auto;
     gap: var(--welcome-persona-row-gap);
     scroll-snap-type: y proximity;
-    -webkit-mask-image: linear-gradient(to bottom, black 82%, transparent 100%);
-    mask-image: linear-gradient(to bottom, black 82%, transparent 100%);
+  }
+
+  .welcome-persona-avatar,
+  .welcome-skeleton-avatar {
+    width: 3rem;
+    height: 3rem;
   }
 
   .welcome-persona-card {
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--theme-text) 3%, transparent);
     height: var(--welcome-persona-card-height);
     min-width: 0;
     scroll-snap-align: start;

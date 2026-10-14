@@ -131,3 +131,62 @@ test("concurrent websocket and journal completion deliveries publish one toast",
   });
   expect(mocks.toast).toHaveBeenCalledOnce();
 });
+
+function markRead(detail: {sessionId?: string; projectId?: string; scheduledTaskId?: string} = {}) {
+  window.dispatchEvent(new CustomEvent("lambchat:sessions-read", {detail}));
+}
+
+test("mark all read removes existing task toasts", async () => {
+  renderHook(()=>useWebSocketNotifications({sessionId:"other"}));
+  await act(async()=>{emitCompletion();});
+  act(()=>markRead());
+  expect(mocks.remove).toHaveBeenCalledWith("owned-task-toast");
+});
+
+test("mark all read prevents an in-flight completion from showing a toast", async () => {
+  const resolve = delayedLookup();
+  renderHook(()=>useWebSocketNotifications({sessionId:"other"}));
+  act(emitCompletion);
+  act(()=>markRead());
+  await act(async()=>{resolve();});
+  expect(mocks.toast).not.toHaveBeenCalled();
+});
+
+test("marking a different project read leaves a task toast visible", async () => {
+  renderHook(()=>useWebSocketNotifications({sessionId:"other"}));
+  await act(async()=>{emitCompletion();});
+  act(()=>markRead({projectId:"different-project"}));
+  expect(mocks.remove).not.toHaveBeenCalled();
+});
+
+test("journal replay skips a completion whose session is already read", async () => {
+  mocks.get.mockResolvedValue({name:"Read task",unread_count:0});
+  mocks.journal.mockResolvedValue({items:[{session_id:"old-session",run_id:`read-run-${++sequence}`,status:"completed"}],cursor:"read-cursor",next_cursor:null});
+  renderHook(()=>useWebSocketNotifications({sessionId:"other"}));
+  await act(async()=>{});
+  expect(mocks.toast).not.toHaveBeenCalled();
+});
+
+test("new live completions still notify after mark all read", async () => {
+  renderHook(()=>useWebSocketNotifications({sessionId:"other"}));
+  act(()=>markRead());
+  await act(async()=>{emitCompletion();});
+  expect(mocks.toast).toHaveBeenCalledOnce();
+});
+
+for (const scope of [{sessionId:"old-session"}, {projectId:"project-one"}, {scheduledTaskId:"schedule-one"}]) {
+  test(`reading a matching scope clears its task toast ${JSON.stringify(scope)}`, async () => {
+    renderHook(()=>useWebSocketNotifications({sessionId:"other"}));
+    await act(async()=>{mocks.handlers.onTaskComplete?.({data:{session_id:"old-session",project_id:"project-one",scheduled_task_id:"schedule-one",run_id:`scoped-run-${++sequence}`,status:"completed"}});});
+    act(()=>markRead(scope));
+    expect(mocks.remove).toHaveBeenCalledWith("owned-task-toast");
+  });
+}
+
+test("journal replay keeps notifications for unread sessions", async () => {
+  mocks.get.mockResolvedValue({name:"Unread task",unread_count:1});
+  mocks.journal.mockResolvedValue({items:[{session_id:"old-session",run_id:`unread-run-${++sequence}`,status:"completed"}],cursor:"unread-cursor",next_cursor:null});
+  renderHook(()=>useWebSocketNotifications({sessionId:"other"}));
+  await act(async()=>{});
+  expect(mocks.toast).toHaveBeenCalledOnce();
+});

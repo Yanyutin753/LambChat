@@ -11,18 +11,20 @@ export const MINIMUM_WORKSPACE_WITH_NAVIGATION_PX = 680;
 
 export function shouldTemporarilyCollapseNavigation({
   layout,
+  viewportWidth,
   minimumWorkspaceWithNavigationPx,
   userOverrode,
 }: {
   layout: RightPanelLayoutSnapshot | null;
+  viewportWidth: number;
   minimumWorkspaceWithNavigationPx: number;
   userOverrode: boolean;
 }): boolean {
-  if (!layout?.open || layout.presentation !== "docked" || userOverrode) {
-    return false;
-  }
+  if (userOverrode) return false;
+  if (viewportWidth < minimumWorkspaceWithNavigationPx) return true;
+  if (!layout?.open || layout.presentation !== "docked") return false;
 
   return (
-    layout.viewportWidth - layout.widthPx < minimumWorkspaceWithNavigationPx
+    viewportWidth - layout.widthPx < minimumWorkspaceWithNavigationPx
   );
 }

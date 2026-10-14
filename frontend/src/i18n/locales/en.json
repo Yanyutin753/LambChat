@@ -267,11 +267,15 @@
     },
     "sandbox": {
       "label": "Sandbox",
-      "description": "Choose where sandboxed commands run",
+      "title": "Runtime settings",
+      "section": "Run location",
+      "description": "Runtime and confirmation policy",
       "options": {
         "cloud": "Cloud computer",
         "local": "Local computer"
       },
+      "cloudHint": "Run code in an isolated cloud environment",
+      "localHint": "Run code and computer actions on a connected personal computer",
       "offlineHint": "Local sandbox is offline: download and start it to use the local computer",
       "downloadEntry": "Download local sandbox"
     },
@@ -286,7 +290,9 @@
       "currentDevice": "This device"
     },
     "sandboxPolicy": {
-      "section": "Execution policy",
+      "cloudHint": "Account setting for cloud tasks started after saving.",
+      "localHint": "Device setting for operations performed on this computer.",
+      "section": "Execution confirmation",
       "all": "Confirm everything",
       "commands": "Confirm commands only",
       "none": "No confirmation",
@@ -3545,6 +3551,7 @@
       "clearSearch": "Clear search",
       "subcategory": "Subcategory",
       "allSubcategories": "All subcategories",
+      "saveHelp": "Saving changes",
       "saveHint": "Save each setting after editing. Unsaved inputs are kept when you switch categories.",
       "groups": {
         "experience": "Experience",

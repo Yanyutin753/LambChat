@@ -245,6 +245,7 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
         attachment_references_claimed: bool = False,
         schedule_search_index: bool = True,
         run_modes: Optional[List[str]] = None,
+        assistant_identity: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """输出用户消息并保存"""
         attachment_keys = _extract_attachment_keys(attachments)
@@ -268,6 +269,7 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
                 message_id=message_id,
                 enabled_skills=enabled_skills,
                 run_modes=run_modes,
+                assistant_identity=assistant_identity,
             )
             await self.save_event(event, raise_on_error=True)
         except (Exception, asyncio.CancelledError):

@@ -230,16 +230,21 @@ export function LocalSandboxSection({
   // （同通知页 h4 语言），带一句说明文案
   const header = embedded ? (
     <>
-      <div className="flex items-center gap-1.5">
+      <div className="sandbox-preference-heading">
         <Monitor
-          size={13}
-          className="text-theme-text-tertiary dark:text-stone-500 shrink-0"
+          size={15}
+          className="text-theme-text-tertiary shrink-0"
         />
-        <span className="font-medium text-14 text-theme-text dark:text-stone-100">
+        <span className="font-medium text-14 text-theme-text">
           {t("profile.localSandbox.title")}
         </span>
+        {!shell && !online && !connectionLoading && !statusError && (
+          <span className="ml-auto text-12 text-theme-text-tertiary">
+            {t("profile.localSandbox.offlineBadge")}
+          </span>
+        )}
       </div>
-      <p className="text-12 text-theme-text-secondary dark:text-stone-400 mt-1 leading-relaxed">
+      <p className="sandbox-preference-description">
         {t("profile.localSandbox.desc")}
       </p>
     </>
@@ -259,7 +264,7 @@ export function LocalSandboxSection({
     const webBody = (
       <>
         {header}
-        <div className={embedded ? "mt-2 space-y-0" : "space-y-0"}>
+        <div className={embedded ? "sandbox-preference-content" : "space-y-0"}>
           {statusLoading || statusError ? (
             <CatalogStatus
               label={t("profile.localSandbox.title")}
@@ -293,14 +298,15 @@ export function LocalSandboxSection({
               <SandboxMachinesCard />
             </>
           ) : (
-            <div className="space-y-2">
-              <p className="text-12 text-theme-text-secondary dark:text-stone-400">
+            <div className="space-y-3">
+              <p className="text-12 text-theme-text-secondary leading-relaxed">
                 {t("profile.localSandbox.needDesktop")}
               </p>
               {/* 离线引导：跳站内下载页（桌面端/daemon 安装包 + 配对教程） */}
               <Button
-                variant="primary"
-                className="w-full"
+                variant="secondary"
+                size="sm"
+                className="max-w-full"
                 leftIcon={<Download size={14} />}
                 onClick={() => navigate("/download")}
                 data-sandbox-download-cta
@@ -317,7 +323,7 @@ export function LocalSandboxSection({
         <div
           ref={sectionRef}
           tabIndex={-1}
-          className="local-sandbox-section mt-3 border-t border-theme-border pt-3 outline-none"
+          className="local-sandbox-section mt-5 border-t border-theme-border pt-5 outline-none"
         >
           {webBody}
         </div>
@@ -514,7 +520,7 @@ export function LocalSandboxSection({
     <>
       {header}
 
-      <div className={embedded ? "mt-2 space-y-0" : "space-y-0"}>
+      <div className={embedded ? "sandbox-preference-content" : "space-y-0"}>
         {/* 状态行：在线圆点 + daemon 版本 + 进程状态徽标 */}
         {loading || processStatus === "error" ? (
           <CatalogStatus
@@ -745,7 +751,7 @@ export function LocalSandboxSection({
       <div
         ref={sectionRef}
         tabIndex={-1}
-        className="local-sandbox-section mt-3 border-t border-theme-border pt-3 outline-none"
+        className="local-sandbox-section mt-5 border-t border-theme-border pt-5 outline-none"
       >
         {body}
       </div>

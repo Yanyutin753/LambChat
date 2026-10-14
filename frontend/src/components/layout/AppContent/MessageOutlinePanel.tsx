@@ -9,7 +9,6 @@ interface MessageOutlinePanelProps {
   items: MessageOutlineItem[];
   activeId: string | null;
   onNavigate: (anchorId: string, messageIndex: number) => void;
-  personaAvatar?: string | null;
 }
 
 export function MessageOutlinePanel(props: MessageOutlinePanelProps) {

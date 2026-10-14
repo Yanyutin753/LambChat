@@ -72,26 +72,6 @@ import { AgentAvatar } from "../common/AgentAvatar";
 const metadataClassName =
   "inline-flex min-w-0 max-w-full items-center gap-1.5 text-12 text-theme-text-secondary [overflow-wrap:anywhere] [&>svg]:shrink-0";
 
-function resolveSharedAssistantIdentity(
-  session: SharedContentResponse["session"] | null | undefined,
-) {
-  if (!session) {
-    return { name: null, avatar: null };
-  }
-
-  if (session.agent_id === "team") {
-    return {
-      name: session.team_name ?? null,
-      avatar: session.team_avatar ?? null,
-    };
-  }
-
-  return {
-    name: session.persona_preset_name ?? null,
-    avatar: session.persona_avatar ?? null,
-  };
-}
-
 export function SharedPage({
   initialData,
 }: {
@@ -291,7 +271,6 @@ export function SharedPage({
     () => getLatestAutoPreviewTarget(messages),
     [messages],
   );
-  const sharedAssistant = resolveSharedAssistantIdentity(data?.session);
 
   // Reading time estimate (rough: ~200 words per minute)
   const readingTime = useMemo(() => {
@@ -731,8 +710,6 @@ export function SharedPage({
                       sessionId={data.session.id}
                       runId={data.run_ids?.[0]}
                       isLastMessage={index === messages.length - 1}
-                      personaAvatar={sharedAssistant.avatar}
-                      personaName={sharedAssistant.name}
                       activePreview={activePreview}
                       latestAutoPreview={latestAutoPreview}
                       onOpenPreview={handleOpenPreview}
