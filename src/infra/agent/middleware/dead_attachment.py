@@ -200,7 +200,7 @@ def _image_block_placeholder(url: str | None) -> dict[str, Any]:
 
 def _last_human_message_index(messages: list[Any]) -> int:
     for index in range(len(messages) - 1, -1, -1):
-        if isinstance(messages[index], HumanMessage):
+        if isinstance(messages[index], HumanMessage) and messages[index].name != "evidence_context":
             return index
     return len(messages)
 

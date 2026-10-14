@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Annotated, Any, NotRequired
 
 from langchain.agents.middleware.types import AgentMiddleware, AgentState, PrivateStateAttr
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import HumanMessage, ToolMessage
 from langgraph.types import Command
 
 from src.infra.agent.events.tool_outputs import detect_tool_error
@@ -25,7 +25,6 @@ from src.infra.agent.evidence import (
     merge_evidence,
     verified_original_content,
 )
-from src.infra.agent.middleware._helpers import _append_system_text_block
 
 logger = logging.getLogger(__name__)
 
@@ -133,14 +132,26 @@ class EvidenceMiddleware(AgentMiddleware):
                 logger.warning("Evidence original could not be preserved", exc_info=True)
                 return None
 
-    async def awrap_model_call(self, request, handler):
-        request.state["evidence"] = self.clock.invalidate_old(request.state.get("evidence", []))
-        index = evidence_index(request.state["evidence"], self.scope_version)
-        if index:
-            request = request.override(
-                system_message=_append_system_text_block(request.system_message, index)
-            )
-        return await handler(request)
+    async def abefore_model(self, state, runtime):
+        records = self.clock.invalidate_old(state.get("evidence", []))
+        index = evidence_index(records, self.scope_version)
+        update: dict[str, Any] = {"evidence": records}
+        content = (
+            "System-recorded evidence snapshot. The latest snapshot supersedes earlier indexes.\n\n"
+            + index
+        )
+        previous = next(
+            (
+                message
+                for message in reversed(state.get("messages", []))
+                if isinstance(message, HumanMessage) and message.name == "evidence_context"
+            ),
+            None,
+        )
+        # Checkpoint updates append before dispatch; changing the system prefix loses history caches.
+        if index and (previous is None or previous.content != content):
+            update["messages"] = [HumanMessage(content=content, name="evidence_context")]
+        return update
 
     async def awrap_tool_call(self, request, handler):
         call = request.tool_call

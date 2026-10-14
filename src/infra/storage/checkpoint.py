@@ -434,7 +434,10 @@ async def get_async_checkpointer(thread_id: str | None = None) -> BaseCheckpoint
 
 
 def _is_human_message(message: object) -> bool:
-    return type(message).__name__ == "HumanMessage"
+    return (
+        type(message).__name__ == "HumanMessage"
+        and getattr(message, "name", None) != "evidence_context"
+    )
 
 
 def _is_ai_message(message: object) -> bool:

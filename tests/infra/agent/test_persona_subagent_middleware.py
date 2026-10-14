@@ -43,6 +43,18 @@ async def test_discovered_role_replaces_task_with_trusted_subagent_tool():
     assert handler.await_args.args[0].tool is tool
 
 
+async def test_evidence_snapshot_does_not_hide_current_turn_role_search():
+    req = request("persona:p1", result={"success": True, "presets": [{"id": "p1"}]})
+    req.state["messages"].append(HumanMessage(content="Evidence snapshot", name="evidence_context"))
+    build = AsyncMock(return_value=object())
+    handler = AsyncMock(return_value="done")
+
+    result = await PersonaSubagentMiddleware(build_task_tool=build).awrap_tool_call(req, handler)
+
+    assert result == "done"
+    build.assert_awaited_once_with("p1")
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "search_result",
