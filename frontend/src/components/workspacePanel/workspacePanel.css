@@ -26,6 +26,9 @@
 .dark .workspace-explorer {
   background: var(--theme-bg-card);
 }
+.dark .workspace-explorer {
+  background: var(--theme-bg-card);
+}
 .workspace-search {
   display: flex;
   align-items: center;
