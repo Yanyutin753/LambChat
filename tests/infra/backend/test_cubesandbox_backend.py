@@ -438,3 +438,28 @@ async def test_cubesandbox_adownload_uses_envd_http_primary_channel() -> None:
     assert responses[0].error is None
     assert responses[0].content == payload
     assert client.calls
+
+
+def test_cubesandbox_unimplemented_async_handshake_fails_fast_quietly(caplog) -> None:
+    """控制面未实现 e2b connect 握手（JSONDecodeError）：一次禁用、不刷 WARNING。"""
+    import logging
+
+    from src.infra.backend.cubesandbox import CubeSandboxBackend
+
+    sandbox = _FakeCubeSandbox()
+    backend = CubeSandboxBackend(sandbox=sandbox, work_dir="/home/user/session-a")
+
+    with caplog.at_level(logging.WARNING, logger="src.infra.backend.cubesandbox"):
+        backend._register_async_init_failure(
+            ValueError("Expecting value: line 1 column 1 (char 0)")
+        )
+
+    assert backend._async_disabled is True
+    assert backend._async_init_failures == 1
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+    # 其他错误仍走基类语义（不禁用、计一次失败）
+    backend2 = CubeSandboxBackend(sandbox=_FakeCubeSandbox(), work_dir="/w")
+    backend2._register_async_init_failure(RuntimeError("connection refused"))
+    assert backend2._async_disabled is False
+    assert backend2._async_init_failures == 1

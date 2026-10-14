@@ -136,6 +136,23 @@ class CubeSandboxBackend(E2BBackend):
             or _CUBE_ASYNC_NOAUTH_KEY
         )
 
+    def _register_async_init_failure(self, error: Exception) -> None:
+        """Cube 控制面未实现 e2b async 握手端点（POST /v2/sandboxes/{id}/connect
+        返回 404 空响应体 → SDK 抛 JSONDecodeError）是已知部署形态而非故障：
+        一次失败即禁用 async 车道并降为 debug 日志，不刷 WARNING、不重试。
+        其余错误沿用基类语义（2 次失败后禁用）。
+        """
+        if "Expecting value" in str(error):
+            self._async_init_failures += 1
+            self._async_disabled = True
+            logger.debug(
+                "[CubeSandbox] e2b async connect unavailable on this deployment "
+                "(control plane lacks connect handshake); using thread lane: %s",
+                error,
+            )
+            return
+        super()._register_async_init_failure(error)
+
     def _async_connect_opts(self) -> dict:
         """e2b async 客户端指向 Cube API（wire 兼容）。"""
         opts: dict = {
