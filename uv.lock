@@ -471,15 +471,15 @@ name = "atomacos"
 version = "3.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "future" },
-    { name = "pyautogui", version = "0.9.41", source = { registry = "https://pypi.org/simple" } },
-    { name = "pygetwindow", version = "0.0.4", source = { registry = "https://pypi.org/simple" } },
-    { name = "pyobjc-core" },
-    { name = "pyobjc-framework-applicationservices" },
-    { name = "pyobjc-framework-cocoa" },
-    { name = "pyobjc-framework-coretext" },
-    { name = "pyobjc-framework-quartz" },
-    { name = "pyscreeze", version = "0.1.19", source = { registry = "https://pypi.org/simple" } },
+    { name = "future", marker = "sys_platform != 'win32'" },
+    { name = "pyautogui", version = "0.9.41", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "pygetwindow", version = "0.0.4", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "pyobjc-core", marker = "sys_platform != 'win32'" },
+    { name = "pyobjc-framework-applicationservices", marker = "sys_platform != 'win32'" },
+    { name = "pyobjc-framework-cocoa", marker = "sys_platform != 'win32'" },
+    { name = "pyobjc-framework-coretext", marker = "sys_platform != 'win32'" },
+    { name = "pyobjc-framework-quartz", marker = "sys_platform != 'win32'" },
+    { name = "pyscreeze", version = "0.1.19", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/71/97/ad8e7c041b82ad6851ba857509511b201cbfdc6c6164c70ddd098547a3d1/atomacos-3.3.0.tar.gz", hash = "sha256:1733fc541512bd5b05e924b340717053001210f38b286dbf30cf5acb3a52689c", size = 34968, upload-time = "2021-05-24T10:31:53.631Z" }
 wheels = [
@@ -1153,15 +1153,15 @@ wheels = [
 
 [[package]]
 name = "cubesandbox"
-version = "0.7.0"
+version = "0.7.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c7/12/9effcbd7ad786dbc80a3e507e10f14443029b5c8c9b0fd82c4ec8780b0b9/cubesandbox-0.7.0.tar.gz", hash = "sha256:5c7d4bb76467ea101e35c7af4a4f5d320846a9ca5050d33bd8b4a77baf7864a6", size = 72556, upload-time = "2026-08-28T07:58:50.266Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1a/88/8268b855f8b8cced152bdc20377b2ac112a0cfd00314f0483863eaced23b/cubesandbox-0.7.3.tar.gz", hash = "sha256:70f5615603ce07d0885c5ae7142746157cad71b0e04bbf7cc07456eb924e501c", size = 76843, upload-time = "2026-10-12T08:40:50.855Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/12/bc/cea10d8fffeb2226ad8678a851ccf4c47153a9970f709c70373fc4546fc8/cubesandbox-0.7.0-py3-none-any.whl", hash = "sha256:3dc5d452ccb01684de7a2e12f00659c1df2798d484ea66c9e546c76bb459fa05", size = 49390, upload-time = "2026-08-28T07:58:49.385Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/07/da5528b21fdd3116411ab12d269cb28fb23caba76efb95d405ffb13be49a/cubesandbox-0.7.3-py3-none-any.whl", hash = "sha256:811ba07d97b2756f68299213881f93f04bc4e61f89bf60ed870a923807a9d087", size = 50875, upload-time = "2026-10-12T08:40:49.794Z" },
 ]
 
 [[package]]
@@ -2901,7 +2901,7 @@ name = "macholib"
 version = "1.16.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "altgraph" },
+    { name = "altgraph", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/10/2f/97589876ea967487978071c9042518d28b958d87b17dceb7cdc1d881f963/macholib-1.16.4.tar.gz", hash = "sha256:f408c93ab2e995cd2c46e34fe328b130404be143469e41bc366c807448979362", size = 59427, upload-time = "2025-11-22T08:28:38.373Z" }
 wheels = [
@@ -3048,7 +3048,7 @@ name = "mouseinfo"
 version = "0.1.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyperclip" },
+    { name = "pyperclip", marker = "sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/28/fa/b2ba8229b9381e8f6381c1dcae6f4159a7f72349e414ed19cfbbd1817173/MouseInfo-0.1.3.tar.gz", hash = "sha256:2c62fb8885062b8e520a3cce0a297c657adcc08c60952eb05bc8256ef6f7f6e7", size = 10850, upload-time = "2020-03-27T21:20:10.136Z" }
 
@@ -4192,11 +4192,11 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "pillow" },
-    { name = "pygetwindow", version = "0.0.4", source = { registry = "https://pypi.org/simple" } },
-    { name = "pymsgbox" },
-    { name = "pyscreeze", version = "0.1.19", source = { registry = "https://pypi.org/simple" } },
-    { name = "pytweening" },
+    { name = "pillow", marker = "sys_platform != 'win32'" },
+    { name = "pygetwindow", version = "0.0.4", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "pymsgbox", marker = "sys_platform != 'win32'" },
+    { name = "pyscreeze", version = "0.1.19", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "pytweening", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/19/ef/438d80abd396fd2d124bd37c07c765f913723c54197c4c809d85c8ff5a43/PyAutoGUI-0.9.41.tar.gz", hash = "sha256:1b57b1c8eeeff74bdbbe91162607ca7ac951e918b250072dcd3dd30c3f73da7c", size = 50145, upload-time = "2019-01-07T19:10:15.883Z" }
 
@@ -4211,11 +4211,11 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform == 'win32'",
 ]
 dependencies = [
-    { name = "mouseinfo" },
-    { name = "pygetwindow", version = "0.0.9", source = { registry = "https://pypi.org/simple" } },
-    { name = "pymsgbox" },
-    { name = "pyscreeze", version = "1.0.1", source = { registry = "https://pypi.org/simple" } },
-    { name = "pytweening" },
+    { name = "mouseinfo", marker = "sys_platform == 'win32'" },
+    { name = "pygetwindow", version = "0.0.9", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "pymsgbox", marker = "sys_platform == 'win32'" },
+    { name = "pyscreeze", version = "1.0.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "pytweening", marker = "sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/65/ff/cdae0a8c2118a0de74b6cf4cbcdcaf8fd25857e6c3f205ce4b1794b27814/PyAutoGUI-0.9.54.tar.gz", hash = "sha256:dd1d29e8fd118941cb193f74df57e5c6ff8e9253b99c7b04f39cfc69f3ae04b2", size = 61236, upload-time = "2023-05-24T20:11:32.972Z" }
 
@@ -4373,7 +4373,7 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "pyrect" },
+    { name = "pyrect", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/01/ed/56d4a369c6e18f6b239d9ef37b3222ba308bfebf949571b2611ff7d64f1d/PyGetWindow-0.0.4.tar.gz", hash = "sha256:e51e173f2ce8a6a9260fde7f0cf4d15df99ea0d622fad67a400f3e9d6a8a67f2", size = 8898, upload-time = "2019-01-29T02:11:49.715Z" }
 
@@ -4388,7 +4388,7 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform == 'win32'",
 ]
 dependencies = [
-    { name = "pyrect" },
+    { name = "pyrect", marker = "sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e1/70/c7a4f46dbf06048c6d57d9489b8e0f9c4c3d36b7479f03c5ca97eaa2541d/PyGetWindow-0.0.9.tar.gz", hash = "sha256:17894355e7d2b305cd832d717708384017c1698a90ce24f6f7fbf0242dd0a688", size = 9699, upload-time = "2020-10-04T02:12:50.806Z" }
 
@@ -4547,10 +4547,10 @@ name = "pyobjc-framework-applicationservices"
 version = "12.2.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyobjc-core" },
-    { name = "pyobjc-framework-cocoa" },
-    { name = "pyobjc-framework-coretext" },
-    { name = "pyobjc-framework-quartz" },
+    { name = "pyobjc-core", marker = "sys_platform != 'win32'" },
+    { name = "pyobjc-framework-cocoa", marker = "sys_platform != 'win32'" },
+    { name = "pyobjc-framework-coretext", marker = "sys_platform != 'win32'" },
+    { name = "pyobjc-framework-quartz", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/29/40/b792ecc88a9fa639318509c127f0b153cd334bd27b47df373f4b7362a36d/pyobjc_framework_applicationservices-12.2.2.tar.gz", hash = "sha256:0bcc09531d5854598fd74706d999e4ae3b7c503204d318910d02eba30e8eecef", size = 109668, upload-time = "2026-08-11T19:43:45.347Z" }
 wheels = [
@@ -4568,7 +4568,7 @@ name = "pyobjc-framework-cocoa"
 version = "12.2.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyobjc-core" },
+    { name = "pyobjc-core", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/75/76/49c6da2c6a831020b4854ba20079d5a1030474bffc776b7b73c2eeff8c15/pyobjc_framework_cocoa-12.2.2.tar.gz", hash = "sha256:c96c0ef69a71afbbb0e6a7d594b455c5fe47d62e0db376ee7a2b4b828c16ace9", size = 3132831, upload-time = "2026-08-11T19:44:02.288Z" }
 wheels = [
@@ -4586,9 +4586,9 @@ name = "pyobjc-framework-coretext"
 version = "12.2.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyobjc-core" },
-    { name = "pyobjc-framework-cocoa" },
-    { name = "pyobjc-framework-quartz" },
+    { name = "pyobjc-core", marker = "sys_platform != 'win32'" },
+    { name = "pyobjc-framework-cocoa", marker = "sys_platform != 'win32'" },
+    { name = "pyobjc-framework-quartz", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/6d/66/405006d3502ffcd3bc69e0b7249ab7c05a5b43a07fa3959ce6b2a84f3278/pyobjc_framework_coretext-12.2.2.tar.gz", hash = "sha256:64ddc02303217028e32e22c7cc00b5112d84e9d9a67c37d00c2e54f9172284ab", size = 97658, upload-time = "2026-08-11T19:44:17.207Z" }
 wheels = [
@@ -4606,8 +4606,8 @@ name = "pyobjc-framework-quartz"
 version = "12.2.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyobjc-core" },
-    { name = "pyobjc-framework-cocoa" },
+    { name = "pyobjc-core", marker = "sys_platform != 'win32'" },
+    { name = "pyobjc-framework-cocoa", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/35/b1/426a37c7ae37280b3ffca2571fb48f211946aee2f4ca31a603ed1943c4a7/pyobjc_framework_quartz-12.2.2.tar.gz", hash = "sha256:810f97b210cfd93704d240860286dfd6df09f9f1c52525fc5c2166723aea3f9e", size = 3218295, upload-time = "2026-08-11T19:45:15.189Z" }
 wheels = [
@@ -4739,7 +4739,7 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "pillow" },
+    { name = "pillow", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f3/27/073bf07400943e38b06ba40def60ec489d114fd7356c2db5a2f793454312/PyScreeze-0.1.19.tar.gz", hash = "sha256:9dfa4ff43d39538f12d4aa2ace446ede87f91a64b486cc819e5f72ba87aaa994", size = 21048, upload-time = "2019-01-05T18:56:07.015Z" }
 
@@ -4894,7 +4894,7 @@ name = "python-xlib"
 version = "0.33"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "six" },
+    { name = "six", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/86/f5/8c0653e5bb54e0cbdfe27bf32d41f27bc4e12faa8742778c17f2a71be2c0/python-xlib-0.33.tar.gz", hash = "sha256:55af7906a2c75ce6cb280a584776080602444f75815a7aff4d287bb2d7018b32", size = 269068, upload-time = "2022-12-25T18:53:00.824Z" }
 wheels = [
@@ -4965,9 +4965,9 @@ name = "pywinauto"
 version = "0.6.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "comtypes" },
-    { name = "pywin32" },
-    { name = "six" },
+    { name = "comtypes", marker = "sys_platform == 'win32'" },
+    { name = "pywin32", marker = "sys_platform == 'win32'" },
+    { name = "six", marker = "sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/2c/85/cc65e3b64e7473cc86c07f0b5c415d509402c03ef19dadc39c583835eb5f/pywinauto-0.6.9.tar.gz", hash = "sha256:94d710bfa796df245250f952ffa65d97233d9807bcd42e052b71b81af469b6de", size = 434734, upload-time = "2025-01-06T11:30:01.801Z" }
 wheels = [

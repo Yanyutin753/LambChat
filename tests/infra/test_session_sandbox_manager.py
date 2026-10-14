@@ -929,3 +929,51 @@ async def test_e2b_stop_without_binding_returns_false(
 
     assert await manager.stop("user-1") is False
     assert adapter.stopped == []
+
+
+@pytest.mark.asyncio
+async def test_runtime_platform_switch_takes_effect_immediately(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """平台切换必须在运行时立即生效（2026-10-14 生产事故根因）。
+
+    管理器构造于 cubesandbox 期、面板切回 e2b 后，get_or_create/stop 必须
+    立即改走 e2b 分支；旧平台适配器与缓存后端一并作废，绝不能继续用旧
+    平台处理新 run。
+    """
+    monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "cubesandbox")
+    manager = sandbox_module.SessionSandboxManager()
+    assert manager._cube_adapter is not None
+    assert manager._e2b_adapter is None
+    # Cube 期有用户缓存后端
+    manager._cache["user-1"] = ("cube-sid", object(), object())
+
+    dispatched: list[str] = []
+
+    async def fake_cube(session_id, user_id, *, create=True):
+        dispatched.append("cube")
+        return object(), "/w"
+
+    async def fake_e2b(session_id, user_id, *, create=True):
+        dispatched.append("e2b")
+        return object(), "/w"
+
+    monkeypatch.setattr(manager, "_get_or_create_cubesandbox", fake_cube)
+    monkeypatch.setattr(manager, "_get_or_create_e2b", fake_e2b)
+
+    monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "e2b")
+    await manager.get_or_create("session-1", "user-1")
+
+    assert dispatched == ["e2b"]
+    assert manager._e2b_adapter is not None
+    assert manager._cube_adapter is None
+    assert "user-1" not in manager._cache  # 旧平台缓存后端已作废
+
+    # stop 同样按当前平台分发
+    async def fake_stop_e2b(user_id):
+        dispatched.append("stop-e2b")
+        return True
+
+    monkeypatch.setattr(manager, "_stop_e2b", fake_stop_e2b)
+    assert await manager.stop("user-1") is True
+    assert dispatched[-1] == "stop-e2b"
