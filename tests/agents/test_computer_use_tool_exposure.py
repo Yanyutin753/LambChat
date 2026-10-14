@@ -8,6 +8,7 @@ quick 是纯 LLM 无工具设计,不适用。
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -26,9 +27,9 @@ def test_all_agent_modes_gate_desktop_tools_before_graph_creation() -> None:
         ) < source.index("create_deep_agent(")
         assert "computer_use_context=computer_use_context" in source
         if mode != "team_agent":
-            assert (
-                "filter_computer_use_tools(\n                list(fresh_context.filter_tools())"
-                in source
+            assert re.search(
+                r"filter_computer_use_tools\(\s+list\(fresh_context\.filter_tools\(\)\)",
+                source,
             )
 
 

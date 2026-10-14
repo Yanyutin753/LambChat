@@ -2,10 +2,8 @@
 
 from typing import Any
 
-from deepagents.middleware.subagents import SubAgent
-
+from src.agents.core.persona_subagent import build_persona_subagent_spec
 from src.agents.core.subagent_prompts import (
-    SUBAGENT_PROMPT,
     build_response_language_section,
     build_role_subagent_section,
 )
@@ -51,56 +49,23 @@ def create_team_subagent_resolver(
             await resolve_computer_use_context(context.user_id or "", agent_options),
         )
 
-    async def build_persona_spec(preset_id: str, tool_context=None):
-        tool_context = tool_context or context
-        from src.agents.team_agent.role_tools import build_role_tool_scope
-        from src.infra.skill.skill_search_tool import SkillSearchTool
-        from src.infra.tool.team_tool import resolve_persona_for_subagent
-
-        snapshot = await resolve_persona_for_subagent(preset_id, user_id=context.user_id or "")
-        role_type = f"persona:{preset_id}"
-        role_sections = [
-            build_role_subagent_section(snapshot.name, snapshot.system_prompt),
-            build_response_language_section(agent_options.get("response_language")),
-            memory_guide,
-        ]
-        role_tools, role_manager = build_role_tool_scope(
-            await available_tools(tool_context),
-            tool_context.deferred_manager,
-            mcp_servers=snapshot.mcp_server_names,
-            scope=f"{session_id}:subagent:{role_type}",
-        )
-        role_skills = [
-            skill
-            for skill in tool_context.skills
-            if (not snapshot.skill_names and not snapshot.missing_skill_names)
-            or skill.get("name") in snapshot.skill_names
-        ]
-        if settings.ENABLE_SKILLS and role_skills:
-            role_tools.append(SkillSearchTool(role_skills))
-        spec: SubAgent = {
-            "name": role_type,
-            "description": snapshot.name,
-            "model": llm,
-            "tools": role_tools,
-            "system_prompt": SUBAGENT_PROMPT,
-            "middleware": build_subagent_middleware(
-                role_type,
-                prompt_sections=role_sections,
-                deferred_manager=role_manager,
-                tool_context=tool_context,
-            ),
-        }
-        subagent_display_names[role_type] = snapshot.name
-        if snapshot.avatar:
-            subagent_avatars[role_type] = snapshot.avatar
-        return spec
-
     async def resolve_session_spec(role_type):
         await resolve_member_model(model_id, user_id=context.user_id)
         fresh_context = await refresh_context(context)
         if role_type.startswith("persona:"):
-            return await build_persona_spec(role_type.removeprefix("persona:"), fresh_context)
+            return await build_persona_subagent_spec(
+                role_type.removeprefix("persona:"),
+                user_id=context.user_id or "",
+                tool_context=fresh_context,
+                tools=await available_tools(fresh_context),
+                llm=llm,
+                session_id=session_id,
+                agent_options=agent_options,
+                memory_guide=memory_guide,
+                build_subagent_middleware=build_subagent_middleware,
+                subagent_display_names=subagent_display_names,
+                subagent_avatars=subagent_avatars,
+            )
         spec = runtime_subagent_specs.get(role_type)
         if spec is None:
             raise ValueError("Unknown subagent type")

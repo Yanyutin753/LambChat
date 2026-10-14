@@ -64,8 +64,8 @@ class StreamEventMixin:
     _chunk_buffer: TextChunkBuffer
     _summary_chunk_buffer: TextChunkBuffer
     _thinking_chunk_buffer: TextChunkBuffer
-    _tool_args_buffers: dict[int | str, TextChunkBuffer]
-    _tool_args_meta: dict[int | str, tuple[str, str | None]]
+    _tool_args_buffers: dict[tuple[str | None, int | str], TextChunkBuffer]
+    _tool_args_meta: dict[tuple[str | None, int | str], tuple[str, str | None]]
     _CHUNK_FLUSH_SIZE: int
     _output_buffer: StringIO
     _presenter_emit: Any
@@ -120,13 +120,14 @@ class StreamEventMixin:
                     agent_id=agent_id,
                 )
             )
-        self._tool_args_buffers.clear()
-        self._tool_args_meta.clear()
+        # Other model streams may still be sending deltas for these indices.
 
-    def _reset_tool_args_buffers(self) -> None:
-        """Drop pending tool-args buffers without emitting (new model run)."""
-        self._tool_args_buffers.clear()
-        self._tool_args_meta.clear()
+    def _reset_tool_args_buffers(self, agent_id: str | None = None) -> None:
+        """Drop only this agent's stale arguments when its next model run starts."""
+        for key in list(self._tool_args_meta):
+            if key[0] == agent_id:
+                self._tool_args_buffers.pop(key, None)
+                self._tool_args_meta.pop(key, None)
 
     async def _handle_tool_args_chunks(
         self,
@@ -144,16 +145,19 @@ class StreamEventMixin:
             if not isinstance(tc, dict):
                 continue
             index = tc.get("index")
-            key: int | str | None = index if isinstance(index, int) else None
+            local_key: int | str | None = index if isinstance(index, int) else None
             call_id = tc.get("id") or None
-            if key is None:
-                key = call_id
-            if key is None:
+            if local_key is None:
+                local_key = call_id
+            if local_key is None:
                 continue
+            key = (agent_id, local_key)
 
             name = tc.get("name") or None
             if name:
                 if name in TOOL_ARGS_STREAM_SKIP_NAMES:
+                    self._tool_args_meta.pop(key, None)
+                    self._tool_args_buffers.pop(key, None)
                     continue
                 existing_name, existing_id = self._tool_args_meta.get(key, (name, call_id))
                 self._tool_args_meta[key] = (name, call_id or existing_id)

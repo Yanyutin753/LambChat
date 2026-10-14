@@ -57,3 +57,31 @@ test.each([true, false])("waiting approval stays resumable after done (streaming
   expect(parts).toHaveLength(1);
   expect(parts[0]).toMatchObject({ status: "running", isPending: true });
 });
+
+
+test.each([true, false])("timeout remains a timeout after parent completion (streaming: %s)", (isStreaming) => {
+  let parts: MessagePart[] = [createSubagentPart("agent-1", "Reviewer", "work", 1)];
+  parts = processMessageEvent("agent:result", {
+    agent_id: "agent-1", status: "timed_out", success: false,
+    error: "Subagent execution deadline exceeded.",
+  }, parts, "", [], 1, [], isStreaming).parts;
+  parts = processMessageEvent("done", {}, parts, "", [], 0, [], isStreaming).parts;
+  expect(parts[0]).toMatchObject({ status: "timed_out", isPending: false, cancelled: false });
+});
+
+
+test.each(["complete", "timed_out"] as const)("%s child closes unfinished tools before parent completes", (status) => {
+  const child = createSubagentPart("agent-1", "Reviewer", "work", 1);
+  child.parts = [
+    { type: "tool", id: "executed", name: "web_fetch", args: { url: "https://example.com" }, isPending: true },
+    { type: "tool", id: "draft", name: "read_file", args: { partial: '{"file_path":' }, argsPartial: true, isPending: true },
+    { type: "tool", id: "done", name: "web_search", args: {}, result: "found", success: true, isPending: false },
+  ];
+  const parts = processMessageEvent("agent:result", {
+    agent_id: "agent-1", status, success: status === "complete",
+  }, [child], "", [], 1, [], true).parts;
+  expect(parts[0]).toMatchObject({ status, isPending: false, parts: [
+    { id: "executed", isPending: false, cancelled: true },
+    { id: "done", result: "found", success: true },
+  ] });
+});
