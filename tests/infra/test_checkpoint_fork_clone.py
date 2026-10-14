@@ -11,6 +11,21 @@ import src.infra.storage.checkpoint as checkpoint_mod
 from src.infra.storage.checkpoint import build_messages_from_trace_events
 
 
+def test_evidence_snapshot_does_not_count_as_a_fork_user_turn():
+    from src.infra.storage.checkpoint import _matches_fork_boundary
+
+    messages = [
+        HumanMessage(content="one"),
+        HumanMessage(content="Evidence snapshot", name="evidence_context"),
+        AIMessage(content="reply"),
+    ]
+    checkpoint = SimpleNamespace(checkpoint={"channel_values": {"messages": messages}})
+
+    assert _matches_fork_boundary(checkpoint, turn_index=1, target_type="assistant")
+    messages.append(HumanMessage(content="two"))
+    assert _matches_fork_boundary(checkpoint, turn_index=2, target_type="user")
+
+
 class _State(TypedDict):
     messages: Annotated[list, add_messages]
 

@@ -51,3 +51,28 @@ def test_parse_cache_does_not_retain_transient_tool_objects() -> None:
     gc.collect()
 
     assert len(tool_search._parse_cache) == 0
+
+
+def test_computer_use_search_does_not_load_unrelated_user_tools() -> None:
+    tools = [
+        _FakeTool(1, name="computer_use", description="Control the desktop browser"),
+        _FakeTool(2, name="memory_delete", description="Delete the user's saved memory"),
+        _FakeTool(3, name="env_var_delete_all", description="Use only when the user asks"),
+    ]
+
+    results = tool_search.search_tools_with_keywords("computer use 浏览器控制 截图 桌面 GUI", tools)
+
+    assert [result.name for result in results] == ["computer_use"]
+    assert (
+        tool_search.search_tools_with_keywords("computer use 浏览器控制 截图 桌面 GUI", tools[1:])
+        == []
+    )
+
+
+def test_tool_search_preserves_explicit_and_single_word_queries() -> None:
+    tools = [_FakeTool(1, name="computer_use", description="Control the desktop browser")]
+
+    for query in ("use", "computer_use", "select:computer_use", "+use computer"):
+        assert [r.name for r in tool_search.search_tools_with_keywords(query, tools)] == [
+            "computer_use"
+        ]

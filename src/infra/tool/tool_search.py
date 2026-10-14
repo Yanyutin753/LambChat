@@ -74,6 +74,11 @@ def search_tools_with_keywords(
     if not query.strip() or not tools or max_results <= 0:
         return []
 
+    # Generic query words otherwise match boilerplate like "user" and load unrelated schemas.
+    terms = query.split()
+    if len(terms) > 1 and not query.strip().lower().startswith("select:"):
+        query = " ".join(term for term in terms if term.lower() not in {"use", "tool", "tools"})
+
     parsed_by_name: dict[str, _ParsedTool] = {}
     tools_by_name: dict[str, BaseTool] = {}
     records: list[DiscoveryRecord] = []

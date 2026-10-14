@@ -44,7 +44,7 @@ class PersonaSubagentMiddleware(SectionPromptMiddleware):
     def _search_results(state: dict) -> list[dict]:
         results: list[dict[str, Any]] = []
         for message in reversed(state.get("messages", [])):
-            if isinstance(message, HumanMessage):
+            if isinstance(message, HumanMessage) and message.name != "evidence_context":
                 break
             if (
                 isinstance(message, ToolMessage)
