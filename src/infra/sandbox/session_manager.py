@@ -91,33 +91,71 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
         self._daytona_client: Optional["Daytona"] = None
         self._e2b_adapter: Optional[E2BSandboxAdapter] = None
         self._cube_adapter: Optional[CubeSandboxAdapter] = None
+        self._active_platform: str = ""
         self._collection: Any = None
         self._cache: OrderedDict[str, tuple[str, CompositeBackend, object | None]] = OrderedDict()
         self._ready_work_dirs: OrderedDict[str, None] = OrderedDict()
         self._locks: OrderedDict[str, asyncio.Lock] = OrderedDict()
         self._locks_mutex = threading.Lock()
 
+        self._active_platform = settings.SANDBOX_PLATFORM.lower()
+        if self._active_platform == "e2b":
+            self._e2b_adapter = self._build_e2b_adapter()
+        elif self._active_platform == "cubesandbox":
+            self._cube_adapter = self._build_cube_adapter()
+
+    @staticmethod
+    def _build_e2b_adapter() -> E2BSandboxAdapter:
+        return E2BSandboxAdapter(
+            api_key=settings.E2B_API_KEY,
+            template=settings.E2B_TEMPLATE,
+            timeout=settings.E2B_TIMEOUT,
+            auto_pause=getattr(settings, "E2B_AUTO_PAUSE", True),
+            auto_resume=getattr(settings, "E2B_AUTO_RESUME", True),
+        )
+
+    @staticmethod
+    def _build_cube_adapter() -> CubeSandboxAdapter:
+        return CubeSandboxAdapter(
+            api_url=settings.CUBE_API_URL,
+            template=settings.CUBE_TEMPLATE,
+            proxy_node_ip=settings.CUBE_PROXY_NODE_IP,
+            proxy_port_http=settings.CUBE_PROXY_PORT_HTTP,
+            sandbox_domain=settings.CUBE_SANDBOX_DOMAIN,
+            timeout=settings.CUBE_TIMEOUT,
+            request_timeout=settings.CUBE_REQUEST_TIMEOUT,
+            auto_pause=getattr(settings, "CUBE_AUTO_PAUSE", True),
+            auto_resume=getattr(settings, "CUBE_AUTO_RESUME", True),
+        )
+
+    def _sync_platform_adapters(self) -> None:
+        """平台热切换立即生效。
+
+        适配器在构造时按当时平台快照创建；面板切换 SANDBOX_PLATFORM 后
+        （pubsub 已刷新 settings），旧平台的适配器与缓存后端必须立刻作废，
+        否则进程会继续用旧平台处理新 run（2026-10-14 生产事故：构造于
+        Cube 期的 worker 在切回 e2b 后所有 run 仍走 Cube，二进制文件经同步
+        路径损坏、async 车道因 Cube key 缺失恒降级线程车道）。
+        """
         platform = settings.SANDBOX_PLATFORM.lower()
-        if platform == "e2b":
-            self._e2b_adapter = E2BSandboxAdapter(
-                api_key=settings.E2B_API_KEY,
-                template=settings.E2B_TEMPLATE,
-                timeout=settings.E2B_TIMEOUT,
-                auto_pause=getattr(settings, "E2B_AUTO_PAUSE", True),
-                auto_resume=getattr(settings, "E2B_AUTO_RESUME", True),
-            )
-        elif platform == "cubesandbox":
-            self._cube_adapter = CubeSandboxAdapter(
-                api_url=settings.CUBE_API_URL,
-                template=settings.CUBE_TEMPLATE,
-                proxy_node_ip=settings.CUBE_PROXY_NODE_IP,
-                proxy_port_http=settings.CUBE_PROXY_PORT_HTTP,
-                sandbox_domain=settings.CUBE_SANDBOX_DOMAIN,
-                timeout=settings.CUBE_TIMEOUT,
-                request_timeout=settings.CUBE_REQUEST_TIMEOUT,
-                auto_pause=getattr(settings, "CUBE_AUTO_PAUSE", True),
-                auto_resume=getattr(settings, "CUBE_AUTO_RESUME", True),
-            )
+        if platform == self._active_platform:
+            return
+        logger.warning(
+            "[SandboxManager] Sandbox platform switched at runtime: %s -> %s; "
+            "dropping stale adapters and cached backends",
+            self._active_platform,
+            platform,
+        )
+        if platform != "e2b":
+            self._e2b_adapter = None
+        if platform != "cubesandbox":
+            self._cube_adapter = None
+        self._cache.clear()
+        self._active_platform = platform
+        if platform == "e2b" and self._e2b_adapter is None:
+            self._e2b_adapter = self._build_e2b_adapter()
+        elif platform == "cubesandbox" and self._cube_adapter is None:
+            self._cube_adapter = self._build_cube_adapter()
 
     # ── Infrastructure / state plumbing ─────────────────────────────
 
@@ -395,6 +433,8 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
                 "Anonymous users cannot use sandbox features."
             )
 
+        self._sync_platform_adapters()
+
         if self._e2b_adapter:
             return await self._get_or_create_e2b(session_id, user_id, create=create)
         if self._cube_adapter:
@@ -514,6 +554,8 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
                 "user_id is required for sandbox binding. "
                 "Anonymous users cannot use sandbox features."
             )
+
+        self._sync_platform_adapters()
 
         if self._e2b_adapter:
             return await self._stop_e2b(user_id)
