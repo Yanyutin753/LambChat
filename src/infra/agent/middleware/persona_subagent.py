@@ -99,9 +99,7 @@ class PersonaSubagentMiddleware(SectionPromptMiddleware):
                 else:
                     return await handler(request.override(tool=tool))
         elif role_type != "general-purpose":
-            error = (
-                "Use a discovered persona role; built-in specialists do not replace role discovery."
-            )
+            error = "Use a discovered persona role; built-in specialists do not replace role discovery."
         elif results[0].get("presets"):
             error = "Search found roles. Select a suitable discovered role or refine the search to confirm no matching role before generic fallback."
         if error:
@@ -109,9 +107,7 @@ class PersonaSubagentMiddleware(SectionPromptMiddleware):
         return await handler(request)
 
 
-def add_persona_discovery(
-    middleware: list, tools: list, deferred_manager, task_tool: BaseTool
-) -> None:
+def add_persona_discovery(middleware: list, tools: list, deferred_manager, task_tool: BaseTool) -> None:
     """Expose authorized role search and fail closed even when it is unavailable."""
     role_search = next((tool for tool in tools if tool.name == "search_persona_presets"), None)
     if role_search is None and deferred_manager is not None:
