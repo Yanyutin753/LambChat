@@ -726,6 +726,9 @@ export function updateSubagentResult(
         isPending: status === "waiting_human",
         status,
         completedAt: status === "waiting_human" ? undefined : completedAt,
+        parts: status === "waiting_human"
+          ? p.parts
+          : clearAllLoadingStates(p.parts ?? [], { discardToolDrafts: true }),
       };
       return newParts;
     }
@@ -780,6 +783,9 @@ export function updateSubagentResultInParts(
         isPending: status === "waiting_human",
         status,
         completedAt: status === "waiting_human" ? undefined : completedAt,
+        parts: status === "waiting_human"
+          ? p.parts
+          : clearAllLoadingStates(p.parts ?? [], { discardToolDrafts: true }),
       };
       return newParts;
     }
@@ -1016,14 +1022,13 @@ export function clearAllLoadingStates(
         if (options?.preserveAskHuman && subagentPart.status === "waiting_human") {
           return { ...subagentPart, parts: updatedParts };
         }
-        // Preserve existing terminal status (complete/error) instead of forcing cancelled
-        const wasCompleted = subagentPart.status === "complete";
-        const hadError = subagentPart.status === "error";
+        const terminalStatus = subagentPart.status === "complete" ||
+          subagentPart.status === "error" || subagentPart.status === "timed_out";
         return {
           ...subagentPart,
           isPending: false,
-          cancelled: !wasCompleted && !hadError,
-          status: wasCompleted ? "complete" : hadError ? "error" : "cancelled",
+          cancelled: !terminalStatus,
+          status: terminalStatus ? subagentPart.status : "cancelled",
           completedAt: subagentPart.completedAt || Date.now(),
           parts: updatedParts,
         };

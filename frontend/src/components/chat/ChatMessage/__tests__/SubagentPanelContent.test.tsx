@@ -584,3 +584,17 @@ test("separating a streamed revision retains trailing file tools' original ancho
     { type: "text", content: "Revised report" },
   ]);
 });
+
+
+test("timed-out runs display preserved partial report and error without streaming", () => {
+  const messages = buildSubagentConversation({
+    agentId: "reviewer", agentName: "Reviewer", input: "Review",
+    result: "Partial result: verified file contents; task unfinished",
+    error: "Execution deadline exceeded", status: "timed_out", isPending: false,
+    parts: [{ type: "tool", name: "read_file", args: {}, result: "verified file contents", isPending: false }],
+  });
+  const reply = messages.find(message => message.role === "assistant");
+  expect(reply?.parts).toContainEqual({ type: "text", content: "Partial result: verified file contents; task unfinished" });
+  expect(reply?.parts).toContainEqual({ type: "text", content: "Execution deadline exceeded" });
+  expect(reply).toMatchObject({ isStreaming: false, cancelled: false });
+});

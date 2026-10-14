@@ -52,9 +52,10 @@ def create_subagent_tools(sessions):
                         additional_kwargs={
                             "lambchat_subagent_id": subagent_id,
                             "lambchat_subagent_status": value.get("status"),
+                            "lambchat_subagent_partial_result": value.get("partial_result") is True,
                             "lambchat_subagent_unchanged": value.get("unchanged") is True,
                             "lambchat_subagent_evidence": evidence
-                            if value.get("status") == "completed"
+                            if (value.get("status") == "completed" or value.get("partial_result"))
                             and not value.get("result_collected")
                             else [],
                             "lambchat_evidence_scope_version": evidence[-1].get("scope_version", "")

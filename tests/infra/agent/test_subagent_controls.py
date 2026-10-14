@@ -4,10 +4,10 @@ import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.checkpoint.memory import InMemorySaver
 
-from src.infra.agent.subagent_sessions import SubagentSessions
+from src.infra.agent.subagent_sessions import SubagentInboxMiddleware, SubagentSessions
 from src.infra.tool.subagent_tool import create_subagent_tools
 
 
@@ -22,7 +22,7 @@ class _HeldGraph:
         return SimpleNamespace(values=self.values, next=self.next, tasks=())
 
     async def aupdate_state(self, config, state, as_node):
-        self.values = state
+        self.values = {**self.values, **state}
         self.next = ("model",)
 
     async def ainvoke(self, graph_input, config):
@@ -362,3 +362,194 @@ async def test_object_id_session_parent_ownership_uses_database_id_fallback(monk
         assert len(leases) == 1
     assert leases == {}
     await sessions.close()
+
+
+async def test_long_task_can_finish_after_forty_five_minutes_without_deadline_cancel(monkeypatch):
+    real_timeout = asyncio.timeout
+    # Scale the production deadline and a 45-minute execution by the same factor.
+    monkeypatch.setattr(
+        "src.infra.agent.subagent_sessions.asyncio.timeout",
+        lambda seconds: real_timeout(seconds / 10000),
+    )
+    sessions, graphs, release = _sessions()
+    try:
+        started = await sessions.start(
+            "reviewer", "long tool", call_id="long-tool", config={}, background=True
+        )
+        key = started["subagent_id"]
+        await asyncio.wait_for(graphs[key].entered.wait(), 1)
+        await asyncio.sleep(2700 / 10000)
+        release.set()
+        await sessions.jobs[key]
+        assert sessions.result(key)["status"] == "completed"
+    finally:
+        release.set()
+        await sessions.close()
+
+
+async def test_timeout_preserves_checkpoint_progress_and_tool_results_after_restore(monkeypatch):
+    monkeypatch.setattr(
+        "src.infra.agent.subagent_sessions.SUBAGENT_EXECUTION_TIMEOUT_SECONDS", 0.05
+    )
+    sessions, graphs, release = _sessions()
+    try:
+        started = await sessions.start(
+            "reviewer", "work", call_id="partial", config={}, background=True
+        )
+        key = started["subagent_id"]
+        await graphs[key].entered.wait()
+        graphs[key].values["messages"].insert(0, AIMessage(content="inherited parent history"))
+        graphs[key].values["messages"] += [
+            AIMessage(
+                content="Found the cause",
+                tool_calls=[{"name": "read_file", "args": {}, "id": "read", "type": "tool_call"}],
+            ),
+            ToolMessage(content="verified file contents", name="read_file", tool_call_id="read"),
+            AIMessage(
+                content="Now checking the fix",
+                tool_calls=[{"name": "slow_tool", "args": {}, "id": "slow", "type": "tool_call"}],
+            ),
+        ]
+        await sessions.jobs[key]
+        result = sessions.result(key)
+        assert result["status"] == "timed_out"
+        assert result["partial_result"] is True
+        assert "Found the cause" in result["result"]
+        assert "inherited parent history" not in result["result"]
+        assert "verified file contents" in result["result"]
+        assert "slow_tool" in result["result"]
+        assert "unconfirmed" in result["result"]
+        other, _, _ = _sessions()
+        other.restore(sessions.snapshot())
+        assert other.result(key) == result
+        assert (await other.wait(key, config={}))["result"] == result["result"]
+        assert not other.jobs
+        assert graphs[key].invocations == 1
+    finally:
+        release.set()
+        await sessions.close()
+
+
+async def test_checkpoint_read_failure_still_emits_terminal_timeout(monkeypatch):
+    monkeypatch.setattr(
+        "src.infra.agent.subagent_sessions.SUBAGENT_EXECUTION_TIMEOUT_SECONDS", 0.05
+    )
+    sessions, graphs, release = _sessions()
+    try:
+        started = await sessions.start(
+            "reviewer", "work", call_id="read-failure", config={}, background=True
+        )
+        key = started["subagent_id"]
+        await graphs[key].entered.wait()
+
+        async def unreadable(_config):
+            raise OSError("checkpoint unavailable")
+
+        graphs[key].aget_state = unreadable
+        sessions.completed_tools[key] = {
+            "read": ToolMessage("cached output survives storage failure", tool_call_id="read")
+        }
+        await sessions.jobs[key]
+        assert sessions.result(key)["status"] == "timed_out"
+        assert "could not be read" in sessions.result(key)["error"]
+        assert "cached output survives storage failure" in sessions.result(key)["result"]
+        assert sessions.emitted_states[key] == ("completed", "timed_out")
+    finally:
+        release.set()
+        await sessions.close()
+
+
+async def test_timeout_keeps_returned_tool_before_parallel_batch_checkpoint(monkeypatch):
+    monkeypatch.setattr(
+        "src.infra.agent.subagent_sessions.SUBAGENT_EXECUTION_TIMEOUT_SECONDS", 0.05
+    )
+    sessions, graphs, release = _sessions()
+    try:
+        started = await sessions.start(
+            "reviewer", "work", call_id="parallel-partial", config={}, background=True
+        )
+        key = started["subagent_id"]
+        await graphs[key].entered.wait()
+        graphs[key].values["messages"].append(
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "fast", "name": "read_file", "args": {}, "type": "tool_call"},
+                    {"id": "slow", "name": "slow_tool", "args": {}, "type": "tool_call"},
+                ],
+            )
+        )
+
+        async def completed(_request):
+            return ToolMessage(
+                "returned before batch checkpoint", name="read_file", tool_call_id="fast"
+            )
+
+        inbox = SubagentInboxMiddleware(sessions, key)
+        returned = await inbox.awrap_tool_call(SimpleNamespace(tool_call={"id": "fast"}), completed)
+        assert returned.tool_call_id == "fast"
+        await sessions.jobs[key]
+        result = sessions.result(key)
+        assert "returned before batch checkpoint" in result["result"]
+        assert "Tool slow_tool (slow): result unconfirmed" in result["result"]
+        assert "Tool read_file (fast): result unconfirmed" not in result["result"]
+    finally:
+        release.set()
+        await sessions.close()
+
+
+async def test_restart_after_timeout_uses_child_terminal_checkpoint_with_stale_parent(monkeypatch):
+    events = []
+
+    async def capture(_name, data, config):
+        events.append((data["phase"], data["status"]))
+
+    monkeypatch.setattr("src.infra.agent.subagent_sessions.adispatch_custom_event", capture)
+    monkeypatch.setattr(
+        "src.infra.agent.subagent_sessions.SUBAGENT_EXECUTION_TIMEOUT_SECONDS", 0.05
+    )
+    sessions, graphs, release = _sessions()
+    try:
+        started = await sessions.start(
+            "reviewer", "work", call_id="durable-timeout", config={}, background=True
+        )
+        key = started["subagent_id"]
+        await graphs[key].entered.wait()
+        parent_checkpoint = sessions.snapshot()
+        sessions.completed_tools[key] = {
+            "read": ToolMessage("durable batch output", tool_call_id="read")
+        }
+        await sessions.jobs[key]
+        other = SubagentSessions(
+            session_id=sessions.session_id,
+            user_id=sessions.user_id,
+            build_graph=sessions.build_graph,
+            checkpointer=sessions.checkpointer,
+        )
+        other.restore(parent_checkpoint)
+        before_recovery = len(events)
+        result = await other.wait(key, config={})
+        assert events[before_recovery:] == [("started", "timed_out"), ("completed", "timed_out")]
+        assert result["status"] == "timed_out"
+        assert "durable batch output" in result["result"]
+        assert other.emitted_states[key] == ("completed", "timed_out")
+        assert not other.jobs
+        assert graphs[key].invocations == 1
+        replay = SubagentSessions(
+            session_id=sessions.session_id,
+            user_id=sessions.user_id,
+            build_graph=sessions.build_graph,
+            checkpointer=sessions.checkpointer,
+        )
+        replay.restore(parent_checkpoint)
+        assert (
+            await replay.start(
+                "reviewer", "work", call_id="durable-timeout", config={}, background=True
+            )
+        )["status"] == "timed_out"
+        assert replay.emitted_states[key] == ("completed", "timed_out")
+        assert not replay.jobs
+        assert (await other.send(key, "retry writes", config={}))["status"] == "timed_out"
+    finally:
+        release.set()
+        await sessions.close()

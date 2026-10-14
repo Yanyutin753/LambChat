@@ -28,6 +28,7 @@ from src.agents.core.node_utils import (
     resolve_run_usage_carry,
 )
 from src.agents.core.persona import build_persona_prompt_sections
+from src.agents.core.persona_subagent import build_persona_subagent_spec
 from src.agents.core.startup_preparation import prepare_agent_inputs
 from src.agents.core.subagent_prompts import (
     CODEBASE_INVESTIGATOR_PROMPT,
@@ -61,6 +62,7 @@ from src.infra.agent.middleware import (
     summarization_fallback_patch,
 )
 from src.infra.agent.middleware.evidence import EvidenceClock, create_evidence_middleware
+from src.infra.agent.middleware.persona_subagent import add_persona_discovery
 from src.infra.agent.subagent_assembly import assemble_subagent_sessions, refresh_subagent_context
 from src.infra.backend.deepagent import create_persistent_backend
 from src.infra.goal import (
@@ -225,7 +227,9 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     subagent_prompt_sections = [s for s in (*persona_sections, memory_guide) if s]
     active_goal = configurable.get("active_goal")
 
-    def _build_subagent_middleware(subagent_type: str, tool_context=None) -> list:
+    def _build_subagent_middleware(
+        subagent_type: str, tool_context=None, *, prompt_sections=None, deferred_manager=None
+    ) -> list:
         tool_context = tool_context or context
         mw = [
             *create_retry_middleware(fallback_model=fallback_model_value),
@@ -242,17 +246,17 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         _image_mw = image_url_middleware_for_mode(image_url_mode)
         if _image_mw:
             mw.append(_image_mw)
-        if subagent_prompt_sections:
-            mw.append(SectionPromptMiddleware(sections=subagent_prompt_sections))
+        sections = subagent_prompt_sections if prompt_sections is None else prompt_sections
+        if sections:
+            mw.append(SectionPromptMiddleware(sections=sections))
         append_memory_recall_middleware(
             mw, settings.ENABLE_MEMORY, context.user_id, session_id, active_goal
         )
-        if tool_context.deferred_manager is not None:
+        manager = deferred_manager if prompt_sections is not None else tool_context.deferred_manager
+        if manager is not None:
             from src.infra.agent.middleware import ToolSearchMiddleware
 
-            subagent_deferred_manager = tool_context.deferred_manager.fork_for_scope(
-                f"subagent:{subagent_type}"
-            )
+            subagent_deferred_manager = manager.fork_for_scope(f"subagent:{subagent_type}")
             mw.append(
                 ToolSearchMiddleware(
                     deferred_manager=subagent_deferred_manager,
@@ -380,21 +384,38 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     user_middleware.append(SubagentResultHandoffMiddleware(backend=backend))
 
     runtime_subagent_specs = {spec["name"]: spec for spec in custom_subagents}
+    subagent_display_names: dict[str, str] = {"general-purpose": "general-purpose"}
+    subagent_avatars: dict[str, str] = {"general-purpose": ""}
 
     async def resolve_session_spec(role_type):
         from src.agents.team_agent.member_config import resolve_team_member_model_config
 
         await resolve_team_member_model_config(model_id, user_id=context.user_id)
+        fresh_context = await refresh_subagent_context(context)
+        tools = filter_computer_use_tools(
+            list(fresh_context.filter_tools()),
+            await resolve_computer_use_context(context.user_id or "", agent_options),
+        )
+        if role_type.startswith("persona:"):
+            return await build_persona_subagent_spec(
+                role_type.removeprefix("persona:"),
+                user_id=context.user_id or "",
+                tool_context=fresh_context,
+                tools=tools,
+                llm=llm,
+                session_id=session_id,
+                agent_options=agent_options,
+                memory_guide=memory_guide,
+                build_subagent_middleware=_build_subagent_middleware,
+                subagent_display_names=subagent_display_names,
+                subagent_avatars=subagent_avatars,
+            )
         spec = runtime_subagent_specs.get(role_type)
         if spec is None:
             raise ValueError("Unknown subagent type")
-        fresh_context = await refresh_subagent_context(context)
         return {
             **spec,
-            "tools": filter_computer_use_tools(
-                list(fresh_context.filter_tools()),
-                await resolve_computer_use_context(context.user_id or "", agent_options),
-            ),
+            "tools": tools,
             "middleware": _build_subagent_middleware(role_type, fresh_context),
         }
 
@@ -421,6 +442,10 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         ],
         resolve_spec=resolve_session_spec,
     )
+    add_persona_discovery(
+        user_middleware, filtered_tool_list, context.deferred_manager, session_middleware.tools[0]
+    )
+    filtered_tools = filtered_tool_list or None
     user_middleware.append(session_middleware)
 
     with summarization_fallback_patch(fallback_model_value, thinking_config):
@@ -495,7 +520,12 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
 
     # 创建事件处理器（使用 AgentEventProcessor 处理 astream_events）
     logger.info("[FastAgent] Creating AgentEventProcessor")
-    event_processor = AgentEventProcessor(presenter, base_url=configurable.get("base_url", ""))
+    event_processor = AgentEventProcessor(
+        presenter,
+        base_url=configurable.get("base_url", ""),
+        subagent_display_names=subagent_display_names,
+        subagent_avatars=subagent_avatars,
+    )
     if prior_usage is not None:
         event_processor.seed_usage(prior_usage)
 

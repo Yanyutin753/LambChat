@@ -191,6 +191,18 @@ class _ScriptedChatModel(BaseChatModel):
             match type(self).call_count:
                 case 1:
                     return AIMessage(
+                        content="searching roles",
+                        tool_calls=[
+                            {
+                                "name": "search_persona_presets",
+                                "args": {"query": "workspace inspection"},
+                                "id": "role-search-1",
+                                "type": "tool_call",
+                            }
+                        ],
+                    )
+                case 2:
+                    return AIMessage(
                         content="delegating",
                         tool_calls=[
                             {
@@ -204,7 +216,7 @@ class _ScriptedChatModel(BaseChatModel):
                             }
                         ],
                     )
-                case 2:
+                case 3:
                     return AIMessage(content="subagent report")
                 case _:
                     return AIMessage(content="subagent final")
@@ -364,6 +376,22 @@ async def _run_search_graph(
         manager_factory=manager_factory,
         timeline=timeline,
     )
+    if model_mode == "subagent":
+        from langchain_core.tools import tool
+
+        @tool
+        def search_persona_presets(query: str) -> str:
+            """Search available roles."""
+            return '{"success": true, "presets": []}'
+
+        original_get_tools = SearchAgentContext.get_tools
+
+        async def get_tools_with_role_search(self):
+            if not any(t.name == "search_persona_presets" for t in self.tools):
+                self.tools.append(search_persona_presets)
+            return await original_get_tools(self)
+
+        monkeypatch.setattr(SearchAgentContext, "get_tools", get_tools_with_role_search)
     presenter = _TimelinePresenter(timeline)
     from unittest.mock import AsyncMock
 
@@ -931,9 +959,9 @@ async def test_search_stream_subagent_receives_public_workspace_before_handoff_i
     )
 
     assert events[-1]["event"] == "done"
-    assert len(model.calls) >= 3
+    assert len(model.calls) >= 4
     main_prompt = "\n".join(content for _kind, content in model.calls[0])
-    subagent_prompt = "\n".join(content for _kind, content in model.calls[1])
+    subagent_prompt = "\n".join(content for _kind, content in model.calls[2])
     # Codex-style layering: the workspace path lives on the file-tool
     # descriptions (framed <sandbox_workspace_context>), not in prompts.
     assert "/workspace/session-1" not in main_prompt

@@ -296,3 +296,34 @@ async def test_clear_releases_tool_args_buffers() -> None:
     processor.clear()
 
     assert processor._tool_args_buffers == {}
+
+
+@pytest.mark.asyncio
+async def test_interleaved_subagents_keep_tool_argument_ids_and_buffers_separate():
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+    a = {"lambchat_subagent_id": "child-a"}
+    b = {"lambchat_subagent_id": "child-b"}
+    await processor.process_event(
+        args_stream(
+            [{"name": "read_file", "id": "call_a", "index": 0, "args": '{"file_path":"'}], a
+        )
+    )
+    await processor.process_event({"event": "on_chat_model_start", "metadata": b, "data": {}})
+    await processor.process_event(
+        args_stream([{"name": "web_fetch", "id": "call_b", "index": 0, "args": '{"url":"'}], b)
+    )
+    await processor.process_event(args_stream([{"index": 0, "args": '/a"}'}], a))
+    await processor.process_event(model_end(a))
+    await processor.process_event(args_stream([{"index": 0, "args": 'https://example.com"}'}], b))
+    await processor.process_event(model_end(b))
+    grouped = {}
+    for event in presenter.emitted:
+        if event["event"] == "tool:args:chunk":
+            data = event["data"]
+            key = (data["agent_id"], data["tool"], data["tool_call_id"])
+            grouped[key] = grouped.get(key, "") + data["content"]
+    assert grouped == {
+        ("child-a", "read_file", "call_a"): '{"file_path":"/a"}',
+        ("child-b", "web_fetch", "call_b"): '{"url":"https://example.com"}',
+    }

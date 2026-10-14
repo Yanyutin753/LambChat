@@ -11,11 +11,11 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Annotated, Any, NotRequired
 
-from langchain.agents.middleware.types import AgentMiddleware
+from langchain.agents.middleware.types import AgentMiddleware, AgentState, PrivateStateAttr
 from langchain_core.callbacks.manager import adispatch_custom_event
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command, interrupt
 
@@ -25,7 +25,8 @@ from src.infra.tool.subagent_tool import create_subagent_parent_tools
 
 logger = logging.getLogger(__name__)
 SUBAGENT_MAX_RUNNING = 3
-SUBAGENT_EXECUTION_TIMEOUT_SECONDS = 600
+# Long coding tasks need multiple tool/model rounds; retain a finite execution deadline.
+SUBAGENT_EXECUTION_TIMEOUT_SECONDS = 7200
 SUBAGENT_WAIT_TIMEOUT_SECONDS = 120
 SUBAGENT_WAIT_MIN_SECONDS = 10
 SUBAGENT_WAIT_MAX_SECONDS = 300
@@ -33,15 +34,37 @@ _ACTIVE_CHILD_RUNNERS: set[tuple[int, str, str, str]] = set()
 _TERMINAL_STATUSES = {"completed", "failed", "cancelled", "timed_out"}
 
 
+class SubagentChildState(AgentState):
+    subagent_outcome: NotRequired[Annotated[dict[str, Any], PrivateStateAttr]]
+
+
 class SubagentInboxMiddleware(AgentMiddleware):
+    state_schema = SubagentChildState
+
     def __init__(self, sessions: SubagentSessions, subagent_id: str):
         self.sessions = sessions
         self.subagent_id = subagent_id
         self.tools = create_subagent_parent_tools(sessions, subagent_id)
 
     async def abefore_model(self, state, runtime):
+        # The previous tool batch is now committed to the graph checkpoint.
+        self.sessions.completed_tools.pop(self.subagent_id, None)
         messages = self.sessions.drain(self.subagent_id, state.get("messages", []))
         return {"messages": messages} if messages else None
+
+    async def awrap_tool_call(self, request, handler):
+        result = await handler(request)
+        messages = (
+            result.update.get("messages", [])
+            if isinstance(result, Command) and isinstance(result.update, dict)
+            else [result]
+        )
+        for message in messages:
+            if isinstance(message, ToolMessage):
+                self.sessions.completed_tools.setdefault(self.subagent_id, {})[
+                    message.tool_call_id
+                ] = message
+        return result
 
     async def awrap_model_call(self, request, handler):
         return await handler(
@@ -74,6 +97,7 @@ class SubagentSessions:
         self.records: dict[str, dict[str, Any]] = {}
         self.jobs: dict[str, asyncio.Task] = {}
         self.graphs: dict[str, Any] = {}
+        self.completed_tools: dict[str, dict[str, ToolMessage]] = {}
         self.configs: dict[str, RunnableConfig] = {}
         self.locks: dict[str, asyncio.Lock] = {}
         self.approval_waiters: dict[str, str] = {}
@@ -97,7 +121,7 @@ class SubagentSessions:
     def snapshot(self) -> dict[str, dict[str, Any]]:
         return {
             key: {
-                **{k: v for k, v in value.items() if k != "result"},
+                **{k: v for k, v in value.items() if k != "result" or value.get("partial_result")},
                 "pending": list(value.get("pending", [])),
                 "parent_messages": list(value.get("parent_messages", [])),
             }
@@ -240,6 +264,8 @@ class SubagentSessions:
                     raise
                 async with isolated_nested_graph_run():
                     snapshot = await self.graphs[subagent_id].aget_state(self.configs[subagent_id])
+                if await self._recover_terminal_outcome(subagent_id, snapshot.values):
+                    return self.result(subagent_id)
                 if snapshot.values and not snapshot.next:
                     self._recover_result(subagent_id, snapshot.values)
                     return self.result(subagent_id)
@@ -259,6 +285,14 @@ class SubagentSessions:
                         )
                 await self._emit(subagent_id, "queued")
                 self.jobs[subagent_id] = asyncio.create_task(self._run(subagent_id, None))
+            elif (
+                subagent_id not in self.jobs
+                and self.records[subagent_id]["status"] not in _TERMINAL_STATUSES
+            ):
+                await self._prepare(subagent_id, config)
+                async with isolated_nested_graph_run():
+                    snapshot = await self.graphs[subagent_id].aget_state(self.configs[subagent_id])
+                await self._recover_terminal_outcome(subagent_id, snapshot.values)
         return (
             self.result(subagent_id)
             if background and self.records[subagent_id]["status"] != "completed"
@@ -277,7 +311,14 @@ class SubagentSessions:
             "subagent_id": subagent_id,
             **{
                 key: record[key]
-                for key in ("subagent_type", "status", "result", "error", "verification_required")
+                for key in (
+                    "subagent_type",
+                    "status",
+                    "result",
+                    "error",
+                    "verification_required",
+                    "partial_result",
+                )
                 if key in record
             },
         }
@@ -304,6 +345,10 @@ class SubagentSessions:
             if not running:
                 # Recheck access before accepting new instructions into the inbox.
                 await self._prepare(subagent_id, config)
+                async with isolated_nested_graph_run():
+                    snapshot = await self.graphs[subagent_id].aget_state(self.configs[subagent_id])
+                if await self._recover_terminal_outcome(subagent_id, snapshot.values):
+                    return self.result(subagent_id)
             item = {
                 "id": message_id or f"message-{hashlib.sha256(message.encode()).hexdigest()}",
                 "content": message,
@@ -385,14 +430,19 @@ class SubagentSessions:
                         "execution_seconds", 0
                     )
                     started = time.monotonic()
-                    async with asyncio.timeout(max(remaining, 0)):
-                        # Rebuild model, role and tool authorization after waiting in the queue.
-                        await self._prepare(subagent_id, self.configs[subagent_id])
-                        record["status"] = "running"
-                        await self._execute(subagent_id, graph_input)
-        except TimeoutError:
-            record.update(status="timed_out", error="Subagent execution deadline exceeded.")
-            await self._emit(subagent_id, "completed")
+                    try:
+                        async with asyncio.timeout(max(remaining, 0)):
+                            # Rebuild model, role and tool authorization after waiting in the queue.
+                            await self._prepare(subagent_id, self.configs[subagent_id])
+                            record["status"] = "running"
+                            await self._execute(subagent_id, graph_input)
+                    except TimeoutError:
+                        record.update(
+                            status="timed_out", error="Subagent execution deadline exceeded."
+                        )
+                        await self._preserve_partial_result(subagent_id)
+                        await self._persist_terminal_outcome(subagent_id)
+                        await self._emit(subagent_id, "completed")
         except asyncio.CancelledError:
             record["status"] = "cancelled"
             await self._emit(subagent_id, "completed")
@@ -409,6 +459,90 @@ class SubagentSessions:
                     record.get("execution_seconds", 0) + time.monotonic() - started
                 )
 
+    async def _recover_terminal_outcome(self, subagent_id: str, state: dict[str, Any]) -> bool:
+        outcome = state.get("subagent_outcome", {})
+        if outcome.get("status") == "timed_out":
+            self.records[subagent_id].update(outcome)
+            if subagent_id not in self.emitted_states:
+                # A new parent turn needs a child block before its recovered terminal result.
+                await self._emit(subagent_id, "started")
+            await self._emit(subagent_id, "completed")
+            return True
+        return False
+
+    async def _persist_terminal_outcome(self, subagent_id: str) -> None:
+        try:
+            async with asyncio.timeout(10), isolated_nested_graph_run():
+                await self.graphs[subagent_id].aupdate_state(
+                    self.configs[subagent_id],
+                    {
+                        "subagent_outcome": {
+                            **self.result(subagent_id),
+                            "evidence": self.records[subagent_id].get("evidence", []),
+                        }
+                    },
+                    as_node="model",
+                )
+        except Exception:
+            logger.warning("Could not persist subagent timeout outcome", exc_info=True)
+            self.records[subagent_id]["error"] += (
+                " Timeout outcome could not be persisted; verify checkpoint storage before resuming."
+            )
+
+    async def _preserve_partial_result(self, subagent_id: str) -> None:
+        record = self.records[subagent_id]
+        state: dict[str, Any] = {}
+        try:
+            # Checkpoint access must not leave timeout cleanup hanging indefinitely.
+            async with asyncio.timeout(10), isolated_nested_graph_run():
+                snapshot = await self.graphs[subagent_id].aget_state(self.configs[subagent_id])
+            state = snapshot.values
+        except Exception:
+            logger.warning("Could not collect timed-out subagent checkpoint", exc_info=True)
+            record["error"] += (
+                " Partial checkpoint could not be read; existing checkpoint and files are retained."
+            )
+
+        messages = state.get("messages", [])
+        # Forked agents inherit parent history; report only work from their assignment onward.
+        assignment = next(
+            (
+                i
+                for i, m in enumerate(messages)
+                if isinstance(m, HumanMessage) and m.text == record["description"]
+            ),
+            0,
+        )
+        messages = messages[assignment:]
+        completed = {m.tool_call_id for m in messages if isinstance(m, ToolMessage)}
+        messages = [
+            *messages,
+            *(
+                m
+                for key, m in self.completed_tools.get(subagent_id, {}).items()
+                if key not in completed
+            ),
+        ]
+        completed.update(self.completed_tools.get(subagent_id, {}))
+        progress = ["## Partial result — execution timed out; task unfinished"]
+        for message in messages:
+            if isinstance(message, AIMessage):
+                if message.text:
+                    progress.append(message.text)
+                for call in message.tool_calls:
+                    if call["id"] not in completed:
+                        progress.append(
+                            f"Tool {call['name']} ({call['id']}): result unconfirmed. Verify external writes before retrying."
+                        )
+            elif isinstance(message, ToolMessage):
+                progress.append(f"Tool {message.name or message.tool_call_id}:\n{message.text}")
+        if len(progress) > 1:
+            record.update(
+                result="\n\n".join(progress),
+                partial_result=True,
+                evidence=list(state.get("evidence", [])),
+            )
+
     async def _execute(self, subagent_id: str, graph_input: Any) -> None:
         record = self.records[subagent_id]
         graph, config = self.graphs[subagent_id], self.configs[subagent_id]
@@ -416,6 +550,8 @@ class SubagentSessions:
             if graph_input is None:
                 async with isolated_nested_graph_run():
                     snapshot = await graph.aget_state(config)
+                if await self._recover_terminal_outcome(subagent_id, snapshot.values):
+                    return
                 if not snapshot.next:
                     messages = self.drain(subagent_id, snapshot.values.get("messages", []))
                     if not messages:
@@ -592,6 +728,8 @@ class SubagentSessions:
                 await job
             async with isolated_nested_graph_run():
                 snapshot = await self.graphs[subagent_id].aget_state(self.configs[subagent_id])
+            if await self._recover_terminal_outcome(subagent_id, snapshot.values):
+                return self.result(subagent_id)
             child_interrupts = [item for task in snapshot.tasks for item in task.interrupts]
             async with self.locks.setdefault(subagent_id, asyncio.Lock()):
                 if self.jobs.get(subagent_id) is not job:

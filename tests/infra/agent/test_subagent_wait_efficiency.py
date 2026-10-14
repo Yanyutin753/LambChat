@@ -224,3 +224,67 @@ async def test_direct_wait_rejects_polling_spam_and_unbounded_timeout(timeout):
     sessions, _, _ = _sessions()
     with pytest.raises(ValueError, match="10 to 300"):
         await sessions.wait("missing", config={}, timeout_seconds=timeout)
+
+
+async def test_timeout_partial_handoff_preserves_source_evidence_for_parent():
+    from src.infra.agent.middleware.evidence import EvidenceMiddleware
+    from src.infra.agent.middleware.subagent_result_handoff import SubagentResultHandoffMiddleware
+
+    async def writer(record, content):
+        return f"/evidence/{record['evidence_id']}.json"
+
+    parent = EvidenceMiddleware(
+        session_id="controls", run_id="parent", scope_version="v", writer=writer
+    )
+    evidence = {
+        "evidence_id": "child-proof",
+        "session_id": "controls",
+        "run_id": "child-run",
+        "scope_version": "v",
+        "status": "observed",
+        "tool_call_id": "read",
+        "source_ref": "/evidence/child-proof.json",
+        "content_sha256": "a" * 64,
+        "evidence_clock_token": parent.clock.token,
+        "evidence_clock_generation": parent.clock.generation,
+    }
+    sessions, _, _ = _sessions()
+    sessions.records["child"] = {
+        "subagent_type": "reviewer",
+        "status": "timed_out",
+        "description": "review",
+        "partial_result": True,
+        "result": "Partial completed read",
+        "error": "deadline",
+        "evidence": [evidence],
+    }
+    wait = next(t for t in create_subagent_tools(sessions) if t.name == "wait_subagent")
+    output = await wait.coroutine(
+        subagent_id="child", runtime=SimpleNamespace(state={}, config={}, tool_call_id="wait")
+    )
+    writes = []
+
+    class Backend:
+        async def awrite(self, path, content):
+            writes.append(content)
+            return SimpleNamespace(path=path, error=None)
+
+    handoff = SubagentResultHandoffMiddleware(backend=Backend())
+    request = SimpleNamespace(
+        tool_call={"name": "wait_subagent", "id": "wait", "args": {}},
+        state={},
+        runtime=SimpleNamespace(state={}),
+    )
+
+    async def handler(_request):
+        return output
+
+    async def with_handoff(req):
+        return await handoff.awrap_tool_call(req, handler)
+
+    imported = await parent.awrap_tool_call(request, with_handoff)
+    assert evidence in imported.update["evidence"]
+    assert "/evidence/child-proof.json" in writes[0]
+    message = imported.update["messages"][0]
+    assert json.loads(message.content)["status"] == "timed_out"
+    assert message.status == "error"

@@ -137,7 +137,7 @@ export function buildSubagentConversation(data: SubagentPanelData): Message[] {
     const isStreaming = status === "pending" || status === "running";
     const parts = [...(part.parts ?? [])];
     let streamedPrefix: MessagePart | undefined;
-    if (part.result && status === "complete") {
+    if (part.result && ["complete", "timed_out", "error"].includes(status)) {
       let lastText = -1;
       for (let i = parts.length - 1; i >= 0; i--) {
         if (parts[i].type === "text") {
