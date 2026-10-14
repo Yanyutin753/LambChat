@@ -157,6 +157,29 @@ export function processMessageEvent(
         data.timestamp,
         data.status,
       );
+      if (result.parts === parts) {
+        const recovered = createSubagentPart(
+          agentId || "unknown",
+          data.agent_name || agentId || i18n.t("chat.unknownAgent"),
+          data.input || "",
+          depth,
+          data.timestamp,
+          data.agent_avatar,
+        );
+        result.parts = [
+          ...parts,
+          ...updateSubagentResult(
+            [recovered],
+            recovered.agent_id,
+            String(data.result || ""),
+            data.success !== false,
+            depth,
+            data.error,
+            data.timestamp,
+            data.status,
+          ),
+        ];
+      }
       break;
     }
 
@@ -284,7 +307,7 @@ export function processMessageEvent(
 
     case "tool:start": {
       const toolCallId = data.tool_call_id as string | undefined;
-      if (toolCallId && hasToolCallId(parts, toolCallId)) {
+      if (toolCallId && hasToolCallId(parts, toolCallId, agentId)) {
         break;
       }
       const toolCall: ToolCall = {
@@ -412,6 +435,22 @@ export function processMessageEvent(
           agentId,
           completedAt,
         );
+        // A missed start must not hide a received result, including during history replay.
+        if (result.parts === parts && toolName) {
+          const completedTool = {
+            ...createToolPart(toolName, data.args || {}, depth, agentId, toolCallId),
+            result: resultContent,
+            success: isSuccess,
+            error: errorMsg,
+            isPending: false,
+            completedAt,
+          };
+          result.parts =
+            upgradeGeneratingToolPart(parts, completedTool, depth) ??
+            addPartToDepth(
+              parts, completedTool, depth, subagentStack, agentId, messageId,
+            );
+        }
       } else {
         let updated = false;
         const newParts = parts.map((p) => {
@@ -433,6 +472,16 @@ export function processMessageEvent(
           }
           return p;
         });
+        if (!updated && toolName) {
+          newParts.push({
+            ...createToolPart(toolName, data.args || {}, depth, agentId),
+            result: resultContent,
+            success: isSuccess,
+            error: errorMsg,
+            isPending: false,
+            completedAt,
+          });
+        }
         result.parts = newParts;
         result.toolResult = {
           id: toolCallId,
@@ -696,15 +745,19 @@ export function appendCancelledPart(parts: MessagePart[]): MessagePart[] {
   return [...parts, { type: "cancelled" }];
 }
 
-function hasToolCallId(parts: MessagePart[], toolCallId: string): boolean {
+function hasToolCallId(
+  parts: MessagePart[],
+  toolCallId: string,
+  agentId?: string,
+): boolean {
   return parts.some((part) => {
     if (part.type === "tool")
       return (
         (!part.argsPartial || part.result !== undefined) &&
-        part.id === toolCallId
+        part.id === toolCallId && (!agentId || part.agent_id === agentId)
       );
     if (part.type === "subagent") {
-      return hasToolCallId(part.parts ?? [], toolCallId);
+      return hasToolCallId(part.parts ?? [], toolCallId, agentId);
     }
     return false;
   });

@@ -18,6 +18,43 @@ class _TrackableBytes(bytearray):
     pass
 
 
+async def test_binary_read_events_keep_independent_subagent_identity() -> None:
+    emitted = []
+
+    class Presenter:
+        def present_tool_start(self, name, args, **kwargs):
+            return {"event": "tool:start", "data": {"tool": name, "args": args, **kwargs}}
+
+        def present_tool_result(self, name, result, **kwargs):
+            return {"event": "tool:result", "data": {"tool": name, "result": result, **kwargs}}
+
+        async def emit(self, event):
+            emitted.append(event)
+
+    request = SimpleNamespace(
+        runtime=SimpleNamespace(
+            config={
+                "configurable": {"presenter": Presenter(), "checkpoint_ns": ""},
+                "metadata": {
+                    "lambchat_subagent_id": "child-1",
+                    "langgraph_checkpoint_ns": "tools:child-1",
+                },
+            }
+        ),
+        tool_call={"name": "read_file", "id": "provider-call", "args": {"file_path": "a.png"}},
+    )
+    middleware = tool_interception.ToolResultBinaryMiddleware()
+    await middleware._emit_read_file_binary_tool_events(
+        request,
+        ToolMessage(content='{"url":"https://example.test/a.png"}', tool_call_id="provider-call"),
+    )
+    assert len(emitted) == 2
+    for event in emitted:
+        assert event["data"]["agent_id"] == "child-1"
+        assert event["data"]["depth"] == 1
+        assert event["data"]["tool_call_id"].startswith("tools:child-1|")
+
+
 @pytest.mark.asyncio
 async def test_binary_block_upload_uses_file_stream(monkeypatch: pytest.MonkeyPatch) -> None:
     uploaded: list[tuple[bytes, str, str, str | None]] = []
