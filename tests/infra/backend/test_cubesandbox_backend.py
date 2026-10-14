@@ -77,11 +77,33 @@ class _FakeFilesAPI:
         ]
 
 
+class _FakeHttpClient:
+    """模拟 sandbox._client：envd /files 原始字节直读的主通道。"""
+
+    def __init__(self, files_api: "_FakeFilesAPI", status_code: int = 200) -> None:
+        self._files = files_api
+        self.status_code = status_code
+        self.calls: list[dict] = []
+
+    def get(self, url, params=None, headers=None):
+        self.calls.append(
+            {"url": url, "params": dict(params or {}), "headers": dict(headers or {})}
+        )
+        data = self._files.contents.get((params or {}).get("path"))
+        if data is None or self.status_code != 200:
+            return SimpleNamespace(status_code=self.status_code, content=b"", text="err")
+        return SimpleNamespace(status_code=200, content=data, text="")
+
+
 class _FakeCubeSandbox:
     def __init__(self) -> None:
         self.sandbox_id = "cube-test"
+        self._client = None
         self.files = _FakeFilesAPI()
         self.commands = _FakeCommandsAPI(self.files)
+
+    def get_host(self, port: int) -> str:
+        return f"{port}-cube-test.cube.app"
 
 
 def test_cubesandbox_backend_executes_commands_in_work_dir() -> None:
@@ -359,3 +381,60 @@ async def test_cubesandbox_aread_binary_returns_base64_file_data() -> None:
     assert result.error is None
     assert result.file_data["encoding"] == "base64"
     assert base64.b64decode(result.file_data["content"]) == payload
+
+
+def test_cubesandbox_download_uses_envd_http_primary_channel() -> None:
+    """主通道＝envd HTTP 原始字节（大文件快、无 base64 膨胀），不回落命令通道。"""
+    from src.infra.backend.cubesandbox import CubeSandboxBackend
+
+    sandbox = _FakeCubeSandbox()
+    client = _FakeHttpClient(sandbox.files)
+    sandbox._client = client
+    payload = _binary_payload()
+    sandbox.files.contents["/home/user/session-a/blob.bin"] = payload
+    backend = CubeSandboxBackend(sandbox=sandbox, work_dir="/home/user/session-a")
+
+    responses = backend.download_files(["blob.bin"])
+
+    assert responses[0].error is None
+    assert responses[0].content == payload
+    assert client.calls, "主通道应走 envd HTTP"
+    from cubesandbox._commands import DEFAULT_ENVD_USER as SDK_DEFAULT_USER
+
+    assert client.calls[0]["params"].get("username") == SDK_DEFAULT_USER
+    assert not any("dd if=" in c["cmd"] for c in sandbox.commands.calls), "不应回落命令通道"
+
+
+def test_cubesandbox_download_falls_back_when_envd_http_fails() -> None:
+    """envd HTTP 失败（如 5xx/内部结构漂移）时回落 base64 命令通道，字节仍精确。"""
+    from src.infra.backend.cubesandbox import CubeSandboxBackend
+
+    sandbox = _FakeCubeSandbox()
+    sandbox._client = _FakeHttpClient(sandbox.files, status_code=500)
+    payload = _binary_payload()
+    sandbox.files.contents["/home/user/session-a/blob.bin"] = payload
+    backend = CubeSandboxBackend(sandbox=sandbox, work_dir="/home/user/session-a")
+
+    responses = backend.download_files(["blob.bin"])
+
+    assert responses[0].error is None
+    assert responses[0].content == payload
+    assert any("base64" in c["cmd"] for c in sandbox.commands.calls), "应回落命令通道"
+
+
+async def test_cubesandbox_adownload_uses_envd_http_primary_channel() -> None:
+    from src.infra.backend.cubesandbox import CubeSandboxBackend
+
+    sandbox = _FakeCubeSandbox()
+    client = _FakeHttpClient(sandbox.files)
+    sandbox._client = client
+    payload = _binary_payload()
+    sandbox.files.contents["/home/user/session-a/blob.bin"] = payload
+    backend = CubeSandboxBackend(sandbox=sandbox, work_dir="/home/user/session-a")
+    backend._async_disabled = True
+
+    responses = await backend.adownload_files(["blob.bin"])
+
+    assert responses[0].error is None
+    assert responses[0].content == payload
+    assert client.calls

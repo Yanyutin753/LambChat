@@ -129,7 +129,7 @@ asyncio.run(main())
 
 # in-pod 主检验脚本：占位符 USER_ID / SESSION_TAG 由 .replace 注入。
 VERIFY_SCRIPT = r"""
-import asyncio, hashlib, json, os, sys
+import asyncio, hashlib, json, os, sys, time
 
 RESULTS = []
 
@@ -160,11 +160,14 @@ async def main():
     big = os.urandom(48 * 1024 * 1024)  # 逼近 50MB 下载上限；Cube 侧 3×16MiB 分块
 
     # T1 上传→下载字节精确
+    t0 = time.monotonic()
     r = backend.upload_files([("bin-t1.bin", small)])
     if r and r[0].error:
         record("T1_upload_download_roundtrip", False, r[0].error)
     else:
         d = backend.download_files(["bin-t1.bin"])
+        elapsed = time.monotonic() - t0
+        print(f"[T1] 3MB upload+download {elapsed:.1f}s")
         record("T1_upload_download_roundtrip",
                bool(d and d[0].error is None and d[0].content is not None
                     and sha(d[0].content) == sha(small)),
@@ -196,11 +199,14 @@ async def main():
            rr.error or (rr.file_data or {}).get("encoding"))
 
     # T4 大文件分块通道（48MB，逼近 50MB 下载上限）
+    t0 = time.monotonic()
     r = backend.upload_files([("bin-t4.bin", big)])
     if r and r[0].error:
         record("T4_large_file_chunks", False, r[0].error)
     else:
         d = backend.download_files(["bin-t4.bin"])
+        elapsed = time.monotonic() - t0
+        print(f"[T4] 48MB upload+download {elapsed:.1f}s ({48 / elapsed:.1f} MB/s)" if elapsed > 0 else "[T4] done")
         record("T4_large_file_chunks",
                bool(d and d[0].error is None and d[0].content
                     and sha(d[0].content) == sha(big)))

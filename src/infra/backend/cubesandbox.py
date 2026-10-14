@@ -32,12 +32,23 @@ from src.kernel.config import settings
 logger = get_logger(__name__)
 _DEFAULT_TIMEOUT = 30 * 60
 
-# ── 二进制字节通道（base64 over 命令通道）─────────────────────────────
+# envd HTTP 文件 API 的常量（cubesandbox._commands 私有）；SDK 结构漂移时
+# 回落默认值，原始字节通道整体降级到 base64 命令通道。
+try:  # pragma: no cover - 依赖 SDK 内部常量
+    from cubesandbox._commands import DEFAULT_ENVD_USER, ENVD_PORT
+except ImportError:  # pragma: no cover
+    DEFAULT_ENVD_USER = "user"
+    ENVD_PORT = 49983
+
+# ── 二进制字节通道 ────────────────────────────────────────────────────
 # Cube envd 的 files HTTP API 在 SDK 侧恒以 resp.text（utf-8 replace）返回，
 # 二进制字节会被 U+FFFD 替换不可逆破坏（2026-10-14 生产事故：Word/PDF 经
-# download_files 全损）。命令通道 stdout 事件虽同样 replace 解码，但 base64
-# 是纯 ASCII，字节安全；envd Connect 单信封上限 64MB，块上限 16MiB
-# （base64 后 ~22MB）留足余量。
+# download_files 全损）。
+#
+# 主通道＝envd HTTP 原始字节直读：与 SDK files.read 同一条 wire，改取
+# resp.content——无 base64 膨胀、单请求，大文件（几百 MB 量级）快且省内存。
+# 兜底通道＝命令通道 base64：stdout 事件 replace 解码对纯 ASCII 无损，
+# envd Connect 单信封上限 64MB，块上限 16MiB（base64 后 ~22MB）。
 _B64_CHUNK_BYTES = 16 * 1024 * 1024
 _B64_CHUNK_BS = 1024 * 1024  # dd 传输块单位；_B64_CHUNK_BYTES 必须是它的整数倍
 
@@ -110,7 +121,7 @@ class CubeSandboxBackend(E2BBackend):
 
     例外是二进制读取：Cube 的 files.read 恒返回 lossy 解码文本（无 bytes
     通道），本类对 read/download 的二进制路径改走命令通道 base64（见
-    ``_read_bytes_via_command``），文本路径保持 SDK 原生。
+    ``_read_bytes``），文本路径保持 SDK 原生。
     """
 
     # Cube 的 wire 协议兼容 e2b SDK：异步命令共用 e2b async 客户端路径
@@ -161,7 +172,7 @@ class CubeSandboxBackend(E2BBackend):
 
     def _files_read(self, path: str, format: Literal["text", "bytes"]) -> Any:
         # Cube 的 files.read 没有 format 参数（恒返回 lossy 解码 str），文本
-        # 读取专用；二进制必须走 _read_bytes_via_command 字节通道。
+        # 读取专用；二进制必须走 _read_bytes 字节通道。
         del format
         return self._sdk("files.read", lambda: self._sandbox.files.read(path))
 
@@ -229,10 +240,44 @@ class CubeSandboxBackend(E2BBackend):
             logger.warning("Failed to parse CubeSandbox ls output for %s: %s", path, e)
             return LsResult(error=str(e))
 
-    # ── 字节安全读取（命令通道 base64）────────────────────────────────
+    # ── 字节安全读取（主通道 envd HTTP 原始字节，兜底命令通道 base64）──
+
+    def _read_bytes_via_envd_http(self, path: str) -> bytes:
+        """envd /files 原始字节直读：复用 SDK 自己的 httpx client（代理路由/
+        鉴权头与 SDK files.read 完全一致），只改取 resp.content 保真字节。"""
+        files_api = self._sandbox.files
+        ensure_client = getattr(files_api, "_ensure_client", None)
+        if ensure_client is not None:
+            ensure_client()
+        client = getattr(self._sandbox, "_client", None)
+        if client is None:
+            raise IOError("sandbox http client unavailable")
+        base_headers = getattr(files_api, "_base_headers", None)
+        headers = base_headers() if callable(base_headers) else {}
+        resp = client.get(
+            f"http://{self._sandbox.get_host(ENVD_PORT)}/files",
+            params={"path": path, "username": DEFAULT_ENVD_USER},
+            headers=headers,
+        )
+        if resp.status_code != 200:
+            raise IOError(f"envd raw read HTTP {resp.status_code}: {(resp.text or '')[:120]}")
+        return resp.content
+
+    def _read_bytes(self, path: str, size: int | None) -> bytes:
+        """字节精确读取：HTTP 直读优先（快、无膨胀），失败回落 base64 命令通道。"""
+        try:
+            data = self._read_bytes_via_envd_http(path)
+            if size is None or len(data) == size:
+                return data
+            raise IOError(f"envd raw read size mismatch: got {len(data)}, expected {size}")
+        except Exception as e:
+            logger.info(
+                "CubeSandbox raw byte read fell back to command channel for %s: %s", path, e
+            )
+            return self._read_bytes_via_command(path, size)
 
     def _read_bytes_via_command(self, path: str, size: int | None) -> bytes:
-        """字节精确读取：files API 的文本读取会破坏二进制（U+FFFD 替换）。"""
+        """兜底字节通道：base64 over 命令通道（files API 文本读取会破坏二进制）。"""
         pieces: list[str] = []
         for command in _b64_chunk_commands(path, size):
             result = self.execute(command)
@@ -254,7 +299,7 @@ class CubeSandboxBackend(E2BBackend):
                 )
             content = self._files_read(file_path, "text")
             if _text_looks_binary(str(content)):
-                return self._read_as_base64(self._read_bytes_via_command(file_path, size))
+                return self._read_as_base64(self._read_bytes(file_path, size))
             return slice_read_response(create_file_data(str(content)), offset, limit)
         except Exception as e:
             logger.warning("CubeSandbox files.read(%s) failed: %s", file_path, e)
@@ -306,7 +351,7 @@ class CubeSandboxBackend(E2BBackend):
                         file_download_response(path=path, content=None, error="file_not_found")
                     )
                     continue
-                content_bytes = self._read_bytes_via_command(path, size)
+                content_bytes = self._read_bytes(path, size)
                 responses.append(file_download_response(path=path, content=content_bytes))
             except Exception as e:
                 logger.error("CubeSandbox download %s failed: %s", path, e)
@@ -332,6 +377,21 @@ class CubeSandboxBackend(E2BBackend):
         if sbx is None:
             return await run_long_blocking_io(self._files_read, path, "text")
         return await self._asdk("files.read", lambda: sbx.files.read(path=path, format="text"))
+
+    async def _aread_bytes(self, path: str, size: int | None) -> bytes:
+        """async 字节精确读取：HTTP 直读优先（单请求走慢道），失败回落命令通道。"""
+        try:
+            data = await run_long_blocking_io(self._read_bytes_via_envd_http, path)
+            if size is None or len(data) == size:
+                return data
+            raise IOError(f"envd raw read size mismatch: got {len(data)}, expected {size}")
+        except Exception as e:
+            logger.info(
+                "CubeSandbox async raw byte read fell back to command channel for %s: %s",
+                path,
+                e,
+            )
+            return await self._aread_bytes_via_command(path, size)
 
     async def _aread_bytes_via_command(self, path: str, size: int | None) -> bytes:
         pieces: list[str] = []
@@ -360,7 +420,7 @@ class CubeSandboxBackend(E2BBackend):
                 )
             text = await self._acube_text_read(resolved)
             if _text_looks_binary(str(text)):
-                return self._read_as_base64(await self._aread_bytes_via_command(resolved, size))
+                return self._read_as_base64(await self._aread_bytes(resolved, size))
             return slice_read_response(create_file_data(str(text)), offset, limit)
         except Exception as e:
             logger.warning(
@@ -387,7 +447,7 @@ class CubeSandboxBackend(E2BBackend):
                         file_download_response(path=resolved, content=None, error="file_not_found")
                     )
                     continue
-                content = await self._aread_bytes_via_command(resolved, size)
+                content = await self._aread_bytes(resolved, size)
                 responses.append(file_download_response(path=resolved, content=content))
             except Exception as e:
                 logger.error("CubeSandbox async download %s failed: %s", resolved, e)
