@@ -499,6 +499,12 @@ async def test_timeout_keeps_returned_tool_before_parallel_batch_checkpoint(monk
 
 
 async def test_restart_after_timeout_uses_child_terminal_checkpoint_with_stale_parent(monkeypatch):
+    events = []
+
+    async def capture(_name, data, config):
+        events.append((data["phase"], data["status"]))
+
+    monkeypatch.setattr("src.infra.agent.subagent_sessions.adispatch_custom_event", capture)
     monkeypatch.setattr(
         "src.infra.agent.subagent_sessions.SUBAGENT_EXECUTION_TIMEOUT_SECONDS", 0.05
     )
@@ -521,7 +527,9 @@ async def test_restart_after_timeout_uses_child_terminal_checkpoint_with_stale_p
             checkpointer=sessions.checkpointer,
         )
         other.restore(parent_checkpoint)
+        before_recovery = len(events)
         result = await other.wait(key, config={})
+        assert events[before_recovery:] == [("started", "timed_out"), ("completed", "timed_out")]
         assert result["status"] == "timed_out"
         assert "durable batch output" in result["result"]
         assert other.emitted_states[key] == ("completed", "timed_out")

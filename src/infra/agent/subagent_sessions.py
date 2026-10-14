@@ -463,6 +463,9 @@ class SubagentSessions:
         outcome = state.get("subagent_outcome", {})
         if outcome.get("status") == "timed_out":
             self.records[subagent_id].update(outcome)
+            if subagent_id not in self.emitted_states:
+                # A new parent turn needs a child block before its recovered terminal result.
+                await self._emit(subagent_id, "started")
             await self._emit(subagent_id, "completed")
             return True
         return False

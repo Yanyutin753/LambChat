@@ -85,3 +85,17 @@ test.each(["complete", "timed_out"] as const)("%s child closes unfinished tools 
     { id: "done", result: "found", success: true },
   ] });
 });
+
+
+test("recovered terminal result gets a child block in a fresh parent turn", () => {
+  let parts: MessagePart[] = [];
+  for (const type of ["agent:call", "agent:result", "done"]) {
+    parts = processMessageEvent(type, {
+      agent_id: "saved-child", agent_name: "Reviewer", input: "Original assignment",
+      status: "timed_out", result: "Partial result: saved tool contents",
+      success: false, error: "deadline",
+    }, parts, "", [], type === "done" ? 0 : 1, [], true).parts;
+  }
+  expect(parts).toHaveLength(1);
+  expect(parts[0]).toMatchObject({status: "timed_out", isPending: false, cancelled: false, result: "Partial result: saved tool contents"});
+});
