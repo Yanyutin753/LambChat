@@ -125,6 +125,7 @@ YubbChat/
 !/scripts/run-validation.mjs
 !/scripts/verify_sandbox_pause_heal.py
 !/scripts/verify_sandbox_cross_session.py
+!/scripts/verify_sandbox_binary_integrity.py
 !/scripts/generate_updater_manifest.py
 !/scripts/benchmark_memory_scope.py
 !/scripts/site-screenshots/
