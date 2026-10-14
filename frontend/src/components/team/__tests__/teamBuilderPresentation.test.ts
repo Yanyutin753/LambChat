@@ -129,8 +129,8 @@ test("team editor uses one sidebar form matching role editor patterns", () => {
     new URL("../../persona/PersonaEditorAvatarSection.tsx", import.meta.url),
     "utf8",
   );
-  expect(avatarSource).toMatch(/ppe-icon-picker/);
-  expect(avatarSource).toMatch(/persona-avatars/);
+  expect(avatarSource).toMatch(/<AvatarChoices/);
+  expect(avatarSource).toMatch(/onAvatarChange\(value\)/);
   expect(teamCss).toMatch(/\.team-editor-form\s*\{/);
   expect(teamCss).toMatch(/\.team-form-role-option\s*\{/);
   expect(teamCss).toMatch(/\.team-form-selected__list\s*\{/);

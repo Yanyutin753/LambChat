@@ -9,11 +9,7 @@ import { useTranslation } from "react-i18next";
 import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosition";
 import { personaPresetApi } from "../../../services/api/personaPreset";
 import type { PersonaPreset } from "../../../types/personaPreset";
-import {
-  PersonaAvatarIcon,
-  PersonaAvatarImage,
-} from "../../persona/PersonaAvatarIcon";
-import { isPersonaImageAvatar } from "../../persona/personaAvatar";
+import { AgentAvatar } from "../../common/AgentAvatar";
 import { PanelSearchInput } from "../../common/PanelSearchInput";
 
 const PAGE_LIMIT = 20;
@@ -24,29 +20,7 @@ interface ChannelPersonaSelectProps {
 }
 
 function PersonaPresetIcon({ preset }: { preset: PersonaPreset }) {
-  const [imageFailed, setImageFailed] = useState(false);
-  const primaryTag = preset.tags?.[0];
-  const showImage =
-    isPersonaImageAvatar(preset.avatar) && imageFailed === false;
-
-  return (
-    <span className="team-toolbar-avatar" title={preset.name}>
-      {showImage ? (
-        <PersonaAvatarImage
-          avatar={preset.avatar}
-          alt=""
-          className="scb__avatar-img"
-          onError={() => setImageFailed(true)}
-        />
-      ) : (
-        <PersonaAvatarIcon
-          avatar={preset.avatar}
-          primaryTag={primaryTag}
-          size={14}
-        />
-      )}
-    </span>
-  );
+  return <AgentAvatar avatar={preset.avatar} seed={preset.id || preset.name} size={18} iconSize={12} className="rounded-full" />;
 }
 
 export function ChannelPersonaSelect({

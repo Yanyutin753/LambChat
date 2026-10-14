@@ -87,7 +87,7 @@ from src.infra.agent.middleware import (
 )
 from src.infra.agent.middleware.evidence import EvidenceClock, create_evidence_middleware
 from src.infra.agent.middleware.persona_subagent import (
-    PersonaSubagentMiddleware,
+    add_persona_discovery,
 )
 from src.infra.agent.subagent_assembly import assemble_subagent_sessions, refresh_subagent_context
 from src.infra.goal import (
@@ -767,23 +767,13 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     )
 
     if not team:
-        role_search = next(
-            (tool for tool in filtered_tool_list if tool.name == "search_persona_presets"),
-            None,
+        add_persona_discovery(
+            user_middleware,
+            filtered_tool_list,
+            context.deferred_manager,
+            session_middleware.tools[0],
         )
-        if role_search is None and context.deferred_manager is not None:
-            role_search = context.deferred_manager.get_tool("search_persona_presets")
-        if role_search is not None:
-            if role_search not in filtered_tool_list:
-                filtered_tool_list.append(role_search)
-            filtered_tools = filtered_tool_list
-
-            async def build_persona_task_tool(preset_id: str):
-                return session_middleware.tools[0]
-
-            user_middleware.append(
-                PersonaSubagentMiddleware(build_task_tool=build_persona_task_tool)
-            )
+        filtered_tools = filtered_tool_list or None
 
     user_middleware.append(session_middleware)
 

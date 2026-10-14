@@ -1,3 +1,4 @@
+import { AgentAvatar } from "../common/AgentAvatar";
 /**
  * Channels Page - Lists all available channels and their instances
  */
@@ -55,7 +56,7 @@ function ChannelCard({
 >) {
   return (
     <div
-      className={`scb group flex h-full flex-col overflow-hidden rounded-2xl bg-theme-bg-card shadow-sm dark:shadow-none ${
+      className={`scb group flex h-full flex-col overflow-hidden rounded-2xl bg-theme-bg-card ${
         className ?? ""
       }`}
       role="group"
@@ -84,9 +85,9 @@ function ChannelCard({
           </div>
         </div>
       )}
-      <div className="flex flex-1 flex-col p-4 -mt-3 pt-5">
-        <div className="flex items-start gap-3">
-          <div className="scb__icon-ring shrink-0">{icon}</div>
+      <div className="scb__body flex flex-1 flex-col p-3 -mt-3 pt-4">
+        <div className="scb__header flex items-center gap-2">
+          <AgentAvatar seed={title} size={36}>{icon}</AgentAvatar>
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-16 font-semibold font-serif text-theme-text leading-tight">
               <button
@@ -100,15 +101,15 @@ function ChannelCard({
                 {title}
               </button>
             </h3>
-            {statusPills}
+            {statusPills && <div className="scb__status">{statusPills}</div>}
           </div>
         </div>
         {description && (
-          <p className="mt-3 text-13 leading-relaxed text-theme-text-secondary line-clamp-2 min-h-[3.25em]">
+          <p className="scb__description mt-2 text-13 leading-relaxed text-theme-text-secondary line-clamp-2">
             {description}
           </p>
         )}
-        {tags && <div className="mt-3">{tags}</div>}
+        {tags && <div className="mt-2">{tags}</div>}
       </div>
     </div>
   );

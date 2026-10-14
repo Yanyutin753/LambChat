@@ -53,6 +53,9 @@ class _FakeEventProcessor:
 
 
 class _FakeDeferredManager:
+    def get_tool(self, _name):
+        return None
+
     def __init__(self) -> None:
         self.fork_calls: list[str] = []
         self.forked = SimpleNamespace(label="subagent-deferred-manager")

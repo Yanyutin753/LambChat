@@ -23,7 +23,7 @@ function SkillCardsSkeleton({
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
-          className="scb flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none dark:border dark:border-[var(--theme-border)]"
+          className="scb flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] dark:border dark:border-[var(--theme-border)]"
         >
           {/* Banner — matches scb__banner h-12 with 45deg gradient */}
           <div
@@ -54,10 +54,10 @@ function SkillCardsSkeleton({
               </div>
             )}
           </div>
-          {/* Content — matches SkillBaseCard inner: p-4, -mt-3 pt-5 */}
-          <div className="flex flex-1 flex-col -mt-3 pt-5 p-4">
-            {/* Icon ring + title + statusPills — gap-3 matches SkillBaseCard */}
-            <div className="flex items-start gap-3">
+          {/* Content — matches SkillBaseCard compact body */}
+          <div className="scb__body flex flex-1 flex-col -mt-3 pt-4 p-3">
+            {/* Icon ring + title + statusPills match SkillBaseCard. */}
+            <div className="scb__header flex items-center gap-2">
               <div className="scb__icon-ring shrink-0 skeleton-line" />
               <div className="min-w-0 flex-1">
                 {/* Title — entity name (SkillBaseCard: font-semibold font-serif) */}
@@ -69,19 +69,19 @@ function SkillCardsSkeleton({
                 {marketplace ? (
                   <SkeletonLine
                     width="w-24 sm:w-28"
-                    className="!h-2.5 sm:!h-3 mt-1.5 !opacity-60"
+                    className="!h-2.5 sm:!h-3 mt-0.5 !opacity-60"
                   />
                 ) : (
                   <SkeletonLine
                     width="w-14 sm:w-16"
-                    className="!h-4 !rounded-full mt-1.5"
+                    className="!h-4 !rounded-full mt-0.5"
                   />
                 )}
               </div>
             </div>
 
             {/* Description — matches mt-3 text-13 line-clamp-2 */}
-            <div className="mt-3 min-h-[3.25em] space-y-1.5">
+            <div className="mt-2 space-y-1.5">
               <SkeletonLine width="w-full" className="!h-2.5 sm:!h-3" />
               <SkeletonLine
                 width={i % 2 === 0 ? "w-5/6" : "w-2/3"}
@@ -91,7 +91,7 @@ function SkillCardsSkeleton({
 
             {/* Tags — matches SkillBaseCard tags section */}
             {marketplace ? (
-              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <SkeletonLine
                   width="w-12 sm:w-14"
                   className="!h-[22px] !rounded-full"
@@ -106,7 +106,7 @@ function SkillCardsSkeleton({
                 />
               </div>
             ) : (
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-2 flex flex-wrap gap-2">
                 <SkeletonLine
                   width="w-14 sm:w-16"
                   className="!h-[22px] !rounded-full"

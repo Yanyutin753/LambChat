@@ -22,12 +22,8 @@ test("channel persona selector exposes a clear option", () => {
 });
 
 test("channel persona selector renders preset icons in trigger and options", () => {
-  expect(source).toMatch(/PersonaAvatarIcon/);
-  expect(source).toMatch(/PersonaAvatarImage/);
-  expect(source).toMatch(/isPersonaImageAvatar/);
-  expect(source).toMatch(/PersonaPresetIcon/);
-  expect(source).toMatch(/setImageFailed/);
-  expect(source).toMatch(/onError=\{\(\) => setImageFailed\(true\)\}/);
+  expect(source).toMatch(/<AgentAvatar/);
+  expect(source).toMatch(/seed=\{preset\.id \|\| preset\.name\}/);
   expect(source).toMatch(/selected && <PersonaPresetIcon preset=\{selected\}/);
   expect(source).toMatch(/<PersonaPresetIcon preset=\{preset\}/);
 });

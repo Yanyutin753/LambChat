@@ -44,7 +44,7 @@ class PersonaSubagentMiddleware(SectionPromptMiddleware):
     def _search_results(state: dict) -> list[dict]:
         results: list[dict[str, Any]] = []
         for message in reversed(state.get("messages", [])):
-            if isinstance(message, HumanMessage):
+            if isinstance(message, HumanMessage) and message.name != "evidence_context":
                 break
             if (
                 isinstance(message, ToolMessage)
@@ -98,6 +98,32 @@ class PersonaSubagentMiddleware(SectionPromptMiddleware):
                     error = "The selected role could not be loaded. Search again or report the blocker; do not silently switch to a generic role."
                 else:
                     return await handler(request.override(tool=tool))
+        elif role_type != "general-purpose":
+            error = (
+                "Use a discovered persona role; built-in specialists do not replace role discovery."
+            )
+        elif results[0].get("presets"):
+            error = "Search found roles. Select a suitable discovered role or refine the search to confirm no matching role before generic fallback."
         if error:
             return ToolMessage(content=error, name="task", tool_call_id=call["id"], status="error")
         return await handler(request)
+
+
+def add_persona_discovery(
+    middleware: list, tools: list, deferred_manager, task_tool: BaseTool
+) -> None:
+    """Expose authorized role search and fail closed even when it is unavailable."""
+    role_search = next((tool for tool in tools if tool.name == "search_persona_presets"), None)
+    if role_search is None and deferred_manager is not None:
+        role_search = deferred_manager.get_tool("search_persona_presets")
+    if role_search is not None and role_search not in tools:
+        tools.append(role_search)
+
+    async def build_task_tool(preset_id: str):
+        return task_tool
+
+    task_tool.description = task_tool.description.split("\nAvailable subagent types:\n")[0] + (
+        "\nUse a persona:<id> returned by search_persona_presets. "
+        "Only use general-purpose after a successful search finds no matching role."
+    )
+    middleware.append(PersonaSubagentMiddleware(build_task_tool=build_task_tool))

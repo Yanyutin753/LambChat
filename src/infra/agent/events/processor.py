@@ -120,8 +120,8 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE, chunk_flush_interval)
         self._summary_chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE, chunk_flush_interval)
         self._thinking_chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE, chunk_flush_interval)
-        self._tool_args_buffers: dict[int | str, TextChunkBuffer] = {}
-        self._tool_args_meta: dict[int | str, tuple[str, str | None]] = {}
+        self._tool_args_buffers: dict[tuple[str | None, int | str], TextChunkBuffer] = {}
+        self._tool_args_meta: dict[tuple[str | None, int | str], tuple[str, str | None]] = {}
         self._agent_context_cache: dict[str, tuple[str | None, int]] = {}
         self._subagent_display_names = subagent_display_names or {}
         self._subagent_avatars = subagent_avatars or {}
@@ -324,6 +324,11 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
 
         if evt_type == "on_chat_model_end":
             await self.flush()
+            metadata = event.get("metadata", {})
+            agent_id = metadata.get("lambchat_subagent_id")
+            if not isinstance(agent_id, str) or not agent_id:
+                agent_id, _ = self._get_agent_context(self._get_checkpoint_ns(metadata))
+            self._reset_tool_args_buffers(agent_id)
             self._handle_token_usage(event)
             return
 
@@ -364,7 +369,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
             case "on_chat_model_start":
                 # 新模型流开始：上一步残留的参数缓冲已被 model_end 冲掉，
                 # 异常中断的残留在此丢弃（对应工具不会执行）。
-                self._reset_tool_args_buffers()
+                self._reset_tool_args_buffers(current_agent_id)
                 if current_depth == 0:
                     self._first_event_timing.start_model()
             case "on_chat_model_stream":

@@ -236,13 +236,19 @@ async def test_team_agent_node_uses_sandbox_backend_when_enabled(
 
 
 @pytest.mark.asyncio
-async def test_team_agent_node_uses_persistent_backend_when_sandbox_disabled(
+@pytest.mark.parametrize("agent", ["team", "search", "fast"])
+async def test_delegating_agents_load_discovered_role_with_original_prompt(
     monkeypatch: pytest.MonkeyPatch,
+    agent: str,
 ) -> None:
     _install_deepagents_shims(monkeypatch)
 
-    from src.agents.team_agent import nodes as team_nodes
-    from src.agents.team_agent.context import TeamAgentContext
+    from importlib import import_module
+
+    team_nodes = import_module(f"src.agents.{agent}_agent.nodes")
+    context_class = getattr(
+        import_module(f"src.agents.{agent}_agent.context"), f"{agent.title()}AgentContext"
+    )
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
@@ -252,17 +258,18 @@ async def test_team_agent_node_uses_persistent_backend_when_sandbox_disabled(
     persistent_backend = object()
 
     monkeypatch.setattr(
-        team_nodes.backend_setup,
+        getattr(team_nodes, "backend_setup", team_nodes),
         "create_persistent_backend",
-        lambda **_kwargs: persistent_backend,
+        lambda *_args, **_kwargs: persistent_backend,
     )
     monkeypatch.setattr(
-        team_nodes.backend_setup,
+        getattr(team_nodes, "backend_setup", team_nodes),
         "get_session_sandbox_manager",
         lambda: (_ for _ in ()).throw(AssertionError("sandbox manager should not be used")),
+        raising=False,
     )
 
-    context = TeamAgentContext(session_id="session-1", user_id="user-1")
+    context = context_class(session_id="session-1", user_id="user-1")
     from src.infra.tool.team_tool import search_persona_presets
 
     context.tools = [search_persona_presets]
@@ -275,7 +282,10 @@ async def test_team_agent_node_uses_persistent_backend_when_sandbox_disabled(
         }
     }
 
-    await team_nodes.team_router_node(
+    node_name = {"team": "team_router_node", "search": "agent_node", "fast": "fast_agent_node"}[
+        agent
+    ]
+    await getattr(team_nodes, node_name)(
         {"input": "hello", "session_id": "session-1", "attachments": []},
         config,
     )
@@ -323,6 +333,22 @@ async def test_team_agent_node_uses_persistent_backend_when_sandbox_disabled(
         for m in fake_graph.captured_create_kwargs["middleware"]
         if isinstance(m, SubagentSessionMiddleware)
     )
+    from langchain_core.messages import HumanMessage
+    from langgraph.prebuilt.tool_node import ToolCallRequest
+
+    async def forbidden_dispatch(_request):
+        raise AssertionError("Unsearched role must not execute")
+
+    rejected = await role_middleware.awrap_tool_call(
+        ToolCallRequest(
+            tool_call={"name": "task", "id": "unsearched", "args": {"subagent_type": "researcher"}},
+            tool=None,
+            state={"messages": [HumanMessage(content="Research")]},
+            runtime=SimpleNamespace(),
+        ),
+        forbidden_dispatch,
+    )
+    assert rejected.status == "error"
     assert await role_middleware._build_task_tool("p1") is session_middleware.tools[0]
     assert (
         await session_middleware.sessions.build_graph(

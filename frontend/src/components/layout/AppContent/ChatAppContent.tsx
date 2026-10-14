@@ -1,4 +1,3 @@
-import { useBackgroundConversationAction } from "./useBackgroundConversationAction";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useSearchParams } from "react-router-dom";
@@ -155,7 +154,6 @@ export function ChatAppContent({
     messages,
     sessionId,
     currentRunId,
-    canContinueInBackground,
     isLoading,
     isLoadingHistory,
     historyLoadGeneration,
@@ -743,10 +741,6 @@ export function ChatAppContent({
     systemDefaultModelId,
   ]);
 
-  const handleContinueInBackground = useBackgroundConversationAction({
-    userId: user?.id, sessionId, runId: currentRunId, ready: canContinueInBackground,
-    onDetach: handleNewSessionWithReset,
-  });
   const handleMobileClose = useCallback(
     () => setMobileSidebarOpen(false),
     [setMobileSidebarOpen],
@@ -934,7 +928,6 @@ export function ChatAppContent({
             );
           }}
           onStopGeneration={stopGeneration}
-          onContinueInBackground={canContinueInBackground ? handleContinueInBackground : undefined}
           onSupplementFollowUpMessage={supplementFollowUp}
           onQueueFollowUpMessage={queueFollowUp}
           steerMessages={steerMessages}

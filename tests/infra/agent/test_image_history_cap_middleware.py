@@ -38,6 +38,20 @@ def _middleware(hard=10, keep=5):
     return HistoricalImageCapMiddleware(hard_limit=hard, keep_limit=keep)
 
 
+def test_evidence_snapshot_keeps_current_turn_images_protected():
+    current = _image_message([f"current{i}" for i in range(12)])
+    messages = [
+        _image_message(["historical"]),
+        current,
+        HumanMessage(content="Evidence snapshot", name="evidence_context"),
+    ]
+
+    out = _middleware(hard=10, keep=5)._cap_messages(messages)
+
+    assert out[1] is current
+    assert out[1].content == current.content
+
+
 @pytest.mark.asyncio
 async def test_replaces_oldest_images_beyond_hard_limit_with_url_placeholders():
     seen = {}

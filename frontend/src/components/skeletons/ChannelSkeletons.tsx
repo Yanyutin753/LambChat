@@ -29,32 +29,32 @@ export function ChannelsGridSkeleton() {
                   }}
                 />
                 {/* Card body */}
-                <div className="flex flex-1 flex-col -mt-3 pt-5 p-4">
+                <div className="scb__body flex flex-1 flex-col -mt-3 pt-4 p-3">
                   {/* Icon + name */}
-                  <div className="flex items-start gap-3">
+                  <div className="scb__header flex items-center gap-2">
                     <div className="scb__icon-ring shrink-0 skeleton-line" />
                     <div className="min-w-0 flex-1">
                       <SkeletonLine
                         width={i % 2 === 0 ? "w-3/4" : "w-1/2"}
                         className="!h-4"
                       />
+                      {/* Status pill */}
+                      <div className="scb__status">
+                        <SkeletonLine
+                          width={
+                            i % 3 === 0
+                              ? "w-16 sm:w-20"
+                              : i % 3 === 1
+                                ? "w-12"
+                                : "w-8"
+                          }
+                          className="!h-4 !rounded-full"
+                        />
+                      </div>
                     </div>
                   </div>
-                  {/* Status pill */}
-                  <div className="mt-1.5 sm:mt-2">
-                    <SkeletonLine
-                      width={
-                        i % 3 === 0
-                          ? "w-16 sm:w-20"
-                          : i % 3 === 1
-                            ? "w-12"
-                            : "w-8"
-                      }
-                      className="!h-4 !rounded-full"
-                    />
-                  </div>
                   {/* Description */}
-                  <div className="mt-3 min-h-[3.25em] space-y-1.5">
+                  <div className="mt-2 space-y-1.5">
                     <SkeletonLine width="w-full" className="!h-2.5 sm:!h-3" />
                     <SkeletonLine
                       width={i % 2 === 0 ? "w-5/6" : "w-2/3"}
@@ -62,7 +62,7 @@ export function ChannelsGridSkeleton() {
                     />
                   </div>
                   {/* Tags row */}
-                  <div className="mt-3">
+                  <div className="mt-2">
                     <SkeletonLine
                       width="w-20 sm:w-24"
                       className="!h-5 !rounded-lg"

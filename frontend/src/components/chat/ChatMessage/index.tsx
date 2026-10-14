@@ -756,6 +756,7 @@ export const ChatMessage = memo(function ChatMessage({
             <AssistantAvatar
               className="size-5 sm:size-6 shrink-0 rounded-full"
               personaAvatar={personaAvatar}
+              personaName={personaName}
             />
             <span
               className="min-w-0 truncate text-16 sm:text-18 lg:text-20 leading-normal font-semibold tracking-tight font-serif"

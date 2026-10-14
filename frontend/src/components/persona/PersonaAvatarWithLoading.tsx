@@ -1,14 +1,7 @@
 import { useState } from "react";
 import type { PersonaPreset } from "../../types";
-import {
-  PersonaAvatarIcon,
-  PersonaAvatarImage,
-} from "../persona/PersonaAvatarIcon";
-import {
-  isEmojiAvatar,
-  getEmojiAvatarUrl,
-  isPersonaImageAvatar,
-} from "../persona/personaAvatar";
+import { AgentAvatar } from "../common/AgentAvatar";
+import { isPersonaImageAvatar, isEmojiAvatar } from "./personaAvatar";
 
 interface PersonaAvatarWithLoadingProps {
   preset: PersonaPreset;
@@ -25,68 +18,26 @@ export function PersonaAvatarWithLoading({
   iconSize = 14,
   style,
 }: PersonaAvatarWithLoadingProps) {
-  const isImage = isPersonaImageAvatar(preset.avatar);
-  const emojiAvatar = isEmojiAvatar(preset.avatar) ? preset.avatar : null;
-  const isEmoji = !!emojiAvatar;
-  const [imgLoaded, setImgLoaded] = useState(false);
-  const [imgError, setImgError] = useState(false);
-
+  const [settledAvatar, setSettledAvatar] = useState<string | null>();
+  const isImage =
+    isPersonaImageAvatar(preset.avatar) || isEmojiAvatar(preset.avatar);
   return (
     <div
       className={className}
-      style={style}
+      style={{ ...style, borderRadius: "50%" }}
       data-avatar-state={
-        (isImage || isEmoji) && !imgLoaded && !imgError
-          ? "loading"
-          : (isImage || isEmoji) && imgLoaded
-            ? "loaded"
-            : "ready"
+        isImage && settledAvatar !== preset.avatar ? "loading" : "ready"
       }
     >
-      {isEmoji ? (
-        !imgError ? (
-          <PersonaAvatarImage
-            avatar={getEmojiAvatarUrl(emojiAvatar!)}
-            alt=""
-            className={imgClassName}
-            onLoad={() => setImgLoaded(true)}
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <PersonaAvatarIcon
-            avatar={null}
-            primaryTag={preset.tags?.[0]}
-            size={iconSize}
-          />
-        )
-      ) : isImage ? (
-        !imgError ? (
-          <PersonaAvatarImage
-            avatar={preset.avatar}
-            alt=""
-            className={imgClassName}
-            onLoad={() => setImgLoaded(true)}
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <PersonaAvatarIcon
-            avatar={null}
-            primaryTag={preset.tags?.[0]}
-            size={iconSize}
-          />
-        )
-      ) : preset.avatar ? (
-        <PersonaAvatarIcon
-          avatar={preset.avatar}
-          primaryTag={preset.tags?.[0]}
-          size={iconSize}
-        />
-      ) : (
-        <PersonaAvatarIcon
-          size="100%"
-          className={imgClassName || "h-full w-full"}
-        />
-      )}
+      <AgentAvatar
+        avatar={preset.avatar}
+        seed={preset.id || preset.name}
+        size="100%"
+        iconSize={iconSize}
+        className={imgClassName || "h-full w-full"}
+        onLoad={() => setSettledAvatar(preset.avatar)}
+        onError={() => setSettledAvatar(preset.avatar)}
+      />
     </div>
   );
 }

@@ -43,6 +43,18 @@ async def test_discovered_role_replaces_task_with_trusted_subagent_tool():
     assert handler.await_args.args[0].tool is tool
 
 
+async def test_evidence_snapshot_does_not_hide_current_turn_role_search():
+    req = request("persona:p1", result={"success": True, "presets": [{"id": "p1"}]})
+    req.state["messages"].append(HumanMessage(content="Evidence snapshot", name="evidence_context"))
+    build = AsyncMock(return_value=object())
+    handler = AsyncMock(return_value="done")
+
+    result = await PersonaSubagentMiddleware(build_task_tool=build).awrap_tool_call(req, handler)
+
+    assert result == "done"
+    build.assert_awaited_once_with("p1")
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "search_result",
@@ -206,3 +218,73 @@ async def test_sdk_dispatches_discovered_role_with_its_system_prompt():
         isinstance(message, ToolMessage) and "role executed" in str(message.content)
         for message in result["messages"]
     )
+
+
+@pytest.mark.parametrize(
+    "role",
+    [
+        "researcher",
+        "codebase-investigator",
+        "implementation-worker",
+        "verification-runner",
+        "context-worker",
+    ],
+)
+async def test_builtin_specialists_cannot_bypass_discovered_roles(role):
+    handler = AsyncMock(return_value="dispatched")
+    result = await PersonaSubagentMiddleware(build_task_tool=AsyncMock()).awrap_tool_call(
+        request(role, result={"success": True, "presets": []}), handler
+    )
+    assert isinstance(result, ToolMessage)
+    assert result.status == "error"
+
+
+async def test_nonempty_search_requires_a_discovered_role_instead_of_generic():
+    result = await PersonaSubagentMiddleware(build_task_tool=AsyncMock()).awrap_tool_call(
+        request("general-purpose", result={"success": True, "presets": [{"id": "p1"}]}),
+        AsyncMock(return_value="dispatched"),
+    )
+    assert isinstance(result, ToolMessage)
+    assert result.status == "error"
+
+
+async def test_refined_empty_search_allows_generic_after_broad_search_found_roles():
+    req = request("general-purpose", result={"success": True, "presets": [{"id": "other"}]})
+    req.state["messages"].append(
+        ToolMessage(
+            content=json.dumps({"success": True, "presets": []}),
+            name="search_persona_presets",
+            tool_call_id="refined-search",
+        )
+    )
+    result = await PersonaSubagentMiddleware(build_task_tool=AsyncMock()).awrap_tool_call(
+        req, AsyncMock(return_value="dispatched")
+    )
+    assert result == "dispatched"
+
+
+async def test_unavailable_role_search_still_installs_dispatch_guard():
+    from src.infra.agent.middleware.persona_subagent import add_persona_discovery
+    from src.infra.tool.subagent_tool import create_subagent_tools
+
+    middleware = []
+    tools = []
+    task_tool = create_subagent_tools(SimpleNamespace())[0]
+    add_persona_discovery(middleware, tools, None, task_tool)
+    result = await middleware[0].awrap_tool_call(request("general-purpose"), AsyncMock())
+    assert result.status == "error"
+    assert tools == []
+
+
+def test_deferred_role_search_is_directly_available_before_dispatch():
+    from src.infra.agent.middleware.persona_subagent import add_persona_discovery
+    from src.infra.tool.subagent_tool import create_subagent_tools
+    from src.infra.tool.team_tool import search_persona_presets
+
+    middleware = []
+    tools = []
+    manager = SimpleNamespace(
+        get_tool=lambda name: search_persona_presets if name == "search_persona_presets" else None
+    )
+    add_persona_discovery(middleware, tools, manager, create_subagent_tools(SimpleNamespace())[0])
+    assert [tool.name for tool in tools] == ["search_persona_presets"]

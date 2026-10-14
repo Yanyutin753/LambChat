@@ -57,3 +57,45 @@ test.each([true, false])("waiting approval stays resumable after done (streaming
   expect(parts).toHaveLength(1);
   expect(parts[0]).toMatchObject({ status: "running", isPending: true });
 });
+
+
+test.each([true, false])("timeout remains a timeout after parent completion (streaming: %s)", (isStreaming) => {
+  let parts: MessagePart[] = [createSubagentPart("agent-1", "Reviewer", "work", 1)];
+  parts = processMessageEvent("agent:result", {
+    agent_id: "agent-1", status: "timed_out", success: false,
+    error: "Subagent execution deadline exceeded.",
+  }, parts, "", [], 1, [], isStreaming).parts;
+  parts = processMessageEvent("done", {}, parts, "", [], 0, [], isStreaming).parts;
+  expect(parts[0]).toMatchObject({ status: "timed_out", isPending: false, cancelled: false });
+});
+
+
+test.each(["complete", "timed_out"] as const)("%s child closes unfinished tools before parent completes", (status) => {
+  const child = createSubagentPart("agent-1", "Reviewer", "work", 1);
+  child.parts = [
+    { type: "tool", id: "executed", name: "web_fetch", args: { url: "https://example.com" }, isPending: true },
+    { type: "tool", id: "draft", name: "read_file", args: { partial: '{"file_path":' }, argsPartial: true, isPending: true },
+    { type: "tool", id: "done", name: "web_search", args: {}, result: "found", success: true, isPending: false },
+  ];
+  const parts = processMessageEvent("agent:result", {
+    agent_id: "agent-1", status, success: status === "complete",
+  }, [child], "", [], 1, [], true).parts;
+  expect(parts[0]).toMatchObject({ status, isPending: false, parts: [
+    { id: "executed", isPending: false, cancelled: true },
+    { id: "done", result: "found", success: true },
+  ] });
+});
+
+
+test("recovered terminal result gets a child block in a fresh parent turn", () => {
+  let parts: MessagePart[] = [];
+  for (const type of ["agent:call", "agent:result", "done"]) {
+    parts = processMessageEvent(type, {
+      agent_id: "saved-child", agent_name: "Reviewer", input: "Original assignment",
+      status: "timed_out", result: "Partial result: saved tool contents",
+      success: false, error: "deadline",
+    }, parts, "", [], type === "done" ? 0 : 1, [], true).parts;
+  }
+  expect(parts).toHaveLength(1);
+  expect(parts[0]).toMatchObject({status: "timed_out", isPending: false, cancelled: false, result: "Partial result: saved tool contents"});
+});

@@ -23,3 +23,7 @@ test("treats uploaded avatar urls as image avatars", () => {
   expect(isPersonaImageAvatar("/api/upload/file/avatar.png")).toBe(true);
   expect(getPersonaAvatarIcon("/api/upload/file/avatar.png")).toBe(null);
 });
+
+test("generated avatars are not treated as image URLs or emoji", () => {
+  expect(isPersonaImageAvatar("generated:research")).toBe(false);
+});

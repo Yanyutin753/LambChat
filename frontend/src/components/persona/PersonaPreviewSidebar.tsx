@@ -7,7 +7,6 @@ import { CopyButton } from "../common/CopyButton";
 import { IconButton } from "../common";
 import { MarkdownContent } from "../chat/ChatMessage/MarkdownContent";
 import { PersonaAvatarWithLoading } from "./PersonaAvatarWithLoading";
-import { nameToGradient } from "../panels/MarketplacePanel/constants";
 import type { PersonaPreset } from "../../types";
 
 interface PersonaPreviewSidebarProps {
@@ -31,7 +30,6 @@ export function PersonaPreviewSidebar({
 }: PersonaPreviewSidebarProps) {
   const { t } = useTranslation();
   const [viewSource, setViewSource] = useState(false);
-  const gradient = nameToGradient(preset.name);
 
   return (
     <EditorSidebar
@@ -43,10 +41,7 @@ export function PersonaPreviewSidebar({
           key={preset.avatar}
           preset={preset}
           className="flex h-7 w-7 items-center justify-center rounded-lg"
-          imgClassName="h-5 w-5 rounded object-cover"
-          style={{
-            background: `linear-gradient(135deg, ${gradient[0]}, ${gradient[1]})`,
-          }}
+          imgClassName="h-full w-full rounded-lg object-cover"
         />
       }
       footer={

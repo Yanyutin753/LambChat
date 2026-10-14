@@ -272,9 +272,7 @@ export function AgentSection() {
                       className="flex items-center gap-3.5 px-4 py-3.5 transition-colors duration-150 hover:bg-[var(--glass-bg-hover)]"
                       style={{ animationDelay: `${index * 30}ms` }}
                     >
-                      <div className="flex size-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[var(--glass-bg-subtle)] text-theme-text-secondary ring-1 ring-[var(--glass-border)]">
-                        <AgentIcon icon={agent.icon || "Bot"} size={20} />
-                      </div>
+                      <AgentIcon icon={agent.icon} seed={agent.id} size={40} />
                       <div className="min-w-0 flex-1">
                         <h4 className="truncate text-14 font-medium font-serif text-theme-text tracking-tight">
                           {displayName}

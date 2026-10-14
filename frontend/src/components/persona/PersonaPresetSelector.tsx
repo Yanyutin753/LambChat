@@ -15,12 +15,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { nameToGradient } from "../panels/MarketplacePanel/constants";
 import type { PersonaPreset, PersonaPresetSnapshot } from "../../types";
-import {
-  isPersonaImageAvatar,
-  isEmojiAvatar,
-  getEmojiAvatarUrl,
-} from "./personaAvatar";
-import { PersonaAvatarIcon, PersonaAvatarImage } from "./PersonaAvatarIcon";
+import { AgentAvatar } from "../common/AgentAvatar";
 import { PersonaPreviewSidebar } from "./PersonaPreviewSidebar";
 import { Pagination } from "../common/Pagination";
 import { PanelSearchInput } from "../common/PanelSearchInput";
@@ -320,7 +315,6 @@ export function PersonaPresetSelector({
                 const selected = selectedPresetId === preset.id;
                 const isUsingPreset = pendingUsePresetId === preset.id;
                 const gradient = nameToGradient(preset.name);
-                const primaryTag = preset.tags[0];
                 return (
                   <div
                     key={preset.id}
@@ -386,31 +380,13 @@ export function PersonaPresetSelector({
                     <div className="flex flex-1 flex-col p-4 pt-5">
                       {/* Title row */}
                       <div className="flex items-start gap-3">
-                        <div className="pps-card__avatar shrink-0">
-                          {isPersonaImageAvatar(preset.avatar) ||
-                          isEmojiAvatar(preset.avatar) ? (
-                            <PersonaAvatarImage
-                              avatar={
-                                isEmojiAvatar(preset.avatar)
-                                  ? getEmojiAvatarUrl(preset.avatar)
-                                  : preset.avatar
-                              }
-                              alt=""
-                              className="pps-card__avatar-img"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).style.display =
-                                  "none";
-                              }}
-                            />
-                          ) : (
-                            <PersonaAvatarIcon
-                              avatar={preset.avatar}
-                              primaryTag={primaryTag}
-                              size={20}
-                              className="pps-card__avatar-icon"
-                            />
-                          )}
-                        </div>
+                        <AgentAvatar
+                          avatar={preset.avatar}
+                          seed={preset.id || preset.name}
+                          size={40}
+                          iconSize={20}
+                          className="rounded-lg"
+                        />
                         <div className="min-w-0 flex-1">
                           <h3 className="text-16 font-semibold font-serif text-theme-text leading-tight">
                             <button

@@ -3,12 +3,7 @@ import { SkillBaseCard } from "../common/SkillBaseCard";
 import { useTranslation } from "react-i18next";
 import { Sparkles, Check, Copy, Pencil, Trash2, Pin, Star } from "lucide-react";
 import type { PersonaPreset } from "../../types";
-import { PersonaAvatarIcon, PersonaAvatarImage } from "./PersonaAvatarIcon";
-import {
-  isPersonaImageAvatar,
-  isEmojiAvatar,
-  getEmojiAvatarUrl,
-} from "./personaAvatar";
+import { AgentAvatar } from "../common/AgentAvatar";
 import { getPersonaPresetCapabilities } from "./personaPresetAccess";
 import { nameToGradient } from "../common/cardUtils";
 
@@ -46,7 +41,6 @@ export function PersonaPresetCard({
 }: PersonaPresetCardProps) {
   const { t } = useTranslation();
   const gradient = nameToGradient(preset.name);
-  const primaryTag = preset.tags[0];
   const capabilities = getPersonaPresetCapabilities(preset, {
     canWrite,
     canAdmin,
@@ -59,34 +53,7 @@ export function PersonaPresetCard({
       gradient={gradient}
       iconClassName=""
       icon={
-        <>
-          {isPersonaImageAvatar(preset.avatar) ||
-          isEmojiAvatar(preset.avatar) ? (
-            <div className="scb__avatar-ring shrink-0">
-              <PersonaAvatarImage
-                avatar={
-                  isEmojiAvatar(preset.avatar)
-                    ? getEmojiAvatarUrl(preset.avatar)
-                    : preset.avatar
-                }
-                alt=""
-                className="scb__avatar-img"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                }}
-              />
-            </div>
-          ) : (
-            <div className="scb__icon-ring shrink-0">
-              <PersonaAvatarIcon
-                avatar={preset.avatar}
-                primaryTag={primaryTag}
-                size={20}
-                className="text-[var(--theme-primary)]"
-              />
-            </div>
-          )}
-        </>
+        <AgentAvatar avatar={preset.avatar} seed={preset.id || preset.name} size={36} iconSize={20} className="rounded-lg" />
       }
       statusPills={
         <>
