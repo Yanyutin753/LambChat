@@ -1315,17 +1315,24 @@ async def test_image_generation_reads_relative_reference_image_from_cubesandbox(
     source_path = "/home/cube/assets/reference.png"
     source_bytes = b"\x89PNG\r\n\x1a\ncube-image"
 
-    class _FakeSandboxFiles:
+    # Cube 的 files.read 恒返回 lossy 文本（生产二进制损坏事故根因），字节
+    # 读取走 envd HTTP 原始字节主通道——fake 按新契约模拟 sandbox._client。
+    class _FakeHttpClient:
         def __init__(self) -> None:
-            self.read_calls: list[str] = []
+            self.calls: list[dict] = []
 
-        def read(self, path: str):
-            self.read_calls.append(path)
-            return source_bytes
+        def get(self, url, params=None, headers=None):
+            self.calls.append(dict(params or {}))
+            return SimpleNamespace(status_code=200, content=source_bytes, text="")
 
-    files = _FakeSandboxFiles()
+    client = _FakeHttpClient()
     backend = CubeSandboxBackend(
-        sandbox=SimpleNamespace(sandbox_id="cube-test", files=files),
+        sandbox=SimpleNamespace(
+            sandbox_id="cube-test",
+            files=SimpleNamespace(),
+            _client=client,
+            get_host=lambda port: f"{port}-cube-test.cube.app",
+        ),
         work_dir="/home/cube",
     )
     backend._file_size = lambda path: None
@@ -1336,7 +1343,7 @@ async def test_image_generation_reads_relative_reference_image_from_cubesandbox(
     )
 
     try:
-        assert files.read_calls == [source_path]
+        assert client.calls and client.calls[0]["path"] == source_path
         assert image_file.read() == source_bytes
         assert content_type == "image/png"
         assert filename == "reference.png"
