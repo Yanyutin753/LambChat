@@ -41,14 +41,14 @@ function AgentOptionRow({
       aria-pressed={isActive}
       onClick={onSelect}
       className={`flex min-h-11 items-center gap-3 px-3 py-2.5 rounded-lg text-14 transition-colors text-left cursor-pointer hover:bg-theme-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-ring)] motion-reduce:transition-none${
-        option.disabled ? " opacity-50" : ""
+        option.disabled ? " opacity-60" : ""
       }`}
       style={{
         background: isActive
           ? "var(--theme-bg-subtle)"
           : "transparent",
         color: "var(--theme-text)",
-        boxShadow: sandbox && isActive ? "inset 0 0 0 1px var(--theme-border-faint)" : undefined,
+        border: sandbox ? `1px solid var(${isActive ? "--theme-border" : "--theme-border-faint"})` : undefined,
       }}
     >
       {sandbox ? (
@@ -60,16 +60,23 @@ function AgentOptionRow({
         />
       )}
       <span className="min-w-0 flex-1">
-        <span className="block">
+        <span className={`block${sandbox ? " font-medium" : ""}`}>
           {option.label_key ? t(option.label_key) : option.label || String(option.value)}
         </span>
         {sandbox && (
-          <span className="mt-0.5 block text-12 leading-relaxed text-theme-text-muted">
+          <span className="mt-0.5 block text-12 leading-relaxed text-theme-text-secondary">
             {t(`agentOptions.sandbox.${option.value}Hint`)}
           </span>
         )}
       </span>
-      {isActive && (
+      {sandbox ? (
+        <span
+          aria-hidden="true"
+          className={`flex size-4 shrink-0 items-center justify-center rounded-full border ${isActive ? "border-theme-text-secondary" : "border-theme-border"}`}
+        >
+          {isActive && <span className="size-2 rounded-full bg-theme-text-secondary" />}
+        </span>
+      ) : isActive && (
         <Check size={16} className="shrink-0 text-theme-text-secondary" aria-hidden="true" />
       )}
     </button>
@@ -142,20 +149,20 @@ export const AgentOptionButton = memo(function AgentOptionButton({
         <ModalSurface
           open={showDropdown}
           onClose={() => setShowDropdown(false)}
-          label={description}
+          label={optionKey === "sandbox" ? t("agentOptions.sandbox.title") : description}
           className="modal-size-md"
         >
           <div
-            className="w-full rounded-xl bg-theme-bg-card px-4 pt-3 pb-5"
+            className="w-full rounded-xl bg-theme-bg-card px-5 pt-4 pb-5"
             style={{
               maxHeight: "60dvh",
               overflowY: "auto",
               overscrollBehavior: "contain",
             }}
           >
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h3 className="min-w-0 text-14 font-semibold font-serif text-theme-text">
-                {optionKey === "sandbox" ? t("agentOptions.sandbox.description") : description}
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <h3 className="min-w-0 text-18 font-semibold text-theme-text">
+                {optionKey === "sandbox" ? t("agentOptions.sandbox.title") : description}
               </h3>
               <DialogCloseButton onClick={() => setShowDropdown(false)} />
             </div>
@@ -164,7 +171,16 @@ export const AgentOptionButton = memo(function AgentOptionButton({
                 {note}
               </div>
             )}
-            <div className="flex flex-col gap-1">
+            {optionKey === "sandbox" && (
+              <h4 className="mb-2 text-12 font-medium text-theme-text-secondary">
+                {t("agentOptions.sandbox.section")}
+              </h4>
+            )}
+            <div
+              role={optionKey === "sandbox" ? "group" : undefined}
+              aria-label={optionKey === "sandbox" ? t("agentOptions.sandbox.section") : undefined}
+              className="flex flex-col gap-2"
+            >
               {options.map((opt) => (
                 <AgentOptionRow
                   key={String(opt.value)}

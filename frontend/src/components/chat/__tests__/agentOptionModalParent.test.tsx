@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { AgentOptionButton } from "../AgentOptionButton";
 vi.mock("react-i18next", () => ({
@@ -29,9 +29,13 @@ test("sandbox choices share the dismissible modal parent and scroll boundary", (
   );
   expect(
     screen
-      .getByRole("dialog", { name: "Choose runtime" })
+      .getByRole("dialog", { name: "agentOptions.sandbox.title" })
       .hasAttribute("data-modal-surface"),
   ).toBe(true);
+  expect(screen.getByRole("heading", { name: "agentOptions.sandbox.title" })).toBeInTheDocument();
+  const location = screen.getByRole("group", { name: "agentOptions.sandbox.section" });
+  expect(within(location).getByRole("button", { name: /Cloud/, pressed: true })).toBeInTheDocument();
+  expect(within(location).getByRole("button", { name: /Local/, pressed: false })).toBeInTheDocument();
   expect(document.querySelector("[data-modal-handle]")).not.toBeNull();
   fireEvent.keyDown(document, { key: "Escape" });
   expect(close).toHaveBeenCalledWith(false);

@@ -305,7 +305,7 @@ export function ChatInputSelectors({
     ) : undefined;
 
   const policySection = !isLocal || selectedMachine ? (
-    <section className="mt-4 border-t border-theme-border pt-4" data-sandbox-policy-section>
+    <section className="mt-5 border-t border-theme-border-faint pt-5" data-sandbox-policy-section>
       <div className="mb-2 flex items-center justify-between gap-3">
         <h4 className="flex items-center gap-2 text-12 font-medium text-theme-text-secondary">
           {t("agentOptions.sandboxPolicy.section")}
@@ -316,11 +316,6 @@ export function ChatInputSelectors({
           </span>
         )}
       </div>
-      <p className="pb-3 text-12 leading-relaxed text-theme-text-muted">
-        {t(isLocal
-          ? "agentOptions.sandboxPolicy.localHint"
-          : "agentOptions.sandboxPolicy.cloudHint")}
-      </p>
       <Select
         key={policyTarget}
         ariaLabel={t("agentOptions.sandboxPolicy.section")}
@@ -335,6 +330,11 @@ export function ChatInputSelectors({
         triggerClassName="!min-h-11 !px-3 !border-[var(--theme-border-faint)]"
         dropdownClassName="!border-[var(--theme-border-faint)]"
       />
+      <p className="mt-2 text-12 leading-relaxed text-theme-text-secondary">
+        {t(isLocal
+          ? "agentOptions.sandboxPolicy.localHint"
+          : "agentOptions.sandboxPolicy.cloudHint")}
+      </p>
       {states[policyTarget] === "error" && (
         <div role="alert" className="mt-2 flex items-center justify-between gap-3 text-12 text-theme-text-secondary">
           <span>{t("agentOptions.sandboxPolicy.updateFailed")}</span>

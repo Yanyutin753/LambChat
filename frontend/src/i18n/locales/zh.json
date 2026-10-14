@@ -267,6 +267,8 @@
     },
     "sandbox": {
       "label": "沙箱",
+      "title": "运行设置",
+      "section": "运行位置",
       "description": "运行位置与确认策略",
       "options": {
         "cloud": "云端电脑",
@@ -290,7 +292,7 @@
     "sandboxPolicy": {
       "cloudHint": "账户设置，应用于之后启动的云端任务。",
       "localHint": "此设备的设置，应用于在这台电脑上执行的操作。",
-      "section": "执行策略",
+      "section": "执行确认",
       "all": "全部确认",
       "commands": "仅命令确认",
       "none": "不确认",

@@ -267,6 +267,8 @@
     },
     "sandbox": {
       "label": "Sandbox",
+      "title": "Runtime settings",
+      "section": "Run location",
       "description": "Runtime and confirmation policy",
       "options": {
         "cloud": "Cloud computer",
@@ -290,7 +292,7 @@
     "sandboxPolicy": {
       "cloudHint": "Account setting for cloud tasks started after saving.",
       "localHint": "Device setting for operations performed on this computer.",
-      "section": "Execution policy",
+      "section": "Execution confirmation",
       "all": "Confirm everything",
       "commands": "Confirm commands only",
       "none": "No confirmation",
