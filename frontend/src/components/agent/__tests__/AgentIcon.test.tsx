@@ -91,3 +91,16 @@ test("only generated artwork receives theme toning, uploaded photos keep their c
  rerender(<AgentAvatar avatar="https://example.test/photo.png" seed="research" />);
  expect(container.querySelector("img")?.closest(".agent-avatar__artwork")).toBeNull();
 });
+
+test("brand model icons render clean without tinted chip background", () => {
+  const { container, rerender } = render(<AgentAvatar avatar="lobe:openai" size={36} />);
+  let frame = container.firstElementChild as HTMLElement;
+  expect(frame.style.background).toBe("");
+  rerender(<AgentAvatar avatar="lobe:zhipu" size={36} />);
+  frame = container.firstElementChild as HTMLElement;
+  expect(frame.style.background).toBe("");
+  // 生成的 boring 头像仍保留染色底（共享头像的设计语义）
+  rerender(<AgentAvatar avatar="generated:research" seed="research" size={36} />);
+  frame = container.firstElementChild as HTMLElement;
+  expect(frame.style.background).toContain("color-mix");
+});

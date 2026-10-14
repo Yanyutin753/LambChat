@@ -220,7 +220,12 @@ async def main():
     # T6 async 车道（#877 观测点）：客户端可用性 + 字节精确
     async_client_up = False
     try:
-        sbx = await backend._async_client_or_none()
+        target = backend
+        # CompositeBackend 包一层；async 客户端在内层 default 后端上
+        inner = getattr(target, "default", None)
+        if inner is not None:
+            target = inner
+        sbx = await target._async_client_or_none()
         async_client_up = sbx is not None
     except Exception as exc:  # noqa: BLE001
         print("[T6] async client probe error:", exc)
