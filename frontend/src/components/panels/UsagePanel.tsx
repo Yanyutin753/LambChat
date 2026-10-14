@@ -236,16 +236,16 @@ export function UsagePanel() {
   );
 
   const refreshButton = (
-    <button
+    <Button
       type="button"
-      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-card)] text-theme-text-secondary transition-all duration-200 hover:border-[var(--glass-border-hover)] hover:text-theme-text active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-10"
+      className="h-10 w-10 !p-0"
       onClick={fetchData}
       disabled={isLoading}
       aria-label={t("usage.refresh")}
       title={t("usage.refresh")}
     >
       <RefreshCw size={15} className={isLoading ? "animate-spin" : undefined} />
-    </button>
+    </Button>
   );
 
   if (isInitialLoading) return <UsagePanelSkeleton />;

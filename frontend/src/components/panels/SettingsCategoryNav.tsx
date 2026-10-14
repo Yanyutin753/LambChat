@@ -45,10 +45,21 @@ export function SettingsCategoryNav({
             searching ? t("settings.navigation.searchResults") : undefined
           }
           triggerClassName="min-h-11"
+          dropdownClassName="settings-category-menu"
           options={groups.flatMap((group) =>
             group.categories.map(({ category, count }) => ({
               value: category,
-              label: `${labels[category]} · ${count}`,
+              label: (
+                <>
+                  <span className="sr-only">{`${labels[category]} · ${count}`}</span>
+                  <span className="settings-category-name" aria-hidden="true">
+                    {labels[category]}
+                  </span>
+                  <span className="settings-category-count" aria-hidden="true">
+                    {count}
+                  </span>
+                </>
+              ),
               group: t(`settings.navigation.groups.${group.id}`),
             })),
           )}

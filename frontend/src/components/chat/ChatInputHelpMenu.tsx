@@ -25,8 +25,8 @@ export function ChatInputHelpMenu({ className }: { className?: string }) {
         className ? ` ${className}` : ""
       }`}
       style={{
-        bottom: "var(--app-safe-area-bottom-active, 0px)",
-        right: "var(--app-safe-area-right, 0px)",
+        bottom: "calc(var(--app-safe-area-bottom-active, 0px) + 4px)",
+        right: "calc(var(--app-safe-area-right, 0px) + 4px)",
       }}
     >
       <button
@@ -45,7 +45,7 @@ export function ChatInputHelpMenu({ className }: { className?: string }) {
         }}
         className="ui-button ui-icon-button ui-button--ghost ui-button--sm rounded-full"
       >
-        <CircleHelp size={16} />
+        <CircleHelp size={14} />
       </button>
       {position && (
         <ResourceCardMenu

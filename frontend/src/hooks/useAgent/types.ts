@@ -1,3 +1,4 @@
+import type { AssistantIdentity } from "../../types/message";
 import type { PersistentGoal } from "../../services/api/session";
 import type {
   Message,
@@ -50,6 +51,7 @@ export interface StreamEvent {
 }
 
 export interface EventData {
+  assistant_identity?: AssistantIdentity;
   session_id?: string;
   /** user:cancel 的中断原因（"steer" = 插话打断 ask_human 挂起） */
   reason?: string;
@@ -188,6 +190,7 @@ export interface UseAgentOptions {
   getDisabledSkills?: () => string[];
   getEnabledSkills?: () => string[] | undefined;
   getPersonaPresetId?: () => string | null;
+  getPersonaSnapshot?: () => PersonaPresetSnapshot | null | undefined;
   getDisabledMcpTools?: () => string[];
   getAgentOptions?: () => Record<string, boolean | string | number>;
   onSkillAdded?: (
@@ -217,6 +220,7 @@ export interface SubagentStackItem {
 
 // History event data structure
 export interface HistoryEventData {
+  assistant_identity?: AssistantIdentity;
   content?: string;
   /** user:cancel 的中断原因（"steer" = 插话打断 ask_human 挂起） */
   reason?: string;

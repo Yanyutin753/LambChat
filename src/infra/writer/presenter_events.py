@@ -504,6 +504,7 @@ class EventPresenterMixin:
         message_id: Optional[str] = None,
         enabled_skills: Optional[List[str]] = None,
         run_modes: Optional[List[str]] = None,
+        assistant_identity: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """输出用户消息"""
         resolved_message_id = message_id or f"{self.run_id}:user"
@@ -516,6 +517,8 @@ class EventPresenterMixin:
         data["attachments"] = _bounded_attachments(attachments)
         if enabled_skills:
             data["enabled_skills"] = enabled_skills
+        if assistant_identity:
+            data["assistant_identity"] = assistant_identity
         if run_modes:
             data["run_modes"] = run_modes
         return self._build_event("user:message", data)

@@ -89,6 +89,7 @@ test("settings navigation labels and group descriptions exist in every locale", 
       "clearSearch",
       "subcategory",
       "allSubcategories",
+      "saveHelp",
       "saveHint",
     ]) {
       expect(navigation[key], `${locale}: ${key}`).toBeTruthy();

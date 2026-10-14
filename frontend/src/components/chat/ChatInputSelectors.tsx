@@ -1,14 +1,15 @@
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
-import { Download, Laptop, Monitor, Terminal } from "lucide-react";
+import { Check, Download, Laptop, Monitor, Terminal } from "lucide-react";
 import { ToolSelector } from "../selectors/ToolSelector";
 import { SkillSelector } from "../selectors/SkillSelector";
 import { AgentModeSelector } from "../selectors/AgentModeSelector";
 import { PersonaPresetSelector } from "../persona/PersonaPresetSelector";
 import { TeamPickerModal } from "../team/TeamPickerModal";
 import { AgentOptionButton } from "./AgentOptionButton";
+import { Select } from "../common/ui/Select";
 import {
   isShellAvailable,
   writeConfirmPolicy,
@@ -17,12 +18,16 @@ import {
   notifySandboxStatusRefresh,
   useSandboxStatus,
 } from "../../hooks/useSandboxStatus";
+import { useAuth } from "../../hooks/useAuth";
+import { usePreferenceWrites } from "../../hooks/usePreferenceWrites";
+import { authApi } from "../../services/api";
 import { sandboxApiMachines } from "../../services/api/sandbox";
 import {
   SANDBOX_AGENT_OPTION_KEY,
   SANDBOX_MACHINE_AGENT_OPTION_KEY,
   adaptSandboxAgentOption,
   buildSandboxMachineRows,
+  resolveSandboxPolicyMachine,
   type SandboxMachineRow,
 } from "./sandboxOption";
 import type { FeaturePanel } from "../selectors/FeatureMenu";
@@ -162,7 +167,20 @@ export function ChatInputSelectors({
     currentMachineId,
   } = useSandboxStatus();
   const sandboxShell = isShellAvailable();
-  const [policyOverride, setPolicyOverride] = useState<string | null>(null);
+  const { user, refreshUser } = useAuth();
+  const { states, save, retry } = usePreferenceWrites(user?.id);
+  const [policyOverride, setPolicyOverride] = useState<{
+    target: string;
+    value: string;
+  } | null>(null);
+  const sandboxValue =
+    agentOptionValues[SANDBOX_AGENT_OPTION_KEY] ??
+    agentOptions?.[SANDBOX_AGENT_OPTION_KEY]?.default;
+  const isLocal = sandboxValue === "local";
+  useEffect(() => {
+    if (activePanel === "sandbox") void refreshUser();
+    setPolicyOverride(null);
+  }, [activePanel, user?.id, refreshUser]);
   // 电脑操作只在本地档展示在线设备。
   // 当前设备（壳内 read_machine_id 比对命中）带标识
   const machineRows = machines.some((m) => m.online !== false)
@@ -172,28 +190,44 @@ export function ChatInputSelectors({
     typeof agentOptionValues[SANDBOX_MACHINE_AGENT_OPTION_KEY] === "string"
       ? (agentOptionValues[SANDBOX_MACHINE_AGENT_OPTION_KEY] as string)
       : "";
-  const selectedMachine = machines.find((m) => m.machine_id === machineValue);
+  const selectedMachine = resolveSandboxPolicyMachine(
+    machines,
+    machineValue,
+    defaultMachineId,
+  );
+  const policyTarget = `${user?.id}:${isLocal ? selectedMachine?.machine_id ?? "local" : "cloud"}`;
+  const cloudPolicy = user?.metadata?.sandboxCloudConfirmPolicy;
   const executionPolicy =
-    policyOverride ?? selectedMachine?.confirm_policy ?? "all";
-  const handlePolicyChange = async (policy: string) => {
-    if (!selectedMachine || selectedMachine.online === false) return;
-    try {
-      await sandboxApiMachines.updateConfirmPolicy(
-        selectedMachine.machine_id,
-        policy,
-      );
-      if (selectedMachine.machine_id === currentMachineId && sandboxShell) {
-        await writeConfirmPolicy(policy);
-      }
-      setPolicyOverride(policy);
-      // 与偏好设置页同款对账：machines 走 presence 秒推，但 profile 页依赖的
-      // status（daemon_confirm_policy）要等 60s 对账轮询——不发本事件会出现
-      // 「chat input 已新、偏好设置还旧」的双显不同步
-      notifySandboxStatusRefresh();
-      toast.success(t("agentOptions.sandboxPolicy.updated"));
-    } catch {
-      toast.error(t("agentOptions.sandboxPolicy.updateFailed"));
+    policyOverride?.target === policyTarget
+      ? policyOverride.value
+      : isLocal
+        ? selectedMachine?.confirm_policy ?? "all"
+        : cloudPolicy === "all" || cloudPolicy === "commands"
+          ? cloudPolicy
+          : "none";
+  const policySaving = Object.values(states).includes("saving");
+  const handlePolicyChange = (policy: string) => {
+    if (
+      policySaving ||
+      (isLocal && (!selectedMachine || selectedMachine.online === false))
+    ) {
+      return;
     }
+    save(policyTarget, async () => {
+      if (!isLocal) {
+        await authApi.updateMetadata({ sandboxCloudConfirmPolicy: policy });
+      } else if (selectedMachine) {
+        await sandboxApiMachines.updateConfirmPolicy(selectedMachine.machine_id, policy);
+        if (selectedMachine.machine_id === currentMachineId && sandboxShell) {
+          await writeConfirmPolicy(policy);
+        }
+      }
+    }, () => {
+      setPolicyOverride({ target: policyTarget, value: policy });
+      if (isLocal) notifySandboxStatusRefresh();
+      else void refreshUser();
+      toast.success(t("agentOptions.sandboxPolicy.updated"));
+    });
   };
   const handleSelectMachineRow = (row: SandboxMachineRow) => {
     if (row.disabled) {
@@ -207,18 +241,18 @@ export function ChatInputSelectors({
     machineRows.length > 0 ? (
       <>
         <div
-          className="mt-1 pt-1.5 border-t"
+          className="mt-4 pt-4 border-t"
           style={{ borderColor: "var(--theme-border)" }}
           data-sandbox-machine-section
         >
           <div
-            className="px-3 pt-1 pb-1.5 text-12 font-medium"
+            className="pb-2 text-12 font-medium"
             style={{ color: "var(--theme-text-secondary)" }}
           >
             {t("agentOptions.sandboxMachine.section")}
           </div>
           <p
-            className="px-3 pb-2 text-12"
+            className="pb-3 text-12 leading-relaxed"
             style={{ color: "var(--theme-text-muted)" }}
           >
             {t("agentOptions.sandboxMachine.computerUseHint")}
@@ -232,102 +266,89 @@ export function ChatInputSelectors({
                   key={row.value || "auto"}
                   type="button"
                   data-sandbox-machine-row
+                  aria-pressed={active}
+                  aria-disabled={row.disabled || undefined}
                   onClick={() => handleSelectMachineRow(row)}
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-14 transition-colors text-left cursor-pointer active:scale-[0.98]${
+                  className={`flex min-h-11 items-center gap-3 px-3 py-2.5 rounded-lg text-14 transition-colors text-left cursor-pointer hover:bg-theme-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-ring)] motion-reduce:transition-none${
                     row.disabled ? " opacity-50" : ""
                   }`}
                   style={{
                     background: active
-                      ? "color-mix(in srgb, var(--theme-primary) 12%, transparent)"
+                      ? "var(--theme-bg-subtle)"
                       : "transparent",
-                    color: active
-                      ? "var(--theme-primary)"
-                      : "var(--theme-text)",
+                    color: "var(--theme-text)",
                   }}
                 >
-                  <PlatformIcon size={14} className="shrink-0 opacity-60" />
-                  <span className="truncate">{row.label}</span>
+                  <PlatformIcon size={18} className="shrink-0 opacity-60" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate">{row.label}</span>
                   {row.isCurrent && (
                     <span
                       data-current-device-badge
                       className="ml-1 shrink-0 px-1.5 py-0.5 rounded-full text-12"
                       style={{
                         color: "var(--theme-primary)",
-                        background:
-                          "color-mix(in srgb, var(--theme-primary) 12%, transparent)",
+                        background: "var(--theme-bg-subtle)",
                       }}
                     >
                       {t("agentOptions.sandboxMachine.currentDevice")}
                     </span>
                   )}
                   {active && (
-                    <span
-                      className="ml-auto text-12"
-                      style={{ color: "var(--theme-primary)" }}
-                    >
-                      ✓
-                    </span>
+                    <Check size={16} className="shrink-0 text-theme-text-secondary" aria-hidden="true" />
                   )}
                 </button>
               );
             })}
           </div>
         </div>
-        {selectedMachine && (
-          <div
-            className="mt-1 pt-1.5 border-t"
-            style={{ borderColor: "var(--theme-border)" }}
-            data-sandbox-policy-section
-          >
-            <div
-              className="px-3 pt-1 pb-1.5 text-12 font-medium"
-              style={{ color: "var(--theme-text-secondary)" }}
-            >
-              {t("agentOptions.sandboxPolicy.section")}
-            </div>
-            <div className="flex flex-col gap-1">
-              {(["all", "commands", "none"] as const).map((policy) => (
-                <button
-                  key={policy}
-                  type="button"
-                  onClick={() => void handlePolicyChange(policy)}
-                  className="flex items-center gap-3 px-3 py-2 rounded-xl text-14 transition-colors text-left cursor-pointer active:scale-[0.98]"
-                  style={{
-                    background:
-                      executionPolicy === policy
-                        ? "color-mix(in srgb, var(--theme-primary) 12%, transparent)"
-                        : "transparent",
-                    color:
-                      executionPolicy === policy
-                        ? "var(--theme-primary)"
-                        : "var(--theme-text)",
-                  }}
-                >
-                  <span
-                    className="w-2.5 h-2.5 rounded-full shrink-0"
-                    style={{
-                      background:
-                        executionPolicy === policy
-                          ? "var(--theme-primary)"
-                          : "var(--theme-border)",
-                    }}
-                  />
-                  {t(`agentOptions.sandboxPolicy.${policy}`)}
-                  {executionPolicy === policy && (
-                    <span
-                      className="ml-auto text-12"
-                      style={{ color: "var(--theme-primary)" }}
-                    >
-                      ✓
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </>
     ) : undefined;
+
+  const policySection = !isLocal || selectedMachine ? (
+    <section className="mt-5 border-t border-theme-border-faint pt-5" data-sandbox-policy-section>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h4 className="flex items-center gap-2 text-12 font-medium text-theme-text-secondary">
+          {t("agentOptions.sandboxPolicy.section")}
+        </h4>
+        {policySaving && (
+          <span role="status" className="text-12 text-theme-text-muted">
+            {t("common.saving")}
+          </span>
+        )}
+      </div>
+      <Select
+        key={policyTarget}
+        ariaLabel={t("agentOptions.sandboxPolicy.section")}
+        value={executionPolicy}
+        onChange={handlePolicyChange}
+        disabled={policySaving || (isLocal && selectedMachine?.online === false)}
+        options={["all", "commands", "none"].map((policy) => ({
+          value: policy,
+          label: t(`agentOptions.sandboxPolicy.${policy}`),
+        }))}
+        className="w-full"
+        triggerClassName="!min-h-11 !px-3 !border-[var(--theme-border-faint)]"
+        dropdownClassName="!border-[var(--theme-border-faint)]"
+      />
+      <p className="mt-2 text-12 leading-relaxed text-theme-text-secondary">
+        {t(isLocal
+          ? "agentOptions.sandboxPolicy.localHint"
+          : "agentOptions.sandboxPolicy.cloudHint")}
+      </p>
+      {states[policyTarget] === "error" && (
+        <div role="alert" className="mt-2 flex items-center justify-between gap-3 text-12 text-theme-text-secondary">
+          <span>{t("agentOptions.sandboxPolicy.updateFailed")}</span>
+          <button
+            type="button"
+            onClick={() => retry(policyTarget)}
+            className="min-h-11 px-2 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-ring)]"
+          >
+            {t("common.retry")}
+          </button>
+        </div>
+      )}
+    </section>
+  ) : undefined;
 
   return (
     <>
@@ -449,10 +470,10 @@ export function ChatInputSelectors({
 
             if (isSandbox) {
               // 离线（壳内或纯 web 本地档置灰可见）：统一提示 + 底部下载引导
-              const note = !sandboxOnline
+              const note = isLocal && !sandboxOnline
                 ? t("agentOptions.sandbox.offlineHint")
                 : undefined;
-              const downloadFooter = !sandboxOnline ? (
+              const downloadFooter = isLocal && !sandboxOnline ? (
                 <button
                   type="button"
                   onClick={() => navigate("/download")}
@@ -475,7 +496,12 @@ export function ChatInputSelectors({
                   value={adapted.value}
                   onChange={handleChange}
                   note={note}
-                  belowOptions={adapted.value === "local" ? machineSection : undefined}
+                  belowOptions={
+                    <>
+                      {adapted.value === "local" ? machineSection : undefined}
+                      {policySection}
+                    </>
+                  }
                   footer={downloadFooter}
                   isOpen={activePanel === "sandbox"}
                   onOpenChange={(open) =>

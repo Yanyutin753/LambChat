@@ -10,6 +10,7 @@ export interface ChatMessageMemoProps {
   isLastMessage?: boolean;
   personaAvatar?: string | null;
   personaName?: string | null;
+  personaSeed?: string | null;
   activePreview?: RevealPreviewRequest | null;
   latestAutoPreview?: AutoPreviewTarget | null;
   onOpenPreview?: unknown;
@@ -74,6 +75,7 @@ export function areChatMessagePropsEqual(
   if (prev.runId !== next.runId) return false;
   if (prev.personaAvatar !== next.personaAvatar) return false;
   if (prev.personaName !== next.personaName) return false;
+  if (prev.personaSeed !== next.personaSeed) return false;
   if (prev.showFeedbackAndShareActions !== next.showFeedbackAndShareActions) {
     return false;
   }

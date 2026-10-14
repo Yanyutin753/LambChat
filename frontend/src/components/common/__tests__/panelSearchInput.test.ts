@@ -15,6 +15,20 @@ const componentsCss = source("../../../styles/components.css").replace(
   " ",
 );
 
+test("panel search, filters and secondary actions share their control surface", () => {
+  const surface = cssBlock(
+    componentsCss,
+    ".panel-header .panel-search, .panel-header .panel-filter-trigger, .panel-header .ui-button--secondary",
+  );
+  expect(surface).toMatch(/height:\s*2\.5rem;/);
+  expect(surface).toMatch(/border-color:\s*var\(--theme-border\);/);
+  expect(surface).toMatch(/background:\s*var\(--theme-bg-card\);/);
+  const usage = source("../../panels/UsagePanel.tsx");
+  const refresh = usage.slice(usage.indexOf("const refreshButton ="), usage.indexOf("if (isInitialLoading)"));
+  expect(refresh).toMatch(/<Button/);
+  expect(refresh).not.toMatch(/glass-bg-card|glass-border/);
+});
+
 test("long title-row actions stay within the panel instead of being clipped", () => {
   expect(componentsCss).toMatch(
     /\.panel-header__actions, \.panel-header__actions > \.flex:not\(\.file-library-view-switch\),[^{]*\{[^}]*flex-wrap:\s*wrap;[^}]*max-width:\s*100%;[^}]*min-width:\s*0;[^}]*justify-content:\s*flex-end;/,

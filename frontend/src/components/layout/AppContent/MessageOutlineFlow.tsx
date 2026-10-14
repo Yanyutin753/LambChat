@@ -36,6 +36,7 @@ interface OutlineNodeData {
   avatarUrl: string | undefined;
   username: string;
   personaAvatar?: string | null;
+  personaSeed?: string | null;
   [key: string]: unknown;
 }
 
@@ -106,6 +107,7 @@ function OutlineFlowNode({ data }: { data: OutlineNodeData }) {
             <AssistantAvatar
               className="size-[26px] rounded-full ring-1 ring-white/25 shadow-[0_2px_6px_rgba(0,0,0,0.12)]"
               personaAvatar={data.personaAvatar}
+              personaSeed={data.personaSeed}
               personaSize={18}
             />
           )}
@@ -169,7 +171,7 @@ function buildFlowData(
   activeId: string | null,
   avatarUrl: string | undefined,
   username: string,
-  personaAvatar?: string | null,
+
 ) {
   const flowItems = items.filter(
     (item) => item.kind === "user-message" || item.kind === "assistant-message",
@@ -187,7 +189,8 @@ function buildFlowData(
       isActive: activeId === item.anchorId,
       avatarUrl,
       username,
-      personaAvatar,
+      personaAvatar: item.kind === "assistant-message" ? item.assistantIdentity?.avatar : null,
+      personaSeed: item.kind === "assistant-message" ? item.assistantIdentity?.seed : null,
     },
   }));
 
@@ -212,14 +215,12 @@ interface MessageOutlinePanelProps {
   items: MessageOutlineItem[];
   activeId: string | null;
   onNavigate: (anchorId: string, messageIndex: number) => void;
-  personaAvatar?: string | null;
 }
 
 function OutlineFlowInner({
   items,
   activeId,
   onNavigate,
-  personaAvatar,
 }: MessageOutlinePanelProps) {
   const { user } = useAuth();
   const { t } = useTranslation();
@@ -238,8 +239,8 @@ function OutlineFlowInner({
 
   const { nodes, edges } = useMemo(
     () =>
-      buildFlowData(items, flowActiveId, avatarUrl, username, personaAvatar),
-    [items, flowActiveId, avatarUrl, username, personaAvatar],
+      buildFlowData(items, flowActiveId, avatarUrl, username),
+    [items, flowActiveId, avatarUrl, username],
   );
 
   // track container size for responsive zoom

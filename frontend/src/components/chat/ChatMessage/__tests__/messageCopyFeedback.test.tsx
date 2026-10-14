@@ -158,3 +158,23 @@ test("inline code is a keyboard accessible copy action that waits for confirmati
     await screen.findByRole("button", { name: "chat.message.copied" }),
   ).toBeEnabled();
 });
+
+test("historical assistant avatar and name stay fixed when the current selection changes", () => {
+  const message = {
+    id: "historic",
+    role: "assistant" as const,
+    content: "A saved reply",
+    timestamp: new Date(),
+    assistantIdentity: { seed: "fast", name: "Original assistant", avatar: null },
+  };
+  const { container, rerender } = render(<ChatMessage message={message} personaName="Current fast" personaSeed="fast" />);
+  const artwork = () => Array.from(container.querySelectorAll(".chat-assistant-heading svg path, .chat-assistant-heading svg rect"))
+    .map(shape => [shape.getAttribute("d"), shape.getAttribute("fill"), shape.getAttribute("transform")]);
+  const original = artwork();
+  expect(original.length).toBeGreaterThan(0);
+  expect(screen.getByText("Original assistant")).toBeInTheDocument();
+  rerender(<ChatMessage message={message} personaName="Current search" personaSeed="search" personaAvatar="🤖" />);
+  expect(artwork()).toEqual(original);
+  expect(screen.getByText("Original assistant")).toBeInTheDocument();
+  expect(screen.queryByText("Current search")).not.toBeInTheDocument();
+});

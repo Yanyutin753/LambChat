@@ -1,6 +1,7 @@
 import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
 import { Select } from "../common/ui/Select";
+import { observePanelWidths } from "../common/panelWidths";
 import { useState, useEffect, useRef, useId } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -11,9 +12,7 @@ import {
   Wrench,
   Cpu,
   Scale,
-  LogOut,
 } from "lucide-react";
-import { useAuth } from "../../hooks/useAuth";
 import { BrandWordmark } from "../common/BrandWordmark";
 import { APP_VERSION } from "../../utils/appVersion";
 
@@ -48,9 +47,9 @@ export function ProfileModal({
   onCloseProfileModal,
 }: ProfileModalProps) {
   const { t } = useTranslation();
-  const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState<ProfileTab>("info");
   const contentRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   useEffect(() => {
     if (showProfileModal) setActiveTab("info");
@@ -59,6 +58,10 @@ export function ProfileModal({
   useEffect(() => {
     if (contentRef.current) contentRef.current.scrollTop = 0;
   }, [activeTab]);
+  useEffect(() => {
+    if (showProfileModal && dialogRef.current)
+      return observePanelWidths(dialogRef.current);
+  }, [showProfileModal]);
   if (!showProfileModal) return null;
 
   const tabs: { key: ProfileTab; label: string }[] = [
@@ -70,19 +73,6 @@ export function ProfileModal({
     { key: "models", label: t("profile.modelIntro") },
     { key: "terms", label: t("profile.termsTab") },
   ];
-  const logoutButton = (
-    <button
-      type="button"
-      className="profile-logout"
-      onClick={() => {
-        logout();
-        onCloseProfileModal();
-      }}
-    >
-      <LogOut size={16} />
-      {t("auth.logout")}
-    </button>
-  );
 
   return (
     <ModalSurface
@@ -91,7 +81,7 @@ export function ProfileModal({
       labelledBy={titleId}
       className="profile-modal-surface"
     >
-      <div className="profile-dialog safe-area-bottom">
+      <div ref={dialogRef} className="profile-dialog safe-area-bottom">
         <header className="profile-header">
           <h2 id={titleId} className="font-serif">
             {t("nav.settings")}
@@ -116,7 +106,6 @@ export function ProfileModal({
                 );
               })}
             </div>
-            {logoutButton}
           </nav>
           <div className="profile-category">
             <Select
@@ -128,9 +117,8 @@ export function ProfileModal({
                 label: tab.label,
               }))}
             />
-            {logoutButton}
           </div>
-          <div ref={contentRef} className="profile-content">
+          <div ref={contentRef} className="profile-content panel-scroll">
             <div key={activeTab} className="profile-page">
               <h2 className="profile-page-title font-serif">
                 {tabs.find((tab) => tab.key === activeTab)?.label}

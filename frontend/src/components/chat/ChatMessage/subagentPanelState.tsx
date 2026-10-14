@@ -29,6 +29,26 @@ export function parseSubagentControlResult(
   }
 }
 
+export function resolveSubagentControlState(
+  parsed: Record<string, unknown> | null,
+  agent: SubagentPanelData | undefined,
+  completedAt: string | undefined,
+): string {
+  const state = typeof parsed?.status === "string" ? parsed.status : "";
+  const observedAt = Date.parse(completedAt ?? "");
+  if (
+    !agent || !Number.isFinite(observedAt) ||
+    !["queued", "running", "waiting_human"].includes(state)
+  ) return state;
+  // Match the execution that was active when this call returned, even after a continuation.
+  const runs = agent.history?.filter((part): part is SubagentPart => part.type === "subagent");
+  const run = (runs?.length ? runs : [agent]).slice().reverse().find((entry) =>
+    entry.startedAt !== undefined && entry.startedAt <= observedAt &&
+    (entry.completedAt === undefined || entry.completedAt >= observedAt),
+  );
+  return run?.status === "complete" ? "completed" : run?.status ?? state;
+}
+
 export function buildSubagentConversation(data: SubagentPanelData): Message[] {
   const history = data.history?.length
     ? data.history

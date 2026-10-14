@@ -84,10 +84,9 @@ test("assistant message header shows the selected team in team mode", () => {
   expect(chatViewPropsSource).toMatch(/function useCurrentTeam/);
   expect(chatViewPropsSource).toMatch(/function resolveChatAssistantIdentity/);
   expect(chatViewPropsSource).toMatch(/getTeamFallbackAvatar/);
-  expect(chatViewSource).toMatch(/const assistantIdentity = useMemo\(/);
-  expect(chatViewSource).toMatch(/personaAvatar=\{assistantIdentity\.avatar\}/);
-  expect(chatViewSource).toMatch(/personaName=\{assistantIdentity\.name\}/);
+  expect(chatViewSource).not.toMatch(/personaAvatar=\{assistantIdentity\.avatar\}/);
+  expect(chatViewSource).not.toMatch(/personaName=\{assistantIdentity\.name\}/);
   expect(chatMessageSource).toMatch(
-    /\{personaName \|\| t\("chat\.message\.assistant"\)\}/,
+    /message\.assistantIdentity\?\.name/,
   );
 });

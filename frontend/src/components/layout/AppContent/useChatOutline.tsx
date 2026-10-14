@@ -30,7 +30,6 @@ export interface ChatOutlineReturn {
 export function useChatOutline(
   messages: Message[],
   virtuosoRef: React.RefObject<VirtuosoHandle | null>,
-  assistantAvatar: string | null,
   outlineToggleRef: React.RefObject<(() => void) | null> | undefined,
   t: TFunction,
 ): ChatOutlineReturn {
@@ -96,7 +95,6 @@ export function useChatOutline(
           items={outlineItems}
           activeId={getActiveOutlineId()}
           onNavigate={handleOutlineNavigate}
-          personaAvatar={assistantAvatar}
         />
       ),
     });
@@ -105,7 +103,6 @@ export function useChatOutline(
     getActiveOutlineId,
     handleOutlineNavigate,
     t,
-    assistantAvatar,
   ]);
 
   const handleVisibleRangeChange = useCallback(
@@ -127,14 +124,17 @@ export function useChatOutline(
               items={outlineItems}
               activeId={getActiveOutlineId()}
               onNavigate={handleOutlineNavigate}
-              personaAvatar={assistantAvatar}
             />
           ),
         }),
         "outline",
       );
     },
-    [assistantAvatar, getActiveOutlineId, handleOutlineNavigate, outlineItems],
+    [
+      getActiveOutlineId,
+      handleOutlineNavigate,
+      outlineItems,
+    ],
   );
 
   useEffect(() => {

@@ -24,7 +24,8 @@ test("sandbox selector opens on its own panel key, never the thinking panel", ()
 });
 
 test("sandbox panel shows machine rows only for local computer", () => {
-  expect(source).toMatch(/belowOptions=\{adapted\.value === "local" \? machineSection : undefined\}/);
+  expect(source).toMatch(/adapted\.value === "local" \? machineSection : undefined/);
+  expect(source).toMatch(/\{policySection\}/);
   expect(source).toMatch(/data-sandbox-machine-row/);
   expect(source).not.toMatch(/activePanel === "machine"/);
   expect(runModePopoverSource).not.toMatch(/data-machine-entry/);

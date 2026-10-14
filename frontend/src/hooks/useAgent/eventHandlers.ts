@@ -146,6 +146,16 @@ export function handleStreamEvent(
     return;
   }
 
+  if (!data.depth && (data.assistant_identity || eventType === "metadata")) {
+    ctx.setMessages((previous) => previous.map((message) => {
+      if (message.role !== "assistant" ||
+        !(message.id === messageId || (data.run_id && message.runId === data.run_id))) return message;
+      const identity = data.assistant_identity || message.assistantIdentity ||
+        (data.agent_id ? { seed: data.agent_id, name: `agents.${data.agent_id}.name`, avatar: null } : undefined);
+      return identity ? { ...message, assistantIdentity: identity } : message;
+    }));
+  }
+
   // Events handled entirely by side effects (no message transformation)
   switch (eventType) {
     case "metadata": {
@@ -373,6 +383,7 @@ export function handleStreamEvent(
           {
             id: messageId,
             role: "assistant" as const,
+            assistantIdentity: prev.find((message) => message.role === "assistant" && message.runId === data.run_id)?.assistantIdentity,
             timestamp: new Date(),
             runId: typeof data.run_id === "string" ? data.run_id : undefined,
             ...reset,
@@ -691,6 +702,7 @@ function handleUserMessage(
             parts: [],
             isStreaming: true,
             runId,
+            assistantIdentity: data.assistant_identity,
           };
       const userIndex = messagesWithoutTarget.findIndex(
         (candidate) => candidate.id === userMessage.id,

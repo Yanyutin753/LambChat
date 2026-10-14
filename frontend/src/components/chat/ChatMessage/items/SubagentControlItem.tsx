@@ -5,7 +5,7 @@ import { CollapsiblePill } from "../../../common";
 import { openSubagentPanelByAgentId } from "../SubagentBlock";
 import { subagentPanelStore } from "../subagentPanelStore";
 import { formatSubagentName } from "../subagentRoleMeta";
-import { parseSubagentControlResult } from "../subagentPanelState";
+import { parseSubagentControlResult, resolveSubagentControlState } from "../subagentPanelState";
 import { ToolResultContent } from "./McpBlockPreview";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import {
@@ -124,7 +124,9 @@ export const SubagentControlItem = memo(function SubagentControlItem({
   const agent = useSyncExternalStore(subscribe, () =>
     subagentPanelStore.get(subagentId),
   );
-  const state = typeof parsed?.status === "string" ? parsed.status : "";
+  const state = !isPending && !isParentMessage && !isCancel && !isList
+    ? resolveSubagentControlState(parsed, agent, completedAt)
+    : typeof parsed?.status === "string" ? parsed.status : "";
   const messageQueued = !isWait && !isCancel && !isList && state === "running";
   const mailReceived = isWait && parsed?.messages_pending === true;
   const stateLabel = isPending
@@ -210,8 +212,7 @@ export const SubagentControlItem = memo(function SubagentControlItem({
           });
         }}
       />
-      {(!agent || isParentMessage || state === "failed" || state === "error") &&
-        typeof reply === "string" &&
+      {typeof reply === "string" &&
         reply.trim() && (
           <div className="my-2 min-w-0 max-w-full text-14 text-theme-text-secondary">
             <ToolResultContent result={reply} hideCopyButton />

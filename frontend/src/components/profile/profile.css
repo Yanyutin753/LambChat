@@ -1,4 +1,5 @@
 .profile-dialog {
+  --profile-inset: 24px;
   position: relative;
   width: min(920px, 100%);
   height: min(740px, calc(100dvh - 48px));
@@ -19,7 +20,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px 24px;
+  padding: 16px var(--profile-inset);
   border-bottom: 1px solid var(--theme-border-subtle);
 }
 .profile-header h2 {
@@ -45,8 +46,7 @@
   display: grid;
   gap: 4px;
 }
-.profile-nav button,
-.profile-logout {
+.profile-nav button {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -76,10 +76,6 @@
 }
 .profile-nav button[aria-current] svg {
   opacity: 1;
-}
-.profile-nav .profile-logout {
-  margin-top: auto;
-  color: var(--theme-error);
 }
 .profile-category {
   display: none;
@@ -124,6 +120,39 @@
   font-size: 13px;
   line-height: 1.65;
   color: var(--theme-text-secondary);
+}
+.profile-sandbox-section {
+  container: sandbox-preferences / inline-size;
+}
+.sandbox-preference-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sandbox-preference-description {
+  margin-top: 4px;
+  margin-left: 23px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--theme-text-secondary);
+}
+.sandbox-preference-content {
+  margin-top: 12px;
+  margin-left: 23px;
+}
+.profile-sandbox-section .profile-setting-row {
+  min-height: 44px;
+  padding-block: 4px;
+}
+@container sandbox-preferences (max-width: 399px) {
+  .profile-sandbox-section .profile-setting-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .profile-sandbox-section .profile-setting-row .ui-select {
+    max-width: 100%;
+  }
 }
 .profile-setting-row {
   display: flex;
@@ -201,14 +230,15 @@
   color: var(--theme-text-tertiary);
 }
 .profile-env-row {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   padding: 10px 0;
   border-bottom: 1px solid var(--theme-border-subtle);
 }
 .profile-env-key {
+  min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
   font-size: 13px;
@@ -314,7 +344,7 @@
   align-items: center;
   gap: 16px;
   border-top: 1px solid var(--theme-border-subtle);
-  padding: 14px 24px;
+  padding: 14px var(--profile-inset);
   color: var(--theme-text-tertiary);
   font-size: 11px;
   font-family: serif;
@@ -337,6 +367,11 @@
   }
 }
 @container profile (max-width: 799px) {
+  .profile-header,
+  .profile-body,
+  .profile-footer {
+    --profile-inset: 20px;
+  }
   .profile-body {
     flex-direction: column;
   }
@@ -346,16 +381,45 @@
   .profile-category {
     display: flex;
     gap: 12px;
-    padding: 12px 20px;
+    padding: 12px var(--profile-inset);
     border-bottom: 1px solid var(--theme-border-subtle);
   }
-  .profile-category .profile-logout {
-    flex-shrink: 0;
-    padding-inline: 8px;
-    color: var(--theme-error);
-  }
   .profile-content {
-    padding: 24px 20px;
+    padding: 24px var(--profile-inset);
+  }
+  .profile-page {
+    max-width: none;
+  }
+  .profile-header,
+  .profile-category,
+  .profile-footer {
+    padding-inline-end: calc(var(--profile-inset) + var(--panel-scrollbar, 0px));
+  }
+}
+@container profile (max-width: 639px) {
+  .profile-env-form {
+    grid-template-columns: minmax(0, 1fr) 44px;
+  }
+  .profile-env-form label:first-child {
+    grid-column: 1 / -1;
+  }
+  .profile-env-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .profile-env-row > :first-child {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .profile-env-row > :nth-child(2) {
+    display: none;
+  }
+  .profile-env-row > :nth-child(3) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .profile-env-row > :last-child {
+    grid-column: 2;
+    grid-row: 1 / span 2;
   }
 }
 @media (max-width: 639px) {
@@ -366,20 +430,11 @@
     border-bottom: 0;
   }
   .profile-header {
-    padding: 12px 20px;
+    padding-block: 12px;
   }
   .profile-page-title {
     font-size: 20px;
     margin-bottom: 20px;
-  }
-  .profile-env-form {
-    grid-template-columns: minmax(0, 1fr) 44px;
-  }
-  .profile-env-form label:first-child {
-    grid-column: 1 / -1;
-  }
-  .profile-footer {
-    padding-inline: 20px;
   }
   .profile-icon-button {
     width: 44px;

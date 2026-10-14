@@ -459,7 +459,7 @@ export const WelcomePage = memo(function WelcomePage({
 
         {/* Greeting */}
         <h1
-          className="welcome-greeting max-w-full text-[1.5rem] sm:text-[1.875rem] md:text-[2rem] lg:text-[2.25rem] xl:text-[2.35rem] 2xl:text-[2.5rem] font-semibold tracking-[-0.02em] leading-[1.2] text-center font-serif"
+          className="welcome-greeting max-w-full text-[1.5rem] sm:text-[1.875rem] md:text-[2rem] lg:text-[2.25rem] xl:text-[2.25rem] 2xl:text-[2.35rem] font-semibold tracking-[-0.02em] leading-[1.2] text-center font-serif"
           style={{ color: "var(--theme-text)" }}
         >
           <WelcomeIcon className="welcome-icon hidden sm:inline-block size-12 xl:size-14 2xl:size-16 mr-4 align-text-bottom" />
@@ -685,7 +685,7 @@ export const WelcomePage = memo(function WelcomePage({
                         <div className="flex items-center justify-between gap-2">
                           <span className="welcome-persona-name-row relative flex items-center gap-1.5 min-w-0">
                             <span
-                              className="welcome-persona-name truncate text-13 sm:text-14 font-bold leading-[1.3] transition-colors duration-300 group-hover:text-[var(--theme-text)] font-serif"
+                              className="welcome-persona-name min-w-0 truncate sm:line-clamp-2 sm:whitespace-normal sm:break-words text-13 sm:text-15 font-bold sm:font-semibold leading-[1.3] transition-colors duration-300 group-hover:text-[var(--theme-text)] font-serif"
                               style={{ color: "var(--theme-text)" }}
                             >
                               {team.name}
@@ -767,9 +767,9 @@ export const WelcomePage = memo(function WelcomePage({
                         }}
                       />
                       <span className="welcome-persona-info min-w-0 flex-1">
-                        <span className="welcome-persona-name-row relative flex items-center gap-1.5">
+                        <span className="welcome-persona-name-row relative flex items-center gap-1.5 min-w-0">
                           <span
-                            className="welcome-persona-name truncate text-13 sm:text-14 font-bold leading-[1.3] transition-colors duration-300 group-hover:text-[var(--theme-text)] font-serif"
+                            className="welcome-persona-name min-w-0 truncate sm:line-clamp-2 sm:whitespace-normal sm:break-words text-13 sm:text-15 font-bold sm:font-semibold leading-[1.3] transition-colors duration-300 group-hover:text-[var(--theme-text)] font-serif"
                             style={{ color: "var(--theme-text)" }}
                           >
                             {preset.name}

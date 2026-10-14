@@ -207,10 +207,10 @@ export function SearchDialog({
       label={t("sidebar.searchSessions")}
       className="modal-size-lg"
     >
-      <div className="relative flex min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-theme-border bg-theme-bg-card shadow-xl">
+      <div className="relative flex min-h-0 w-full flex-col overflow-hidden rounded-2xl bg-theme-bg-card shadow-xl">
         {/* Search input */}
         <div className="flex shrink-0 items-center gap-2 px-4 pt-1 pb-2 sm:gap-3 sm:pt-4 sm:pb-3">
-          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-transparent bg-theme-bg-subtle pl-3 pr-1 focus-within:border-[color-mix(in_srgb,var(--theme-ring)_55%,transparent)]">
+          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg bg-theme-bg-subtle pl-3 pr-1 has-[:focus-visible]:outline has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-[var(--theme-border)]">
             <Search
               size={16}
               strokeWidth={2}
@@ -317,7 +317,7 @@ export function SearchDialog({
                     onMouseEnter={() => setActiveIndex(index)}
                     className={`w-full min-h-11 flex items-center gap-3 px-4 py-2.5 text-left transition-colors duration-75 motion-reduce:transition-none ${
                       isActive
-                        ? "bg-theme-bg-elevated"
+                        ? "bg-theme-bg-subtle"
                         : "hover:bg-theme-bg-subtle"
                     }`}
                   >

@@ -1,6 +1,5 @@
 import { useMemo, useCallback, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import i18n from "../../../i18n";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../hooks/useAuth";
@@ -39,9 +38,7 @@ import {
 } from "./sessionState";
 import type { Message, MessageAttachment } from "../../../types";
 import type { ChatViewProps } from "./ChatViewProps";
-import { useCurrentTeam, resolveChatAssistantIdentity } from "./ChatViewProps";
 import { useChatOutline } from "./useChatOutline";
-import { resolveAgentDisplayName } from "../../agent/agentCatalog";
 import {
   shouldShowMessageOutline,
   createMessageAnchorId,
@@ -349,40 +346,11 @@ export function ChatView({
     onLoadOlderHistory,
   ]);
 
-  // --- Assistant identity ---
-  const currentPersonaAvatar = useMemo(() => {
-    const preset = personaPresets.find((p) => p.id === selectedPersonaPresetId);
-    return preset?.avatar ?? null;
-  }, [personaPresets, selectedPersonaPresetId]);
-  const currentTeam = useCurrentTeam(currentAgent, selectedTeamId);
-  const currentAgentInfo = agents.find((a) => a.id === currentAgent);
-  const currentAgentDisplayName = currentAgentInfo
-    ? resolveAgentDisplayName(currentAgentInfo, i18n.language, t)
-    : null;
-  const assistantIdentity = useMemo(
-    () =>
-      resolveChatAssistantIdentity({
-        currentAgent,
-        currentPersonaAvatar,
-        currentTeam,
-        selectedPersonaName,
-        agentDisplayName: currentAgentDisplayName,
-      }),
-    [
-      currentAgent,
-      currentPersonaAvatar,
-      currentTeam,
-      selectedPersonaName,
-      currentAgentDisplayName,
-    ],
-  );
-
   // --- Outline panel (side effects managed by hook) ---
   const { outlineItems, handleVisibleRangeChange: handleOutlineRangeChange } =
     useChatOutline(
       messages,
       dataIndexVirtuosoRef,
-      assistantIdentity.avatar,
       outlineToggleRef,
       t,
     );
@@ -671,8 +639,6 @@ export function ChatView({
           toDataIndex(index, firstItemIndexRef.current) ===
           renderItems.length - 1
         }
-        personaAvatar={assistantIdentity.avatar}
-        personaName={assistantIdentity.name}
         activePreview={activePreview}
         latestAutoPreview={latestAutoPreview}
         onOpenPreview={handleOpenPreview}
@@ -689,8 +655,6 @@ export function ChatView({
       sessionId,
       currentRunId,
       renderItems.length,
-      assistantIdentity.avatar,
-      assistantIdentity.name,
       activePreview,
       latestAutoPreview,
       handleOpenPreview,

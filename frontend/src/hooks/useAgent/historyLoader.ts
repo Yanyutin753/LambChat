@@ -428,6 +428,7 @@ export function reconstructMessagesFromEvents(
 
   const anchoredEvents = anchorLegacySteerMessageEvents(normalizedEvents);
 
+  const identities = new Map<string, NonNullable<Message["assistantIdentity"]>>();
   const reconstructedMessages: Message[] = [];
   // run 内每完成一个 assistant 轮次（入列）计数一次，替代循环内对
   // reconstructedMessages 的全量 filter（长会话 O(n²) 热点）
@@ -449,6 +450,20 @@ export function reconstructMessagesFromEvents(
   for (const event of anchoredEvents) {
     const eventType = event.event_type;
     const eventData = event.data as HistoryEventData;
+
+    if (event.run_id && !eventData.depth) {
+      if (eventData.assistant_identity) {
+        identities.set(event.run_id, eventData.assistant_identity);
+      } else if (eventData.agent_id && !identities.has(event.run_id)) {
+        identities.set(event.run_id, {
+          seed: eventData.agent_id,
+          name: i18n.exists(`agents.${eventData.agent_id}.name`)
+            ? `agents.${eventData.agent_id}.name`
+            : eventData.agent_name || null,
+          avatar: null,
+        });
+      }
+    }
 
     // Handle steer message separately（独立事件，不参与用户消息去重）
     if (eventType === "steer:message") {
@@ -531,6 +546,7 @@ export function reconstructMessagesFromEvents(
       pushMessage({
         id: userMessageId,
         role: "user",
+        ...(eventData.assistant_identity ? { assistantIdentity: eventData.assistant_identity } : {}),
         content: eventData.content || "",
         timestamp: parseEventTimestamp(event.timestamp, Date.now()),
         attachments: userAttachments,
@@ -684,7 +700,11 @@ export function reconstructMessagesFromEvents(
   // render under the last message, never as a standalone empty bubble (this
   // happens when an active-run snapshot synthesizes a recommend event next to
   // a withheld content stream).
-  return reconstructedMessages.filter((message) => {
+  return reconstructedMessages.map((message) =>
+    message.role === "assistant" && message.runId && identities.has(message.runId)
+      ? { ...message, assistantIdentity: identities.get(message.runId) }
+      : message,
+  ).filter((message) => {
     if (message.role !== "assistant") return true;
     return assistantMessageHasContent(message);
   });
@@ -773,6 +793,7 @@ export function prepareMessagesForRunningRun(
       {
         id: streamingMessageId,
         role: "assistant",
+        assistantIdentity: messagesWithPendingUser.find(message => message.role === "user" && message.runId === runId)?.assistantIdentity,
         content: "",
         timestamp: new Date(),
         parts: [],

@@ -56,3 +56,15 @@ test("blank agent display name is ignored", () => {
     }).name,
   ).toBeNull();
 });
+
+test("team mode uses the localized agent name when no team is selected", () => {
+  for (const name of ["团队", "Team", "チーム", "팀", "Команда"]) {
+    expect(
+      resolveChatAssistantIdentity({
+        ...baseArgs,
+        currentAgent: "team",
+        agentDisplayName: name,
+      }).name,
+    ).toBe(name);
+  }
+});

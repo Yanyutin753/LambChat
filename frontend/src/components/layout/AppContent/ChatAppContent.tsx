@@ -147,6 +147,7 @@ export function ChatAppContent({
     disabledSkills: [] as string[],
     enabledSkills: undefined as string[] | undefined,
     personaPresetId: null as string | null,
+    personaSnapshot: null as PersonaPresetSnapshot | null | undefined,
     disabledMcpTools: [] as string[],
     agentOptions: {} as Record<string, boolean | string | number>,
   });
@@ -226,6 +227,7 @@ export function ChatAppContent({
     getDisabledSkills: () => sessionConfigRef.current.disabledSkills,
     getEnabledSkills: () => sessionConfigRef.current.enabledSkills,
     getPersonaPresetId: () => sessionConfigRef.current.personaPresetId,
+    getPersonaSnapshot: () => sessionConfigRef.current.personaSnapshot,
     getDisabledMcpTools: () => sessionConfigRef.current.disabledMcpTools,
     getAgentOptions: () => sessionConfigRef.current.agentOptions,
     onSkillAdded: (

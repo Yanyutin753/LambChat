@@ -100,3 +100,44 @@ async def resolve_persona_request(
     request.enabled_skills = _persona_enabled_skills_from_snapshot(snapshot)
     request.enabled_mcp_servers = _persona_enabled_mcp_servers_from_snapshot(snapshot)
     request.persona_system_prompt = snapshot.system_prompt
+
+
+async def build_assistant_identity(
+    agent_id: str, request: AgentRequest, user_id: str, language: str
+) -> dict:
+    """Snapshot display identity once per submitted run, independent of session configuration."""
+    from src.agents.core import AgentFactory
+    from src.infra.agent.config_storage import get_agent_config_storage
+    from src.infra.team.manager import get_team_manager
+
+    if agent_id == "team" and request.team_id:
+        team = await get_team_manager().get_team(request.team_id, owner_user_id=user_id)
+        member = next((m for m in team.members if m.member_id == team.default_member_id), None)
+        member = member or next((m for m in team.members if m.enabled), None)
+        member = member or (team.members[0] if team.members else None)
+        return {
+            "seed": team.name,
+            "name": team.name,
+            "avatar": team.avatar or (member.role_avatar if member else None),
+        }
+    if request.persona_snapshot:
+        snapshot = request.persona_snapshot
+        return {"seed": snapshot.preset_id, "name": snapshot.name, "avatar": snapshot.avatar}
+
+    agent = next((item for item in AgentFactory.list_agents() if item["id"] == agent_id), {})
+    catalog = next(
+        (
+            item
+            for item in await get_agent_config_storage().get_catalog_config()
+            if item.id == agent_id
+        ),
+        None,
+    )
+    label = catalog.labels.get(language) if catalog else None
+    return {
+        "seed": agent_id,
+        "name": (label.name if label and label.name else catalog.name)
+        if catalog
+        else agent.get("name"),
+        "avatar": catalog.icon if catalog else agent.get("icon"),
+    }

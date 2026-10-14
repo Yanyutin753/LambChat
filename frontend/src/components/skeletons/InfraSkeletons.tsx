@@ -82,29 +82,67 @@ export function MCPPanelSkeleton() {
   );
 }
 
+/** Filter placeholders share the live tabs' responsive labels and count badges. */
+export function FeedbackFiltersSkeleton() {
+  return (
+    <div className="feedback-filter-tabs flex items-center gap-1" aria-hidden="true">
+      {["w-14", "w-8", "w-8"].map((width, i) => (
+        <div key={i} className="feedback-filter-placeholder flex items-center gap-1.5 rounded-lg px-3.5">
+          <span className="feedback-filter-label"><SkeletonLine width={width} /></span>
+          <span className="skeleton-line size-5 rounded-full" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function FeedbackSummarySkeleton() {
+  return (
+    <div className="feedback-summary panel-summary" aria-hidden="true">
+      <div className="feedback-summary__layout">
+        <div className="flex shrink-0 flex-col items-center">
+          <div className="size-20 rounded-full border-[5px] border-theme-border flex items-center justify-center">
+            <SkeletonLine width="w-10" className="!h-5" />
+          </div>
+          <SkeletonLine width="w-10" className="mt-1.5 !h-[15px]" />
+        </div>
+        <div className="feedback-summary__distribution">
+          {[0, 1].map((i) => (
+            <div key={i} className="feedback-summary__bar">
+              <SkeletonLine width="w-7" />
+              <SkeletonLine className="!h-2" />
+              <SkeletonLine width="w-8" />
+            </div>
+          ))}
+          <div className="pt-1"><SkeletonLine width="w-24" className="!h-4" /></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** List-only variant for FeedbackPanel, whose header and summary stay mounted. */
 export function FeedbackListSkeleton() {
   return (
     <div aria-hidden="true">
       {Array.from({ length: PANEL_ROW_SKELETON_COUNT }).map((_, i) => (
-        <div
-          key={i}
-          className="panel-inset border-b border-[var(--theme-border)] py-4 last:border-b-0"
-        >
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <div className="flex items-center gap-2 min-w-0">
+        <div key={i} className="feedback-row panel-inset">
+          <div className="feedback-row__header">
+            <div className="flex items-center gap-2.5 min-w-0">
               <div className="skeleton-line size-7 shrink-0 rounded-full" />
-              <SkeletonLine width="w-20" className="!h-3" />
+              <SkeletonLine width="w-28" className="!h-3" />
             </div>
-            <SkeletonLine width="w-24" className="!h-3" />
+            <div className="feedback-row__meta">
+              <SkeletonLine width="w-10" className="!h-3" />
+              <SkeletonLine width="w-32" className="!h-3" />
+            </div>
           </div>
-          <div className="space-y-2">
-            <SkeletonLine width="w-3/4" />
-            <SkeletonLine width="w-1/2" />
+          <div className="flex h-[21px] items-center">
+            <SkeletonLine width={i % 2 === 0 ? "w-3/4" : "w-1/2"} />
           </div>
-          <div className="mt-2.5 flex justify-between">
-            <SkeletonLine width="w-24" className="!h-3" />
-            <SkeletonLine width="w-12" className="!h-3" />
+          <div className="feedback-row__actions">
+            <div className="flex min-h-11 items-center"><SkeletonLine width="w-16" /></div>
+            <div className="flex min-h-11 items-center"><SkeletonLine width="w-10" /></div>
           </div>
         </div>
       ))}
@@ -118,18 +156,10 @@ export function FeedbackPanelSkeleton() {
       <PanelHeaderSkeleton
         hasSearch={false}
         hasSubtitle
+        actions={<FeedbackFiltersSkeleton />}
         className="panel-header--section-switch"
       />
-      <div className="panel-summary mb-4 rounded-2xl p-4" aria-hidden="true">
-        <div className="flex items-center gap-5">
-          <div className="skeleton-line size-20 shrink-0 rounded-full" />
-          <div className="min-w-0 flex-1 space-y-2.5">
-            <SkeletonLine />
-            <SkeletonLine />
-            <SkeletonLine width="w-1/2" />
-          </div>
-        </div>
-      </div>
+      <FeedbackSummarySkeleton />
       <div className="panel-scroll min-h-0 flex-1 overflow-y-auto">
         <FeedbackListSkeleton />
       </div>

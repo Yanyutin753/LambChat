@@ -116,6 +116,7 @@ class _Presenter:
         attachment_references_claimed: bool = False,
         schedule_search_index: bool = True,
         run_modes: list[str] | None = None,
+        assistant_identity: dict[str, Any] | None = None,
     ) -> None:
         self.calls.append(
             (
@@ -164,6 +165,7 @@ async def _invoke_chat(
 
     monkeypatch.setattr(chat, "FileRecordStorage", lambda: file_records, raising=False)
     monkeypatch.setattr(chat, "resolve_persona_request", _noop_async)
+    monkeypatch.setattr(chat, "build_assistant_identity", _noop_async)
     monkeypatch.setattr(chat, "validate_agent_model_access", _noop_async)
     monkeypatch.setattr(chat, "validate_team_agent_request", lambda *args: None)
     monkeypatch.setattr(chat, "get_task_manager", lambda: task_manager)

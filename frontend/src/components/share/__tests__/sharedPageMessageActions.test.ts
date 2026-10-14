@@ -21,18 +21,15 @@ test("shared page hides feedback and share actions on chat messages", () => {
   );
 });
 
-test("shared page shows team identity for shared team sessions", () => {
+test("shared page leaves each message identity to its persisted snapshot", () => {
   const sharedPageSource = readFileSync(
     resolve(__dirname, "../SharedPage.tsx"),
     "utf8",
   );
 
-  expect(sharedPageSource).toMatch(/resolveSharedAssistantIdentity/);
-  expect(sharedPageSource).toMatch(/sharedAssistant/);
-  expect(sharedPageSource).toMatch(/session\.agent_id === "team"/);
-  expect(sharedPageSource).toMatch(/data\.session\.team_name/);
-  expect(sharedPageSource).toMatch(/personaName=\{sharedAssistant\.name\}/);
-  expect(sharedPageSource).toMatch(/personaAvatar=\{sharedAssistant\.avatar\}/);
+  expect(sharedPageSource).not.toMatch(/personaName=\{sharedAssistant\.name\}/);
+  expect(sharedPageSource).not.toMatch(/personaAvatar=\{sharedAssistant\.avatar\}/);
+  expect(sharedPageSource).toMatch(/message=\{message\}/);
 });
 
 test("share dialog supports editing existing shares without replacing the public link", () => {

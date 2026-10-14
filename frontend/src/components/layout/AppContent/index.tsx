@@ -31,8 +31,15 @@ export function AppContent({ activeTab }: AppContentProps) {
   const sidebarCollapsedRef = useRef(sidebarCollapsed);
   sidebarCollapsedRef.current = sidebarCollapsed;
 
-  // Temporary in-memory-only collapse (right panel wide open)
-  const [tempAutoCollapsed, setTempAutoCollapsed] = useState(false);
+  // Automatic layout changes never overwrite the saved sidebar preference.
+  const [tempAutoCollapsed, setTempAutoCollapsed] = useState(() =>
+    shouldTemporarilyCollapseNavigation({
+      layout: getRightPanelLayoutSnapshot(),
+      viewportWidth: window.innerWidth,
+      minimumWorkspaceWithNavigationPx: MINIMUM_WORKSPACE_WITH_NAVIGATION_PX,
+      userOverrode: false,
+    }),
+  );
   const userOverrodeRef = useRef(false);
   const activeRightPanelLayoutRef = useRef<RightPanelLayoutSnapshot | null>(
     getRightPanelLayoutSnapshot(),
@@ -46,16 +53,15 @@ export function AppContent({ activeTab }: AppContentProps) {
   const syncTempAutoCollapse = useCallback(
     (layout: RightPanelLayoutSnapshot | null) => {
       activeRightPanelLayoutRef.current = layout;
-      if (!layout?.open) userOverrodeRef.current = false;
+      const needsCollapse = shouldTemporarilyCollapseNavigation({
+        layout,
+        viewportWidth: window.innerWidth,
+        minimumWorkspaceWithNavigationPx: MINIMUM_WORKSPACE_WITH_NAVIGATION_PX,
+        userOverrode: false,
+      });
+      if (!needsCollapse) userOverrodeRef.current = false;
 
-      setTempAutoCollapsed(
-        shouldTemporarilyCollapseNavigation({
-          layout,
-          minimumWorkspaceWithNavigationPx:
-            MINIMUM_WORKSPACE_WITH_NAVIGATION_PX,
-          userOverrode: userOverrodeRef.current,
-        }),
-      );
+      setTempAutoCollapsed(needsCollapse && !userOverrodeRef.current);
     },
     [],
   );
@@ -69,10 +75,11 @@ export function AppContent({ activeTab }: AppContentProps) {
       sidebarCollapsedRef.current = next;
       setSidebarCollapsed(next);
 
-      // User manually expanded while the right panel is wide — stick open
+      // Keep an explicit expansion until enough workspace is available again.
       if (!next) {
         const wouldAutoCollapse = shouldTemporarilyCollapseNavigation({
           layout: activeRightPanelLayoutRef.current,
+          viewportWidth: window.innerWidth,
           minimumWorkspaceWithNavigationPx:
             MINIMUM_WORKSPACE_WITH_NAVIGATION_PX,
           userOverrode: false,
@@ -89,14 +96,16 @@ export function AppContent({ activeTab }: AppContentProps) {
     [],
   );
 
-  // Temporary auto-collapse: preserve enough workspace beside one active panel
-  // but do NOT persist — restore automatically when right panel closes/narrows
+  // Re-evaluate both window resizes and right-panel layout changes.
   useEffect(() => {
     const handleWidthChanged = (event: Event) => {
       syncTempAutoCollapse(
         (event as CustomEvent<RightPanelLayoutSnapshot | null>).detail,
       );
     };
+    const handleResize = () =>
+      syncTempAutoCollapse(activeRightPanelLayoutRef.current);
+    window.addEventListener("resize", handleResize);
     window.addEventListener(
       RIGHT_PANEL_WIDTH_CHANGED_EVENT,
       handleWidthChanged,
@@ -104,6 +113,7 @@ export function AppContent({ activeTab }: AppContentProps) {
     syncTempAutoCollapse(getRightPanelLayoutSnapshot());
 
     return () => {
+      window.removeEventListener("resize", handleResize);
       window.removeEventListener(
         RIGHT_PANEL_WIDTH_CHANGED_EVENT,
         handleWidthChanged,
