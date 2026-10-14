@@ -1,16 +1,14 @@
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { useCallback, useEffect } from "react";
 import { clsx } from "clsx";
-import { CheckCircle, XCircle, Ban, ChevronRight, Bot, Hourglass } from "lucide-react";
-import { getEmojiAssetUrl } from "../../../utils/emojiAssets";
+import { CheckCircle, XCircle, Ban, ChevronRight, Hourglass } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { hasOpenRightPanel } from "../../common/rightPanelCoordinator";
 import {
   getRightPanelPresentation,
   shouldAllowAutomaticRightPanel,
 } from "../../../hooks/rightPanelLayout";
-import { ImageWithSkeleton } from "./ImageWithSkeleton";
-import { PersonaAvatarIcon } from "../../persona/PersonaAvatarIcon";
+import { AgentAvatar } from "../../common/AgentAvatar";
 import type { MessagePart } from "../../../types";
 import {
   openPersistentToolPanel,
@@ -32,10 +30,7 @@ import {
   buildSubagentPanelState,
   createSubagentPanelFooter,
 } from "./subagentPanelState";
-import {
-  getSubagentAvatarImageUrl,
-  getSubagentRoleIconMeta,
-} from "./subagentRoleMeta";
+import { getSubagentRoleIconMeta } from "./subagentRoleMeta";
 import { DeferredSubagentPanelContent } from "./DeferredSubagentPanelContent";
 import { buildPanelSummary } from "./panelSummary";
 
@@ -107,10 +102,18 @@ export function openSubagentPanelByAgentId(agentId: string): boolean {
   }
 
   resetSubagentPanelAutoOpenState(panelKey);
+  const roleIconMeta = getSubagentRoleIconMeta(data.agentName);
   openPersistentToolPanel({
     title: formattedAgentName,
     subtitle: buildPanelSummary(data.input),
-    icon: <Bot size={16} />,
+    icon: (
+      <AgentAvatar
+        avatar={data.agentAvatar}
+        seed={data.agentName}
+        fallbackIcon={roleIconMeta.kind === "general" ? undefined : roleIconMeta.icon}
+        size={16}
+      />
+    ),
     status: panelStatus,
     panelKey,
     children: <DeferredSubagentPanelContent agentId={agentId} />,
@@ -170,8 +173,8 @@ export function SubagentBlock({
   });
   const { t } = useTranslation();
   const roleIconMeta = getSubagentRoleIconMeta(formattedAgentName);
-  const RoleIcon = roleIconMeta.icon;
-  const agentAvatarUrl = getSubagentAvatarImageUrl(agent_avatar);
+  const fallbackIcon =
+    roleIconMeta.kind === "general" ? undefined : roleIconMeta.icon;
 
   // 面板数据由 ChatView 级 syncSubagentPanelStore 全量同步（与虚拟化无关）；
   // 这里只负责自动开启判定，不再直接写 store——组件卸载不应冻结/清空侧边栏。
@@ -200,7 +203,14 @@ export function SubagentBlock({
       openPersistentToolPanel({
         title: formattedAgentName,
         subtitle: buildPanelSummary(input),
-        icon: <RoleIcon size={16} />,
+        icon: (
+          <AgentAvatar
+            avatar={agent_avatar}
+            seed={agent_name}
+            fallbackIcon={fallbackIcon}
+            size={16}
+          />
+        ),
         status: panelStatus,
         panelKey,
         children: <DeferredSubagentPanelContent agentId={agent_id} />,
@@ -224,7 +234,8 @@ export function SubagentBlock({
     panelStatus,
     subtitle,
     formattedAgentName,
-    RoleIcon,
+    agent_avatar,
+    fallbackIcon,
     panelKey,
   ]);
 
@@ -233,7 +244,14 @@ export function SubagentBlock({
     openPersistentToolPanel({
       title: formattedAgentName,
       subtitle: buildPanelSummary(input),
-      icon: <RoleIcon size={16} />,
+      icon: (
+          <AgentAvatar
+            avatar={agent_avatar}
+            seed={agent_name}
+            fallbackIcon={fallbackIcon}
+            size={16}
+          />
+        ),
       status: panelStatus,
       panelKey,
       children: <DeferredSubagentPanelContent agentId={agent_id} />,
@@ -242,7 +260,9 @@ export function SubagentBlock({
     });
   }, [
     formattedAgentName,
-    RoleIcon,
+    agent_avatar,
+    agent_name,
+    fallbackIcon,
     panelStatus,
     subtitle,
     panelKey,
@@ -289,44 +309,14 @@ export function SubagentBlock({
         className="flex items-center gap-3 px-3.5 py-2.5 pr-10 cursor-pointer transition-colors duration-150 hover:bg-theme-bg-card/60 dark:hover:bg-theme-bg-card/10"
         onClick={handleOpenInPanel}
       >
-        <div
-          className={clsx(
-            "relative flex h-8 w-8 items-center justify-center rounded-lg shrink-0 overflow-hidden",
-            "ring-1 ring-inset ring-black/5 dark:ring-white/10",
-            agentAvatarUrl
-              ? "bg-theme-bg-card dark:bg-stone-800"
-              : roleIconMeta.bgClassName,
-          )}
-        >
-          {!agentAvatarUrl && roleIconMeta.emoji ? (
-            <ImageWithSkeleton
-              src={getEmojiAssetUrl(roleIconMeta.emoji!, "3d")}
-              alt={roleIconMeta.emoji}
-              inline
-              loading="eager"
-              style={{ objectFit: "contain" }}
-            />
-          ) : !agentAvatarUrl ? (
-            <RoleIcon size={15} className={roleIconMeta.className} />
-          ) : null}
-          {agentAvatarUrl && (
-            <div className="absolute inset-0 overflow-hidden rounded-full">
-              <ImageWithSkeleton
-                src={agentAvatarUrl}
-                alt=""
-                inline
-                loading="lazy"
-              />
-            </div>
-          )}
-          {agent_avatar && !agentAvatarUrl && (
-            <PersonaAvatarIcon
-              avatar={agent_avatar}
-              size={15}
-              className="absolute"
-            />
-          )}
-        </div>
+        <AgentAvatar
+          avatar={agent_avatar}
+          seed={agent_name}
+          fallbackIcon={fallbackIcon}
+          size={32}
+          iconSize={15}
+          className="rounded-lg shrink-0 overflow-hidden bg-theme-bg-subtle text-theme-text-secondary ring-1 ring-inset ring-black/5 dark:ring-white/10"
+        />
 
         <div className="flex-1 min-w-0">
           <span

@@ -2634,6 +2634,8 @@
     "empty": "暂无角色"
   },
   "personaPresets": {
+    "generatedAvatars": "彩色头像",
+    "generatedAvatar": "彩色头像 {{number}}",
     "addStarterPrompt": "添加开场提示词",
     "all": "全部",
     "allSkillsSelected": "所有技能已选择",

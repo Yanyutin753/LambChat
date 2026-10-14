@@ -40,12 +40,12 @@ test("icon chooser owns Escape and returns focus to its trigger without closing 
     within(picker).getByRole("button", {
       name: i18n.t("personaPresets.emojiRobot"),
     }),
-  ).toHaveAttribute("aria-pressed", "true");
+  ).toHaveAttribute("aria-pressed", "false");
   expect(
     within(picker).getByRole("button", {
       name: i18n.t("personaPresets.emojiRobot"),
     }),
-  ).toHaveClass("ui-button--secondary");
+  ).not.toHaveClass("ui-button--secondary");
   await user.keyboard("{Escape}");
   expect(
     screen.queryByRole("dialog", { name: i18n.t("personaPresets.pickIcon") }),
@@ -67,5 +67,17 @@ test("keyboard selection reports the icon and returns to the editor", async () =
     .focus();
   await user.keyboard("{Enter}");
   expect(change).toHaveBeenCalledWith("🎓");
+  await waitFor(() => expect(trigger).toHaveFocus());
+});
+
+
+test("a generated avatar selection stores its seed and restores focus", async () => {
+  const user = userEvent.setup();
+  const change = vi.fn();
+  render(<Editor change={change} />);
+  const trigger = screen.getByRole("button", { name: i18n.t("personaPresets.pickIcon") });
+  await user.click(trigger);
+  await user.click(screen.getByRole("button", { name: i18n.t("personaPresets.generatedAvatar", { number: 3 }) }));
+  expect(change).toHaveBeenCalledWith("generated:avatar-3");
   await waitFor(() => expect(trigger).toHaveFocus());
 });

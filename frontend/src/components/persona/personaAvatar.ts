@@ -56,7 +56,7 @@ export function getPersonaAvatarIcon(
 export function isPersonaImageAvatar(
   avatar: string | null | undefined,
 ): avatar is string {
-  return !!avatar && !avatar.startsWith(PERSONA_AVATAR_ICON_PREFIX);
+  return !!avatar && !avatar.startsWith(PERSONA_AVATAR_ICON_PREFIX) && !avatar.startsWith("generated:");
 }
 
 const EMOJI_RE = /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u;
@@ -67,6 +67,7 @@ export function isEmojiAvatar(
   if (
     !avatar ||
     avatar.startsWith(PERSONA_AVATAR_ICON_PREFIX) ||
+    avatar.startsWith("generated:") ||
     avatar.startsWith("/") ||
     avatar.startsWith("http")
   )

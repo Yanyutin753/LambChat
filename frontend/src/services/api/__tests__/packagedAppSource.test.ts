@@ -101,8 +101,6 @@ test("backend-provided avatar URLs are resolved before image rendering", () => {
     "../../../components/panels/SidebarParts/SidebarRail.tsx",
     "../../../components/share/SharedPage.tsx",
     "../../../components/layout/AppContent/MessageOutlineFlow.tsx",
-    "../../../components/persona/PersonaAvatarIcon.tsx",
-    "../../../components/chat/ChatMessage/AssistantAvatar.tsx",
     "../../../components/chat/ChatMessage/subagentRoleMeta.ts",
   ];
 
@@ -110,6 +108,19 @@ test("backend-provided avatar URLs are resolved before image rendering", () => {
     const source = readSource(file);
     expect(source).toMatch(/getFullUrl\(/);
   }
+
+  for (const file of [
+    "../../../components/persona/PersonaAvatarIcon.tsx",
+    "../../../components/chat/ChatMessage/AssistantAvatar.tsx",
+  ]) {
+    expect(readSource(file)).toMatch(/<AgentAvatar/);
+  }
+  const avatar = readSource("../../../components/common/AgentAvatar.tsx");
+  expect(avatar).toMatch(/<ImageWithSkeleton/);
+  expect(avatar).toMatch(/skipUrlResolve=\{isBrandIcon\}/);
+  const image = readSource("../../../components/chat/ChatMessage/ImageWithSkeleton.tsx");
+  expect(image).toMatch(/skipUrlResolve = false/);
+  expect(image).toMatch(/skipUrlResolve \? src : getFullUrl\(src\)/);
 });
 
 test("approval polling requests use the configured backend base", () => {

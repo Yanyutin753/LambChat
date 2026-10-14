@@ -187,3 +187,17 @@ test("subagentPanelStore clear() drops all entries and notifies subscribers", ()
   expect(notifications).toEqual(["cleared"]);
   unsubscribe();
 });
+
+test("panel synchronization preserves the saved avatar and updates changes", () => {
+  const part = { ...runningSubagent, agent_avatar: "generated:avatar-3" };
+  syncSubagentPanelStore([assistantMessage([part])]);
+  expect(subagentPanelStore.get(part.agent_id)?.agentAvatar).toBe(
+    "generated:avatar-3",
+  );
+  syncSubagentPanelStore([
+    assistantMessage([{ ...part, agent_avatar: "icon:security" }]),
+  ]);
+  expect(subagentPanelStore.get(part.agent_id)?.agentAvatar).toBe(
+    "icon:security",
+  );
+});

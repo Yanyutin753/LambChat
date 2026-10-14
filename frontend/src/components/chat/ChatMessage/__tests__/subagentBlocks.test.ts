@@ -44,4 +44,5 @@ test("subagent avatar image url accepts role url and emoji avatars", () => {
   );
   expect(getSubagentAvatarImageUrl("🎨") || "").toMatch(/fluent-emoji/);
   expect(getSubagentAvatarImageUrl("icon:writing")).toBe(null);
+  expect(getSubagentAvatarImageUrl("generated:avatar-3")).toBe(null);
 });

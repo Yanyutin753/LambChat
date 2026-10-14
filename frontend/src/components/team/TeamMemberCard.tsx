@@ -6,15 +6,7 @@ import type { TeamMember } from "../../types/team";
 import type { ModelOption } from "../../services/api/model";
 import type { AgentInfo } from "../../types/agent";
 import { resolveAgentDisplayName } from "../agent/agentCatalog";
-import {
-  PersonaAvatarIcon,
-  PersonaAvatarImage,
-} from "../persona/PersonaAvatarIcon";
-import {
-  getEmojiAvatarUrl,
-  isEmojiAvatar,
-  isPersonaImageAvatar,
-} from "../persona/personaAvatar";
+import { AgentAvatar } from "../common/AgentAvatar";
 import { Select, Textarea, IconButton } from "../common/ui";
 import type { SelectOption } from "../common/ui";
 import { Tooltip } from "../common/Tooltip";
@@ -111,29 +103,12 @@ export function TeamMemberCard({
             onClick={() => setExpanded(!expanded)}
           >
             <span className="team-member-card__avatar-btn">
-              {isPersonaImageAvatar(member.role_avatar) ||
-              isEmojiAvatar(member.role_avatar) ? (
-                <span className="team-member-card__avatar">
-                  <PersonaAvatarImage
-                    avatar={
-                      isEmojiAvatar(member.role_avatar)
-                        ? getEmojiAvatarUrl(member.role_avatar)
-                        : member.role_avatar
-                    }
-                    alt=""
-                    className="team-member-card__avatar-img"
-                  />
-                </span>
-              ) : (
-                <span className="team-member-card__avatar team-member-card__avatar--icon">
-                  <PersonaAvatarIcon
-                    avatar={member.role_avatar}
-                    primaryTag={member.role_tags[0]}
-                    size={18}
-                    className="text-[var(--theme-primary)]"
-                  />
-                </span>
-              )}
+              <AgentAvatar
+                avatar={member.role_avatar}
+                seed={member.persona_preset_id || member.role_name}
+                size={28}
+                iconSize={16}
+              />
             </span>
 
             <span className="list-item-card__identity">

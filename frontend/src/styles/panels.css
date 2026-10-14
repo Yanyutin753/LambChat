@@ -464,3 +464,24 @@
 [data-panel] [data-batch-panel] .skill-panel-header {
   position: static;
 }
+
+/* Generated identities keep their colors while fitting the surrounding theme. */
+.dark .agent-avatar__artwork {
+  filter: brightness(0.88) saturate(0.9);
+}
+
+[data-panel] .panel-card,
+[data-panel] .panel-card:hover {
+  box-shadow: none;
+  border: 1px solid var(--theme-border);
+  padding: 0.75rem;
+}
+
+@container panel (max-width: 639px) {
+  [data-panel] .panel-list-view {
+    gap: var(--panel-gap);
+  }
+  [data-panel] .resource-detail-card {
+    padding: 0.75rem;
+  }
+}

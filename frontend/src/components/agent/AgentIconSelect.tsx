@@ -1,28 +1,10 @@
 import { DialogCloseButton } from "../common/DialogCloseButton";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AvatarChoices } from "../common/AvatarChoices";
 import { AgentIcon } from "./AgentIcon";
 import { ModalSurface } from "../common/ModalSurface";
 import { Button } from "../common";
-
-const AGENT_ICON_EMOJIS: { emoji: string; labelKey: string }[] = [
-  { emoji: "✨", labelKey: "personaPresets.emojiSparkles" },
-  { emoji: "🤖", labelKey: "personaPresets.emojiRobot" },
-  { emoji: "🎓", labelKey: "personaPresets.emojiAcademic" },
-  { emoji: "💻", labelKey: "personaPresets.emojiCoding" },
-  { emoji: "✍️", labelKey: "personaPresets.emojiWriting" },
-  { emoji: "🛡️", labelKey: "personaPresets.emojiSecurity" },
-  { emoji: "📊", labelKey: "personaPresets.emojiData" },
-  { emoji: "⚡", labelKey: "personaPresets.emojiProductivity" },
-  { emoji: "📦", labelKey: "personaPresets.emojiGeneral" },
-  { emoji: "🎨", labelKey: "personaPresets.emojiArt" },
-  { emoji: "🎵", labelKey: "personaPresets.emojiMusic" },
-  { emoji: "📚", labelKey: "personaPresets.emojiLiterature" },
-  { emoji: "🧠", labelKey: "personaPresets.emojiIntelligence" },
-  { emoji: "🔬", labelKey: "personaPresets.emojiScience" },
-  { emoji: "💬", labelKey: "personaPresets.emojiChat" },
-  { emoji: "🌟", labelKey: "personaPresets.emojiStar" },
-];
 
 interface AgentIconSelectProps {
   value: string;
@@ -36,7 +18,7 @@ export const AgentIconSelect = React.memo(function AgentIconSelect({
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const icon = value.trim();
-  const selectedIcon = !icon || icon === "Bot" ? "🤖" : icon;
+  const selectedIcon = icon === "Bot" ? "" : icon;
 
   return (
     <>
@@ -65,23 +47,13 @@ export const AgentIconSelect = React.memo(function AgentIconSelect({
             </h2>
             <DialogCloseButton onClick={() => setOpen(false)} />
           </div>
-          <div className="grid grid-cols-4 gap-2">
-            {AGENT_ICON_EMOJIS.map((item) => (
-              <Button
-                key={item.emoji}
-                variant={selectedIcon === item.emoji ? "secondary" : "ghost"}
-                size="lg"
-                aria-label={t(item.labelKey)}
-                aria-pressed={selectedIcon === item.emoji}
-                onClick={() => {
-                  onChange(item.emoji);
-                  setOpen(false);
-                }}
-              >
-                <AgentIcon icon={item.emoji} size={24} />
-              </Button>
-            ))}
-          </div>
+          <AvatarChoices
+            value={selectedIcon}
+            onChange={(avatar) => {
+              onChange(avatar);
+              setOpen(false);
+            }}
+          />
         </div>
       </ModalSurface>
     </>

@@ -69,6 +69,7 @@
     "@uiw/react-codemirror": "^4.25.11",
     "@upsetjs/venn.js": "^2.0.0",
     "@xyflow/react": "^12.11.5",
+    "boring-avatars": "^2.0.4",
     "buffer": "^6.0.3",
     "clsx": "^2.1.1",
     "docx-preview": "^0.3.7",

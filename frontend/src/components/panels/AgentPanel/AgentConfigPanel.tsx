@@ -306,15 +306,9 @@ export function AgentConfigPanel() {
                     return (
                       <div
                         key={agent.id}
-                        className="flex items-center gap-3.5 glass-card rounded-xl p-4 transition-all duration-200 hover:shadow-[var(--glass-shadow-hover)]"
+                        className="resource-detail-card flex items-center gap-3.5 glass-card rounded-xl p-4 transition-all duration-200 hover:shadow-[var(--glass-shadow-hover)]"
                       >
-                        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[var(--glass-bg-subtle)] ring-1 ring-[var(--glass-border)] shadow-sm">
-                          <AgentIcon
-                            icon={agent.icon || "Bot"}
-                            size={20}
-                            className="text-stone-600 dark:text-stone-400"
-                          />
-                        </div>
+                        <AgentIcon icon={agent.icon} seed={agent.id} size={44} />
                         <div className="min-w-0 flex-1">
                           <h4 className="text-14 font-semibold text-stone-900 dark:text-stone-100 truncate tracking-tight font-serif">
                             {displayName}

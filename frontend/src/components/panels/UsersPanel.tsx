@@ -50,7 +50,7 @@ function UserAvatar({ user, size = "sm" }: UserAvatarProps) {
   const initial = user.username.charAt(0).toUpperCase();
   const fallback = (
     <div
-      className={`flex items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-medium ${sizeClasses}`}
+      className={`flex items-center justify-center rounded-full bg-theme-bg-subtle text-theme-text-secondary font-medium ${sizeClasses}`}
     >
       {initial}
     </div>
@@ -59,14 +59,17 @@ function UserAvatar({ user, size = "sm" }: UserAvatarProps) {
   if (!user.avatar_url) return fallback;
 
   return (
-    <ImageWithSkeleton
-      src={getFullUrl(user.avatar_url) ?? user.avatar_url}
-      alt={user.username}
-      skipUrlResolve
-      inline
-      className={`rounded-full object-cover ${sizeClasses}`}
-      errorFallback={fallback}
-    />
+    <div className={`shrink-0 overflow-hidden rounded-full ${sizeClasses}`}>
+      <ImageWithSkeleton
+        src={getFullUrl(user.avatar_url) ?? user.avatar_url}
+        alt={user.username}
+        skipUrlResolve
+        inline
+        aspectRatio="1 / 1"
+        className="h-full w-full rounded-full"
+        errorFallback={fallback}
+      />
+    </div>
   );
 }
 
@@ -633,7 +636,7 @@ export function UsersPanel() {
                   </div>
 
                   {/* Roles tags */}
-                  <div className="mt-3 flex flex-wrap gap-1">
+                  <div className="mt-2 flex flex-wrap gap-1">
                     {user.roles.map((roleName: string) => (
                       <span
                         key={roleName}
@@ -646,7 +649,7 @@ export function UsersPanel() {
                   </div>
 
                   {/* Status and date */}
-                  <div className="mt-3 flex items-center justify-between">
+                  <div className="mt-2 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       {user.is_active ? (
                         <span className="tag tag-success">

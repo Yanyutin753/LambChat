@@ -127,6 +127,9 @@ importers:
       '@xyflow/react':
         specifier: ^12.11.5
         version: 12.11.5(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(immer@11.1.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      boring-avatars:
+        specifier: ^2.0.4
+        version: 2.0.4(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       buffer:
         specifier: ^6.0.3
         version: 6.0.3
@@ -3860,6 +3863,12 @@ packages:
 
   bluebird@3.4.7:
     resolution: {integrity: sha512-iD3898SR7sWVRHbiQv+sHUtHnMvC1o3nW5rAcqnq3uOn07DSAppZYUkIGslDz6gXC7HfunPe7YVBgoEJASPcHA==}
+
+  boring-avatars@2.0.4:
+    resolution: {integrity: sha512-xhZO/w/6aFmRfkaWohcl2NfyIy87gK5SBbys8kctZeTGF1Apjpv/10pfUuv+YEfVPkESU/h2Y6tt/Dwp+bIZPw==}
+    peerDependencies:
+      react: '>=18.0.0'
+      react-dom: '>=18.0.0'
 
   bplist-parser@0.3.2:
     resolution: {integrity: sha512-apC2+fspHGI3mMKj+dGevkGo/tCqVB8jMb6i+OX+E29p0Iposz07fABkRIfVUPNd5A5VbuOz1bZbnmkKLYF+wQ==}
@@ -11786,6 +11795,11 @@ snapshots:
   blob-to-buffer@1.2.9: {}
 
   bluebird@3.4.7: {}
+
+  boring-avatars@2.0.4(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
+    dependencies:
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
 
   bplist-parser@0.3.2:
     dependencies:

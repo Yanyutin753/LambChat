@@ -73,7 +73,7 @@ const RichChatComposer = lazy(async () => {
 export type { ChatInputProps } from "./chatInputTypes";
 export const ChatInput = memo(function ChatInput({
   onSend,
-  onStop, onContinueInBackground,
+  onStop,
   onSupplement,
   onQueueFollowUp,
   steerMessages = [],
@@ -364,6 +364,7 @@ export const ChatInput = memo(function ChatInput({
     if (!preset) return null;
     return {
       avatar: preset.avatar ?? undefined,
+      seed: preset.id || preset.name,
       primaryTag: preset.tags[0] || "",
     };
   }, [selectedPersonaPresetId, personaPresets]);
@@ -917,7 +918,7 @@ export const ChatInput = memo(function ChatInput({
                   agentOptions={agentOptions}
                   agentOptionValues={agentOptionValues}
                   onToggleAgentOption={onToggleAgentOption}
-                  onStopClick={() => setStopConfirmOpen(true)} onContinueInBackground={onContinueInBackground}
+                  onStopClick={() => setStopConfirmOpen(true)}
                   onNoPermissionClick={() => setContactAdminOpen(true)}
                   autoModeEnabled={autoModeEnabled}
                   goalModeEnabled={goalModeEnabled}

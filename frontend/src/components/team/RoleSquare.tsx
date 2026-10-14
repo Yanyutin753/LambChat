@@ -4,15 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { PersonaPreset } from "../../types";
 import { nameToGradient } from "../common/cardUtils";
 import { PanelSearchInput } from "../common/PanelSearchInput";
-import {
-  PersonaAvatarIcon,
-  PersonaAvatarImage,
-} from "../persona/PersonaAvatarIcon";
-import {
-  getEmojiAvatarUrl,
-  isEmojiAvatar,
-  isPersonaImageAvatar,
-} from "../persona/personaAvatar";
+import { AgentAvatar } from "../common/AgentAvatar";
 
 interface RoleSquareProps {
   presets: PersonaPreset[];
@@ -23,34 +15,7 @@ interface RoleSquareProps {
 }
 
 function renderAvatar(preset: PersonaPreset) {
-  if (isPersonaImageAvatar(preset.avatar) || isEmojiAvatar(preset.avatar)) {
-    return (
-      <div
-        className="scb__avatar-ring shrink-0"
-        style={{ width: 28, height: 28 }}
-      >
-        <PersonaAvatarImage
-          avatar={
-            isEmojiAvatar(preset.avatar)
-              ? getEmojiAvatarUrl(preset.avatar)
-              : preset.avatar
-          }
-          alt=""
-          className="scb__avatar-img"
-        />
-      </div>
-    );
-  }
-  return (
-    <div className="scb__icon-ring shrink-0" style={{ width: 28, height: 28 }}>
-      <PersonaAvatarIcon
-        avatar={preset.avatar}
-        primaryTag={preset.tags[0]}
-        size={16}
-        className="text-[var(--theme-primary)]"
-      />
-    </div>
-  );
+  return <AgentAvatar avatar={preset.avatar} seed={preset.id || preset.name} size={28} iconSize={16} />;
 }
 
 export function RoleSquare({

@@ -10,6 +10,7 @@ import {
 import { MoreHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ResourceCardMenu, type ResourceCardAction } from "./ResourceCardMenu";
+import { AgentAvatar } from "./AgentAvatar";
 import { Checkbox } from "./Checkbox";
 import { restoreOpenerFocusUnclaimed } from "../../utils/modalDialog";
 
@@ -43,7 +44,7 @@ export function SkillBaseCard({
   title,
   actions = [],
   style,
-  iconClassName = "scb__icon-ring",
+  iconClassName,
   description,
   descriptionMaxLines = 2,
   gradient,
@@ -128,7 +129,7 @@ export function SkillBaseCard({
           e.currentTarget.click();
         }
       }}
-      className={`scb relative group flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none dark:border dark:border-[var(--theme-border)] ${
+      className={`scb relative group flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] dark:border dark:border-[var(--theme-border)] ${
         muted ? "scb--muted" : ""
       } ${
         selected
@@ -229,10 +230,15 @@ export function SkillBaseCard({
       )}
 
       <div
-        className={`flex flex-1 flex-col p-3.5 ${gradient ? "-mt-3 pt-4" : ""}`}
+        className={`scb__body flex flex-1 flex-col p-3 ${gradient ? "-mt-3 pt-4" : ""}`}
       >
-        <div className="flex items-start gap-2.5">
-          {icon && <div className={`${iconClassName} shrink-0`}>{icon}</div>}
+        <div className="scb__header flex items-center gap-2">
+          {icon &&
+            (iconClassName === "" ? (
+              icon
+            ) : (
+              <AgentAvatar seed={title} size={36} className={iconClassName} />
+            ))}
           <div className="min-w-0 flex-1">
             <h3
               title={title}
@@ -253,25 +259,25 @@ export function SkillBaseCard({
                 title
               )}
             </h3>
-            {statusPills}
+            {statusPills && <div className="scb__status">{statusPills}</div>}
           </div>
         </div>
 
         {description && (
           <p
-            className={`mt-2.5 text-13 leading-relaxed text-[var(--theme-text-secondary)] ${lineClamp}`}
+            className={`scb__description mt-2 text-13 leading-relaxed text-[var(--theme-text-secondary)] ${lineClamp}`}
           >
             {description}
           </p>
         )}
 
-        {tags && <div className="mt-2.5">{tags}</div>}
+        {tags && <div className="mt-2">{tags}</div>}
 
-        {extraContent && <div className="mt-2.5">{extraContent}</div>}
+        {extraContent && <div className="mt-2">{extraContent}</div>}
 
         <div className="flex-1" />
 
-        {meta && <div className="mt-3">{meta}</div>}
+        {meta && <div className="mt-2">{meta}</div>}
 
         {(footer || actions.length > 0) && (
           <div className="scb__footer flex items-center gap-2">

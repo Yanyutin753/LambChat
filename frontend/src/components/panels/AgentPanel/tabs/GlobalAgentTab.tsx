@@ -124,9 +124,7 @@ export function GlobalAgentTab({
                   aria-label={displayName}
                   className="flex min-h-11 min-w-0 flex-1 items-center gap-3.5 rounded-lg text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-ring)]"
                 >
-                  <div className="flex size-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[var(--glass-bg-subtle)] text-theme-text-secondary ring-1 ring-[var(--glass-border)] transition-all duration-200 group-hover:bg-[var(--glass-bg-hover)]">
-                    <AgentIcon icon={agent.icon || "Bot"} size={20} />
-                  </div>
+                  <AgentIcon icon={agent.icon} seed={agent.id} size={40} />
                   <div className="min-w-0 flex-1">
                     <h4 className="truncate text-14 font-medium tracking-tight text-theme-text">
                       {displayName}
@@ -183,7 +181,7 @@ export function GlobalAgentTab({
           open={!!editingAgent}
           onClose={() => setEditingAgentId(null)}
           title={resolveAgentDisplayName(editingAgent, i18n.language, t)}
-          icon={<AgentIcon icon={editingAgent.icon || "Bot"} size={18} />}
+          icon={<AgentIcon icon={editingAgent.icon} seed={editingAgent.id} size={18} />}
           footer={
             hasChanges ? (
               <div className="space-y-2">

@@ -119,17 +119,7 @@ export function AgentModeSelector({
                 setOpen(false);
               }}
             >
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 bg-white dark:bg-stone-700 shadow-sm border border-stone-100 dark:border-stone-600 overflow-hidden">
-                <AgentIcon
-                  icon={agent.icon || "Bot"}
-                  size={24}
-                  className={`sm:w-[26px] sm:h-[26px] ${
-                    isActive
-                      ? "text-amber-600 dark:text-amber-400"
-                      : "text-stone-500 dark:text-stone-400"
-                  }`}
-                />
-              </div>
+              <AgentIcon icon={agent.icon} seed={agent.id} size={36} />
               <div className="flex-1 min-w-0">
                 <span
                   className={`text-13 sm:text-14 font-medium font-serif truncate block ${
@@ -193,7 +183,7 @@ export function AgentModeSelector({
         aria-label={currentName || t("agent.selectMode")}
         aria-expanded={open}
       >
-        <AgentIcon icon={current?.icon || "Bot"} size={18} />
+        <AgentIcon icon={current?.icon} seed={current?.id} size={18} />
       </button>
 
       {open && (

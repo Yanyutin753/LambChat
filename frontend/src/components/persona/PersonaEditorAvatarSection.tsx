@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { X, Camera, Smile } from "lucide-react";
+import { X, Smile } from "lucide-react";
 import { uploadApi } from "../../services/api";
 import type { UploadHandle } from "../../services/api/upload";
 import { compressImageFile } from "../../utils/imageCompression";
-import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
 import { Button, IconButton } from "../common/ui";
 import { LoadingSpinner } from "../common/LoadingSpinner";
-import { isPersonaImageAvatar, isEmojiAvatar } from "./personaAvatar";
-import { getEmojiAssetUrl } from "../../utils/emojiAssets";
-import { PersonaAvatarIcon, PersonaAvatarImage } from "./PersonaAvatarIcon";
-import { AVATAR_EMOJIS } from "./PersonaEditorTypes";
+import { AgentAvatar } from "../common/AgentAvatar";
+import { AvatarChoices } from "../common/AvatarChoices";
 
 interface AvatarSectionProps {
   avatar: string;
@@ -96,32 +93,18 @@ export function AvatarSection({
       <button
         type="button"
         className="ppe-avatar-preview"
+        style={{ borderRadius: "50%" }}
         aria-label={avatarLabel}
         title={avatarLabel}
         disabled={isUploadingAvatar}
         onClick={() => avatarInputRef.current?.click()}
       >
-        {isEmojiAvatar(avatar) ? (
-          <PersonaAvatarImage
-            avatar={getEmojiAssetUrl(avatar, "3d")}
-            alt=""
-            className="ppe-avatar-img"
-          />
-        ) : isPersonaImageAvatar(avatar) ? (
-          <PersonaAvatarImage
-            avatar={avatar}
-            alt=""
-            className="ppe-avatar-img"
-          />
-        ) : (
-          <span className="ppe-avatar-placeholder">
-            {avatar ? (
-              <PersonaAvatarIcon avatar={avatar} size={20} />
-            ) : (
-              <Camera size={18} aria-hidden="true" />
-            )}
-          </span>
-        )}
+        <AgentAvatar
+          avatar={avatar}
+          size="100%"
+          iconSize={28}
+          className="ppe-avatar-img"
+        />
         {isUploadingAvatar && (
           <span className="ppe-avatar-uploading" role="status">
             <LoadingSpinner size="sm" />
@@ -173,7 +156,7 @@ export function AvatarSection({
         <div
           ref={iconPickerRef}
           id={pickerId}
-          className="ppe-icon-picker"
+          className="w-full max-w-xs rounded-[var(--radius-md)] bg-theme-bg-card p-2"
           role="group"
           aria-label={t("personaPresets.pickIcon")}
           onBlur={(event) => {
@@ -193,33 +176,12 @@ export function AvatarSection({
             iconTrigger()?.focus();
           }}
         >
-          {AVATAR_EMOJIS.map((item) => (
-            <button
-              key={item.emoji}
-              type="button"
-              className="ppe-icon-picker-item"
-              aria-label={t(item.labelKey)}
-              title={t(item.labelKey)}
-              aria-pressed={avatar === item.emoji}
-              onClick={() => {
-                setFailedFile(null);
-                onAvatarChange(item.emoji);
-                setIconPickerOpen(false);
-                iconTrigger()?.focus();
-              }}
-            >
-              <span className="relative inline-flex size-5">
-                <ImageWithSkeleton
-                  src={getEmojiAssetUrl(item.emoji, "3d")}
-                  alt=""
-                  skipUrlResolve
-                  inline
-                  className="rounded-md"
-                  style={{ width: 20, height: 20, objectFit: "contain" }}
-                />
-              </span>
-            </button>
-          ))}
+          <AvatarChoices value={avatar} onChange={(value) => {
+            setFailedFile(null);
+            onAvatarChange(value);
+            setIconPickerOpen(false);
+            iconTrigger()?.focus();
+          }} />
         </div>
       )}
       {failedFile && (

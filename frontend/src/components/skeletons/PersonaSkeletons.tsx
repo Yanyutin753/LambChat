@@ -44,8 +44,8 @@ export function PersonaPlazaSkeleton() {
                 </div>
               </div>
               {/* Card body */}
-              <div className="flex flex-1 flex-col p-4 pt-5">
-                <div className="flex items-start gap-3">
+              <div className="scb__body flex flex-1 flex-col p-3 -mt-3 pt-4">
+                <div className="scb__header flex items-center gap-2">
                   <div className="scb__icon-ring shrink-0 skeleton-line" />
                   <div className="min-w-0 flex-1">
                     {/* Title — entity name (PersonaPresetCard: font-semibold font-serif) */}
@@ -56,11 +56,11 @@ export function PersonaPlazaSkeleton() {
                     {/* Metadata line — scope, status, usage count */}
                     <SkeletonLine
                       width="w-3/5"
-                      className="!h-2.5 mt-1 !opacity-50"
+                      className="!h-2.5 mt-0.5 !opacity-50"
                     />
                   </div>
                 </div>
-                <div className="mt-3 min-h-[3.25em] space-y-1.5">
+                <div className="mt-2 space-y-1.5">
                   <SkeletonLine width="w-full" className="!h-3" />
                   <SkeletonLine
                     width={i % 2 === 0 ? "w-5/6" : "w-2/3"}
@@ -68,7 +68,7 @@ export function PersonaPlazaSkeleton() {
                   />
                 </div>
                 {/* Tags */}
-                <div className="mt-3 flex flex-wrap gap-1.5">
+                <div className="mt-2 flex flex-wrap gap-1.5">
                   <SkeletonLine width="w-14" className="!h-5 !rounded-full" />
                   <SkeletonLine width="w-10" className="!h-5 !rounded-full" />
                   <SkeletonLine width="w-16" className="!h-5 !rounded-full" />
